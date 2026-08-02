@@ -11,7 +11,7 @@ namespace {
 Base::Result<AnimationTime> ParseClockTime(
     Base::StringView input) noexcept {
     const Base::StringView text =
-        Core::ValueConversion::Trim(input);
+        ::Aero::Base::Detail::ValueConversion::Trim(input);
     if (text.Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
@@ -70,10 +70,10 @@ Base::Result<AnimationTime> ParseClockTime(
                 end,
                 static_cast<std::uint32_t>(
                     owned.CStr() + owned.SizeBytes() - end));
-            if (Core::ValueConversion::EqualsAsciiInsensitive(
+            if (::Aero::Base::Detail::ValueConversion::EqualsAsciiInsensitive(
                     suffix, "ms")) {
                 multiplier = 0.001;
-            } else if (!Core::ValueConversion::EqualsAsciiInsensitive(
+            } else if (!::Aero::Base::Detail::ValueConversion::EqualsAsciiInsensitive(
                            suffix, "s")) {
                 return Base::Status::Failure(
                     Base::ErrorCode::ValidationFailed,
@@ -104,272 +104,248 @@ Base::Result<void> ValidateNonNegative(
 
 } // namespace
 
-Base::Result<void> Timeline::SetBeginTime(
+void Timeline::SetBeginTime(
     Base::StringView value) noexcept {
     Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
-    if (!parsed) return parsed.GetStatus();
+    if (!parsed) return;
     Base::Result<void> assigned = beginTimeText_.TryAssign(value);
-    if (!assigned) return assigned.GetStatus();
+    if (!assigned) return;
     beginTimeMicroseconds_ = parsed.Value();
-    return {};
+    return;
 }
 
-Base::Result<void> Timeline::SetDuration(
+void Timeline::SetDuration(
     Base::StringView value) noexcept {
     Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
-    if (!parsed) return parsed.GetStatus();
+    if (!parsed) return;
     Base::Result<void> assigned = durationText_.TryAssign(value);
-    if (!assigned) return assigned.GetStatus();
+    if (!assigned) return;
     durationMicroseconds_ = parsed.Value();
-    return {};
+    return;
 }
 
-Base::Result<void> Timeline::SetRepeatBehavior(
+void Timeline::SetRepeatBehavior(
     Base::StringView value) noexcept {
     const Base::StringView trimmed =
-        Core::ValueConversion::Trim(value);
+        ::Aero::Base::Detail::ValueConversion::Trim(value);
     double repeatCount = 1.0;
     bool repeatForever = false;
-    if (Core::ValueConversion::EqualsAsciiInsensitive(
+    if (::Aero::Base::Detail::ValueConversion::EqualsAsciiInsensitive(
             trimmed, "Forever")) {
         repeatForever = true;
     } else {
         Base::Result<double> count =
-            Core::ValueConversion::ParseDouble(trimmed);
+            ::Aero::Base::Detail::ValueConversion::ParseDouble(trimmed);
         if (!count || count.Value() <= 0.0) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "RepeatBehavior must be Forever or a positive count");
+            return;
         }
         repeatCount = count.Value();
     }
     Base::Result<void> assigned =
         repeatBehaviorText_.TryAssign(value);
-    if (!assigned) return assigned.GetStatus();
+    if (!assigned) return;
     repeatCount_ = repeatCount;
     repeatForever_ = repeatForever;
-    return {};
+    return;
 }
 
-Base::Result<void> Timeline::SetSpeedRatio(double value) noexcept {
+void Timeline::SetSpeedRatio(double value) noexcept {
     if (!std::isfinite(value) || value <= 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "Timeline SpeedRatio must be positive");
+        return;
     }
     speedRatio_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> Timeline::SetAutoReverse(bool value) noexcept {
+void Timeline::SetAutoReverse(bool value) noexcept {
     autoReverse_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> Timeline::SetFillBehavior(
+void Timeline::SetFillBehavior(
     FillBehavior value) noexcept {
     fillBehavior_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> PowerEase::SetPower(double value) noexcept {
+void PowerEase::SetPower(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "PowerEase Power must be nonnegative");
-    if (!valid) return valid.GetStatus();
+    if (!valid) return;
     SetPowerValue(value);
-    return {};
+    return;
 }
 
-Base::Result<void> ExponentialEase::SetExponent(
+void ExponentialEase::SetExponent(
     double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "ExponentialEase Exponent must be nonnegative");
-    if (!valid) return valid.GetStatus();
+    if (!valid) return;
     SetPowerValue(value);
-    return {};
+    return;
 }
 
-Base::Result<void> BackEase::SetAmplitude(double value) noexcept {
+void BackEase::SetAmplitude(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "BackEase Amplitude must be nonnegative");
-    if (!valid) return valid.GetStatus();
+    if (!valid) return;
     SetAmplitudeValue(value);
-    return {};
+    return;
 }
 
-Base::Result<void> BounceEase::SetBounces(double value) noexcept {
+void BounceEase::SetBounces(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "BounceEase Bounces must be nonnegative");
-    if (!valid) return valid.GetStatus();
+    if (!valid) return;
     SetOscillationsValue(value);
-    return {};
+    return;
 }
 
-Base::Result<void> BounceEase::SetBounciness(double value) noexcept {
+void BounceEase::SetBounciness(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "BounceEase Bounciness must be nonnegative");
-    if (!valid) return valid.GetStatus();
+    if (!valid) return;
     SetSpringinessValue(value);
-    return {};
+    return;
 }
 
-Base::Result<void> ElasticEase::SetOscillations(double value) noexcept {
+void ElasticEase::SetOscillations(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "ElasticEase Oscillations must be nonnegative");
-    if (!valid) return valid.GetStatus();
+    if (!valid) return;
     SetOscillationsValue(value);
-    return {};
+    return;
 }
 
-Base::Result<void> ElasticEase::SetSpringiness(double value) noexcept {
+void ElasticEase::SetSpringiness(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "ElasticEase Springiness must be nonnegative");
-    if (!valid) return valid.GetStatus();
+    if (!valid) return;
     SetSpringinessValue(value);
-    return {};
+    return;
 }
 
-Base::Result<void> DoubleAnimation::SetFrom(double value) noexcept {
+void DoubleAnimation::SetFrom(double value) noexcept {
     if (!std::isfinite(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "DoubleAnimation From must be finite");
+        return;
     }
     from_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> DoubleAnimation::SetTo(double value) noexcept {
+void DoubleAnimation::SetTo(double value) noexcept {
     if (!std::isfinite(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "DoubleAnimation To must be finite");
+        return;
     }
     to_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> DoubleAnimation::SetAccelerationRatio(
+void DoubleAnimation::SetAccelerationRatio(
     double value) noexcept {
     if (!std::isfinite(value) || value < 0.0 || value > 1.0 ||
         value + decelerationRatio_ > 1.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "DoubleAnimation AccelerationRatio must be in [0, 1] and the ratios must not exceed 1");
+        return;
     }
     accelerationRatio_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> DoubleAnimation::SetDecelerationRatio(
+void DoubleAnimation::SetDecelerationRatio(
     double value) noexcept {
     if (!std::isfinite(value) || value < 0.0 || value > 1.0 ||
         accelerationRatio_ + value > 1.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "DoubleAnimation DecelerationRatio must be in [0, 1] and the ratios must not exceed 1");
+        return;
     }
     decelerationRatio_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> DoubleAnimation::SetEasingFunction(
+void DoubleAnimation::SetEasingFunction(
     Base::Ref<EasingFunctionBase> value) noexcept {
     easing_ = std::move(value);
-    return {};
+    return;
 }
 
 
-Base::Result<void> ColorAnimation::SetFrom(
+void ColorAnimation::SetFrom(
     Base::Color value) noexcept {
     if (!Base::IsFiniteColor(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "ColorAnimation From must be finite");
+        return;
     }
     from_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> ColorAnimation::SetTo(
+void ColorAnimation::SetTo(
     Base::Color value) noexcept {
     if (!Base::IsFiniteColor(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "ColorAnimation To must be finite");
+        return;
     }
     to_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> ColorAnimation::SetEasingFunction(
+void ColorAnimation::SetEasingFunction(
     Base::Ref<EasingFunctionBase> value) noexcept {
     easing_ = std::move(value);
-    return {};
+    return;
 }
 
 
-Base::Result<void> PointAnimation::SetFrom(
+void PointAnimation::SetFrom(
     Base::Point value) noexcept {
     if (!std::isfinite(value.x) ||
         !std::isfinite(value.y)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "PointAnimation From must be finite");
+        return;
     }
     from_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> PointAnimation::SetTo(
+void PointAnimation::SetTo(
     Base::Point value) noexcept {
     if (!std::isfinite(value.x) ||
         !std::isfinite(value.y)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "PointAnimation To must be finite");
+        return;
     }
     to_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void>
+void
 PointAnimation::SetEasingFunction(
     Base::Ref<EasingFunctionBase>
         value) noexcept {
     easing_ = std::move(value);
-    return {};
+    return;
 }
 
 
-Base::Result<void> RectAnimation::SetFrom(
+void RectAnimation::SetFrom(
     Base::Rect value) noexcept {
     if (!Base::IsFiniteRect(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "RectAnimation From must be finite");
+        return;
     }
     from_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> RectAnimation::SetTo(
+void RectAnimation::SetTo(
     Base::Rect value) noexcept {
     if (!Base::IsFiniteRect(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "RectAnimation To must be finite");
+        return;
     }
     to_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> RectAnimation::SetEasingFunction(
+void RectAnimation::SetEasingFunction(
     Base::Ref<EasingFunctionBase> value) noexcept {
     easing_ = std::move(value);
-    return {};
+    return;
 }
 
 
@@ -385,68 +361,62 @@ bool IsFiniteThickness(
 
 } // namespace
 
-Base::Result<void> ThicknessAnimation::SetFrom(
+void ThicknessAnimation::SetFrom(
     Base::Thickness value) noexcept {
     if (!IsFiniteThickness(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "ThicknessAnimation From must be finite");
+        return;
     }
     from_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> ThicknessAnimation::SetTo(
+void ThicknessAnimation::SetTo(
     Base::Thickness value) noexcept {
     if (!IsFiniteThickness(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "ThicknessAnimation To must be finite");
+        return;
     }
     to_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void>
+void
 ThicknessAnimation::SetEasingFunction(
     Base::Ref<EasingFunctionBase> value) noexcept {
     easing_ = std::move(value);
-    return {};
+    return;
 }
 
 
-Base::Result<void> DoubleKeyFrame::SetValue(double value) noexcept {
+void DoubleKeyFrame::SetValue(double value) noexcept {
     if (!std::isfinite(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "Double key-frame value must be finite");
+        return;
     }
     value_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> DoubleKeyFrame::SetKeyTime(
+void DoubleKeyFrame::SetKeyTime(
     Base::StringView value) noexcept {
     Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
-    if (!parsed) return parsed.GetStatus();
+    if (!parsed) return;
     Base::Result<void> assigned = keyTimeText_.TryAssign(value);
-    if (!assigned) return assigned.GetStatus();
+    if (!assigned) return;
     keyTimeMicroseconds_ = parsed.Value();
-    return {};
+    return;
 }
 
-Base::Result<void> EasingDoubleKeyFrame::SetEasingFunction(
+void EasingDoubleKeyFrame::SetEasingFunction(
     Base::Ref<EasingFunctionBase> value) noexcept {
     easing_ = std::move(value);
-    return {};
+    return;
 }
 
-Base::Result<void> SplineDoubleKeyFrame::SetKeySpline(
+void SplineDoubleKeyFrame::SetKeySpline(
     Base::StringView value) noexcept {
     Base::String owned;
     Base::Result<void> assigned = owned.TryAssign(value);
-    if (!assigned) return assigned.GetStatus();
+    if (!assigned) return;
     const char* cursor = owned.CStr();
     double values[4]{};
     for (std::uint32_t index = 0U; index < 4U; ++index) {
@@ -454,23 +424,19 @@ Base::Result<void> SplineDoubleKeyFrame::SetKeySpline(
         char* end = nullptr;
         values[index] = std::strtod(cursor, &end);
         if (end == cursor || !std::isfinite(values[index])) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "KeySpline requires four finite coordinates");
+            return;
         }
         cursor = end;
     }
     while (*cursor == ' ' || *cursor == ',') ++cursor;
     if (*cursor != '\0') {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "KeySpline contains trailing text");
+        return;
     }
     assigned = keySpline_.TryAssign(value);
-    if (!assigned) return assigned.GetStatus();
+    if (!assigned) return;
     SetSplineControlPoints(
         values[0], values[1], values[2], values[3]);
-    return {};
+    return;
 }
 
 Base::Result<void>
@@ -484,40 +450,38 @@ DoubleAnimationUsingKeyFrames::TryAddKeyFrame(
     return keyFrames_.TryPushBack(std::move(value));
 }
 
-Base::Result<void>
+void
 DoubleAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
     keyFrames_.Clear();
-    return {};
+    return;
 }
 
-Base::Result<void> ThicknessKeyFrame::SetValue(
+void ThicknessKeyFrame::SetValue(
     Base::Thickness value) noexcept {
     if (!IsFiniteThickness(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "Thickness key-frame value must be finite");
+        return;
     }
     value_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> ThicknessKeyFrame::SetKeyTime(
+void ThicknessKeyFrame::SetKeyTime(
     Base::StringView value) noexcept {
     Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
-    if (!parsed) return parsed.GetStatus();
+    if (!parsed) return;
     Base::Result<void> assigned =
         keyTimeText_.TryAssign(value);
-    if (!assigned) return assigned.GetStatus();
+    if (!assigned) return;
     keyTimeMicroseconds_ = parsed.Value();
-    return {};
+    return;
 }
 
-Base::Result<void>
+void
 EasingThicknessKeyFrame::SetEasingFunction(
     Base::Ref<EasingFunctionBase> value) noexcept {
     easing_ = std::move(value);
-    return {};
+    return;
 }
 
 Base::Result<void>
@@ -532,49 +496,47 @@ ThicknessAnimationUsingKeyFrames::TryAddKeyFrame(
         std::move(value));
 }
 
-Base::Result<void>
+void
 ThicknessAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
     keyFrames_.Clear();
-    return {};
+    return;
 }
 
-Base::Result<void> ColorKeyFrame::SetValue(
+void ColorKeyFrame::SetValue(
     Base::Color value) noexcept {
     if (!Base::IsFiniteColor(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "Color key-frame value must be finite");
+        return;
     }
     value_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> ColorKeyFrame::SetKeyTime(
+void ColorKeyFrame::SetKeyTime(
     Base::StringView value) noexcept {
     Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
-    if (!parsed) return parsed.GetStatus();
+    if (!parsed) return;
     Base::Result<void> assigned =
         keyTimeText_.TryAssign(value);
-    if (!assigned) return assigned.GetStatus();
+    if (!assigned) return;
     keyTimeMicroseconds_ = parsed.Value();
-    return {};
+    return;
 }
 
-Base::Result<void>
+void
 EasingColorKeyFrame::SetEasingFunction(
     Base::Ref<EasingFunctionBase> value) noexcept {
     easing_ = std::move(value);
-    return {};
+    return;
 }
 
-Base::Result<void>
+void
 SplineColorKeyFrame::SetKeySpline(
     Base::StringView value) noexcept {
     Base::String owned;
     Base::Result<void> assigned =
         owned.TryAssign(value);
-    if (!assigned) return assigned.GetStatus();
+    if (!assigned) return;
     const char* cursor = owned.CStr();
     double values[4]{};
     for (std::uint32_t index = 0U;
@@ -587,9 +549,7 @@ SplineColorKeyFrame::SetKeySpline(
         values[index] = std::strtod(cursor, &end);
         if (end == cursor ||
             !std::isfinite(values[index])) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "KeySpline requires four finite coordinates");
+            return;
         }
         cursor = end;
     }
@@ -597,15 +557,13 @@ SplineColorKeyFrame::SetKeySpline(
         ++cursor;
     }
     if (*cursor != '\0') {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "KeySpline contains trailing text");
+        return;
     }
     assigned = keySpline_.TryAssign(value);
-    if (!assigned) return assigned.GetStatus();
+    if (!assigned) return;
     SetSplineControlPoints(
         values[0], values[1], values[2], values[3]);
-    return {};
+    return;
 }
 
 Base::Result<void>
@@ -620,32 +578,30 @@ ColorAnimationUsingKeyFrames::TryAddKeyFrame(
         std::move(value));
 }
 
-Base::Result<void>
+void
 ColorAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
     keyFrames_.Clear();
-    return {};
+    return;
 }
 
-Base::Result<void> DiscreteObjectKeyFrame::SetValue(
-    const Core::PropertyValue& value) noexcept {
+void DiscreteObjectKeyFrame::SetValue(
+    const Meta::PropertyValue& value) noexcept {
     if (value.IsUnset()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "Object key-frame value cannot be unset");
+        return;
     }
     value_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> DiscreteObjectKeyFrame::SetKeyTime(
+void DiscreteObjectKeyFrame::SetKeyTime(
     Base::StringView value) noexcept {
     Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
-    if (!parsed) return parsed.GetStatus();
+    if (!parsed) return;
     Base::Result<void> assigned = keyTimeText_.TryAssign(value);
-    if (!assigned) return assigned.GetStatus();
+    if (!assigned) return;
     keyTimeMicroseconds_ = parsed.Value();
-    return {};
+    return;
 }
 
 Base::Result<void>
@@ -659,21 +615,21 @@ ObjectAnimationUsingKeyFrames::TryAddKeyFrame(
     return keyFrames_.TryPushBack(std::move(value));
 }
 
-Base::Result<void>
+void
 ObjectAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
     keyFrames_.Clear();
-    return {};
+    return;
 }
 
-Base::Result<void> DiscreteBooleanKeyFrame::SetKeyTime(
+void DiscreteBooleanKeyFrame::SetKeyTime(
     Base::StringView value) noexcept {
     Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
-    if (!parsed) return parsed.GetStatus();
+    if (!parsed) return;
     Base::Result<void> assigned = keyTimeText_.TryAssign(value);
-    if (!assigned) return assigned.GetStatus();
+    if (!assigned) return;
     keyTimeMicroseconds_ = parsed.Value();
-    return {};
+    return;
 }
 
 Base::Result<void>
@@ -687,10 +643,10 @@ BooleanAnimationUsingKeyFrames::TryAddKeyFrame(
     return keyFrames_.TryPushBack(std::move(value));
 }
 
-Base::Result<void>
+void
 BooleanAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
     keyFrames_.Clear();
-    return {};
+    return;
 }
 
 Base::Result<void> Storyboard::TryAddTimeline(
@@ -703,100 +659,89 @@ Base::Result<void> Storyboard::TryAddTimeline(
     return timelines_.TryPushBack(std::move(value));
 }
 
-Base::Result<void> Storyboard::ClearTimelines() noexcept {
+void Storyboard::ClearTimelines() noexcept {
     timelines_.Clear();
-    return {};
+    return;
 }
 
-Base::Result<void> BeginStoryboard::SetStoryboard(
+void BeginStoryboard::SetStoryboard(
     Base::Ref<Storyboard> value) noexcept {
     storyboard_ = std::move(value);
-    return {};
+    return;
 }
 
-Base::Result<void> BeginStoryboard::SetName(
+void BeginStoryboard::SetName(
     Base::StringView value) noexcept {
-    return name_.TryAssign(
-        Core::ValueConversion::Trim(value));
+    return;
 }
 
-Base::Result<void> ChangePropertyAction::SetTargetName(
+void ChangePropertyAction::SetTargetName(
     Base::StringView value) noexcept {
-    return targetName_.TryAssign(
-        Core::ValueConversion::Trim(value));
+    return;
 }
 
-Base::Result<void> ChangePropertyAction::SetPropertyName(
+void ChangePropertyAction::SetPropertyName(
     Base::StringView value) noexcept {
     const Base::StringView trimmed =
-        Core::ValueConversion::Trim(value);
+        ::Aero::Base::Detail::ValueConversion::Trim(value);
     if (trimmed.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "ChangePropertyAction PropertyName cannot be empty");
+        return;
     }
-    return propertyName_.TryAssign(trimmed);
+    return;
 }
 
-Base::Result<void> ChangePropertyAction::SetValue(
-    const Core::PropertyValue& value) noexcept {
+void ChangePropertyAction::SetValue(
+    const Meta::PropertyValue& value) noexcept {
     if (value.IsUnset()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ChangePropertyAction Value cannot be unset");
+        return;
     }
     value_ = value;
-    return {};
+    return;
 }
 
-Base::Result<void> LaunchUriOrFileAction::SetPath(
+void LaunchUriOrFileAction::SetPath(
     Base::StringView value) noexcept {
-    return path_.TryAssign(Core::ValueConversion::Trim(value));
+    return;
 }
 
-Base::Result<void>
+void
 ControllableStoryboardAction::SetBeginStoryboardName(
     Base::StringView value) noexcept {
     const Base::StringView trimmed =
-        Core::ValueConversion::Trim(value);
+        ::Aero::Base::Detail::ValueConversion::Trim(value);
     if (trimmed.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "Storyboard action requires BeginStoryboardName");
+        return;
     }
-    return beginStoryboardName_.TryAssign(trimmed);
+    return;
 }
 
-Base::Result<void> SeekStoryboard::SetOffset(
+void SeekStoryboard::SetOffset(
     Base::StringView value) noexcept {
     const Base::StringView trimmed =
-        Core::ValueConversion::Trim(value);
+        ::Aero::Base::Detail::ValueConversion::Trim(value);
     Base::Result<AnimationTime> parsed =
         ParseClockTime(trimmed);
-    if (!parsed) return parsed.GetStatus();
+    if (!parsed) return;
     Base::Result<void> assigned =
         offsetText_.TryAssign(trimmed);
-    if (!assigned) return assigned.GetStatus();
+    if (!assigned) return;
     offsetMicroseconds_ = parsed.Value();
-    return {};
+    return;
 }
 
-Base::Result<void> EventTrigger::SetRoutedEvent(
+void EventTrigger::SetRoutedEvent(
     Base::StringView value) noexcept {
     const Base::StringView trimmed =
-        Core::ValueConversion::Trim(value);
+        ::Aero::Base::Detail::ValueConversion::Trim(value);
     if (trimmed.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "EventTrigger RoutedEvent cannot be empty");
+        return;
     }
-    return routedEvent_.TryAssign(trimmed);
+    return;
 }
 
-Base::Result<void> EventTrigger::SetSourceName(
+void EventTrigger::SetSourceName(
     Base::StringView value) noexcept {
-    return sourceName_.TryAssign(
-        Core::ValueConversion::Trim(value));
+    return;
 }
 
 Base::Result<void> EventTrigger::TryAddAction(
@@ -809,15 +754,15 @@ Base::Result<void> EventTrigger::TryAddAction(
     return actions_.TryPushBack(std::move(value));
 }
 
-Base::Result<void> EventTrigger::ClearActions() noexcept {
+void EventTrigger::ClearActions() noexcept {
     actions_.Clear();
-    return {};
+    return;
 }
 
-Base::Result<void> StoryboardCompletedTrigger::SetStoryboard(
+void StoryboardCompletedTrigger::SetStoryboard(
     Base::Ref<Storyboard> value) noexcept {
     storyboard_ = std::move(value);
-    return {};
+    return;
 }
 
 Base::Result<void> StoryboardCompletedTrigger::TryAddAction(
@@ -830,10 +775,10 @@ Base::Result<void> StoryboardCompletedTrigger::TryAddAction(
     return actions_.TryPushBack(std::move(value));
 }
 
-Base::Result<void>
+void
 StoryboardCompletedTrigger::ClearActions() noexcept {
     actions_.Clear();
-    return {};
+    return;
 }
 
 } // namespace Aero::Media::Animation

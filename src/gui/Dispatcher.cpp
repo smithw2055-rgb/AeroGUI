@@ -8,7 +8,7 @@
 #include <limits>
 #include <utility>
 
-namespace Aero::Core {
+namespace Aero::Threading {
 namespace {
 
 std::atomic<DispatcherThreadToken> gNextThreadToken{1U};
@@ -1045,4 +1045,4 @@ Dispatcher& DispatcherObject::GetDispatcher() const noexcept {
     return *dispatcher_;
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Threading

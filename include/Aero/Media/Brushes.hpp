@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Collections.hpp>
@@ -7,13 +7,19 @@
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Transforms.hpp>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 class BrushPrivate;
 }
 
 namespace Aero::Media {
 
-using namespace Aero::Core;
+using ::Aero::Meta::DependencyPropertyHandle;
+using ::Aero::Meta::DependencyPropertyRef;
+using ::Aero::Meta::DependencyPropertyChangedEventArgs;
+using ::Aero::Meta::DependencyPropertyChangedEventHandler;
+using ::Aero::Meta::PropertyInvalidationFlags;
+using ::Aero::Meta::TypeId;
+
 using Color = Base::Color;
 class GradientBrush;
 
@@ -35,32 +41,24 @@ enum class BrushMappingMode : std::uint8_t {
 class AERO_API Brush : public DependencyObject {
     AERO_DECLARE_TYPE(Brush, DependencyObject)
 public:
-    double Opacity() const noexcept;
-    FrameworkElement* Owner() const noexcept {
-        return owner_;
-    }
-    void SetOwner(FrameworkElement* owner) noexcept {
-        owner_ = owner;
-    }
-    Base::Result<void> SetOpacity(double value) noexcept;
-    Base::Ref<Base::Object> Shader() const noexcept {
+    double GetOpacity() const noexcept;
+    void SetOpacity(double value) noexcept;
+    Base::Ref<Base::Object> GetShader() const noexcept {
         return GetValueOr(
             ShaderProperty, Base::Ref<Base::Object>{});
     }
-    Base::Result<void> SetShader(
+    void SetShader(
         Base::Ref<Base::Object> value) noexcept {
-        return SetValue(ShaderProperty, std::move(value));
+        SetValue(ShaderProperty, std::move(value));
     }
-    Base::Ref<Transform> RelativeTransform() const noexcept {
+    Base::Ref<Transform> GetRelativeTransform() const noexcept {
         return GetValueOr(
             RelativeTransformProperty,
             Base::Ref<Transform>{});
     }
-    Base::Result<void> SetRelativeTransform(
+    void SetRelativeTransform(
         Base::Ref<Transform> value) noexcept {
-        return SetValue(
-            RelativeTransformProperty,
-            std::move(value));
+        SetValue(RelativeTransformProperty, std::move(value));
     }
 
     inline static constexpr Members::Property<double> OpacityProperty{"Opacity"};
@@ -71,11 +69,19 @@ protected:
     explicit Brush(TypeId runtimeType) noexcept
         : DependencyObject(runtimeType) {}
     ~Brush() override = default;
-    Base::Result<void> OnPropertyInvalidated(
+    void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
 
 private:
+    friend class ::Aero::Internal::BrushPrivate;
     FrameworkElement* owner_ = nullptr;
+
+    FrameworkElement* GetOwner() const noexcept {
+        return owner_;
+    }
+    void SetOwner(FrameworkElement* owner) noexcept {
+        owner_ = owner;
+    }
 };
 
 // Common owner for the WPF-style inheritable Foreground property.
@@ -94,7 +100,7 @@ public:
     ~SolidColorBrush() override = default;
 
     Color GetColor() const noexcept;
-    Base::Result<void> SetColor(Color value) noexcept;
+    void SetColor(Color value) noexcept;
 
     inline static constexpr Members::Property<Color> ColorProperty{"Color"};
 
@@ -109,23 +115,23 @@ public:
         : DependencyObject(StaticTypeId()) {}
     ~GradientStop() override = default;
 
-    double Offset() const noexcept;
+    double GetOffset() const noexcept;
     Color GetColor() const noexcept;
-    Base::Result<void> SetOffset(double value) noexcept;
-    Base::Result<void> SetColor(Color value) noexcept;
+    void SetOffset(double value) noexcept;
+    void SetColor(Color value) noexcept;
 
     inline static constexpr Members::Property<double> OffsetProperty{"Offset"};
     inline static constexpr Members::Property<Color> ColorProperty{"Color"};
 
-    void SetOwner(GradientBrush* owner) noexcept {
-        owner_ = owner;
-    }
-
 protected:
-    Base::Result<void> OnPropertyInvalidated(
+    void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
 
 private:
+    friend class GradientBrush;
+    void SetOwner(GradientBrush* owner) noexcept {
+        owner_ = owner;
+    }
     GradientBrush* owner_ = nullptr;
 };
 
@@ -143,13 +149,13 @@ public:
         return StaticTypeId();
     }
     Base::Span<const Base::Ref<GradientStop>>
-    Items() const noexcept {
+    GetItems() const noexcept {
         return stops_.AsSpan();
     }
-    std::uint32_t Count() const noexcept override {
+    std::uint32_t GetCount() const noexcept override {
         return stops_.Size();
     }
-    Base::Ref<Base::Object> ItemAt(
+    Base::Ref<Base::Object> GetItem(
         std::uint32_t index) const noexcept override {
         return index < stops_.Size()
             ? Base::Ref<Base::Object>(stops_[index])
@@ -163,7 +169,7 @@ public:
         const Collections::ItemsChangedHandler& handler) noexcept override {
         return changed_.Remove(handler);
     }
-    Base::Result<void> Add(
+    Base::Result<void> TryAdd(
         Base::Ref<GradientStop> stop) noexcept;
     void Clear() noexcept {
         const std::uint32_t count = stops_.Size();
@@ -179,41 +185,51 @@ private:
     Collections::ItemsChangedHandler changed_;
 };
 
-class AERO_API MonochromeBrush final : public Base::Object {
-    AERO_DECLARE_TYPE(MonochromeBrush, Base::Object)
+class AERO_API BrushShader : public Base::Object {
+    AERO_DECLARE_TYPE(BrushShader, Base::Object)
+public:
+    BrushShader() noexcept = default;
+    ~BrushShader() override = default;
+    TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+};
+
+class AERO_API MonochromeShader final : public BrushShader {
+    AERO_DECLARE_TYPE(MonochromeShader, BrushShader)
 public:
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Color ColorValue() const noexcept { return color_; }
-    Base::Result<void> SetColor(Color value) noexcept {
-        color_ = value; return {};
+    Color GetColor() const noexcept { return color_; }
+    void SetColor(Color value) noexcept {
+        color_ = value; return;
     }
 private:
     Color color_{};
 };
 
-class AERO_API ConicGradientBrush final : public Base::Object {
-    AERO_DECLARE_TYPE(ConicGradientBrush, Base::Object)
+class AERO_API ConicGradientShader final : public BrushShader {
+    AERO_DECLARE_TYPE(ConicGradientShader, BrushShader)
 public:
-    ConicGradientBrush() noexcept
+    ConicGradientShader() noexcept
         : stops_(&Base::GetDefaultAllocator()) {}
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Base::Result<void> AddGradientStop(Base::Ref<GradientStop> value) noexcept {
+    Base::Result<void> TryAddGradientStop(Base::Ref<GradientStop> value) noexcept {
         return value ? stops_.TryPushBack(std::move(value))
             : Base::Result<void>(Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument, "ConicGradientBrush stop is null"));
+                Base::ErrorCode::InvalidArgument, "ConicGradientShader stop is null"));
     }
     void ClearGradientStops() noexcept { stops_.Clear(); }
 private:
     Base::Vector<Base::Ref<GradientStop>> stops_;
 };
 
-class AERO_API WavesBrush final : public Base::Object {
-    AERO_DECLARE_TYPE(WavesBrush, Base::Object)
+class AERO_API WavesShader final : public BrushShader {
+    AERO_DECLARE_TYPE(WavesShader, BrushShader)
 public:
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    double Time() const noexcept { return time_; }
-    Base::Result<void> SetTime(double value) noexcept {
-        time_ = value; return {};
+    double GetTime() const noexcept { return time_; }
+    void SetTime(double value) noexcept {
+        time_ = value; return;
     }
 private:
     double time_ = 0.0;
@@ -223,15 +239,14 @@ class AERO_API GradientBrush : public Brush {
     AERO_DECLARE_TYPE(GradientBrush, Brush)
 public:
     Base::Span<const Base::Ref<GradientStop>>
-        GradientStops() const noexcept {
+        GetGradientStops() const noexcept {
         return stops_.AsSpan();
     }
-    Base::Result<void> AddGradientStop(
+    Base::Result<void> TryAddGradientStop(
         Base::Ref<GradientStop> stop) noexcept;
     void ClearGradientStops() noexcept;
-    Color Sample(double position) const noexcept;
-    BrushMappingMode MappingMode() const noexcept;
-    Base::Result<void> SetMappingMode(
+    BrushMappingMode GetMappingMode() const noexcept;
+    void SetMappingMode(
         BrushMappingMode value) noexcept;
 
     inline static constexpr Members::Property<BrushMappingMode> MappingModeProperty{"MappingMode"};
@@ -254,10 +269,10 @@ public:
         : GradientBrush(StaticTypeId()) {}
     ~LinearGradientBrush() override = default;
 
-    Point StartPoint() const noexcept;
-    Point EndPoint() const noexcept;
-    Base::Result<void> SetStartPoint(Point value) noexcept;
-    Base::Result<void> SetEndPoint(Point value) noexcept;
+    Point GetStartPoint() const noexcept;
+    Point GetEndPoint() const noexcept;
+    void SetStartPoint(Point value) noexcept;
+    void SetEndPoint(Point value) noexcept;
 
     inline static constexpr Members::Property<Point> StartPointProperty{"StartPoint"};
     inline static constexpr Members::Property<Point> EndPointProperty{"EndPoint"};
@@ -271,15 +286,15 @@ public:
         : GradientBrush(StaticTypeId()) {}
     ~RadialGradientBrush() override = default;
 
-    Point Center() const noexcept;
-    Point GradientOrigin() const noexcept;
+    Point GetCenter() const noexcept;
+    Point GetGradientOrigin() const noexcept;
     double GetRadiusX() const noexcept;
     double GetRadiusY() const noexcept;
-    Base::Result<void> SetCenter(Point value) noexcept;
-    Base::Result<void> SetGradientOrigin(
+    void SetCenter(Point value) noexcept;
+    void SetGradientOrigin(
         Point value) noexcept;
-    Base::Result<void> SetRadiusX(double value) noexcept;
-    Base::Result<void> SetRadiusY(double value) noexcept;
+    void SetRadiusX(double value) noexcept;
+    void SetRadiusY(double value) noexcept;
 
     inline static constexpr Members::Property<Point> CenterProperty{"Center"};
     inline static constexpr Members::Property<Point> GradientOriginProperty{"GradientOrigin"};
@@ -294,20 +309,20 @@ public:
         : Brush(StaticTypeId()) {}
     ~ImageBrush() override = default;
 
-    Base::Ref<ImageSource> Source() const noexcept;
+    Base::Ref<ImageSource> GetSource() const noexcept;
     Stretch GetStretch() const noexcept;
-    Rect Viewbox() const noexcept;
-    Rect Viewport() const noexcept;
+    Rect GetViewbox() const noexcept;
+    Rect GetViewport() const noexcept;
     TileMode GetTileMode() const noexcept;
-    Base::Result<void> SetSource(
+    void SetSource(
         Base::Ref<ImageSource> value) noexcept;
-    Base::Result<void> SetStretch(
+    void SetStretch(
         Stretch value) noexcept;
-    Base::Result<void> SetViewbox(
+    void SetViewbox(
         Rect value) noexcept;
-    Base::Result<void> SetViewport(
+    void SetViewport(
         Rect value) noexcept;
-    Base::Result<void> SetTileMode(
+    void SetTileMode(
         TileMode value) noexcept;
 
     inline static constexpr Members::Property<Base::Ref<ImageSource>> ImageSourceProperty{"ImageSource"};
@@ -317,7 +332,7 @@ public:
     inline static constexpr Members::Property<TileMode> TileModeProperty{"TileMode"};
 
 private:
-    friend class Aero::Detail::BrushPrivate;
+    friend class Aero::Internal::BrushPrivate;
     std::uint64_t renderImage_ = 0U;
     std::uint32_t pixelWidth_ = 0U;
     std::uint32_t pixelHeight_ = 0U;
@@ -333,34 +348,34 @@ public:
         : Brush(StaticTypeId()) {}
     ~VisualBrush() override = default;
 
-    Base::Ref<Base::Object> Visual() const noexcept {
+    Base::Ref<Base::Object> GetVisual() const noexcept {
         return GetValueOr(
             VisualProperty, Base::Ref<Base::Object>{});
     }
-    Base::Result<void> SetVisual(
+    void SetVisual(
         Base::Ref<Base::Object> value) noexcept {
-        return SetValue(VisualProperty, std::move(value));
+        SetValue(VisualProperty, std::move(value));
     }
     Stretch GetStretch() const noexcept {
         return GetValueOr(StretchProperty, Stretch::Fill);
     }
-    Base::Result<void> SetStretch(Stretch value) noexcept {
-        return SetValue(StretchProperty, value);
+    void SetStretch(Stretch value) noexcept {
+        SetValue(StretchProperty, value);
     }
-    Rect Viewbox() const noexcept {
+    Rect GetViewbox() const noexcept {
         return GetValueOr(
             ViewboxProperty, Rect{0.0, 0.0, 1.0, 1.0});
     }
-    Base::Result<void> SetViewbox(Rect value) noexcept {
-        return SetValue(ViewboxProperty, value);
+    void SetViewbox(Rect value) noexcept {
+        SetValue(ViewboxProperty, value);
     }
-    VerticalAlignment AlignmentY() const noexcept {
+    VerticalAlignment GetAlignmentY() const noexcept {
         return GetValueOr(
             AlignmentYProperty, VerticalAlignment::Center);
     }
-    Base::Result<void> SetAlignmentY(
+    void SetAlignmentY(
         VerticalAlignment value) noexcept {
-        return SetValue(AlignmentYProperty, value);
+        SetValue(AlignmentYProperty, value);
     }
 
     inline static constexpr Members::Property<Base::Ref<Base::Object>> VisualProperty{"Visual"};
@@ -369,20 +384,15 @@ public:
     inline static constexpr Members::Property<VerticalAlignment> AlignmentYProperty{"AlignmentY"};
 };
 
-AERO_API Color SampleBrush(
-    const Base::Ref<Brush>& brush,
-    double position = 0.5,
-    Color fallback = {0.0F, 0.0F, 0.0F, 0.0F}) noexcept;
-
 AERO_API Base::Result<Base::Ref<Brush>>
 MakeSolidColorBrush(Color color) noexcept;
 
 } // namespace Aero::Media
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Aero::Media::TileMode> {
+struct TypeTraits<Aero::Media::TileMode> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("TileMode");
     }
@@ -398,7 +408,7 @@ struct MetaTypeTraits<Aero::Media::TileMode> {
 };
 
 template<>
-struct MetaTypeTraits<Aero::Media::BrushMappingMode> {
+struct TypeTraits<Aero::Media::BrushMappingMode> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("BrushMappingMode");
     }
@@ -414,7 +424,7 @@ struct MetaTypeTraits<Aero::Media::BrushMappingMode> {
 };
 
 template<>
-struct MetaTypeTraits<Base::Rect> {
+struct TypeTraits<Base::Rect> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("Rect");
     }
@@ -429,4 +439,4 @@ struct MetaTypeTraits<Base::Rect> {
     }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-namespace Aero::Core {
+namespace Aero::Diagnostics {
 class IDiagnosticSink;
 }
 
@@ -25,7 +25,7 @@ struct ReloadResult final {
 
 // Development-time full-document reload coordinator. It polls source-provider
 // revisions, invalidates the shared document cache through the reverse
-// dependency graph, loads a replacement UiDocument off to the side, and swaps
+// dependency graph, loads a replacement XamlDocument off to the side, and swaps
 // it into a mounted View only after the replacement is valid. All calls must
 // occur on the View owner thread.
 class AERO_API ReloadCoordinator final {
@@ -46,16 +46,16 @@ public:
     Base::Result<void> Start(
         Base::StringView rootUri,
         Aero::Base::Size availableSize,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
     void Stop() noexcept;
 
     Base::Result<ReloadResult> Poll(
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
     Base::Result<ReloadResult> Reload(
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
     Base::Result<ReloadResult> NotifySourceChanged(
         const Base::ResourceUri& changedUri,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
 
     bool IsActive() const noexcept;
     const Base::ResourceUri& RootUri() const noexcept;

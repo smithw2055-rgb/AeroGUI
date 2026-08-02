@@ -10,7 +10,7 @@
 #include <Aero/Base/String.hpp>
 
 #include <Aero/Controls/Panels.hpp>
-#include <Aero/Controls/Standard.hpp>
+#include <Aero/Controls/Common.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/FrameworkElement.hpp>
@@ -28,7 +28,7 @@ Base::Status InvalidStyleXaml(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::InvalidArgument, message);
 }
 
-bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
+bool HasTypeFlag(Meta::TypeFlags value, Meta::TypeFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
         static_cast<std::uint32_t>(flag)) != 0U;
 }
@@ -36,10 +36,10 @@ bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
 Base::Status MissingStyleProperty(
     const char* role,
     Base::StringView property,
-    Core::TypeId targetType,
-    const Core::TypeRegistry& types) noexcept {
+    Meta::TypeId targetType,
+    const Meta::TypeRegistry& types) noexcept {
     thread_local char message[384];
-    const Core::TypeInfo* target =
+    const Meta::TypeInfo* target =
         types.FindType(targetType);
     const Base::StringView typeName =
         target != nullptr
@@ -59,11 +59,11 @@ Base::Status MissingStyleProperty(
         message);
 }
 
-const Core::DependencyProperty* ResolveStyleProperty(
-    const Core::DependencyPropertyRegistry& properties,
-    Core::TypeId targetType,
+const Meta::DependencyProperty* ResolveStyleProperty(
+    const Meta::DependencyPropertyRegistry& properties,
+    Meta::TypeId targetType,
     Base::StringView name) noexcept {
-    const Core::DependencyProperty* property =
+    const Meta::DependencyProperty* property =
         properties.Find(targetType, name);
     if (property != nullptr) return property;
     if (name == Base::StringView("ContextMenu")) {
@@ -83,9 +83,9 @@ const Core::DependencyProperty* ResolveStyleProperty(
         separator + 1U >= name.SizeBytes()) {
         return nullptr;
     }
-    const Core::TypeInfo* owner =
+    const Meta::TypeInfo* owner =
         properties.Types().FindType(
-            Core::AeroNamespaceUri(),
+            Meta::AeroNamespaceUri(),
             name.Substr(0U, separator));
     const Base::StringView member = name.Substr(
         separator + 1U,
@@ -100,16 +100,16 @@ const Core::DependencyProperty* ResolveStyleProperty(
     return properties.Find(targetType, member);
 }
 
-Base::Result<Core::PropertyValue> ToPropertyValue(
-    const Core::Value& value,
-    Core::TypeId expectedType) noexcept {
+Base::Result<Meta::PropertyValue> ToPropertyValue(
+    const Meta::Value& value,
+    Meta::TypeId expectedType) noexcept {
     if (value.IsUnset()) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "XAML style value cannot be represented as a dependency-property value");
     }
     if (value.IsNullObject() && value.Type() != expectedType) {
-        return Core::PropertyValue::NullObject(expectedType);
+        return Meta::PropertyValue::NullObject(expectedType);
     }
     return value;
 }
@@ -131,9 +131,9 @@ Base::Result<Aero::ResourceKey> ResolveStyleImplicitKey(
             Base::ErrorCode::InvalidArgument,
             "Implicit Style key requires a Style object");
     }
-    const Core::TypeId target =
+    const Meta::TypeId target =
         static_cast<const Aero::Style&>(object).GetTargetType();
-    if (target == Core::InvalidTypeId) {
+    if (target == Meta::InvalidTypeId) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
             "Implicit Style requires TargetType");
@@ -151,10 +151,10 @@ XamlStyleSchemaFacet::XamlStyleSchemaFacet(
 
 Base::Result<void> XamlStyleSchemaFacet::Register(
     Schema& schema,
-    Core::TypeId styleType,
-    Core::TypeId setterType,
-    Core::DependencyPropertyHandle styleProperty,
-    Core::TypeId triggerType) noexcept {
+    Meta::TypeId styleType,
+    Meta::TypeId setterType,
+    Meta::DependencyPropertyHandle styleProperty,
+    Meta::TypeId triggerType) noexcept {
     if (schema.IsFrozen() ||
         options_.properties == nullptr || !styleProperty.IsValid() ||
         !options_.properties->IsFrozen() || !options_.properties->Types().IsFrozen()) {
@@ -163,50 +163,50 @@ Base::Result<void> XamlStyleSchemaFacet::Register(
             "XAML Style extension registries are not ready");
     }
     if (schema_ != nullptr ||
-        styleType == Core::InvalidTypeId || setterType == Core::InvalidTypeId) {
+        styleType == Meta::InvalidTypeId || setterType == Meta::InvalidTypeId) {
         return InvalidStyleXaml("XAML Style extension registration is invalid");
     }
 
-    const Core::TypeInfo* styleInfo = schema.Types().FindType(styleType);
-    const Core::TypeInfo* setterInfo = schema.Types().FindType(setterType);
-    const Core::TypeInfo* triggerInfo =
-        triggerType != Core::InvalidTypeId ? schema.Types().FindType(triggerType) : nullptr;
+    const Meta::TypeInfo* styleInfo = schema.Types().FindType(styleType);
+    const Meta::TypeInfo* setterInfo = schema.Types().FindType(setterType);
+    const Meta::TypeInfo* triggerInfo =
+        triggerType != Meta::InvalidTypeId ? schema.Types().FindType(triggerType) : nullptr;
     if (styleInfo == nullptr || setterInfo == nullptr ||
-        HasTypeFlag(styleInfo->Flags(), Core::TypeFlags::ValueType) ||
-        HasTypeFlag(setterInfo->Flags(), Core::TypeFlags::ValueType) ||
-        (triggerType != Core::InvalidTypeId &&
-         (triggerInfo == nullptr || HasTypeFlag(triggerInfo->Flags(), Core::TypeFlags::ValueType)))) {
+        HasTypeFlag(styleInfo->Flags(), Meta::TypeFlags::ValueType) ||
+        HasTypeFlag(setterInfo->Flags(), Meta::TypeFlags::ValueType) ||
+        (triggerType != Meta::InvalidTypeId &&
+         (triggerInfo == nullptr || HasTypeFlag(triggerInfo->Flags(), Meta::TypeFlags::ValueType)))) {
         return InvalidStyleXaml("XAML Style, Setter, and Trigger must be registered object types");
     }
 
-    const Core::PropertyInfo* targetType =
+    const Meta::PropertyInfo* targetType =
         schema.Types().FindProperty(styleType, Base::StringView("TargetType"), false);
-    const Core::PropertyInfo* basedOn =
+    const Meta::PropertyInfo* basedOn =
         schema.Types().FindProperty(styleType, Base::StringView("BasedOn"), false);
-    const Core::PropertyInfo* setters =
+    const Meta::PropertyInfo* setters =
         schema.Types().FindProperty(styleType, Base::StringView("Setters"), false);
-    const Core::PropertyInfo* property =
+    const Meta::PropertyInfo* property =
         schema.Types().FindProperty(setterType, Base::StringView("Property"), false);
-    const Core::PropertyInfo* value =
+    const Meta::PropertyInfo* value =
         schema.Types().FindProperty(setterType, Base::StringView("Value"), false);
     if (targetType == nullptr || basedOn == nullptr || setters == nullptr ||
         property == nullptr || value == nullptr ||
         targetType->ValueType() !=
-            Core::TypeOf<Core::TypeReference>() ||
+            Meta::TypeOf<Meta::TypeReference>() ||
         basedOn->ValueType() != styleType || setters->ValueType() != setterType ||
         property->ValueType() !=
-            Core::TypeOf<Base::String>() ||
+            Meta::TypeOf<Base::String>() ||
         value->ValueType() !=
-            Core::TypeOf<Core::Value>() ||
+            Meta::TypeOf<Meta::Value>() ||
         schema.Types().FindContentMember(styleType) != setters->Id()) {
         return InvalidStyleXaml("XAML Style metadata members are invalid");
     }
 
-    const Core::PropertyInfo* triggers = nullptr;
-    const Core::PropertyInfo* triggerProperty = nullptr;
-    const Core::PropertyInfo* triggerValue = nullptr;
-    const Core::PropertyInfo* triggerSetters = nullptr;
-    if (triggerType != Core::InvalidTypeId) {
+    const Meta::PropertyInfo* triggers = nullptr;
+    const Meta::PropertyInfo* triggerProperty = nullptr;
+    const Meta::PropertyInfo* triggerValue = nullptr;
+    const Meta::PropertyInfo* triggerSetters = nullptr;
+    if (triggerType != Meta::InvalidTypeId) {
         triggers = schema.Types().FindProperty(
             styleType, Base::StringView("Triggers"), false);
         triggerProperty = schema.Types().FindProperty(
@@ -219,15 +219,15 @@ Base::Result<void> XamlStyleSchemaFacet::Register(
             triggerValue == nullptr || triggerSetters == nullptr ||
             triggers->ValueType() != triggerType ||
             triggerProperty->ValueType() !=
-                Core::TypeOf<Base::String>() ||
+                Meta::TypeOf<Base::String>() ||
             triggerValue->ValueType() !=
-                Core::TypeOf<Core::Value>() ||
+                Meta::TypeOf<Meta::Value>() ||
             triggerSetters->ValueType() != setterType) {
             return InvalidStyleXaml("XAML Trigger metadata members are invalid");
         }
     }
 
-    const Core::DependencyProperty* styleDependency = options_.properties->Find(styleProperty);
+    const Meta::DependencyProperty* styleDependency = options_.properties->Find(styleProperty);
     if (styleDependency == nullptr || styleDependency->ValueType() != styleType) {
         return InvalidStyleXaml("XAML Style property does not accept the registered Style type");
     }
@@ -255,16 +255,16 @@ Base::Result<void> XamlStyleSchemaFacet::Register(
     return {};
 }
 
-Base::Result<Core::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
-    const Core::Value& value,
-    Core::TypeId targetType,
+Base::Result<Meta::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
+    const Meta::Value& value,
+    Meta::TypeId targetType,
     Base::StringView propertyName) const noexcept {
     if (schema_ == nullptr || options_.properties == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Style conversion requires an initialized extension");
     }
-    const Core::DependencyProperty* property =
+    const Meta::DependencyProperty* property =
         ResolveStyleProperty(
             *options_.properties,
             targetType,
@@ -274,21 +274,21 @@ Base::Result<Core::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
             Base::ErrorCode::NotFound,
             "Style property was not found on TargetType");
     }
-    const Core::Value* candidate = &value;
-    Base::Result<Core::Value> converted = Base::Status::Failure(
+    const Meta::Value* candidate = &value;
+    Base::Result<Meta::Value> converted = Base::Status::Failure(
         Base::ErrorCode::InvalidState,
         "Style conversion was not attempted");
-    if (candidate->Kind() == Core::ValueKind::String) {
+    if (candidate->Kind() == Meta::ValueKind::String) {
         converted = schema_->ConvertText(property->ValueType(), candidate->AsString());
         if (!converted) return converted.GetStatus();
         candidate = &converted.Value();
     }
     if (property->ValueType() == Aero::Length::StaticTypeId() &&
-        candidate->Type() == Core::TypeOf<double>()) {
+        candidate->Type() == Meta::TypeOf<double>()) {
         Base::Result<double> numeric =
-            Core::ValueCodec<double>::Decode(*candidate);
+            Meta::ValueCodec<double>::Decode(*candidate);
         if (!numeric) return numeric.GetStatus();
-        converted = Core::ValueCodec<Aero::Length>::Encode(
+        converted = Meta::ValueCodec<Aero::Length>::Encode(
             Aero::Length::Pixels(numeric.Value()));
         if (!converted) return converted.GetStatus();
         candidate = &converted.Value();
@@ -296,9 +296,9 @@ Base::Result<Core::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
     if (property->ValueType() ==
             Media::Brush::StaticTypeId() &&
         candidate->Type() ==
-            Core::TypeOf<Base::Color>()) {
+            Meta::TypeOf<Base::Color>()) {
         Base::Result<Base::Color> color =
-            Core::ValueCodec<Base::Color>::Decode(
+            Meta::ValueCodec<Base::Color>::Decode(
                 *candidate);
         if (!color) return color.GetStatus();
         Base::Result<
@@ -307,17 +307,17 @@ Base::Result<Core::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
                 Media::MakeSolidColorBrush(
                     color.Value());
         if (!brush) return brush.GetStatus();
-        return Core::Value::FromObject(
+        return Meta::Value::FromObject(
             Media::Brush::StaticTypeId(),
             Base::Ref<Base::Object>(
                 std::move(brush).Value()));
     }
-    if (property->ValueType() == Core::TypeOf<Base::Color>() &&
-        candidate->Kind() == Core::ValueKind::Object &&
+    if (property->ValueType() == Meta::TypeOf<Base::Color>() &&
+        candidate->Kind() == Meta::ValueKind::Object &&
         options_.properties->Types().IsDerivedFrom(
             candidate->Type(), Media::Brush::StaticTypeId())) {
         Base::Result<Base::Ref<Media::Brush>> brush =
-            Core::ValueCodec<Base::Ref<Media::Brush>>::Decode(
+            Meta::ValueCodec<Base::Ref<Media::Brush>>::Decode(
                 *candidate);
         if (!brush) return brush.GetStatus();
         Media::Brush* source = brush.Value().Get();
@@ -326,7 +326,7 @@ Base::Result<Core::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
             return InvalidStyleXaml(
                 "Color-backed text property requires SolidColorBrush");
         }
-        return Core::ValueCodec<Base::Color>::Encode(
+        return Meta::ValueCodec<Base::Color>::Encode(
             static_cast<Media::SolidColorBrush*>(source)->GetColor());
     }
     return ToPropertyValue(*candidate, property->ValueType());
@@ -339,18 +339,18 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             Base::ErrorCode::InvalidState,
             "Style TargetType must be assigned before initialization completes");
     }
-    if (style.GetTargetType() == Core::InvalidTypeId) {
+    if (style.GetTargetType() == Meta::InvalidTypeId) {
         Base::Result<void> defaultTarget = style.TrySetTargetType(
             Controls::Control::StaticTypeId());
         if (!defaultTarget) return defaultTarget.GetStatus();
     }
-    const Core::TypeId targetType = style.GetTargetType();
-    const Core::TypeInfo* targetInfo =
+    const Meta::TypeId targetType = style.GetTargetType();
+    const Meta::TypeInfo* targetInfo =
         options_.properties->Types().FindType(targetType);
     if (targetInfo == nullptr ||
         HasTypeFlag(
             targetInfo->Flags(),
-            Core::TypeFlags::ValueType)) {
+            Meta::TypeFlags::ValueType)) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
             "Style TargetType must identify an object type");
@@ -358,12 +358,12 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
     for (const Base::Ref<Aero::Setter>& entry :
          style.GetAuthoredSetters()) {
         Aero::Setter* setter = entry.Get();
-        if (setter == nullptr || !setter->IsAuthored()) {
+        if (setter == nullptr || !setter->GetIsAuthored()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Style Setter requires Property and Value");
         }
-        const Core::DependencyProperty* property =
+        const Meta::DependencyProperty* property =
             ResolveStyleProperty(
                 *options_.properties,
                 targetType,
@@ -375,7 +375,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                 targetType,
                 options_.properties->Types());
         }
-        Base::Result<Core::PropertyValue> value = ConvertValueForProperty(
+        Base::Result<Meta::PropertyValue> value = ConvertValueForProperty(
             setter->GetAuthoredValue(),
             targetType,
             setter->GetPropertyName());
@@ -387,17 +387,17 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             style.TryAddSetter(*setter);
         if (!added) return added.GetStatus();
     }
-    for (const Base::Ref<Aero::PropertyTrigger>& entry :
+    for (const Base::Ref<Aero::Trigger>& entry :
          style.GetAuthoredTriggers()) {
-        Aero::PropertyTrigger* trigger =
+        Aero::Trigger* trigger =
             entry.Get();
         if (trigger == nullptr ||
-            !trigger->IsAuthored()) {
+            !trigger->GetIsAuthored()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Style Trigger requires Property, Value, and Setters");
         }
-        const Core::DependencyProperty* condition =
+        const Meta::DependencyProperty* condition =
             ResolveStyleProperty(
                 *options_.properties,
                 targetType,
@@ -409,12 +409,12 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                 targetType,
                 options_.properties->Types());
         }
-        Base::Result<Core::PropertyValue> conditionValue = ConvertValueForProperty(
+        Base::Result<Meta::PropertyValue> conditionValue = ConvertValueForProperty(
             trigger->GetAuthoredValue(),
             targetType,
             trigger->GetPropertyName());
         if (!conditionValue) return conditionValue.GetStatus();
-        Aero::StylePropertyTrigger plan;
+        Aero::TriggerPlan plan;
         plan.property = condition->Handle();
         plan.value = conditionValue.Value();
         Base::Result<void> actions =
@@ -429,12 +429,12 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             Aero::Setter* setter =
                 setterEntry.Get();
             if (setter == nullptr ||
-                !setter->IsAuthored()) {
+                !setter->GetIsAuthored()) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidState,
                     "Style Trigger Setter requires Property and Value");
             }
-            const Core::DependencyProperty* property =
+            const Meta::DependencyProperty* property =
                 ResolveStyleProperty(
                     *options_.properties,
                     targetType,
@@ -446,7 +446,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                     targetType,
                     options_.properties->Types());
             }
-            Base::Result<Core::PropertyValue> value = ConvertValueForProperty(
+            Base::Result<Meta::PropertyValue> value = ConvertValueForProperty(
                 setter->GetAuthoredValue(),
                 targetType,
                 setter->GetPropertyName());
@@ -462,11 +462,11 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                 property->Handle(), value.Value()});
             if (!added) return added.GetStatus();
         }
-        Base::Result<void> added = style.TryAddPropertyTrigger(
+        Base::Result<void> added = style.TryAddTrigger(
             std::move(plan));
         if (!added) return added.GetStatus();
     }
-    return Aero::Detail::StylePrivate::Seal(
+    return Aero::Internal::StylePrivate::Seal(
         style, *options_.properties);
 }
 
@@ -533,7 +533,7 @@ Base::Result<void> UiObjectModel::Register(
     UiObjectModelTypes types;
     types.style = Aero::Style::StaticTypeId();
     types.setter = Aero::Setter::StaticTypeId();
-    types.trigger = Aero::PropertyTrigger::StaticTypeId();
+    types.trigger = Aero::Trigger::StaticTypeId();
     types.styleProperty =
         Aero::FrameworkElement::StyleProperty;
     return Register(schema, types);
@@ -581,8 +581,9 @@ Base::Result<void> UiObjectModel::Register(
 
 
 #include <Aero/Base/String.hpp>
-#include <Aero/Controls/Base.hpp>
+#include <Aero/Controls/Core.hpp>
 #include <Aero/Controls/Items.hpp>
+#include "../controls/ItemsInternal.hpp"
 #include <Aero/Styling.hpp>
 
 #include "markup/MarkupInternal.hpp"
@@ -598,7 +599,8 @@ namespace Aero::Markup {
 namespace {
 
 using namespace Aero::Controls;
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 
 
 class CompiledTemplateProgramOwner final
@@ -656,13 +658,13 @@ Base::Result<Aero::ResourceKey>
 ResolveTemplateImplicitKey(
     const Base::Object& object,
     void*) noexcept {
-    Core::TypeId key = Core::InvalidTypeId;
+    Meta::TypeId key = Meta::InvalidTypeId;
     if (object.RuntimeType() == ControlTemplate::StaticTypeId()) {
         key = static_cast<const ControlTemplate&>(object).GetTargetType();
     } else if (object.RuntimeType() == DataTemplate::StaticTypeId()) {
         key = static_cast<const DataTemplate&>(object).GetDataType();
     }
-    if (key == Core::InvalidTypeId) {
+    if (key == Meta::InvalidTypeId) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Template type has no implicit resource key");
@@ -706,7 +708,7 @@ struct XamlTemplateSchemaFacet::Impl final {
         }
         if (type == ControlTemplate::StaticTypeId() ||
             type == DataTemplate::StaticTypeId()) {
-            const Core::TypeId targetType =
+            const Meta::TypeId targetType =
                 type == ControlTemplate::StaticTypeId()
                 ? static_cast<ControlTemplate&>(object)
                       .GetTargetType()
@@ -716,13 +718,13 @@ struct XamlTemplateSchemaFacet::Impl final {
             // Its target is inferred from the Style/Setter that consumes it,
             // so only validate an explicitly authored type here. The apply
             // path still checks that the eventual target is a Control.
-            if (targetType != Core::InvalidTypeId) {
-                const Core::TypeInfo* targetInfo =
+            if (targetType != Meta::InvalidTypeId) {
+                const Meta::TypeInfo* targetInfo =
                     self->runtime->Types().FindType(targetType);
                 if (targetInfo == nullptr ||
                     TemplateHasTypeFlag(
                         targetInfo->Flags(),
-                        Core::TypeFlags::ValueType)) {
+                        Meta::TypeFlags::ValueType)) {
                     return InvalidTemplateXaml(
                         "Template type constraint must identify an object type");
                 }
@@ -754,20 +756,20 @@ struct XamlTemplateSchemaFacet::Impl final {
             if (object.RuntimeType() ==
                     ControlTemplate::StaticTypeId()) {
                 auto& templateValue = static_cast<ControlTemplate&>(object);
-                if (Controls::Detail::TemplatePrivate::BaseUri(templateValue).Empty()) {
-                    baseUri = Controls::Detail::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
+                if (Internal::TemplatePrivate::BaseUri(templateValue).Empty()) {
+                    baseUri = Internal::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
                 }
             } else if (object.RuntimeType() ==
                        DataTemplate::StaticTypeId()) {
                 auto& templateValue = static_cast<DataTemplate&>(object);
-                if (Controls::Detail::TemplatePrivate::BaseUri(templateValue).Empty()) {
-                    baseUri = Controls::Detail::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
+                if (Internal::TemplatePrivate::BaseUri(templateValue).Empty()) {
+                    baseUri = Internal::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
                 }
             } else if (object.RuntimeType() ==
                        ItemsPanelTemplate::StaticTypeId()) {
                 auto& templateValue = static_cast<ItemsPanelTemplate&>(object);
-                if (Controls::Detail::TemplatePrivate::BaseUri(templateValue).Empty()) {
-                    baseUri = Controls::Detail::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
+                if (Internal::TemplatePrivate::BaseUri(templateValue).Empty()) {
+                    baseUri = Internal::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
                 }
             }
             if (!baseUri) return baseUri.GetStatus();
@@ -780,10 +782,10 @@ struct XamlTemplateSchemaFacet::Impl final {
             if (object.RuntimeType() ==
                     DataTemplate::StaticTypeId()) {
                 authored =
-                    &Controls::Detail::TemplatePrivate::AuthoredVisualTree(static_cast<DataTemplate&>(object));
+                    &Internal::TemplatePrivate::AuthoredVisualTree(static_cast<DataTemplate&>(object));
             } else {
                 authored =
-                    &Controls::Detail::TemplatePrivate::AuthoredVisualTree(static_cast<ItemsPanelTemplate&>(object));
+                    &Internal::TemplatePrivate::AuthoredVisualTree(static_cast<ItemsPanelTemplate&>(object));
             }
             Base::Result<Detail::CompiledTemplateBlueprint>
                 compiled =
@@ -791,7 +793,7 @@ struct XamlTemplateSchemaFacet::Impl final {
                         *authored,
                         object.RuntimeType() ==
                                 DataTemplate::StaticTypeId()
-                            ? &Controls::Detail::TemplatePrivate::AuthoredNames(static_cast<DataTemplate&>(object))
+                            ? &Internal::TemplatePrivate::AuthoredNames(static_cast<DataTemplate&>(object))
                             : nullptr,
                         {
                             edges.Data(),
@@ -811,13 +813,13 @@ struct XamlTemplateSchemaFacet::Impl final {
                 Base::Result<void> reserved =
                     compiled.Value().
                         dataTemplateTriggers.TryReserve(
-                            Controls::Detail::TemplatePrivate::AuthoredTriggers(dataTemplate).Size());
+                            Internal::TemplatePrivate::AuthoredTriggers(dataTemplate).Size());
                 if (!reserved) {
                     return reserved.GetStatus();
                 }
                 for (const Base::Ref<
                          Aero::TriggerBase>& trigger :
-                     Controls::Detail::TemplatePrivate::AuthoredTriggers(dataTemplate)) {
+                     Internal::TemplatePrivate::AuthoredTriggers(dataTemplate)) {
                     Base::Result<void> retained =
                         compiled.Value().
                             dataTemplateTriggers.
@@ -845,22 +847,22 @@ struct XamlTemplateSchemaFacet::Impl final {
                     DataTemplate::StaticTypeId()) {
                 auto& dataTemplate =
                     static_cast<DataTemplate&>(object);
-                configured = Controls::Detail::TemplatePrivate::Configure(dataTemplate,
+                configured = Internal::TemplatePrivate::Configure(dataTemplate,
                     &Detail::BuildCompiledDeferredTemplate,
                     programContext,
                     std::move(programOwner));
                 if (configured) {
-                    configured = Controls::Detail::TemplatePrivate::Seal(dataTemplate);
+                    configured = Internal::TemplatePrivate::Seal(dataTemplate);
                 }
             } else {
                 auto& itemsPanel =
                     static_cast<ItemsPanelTemplate&>(object);
-                configured = Controls::Detail::TemplatePrivate::Configure(itemsPanel,
+                configured = Internal::TemplatePrivate::Configure(itemsPanel,
                     &Detail::BuildCompiledDeferredTemplate,
                     programContext,
                     std::move(programOwner));
                 if (configured) {
-                    configured = Controls::Detail::TemplatePrivate::Seal(itemsPanel);
+                    configured = Internal::TemplatePrivate::Seal(itemsPanel);
                 }
             }
             if (!configured) {
@@ -872,11 +874,11 @@ struct XamlTemplateSchemaFacet::Impl final {
                     DataTemplate::StaticTypeId()) {
                 auto& dataTemplate =
                     static_cast<DataTemplate&>(object);
-                Controls::Detail::TemplatePrivate::ClearAuthoredVisualTree(dataTemplate);
-                Controls::Detail::TemplatePrivate::ClearAuthoredTriggers(dataTemplate);
-                Controls::Detail::TemplatePrivate::ClearAuthoredNames(dataTemplate);
+                Internal::TemplatePrivate::ClearAuthoredVisualTree(dataTemplate);
+                Internal::TemplatePrivate::ClearAuthoredTriggers(dataTemplate);
+                Internal::TemplatePrivate::ClearAuthoredNames(dataTemplate);
             } else {
-                Controls::Detail::TemplatePrivate::ClearAuthoredVisualTree(
+                Internal::TemplatePrivate::ClearAuthoredVisualTree(
                     static_cast<ItemsPanelTemplate&>(object));
             }
             return {};
@@ -884,13 +886,13 @@ struct XamlTemplateSchemaFacet::Impl final {
         auto& controlTemplate =
             static_cast<ControlTemplate&>(object);
         if (controlTemplate.GetTargetType() ==
-            Core::InvalidTypeId) {
+            Meta::InvalidTypeId) {
             // WPF permits a keyed ControlTemplate to omit TargetType. The
             // consuming Style supplies the concrete control at apply time;
             // compile against the common Control contract so its authored
             // bindings and triggers remain valid until then.
             Base::Result<void> inferred =
-                Controls::Detail::TemplatePrivate::TrySetTargetType(controlTemplate,
+                Internal::TemplatePrivate::TrySetTargetType(controlTemplate,
                     Control::StaticTypeId());
             if (!inferred) return inferred.GetStatus();
         }
@@ -926,7 +928,7 @@ struct XamlTemplateSchemaFacet::Impl final {
             program.Value();
 
         Base::Result<void> configured =
-            Controls::Detail::TemplatePrivate::ConfigureFactory(controlTemplate,
+            Internal::TemplatePrivate::ConfigureFactory(controlTemplate,
                 &Detail::BuildCompiledTemplate,
                 programContext,
                 std::move(programOwner));
@@ -935,7 +937,7 @@ struct XamlTemplateSchemaFacet::Impl final {
                  compiled.Value().
                      contentSourceBindings) {
                 configured =
-                    Controls::Detail::TemplatePrivate::TryAddTemplateBinding(controlTemplate,
+                    Internal::TemplatePrivate::TryAddTemplateBinding(controlTemplate,
                             binding.targetName.View(),
                             binding.sourceProperty,
                             binding.targetProperty);
@@ -948,7 +950,7 @@ struct XamlTemplateSchemaFacet::Impl final {
             for (TemplatePropertyTrigger& trigger :
                  compiled.Value().propertyTriggers) {
                 configured =
-                    Controls::Detail::TemplatePrivate::TryAddPropertyTrigger(controlTemplate,
+                    Internal::TemplatePrivate::TryAddPropertyTrigger(controlTemplate,
                         std::move(trigger));
                 if (!configured) {
                     break;
@@ -959,7 +961,7 @@ struct XamlTemplateSchemaFacet::Impl final {
             for (VisualStateGroup& group :
                  compiled.Value().visualStateGroups) {
                 configured =
-                    Controls::Detail::TemplatePrivate::TryAddVisualStateGroup(controlTemplate,
+                    Internal::TemplatePrivate::TryAddVisualStateGroup(controlTemplate,
                         std::move(group));
                 if (!configured) {
                     break;
@@ -968,7 +970,7 @@ struct XamlTemplateSchemaFacet::Impl final {
         }
         if (configured) {
             configured =
-                Controls::Detail::TemplatePrivate::Seal(
+                Internal::TemplatePrivate::Seal(
                     controlTemplate,
                     *self->properties);
         }
@@ -978,10 +980,10 @@ struct XamlTemplateSchemaFacet::Impl final {
 
         services.deferredContent->ReleaseOwner(
             object);
-        Controls::Detail::TemplatePrivate::ClearAuthoredVisualTree(controlTemplate);
-        Controls::Detail::TemplatePrivate::ClearAuthoredVisualStateGroups(controlTemplate);
-        Controls::Detail::TemplatePrivate::ClearAuthoredTriggers(controlTemplate);
-        Controls::Detail::TemplatePrivate::ClearAuthoredNames(controlTemplate);
+        Internal::TemplatePrivate::ClearAuthoredVisualTree(controlTemplate);
+        Internal::TemplatePrivate::ClearAuthoredVisualStateGroups(controlTemplate);
+        Internal::TemplatePrivate::ClearAuthoredTriggers(controlTemplate);
+        Internal::TemplatePrivate::ClearAuthoredNames(controlTemplate);
         return {};
     }
 
@@ -1000,9 +1002,9 @@ struct XamlTemplateSchemaFacet::Impl final {
         }
         return scopeOwner.RuntimeType() ==
                 ControlTemplate::StaticTypeId()
-            ? Controls::Detail::TemplatePrivate::RegisterAuthoredName(
+            ? Internal::TemplatePrivate::RegisterAuthoredName(
                   static_cast<ControlTemplate&>(scopeOwner), name, object)
-            : Controls::Detail::TemplatePrivate::RegisterAuthoredName(
+            : Internal::TemplatePrivate::RegisterAuthoredName(
                   static_cast<DataTemplate&>(scopeOwner), name, object);
     }
 };
@@ -1148,7 +1150,7 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
 #include "../runtime/DataTemplateTriggerState.hpp"
 #include "../media/AnimationInternals.hpp"
 
-#include <Aero/Controls/Base.hpp>
+#include <Aero/Controls/Core.hpp>
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Panels.hpp>
@@ -1160,11 +1162,13 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
 #include "../controls/ControlBehavior.hpp"
 
 
-namespace Aero::Markup::Detail {
+namespace Aero::Internal {
 namespace {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using namespace Aero::Controls;
+using namespace Aero::Media;
 
 
 Base::Status InvalidTemplateCompiler(
@@ -1362,12 +1366,12 @@ CompileBlueprint(
             const auto& grid =
                 static_cast<const Grid&>(*object);
             appended = node.gridColumns.TryAssign(
-                grid.ColumnDefinitions());
+                grid.GetColumnDefinitions());
             if (!appended) {
                 return appended.GetStatus();
             }
             appended = node.gridRows.TryAssign(
-                grid.RowDefinitions());
+                grid.GetRowDefinitions());
             if (!appended) {
                 return appended.GetStatus();
             }
@@ -1762,7 +1766,7 @@ CompilePropertyTriggers(
                     // serialized definition vectors; their trigger mutation
                     // is deferred until that declaration-object runtime is
                     // materialized.
-                    if (Controls::Detail::TemplatePrivate::AuthoredNames(controlTemplate).Find(
+                    if (Internal::TemplatePrivate::AuthoredNames(controlTemplate).Find(
                             targetName) != nullptr) {
                         continue;
                     }
@@ -1795,11 +1799,11 @@ CompilePropertyTriggers(
         return {};
     };
     for (const Base::Ref<Base::Object>& object :
-         Controls::Detail::TemplatePrivate::AuthoredTriggers(controlTemplate)) {
+         Internal::TemplatePrivate::AuthoredTriggers(controlTemplate)) {
         TemplatePropertyTrigger trigger;
         Base::Result<void> configured;
-        if (object && object->RuntimeType() == PropertyTrigger::StaticTypeId()) {
-            const auto& source = static_cast<const PropertyTrigger&>(*object);
+        if (object && object->RuntimeType() == Trigger::StaticTypeId()) {
+            const auto& source = static_cast<const Trigger&>(*object);
             configured = addCondition(source.GetPropertyName(), source.GetSourceName(),
                 source.GetAuthoredValue(), trigger);
             if (configured) configured = appendSetters(source.GetAuthoredSetters(), trigger);
@@ -2011,11 +2015,9 @@ CompileVisualStates(
             if (!assigned) return assigned.GetStatus();
             if (!sourceTransition.GeneratedDuration().Empty()) {
                 Media::Animation::Storyboard duration;
-                assigned = duration.SetDuration(
-                    sourceTransition.GeneratedDuration());
-                if (!assigned) return assigned.GetStatus();
+                duration.SetDuration(sourceTransition.GeneratedDuration());
                 transition.generatedDurationMicroseconds =
-                    Aero::Detail::AnimationPrivate::Timing(duration).durationMicroseconds;
+                    Aero::Internal::AnimationPrivate::Timing(duration).durationMicroseconds;
             }
             transition.generatedEasingFunction =
                 sourceTransition.GeneratedEasingFunction();
@@ -2031,12 +2033,12 @@ CompileVisualStates(
         return {};
     };
     for (const Base::Ref<Base::Object>& groupObject :
-         Controls::Detail::TemplatePrivate::AuthoredVisualStateGroups(controlTemplate)) {
+         Internal::TemplatePrivate::AuthoredVisualStateGroups(controlTemplate)) {
         Base::Result<void> compiled = compileGroup(groupObject);
         if (!compiled) return compiled.GetStatus();
     }
     Base::Ref<Base::Object> authoredRoot =
-        Controls::Detail::TemplatePrivate::AuthoredVisualTree(controlTemplate);
+        Internal::TemplatePrivate::AuthoredVisualTree(controlTemplate);
     if (authoredRoot &&
         runtime.Types().IsDerivedFrom(
             authoredRoot->RuntimeType(),
@@ -2070,8 +2072,8 @@ CompileControlTemplateDefinition(
     DependencyPropertyRegistry& properties) noexcept {
     Base::Result<CompiledTemplateBlueprint> blueprint =
         CompileBlueprint(
-        Controls::Detail::TemplatePrivate::AuthoredVisualTree(controlTemplate),
-        &Controls::Detail::TemplatePrivate::AuthoredNames(controlTemplate),
+        Internal::TemplatePrivate::AuthoredVisualTree(controlTemplate),
+        &Internal::TemplatePrivate::AuthoredNames(controlTemplate),
         edges,
         bindings,
         runtime,
@@ -2095,14 +2097,14 @@ CompileControlTemplateDefinition(
     if (!triggers) return triggers.GetStatus();
 
     for (const Base::Ref<Base::Object>& authored :
-         Controls::Detail::TemplatePrivate::AuthoredTriggers(controlTemplate)) {
+         Internal::TemplatePrivate::AuthoredTriggers(controlTemplate)) {
         if (!authored) continue;
         if (authored->RuntimeType() == DataTrigger::StaticTypeId() ||
             authored->RuntimeType() == MultiDataTrigger::StaticTypeId() ||
-            (authored->RuntimeType() == PropertyTrigger::StaticTypeId() &&
-             (!static_cast<const PropertyTrigger&>(*authored).
+            (authored->RuntimeType() == Trigger::StaticTypeId() &&
+             (!static_cast<const Trigger&>(*authored).
                     GetEnterActions().Empty() ||
-              !static_cast<const PropertyTrigger&>(*authored).
+              !static_cast<const Trigger&>(*authored).
                     GetExitActions().Empty()))) {
             Base::Ref<TriggerBase> retained =
                 Base::Ref<TriggerBase>::TryFromBorrowed(
@@ -2262,9 +2264,9 @@ Base::Result<bool> DeferredTriggerValuesMatch(
         !actual.IsNullObject() &&
         actual.AsObject() &&
         actual.AsObject()->RuntimeType() ==
-            BoxedItemValue::StaticTypeId()) {
+            Internal::BoxedItemValue::StaticTypeId()) {
         return DeferredTriggerValuesMatch(
-            static_cast<const BoxedItemValue&>(
+            static_cast<const Internal::BoxedItemValue&>(
                 *actual.AsObject()).Value(),
             std::move(expected),
             runtime);
@@ -2317,7 +2319,7 @@ Base::Result<void> ApplyDeferredTriggerSetters(
     }
     for (const Base::Ref<Setter>& setter :
          setters) {
-        if (!setter || !setter->IsAuthored()) {
+        if (!setter || !setter->GetIsAuthored()) {
             return InvalidTemplateCompiler(
                 "DataTemplate trigger Setter is incomplete");
         }
@@ -2350,11 +2352,8 @@ Base::Result<void> ApplyDeferredTriggerSetters(
                 *blueprint.runtime,
                 *blueprint.properties);
         if (!converted) return converted.GetStatus();
-        Base::Result<void> applied =
-            dependencyObject->SetValue(
-                property->Handle(),
-                std::move(converted).Value());
-        if (!applied) return applied.GetStatus();
+        dependencyObject->SetValue(property->Handle(),
+            std::move(converted).Value());
     }
     return {};
 }
@@ -2521,16 +2520,12 @@ Base::Result<void> BuildCompiledTemplate(
                 value = Value::FromObject(
                     property.value.Type(), objects[property.objectNode]);
             }
-            Base::Result<void> applied = dependencyObject.SetValue(
-                property.property, std::move(value));
-            if (!applied) return applied.GetStatus();
+            dependencyObject.SetValue(property.property, std::move(value));
         }
         if (node.type == Grid::StaticTypeId()) {
             auto& grid = static_cast<Grid&>(*objects[index]);
-            Base::Result<void> restored = grid.SetColumnDefinitions(
-                node.gridColumns.AsSpan());
-            if (restored) restored = grid.SetRowDefinitions(node.gridRows.AsSpan());
-            if (!restored) return restored.GetStatus();
+            grid.SetColumnDefinitions(node.gridColumns.AsSpan());
+            grid.SetRowDefinitions(node.gridRows.AsSpan());
         }
     }
     for (std::uint32_t index = 0U;
@@ -2647,16 +2642,16 @@ Base::Result<void> BuildCompiledTemplate(
                 "ControlTemplate root does not support runtime triggers");
         }
         Base::Result<Base::Ref<
-            Aero::Detail::DataTemplateTriggerState>> created =
-            Base::MakeRef<Aero::Detail::DataTemplateTriggerState>();
+            Aero::Internal::DataTemplateTriggerState>> created =
+            Base::MakeRef<Aero::Internal::DataTemplateTriggerState>();
         if (!created) return created.GetStatus();
-        Base::Ref<Aero::Detail::DataTemplateTriggerState> triggerContext =
+        Base::Ref<Aero::Internal::DataTemplateTriggerState> triggerContext =
             std::move(created).Value();
         triggerContext->root =
             static_cast<FrameworkElement*>(visuals[0U]);
         for (std::uint32_t index = 0U; index < visuals.Size(); ++index) {
             if (blueprint->nodes[index].name.Empty()) continue;
-            Aero::Detail::DataTemplateTriggerState::NamedObject named;
+            Aero::Internal::DataTemplateTriggerState::NamedObject named;
             Base::Result<void> namedAssigned = named.name.TryAssign(
                 blueprint->nodes[index].name.View());
             if (!namedAssigned) return namedAssigned.GetStatus();
@@ -2668,7 +2663,7 @@ Base::Result<void> BuildCompiledTemplate(
         }
         auto appendSetters =
             [&](Base::Span<const Base::Ref<Setter>> setters,
-                Aero::Detail::DataTemplatePropertyTrigger& runtimeTrigger)
+                Aero::Internal::DataTemplatePropertyTrigger& runtimeTrigger)
                 noexcept -> Base::Result<void> {
             for (const Base::Ref<Setter>& setter : setters) {
                 if (!setter) continue;
@@ -2689,7 +2684,7 @@ Base::Result<void> BuildCompiledTemplate(
                     *setter, blueprint->nodes[target], *property,
                     *blueprint->runtime, *blueprint->properties);
                 if (!value) return value.GetStatus();
-                Aero::Detail::DataTemplateTriggerSetter runtimeSetter;
+                Aero::Internal::DataTemplateTriggerSetter runtimeSetter;
                 runtimeSetter.target =
                     Base::Ref<DependencyObject>::FromBorrowed(
                         *static_cast<DependencyObject*>(visuals[target]));
@@ -2714,11 +2709,11 @@ Base::Result<void> BuildCompiledTemplate(
         for (const Base::Ref<TriggerBase>& authored :
              blueprint->controlTemplateDataTriggers) {
             if (!authored) continue;
-            Aero::Detail::DataTemplatePropertyTrigger runtimeTrigger;
+            Aero::Internal::DataTemplatePropertyTrigger runtimeTrigger;
             Base::Span<const Base::Ref<Setter>> setters;
-            if (authored->RuntimeType() == PropertyTrigger::StaticTypeId()) {
+            if (authored->RuntimeType() == Trigger::StaticTypeId()) {
                 const auto& property =
-                    static_cast<const PropertyTrigger&>(*authored);
+                    static_cast<const Trigger&>(*authored);
                 Base::Object* source = property.GetSourceName().Empty()
                     ? static_cast<Base::Object*>(&context.TemplatedParent())
                     : triggerContext->FindName(property.GetSourceName());
@@ -2744,7 +2739,7 @@ Base::Result<void> BuildCompiledTemplate(
                         property.GetPropertyName(), sourceType,
                         blueprint->runtime->Types());
                 }
-                Aero::Detail::DataTemplateTriggerCondition condition;
+                Aero::Internal::DataTemplateTriggerCondition condition;
                 condition.source = Base::Ref<Base::Object>::FromBorrowed(
                     *source);
                 condition.dependencySource =
@@ -2766,7 +2761,7 @@ Base::Result<void> BuildCompiledTemplate(
                 const auto& data = static_cast<const DataTrigger&>(*authored);
                 if (!data.GetBinding()) return InvalidTemplateCompiler(
                     "ControlTemplate DataTrigger requires Binding");
-                Aero::Detail::DataTemplateTriggerCondition condition;
+                Aero::Internal::DataTemplateTriggerCondition condition;
                 Base::Object* source = sourceFor(*data.GetBinding());
                 if (source != nullptr) {
                     condition.source =
@@ -2787,7 +2782,7 @@ Base::Result<void> BuildCompiledTemplate(
                         return InvalidTemplateCompiler(
                             "ControlTemplate MultiDataTrigger requires complete Conditions");
                     }
-                    Aero::Detail::DataTemplateTriggerCondition condition;
+                    Aero::Internal::DataTemplateTriggerCondition condition;
                     Base::Object* source = sourceFor(*authoredCondition->GetBinding());
                     if (source != nullptr) {
                         condition.source =
@@ -2819,7 +2814,7 @@ Base::Result<void> BuildCompiledTemplate(
             if (!configured) return configured.GetStatus();
         }
         Base::Result<void> attached =
-            Aero::Detail::ElementPrivate::TryAddAuthoredTrigger(
+            Aero::Internal::ElementPrivate::TryAddAuthoredTrigger(
                 *triggerContext->root,
                 Base::Ref<Base::Object>(std::move(triggerContext)));
         if (!attached) return attached.GetStatus();
@@ -2875,17 +2870,12 @@ BuildCompiledDeferredTemplate(
                 value = Value::FromObject(
                     property.value.Type(), objects[property.objectNode]);
             }
-            Base::Result<void> applied = dependencyObject.SetValue(
-                property.property, std::move(value));
-            if (!applied) return applied.GetStatus();
+            dependencyObject.SetValue(property.property, std::move(value));
         }
         if (node.type == Grid::StaticTypeId()) {
             auto& grid = static_cast<Grid&>(*objects[index]);
-            Base::Result<void> restored = grid.SetColumnDefinitions(
-                node.gridColumns.AsSpan());
-            if (restored) restored = grid.SetRowDefinitions(
-                node.gridRows.AsSpan());
-            if (!restored) return restored.GetStatus();
+            grid.SetColumnDefinitions(node.gridColumns.AsSpan());
+            grid.SetRowDefinitions(node.gridRows.AsSpan());
         }
     }
     for (std::uint32_t index = 0U;
@@ -2918,10 +2908,7 @@ BuildCompiledDeferredTemplate(
         blueprint->runtime->Types().IsDerivedFrom(
             root->RuntimeType(),
             FrameworkElement::StaticTypeId())) {
-        Base::Result<void> assigned =
-            static_cast<FrameworkElement&>(*root)
-                .SetDataContext(payload);
-        if (!assigned) return assigned.GetStatus();
+        static_cast<FrameworkElement&>(*root).SetDataContext(payload);
     }
     for (const TemplatePrototypeBinding& binding :
          blueprint->bindings) {
@@ -2957,19 +2944,19 @@ BuildCompiledDeferredTemplate(
                 descriptor);
         if (!queued) return queued.GetStatus();
     }
-    Base::Ref<Aero::Detail::DataTemplateTriggerState>
+    Base::Ref<Aero::Internal::DataTemplateTriggerState>
         triggerContext;
     auto ensureTriggerContext =
         [&]() noexcept
         -> Base::Result<
-            Aero::Detail::DataTemplateTriggerState*> {
+            Aero::Internal::DataTemplateTriggerState*> {
         if (triggerContext) {
             return triggerContext.Get();
         }
         Base::Result<Base::Ref<
-            Aero::Detail::DataTemplateTriggerState>>
+            Aero::Internal::DataTemplateTriggerState>>
             created = Base::MakeRef<
-                Aero::Detail::
+                Aero::Internal::
                     DataTemplateTriggerState>();
         if (!created) {
             return created.GetStatus();
@@ -2983,7 +2970,7 @@ BuildCompiledDeferredTemplate(
             if (blueprint->nodes[index].name.Empty()) {
                 continue;
             }
-            Aero::Detail::DataTemplateTriggerState::
+            Aero::Internal::DataTemplateTriggerState::
                 NamedObject named;
             Base::Result<void> assigned =
                 named.name.TryAssign(
@@ -3003,7 +2990,7 @@ BuildCompiledDeferredTemplate(
     };
     auto appendRuntimeSetters =
         [&](Base::Span<const Base::Ref<Setter>> setters,
-            Aero::Detail::DataTemplatePropertyTrigger&
+            Aero::Internal::DataTemplatePropertyTrigger&
                 runtimeTrigger) noexcept
         -> Base::Result<void> {
         for (const Base::Ref<Setter>& setter : setters) {
@@ -3036,7 +3023,7 @@ BuildCompiledDeferredTemplate(
             if (!converted) {
                 return converted.GetStatus();
             }
-            Aero::Detail::DataTemplateTriggerSetter
+            Aero::Internal::DataTemplateTriggerSetter
                 runtimeSetter;
             runtimeSetter.target =
                 Base::Ref<DependencyObject>::FromBorrowed(
@@ -3056,27 +3043,27 @@ BuildCompiledDeferredTemplate(
     for (const Base::Ref<TriggerBase>& authored :
          blueprint->dataTemplateTriggers) {
         if (!authored) continue;
-        const Core::TypeId triggerType =
+        const Meta::TypeId triggerType =
             authored->RuntimeType();
         if (triggerType !=
-                PropertyTrigger::StaticTypeId() &&
+                Trigger::StaticTypeId() &&
             triggerType != DataTrigger::StaticTypeId() &&
             triggerType !=
                 MultiDataTrigger::StaticTypeId()) {
             continue;
         }
         Base::Result<
-            Aero::Detail::DataTemplateTriggerState*>
+            Aero::Internal::DataTemplateTriggerState*>
             ensured = ensureTriggerContext();
         if (!ensured) return ensured.GetStatus();
-        Aero::Detail::DataTemplatePropertyTrigger
+        Aero::Internal::DataTemplatePropertyTrigger
             runtimeTrigger;
         Base::Span<const Base::Ref<Setter>>
             authoredSetters;
         if (triggerType ==
-            PropertyTrigger::StaticTypeId()) {
+            Trigger::StaticTypeId()) {
             const auto& propertyTrigger =
-                static_cast<const PropertyTrigger&>(
+                static_cast<const Trigger&>(
                     *authored);
             const DependencyProperty* sourceProperty =
                 blueprint->properties->Find(
@@ -3086,7 +3073,7 @@ BuildCompiledDeferredTemplate(
                 return InvalidTemplateCompiler(
                     "DataTemplate Trigger source property was not found");
             }
-            Aero::Detail::DataTemplateTriggerCondition
+            Aero::Internal::DataTemplateTriggerCondition
                 condition;
             condition.source = root;
             condition.dependencySource =
@@ -3127,7 +3114,7 @@ BuildCompiledDeferredTemplate(
                 return InvalidTemplateCompiler(
                     "DataTemplate DataTrigger requires Binding");
             }
-            Aero::Detail::DataTemplateTriggerCondition
+            Aero::Internal::DataTemplateTriggerCondition
                 condition;
             condition.source = payload;
             condition.binding =
@@ -3151,7 +3138,7 @@ BuildCompiledDeferredTemplate(
                     return InvalidTemplateCompiler(
                         "DataTemplate MultiDataTrigger requires complete Conditions");
                 }
-                Aero::Detail::DataTemplateTriggerCondition
+                Aero::Internal::DataTemplateTriggerCondition
                     condition;
                 condition.source = payload;
                 condition.binding =
@@ -3186,7 +3173,7 @@ BuildCompiledDeferredTemplate(
     }
     if (triggerContext) {
         Base::Result<void> attached =
-            Aero::Detail::ElementPrivate::TryAddAuthoredTrigger(
+            Aero::Internal::ElementPrivate::TryAddAuthoredTrigger(
                 static_cast<FrameworkElement&>(*root),
                 Base::Ref<Base::Object>(triggerContext));
         if (!attached) return attached.GetStatus();
@@ -3194,4 +3181,4 @@ BuildCompiledDeferredTemplate(
     return root;
 }
 
-} // namespace Aero::Markup::Detail
+} // namespace Aero::Internal

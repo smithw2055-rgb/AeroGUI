@@ -4,27 +4,35 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Input/Values.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include <Aero/Value.hpp>
 
 #include <cstdint>
+
+namespace Aero::Input {
+
+enum class KeyboardAction : std::uint8_t;
+enum class MouseButton : std::uint8_t;
+enum class MouseButtonState : std::uint8_t;
+
+} // namespace Aero::Input
 
 namespace Aero {
 
 class UIElement;
 
-using RoutedEventId = Core::MemberId;
+using RoutedEventId = Meta::MemberId;
 
 struct RoutedEventHandle final {
-    RoutedEventId value = Core::InvalidMemberId;
-    constexpr bool IsValid() const noexcept { return value != Core::InvalidMemberId; }
+    RoutedEventId value = Meta::InvalidMemberId;
+    constexpr bool IsValid() const noexcept { return value != Meta::InvalidMemberId; }
 };
 
 using RoutedEvent = RoutedEventHandle;
 
 enum class RoutingStrategy : std::uint8_t { Direct = 0U, Tunnel, Bubble };
 
-constexpr RoutedEventHandle MakeRoutedEventHandle(Core::TypeId ownerType, Base::StringView name) noexcept;
+constexpr RoutedEventHandle MakeRoutedEventHandle(Meta::TypeId ownerType, Base::StringView name) noexcept;
 
 template<class TOwner, class TArgs>
 class RoutedEventRef final {
@@ -38,7 +46,7 @@ public:
     constexpr Base::StringView Name() const noexcept { return name_; }
     constexpr RoutedEventHandle Handle() const noexcept { return handle_; }
     constexpr operator RoutedEventHandle() const noexcept { return handle_; }
-    constexpr Core::MemberId Id() const noexcept { return handle_.value; }
+    constexpr Meta::MemberId Id() const noexcept { return handle_.value; }
 
 private:
     Base::StringView name_;
@@ -48,7 +56,7 @@ private:
 constexpr bool operator==(RoutedEventHandle left, RoutedEventHandle right) noexcept { return left.value == right.value; }
 constexpr bool operator!=(RoutedEventHandle left, RoutedEventHandle right) noexcept { return !(left == right); }
 
-constexpr RoutedEventHandle MakeRoutedEventHandle(Core::TypeId ownerType, Base::StringView name) noexcept {
+constexpr RoutedEventHandle MakeRoutedEventHandle(Meta::TypeId ownerType, Base::StringView name) noexcept {
     constexpr char domain[] = "AERO.MEMBER.V1";
     Base::Detail::StableMetadataIdBuilder builder;
     builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
@@ -59,25 +67,25 @@ constexpr RoutedEventHandle MakeRoutedEventHandle(Core::TypeId ownerType, Base::
 }
 
 struct EventArgs {
-    AERO_DECLARE_TYPE(EventArgs, Core::NoMetadataBase)
+    AERO_DECLARE_TYPE(EventArgs, Meta::NoMetadataBase)
 public:
     explicit constexpr EventArgs(
-        Core::TypeId type = StaticTypeId()) noexcept
+        Meta::TypeId type = StaticTypeId()) noexcept
         : eventArgsType_(type) {}
 
-    constexpr Core::TypeId GetEventArgsType() const noexcept {
+    constexpr Meta::TypeId GetEventArgsType() const noexcept {
         return eventArgsType_;
     }
 
 private:
-    Core::TypeId eventArgsType_ = StaticTypeId();
+    Meta::TypeId eventArgsType_ = StaticTypeId();
 };
 
 struct RoutedEventArgs : EventArgs {
     AERO_DECLARE_TYPE(RoutedEventArgs, EventArgs)
 public:
     explicit constexpr RoutedEventArgs(
-        Core::TypeId type = StaticTypeId()) noexcept
+        Meta::TypeId type = StaticTypeId()) noexcept
         : EventArgs(type) {}
 
     constexpr RoutedEvent GetRoutedEvent() const noexcept {
@@ -108,7 +116,7 @@ struct InputEventArgs : RoutedEventArgs {
     AERO_DECLARE_TYPE(InputEventArgs, RoutedEventArgs)
 public:
     explicit constexpr InputEventArgs(
-        Core::TypeId type = StaticTypeId()) noexcept
+        Meta::TypeId type = StaticTypeId()) noexcept
         : RoutedEventArgs(type) {}
 
     constexpr std::uint32_t GetModifiers() const noexcept {
@@ -126,7 +134,7 @@ struct MouseEventArgs : InputEventArgs {
     AERO_DECLARE_TYPE(MouseEventArgs, InputEventArgs)
 public:
     explicit constexpr MouseEventArgs(
-        Core::TypeId type = StaticTypeId()) noexcept
+        Meta::TypeId type = StaticTypeId()) noexcept
         : InputEventArgs(type) {}
 
     constexpr std::uint32_t GetPointerId() const noexcept {
@@ -167,9 +175,8 @@ public:
     }
 
 private:
-    Input::MouseButton changedButton_ = Input::MouseButton::Left;
-    Input::MouseButtonState buttonState_ =
-        Input::MouseButtonState::Released;
+    Input::MouseButton changedButton_{};
+    Input::MouseButtonState buttonState_{};
 };
 
 struct MouseWheelEventArgs final : MouseEventArgs {
@@ -206,7 +213,7 @@ public:
     constexpr void SetIsRepeat(bool value) noexcept { isRepeat_ = value; }
 
 private:
-    Input::KeyboardAction action_ = Input::KeyboardAction::Down;
+    Input::KeyboardAction action_{};
     std::uint32_t key_ = 0U;
     bool isRepeat_ = false;
 };

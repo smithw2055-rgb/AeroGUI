@@ -15,8 +15,8 @@ under:
 - `src/gui/RuntimeServices.hpp`
 - `src/controls/ControlBehavior.hpp`
 
-`Aero::Detail::UiRuntimeAccess` and
-`Aero::Detail::ControlRuntimeAccess` are private friendship boundaries used by
+`Aero::Internal::UiRuntimeAccess` and
+`Aero::Internal::ControlRuntimeAccess` are private friendship boundaries used by
 implementation code. Public objects that require an attachment retain opaque
 state and grant friendship to one access owner per domain rather than naming a
 concrete manager in their public declaration.

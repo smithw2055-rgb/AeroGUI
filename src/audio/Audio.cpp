@@ -113,29 +113,23 @@ bool Engine::IsInitialized() const noexcept {
     return impl_ != nullptr;
 }
 
-Base::Result<void> Engine::SetMusicVolume(float value) noexcept {
+void Engine::SetMusicVolume(float value) noexcept {
     Base::Result<void> valid = ValidateVolume(value);
-    if (!valid) return valid.GetStatus();
-    if (impl_ == nullptr) return AudioFailure("Audio engine is not initialized");
+    if (!valid || impl_ == nullptr) return;
 #if AERO_AUDIO_MINIAUDIO
     ma_sound_group_set_volume(&impl_->musicGroup, value);
-    return {};
 #else
-    return Base::Status::Failure(Base::ErrorCode::Unsupported,
-        "AeroGUI was built without the miniAudio provider");
+    (void)value;
 #endif
 }
 
-Base::Result<void> Engine::SetEffectsVolume(float value) noexcept {
+void Engine::SetEffectsVolume(float value) noexcept {
     Base::Result<void> valid = ValidateVolume(value);
-    if (!valid) return valid.GetStatus();
-    if (impl_ == nullptr) return AudioFailure("Audio engine is not initialized");
+    if (!valid || impl_ == nullptr) return;
 #if AERO_AUDIO_MINIAUDIO
     ma_sound_group_set_volume(&impl_->effectsGroup, value);
-    return {};
 #else
-    return Base::Status::Failure(Base::ErrorCode::Unsupported,
-        "AeroGUI was built without the miniAudio provider");
+    (void)value;
 #endif
 }
 

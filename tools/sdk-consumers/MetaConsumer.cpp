@@ -16,8 +16,8 @@ namespace Aero::Meta {
 
 template<>
 struct TypeTraits<SdkConsumer::ViewModel> {
-    static constexpr Core::TypeId Id() noexcept {
-        return Core::MakeTypeId(
+    static constexpr Meta::TypeId Id() noexcept {
+        return Meta::MakeTypeId(
             "urn:aero-sdk-consumer", "ViewModel");
     }
     static constexpr Base::StringView Namespace() noexcept {
@@ -26,8 +26,8 @@ struct TypeTraits<SdkConsumer::ViewModel> {
     static constexpr Base::StringView Name() noexcept {
         return "ViewModel";
     }
-    static constexpr Core::TypeId BaseType() noexcept {
-        return Core::InvalidTypeId;
+    static constexpr Meta::TypeId BaseType() noexcept {
+        return Meta::InvalidTypeId;
     }
 };
 
@@ -50,11 +50,11 @@ public:
     inline static constexpr Members::RoutedEvent<Aero::RoutedEventArgs> ActivatedEvent{"Activated"};
 
 protected:
-    Aero::Base::Result<void> OnRender(
+    void OnRender(
         Aero::DrawingContext& context) noexcept override {
-        return context.DrawRectangle(
+        static_cast<void>(context.DrawRectangle(
             {0.0, 0.0, GetRenderSize().width, GetRenderSize().height},
-            {0.0F, 0.0F, 0.0F, 0.0F});
+            {0.0F, 0.0F, 0.0F, 0.0F}));
     }
 };
 
@@ -81,12 +81,11 @@ Aero::Base::Result<void> RegisterConsumerModule(
         Aero::Meta::Register<ConsumerControl>(context)
             .Property(
                 ConsumerControl::ActiveProperty,
-                Aero::Meta::FrameworkPropertyMetadata(
-                    false,
-                    Aero::Meta::FrameworkPropertyMetadataOptions::AffectsRender))
+                Aero::Meta::PropertyOptions<bool>(false)
+                    .Apply(Aero::Meta::FrameworkPropertyMetadataOptions::AffectsRender))
             .Event(
                 ConsumerControl::ActivatedEvent,
-                Aero::Meta::Routing::Bubble)
+                Aero::RoutingStrategy::Bubble)
             .Factory()
             .Result();
     if (!status) return status.GetStatus();
@@ -202,7 +201,7 @@ static_assert(
 static_assert(
     std::is_same<
         Aero::Threading::Dispatcher,
-        Aero::Core::Dispatcher>::value,
+        Aero::Threading::Dispatcher>::value,
     "Threading projection must preserve dispatcher identity");
 
 

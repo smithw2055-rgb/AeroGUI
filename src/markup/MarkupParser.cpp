@@ -105,7 +105,7 @@ Utf8XmlTokenizer::Utf8XmlTokenizer(XmlTokenizerLimits limits) noexcept
 
 Base::Result<void> Utf8XmlTokenizer::Reset(
     Base::StringView utf8,
-    Core::IDiagnosticSink* diagnostics) noexcept {
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
     input_ = utf8;
     diagnostics_ = diagnostics;
     openElements_.Clear();
@@ -156,6 +156,35 @@ Base::Result<void> Utf8XmlTokenizer::Reset(
 
     initialized_ = true;
     return {};
+}
+
+Base::Result<void> Utf8XmlTokenizer::Reset(
+    Base::Stream& stream,
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    ownedInput_.Clear();
+    std::uint8_t buffer[4096];
+    std::uint64_t total = 0U;
+    for (;;) {
+        Base::Result<std::uint32_t> read =
+            stream.Read({buffer, sizeof(buffer)});
+        if (!read) return read.GetStatus();
+        if (read.Value() == 0U) break;
+        if (read.Value() > limits_.maxInputBytes ||
+            total > limits_.maxInputBytes - read.Value()) {
+            return Failure(
+                Base::ErrorCode::OutOfRange,
+                XmlDiagnosticCodes::InputLimitExceeded,
+                MessageInputLimit,
+                {{0U, 0U, total}, {0U, 0U, total}});
+        }
+        Base::Result<void> appended = ownedInput_.TryAppend(
+            Base::StringView(
+                reinterpret_cast<const char*>(buffer),
+                read.Value()));
+        if (!appended) return appended.GetStatus();
+        total += read.Value();
+    }
+    return Reset(ownedInput_.View(), diagnostics);
 }
 
 Base::Result<XmlTokenKind> Utf8XmlTokenizer::Read(XmlToken& token) noexcept {
@@ -210,7 +239,7 @@ Base::Result<XmlTokenKind> Utf8XmlTokenizer::Read(XmlToken& token) noexcept {
                 }
 
                 failed_ = true;
-                const Core::SourcePosition begin = Position();
+                const ::Aero::Diagnostics::SourcePosition begin = Position();
                 AdvanceCodePoint();
                 return Failure(
                     Base::ErrorCode::ValidationFailed,
@@ -262,7 +291,7 @@ Base::Result<XmlTokenKind> Utf8XmlTokenizer::Read(XmlToken& token) noexcept {
 
         if (StartsWith("<!", 2U)) {
             failed_ = true;
-            const Core::SourcePosition begin = Position();
+            const ::Aero::Diagnostics::SourcePosition begin = Position();
             ConsumeAscii(2U);
             return Failure(
                 Base::ErrorCode::Unsupported,
@@ -295,12 +324,12 @@ bool Utf8XmlTokenizer::StartsWith(
         std::memcmp(input_.Data() + offset_, literal, length) == 0;
 }
 
-Core::SourcePosition Utf8XmlTokenizer::Position() const noexcept {
+::Aero::Diagnostics::SourcePosition Utf8XmlTokenizer::Position() const noexcept {
     return {line_, column_, offset_};
 }
 
-Core::SourceSpan Utf8XmlTokenizer::SpanFrom(
-    Core::SourcePosition begin) const noexcept {
+::Aero::Diagnostics::SourceSpan Utf8XmlTokenizer::SpanFrom(
+    ::Aero::Diagnostics::SourcePosition begin) const noexcept {
     return {begin, Position()};
 }
 
@@ -391,7 +420,7 @@ bool Utf8XmlTokenizer::SkipWhitespace() noexcept {
 
 Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseStartElement(
     XmlToken& token) noexcept {
-    const Core::SourcePosition begin = Position();
+    const ::Aero::Diagnostics::SourcePosition begin = Position();
     ConsumeAscii(1U);
 
     if (rootClosed_) {
@@ -449,7 +478,7 @@ Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseStartElement(
         }
 
         XmlAttribute attribute;
-        const Core::SourcePosition attributeBegin = Position();
+        const ::Aero::Diagnostics::SourcePosition attributeBegin = Position();
         Base::Result<void> attributeNameResult = ParseName(
             attribute.name_, attribute.nameSource_);
         if (!attributeNameResult) {
@@ -528,7 +557,7 @@ Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseStartElement(
 
 Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseEndElement(
     XmlToken& token) noexcept {
-    const Core::SourcePosition begin = Position();
+    const ::Aero::Diagnostics::SourcePosition begin = Position();
     ConsumeAscii(2U);
 
     Base::Result<void> nameResult = ParseName(token.name_, token.nameSource_);
@@ -572,7 +601,7 @@ Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseEndElement(
 
 Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseText(
     XmlToken& token) noexcept {
-    const Core::SourcePosition begin = Position();
+    const ::Aero::Diagnostics::SourcePosition begin = Position();
 
     while (!AtEnd() && input_.Data()[offset_] != '<') {
         Base::Result<void> appendResult = input_.Data()[offset_] == '&'
@@ -597,7 +626,7 @@ Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseText(
 
 Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseCdata(
     XmlToken& token) noexcept {
-    const Core::SourcePosition begin = Position();
+    const ::Aero::Diagnostics::SourcePosition begin = Position();
     ConsumeAscii(9U);
 
     while (!AtEnd() && !StartsWith("]]>", 3U)) {
@@ -630,8 +659,8 @@ Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseCdata(
 
 Base::Result<void> Utf8XmlTokenizer::ParseName(
     Base::String& name,
-    Core::SourceSpan& source) noexcept {
-    const Core::SourcePosition begin = Position();
+    ::Aero::Diagnostics::SourceSpan& source) noexcept {
+    const ::Aero::Diagnostics::SourcePosition begin = Position();
     const std::uint32_t startOffset = offset_;
     std::uint32_t colonCount = 0U;
     bool first = true;
@@ -683,8 +712,8 @@ Base::Result<void> Utf8XmlTokenizer::ParseName(
 Base::Result<void> Utf8XmlTokenizer::ParseAttributeValue(
     char quote,
     Base::String& value,
-    Core::SourceSpan& source) noexcept {
-    const Core::SourcePosition begin = Position();
+    ::Aero::Diagnostics::SourceSpan& source) noexcept {
+    const ::Aero::Diagnostics::SourcePosition begin = Position();
 
     while (!AtEnd() && input_.Data()[offset_] != quote) {
         if (input_.Data()[offset_] == '<') {
@@ -725,7 +754,7 @@ Base::Result<void> Utf8XmlTokenizer::ParseAttributeValue(
 
 Base::Result<void> Utf8XmlTokenizer::AppendEntity(
     Base::String& output) noexcept {
-    const Core::SourcePosition begin = Position();
+    const ::Aero::Diagnostics::SourcePosition begin = Position();
     ConsumeAscii(1U);
     if (AtEnd()) {
         return Failure(
@@ -868,7 +897,7 @@ Base::Result<void> Utf8XmlTokenizer::AppendCodePoint(
 Base::Result<void> Utf8XmlTokenizer::AppendCurrentCodePoint(
     Base::String& output,
     bool attributeValue) noexcept {
-    const Core::SourcePosition begin = Position();
+    const ::Aero::Diagnostics::SourcePosition begin = Position();
     const std::uint32_t codePoint = CurrentCodePoint();
     const std::uint32_t length = CurrentCodePointLength();
     if (!IsXmlCharacter(codePoint)) {
@@ -909,7 +938,7 @@ Base::Result<void> Utf8XmlTokenizer::AppendCurrentCodePoint(
 }
 
 Base::Result<void> Utf8XmlTokenizer::SkipComment() noexcept {
-    const Core::SourcePosition begin = Position();
+    const ::Aero::Diagnostics::SourcePosition begin = Position();
     ConsumeAscii(4U);
 
     while (!AtEnd()) {
@@ -945,7 +974,7 @@ Base::Result<void> Utf8XmlTokenizer::SkipComment() noexcept {
 }
 
 Base::Result<void> Utf8XmlTokenizer::SkipProcessingInstruction() noexcept {
-    const Core::SourcePosition begin = Position();
+    const ::Aero::Diagnostics::SourcePosition begin = Position();
     ConsumeAscii(2U);
 
     while (!AtEnd()) {
@@ -974,17 +1003,17 @@ Base::Result<void> Utf8XmlTokenizer::SkipProcessingInstruction() noexcept {
 
 Base::Status Utf8XmlTokenizer::Failure(
     Base::ErrorCode error,
-    Core::DiagnosticCode diagnostic,
+    ::Aero::Diagnostics::DiagnosticCode diagnostic,
     Base::StringView message,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (diagnostics_ != nullptr) {
-        Base::Result<Core::Diagnostic> item = Core::Diagnostic::TryCreate(
+        Base::Result<::Aero::Diagnostics::Diagnostic> item = ::Aero::Diagnostics::Diagnostic::TryCreate(
             diagnostic,
-            Core::DiagnosticSeverity::Error,
+            ::Aero::Diagnostics::DiagnosticSeverity::Error,
             message,
             source,
-            Core::InvalidDiagnosticObjectId,
-            Core::InvalidMemberId);
+            ::Aero::Diagnostics::InvalidDiagnosticObjectId,
+            Meta::InvalidMemberId);
         if (!item) {
             return item.GetStatus();
         }
@@ -1090,7 +1119,7 @@ Base::Result<Node> Node::TryClone(
 
 NodeReader::NodeReader(
     IXmlTokenizer& tokenizer,
-    Core::IDiagnosticSink* diagnostics) noexcept
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept
     : tokenizer_(&tokenizer),
       diagnostics_(diagnostics),
       xmlToken_(),
@@ -1348,7 +1377,7 @@ Base::Result<void> NodeReader::QueueEndOfDocument(
 Base::Result<void> NodeReader::QueueNamespaceDeclaration(
     Base::StringView prefix,
     Base::StringView uri,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     Node node;
     node.kind_ = NodeKind::NamespaceDeclaration;
     node.source_ = source;
@@ -1367,7 +1396,7 @@ Base::Result<void> NodeReader::QueueNamespaceDeclaration(
 Base::Result<void> NodeReader::QueueObjectNode(
     NodeKind kind,
     const QualifiedName& name,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     Node node;
     node.kind_ = kind;
     node.source_ = source;
@@ -1435,7 +1464,7 @@ Base::Result<void> NodeReader::AddNamespaceBinding(
     Base::StringView prefix,
     Base::StringView uri,
     std::uint32_t bindingStart,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (prefix == XmlnsPrefix || uri == XmlnsNamespaceUri ||
         (!prefix.Empty() && uri.Empty()) ||
         (prefix == XmlPrefix && uri != XmlNamespaceUri) ||
@@ -1471,7 +1500,7 @@ Base::Result<void> NodeReader::AddNamespaceBinding(
 
 Base::Result<void> NodeReader::AddIgnorableNamespaces(
     Base::StringView prefixes,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     std::uint32_t begin = 0U;
     while (begin < prefixes.SizeBytes()) {
         while (begin < prefixes.SizeBytes() &&
@@ -1508,7 +1537,7 @@ Base::Result<void> NodeReader::AddIgnorableNamespaces(
 Base::Result<void> NodeReader::ResolveQualifiedName(
     Base::StringView qualifiedName,
     bool useDefaultNamespace,
-    Core::SourceSpan source,
+    ::Aero::Diagnostics::SourceSpan source,
     QualifiedName& output) noexcept {
     std::uint32_t colon = qualifiedName.SizeBytes();
     for (std::uint32_t index = 0U; index < qualifiedName.SizeBytes(); ++index) {
@@ -1665,17 +1694,17 @@ Base::Result<NodeKind> NodeReader::EmitPending(
 
 Base::Status NodeReader::Failure(
     Base::ErrorCode error,
-    Core::DiagnosticCode diagnostic,
+    ::Aero::Diagnostics::DiagnosticCode diagnostic,
     Base::StringView message,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (diagnostics_ != nullptr) {
-        Base::Result<Core::Diagnostic> item = Core::Diagnostic::TryCreate(
+        Base::Result<::Aero::Diagnostics::Diagnostic> item = ::Aero::Diagnostics::Diagnostic::TryCreate(
             diagnostic,
-            Core::DiagnosticSeverity::Error,
+            ::Aero::Diagnostics::DiagnosticSeverity::Error,
             message,
             source,
-            Core::InvalidDiagnosticObjectId,
-            Core::InvalidMemberId);
+            ::Aero::Diagnostics::InvalidDiagnosticObjectId,
+            Meta::InvalidMemberId);
         if (!item) {
             return item.GetStatus();
         }
@@ -1727,7 +1756,7 @@ ExpatXmlTokenizer::~ExpatXmlTokenizer() noexcept {
     }
 }
 
-Core::SourcePosition
+::Aero::Diagnostics::SourcePosition
 ExpatXmlTokenizer::Position() const noexcept {
     if (parser_ == nullptr) return {};
     XML_Parser parser =
@@ -1748,15 +1777,15 @@ ExpatXmlTokenizer::Position() const noexcept {
 
 void ExpatXmlTokenizer::Stop(
     Base::Status status,
-    Core::DiagnosticCode diagnosticCode,
+    ::Aero::Diagnostics::DiagnosticCode diagnosticCode,
     Base::StringView message) noexcept {
     if (!failure_.IsOk()) return;
     failure_ = status;
     if (diagnostics_ != nullptr) {
-        Base::Result<Core::Diagnostic> diagnostic =
-            Core::Diagnostic::TryCreate(
+        Base::Result<::Aero::Diagnostics::Diagnostic> diagnostic =
+            ::Aero::Diagnostics::Diagnostic::TryCreate(
                 diagnosticCode,
-                Core::DiagnosticSeverity::Error,
+                ::Aero::Diagnostics::DiagnosticSeverity::Error,
                 message,
                 {Position(), Position()});
         if (diagnostic) {
@@ -1825,7 +1854,7 @@ void ExpatXmlTokenizer::HandleStart(
 
     XmlToken token;
     token.kind_ = XmlTokenKind::StartElement;
-    const Core::SourcePosition begin = Position();
+    const ::Aero::Diagnostics::SourcePosition begin = Position();
     token.source_ = {begin, begin};
     token.nameSource_ = {begin, begin};
     Base::Result<void> assigned =
@@ -1927,7 +1956,7 @@ void ExpatXmlTokenizer::HandleEnd(
     }
     XmlToken token;
     token.kind_ = XmlTokenKind::EndElement;
-    const Core::SourcePosition begin = Position();
+    const ::Aero::Diagnostics::SourcePosition begin = Position();
     token.source_ = {begin, begin};
     token.nameSource_ = {begin, begin};
     Base::Result<void> assigned =
@@ -1997,7 +2026,7 @@ void ExpatXmlTokenizer::HandleText(
     }
     XmlToken token;
     token.kind_ = XmlTokenKind::Text;
-    const Core::SourcePosition begin = Position();
+    const ::Aero::Diagnostics::SourcePosition begin = Position();
     token.source_ = {begin, begin};
     Base::Result<void> assigned =
         token.text_.TryAssign(
@@ -2034,40 +2063,9 @@ int ExpatXmlTokenizer::RejectExternalEntity() noexcept {
     return XML_STATUS_ERROR;
 }
 
-Base::Result<void> ExpatXmlTokenizer::Reset(
-    Base::StringView utf8,
-    Core::IDiagnosticSink* diagnostics) noexcept {
-    if (parser_ != nullptr) {
-        XML_ParserFree(
-            static_cast<XML_Parser>(parser_));
-        parser_ = nullptr;
-    }
-    tokens_.Clear();
-    tokenDepths_.Clear();
+Base::Result<void> ExpatXmlTokenizer::InitializeParser(
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
     diagnostics_ = diagnostics;
-    failure_ = {};
-    readIndex_ = 0U;
-    parseDepth_ = 0U;
-    depth_ = 0U;
-    initialized_ = false;
-
-    if (limits_.maxInputBytes == 0U ||
-        limits_.maxDepth == 0U ||
-        limits_.maxAttributesPerElement == 0U ||
-        limits_.maxNameBytes == 0U ||
-        limits_.maxTextBytes == 0U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Expat tokenizer limits must be positive");
-    }
-    if (utf8.SizeBytes() > limits_.maxInputBytes ||
-        utf8.SizeBytes() >
-            static_cast<std::uint32_t>(INT_MAX)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "XML input exceeds configured tokenizer limits");
-    }
-
     XML_Parser parser = XML_ParserCreate(nullptr);
     if (parser == nullptr) {
         return Base::Status::Failure(
@@ -2113,9 +2111,53 @@ Base::Result<void> ExpatXmlTokenizer::Reset(
     XML_SetParamEntityParsing(
         parser,
         XML_PARAM_ENTITY_PARSING_NEVER);
+    return {};
+}
+
+Base::Result<void> ExpatXmlTokenizer::Reset(
+    Base::StringView utf8,
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    if (parser_ != nullptr) {
+        XML_ParserFree(
+            static_cast<XML_Parser>(parser_));
+        parser_ = nullptr;
+    }
+    tokens_.Clear();
+    tokenDepths_.Clear();
+    diagnostics_ = diagnostics;
+    failure_ = {};
+    readIndex_ = 0U;
+    parseDepth_ = 0U;
+    depth_ = 0U;
+    stream_ = nullptr;
+    streamBytes_ = 0U;
+    streamEof_ = false;
+    streamMode_ = false;
+    initialized_ = false;
+
+    if (limits_.maxInputBytes == 0U ||
+        limits_.maxDepth == 0U ||
+        limits_.maxAttributesPerElement == 0U ||
+        limits_.maxNameBytes == 0U ||
+        limits_.maxTextBytes == 0U) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Expat tokenizer limits must be positive");
+    }
+    if (utf8.SizeBytes() > limits_.maxInputBytes ||
+        utf8.SizeBytes() >
+            static_cast<std::uint32_t>(INT_MAX)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "XML input exceeds configured tokenizer limits");
+    }
+
+    Base::Result<void> parserInitialized =
+        InitializeParser(diagnostics);
+    if (!parserInitialized) return parserInitialized.GetStatus();
 
     const enum XML_Status parsed = XML_Parse(
-        parser,
+        static_cast<XML_Parser>(parser_),
         utf8.Data(),
         static_cast<int>(utf8.SizeBytes()),
         XML_TRUE);
@@ -2134,7 +2176,7 @@ Base::Result<void> ExpatXmlTokenizer::Reset(
     }
     XmlToken end;
     end.kind_ = XmlTokenKind::EndOfDocument;
-    const Core::SourcePosition position = Position();
+    const ::Aero::Diagnostics::SourcePosition position = Position();
     end.source_ = {position, position};
     Base::Result<void> stored =
         PushToken(std::move(end), 0U);
@@ -2143,12 +2185,153 @@ Base::Result<void> ExpatXmlTokenizer::Reset(
     return {};
 }
 
+Base::Result<void> ExpatXmlTokenizer::Reset(
+    Base::Stream& stream,
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    if (parser_ != nullptr) {
+        XML_ParserFree(
+            static_cast<XML_Parser>(parser_));
+        parser_ = nullptr;
+    }
+    tokens_.Clear();
+    tokenDepths_.Clear();
+    diagnostics_ = diagnostics;
+    failure_ = {};
+    readIndex_ = 0U;
+    parseDepth_ = 0U;
+    depth_ = 0U;
+    stream_ = &stream;
+    streamBytes_ = 0U;
+    streamEof_ = false;
+    streamMode_ = true;
+    initialized_ = false;
+
+    if (limits_.maxInputBytes == 0U ||
+        limits_.maxDepth == 0U ||
+        limits_.maxAttributesPerElement == 0U ||
+        limits_.maxNameBytes == 0U ||
+        limits_.maxTextBytes == 0U) {
+        stream_ = nullptr;
+        streamMode_ = false;
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Expat tokenizer limits must be positive");
+    }
+    Base::Result<void> parserInitialized =
+        InitializeParser(diagnostics);
+    if (!parserInitialized) {
+        stream_ = nullptr;
+        streamMode_ = false;
+        return parserInitialized.GetStatus();
+    }
+    initialized_ = true;
+    return {};
+}
+
+Base::Result<XmlTokenKind> ExpatXmlTokenizer::ReadStream(
+    XmlToken& token) noexcept {
+    for (;;) {
+        if (readIndex_ < tokens_.Size()) {
+            token = std::move(tokens_[readIndex_]);
+            depth_ = tokenDepths_[readIndex_];
+            ++readIndex_;
+            if (readIndex_ == tokens_.Size()) {
+                tokens_.Clear();
+                tokenDepths_.Clear();
+                readIndex_ = 0U;
+            }
+            return token.kind_;
+        }
+        if (streamEof_) {
+            token.Clear();
+            token.kind_ = XmlTokenKind::EndOfDocument;
+            depth_ = 0U;
+            return token.kind_;
+        }
+        if (stream_ == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Expat stream is not initialized");
+        }
+
+        std::uint8_t buffer[4096];
+        Base::Result<std::uint32_t> read =
+            stream_->Read(Base::Span<uint8_t>(
+                buffer, static_cast<std::uint32_t>(sizeof(buffer))));
+        if (!read) {
+            Stop(
+                read.GetStatus(),
+                XmlDiagnosticCodes::MalformedMarkup,
+                ExpatMessageMalformed);
+            return read.GetStatus();
+        }
+        const std::uint32_t count = read.Value();
+        if (count > limits_.maxInputBytes ||
+            streamBytes_ >
+                limits_.maxInputBytes - count) {
+            Stop(
+                Base::Status::Failure(
+                    Base::ErrorCode::OutOfRange,
+                    MessageLimit.Data()),
+                XmlDiagnosticCodes::InputLimitExceeded,
+                MessageLimit);
+            return failure_;
+        }
+        streamBytes_ += count;
+        if (count == 0U) {
+            const enum XML_Status parsed = XML_Parse(
+                static_cast<XML_Parser>(parser_),
+                nullptr,
+                0,
+                XML_TRUE);
+            streamEof_ = true;
+            if (!failure_.IsOk()) return failure_;
+            if (parsed != XML_STATUS_OK || parseDepth_ != 0U) {
+                Stop(
+                    Base::Status::Failure(
+                        Base::ErrorCode::ValidationFailed,
+                        ExpatMessageMalformed.Data()),
+                    XmlDiagnosticCodes::MalformedMarkup,
+                    ExpatMessageMalformed);
+                return failure_;
+            }
+            XmlToken end;
+            end.kind_ = XmlTokenKind::EndOfDocument;
+            const ::Aero::Diagnostics::SourcePosition position = Position();
+            end.source_ = {position, position};
+            Base::Result<void> stored =
+                PushToken(std::move(end), 0U);
+            if (!stored) return stored.GetStatus();
+            continue;
+        }
+        const enum XML_Status parsed = XML_Parse(
+            static_cast<XML_Parser>(parser_),
+            reinterpret_cast<const char*>(buffer),
+            static_cast<int>(count),
+            XML_FALSE);
+        if (!failure_.IsOk()) return failure_;
+        if (parsed != XML_STATUS_OK) {
+            Stop(
+                Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    ExpatMessageMalformed.Data()),
+                XmlDiagnosticCodes::MalformedMarkup,
+                ExpatMessageMalformed);
+            return failure_;
+        }
+    }
+}
+
 Base::Result<XmlTokenKind> ExpatXmlTokenizer::Read(
     XmlToken& token) noexcept {
     if (!initialized_) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "Expat tokenizer is not initialized");
+    }
+    if (streamMode_) {
+        token.Clear();
+        return ReadStream(token);
     }
     if (readIndex_ >= tokens_.Size()) {
         token.Clear();

@@ -73,7 +73,7 @@ struct ReloadCoordinator::Impl final {
     }
 
     Base::Result<void> BuildTrackedSources(
-        const UiDocument& document,
+        const Markup::XamlDocument& document,
         Base::ResourceUri& resolvedRoot,
         Base::Vector<RevisionRecord>& output) noexcept {
         output.Clear();
@@ -101,7 +101,7 @@ struct ReloadCoordinator::Impl final {
 
     Base::Result<ReloadResult> ReloadFor(
         const Base::ResourceUri& changed,
-        Core::IDiagnosticSink* diagnostics) noexcept {
+        Diagnostics::IDiagnosticSink* diagnostics) noexcept {
         if (!active || view == nullptr || !view->IsMounted()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -112,7 +112,7 @@ struct ReloadCoordinator::Impl final {
         if (!invalidated) return invalidated.GetStatus();
         const std::uint32_t invalidatedCount = invalidated.Value();
 
-        Base::Result<UiDocument> replacement =
+        Base::Result<Markup::XamlDocument> replacement =
             view->LoadDocument(rootUri.Canonical(), diagnostics);
         if (!replacement) return replacement.GetStatus();
         Base::ResourceUri replacementRoot = rootUri;
@@ -192,7 +192,7 @@ ReloadCoordinator& ReloadCoordinator::operator=(
 Base::Result<void> ReloadCoordinator::Start(
     Base::StringView rootUri,
     Aero::Size availableSize,
-    Core::IDiagnosticSink* diagnostics) noexcept {
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
     if (impl_ == nullptr || impl_->view == nullptr ||
         !impl_->view->IsInitialized()) {
         return Base::Status::Failure(
@@ -207,7 +207,7 @@ Base::Result<void> ReloadCoordinator::Start(
     Base::Result<Base::ResourceUri> parsed =
         Base::ResourceUri::Parse(rootUri);
     if (!parsed) return parsed.GetStatus();
-    Base::Result<UiDocument> document =
+    Base::Result<Markup::XamlDocument> document =
         impl_->view->LoadDocument(rootUri, diagnostics);
     if (!document) return document.GetStatus();
     Base::ResourceUri resolvedRoot = parsed.Value();
@@ -234,7 +234,7 @@ void ReloadCoordinator::Stop() noexcept {
 }
 
 Base::Result<ReloadResult> ReloadCoordinator::Poll(
-    Core::IDiagnosticSink* diagnostics) noexcept {
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
     ReloadResult noChange;
     if (impl_ == nullptr || !impl_->active) {
         return Base::Status::Failure(
@@ -253,7 +253,7 @@ Base::Result<ReloadResult> ReloadCoordinator::Poll(
 }
 
 Base::Result<ReloadResult> ReloadCoordinator::Reload(
-    Core::IDiagnosticSink* diagnostics) noexcept {
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -265,7 +265,7 @@ Base::Result<ReloadResult> ReloadCoordinator::Reload(
 Base::Result<ReloadResult>
 ReloadCoordinator::NotifySourceChanged(
     const Base::ResourceUri& changedUri,
-    Core::IDiagnosticSink* diagnostics) noexcept {
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
     if (impl_ == nullptr || changedUri.Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,

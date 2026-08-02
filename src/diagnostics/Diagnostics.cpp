@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace Aero::Core {
+namespace Aero::Diagnostics {
 namespace {
 
 bool IsValidSeverity(DiagnosticSeverity severity) noexcept {
@@ -244,4 +244,4 @@ void DiagnosticBag::Clear() noexcept {
     droppedCount_ = 0U;
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Diagnostics

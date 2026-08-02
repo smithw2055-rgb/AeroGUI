@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Assert.hpp>
@@ -23,7 +23,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace Aero::Core {
+namespace Aero::Base {
 
 using TypeId = Base::MetaTypeId;
 using MemberId = Base::MetaMemberId;
@@ -31,9 +31,9 @@ using MemberId = Base::MetaMemberId;
 inline constexpr TypeId InvalidTypeId = Base::InvalidMetaTypeId;
 inline constexpr MemberId InvalidMemberId = Base::InvalidMetaMemberId;
 
-} // namespace Aero::Core
+} // namespace Aero::Base
 
-namespace Aero::Core {
+namespace Aero::Base {
 
 enum class ValueKind : std::uint8_t {
     Unset = 0U,
@@ -120,11 +120,22 @@ struct TextValueConverterRegistration final {
     void* context = nullptr;
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Base
 
 namespace Aero { template<class TOwner, class TArgs> class RoutedEventRef; }
 namespace Aero::Meta { class Registry; class Registration; }
-namespace Aero::Core {
+namespace Aero::Meta {
+using Base::InvalidMemberId;
+using Base::InvalidTypeId;
+using Base::MemberId;
+using Base::TypeId;
+using Base::Value;
+using Base::ValueKind;
+using Base::ValueTypeRegistration;
+using Base::ValueTypeSemantics;
+using Base::TextValueConverterCallback;
+using Base::TextValueConverterRegistration;
+
 class BehaviorTable;
 class RegistrationTypes;
 class TypeRegistry;
@@ -272,7 +283,7 @@ constexpr TypeId MakeTypeId(Base::StringView name) noexcept { return Base::MakeM
 struct NoMetadataBase final {};
 
 template<class T>
-struct MetaTypeTraits {
+struct TypeTraits {
     static constexpr TypeId Id() noexcept { return T::StaticTypeId(); }
     static constexpr Base::StringView Namespace() noexcept {
         return T::StaticMetadataNamespace();
@@ -285,13 +296,13 @@ struct MetaTypeTraits {
             NoMetadataBase>) {
             return InvalidTypeId;
         } else {
-            return MetaTypeTraits<typename T::BaseType>::Id();
+            return TypeTraits<typename T::BaseType>::Id();
         }
     }
 };
 
 template<>
-struct MetaTypeTraits<Base::Object> {
+struct TypeTraits<Base::Object> {
     static constexpr TypeId Id() noexcept {
         return Base::Object::StaticTypeId();
     }
@@ -303,7 +314,7 @@ struct MetaTypeTraits<Base::Object> {
 };
 
 template<class T>
-constexpr TypeId TypeOf() noexcept { return MetaTypeTraits<T>::Id(); }
+constexpr TypeId TypeOf() noexcept { return TypeTraits<T>::Id(); }
 
 constexpr MemberId MakeMemberId(TypeId ownerType, MemberKind kind, Base::StringView name) noexcept {
     constexpr char domain[] = "AERO.MEMBER.V1";
@@ -317,7 +328,7 @@ constexpr MemberId MakeMemberId(TypeId ownerType, MemberKind kind, Base::StringV
 AERO_API MemberId MakeMethodId(TypeId ownerType, Base::StringView name, Base::Span<const TypeId> parameterTypes) noexcept;
 
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 #define AERO_DECLARE_TYPE_NAMED( \
     typeName, metadataBaseType, metadataNamespace, metadataName) \
@@ -326,11 +337,11 @@ public: \
     using BaseType = metadataBaseType; \
     struct Members final { \
         template<class TValue> \
-        using Property = Aero::Core::DependencyPropertyRef<Self, TValue>; \
+        using Property = Aero::DependencyPropertyRef<Self, TValue>; \
         template<class TValue> \
-        using AttachedProperty = Aero::Core::AttachedPropertyRef<Self, TValue>; \
+        using AttachedProperty = Aero::AttachedPropertyRef<Self, TValue>; \
         template<class TValue> \
-        using ReadOnlyProperty = Aero::Core::ReadOnlyPropertyRef<Self, TValue>; \
+        using ReadOnlyProperty = Aero::ReadOnlyPropertyRef<Self, TValue>; \
         template<class TArgs> \
         using RoutedEvent = Aero::RoutedEventRef<Self, TArgs>; \
     }; \
@@ -342,31 +353,20 @@ public: \
     StaticMetadataName() noexcept { \
         return Aero::Base::StringView(metadataName); \
     } \
-    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = \
-        Aero::Core::MakeTypeId( \
+    inline static constexpr Aero::Base::TypeId StaticTypeIdValue_ = \
+        Aero::Meta::MakeTypeId( \
             Aero::Base::StringView(metadataNamespace), \
             Aero::Base::StringView(metadataName)); \
-    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { \
+    static constexpr Aero::Base::TypeId StaticTypeId() noexcept { \
         return StaticTypeIdValue_; \
     }
 
 #define AERO_DECLARE_TYPE(typeName, metadataBaseType) \
     AERO_DECLARE_TYPE_NAMED( \
         typeName, metadataBaseType, \
-        Aero::Core::AeroNamespaceUri(), #typeName)
+        Aero::Meta::AeroNamespaceUri(), #typeName)
 
 namespace Aero::Meta {
-
-// Metadata traits for ordinary C++ types. Framework objects normally use
-// AERO_DECLARE_TYPE; ViewModels may specialize this trait without deriving
-// from DependencyObject.
-template<class T>
-struct TypeTraits : Core::MetaTypeTraits<T> {};
-
-} // namespace Aero::Meta
-
-
-namespace Aero::Core {
 
 // A metadata value that identifies an object type. It is deliberately
 // distinct from the uint32_t storage used by TypeId so markup can resolve
@@ -380,7 +380,7 @@ struct TypeReference final {
 };
 
 template<>
-struct MetaTypeTraits<Value> {
+struct TypeTraits<Value> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("Any");
     }
@@ -396,7 +396,7 @@ struct MetaTypeTraits<Value> {
 };
 
 template<>
-struct MetaTypeTraits<TypeReference> {
+struct TypeTraits<TypeReference> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("TypeReference");
     }
@@ -412,7 +412,7 @@ struct MetaTypeTraits<TypeReference> {
 };
 
 template<>
-struct MetaTypeTraits<Base::ResourceUri> {
+struct TypeTraits<Base::ResourceUri> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("ResourceUri");
     }
@@ -432,7 +432,7 @@ AERO_API Base::Result<Value> TryEncodeValue(
     const void* source) noexcept;
 
 template<>
-struct MetaTypeTraits<bool> {
+struct TypeTraits<bool> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("Boolean"); }
     static constexpr Base::StringView Namespace() noexcept {
         return AeroNamespaceUri();
@@ -443,7 +443,7 @@ struct MetaTypeTraits<bool> {
 
 #define AERO_DEFINE_INTEGER_META_TYPE(cppType, metadataName) \
     template<> \
-    struct MetaTypeTraits<cppType> { \
+    struct TypeTraits<cppType> { \
         static constexpr TypeId Id() noexcept { \
             return MakeTypeId(metadataName); \
         } \
@@ -470,7 +470,7 @@ AERO_DEFINE_INTEGER_META_TYPE(std::uint64_t, "UInt64");
 #undef AERO_DEFINE_INTEGER_META_TYPE
 
 template<>
-struct MetaTypeTraits<double> {
+struct TypeTraits<double> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("Double"); }
     static constexpr Base::StringView Namespace() noexcept {
         return AeroNamespaceUri();
@@ -480,7 +480,7 @@ struct MetaTypeTraits<double> {
 };
 
 template<>
-struct MetaTypeTraits<Base::String> {
+struct TypeTraits<Base::String> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("String"); }
     static constexpr Base::StringView Namespace() noexcept {
         return AeroNamespaceUri();
@@ -869,9 +869,9 @@ struct ValueCodec<Base::Ref<T>, void> {
     }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
-namespace Aero::Core {
+namespace Aero::Base::Detail {
 
 namespace ValueConversion {
 
@@ -958,4 +958,4 @@ bool Positive(const T& value) noexcept {
 
 } // namespace Validate
 
-} // namespace Aero::Core
+} // namespace Aero::Base::Detail

@@ -14,7 +14,7 @@
 #include <cstddef>
 #include <new>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 class ElementPrivate;
 class EventRouter;
 }
@@ -75,7 +75,7 @@ public:
         return Event<TArgs>(*this, event.Handle());
     }
 
-    explicit ContentElement(Core::TypeId runtimeType) noexcept;
+    explicit ContentElement(Meta::TypeId runtimeType) noexcept;
     ~ContentElement() override;
 
     DependencyObject* GetParent() const noexcept { return logicalParent_; }
@@ -116,13 +116,13 @@ public:
     }
 
 protected:
-    Base::Result<void> RaiseEvent(
+    void RaiseEvent(
         RoutedEventHandle event,
         RoutedEventArgs* args = nullptr) noexcept;
 
 private:
-    friend class Aero::Detail::ElementPrivate;
-    friend class Aero::Detail::EventRouter;
+    friend class Aero::Internal::ElementPrivate;
+    friend class Aero::Internal::EventRouter;
 
     struct HandlerOperations final {
         std::size_t size = 0U;
@@ -136,7 +136,7 @@ private:
     struct HandlerDescriptor final {
         const void* value = nullptr;
         const HandlerOperations* operations = nullptr;
-        Core::TypeId argsType = Core::InvalidTypeId;
+        Meta::TypeId argsType = Meta::InvalidTypeId;
     };
 
     template<class TArgs>
@@ -188,40 +188,40 @@ private:
 class AERO_API FrameworkContentElement : public ContentElement {
     AERO_DECLARE_TYPE(FrameworkContentElement, ContentElement)
 public:
-    explicit FrameworkContentElement(Core::TypeId runtimeType) noexcept;
+    explicit FrameworkContentElement(Meta::TypeId runtimeType) noexcept;
     ~FrameworkContentElement() override;
 
     ResourceDictionary& GetResources() noexcept { return resources_; }
     const ResourceDictionary& GetResources() const noexcept { return resources_; }
-    Base::Result<void> SetResources(Base::Ref<ResourceDictionary> value) noexcept;
+    void SetResources(Base::Ref<ResourceDictionary> value) noexcept;
 
     Base::Ref<Base::Object> GetDataContext() const noexcept {
         return GetValueOr(DataContextProperty, Base::Ref<Base::Object>{});
     }
-    Base::Result<void> SetDataContext(Base::Ref<Base::Object> value) noexcept {
-        return SetValue(DataContextProperty, std::move(value));
+    void SetDataContext(Base::Ref<Base::Object> value) noexcept {
+        SetValue(DataContextProperty, std::move(value));
     }
-    Base::Result<void> ClearDataContext() noexcept {
-        return ClearValue(DataContextProperty.Handle());
+    void ClearDataContext() noexcept {
+        ClearValue(DataContextProperty);
     }
 
     Base::Ref<Style> GetStyle() const noexcept {
         return GetValueOr(StyleProperty, Base::Ref<Style>{});
     }
-    Base::Result<void> SetStyle(Base::Ref<Style> value) noexcept {
-        return SetValue(StyleProperty, std::move(value));
+    void SetStyle(Base::Ref<Style> value) noexcept {
+        SetValue(StyleProperty, std::move(value));
     }
 
     inline static constexpr Members::Property<Base::Ref<Base::Object>> DataContextProperty{"DataContext"};
     inline static constexpr Members::Property<Base::Ref<Style>> StyleProperty{"Style"};
-    inline static constexpr Members::Property<Core::Value> TagProperty{"Tag"};
+    inline static constexpr Members::Property<Meta::Value> TagProperty{"Tag"};
 
 protected:
     virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return 0U; }
     virtual DependencyObject* GetLogicalChild(std::uint32_t) const noexcept { return nullptr; }
 
 private:
-    friend class Aero::Detail::ElementPrivate;
+    friend class Aero::Internal::ElementPrivate;
     ResourceDictionary resources_;
 };
 

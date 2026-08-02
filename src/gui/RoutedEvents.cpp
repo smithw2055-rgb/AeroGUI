@@ -4,7 +4,7 @@
 
 #include <utility>
 
-namespace Aero::Core {
+namespace Aero::Meta {
 namespace {
 
 Base::Status InvalidState(const char* message) noexcept {
@@ -86,4 +86,4 @@ const RoutedEventTable::Definition* RoutedEventTable::Find(
     return nullptr;
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

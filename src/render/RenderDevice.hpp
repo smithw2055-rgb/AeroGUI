@@ -120,7 +120,7 @@ public:
         const PipelineDescriptor& descriptor) noexcept = 0;
 
     // This is the only command submission path. Backends never consume
-    // Render::RenderFrame or UI objects directly.
+    // Integration::RenderFrame or UI objects directly.
     virtual Base::Result<void> Submit(
         const CommandList& commands,
         FenceValue signalFence) noexcept = 0;

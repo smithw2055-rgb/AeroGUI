@@ -21,7 +21,7 @@ inline Base::Result<void> TryRegisterAppMetadata(
     constexpr std::uint32_t SchemaVersion = 1U;
     const Base::StringView name = AppMetadataModuleName();
     return domain.TryRegisterModule({
-        Core::MakeMetadataModuleId(name),
+        Meta::MakeMetadataModuleId(name),
         name,
         SchemaVersion,
         &Detail::PopulateAppMetadata,

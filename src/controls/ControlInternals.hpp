@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Controls/Base.hpp>
+#include <Aero/Controls/Core.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Controls/Items.hpp>
 #include "gui/ElementInternal.hpp"
@@ -8,17 +8,34 @@
 #include "TextBlockLayout.hpp"
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Text.hpp>
+#include <Aero/Shapes.hpp>
 
 #include <utility>
 
-namespace Aero::Detail { class TemplateEngine; }
+namespace Aero::Internal { class TemplateEngine; }
 
 namespace Aero {
 class ElementTree;
-namespace Render { class RenderTree; }
+namespace Base::Detail { class RenderTree; }
 }
 
-namespace Aero::Controls::Detail {
+namespace Aero::Controls {
+
+enum class ItemSubtreeChange : std::uint8_t {
+    Mounted = 0U,
+    Unmounting,
+};
+
+using ItemSubtreeCallback = Base::Result<void> (*)(
+    Aero::Visual& root,
+    ItemSubtreeChange change,
+    void* context) noexcept;
+
+} // namespace Aero::Controls
+
+namespace Aero::Internal {
+
+using namespace ::Aero::Controls;
 
 // One private entry point owns the standard control storage and template hooks.
 // This replaces per-control-family Access classes without adding a new runtime
@@ -38,7 +55,8 @@ public:
     static Base::Result<void> SetTemplateRoot(
         Control& control,
         UIElement* child) noexcept {
-        return control.SetTemplateChildCore(child);
+        control.SetTemplateChildCore(child);
+        return {};
     }
     static void AttachTemplateEngine(
         Control& control,
@@ -62,21 +80,24 @@ public:
         ContentControl& control,
         const Base::Ref<Base::Object>& owner,
         UIElement& content) noexcept {
-        return control.SetOwnedContent(owner, content);
+        control.SetOwnedContent(owner, content);
+        return {};
     }
     static Base::Result<void> SetContentValue(
         ContentControl& control,
         Base::Ref<Base::Object> value) noexcept {
-        return control.SetContentValue(std::move(value));
+        control.SetContentValue(std::move(value));
+        return {};
     }
     static Base::Result<void> SetContentValue(
         ContentControl& control,
-        Core::Value value) noexcept {
-        return control.SetContentValue(std::move(value));
+        Meta::Value value) noexcept {
+        control.SetContentValue(std::move(value));
+        return {};
     }
     static void OnContentPropertyChanged(
         ::Aero::DependencyObject& object,
-        const Core::DependencyPropertyChangedEventArgs& change) noexcept {
+        const Meta::DependencyPropertyChangedEventArgs& change) noexcept {
         ContentControl::OnContentPropertyChanged(object, change);
     }
     static Base::Result<Base::Ref<Base::Object>> CreateTemplatedContent(
@@ -104,7 +125,8 @@ public:
         return panel.RemoveChildCore(child);
     }
     static Base::Result<void> Clear(Panel& panel) noexcept {
-        return panel.ClearChildrenCore();
+        panel.ClearChildrenCore();
+        return {};
     }
 
     static const Base::Ref<Base::Object>& OwnedChild(
@@ -115,35 +137,37 @@ public:
         Decorator& decorator,
         const Base::Ref<Base::Object>& owner,
         UIElement& child) noexcept {
-        return decorator.SetOwnedChild(owner, child);
+        decorator.SetOwnedChild(owner, child);
+        return {};
     }
 
     static Base::Result<void> SetGeneratedTextContent(
         ContentControl& container,
         const Base::Ref<Base::Object>& contentObject,
         UIElement& content) noexcept {
-        return container.SetGeneratedTextContent(contentObject, content);
+        container.SetGeneratedTextContent(contentObject, content);
+        return {};
     }
 
     static Base::Result<ItemContainerGenerator*> Create(
         ElementTree& tree,
-        Aero::Detail::LayoutEngine& layout,
-        Core::EffectiveValueEngine& values,
-        Aero::Detail::StyleEngine* styles = nullptr,
-        Render::RenderTree* renderer = nullptr,
-        Aero::Detail::TemplateEngine* templates = nullptr,
+        Aero::Internal::LayoutEngine& layout,
+        Meta::EffectiveValueEngine& values,
+        Aero::Internal::StyleEngine* styles = nullptr,
+        Internal::RenderTree* renderer = nullptr,
+        Aero::Internal::TemplateEngine* templates = nullptr,
         ItemSubtreeCallback subtreeCallback = nullptr,
         void* subtreeContext = nullptr) noexcept;
 
 
         static void InvalidateGeometry(
-            Path& path) noexcept {
+            Aero::Shapes::Path& path) noexcept {
             path.ResetGeometry();
         }
 
         static void Attach(
-            Path& path,
-            Aero::Detail::MeshResources* services,
+            Aero::Shapes::Path& path,
+            Aero::Internal::MeshResources* services,
             bool invalidate = false) noexcept {
             path.AttachMeshResources(
                 services, invalidate);
@@ -201,4 +225,8 @@ public:
         }
 };
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Internal
+
+namespace Aero::Controls::Detail {
+using ::Aero::Internal::ControlPrivate;
+}

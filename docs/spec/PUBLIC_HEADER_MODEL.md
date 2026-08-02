@@ -59,7 +59,6 @@ Aero/Style.hpp
 Aero/Styling.hpp
 Aero/Data.hpp
 Aero/Input.hpp
-Aero/Media.hpp
 Aero/Animation.hpp
 Aero/Documents.hpp
 Aero/Shapes.hpp
@@ -71,20 +70,29 @@ contains FrameworkTemplate, ControlTemplate, DataTemplate and visual-state
 authoring. Combining them would recreate a Control/Style/Template include
 cycle.
 
-`Input/Values.hpp` is also a deliberate dependency partition: the value types
-are needed by `Visual` before the command and routed-input object model can
-include `UIElement`.
+`Input.hpp` owns both the input value types and the command/navigation object
+model. It forward-declares `UIElement` and owns the input value declarations
+before including `RoutedEvent.hpp`, so the routed-event header does not need a
+second input-values header or a cyclic include.
+
+Media is a specialist surface made up of concrete headers such as
+`Media/Brushes.hpp`, `Media/Geometry.hpp`, `Media/Images.hpp` and
+`Media/Transforms.hpp`. WPF-visible text values are owned by
+`Controls/Core.hpp` and consumed through `Controls/Text.hpp`; the text
+provider, shaping and editing implementation remains private under `src/text`.
+Generic `Media.hpp` and `Text/Text.hpp` aggregation headers are not part of
+the installed SDK.
 
 ## Controls family headers
 
 The complete public Controls directory contains exactly six family headers:
 
 ```text
-Aero/Controls/Base.hpp
+Aero/Controls/Core.hpp
 Aero/Controls/Panels.hpp
 Aero/Controls/Primitives.hpp
 Aero/Controls/Items.hpp
-Aero/Controls/Standard.hpp
+Aero/Controls/Common.hpp
 Aero/Controls/Text.hpp
 ```
 
@@ -119,11 +127,11 @@ silently publish it.
 
 The architecture check enforces:
 
-- no installed `Aero/Core`, `Aero/Platform` or `Aero/Detail` tree;
-
+- no installed legacy metadata, platform, or detail tree;
 - no public `Aero/Detail` headers;
 - exactly six Controls family headers;
-- a bounded top-level header count;
+- the canonical namespace manifest, with no public `using namespace` directives;
+- no public `Aero::Render` or product-layer `Detail` namespace;
 - no duplicate direct includes in public headers;
 - no retired forwarding/compatibility paths;
 - no native Win32/X11 adapter types in the public platform-service contract;
@@ -131,6 +139,16 @@ The architecture check enforces:
   WPF authoring headers;
 - exact equality between the source public tree and the installation whitelist.
 
+Property setters and WPF lifecycle hooks use direct values: public `SetXxx`,
+`ClearXxx`, `Reset` and notification methods return `void`, `ApplyTemplate`
+returns `bool`, and measure/arrange/render hooks use `Size`/`void`. `Result<T>`
+is reserved for explicit `Try*`, stream, resource, parsing, registration and
+other boundaries where the caller must observe failure. Dependency-property
+validation is completed before commit so a rejected assignment leaves the
+previous effective value unchanged.
+
 Adding a public header is therefore an API decision: it must update the
-whitelist, fit an existing product/domain model, and pass the public-header
-consumer build.
+whitelist and namespace manifest when needed, fit an existing product/domain
+model, and pass the public-header consumer build. Header and source file size
+are organized by responsibility and dependency; the architecture check does
+not impose a line-count budget.

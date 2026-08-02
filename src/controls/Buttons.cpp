@@ -6,7 +6,7 @@
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Detail::ButtonBehavior;
+using Aero::Internal::ButtonBehavior;
 
 using namespace Primitives;
 
@@ -19,152 +19,147 @@ ICommand* ButtonBase::GetCommand() const noexcept {
         CommandProperty, Base::Ref<ICommand>{}).Get();
 }
 
-Base::Ref<Base::Object> ButtonBase::CommandParameter() const noexcept {
+Base::Ref<Base::Object> ButtonBase::GetCommandParameter() const noexcept {
     return GetValueOr(
         CommandParameterProperty,
         Base::Ref<Base::Object>{});
 }
 
-UIElement* ButtonBase::CommandTarget() const noexcept {
+UIElement* ButtonBase::GetCommandTarget() const noexcept {
     return GetValueOr(
         CommandTargetProperty,
         Base::Ref<UIElement>{}).Get();
 }
 
-Base::Result<void> ButtonBase::SetClickMode(
+void ButtonBase::SetClickMode(
     ClickMode value) noexcept {
-    return SetValue(ClickModeProperty, value);
+    SetValue(ClickModeProperty, value);
 }
 
-Base::Result<void> ButtonBase::SetCommand(
+void ButtonBase::SetCommand(
     Base::Ref<ICommand> command) noexcept {
-    return SetValue(CommandProperty, std::move(command));
+    SetValue(CommandProperty, std::move(command));
 }
 
-Base::Result<void> ButtonBase::SetCommandParameter(
+void ButtonBase::SetCommandParameter(
     Base::Ref<Base::Object> parameter) noexcept {
-    return SetValue(
+    SetValue(
         CommandParameterProperty, std::move(parameter));
 }
 
-Base::Result<void> ButtonBase::SetCommandTarget(
+void ButtonBase::SetCommandTarget(
     Base::Ref<UIElement> target) noexcept {
-    return SetValue(CommandTargetProperty, std::move(target));
+    SetValue(CommandTargetProperty, std::move(target));
 }
 
-std::uint32_t RepeatButton::Delay() const noexcept {
+std::uint32_t RepeatButton::GetDelay() const noexcept {
     return GetValueOr(DelayProperty, 400U);
 }
 
-std::uint32_t RepeatButton::Interval() const noexcept {
+std::uint32_t RepeatButton::GetInterval() const noexcept {
     return GetValueOr(IntervalProperty, 100U);
 }
 
-Base::Result<void> RepeatButton::SetDelay(
+void RepeatButton::SetDelay(
     std::uint32_t value) noexcept {
-    return SetValue(DelayProperty, value);
+    SetValue(DelayProperty, value);
 }
 
-Base::Result<void> RepeatButton::SetInterval(
+void RepeatButton::SetInterval(
     std::uint32_t value) noexcept {
-    return SetValue(IntervalProperty, value);
+    SetValue(IntervalProperty, value);
 }
 
-bool ToggleButton::IsChecked() const noexcept {
+bool ToggleButton::GetIsChecked() const noexcept {
     return GetValueOr(IsCheckedProperty, false);
 }
 
-bool ToggleButton::IsThreeState() const noexcept {
+bool ToggleButton::GetIsThreeState() const noexcept {
     return GetValueOr(IsThreeStateProperty, false);
 }
 
-bool ToggleButton::IsIndeterminate() const noexcept {
+bool ToggleButton::GetIsIndeterminate() const noexcept {
     return GetValueOr(IsIndeterminateProperty, false);
 }
 
-ToggleState ToggleButton::GetToggleState() const noexcept {
-    if (IsIndeterminate()) return ToggleState::Indeterminate;
-    return IsChecked()
-        ? ToggleState::Checked
-        : ToggleState::Unchecked;
+void ToggleButton::SetIsChecked(
+    bool value) noexcept {
+    SetValue(IsCheckedProperty, value);
+    SetReadOnlyCurrentValue(IsIndeterminateProperty, false);
 }
 
-Base::Result<void> ToggleButton::SetIsChecked(
+void ToggleButton::SetIsThreeState(
     bool value) noexcept {
-    Base::Result<void> checked =
-        SetValue(IsCheckedProperty, value);
-    if (!checked) return checked.GetStatus();
-    return SetReadOnlyCurrentValue(
-        IsIndeterminateProperty, false);
-}
-
-Base::Result<void> ToggleButton::SetIsThreeState(
-    bool value) noexcept {
-    Base::Result<void> state =
-        SetValue(IsThreeStateProperty, value);
-    if (!state || value || !IsIndeterminate()) {
-        return state;
+    SetValue(IsThreeStateProperty, value);
+    if (!value && GetIsIndeterminate()) {
+        SetReadOnlyCurrentValue(IsIndeterminateProperty, false);
     }
-    return SetReadOnlyCurrentValue(
-        IsIndeterminateProperty, false);
 }
 
-Base::Result<void> ToggleButton::SetToggleState(
-    ToggleState value) noexcept {
+void ToggleButton::SetToggleState(
+    std::uint8_t rawValue) noexcept {
+    const ToggleState value =
+        static_cast<ToggleState>(rawValue);
     if (value > ToggleState::Indeterminate ||
         (value == ToggleState::Indeterminate &&
-            !IsThreeState())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ToggleButton state is invalid");
+            !GetIsThreeState())) {
+        return;
     }
-    Base::Result<void> status;
     switch (value) {
     case ToggleState::Checked:
-        status = SetValue(IsCheckedProperty, true);
-        if (!status) return status.GetStatus();
-        return SetReadOnlyCurrentValue(
-            IsIndeterminateProperty, false);
+        SetValue(IsCheckedProperty, true);
+        SetReadOnlyCurrentValue(IsIndeterminateProperty, false);
+        return;
     case ToggleState::Unchecked:
-        status = SetReadOnlyCurrentValue(
-            IsIndeterminateProperty, false);
-        if (!status) return status.GetStatus();
-        return SetValue(IsCheckedProperty, false);
+        SetReadOnlyCurrentValue(IsIndeterminateProperty, false);
+        SetValue(IsCheckedProperty, false);
+        return;
     case ToggleState::Indeterminate:
-        status = SetReadOnlyCurrentValue(
-            IsIndeterminateProperty, true);
-        if (!status) return status.GetStatus();
-        return SetValue(IsCheckedProperty, false);
+        SetReadOnlyCurrentValue(IsIndeterminateProperty, true);
+        SetValue(IsCheckedProperty, false);
+        return;
     }
-    return {};
+    return;
 }
 
-Base::StringView RadioButton::GroupName() const noexcept {
+Base::StringView RadioButton::GetGroupName() const noexcept {
     return GetValueOr(GroupNameProperty, Base::StringView());
 }
 
-Base::Result<void> RadioButton::SetGroupName(
+void RadioButton::SetGroupName(
     Base::StringView value) noexcept {
-    return SetValue(GroupNameProperty, value);
+    SetValue(GroupNameProperty, value);
 }
 
-Base::Result<void> ButtonBase::OnApplyTemplate() noexcept {
-    Base::Result<void> applied =
-        ContentControl::OnApplyTemplate();
-    if (!applied) return applied.GetStatus();
+void ButtonBase::OnApplyTemplate() noexcept {
+    ContentControl::OnApplyTemplate();
     if (interactionRuntime_ != nullptr) {
-        return static_cast<ButtonBehavior*>(
-            interactionRuntime_)->SyncVisualState(*this, false);
+        static_cast<void>(static_cast<ButtonBehavior*>(
+            interactionRuntime_)->SyncVisualState(*this, false));
     }
-    return {};
 }
 
 } // namespace Aero::Controls
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using namespace Aero::Controls;
+
+namespace {
+
+ToggleState ReadToggleState(
+    const ToggleButton& button) noexcept {
+    if (button.GetIsIndeterminate()) {
+        return ToggleState::Indeterminate;
+    }
+    return button.GetIsChecked()
+        ? ToggleState::Checked
+        : ToggleState::Unchecked;
+}
+
+} // namespace
 
 ButtonBehavior::ButtonBehavior(
     ElementTree& tree,
@@ -347,7 +342,7 @@ Base::Result<void> ButtonBehavior::Attach(
             Base::ErrorCode::AlreadyExists,
             "Button is already attached to another interaction service");
     }
-    if (!button.GetIsLoaded() || Aero::Detail::ElementPrivate::Tree(button) != tree_) {
+    if (!button.GetIsLoaded() || Aero::Internal::ElementPrivate::Tree(button) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Button must be loaded in the interaction tree");
@@ -364,8 +359,8 @@ Base::Result<void> ButtonBehavior::Attach(
             CheckBox::StaticTypeId() ||
         button.RuntimeType() ==
             RadioButton::StaticTypeId()) {
-        record.toggleState =
-            static_cast<ToggleButton&>(button).GetToggleState();
+        record.toggleState = ReadToggleState(
+            static_cast<ToggleButton&>(button));
     }
     Base::Result<void> appended =
         buttons_.TryPushBack(std::move(record));
@@ -431,7 +426,7 @@ Base::Result<void> ButtonBehavior::Attach(
     }
     if (button.RuntimeType() == RadioButton::StaticTypeId()) {
         auto& radio = static_cast<RadioButton&>(button);
-        if (radio.GetToggleState() == ToggleState::Checked) {
+        if (ReadToggleState(radio) == ToggleState::Checked) {
             UncheckRadioPeers(radio);
         }
     }
@@ -509,7 +504,7 @@ Base::Result<bool> ButtonBehavior::Detach(
     }
     UnsubscribeCommand(record);
     if (states_ != nullptr) {
-        static_cast<void>(Aero::Controls::Detail::TemplatePrivate::Clear(*states_, button));
+        static_cast<void>(Aero::Internal::TemplatePrivate::Clear(*states_, button));
     }
     if (button.interactionRuntime_ == this) {
         button.interactionRuntime_ = nullptr;
@@ -529,10 +524,10 @@ Base::Result<void> ButtonBehavior::RefreshCanExecute(
     ICommand* command = button.GetCommand();
     bool enabled = true;
     if (command != nullptr) {
-        UIElement* target = button.CommandTarget();
+        UIElement* target = button.GetCommandTarget();
         if (target == nullptr) target = &button;
         Base::Ref<Base::Object> parameter =
-            button.CommandParameter();
+            button.GetCommandParameter();
         const Value value = Value::FromObject(
             TypeOf<Base::Object>(), std::move(parameter));
         Base::Result<bool> allowed =
@@ -541,9 +536,7 @@ Base::Result<void> ButtonBehavior::RefreshCanExecute(
         enabled = allowed.Value();
     }
     button.commandEnabled_ = enabled;
-    Base::Result<void> coerced =
-        button.CoerceValue(UIElement::IsEnabledProperty);
-    if (!coerced) return coerced.GetStatus();
+    button.CoerceValue(UIElement::IsEnabledProperty);
     if (!button.GetIsEnabled() &&
         input_->GetFocusedElement() == &button) {
         Base::Result<bool> cleared = input_->ClearFocus();
@@ -578,9 +571,9 @@ ButtonBehavior::AdvanceTime(
         auto& repeat = static_cast<RepeatButton&>(*button);
         record.repeatElapsed += elapsedMilliseconds;
         if (record.nextRepeat == 0U) {
-            record.nextRepeat = repeat.Delay();
+            record.nextRepeat = repeat.GetDelay();
         }
-        const std::uint64_t interval = repeat.Interval();
+        const std::uint64_t interval = repeat.GetInterval();
         while (record.repeatElapsed >= record.nextRepeat &&
             emitted < 1024U) {
             Base::Result<void> clicked = InvokeClick(repeat);
@@ -605,11 +598,11 @@ Base::Result<void> ButtonBehavior::InvokeClick(
         type == CheckBox::StaticTypeId()) {
         auto& toggle = static_cast<ToggleButton&>(button);
         ToggleState next = ToggleState::Unchecked;
-        if (toggle.GetToggleState() == ToggleState::Unchecked) {
+        if (ReadToggleState(toggle) == ToggleState::Unchecked) {
             next = ToggleState::Checked;
-        } else if (toggle.GetToggleState() ==
+        } else if (ReadToggleState(toggle) ==
                 ToggleState::Checked &&
-            toggle.IsThreeState()) {
+            toggle.GetIsThreeState()) {
             next = ToggleState::Indeterminate;
         }
         Base::Result<void> changed =
@@ -627,10 +620,10 @@ Base::Result<void> ButtonBehavior::InvokeClick(
     if (!raised) return raised.GetStatus();
     ICommand* command = button.GetCommand();
     if (command == nullptr) return {};
-    UIElement* target = button.CommandTarget();
+    UIElement* target = button.GetCommandTarget();
     if (target == nullptr) target = &button;
     Base::Ref<Base::Object> parameter =
-        button.CommandParameter();
+        button.GetCommandParameter();
     const Value value = Value::FromObject(
         TypeOf<Base::Object>(), std::move(parameter));
     Base::Result<bool> executed =
@@ -651,10 +644,8 @@ Base::Result<void> ButtonBehavior::ApplyToggleState(
     }
     ButtonRecord& record = buttons_[index];
     record.updatingToggle = true;
-    Base::Result<void> changed =
-        button.SetToggleState(state);
+    button.SetToggleState(static_cast<std::uint8_t>(state));
     record.updatingToggle = false;
-    if (!changed) return changed.GetStatus();
     PublishToggleState(button, record);
     return {};
 }
@@ -662,7 +653,7 @@ Base::Result<void> ButtonBehavior::ApplyToggleState(
 void ButtonBehavior::PublishToggleState(
     ToggleButton& button,
     ButtonRecord& record) noexcept {
-    const ToggleState state = button.GetToggleState();
+    const ToggleState state = ReadToggleState(button);
     if (record.toggleState == state) {
         static_cast<void>(
             SyncVisualState(button));
@@ -688,7 +679,7 @@ void ButtonBehavior::PublishToggleState(
 void ButtonBehavior::UncheckRadioPeers(
     RadioButton& button) noexcept {
     Visual* parent = button.GetLogicalParent();
-    const Base::StringView group = button.GroupName();
+    const Base::StringView group = button.GetGroupName();
     for (std::uint32_t index = 0U;
         index < buttons_.Size(); ++index) {
         ButtonBase* candidate = ResolveButton(index);
@@ -699,8 +690,8 @@ void ButtonBehavior::UncheckRadioPeers(
         }
         auto& radio = static_cast<RadioButton&>(*candidate);
         if (radio.GetLogicalParent() != parent ||
-            radio.GroupName() != group ||
-            radio.GetToggleState() != ToggleState::Checked) {
+            radio.GetGroupName() != group ||
+            ReadToggleState(radio) != ToggleState::Checked) {
             continue;
         }
         static_cast<void>(ApplyToggleState(
@@ -719,7 +710,7 @@ ButtonBehavior::SyncVisualState(
             Base::StringView state) noexcept
             -> Base::Result<void> {
         Base::Result<bool> changed =
-            Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
+            Aero::Internal::TemplatePrivate::GoToState(*states_,
                 button, group, state,
                 useTransitions);
         if (!changed &&
@@ -751,7 +742,7 @@ ButtonBehavior::SyncVisualState(
         type == CheckBox::StaticTypeId() ||
         type == RadioButton::StaticTypeId()) {
         const ToggleState state =
-            static_cast<ToggleButton&>(button).GetToggleState();
+            ReadToggleState(static_cast<ToggleButton&>(button));
         Base::StringView name = "Unchecked";
         if (state == ToggleState::Checked) name = "Checked";
         else if (state == ToggleState::Indeterminate) {
@@ -898,7 +889,7 @@ void ButtonBehavior::OnPropertyChanged(
         ButtonRecord& record = buttons_[index];
         if (!record.updatingToggle &&
             args.GetProperty() == ToggleButton::IsCheckedProperty &&
-            toggle.IsIndeterminate()) {
+            toggle.GetIsIndeterminate()) {
             record.updatingToggle = true;
             static_cast<void>(toggle.SetReadOnlyCurrentValue(
                 ToggleButton::IsIndeterminateProperty,
@@ -907,8 +898,8 @@ void ButtonBehavior::OnPropertyChanged(
         } else if (!record.updatingToggle &&
             args.GetProperty() ==
                 ToggleButton::IsThreeStateProperty &&
-            !toggle.IsThreeState() &&
-            toggle.IsIndeterminate()) {
+            !toggle.GetIsThreeState() &&
+            toggle.GetIsIndeterminate()) {
             record.updatingToggle = true;
             static_cast<void>(toggle.SetReadOnlyCurrentValue(
                 ToggleButton::IsIndeterminateProperty,
@@ -918,7 +909,7 @@ void ButtonBehavior::OnPropertyChanged(
         PublishToggleState(toggle, record);
         if (type == RadioButton::StaticTypeId() &&
             args.GetProperty() == RadioButton::GroupNameProperty &&
-            toggle.GetToggleState() == ToggleState::Checked) {
+            ReadToggleState(toggle) == ToggleState::Checked) {
             UncheckRadioPeers(
                 static_cast<RadioButton&>(toggle));
         }
@@ -976,4 +967,4 @@ void ButtonBehavior::OnRequerySuggested() noexcept {
     }
 }
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

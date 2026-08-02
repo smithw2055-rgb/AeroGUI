@@ -31,7 +31,7 @@ Schema 或旧 cache format 不会被静默重放。缓存写入是优化操作�
 加载已成功时，缓存分配或编译失败不会反向破坏该加载结果。
 
 缓存提供 entry-count 和 compiled-byte 双预算。超出预算时按最久未访问顺序
-淘汰。依赖图与实例对象分离；缓存永远不保存 `UiDocument` 或 View 指针。
+淘汰。依赖图与实例对象分离；缓存永远不保存 `XamlDocument` 或 View 指针。
 
 ## Revision probe
 
@@ -61,7 +61,7 @@ source 逆序删除，避免提前丢失反向边。
 ## 文档副作用所有权
 
 成功 XAML load 产生的 Binding 和 DynamicResource 不会立即写入 View service。
-`XamlLoadSession` 只把 deferred effect plan 移入 `XamlLoadResult` 和 `UiDocument`；
+`XamlLoadSession` 只把 deferred effect plan 移入 `XamlLoadResult` 和 `XamlDocument`；
 `View::SetContent()` 在视觉树、UI service 与交互注册全部成功后提交
 这些 effects。提交中途失败会逆序撤销已提交项。
 
@@ -72,12 +72,12 @@ source 逆序删除，避免提前丢失反向边。
 3. 释放 NameScope、resources 与 root object
 
 未挂载文档只清理 pending expression/context，不会调用已经销毁的 View manager。
-每个 `UiDocument` 记录创建它的 View lifetime，跨 View 挂载被明确拒绝；View
+每个 `XamlDocument` 记录创建它的 View lifetime，跨 View 挂载被明确拒绝；View
 shutdown 会先使该 lifetime 失效，从而避免晚释放 document 访问悬空 service。
 
 ## 完整文档替换
 
-`View::SetContent()` 接受一个已经成功加载的 `UiDocument`：
+`View::SetContent()` 接受一个已经成功加载的 `XamlDocument`：
 
 1. 验证 replacement 属于当前 View，且 root 是 Visual。
 2. replacement effects 保持 deferred，不影响当前文档。
@@ -108,7 +108,7 @@ Coordinator 会：
 
 - 检查已跟踪 root/dependency revisions
 - 通过反向依赖图失效受影响 cache entries
-- 从 root URI 构建新的 `UiDocument`
+- 从 root URI 构建新的 `XamlDocument`
 - 调用 `View::SetContent()`
 - 成功后刷新 dependency/revision snapshot
 
@@ -126,5 +126,5 @@ AeroGUI 不创建隐藏线程，也不规定文件监听实现；桌面、游戏
 - GPU frame-level 双场景无缝切换
 - 后台线程解析或隐式定时器
 
-后续可在 `UiDocument` 之上增加 state capture/restore，但不应把该策略放回
+后续可在 `XamlDocument` 之上增加 state capture/restore，但不应把该策略放回
 `XamlObjectWriter`。

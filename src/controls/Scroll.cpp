@@ -2,6 +2,7 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Primitives.hpp>
 #include "../render/DrawingInternals.hpp"
+#include "../media/BrushInternals.hpp"
 #include <Aero/Value.hpp>
 
 #include <algorithm>
@@ -11,10 +12,11 @@
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Detail::ScrollBehavior;
-using Aero::Detail::SliderBehavior;
+using Aero::Internal::ScrollBehavior;
+using Aero::Internal::SliderBehavior;
 
 using namespace Primitives;
+using namespace ::Aero::Render;
 namespace {
 
 constexpr double LayoutInfinity = 1.0e12;
@@ -100,19 +102,19 @@ Orientation ReadOrientation(
 }
 
 template <typename TProperty>
-Base::Result<void> StoreDouble(
+void StoreDouble(
     DependencyObject& object,
     const TProperty& property,
     double value) noexcept {
-    return object.SetValue(property, value);
+    object.SetValue(property, value);
 }
 
 template <typename TProperty>
-Base::Result<void> StoreOrientation(
+void StoreOrientation(
     DependencyObject& object,
     const TProperty& property,
     Orientation value) noexcept {
-    return object.SetValue(property, value);
+    object.SetValue(property, value);
 }
 
 } // namespace
@@ -128,87 +130,74 @@ ScrollContentPresenter::ScrollContentPresenter(
 
 IScrollInfo*
 ScrollContentPresenter::ActiveContentScrollInfo() const noexcept {
-    return UsesContentScrolling()
+    return GetUsesContentScrolling()
         ? contentScrollInfo_
         : nullptr;
 }
 
-ScrollData ScrollContentPresenter::Data() const noexcept {
+ScrollData ScrollContentPresenter::GetData() const noexcept {
     IScrollInfo* logical = ActiveContentScrollInfo();
-    return logical != nullptr ? logical->Data() : data_;
+    return logical != nullptr ? logical->GetData() : data_;
 }
 
-Base::Result<void>
-ScrollContentPresenter::SetContentScrollInfo(
+void ScrollContentPresenter::SetContentScrollInfo(
     IScrollInfo* value) noexcept {
-    if (contentScrollInfo_ == value) return {};
+    if (contentScrollInfo_ == value) return;
     contentScrollInfo_ = value;
-    Base::Result<void> invalidated = InvalidateMeasure();
-    if (!invalidated) return invalidated.GetStatus();
-    Base::Result<bool> synced =
-        SyncLogicalData(ScrollInputKind::Line);
-    return synced ? Base::Result<void>{}
-                  : synced.GetStatus();
+    (void)InvalidateMeasure();
+    (void)SyncLogicalData(ScrollInputKind::Line);
 }
 
-bool ScrollContentPresenter::CanHorizontallyScroll() const noexcept {
-    return AllowsHorizontalScroll();
+bool ScrollContentPresenter::GetCanHorizontallyScroll() const noexcept {
+    return GetAllowsHorizontalScroll();
 }
 
-bool ScrollContentPresenter::CanVerticallyScroll() const noexcept {
-    return AllowsVerticalScroll();
+bool ScrollContentPresenter::GetCanVerticallyScroll() const noexcept {
+    return GetAllowsVerticalScroll();
 }
 
-bool ScrollContentPresenter::CanContentScroll() const noexcept {
-    return UsesContentScrolling();
+bool ScrollContentPresenter::GetCanContentScroll() const noexcept {
+    return GetUsesContentScrolling();
 }
 
-Base::Result<void>
-ScrollContentPresenter::SetCanHorizontallyScroll(
+void ScrollContentPresenter::SetCanHorizontallyScroll(
     bool value) noexcept {
-    if (canHorizontallyScroll_ == value) return {};
+    if (canHorizontallyScroll_ == value) return;
     canHorizontallyScroll_ = value;
-    return InvalidateMeasure();
+    (void)InvalidateMeasure();
 }
 
-Base::Result<void>
-ScrollContentPresenter::SetCanVerticallyScroll(
+void ScrollContentPresenter::SetCanVerticallyScroll(
     bool value) noexcept {
-    if (canVerticallyScroll_ == value) return {};
+    if (canVerticallyScroll_ == value) return;
     canVerticallyScroll_ = value;
-    return InvalidateMeasure();
+    (void)InvalidateMeasure();
 }
 
-Base::Result<void>
-ScrollContentPresenter::SetCanContentScroll(
+void ScrollContentPresenter::SetCanContentScroll(
     bool value) noexcept {
-    return DependencyObject::SetValue(
-        CanContentScrollProperty, value);
+    DependencyObject::SetValue(CanContentScrollProperty, value);
 }
 
-bool ScrollContentPresenter::AllowsHorizontalScroll() const noexcept {
+bool ScrollContentPresenter::GetAllowsHorizontalScroll() const noexcept {
     return canHorizontallyScroll_;
 }
 
-bool ScrollContentPresenter::AllowsVerticalScroll() const noexcept {
+bool ScrollContentPresenter::GetAllowsVerticalScroll() const noexcept {
     return canVerticallyScroll_;
 }
 
-bool ScrollContentPresenter::UsesContentScrolling() const noexcept {
+bool ScrollContentPresenter::GetUsesContentScrolling() const noexcept {
     return GetValueOr(
         CanContentScrollProperty, false);
 }
 
-Base::Result<void>
-ScrollContentPresenter::SetLineScrollAmount(
+void ScrollContentPresenter::SetLineScrollAmount(
     double value) noexcept {
     if (!std::isfinite(value) || value <= 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Line scroll amount must be positive and finite");
+        return;
     }
     lineScrollAmount_ = value;
-    return {};
 }
 
 Base::Result<bool> ScrollContentPresenter::UpdateData(
@@ -224,12 +213,12 @@ Base::Result<bool> ScrollContentPresenter::UpdateData(
         value.horizontalOffset,
         value.extentWidth,
         value.viewportWidth,
-        AllowsHorizontalScroll());
+        GetAllowsHorizontalScroll());
     value.verticalOffset = ClampOffset(
         value.verticalOffset,
         value.extentHeight,
         value.viewportHeight,
-        AllowsVerticalScroll());
+        GetAllowsVerticalScroll());
     if (SameData(data_, value)) return false;
     const ScrollData oldData = data_;
     data_ = value;
@@ -251,7 +240,7 @@ ScrollContentPresenter::SyncLogicalData(
     ScrollInputKind kind) noexcept {
     IScrollInfo* logical = ActiveContentScrollInfo();
     if (logical == nullptr) return false;
-    ScrollData value = logical->Data();
+    ScrollData value = logical->GetData();
     if (!ValidData(value)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -265,78 +254,55 @@ ScrollContentPresenter::SyncLogicalData(
     return true;
 }
 
-Base::Result<bool>
-ScrollContentPresenter::SetViewport(
+void ScrollContentPresenter::SetViewport(
     Size viewport) noexcept {
     if (!IsFinite(viewport) ||
         viewport.width < 0.0 ||
         viewport.height < 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Scroll viewport must be finite and nonnegative");
+        return;
     }
     IScrollInfo* logical = ActiveContentScrollInfo();
     if (logical != nullptr) {
-        Base::Result<bool> changed =
-            logical->SetViewport(viewport);
-        if (!changed) return changed.GetStatus();
-        Base::Result<bool> synced =
-            SyncLogicalData(pendingInputKind_);
-        if (!synced) return synced.GetStatus();
-        return changed.Value() || synced.Value();
+        logical->SetViewport(viewport);
+        (void)SyncLogicalData(pendingInputKind_);
+        return;
     }
     ScrollData value = data_;
     value.viewportWidth = viewport.width;
     value.viewportHeight = viewport.height;
-    return UpdateData(value, pendingInputKind_, true);
+    (void)UpdateData(value, pendingInputKind_, true);
 }
 
-Base::Result<bool>
-ScrollContentPresenter::SetHorizontalOffset(
+void ScrollContentPresenter::SetHorizontalOffset(
     double value) noexcept {
     if (!ValidNonnegative(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Horizontal offset must be finite and nonnegative");
+        return;
     }
     IScrollInfo* logical = ActiveContentScrollInfo();
     if (logical != nullptr) {
-        Base::Result<bool> changed =
-            logical->SetHorizontalOffset(value);
-        if (!changed) return changed.GetStatus();
-        Base::Result<bool> synced =
-            SyncLogicalData(pendingInputKind_);
-        if (!synced) return synced.GetStatus();
-        return changed.Value() || synced.Value();
+        logical->SetHorizontalOffset(value);
+        (void)SyncLogicalData(pendingInputKind_);
+        return;
     }
     ScrollData data = data_;
     data.horizontalOffset = value;
-    return UpdateData(
-        data, pendingInputKind_, true);
+    (void)UpdateData(data, pendingInputKind_, true);
 }
 
-Base::Result<bool>
-ScrollContentPresenter::SetVerticalOffset(
+void ScrollContentPresenter::SetVerticalOffset(
     double value) noexcept {
     if (!ValidNonnegative(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Vertical offset must be finite and nonnegative");
+        return;
     }
     IScrollInfo* logical = ActiveContentScrollInfo();
     if (logical != nullptr) {
-        Base::Result<bool> changed =
-            logical->SetVerticalOffset(value);
-        if (!changed) return changed.GetStatus();
-        Base::Result<bool> synced =
-            SyncLogicalData(pendingInputKind_);
-        if (!synced) return synced.GetStatus();
-        return changed.Value() || synced.Value();
+        logical->SetVerticalOffset(value);
+        (void)SyncLogicalData(pendingInputKind_);
+        return;
     }
     ScrollData data = data_;
     data.verticalOffset = value;
-    return UpdateData(
-        data, pendingInputKind_, true);
+    (void)UpdateData(data, pendingInputKind_, true);
 }
 
 Base::Result<bool>
@@ -351,22 +317,17 @@ ScrollContentPresenter::ApplyScrollDelta(
             "Scroll delta must be finite");
     }
     pendingInputKind_ = kind;
-    const ScrollData current = Data();
-    Base::Result<bool> horizontal =
-        SetHorizontalOffset(std::max(
-            0.0, current.horizontalOffset + deltaX));
-    if (!horizontal) {
-        pendingInputKind_ = ScrollInputKind::Line;
-        return horizontal.GetStatus();
-    }
+    const ScrollData current = GetData();
+    SetHorizontalOffset(std::max(
+        0.0, current.horizontalOffset + deltaX));
     pendingInputKind_ = kind;
-    const ScrollData afterHorizontal = Data();
-    Base::Result<bool> vertical =
-        SetVerticalOffset(std::max(
-            0.0, afterHorizontal.verticalOffset + deltaY));
+    const ScrollData afterHorizontal = GetData();
+    SetVerticalOffset(std::max(
+        0.0, afterHorizontal.verticalOffset + deltaY));
     pendingInputKind_ = ScrollInputKind::Line;
-    if (!vertical) return vertical.GetStatus();
-    return horizontal.Value() || vertical.Value();
+    const ScrollData afterVertical = GetData();
+    return afterHorizontal.horizontalOffset != afterVertical.horizontalOffset ||
+        afterHorizontal.verticalOffset != afterVertical.verticalOffset;
 }
 
 Base::Result<bool>
@@ -442,7 +403,7 @@ ScrollContentPresenter::PageHorizontal(
         return changed.Value() || synced.Value();
     }
     return ApplyScrollDelta(
-        direction * Data().viewportWidth,
+        direction * GetData().viewportWidth,
         0.0,
         ScrollInputKind::Page);
 }
@@ -469,11 +430,11 @@ ScrollContentPresenter::PageVertical(
     }
     return ApplyScrollDelta(
         0.0,
-        direction * Data().viewportHeight,
+        direction * GetData().viewportHeight,
         ScrollInputKind::Page);
 }
 
-Base::Result<Size>
+Size
 ScrollContentPresenter::MeasureOverride(
     Size availableSize) noexcept {
     if (GetTemplateRoot() != nullptr) {
@@ -489,32 +450,30 @@ ScrollContentPresenter::MeasureOverride(
         empty.viewportHeight = availableSize.height;
         Base::Result<bool> updated = UpdateData(
             empty, pendingInputKind_, false);
-        if (!updated) return updated.GetStatus();
+        if (!updated) return Size{};
         return Size{};
     }
 
     IScrollInfo* logical = ActiveContentScrollInfo();
     Size childAvailable = availableSize;
     if (logical != nullptr) {
-        Base::Result<bool> viewport =
-            logical->SetViewport(availableSize);
-        if (!viewport) return viewport.GetStatus();
+        logical->SetViewport(availableSize);
     } else {
-        if (AllowsHorizontalScroll()) {
+        if (GetAllowsHorizontalScroll()) {
             childAvailable.width = LayoutInfinity;
         }
-        if (AllowsVerticalScroll()) {
+        if (GetAllowsVerticalScroll()) {
             childAvailable.height = LayoutInfinity;
         }
     }
     Base::Result<void> measured =
         MeasureChild(*child, childAvailable);
-    if (!measured) return measured.GetStatus();
+    if (!measured) return Size{};
 
     if (logical != nullptr) {
         Base::Result<bool> synced =
             SyncLogicalData(pendingInputKind_);
-        if (!synced) return synced.GetStatus();
+        if (!synced) return Size{};
     } else {
         ScrollData value = data_;
         value.extentWidth = child->GetDesiredSize().width;
@@ -523,15 +482,15 @@ ScrollContentPresenter::MeasureOverride(
         value.viewportHeight = availableSize.height;
         Base::Result<bool> updated = UpdateData(
             value, pendingInputKind_, false);
-        if (!updated) return updated.GetStatus();
+        if (!updated) return Size{};
     }
-    const ScrollData value = Data();
+    const ScrollData value = GetData();
     return Size{
         std::min(value.extentWidth, availableSize.width),
         std::min(value.extentHeight, availableSize.height)};
 }
 
-Base::Result<Size>
+Size
 ScrollContentPresenter::ArrangeOverride(
     Size finalSize) noexcept {
     if (GetTemplateRoot() != nullptr) {
@@ -540,16 +499,12 @@ ScrollContentPresenter::ArrangeOverride(
     }
     UIElement* child = ContentElement();
     if (child == nullptr) {
-        Base::Result<bool> viewport =
-            SetViewport(finalSize);
-        if (!viewport) return viewport.GetStatus();
+        SetViewport(finalSize);
         return finalSize;
     }
     IScrollInfo* logical = ActiveContentScrollInfo();
-    Base::Result<bool> viewport =
-        SetViewport(finalSize);
-    if (!viewport) return viewport.GetStatus();
-    const ScrollData value = Data();
+    SetViewport(finalSize);
+    const ScrollData value = GetData();
     const Rect slot = logical != nullptr
         ? Rect{0.0, 0.0, finalSize.width, finalSize.height}
         : Rect{
@@ -559,7 +514,7 @@ ScrollContentPresenter::ArrangeOverride(
             std::max(value.extentHeight, finalSize.height)};
     Base::Result<void> arranged =
         ArrangeChild(*child, slot);
-    if (!arranged) return arranged.GetStatus();
+    if (!arranged) return finalSize;
     return finalSize;
 }
 
@@ -582,7 +537,7 @@ void ScrollContentPresenter::OnScrollDataChanged(
 
 ScrollViewer::ScrollViewer() noexcept
     : ScrollContentPresenter(StaticTypeId()) {
-    UpdateComputedScrollBarVisibility(Data());
+    UpdateComputedScrollBarVisibility(GetData());
 }
 
 ScrollViewer::~ScrollViewer() {
@@ -593,45 +548,45 @@ ScrollViewer::~ScrollViewer() {
     }
 }
 
-double ScrollViewer::HorizontalOffset() const noexcept {
+double ScrollViewer::GetHorizontalOffset() const noexcept {
     return ReadDouble(*this, HorizontalOffsetProperty);
 }
 
-double ScrollViewer::VerticalOffset() const noexcept {
+double ScrollViewer::GetVerticalOffset() const noexcept {
     return ReadDouble(*this, VerticalOffsetProperty);
 }
 
-double ScrollViewer::ExtentWidth() const noexcept {
+double ScrollViewer::GetExtentWidth() const noexcept {
     return ReadDouble(*this, ExtentWidthProperty);
 }
 
-double ScrollViewer::ExtentHeight() const noexcept {
+double ScrollViewer::GetExtentHeight() const noexcept {
     return ReadDouble(*this, ExtentHeightProperty);
 }
 
-double ScrollViewer::ViewportWidth() const noexcept {
+double ScrollViewer::GetViewportWidth() const noexcept {
     return ReadDouble(*this, ViewportWidthProperty);
 }
 
-double ScrollViewer::ViewportHeight() const noexcept {
+double ScrollViewer::GetViewportHeight() const noexcept {
     return ReadDouble(*this, ViewportHeightProperty);
 }
 
-double ScrollViewer::ScrollableWidth() const noexcept {
+double ScrollViewer::GetScrollableWidth() const noexcept {
     return ReadDouble(*this, ScrollableWidthProperty);
 }
 
-double ScrollViewer::ScrollableHeight() const noexcept {
+double ScrollViewer::GetScrollableHeight() const noexcept {
     return ReadDouble(*this, ScrollableHeightProperty);
 }
 
 ScrollBarVisibility
-ScrollViewer::HorizontalScrollBarVisibility() const noexcept {
+ScrollViewer::GetHorizontalScrollBarVisibility() const noexcept {
     return GetHorizontalScrollBarVisibility(*this);
 }
 
 ScrollBarVisibility
-ScrollViewer::VerticalScrollBarVisibility() const noexcept {
+ScrollViewer::GetVerticalScrollBarVisibility() const noexcept {
     return GetVerticalScrollBarVisibility(*this);
 }
 
@@ -639,13 +594,13 @@ PanningMode ScrollViewer::GetPanningMode() const noexcept {
     return GetValueOr(PanningModeProperty, PanningMode::None);
 }
 
-Base::Result<void> ScrollViewer::SetPanningMode(
+void ScrollViewer::SetPanningMode(
     PanningMode value) noexcept {
-    return SetValue(PanningModeProperty, value);
+    SetValue(PanningModeProperty, value);
 }
 
 Visibility
-ScrollViewer::ComputedHorizontalScrollBarVisibility()
+ScrollViewer::GetComputedHorizontalScrollBarVisibility()
     const noexcept {
     return GetValueOr(
         ComputedHorizontalScrollBarVisibilityProperty,
@@ -653,67 +608,56 @@ ScrollViewer::ComputedHorizontalScrollBarVisibility()
 }
 
 Visibility
-ScrollViewer::ComputedVerticalScrollBarVisibility()
+ScrollViewer::GetComputedVerticalScrollBarVisibility()
     const noexcept {
     return GetValueOr(
         ComputedVerticalScrollBarVisibilityProperty,
         Visibility::Collapsed);
 }
 
-Base::Result<void>
-ScrollViewer::SetCanHorizontallyScroll(
+void ScrollViewer::SetCanHorizontallyScroll(
     bool value) noexcept {
-    return SetValue(CanHorizontallyScrollProperty, value);
+    SetValue(CanHorizontallyScrollProperty, value);
 }
 
-Base::Result<void>
-ScrollViewer::SetCanVerticallyScroll(
+void ScrollViewer::SetCanVerticallyScroll(
     bool value) noexcept {
-    return SetValue(CanVerticallyScrollProperty, value);
+    SetValue(CanVerticallyScrollProperty, value);
 }
 
-Base::Result<void>
-ScrollViewer::SetCanContentScroll(
+void ScrollViewer::SetCanContentScroll(
     bool value) noexcept {
-    return SetValue(CanContentScrollProperty, value);
+    SetValue(CanContentScrollProperty, value);
 }
 
-Base::Result<void>
-ScrollViewer::SetHorizontalScrollBarVisibility(
+void ScrollViewer::SetHorizontalScrollBarVisibility(
     ScrollBarVisibility value) noexcept {
-    Base::Result<void> changed =
-        SetHorizontalScrollBarVisibility(*this, value);
-    if (changed) {
-        UpdateComputedScrollBarVisibility(Data());
-    }
-    return changed;
+    SetHorizontalScrollBarVisibility(*this, value);
+    UpdateComputedScrollBarVisibility(GetData());
 }
 
-Base::Result<void>
-ScrollViewer::SetVerticalScrollBarVisibility(
+void ScrollViewer::SetVerticalScrollBarVisibility(
     ScrollBarVisibility value) noexcept {
-    Base::Result<void> changed =
-        SetVerticalScrollBarVisibility(*this, value);
-    if (changed) {
-        UpdateComputedScrollBarVisibility(Data());
+    SetVerticalScrollBarVisibility(*this, value);
+    UpdateComputedScrollBarVisibility(GetData());
+}
+
+void ScrollViewer::SetHorizontalOffset(
+    double value) noexcept {
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetHorizontalOffset(value);
+    } else {
+        ScrollContentPresenter::SetHorizontalOffset(value);
     }
-    return changed;
 }
 
-Base::Result<bool> ScrollViewer::SetHorizontalOffset(
+void ScrollViewer::SetVerticalOffset(
     double value) noexcept {
-    return contentPresenter_ != nullptr
-        ? contentPresenter_->SetHorizontalOffset(value)
-        : ScrollContentPresenter::
-            SetHorizontalOffset(value);
-}
-
-Base::Result<bool> ScrollViewer::SetVerticalOffset(
-    double value) noexcept {
-    return contentPresenter_ != nullptr
-        ? contentPresenter_->SetVerticalOffset(value)
-        : ScrollContentPresenter::
-            SetVerticalOffset(value);
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetVerticalOffset(value);
+    } else {
+        ScrollContentPresenter::SetVerticalOffset(value);
+    }
 }
 
 Base::Result<bool> ScrollViewer::LineHorizontal(
@@ -757,11 +701,9 @@ void ScrollViewer::AdoptPresenterData(
         UpdateData(data, kind, false));
 }
 
-Base::Result<void> ScrollViewer::OnApplyTemplate()
+void ScrollViewer::OnApplyTemplate()
     noexcept {
-    Base::Result<void> applied =
-        Control::OnApplyTemplate();
-    if (!applied) return applied.GetStatus();
+    Control::OnApplyTemplate();
     DependencyObject* part = GetTemplateChild(
         ScrollContentPresenter::StaticTypeId());
     contentPresenter_ =
@@ -769,20 +711,20 @@ Base::Result<void> ScrollViewer::OnApplyTemplate()
         part != this
         ? static_cast<ScrollContentPresenter*>(part)
         : nullptr;
-    return {};
+    return;
 }
 
-Base::Result<Size> ScrollViewer::MeasureOverride(
+Size ScrollViewer::MeasureOverride(
     Size availableSize) noexcept {
-    Base::Result<Size> measured =
+    const Size measured =
         ScrollContentPresenter::MeasureOverride(
             availableSize);
-    if (!measured || contentPresenter_ == nullptr) {
+    if (contentPresenter_ == nullptr) {
         return measured;
     }
     AdoptPresenterData(
         *contentPresenter_,
-        contentPresenter_->Data(),
+        contentPresenter_->GetData(),
         ScrollInputKind::Line);
     return measured;
 }
@@ -808,37 +750,35 @@ ScrollViewer::GetVerticalScrollBarVisibility(
         ScrollBarVisibility::Visible);
 }
 
-Base::Result<void>
+void
 ScrollViewer::SetHorizontalScrollBarVisibility(
     DependencyObject& element,
     ScrollBarVisibility value) noexcept {
-    return element.SetValue(
-        HorizontalScrollBarVisibilityProperty, value);
+    element.SetValue(HorizontalScrollBarVisibilityProperty, value);
 }
 
-Base::Result<void>
+void
 ScrollViewer::SetVerticalScrollBarVisibility(
     DependencyObject& element,
     ScrollBarVisibility value) noexcept {
-    return element.SetValue(
-        VerticalScrollBarVisibilityProperty, value);
+    element.SetValue(VerticalScrollBarVisibilityProperty, value);
 }
 
-bool ScrollViewer::AllowsHorizontalScroll() const noexcept {
-    return HorizontalScrollBarVisibility() !=
+bool ScrollViewer::GetAllowsHorizontalScroll() const noexcept {
+    return GetHorizontalScrollBarVisibility() !=
             ScrollBarVisibility::Disabled &&
         ReadBool(
             *this, CanHorizontallyScrollProperty, true);
 }
 
-bool ScrollViewer::AllowsVerticalScroll() const noexcept {
-    return VerticalScrollBarVisibility() !=
+bool ScrollViewer::GetAllowsVerticalScroll() const noexcept {
+    return GetVerticalScrollBarVisibility() !=
             ScrollBarVisibility::Disabled &&
         ReadBool(
             *this, CanVerticallyScrollProperty, true);
 }
 
-bool ScrollViewer::UsesContentScrolling() const noexcept {
+bool ScrollViewer::GetUsesContentScrolling() const noexcept {
     return ReadBool(
         *this, CanContentScrollProperty, false);
 }
@@ -895,8 +835,8 @@ void ScrollViewer::OnScrollDataChanged(
             ? newData.horizontalOffset
             : newData.verticalOffset;
         const ScrollBarVisibility mode = horizontal
-            ? HorizontalScrollBarVisibility()
-            : VerticalScrollBarVisibility();
+            ? GetHorizontalScrollBarVisibility()
+            : GetVerticalScrollBarVisibility();
         static_cast<void>(bar.SetRange(
             0.0,
             std::max(0.0, extent - viewport)));
@@ -919,7 +859,7 @@ void ScrollViewer::OnScrollDataChanged(
     if (events_ != nullptr) {
         ScrollChangedEventArgs args(oldData, newData, kind);
         static_cast<void>(
-            static_cast<Aero::Detail::EventRouter*>(events_)->RaiseEvent(
+            static_cast<Aero::Internal::EventRouter*>(events_)->RaiseEvent(
             *this, ScrollChangedEvent, &args));
     }
 }
@@ -929,13 +869,13 @@ void ScrollViewer::UpdateComputedScrollBarVisibility(
     static_cast<void>(SetReadOnlyCurrentValue(
         ComputedHorizontalScrollBarVisibilityProperty,
         ComputeScrollBarVisibility(
-            HorizontalScrollBarVisibility(),
+            GetHorizontalScrollBarVisibility(),
             data.extentWidth,
             data.viewportWidth)));
     static_cast<void>(SetReadOnlyCurrentValue(
         ComputedVerticalScrollBarVisibilityProperty,
         ComputeScrollBarVisibility(
-            VerticalScrollBarVisibility(),
+            GetVerticalScrollBarVisibility(),
             data.extentHeight,
             data.viewportHeight)));
 }
@@ -952,10 +892,7 @@ Base::Result<void> Thumb::BeginDrag(
                 ? "Thumb is already dragging"
                 : "Thumb drag position must be finite");
     }
-    Base::Result<void> published =
-        SetReadOnlyCurrentValue(
-            IsDraggingProperty, true);
-    if (!published) return published.GetStatus();
+    SetReadOnlyCurrentValue(IsDraggingProperty, true);
     pointerId_ = pointerId;
     lastPosition_ = position;
     dragging_ = true;
@@ -990,10 +927,7 @@ Base::Result<bool> Thumb::EndDrag(
             Base::ErrorCode::InvalidArgument,
             "Thumb drag pointer does not match");
     }
-    Base::Result<void> published =
-        SetReadOnlyCurrentValue(
-            IsDraggingProperty, false);
-    if (!published) return published.GetStatus();
+    SetReadOnlyCurrentValue(IsDraggingProperty, false);
     pointerId_ = 0U;
     dragging_ = false;
     return true;
@@ -1003,160 +937,144 @@ Orientation Track::GetOrientation() const noexcept {
     return ReadOrientation(*this, OrientationProperty);
 }
 
-double Track::Minimum() const noexcept {
+double Track::GetMinimum() const noexcept {
     return ReadDouble(*this, MinimumProperty);
 }
 
-double Track::Maximum() const noexcept {
+double Track::GetMaximum() const noexcept {
     return ReadDouble(*this, MaximumProperty);
 }
 
-double Track::Value() const noexcept {
+double Track::GetValue() const noexcept {
     return ReadDouble(*this, ValueProperty);
 }
 
-double Track::ViewportSize() const noexcept {
+double Track::GetViewportSize() const noexcept {
     return ReadDouble(*this, ViewportSizeProperty);
 }
 
-double GridSplitter::DragIncrement() const noexcept {
+double GridSplitter::GetDragIncrement() const noexcept {
     return GetValueOr(DragIncrementProperty, 1.0);
 }
 
-double GridSplitter::KeyboardIncrement() const noexcept {
+double GridSplitter::GetKeyboardIncrement() const noexcept {
     return GetValueOr(KeyboardIncrementProperty, 10.0);
 }
 
-GridResizeDirection GridSplitter::ResizeDirection() const noexcept {
+GridResizeDirection GridSplitter::GetResizeDirection() const noexcept {
     return GetValueOr(ResizeDirectionProperty, GridResizeDirection::Auto);
 }
 
-GridResizeBehavior GridSplitter::ResizeBehavior() const noexcept {
+GridResizeBehavior GridSplitter::GetResizeBehavior() const noexcept {
     return GetValueOr(
         ResizeBehaviorProperty,
         GridResizeBehavior::BasedOnAlignment);
 }
 
-bool GridSplitter::ShowsPreview() const noexcept {
+bool GridSplitter::GetShowsPreview() const noexcept {
     return GetValueOr(ShowsPreviewProperty, false);
 }
 
-Base::Ref<Aero::Style> GridSplitter::PreviewStyle() const noexcept {
+Base::Ref<Aero::Style> GridSplitter::GetPreviewStyle() const noexcept {
     return GetValueOr(
         PreviewStyleProperty,
         Base::Ref<Aero::Style>{});
 }
 
-Base::Result<void> GridSplitter::SetDragIncrement(double value) noexcept {
-    return SetValue(DragIncrementProperty, value);
+void GridSplitter::SetDragIncrement(double value) noexcept {
+    SetValue(DragIncrementProperty, value);
 }
 
-Base::Result<void> GridSplitter::SetKeyboardIncrement(double value) noexcept {
-    return SetValue(KeyboardIncrementProperty, value);
+void GridSplitter::SetKeyboardIncrement(double value) noexcept {
+    SetValue(KeyboardIncrementProperty, value);
 }
 
-Base::Result<void> GridSplitter::SetResizeDirection(
+void GridSplitter::SetResizeDirection(
     GridResizeDirection value) noexcept {
-    return SetValue(ResizeDirectionProperty, value);
+    SetValue(ResizeDirectionProperty, value);
 }
 
-Base::Result<void> GridSplitter::SetResizeBehavior(
+void GridSplitter::SetResizeBehavior(
     GridResizeBehavior value) noexcept {
-    return SetValue(ResizeBehaviorProperty, value);
+    SetValue(ResizeBehaviorProperty, value);
 }
 
-Base::Result<void> GridSplitter::SetShowsPreview(bool value) noexcept {
-    return SetValue(ShowsPreviewProperty, value);
+void GridSplitter::SetShowsPreview(bool value) noexcept {
+    SetValue(ShowsPreviewProperty, value);
 }
 
-Base::Result<void> GridSplitter::SetPreviewStyle(
+void GridSplitter::SetPreviewStyle(
     Base::Ref<Aero::Style> value) noexcept {
-    return SetValue(PreviewStyleProperty, std::move(value));
+    SetValue(PreviewStyleProperty, std::move(value));
 }
 
-bool Track::IsDirectionReversed() const noexcept {
+bool Track::GetIsDirectionReversed() const noexcept {
     return GetValueOr(
         IsDirectionReversedProperty, false);
 }
 
-Base::Result<void> Track::SetOrientation(
+void Track::SetOrientation(
     Orientation value) noexcept {
-    return StoreOrientation(
-        *this, OrientationProperty, value);
+    StoreOrientation(*this, OrientationProperty, value);
 }
 
-Base::Result<void> Track::SetRange(
+void Track::SetRange(
     double minimum,
     double maximum) noexcept {
     if (!std::isfinite(minimum) ||
         !std::isfinite(maximum) ||
         maximum < minimum) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Track range is invalid");
+        return;
     }
-    Base::Result<void> low =
-        StoreDouble(*this, MinimumProperty, minimum);
-    if (!low) return low.GetStatus();
-    Base::Result<void> high =
-        StoreDouble(*this, MaximumProperty, maximum);
-    if (!high) return high.GetStatus();
-    return SetValue(Value());
+    StoreDouble(*this, MinimumProperty, minimum);
+    StoreDouble(*this, MaximumProperty, maximum);
+    SetValue(GetValue());
 }
 
-Base::Result<void> Track::SetValue(
+void Track::SetValue(
     double value) noexcept {
     if (!std::isfinite(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Track value must be finite");
+        return;
     }
-    if (Maximum() < Minimum()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Track range is invalid");
+    if (GetMaximum() < GetMinimum()) {
+        return;
     }
-    return StoreDouble(
-        *this, ValueProperty,
-        std::clamp(value, Minimum(), Maximum()));
+    StoreDouble(*this, ValueProperty,
+        std::clamp(value, GetMinimum(), GetMaximum()));
 }
 
-Base::Result<void> Track::SetViewportSize(
+void Track::SetViewportSize(
     double value) noexcept {
     if (!ValidNonnegative(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Track viewport must be finite and nonnegative");
+        return;
     }
-    return StoreDouble(
-        *this, ViewportSizeProperty, value);
+    StoreDouble(*this, ViewportSizeProperty, value);
 }
 
-Base::Result<void> Track::SetIsDirectionReversed(
+void Track::SetIsDirectionReversed(
     bool value) noexcept {
-    return DependencyObject::SetValue(
-        IsDirectionReversedProperty, value);
+    DependencyObject::SetValue(IsDirectionReversedProperty, value);
 }
 
-Base::Result<void> Track::SetDecreaseRepeatButton(
+void Track::SetDecreaseRepeatButton(
     Base::Ref<RepeatButton> value) noexcept {
     decreaseRepeatButton_ = std::move(value);
-    return InvalidateMeasure();
+    (void)InvalidateMeasure();
 }
 
-Base::Result<void> Track::SetThumb(
+void Track::SetThumb(
     Base::Ref<Thumb> value) noexcept {
     thumb_ = std::move(value);
-    return InvalidateMeasure();
+    (void)InvalidateMeasure();
 }
 
-Base::Result<void> Track::SetIncreaseRepeatButton(
+void Track::SetIncreaseRepeatButton(
     Base::Ref<RepeatButton> value) noexcept {
     increaseRepeatButton_ = std::move(value);
-    return InvalidateMeasure();
+    (void)InvalidateMeasure();
 }
 
-double Track::ThumbLength(
+double Track::GetThumbLength(
     double trackLength,
     double minimumThumbLength) const noexcept {
     if (!ValidNonnegative(trackLength) ||
@@ -1165,8 +1083,8 @@ double Track::ThumbLength(
         return 0.0;
     }
     const double range =
-        std::max(0.0, Maximum() - Minimum());
-    const double viewport = ViewportSize();
+        std::max(0.0, GetMaximum() - GetMinimum());
+    const double viewport = GetViewportSize();
     if (range == 0.0) return trackLength;
     const double proportional =
         viewport > 0.0
@@ -1178,23 +1096,23 @@ double Track::ThumbLength(
         trackLength);
 }
 
-double Track::ThumbOffset(
+double Track::GetThumbOffset(
     double trackLength,
     double minimumThumbLength) const noexcept {
     const double travel =
-        trackLength - ThumbLength(
+        trackLength - GetThumbLength(
             trackLength, minimumThumbLength);
     const double range =
-        Maximum() - Minimum();
+        GetMaximum() - GetMinimum();
     if (travel <= 0.0 || range <= 0.0) return 0.0;
     const double offset = travel *
-        (std::clamp(Value(), Minimum(), Maximum()) -
-            Minimum()) /
+        (std::clamp(GetValue(), GetMinimum(), GetMaximum()) -
+            GetMinimum()) /
         range;
     const bool invert =
         GetOrientation() == Orientation::Vertical
-        ? !IsDirectionReversed()
-        : IsDirectionReversed();
+        ? !GetIsDirectionReversed()
+        : GetIsDirectionReversed();
     return invert
         ? travel - offset
         : offset;
@@ -1212,33 +1130,33 @@ Base::Result<double> Track::ValueFromThumbOffset(
             "Track thumb geometry is invalid");
     }
     const double travel =
-        trackLength - ThumbLength(
+        trackLength - GetThumbLength(
             trackLength, minimumThumbLength);
     const double range =
-        Maximum() - Minimum();
+        GetMaximum() - GetMinimum();
     if (travel <= 0.0 || range <= 0.0) {
-        return Minimum();
+        return GetMinimum();
     }
     double normalized =
         std::clamp(offset, 0.0, travel) / travel;
     const bool invert =
         GetOrientation() == Orientation::Vertical
-        ? !IsDirectionReversed()
-        : IsDirectionReversed();
+        ? !GetIsDirectionReversed()
+        : GetIsDirectionReversed();
     if (invert) {
         normalized = 1.0 - normalized;
     }
-    return Minimum() + normalized * range;
+    return GetMinimum() + normalized * range;
 }
 
-Base::Result<Size> Track::MeasureOverride(
+Size Track::MeasureOverride(
     Size availableSize) noexcept {
     Size desired{};
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         Base::Result<void> measured =
             MeasureChild(*child, availableSize);
-        if (!measured) return measured.GetStatus();
+        if (!measured) return Size{};
         if (GetOrientation() == Orientation::Vertical) {
             desired.width = std::max(
                 desired.width,
@@ -1254,22 +1172,22 @@ Base::Result<Size> Track::MeasureOverride(
     return desired;
 }
 
-Base::Result<Size> Track::ArrangeOverride(
+Size Track::ArrangeOverride(
     Size finalSize) noexcept {
     const bool vertical =
         GetOrientation() == Orientation::Vertical;
     const double length =
         vertical ? finalSize.height : finalSize.width;
     const double thumbLength =
-        ThumbLength(length);
+        GetThumbLength(length);
     const double thumbOffset =
-        ThumbOffset(length);
+        GetThumbOffset(length);
     const double before = thumbOffset;
     const double after = std::max(
         0.0, length - thumbOffset - thumbLength);
     const bool invert = vertical
-        ? !IsDirectionReversed()
-        : IsDirectionReversed();
+        ? !GetIsDirectionReversed()
+        : GetIsDirectionReversed();
     RepeatButton* first = invert
         ? increaseRepeatButton_.Get()
         : decreaseRepeatButton_.Get();
@@ -1301,10 +1219,7 @@ Base::Result<Size> Track::ArrangeOverride(
             thumbOffset + thumbLength,
             after);
     }
-    return arranged
-        ? Base::Result<Size>(finalSize)
-        : Base::Result<Size>(
-              arranged.GetStatus());
+    return finalSize;
 }
 
 Orientation ScrollBar::GetOrientation() const noexcept {
@@ -1351,11 +1266,9 @@ ScrollBar::~ScrollBar() {
         trackPropertyChangedHandler_));
 }
 
-Base::Result<void> ScrollBar::OnApplyTemplate()
+void ScrollBar::OnApplyTemplate()
     noexcept {
-    Base::Result<void> applied =
-        Control::OnApplyTemplate();
-    if (!applied) return applied.GetStatus();
+    Control::OnApplyTemplate();
     DependencyObject* part =
         GetTemplateChild("PART_Track");
     track_ =
@@ -1366,7 +1279,7 @@ Base::Result<void> ScrollBar::OnApplyTemplate()
         ? static_cast<Track*>(part)
         : nullptr;
     SynchronizeTrack();
-    return {};
+    return;
 }
 
 void ScrollBar::OnTemplateDetached() noexcept {
@@ -1386,11 +1299,11 @@ void ScrollBar::SynchronizeTrack() noexcept {
     static_cast<void>(
         track_->SetOrientation(GetOrientation()));
     static_cast<void>(
-        track_->SetRange(Minimum(), Maximum()));
+        track_->SetRange(GetMinimum(), GetMaximum()));
     static_cast<void>(
-        track_->SetViewportSize(ViewportSize()));
+        track_->SetViewportSize(GetViewportSize()));
     static_cast<void>(
-        track_->SetValue(Value()));
+        track_->SetValue(GetValue()));
 }
 
 RangeBase::RangeBase(TypeId runtimeType) noexcept
@@ -1415,70 +1328,54 @@ RangeBase::~RangeBase() {
         ValueProperty, rangeChangedHandler_));
 }
 
-double RangeBase::Minimum() const noexcept {
+double RangeBase::GetMinimum() const noexcept {
     return ReadDouble(*this, MinimumProperty);
 }
 
-double RangeBase::Maximum() const noexcept {
+double RangeBase::GetMaximum() const noexcept {
     return ReadDouble(*this, MaximumProperty);
 }
 
-double RangeBase::Value() const noexcept {
+double RangeBase::GetValue() const noexcept {
     return ReadDouble(*this, ValueProperty);
 }
 
-Base::Result<void> RangeBase::SetMinimum(
+void RangeBase::SetMinimum(
     double value) noexcept {
-    return SetRange(value, Maximum());
+    SetRange(value, GetMaximum());
 }
 
-Base::Result<void> RangeBase::SetMaximum(
+void RangeBase::SetMaximum(
     double value) noexcept {
-    return SetRange(Minimum(), value);
+    SetRange(GetMinimum(), value);
 }
 
-Base::Result<void> RangeBase::SetRange(
+void RangeBase::SetRange(
     double minimum,
     double maximum) noexcept {
     if (!std::isfinite(minimum) ||
         !std::isfinite(maximum) ||
         maximum < minimum) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "RangeBase range is invalid");
+        return;
     }
-    Base::Result<void> low =
-        StoreDouble(*this, MinimumProperty, minimum);
-    if (!low) return low.GetStatus();
-    Base::Result<void> high =
-        StoreDouble(*this, MaximumProperty, maximum);
-    if (!high) return high.GetStatus();
-    Base::Result<bool> clamped = SetValue(Value());
-    return clamped
-        ? Base::Result<void>{}
-        : Base::Result<void>(clamped.GetStatus());
+    StoreDouble(*this, MinimumProperty, minimum);
+    StoreDouble(*this, MaximumProperty, maximum);
+    SetValue(GetValue());
 }
 
-Base::Result<bool> RangeBase::SetValue(
+void RangeBase::SetValue(
     double value) noexcept {
     if (!std::isfinite(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "RangeBase value must be finite");
+        return;
     }
-    if (Maximum() < Minimum()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "RangeBase range is invalid");
+    if (GetMaximum() < GetMinimum()) {
+        return;
     }
     const double clamped =
-        std::clamp(value, Minimum(), Maximum());
-    const double oldValue = Value();
-    if (Same(clamped, oldValue)) return false;
-    Base::Result<void> stored =
-        StoreDouble(*this, ValueProperty, clamped);
-    if (!stored) return stored.GetStatus();
-    return true;
+        std::clamp(value, GetMinimum(), GetMaximum());
+    const double oldValue = GetValue();
+    if (Same(clamped, oldValue)) return;
+    StoreDouble(*this, ValueProperty, clamped);
 }
 
 void RangeBase::OnRangePropertyChanged(
@@ -1492,7 +1389,7 @@ void RangeBase::OnRangePropertyChanged(
     } else if (
         args.GetProperty() == MinimumProperty ||
         args.GetProperty() == MaximumProperty) {
-        static_cast<void>(SetValue(Value()));
+        SetValue(GetValue());
     }
 }
 
@@ -1500,84 +1397,76 @@ void RangeBase::OnValueChanged(
     double oldValue,
     double newValue) noexcept {
     RangeValueChangedEventArgs args(oldValue, newValue);
-    const Base::Result<void> raised =
-        RaiseEvent(ValueChangedEvent, &args);
-    if (!raised &&
-        raised.GetStatus().code !=
-            Base::ErrorCode::NotInitialized) {
-        static_cast<void>(raised);
-    }
+    RaiseEvent(ValueChangedEvent, &args);
 }
 
-double ScrollBar::ViewportSize() const noexcept {
+double ScrollBar::GetViewportSize() const noexcept {
     return ReadDouble(*this, ViewportSizeProperty);
 }
 
-double ScrollBar::SmallChange() const noexcept {
+double ScrollBar::GetSmallChange() const noexcept {
     return ReadDouble(*this, SmallChangeProperty, 16.0);
 }
 
-double ScrollBar::LargeChange() const noexcept {
+double ScrollBar::GetLargeChange() const noexcept {
     const double configured =
         ReadDouble(*this, LargeChangeProperty);
     return configured > 0.0
         ? configured
-        : std::max(ViewportSize(), SmallChange());
+        : std::max(GetViewportSize(), GetSmallChange());
 }
 
-Base::Result<void> ScrollBar::SetOrientation(
+void ScrollBar::SetOrientation(
     Orientation value) noexcept {
-    return StoreOrientation(
-        *this, OrientationProperty, value);
+    StoreOrientation(*this, OrientationProperty, value);
 }
 
-Base::Result<void> ScrollBar::SetViewportSize(
+void ScrollBar::SetViewportSize(
     double value) noexcept {
     if (!ValidNonnegative(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ScrollBar viewport must be finite and nonnegative");
+        return;
     }
-    return StoreDouble(
-        *this, ViewportSizeProperty, value);
+    StoreDouble(*this, ViewportSizeProperty, value);
 }
 
-Base::Result<void> ScrollBar::SetSmallChange(
+void ScrollBar::SetSmallChange(
     double value) noexcept {
     if (!std::isfinite(value) || value <= 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ScrollBar SmallChange must be positive and finite");
+        return;
     }
-    return StoreDouble(
-        *this, SmallChangeProperty, value);
+    StoreDouble(*this, SmallChangeProperty, value);
 }
 
-Base::Result<void> ScrollBar::SetLargeChange(
+void ScrollBar::SetLargeChange(
     double value) noexcept {
     if (!ValidNonnegative(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ScrollBar LargeChange must be finite and nonnegative");
+        return;
     }
-    return StoreDouble(
-        *this, LargeChangeProperty, value);
+    StoreDouble(*this, LargeChangeProperty, value);
 }
 
 Base::Result<bool> ScrollBar::LineDecrement() noexcept {
-    return SetValue(Value() - SmallChange());
+    const double oldValue = GetValue();
+    SetValue(oldValue - GetSmallChange());
+    return !Same(oldValue, GetValue());
 }
 
 Base::Result<bool> ScrollBar::LineIncrement() noexcept {
-    return SetValue(Value() + SmallChange());
+    const double oldValue = GetValue();
+    SetValue(oldValue + GetSmallChange());
+    return !Same(oldValue, GetValue());
 }
 
 Base::Result<bool> ScrollBar::PageDecrement() noexcept {
-    return SetValue(Value() - LargeChange());
+    const double oldValue = GetValue();
+    SetValue(oldValue - GetLargeChange());
+    return !Same(oldValue, GetValue());
 }
 
 Base::Result<bool> ScrollBar::PageIncrement() noexcept {
-    return SetValue(Value() + LargeChange());
+    const double oldValue = GetValue();
+    SetValue(oldValue + GetLargeChange());
+    return !Same(oldValue, GetValue());
 }
 
 Base::Result<bool> ScrollBar::DragThumb(
@@ -1585,35 +1474,29 @@ Base::Result<bool> ScrollBar::DragThumb(
     double trackLength,
     double minimumThumbLength) noexcept {
     Track track;
-    Base::Result<void> status =
-        track.SetOrientation(GetOrientation());
-    if (status) {
-        status = track.SetRange(
-            Minimum(), Maximum());
-    }
-    if (status) {
-        status = track.SetViewportSize(
-            ViewportSize());
-    }
-    if (!status) return status.GetStatus();
+    track.SetOrientation(GetOrientation());
+    track.SetRange(GetMinimum(), GetMaximum());
+    track.SetViewportSize(GetViewportSize());
     Base::Result<double> value =
         track.ValueFromThumbOffset(
             thumbOffset,
             trackLength,
             minimumThumbLength);
     if (!value) return value.GetStatus();
-    return SetValue(value.Value());
+    const double oldValue = GetValue();
+    SetValue(value.Value());
+    return !Same(oldValue, GetValue());
 }
 
 Orientation Slider::GetOrientation() const noexcept {
     return ReadOrientation(*this, OrientationProperty);
 }
 
-double Slider::SmallChange() const noexcept {
+double Slider::GetSmallChange() const noexcept {
     return ReadDouble(*this, SmallChangeProperty, 1.0);
 }
 
-double Slider::LargeChange() const noexcept {
+double Slider::GetLargeChange() const noexcept {
     return ReadDouble(*this, LargeChangeProperty, 10.0);
 }
 
@@ -1623,76 +1506,65 @@ TickPlacement Slider::GetTickPlacement() const noexcept {
         TickPlacement::None);
 }
 
-double Slider::TickFrequency() const noexcept {
+double Slider::GetTickFrequency() const noexcept {
     return ReadDouble(*this, TickFrequencyProperty, 1.0);
 }
 
-Base::StringView Slider::Ticks() const noexcept {
+Base::StringView Slider::GetTicks() const noexcept {
     return GetValueOr(
         TicksProperty, Base::StringView());
 }
 
-bool Slider::IsSnapToTickEnabled() const noexcept {
+bool Slider::GetIsSnapToTickEnabled() const noexcept {
     return ReadBool(
         *this, IsSnapToTickEnabledProperty, false);
 }
 
-bool Slider::IsDirectionReversed() const noexcept {
+bool Slider::GetIsDirectionReversed() const noexcept {
     return ReadBool(
         *this, IsDirectionReversedProperty, false);
 }
 
-bool Slider::IsMoveToPointEnabled() const noexcept {
+bool Slider::GetIsMoveToPointEnabled() const noexcept {
     return ReadBool(
         *this, IsMoveToPointEnabledProperty, false);
 }
 
-Base::Result<void> Slider::SetOrientation(
+void Slider::SetOrientation(
     Orientation value) noexcept {
-    return StoreOrientation(
-        *this, OrientationProperty, value);
+    StoreOrientation(*this, OrientationProperty, value);
 }
 
-Base::Result<void> Slider::SetSmallChange(
+void Slider::SetSmallChange(
     double value) noexcept {
     if (!std::isfinite(value) || value <= 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Slider SmallChange must be positive and finite");
+        return;
     }
-    return StoreDouble(
-        *this, SmallChangeProperty, value);
+    StoreDouble(*this, SmallChangeProperty, value);
 }
 
-Base::Result<void> Slider::SetLargeChange(
+void Slider::SetLargeChange(
     double value) noexcept {
     if (!std::isfinite(value) || value <= 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Slider LargeChange must be positive and finite");
+        return;
     }
-    return StoreDouble(
-        *this, LargeChangeProperty, value);
+    StoreDouble(*this, LargeChangeProperty, value);
 }
 
-Base::Result<void> Slider::SetTickPlacement(
+void Slider::SetTickPlacement(
     TickPlacement value) noexcept {
-    return DependencyObject::SetValue(
-        TickPlacementProperty, value);
+    DependencyObject::SetValue(TickPlacementProperty, value);
 }
 
-Base::Result<void> Slider::SetTickFrequency(
+void Slider::SetTickFrequency(
     double value) noexcept {
     if (!std::isfinite(value) || value <= 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Slider TickFrequency must be positive and finite");
+        return;
     }
-    return StoreDouble(
-        *this, TickFrequencyProperty, value);
+    StoreDouble(*this, TickFrequencyProperty, value);
 }
 
-Base::Result<void> Slider::SetTicks(
+void Slider::SetTicks(
     Base::StringView value) noexcept {
     std::uint32_t start = 0U;
     while (start < value.SizeBytes()) {
@@ -1713,43 +1585,37 @@ Base::Result<void> Slider::SetTicks(
             ++end;
         }
         Base::Result<double> parsed =
-            Core::ValueConversion::ParseDouble(
+            ::Aero::Base::Detail::ValueConversion::ParseDouble(
                 value.Substr(start, end - start));
         if (!parsed || !std::isfinite(parsed.Value())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "Slider Ticks must contain finite numeric values");
+            return;
         }
         start = end;
     }
-    return DependencyObject::SetValue(
-        TicksProperty, value);
+    DependencyObject::SetValue(TicksProperty, value);
 }
 
-Base::Result<void> Slider::SetIsSnapToTickEnabled(
+void Slider::SetIsSnapToTickEnabled(
     bool value) noexcept {
-    return DependencyObject::SetValue(
-        IsSnapToTickEnabledProperty, value);
+    DependencyObject::SetValue(IsSnapToTickEnabledProperty, value);
 }
 
-Base::Result<void> Slider::SetIsDirectionReversed(
+void Slider::SetIsDirectionReversed(
     bool value) noexcept {
-    return DependencyObject::SetValue(
-        IsDirectionReversedProperty, value);
+    DependencyObject::SetValue(IsDirectionReversedProperty, value);
 }
 
-Base::Result<void> Slider::SetIsMoveToPointEnabled(
+void Slider::SetIsMoveToPointEnabled(
     bool value) noexcept {
-    return DependencyObject::SetValue(
-        IsMoveToPointEnabledProperty, value);
+    DependencyObject::SetValue(IsMoveToPointEnabledProperty, value);
 }
 
-double Slider::SnapValue(double value) const noexcept {
+double Slider::GetSnapValue(double value) const noexcept {
     value = std::clamp(
-        value, Minimum(), Maximum());
-    if (!IsSnapToTickEnabled()) return value;
+        value, GetMinimum(), GetMaximum());
+    if (!GetIsSnapToTickEnabled()) return value;
 
-    const Base::StringView ticks = Ticks();
+    const Base::StringView ticks = GetTicks();
     bool found = false;
     double nearest = value;
     double distance =
@@ -1773,11 +1639,11 @@ double Slider::SnapValue(double value) const noexcept {
             ++end;
         }
         Base::Result<double> parsed =
-            Core::ValueConversion::ParseDouble(
+            ::Aero::Base::Detail::ValueConversion::ParseDouble(
                 ticks.Substr(start, end - start));
         if (parsed &&
-            parsed.Value() >= Minimum() &&
-            parsed.Value() <= Maximum()) {
+            parsed.Value() >= GetMinimum() &&
+            parsed.Value() <= GetMaximum()) {
             const double candidateDistance =
                 std::fabs(parsed.Value() - value);
             if (!found ||
@@ -1791,81 +1657,83 @@ double Slider::SnapValue(double value) const noexcept {
     }
     if (found) return nearest;
 
-    const double frequency = TickFrequency();
+    const double frequency = GetTickFrequency();
     const double step = std::round(
-        (value - Minimum()) / frequency);
+        (value - GetMinimum()) / frequency);
     return std::clamp(
-        Minimum() + step * frequency,
-        Minimum(), Maximum());
+        GetMinimum() + step * frequency,
+        GetMinimum(), GetMaximum());
 }
 
 Base::Result<bool> Slider::DecreaseSmall() noexcept {
-    return SetValue(
-        SnapValue(Value() - SmallChange()));
+    const double oldValue = GetValue();
+    SetValue(GetSnapValue(oldValue - GetSmallChange()));
+    return !Same(oldValue, GetValue());
 }
 
 Base::Result<bool> Slider::IncreaseSmall() noexcept {
-    return SetValue(
-        SnapValue(Value() + SmallChange()));
+    const double oldValue = GetValue();
+    SetValue(GetSnapValue(oldValue + GetSmallChange()));
+    return !Same(oldValue, GetValue());
 }
 
 Base::Result<bool> Slider::DecreaseLarge() noexcept {
-    return SetValue(
-        SnapValue(Value() - LargeChange()));
+    const double oldValue = GetValue();
+    SetValue(GetSnapValue(oldValue - GetLargeChange()));
+    return !Same(oldValue, GetValue());
 }
 
 Base::Result<bool> Slider::IncreaseLarge() noexcept {
-    return SetValue(
-        SnapValue(Value() + LargeChange()));
+    const double oldValue = GetValue();
+    SetValue(GetSnapValue(oldValue + GetLargeChange()));
+    return !Same(oldValue, GetValue());
 }
 
-Base::Result<bool> Slider::SetValueFromPosition(
+void Slider::SetValueFromPosition(
     double position,
     double trackLength) noexcept {
     if (!std::isfinite(position) ||
         !std::isfinite(trackLength) ||
         trackLength <= 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Slider track geometry is invalid");
+        return;
     }
     double normalized =
         std::clamp(position / trackLength, 0.0, 1.0);
-    if (IsDirectionReversed()) {
+    if (GetIsDirectionReversed()) {
         normalized = 1.0 - normalized;
     }
-    return SetValue(SnapValue(
-        Minimum() +
-        normalized * (Maximum() - Minimum())));
+    SetValue(GetSnapValue(
+        GetMinimum() +
+        normalized * (GetMaximum() - GetMinimum())));
 }
 
-double Slider::NormalizedValueForLayout() const noexcept {
-    const double range = Maximum() - Minimum();
+double Slider::GetNormalizedValueForLayout() const noexcept {
+    const double range = GetMaximum() - GetMinimum();
     double normalized = range > 0.0
         ? std::clamp(
-            (Value() - Minimum()) / range,
+            (GetValue() - GetMinimum()) / range,
             0.0, 1.0)
         : 0.0;
-    if (IsDirectionReversed()) {
+    if (GetIsDirectionReversed()) {
         normalized = 1.0 - normalized;
     }
     return normalized;
 }
 
-Base::Result<Size> Slider::ArrangeOverride(
+Size Slider::ArrangeOverride(
     Size finalSize) noexcept {
     return Control::ArrangeOverride(finalSize);
 }
 
-Base::Result<void> Slider::OnRender(
+void Slider::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
     const TickPlacement placement =
         GetTickPlacement();
     const Size size = GetRenderSize();
     if (size.width <= 0.0 ||
         size.height <= 0.0) {
-        return {};
+        return;
     }
     const bool first =
         placement == TickPlacement::TopLeft ||
@@ -1884,11 +1752,11 @@ Base::Result<void> Slider::OnRender(
     const double travel =
         std::max(0.0,
             primary - thumbLength);
-    const Color color = Foreground();
+    const Color color = ::Aero::Internal::SampleBrush(GetForeground());
     Color trackColor = color;
     trackColor.alpha *= 0.35F;
     const double normalized =
-        NormalizedValueForLayout();
+        GetNormalizedValueForLayout();
     Base::Result<void> chrome;
     if (horizontal) {
         chrome = builder.FillRoundedRect(
@@ -1937,22 +1805,22 @@ Base::Result<void> Slider::OnRender(
                 thumbLength * 0.5);
         }
     }
-    if (!chrome) return chrome.GetStatus();
+    if (!chrome) return;
     if (placement == TickPlacement::None) {
-        return {};
+        return;
     }
     auto drawTick = [&](double value)
         noexcept -> Base::Result<void> {
-        if (value < Minimum() ||
-            value > Maximum()) {
+        if (value < GetMinimum() ||
+            value > GetMaximum()) {
             return {};
         }
         const double range =
-            Maximum() - Minimum();
+            GetMaximum() - GetMinimum();
         double normalized = range > 0.0
-            ? (value - Minimum()) / range
+            ? (value - GetMinimum()) / range
             : 0.0;
-        if (IsDirectionReversed()) {
+        if (GetIsDirectionReversed()) {
             normalized = 1.0 - normalized;
         }
         const double pixel =
@@ -1968,7 +1836,7 @@ Base::Result<void> Slider::OnRender(
                     {pixel, std::max(0.0, center - 9.0),
                      1.0, std::min(5.0, size.height)},
                     color);
-                if (!drawn) return drawn.GetStatus();
+                if (!drawn) return {};
             }
             if (second) {
                 drawn = builder.FillRect(
@@ -1984,7 +1852,7 @@ Base::Result<void> Slider::OnRender(
                     {std::max(0.0, center - 9.0), pixel,
                      std::min(5.0, size.width), 1.0},
                     color);
-                if (!drawn) return drawn.GetStatus();
+                if (!drawn) return {};
             }
             if (second) {
                 drawn = builder.FillRect(
@@ -1996,7 +1864,7 @@ Base::Result<void> Slider::OnRender(
         return drawn;
     };
 
-    const Base::StringView ticks = Ticks();
+    const Base::StringView ticks = GetTicks();
     if (!ticks.Empty()) {
         std::uint32_t start = 0U;
         std::uint32_t count = 0U;
@@ -2019,33 +1887,33 @@ Base::Result<void> Slider::OnRender(
                 ++end;
             }
             Base::Result<double> parsed =
-                Core::ValueConversion::ParseDouble(
+                ::Aero::Base::Detail::ValueConversion::ParseDouble(
                     ticks.Substr(start, end - start));
             if (parsed) {
                 Base::Result<void> drawn =
                     drawTick(parsed.Value());
                 if (!drawn) {
-                    return drawn.GetStatus();
+                    return;
                 }
             }
             start = end;
             ++count;
         }
-        return {};
+        return;
     }
 
-    const double frequency = TickFrequency();
+    const double frequency = GetTickFrequency();
     std::uint32_t count = 0U;
-    for (double value = Minimum();
-         value <= Maximum() +
+    for (double value = GetMinimum();
+         value <= GetMaximum() +
             frequency * 0.000001 &&
          count < 1024U;
          value += frequency, ++count) {
         Base::Result<void> drawn =
-            drawTick(std::min(value, Maximum()));
-        if (!drawn) return drawn.GetStatus();
+            drawTick(std::min(value, GetMaximum()));
+        if (!drawn) return;
     }
-    return {};
+    return;
 }
 
 Base::Ref<Media::Brush> TickBar::GetFill() const noexcept {
@@ -2054,57 +1922,57 @@ Base::Ref<Media::Brush> TickBar::GetFill() const noexcept {
         Base::Ref<Media::Brush>{});
 }
 
-TickBarPlacement TickBar::Placement() const noexcept {
+TickBarPlacement TickBar::GetPlacement() const noexcept {
     return GetValueOr(
         PlacementProperty,
         TickBarPlacement::Top);
 }
 
-Base::Result<void> TickBar::SetFill(
+void TickBar::SetFill(
     Base::Ref<Media::Brush> value) noexcept {
-    return SetValue(FillProperty, std::move(value));
+    SetValue(FillProperty, std::move(value));
 }
 
-Base::Result<void> TickBar::SetPlacement(
+void TickBar::SetPlacement(
     TickBarPlacement value) noexcept {
-    return SetValue(PlacementProperty, value);
+    SetValue(PlacementProperty, value);
 }
 
-Base::Result<void> TickBar::OnRender(
+void TickBar::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
     DependencyObject* parent = GetTemplatedParent();
     if (parent == nullptr ||
         !PropertyRegistry().Types().IsDerivedFrom(
             parent->RuntimeType(), Slider::StaticTypeId())) {
-        return {};
+        return;
     }
 
     const Slider& slider = static_cast<const Slider&>(*parent);
     const Size size = GetRenderSize();
     const bool horizontal =
-        Placement() == TickBarPlacement::Top ||
-        Placement() == TickBarPlacement::Bottom;
+        GetPlacement() == TickBarPlacement::Top ||
+        GetPlacement() == TickBarPlacement::Bottom;
     const double primary = horizontal ? size.width : size.height;
-    const double range = slider.Maximum() - slider.Minimum();
-    if (primary <= 0.0 || range < 0.0) return {};
+    const double range = slider.GetMaximum() - slider.GetMinimum();
+    if (primary <= 0.0 || range < 0.0) return;
 
-    const Color color = Media::SampleBrush(
-        GetFill(), 0.5, Foreground());
+    const Color color = ::Aero::Internal::SampleBrush(
+        GetFill(), 0.5, ::Aero::Internal::SampleBrush(GetForeground()));
     constexpr double thumbLength = 14.0;
     const double start = std::min(
         primary * 0.5, thumbLength * 0.5);
     const double travel = std::max(0.0, primary - thumbLength);
     auto drawTick = [&](double value)
         noexcept -> Base::Result<void> {
-        if (value < slider.Minimum() ||
-            value > slider.Maximum()) {
+        if (value < slider.GetMinimum() ||
+            value > slider.GetMaximum()) {
             return {};
         }
         double normalized = range > 0.0
-            ? (value - slider.Minimum()) / range
+            ? (value - slider.GetMinimum()) / range
             : 0.0;
-        if (slider.IsDirectionReversed()) {
+        if (slider.GetIsDirectionReversed()) {
             normalized = 1.0 - normalized;
         }
         const double position = start +
@@ -2112,14 +1980,14 @@ Base::Result<void> TickBar::OnRender(
         if (horizontal) {
             return builder.FillRect({
                 position,
-                Placement() == TickBarPlacement::Top
+                GetPlacement() == TickBarPlacement::Top
                     ? 0.0
                     : std::max(0.0, size.height - 4.0),
                 1.0,
                 std::min(4.0, size.height)}, color);
         }
         return builder.FillRect({
-            Placement() == TickBarPlacement::Left
+            GetPlacement() == TickBarPlacement::Left
                 ? 0.0
                 : std::max(0.0, size.width - 4.0),
             position,
@@ -2127,7 +1995,7 @@ Base::Result<void> TickBar::OnRender(
             1.0}, color);
     };
 
-    const Base::StringView ticks = slider.Ticks();
+    const Base::StringView ticks = slider.GetTicks();
     if (!ticks.Empty()) {
         std::uint32_t begin = 0U;
         std::uint32_t count = 0U;
@@ -2145,31 +2013,31 @@ Base::Result<void> TickBar::OnRender(
                 ++end;
             }
             Base::Result<double> parsed =
-                Core::ValueConversion::ParseDouble(
+                ::Aero::Base::Detail::ValueConversion::ParseDouble(
                     ticks.Substr(begin, end - begin));
             if (parsed) {
                 Base::Result<void> rendered = drawTick(parsed.Value());
-                if (!rendered) return rendered.GetStatus();
+                if (!rendered) return;
             }
             begin = end;
             ++count;
         }
-        return {};
+        return;
     }
 
-    const double frequency = slider.TickFrequency();
-    for (double value = slider.Minimum(), count = 0.0;
-         value <= slider.Maximum() + frequency * 0.000001 &&
+    const double frequency = slider.GetTickFrequency();
+    for (double value = slider.GetMinimum(), count = 0.0;
+         value <= slider.GetMaximum() + frequency * 0.000001 &&
          count < 1024.0;
          value += frequency, count += 1.0) {
         Base::Result<void> rendered = drawTick(
-            std::min(value, slider.Maximum()));
-        if (!rendered) return rendered.GetStatus();
+            std::min(value, slider.GetMaximum()));
+        if (!rendered) return;
     }
-    return {};
+    return;
 }
 
-bool ProgressBar::IsIndeterminate() const noexcept {
+bool ProgressBar::GetIsIndeterminate() const noexcept {
     return ReadBool(
         *this, IsIndeterminateProperty, false);
 }
@@ -2178,23 +2046,21 @@ Orientation ProgressBar::GetOrientation() const noexcept {
     return ReadOrientation(*this, OrientationProperty);
 }
 
-Base::Result<void> ProgressBar::SetIsIndeterminate(
+void ProgressBar::SetIsIndeterminate(
     bool value) noexcept {
-    return DependencyObject::SetValue(
-        IsIndeterminateProperty, value);
+    DependencyObject::SetValue(IsIndeterminateProperty, value);
 }
 
-Base::Result<void> ProgressBar::SetOrientation(
+void ProgressBar::SetOrientation(
     Orientation value) noexcept {
-    return StoreOrientation(
-        *this, OrientationProperty, value);
+    StoreOrientation(*this, OrientationProperty, value);
 }
 
-double ProgressBar::NormalizedValue() const noexcept {
-    const double range = Maximum() - Minimum();
+double ProgressBar::GetNormalizedValue() const noexcept {
+    const double range = GetMaximum() - GetMinimum();
     return range > 0.0
         ? std::clamp(
-            (Value() - Minimum()) / range,
+            (GetValue() - GetMinimum()) / range,
             0.0,
             1.0)
         : 0.0;
@@ -2202,9 +2068,10 @@ double ProgressBar::NormalizedValue() const noexcept {
 
 } // namespace Aero::Controls
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using namespace Aero::Controls;
 
 ScrollBehavior::ScrollBehavior(
@@ -2230,7 +2097,7 @@ ScrollBehavior::~ScrollBehavior() noexcept {
 
 std::uint32_t ScrollBehavior::FindViewer(
     const ScrollViewer& viewer) const noexcept {
-    const VisualHandle handle = Aero::Detail::ElementPrivate::Handle(viewer);
+    const VisualHandle handle = Aero::Internal::ElementPrivate::Handle(viewer);
     for (std::uint32_t index = 0U;
         index < viewers_.Size(); ++index) {
         if (viewers_[index].viewer == &viewer ||
@@ -2256,8 +2123,8 @@ Base::Result<void> ScrollBehavior::Attach(
             Base::ErrorCode::InvalidState,
             "ScrollViewer belongs to another interaction manager");
     }
-    if (Aero::Detail::ElementPrivate::Tree(viewer) != tree_ ||
-        !Aero::Detail::ElementPrivate::Handle(viewer).IsValid()) {
+    if (Aero::Internal::ElementPrivate::Tree(viewer) != tree_ ||
+        !Aero::Internal::ElementPrivate::Handle(viewer).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ScrollViewer must be loaded in the interaction tree");
@@ -2269,7 +2136,7 @@ Base::Result<void> ScrollBehavior::Attach(
     if (!handler) return handler.GetStatus();
     Base::Result<void> added =
         viewers_.TryPushBack(
-            {&viewer, Aero::Detail::ElementPrivate::Handle(viewer)});
+            {&viewer, Aero::Internal::ElementPrivate::Handle(viewer)});
     if (!added) {
         static_cast<void>(viewer.RemoveHandler(
             UIElement::MouseWheelEvent,
@@ -2306,9 +2173,9 @@ void ScrollBehavior::OnMouseWheel(
         return;
     }
     const double horizontal =
-        -args.GetDeltaX() * viewer->LineScrollAmount();
+        -args.GetDeltaX() * viewer->GetLineScrollAmount();
     const double vertical =
-        -args.GetDeltaY() * viewer->LineScrollAmount();
+        -args.GetDeltaY() * viewer->GetLineScrollAmount();
     Base::Result<bool> changed =
         viewer->ApplyScrollDelta(
             horizontal,
@@ -2363,7 +2230,7 @@ std::uint32_t SliderBehavior::Find(
     for (std::uint32_t index = 0U;
          index < sliders_.Size(); ++index) {
         const VisualHandle current =
-            Aero::Detail::ElementPrivate::Handle(slider);
+            Aero::Internal::ElementPrivate::Handle(slider);
         if (sliders_[index].handle.index ==
                 current.index &&
             sliders_[index].handle.generation ==
@@ -2407,8 +2274,8 @@ Base::Result<void> SliderBehavior::Attach(
             Base::ErrorCode::AlreadyExists,
             "Slider is already attached");
     }
-    if (Aero::Detail::ElementPrivate::Tree(slider) != tree_ ||
-        !Aero::Detail::ElementPrivate::Handle(slider).IsValid()) {
+    if (Aero::Internal::ElementPrivate::Tree(slider) != tree_ ||
+        !Aero::Internal::ElementPrivate::Handle(slider).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Slider must be loaded in the interaction tree");
@@ -2460,7 +2327,7 @@ Base::Result<void> SliderBehavior::Attach(
     }
     Base::Result<void> appended =
         sliders_.TryPushBack(
-            {Aero::Detail::ElementPrivate::Handle(slider), 0U, false});
+            {Aero::Internal::ElementPrivate::Handle(slider), 0U, false});
     if (!appended) {
         static_cast<void>(slider.RemoveHandler(
             UIElement::MouseDownEvent,
@@ -2527,13 +2394,8 @@ SliderBehavior::SetFromPoint(
         horizontal
         ? slider.GetRenderSize().width
         : slider.GetRenderSize().height;
-    Base::Result<bool> changed =
-        slider.SetValueFromPosition(
-            position, length);
-    return changed
-        ? Base::Result<void>()
-        : Base::Result<void>(
-            changed.GetStatus());
+    slider.SetValueFromPosition(position, length);
+    return {};
 }
 
 void SliderBehavior::OnMouseDown(
@@ -2565,12 +2427,12 @@ void SliderBehavior::OnMouseDown(
         ? slider.GetRenderSize().width
         : slider.GetRenderSize().height;
     const double range =
-        slider.Maximum() - slider.Minimum();
+        slider.GetMaximum() - slider.GetMinimum();
     double normalized = range > 0.0
-        ? (slider.Value() - slider.Minimum()) /
+        ? (slider.GetValue() - slider.GetMinimum()) /
             range
         : 0.0;
-    if (slider.IsDirectionReversed()) {
+    if (slider.GetIsDirectionReversed()) {
         normalized = 1.0 - normalized;
     }
     const double thumbPosition =
@@ -2578,7 +2440,7 @@ void SliderBehavior::OnMouseDown(
         std::clamp(normalized, 0.0, 1.0) *
             std::max(0.0, length - 14.0);
     record.dragging =
-        slider.IsMoveToPointEnabled() ||
+        slider.GetIsMoveToPointEnabled() ||
         std::fabs(position - thumbPosition) <=
             10.0;
     if (record.dragging) {
@@ -2586,14 +2448,14 @@ void SliderBehavior::OnMouseDown(
             input_->CapturePointer(
                 args.GetPointerId(), slider));
     }
-    if (slider.IsMoveToPointEnabled()) {
+    if (slider.GetIsMoveToPointEnabled()) {
         static_cast<void>(
             SetFromPoint(slider, args.GetPosition()));
     } else if (!record.dragging) {
         const bool after =
             position >= length * 0.5;
         const bool increase =
-            slider.IsDirectionReversed()
+            slider.GetIsDirectionReversed()
             ? !after : after;
         static_cast<void>(
             increase
@@ -2654,32 +2516,38 @@ void SliderBehavior::OnKeyDown(
         !slider.GetIsEnabled()) {
         return;
     }
-    Base::Result<bool> changed = false;
+    bool changed = false;
     bool handled = true;
     const bool reversed =
-        slider.IsDirectionReversed();
+        slider.GetIsDirectionReversed();
     if (args.GetKey() == KeyboardKeyHome) {
-        changed = slider.SetValue(
+        const double oldValue = slider.GetValue();
+        slider.SetValue(
             reversed
-            ? slider.Maximum()
-            : slider.Minimum());
+            ? slider.GetMaximum()
+            : slider.GetMinimum());
+        changed = !Same(oldValue, slider.GetValue());
     } else if (args.GetKey() == KeyboardKeyEnd) {
-        changed = slider.SetValue(
+        const double oldValue = slider.GetValue();
+        slider.SetValue(
             reversed
-            ? slider.Minimum()
-            : slider.Maximum());
+            ? slider.GetMinimum()
+            : slider.GetMaximum());
+        changed = !Same(oldValue, slider.GetValue());
     } else if (
         args.GetKey() == KeyboardKeyLeft ||
         args.GetKey() == KeyboardKeyDown) {
-        changed = reversed
+        Base::Result<bool> result = reversed
             ? slider.IncreaseSmall()
             : slider.DecreaseSmall();
+        changed = result && result.Value();
     } else if (
         args.GetKey() == KeyboardKeyRight ||
         args.GetKey() == KeyboardKeyUp) {
-        changed = reversed
+        Base::Result<bool> result = reversed
             ? slider.DecreaseSmall()
             : slider.IncreaseSmall();
+        changed = result && result.Value();
     } else {
         handled = false;
     }
@@ -2709,4 +2577,4 @@ void SliderBehavior::OnCaptureChanged(
     }
 }
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

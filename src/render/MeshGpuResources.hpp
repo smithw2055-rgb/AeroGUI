@@ -44,7 +44,7 @@ public:
         Shutdown();
     }
 
-    Aero::Detail::MeshResources&
+    Aero::Internal::MeshResources&
     Table() noexcept {
         return table_;
     }
@@ -460,7 +460,7 @@ private:
     Base::Vector<Resource> resources_;
     Render::RenderMeshId nextMesh_ =
         UINT64_C(1) << 48U;
-    Aero::Detail::MeshResources table_;
+    Aero::Internal::MeshResources table_;
 };
 
 } // namespace Aero::Render::Detail

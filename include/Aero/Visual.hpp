@@ -8,7 +8,7 @@
 
 #include <cstdint>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 class ElementPrivate;
 }
 
@@ -39,7 +39,7 @@ public:
 class AERO_API Visual : public DependencyObject {
     AERO_DECLARE_TYPE(Visual, DependencyObject)
 public:
-    explicit Visual(Core::TypeId runtimeType) noexcept;
+    explicit Visual(Meta::TypeId runtimeType) noexcept;
     ~Visual() override;
 
     Visual* GetVisualParent() const noexcept { return visualParent_; }
@@ -59,7 +59,7 @@ private:
     friend class LogicalTreeHelper;
     friend class ElementTree;
     friend class VisualTreeHelper;
-    friend class Aero::Detail::ElementPrivate;
+    friend class Aero::Internal::ElementPrivate;
 
     Base::Result<Base::Ref<Base::Object>> AcquireLifetime() noexcept;
 

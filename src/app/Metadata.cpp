@@ -57,7 +57,7 @@ Base::Result<void> Detail::PopulateAppMetadata(
             Base::Ref<Aero::ResourceDictionary>,
             &Aero::Application::SetResources>(
                 "Resources",
-                Core::PropertyFlags::Structural)
+                Meta::PropertyFlags::Structural)
         .Property(
             "ShutdownMode",
             &Aero::Application::GetShutdownMode,
@@ -68,13 +68,13 @@ Base::Result<void> Detail::PopulateAppMetadata(
 
     auto window = Meta::Register<Aero::Window>(context);
     window
-        .Property(Aero::Window::TitleProperty, Core::PropertyOptions(Base::String{}).AffectsMeasure())
-        .Property(Aero::Window::WindowStateProperty, Core::PropertyOptions(Aero::WindowState::Normal).AffectsRender())
-        .Property(Aero::Window::WindowStyleProperty, Core::PropertyOptions(Aero::WindowStyle::SingleBorderWindow).AffectsMeasure())
-        .Property(Aero::Window::ResizeModeProperty, Core::PropertyOptions(Aero::ResizeMode::CanResize))
-        .Property(Aero::Window::SizeToContentProperty, Core::PropertyOptions(Aero::SizeToContent::Manual).AffectsMeasure())
-        .Property(Aero::Window::ShowInTaskbarProperty, Core::PropertyOptions(true))
-        .Property(Aero::Window::TopmostProperty, Core::PropertyOptions(false))
+        .Property(Aero::Window::TitleProperty, Meta::PropertyOptions(Base::String{}).AffectsMeasure())
+        .Property(Aero::Window::WindowStateProperty, Meta::PropertyOptions(Aero::WindowState::Normal).AffectsRender())
+        .Property(Aero::Window::WindowStyleProperty, Meta::PropertyOptions(Aero::WindowStyle::SingleBorderWindow).AffectsMeasure())
+        .Property(Aero::Window::ResizeModeProperty, Meta::PropertyOptions(Aero::ResizeMode::CanResize))
+        .Property(Aero::Window::SizeToContentProperty, Meta::PropertyOptions(Aero::SizeToContent::Manual).AffectsMeasure())
+        .Property(Aero::Window::ShowInTaskbarProperty, Meta::PropertyOptions(true))
+        .Property(Aero::Window::TopmostProperty, Meta::PropertyOptions(false))
         .Event(Aero::Window::ClosingEvent, Aero::RoutingStrategy::Direct)
         .Event(Aero::Window::ClosedEvent, Aero::RoutingStrategy::Direct)
         .Event(Aero::Window::ActivatedEvent, Aero::RoutingStrategy::Direct)

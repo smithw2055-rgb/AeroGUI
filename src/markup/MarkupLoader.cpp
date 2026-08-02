@@ -219,7 +219,7 @@ private:
 
 Base::Result<void> AppendPosition(
     Base::Vector<std::uint8_t>& output,
-    Core::SourcePosition position) noexcept {
+    ::Aero::Diagnostics::SourcePosition position) noexcept {
     Base::Result<void> result =
         AppendU32(output, position.line);
     if (!result) return result.GetStatus();
@@ -228,7 +228,7 @@ Base::Result<void> AppendPosition(
     return AppendU64(output, position.byteOffset);
 }
 
-Base::Result<Core::SourcePosition> ReadPosition(
+Base::Result<::Aero::Diagnostics::SourcePosition> ReadPosition(
     Decoder& decoder) noexcept {
     Base::Result<std::uint32_t> line = decoder.ReadU32();
     if (!line) return line.GetStatus();
@@ -236,7 +236,7 @@ Base::Result<Core::SourcePosition> ReadPosition(
     if (!column) return column.GetStatus();
     Base::Result<std::uint64_t> offset = decoder.ReadU64();
     if (!offset) return offset.GetStatus();
-    return Core::SourcePosition{
+    return ::Aero::Diagnostics::SourcePosition{
         line.Value(), column.Value(), offset.Value()};
 }
 
@@ -258,6 +258,49 @@ CompiledDocument::Compile(
         BuildCompiledCacheIdentity(domain);
     if (!identity) return identity.GetStatus();
     return CompileWithIdentity(reader, identity.Value(), originUri);
+}
+
+Base::Result<CompiledDocument>
+CompiledDocument::Compile(
+    Base::Span<const Node> nodes,
+    const ::Aero::Meta::Registry& domain,
+    const Base::ResourceUri& originUri) noexcept {
+    Base::Result<CompiledCacheIdentity> identity =
+        BuildCompiledCacheIdentity(domain);
+    if (!identity) return identity.GetStatus();
+
+    CompiledDocument document;
+    document.identity_ = identity.Value();
+    document.originUri_ = originUri;
+    if (!originUri.Empty()) {
+        Base::Result<void> dependency =
+            document.dependencies_.TryPushBack(originUri);
+        if (!dependency) return dependency.GetStatus();
+    }
+    Base::Result<void> reserved =
+        document.nodes_.TryReserve(nodes.Size());
+    if (!reserved) return reserved.GetStatus();
+    for (const Node& node : nodes) {
+        Base::Result<Node> cloned = Node::TryClone(node);
+        if (!cloned) return cloned.GetStatus();
+        Base::Result<void> appended = document.nodes_.TryPushBack(
+            std::move(cloned).Value());
+        if (!appended) return appended.GetStatus();
+    }
+    return std::move(document);
+}
+
+Base::Result<CompiledDocument>
+CompiledDocument::Compile(
+    Base::Span<const Node> nodes,
+    const Schema& schema,
+    const Base::ResourceUri& originUri) noexcept {
+    Base::Result<CompiledDocument> compiled =
+        Compile(nodes, schema.Domain(), originUri);
+    if (!compiled) return compiled.GetStatus();
+    Base::Result<void> valid = compiled.Value().ValidateSchema(schema);
+    if (!valid) return valid.GetStatus();
+    return std::move(compiled).Value();
 }
 
 Base::Result<CompiledDocument>
@@ -497,14 +540,14 @@ CompiledDocument::Deserialize(
         node.kind_ =
             static_cast<NodeKind>(kind.Value());
         node.fromAttribute_ = attribute.Value() != 0U;
-        Base::Result<Core::SourcePosition> begin =
+        Base::Result<::Aero::Diagnostics::SourcePosition> begin =
             ReadPosition(decoder);
         if (!begin) return begin.GetStatus();
-        Base::Result<Core::SourcePosition> end =
+        Base::Result<::Aero::Diagnostics::SourcePosition> end =
             ReadPosition(decoder);
         if (!end) return end.GetStatus();
         node.source_ = {begin.Value(), end.Value()};
-        if (!Core::IsValidSourceSpan(node.source_)) {
+        if (!::Aero::Diagnostics::IsValidSourceSpan(node.source_)) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
                 "Compiled XAML source span is invalid");
@@ -1260,14 +1303,14 @@ void VisualContentPlan::ReleaseContent() noexcept {
         }
         if (firstForParent && edge.metadata != nullptr && edge.parentOwner) {
             if (edge.property) {
-                const Core::PropertyInfo* property =
+                const Meta::PropertyInfo* property =
                     edge.metadata->Types().
                         FindProperty(edge.member);
                 if (property != nullptr) {
                     (void)edge.metadata->SetProperty(
                         *edge.parentOwner.Get(),
                         edge.member,
-                        Core::Value::NullObject(
+                        Meta::Value::NullObject(
                             property->ValueType()));
                 }
             } else {
@@ -1304,70 +1347,248 @@ void VisualContentPlan::Clear() noexcept {
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Resources.hpp>
 
+#include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
+#include <limits>
 #include <new>
 #include <utility>
 
 
 namespace Aero::Markup {
 namespace LoaderDiagnosticCodes {
-inline constexpr Core::DiagnosticCode InvalidUri =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 301U);
-inline constexpr Core::DiagnosticCode SourceProviderNotFound =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 302U);
-inline constexpr Core::DiagnosticCode SourceLoadFailed =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 303U);
-inline constexpr Core::DiagnosticCode SourceRejected =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 304U);
-inline constexpr Core::DiagnosticCode RecursiveLoad =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 305U);
-inline constexpr Core::DiagnosticCode LoadComponentTypeMismatch =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 306U);
-inline constexpr Core::DiagnosticCode ResourceDependencyFailed =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 307U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidUri =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 301U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode SourceProviderNotFound =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 302U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode SourceLoadFailed =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 303U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode SourceRejected =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 304U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode RecursiveLoad =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 305U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode LoadComponentTypeMismatch =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 306U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode ResourceDependencyFailed =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 307U);
 } // namespace LoaderDiagnosticCodes
 
 struct Loader::Impl final {
     Impl(
         Schema& schema,
         SourceProviders& providers,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr,
+        const LoadState* runtime = nullptr) noexcept;
 
     Base::Result<LoaderResult> Load(
         Base::StringView uri,
-        const LoadOptions& options = {}) noexcept;
+        const XamlReaderSettings& options = {}) noexcept;
     Base::Result<LoaderResult> Load(
         const Base::ResourceUri& uri,
-        const LoadOptions& options = {}) noexcept;
+        const XamlReaderSettings& options = {}) noexcept;
     Base::Result<LoaderResult> Parse(
         Base::StringView text,
         const Base::ResourceUri& baseUri,
-        const LoadOptions& options = {}) noexcept;
+        const XamlReaderSettings& options = {}) noexcept;
+    Base::Result<LoaderResult> Parse(
+        Base::Stream& stream,
+        const Base::ResourceUri& baseUri,
+        const XamlReaderSettings& options = {}) noexcept;
     Base::Result<LoaderResult> LoadComponent(
         Base::Object& existingRoot,
         Base::StringView uri,
-        const LoadOptions& options = {}) noexcept;
+        const XamlReaderSettings& options = {}) noexcept;
     Base::Result<LoaderResult> LoadComponent(
         Base::Object& existingRoot,
         const Base::ResourceUri& uri,
-        const LoadOptions& options = {}) noexcept;
+        const XamlReaderSettings& options = {}) noexcept;
     Base::Result<LoaderResult> LoadCompiled(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri,
-        const LoadOptions& options = {}) noexcept;
+        const XamlReaderSettings& options = {}) noexcept;
 
 private:
     struct Operation;
 
     Schema* schema_ = nullptr;
     SourceProviders* providers_ = nullptr;
-    Core::IDiagnosticSink* diagnostics_ = nullptr;
+    Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
+    const LoadState* runtime_ = nullptr;
 };
 
 using Aero::ResourceDictionary;
 
 namespace {
+
+class MemoryStream final : public Base::Stream {
+public:
+    explicit MemoryStream(
+        Base::Span<const std::uint8_t> bytes) noexcept
+        : bytes_(bytes) {}
+
+    bool CanRead() const noexcept override { return true; }
+
+    Base::Result<std::uint32_t> Read(
+        Base::Span<std::uint8_t> destination) noexcept override {
+        const std::uint32_t available = bytes_.Size() - position_;
+        const std::uint32_t count =
+            std::min(available, destination.Size());
+        if (count != 0U) {
+            std::memcpy(
+                destination.Data(),
+                bytes_.Data() + position_,
+                count);
+            position_ += count;
+        }
+        return count;
+    }
+
+    bool CanSeek() const noexcept override { return true; }
+    Base::Result<std::uint64_t> Position() const noexcept override {
+        return static_cast<std::uint64_t>(position_);
+    }
+    Base::Result<std::uint64_t> Length() const noexcept override {
+        return static_cast<std::uint64_t>(bytes_.Size());
+    }
+    Base::Result<std::uint64_t> Seek(
+        std::int64_t offset,
+        Base::SeekOrigin origin) noexcept override {
+        const std::int64_t base = origin == Base::SeekOrigin::Begin
+            ? 0
+            : origin == Base::SeekOrigin::Current
+                ? static_cast<std::int64_t>(position_)
+                : static_cast<std::int64_t>(bytes_.Size());
+        const std::int64_t next = base + offset;
+        if (next < 0 || static_cast<std::uint64_t>(next) > bytes_.Size()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "Memory stream seek is outside its bounds");
+        }
+        position_ = static_cast<std::uint32_t>(next);
+        return static_cast<std::uint64_t>(position_);
+    }
+
+private:
+    Base::Span<const std::uint8_t> bytes_;
+    std::uint32_t position_ = 0U;
+};
+
+class FileStream final : public Base::Stream {
+public:
+    FileStream(std::FILE* file, std::uint64_t length) noexcept
+        : file_(file), length_(length) {}
+    ~FileStream() noexcept override {
+        if (file_ != nullptr) {
+            std::fclose(file_);
+            file_ = nullptr;
+        }
+    }
+
+    bool CanRead() const noexcept override { return file_ != nullptr; }
+    Base::Result<std::uint32_t> Read(
+        Base::Span<std::uint8_t> destination) noexcept override {
+        if (file_ == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "File stream is closed");
+        }
+        if (destination.Empty()) return std::uint32_t{0U};
+        const std::size_t count = std::fread(
+            destination.Data(), 1U, destination.Size(), file_);
+        if (count == 0U && std::ferror(file_) != 0) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InternalError,
+                "File stream read failed");
+        }
+        return static_cast<std::uint32_t>(count);
+    }
+    bool CanSeek() const noexcept override { return file_ != nullptr; }
+    Base::Result<std::uint64_t> Position() const noexcept override {
+        if (file_ == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "File stream is closed");
+        }
+        const long position = std::ftell(file_);
+        if (position < 0L) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InternalError,
+                "File stream position could not be read");
+        }
+        return static_cast<std::uint64_t>(position);
+    }
+    Base::Result<std::uint64_t> Length() const noexcept override {
+        return length_;
+    }
+    Base::Result<std::uint64_t> Seek(
+        std::int64_t offset,
+        Base::SeekOrigin origin) noexcept override {
+        if (file_ == nullptr ||
+            offset < static_cast<std::int64_t>(std::numeric_limits<long>::min()) ||
+            offset > static_cast<std::int64_t>(std::numeric_limits<long>::max())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "File stream seek is outside its bounds");
+        }
+        const int whence = origin == Base::SeekOrigin::Begin
+            ? SEEK_SET
+            : origin == Base::SeekOrigin::Current
+                ? SEEK_CUR
+                : SEEK_END;
+        if (std::fseek(file_, static_cast<long>(offset), whence) != 0) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InternalError,
+                "File stream seek failed");
+        }
+        return Position();
+    }
+
+private:
+    std::FILE* file_ = nullptr;
+    std::uint64_t length_ = 0U;
+};
+
+class HashingStream final : public Base::Stream {
+public:
+    explicit HashingStream(Base::Stream& source) noexcept
+        : source_(&source) {}
+
+    bool CanRead() const noexcept override {
+        return source_ != nullptr && source_->CanRead();
+    }
+    Base::Result<std::uint32_t> Read(
+        Base::Span<std::uint8_t> destination) noexcept override {
+        if (source_ == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Hashing stream is not initialized");
+        }
+        Base::Result<std::uint32_t> result =
+            source_->Read(destination);
+        if (!result || result.Value() == 0U) return result;
+        constexpr Base::HashCode Prime = UINT64_C(1099511628211);
+        for (std::uint32_t index = 0U;
+             index < result.Value(); ++index) {
+            hash_ ^= static_cast<Base::HashCode>(
+                destination[index]);
+            hash_ *= Prime;
+        }
+        size_ += result.Value();
+        return result;
+    }
+    bool CanSeek() const noexcept override { return false; }
+    Base::HashCode Hash() const noexcept {
+        return Base::MixHash64(hash_ ^ size_);
+    }
+
+private:
+    Base::Stream* source_ = nullptr;
+    Base::HashCode hash_ =
+        UINT64_C(14695981039346656037) ^
+        Base::MixHash64(0U);
+    std::uint64_t size_ = 0U;
+};
 
 char ToLowerAscii(char value) noexcept {
     return value >= 'A' && value <= 'Z'
@@ -1413,26 +1634,26 @@ bool RegistrationMatches(
     return schemeMatches && assemblyMatches;
 }
 
-Base::Result<Source> CloneSource(
+Base::Result<Integration::StreamResourceInfo> CreateMemoryResource(
     const Base::ResourceUri& uri,
     Base::Span<const std::uint8_t> bytes,
     std::uint64_t revision) noexcept {
-    Source source;
-    source.uri = uri;
-    Base::Result<void> copied = source.bytes.TryAppend(bytes);
-    if (!copied) {
-        return copied.GetStatus();
-    }
-    source.revision = revision;
-    return source;
+    Base::Result<Base::Ref<MemoryStream>> stream =
+        Base::MakeRef<MemoryStream>(bytes);
+    if (!stream) return stream.GetStatus();
+    Integration::StreamResourceInfo result;
+    result.uri = uri;
+    result.stream = std::move(stream).Value();
+    result.revision = revision;
+    return result;
 }
 
 Base::Result<Base::ResourceUri> ResolveRequestedUri(
     Base::StringView uri,
-    const LoadOptions& options) noexcept {
-    if (!options.baseUri.Empty()) {
+    const Base::ResourceUri& baseUri) noexcept {
+    if (!baseUri.Empty()) {
         return Base::ResourceUri::Resolve(
-            options.baseUri, uri);
+            baseUri, uri);
     }
     return Base::ResourceUri::Parse(uri);
 }
@@ -1579,11 +1800,12 @@ Base::Result<void> EmbeddedSourceProvider::Freeze() noexcept {
     return {};
 }
 
-Base::Result<Source> EmbeddedSourceProvider::Load(
+Base::Result<Integration::StreamResourceInfo>
+EmbeddedSourceProvider::Open(
     const Base::ResourceUri& uri) const noexcept {
     for (const Entry& entry : entries_) {
         if (entry.uri == uri) {
-            return CloneSource(
+            return CreateMemoryResource(
                 entry.uri,
                 entry.bytes.AsSpan(),
                 entry.revision);
@@ -1638,7 +1860,8 @@ Base::Result<std::uint64_t> FileSourceProvider::Revision(
         static_cast<std::uint64_t>(size) ^ Base::MixHash64(ticks));
 }
 
-Base::Result<Source> FileSourceProvider::Load(
+Base::Result<Integration::StreamResourceInfo>
+FileSourceProvider::Open(
     const Base::ResourceUri& uri) const noexcept {
     if ((!uri.Scheme().Empty() &&
          uri.Scheme() != Base::StringView("file")) ||
@@ -1689,41 +1912,27 @@ Base::Result<Source> FileSourceProvider::Load(
             "XAML source file could not be rewound");
     }
 
-    Source source;
-    source.uri = uri;
-    Base::Result<void> resized =
-        source.bytes.TryResize(
-            static_cast<std::uint32_t>(length));
-    if (!resized) {
+    Base::Result<Base::Ref<FileStream>> stream =
+        Base::MakeRef<FileStream>(
+            file, static_cast<std::uint64_t>(length));
+    if (!stream) {
         std::fclose(file);
-        return resized.GetStatus();
+        return stream.GetStatus();
     }
-    const std::size_t read = length == 0
-        ? 0U
-        : std::fread(
-              source.bytes.Data(),
-              1U,
-              static_cast<std::size_t>(length),
-              file);
-    const bool closeOk = std::fclose(file) == 0;
-    if (read != static_cast<std::size_t>(length) ||
-        !closeOk) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InternalError,
-            "XAML source file could not be read completely");
-    }
+    Integration::StreamResourceInfo source;
+    source.uri = uri;
+    source.stream = std::move(stream).Value();
     Base::Result<std::uint64_t> revision = Revision(uri);
     source.revision = revision
         ? revision.Value()
-        : Base::HashBytes(
-              source.bytes.Data(), source.bytes.Size());
+        : 0U;
     return source;
 }
 
 struct Loader::Impl::Operation final {
     struct FinalizeState final {
         Operation* operation = nullptr;
-        const LoadOptions* options = nullptr;
+        const XamlReaderSettings* options = nullptr;
         const Base::ResourceUri* origin = nullptr;
         const CompiledDocument* compiled = nullptr;
     };
@@ -1736,43 +1945,51 @@ struct Loader::Impl::Operation final {
     Operation(
         Schema& schema,
         SourceProviders& providers,
-        Core::IDiagnosticSink* diagnostics) noexcept
+        Diagnostics::IDiagnosticSink* diagnostics,
+        const LoadState* runtime) noexcept
         : schema_(&schema),
           providers_(&providers),
-          diagnostics_(diagnostics) {}
+          diagnostics_(diagnostics),
+          runtime_(runtime) {}
+
+    const LoadState& Runtime() const noexcept {
+        static const LoadState empty;
+        return runtime_ != nullptr ? *runtime_ : empty;
+    }
 
     Base::Result<LoaderResult> LoadCore(
         const Base::ResourceUri& uri,
-        const LoadOptions& options,
+        const XamlReaderSettings& options,
         const Base::Ref<Base::Object>& existingRoot) noexcept;
     Base::Result<LoaderResult> ParseCore(
         Base::StringView text,
         const Base::ResourceUri& baseUri,
-        const LoadOptions& options,
+        const XamlReaderSettings& options,
         const Base::Ref<Base::Object>& existingRoot,
         bool deferUnresolvedStaticResources = false) noexcept;
+    Base::Result<LoaderResult> ParseStreamCore(
+        Base::Stream& stream,
+        const Base::ResourceUri& baseUri,
+        const XamlReaderSettings& options,
+        const Base::Ref<Base::Object>& existingRoot,
+        bool deferUnresolvedStaticResources = false,
+        Base::Vector<Node>* recordingNodes = nullptr) noexcept;
     Base::Result<LoaderResult> LoadCompiled(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri,
-        const LoadOptions& options) noexcept;
+        const XamlReaderSettings& options) noexcept;
     Base::Result<LoaderResult> LoadCompiledDocument(
         CompiledDocument& document,
         const Base::ResourceUri& originUri,
-        const LoadOptions& options,
+        const XamlReaderSettings& options,
         const Base::Ref<Base::Object>& existingRoot) noexcept;
-    Base::Result<void> PopulateDocumentCache(
-        const Source& source,
-        const Base::ResourceUri& origin,
-        std::uint64_t sourceIdentity,
-        const LoaderResult& loaded,
-        const LoadOptions& options) noexcept;
     Base::Result<void> ResolveResourceDependencies(
         LoaderResult& result,
-        const LoadOptions& options) noexcept;
+        const XamlReaderSettings& options) noexcept;
     Base::Result<void> ResolveDictionaryDependencies(
         ResourceDictionary& dictionary,
         LoaderResult& owner,
-        const LoadOptions& options,
+        const XamlReaderSettings& options,
         std::uint32_t& resourceCount,
         Base::Vector<PendingResourceMerge>& pending) noexcept;
     Base::Result<void> CommitResourceDependencies(
@@ -1780,50 +1997,53 @@ struct Loader::Impl::Operation final {
     Base::Result<void> AppendDependencies(
         LoaderResult& destination,
         const LoaderResult& source,
-        const LoadOptions& options) noexcept;
+        const XamlReaderSettings& options) noexcept;
     Base::Result<void> AppendDependency(
         LoaderResult& destination,
         const Base::ResourceUri& dependency,
-        const LoadOptions& options) noexcept;
+        const XamlReaderSettings& options) noexcept;
     Base::Result<void> FinalizeResult(
         LoaderResult& result,
-        const LoadOptions& options,
+        const XamlReaderSettings& options,
         const Base::ResourceUri& origin,
         const CompiledDocument* compiled) noexcept;
     static Base::Result<void> FinalizeLoad(
         LoaderResult& result,
         void* context) noexcept;
     Base::Result<void> ValidateOptions(
-        const LoadOptions& options) const noexcept;
+        const XamlReaderSettings& options) const noexcept;
     Base::Result<void> CheckPolicy(
         const Base::ResourceUri& uri,
-        const LoadOptions& options) noexcept;
+        const XamlReaderSettings& options) noexcept;
     bool IsLoading(const Base::ResourceUri& uri) const noexcept;
     Base::Status Failure(
         Base::Status status,
-        Core::DiagnosticCode code,
+        ::Aero::Diagnostics::DiagnosticCode code,
         Base::StringView message) noexcept;
 
     Schema* schema_ = nullptr;
     SourceProviders* providers_ = nullptr;
-    Core::IDiagnosticSink* diagnostics_ = nullptr;
+    Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
+    const LoadState* runtime_ = nullptr;
     Base::Vector<Base::ResourceUri> loadStack_;
 };
 
 Loader::Impl::Impl(
     Schema& schema,
     SourceProviders& providers,
-    Core::IDiagnosticSink* diagnostics) noexcept
+    Diagnostics::IDiagnosticSink* diagnostics,
+    const LoadState* runtime) noexcept
     : schema_(&schema),
       providers_(&providers),
-      diagnostics_(diagnostics) {}
+      diagnostics_(diagnostics),
+      runtime_(runtime) {}
 
 Base::Result<LoaderResult> Loader::Impl::Load(
     Base::StringView uri,
-    const LoadOptions& options) noexcept {
-    Operation operation(*schema_, *providers_, diagnostics_);
+    const XamlReaderSettings& options) noexcept {
+    Operation operation(*schema_, *providers_, diagnostics_, runtime_);
     Base::Result<Base::ResourceUri> resolved =
-        ResolveRequestedUri(uri, options);
+        ResolveRequestedUri(uri, {});
     if (!resolved) {
         return operation.Failure(
             resolved.GetStatus(),
@@ -1836,26 +2056,34 @@ Base::Result<LoaderResult> Loader::Impl::Load(
 
 Base::Result<LoaderResult> Loader::Impl::Load(
     const Base::ResourceUri& uri,
-    const LoadOptions& options) noexcept {
-    Operation operation(*schema_, *providers_, diagnostics_);
+    const XamlReaderSettings& options) noexcept {
+    Operation operation(*schema_, *providers_, diagnostics_, runtime_);
     return operation.LoadCore(uri, options, {});
 }
 
 Base::Result<LoaderResult> Loader::Impl::Parse(
     Base::StringView text,
     const Base::ResourceUri& baseUri,
-    const LoadOptions& options) noexcept {
-    Operation operation(*schema_, *providers_, diagnostics_);
-    return operation.ParseCore(text, baseUri, options, {});
+    const XamlReaderSettings& options) noexcept {
+    Operation operation(*schema_, *providers_, diagnostics_, runtime_);
+    return operation.ParseCore(text, baseUri, options, {}, true);
+}
+
+Base::Result<LoaderResult> Loader::Impl::Parse(
+    Base::Stream& stream,
+    const Base::ResourceUri& baseUri,
+    const XamlReaderSettings& options) noexcept {
+    Operation operation(*schema_, *providers_, diagnostics_, runtime_);
+    return operation.ParseStreamCore(stream, baseUri, options, {}, true);
 }
 
 Base::Result<LoaderResult> Loader::Impl::LoadComponent(
     Base::Object& existingRoot,
     Base::StringView uri,
-    const LoadOptions& options) noexcept {
-    Operation operation(*schema_, *providers_, diagnostics_);
+    const XamlReaderSettings& options) noexcept {
+    Operation operation(*schema_, *providers_, diagnostics_, runtime_);
     Base::Result<Base::ResourceUri> resolved =
-        ResolveRequestedUri(uri, options);
+        ResolveRequestedUri(uri, {});
     if (!resolved) {
         return operation.Failure(
             resolved.GetStatus(),
@@ -1880,8 +2108,8 @@ Base::Result<LoaderResult> Loader::Impl::LoadComponent(
 Base::Result<LoaderResult> Loader::Impl::LoadComponent(
     Base::Object& existingRoot,
     const Base::ResourceUri& uri,
-    const LoadOptions& options) noexcept {
-    Operation operation(*schema_, *providers_, diagnostics_);
+    const XamlReaderSettings& options) noexcept {
+    Operation operation(*schema_, *providers_, diagnostics_, runtime_);
     Base::Ref<Base::Object> retained =
         Base::Ref<Base::Object>::TryFromBorrowed(existingRoot);
     if (!retained) {
@@ -1899,8 +2127,8 @@ Base::Result<LoaderResult> Loader::Impl::LoadComponent(
 Base::Result<LoaderResult> Loader::Impl::LoadCompiled(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
-    const LoadOptions& options) noexcept {
-    Operation operation(*schema_, *providers_, diagnostics_);
+    const XamlReaderSettings& options) noexcept {
+    Operation operation(*schema_, *providers_, diagnostics_, runtime_);
     return operation.LoadCompiled(bytes, originUri, options);
 }
 
@@ -1908,7 +2136,7 @@ Base::Result<LoaderResult>
 Loader::Impl::Operation::LoadCompiled(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
-    const LoadOptions& options) noexcept {
+    const XamlReaderSettings& options) noexcept {
     Base::Result<void> validOptions =
         ValidateOptions(options);
     if (!validOptions) {
@@ -1949,10 +2177,9 @@ Base::Result<LoaderResult>
 Loader::Impl::Operation::LoadCompiledDocument(
     CompiledDocument& document,
     const Base::ResourceUri& originUri,
-    const LoadOptions& options,
+    const XamlReaderSettings& options,
     const Base::Ref<Base::Object>& existingRoot) noexcept {
-    const LoadState& runtime =
-        Detail::LoadOptionsPrivate::Context(options);
+    const LoadState& runtime = Runtime();
     LoadState context;
     context.resources = runtime.resources;
     context.effectiveValues = runtime.effectiveValues;
@@ -1973,7 +2200,7 @@ Loader::Impl::Operation::LoadCompiledDocument(
         runtime.dispatcher != nullptr &&
         runtime.dependencyProperties != nullptr
         ? [&]() noexcept -> Base::Result<LoaderResult> {
-              Core::ObjectFactoryScope services(
+              Meta::ObjectFactoryScope services(
                   *runtime.dispatcher,
                   *runtime.dependencyProperties,
                   schema_->Metadata());
@@ -1990,10 +2217,9 @@ Loader::Impl::Operation::LoadCompiledDocument(
 
 Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
     const Base::ResourceUri& uri,
-    const LoadOptions& options,
+    const XamlReaderSettings& options,
     const Base::Ref<Base::Object>& existingRoot) noexcept {
-    const LoadState& runtime =
-        Detail::LoadOptionsPrivate::Context(options);
+    const LoadState& runtime = Runtime();
     Base::Result<void> validOptions =
         ValidateOptions(options);
     if (!validOptions) {
@@ -2071,8 +2297,8 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
         }
     }
 
-    Base::Result<Source> source =
-        provider.Value().provider->Load(uri);
+    Base::Result<Integration::StreamResourceInfo> source =
+        provider.Value().provider->Open(uri);
     if (!source) {
         loadStack_.PopBack();
         return Failure(
@@ -2080,121 +2306,76 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
             LoaderDiagnosticCodes::SourceLoadFailed,
             Base::StringView("XAML source could not be loaded"));
     }
-    if (source.Value().bytes.Size() >
-        options.limits.maxSourceBytes) {
+    Integration::StreamResourceInfo sourceInfo =
+        std::move(source).Value();
+    if (!sourceInfo.stream ||
+        !sourceInfo.stream->CanRead()) {
         loadStack_.PopBack();
         return Failure(
             Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "XAML source exceeds configured limits"),
+                Base::ErrorCode::InvalidState,
+                "XAML source stream is invalid"),
             LoaderDiagnosticCodes::SourceRejected,
             Base::StringView(
-                "XAML source exceeds configured limits"));
+                "XAML source stream could not be read"));
     }
 
     const Base::ResourceUri& origin =
-        source.Value().uri.Empty()
+        sourceInfo.uri.Empty()
         ? uri
-        : source.Value().uri;
-    const std::uint64_t sourceRevision =
-        source.Value().revision != 0U
-        ? source.Value().revision
-        : Base::HashBytes(
-              source.Value().bytes.Data(),
-              source.Value().bytes.Size());
-
-    source.Value().revision = sourceRevision;
-    Base::Result<LoaderResult> loaded = ParseCore(
-        source.Value().Text(),
+        : sourceInfo.uri;
+    HashingStream hashing(*sourceInfo.stream);
+    Base::Vector<Node> recordedNodes;
+    Base::Result<LoaderResult> loaded = ParseStreamCore(
+        hashing,
         origin,
         options,
         existingRoot,
-        true);
-    if (loaded && loaded.Value().hasDeferredStaticResources) {
-        if (!loaded.Value().root ||
-            loaded.Value().root->RuntimeType() !=
-                ResourceDictionary::StaticTypeId()) {
-            loaded.Value().Clear();
-            loaded = Base::Result<LoaderResult>(Failure(
-                Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "StaticResource key is not available; forward references are not supported"),
-                LoaderDiagnosticCodes::ResourceDependencyFailed,
-                Base::StringView(
-                    "StaticResource key is not available; forward references are not supported")));
-        } else {
-            auto& discoveredResources =
-                static_cast<ResourceDictionary&>(
-                    *loaded.Value().root);
-            LoadState replayContext = runtime;
-            replayContext.resources = &discoveredResources;
-            replayContext.deferUnresolvedStaticResources = false;
-            LoadOptions replayOptions = options;
-            Detail::LoadOptionsPrivate::SetContext(
-                replayOptions, &replayContext);
-            Base::Result<LoaderResult> replayed = ParseCore(
-                source.Value().Text(),
-                origin,
-                replayOptions,
-                existingRoot);
-            loaded.Value().Clear();
-            loaded = std::move(replayed);
-        }
+        true,
+        runtime.documentCache != nullptr
+            ? &recordedNodes
+            : nullptr);
+    if (sourceInfo.revision == 0U) {
+        sourceInfo.revision = hashing.Hash();
     }
-    if (loaded && runtime.documentCache != nullptr) {
-        static_cast<void>(PopulateDocumentCache(
-            source.Value(),
-            origin,
-            provider.Value().cacheIdentity,
-            loaded.Value(),
-            options));
+    if (loaded && runtime.documentCache != nullptr &&
+        !recordedNodes.Empty()) {
+        Base::Result<CompiledDocument> compiled =
+            CompiledDocument::Compile(
+                {recordedNodes.Data(), recordedNodes.Size()},
+                *schema_,
+                origin);
+        if (compiled) {
+            for (const Base::ResourceUri& dependency :
+                 loaded.Value().dependencies) {
+                Base::Result<void> added =
+                    compiled.Value().TryAddDependency(dependency);
+                if (!added) {
+                    compiled = added.GetStatus();
+                    break;
+                }
+            }
+        }
+        if (compiled) {
+            static_cast<void>(runtime.documentCache->Store(
+                uri,
+                sourceInfo.revision,
+                provider.Value().cacheIdentity,
+                compiled.Value(),
+                {loaded.Value().dependencies.Data(),
+                 loaded.Value().dependencies.Size()}));
+        }
     }
     loadStack_.PopBack();
     return loaded;
 }
 
-Base::Result<void> Loader::Impl::Operation::PopulateDocumentCache(
-    const Source& source,
-    const Base::ResourceUri& origin,
-    std::uint64_t sourceIdentity,
-    const LoaderResult& loaded,
-    const LoadOptions& options) noexcept {
-    const LoadState& runtime =
-        Detail::LoadOptionsPrivate::Context(options);
-    if (runtime.documentCache == nullptr ||
-        source.bytes.Empty()) return {};
-#if AERO_WITH_EXPAT
-    ExpatXmlTokenizer tokenizer(options.limits.xml);
-#else
-    Utf8XmlTokenizer tokenizer(options.limits.xml);
-#endif
-    Base::Result<void> reset = tokenizer.Reset(source.Text());
-    if (!reset) return reset.GetStatus();
-    NodeReader reader(tokenizer);
-    Base::Result<CompiledDocument> compiled =
-        CompiledDocument::Compile(reader, *schema_, origin);
-    if (!compiled) return compiled.GetStatus();
-    for (const Base::ResourceUri& dependency : loaded.dependencies) {
-        Base::Result<void> added =
-            compiled.Value().TryAddDependency(dependency);
-        if (!added) return added.GetStatus();
-    }
-    return runtime.documentCache->Store(
-        origin,
-        source.revision,
-        sourceIdentity,
-        compiled.Value(),
-        {loaded.dependencies.Data(), loaded.dependencies.Size()});
-}
-
 Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
     Base::StringView text,
     const Base::ResourceUri& baseUri,
-    const LoadOptions& options,
+    const XamlReaderSettings& options,
     const Base::Ref<Base::Object>& existingRoot,
     bool deferUnresolvedStaticResources) noexcept {
-    const LoadState& runtime =
-        Detail::LoadOptionsPrivate::Context(options);
     Base::Result<void> validOptions =
         ValidateOptions(options);
     if (!validOptions) {
@@ -2211,16 +2392,43 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
                 "XAML source exceeds configured limits"));
     }
 
+    const Base::Span<const std::uint8_t> bytes{
+        reinterpret_cast<const std::uint8_t*>(text.Data()),
+        text.SizeBytes()};
+    Base::Result<Base::Ref<MemoryStream>> stream =
+        Base::MakeRef<MemoryStream>(bytes);
+    if (!stream) return stream.GetStatus();
+    return ParseStreamCore(
+        *stream.Value(),
+        baseUri,
+        options,
+        existingRoot,
+        deferUnresolvedStaticResources);
+}
+
+Base::Result<LoaderResult> Loader::Impl::Operation::ParseStreamCore(
+    Base::Stream& stream,
+    const Base::ResourceUri& baseUri,
+    const XamlReaderSettings& options,
+    const Base::Ref<Base::Object>& existingRoot,
+    bool deferUnresolvedStaticResources,
+    Base::Vector<Node>* recordingNodes) noexcept {
+    const LoadState& runtime = Runtime();
+    Base::Result<void> validOptions =
+        ValidateOptions(options);
+    if (!validOptions) {
+        return validOptions.GetStatus();
+    }
+
 #if AERO_WITH_EXPAT
     ExpatXmlTokenizer tokenizer(options.limits.xml);
 #else
     Utf8XmlTokenizer tokenizer(options.limits.xml);
 #endif
     Base::Result<void> reset =
-        tokenizer.Reset(text, diagnostics_);
-    if (!reset) {
-        return reset.GetStatus();
-    }
+        tokenizer.Reset(stream, diagnostics_);
+    if (!reset) return reset.GetStatus();
+
     NodeReader reader(tokenizer, diagnostics_);
     LoadState context;
     context.resources = runtime.resources;
@@ -2235,6 +2443,7 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
     context.maxObjects = options.limits.maxObjects;
     context.deferUnresolvedStaticResources =
         deferUnresolvedStaticResources;
+    context.recordingNodes = recordingNodes;
     FinalizeState finalize{
         this, &options, &baseUri, nullptr};
     context.finalize = &FinalizeLoad;
@@ -2244,20 +2453,18 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
         runtime.dispatcher != nullptr &&
         runtime.dependencyProperties != nullptr
         ? [&]() noexcept -> Base::Result<LoaderResult> {
-              Core::ObjectFactoryScope services(
+              Meta::ObjectFactoryScope services(
                   *runtime.dispatcher,
                   *runtime.dependencyProperties,
                   schema_->Metadata());
               ObjectBuilder state(writer);
               return state.Load(reader, context);
           }()
-        : [&]() noexcept {
+        : [&]() noexcept -> Base::Result<LoaderResult> {
               ObjectBuilder state(writer);
               return state.Load(reader, context);
           }();
-    if (!loaded) {
-        return loaded.GetStatus();
-    }
+    if (!loaded) return loaded.GetStatus();
     return std::move(loaded).Value();
 }
 
@@ -2283,7 +2490,7 @@ Base::Result<void> Loader::Impl::Operation::FinalizeLoad(
 
 Base::Result<void> Loader::Impl::Operation::FinalizeResult(
     LoaderResult& result,
-    const LoadOptions& options,
+    const XamlReaderSettings& options,
     const Base::ResourceUri& origin,
     const CompiledDocument* compiled) noexcept {
     const Base::ResourceUri& effectiveOrigin =
@@ -2313,7 +2520,7 @@ Base::Result<void> Loader::Impl::Operation::FinalizeResult(
 Base::Result<void>
 Loader::Impl::Operation::ResolveResourceDependencies(
     LoaderResult& result,
-    const LoadOptions& options) noexcept {
+    const XamlReaderSettings& options) noexcept {
     std::uint32_t resourceCount = 0U;
     Base::Vector<PendingResourceMerge> pending;
 
@@ -2321,7 +2528,7 @@ Loader::Impl::Operation::ResolveResourceDependencies(
         noexcept -> Base::Result<void> {
         if (dictionary.Size() == 0U &&
             dictionary.MergedDictionaryCount() == 0U &&
-            dictionary.Source().Empty()) {
+            dictionary.GetSource().Empty()) {
             return {};
         }
         return ResolveDictionaryDependencies(
@@ -2363,7 +2570,7 @@ Base::Result<void>
 Loader::Impl::Operation::ResolveDictionaryDependencies(
     ResourceDictionary& dictionary,
     LoaderResult& owner,
-    const LoadOptions& options,
+    const XamlReaderSettings& options,
     std::uint32_t& resourceCount,
     Base::Vector<PendingResourceMerge>& pending) noexcept {
     if (resourceCount >
@@ -2386,8 +2593,8 @@ Loader::Impl::Operation::ResolveDictionaryDependencies(
         Base::Result<Aero::ResourceEntrySnapshot>
             entry = dictionary.EntryAt(index);
         if (!entry) return entry.GetStatus();
-        const Core::Value& value = entry.Value().value;
-        if (value.Kind() != Core::ValueKind::Object ||
+        const Meta::Value& value = entry.Value().value;
+        if (value.Kind() != Meta::ValueKind::Object ||
             value.IsNullObject() ||
             !value.AsObject()) {
             continue;
@@ -2398,7 +2605,7 @@ Loader::Impl::Operation::ResolveDictionaryDependencies(
         if (nested == nullptr ||
             (nested->Size() == 0U &&
              nested->MergedDictionaryCount() == 0U &&
-             nested->Source().Empty())) {
+             nested->GetSource().Empty())) {
             continue;
         }
         Base::Result<void> resolved =
@@ -2430,7 +2637,7 @@ Loader::Impl::Operation::ResolveDictionaryDependencies(
     }
 
     const Base::ResourceUri source =
-        dictionary.Source();
+        dictionary.GetSource();
     if (source.Empty()) return {};
     if ((!owner.canonicalUri.Empty() &&
          source == owner.canonicalUri) ||
@@ -2458,16 +2665,15 @@ Loader::Impl::Operation::ResolveDictionaryDependencies(
         }
     }
     if (!ambientMerged) return ambientMerged.GetStatus();
-    const LoadState& runtime =
-        Detail::LoadOptionsPrivate::Context(options);
+    const LoadState& runtime = Runtime();
     LoadState resourceContext = runtime;
     resourceContext.resources = &ambientResources;
     resourceContext.fallbackResources = &ambientResources;
-    LoadOptions resourceOptions = options;
-    Detail::LoadOptionsPrivate::SetContext(
-        resourceOptions, &resourceContext);
+    const LoadState* previousRuntime = runtime_;
+    runtime_ = &resourceContext;
     Base::Result<LoaderResult> loaded =
-        LoadCore(source, resourceOptions, {});
+        LoadCore(source, options, {});
+    runtime_ = previousRuntime;
     if (!loaded) {
         return Failure(
             loaded.GetStatus(),
@@ -2553,7 +2759,7 @@ Loader::Impl::Operation::CommitResourceDependencies(
 Base::Result<void> Loader::Impl::Operation::AppendDependencies(
     LoaderResult& destination,
     const LoaderResult& source,
-    const LoadOptions& options) noexcept {
+    const XamlReaderSettings& options) noexcept {
     for (const Base::ResourceUri& dependency :
          source.dependencies) {
         Base::Result<void> appended =
@@ -2567,7 +2773,7 @@ Base::Result<void> Loader::Impl::Operation::AppendDependencies(
 Base::Result<void> Loader::Impl::Operation::AppendDependency(
     LoaderResult& destination,
     const Base::ResourceUri& dependency,
-    const LoadOptions& options) noexcept {
+    const XamlReaderSettings& options) noexcept {
     if (dependency.Empty()) return {};
     for (const Base::ResourceUri& existing :
          destination.dependencies) {
@@ -2588,9 +2794,8 @@ Base::Result<void> Loader::Impl::Operation::AppendDependency(
 }
 
 Base::Result<void> Loader::Impl::Operation::ValidateOptions(
-    const LoadOptions& options) const noexcept {
-    const LoadState& runtime =
-        Detail::LoadOptionsPrivate::Context(options);
+    const XamlReaderSettings& options) const noexcept {
+    const LoadState& runtime = Runtime();
     if (schema_ == nullptr || providers_ == nullptr ||
         !schema_->IsFrozen()) {
         return Base::Status::Failure(
@@ -2620,7 +2825,7 @@ Base::Result<void> Loader::Impl::Operation::ValidateOptions(
 
 Base::Result<void> Loader::Impl::Operation::CheckPolicy(
     const Base::ResourceUri& uri,
-    const LoadOptions& options) noexcept {
+    const XamlReaderSettings& options) noexcept {
     if (uri.Empty()) {
         return Failure(
             Base::Status::Failure(
@@ -2674,13 +2879,13 @@ bool Loader::Impl::Operation::IsLoading(
 
 Base::Status Loader::Impl::Operation::Failure(
     Base::Status status,
-    Core::DiagnosticCode code,
+    ::Aero::Diagnostics::DiagnosticCode code,
     Base::StringView message) noexcept {
     if (diagnostics_ != nullptr) {
-        Base::Result<Core::Diagnostic> diagnostic =
-            Core::Diagnostic::TryCreate(
+        Base::Result<::Aero::Diagnostics::Diagnostic> diagnostic =
+            ::Aero::Diagnostics::Diagnostic::TryCreate(
                 code,
-                Core::DiagnosticSeverity::Error,
+                ::Aero::Diagnostics::DiagnosticSeverity::Error,
                 message);
         if (diagnostic) {
             diagnostics_->Report(
@@ -2696,12 +2901,14 @@ namespace Aero::Markup {
 
 namespace {
 
-Base::Result<UiDocument> AdoptResult(
+Base::Result<XamlDocument> AdoptResult(
     Base::Result<LoaderResult>&& loaded,
     Base::IAllocator& allocator) noexcept {
     if (!loaded) return loaded.GetStatus();
-    return Aero::Detail::XamlDocumentPrivate::Adopt(
+    Base::Result<XamlDocument> document =
+        Aero::Internal::XamlDocumentPrivate::Adopt(
         std::move(loaded).Value(), allocator);
+    return document;
 }
 
 } // namespace
@@ -2709,8 +2916,9 @@ Base::Result<UiDocument> AdoptResult(
 Loader::Loader(
     Schema& schema,
     SourceProviders& providers,
-    Core::IDiagnosticSink* diagnostics,
-    Base::IAllocator* allocator) noexcept
+    Diagnostics::IDiagnosticSink* diagnostics,
+    Base::IAllocator* allocator,
+    const LoadState* runtime) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
@@ -2718,7 +2926,7 @@ Loader::Loader(
         sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup});
     if (memory != nullptr) {
         impl_ = new (memory) Impl(
-            schema, providers, diagnostics);
+            schema, providers, diagnostics, runtime);
     }
 }
 
@@ -2731,9 +2939,9 @@ Loader::~Loader() noexcept {
     impl_ = nullptr;
 }
 
-Base::Result<UiDocument> Loader::Load(
+Base::Result<XamlDocument> Loader::Load(
     Base::StringView uri,
-    const LoadOptions& options) noexcept {
+    const XamlReaderSettings& options) noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -2743,9 +2951,9 @@ Base::Result<UiDocument> Loader::Load(
         impl_->Load(uri, options), *allocator_);
 }
 
-Base::Result<UiDocument> Loader::Load(
+Base::Result<XamlDocument> Loader::Load(
     const Base::ResourceUri& uri,
-    const LoadOptions& options) noexcept {
+    const XamlReaderSettings& options) noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -2755,10 +2963,10 @@ Base::Result<UiDocument> Loader::Load(
         impl_->Load(uri, options), *allocator_);
 }
 
-Base::Result<UiDocument> Loader::Parse(
+Base::Result<XamlDocument> Loader::Parse(
     Base::StringView text,
     const Base::ResourceUri& baseUri,
-    const LoadOptions& options) noexcept {
+    const XamlReaderSettings& options) noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -2769,10 +2977,24 @@ Base::Result<UiDocument> Loader::Parse(
         *allocator_);
 }
 
-Base::Result<UiDocument> Loader::LoadComponent(
+Base::Result<XamlDocument> Loader::Parse(
+    Base::Stream& stream,
+    const Base::ResourceUri& baseUri,
+    const XamlReaderSettings& options) noexcept {
+    if (impl_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Markup loader allocation failed");
+    }
+    return AdoptResult(
+        impl_->Parse(stream, baseUri, options),
+        *allocator_);
+}
+
+Base::Result<XamlDocument> Loader::LoadComponent(
     Base::Object& existingRoot,
     Base::StringView uri,
-    const LoadOptions& options) noexcept {
+    const XamlReaderSettings& options) noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -2783,10 +3005,10 @@ Base::Result<UiDocument> Loader::LoadComponent(
         *allocator_);
 }
 
-Base::Result<UiDocument> Loader::LoadComponent(
+Base::Result<XamlDocument> Loader::LoadComponent(
     Base::Object& existingRoot,
     const Base::ResourceUri& uri,
-    const LoadOptions& options) noexcept {
+    const XamlReaderSettings& options) noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -2797,10 +3019,10 @@ Base::Result<UiDocument> Loader::LoadComponent(
         *allocator_);
 }
 
-Base::Result<UiDocument> Loader::LoadCompiled(
+Base::Result<XamlDocument> Loader::LoadCompiled(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
-    const LoadOptions& options) noexcept {
+    const XamlReaderSettings& options) noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -2828,7 +3050,8 @@ Base::Result<UiDocument> Loader::LoadCompiled(
 namespace Aero::Markup {
 namespace {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 
 
 Base::Status InvalidResource(const char* message) noexcept {
@@ -2840,7 +3063,7 @@ Base::Status InvalidResource(const char* message) noexcept {
 Base::Result<void> AddResource(
     Base::Object& scopeOwner,
     const ResourceKey& key,
-    const Core::Value& value,
+    const Meta::Value& value,
     void*) noexcept {
     if (scopeOwner.RuntimeType() !=
             ResourceDictionary::StaticTypeId()) {
@@ -2854,7 +3077,7 @@ Base::Result<void> AddResource(
 Base::Result<void> AddFrameworkResource(
     Base::Object& scopeOwner,
     const ResourceKey& key,
-    const Core::Value& value,
+    const Meta::Value& value,
     void*) noexcept {
     auto* element =
         static_cast<FrameworkElement*>(
@@ -2870,7 +3093,7 @@ Base::Result<void> AddFrameworkResource(
 Base::Result<void> AddApplicationResource(
     Base::Object& scopeOwner,
     const ResourceKey& key,
-    const Core::Value& value,
+    const Meta::Value& value,
     void*) noexcept {
     // This callback is selected through the inherited Application XAML facet,
     // so derived application types are valid scope owners.
@@ -2996,26 +3219,26 @@ Base::Result<void> ResourceExtension::Register(
 #include <new>
 #include <utility>
 
-namespace Aero {
+namespace Aero::Markup {
 
-struct UiDocument::Impl final {
-    explicit Impl(Markup::LoaderResult&& value) noexcept
+struct XamlDocument::Impl final {
+    explicit Impl(LoaderResult&& value) noexcept
         : result(std::move(value)) {}
 
-    Markup::LoaderResult result;
+    LoaderResult result;
 };
 
-UiDocument::~UiDocument() noexcept {
+XamlDocument::~XamlDocument() noexcept {
     Reset();
 }
 
-UiDocument::UiDocument(UiDocument&& other) noexcept
+XamlDocument::XamlDocument(XamlDocument&& other) noexcept
     : allocator_(other.allocator_), impl_(other.impl_) {
     other.allocator_ = nullptr;
     other.impl_ = nullptr;
 }
 
-UiDocument& UiDocument::operator=(UiDocument&& other) noexcept {
+XamlDocument& XamlDocument::operator=(XamlDocument&& other) noexcept {
     if (this == &other) return *this;
     Reset();
     allocator_ = other.allocator_;
@@ -3025,7 +3248,11 @@ UiDocument& UiDocument::operator=(UiDocument&& other) noexcept {
     return *this;
 }
 
-Base::Result<UiDocument> Aero::Detail::XamlDocumentPrivate::Adopt(
+} // namespace Aero::Markup
+
+namespace Aero::Internal {
+
+Base::Result<Markup::XamlDocument> XamlDocumentPrivate::Adopt(
     Markup::LoaderResult&& result,
     Base::IAllocator& allocator) noexcept {
     if (!result.root) {
@@ -3034,35 +3261,39 @@ Base::Result<UiDocument> Aero::Detail::XamlDocumentPrivate::Adopt(
             "UI document requires a loaded root object");
     }
     void* memory = allocator.Allocate({
-        sizeof(UiDocument::Impl),
-        alignof(UiDocument::Impl),
+        sizeof(Markup::XamlDocument::Impl),
+        alignof(Markup::XamlDocument::Impl),
         Base::MemoryTag::Markup});
     if (memory == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "UI document allocation failed");
     }
-    UiDocument document;
+    Markup::XamlDocument document;
     document.allocator_ = &allocator;
     document.impl_ =
-        new (memory) UiDocument::Impl(std::move(result));
+        new (memory) Markup::XamlDocument::Impl(std::move(result));
     return document;
 }
 
-bool UiDocument::IsValid() const noexcept {
+} // namespace Aero::Internal
+
+namespace Aero::Markup {
+
+bool XamlDocument::IsValid() const noexcept {
     return impl_ != nullptr && impl_->result.root;
 }
 
-const Base::Ref<Base::Object>& UiDocument::Root() const noexcept {
+const Base::Ref<Base::Object>& XamlDocument::Root() const noexcept {
     static const Base::Ref<Base::Object> empty;
     return impl_ != nullptr ? impl_->result.root : empty;
 }
 
-Base::Object* UiDocument::RootObject(
-    Core::TypeId expectedType) noexcept {
+Base::Object* XamlDocument::RootObject(
+    Meta::TypeId expectedType) noexcept {
     if (impl_ == nullptr || !impl_->result.root) return nullptr;
     Base::Object* root = impl_->result.root.Get();
-    if (expectedType == Core::InvalidTypeId) return root;
+    if (expectedType == Meta::InvalidTypeId) return root;
     const Meta::Registry* metadata = impl_->result.metadata;
     return metadata != nullptr && metadata->Types().IsDerivedFrom(
         root->RuntimeType(), expectedType)
@@ -3070,12 +3301,12 @@ Base::Object* UiDocument::RootObject(
         : nullptr;
 }
 
-Base::Object* UiDocument::FindName(
+Base::Object* XamlDocument::FindName(
     Base::StringView name,
-    Core::TypeId expectedType) noexcept {
+    Meta::TypeId expectedType) noexcept {
     if (impl_ == nullptr || name.Empty()) return nullptr;
     Base::Object* object = impl_->result.names.Find(name);
-    if (object == nullptr || expectedType == Core::InvalidTypeId) {
+    if (object == nullptr || expectedType == Meta::InvalidTypeId) {
         return object;
     }
     const Meta::Registry* metadata = impl_->result.metadata;
@@ -3085,24 +3316,24 @@ Base::Object* UiDocument::FindName(
         : nullptr;
 }
 
-std::uint32_t UiDocument::NamedObjectCount() const noexcept {
+std::uint32_t XamlDocument::NamedObjectCount() const noexcept {
     return impl_ != nullptr ? impl_->result.names.Size() : 0U;
 }
 
-Aero::ResourceDictionary* UiDocument::Resources() noexcept {
+Aero::ResourceDictionary* XamlDocument::Resources() noexcept {
     return impl_ != nullptr ? &impl_->result.resources : nullptr;
 }
 
-const Aero::ResourceDictionary* UiDocument::Resources() const noexcept {
+const Aero::ResourceDictionary* XamlDocument::Resources() const noexcept {
     return impl_ != nullptr ? &impl_->result.resources : nullptr;
 }
 
-const Base::ResourceUri& UiDocument::CanonicalUri() const noexcept {
+const Base::ResourceUri& XamlDocument::CanonicalUri() const noexcept {
     static const Base::ResourceUri empty;
     return impl_ != nullptr ? impl_->result.canonicalUri : empty;
 }
 
-Base::Span<const Base::ResourceUri> UiDocument::Dependencies() const noexcept {
+Base::Span<const Base::ResourceUri> XamlDocument::Dependencies() const noexcept {
     return impl_ != nullptr
         ? Base::Span<const Base::ResourceUri>{
               impl_->result.dependencies.Data(),
@@ -3110,16 +3341,20 @@ Base::Span<const Base::ResourceUri> UiDocument::Dependencies() const noexcept {
         : Base::Span<const Base::ResourceUri>{};
 }
 
+} // namespace Aero::Markup
+
+namespace Aero::Internal {
+
 const Markup::EffectLifetime*
-Aero::Detail::XamlDocumentPrivate::RuntimeLifetime(
-    const UiDocument& document) noexcept {
+XamlDocumentPrivate::RuntimeLifetime(
+    const Markup::XamlDocument& document) noexcept {
     return document.impl_ != nullptr
         ? document.impl_->result.runtimeLifetime.Get()
         : nullptr;
 }
 
-Markup::LoaderResult Aero::Detail::XamlDocumentPrivate::Take(
-    UiDocument& document) noexcept {
+Markup::LoaderResult XamlDocumentPrivate::Take(
+    Markup::XamlDocument& document) noexcept {
     if (document.impl_ == nullptr) {
         Markup::LoaderResult empty;
         return empty;
@@ -3130,20 +3365,24 @@ Markup::LoaderResult Aero::Detail::XamlDocumentPrivate::Take(
     return result;
 }
 
-void UiDocument::Reset() noexcept {
+} // namespace Aero::Internal
+
+namespace Aero::Markup {
+
+void XamlDocument::Reset() noexcept {
     if (impl_ == nullptr) return;
     impl_->result.Clear();
     impl_->~Impl();
     allocator_->Deallocate(
         impl_,
-        sizeof(UiDocument::Impl),
-        alignof(UiDocument::Impl),
+        sizeof(XamlDocument::Impl),
+        alignof(XamlDocument::Impl),
         Base::MemoryTag::Markup);
     impl_ = nullptr;
     allocator_ = nullptr;
 }
 
-} // namespace Aero
+} // namespace Aero::Markup
 
 #endif
 #if defined(AERO_MARKUP_XAML_READER_ONLY)
@@ -3156,20 +3395,32 @@ void UiDocument::Reset() noexcept {
 
 namespace Aero::Markup {
 
-Base::Result<UiDocument> XamlReader::Load(
+Base::Result<XamlDocument> XamlReader::Load(
     Base::StringView uri,
-    Core::IDiagnosticSink* diagnostics) noexcept {
-    return view_->LoadDocument(uri, diagnostics);
+    const XamlReaderSettings& settings,
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    return view_->LoadDocument(uri, diagnostics, &settings);
 }
 
-Base::Result<UiDocument> XamlReader::LoadComponentCore(
+Base::Result<XamlDocument> XamlReader::Load(
+    Base::Stream& source,
+    const Base::ResourceUri& baseUri,
+    const XamlReaderSettings& settings,
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    return view_->ParseStreamDocument(
+        source, baseUri, diagnostics, &settings);
+}
+
+Base::Result<XamlDocument> XamlReader::LoadComponentCore(
     Base::StringView uri,
-    Core::TypeId expectedRoot,
-    Core::IDiagnosticSink* diagnostics) noexcept {
-    Base::Result<UiDocument> loaded = Load(uri, diagnostics);
+    Meta::TypeId expectedRoot,
+    const XamlReaderSettings& settings,
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    Base::Result<XamlDocument> loaded = Load(
+        uri, settings, diagnostics);
     if (!loaded) return loaded.GetStatus();
     const Base::Ref<Base::Object>& root = loaded.Value().Root();
-    if (!root || expectedRoot == Core::InvalidTypeId ||
+    if (!root || expectedRoot == Meta::InvalidTypeId ||
         !view_->IsInstanceOf(*root, expectedRoot)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -3178,14 +3429,15 @@ Base::Result<UiDocument> XamlReader::LoadComponentCore(
     return std::move(loaded).Value();
 }
 
-Base::Result<UiDocument> XamlReader::Parse(
+Base::Result<XamlDocument> XamlReader::Parse(
     Base::StringView source,
     const Base::ResourceUri& baseUri,
-    Core::IDiagnosticSink* diagnostics) noexcept {
-    return view_->ParseDocument(source, baseUri, diagnostics);
+    const XamlReaderSettings& settings,
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    return view_->ParseDocument(source, baseUri, diagnostics, &settings);
 }
 
-Base::Result<UiDocument> XamlReader::LoadCompiled(
+Base::Result<XamlDocument> XamlReader::LoadCompiled(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri) noexcept {
     return view_->LoadCompiledDocument(bytes, originUri);
@@ -3200,7 +3452,7 @@ Base::Result<void> XamlReader::RegisterSourceProvider(
 
 Base::Result<void> XamlReader::Mount(
     Controls::ContentControl& host,
-    UiDocument&& document) noexcept {
+    XamlDocument&& document) noexcept {
     return view_->MountContent(host, std::move(document));
 }
 
@@ -3213,7 +3465,7 @@ Base::Result<void> XamlReader::LoadResources(
     ResourceLayer layer,
     Base::StringView uri,
     ResourceLoadMode mode,
-    Core::IDiagnosticSink* diagnostics) noexcept {
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
     return view_->LoadResources(layer, uri, mode, diagnostics);
 }
 
@@ -3226,11 +3478,11 @@ Base::Result<void> XamlReader::LoadCompiledResources(
         layer, bytes, originUri, mode);
 }
 
-Base::Result<void> XamlReader::SetResources(
+void XamlReader::SetResources(
     ResourceLayer layer,
     Aero::ResourceDictionary& dictionary,
     ResourceLoadMode mode) noexcept {
-    return view_->SetResourceDictionary(layer, dictionary, mode);
+    view_->SetResourceDictionary(layer, dictionary, mode);
 }
 
 Base::Result<void> XamlReader::LoadTheme(

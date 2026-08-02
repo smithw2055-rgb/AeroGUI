@@ -9,16 +9,16 @@
 
 #include <cstdint>
 
-namespace Aero::Controls::Detail {
+namespace Aero::Internal {
 
 struct TemplateHandle final {
     std::uint64_t value = 0U;
     constexpr bool IsValid() const noexcept { return value != 0U; }
 };
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Internal
 
-namespace Aero::Detail { class TemplateEngine; }
+namespace Aero::Internal { class TemplateEngine; }
 
 namespace Aero::Controls {
 
@@ -38,7 +38,7 @@ public:
     UIElement* RootElement() const noexcept;
 
 private:
-    friend class Aero::Detail::TemplateEngine;
+    friend class Aero::Internal::TemplateEngine;
     explicit TemplateBuilder(void* state) noexcept : state_(state) {}
     DependencyObject* FindObject(Base::StringView name) const noexcept;
     Base::Result<void> AddOwnedPart(Base::StringView name, Base::Ref<Base::Object> owner, Visual& visual, void* mount) noexcept;
@@ -74,13 +74,13 @@ struct TemplateMetadataBindingPlan final {
 struct TemplateTriggerSetter final {
     Base::String targetName;
     DependencyPropertyHandle property;
-    Core::PropertyValue value;
+    Meta::PropertyValue value;
 };
 
 struct TemplateTriggerCondition final {
     Base::String sourceName;
     DependencyPropertyHandle property;
-    Core::PropertyValue value;
+    Meta::PropertyValue value;
 };
 
 struct TemplatePropertyTrigger final {
@@ -99,14 +99,14 @@ struct TemplateProgram final {
     Base::Result<void> SetBaseUri(const Base::ResourceUri& value) noexcept;
     Base::Result<void> TryAddNamespace(Base::StringView prefix, Base::StringView uri) noexcept;
     Base::Result<void> Seal() noexcept;
-    Base::Result<void> FreezeRuntimePlan(Core::TypeId valueTargetType, Base::Vector<TemplateBindingPlan>&& valueBindings, Base::Vector<TemplateMetadataBindingPlan>&& valueMetadataBindings, Base::Vector<TemplatePropertyTrigger>&& valueTriggers, Base::Vector<VisualStateGroup>&& valueVisualStateGroups) noexcept;
+    Base::Result<void> FreezeRuntimePlan(Meta::TypeId valueTargetType, Base::Vector<TemplateBindingPlan>&& valueBindings, Base::Vector<TemplateMetadataBindingPlan>&& valueMetadataBindings, Base::Vector<TemplatePropertyTrigger>&& valueTriggers, Base::Vector<VisualStateGroup>&& valueVisualStateGroups) noexcept;
 
     TemplateFactoryCallback factory = nullptr;
     void* factoryContext = nullptr;
     Base::Ref<Base::Object> factoryOwner;
     Base::ResourceUri baseUri;
     Base::Vector<TemplateNamespace> namespaces;
-    Core::TypeId targetType = Core::InvalidTypeId;
+    Meta::TypeId targetType = Meta::InvalidTypeId;
     Base::Vector<TemplateBindingPlan> bindings;
     Base::Vector<TemplateMetadataBindingPlan> metadataBindings;
     Base::Vector<TemplatePropertyTrigger> triggers;
@@ -115,7 +115,7 @@ struct TemplateProgram final {
 };
 
 struct FrameworkTemplateState final {
-    Core::TypeId targetType = Core::InvalidTypeId;
+    Meta::TypeId targetType = Meta::InvalidTypeId;
     TemplateProgram program;
     ResourceDictionary resources;
     Base::Vector<TemplateBindingPlan> bindings;

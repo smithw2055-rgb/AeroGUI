@@ -606,20 +606,20 @@ OpenGL33Renderer::UnregisterGlyphRun(
             "OpenGL render adapter is not initialized"));
 }
 
-Aero::Detail::TextResources* OpenGL33Renderer::GetTextResources() noexcept {
+Aero::Internal::TextResources* OpenGL33Renderer::GetTextResources() noexcept {
     return IsInitialized() ? &impl_->textResources.Table() : nullptr;
 }
 
-Aero::Detail::MeshResources* OpenGL33Renderer::GetMeshResources() noexcept {
+Aero::Internal::MeshResources* OpenGL33Renderer::GetMeshResources() noexcept {
     return IsInitialized() ? &impl_->meshResources.Table() : nullptr;
 }
 
-Aero::Detail::ImageResources* OpenGL33Renderer::GetImageResources() noexcept {
+Aero::Internal::ImageResources* OpenGL33Renderer::GetImageResources() noexcept {
     return IsInitialized() ? &impl_->imageResources.Table() : nullptr;
 }
 
 Base::Result<void> OpenGL33Renderer::Submit(
-    const Render::RenderFrame& plan) noexcept {
+    const Integration::RenderFrame& plan) noexcept {
     if (!IsInitialized()) {
         return NotInitialized(
             "OpenGL render adapter is not initialized");

@@ -1,7 +1,7 @@
 #include "Inspector.hpp"
 #include "gui/StyleInternal.hpp"
 
-#include <Aero/Controls/Base.hpp>
+#include <Aero/Controls/Core.hpp>
 
 #include "../controls/ControlBehavior.hpp"
 
@@ -10,7 +10,8 @@ namespace {
 
 using namespace Aero::Base;
 using namespace Aero::Controls;
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 
 
 enum class TreeKind : std::uint8_t {
@@ -34,7 +35,7 @@ Result<void> AppendTree(
     }
     InspectorTreeNode record;
     record.node = &node;
-    record.handle = Aero::Detail::ElementPrivate::Handle(node);
+    record.handle = Aero::Internal::ElementPrivate::Handle(node);
     record.parent = parent;
     record.runtimeType =
         node.RuntimeType();
@@ -46,8 +47,8 @@ Result<void> AppendTree(
     }
     const Base::Span<Visual* const> children =
         kind == TreeKind::Logical
-        ? Aero::Detail::ElementPrivate::LogicalChildren(node)
-        : Aero::Detail::ElementPrivate::VisualChildren(node);
+        ? Aero::Internal::ElementPrivate::LogicalChildren(node)
+        : Aero::Internal::ElementPrivate::VisualChildren(node);
     for (Visual* child : children) {
         if (child == nullptr) {
             return Status::Failure(
@@ -80,7 +81,8 @@ Inspector::Capture(
     const noexcept {
     using namespace Aero::Base;
     using namespace Aero::Controls;
-    using namespace Aero::Core;
+    using namespace Aero::Meta;
+using namespace Aero::Threading;
 
 
     if (tree_ == nullptr ||
@@ -88,7 +90,7 @@ Inspector::Capture(
         bindings_ == nullptr ||
         renderer_ == nullptr ||
         maxTreeNodes == 0U ||
-        Aero::Detail::ElementPrivate::Tree(target) != tree_) {
+        Aero::Internal::ElementPrivate::Tree(target) != tree_) {
         return Status::Failure(
             ErrorCode::InvalidArgument,
             "Inspector render target "

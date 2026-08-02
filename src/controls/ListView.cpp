@@ -6,94 +6,92 @@
 
 namespace Aero::Controls {
 
-Base::StringView GridViewColumn::Header()
+Base::StringView GridViewColumn::GetHeader()
     const noexcept {
     return GetValueOr(
         HeaderProperty, Base::StringView{});
 }
 
-Base::Result<void> GridViewColumn::SetHeader(
+void GridViewColumn::SetHeader(
     Base::StringView value) noexcept {
-    return SetValue(HeaderProperty, value);
+    SetValue(HeaderProperty, value);
 }
 
-double GridViewColumn::Width()
+double GridViewColumn::GetWidth()
     const noexcept {
     return GetValueOr(
         WidthProperty, 100.0);
 }
 
-Base::Result<void> GridViewColumn::SetWidth(
+void GridViewColumn::SetWidth(
     double value) noexcept {
     if (!std::isfinite(value) ||
         value < 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "GridViewColumn Width must be finite and non-negative");
+        return;
     }
-    return SetValue(WidthProperty, value);
+    SetValue(WidthProperty, value);
 }
 
 Base::Ref<DataTemplate>
-GridViewColumn::CellTemplate() const noexcept {
+GridViewColumn::GetCellTemplate() const noexcept {
     return GetValueOr(
         CellTemplateProperty,
         Base::Ref<DataTemplate>{});
 }
 
-Base::Result<void>
+void
 GridViewColumn::SetCellTemplate(
     Base::Ref<DataTemplate> value) noexcept {
-    return SetValue(
+    SetValue(
         CellTemplateProperty,
         std::move(value));
 }
 
 Base::Ref<DataTemplate>
-GridViewColumn::HeaderTemplate() const noexcept {
+GridViewColumn::GetHeaderTemplate() const noexcept {
     return GetValueOr(
         HeaderTemplateProperty,
         Base::Ref<DataTemplate>{});
 }
 
-Base::Result<void>
+void
 GridViewColumn::SetHeaderTemplate(
     Base::Ref<DataTemplate> value) noexcept {
-    return SetValue(
+    SetValue(
         HeaderTemplateProperty,
         std::move(value));
 }
 
 Base::StringView
-GridViewColumn::DisplayMemberPath()
+GridViewColumn::GetDisplayMemberPath()
     const noexcept {
     return GetValueOr(
         DisplayMemberPathProperty,
         Base::StringView{});
 }
 
-Base::Result<void>
+void
 GridViewColumn::SetDisplayMemberPath(
     Base::StringView value) noexcept {
-    return SetValue(
+    SetValue(
         DisplayMemberPathProperty, value);
 }
 
 Base::Ref<Data::Binding>
-GridViewColumn::DisplayMemberBinding() const noexcept {
+GridViewColumn::GetDisplayMemberBinding() const noexcept {
     return GetValueOr(
         DisplayMemberBindingProperty,
         Base::Ref<Data::Binding>{});
 }
 
-Base::Result<void>
+void
 GridViewColumn::SetDisplayMemberBinding(
     Base::Ref<Data::Binding> value) noexcept {
-    return SetValue(
+    SetValue(
         DisplayMemberBindingProperty, std::move(value));
 }
 
-Base::Result<void> GridView::AddColumn(
+Base::Result<void> GridView::TryAddColumn(
     Base::Ref<GridViewColumn> column)
     noexcept {
     if (!column) {
@@ -106,25 +104,21 @@ Base::Result<void> GridView::AddColumn(
 }
 
 Base::Ref<GridView>
-ListView::View() const noexcept {
+ListView::GetView() const noexcept {
     return GetValueOr(
         ViewProperty,
         Base::Ref<GridView>{});
 }
 
-Base::Result<void> ListView::SetView(
+void ListView::SetView(
     Base::Ref<GridView> value) noexcept {
-    Base::Result<void> stored = SetValue(
-        ViewProperty, std::move(value));
-    if (!stored) return stored.GetStatus();
-    return SynchronizeColumnHeaders();
+    SetValue(ViewProperty, std::move(value));
+    (void)SynchronizeColumnHeaders();
 }
 
-Base::Result<void>
+void
 ListView::OnApplyTemplate() noexcept {
-    Base::Result<void> applied =
-        ListBox::OnApplyTemplate();
-    if (!applied) return applied.GetStatus();
+    ListBox::OnApplyTemplate();
     DependencyObject* headers =
         GetTemplateChild("ColumnHeaders");
     columnHeaders_ =
@@ -135,11 +129,9 @@ ListView::OnApplyTemplate() noexcept {
         ? static_cast<TextBlock*>(headers)
         : nullptr;
     if (columnHeaders_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "ListView template requires ColumnHeaders");
+        return;
     }
-    return SynchronizeColumnHeaders();
+    static_cast<void>(SynchronizeColumnHeaders());
 }
 
 void ListView::OnTemplateDetached() noexcept {
@@ -151,25 +143,25 @@ Base::Result<void>
 ListView::SynchronizeColumnHeaders() noexcept {
     if (columnHeaders_ == nullptr) return {};
     Base::String text;
-    Base::Ref<GridView> view = View();
+    Base::Ref<GridView> view = GetView();
     if (view) {
         for (const Base::Ref<GridViewColumn>&
-             column : view->Columns()) {
+             column : view->GetColumns()) {
             if (!column) continue;
             Base::Result<void> appended =
-                text.TryAppend(column->Header());
+                text.TryAppend(column->GetHeader());
             if (!appended) {
                 return appended.GetStatus();
             }
             const std::uint32_t headerCharacters =
-                column->Header().SizeBytes();
+                column->GetHeader().SizeBytes();
             const std::uint32_t columnCharacters =
-                column->Width() > 0.0
+                column->GetWidth() > 0.0
                 ? static_cast<std::uint32_t>(
                       std::max(
                           1.0,
                           std::floor(
-                              column->Width() /
+                              column->GetWidth() /
                               8.0)))
                 : headerCharacters + 2U;
             const std::uint32_t padding =
@@ -191,17 +183,18 @@ ListView::SynchronizeColumnHeaders() noexcept {
             }
         }
     }
-    return columnHeaders_->SetText(text.View());
+    columnHeaders_->SetText(text.View());
+    return {};
 }
 
-Base::Result<Base::Ref<ItemContainer>>
+Base::Result<Base::Ref<FrameworkElement>>
 ListView::CreateContainer(
     const Base::Ref<Base::Object>&) noexcept {
     Base::Result<Base::Ref<ListViewItem>>
         made =
             Base::MakeRef<ListViewItem>();
     if (!made) return made.GetStatus();
-    return Base::Ref<ItemContainer>(
+    return Base::Ref<FrameworkElement>(
         std::move(made).Value());
 }
 

@@ -8,13 +8,13 @@
 
 #include <cstdint>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 struct DataTemplateTriggerSetter final {
     Base::Ref<::Aero::DependencyObject> target;
-    Core::DependencyPropertyHandle property;
-    Core::PropertyValue value;
-    Core::PropertyProviderToken token;
+    Meta::DependencyPropertyHandle property;
+    Meta::PropertyValue value;
+    Meta::PropertyProviderToken token;
 };
 
 struct DataTemplateTriggerCondition final {
@@ -25,8 +25,8 @@ struct DataTemplateTriggerCondition final {
     Base::Ref<Base::Object> source;
     Base::Ref<Data::Binding> binding;
     Base::Ref<::Aero::DependencyObject> dependencySource;
-    Core::DependencyPropertyHandle property;
-    Core::PropertyValue value;
+    Meta::DependencyPropertyHandle property;
+    Meta::PropertyValue value;
 };
 
 struct DataTemplatePropertyTrigger final {
@@ -45,13 +45,13 @@ public:
         Base::Ref<Base::Object> object;
     };
 
-    static constexpr Core::TypeId StaticTypeId() noexcept {
-        return Core::MakeTypeId(
+    static constexpr Meta::TypeId StaticTypeId() noexcept {
+        return Meta::MakeTypeId(
             "urn:aero-internal",
             "DataTemplateTriggerState");
     }
 
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
 
@@ -71,4 +71,4 @@ public:
     Base::Vector<DataTemplatePropertyTrigger> triggers;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

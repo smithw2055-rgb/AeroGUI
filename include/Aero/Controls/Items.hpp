@@ -5,14 +5,15 @@
 #include <utility>
 #include <Aero/Input.hpp>
 #include <Aero/Data.hpp>
-#include <Aero/Controls/Base.hpp>
+#include <Aero/Controls/Core.hpp>
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Primitives.hpp>
 
-namespace Aero::Detail { class ListBehavior; class ComboBehavior; class TreeBehavior; }
-namespace Aero::Controls::Detail {
+namespace Aero::Internal { class ListBehavior; class ComboBehavior; class TreeBehavior; }
+namespace Aero::Internal {
 class ItemContainerGeneratorImpl;
 class ControlPrivate;
+class TemplatePrivate;
 }
 
 namespace Aero::Controls {
@@ -21,40 +22,28 @@ using ItemsChangeAction = Collections::ItemsChangeAction;
 using ItemsChangedEvent = Collections::ItemsChangedEvent;
 using ItemsChangedHandler = Collections::ItemsChangedHandler;
 
-enum class ItemSubtreeChange : std::uint8_t {
-    Mounted = 0U,
-    Unmounting,
-};
-
-using ItemSubtreeCallback = Base::Result<void> (*)(
-    Aero::Visual& root,
-    ItemSubtreeChange change,
-    void* context) noexcept;
-
-using IItemsSource = Collections::IItemsSource;
-
-class AERO_API ItemsCollection final : public IItemsSource {
+class AERO_API ItemCollection final : public Collections::IItemsSource {
 public:
-    std::uint32_t Count() const noexcept override {
+    std::uint32_t GetCount() const noexcept override {
         return items_.Size();
     }
-    Base::Ref<Base::Object> ItemAt(
+    Base::Ref<Base::Object> GetItem(
         std::uint32_t index) const noexcept override;
-    Base::Result<void> Add(
+    Base::Result<void> TryAdd(
         Base::Ref<Base::Object> item) noexcept;
-    Base::Result<void> Insert(
+    Base::Result<void> TryInsert(
         std::uint32_t index,
         Base::Ref<Base::Object> item) noexcept;
-    Base::Result<Base::Ref<Base::Object>> RemoveAt(
+    Base::Result<Base::Ref<Base::Object>> TryRemoveAt(
         std::uint32_t index) noexcept;
-    Base::Result<void> Replace(
+    Base::Result<void> TryReplace(
         std::uint32_t index,
         Base::Ref<Base::Object> item) noexcept;
-    Base::Result<void> Move(
+    Base::Result<void> TryMove(
         std::uint32_t oldIndex,
         std::uint32_t newIndex) noexcept;
     void Reset() noexcept;
-    Base::Result<void> Reset(
+    Base::Result<void> TryReset(
         Base::Span<const Base::Ref<Base::Object>>
             items) noexcept;
     Base::Result<void> TryAddItemsChanged(
@@ -71,54 +60,6 @@ private:
     void Notify(const ItemsChangedEvent& event) noexcept;
 };
 
-// Reference-counted collection source for view-model properties. ItemsControl
-// keeps its lightweight embedded ItemsCollection for authored child content;
-// bindings use this object form so the source can travel through metadata and
-// dependency-property values without losing IItemsSource semantics.
-class AERO_API ObjectItemsSource final :
-    public Base::Object,
-    public IItemsSource {
-    AERO_DECLARE_TYPE(ObjectItemsSource, Base::Object)
-public:
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    std::uint32_t Count() const noexcept override {
-        return items_.Count();
-    }
-    Base::Ref<Base::Object> ItemAt(
-        std::uint32_t index) const noexcept override {
-        return items_.ItemAt(index);
-    }
-    Base::Result<void> Add(
-        Base::Ref<Base::Object> item) noexcept {
-        return items_.Add(std::move(item));
-    }
-    Base::Result<void> Insert(
-        std::uint32_t index,
-        Base::Ref<Base::Object> item) noexcept {
-        return items_.Insert(index, std::move(item));
-    }
-    Base::Result<Base::Ref<Base::Object>> RemoveAt(
-        std::uint32_t index) noexcept {
-        return items_.RemoveAt(index);
-    }
-    void Reset() noexcept {
-        items_.Reset();
-    }
-    Base::Result<void> TryAddItemsChanged(
-        const ItemsChangedHandler& handler) noexcept override {
-        return items_.TryAddItemsChanged(handler);
-    }
-    bool RemoveItemsChanged(
-        const ItemsChangedHandler& handler) noexcept override {
-        return items_.RemoveItemsChanged(handler);
-    }
-
-private:
-    ItemsCollection items_;
-};
-
 // WPF AlternationConverter selects an authored value by alternation index.
 // Keeping object values intact lets a binding later return brushes, strings,
 // and other resources without lossy text conversion.
@@ -130,10 +71,10 @@ public:
     TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    Base::Span<const Base::Ref<Base::Object>> Values() const noexcept {
+    Base::Span<const Base::Ref<Base::Object>> GetValues() const noexcept {
         return values_.AsSpan();
     }
-    Base::Result<void> AddValue(
+    Base::Result<void> TryAddValue(
         Base::Ref<Base::Object> value) noexcept {
         if (!value) {
             return Base::Status::Failure(
@@ -147,49 +88,16 @@ private:
     Base::Vector<Base::Ref<Base::Object>> values_;
 };
 
-// Object wrapper for primitive values used by ItemsSource. This is the
-// collection equivalent of WPF boxing: business collections can contain
-// strings and other scalar values without manufacturing UIElement objects.
-class AERO_API BoxedItemValue final : public Base::Object {
-    AERO_DECLARE_TYPE(BoxedItemValue, Base::Object)
-public:
-    explicit BoxedItemValue(Core::Value value) noexcept
-        : value_(std::move(value)) {}
+// Adds a scalar value to an ItemsSource without exposing the internal boxing
+// object used by the generator.
+AERO_API Base::Result<void> TryAddBoxedItem(
+    Collections::ObservableCollection& source,
+    Meta::Value value) noexcept;
 
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    const Core::Value& Value() const noexcept {
-        return value_;
-    }
-
-private:
-    Core::Value value_;
-};
-
-inline Base::Result<void> AddBoxedItem(
-    ObjectItemsSource& source,
-    Core::Value value) noexcept {
-    Base::Result<Base::Ref<BoxedItemValue>> boxed =
-        Base::MakeRef<BoxedItemValue>(std::move(value));
-    if (!boxed) return boxed.GetStatus();
-    return source.Add(
-        Base::Ref<Base::Object>(
-            std::move(boxed).Value()));
-}
-
-inline Base::Result<void> AddBoxedStringItem(
-    ObjectItemsSource& source,
-    Base::StringView value) noexcept {
-    Base::Result<Core::Value> boxed =
-        Core::Value::TryFromString(
-            Core::TypeOf<Base::String>(), value);
-    if (!boxed) return boxed.GetStatus();
-    return AddBoxedItem(
-        source, std::move(boxed).Value());
-}
-
-namespace Detail { class TemplatePrivate; }
+// Convenience overload for the common string item case.
+AERO_API Base::Result<void> TryAddBoxedStringItem(
+    Collections::ObservableCollection& source,
+    Base::StringView value) noexcept;
 
 class AERO_API DataTemplate : public Base::Object {
     AERO_DECLARE_TYPE(DataTemplate, Base::Object)
@@ -201,7 +109,7 @@ public:
 
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     TypeId GetDataType() const noexcept;
-    Base::Result<void> SetDataType(TypeId value) noexcept;
+    void SetDataType(TypeId value) noexcept;
     Base::Ref<Base::Object> GetHierarchicalItemsSource() const noexcept;
     void SetHierarchicalItemsSource(Base::Ref<Base::Object> value) noexcept;
     Base::Ref<Base::Object> GetHierarchicalItemTemplate() const noexcept;
@@ -209,11 +117,11 @@ public:
     ResourceKey GetImplicitKey() const noexcept;
     ResourceDictionary& GetResources() noexcept;
     const ResourceDictionary& GetResources() const noexcept;
-    Base::Result<void> SetResources(Base::Ref<ResourceDictionary> value) noexcept;
+    void SetResources(Base::Ref<ResourceDictionary> value) noexcept;
     bool GetIsSealed() const noexcept;
 
 private:
-    friend class Detail::TemplatePrivate;
+    friend class ::Aero::Internal::TemplatePrivate;
     void* state_ = nullptr;
 };
 
@@ -228,23 +136,12 @@ public:
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     ResourceDictionary& GetResources() noexcept;
     const ResourceDictionary& GetResources() const noexcept;
-    Base::Result<void> SetResources(Base::Ref<ResourceDictionary> value) noexcept;
+    void SetResources(Base::Ref<ResourceDictionary> value) noexcept;
     bool GetIsSealed() const noexcept;
 
 private:
-    friend class Detail::TemplatePrivate;
+    friend class ::Aero::Internal::TemplatePrivate;
     void* state_ = nullptr;
-};
-
-class AERO_API ItemContainer : public ContentControl {
-    AERO_DECLARE_TYPE(ItemContainer, ContentControl)
-public:
-    ItemContainer() noexcept
-        : ContentControl(StaticTypeId()) {}
-    ~ItemContainer() override = default;
-protected:
-    explicit ItemContainer(TypeId runtimeType) noexcept
-        : ContentControl(runtimeType) {}
 };
 
 class AERO_API ItemsPresenter final : public Decorator {
@@ -253,8 +150,8 @@ public:
     ItemsPresenter() noexcept
         : Decorator(StaticTypeId()) {}
     ~ItemsPresenter() override = default;
-    Panel* ItemsHost() const noexcept;
-    Base::Result<void> SetItemsHost(
+    Panel* GetItemsHost() const noexcept;
+    void SetItemsHost(
         const Base::Ref<Base::Object>& owner,
         Panel& panel) noexcept;
 };
@@ -268,91 +165,52 @@ public:
     ItemsControl() noexcept;
     ~ItemsControl() override;
 
-    ItemsCollection& GetItems() noexcept {
+    ItemCollection& GetItems() noexcept {
         return items_;
     }
-    const ItemsCollection& GetItems() const noexcept {
+    const ItemCollection& GetItems() const noexcept {
         return items_;
     }
-    IItemsSource* GetItemsSource() const noexcept {
-        return source_;
-    }
-    Base::Ref<Base::Object>
-    BoundItemsSource() const noexcept {
+    Base::Ref<Base::Object> GetItemsSource() const noexcept {
         return GetValueOr(
             ItemsSourceProperty,
             Base::Ref<Base::Object>{});
     }
-    std::uint32_t ItemCount() const noexcept;
-    Base::Ref<Base::Object> ItemAt(
-        std::uint32_t index) const noexcept;
-    Base::Result<void> SetItemsSource(
-        IItemsSource* source) noexcept;
-    Base::Result<void> SetBoundItemsSource(
-        Base::Ref<Base::Object> source) noexcept {
-        return SetValue(
-            ItemsSourceProperty,
-            std::move(source));
+    bool GetHasItems() const noexcept {
+        return GetValueOr(HasItemsProperty, false);
     }
-    std::uint32_t AlternationCount() const noexcept {
+    std::uint32_t GetCount() const noexcept;
+    Base::Ref<Base::Object> GetItem(
+        std::uint32_t index) const noexcept;
+    void SetItemsSource(
+        Base::Ref<Base::Object> source) noexcept {
+        SetValue(ItemsSourceProperty, std::move(source));
+    }
+    void SetItemsSource(
+        Collections::IItemsSource* source) noexcept;
+    std::uint32_t GetAlternationCount() const noexcept {
         return GetValueOr(AlternationCountProperty, 0U);
     }
-    Base::Result<void> SetAlternationCount(
+    void SetAlternationCount(
         std::uint32_t value) noexcept {
-        return SetValue(AlternationCountProperty, value);
+        SetValue(AlternationCountProperty, value);
     }
 
     const DataTemplate* GetItemTemplate() const noexcept {
         return itemTemplate_;
     }
-    Base::Ref<DataTemplate>
-    ItemTemplateValue() const noexcept {
-        return GetValueOr(
-            ItemTemplateProperty,
-            Base::Ref<DataTemplate>{});
-    }
     void SetItemTemplate(
         const DataTemplate* value) noexcept;
-    Base::Result<void> SetItemTemplateValue(
-        Base::Ref<DataTemplate> value) noexcept {
-        return SetValue(
-            ItemTemplateProperty,
-            std::move(value));
-    }
     const ItemsPanelTemplate* GetItemsPanel() const noexcept {
         return itemsPanel_;
     }
-    Base::Ref<ItemsPanelTemplate>
-    ItemsPanelValue() const noexcept {
-        return GetValueOr(
-            ItemsPanelProperty,
-            Base::Ref<ItemsPanelTemplate>{});
-    }
     void SetItemsPanel(
         const ItemsPanelTemplate* value) noexcept;
-    Base::Result<void> SetItemsPanelValue(
-        Base::Ref<ItemsPanelTemplate> value) noexcept {
-        return SetValue(
-            ItemsPanelProperty,
-            std::move(value));
-    }
     const Style* GetItemContainerStyle() const noexcept {
         return itemContainerStyle_;
     }
-    Base::Ref<Style>
-    ItemContainerStyleValue() const noexcept {
-        return GetValueOr(
-            ItemContainerStyleProperty,
-            Base::Ref<Style>{});
-    }
     void SetItemContainerStyle(
         const Style* value) noexcept;
-    Base::Result<void> SetItemContainerStyleValue(
-        Base::Ref<Style> value) noexcept {
-        return SetValue(
-            ItemContainerStyleProperty,
-            std::move(value));
-    }
 
     Base::Result<void> TryAddItemsChanged(
         const ItemsChangedHandler& handler) noexcept {
@@ -362,12 +220,12 @@ public:
         const ItemsChangedHandler& handler) noexcept {
         return changed_.Remove(handler);
     }
-    Panel* ItemsHost() const noexcept {
+    Panel* GetItemsHost() const noexcept {
         return itemsHost_;
     }
-    std::uint32_t RealizedItemCount() const noexcept;
-    std::uint32_t CreatedContainerCount() const noexcept;
-    std::uint32_t RecycledContainerUseCount() const noexcept;
+    std::uint32_t GetRealizedItemCount() const noexcept;
+    std::uint32_t GetCreatedContainerCount() const noexcept;
+    std::uint32_t GetRecycledContainerUseCount() const noexcept;
 
     inline static constexpr Members::ReadOnlyProperty<std::uint32_t> ItemCountProperty{"ItemCount"};
     inline static constexpr Members::ReadOnlyProperty<bool> HasItemsProperty{"HasItems"};
@@ -383,24 +241,24 @@ protected:
         return generator_;
     }
     virtual Base::Result<
-        Base::Ref<ItemContainer>>
+        Base::Ref<FrameworkElement>>
         CreateContainer(
             const Base::Ref<Base::Object>& item) noexcept;
     virtual Base::Result<void> PrepareContainer(
-        ItemContainer& container,
+        FrameworkElement& container,
         const Base::Ref<Base::Object>& item,
         std::uint32_t index) noexcept;
     virtual void ClearContainer(
-        ItemContainer& container) noexcept;
+        FrameworkElement& container) noexcept;
     virtual void OnContainersChanged() noexcept {}
-    Base::Result<void> OnApplyTemplate() noexcept override;
+    void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
 
 private:
     friend class ItemContainerGenerator;
-    friend class Detail::ItemContainerGeneratorImpl;
-    ItemsCollection items_;
-    IItemsSource* source_ = nullptr;
+    friend class ::Aero::Internal::ItemContainerGeneratorImpl;
+    ItemCollection items_;
+    Collections::IItemsSource* source_ = nullptr;
     const DataTemplate* itemTemplate_ = nullptr;
     const ItemsPanelTemplate* itemsPanel_ = nullptr;
     const Style* itemContainerStyle_ = nullptr;
@@ -427,23 +285,27 @@ public:
         : ItemsControl(StaticTypeId()) {}
     ~HeaderedItemsControl() override = default;
 
-    Base::StringView Header() const noexcept {
+    Base::StringView GetHeader() const noexcept {
         return GetValueOr(HeaderProperty, Base::StringView{});
     }
-    Base::Result<void> SetHeader(Base::StringView value) noexcept {
-        return SetValue(HeaderProperty, value);
+    void SetHeader(Base::StringView value) noexcept {
+        SetValue(HeaderProperty, value);
     }
-    Base::Ref<DataTemplate> HeaderTemplate() const noexcept {
+    Base::Ref<DataTemplate> GetHeaderTemplate() const noexcept {
         return GetValueOr(
             HeaderTemplateProperty, Base::Ref<DataTemplate>{});
     }
-    Base::Result<void> SetHeaderTemplate(
+    void SetHeaderTemplate(
         Base::Ref<DataTemplate> value) noexcept {
-        return SetValue(HeaderTemplateProperty, std::move(value));
+        SetValue(HeaderTemplateProperty, std::move(value));
     }
 
     inline static constexpr Members::Property<Base::String> HeaderProperty{"Header"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
+
+protected:
+    explicit HeaderedItemsControl(TypeId runtimeType) noexcept
+        : ItemsControl(runtimeType) {}
 };
 
 class AERO_API ItemContainerGenerator final {
@@ -461,24 +323,24 @@ public:
         VirtualizingStackPanel& itemsHost) noexcept;
     Base::Result<bool> Detach() noexcept;
     Base::Result<void> Refresh() noexcept;
-    Base::Result<bool> SetRealizationRange(
+    void SetRealizationRange(
         std::uint32_t firstIndex,
         std::uint32_t count) noexcept;
 
-    std::uint32_t GeneratedCount() const noexcept;
-    std::uint32_t FirstGeneratedIndex() const noexcept;
-    std::uint32_t CreatedContainerCount() const noexcept;
-    std::uint32_t RecycledContainerUseCount() const noexcept;
-    ItemContainer* ContainerFromIndex(
+    std::uint32_t GetGeneratedCount() const noexcept;
+    std::uint32_t GetFirstGeneratedIndex() const noexcept;
+    std::uint32_t GetCreatedContainerCount() const noexcept;
+    std::uint32_t GetRecycledContainerUseCount() const noexcept;
+    FrameworkElement* ContainerFromIndex(
         std::uint32_t index) const noexcept;
     std::uint32_t IndexFromContainer(
-        const ItemContainer& container) const noexcept;
+        const FrameworkElement& container) const noexcept;
     Base::Ref<Base::Object> ItemFromContainer(
-        const ItemContainer& container) const noexcept;
+        const FrameworkElement& container) const noexcept;
     Base::Status LastError() const noexcept;
 
 private:
-    friend class Detail::ControlPrivate;
+    friend class ::Aero::Internal::ControlPrivate;
 
     ItemContainerGenerator() noexcept = default;
 
@@ -519,32 +381,32 @@ public:
     Popup() noexcept;
     ~Popup() override;
 
-    bool IsOpen() const noexcept;
-    Base::Result<void> SetIsOpen(bool value) noexcept;
-    PlacementMode Placement() const noexcept;
-    Base::Result<void> SetPlacement(
+    bool GetIsOpen() const noexcept;
+    void SetIsOpen(bool value) noexcept;
+    PlacementMode GetPlacement() const noexcept;
+    void SetPlacement(
         PlacementMode value) noexcept;
-    double HorizontalOffset() const noexcept;
-    Base::Result<void> SetHorizontalOffset(
+    double GetHorizontalOffset() const noexcept;
+    void SetHorizontalOffset(
         double value) noexcept;
-    double VerticalOffset() const noexcept;
-    Base::Result<void> SetVerticalOffset(
+    double GetVerticalOffset() const noexcept;
+    void SetVerticalOffset(
         double value) noexcept;
-    bool StaysOpen() const noexcept;
-    Base::Result<void> SetStaysOpen(
+    bool GetStaysOpen() const noexcept;
+    void SetStaysOpen(
         bool value) noexcept;
-    bool MatchPlacementTargetWidth() const noexcept;
-    Base::Result<void> SetMatchPlacementTargetWidth(
+    bool GetMatchPlacementTargetWidth() const noexcept;
+    void SetMatchPlacementTargetWidth(
         bool value) noexcept;
     Base::Ref<UIElement>
-        PlacementTarget() const noexcept;
-    Base::Result<void> SetPlacementTarget(
+        GetPlacementTarget() const noexcept;
+    void SetPlacementTarget(
         Base::Ref<UIElement> value) noexcept;
     PopupAnimation GetPopupAnimation() const noexcept;
-    Base::Result<void> SetPopupAnimation(
+    void SetPopupAnimation(
         PopupAnimation value) noexcept;
-    bool AllowsTransparency() const noexcept;
-    Base::Result<void> SetAllowsTransparency(
+    bool GetAllowsTransparency() const noexcept;
+    void SetAllowsTransparency(
         bool value) noexcept;
 
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> OpenedEvent{"Opened"};
@@ -570,9 +432,9 @@ public:
 
 protected:
     explicit Popup(TypeId runtimeType) noexcept;
-    Base::Result<Size> MeasureOverride(
+    Size MeasureOverride(
         Size availableSize) noexcept override;
-    Base::Result<Size> ArrangeOverride(
+    Size ArrangeOverride(
         Size finalSize) noexcept override;
 
 private:
@@ -593,17 +455,17 @@ class AERO_API HeaderedContentControl
         HeaderedContentControl,
         ContentControl)
 public:
-    Core::Value Header() const noexcept;
-    Base::Result<void> SetHeader(
-        const Core::Value& value) noexcept;
-    Base::Ref<DataTemplate> HeaderTemplate() const noexcept;
-    Base::Result<void> SetHeaderTemplate(
+    Meta::Value GetHeader() const noexcept;
+    void SetHeader(
+        const Meta::Value& value) noexcept;
+    Base::Ref<DataTemplate> GetHeaderTemplate() const noexcept;
+    void SetHeaderTemplate(
         Base::Ref<DataTemplate> value) noexcept;
 
     // WPF headers are content, not just text. They can hold an element, a
     // resource object, a scalar, or x:Null and are consumed by a
     // ContentPresenter through ContentSource="Header".
-    inline static constexpr Members::Property<Core::Value> HeaderProperty{"Header"};
+    inline static constexpr Members::Property<Meta::Value> HeaderProperty{"Header"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
 
 protected:
@@ -639,11 +501,11 @@ public:
     Expander() noexcept;
     ~Expander() override;
 
-    bool IsExpanded() const noexcept;
-    Base::Result<void> SetIsExpanded(
+    bool GetIsExpanded() const noexcept;
+    void SetIsExpanded(
         bool value) noexcept;
-    ExpandDirection Direction() const noexcept;
-    Base::Result<void> SetDirection(
+    ExpandDirection GetDirection() const noexcept;
+    void SetDirection(
         ExpandDirection value) noexcept;
 
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> ExpandedEvent{"Expanded"};
@@ -660,9 +522,9 @@ public:
     inline static constexpr Members::Property<ExpandDirection> ExpandDirectionProperty{"ExpandDirection"};
 
 protected:
-    Base::Result<Size> MeasureOverride(
+    Size MeasureOverride(
         Size availableSize) noexcept override;
-    Base::Result<Size> ArrangeOverride(
+    Size ArrangeOverride(
         Size finalSize) noexcept override;
 
 private:
@@ -684,8 +546,8 @@ public:
         : HeaderedContentControl(StaticTypeId()) {}
     ~TabItem() override = default;
 
-    bool IsSelected() const noexcept;
-    Base::Result<void> SetIsSelected(
+    bool GetIsSelected() const noexcept;
+    void SetIsSelected(
         bool value) noexcept;
     inline static constexpr Members::Property<bool> IsSelectedProperty{"IsSelected"};
 };
@@ -696,21 +558,21 @@ public:
     TabControl() noexcept;
     ~TabControl() override;
 
-    std::uint32_t TabCount() const noexcept {
+    std::uint32_t GetTabCount() const noexcept {
         return tabs_.Size();
     }
-    std::uint32_t SelectedIndex() const noexcept;
-    TabItem* SelectedTab() const noexcept;
-    Core::Value SelectedContent() const noexcept {
+    std::uint32_t GetSelectedIndex() const noexcept;
+    TabItem* GetSelectedTab() const noexcept;
+    Meta::Value GetSelectedContent() const noexcept {
         return GetValueOr(
             SelectedContentProperty,
-            Core::Value::NullObject(
-                Core::TypeOf<Base::Object>()));
+            Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>()));
     }
-    Base::Result<void> AddOwnedTab(
+    Base::Result<void> TryAddOwnedTab(
         Base::Ref<TabItem> tab) noexcept;
-    Base::Result<void> ClearOwnedTabs() noexcept;
-    Base::Result<bool> SetSelectedIndex(
+    void ClearOwnedTabs() noexcept;
+    void SetSelectedIndex(
         std::uint32_t value) noexcept;
     // Kept as dependency properties even while the lightweight tab host is
     // being upgraded to the full selector pipeline. This preserves authored
@@ -721,33 +583,33 @@ public:
             ItemsSourceProperty,
             Base::Ref<Base::Object>{});
     }
-    Base::Result<void> SetItemsSource(
+    void SetItemsSource(
         Base::Ref<Base::Object> value) noexcept {
-        return SetValue(ItemsSourceProperty, std::move(value));
+        SetValue(ItemsSourceProperty, std::move(value));
     }
     Base::Ref<DataTemplate> GetItemTemplate() const noexcept {
         return GetValueOr(
             ItemTemplateProperty,
             Base::Ref<DataTemplate>{});
     }
-    Base::Result<void> SetItemTemplate(
+    void SetItemTemplate(
         Base::Ref<DataTemplate> value) noexcept {
-        return SetValue(ItemTemplateProperty, std::move(value));
+        SetValue(ItemTemplateProperty, std::move(value));
     }
     Base::Ref<DataTemplate> GetContentTemplate() const noexcept {
         return GetValueOr(
             ContentTemplateProperty,
             Base::Ref<DataTemplate>{});
     }
-    Base::Result<void> SetContentTemplate(
+    void SetContentTemplate(
         Base::Ref<DataTemplate> value) noexcept {
-        return SetValue(ContentTemplateProperty, std::move(value));
+        SetValue(ContentTemplateProperty, std::move(value));
     }
-    Dock TabStripPlacement() const noexcept {
+    Dock GetTabStripPlacement() const noexcept {
         return GetValueOr(TabStripPlacementProperty, Dock::Top);
     }
-    Base::Result<void> SetTabStripPlacement(Dock value) noexcept {
-        return SetValue(TabStripPlacementProperty, value);
+    void SetTabStripPlacement(Dock value) noexcept {
+        SetValue(TabStripPlacementProperty, value);
     }
 
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> SelectionChangedEvent{"SelectionChanged"};
@@ -756,16 +618,16 @@ public:
         return GetEvent(SelectionChangedEvent);
     }
     inline static constexpr Members::Property<std::uint32_t> SelectedIndexProperty{"SelectedIndex"};
-    inline static constexpr Members::ReadOnlyProperty<Core::Value> SelectedContentProperty{"SelectedContent"};
+    inline static constexpr Members::ReadOnlyProperty<Meta::Value> SelectedContentProperty{"SelectedContent"};
     inline static constexpr Members::Property<Base::Ref<Base::Object>> ItemsSourceProperty{"ItemsSource"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> ItemTemplateProperty{"ItemTemplate"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> ContentTemplateProperty{"ContentTemplate"};
     inline static constexpr Members::Property<Dock> TabStripPlacementProperty{"TabStripPlacement"};
 
 protected:
-    Base::Result<Size> MeasureOverride(
+    Size MeasureOverride(
         Size availableSize) noexcept override;
-    Base::Result<Size> ArrangeOverride(
+    Size ArrangeOverride(
         Size finalSize) noexcept override;
 
 private:
@@ -788,21 +650,21 @@ public:
     ~TabPanel() override = default;
 
 protected:
-    Base::Result<Size> MeasureOverride(
+    Size MeasureOverride(
         Size availableSize) noexcept override;
-    Base::Result<Size> ArrangeOverride(
+    Size ArrangeOverride(
         Size finalSize) noexcept override;
 
 private:
-    bool IsVertical() const noexcept;
+    bool GetIsVertical() const noexcept;
 };
 
 } // namespace Aero::Controls
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Controls::ExpandDirection> {
+struct TypeTraits<Controls::ExpandDirection> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("ExpandDirection");
     }
@@ -818,7 +680,7 @@ struct MetaTypeTraits<Controls::ExpandDirection> {
 };
 
 template<>
-struct MetaTypeTraits<Controls::Primitives::PlacementMode> {
+struct TypeTraits<Controls::Primitives::PlacementMode> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("PlacementMode");
     }
@@ -834,7 +696,7 @@ struct MetaTypeTraits<Controls::Primitives::PlacementMode> {
 };
 
 template<>
-struct MetaTypeTraits<Controls::Primitives::PopupAnimation> {
+struct TypeTraits<Controls::Primitives::PopupAnimation> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("PopupAnimation");
     }
@@ -849,7 +711,7 @@ struct MetaTypeTraits<Controls::Primitives::PopupAnimation> {
     }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 namespace Aero::Controls {
 
@@ -878,19 +740,19 @@ using SelectionChangedHandler =
     Base::Delegate<void(
         Primitives::Selector&, const SelectionChangedEvent&)>;
 
-class AERO_API ListBoxItem : public ItemContainer {
-    AERO_DECLARE_TYPE(ListBoxItem, ItemContainer)
+class AERO_API ListBoxItem : public ContentControl {
+    AERO_DECLARE_TYPE(ListBoxItem, ContentControl)
 public:
-    ListBoxItem() noexcept : ItemContainer(StaticTypeId()) {}
+    ListBoxItem() noexcept : ContentControl(StaticTypeId()) {}
     ~ListBoxItem() override = default;
 
-    bool IsSelected() const noexcept;
-    Base::Result<void> SetIsSelected(bool value) noexcept;
+    bool GetIsSelected() const noexcept;
+    void SetIsSelected(bool value) noexcept;
 
     inline static constexpr Members::Property<bool> IsSelectedProperty{"IsSelected"};
 protected:
     explicit ListBoxItem(TypeId runtimeType) noexcept
-        : ItemContainer(runtimeType) {}
+        : ContentControl(runtimeType) {}
 };
 
 namespace Primitives {
@@ -902,43 +764,43 @@ public:
     ~Selector() override;
 
     SelectionMode GetSelectionMode() const noexcept;
-    std::uint32_t SelectedIndex() const noexcept;
-    Base::Ref<Base::Object> SelectedItem() const noexcept;
-    Base::Ref<Base::Object> SelectedValue() const noexcept;
-    Base::StringView SelectedValuePath() const noexcept {
+    std::uint32_t GetSelectedIndex() const noexcept;
+    Base::Ref<Base::Object> GetSelectedItem() const noexcept;
+    Base::Ref<Base::Object> GetSelectedValue() const noexcept;
+    Base::StringView GetSelectedValuePath() const noexcept {
         return GetValueOr(
             SelectedValuePathProperty,
             Base::StringView{});
     }
-    Base::Span<const std::uint32_t> SelectedIndices() const noexcept {
+    Base::Span<const std::uint32_t> GetSelectedIndices() const noexcept {
         return {selectedIndices_.Data(), selectedIndices_.Size()};
     }
-    std::uint32_t SelectedCount() const noexcept {
+    std::uint32_t GetSelectedCount() const noexcept {
         return selectedIndices_.Size();
     }
-    bool IsSelected(std::uint32_t index) const noexcept;
-    std::uint32_t IndexOfItem(
+    bool GetIsSelected(std::uint32_t index) const noexcept;
+    std::uint32_t GetIndexOfItem(
         const Base::Object* item) const noexcept;
 
-    Base::Result<void> SetSelectionMode(
+    void SetSelectionMode(
         SelectionMode value) noexcept;
-    Base::Result<bool> SetSelectedIndex(
+    void SetSelectedIndex(
         std::uint32_t index) noexcept;
-    Base::Result<bool> SetSelectedItem(
+    void SetSelectedItem(
         Base::Ref<Base::Object> item) noexcept;
-    Base::Result<bool> SetSelectedValue(
+    void SetSelectedValue(
         Base::Ref<Base::Object> value) noexcept;
-    Base::Result<bool> Select(
+    bool Select(
         std::uint32_t index) noexcept;
-    Base::Result<bool> Unselect(
+    bool Unselect(
         std::uint32_t index) noexcept;
-    Base::Result<bool> Toggle(
+    bool Toggle(
         std::uint32_t index) noexcept;
-    Base::Result<bool> SelectRange(
+    bool SelectRange(
         std::uint32_t first,
         std::uint32_t last,
         bool preserveExisting = false) noexcept;
-    Base::Result<bool> ClearSelection() noexcept;
+    void ClearSelection() noexcept;
 
     Base::Result<void> TryAddSelectionChanged(
         const SelectionChangedHandler& handler) noexcept {
@@ -971,16 +833,16 @@ public:
 protected:
     explicit Selector(TypeId runtimeType) noexcept;
     Base::Result<void> PrepareContainer(
-        ItemContainer& container,
+        FrameworkElement& container,
         const Base::Ref<Base::Object>& item,
         std::uint32_t index) noexcept override;
     void ClearContainer(
-        ItemContainer& container) noexcept override;
+        FrameworkElement& container) noexcept override;
     void OnContainersChanged() noexcept override;
 
 private:
-    friend class Aero::Detail::ListBehavior;
-    friend class Aero::Detail::ComboBehavior;
+    friend class Aero::Internal::ListBehavior;
+    friend class Aero::Internal::ComboBehavior;
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;
     std::uint32_t pendingIndex_ = UINT32_MAX;
@@ -1018,25 +880,25 @@ public:
 protected:
     explicit ListBox(TypeId runtimeType) noexcept
         : Primitives::Selector(runtimeType) {}
-    Base::Result<Base::Ref<ItemContainer>>
+    Base::Result<Base::Ref<FrameworkElement>>
         CreateContainer(
             const Base::Ref<Base::Object>& item) noexcept override;
 
 private:
-    friend class Aero::Detail::ListBehavior;
+    friend class Aero::Internal::ListBehavior;
     void* interactions_ = nullptr;
 };
 
 class AERO_API ComboBoxItem final
-    : public ItemContainer {
-    AERO_DECLARE_TYPE(ComboBoxItem, ItemContainer)
+    : public ListBoxItem {
+    AERO_DECLARE_TYPE(ComboBoxItem, ListBoxItem)
 public:
     ComboBoxItem() noexcept
-        : ItemContainer(StaticTypeId()) {}
+        : ListBoxItem(StaticTypeId()) {}
     ~ComboBoxItem() override = default;
 
-    bool IsSelected() const noexcept;
-    Base::Result<void> SetIsSelected(
+    bool GetIsSelected() const noexcept;
+    void SetIsSelected(
         bool value) noexcept;
 
     inline static constexpr Members::Property<bool> IsSelectedProperty{"IsSelected"};
@@ -1049,35 +911,35 @@ public:
     ComboBox() noexcept;
     ~ComboBox() override;
 
-    bool IsDropDownOpen() const noexcept;
-    Base::Result<void> SetIsDropDownOpen(
+    bool GetIsDropDownOpen() const noexcept;
+    void SetIsDropDownOpen(
         bool value) noexcept;
-    double MaxDropDownHeight() const noexcept;
-    Base::Result<void> SetMaxDropDownHeight(
+    double GetMaxDropDownHeight() const noexcept;
+    void SetMaxDropDownHeight(
         double value) noexcept;
-    bool IsEditable() const noexcept;
-    Base::Result<void> SetIsEditable(
+    bool GetIsEditable() const noexcept;
+    void SetIsEditable(
         bool value) noexcept;
-    bool IsReadOnly() const noexcept;
-    Base::Result<void> SetIsReadOnly(
+    bool GetIsReadOnly() const noexcept;
+    void SetIsReadOnly(
         bool value) noexcept;
-    Base::StringView Text() const noexcept;
-    Base::Result<void> SetText(
+    Base::StringView GetText() const noexcept;
+    void SetText(
         Base::StringView value) noexcept;
-    Base::StringView Placeholder() const noexcept {
+    Base::StringView GetPlaceholder() const noexcept {
         return GetValueOr(
             PlaceholderProperty, Base::StringView{});
     }
-    Base::Result<void> SetPlaceholder(
+    void SetPlaceholder(
         Base::StringView value) noexcept {
-        return SetValue(PlaceholderProperty, value);
+        SetValue(PlaceholderProperty, value);
     }
-    Base::String SelectionBoxText() const noexcept;
-    Core::Value SelectionBoxItem() const noexcept {
+    Base::String GetSelectionBoxText() const noexcept;
+    Meta::Value GetSelectionBoxItem() const noexcept {
         return GetValueOr(
             SelectionBoxItemProperty,
-            Core::Value::NullObject(
-                Core::TypeOf<Base::Object>()));
+            Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>()));
     }
 
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> DropDownOpenedEvent{"DropDownOpened"};
@@ -1098,25 +960,25 @@ public:
     inline static constexpr Members::Property<Base::String> TextProperty{"Text"};
     inline static constexpr Members::Property<Base::String> PlaceholderProperty{"Placeholder"};
     inline static constexpr Members::ReadOnlyProperty<Base::String> SelectionBoxTextProperty{"SelectionBoxText"};
-    inline static constexpr Members::ReadOnlyProperty<Core::Value> SelectionBoxItemProperty{"SelectionBoxItem"};
+    inline static constexpr Members::ReadOnlyProperty<Meta::Value> SelectionBoxItemProperty{"SelectionBoxItem"};
 
 protected:
-    Base::Result<Base::Ref<ItemContainer>>
+    Base::Result<Base::Ref<FrameworkElement>>
         CreateContainer(
             const Base::Ref<Base::Object>& item)
             noexcept override;
     Base::Result<void> PrepareContainer(
-        ItemContainer& container,
+        FrameworkElement& container,
         const Base::Ref<Base::Object>& item,
         std::uint32_t index) noexcept override;
     void ClearContainer(
-        ItemContainer& container) noexcept override;
+        FrameworkElement& container) noexcept override;
     void OnContainersChanged() noexcept override;
-    Base::Result<void> OnApplyTemplate() noexcept override;
+    void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend class Aero::Detail::ComboBehavior;
+    friend class Aero::Internal::ComboBehavior;
     void* interactions_ = nullptr;
     TextBlock* selectionBox_ = nullptr;
     ContentPresenter* selectionPresenter_ =
@@ -1178,10 +1040,10 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Controls::SelectionMode> {
+struct TypeTraits<Controls::SelectionMode> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("SelectionMode");
     }
@@ -1196,7 +1058,7 @@ struct MetaTypeTraits<Controls::SelectionMode> {
     }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 namespace Aero::Controls {
 
@@ -1216,13 +1078,13 @@ public:
     GridViewColumnHeader() noexcept
         : ContentControl(StaticTypeId()) {}
 
-    GridViewColumnHeaderRole Role() const noexcept {
+    GridViewColumnHeaderRole GetRole() const noexcept {
         return GetValueOr(
             RoleProperty, GridViewColumnHeaderRole::Normal);
     }
-    Base::Result<void> SetRole(
+    void SetRole(
         GridViewColumnHeaderRole value) noexcept {
-        return SetValue(RoleProperty, value);
+        SetValue(RoleProperty, value);
     }
 
     inline static constexpr Members::Property<GridViewColumnHeaderRole> RoleProperty{"Role"};
@@ -1234,37 +1096,36 @@ class AERO_API GridViewColumn final
 public:
     GridViewColumn() noexcept
         : DependencyObject(StaticTypeId()) {}
-    Base::StringView Header() const noexcept;
-    Base::Result<void> SetHeader(
+    Base::StringView GetHeader() const noexcept;
+    void SetHeader(
         Base::StringView value) noexcept;
-    double Width() const noexcept;
-    Base::Result<void> SetWidth(
+    double GetWidth() const noexcept;
+    void SetWidth(
         double value) noexcept;
     Base::Ref<DataTemplate>
-        CellTemplate() const noexcept;
-    Base::Result<void> SetCellTemplate(
+        GetCellTemplate() const noexcept;
+    void SetCellTemplate(
         Base::Ref<DataTemplate> value) noexcept;
     Base::Ref<DataTemplate>
-        HeaderTemplate() const noexcept;
-    Base::Result<void> SetHeaderTemplate(
+        GetHeaderTemplate() const noexcept;
+    void SetHeaderTemplate(
         Base::Ref<DataTemplate> value) noexcept;
-    Base::StringView DisplayMemberPath()
+    Base::StringView GetDisplayMemberPath()
         const noexcept;
-    Base::Result<void> SetDisplayMemberPath(
+    void SetDisplayMemberPath(
         Base::StringView value) noexcept;
     Base::Ref<Aero::Data::Binding>
-        DisplayMemberBinding() const noexcept;
-    Base::Result<void> SetDisplayMemberBinding(
+        GetDisplayMemberBinding() const noexcept;
+    void SetDisplayMemberBinding(
         Base::Ref<Aero::Data::Binding> value) noexcept;
-    Base::Ref<Style> HeaderContainerStyle() const noexcept {
+    Base::Ref<Style> GetHeaderContainerStyle() const noexcept {
         return GetValueOr(
             HeaderContainerStyleProperty,
             Base::Ref<Style>{});
     }
-    Base::Result<void> SetHeaderContainerStyle(
+    void SetHeaderContainerStyle(
         Base::Ref<Style> value) noexcept {
-        return SetValue(
-            HeaderContainerStyleProperty, std::move(value));
+        SetValue(HeaderContainerStyleProperty, std::move(value));
     }
 
     inline static constexpr Members::Property<Base::String> HeaderProperty{"Header"};
@@ -1285,24 +1146,24 @@ public:
         return StaticTypeId();
     }
     Base::Span<const Base::Ref<GridViewColumn>>
-        Columns() const noexcept {
+        GetColumns() const noexcept {
         return {
             columns_.Data(),
             columns_.Size()};
     }
-    Base::Result<void> AddColumn(
+    Base::Result<void> TryAddColumn(
         Base::Ref<GridViewColumn> column)
         noexcept;
     void ClearColumns() noexcept {
         columns_.Clear();
     }
-    Base::Ref<Style> ColumnHeaderContainerStyle() const noexcept {
+    Base::Ref<Style> GetColumnHeaderContainerStyle() const noexcept {
         return columnHeaderContainerStyle_;
     }
-    Base::Result<void> SetColumnHeaderContainerStyle(
+    void SetColumnHeaderContainerStyle(
         Base::Ref<Style> value) noexcept {
         columnHeaderContainerStyle_ = std::move(value);
-        return {};
+        return;
     }
 
 private:
@@ -1323,11 +1184,11 @@ public:
     GridViewHeaderRowPresenter() noexcept
         : FrameworkElement(StaticTypeId()) {}
 
-    bool AllowsColumnReorder() const noexcept {
+    bool GetAllowsColumnReorder() const noexcept {
         return GetValueOr(AllowsColumnReorderProperty, false);
     }
-    Base::Result<void> SetAllowsColumnReorder(bool value) noexcept {
-        return SetValue(AllowsColumnReorderProperty, value);
+    void SetAllowsColumnReorder(bool value) noexcept {
+        SetValue(AllowsColumnReorderProperty, value);
     }
 
     inline static constexpr Members::Property<bool> AllowsColumnReorderProperty{"AllowsColumnReorder"};
@@ -1372,17 +1233,17 @@ public:
         : ListBox(StaticTypeId()) {}
     ~ListView() override = default;
 
-    Base::Ref<GridView> View() const noexcept;
-    Base::Result<void> SetView(
+    Base::Ref<GridView> GetView() const noexcept;
+    void SetView(
         Base::Ref<GridView> value) noexcept;
 
     inline static constexpr Members::Property<Base::Ref<GridView>> ViewProperty{"View"};
 
 protected:
-    Base::Result<void>
+    void
         OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
-    Base::Result<Base::Ref<ItemContainer>>
+    Base::Result<Base::Ref<FrameworkElement>>
         CreateContainer(
             const Base::Ref<Base::Object>& item)
             noexcept override;
@@ -1395,10 +1256,10 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Controls::GridViewColumnHeaderRole> {
+struct TypeTraits<Controls::GridViewColumnHeaderRole> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("GridViewColumnHeaderRole");
     }
@@ -1413,64 +1274,46 @@ struct MetaTypeTraits<Controls::GridViewColumnHeaderRole> {
     }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 namespace Aero::Controls {
 
 class VisualStateManager;
 
 class AERO_API TreeViewItem
-    : public ItemContainer,
-      public IItemsSource {
-    AERO_DECLARE_TYPE(TreeViewItem, ItemContainer)
+    : public HeaderedItemsControl,
+      private Collections::IItemsSource {
+    AERO_DECLARE_TYPE(TreeViewItem, HeaderedItemsControl)
 public:
     TreeViewItem() noexcept;
     ~TreeViewItem() override;
 
-    Base::StringView Header() const noexcept;
-    Base::Result<void> SetHeader(
+    Base::StringView GetHeader() const noexcept;
+    void SetHeader(
         Base::StringView value) noexcept;
-    Base::StringView Icon() const noexcept;
-    Base::Result<void> SetIcon(
+    Base::StringView GetIcon() const noexcept;
+    void SetIcon(
         Base::StringView value) noexcept;
     Base::Ref<DataTemplate>
-        HeaderTemplate() const noexcept;
-    Base::Result<void> SetHeaderTemplate(
+        GetHeaderTemplate() const noexcept;
+    void SetHeaderTemplate(
         Base::Ref<DataTemplate> value) noexcept;
-    bool IsExpanded() const noexcept;
-    Base::Result<void> SetIsExpanded(
+    bool GetIsExpanded() const noexcept;
+    void SetIsExpanded(
         bool value) noexcept;
-    bool IsSelected() const noexcept;
-    Base::Result<void> SetIsSelected(
+    bool GetIsSelected() const noexcept;
+    void SetIsSelected(
         bool value) noexcept;
-    bool HasItems() const noexcept {
+    bool GetHasItems() const noexcept {
         return GetValueOr(HasItemsProperty, false);
     }
 
-    ItemsCollection& GetItems() noexcept {
+    ItemCollection& GetItems() noexcept {
         return items_;
     }
-    const ItemsCollection& GetItems() const noexcept {
+    const ItemCollection& GetItems() const noexcept {
         return items_;
     }
-    std::uint32_t Count() const noexcept override {
-        return items_.Count();
-    }
-    Base::Ref<Base::Object> ItemAt(
-        std::uint32_t index) const noexcept override {
-        return items_.ItemAt(index);
-    }
-    Base::Result<void> TryAddItemsChanged(
-        const ItemsChangedHandler& handler)
-        noexcept override {
-        return items_.TryAddItemsChanged(handler);
-    }
-    bool RemoveItemsChanged(
-        const ItemsChangedHandler& handler)
-        noexcept override {
-        return items_.RemoveItemsChanged(handler);
-    }
-
     inline static constexpr Members::Property<Base::String> HeaderProperty{"Header"};
     inline static constexpr Members::Property<Base::String> IconProperty{"Icon"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
@@ -1487,12 +1330,33 @@ public:
 
 protected:
     explicit TreeViewItem(TypeId runtimeType) noexcept;
-    Base::Result<void>
+    void
         OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
 
 private:
-    ItemsCollection items_;
+    friend class Aero::Internal::TreeBehavior;
+    // The collection protocol is an implementation detail used by the
+    // generated child ItemsControl; it is intentionally not part of the
+    // TreeViewItem SDK surface.
+    std::uint32_t GetCount() const noexcept override {
+        return items_.GetCount();
+    }
+    Base::Ref<Base::Object> GetItem(
+        std::uint32_t index) const noexcept override {
+        return items_.GetItem(index);
+    }
+    Base::Result<void> TryAddItemsChanged(
+        const ItemsChangedHandler& handler)
+        noexcept override {
+        return items_.TryAddItemsChanged(handler);
+    }
+    bool RemoveItemsChanged(
+        const ItemsChangedHandler& handler)
+        noexcept override {
+        return items_.RemoveItemsChanged(handler);
+    }
+    ItemCollection items_;
     TextBlock* headerText_ = nullptr;
     TextBlock* iconText_ = nullptr;
     TextBlock* expanderGlyph_ = nullptr;
@@ -1534,20 +1398,20 @@ public:
     ~TreeView() override;
 
     Base::Ref<Base::Object>
-        SelectedItem() const noexcept;
-    Base::Result<bool> SelectItem(
+        GetSelectedItem() const noexcept;
+    bool SelectItem(
         TreeViewItem* item) noexcept;
     inline static constexpr Members::ReadOnlyProperty<Base::Ref<Base::Object>> SelectedItemProperty{"SelectedItem"};
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> SelectedItemChangedEvent{"SelectedItemChanged"};
 
 protected:
-    Base::Result<Base::Ref<ItemContainer>>
+    Base::Result<Base::Ref<FrameworkElement>>
         CreateContainer(
             const Base::Ref<Base::Object>& item)
             noexcept override;
 
 private:
-    friend class Aero::Detail::TreeBehavior;
+    friend class Aero::Internal::TreeBehavior;
     void* interactions_ =
         nullptr;
     VisualStateManager* states_ = nullptr;
@@ -1583,40 +1447,40 @@ public:
     ~VirtualizingStackPanel() override;
 
     Orientation GetOrientation() const noexcept;
-    Base::Result<void> SetOrientation(
+    void SetOrientation(
         Orientation value) noexcept;
-    std::uint32_t OverscanCount() const noexcept;
-    Base::Result<void> SetOverscanCount(
+    std::uint32_t GetOverscanCount() const noexcept;
+    void SetOverscanCount(
         std::uint32_t value) noexcept;
-    double EstimatedItemExtent() const noexcept;
-    Base::Result<void> SetEstimatedItemExtent(
+    double GetEstimatedItemExtent() const noexcept;
+    void SetEstimatedItemExtent(
         double value) noexcept;
 
-    std::uint32_t VisibleFirstIndex() const noexcept {
+    std::uint32_t GetVisibleFirstIndex() const noexcept {
         return visibleFirstIndex_;
     }
-    std::uint32_t VisibleCount() const noexcept {
+    std::uint32_t GetVisibleCount() const noexcept {
         return visibleCount_;
     }
-    std::uint32_t RealizedFirstIndex() const noexcept {
+    std::uint32_t GetRealizedFirstIndex() const noexcept {
         return desiredFirstIndex_;
     }
-    std::uint32_t RealizedCount() const noexcept {
+    std::uint32_t GetRealizedCount() const noexcept {
         return desiredCount_;
     }
-    double ItemExtent(
+    double GetItemExtent(
         std::uint32_t index) const noexcept;
-    double ItemOffset(
+    double GetItemOffset(
         std::uint32_t index) const noexcept;
 
-    ScrollData Data() const noexcept override {
+    ScrollData GetData() const noexcept override {
         return data_;
     }
-    Base::Result<bool> SetViewport(
+    void SetViewport(
         Size viewport) noexcept override;
-    Base::Result<bool> SetHorizontalOffset(
+    void SetHorizontalOffset(
         double value) noexcept override;
-    Base::Result<bool> SetVerticalOffset(
+    void SetVerticalOffset(
         double value) noexcept override;
     Base::Result<bool> LineHorizontal(
         double direction) noexcept override;
@@ -1632,16 +1496,16 @@ public:
     inline static constexpr Members::Property<double> EstimatedItemExtentProperty{"EstimatedItemExtent"};
 
 protected:
-    Base::Result<void> OnPropertyInvalidated(
+    void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
-    Base::Result<Size> MeasureOverride(
+    Size MeasureOverride(
         Size availableSize) noexcept override;
-    Base::Result<Size> ArrangeOverride(
+    Size ArrangeOverride(
         Size finalSize) noexcept override;
 
 private:
     friend class ItemContainerGenerator;
-    friend class Detail::ItemContainerGeneratorImpl;
+    friend class ::Aero::Internal::ItemContainerGeneratorImpl;
 
     ItemContainerGenerator* generator_ = nullptr;
     Base::Vector<double> itemExtents_;
@@ -1661,7 +1525,7 @@ private:
         std::uint32_t itemCount) noexcept;
     void DetachGenerator(
         ItemContainerGenerator& generator) noexcept;
-    Base::Result<void> OnItemsChanged(
+    Base::Result<void> TryHandleItemsChanged(
         const ItemsChangedEvent& event,
         std::uint32_t itemCount) noexcept;
     Base::Result<void> ResizeExtentCache(
@@ -1691,18 +1555,18 @@ private:
     void SetMeasuredExtent(
         std::uint32_t index,
         double value) noexcept;
-    Base::Result<bool> SetMainScrollOffset(
+    void SetMainScrollOffset(
         double value) noexcept;
-    Base::Result<bool> SetCrossScrollOffset(
+    void SetCrossScrollOffset(
         double value) noexcept;
 };
 
 } // namespace Aero::Controls
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Controls::ScrollUnit> {
+struct TypeTraits<Controls::ScrollUnit> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("ScrollUnit");
     }
@@ -1718,7 +1582,7 @@ struct MetaTypeTraits<Controls::ScrollUnit> {
 };
 
 template<>
-struct MetaTypeTraits<Controls::VirtualizationMode> {
+struct TypeTraits<Controls::VirtualizationMode> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("VirtualizationMode");
     }
@@ -1733,4 +1597,4 @@ struct MetaTypeTraits<Controls::VirtualizationMode> {
     }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

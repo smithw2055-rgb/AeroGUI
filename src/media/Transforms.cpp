@@ -1,4 +1,5 @@
 #include <Aero/Media/Transforms.hpp>
+#include "TransformInternals.hpp"
 
 #include <Aero/FrameworkElement.hpp>
 
@@ -25,6 +26,39 @@ Base::Transform2D AroundCenter(
 }
 
 } // namespace
+
+} // namespace Aero::Media
+
+namespace Aero::Internal {
+
+Aero::FrameworkElement* TransformPrivate::Owner(
+    const Aero::Media::Transform& transform) noexcept {
+    return transform.GetOwner();
+}
+
+bool TransformPrivate::HasOwnerRole(
+    const Aero::Media::Transform& transform,
+    std::uint8_t role) noexcept {
+    return transform.HasOwnerRole(role);
+}
+
+void TransformPrivate::AttachOwner(
+    Aero::Media::Transform& transform,
+    Aero::FrameworkElement* owner,
+    std::uint8_t role) noexcept {
+    transform.AttachOwner(owner, role);
+}
+
+void TransformPrivate::DetachOwner(
+    Aero::Media::Transform& transform,
+    Aero::FrameworkElement* owner,
+    std::uint8_t role) noexcept {
+    transform.DetachOwner(owner, role);
+}
+
+} // namespace Aero::Internal
+
+namespace Aero::Media {
 
 Base::Transform2D ComposeTransforms(
     const Base::Transform2D& first,
@@ -124,108 +158,108 @@ bool TryInvertTransform(
 
 void Transform::AttachOwner(
     FrameworkElement* owner,
-    TransformOwnerRole role) noexcept {
+    std::uint8_t role) noexcept {
     if (owner == nullptr) return;
     if (owner_ != owner) {
         owner_ = owner;
         ownerRoles_ = 0U;
     }
-    ownerRoles_ |= static_cast<std::uint8_t>(role);
+    ownerRoles_ |= role;
 }
 
 void Transform::DetachOwner(
     FrameworkElement* owner,
-    TransformOwnerRole role) noexcept {
+    std::uint8_t role) noexcept {
     if (owner_ != owner || owner == nullptr) return;
-    ownerRoles_ &= static_cast<std::uint8_t>(
-        ~static_cast<std::uint8_t>(role));
+    ownerRoles_ &= static_cast<std::uint8_t>(~role);
     if (ownerRoles_ == 0U) {
         owner_ = nullptr;
     }
 }
 
-Base::Result<void> Transform::OnPropertyInvalidated(
-    Core::PropertyInvalidationFlags flags) noexcept {
-    Base::Result<void> base =
-        DependencyObject::OnPropertyInvalidated(flags);
-    if (!base) return base.GetStatus();
-    FrameworkElement* owner = Owner();
-    if (owner == nullptr) return {};
-    return HasOwnerRole(TransformOwnerRole::Layout)
-        ? owner->InvalidateMeasure()
-        : owner->InvalidateVisual();
+void Transform::OnPropertyInvalidated(
+    Meta::PropertyInvalidationFlags flags) noexcept {
+    DependencyObject::OnPropertyInvalidated(flags);
+    FrameworkElement* owner = GetOwner();
+    if (owner == nullptr) return;
+    if (HasOwnerRole(Internal::OwnerRoleValue(
+            Internal::TransformOwnerRole::Layout))) {
+        (void)owner->InvalidateMeasure();
+    } else {
+        (void)owner->InvalidateVisual();
+    }
 }
 
-double TranslateTransform::X() const noexcept {
+double TranslateTransform::GetX() const noexcept {
     return GetValueOr(XProperty, 0.0);
 }
-double TranslateTransform::Y() const noexcept {
+double TranslateTransform::GetY() const noexcept {
     return GetValueOr(YProperty, 0.0);
 }
-Base::Result<void> TranslateTransform::SetX(double value) noexcept {
-    return SetValue(XProperty, value);
+void TranslateTransform::SetX(double value) noexcept {
+    SetValue(XProperty, value);
 }
-Base::Result<void> TranslateTransform::SetY(double value) noexcept {
-    return SetValue(YProperty, value);
+void TranslateTransform::SetY(double value) noexcept {
+    SetValue(YProperty, value);
 }
-Base::Transform2D TranslateTransform::Matrix() const noexcept {
+Base::Transform2D TranslateTransform::GetMatrix() const noexcept {
     Base::Transform2D value;
-    value.dx = X();
-    value.dy = Y();
+    value.dx = GetX();
+    value.dy = GetY();
     return value;
 }
 
-double ScaleTransform::ScaleX() const noexcept {
+double ScaleTransform::GetScaleX() const noexcept {
     return GetValueOr(ScaleXProperty, 1.0);
 }
-double ScaleTransform::ScaleY() const noexcept {
+double ScaleTransform::GetScaleY() const noexcept {
     return GetValueOr(ScaleYProperty, 1.0);
 }
-double ScaleTransform::CenterX() const noexcept {
+double ScaleTransform::GetCenterX() const noexcept {
     return GetValueOr(CenterXProperty, 0.0);
 }
-double ScaleTransform::CenterY() const noexcept {
+double ScaleTransform::GetCenterY() const noexcept {
     return GetValueOr(CenterYProperty, 0.0);
 }
-Base::Result<void> ScaleTransform::SetScaleX(double value) noexcept {
-    return SetValue(ScaleXProperty, value);
+void ScaleTransform::SetScaleX(double value) noexcept {
+    SetValue(ScaleXProperty, value);
 }
-Base::Result<void> ScaleTransform::SetScaleY(double value) noexcept {
-    return SetValue(ScaleYProperty, value);
+void ScaleTransform::SetScaleY(double value) noexcept {
+    SetValue(ScaleYProperty, value);
 }
-Base::Result<void> ScaleTransform::SetCenterX(double value) noexcept {
-    return SetValue(CenterXProperty, value);
+void ScaleTransform::SetCenterX(double value) noexcept {
+    SetValue(CenterXProperty, value);
 }
-Base::Result<void> ScaleTransform::SetCenterY(double value) noexcept {
-    return SetValue(CenterYProperty, value);
+void ScaleTransform::SetCenterY(double value) noexcept {
+    SetValue(CenterYProperty, value);
 }
-Base::Transform2D ScaleTransform::Matrix() const noexcept {
+Base::Transform2D ScaleTransform::GetMatrix() const noexcept {
     Base::Transform2D value;
-    value.m11 = ScaleX();
-    value.m22 = ScaleY();
-    return AroundCenter(value, CenterX(), CenterY());
+    value.m11 = GetScaleX();
+    value.m22 = GetScaleY();
+    return AroundCenter(value, GetCenterX(), GetCenterY());
 }
 
-double RotateTransform::Angle() const noexcept {
+double RotateTransform::GetAngle() const noexcept {
     return GetValueOr(AngleProperty, 0.0);
 }
-double RotateTransform::CenterX() const noexcept {
+double RotateTransform::GetCenterX() const noexcept {
     return GetValueOr(CenterXProperty, 0.0);
 }
-double RotateTransform::CenterY() const noexcept {
+double RotateTransform::GetCenterY() const noexcept {
     return GetValueOr(CenterYProperty, 0.0);
 }
-Base::Result<void> RotateTransform::SetAngle(double value) noexcept {
-    return SetValue(AngleProperty, value);
+void RotateTransform::SetAngle(double value) noexcept {
+    SetValue(AngleProperty, value);
 }
-Base::Result<void> RotateTransform::SetCenterX(double value) noexcept {
-    return SetValue(CenterXProperty, value);
+void RotateTransform::SetCenterX(double value) noexcept {
+    SetValue(CenterXProperty, value);
 }
-Base::Result<void> RotateTransform::SetCenterY(double value) noexcept {
-    return SetValue(CenterYProperty, value);
+void RotateTransform::SetCenterY(double value) noexcept {
+    SetValue(CenterYProperty, value);
 }
-Base::Transform2D RotateTransform::Matrix() const noexcept {
-    const double radians = Angle() * Pi / 180.0;
+Base::Transform2D RotateTransform::GetMatrix() const noexcept {
+    const double radians = GetAngle() * Pi / 180.0;
     const double cosine = std::cos(radians);
     const double sine = std::sin(radians);
     Base::Transform2D value;
@@ -233,46 +267,46 @@ Base::Transform2D RotateTransform::Matrix() const noexcept {
     value.m12 = sine;
     value.m21 = -sine;
     value.m22 = cosine;
-    return AroundCenter(value, CenterX(), CenterY());
+    return AroundCenter(value, GetCenterX(), GetCenterY());
 }
 
-double SkewTransform::AngleX() const noexcept {
+double SkewTransform::GetAngleX() const noexcept {
     return GetValueOr(AngleXProperty, 0.0);
 }
-double SkewTransform::AngleY() const noexcept {
+double SkewTransform::GetAngleY() const noexcept {
     return GetValueOr(AngleYProperty, 0.0);
 }
-double SkewTransform::CenterX() const noexcept {
+double SkewTransform::GetCenterX() const noexcept {
     return GetValueOr(CenterXProperty, 0.0);
 }
-double SkewTransform::CenterY() const noexcept {
+double SkewTransform::GetCenterY() const noexcept {
     return GetValueOr(CenterYProperty, 0.0);
 }
-Base::Result<void> SkewTransform::SetAngleX(double value) noexcept {
-    return SetValue(AngleXProperty, value);
+void SkewTransform::SetAngleX(double value) noexcept {
+    SetValue(AngleXProperty, value);
 }
-Base::Result<void> SkewTransform::SetAngleY(double value) noexcept {
-    return SetValue(AngleYProperty, value);
+void SkewTransform::SetAngleY(double value) noexcept {
+    SetValue(AngleYProperty, value);
 }
-Base::Result<void> SkewTransform::SetCenterX(double value) noexcept {
-    return SetValue(CenterXProperty, value);
+void SkewTransform::SetCenterX(double value) noexcept {
+    SetValue(CenterXProperty, value);
 }
-Base::Result<void> SkewTransform::SetCenterY(double value) noexcept {
-    return SetValue(CenterYProperty, value);
+void SkewTransform::SetCenterY(double value) noexcept {
+    SetValue(CenterYProperty, value);
 }
-Base::Transform2D SkewTransform::Matrix() const noexcept {
+Base::Transform2D SkewTransform::GetMatrix() const noexcept {
     Base::Transform2D value;
-    value.m21 = std::tan(AngleX() * Pi / 180.0);
-    value.m12 = std::tan(AngleY() * Pi / 180.0);
-    return AroundCenter(value, CenterX(), CenterY());
+    value.m21 = std::tan(GetAngleX() * Pi / 180.0);
+    value.m12 = std::tan(GetAngleY() * Pi / 180.0);
+    return AroundCenter(value, GetCenterX(), GetCenterY());
 }
 
-Base::Transform2D MatrixTransform::Value() const noexcept {
+Base::Transform2D MatrixTransform::GetMatrixValue() const noexcept {
     return GetValueOr(MatrixProperty, Base::Transform2D{});
 }
-Base::Result<void> MatrixTransform::SetValue(
+void MatrixTransform::SetMatrixValue(
     Base::Transform2D value) noexcept {
-    return DependencyObject::SetValue(MatrixProperty, value);
+    DependencyObject::SetValue(MatrixProperty, value);
 }
 
 Base::Result<void> TransformGroup::TryAddChild(
@@ -282,46 +316,48 @@ Base::Result<void> TransformGroup::TryAddChild(
             Base::ErrorCode::InvalidArgument,
             "TransformGroup child cannot be null");
     }
-    if (HasOwnerRole(TransformOwnerRole::Render)) {
+    if (HasOwnerRole(Internal::OwnerRoleValue(Internal::TransformOwnerRole::Render))) {
         value->AttachOwner(
-            Owner(),
-            TransformOwnerRole::Render);
+            GetOwner(),
+            Internal::OwnerRoleValue(Internal::TransformOwnerRole::Render));
     }
-    if (HasOwnerRole(TransformOwnerRole::Layout)) {
+    if (HasOwnerRole(Internal::OwnerRoleValue(Internal::TransformOwnerRole::Layout))) {
         value->AttachOwner(
-            Owner(),
-            TransformOwnerRole::Layout);
+            GetOwner(),
+            Internal::OwnerRoleValue(Internal::TransformOwnerRole::Layout));
     }
     Base::Result<void> added =
         children_.TryPushBack(std::move(value));
     if (!added) return added.GetStatus();
-    FrameworkElement* owner = Owner();
+    FrameworkElement* owner = GetOwner();
     if (owner == nullptr) return {};
-    return HasOwnerRole(TransformOwnerRole::Layout)
+    return HasOwnerRole(Internal::OwnerRoleValue(Internal::TransformOwnerRole::Layout))
         ? owner->InvalidateMeasure()
         : owner->InvalidateVisual();
 }
 
-Base::Result<void> TransformGroup::ClearChildren() noexcept {
+void TransformGroup::ClearChildren() noexcept {
     for (Base::Ref<Transform>& child : children_) {
         if (!child) continue;
-        if (HasOwnerRole(TransformOwnerRole::Render)) {
+        if (HasOwnerRole(Internal::OwnerRoleValue(Internal::TransformOwnerRole::Render))) {
             child->DetachOwner(
-                Owner(),
-                TransformOwnerRole::Render);
+                GetOwner(),
+                Internal::OwnerRoleValue(Internal::TransformOwnerRole::Render));
         }
-        if (HasOwnerRole(TransformOwnerRole::Layout)) {
+        if (HasOwnerRole(Internal::OwnerRoleValue(Internal::TransformOwnerRole::Layout))) {
             child->DetachOwner(
-                Owner(),
-                TransformOwnerRole::Layout);
+                GetOwner(),
+                Internal::OwnerRoleValue(Internal::TransformOwnerRole::Layout));
         }
     }
     children_.Clear();
-    FrameworkElement* owner = Owner();
-    if (owner == nullptr) return {};
-    return HasOwnerRole(TransformOwnerRole::Layout)
-        ? owner->InvalidateMeasure()
-        : owner->InvalidateVisual();
+    FrameworkElement* owner = GetOwner();
+    if (owner == nullptr) return;
+    if (HasOwnerRole(Internal::OwnerRoleValue(Internal::TransformOwnerRole::Layout))) {
+        (void)owner->InvalidateMeasure();
+    } else {
+        (void)owner->InvalidateVisual();
+    }
 }
 
 void TransformGroup::SetOwner(FrameworkElement* owner) noexcept {
@@ -333,7 +369,7 @@ void TransformGroup::SetOwner(FrameworkElement* owner) noexcept {
 
 void TransformGroup::AttachOwner(
     FrameworkElement* owner,
-    TransformOwnerRole role) noexcept {
+    std::uint8_t role) noexcept {
     Transform::AttachOwner(owner, role);
     for (Base::Ref<Transform>& child : children_) {
         if (child) {
@@ -344,7 +380,7 @@ void TransformGroup::AttachOwner(
 
 void TransformGroup::DetachOwner(
     FrameworkElement* owner,
-    TransformOwnerRole role) noexcept {
+    std::uint8_t role) noexcept {
     for (Base::Ref<Transform>& child : children_) {
         if (child) {
             child->DetachOwner(owner, role);
@@ -353,11 +389,11 @@ void TransformGroup::DetachOwner(
     Transform::DetachOwner(owner, role);
 }
 
-Base::Transform2D TransformGroup::Matrix() const noexcept {
+Base::Transform2D TransformGroup::GetMatrix() const noexcept {
     Base::Transform2D result;
     for (const Base::Ref<Transform>& child : children_) {
         if (child) {
-            result = ComposeTransforms(result, child->Matrix());
+            result = ComposeTransforms(result, child->GetMatrix());
         }
     }
     return result;

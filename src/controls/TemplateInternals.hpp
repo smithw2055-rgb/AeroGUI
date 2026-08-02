@@ -3,12 +3,15 @@
 #include "TemplateInstance.hpp"
 #include "gui/ElementInternal.hpp"
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 class TemplateEngine;
 class AnimationEngine;
 }
 
-namespace Aero::Controls::Detail {
+namespace Aero::Internal {
+
+using namespace ::Aero::Controls;
+using namespace ::Aero::Controls::Detail;
 
 // Single private entry point for template authoring, compiled template state
 // and visual-state execution. It has no storage or lifetime of its own.
@@ -43,7 +46,7 @@ public:
 
         static FrameworkTemplateState* State(FrameworkTemplate& value) noexcept;
         static const FrameworkTemplateState* State(const FrameworkTemplate& value) noexcept;
-        static Base::Result<void> TrySetTargetType(FrameworkTemplate& value, Core::TypeId type) noexcept;
+        static Base::Result<void> TrySetTargetType(FrameworkTemplate& value, Meta::TypeId type) noexcept;
         static Base::Result<void> ConfigureFactory(FrameworkTemplate& value, TemplateFactoryCallback factory, void* context = nullptr, Base::Ref<Base::Object> owner = {}) noexcept;
         static Base::Result<void> TryAddTemplateBinding(FrameworkTemplate& value, Base::StringView targetName, DependencyPropertyHandle sourceProperty, DependencyPropertyHandle targetProperty) noexcept;
         static Base::Result<void> TryAddTemplatedParentBinding(FrameworkTemplate& value, Base::StringView targetName, Base::StringView path, Base::StringView stringFormat, DependencyPropertyHandle targetProperty, Data::BindingMode mode, UpdateSourceTrigger updateSourceTrigger) noexcept;
@@ -73,11 +76,11 @@ public:
         static Base::Span<const TemplateMetadataBindingPlan> MetadataBindings(const FrameworkTemplate& value) noexcept;
         static Base::Span<const TemplatePropertyTrigger> Triggers(const FrameworkTemplate& value) noexcept;
         static Base::Span<const VisualStateGroup> VisualStateGroups(const FrameworkTemplate& value) noexcept;
-        static Base::Result<void> Seal(FrameworkTemplate& value, const Core::DependencyPropertyRegistry& properties) noexcept;
+        static Base::Result<void> Seal(FrameworkTemplate& value, const Meta::DependencyPropertyRegistry& properties) noexcept;
 
-        static Base::Result<VisualStateManager*> Create(Core::EffectiveValueEngine& values,
-            Aero::Detail::TemplateEngine& templates, Aero::Detail::AnimationEngine& animations,
-            Core::DependencyPropertyRegistry& properties) noexcept;
+        static Base::Result<VisualStateManager*> Create(Meta::EffectiveValueEngine& values,
+            Aero::Internal::TemplateEngine& templates, Aero::Internal::AnimationEngine& animations,
+            Meta::DependencyPropertyRegistry& properties) noexcept;
         static Base::Result<bool> GoToState(VisualStateManager& manager, Control& control,
             Base::StringView groupName, Base::StringView stateName,
             bool useTransitions = true) noexcept;
@@ -89,4 +92,8 @@ public:
             const Control& control, Base::StringView groupName) noexcept;
 };
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Internal
+
+namespace Aero::Controls::Detail {
+using ::Aero::Internal::TemplatePrivate;
+}

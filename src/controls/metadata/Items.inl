@@ -3,12 +3,7 @@
 Base::Result<void> PopulateControlsItems(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    status = Meta::Register<ItemContainer>(context)
-        .Factory()
-        .Result();
-    if (!status) return status.GetStatus();
-
-    status = Meta::Register<ObjectItemsSource>(context)
+    status = Meta::Register<Collections::ObservableCollection>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
@@ -21,19 +16,18 @@ Base::Result<void> PopulateControlsItems(
             [](Base::Object& owner,
                const Base::Ref<Base::Object>& value,
                void*) noexcept {
-                return static_cast<AlternationConverter&>(owner)
-                    .AddValue(value);
+                (void)static_cast<AlternationConverter&>(owner)
+                    .TryAddValue(value);
             },
             [](Base::Object& owner, void*) noexcept {
                 static_cast<AlternationConverter&>(owner)
                     .ClearValues();
-                return Base::Result<void>{};
             })
         .Factory();
     status = alternationConverter.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Register<BoxedItemValue>(context)
+    status = Meta::Register<Detail::BoxedItemValue>(context)
         .Result();
     if (!status) return status.GetStatus();
 
@@ -165,7 +159,7 @@ Base::Result<void> PopulateControlsItems(
             PropertyOptions(240.0)
                 .AffectsMeasure()
                 .Validate(
-                    &Validate::Positive<double>))
+                    &::Aero::Base::Detail::Validate::Positive<double>))
         .Property(
             ComboBox::IsEditableProperty,
             PropertyOptions(false)
@@ -191,8 +185,8 @@ Base::Result<void> PopulateControlsItems(
         .Property(
             ComboBox::SelectionBoxItemProperty,
             PropertyOptions(
-                Core::Value::NullObject(
-                    Core::TypeOf<Base::Object>())))
+                Meta::Value::NullObject(
+                    Meta::TypeOf<Base::Object>())))
         .Override(
             Aero::UIElement::
                 IsTabStopProperty,
@@ -247,13 +241,13 @@ Base::Result<void> PopulateControlsItems(
             PropertyOptions(0.0)
                 .AffectsArrange()
                 .Validate(
-                    &Validate::Finite<double>))
+                    &::Aero::Base::Detail::Validate::Finite<double>))
         .Property(
             Popup::VerticalOffsetProperty,
             PropertyOptions(0.0)
                 .AffectsArrange()
                 .Validate(
-                    &Validate::Finite<double>))
+                    &::Aero::Base::Detail::Validate::Finite<double>))
         .Property(
             Popup::StaysOpenProperty,
             PropertyOptions(true))
@@ -440,7 +434,7 @@ Base::Result<void> PopulateControlsItems(
             GridViewColumn::WidthProperty,
             PropertyOptions(100.0)
                 .Validate(
-                    &Validate::NonNegative<double>))
+                    &::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             GridViewColumn::CellTemplateProperty,
             PropertyOptions(
@@ -469,7 +463,7 @@ Base::Result<void> PopulateControlsItems(
     gridView
         .Property<
             Base::Ref<Style>,
-            &GridView::ColumnHeaderContainerStyle,
+            &GridView::GetColumnHeaderContainerStyle,
             &GridView::SetColumnHeaderContainerStyle>(
                 "ColumnHeaderContainerStyle",
                 PropertyFlags::Structural)
@@ -558,8 +552,8 @@ Base::Result<void> PopulateControlsItems(
     toolBar
         .Property(
             ToolBar::HeaderProperty,
-            PropertyOptions(Core::Value::NullObject(
-                Core::TypeOf<Base::Object>()))
+            PropertyOptions(Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>()))
                 .AffectsMeasure())
         .Property(
             ToolBar::HeaderTemplateProperty,
@@ -662,8 +656,8 @@ Base::Result<void> PopulateControlsItems(
     headered
         .Property(
             HeaderedContentControl::HeaderProperty,
-            PropertyOptions(Core::Value::NullObject(
-                Core::TypeOf<Base::Object>()))
+            PropertyOptions(Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>()))
                 .AffectsMeasure())
         .Property(
             HeaderedContentControl::HeaderTemplateProperty,
@@ -719,8 +713,8 @@ Base::Result<void> PopulateControlsItems(
         .Property(
             TabControl::SelectedContentProperty,
             PropertyOptions(
-                Core::Value::NullObject(
-                    Core::TypeOf<Base::Object>())))
+                Meta::Value::NullObject(
+                    Meta::TypeOf<Base::Object>())))
         .Property(
             TabControl::ItemsSourceProperty,
             PropertyOptions(Base::Ref<Base::Object>{})

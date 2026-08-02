@@ -9,6 +9,10 @@
 #include <utility>
 
 namespace Aero::Shapes {
+
+using namespace ::Aero::Media;
+using namespace ::Aero::Render;
+
 namespace {
 
 struct ImageBrushGeometry final {
@@ -22,12 +26,12 @@ ImageBrushGeometry FitImageBrush(
     Rect sourceUv) noexcept {
     const double sourceWidth =
         static_cast<double>(
-            Aero::Detail::BrushPrivate::
+            Aero::Internal::BrushPrivate::
                 PixelWidth(brush)) *
         sourceUv.width;
     const double sourceHeight =
         static_cast<double>(
-            Aero::Detail::BrushPrivate::
+            Aero::Internal::BrushPrivate::
                 PixelHeight(brush)) *
         sourceUv.height;
     if (sourceWidth <= 0.0 ||
@@ -89,19 +93,19 @@ Base::Result<void> PaintImageBrush(
     DrawingContext& context,
     const ImageBrush& brush,
     Rect bounds) noexcept {
-    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
     const RenderImageId image =
-        Aero::Detail::BrushPrivate::
+        Aero::Internal::BrushPrivate::
             RuntimeImage(brush);
     if (image == InvalidRenderImageId ||
-        Aero::Detail::BrushPrivate::
+        Aero::Internal::BrushPrivate::
             PixelWidth(brush) == 0U ||
-        Aero::Detail::BrushPrivate::
+        Aero::Internal::BrushPrivate::
             PixelHeight(brush) == 0U) {
         return {};
     }
     const Rect authoredViewbox =
-        brush.Viewbox();
+        brush.GetViewbox();
     Rect sourceUv{
         std::clamp(authoredViewbox.x, 0.0, 1.0),
         std::clamp(authoredViewbox.y, 0.0, 1.0),
@@ -117,7 +121,7 @@ Base::Result<void> PaintImageBrush(
     }
 
     const Rect authoredViewport =
-        brush.Viewport();
+        brush.GetViewport();
     Rect cell{
         bounds.x +
             authoredViewport.x * bounds.width,
@@ -131,7 +135,7 @@ Base::Result<void> PaintImageBrush(
     }
     const Color tint{
         1.0F, 1.0F, 1.0F,
-        static_cast<float>(brush.Opacity())};
+        static_cast<float>(brush.GetOpacity())};
     if (brush.GetTileMode() == TileMode::None) {
         const ImageBrushGeometry geometry =
             FitImageBrush(
@@ -194,42 +198,12 @@ Base::Result<void> PaintImageBrush(
 
 } // namespace
 
-Color SampleShapeBrush(
-    const Base::Ref<Brush>& brush) noexcept {
-    if (!brush) return {};
-    if (brush->RuntimeType() ==
-        SolidColorBrush::StaticTypeId()) {
-        Color color =
-            static_cast<SolidColorBrush*>(
-                brush.Get())->GetColor();
-        color.alpha *=
-            static_cast<float>(brush->Opacity());
-        return color;
-    }
-    if (brush->RuntimeType() ==
-            LinearGradientBrush::StaticTypeId() ||
-        brush->RuntimeType() ==
-            RadialGradientBrush::StaticTypeId()) {
-        return static_cast<GradientBrush*>(
-            brush.Get())->Sample(0.5);
-    }
-    return {};
-}
-
-Color Shape::GetFill() const noexcept {
-    return SampleShapeBrush(GetFillBrush());
-}
-
-Base::Ref<Brush> Shape::GetFillBrush() const noexcept {
+Base::Ref<Brush> Shape::GetFill() const noexcept {
     return GetValueOr(
         FillProperty, Base::Ref<Brush>{});
 }
 
-Color Shape::GetStroke() const noexcept {
-    return SampleShapeBrush(GetStrokeBrush());
-}
-
-Base::Ref<Brush> Shape::GetStrokeBrush() const noexcept {
+Base::Ref<Brush> Shape::GetStroke() const noexcept {
     return GetValueOr(
         StrokeProperty, Base::Ref<Brush>{});
 }
@@ -238,44 +212,18 @@ double Shape::GetStrokeThickness() const noexcept {
     return GetValueOr(StrokeThicknessProperty, 1.0);
 }
 
-Base::Result<void> Shape::SetFill(Color value) noexcept {
-    Base::Result<Base::Ref<SolidColorBrush>> brush =
-        Base::MakeRef<SolidColorBrush>();
-    if (!brush) return brush.GetStatus();
-    Base::Result<void> assigned =
-        brush.Value()->SetColor(value);
-    if (!assigned) return assigned.GetStatus();
-    return SetFillBrush(
-        Base::Ref<Brush>(
-            std::move(brush).Value()));
-}
-
-Base::Result<void> Shape::SetFillBrush(
+void Shape::SetFill(
     Base::Ref<Brush> value) noexcept {
-    return SetValue(
-        FillProperty, std::move(value));
+    SetValue(FillProperty, std::move(value));
 }
 
-Base::Result<void> Shape::SetStroke(Color value) noexcept {
-    Base::Result<Base::Ref<SolidColorBrush>> brush =
-        Base::MakeRef<SolidColorBrush>();
-    if (!brush) return brush.GetStatus();
-    Base::Result<void> assigned =
-        brush.Value()->SetColor(value);
-    if (!assigned) return assigned.GetStatus();
-    return SetStrokeBrush(
-        Base::Ref<Brush>(
-            std::move(brush).Value()));
-}
-
-Base::Result<void> Shape::SetStrokeBrush(
+void Shape::SetStroke(
     Base::Ref<Brush> value) noexcept {
-    return SetValue(
-        StrokeProperty, std::move(value));
+    SetValue(StrokeProperty, std::move(value));
 }
 
-Base::Result<void> Shape::SetStrokeThickness(double value) noexcept {
-    return SetValue(StrokeThicknessProperty, value);
+void Shape::SetStrokeThickness(double value) noexcept {
+    SetValue(StrokeThicknessProperty, value);
 }
 
 double Rectangle::GetRadiusX() const noexcept {
@@ -286,44 +234,44 @@ double Rectangle::GetRadiusY() const noexcept {
     return GetValueOr(RadiusYProperty, 0.0);
 }
 
-Base::Result<void> Rectangle::SetRadiusX(double value) noexcept {
-    return SetValue(RadiusXProperty, value);
+void Rectangle::SetRadiusX(double value) noexcept {
+    SetValue(RadiusXProperty, value);
 }
 
-Base::Result<void> Rectangle::SetRadiusY(double value) noexcept {
-    return SetValue(RadiusYProperty, value);
+void Rectangle::SetRadiusY(double value) noexcept {
+    SetValue(RadiusYProperty, value);
 }
 
-Base::Result<Size> Rectangle::MeasureOverride(
+Size Rectangle::MeasureOverride(
     Size) noexcept {
     const double stroke =
         std::max(0.0, GetStrokeThickness());
     return Size{stroke * 2.0, stroke * 2.0};
 }
 
-Base::Result<void> Rectangle::OnRender(
+void Rectangle::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
     const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {
-        return {};
+        return;
     }
 
     const Rect bounds{
         0.0, 0.0, renderSize.width, renderSize.height};
     const double radius = std::max(
         0.0, std::min(GetRadiusX(), GetRadiusY()));
-    Base::Ref<Brush> fillBrush = GetFillBrush();
+    Base::Ref<Brush> fillBrush = GetFill();
     if (fillBrush &&
         fillBrush->RuntimeType() ==
             LinearGradientBrush::StaticTypeId()) {
         auto& gradient =
             *static_cast<LinearGradientBrush*>(
                 fillBrush.Get());
-        Point start = gradient.StartPoint();
-        Point end = gradient.EndPoint();
-        if (gradient.MappingMode() ==
+        Point start = gradient.GetStartPoint();
+        Point end = gradient.GetEndPoint();
+        if (gradient.GetMappingMode() ==
             BrushMappingMode::RelativeToBoundingBox) {
             start = {
                 bounds.x + start.x * bounds.width,
@@ -360,14 +308,15 @@ Base::Result<void> Rectangle::OnRender(
                         bounds.height + 0.5};
             const double centerX = band.x + band.width * 0.5;
             const double centerY = band.y + band.height * 0.5;
-            const Color color = gradient.Sample(
+            const Color color = ::Aero::Internal::SampleGradient(
+                gradient,
                 ((centerX - start.x) * axisX +
                  (centerY - start.y) * axisY) /
                 axisLengthSquared);
             Base::Result<void> painted =
                 builder.FillRect(band, color);
             if (!painted) {
-                return painted.GetStatus();
+                return;
             }
         }
     } else if (fillBrush &&
@@ -379,8 +328,9 @@ Base::Result<void> Rectangle::OnRender(
         constexpr std::uint32_t bandCount = 64U;
         Base::Result<void> painted =
             builder.FillRect(
-                bounds, gradient.Sample(1.0));
-        if (!painted) return painted.GetStatus();
+                bounds, ::Aero::Internal::SampleGradient(
+                    gradient, 1.0));
+        if (!painted) return;
         for (std::uint32_t index = bandCount;
              index > 0U; --index) {
             const double outer =
@@ -396,13 +346,14 @@ Base::Result<void> Rectangle::OnRender(
                 {insetX, insetY,
                  bounds.width - insetX * 2.0,
                  bounds.height - insetY * 2.0},
-                gradient.Sample(outer),
+                ::Aero::Internal::SampleGradient(
+                    gradient, outer),
                 std::min(
                     bounds.width - insetX * 2.0,
                     bounds.height - insetY * 2.0) *
                     0.5);
             if (!painted) {
-                return painted.GetStatus();
+                return;
             }
         }
     } else if (fillBrush &&
@@ -415,71 +366,73 @@ Base::Result<void> Rectangle::OnRender(
                     fillBrush.Get()),
                 bounds);
         if (!painted) {
-            return painted.GetStatus();
+            return;
         }
     } else {
-        const Color fill = GetFill();
+        const Color fill = ::Aero::Internal::SampleBrush(fillBrush);
         if (fill.alpha > 0.0F) {
         Base::Result<void> painted = radius > 0.0
             ? builder.FillRoundedRect(bounds, fill, radius)
             : builder.FillRect(bounds, fill);
-        if (!painted) return painted.GetStatus();
+        if (!painted) return;
         }
     }
 
-    const Color stroke = GetStroke();
+    const Color stroke = ::Aero::Internal::SampleBrush(GetStroke());
     const double thickness = GetStrokeThickness();
     if (stroke.alpha > 0.0F && thickness > 0.0) {
-        return builder.StrokeRect(bounds, stroke, thickness);
+        static_cast<void>(builder.StrokeRect(bounds, stroke, thickness));
+        return;
     }
-    return {};
+    return;
 }
 
-Base::Result<Size> Ellipse::MeasureOverride(
+Size Ellipse::MeasureOverride(
     Size) noexcept {
     const double stroke =
         std::max(0.0, GetStrokeThickness());
     return Size{stroke * 2.0, stroke * 2.0};
 }
 
-Base::Result<void> Ellipse::OnRender(
+void Ellipse::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
     const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {
-        return {};
+        return;
     }
 
-    const Color fill = GetFill();
+    const Color fill = ::Aero::Internal::SampleBrush(GetFill());
     if (fill.alpha > 0.0F) {
         Transform2D scale;
         scale.m11 = renderSize.width;
         scale.m22 = renderSize.height;
         Base::Result<void> pushed =
             builder.PushTransform(scale);
-        if (!pushed) return pushed.GetStatus();
+        if (!pushed) return;
         Base::Result<void> painted =
             builder.FillRoundedRect(
                 Rect{0.0, 0.0, 1.0, 1.0},
                 fill, 0.5);
         Base::Result<void> popped =
             builder.PopTransform();
-        if (!painted) return painted.GetStatus();
-        if (!popped) return popped.GetStatus();
+        if (!painted) return;
+        if (!popped) return;
     }
 
     // The retained command model does not yet expose a rounded-stroke
     // primitive. Preserve a deterministic visible outline until ellipse
     // stroke tessellation is added.
-    const Color stroke = GetStroke();
+    const Color stroke = ::Aero::Internal::SampleBrush(GetStroke());
     const double thickness = GetStrokeThickness();
     if (stroke.alpha > 0.0F && thickness > 0.0) {
-        return builder.StrokeRect(
+        static_cast<void>(builder.StrokeRect(
             Rect{0.0, 0.0, renderSize.width, renderSize.height},
-            stroke, thickness);
+            stroke, thickness));
+        return;
     }
-    return {};
+    return;
 }
 
 } // namespace Aero::Shapes

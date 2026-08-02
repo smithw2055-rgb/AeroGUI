@@ -14,7 +14,7 @@
 #include <utility>
 #include "gui/AnimationInternal.hpp"
 
-namespace Aero::Detail::Animation {
+namespace Aero::Internal::Animation {
 namespace {
 
 constexpr double Pi = 3.1415926535897932384626433832795;
@@ -147,12 +147,13 @@ bool IsTimingValid(const TimelineTiming& timing) noexcept {
 
 } // namespace
 
-} // namespace Aero::Detail::Animation
+} // namespace Aero::Internal::Animation
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
-using namespace Aero::Detail::Animation;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
+using namespace Aero::Internal::Animation;
 using namespace Aero::Media;
 
 struct AnimationEngine::Track final {
@@ -179,7 +180,7 @@ struct AnimationEngine::Track final {
 
     AnimationHandle handle;
     ::Aero::DependencyObject* target = nullptr;
-    Core::DependencyPropertyHandle property;
+    Meta::DependencyPropertyHandle property;
     TimelineTiming timing;
     EasingFunction easing;
     double accelerationRatio = 0.0;
@@ -204,15 +205,15 @@ struct AnimationEngine::Track final {
     Base::Vector<DoubleKeyFrame> doubleFrames;
     Base::Vector<ColorKeyFrame> colorFrames;
     Base::Vector<DiscreteAnimationKeyFrame> discreteFrames;
-    Core::PropertyValue discreteBaseValue;
+    Meta::PropertyValue discreteBaseValue;
     bool valueApplied = false;
     bool completedCounted = false;
     bool pendingInitialSample = false;
 };
 
 AnimationEngine::AnimationEngine(
-    Core::Dispatcher& dispatcher,
-    Core::EffectiveValueEngine& values,
+    ::Aero::Threading::Dispatcher& dispatcher,
+    Meta::EffectiveValueEngine& values,
     Base::IAllocator* allocator) noexcept
     : dispatcher_(&dispatcher),
       values_(&values),
@@ -228,9 +229,9 @@ Base::Result<void> AnimationEngine::Initialize() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
     if (frameHook_.IsValid()) return {};
-    Base::Result<Core::DispatcherFrameHookHandle> hook =
+    Base::Result<::Aero::Threading::DispatcherFrameHookHandle> hook =
         dispatcher_->RegisterFrameHook(
-            Core::DispatcherFramePhase::Animation,
+            ::Aero::Threading::DispatcherFramePhase::Animation,
             &AnimationEngine::AnimationFrameHook,
             this);
     if (!hook) return hook.GetStatus();
@@ -299,7 +300,7 @@ AnimationEngine::AddTrack() noexcept {
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
-    Core::DependencyPropertyHandle property,
+    Meta::DependencyPropertyHandle property,
     const DoubleAnimation& animation) noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
@@ -334,7 +335,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
-    Core::DependencyPropertyHandle property,
+    Meta::DependencyPropertyHandle property,
     const RectAnimation& animation) noexcept {
     Base::Result<void> access =
         dispatcher_->VerifyAccess();
@@ -364,7 +365,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
-    Core::DependencyPropertyHandle property,
+    Meta::DependencyPropertyHandle property,
     const ThicknessAnimation& animation) noexcept {
     Base::Result<void> access =
         dispatcher_->VerifyAccess();
@@ -400,7 +401,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
-    Core::DependencyPropertyHandle property,
+    Meta::DependencyPropertyHandle property,
     const PointAnimation& animation) noexcept {
     Base::Result<void> access =
         dispatcher_->VerifyAccess();
@@ -434,7 +435,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
-    Core::DependencyPropertyHandle property,
+    Meta::DependencyPropertyHandle property,
     const ColorAnimation& animation) noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
@@ -462,7 +463,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
-    Core::DependencyPropertyHandle property,
+    Meta::DependencyPropertyHandle property,
     const DoubleKeyFrameAnimation& animation) noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
@@ -507,7 +508,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
-    Core::DependencyPropertyHandle property,
+    Meta::DependencyPropertyHandle property,
     const ColorKeyFrameAnimation& animation) noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
@@ -554,7 +555,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
-    Core::DependencyPropertyHandle property,
+    Meta::DependencyPropertyHandle property,
     const DiscreteAnimation& animation) noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
@@ -891,7 +892,7 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         sampleTime = 0U;
     }
 
-    Core::PropertyValue value;
+    Meta::PropertyValue value;
     if (track.kind == Track::Kind::Double) {
         const double eased = Ease(
             ApplyAccelerationDeceleration(
@@ -899,7 +900,7 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
                 track.accelerationRatio,
                 track.decelerationRatio),
             track.easing);
-        value = Core::ValueCodec<double>::Encode(
+        value = Meta::ValueCodec<double>::Encode(
             track.from + (track.to - track.from) * eased).Value();
     } else if (track.kind == Track::Kind::Color) {
         const float eased =
@@ -913,8 +914,8 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
                 (track.toColor.blue - track.fromColor.blue) * eased,
             track.fromColor.alpha +
                 (track.toColor.alpha - track.fromColor.alpha) * eased};
-        Base::Result<Core::PropertyValue> encoded =
-            Core::ValueCodec<Base::Color>::Encode(color);
+        Base::Result<Meta::PropertyValue> encoded =
+            Meta::ValueCodec<Base::Color>::Encode(color);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::Point) {
@@ -927,8 +928,8 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
             track.fromPoint.y +
                 (track.toPoint.y -
                  track.fromPoint.y) * eased};
-        Base::Result<Core::PropertyValue> encoded =
-            Core::ValueCodec<Base::Point>::Encode(
+        Base::Result<Meta::PropertyValue> encoded =
+            Meta::ValueCodec<Base::Point>::Encode(
                 point);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
@@ -948,8 +949,8 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
             track.fromRect.height +
                 (track.toRect.height -
                  track.fromRect.height) * eased};
-        Base::Result<Core::PropertyValue> encoded =
-            Core::ValueCodec<Base::Rect>::Encode(
+        Base::Result<Meta::PropertyValue> encoded =
+            Meta::ValueCodec<Base::Rect>::Encode(
                 rect);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
@@ -970,8 +971,8 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
             track.fromThickness.bottom +
                 (track.toThickness.bottom -
                  track.fromThickness.bottom) * eased};
-        Base::Result<Core::PropertyValue> encoded =
-            Core::ValueCodec<Base::Thickness>::
+        Base::Result<Meta::PropertyValue> encoded =
+            Meta::ValueCodec<Base::Thickness>::
                 Encode(thickness);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
@@ -1022,7 +1023,7 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         if (!found && !track.doubleFrames.Empty()) {
             sampledValue = track.doubleFrames.Back().value;
         }
-        value = Core::ValueCodec<double>::Encode(sampledValue).Value();
+        value = Meta::ValueCodec<double>::Encode(sampledValue).Value();
     } else if (track.kind == Track::Kind::ColorKeyFrames) {
         Base::Color previousValue = track.fromColor;
         AnimationTime previousTime = 0U;
@@ -1086,8 +1087,8 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         if (!found && !track.colorFrames.Empty()) {
             sampledValue = track.colorFrames.Back().value;
         }
-        Base::Result<Core::PropertyValue> encoded =
-            Core::ValueCodec<Base::Color>::Encode(
+        Base::Result<Meta::PropertyValue> encoded =
+            Meta::ValueCodec<Base::Color>::Encode(
                 sampledValue);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
@@ -1100,34 +1101,34 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         }
     }
 
-    const Core::DependencyProperty* targetProperty =
+    const Meta::DependencyProperty* targetProperty =
         track.target->PropertyRegistry().Find(
             track.property);
     if (targetProperty != nullptr &&
         targetProperty->ValueType() ==
             Brush::StaticTypeId() &&
-        value.Type() == Core::TypeOf<Base::Color>()) {
+        value.Type() == Meta::TypeOf<Base::Color>()) {
         Base::Result<Base::Color> color =
-            Core::ValueCodec<Base::Color>::Decode(
+            Meta::ValueCodec<Base::Color>::Decode(
                 value);
         if (!color) return color.GetStatus();
         Base::Result<Base::Ref<Brush>> brush =
             MakeSolidColorBrush(color.Value());
         if (!brush) return brush.GetStatus();
-        value = Core::PropertyValue::FromObject(
+        value = Meta::PropertyValue::FromObject(
             Brush::StaticTypeId(),
             Base::Ref<Base::Object>(
                 std::move(brush).Value()));
     }
     if (targetProperty != nullptr &&
         targetProperty->ValueType() ==
-            Core::TypeOf<Length>() &&
-        value.Type() == Core::TypeOf<double>()) {
+            Meta::TypeOf<Length>() &&
+        value.Type() == Meta::TypeOf<double>()) {
         Base::Result<double> numeric =
-            Core::ValueCodec<double>::Decode(value);
+            Meta::ValueCodec<double>::Decode(value);
         if (!numeric) return numeric.GetStatus();
-        Base::Result<Core::PropertyValue> length =
-            Core::ValueCodec<Length>::Encode(
+        Base::Result<Meta::PropertyValue> length =
+            Meta::ValueCodec<Length>::Encode(
                 Length::Pixels(numeric.Value()));
         if (!length) return length.GetStatus();
         value = std::move(length).Value();
@@ -1315,4 +1316,4 @@ void AnimationEngine::AnimationFrameHook(void* context) noexcept {
     if (!ticked) manager->lastTickStatus_ = ticked.GetStatus();
 }
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

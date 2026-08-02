@@ -15,7 +15,12 @@
 #include <Aero/Data.hpp>
 #include <Aero/DrawingContext.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/Media.hpp>
+#include <Aero/Animation.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Effects.hpp>
+#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/Images.hpp>
+#include <Aero/Media/Transforms.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Styling.hpp>

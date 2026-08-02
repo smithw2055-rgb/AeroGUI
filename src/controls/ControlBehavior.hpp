@@ -12,7 +12,7 @@
 #include <Aero/Controls/Text.hpp>
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
-#include <Aero/Controls/Standard.hpp>
+#include <Aero/Controls/Common.hpp>
 #include "gui/LayoutInternal.hpp"
 #include "gui/BindingInternal.hpp"
 #include "gui/RoutedEventInternal.hpp"
@@ -22,13 +22,26 @@
 #include <new>
 #include <utility>
 
-namespace Aero::Detail {
+namespace Aero::Controls {
 
-using namespace Aero::Core;
+// Interaction bookkeeping for ToggleButton lives in the control runtime, not
+// in the public WPF-shaped controls headers.
+enum class ToggleState : std::uint8_t {
+    Unchecked = 0U,
+    Checked,
+    Indeterminate,
+};
+
+} // namespace Aero::Controls
+
+namespace Aero::Internal {
+
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 
 using namespace Aero::Controls;
 using namespace Aero::Controls::Primitives;
-using Aero::Controls::Detail::TemplateHandle;
+using Aero::Internal::TemplateHandle;
 
 class AERO_API ButtonBehavior final {
 public:
@@ -415,7 +428,7 @@ public:
         LayoutEngine* layout = nullptr,
         RenderTree* renderer = nullptr,
         ::Aero::Meta::Registry* metadata = nullptr,
-        Aero::Detail::BindingEngine* bindings = nullptr) noexcept
+        Aero::Internal::BindingEngine* bindings = nullptr) noexcept
         : tree_(&tree),
           providerSession_(values),
           values_(&providerSession_),
@@ -453,21 +466,21 @@ private:
         const ControlTemplate* plan = nullptr;
         Visual* rootVisual = nullptr;
         UIElement* rootElement = nullptr;
-        Base::Vector<Aero::Controls::Detail::TemplatePart> parts;
-        Base::Vector<Aero::Controls::Detail::TemplateContentProjection> projections;
+        Base::Vector<Aero::Internal::TemplatePart> parts;
+        Base::Vector<Aero::Internal::TemplateContentProjection> projections;
         NameScope names;
         Base::Vector<Data::BindingHandle>
             metadataBindings;
     };
 
     ElementTree* tree_ = nullptr;
-    Core::Detail::TemplatedParentProviderSession providerSession_;
-    Core::Detail::TemplatedParentProviderSession* values_ = nullptr;
+    Internal::TemplatedParentProviderSession providerSession_;
+    Internal::TemplatedParentProviderSession* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     LayoutEngine* layout_ = nullptr;
     RenderTree* renderer_ = nullptr;
     ::Aero::Meta::Registry* metadata_ = nullptr;
-    Aero::Detail::BindingEngine* bindings_ = nullptr;
+    Aero::Internal::BindingEngine* bindings_ = nullptr;
     Base::Vector<Instance> instances_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     std::uint64_t nextHandle_ = 1U;
@@ -540,9 +553,9 @@ private:
         KeyEventArgs& args) noexcept;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal
 
-namespace Aero::Controls::Detail {
+namespace Aero::Internal {
 
 // One compact owner for all built-in control interaction state. The behavior
 // objects are placement-constructed in inline storage, avoiding per-behavior
@@ -553,8 +566,8 @@ public:
         Base::IAllocator& allocator,
         ::Aero::Meta::Registry& metadata,
         Aero::ElementTree& tree,
-        Aero::Detail::EventRouter& events,
-        Aero::Detail::InputRouter& input,
+        Aero::Internal::EventRouter& events,
+        Aero::Internal::InputRouter& input,
         VisualStateManager* visualStates,
         Integration::IClipboard* clipboard,
         bool controlsEnabled,
@@ -583,21 +596,21 @@ private:
     void Destroy(T*& object) noexcept;
 
     static constexpr std::size_t StorageBytes =
-        sizeof(Aero::Detail::ButtonBehavior) +
-        sizeof(Aero::Detail::TextEditBehavior) +
-        sizeof(Aero::Detail::ScrollBehavior) +
-        sizeof(Aero::Detail::SliderBehavior) +
-        sizeof(Aero::Detail::ListBehavior) +
-        sizeof(Aero::Detail::ComboBehavior) +
-        sizeof(Aero::Detail::TreeBehavior) +
-        sizeof(Aero::Detail::MenuBehavior) +
+        sizeof(Aero::Internal::ButtonBehavior) +
+        sizeof(Aero::Internal::TextEditBehavior) +
+        sizeof(Aero::Internal::ScrollBehavior) +
+        sizeof(Aero::Internal::SliderBehavior) +
+        sizeof(Aero::Internal::ListBehavior) +
+        sizeof(Aero::Internal::ComboBehavior) +
+        sizeof(Aero::Internal::TreeBehavior) +
+        sizeof(Aero::Internal::MenuBehavior) +
         9U * alignof(std::max_align_t);
 
     Base::IAllocator* allocator_ = nullptr;
     ::Aero::Meta::Registry* metadata_ = nullptr;
     Aero::ElementTree* tree_ = nullptr;
-    Aero::Detail::EventRouter* events_ = nullptr;
-    Aero::Detail::InputRouter* input_ = nullptr;
+    Aero::Internal::EventRouter* events_ = nullptr;
+    Aero::Internal::InputRouter* input_ = nullptr;
     VisualStateManager* visualStates_ = nullptr;
     Integration::IClipboard* clipboard_ = nullptr;
     bool controlsEnabled_ = false;
@@ -606,14 +619,14 @@ private:
     std::size_t offset_ = 0U;
     alignas(std::max_align_t) std::byte storage_[StorageBytes]{};
 
-    Aero::Detail::ButtonBehavior* buttons_ = nullptr;
-    Aero::Detail::TextEditBehavior* textBoxes_ = nullptr;
-    Aero::Detail::ScrollBehavior* scrolling_ = nullptr;
-    Aero::Detail::SliderBehavior* sliders_ = nullptr;
-    Aero::Detail::ListBehavior* lists_ = nullptr;
-    Aero::Detail::ComboBehavior* combos_ = nullptr;
-    Aero::Detail::TreeBehavior* trees_ = nullptr;
-    Aero::Detail::MenuBehavior* menus_ = nullptr;
+    Aero::Internal::ButtonBehavior* buttons_ = nullptr;
+    Aero::Internal::TextEditBehavior* textBoxes_ = nullptr;
+    Aero::Internal::ScrollBehavior* scrolling_ = nullptr;
+    Aero::Internal::SliderBehavior* sliders_ = nullptr;
+    Aero::Internal::ListBehavior* lists_ = nullptr;
+    Aero::Internal::ComboBehavior* combos_ = nullptr;
+    Aero::Internal::TreeBehavior* trees_ = nullptr;
+    Aero::Internal::MenuBehavior* menus_ = nullptr;
 };
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Internal

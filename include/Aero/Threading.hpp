@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <mutex>
 
-namespace Aero::Core {
+namespace Aero::Threading {
 
 using DispatcherTime = std::uint64_t;
 using DispatcherThreadToken = std::uint64_t;
@@ -316,15 +316,5 @@ protected:
 private:
     Dispatcher* dispatcher_ = nullptr;
 };
-
-} // namespace Aero::Core
-
-namespace Aero::Threading {
-
-using Dispatcher = Core::Dispatcher;
-using DispatcherObject = Core::DispatcherObject;
-using DispatcherPriority = Core::DispatcherPriority;
-using DispatcherOperationHandle = Core::DispatcherTaskHandle;
-using DispatcherReentrancyGuard = Core::DispatcherReentrancyGuard;
 
 } // namespace Aero::Threading

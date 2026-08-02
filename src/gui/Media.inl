@@ -176,33 +176,39 @@ Base::Result<void> PopulateUiMedia(
     status = gradientStopCollection.Result();
     if (!status) return status.GetStatus();
 
-    auto monochromeBrush = Meta::Register<MonochromeBrush>(context);
+    auto brushShader = Meta::Register<BrushShader>(
+        context, TypeFlags::Abstract);
+    brushShader.Factory();
+    status = brushShader.Result();
+    if (!status) return status.GetStatus();
+
+    auto monochromeBrush = Meta::Register<MonochromeShader>(context);
     monochromeBrush
-        .Property<Color, &MonochromeBrush::ColorValue,
-            &MonochromeBrush::SetColor>("Color")
+        .Property<Color, &MonochromeShader::GetColor,
+            &MonochromeShader::SetColor>("Color")
         .Factory();
     status = monochromeBrush.Result();
     if (!status) return status.GetStatus();
 
-    auto conicGradientBrush = Meta::Register<ConicGradientBrush>(context);
+    auto conicGradientBrush = Meta::Register<ConicGradientShader>(context);
     conicGradientBrush
         .Content<GradientStop>(
             "GradientStops", ContentKind::Collection,
             [](Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {
-                return static_cast<ConicGradientBrush&>(owner).AddGradientStop(
+                static_cast<ConicGradientShader&>(owner).TryAddGradientStop(
                     Base::Ref<GradientStop>::FromBorrowed(
                         static_cast<GradientStop&>(*value)));
             },
             [](Base::Object& owner, void*) noexcept {
-                static_cast<ConicGradientBrush&>(owner).ClearGradientStops(); return Base::Result<void>();
+                static_cast<ConicGradientShader&>(owner).ClearGradientStops();
             })
         .Factory();
     status = conicGradientBrush.Result();
     if (!status) return status.GetStatus();
 
-    auto wavesBrush = Meta::Register<WavesBrush>(context);
+    auto wavesBrush = Meta::Register<WavesShader>(context);
     wavesBrush
-        .Property<double, &WavesBrush::Time, &WavesBrush::SetTime>("Time")
+        .Property<double, &WavesShader::GetTime, &WavesShader::SetTime>("Time")
         .Factory();
     status = wavesBrush.Result();
     if (!status) return status.GetStatus();
@@ -247,11 +253,11 @@ Base::Result<void> PopulateUiMedia(
         .Property(
             RadialGradientBrush::RadiusXProperty,
             PropertyOptions(0.5)
-                .Validate(&Validate::Positive<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Property(
             RadialGradientBrush::RadiusYProperty,
             PropertyOptions(0.5)
-                .Validate(&Validate::Positive<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Factory();
     status = radialBrush.Result();
     if (!status) return status.GetStatus();
@@ -405,7 +411,7 @@ Base::Result<void> PopulateUiMedia(
             BlurEffect::RadiusProperty,
             PropertyOptions(5.0)
                 .AffectsRender()
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Factory();
     status = blurEffect.Result();
     if (!status) return status.GetStatus();
@@ -417,7 +423,7 @@ Base::Result<void> PopulateUiMedia(
             DropShadowEffect::BlurRadiusProperty,
             PropertyOptions(5.0)
                 .AffectsRender()
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             DropShadowEffect::DirectionProperty,
             PropertyOptions(315.0)
@@ -426,7 +432,7 @@ Base::Result<void> PopulateUiMedia(
             DropShadowEffect::ShadowDepthProperty,
             PropertyOptions(5.0)
                 .AffectsRender()
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             DropShadowEffect::OpacityProperty,
             PropertyOptions(1.0)
@@ -448,7 +454,7 @@ Base::Result<void> PopulateUiMedia(
             PixelateEffect::SizeProperty,
             PropertyOptions(1.0)
                 .AffectsRender()
-                .Validate(&Validate::Positive<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Factory();
     status = pixelateEffect.Result();
     if (!status) return status.GetStatus();

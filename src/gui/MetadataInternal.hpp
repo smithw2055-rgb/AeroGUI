@@ -2,7 +2,12 @@
 
 #include <Aero/Meta.hpp>
 
-namespace Aero::Core {
+namespace Aero::Internal {
+class MetadataPrivate;
+class MetaTable;
+}
+
+namespace Aero::Meta {
 class PropertyInfo final {
 public:
     PropertyInfo(PropertyInfo&&) noexcept = default;
@@ -260,13 +265,13 @@ private:
     const MethodInfo* MethodAt(const MemberLocation& location) const noexcept;
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 
 
 namespace Aero::Meta { class Registration; }
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 namespace Detail {
 class MetaTable;
@@ -335,24 +340,24 @@ struct MetadataModuleRegistration final {
     void* context = nullptr;
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 namespace Aero::Meta {
 
-using Core::ContentInfo;
-using Core::DependencyPropertyRegistry;
-using Core::MemberId;
-using Core::MetadataCollectionChangedCallback;
-using Core::MetadataModuleRegistration;
-using Core::MetadataPropertyChangedCallback;
-using Core::MetadataPropertyProviderRegistration;
-using Core::PropertyFlags;
-using Core::PropertyInfo;
-using Core::PropertyProviderId;
-using Core::TypeId;
-using Core::TypeInfo;
-using Core::TypeRegistry;
-using Core::Value;
+using Meta::ContentInfo;
+using Meta::DependencyPropertyRegistry;
+using Meta::MemberId;
+using Meta::MetadataCollectionChangedCallback;
+using Meta::MetadataModuleRegistration;
+using Meta::MetadataPropertyChangedCallback;
+using Meta::MetadataPropertyProviderRegistration;
+using Meta::PropertyFlags;
+using Meta::PropertyInfo;
+using Meta::PropertyProviderId;
+using Meta::TypeId;
+using Meta::TypeInfo;
+using Meta::TypeRegistry;
+using Meta::Value;
 
 // Registry has two explicit phases:
 //
@@ -444,14 +449,14 @@ public:
     Base::Result<Base::HashCode> ComputeSchemaHash() const noexcept;
 
 private:
-    friend class Core::Detail::MetadataPrivate;
+    friend class ::Aero::Internal::MetadataPrivate;
 
     struct Storage;
     Storage* storage_ = nullptr;
 
     DependencyPropertyRegistry& DependencyProperties() noexcept;
     void* RoutedEventState() noexcept;
-    const Core::Detail::MetaTable& RuntimeData() const noexcept;
+    const ::Aero::Internal::MetaTable& RuntimeData() const noexcept;
 
     static Base::Status OutOfMemoryStatus() noexcept;
     static bool HasPropertyFlag(
@@ -495,7 +500,7 @@ private:
 #include <Aero/Base/StringView.hpp>
 
 
-namespace Aero::Core::BuiltinTypes {
+namespace Aero::Meta::BuiltinTypes {
 
 inline constexpr TypeId Object = MakeTypeId(Base::StringView("Object"));
 inline constexpr TypeId DependencyObject =
@@ -535,8 +540,6 @@ inline constexpr TypeId Track =
     MakeTypeId(Base::StringView("Track"));
 inline constexpr TypeId Thumb =
     MakeTypeId(Base::StringView("Thumb"));
-inline constexpr TypeId ItemContainer =
-    MakeTypeId(Base::StringView("ItemContainer"));
 inline constexpr TypeId ItemsControl =
     MakeTypeId(Base::StringView("ItemsControl"));
 inline constexpr TypeId ItemsPresenter =
@@ -591,11 +594,11 @@ inline constexpr TypeId KeyboardFocusChangedEventArgs =
 inline constexpr TypeId ScrollChangedEventArgs =
     MakeTypeId(Base::StringView("ScrollChangedEventArgs"));
 
-} // namespace Aero::Core::BuiltinTypes
+} // namespace Aero::Meta::BuiltinTypes
 
 
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 namespace Detail {
 
@@ -623,22 +626,20 @@ inline Base::Result<void> TryRegisterCoreMetadata(
         nullptr});
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 #include <Aero/Base/Result.hpp>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
+
+using namespace ::Aero::Meta;
 
 // Registers the complete built-in UI schema through the typed
 // Fluent metadata DSL. The function leaves all stores mutable for host modules.
-namespace Detail {
-
 // Module population is an implementation callback; hosts register through the
 // Meta::Registry overload below.
 AERO_API Base::Result<void> PopulateUiMetadata(
     ::Aero::Meta::Registration& context) noexcept;
-
-} // namespace Detail
 
 inline constexpr Base::StringView UiMetadataModuleName() noexcept {
     return "Aero.UI";
@@ -649,33 +650,33 @@ inline Base::Result<void> TryRegisterUiMetadata(
     constexpr std::uint32_t SchemaVersion = 11U;
     const Base::StringView name = UiMetadataModuleName();
     return domain.TryRegisterModule({
-        Core::MakeMetadataModuleId(name),
+        ::Aero::Meta::MakeMetadataModuleId(name),
         name,
         SchemaVersion,
-        &Detail::PopulateUiMetadata,
+        &PopulateUiMetadata,
         nullptr,
         nullptr});
 }
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal
 
 
-namespace Aero::Core::Detail {
+namespace Aero::Internal {
 
 class MetadataPrivate final {
 public:
-    static DependencyPropertyRegistry& DependencyProperties(
-        Meta::Registry& domain) noexcept {
+    static ::Aero::Meta::DependencyPropertyRegistry& DependencyProperties(
+        ::Aero::Meta::Registry& domain) noexcept {
         return domain.DependencyProperties();
     }
 
     static void* RoutedEventState(
-        Meta::Registry& domain) noexcept {
+        ::Aero::Meta::Registry& domain) noexcept {
         return domain.RoutedEventState();
     }
 };
 
-} // namespace Aero::Core::Detail
+} // namespace Aero::Internal
 
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/String.hpp>
@@ -691,7 +692,7 @@ public:
 #include <type_traits>
 #include <utility>
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 namespace Detail {
 class MetaTable;
@@ -728,6 +729,7 @@ public:
 
 private:
     friend class ::Aero::Meta::Registry;
+    friend class ::Aero::Internal::MetaTable;
     friend class Detail::MetaTable;
     friend class Detail::MetadataAuthoringSession;
     friend class RegistrationTypes;
@@ -871,7 +873,7 @@ private:
     BehaviorTable* behaviors_ = nullptr;
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 // ===== Value facets =====
 #include <Aero/Base/Config.hpp>
@@ -881,7 +883,7 @@ private:
 #include <Aero/Base/Vector.hpp>
 
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 namespace Detail {
 class MetaTable;
@@ -912,6 +914,7 @@ public:
 
 private:
     friend class ::Aero::Meta::Registry;
+    friend class ::Aero::Internal::MetaTable;
     friend class Detail::MetaTable;
     friend class RegistrationValues;
 
@@ -936,11 +939,11 @@ private:
     bool frozen_ = false;
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 #include <Aero/RoutedEvent.hpp>
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 struct RoutedEventRegistration final {
     Base::StringView name;
@@ -984,12 +987,14 @@ private:
     bool frozen_ = false;
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 
 #include <Aero/DependencyProperty.hpp>
 
-namespace Aero::Core::Detail {
+namespace Aero::Internal {
+
+using namespace ::Aero::Meta;
 
 struct RegistrationState final {
     TypeRegistry* types = nullptr;
@@ -999,7 +1004,7 @@ struct RegistrationState final {
     RoutedEventTable* events = nullptr;
 };
 
-} // namespace Aero::Core::Detail
+} // namespace Aero::Internal
 
 // Private helpers for sealing value behavior into MetadataFacets.
 
@@ -1021,14 +1026,16 @@ struct RegistrationState final {
 
 #include <cstdint>
 
-namespace Aero::Core {
+namespace Aero::Meta {
 class BehaviorTable;
 class ValueTable;
 class DependencyProperty;
 class DependencyPropertyRegistry;
 }
 
-namespace Aero::Core::Detail {
+namespace Aero::Internal {
+
+using namespace ::Aero::Meta;
 
 // Shared compact-facet positioning kernel. Meta and Markup own independent
 // columns and seal independently; only the mask/rank calculation is shared.
@@ -1286,10 +1293,12 @@ private:
         MetadataFacetKind kind) const noexcept;
 };
 
-} // namespace Aero::Core::Detail
+} // namespace Aero::Internal
 
 
-namespace Aero::Core::Detail {
+namespace Aero::Internal {
+
+using namespace ::Aero::Meta;
 
 // Computes the deterministic structural contribution of value-semantics and
 // text-converter facets. Callback and context addresses are never included.
@@ -1297,4 +1306,4 @@ Base::Result<Base::HashCode> ComputeMetadataValueFacetHash(
     const MetaTable& facets,
     const TypeRegistry& descriptors) noexcept;
 
-} // namespace Aero::Core::Detail
+} // namespace Aero::Internal

@@ -1,13 +1,16 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Panels.hpp>
 #include "../render/DrawingInternals.hpp"
-#include <Aero/Controls/Standard.hpp>
+#include <Aero/Controls/Common.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <utility>
 
 namespace Aero::Controls {
+
+using namespace ::Aero::Render;
+
 namespace {
 
 double LimitScale(
@@ -29,7 +32,7 @@ double LimitScale(
 
 } // namespace
 
-Base::Ref<ImageSource> Image::Source() const noexcept {
+Base::Ref<ImageSource> Image::GetSource() const noexcept {
     return GetValueOr(
         SourceProperty,
         Base::Ref<ImageSource>{});
@@ -48,25 +51,25 @@ Image::GetStretchDirection() const noexcept {
         StretchDirection::Both);
 }
 
-Base::Result<void> Image::SetSource(
+void Image::SetSource(
     Base::Ref<ImageSource> value) noexcept {
-    return SetValue(
+    SetValue(
         SourceProperty,
         std::move(value));
 }
 
-Base::Result<void> Image::SetStretch(
+void Image::SetStretch(
     Stretch value) noexcept {
-    return SetValue(StretchProperty, value);
+    SetValue(StretchProperty, value);
 }
 
-Base::Result<void> Image::SetStretchDirection(
+void Image::SetStretchDirection(
     StretchDirection value) noexcept {
-    return SetValue(
+    SetValue(
         StretchDirectionProperty, value);
 }
 
-Base::Result<Size> Image::MeasureOverride(
+Size Image::MeasureOverride(
     Size availableSize) noexcept {
     if (pixelWidth_ == 0U ||
         pixelHeight_ == 0U) {
@@ -108,19 +111,19 @@ Base::Result<Size> Image::MeasureOverride(
         natural.height * scale};
 }
 
-Base::Result<void> Image::OnRender(
+void Image::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
     if (renderImage_ ==
             InvalidRenderImageId ||
         pixelWidth_ == 0U ||
         pixelHeight_ == 0U) {
-        return {};
+        return;
     }
     const Size size = GetRenderSize();
     if (size.width <= 0.0 ||
         size.height <= 0.0) {
-        return {};
+        return;
     }
     const double sourceWidth =
         static_cast<double>(pixelWidth_);
@@ -175,8 +178,8 @@ Base::Result<void> Image::OnRender(
         (size.width - destination.width) * 0.5;
     destination.y =
         (size.height - destination.height) * 0.5;
-    return builder.DrawImage(
-        renderImage_, destination, uv);
+    static_cast<void>(builder.DrawImage(
+        renderImage_, destination, uv));
 }
 
 } // namespace Aero::Controls

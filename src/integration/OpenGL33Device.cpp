@@ -274,7 +274,7 @@ public:
     }
 
     Base::Result<void> Submit(
-        const Render::RenderFrame& plan) noexcept {
+        const Integration::RenderFrame& plan) noexcept {
         Base::Result<void> current = MakeContextCurrent();
         if (!current) return current.GetStatus();
         return renderer_ != nullptr
@@ -355,13 +355,13 @@ public:
         return result;
     }
 
-    Aero::Detail::RenderResources Resources() noexcept {
+    Aero::Internal::RenderResources Resources() noexcept {
         return renderer_ != nullptr
-            ? Aero::Detail::RenderResources{
+            ? Aero::Internal::RenderResources{
                   renderer_->GetTextResources(),
                   renderer_->GetMeshResources(),
                   renderer_->GetImageResources()}
-            : Aero::Detail::RenderResources{};
+            : Aero::Internal::RenderResources{};
     }
 
 private:
@@ -602,7 +602,7 @@ CreateOpenGL33Device(
         delete driver;
         return initialized.GetStatus();
     }
-    return Detail::AdoptRenderDevice(
+    return ::Aero::Internal::AdoptRenderDevice(
         mode, driver, &selected);
 }
 

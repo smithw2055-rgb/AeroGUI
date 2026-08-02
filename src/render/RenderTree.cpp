@@ -1,6 +1,7 @@
 #include "DisplayList.hpp"
 #include "DrawingInternals.hpp"
 #include "RenderTree.hpp"
+#include "../media/TransformInternals.hpp"
 
 #include "gui/StyleInternal.hpp"
 
@@ -15,7 +16,8 @@
 
 namespace Aero::Render {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 namespace {
 
 Base::Status InvalidArgument(const char* message) noexcept {
@@ -319,9 +321,11 @@ Base::Result<DisplayList> DisplayListBuilder::Finish() noexcept {
 
 namespace Aero {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using Media::Transform;
-using Media::TransformOwnerRole;
+using Internal::TransformOwnerRole;
+using Internal::OwnerRoleValue;
 using Media::TransformBounds;
 using Media::ComposeTransforms;
 using Render::DisplayListBuilder;
@@ -335,16 +339,16 @@ FrameworkElement::~FrameworkElement() {
     Base::Ref<Transform> renderTransform =
         GetRenderTransform();
     if (renderTransform) {
-        renderTransform->DetachOwner(
-            this,
-            TransformOwnerRole::Render);
+        Internal::TransformPrivate::DetachOwner(
+            *renderTransform, this,
+            OwnerRoleValue(TransformOwnerRole::Render));
     }
     Base::Ref<Transform> layoutTransform =
         GetLayoutTransform();
     if (layoutTransform) {
-        layoutTransform->DetachOwner(
-            this,
-            TransformOwnerRole::Layout);
+        Internal::TransformPrivate::DetachOwner(
+            *layoutTransform, this,
+            OwnerRoleValue(TransformOwnerRole::Layout));
     }
 }
 
@@ -357,9 +361,9 @@ FrameworkElement::GetLayoutTransform() const noexcept {
         : Base::Ref<Transform>{};
 }
 
-Base::Result<void> FrameworkElement::SetLayoutTransform(
+void FrameworkElement::SetLayoutTransform(
     Base::Ref<Transform> value) noexcept {
-    return SetValue(
+    SetValue(
         LayoutTransformProperty,
         std::move(value));
 }
@@ -371,7 +375,7 @@ FrameworkElement::GetLocalVisualTransform() const noexcept {
     Base::Ref<Transform> layoutTransform =
         GetLayoutTransform();
     if (layoutTransform) {
-        result = layoutTransform->Matrix();
+        result = layoutTransform->GetMatrix();
         const Rect bounds = TransformBounds(
             result,
             {0.0, 0.0,
@@ -406,7 +410,7 @@ FrameworkElement::GetLocalVisualTransform() const noexcept {
             ComposeTransforms(
                 ComposeTransforms(
                     before,
-                    renderTransform->Matrix()),
+                    renderTransform->GetMatrix()),
                 after);
         result = ComposeTransforms(
             result,
@@ -420,23 +424,21 @@ FrameworkElement::GetDataContextResult() const noexcept {
     return GetValue(DataContextProperty);
 }
 
-Base::Result<void> FrameworkElement::SetDataContext(
+void FrameworkElement::SetDataContext(
     Base::Ref<Base::Object> value) noexcept {
-    return SetValue(DataContextProperty, std::move(value));
+    SetValue(DataContextProperty, std::move(value));
 }
 
-Base::Result<void> FrameworkElement::ClearDataContext() noexcept {
-    return ClearValue(DataContextProperty);
+void FrameworkElement::ClearDataContext() noexcept {
+    ClearValue(DataContextProperty);
 }
 
-Base::Result<void> FrameworkElement::OnPropertyInvalidated(
+void FrameworkElement::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
-    Base::Result<void> layout = UIElement::OnPropertyInvalidated(flags);
-    if (!layout) return layout;
+    UIElement::OnPropertyInvalidated(flags);
     if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
-        return InvalidateVisual();
+        (void)InvalidateVisual();
     }
-    return {};
 }
 
 Base::Result<void> FrameworkElement::InvalidateVisual() noexcept {
@@ -448,18 +450,19 @@ Base::Result<void> FrameworkElement::InvalidateVisual() noexcept {
         renderValid_ = false;
         return {};
     }
-    return static_cast<Render::RenderTree*>(renderRuntime_)->Invalidate(*this);
+    return static_cast<Internal::RenderTree*>(renderRuntime_)->Invalidate(*this);
 }
 
-Base::Result<void> FrameworkElement::OnRender(
+void FrameworkElement::OnRender(
     DrawingContext&) noexcept {
-    return {};
+    return;
 }
 
 } // namespace Aero
 
-namespace Aero::Render {
+namespace Aero::Integration {
 
+using namespace ::Aero::Render;
 using Aero::FrameworkElement;
 using Aero::Media::Effect;
 using Aero::Media::BlurEffect;
@@ -624,6 +627,16 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
     return {};
 }
 
+} // namespace Aero::Integration
+
+namespace Aero::Internal {
+
+using namespace ::Aero;
+using namespace ::Aero::Meta;
+using namespace ::Aero::Integration;
+using namespace ::Aero::Render;
+using namespace ::Aero::Threading;
+
 RenderTree::RenderTree(Dispatcher& dispatcher) noexcept
     : dispatcher_(&dispatcher), dirty_(), currentFrame_() {}
 
@@ -633,7 +646,7 @@ RenderTree::~RenderTree() noexcept {
     }
     if (root_ != nullptr && dispatcher_->CheckAccess()) {
         auto clear = [&](auto&& self, FrameworkElement& element) noexcept -> void {
-            for (FrameworkElement* child : Aero::Detail::ElementPrivate::RenderChildren(element)) {
+            for (FrameworkElement* child : Aero::Internal::ElementPrivate::RenderChildren(element)) {
                 self(self, *child);
             }
             element.renderAttached_ = false;
@@ -698,7 +711,7 @@ Base::Result<void> RenderTree::SetRoot(
         if (root_ != nullptr) {
             auto clear = [&](auto&& self,
                              FrameworkElement& element) noexcept -> void {
-                for (FrameworkElement* child : Aero::Detail::ElementPrivate::RenderChildren(element)) {
+                for (FrameworkElement* child : Aero::Internal::ElementPrivate::RenderChildren(element)) {
                     self(self, *child);
                 }
                 RemoveQueued(element);
@@ -728,8 +741,8 @@ Base::Result<void> RenderTree::SetRoot(
             "Render node ID space exhausted");
     }
 
-    Base::Result<Aero::Detail::VisualLease> lease =
-        Aero::Detail::VisualLease::Acquire(*root);
+    Base::Result<Aero::Internal::VisualLease> lease =
+        Aero::Internal::VisualLease::Acquire(*root);
     if (!lease) return lease.GetStatus();
     Base::Result<void> reserved =
         dirty_.TryReserve(dirty_.Size() + 1U);
@@ -756,7 +769,7 @@ Base::Result<void> RenderTree::Attach(
     if (!verified) return verified.GetStatus();
     if (parent.renderRuntime_ != this ||
         child.renderRuntime_ != nullptr || child.renderAttached_ ||
-        Aero::Detail::ElementPrivate::RenderParent(child) != &parent) {
+        Aero::Internal::ElementPrivate::RenderParent(child) != &parent) {
         return InvalidState(
             "Render attachment must match the visual-tree parent");
     }
@@ -766,14 +779,14 @@ Base::Result<void> RenderTree::Attach(
             "Render node ID space exhausted");
     }
 
-    Base::Result<Aero::Detail::VisualLease> childLease =
-        Aero::Detail::VisualLease::Acquire(child);
+    Base::Result<Aero::Internal::VisualLease> childLease =
+        Aero::Internal::VisualLease::Acquire(child);
     if (!childLease) return childLease.GetStatus();
 
     std::uint32_t required = 1U;
     for (FrameworkElement* current = &parent; current != nullptr;
          current = current->renderAttached_
-             ? Aero::Detail::ElementPrivate::RenderParent(*current) : nullptr) {
+             ? Aero::Internal::ElementPrivate::RenderParent(*current) : nullptr) {
         if (!current->renderQueued_) ++required;
     }
     Base::Result<void> reserved =
@@ -801,7 +814,7 @@ Base::Result<void> RenderTree::Detach(
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) return verified.GetStatus();
     if (parent.renderRuntime_ != this || !child.renderAttached_ ||
-        Aero::Detail::ElementPrivate::RenderParent(child) != &parent ||
+        Aero::Internal::ElementPrivate::RenderParent(child) != &parent ||
         child.renderRuntime_ != this) {
         return NotFound(
             "Render parent-child relationship was not found");
@@ -812,7 +825,7 @@ Base::Result<void> RenderTree::Detach(
 
     auto clear = [&](auto&& self,
                      FrameworkElement& element) noexcept -> void {
-        for (FrameworkElement* descendant : Aero::Detail::ElementPrivate::RenderChildren(element)) {
+        for (FrameworkElement* descendant : Aero::Internal::ElementPrivate::RenderChildren(element)) {
             self(self, *descendant);
         }
         RemoveQueued(element);
@@ -828,8 +841,8 @@ Base::Result<void> RenderTree::Detach(
 Base::Result<void> RenderTree::QueueDirty(
     FrameworkElement& element) noexcept {
     if (element.renderQueued_) return {};
-    Base::Result<Aero::Detail::VisualLease> lease =
-        Aero::Detail::VisualLease::Acquire(element);
+    Base::Result<Aero::Internal::VisualLease> lease =
+        Aero::Internal::VisualLease::Acquire(element);
     if (!lease) return lease.GetStatus();
     Base::Result<void> appended =
         dirty_.TryPushBack(std::move(lease).Value());
@@ -858,7 +871,7 @@ void RenderTree::MarkCommittedSubtree(
     ++element.renderRevision_;
     element.renderValid_ = true;
     element.renderQueued_ = false;
-    for (FrameworkElement* child : Aero::Detail::ElementPrivate::RenderChildren(element)) {
+    for (FrameworkElement* child : Aero::Internal::ElementPrivate::RenderChildren(element)) {
         MarkCommittedSubtree(*child);
     }
 }
@@ -875,20 +888,20 @@ Base::Result<void> RenderTree::Invalidate(
     Base::Vector<FrameworkElement*> path;
     for (FrameworkElement* current = &element; current != nullptr;
          current = current->renderAttached_
-             ? Aero::Detail::ElementPrivate::RenderParent(*current) : nullptr) {
+             ? Aero::Internal::ElementPrivate::RenderParent(*current) : nullptr) {
         Base::Result<void> currentVerified = VerifyElement(*current);
         if (!currentVerified) return currentVerified.GetStatus();
         Base::Result<void> appended = path.TryPushBack(current);
         if (!appended) return appended.GetStatus();
     }
 
-    Base::Vector<Aero::Detail::VisualLease> leases;
+    Base::Vector<Aero::Internal::VisualLease> leases;
     Base::Result<void> reserved = leases.TryReserve(path.Size());
     if (!reserved) return reserved.GetStatus();
     for (FrameworkElement* current : path) {
         if (current->renderQueued_) continue;
-        Base::Result<Aero::Detail::VisualLease> lease =
-            Aero::Detail::VisualLease::Acquire(*current);
+        Base::Result<Aero::Internal::VisualLease> lease =
+            Aero::Internal::VisualLease::Acquire(*current);
         if (!lease) return lease.GetStatus();
         Base::Result<void> staged =
             leases.TryPushBack(std::move(lease).Value());
@@ -910,7 +923,7 @@ Base::Result<void> RenderTree::Invalidate(
     return {};
 }
 
-} // namespace Aero::Render
+} // namespace Aero::Internal
 
 namespace Aero {
 
@@ -924,15 +937,20 @@ Base::Result<void> FrameworkElement::TryAddAuthoredTrigger(
     return authoredTriggers_.TryPushBack(std::move(trigger));
 }
 
-Base::Result<void>
+void
 FrameworkElement::ClearAuthoredTriggers() noexcept {
     authoredTriggers_.Clear();
-    return {};
 }
 
 } // namespace Aero
 
-namespace Aero::Render {
+namespace Aero::Internal {
+
+using namespace ::Aero;
+using namespace ::Aero::Meta;
+using namespace ::Aero::Integration;
+using namespace ::Aero::Render;
+using namespace ::Aero::Threading;
 
 bool RenderTree::IsOverlay(
     const FrameworkElement& element) const noexcept {
@@ -1032,13 +1050,9 @@ Base::Result<void> RenderTree::BuildSubtree(
     element.rendering_ = true;
     DisplayListBuilder builder;
     DrawingContext context =
-        Aero::Detail::DrawingPrivate::Create(builder);
-    Base::Result<void> built = visible
-        ? element.OnRender(context)
-        : Base::Result<void>();
-    if (!built) {
-        element.rendering_ = false;
-        return built;
+        Aero::Internal::DrawingPrivate::Create(builder);
+    if (visible) {
+        element.OnRender(context);
     }
     Base::Result<DisplayList> listResult = builder.Finish();
     element.rendering_ = false;
@@ -1091,7 +1105,7 @@ Base::Result<void> RenderTree::BuildSubtree(
             snapshot.effect.kind =
                 RenderEffectKind::Blur;
             snapshot.effect.radius =
-                blur->Radius();
+                blur->GetRadius();
         } else if (effect->RuntimeType() ==
             DropShadowEffect::StaticTypeId()) {
             DropShadowEffect* shadow =
@@ -1100,15 +1114,15 @@ Base::Result<void> RenderTree::BuildSubtree(
             snapshot.effect.kind =
                 RenderEffectKind::DropShadow;
             snapshot.effect.radius =
-                shadow->BlurRadius();
+                shadow->GetBlurRadius();
             snapshot.effect.direction =
-                shadow->Direction();
+                shadow->GetDirection();
             snapshot.effect.depth =
-                shadow->ShadowDepth();
+                shadow->GetShadowDepth();
             snapshot.effect.opacity =
-                shadow->Opacity();
+                shadow->GetOpacity();
             snapshot.effect.color =
-                shadow->Color();
+                shadow->GetColor();
         }
     }
     snapshot.commandOffset = plan.commands_.Size();
@@ -1126,7 +1140,7 @@ Base::Result<void> RenderTree::BuildSubtree(
     }
 
     if (!visible) return {};
-    for (FrameworkElement* child : Aero::Detail::ElementPrivate::RenderChildren(element)) {
+    for (FrameworkElement* child : Aero::Internal::ElementPrivate::RenderChildren(element)) {
         if (IsOverlay(*child)) continue;
         Base::Result<void> childResult =
             BuildSubtree(
@@ -1149,7 +1163,7 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
         return InvalidState("Nested render commit is not allowed");
     }
     if (root_ == nullptr) {
-        for (const Aero::Detail::VisualLease& lease : dirty_) {
+        for (const Aero::Internal::VisualLease& lease : dirty_) {
             Visual* visual = lease.Resolve();
             FrameworkElement* element = visual != nullptr
                 ? visual->AsFrameworkElement() : nullptr;
@@ -1220,13 +1234,13 @@ void RenderTree::RenderCommitHook(void* context) noexcept {
         : committed.GetStatus();
 }
 
-} // namespace Aero::Render
+} // namespace Aero::Internal
 
 namespace Aero {
 
-Base::Result<void> FrameworkElement::SetResources(
+void FrameworkElement::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
-    return Aero::Detail::AssignResourceDictionary(
+    (void)Aero::Internal::AssignResourceDictionary(
         resources_,
         std::move(value),
         "FrameworkElement Resources is already assigned");

@@ -6,7 +6,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Threading.hpp>
 #include <Aero/DrawingContext.hpp>
-#include <Aero/Input/Values.hpp>
+#include <Aero/Input.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Resources.hpp>
@@ -14,13 +14,15 @@
 #include <cstdint>
 
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 class ElementPrivate;
+class RenderTree;
 }
 
 namespace Aero {
 
-using namespace Aero::Core;
+using Meta::PropertyInvalidationFlags;
+using Meta::TypeId;
 
 enum class FontWeight : std::uint8_t { Normal = 0U, SemiBold, Bold };
 
@@ -33,19 +35,19 @@ namespace Aero::Media {
 class AERO_API FontFamily final : public Base::Object {
     AERO_DECLARE_TYPE(FontFamily, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Base::StringView Source() const noexcept { return source_.View(); }
-    Base::Result<void> SetSource(Base::StringView value) noexcept { return source_.TryAssign(value); }
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    Base::StringView GetSource() const noexcept { return source_.View(); }
+    void SetSource(Base::StringView value) noexcept { (void)source_.TryAssign(value); }
 private:
     Base::String source_;
 };
 
 } // namespace Aero::Media
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Base::Color> {
+struct TypeTraits<Base::Color> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("Color"); }
     static constexpr Base::StringView Namespace() noexcept {
         return AeroNamespaceUri();
@@ -54,15 +56,10 @@ struct MetaTypeTraits<Base::Color> {
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 namespace Aero {
 
-using namespace Aero::Core;
-
-namespace Render {
-class RenderTree;
-}
 
 class FrameworkElement;
 
@@ -106,8 +103,8 @@ public:
 
     bool GetUseLayoutRounding() const noexcept;
     double GetDpiScale() const noexcept { return dpiScale_; }
-    bool HasWidth() const noexcept;
-    bool HasHeight() const noexcept;
+    bool GetHasWidth() const noexcept;
+    bool GetHasHeight() const noexcept;
     double GetWidth() const noexcept;
     double GetHeight() const noexcept;
     double GetActualWidth() const noexcept {
@@ -138,7 +135,7 @@ public:
     const ResourceDictionary& GetResources() const noexcept {
         return resources_;
     }
-    Base::Result<void> SetResources(
+    void SetResources(
         Base::Ref<ResourceDictionary> value) noexcept;
     DependencyObject* GetTemplatedParent() const noexcept {
         return templatedParent_;
@@ -164,8 +161,8 @@ public:
     inline static constexpr Members::Property<Base::Ref<Style>> StyleProperty{"Style"};
     // WPF-compatible application payload. It deliberately has no layout or
     // rendering effect and accepts the markup value without coercion.
-    inline static constexpr Members::Property<Core::Value> TagProperty{"Tag"};
-    inline static constexpr Members::Property<Core::Value> ToolTipProperty{"ToolTip"};
+    inline static constexpr Members::Property<Meta::Value> TagProperty{"Tag"};
+    inline static constexpr Members::Property<Meta::Value> ToolTipProperty{"ToolTip"};
     inline static constexpr Members::Property<Input::InputScope> InputScopeProperty{"InputScope"};
     inline static constexpr Members::Property<Length> WidthProperty{"Width"};
     inline static constexpr Members::Property<Length> HeightProperty{"Height"};
@@ -181,36 +178,36 @@ public:
     inline static constexpr Members::Property<bool> UseLayoutRoundingProperty{"UseLayoutRounding"};
     inline static constexpr Members::Property<Base::Ref<Media::Transform>> LayoutTransformProperty{"LayoutTransform"};
 
-    Base::Result<void> SetUseLayoutRounding(
+    void SetUseLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;
-    Base::Result<void> SetWidth(double value) noexcept;
-    Base::Result<void> ClearWidth() noexcept;
-    Base::Result<void> SetHeight(double value) noexcept;
-    Base::Result<void> ClearHeight() noexcept;
-    Base::Result<void> SetMinSize(Size value) noexcept;
-    Base::Result<void> SetMaxSize(Size value) noexcept;
-    Base::Result<void> SetMargin(Thickness value) noexcept;
-    Base::Result<void> SetDataContext(
+    void SetWidth(double value) noexcept;
+    void ClearWidth() noexcept;
+    void SetHeight(double value) noexcept;
+    void ClearHeight() noexcept;
+    void SetMinSize(Size value) noexcept;
+    void SetMaxSize(Size value) noexcept;
+    void SetMargin(Thickness value) noexcept;
+    void SetDataContext(
         Base::Ref<Base::Object> value) noexcept;
-    Base::Result<void> SetFontFamily(
+    void SetFontFamily(
         Base::StringView value) noexcept {
-        return SetValue(FontFamilyProperty, value);
+        SetValue(FontFamilyProperty, value);
     }
-    Base::Result<void> ClearDataContext() noexcept;
-    Base::Result<void> SetHorizontalAlignment(
+    void ClearDataContext() noexcept;
+    void SetHorizontalAlignment(
         HorizontalAlignment value) noexcept;
-    Base::Result<void> SetVerticalAlignment(
+    void SetVerticalAlignment(
         VerticalAlignment value) noexcept;
-    Base::Result<void> SetLayoutTransform(
+    void SetLayoutTransform(
         Base::Ref<Media::Transform> value) noexcept;
     Base::Result<void> InvalidateVisual() noexcept;
 
 protected:
     virtual std::uint32_t GetLogicalChildrenCountCore() const noexcept { return VisualTreeHelper::GetChildrenCount(*this); }
     virtual DependencyObject* GetLogicalChildCore(std::uint32_t index) const noexcept { return LogicalTreeHelper::GetChild(static_cast<const Visual&>(*this), index); }
-    Base::Result<void> OnPropertyInvalidated(
+    void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
-    virtual Base::Result<void> OnRender(
+    virtual void OnRender(
         DrawingContext& context) noexcept;
 
 private:
@@ -221,34 +218,34 @@ private:
     FrameworkElementChildRange GetRenderChildren() const noexcept {
         return FrameworkElementChildRange(*this);
     }
-    Base::Result<void> SetTemplatedParent(
+    void SetTemplatedParent(
         DependencyObject* value) noexcept {
         Base::Result<void> access = VerifyAccess();
-        if (!access) return access.GetStatus();
+        if (!access) return;
         templatedParent_ = value;
-        return {};
+        return;
     }
     Base::Result<void> TryAddAuthoredTrigger(
         Base::Ref<Base::Object> trigger) noexcept;
-    Base::Result<void> ClearAuthoredTriggers() noexcept;
+    void ClearAuthoredTriggers() noexcept;
     Base::Span<const Base::Ref<Base::Object>>
     AuthoredTriggers() const noexcept {
         return {
             authoredTriggers_.Data(),
             authoredTriggers_.Size()};
     }
-    bool IsRenderValid() const noexcept { return renderValid_; }
-    std::uint64_t RenderRevision() const noexcept {
+    bool GetIsRenderValid() const noexcept { return renderValid_; }
+    std::uint64_t GetRenderRevision() const noexcept {
         return renderRevision_;
     }
 
     Base::Object* FindNameObject(
         Base::StringView name,
-        Core::TypeId expectedType) noexcept;
+        Meta::TypeId expectedType) noexcept;
 
     friend class LogicalTreeHelper;
-    friend class Aero::Detail::ElementPrivate;
-    friend class Render::RenderTree;
+    friend class Aero::Internal::ElementPrivate;
+    friend class Aero::Internal::RenderTree;
     void* renderRuntime_ = nullptr;
     double dpiScale_ = 1.0;
     Base::RenderNodeId nodeId_ = Base::InvalidRenderNodeId;

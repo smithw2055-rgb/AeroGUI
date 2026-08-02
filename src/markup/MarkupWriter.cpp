@@ -77,7 +77,7 @@ Base::Result<void> ParseArguments(
     Base::StringView& ancestorType,
     RelativeSourceKind& relativeSource,
     Data::BindingMode& mode,
-    Core::UpdateSourceTrigger& updateSourceTrigger) noexcept {
+    Meta::UpdateSourceTrigger& updateSourceTrigger) noexcept {
     elementName = {};
     sourceResource = {};
     path = {};
@@ -86,7 +86,7 @@ Base::Result<void> ParseArguments(
     ancestorType = {};
     relativeSource = RelativeSourceKind::None;
     mode = Data::BindingMode::OneWay;
-    updateSourceTrigger = Core::UpdateSourceTrigger::PropertyChanged;
+    updateSourceTrigger = Meta::UpdateSourceTrigger::PropertyChanged;
 
     std::uint32_t begin = 0U;
     while (begin < arguments.SizeBytes()) {
@@ -301,9 +301,9 @@ Base::Result<void> ParseArguments(
             }
         } else if (key == UpdateSourceTriggerKey) {
             if (value == PropertyChangedTrigger) {
-                updateSourceTrigger = Core::UpdateSourceTrigger::PropertyChanged;
+                updateSourceTrigger = Meta::UpdateSourceTrigger::PropertyChanged;
             } else if (value == ExplicitTrigger) {
-                updateSourceTrigger = Core::UpdateSourceTrigger::Explicit;
+                updateSourceTrigger = Meta::UpdateSourceTrigger::Explicit;
             } else {
                 return Base::Status::Failure(
                     Base::ErrorCode::Unsupported,
@@ -327,18 +327,18 @@ Base::Result<void> ParseArguments(
 }
 
 struct DeferredBindingState final {
-    Aero::Detail::BindingEngine* manager = nullptr;
+    Aero::Internal::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     Base::Object* source = nullptr;
     ::Aero::DependencyObject* target = nullptr;
-    Core::DependencyPropertyHandle targetProperty;
-    Core::DependencyPropertyHandle dataContextProperty;
+    Meta::DependencyPropertyHandle targetProperty;
+    Meta::DependencyPropertyHandle dataContextProperty;
     Base::String path;
     Base::String stringFormat;
     bool bindsToSource = false;
     Data::BindingMode mode = Data::BindingMode::OneWay;
-    Core::UpdateSourceTrigger updateSourceTrigger =
-        Core::UpdateSourceTrigger::PropertyChanged;
+    Meta::UpdateSourceTrigger updateSourceTrigger =
+        Meta::UpdateSourceTrigger::PropertyChanged;
     Base::IAllocator* allocator = nullptr;
 };
 
@@ -396,7 +396,7 @@ BindingExtension::BindingExtension(
 
 Base::Result<void> BindingExtension::Register(
     Schema& schema,
-    Core::TypeId bindingExtensionType) noexcept {
+    Meta::TypeId bindingExtensionType) noexcept {
     return Detail::SchemaPrivate::AddMarkupExtension(schema, {
         bindingExtensionType,
         &BindingExtension::ProvideValue,
@@ -412,7 +412,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     if (extension == nullptr ||
         services.schema == nullptr || services.targetObject == nullptr ||
         services.nameScope == nullptr ||
-        services.targetMember == Core::InvalidMemberId) {
+        services.targetMember == Meta::InvalidMemberId) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Binding markup extension has no target service context");
@@ -427,8 +427,8 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     RelativeSourceKind relativeSource =
         RelativeSourceKind::None;
     Data::BindingMode mode = Data::BindingMode::OneWay;
-    Core::UpdateSourceTrigger updateSourceTrigger =
-        Core::UpdateSourceTrigger::PropertyChanged;
+    Meta::UpdateSourceTrigger updateSourceTrigger =
+        Meta::UpdateSourceTrigger::PropertyChanged;
     Base::Result<void> parsed = ParseArguments(
         arguments,
         elementName,
@@ -457,7 +457,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     ::Aero::Meta::Registry* metadata =
         Detail::SchemaPrivate::Metadata(
             *services.schema);
-    const Core::PropertyInfo* targetMember =
+    const Meta::PropertyInfo* targetMember =
         metadata != nullptr
         ? metadata->Types().FindProperty(
             services.targetMember)
@@ -494,10 +494,9 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         if (!binding) {
             return binding.GetStatus();
         }
-        Base::Result<void> configured = binding.Value()->SetPath(path);
-        if (configured) configured = binding.Value()->SetElementName(elementName);
-        if (configured) configured = binding.Value()->SetStringFormat(stringFormat);
-        if (!configured) return configured.GetStatus();
+        binding.Value()->SetPath(path);
+        binding.Value()->SetElementName(elementName);
+        binding.Value()->SetStringFormat(stringFormat);
         binding.Value()->SetMode(mode);
         binding.Value()->SetUpdateSourceTrigger(updateSourceTrigger);
         if (relativeSource != RelativeSourceKind::None) {
@@ -511,22 +510,18 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 Base::MakeRef<Data::RelativeSource>(sourceMode);
             if (!source) return source.GetStatus();
             if (sourceMode == Data::RelativeSourceMode::FindAncestor) {
-                configured = source.Value()->SetAncestorType(ancestorType);
-                if (!configured) return configured.GetStatus();
+                source.Value()->SetAncestorType(ancestorType);
             }
             binding.Value()->SetRelativeSource(std::move(source).Value());
         }
         if (authoredLaunchPath) {
-            Base::Result<void> assigned =
-                static_cast<Media::Animation::LaunchUriOrFileAction*>(
-                    services.targetObject)->SetPathBinding(
-                        std::move(binding).Value());
-            return assigned
-                ? Base::Result<ProvidedValue>(ProvidedValue::Handled())
-                : Base::Result<ProvidedValue>(assigned.GetStatus());
+            static_cast<Media::Animation::LaunchUriOrFileAction*>(
+                services.targetObject)->SetPathBinding(
+                    std::move(binding).Value());
+            return ProvidedValue::Handled();
         }
-        Base::Result<Core::Value> value =
-            Core::Value::FromObject(
+        Base::Result<Meta::Value> value =
+            Meta::Value::FromObject(
                 authoredHierarchicalItemsSource
                     ? targetMember->ValueType()
                     : Data::Binding::StaticTypeId(),
@@ -546,9 +541,9 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     }
     ::Aero::DependencyObject* target = targetResult.Value();
 
-    const Core::DependencyPropertyHandle targetHandle{
+    const Meta::DependencyPropertyHandle targetHandle{
         services.targetMember};
-    const Core::DependencyProperty* targetProperty =
+    const Meta::DependencyProperty* targetProperty =
         target->PropertyRegistry().Find(targetHandle);
     if (targetProperty == nullptr ||
         Detail::SchemaPrivate::Metadata(
@@ -572,7 +567,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 *services.targetObject);
         if (authoredName.Empty()) {
             Base::Result<Base::String> generated =
-                Controls::Detail::TemplatePrivate::EnsureAuthoredName(controlTemplate,
+                Internal::TemplatePrivate::EnsureAuthoredName(controlTemplate,
                     *services.targetObject);
             if (!generated) {
                 return generated.GetStatus();
@@ -582,7 +577,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             authoredName = targetName.View();
         }
         Base::Result<void> added =
-            Controls::Detail::TemplatePrivate::TryAddTemplatedParentBinding(controlTemplate,
+            Internal::TemplatePrivate::TryAddTemplatedParentBinding(controlTemplate,
                 authoredName,
                 path,
                 stringFormat,
@@ -606,7 +601,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         Base::Result<Aero::ResourceValue> resource =
             services.resources.Lookup(sourceResource);
         if (!resource) return resource.GetStatus();
-        if (resource.Value().Kind() != Core::ValueKind::Object ||
+        if (resource.Value().Kind() != Meta::ValueKind::Object ||
             resource.Value().IsNullObject() ||
             !resource.Value().AsObject()) {
             return Base::Status::Failure(
@@ -639,7 +634,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         }
     }
 
-    Aero::Detail::BindingEngine* bindings =
+    Aero::Internal::BindingEngine* bindings =
         services.bindings != nullptr
         ? services.bindings
         : extension->options_.bindings;
@@ -734,9 +729,9 @@ namespace {
 
 struct DynamicResourceState final {
     DynamicResourceState(
-        Core::EffectiveValueEngine& effectiveValues,
+        Meta::EffectiveValueEngine& effectiveValues,
         ::Aero::DependencyObject& dependencyObject,
-        Core::DependencyPropertyHandle dependencyProperty) noexcept
+        Meta::DependencyPropertyHandle dependencyProperty) noexcept
         : engine(&effectiveValues),
           target(&dependencyObject),
           property(dependencyProperty),
@@ -749,9 +744,9 @@ struct DynamicResourceState final {
         ResourceChangeSubscription subscription;
     };
 
-    Core::EffectiveValueEngine* engine = nullptr;
+    Meta::EffectiveValueEngine* engine = nullptr;
     ::Aero::DependencyObject* target = nullptr;
-    Core::DependencyPropertyHandle property;
+    Meta::DependencyPropertyHandle property;
     Base::String key;
     Base::Vector<Source> sources;
     Base::IAllocator* allocator = nullptr;
@@ -773,10 +768,10 @@ Base::StringView TrimDynamicResourceText(Base::StringView value) noexcept {
     return value.Substr(first, last - first);
 }
 
-Base::Result<Core::PropertyValue> EvaluateDynamicResource(
+Base::Result<Meta::PropertyValue> EvaluateDynamicResource(
     void* context,
     ::Aero::DependencyObject& object,
-    Core::DependencyPropertyHandle property) noexcept {
+    Meta::DependencyPropertyHandle property) noexcept {
     DynamicResourceState* state = static_cast<DynamicResourceState*>(context);
     if (state == nullptr || state->sources.Empty() ||
         state->target != &object || state->property != property) {
@@ -843,9 +838,9 @@ void CleanupDynamicResource(void* context) noexcept {
 
 
 struct DeferredDynamicResourceState final {
-    Core::EffectiveValueEngine* engine = nullptr;
+    Meta::EffectiveValueEngine* engine = nullptr;
     ::Aero::DependencyObject* target = nullptr;
-    Core::DependencyPropertyHandle property;
+    Meta::DependencyPropertyHandle property;
     Base::Vector<const ResourceDictionary*> resources;
     ResourceDictionary* fallbackResources = nullptr;
     Base::String key;
@@ -893,10 +888,10 @@ void CleanupDeferredDynamicResource(void* context) noexcept {
 } // namespace
 
 Base::Result<void> DynamicResource::Attach(
-    Core::EffectiveValueEngine& effectiveValues,
+    Meta::EffectiveValueEngine& effectiveValues,
     ResourceDictionary& resources,
     ::Aero::DependencyObject& target,
-    Core::DependencyPropertyHandle property,
+    Meta::DependencyPropertyHandle property,
     Base::StringView key) noexcept {
     const ResourceDictionary* chain[] = {&resources};
     return Attach(
@@ -908,12 +903,12 @@ Base::Result<void> DynamicResource::Attach(
         key);
 }
 
-Base::Result<Core::PropertyExpression> DynamicResource::CreateExpression(
-    Core::EffectiveValueEngine& effectiveValues,
+Base::Result<Meta::PropertyExpression> DynamicResource::CreateExpression(
+    Meta::EffectiveValueEngine& effectiveValues,
     Base::Span<const ResourceDictionary* const> resourceChain,
     ResourceDictionary* fallbackResources,
     ::Aero::DependencyObject& target,
-    Core::DependencyPropertyHandle property,
+    Meta::DependencyPropertyHandle property,
     Base::StringView key) noexcept {
     const Base::StringView normalizedKey = TrimDynamicResourceText(key);
     if (!property.IsValid() || normalizedKey.Empty() ||
@@ -1002,21 +997,21 @@ Base::Result<Core::PropertyExpression> DynamicResource::CreateExpression(
         return assigned.GetStatus();
     }
 
-    return Core::PropertyExpression{
+    return Meta::PropertyExpression{
         state,
         &EvaluateDynamicResource,
         &CleanupDynamicResource,
-        Core::PropertyExpressionKind::DynamicResource};
+        Meta::PropertyExpressionKind::DynamicResource};
 }
 
 Base::Result<void> DynamicResource::Attach(
-    Core::EffectiveValueEngine& effectiveValues,
+    Meta::EffectiveValueEngine& effectiveValues,
     Base::Span<const ResourceDictionary* const> resourceChain,
     ResourceDictionary* fallbackResources,
     ::Aero::DependencyObject& target,
-    Core::DependencyPropertyHandle property,
+    Meta::DependencyPropertyHandle property,
     Base::StringView key) noexcept {
-    Base::Result<Core::PropertyExpression> expression = CreateExpression(
+    Base::Result<Meta::PropertyExpression> expression = CreateExpression(
         effectiveValues,
         resourceChain,
         fallbackResources,
@@ -1038,7 +1033,7 @@ DynamicResourceExtension::DynamicResourceExtension(
 
 Base::Result<void> DynamicResourceExtension::Register(
     Schema& schema,
-    Core::TypeId dynamicResourceExtensionType) noexcept {
+    Meta::TypeId dynamicResourceExtensionType) noexcept {
     return Detail::SchemaPrivate::AddMarkupExtension(schema, {
         dynamicResourceExtensionType,
         &DynamicResourceExtension::ProvideValue,
@@ -1053,7 +1048,7 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
         static_cast<DynamicResourceExtension*>(context);
     if (extension == nullptr ||
         services.schema == nullptr || services.targetObject == nullptr ||
-        services.targetMember == Core::InvalidMemberId) {
+        services.targetMember == Meta::InvalidMemberId) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "DynamicResource markup extension has no target service context");
@@ -1104,8 +1099,8 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
         // whose key is currently absent. Preserve an unset object value until
         // the eventual style-instance resource expression can evaluate it.
         return ProvidedValue::FromValue(
-            Core::Value::NullObject(
-                Core::TypeOf<Base::Object>()));
+            Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>()));
     }
     Base::Result<::Aero::DependencyObject*> targetResult =
         Detail::SchemaPrivate::ResolvePropertyTarget(
@@ -1115,8 +1110,8 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
         return targetResult.GetStatus();
     }
     ::Aero::DependencyObject* target = targetResult.Value();
-    const Core::DependencyPropertyHandle property{services.targetMember};
-    Core::EffectiveValueEngine* effectiveValues =
+    const Meta::DependencyPropertyHandle property{services.targetMember};
+    Meta::EffectiveValueEngine* effectiveValues =
         services.effectiveValues != nullptr
         ? services.effectiveValues
         : extension->options_.effectiveValues;
@@ -1186,7 +1181,7 @@ namespace {
 
 Base::StringView PropertyLocalName(
     Base::StringView value) noexcept {
-    value = Core::ValueConversion::Trim(value);
+    value = ::Aero::Base::Detail::ValueConversion::Trim(value);
     std::uint32_t separator = UINT32_MAX;
     for (std::uint32_t index = 0U;
          index < value.SizeBytes();
@@ -1239,9 +1234,9 @@ const char* MissingPropertyMessage(
 
 Base::Result<void> TemplateBindingExtension::Register(
     Schema& schema,
-    Core::TypeId markupExtensionType) noexcept {
+    Meta::TypeId markupExtensionType) noexcept {
     if (schema.IsFrozen() ||
-        markupExtensionType == Core::InvalidTypeId) {
+        markupExtensionType == Meta::InvalidTypeId) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "TemplateBinding extension registration is invalid");
@@ -1262,7 +1257,7 @@ TemplateBindingExtension::ProvideValue(
         services.deferredContentOwner == nullptr ||
         services.nameScope == nullptr ||
         services.targetMember ==
-            Core::InvalidMemberId ||
+            Meta::InvalidMemberId ||
         services.deferredContentOwner->RuntimeType() !=
             Controls::ControlTemplate::StaticTypeId()) {
         return Base::Status::Failure(
@@ -1287,13 +1282,13 @@ TemplateBindingExtension::ProvideValue(
             *services.targetObject);
     if (!target) return target.GetStatus();
 
-    const Core::DependencyProperty* source =
+    const Meta::DependencyProperty* source =
         target.Value()->PropertyRegistry().Find(
             controlTemplate.GetTargetType(),
             propertyName);
-    const Core::DependencyProperty* destination =
+    const Meta::DependencyProperty* destination =
         target.Value()->PropertyRegistry().Find(
-            Core::DependencyPropertyHandle{
+            Meta::DependencyPropertyHandle{
                 services.targetMember});
     if (source == nullptr) {
         return Base::Status::Failure(
@@ -1313,7 +1308,7 @@ TemplateBindingExtension::ProvideValue(
             *services.targetObject);
     if (authoredName.Empty()) {
         Base::Result<Base::String> generated =
-            Controls::Detail::TemplatePrivate::EnsureAuthoredName(controlTemplate,
+            Internal::TemplatePrivate::EnsureAuthoredName(controlTemplate,
                 *services.targetObject);
         if (!generated) {
             return generated.GetStatus();
@@ -1323,7 +1318,7 @@ TemplateBindingExtension::ProvideValue(
         authoredName = targetName.View();
     }
     Base::Result<void> added =
-        Controls::Detail::TemplatePrivate::TryAddTemplateBinding(controlTemplate,
+        Internal::TemplatePrivate::TryAddTemplateBinding(controlTemplate,
             authoredName,
             source->Handle(),
             destination->Handle());
@@ -1348,19 +1343,19 @@ TemplateBindingExtension::ProvideValue(
 namespace Aero::Markup {
 Base::Result<void> TypeExtension::Register(
     Schema& schema,
-    Core::TypeId markupExtensionType) noexcept {
+    Meta::TypeId markupExtensionType) noexcept {
     if (schema.IsFrozen() ||
-        markupExtensionType == Core::InvalidTypeId) {
+        markupExtensionType == Meta::InvalidTypeId) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "x:Type extension registration is invalid");
     }
-    const Core::TypeInfo* token =
+    const Meta::TypeInfo* token =
         schema.Types().FindType(
-            Core::TypeOf<Core::TypeReference>());
+            Meta::TypeOf<Meta::TypeReference>());
     if (token == nullptr ||
         (static_cast<std::uint32_t>(token->Flags()) &
-            static_cast<std::uint32_t>(Core::TypeFlags::ValueType)) == 0U) {
+            static_cast<std::uint32_t>(Meta::TypeFlags::ValueType)) == 0U) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "x:Type reference token must be a value type");
@@ -1378,10 +1373,10 @@ Base::Result<ProvidedValue> TypeExtension::ProvideValue(
             Base::ErrorCode::InvalidState,
             "x:Type extension context is invalid");
     }
-    Base::Result<Core::Value> value =
+    Base::Result<Meta::Value> value =
         Detail::SchemaPrivate::ConvertText(
             *services.schema,
-            Core::TypeOf<Core::TypeReference>(),
+            Meta::TypeOf<Meta::TypeReference>(),
             arguments,
             &services);
     return value
@@ -1424,9 +1419,9 @@ Base::StringView TrimStaticText(Base::StringView value) noexcept {
 
 Base::Result<void> StaticExtension::Register(
     Schema& schema,
-    Core::TypeId markupExtensionType) noexcept {
+    Meta::TypeId markupExtensionType) noexcept {
     if (schema.IsFrozen() ||
-        markupExtensionType == Core::InvalidTypeId) {
+        markupExtensionType == Meta::InvalidTypeId) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "x:Static extension registration is invalid");
@@ -1496,18 +1491,18 @@ Base::Result<ProvidedValue> StaticExtension::ProvideValue(
     Base::Result<Base::StringView> xamlNamespace =
         services.namespaces.Lookup(prefix);
     if (!xamlNamespace) return xamlNamespace.GetStatus();
-    Base::Result<const Core::TypeInfo*> type =
+    Base::Result<const Meta::TypeInfo*> type =
         Detail::SchemaPrivate::ResolveType(
             *services.schema,
             xamlNamespace.Value(),
             typeName);
     if (!type) return type.GetStatus();
-    if (type.Value()->Kind() != Core::MetadataTypeKind::Enum) {
+    if (type.Value()->Kind() != Meta::MetadataTypeKind::Enum) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "x:Static currently supports registered enum members");
     }
-    const Core::EnumValueInfo* value =
+    const Meta::EnumValueInfo* value =
         services.schema->Types().FindEnumValue(
             type.Value()->Id(), memberName);
     if (value == nullptr) {
@@ -1518,12 +1513,12 @@ Base::Result<ProvidedValue> StaticExtension::ProvideValue(
 
     const bool signedEnum =
         (static_cast<std::uint32_t>(type.Value()->Flags()) &
-         static_cast<std::uint32_t>(Core::TypeFlags::SignedEnum)) != 0U;
-    Core::Value result = signedEnum
-        ? Core::Value::FromSignedInteger(
+         static_cast<std::uint32_t>(Meta::TypeFlags::SignedEnum)) != 0U;
+    Meta::Value result = signedEnum
+        ? Meta::Value::FromSignedInteger(
               type.Value()->Id(),
               static_cast<std::int64_t>(value->RawValue()))
-        : Core::Value::FromUnsignedInteger(
+        : Meta::Value::FromUnsignedInteger(
               type.Value()->Id(),
               value->RawValue());
     return ProvidedValue::FromValue(std::move(result));
@@ -1581,27 +1576,32 @@ Base::Result<Aero::ResourceValue> ResourceResolver::Lookup(
 
 #include <utility>
 
-namespace Aero::Markup {
-
-namespace Detail {
+namespace Aero::Internal {
 
 class ResourcePrivate final {
 public:
-    static NamespaceScope CreateNamespaceScope(
-        NamespaceScope::LookupCallback lookup,
+    static ::Aero::Markup::NamespaceScope CreateNamespaceScope(
+        ::Aero::Markup::NamespaceScope::LookupCallback lookup,
         void* context) noexcept {
-        return NamespaceScope(lookup, context);
+        return ::Aero::Markup::NamespaceScope(lookup, context);
     }
 
-    static ResourceResolver CreateResourceResolver(
-        ResourceResolver::LookupCallback lookup,
+    static ::Aero::Markup::ResourceResolver CreateResourceResolver(
+        ::Aero::Markup::ResourceResolver::LookupCallback lookup,
         void* context) noexcept {
-        return ResourceResolver(lookup, context);
+        return ::Aero::Markup::ResourceResolver(lookup, context);
     }
 };
 
-} // namespace Detail
+} // namespace Aero::Internal
 
+// Source-only bridge for the historical Markup::Detail spelling. The
+// installed API only friends Internal::ResourcePrivate.
+namespace Aero::Markup::Detail {
+using ::Aero::Internal::ResourcePrivate;
+}
+
+namespace Aero::Markup {
 class NodeCursor {
 public:
     virtual ~NodeCursor() = default;
@@ -1760,29 +1760,30 @@ Base::StringView TrimBuilderText(Base::StringView value) noexcept {
     return value.Substr(begin, end - begin);
 }
 
-bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
+bool HasTypeFlag(Meta::TypeFlags value, Meta::TypeFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
 bool IsValueType(
-    const Core::TypeRegistry& descriptors,
-    Core::TypeId type) noexcept {
-    const Core::TypeInfo* info = descriptors.FindType(type);
+    const Meta::TypeRegistry& descriptors,
+    Meta::TypeId type) noexcept {
+    const Meta::TypeInfo* info = descriptors.FindType(type);
     return info != nullptr &&
-        HasTypeFlag(info->Flags(), Core::TypeFlags::ValueType);
+        HasTypeFlag(info->Flags(), Meta::TypeFlags::ValueType);
 }
 
 } // namespace
 
 ObjectBuilder::ObjectBuilder(
     ::Aero::Markup::Schema& schema,
-    Core::IDiagnosticSink* diagnostics) noexcept
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept
     : schema_(&schema),
       diagnostics_(diagnostics),
       frames_(),
       created_(),
       assignments_(),
+      deferredStaticResources_(),
       nameScopes_(),
       resourceScopes_(),
       serviceResourceChain_(),
@@ -1849,6 +1850,15 @@ Base::Result<LoaderResult> ObjectBuilder::Load(
 Base::Result<LoaderResult> ObjectBuilder::CompleteLoad(
     Base::Result<Base::Ref<Base::Object>> loaded) noexcept {
     if (!loaded) return loaded.GetStatus();
+    if (hasDeferredStaticResources_) {
+        Base::Result<void> resolved =
+            ResolveDeferredStaticResources();
+        if (!resolved) {
+            const Base::Status status = resolved.GetStatus();
+            AbortTransaction();
+            return status;
+        }
+    }
     LoaderResult result;
     result.root = std::move(loaded).Value();
     result.metadata = schema_->Metadata();
@@ -1883,6 +1893,34 @@ Base::Result<LoaderResult> ObjectBuilder::CompleteLoad(
     }
     ClearTransaction();
     return result;
+}
+
+Base::Result<void> ObjectBuilder::ResolveDeferredStaticResources() noexcept {
+    for (DeferredStaticResourceRecord& deferred :
+         deferredStaticResources_) {
+        Base::Result<Aero::ResourceValue> resource =
+            LookupResource(deferred.key.View());
+        if (!resource) {
+            Base::Result<Base::String> message =
+                StaticResourceNotFoundMessage(
+                    deferred.key.View());
+            if (!message) return message.GetStatus();
+            return Failure(
+                resource.GetStatus(),
+                XamlObjectWriterDiagnosticCodes::StaticResourceNotFound,
+                message.Value().View(),
+                deferred.source);
+        }
+        Base::Result<void> written = WriteValue(
+            deferred.targetObjectIndex,
+            deferred.member,
+            std::move(resource).Value(),
+            deferred.source);
+        if (!written) return written.GetStatus();
+    }
+    deferredStaticResources_.Clear();
+    hasDeferredStaticResources_ = false;
+    return {};
 }
 
 Base::Result<Base::Ref<Base::Object>> ObjectBuilder::LoadReaderCore(
@@ -1934,6 +1972,25 @@ Base::Result<Base::Ref<Base::Object>> ObjectBuilder::LoadCursorCore(
             loading_ = false;
             return status;
         }
+        if (loadContext_ != nullptr &&
+            loadContext_->recordingNodes != nullptr) {
+            Base::Result<Node> cloned = Node::TryClone(*current);
+            if (!cloned) {
+                const Base::Status status = cloned.GetStatus();
+                AbortTransaction();
+                loading_ = false;
+                return status;
+            }
+            Base::Result<void> recorded =
+                loadContext_->recordingNodes->TryPushBack(
+                    std::move(cloned).Value());
+            if (!recorded) {
+                const Base::Status status = recorded.GetStatus();
+                AbortTransaction();
+                loading_ = false;
+                return status;
+            }
+        }
         Base::Result<void> processResult =
             ProcessNode(*current);
         if (!processResult) {
@@ -1984,7 +2041,7 @@ Base::Result<Base::Ref<Base::Object>> ObjectBuilder::LoadCompiledCore(
 }
 
 Base::Result<Base::Ref<Base::Object>> ObjectBuilder::CreateObject(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     if (loadContext_ != nullptr &&
         created_.Size() >= loadContext_->maxObjects) {
         return Base::Status::Failure(
@@ -1995,9 +2052,9 @@ Base::Result<Base::Ref<Base::Object>> ObjectBuilder::CreateObject(
         loadContext_->existingRoot &&
         rootObjectIndex_ == InvalidIndex &&
         frames_.Empty()) {
-        const Core::TypeId actual =
+        const Meta::TypeId actual =
             loadContext_->existingRoot->RuntimeType();
-        if (actual == Core::InvalidTypeId ||
+        if (actual == Meta::InvalidTypeId ||
             !schema_->Types().IsAssignableFrom(type, actual)) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -2108,7 +2165,7 @@ Base::Result<void> ObjectBuilder::StartObject(
         return StartNullObject(node, bindingStart);
     }
 
-    Base::Result<const Core::TypeInfo*> typeResult =
+    Base::Result<const Meta::TypeInfo*> typeResult =
         schema_->ResolveType(
             node.Name().NamespaceUri(),
             node.Name().LocalName());
@@ -2120,8 +2177,8 @@ Base::Result<void> ObjectBuilder::StartObject(
             node.Source());
     }
 
-    const Core::TypeInfo* type = typeResult.Value();
-    if (HasTypeFlag(type->Flags(), Core::TypeFlags::ValueType)) {
+    const Meta::TypeInfo* type = typeResult.Value();
+    if (HasTypeFlag(type->Flags(), Meta::TypeFlags::ValueType)) {
         return StartValueObject(node, bindingStart, type->Id());
     }
     Base::Result<Base::Ref<Base::Object>> createResult =
@@ -2198,7 +2255,7 @@ Base::Result<void> ObjectBuilder::StartObject(
 Base::Result<void> ObjectBuilder::StartValueObject(
     const Node& node,
     std::uint32_t bindingStart,
-    Core::TypeId type) noexcept {
+    Meta::TypeId type) noexcept {
     if (frames_.Empty() ||
         (frames_.Back().kind != FrameKind::Object &&
          frames_.Back().kind != FrameKind::Member)) {
@@ -2281,7 +2338,7 @@ Base::Result<void> ObjectBuilder::EndObject(
                 node.Source());
         }
         if (frame.valuesWritten == 0U) {
-            const Core::TypeInfo* valueType =
+            const Meta::TypeInfo* valueType =
                 schema_->Types().FindType(
                     frame.member.valueType);
             // WPF permits an empty property element for reference-valued
@@ -2290,7 +2347,7 @@ Base::Result<void> ObjectBuilder::EndObject(
             // Application.Resources declarations.
             if (valueType == nullptr ||
                 valueType->Kind() !=
-                    Core::MetadataTypeKind::Object) {
+                    Meta::MetadataTypeKind::Object) {
                 return Failure(
                     Base::Status::Failure(
                         Base::ErrorCode::ValidationFailed,
@@ -2415,7 +2472,7 @@ Base::Result<void> ObjectBuilder::StartMember(
     }
 
     const ResolvedMember member = memberResult.Value();
-    if (member.kind != Core::MemberKind::Property ||
+    if (member.kind != Meta::MemberKind::Property ||
         !schema_->ResolveMemberWritePolicy(member).writable) {
         return Failure(
             Base::Status::Failure(
@@ -2593,7 +2650,7 @@ Base::Result<void> ObjectBuilder::WriteText(
                 MessageInvalidMarkupExtension,
                 node.Source());
         }
-        Base::Result<Core::Value> converted = schema_->ConvertText(
+        Base::Result<Meta::Value> converted = schema_->ConvertText(
             created_[objectIndex].type,
             markup == MarkupValueKind::EscapedLiteral
                 ? argument : node.Value());
@@ -2639,7 +2696,7 @@ Base::Result<void> ObjectBuilder::WriteText(
                     MessageNullNotAllowed,
                     node.Source());
             }
-            Core::Value value = Core::Value::NullObject(frame.member.valueType);
+            Meta::Value value = Meta::Value::NullObject(frame.member.valueType);
             return WriteValueToMember(frame, std::move(value), node.Source());
         }
         if (markup == MarkupValueKind::StaticResource) {
@@ -2649,6 +2706,18 @@ Base::Result<void> ObjectBuilder::WriteText(
                     loadContext_->deferUnresolvedStaticResources) {
                     frame.deferredStaticResource = true;
                     hasDeferredStaticResources_ = true;
+                    DeferredStaticResourceRecord deferred;
+                    deferred.targetObjectIndex =
+                        frame.targetObjectIndex;
+                    deferred.member = frame.member;
+                    deferred.source = node.Source();
+                    Base::Result<void> key = deferred.key.TryAssign(
+                        argument);
+                    if (!key) return key.GetStatus();
+                    Base::Result<void> stored =
+                        deferredStaticResources_.TryPushBack(
+                            std::move(deferred));
+                    if (!stored) return stored.GetStatus();
                     return {};
                 }
                 Base::Result<Base::String> message =
@@ -2683,7 +2752,7 @@ Base::Result<void> ObjectBuilder::WriteText(
             frame.targetObjectIndex,
             frame.member,
             node.Source());
-        Base::Result<Core::Value> convertResult = schema_->ConvertText(
+        Base::Result<Meta::Value> convertResult = schema_->ConvertText(
             frame.member.valueType,
             markup == MarkupValueKind::EscapedLiteral
                 ? argument
@@ -2750,7 +2819,7 @@ Base::Result<void> ObjectBuilder::WriteText(
                 MessageNullNotAllowed,
                 node.Source());
         }
-        Core::Value value = Core::Value::NullObject(
+        Meta::Value value = Meta::Value::NullObject(
             contentResult.Value().valueType);
         return WriteValue(
             frame.objectIndex,
@@ -2765,6 +2834,17 @@ Base::Result<void> ObjectBuilder::WriteText(
                 loadContext_->deferUnresolvedStaticResources) {
                 frame.deferredStaticResource = true;
                 hasDeferredStaticResources_ = true;
+                DeferredStaticResourceRecord deferred;
+                deferred.targetObjectIndex = frame.objectIndex;
+                deferred.member = contentResult.Value();
+                deferred.source = node.Source();
+                Base::Result<void> key = deferred.key.TryAssign(
+                    argument);
+                if (!key) return key.GetStatus();
+                Base::Result<void> stored =
+                    deferredStaticResources_.TryPushBack(
+                        std::move(deferred));
+                if (!stored) return stored.GetStatus();
                 return {};
             }
             Base::Result<Base::String> message =
@@ -2803,7 +2883,7 @@ Base::Result<void> ObjectBuilder::WriteText(
         frame.objectIndex,
         contentResult.Value(),
         node.Source());
-    Base::Result<Core::Value> convertResult = schema_->ConvertText(
+    Base::Result<Meta::Value> convertResult = schema_->ConvertText(
         contentResult.Value().valueType,
         markup == MarkupValueKind::EscapedLiteral
             ? argument
@@ -2939,7 +3019,7 @@ Base::Result<void> ObjectBuilder::StartPropertyElement(
             Aero::ResourceDictionary::StaticTypeId() &&
         contentMember &&
         contentMember.Value().id == member.id;
-    if (member.kind != Core::MemberKind::Property ||
+    if (member.kind != Meta::MemberKind::Property ||
         (!schema_->ResolveMemberWritePolicy(member).writable &&
          !resourceEntries)) {
         return Failure(
@@ -3020,7 +3100,35 @@ Base::Result<void> ObjectBuilder::CompleteObject(
                 frames_.PopBack();
                 PopNamespaceBindings(frame.namespaceBindingStart);
                 if (!frames_.Empty()) {
-                    frames_.Back().deferredStaticResource = true;
+                    Frame& parent = frames_.Back();
+                    parent.deferredStaticResource = true;
+                    DeferredStaticResourceRecord deferred;
+                    if (parent.kind == FrameKind::Member) {
+                        deferred.targetObjectIndex =
+                            parent.targetObjectIndex;
+                        deferred.member = parent.member;
+                    } else if (parent.kind == FrameKind::Object &&
+                               parent.objectIndex < created_.Size()) {
+                        Base::Result<ResolvedMember> content =
+                            schema_->ResolveContentMember(
+                                created_[parent.objectIndex].type);
+                        if (!content) return content.GetStatus();
+                        deferred.targetObjectIndex =
+                            parent.objectIndex;
+                        deferred.member = content.Value();
+                    } else {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::InvalidState,
+                            "StaticResource parent frame is invalid");
+                    }
+                    deferred.source = node.Source();
+                    Base::Result<void> key = deferred.key.TryAssign(
+                        extension.ResourceKey());
+                    if (!key) return key.GetStatus();
+                    Base::Result<void> stored =
+                        deferredStaticResources_.TryPushBack(
+                            std::move(deferred));
+                    if (!stored) return stored.GetStatus();
                 }
                 hasDeferredStaticResources_ = true;
                 return {};
@@ -3129,8 +3237,8 @@ Base::Result<void> ObjectBuilder::CompleteNullObject(
 }
 
 Base::Result<void> ObjectBuilder::WriteValueToParent(
-    Core::Value&& value,
-    Core::SourceSpan source) noexcept {
+    Meta::Value&& value,
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (frames_.Empty()) {
         return Failure(
             Base::Status::Failure(
@@ -3171,7 +3279,7 @@ Base::Result<void> ObjectBuilder::WriteValueToParent(
 
 Base::Result<void> ObjectBuilder::WriteObjectToParent(
     std::uint32_t objectIndex,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (objectIndex >= created_.Size()) {
         return Failure(
             InvalidStateStatus(),
@@ -3196,7 +3304,7 @@ Base::Result<void> ObjectBuilder::WriteObjectToParent(
 
     Frame& parent = frames_.Back();
     if (parent.kind == FrameKind::Member) {
-        Core::Value value = Core::Value::FromObject(
+        Meta::Value value = Meta::Value::FromObject(
             created_[objectIndex].type,
             created_[objectIndex].object);
         return WriteValueToMember(parent, std::move(value), source);
@@ -3218,7 +3326,7 @@ Base::Result<void> ObjectBuilder::WriteObjectToParent(
 Base::Result<void> ObjectBuilder::WriteObjectToContent(
     std::uint32_t parentObjectIndex,
     std::uint32_t childObjectIndex,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (parentObjectIndex >= created_.Size() ||
         childObjectIndex >= created_.Size()) {
         return Failure(
@@ -3238,7 +3346,7 @@ Base::Result<void> ObjectBuilder::WriteObjectToContent(
             source);
     }
 
-    Core::Value value = Core::Value::FromObject(
+    Meta::Value value = Meta::Value::FromObject(
         created_[childObjectIndex].type,
         created_[childObjectIndex].object);
     return WriteValue(
@@ -3249,7 +3357,7 @@ Base::Result<void> ObjectBuilder::WriteObjectToContent(
 }
 
 Base::Result<void> ObjectBuilder::WriteNullToParent(
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (frames_.Empty()) {
         return Failure(
             Base::Status::Failure(
@@ -3275,7 +3383,7 @@ Base::Result<void> ObjectBuilder::WriteNullToParent(
                 MessageNullNotAllowed,
                 source);
         }
-        Core::Value value = Core::Value::NullObject(parent.member.valueType);
+        Meta::Value value = Meta::Value::NullObject(parent.member.valueType);
         return WriteValueToMember(parent, std::move(value), source);
     }
     if (parent.kind != FrameKind::Object ||
@@ -3300,7 +3408,7 @@ Base::Result<void> ObjectBuilder::WriteNullToParent(
             source);
     }
 
-    Core::Value value = Core::Value::NullObject(
+    Meta::Value value = Meta::Value::NullObject(
         contentResult.Value().valueType);
     return WriteValue(
         parent.objectIndex,
@@ -3311,8 +3419,8 @@ Base::Result<void> ObjectBuilder::WriteNullToParent(
 
 Base::Result<void> ObjectBuilder::WriteValueToMember(
     Frame& memberFrame,
-    Core::Value&& value,
-    Core::SourceSpan source) noexcept {
+    Meta::Value&& value,
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     Base::Result<void> result = WriteValue(
         memberFrame.targetObjectIndex,
         memberFrame.member,
@@ -3337,7 +3445,7 @@ Base::Result<void> ObjectBuilder::WriteValueToMember(
 Base::Result<void> ObjectBuilder::WriteProvidedValueToMember(
     Frame& memberFrame,
     ProvidedValue&& provided,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     Base::Result<void> result = WriteProvidedValue(
         memberFrame.targetObjectIndex,
         memberFrame.member,
@@ -3361,7 +3469,7 @@ Base::Result<void> ObjectBuilder::WriteProvidedValue(
     std::uint32_t targetObjectIndex,
     const ResolvedMember& member,
     ProvidedValue&& provided,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (provided.kind == ProvidedValueKind::Value) {
         return WriteValue(
             targetObjectIndex,
@@ -3433,7 +3541,7 @@ Base::Result<void> ObjectBuilder::WriteProvidedValue(
         }
         effect.effectiveValues = provided.effectiveValues;
         effect.target = target.Value();
-        effect.property = Core::DependencyPropertyHandle{member.id};
+        effect.property = Meta::DependencyPropertyHandle{member.id};
         effect.pendingExpression = provided.expression;
         provided.expression = {};
     } else if (provided.kind == ProvidedValueKind::Handled) {
@@ -3486,8 +3594,8 @@ Base::Result<void> ObjectBuilder::WriteProvidedValue(
 Base::Result<void> ObjectBuilder::WriteValue(
     std::uint32_t targetObjectIndex,
     const ResolvedMember& member,
-    Core::Value&& value,
-    Core::SourceSpan source) noexcept {
+    Meta::Value&& value,
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (targetObjectIndex >= created_.Size()) {
         return Failure(
             InvalidStateStatus(),
@@ -3544,9 +3652,9 @@ Base::Result<void> ObjectBuilder::WriteValue(
     if (member.valueType ==
             Media::Brush::StaticTypeId() &&
         value.Type() ==
-            Core::TypeOf<Base::Color>()) {
+            Meta::TypeOf<Base::Color>()) {
         Base::Result<Base::Color> color =
-            Core::ValueCodec<Base::Color>::Decode(
+            Meta::ValueCodec<Base::Color>::Decode(
                 value);
         if (!color) {
             return Failure(
@@ -3569,33 +3677,33 @@ Base::Result<void> ObjectBuilder::WriteValue(
                 MessageInvalidWriterState,
                 source);
         }
-        value = Core::Value::FromObject(
+        value = Meta::Value::FromObject(
             Media::Brush::StaticTypeId(),
             Base::Ref<Base::Object>(
                 std::move(brush).Value()));
     }
-    if (member.valueType == Core::TypeOf<Base::String>() &&
+    if (member.valueType == Meta::TypeOf<Base::String>() &&
         value.Type() == Media::FontFamily::StaticTypeId() &&
-        value.Kind() == Core::ValueKind::Object && value.AsObject()) {
+        value.Kind() == Meta::ValueKind::Object && value.AsObject()) {
         const auto& family = static_cast<const Media::FontFamily&>(
             *value.AsObject());
-        Base::Result<Core::Value> converted = Core::Value::TryFromString(
-            Core::TypeOf<Base::String>(), family.Source());
+        Base::Result<Meta::Value> converted = Meta::Value::TryFromString(
+            Meta::TypeOf<Base::String>(), family.GetSource());
         if (!converted) return Failure(converted.GetStatus(),
             XamlObjectWriterDiagnosticCodes::InvalidWriterState,
             MessageInvalidWriterState, source);
         value = std::move(converted).Value();
     }
-    Base::Result<Core::ContentInfo> content =
+    Base::Result<Meta::ContentInfo> content =
         schema_->Metadata()->GetContentInfo(member.id);
     const bool hasVisualContent =
         content && content.Value().writable &&
         content.Value().IsVisual();
-    const Core::PropertyInfo* memberProperty =
+    const Meta::PropertyInfo* memberProperty =
         schema_->Types().FindProperty(member.id);
     const auto isUIElementValue =
-        [this](const Core::Value& candidate) noexcept {
-            return candidate.Kind() == Core::ValueKind::Object &&
+        [this](const Meta::Value& candidate) noexcept {
+            return candidate.Kind() == Meta::ValueKind::Object &&
                 !candidate.IsNullObject() &&
                 candidate.AsObject() &&
                 schema_->Types().IsDerivedFrom(
@@ -3607,7 +3715,7 @@ Base::Result<void> ObjectBuilder::WriteValue(
         (static_cast<std::uint32_t>(
              memberProperty->Flags()) &
          static_cast<std::uint32_t>(
-             Core::PropertyFlags::Structural)) !=
+             Meta::PropertyFlags::Structural)) !=
             0U &&
         schema_->Metadata()->
             CanWriteProperty(member.id);
@@ -3630,7 +3738,7 @@ Base::Result<void> ObjectBuilder::WriteValue(
         hasVisualContent &&
         !stagesVisualContent &&
         schema_->Metadata()->CanReadProperty(member.id)) {
-        Base::Result<Core::Value> materialized =
+        Base::Result<Meta::Value> materialized =
             schema_->Metadata()->GetProperty(
                 *created_[targetObjectIndex].object,
                 member.id);
@@ -3644,7 +3752,7 @@ Base::Result<void> ObjectBuilder::WriteValue(
         }
     }
     if (!setResult) {
-        Core::DiagnosticCode code =
+        ::Aero::Diagnostics::DiagnosticCode code =
             XamlObjectWriterDiagnosticCodes::InvalidValue;
         Base::StringView message = MessageInvalidValue;
         if (setResult.GetStatus().code == Base::ErrorCode::Unsupported) {
@@ -3673,7 +3781,7 @@ Base::Result<void> ObjectBuilder::WriteValue(
 
 Base::Result<void> ObjectBuilder::RegisterObjectName(
     std::uint32_t objectIndex,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (objectIndex >= created_.Size()) {
         return Failure(
             InvalidStateStatus(),
@@ -3740,7 +3848,7 @@ Base::Result<void> ObjectBuilder::RegisterObjectName(
 
 Base::Result<bool> ObjectBuilder::RegisterObjectResource(
     std::uint32_t objectIndex,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (objectIndex >= created_.Size()) {
         return Failure(
             InvalidStateStatus(),
@@ -3758,7 +3866,7 @@ Base::Result<bool> ObjectBuilder::RegisterObjectResource(
     if (!frames_.Empty()) {
         const Frame& parent = frames_.Back();
         std::uint32_t parentObjectIndex = InvalidIndex;
-        Core::MemberId targetMember = Core::InvalidMemberId;
+        Meta::MemberId targetMember = Meta::InvalidMemberId;
         if (parent.kind == FrameKind::Object) {
             parentObjectIndex = parent.objectIndex;
         } else if (parent.kind == FrameKind::Member) {
@@ -3772,17 +3880,17 @@ Base::Result<bool> ObjectBuilder::RegisterObjectResource(
                 schema_->ResolveContentMember(
                     created_[parentObjectIndex].type);
             dictionaryContent = content &&
-                (targetMember == Core::InvalidMemberId ||
+                (targetMember == Meta::InvalidMemberId ||
                  targetMember == content.Value().id);
         } else if (
             parentObjectIndex < created_.Size() &&
-            targetMember != Core::InvalidMemberId &&
+            targetMember != Meta::InvalidMemberId &&
             object.type !=
                 Aero::ResourceDictionary::
                     StaticTypeId() &&
             schema_->CreatesResourceScope(
                 created_[parentObjectIndex].type)) {
-            const Core::PropertyInfo* property =
+            const Meta::PropertyInfo* property =
                 schema_->Types().FindProperty(
                     targetMember);
             dictionaryContent =
@@ -3837,9 +3945,9 @@ Base::Result<bool> ObjectBuilder::RegisterObjectResource(
     }
 
     ResourceScopeRecord& scope = resourceScopes_[scopeIndex];
-    Core::Value resourceValue = object.valueElement
+    Meta::Value resourceValue = object.valueElement
         ? object.value
-        : Core::Value::FromObject(object.type, object.object);
+        : Meta::Value::FromObject(object.type, object.object);
     Base::Result<void> localResult = scope.resources.TryAdd(
         resourceKey.Value(),
         resourceValue,
@@ -3918,7 +4026,7 @@ Base::Result<Aero::ResourceValue> ObjectBuilder::LookupResource(
         Base::Result<Base::StringView> namespaceUri =
             LookupNamespace(prefix);
         if (!namespaceUri) return namespaceUri.GetStatus();
-        Base::Result<const Core::TypeInfo*> type =
+        Base::Result<const Meta::TypeInfo*> type =
             schema_->ResolveType(
                 namespaceUri.Value(), localName);
         if (!type) return type.GetStatus();
@@ -3946,6 +4054,29 @@ Base::Result<Aero::ResourceValue> ObjectBuilder::LookupResource(
             return value.GetStatus();
         }
     }
+    if (frames_.Empty()) {
+        for (std::uint32_t index = resourceScopes_.Size();
+             index > 0U; --index) {
+            const ResourceScopeRecord& scope =
+                resourceScopes_[index - 1U];
+            const Aero::ResourceDictionary* dictionary =
+                scope.external != nullptr
+                    ? scope.external
+                    : &scope.resources;
+            Base::Result<Aero::ResourceValue> value =
+                dictionary->Lookup(resourceKey.Value());
+            if (value) return value;
+            if (value.GetStatus().code != Base::ErrorCode::NotFound) {
+                return value.GetStatus();
+            }
+        }
+        Base::Result<Aero::ResourceValue> committed =
+            committedResources_.Lookup(resourceKey.Value());
+        if (committed) return committed;
+        if (committed.GetStatus().code != Base::ErrorCode::NotFound) {
+            return committed.GetStatus();
+        }
+    }
     if (loadContext_ != nullptr && loadContext_->resources != nullptr) {
         Base::Result<Aero::ResourceValue> value =
             loadContext_->resources->Lookup(resourceKey.Value());
@@ -3964,7 +4095,7 @@ Base::Result<Aero::ResourceValue> ObjectBuilder::LookupResource(
 Base::Result<void> ObjectBuilder::CreateScopesForObject(
     std::uint32_t objectIndex,
     Frame& frame,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (objectIndex >= created_.Size()) {
         return Failure(
             InvalidStateStatus(),
@@ -4067,7 +4198,7 @@ Base::Result<Base::StringView> ObjectBuilder::LookupNamespace(
 ExtensionServices ObjectBuilder::BuildExtensionServices(
     std::uint32_t targetObjectIndex,
     const ResolvedMember& member,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     ExtensionServices services;
     services.schema = schema_;
     if (targetObjectIndex < created_.Size()) {
@@ -4307,7 +4438,7 @@ Base::Result<ProvidedValue> ObjectBuilder::EvaluateMarkupExtension(
     const ResolvedMember& member,
     Base::StringView extensionName,
     Base::StringView arguments,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     std::uint32_t colon = extensionName.SizeBytes();
     for (std::uint32_t index = 0U;
          index < extensionName.SizeBytes();
@@ -4353,7 +4484,7 @@ Base::Result<ProvidedValue> ObjectBuilder::EvaluateMarkupExtension(
             MessageUnknownMarkupExtension,
             source);
     }
-    Base::Result<const Core::TypeInfo*> typeResult =
+    Base::Result<const Meta::TypeInfo*> typeResult =
         schema_->ResolveType(
             namespaceResult.Value(),
             localName);
@@ -4425,7 +4556,7 @@ bool ObjectBuilder::IsWhitespaceOnly(
 
 ObjectBuilder::AssignmentRecord* ObjectBuilder::FindAssignment(
     std::uint32_t objectIndex,
-    Core::MemberId member) noexcept {
+    Meta::MemberId member) noexcept {
     for (AssignmentRecord& assignment : assignments_) {
         if (assignment.objectIndex == objectIndex &&
             assignment.member == member) {
@@ -4471,6 +4602,7 @@ void ObjectBuilder::ClearTransaction() noexcept {
     deferredContent_.ReleaseAll();
     frames_.Clear();
     assignments_.Clear();
+    deferredStaticResources_.Clear();
     extensionEffects_.Clear();
     nameScopes_.Clear();
     resourceScopes_.Clear();
@@ -4488,17 +4620,17 @@ void ObjectBuilder::ClearTransaction() noexcept {
 
 Base::Status ObjectBuilder::Failure(
     Base::Status status,
-    Core::DiagnosticCode diagnostic,
+    ::Aero::Diagnostics::DiagnosticCode diagnostic,
     Base::StringView message,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (diagnostics_ != nullptr) {
-        Base::Result<Core::Diagnostic> item = Core::Diagnostic::TryCreate(
+        Base::Result<::Aero::Diagnostics::Diagnostic> item = ::Aero::Diagnostics::Diagnostic::TryCreate(
             diagnostic,
-            Core::DiagnosticSeverity::Error,
+            ::Aero::Diagnostics::DiagnosticSeverity::Error,
             message,
             source,
-            Core::InvalidDiagnosticObjectId,
-            Core::InvalidMemberId);
+            ::Aero::Diagnostics::InvalidDiagnosticObjectId,
+            Meta::InvalidMemberId);
         if (!item) {
             return item.GetStatus();
         }
@@ -4563,8 +4695,8 @@ Base::Result<void> DeferredContentPlan::Stage(
     Base::Object& parent,
     const Base::Ref<Base::Object>& child,
     ::Aero::Meta::Registry& metadata,
-    Core::MemberId member) noexcept {
-    if (!child || member == Core::InvalidMemberId ||
+    Meta::MemberId member) noexcept {
+    if (!child || member == Meta::InvalidMemberId ||
         !metadata.IsReady()) {
         return InvalidContentState(
             "Deferred XAML content edge is invalid");
@@ -4592,13 +4724,13 @@ Base::Result<void> DeferredContentPlan::StageProperty(
     Base::Object& parent,
     const Base::Ref<Base::Object>& child,
     ::Aero::Meta::Registry& metadata,
-    Core::MemberId member) noexcept {
+    Meta::MemberId member) noexcept {
     if (!child ||
-        member == Core::InvalidMemberId) {
+        member == Meta::InvalidMemberId) {
         return InvalidContentState(
             "Deferred XAML structural property edge is invalid");
     }
-    const Core::PropertyInfo* property =
+    const Meta::PropertyInfo* property =
         metadata.Types().FindProperty(member);
     if (property == nullptr) {
         return InvalidContent(
@@ -4613,8 +4745,8 @@ Base::Result<void> DeferredContentPlan::StageProperty(
             member,
             true});
     if (!retained) return retained.GetStatus();
-    const Core::Value value =
-        Core::Value::FromObject(
+    const Meta::Value value =
+        Meta::Value::FromObject(
             property->ValueType(), child);
     Base::Result<void> written =
         metadata.SetProperty(
@@ -4646,14 +4778,14 @@ Base::Result<void> DeferredContentPlan::StageBinding(
     Base::Object& owner,
     Base::Object* source,
     ::Aero::DependencyObject& target,
-    Aero::Detail::BindingEngine& manager,
+    Aero::Internal::BindingEngine& manager,
     ::Aero::Meta::Registry& metadata,
-    Core::DependencyPropertyHandle targetProperty,
-    Core::DependencyPropertyHandle dataContextProperty,
+    Meta::DependencyPropertyHandle targetProperty,
+    Meta::DependencyPropertyHandle dataContextProperty,
     Base::StringView path,
     Base::StringView stringFormat,
     Data::BindingMode mode,
-    Core::UpdateSourceTrigger updateSourceTrigger,
+    Meta::UpdateSourceTrigger updateSourceTrigger,
     bool bindsToSource) noexcept {
     if (!targetProperty.IsValid() ||
         (path.Empty() && !bindsToSource) ||
@@ -4722,14 +4854,14 @@ void DeferredContentPlan::ReleaseOwner(
             edge.parent != nullptr &&
             edge.metadata != nullptr) {
             if (edge.property) {
-                const Core::PropertyInfo* property =
+                const Meta::PropertyInfo* property =
                     edge.metadata->Types().
                         FindProperty(edge.member);
                 if (property != nullptr) {
                     (void)edge.metadata->SetProperty(
                         *edge.parent,
                         edge.member,
-                        Core::Value::NullObject(
+                        Meta::Value::NullObject(
                             property->ValueType()));
                 }
             } else {
@@ -4782,7 +4914,7 @@ void DeferredContentPlan::ReleaseAll() noexcept {
 
 ObjectWriter::ObjectWriter(
     ::Aero::Markup::Schema& schema,
-    Core::IDiagnosticSink* diagnostics) noexcept
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept
     : schema_(&schema),
       diagnostics_(diagnostics) {}
 
@@ -4801,7 +4933,7 @@ Base::Result<LoaderResult> ObjectWriter::LoadDocument(
 Base::Result<Aero::Visual*> ObjectWriter::ResolveVisual(
     ::Aero::Markup::Schema& schema,
     Base::Object& object,
-    Core::TypeId type) noexcept {
+    Meta::TypeId type) noexcept {
     if (object.RuntimeType() != type ||
         !schema.Types().IsDerivedFrom(
             type, Aero::Visual::StaticTypeId())) {
@@ -4814,7 +4946,7 @@ Base::Result<Aero::Visual*> ObjectWriter::ResolveVisual(
 Base::Result<Aero::UIElement*> ObjectWriter::ResolveUIElement(
     ::Aero::Markup::Schema& schema,
     Base::Object& object,
-    Core::TypeId type) noexcept {
+    Meta::TypeId type) noexcept {
     Base::Result<Aero::Visual*> visual =
         ResolveVisual(schema, object, type);
     if (!visual) return visual.GetStatus();
@@ -4829,11 +4961,11 @@ Base::Result<Aero::UIElement*> ObjectWriter::ResolveUIElement(
 Base::Result<void> ObjectWriter::StageContent(
     ::Aero::Markup::Schema& schema,
     Base::Object& object,
-    const Core::Value& value,
+    const Meta::Value& value,
     const ExtensionServices& services) noexcept {
     VisualContentPlan* plan = services.visualContent;
     if (plan == nullptr || services.targetObject != &object ||
-        value.Kind() != Core::ValueKind::Object ||
+        value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject()) {
         return InvalidContentState(
             "XAML visual content requires a non-null object");
@@ -4844,9 +4976,9 @@ Base::Result<void> ObjectWriter::StageContent(
         return InvalidContentState(
             "XAML content metadata is unavailable");
     }
-    Base::Result<Core::ContentInfo> contentResult =
+    Base::Result<Meta::ContentInfo> contentResult =
         metadata->GetContentInfo(services.targetMember);
-    const Core::PropertyInfo* property =
+    const Meta::PropertyInfo* property =
         schema.Types().FindProperty(
             services.targetMember);
     const bool structuralProperty =
@@ -4854,7 +4986,7 @@ Base::Result<void> ObjectWriter::StageContent(
         (static_cast<std::uint32_t>(
              property->Flags()) &
          static_cast<std::uint32_t>(
-             Core::PropertyFlags::Structural)) !=
+             Meta::PropertyFlags::Structural)) !=
             0U &&
         metadata->CanWriteProperty(
             services.targetMember);
@@ -4863,7 +4995,7 @@ Base::Result<void> ObjectWriter::StageContent(
             "XAML content target has no content metadata");
     }
     if (!structuralProperty) {
-        const Core::ContentInfo& content =
+        const Meta::ContentInfo& content =
             contentResult.Value();
         if (!content.writable ||
             !content.clearable ||

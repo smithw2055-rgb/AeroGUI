@@ -63,11 +63,11 @@ Custom rendering follows the WPF-shaped protected hook:
 ```cpp
 class Meter final : public Aero::FrameworkElement {
 protected:
-    Aero::Base::Result<void> OnRender(
+    void OnRender(
         Aero::DrawingContext& context) noexcept override {
-        return context.DrawRectangle(
+        static_cast<void>(context.DrawRectangle(
             {0.0, 0.0, GetRenderSize().width, GetRenderSize().height},
-            {0.2F, 0.6F, 0.9F, 1.0F});
+            {0.2F, 0.6F, 0.9F, 1.0F}));
     }
 };
 ```
@@ -103,7 +103,7 @@ implementation objects into Gui. The host drives frames through `View::Update()`
 
 ## XAML load transaction
 
-`UiDocument` is a move-only load result. `Markup::XamlReader` creates an
+`Markup::XamlDocument` is a move-only load result. `Markup::XamlReader` creates an
 unmounted object graph; `View::SetContent` commits binding, dynamic-resource
 and mount side effects. Failure leaves no partially mounted document.
 

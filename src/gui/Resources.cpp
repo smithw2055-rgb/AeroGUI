@@ -136,9 +136,9 @@ Base::Result<ResourceKey> ResourceKey::FromString(
 }
 
 ResourceKey ResourceKey::FromType(
-    Core::TypeId value) noexcept {
+    Meta::TypeId value) noexcept {
     ResourceKey key;
-    if (value != Core::InvalidTypeId) {
+    if (value != Meta::InvalidTypeId) {
         key.kind_ = ResourceKeyKind::Type;
         key.type_ = value;
     }
@@ -149,7 +149,7 @@ bool ResourceKey::IsValid() const noexcept {
     return (kind_ == ResourceKeyKind::String &&
             !string_.Empty()) ||
         (kind_ == ResourceKeyKind::Type &&
-         type_ != Core::InvalidTypeId);
+         type_ != Meta::InvalidTypeId);
 }
 
 bool operator==(
@@ -173,7 +173,7 @@ struct ResourceDictionary::Impl final {
     struct Entry final {
         ResourceKey key;
         ResourceValue value;
-        Core::SourceSpan source;
+        ::Aero::Diagnostics::SourceSpan source;
     };
 
     struct Listener final {
@@ -478,9 +478,9 @@ void ResourceDictionary::ReleaseImpl(
 Base::Result<void> ResourceDictionary::TryAdd(
     const ResourceKey& key,
     const ResourceValue& value,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (!key.IsValid() ||
-        value.Type() == Core::InvalidTypeId ||
+        value.Type() == Meta::InvalidTypeId ||
         value.IsUnset()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -520,7 +520,7 @@ Base::Result<void> ResourceDictionary::TryAdd(
 Base::Result<void> ResourceDictionary::TryAdd(
     Base::StringView key,
     const ResourceValue& value,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     Base::Result<ResourceKey> resourceKey =
         ResourceKey::FromString(key);
     if (!resourceKey) {
@@ -530,35 +530,35 @@ Base::Result<void> ResourceDictionary::TryAdd(
 }
 
 Base::Result<void> ResourceDictionary::TryAdd(
-    Core::TypeId key,
+    Meta::TypeId key,
     const ResourceValue& value,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     return TryAdd(
         ResourceKey::FromType(key), value, source);
 }
 
 Base::Result<void> ResourceDictionary::TryAdd(
     Base::StringView key,
-    Core::TypeId type,
+    Meta::TypeId type,
     const Base::Ref<Base::Object>& object,
-    Core::SourceSpan source) noexcept {
-    if (type == Core::InvalidTypeId || !object) {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
+    if (type == Meta::InvalidTypeId || !object) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             MessageInvalidResource);
     }
     return TryAdd(
         key,
-        Core::Value::FromObject(type, object),
+        Meta::Value::FromObject(type, object),
         source);
 }
 
 Base::Result<void> ResourceDictionary::TrySet(
     const ResourceKey& key,
     const ResourceValue& value,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (!key.IsValid() ||
-        value.Type() == Core::InvalidTypeId ||
+        value.Type() == Meta::InvalidTypeId ||
         value.IsUnset()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -590,7 +590,7 @@ Base::Result<void> ResourceDictionary::TrySet(
 Base::Result<void> ResourceDictionary::TrySet(
     Base::StringView key,
     const ResourceValue& value,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     Base::Result<ResourceKey> resourceKey =
         ResourceKey::FromString(key);
     if (!resourceKey) {
@@ -600,26 +600,26 @@ Base::Result<void> ResourceDictionary::TrySet(
 }
 
 Base::Result<void> ResourceDictionary::TrySet(
-    Core::TypeId key,
+    Meta::TypeId key,
     const ResourceValue& value,
-    Core::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
     return TrySet(
         ResourceKey::FromType(key), value, source);
 }
 
 Base::Result<void> ResourceDictionary::TrySet(
     Base::StringView key,
-    Core::TypeId type,
+    Meta::TypeId type,
     const Base::Ref<Base::Object>& object,
-    Core::SourceSpan source) noexcept {
-    if (type == Core::InvalidTypeId || !object) {
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
+    if (type == Meta::InvalidTypeId || !object) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             MessageInvalidResource);
     }
     return TrySet(
         key,
-        Core::Value::FromObject(type, object),
+        Meta::Value::FromObject(type, object),
         source);
 }
 
@@ -669,7 +669,7 @@ Base::Result<bool> ResourceDictionary::Remove(
 }
 
 Base::Result<bool> ResourceDictionary::Remove(
-    Core::TypeId key) noexcept {
+    Meta::TypeId key) noexcept {
     return Remove(ResourceKey::FromType(key));
 }
 
@@ -700,7 +700,7 @@ Base::Result<ResourceValue> ResourceDictionary::Lookup(
 }
 
 Base::Result<ResourceValue> ResourceDictionary::Lookup(
-    Core::TypeId key) const noexcept {
+    Meta::TypeId key) const noexcept {
     return Lookup(ResourceKey::FromType(key));
 }
 
@@ -715,11 +715,11 @@ bool ResourceDictionary::Contains(
 }
 
 bool ResourceDictionary::Contains(
-    Core::TypeId key) const noexcept {
+    Meta::TypeId key) const noexcept {
     return static_cast<bool>(Lookup(key));
 }
 
-Core::SourceSpan ResourceDictionary::SourceOf(
+::Aero::Diagnostics::SourceSpan ResourceDictionary::SourceOf(
     const ResourceKey& key) const noexcept {
     if (impl_ == nullptr || !key.IsValid()) {
         return {};
@@ -728,16 +728,16 @@ Core::SourceSpan ResourceDictionary::SourceOf(
         FindLocal(*impl_, key);
     return entry != nullptr
         ? entry->source
-        : Core::SourceSpan{};
+        : ::Aero::Diagnostics::SourceSpan{};
 }
 
-Core::SourceSpan ResourceDictionary::SourceOf(
+::Aero::Diagnostics::SourceSpan ResourceDictionary::SourceOf(
     Base::StringView key) const noexcept {
     Base::Result<ResourceKey> resourceKey =
         ResourceKey::FromString(key);
     return resourceKey
         ? SourceOf(resourceKey.Value())
-        : Core::SourceSpan{};
+        : ::Aero::Diagnostics::SourceSpan{};
 }
 
 Base::Result<void> ResourceDictionary::TryAddMerged(
@@ -839,15 +839,13 @@ Base::Result<bool> ResourceDictionary::RemoveMerged(
     return false;
 }
 
-Base::Result<void>
+void
 ResourceDictionary::ClearMergedDictionaries() noexcept {
-    if (impl_ == nullptr) return {};
+    if (impl_ == nullptr) return;
     if (impl_->sealed) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            MessageReadOnly);
+        return;
     }
-    if (impl_->merged.Empty()) return {};
+    if (impl_->merged.Empty()) return;
     while (!impl_->merged.Empty()) {
         Impl::Merged merged = impl_->merged.Back();
         impl_->merged.PopBack();
@@ -862,7 +860,6 @@ ResourceDictionary::ClearMergedDictionaries() noexcept {
         *impl_,
         {},
         ResourceChangeKind::MergedDictionaryChanged);
-    return {};
 }
 
 std::uint32_t
@@ -897,32 +894,25 @@ ResourceDictionary::Share() const noexcept {
     return ResourceDictionary(impl_, true);
 }
 
-Base::Result<void> ResourceDictionary::SetSource(
+void ResourceDictionary::SetSource(
     const Base::ResourceUri& source) noexcept {
     if (source.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ResourceDictionary Source cannot be empty");
+        return;
     }
     Base::Result<Impl*> storage = EnsureImpl();
-    if (!storage) {
-        return storage.GetStatus();
-    }
+    if (!storage) return;
     if (storage.Value()->sealed) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            MessageReadOnly);
+        return;
     }
     storage.Value()->source = source;
     Notify(
         *storage.Value(),
         {},
         ResourceChangeKind::SourceChanged);
-    return {};
 }
 
 const Base::ResourceUri&
-ResourceDictionary::Source() const noexcept {
+ResourceDictionary::GetSource() const noexcept {
     static const Base::ResourceUri empty;
     return impl_ != nullptr
         ? impl_->source
@@ -945,7 +935,7 @@ Base::Result<void> ResourceDictionary::Seal() noexcept {
     return {};
 }
 
-bool ResourceDictionary::IsSealed() const noexcept {
+bool ResourceDictionary::GetIsSealed() const noexcept {
     return impl_ != nullptr && impl_->sealed;
 }
 
@@ -967,19 +957,17 @@ bool ResourceDictionary::Unsubscribe(
         UnsubscribeImpl(*impl_, subscription);
 }
 
-Base::Result<void> ResourceDictionary::Clear() noexcept {
+void ResourceDictionary::Clear() noexcept {
     if (impl_ == nullptr) {
-        return {};
+        return;
     }
     if (impl_->sealed) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            MessageReadOnly);
+        return;
     }
     if (impl_->entries.Empty() &&
         impl_->merged.Empty() &&
         impl_->source.Empty()) {
-        return {};
+        return;
     }
     impl_->entries.Clear();
     while (!impl_->merged.Empty()) {
@@ -997,7 +985,6 @@ Base::Result<void> ResourceDictionary::Clear() noexcept {
         *impl_,
         {},
         ResourceChangeKind::Cleared);
-    return {};
 }
 
 std::uint32_t ResourceDictionary::Size() const noexcept {
@@ -1095,7 +1082,7 @@ Base::Result<ResourceValue> ResourceResolver::Lookup(
 
 Base::Result<ResourceValue> ResourceResolver::Lookup(
     const FrameworkElement* element,
-    Core::TypeId key,
+    Meta::TypeId key,
     const ResourceDictionary* templateResources,
     const ResourceEnvironment& environment) noexcept {
     return Lookup(

@@ -70,20 +70,20 @@ Base::Result<void> PopulateUiStyling(
     status = triggerBase.Result();
     if (!status) return status.GetStatus();
 
-    auto trigger = Meta::Register<PropertyTrigger>(context);
+    auto trigger = Meta::Register<Trigger>(context);
     trigger
         .Property(
             "Property",
-            &PropertyTrigger::GetPropertyName,
-            &PropertyTrigger::SetPropertyName)
+            &Trigger::GetPropertyName,
+            &Trigger::SetPropertyName)
         .Property(
             "SourceName",
-            &PropertyTrigger::GetSourceName,
-            &PropertyTrigger::SetSourceName)
+            &Trigger::GetSourceName,
+            &Trigger::SetSourceName)
         .Property<
             Value,
-            &PropertyTrigger::GetAuthoredValue,
-            &PropertyTrigger::SetAuthoredValue>(
+            &Trigger::GetAuthoredValue,
+            &Trigger::SetAuthoredValue>(
             "Value",
             PropertyFlags::AnyValue)
         .Content<Setter>(
@@ -195,7 +195,7 @@ Base::Result<void> PopulateUiStyling(
             &Style::SetResources>(
                 "Resources",
                 PropertyFlags::Structural)
-        .Collection<PropertyTrigger>(
+        .Collection<Trigger>(
             "Triggers",
             &AddStyleTrigger,
             &ClearStyleTriggers)

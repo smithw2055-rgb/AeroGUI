@@ -4,7 +4,7 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 class DrawingPrivate;
 }
 
@@ -39,7 +39,7 @@ public:
         double thickness) noexcept;
 
 private:
-    friend class ::Aero::Detail::DrawingPrivate;
+    friend class ::Aero::Internal::DrawingPrivate;
 
     explicit DrawingContext(void* implementation) noexcept
         : implementation_(implementation) {}

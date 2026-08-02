@@ -4,7 +4,7 @@
 
 #include "AnimationModel.hpp"
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 class AnimationPrivate final {
 public:
@@ -38,13 +38,13 @@ public:
     static Animation::DoubleAnimation Double(
         const Media::Animation::DoubleAnimation& animation) noexcept {
         Animation::DoubleAnimation result;
-        result.from = animation.From();
-        result.to = animation.To();
-        result.accelerationRatio = animation.AccelerationRatio();
-        result.decelerationRatio = animation.DecelerationRatio();
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
+        result.accelerationRatio = animation.GetAccelerationRatio();
+        result.decelerationRatio = animation.GetDecelerationRatio();
         result.timing = Timing(animation);
         Base::Ref<Media::Animation::EasingFunctionBase> easing =
-            animation.EasingFunction();
+            animation.GetEasingFunction();
         if (easing) result.easing = Easing(*easing);
         return result;
     }
@@ -52,11 +52,11 @@ public:
     static Animation::ColorAnimation Color(
         const Media::Animation::ColorAnimation& animation) noexcept {
         Animation::ColorAnimation result;
-        result.from = animation.From();
-        result.to = animation.To();
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
         result.timing = Timing(animation);
         Base::Ref<Media::Animation::EasingFunctionBase> easing =
-            animation.EasingFunction();
+            animation.GetEasingFunction();
         if (easing) result.easing = Easing(*easing);
         return result;
     }
@@ -64,11 +64,11 @@ public:
     static Animation::PointAnimation Point(
         const Media::Animation::PointAnimation& animation) noexcept {
         Animation::PointAnimation result;
-        result.from = animation.From();
-        result.to = animation.To();
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
         result.timing = Timing(animation);
         Base::Ref<Media::Animation::EasingFunctionBase> easing =
-            animation.EasingFunction();
+            animation.GetEasingFunction();
         if (easing) result.easing = Easing(*easing);
         return result;
     }
@@ -76,11 +76,11 @@ public:
     static Animation::RectAnimation Rect(
         const Media::Animation::RectAnimation& animation) noexcept {
         Animation::RectAnimation result;
-        result.from = animation.From();
-        result.to = animation.To();
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
         result.timing = Timing(animation);
         Base::Ref<Media::Animation::EasingFunctionBase> easing =
-            animation.EasingFunction();
+            animation.GetEasingFunction();
         if (easing) result.easing = Easing(*easing);
         return result;
     }
@@ -88,11 +88,11 @@ public:
     static Animation::ThicknessAnimation Thickness(
         const Media::Animation::ThicknessAnimation& animation) noexcept {
         Animation::ThicknessAnimation result;
-        result.from = animation.From();
-        result.to = animation.To();
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
         result.timing = Timing(animation);
         Base::Ref<Media::Animation::EasingFunctionBase> easing =
-            animation.EasingFunction();
+            animation.GetEasingFunction();
         if (easing) result.easing = Easing(*easing);
         return result;
     }
@@ -114,7 +114,7 @@ public:
             const auto& typed = static_cast<
                 const Media::Animation::EasingDoubleKeyFrame&>(frame);
             Base::Ref<Media::Animation::EasingFunctionBase> easing =
-                typed.EasingFunction();
+                typed.GetEasingFunction();
             if (easing) result.easing = Easing(*easing);
         }
         return result;
@@ -137,11 +137,11 @@ public:
             const auto& typed = static_cast<
                 const Media::Animation::EasingColorKeyFrame&>(frame);
             Base::Ref<Media::Animation::EasingFunctionBase> easing =
-                typed.EasingFunction();
+                typed.GetEasingFunction();
             if (easing) result.easing = Easing(*easing);
         }
         return result;
     }
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

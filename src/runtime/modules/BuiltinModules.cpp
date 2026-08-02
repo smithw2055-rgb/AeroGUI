@@ -10,9 +10,9 @@ namespace Aero {
 Base::Result<void> RegisterBuiltInUiModules(
     ::Aero::Meta::Registry& domain) noexcept {
     Base::Result<void> registered =
-        Core::TryRegisterCoreMetadata(domain);
+        Meta::TryRegisterCoreMetadata(domain);
     if (!registered) return registered.GetStatus();
-    registered = Aero::Detail::TryRegisterUiMetadata(domain);
+    registered = Aero::Internal::TryRegisterUiMetadata(domain);
     if (!registered) return registered.GetStatus();
     registered = App::TryRegisterAppMetadata(domain);
     if (!registered) return registered.GetStatus();

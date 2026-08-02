@@ -43,65 +43,54 @@ VirtualizingStackPanel::GetOrientation() const noexcept {
     return orientation_;
 }
 
-Base::Result<void>
-VirtualizingStackPanel::SetOrientation(
+void VirtualizingStackPanel::SetOrientation(
     Orientation value) noexcept {
-    if (value == GetOrientation()) return {};
+    if (value == GetOrientation()) return;
     const double oldMainOffset = MainOffset();
-    Base::Result<void> stored =
-        SetValue(OrientationProperty, value);
-    if (!stored) return stored.GetStatus();
+    SetValue(OrientationProperty, value);
     orientation_ = value;
     data_.horizontalOffset = 0.0;
     data_.verticalOffset = 0.0;
     SetMainOffset(oldMainOffset);
     crossExtent_ = 0.0;
-    SetMainExtent(ItemOffset(itemExtents_.Size()));
+    SetMainExtent(GetItemOffset(itemExtents_.Size()));
     ClampOffsets();
-    return UpdateRealization(true);
+    (void)UpdateRealization(true);
 }
 
 std::uint32_t
-VirtualizingStackPanel::OverscanCount() const noexcept {
+VirtualizingStackPanel::GetOverscanCount() const noexcept {
     return overscanCount_;
 }
 
-Base::Result<void>
-VirtualizingStackPanel::SetOverscanCount(
+void VirtualizingStackPanel::SetOverscanCount(
     std::uint32_t value) noexcept {
-    if (value == OverscanCount()) return {};
-    Base::Result<void> stored =
-        SetValue(OverscanCountProperty, value);
-    if (!stored) return stored.GetStatus();
+    if (value == GetOverscanCount()) return;
+    SetValue(OverscanCountProperty, value);
     overscanCount_ = value;
-    return UpdateRealization(true);
+    (void)UpdateRealization(true);
 }
 
 double
-VirtualizingStackPanel::EstimatedItemExtent() const noexcept {
+VirtualizingStackPanel::GetEstimatedItemExtent() const noexcept {
     return estimatedItemExtent_;
 }
 
-Base::Result<void>
-VirtualizingStackPanel::SetEstimatedItemExtent(
+void VirtualizingStackPanel::SetEstimatedItemExtent(
     double value) noexcept {
-    if (Same(value, EstimatedItemExtent())) return {};
+    if (!ValidNonnegative(value) || Same(value, GetEstimatedItemExtent())) return;
     const std::uint32_t anchor =
         ItemIndexAtOffset(MainOffset());
     const double intraItem =
-        MainOffset() - ItemOffset(anchor);
-    Base::Result<void> stored =
-        SetValue(EstimatedItemExtentProperty, value);
-    if (!stored) return stored.GetStatus();
+        MainOffset() - GetItemOffset(anchor);
+    SetValue(EstimatedItemExtentProperty, value);
     estimatedItemExtent_ = value;
-    Base::Result<void> rebuilt =
-        RebuildExtentTree();
-    if (!rebuilt) return rebuilt.GetStatus();
-    SetMainExtent(ItemOffset(itemExtents_.Size()));
+    (void)RebuildExtentTree();
+    SetMainExtent(GetItemOffset(itemExtents_.Size()));
     SetMainOffset(
-        ItemOffset(anchor) + intraItem);
+        GetItemOffset(anchor) + intraItem);
     ClampOffsets();
-    return UpdateRealization(true);
+    (void)UpdateRealization(true);
 }
 
 double VirtualizingStackPanel::ExtentForIndex(
@@ -109,17 +98,17 @@ double VirtualizingStackPanel::ExtentForIndex(
     return index < itemExtents_.Size() &&
         itemExtents_[index] > 0.0
         ? itemExtents_[index]
-        : EstimatedItemExtent();
+        : GetEstimatedItemExtent();
 }
 
-double VirtualizingStackPanel::ItemExtent(
+double VirtualizingStackPanel::GetItemExtent(
     std::uint32_t index) const noexcept {
     return index < itemExtents_.Size()
         ? ExtentForIndex(index)
         : 0.0;
 }
 
-double VirtualizingStackPanel::ItemOffset(
+double VirtualizingStackPanel::GetItemOffset(
     std::uint32_t index) const noexcept {
     const std::uint32_t end =
         std::min(index, itemExtents_.Size());
@@ -254,7 +243,7 @@ VirtualizingStackPanel::ItemIndexAtOffset(
     while (low < high) {
         const std::uint32_t middle =
             low + (high - low) / 2U;
-        if (target < ItemOffset(middle + 1U)) {
+        if (target < GetItemOffset(middle + 1U)) {
             high = middle;
         } else {
             low = middle + 1U;
@@ -294,7 +283,7 @@ VirtualizingStackPanel::CalculateRealizationRange() noexcept {
     visibleCount_ =
         visibleEnd - visibleFirstIndex_;
     const std::uint32_t overscan =
-        OverscanCount();
+        GetOverscanCount();
     desiredFirstIndex_ =
         visibleFirstIndex_ > overscan
         ? visibleFirstIndex_ - overscan
@@ -316,13 +305,8 @@ VirtualizingStackPanel::UpdateRealization(
     CalculateRealizationRange();
     if (notifyGenerator &&
         generator_ != nullptr) {
-        Base::Result<bool> realized =
-            generator_->SetRealizationRange(
-                desiredFirstIndex_,
-                desiredCount_);
-        if (!realized) {
-            return realized.GetStatus();
-        }
+        generator_->SetRealizationRange(
+            desiredFirstIndex_, desiredCount_);
     }
     return {};
 }
@@ -334,38 +318,26 @@ VirtualizingStackPanel::ResizeExtentCache(
         itemCount, 0.0);
 }
 
-Base::Result<void>
+void
 VirtualizingStackPanel::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
     const double oldEstimate =
         estimatedItemExtent_;
-    Base::Result<Orientation> orientation =
-        GetValue(OrientationProperty);
-    if (orientation) {
-        orientation_ = orientation.Value();
-    }
-    Base::Result<std::uint32_t> overscan =
-        GetValue(OverscanCountProperty);
-    if (overscan) {
-        overscanCount_ = overscan.Value();
-    }
-    Base::Result<double> estimate =
-        GetValue(EstimatedItemExtentProperty);
-    if (estimate) {
-        estimatedItemExtent_ = estimate.Value();
-    }
+    orientation_ = GetValueOr(OrientationProperty, orientation_);
+    overscanCount_ = GetValueOr(OverscanCountProperty, overscanCount_);
+    estimatedItemExtent_ = GetValueOr(
+        EstimatedItemExtentProperty, estimatedItemExtent_);
     if (!Same(
             oldEstimate,
             estimatedItemExtent_)) {
-        Base::Result<void> rebuilt =
-            RebuildExtentTree();
-        if (!rebuilt) return rebuilt.GetStatus();
+        Base::Result<void> rebuilt = RebuildExtentTree();
+        if (!rebuilt) return;
         SetMainExtent(
-            ItemOffset(itemExtents_.Size()));
+            GetItemOffset(itemExtents_.Size()));
         ClampOffsets();
     }
     CalculateRealizationRange();
-    return Panel::OnPropertyInvalidated(flags);
+    Panel::OnPropertyInvalidated(flags);
 }
 
 Base::Result<void>
@@ -460,7 +432,7 @@ VirtualizingStackPanel::ApplyExtentDelta(
 }
 
 Base::Result<void>
-VirtualizingStackPanel::OnItemsChanged(
+VirtualizingStackPanel::TryHandleItemsChanged(
     const ItemsChangedEvent& event,
     std::uint32_t itemCount) noexcept {
     const std::uint32_t oldCount =
@@ -469,7 +441,7 @@ VirtualizingStackPanel::OnItemsChanged(
         ? ItemIndexAtOffset(MainOffset())
         : 0U;
     const double intraItem = oldCount > 0U
-        ? MainOffset() - ItemOffset(anchor)
+        ? MainOffset() - GetItemOffset(anchor)
         : 0.0;
 
     if (event.action == ItemsChangeAction::Add &&
@@ -514,11 +486,11 @@ VirtualizingStackPanel::OnItemsChanged(
         anchor = std::min(
             anchor, itemCount - 1U);
         SetMainOffset(
-            ItemOffset(anchor) + intraItem);
+            GetItemOffset(anchor) + intraItem);
     } else {
         SetMainOffset(0.0);
     }
-    SetMainExtent(ItemOffset(itemCount));
+    SetMainExtent(GetItemOffset(itemCount));
     ClampOffsets();
     CalculateRealizationRange();
     Base::Result<void> invalidated =
@@ -553,7 +525,7 @@ VirtualizingStackPanel::AttachGenerator(
         generator_ = nullptr;
         return rebuilt.GetStatus();
     }
-    SetMainExtent(ItemOffset(itemCount));
+    SetMainExtent(GetItemOffset(itemCount));
     ClampOffsets();
     CalculateRealizationRange();
     return {};
@@ -575,38 +547,24 @@ void VirtualizingStackPanel::DetachGenerator(
     data_.verticalOffset = 0.0;
 }
 
-Base::Result<bool>
-VirtualizingStackPanel::SetViewport(
+void VirtualizingStackPanel::SetViewport(
     Size viewport) noexcept {
     if (!ValidViewport(viewport)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "VirtualizingStackPanel viewport is invalid");
+        return;
     }
     const bool changed =
         !Same(data_.viewportWidth, viewport.width) ||
         !Same(data_.viewportHeight, viewport.height);
-    if (!changed) return false;
+    if (!changed) return;
     data_.viewportWidth = viewport.width;
     data_.viewportHeight = viewport.height;
     ClampOffsets();
-    Base::Result<void> realized =
-        UpdateRealization(true);
-    if (!realized) return realized.GetStatus();
-    Base::Result<void> invalidated =
-        InvalidateMeasure();
-    if (!invalidated) {
-        return invalidated.GetStatus();
-    }
-    invalidated = InvalidateArrange();
-    return invalidated
-        ? Base::Result<bool>(true)
-        : Base::Result<bool>(
-            invalidated.GetStatus());
+    (void)UpdateRealization(true);
+    (void)InvalidateMeasure();
+    (void)InvalidateArrange();
 }
 
-Base::Result<bool>
-VirtualizingStackPanel::SetMainScrollOffset(
+void VirtualizingStackPanel::SetMainScrollOffset(
     double value) noexcept {
     const double next = std::clamp(
         value,
@@ -614,25 +572,14 @@ VirtualizingStackPanel::SetMainScrollOffset(
         std::max(
             0.0,
             MainExtent() - MainViewport()));
-    if (Same(next, MainOffset())) return false;
+    if (Same(next, MainOffset())) return;
     SetMainOffset(next);
-    Base::Result<void> realized =
-        UpdateRealization(true);
-    if (!realized) return realized.GetStatus();
-    Base::Result<void> invalidated =
-        InvalidateMeasure();
-    if (!invalidated) {
-        return invalidated.GetStatus();
-    }
-    invalidated = InvalidateArrange();
-    return invalidated
-        ? Base::Result<bool>(true)
-        : Base::Result<bool>(
-            invalidated.GetStatus());
+    (void)UpdateRealization(true);
+    (void)InvalidateMeasure();
+    (void)InvalidateArrange();
 }
 
-Base::Result<bool>
-VirtualizingStackPanel::SetCrossScrollOffset(
+void VirtualizingStackPanel::SetCrossScrollOffset(
     double value) noexcept {
     const bool vertical =
         GetOrientation() == Orientation::Vertical;
@@ -649,40 +596,33 @@ VirtualizingStackPanel::SetCrossScrollOffset(
     double& current = vertical
         ? data_.horizontalOffset
         : data_.verticalOffset;
-    if (Same(next, current)) return false;
+    if (Same(next, current)) return;
     current = next;
-    Base::Result<void> invalidated =
-        InvalidateArrange();
-    return invalidated
-        ? Base::Result<bool>(true)
-        : Base::Result<bool>(
-            invalidated.GetStatus());
+    (void)InvalidateArrange();
 }
 
-Base::Result<bool>
-VirtualizingStackPanel::SetHorizontalOffset(
+void VirtualizingStackPanel::SetHorizontalOffset(
     double value) noexcept {
     if (!ValidNonnegative(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Horizontal offset must be finite and nonnegative");
+        return;
     }
-    return GetOrientation() == Orientation::Horizontal
-        ? SetMainScrollOffset(value)
-        : SetCrossScrollOffset(value);
+    if (GetOrientation() == Orientation::Horizontal) {
+        SetMainScrollOffset(value);
+    } else {
+        SetCrossScrollOffset(value);
+    }
 }
 
-Base::Result<bool>
-VirtualizingStackPanel::SetVerticalOffset(
+void VirtualizingStackPanel::SetVerticalOffset(
     double value) noexcept {
     if (!ValidNonnegative(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Vertical offset must be finite and nonnegative");
+        return;
     }
-    return GetOrientation() == Orientation::Vertical
-        ? SetMainScrollOffset(value)
-        : SetCrossScrollOffset(value);
+    if (GetOrientation() == Orientation::Vertical) {
+        SetMainScrollOffset(value);
+    } else {
+        SetCrossScrollOffset(value);
+    }
 }
 
 Base::Result<bool>
@@ -693,15 +633,11 @@ VirtualizingStackPanel::LineHorizontal(
             Base::ErrorCode::InvalidArgument,
             "Horizontal line direction must be finite");
     }
-    return SetHorizontalOffset(
-        std::max(
-            0.0,
-            data_.horizontalOffset +
-                direction *
-                    (GetOrientation() ==
-                            Orientation::Horizontal
-                        ? EstimatedItemExtent()
-                        : CrossLineExtent)));
+    const double old = data_.horizontalOffset;
+    SetHorizontalOffset(std::max(0.0, old + direction *
+        (GetOrientation() == Orientation::Horizontal
+            ? GetEstimatedItemExtent() : CrossLineExtent)));
+    return !Same(old, data_.horizontalOffset);
 }
 
 Base::Result<bool>
@@ -712,15 +648,11 @@ VirtualizingStackPanel::LineVertical(
             Base::ErrorCode::InvalidArgument,
             "Vertical line direction must be finite");
     }
-    return SetVerticalOffset(
-        std::max(
-            0.0,
-            data_.verticalOffset +
-                direction *
-                    (GetOrientation() ==
-                            Orientation::Vertical
-                        ? EstimatedItemExtent()
-                        : CrossLineExtent)));
+    const double old = data_.verticalOffset;
+    SetVerticalOffset(std::max(0.0, old + direction *
+        (GetOrientation() == Orientation::Vertical
+            ? GetEstimatedItemExtent() : CrossLineExtent)));
+    return !Same(old, data_.verticalOffset);
 }
 
 Base::Result<bool>
@@ -731,12 +663,9 @@ VirtualizingStackPanel::PageHorizontal(
             Base::ErrorCode::InvalidArgument,
             "Horizontal page direction must be finite");
     }
-    return SetHorizontalOffset(
-        std::max(
-            0.0,
-            data_.horizontalOffset +
-                direction *
-                    data_.viewportWidth));
+    const double old = data_.horizontalOffset;
+    SetHorizontalOffset(std::max(0.0, old + direction * data_.viewportWidth));
+    return !Same(old, data_.horizontalOffset);
 }
 
 Base::Result<bool>
@@ -747,21 +676,16 @@ VirtualizingStackPanel::PageVertical(
             Base::ErrorCode::InvalidArgument,
             "Vertical page direction must be finite");
     }
-    return SetVerticalOffset(
-        std::max(
-            0.0,
-            data_.verticalOffset +
-                direction *
-                    data_.viewportHeight));
+    const double old = data_.verticalOffset;
+    SetVerticalOffset(std::max(0.0, old + direction * data_.viewportHeight));
+    return !Same(old, data_.verticalOffset);
 }
 
-Base::Result<Size>
+Size
 VirtualizingStackPanel::MeasureOverride(
     Size availableSize) noexcept {
     if (!ValidViewport(availableSize)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "VirtualizingStackPanel measure size is invalid");
+        return Size{};
     }
     const std::uint32_t anchor =
         itemExtents_.Empty()
@@ -770,14 +694,14 @@ VirtualizingStackPanel::MeasureOverride(
     const double intraItem =
         itemExtents_.Empty()
         ? 0.0
-        : MainOffset() - ItemOffset(anchor);
+        : MainOffset() - GetItemOffset(anchor);
     const Orientation orientation =
         GetOrientation();
     double crossExtent = 0.0;
     std::uint32_t localIndex = 0U;
     const std::uint32_t first =
         generator_ != nullptr
-        ? generator_->FirstGeneratedIndex()
+        ? generator_->GetFirstGeneratedIndex()
         : desiredFirstIndex_;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
@@ -789,7 +713,7 @@ VirtualizingStackPanel::MeasureOverride(
         }
         Base::Result<void> measured =
             MeasureChild(*child, childAvailable);
-        if (!measured) return measured.GetStatus();
+        if (!measured) return Size{};
         const Size desired = child->GetDesiredSize();
         const double extent =
             orientation == Orientation::Vertical
@@ -811,7 +735,7 @@ VirtualizingStackPanel::MeasureOverride(
         ++localIndex;
     }
     crossExtent_ = crossExtent;
-    SetMainExtent(ItemOffset(itemExtents_.Size()));
+    SetMainExtent(GetItemOffset(itemExtents_.Size()));
     if (orientation == Orientation::Vertical) {
         data_.extentWidth = std::max(
             crossExtent_, availableSize.width);
@@ -821,23 +745,21 @@ VirtualizingStackPanel::MeasureOverride(
     }
     if (!itemExtents_.Empty()) {
         SetMainOffset(
-            ItemOffset(anchor) + intraItem);
+            GetItemOffset(anchor) + intraItem);
     }
     ClampOffsets();
     Base::Result<void> realized =
         UpdateRealization(true);
-    if (!realized) return realized.GetStatus();
+    if (!realized) return Size{};
     return orientation == Orientation::Vertical
         ? Size{crossExtent_, MainExtent()}
         : Size{MainExtent(), crossExtent_};
 }
 
-Base::Result<Size>
+Size
 VirtualizingStackPanel::ArrangeOverride(
     Size finalSize) noexcept {
-    Base::Result<bool> viewport =
-        SetViewport(finalSize);
-    if (!viewport) return viewport.GetStatus();
+    SetViewport(finalSize);
     const Orientation orientation =
         GetOrientation();
     const double mainOffset = MainOffset();
@@ -848,7 +770,7 @@ VirtualizingStackPanel::ArrangeOverride(
     std::uint32_t localIndex = 0U;
     const std::uint32_t first =
         generator_ != nullptr
-        ? generator_->FirstGeneratedIndex()
+        ? generator_->GetFirstGeneratedIndex()
         : desiredFirstIndex_;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
@@ -857,7 +779,7 @@ VirtualizingStackPanel::ArrangeOverride(
         const double extent =
             ExtentForIndex(itemIndex);
         const double offset =
-            ItemOffset(itemIndex) - mainOffset;
+            GetItemOffset(itemIndex) - mainOffset;
         const Rect slot =
             orientation == Orientation::Vertical
             ? Rect{
@@ -876,7 +798,7 @@ VirtualizingStackPanel::ArrangeOverride(
                     crossExtent_)};
         Base::Result<void> arranged =
             ArrangeChild(*child, slot);
-        if (!arranged) return arranged.GetStatus();
+        if (!arranged) return finalSize;
         ++localIndex;
     }
     return finalSize;

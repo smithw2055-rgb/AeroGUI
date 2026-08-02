@@ -12,7 +12,7 @@
 
 #include <cstdint>
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 enum class BindingPathSegmentKind : std::uint8_t {
     ObjectProperty = 0U,
@@ -110,7 +110,7 @@ private:
         const Value& value) const noexcept;
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 // Binding descriptors, expressions and the view binding service.
 
@@ -119,8 +119,8 @@ private:
 namespace Aero::Data {
 
 using ::Aero::Meta::Registry;
-using Core::PropertyValue;
-using Core::TypeId;
+using Meta::PropertyValue;
+using Meta::TypeId;
 
 struct BindingHandle final {
     std::uint64_t value = 0U;
@@ -232,9 +232,10 @@ struct MetadataBindingDescriptor final {
 #include "gui/ElementInternal.hpp"
 
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using namespace Aero::Data;
 
 class AERO_API BindingEngine final {
@@ -266,10 +267,10 @@ public:
         class TTargetOwner>
     Base::Result<BindingHandle> Attach(
         DependencyObject& source,
-        const Core::DependencyPropertyRef<
+        const Meta::DependencyPropertyRef<
             TSourceOwner, TValue>& sourceProperty,
         DependencyObject& target,
-        const Core::DependencyPropertyRef<
+        const Meta::DependencyPropertyRef<
             TTargetOwner, TValue>& targetProperty,
         BindingMode mode = BindingMode::OneWay) noexcept {
         BindingDescriptor descriptor;
@@ -288,10 +289,10 @@ public:
         class TTargetOwner>
     Base::Result<BindingHandle> Attach(
         DependencyObject& source,
-        const Core::ReadOnlyPropertyRef<
+        const Meta::ReadOnlyPropertyRef<
             TSourceOwner, TValue>& sourceProperty,
         DependencyObject& target,
-        const Core::DependencyPropertyRef<
+        const Meta::DependencyPropertyRef<
             TTargetOwner, TValue>& targetProperty,
         BindingMode mode = BindingMode::OneWay) noexcept {
         BindingDescriptor descriptor;
@@ -435,4 +436,4 @@ private:
     void RemoveAt(std::uint32_t index) noexcept;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

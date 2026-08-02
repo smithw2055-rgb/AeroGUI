@@ -12,7 +12,7 @@ class SourceProviders;
 
 namespace Aero { class Visual; }
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 class ImageCache final {
 public:
@@ -45,4 +45,4 @@ private:
             UINT64_C(1) << 40U;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

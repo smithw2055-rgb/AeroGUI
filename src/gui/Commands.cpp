@@ -124,22 +124,28 @@ Base::Result<std::uint32_t> ParseModifiersName(
 
 } // namespace
 
-Base::Result<void> KeyBinding::SetCommandName(
+void KeyBinding::SetCommandName(
     Base::StringView value) noexcept {
+    Base::String candidate;
+    if (!candidate.TryAssign(TrimAscii(value))) return;
+    commandName_ = std::move(candidate);
     command_.Reset();
-    return commandName_.TryAssign(TrimAscii(value));
 }
 
-Base::Result<void> KeyBinding::SetKeyName(
+void KeyBinding::SetKeyName(
     Base::StringView value) noexcept {
+    Base::String candidate;
+    if (!candidate.TryAssign(TrimAscii(value))) return;
+    keyName_ = std::move(candidate);
     command_.Reset();
-    return keyName_.TryAssign(TrimAscii(value));
 }
 
-Base::Result<void> KeyBinding::SetModifiersName(
+void KeyBinding::SetModifiersName(
     Base::StringView value) noexcept {
+    Base::String candidate;
+    if (!candidate.TryAssign(TrimAscii(value))) return;
+    modifiersName_ = std::move(candidate);
     command_.Reset();
-    return modifiersName_.TryAssign(TrimAscii(value));
 }
 
 Base::Result<void> KeyBinding::Finalize() noexcept {
@@ -167,10 +173,10 @@ Base::Result<void> KeyBinding::Finalize() noexcept {
 }
 
 Base::Result<bool> RoutedCommand::CanExecute(
-    const Core::Value& parameter,
+    const Meta::Value& parameter,
     UIElement* target) noexcept {
-    Aero::Detail::InputRouter* input = target != nullptr
-        ? Aero::Detail::ElementPrivate::InputRouterFor(*target)
+    Aero::Internal::InputRouter* input = target != nullptr
+        ? Aero::Internal::ElementPrivate::InputRouterFor(*target)
         : nullptr;
     if (input == nullptr) {
         return Base::Status::Failure(
@@ -180,28 +186,24 @@ Base::Result<bool> RoutedCommand::CanExecute(
     return input->CanExecute(*this, parameter, *target);
 }
 
-Base::Result<void> RoutedCommand::Execute(
-    const Core::Value& parameter,
+void RoutedCommand::Execute(
+    const Meta::Value& parameter,
     UIElement* target) noexcept {
-    Aero::Detail::InputRouter* input = target != nullptr
-        ? Aero::Detail::ElementPrivate::InputRouterFor(*target)
+    Aero::Internal::InputRouter* input = target != nullptr
+        ? Aero::Internal::ElementPrivate::InputRouterFor(*target)
         : nullptr;
     if (input == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "RoutedCommand requires a loaded command target");
+        return;
     }
-    Base::Result<bool> executed =
-        input->Execute(*this, parameter, *target);
-    if (!executed) return executed.GetStatus();
-    return {};
+    static_cast<void>(input->Execute(*this, parameter, *target));
 }
 
 } // namespace Aero::Input
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using namespace Aero::Input;
 
 CommandState::CommandState(ElementTree& tree, EventRouter& events) noexcept
@@ -218,7 +220,7 @@ Base::Result<void> CommandState::VerifyTarget(
     }
     Base::Result<void> access = root->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!target.GetIsLoaded() || Aero::Detail::ElementPrivate::Tree(target) != tree_) {
+    if (!target.GetIsLoaded() || Aero::Internal::ElementPrivate::Tree(target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Command target must be loaded in the command tree");
     }
@@ -334,7 +336,7 @@ Base::Result<InputBindingHandle> CommandState::TryAddInputBinding(
 
 Base::Result<bool> CommandState::CanExecute(
     ICommand& command,
-    const Core::Value& parameter,
+    const Meta::Value& parameter,
     UIElement& target) noexcept {
     if (command.RuntimeType() == RoutedCommand::StaticTypeId()) {
         return CanExecute(
@@ -345,7 +347,7 @@ Base::Result<bool> CommandState::CanExecute(
 
 Base::Result<bool> CommandState::Execute(
     ICommand& command,
-    const Core::Value& parameter,
+    const Meta::Value& parameter,
     UIElement& target) noexcept {
     if (command.RuntimeType() == RoutedCommand::StaticTypeId()) {
         return Execute(
@@ -356,15 +358,13 @@ Base::Result<bool> CommandState::Execute(
         return allowed ? Base::Result<bool>(false)
                        : Base::Result<bool>(allowed.GetStatus());
     }
-    Base::Result<void> executed = command.Execute(parameter, &target);
-    return executed
-        ? Base::Result<bool>(true)
-        : Base::Result<bool>(executed.GetStatus());
+    command.Execute(parameter, &target);
+    return true;
 }
 
 Base::Result<bool> CommandState::CanExecute(
     RoutedCommand& command,
-    const Core::Value& parameter,
+    const Meta::Value& parameter,
     UIElement& target) noexcept {
     Base::Result<void> verified = VerifyTarget(target);
     if (!verified) return verified.GetStatus();
@@ -382,7 +382,7 @@ Base::Result<bool> CommandState::CanExecute(
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::Detail::ElementPrivate::Handle(element);
+            const VisualHandle ownerHandle = Aero::Internal::ElementPrivate::Handle(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -405,7 +405,7 @@ Base::Result<bool> CommandState::CanExecute(
 
 Base::Result<bool> CommandState::Execute(
     RoutedCommand& command,
-    const Core::Value& parameter,
+    const Meta::Value& parameter,
     UIElement& target) noexcept {
     if (!target.GetIsEnabled()) return false;
     Base::Result<bool> allowed = CanExecute(command, parameter, target);
@@ -428,7 +428,7 @@ Base::Result<bool> CommandState::Execute(
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::Detail::ElementPrivate::Handle(element);
+            const VisualHandle ownerHandle = Aero::Internal::ElementPrivate::Handle(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -466,7 +466,7 @@ Base::Result<bool> CommandState::ProcessInput(
                 return true;
             }
             auto& element = static_cast<UIElement&>(current);
-            const VisualHandle owner = Aero::Detail::ElementPrivate::Handle(element);
+            const VisualHandle owner = Aero::Internal::ElementPrivate::Handle(element);
             for (const InputBindingRecord& record : inputBindings_) {
                 if (record.owner.index != owner.index ||
                     record.owner.generation != owner.generation ||
@@ -475,7 +475,7 @@ Base::Result<bool> CommandState::ProcessInput(
                 }
                 RoutedCommand& command = *record.binding->GetCommand();
                 if (command.MatchesInput(input)) {
-                    result = Execute(command, Core::Value::Unset(), target);
+                    result = Execute(command, Meta::Value::Unset(), target);
                     return false;
                 }
             }
@@ -486,13 +486,13 @@ Base::Result<bool> CommandState::ProcessInput(
                 }
                 RoutedCommand* command = record.binding.GetCommand();
                 if (command == nullptr || !command->MatchesInput(input)) continue;
-                Base::Result<bool> allowed = CanExecute(*command, Core::Value::Unset(), target);
+                Base::Result<bool> allowed = CanExecute(*command, Meta::Value::Unset(), target);
                 if (!allowed) {
                     result = allowed.GetStatus();
                     return false;
                 }
                 if (allowed.Value()) {
-                    result = Execute(*command, Core::Value::Unset(), target);
+                    result = Execute(*command, Meta::Value::Unset(), target);
                     return false;
                 }
             }
@@ -516,4 +516,4 @@ void CommandState::InvalidateRequerySuggested() const noexcept {
     if (!requerySuggested_.Empty()) requerySuggested_.Invoke();
 }
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

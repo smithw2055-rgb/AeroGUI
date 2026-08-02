@@ -11,7 +11,7 @@
 #include <new>
 #include <type_traits>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 class ElementPrivate;
 class ButtonBehavior;
 class TextEditBehavior;
@@ -29,7 +29,9 @@ namespace Aero::Input { class RoutedCommand; }
 
 namespace Aero {
 
-using namespace Aero::Core;
+using Meta::PropertyInvalidationFlags;
+using Meta::TypeId;
+
 class UIElement;
 namespace Media { class Transform; class Effect; }
 
@@ -270,28 +272,28 @@ public:
     inline static constexpr Members::Property<Point> RenderTransformOriginProperty{"RenderTransformOrigin"};
 
     // Property operations
-    Base::Result<void> SetClipToBounds(bool value) noexcept;
-    Base::Result<void> SetBlendMode(
+    void SetClipToBounds(bool value) noexcept;
+    void SetBlendMode(
         BlendMode value) noexcept;
-    Base::Result<void> SetEffect(
+    void SetEffect(
         Base::Ref<Media::Effect> value) noexcept;
-    Base::Result<void> SetIsHitTestVisible(bool value) noexcept;
-    Base::Result<void> SetVisibility(Visibility value) noexcept;
-    Base::Result<void> SetIsEnabled(bool value) noexcept;
-    Base::Result<void> SetIsTabStop(bool value) noexcept;
-    Base::Result<void> SetTabIndex(std::uint32_t value) noexcept;
-    Base::Result<void> SetIsFocusScope(bool value) noexcept;
-    Base::Result<void> SetRenderTransform(
+    void SetIsHitTestVisible(bool value) noexcept;
+    void SetVisibility(Visibility value) noexcept;
+    void SetIsEnabled(bool value) noexcept;
+    void SetIsTabStop(bool value) noexcept;
+    void SetTabIndex(std::uint32_t value) noexcept;
+    void SetIsFocusScope(bool value) noexcept;
+    void SetRenderTransform(
         Base::Ref<Media::Transform> value) noexcept;
-    Base::Result<void> SetRenderTransformOrigin(
+    void SetRenderTransformOrigin(
         Point value) noexcept;
 
 protected:
-    Base::Result<void> RaiseEvent(RoutedEventHandle event, RoutedEventArgs* args = nullptr) noexcept;
-    Base::Result<void> OnPropertyInvalidated(
+    void RaiseEvent(RoutedEventHandle event, RoutedEventArgs* args = nullptr) noexcept;
+    void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
-    virtual Base::Result<Size> MeasureOverride(Size availableSize) noexcept;
-    virtual Base::Result<Size> ArrangeOverride(Size finalSize) noexcept;
+    virtual Size MeasureOverride(Size availableSize) noexcept;
+    virtual Size ArrangeOverride(Size finalSize) noexcept;
     Base::Result<void> MeasureChild(
         UIElement& child, Size availableSize) noexcept;
     Base::Result<void> ArrangeChild(
@@ -301,17 +303,17 @@ protected:
     }
 
 private:
-    friend class Aero::Detail::ElementPrivate;
-    friend class Aero::Detail::ButtonBehavior;
-    friend class Aero::Detail::TextEditBehavior;
-    friend class Aero::Detail::ScrollBehavior;
-    friend class Aero::Detail::SliderBehavior;
-    friend class Aero::Detail::ListBehavior;
-    friend class Aero::Detail::ComboBehavior;
-    friend class Aero::Detail::TreeBehavior;
-    friend class Aero::Detail::MenuBehavior;
-    friend class Aero::Detail::TemplateEngine;
-    friend class Aero::Detail::LayoutEngine;
+    friend class Aero::Internal::ElementPrivate;
+    friend class Aero::Internal::ButtonBehavior;
+    friend class Aero::Internal::TextEditBehavior;
+    friend class Aero::Internal::ScrollBehavior;
+    friend class Aero::Internal::SliderBehavior;
+    friend class Aero::Internal::ListBehavior;
+    friend class Aero::Internal::ComboBehavior;
+    friend class Aero::Internal::TreeBehavior;
+    friend class Aero::Internal::MenuBehavior;
+    friend class Aero::Internal::TemplateEngine;
+    friend class Aero::Internal::LayoutEngine;
     friend class Aero::Input::RoutedCommand;
 
     struct HandlerOperations final {
@@ -326,7 +328,7 @@ private:
     struct HandlerDescriptor final {
         const void* value = nullptr;
         const HandlerOperations* operations = nullptr;
-        Core::TypeId argsType = Core::InvalidTypeId;
+        Meta::TypeId argsType = Meta::InvalidTypeId;
     };
 
     template<class TArgs>
@@ -376,10 +378,10 @@ private:
     bool measuring_ = false;
     bool arranging_ = false;
 
-    Base::Result<void> SetMouseOverState(bool value) noexcept;
-    Base::Result<void> SetPressedState(bool value) noexcept;
-    Base::Result<void> SetKeyboardFocusedState(bool value) noexcept;
-    Base::Result<void> SetKeyboardFocusWithinState(bool value) noexcept;
+    void SetMouseOverState(bool value) noexcept;
+    void SetPressedState(bool value) noexcept;
+    void SetKeyboardFocusedState(bool value) noexcept;
+    void SetKeyboardFocusWithinState(bool value) noexcept;
     void CleanupHandlers() noexcept;
 };
 

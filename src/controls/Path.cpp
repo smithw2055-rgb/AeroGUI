@@ -1,17 +1,21 @@
 #include "../render/DisplayList.hpp"
-#include <Aero/Controls/Panels.hpp>
+#include <Aero/Shapes.hpp>
 #include "../render/DrawingInternals.hpp"
 
 #include "render/RenderResources.hpp"
+#include "../media/BrushInternals.hpp"
 
 #include <algorithm>
 #include <cerrno>
 #include <cmath>
 #include <cstdlib>
 
-namespace Aero::Controls {
+namespace Aero::Shapes {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
+using namespace Aero::Media;
+using namespace Aero::Render;
 
 namespace {
 
@@ -665,34 +669,18 @@ Path::~Path() {
     ReleaseMesh();
 }
 
-Base::StringView Path::Data() const noexcept {
-    Base::Ref<Geometry> geometry =
-        DataGeometry();
-    return geometry
-        ? geometry->Value()
-        : Base::StringView{};
-}
-
-Base::Ref<Geometry> Path::DataGeometry() const noexcept {
+Base::Ref<Geometry> Path::GetData() const noexcept {
     return GetValueOr(
         DataProperty,
         Base::Ref<Geometry>{});
 }
 
-Color Path::GetFill() const noexcept {
-    return SampleBrush(GetFillBrush());
-}
-
-Base::Ref<Brush> Path::GetFillBrush() const noexcept {
+Base::Ref<Brush> Path::GetFill() const noexcept {
     return GetValueOr(
         FillProperty, Base::Ref<Brush>{});
 }
 
-Color Path::GetStroke() const noexcept {
-    return SampleBrush(GetStrokeBrush());
-}
-
-Base::Ref<Brush> Path::GetStrokeBrush() const noexcept {
+Base::Ref<Brush> Path::GetStroke() const noexcept {
     return GetValueOr(
         StrokeProperty, Base::Ref<Brush>{});
 }
@@ -702,29 +690,29 @@ double Path::GetStrokeThickness() const noexcept {
         StrokeThicknessProperty, 1.0);
 }
 
-PenLineJoin Path::StrokeLineJoin() const noexcept {
+PenLineJoin Path::GetStrokeLineJoin() const noexcept {
     return GetValueOr(
         StrokeLineJoinProperty,
         PenLineJoin::Miter);
 }
 
-PenLineCap Path::StrokeStartLineCap() const noexcept {
+PenLineCap Path::GetStrokeStartLineCap() const noexcept {
     return GetValueOr(
         StrokeStartLineCapProperty,
         PenLineCap::Flat);
 }
 
-PenLineCap Path::StrokeEndLineCap() const noexcept {
+PenLineCap Path::GetStrokeEndLineCap() const noexcept {
     return GetValueOr(
         StrokeEndLineCapProperty,
         PenLineCap::Flat);
 }
 
-double Path::TrimStart() const noexcept {
+double Path::GetTrimStart() const noexcept {
     return GetValueOr(TrimStartProperty, 0.0);
 }
 
-double Path::TrimEnd() const noexcept {
+double Path::GetTrimEnd() const noexcept {
     return GetValueOr(TrimEndProperty, 1.0);
 }
 
@@ -733,88 +721,58 @@ Stretch Path::GetStretch() const noexcept {
         StretchProperty, Stretch::Uniform);
 }
 
-Base::Result<void> Path::SetData(
-    Base::StringView value) noexcept {
-    Base::Result<Base::Ref<Geometry>> geometry =
-        Base::MakeRef<Geometry>();
-    if (!geometry) return geometry.GetStatus();
-    Base::Result<void> assigned =
-        geometry.Value()->SetValue(value);
-    return assigned
-        ? SetData(std::move(geometry).Value())
-        : assigned;
-}
-
-Base::Result<void> Path::SetData(
+void Path::SetData(
     Base::Ref<Geometry> value) noexcept {
-    return SetValue(
+    SetValue(
         DataProperty,
         std::move(value));
 }
 
-Base::Result<void> Path::SetFill(
-    Color value) noexcept {
-    Base::Result<Base::Ref<Brush>> brush =
-        MakeSolidColorBrush(value);
-    return brush
-        ? SetFillBrush(std::move(brush).Value())
-        : brush.GetStatus();
-}
-
-Base::Result<void> Path::SetStroke(
-    Color value) noexcept {
-    Base::Result<Base::Ref<Brush>> brush =
-        MakeSolidColorBrush(value);
-    return brush
-        ? SetStrokeBrush(std::move(brush).Value())
-        : brush.GetStatus();
-}
-
-Base::Result<void> Path::SetFillBrush(
+void Path::SetFill(
     Base::Ref<Brush> value) noexcept {
-    return SetValue(
+    SetValue(
         FillProperty, std::move(value));
 }
 
-Base::Result<void> Path::SetStrokeBrush(
+void Path::SetStroke(
     Base::Ref<Brush> value) noexcept {
-    return SetValue(
+    SetValue(
         StrokeProperty, std::move(value));
 }
 
-Base::Result<void> Path::SetStrokeThickness(
+void Path::SetStrokeThickness(
     double value) noexcept {
-    return SetValue(StrokeThicknessProperty, value);
+    SetValue(StrokeThicknessProperty, value);
 }
 
-Base::Result<void> Path::SetStrokeLineJoin(
+void Path::SetStrokeLineJoin(
     PenLineJoin value) noexcept {
-    return SetValue(StrokeLineJoinProperty, value);
+    SetValue(StrokeLineJoinProperty, value);
 }
 
-Base::Result<void> Path::SetStrokeStartLineCap(
+void Path::SetStrokeStartLineCap(
     PenLineCap value) noexcept {
-    return SetValue(StrokeStartLineCapProperty, value);
+    SetValue(StrokeStartLineCapProperty, value);
 }
 
-Base::Result<void> Path::SetStrokeEndLineCap(
+void Path::SetStrokeEndLineCap(
     PenLineCap value) noexcept {
-    return SetValue(StrokeEndLineCapProperty, value);
+    SetValue(StrokeEndLineCapProperty, value);
 }
 
-Base::Result<void> Path::SetTrimStart(
+void Path::SetTrimStart(
     double value) noexcept {
-    return SetValue(TrimStartProperty, value);
+    SetValue(TrimStartProperty, value);
 }
 
-Base::Result<void> Path::SetTrimEnd(
+void Path::SetTrimEnd(
     double value) noexcept {
-    return SetValue(TrimEndProperty, value);
+    SetValue(TrimEndProperty, value);
 }
 
-Base::Result<void> Path::SetStretch(
+void Path::SetStretch(
     Stretch value) noexcept {
-    return SetValue(StretchProperty, value);
+    SetValue(StretchProperty, value);
 }
 
 void Path::ResetGeometry() noexcept {
@@ -842,7 +800,14 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
     strokeVertices_.Clear();
     strokeIndices_.Clear();
     geometryBounds_ = {};
-    const Base::StringView data = Data();
+    Base::Ref<Geometry> geometry = GetData();
+    const Base::StringView data =
+        geometry &&
+            geometry->RuntimeType() ==
+                StreamGeometry::StaticTypeId()
+        ? static_cast<StreamGeometry*>(
+              geometry.Get())->GetData()
+        : Base::StringView{};
     if (data.Empty()) {
         geometryDirty_ = false;
         return {};
@@ -859,7 +824,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
         // reveal it later. Geometry is independent from the sampled alpha;
         // omitting it here leaves no mesh to draw when that animation reaches
         // an opaque key frame.
-        static_cast<bool>(GetFillBrush()));
+        static_cast<bool>(GetFill()));
     Base::Result<Rect> parsed =
         parser.Parse();
     if (!parsed) {
@@ -872,7 +837,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
         return parsed.GetStatus();
     }
     geometryBounds_ = parsed.Value();
-    if (GetStrokeBrush()) {
+    if (GetStroke()) {
         Base::Result<void> stroked =
             TessellateStroke(
                 pathPoints_,
@@ -880,8 +845,8 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
                 pathContourCounts_,
                 pathContourClosed_,
                 GetStrokeThickness(),
-                TrimStart(),
-                TrimEnd(),
+                GetTrimStart(),
+                GetTrimEnd(),
                 strokeVertices_,
                 strokeIndices_);
         if (!stroked) return stroked.GetStatus();
@@ -892,7 +857,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
 
 void Path::ReleaseMesh() noexcept {
     auto* services =
-        static_cast<Aero::Detail::MeshResources*>(
+        static_cast<Aero::Internal::MeshResources*>(
             meshServices_);
     if (mesh_ != InvalidRenderMeshId &&
         services != nullptr &&
@@ -918,7 +883,7 @@ void Path::AttachMeshResources(
     void* rawServices,
     bool force) noexcept {
     auto* services =
-        static_cast<Aero::Detail::MeshResources*>(
+        static_cast<Aero::Internal::MeshResources*>(
             rawServices);
     if (!force &&
         meshServices_ == rawServices &&
@@ -946,7 +911,7 @@ Base::Result<void> Path::EnsureMesh() noexcept {
         EnsureGeometry();
     if (!geometry) return geometry.GetStatus();
     auto* services =
-        static_cast<Aero::Detail::MeshResources*>(
+        static_cast<Aero::Internal::MeshResources*>(
             meshServices_);
     if (services == nullptr ||
         services->create == nullptr) {
@@ -975,11 +940,11 @@ Base::Result<void> Path::EnsureMesh() noexcept {
     return {};
 }
 
-Base::Result<Size> Path::MeasureOverride(
+Size Path::MeasureOverride(
     Size availableSize) noexcept {
     Base::Result<void> geometry =
         EnsureGeometry();
-    if (!geometry) return geometry.GetStatus();
+    if (!geometry) return Size{};
     const Size natural{
         geometryBounds_.width,
         geometryBounds_.height};
@@ -1046,17 +1011,17 @@ Base::Result<Size> Path::MeasureOverride(
         natural.height * scale};
 }
 
-Base::Result<void> Path::OnRender(
+void Path::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
     Base::Result<void> mesh =
         EnsureMesh();
-    if (!mesh) return mesh.GetStatus();
+    if (!mesh) return;
     if ((mesh_ == InvalidRenderMeshId &&
          strokeMesh_ == InvalidRenderMeshId) ||
         geometryBounds_.width <= 0.0 ||
         geometryBounds_.height <= 0.0) {
-        return {};
+        return;
     }
 
     const Size target = GetRenderSize();
@@ -1102,19 +1067,20 @@ Base::Result<void> Path::OnRender(
         builder.PushTransform({
             scaleX, 0.0, 0.0, scaleY,
             offsetX, offsetY});
-    if (!transform) return transform.GetStatus();
+    if (!transform) return;
     if (mesh_ != InvalidRenderMeshId) {
         Base::Result<void> drawn =
-            builder.DrawMesh(mesh_, GetFill());
-        if (!drawn) return drawn.GetStatus();
+            builder.DrawMesh(
+                mesh_, ::Aero::Internal::SampleBrush(GetFill()));
+        if (!drawn) return;
     }
     if (strokeMesh_ != InvalidRenderMeshId) {
         Base::Result<void> drawn =
             builder.DrawMesh(
-                strokeMesh_, GetStroke());
-        if (!drawn) return drawn.GetStatus();
+                strokeMesh_, ::Aero::Internal::SampleBrush(GetStroke()));
+        if (!drawn) return;
     }
-    return builder.PopTransform();
+    static_cast<void>(builder.PopTransform());
 }
 
-} // namespace Aero::Controls
+} // namespace Aero::Shapes

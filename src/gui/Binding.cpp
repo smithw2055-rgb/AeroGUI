@@ -12,7 +12,8 @@
 
 namespace Aero::Data {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 namespace {
 
 Base::Status InvalidState(const char* message) noexcept {
@@ -179,7 +180,7 @@ Base::Result<PropertyValue> ConvertNumericValue(
 bool HasDefaultTargetConversion(
     TypeId sourceType,
     TypeId targetType) noexcept {
-    return sourceType == TypeOf<Core::Value>() ||
+    return sourceType == TypeOf<Meta::Value>() ||
         (sourceType != targetType &&
          IsNumericType(sourceType) &&
          IsNumericType(targetType)) ||
@@ -249,13 +250,15 @@ Base::Result<Base::String> FormatBindingString(
     case ValueKind::Object:
         if (!value.IsNullObject() &&
             value.AsObject() &&
-            value.AsObject()->RuntimeType() ==
-                Media::Geometry::StaticTypeId()) {
+            (value.AsObject()->RuntimeType() ==
+                Media::Geometry::StaticTypeId() ||
+             value.AsObject()->RuntimeType() ==
+                Media::StreamGeometry::StaticTypeId())) {
             Base::String result;
             Base::Result<void> assigned =
                 result.TryAssign(
-                    static_cast<Media::Geometry&>(
-                        *value.AsObject()).Value());
+                    static_cast<Media::StreamGeometry&>(
+                        *value.AsObject()).GetData());
             return assigned
                 ? Base::Result<Base::String>(
                       std::move(result))
@@ -387,9 +390,10 @@ Base::Result<Base::String> FormatBindingString(
 
 } // namespace Aero::Data
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using namespace Aero::Data;
 
 BindingEngine::BindingEngine(Dispatcher& dispatcher) noexcept
@@ -916,15 +920,9 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                     converted = record.descriptor.fallbackValue;
                     usedFallback = true;
                 }
-                applied = record.descriptor.target->SetValue(
+                record.descriptor.target->SetValue(
                     record.descriptor.targetProperty, converted.Value());
-                if (!applied) {
-                    ReportDiagnostic(
-                        record,
-                        BindingDiagnosticStage::WriteTarget,
-                        applied.GetStatus());
-                    break;
-                }
+                applied = {};
                 target = converted.Value();
                 ++updated;
             }
@@ -948,15 +946,9 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                     converted = record.descriptor.fallbackValue;
                     usedFallback = true;
                 }
-                applied = record.descriptor.target->SetValue(
+                record.descriptor.target->SetValue(
                     record.descriptor.targetProperty, converted.Value());
-                if (!applied) {
-                    ReportDiagnostic(
-                        record,
-                        BindingDiagnosticStage::WriteTarget,
-                        applied.GetStatus());
-                    break;
-                }
+                applied = {};
                 target = converted.Value();
                 ++updated;
             }
@@ -1003,15 +995,9 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                     converted = record.descriptor.fallbackValue;
                     usedFallback = true;
                 }
-                applied = record.descriptor.target->SetValue(
+                record.descriptor.target->SetValue(
                     record.descriptor.targetProperty, converted.Value());
-                if (!applied) {
-                    ReportDiagnostic(
-                        record,
-                        BindingDiagnosticStage::WriteTarget,
-                        applied.GetStatus());
-                    break;
-                }
+                applied = {};
                 target = converted.Value();
                 ++updated;
             } else if (targetChanged) {
@@ -1390,8 +1376,9 @@ Base::Result<void> BindingEngine::WriteSource(
     const PropertyValue& value) noexcept {
     if (record.sourceKind ==
         BindingSourceKind::DependencyProperty) {
-        return record.descriptor.source->SetValue(
+        record.descriptor.source->SetValue(
             record.descriptor.sourceProperty, value);
+        return {};
     }
     if (record.sourceKind == BindingSourceKind::MetadataObject) {
         return Base::Status::Failure(
@@ -1615,4 +1602,4 @@ void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
     bindings_.PopBack();
 }
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

@@ -14,7 +14,7 @@
 #include <limits>
 #include <utility>
 
-namespace Aero::Core {
+namespace Aero::Meta {
 namespace {
 
 constexpr std::uint32_t InvalidIndex = UINT32_MAX;
@@ -365,7 +365,7 @@ DependencyPropertyRegistry::TryRegister(
         return reserveResult.GetStatus();
     }
 
-    if (property.IsReadOnly() &&
+    if (property.GetIsReadOnly() &&
         nextReadOnlySecret_ == std::numeric_limits<std::uint64_t>::max()) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
@@ -375,7 +375,7 @@ DependencyPropertyRegistry::TryRegister(
     const MemberId member = MakeMemberId(
         registration.ownerType, MemberKind::Property, registration.name);
     property.handle_.value = member;
-    if (property.IsReadOnly()) {
+    if (property.GetIsReadOnly()) {
         property.readOnlySecret_ = Base::MixHash64(
             property.handle_.value ^ nextReadOnlySecret_);
         if (property.readOnlySecret_ == 0U) {
@@ -419,14 +419,14 @@ DependencyPropertyRegistry::TryRegister(
         return registered.GetStatus();
     }
     AERO_ASSERT(registered.Value() == member);
-    if (properties_[propertyIndex].IsReadOnly()) {
+    if (properties_[propertyIndex].GetIsReadOnly()) {
         ++nextReadOnlySecret_;
     }
 
     DependencyPropertyRegistrationResult result;
     result.property.value = member;
     const DependencyProperty& stored = properties_[propertyIndex];
-    if (stored.IsReadOnly()) {
+    if (stored.GetIsReadOnly()) {
         result.readOnlyKey.registry_ = this;
         result.readOnlyKey.property_ = result.property;
         result.readOnlyKey.secret_ = stored.readOnlySecret_;
@@ -672,15 +672,15 @@ bool DependencyPropertyRegistry::ValidateKey(
     }
 
     const DependencyProperty* registered = Find(property);
-    return registered != nullptr && registered->IsReadOnly() &&
+    return registered != nullptr && registered->GetIsReadOnly() &&
         registered->readOnlySecret_ == key->secret_;
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 namespace Aero {
 
-using namespace Core;
+using namespace Meta;
 
 DependencyObject::MutationScope::MutationScope(
     DependencyObject* owner,
@@ -766,24 +766,20 @@ std::uint32_t DependencyObject::FindEntryIndex(
     return InvalidIndex;
 }
 
-Base::Result<PropertyValue> DependencyObject::GetValue(
+PropertyValue DependencyObject::GetValue(
     DependencyPropertyHandle propertyHandle) const noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) {
-        return ready.GetStatus();
+        return PropertyValue::Unset();
     }
 
     const DependencyProperty* property = registry_->Find(propertyHandle);
     if (property == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Dependency property was not found");
+        return PropertyValue::Unset();
     }
     const PropertyMetadata* metadata = property->MetadataFor(runtimeType_);
     if (metadata == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Dependency property does not apply to this object type");
+        return PropertyValue::Unset();
     }
 
     const std::uint32_t index = FindEntryIndex(propertyHandle);
@@ -792,18 +788,16 @@ Base::Result<PropertyValue> DependencyObject::GetValue(
         : metadata->defaultValue;
 }
 
-Base::Result<PropertyValue> DependencyObject::ReadLocalValue(
+PropertyValue DependencyObject::ReadLocalValue(
     DependencyPropertyHandle propertyHandle) const noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) {
-        return ready.GetStatus();
+        return PropertyValue::Unset();
     }
 
     const DependencyProperty* property = registry_->Find(propertyHandle);
     if (property == nullptr || property->MetadataFor(runtimeType_) == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Dependency property does not apply to this object type");
+        return PropertyValue::Unset();
     }
 
     const std::uint32_t index = FindEntryIndex(propertyHandle);
@@ -813,85 +807,81 @@ Base::Result<PropertyValue> DependencyObject::ReadLocalValue(
     return values_[index].localValue;
 }
 
-Base::Result<EffectiveValueSource> DependencyObject::GetValueSource(
+EffectiveValueSource DependencyObject::GetValueSource(
     DependencyPropertyHandle propertyHandle) const noexcept {
-    Base::Result<PropertyValueSourceInfo> source = GetValueSourceInfo(propertyHandle);
-    return source ? Base::Result<EffectiveValueSource>(ToLegacySource(source.Value()))
-        : Base::Result<EffectiveValueSource>(source.GetStatus());
+    const PropertyValueSourceInfo source = GetValueSourceInfo(propertyHandle);
+    return ToLegacySource(source);
 }
 
 
-Base::Result<PropertyValueSourceInfo> DependencyObject::GetValueSourceInfo(
+PropertyValueSourceInfo DependencyObject::GetValueSourceInfo(
     DependencyPropertyHandle propertyHandle) const noexcept {
     Base::Result<void> ready = VerifyReady();
-    if (!ready) return ready.GetStatus();
+    if (!ready) return {};
     const DependencyProperty* property = registry_->Find(propertyHandle);
     if (property == nullptr || property->MetadataFor(runtimeType_) == nullptr)
-        return Base::Status::Failure(Base::ErrorCode::NotFound,
-            "Dependency property does not apply to this object type");
+        return {};
     const std::uint32_t index = FindEntryIndex(propertyHandle);
     return index != InvalidIndex ? values_[index].sourceInfo : PropertyValueSourceInfo{};
 }
 
-Base::Result<void> DependencyObject::SetValue(
+void DependencyObject::SetValue(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
-    return ApplyChange(property, nullptr, ChangeKind::SetLocal, &value);
+    (void)ApplyChange(property, nullptr, ChangeKind::SetLocal, &value);
 }
 
-Base::Result<void> DependencyObject::SetValue(
+void DependencyObject::SetValue(
     const DependencyPropertyKey& key,
     const PropertyValue& value) noexcept {
-    return ApplyChange(key.Property(), &key, ChangeKind::SetLocal, &value);
+    (void)ApplyChange(key.Property(), &key, ChangeKind::SetLocal, &value);
 }
 
-Base::Result<void> DependencyObject::SetCurrentValue(
+void DependencyObject::SetCurrentValue(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
-    return ApplyChange(property, nullptr, ChangeKind::SetCurrent, &value);
+    (void)ApplyChange(property, nullptr, ChangeKind::SetCurrent, &value);
 }
 
-Base::Result<void> DependencyObject::SetCurrentValue(
+void DependencyObject::SetCurrentValue(
     const DependencyPropertyKey& key,
     const PropertyValue& value) noexcept {
-    return ApplyChange(key.Property(), &key, ChangeKind::SetCurrent, &value);
+    (void)ApplyChange(key.Property(), &key, ChangeKind::SetCurrent, &value);
 }
 
-Base::Result<void> DependencyObject::SetReadOnlyCurrentValue(
+void DependencyObject::SetReadOnlyCurrentValue(
     DependencyPropertyHandle propertyHandle,
     const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
-    if (!ready) return ready.GetStatus();
+    if (!ready) return;
     const DependencyProperty* property = registry_->Find(propertyHandle);
     if (property == nullptr) {
-        return Base::Status::Failure(Base::ErrorCode::NotFound,
-            "Dependency property was not found");
+        return;
     }
-    if (!property->IsReadOnly()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Framework state update requires a read-only property");
+    if (!property->GetIsReadOnly()) {
+        return;
     }
     DependencyPropertyKey key;
     key.registry_ = registry_;
     key.property_ = propertyHandle;
     key.secret_ = property->readOnlySecret_;
-    return ApplyChange(
+    (void)ApplyChange(
         propertyHandle, &key, ChangeKind::SetLocal, &value);
 }
 
-Base::Result<void> DependencyObject::ClearValue(
+void DependencyObject::ClearValue(
     DependencyPropertyHandle property) noexcept {
-    return ApplyChange(property, nullptr, ChangeKind::Clear, nullptr);
+    (void)ApplyChange(property, nullptr, ChangeKind::Clear, nullptr);
 }
 
-Base::Result<void> DependencyObject::ClearValue(
+void DependencyObject::ClearValue(
     const DependencyPropertyKey& key) noexcept {
-    return ApplyChange(key.Property(), &key, ChangeKind::Clear, nullptr);
+    (void)ApplyChange(key.Property(), &key, ChangeKind::Clear, nullptr);
 }
 
-Base::Result<void> DependencyObject::CoerceValue(
+void DependencyObject::CoerceValue(
     DependencyPropertyHandle property) noexcept {
-    return ApplyChange(property, nullptr, ChangeKind::ReCoerce, nullptr);
+    (void)ApplyChange(property, nullptr, ChangeKind::ReCoerce, nullptr);
 }
 
 Base::Result<void> DependencyObject::TryAddValueChangedHandler(
@@ -914,12 +904,12 @@ Base::Result<void> DependencyObject::TryAddValueChangedHandler(
     return changeHandlers_.TryPushBack(std::move(record));
 }
 
-Base::Result<bool> DependencyObject::RemoveValueChangedHandler(
+bool DependencyObject::RemoveValueChangedHandler(
     DependencyPropertyHandle property,
     const DependencyPropertyChangedEventHandler& handler) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) {
-        return access.GetStatus();
+        return false;
     }
     if (!property.IsValid() || handler.Empty()) {
         return false;
@@ -941,11 +931,10 @@ Base::Result<bool> DependencyObject::RemoveValueChangedHandler(
     return false;
 }
 
-Base::Result<PropertyInvalidationFlags>
-DependencyObject::TakeInvalidations() noexcept {
+PropertyInvalidationFlags DependencyObject::TakeInvalidations() noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) {
-        return ready.GetStatus();
+        return PropertyInvalidationFlags::None;
     }
     const PropertyInvalidationFlags result = invalidations_;
     invalidations_ = PropertyInvalidationFlags::None;
@@ -1025,7 +1014,7 @@ void DependencyObject::ReleaseExpression(EffectiveValueEntry& entry) noexcept {
     if (expression.cleanup != nullptr) expression.cleanup(expression.context);
 }
 
-Base::Result<void> DependencyObject::SetProviderContributionInternal(
+Base::Result<void> DependencyObject::TrySetProviderContributionInternal(
     DependencyPropertyHandle property, PropertyProviderToken token,
     const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
@@ -1037,7 +1026,7 @@ Base::Result<void> DependencyObject::SetProviderContributionInternal(
     EffectiveValueEntry& entry = values_[ensured.Value()];
     entry.currentValue = PropertyValue::Unset();
     entry.hasCurrent = false;
-    return entry.baseProviders.Set(token, value);
+    return entry.baseProviders.TrySet(token, value);
 }
 
 Base::Result<bool> DependencyObject::ClearProviderContributionInternal(
@@ -1062,7 +1051,7 @@ Base::Result<bool> DependencyObject::ClearProviderOriginInternal(
     return removed;
 }
 
-Base::Result<void> DependencyObject::SetLocalExpressionInternal(
+Base::Result<void> DependencyObject::TrySetLocalExpressionInternal(
     DependencyPropertyHandle property, const PropertyExpression& expression) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
@@ -1107,7 +1096,7 @@ Base::Result<bool> DependencyObject::InvalidateBaseValueInternal(
     return true;
 }
 
-Base::Result<void> DependencyObject::SetAnimationValueInternal(
+Base::Result<void> DependencyObject::TrySetAnimationValueInternal(
     DependencyPropertyHandle property, const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
@@ -1131,7 +1120,7 @@ Base::Result<bool> DependencyObject::ClearAnimationValueInternal(
     return true;
 }
 
-Base::Result<void> DependencyObject::SetInheritedValueInternal(
+Base::Result<void> DependencyObject::TrySetInheritedValueInternal(
     DependencyPropertyHandle property, const PropertyValue* value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
@@ -1241,8 +1230,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
             newSource};
         if (!metadata.changed.Empty()) metadata.changed(*this, args);
         NotifyValueChanged(args);
-        Base::Result<void> invalidated = OnPropertyInvalidated(flags);
-        if (!invalidated) return invalidated.GetStatus();
+        OnPropertyInvalidated(flags);
     }
     index = FindEntryIndex(propertyHandle);
     if (index != InvalidIndex) {
@@ -1276,7 +1264,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueInternal(
         oldEffective, oldSourceInfo);
 }
 
-Base::Result<void> DependencyObject::ClearEngineValueStateInternal(
+Base::Result<void> DependencyObject::TryClearEngineValueStateInternal(
     DependencyPropertyHandle propertyHandle) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
@@ -1306,7 +1294,7 @@ Base::Result<void> DependencyObject::ApplyChange(
     const PropertyMetadata* metadata = property->MetadataFor(runtimeType_);
     if (metadata == nullptr) return Base::Status::Failure(
         Base::ErrorCode::NotFound, "Dependency property does not apply to this object type");
-    if (kind != ChangeKind::ReCoerce && property->IsReadOnly() &&
+    if (kind != ChangeKind::ReCoerce && property->GetIsReadOnly() &&
         !registry_->ValidateKey(propertyHandle, key)) return ReadOnlyStatus();
     if ((kind == ChangeKind::SetLocal || kind == ChangeKind::SetCurrent) &&
         requestedValue == nullptr) return Base::Status::Failure(
@@ -1378,9 +1366,8 @@ Base::Result<void> DependencyObject::ApplyChange(
     return recomputed.GetStatus();
 }
 
-Base::Result<void> DependencyObject::OnPropertyInvalidated(
+void DependencyObject::OnPropertyInvalidated(
     PropertyInvalidationFlags) noexcept {
-    return {};
 }
 
 void DependencyObject::RemoveEntry(std::uint32_t index) noexcept {
@@ -1469,7 +1456,7 @@ PropertyInvalidationFlags DependencyObject::AccumulateInvalidations(
 #include <cstdio>
 #include <utility>
 
-namespace Aero::Core {
+namespace Aero::Meta {
 namespace {
 
 constexpr std::uint32_t EffectiveInvalidIndex = UINT32_MAX;
@@ -1547,7 +1534,7 @@ Base::Result<void> EffectiveValueEngine::Initialize() noexcept {
 
     Base::Result<DispatcherFrameHookHandle> hook =
         dispatcher_->RegisterFrameHook(
-            DispatcherFramePhase::PropertyChanges,
+            ::Aero::Threading::DispatcherFramePhase::PropertyChanges,
             &EffectiveValueEngine::PropertyChangesHook,
             this,
             nullptr);
@@ -1761,7 +1748,7 @@ Base::Result<void> EffectiveValueEngine::SetProviderContribution(
     if (!ensured) return ensured.GetStatus();
     Base::Result<void> queued = QueueEntry(ensured.Value());
     if (!queued) return queued.GetStatus();
-    return object.SetProviderContributionInternal(property, token, value);
+    return object.TrySetProviderContributionInternal(property, token, value);
 }
 
 Base::Result<bool> EffectiveValueEngine::ClearProviderContribution(
@@ -1803,7 +1790,7 @@ Base::Result<void> EffectiveValueEngine::SetLocalExpression(
     Base::Result<std::uint32_t> ensured = EnsureEntry(object, property);
     if (!ensured) return ensured.GetStatus();
     Base::Result<void> queued = QueueEntry(ensured.Value()); if (!queued) return queued.GetStatus();
-    return object.SetLocalExpressionInternal(property, expression);
+    return object.TrySetLocalExpressionInternal(property, expression);
 }
 
 Base::Result<void> EffectiveValueEngine::ClearLocalExpression(
@@ -1825,7 +1812,7 @@ Base::Result<void> EffectiveValueEngine::SetAnimationValue(
     Base::Result<std::uint32_t> ensured = EnsureEntry(object, property);
     if (!ensured) return ensured.GetStatus();
     Base::Result<void> queued = QueueEntry(ensured.Value()); if (!queued) return queued.GetStatus();
-    return object.SetAnimationValueInternal(property, value);
+    return object.TrySetAnimationValueInternal(property, value);
 }
 
 Base::Result<void> EffectiveValueEngine::ClearAnimationValue(
@@ -2040,7 +2027,7 @@ Base::Result<void> EffectiveValueEngine::Apply(Entry& entry) noexcept {
             inheritedValue = std::move(value).Value(); inherited = &inheritedValue;
         }
     }
-    Base::Result<void> stored = entry.object->SetInheritedValueInternal(entry.property, inherited);
+    Base::Result<void> stored = entry.object->TrySetInheritedValueInternal(entry.property, inherited);
     if (!stored) return stored.GetStatus();
     return entry.object->RecomputeEffectiveValueInternal(entry.property);
 }
@@ -2103,7 +2090,7 @@ Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) 
     std::uint32_t entry = 0U;
     while (entry < entries_.Size()) {
         if (entries_[entry].object == &object) {
-            Base::Result<void> cleared = object.ClearEngineValueStateInternal(entries_[entry].property);
+            Base::Result<void> cleared = object.TryClearEngineValueStateInternal(entries_[entry].property);
             if (!cleared) return cleared.GetStatus();
             RemoveEntry(entry);
         } else ++entry;
@@ -2154,4 +2141,4 @@ void EffectiveValueEngine::PropertyChangesHook(
     static_cast<void>(engine->Flush());
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

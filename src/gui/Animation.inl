@@ -23,24 +23,24 @@ Base::Result<void> PopulateUiAnimation(
     timeline
         .Property(
             "BeginTime",
-            &Media::Animation::Timeline::BeginTime,
+            &Media::Animation::Timeline::GetBeginTime,
             &Media::Animation::Timeline::SetBeginTime)
         .Property(
             "Duration",
-            &Media::Animation::Timeline::Duration,
+            &Media::Animation::Timeline::GetDuration,
             &Media::Animation::Timeline::SetDuration)
         .Property(
             "RepeatBehavior",
-            &Media::Animation::Timeline::RepeatBehavior,
+            &Media::Animation::Timeline::GetRepeatBehavior,
             &Media::Animation::Timeline::SetRepeatBehavior)
         .Property<
             double,
-            &Media::Animation::Timeline::SpeedRatio,
+            &Media::Animation::Timeline::GetSpeedRatio,
             &Media::Animation::Timeline::SetSpeedRatio>(
             "SpeedRatio")
         .Property<
             bool,
-            &Media::Animation::Timeline::AutoReverse,
+            &Media::Animation::Timeline::GetAutoReverse,
             &Media::Animation::Timeline::SetAutoReverse>(
             "AutoReverse")
         .Property<
@@ -78,7 +78,7 @@ Base::Result<void> PopulateUiAnimation(
     exponentialEase
         .Property<
             double,
-            &Media::Animation::ExponentialEase::Exponent,
+            &Media::Animation::ExponentialEase::GetExponent,
             &Media::Animation::ExponentialEase::SetExponent>("Exponent")
         .Factory();
     status = exponentialEase.Result();
@@ -88,7 +88,7 @@ Base::Result<void> PopulateUiAnimation(
     powerEase
         .Property<
             double,
-            &Media::Animation::PowerEase::Power,
+            &Media::Animation::PowerEase::GetPower,
             &Media::Animation::PowerEase::SetPower>("Power")
         .Factory();
     status = powerEase.Result();
@@ -98,7 +98,7 @@ Base::Result<void> PopulateUiAnimation(
     backEase
         .Property<
             double,
-            &Media::Animation::BackEase::Amplitude,
+            &Media::Animation::BackEase::GetAmplitude,
             &Media::Animation::BackEase::SetAmplitude>("Amplitude")
         .Factory();
     status = backEase.Result();
@@ -108,11 +108,11 @@ Base::Result<void> PopulateUiAnimation(
     bounceEase
         .Property<
             double,
-            &Media::Animation::BounceEase::Bounces,
+            &Media::Animation::BounceEase::GetBounces,
             &Media::Animation::BounceEase::SetBounces>("Bounces")
         .Property<
             double,
-            &Media::Animation::BounceEase::Bounciness,
+            &Media::Animation::BounceEase::GetBounciness,
             &Media::Animation::BounceEase::SetBounciness>("Bounciness")
         .Factory();
     status = bounceEase.Result();
@@ -122,11 +122,11 @@ Base::Result<void> PopulateUiAnimation(
     elasticEase
         .Property<
             double,
-            &Media::Animation::ElasticEase::Oscillations,
+            &Media::Animation::ElasticEase::GetOscillations,
             &Media::Animation::ElasticEase::SetOscillations>("Oscillations")
         .Property<
             double,
-            &Media::Animation::ElasticEase::Springiness,
+            &Media::Animation::ElasticEase::GetSpringiness,
             &Media::Animation::ElasticEase::SetSpringiness>("Springiness")
         .Factory();
     status = elasticEase.Result();
@@ -136,25 +136,25 @@ Base::Result<void> PopulateUiAnimation(
     doubleAnimation
         .Property<
             double,
-            &Media::Animation::DoubleAnimation::From,
+            &Media::Animation::DoubleAnimation::GetFrom,
             &Media::Animation::DoubleAnimation::SetFrom>("From")
         .Property<
             double,
-            &Media::Animation::DoubleAnimation::To,
+            &Media::Animation::DoubleAnimation::GetTo,
             &Media::Animation::DoubleAnimation::SetTo>("To")
         .Property<
             double,
-            &Media::Animation::DoubleAnimation::AccelerationRatio,
+            &Media::Animation::DoubleAnimation::GetAccelerationRatio,
             &Media::Animation::DoubleAnimation::SetAccelerationRatio>(
                 "AccelerationRatio")
         .Property<
             double,
-            &Media::Animation::DoubleAnimation::DecelerationRatio,
+            &Media::Animation::DoubleAnimation::GetDecelerationRatio,
             &Media::Animation::DoubleAnimation::SetDecelerationRatio>(
                 "DecelerationRatio")
         .Property<
             Base::Ref<Media::Animation::EasingFunctionBase>,
-            &Media::Animation::DoubleAnimation::EasingFunction,
+            &Media::Animation::DoubleAnimation::GetEasingFunction,
             &Media::Animation::DoubleAnimation::SetEasingFunction>(
             "EasingFunction",
             PropertyFlags::Structural)
@@ -166,15 +166,15 @@ Base::Result<void> PopulateUiAnimation(
     colorAnimation
         .Property<
             Color,
-            &Media::Animation::ColorAnimation::From,
+            &Media::Animation::ColorAnimation::GetFrom,
             &Media::Animation::ColorAnimation::SetFrom>("From")
         .Property<
             Color,
-            &Media::Animation::ColorAnimation::To,
+            &Media::Animation::ColorAnimation::GetTo,
             &Media::Animation::ColorAnimation::SetTo>("To")
         .Property<
             Base::Ref<Media::Animation::EasingFunctionBase>,
-            &Media::Animation::ColorAnimation::EasingFunction,
+            &Media::Animation::ColorAnimation::GetEasingFunction,
             &Media::Animation::ColorAnimation::SetEasingFunction>(
             "EasingFunction",
             PropertyFlags::Structural)
@@ -188,19 +188,19 @@ Base::Result<void> PopulateUiAnimation(
     pointAnimation
         .Property<
             Point,
-            &Media::Animation::PointAnimation::From,
+            &Media::Animation::PointAnimation::GetFrom,
             &Media::Animation::PointAnimation::SetFrom>(
             "From")
         .Property<
             Point,
-            &Media::Animation::PointAnimation::To,
+            &Media::Animation::PointAnimation::GetTo,
             &Media::Animation::PointAnimation::SetTo>(
             "To")
         .Property<
             Base::Ref<
                 Media::Animation::EasingFunctionBase>,
             &Media::Animation::PointAnimation::
-                EasingFunction,
+                GetEasingFunction,
             &Media::Animation::PointAnimation::
                 SetEasingFunction>(
             "EasingFunction",
@@ -215,19 +215,19 @@ Base::Result<void> PopulateUiAnimation(
     rectAnimation
         .Property<
             Rect,
-            &Media::Animation::RectAnimation::From,
+            &Media::Animation::RectAnimation::GetFrom,
             &Media::Animation::RectAnimation::SetFrom>(
             "From")
         .Property<
             Rect,
-            &Media::Animation::RectAnimation::To,
+            &Media::Animation::RectAnimation::GetTo,
             &Media::Animation::RectAnimation::SetTo>(
             "To")
         .Property<
             Base::Ref<
                 Media::Animation::EasingFunctionBase>,
             &Media::Animation::RectAnimation::
-                EasingFunction,
+                GetEasingFunction,
             &Media::Animation::RectAnimation::
                 SetEasingFunction>(
             "EasingFunction",
@@ -243,19 +243,19 @@ Base::Result<void> PopulateUiAnimation(
     thicknessAnimation
         .Property<
             Base::Thickness,
-            &Media::Animation::ThicknessAnimation::From,
+            &Media::Animation::ThicknessAnimation::GetFrom,
             &Media::Animation::ThicknessAnimation::SetFrom>(
             "From")
         .Property<
             Base::Thickness,
-            &Media::Animation::ThicknessAnimation::To,
+            &Media::Animation::ThicknessAnimation::GetTo,
             &Media::Animation::ThicknessAnimation::SetTo>(
             "To")
         .Property<
             Base::Ref<
                 Media::Animation::EasingFunctionBase>,
             &Media::Animation::ThicknessAnimation::
-                EasingFunction,
+                GetEasingFunction,
             &Media::Animation::ThicknessAnimation::
                 SetEasingFunction>(
             "EasingFunction",
@@ -268,11 +268,11 @@ Base::Result<void> PopulateUiAnimation(
         context, TypeFlags::Abstract)
         .Property<
             double,
-            &Media::Animation::DoubleKeyFrame::Value,
+            &Media::Animation::DoubleKeyFrame::GetValue,
             &Media::Animation::DoubleKeyFrame::SetValue>("Value")
         .Property(
             "KeyTime",
-            &Media::Animation::DoubleKeyFrame::KeyTime,
+            &Media::Animation::DoubleKeyFrame::GetKeyTime,
             &Media::Animation::DoubleKeyFrame::SetKeyTime)
         .Result();
     if (!status) return status.GetStatus();
@@ -288,7 +288,7 @@ Base::Result<void> PopulateUiAnimation(
     easingFrame
         .Property<
             Base::Ref<Media::Animation::EasingFunctionBase>,
-            &Media::Animation::EasingDoubleKeyFrame::EasingFunction,
+            &Media::Animation::EasingDoubleKeyFrame::GetEasingFunction,
             &Media::Animation::EasingDoubleKeyFrame::SetEasingFunction>(
             "EasingFunction",
             PropertyFlags::Structural)
@@ -301,7 +301,7 @@ Base::Result<void> PopulateUiAnimation(
     splineFrame
         .Property(
             "KeySpline",
-            &Media::Animation::SplineDoubleKeyFrame::KeySpline,
+            &Media::Animation::SplineDoubleKeyFrame::GetKeySpline,
             &Media::Animation::SplineDoubleKeyFrame::SetKeySpline)
         .Factory();
     status = splineFrame.Result();
@@ -323,12 +323,12 @@ Base::Result<void> PopulateUiAnimation(
         context, TypeFlags::Abstract)
         .Property<
             Thickness,
-            &Media::Animation::ThicknessKeyFrame::Value,
+            &Media::Animation::ThicknessKeyFrame::GetValue,
             &Media::Animation::ThicknessKeyFrame::SetValue>(
                 "Value")
         .Property(
             "KeyTime",
-            &Media::Animation::ThicknessKeyFrame::KeyTime,
+            &Media::Animation::ThicknessKeyFrame::GetKeyTime,
             &Media::Animation::ThicknessKeyFrame::SetKeyTime)
         .Result();
     if (!status) return status.GetStatus();
@@ -348,7 +348,7 @@ Base::Result<void> PopulateUiAnimation(
         .Property<
             Base::Ref<Media::Animation::EasingFunctionBase>,
             &Media::Animation::EasingThicknessKeyFrame::
-                EasingFunction,
+                GetEasingFunction,
             &Media::Animation::EasingThicknessKeyFrame::
                 SetEasingFunction>(
                     "EasingFunction",
@@ -364,7 +364,7 @@ Base::Result<void> PopulateUiAnimation(
         .Property(
             "KeySpline",
             &Media::Animation::SplineThicknessKeyFrame::
-                KeySpline,
+                GetKeySpline,
             &Media::Animation::SplineThicknessKeyFrame::
                 SetKeySpline)
         .Factory();
@@ -388,12 +388,12 @@ Base::Result<void> PopulateUiAnimation(
         context, TypeFlags::Abstract)
         .Property<
             Base::Color,
-            &Media::Animation::ColorKeyFrame::Value,
+            &Media::Animation::ColorKeyFrame::GetValue,
             &Media::Animation::ColorKeyFrame::SetValue>(
             "Value")
         .Property(
             "KeyTime",
-            &Media::Animation::ColorKeyFrame::KeyTime,
+            &Media::Animation::ColorKeyFrame::GetKeyTime,
             &Media::Animation::ColorKeyFrame::SetKeyTime)
         .Result();
     if (!status) return status.GetStatus();
@@ -410,7 +410,7 @@ Base::Result<void> PopulateUiAnimation(
     easingColorFrame
         .Property<
             Base::Ref<Media::Animation::EasingFunctionBase>,
-            &Media::Animation::EasingColorKeyFrame::EasingFunction,
+            &Media::Animation::EasingColorKeyFrame::GetEasingFunction,
             &Media::Animation::EasingColorKeyFrame::SetEasingFunction>(
             "EasingFunction",
             PropertyFlags::Structural)
@@ -424,7 +424,7 @@ Base::Result<void> PopulateUiAnimation(
     splineColorFrame
         .Property(
             "KeySpline",
-            &Media::Animation::SplineColorKeyFrame::KeySpline,
+            &Media::Animation::SplineColorKeyFrame::GetKeySpline,
             &Media::Animation::SplineColorKeyFrame::SetKeySpline)
         .Factory();
     status = splineColorFrame.Result();
@@ -449,13 +449,13 @@ Base::Result<void> PopulateUiAnimation(
     objectFrame
         .Property<
             Value,
-            &Media::Animation::DiscreteObjectKeyFrame::Value,
+            &Media::Animation::DiscreteObjectKeyFrame::GetValue,
             &Media::Animation::DiscreteObjectKeyFrame::SetValue>(
             "Value",
             PropertyFlags::AnyValue)
         .Property(
             "KeyTime",
-            &Media::Animation::DiscreteObjectKeyFrame::KeyTime,
+            &Media::Animation::DiscreteObjectKeyFrame::GetKeyTime,
             &Media::Animation::DiscreteObjectKeyFrame::SetKeyTime)
         .Factory();
     status = objectFrame.Result();
@@ -478,11 +478,11 @@ Base::Result<void> PopulateUiAnimation(
     booleanFrame
         .Property<
             bool,
-            &Media::Animation::DiscreteBooleanKeyFrame::Value,
+            &Media::Animation::DiscreteBooleanKeyFrame::GetValue,
             &Media::Animation::DiscreteBooleanKeyFrame::SetValue>("Value")
         .Property(
             "KeyTime",
-            &Media::Animation::DiscreteBooleanKeyFrame::KeyTime,
+            &Media::Animation::DiscreteBooleanKeyFrame::GetKeyTime,
             &Media::Animation::DiscreteBooleanKeyFrame::SetKeyTime)
         .Factory();
     status = booleanFrame.Result();
@@ -539,15 +539,15 @@ Base::Result<void> PopulateUiAnimation(
     changeProperty
         .Property(
             "TargetName",
-            &Media::Animation::ChangePropertyAction::TargetName,
+            &Media::Animation::ChangePropertyAction::GetTargetName,
             &Media::Animation::ChangePropertyAction::SetTargetName)
         .Property(
             "PropertyName",
-            &Media::Animation::ChangePropertyAction::PropertyName,
+            &Media::Animation::ChangePropertyAction::GetPropertyName,
             &Media::Animation::ChangePropertyAction::SetPropertyName)
         .Property<
-            Core::PropertyValue,
-            &Media::Animation::ChangePropertyAction::Value,
+            Meta::PropertyValue,
+            &Media::Animation::ChangePropertyAction::GetValue,
             &Media::Animation::ChangePropertyAction::SetValue>(
                 "Value",
                 PropertyFlags::AnyValue)
@@ -559,7 +559,7 @@ Base::Result<void> PopulateUiAnimation(
     setFocus
         .Property(
             "Engage",
-            &Media::Animation::SetFocusAction::Engage,
+            &Media::Animation::SetFocusAction::GetEngage,
             &Media::Animation::SetFocusAction::SetEngage)
         .Factory();
     status = setFocus.Result();
@@ -570,7 +570,7 @@ Base::Result<void> PopulateUiAnimation(
     launchUriOrFile
         .Property(
             "Path",
-            &Media::Animation::LaunchUriOrFileAction::Path,
+            &Media::Animation::LaunchUriOrFileAction::GetPath,
             &Media::Animation::LaunchUriOrFileAction::SetPath)
         .Factory();
     status = launchUriOrFile.Result();
@@ -580,7 +580,7 @@ Base::Result<void> PopulateUiAnimation(
     removeElement
         .Property<
             Base::Ref<Data::Binding>,
-            &Media::Animation::RemoveElementAction::TargetObject,
+            &Media::Animation::RemoveElementAction::GetTargetObject,
             &Media::Animation::RemoveElementAction::SetTargetObject>(
                 "TargetObject",
                 PropertyFlags::Structural)
@@ -594,7 +594,7 @@ Base::Result<void> PopulateUiAnimation(
         .Property(
             "BeginStoryboardName",
             &Media::Animation::ControllableStoryboardAction::
-                BeginStoryboardName,
+                GetBeginStoryboardName,
             &Media::Animation::ControllableStoryboardAction::
                 SetBeginStoryboardName)
         .Result();
@@ -605,7 +605,7 @@ Base::Result<void> PopulateUiAnimation(
     beginStoryboard
         .Property(
             "Name",
-            &Media::Animation::BeginStoryboard::Name,
+            &Media::Animation::BeginStoryboard::GetName,
             &Media::Animation::BeginStoryboard::SetName)
         .Content<Media::Animation::Storyboard>(
             "Storyboard",
@@ -629,9 +629,9 @@ Base::Result<void> PopulateUiAnimation(
 
     auto controlStoryboard = Meta::Register<Media::Animation::ControlStoryboardAction>(context);
     controlStoryboard
-        .Property("Storyboard", &Media::Animation::ControlStoryboardAction::StoryboardValue,
+        .Property("Storyboard", &Media::Animation::ControlStoryboardAction::GetStoryboard,
             &Media::Animation::ControlStoryboardAction::SetStoryboard)
-        .Property("ControlStoryboardOption", &Media::Animation::ControlStoryboardAction::ControlOption,
+        .Property("ControlStoryboardOption", &Media::Animation::ControlStoryboardAction::GetControlOption,
             &Media::Animation::ControlStoryboardAction::SetControlOption)
         .Factory();
     status = controlStoryboard.Result();
@@ -655,7 +655,7 @@ Base::Result<void> PopulateUiAnimation(
     seekStoryboard
         .Property(
             "Offset",
-            &Media::Animation::SeekStoryboard::Offset,
+            &Media::Animation::SeekStoryboard::GetOffset,
             &Media::Animation::SeekStoryboard::SetOffset)
         .Factory();
     status = seekStoryboard.Result();
@@ -665,15 +665,15 @@ Base::Result<void> PopulateUiAnimation(
     eventTrigger
         .Property(
             "RoutedEvent",
-            &Media::Animation::EventTrigger::RoutedEvent,
+            &Media::Animation::EventTrigger::GetRoutedEvent,
             &Media::Animation::EventTrigger::SetRoutedEvent)
         .Property(
             "EventName",
-            &Media::Animation::EventTrigger::EventName,
+            &Media::Animation::EventTrigger::GetEventName,
             &Media::Animation::EventTrigger::SetEventName)
         .Property(
             "SourceName",
-            &Media::Animation::EventTrigger::SourceName,
+            &Media::Animation::EventTrigger::GetSourceName,
             &Media::Animation::EventTrigger::SetSourceName)
         .Content<Media::Animation::TriggerAction>(
             "Actions",
@@ -688,11 +688,11 @@ Base::Result<void> PopulateUiAnimation(
     timerTrigger
         .Property(
             "TotalTicks",
-            &Media::Animation::TimerTrigger::TotalTicks,
+            &Media::Animation::TimerTrigger::GetTotalTicks,
             &Media::Animation::TimerTrigger::SetTotalTicks)
         .Property<
-            Core::PropertyValue,
-            &Media::Animation::TimerTrigger::MillisecondsPerTick,
+            Meta::PropertyValue,
+            &Media::Animation::TimerTrigger::GetMillisecondsPerTick,
             &Media::Animation::TimerTrigger::SetMillisecondsPerTick>(
                 "MillisecondsPerTick",
                 PropertyFlags::AnyValue)
@@ -728,16 +728,16 @@ Base::Result<void> PopulateUiAnimation(
     comparisonCondition
         .Property<
             Base::Ref<Data::Binding>,
-            &Media::Animation::ComparisonCondition::LeftOperand,
+            &Media::Animation::ComparisonCondition::GetLeftOperand,
             &Media::Animation::ComparisonCondition::SetLeftOperand>("LeftOperand")
         .Property<
-            Core::PropertyValue,
-            &Media::Animation::ComparisonCondition::RightOperand,
+            Meta::PropertyValue,
+            &Media::Animation::ComparisonCondition::GetRightOperand,
             &Media::Animation::ComparisonCondition::SetRightOperand>(
                 "RightOperand", PropertyFlags::AnyValue)
         .Property(
             "Operator",
-            &Media::Animation::ComparisonCondition::ComparisonOperator,
+            &Media::Animation::ComparisonCondition::GetComparisonOperator,
             &Media::Animation::ComparisonCondition::SetComparisonOperator)
         .Factory();
     status = comparisonCondition.Result();
@@ -759,7 +759,7 @@ Base::Result<void> PopulateUiAnimation(
     conditionalExpression
         .Property(
             "ForwardChaining",
-            &Media::Animation::ConditionalExpression::Chaining,
+            &Media::Animation::ConditionalExpression::GetChaining,
             &Media::Animation::ConditionalExpression::SetChaining)
         .Content<Media::Animation::ComparisonCondition>(
             "Conditions", ContentKind::Collection,
@@ -784,8 +784,8 @@ Base::Result<void> PopulateUiAnimation(
     storyboardCompleted
         .Property(
             "Storyboard",
-            &Media::Animation::StoryboardCompletedTrigger::
-                StoryboardValue,
+             &Media::Animation::StoryboardCompletedTrigger::
+                GetStoryboard,
             &Media::Animation::StoryboardCompletedTrigger::
                 SetStoryboard)
         .Content<Media::Animation::TriggerAction>(

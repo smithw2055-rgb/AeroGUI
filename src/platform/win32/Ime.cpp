@@ -353,21 +353,19 @@ Base::Result<bool> Win32ImeAdapter::Detach() noexcept {
 #endif
 }
 
-Base::Result<void> Win32ImeAdapter::SetClient(
+void Win32ImeAdapter::SetClient(
     Integration::ITextCompositionClient* client) noexcept {
 #if defined(_WIN32)
     if (client != nullptr &&
         client_ != nullptr &&
         client_ != client && composing_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "Win32 IME cannot switch clients during composition");
+        return;
     }
     if (client == nullptr && composing_) {
         if (IsAttached()) {
             Base::Result<void> cancelled =
                 CancelNativeComposition();
-            if (!cancelled) return cancelled;
+            if (!cancelled) return;
         } else {
             composing_ = false;
             DestroyNativeCaret();
@@ -375,12 +373,8 @@ Base::Result<void> Win32ImeAdapter::SetClient(
     }
     client_ = client;
     if (client_ == nullptr) DestroyNativeCaret();
-    return {};
 #else
     static_cast<void>(client);
-    return Base::Status::Failure(
-        Base::ErrorCode::Unsupported,
-        "Win32 IME is unavailable on this platform");
 #endif
 }
 
@@ -453,21 +447,19 @@ Base::Result<bool> Win32ImeAdapter::HandleMessage(
 #endif
 }
 
-Base::Result<void>
+void
 Win32ImeAdapter::SetCandidateWindow(
     const Integration::ImeCandidateWindow& value) noexcept {
 #if defined(_WIN32)
     if (!IsAttached()) {
         Base::Result<bool> attached = AttachActiveWindow();
-        if (!attached) return attached.GetStatus();
-        if (!attached.Value() && !IsAttached()) return NotAttached();
+        if (!attached) return;
+        if (!attached.Value() && !IsAttached()) return;
     }
     if (!Base::IsValidRect(value.caret) ||
         !std::isfinite(value.dpiScale) ||
         value.dpiScale <= 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "IME candidate window geometry is invalid");
+        return;
     }
     const HWND nativeWindow = static_cast<HWND>(window_);
     const double scale = WindowDpiScale(
@@ -484,16 +476,13 @@ Win32ImeAdapter::SetCandidateWindow(
             std::numeric_limits<LONG>::min()) ||
         y > static_cast<double>(
             std::numeric_limits<LONG>::max())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "IME candidate window exceeds Win32 coordinates");
+        return;
     }
     const LONG caretX = static_cast<LONG>(std::lround(x));
     const LONG caretY = static_cast<LONG>(std::lround(y));
     InputContextScope input(nativeWindow);
     if (input.Get() == nullptr) {
-        return ImeFailure(
-            "Win32 IME context is unavailable");
+        return;
     }
     CANDIDATEFORM candidate{};
     candidate.dwIndex = 0U;
@@ -502,8 +491,7 @@ Win32ImeAdapter::SetCandidateWindow(
     candidate.ptCurrentPos.y = caretY;
     if (ImmSetCandidateWindow(
             input.Get(), &candidate) == FALSE) {
-        return ImeFailure(
-            "Win32 failed to position the IME candidate window");
+        return;
     }
     COMPOSITIONFORM composition{};
     composition.dwStyle = CFS_POINT;
@@ -525,30 +513,23 @@ Win32ImeAdapter::SetCandidateWindow(
         if (CreateCaret(
                 nativeWindow, nullptr,
                 nativeWidth, nativeHeight) == FALSE) {
-            return ImeFailure(
-                "Win32 failed to create the native text caret");
+            return;
         }
         caretCreated_ = true;
         caretWidth_ = nativeWidth;
         caretHeight_ = nativeHeight;
     }
     if (SetCaretPos(caretX, caretY - nativeHeight) == FALSE) {
-        return ImeFailure(
-            "Win32 failed to position the native text caret");
+        return;
     }
     if (!caretVisible_) {
         if (ShowCaret(nativeWindow) == FALSE) {
-            return ImeFailure(
-                "Win32 failed to show the native text caret");
+            return;
         }
         caretVisible_ = true;
     }
-    return {};
 #else
     static_cast<void>(value);
-    return Base::Status::Failure(
-        Base::ErrorCode::Unsupported,
-        "Win32 IME is unavailable on this platform");
 #endif
 }
 

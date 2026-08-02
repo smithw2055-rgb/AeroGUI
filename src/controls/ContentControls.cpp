@@ -8,7 +8,8 @@ namespace Aero::Controls {
 
 using namespace Primitives;
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 
 
 Popup::Popup() noexcept
@@ -31,84 +32,84 @@ Popup::~Popup() {
         openChangedHandler_));
 }
 
-bool Popup::IsOpen() const noexcept {
+bool Popup::GetIsOpen() const noexcept {
     return GetValueOr(
         IsOpenProperty, false);
 }
 
-Base::Result<void> Popup::SetIsOpen(
+void Popup::SetIsOpen(
     bool value) noexcept {
-    return SetValue(IsOpenProperty, value);
+    SetValue(IsOpenProperty, value);
 }
 
-PlacementMode Popup::Placement() const noexcept {
+PlacementMode Popup::GetPlacement() const noexcept {
     return GetValueOr(
         PlacementProperty,
         PlacementMode::Bottom);
 }
 
-Base::Result<void> Popup::SetPlacement(
+void Popup::SetPlacement(
     PlacementMode value) noexcept {
-    return SetValue(
+    SetValue(
         PlacementProperty, value);
 }
 
-double Popup::HorizontalOffset() const noexcept {
+double Popup::GetHorizontalOffset() const noexcept {
     return GetValueOr(
         HorizontalOffsetProperty, 0.0);
 }
 
-Base::Result<void> Popup::SetHorizontalOffset(
+void Popup::SetHorizontalOffset(
     double value) noexcept {
-    return SetValue(
+    SetValue(
         HorizontalOffsetProperty, value);
 }
 
-double Popup::VerticalOffset() const noexcept {
+double Popup::GetVerticalOffset() const noexcept {
     return GetValueOr(
         VerticalOffsetProperty, 0.0);
 }
 
-Base::Result<void> Popup::SetVerticalOffset(
+void Popup::SetVerticalOffset(
     double value) noexcept {
-    return SetValue(
+    SetValue(
         VerticalOffsetProperty, value);
 }
 
-bool Popup::StaysOpen() const noexcept {
+bool Popup::GetStaysOpen() const noexcept {
     return GetValueOr(
         StaysOpenProperty, true);
 }
 
-Base::Result<void> Popup::SetStaysOpen(
+void Popup::SetStaysOpen(
     bool value) noexcept {
-    return SetValue(
+    SetValue(
         StaysOpenProperty, value);
 }
 
-bool Popup::MatchPlacementTargetWidth() const noexcept {
+bool Popup::GetMatchPlacementTargetWidth() const noexcept {
     return GetValueOr(
         MatchPlacementTargetWidthProperty, false);
 }
 
-Base::Result<void>
+void
 Popup::SetMatchPlacementTargetWidth(
     bool value) noexcept {
-    return SetValue(
+    SetValue(
         MatchPlacementTargetWidthProperty,
         value);
 }
 
 Base::Ref<UIElement>
-Popup::PlacementTarget() const noexcept {
+Popup::GetPlacementTarget() const noexcept {
     return GetValueOr(
         PlacementTargetProperty,
         Base::Ref<UIElement>{});
 }
 
-Base::Result<void> Popup::SetPlacementTarget(
+void Popup::SetPlacementTarget(
     Base::Ref<UIElement> value) noexcept {
-    return SetValue(
+    SetValue(
         PlacementTargetProperty,
         std::move(value));
 }
@@ -119,20 +120,20 @@ PopupAnimation Popup::GetPopupAnimation() const noexcept {
         PopupAnimation::None);
 }
 
-Base::Result<void> Popup::SetPopupAnimation(
+void Popup::SetPopupAnimation(
     PopupAnimation value) noexcept {
-    return SetValue(
+    SetValue(
         PopupAnimationProperty, value);
 }
 
-bool Popup::AllowsTransparency() const noexcept {
+bool Popup::GetAllowsTransparency() const noexcept {
     return GetValueOr(
         AllowsTransparencyProperty, false);
 }
 
-Base::Result<void> Popup::SetAllowsTransparency(
+void Popup::SetAllowsTransparency(
     bool value) noexcept {
-    return SetValue(
+    SetValue(
         AllowsTransparencyProperty, value);
 }
 
@@ -145,32 +146,26 @@ void Popup::OnOpenPropertyChanged(
             args.GetNewValue().AsBoolean()));
     static_cast<void>(InvalidateMeasure());
     RoutedEventArgs eventArgs;
-    Base::Result<void> raised =
-        RaiseEvent(
-            args.GetNewValue().AsBoolean()
-                ? OpenedEvent
-                : ClosedEvent,
-            &eventArgs);
-    if (!raised &&
-        raised.GetStatus().code !=
-            Base::ErrorCode::NotInitialized) {
-        static_cast<void>(raised);
-    }
+    RaiseEvent(
+        args.GetNewValue().AsBoolean()
+            ? OpenedEvent
+            : ClosedEvent,
+        &eventArgs);
 }
 
-Base::Result<Size> Popup::MeasureOverride(
+Size Popup::MeasureOverride(
     Size availableSize) noexcept {
     popupDesiredSize_ = {};
     UIElement* popupChild =
         GetTemplateRoot() != nullptr
             ? GetTemplateRoot()
             : ContentElement();
-    if (!IsOpen() || popupChild == nullptr) {
+    if (!GetIsOpen() || popupChild == nullptr) {
         return Size{};
     }
     Base::Result<void> measured =
         MeasureChild(*popupChild, availableSize);
-    if (!measured) return measured.GetStatus();
+    if (!measured) return Size{};
     popupDesiredSize_ =
         popupChild->GetDesiredSize();
     // Popup content participates in rendering and input, but never consumes
@@ -178,25 +173,22 @@ Base::Result<Size> Popup::MeasureOverride(
     return Size{};
 }
 
-Base::Result<Size> Popup::ArrangeOverride(
+Size Popup::ArrangeOverride(
     Size finalSize) noexcept {
     UIElement* popupChild =
         GetTemplateRoot() != nullptr
             ? GetTemplateRoot()
             : ContentElement();
     if (popupChild == nullptr) return finalSize;
-    if (!IsOpen()) {
+    if (!GetIsOpen()) {
         Base::Result<void> hidden =
             ArrangeChild(*popupChild, {});
-        return hidden
-            ? finalSize
-            : Base::Result<Size>(
-                  hidden.GetStatus());
+        return finalSize;
     }
 
     Size contentSize = popupDesiredSize_;
     Base::Ref<UIElement> explicitPlacementTarget =
-        PlacementTarget();
+        GetPlacementTarget();
     UIElement* placementTarget =
         explicitPlacementTarget.Get();
     if (placementTarget == nullptr) {
@@ -243,15 +235,15 @@ Base::Result<Size> Popup::ArrangeOverride(
             targetAbsolute.x - popupAbsolute.x,
             targetAbsolute.y - popupAbsolute.y};
     }
-    if (MatchPlacementTargetWidth()) {
+    if (GetMatchPlacementTargetWidth()) {
         contentSize.width =
             std::max(
                 contentSize.width,
                 targetSize.width);
     }
-    double x = targetOrigin.x + HorizontalOffset();
-    double y = targetOrigin.y + VerticalOffset();
-    switch (Placement()) {
+    double x = targetOrigin.x + GetHorizontalOffset();
+    double y = targetOrigin.y + GetVerticalOffset();
+    switch (GetPlacement()) {
     case PlacementMode::Bottom:
         y += targetSize.height;
         break;
@@ -281,36 +273,33 @@ Base::Result<Size> Popup::ArrangeOverride(
             {x, y,
              contentSize.width,
              contentSize.height});
-    return arranged
-        ? finalSize
-        : Base::Result<Size>(
-              arranged.GetStatus());
+    return finalSize;
 }
 
-Core::Value
-HeaderedContentControl::Header() const noexcept {
+Meta::Value
+HeaderedContentControl::GetHeader() const noexcept {
     return GetValueOr(
         HeaderProperty,
-        Core::Value::NullObject(
-            Core::TypeOf<Base::Object>()));
+        Meta::Value::NullObject(
+            Meta::TypeOf<Base::Object>()));
 }
 
-Base::Result<void> HeaderedContentControl::SetHeader(
-    const Core::Value& value) noexcept {
-    return SetValue(HeaderProperty, value);
+void HeaderedContentControl::SetHeader(
+    const Meta::Value& value) noexcept {
+    SetValue(HeaderProperty, value);
 }
 
 Base::Ref<DataTemplate>
-HeaderedContentControl::HeaderTemplate() const noexcept {
+HeaderedContentControl::GetHeaderTemplate() const noexcept {
     return GetValueOr(
         HeaderTemplateProperty,
         Base::Ref<DataTemplate>{});
 }
 
-Base::Result<void>
+void
 HeaderedContentControl::SetHeaderTemplate(
     Base::Ref<DataTemplate> value) noexcept {
-    return SetValue(
+    SetValue(
         HeaderTemplateProperty,
         std::move(value));
 }
@@ -331,18 +320,16 @@ Expander::~Expander() {
         expandedChangedHandler_));
 }
 
-bool Expander::IsExpanded() const noexcept {
+bool Expander::GetIsExpanded() const noexcept {
     return GetValueOr(
         IsExpandedProperty, false);
 }
 
-Base::Result<void> Expander::SetIsExpanded(
+void Expander::SetIsExpanded(
     bool value) noexcept {
-    const bool old = IsExpanded();
-    if (old == value) return {};
-    Base::Result<void> stored =
-        SetValue(IsExpandedProperty, value);
-    return stored;
+    const bool old = GetIsExpanded();
+    if (old == value) return;
+    SetValue(IsExpandedProperty, value);
 }
 
 void Expander::OnExpandedPropertyChanged(
@@ -351,47 +338,41 @@ void Expander::OnExpandedPropertyChanged(
         change) noexcept {
     static_cast<void>(InvalidateMeasure());
     RoutedEventArgs eventArgs;
-    Base::Result<void> raised =
-        RaiseEvent(
-            change.GetNewValue().AsBoolean()
-                ? ExpandedEvent
-                : CollapsedEvent,
-            &eventArgs);
-    if (!raised &&
-        raised.GetStatus().code !=
-            Base::ErrorCode::NotInitialized) {
-        static_cast<void>(raised);
-    }
+    RaiseEvent(
+        change.GetNewValue().AsBoolean()
+            ? ExpandedEvent
+            : CollapsedEvent,
+        &eventArgs);
 }
 
-ExpandDirection Expander::Direction() const noexcept {
+ExpandDirection Expander::GetDirection() const noexcept {
     return GetValueOr(
         ExpandDirectionProperty,
         ExpandDirection::Down);
 }
 
-Base::Result<void> Expander::SetDirection(
+void Expander::SetDirection(
     ExpandDirection value) noexcept {
-    return SetValue(
+    SetValue(
         ExpandDirectionProperty, value);
 }
 
-Base::Result<Size> Expander::MeasureOverride(
+Size Expander::MeasureOverride(
     Size availableSize) noexcept {
     if (GetTemplateRoot() != nullptr) {
         return ContentControl::MeasureOverride(
             availableSize);
     }
     constexpr double HeaderExtent = 24.0;
-    if (!IsExpanded() || ContentElement() == nullptr) {
-        return Direction() == ExpandDirection::Left ||
-                Direction() == ExpandDirection::Right
+    if (!GetIsExpanded() || ContentElement() == nullptr) {
+        return GetDirection() == ExpandDirection::Left ||
+                GetDirection() == ExpandDirection::Right
             ? Size{HeaderExtent, 0.0}
             : Size{0.0, HeaderExtent};
     }
     Size childAvailable = availableSize;
-    if (Direction() == ExpandDirection::Left ||
-        Direction() == ExpandDirection::Right) {
+    if (GetDirection() == ExpandDirection::Left ||
+        GetDirection() == ExpandDirection::Right) {
         childAvailable.width =
             std::max(0.0, childAvailable.width - HeaderExtent);
     } else {
@@ -400,26 +381,26 @@ Base::Result<Size> Expander::MeasureOverride(
     }
     Base::Result<void> measured =
         MeasureChild(*ContentElement(), childAvailable);
-    if (!measured) return measured.GetStatus();
+    if (!measured) return Size{};
     const Size desired = ContentElement()->GetDesiredSize();
-    return Direction() == ExpandDirection::Left ||
-            Direction() == ExpandDirection::Right
+    return GetDirection() == ExpandDirection::Left ||
+            GetDirection() == ExpandDirection::Right
         ? Size{desired.width + HeaderExtent, desired.height}
         : Size{desired.width, desired.height + HeaderExtent};
 }
 
-Base::Result<Size> Expander::ArrangeOverride(
+Size Expander::ArrangeOverride(
     Size finalSize) noexcept {
     if (GetTemplateRoot() != nullptr) {
         return ContentControl::ArrangeOverride(
             finalSize);
     }
-    if (!IsExpanded() || ContentElement() == nullptr) {
+    if (!GetIsExpanded() || ContentElement() == nullptr) {
         return finalSize;
     }
     constexpr double HeaderExtent = 24.0;
     Rect slot{0.0, 0.0, finalSize.width, finalSize.height};
-    switch (Direction()) {
+    switch (GetDirection()) {
     case ExpandDirection::Down:
         slot.y += HeaderExtent;
         slot.height = std::max(
@@ -441,18 +422,18 @@ Base::Result<Size> Expander::ArrangeOverride(
     }
     Base::Result<void> arranged =
         ArrangeChild(*ContentElement(), slot);
-    if (!arranged) return arranged.GetStatus();
+    if (!arranged) return finalSize;
     return finalSize;
 }
 
-bool TabItem::IsSelected() const noexcept {
+bool TabItem::GetIsSelected() const noexcept {
     return GetValueOr(
         IsSelectedProperty, false);
 }
 
-Base::Result<void> TabItem::SetIsSelected(
+void TabItem::SetIsSelected(
     bool value) noexcept {
-    return SetValue(
+    SetValue(
         IsSelectedProperty, value);
 }
 
@@ -472,21 +453,21 @@ TabControl::~TabControl() {
         selectionChangedHandler_));
 }
 
-std::uint32_t TabControl::SelectedIndex() const noexcept {
+std::uint32_t TabControl::GetSelectedIndex() const noexcept {
     return GetValueOr(
         SelectedIndexProperty,
         UINT32_MAX);
 }
 
-TabItem* TabControl::SelectedTab() const noexcept {
+TabItem* TabControl::GetSelectedTab() const noexcept {
     const std::uint32_t selected =
-        SelectedIndex();
+        GetSelectedIndex();
     return selected < tabs_.Size()
         ? tabs_[selected].Get()
         : nullptr;
 }
 
-Base::Result<void> TabControl::AddOwnedTab(
+Base::Result<void> TabControl::TryAddOwnedTab(
     Base::Ref<TabItem> tab) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
@@ -506,10 +487,8 @@ Base::Result<void> TabControl::AddOwnedTab(
         tabs_.TryPushBack(std::move(tab));
     if (!added) return added.GetStatus();
     if (tabs_.Size() == 1U &&
-        SelectedIndex() == UINT32_MAX) {
-        Base::Result<bool> selected =
-            SetSelectedIndex(0U);
-        if (!selected) return selected.GetStatus();
+        GetSelectedIndex() == UINT32_MAX) {
+        SetSelectedIndex(0U);
     } else {
         Base::Result<void> synchronized =
             SynchronizeSelection();
@@ -520,63 +499,44 @@ Base::Result<void> TabControl::AddOwnedTab(
     return InvalidateMeasure();
 }
 
-Base::Result<void> TabControl::ClearOwnedTabs() noexcept {
+void TabControl::ClearOwnedTabs() noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) return;
     if (!LayoutChildren().Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "TabControl tabs must be detached before releasing ownership");
+        return;
     }
     tabs_.Clear();
-    Base::Result<void> selected =
-        SetValue(
-            SelectedIndexProperty,
-            UINT32_MAX);
-    return selected
-        ? InvalidateMeasure()
-        : selected;
+    SetValue(SelectedIndexProperty, UINT32_MAX);
+    (void)InvalidateMeasure();
 }
 
-Base::Result<bool> TabControl::SetSelectedIndex(
+void TabControl::SetSelectedIndex(
     std::uint32_t value) noexcept {
     if (value != UINT32_MAX &&
         value >= tabs_.Size()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "TabControl selected index is outside the tab range");
+        return;
     }
     const std::uint32_t old =
-        SelectedIndex();
-    if (old == value) return false;
-    Base::Result<void> stored =
-        SetValue(
-            SelectedIndexProperty,
-            value);
-    if (!stored) return stored.GetStatus();
-    return true;
+        GetSelectedIndex();
+    if (old == value) return;
+    SetValue(SelectedIndexProperty, value);
 }
 
 Base::Result<void>
 TabControl::SynchronizeSelection() noexcept {
     const std::uint32_t value =
-        SelectedIndex();
+        GetSelectedIndex();
     for (std::uint32_t index = 0U;
          index < tabs_.Size();
          ++index) {
-        Base::Result<void> selected =
-            tabs_[index]->SetIsSelected(
-                index == value);
-        if (!selected) return selected.GetStatus();
+        tabs_[index]->SetIsSelected(index == value);
     }
-    const Core::Value selectedContent =
+    const Meta::Value selectedContent =
         value < tabs_.Size()
         ? tabs_[value]->GetContent()
-        : Core::Value::NullObject(
-              Core::TypeOf<Base::Object>());
-    Base::Result<void> content = SetReadOnlyCurrentValue(
-        SelectedContentProperty, selectedContent);
-    if (!content) return content.GetStatus();
+        : Meta::Value::NullObject(
+              Meta::TypeOf<Base::Object>());
+    SetReadOnlyCurrentValue(SelectedContentProperty, selectedContent);
     Base::Result<void> measure =
         InvalidateMeasure();
     if (!measure) return measure.GetStatus();
@@ -591,23 +551,16 @@ void TabControl::OnSelectionPropertyChanged(
         SynchronizeSelection();
     if (!synchronized) return;
     RoutedEventArgs args;
-    Base::Result<void> raised =
-        RaiseEvent(
-            SelectionChangedEvent, &args);
-    if (!raised &&
-        raised.GetStatus().code !=
-            Base::ErrorCode::NotInitialized) {
-        return;
-    }
+    RaiseEvent(SelectionChangedEvent, &args);
 }
 
-Base::Result<Size> TabControl::MeasureOverride(
+Size TabControl::MeasureOverride(
     Size availableSize) noexcept {
     constexpr double HeaderExtent = 28.0;
     const bool verticalStrip =
-        TabStripPlacement() == Dock::Left ||
-        TabStripPlacement() == Dock::Right;
-    TabItem* selected = SelectedTab();
+        GetTabStripPlacement() == Dock::Left ||
+        GetTabStripPlacement() == Dock::Right;
+    TabItem* selected = GetSelectedTab();
     if (selected == nullptr) {
         return verticalStrip
             ? Size{HeaderExtent, 0.0}
@@ -621,20 +574,20 @@ Base::Result<Size> TabControl::MeasureOverride(
                     availableSize.height}
                 : Size{availableSize.width,
                     std::max(0.0, availableSize.height - HeaderExtent)});
-    if (!measured) return measured.GetStatus();
+    if (!measured) return Size{};
     const Size desired = selected->GetDesiredSize();
     return verticalStrip
         ? Size{desired.width + HeaderExtent, desired.height}
         : Size{desired.width, desired.height + HeaderExtent};
 }
 
-Base::Result<Size> TabControl::ArrangeOverride(
+Size TabControl::ArrangeOverride(
     Size finalSize) noexcept {
     constexpr double HeaderExtent = 28.0;
-    const Dock placement = TabStripPlacement();
+    const Dock placement = GetTabStripPlacement();
     const bool verticalStrip =
         placement == Dock::Left || placement == Dock::Right;
-    TabItem* selected = SelectedTab();
+    TabItem* selected = GetSelectedTab();
     for (const Base::Ref<TabItem>& tab : tabs_) {
         if (!tab) continue;
         Rect slot{};
@@ -651,25 +604,25 @@ Base::Result<Size> TabControl::ArrangeOverride(
         }
         Base::Result<void> arranged =
             ArrangeChild(*tab, slot);
-        if (!arranged) return arranged.GetStatus();
+        if (!arranged) return finalSize;
     }
     return finalSize;
 }
 
-bool TabPanel::IsVertical() const noexcept {
+bool TabPanel::GetIsVertical() const noexcept {
     const DependencyObject* parent = GetTemplatedParent();
     return parent != nullptr &&
         PropertyRegistry().Types().IsDerivedFrom(
             parent->RuntimeType(), TabControl::StaticTypeId()) &&
-        (static_cast<const TabControl*>(parent)->TabStripPlacement() ==
+        (static_cast<const TabControl*>(parent)->GetTabStripPlacement() ==
              Dock::Left ||
-         static_cast<const TabControl*>(parent)->TabStripPlacement() ==
+         static_cast<const TabControl*>(parent)->GetTabStripPlacement() ==
              Dock::Right);
 }
 
-Base::Result<Size> TabPanel::MeasureOverride(
+Size TabPanel::MeasureOverride(
     Size availableSize) noexcept {
-    const bool vertical = IsVertical();
+    const bool vertical = GetIsVertical();
     Size desired{};
     double linePrimary = 0.0;
     double lineCross = 0.0;
@@ -679,7 +632,7 @@ Base::Result<Size> TabPanel::MeasureOverride(
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         Base::Result<void> measured = MeasureChild(*child, availableSize);
-        if (!measured) return measured.GetStatus();
+        if (!measured) return Size{};
         const Size size = child->GetDesiredSize();
         const double primary = vertical ? size.height : size.width;
         const double cross = vertical ? size.width : size.height;
@@ -708,9 +661,9 @@ Base::Result<Size> TabPanel::MeasureOverride(
     return desired;
 }
 
-Base::Result<Size> TabPanel::ArrangeOverride(
+Size TabPanel::ArrangeOverride(
     Size finalSize) noexcept {
-    const bool vertical = IsVertical();
+    const bool vertical = GetIsVertical();
     const double limit = vertical ? finalSize.height : finalSize.width;
     double x = 0.0;
     double y = 0.0;
@@ -733,7 +686,7 @@ Base::Result<Size> TabPanel::ArrangeOverride(
         }
         Base::Result<void> arranged = ArrangeChild(*child, {
             x, y, size.width, size.height});
-        if (!arranged) return arranged.GetStatus();
+        if (!arranged) return finalSize;
         if (vertical) y += size.height;
         else x += size.width;
         lineCross = std::max(lineCross, cross);

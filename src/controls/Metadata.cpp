@@ -1,10 +1,12 @@
 #include "Metadata.hpp"
 #include <Aero/Documents.hpp>
 #include "ControlInternals.hpp"
+#include "ItemsInternal.hpp"
 #include "TemplateInternals.hpp"
+#include "../media/BrushInternals.hpp"
 
 #include <Aero/Controls/Primitives.hpp>
-#include <Aero/Controls/Standard.hpp>
+#include <Aero/Controls/Common.hpp>
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Shapes.hpp>
@@ -13,6 +15,7 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
+#include "../text/EditableText.hpp"
 
 
 #include <algorithm>
@@ -20,11 +23,15 @@
 #include <utility>
 
 namespace Aero::Controls {
-    using namespace Aero::Core;
+    using namespace Aero::Meta;
+using namespace Aero::Threading;
     using namespace Aero::Controls::Primitives;
     using Aero::Shapes::Shape;
     using Aero::Shapes::Rectangle;
     using Aero::Shapes::Ellipse;
+    using Aero::Shapes::Path;
+    using Aero::Shapes::PenLineJoin;
+    using Aero::Shapes::PenLineCap;
 namespace {
 #include "metadata/Support.inl"
 #include "metadata/Values.inl"

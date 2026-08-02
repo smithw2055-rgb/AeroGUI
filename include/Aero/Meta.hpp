@@ -10,7 +10,10 @@
 #include <type_traits>
 #include <utility>
 
-namespace Aero::Core {
+namespace Aero::Meta {
+using Base::ValueCopyCallback;
+using Base::ValueDestroyCallback;
+using Base::ValueEqualsCallback;
 using ObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)() noexcept;
 enum class ContentKind : std::uint8_t {
     Single = 0U,
@@ -37,17 +40,17 @@ constexpr bool HasContentFlag(
         static_cast<std::uint8_t>(flag)) != 0U;
 }
 
-using ContentWriteCallback = Base::Result<void> (*)(
+using ContentWriteCallback = void (*)(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void* context) noexcept;
-using ContentClearCallback = Base::Result<void> (*)(
+using ContentClearCallback = void (*)(
     Base::Object& owner,
     void* context) noexcept;
 using PropertyGetCallback = Base::Result<Value> (*)(
     const Base::Object& object,
     void* context) noexcept;
-using PropertySetCallback = Base::Result<void> (*)(
+using PropertySetCallback = void (*)(
     Base::Object& object,
     const Value& value,
     void* context) noexcept;
@@ -57,12 +60,12 @@ using MethodInvokeCallback = Base::Result<Value> (*)(
     void* context) noexcept;
 using ValueMemberGetCallback = Base::Result<Value> (*)(
     const void* object,
-    Meta::Registry& runtime,
+    Registry& runtime,
     void* context) noexcept;
-using ValueMemberSetCallback = Base::Result<void> (*)(
+using ValueMemberSetCallback = void (*)(
     void* object,
     const Value& value,
-    Meta::Registry& runtime,
+    Registry& runtime,
     void* context) noexcept;
 using MetadataPropertyChangedCallback = void (*)(
     Base::Object& object,
@@ -282,9 +285,13 @@ struct CollectionChangeNotificationRegistration final {
 };
 
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
-namespace Aero::Core {
+namespace Aero::Meta::Detail {
+class MetadataAuthoringSession;
+}
+
+namespace Aero::Meta {
 
 class DependencyPropertyRegistry;
 class RegistrationTypes;
@@ -293,11 +300,7 @@ class ValueTable;
 template<class T>
 class TypeDescription;
 
-namespace Detail {
-class MetadataAuthoringSession;
-}
-
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 namespace Aero::Meta {
 
@@ -310,17 +313,17 @@ class AERO_API Registration final {
 private:
     friend class Registry;
     template<class T>
-    friend class Core::TypeDescription;
-    friend class Core::Detail::MetadataAuthoringSession;
+    friend class TypeDescription;
+    friend class Detail::MetadataAuthoringSession;
 
     explicit Registration(void* state) noexcept
         : state_(state) {}
 
-    Core::RegistrationValues Values() noexcept;
-    Core::RegistrationValues Values() const noexcept;
-    Core::RegistrationTypes Types() noexcept;
-    Core::ValueTable& ValueRegistrations() noexcept;
-    Core::DependencyPropertyRegistry& DependencyProperties() noexcept;
+    RegistrationValues Values() noexcept;
+    RegistrationValues Values() const noexcept;
+    RegistrationTypes Types() noexcept;
+    ValueTable& ValueRegistrations() noexcept;
+    DependencyPropertyRegistry& DependencyProperties() noexcept;
 
     void* state_ = nullptr;
 };
@@ -329,7 +332,7 @@ private:
 
 namespace Aero::Meta { class Registry; class Registration; }
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 class RegistrationValues;
 class TypeRegistry;
@@ -389,9 +392,9 @@ private:
     void* mutableRegistrations_ = nullptr;
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
-namespace Aero::Core::Detail {
+namespace Aero::Meta::Detail {
 
 template<class T, class = void>
 struct HasEquality final : std::false_type {};
@@ -494,7 +497,7 @@ struct MemberPointerTraits<Member> final {
 template<class Owner, class Field, Field Owner::*Member>
 Base::Result<Value> GetField(
     const void* object,
-    Meta::Registry& runtime,
+    Registry& runtime,
     void*) noexcept {
     if (object == nullptr) {
         return Base::Status::Failure(
@@ -507,28 +510,26 @@ Base::Result<Value> GetField(
 }
 
 template<class Owner, class Field, Field Owner::*Member>
-Base::Result<void> SetField(
+void SetField(
     void* object,
     const Value& value,
-    Meta::Registry& runtime,
+    Registry& runtime,
     void*) noexcept {
     if (object == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Metadata value field target is null");
+        return;
     }
     Base::Result<Field> decoded =
         ValueCodec<Field>::Decode(runtime, value);
-    if (!decoded) return decoded.GetStatus();
+    if (!decoded) return;
     static_cast<Owner*>(object)->*Member =
         std::move(decoded).Value();
-    return {};
+    return;
 }
 
 class AERO_API MetadataAuthoringSession final {
 public:
     MetadataAuthoringSession(
-        Meta::Registration& context,
+        Registration& context,
         const TypeRegistration& registration,
         TypeId expectedType) noexcept;
 
@@ -667,14 +668,14 @@ private:
         }
     }
 
-    Meta::Registration* context_ = nullptr;
+    Registration* context_ = nullptr;
     TypeId type_ = InvalidTypeId;
     Base::Status status_;
 };
 
 template<class T>
 MetadataAuthoringSession CreateDescriptionSession(
-    Meta::Registration& context,
+    Registration& context,
     TypeFlags flags) noexcept {
     if constexpr (std::is_enum_v<T>) {
         if constexpr (
@@ -684,31 +685,31 @@ MetadataAuthoringSession CreateDescriptionSession(
         return MetadataAuthoringSession(
             context,
             TypeRegistration::Enum(
-                Meta::TypeTraits<T>::Namespace(),
-                Meta::TypeTraits<T>::Name(),
+                TypeTraits<T>::Namespace(),
+                TypeTraits<T>::Name(),
                 TypeOf<std::uint32_t>(),
                 flags),
-            Meta::TypeTraits<T>::Id());
+            TypeTraits<T>::Id());
     } else if constexpr (
         std::is_arithmetic_v<T> ||
         std::is_same_v<T, Base::String>) {
         return MetadataAuthoringSession(
             context,
             TypeRegistration::Primitive(
-                Meta::TypeTraits<T>::Namespace(),
-                Meta::TypeTraits<T>::Name(),
+                TypeTraits<T>::Namespace(),
+                TypeTraits<T>::Name(),
                 flags),
-            Meta::TypeTraits<T>::Id());
+            TypeTraits<T>::Id());
     } else if constexpr (
         std::is_base_of_v<Base::Object, T>) {
         return MetadataAuthoringSession(
             context,
             TypeRegistration::Object(
-                Meta::TypeTraits<T>::Namespace(),
-                Meta::TypeTraits<T>::Name(),
-                Meta::TypeTraits<T>::BaseType(),
+                TypeTraits<T>::Namespace(),
+                TypeTraits<T>::Name(),
+                TypeTraits<T>::BaseType(),
                 flags),
-            Meta::TypeTraits<T>::Id());
+            TypeTraits<T>::Id());
     } else {
         if constexpr (std::is_trivially_copyable_v<T>) {
             flags = flags | TypeFlags::TriviallyCopyable;
@@ -716,20 +717,20 @@ MetadataAuthoringSession CreateDescriptionSession(
         return MetadataAuthoringSession(
             context,
             TypeRegistration::Struct(
-                Meta::TypeTraits<T>::Namespace(),
-                Meta::TypeTraits<T>::Name(),
-                Meta::TypeTraits<T>::BaseType(),
+                TypeTraits<T>::Namespace(),
+                TypeTraits<T>::Name(),
+                TypeTraits<T>::BaseType(),
                 flags),
-            Meta::TypeTraits<T>::Id());
+            TypeTraits<T>::Id());
     }
 }
 
-} // namespace Aero::Core::Detail
+} // namespace Aero::Meta::Detail
 
 
 
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 namespace Detail {
 
@@ -797,7 +798,7 @@ Base::Result<Value> GetOrdinaryProperty(
 }
 
 template<class TOwner, class TValue, auto Setter>
-Base::Result<void> SetOrdinaryProperty(
+void SetOrdinaryProperty(
     Base::Object& object,
     const Value& stored,
     void*) noexcept {
@@ -805,7 +806,7 @@ Base::Result<void> SetOrdinaryProperty(
         std::is_base_of_v<Base::Object, TOwner>);
     Base::Result<TValue> decoded =
         ValueCodec<TValue>::Decode(stored);
-    if (!decoded) return decoded.GetStatus();
+    if (!decoded) return;
     auto& owner = static_cast<TOwner&>(object);
     if constexpr (
         std::is_same_v<TValue, Base::String> &&
@@ -813,28 +814,22 @@ Base::Result<void> SetOrdinaryProperty(
             decltype(Setter),
             TOwner&,
             Base::StringView>) {
-        using Result = std::invoke_result_t<
+        using SetterResult = std::invoke_result_t<
             decltype(Setter), TOwner&, Base::StringView>;
-        if constexpr (IsResultVoid<Result>::value) {
-            return std::invoke(
-                Setter, owner, decoded.Value().View());
+        if constexpr (IsResultVoid<SetterResult>::value) {
+            (void)std::invoke(Setter, owner, decoded.Value().View());
         } else {
-            std::invoke(
-                Setter, owner, decoded.Value().View());
-            return {};
+            std::invoke(Setter, owner, decoded.Value().View());
         }
     } else {
-        using Result = std::invoke_result_t<
+        using SetterResult = std::invoke_result_t<
             decltype(Setter), TOwner&, TValue>;
-        if constexpr (IsResultVoid<Result>::value) {
-            return std::invoke(
-                Setter, owner,
-                std::move(decoded).Value());
+        if constexpr (IsResultVoid<SetterResult>::value) {
+            (void)std::invoke(
+                Setter, owner, std::move(decoded).Value());
         } else {
             std::invoke(
-                Setter, owner,
-                std::move(decoded).Value());
-            return {};
+                Setter, owner, std::move(decoded).Value());
         }
     }
 }
@@ -873,54 +868,30 @@ struct OrdinaryPropertyAdapter final {
         }
     }
 
-    static Base::Result<void> Set(
+    static void Set(
         Base::Object& object,
         const Value& stored,
         void* context) noexcept {
         const auto* adapter =
             static_cast<const OrdinaryPropertyAdapter*>(context);
-        if (adapter == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Ordinary metadata property adapter is unavailable");
-        }
+        if (adapter == nullptr) return;
         Base::Result<TValue> decoded =
             ValueCodec<TValue>::Decode(stored);
-        if (!decoded) return decoded.GetStatus();
+        if (!decoded) return;
         auto& owner = static_cast<TOwner&>(object);
         if constexpr (
             std::is_same_v<TValue, Base::String> &&
             std::is_invocable_v<
                 TSetter, TOwner&, Base::StringView>) {
-            using Result = std::invoke_result_t<
-                TSetter, TOwner&, Base::StringView>;
-            if constexpr (IsResultVoid<Result>::value) {
-                return std::invoke(
-                    adapter->setter,
-                    owner,
-                    decoded.Value().View());
-            } else {
-                std::invoke(
-                    adapter->setter,
-                    owner,
-                    decoded.Value().View());
-                return {};
-            }
+            std::invoke(
+                adapter->setter,
+                owner,
+                decoded.Value().View());
         } else {
-            using Result = std::invoke_result_t<
-                TSetter, TOwner&, TValue>;
-            if constexpr (IsResultVoid<Result>::value) {
-                return std::invoke(
-                    adapter->setter,
-                    owner,
-                    std::move(decoded).Value());
-            } else {
-                std::invoke(
-                    adapter->setter,
-                    owner,
-                    std::move(decoded).Value());
-                return {};
-            }
+            std::invoke(
+                adapter->setter,
+                owner,
+                std::move(decoded).Value());
         }
     }
 };
@@ -1083,7 +1054,7 @@ template<class T>
 class TypeDescription final {
 public:
     explicit TypeDescription(
-        Meta::Registration& context,
+        Registration& context,
         TypeFlags flags = TypeFlags::None) noexcept
         : builder_(Detail::CreateDescriptionSession<T>(
               context, flags)) {}
@@ -1272,7 +1243,7 @@ public:
 
     template<class TOwner, class TArgs>
     TypeDescription& Event(
-        const Aero::RoutedEventRef<TOwner, TArgs>& event,
+        const ::Aero::RoutedEventRef<TOwner, TArgs>& event,
         RoutingStrategy strategy = RoutingStrategy::Bubble) noexcept {
         static_assert(std::is_same_v<TOwner, T>,
             "Routed event owner must match described type");
@@ -1287,7 +1258,7 @@ public:
         const DependencyPropertyRef<TOwner, TValue>& property,
         const PropertyOptions<TValue>& options) noexcept {
         if (!builder_.Ok()) return *this;
-        Base::Result<::Aero::Core::Value> encoded =
+        Base::Result<::Aero::Meta::Value> encoded =
             builder_.Encode(options.DefaultValue());
         if (!encoded) {
             builder_.Fail(encoded.GetStatus());
@@ -1364,7 +1335,7 @@ public:
         const DependencyPropertyRef<TOwner, TValue>& property,
         const PropertyOptions<TValue>& options) noexcept {
         if (!builder_.Ok()) return *this;
-        Base::Result<::Aero::Core::Value> encoded =
+        Base::Result<::Aero::Meta::Value> encoded =
             builder_.Encode(options.DefaultValue());
         if (!encoded) {
             builder_.Fail(encoded.GetStatus());
@@ -1472,7 +1443,7 @@ private:
         if constexpr (
             std::is_same_v<
                 TValue,
-                ::Aero::Core::Value>) {
+                ::Aero::Meta::Value>) {
             propertyFlags =
                 propertyFlags |
                 DependencyPropertyFlags::AnyValue;
@@ -1482,7 +1453,7 @@ private:
                 propertyFlags |
                 DependencyPropertyFlags::Structural;
         }
-        Base::Result<::Aero::Core::Value> encoded =
+        Base::Result<::Aero::Meta::Value> encoded =
             builder_.Encode(options.DefaultValue());
         if (!encoded) {
             builder_.Fail(encoded.GetStatus());
@@ -1501,79 +1472,18 @@ private:
     Detail::MetadataAuthoringSession builder_;
 };
 
-} // namespace Aero::Core
-
-namespace Aero::Meta {
-
-// Public metadata authoring entry. The fluent description object is an
-// implementation type, while module code only names Meta::Register and
-// Meta::Registration.
-template<class T>
-Core::TypeDescription<T> Register(
-    Registration& registration,
-    Core::TypeFlags flags = Core::TypeFlags::None) noexcept {
-    return Core::TypeDescription<T>(registration, flags);
-}
-
 } // namespace Aero::Meta
 
 namespace Aero::Meta {
 
-using TypeId = Core::TypeId;
-using MemberId = Core::MemberId;
-using Routing = Aero::RoutingStrategy;
-using TypeFlags = Core::TypeFlags;
-using PropertyFlags = Core::PropertyFlags;
-using FrameworkPropertyMetadataOptions = Core::FrameworkPropertyMetadataOptions;
-
-
-template<class TOwner, class TValue>
-using DependencyProperty =
-    Core::DependencyPropertyRef<TOwner, TValue>;
-
-template<class TOwner, class TValue>
-using AttachedProperty =
-    Core::AttachedPropertyRef<TOwner, TValue>;
-
-template<class TOwner, class TValue>
-using ReadOnlyProperty =
-    Core::ReadOnlyPropertyRef<TOwner, TValue>;
-
-template<class TOwner, class TArgs>
-using RoutedEvent = Aero::RoutedEventRef<TOwner, TArgs>;
-
-template<class TValue>
-class PropertyOptions final
-    : public Core::PropertyOptions<TValue> {
-public:
-    using Core::PropertyOptions<TValue>::PropertyOptions;
-};
-
-template<class TValue>
-PropertyOptions(TValue) -> PropertyOptions<TValue>;
-
-template<class TValue>
-class FrameworkPropertyMetadata final
-    : public Core::PropertyOptions<TValue> {
-public:
-    explicit FrameworkPropertyMetadata(
-        TValue defaultValue,
-        Core::FrameworkPropertyMetadataOptions options =
-            Core::FrameworkPropertyMetadataOptions::None) noexcept
-        : Core::PropertyOptions<TValue>(std::move(defaultValue)) {
-        this->Apply(options);
-    }
-};
-
-template<class TValue>
-FrameworkPropertyMetadata(TValue) -> FrameworkPropertyMetadata<TValue>;
-
-template<class TValue>
-FrameworkPropertyMetadata(TValue, Core::FrameworkPropertyMetadataOptions)
-    -> FrameworkPropertyMetadata<TValue>;
-
+// Public metadata authoring entry. The fluent description object is an
+// implementation type, while module code only names Register and
+// Registration.
 template<class T>
-using ValueCodec = Core::ValueCodec<T>;
-
+TypeDescription<T> Register(
+    Registration& registration,
+    TypeFlags flags = TypeFlags::None) noexcept {
+    return TypeDescription<T>(registration, flags);
+}
 
 } // namespace Aero::Meta

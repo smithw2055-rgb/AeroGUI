@@ -352,7 +352,7 @@ AeroGUI/
 ├── src/base/               # foundation implementation
 ├── src/gui/                # WPF semantic kernel by domain
 ├── src/controls/           # standard controls and control behavior
-├── src/markup/             # XAML schema, object writer and UiDocument
+├── src/markup/             # XAML schema, object writer and XamlDocument
 ├── src/text/               # shaping, fonts and glyph runtime
 ├── src/media/              # brushes, images, transforms and effects
 ├── src/runtime/            # View composition and frame lifecycle

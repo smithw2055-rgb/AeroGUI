@@ -4,78 +4,74 @@
 
 namespace Aero::Media {
 
-Base::Result<void> Effect::OnPropertyInvalidated(
-    Core::PropertyInvalidationFlags flags) noexcept {
-    Base::Result<void> base =
-        DependencyObject::OnPropertyInvalidated(flags);
-    if (!base) return base.GetStatus();
-    return owner_ != nullptr
-        ? owner_->InvalidateVisual()
-        : Base::Result<void>();
+void Effect::OnPropertyInvalidated(
+    Meta::PropertyInvalidationFlags flags) noexcept {
+    DependencyObject::OnPropertyInvalidated(flags);
+    if (owner_ != nullptr) (void)owner_->InvalidateVisual();
 }
 
-double BlurEffect::Radius() const noexcept {
+double BlurEffect::GetRadius() const noexcept {
     return GetValueOr(RadiusProperty, 5.0);
 }
 
-Base::Result<void> BlurEffect::SetRadius(
+void BlurEffect::SetRadius(
     double value) noexcept {
-    return SetValue(RadiusProperty, value);
+    SetValue(RadiusProperty, value);
 }
 
-double DropShadowEffect::BlurRadius() const noexcept {
+double DropShadowEffect::GetBlurRadius() const noexcept {
     return GetValueOr(BlurRadiusProperty, 5.0);
 }
 
-double DropShadowEffect::Direction() const noexcept {
+double DropShadowEffect::GetDirection() const noexcept {
     return GetValueOr(DirectionProperty, 315.0);
 }
 
-double DropShadowEffect::ShadowDepth() const noexcept {
+double DropShadowEffect::GetShadowDepth() const noexcept {
     return GetValueOr(ShadowDepthProperty, 5.0);
 }
 
-double DropShadowEffect::Opacity() const noexcept {
+double DropShadowEffect::GetOpacity() const noexcept {
     return GetValueOr(OpacityProperty, 1.0);
 }
 
-Base::Color DropShadowEffect::Color() const noexcept {
+Base::Color DropShadowEffect::GetColor() const noexcept {
     return GetValueOr(
         ColorProperty,
         Base::Color{0.0F, 0.0F, 0.0F, 1.0F});
 }
 
-Base::Result<void> DropShadowEffect::SetBlurRadius(
+void DropShadowEffect::SetBlurRadius(
     double value) noexcept {
-    return SetValue(BlurRadiusProperty, value);
+    SetValue(BlurRadiusProperty, value);
 }
 
-Base::Result<void> DropShadowEffect::SetDirection(
+void DropShadowEffect::SetDirection(
     double value) noexcept {
-    return SetValue(DirectionProperty, value);
+    SetValue(DirectionProperty, value);
 }
 
-Base::Result<void> DropShadowEffect::SetShadowDepth(
+void DropShadowEffect::SetShadowDepth(
     double value) noexcept {
-    return SetValue(ShadowDepthProperty, value);
+    SetValue(ShadowDepthProperty, value);
 }
 
-Base::Result<void> DropShadowEffect::SetOpacity(
+void DropShadowEffect::SetOpacity(
     double value) noexcept {
-    return SetValue(OpacityProperty, value);
+    SetValue(OpacityProperty, value);
 }
 
-Base::Result<void> DropShadowEffect::SetColor(
+void DropShadowEffect::SetColor(
     Base::Color value) noexcept {
-    return SetValue(ColorProperty, value);
+    SetValue(ColorProperty, value);
 }
 
-double PixelateEffect::Size() const noexcept {
+double PixelateEffect::GetSize() const noexcept {
     return GetValueOr(SizeProperty, 1.0);
 }
 
-Base::Result<void> PixelateEffect::SetSize(double value) noexcept {
-    return SetValue(SizeProperty, value);
+void PixelateEffect::SetSize(double value) noexcept {
+    SetValue(SizeProperty, value);
 }
 
 } // namespace Aero::Media

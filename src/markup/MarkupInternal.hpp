@@ -23,48 +23,48 @@ enum class XmlTokenKind : std::uint8_t {
 };
 
 namespace XmlDiagnosticCodes {
-inline constexpr Core::DiagnosticCode InvalidUtf8 =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 1U);
-inline constexpr Core::DiagnosticCode InputLimitExceeded =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 2U);
-inline constexpr Core::DiagnosticCode UnexpectedEndOfInput =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 3U);
-inline constexpr Core::DiagnosticCode MalformedMarkup =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 4U);
-inline constexpr Core::DiagnosticCode UnsupportedDeclaration =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 5U);
-inline constexpr Core::DiagnosticCode DepthLimitExceeded =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 6U);
-inline constexpr Core::DiagnosticCode AttributeLimitExceeded =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 7U);
-inline constexpr Core::DiagnosticCode NameLimitExceeded =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 8U);
-inline constexpr Core::DiagnosticCode TextLimitExceeded =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 9U);
-inline constexpr Core::DiagnosticCode MismatchedEndElement =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 10U);
-inline constexpr Core::DiagnosticCode MultipleDocumentElements =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 11U);
-inline constexpr Core::DiagnosticCode UnknownEntity =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 12U);
-inline constexpr Core::DiagnosticCode InvalidXmlCharacter =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 13U);
-inline constexpr Core::DiagnosticCode DuplicateAttribute =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 14U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidUtf8 =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 1U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode InputLimitExceeded =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 2U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode UnexpectedEndOfInput =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 3U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode MalformedMarkup =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 4U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode UnsupportedDeclaration =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 5U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode DepthLimitExceeded =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 6U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode AttributeLimitExceeded =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 7U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode NameLimitExceeded =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 8U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode TextLimitExceeded =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 9U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode MismatchedEndElement =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 10U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode MultipleDocumentElements =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 11U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode UnknownEntity =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 12U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidXmlCharacter =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 13U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode DuplicateAttribute =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 14U);
 } // namespace XmlDiagnosticCodes
 
 class AERO_API XmlAttribute final {
@@ -82,13 +82,13 @@ public:
     Base::StringView Value() const noexcept {
         return value_.View();
     }
-    Core::SourceSpan Source() const noexcept {
+    ::Aero::Diagnostics::SourceSpan Source() const noexcept {
         return source_;
     }
-    Core::SourceSpan NameSource() const noexcept {
+    ::Aero::Diagnostics::SourceSpan NameSource() const noexcept {
         return nameSource_;
     }
-    Core::SourceSpan ValueSource() const noexcept {
+    ::Aero::Diagnostics::SourceSpan ValueSource() const noexcept {
         return valueSource_;
     }
 
@@ -98,9 +98,9 @@ private:
 
     Base::String name_;
     Base::String value_;
-    Core::SourceSpan source_;
-    Core::SourceSpan nameSource_;
-    Core::SourceSpan valueSource_;
+    ::Aero::Diagnostics::SourceSpan source_;
+    ::Aero::Diagnostics::SourceSpan nameSource_;
+    ::Aero::Diagnostics::SourceSpan valueSource_;
 };
 
 class AERO_API XmlToken final {
@@ -124,10 +124,10 @@ public:
     Base::Span<const XmlAttribute> Attributes() const noexcept {
         return {attributes_.Data(), attributes_.Size()};
     }
-    Core::SourceSpan Source() const noexcept {
+    ::Aero::Diagnostics::SourceSpan Source() const noexcept {
         return source_;
     }
-    Core::SourceSpan NameSource() const noexcept {
+    ::Aero::Diagnostics::SourceSpan NameSource() const noexcept {
         return nameSource_;
     }
     bool IsEmptyElement() const noexcept {
@@ -142,8 +142,8 @@ private:
     Base::String name_;
     Base::String text_;
     Base::Vector<XmlAttribute> attributes_;
-    Core::SourceSpan source_;
-    Core::SourceSpan nameSource_;
+    ::Aero::Diagnostics::SourceSpan source_;
+    ::Aero::Diagnostics::SourceSpan nameSource_;
     bool emptyElement_ = false;
 };
 
@@ -153,7 +153,10 @@ public:
 
     virtual Base::Result<void> Reset(
         Base::StringView utf8,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept = 0;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept = 0;
+    virtual Base::Result<void> Reset(
+        Base::Stream& stream,
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept = 0;
     virtual Base::Result<XmlTokenKind> Read(
         XmlToken& token) noexcept = 0;
     virtual std::uint32_t Depth() const noexcept = 0;
@@ -167,7 +170,10 @@ public:
 
     Base::Result<void> Reset(
         Base::StringView utf8,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept override;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept override;
+    Base::Result<void> Reset(
+        Base::Stream& stream,
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept override;
     Base::Result<XmlTokenKind> Read(
         XmlToken& token) noexcept override;
     std::uint32_t Depth() const noexcept override {
@@ -184,8 +190,9 @@ public:
 private:
     XmlTokenizerLimits limits_;
     Base::StringView input_;
+    Base::String ownedInput_;
     Base::Vector<Base::String> openElements_;
-    Core::IDiagnosticSink* diagnostics_ = nullptr;
+    Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
     std::uint32_t offset_ = 0U;
     std::uint32_t line_ = 1U;
     std::uint32_t column_ = 1U;
@@ -199,9 +206,9 @@ private:
     bool StartsWith(
         const char* literal,
         std::uint32_t length) const noexcept;
-    Core::SourcePosition Position() const noexcept;
-    Core::SourceSpan SpanFrom(
-        Core::SourcePosition begin) const noexcept;
+    ::Aero::Diagnostics::SourcePosition Position() const noexcept;
+    ::Aero::Diagnostics::SourceSpan SpanFrom(
+        ::Aero::Diagnostics::SourcePosition begin) const noexcept;
     std::uint32_t CurrentCodePointLength() const noexcept;
     std::uint32_t CurrentCodePoint() const noexcept;
     void AdvanceCodePoint() noexcept;
@@ -218,11 +225,11 @@ private:
         XmlToken& token) noexcept;
     Base::Result<void> ParseName(
         Base::String& name,
-        Core::SourceSpan& source) noexcept;
+        ::Aero::Diagnostics::SourceSpan& source) noexcept;
     Base::Result<void> ParseAttributeValue(
         char quote,
         Base::String& value,
-        Core::SourceSpan& source) noexcept;
+        ::Aero::Diagnostics::SourceSpan& source) noexcept;
     Base::Result<void> AppendEntity(
         Base::String& output) noexcept;
     Base::Result<void> AppendCodePoint(
@@ -236,9 +243,9 @@ private:
 
     Base::Status Failure(
         Base::ErrorCode error,
-        Core::DiagnosticCode diagnostic,
+        ::Aero::Diagnostics::DiagnosticCode diagnostic,
         Base::StringView message,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
 };
 
 class AERO_API ExpatXmlTokenizer final
@@ -254,7 +261,10 @@ public:
 
     Base::Result<void> Reset(
         Base::StringView utf8,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept override;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept override;
+    Base::Result<void> Reset(
+        Base::Stream& stream,
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept override;
     Base::Result<XmlTokenKind> Read(
         XmlToken& token) noexcept override;
     std::uint32_t Depth() const noexcept override {
@@ -268,13 +278,17 @@ private:
     XmlTokenizerLimits limits_;
     Base::Vector<XmlToken> tokens_;
     Base::Vector<std::uint32_t> tokenDepths_;
-    Core::IDiagnosticSink* diagnostics_ = nullptr;
+    Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
     void* parser_ = nullptr;
     Base::Status failure_;
     std::uint32_t readIndex_ = 0U;
     std::uint32_t parseDepth_ = 0U;
     std::uint32_t depth_ = 0U;
     bool initialized_ = false;
+    Base::Stream* stream_ = nullptr;
+    std::uint64_t streamBytes_ = 0U;
+    bool streamEof_ = false;
+    bool streamMode_ = false;
 
     void HandleStart(
         const char* name,
@@ -285,14 +299,18 @@ private:
         int length) noexcept;
     void RejectDeclaration() noexcept;
     int RejectExternalEntity() noexcept;
-    Core::SourcePosition Position() const noexcept;
+    ::Aero::Diagnostics::SourcePosition Position() const noexcept;
     void Stop(
         Base::Status status,
-        Core::DiagnosticCode diagnostic,
+        ::Aero::Diagnostics::DiagnosticCode diagnostic,
         Base::StringView message) noexcept;
     Base::Result<void> PushToken(
         XmlToken&& token,
         std::uint32_t depth) noexcept;
+    Base::Result<void> InitializeParser(
+        Diagnostics::IDiagnosticSink* diagnostics) noexcept;
+    Base::Result<XmlTokenKind> ReadStream(
+        XmlToken& token) noexcept;
 };
 
 enum class NodeKind : std::uint8_t {
@@ -307,18 +325,18 @@ enum class NodeKind : std::uint8_t {
 };
 
 namespace NodeDiagnosticCodes {
-inline constexpr Core::DiagnosticCode UnboundNamespacePrefix =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 101U);
-inline constexpr Core::DiagnosticCode InvalidNamespaceDeclaration =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 102U);
-inline constexpr Core::DiagnosticCode DuplicateNamespacePrefix =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 103U);
-inline constexpr Core::DiagnosticCode InvalidNodeStreamState =
-    Core::MakeDiagnosticCode(
-        Core::DiagnosticDomain::Xaml, 104U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode UnboundNamespacePrefix =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 101U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidNamespaceDeclaration =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 102U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode DuplicateNamespacePrefix =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 103U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidNodeStreamState =
+    ::Aero::Diagnostics::MakeDiagnosticCode(
+        ::Aero::Diagnostics::DiagnosticDomain::Xaml, 104U);
 } // namespace NodeDiagnosticCodes
 
 class AERO_API QualifiedName final {
@@ -381,7 +399,7 @@ public:
     Base::StringView Value() const noexcept {
         return value_.View();
     }
-    Core::SourceSpan Source() const noexcept {
+    ::Aero::Diagnostics::SourceSpan Source() const noexcept {
         return source_;
     }
     bool IsFromAttribute() const noexcept {
@@ -397,7 +415,7 @@ private:
     Base::String namespacePrefix_;
     Base::String namespaceUri_;
     Base::String value_;
-    Core::SourceSpan source_;
+    ::Aero::Diagnostics::SourceSpan source_;
     bool fromAttribute_ = false;
 };
 
@@ -405,7 +423,7 @@ class AERO_API NodeReader final {
 public:
     explicit NodeReader(
         IXmlTokenizer& tokenizer,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
 
     void Reset() noexcept;
     Base::Result<NodeKind> Read(
@@ -440,7 +458,7 @@ private:
     };
 
     IXmlTokenizer* tokenizer_ = nullptr;
-    Core::IDiagnosticSink* diagnostics_ = nullptr;
+    Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
     XmlToken xmlToken_;
     Base::Vector<Node> pending_;
     Base::Vector<NamespaceBinding> bindings_;
@@ -461,11 +479,11 @@ private:
     Base::Result<void> QueueNamespaceDeclaration(
         Base::StringView prefix,
         Base::StringView uri,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<void> QueueObjectNode(
         NodeKind kind,
         const QualifiedName& name,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<void> QueueMemberNodes(
         const XmlAttribute& attribute) noexcept;
     Base::Result<void> AppendPending(
@@ -475,14 +493,14 @@ private:
         Base::StringView prefix,
         Base::StringView uri,
         std::uint32_t bindingStart,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<void> AddIgnorableNamespaces(
         Base::StringView prefixes,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<void> ResolveQualifiedName(
         Base::StringView qualifiedName,
         bool useDefaultNamespace,
-        Core::SourceSpan source,
+        ::Aero::Diagnostics::SourceSpan source,
         QualifiedName& output) noexcept;
     Base::Result<void> CopyQualifiedName(
         const QualifiedName& source,
@@ -504,20 +522,20 @@ private:
         Node& node) noexcept;
     Base::Status Failure(
         Base::ErrorCode error,
-        Core::DiagnosticCode diagnostic,
+        ::Aero::Diagnostics::DiagnosticCode diagnostic,
         Base::StringView message,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
 };
 
 struct CompiledCacheIdentity final {
     std::uint32_t cacheFormatVersion =
         XamlCompiledCacheFormatVersion;
     std::uint32_t typeIdAlgorithmVersion =
-        Core::TypeIdAlgorithmVersion;
+        Meta::TypeIdAlgorithmVersion;
     std::uint32_t metadataSchemaFormatVersion =
-        Core::MetadataSchemaFormatVersion;
+        Meta::MetadataSchemaFormatVersion;
     std::uint32_t metadataProgramFormatVersion =
-        Core::MetadataProgramFormatVersion;
+        Meta::MetadataProgramFormatVersion;
     std::uint32_t schemaVersion =
         XamlSchemaAbiVersion;
     Base::HashCode metadataSchemaHash = 0U;
@@ -565,6 +583,14 @@ public:
     static Base::Result<CompiledDocument> Compile(
         NodeReader& reader,
         const ::Aero::Meta::Registry& domain,
+        const Base::ResourceUri& originUri) noexcept;
+    static Base::Result<CompiledDocument> Compile(
+        Base::Span<const Node> nodes,
+        const ::Aero::Meta::Registry& domain,
+        const Base::ResourceUri& originUri) noexcept;
+    static Base::Result<CompiledDocument> Compile(
+        Base::Span<const Node> nodes,
+        const Schema& schema,
         const Base::ResourceUri& originUri) noexcept;
     static Base::Result<CompiledDocument> Compile(
         NodeReader& reader,
@@ -641,6 +667,7 @@ class Loader;
 class ObjectWriter;
 class ObjectBuilder;
 class SchemaManifest;
+struct LoadState;
 
 namespace Detail {
 class SchemaPrivate;
@@ -662,19 +689,19 @@ enum class MemberWriteMode : std::uint8_t {
 };
 
 struct ResolvedMember final {
-    Core::MemberId id = Core::InvalidMemberId;
-    Core::MemberKind kind = Core::MemberKind::Property;
-    Core::TypeId ownerType = Core::InvalidTypeId;
-    Core::TypeId valueType = Core::InvalidTypeId;
-    Core::PropertyFlags propertyFlags =
-        Core::PropertyFlags::None;
-    Core::EventFlags eventFlags = Core::EventFlags::None;
+    Meta::MemberId id = Meta::InvalidMemberId;
+    Meta::MemberKind kind = Meta::MemberKind::Property;
+    Meta::TypeId ownerType = Meta::InvalidTypeId;
+    Meta::TypeId valueType = Meta::InvalidTypeId;
+    Meta::PropertyFlags propertyFlags =
+        Meta::PropertyFlags::None;
+    Meta::EventFlags eventFlags = Meta::EventFlags::None;
     bool attached = false;
 
     bool IsValid() const noexcept {
-        return id != Core::InvalidMemberId &&
-            ownerType != Core::InvalidTypeId &&
-            valueType != Core::InvalidTypeId;
+        return id != Meta::InvalidMemberId &&
+            ownerType != Meta::InvalidTypeId &&
+            valueType != Meta::InvalidTypeId;
     }
 };
 
@@ -695,18 +722,18 @@ public:
     Schema& operator=(const Schema&) = delete;
 
     bool IsFrozen() const noexcept { return frozen_; }
-    const Core::TypeRegistry& Types() const noexcept {
+    const Meta::TypeRegistry& Types() const noexcept {
         return domain_->Types();
     }
-    Base::Result<const Core::TypeInfo*> ResolveType(
+    Base::Result<const Meta::TypeInfo*> ResolveType(
         Base::StringView xamlNamespace,
         Base::StringView localName) const noexcept;
     Base::Result<ResolvedMember> ResolveMember(
-        Core::TypeId targetType,
+        Meta::TypeId targetType,
         const QualifiedName& name,
         MemberSyntax syntax) const noexcept;
     Base::Result<ResolvedMember> ResolveContentMember(
-        Core::TypeId targetType) const noexcept;
+        Meta::TypeId targetType) const noexcept;
 
 private:
     friend class ::Aero::GuiSchema;
@@ -725,50 +752,50 @@ private:
     }
 
     Base::Result<Base::Ref<Base::Object>> CreateObject(
-        Core::TypeId type) const noexcept;
+        Meta::TypeId type) const noexcept;
     Base::Result<::Aero::DependencyObject*> ResolvePropertyTarget(
         Base::Object& object) const noexcept;
-    Base::Result<Core::Value> ConvertText(
-        Core::TypeId type,
+    Base::Result<Meta::Value> ConvertText(
+        Meta::TypeId type,
         Base::StringView text,
         const ExtensionServices* services = nullptr) const noexcept;
     Base::Result<void> SetMember(
         Base::Object& object,
-        Core::TypeId objectType,
+        Meta::TypeId objectType,
         const ResolvedMember& member,
-        const Core::Value& value) const noexcept;
+        const Meta::Value& value) const noexcept;
     Base::Result<ProvidedValue> ProvideMarkupExtensionValue(
-        Core::TypeId type,
+        Meta::TypeId type,
         Base::StringView arguments,
         const ExtensionServices& services) const noexcept;
 
     Base::Result<void> BeginInit(
-        Core::TypeId type,
+        Meta::TypeId type,
         Base::Object& object) const noexcept;
     Base::Result<void> EndInit(
-        Core::TypeId type,
+        Meta::TypeId type,
         Base::Object& object,
         const ExtensionServices& services) const noexcept;
-    void AbortInit(Core::TypeId type, Base::Object& object) const noexcept;
+    void AbortInit(Meta::TypeId type, Base::Object& object) const noexcept;
 
-    bool CreatesNameScope(Core::TypeId type) const noexcept;
-    bool CreatesResourceScope(Core::TypeId type) const noexcept;
-    bool DefersVisualContent(Core::TypeId type) const noexcept;
+    bool CreatesNameScope(Meta::TypeId type) const noexcept;
+    bool CreatesResourceScope(Meta::TypeId type) const noexcept;
+    bool DefersVisualContent(Meta::TypeId type) const noexcept;
     Base::Result<void> RegisterName(
-        Core::TypeId scopeType,
+        Meta::TypeId scopeType,
         Base::Object& scopeOwner,
         Base::StringView name,
         Base::Object& object) const noexcept;
     Base::Result<void> AddResource(
-        Core::TypeId scopeType,
+        Meta::TypeId scopeType,
         Base::Object& scopeOwner,
         const Aero::ResourceKey& key,
-        const Core::Value& value) const noexcept;
+        const Meta::Value& value) const noexcept;
     Aero::ResourceDictionary* ResolveResourceScope(
-        Core::TypeId scopeType,
+        Meta::TypeId scopeType,
         Base::Object& scopeOwner) const noexcept;
     Base::Result<Aero::ResourceKey> ResolveImplicitResourceKey(
-        Core::TypeId type,
+        Meta::TypeId type,
         const Base::Object& object) const noexcept;
 
     MemberWritePolicy ResolveMemberWritePolicy(
@@ -782,8 +809,8 @@ private:
     bool frozen_ = false;
 
     Base::Result<ResolvedMember> ResolvePropertyOrEvent(
-        Core::TypeId targetType,
-        Core::TypeId ownerType,
+        Meta::TypeId targetType,
+        Meta::TypeId ownerType,
         Base::StringView memberName,
         MemberSyntax syntax,
         bool ownerWasExplicit) const noexcept;
@@ -797,10 +824,10 @@ struct SchemaManifestLimits final {
 };
 
 struct SchemaTypeInfo final {
-    Core::TypeId id = Core::InvalidTypeId;
-    Core::MetadataTypeKind kind =
-        Core::MetadataTypeKind::Object;
-    Core::TypeFlags flags = Core::TypeFlags::None;
+    Meta::TypeId id = Meta::InvalidTypeId;
+    Meta::MetadataTypeKind kind =
+        Meta::MetadataTypeKind::Object;
+    Meta::TypeFlags flags = Meta::TypeFlags::None;
 };
 
 class AERO_API SchemaManifest final {
@@ -838,11 +865,11 @@ public:
         Base::StringView xamlNamespace,
         Base::StringView localName) const noexcept;
     Base::Result<ResolvedMember> ResolveMember(
-        Core::TypeId targetType,
+        Meta::TypeId targetType,
         const QualifiedName& name,
         MemberSyntax syntax) const noexcept;
     Base::Result<ResolvedMember> ResolveContentMember(
-        Core::TypeId targetType) const noexcept;
+        Meta::TypeId targetType) const noexcept;
 
 private:
     Base::IAllocator* allocator_ = nullptr;
@@ -864,7 +891,7 @@ inline Base::Result<void> TryRegisterMarkupMetadata(
     const Base::StringView name =
         MarkupMetadataModuleName();
     return domain.TryRegisterModule({
-        Core::MakeMetadataModuleId(name),
+        Meta::MakeMetadataModuleId(name),
         name,
         SchemaVersion,
         &Detail::PopulateMarkupMetadata,
@@ -899,11 +926,11 @@ inline Base::Result<void> TryRegisterMarkupMetadata(
 
 namespace Aero { class ResourceDictionary; }
 
-namespace Aero::Core {
+namespace Aero::Meta {
 class DependencyPropertyRegistry;
-class Dispatcher;
 class EffectiveValueEngine;
 }
+namespace Aero::Threading { class Dispatcher; }
 
 namespace Aero::Markup {
 
@@ -930,7 +957,6 @@ enum class EffectCommitMode : std::uint8_t {
     Deferred
 };
 
-using Source = Integration::Source;
 using ISourceProvider = Integration::ISourceProvider;
 using SourceProviderAdapter = Integration::SourceProviderAdapter;
 
@@ -991,7 +1017,7 @@ public:
         std::uint64_t revision = 1U) noexcept;
     Base::Result<void> Freeze() noexcept;
 
-    Base::Result<Source> Load(
+    Base::Result<Integration::StreamResourceInfo> Open(
         const Base::ResourceUri& uri) const noexcept override;
     Base::Result<std::uint64_t> Revision(
         const Base::ResourceUri& uri) const noexcept override;
@@ -1024,7 +1050,7 @@ public:
             64ULL * 1024ULL * 1024ULL) noexcept
         : maxFileBytes_(maxFileBytes) {}
 
-    Base::Result<Source> Load(
+    Base::Result<Integration::StreamResourceInfo> Open(
         const Base::ResourceUri& uri) const noexcept override;
     Base::Result<std::uint64_t> Revision(
         const Base::ResourceUri& uri) const noexcept override;
@@ -1178,8 +1204,9 @@ public:
     Loader(
         Schema& schema,
         SourceProviders& providers,
-        Core::IDiagnosticSink* diagnostics = nullptr,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr,
+        Base::IAllocator* allocator = nullptr,
+        const LoadState* runtime = nullptr) noexcept;
     ~Loader() noexcept;
 
     Loader(const Loader&) = delete;
@@ -1187,28 +1214,32 @@ public:
     Loader(Loader&&) = delete;
     Loader& operator=(Loader&&) = delete;
 
-    Base::Result<UiDocument> Load(
+    Base::Result<XamlDocument> Load(
         Base::StringView uri,
-        const LoadOptions& options = {}) noexcept;
-    Base::Result<UiDocument> Load(
+        const XamlReaderSettings& options = {}) noexcept;
+    Base::Result<XamlDocument> Load(
         const Base::ResourceUri& uri,
-        const LoadOptions& options = {}) noexcept;
-    Base::Result<UiDocument> Parse(
+        const XamlReaderSettings& options = {}) noexcept;
+    Base::Result<XamlDocument> Parse(
         Base::StringView text,
         const Base::ResourceUri& baseUri,
-        const LoadOptions& options = {}) noexcept;
-    Base::Result<UiDocument> LoadComponent(
+        const XamlReaderSettings& options = {}) noexcept;
+    Base::Result<XamlDocument> Parse(
+        Base::Stream& stream,
+        const Base::ResourceUri& baseUri,
+        const XamlReaderSettings& options = {}) noexcept;
+    Base::Result<XamlDocument> LoadComponent(
         Base::Object& existingRoot,
         Base::StringView uri,
-        const LoadOptions& options = {}) noexcept;
-    Base::Result<UiDocument> LoadComponent(
+        const XamlReaderSettings& options = {}) noexcept;
+    Base::Result<XamlDocument> LoadComponent(
         Base::Object& existingRoot,
         const Base::ResourceUri& uri,
-        const LoadOptions& options = {}) noexcept;
-    Base::Result<UiDocument> LoadCompiled(
+        const XamlReaderSettings& options = {}) noexcept;
+    Base::Result<XamlDocument> LoadCompiled(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri,
-        const LoadOptions& options = {}) noexcept;
+        const XamlReaderSettings& options = {}) noexcept;
 
 private:
     struct Impl;
@@ -1221,7 +1252,7 @@ private:
 
 
 // ===== LoaderResult contract =====
-// Private transaction result consumed by Loader, UiDocument, and View.
+// Private transaction result consumed by Loader, XamlDocument, and View.
 
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -1236,7 +1267,7 @@ private:
 
 #include <utility>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 struct VisualEdge final {
     UIElement* parent = nullptr;
@@ -1244,7 +1275,7 @@ struct VisualEdge final {
     ElementAttachment state;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal
 
 namespace Aero::Markup {
 
@@ -1259,7 +1290,7 @@ struct VisualContentEdge final {
     Base::Ref<Base::Object> parentOwner;
     Base::Ref<Base::Object> childOwner;
     ::Aero::Meta::Registry* metadata = nullptr;
-    Core::MemberId member = Core::InvalidMemberId;
+    Meta::MemberId member = Meta::InvalidMemberId;
     bool property = false;
 };
 
@@ -1268,7 +1299,7 @@ struct VisualContentEdge final {
 // the actual attach/detach sequence through the owning ElementTree.
 struct VisualContentPlan final {
     Base::Vector<VisualContentEdge> contentEdges;
-    Base::Vector<Aero::Detail::VisualEdge> mountEdges;
+    Base::Vector<Aero::Internal::VisualEdge> mountEdges;
     Base::Vector<Aero::Visual*> nodes;
 
     Base::Result<void> TryReserve(
@@ -1290,10 +1321,10 @@ struct VisualContentPlan final {
 
 struct CommittedEffect final {
     Base::Ref<EffectLifetime> lifetime;
-    Core::EffectiveValueEngine* effectiveValues = nullptr;
+    Meta::EffectiveValueEngine* effectiveValues = nullptr;
     ::Aero::DependencyObject* target = nullptr;
-    Core::DependencyPropertyHandle property;
-    Core::PropertyExpression pendingExpression;
+    Meta::DependencyPropertyHandle property;
+    Meta::PropertyExpression pendingExpression;
     void* context = nullptr;
     std::uint64_t token = 0U;
     EffectCommitCallback commit = nullptr;
@@ -1457,8 +1488,8 @@ using LoadFinalizeCallback = Base::Result<void> (*)(
 
 struct LoadState final {
     const Aero::ResourceDictionary* resources = nullptr;
-    Core::EffectiveValueEngine* effectiveValues = nullptr;
-    Aero::Detail::BindingEngine* bindings = nullptr;
+    Meta::EffectiveValueEngine* effectiveValues = nullptr;
+    Aero::Internal::BindingEngine* bindings = nullptr;
     Aero::ResourceDictionary* fallbackResources = nullptr;
     const Base::ResourceUri* baseUri = nullptr;
     Base::Object* templatedParent = nullptr;
@@ -1467,42 +1498,16 @@ struct LoadState final {
     EffectCommitMode effectCommitMode =
         EffectCommitMode::Immediate;
     DocumentCache* documentCache = nullptr;
-    Core::Dispatcher* dispatcher = nullptr;
-    Core::DependencyPropertyRegistry* dependencyProperties = nullptr;
+    ::Aero::Threading::Dispatcher* dispatcher = nullptr;
+    Meta::DependencyPropertyRegistry* dependencyProperties = nullptr;
     std::uint32_t maxObjects = UINT32_MAX;
     bool deferUnresolvedStaticResources = false;
+    Base::Vector<Node>* recordingNodes = nullptr;
     LoadFinalizeCallback finalize = nullptr;
     void* finalizeContext = nullptr;
 };
 
 } // namespace Aero::Markup
-
-
-// ===== LoadInternals contract =====
-#include <Aero/Markup.hpp>
-
-
-
-namespace Aero::Markup::Detail {
-
-class LoadOptionsPrivate final {
-public:
-    static void SetContext(
-        LoadOptions& options,
-        const LoadState* context) noexcept {
-        options.context_ = context;
-    }
-
-    static const LoadState& Context(
-        const LoadOptions& options) noexcept {
-        static const LoadState empty;
-        return options.context_ != nullptr
-            ? *static_cast<const LoadState*>(options.context_)
-            : empty;
-    }
-};
-
-} // namespace Aero::Markup::Detail
 
 
 // ===== GuiSchema contract =====
@@ -1581,7 +1586,7 @@ private:
 #include <Aero/Base/String.hpp>
 #include <Aero/DependencyProperty.hpp>
 
-namespace Aero::Markup::Detail {
+namespace Aero::Internal {
 
 // Supports the object-element form used by the reference theme, for example
 // <StaticResource ResourceKey="Anim.Expand.Vertical.Loaded"/>.
@@ -1598,16 +1603,21 @@ public:
     Base::StringView ResourceKey() const noexcept {
         return GetValueOr(ResourceKeyProperty, Base::StringView{});
     }
-    Base::Result<void> SetResourceKey(
+    void SetResourceKey(
         Base::StringView value) noexcept {
-        return SetValue(ResourceKeyProperty, value);
+        SetValue(ResourceKeyProperty, value);
     }
 
     inline static constexpr Members::Property<Base::String>
         ResourceKeyProperty{"ResourceKey"};
 };
 
-} // namespace Aero::Markup::Detail
+} // namespace Aero::Internal
+
+
+namespace Aero::Markup::Detail {
+using ::Aero::Internal::StaticResourceObject;
+}
 
 
 // ===== UiObjectModel contract =====
@@ -1627,14 +1637,14 @@ struct UiObjectModelOptions final {
     UiObjectModelOptions() noexcept = default;
     UiObjectModelOptions(
         ::Aero::Meta::Registry* metadata,
-        Core::DependencyPropertyRegistry* dependencyProperties,
+        Meta::DependencyPropertyRegistry* dependencyProperties,
         Base::IAllocator* programAllocator = nullptr) noexcept
         : metadata(metadata),
           properties(dependencyProperties),
           allocator(programAllocator) {}
 
     ::Aero::Meta::Registry* metadata = nullptr;
-    Core::DependencyPropertyRegistry* properties = nullptr;
+    Meta::DependencyPropertyRegistry* properties = nullptr;
     Base::IAllocator* allocator = nullptr;
 };
 
@@ -1642,10 +1652,10 @@ struct UiObjectModelOptions final {
 // Style/Setter model. Product runtimes use Register(schema), which
 // registers Aero's complete Style/Trigger/Template object model.
 struct UiObjectModelTypes final {
-    Core::TypeId style = Core::InvalidTypeId;
-    Core::TypeId setter = Core::InvalidTypeId;
-    Core::TypeId trigger = Core::InvalidTypeId;
-    Core::DependencyPropertyHandle styleProperty;
+    Meta::TypeId style = Meta::InvalidTypeId;
+    Meta::TypeId setter = Meta::InvalidTypeId;
+    Meta::TypeId trigger = Meta::InvalidTypeId;
+    Meta::DependencyPropertyHandle styleProperty;
     bool includeTemplates = true;
 };
 
@@ -1693,22 +1703,22 @@ public:
 
     Base::Result<void> Register(
         Schema& schema,
-        Core::TypeId styleType,
-        Core::TypeId setterType,
-        Core::DependencyPropertyHandle styleProperty,
-        Core::TypeId triggerType) noexcept;
+        Meta::TypeId styleType,
+        Meta::TypeId setterType,
+        Meta::DependencyPropertyHandle styleProperty,
+        Meta::TypeId triggerType) noexcept;
 private:
     UiObjectModelOptions options_;
     Schema* schema_ = nullptr;
-    Core::TypeId styleType_ = Core::InvalidTypeId;
-    Core::TypeId setterType_ = Core::InvalidTypeId;
-    Core::TypeId triggerType_ = Core::InvalidTypeId;
+    Meta::TypeId styleType_ = Meta::InvalidTypeId;
+    Meta::TypeId setterType_ = Meta::InvalidTypeId;
+    Meta::TypeId triggerType_ = Meta::InvalidTypeId;
 
     Base::Result<void> FinalizeStyle(
         Aero::Style& style) noexcept;
-    Base::Result<Core::PropertyValue> ConvertValueForProperty(
-        const Core::Value& value,
-        Core::TypeId targetType,
+    Base::Result<Meta::PropertyValue> ConvertValueForProperty(
+        const Meta::Value& value,
+        Meta::TypeId targetType,
         Base::StringView propertyName) const noexcept;
 
     static Base::Result<void> EndStyleInit(
@@ -1720,7 +1730,7 @@ class XamlTemplateSchemaFacet final {
 public:
     XamlTemplateSchemaFacet(
         ::Aero::Meta::Registry& metadata,
-        Core::DependencyPropertyRegistry& properties,
+        Meta::DependencyPropertyRegistry& properties,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~XamlTemplateSchemaFacet() noexcept;
 
@@ -1740,23 +1750,28 @@ private:
 
 } // namespace Aero::Markup::Detail
 
+namespace Aero::Internal {
+using ::Aero::Markup::Detail::XamlStyleSchemaFacet;
+using ::Aero::Markup::Detail::XamlTemplateSchemaFacet;
+}
+
 
 // ===== XamlDocumentInternal contract =====
 #include <Aero/Markup.hpp>
 
 
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 class XamlDocumentPrivate final {
 public:
-    static Base::Result<UiDocument> Adopt(
+    static Base::Result<Markup::XamlDocument> Adopt(
         Markup::LoaderResult&& result,
         Base::IAllocator& allocator) noexcept;
     static Markup::LoaderResult Take(
-        UiDocument& document) noexcept;
+        Markup::XamlDocument& document) noexcept;
     static const Markup::EffectLifetime* RuntimeLifetime(
-        const UiDocument& document) noexcept;
+        const Markup::XamlDocument& document) noexcept;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

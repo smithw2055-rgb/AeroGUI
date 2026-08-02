@@ -35,10 +35,10 @@ TriggerBase* TriggerCollection::At(std::uint32_t index) const noexcept {
     return owner_->GetAuthoredTriggers()[index].Get();
 }
 
-void TriggerCollection::Add(Base::Ref<PropertyTrigger> trigger) noexcept {
+void TriggerCollection::Add(Base::Ref<Trigger> trigger) noexcept {
     if (owner_ == nullptr) return;
     Base::Result<void> added = owner_->TryAddAuthoredTrigger(std::move(trigger));
-    if (!added) Base::ReportOutOfMemory(sizeof(PropertyTrigger), alignof(PropertyTrigger), Base::MemoryTag::Ui);
+    if (!added) Base::ReportOutOfMemory(sizeof(Trigger), alignof(Trigger), Base::MemoryTag::Ui);
 }
 
 void TriggerCollection::Clear() noexcept {
@@ -46,7 +46,8 @@ void TriggerCollection::Clear() noexcept {
 }
 
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 namespace {
 
 Base::Result<void> InvalidStyle(const char* message) noexcept {
@@ -91,7 +92,7 @@ Base::Result<PropertyValue> NormalizeStyleValue(
     const DependencyProperty& property,
     const PropertyValue& value) noexcept {
     if (property.Name() != Base::StringView("FontFamily") ||
-        property.ValueType() != Core::TypeOf<Base::String>() ||
+        property.ValueType() != Meta::TypeOf<Base::String>() ||
         value.Kind() != ValueKind::Object || value.IsNullObject() ||
         !value.AsObject() ||
         value.Type() != Media::FontFamily::StaticTypeId()) {
@@ -99,7 +100,7 @@ Base::Result<PropertyValue> NormalizeStyleValue(
     }
     return PropertyValue::TryFromString(
         property.ValueType(),
-        static_cast<Media::FontFamily*>(value.AsObject().Get())->Source());
+        static_cast<Media::FontFamily*>(value.AsObject().Get())->GetSource());
 }
 
 } // namespace
@@ -108,7 +109,7 @@ Base::Result<PropertyValue> NormalizeStyleValue(
 Base::Result<void> Style::Impl::Freeze(
     TypeId valueTargetType,
     Base::Vector<StyleSetter>&& valueSetters,
-    Base::Vector<StylePropertyTrigger>&& valueTriggers) noexcept {
+    Base::Vector<TriggerPlan>&& valueTriggers) noexcept {
     if (frozen) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
@@ -133,41 +134,41 @@ void Style::Impl::Reset() noexcept {
     frozen = false;
 }
 
-Base::Result<void> Setter::SetPropertyName(
+void Setter::SetPropertyName(
     Base::StringView value) noexcept {
     if (value.Empty()) {
-        return InvalidStyle(
-            "Setter property name is empty");
+        return;
     }
-    return propertyName_.TryAssign(value);
+    Base::String candidate;
+    if (!candidate.TryAssign(value)) return;
+    propertyName_ = std::move(candidate);
 }
 
-Base::Result<void> Setter::SetTargetName(
+void Setter::SetTargetName(
     Base::StringView value) noexcept {
     if (value.Empty()) {
-        return InvalidStyle(
-            "Setter target name is empty");
+        return;
     }
-    return targetName_.TryAssign(value);
+    Base::String candidate;
+    if (!candidate.TryAssign(value)) return;
+    targetName_ = std::move(candidate);
 }
 
-Base::Result<void> Setter::SetAuthoredValue(
+void Setter::SetAuthoredValue(
     const PropertyValue& value) noexcept {
-    if (value.IsUnset()) {
-        return InvalidStyle(
-            "Setter authored value is unset");
-    }
+    if (value.IsUnset()) return;
     authoredValue_ = value;
-    return {};
 }
 
 Base::Result<void> Setter::Resolve(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
-    Base::Result<void> configured =
-        SetProperty(property);
-    if (!configured) return configured.GetStatus();
-    return SetValue(value);
+    if (!property.IsValid() || value.IsUnset()) {
+        return InvalidStyle("Setter resolve value is invalid");
+    }
+    SetProperty(property);
+    SetValue(value);
+    return {};
 }
 
 Base::Result<void> TriggerBase::TryAddEnterAction(
@@ -190,66 +191,53 @@ Base::Result<void> TriggerBase::TryAddExitAction(
         std::move(action));
 }
 
-Base::Result<void> PropertyTrigger::SetProperty(
+void Trigger::SetProperty(
     DependencyPropertyHandle value) noexcept {
-    if (!value.IsValid()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "PropertyTrigger property is invalid");
-    }
+    if (!value.IsValid()) return;
     property_ = value;
-    return {};
 }
 
-Base::Result<void> PropertyTrigger::SetValue(
+void Trigger::SetValue(
     const PropertyValue& value) noexcept {
-    if (value.IsUnset()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "PropertyTrigger value is unset");
-    }
+    if (value.IsUnset()) return;
     value_ = value;
-    return {};
 }
 
-Base::Result<void> PropertyTrigger::TryAddSetter(
+Base::Result<void> Trigger::TryAddSetter(
     const Setter& setter) noexcept {
     if (!setter.GetProperty().IsValid() ||
         setter.GetValue().IsUnset()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "PropertyTrigger setter is invalid");
+            "Trigger setter is invalid");
     }
     return setters_.TryPushBack({
         setter.GetProperty(), setter.GetValue()});
 }
 
-Base::Result<void> PropertyTrigger::SetPropertyName(
+void Trigger::SetPropertyName(
     Base::StringView value) noexcept {
-    if (value.Empty()) {
-        return InvalidStyle(
-            "Trigger property name is empty");
-    }
-    return propertyName_.TryAssign(value);
+    if (value.Empty()) return;
+    Base::String candidate;
+    if (!candidate.TryAssign(value)) return;
+    propertyName_ = std::move(candidate);
 }
 
-Base::Result<void> PropertyTrigger::SetSourceName(
+void Trigger::SetSourceName(
     Base::StringView value) noexcept {
-    return sourceName_.TryAssign(
-        Core::ValueConversion::Trim(value));
+    Base::String candidate;
+    if (!candidate.TryAssign(
+            ::Aero::Base::Detail::ValueConversion::Trim(value))) return;
+    sourceName_ = std::move(candidate);
 }
 
-Base::Result<void> PropertyTrigger::SetAuthoredValue(
+void Trigger::SetAuthoredValue(
     const PropertyValue& value) noexcept {
-    if (value.IsUnset()) {
-        return InvalidStyle(
-            "Trigger authored value is unset");
-    }
+    if (value.IsUnset()) return;
     authoredValue_ = value;
-    return {};
 }
 
-Base::Result<void> PropertyTrigger::TryAddAuthoredSetter(
+Base::Result<void> Trigger::TryAddAuthoredSetter(
     Base::Ref<Setter> setter) noexcept {
     if (!setter) {
         return InvalidStyle(
@@ -259,20 +247,19 @@ Base::Result<void> PropertyTrigger::TryAddAuthoredSetter(
         std::move(setter));
 }
 
-Base::Result<void>
-PropertyTrigger::ClearAuthoredSetters() noexcept {
+void
+Trigger::ClearAuthoredSetters() noexcept {
     authoredSetters_.Clear();
-    return {};
 }
 
-Base::Result<StylePropertyTrigger>
-PropertyTrigger::BuildPlan() const noexcept {
+Base::Result<TriggerPlan>
+Trigger::BuildPlan() const noexcept {
     if (!property_.IsValid() || value_.IsUnset()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "PropertyTrigger is incomplete");
+            "Trigger is incomplete");
     }
-    StylePropertyTrigger plan;
+    TriggerPlan plan;
     plan.property = property_;
     plan.value = value_;
     Base::Result<void> copied =
@@ -299,14 +286,20 @@ Base::Result<void> DataTrigger::TryAddAuthoredSetter(
         std::move(setter));
 }
 
-Base::Result<void> Condition::SetPropertyName(
+void Condition::SetPropertyName(
     Base::StringView value) noexcept {
-    return propertyName_.TryAssign(Core::ValueConversion::Trim(value));
+    Base::String candidate;
+    if (!candidate.TryAssign(
+            ::Aero::Base::Detail::ValueConversion::Trim(value))) return;
+    propertyName_ = std::move(candidate);
 }
 
-Base::Result<void> Condition::SetSourceName(
+void Condition::SetSourceName(
     Base::StringView value) noexcept {
-    return sourceName_.TryAssign(Core::ValueConversion::Trim(value));
+    Base::String candidate;
+    if (!candidate.TryAssign(
+            ::Aero::Base::Detail::ValueConversion::Trim(value))) return;
+    sourceName_ = std::move(candidate);
 }
 
 Base::Result<void> MultiTrigger::TryAddCondition(
@@ -442,7 +435,7 @@ Base::Result<void> Style::TryAddAuthoredSetter(
 }
 
 Base::Result<void> Style::TryAddAuthoredTrigger(
-    Base::Ref<PropertyTrigger> trigger) noexcept {
+    Base::Ref<Trigger> trigger) noexcept {
     if (sealed_) {
         return InvalidStyle(
             "Cannot modify a sealed Style");
@@ -455,22 +448,18 @@ Base::Result<void> Style::TryAddAuthoredTrigger(
         std::move(trigger));
 }
 
-Base::Result<void> Style::ClearAuthoredSetters() noexcept {
+void Style::ClearAuthoredSetters() noexcept {
     if (sealed_) {
-        return InvalidStyle(
-            "Cannot modify a sealed Style");
+        return;
     }
     authoredSetterObjects_.Clear();
-    return {};
 }
 
-Base::Result<void> Style::ClearAuthoredTriggers() noexcept {
+void Style::ClearAuthoredTriggers() noexcept {
     if (sealed_) {
-        return InvalidStyle(
-            "Cannot modify a sealed Style");
+        return;
     }
     authoredTriggerObjects_.Clear();
-    return {};
 }
 
 Base::Result<void> Style::TryAddSetter(
@@ -479,8 +468,8 @@ Base::Result<void> Style::TryAddSetter(
         setter.GetProperty(), setter.GetValue());
 }
 
-Base::Result<void> Style::TryAddPropertyTrigger(
-    StylePropertyTrigger trigger) noexcept {
+Base::Result<void> Style::TryAddTrigger(
+    TriggerPlan trigger) noexcept {
     if (sealed_) {
         return InvalidStyle("Cannot modify a sealed Style");
     }
@@ -493,14 +482,14 @@ Base::Result<void> Style::TryAddPropertyTrigger(
     return authoredTriggers_.TryPushBack(std::move(trigger));
 }
 
-Base::Result<void> Style::TryAddPropertyTrigger(
-    const PropertyTrigger& trigger) noexcept {
-    Base::Result<StylePropertyTrigger> plan =
+Base::Result<void> Style::TryAddTrigger(
+    const Trigger& trigger) noexcept {
+    Base::Result<TriggerPlan> plan =
         trigger.BuildPlan();
     if (!plan) {
         return plan.GetStatus();
     }
-    return TryAddPropertyTrigger(
+    return TryAddTrigger(
         std::move(plan).Value());
 }
 
@@ -541,7 +530,7 @@ Base::Result<void> Style::SealRuntime(
 
     Base::Vector<StyleSetter> next;
     if (basedOn_ != nullptr) {
-        Base::Result<void> inherited = next.TryAppend(basedOn_->Setters());
+        Base::Result<void> inherited = next.TryAppend(basedOn_->GetRuntimeSetters());
         if (!inherited) {
             return inherited.GetStatus();
         }
@@ -581,13 +570,13 @@ Base::Result<void> Style::SealRuntime(
             }
         }
     }
-    Base::Vector<StylePropertyTrigger> nextTriggers;
+    Base::Vector<TriggerPlan> nextTriggers;
     if (basedOn_ != nullptr) {
         Base::Result<void> inherited =
-            nextTriggers.TryAppend(basedOn_->Triggers());
+            nextTriggers.TryAppend(basedOn_->GetRuntimeTriggers());
         if (!inherited) return inherited.GetStatus();
     }
-    for (const StylePropertyTrigger& trigger : authoredTriggers_) {
+    for (const TriggerPlan& trigger : authoredTriggers_) {
         const DependencyProperty* condition =
             properties.Find(trigger.property);
         if (condition == nullptr ||
@@ -649,9 +638,9 @@ Base::Result<void> Style::SealRuntime(
     return {};
 }
 
-Base::Result<void> Style::SetResources(
+void Style::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
-    return Aero::Detail::AssignResourceDictionary(
+    (void)Aero::Internal::AssignResourceDictionary(
         resources_,
         std::move(value),
         "Style Resources is already assigned");
@@ -659,15 +648,16 @@ Base::Result<void> Style::SetResources(
 
 } // namespace Aero
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using namespace Aero;
 
 Base::Result<void> StyleEngine::VerifyTarget(
     const DependencyObject& object,
     const Style& style) const noexcept {
-    if (values_ == nullptr || properties_ == nullptr || !style.IsSealed()) {
+    if (values_ == nullptr || properties_ == nullptr || !style.GetIsSealed()) {
         return InvalidStyle("StyleEngine requires a sealed Style");
     }
     if (!IsTargetCompatible(
@@ -707,7 +697,7 @@ Base::Result<void> StyleEngine::Apply(
             return cleared.GetStatus();
         }
     }
-    for (const StyleSetter& setter : style.Setters()) {
+    for (const StyleSetter& setter : style.GetRuntimeSetters()) {
         if (IsDeferredBindingSetterValue(setter.value)) {
             continue;
         }
@@ -723,7 +713,7 @@ Base::Result<void> StyleEngine::Apply(
         application.style = &style;
         Base::Result<void> states =
             application.triggerStates.TryResize(
-                style.Triggers().Size(), 0U);
+                style.GetRuntimeTriggers().Size(), 0U);
         if (!states) return states.GetStatus();
         Base::Result<void> tracked =
             applications_.TryPushBack(
@@ -736,7 +726,7 @@ Base::Result<void> StyleEngine::Apply(
         Base::Result<void> states =
             applications_[existing].
                 triggerStates.TryResize(
-                    style.Triggers().Size(), 0U);
+                    style.GetRuntimeTriggers().Size(), 0U);
         if (!states) return states.GetStatus();
     }
     if (requiresSubscription) {
@@ -819,7 +809,7 @@ std::uint32_t StyleEngine::FindApplication(
 Base::Result<void> StyleEngine::ClearSetters(
     DependencyObject& object,
     const Style& style) noexcept {
-    for (const StyleSetter& setter : style.Setters()) {
+    for (const StyleSetter& setter : style.GetRuntimeSetters()) {
         if (IsDeferredBindingSetterValue(setter.value)) {
             continue;
         }
@@ -835,16 +825,16 @@ Base::Result<void> StyleEngine::SubscribeTriggers(
     DependencyObject& object,
     const Style& style) noexcept {
     for (std::uint32_t index = 0U;
-         index < style.Triggers().Size();
+         index < style.GetRuntimeTriggers().Size();
          ++index) {
         const DependencyPropertyHandle property =
-            style.Triggers()[index].property;
+            style.GetRuntimeTriggers()[index].property;
         bool first = true;
         for (std::uint32_t previous = 0U;
              previous < index;
              ++previous) {
             first = first &&
-                style.Triggers()[previous].property != property;
+                style.GetRuntimeTriggers()[previous].property != property;
         }
         if (!first) continue;
         Base::Result<void> subscribed =
@@ -859,16 +849,16 @@ void StyleEngine::UnsubscribeTriggers(
     DependencyObject& object,
     const Style& style) noexcept {
     for (std::uint32_t index = 0U;
-         index < style.Triggers().Size();
+         index < style.GetRuntimeTriggers().Size();
          ++index) {
         const DependencyPropertyHandle property =
-            style.Triggers()[index].property;
+            style.GetRuntimeTriggers()[index].property;
         bool first = true;
         for (std::uint32_t previous = 0U;
              previous < index;
              ++previous) {
             first = first &&
-                style.Triggers()[previous].property != property;
+                style.GetRuntimeTriggers()[previous].property != property;
         }
         if (first) {
             (void)object.RemoveValueChangedHandler(
@@ -892,11 +882,11 @@ Base::Result<void> StyleEngine::EvaluateTriggers(
     Base::Result<void> cleared =
         ClearTriggerSetters(object, style);
     if (!cleared) return cleared.GetStatus();
-    const Base::Span<const StylePropertyTrigger> triggers =
-        style.Triggers();
+    const Base::Span<const TriggerPlan> triggers =
+        style.GetRuntimeTriggers();
     for (std::uint32_t index = 0U;
          index < triggers.Size(); ++index) {
-        const StylePropertyTrigger& trigger =
+        const TriggerPlan& trigger =
             triggers[index];
         Base::Result<PropertyValue> current =
             object.GetValue(trigger.property);
@@ -924,7 +914,7 @@ Base::Result<void> StyleEngine::EvaluateTriggers(
     if (!flushed) return flushed.GetStatus();
     for (std::uint32_t index = 0U;
          index < triggers.Size(); ++index) {
-        const StylePropertyTrigger& trigger =
+        const TriggerPlan& trigger =
             triggers[index];
         Base::Result<PropertyValue> current =
             object.GetValue(trigger.property);
@@ -965,12 +955,12 @@ Base::Result<void> StyleEngine::ExecuteTriggerActions(
 Base::Result<void> StyleEngine::ClearTriggerSetters(
     DependencyObject& object,
     const Style& style) noexcept {
-    const Base::Span<const StylePropertyTrigger> triggers =
-        style.Triggers();
+    const Base::Span<const TriggerPlan> triggers =
+        style.GetRuntimeTriggers();
     for (std::uint32_t triggerIndex = 0U;
          triggerIndex < triggers.Size();
          ++triggerIndex) {
-        const StylePropertyTrigger& trigger =
+        const TriggerPlan& trigger =
             triggers[triggerIndex];
         for (std::uint32_t setterIndex = 0U;
              setterIndex < trigger.setters.Size();
@@ -985,7 +975,7 @@ Base::Result<void> StyleEngine::ClearTriggerSetters(
             for (std::uint32_t earlierTrigger = 0U;
                  earlierTrigger <= triggerIndex;
                  ++earlierTrigger) {
-                const StylePropertyTrigger& earlier =
+                const TriggerPlan& earlier =
                     triggers[earlierTrigger];
                 const std::uint32_t limit =
                     earlierTrigger == triggerIndex
@@ -1013,7 +1003,7 @@ void StyleEngine::OnPropertyChanged(
     const std::uint32_t index = FindApplication(object);
     if (index == UINT32_MAX) return;
     const Style& style = *applications_[index].style;
-    for (const StylePropertyTrigger& trigger : style.Triggers()) {
+    for (const TriggerPlan& trigger : style.GetRuntimeTriggers()) {
         if (trigger.property == args.GetProperty()) {
             if (values_->IsFlushing()) {
                 Base::Result<void> queued =
@@ -1133,4 +1123,4 @@ void StyleEngine::TriggerPhaseHook(
 }
 
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

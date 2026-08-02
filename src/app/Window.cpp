@@ -8,11 +8,11 @@ namespace Aero {
 
 
 Base::Result<void> Window::Show() noexcept {
-    auto* state = static_cast<App::Detail::WindowHostState*>(hostState_);
+    auto* state = static_cast<Internal::WindowHostState*>(hostState_);
     if (state == nullptr) {
         Application* application = Application::Current();
         auto* applicationState = application != nullptr
-            ? static_cast<App::Detail::ApplicationHostState*>(
+            ? static_cast<Internal::ApplicationHostState*>(
                   application->hostState_)
             : nullptr;
         if (applicationState == nullptr ||
@@ -24,7 +24,7 @@ Base::Result<void> Window::Show() noexcept {
         Base::Result<void> attached =
             applicationState->showWindow(applicationState->context, *this);
         if (!attached) return attached.GetStatus();
-        state = static_cast<App::Detail::WindowHostState*>(hostState_);
+        state = static_cast<Internal::WindowHostState*>(hostState_);
     }
     if (state == nullptr || state->show == nullptr) {
         return Base::Status::Failure(
@@ -39,18 +39,17 @@ Base::Result<void> Window::Show() noexcept {
     return shown;
 }
 
-Base::Result<void> Window::SetWindowState(WindowState value) noexcept {
+void Window::SetWindowState(WindowState value) noexcept {
     const WindowState previous = GetWindowState();
-    Base::Result<void> changed = SetValue(WindowStateProperty, value);
-    if (changed && previous != value) {
+    SetValue(WindowStateProperty, value);
+    if (previous != value) {
         RoutedEventArgs args;
         OnStateChanged(args);
     }
-    return changed;
 }
 
-bool Window::IsOpen() const noexcept {
-    const auto* state = static_cast<const App::Detail::WindowHostState*>(hostState_);
+bool Window::GetIsOpen() const noexcept {
+    const auto* state = static_cast<const Internal::WindowHostState*>(hostState_);
     return state != nullptr && state->isOpen != nullptr && state->isOpen(state->context);
 }
 
@@ -59,7 +58,7 @@ void Window::Close() noexcept {
     CancelEventArgs closing;
     OnClosing(closing);
     if (closing.GetCancel()) return;
-    auto* state = static_cast<App::Detail::WindowHostState*>(hostState_);
+    auto* state = static_cast<Internal::WindowHostState*>(hostState_);
     if (state != nullptr && state->close != nullptr) state->close(state->context);
     NotifyClosed();
 }
@@ -103,12 +102,12 @@ void Window::NotifyClosed() noexcept {
 namespace Aero::App {
 
 Integration::NativeWindowHandle WindowInterop::NativeHandle(const ::Aero::Window& window) noexcept {
-    const auto* state = static_cast<const App::Detail::WindowHostState*>(window.hostState_);
+    const auto* state = static_cast<const Internal::WindowHostState*>(window.hostState_);
     return state != nullptr && state->nativeHandle != nullptr ? state->nativeHandle(state->context) : Integration::NativeWindowHandle{};
 }
 
 ::Aero::View* WindowInterop::HostedView(::Aero::Window& window) noexcept {
-    auto* state = static_cast<App::Detail::WindowHostState*>(window.hostState_);
+    auto* state = static_cast<Internal::WindowHostState*>(window.hostState_);
     return state != nullptr && state->hostedView != nullptr ? state->hostedView(state->context) : nullptr;
 }
 

@@ -7,9 +7,9 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include "../text/TextLayout.hpp"
-#include <Aero/Text/TextTypes.hpp>
+#include "../text/TextTypes.hpp"
 
-namespace Aero::Controls::Detail {
+namespace Aero::Internal {
 
 struct TextLayoutRequest final {
     Base::StringView text;
@@ -19,12 +19,12 @@ struct TextLayoutRequest final {
     float lineHeight = 0.0F;
     Base::StringView fontFamily;
     Text::FontFace face;
-    Text::TextWrapping wrapping =
-        Text::TextWrapping::NoWrap;
-    Text::TextTrimming trimming =
-        Text::TextTrimming::None;
-    Text::TextAlignment alignment =
-        Text::TextAlignment::Start;
+    TextWrapping wrapping =
+        TextWrapping::NoWrap;
+    TextTrimming trimming =
+        TextTrimming::None;
+    TextAlignment alignment =
+        TextAlignment::Start;
 };
 
 struct TextLayoutResult final {
@@ -33,7 +33,7 @@ struct TextLayoutResult final {
         : glyphRuns(allocator), hitRegions(allocator) {}
 
     Base::Vector<Render::RenderGlyphRunId> glyphRuns;
-    Base::Vector<Text::TextHitRegion> hitRegions;
+    Base::Vector<TextHitRegion> hitRegions;
     Aero::Size desiredSize;
 };
 
@@ -48,4 +48,4 @@ public:
         Render::RenderGlyphRunId glyphRun) noexcept = 0;
 };
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Internal

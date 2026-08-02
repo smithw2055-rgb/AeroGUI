@@ -3,15 +3,15 @@
 #include "gui/ElementInternal.hpp"
 #include "media/AnimationModel.hpp"
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Detail::Animation;
+using namespace Aero::Internal::Animation;
 
 class AERO_API AnimationEngine final {
 public:
     AnimationEngine(
-        Core::Dispatcher& dispatcher,
-        Core::EffectiveValueEngine& values,
+        ::Aero::Threading::Dispatcher& dispatcher,
+        Meta::EffectiveValueEngine& values,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~AnimationEngine() noexcept;
 
@@ -23,35 +23,35 @@ public:
 
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
-        Core::DependencyPropertyHandle property,
+        Meta::DependencyPropertyHandle property,
         const DoubleAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
-        Core::DependencyPropertyHandle property,
+        Meta::DependencyPropertyHandle property,
         const ColorAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
-        Core::DependencyPropertyHandle property,
+        Meta::DependencyPropertyHandle property,
         const PointAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
-        Core::DependencyPropertyHandle property,
+        Meta::DependencyPropertyHandle property,
         const RectAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
-        Core::DependencyPropertyHandle property,
+        Meta::DependencyPropertyHandle property,
         const ThicknessAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
-        Core::DependencyPropertyHandle property,
+        Meta::DependencyPropertyHandle property,
         const DoubleKeyFrameAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
-        Core::DependencyPropertyHandle property,
+        Meta::DependencyPropertyHandle property,
         const ColorKeyFrameAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
-        Core::DependencyPropertyHandle property,
+        Meta::DependencyPropertyHandle property,
         const DiscreteAnimation& animation) noexcept;
 
     Base::Result<void> Pause(AnimationHandle handle) noexcept;
@@ -98,13 +98,13 @@ public:
 private:
     struct Track;
 
-    Core::Dispatcher* dispatcher_ = nullptr;
-    Core::EffectiveValueEngine* values_ = nullptr;
+    ::Aero::Threading::Dispatcher* dispatcher_ = nullptr;
+    Meta::EffectiveValueEngine* values_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Track* tracks_ = nullptr;
     std::uint32_t trackCount_ = 0U;
     std::uint32_t trackCapacity_ = 0U;
-    Core::DispatcherFrameHookHandle frameHook_;
+    ::Aero::Threading::DispatcherFrameHookHandle frameHook_;
     AnimationTime currentTimeMicroseconds_ = 0U;
     std::uint64_t nextHandle_ = 1U;
     AnimationDiagnostics diagnostics_;
@@ -125,4 +125,4 @@ private:
     static void AnimationFrameHook(void* context) noexcept;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

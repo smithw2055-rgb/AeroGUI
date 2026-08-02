@@ -1,7 +1,7 @@
 #include "gui/MetadataInternal.hpp"
 #include "BindingInternal.hpp"
 
-namespace Aero::Core {
+namespace Aero::Meta {
 namespace {
 
 constexpr std::uint32_t InvalidSegmentIndex = UINT32_MAX;
@@ -486,4 +486,4 @@ Base::Result<bool> BindingPathPlan::SetValue(
         : Base::Result<bool>(stored.GetStatus());
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

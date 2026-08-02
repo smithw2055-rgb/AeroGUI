@@ -11,7 +11,7 @@
 #include <new>
 #include <type_traits>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 class RoutedHandlerStorage final {
 public:
@@ -21,7 +21,7 @@ public:
         const void* value,
         std::size_t size,
         std::size_t alignment,
-        Core::TypeId argsType,
+        Meta::TypeId argsType,
         void (*copy)(void*, const void*) noexcept,
         void (*destroy)(void*) noexcept,
         bool (*equals)(const void*, const void*) noexcept,
@@ -83,7 +83,7 @@ public:
     ~RoutedHandlerStorage() noexcept { Reset(); }
 
     bool Empty() const noexcept { return copy_ == nullptr; }
-    Core::TypeId ArgsType() const noexcept { return argsType_; }
+    Meta::TypeId ArgsType() const noexcept { return argsType_; }
 
     bool Equals(const RoutedHandlerStorage& other) const noexcept {
         return copy_ == other.copy_ && destroy_ == other.destroy_ &&
@@ -113,7 +113,7 @@ private:
         if (!Empty()) destroy_(storage_);
         size_ = 0U;
         alignment_ = 0U;
-        argsType_ = Core::InvalidTypeId;
+        argsType_ = Meta::InvalidTypeId;
         copy_ = nullptr;
         destroy_ = nullptr;
         equals_ = nullptr;
@@ -123,14 +123,14 @@ private:
     alignas(void*) unsigned char storage_[4U * sizeof(void*)]{};
     std::size_t size_ = 0U;
     std::size_t alignment_ = 0U;
-    Core::TypeId argsType_ = Core::InvalidTypeId;
+    Meta::TypeId argsType_ = Meta::InvalidTypeId;
     void (*copy_)(void*, const void*) noexcept = nullptr;
     void (*destroy_)(void*) noexcept = nullptr;
     bool (*equals_)(const void*, const void*) noexcept = nullptr;
     void (*invoke_)(const void*, Base::Object*, RoutedEventArgs&) noexcept = nullptr;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal
 
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
@@ -142,7 +142,7 @@ private:
 
 #include <utility>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 struct EventRouteNode final {
     Base::Ref<DependencyObject> retained;
@@ -201,7 +201,7 @@ public:
 private:
     static DependencyObject* GetParent(
         DependencyObject& object) noexcept {
-        const Core::TypeRegistry& types = object.PropertyRegistry().Types();
+        const Meta::TypeRegistry& types = object.PropertyRegistry().Types();
         if (types.IsDerivedFrom(
                 object.RuntimeType(), ContentElement::StaticTypeId())) {
             auto& content = static_cast<ContentElement&>(object);
@@ -223,15 +223,16 @@ private:
     Base::Vector<EventRouteNode> nodes_;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal
 
 
 namespace Aero { class ContentElement; }
 
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 
 class AERO_API EventRouter final {
 public:
@@ -269,7 +270,7 @@ private:
     struct ClassHandlerRecord final {
         RoutedEventHandle event;
         TypeId classType = InvalidTypeId;
-        Aero::Detail::RoutedHandlerStorage handler;
+        Aero::Internal::RoutedHandlerStorage handler;
         std::uint64_t sequence = 0U;
         bool handledEventsToo = false;
     };
@@ -309,10 +310,10 @@ Base::Result<void> EventRouter::RegisterClassHandler(
     ClassHandlerRecord value;
     value.event = event;
     value.classType = classType;
-    value.handler = Aero::Detail::RoutedHandlerStorage(handler);
+    value.handler = Aero::Internal::RoutedHandlerStorage(handler);
     value.handledEventsToo = handledEventsToo;
     value.sequence = nextClassSequence_++;
     return classHandlers_.TryPushBack(std::move(value));
 }
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

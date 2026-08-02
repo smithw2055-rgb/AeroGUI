@@ -7,7 +7,8 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Input/Values.hpp>
+#include <Aero/Input.hpp>
+#include <Aero/Integration/RenderDevice.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Markup.hpp>
 #include <Aero/Media/Geometry.hpp>
@@ -15,7 +16,7 @@
 
 #include <cstdint>
 
-namespace Aero::Core {
+namespace Aero::Diagnostics {
 class IDiagnosticSink;
 }
 
@@ -28,9 +29,8 @@ enum class ResourceLoadMode : std::uint8_t { Replace = 0U, Merge };
 class FrameworkElement;
 class View;
 namespace Controls { class ContentControl; }
-namespace Detail { struct ViewData; }
-namespace Markup { class XamlReader; }
-namespace App::Detail { class DesktopHost; }
+namespace Internal { struct ViewData; class DesktopHost; }
+namespace Markup { class XamlReader; class XamlDocument; }
 
 namespace Integration {
 class ISourceProvider;
@@ -86,16 +86,16 @@ public:
     View(const View&) = delete;
     View& operator=(const View&) = delete;
 
-    Base::Result<void> SetContent(
-        UiDocument&& document,
+    void SetContent(
+        Markup::XamlDocument&& document,
         Aero::Size availableSize) noexcept;
-    Base::Result<void> SetContent(
+    void SetContent(
         Base::Ref<FrameworkElement> root,
         Aero::Size availableSize) noexcept;
     FrameworkElement* GetContent() noexcept;
     const FrameworkElement* GetContent() const noexcept;
 
-    Base::Result<void> SetSize(Aero::Size availableSize) noexcept;
+    void SetSize(Aero::Size availableSize) noexcept;
     Base::Result<void> Update(
         std::uint32_t elapsedMilliseconds = 0U) noexcept;
 
@@ -106,14 +106,14 @@ public:
     Base::Result<Input::TextInputDispatchResult> DispatchText(
         const Input::TextInput& input) noexcept;
 
-    Base::Result<void> SetRenderDevice(
+    void SetRenderDevice(
         Base::Ref<Integration::RenderDevice> device,
         bool automaticAnimationClock = true) noexcept;
 
 private:
     friend class Gui;
     friend class Aero::Markup::XamlReader;
-    friend class Aero::App::Detail::DesktopHost;
+    friend class Aero::Internal::DesktopHost;
     friend class Integration::ReloadCoordinator;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
@@ -121,14 +121,21 @@ private:
         Base::IAllocator&,
         Args&&...) noexcept;
 
-    Base::Result<UiDocument> LoadDocument(
+    Base::Result<Markup::XamlDocument> LoadDocument(
         Base::StringView uri,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<UiDocument> ParseDocument(
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr,
+        const Markup::XamlReaderSettings* settings = nullptr) noexcept;
+    Base::Result<Markup::XamlDocument> ParseDocument(
         Base::StringView source,
         const Base::ResourceUri& baseUri = {},
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<UiDocument> LoadCompiledDocument(
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr,
+        const Markup::XamlReaderSettings* settings = nullptr) noexcept;
+    Base::Result<Markup::XamlDocument> ParseStreamDocument(
+        Base::Stream& source,
+        const Base::ResourceUri& baseUri = {},
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr,
+        const Markup::XamlReaderSettings* settings = nullptr) noexcept;
+    Base::Result<Markup::XamlDocument> LoadCompiledDocument(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri = {}) noexcept;
     Base::Result<void> AddSourceProvider(
@@ -138,20 +145,20 @@ private:
 
     Base::Result<void> MountContent(
         Controls::ContentControl& host,
-        UiDocument&& document) noexcept;
+        Markup::XamlDocument&& document) noexcept;
     Base::Result<void> UnmountContent(
         Controls::ContentControl& host) noexcept;
     Base::Result<void> LoadResources(
         ResourceLayer layer,
         Base::StringView uri,
         ResourceLoadMode mode = ResourceLoadMode::Replace,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
     Base::Result<void> LoadCompiledResources(
         ResourceLayer layer,
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri,
         ResourceLoadMode mode = ResourceLoadMode::Replace) noexcept;
-    Base::Result<void> SetResourceDictionary(
+    void SetResourceDictionary(
         ResourceLayer layer,
         Aero::ResourceDictionary& dictionary,
         ResourceLoadMode mode = ResourceLoadMode::Replace) noexcept;
@@ -172,15 +179,15 @@ private:
         Base::Ref<Base::Object> root,
         Aero::Size availableSize) noexcept;
     Base::Result<void> Mount(
-        UiDocument&& document,
+        Markup::XamlDocument&& document,
         Aero::Size availableSize) noexcept;
     Base::Result<void> ReplaceMountedDocument(
-        UiDocument&& document,
+        Markup::XamlDocument&& document,
         Aero::Size availableSize) noexcept;
     Base::Result<void> Unmount() noexcept;
     Base::Object* FindNamedObject(
         Base::StringView name,
-        Core::TypeId expectedType = Core::InvalidTypeId) noexcept;
+        Meta::TypeId expectedType = Meta::InvalidTypeId) noexcept;
     std::uint32_t NamedObjectCount() const noexcept;
     Base::Result<void> QueryReloadSource(
         const Base::ResourceUri& uri,
@@ -195,11 +202,11 @@ private:
         bool includeDependents) noexcept;
     bool IsInstanceOf(
         const Base::Object& object,
-        Core::TypeId baseType) const noexcept;
+        Meta::TypeId baseType) const noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
     Base::Ref<Base::Object> gui_;
-    Aero::Detail::ViewData* state_ = nullptr;
+    Aero::Internal::ViewData* state_ = nullptr;
 };
 
 } // namespace Aero

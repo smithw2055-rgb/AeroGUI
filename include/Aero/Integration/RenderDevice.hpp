@@ -9,17 +9,18 @@
 #include <cstdint>
 
 namespace Aero { class View; }
-namespace Aero::Render { class RenderFrame; }
-namespace Aero::Detail {
+namespace Aero::Integration { class RenderFrame; }
+namespace Aero::Internal {
 struct ViewData;
 class TextPipeline;
 struct RenderResources;
+struct RenderDeviceFunctions;
+class RenderDeviceFactory;
 }
 
 namespace Aero::Integration {
 
 class RenderDevice;
-namespace Detail { struct RenderDeviceFunctions; }
 
 enum class RenderDeviceMode : std::uint8_t {
     Headless = 0U,
@@ -62,16 +63,6 @@ struct RenderFrameStatistics final {
     bool batchingEnabled = true;
 };
 
-namespace Detail {
-Base::Result<Base::Ref<RenderDevice>> AdoptRenderDevice(
-    RenderDeviceMode mode,
-    void* state,
-    const RenderDeviceFunctions* functions,
-    Base::IAllocator* allocator = nullptr) noexcept;
-Base::Result<Base::Ref<RenderDevice>> CreateHeadlessRenderDevice(
-    Base::IAllocator* allocator = nullptr) noexcept;
-}
-
 // Lightweight host-thread-affine owner for one native rendering backend.
 // View submission is synchronous. The host owns thread and frame scheduling.
 class AERO_API RenderDevice final : public Base::Object {
@@ -102,19 +93,17 @@ public:
     Base::Result<void> Resize(
         std::uint32_t width,
         std::uint32_t height) noexcept;
-    Base::Result<void> NotifySurfaceLost() noexcept;
-    Base::Result<void> NotifyDeviceLost() noexcept;
+    void NotifySurfaceLost() noexcept;
+    void NotifyDeviceLost() noexcept;
     Base::Result<void> Restore() noexcept;
     Base::Result<void> WaitIdle(
         std::uint32_t timeoutMilliseconds = 5000U) noexcept;
 
 private:
     friend class Aero::View;
-    friend struct Aero::Detail::ViewData;
-    friend class Aero::Detail::TextPipeline;
-    friend Base::Result<Base::Ref<RenderDevice>> Detail::AdoptRenderDevice(
-        RenderDeviceMode, void*, const Detail::RenderDeviceFunctions*,
-        Base::IAllocator*) noexcept;
+    friend struct Aero::Internal::ViewData;
+    friend class Aero::Internal::TextPipeline;
+    friend class ::Aero::Internal::RenderDeviceFactory;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
     Base::MakeRefWithAllocator(
@@ -123,17 +112,17 @@ private:
 
     Base::Result<void> Bind(const void* owner) noexcept;
     void Unbind(const void* owner) noexcept;
-    Base::Result<void> Submit(const Render::RenderFrame& frame) noexcept;
+    Base::Result<void> Submit(const RenderFrame& frame) noexcept;
     Base::Status GetFrameStatus() noexcept;
-    Aero::Detail::RenderResources Resources() noexcept;
+    Aero::Internal::RenderResources Resources() noexcept;
     Base::Result<RenderFrameStatistics> Analyze(
-        const Render::RenderFrame& frame) noexcept;
+        const RenderFrame& frame) noexcept;
     void MergeBackendStatistics(
         RenderFrameStatistics& result) const noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
     void* stateData_ = nullptr;
-    const Detail::RenderDeviceFunctions* functions_ = nullptr;
+    const ::Aero::Internal::RenderDeviceFunctions* functions_ = nullptr;
     const void* owner_ = nullptr;
     RenderDeviceMode mode_ = RenderDeviceMode::Headless;
     RenderDeviceState state_ = RenderDeviceState::Ready;
@@ -142,3 +131,17 @@ private:
 };
 
 } // namespace Aero::Integration
+
+namespace Aero::Internal {
+
+Base::Result<Base::Ref<::Aero::Integration::RenderDevice>> AdoptRenderDevice(
+    ::Aero::Integration::RenderDeviceMode mode,
+    void* state,
+    const RenderDeviceFunctions* functions,
+    Base::IAllocator* allocator = nullptr) noexcept;
+
+Base::Result<Base::Ref<::Aero::Integration::RenderDevice>>
+CreateHeadlessRenderDevice(
+    Base::IAllocator* allocator = nullptr) noexcept;
+
+} // namespace Aero::Internal

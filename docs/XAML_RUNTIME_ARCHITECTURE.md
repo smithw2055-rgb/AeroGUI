@@ -83,7 +83,7 @@ provider 与 tokenizer 都不执行网络访问。
 ## 资源系统
 
 `NameScope`、`ResourceKey`、`ResourceDictionary` 和 `ResourceResolver`
-属于 UI/Core 资源模型。字典值统一为 `Core::Value`，键支持字符串和 `TypeId`。
+属于 UI/Base 资源模型。字典值统一为 `Base::Value`，键支持字符串和 `TypeId`。
 
 字典内部查找顺序为：
 
@@ -139,7 +139,7 @@ schema 注册入口。内部 Style 与 Template facet 只负责把 metadata 对�
 DynamicResource 与 Type 扩展统一返回 `XamlProvidedValue`：普通值由 writer 写入，
 表达式由 writer 安装并纳入事务，已处理结果携带可选 rollback token。
 
-## Gui、View 与 UiDocument
+## Gui、View 与 XamlDocument
 
 产品运行时分为三个所有权层次：
 
@@ -152,7 +152,7 @@ View
   -> independent resources, bindings, input, layout and rendering state
   -> wraps one View view instance
 
-UiDocument
+Markup::XamlDocument
   -> root + NameScope + document resources
   -> canonical URI + dependency graph + declaration/mount plan
 ```
@@ -162,9 +162,9 @@ Binding、DynamicResource、输入、布局或渲染状态。Binding 和 Dynamic
 所需的 manager、effective-value engine 与 fallback resources 由每次加载的
 `XamlExtensionServices` 提供，不再被固化进冻结 Schema。
 
-`UiDocument` 是 move-only、View-affine 的 RAII 对象，可在所属 View 挂载前保存
+`XamlDocument` 是 move-only、View-affine 的 RAII 对象，可在所属 View 挂载前保存
 和检查；它不携带已提交的 View 副作用，跨 View 挂载会被拒绝。现有 `View` 是唯一的单 View 产品入口。`Markup::XamlReader` 提供
-`Load`、`Parse` 与 `LoadCompiled`，`View::SetContent(UiDocument&&, ...)`
+`Load`、`Parse` 与 `LoadCompiled`，`View::SetContent(XamlDocument&&, ...)`
 只负责提交和挂载。旧的 root-only loader API 已移除。
 
 ## View
@@ -255,7 +255,7 @@ cache 失败不会改变文档加载结果。
 
 `XamlDependencyGraph` 同时维护正向和反向 URI edges。ResourceDictionary Source
 变化会传递失效上层文档。`Integration::ReloadCoordinator` 由宿主显式轮询或接收资产变更
-通知，构建新的 `UiDocument` 后调用 `View::SetContent()`。
+通知，构建新的 `XamlDocument` 后调用 `View::SetContent()`。
 
 Binding handle 与 DynamicResource expression 的 committed rollback records 现在
 随 document 所有权移动。文档替换后旧 effects 被逆序撤销；replacement 失败时

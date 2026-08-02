@@ -19,46 +19,43 @@ CreateBasicControl() noexcept {
             created.GetStatus());
 }
 
-Base::Result<void> AddTemplateTrigger(
+void AddTemplateTrigger(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Template Trigger cannot be retained");
+        return;
     }
-    return Detail::TemplatePrivate::TryAddAuthoredTrigger(
+    (void)Detail::TemplatePrivate::TryAddAuthoredTrigger(
         static_cast<FrameworkTemplate&>(owner), value);
 }
 
-Base::Result<void> ClearTemplateTriggers(
+void ClearTemplateTriggers(
     Base::Object& owner,
     void*) noexcept {
     Detail::TemplatePrivate::ClearAuthoredTriggers(
         static_cast<FrameworkTemplate&>(owner));
-    return {};
 }
 
 template<class T>
-Base::Result<void> SetDeferredTemplateVisualTree(
+void SetDeferredTemplateVisualTree(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if constexpr (std::is_same_v<T, ControlTemplate>) {
-        return Detail::TemplatePrivate::SetAuthoredVisualTree(
+        (void)Detail::TemplatePrivate::SetAuthoredVisualTree(
             static_cast<ControlTemplate&>(object), value);
     } else if constexpr (std::is_same_v<T, DataTemplate>) {
-        return Detail::TemplatePrivate::SetAuthoredVisualTree(
+        (void)Detail::TemplatePrivate::SetAuthoredVisualTree(
             static_cast<DataTemplate&>(object), value);
     } else {
-        return Detail::TemplatePrivate::SetAuthoredVisualTree(
+        (void)Detail::TemplatePrivate::SetAuthoredVisualTree(
             static_cast<ItemsPanelTemplate&>(object), value);
     }
 }
 
 template<class T>
-Base::Result<void> ClearDeferredTemplateVisualTree(
+void ClearDeferredTemplateVisualTree(
     Base::Object& object,
     void*) noexcept {
     if constexpr (std::is_same_v<T, ControlTemplate>) {
@@ -71,45 +68,43 @@ Base::Result<void> ClearDeferredTemplateVisualTree(
         Detail::TemplatePrivate::ClearAuthoredVisualTree(
             static_cast<ItemsPanelTemplate&>(object));
     }
-    return {};
 }
 
-Base::Result<void> AddTemplateVisualStateGroup(
+void AddTemplateVisualStateGroup(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    return Detail::TemplatePrivate::TryAddAuthoredVisualStateGroup(
+    (void)Detail::TemplatePrivate::TryAddAuthoredVisualStateGroup(
         static_cast<ControlTemplate&>(object), value);
 }
 
-Base::Result<void> ClearTemplateVisualStateGroups(
+void ClearTemplateVisualStateGroups(
     Base::Object& object,
     void*) noexcept {
     Detail::TemplatePrivate::ClearAuthoredVisualStateGroups(
         static_cast<ControlTemplate&>(object));
-    return {};
 }
 
-Core::TypeReference GetControlTemplateTargetType(
+Meta::TypeReference GetControlTemplateTargetType(
     const ControlTemplate& value) noexcept {
     return {value.GetTargetType()};
 }
 
-Base::Result<void> SetControlTemplateTargetType(
+void SetControlTemplateTargetType(
     ControlTemplate& target,
-    Core::TypeReference value) noexcept {
-    return Detail::TemplatePrivate::TrySetTargetType(target, value.type);
+    Meta::TypeReference value) noexcept {
+    (void)Detail::TemplatePrivate::TrySetTargetType(target, value.type);
 }
 
-Core::TypeReference GetDataTemplateType(
+Meta::TypeReference GetDataTemplateType(
     const DataTemplate& value) noexcept {
     return {value.GetDataType()};
 }
 
-Base::Result<void> SetDataTemplateType(
+void SetDataTemplateType(
     DataTemplate& target,
-    Core::TypeReference value) noexcept {
-    return target.SetDataType(value.type);
+    Meta::TypeReference value) noexcept {
+    target.SetDataType(value.type);
 }
 
 bool ValidateThicknessValue(
@@ -167,7 +162,7 @@ bool ValidateSliderTicks(
             ++end;
         }
         Base::Result<double> parsed =
-            Core::ValueConversion::ParseDouble(
+            ::Aero::Base::Detail::ValueConversion::ParseDouble(
                 text.Substr(start, end - start));
         if (!parsed ||
             !std::isfinite(parsed.Value())) {
@@ -181,8 +176,8 @@ bool ValidateSliderTicks(
 Base::Result<GridLength> ConvertGridLength(
     Base::StringView text) noexcept {
     const Base::StringView value =
-        Core::ValueConversion::Trim(text);
-    if (Core::ValueConversion::EqualsAsciiInsensitive(
+        ::Aero::Base::Detail::ValueConversion::Trim(text);
+    if (::Aero::Base::Detail::ValueConversion::EqualsAsciiInsensitive(
             value, "auto")) {
         return GridLength::Auto();
     }
@@ -193,7 +188,7 @@ Base::Result<GridLength> ConvertGridLength(
         double weight = 1.0;
         if (!weightText.Empty()) {
             Base::Result<double> parsed =
-                Core::ValueConversion::ParseDouble(weightText);
+                ::Aero::Base::Detail::ValueConversion::ParseDouble(weightText);
             if (!parsed) return parsed.GetStatus();
             weight = parsed.Value();
         }
@@ -205,7 +200,7 @@ Base::Result<GridLength> ConvertGridLength(
         return GridLength::Star(weight);
     }
     Base::Result<double> pixels =
-        Core::ValueConversion::ParseDouble(value);
+        ::Aero::Base::Detail::ValueConversion::ParseDouble(value);
     if (!pixels || pixels.Value() < 0.0) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
@@ -230,7 +225,7 @@ Base::Result<void> ParseGridDefinitions(
     Base::Vector<GridLength>& output) noexcept {
     output.Clear();
     const Base::StringView value =
-        Core::ValueConversion::Trim(text);
+        ::Aero::Base::Detail::ValueConversion::Trim(text);
     if (value.Empty()) return {};
     std::uint32_t start = 0U;
     while (start <= value.SizeBytes()) {
@@ -240,7 +235,7 @@ Base::Result<void> ParseGridDefinitions(
             ++end;
         }
         const Base::StringView token =
-            Core::ValueConversion::Trim(
+            ::Aero::Base::Detail::ValueConversion::Trim(
                 value.Substr(start, end - start));
         if (token.Empty()) {
             return Base::Status::Failure(
@@ -259,7 +254,7 @@ Base::Result<void> ParseGridDefinitions(
     return {};
 }
 
-Base::Result<void> AddDataTemplateTrigger(
+void AddDataTemplateTrigger(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
@@ -270,23 +265,20 @@ Base::Result<void> AddDataTemplateTrigger(
                     Aero::TriggerBase&>(
                         *value));
     if (!retained) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "DataTemplate Trigger cannot be retained");
+        return;
     }
-    return Detail::TemplatePrivate::TryAddAuthoredTrigger(
+    (void)Detail::TemplatePrivate::TryAddAuthoredTrigger(
         static_cast<DataTemplate&>(owner), std::move(retained));
 }
 
-Base::Result<void> ClearDataTemplateTriggers(
+void ClearDataTemplateTriggers(
     Base::Object& owner,
     void*) noexcept {
     Detail::TemplatePrivate::ClearAuthoredTriggers(
         static_cast<DataTemplate&>(owner));
-    return {};
 }
 
-Base::Result<void> AddGridColumnDefinition(
+void AddGridColumnDefinition(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
@@ -294,22 +286,19 @@ Base::Result<void> AddGridColumnDefinition(
         Base::Ref<ColumnDefinition>::TryFromBorrowed(
             static_cast<ColumnDefinition&>(*value));
     if (!retained) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Grid ColumnDefinition cannot be retained");
+        return;
     }
-    return static_cast<Grid&>(owner)
-        .AddColumnDefinition(std::move(retained));
+    (void)static_cast<Grid&>(owner)
+        .TryAddColumnDefinition(std::move(retained));
 }
 
-Base::Result<void> ClearGridColumnDefinitions(
+void ClearGridColumnDefinitions(
     Base::Object& owner,
     void*) noexcept {
-    return static_cast<Grid&>(owner)
-        .ClearColumnDefinitionObjects();
+    static_cast<Grid&>(owner).ClearColumnDefinitionObjects();
 }
 
-Base::Result<void> AddGridRowDefinition(
+void AddGridRowDefinition(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
@@ -317,40 +306,34 @@ Base::Result<void> AddGridRowDefinition(
         Base::Ref<RowDefinition>::TryFromBorrowed(
             static_cast<RowDefinition&>(*value));
     if (!retained) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Grid RowDefinition cannot be retained");
+        return;
     }
-    return static_cast<Grid&>(owner)
-        .AddRowDefinition(std::move(retained));
+    (void)static_cast<Grid&>(owner)
+        .TryAddRowDefinition(std::move(retained));
 }
 
-Base::Result<void> ClearGridRowDefinitions(
+void ClearGridRowDefinitions(
     Base::Object& owner,
     void*) noexcept {
-    return static_cast<Grid&>(owner)
-        .ClearRowDefinitionObjects();
+    static_cast<Grid&>(owner).ClearRowDefinitionObjects();
 }
 
-Base::Result<void> AddGridInputBinding(
+void AddGridInputBinding(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     Base::Ref<Input::KeyBinding> retained =
         Base::Ref<Input::KeyBinding>::TryFromBorrowed(
             static_cast<Input::KeyBinding&>(*value));
-    return retained
-        ? static_cast<Grid&>(owner).AddInputBinding(std::move(retained))
-        : Base::Result<void>(Base::Status::Failure(
-              Base::ErrorCode::InvalidArgument,
-              "Grid InputBindings expects KeyBinding"));
+    if (retained) {
+        (void)static_cast<Grid&>(owner).TryAddInputBinding(std::move(retained));
+    }
 }
 
-Base::Result<void> ClearGridInputBindings(
+void ClearGridInputBindings(
     Base::Object& owner,
     void*) noexcept {
     static_cast<Grid&>(owner).ClearInputBindings();
-    return {};
 }
 
 bool ValidateGridDefinitionsText(
@@ -392,7 +375,7 @@ void OnGridRowsChanged(
 
 void OnPathDataChanged(
     ::Aero::DependencyObject& object,
-    const Core::DependencyPropertyChangedEventArgs&) noexcept {
+    const Meta::DependencyPropertyChangedEventArgs&) noexcept {
     Detail::ControlPrivate::InvalidateGeometry(
         static_cast<Path&>(object));
 }
@@ -403,11 +386,14 @@ void OnPathColorChanged(
     const Base::Ref<Media::Brush>& newBrush) noexcept {
     auto* owner = static_cast<Path&>(object).AsFrameworkElement();
     if (owner != nullptr) {
-        if (oldBrush && oldBrush->Owner() == owner) {
-            oldBrush->SetOwner(nullptr);
+        if (oldBrush &&
+            ::Aero::Internal::BrushPrivate::Owner(*oldBrush) == owner) {
+            ::Aero::Internal::BrushPrivate::SetOwner(
+                *oldBrush, nullptr);
         }
         if (newBrush) {
-            newBrush->SetOwner(owner);
+            ::Aero::Internal::BrushPrivate::SetOwner(
+                *newBrush, owner);
         }
     }
     Detail::ControlPrivate::InvalidateGeometry(
@@ -440,7 +426,7 @@ void OnPathLineCapChanged(
 
 void OnShapeFillChanged(
     ::Aero::DependencyObject& object,
-    const Core::DependencyPropertyChangedEventArgs&
+    const Meta::DependencyPropertyChangedEventArgs&
         args) noexcept {
     auto* owner =
         static_cast<Shape&>(object).
@@ -450,20 +436,23 @@ void OnShapeFillChanged(
         ValueCodec<Base::Ref<Brush>>::Decode(
             args.GetOldValue());
     if (oldBrush && oldBrush.Value() &&
-        oldBrush.Value()->Owner() == owner) {
-        oldBrush.Value()->SetOwner(nullptr);
+        ::Aero::Internal::BrushPrivate::Owner(
+            *oldBrush.Value()) == owner) {
+        ::Aero::Internal::BrushPrivate::SetOwner(
+            *oldBrush.Value(), nullptr);
     }
     Base::Result<Base::Ref<Brush>> newBrush =
         ValueCodec<Base::Ref<Brush>>::Decode(
             args.GetNewValue());
     if (newBrush && newBrush.Value()) {
-        newBrush.Value()->SetOwner(owner);
+        ::Aero::Internal::BrushPrivate::SetOwner(
+            *newBrush.Value(), owner);
     }
 }
 
 void OnScrollViewerVisibilityChanged(
     ::Aero::DependencyObject& object,
-    const Core::DependencyPropertyChangedEventArgs&) noexcept {
+    const Meta::DependencyPropertyChangedEventArgs&) noexcept {
     if (!object.PropertyRegistry().Types().IsDerivedFrom(
             object.RuntimeType(),
             ScrollViewer::StaticTypeId())) {
@@ -475,10 +464,10 @@ void OnScrollViewerVisibilityChanged(
     // read-only computed visibility against the current extent/viewport.
     static_cast<void>(
         viewer.SetHorizontalScrollBarVisibility(
-            viewer.HorizontalScrollBarVisibility()));
+            viewer.GetHorizontalScrollBarVisibility()));
     static_cast<void>(
         viewer.SetVerticalScrollBarVisibility(
-            viewer.VerticalScrollBarVisibility()));
+            viewer.GetVerticalScrollBarVisibility()));
 }
 
 bool ValidateNormalizedDouble(
@@ -489,12 +478,12 @@ bool ValidateNormalizedDouble(
 
 Base::Result<Base::Ref<Base::Object>> CoerceSelectedObject(
     ::Aero::DependencyObject& object,
-    const Core::DependencyProperty&,
+    const Meta::DependencyProperty&,
     const Base::Ref<Base::Object>& value) noexcept {
     const auto& selector =
         static_cast<const Selector&>(object);
     if (value &&
-        selector.IndexOfItem(value.Get()) == UINT32_MAX) {
+        selector.GetIndexOfItem(value.Get()) == UINT32_MAX) {
         return Base::Ref<Base::Object>{};
     }
     return value;
@@ -502,17 +491,17 @@ Base::Result<Base::Ref<Base::Object>> CoerceSelectedObject(
 
 Base::Result<bool> CoerceButtonEnabled(
     ::Aero::DependencyObject& object,
-    const Core::DependencyProperty&,
+    const Meta::DependencyProperty&,
     const bool& value) noexcept {
     return value &&
-        static_cast<ButtonBase&>(object).IsCommandEnabled();
+        static_cast<ButtonBase&>(object).GetIsCommandEnabled();
 }
 
 Base::Result<Base::String> CoerceTextBoxText(
     ::Aero::DependencyObject& object,
-    const Core::DependencyProperty&,
+    const Meta::DependencyProperty&,
     const Base::String& value) noexcept {
-    Text::EditableTextModel validation;
+    ::Aero::Internal::EditableTextModel validation;
     static_cast<void>(object);
     Base::Result<void> limited =
         validation.SetText(value.View());
@@ -526,7 +515,7 @@ Base::Result<Base::String> CoerceTextBoxText(
 
 bool ValidatePasswordChar(
     const Base::String& value) noexcept {
-    Text::EditableTextModel validation;
+    ::Aero::Internal::EditableTextModel validation;
     Base::Result<void> text =
         validation.SetText(value.View());
     return text &&
@@ -535,184 +524,163 @@ bool ValidatePasswordChar(
 
 Base::Result<double> CoerceRangeMinimum(
     ::Aero::DependencyObject& object,
-    const Core::DependencyProperty&,
+    const Meta::DependencyProperty&,
     const double& value) noexcept {
     const double maximum =
-        static_cast<RangeBase&>(object).Maximum();
+        static_cast<RangeBase&>(object).GetMaximum();
     return std::min(value, maximum);
 }
 
 Base::Result<double> CoerceRangeMaximum(
     ::Aero::DependencyObject& object,
-    const Core::DependencyProperty&,
+    const Meta::DependencyProperty&,
     const double& value) noexcept {
     const double minimum =
-        static_cast<RangeBase&>(object).Minimum();
+        static_cast<RangeBase&>(object).GetMinimum();
     return std::max(value, minimum);
 }
 
 Base::Result<double> CoerceRangeValue(
     ::Aero::DependencyObject& object,
-    const Core::DependencyProperty&,
+    const Meta::DependencyProperty&,
     const double& value) noexcept {
     const auto& range =
         static_cast<const RangeBase&>(object);
     return std::clamp(
         value,
-        range.Minimum(),
-        range.Maximum());
+        range.GetMinimum(),
+        range.GetMaximum());
 }
 
-Base::Result<void> SetPanelContent(
+void SetPanelContent(
     Base::Object& owner,
     const Base::Ref<Base::Object>& child,
     void*) noexcept {
     if (!child) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Panel content child is null");
+        return;
     }
-    return Detail::ControlPrivate::Add(
+    (void)Detail::ControlPrivate::Add(
         static_cast<Panel&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
-Base::Result<void> ClearPanelContent(
+void ClearPanelContent(
     Base::Object& owner,
     void*) noexcept {
-    return Detail::ControlPrivate::Clear(static_cast<Panel&>(owner));
+    (void)Detail::ControlPrivate::Clear(static_cast<Panel&>(owner));
 }
 
-Base::Result<void> SetDecoratorContent(
+void SetDecoratorContent(
     Base::Object& owner,
     const Base::Ref<Base::Object>& child,
     void*) noexcept {
     if (!child) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Decorator content child is null");
+        return;
     }
-    return Detail::ControlPrivate::SetOwnedChild(
+    (void)Detail::ControlPrivate::SetOwnedChild(
         static_cast<Decorator&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
-Base::Result<void> ClearDecoratorContent(
+void ClearDecoratorContent(
     Base::Object& owner,
     void*) noexcept {
-    return static_cast<Decorator&>(owner).SetChild(nullptr);
+    static_cast<Decorator&>(owner).SetChild(nullptr);
 }
 
-Base::Result<void> SetContentControlContent(
+void SetContentControlContent(
     Base::Object& owner,
     const Base::Ref<Base::Object>& child,
     void*) noexcept {
     if (!child) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ContentControl content child is null");
+        return;
     }
-    return Detail::ControlPrivate::SetContentValue(
+    (void)Detail::ControlPrivate::SetContentValue(
         static_cast<ContentControl&>(owner), child);
 }
 
-Base::Result<void> ClearContentControlContent(
+void ClearContentControlContent(
     Base::Object& owner,
     void*) noexcept {
-    return Detail::ControlPrivate::SetContentValue(
-        static_cast<ContentControl&>(owner), Core::Value::NullObject(Core::TypeOf<Base::Object>()));
+    (void)Detail::ControlPrivate::SetContentValue(
+        static_cast<ContentControl&>(owner), Meta::Value::NullObject(Meta::TypeOf<Base::Object>()));
 }
 
-Base::Result<void> SetContentPresenterContent(
+void SetContentPresenterContent(
     Base::Object& owner,
     const Base::Ref<Base::Object>& child,
     void*) noexcept {
     if (!child) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ContentPresenter content child is null");
+        return;
     }
-    return static_cast<ContentPresenter&>(owner).SetOwnedContent(
+    static_cast<ContentPresenter&>(owner).SetOwnedContent(
         child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
-Base::Result<void> ClearContentPresenterContent(
+void ClearContentPresenterContent(
     Base::Object& owner,
     void*) noexcept {
-    return static_cast<ContentPresenter&>(owner).SetContent(nullptr);
+    static_cast<ContentPresenter&>(owner).SetContent(nullptr);
 }
 
-Base::Result<void> AddTextBlockInline(
+void AddTextBlockInline(
     Base::Object& owner,
     const Base::Ref<Base::Object>& child,
     void*) noexcept {
     if (!child) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextBlock inline child is null");
+        return;
     }
     auto& text = static_cast<TextBlock&>(owner);
     if (!text.PropertyRegistry().Types().IsDerivedFrom(
             child->RuntimeType(),
             Aero::Documents::Inline::StaticTypeId())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextBlock inline content must derive from Documents::Inline");
+        return;
     }
-    return text.AddOwnedInline(child);
+    text.TryAddOwnedInline(child);
 }
 
-Base::Result<void> ClearTextBlockInlines(
+void ClearTextBlockInlines(
     Base::Object& owner,
     void*) noexcept {
-    return static_cast<TextBlock&>(owner)
-        .ClearOwnedInlines();
+    static_cast<TextBlock&>(owner).ClearOwnedInlines();
 }
 
-Base::Result<void> AddSpanInline(
+void AddSpanInline(
     Base::Object& owner,
     const Base::Ref<Base::Object>& child,
     void*) noexcept {
     if (!child) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Span inline child is null");
+        return;
     }
     auto& span = static_cast<Documents::Span&>(owner);
     if (!span.PropertyRegistry().Types().IsDerivedFrom(
             child->RuntimeType(),
             Documents::Inline::StaticTypeId())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Span content must derive from Documents::Inline");
+        return;
     }
-    return span.AddOwnedInline(
+    span.TryAddOwnedInline(
         Base::Ref<Documents::Inline>::FromBorrowed(
             *static_cast<Documents::Inline*>(child.Get())));
 }
 
-Base::Result<void> ClearSpanInlines(
+void ClearSpanInlines(
     Base::Object& owner,
     void*) noexcept {
-    return static_cast<Documents::Span&>(owner)
-        .ClearOwnedInlines();
+    static_cast<Documents::Span&>(owner).ClearOwnedInlines();
 }
 
-Base::Result<void> AddItemsControlItem(
+void AddItemsControlItem(
     Base::Object& owner,
     const Base::Ref<Base::Object>& item,
     void*) noexcept {
     if (!item) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ItemsControl content item is null");
+        return;
     }
-    return static_cast<ItemsControl&>(owner).GetItems().Add(item);
+    (void)static_cast<ItemsControl&>(owner).GetItems().TryAdd(item);
 }
 
-Base::Result<void> ClearItemsControlItems(
+void ClearItemsControlItems(
     Base::Object& owner,
     void*) noexcept {
     static_cast<ItemsControl&>(owner).GetItems().Reset();
-    return {};
 }
 
 void OnItemsSourceChanged(
@@ -722,17 +690,15 @@ void OnItemsSourceChanged(
     Collections::IItemsSource* source = nullptr;
     if (value) {
         if (value->RuntimeType() ==
-            ObjectItemsSource::StaticTypeId()) {
-            source = static_cast<ObjectItemsSource*>(value.Get());
+            Collections::ObservableCollection::StaticTypeId()) {
+            source = static_cast<Collections::ObservableCollection*>(value.Get());
         } else if (value->RuntimeType() ==
                    Media::GradientStopCollection::StaticTypeId()) {
             source = static_cast<Media::GradientStopCollection*>(
                 value.Get());
         }
     }
-    static_cast<void>(
-        static_cast<ItemsControl&>(object)
-            .SetItemsSource(source));
+    static_cast<ItemsControl&>(object).SetItemsSource(source);
 }
 
 void OnItemTemplateChanged(
@@ -759,72 +725,62 @@ void OnItemContainerStyleChanged(
         .SetItemContainerStyle(value.Get());
 }
 
-Base::Result<void> AddTreeViewItem(
+void AddTreeViewItem(
     Base::Object& owner,
     const Base::Ref<Base::Object>& item,
     void*) noexcept {
     if (!item) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TreeViewItem content item is null");
+        return;
     }
-    return static_cast<TreeViewItem&>(
-        owner).GetItems().Add(item);
+    (void)static_cast<TreeViewItem&>(owner).GetItems().TryAdd(item);
 }
 
-Base::Result<void> ClearTreeViewItems(
+void ClearTreeViewItems(
     Base::Object& owner,
     void*) noexcept {
     static_cast<TreeViewItem&>(
         owner).GetItems().Reset();
-    return {};
 }
 
-Base::Result<void> AddGridViewColumn(
+void AddGridViewColumn(
     Base::Object& owner,
     const Base::Ref<Base::Object>& item,
     void*) noexcept {
     if (!item ||
         item->RuntimeType() !=
             GridViewColumn::StaticTypeId()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "GridView content must be a GridViewColumn");
+        return;
     }
-    return static_cast<GridView&>(
-        owner).AddColumn(
+    (void)static_cast<GridView&>(
+        owner).TryAddColumn(
             Base::Ref<GridViewColumn>::
                 FromBorrowed(
                     static_cast<GridViewColumn&>(
                         *item)));
 }
 
-Base::Result<void> ClearGridViewColumns(
+void ClearGridViewColumns(
     Base::Object& owner,
     void*) noexcept {
     static_cast<GridView&>(
         owner).ClearColumns();
-    return {};
 }
 
-Base::Result<void> AddTabControlItem(
+void AddTabControlItem(
     Base::Object& owner,
     const Base::Ref<Base::Object>& item,
     void*) noexcept {
     if (!item) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TabControl item is null");
+        return;
     }
-    return static_cast<TabControl&>(owner).
-        AddOwnedTab(
+    (void)static_cast<TabControl&>(owner).
+        TryAddOwnedTab(
             Base::Ref<TabItem>::FromBorrowed(
                 static_cast<TabItem&>(*item)));
 }
 
-Base::Result<void> ClearTabControlItems(
+void ClearTabControlItems(
     Base::Object& owner,
     void*) noexcept {
-    return static_cast<TabControl&>(owner).
-        ClearOwnedTabs();
+    static_cast<TabControl&>(owner).ClearOwnedTabs();
 }

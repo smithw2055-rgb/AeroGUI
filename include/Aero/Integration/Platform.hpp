@@ -55,9 +55,9 @@ public:
 class AERO_API ITextInputMethodHost {
 public:
     virtual ~ITextInputMethodHost() = default;
-    virtual Base::Result<void> SetClient(
+    virtual void SetClient(
         ITextCompositionClient* client) noexcept = 0;
-    virtual Base::Result<void> SetCandidateWindow(
+    virtual void SetCandidateWindow(
         const ImeCandidateWindow& value) noexcept = 0;
     virtual Base::Result<void> CancelNativeComposition() noexcept = 0;
 };

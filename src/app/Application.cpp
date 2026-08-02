@@ -11,7 +11,7 @@ Application* Application::Current() noexcept { return currentApplication; }
 
 std::uint32_t WindowCollection::GetCount() const noexcept {
     if (owner_ == nullptr) return 0U;
-    const auto* state = static_cast<const App::Detail::ApplicationHostState*>(
+    const auto* state = static_cast<const Internal::ApplicationHostState*>(
         owner_->hostState_);
     if (state != nullptr && state->windowCount != nullptr) {
         return state->windowCount(state->context);
@@ -21,7 +21,7 @@ std::uint32_t WindowCollection::GetCount() const noexcept {
 
 Window* WindowCollection::GetItem(std::uint32_t index) const noexcept {
     if (owner_ == nullptr) return nullptr;
-    const auto* state = static_cast<const App::Detail::ApplicationHostState*>(
+    const auto* state = static_cast<const Internal::ApplicationHostState*>(
         owner_->hostState_);
     if (state != nullptr && state->windowAt != nullptr) {
         return state->windowAt(state->context, index);
@@ -38,7 +38,7 @@ void Application::SetMainWindow(Window* value) noexcept {
             mainWindowOwner_ = Base::Ref<Base::Object>(std::move(retained));
         }
     }
-    auto* state = static_cast<App::Detail::ApplicationHostState*>(hostState_);
+    auto* state = static_cast<Internal::ApplicationHostState*>(hostState_);
     if (state != nullptr && state->setMainWindow != nullptr) {
         state->setMainWindow(state->context, value);
     }
@@ -46,7 +46,7 @@ void Application::SetMainWindow(Window* value) noexcept {
 
 
 void Application::Shutdown(int exitCode) noexcept {
-    auto* state = static_cast<App::Detail::ApplicationHostState*>(hostState_);
+    auto* state = static_cast<Internal::ApplicationHostState*>(hostState_);
     if (state != nullptr && state->requestExit != nullptr) state->requestExit(state->context, exitCode);
 }
 

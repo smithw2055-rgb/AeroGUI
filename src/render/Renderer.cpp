@@ -792,7 +792,7 @@ bool Renderer::IsBatchingEnabled() const noexcept {
 }
 
 Base::Result<CommandList> Renderer::Record(
-    const Render::RenderFrame& plan,
+    const Integration::RenderFrame& plan,
     const RenderTarget& target) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer is not initialized");

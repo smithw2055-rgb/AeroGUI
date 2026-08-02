@@ -2,6 +2,7 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Panels.hpp>
 #include "../media/BrushRendering.hpp"
+#include "../media/BrushInternals.hpp"
 #include "../render/DrawingInternals.hpp"
 #include <Aero/Documents.hpp>
 
@@ -16,7 +17,9 @@
 
 namespace Aero::Controls {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
+using namespace Aero::Render;
 
 namespace {
 
@@ -46,28 +49,28 @@ EffectiveGridSpan CoerceGridSpan(
 
 } // namespace
 
-Base::Result<void> Panel::OnRender(
+void Panel::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
-    return PaintBrushRect(
+    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    static_cast<void>(PaintBrushRect(
         builder,
-        BackgroundBrush(),
+        GetBackground(),
         Rect{
             0.0, 0.0,
             GetRenderSize().width,
-            GetRenderSize().height});
+            GetRenderSize().height}));
 }
 
-Base::Result<void> Control::OnRender(
+void Control::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
-    return PaintBrushRect(
+    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    static_cast<void>(PaintBrushRect(
         builder,
-        BackgroundBrush(),
+        GetBackground(),
         Rect{
             0.0, 0.0,
             GetRenderSize().width,
-            GetRenderSize().height});
+            GetRenderSize().height}));
 }
 
 StackPanel::StackPanel() noexcept : StackPanel(Orientation::Vertical) {}
@@ -75,7 +78,7 @@ StackPanel::StackPanel() noexcept : StackPanel(Orientation::Vertical) {}
 StackPanel::StackPanel(Orientation orientation) noexcept
     : Panel(StaticTypeId()) {
     if (orientation != Orientation::Vertical) {
-        static_cast<void>(SetOrientation(orientation));
+        SetOrientation(orientation);
     }
 }
 
@@ -84,11 +87,11 @@ Orientation StackPanel::GetOrientation() const noexcept {
         OrientationProperty, Orientation::Vertical);
 }
 
-Base::Result<void> StackPanel::SetOrientation(Orientation value) noexcept {
-    return SetValue(OrientationProperty, value);
+void StackPanel::SetOrientation(Orientation value) noexcept {
+    SetValue(OrientationProperty, value);
 }
 
-Base::Result<Size> StackPanel::MeasureOverride(Size availableSize) noexcept {
+Size StackPanel::MeasureOverride(Size availableSize) noexcept {
     Size desired;
     const Orientation orientation = GetOrientation();
     for (UIElement* child : LayoutChildren()) {
@@ -97,7 +100,7 @@ Base::Result<Size> StackPanel::MeasureOverride(Size availableSize) noexcept {
         if (orientation == Orientation::Vertical) childAvailable.height = 1.0e12;
         else childAvailable.width = 1.0e12;
         Base::Result<void> measured = MeasureChild(*child, childAvailable);
-        if (!measured) return measured.GetStatus();
+        if (!measured) return Size{};
         const Size childDesired = child->GetDesiredSize();
         if (orientation == Orientation::Vertical) {
             desired.width = std::max(desired.width, childDesired.width);
@@ -110,7 +113,7 @@ Base::Result<Size> StackPanel::MeasureOverride(Size availableSize) noexcept {
     return desired;
 }
 
-Base::Result<Size> StackPanel::ArrangeOverride(Size finalSize) noexcept {
+Size StackPanel::ArrangeOverride(Size finalSize) noexcept {
     double offset = 0.0;
     const Orientation orientation = GetOrientation();
     for (UIElement* child : LayoutChildren()) {
@@ -120,7 +123,7 @@ Base::Result<Size> StackPanel::ArrangeOverride(Size finalSize) noexcept {
             ? Rect{0.0, offset, finalSize.width, desired.height}
             : Rect{offset, 0.0, desired.width, finalSize.height};
         Base::Result<void> arranged = ArrangeChild(*child, slot);
-        if (!arranged) return arranged.GetStatus();
+        if (!arranged) return finalSize;
         offset += orientation == Orientation::Vertical
             ? desired.height : desired.width;
     }
@@ -131,12 +134,12 @@ bool DockPanel::GetLastChildFill() const noexcept {
     return GetValueOr(LastChildFillProperty, true);
 }
 
-Base::Result<void> DockPanel::SetLastChildFill(
+void DockPanel::SetLastChildFill(
     bool value) noexcept {
-    return SetValue(LastChildFillProperty, value);
+    SetValue(LastChildFillProperty, value);
 }
 
-Base::Result<void> DockPanel::SetChildDock(
+void DockPanel::SetChildDock(
     UIElement& child,
     Dock value) noexcept {
     bool attached = false;
@@ -144,19 +147,17 @@ Base::Result<void> DockPanel::SetChildDock(
         attached = attached || current == &child;
     }
     if (!attached) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "DockPanel child must be attached before assigning Dock");
+        return;
     }
-    return child.SetValue(DockProperty, value);
+    child.SetValue(DockProperty, value);
 }
 
-Dock DockPanel::ChildDock(
+Dock DockPanel::GetChildDock(
     const UIElement& child) const noexcept {
     return child.GetValueOr(DockProperty, Dock::Left);
 }
 
-Base::Result<Size> DockPanel::MeasureOverride(
+Size DockPanel::MeasureOverride(
     Size availableSize) noexcept {
     Size desired;
     double consumedWidth = 0.0;
@@ -168,9 +169,9 @@ Base::Result<Size> DockPanel::MeasureOverride(
             std::max(0.0, availableSize.height - consumedHeight)};
         Base::Result<void> measured =
             MeasureChild(*child, remaining);
-        if (!measured) return measured.GetStatus();
+        if (!measured) return Size{};
         const Size childDesired = child->GetDesiredSize();
-        const Dock dock = ChildDock(*child);
+        const Dock dock = GetChildDock(*child);
         if (dock == Dock::Left || dock == Dock::Right) {
             consumedWidth += childDesired.width;
             desired.width = std::max(
@@ -192,7 +193,7 @@ Base::Result<Size> DockPanel::MeasureOverride(
     return desired;
 }
 
-Base::Result<Size> DockPanel::ArrangeOverride(
+Size DockPanel::ArrangeOverride(
     Size finalSize) noexcept {
     double left = 0.0;
     double top = 0.0;
@@ -214,7 +215,7 @@ Base::Result<Size> DockPanel::ArrangeOverride(
             index + 1U == children.Size();
         if (!fill) {
             const Size desired = child->GetDesiredSize();
-            switch (ChildDock(*child)) {
+            switch (GetChildDock(*child)) {
             case Dock::Left:
                 slot.width = std::min(
                     slot.width, desired.width);
@@ -241,7 +242,7 @@ Base::Result<Size> DockPanel::ArrangeOverride(
         }
         Base::Result<void> arranged =
             ArrangeChild(*child, slot);
-        if (!arranged) return arranged.GetStatus();
+        if (!arranged) return finalSize;
     }
     return finalSize;
 }
@@ -252,40 +253,36 @@ Orientation WrapPanel::GetOrientation() const noexcept {
         Orientation::Horizontal);
 }
 
-Base::Result<void> WrapPanel::SetOrientation(
+void WrapPanel::SetOrientation(
     Orientation value) noexcept {
-    return SetValue(OrientationProperty, value);
+    SetValue(OrientationProperty, value);
 }
 
-double WrapPanel::ItemWidth() const noexcept {
+double WrapPanel::GetItemWidth() const noexcept {
     return GetValueOr(ItemWidthProperty, 0.0);
 }
 
-double WrapPanel::ItemHeight() const noexcept {
+double WrapPanel::GetItemHeight() const noexcept {
     return GetValueOr(ItemHeightProperty, 0.0);
 }
 
-Base::Result<void> WrapPanel::SetItemWidth(
+void WrapPanel::SetItemWidth(
     double value) noexcept {
     if (!std::isfinite(value) || value < 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "WrapPanel ItemWidth must be finite and nonnegative");
+        return;
     }
-    return SetValue(ItemWidthProperty, value);
+    SetValue(ItemWidthProperty, value);
 }
 
-Base::Result<void> WrapPanel::SetItemHeight(
+void WrapPanel::SetItemHeight(
     double value) noexcept {
     if (!std::isfinite(value) || value < 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "WrapPanel ItemHeight must be finite and nonnegative");
+        return;
     }
-    return SetValue(ItemHeightProperty, value);
+    SetValue(ItemHeightProperty, value);
 }
 
-Base::Result<Size> WrapPanel::MeasureOverride(
+Size WrapPanel::MeasureOverride(
     Size availableSize) noexcept {
     const bool horizontal =
         GetOrientation() == Orientation::Horizontal;
@@ -301,24 +298,24 @@ Base::Result<Size> WrapPanel::MeasureOverride(
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const Size childAvailable{
-            ItemWidth() > 0.0
-                ? ItemWidth() : availableSize.width,
-            ItemHeight() > 0.0
-                ? ItemHeight() : availableSize.height};
+            GetItemWidth() > 0.0
+                ? GetItemWidth() : availableSize.width,
+            GetItemHeight() > 0.0
+                ? GetItemHeight() : availableSize.height};
         Base::Result<void> measured =
             MeasureChild(*child, childAvailable);
-        if (!measured) return measured.GetStatus();
+        if (!measured) return Size{};
         const Size desired = child->GetDesiredSize();
         const double childPrimary = horizontal
-            ? (ItemWidth() > 0.0
-                ? ItemWidth() : desired.width)
-            : (ItemHeight() > 0.0
-                ? ItemHeight() : desired.height);
+            ? (GetItemWidth() > 0.0
+                ? GetItemWidth() : desired.width)
+            : (GetItemHeight() > 0.0
+                ? GetItemHeight() : desired.height);
         const double childCross = horizontal
-            ? (ItemHeight() > 0.0
-                ? ItemHeight() : desired.height)
-            : (ItemWidth() > 0.0
-                ? ItemWidth() : desired.width);
+            ? (GetItemHeight() > 0.0
+                ? GetItemHeight() : desired.height)
+            : (GetItemWidth() > 0.0
+                ? GetItemWidth() : desired.width);
         if (constrained && linePrimary > 0.0 &&
             linePrimary + childPrimary > primaryLimit) {
             desiredPrimary = std::max(
@@ -338,7 +335,7 @@ Base::Result<Size> WrapPanel::MeasureOverride(
         : Size{desiredCross, desiredPrimary};
 }
 
-Base::Result<Size> WrapPanel::ArrangeOverride(
+Size WrapPanel::ArrangeOverride(
     Size finalSize) noexcept {
     const bool horizontal =
         GetOrientation() == Orientation::Horizontal;
@@ -351,15 +348,15 @@ Base::Result<Size> WrapPanel::ArrangeOverride(
         if (child == nullptr) continue;
         const Size desired = child->GetDesiredSize();
         const double childPrimary = horizontal
-            ? (ItemWidth() > 0.0
-                ? ItemWidth() : desired.width)
-            : (ItemHeight() > 0.0
-                ? ItemHeight() : desired.height);
+            ? (GetItemWidth() > 0.0
+                ? GetItemWidth() : desired.width)
+            : (GetItemHeight() > 0.0
+                ? GetItemHeight() : desired.height);
         const double childCross = horizontal
-            ? (ItemHeight() > 0.0
-                ? ItemHeight() : desired.height)
-            : (ItemWidth() > 0.0
-                ? ItemWidth() : desired.width);
+            ? (GetItemHeight() > 0.0
+                ? GetItemHeight() : desired.height)
+            : (GetItemWidth() > 0.0
+                ? GetItemWidth() : desired.width);
         if (primary > 0.0 &&
             primary + childPrimary > primaryLimit) {
             primary = 0.0;
@@ -371,46 +368,46 @@ Base::Result<Size> WrapPanel::ArrangeOverride(
             : Rect{cross, primary, childCross, childPrimary};
         Base::Result<void> arranged =
             ArrangeChild(*child, slot);
-        if (!arranged) return arranged.GetStatus();
+        if (!arranged) return finalSize;
         primary += childPrimary;
         lineCross = std::max(lineCross, childCross);
     }
     return finalSize;
 }
 
-std::uint32_t UniformGrid::Rows() const noexcept {
+std::uint32_t UniformGrid::GetRows() const noexcept {
     return GetValueOr(RowsProperty, 0U);
 }
 
-std::uint32_t UniformGrid::Columns() const noexcept {
+std::uint32_t UniformGrid::GetColumns() const noexcept {
     return GetValueOr(ColumnsProperty, 0U);
 }
 
-std::uint32_t UniformGrid::FirstColumn() const noexcept {
+std::uint32_t UniformGrid::GetFirstColumn() const noexcept {
     return GetValueOr(FirstColumnProperty, 0U);
 }
 
-Base::Result<void> UniformGrid::SetRows(
+void UniformGrid::SetRows(
     std::uint32_t value) noexcept {
-    return SetValue(RowsProperty, value);
+    SetValue(RowsProperty, value);
 }
 
-Base::Result<void> UniformGrid::SetColumns(
+void UniformGrid::SetColumns(
     std::uint32_t value) noexcept {
-    return SetValue(ColumnsProperty, value);
+    SetValue(ColumnsProperty, value);
 }
 
-Base::Result<void> UniformGrid::SetFirstColumn(
+void UniformGrid::SetFirstColumn(
     std::uint32_t value) noexcept {
-    return SetValue(FirstColumnProperty, value);
+    SetValue(FirstColumnProperty, value);
 }
 
 void UniformGrid::ResolveDimensions(
     std::uint32_t childCount,
     std::uint32_t& rows,
     std::uint32_t& columns) const noexcept {
-    rows = Rows();
-    columns = Columns();
+    rows = GetRows();
+    columns = GetColumns();
     if (childCount == 0U) {
         rows = rows == 0U ? 1U : rows;
         columns = columns == 0U ? 1U : columns;
@@ -428,7 +425,7 @@ void UniformGrid::ResolveDimensions(
     }
 }
 
-Base::Result<Size> UniformGrid::MeasureOverride(
+Size UniformGrid::MeasureOverride(
     Size availableSize) noexcept {
     std::uint32_t count = 0U;
     for (UIElement* child : LayoutChildren()) {
@@ -436,7 +433,7 @@ Base::Result<Size> UniformGrid::MeasureOverride(
     }
     std::uint32_t rows = 0U;
     std::uint32_t columns = 0U;
-    ResolveDimensions(count + FirstColumn(), rows, columns);
+    ResolveDimensions(count + GetFirstColumn(), rows, columns);
     const Size cellAvailable{
         availableSize.width / static_cast<double>(columns),
         availableSize.height / static_cast<double>(rows)};
@@ -445,7 +442,7 @@ Base::Result<Size> UniformGrid::MeasureOverride(
         if (child == nullptr) continue;
         Base::Result<void> measured =
             MeasureChild(*child, cellAvailable);
-        if (!measured) return measured.GetStatus();
+        if (!measured) return Size{};
         cellDesired.width = std::max(
             cellDesired.width,
             child->GetDesiredSize().width);
@@ -458,7 +455,7 @@ Base::Result<Size> UniformGrid::MeasureOverride(
         cellDesired.height * rows};
 }
 
-Base::Result<Size> UniformGrid::ArrangeOverride(
+Size UniformGrid::ArrangeOverride(
     Size finalSize) noexcept {
     std::uint32_t count = 0U;
     for (UIElement* child : LayoutChildren()) {
@@ -466,13 +463,13 @@ Base::Result<Size> UniformGrid::ArrangeOverride(
     }
     std::uint32_t rows = 0U;
     std::uint32_t columns = 0U;
-    ResolveDimensions(count + FirstColumn(), rows, columns);
+    ResolveDimensions(count + GetFirstColumn(), rows, columns);
     const double width =
         finalSize.width / static_cast<double>(columns);
     const double height =
         finalSize.height / static_cast<double>(rows);
     std::uint32_t index = std::min(
-        FirstColumn(), columns - 1U);
+        GetFirstColumn(), columns - 1U);
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const std::uint32_t row = index / columns;
@@ -480,7 +477,7 @@ Base::Result<Size> UniformGrid::ArrangeOverride(
         Base::Result<void> arranged = ArrangeChild(
             *child,
             {column * width, row * height, width, height});
-        if (!arranged) return arranged.GetStatus();
+        if (!arranged) return finalSize;
         ++index;
     }
     return finalSize;
@@ -488,40 +485,35 @@ Base::Result<Size> UniformGrid::ArrangeOverride(
 
 Canvas::Canvas() noexcept : Panel(StaticTypeId()) {}
 
-Base::Result<void> Canvas::SetChildPosition(
+void Canvas::SetChildPosition(
     UIElement& child, Point position) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access;
+    if (!access) return;
     if (!IsFinite(position)) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Canvas child position must be finite");
+        return;
     }
     bool attached = false;
     for (UIElement* current : LayoutChildren()) attached = attached || current == &child;
     if (!attached) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Canvas child must be attached before positioning");
+        return;
     }
-    Base::Result<void> left =
-        child.SetValue(LeftProperty, position.x);
-    return left
-        ? child.SetValue(TopProperty, position.y)
-        : left;
+    child.SetValue(LeftProperty, position.x);
+    child.SetValue(TopProperty, position.y);
 }
 
-Point Canvas::ChildPosition(const UIElement& child) const noexcept {
+Point Canvas::GetChildPosition(const UIElement& child) const noexcept {
     return {
         child.GetValueOr(LeftProperty, 0.0),
         child.GetValueOr(TopProperty, 0.0)};
 }
 
-Base::Result<Size> Canvas::MeasureOverride(Size) noexcept {
+Size Canvas::MeasureOverride(Size) noexcept {
     Size desired;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         Base::Result<void> measured = MeasureChild(*child, {1.0e12, 1.0e12});
-        if (!measured) return measured.GetStatus();
-        const Point position = ChildPosition(*child);
+        if (!measured) return Size{};
+        const Point position = GetChildPosition(*child);
         desired.width = std::max(
             desired.width, position.x + child->GetDesiredSize().width);
         desired.height = std::max(
@@ -530,19 +522,19 @@ Base::Result<Size> Canvas::MeasureOverride(Size) noexcept {
     return desired;
 }
 
-Base::Result<Size> Canvas::ArrangeOverride(Size finalSize) noexcept {
+Size Canvas::ArrangeOverride(Size finalSize) noexcept {
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const Size desired = child->GetDesiredSize();
-        Point position = ChildPosition(*child);
+        Point position = GetChildPosition(*child);
         Base::Result<EffectiveValueSource> leftSource =
             child->GetValueSource(LeftProperty.Handle());
-        if (!leftSource) return leftSource.GetStatus();
+        if (!leftSource) return finalSize;
         if (leftSource.Value() !=
             EffectiveValueSource::Local) {
             Base::Result<EffectiveValueSource> rightSource =
                 child->GetValueSource(RightProperty.Handle());
-            if (!rightSource) return rightSource.GetStatus();
+            if (!rightSource) return finalSize;
             if (rightSource.Value() ==
                 EffectiveValueSource::Local) {
                 position.x = finalSize.width -
@@ -552,12 +544,12 @@ Base::Result<Size> Canvas::ArrangeOverride(Size finalSize) noexcept {
         }
         Base::Result<EffectiveValueSource> topSource =
             child->GetValueSource(TopProperty.Handle());
-        if (!topSource) return topSource.GetStatus();
+        if (!topSource) return finalSize;
         if (topSource.Value() !=
             EffectiveValueSource::Local) {
             Base::Result<EffectiveValueSource> bottomSource =
                 child->GetValueSource(BottomProperty.Handle());
-            if (!bottomSource) return bottomSource.GetStatus();
+            if (!bottomSource) return finalSize;
             if (bottomSource.Value() ==
                 EffectiveValueSource::Local) {
                 position.y = finalSize.height -
@@ -567,140 +559,123 @@ Base::Result<Size> Canvas::ArrangeOverride(Size finalSize) noexcept {
         }
         Base::Result<void> arranged = ArrangeChild(*child,
             {position.x, position.y, desired.width, desired.height});
-        if (!arranged) return arranged.GetStatus();
+        if (!arranged) return finalSize;
     }
     return finalSize;
 }
 
-Base::Result<void> ColumnDefinition::SetWidth(
+void ColumnDefinition::SetWidth(
     GridLength value) noexcept {
     if (!std::isfinite(value.value) ||
         value.value < 0.0 ||
         (value.unit == GridUnitType::Star &&
             value.value <= 0.0)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ColumnDefinition Width is invalid");
+        return;
     }
     width_ = value;
-    return {};
 }
 
-Base::Result<void> ColumnDefinition::SetMaxWidth(
+void ColumnDefinition::SetMaxWidth(
     double value) noexcept {
     if (!std::isfinite(value) || value < 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ColumnDefinition MaxWidth is invalid");
+        return;
     }
     maxWidth_ = value;
-    return {};
 }
 
-Base::Result<void> ColumnDefinition::SetSharedSizeGroup(
+void ColumnDefinition::SetSharedSizeGroup(
     Base::StringView value) noexcept {
-    return sharedSizeGroup_.TryAssign(value);
+    Base::String candidate;
+    if (!candidate.TryAssign(value)) return;
+    sharedSizeGroup_ = std::move(candidate);
 }
 
-Base::Result<void> RowDefinition::SetHeight(
+void RowDefinition::SetHeight(
     GridLength value) noexcept {
     if (!std::isfinite(value.value) ||
         value.value < 0.0 ||
         (value.unit == GridUnitType::Star &&
             value.value <= 0.0)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "RowDefinition Height is invalid");
+        return;
     }
     height_ = value;
-    return {};
 }
 
-Base::Result<void> RowDefinition::SetMaxHeight(
+void RowDefinition::SetMaxHeight(
     double value) noexcept {
     if (!std::isfinite(value) || value < 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "RowDefinition MaxHeight is invalid");
+        return;
     }
     maxHeight_ = value;
-    return {};
 }
 
-Base::Result<void> RowDefinition::SetSharedSizeGroup(
+void RowDefinition::SetSharedSizeGroup(
     Base::StringView value) noexcept {
-    return sharedSizeGroup_.TryAssign(value);
+    Base::String candidate;
+    if (!candidate.TryAssign(value)) return;
+    sharedSizeGroup_ = std::move(candidate);
 }
 
 Grid::Grid() noexcept
     : Panel(StaticTypeId()), columns_(), rows_(),
       desiredColumns_(), desiredRows_() {}
 
-Base::Result<void> Grid::SetColumnDefinitions(
+void Grid::SetColumnDefinitions(
     Base::Span<const GridLength> definitions) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access;
+    if (!access) return;
     Base::Result<void> valid = ValidateDefinitions(definitions);
-    if (!valid) return valid;
+    if (!valid) return;
     Base::Vector<GridLength> next;
     Base::Result<void> copied = next.TryAssign(definitions);
-    if (!copied) return copied.GetStatus();
+    if (!copied) return;
     columns_ = std::move(next);
     columnDefinitionObjects_.Clear();
-    return InvalidateMeasure();
+    (void)InvalidateMeasure();
 }
 
-Base::Result<void> Grid::SetRowDefinitions(
+void Grid::SetRowDefinitions(
     Base::Span<const GridLength> definitions) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access;
+    if (!access) return;
     Base::Result<void> valid = ValidateDefinitions(definitions);
-    if (!valid) return valid;
+    if (!valid) return;
     Base::Vector<GridLength> next;
     Base::Result<void> copied = next.TryAssign(definitions);
-    if (!copied) return copied.GetStatus();
+    if (!copied) return;
     rows_ = std::move(next);
     rowDefinitionObjects_.Clear();
-    return InvalidateMeasure();
+    (void)InvalidateMeasure();
 }
 
-Base::Result<void> Grid::SetChildCell(
+void Grid::SetChildCell(
     UIElement& child, std::uint32_t row, std::uint32_t column) noexcept {
-    return SetChildCell(child, row, column, 1U, 1U);
+    SetChildCell(child, row, column, 1U, 1U);
 }
 
-Base::Result<void> Grid::SetChildCell(
+void Grid::SetChildCell(
     UIElement& child,
     std::uint32_t row,
     std::uint32_t column,
     std::uint32_t rowSpan,
     std::uint32_t columnSpan) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access;
+    if (!access) return;
     if (rowSpan == 0U || columnSpan == 0U) {
-        return Base::Status::Failure(Base::ErrorCode::OutOfRange,
-            "Grid child span must be positive");
+        return;
     }
     bool attached = false;
     for (UIElement* current : LayoutChildren()) attached = attached || current == &child;
     if (!attached) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Grid child must be attached before assigning a cell");
+        return;
     }
-    Base::Result<void> rowResult =
-        child.SetValue(RowProperty, row);
-    if (!rowResult) return rowResult;
-    Base::Result<void> columnResult =
-        child.SetValue(ColumnProperty, column);
-    if (!columnResult) return columnResult;
-    Base::Result<void> rowSpanResult =
-        child.SetValue(RowSpanProperty, rowSpan);
-    return rowSpanResult
-        ? child.SetValue(ColumnSpanProperty, columnSpan)
-        : rowSpanResult;
+    child.SetValue(RowProperty, row);
+    child.SetValue(ColumnProperty, column);
+    child.SetValue(RowSpanProperty, rowSpan);
+    child.SetValue(ColumnSpanProperty, columnSpan);
 }
 
-Base::Result<void> Grid::AddColumnDefinition(
+Base::Result<void> Grid::TryAddColumnDefinition(
     Base::Ref<ColumnDefinition> definition) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
@@ -713,7 +688,7 @@ Base::Result<void> Grid::AddColumnDefinition(
         columnDefinitionObjects_.TryPushBack(definition);
     if (!objectAdded) return objectAdded.GetStatus();
     Base::Result<void> lengthAdded =
-        columns_.TryPushBack(definition->Width());
+        columns_.TryPushBack(definition->GetWidth());
     if (!lengthAdded) {
         columnDefinitionObjects_.PopBack();
         return lengthAdded.GetStatus();
@@ -721,7 +696,7 @@ Base::Result<void> Grid::AddColumnDefinition(
     return InvalidateMeasure();
 }
 
-Base::Result<void> Grid::AddRowDefinition(
+Base::Result<void> Grid::TryAddRowDefinition(
     Base::Ref<RowDefinition> definition) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
@@ -734,7 +709,7 @@ Base::Result<void> Grid::AddRowDefinition(
         rowDefinitionObjects_.TryPushBack(definition);
     if (!objectAdded) return objectAdded.GetStatus();
     Base::Result<void> lengthAdded =
-        rows_.TryPushBack(definition->Height());
+        rows_.TryPushBack(definition->GetHeight());
     if (!lengthAdded) {
         rowDefinitionObjects_.PopBack();
         return lengthAdded.GetStatus();
@@ -742,25 +717,25 @@ Base::Result<void> Grid::AddRowDefinition(
     return InvalidateMeasure();
 }
 
-Base::Result<void>
+void
 Grid::ClearColumnDefinitionObjects() noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) return;
     columnDefinitionObjects_.Clear();
     columns_.Clear();
-    return InvalidateMeasure();
+    (void)InvalidateMeasure();
 }
 
-Base::Result<void>
+void
 Grid::ClearRowDefinitionObjects() noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) return;
     rowDefinitionObjects_.Clear();
     rows_.Clear();
-    return InvalidateMeasure();
+    (void)InvalidateMeasure();
 }
 
-Base::Result<void> Grid::AddInputBinding(
+Base::Result<void> Grid::TryAddInputBinding(
     Base::Ref<Input::KeyBinding> binding) noexcept {
     if (!binding) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
@@ -771,40 +746,40 @@ Base::Result<void> Grid::AddInputBinding(
     return inputBindings_.TryPushBack(std::move(binding));
 }
 
-Base::StringView Grid::ColumnDefinitionsText() const noexcept {
+Base::StringView Grid::GetColumnDefinitionsText() const noexcept {
     return GetValueOr(
         ColumnDefinitionsTextProperty,
         Base::StringView{});
 }
 
-Base::StringView Grid::RowDefinitionsText() const noexcept {
+Base::StringView Grid::GetRowDefinitionsText() const noexcept {
     return GetValueOr(
         RowDefinitionsTextProperty,
         Base::StringView{});
 }
 
-Base::Result<void> Grid::SetColumnDefinitionsText(
+void Grid::SetColumnDefinitionsText(
     Base::StringView value) noexcept {
-    return SetValue(
+    SetValue(
         ColumnDefinitionsTextProperty, value);
 }
 
-Base::Result<void> Grid::SetRowDefinitionsText(
+void Grid::SetRowDefinitionsText(
     Base::StringView value) noexcept {
-    return SetValue(
+    SetValue(
         RowDefinitionsTextProperty, value);
 }
 
-Base::Result<Size> Grid::MeasureOverride(
+Size Grid::MeasureOverride(
     Size availableSize) noexcept {
-    const std::uint32_t columns = ColumnCount();
-    const std::uint32_t rows = RowCount();
+    const std::uint32_t columns = GetColumnCount();
+    const std::uint32_t rows = GetRowCount();
     Base::Vector<double> desiredColumns;
     Base::Vector<double> desiredRows;
     Base::Result<void> resized = desiredColumns.TryResize(columns, 0.0);
-    if (!resized) return resized.GetStatus();
+    if (!resized) return Size{};
     resized = desiredRows.TryResize(rows, 0.0);
-    if (!resized) return resized.GetStatus();
+    if (!resized) return Size{};
 
     for (std::uint32_t index = 0U; index < columns; ++index) {
         const GridLength definition = ColumnAt(index);
@@ -849,13 +824,13 @@ Base::Result<Size> Grid::MeasureOverride(
         if (child == nullptr) continue;
         const EffectiveGridSpan rowPlacement =
             CoerceGridSpan(
-                ChildRow(*child),
-                ChildRowSpan(*child),
+                GetChildRow(*child),
+                GetChildRowSpan(*child),
                 rows);
         const EffectiveGridSpan columnPlacement =
             CoerceGridSpan(
-                ChildColumn(*child),
-                ChildColumnSpan(*child),
+                GetChildColumn(*child),
+                GetChildColumnSpan(*child),
                 columns);
         const std::uint32_t row =
             rowPlacement.index;
@@ -933,7 +908,7 @@ Base::Result<Size> Grid::MeasureOverride(
         const Size childAvailable{
             childWidth, childHeight};
         Base::Result<void> measured = MeasureChild(*child, childAvailable);
-        if (!measured) return measured.GetStatus();
+        if (!measured) return Size{};
         const Size childDesired = child->GetDesiredSize();
         const double widthShare =
             std::max(0.0, childDesired.width - fixedWidth) /
@@ -970,31 +945,31 @@ Base::Result<Size> Grid::MeasureOverride(
     return Size{width, height};
 }
 
-Base::Result<Size> Grid::ArrangeOverride(Size finalSize) noexcept {
+Size Grid::ArrangeOverride(Size finalSize) noexcept {
     Base::Vector<double> columns;
     Base::Vector<double> rows;
     Base::Result<void> resolved = ResolveTracks(
         {columns_.Data(), columns_.Size()},
         {desiredColumns_.Data(), desiredColumns_.Size()},
         finalSize.width, columns);
-    if (!resolved) return resolved.GetStatus();
+    if (!resolved) return finalSize;
     resolved = ResolveTracks(
         {rows_.Data(), rows_.Size()},
         {desiredRows_.Data(), desiredRows_.Size()},
         finalSize.height, rows);
-    if (!resolved) return resolved.GetStatus();
+    if (!resolved) return finalSize;
 
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const EffectiveGridSpan rowPlacement =
             CoerceGridSpan(
-                ChildRow(*child),
-                ChildRowSpan(*child),
+                GetChildRow(*child),
+                GetChildRowSpan(*child),
                 rows.Size());
         const EffectiveGridSpan columnPlacement =
             CoerceGridSpan(
-                ChildColumn(*child),
-                ChildColumnSpan(*child),
+                GetChildColumn(*child),
+                GetChildColumnSpan(*child),
                 columns.Size());
         const std::uint32_t row =
             rowPlacement.index;
@@ -1020,16 +995,16 @@ Base::Result<Size> Grid::ArrangeOverride(Size finalSize) noexcept {
         }
         Base::Result<void> arranged = ArrangeChild(*child,
             {x, y, width, height});
-        if (!arranged) return arranged.GetStatus();
+        if (!arranged) return finalSize;
     }
     return finalSize;
 }
 
-std::uint32_t Grid::ColumnCount() const noexcept {
+std::uint32_t Grid::GetColumnCount() const noexcept {
     return columns_.Empty() ? 1U : columns_.Size();
 }
 
-std::uint32_t Grid::RowCount() const noexcept {
+std::uint32_t Grid::GetRowCount() const noexcept {
     return rows_.Empty() ? 1U : rows_.Size();
 }
 
@@ -1053,22 +1028,22 @@ Base::Result<void> Grid::ValidateDefinitions(
     return {};
 }
 
-std::uint32_t Grid::ChildRow(const UIElement& child) const noexcept {
+std::uint32_t Grid::GetChildRow(const UIElement& child) const noexcept {
     return child.GetValueOr(RowProperty, 0U);
 }
 
-std::uint32_t Grid::ChildColumn(const UIElement& child) const noexcept {
+std::uint32_t Grid::GetChildColumn(const UIElement& child) const noexcept {
     return child.GetValueOr(ColumnProperty, 0U);
 }
 
-std::uint32_t Grid::ChildRowSpan(
+std::uint32_t Grid::GetChildRowSpan(
     const UIElement& child) const noexcept {
     return std::max(
         1U,
         child.GetValueOr(RowSpanProperty, 1U));
 }
 
-std::uint32_t Grid::ChildColumnSpan(
+std::uint32_t Grid::GetChildColumnSpan(
     const UIElement& child) const noexcept {
     return std::max(
         1U,
@@ -1128,24 +1103,22 @@ Viewbox::GetStretchDirection() const noexcept {
         StretchDirection::Both);
 }
 
-Base::Result<void> Viewbox::SetStretch(
+void Viewbox::SetStretch(
     Stretch value) noexcept {
-    return SetValue(StretchProperty, value);
+    SetValue(StretchProperty, value);
 }
 
-Base::Result<void> Viewbox::SetStretchDirection(
+void Viewbox::SetStretchDirection(
     StretchDirection value) noexcept {
-    return SetValue(StretchDirectionProperty, value);
+    SetValue(StretchDirectionProperty, value);
 }
 
-Base::Result<Size> Viewbox::MeasureOverride(
+Size Viewbox::MeasureOverride(
     Size availableSize) noexcept {
     UIElement* child = GetChild();
     if (child == nullptr) {
         if (!LayoutChildren().Empty()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Viewbox must have at most one child");
+            return Size{};
         }
         return Size{};
     }
@@ -1156,7 +1129,7 @@ Base::Result<Size> Viewbox::MeasureOverride(
     Base::Result<void> measured = MeasureChild(
         *child,
         {NaturalConstraint, NaturalConstraint});
-    if (!measured) return measured.GetStatus();
+    if (!measured) return Size{};
 
     const Size natural = child->GetDesiredSize();
     if (natural.width <= 0.0 || natural.height <= 0.0) {
@@ -1225,12 +1198,7 @@ Base::Result<void> Viewbox::ApplyViewTransform(
             Base::MakeRef<MatrixTransform>();
         if (!made) return made.GetStatus();
         viewTransform_ = std::move(made).Value();
-        Base::Result<void> assigned =
-            child->SetRenderTransform(viewTransform_);
-        if (!assigned) {
-            viewTransform_.Reset();
-            return assigned.GetStatus();
-        }
+        child->SetRenderTransform(viewTransform_);
     }
 
     Base::Transform2D matrix;
@@ -1238,16 +1206,17 @@ Base::Result<void> Viewbox::ApplyViewTransform(
     matrix.m22 = scaleY;
     matrix.dx = offsetX;
     matrix.dy = offsetY;
-    return viewTransform_->SetValue(matrix);
+    viewTransform_->SetMatrixValue(matrix);
+    return {};
 }
 
-Base::Result<Size> Viewbox::ArrangeOverride(
+Size Viewbox::ArrangeOverride(
     Size finalSize) noexcept {
     UIElement* child = GetChild();
     if (child == nullptr) {
         Base::Result<void> reset =
             ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
-        if (!reset) return reset.GetStatus();
+        if (!reset) return finalSize;
         return finalSize;
     }
 
@@ -1255,10 +1224,10 @@ Base::Result<Size> Viewbox::ArrangeOverride(
     if (natural.width <= 0.0 || natural.height <= 0.0) {
         Base::Result<void> arranged = ArrangeChild(
             *child, {0.0, 0.0, 0.0, 0.0});
-        if (!arranged) return arranged.GetStatus();
+        if (!arranged) return finalSize;
         Base::Result<void> reset =
             ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
-        if (!reset) return reset.GetStatus();
+        if (!reset) return finalSize;
         return finalSize;
     }
 
@@ -1308,38 +1277,30 @@ Base::Result<Size> Viewbox::ArrangeOverride(
         *child,
         {offsetX, offsetY,
          natural.width, natural.height});
-    if (!arranged) return arranged.GetStatus();
+    if (!arranged) return finalSize;
 
     Base::Result<void> transformed = ApplyViewTransform(
         scaleX,
         scaleY,
         0.0,
         0.0);
-    if (!transformed) return transformed.GetStatus();
+    if (!transformed) return finalSize;
     return finalSize;
 }
 
 Border::Border() noexcept : Decorator(StaticTypeId()) {}
 
-Color Border::Background() const noexcept {
-    return SampleBrush(BackgroundBrush());
-}
-
-Base::Ref<Brush> Border::BackgroundBrush() const noexcept {
+Base::Ref<Brush> Border::GetBackground() const noexcept {
     return GetValueOr(
         BackgroundProperty, Base::Ref<Brush>{});
 }
 
-Color Border::BorderBrush() const noexcept {
-    return SampleBrush(BorderBrushObject());
-}
-
-Base::Ref<Brush> Border::BorderBrushObject() const noexcept {
+Base::Ref<Brush> Border::GetBorderBrush() const noexcept {
     return GetValueOr(
         BorderBrushProperty, Base::Ref<Brush>{});
 }
 
-Thickness Border::BorderThickness() const noexcept {
+Thickness Border::GetBorderThickness() const noexcept {
     return GetValueOr(
         BorderThicknessProperty, Thickness{});
 }
@@ -1349,72 +1310,49 @@ CornerRadius Border::GetCornerRadius() const noexcept {
         CornerRadiusProperty, CornerRadius{});
 }
 
-Thickness Border::Padding() const noexcept {
+Thickness Border::GetPadding() const noexcept {
     return GetValueOr(PaddingProperty, Thickness{});
 }
 
-Base::Result<void> Border::SetBackground(Color value) noexcept {
-    Base::Result<Base::Ref<Brush>> brush =
-        MakeSolidColorBrush(value);
-    return brush
-        ? SetBackgroundBrush(std::move(brush).Value())
-        : brush.GetStatus();
-}
-
-Base::Result<void> Border::SetBackgroundBrush(
+void Border::SetBackground(
     Base::Ref<Brush> value) noexcept {
-    return SetValue(
+    SetValue(
         BackgroundProperty, std::move(value));
 }
 
-Base::Result<void> Border::SetStroke(Color value, double thickness) noexcept {
-    Base::Result<void> brush = SetBorderBrush(value);
-    return brush ? SetBorderThickness(thickness) : brush;
-}
-
-Base::Result<void> Border::SetBorderBrush(Color value) noexcept {
-    Base::Result<Base::Ref<Brush>> brush =
-        MakeSolidColorBrush(value);
-    return brush
-        ? SetBorderBrushObject(std::move(brush).Value())
-        : brush.GetStatus();
-}
-
-Base::Result<void> Border::SetBorderBrushObject(
+void Border::SetBorderBrush(
     Base::Ref<Brush> value) noexcept {
-    return SetValue(
+    SetValue(
         BorderBrushProperty, std::move(value));
 }
 
-Base::Result<void> Border::SetBorderThickness(
+void Border::SetBorderThickness(
     Thickness value) noexcept {
-    return SetValue(BorderThicknessProperty, value);
+    SetValue(BorderThicknessProperty, value);
 }
 
-Base::Result<void> Border::SetBorderThickness(
+void Border::SetBorderThickness(
     double value) noexcept {
-    return SetBorderThickness(
-        {value, value, value, value});
+    SetBorderThickness({value, value, value, value});
 }
 
-Base::Result<void> Border::SetCornerRadius(
+void Border::SetCornerRadius(
     CornerRadius value) noexcept {
-    return SetValue(CornerRadiusProperty, value);
+    SetValue(CornerRadiusProperty, value);
 }
 
-Base::Result<void> Border::SetCornerRadius(
+void Border::SetCornerRadius(
     double value) noexcept {
-    return SetCornerRadius(
-        {value, value, value, value});
+    SetCornerRadius({value, value, value, value});
 }
 
-Base::Result<void> Border::SetPadding(Thickness value) noexcept {
-    return SetValue(PaddingProperty, value);
+void Border::SetPadding(Thickness value) noexcept {
+    SetValue(PaddingProperty, value);
 }
 
-Base::Result<Size> Border::MeasureOverride(Size availableSize) noexcept {
-    const Thickness border = BorderThickness();
-    const Thickness padding = Padding();
+Size Border::MeasureOverride(Size availableSize) noexcept {
+    const Thickness border = GetBorderThickness();
+    const Thickness padding = GetPadding();
     const Thickness chrome{
         border.left + padding.left,
         border.top + padding.top,
@@ -1424,15 +1362,15 @@ Base::Result<Size> Border::MeasureOverride(Size availableSize) noexcept {
     if (child == nullptr) return Inflate({}, chrome);
     Base::Result<void> measured = MeasureChild(
         *child, Deflate(availableSize, chrome));
-    if (!measured) return measured.GetStatus();
+    if (!measured) return Size{};
     return Inflate(child->GetDesiredSize(), chrome);
 }
 
-Base::Result<Size> Border::ArrangeOverride(Size finalSize) noexcept {
+Size Border::ArrangeOverride(Size finalSize) noexcept {
     UIElement* child = GetChild();
     if (child == nullptr) return finalSize;
-    const Thickness border = BorderThickness();
-    const Thickness padding = Padding();
+    const Thickness border = GetBorderThickness();
+    const Thickness padding = GetPadding();
     const Thickness chrome{
         border.left + padding.left,
         border.top + padding.top,
@@ -1442,17 +1380,17 @@ Base::Result<Size> Border::ArrangeOverride(Size finalSize) noexcept {
     Base::Result<void> arranged = ArrangeChild(*child,
         {chrome.left, chrome.top,
          childSize.width, childSize.height});
-    if (!arranged) return arranged.GetStatus();
+    if (!arranged) return finalSize;
     return finalSize;
 }
 
-Base::Result<void> Border::OnRender(
+void Border::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
     const Rect bounds{0.0, 0.0, GetRenderSize().width, GetRenderSize().height};
     if (bounds.width <= 0.0 ||
         bounds.height <= 0.0) {
-        return {};
+        return;
     }
     const CornerRadius radii = GetCornerRadius();
     const double radius = std::min(
@@ -1466,8 +1404,8 @@ Base::Result<void> Border::OnRender(
         std::min(
             bounds.width,
             bounds.height) * 0.5);
-    const Color brush = BorderBrush();
-    const Thickness thickness = BorderThickness();
+    const Color brush = ::Aero::Internal::SampleBrush(GetBorderBrush());
+    const Thickness thickness = GetBorderThickness();
     const bool uniform =
         thickness.left == thickness.top &&
         thickness.left == thickness.right &&
@@ -1479,7 +1417,7 @@ Base::Result<void> Border::OnRender(
         Base::Result<void> border =
             builder.FillRoundedRect(
                 bounds, brush, radius);
-        if (!border) return border.GetStatus();
+        if (!border) return;
         const double inset = std::min(
             uniformThickness,
             std::min(
@@ -1494,26 +1432,28 @@ Base::Result<void> Border::OnRender(
                 inset * 2.0)};
         if (inner.width <= 0.0 ||
             inner.height <= 0.0) {
-            return {};
+            return;
         }
-        return builder.FillRoundedRect(
+        static_cast<void>(builder.FillRoundedRect(
             inner,
-            Background(),
+            ::Aero::Internal::SampleBrush(GetBackground()),
             std::min(
                 std::max(0.0, radius - inset),
                 std::min(
                     inner.width,
-                    inner.height) * 0.5));
+                    inner.height) * 0.5)));
+        return;
     }
     Base::Result<void> fill = radius > 0.0
         ? builder.FillRoundedRect(
-              bounds, Background(), radius)
-        : builder.FillRect(bounds, Background());
-    if (!fill) return fill.GetStatus();
+              bounds, ::Aero::Internal::SampleBrush(GetBackground()), radius)
+        : builder.FillRect(bounds, ::Aero::Internal::SampleBrush(GetBackground()));
+    if (!fill) return;
     if (uniformThickness > 0.0 &&
         brush.alpha > 0.0F) {
-        return builder.StrokeRect(
-            bounds, brush, uniformThickness);
+        static_cast<void>(builder.StrokeRect(
+            bounds, brush, uniformThickness));
+        return;
     }
     if (!uniform && brush.alpha > 0.0F) {
         const auto fillSide =
@@ -1526,25 +1466,26 @@ Base::Result<void> Border::OnRender(
             0.0, 0.0,
             std::min(bounds.width, thickness.left),
             bounds.height});
-        if (!side) return side;
+        if (!side) return;
         side = fillSide({
             std::max(0.0, bounds.width - thickness.right),
             0.0,
             std::min(bounds.width, thickness.right),
             bounds.height});
-        if (!side) return side;
+        if (!side) return;
         side = fillSide({
             0.0, 0.0,
             bounds.width,
             std::min(bounds.height, thickness.top)});
-        if (!side) return side;
-        return fillSide({
+        if (!side) return;
+        static_cast<void>(fillSide({
             0.0,
             std::max(0.0, bounds.height - thickness.bottom),
             bounds.width,
-            std::min(bounds.height, thickness.bottom)});
+            std::min(bounds.height, thickness.bottom)}));
+        return;
     }
-    return {};
+    return;
 }
 
 TextBlock::TextBlock() noexcept
@@ -1561,36 +1502,25 @@ TextBlock::~TextBlock() {
     ReleaseServiceGlyphRun();
 }
 
-Base::StringView TextBlock::Text() const noexcept {
+Base::StringView TextBlock::GetText() const noexcept {
     return GetValueOr(TextProperty, Base::StringView());
 }
 
-Color TextBlock::Foreground() const noexcept {
-    return SampleBrush(
-        ForegroundBrush(),
-        0.5,
-        Color{0.0F, 0.0F, 0.0F, 1.0F});
-}
-
-Base::Ref<Brush> TextBlock::ForegroundBrush() const noexcept {
+Base::Ref<Brush> TextBlock::GetForeground() const noexcept {
     return GetValueOr(
         ForegroundProperty, Base::Ref<Brush>{});
 }
 
-Color TextBlock::Background() const noexcept {
-    return SampleBrush(BackgroundBrush());
-}
-
-Base::Ref<Brush> TextBlock::BackgroundBrush() const noexcept {
+Base::Ref<Brush> TextBlock::GetBackground() const noexcept {
     return GetValueOr(
         BackgroundProperty, Base::Ref<Brush>{});
 }
 
-double TextBlock::FontSize() const noexcept {
+double TextBlock::GetFontSize() const noexcept {
     return GetValueOr(FontSizeProperty, 16.0);
 }
 
-Base::StringView TextBlock::FontFamily() const noexcept {
+Base::StringView TextBlock::GetFontFamily() const noexcept {
     return FrameworkElement::GetFontFamily();
 }
 
@@ -1603,13 +1533,13 @@ FontWeight TextBlock::GetFontWeight() const noexcept {
         FontWeight::Normal);
 }
 
-Text::FontStyle TextBlock::GetFontStyle() const noexcept {
+FontStyle TextBlock::GetFontStyle() const noexcept {
     if (RuntimeType() == Documents::Italic::StaticTypeId()) {
-        return Text::FontStyle::Italic;
+        return FontStyle::Italic;
     }
     return GetValueOr(
         FontStyleProperty,
-        Text::FontStyle::Normal);
+        FontStyle::Normal);
 }
 
 TextDecorations TextBlock::GetTextDecorations() const noexcept {
@@ -1621,141 +1551,119 @@ TextDecorations TextBlock::GetTextDecorations() const noexcept {
         TextDecorations::None);
 }
 
-Text::TextWrapping TextBlock::TextWrapping() const noexcept {
+TextWrapping TextBlock::GetTextWrapping() const noexcept {
     return GetValueOr(
         TextWrappingProperty,
-        Text::TextWrapping::NoWrap);
+        TextWrapping::NoWrap);
 }
 
-Text::TextTrimming TextBlock::TextTrimming() const noexcept {
+TextTrimming TextBlock::GetTextTrimming() const noexcept {
     return GetValueOr(
         TextTrimmingProperty,
-        Text::TextTrimming::None);
+        TextTrimming::None);
 }
 
-Text::TextAlignment TextBlock::TextAlignment() const noexcept {
+TextAlignment TextBlock::GetTextAlignment() const noexcept {
     return GetValueOr(
         TextAlignmentProperty,
-        Text::TextAlignment::Start);
+        TextAlignment::Start);
 }
 
-Base::Result<void> TextBlock::SetText(Base::StringView value) noexcept {
-    Base::Result<void> changed = SetValue(TextProperty, value);
-    if (changed) textHitRegions_.Clear();
-    return changed;
+void TextBlock::SetText(Base::StringView value) noexcept {
+    SetValue(TextProperty, value);
+    textHitRegions_.Clear();
 }
 
-Base::Result<void> TextBlock::SetForeground(Color value) noexcept {
-    Base::Result<Base::Ref<Brush>> brush =
-        MakeSolidColorBrush(value);
-    return brush
-        ? SetForegroundBrush(std::move(brush).Value())
-        : brush.GetStatus();
-}
-
-Base::Result<void> TextBlock::SetBackground(Color value) noexcept {
-    Base::Result<Base::Ref<Brush>> brush =
-        MakeSolidColorBrush(value);
-    return brush
-        ? SetBackgroundBrush(std::move(brush).Value())
-        : brush.GetStatus();
-}
-
-Base::Result<void> TextBlock::SetForegroundBrush(
+void TextBlock::SetForeground(
     Base::Ref<Brush> value) noexcept {
-    return SetValue(
+    SetValue(
         ForegroundProperty, std::move(value));
 }
 
-Base::Result<void> TextBlock::SetBackgroundBrush(
+void TextBlock::SetBackground(
     Base::Ref<Brush> value) noexcept {
-    return SetValue(
+    SetValue(
         BackgroundProperty, std::move(value));
 }
 
-Base::Result<void> TextBlock::SetFontSize(double value) noexcept {
-    return SetValue(FontSizeProperty, value);
+void TextBlock::SetFontSize(double value) noexcept {
+    SetValue(FontSizeProperty, value);
 }
 
-Base::Result<void> TextBlock::SetFontFamily(
+void TextBlock::SetFontFamily(
     Base::StringView value) noexcept {
-    return SetValue(FontFamilyProperty, value);
+    SetValue(FontFamilyProperty, value);
 }
 
-Base::Result<void> TextBlock::SetFontWeight(
+void TextBlock::SetFontWeight(
     FontWeight value) noexcept {
-    return SetValue(FontWeightProperty, value);
+    SetValue(FontWeightProperty, value);
 }
 
-Base::Result<void> TextBlock::SetFontStyle(
-    Text::FontStyle value) noexcept {
-    return SetValue(FontStyleProperty, value);
+void TextBlock::SetFontStyle(
+    FontStyle value) noexcept {
+    SetValue(FontStyleProperty, value);
 }
 
-Base::Result<void> TextBlock::SetTextDecorations(
+void TextBlock::SetTextDecorations(
     TextDecorations value) noexcept {
-    return SetValue(TextDecorationsProperty, value);
+    SetValue(TextDecorationsProperty, value);
 }
 
-Base::Result<void> TextBlock::SetTextWrapping(
-    Text::TextWrapping value) noexcept {
-    return SetValue(TextWrappingProperty, value);
+void TextBlock::SetTextWrapping(
+    TextWrapping value) noexcept {
+    SetValue(TextWrappingProperty, value);
 }
 
-Base::Result<void> TextBlock::SetTextTrimming(
-    Text::TextTrimming value) noexcept {
-    return SetValue(TextTrimmingProperty, value);
+void TextBlock::SetTextTrimming(
+    TextTrimming value) noexcept {
+    SetValue(TextTrimmingProperty, value);
 }
 
-Base::Result<void> TextBlock::SetTextAlignment(
-    Text::TextAlignment value) noexcept {
-    return SetValue(TextAlignmentProperty, value);
+void TextBlock::SetTextAlignment(
+    TextAlignment value) noexcept {
+    SetValue(TextAlignmentProperty, value);
 }
 
-Core::Value TextBlock::MetadataInlines() const noexcept {
+Meta::Value TextBlock::GetMetadataInlines() const noexcept {
     if (pendingInline_) {
-        return Core::Value::FromObject(
+        return Meta::Value::FromObject(
             pendingInline_->RuntimeType(),
             pendingInline_);
     }
-    return Core::Value::NullObject(
-        Core::TypeOf<Base::Object>());
+    return Meta::Value::NullObject(
+        Meta::TypeOf<Base::Object>());
 }
 
-Base::Result<void> TextBlock::SetInlineValue(
-    Core::Value value) noexcept {
+void TextBlock::SetInlineValue(
+    Meta::Value value) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (value.Kind() == Core::ValueKind::Object &&
+    if (!access) return;
+    if (value.Kind() == Meta::ValueKind::Object &&
         !value.IsNullObject() &&
         value.AsObject()) {
         Base::Ref<Base::Object> inlineObject = value.AsObject();
         if (!PropertyRegistry().Types().IsDerivedFrom(
                 inlineObject->RuntimeType(),
                 Documents::Inline::StaticTypeId())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "TextBlock inline object must derive from Documents::Inline");
+            return;
         }
-        return AddOwnedInline(inlineObject);
+        (void)TryAddOwnedInline(inlineObject);
+        return;
     }
-    if (value.Kind() != Core::ValueKind::String) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextBlock inline content must be text or an object");
+    if (value.Kind() != Meta::ValueKind::String) {
+        return;
     }
     Base::Result<Base::Ref<Documents::Run>> created =
         Base::MakeRef<Documents::Run>();
-    if (!created) return created.GetStatus();
-    Base::Result<void> text =
-        created.Value()->SetText(value.AsString());
-    if (!text) return text.GetStatus();
+    if (!created) return;
+    created.Value()->SetText(value.AsString());
     pendingInline_ = Base::Ref<Base::Object>(
         created.Value());
-    return {};
+    return;
 }
 
-Base::Result<void> TextBlock::AddOwnedInline(
+Base::Result<void> TextBlock::TryAddOwnedInline(
     const Base::Ref<Base::Object>& inlineObject) noexcept {
     if (!inlineObject) {
         return Base::Status::Failure(
@@ -1785,28 +1693,28 @@ Base::Result<void> TextBlock::AddOwnedInline(
         ownedInlines_.TryPushBack(inlineObject);
     if (!appended) return appended.GetStatus();
     auto& inlineValue = *static_cast<Documents::Inline*>(inlineObject.Get());
-    Aero::Detail::ElementPrivate::Attach(
+    Aero::Internal::ElementPrivate::Attach(
         inlineValue, this, this, nullptr);
     pendingInline_ = inlineObject;
     return InvalidateMeasure();
 }
 
-Base::Result<void> TextBlock::ClearOwnedInlines() noexcept {
+void TextBlock::ClearOwnedInlines() noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) return;
     for (Base::Ref<Base::Object>& item : ownedInlines_) {
         if (item) {
-            Aero::Detail::ElementPrivate::Detach(
+            Aero::Internal::ElementPrivate::Detach(
                 *static_cast<Documents::Inline*>(item.Get()));
         }
     }
     ownedInlines_.Clear();
     pendingInline_.Reset();
-    return InvalidateMeasure();
+    (void)InvalidateMeasure();
 }
 
 Base::StringView TextBlock::EffectiveFontFamily() const noexcept {
-    const Base::StringView configured = FontFamily();
+    const Base::StringView configured = GetFontFamily();
     const bool defaultFamily =
         configured.Empty() ||
         configured == Base::StringView("Segoe UI");
@@ -1815,7 +1723,7 @@ Base::StringView TextBlock::EffectiveFontFamily() const noexcept {
         GetFontWeight() == FontWeight::Bold ||
         GetFontWeight() == FontWeight::SemiBold;
     const bool italic =
-        GetFontStyle() != Text::FontStyle::Normal;
+        GetFontStyle() != FontStyle::Normal;
     if (bold && italic) {
         return Base::StringView("Segoe UI Bold Italic");
     }
@@ -1824,38 +1732,36 @@ Base::StringView TextBlock::EffectiveFontFamily() const noexcept {
     return configured;
 }
 
-Base::Result<void> TextBlock::SetGlyphRun(
+void TextBlock::SetGlyphRun(
     RenderGlyphRunId glyphRun, Size size) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) return;
     if (!IsValidTextSize(size) ||
         (glyphRun == InvalidRenderGlyphRunId &&
             (size.width != 0.0 || size.height != 0.0))) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "TextBlock glyph run and size are invalid");
+        return;
     }
     if (glyphRuns_.Size() == 1U && glyphRuns_[0] == glyphRun &&
         glyphRunSize_.width == size.width &&
         glyphRunSize_.height == size.height &&
-        !serviceOwnsGlyphRun_) return {};
+        !serviceOwnsGlyphRun_) return;
     ReleaseServiceGlyphRun();
     glyphRuns_.Clear();
     textHitRegions_.Clear();
     if (glyphRun != InvalidRenderGlyphRunId) {
         Base::Result<void> appended =
             glyphRuns_.TryPushBack(glyphRun);
-        if (!appended) return appended.GetStatus();
+        if (!appended) return;
     }
     glyphRunSize_ = size;
-    Base::Result<void> measure = InvalidateMeasure();
-    if (!measure) return measure.GetStatus();
-    return InvalidateVisual();
+    (void)InvalidateMeasure();
+    (void)InvalidateVisual();
 }
 
-Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
+Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     Base::String flattened;
     Base::Result<void> copied = Documents::CopyText(*this, flattened);
-    if (!copied) return copied.GetStatus();
+    if (!copied) return Size{};
 
     if (layoutService_ != nullptr) {
         const Base::StringView text = flattened.View();
@@ -1870,22 +1776,22 @@ Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
             textHitRegions_.Clear();
             if (changed) {
                 Base::Result<void> invalidated = InvalidateVisual();
-                if (!invalidated) return invalidated.GetStatus();
+                if (!invalidated) return Size{};
             }
         } else {
-            Detail::TextLayoutRequest request;
+            Internal::TextLayoutRequest request;
             request.text = text;
             request.availableSize = availableSize;
             request.dpiScale = GetDpiScale();
-            request.pixelSize = static_cast<float>(FontSize());
+            request.pixelSize = static_cast<float>(GetFontSize());
             request.fontFamily = EffectiveFontFamily();
-            request.wrapping = TextWrapping();
-            request.trimming = TextTrimming();
-            request.alignment = TextAlignment();
-            Detail::TextLayoutResult output;
+            request.wrapping = GetTextWrapping();
+            request.trimming = GetTextTrimming();
+            request.alignment = GetTextAlignment();
+            Internal::TextLayoutResult output;
             Base::Result<void> prepared =
                 layoutService_->ShapeAndPrepare(request, output);
-            if (!prepared) return prepared.GetStatus();
+            if (!prepared) return Size{};
             bool validGlyphRuns = true;
             for (RenderGlyphRunId glyphRun : output.glyphRuns) {
                 if (glyphRun == InvalidRenderGlyphRunId) {
@@ -1899,9 +1805,7 @@ Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
                         layoutService_->ReleaseGlyphRun(glyphRun);
                     }
                 }
-                return Base::Status::Failure(
-                    Base::ErrorCode::ValidationFailed,
-                    "Text layout service returned an invalid result");
+                return Size{};
             }
 
             bool changed =
@@ -1925,7 +1829,7 @@ Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
             serviceOwnsGlyphRun_ = !glyphRuns_.Empty();
             if (changed) {
                 Base::Result<void> invalidated = InvalidateVisual();
-                if (!invalidated) return invalidated.GetStatus();
+                if (!invalidated) return Size{};
             }
         }
     }
@@ -1934,14 +1838,14 @@ Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
         std::min(glyphRunSize_.height, availableSize.height)};
 }
 
-Base::Result<Size> TextBlock::ArrangeOverride(Size finalSize) noexcept {
+Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 
-Base::Result<void> TextBlock::OnRender(
+void TextBlock::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
-    const Color background = Background();
+    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    const Color background = ::Aero::Internal::SampleBrush(GetBackground());
     if (background.alpha > 0.0F) {
         Base::Result<void> filled =
             builder.FillRect(
@@ -1949,26 +1853,28 @@ Base::Result<void> TextBlock::OnRender(
                  GetRenderSize().width,
                  GetRenderSize().height},
                 background);
-        if (!filled) return filled.GetStatus();
+        if (!filled) return;
     }
     for (RenderGlyphRunId glyphRun : glyphRuns_) {
         Base::Result<void> drawn =
-            builder.DrawGlyphRun(glyphRun, Foreground());
-        if (!drawn) return drawn.GetStatus();
+            builder.DrawGlyphRun(glyphRun, ::Aero::Internal::SampleBrush(GetForeground(), 0.5,
+                Color{0.0F, 0.0F, 0.0F, 1.0F}));
+        if (!drawn) return;
     }
     if (GetTextDecorations() ==
             TextDecorations::Underline &&
         glyphRunSize_.width > 0.0) {
         const double thickness =
-            std::max(1.0, FontSize() * 0.06);
+            std::max(1.0, GetFontSize() * 0.06);
         const double y = std::max(
             0.0,
             glyphRunSize_.height - thickness * 1.5);
-        return builder.FillRect(
+        static_cast<void>(builder.FillRect(
             {0.0, y, glyphRunSize_.width, thickness},
-            Foreground());
+            ::Aero::Internal::SampleBrush(GetForeground(), 0.5,
+                Color{0.0F, 0.0F, 0.0F, 1.0F})));
     }
-    return {};
+    return;
 }
 
 void TextBlock::ReleaseServiceGlyphRun() noexcept {
@@ -1986,7 +1892,7 @@ ContentPresenter::ContentPresenter() noexcept
 
 void ContentPresenter::OnContentPropertyChanged(
     ::Aero::DependencyObject& object,
-    const Core::DependencyPropertyChangedEventArgs&
+    const Meta::DependencyPropertyChangedEventArgs&
         change) noexcept {
     auto& presenter =
         static_cast<ContentPresenter&>(object);
@@ -2005,7 +1911,7 @@ ContentPresenter::UpdatePresentedText() noexcept {
     }
     Base::String text;
     switch (contentValue_.Kind()) {
-    case Core::ValueKind::String:
+    case Meta::ValueKind::String:
         {
             Base::Result<void> assigned =
                 text.TryAssign(
@@ -2015,7 +1921,7 @@ ContentPresenter::UpdatePresentedText() noexcept {
             }
         }
         break;
-    case Core::ValueKind::Boolean:
+    case Meta::ValueKind::Boolean:
         {
             Base::Result<void> assigned =
                 text.TryAssign(
@@ -2027,20 +1933,20 @@ ContentPresenter::UpdatePresentedText() noexcept {
             }
         }
         break;
-    case Core::ValueKind::SignedInteger:
-    case Core::ValueKind::UnsignedInteger:
-    case Core::ValueKind::Double:
+    case Meta::ValueKind::SignedInteger:
+    case Meta::ValueKind::UnsignedInteger:
+    case Meta::ValueKind::Double:
         {
             char raw[64]{};
             if (contentValue_.Kind() ==
-                Core::ValueKind::SignedInteger) {
+                Meta::ValueKind::SignedInteger) {
                 std::snprintf(
                     raw, sizeof(raw), "%lld",
                     static_cast<long long>(
                         contentValue_.
                             AsSignedInteger()));
             } else if (contentValue_.Kind() ==
-                       Core::ValueKind::
+                       Meta::ValueKind::
                            UnsignedInteger) {
                 std::snprintf(
                     raw, sizeof(raw), "%llu",
@@ -2060,7 +1966,7 @@ ContentPresenter::UpdatePresentedText() noexcept {
             }
         }
         break;
-    case Core::ValueKind::Object:
+    case Meta::ValueKind::Object:
         if (!contentValue_.IsNullObject()) {
             return {};
         }
@@ -2068,13 +1974,13 @@ ContentPresenter::UpdatePresentedText() noexcept {
     default:
         return {};
     }
-    return static_cast<TextBlock*>(
-        content_)->SetText(text.View());
+    static_cast<TextBlock*>(content_)->SetText(text.View());
+    return {};
 }
 
-Base::Result<void> ContentPresenter::SetContentSource(
+void ContentPresenter::SetContentSource(
     Base::StringView value) noexcept {
-    return SetValue(
+    SetValue(
         ContentSourceProperty, value);
 }
 
@@ -2084,35 +1990,31 @@ bool ContentPresenter::IsOnlyAttachedContent(
     return children.Size() == 1U && children[0] == &content;
 }
 
-Base::Result<void> ContentPresenter::SetContent(UIElement* content) noexcept {
+void ContentPresenter::SetContent(UIElement* content) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) return;
     Base::Result<void> validated = ValidateContent(content);
-    if (!validated) return validated;
-    if (content == content_) return {};
+    if (!validated) return;
+    if (content == content_) return;
     content_ = content;
     if (content == nullptr) ownedContent_.Reset();
-    return InvalidateMeasure();
+    (void)InvalidateMeasure();
 }
 
-Base::Result<void> ContentPresenter::SetOwnedContent(
+void ContentPresenter::SetOwnedContent(
     const Base::Ref<Base::Object>& contentObject,
     UIElement& content) noexcept {
     if (!contentObject || contentObject.Get() != &content) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "ContentPresenter owned content does not match its UIElement");
+        return;
     }
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) return;
     Base::Result<void> validated = ValidateContent(&content);
-    if (!validated) return validated;
+    if (!validated) return;
     content_ = &content;
     ownedContent_ = contentObject;
-    Base::Result<void> updated =
-        UpdatePresentedText();
-    return updated
-        ? InvalidateMeasure()
-        : updated;
+    (void)UpdatePresentedText();
+    (void)InvalidateMeasure();
 }
 
 Base::Result<void> ContentPresenter::ValidateContent(
@@ -2129,33 +2031,30 @@ Base::Result<void> ContentPresenter::ValidateContent(
     return {};
 }
 
-Base::Result<Size> ContentPresenter::MeasureOverride(
+Size ContentPresenter::MeasureOverride(
     Size availableSize) noexcept {
     if (content_ == nullptr) {
         if (!LayoutChildren().Empty()) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidState,
-                "ContentPresenter has attached children without content");
+            return Size{};
         }
         return Size{};
     }
     if (!IsOnlyAttachedContent(*content_)) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "ContentPresenter content attachment is invalid");
+        return Size{};
     }
     Base::Result<void> measured = MeasureChild(*content_, availableSize);
-    if (!measured) return measured.GetStatus();
+    if (!measured) return Size{};
     return content_->GetDesiredSize();
 }
 
-Base::Result<Size> ContentPresenter::ArrangeOverride(Size finalSize) noexcept {
+Size ContentPresenter::ArrangeOverride(Size finalSize) noexcept {
     if (content_ == nullptr) return finalSize;
     if (!IsOnlyAttachedContent(*content_)) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "ContentPresenter content attachment is invalid");
+        return finalSize;
     }
     Base::Result<void> arranged = ArrangeChild(*content_,
         {0.0, 0.0, finalSize.width, finalSize.height});
-    if (!arranged) return arranged.GetStatus();
+    if (!arranged) return finalSize;
     return finalSize;
 }
 
@@ -2173,7 +2072,7 @@ UIElement* UIElementCollection::GetItem(std::uint32_t index) const noexcept {
     return child ? static_cast<UIElement*>(child.Get()) : nullptr;
 }
 
-Base::Result<void> UIElementCollection::Add(Base::Ref<UIElement> child) noexcept {
+Base::Result<void> UIElementCollection::TryAdd(Base::Ref<UIElement> child) noexcept {
     if (owner_ == nullptr || !child) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "UIElementCollection requires an owner and child");
     }
@@ -2181,7 +2080,7 @@ Base::Result<void> UIElementCollection::Add(Base::Ref<UIElement> child) noexcept
     return owner_->AddChildCore(object, *child);
 }
 
-Base::Result<void> UIElementCollection::Remove(UIElement& child) noexcept {
+Base::Result<void> UIElementCollection::TryRemove(UIElement& child) noexcept {
     if (owner_ == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState, "UIElementCollection has no owner");
     }
@@ -2189,10 +2088,11 @@ Base::Result<void> UIElementCollection::Remove(UIElement& child) noexcept {
     return removed ? Base::Result<void>() : Base::Result<void>(removed.GetStatus());
 }
 
-Base::Result<void> UIElementCollection::Clear() noexcept {
-    return owner_ != nullptr
-        ? owner_->ClearChildrenCore()
-        : Base::Result<void>(Base::Status::Failure(Base::ErrorCode::InvalidState, "UIElementCollection has no owner"));
+void UIElementCollection::Clear() noexcept {
+    if (owner_ == nullptr) {
+        return;
+    }
+    owner_->ClearChildrenCore();
 }
 
 Base::Result<void> Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
@@ -2229,14 +2129,14 @@ Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
     return false;
 }
 
-Base::Result<void> Panel::ClearChildrenCore() noexcept {
+void Panel::ClearChildrenCore() noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) return;
     if (!LayoutChildren().Empty()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState, "Panel children must be detached before clearing the collection");
+        return;
     }
     ownedChildren_.Clear();
-    return InvalidateMeasure();
+    (void)InvalidateMeasure();
 }
 
 } // namespace Aero::Controls

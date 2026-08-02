@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Text/Providers.hpp>
+#include "Providers.hpp"
 
 namespace Aero::Text {
 

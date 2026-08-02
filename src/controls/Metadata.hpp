@@ -23,7 +23,7 @@ inline Base::Result<void> TryRegisterControlsMetadata(
     constexpr std::uint32_t SchemaVersion = 28U;
     const Base::StringView name = ControlsMetadataModuleName();
     return domain.TryRegisterModule({
-        Core::MakeMetadataModuleId(name),
+        Meta::MakeMetadataModuleId(name),
         name,
         SchemaVersion,
         &Detail::PopulateControlsMetadata,

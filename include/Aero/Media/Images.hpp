@@ -1,11 +1,11 @@
-#pragma once
+﻿#pragma once
 
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/DependencyProperty.hpp>
 
 namespace Aero::Media {
 
-using namespace Aero::Core;
+using ::Aero::Meta::TypeId;
 
 enum class Stretch : std::uint8_t {
     None = 0U,
@@ -35,8 +35,8 @@ public:
         : ImageSource(StaticTypeId()) {}
     ~BitmapImage() override = default;
 
-    Base::ResourceUri UriSource() const noexcept;
-    Base::Result<void> SetUriSource(
+    Base::ResourceUri GetUriSource() const noexcept;
+    void SetUriSource(
         const Base::ResourceUri& value) noexcept;
 
     inline static constexpr Members::Property<Base::ResourceUri> UriSourceProperty{"UriSource"};
@@ -44,10 +44,10 @@ public:
 
 } // namespace Aero::Media
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Aero::Media::Stretch> {
+struct TypeTraits<Aero::Media::Stretch> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("Stretch");
     }
@@ -63,7 +63,7 @@ struct MetaTypeTraits<Aero::Media::Stretch> {
 };
 
 template<>
-struct MetaTypeTraits<Aero::Media::StretchDirection> {
+struct TypeTraits<Aero::Media::StretchDirection> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("StretchDirection");
     }
@@ -78,7 +78,7 @@ struct MetaTypeTraits<Aero::Media::StretchDirection> {
     }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 namespace Aero::Controls {
 using Stretch = Aero::Media::Stretch;

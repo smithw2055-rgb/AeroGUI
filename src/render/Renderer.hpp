@@ -83,7 +83,7 @@ public:
     Base::Result<void> UnregisterMesh(
         Render::RenderMeshId mesh) noexcept;
     Base::Result<Graphics::CommandList> Record(
-        const Render::RenderFrame& plan,
+        const Integration::RenderFrame& plan,
         const RenderTarget& target) noexcept;
     RendererStatistics LastStatistics() const noexcept;
     void SetBatchingEnabled(bool enabled) noexcept;

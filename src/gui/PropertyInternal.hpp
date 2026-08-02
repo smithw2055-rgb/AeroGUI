@@ -14,7 +14,12 @@
 
 namespace Aero::Meta { class Registry; class Registration; }
 
-namespace Aero::Core {
+namespace Aero::Meta {
+
+using ::Aero::Threading::Dispatcher;
+using ::Aero::Threading::DispatcherFrameHookHandle;
+using ::Aero::Threading::DispatcherThreadToken;
+using ::Aero::Threading::CurrentDispatcherThreadToken;
 
 using EffectiveValueDiagnostics = PropertyValueSourceInfo;
 
@@ -165,10 +170,10 @@ private:
     static void PropertyChangesHook(void* context) noexcept;
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 
 struct ObjectFactoryState final {
@@ -214,12 +219,14 @@ private:
     DispatcherThreadToken ownerThread_ = 0U;
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 
 #include <utility>
 
-namespace Aero::Core::Detail {
+namespace Aero::Internal {
+
+using namespace ::Aero::Meta;
 
 // Manager-owned provider state. One session belongs to one StyleEngine,
 // StyleEngine or TemplateEngine allocates all provider origins through the
@@ -589,4 +596,4 @@ private:
     PropertyProviderSession session_;
 };
 
-} // namespace Aero::Core::Detail
+} // namespace Aero::Internal

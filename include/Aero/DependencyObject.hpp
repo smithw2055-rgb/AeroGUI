@@ -4,17 +4,17 @@
 
 namespace Aero {
 
-using DependencyProperty = Core::DependencyProperty;
-using DependencyPropertyKey = Core::DependencyPropertyKey;
-using DependencyPropertyHandle = Core::DependencyPropertyHandle;
+using DependencyProperty = Meta::DependencyProperty;
+using DependencyPropertyKey = Meta::DependencyPropertyKey;
+using DependencyPropertyHandle = Meta::DependencyPropertyHandle;
 using DependencyPropertyChangedEventArgs =
-    Core::DependencyPropertyChangedEventArgs;
+    Meta::DependencyPropertyChangedEventArgs;
 using DependencyPropertyChangedEventHandler =
-    Core::DependencyPropertyChangedEventHandler;
-using PropertyMetadata = Core::PropertyMetadata;
-using FrameworkPropertyMetadata = Core::FrameworkPropertyMetadata;
-using FrameworkPropertyMetadataOptions = Core::FrameworkPropertyMetadataOptions;
-using PropertyMetadataFlags = Core::PropertyMetadataFlags;
-using UpdateSourceTrigger = Core::UpdateSourceTrigger;
+    Meta::DependencyPropertyChangedEventHandler;
+using PropertyMetadata = Meta::PropertyMetadata;
+using FrameworkPropertyMetadata = Meta::FrameworkPropertyMetadata;
+using FrameworkPropertyMetadataOptions = Meta::FrameworkPropertyMetadataOptions;
+using PropertyMetadataFlags = Meta::PropertyMetadataFlags;
+using UpdateSourceTrigger = Meta::UpdateSourceTrigger;
 
 } // namespace Aero

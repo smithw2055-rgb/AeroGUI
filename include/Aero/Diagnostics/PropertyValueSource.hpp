@@ -9,7 +9,7 @@
 
 namespace Aero { class DependencyObject; }
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 using DependencyObject = ::Aero::DependencyObject;
 struct DependencyPropertyHandle;
@@ -144,7 +144,7 @@ struct PropertyProviderContribution final {
 // provider sessions attached to that engine.
 class PropertyProviderSet final {
 public:
-    Base::Result<void> Set(
+    Base::Result<void> TrySet(
         PropertyProviderToken token,
         const PropertyValue& value) noexcept {
         if (!token.IsValid() || value.IsUnset()) {
@@ -160,7 +160,7 @@ public:
         return contributions_.TryPushBack({token, value});
     }
 
-    Base::Result<void> Set(
+    Base::Result<void> TrySet(
         PropertyProviderToken token,
         PropertyValue&& value) noexcept {
         if (!token.IsValid() || value.IsUnset()) {
@@ -310,4 +310,4 @@ private:
     }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

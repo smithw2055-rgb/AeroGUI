@@ -15,7 +15,8 @@
 
 namespace Aero {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using namespace Aero::Media;
 namespace {
 
@@ -42,7 +43,7 @@ Size ClampSize(Size value, Size minimum, Size maximum) noexcept {
 
 struct RoutedHandlerRecord final {
     RoutedEventHandle event;
-    Aero::Detail::RoutedHandlerStorage handler;
+    Aero::Internal::RoutedHandlerStorage handler;
     std::uint64_t sequence = 0U;
     bool handledEventsToo = false;
 };
@@ -234,7 +235,7 @@ Base::Result<void> UIElement::TryAddHandlerCore(
 
     RoutedHandlerRecord record;
     record.event = event;
-    record.handler = Aero::Detail::RoutedHandlerStorage(
+    record.handler = Aero::Internal::RoutedHandlerStorage(
         handler.value,
         handler.operations->size,
         handler.operations->alignment,
@@ -256,7 +257,7 @@ bool UIElement::RemoveHandlerCore(
         handler.operations == nullptr || routedHandlers_ == nullptr) {
         return false;
     }
-    Aero::Detail::RoutedHandlerStorage probe(
+    Aero::Internal::RoutedHandlerStorage probe(
         handler.value,
         handler.operations->size,
         handler.operations->alignment,
@@ -306,17 +307,15 @@ void UIElement::CleanupHandlers() noexcept {
     routedHandlers_ = nullptr;
 }
 
-Base::Result<void> UIElement::RaiseEvent(
+void UIElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
-    Aero::Detail::EventRouter* eventRouter =
-        Aero::Detail::ElementPrivate::EventRouterFor(*this);
+    Aero::Internal::EventRouter* eventRouter =
+        Aero::Internal::ElementPrivate::EventRouterFor(*this);
     if (eventRouter == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "UIElement is not attached to an event router");
+        return;
     }
-    return eventRouter->RaiseEvent(*this, event, args);
+    static_cast<void>(eventRouter->RaiseEvent(*this, event, args));
 }
 
 Base::Result<void> UIElement::InvalidateMeasure() noexcept {
@@ -325,7 +324,7 @@ Base::Result<void> UIElement::InvalidateMeasure() noexcept {
         arrangeValid_ = false;
         return {};
     }
-    return static_cast<Aero::Detail::LayoutEngine*>(layoutManager_)->InvalidateMeasure(*this);
+    return static_cast<Aero::Internal::LayoutEngine*>(layoutManager_)->InvalidateMeasure(*this);
 }
 
 Base::Result<void> UIElement::InvalidateArrange() noexcept {
@@ -333,25 +332,21 @@ Base::Result<void> UIElement::InvalidateArrange() noexcept {
         arrangeValid_ = false;
         return {};
     }
-    return static_cast<Aero::Detail::LayoutEngine*>(layoutManager_)->InvalidateArrange(*this);
+    return static_cast<Aero::Internal::LayoutEngine*>(layoutManager_)->InvalidateArrange(*this);
 }
 
-Base::Result<void> FrameworkElement::SetUseLayoutRounding(
+void FrameworkElement::SetUseLayoutRounding(
     bool enabled,
     double dpiScale) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) {
-        return access;
-    }
+    if (!access) return;
     if (!std::isfinite(dpiScale) || dpiScale <= 0.0) {
-        return InvalidArgument("Layout DPI scale must be finite and positive");
+        return;
     }
     const bool scaleChanged = dpiScale_ != dpiScale;
     dpiScale_ = dpiScale;
-    Base::Result<void> result =
-        SetValue(UseLayoutRoundingProperty, enabled);
-    if (!result) return result;
-    return scaleChanged && enabled ? InvalidateMeasure() : Base::Result<void>();
+    SetValue(UseLayoutRoundingProperty, enabled);
+    if (scaleChanged && enabled) (void)InvalidateMeasure();
 }
 
 bool UIElement::GetClipToBounds() const noexcept {
@@ -412,11 +407,11 @@ bool UIElement::GetIsFocusScope() const noexcept {
 bool FrameworkElement::GetUseLayoutRounding() const noexcept {
     return GetValueOr(UseLayoutRoundingProperty, false);
 }
-bool FrameworkElement::HasWidth() const noexcept {
+bool FrameworkElement::GetHasWidth() const noexcept {
     return !GetValueOr(
         WidthProperty, Length::Auto()).isAuto;
 }
-bool FrameworkElement::HasHeight() const noexcept {
+bool FrameworkElement::GetHasHeight() const noexcept {
     return !GetValueOr(
         HeightProperty, Length::Auto()).isAuto;
 }
@@ -454,61 +449,56 @@ VerticalAlignment FrameworkElement::GetVerticalAlignment() const noexcept {
         VerticalAlignment::Stretch);
 }
 
-Base::Result<void> UIElement::OnPropertyInvalidated(
+void UIElement::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
     if (HasFlag(flags, PropertyInvalidationFlags::Measure)) {
-        Base::Result<void> result = InvalidateMeasure();
-        if (!result) return result;
+        (void)InvalidateMeasure();
     } else if (HasFlag(flags, PropertyInvalidationFlags::Arrange)) {
-        Base::Result<void> result = InvalidateArrange();
-        if (!result) return result;
+        (void)InvalidateArrange();
     }
     UIElement* parent = layoutAttached_ ? LayoutParent() : nullptr;
     if (parent != nullptr &&
         HasFlag(flags, PropertyInvalidationFlags::ParentMeasure)) {
-        Base::Result<void> result = parent->InvalidateMeasure();
-        if (!result) return result;
+        (void)parent->InvalidateMeasure();
     } else if (parent != nullptr &&
         HasFlag(flags, PropertyInvalidationFlags::ParentArrange)) {
-        Base::Result<void> result = parent->InvalidateArrange();
-        if (!result) return result;
+        (void)parent->InvalidateArrange();
     }
-    return DependencyObject::OnPropertyInvalidated(flags);
+    DependencyObject::OnPropertyInvalidated(flags);
 }
 
-Base::Result<void> UIElement::SetClipToBounds(bool value) noexcept {
-    return SetValue(ClipToBoundsProperty, value);
+void UIElement::SetClipToBounds(bool value) noexcept {
+    SetValue(ClipToBoundsProperty, value);
 }
 
-Base::Result<void> UIElement::SetBlendMode(
+void UIElement::SetBlendMode(
     BlendMode value) noexcept {
-    return SetValue(BlendModeProperty, value);
+    SetValue(BlendModeProperty, value);
 }
 
-Base::Result<void> UIElement::SetEffect(
+void UIElement::SetEffect(
     Base::Ref<Effect> value) noexcept {
-    return SetValue(
-        EffectProperty, std::move(value));
+    SetValue(EffectProperty, std::move(value));
 }
 
-Base::Result<void> UIElement::SetIsHitTestVisible(bool value) noexcept {
-    return SetValue(IsHitTestVisibleProperty, value);
+void UIElement::SetIsHitTestVisible(bool value) noexcept {
+    SetValue(IsHitTestVisibleProperty, value);
 }
-Base::Result<void> UIElement::SetVisibility(
+void UIElement::SetVisibility(
     Visibility value) noexcept {
-    return SetValue(VisibilityProperty, value);
+    SetValue(VisibilityProperty, value);
 }
-Base::Result<void> UIElement::SetIsEnabled(bool value) noexcept {
-    return SetValue(IsEnabledProperty, value);
+void UIElement::SetIsEnabled(bool value) noexcept {
+    SetValue(IsEnabledProperty, value);
 }
-Base::Result<void> UIElement::SetIsTabStop(bool value) noexcept {
-    return SetValue(IsTabStopProperty, value);
+void UIElement::SetIsTabStop(bool value) noexcept {
+    SetValue(IsTabStopProperty, value);
 }
-Base::Result<void> UIElement::SetTabIndex(std::uint32_t value) noexcept {
-    return SetValue(TabIndexProperty, value);
+void UIElement::SetTabIndex(std::uint32_t value) noexcept {
+    SetValue(TabIndexProperty, value);
 }
-Base::Result<void> UIElement::SetIsFocusScope(bool value) noexcept {
-    return SetValue(IsFocusScopeProperty, value);
+void UIElement::SetIsFocusScope(bool value) noexcept {
+    SetValue(IsFocusScopeProperty, value);
 }
 Base::Ref<Transform> UIElement::GetRenderTransform() const noexcept {
     Base::Result<Base::Ref<Transform>> value =
@@ -518,91 +508,83 @@ Base::Ref<Transform> UIElement::GetRenderTransform() const noexcept {
 Point UIElement::GetRenderTransformOrigin() const noexcept {
     return GetValueOr(RenderTransformOriginProperty, Point{});
 }
-Base::Result<void> UIElement::SetRenderTransform(
+void UIElement::SetRenderTransform(
     Base::Ref<Transform> value) noexcept {
-    return SetValue(RenderTransformProperty, std::move(value));
+    SetValue(RenderTransformProperty, std::move(value));
 }
-Base::Result<void> UIElement::SetRenderTransformOrigin(
+void UIElement::SetRenderTransformOrigin(
     Point value) noexcept {
-    return SetValue(RenderTransformOriginProperty, value);
+    SetValue(RenderTransformOriginProperty, value);
 }
-Base::Result<void> UIElement::SetMouseOverState(bool value) noexcept {
-    return SetReadOnlyCurrentValue(IsMouseOverProperty, value);
+void UIElement::SetMouseOverState(bool value) noexcept {
+    SetReadOnlyCurrentValue(IsMouseOverProperty, value);
 }
-Base::Result<void> UIElement::SetPressedState(bool value) noexcept {
-    return SetReadOnlyCurrentValue(IsPressedProperty, value);
+void UIElement::SetPressedState(bool value) noexcept {
+    SetReadOnlyCurrentValue(IsPressedProperty, value);
 }
-Base::Result<void> UIElement::SetKeyboardFocusedState(bool value) noexcept {
-    return SetReadOnlyCurrentValue(
-        IsKeyboardFocusedProperty, value);
+void UIElement::SetKeyboardFocusedState(bool value) noexcept {
+    SetReadOnlyCurrentValue(IsKeyboardFocusedProperty, value);
 }
-Base::Result<void> UIElement::SetKeyboardFocusWithinState(
+void UIElement::SetKeyboardFocusWithinState(
     bool value) noexcept {
-    return SetReadOnlyCurrentValue(
-        IsKeyboardFocusWithinProperty, value);
+    SetReadOnlyCurrentValue(IsKeyboardFocusWithinProperty, value);
 }
 
-Base::Result<void> FrameworkElement::SetWidth(double value) noexcept {
-    return SetValue(WidthProperty, Length::Pixels(value));
+void FrameworkElement::SetWidth(double value) noexcept {
+    SetValue(WidthProperty, Length::Pixels(value));
 }
 
-Base::Result<void> FrameworkElement::ClearWidth() noexcept {
-    return ClearValue(WidthProperty);
+void FrameworkElement::ClearWidth() noexcept {
+    ClearValue(WidthProperty);
 }
 
-Base::Result<void> FrameworkElement::SetHeight(double value) noexcept {
-    return SetValue(HeightProperty, Length::Pixels(value));
+void FrameworkElement::SetHeight(double value) noexcept {
+    SetValue(HeightProperty, Length::Pixels(value));
 }
 
-Base::Result<void> FrameworkElement::ClearHeight() noexcept {
-    return ClearValue(HeightProperty);
+void FrameworkElement::ClearHeight() noexcept {
+    ClearValue(HeightProperty);
 }
 
-Base::Result<void> FrameworkElement::SetMinSize(Size value) noexcept {
+void FrameworkElement::SetMinSize(Size value) noexcept {
     const Size maximum = GetMaxSize();
     if (!IsValidLayoutSize(value) || value.width > maximum.width ||
         value.height > maximum.height) {
-        return InvalidArgument("Minimum layout size is invalid");
+        return;
     }
-    Base::Result<void> width =
-        SetValue(MinWidthProperty, value.width);
-    return width
-        ? SetValue(MinHeightProperty, value.height)
-        : width;
+    SetValue(MinWidthProperty, value.width);
+    SetValue(MinHeightProperty, value.height);
 }
 
-Base::Result<void> FrameworkElement::SetMaxSize(Size value) noexcept {
+void FrameworkElement::SetMaxSize(Size value) noexcept {
     const Size minimum = GetMinSize();
     if (!IsValidLayoutSize(value) || value.width < minimum.width ||
         value.height < minimum.height) {
-        return InvalidArgument("Maximum layout size is invalid");
+        return;
     }
-    Base::Result<void> width =
-        SetValue(MaxWidthProperty, value.width);
-    return width
-        ? SetValue(MaxHeightProperty, value.height)
-        : width;
+    SetValue(MaxWidthProperty, value.width);
+    SetValue(MaxHeightProperty, value.height);
 }
 
-Base::Result<void> FrameworkElement::SetMargin(Thickness value) noexcept {
-    return SetValue(MarginProperty, value);
+void FrameworkElement::SetMargin(Thickness value) noexcept {
+    SetValue(MarginProperty, value);
 }
 
-Base::Result<void> FrameworkElement::SetHorizontalAlignment(
+void FrameworkElement::SetHorizontalAlignment(
     HorizontalAlignment value) noexcept {
-    return SetValue(HorizontalAlignmentProperty, value);
+    SetValue(HorizontalAlignmentProperty, value);
 }
 
-Base::Result<void> FrameworkElement::SetVerticalAlignment(
+void FrameworkElement::SetVerticalAlignment(
     VerticalAlignment value) noexcept {
-    return SetValue(VerticalAlignmentProperty, value);
+    SetValue(VerticalAlignmentProperty, value);
 }
 
-Base::Result<Size> UIElement::MeasureOverride(Size availableSize) noexcept {
+Size UIElement::MeasureOverride(Size availableSize) noexcept {
     return availableSize;
 }
 
-Base::Result<Size> UIElement::ArrangeOverride(Size finalSize) noexcept {
+Size UIElement::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 
@@ -658,7 +640,7 @@ Base::Result<void> UIElement::MeasureChild(
                 child.GetVisualParent()));
         return InvalidState(message);
     }
-    return static_cast<Aero::Detail::LayoutEngine*>(layoutManager_)->MeasureElement(child, availableSize);
+    return static_cast<Aero::Internal::LayoutEngine*>(layoutManager_)->MeasureElement(child, availableSize);
 }
 
 Base::Result<void> UIElement::ArrangeChild(
@@ -713,14 +695,15 @@ Base::Result<void> UIElement::ArrangeChild(
                 child.GetVisualParent()));
         return InvalidState(message);
     }
-    return static_cast<Aero::Detail::LayoutEngine*>(layoutManager_)->ArrangeElement(child, finalRect);
+    return static_cast<Aero::Internal::LayoutEngine*>(layoutManager_)->ArrangeElement(child, finalRect);
 }
 
 } // namespace Aero
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using namespace Aero;
 
 LayoutEngine::LayoutEngine(Dispatcher& dispatcher) noexcept
@@ -861,8 +844,8 @@ Base::Result<void> LayoutEngine::SetRoot(
 Base::Result<void> LayoutEngine::QueueMeasure(
     UIElement& element) noexcept {
     if (element.measureQueued_) return {};
-    Base::Result<Aero::Detail::VisualLease> lease =
-        Aero::Detail::VisualLease::Acquire(element);
+    Base::Result<Aero::Internal::VisualLease> lease =
+        Aero::Internal::VisualLease::Acquire(element);
     if (!lease) return lease.GetStatus();
     Base::Result<void> appended =
         measureQueue_.TryPushBack(std::move(lease).Value());
@@ -874,8 +857,8 @@ Base::Result<void> LayoutEngine::QueueMeasure(
 Base::Result<void> LayoutEngine::QueueArrange(
     UIElement& element) noexcept {
     if (element.arrangeQueued_) return {};
-    Base::Result<Aero::Detail::VisualLease> lease =
-        Aero::Detail::VisualLease::Acquire(element);
+    Base::Result<Aero::Internal::VisualLease> lease =
+        Aero::Internal::VisualLease::Acquire(element);
     if (!lease) return lease.GetStatus();
     Base::Result<void> appended =
         arrangeQueue_.TryPushBack(std::move(lease).Value());
@@ -885,7 +868,7 @@ Base::Result<void> LayoutEngine::QueueArrange(
 }
 
 void LayoutEngine::RemoveQueued(UIElement& element) noexcept {
-    auto remove = [&](Base::Vector<Aero::Detail::VisualLease>& queue) noexcept {
+    auto remove = [&](Base::Vector<Aero::Internal::VisualLease>& queue) noexcept {
         for (std::uint32_t index = 0U; index < queue.Size();) {
             if (queue[index].Resolve() != &element) {
                 ++index;
@@ -917,13 +900,13 @@ Base::Result<void> LayoutEngine::InvalidateMeasure(
             ? current->LayoutParent() : nullptr;
     }
 
-    Base::Vector<Aero::Detail::VisualLease> leases;
+    Base::Vector<Aero::Internal::VisualLease> leases;
     Base::Result<void> reserved = leases.TryReserve(path.Size());
     if (!reserved) return reserved.GetStatus();
     for (UIElement* item : path) {
         if (item->measureQueued_) continue;
-        Base::Result<Aero::Detail::VisualLease> lease =
-            Aero::Detail::VisualLease::Acquire(*item);
+        Base::Result<Aero::Internal::VisualLease> lease =
+            Aero::Internal::VisualLease::Acquire(*item);
         if (!lease) return lease.GetStatus();
         Base::Result<void> staged =
             leases.TryPushBack(std::move(lease).Value());
@@ -960,13 +943,13 @@ Base::Result<void> LayoutEngine::InvalidateArrange(
             ? current->LayoutParent() : nullptr;
     }
 
-    Base::Vector<Aero::Detail::VisualLease> leases;
+    Base::Vector<Aero::Internal::VisualLease> leases;
     Base::Result<void> reserved = leases.TryReserve(path.Size());
     if (!reserved) return reserved.GetStatus();
     for (UIElement* item : path) {
         if (item->arrangeQueued_) continue;
-        Base::Result<Aero::Detail::VisualLease> lease =
-            Aero::Detail::VisualLease::Acquire(*item);
+        Base::Result<Aero::Internal::VisualLease> lease =
+            Aero::Internal::VisualLease::Acquire(*item);
         if (!lease) return lease.GetStatus();
         Base::Result<void> staged =
             leases.TryPushBack(std::move(lease).Value());
@@ -1002,11 +985,11 @@ Base::Result<void> LayoutEngine::MeasureElement(
         return {};
     }
 
-    Aero::Detail::VisualLease pendingArrange;
+    Aero::Internal::VisualLease pendingArrange;
     const bool queueArrange = !element.arrangeQueued_;
     if (queueArrange) {
-        Base::Result<Aero::Detail::VisualLease> lease =
-            Aero::Detail::VisualLease::Acquire(element);
+        Base::Result<Aero::Internal::VisualLease> lease =
+            Aero::Internal::VisualLease::Acquire(element);
         if (!lease) return lease.GetStatus();
         pendingArrange = std::move(lease).Value();
         Base::Result<void> reserved = arrangeQueue_.TryReserve(
@@ -1040,8 +1023,8 @@ Base::Result<void> LayoutEngine::MeasureElement(
         ? framework->GetMinSize() : Size{};
     const Size maximum = framework != nullptr
         ? framework->GetMaxSize() : Size{1.0e12, 1.0e12};
-    const bool hasWidth = framework != nullptr && framework->HasWidth();
-    const bool hasHeight = framework != nullptr && framework->HasHeight();
+    const bool hasWidth = framework != nullptr && framework->GetHasWidth();
+    const bool hasHeight = framework != nullptr && framework->GetHasHeight();
     Size available = Deflate(constraint, margin);
     Base::Ref<Transform> layoutTransform =
         framework != nullptr
@@ -1049,7 +1032,7 @@ Base::Result<void> LayoutEngine::MeasureElement(
         : Base::Ref<Transform>{};
     Base::Transform2D layoutMatrix;
     if (layoutTransform) {
-        layoutMatrix = layoutTransform->Matrix();
+        layoutMatrix = layoutTransform->GetMatrix();
         if (!Base::IsFiniteTransform(layoutMatrix)) {
             return InvalidArgument(
                 "LayoutTransform produced an invalid matrix");
@@ -1070,12 +1053,9 @@ Base::Result<void> LayoutEngine::MeasureElement(
     }
 
     element.measuring_ = true;
-    Base::Result<Size> result = element.MeasureOverride(available);
+    const Size result = element.MeasureOverride(available);
     element.measuring_ = false;
-    if (!result) {
-        return result.GetStatus();
-    }
-    Size desired = result.Value();
+    Size desired = result;
     if (!IsValidLayoutSize(desired)) {
         return InvalidArgument("MeasureOverride returned an invalid size");
     }
@@ -1162,16 +1142,12 @@ Base::Result<void> LayoutEngine::ArrangeElement(
         element.renderSize_ = {};
         if (FrameworkElement* framework =
                 element.AsFrameworkElement()) {
-            Base::Result<void> width =
-                framework->SetReadOnlyCurrentValue(
-                    FrameworkElement::ActualWidthProperty,
-                    0.0);
-            if (!width) return width;
-            Base::Result<void> height =
-                framework->SetReadOnlyCurrentValue(
-                    FrameworkElement::ActualHeightProperty,
-                    0.0);
-            if (!height) return height;
+            framework->SetReadOnlyCurrentValue(
+                FrameworkElement::ActualWidthProperty,
+                0.0);
+            framework->SetReadOnlyCurrentValue(
+                FrameworkElement::ActualHeightProperty,
+                0.0);
         }
         element.layoutClip_ = {slot.x, slot.y, 0.0, 0.0};
         element.arrangeValid_ = true;
@@ -1194,8 +1170,8 @@ Base::Result<void> LayoutEngine::ArrangeElement(
         ? framework->GetMinSize() : Size{};
     const Size maximum = framework != nullptr
         ? framework->GetMaxSize() : Size{1.0e12, 1.0e12};
-    const bool hasWidth = framework != nullptr && framework->HasWidth();
-    const bool hasHeight = framework != nullptr && framework->HasHeight();
+    const bool hasWidth = framework != nullptr && framework->GetHasWidth();
+    const bool hasHeight = framework != nullptr && framework->GetHasHeight();
     const HorizontalAlignment horizontal = framework != nullptr
         ? framework->GetHorizontalAlignment() : HorizontalAlignment::Stretch;
     const VerticalAlignment vertical = framework != nullptr
@@ -1208,7 +1184,7 @@ Base::Result<void> LayoutEngine::ArrangeElement(
     Base::Transform2D layoutMatrix;
     Size naturalAvailable = contentAvailable;
     if (layoutTransform) {
-        layoutMatrix = layoutTransform->Matrix();
+        layoutMatrix = layoutTransform->GetMatrix();
         if (!Base::IsFiniteTransform(layoutMatrix)) {
             return InvalidArgument(
                 "LayoutTransform produced an invalid matrix");
@@ -1272,28 +1248,21 @@ Base::Result<void> LayoutEngine::ArrangeElement(
         vertical == VerticalAlignment::Bottom);
 
     element.arranging_ = true;
-    Base::Result<Size> result = element.ArrangeOverride(finalSize);
+    const Size result = element.ArrangeOverride(finalSize);
     element.arranging_ = false;
-    if (!result) {
-        return result.GetStatus();
-    }
-    Size render = result.Value();
+    Size render = result;
     if (!IsValidLayoutSize(render)) {
         return InvalidArgument("ArrangeOverride returned an invalid size");
     }
     element.layoutSlot_ = contentSlot;
     element.renderSize_ = render;
     if (framework != nullptr) {
-        Base::Result<void> width =
-            framework->SetReadOnlyCurrentValue(
-                FrameworkElement::ActualWidthProperty,
-                render.width);
-        if (!width) return width;
-        Base::Result<void> height =
-            framework->SetReadOnlyCurrentValue(
-                FrameworkElement::ActualHeightProperty,
-                render.height);
-        if (!height) return height;
+        framework->SetReadOnlyCurrentValue(
+            FrameworkElement::ActualWidthProperty,
+            render.width);
+        framework->SetReadOnlyCurrentValue(
+            FrameworkElement::ActualHeightProperty,
+            render.height);
     }
     Size renderedFootprint = render;
     if (layoutTransform) {
@@ -1348,16 +1317,16 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         }
     }
 
-    Base::Vector<Aero::Detail::VisualLease> measure =
+    Base::Vector<Aero::Internal::VisualLease> measure =
         std::move(measureQueue_);
-    measureQueue_ = Base::Vector<Aero::Detail::VisualLease>();
-    for (const Aero::Detail::VisualLease& lease : measure) {
+    measureQueue_ = Base::Vector<Aero::Internal::VisualLease>();
+    for (const Aero::Internal::VisualLease& lease : measure) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element != nullptr) element->measureQueued_ = false;
     }
-    for (const Aero::Detail::VisualLease& lease : measure) {
+    for (const Aero::Internal::VisualLease& lease : measure) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
@@ -1378,16 +1347,16 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         }
     }
 
-    Base::Vector<Aero::Detail::VisualLease> arrange =
+    Base::Vector<Aero::Internal::VisualLease> arrange =
         std::move(arrangeQueue_);
-    arrangeQueue_ = Base::Vector<Aero::Detail::VisualLease>();
-    for (const Aero::Detail::VisualLease& lease : arrange) {
+    arrangeQueue_ = Base::Vector<Aero::Internal::VisualLease>();
+    for (const Aero::Internal::VisualLease& lease : arrange) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element != nullptr) element->arrangeQueued_ = false;
     }
-    for (const Aero::Detail::VisualLease& lease : arrange) {
+    for (const Aero::Internal::VisualLease& lease : arrange) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
@@ -1443,13 +1412,13 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     // A converged root has recursively measured and arranged every attached
     // descendant. Remove stale queue leases created during template
     // application so the next frame starts from a clean layout state.
-    for (const Aero::Detail::VisualLease& lease : measureQueue_) {
+    for (const Aero::Internal::VisualLease& lease : measureQueue_) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element != nullptr) element->measureQueued_ = false;
     }
-    for (const Aero::Detail::VisualLease& lease : arrangeQueue_) {
+    for (const Aero::Internal::VisualLease& lease : arrangeQueue_) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
@@ -1484,4 +1453,4 @@ void LayoutEngine::LayoutHook(void* context) noexcept {
     }
 }
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

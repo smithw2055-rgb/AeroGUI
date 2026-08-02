@@ -11,13 +11,15 @@
 #include <Aero/Resources.hpp>
 #include <utility>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 class StylePrivate;
 }
 
 namespace Aero {
 
-using namespace Aero::Core;
+using Meta::DependencyPropertyHandle;
+using Meta::PropertyValue;
+using Meta::TypeId;
 
 struct StyleSetter final {
     DependencyPropertyHandle property;
@@ -29,7 +31,9 @@ struct StyleTriggerSetter final {
     PropertyValue value;
 };
 
-struct StylePropertyTrigger final {
+// Internal compiled representation of a WPF Trigger.  The public authoring
+// type is Aero::Trigger; this plan is kept only for the style engine.
+struct TriggerPlan final {
     DependencyPropertyHandle property;
     PropertyValue value;
     Base::Vector<StyleTriggerSetter> setters;
@@ -40,14 +44,14 @@ struct StylePropertyTrigger final {
 class AERO_API SetterBase : public Base::Object {
     AERO_DECLARE_TYPE(SetterBase, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override { return runtimeType_; }
+    Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
 
 protected:
-    explicit SetterBase(Core::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    explicit SetterBase(Meta::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
     ~SetterBase() override = default;
 
 private:
-    Core::TypeId runtimeType_ = StaticTypeId();
+    Meta::TypeId runtimeType_ = StaticTypeId();
 };
 
 class AERO_API Setter final : public SetterBase {
@@ -59,51 +63,50 @@ public:
 
     DependencyPropertyHandle GetProperty() const noexcept { return property_; }
     const PropertyValue& GetValue() const noexcept { return value_; }
-    Base::Result<void> SetProperty(
+    void SetProperty(
         DependencyPropertyHandle value) noexcept {
         if (!value.IsValid()) {
+            return;
+        }
+        property_ = value;
+        return;
+    }
+    void SetValue(
+        const PropertyValue& value) noexcept {
+        if (value.IsUnset()) {
+            return;
+        }
+        value_ = value;
+        return;
+    }
+    template<class TOwner, class TValue>
+    Base::Result<void> TrySet(
+        const Meta::DependencyPropertyRef<TOwner, TValue>& property,
+        const TValue& value) noexcept {
+        Base::Result<PropertyValue> encoded =
+            Meta::ValueCodec<TValue>::Encode(value);
+        if (!encoded) return encoded.GetStatus();
+        if (!property.Handle().IsValid()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Setter property is invalid");
         }
-        property_ = value;
+        SetProperty(property.Handle());
+        SetValue(encoded.Value());
         return {};
     }
-    Base::Result<void> SetValue(
-        const PropertyValue& value) noexcept {
-        if (value.IsUnset()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Setter value is unset");
-        }
-        value_ = value;
-        return {};
-    }
-    template<class TOwner, class TValue>
-    Base::Result<void> Set(
-        const Core::DependencyPropertyRef<TOwner, TValue>& property,
-        const TValue& value) noexcept {
-        Base::Result<PropertyValue> encoded =
-            Core::ValueCodec<TValue>::Encode(value);
-        if (!encoded) return encoded.GetStatus();
-        Base::Result<void> selected =
-            SetProperty(property.Handle());
-        return selected
-            ? SetValue(encoded.Value())
-            : selected;
-    }
-    Base::Result<void> SetPropertyName(
+    void SetPropertyName(
         Base::StringView value) noexcept;
-    Base::Result<void> SetTargetName(
+    void SetTargetName(
         Base::StringView value) noexcept;
-    Base::Result<void> SetAuthoredValue(
+    void SetAuthoredValue(
         const PropertyValue& value) noexcept;
     Base::StringView GetPropertyName() const noexcept { return propertyName_.View(); }
     Base::StringView GetTargetName() const noexcept { return targetName_.View(); }
     const PropertyValue& GetAuthoredValue() const noexcept {
         return authoredValue_;
     }
-    bool IsAuthored() const noexcept {
+    bool GetIsAuthored() const noexcept {
         return !propertyName_.Empty() &&
             !authoredValue_.IsUnset();
     }
@@ -161,39 +164,39 @@ private:
         exitActions_;
 };
 
-class AERO_API PropertyTrigger final
+class AERO_API Trigger final
     : public TriggerBase {
     AERO_DECLARE_TYPE_NAMED(
-        PropertyTrigger,
+        Trigger,
         TriggerBase,
         "urn:aero",
         "Trigger")
 public:
-    explicit PropertyTrigger(
+    explicit Trigger(
         TypeId runtimeType = StaticTypeId()) noexcept
         : TriggerBase(runtimeType) {}
     DependencyPropertyHandle GetProperty() const noexcept { return property_; }
     const PropertyValue& GetValue() const noexcept {
         return value_;
     }
-    Base::Result<void> SetProperty(
+    void SetProperty(
         DependencyPropertyHandle value) noexcept;
-    Base::Result<void> SetValue(
+    void SetValue(
         const PropertyValue& value) noexcept;
     Base::Result<void> TryAddSetter(
         const Setter& setter) noexcept;
-    Base::Result<void> SetPropertyName(
+    void SetPropertyName(
         Base::StringView value) noexcept;
     Base::StringView GetSourceName() const noexcept {
         return sourceName_.View();
     }
-    Base::Result<void> SetSourceName(
+    void SetSourceName(
         Base::StringView value) noexcept;
-    Base::Result<void> SetAuthoredValue(
+    void SetAuthoredValue(
         const PropertyValue& value) noexcept;
     Base::Result<void> TryAddAuthoredSetter(
         Base::Ref<Setter> setter) noexcept;
-    Base::Result<void> ClearAuthoredSetters() noexcept;
+    void ClearAuthoredSetters() noexcept;
     Base::StringView GetPropertyName() const noexcept {
         return propertyName_.View();
     }
@@ -206,12 +209,12 @@ public:
             authoredSetters_.Data(),
             authoredSetters_.Size()};
     }
-    bool IsAuthored() const noexcept {
+    bool GetIsAuthored() const noexcept {
         return !propertyName_.Empty() &&
             !authoredValue_.IsUnset() &&
             !authoredSetters_.Empty();
     }
-    Base::Result<StylePropertyTrigger>
+    Base::Result<TriggerPlan>
     BuildPlan() const noexcept;
 
 private:
@@ -236,37 +239,35 @@ public:
     Base::Ref<Data::Binding> GetBinding() const noexcept {
         return binding_;
     }
-    Base::Result<void> SetBinding(
+    void SetBinding(
         Base::Ref<Data::Binding> value) noexcept {
         binding_ = std::move(value);
-        return {};
+        return;
     }
     Base::StringView GetPropertyName() const noexcept {
         return propertyName_.View();
     }
-    Base::Result<void> SetPropertyName(
+    void SetPropertyName(
         Base::StringView value) noexcept;
     Base::StringView GetSourceName() const noexcept {
         return sourceName_.View();
     }
-    Base::Result<void> SetSourceName(
+    void SetSourceName(
         Base::StringView value) noexcept;
     const PropertyValue& GetAuthoredValue() const noexcept {
         return authoredValue_;
     }
-    Base::Result<void> SetAuthoredValue(
+    void SetAuthoredValue(
         const PropertyValue& value) noexcept {
         if (value.IsUnset()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "DataTrigger Value cannot be unset");
+            return;
         }
         authoredValue_ = value;
-        return {};
+        return;
     }
     Base::StringView GetComparison() const noexcept { return comparison_.View(); }
-    Base::Result<void> SetComparison(Base::StringView value) noexcept {
-        return comparison_.TryAssign(value);
+    void SetComparison(Base::StringView value) noexcept {
+        (void)comparison_.TryAssign(value);
     }
     Base::Result<void> TryAddAuthoredSetter(
         Base::Ref<Setter> setter) noexcept;
@@ -299,33 +300,31 @@ public:
     Base::Ref<Data::Binding> GetBinding() const noexcept {
         return binding_;
     }
-    Base::Result<void> SetBinding(
+    void SetBinding(
         Base::Ref<Data::Binding> value) noexcept {
         binding_ = std::move(value);
-        return {};
+        return;
     }
     Base::StringView GetPropertyName() const noexcept {
         return propertyName_.View();
     }
-    Base::Result<void> SetPropertyName(
+    void SetPropertyName(
         Base::StringView value) noexcept;
     Base::StringView GetSourceName() const noexcept {
         return sourceName_.View();
     }
-    Base::Result<void> SetSourceName(
+    void SetSourceName(
         Base::StringView value) noexcept;
     const PropertyValue& GetAuthoredValue() const noexcept {
         return authoredValue_;
     }
-    Base::Result<void> SetAuthoredValue(
+    void SetAuthoredValue(
         const PropertyValue& value) noexcept {
         if (value.IsUnset()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Condition Value cannot be unset");
+            return;
         }
         authoredValue_ = value;
-        return {};
+        return;
     }
 
 private:
@@ -408,7 +407,7 @@ class AERO_API TriggerCollection final {
 public:
     std::uint32_t Count() const noexcept;
     TriggerBase* At(std::uint32_t index) const noexcept;
-    void Add(Base::Ref<PropertyTrigger> trigger) noexcept;
+    void Add(Base::Ref<Trigger> trigger) noexcept;
     void Clear() noexcept;
 
 private:
@@ -442,22 +441,22 @@ public:
         const PropertyValue& value) noexcept;
     Base::Result<void> TryAddSetter(
         const Setter& setter) noexcept;
-    Base::Result<void> TryAddPropertyTrigger(
-        StylePropertyTrigger trigger) noexcept;
-    Base::Result<void> TryAddPropertyTrigger(
-        const PropertyTrigger& trigger) noexcept;
+    Base::Result<void> TryAddTrigger(
+        TriggerPlan trigger) noexcept;
+    Base::Result<void> TryAddTrigger(
+        const Trigger& trigger) noexcept;
 
     class TriggerBuilder final {
     public:
         template<class TOwner, class TValue>
-        Base::Result<void> Set(
-            const Core::DependencyPropertyRef<TOwner, TValue>& property,
+        Base::Result<void> TrySet(
+            const Meta::DependencyPropertyRef<TOwner, TValue>& property,
             const TValue& value) noexcept {
             if (!status_.IsOk()) return status_;
             Base::Result<PropertyValue> encoded =
-                Core::ValueCodec<TValue>::Encode(value);
+                Meta::ValueCodec<TValue>::Encode(value);
             if (!encoded) return encoded.GetStatus();
-            StylePropertyTrigger trigger;
+            TriggerPlan trigger;
             trigger.property = condition_;
             trigger.value = std::move(conditionValue_);
             Base::Result<void> added =
@@ -465,7 +464,7 @@ public:
                     property.Handle(),
                     std::move(encoded).Value()});
             if (!added) return added.GetStatus();
-            return owner_->TryAddPropertyTrigger(
+            return owner_->TryAddTrigger(
                 std::move(trigger));
         }
 
@@ -490,21 +489,21 @@ public:
     };
 
     template<class TOwner, class TValue>
-    Base::Result<void> Set(
-        const Core::DependencyPropertyRef<TOwner, TValue>& property,
+    Base::Result<void> TrySet(
+        const Meta::DependencyPropertyRef<TOwner, TValue>& property,
         const TValue& value) noexcept {
         Base::Result<PropertyValue> encoded =
-            Core::ValueCodec<TValue>::Encode(value);
+            Meta::ValueCodec<TValue>::Encode(value);
         if (!encoded) return encoded.GetStatus();
         return TryAddSetter(
             property.Handle(), encoded.Value());
     }
     template<class TOwner, class TValue>
     TriggerBuilder When(
-        const Core::DependencyPropertyRef<TOwner, TValue>& property,
+        const Meta::DependencyPropertyRef<TOwner, TValue>& property,
         const TValue& value) noexcept {
         Base::Result<PropertyValue> encoded =
-            Core::ValueCodec<TValue>::Encode(value);
+            Meta::ValueCodec<TValue>::Encode(value);
         if (!encoded) {
             return TriggerBuilder(encoded.GetStatus());
         }
@@ -515,10 +514,10 @@ public:
     }
     template<class TOwner, class TValue>
     TriggerBuilder When(
-        const Core::ReadOnlyPropertyRef<TOwner, TValue>& property,
+        const Meta::ReadOnlyPropertyRef<TOwner, TValue>& property,
         const TValue& value) noexcept {
         Base::Result<PropertyValue> encoded =
-            Core::ValueCodec<TValue>::Encode(value);
+            Meta::ValueCodec<TValue>::Encode(value);
         if (!encoded) {
             return TriggerBuilder(encoded.GetStatus());
         }
@@ -539,16 +538,16 @@ public:
     Base::Result<void> TryAddAuthoredSetter(
         Base::Ref<Setter> setter) noexcept;
     Base::Result<void> TryAddAuthoredTrigger(
-        Base::Ref<PropertyTrigger> trigger) noexcept;
-    Base::Result<void> ClearAuthoredSetters() noexcept;
-    Base::Result<void> ClearAuthoredTriggers() noexcept;
+        Base::Ref<Trigger> trigger) noexcept;
+    void ClearAuthoredSetters() noexcept;
+    void ClearAuthoredTriggers() noexcept;
     Base::Span<const Base::Ref<Setter>>
     GetAuthoredSetters() const noexcept {
         return {
             authoredSetterObjects_.Data(),
             authoredSetterObjects_.Size()};
     }
-    Base::Span<const Base::Ref<PropertyTrigger>>
+    Base::Span<const Base::Ref<Trigger>>
     GetAuthoredTriggers() const noexcept {
         return {
             authoredTriggerObjects_.Data(),
@@ -558,20 +557,20 @@ public:
     const Style* GetBasedOn() const noexcept { return basedOn_; }
     SetterBaseCollection GetSetters() noexcept { return SetterBaseCollection(*this); }
     TriggerCollection GetTriggers() noexcept { return TriggerCollection(*this); }
-    bool IsSealed() const noexcept { return sealed_; }
-    Base::Span<const StyleSetter> Setters() const noexcept {
+    bool GetIsSealed() const noexcept { return sealed_; }
+    Base::Span<const StyleSetter> GetRuntimeSetters() const noexcept {
         return program_.Setters();
     }
-    Base::Span<const StylePropertyTrigger> Triggers() const noexcept {
+    Base::Span<const TriggerPlan> GetRuntimeTriggers() const noexcept {
         return program_.Triggers();
     }
     ResourceDictionary& GetResources() noexcept { return resources_; }
     const ResourceDictionary& GetResources() const noexcept { return resources_; }
-    Base::Result<void> SetResources(
+    void SetResources(
         Base::Ref<ResourceDictionary> value) noexcept;
 
 private:
-    friend class ::Aero::Detail::StylePrivate;
+    friend class ::Aero::Internal::StylePrivate;
 
     Base::Result<void> SealRuntime(
         const void* properties) noexcept;
@@ -588,18 +587,18 @@ private:
         Base::Span<const StyleSetter> Setters() const noexcept {
             return {setters.Data(), setters.Size()};
         }
-        Base::Span<const StylePropertyTrigger> Triggers() const noexcept {
+        Base::Span<const TriggerPlan> Triggers() const noexcept {
             return {triggers.Data(), triggers.Size()};
         }
         Base::Result<void> Freeze(
             TypeId valueTargetType,
             Base::Vector<StyleSetter>&& valueSetters,
-            Base::Vector<StylePropertyTrigger>&& valueTriggers) noexcept;
+            Base::Vector<TriggerPlan>&& valueTriggers) noexcept;
         void Reset() noexcept;
 
         TypeId targetType = InvalidTypeId;
         Base::Vector<StyleSetter> setters;
-        Base::Vector<StylePropertyTrigger> triggers;
+        Base::Vector<TriggerPlan> triggers;
         bool frozen = false;
     };
 
@@ -609,10 +608,10 @@ private:
     Base::Ref<Base::Object> basedOnOwner_;
     Base::Vector<Base::Ref<Setter>>
         authoredSetterObjects_;
-    Base::Vector<Base::Ref<PropertyTrigger>>
+    Base::Vector<Base::Ref<Trigger>>
         authoredTriggerObjects_;
     Base::Vector<StyleSetter> authored_;
-    Base::Vector<StylePropertyTrigger> authoredTriggers_;
+    Base::Vector<TriggerPlan> authoredTriggers_;
     Impl program_;
     ResourceDictionary resources_;
     bool sealed_ = false;

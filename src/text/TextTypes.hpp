@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Aero/Controls/Core.hpp>
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
@@ -41,24 +42,6 @@ constexpr bool operator!=(
     FontProviderIdentity right) noexcept {
     return !(left == right);
 }
-
-enum class FontStyle : std::uint8_t {
-    Normal = 0U,
-    Italic,
-    Oblique
-};
-
-enum class FontStretch : std::uint8_t {
-    UltraCondensed = 0U,
-    ExtraCondensed,
-    Condensed,
-    SemiCondensed,
-    Normal,
-    SemiExpanded,
-    Expanded,
-    ExtraExpanded,
-    UltraExpanded
-};
 
 class AERO_API Typeface final {
 public:
@@ -233,20 +216,6 @@ struct GlyphOutline final {
         : commands(allocator) {}
 
     Base::Vector<OutlineCommand> commands;
-};
-
-enum class TextWrapping : std::uint8_t { NoWrap = 0U, Wrap, WrapWithOverflow };
-enum class TextTrimming : std::uint8_t { None = 0U, CharacterEllipsis, WordEllipsis };
-enum class TextAlignment : std::uint8_t { Start = 0U, Center, End, Justify };
-
-// Stable text geometry used by retained text controls for hit testing.
-struct TextHitRegion final {
-    std::uint32_t textOffset = 0U;
-    std::uint32_t textLength = 0U;
-    float x = 0.0F;
-    float y = 0.0F;
-    float width = 0.0F;
-    float height = 0.0F;
 };
 
 } // namespace Aero::Text

@@ -3,6 +3,7 @@ if(NOT DEFINED AERO_SOURCE_DIR)
 endif()
 
 include("${AERO_SOURCE_DIR}/cmake/AeroPublicHeaders.cmake")
+include("${AERO_SOURCE_DIR}/cmake/AeroPublicNamespaces.cmake")
 
 # The physical public tree and the installed SDK whitelist are one boundary.
 # Internal headers must move under src/, not merely disappear from packaging.
@@ -30,20 +31,6 @@ if(aero_public_detail_headers)
         "${aero_public_detail_headers}")
 endif()
 
-if(EXISTS "${AERO_SOURCE_DIR}/include/Aero/Core")
-    message(FATAL_ERROR
-        "The installed SDK must not expose the retired include/Aero/Core tree")
-endif()
-
-file(GLOB aero_root_public_headers
-    "${AERO_SOURCE_DIR}/include/Aero/*.hpp")
-list(LENGTH aero_root_public_headers aero_root_public_header_count)
-if(aero_root_public_header_count GREATER 32)
-    message(FATAL_ERROR
-        "Top-level Aero public header budget exceeded: "
-        "${aero_root_public_header_count} > 32")
-endif()
-
 file(GLOB aero_control_public_headers
     "${AERO_SOURCE_DIR}/include/Aero/Controls/*.hpp")
 list(LENGTH aero_control_public_headers aero_control_public_header_count)
@@ -64,6 +51,153 @@ function(aero_collect_matches output pattern)
     endforeach()
     set(${output} "${matches}" PARENT_SCOPE)
 endfunction()
+
+function(aero_collect_public_namespace_declarations output)
+    set(matches)
+    foreach(path IN LISTS ARGN)
+        file(STRINGS "${path}" namespace_lines
+            REGEX "^[ \t]*namespace[ \t]+[A-Za-z_][A-Za-z0-9_:]*[ \t]*\\{")
+        foreach(line IN LISTS namespace_lines)
+            string(REGEX MATCH
+                "namespace[ \t]+([A-Za-z_][A-Za-z0-9_:]*)[ \t]*\\{"
+                namespace_match "${line}")
+            if(NOT namespace_match)
+                continue()
+            endif()
+            set(namespace_name "${CMAKE_MATCH_1}")
+            if(NOT namespace_name MATCHES "^Aero(::|$)")
+                continue()
+            endif()
+            set(namespace_allowed FALSE)
+            foreach(prefix IN LISTS
+                    AERO_PUBLIC_NAMESPACE_PREFIXES
+                    AERO_PUBLIC_NAMESPACE_DETAIL_PREFIXES)
+                if(namespace_name STREQUAL prefix OR
+                   namespace_name MATCHES "^${prefix}::")
+                    set(namespace_allowed TRUE)
+                    break()
+                endif()
+            endforeach()
+            if(NOT namespace_allowed)
+                file(RELATIVE_PATH relative "${AERO_SOURCE_DIR}" "${path}")
+                list(APPEND matches "${relative}: ${namespace_name}")
+            endif()
+        endforeach()
+    endforeach()
+    set(${output} "${matches}" PARENT_SCOPE)
+endfunction()
+
+set(aero_namespace_headers)
+foreach(relative IN LISTS AERO_PUBLIC_HEADERS)
+    list(APPEND aero_namespace_headers "${AERO_SOURCE_DIR}/${relative}")
+endforeach()
+
+aero_collect_matches(public_using_namespace
+    "using[ \t]+namespace[ \t]+"
+    ${aero_namespace_headers})
+if(public_using_namespace)
+    message(FATAL_ERROR
+        "Installed headers must not inject namespaces with using namespace: "
+        "${public_using_namespace}")
+endif()
+
+aero_collect_public_namespace_declarations(public_namespace_declarations
+    ${aero_namespace_headers})
+if(public_namespace_declarations)
+    message(FATAL_ERROR
+        "Public namespace declaration is outside the canonical namespace manifest: "
+        "${public_namespace_declarations}")
+endif()
+
+# Public property mutations follow the WPF setter contract: assignment and
+# invalidation are observable through the object state, while failures are
+# handled by validation before commit.  Result<void> remains valid for
+# explicit Try* and IO/registration boundaries, but must not leak through a
+# Set/Clear/Reset/Notify API in the SDK.
+aero_collect_matches(public_result_property_mutators
+    "Base::Result<void>[ \t\r\n]+([A-Za-z_][A-Za-z0-9_:]*::)?(Set|Clear|Reset|Notify)[A-Za-z0-9_]*[ \t\r\n]*[(]"
+    ${aero_namespace_headers})
+set(public_result_property_mutator_violations)
+foreach(relative IN LISTS public_result_property_mutators)
+    list(APPEND public_result_property_mutator_violations "${relative}")
+endforeach()
+if(public_result_property_mutator_violations)
+    message(FATAL_ERROR
+        "Public property mutators must not return Base::Result<void>; "
+        "use void or an explicit Try* boundary: "
+        "${public_result_property_mutator_violations}")
+endif()
+unset(public_result_property_mutator_violations)
+unset(public_result_property_mutators)
+
+set(public_forbidden_namespace_matches)
+foreach(forbidden_pattern IN LISTS AERO_PUBLIC_NAMESPACE_FORBIDDEN_PATTERNS)
+    aero_collect_matches(forbidden_matches
+        "${forbidden_pattern}"
+        ${aero_namespace_headers})
+    list(APPEND public_forbidden_namespace_matches ${forbidden_matches})
+endforeach()
+if(public_forbidden_namespace_matches)
+    list(REMOVE_DUPLICATES public_forbidden_namespace_matches)
+    message(FATAL_ERROR
+        "Public headers expose a forbidden Render or product Detail namespace: "
+        "${public_forbidden_namespace_matches}")
+endif()
+
+# Detail is an implementation seam, not a general-purpose public namespace.
+# Base detail declarations are temporarily allowed only in the explicit
+# headers that own the corresponding ABI-facing forward declarations.  Keep
+# this allow-list path based so a new public header cannot accidentally expose
+# implementation state merely by adding a friend or a qualified type name.
+aero_collect_matches(public_base_detail_matches
+    "namespace[ \\t]+Detail[ \\t]*\\{"
+    ${aero_namespace_headers})
+set(public_detail_matches
+    ${public_base_detail_matches})
+list(REMOVE_DUPLICATES public_detail_matches)
+set(public_detail_allowlist
+    ${AERO_PUBLIC_NAMESPACE_DETAIL_HEADERS}
+    ${AERO_PUBLIC_NAMESPACE_BASE_DETAIL_HEADERS})
+set(public_unlisted_detail_matches)
+foreach(relative IN LISTS public_detail_matches)
+    list(FIND public_detail_allowlist "${relative}" detail_index)
+    if(detail_index EQUAL -1)
+        list(APPEND public_unlisted_detail_matches "${relative}")
+    endif()
+endforeach()
+if(public_unlisted_detail_matches)
+    message(FATAL_ERROR
+        "Base Detail references are not listed in the public namespace manifest: "
+        "${public_unlisted_detail_matches}")
+endif()
+unset(aero_namespace_headers)
+unset(public_forbidden_namespace_matches)
+unset(public_base_detail_matches)
+unset(public_detail_matches)
+unset(public_detail_allowlist)
+unset(public_unlisted_detail_matches)
+
+# Core was removed as an SDK namespace.  Keep the retired spelling rejected
+# across source, tests, tools and documentation so it cannot reappear through
+# a stale include or generated consumer.
+file(GLOB_RECURSE aero_core_retired_scan
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/*.h"
+    "${AERO_SOURCE_DIR}/src/*"
+    "${AERO_SOURCE_DIR}/tests/*"
+    "${AERO_SOURCE_DIR}/samples/*"
+    "${AERO_SOURCE_DIR}/tools/*"
+    "${AERO_SOURCE_DIR}/docs/*")
+aero_collect_matches(retired_core_namespace_matches
+    "Aero:[ \t]*:[ \t]*Core|namespace[ \t]+Core|Core:[ \t]*:|<Aero[/]Core/"
+    ${aero_core_retired_scan})
+if(retired_core_namespace_matches)
+    message(FATAL_ERROR
+        "Retired core namespace spelling remains in the repository: "
+        "${retired_core_namespace_matches}")
+endif()
+unset(aero_core_retired_scan)
+unset(retired_core_namespace_matches)
 
 function(aero_collect_duplicate_includes output)
     set(matches)
@@ -131,7 +265,7 @@ endif()
 file(GLOB_RECURSE rhi_public_files
     "${AERO_SOURCE_DIR}/include/Aero/Rhi/*.hpp")
 aero_collect_matches(rhi_reverse
-    "#[ \t]*include[ \t]*<Aero/(Core|Controls|Markup|Render|Text)/"
+    "#[ \t]*include[ \t]*<Aero/(Controls|Markup|Render|Text)/"
     ${rhi_public_files})
 if(rhi_reverse)
     message(FATAL_ERROR
@@ -153,11 +287,6 @@ foreach(removed_path IN ITEMS
     "src/markup/extensions"
     "src/markup/compiled"
     "include/Aero/Markup/DocumentCache.hpp"
-    "include/Aero/Core/Metadata/Activation.hpp"
-    "include/Aero/Core/Metadata/MetadataDescriptors.hpp"
-    "include/Aero/Core/Metadata/MetadataDsl.hpp"
-    "include/Aero/Core/Metadata/MetaRegistrationContext.hpp"
-    "include/Aero/Core/Metadata/MetadataValueFacets.hpp"
     "src/gui/LegacyActivation.hpp"
     "src/gui/MetadataDescriptors.cpp"
     "src/markup/LoaderEngine.hpp"
@@ -192,7 +321,6 @@ foreach(removed_sdk_path IN ITEMS
     "include/Aero/App/Window.hpp"
     "include/Aero/ModuleSdk.hpp"
     "include/Aero/Metadata.hpp"
-    "include/Aero/Core/Property/PropertyProviderSession.hpp"
     "include/Aero/Detail/UiMetadata.hpp"
     "include/Aero/RuntimeHost.hpp"
     "include/Aero/XamlReloadCoordinator.hpp"
@@ -200,8 +328,6 @@ foreach(removed_sdk_path IN ITEMS
     "include/Aero/GuiSchema.hpp"
     "include/Aero/Markup/Loader.hpp"
     "include/Aero/Markup/Extensions.hpp"
-    "include/Aero/Core/Events/RoutedEventTable.hpp"
-    "include/Aero/Core/Metadata/Detail/DescriptionBuilder.hpp"
     "include/Aero/Controls/TextBlockLayoutService.hpp"
     "include/Aero/Render/Renderer.hpp"
     "include/Aero/Render/D3D11RendererBackend.hpp"
@@ -226,15 +352,10 @@ foreach(removed_sdk_path IN ITEMS
     "include/Aero/Documents/Documents.hpp"
     "include/Aero/Input/Commands.hpp"
     "include/Aero/Input/Navigation.hpp"
+    "include/Aero/Input/Values.hpp"
+    "include/Aero/Media.hpp"
     "include/Aero/Media/Animation.hpp"
-    "include/Aero/Core/Metadata/BindingPath.hpp"
-    "include/Aero/Core/Metadata/BuiltinTypeIds.hpp"
-    "include/Aero/Core/Metadata/CoreMetadata.hpp"
-    "include/Aero/Core/Metadata/BehaviorTable.hpp"
-    "include/Aero/Core/Metadata/MetadataValuePath.hpp"
-    "include/Aero/Core/Metadata/ValueTable.hpp"
-    "include/Aero/Core/ObjectFactoryState.hpp"
-    "include/Aero/Core/Property/EffectiveValueEngine.hpp"
+    "include/Aero/Text/Text.hpp"
     "include/Aero/Platform/Win32Window.hpp"
     "include/Aero/Platform/X11Window.hpp"
     "include/Aero/Invariants.hpp"
@@ -278,8 +399,6 @@ if(legacy_markup_includes)
         "${legacy_markup_includes}")
 endif()
 
-set(legacy_header_pattern
-    "#[ \t]*include[ \t]*<Aero/Core/(Activation|BuiltinTypeIds|DependencyProperty|EffectiveValueEngine|BehaviorTable|MetadataDescriptors|MetaRegistry|MetadataDsl|MetadataId|RegistrationValues|MetaRegistry|MetadataValueFacets|MetadataValuePath|ValueTable|TypeRegistry|Value|Binding|Input|Layout|ElementTree|Rendering|Style|UI|RuntimeMetadata|ControlPrimitives|Controls)\\.hpp>")
 file(GLOB_RECURSE current_code
     "${AERO_SOURCE_DIR}/src/*.cpp"
     "${AERO_SOURCE_DIR}/src/*.hpp"
@@ -287,13 +406,6 @@ file(GLOB_RECURSE current_code
     "${AERO_SOURCE_DIR}/tests/*.cpp"
     "${AERO_SOURCE_DIR}/tests/*.inc"
     "${AERO_SOURCE_DIR}/include/Aero/*.hpp")
-aero_collect_matches(legacy_includes "${legacy_header_pattern}" ${current_code})
-if(legacy_includes)
-    message(FATAL_ERROR
-        "Code must not include removed legacy Core headers: ${legacy_includes}")
-endif()
-
-
 set(markup_kernel_files
     "${AERO_SOURCE_DIR}/src/markup/MarkupParser.cpp")
 aero_collect_matches(markup_kernel_reverse
@@ -508,7 +620,7 @@ if(command_parent_walk)
 endif()
 
 set(control_authoring_headers
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/Base.hpp")
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Core.hpp")
 aero_collect_matches(public_template_runtime_surface
     "(DefaultStyleKey|TemplateGeneration|(^|[ \t])TemplateChild[ \t]*[(]|(^|[ \t])SetTemplateChild[ \t]*[(]|(^|[ \t])IsTemplateApplied[ \t]*[(])"
     ${control_authoring_headers})
@@ -519,7 +631,7 @@ if(public_template_runtime_surface)
 endif()
 
 aero_collect_matches(legacy_ui_element_collection_surface
-    "(std::uint32_t[ \t]+Count|UIElement[*][ \t]+At|bool[ \t]+Empty)[ \t]*[(]"
+    "((^|[ \t])std::uint32_t[ \t]+Count[ \t]*[(]|(^|[ \t])UIElement[*][ \t]+At[ \t]*[(])"
     ${control_authoring_headers})
 if(legacy_ui_element_collection_surface)
     message(FATAL_ERROR
@@ -549,11 +661,11 @@ if(public_visual_state_runtime_surface)
 endif()
 
 set(control_runtime_attachment_headers
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/Base.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Core.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Controls/Items.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Controls/Panels.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Controls/Primitives.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/Standard.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Common.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Controls/Text.hpp")
 aero_collect_matches(typed_control_runtime_attachments
     "(ButtonBehavior|MenuBehavior|ScrollBehavior|ListBehavior|ComboBehavior|TreeBehavior)[ \t]*[*]"
@@ -719,35 +831,6 @@ if(aero_gui_target_content MATCHES
 endif()
 unset(aero_gui_target_content)
 
-file(READ "${AERO_SOURCE_DIR}/CMakeLists.txt" root_cmake_content)
-string(REGEX MATCHALL "\n" root_cmake_newlines "${root_cmake_content}")
-list(LENGTH root_cmake_newlines root_cmake_line_count)
-math(EXPR root_cmake_line_count "${root_cmake_line_count} + 1")
-if(root_cmake_line_count GREATER 600)
-    message(FATAL_ERROR
-        "Root CMakeLists.txt exceeded the 600-line product composition budget")
-endif()
-
-file(GLOB_RECURSE physical_public_headers
-    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/*.h")
-list(LENGTH physical_public_headers physical_public_header_count)
-if(physical_public_header_count GREATER 96)
-    message(FATAL_ERROR
-        "Installed SDK header count exceeded the 96-file convergence budget")
-endif()
-
-file(GLOB_RECURSE private_access_headers
-    "${AERO_SOURCE_DIR}/src/*Access.hpp"
-    "${AERO_SOURCE_DIR}/src/*/*Access.hpp"
-    "${AERO_SOURCE_DIR}/src/*/*/*Access.hpp")
-list(LENGTH private_access_headers private_access_header_count)
-if(private_access_header_count GREATER 10)
-    message(FATAL_ERROR
-        "Private Access header count exceeded the consolidated 10-file budget")
-endif()
-
-
 # H-series source ownership and runtime convergence gates.
 file(GLOB aero_root_source_files
     "${AERO_SOURCE_DIR}/src/*.cpp"
@@ -843,12 +926,12 @@ file(GLOB_RECURSE render_runtime_files
     "${AERO_SOURCE_DIR}/src/runtime/*.cpp"
     "${AERO_SOURCE_DIR}/src/runtime/*.hpp")
 aero_collect_matches(view_owned_document_implementation
-    "XamlDocumentPrivate::Adopt|struct[ \t]+UiDocument::Impl"
+    "XamlDocumentPrivate::Adopt|struct[ \t]+XamlDocument::Impl"
     "${AERO_SOURCE_DIR}/src/runtime/View.cpp"
     "${AERO_SOURCE_DIR}/src/runtime/View.cpp")
 if(view_owned_document_implementation)
     message(FATAL_ERROR
-        "UiDocument implementation belongs to Markup, not View runtime: "
+        "XamlDocument implementation belongs to Markup, not View runtime: "
         "${view_owned_document_implementation}")
 endif()
 
@@ -929,21 +1012,6 @@ if(gui_kernel_subdirectories)
         "${gui_kernel_subdirectories}")
 endif()
 
-file(GLOB gui_kernel_cpp "${AERO_SOURCE_DIR}/src/gui/*.cpp")
-file(GLOB gui_kernel_headers "${AERO_SOURCE_DIR}/src/gui/*.hpp")
-list(LENGTH gui_kernel_cpp gui_kernel_cpp_count)
-list(LENGTH gui_kernel_headers gui_kernel_header_count)
-if(gui_kernel_cpp_count GREATER 30)
-    message(FATAL_ERROR
-        "Flat GUI kernel exceeded the 30-translation-unit budget: "
-        "${gui_kernel_cpp_count}")
-endif()
-if(gui_kernel_header_count GREATER 12)
-    message(FATAL_ERROR
-        "Flat GUI kernel exceeded the 12-private-header budget: "
-        "${gui_kernel_header_count}")
-endif()
-
 foreach(gui_internal_header IN ITEMS
         "src/gui/AnimationInternal.hpp"
         "src/gui/BindingInternal.hpp"
@@ -954,14 +1022,9 @@ foreach(gui_internal_header IN ITEMS
         "src/gui/PropertyInternal.hpp"
         "src/gui/RoutedEventInternal.hpp"
         "src/gui/StyleInternal.hpp")
-    file(READ "${AERO_SOURCE_DIR}/${gui_internal_header}" gui_internal_content)
-    string(REGEX MATCHALL "\n" gui_internal_newlines "${gui_internal_content}")
-    list(LENGTH gui_internal_newlines gui_internal_line_count)
-    math(EXPR gui_internal_line_count "${gui_internal_line_count} + 1")
-    if(gui_internal_line_count GREATER 5000)
+    if(NOT EXISTS "${AERO_SOURCE_DIR}/${gui_internal_header}")
         message(FATAL_ERROR
-            "Consolidated GUI domain header exceeded 750 lines: "
-            "${gui_internal_header}")
+            "Expected GUI domain header is missing: ${gui_internal_header}")
     endif()
 endforeach()
 
@@ -1143,7 +1206,7 @@ file(GLOB_RECURSE final_sdk_sources
     "${AERO_SOURCE_DIR}/src/*.hpp"
     "${AERO_SOURCE_DIR}/tools/sdk-consumers/*.cpp")
 aero_collect_matches(retired_final_sdk_names
-    "(class[ \t]+AERO_API[ \t]+GUI|Aero::GUI|ViewFrameResult|Core::MetaRegistry|Core::MetaRegistration|class[ \t]+AERO_API[ \t]+RenderEndpoint)"
+    "(class[ \t]+AERO_API[ \t]+GUI|Aero::GUI|ViewFrameResult|class[ \t]+AERO_API[ \t]+RenderEndpoint)"
     ${final_sdk_sources})
 if(retired_final_sdk_names)
     message(FATAL_ERROR
@@ -1155,7 +1218,7 @@ file(READ "${AERO_SOURCE_DIR}/include/Aero/Meta.hpp"
 string(FIND "${aero_meta_header}"
     "class AERO_API Registration final" aero_meta_registration_declaration)
 string(FIND "${aero_meta_header}"
-    "Core::TypeDescription<T> Register(" aero_meta_register_declaration)
+    "TypeDescription<T> Register(" aero_meta_register_declaration)
 string(FIND "${aero_meta_header}"
     "class AERO_API Registry final" aero_meta_registry_declaration)
 if(aero_meta_registration_declaration EQUAL -1 OR

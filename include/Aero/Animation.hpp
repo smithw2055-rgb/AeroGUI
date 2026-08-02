@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Object.hpp>
@@ -10,7 +10,7 @@
 #include <Aero/Data.hpp>
 #include <cstdint>
 
-namespace Aero::Detail { class AnimationPrivate; }
+namespace Aero::Internal { class AnimationPrivate; }
 
 namespace Aero::Media::Animation {
 
@@ -30,35 +30,35 @@ enum class EasingMode : std::uint8_t {
 class AERO_API Timeline : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Timeline, ::Aero::DependencyObject)
 public:
-    Base::StringView BeginTime() const noexcept {
+    Base::StringView GetBeginTime() const noexcept {
         return beginTimeText_.View();
     }
-    Base::StringView Duration() const noexcept {
+    Base::StringView GetDuration() const noexcept {
         return durationText_.View();
     }
-    Base::StringView RepeatBehavior() const noexcept {
+    Base::StringView GetRepeatBehavior() const noexcept {
         return repeatBehaviorText_.View();
     }
-    double SpeedRatio() const noexcept { return speedRatio_; }
-    bool AutoReverse() const noexcept { return autoReverse_; }
+    double GetSpeedRatio() const noexcept { return speedRatio_; }
+    bool GetAutoReverse() const noexcept { return autoReverse_; }
     FillBehavior GetFillBehavior() const noexcept {
         return fillBehavior_;
     }
 
-    Base::Result<void> SetBeginTime(Base::StringView value) noexcept;
-    Base::Result<void> SetDuration(Base::StringView value) noexcept;
-    Base::Result<void> SetRepeatBehavior(
+    void SetBeginTime(Base::StringView value) noexcept;
+    void SetDuration(Base::StringView value) noexcept;
+    void SetRepeatBehavior(
         Base::StringView value) noexcept;
-    Base::Result<void> SetSpeedRatio(double value) noexcept;
-    Base::Result<void> SetAutoReverse(bool value) noexcept;
-    Base::Result<void> SetFillBehavior(FillBehavior value) noexcept;
+    void SetSpeedRatio(double value) noexcept;
+    void SetAutoReverse(bool value) noexcept;
+    void SetFillBehavior(FillBehavior value) noexcept;
 
 protected:
-    explicit Timeline(Core::TypeId runtimeType) noexcept
+    explicit Timeline(Meta::TypeId runtimeType) noexcept
         : DependencyObject(runtimeType) {}
 
 private:
-    friend class Aero::Detail::AnimationPrivate;
+    friend class Aero::Internal::AnimationPrivate;
 
     Base::String beginTimeText_;
     Base::String durationText_;
@@ -75,15 +75,15 @@ private:
 class AERO_API EasingFunctionBase : public Base::Object {
     AERO_DECLARE_TYPE(EasingFunctionBase, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return runtimeType_;
     }
     EasingMode GetEasingMode() const noexcept {
         return easingMode_;
     }
-    Base::Result<void> SetEasingMode(EasingMode value) noexcept {
+    void SetEasingMode(EasingMode value) noexcept {
         easingMode_ = value;
-        return {};
+        return;
     }
 
 protected:
@@ -103,7 +103,7 @@ protected:
     };
 
     EasingFunctionBase(
-        Core::TypeId runtimeType,
+        Meta::TypeId runtimeType,
         Kind kind) noexcept
         : runtimeType_(runtimeType), kind_(kind) {}
 
@@ -117,9 +117,9 @@ protected:
     void SetSpringinessValue(double value) noexcept { springiness_ = value; }
 
 private:
-    friend class Aero::Detail::AnimationPrivate;
+    friend class Aero::Internal::AnimationPrivate;
 
-    Core::TypeId runtimeType_ = StaticTypeId();
+    Meta::TypeId runtimeType_ = StaticTypeId();
     Kind kind_ = Kind::Linear;
     EasingMode easingMode_ = EasingMode::EaseOut;
     double power_ = 2.0;
@@ -158,10 +158,10 @@ public:
         : EasingFunctionBase(
               StaticTypeId(),
               EasingFunctionBase::Kind::Exponential) {}
-    double Exponent() const noexcept {
+    double GetExponent() const noexcept {
         return PowerValue();
     }
-    Base::Result<void> SetExponent(double value) noexcept;
+    void SetExponent(double value) noexcept;
 };
 
 class AERO_API PowerEase final : public EasingFunctionBase {
@@ -171,8 +171,8 @@ public:
         : EasingFunctionBase(
               StaticTypeId(),
               EasingFunctionBase::Kind::Power) {}
-    double Power() const noexcept { return PowerValue(); }
-    Base::Result<void> SetPower(double value) noexcept;
+    double GetPower() const noexcept { return PowerValue(); }
+    void SetPower(double value) noexcept;
 };
 
 class AERO_API BackEase final : public EasingFunctionBase {
@@ -182,10 +182,10 @@ public:
         : EasingFunctionBase(
               StaticTypeId(),
               EasingFunctionBase::Kind::Back) {}
-    double Amplitude() const noexcept {
+    double GetAmplitude() const noexcept {
         return AmplitudeValue();
     }
-    Base::Result<void> SetAmplitude(double value) noexcept;
+    void SetAmplitude(double value) noexcept;
 };
 
 class AERO_API BounceEase final : public EasingFunctionBase {
@@ -195,14 +195,14 @@ public:
         : EasingFunctionBase(
               StaticTypeId(),
               EasingFunctionBase::Kind::Bounce) {}
-    double Bounces() const noexcept {
+    double GetBounces() const noexcept {
         return OscillationsValue();
     }
-    double Bounciness() const noexcept {
+    double GetBounciness() const noexcept {
         return SpringinessValue();
     }
-    Base::Result<void> SetBounces(double value) noexcept;
-    Base::Result<void> SetBounciness(double value) noexcept;
+    void SetBounces(double value) noexcept;
+    void SetBounciness(double value) noexcept;
 };
 
 class AERO_API ElasticEase final : public EasingFunctionBase {
@@ -212,36 +212,36 @@ public:
         : EasingFunctionBase(
               StaticTypeId(),
               EasingFunctionBase::Kind::Elastic) {}
-    double Oscillations() const noexcept {
+    double GetOscillations() const noexcept {
         return OscillationsValue();
     }
-    double Springiness() const noexcept {
+    double GetSpringiness() const noexcept {
         return SpringinessValue();
     }
-    Base::Result<void> SetOscillations(double value) noexcept;
-    Base::Result<void> SetSpringiness(double value) noexcept;
+    void SetOscillations(double value) noexcept;
+    void SetSpringiness(double value) noexcept;
 };
 
 class AERO_API DoubleAnimation final : public Timeline {
     AERO_DECLARE_TYPE(DoubleAnimation, Timeline)
 public:
     DoubleAnimation() noexcept : Timeline(StaticTypeId()) {}
-    double From() const noexcept { return from_; }
-    double To() const noexcept { return to_; }
-    double AccelerationRatio() const noexcept {
+    double GetFrom() const noexcept { return from_; }
+    double GetTo() const noexcept { return to_; }
+    double GetAccelerationRatio() const noexcept {
         return accelerationRatio_;
     }
-    double DecelerationRatio() const noexcept {
+    double GetDecelerationRatio() const noexcept {
         return decelerationRatio_;
     }
-    Base::Ref<EasingFunctionBase> EasingFunction() const noexcept {
+    Base::Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
         return easing_;
     }
-    Base::Result<void> SetFrom(double value) noexcept;
-    Base::Result<void> SetTo(double value) noexcept;
-    Base::Result<void> SetAccelerationRatio(double value) noexcept;
-    Base::Result<void> SetDecelerationRatio(double value) noexcept;
-    Base::Result<void> SetEasingFunction(
+    void SetFrom(double value) noexcept;
+    void SetTo(double value) noexcept;
+    void SetAccelerationRatio(double value) noexcept;
+    void SetDecelerationRatio(double value) noexcept;
+    void SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
 
 private:
@@ -256,14 +256,14 @@ class AERO_API ColorAnimation final : public Timeline {
     AERO_DECLARE_TYPE(ColorAnimation, Timeline)
 public:
     ColorAnimation() noexcept : Timeline(StaticTypeId()) {}
-    Base::Color From() const noexcept { return from_; }
-    Base::Color To() const noexcept { return to_; }
-    Base::Ref<EasingFunctionBase> EasingFunction() const noexcept {
+    Base::Color GetFrom() const noexcept { return from_; }
+    Base::Color GetTo() const noexcept { return to_; }
+    Base::Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
         return easing_;
     }
-    Base::Result<void> SetFrom(Base::Color value) noexcept;
-    Base::Result<void> SetTo(Base::Color value) noexcept;
-    Base::Result<void> SetEasingFunction(
+    void SetFrom(Base::Color value) noexcept;
+    void SetTo(Base::Color value) noexcept;
+    void SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
 
 private:
@@ -277,21 +277,21 @@ class AERO_API PointAnimation final : public Timeline {
 public:
     PointAnimation() noexcept
         : Timeline(StaticTypeId()) {}
-    Base::Point From() const noexcept {
+    Base::Point GetFrom() const noexcept {
         return from_;
     }
-    Base::Point To() const noexcept {
+    Base::Point GetTo() const noexcept {
         return to_;
     }
     Base::Ref<EasingFunctionBase>
-    EasingFunction() const noexcept {
+    GetEasingFunction() const noexcept {
         return easing_;
     }
-    Base::Result<void> SetFrom(
+    void SetFrom(
         Base::Point value) noexcept;
-    Base::Result<void> SetTo(
+    void SetTo(
         Base::Point value) noexcept;
-    Base::Result<void> SetEasingFunction(
+    void SetEasingFunction(
         Base::Ref<EasingFunctionBase>
             value) noexcept;
 
@@ -305,14 +305,14 @@ class AERO_API RectAnimation final : public Timeline {
     AERO_DECLARE_TYPE(RectAnimation, Timeline)
 public:
     RectAnimation() noexcept : Timeline(StaticTypeId()) {}
-    Base::Rect From() const noexcept { return from_; }
-    Base::Rect To() const noexcept { return to_; }
-    Base::Ref<EasingFunctionBase> EasingFunction() const noexcept {
+    Base::Rect GetFrom() const noexcept { return from_; }
+    Base::Rect GetTo() const noexcept { return to_; }
+    Base::Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
         return easing_;
     }
-    Base::Result<void> SetFrom(Base::Rect value) noexcept;
-    Base::Result<void> SetTo(Base::Rect value) noexcept;
-    Base::Result<void> SetEasingFunction(
+    void SetFrom(Base::Rect value) noexcept;
+    void SetTo(Base::Rect value) noexcept;
+    void SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
 
 private:
@@ -325,14 +325,14 @@ class AERO_API ThicknessAnimation final : public Timeline {
     AERO_DECLARE_TYPE(ThicknessAnimation, Timeline)
 public:
     ThicknessAnimation() noexcept : Timeline(StaticTypeId()) {}
-    Base::Thickness From() const noexcept { return from_; }
-    Base::Thickness To() const noexcept { return to_; }
-    Base::Ref<EasingFunctionBase> EasingFunction() const noexcept {
+    Base::Thickness GetFrom() const noexcept { return from_; }
+    Base::Thickness GetTo() const noexcept { return to_; }
+    Base::Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
         return easing_;
     }
-    Base::Result<void> SetFrom(Base::Thickness value) noexcept;
-    Base::Result<void> SetTo(Base::Thickness value) noexcept;
-    Base::Result<void> SetEasingFunction(
+    void SetFrom(Base::Thickness value) noexcept;
+    void SetTo(Base::Thickness value) noexcept;
+    void SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
 
 private:
@@ -344,15 +344,15 @@ private:
 class AERO_API DoubleKeyFrame : public Base::Object {
     AERO_DECLARE_TYPE(DoubleKeyFrame, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return runtimeType_;
     }
-    double Value() const noexcept { return value_; }
-    Base::StringView KeyTime() const noexcept {
+    double GetValue() const noexcept { return value_; }
+    Base::StringView GetKeyTime() const noexcept {
         return keyTimeText_.View();
     }
-    Base::Result<void> SetValue(double value) noexcept;
-    Base::Result<void> SetKeyTime(Base::StringView value) noexcept;
+    void SetValue(double value) noexcept;
+    void SetKeyTime(Base::StringView value) noexcept;
 
 protected:
     enum class Interpolation : std::uint8_t {
@@ -363,7 +363,7 @@ protected:
     };
 
     DoubleKeyFrame(
-        Core::TypeId runtimeType,
+        Meta::TypeId runtimeType,
         Interpolation interpolation) noexcept
         : runtimeType_(runtimeType), interpolation_(interpolation) {}
 
@@ -379,9 +379,9 @@ protected:
     }
 
 private:
-    friend class Aero::Detail::AnimationPrivate;
+    friend class Aero::Internal::AnimationPrivate;
 
-    Core::TypeId runtimeType_ = StaticTypeId();
+    Meta::TypeId runtimeType_ = StaticTypeId();
     double value_ = 0.0;
     Base::String keyTimeText_;
     AnimationTime keyTimeMicroseconds_ = 0U;
@@ -417,10 +417,10 @@ public:
         : DoubleKeyFrame(
               StaticTypeId(),
               DoubleKeyFrame::Interpolation::Easing) {}
-    Base::Ref<EasingFunctionBase> EasingFunction() const noexcept {
+    Base::Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
         return easing_;
     }
-    Base::Result<void> SetEasingFunction(
+    void SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
 
 private:
@@ -434,10 +434,10 @@ public:
         : DoubleKeyFrame(
               StaticTypeId(),
               DoubleKeyFrame::Interpolation::Spline) {}
-    Base::StringView KeySpline() const noexcept {
+    Base::StringView GetKeySpline() const noexcept {
         return keySpline_.View();
     }
-    Base::Result<void> SetKeySpline(Base::StringView value) noexcept;
+    void SetKeySpline(Base::StringView value) noexcept;
 
 private:
     Base::String keySpline_;
@@ -450,9 +450,9 @@ public:
         : Timeline(StaticTypeId()) {}
     Base::Result<void> TryAddKeyFrame(
         Base::Ref<DoubleKeyFrame> value) noexcept;
-    Base::Result<void> ClearKeyFrames() noexcept;
+    void ClearKeyFrames() noexcept;
     Base::Span<const Base::Ref<DoubleKeyFrame>>
-    KeyFrames() const noexcept {
+    GetKeyFrames() const noexcept {
         return {keyFrames_.Data(), keyFrames_.Size()};
     }
 
@@ -463,31 +463,31 @@ private:
 class AERO_API ThicknessKeyFrame : public Base::Object {
     AERO_DECLARE_TYPE(ThicknessKeyFrame, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return runtimeType_;
     }
-    Base::Thickness Value() const noexcept {
+    Base::Thickness GetValue() const noexcept {
         return value_;
     }
-    Base::StringView KeyTime() const noexcept {
+    Base::StringView GetKeyTime() const noexcept {
         return keyTimeText_.View();
     }
     AnimationTime
-    KeyTimeMicroseconds() const noexcept {
+    GetKeyTimeMicroseconds() const noexcept {
         return keyTimeMicroseconds_;
     }
-    Base::Result<void> SetValue(
+    void SetValue(
         Base::Thickness value) noexcept;
-    Base::Result<void> SetKeyTime(
+    void SetKeyTime(
         Base::StringView value) noexcept;
 
 protected:
     explicit ThicknessKeyFrame(
-        Core::TypeId runtimeType) noexcept
+        Meta::TypeId runtimeType) noexcept
         : runtimeType_(runtimeType) {}
 
 private:
-    Core::TypeId runtimeType_ = StaticTypeId();
+    Meta::TypeId runtimeType_ = StaticTypeId();
     Base::Thickness value_;
     Base::String keyTimeText_;
     AnimationTime
@@ -523,10 +523,10 @@ public:
     EasingThicknessKeyFrame() noexcept
         : ThicknessKeyFrame(StaticTypeId()) {}
     Base::Ref<EasingFunctionBase>
-    EasingFunction() const noexcept {
+    GetEasingFunction() const noexcept {
         return easing_;
     }
-    Base::Result<void> SetEasingFunction(
+    void SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
 
 private:
@@ -541,12 +541,12 @@ class AERO_API SplineThicknessKeyFrame final
 public:
     SplineThicknessKeyFrame() noexcept
         : ThicknessKeyFrame(StaticTypeId()) {}
-    Base::StringView KeySpline() const noexcept {
+    Base::StringView GetKeySpline() const noexcept {
         return keySpline_.View();
     }
-    Base::Result<void> SetKeySpline(
+    void SetKeySpline(
         Base::StringView value) noexcept {
-        return keySpline_.TryAssign(value);
+        (void)keySpline_.TryAssign(value);
     }
 
 private:
@@ -563,9 +563,9 @@ public:
         : Timeline(StaticTypeId()) {}
     Base::Result<void> TryAddKeyFrame(
         Base::Ref<ThicknessKeyFrame> value) noexcept;
-    Base::Result<void> ClearKeyFrames() noexcept;
+    void ClearKeyFrames() noexcept;
     Base::Span<const Base::Ref<ThicknessKeyFrame>>
-    KeyFrames() const noexcept {
+    GetKeyFrames() const noexcept {
         return {
             keyFrames_.Data(),
             keyFrames_.Size()};
@@ -579,15 +579,15 @@ private:
 class AERO_API ColorKeyFrame : public Base::Object {
     AERO_DECLARE_TYPE(ColorKeyFrame, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return runtimeType_;
     }
-    Base::Color Value() const noexcept { return value_; }
-    Base::StringView KeyTime() const noexcept {
+    Base::Color GetValue() const noexcept { return value_; }
+    Base::StringView GetKeyTime() const noexcept {
         return keyTimeText_.View();
     }
-    Base::Result<void> SetValue(Base::Color value) noexcept;
-    Base::Result<void> SetKeyTime(Base::StringView value) noexcept;
+    void SetValue(Base::Color value) noexcept;
+    void SetKeyTime(Base::StringView value) noexcept;
 
 protected:
     enum class Interpolation : std::uint8_t {
@@ -598,7 +598,7 @@ protected:
     };
 
     ColorKeyFrame(
-        Core::TypeId runtimeType,
+        Meta::TypeId runtimeType,
         Interpolation interpolation) noexcept
         : runtimeType_(runtimeType), interpolation_(interpolation) {}
 
@@ -614,9 +614,9 @@ protected:
     }
 
 private:
-    friend class Aero::Detail::AnimationPrivate;
+    friend class Aero::Internal::AnimationPrivate;
 
-    Core::TypeId runtimeType_ = StaticTypeId();
+    Meta::TypeId runtimeType_ = StaticTypeId();
     Base::Color value_;
     Base::String keyTimeText_;
     AnimationTime keyTimeMicroseconds_ = 0U;
@@ -652,10 +652,10 @@ public:
         : ColorKeyFrame(
               StaticTypeId(),
               ColorKeyFrame::Interpolation::Easing) {}
-    Base::Ref<EasingFunctionBase> EasingFunction() const noexcept {
+    Base::Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
         return easing_;
     }
-    Base::Result<void> SetEasingFunction(
+    void SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
 
 private:
@@ -669,10 +669,10 @@ public:
         : ColorKeyFrame(
               StaticTypeId(),
               ColorKeyFrame::Interpolation::Spline) {}
-    Base::StringView KeySpline() const noexcept {
+    Base::StringView GetKeySpline() const noexcept {
         return keySpline_.View();
     }
-    Base::Result<void> SetKeySpline(Base::StringView value) noexcept;
+    void SetKeySpline(Base::StringView value) noexcept;
 
 private:
     Base::String keySpline_;
@@ -685,9 +685,9 @@ public:
         : Timeline(StaticTypeId()) {}
     Base::Result<void> TryAddKeyFrame(
         Base::Ref<ColorKeyFrame> value) noexcept;
-    Base::Result<void> ClearKeyFrames() noexcept;
+    void ClearKeyFrames() noexcept;
     Base::Span<const Base::Ref<ColorKeyFrame>>
-    KeyFrames() const noexcept {
+    GetKeyFrames() const noexcept {
         return {keyFrames_.Data(), keyFrames_.Size()};
     }
 
@@ -698,22 +698,22 @@ private:
 class AERO_API DiscreteObjectKeyFrame final : public Base::Object {
     AERO_DECLARE_TYPE(DiscreteObjectKeyFrame, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    const Core::PropertyValue& Value() const noexcept { return value_; }
-    Base::StringView KeyTime() const noexcept {
+    const Meta::PropertyValue& GetValue() const noexcept { return value_; }
+    Base::StringView GetKeyTime() const noexcept {
         return keyTimeText_.View();
     }
-    AnimationTime KeyTimeMicroseconds() const noexcept {
+    AnimationTime GetKeyTimeMicroseconds() const noexcept {
         return keyTimeMicroseconds_;
     }
-    Base::Result<void> SetValue(
-        const Core::PropertyValue& value) noexcept;
-    Base::Result<void> SetKeyTime(Base::StringView value) noexcept;
+    void SetValue(
+        const Meta::PropertyValue& value) noexcept;
+    void SetKeyTime(Base::StringView value) noexcept;
 
 private:
-    Core::PropertyValue value_;
+    Meta::PropertyValue value_;
     Base::String keyTimeText_;
     AnimationTime keyTimeMicroseconds_ = 0U;
 };
@@ -725,9 +725,9 @@ public:
         : Timeline(StaticTypeId()) {}
     Base::Result<void> TryAddKeyFrame(
         Base::Ref<DiscreteObjectKeyFrame> value) noexcept;
-    Base::Result<void> ClearKeyFrames() noexcept;
+    void ClearKeyFrames() noexcept;
     Base::Span<const Base::Ref<DiscreteObjectKeyFrame>>
-    KeyFrames() const noexcept {
+    GetKeyFrames() const noexcept {
         return {keyFrames_.Data(), keyFrames_.Size()};
     }
 
@@ -738,21 +738,21 @@ private:
 class AERO_API DiscreteBooleanKeyFrame final : public Base::Object {
     AERO_DECLARE_TYPE(DiscreteBooleanKeyFrame, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    bool Value() const noexcept { return value_; }
-    Base::StringView KeyTime() const noexcept {
+    bool GetValue() const noexcept { return value_; }
+    Base::StringView GetKeyTime() const noexcept {
         return keyTimeText_.View();
     }
-    AnimationTime KeyTimeMicroseconds() const noexcept {
+    AnimationTime GetKeyTimeMicroseconds() const noexcept {
         return keyTimeMicroseconds_;
     }
-    Base::Result<void> SetValue(bool value) noexcept {
+    void SetValue(bool value) noexcept {
         value_ = value;
-        return {};
+        return;
     }
-    Base::Result<void> SetKeyTime(Base::StringView value) noexcept;
+    void SetKeyTime(Base::StringView value) noexcept;
 
 private:
     bool value_ = false;
@@ -767,9 +767,9 @@ public:
         : Timeline(StaticTypeId()) {}
     Base::Result<void> TryAddKeyFrame(
         Base::Ref<DiscreteBooleanKeyFrame> value) noexcept;
-    Base::Result<void> ClearKeyFrames() noexcept;
+    void ClearKeyFrames() noexcept;
     Base::Span<const Base::Ref<DiscreteBooleanKeyFrame>>
-    KeyFrames() const noexcept {
+    GetKeyFrames() const noexcept {
         return {keyFrames_.Data(), keyFrames_.Size()};
     }
 
@@ -787,9 +787,9 @@ public:
 
     Base::Result<void> TryAddTimeline(
         Base::Ref<Timeline> value) noexcept;
-    Base::Result<void> ClearTimelines() noexcept;
+    void ClearTimelines() noexcept;
     Base::Span<const Base::Ref<Timeline>>
-    Timelines() const noexcept {
+    GetTimelines() const noexcept {
         return {timelines_.Data(), timelines_.Size()};
     }
 
@@ -800,17 +800,17 @@ private:
 class AERO_API TriggerAction : public Base::Object {
     AERO_DECLARE_TYPE(TriggerAction, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return runtimeType_;
     }
 
 protected:
     explicit TriggerAction(
-        Core::TypeId runtimeType) noexcept
+        Meta::TypeId runtimeType) noexcept
         : runtimeType_(runtimeType) {}
 
 private:
-    Core::TypeId runtimeType_ = StaticTypeId();
+    Meta::TypeId runtimeType_ = StaticTypeId();
 };
 
 class AERO_API ChangePropertyAction final : public TriggerAction {
@@ -819,26 +819,26 @@ public:
     ChangePropertyAction() noexcept
         : TriggerAction(StaticTypeId()) {}
 
-    Base::StringView TargetName() const noexcept {
+    Base::StringView GetTargetName() const noexcept {
         return targetName_.View();
     }
-    Base::StringView PropertyName() const noexcept {
+    Base::StringView GetPropertyName() const noexcept {
         return propertyName_.View();
     }
-    const Core::PropertyValue& Value() const noexcept {
+    const Meta::PropertyValue& GetValue() const noexcept {
         return value_;
     }
-    Base::Result<void> SetTargetName(
+    void SetTargetName(
         Base::StringView value) noexcept;
-    Base::Result<void> SetPropertyName(
+    void SetPropertyName(
         Base::StringView value) noexcept;
-    Base::Result<void> SetValue(
-        const Core::PropertyValue& value) noexcept;
+    void SetValue(
+        const Meta::PropertyValue& value) noexcept;
 
 private:
     Base::String targetName_;
     Base::String propertyName_;
-    Core::PropertyValue value_;
+    Meta::PropertyValue value_;
 };
 
 // Gallery interactivity action. It deliberately uses the trigger owner when
@@ -849,10 +849,10 @@ public:
     SetFocusAction() noexcept
         : TriggerAction(StaticTypeId()) {}
 
-    bool Engage() const noexcept { return engage_; }
-    Base::Result<void> SetEngage(bool value) noexcept {
+    bool GetEngage() const noexcept { return engage_; }
+    void SetEngage(bool value) noexcept {
         engage_ = value;
-        return {};
+        return;
     }
 
 private:
@@ -866,15 +866,15 @@ class AERO_API LaunchUriOrFileAction final : public TriggerAction {
     AERO_DECLARE_TYPE(LaunchUriOrFileAction, TriggerAction)
 public:
     LaunchUriOrFileAction() noexcept : TriggerAction(StaticTypeId()) {}
-    Base::StringView Path() const noexcept { return path_.View(); }
-    Base::Result<void> SetPath(Base::StringView value) noexcept;
-    Base::Ref<Aero::Data::Binding> PathBinding() const noexcept {
+    Base::StringView GetPath() const noexcept { return path_.View(); }
+    void SetPath(Base::StringView value) noexcept;
+    Base::Ref<Aero::Data::Binding> GetPathBinding() const noexcept {
         return pathBinding_;
     }
-    Base::Result<void> SetPathBinding(
+    void SetPathBinding(
         Base::Ref<Aero::Data::Binding> value) noexcept {
         pathBinding_ = std::move(value);
-        return {};
+        return;
     }
 private:
     Base::String path_;
@@ -887,13 +887,13 @@ public:
     RemoveElementAction() noexcept
         : TriggerAction(StaticTypeId()) {}
 
-    Base::Ref<Aero::Data::Binding> TargetObject() const noexcept {
+    Base::Ref<Aero::Data::Binding> GetTargetObject() const noexcept {
         return targetObject_;
     }
-    Base::Result<void> SetTargetObject(
+    void SetTargetObject(
         Base::Ref<Aero::Data::Binding> value) noexcept {
         targetObject_ = std::move(value);
-        return {};
+        return;
     }
 
 private:
@@ -905,18 +905,18 @@ class AERO_API BeginStoryboard final : public TriggerAction {
 public:
     BeginStoryboard() noexcept
         : TriggerAction(StaticTypeId()) {}
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    Base::StringView Name() const noexcept {
+    Base::StringView GetName() const noexcept {
         return name_.View();
     }
-    Base::Ref<Storyboard> StoryboardValue() const noexcept {
+    Base::Ref<Storyboard> GetStoryboard() const noexcept {
         return storyboard_;
     }
-    Base::Result<void> SetName(
+    void SetName(
         Base::StringView value) noexcept;
-    Base::Result<void> SetStoryboard(
+    void SetStoryboard(
         Base::Ref<Storyboard> value) noexcept;
 
 private:
@@ -929,10 +929,10 @@ class AERO_API ControlStoryboardAction final : public TriggerAction {
 public:
     enum class Option : std::uint8_t { Play = 0U, Stop, TogglePlayPause, Pause, Resume, SkipToFill };
     ControlStoryboardAction() noexcept : TriggerAction(StaticTypeId()) {}
-    Base::Ref<Storyboard> StoryboardValue() const noexcept { return storyboard_; }
-    Base::Result<void> SetStoryboard(Base::Ref<Storyboard> value) noexcept { storyboard_ = std::move(value); return {}; }
-    Option ControlOption() const noexcept { return option_; }
-    Base::Result<void> SetControlOption(Option value) noexcept { option_ = value; return {}; }
+    Base::Ref<Storyboard> GetStoryboard() const noexcept { return storyboard_; }
+    void SetStoryboard(Base::Ref<Storyboard> value) noexcept { storyboard_ = std::move(value); return; }
+    Option GetControlOption() const noexcept { return option_; }
+    void SetControlOption(Option value) noexcept { option_ = value; return; }
 private:
     Base::Ref<Storyboard> storyboard_;
     Option option_ = Option::Play;
@@ -944,15 +944,15 @@ class AERO_API ControllableStoryboardAction :
         ControllableStoryboardAction,
         TriggerAction)
 public:
-    Base::StringView BeginStoryboardName() const noexcept {
+    Base::StringView GetBeginStoryboardName() const noexcept {
         return beginStoryboardName_.View();
     }
-    Base::Result<void> SetBeginStoryboardName(
+    void SetBeginStoryboardName(
         Base::StringView value) noexcept;
 
 protected:
     explicit ControllableStoryboardAction(
-        Core::TypeId runtimeType) noexcept
+        Meta::TypeId runtimeType) noexcept
         : TriggerAction(runtimeType) {}
 
 private:
@@ -984,14 +984,14 @@ public:
     SeekStoryboard() noexcept
         : ControllableStoryboardAction(
               StaticTypeId()) {}
-    Base::StringView Offset() const noexcept {
+    Base::StringView GetOffset() const noexcept {
         return offsetText_.View();
     }
     AnimationTime
-    OffsetMicroseconds() const noexcept {
+    GetOffsetMicroseconds() const noexcept {
         return offsetMicroseconds_;
     }
-    Base::Result<void> SetOffset(
+    void SetOffset(
         Base::StringView value) noexcept;
 
 private:
@@ -1004,31 +1004,31 @@ class AERO_API EventTrigger : public Base::Object {
     AERO_DECLARE_TYPE(EventTrigger, Base::Object)
 public:
     EventTrigger() noexcept : EventTrigger(StaticTypeId()) {}
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return runtimeType_;
     }
-    Base::StringView RoutedEvent() const noexcept {
+    Base::StringView GetRoutedEvent() const noexcept {
         return routedEvent_.View();
     }
-    Base::StringView EventName() const noexcept {
+    Base::StringView GetEventName() const noexcept {
         return routedEvent_.View();
     }
-    Base::StringView SourceName() const noexcept {
+    Base::StringView GetSourceName() const noexcept {
         return sourceName_.View();
     }
-    Base::Result<void> SetRoutedEvent(
+    void SetRoutedEvent(
         Base::StringView value) noexcept;
-    Base::Result<void> SetEventName(
+    void SetEventName(
         Base::StringView value) noexcept {
-        return SetRoutedEvent(value);
+        SetRoutedEvent(value);
     }
-    Base::Result<void> SetSourceName(
+    void SetSourceName(
         Base::StringView value) noexcept;
     Base::Result<void> TryAddAction(
         Base::Ref<TriggerAction> value) noexcept;
-    Base::Result<void> ClearActions() noexcept;
+    void ClearActions() noexcept;
     Base::Span<const Base::Ref<TriggerAction>>
-    Actions() const noexcept {
+    GetActions() const noexcept {
         return {actions_.Data(), actions_.Size()};
     }
     Base::Result<void> TryAddConditionBehavior(
@@ -1036,16 +1036,16 @@ public:
         return behaviors_.TryPushBack(std::move(value));
     }
     void ClearConditionBehaviors() noexcept { behaviors_.Clear(); }
-    Base::Span<const Base::Ref<Base::Object>> Behaviors() const noexcept {
+    Base::Span<const Base::Ref<Base::Object>> GetBehaviors() const noexcept {
         return {behaviors_.Data(), behaviors_.Size()};
     }
 
 protected:
-    explicit EventTrigger(Core::TypeId runtimeType) noexcept
+    explicit EventTrigger(Meta::TypeId runtimeType) noexcept
         : runtimeType_(runtimeType) {}
 
 private:
-    Core::TypeId runtimeType_ = StaticTypeId();
+    Meta::TypeId runtimeType_ = StaticTypeId();
     Base::String routedEvent_;
     Base::String sourceName_;
     Base::Vector<Base::Ref<TriggerAction>> actions_;
@@ -1059,36 +1059,36 @@ class AERO_API TimerTrigger final : public EventTrigger {
 public:
     TimerTrigger() noexcept : EventTrigger(StaticTypeId()) {}
 
-    std::uint32_t TotalTicks() const noexcept { return totalTicks_; }
-    const Core::PropertyValue& MillisecondsPerTick() const noexcept {
+    std::uint32_t GetTotalTicks() const noexcept { return totalTicks_; }
+    const Meta::PropertyValue& GetMillisecondsPerTick() const noexcept {
         return millisecondsPerTick_;
     }
-    Base::Result<void> SetTotalTicks(std::uint32_t value) noexcept {
+    void SetTotalTicks(std::uint32_t value) noexcept {
         totalTicks_ = value;
-        return {};
+        return;
     }
-    Base::Result<void> SetMillisecondsPerTick(
-        const Core::PropertyValue& value) noexcept {
+    void SetMillisecondsPerTick(
+        const Meta::PropertyValue& value) noexcept {
         millisecondsPerTick_ = value;
-        return {};
+        return;
     }
 
 private:
     std::uint32_t totalTicks_ = 1U;
-    Core::PropertyValue millisecondsPerTick_;
+    Meta::PropertyValue millisecondsPerTick_;
 };
 
 class AERO_API ComparisonCondition final : public Base::Object {
     AERO_DECLARE_TYPE(ComparisonCondition, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Base::Ref<Aero::Data::Binding> LeftOperand() const noexcept { return left_; }
-    Base::Result<void> SetLeftOperand(Base::Ref<Aero::Data::Binding> value) noexcept {
-        left_ = std::move(value); return {};
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    Base::Ref<Aero::Data::Binding> GetLeftOperand() const noexcept { return left_; }
+    void SetLeftOperand(Base::Ref<Aero::Data::Binding> value) noexcept {
+        left_ = std::move(value); return;
     }
-    const Core::PropertyValue& RightOperand() const noexcept { return right_; }
-    Base::Result<void> SetRightOperand(const Core::PropertyValue& value) noexcept {
-        right_ = value; return {};
+    const Meta::PropertyValue& GetRightOperand() const noexcept { return right_; }
+    void SetRightOperand(const Meta::PropertyValue& value) noexcept {
+        right_ = value; return;
     }
     enum class Operator : std::uint8_t {
         Equal = 0U,
@@ -1098,13 +1098,13 @@ public:
         GreaterThan,
         GreaterThanOrEqual,
     };
-    Operator ComparisonOperator() const noexcept { return operator_; }
-    Base::Result<void> SetComparisonOperator(Operator value) noexcept {
-        operator_ = value; return {};
+    Operator GetComparisonOperator() const noexcept { return operator_; }
+    void SetComparisonOperator(Operator value) noexcept {
+        operator_ = value; return;
     }
 private:
     Base::Ref<Aero::Data::Binding> left_;
-    Core::PropertyValue right_;
+    Meta::PropertyValue right_;
     Operator operator_ = Operator::Equal;
 };
 
@@ -1116,18 +1116,18 @@ public:
         Or,
     };
     ConditionalExpression() noexcept : conditions_(&Base::GetDefaultAllocator()) {}
-    Core::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Base::Result<void> AddCondition(Base::Ref<ComparisonCondition> value) noexcept {
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    Base::Result<void> TryAddCondition(Base::Ref<ComparisonCondition> value) noexcept {
         return value ? conditions_.TryPushBack(std::move(value))
             : Base::Result<void>(Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Condition is null"));
     }
     void ClearConditions() noexcept { conditions_.Clear(); }
-    Base::Span<const Base::Ref<ComparisonCondition>> Conditions() const noexcept {
+    Base::Span<const Base::Ref<ComparisonCondition>> GetConditions() const noexcept {
         return {conditions_.Data(), conditions_.Size()};
     }
-    ForwardChaining Chaining() const noexcept { return chaining_; }
-    Base::Result<void> SetChaining(ForwardChaining value) noexcept {
-        chaining_ = value; return {};
+    ForwardChaining GetChaining() const noexcept { return chaining_; }
+    void SetChaining(ForwardChaining value) noexcept {
+        chaining_ = value; return;
     }
 private:
     Base::Vector<Base::Ref<ComparisonCondition>> conditions_;
@@ -1137,10 +1137,10 @@ private:
 class AERO_API ConditionBehavior final : public Base::Object {
     AERO_DECLARE_TYPE(ConditionBehavior, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Base::Ref<ConditionalExpression> Expression() const noexcept { return expression_; }
-    Base::Result<void> SetExpression(Base::Ref<ConditionalExpression> value) noexcept {
-        expression_ = std::move(value); return {};
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    Base::Ref<ConditionalExpression> GetExpression() const noexcept { return expression_; }
+    void SetExpression(Base::Ref<ConditionalExpression> value) noexcept {
+        expression_ = std::move(value); return;
     }
 private:
     Base::Ref<ConditionalExpression> expression_;
@@ -1150,19 +1150,19 @@ class AERO_API StoryboardCompletedTrigger final :
     public Base::Object {
     AERO_DECLARE_TYPE(StoryboardCompletedTrigger, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    Base::Ref<Storyboard> StoryboardValue() const noexcept {
+    Base::Ref<Storyboard> GetStoryboard() const noexcept {
         return storyboard_;
     }
-    Base::Result<void> SetStoryboard(
+    void SetStoryboard(
         Base::Ref<Storyboard> value) noexcept;
     Base::Result<void> TryAddAction(
         Base::Ref<TriggerAction> value) noexcept;
-    Base::Result<void> ClearActions() noexcept;
+    void ClearActions() noexcept;
     Base::Span<const Base::Ref<TriggerAction>>
-    Actions() const noexcept {
+    GetActions() const noexcept {
         return {actions_.Data(), actions_.Size()};
     }
 
@@ -1179,10 +1179,10 @@ private:
 
 } // namespace Aero::Media::Animation
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Media::Animation::FillBehavior> {
+struct TypeTraits<Media::Animation::FillBehavior> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("FillBehavior"); }
     static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
     static constexpr Base::StringView Name() noexcept { return "FillBehavior"; }
@@ -1190,7 +1190,7 @@ struct MetaTypeTraits<Media::Animation::FillBehavior> {
 };
 
 template<>
-struct MetaTypeTraits<Media::Animation::EasingMode> {
+struct TypeTraits<Media::Animation::EasingMode> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("EasingMode"); }
     static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
     static constexpr Base::StringView Name() noexcept { return "EasingMode"; }
@@ -1198,7 +1198,7 @@ struct MetaTypeTraits<Media::Animation::EasingMode> {
 };
 
 template<>
-struct MetaTypeTraits<Media::Animation::ComparisonCondition::Operator> {
+struct TypeTraits<Media::Animation::ComparisonCondition::Operator> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("ComparisonConditionOperator");
     }
@@ -1214,7 +1214,7 @@ struct MetaTypeTraits<Media::Animation::ComparisonCondition::Operator> {
 };
 
 template<>
-struct MetaTypeTraits<Media::Animation::ConditionalExpression::ForwardChaining> {
+struct TypeTraits<Media::Animation::ConditionalExpression::ForwardChaining> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("ForwardChaining");
     }
@@ -1230,11 +1230,11 @@ struct MetaTypeTraits<Media::Animation::ConditionalExpression::ForwardChaining> 
 };
 
 template<>
-struct MetaTypeTraits<Media::Animation::ControlStoryboardAction::Option> {
+struct TypeTraits<Media::Animation::ControlStoryboardAction::Option> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("ControlStoryboardOption"); }
     static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
     static constexpr Base::StringView Name() noexcept { return "ControlStoryboardOption"; }
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

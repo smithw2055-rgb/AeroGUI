@@ -8,7 +8,7 @@
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Detail::TreeBehavior;
+using Aero::Internal::TreeBehavior;
 
 using namespace Primitives;
 
@@ -17,7 +17,7 @@ TreeViewItem::TreeViewItem() noexcept
 
 TreeViewItem::TreeViewItem(
     TypeId runtimeType) noexcept
-    : ItemContainer(runtimeType),
+    : HeaderedItemsControl(runtimeType),
       headerChangedHandler_(
           this, &TreeViewItem::OnHeaderChanged),
       iconChangedHandler_(
@@ -44,8 +44,7 @@ TreeViewItem::TreeViewItem(
 
 TreeViewItem::~TreeViewItem() {
     if (childItems_ != nullptr) {
-        static_cast<void>(
-            childItems_->SetItemsSource(nullptr));
+    childItems_->SetItemsSource(static_cast<Collections::IItemsSource*>(nullptr));
     }
     static_cast<void>(RemoveValueChangedHandler(
         HeaderProperty, headerChangedHandler_));
@@ -62,75 +61,70 @@ TreeViewItem::~TreeViewItem() {
 }
 
 Base::StringView
-TreeViewItem::Header() const noexcept {
+TreeViewItem::GetHeader() const noexcept {
     return GetValueOr(
         HeaderProperty, Base::StringView{});
 }
 
-Base::Result<void> TreeViewItem::SetHeader(
+void TreeViewItem::SetHeader(
     Base::StringView value) noexcept {
-    return SetValue(HeaderProperty, value);
+    SetValue(HeaderProperty, value);
 }
 
-Base::StringView TreeViewItem::Icon() const noexcept {
+Base::StringView TreeViewItem::GetIcon() const noexcept {
     return GetValueOr(
         IconProperty, Base::StringView{});
 }
 
-Base::Result<void> TreeViewItem::SetIcon(
+void TreeViewItem::SetIcon(
     Base::StringView value) noexcept {
-    return SetValue(IconProperty, value);
+    SetValue(IconProperty, value);
 }
 
 Base::Ref<DataTemplate>
-TreeViewItem::HeaderTemplate() const noexcept {
+TreeViewItem::GetHeaderTemplate() const noexcept {
     return GetValueOr(
         HeaderTemplateProperty,
         Base::Ref<DataTemplate>{});
 }
 
-Base::Result<void>
+void
 TreeViewItem::SetHeaderTemplate(
     Base::Ref<DataTemplate> value) noexcept {
-    return SetValue(
-        HeaderTemplateProperty, std::move(value));
+    SetValue(HeaderTemplateProperty, std::move(value));
 }
 
-bool TreeViewItem::IsExpanded() const noexcept {
+bool TreeViewItem::GetIsExpanded() const noexcept {
     return GetValueOr(
         IsExpandedProperty, false);
 }
 
-Base::Result<void>
+void
 TreeViewItem::SetIsExpanded(
     bool value) noexcept {
-    return SetCurrentValue(
-        IsExpandedProperty, value);
+    SetCurrentValue(IsExpandedProperty, value);
 }
 
-bool TreeViewItem::IsSelected() const noexcept {
+bool TreeViewItem::GetIsSelected() const noexcept {
     return GetValueOr(
         IsSelectedProperty, false);
 }
 
-Base::Result<void>
+void
 TreeViewItem::SetIsSelected(
     bool value) noexcept {
-    return SetCurrentValue(
-        IsSelectedProperty, value);
+    SetCurrentValue(IsSelectedProperty, value);
 }
 
 void TreeViewItem::OnItemsChanged(
     const ItemsChangedEvent&) noexcept {
     static_cast<void>(SetReadOnlyCurrentValue(
-        HasItemsProperty, Count() != 0U));
+        HasItemsProperty, GetCount() != 0U));
 }
 
-Base::Result<void>
+void
 TreeViewItem::OnApplyTemplate() noexcept {
-    Base::Result<void> applied =
-        ItemContainer::OnApplyTemplate();
-    if (!applied) return applied.GetStatus();
+    HeaderedItemsControl::OnApplyTemplate();
 
     DependencyObject* header =
         GetTemplateChild("HeaderText");
@@ -171,57 +165,44 @@ TreeViewItem::OnApplyTemplate() noexcept {
     if (headerText_ == nullptr ||
         expanderGlyph_ == nullptr ||
         childItems_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "TreeViewItem template requires HeaderText, ExpanderGlyph, and ChildItems parts");
+        return;
     }
-    Base::Result<void> source =
-        childItems_->SetItemsSource(this);
-    if (!source) return source.GetStatus();
-    return SynchronizeTemplate();
+    childItems_->SetItemsSource(this);
+    static_cast<void>(SynchronizeTemplate());
 }
 
 void TreeViewItem::OnTemplateDetached() noexcept {
     if (childItems_ != nullptr) {
-        static_cast<void>(
-            childItems_->SetItemsSource(nullptr));
+        childItems_->SetItemsSource(static_cast<Collections::IItemsSource*>(nullptr));
     }
     headerText_ = nullptr;
     iconText_ = nullptr;
     expanderGlyph_ = nullptr;
     childItems_ = nullptr;
-    ItemContainer::OnTemplateDetached();
+    HeaderedItemsControl::OnTemplateDetached();
 }
 
 Base::Result<void>
 TreeViewItem::SynchronizeTemplate() noexcept {
     if (headerText_ != nullptr) {
-        Base::Result<void> header =
-            headerText_->SetText(Header());
-        if (!header) return header.GetStatus();
+        headerText_->SetText(GetHeader());
     }
     if (iconText_ != nullptr) {
-        Base::Result<void> icon =
-            iconText_->SetText(Icon());
-        if (!icon) return icon.GetStatus();
+        iconText_->SetText(GetIcon());
     }
     if (expanderGlyph_ != nullptr) {
-        Base::Result<void> glyph =
-            expanderGlyph_->SetText(
-                Count() == 0U
+        expanderGlyph_->SetText(
+                GetCount() == 0U
                 ? Base::StringView("")
-                : IsExpanded()
+                : GetIsExpanded()
                     ? Base::StringView("v")
                     : Base::StringView(">"));
-        if (!glyph) return glyph.GetStatus();
     }
     if (childItems_ != nullptr) {
-        Base::Result<void> visible =
-            childItems_->SetVisibility(
-                IsExpanded()
+        childItems_->SetVisibility(
+                GetIsExpanded()
                 ? Visibility::Visible
                 : Visibility::Collapsed);
-        if (!visible) return visible.GetStatus();
     }
     return {};
 }
@@ -267,39 +248,35 @@ TreeView::~TreeView() {
 }
 
 Base::Ref<Base::Object>
-TreeView::SelectedItem() const noexcept {
+TreeView::GetSelectedItem() const noexcept {
     return GetValueOr(
         SelectedItemProperty,
         Base::Ref<Base::Object>{});
 }
 
-Base::Result<Base::Ref<ItemContainer>>
+Base::Result<Base::Ref<FrameworkElement>>
 TreeView::CreateContainer(
     const Base::Ref<Base::Object>&) noexcept {
     Base::Result<Base::Ref<TreeViewItem>> made =
         Base::MakeRef<TreeViewItem>();
     if (!made) return made.GetStatus();
-    return Base::Ref<ItemContainer>(
+    return Base::Ref<FrameworkElement>(
         std::move(made).Value());
 }
 
-Base::Result<bool> TreeView::SelectItem(
+bool TreeView::SelectItem(
     TreeViewItem* item) noexcept {
     Base::Ref<Base::Object> previous =
-        SelectedItem();
+        GetSelectedItem();
     if (previous.Get() == item) return false;
     if (previous &&
         PropertyRegistry().Types().IsDerivedFrom(
             previous->RuntimeType(),
             TreeViewItem::StaticTypeId())) {
-        Base::Result<void> cleared =
-            static_cast<TreeViewItem*>(
-                previous.Get())->SetIsSelected(
-                    false);
-        if (!cleared) return cleared.GetStatus();
+        static_cast<TreeViewItem*>(previous.Get())->SetIsSelected(false);
         if (states_ != nullptr) {
             static_cast<void>(
-                Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
+                Aero::Internal::TemplatePrivate::GoToState(*states_,
                     *static_cast<TreeViewItem*>(
                         previous.Get()),
                     "SelectionStates",
@@ -308,48 +285,33 @@ Base::Result<bool> TreeView::SelectItem(
     }
     Base::Ref<Base::Object> next;
     if (item != nullptr) {
-        Base::Result<void> selected =
-            item->SetIsSelected(true);
-        if (!selected) {
-            if (previous) {
-                static_cast<void>(
-                    static_cast<TreeViewItem*>(
-                        previous.Get())->
-                        SetIsSelected(true));
-            }
-            return selected.GetStatus();
-        }
+        item->SetIsSelected(true);
         if (states_ != nullptr) {
             Base::Result<bool> state =
-                Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
+                Aero::Internal::TemplatePrivate::GoToState(*states_,
                     *item,
                     "SelectionStates",
                     "Selected");
             if (!state) {
-                return state.GetStatus();
+                return false;
             }
         }
         next =
             Base::Ref<Base::Object>::FromBorrowed(
                 *item);
     }
-    Base::Result<void> published =
-        SetReadOnlyCurrentValue(
-            SelectedItemProperty, next);
-    if (!published) return published.GetStatus();
+    SetReadOnlyCurrentValue(SelectedItemProperty, next);
     RoutedEventArgs event;
-    Base::Result<void> raised =
-        RaiseEvent(
-            SelectedItemChangedEvent, &event);
-    if (!raised) return raised.GetStatus();
+    RaiseEvent(SelectedItemChangedEvent, &event);
     return true;
 }
 
 } // namespace Aero::Controls
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using namespace Aero::Controls;
 
 TreeBehavior::
@@ -417,7 +379,7 @@ Base::Result<void>
 TreeBehavior::Attach(
     TreeView& treeView) noexcept {
     if (treeView.interactions_ != nullptr ||
-        Aero::Detail::ElementPrivate::Tree(treeView) != tree_ ||
+        Aero::Internal::ElementPrivate::Tree(treeView) != tree_ ||
         FindTreeView(treeView) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -520,7 +482,7 @@ TreeBehavior::CollectVisibleItems(
     Base::Vector<TreeViewItem*>& items)
     noexcept {
     for (Visual* child :
-        Aero::Detail::ElementPrivate::VisualChildren(parent)) {
+        Aero::Internal::ElementPrivate::VisualChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element =
             child->AsUIElement();
@@ -562,13 +524,7 @@ void TreeBehavior::OnMouseDown(
         FindItem(
             treeView, args.GetOriginalSource());
     if (item == nullptr) return;
-    Base::Result<bool> selected =
-        treeView.SelectItem(item);
-    if (!selected &&
-        selected.GetStatus().code !=
-            Base::ErrorCode::Ok) {
-        return;
-    }
+    if (!treeView.SelectItem(item)) return;
     static_cast<void>(
         input_->SetFocus(item));
     args.SetHandled(true);
@@ -592,7 +548,7 @@ void TreeBehavior::OnKeyDown(
             treeView, args.GetOriginalSource());
     if (current == nullptr) {
         Base::Ref<Base::Object> selected =
-            treeView.SelectedItem();
+            treeView.GetSelectedItem();
         if (selected &&
             treeView.PropertyRegistry().Types().
                 IsDerivedFrom(
@@ -605,15 +561,15 @@ void TreeBehavior::OnKeyDown(
     }
     if (current == nullptr) return;
     if (args.GetKey() == KeyboardKeyRight &&
-        current->Count() != 0U &&
-        !current->IsExpanded()) {
+        current->GetCount() != 0U &&
+        !current->GetIsExpanded()) {
         static_cast<void>(
             current->SetIsExpanded(true));
         args.SetHandled(true);
         return;
     }
     if (args.GetKey() == KeyboardKeyLeft &&
-        current->IsExpanded()) {
+        current->GetIsExpanded()) {
         static_cast<void>(
             current->SetIsExpanded(false));
         args.SetHandled(true);
@@ -621,13 +577,12 @@ void TreeBehavior::OnKeyDown(
     }
     if (args.GetKey() == KeyboardKeyEnter ||
         args.GetKey() == KeyboardKeySpace) {
-        if (current->Count() != 0U) {
+        if (current->GetCount() != 0U) {
             static_cast<void>(
                 current->SetIsExpanded(
-                    !current->IsExpanded()));
+                    !current->GetIsExpanded()));
         }
-        static_cast<void>(
-            treeView.SelectItem(current));
+        treeView.SelectItem(current);
         args.SetHandled(true);
         return;
     }
@@ -657,11 +612,10 @@ void TreeBehavior::OnKeyDown(
     } else {
         return;
     }
-    static_cast<void>(
-        treeView.SelectItem(visible[target]));
+    treeView.SelectItem(visible[target]);
     static_cast<void>(
         input_->SetFocus(visible[target]));
     args.SetHandled(true);
 }
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

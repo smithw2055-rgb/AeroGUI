@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Aero/Controls/Core.hpp>
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
@@ -8,37 +9,7 @@
 
 #include <cstdint>
 
-namespace Aero::Text {
-
-struct TextRange final {
-    std::uint32_t start = 0U;
-    std::uint32_t length = 0U;
-
-    std::uint32_t End() const noexcept {
-        return start + length;
-    }
-    bool Empty() const noexcept {
-        return length == 0U;
-    }
-};
-
-struct TextSelection final {
-    std::uint32_t anchor = 0U;
-    std::uint32_t caret = 0U;
-
-    std::uint32_t Start() const noexcept {
-        return anchor < caret ? anchor : caret;
-    }
-    std::uint32_t End() const noexcept {
-        return anchor < caret ? caret : anchor;
-    }
-    std::uint32_t Length() const noexcept {
-        return End() - Start();
-    }
-    bool Empty() const noexcept {
-        return anchor == caret;
-    }
-};
+namespace Aero::Internal {
 
 // UTF-8 gap-buffer editor model. Public positions are extended grapheme
 // cluster indices; UTF-8 bytes and code-point counts remain queryable for
@@ -104,4 +75,4 @@ private:
     Base::Result<void> EnsureImpl() noexcept;
 };
 
-} // namespace Aero::Text
+} // namespace Aero::Internal

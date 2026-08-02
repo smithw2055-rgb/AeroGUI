@@ -17,31 +17,6 @@ Base::Status NotInitialized(const char* message) noexcept {
         Base::ErrorCode::NotInitialized, message);
 }
 
-class HeadlessDeviceState final {
-public:
-    Base::Result<void> Submit(
-        const Render::RenderFrame&) noexcept {
-        return {};
-    }
-    Base::Result<void> Resize(
-        std::uint32_t,
-        std::uint32_t) noexcept {
-        return {};
-    }
-    void NotifySurfaceLost() noexcept {}
-    void NotifyDeviceLost() noexcept {}
-    Base::Result<void> Restore() noexcept { return {}; }
-    Base::Result<void> WaitIdle(std::uint32_t) noexcept {
-        return {};
-    }
-    RenderFrameStatistics LastFrameStatistics() const noexcept {
-        return {};
-    }
-    Aero::Detail::RenderResources Resources() noexcept {
-        return {};
-    }
-};
-
 } // namespace
 
 RenderDevice::RenderDevice(
@@ -64,8 +39,8 @@ RenderDevice::~RenderDevice() noexcept {
 }
 
 Base::Result<RenderFrameStatistics> RenderDevice::Analyze(
-    const Render::RenderFrame& frame) noexcept {
-    Base::Result<void> valid = Render::ValidateRenderFrame(frame);
+    const Integration::RenderFrame& frame) noexcept {
+    Base::Result<void> valid = Integration::ValidateRenderFrame(frame);
     if (!valid) return valid.GetStatus();
 
     Render::Detail::BatchPlanner planner(allocator_);
@@ -118,32 +93,28 @@ Base::Result<void> RenderDevice::Resize(
     return idle ? functions_->resize(stateData_, width, height) : idle;
 }
 
-Base::Result<void> RenderDevice::NotifySurfaceLost() noexcept {
+void RenderDevice::NotifySurfaceLost() noexcept {
     if (stateData_ == nullptr || functions_ == nullptr) {
-        return NotInitialized("Render device is not initialized");
+        return;
     }
     if (state_ != RenderDeviceState::Ready) {
-        return InvalidState(
-            "Render device cannot lose its surface in its current state");
+        return;
     }
     state_ = RenderDeviceState::SurfaceLost;
     ++statistics_.generation;
     functions_->surfaceLost(stateData_);
-    return {};
 }
 
-Base::Result<void> RenderDevice::NotifyDeviceLost() noexcept {
+void RenderDevice::NotifyDeviceLost() noexcept {
     if (stateData_ == nullptr || functions_ == nullptr) {
-        return NotInitialized("Render device is not initialized");
+        return;
     }
     if (state_ != RenderDeviceState::Ready) {
-        return InvalidState(
-            "Render device cannot lose its device in its current state");
+        return;
     }
     state_ = RenderDeviceState::DeviceLost;
     ++statistics_.generation;
     functions_->deviceLost(stateData_);
-    return {};
 }
 
 Base::Result<void> RenderDevice::Restore() noexcept {
@@ -173,10 +144,29 @@ Base::Result<void> RenderDevice::WaitIdle(
               NotInitialized("Render device is not initialized"));
 }
 
-namespace Detail {
+} // namespace Aero::Integration
 
-Base::Result<Base::Ref<RenderDevice>> AdoptRenderDevice(
-    RenderDeviceMode mode,
+namespace Aero::Internal {
+
+class HeadlessDeviceState final {
+public:
+    Base::Result<void> Submit(
+        const ::Aero::Integration::RenderFrame&) noexcept { return {}; }
+    Base::Result<void> Resize(
+        std::uint32_t,
+        std::uint32_t) noexcept { return {}; }
+    void NotifySurfaceLost() noexcept {}
+    void NotifyDeviceLost() noexcept {}
+    Base::Result<void> Restore() noexcept { return {}; }
+    Base::Result<void> WaitIdle(std::uint32_t) noexcept { return {}; }
+    ::Aero::Integration::RenderFrameStatistics
+    LastFrameStatistics() const noexcept { return {}; }
+    RenderResources Resources() noexcept { return {}; }
+};
+
+Base::Result<Base::Ref<::Aero::Integration::RenderDevice>>
+RenderDeviceFactory::Adopt(
+    ::Aero::Integration::RenderDeviceMode mode,
     void* state,
     const RenderDeviceFunctions* functions,
     Base::IAllocator* allocator) noexcept {
@@ -188,10 +178,10 @@ Base::Result<Base::Ref<RenderDevice>> AdoptRenderDevice(
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
         : Base::GetDefaultAllocator();
-    Base::Result<Base::Ref<RenderDevice>> made =
-        Base::MakeRefWithAllocator<RenderDevice>(
+    Base::Result<Base::Ref<::Aero::Integration::RenderDevice>> made =
+        Base::MakeRefWithAllocator<::Aero::Integration::RenderDevice>(
             selected,
-            RenderDevice::ConstructionToken{},
+            ::Aero::Integration::RenderDevice::ConstructionToken{},
             mode,
             &selected);
     if (!made) {
@@ -203,7 +193,18 @@ Base::Result<Base::Ref<RenderDevice>> AdoptRenderDevice(
     return std::move(made).Value();
 }
 
-Base::Result<Base::Ref<RenderDevice>> CreateHeadlessRenderDevice(
+Base::Result<Base::Ref<::Aero::Integration::RenderDevice>>
+AdoptRenderDevice(
+    ::Aero::Integration::RenderDeviceMode mode,
+    void* state,
+    const RenderDeviceFunctions* functions,
+    Base::IAllocator* allocator) noexcept {
+    return RenderDeviceFactory::Adopt(
+        mode, state, functions, allocator);
+}
+
+Base::Result<Base::Ref<::Aero::Integration::RenderDevice>>
+CreateHeadlessRenderDevice(
     Base::IAllocator* allocator) noexcept {
     auto* backend = new (std::nothrow) HeadlessDeviceState();
     if (backend == nullptr) {
@@ -212,12 +213,14 @@ Base::Result<Base::Ref<RenderDevice>> CreateHeadlessRenderDevice(
             "Unable to allocate the headless render device");
     }
     return AdoptRenderDevice(
-        RenderDeviceMode::Headless,
+        ::Aero::Integration::RenderDeviceMode::Headless,
         backend,
         allocator);
 }
 
-} // namespace Detail
+} // namespace Aero::Internal
+
+namespace Aero::Integration {
 
 Base::Result<void> RenderDevice::Bind(const void* owner) noexcept {
     if (owner == nullptr) {
@@ -244,7 +247,7 @@ void RenderDevice::Unbind(const void* owner) noexcept {
 }
 
 Base::Result<void> RenderDevice::Submit(
-    const Render::RenderFrame& frame) noexcept {
+    const Integration::RenderFrame& frame) noexcept {
     if (stateData_ == nullptr || functions_ == nullptr) {
         return NotInitialized("Render device is not initialized");
     }
@@ -290,10 +293,10 @@ Base::Status RenderDevice::GetFrameStatus() noexcept {
     return InvalidState("Render device state is invalid");
 }
 
-Aero::Detail::RenderResources RenderDevice::Resources() noexcept {
+Aero::Internal::RenderResources RenderDevice::Resources() noexcept {
     return stateData_ != nullptr && functions_ != nullptr
         ? functions_->resources(stateData_)
-        : Aero::Detail::RenderResources{};
+        : Aero::Internal::RenderResources{};
 }
 
 } // namespace Aero::Integration

@@ -4,9 +4,10 @@
 
 #include <Aero/Layout.hpp>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 
 class AERO_API LayoutEngine final {
 public:
@@ -33,8 +34,8 @@ private:
     Dispatcher* dispatcher_ = nullptr;
     UIElement* root_ = nullptr;
     Size rootAvailableSize_;
-    Base::Vector<Aero::Detail::VisualLease> measureQueue_;
-    Base::Vector<Aero::Detail::VisualLease> arrangeQueue_;
+    Base::Vector<Aero::Internal::VisualLease> measureQueue_;
+    Base::Vector<Aero::Internal::VisualLease> arrangeQueue_;
     DispatcherFrameHookHandle phaseHook_;
     std::uint64_t passVersion_ = 0U;
     std::uint32_t measuredCount_ = 0U;
@@ -51,4 +52,4 @@ private:
     static void LayoutHook(void* context) noexcept;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

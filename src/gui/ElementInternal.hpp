@@ -18,7 +18,7 @@ class Control;
 class VisualStateManager;
 }
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 class EventRouter;
 class InputRouter;
@@ -32,10 +32,10 @@ struct ElementHost final {
     InputRouter* input = nullptr;
     void* nameScopeContext = nullptr;
     Base::Object* (*findName)(
-        void*, Base::StringView, Core::TypeId) noexcept = nullptr;
+        void*, Base::StringView, Meta::TypeId) noexcept = nullptr;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal
 
 namespace Aero {
 
@@ -60,7 +60,7 @@ using ElementTreeLifecycleHandler = void (*)(
 
 } // namespace Aero
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 // One private entry point owns all element implementation state. Public WPF
 // classes friend this type instead of exposing one Access class per base type.
@@ -87,7 +87,7 @@ public:
     static Base::Object* FindName(
         const Aero::UIElement& element,
         Base::StringView name,
-        Core::TypeId expectedType = Core::InvalidTypeId) noexcept {
+        Meta::TypeId expectedType = Meta::InvalidTypeId) noexcept {
         auto* services = static_cast<ElementHost*>(element.viewServices_);
         return services != nullptr && services->findName != nullptr
             ? services->findName(
@@ -178,7 +178,8 @@ public:
     static Base::Result<void> SetTemplatedParent(
         FrameworkElement& element,
         DependencyObject* value) noexcept {
-        return element.SetTemplatedParent(value);
+        element.SetTemplatedParent(value);
+        return {};
     }
     static Base::Result<void> TryAddAuthoredTrigger(
         FrameworkElement& element,
@@ -187,19 +188,20 @@ public:
     }
     static Base::Result<void> ClearAuthoredTriggers(
         FrameworkElement& element) noexcept {
-        return element.ClearAuthoredTriggers();
+        element.ClearAuthoredTriggers();
+        return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> AuthoredTriggers(
         const FrameworkElement& element) noexcept {
         return element.AuthoredTriggers();
     }
-    static bool IsRenderValid(
+    static bool GetIsRenderValid(
         const FrameworkElement& element) noexcept {
-        return element.IsRenderValid();
+        return element.GetIsRenderValid();
     }
-    static std::uint64_t RenderRevision(
+    static std::uint64_t GetRenderRevision(
         const FrameworkElement& element) noexcept {
-        return element.RenderRevision();
+        return element.GetRenderRevision();
     }
 
     static void Attach(
@@ -260,7 +262,7 @@ struct VisualLease final {
     }
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal
 
 // Per-view Gui context and element attachment state.
 
@@ -268,9 +270,9 @@ struct VisualLease final {
 #include "gui/PropertyInternal.hpp"
 #include <Aero/Layout.hpp>
 
-namespace Aero::Render { class RenderTree; }
+namespace Aero::Internal { class RenderTree; }
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 struct ElementAttachment final {
     Visual* logicalParent = nullptr;
@@ -311,15 +313,15 @@ struct RootAttachment final {
     }
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal
 
 namespace Aero {
 
 class AERO_API ElementTree final {
 public:
     ElementTree(
-        Core::Dispatcher& dispatcher,
-        Core::EffectiveValueEngine& values) noexcept;
+        ::Aero::Threading::Dispatcher& dispatcher,
+        Meta::EffectiveValueEngine& values) noexcept;
     ~ElementTree() noexcept;
 
     ElementTree(const ElementTree&) = delete;
@@ -343,37 +345,37 @@ public:
     Base::Result<void> DetachNode(Visual& node) noexcept;
 
     void AttachPresentation(
-        Aero::Detail::LayoutEngine* layout,
-        Render::RenderTree* renderer) noexcept {
+        Aero::Internal::LayoutEngine* layout,
+        Internal::RenderTree* renderer) noexcept {
         layout_ = layout;
         renderer_ = renderer;
     }
 
-    Base::Result<Aero::Detail::ElementAttachment> AttachElement(
+    Base::Result<Aero::Internal::ElementAttachment> AttachElement(
         Visual& parent, Visual& child) noexcept {
         return AttachElement(parent, parent, child);
     }
-    Base::Result<Aero::Detail::ElementAttachment> AttachElement(
+    Base::Result<Aero::Internal::ElementAttachment> AttachElement(
         Visual& logicalParent, Visual& visualParent, Visual& child) noexcept;
     Base::Result<void> DetachElement(
-        Aero::Detail::ElementAttachment& state) noexcept;
+        Aero::Internal::ElementAttachment& state) noexcept;
     Base::Result<void> DetachVisual(
-        Aero::Detail::ElementAttachment& state) noexcept;
+        Aero::Internal::ElementAttachment& state) noexcept;
     Base::Result<void> AttachVisual(
-        Aero::Detail::ElementAttachment& state, Visual& newVisualParent) noexcept;
-    Base::Result<Aero::Detail::VisualAttachment> AttachVisualChild(
+        Aero::Internal::ElementAttachment& state, Visual& newVisualParent) noexcept;
+    Base::Result<Aero::Internal::VisualAttachment> AttachVisualChild(
         Visual& visualParent, Visual& child) noexcept;
     Base::Result<void> DetachVisual(
-        Aero::Detail::VisualAttachment& state) noexcept;
-    Base::Result<Aero::Detail::VisualAttachment> ReparentVisual(
-        Aero::Detail::VisualAttachment& current, Visual& newVisualParent) noexcept;
-    Base::Result<Aero::Detail::RootAttachment> AttachRoot(
+        Aero::Internal::VisualAttachment& state) noexcept;
+    Base::Result<Aero::Internal::VisualAttachment> ReparentVisual(
+        Aero::Internal::VisualAttachment& current, Visual& newVisualParent) noexcept;
+    Base::Result<Aero::Internal::RootAttachment> AttachRoot(
         Visual& root, Size availableSize) noexcept;
     Base::Result<void> DetachRoot(
-        Aero::Detail::RootAttachment& state) noexcept;
+        Aero::Internal::RootAttachment& state) noexcept;
 
-    Aero::Detail::LayoutEngine* Layout() const noexcept { return layout_; }
-    Render::RenderTree* Renderer() const noexcept { return renderer_; }
+    Aero::Internal::LayoutEngine* Layout() const noexcept { return layout_; }
+    Internal::RenderTree* Renderer() const noexcept { return renderer_; }
 
     void SetLifecycleHandler(
         ElementTreeLifecycleHandler handler,
@@ -390,7 +392,7 @@ public:
 
 private:
     struct LifecycleRecord final {
-        Aero::Detail::VisualLease node;
+        Aero::Internal::VisualLease node;
         bool loaded = false;
         std::uint64_t sequence = 0U;
         std::uint64_t treeVersion = 0U;
@@ -400,14 +402,14 @@ private:
         std::uint32_t generation = 1U;
     };
 
-    Core::Dispatcher* dispatcher_ = nullptr;
-    Core::EffectiveValueEngine* values_ = nullptr;
-    Aero::Detail::LayoutEngine* layout_ = nullptr;
-    Render::RenderTree* renderer_ = nullptr;
+    ::Aero::Threading::Dispatcher* dispatcher_ = nullptr;
+    Meta::EffectiveValueEngine* values_ = nullptr;
+    Aero::Internal::LayoutEngine* layout_ = nullptr;
+    Internal::RenderTree* renderer_ = nullptr;
     Visual* root_ = nullptr;
     Base::Vector<LifecycleRecord> lifecycleQueue_;
     Base::Vector<HandleEntry> handles_;
-    Core::DispatcherFrameHookHandle lifecycleHook_;
+    ::Aero::Threading::DispatcherFrameHookHandle lifecycleHook_;
     ElementTreeLifecycleHandler lifecycleHandler_ = nullptr;
     void* lifecycleContext_ = nullptr;
     DependencyPropertyChangedEventHandler dataContextChangedHandler_;

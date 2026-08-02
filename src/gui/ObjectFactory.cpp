@@ -4,7 +4,7 @@
 #include "gui/MetadataInternal.hpp"
 #include "gui/MetadataInternal.hpp"
 
-namespace Aero::Core {
+namespace Aero::Meta {
 namespace {
 
 thread_local ObjectFactoryState* activeObjectFactory = nullptr;
@@ -95,4 +95,4 @@ ObjectFactoryScope::~ObjectFactoryScope() {
     activeObjectFactory = previous_;
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

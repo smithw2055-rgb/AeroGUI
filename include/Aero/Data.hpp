@@ -35,8 +35,8 @@ public:
     explicit PropertyPath(Base::StringView path) noexcept { static_cast<void>(path_.TryAssign(path)); }
 
     Base::StringView GetPath() const noexcept { return path_.View(); }
-    bool IsEmpty() const noexcept { return path_.Empty(); }
-    Base::Result<void> SetPath(Base::StringView value) noexcept { return path_.TryAssign(value); }
+    bool GetIsEmpty() const noexcept { return path_.Empty(); }
+    void SetPath(Base::StringView value) noexcept { (void)path_.TryAssign(value); }
 
 private:
     Base::String path_;
@@ -48,11 +48,11 @@ public:
     RelativeSource() noexcept = default;
     explicit RelativeSource(RelativeSourceMode mode) noexcept : mode_(mode) {}
 
-    Core::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     RelativeSourceMode GetMode() const noexcept { return mode_; }
     void SetMode(RelativeSourceMode value) noexcept { mode_ = value; }
     Base::StringView GetAncestorType() const noexcept { return ancestorType_.View(); }
-    Base::Result<void> SetAncestorType(Base::StringView value) noexcept { return ancestorType_.TryAssign(value); }
+    void SetAncestorType(Base::StringView value) noexcept { (void)ancestorType_.TryAssign(value); }
     std::uint32_t GetAncestorLevel() const noexcept { return ancestorLevel_; }
     void SetAncestorLevel(std::uint32_t value) noexcept { ancestorLevel_ = value == 0U ? 1U : value; }
 
@@ -70,8 +70,8 @@ class AERO_API IValueConverter : public Base::Object {
 public:
     ~IValueConverter() override = default;
 
-    virtual Base::Result<Core::Value> Convert(const Core::Value& value, const Core::Value& parameter) noexcept = 0;
-    virtual Base::Result<Core::Value> ConvertBack(const Core::Value& value, const Core::Value& parameter) noexcept = 0;
+    virtual Base::Result<Meta::Value> Convert(const Meta::Value& value, const Meta::Value& parameter) noexcept = 0;
+    virtual Base::Result<Meta::Value> ConvertBack(const Meta::Value& value, const Meta::Value& parameter) noexcept = 0;
 
 protected:
     IValueConverter() noexcept = default;
@@ -82,22 +82,22 @@ class AERO_API BindingBase : public Base::Object {
 public:
     ~BindingBase() override = default;
 
-    Core::TypeId RuntimeType() const noexcept override { return runtimeType_; }
+    Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
     Base::StringView GetStringFormat() const noexcept { return stringFormat_.View(); }
-    Base::Result<void> SetStringFormat(Base::StringView value) noexcept { return stringFormat_.TryAssign(value); }
-    const Core::Value& GetFallbackValue() const noexcept { return fallbackValue_; }
-    void SetFallbackValue(Core::Value value) noexcept { fallbackValue_ = std::move(value); }
-    const Core::Value& GetTargetNullValue() const noexcept { return targetNullValue_; }
-    void SetTargetNullValue(Core::Value value) noexcept { targetNullValue_ = std::move(value); }
+    void SetStringFormat(Base::StringView value) noexcept { (void)stringFormat_.TryAssign(value); }
+    const Meta::Value& GetFallbackValue() const noexcept { return fallbackValue_; }
+    void SetFallbackValue(Meta::Value value) noexcept { fallbackValue_ = std::move(value); }
+    const Meta::Value& GetTargetNullValue() const noexcept { return targetNullValue_; }
+    void SetTargetNullValue(Meta::Value value) noexcept { targetNullValue_ = std::move(value); }
 
 protected:
-    explicit BindingBase(Core::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    explicit BindingBase(Meta::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
 
 private:
-    Core::TypeId runtimeType_ = StaticTypeId();
+    Meta::TypeId runtimeType_ = StaticTypeId();
     Base::String stringFormat_;
-    Core::Value fallbackValue_;
-    Core::Value targetNullValue_;
+    Meta::Value fallbackValue_;
+    Meta::Value targetNullValue_;
 };
 
 class AERO_API Binding final : public BindingBase {
@@ -107,10 +107,10 @@ public:
     explicit Binding(Base::StringView path) noexcept : BindingBase(StaticTypeId()), path_(path) {}
 
     const PropertyPath& GetPath() const noexcept { return path_; }
-    Base::Result<void> SetPath(PropertyPath value) noexcept { path_ = std::move(value); return {}; }
-    Base::Result<void> SetPath(Base::StringView value) noexcept { return path_.SetPath(value); }
+    void SetPath(PropertyPath value) noexcept { path_ = std::move(value); return; }
+    void SetPath(Base::StringView value) noexcept { path_.SetPath(value); }
     Base::StringView GetElementName() const noexcept { return elementName_.View(); }
-    Base::Result<void> SetElementName(Base::StringView value) noexcept { return elementName_.TryAssign(value); }
+    void SetElementName(Base::StringView value) noexcept { (void)elementName_.TryAssign(value); }
     BindingMode GetMode() const noexcept { return mode_; }
     void SetMode(BindingMode value) noexcept { mode_ = value; }
     UpdateSourceTrigger GetUpdateSourceTrigger() const noexcept { return updateSourceTrigger_; }
@@ -121,8 +121,8 @@ public:
     void SetRelativeSource(Base::Ref<RelativeSource> value) noexcept { relativeSource_ = std::move(value); }
     Base::Ref<IValueConverter> GetConverter() const noexcept { return converter_; }
     void SetConverter(Base::Ref<IValueConverter> value) noexcept { converter_ = std::move(value); }
-    const Core::Value& GetConverterParameter() const noexcept { return converterParameter_; }
-    void SetConverterParameter(Core::Value value) noexcept { converterParameter_ = std::move(value); }
+    const Meta::Value& GetConverterParameter() const noexcept { return converterParameter_; }
+    void SetConverterParameter(Meta::Value value) noexcept { converterParameter_ = std::move(value); }
 
 private:
     PropertyPath path_;
@@ -132,7 +132,7 @@ private:
     Base::Ref<Base::Object> source_;
     Base::Ref<RelativeSource> relativeSource_;
     Base::Ref<IValueConverter> converter_;
-    Core::Value converterParameter_;
+    Meta::Value converterParameter_;
 };
 
 } // namespace Aero::Data

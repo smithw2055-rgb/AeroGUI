@@ -4,38 +4,36 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 
-namespace Aero::App {
-
-namespace Detail {
+namespace Aero::Internal {
 
 class DesktopPrivate final {
 public:
     static void Attach(
-        Application& application,
+        ::Aero::Application& application,
         void* hostState,
-        Window* mainWindow) noexcept;
-    static void Detach(Application& application) noexcept;
-    static void RaiseStartup(Application& application) noexcept;
+        ::Aero::Window* mainWindow) noexcept;
+    static void Detach(::Aero::Application& application) noexcept;
+    static void RaiseStartup(::Aero::Application& application) noexcept;
     static void RaiseExit(
-        Application& application,
+        ::Aero::Application& application,
         int exitCode) noexcept;
 
-    static void Attach(Window& window, void* hostState) noexcept;
-    static void Detach(Window& window) noexcept;
-    static void NotifySourceInitialized(Window& window) noexcept;
-    static void NotifyContentRendered(Window& window) noexcept;
-    static void NotifyClosed(Window& window) noexcept;
+    static void Attach(::Aero::Window& window, void* hostState) noexcept;
+    static void Detach(::Aero::Window& window) noexcept;
+    static void NotifySourceInitialized(::Aero::Window& window) noexcept;
+    static void NotifyContentRendered(::Aero::Window& window) noexcept;
+    static void NotifyClosed(::Aero::Window& window) noexcept;
 };
 
 // Private implementation of the optional desktop application framework.
 // It is deliberately not installed and does not form a second authoring API.
 class DesktopHost final {
 public:
-    explicit DesktopHost(const RunOptions& options) noexcept;
+    explicit DesktopHost(const ::Aero::App::RunOptions& options) noexcept;
     DesktopHost(
-        Application& application,
-        Base::Ref<Window> window,
-        const RunOptions& options) noexcept;
+        ::Aero::Application& application,
+        Base::Ref<::Aero::Window> window,
+        const ::Aero::App::RunOptions& options) noexcept;
     ~DesktopHost() noexcept;
 
     DesktopHost(const DesktopHost&) = delete;
@@ -50,6 +48,9 @@ private:
     Impl* impl_ = nullptr;
 };
 
-} // namespace Detail
+} // namespace Aero::Internal
 
-} // namespace Aero::App
+namespace Aero::App::Detail {
+using ::Aero::Internal::DesktopPrivate;
+using ::Aero::Internal::DesktopHost;
+} // namespace Aero::App::Detail

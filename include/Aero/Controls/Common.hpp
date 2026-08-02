@@ -8,9 +8,15 @@
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Panels.hpp>
 
-namespace Aero::Detail { class MenuBehavior; }
+namespace Aero::Internal { class MenuBehavior; }
 
 namespace Aero::Controls {
+
+using ::Aero::Meta::DependencyPropertyChangedEventArgs;
+using ::Aero::Meta::DependencyPropertyChangedEventHandler;
+using ::Aero::Meta::TypeId;
+using ::Aero::Input::ICommand;
+using ::Aero::Media::ImageSource;
 
 enum class MenuItemRole : std::uint8_t {
     TopLevelItem = 0U,
@@ -21,33 +27,33 @@ enum class MenuItemRole : std::uint8_t {
 
 
 class AERO_API MenuItem final
-    : public TreeViewItem {
-    AERO_DECLARE_TYPE(MenuItem, TreeViewItem)
+    : public HeaderedItemsControl {
+    AERO_DECLARE_TYPE(MenuItem, HeaderedItemsControl)
 public:
     MenuItem() noexcept;
     ~MenuItem() override;
 
-    Base::StringView InputGestureText()
+    Base::StringView GetInputGestureText()
         const noexcept;
-    Base::Result<void> SetInputGestureText(
+    void SetInputGestureText(
         Base::StringView value) noexcept;
-    bool IsCheckable() const noexcept;
-    Base::Result<void> SetIsCheckable(
+    bool GetIsCheckable() const noexcept;
+    void SetIsCheckable(
         bool value) noexcept;
-    bool IsChecked() const noexcept;
-    Base::Result<void> SetIsChecked(
+    bool GetIsChecked() const noexcept;
+    void SetIsChecked(
         bool value) noexcept;
-    bool IsHighlighted() const noexcept;
-    bool IsSubmenuOpen() const noexcept;
-    Base::Result<void> SetIsSubmenuOpen(
+    bool GetIsHighlighted() const noexcept;
+    bool GetIsSubmenuOpen() const noexcept;
+    void SetIsSubmenuOpen(
         bool value) noexcept;
-    MenuItemRole Role() const noexcept;
+    MenuItemRole GetRole() const noexcept;
     ICommand* GetCommand() const noexcept;
-    Base::Result<void> SetCommand(
+    void SetCommand(
         Base::Ref<ICommand> command) noexcept;
     Base::Ref<Base::Object>
-        CommandParameter() const noexcept;
-    Base::Result<void> SetCommandParameter(
+        GetCommandParameter() const noexcept;
+    void SetCommandParameter(
         Base::Ref<Base::Object> value) noexcept;
 
     inline static constexpr Members::Property<Base::String> InputGestureTextProperty{"InputGestureText"};
@@ -61,12 +67,12 @@ public:
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
 
 protected:
-    Base::Result<void>
+    void
         OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend class Aero::Detail::MenuBehavior;
+    friend class Aero::Internal::MenuBehavior;
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
     Primitives::Popup* submenuPopup_ = nullptr;
@@ -78,8 +84,8 @@ private:
             args) noexcept;
     Base::Result<void>
         SynchronizeMenuTemplate() noexcept;
-    Base::Result<void> SetHighlightedState(bool value) noexcept;
-    Base::Result<void> SetRoleState(MenuItemRole value) noexcept;
+    void SetHighlightedState(bool value) noexcept;
+    void SetRoleState(MenuItemRole value) noexcept;
 };
 
 class AERO_API Menu : public ItemsControl {
@@ -92,13 +98,13 @@ public:
 protected:
     explicit Menu(TypeId runtimeType) noexcept
         : ItemsControl(runtimeType) {}
-    Base::Result<Base::Ref<ItemContainer>>
+    Base::Result<Base::Ref<FrameworkElement>>
         CreateContainer(
             const Base::Ref<Base::Object>& item)
             noexcept override;
 
 private:
-    friend class Aero::Detail::MenuBehavior;
+    friend class Aero::Internal::MenuBehavior;
     void* interactions_ =
         nullptr;
 };
@@ -110,12 +116,12 @@ public:
     ContextMenu() noexcept;
     ~ContextMenu() override;
 
-    bool IsOpen() const noexcept;
-    Base::Result<void> SetIsOpen(
+    bool GetIsOpen() const noexcept;
+    void SetIsOpen(
         bool value) noexcept;
     Base::Ref<UIElement>
-        PlacementTarget() const noexcept;
-    Base::Result<void> SetPlacementTarget(
+        GetPlacementTarget() const noexcept;
+    void SetPlacementTarget(
         Base::Ref<UIElement> value) noexcept;
 
     inline static constexpr Members::Property<bool> IsOpenProperty{"IsOpen"};
@@ -124,7 +130,7 @@ public:
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
 
 protected:
-    Base::Result<void>
+    void
         OnApplyTemplate() noexcept override;
 
 private:
@@ -146,7 +152,7 @@ public:
     }
     static Base::Ref<ContextMenu> GetContextMenu(
         const DependencyObject& target) noexcept;
-    static Base::Result<void> SetContextMenu(
+    static void SetContextMenu(
         DependencyObject& target,
         Base::Ref<ContextMenu> value) noexcept;
 
@@ -156,10 +162,10 @@ public:
 
 } // namespace Aero::Controls
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Controls::MenuItemRole> {
+struct TypeTraits<Controls::MenuItemRole> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("MenuItemRole"); }
     static constexpr Base::StringView Namespace() noexcept {
         return AeroNamespaceUri();
@@ -168,7 +174,7 @@ struct MetaTypeTraits<Controls::MenuItemRole> {
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 namespace Aero::Controls {
 
@@ -191,27 +197,27 @@ public:
     // Unlike the pre-gallery placeholder, WPF ToolBar.Header is content and
     // may therefore be an element, a scalar, or x:Null. Keep it as an
     // unboxed metadata value so template triggers can observe null directly.
-    Core::Value Header() const noexcept;
-    Base::Result<void> SetHeader(
-        const Core::Value& value) noexcept;
-    Base::Ref<DataTemplate> HeaderTemplate() const noexcept;
-    Base::Result<void> SetHeaderTemplate(
+    Meta::Value GetHeader() const noexcept;
+    void SetHeader(
+        const Meta::Value& value) noexcept;
+    Base::Ref<DataTemplate> GetHeaderTemplate() const noexcept;
+    void SetHeaderTemplate(
         Base::Ref<DataTemplate> value) noexcept;
     Orientation GetOrientation() const noexcept;
-    Base::Result<void> SetOrientation(
+    void SetOrientation(
         Orientation value) noexcept;
-    std::uint32_t OverflowCapacity()
+    std::uint32_t GetOverflowCapacity()
         const noexcept;
-    Base::Result<void> SetOverflowCapacity(
+    void SetOverflowCapacity(
         std::uint32_t value) noexcept;
-    bool IsOverflowOpen() const noexcept;
-    Base::Result<void> SetIsOverflowOpen(
+    bool GetIsOverflowOpen() const noexcept;
+    void SetIsOverflowOpen(
         bool value) noexcept;
-    bool HasOverflowItems() const noexcept;
-    std::uint32_t OverflowItemCount()
+    bool GetHasOverflowItems() const noexcept;
+    std::uint32_t GetOverflowItemCount()
         const noexcept;
 
-    inline static constexpr Members::Property<Core::Value> HeaderProperty{"Header"};
+    inline static constexpr Members::Property<Meta::Value> HeaderProperty{"Header"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
     inline static constexpr Members::Property<Orientation> OrientationProperty{"Orientation"};
     inline static constexpr Members::Property<std::uint32_t> OverflowCapacityProperty{"OverflowCapacity"};
@@ -220,7 +226,7 @@ public:
     inline static constexpr Members::Property<std::uint32_t> OverflowItemCountProperty{"OverflowItemCount"};
 
 protected:
-    Base::Result<void>
+    void
         OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
     void OnContainersChanged() noexcept override;
@@ -259,16 +265,16 @@ public:
 class AERO_API ToolBarTray final : public Base::Object {
     AERO_DECLARE_TYPE(ToolBarTray, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     inline static constexpr Members::AttachedProperty<bool> IsLockedProperty{"IsLocked"};
 };
 
 class AERO_API StatusBarItem final
-    : public ItemContainer {
-    AERO_DECLARE_TYPE(StatusBarItem, ItemContainer)
+    : public ContentControl {
+    AERO_DECLARE_TYPE(StatusBarItem, ContentControl)
 public:
     StatusBarItem() noexcept
-        : ItemContainer(StaticTypeId()) {}
+        : ContentControl(StaticTypeId()) {}
     ~StatusBarItem() override = default;
 };
 
@@ -279,19 +285,18 @@ public:
     StatusBar() noexcept
         : ItemsControl(StaticTypeId()) {}
     ~StatusBar() override = default;
-    bool IsSizingGripVisible() const noexcept {
+    bool GetIsSizingGripVisible() const noexcept {
         return GetValueOr(
             IsSizingGripVisibleProperty, true);
     }
-    Base::Result<void> SetIsSizingGripVisible(
+    void SetIsSizingGripVisible(
         bool value) noexcept {
-        return SetValue(
-            IsSizingGripVisibleProperty, value);
+        SetValue(IsSizingGripVisibleProperty, value);
     }
     inline static constexpr Members::Property<bool> IsSizingGripVisibleProperty{"IsSizingGripVisible"};
 
 protected:
-    Base::Result<Base::Ref<ItemContainer>>
+    Base::Result<Base::Ref<FrameworkElement>>
         CreateContainer(
             const Base::Ref<Base::Object>& item)
             noexcept override;
@@ -305,13 +310,13 @@ public:
         : Primitives::Popup(StaticTypeId()) {}
     ~ToolTip() override = default;
 
-    std::uint32_t InitialShowDelay()
+    std::uint32_t GetInitialShowDelay()
         const noexcept;
-    Base::Result<void> SetInitialShowDelay(
+    void SetInitialShowDelay(
         std::uint32_t value) noexcept;
-    std::uint32_t ShowDuration()
+    std::uint32_t GetShowDuration()
         const noexcept;
-    Base::Result<void> SetShowDuration(
+    void SetShowDuration(
         std::uint32_t value) noexcept;
 
     inline static constexpr Members::Property<std::uint32_t> InitialShowDelayProperty{"InitialShowDelay"};
@@ -328,17 +333,17 @@ public:
     }
     static Base::Ref<ToolTip> GetToolTip(
         const DependencyObject& target) noexcept;
-    static Base::Result<void> SetToolTip(
+    static void SetToolTip(
         DependencyObject& target,
         Base::Ref<ToolTip> value) noexcept;
-    static std::uint32_t InitialShowDelay(
+    static std::uint32_t GetInitialShowDelay(
         const DependencyObject& target) noexcept;
-    static Base::Result<void> SetInitialShowDelay(
+    static void SetInitialShowDelay(
         DependencyObject& target,
         std::uint32_t value) noexcept;
-    static std::uint32_t ShowDuration(
+    static std::uint32_t GetShowDuration(
         const DependencyObject& target) noexcept;
-    static Base::Result<void> SetShowDuration(
+    static void SetShowDuration(
         DependencyObject& target,
         std::uint32_t value) noexcept;
 
@@ -349,16 +354,12 @@ public:
 
 } // namespace Aero::Controls
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 class ImageControlPrivate;
 }
 
 namespace Aero::Controls {
 
-using namespace Aero::Core;
-using namespace Aero;
-using namespace Aero::Media;
-using namespace Aero::Render;
 
 class AERO_API Image final : public FrameworkElement {
     AERO_DECLARE_TYPE(Image, FrameworkElement)
@@ -367,14 +368,14 @@ public:
         : FrameworkElement(StaticTypeId()) {}
     ~Image() override = default;
 
-    Base::Ref<ImageSource> Source() const noexcept;
+    Base::Ref<ImageSource> GetSource() const noexcept;
     Stretch GetStretch() const noexcept;
     StretchDirection GetStretchDirection() const noexcept;
-    Base::Result<void> SetSource(
+    void SetSource(
         Base::Ref<ImageSource> value) noexcept;
-    Base::Result<void> SetStretch(
+    void SetStretch(
         Stretch value) noexcept;
-    Base::Result<void> SetStretchDirection(
+    void SetStretchDirection(
         StretchDirection value) noexcept;
 
     inline static constexpr Members::Property<Base::Ref<ImageSource>> SourceProperty{"Source"};
@@ -382,13 +383,13 @@ public:
     inline static constexpr Members::Property<StretchDirection> StretchDirectionProperty{"StretchDirection"};
 
 protected:
-    Base::Result<Size> MeasureOverride(
+    Size MeasureOverride(
         Size availableSize) noexcept override;
-    Base::Result<void> OnRender(
+    void OnRender(
         DrawingContext& context) noexcept override;
 
 private:
-    friend class Aero::Detail::ImageControlPrivate;
+    friend class Aero::Internal::ImageControlPrivate;
     std::uint64_t renderImage_ = 0U;
     std::uint32_t pixelWidth_ = 0U;
     std::uint32_t pixelHeight_ = 0U;

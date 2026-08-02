@@ -20,8 +20,8 @@ public:
     void Shutdown() noexcept;
     bool IsInitialized() const noexcept;
 
-    Base::Result<void> SetMusicVolume(float value) noexcept;
-    Base::Result<void> SetEffectsVolume(float value) noexcept;
+    void SetMusicVolume(float value) noexcept;
+    void SetEffectsVolume(float value) noexcept;
     Base::Result<void> PlayMusic(
         Base::StringView filePath) noexcept;
     Base::Result<void> StopMusic() noexcept;

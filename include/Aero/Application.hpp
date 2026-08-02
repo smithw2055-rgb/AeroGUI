@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Object.hpp>
@@ -15,7 +15,8 @@
 
 namespace Aero {
 class Application;
-namespace App { struct RunOptions; namespace Detail { class DesktopPrivate; } }
+namespace App { struct RunOptions; }
+namespace Internal { class DesktopPrivate; }
 
 enum class ShutdownMode : std::uint8_t {
     OnLastWindowClose = 0U,
@@ -69,13 +70,15 @@ public:
     Application() noexcept : Application(StaticTypeId()) {}
     ~Application() noexcept override = default;
 
-    Core::TypeId RuntimeType() const noexcept override { return runtimeType_; }
+    Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
     static Application* Current() noexcept;
 
     Base::StringView GetStartupUri() const noexcept { return startupUri_.View(); }
-    Base::Result<void> SetStartupUri(Base::StringView value) noexcept { return startupUri_.TryAssign(value); }
+    void SetStartupUri(Base::StringView value) noexcept {
+        (void)startupUri_.TryAssign(value);
+    }
     Base::Ref<ResourceDictionary> GetResources() const noexcept { return resources_; }
-    Base::Result<void> SetResources(Base::Ref<ResourceDictionary> value) noexcept { resources_ = std::move(value); return {}; }
+    void SetResources(Base::Ref<ResourceDictionary> value) noexcept { resources_ = std::move(value); return; }
     Window* GetMainWindow() const noexcept { return mainWindow_; }
     void SetMainWindow(Window* value) noexcept;
     WindowCollection GetWindows() const noexcept { return WindowCollection(*this); }
@@ -94,14 +97,14 @@ public:
     void Shutdown(int exitCode = 0) noexcept;
 
 protected:
-    explicit Application(Core::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    explicit Application(Meta::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
     virtual void OnStartup(StartupEventArgs& args) noexcept;
     virtual void OnExit(ExitEventArgs& args) noexcept;
     virtual void OnActivated(EventArgs& args) noexcept;
     virtual void OnDeactivated(EventArgs& args) noexcept;
 
 private:
-    friend class App::Detail::DesktopPrivate;
+    friend class ::Aero::Internal::DesktopPrivate;
     friend class Window;
     friend class WindowCollection;
 
@@ -112,7 +115,7 @@ private:
     void RaiseActivated() noexcept;
     void RaiseDeactivated() noexcept;
 
-    Core::TypeId runtimeType_ = StaticTypeId();
+    Meta::TypeId runtimeType_ = StaticTypeId();
     Base::String startupUri_;
     Base::Ref<ResourceDictionary> resources_;
     void* hostState_ = nullptr;
@@ -123,14 +126,14 @@ private:
 
 } // namespace Aero
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Aero::ShutdownMode> {
+struct TypeTraits<Aero::ShutdownMode> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("ShutdownMode"); }
     static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
     static constexpr Base::StringView Name() noexcept { return "ShutdownMode"; }
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

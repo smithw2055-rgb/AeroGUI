@@ -1,9 +1,9 @@
-#pragma once
+﻿#pragma once
 
 #include <Aero/Controls/Items.hpp>
 
 namespace Aero {
-namespace App { namespace Detail { class DesktopPrivate; } }
+namespace Internal { class DesktopPrivate; }
 namespace App { class WindowInterop; }
 
 enum class WindowState : std::uint8_t { Normal = 0U, Minimized, Maximized };
@@ -32,23 +32,23 @@ public:
     ~Window() noexcept override = default;
 
     Base::StringView GetTitle() const noexcept { return GetValueOr(TitleProperty, Base::StringView{}); }
-    Base::Result<void> SetTitle(Base::StringView value) noexcept { return SetValue(TitleProperty, value); }
+    void SetTitle(Base::StringView value) noexcept { SetValue(TitleProperty, value); }
     WindowState GetWindowState() const noexcept { return GetValueOr(WindowStateProperty, WindowState::Normal); }
-    Base::Result<void> SetWindowState(WindowState value) noexcept;
+    void SetWindowState(WindowState value) noexcept;
     WindowStyle GetWindowStyle() const noexcept { return GetValueOr(WindowStyleProperty, WindowStyle::SingleBorderWindow); }
-    Base::Result<void> SetWindowStyle(WindowStyle value) noexcept { return SetValue(WindowStyleProperty, value); }
+    void SetWindowStyle(WindowStyle value) noexcept { SetValue(WindowStyleProperty, value); }
     ResizeMode GetResizeMode() const noexcept { return GetValueOr(ResizeModeProperty, ResizeMode::CanResize); }
-    Base::Result<void> SetResizeMode(ResizeMode value) noexcept { return SetValue(ResizeModeProperty, value); }
+    void SetResizeMode(ResizeMode value) noexcept { SetValue(ResizeModeProperty, value); }
     SizeToContent GetSizeToContent() const noexcept { return GetValueOr(SizeToContentProperty, SizeToContent::Manual); }
-    Base::Result<void> SetSizeToContent(SizeToContent value) noexcept { return SetValue(SizeToContentProperty, value); }
+    void SetSizeToContent(SizeToContent value) noexcept { SetValue(SizeToContentProperty, value); }
     bool GetShowInTaskbar() const noexcept { return GetValueOr(ShowInTaskbarProperty, true); }
-    Base::Result<void> SetShowInTaskbar(bool value) noexcept { return SetValue(ShowInTaskbarProperty, value); }
+    void SetShowInTaskbar(bool value) noexcept { SetValue(ShowInTaskbarProperty, value); }
     bool GetTopmost() const noexcept { return GetValueOr(TopmostProperty, false); }
-    Base::Result<void> SetTopmost(bool value) noexcept { return SetValue(TopmostProperty, value); }
+    void SetTopmost(bool value) noexcept { SetValue(TopmostProperty, value); }
 
     Base::Result<void> Show() noexcept;
     void Close() noexcept;
-    bool IsOpen() const noexcept;
+    bool GetIsOpen() const noexcept;
 
     inline static constexpr Members::Property<Base::String> TitleProperty{"Title"};
     inline static constexpr Members::Property<WindowState> WindowStateProperty{"WindowState"};
@@ -74,7 +74,7 @@ public:
     UIElement::Event<RoutedEventArgs> StateChanged() noexcept { return GetEvent(StateChangedEvent); }
 
 protected:
-    explicit Window(Core::TypeId runtimeType) noexcept : ContentControl(runtimeType) {}
+    explicit Window(Meta::TypeId runtimeType) noexcept : ContentControl(runtimeType) {}
     virtual void OnClosing(CancelEventArgs& args) noexcept { static_cast<void>(RaiseEvent(ClosingEvent, &args)); }
     virtual void OnClosed(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(ClosedEvent, &args)); }
     virtual void OnActivated(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(ActivatedEvent, &args)); }
@@ -84,7 +84,7 @@ protected:
     virtual void OnStateChanged(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(StateChangedEvent, &args)); }
 
 private:
-    friend class App::Detail::DesktopPrivate;
+    friend class ::Aero::Internal::DesktopPrivate;
     friend class App::WindowInterop;
 
     void Attach(void* hostState) noexcept { hostState_ = hostState; sourceInitialized_ = false; contentRendered_ = false; closed_ = false; }
@@ -103,11 +103,11 @@ private:
 
 } // namespace Aero
 
-namespace Aero::Core {
-#define AERO_WINDOW_ENUM_TRAITS(TypeName) template<> struct MetaTypeTraits<Aero::TypeName> { static constexpr TypeId Id() noexcept { return MakeTypeId(#TypeName); } static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); } static constexpr Base::StringView Name() noexcept { return #TypeName; } static constexpr TypeId BaseType() noexcept { return InvalidTypeId; } };
+namespace Aero::Meta {
+#define AERO_WINDOW_ENUM_TRAITS(TypeName) template<> struct TypeTraits<Aero::TypeName> { static constexpr TypeId Id() noexcept { return MakeTypeId(#TypeName); } static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); } static constexpr Base::StringView Name() noexcept { return #TypeName; } static constexpr TypeId BaseType() noexcept { return InvalidTypeId; } };
 AERO_WINDOW_ENUM_TRAITS(WindowState)
 AERO_WINDOW_ENUM_TRAITS(WindowStyle)
 AERO_WINDOW_ENUM_TRAITS(ResizeMode)
 AERO_WINDOW_ENUM_TRAITS(SizeToContent)
 #undef AERO_WINDOW_ENUM_TRAITS
-} // namespace Aero::Core
+} // namespace Aero::Meta

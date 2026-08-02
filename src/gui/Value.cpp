@@ -9,7 +9,7 @@
 #include <cstring>
 #include <utility>
 
-namespace Aero::Core {
+namespace Aero::Base {
 namespace {
 
 class StringValueStorage final : public Base::Object {
@@ -121,7 +121,7 @@ bool Value::Equals(const Value& other) const noexcept {
     return false;
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Base
 
 
 // ===== ValueConversion =====
@@ -130,7 +130,7 @@ bool Value::Equals(const Value& other) const noexcept {
 
 #include <cctype>
 
-namespace Aero::Core::ValueConversion {
+namespace Aero::Base::Detail::ValueConversion {
 
 Base::StringView Trim(Base::StringView value) noexcept {
     std::uint32_t begin = 0U;
@@ -211,7 +211,7 @@ Base::Result<Base::ResourceUri> ConvertResourceUri(
     return Base::ResourceUri::Parse(Trim(text));
 }
 
-} // namespace Aero::Core::ValueConversion
+} // namespace Aero::Base::Detail::ValueConversion
 
 
 // ===== RegistrationValues =====
@@ -220,7 +220,7 @@ Base::Result<Base::ResourceUri> ConvertResourceUri(
 
 #include "MetadataInternal.hpp"
 
-namespace Aero::Core {
+namespace Aero::Meta {
 namespace {
 
 const ValueTable& Store(
@@ -346,7 +346,7 @@ const TypeRegistry& RegistrationValues::Types() const noexcept {
     return Store(registrations_).Types();
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 
 // ===== ValueTable =====
@@ -358,7 +358,7 @@ const TypeRegistry& RegistrationValues::Types() const noexcept {
 #include <cstddef>
 #include <utility>
 
-namespace Aero::Core {
+namespace Aero::Meta {
 namespace {
 
 Base::Status FrozenStatus() noexcept {
@@ -446,4 +446,4 @@ ValueTable::FindTextConverter(TypeId type) const noexcept {
     return nullptr;
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

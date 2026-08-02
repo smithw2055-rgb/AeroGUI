@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Aero::Detail { class TemplateEngine; }
+namespace Aero::Internal { class TemplateEngine; }
 
 #include "gui/ElementInternal.hpp"
 #include "../controls/TemplateInternals.hpp"
@@ -29,17 +29,17 @@ struct InspectorTreeNode final {
     Aero::Visual* node = nullptr;
     Aero::VisualHandle handle;
     Aero::VisualHandle parent;
-    Core::TypeId runtimeType =
-        Core::InvalidTypeId;
+    Meta::TypeId runtimeType =
+        Meta::InvalidTypeId;
     std::uint32_t depth = 0U;
 };
 
 struct InspectorProperty final {
-    Core::DependencyPropertyHandle property;
-    Core::PropertyValue value;
-    Core::EffectiveValueSource valueSource =
-        Core::EffectiveValueSource::Default;
-    Core::EffectiveValueDiagnostics
+    Meta::DependencyPropertyHandle property;
+    Meta::PropertyValue value;
+    Meta::EffectiveValueSource valueSource =
+        Meta::EffectiveValueSource::Default;
+    Meta::EffectiveValueDiagnostics
         diagnostics;
     bool hasEngineDiagnostics = false;
 };
@@ -64,14 +64,14 @@ struct InspectorSnapshot final {
     Base::Ref<Base::Object> dataContext;
     const Aero::Style*
         appliedStyle = nullptr;
-    Controls::Detail::TemplateHandle
+    Internal::TemplateHandle
         appliedTemplate;
     Base::Rect layoutRect;
     Base::Rect layoutClip;
     Base::Size renderSize;
-    Render::RenderDiagnostics
+    Integration::RenderDiagnostics
         render;
-    Core::DispatcherFrameTimings
+    ::Aero::Threading::DispatcherFrameTimings
         frameTimings;
 };
 
@@ -79,14 +79,14 @@ class AERO_API Inspector final {
 public:
     Inspector(
         Aero::ElementTree& tree,
-        Core::EffectiveValueEngine& values,
-        Aero::Detail::BindingEngine&
+        Meta::EffectiveValueEngine& values,
+        Aero::Internal::BindingEngine&
             bindings,
-        Render::RenderTree&
+        Internal::RenderTree&
             renderer,
-        Aero::Detail::StyleEngine*
+        Aero::Internal::StyleEngine*
             styles = nullptr,
-        Aero::Detail::TemplateEngine*
+        Aero::Internal::TemplateEngine*
             templates = nullptr) noexcept
         : tree_(&tree),
           values_(&values),
@@ -101,7 +101,7 @@ public:
         std::uint32_t maxTreeNodes =
             4096U) const noexcept;
 
-    const Render::RenderFrame&
+    const Integration::RenderFrame&
     RenderFrame() const noexcept {
         return renderer_->CurrentFrame();
     }
@@ -109,15 +109,15 @@ public:
 private:
     Aero::ElementTree* tree_ =
         nullptr;
-    Core::EffectiveValueEngine* values_ =
+    Meta::EffectiveValueEngine* values_ =
         nullptr;
-    Aero::Detail::BindingEngine*
+    Aero::Internal::BindingEngine*
         bindings_ = nullptr;
-    Render::RenderTree*
+    Internal::RenderTree*
         renderer_ = nullptr;
-    Aero::Detail::StyleEngine* styles_ =
+    Aero::Internal::StyleEngine* styles_ =
         nullptr;
-    Aero::Detail::TemplateEngine*
+    Aero::Internal::TemplateEngine*
         templates_ = nullptr;
 };
 

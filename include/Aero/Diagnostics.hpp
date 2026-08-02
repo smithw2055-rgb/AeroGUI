@@ -11,7 +11,10 @@
 
 #include <cstdint>
 
-namespace Aero::Core {
+namespace Aero::Diagnostics {
+
+using ::Aero::Meta::MemberId;
+using ::Aero::Meta::InvalidMemberId;
 
 enum class DiagnosticSeverity : std::uint8_t {
     Info = 0U,
@@ -235,4 +238,4 @@ private:
     std::uint32_t droppedCount_ = 0U;
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Diagnostics

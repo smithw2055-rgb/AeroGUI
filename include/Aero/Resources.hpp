@@ -9,6 +9,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Diagnostics.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include <Aero/Value.hpp>
 
 #include <cstdint>
@@ -64,7 +65,7 @@ public:
     static Base::Result<ResourceKey> FromString(
         Base::StringView value) noexcept;
     static ResourceKey FromType(
-        Core::TypeId value) noexcept;
+        Meta::TypeId value) noexcept;
 
     ResourceKeyKind Kind() const noexcept {
         return kind_;
@@ -73,14 +74,14 @@ public:
     Base::StringView StringValue() const noexcept {
         return string_.View();
     }
-    Core::TypeId TypeValue() const noexcept {
+    Meta::TypeId TypeValue() const noexcept {
         return type_;
     }
 
 private:
     ResourceKeyKind kind_ = ResourceKeyKind::Invalid;
     Base::String string_;
-    Core::TypeId type_ = Core::InvalidTypeId;
+    Meta::TypeId type_ = Meta::InvalidTypeId;
 };
 
 AERO_API bool operator==(
@@ -92,12 +93,12 @@ inline bool operator!=(
     return !(left == right);
 }
 
-using ResourceValue = Core::Value;
+using ResourceValue = Meta::Value;
 
 struct ResourceEntrySnapshot final {
     ResourceKey key;
     ResourceValue value;
-    Core::SourceSpan source;
+    ::Aero::Diagnostics::SourceSpan source;
 };
 
 enum class ResourceChangeKind : std::uint8_t {
@@ -145,72 +146,72 @@ public:
     ResourceDictionary(const ResourceDictionary&) = delete;
     ResourceDictionary& operator=(const ResourceDictionary&) = delete;
 
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
 
     Base::Result<void> TryAdd(
         const ResourceKey& key,
         const ResourceValue& value,
-        Core::SourceSpan source = {}) noexcept;
+        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
     Base::Result<void> TryAdd(
         Base::StringView key,
         const ResourceValue& value,
-        Core::SourceSpan source = {}) noexcept;
+        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
     Base::Result<void> TryAdd(
-        Core::TypeId key,
+        Meta::TypeId key,
         const ResourceValue& value,
-        Core::SourceSpan source = {}) noexcept;
+        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
     Base::Result<void> TryAdd(
         Base::StringView key,
-        Core::TypeId type,
+        Meta::TypeId type,
         const Base::Ref<Base::Object>& object,
-        Core::SourceSpan source = {}) noexcept;
+        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
 
     Base::Result<void> TrySet(
         const ResourceKey& key,
         const ResourceValue& value,
-        Core::SourceSpan source = {}) noexcept;
+        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
     Base::Result<void> TrySet(
         Base::StringView key,
         const ResourceValue& value,
-        Core::SourceSpan source = {}) noexcept;
+        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
     Base::Result<void> TrySet(
-        Core::TypeId key,
+        Meta::TypeId key,
         const ResourceValue& value,
-        Core::SourceSpan source = {}) noexcept;
+        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
     Base::Result<void> TrySet(
         Base::StringView key,
-        Core::TypeId type,
+        Meta::TypeId type,
         const Base::Ref<Base::Object>& object,
-        Core::SourceSpan source = {}) noexcept;
+        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
 
     Base::Result<bool> Remove(
         const ResourceKey& key) noexcept;
     Base::Result<bool> Remove(
         Base::StringView key) noexcept;
     Base::Result<bool> Remove(
-        Core::TypeId key) noexcept;
+        Meta::TypeId key) noexcept;
 
     Base::Result<ResourceValue> Lookup(
         const ResourceKey& key) const noexcept;
     Base::Result<ResourceValue> Lookup(
         Base::StringView key) const noexcept;
     Base::Result<ResourceValue> Lookup(
-        Core::TypeId key) const noexcept;
+        Meta::TypeId key) const noexcept;
     bool Contains(const ResourceKey& key) const noexcept;
     bool Contains(Base::StringView key) const noexcept;
-    bool Contains(Core::TypeId key) const noexcept;
-    Core::SourceSpan SourceOf(
+    bool Contains(Meta::TypeId key) const noexcept;
+    ::Aero::Diagnostics::SourceSpan SourceOf(
         const ResourceKey& key) const noexcept;
-    Core::SourceSpan SourceOf(
+    ::Aero::Diagnostics::SourceSpan SourceOf(
         Base::StringView key) const noexcept;
 
     Base::Result<void> TryAddMerged(
         ResourceDictionary& dictionary) noexcept;
     Base::Result<bool> RemoveMerged(
         ResourceDictionary& dictionary) noexcept;
-    Base::Result<void> ClearMergedDictionaries() noexcept;
+    void ClearMergedDictionaries() noexcept;
     std::uint32_t MergedDictionaryCount() const noexcept;
     // Returns a move-only shared view over the merged dictionary's stable
     // backing store. Mutations through the view affect the merged dictionary.
@@ -220,12 +221,12 @@ public:
     // dictionary type implicitly copyable.
     Base::Result<ResourceDictionary> Share() const noexcept;
 
-    Base::Result<void> SetSource(
+    void SetSource(
         const Base::ResourceUri& source) noexcept;
-    const Base::ResourceUri& Source() const noexcept;
+    const Base::ResourceUri& GetSource() const noexcept;
 
     Base::Result<void> Seal() noexcept;
-    bool IsSealed() const noexcept;
+    bool GetIsSealed() const noexcept;
 
     Base::Result<ResourceChangeSubscription> SubscribeChanged(
         ResourceChangedCallback callback,
@@ -233,7 +234,7 @@ public:
     bool Unsubscribe(
         ResourceChangeSubscription subscription) noexcept;
 
-    Base::Result<void> Clear() noexcept;
+    void Clear() noexcept;
     std::uint32_t Size() const noexcept;
     Base::Result<ResourceEntrySnapshot> EntryAt(
         std::uint32_t index) const noexcept;
@@ -271,7 +272,7 @@ public:
         const ResourceEnvironment& environment) noexcept;
     static Base::Result<ResourceValue> Lookup(
         const FrameworkElement* element,
-        Core::TypeId key,
+        Meta::TypeId key,
         const ResourceDictionary* templateResources,
         const ResourceEnvironment& environment) noexcept;
 };

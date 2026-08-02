@@ -250,7 +250,7 @@ public:
     }
 
     Base::Result<void> Submit(
-        const Render::RenderFrame& plan) noexcept {
+        const Integration::RenderFrame& plan) noexcept {
         return renderer_ != nullptr
             ? renderer_->Submit(plan)
             : Base::Result<void>(
@@ -341,13 +341,13 @@ public:
         return result;
     }
 
-    Aero::Detail::RenderResources Resources() noexcept {
+    Aero::Internal::RenderResources Resources() noexcept {
         return renderer_ != nullptr
-            ? Aero::Detail::RenderResources{
+            ? Aero::Internal::RenderResources{
                   renderer_->GetTextResources(),
                   renderer_->GetMeshResources(),
                   renderer_->GetImageResources()}
-            : Aero::Detail::RenderResources{};
+            : Aero::Internal::RenderResources{};
     }
 
 private:
@@ -465,7 +465,7 @@ CreateD3D11Device(
         delete driver;
         return initialized.GetStatus();
     }
-    return Detail::AdoptRenderDevice(
+    return ::Aero::Internal::AdoptRenderDevice(
         mode, driver, &selected);
 }
 

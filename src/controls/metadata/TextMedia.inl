@@ -3,8 +3,16 @@
 Base::Result<void> PopulateControlsTextMedia(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    const Base::Color black{
-        0.0F, 0.0F, 0.0F, 1.0F};
+    const auto makeBrush = [](
+        Base::Color color) noexcept {
+        Base::Result<Base::Ref<Brush>> made =
+            Media::MakeSolidColorBrush(color);
+        return made
+            ? std::move(made).Value()
+            : Base::Ref<Brush>{};
+    };
+    const Base::Ref<Brush> black = makeBrush(
+        {0.0F, 0.0F, 0.0F, 1.0F});
     auto textBlock = Meta::Register<TextBlock>(context);
     textBlock
         .Property(
@@ -33,7 +41,7 @@ Base::Result<void> PopulateControlsTextMedia(
                 .AffectsMeasure())
         .Property(
             TextBlock::FontStyleProperty,
-            PropertyOptions(Text::FontStyle::Normal)
+            PropertyOptions(FontStyle::Normal)
                 .AffectsMeasure())
         .Property(
             TextBlock::TextDecorationsProperty,
@@ -44,21 +52,21 @@ Base::Result<void> PopulateControlsTextMedia(
             PropertyOptions(0.0)
                 .AffectsMeasure()
                 .AffectsRender()
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             TextBlock::TextWrappingProperty,
             PropertyOptions(
-                Text::TextWrapping::NoWrap)
+                TextWrapping::NoWrap)
                 .AffectsMeasure())
         .Property(
             TextBlock::TextTrimmingProperty,
             PropertyOptions(
-                Text::TextTrimming::None)
+                TextTrimming::None)
                 .AffectsMeasure())
         .Property(
             TextBlock::TextAlignmentProperty,
             PropertyOptions(
-                Text::TextAlignment::Start)
+                TextAlignment::Start)
                 .AffectsMeasure())
         .Property(
             TextBlock::PaddingProperty,
@@ -68,7 +76,7 @@ Base::Result<void> PopulateControlsTextMedia(
                 .Validate(&ValidateThicknessValue))
         .Property<
             Value,
-            &TextBlock::MetadataInlines,
+            &TextBlock::GetMetadataInlines,
             &TextBlock::SetInlineValue>(
             "Inlines",
             PropertyFlags::AnyValue |
@@ -105,7 +113,7 @@ Base::Result<void> PopulateControlsTextMedia(
                 &ValidatePositiveFiniteDouble))
         .Property(
             Documents::TextElement::FontStyleProperty,
-            PropertyOptions(Text::FontStyle::Normal).Inherits())
+            PropertyOptions(FontStyle::Normal).Inherits())
         .Property(
             Documents::TextElement::TextDecorationsProperty,
             PropertyOptions(TextDecorations::None).Inherits());
@@ -130,7 +138,7 @@ Base::Result<void> PopulateControlsTextMedia(
     span
         .Property<
             Value,
-            &Documents::Span::MetadataInlines,
+            &Documents::Span::GetMetadataInlines,
             &Documents::Span::SetInlineValue>(
                 "Inlines",
                 PropertyFlags::AnyValue |
@@ -163,7 +171,7 @@ Base::Result<void> PopulateControlsTextMedia(
     italic
         .Override(
             Documents::TextElement::FontStyleProperty,
-            PropertyOptions(Text::FontStyle::Italic)
+            PropertyOptions(FontStyle::Italic)
                 .AffectsMeasure())
         .Factory();
     status = italic.Result();
@@ -252,7 +260,7 @@ Base::Result<void> PopulateControlsTextMedia(
             PropertyOptions(1.0)
                 .AffectsMeasure()
                 .AffectsRender()
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Result();
     if (!status) return status.GetStatus();
 
@@ -262,12 +270,12 @@ Base::Result<void> PopulateControlsTextMedia(
             Rectangle::RadiusXProperty,
             PropertyOptions(0.0)
                 .AffectsRender()
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             Rectangle::RadiusYProperty,
             PropertyOptions(0.0)
                 .AffectsRender()
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Factory();
     status = rectangle.Result();
     if (!status) return status.GetStatus();
@@ -304,7 +312,7 @@ Base::Result<void> PopulateControlsTextMedia(
             PropertyOptions(1.0)
                 .AffectsMeasure()
                 .AffectsRender()
-                .Validate(&Validate::NonNegative<double>)
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>)
                 .Changed(&OnPathDoubleChanged))
         .Property(
             Path::StrokeLineJoinProperty,
@@ -342,19 +350,33 @@ Base::Result<void> PopulateControlsTextMedia(
     status = path.Result();
     if (!status) return status.GetStatus();
 
-    const Base::Color selection{
+    const Base::Ref<Brush> selection = makeBrush({
         46.0F / 255.0F,
         174.0F / 255.0F,
         235.0F / 255.0F,
-        1.0F};
-    const Base::Color placeholder{
+        1.0F});
+    const Base::Ref<Brush> placeholder = makeBrush({
         123.0F / 255.0F,
         128.0F / 255.0F,
         133.0F / 255.0F,
-        1.0F};
-    status = Meta::Register<TextBoxBase>(
-        context, TypeFlags::Abstract)
-        .Result();
+        1.0F});
+    auto textBoxBase = Meta::Register<TextBoxBase>(
+        context, TypeFlags::Abstract);
+    textBoxBase
+        .Property(
+            TextBoxBase::SelectionBrushProperty,
+            PropertyOptions(selection)
+                .AffectsRender())
+        .Property(
+            TextBoxBase::SelectionOpacityProperty,
+            PropertyOptions(0.25)
+                .AffectsRender()
+                .Validate(&ValidateNormalizedDouble))
+        .Property(
+            TextBoxBase::CaretBrushProperty,
+            PropertyOptions(black)
+                .AffectsRender());
+    status = textBoxBase.Result();
     if (!status) return status.GetStatus();
 
     auto textBox = Meta::Register<TextBox>(context);
@@ -384,7 +406,7 @@ Base::Result<void> PopulateControlsTextMedia(
         .Property(
             TextBox::TextWrappingProperty,
             PropertyOptions(
-                Text::TextWrapping::NoWrap)
+                TextWrapping::NoWrap)
                 .AffectsMeasure()
                 .AffectsRender())
         .Property(
@@ -394,8 +416,7 @@ Base::Result<void> PopulateControlsTextMedia(
         .Property(
             TextBox::PlaceholderForegroundProperty,
             PropertyOptions(placeholder)
-                .AffectsRender()
-                .Validate(&ValidateColorValue))
+                .AffectsRender())
         .Property(
             TextBox::FontSizeProperty,
             PropertyOptions(15.0)
@@ -409,12 +430,12 @@ Base::Result<void> PopulateControlsTextMedia(
         .Property(
             TextBox::FontStyleProperty,
             PropertyOptions(
-                Text::FontStyle::Normal)
+                FontStyle::Normal)
                 .AffectsMeasure())
         .Property(
             TextBox::TextAlignmentProperty,
             PropertyOptions(
-                Text::TextAlignment::Start)
+                TextAlignment::Start)
                 .AffectsMeasure())
         .Property(
             TextBox::MaxLinesProperty,
@@ -427,29 +448,8 @@ Base::Result<void> PopulateControlsTextMedia(
                 .AffectsMeasure()
                 .AffectsRender()
                 .Validate(
-                    &Validate::Positive<
+                    &::Aero::Base::Detail::Validate::Positive<
                         std::uint32_t>))
-        .Property(
-            TextBox::ForegroundProperty,
-            PropertyOptions(black)
-                .AffectsRender()
-                .Validate(&ValidateColorValue))
-        .Property(
-            TextBox::SelectionBrushProperty,
-            PropertyOptions(selection)
-                .AffectsRender()
-                .Validate(&ValidateColorValue))
-        .Property(
-            TextBox::SelectionOpacityProperty,
-            PropertyOptions(0.25)
-                .AffectsRender()
-                .Validate(
-                    &ValidateNormalizedDouble))
-        .Property(
-            TextBox::CaretBrushProperty,
-            PropertyOptions(black)
-                .AffectsRender()
-                .Validate(&ValidateColorValue))
         .Factory();
     status = textBox.Result();
     if (!status) return status.GetStatus();
@@ -463,7 +463,7 @@ Base::Result<void> PopulateControlsTextMedia(
         .Event(PasswordBox::PasswordChangedEvent)
         .Property<
             Base::String,
-            &PasswordBox::Password,
+            &PasswordBox::GetPassword,
             &PasswordBox::SetPassword>(
                 "Password", PropertyFlags::None)
         .Property(
@@ -481,29 +481,6 @@ Base::Result<void> PopulateControlsTextMedia(
             PropertyOptions(Base::String{})
                 .AffectsMeasure()
                 .AffectsRender())
-        .Property(
-            PasswordBox::ForegroundProperty,
-            PropertyOptions(black)
-                .AffectsRender()
-                .Validate(&ValidateColorValue))
-        .Property(
-            PasswordBox::SelectionBrushProperty,
-            PropertyOptions(
-                Color{
-                    0.18F, 0.48F,
-                    0.95F, 0.45F})
-                .AffectsRender()
-                .Validate(&ValidateColorValue))
-        .Property(
-            PasswordBox::SelectionOpacityProperty,
-            PropertyOptions(0.25)
-                .AffectsRender()
-                .Validate(&ValidateNormalizedDouble))
-        .Property(
-            PasswordBox::CaretBrushProperty,
-            PropertyOptions(black)
-                .AffectsRender()
-                .Validate(&ValidateColorValue))
         .Factory();
     status = passwordBox.Result();
     if (!status) return status.GetStatus();
@@ -513,8 +490,8 @@ Base::Result<void> PopulateControlsTextMedia(
         .Property(
             ContentPresenter::ContentProperty,
             PropertyOptions(
-                Core::Value::NullObject(
-                    Core::TypeOf<Base::Object>()))
+                Meta::Value::NullObject(
+                    Meta::TypeOf<Base::Object>()))
                 .AffectsMeasure()
                 .Structural()
                 .Changed(

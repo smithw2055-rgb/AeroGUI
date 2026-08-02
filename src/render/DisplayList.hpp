@@ -8,6 +8,8 @@
 
 #include <cstdint>
 
+namespace Aero::Internal { class RenderTree; }
+
 namespace Aero::Render {
 
 using RenderNodeId = Base::RenderNodeId;
@@ -22,8 +24,6 @@ inline constexpr RenderGlyphRunId InvalidRenderGlyphRunId = 0U;
 using Color = Base::Color;
 using Transform2D = Base::Transform2D;
 using Rect = Base::Rect;
-
-class RenderTree;
 
 AERO_API bool IsFinite(Color value) noexcept;
 AERO_API bool IsFinite(Transform2D value) noexcept;
@@ -70,7 +70,7 @@ public:
 
 private:
     friend class DisplayListBuilder;
-    friend class RenderTree;
+    friend class ::Aero::Internal::RenderTree;
     Base::Vector<RenderCommand> commands_;
 };
 

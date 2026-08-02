@@ -7,7 +7,7 @@
 #include <cmath>
 #include <utility>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 class DocumentPrivate final {
 public:
@@ -25,7 +25,7 @@ public:
                     owner.RuntimeType(), Documents::Span::StaticTypeId());
     }
 
-    static std::uint32_t Count(const Base::Object& owner) noexcept {
+    static std::uint32_t GetCount(const Base::Object& owner) noexcept {
         if (IsTextBlock(owner)) {
             return static_cast<const Controls::TextBlock&>(owner)
                 .ownedInlines_.Size();
@@ -91,7 +91,7 @@ public:
         std::uint32_t depth = 0U) noexcept {
         if (&root == &candidate) return true;
         if (depth >= 1024U) return true;
-        const Core::TypeRegistry& types = root.PropertyRegistry().Types();
+        const Meta::TypeRegistry& types = root.PropertyRegistry().Types();
         if (!types.IsDerivedFrom(
                 root.RuntimeType(), Documents::Span::StaticTypeId())) {
             return false;
@@ -112,7 +112,7 @@ public:
             &parent,
             host,
             nullptr);
-        const Core::TypeRegistry& types = inlineValue.PropertyRegistry().Types();
+        const Meta::TypeRegistry& types = inlineValue.PropertyRegistry().Types();
         if (!types.IsDerivedFrom(
                 inlineValue.RuntimeType(), Documents::Span::StaticTypeId())) {
             return;
@@ -124,7 +124,7 @@ public:
     }
 
     static void ClearHost(Documents::Inline& inlineValue) noexcept {
-        const Core::TypeRegistry& types = inlineValue.PropertyRegistry().Types();
+        const Meta::TypeRegistry& types = inlineValue.PropertyRegistry().Types();
         if (types.IsDerivedFrom(
                 inlineValue.RuntimeType(), Documents::Span::StaticTypeId())) {
             auto& span = static_cast<Documents::Span&>(inlineValue);
@@ -163,10 +163,10 @@ public:
         Base::Result<void> added;
         if (IsTextBlock(owner)) {
             added = static_cast<Controls::TextBlock&>(owner)
-                .AddOwnedInline(Base::Ref<Base::Object>(value));
+                .TryAddOwnedInline(Base::Ref<Base::Object>(value));
         } else {
             added = static_cast<Documents::Span&>(owner)
-                .AddOwnedInline(value);
+                .TryAddOwnedInline(value);
         }
         if (!added) return added.GetStatus();
 
@@ -228,8 +228,8 @@ public:
     }
 
     static Base::Result<void> Clear(Base::Object& owner) noexcept {
-        while (Count(owner) != 0U) {
-            Documents::Inline* value = At(owner, Count(owner) - 1U);
+        while (GetCount(owner) != 0U) {
+            Documents::Inline* value = At(owner, GetCount(owner) - 1U);
             if (value == nullptr) break;
             Base::Result<bool> removed = Remove(owner, *value);
             if (!removed) return removed.GetStatus();
@@ -247,7 +247,7 @@ public:
                 Base::ErrorCode::OutOfRange,
                 "Document inline nesting exceeds the supported depth");
         }
-        const Core::TypeRegistry& types = value.PropertyRegistry().Types();
+        const Meta::TypeRegistry& types = value.PropertyRegistry().Types();
         if (types.IsDerivedFrom(
                 value.RuntimeType(), Documents::Run::StaticTypeId())) {
             return output.TryAppend(
@@ -273,7 +273,7 @@ public:
     static Base::Result<void> AppendText(
         const Controls::TextBlock& owner,
         Base::String& output) noexcept {
-        Base::Result<void> appended = output.TryAppend(owner.Text());
+        Base::Result<void> appended = output.TryAppend(owner.GetText());
         if (!appended) return appended.GetStatus();
         for (const Base::Ref<Base::Object>& item : owner.ownedInlines_) {
             if (!item) continue;
@@ -285,7 +285,7 @@ public:
         return {};
     }
 
-    static Base::Result<std::uint32_t> Length(
+    static Base::Result<std::uint32_t> GetLength(
         const Controls::TextBlock& owner) noexcept {
         Base::String flattened;
         Base::Result<void> copied = AppendText(owner, flattened);
@@ -319,9 +319,9 @@ public:
                 Base::ErrorCode::InvalidState,
                 "Document text positions require a valid measure pass");
         }
-        const Text::TextHitRegion* best = nullptr;
+        const TextHitRegion* best = nullptr;
         double bestDistance = 0.0;
-        for (const Text::TextHitRegion& hit : owner.textHitRegions_) {
+        for (const TextHitRegion& hit : owner.textHitRegions_) {
             const Aero::Rect rect{
                 static_cast<double>(hit.x),
                 static_cast<double>(hit.y),
@@ -370,8 +370,8 @@ public:
                 Base::ErrorCode::InvalidState,
                 "Document character rectangles require a valid measure pass");
         }
-        const Text::TextHitRegion* selected = nullptr;
-        for (const Text::TextHitRegion& hit :
+        const TextHitRegion* selected = nullptr;
+        for (const TextHitRegion& hit :
              position.container_->textHitRegions_) {
             if (position.offset_ >= hit.textOffset &&
                 position.offset_ <= hit.textOffset + hit.textLength) {
@@ -396,34 +396,27 @@ public:
     }
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal
 
 namespace Aero::Controls {
 
-Documents::InlineCollection TextBlock::Inlines() noexcept {
+Documents::InlineCollection TextBlock::GetInlines() noexcept {
     return Documents::InlineCollection(*this);
 }
 
-Documents::InlineCollectionView TextBlock::Inlines() const noexcept {
+Documents::InlineCollectionView TextBlock::GetInlines() const noexcept {
     return Documents::InlineCollectionView(*this);
 }
 
-Documents::InlineCollection TextBlock::GetInlines() noexcept {
-    return Inlines();
-}
 
-Documents::InlineCollectionView TextBlock::GetInlines() const noexcept {
-    return Inlines();
-}
-
-Documents::TextPointer TextBlock::ContentStart() noexcept {
+Documents::TextPointer TextBlock::GetContentStart() noexcept {
     return Documents::TextPointer(
         *this, 0U, Documents::LogicalDirection::Forward);
 }
 
-Documents::TextPointer TextBlock::ContentEnd() noexcept {
+Documents::TextPointer TextBlock::GetContentEnd() noexcept {
     Base::Result<std::uint32_t> length =
-        Aero::Detail::DocumentPrivate::Length(*this);
+        Aero::Internal::DocumentPrivate::GetLength(*this);
     return Documents::TextPointer(
         *this,
         length ? length.Value() : 0U,
@@ -434,104 +427,97 @@ Documents::TextPointer TextBlock::ContentEnd() noexcept {
 
 namespace Aero::Documents {
 
-std::uint32_t InlineCollectionView::Count() const noexcept {
+std::uint32_t InlineCollectionView::GetCount() const noexcept {
     return owner_ != nullptr
-        ? Aero::Detail::DocumentPrivate::Count(*owner_)
+        ? Aero::Internal::DocumentPrivate::GetCount(*owner_)
         : 0U;
 }
 
 const Inline* InlineCollectionView::At(
     std::uint32_t index) const noexcept {
     return owner_ != nullptr
-        ? Aero::Detail::DocumentPrivate::At(*owner_, index)
+        ? Aero::Internal::DocumentPrivate::At(*owner_, index)
         : nullptr;
 }
 
-std::uint32_t InlineCollection::Count() const noexcept {
+std::uint32_t InlineCollection::GetCount() const noexcept {
     return owner_ != nullptr
-        ? Aero::Detail::DocumentPrivate::Count(*owner_)
+        ? Aero::Internal::DocumentPrivate::GetCount(*owner_)
         : 0U;
 }
 
 Inline* InlineCollection::At(std::uint32_t index) const noexcept {
     return owner_ != nullptr
-        ? Aero::Detail::DocumentPrivate::At(*owner_, index)
+        ? Aero::Internal::DocumentPrivate::At(*owner_, index)
         : nullptr;
 }
 
-InlineCollectionView InlineCollection::View() const noexcept {
+InlineCollectionView InlineCollection::GetView() const noexcept {
     return owner_ != nullptr
         ? InlineCollectionView(*owner_)
         : InlineCollectionView{};
 }
 
-Base::Result<void> InlineCollection::Add(
+Base::Result<void> InlineCollection::TryAdd(
     Base::Ref<Inline> value) noexcept {
     if (owner_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "InlineCollection is not bound to an owner");
     }
-    return Aero::Detail::DocumentPrivate::Add(
+    return Aero::Internal::DocumentPrivate::Add(
         *owner_, std::move(value));
 }
 
-Base::Result<bool> InlineCollection::Remove(
+Base::Result<bool> InlineCollection::TryRemove(
     Inline& value) noexcept {
     if (owner_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "InlineCollection is not bound to an owner");
     }
-    return Aero::Detail::DocumentPrivate::Remove(*owner_, value);
+    return Aero::Internal::DocumentPrivate::Remove(*owner_, value);
 }
 
-Base::Result<void> InlineCollection::Clear() noexcept {
+void InlineCollection::Clear() noexcept {
     if (owner_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "InlineCollection is not bound to an owner");
+        return;
     }
-    return Aero::Detail::DocumentPrivate::Clear(*owner_);
+    (void)Aero::Internal::DocumentPrivate::Clear(*owner_);
 }
 
-Core::Value Span::MetadataInlines() const noexcept {
+Meta::Value Span::GetMetadataInlines() const noexcept {
     if (pendingInline_) {
-        return Core::Value::FromObject(
+        return Meta::Value::FromObject(
             pendingInline_->RuntimeType(),
             Base::Ref<Base::Object>(pendingInline_));
     }
-    return Core::Value::NullObject(Core::TypeOf<Base::Object>());
+    return Meta::Value::NullObject(Meta::TypeOf<Base::Object>());
 }
 
-Base::Result<void> Span::SetInlineValue(Core::Value value) noexcept {
-    if (value.Kind() == Core::ValueKind::Object &&
+void Span::SetInlineValue(Meta::Value value) noexcept {
+    if (value.Kind() == Meta::ValueKind::Object &&
         !value.IsNullObject() && value.AsObject()) {
         Base::Ref<Base::Object> object = value.AsObject();
         if (!PropertyRegistry().Types().IsDerivedFrom(
                 object->RuntimeType(), Inline::StaticTypeId())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Span inline content must derive from Documents::Inline");
+            return;
         }
         pendingInline_ = Base::Ref<Inline>::FromBorrowed(
             *static_cast<Inline*>(object.Get()));
-        return {};
+        return;
     }
-    if (value.Kind() != Core::ValueKind::String) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Span inline content must be text or an Inline object");
+    if (value.Kind() != Meta::ValueKind::String) {
+        return;
     }
     Base::Result<Base::Ref<Run>> created = Base::MakeRef<Run>();
-    if (!created) return created.GetStatus();
-    Base::Result<void> text = created.Value()->SetText(value.AsString());
-    if (!text) return text.GetStatus();
+    if (!created) return;
+    created.Value()->SetText(value.AsString());
     pendingInline_ = Base::Ref<Inline>(created.Value());
-    return {};
+    return;
 }
 
-Base::Result<void> Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
+Base::Result<void> Span::TryAddOwnedInline(Base::Ref<Inline> value) noexcept {
     if (!value) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -546,36 +532,36 @@ Base::Result<void> Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
     }
     Base::Result<void> appended = inlines_.TryPushBack(value);
     if (!appended) return appended.GetStatus();
-    Aero::Detail::ElementPrivate::Attach(
+    Aero::Internal::ElementPrivate::Attach(
         *value, this, GetContentHost(), nullptr);
     pendingInline_ = std::move(value);
-    Controls::TextBlock* host = Aero::Detail::DocumentPrivate::Host(*this);
+    Controls::TextBlock* host = Aero::Internal::DocumentPrivate::Host(*this);
     return host != nullptr ? host->InvalidateMeasure() : Base::Result<void>{};
 }
 
-Base::Result<void> Span::ClearOwnedInlines() noexcept {
+void Span::ClearOwnedInlines() noexcept {
     for (Base::Ref<Inline>& value : inlines_) {
-        if (value) Aero::Detail::ElementPrivate::Detach(*value);
+        if (value) Aero::Internal::ElementPrivate::Detach(*value);
     }
     inlines_.Clear();
     pendingInline_.Reset();
     Controls::TextBlock* host = GetContentHost() != nullptr
         ? static_cast<Controls::TextBlock*>(GetContentHost())
         : nullptr;
-    return host != nullptr ? host->InvalidateMeasure() : Base::Result<void>{};
+    if (host != nullptr) (void)host->InvalidateMeasure();
 }
 
 Base::Result<void> CopyText(
     const Controls::TextBlock& container,
     Base::String& output) noexcept {
     output.Clear();
-    return Aero::Detail::DocumentPrivate::AppendText(
+    return Aero::Internal::DocumentPrivate::AppendText(
         container, output);
 }
 
 Base::Result<std::int32_t> TextPointer::CompareTo(
     const TextPointer& other) const noexcept {
-    if (!IsValid() || !other.IsValid() ||
+    if (!GetIsValid() || !other.GetIsValid() ||
         container_ != other.container_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -594,7 +580,7 @@ Base::Result<TextPointer> TextPointer::GetPositionAtOffset(
             "TextPointer is not bound to a container");
     }
     Base::Result<std::uint32_t> length =
-        Aero::Detail::DocumentPrivate::Length(*container_);
+        Aero::Internal::DocumentPrivate::GetLength(*container_);
     if (!length) return length.GetStatus();
     const std::int64_t destination =
         static_cast<std::int64_t>(offset_) + delta;
@@ -607,7 +593,7 @@ Base::Result<TextPointer> TextPointer::GetPositionAtOffset(
     const std::uint32_t resolved =
         static_cast<std::uint32_t>(destination);
     Base::Result<bool> boundary =
-        Aero::Detail::DocumentPrivate::IsUtf8Boundary(
+        Aero::Internal::DocumentPrivate::IsUtf8Boundary(
             *container_, resolved);
     if (!boundary) return boundary.GetStatus();
     if (!boundary.Value()) {
@@ -638,7 +624,7 @@ Base::Result<Base::String> TextRange::GetText() const noexcept {
 
 Base::Result<void> TextRange::CopyText(
     Base::String& output) const noexcept {
-    if (!IsValid() || start_.container_ != end_.container_) {
+    if (!GetIsValid() || start_.container_ != end_.container_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "TextRange is not valid");
@@ -654,23 +640,23 @@ Base::Result<void> TextRange::CopyText(
     }
     output.Clear();
     return output.TryAssign(flattened.View().Substr(
-        start_.offset_, Length()));
+        start_.offset_, GetLength()));
 }
 
 Base::Result<TextPointer> GetPositionFromPoint(
     Controls::TextBlock& container,
     Aero::Point point,
     bool snapToText) noexcept {
-    return Aero::Detail::DocumentPrivate::PositionFromPoint(
+    return Aero::Internal::DocumentPrivate::PositionFromPoint(
         container, point, snapToText);
 }
 
 Base::Result<Aero::Rect> GetCharacterRect(
     const TextPointer& position) noexcept {
-    return Aero::Detail::DocumentPrivate::CharacterRect(position);
+    return Aero::Internal::DocumentPrivate::CharacterRect(position);
 }
 
-Base::StringView Hyperlink::NavigateUri() const noexcept {
+Base::StringView Hyperlink::GetNavigateUri() const noexcept {
     return GetValueOr(NavigateUriProperty, Base::StringView{});
 }
 
@@ -680,36 +666,36 @@ Input::ICommand* Hyperlink::GetCommand() const noexcept {
         Base::Ref<Input::ICommand>{}).Get();
 }
 
-Base::Ref<Base::Object> Hyperlink::CommandParameter() const noexcept {
+Base::Ref<Base::Object> Hyperlink::GetCommandParameter() const noexcept {
     return GetValueOr(
         CommandParameterProperty,
         Base::Ref<Base::Object>{});
 }
 
-Aero::UIElement* Hyperlink::CommandTarget() const noexcept {
+Aero::UIElement* Hyperlink::GetCommandTarget() const noexcept {
     return GetValueOr(
         CommandTargetProperty,
         Base::Ref<Aero::UIElement>{}).Get();
 }
 
-Base::Result<void> Hyperlink::SetNavigateUri(
+void Hyperlink::SetNavigateUri(
     Base::StringView value) noexcept {
-    return SetValue(NavigateUriProperty, value);
+    SetValue(NavigateUriProperty, value);
 }
 
-Base::Result<void> Hyperlink::SetCommand(
+void Hyperlink::SetCommand(
     Base::Ref<Input::ICommand> command) noexcept {
-    return SetValue(CommandProperty, std::move(command));
+    SetValue(CommandProperty, std::move(command));
 }
 
-Base::Result<void> Hyperlink::SetCommandParameter(
+void Hyperlink::SetCommandParameter(
     Base::Ref<Base::Object> parameter) noexcept {
-    return SetValue(CommandParameterProperty, std::move(parameter));
+    SetValue(CommandParameterProperty, std::move(parameter));
 }
 
-Base::Result<void> Hyperlink::SetCommandTarget(
+void Hyperlink::SetCommandTarget(
     Base::Ref<Aero::UIElement> target) noexcept {
-    return SetValue(CommandTargetProperty, std::move(target));
+    SetValue(CommandTargetProperty, std::move(target));
 }
 
 NavigationService::NavigationService(

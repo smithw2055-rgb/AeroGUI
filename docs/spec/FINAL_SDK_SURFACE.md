@@ -94,8 +94,8 @@ RuntimeEnvironment
 ViewHost
 ViewFrameResult
 RenderEndpoint
-Core::MetaRegistry
-Core::MetaRegistration
+Meta::Registry
+Meta::Registration
 ```
 
 Architecture checks enforce this rule together with the narrowed View and

@@ -1,5 +1,5 @@
 #include "gui/MetadataInternal.hpp"
-#include <Aero/Controls/Standard.hpp>
+#include <Aero/Controls/Common.hpp>
 #include "gui/ElementInternal.hpp"
 
 #include <utility>
@@ -39,29 +39,29 @@ ToolBar::~ToolBar() {
         headerChangedHandler_));
 }
 
-Core::Value ToolBar::Header()
+Meta::Value ToolBar::GetHeader()
     const noexcept {
     return GetValueOr(
         HeaderProperty,
-        Core::Value::NullObject(
-            Core::TypeOf<Base::Object>()));
+        Meta::Value::NullObject(
+            Meta::TypeOf<Base::Object>()));
 }
 
-Base::Result<void> ToolBar::SetHeader(
-    const Core::Value& value) noexcept {
-    return SetValue(HeaderProperty, value);
+void ToolBar::SetHeader(
+    const Meta::Value& value) noexcept {
+    SetValue(HeaderProperty, value);
 }
 
 Base::Ref<DataTemplate>
-ToolBar::HeaderTemplate() const noexcept {
+ToolBar::GetHeaderTemplate() const noexcept {
     return GetValueOr(
         HeaderTemplateProperty,
         Base::Ref<DataTemplate>{});
 }
 
-Base::Result<void> ToolBar::SetHeaderTemplate(
+void ToolBar::SetHeaderTemplate(
     Base::Ref<DataTemplate> value) noexcept {
-    return SetValue(
+    SetValue(
         HeaderTemplateProperty, std::move(value));
 }
 
@@ -72,52 +72,50 @@ Orientation ToolBar::GetOrientation()
         Orientation::Horizontal);
 }
 
-Base::Result<void> ToolBar::SetOrientation(
+void ToolBar::SetOrientation(
     Orientation value) noexcept {
-    return SetValue(
+    SetValue(
         OrientationProperty, value);
 }
 
-std::uint32_t ToolBar::OverflowCapacity()
+std::uint32_t ToolBar::GetOverflowCapacity()
     const noexcept {
     return GetValueOr(
         OverflowCapacityProperty,
         UINT32_MAX);
 }
 
-Base::Result<void>
+void
 ToolBar::SetOverflowCapacity(
     std::uint32_t value) noexcept {
-    return SetValue(
+    SetValue(
         OverflowCapacityProperty, value);
 }
 
-bool ToolBar::IsOverflowOpen() const noexcept {
+bool ToolBar::GetIsOverflowOpen() const noexcept {
     return GetValueOr(IsOverflowOpenProperty, false);
 }
 
-Base::Result<void> ToolBar::SetIsOverflowOpen(
+void ToolBar::SetIsOverflowOpen(
     bool value) noexcept {
-    return SetValue(IsOverflowOpenProperty, value);
+    SetValue(IsOverflowOpenProperty, value);
 }
 
-bool ToolBar::HasOverflowItems() const noexcept {
+bool ToolBar::GetHasOverflowItems() const noexcept {
     return GetValueOr(
         HasOverflowItemsProperty, false);
 }
 
-std::uint32_t ToolBar::OverflowItemCount()
+std::uint32_t ToolBar::GetOverflowItemCount()
     const noexcept {
     return GetValueOr(
         OverflowItemCountProperty,
         std::uint32_t{0U});
 }
 
-Base::Result<void>
+void
 ToolBar::OnApplyTemplate() noexcept {
-    Base::Result<void> applied =
-        ItemsControl::OnApplyTemplate();
-    if (!applied) return applied.GetStatus();
+    ItemsControl::OnApplyTemplate();
     DependencyObject* header =
         GetTemplateChild("HeaderText");
     headerText_ =
@@ -128,9 +126,7 @@ ToolBar::OnApplyTemplate() noexcept {
         ? static_cast<TextBlock*>(header)
         : nullptr;
     if (headerText_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "ToolBar template requires HeaderText");
+        return;
     }
     DependencyObject* overflow =
         GetTemplateChild("OverflowGlyph");
@@ -142,11 +138,9 @@ ToolBar::OnApplyTemplate() noexcept {
         ? static_cast<TextBlock*>(overflow)
         : nullptr;
     if (overflowGlyph_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "ToolBar template requires OverflowGlyph");
+        return;
     }
-    return SynchronizeToolBar();
+    static_cast<void>(SynchronizeToolBar());
 }
 
 void ToolBar::OnTemplateDetached() noexcept {
@@ -169,45 +163,37 @@ void ToolBar::OnContainersChanged() noexcept {
 Base::Result<void>
 ToolBar::SynchronizeToolBar() noexcept {
     if (headerText_ != nullptr) {
-        const Core::Value headerValue = Header();
-        Base::Result<void> header =
-            headerText_->SetText(
-                headerValue.Kind() == Core::ValueKind::String
-                ? headerValue.AsString()
-                : Base::StringView{});
-        if (!header) return header.GetStatus();
+        const Meta::Value headerValue = GetHeader();
+        headerText_->SetText(
+            headerValue.Kind() == Meta::ValueKind::String
+            ? headerValue.AsString()
+            : Base::StringView{});
     }
-    Panel* host = ItemsHost();
+    Panel* host = GetItemsHost();
     if (host != nullptr &&
         PropertyRegistry().Types().IsDerivedFrom(
             host->RuntimeType(),
             StackPanel::StaticTypeId())) {
-        Base::Result<void> oriented =
-            static_cast<StackPanel*>(host)->
-                SetOrientation(GetOrientation());
-        if (!oriented) {
-            return oriented.GetStatus();
-        }
+        static_cast<StackPanel*>(host)->
+            SetOrientation(GetOrientation());
     }
     const std::uint32_t capacity =
-        OverflowCapacity();
+        GetOverflowCapacity();
     const std::uint32_t count =
-        ItemCount();
+        GetCount();
     const std::uint32_t overflowCount =
         count > capacity
         ? count - capacity
         : 0U;
-    Base::Result<void> stored = SetValue(
+    SetValue(
         HasOverflowItemsProperty,
         overflowCount != 0U);
-    if (!stored) return stored.GetStatus();
-    stored = SetValue(
+    SetValue(
         OverflowItemCountProperty,
         overflowCount);
-    if (!stored) return stored.GetStatus();
     if (host != nullptr) {
         const Base::Span<Visual* const> children =
-            Aero::Detail::ElementPrivate::VisualChildren(*host);
+            Aero::Internal::ElementPrivate::VisualChildren(*host);
         for (std::uint32_t index = 0U;
              index < children.Size();
              ++index) {
@@ -216,18 +202,14 @@ ToolBar::SynchronizeToolBar() noexcept {
                 ? children[index]->AsUIElement()
                 : nullptr;
             if (child == nullptr) continue;
-            Base::Result<void> visible =
-                child->SetVisibility(
-                    index < capacity
-                    ? Visibility::Visible
-                    : Visibility::Collapsed);
-            if (!visible) {
-                return visible.GetStatus();
-            }
+            child->SetVisibility(
+                index < capacity
+                ? Visibility::Visible
+                : Visibility::Collapsed);
         }
     }
     if (overflowGlyph_ != nullptr) {
-        return overflowGlyph_->SetText(
+        overflowGlyph_->SetText(
             overflowCount != 0U
             ? Base::StringView("...")
             : Base::StringView(""));
@@ -235,41 +217,41 @@ ToolBar::SynchronizeToolBar() noexcept {
     return {};
 }
 
-Base::Result<Base::Ref<ItemContainer>>
+Base::Result<Base::Ref<FrameworkElement>>
 StatusBar::CreateContainer(
     const Base::Ref<Base::Object>&) noexcept {
     Base::Result<Base::Ref<StatusBarItem>>
         made =
             Base::MakeRef<StatusBarItem>();
     if (!made) return made.GetStatus();
-    return Base::Ref<ItemContainer>(
+    return Base::Ref<FrameworkElement>(
         std::move(made).Value());
 }
 
-std::uint32_t ToolTip::InitialShowDelay()
+std::uint32_t ToolTip::GetInitialShowDelay()
     const noexcept {
     return GetValueOr(
         InitialShowDelayProperty,
         std::uint32_t{500U});
 }
 
-Base::Result<void>
+void
 ToolTip::SetInitialShowDelay(
     std::uint32_t value) noexcept {
-    return SetValue(
+    SetValue(
         InitialShowDelayProperty, value);
 }
 
-std::uint32_t ToolTip::ShowDuration()
+std::uint32_t ToolTip::GetShowDuration()
     const noexcept {
     return GetValueOr(
         ShowDurationProperty,
         std::uint32_t{5000U});
 }
 
-Base::Result<void> ToolTip::SetShowDuration(
+void ToolTip::SetShowDuration(
     std::uint32_t value) noexcept {
-    return SetValue(
+    SetValue(
         ShowDurationProperty, value);
 }
 
@@ -280,40 +262,40 @@ Base::Ref<ToolTip> ToolTipService::GetToolTip(
         Base::Ref<ToolTip>{});
 }
 
-Base::Result<void> ToolTipService::SetToolTip(
+void ToolTipService::SetToolTip(
     DependencyObject& target,
     Base::Ref<ToolTip> value) noexcept {
-    return target.SetValue(
+    target.SetValue(
         ToolTipProperty,
         std::move(value));
 }
 
-std::uint32_t ToolTipService::InitialShowDelay(
+std::uint32_t ToolTipService::GetInitialShowDelay(
     const DependencyObject& target) noexcept {
     return target.GetValueOr(
         InitialShowDelayProperty,
         std::uint32_t{500U});
 }
 
-Base::Result<void>
+void
 ToolTipService::SetInitialShowDelay(
     DependencyObject& target,
     std::uint32_t value) noexcept {
-    return target.SetValue(
+    target.SetValue(
         InitialShowDelayProperty, value);
 }
 
-std::uint32_t ToolTipService::ShowDuration(
+std::uint32_t ToolTipService::GetShowDuration(
     const DependencyObject& target) noexcept {
     return target.GetValueOr(
         ShowDurationProperty,
         std::uint32_t{5000U});
 }
 
-Base::Result<void> ToolTipService::SetShowDuration(
+void ToolTipService::SetShowDuration(
     DependencyObject& target,
     std::uint32_t value) noexcept {
-    return target.SetValue(
+    target.SetValue(
         ShowDurationProperty, value);
 }
 

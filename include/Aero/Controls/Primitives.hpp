@@ -2,25 +2,21 @@
 
 #include <Aero/Styling.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/Controls/Base.hpp>
+#include <Aero/Controls/Core.hpp>
 #include <Aero/Controls/Panels.hpp>
 
-namespace Aero::Detail { class ButtonBehavior; class ScrollBehavior; class SliderBehavior; }
+namespace Aero::Internal { class ButtonBehavior; class ScrollBehavior; class SliderBehavior; }
 
 namespace Aero::Controls {
+
+using ::Aero::Meta::TypeId;
+using ::Aero::Input::ICommand;
 
 enum class ClickMode : std::uint8_t {
     Release = 0U,
     Press,
     Hover,
 };
-
-enum class ToggleState : std::uint8_t {
-    Unchecked = 0U,
-    Checked,
-    Indeterminate,
-};
-
 
 namespace Primitives {
 
@@ -34,18 +30,18 @@ public:
 
     ClickMode GetClickMode() const noexcept;
     ICommand* GetCommand() const noexcept;
-    Base::Ref<Base::Object> CommandParameter() const noexcept;
-    UIElement* CommandTarget() const noexcept;
-    bool IsCommandEnabled() const noexcept {
+    Base::Ref<Base::Object> GetCommandParameter() const noexcept;
+    UIElement* GetCommandTarget() const noexcept;
+    bool GetIsCommandEnabled() const noexcept {
         return commandEnabled_;
     }
 
-    Base::Result<void> SetClickMode(ClickMode value) noexcept;
-    Base::Result<void> SetCommand(
+    void SetClickMode(ClickMode value) noexcept;
+    void SetCommand(
         Base::Ref<ICommand> command) noexcept;
-    Base::Result<void> SetCommandParameter(
+    void SetCommandParameter(
         Base::Ref<Base::Object> parameter) noexcept;
-    Base::Result<void> SetCommandTarget(
+    void SetCommandTarget(
         Base::Ref<UIElement> target) noexcept;
 
     inline static constexpr Members::Property<ClickMode> ClickModeProperty{"ClickMode"};
@@ -57,10 +53,10 @@ protected:
     explicit ButtonBase(TypeId runtimeType) noexcept
         : ContentControl(runtimeType) {}
     ~ButtonBase() override = default;
-    Base::Result<void> OnApplyTemplate() noexcept override;
+    void OnApplyTemplate() noexcept override;
 
 private:
-    friend class Aero::Detail::ButtonBehavior;
+    friend class Aero::Internal::ButtonBehavior;
     void* interactionRuntime_ = nullptr;
     bool commandEnabled_ = true;
 };
@@ -86,10 +82,10 @@ public:
     RepeatButton() noexcept : RepeatButton(StaticTypeId()) {}
     ~RepeatButton() override = default;
 
-    std::uint32_t Delay() const noexcept;
-    std::uint32_t Interval() const noexcept;
-    Base::Result<void> SetDelay(std::uint32_t value) noexcept;
-    Base::Result<void> SetInterval(std::uint32_t value) noexcept;
+    std::uint32_t GetDelay() const noexcept;
+    std::uint32_t GetInterval() const noexcept;
+    void SetDelay(std::uint32_t value) noexcept;
+    void SetInterval(std::uint32_t value) noexcept;
 
     inline static constexpr Members::Property<std::uint32_t> DelayProperty{"Delay"};
     inline static constexpr Members::Property<std::uint32_t> IntervalProperty{"Interval"};
@@ -105,12 +101,11 @@ public:
     ToggleButton() noexcept : ToggleButton(StaticTypeId()) {}
     ~ToggleButton() override = default;
 
-    bool IsChecked() const noexcept;
-    bool IsThreeState() const noexcept;
-    bool IsIndeterminate() const noexcept;
-    ToggleState GetToggleState() const noexcept;
-    Base::Result<void> SetIsChecked(bool value) noexcept;
-    Base::Result<void> SetIsThreeState(bool value) noexcept;
+    bool GetIsChecked() const noexcept;
+    bool GetIsThreeState() const noexcept;
+    bool GetIsIndeterminate() const noexcept;
+    void SetIsChecked(bool value) noexcept;
+    void SetIsThreeState(bool value) noexcept;
 
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> CheckedEvent{"Checked"};
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> UncheckedEvent{"Unchecked"};
@@ -134,9 +129,9 @@ protected:
         : ButtonBase(runtimeType) {}
 
 private:
-    friend class Aero::Detail::ButtonBehavior;
-    Base::Result<void> SetToggleState(
-        ToggleState value) noexcept;
+    friend class Aero::Internal::ButtonBehavior;
+    void SetToggleState(
+        std::uint8_t value) noexcept;
 };
 
 } // namespace Primitives
@@ -158,8 +153,8 @@ public:
     RadioButton() noexcept : RadioButton(StaticTypeId()) {}
     ~RadioButton() override = default;
 
-    Base::StringView GroupName() const noexcept;
-    Base::Result<void> SetGroupName(
+    Base::StringView GetGroupName() const noexcept;
+    void SetGroupName(
         Base::StringView value) noexcept;
 
     inline static constexpr Members::Property<Base::String> GroupNameProperty{"GroupName"};
@@ -172,10 +167,10 @@ protected:
 
 } // namespace Aero::Controls
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Controls::ClickMode> {
+struct TypeTraits<Controls::ClickMode> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("ClickMode");
     }
@@ -190,7 +185,7 @@ struct MetaTypeTraits<Controls::ClickMode> {
     }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 namespace Aero::Controls {
 
@@ -259,12 +254,12 @@ struct ScrollData final {
 class AERO_API IScrollInfo {
 public:
     virtual ~IScrollInfo() = default;
-    virtual ScrollData Data() const noexcept = 0;
-    virtual Base::Result<bool> SetViewport(
+    virtual ScrollData GetData() const noexcept = 0;
+    virtual void SetViewport(
         Size viewport) noexcept = 0;
-    virtual Base::Result<bool> SetHorizontalOffset(
+    virtual void SetHorizontalOffset(
         double value) noexcept = 0;
-    virtual Base::Result<bool> SetVerticalOffset(
+    virtual void SetVerticalOffset(
         double value) noexcept = 0;
     virtual Base::Result<bool> LineHorizontal(
         double direction) noexcept = 0;
@@ -311,29 +306,29 @@ public:
     ScrollContentPresenter() noexcept;
     ~ScrollContentPresenter() override = default;
 
-    ScrollData Data() const noexcept override;
-    IScrollInfo* ContentScrollInfo() const noexcept {
+    ScrollData GetData() const noexcept override;
+    IScrollInfo* GetContentScrollInfo() const noexcept {
         return contentScrollInfo_;
     }
-    Base::Result<void> SetContentScrollInfo(
+    void SetContentScrollInfo(
         IScrollInfo* value) noexcept;
 
-    bool CanHorizontallyScroll() const noexcept;
-    bool CanVerticallyScroll() const noexcept;
-    bool CanContentScroll() const noexcept;
-    Base::Result<void> SetCanHorizontallyScroll(
+    bool GetCanHorizontallyScroll() const noexcept;
+    bool GetCanVerticallyScroll() const noexcept;
+    bool GetCanContentScroll() const noexcept;
+    void SetCanHorizontallyScroll(
         bool value) noexcept;
-    Base::Result<void> SetCanVerticallyScroll(
+    void SetCanVerticallyScroll(
         bool value) noexcept;
-    Base::Result<void> SetCanContentScroll(
+    void SetCanContentScroll(
         bool value) noexcept;
     inline static constexpr Members::Property<bool> CanContentScrollProperty{"CanContentScroll"};
 
-    Base::Result<bool> SetViewport(
+    void SetViewport(
         Size viewport) noexcept override;
-    Base::Result<bool> SetHorizontalOffset(
+    void SetHorizontalOffset(
         double value) noexcept override;
-    Base::Result<bool> SetVerticalOffset(
+    void SetVerticalOffset(
         double value) noexcept override;
     Base::Result<bool> LineHorizontal(
         double direction) noexcept override;
@@ -348,26 +343,26 @@ public:
         double deltaY,
         ScrollInputKind kind) noexcept;
 
-    double LineScrollAmount() const noexcept {
+    double GetLineScrollAmount() const noexcept {
         return lineScrollAmount_;
     }
-    Base::Result<void> SetLineScrollAmount(
+    void SetLineScrollAmount(
         double value) noexcept;
 
 protected:
     explicit ScrollContentPresenter(
         TypeId runtimeType) noexcept;
-    Base::Result<Size> MeasureOverride(
+    Size MeasureOverride(
         Size availableSize) noexcept override;
-    Base::Result<Size> ArrangeOverride(
+    Size ArrangeOverride(
         Size finalSize) noexcept override;
     virtual void OnScrollDataChanged(
         const ScrollData& oldData,
         const ScrollData& newData,
         ScrollInputKind kind) noexcept;
-    virtual bool AllowsHorizontalScroll() const noexcept;
-    virtual bool AllowsVerticalScroll() const noexcept;
-    virtual bool UsesContentScrolling() const noexcept;
+    virtual bool GetAllowsHorizontalScroll() const noexcept;
+    virtual bool GetAllowsVerticalScroll() const noexcept;
+    virtual bool GetUsesContentScrolling() const noexcept;
     Base::Result<bool> UpdateData(
         ScrollData value,
         ScrollInputKind kind,
@@ -399,41 +394,39 @@ public:
         return GetEvent(ScrollChangedEvent);
     }
 
-    double HorizontalOffset() const noexcept;
-    double VerticalOffset() const noexcept;
-    double ExtentWidth() const noexcept;
-    double ExtentHeight() const noexcept;
-    double ViewportWidth() const noexcept;
-    double ViewportHeight() const noexcept;
-    double ScrollableWidth() const noexcept;
-    double ScrollableHeight() const noexcept;
+    double GetHorizontalOffset() const noexcept;
+    double GetVerticalOffset() const noexcept;
+    double GetExtentWidth() const noexcept;
+    double GetExtentHeight() const noexcept;
+    double GetViewportWidth() const noexcept;
+    double GetViewportHeight() const noexcept;
+    double GetScrollableWidth() const noexcept;
+    double GetScrollableHeight() const noexcept;
     ScrollBarVisibility
-    HorizontalScrollBarVisibility() const noexcept;
+    GetHorizontalScrollBarVisibility() const noexcept;
     ScrollBarVisibility
-    VerticalScrollBarVisibility() const noexcept;
+    GetVerticalScrollBarVisibility() const noexcept;
     Visibility
-    ComputedHorizontalScrollBarVisibility() const noexcept;
+    GetComputedHorizontalScrollBarVisibility() const noexcept;
     Visibility
-    ComputedVerticalScrollBarVisibility() const noexcept;
+    GetComputedVerticalScrollBarVisibility() const noexcept;
 
-    Base::Result<void> SetCanHorizontallyScroll(
+    void SetCanHorizontallyScroll(
         bool value) noexcept;
-    Base::Result<void> SetCanVerticallyScroll(
+    void SetCanVerticallyScroll(
         bool value) noexcept;
-    Base::Result<void> SetCanContentScroll(
+    void SetCanContentScroll(
         bool value) noexcept;
-    Base::Result<void>
-    SetHorizontalScrollBarVisibility(
+    void SetHorizontalScrollBarVisibility(
         ScrollBarVisibility value) noexcept;
-    Base::Result<void>
-    SetVerticalScrollBarVisibility(
+    void SetVerticalScrollBarVisibility(
         ScrollBarVisibility value) noexcept;
     PanningMode GetPanningMode() const noexcept;
-    Base::Result<void> SetPanningMode(
+    void SetPanningMode(
         PanningMode value) noexcept;
-    Base::Result<bool> SetHorizontalOffset(
+    void SetHorizontalOffset(
         double value) noexcept override;
-    Base::Result<bool> SetVerticalOffset(
+    void SetVerticalOffset(
         double value) noexcept override;
     Base::Result<bool> LineHorizontal(
         double direction) noexcept override;
@@ -450,12 +443,10 @@ public:
     static ScrollBarVisibility
     GetVerticalScrollBarVisibility(
         const DependencyObject& element) noexcept;
-    static Base::Result<void>
-    SetHorizontalScrollBarVisibility(
+    static void SetHorizontalScrollBarVisibility(
         DependencyObject& element,
         ScrollBarVisibility value) noexcept;
-    static Base::Result<void>
-    SetVerticalScrollBarVisibility(
+    static void SetVerticalScrollBarVisibility(
         DependencyObject& element,
         ScrollBarVisibility value) noexcept;
 
@@ -477,21 +468,21 @@ public:
     inline static constexpr Members::AttachedProperty<PanningMode> PanningModeProperty{"PanningMode"};
 
 protected:
-    Base::Result<void> OnApplyTemplate() noexcept override;
-    Base::Result<Size> MeasureOverride(
+    void OnApplyTemplate() noexcept override;
+    Size MeasureOverride(
         Size availableSize) noexcept override;
     void OnScrollDataChanged(
         const ScrollData& oldData,
         const ScrollData& newData,
         ScrollInputKind kind) noexcept override;
-    bool AllowsHorizontalScroll() const noexcept override;
-    bool AllowsVerticalScroll() const noexcept override;
-    bool UsesContentScrolling() const noexcept override;
+    bool GetAllowsHorizontalScroll() const noexcept override;
+    bool GetAllowsVerticalScroll() const noexcept override;
+    bool GetUsesContentScrolling() const noexcept override;
     void OnTemplateDetached() noexcept override;
 
 private:
     friend class ScrollContentPresenter;
-    friend class Aero::Detail::ScrollBehavior;
+    friend class Aero::Internal::ScrollBehavior;
     void* events_ = nullptr;
     void* interactions_ = nullptr;
     ScrollContentPresenter* contentPresenter_ = nullptr;
@@ -516,7 +507,7 @@ public:
     Thumb() noexcept : Control(StaticTypeId()) {}
     ~Thumb() override = default;
 
-    bool IsDragging() const noexcept {
+    bool GetIsDragging() const noexcept {
         return GetValueOr(
             IsDraggingProperty, false);
     }
@@ -544,43 +535,43 @@ public:
     ~Track() override = default;
 
     Orientation GetOrientation() const noexcept;
-    double Minimum() const noexcept;
-    double Maximum() const noexcept;
-    double Value() const noexcept;
-    double ViewportSize() const noexcept;
-    bool IsDirectionReversed() const noexcept;
+    double GetMinimum() const noexcept;
+    double GetMaximum() const noexcept;
+    double GetValue() const noexcept;
+    double GetViewportSize() const noexcept;
+    bool GetIsDirectionReversed() const noexcept;
     Base::Ref<RepeatButton>
-    DecreaseRepeatButton() const noexcept {
+    GetDecreaseRepeatButton() const noexcept {
         return decreaseRepeatButton_;
     }
-    Base::Ref<Thumb> ThumbElement() const noexcept {
+    Base::Ref<Thumb> GetThumbElement() const noexcept {
         return thumb_;
     }
     Base::Ref<RepeatButton>
-    IncreaseRepeatButton() const noexcept {
+    GetIncreaseRepeatButton() const noexcept {
         return increaseRepeatButton_;
     }
-    Base::Result<void> SetOrientation(
+    void SetOrientation(
         Orientation value) noexcept;
-    Base::Result<void> SetRange(
+    void SetRange(
         double minimum,
         double maximum) noexcept;
-    Base::Result<void> SetValue(
+    void SetValue(
         double value) noexcept;
-    Base::Result<void> SetViewportSize(
+    void SetViewportSize(
         double value) noexcept;
-    Base::Result<void> SetIsDirectionReversed(
+    void SetIsDirectionReversed(
         bool value) noexcept;
-    Base::Result<void> SetDecreaseRepeatButton(
+    void SetDecreaseRepeatButton(
         Base::Ref<RepeatButton> value) noexcept;
-    Base::Result<void> SetThumb(
+    void SetThumb(
         Base::Ref<Thumb> value) noexcept;
-    Base::Result<void> SetIncreaseRepeatButton(
+    void SetIncreaseRepeatButton(
         Base::Ref<RepeatButton> value) noexcept;
-    double ThumbLength(
+    double GetThumbLength(
         double trackLength,
         double minimumThumbLength = 8.0) const noexcept;
-    double ThumbOffset(
+    double GetThumbOffset(
         double trackLength,
         double minimumThumbLength = 8.0) const noexcept;
     Base::Result<double> ValueFromThumbOffset(
@@ -596,9 +587,9 @@ public:
     inline static constexpr Members::Property<bool> IsDirectionReversedProperty{"IsDirectionReversed"};
 
 protected:
-    Base::Result<Size> MeasureOverride(
+    Size MeasureOverride(
         Size availableSize) noexcept override;
-    Base::Result<Size> ArrangeOverride(
+    Size ArrangeOverride(
         Size finalSize) noexcept override;
 
 private:
@@ -618,20 +609,20 @@ public:
     GridSplitter() noexcept : Control(StaticTypeId()) {}
     ~GridSplitter() override = default;
 
-    double DragIncrement() const noexcept;
-    double KeyboardIncrement() const noexcept;
-    GridResizeDirection ResizeDirection() const noexcept;
-    GridResizeBehavior ResizeBehavior() const noexcept;
-    bool ShowsPreview() const noexcept;
-    Base::Ref<Aero::Style> PreviewStyle() const noexcept;
-    Base::Result<void> SetDragIncrement(double value) noexcept;
-    Base::Result<void> SetKeyboardIncrement(double value) noexcept;
-    Base::Result<void> SetResizeDirection(
+    double GetDragIncrement() const noexcept;
+    double GetKeyboardIncrement() const noexcept;
+    GridResizeDirection GetResizeDirection() const noexcept;
+    GridResizeBehavior GetResizeBehavior() const noexcept;
+    bool GetShowsPreview() const noexcept;
+    Base::Ref<Aero::Style> GetPreviewStyle() const noexcept;
+    void SetDragIncrement(double value) noexcept;
+    void SetKeyboardIncrement(double value) noexcept;
+    void SetResizeDirection(
         GridResizeDirection value) noexcept;
-    Base::Result<void> SetResizeBehavior(
+    void SetResizeBehavior(
         GridResizeBehavior value) noexcept;
-    Base::Result<void> SetShowsPreview(bool value) noexcept;
-    Base::Result<void> SetPreviewStyle(
+    void SetShowsPreview(bool value) noexcept;
+    void SetPreviewStyle(
         Base::Ref<Aero::Style> value) noexcept;
 
     inline static constexpr Members::Property<double> DragIncrementProperty{"DragIncrement"};
@@ -673,15 +664,15 @@ namespace Primitives {
 class AERO_API RangeBase : public Control {
     AERO_DECLARE_TYPE(RangeBase, Control)
 public:
-    double Minimum() const noexcept;
-    double Maximum() const noexcept;
-    double Value() const noexcept;
-    Base::Result<void> SetMinimum(double value) noexcept;
-    Base::Result<void> SetMaximum(double value) noexcept;
-    Base::Result<void> SetRange(
+    double GetMinimum() const noexcept;
+    double GetMaximum() const noexcept;
+    double GetValue() const noexcept;
+    void SetMinimum(double value) noexcept;
+    void SetMaximum(double value) noexcept;
+    void SetRange(
         double minimum,
         double maximum) noexcept;
-    Base::Result<bool> SetValue(double value) noexcept;
+    void SetValue(double value) noexcept;
 
     inline static constexpr Members::RoutedEvent<RangeValueChangedEventArgs> ValueChangedEvent{"ValueChanged"};
     UIElement::Event<RangeValueChangedEventArgs>
@@ -715,16 +706,16 @@ public:
     ~ScrollBar() override;
 
     Orientation GetOrientation() const noexcept;
-    double ViewportSize() const noexcept;
-    double SmallChange() const noexcept;
-    double LargeChange() const noexcept;
-    Base::Result<void> SetOrientation(
+    double GetViewportSize() const noexcept;
+    double GetSmallChange() const noexcept;
+    double GetLargeChange() const noexcept;
+    void SetOrientation(
         Orientation value) noexcept;
-    Base::Result<void> SetViewportSize(
+    void SetViewportSize(
         double value) noexcept;
-    Base::Result<void> SetSmallChange(
+    void SetSmallChange(
         double value) noexcept;
-    Base::Result<void> SetLargeChange(
+    void SetLargeChange(
         double value) noexcept;
     Base::Result<bool> LineDecrement() noexcept;
     Base::Result<bool> LineIncrement() noexcept;
@@ -741,7 +732,7 @@ public:
     inline static constexpr Members::Property<double> LargeChangeProperty{"LargeChange"};
 
 protected:
-    Base::Result<void> OnApplyTemplate() noexcept override;
+    void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
 
 private:
@@ -764,37 +755,37 @@ public:
     ~Slider() override = default;
 
     Orientation GetOrientation() const noexcept;
-    double SmallChange() const noexcept;
-    double LargeChange() const noexcept;
+    double GetSmallChange() const noexcept;
+    double GetLargeChange() const noexcept;
     TickPlacement GetTickPlacement() const noexcept;
-    double TickFrequency() const noexcept;
-    Base::StringView Ticks() const noexcept;
-    bool IsSnapToTickEnabled() const noexcept;
-    bool IsDirectionReversed() const noexcept;
-    bool IsMoveToPointEnabled() const noexcept;
-    Base::Result<void> SetOrientation(
+    double GetTickFrequency() const noexcept;
+    Base::StringView GetTicks() const noexcept;
+    bool GetIsSnapToTickEnabled() const noexcept;
+    bool GetIsDirectionReversed() const noexcept;
+    bool GetIsMoveToPointEnabled() const noexcept;
+    void SetOrientation(
         Orientation value) noexcept;
-    Base::Result<void> SetSmallChange(
+    void SetSmallChange(
         double value) noexcept;
-    Base::Result<void> SetLargeChange(
+    void SetLargeChange(
         double value) noexcept;
-    Base::Result<void> SetTickPlacement(
+    void SetTickPlacement(
         TickPlacement value) noexcept;
-    Base::Result<void> SetTickFrequency(
+    void SetTickFrequency(
         double value) noexcept;
-    Base::Result<void> SetTicks(
+    void SetTicks(
         Base::StringView value) noexcept;
-    Base::Result<void> SetIsSnapToTickEnabled(
+    void SetIsSnapToTickEnabled(
         bool value) noexcept;
-    Base::Result<void> SetIsDirectionReversed(
+    void SetIsDirectionReversed(
         bool value) noexcept;
-    Base::Result<void> SetIsMoveToPointEnabled(
+    void SetIsMoveToPointEnabled(
         bool value) noexcept;
     Base::Result<bool> DecreaseSmall() noexcept;
     Base::Result<bool> IncreaseSmall() noexcept;
     Base::Result<bool> DecreaseLarge() noexcept;
     Base::Result<bool> IncreaseLarge() noexcept;
-    Base::Result<bool> SetValueFromPosition(
+    void SetValueFromPosition(
         double position,
         double trackLength) noexcept;
 
@@ -809,14 +800,14 @@ public:
     inline static constexpr Members::Property<bool> IsMoveToPointEnabledProperty{"IsMoveToPointEnabled"};
 
 protected:
-    Base::Result<Size> ArrangeOverride(
+    Size ArrangeOverride(
         Size finalSize) noexcept override;
-    Base::Result<void> OnRender(
+    void OnRender(
         DrawingContext& context) noexcept override;
 
 private:
-    double NormalizedValueForLayout() const noexcept;
-    double SnapValue(double value) const noexcept;
+    double GetNormalizedValueForLayout() const noexcept;
+    double GetSnapValue(double value) const noexcept;
 };
 
 class AERO_API TickBar final : public Control {
@@ -826,17 +817,17 @@ public:
     ~TickBar() override = default;
 
     Base::Ref<Aero::Media::Brush> GetFill() const noexcept;
-    TickBarPlacement Placement() const noexcept;
-    Base::Result<void> SetFill(
+    TickBarPlacement GetPlacement() const noexcept;
+    void SetFill(
         Base::Ref<Aero::Media::Brush> value) noexcept;
-    Base::Result<void> SetPlacement(
+    void SetPlacement(
         TickBarPlacement value) noexcept;
 
     inline static constexpr Members::Property<Base::Ref<Aero::Media::Brush>> FillProperty{"Fill"};
     inline static constexpr Members::Property<TickBarPlacement> PlacementProperty{"Placement"};
 
 protected:
-    Base::Result<void> OnRender(
+    void OnRender(
         Aero::DrawingContext& context) noexcept override;
 };
 
@@ -846,13 +837,13 @@ public:
     ProgressBar() noexcept : Primitives::RangeBase(StaticTypeId()) {}
     ~ProgressBar() override = default;
 
-    bool IsIndeterminate() const noexcept;
+    bool GetIsIndeterminate() const noexcept;
     Orientation GetOrientation() const noexcept;
-    Base::Result<void> SetIsIndeterminate(
+    void SetIsIndeterminate(
         bool value) noexcept;
-    Base::Result<void> SetOrientation(
+    void SetOrientation(
         Orientation value) noexcept;
-    double NormalizedValue() const noexcept;
+    double GetNormalizedValue() const noexcept;
 
     inline static constexpr Members::Property<bool> IsIndeterminateProperty{"IsIndeterminate"};
     inline static constexpr Members::Property<Orientation> OrientationProperty{"Orientation"};
@@ -862,10 +853,10 @@ public:
 
 } // namespace Aero::Controls
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Controls::TickPlacement> {
+struct TypeTraits<Controls::TickPlacement> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("TickPlacement");
     }
@@ -881,7 +872,7 @@ struct MetaTypeTraits<Controls::TickPlacement> {
 };
 
 template<>
-struct MetaTypeTraits<Controls::TickBarPlacement> {
+struct TypeTraits<Controls::TickBarPlacement> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("TickBarPlacement");
     }
@@ -897,7 +888,7 @@ struct MetaTypeTraits<Controls::TickBarPlacement> {
 };
 
 template<>
-struct MetaTypeTraits<Controls::ScrollBarVisibility> {
+struct TypeTraits<Controls::ScrollBarVisibility> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("ScrollBarVisibility");
     }
@@ -913,7 +904,7 @@ struct MetaTypeTraits<Controls::ScrollBarVisibility> {
 };
 
 template<>
-struct MetaTypeTraits<Controls::PanningMode> {
+struct TypeTraits<Controls::PanningMode> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("PanningMode");
     }
@@ -929,7 +920,7 @@ struct MetaTypeTraits<Controls::PanningMode> {
 };
 
 template<>
-struct MetaTypeTraits<Controls::GridResizeDirection> {
+struct TypeTraits<Controls::GridResizeDirection> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("GridResizeDirection");
     }
@@ -945,7 +936,7 @@ struct MetaTypeTraits<Controls::GridResizeDirection> {
 };
 
 template<>
-struct MetaTypeTraits<Controls::GridResizeBehavior> {
+struct TypeTraits<Controls::GridResizeBehavior> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("GridResizeBehavior");
     }
@@ -960,4 +951,4 @@ struct MetaTypeTraits<Controls::GridResizeBehavior> {
     }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

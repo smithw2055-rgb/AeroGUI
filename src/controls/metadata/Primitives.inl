@@ -116,8 +116,8 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             ContentControl::ContentProperty,
             PropertyOptions(
-                Core::Value::NullObject(
-                    Core::TypeOf<Base::Object>()))
+                Meta::Value::NullObject(
+                    Meta::TypeOf<Base::Object>()))
                 .AffectsMeasure()
                 .Structural()
                 .Changed(
@@ -186,7 +186,7 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             RepeatButton::IntervalProperty,
             PropertyOptions(std::uint32_t{100})
-                .Validate(&Validate::Positive<std::uint32_t>))
+                .Validate(&::Aero::Base::Detail::Validate::Positive<std::uint32_t>))
         .Override(
             ButtonBase::ClickModeProperty,
             PropertyOptions(ClickMode::Press))
@@ -246,35 +246,35 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             ScrollViewer::HorizontalOffsetProperty,
             PropertyOptions(0.0)
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::VerticalOffsetProperty,
             PropertyOptions(0.0)
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::ExtentWidthProperty,
             PropertyOptions(0.0)
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::ExtentHeightProperty,
             PropertyOptions(0.0)
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::ViewportWidthProperty,
             PropertyOptions(0.0)
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::ViewportHeightProperty,
             PropertyOptions(0.0)
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::ScrollableWidthProperty,
             PropertyOptions(0.0)
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::ScrollableHeightProperty,
             PropertyOptions(0.0)
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::
                 ComputedHorizontalScrollBarVisibilityProperty,
@@ -343,23 +343,23 @@ Base::Result<void> PopulateControlsPrimitives(
             Track::MinimumProperty,
             PropertyOptions(0.0)
                 .AffectsArrange()
-                .Validate(&Validate::Finite<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
         .Property(
             Track::MaximumProperty,
             PropertyOptions(1.0)
                 .AffectsArrange()
-                .Validate(&Validate::Finite<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
         .Property(
             Track::ValueProperty,
             PropertyOptions(0.0)
                 .AffectsArrange()
                 .BindsTwoWayByDefault()
-                .Validate(&Validate::Finite<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
         .Property(
             Track::ViewportSizeProperty,
             PropertyOptions(0.0)
                 .AffectsArrange()
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             Track::IsDirectionReversedProperty,
             PropertyOptions(false)
@@ -388,11 +388,11 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             GridSplitter::DragIncrementProperty,
             PropertyOptions(1.0)
-                .Validate(&Validate::Positive<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Property(
             GridSplitter::KeyboardIncrementProperty,
             PropertyOptions(10.0)
-                .Validate(&Validate::Positive<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Property(
             GridSplitter::ResizeDirectionProperty,
             PropertyOptions(GridResizeDirection::Auto))
@@ -417,20 +417,20 @@ Base::Result<void> PopulateControlsPrimitives(
             RangeBase::MinimumProperty,
             PropertyOptions(0.0)
                 .AffectsArrange()
-                .Validate(&Validate::Finite<double>)
+                .Validate(&::Aero::Base::Detail::Validate::Finite<double>)
                 .Coerce(&CoerceRangeMinimum))
         .Property(
             RangeBase::MaximumProperty,
             PropertyOptions(1.0)
                 .AffectsArrange()
-                .Validate(&Validate::Finite<double>)
+                .Validate(&::Aero::Base::Detail::Validate::Finite<double>)
                 .Coerce(&CoerceRangeMaximum))
         .Property(
             RangeBase::ValueProperty,
             PropertyOptions(0.0)
                 .AffectsArrange()
                 .BindsTwoWayByDefault()
-                .Validate(&Validate::Finite<double>)
+                .Validate(&::Aero::Base::Detail::Validate::Finite<double>)
                 .Coerce(&CoerceRangeValue));
     status = rangeBase.Result();
     if (!status) return status.GetStatus();
@@ -445,15 +445,15 @@ Base::Result<void> PopulateControlsPrimitives(
             ScrollBar::ViewportSizeProperty,
             PropertyOptions(0.0)
                 .AffectsArrange()
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             ScrollBar::SmallChangeProperty,
             PropertyOptions(16.0)
-                .Validate(&Validate::Positive<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Property(
             ScrollBar::LargeChangeProperty,
             PropertyOptions(0.0)
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Factory();
     status = scrollBar.Result();
     if (!status) return status.GetStatus();
@@ -467,11 +467,11 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             Slider::SmallChangeProperty,
             PropertyOptions(1.0)
-                .Validate(&Validate::Positive<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Property(
             Slider::LargeChangeProperty,
             PropertyOptions(10.0)
-                .Validate(&Validate::Positive<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Property(
             Slider::TickPlacementProperty,
             PropertyOptions(TickPlacement::None)
@@ -480,7 +480,7 @@ Base::Result<void> PopulateControlsPrimitives(
             Slider::TickFrequencyProperty,
             PropertyOptions(1.0)
                 .AffectsRender()
-                .Validate(&Validate::Positive<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Property(
             Slider::TicksProperty,
             PropertyOptions(Base::String{})

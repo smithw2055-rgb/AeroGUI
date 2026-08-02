@@ -1,18 +1,18 @@
 #include "gui/MetadataInternal.hpp"
-#include <Aero/Controls/Standard.hpp>
+#include <Aero/Controls/Common.hpp>
 
 #include <utility>
 #include "gui/RoutedEventInternal.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Detail::MenuBehavior;
+using Aero::Internal::MenuBehavior;
 
 using namespace Primitives;
-using namespace Core;
+using namespace Meta;
 
 MenuItem::MenuItem() noexcept
-    : TreeViewItem(StaticTypeId()),
+    : HeaderedItemsControl(StaticTypeId()),
       menuPropertyChangedHandler_(
           this,
           &MenuItem::OnMenuPropertyChanged) {
@@ -46,55 +46,55 @@ MenuItem::~MenuItem() {
 }
 
 Base::StringView
-MenuItem::InputGestureText() const noexcept {
+MenuItem::GetInputGestureText() const noexcept {
     return GetValueOr(
         InputGestureTextProperty,
         Base::StringView{});
 }
 
-Base::Result<void>
+void
 MenuItem::SetInputGestureText(
     Base::StringView value) noexcept {
-    return SetValue(
+    SetValue(
         InputGestureTextProperty, value);
 }
 
-bool MenuItem::IsCheckable() const noexcept {
+bool MenuItem::GetIsCheckable() const noexcept {
     return GetValueOr(
         IsCheckableProperty, false);
 }
 
-Base::Result<void> MenuItem::SetIsCheckable(
+void MenuItem::SetIsCheckable(
     bool value) noexcept {
-    return SetValue(
+    SetValue(
         IsCheckableProperty, value);
 }
 
-bool MenuItem::IsChecked() const noexcept {
+bool MenuItem::GetIsChecked() const noexcept {
     return GetValueOr(
         IsCheckedProperty, false);
 }
 
-Base::Result<void> MenuItem::SetIsChecked(
+void MenuItem::SetIsChecked(
     bool value) noexcept {
-    return SetCurrentValue(
+    SetCurrentValue(
         IsCheckedProperty, value);
 }
 
-bool MenuItem::IsHighlighted() const noexcept {
+bool MenuItem::GetIsHighlighted() const noexcept {
     return GetValueOr(IsHighlightedProperty, false);
 }
 
-bool MenuItem::IsSubmenuOpen() const noexcept {
+bool MenuItem::GetIsSubmenuOpen() const noexcept {
     return GetValueOr(IsSubmenuOpenProperty, false);
 }
 
-Base::Result<void> MenuItem::SetIsSubmenuOpen(
+void MenuItem::SetIsSubmenuOpen(
     bool value) noexcept {
-    return SetCurrentValue(IsSubmenuOpenProperty, value);
+    SetCurrentValue(IsSubmenuOpenProperty, value);
 }
 
-MenuItemRole MenuItem::Role() const noexcept {
+MenuItemRole MenuItem::GetRole() const noexcept {
     return GetValueOr(RoleProperty, MenuItemRole::TopLevelItem);
 }
 
@@ -104,34 +104,32 @@ ICommand* MenuItem::GetCommand() const noexcept {
         Base::Ref<ICommand>{}).Get();
 }
 
-Base::Result<void> MenuItem::SetCommand(
+void MenuItem::SetCommand(
     Base::Ref<ICommand> command) noexcept {
-    return SetValue(
+    SetValue(
         CommandProperty, std::move(command));
 }
 
 Base::Ref<Base::Object>
-MenuItem::CommandParameter() const noexcept {
+MenuItem::GetCommandParameter() const noexcept {
     return GetValueOr(
         CommandParameterProperty,
         Base::Ref<Base::Object>{});
 }
 
-Base::Result<void>
+void
 MenuItem::SetCommandParameter(
     Base::Ref<Base::Object> value) noexcept {
-    return SetValue(
+    SetValue(
         CommandParameterProperty,
         std::move(value));
 }
 
-Base::Result<void>
+void
 MenuItem::OnApplyTemplate() noexcept {
-    Base::Result<void> applied =
-        TreeViewItem::OnApplyTemplate();
-    if (!applied) return applied.GetStatus();
+    HeaderedItemsControl::OnApplyTemplate();
     static_cast<void>(SetRoleState(
-        Count() != 0U
+        GetCount() != 0U
             ? MenuItemRole::TopLevelHeader
             : MenuItemRole::TopLevelItem));
     DependencyObject* gesture =
@@ -164,11 +162,9 @@ MenuItem::OnApplyTemplate() noexcept {
     if (gestureText_ == nullptr ||
         checkGlyph_ == nullptr ||
         submenuPopup_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "MenuItem template requires GestureText, CheckGlyph, and SubmenuPopup");
+        return;
     }
-    return SynchronizeMenuTemplate();
+    static_cast<void>(SynchronizeMenuTemplate());
 }
 
 void MenuItem::OnTemplateDetached() noexcept {
@@ -182,45 +178,31 @@ void MenuItem::OnTemplateDetached() noexcept {
     gestureText_ = nullptr;
     checkGlyph_ = nullptr;
     submenuPopup_ = nullptr;
-    TreeViewItem::OnTemplateDetached();
+    HeaderedItemsControl::OnTemplateDetached();
 }
 
 Base::Result<void>
 MenuItem::SynchronizeMenuTemplate() noexcept {
     if (gestureText_ != nullptr) {
-        Base::Result<void> gesture =
-            gestureText_->SetText(
-                InputGestureText());
-        if (!gesture) return gesture.GetStatus();
+        gestureText_->SetText(GetInputGestureText());
     }
     if (checkGlyph_ != nullptr) {
-        Base::Result<void> checked =
-            checkGlyph_->SetText(
-            IsCheckable() && IsChecked()
+        checkGlyph_->SetText(
+            GetIsCheckable() && GetIsChecked()
             ? Base::StringView("x")
             : Base::StringView(""));
-        if (!checked) return checked.GetStatus();
     }
     if (submenuPopup_ != nullptr) {
-        if (IsSubmenuOpen()) {
+        if (GetIsSubmenuOpen()) {
             Base::Ref<UIElement> target =
                 Base::Ref<UIElement>::
                     TryFromBorrowed(*this);
             if (target) {
-                Base::Result<void> placed =
-                    submenuPopup_->
-                        SetPlacementTarget(
-                            std::move(target));
-                if (!placed) {
-                    return placed.GetStatus();
-                }
+                submenuPopup_->SetPlacementTarget(std::move(target));
             }
         }
-        Base::Result<void> opened =
-            submenuPopup_->SetIsOpen(
-                IsSubmenuOpen());
-        if (!opened) return opened.GetStatus();
-        if (!IsSubmenuOpen()) {
+        submenuPopup_->SetIsOpen(GetIsSubmenuOpen());
+        if (!GetIsSubmenuOpen()) {
             static_cast<void>(
                 submenuPopup_->
                     SetPlacementTarget({}));
@@ -237,15 +219,14 @@ void MenuItem::OnMenuPropertyChanged(
         SynchronizeMenuTemplate());
 }
 
-Base::Result<void> MenuItem::SetHighlightedState(
+void MenuItem::SetHighlightedState(
     bool value) noexcept {
-    return SetReadOnlyCurrentValue(
-        IsHighlightedProperty, value);
+    SetReadOnlyCurrentValue(IsHighlightedProperty, value);
 }
 
-Base::Result<void> MenuItem::SetRoleState(
+void MenuItem::SetRoleState(
     MenuItemRole value) noexcept {
-    return SetReadOnlyCurrentValue(RoleProperty, value);
+    SetReadOnlyCurrentValue(RoleProperty, value);
 }
 
 Menu::~Menu() {
@@ -256,13 +237,13 @@ Menu::~Menu() {
     }
 }
 
-Base::Result<Base::Ref<ItemContainer>>
+Base::Result<Base::Ref<FrameworkElement>>
 Menu::CreateContainer(
     const Base::Ref<Base::Object>&) noexcept {
     Base::Result<Base::Ref<MenuItem>> made =
         Base::MakeRef<MenuItem>();
     if (!made) return made.GetStatus();
-    return Base::Ref<ItemContainer>(
+    return Base::Ref<FrameworkElement>(
         std::move(made).Value());
 }
 
@@ -282,39 +263,37 @@ ContextMenu::~ContextMenu() {
         openChangedHandler_));
 }
 
-bool ContextMenu::IsOpen() const noexcept {
+bool ContextMenu::GetIsOpen() const noexcept {
     return GetValueOr(
         IsOpenProperty, false);
 }
 
-Base::Result<void> ContextMenu::SetIsOpen(
+void ContextMenu::SetIsOpen(
     bool value) noexcept {
-    return SetCurrentValue(
+    SetCurrentValue(
         IsOpenProperty, value);
 }
 
 Base::Ref<UIElement>
-ContextMenu::PlacementTarget() const noexcept {
+ContextMenu::GetPlacementTarget() const noexcept {
     return GetValueOr(
         PlacementTargetProperty,
         Base::Ref<UIElement>{});
 }
 
-Base::Result<void>
+void
 ContextMenu::SetPlacementTarget(
     Base::Ref<UIElement> value) noexcept {
-    return SetValue(
+    SetValue(
         PlacementTargetProperty,
         std::move(value));
 }
 
-Base::Result<void>
+void
 ContextMenu::OnApplyTemplate() noexcept {
-    Base::Result<void> applied =
-        Menu::OnApplyTemplate();
-    if (!applied) return applied.GetStatus();
-    return SetVisibility(
-        IsOpen()
+    Menu::OnApplyTemplate();
+    SetVisibility(
+        GetIsOpen()
         ? Visibility::Visible
         : Visibility::Collapsed);
 }
@@ -343,20 +322,21 @@ ContextMenuService::GetContextMenu(
         Base::Ref<ContextMenu>{});
 }
 
-Base::Result<void>
+void
 ContextMenuService::SetContextMenu(
     DependencyObject& target,
     Base::Ref<ContextMenu> value) noexcept {
-    return target.SetValue(
+    target.SetValue(
         ContextMenuProperty,
         std::move(value));
 }
 
 } // namespace Aero::Controls
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using namespace Aero::Controls;
 
 MenuBehavior::
@@ -418,7 +398,7 @@ Base::Result<void>
 MenuBehavior::Attach(
     Menu& menu) noexcept {
     if (menu.interactions_ != nullptr ||
-        Aero::Detail::ElementPrivate::Tree(menu) != tree_ ||
+        Aero::Internal::ElementPrivate::Tree(menu) != tree_ ||
         FindMenu(menu) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -510,18 +490,15 @@ MenuItem* MenuBehavior::FindItem(
 }
 
 Base::Result<void>
-MenuBehavior::Invoke(
+    MenuBehavior::Invoke(
     Menu& menu,
     MenuItem& item) noexcept {
-    if (item.Count() != 0U) {
-        return item.SetIsSubmenuOpen(
-            !item.IsSubmenuOpen());
+    if (item.GetCount() != 0U) {
+        item.SetIsSubmenuOpen(!item.GetIsSubmenuOpen());
+        return {};
     }
-    if (item.IsCheckable()) {
-        Base::Result<void> checked =
-            item.SetIsChecked(
-                !item.IsChecked());
-        if (!checked) return checked.GetStatus();
+    if (item.GetIsCheckable()) {
+        item.SetIsChecked(!item.GetIsChecked());
     }
     RoutedEventArgs event;
     Base::Result<void> raised =
@@ -531,7 +508,7 @@ MenuBehavior::Invoke(
     ICommand* command = item.GetCommand();
     if (command != nullptr) {
         Base::Ref<Base::Object> parameter =
-            item.CommandParameter();
+            item.GetCommandParameter();
         const Value value = Value::FromObject(
             TypeOf<Base::Object>(),
             std::move(parameter));
@@ -594,12 +571,12 @@ void MenuBehavior::OnKeyDown(
     if (args.GetKey() == KeyboardKeyEscape ||
         args.GetKey() == KeyboardKeyLeft) {
         static_cast<void>(
-            item->SetIsExpanded(false));
+            item->SetIsSubmenuOpen(false));
     } else if (
         args.GetKey() == KeyboardKeyRight) {
-        if (item->Count() != 0U) {
+        if (item->GetCount() != 0U) {
             static_cast<void>(
-                item->SetIsExpanded(true));
+                item->SetIsSubmenuOpen(true));
         }
     } else {
         static_cast<void>(
@@ -608,4 +585,4 @@ void MenuBehavior::OnKeyDown(
     args.SetHandled(true);
 }
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

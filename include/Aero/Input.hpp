@@ -1,23 +1,135 @@
-#pragma once
+﻿#pragma once
 
-#include <Aero/Input/Values.hpp>
-#include <Aero/UIElement.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Delegate.hpp>
+#include <Aero/Base/Geometry.hpp>
+#include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
+#include <Aero/Base/Result.hpp>
+#include <Aero/Base/Span.hpp>
 #include <Aero/Base/String.hpp>
+#include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include <Aero/Value.hpp>
-#include <Aero/Visual.hpp>
+
 #include <cstdint>
 #include <utility>
-#include <Aero/Base/Result.hpp>
-#include <Aero/Base/Utf8.hpp>
-#include <Aero/Layout.hpp>
+
+namespace Aero { class UIElement; }
 
 namespace Aero::Input {
 
-struct KeyboardInput;
+enum class InputScope : std::uint8_t {
+    Default = 0U,
+    Url,
+    EmailSmtpAddress,
+    Digits,
+    Number,
+    Password,
+    TelephoneNumber
+};
+
+enum class PointerAction : std::uint8_t { Move = 0U, Down, Up, Wheel };
+enum class KeyboardAction : std::uint8_t { Down = 0U, Up };
+enum class MouseButton : std::uint8_t {
+    Left = 0U, Right, Middle, XButton1, XButton2
+};
+enum class MouseButtonState : std::uint8_t { Released = 0U, Pressed };
+
+struct HitTestResult final {
+    Aero::UIElement* target = nullptr;
+    Base::Point position;
+    bool HasTarget() const noexcept { return target != nullptr; }
+};
+
+struct PointerInput final {
+    std::uint32_t pointerId = 0U;
+    PointerAction action = PointerAction::Move;
+    Base::Point position;
+    MouseButton changedButton = MouseButton::Left;
+    double wheelDeltaX = 0.0;
+    double wheelDeltaY = 0.0;
+};
+
+struct PointerDispatchResult final {
+    HitTestResult hit;
+    bool routed = false;
+};
+
+struct KeyboardInput final {
+    KeyboardAction action = KeyboardAction::Down;
+    std::uint32_t key = 0U;
+    std::uint32_t modifiers = 0U;
+    bool isRepeat = false;
+};
+
+inline constexpr std::uint32_t KeyboardKeyTab = 9U;
+inline constexpr std::uint32_t KeyboardKeyBackspace = 8U;
+inline constexpr std::uint32_t KeyboardKeyEnter = 13U;
+inline constexpr std::uint32_t KeyboardKeyEscape = 27U;
+inline constexpr std::uint32_t KeyboardKeySpace = 32U;
+inline constexpr std::uint32_t KeyboardKeyHome = 0x24U;
+inline constexpr std::uint32_t KeyboardKeyEnd = 0x23U;
+inline constexpr std::uint32_t KeyboardKeyLeft = 0x25U;
+inline constexpr std::uint32_t KeyboardKeyUp = 0x26U;
+inline constexpr std::uint32_t KeyboardKeyRight = 0x27U;
+inline constexpr std::uint32_t KeyboardKeyDown = 0x28U;
+inline constexpr std::uint32_t KeyboardKeyDelete = 0x2EU;
+inline constexpr std::uint32_t KeyboardKeyA = 0x41U;
+inline constexpr std::uint32_t KeyboardKeyC = 0x43U;
+inline constexpr std::uint32_t KeyboardKeyV = 0x56U;
+inline constexpr std::uint32_t KeyboardKeyX = 0x58U;
+inline constexpr std::uint32_t KeyboardKeyY = 0x59U;
+inline constexpr std::uint32_t KeyboardKeyZ = 0x5AU;
+
+enum class KeyboardModifiers : std::uint32_t {
+    None = 0U,
+    Shift = 1U << 0U,
+    Control = 1U << 1U,
+    Alt = 1U << 2U
+};
+
+constexpr bool HasKeyboardModifier(
+    std::uint32_t modifiers,
+    KeyboardModifiers value) noexcept {
+    return (modifiers &
+        static_cast<std::uint32_t>(value)) != 0U;
+}
+
+struct KeyboardDispatchResult final {
+    Aero::UIElement* target = nullptr;
+    bool routed = false;
+    bool commandExecuted = false;
+    bool focusMoved = false;
+};
+
+struct TextInput final {
+    Base::StringView text;
+};
+
+struct TextInputDispatchResult final {
+    Aero::UIElement* target = nullptr;
+    bool routed = false;
+};
+
+} // namespace Aero::Input
+
+namespace Aero::Meta {
+
+template<>
+struct TypeTraits<Aero::Input::InputScope> {
+    static constexpr TypeId Id() noexcept { return MakeTypeId("InputScope"); }
+    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
+    static constexpr Base::StringView Name() noexcept { return "InputScope"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+} // namespace Aero::Meta
+
+#include <Aero/RoutedEvent.hpp>
+
+namespace Aero::Input {
 
 using CanExecuteChangedHandler = Base::Delegate<void()>;
 
@@ -27,10 +139,10 @@ public:
     ~ICommand() override = default;
 
     virtual Base::Result<bool> CanExecute(
-        const Core::Value& parameter,
+        const Meta::Value& parameter,
         UIElement* target = nullptr) noexcept = 0;
-    virtual Base::Result<void> Execute(
-        const Core::Value& parameter,
+    virtual void Execute(
+        const Meta::Value& parameter,
         UIElement* target = nullptr) noexcept = 0;
 
     Base::Result<void> TryAddCanExecuteChanged(
@@ -63,7 +175,7 @@ public:
     KeyGesture(std::uint32_t key, std::uint32_t modifiers = 0U) noexcept
         : key_(key), modifiers_(modifiers) {}
 
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
     std::uint32_t GetKey() const noexcept { return key_; }
@@ -82,7 +194,7 @@ public:
     RoutedCommand() noexcept;
     explicit RoutedCommand(Base::StringView name) noexcept;
 
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
     Base::StringView GetName() const noexcept { return name_.View(); }
@@ -95,10 +207,10 @@ public:
     bool MatchesInput(const KeyboardInput& input) const noexcept;
 
     Base::Result<bool> CanExecute(
-        const Core::Value& parameter,
+        const Meta::Value& parameter,
         UIElement* target = nullptr) noexcept override;
-    Base::Result<void> Execute(
-        const Core::Value& parameter,
+    void Execute(
+        const Meta::Value& parameter,
         UIElement* target = nullptr) noexcept override;
 
     void InvalidateCanExecute() const noexcept {
@@ -117,16 +229,16 @@ class AERO_API KeyBinding final : public Base::Object {
     AERO_DECLARE_TYPE(KeyBinding, Base::Object)
 public:
     KeyBinding() noexcept = default;
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
     Base::StringView GetCommandName() const noexcept { return commandName_.View(); }
     Base::StringView GetKeyName() const noexcept { return keyName_.View(); }
     Base::StringView GetModifiersName() const noexcept { return modifiersName_.View(); }
     Base::Ref<RoutedCommand> GetCommand() const noexcept { return command_; }
-    Base::Result<void> SetCommandName(Base::StringView value) noexcept;
-    Base::Result<void> SetKeyName(Base::StringView value) noexcept;
-    Base::Result<void> SetModifiersName(Base::StringView value) noexcept;
+    void SetCommandName(Base::StringView value) noexcept;
+    void SetKeyName(Base::StringView value) noexcept;
+    void SetModifiersName(Base::StringView value) noexcept;
     Base::Result<void> Finalize() noexcept;
 
 private:
@@ -144,8 +256,8 @@ public:
 
     RoutedCommand* GetCommand() const noexcept { return command_; }
     void SetCommand(RoutedCommand* value) noexcept { command_ = value; }
-    const Core::Value& GetParameter() const noexcept { return parameter_; }
-    void SetParameter(Core::Value value) noexcept {
+    const Meta::Value& GetParameter() const noexcept { return parameter_; }
+    void SetParameter(Meta::Value value) noexcept {
         parameter_ = std::move(value);
     }
     UIElement* GetTarget() const noexcept { return target_; }
@@ -159,7 +271,7 @@ public:
 
 private:
     RoutedCommand* command_ = nullptr;
-    Core::Value parameter_;
+    Meta::Value parameter_;
     UIElement* target_ = nullptr;
     bool canExecute_ = false;
     bool continueRouting_ = true;
@@ -173,8 +285,8 @@ public:
 
     RoutedCommand* GetCommand() const noexcept { return command_; }
     void SetCommand(RoutedCommand* value) noexcept { command_ = value; }
-    const Core::Value& GetParameter() const noexcept { return parameter_; }
-    void SetParameter(Core::Value value) noexcept {
+    const Meta::Value& GetParameter() const noexcept { return parameter_; }
+    void SetParameter(Meta::Value value) noexcept {
         parameter_ = std::move(value);
     }
     UIElement* GetTarget() const noexcept { return target_; }
@@ -186,7 +298,7 @@ public:
 
 private:
     RoutedCommand* command_ = nullptr;
-    Core::Value parameter_;
+    Meta::Value parameter_;
     UIElement* target_ = nullptr;
     bool continueRouting_ = true;
 };
@@ -228,7 +340,6 @@ private:
 
 namespace Aero::Input {
 
-using namespace Aero::Core;
 
 
 // UI-thread visual-tree hit testing. The last visual child is frontmost.
@@ -255,7 +366,7 @@ class AERO_API KeyboardNavigation final
         KeyboardNavigation,
         Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
 
@@ -272,10 +383,10 @@ public:
 
 } // namespace Aero::Input
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<
+struct TypeTraits<
     Aero::Input::KeyboardNavigationMode> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId(
@@ -293,4 +404,4 @@ struct MetaTypeTraits<
     }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

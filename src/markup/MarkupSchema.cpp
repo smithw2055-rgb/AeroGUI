@@ -22,7 +22,7 @@ Base::Status SchemaNodeFailure(
     const Node& node) noexcept {
     thread_local char message[512];
     const Base::StringView localName = node.Name().LocalName();
-    const Core::SourcePosition position = node.Source().begin;
+    const ::Aero::Diagnostics::SourcePosition position = node.Source().begin;
     std::snprintf(
         message,
         sizeof(message),
@@ -39,7 +39,7 @@ Base::Result<SchemaTypeInfo> ResolveTypeInfo(
     const Schema& schema,
     Base::StringView xamlNamespace,
     Base::StringView localName) noexcept {
-    Base::Result<const Core::TypeInfo*> type =
+    Base::Result<const Meta::TypeInfo*> type =
         schema.ResolveType(xamlNamespace, localName);
     if (!type) return type.GetStatus();
     return SchemaTypeInfo{
@@ -73,7 +73,7 @@ Base::Result<void> ValidateSchemaCore(
     };
     struct Frame final {
         FrameKind kind = FrameKind::Object;
-        Core::TypeId type = Core::InvalidTypeId;
+        Meta::TypeId type = Meta::InvalidTypeId;
     };
     Base::Vector<Frame> frames;
     bool rootSeen = false;
@@ -103,14 +103,14 @@ Base::Result<void> ValidateSchemaCore(
                 }
                 Base::Result<void> appended = frames.TryPushBack({
                     FrameKind::PropertyElement,
-                    Core::InvalidTypeId});
+                    Meta::InvalidTypeId});
                 if (!appended) return appended.GetStatus();
                 break;
             }
             if (nullObject) {
                 Base::Result<void> appended = frames.TryPushBack({
                     FrameKind::NullObject,
-                    Core::InvalidTypeId});
+                    Meta::InvalidTypeId});
                 if (!appended) return appended.GetStatus();
                 break;
             }
@@ -141,9 +141,9 @@ Base::Result<void> ValidateSchemaCore(
                 rootSeen = true;
             }
             Base::Result<void> appended = frames.TryPushBack({
-                Core::HasTypeFlag(
+                Meta::HasTypeFlag(
                     type.Value().flags,
-                    Core::TypeFlags::ValueType)
+                    Meta::TypeFlags::ValueType)
                     ? FrameKind::ValueObject
                     : FrameKind::Object,
                 type.Value().id});
@@ -201,7 +201,7 @@ Base::Result<void> ValidateSchemaCore(
             {
                 Base::Result<void> appended = frames.TryPushBack({
                     FrameKind::Member,
-                    Core::InvalidTypeId});
+                    Meta::InvalidTypeId});
                 if (!appended) return appended.GetStatus();
             }
             break;
@@ -321,10 +321,11 @@ Base::Result<void> CompiledDocument::ValidateSchema(
 
 
 
-namespace Aero::Markup::Detail {
+namespace Aero::Internal {
 namespace {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 
 
 class DynamicResourceExtensionToken final
@@ -335,7 +336,7 @@ class DynamicResourceExtensionToken final
         "urn:aero",
         "DynamicResource")
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
 };
@@ -348,7 +349,7 @@ class StaticExtensionToken final
         "http://schemas.microsoft.com/winfx/2006/xaml",
         "Static")
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
 };
@@ -361,7 +362,7 @@ class TypeExtensionToken final
         "http://schemas.microsoft.com/winfx/2006/xaml",
         "Type")
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
 };
@@ -374,62 +375,54 @@ class TemplateBindingExtensionToken final
         "urn:aero",
         "TemplateBinding")
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
 };
 
-Base::Result<void> AddGroupState(
+void AddGroupState(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value || value->RuntimeType() !=
             XamlVisualStateObject::StaticTypeId()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "VisualStateGroup States expects VisualState");
+        return;
     }
-    return static_cast<XamlVisualStateGroupObject&>(object).AddState(value);
+    (void)static_cast<XamlVisualStateGroupObject&>(object).AddState(value);
 }
 
-Base::Result<void> ClearGroupStates(
+void ClearGroupStates(
     Base::Object& object,
     void*) noexcept {
     static_cast<XamlVisualStateGroupObject&>(object).ClearStates();
-    return {};
 }
 
-Base::Result<void> AddGroupTransition(
+void AddGroupTransition(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value || value->RuntimeType() !=
             XamlVisualTransitionObject::StaticTypeId()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "VisualStateGroup Transitions expects VisualTransition");
+        return;
     }
-    return static_cast<XamlVisualStateGroupObject&>(
+    (void)static_cast<XamlVisualStateGroupObject&>(
         object).AddTransition(value);
 }
 
-Base::Result<void> ClearGroupTransitions(
+void ClearGroupTransitions(
     Base::Object& object,
     void*) noexcept {
     static_cast<XamlVisualStateGroupObject&>(
         object).ClearTransitions();
-    return {};
 }
 
-Base::Result<void> AddElementVisualStateGroup(
+void AddElementVisualStateGroup(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value || value->RuntimeType() !=
             XamlVisualStateGroupObject::StaticTypeId()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "VisualStateGroups expects VisualStateGroup");
+        return;
     }
     auto& target = static_cast<::Aero::DependencyObject&>(object);
     Base::Ref<Base::Object> valueStore = target.GetValueOr(
@@ -439,91 +432,81 @@ Base::Result<void> AddElementVisualStateGroup(
     if (!valueStore) {
         Base::Result<Base::Ref<XamlVisualStates>> created =
             Base::MakeRef<XamlVisualStates>();
-        if (!created) return created.GetStatus();
+        if (!created) return;
         valueStore = Base::Ref<Base::Object>(
             std::move(created).Value());
-        Base::Result<void> stored = target.SetValue(
+        target.SetValue(
             XamlVisualStateManagerObject::
                 VisualStateGroupStoreProperty,
             valueStore);
-        if (!stored) return stored.GetStatus();
     }
     if (valueStore->RuntimeType() !=
             XamlVisualStates::StaticTypeId()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "VisualStateGroups store has an invalid value");
+        return;
     }
-    return static_cast<XamlVisualStates&>(
-        *valueStore).Add(value);
+    (void)static_cast<XamlVisualStates&>(*valueStore).Add(value);
 }
 
-Base::Result<void> ClearElementVisualStateGroups(
+void ClearElementVisualStateGroups(
     Base::Object& object,
     void*) noexcept {
-    return static_cast<::Aero::DependencyObject&>(object).SetValue(
+    static_cast<::Aero::DependencyObject&>(object).SetValue(
         XamlVisualStateManagerObject::
             VisualStateGroupStoreProperty,
         Base::Ref<Base::Object>{});
 }
 
-Base::Result<void> AddStateContent(
+void AddStateContent(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "VisualState content is null");
+        return;
     }
     auto& state =
         static_cast<XamlVisualStateObject&>(object);
     if (value->RuntimeType() == Setter::StaticTypeId()) {
-        return state.AddSetter(value);
+        (void)state.AddSetter(value);
+        return;
     }
     if (value->RuntimeType() ==
         Media::Animation::Storyboard::StaticTypeId()) {
-        return state.SetStoryboard(
+        state.SetStoryboard(
             Base::Ref<Media::Animation::Storyboard>::FromBorrowed(
                 *static_cast<Media::Animation::Storyboard*>(value.Get())));
+        return;
     }
-    return Base::Status::Failure(
-        Base::ErrorCode::InvalidArgument,
-        "VisualState content expects Setter or Storyboard");
+    return;
 }
 
-Base::Result<void> ClearStateContent(
+void ClearStateContent(
     Base::Object& object,
     void*) noexcept {
     auto& state =
         static_cast<XamlVisualStateObject&>(object);
     state.ClearSetters();
-    static_cast<void>(state.SetStoryboard({}));
-    return {};
+    state.SetStoryboard({});
 }
 
-Base::Result<void> SetTransitionStoryboard(
+void SetTransitionStoryboard(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value || value->RuntimeType() !=
             Media::Animation::Storyboard::StaticTypeId()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "VisualTransition content expects Storyboard");
+        return;
     }
-    return static_cast<XamlVisualTransitionObject&>(
+    static_cast<XamlVisualTransitionObject&>(
         object).SetStoryboard(
             Base::Ref<Media::Animation::Storyboard>::FromBorrowed(
                 *static_cast<Media::Animation::Storyboard*>(
                     value.Get())));
 }
 
-Base::Result<void> ClearTransitionStoryboard(
+void ClearTransitionStoryboard(
     Base::Object& object,
     void*) noexcept {
-    return static_cast<XamlVisualTransitionObject&>(
-        object).SetStoryboard({});
+    static_cast<XamlVisualTransitionObject&>(object).SetStoryboard({});
 }
 
 } // namespace
@@ -643,6 +626,16 @@ Base::Result<void> PopulateMarkupMetadata(
     return status;
 }
 
+} // namespace Aero::Internal
+
+// The schema facade keeps its source-level callback in Markup::Detail while
+// the metadata implementation itself is housed with the private XAML
+// objects in Base::Detail.
+namespace Aero::Markup::Detail {
+Base::Result<void> PopulateMarkupMetadata(
+    ::Aero::Meta::Registration& context) noexcept {
+    return ::Aero::Internal::PopulateMarkupMetadata(context);
+}
 } // namespace Aero::Markup::Detail
 
 
@@ -653,12 +646,12 @@ Base::Result<void> PopulateMarkupMetadata(
 #include <cstdint>
 #include <utility>
 
-namespace Aero::Markup::Detail {
+namespace Aero::Internal {
 namespace {
 
 bool HasTypeFlag(
-    Core::TypeFlags value,
-    Core::TypeFlags flag) noexcept {
+    Meta::TypeFlags value,
+    Meta::TypeFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
         static_cast<std::uint32_t>(flag)) != 0U;
 }
@@ -670,11 +663,11 @@ Base::Status FrozenStatus() noexcept {
 }
 
 Base::Result<void> ValidateObjectType(
-    Core::TypeId type,
-    const Core::TypeRegistry& descriptors) noexcept {
-    const Core::TypeInfo* descriptor = descriptors.FindType(type);
+    Meta::TypeId type,
+    const Meta::TypeRegistry& descriptors) noexcept {
+    const Meta::TypeInfo* descriptor = descriptors.FindType(type);
     if (descriptor == nullptr ||
-        HasTypeFlag(descriptor->Flags(), Core::TypeFlags::ValueType)) {
+        HasTypeFlag(descriptor->Flags(), Meta::TypeFlags::ValueType)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "XAML type capability requires a registered object type");
@@ -694,16 +687,16 @@ Base::Status DuplicateFacet(const char* message) noexcept {
 
 template<class T, class ExactLookup>
 const T* FindInherited(
-    Core::TypeId type,
-    const Core::TypeRegistry& descriptors,
+    Meta::TypeId type,
+    const Meta::TypeRegistry& descriptors,
     ExactLookup&& lookup) noexcept {
-    Core::TypeId current = type;
+    Meta::TypeId current = type;
     std::uint32_t depth = 0U;
-    while (current != Core::InvalidTypeId &&
+    while (current != Meta::InvalidTypeId &&
            depth <= descriptors.TypeCount()) {
         const T* facet = lookup(current);
         if (facet != nullptr) return facet;
-        const Core::TypeInfo* descriptor = descriptors.FindType(current);
+        const Meta::TypeInfo* descriptor = descriptors.FindType(current);
         if (descriptor == nullptr) return nullptr;
         current = descriptor->BaseType();
         ++depth;
@@ -713,8 +706,8 @@ const T* FindInherited(
 
 template<class T, class ExactLookup>
 const T* FindByPolicy(
-    Core::TypeId type,
-    const Core::TypeRegistry& descriptors,
+    Meta::TypeId type,
+    const Meta::TypeRegistry& descriptors,
     ExactLookup&& lookup) noexcept {
     if constexpr (
         T::InheritancePolicy ==
@@ -732,11 +725,11 @@ const T* FindByPolicy(
 std::uint16_t XamlFacets::FacetCountBefore(
     FacetMask mask,
     FacetKind kind) noexcept {
-    return Core::Detail::CompactFacetIndex::CountBefore(mask, kind);
+    return Internal::CompactFacetIndex::CountBefore(mask, kind);
 }
 
 XamlFacets::DraftType* XamlFacets::FindDraft(
-    Core::TypeId type) noexcept {
+    Meta::TypeId type) noexcept {
     for (DraftType& draft : drafts_) {
         if (draft.type == type) return &draft;
     }
@@ -744,7 +737,7 @@ XamlFacets::DraftType* XamlFacets::FindDraft(
 }
 
 const XamlFacets::DraftType* XamlFacets::FindDraft(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     for (const DraftType& draft : drafts_) {
         if (draft.type == type) return &draft;
     }
@@ -752,7 +745,7 @@ const XamlFacets::DraftType* XamlFacets::FindDraft(
 }
 
 Base::Result<XamlFacets::DraftType*>
-XamlFacets::EnsureType(Core::TypeId type) noexcept {
+XamlFacets::EnsureType(Meta::TypeId type) noexcept {
     DraftType* existing = FindDraft(type);
     if (existing != nullptr) return existing;
     Base::Result<DraftType*> added = drafts_.TryEmplaceBack();
@@ -762,7 +755,7 @@ XamlFacets::EnsureType(Core::TypeId type) noexcept {
 }
 
 const XamlFacets::XamlTypePlan* XamlFacets::FindPlan(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     if (!frozen_) return nullptr;
     const std::uint32_t* position = index_.Find(type);
     return position != nullptr && *position < plans_.Size()
@@ -771,7 +764,7 @@ const XamlFacets::XamlTypePlan* XamlFacets::FindPlan(
 }
 
 std::uint32_t XamlFacets::FindFacetIndex(
-    Core::TypeId type,
+    Meta::TypeId type,
     FacetKind kind) const noexcept {
     const XamlTypePlan* plan = FindPlan(type);
     const FacetMask bit = FacetBit(kind);
@@ -787,7 +780,7 @@ std::uint32_t XamlFacets::FindFacetIndex(
 
 Base::Result<void> XamlFacets::TryAdd(
     const XamlTypeFacet& facet,
-    const Core::TypeRegistry& descriptors) noexcept {
+    const Meta::TypeRegistry& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
     if (facet.abiVersion != XamlFacetAbiVersion) {
         return Base::Status::Failure(
@@ -940,7 +933,7 @@ Base::Result<void> XamlFacets::TryAdd(
 
 Base::Result<void> XamlFacets::TryAdd(
     const XamlLifecycleFacet& facet,
-    const Core::TypeRegistry& descriptors) noexcept {
+    const Meta::TypeRegistry& descriptors) noexcept {
     AERO_ADD_XAML_FACET(
         XamlLifecycleFacet, lifecycles_, FacetKind::Lifecycle,
         facet.beginInit == nullptr && facet.endInit == nullptr &&
@@ -952,7 +945,7 @@ Base::Result<void> XamlFacets::TryAdd(
 
 Base::Result<void> XamlFacets::TryAdd(
     const XamlNameScopeFacet& facet,
-    const Core::TypeRegistry& descriptors) noexcept {
+    const Meta::TypeRegistry& descriptors) noexcept {
     AERO_ADD_XAML_FACET(
         XamlNameScopeFacet, nameScopes_, FacetKind::NameScope,
         !facet.createsNameScope && facet.registerName == nullptr,
@@ -962,7 +955,7 @@ Base::Result<void> XamlFacets::TryAdd(
 
 Base::Result<void> XamlFacets::TryAdd(
     const XamlResourceScopeFacet& facet,
-    const Core::TypeRegistry& descriptors) noexcept {
+    const Meta::TypeRegistry& descriptors) noexcept {
     AERO_ADD_XAML_FACET(
         XamlResourceScopeFacet, resourceScopes_, FacetKind::ResourceScope,
         !facet.createsResourceScope && facet.addResource == nullptr &&
@@ -973,7 +966,7 @@ Base::Result<void> XamlFacets::TryAdd(
 
 Base::Result<void> XamlFacets::TryAdd(
     const XamlDeferredContentFacet& facet,
-    const Core::TypeRegistry& descriptors) noexcept {
+    const Meta::TypeRegistry& descriptors) noexcept {
     AERO_ADD_XAML_FACET(
         XamlDeferredContentFacet, deferredContents_,
         FacetKind::DeferredContent,
@@ -984,7 +977,7 @@ Base::Result<void> XamlFacets::TryAdd(
 
 Base::Result<void> XamlFacets::TryAdd(
     const XamlImplicitResourceKeyFacet& facet,
-    const Core::TypeRegistry& descriptors) noexcept {
+    const Meta::TypeRegistry& descriptors) noexcept {
     AERO_ADD_XAML_FACET(
         XamlImplicitResourceKeyFacet, implicitResourceKeys_,
         FacetKind::ImplicitResourceKey,
@@ -995,7 +988,7 @@ Base::Result<void> XamlFacets::TryAdd(
 
 Base::Result<void> XamlFacets::TryAdd(
     const XamlPropertyTargetFacet& facet,
-    const Core::TypeRegistry& descriptors) noexcept {
+    const Meta::TypeRegistry& descriptors) noexcept {
     AERO_ADD_XAML_FACET(
         XamlPropertyTargetFacet, propertyTargets_, FacetKind::PropertyTarget,
         facet.resolve == nullptr,
@@ -1007,12 +1000,12 @@ Base::Result<void> XamlFacets::TryAdd(
 
 Base::Result<void> XamlFacets::TryAdd(
     const XamlMarkupExtensionFacet& facet,
-    const Core::TypeRegistry& descriptors) noexcept {
+    const Meta::TypeRegistry& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
-    const Core::TypeInfo* type = descriptors.FindType(facet.type);
+    const Meta::TypeInfo* type = descriptors.FindType(facet.type);
     if (facet.abiVersion != XamlFacetAbiVersion ||
         type == nullptr || facet.provideValue == nullptr ||
-        !HasTypeFlag(type->Flags(), Core::TypeFlags::MarkupExtension)) {
+        !HasTypeFlag(type->Flags(), Meta::TypeFlags::MarkupExtension)) {
         return InvalidFacet(
             "XAML markup-extension facet requires a flagged type and provider");
     }
@@ -1036,26 +1029,26 @@ Base::Result<void> XamlFacets::TryAdd(
 }
 
 Base::Result<void> XamlFacets::BuildLifecyclePlans(
-    const Core::TypeRegistry& descriptors) noexcept {
-    Base::Vector<Core::TypeId> ancestry;
+    const Meta::TypeRegistry& descriptors) noexcept {
+    Base::Vector<Meta::TypeId> ancestry;
     Base::Result<void> reserved = ancestry.TryReserve(descriptors.TypeCount());
     if (!reserved) return reserved.GetStatus();
 
     for (XamlTypePlan& plan : plans_) {
         plan.firstLifecycleRef = lifecycleRefs_.Size();
         ancestry.Clear();
-        Core::TypeId current = plan.type;
+        Meta::TypeId current = plan.type;
         std::uint32_t depth = 0U;
-        while (current != Core::InvalidTypeId &&
+        while (current != Meta::InvalidTypeId &&
                depth <= descriptors.TypeCount()) {
             Base::Result<void> added = ancestry.TryPushBack(current);
             if (!added) return added.GetStatus();
-            const Core::TypeInfo* descriptor = descriptors.FindType(current);
+            const Meta::TypeInfo* descriptor = descriptors.FindType(current);
             if (descriptor == nullptr) break;
             current = descriptor->BaseType();
             ++depth;
         }
-        if (current != Core::InvalidTypeId &&
+        if (current != Meta::InvalidTypeId &&
             depth > descriptors.TypeCount()) {
             return Base::Status::Failure(
                 Base::ErrorCode::CycleDetected,
@@ -1084,7 +1077,7 @@ Base::Result<void> XamlFacets::BuildLifecyclePlans(
 }
 
 Base::Result<void> XamlFacets::Freeze(
-    const Core::TypeRegistry& descriptors) noexcept {
+    const Meta::TypeRegistry& descriptors) noexcept {
     if (frozen_) return {};
 
     plans_.Clear();
@@ -1102,7 +1095,7 @@ Base::Result<void> XamlFacets::Freeze(
         propertyTargets_.Size() + markupExtensions_.Size());
     if (!reserved) return reserved.GetStatus();
 
-    for (const Core::TypeInfo& descriptor : descriptors.Types()) {
+    for (const Meta::TypeInfo& descriptor : descriptors.Types()) {
         XamlTypePlan plan;
         plan.type = descriptor.Id();
         plan.firstFacetRef = facetRefs_.Size();
@@ -1140,7 +1133,7 @@ Base::Result<void> XamlFacets::Freeze(
 }
 
 Base::Span<const std::uint32_t> XamlFacets::LifecyclePlan(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     const XamlTypePlan* plan = FindPlan(type);
     if (plan == nullptr || plan->lifecycleCount == 0U ||
         plan->firstLifecycleRef + plan->lifecycleCount >
@@ -1158,68 +1151,68 @@ const XamlLifecycleFacet* XamlFacets::LifecycleAt(
 }
 
 const XamlLifecycleFacet* XamlFacets::FindLifecycle(
-    Core::TypeId type,
-    const Core::TypeRegistry& descriptors) const noexcept {
+    Meta::TypeId type,
+    const Meta::TypeRegistry& descriptors) const noexcept {
     return FindByPolicy<XamlLifecycleFacet>(
         type, descriptors,
-        [this](Core::TypeId current) noexcept {
+        [this](Meta::TypeId current) noexcept {
             return FindLifecycleExact(current);
         });
 }
 
 const XamlNameScopeFacet* XamlFacets::FindNameScope(
-    Core::TypeId type,
-    const Core::TypeRegistry& descriptors) const noexcept {
+    Meta::TypeId type,
+    const Meta::TypeRegistry& descriptors) const noexcept {
     return FindByPolicy<XamlNameScopeFacet>(
         type, descriptors,
-        [this](Core::TypeId current) noexcept {
+        [this](Meta::TypeId current) noexcept {
             return FindNameScopeExact(current);
         });
 }
 
 const XamlResourceScopeFacet* XamlFacets::FindResourceScope(
-    Core::TypeId type,
-    const Core::TypeRegistry& descriptors) const noexcept {
+    Meta::TypeId type,
+    const Meta::TypeRegistry& descriptors) const noexcept {
     return FindByPolicy<XamlResourceScopeFacet>(
         type, descriptors,
-        [this](Core::TypeId current) noexcept {
+        [this](Meta::TypeId current) noexcept {
             return FindResourceScopeExact(current);
         });
 }
 
 const XamlDeferredContentFacet* XamlFacets::FindDeferredContent(
-    Core::TypeId type,
-    const Core::TypeRegistry& descriptors) const noexcept {
+    Meta::TypeId type,
+    const Meta::TypeRegistry& descriptors) const noexcept {
     return FindByPolicy<XamlDeferredContentFacet>(
         type, descriptors,
-        [this](Core::TypeId current) noexcept {
+        [this](Meta::TypeId current) noexcept {
             return FindDeferredContentExact(current);
         });
 }
 
 const XamlImplicitResourceKeyFacet*
 XamlFacets::FindImplicitResourceKey(
-    Core::TypeId type,
-    const Core::TypeRegistry& descriptors) const noexcept {
+    Meta::TypeId type,
+    const Meta::TypeRegistry& descriptors) const noexcept {
     return FindByPolicy<XamlImplicitResourceKeyFacet>(
         type, descriptors,
-        [this](Core::TypeId current) noexcept {
+        [this](Meta::TypeId current) noexcept {
             return FindImplicitResourceKeyExact(current);
         });
 }
 
 const XamlPropertyTargetFacet* XamlFacets::FindPropertyTarget(
-    Core::TypeId type,
-    const Core::TypeRegistry& descriptors) const noexcept {
+    Meta::TypeId type,
+    const Meta::TypeRegistry& descriptors) const noexcept {
     return FindByPolicy<XamlPropertyTargetFacet>(
         type, descriptors,
-        [this](Core::TypeId current) noexcept {
+        [this](Meta::TypeId current) noexcept {
             return FindPropertyTargetExact(current);
         });
 }
 
 const XamlMarkupExtensionFacet* XamlFacets::FindMarkupExtension(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     const std::uint32_t index = FindFacetIndex(
         type, FacetKind::MarkupExtension);
     return index < markupExtensions_.Size()
@@ -1228,19 +1221,19 @@ const XamlMarkupExtensionFacet* XamlFacets::FindMarkupExtension(
 }
 
 const XamlLifecycleFacet* XamlFacets::FindLifecycleExact(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     const std::uint32_t index = FindFacetIndex(type, FacetKind::Lifecycle);
     return index < lifecycles_.Size() ? &lifecycles_[index] : nullptr;
 }
 
 const XamlNameScopeFacet* XamlFacets::FindNameScopeExact(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     const std::uint32_t index = FindFacetIndex(type, FacetKind::NameScope);
     return index < nameScopes_.Size() ? &nameScopes_[index] : nullptr;
 }
 
 const XamlResourceScopeFacet* XamlFacets::FindResourceScopeExact(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     const std::uint32_t index = FindFacetIndex(
         type, FacetKind::ResourceScope);
     return index < resourceScopes_.Size()
@@ -1250,7 +1243,7 @@ const XamlResourceScopeFacet* XamlFacets::FindResourceScopeExact(
 
 const XamlDeferredContentFacet*
 XamlFacets::FindDeferredContentExact(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     const std::uint32_t index = FindFacetIndex(
         type, FacetKind::DeferredContent);
     return index < deferredContents_.Size()
@@ -1260,7 +1253,7 @@ XamlFacets::FindDeferredContentExact(
 
 const XamlImplicitResourceKeyFacet*
 XamlFacets::FindImplicitResourceKeyExact(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     const std::uint32_t index = FindFacetIndex(
         type, FacetKind::ImplicitResourceKey);
     return index < implicitResourceKeys_.Size()
@@ -1270,7 +1263,7 @@ XamlFacets::FindImplicitResourceKeyExact(
 
 const XamlPropertyTargetFacet*
 XamlFacets::FindPropertyTargetExact(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     const std::uint32_t index = FindFacetIndex(
         type, FacetKind::PropertyTarget);
     return index < propertyTargets_.Size()
@@ -1278,7 +1271,7 @@ XamlFacets::FindPropertyTargetExact(
         : nullptr;
 }
 
-} // namespace Aero::Markup::Detail
+} // namespace Aero::Internal
 
 
 // ===== SchemaManifest =====
@@ -1327,15 +1320,15 @@ Base::Status MemberNotFound() noexcept {
 }
 
 bool HasPropertyFlag(
-    Core::PropertyFlags value,
-    Core::PropertyFlags flag) noexcept {
+    Meta::PropertyFlags value,
+    Meta::PropertyFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
 bool HasEventFlag(
-    Core::EventFlags value,
-    Core::EventFlags flag) noexcept {
+    Meta::EventFlags value,
+    Meta::EventFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
         static_cast<std::uint32_t>(flag)) != 0U;
 }
@@ -1357,7 +1350,7 @@ Base::StringView CanonicalXamlNamespace(
             AeroExtensionsPrefix;
     return value == WpfPresentationNamespace ||
             value == BehaviorsNamespace || aeroExtensions
-        ? Core::AeroNamespaceUri()
+        ? Meta::AeroNamespaceUri()
         : value;
 }
 
@@ -1507,11 +1500,11 @@ struct SchemaManifest::Impl final {
         explicit TypeRecord(Base::IAllocator& allocator) noexcept
             : xamlNamespace(&allocator), name(&allocator) {}
 
-        Core::TypeId id = Core::InvalidTypeId;
-        Core::TypeId baseType = Core::InvalidTypeId;
-        Core::MetadataTypeKind kind = Core::MetadataTypeKind::Object;
-        Core::TypeFlags flags = Core::TypeFlags::None;
-        Core::MemberId contentMember = Core::InvalidMemberId;
+        Meta::TypeId id = Meta::InvalidTypeId;
+        Meta::TypeId baseType = Meta::InvalidTypeId;
+        Meta::MetadataTypeKind kind = Meta::MetadataTypeKind::Object;
+        Meta::TypeFlags flags = Meta::TypeFlags::None;
+        Meta::MemberId contentMember = Meta::InvalidMemberId;
         Base::String xamlNamespace;
         Base::String name;
     };
@@ -1520,10 +1513,10 @@ struct SchemaManifest::Impl final {
         explicit MemberRecord(Base::IAllocator& allocator) noexcept
             : name(&allocator) {}
 
-        Core::MemberId id = Core::InvalidMemberId;
+        Meta::MemberId id = Meta::InvalidMemberId;
         ManifestMemberKind kind = ManifestMemberKind::Property;
-        Core::TypeId ownerType = Core::InvalidTypeId;
-        Core::TypeId valueType = Core::InvalidTypeId;
+        Meta::TypeId ownerType = Meta::InvalidTypeId;
+        Meta::TypeId valueType = Meta::InvalidTypeId;
         std::uint32_t flags = 0U;
         Base::String name;
     };
@@ -1537,15 +1530,15 @@ struct SchemaManifest::Impl final {
     CompiledCacheIdentity identity;
     Base::Vector<TypeRecord> types;
     Base::Vector<MemberRecord> members;
-    Base::HashMap<Core::TypeId, std::uint32_t> typeIndex;
-    Base::HashMap<Core::MemberId, std::uint32_t> memberIndex;
+    Base::HashMap<Meta::TypeId, std::uint32_t> typeIndex;
+    Base::HashMap<Meta::MemberId, std::uint32_t> memberIndex;
     bool valid = false;
 
     Base::Result<void> RebuildIndexes() noexcept {
         typeIndex.Clear();
         memberIndex.Clear();
         for (std::uint32_t index = 0U; index < types.Size(); ++index) {
-            Base::Result<typename Base::HashMap<Core::TypeId, std::uint32_t>::InsertResult>
+            Base::Result<typename Base::HashMap<Meta::TypeId, std::uint32_t>::InsertResult>
                 inserted = typeIndex.TryInsert(types[index].id, index);
             if (!inserted) return inserted.GetStatus();
             if (!inserted.Value().inserted) {
@@ -1553,7 +1546,7 @@ struct SchemaManifest::Impl final {
             }
         }
         for (std::uint32_t index = 0U; index < members.Size(); ++index) {
-            Base::Result<typename Base::HashMap<Core::MemberId, std::uint32_t>::InsertResult>
+            Base::Result<typename Base::HashMap<Meta::MemberId, std::uint32_t>::InsertResult>
                 inserted = memberIndex.TryInsert(members[index].id, index);
             if (!inserted) return inserted.GetStatus();
             if (!inserted.Value().inserted) {
@@ -1563,7 +1556,7 @@ struct SchemaManifest::Impl final {
         return {};
     }
 
-    const TypeRecord* FindType(Core::TypeId id) const noexcept {
+    const TypeRecord* FindType(Meta::TypeId id) const noexcept {
         const std::uint32_t* index = typeIndex.Find(id);
         return index != nullptr && *index < types.Size()
             ? &types[*index] : nullptr;
@@ -1581,20 +1574,20 @@ struct SchemaManifest::Impl final {
         return nullptr;
     }
 
-    const MemberRecord* FindMember(Core::MemberId id) const noexcept {
+    const MemberRecord* FindMember(Meta::MemberId id) const noexcept {
         const std::uint32_t* index = memberIndex.Find(id);
         return index != nullptr && *index < members.Size()
             ? &members[*index] : nullptr;
     }
 
     const MemberRecord* FindMember(
-        Core::TypeId ownerType,
+        Meta::TypeId ownerType,
         Base::StringView name,
         ManifestMemberKind kind,
         bool includeBaseTypes) const noexcept {
-        Core::TypeId current = ownerType;
+        Meta::TypeId current = ownerType;
         for (std::uint32_t depth = 0U;
-             current != Core::InvalidTypeId && depth <= types.Size();
+             current != Meta::InvalidTypeId && depth <= types.Size();
              ++depth) {
             for (const MemberRecord& member : members) {
                 if (member.ownerType == current &&
@@ -1612,15 +1605,15 @@ struct SchemaManifest::Impl final {
     }
 
     bool IsDerivedFrom(
-        Core::TypeId type,
-        Core::TypeId expectedBase) const noexcept {
-        if (type == Core::InvalidTypeId ||
-            expectedBase == Core::InvalidTypeId) {
+        Meta::TypeId type,
+        Meta::TypeId expectedBase) const noexcept {
+        if (type == Meta::InvalidTypeId ||
+            expectedBase == Meta::InvalidTypeId) {
             return false;
         }
-        Core::TypeId current = type;
+        Meta::TypeId current = type;
         for (std::uint32_t depth = 0U;
-             current != Core::InvalidTypeId && depth <= types.Size();
+             current != Meta::InvalidTypeId && depth <= types.Size();
              ++depth) {
             if (current == expectedBase) return true;
             const TypeRecord* descriptor = FindType(current);
@@ -1631,8 +1624,8 @@ struct SchemaManifest::Impl final {
     }
 
     Base::Result<ResolvedMember> ResolvePropertyOrEvent(
-        Core::TypeId targetType,
-        Core::TypeId ownerType,
+        Meta::TypeId targetType,
+        Meta::TypeId ownerType,
         Base::StringView memberName,
         MemberSyntax syntax,
         bool ownerWasExplicit) const noexcept {
@@ -1642,10 +1635,10 @@ struct SchemaManifest::Impl final {
             ManifestMemberKind::Property,
             true);
         if (property != nullptr) {
-            const Core::PropertyFlags flags =
-                static_cast<Core::PropertyFlags>(property->flags);
+            const Meta::PropertyFlags flags =
+                static_cast<Meta::PropertyFlags>(property->flags);
             const bool attached = HasPropertyFlag(
-                flags, Core::PropertyFlags::Attached);
+                flags, Meta::PropertyFlags::Attached);
             if (ownerWasExplicit &&
                 syntax == MemberSyntax::Attribute && !attached) {
                 return Base::Status::Failure(
@@ -1661,7 +1654,7 @@ struct SchemaManifest::Impl final {
             }
             ResolvedMember resolved;
             resolved.id = property->id;
-            resolved.kind = Core::MemberKind::Property;
+            resolved.kind = Meta::MemberKind::Property;
             resolved.ownerType = property->ownerType;
             resolved.valueType = property->valueType;
             resolved.propertyFlags = flags;
@@ -1675,10 +1668,10 @@ struct SchemaManifest::Impl final {
             ManifestMemberKind::Event,
             true);
         if (event != nullptr) {
-            const Core::EventFlags flags =
-                static_cast<Core::EventFlags>(event->flags);
+            const Meta::EventFlags flags =
+                static_cast<Meta::EventFlags>(event->flags);
             const bool attached = HasEventFlag(
-                flags, Core::EventFlags::Attached);
+                flags, Meta::EventFlags::Attached);
             if (ownerWasExplicit &&
                 syntax == MemberSyntax::Attribute && !attached) {
                 return Base::Status::Failure(
@@ -1694,7 +1687,7 @@ struct SchemaManifest::Impl final {
             }
             ResolvedMember resolved;
             resolved.id = event->id;
-            resolved.kind = Core::MemberKind::Event;
+            resolved.kind = Meta::MemberKind::Event;
             resolved.ownerType = event->ownerType;
             resolved.valueType = event->valueType;
             resolved.eventFlags = flags;
@@ -1830,7 +1823,7 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
     }
     impl->identity = identity.Value();
 
-    const Core::TypeRegistry& descriptors = schema.Types();
+    const Meta::TypeRegistry& descriptors = schema.Types();
     Base::Result<void> reserved = impl->types.TryReserve(descriptors.TypeCount());
     if (!reserved) {
         DestroyImpl(selected, impl);
@@ -1843,7 +1836,7 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
         return reserved.GetStatus();
     }
 
-    for (const Core::TypeInfo& type : descriptors.Types()) {
+    for (const Meta::TypeInfo& type : descriptors.Types()) {
         Impl::TypeRecord record(selected);
         record.id = type.Id();
         record.baseType = type.BaseType();
@@ -1871,7 +1864,7 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
             return appended.GetStatus();
         }
 
-        for (const Core::PropertyInfo& property : type.Properties()) {
+        for (const Meta::PropertyInfo& property : type.Properties()) {
             Impl::MemberRecord member(selected);
             member.id = property.Id();
             member.kind = ManifestMemberKind::Property;
@@ -1890,7 +1883,7 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
             }
         }
 
-        for (const Core::EventInfo& event : type.Events()) {
+        for (const Meta::EventInfo& event : type.Events()) {
             Impl::MemberRecord member(selected);
             member.id = event.Id();
             member.kind = ManifestMemberKind::Event;
@@ -2031,18 +2024,18 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
             DestroyImpl(selected, impl);
             return name.GetStatus();
         }
-        if (id.Value() == Core::InvalidTypeId || name.Value().Empty() ||
-            Core::MakeTypeId(
+        if (id.Value() == Meta::InvalidTypeId || name.Value().Empty() ||
+            Meta::MakeTypeId(
                 xamlNamespace.Value().View(),
                 name.Value().View()) != id.Value() ||
-            kind.Value() > static_cast<std::uint32_t>(Core::MetadataTypeKind::Primitive)) {
+            kind.Value() > static_cast<std::uint32_t>(Meta::MetadataTypeKind::Primitive)) {
             DestroyImpl(selected, impl);
             return InvalidManifest("XAML schema manifest type descriptor is invalid");
         }
         record.id = id.Value();
         record.baseType = baseType.Value();
-        record.kind = static_cast<Core::MetadataTypeKind>(kind.Value());
-        record.flags = static_cast<Core::TypeFlags>(flags.Value());
+        record.kind = static_cast<Meta::MetadataTypeKind>(kind.Value());
+        record.flags = static_cast<Meta::TypeFlags>(flags.Value());
         record.contentMember = content.Value();
         record.xamlNamespace = std::move(xamlNamespace).Value();
         record.name = std::move(name).Value();
@@ -2093,17 +2086,17 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
         }
         const bool validKind =
             kind.Value() <= static_cast<std::uint8_t>(ManifestMemberKind::Event);
-        const Core::MemberKind metadataKind =
+        const Meta::MemberKind metadataKind =
             kind.Value() == static_cast<std::uint8_t>(ManifestMemberKind::Event)
-            ? Core::MemberKind::Event
-            : Core::MemberKind::Property;
-        if (id.Value() == Core::InvalidMemberId ||
-            owner.Value() == Core::InvalidTypeId ||
-            valueType.Value() == Core::InvalidTypeId ||
+            ? Meta::MemberKind::Event
+            : Meta::MemberKind::Property;
+        if (id.Value() == Meta::InvalidMemberId ||
+            owner.Value() == Meta::InvalidTypeId ||
+            valueType.Value() == Meta::InvalidTypeId ||
             name.Value().Empty() ||
             reservedField.Value() != 0U ||
             !validKind ||
-            Core::MakeMemberId(
+            Meta::MakeMemberId(
                 owner.Value(), metadataKind, name.Value().View()) != id.Value()) {
             DestroyImpl(selected, impl);
             return InvalidManifest("XAML schema manifest member descriptor is invalid");
@@ -2131,24 +2124,24 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
         return indexed.GetStatus();
     }
     for (const Impl::TypeRecord& type : impl->types) {
-        if (type.baseType != Core::InvalidTypeId &&
+        if (type.baseType != Meta::InvalidTypeId &&
             impl->FindType(type.baseType) == nullptr) {
             DestroyImpl(selected, impl);
             return InvalidManifest("XAML schema manifest base type is missing");
         }
-        Core::TypeId current = type.id;
+        Meta::TypeId current = type.id;
         std::uint32_t depth = 0U;
-        while (current != Core::InvalidTypeId && depth <= impl->types.Size()) {
+        while (current != Meta::InvalidTypeId && depth <= impl->types.Size()) {
             const Impl::TypeRecord* currentType = impl->FindType(current);
             if (currentType == nullptr) break;
             current = currentType->baseType;
             ++depth;
         }
-        if (current != Core::InvalidTypeId) {
+        if (current != Meta::InvalidTypeId) {
             DestroyImpl(selected, impl);
             return InvalidManifest("XAML schema manifest type hierarchy contains a cycle");
         }
-        if (type.contentMember != Core::InvalidMemberId) {
+        if (type.contentMember != Meta::InvalidMemberId) {
             const Impl::MemberRecord* content = impl->FindMember(type.contentMember);
             if (content == nullptr ||
                 content->kind != ManifestMemberKind::Property ||
@@ -2232,7 +2225,7 @@ Base::Result<SchemaTypeInfo> SchemaManifest::ResolveType(
         IsSystemNamespace(xamlNamespace) &&
             (localName == Base::StringView("String") ||
              localName == Base::StringView("Double"))
-            ? Core::AeroNamespaceUri()
+            ? Meta::AeroNamespaceUri()
             : CanonicalXamlNamespace(xamlNamespace),
         CanonicalXamlTypeName(localName));
     if (type == nullptr) return TypeNotFound();
@@ -2240,7 +2233,7 @@ Base::Result<SchemaTypeInfo> SchemaManifest::ResolveType(
 }
 
 Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
-    Core::TypeId targetType,
+    Meta::TypeId targetType,
     const QualifiedName& name,
     MemberSyntax syntax) const noexcept {
     if (!IsValid()) return ManifestNotReady();
@@ -2299,7 +2292,7 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
         // aero:Path.TrimEnd) and retain the facade only for extension-only
         // members such as aero:Text.*.
         const Impl::TypeRecord* aeroOwner = impl_->FindType(
-            Core::AeroNamespaceUri(),
+            Meta::AeroNamespaceUri(),
             CanonicalXamlTypeName(ownerName));
         if (aeroOwner != nullptr) {
             return impl_->ResolvePropertyOrEvent(
@@ -2321,7 +2314,7 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
     // the attached ContextMenuService property.
     if (memberName == Base::StringView("ContextMenu")) {
         const Impl::TypeRecord* service = impl_->FindType(
-            Core::AeroNamespaceUri(), "ContextMenuService");
+            Meta::AeroNamespaceUri(), "ContextMenuService");
         if (service != nullptr) {
             return impl_->ResolvePropertyOrEvent(
                 targetType, service->id, memberName, syntax, true);
@@ -2332,11 +2325,11 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
 }
 
 Base::Result<ResolvedMember> SchemaManifest::ResolveContentMember(
-    Core::TypeId targetType) const noexcept {
+    Meta::TypeId targetType) const noexcept {
     if (!IsValid()) return ManifestNotReady();
     const Impl::TypeRecord* type = impl_->FindType(targetType);
     if (type == nullptr) return TypeNotFound();
-    if (type->contentMember == Core::InvalidMemberId) {
+    if (type->contentMember == Meta::InvalidMemberId) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "XAML schema manifest type has no content member");
@@ -2345,15 +2338,15 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveContentMember(
     if (member == nullptr || member->kind != ManifestMemberKind::Property) {
         return InvalidManifest("XAML schema manifest content member is invalid");
     }
-    const Core::PropertyFlags flags =
-        static_cast<Core::PropertyFlags>(member->flags);
+    const Meta::PropertyFlags flags =
+        static_cast<Meta::PropertyFlags>(member->flags);
     ResolvedMember resolved;
     resolved.id = member->id;
-    resolved.kind = Core::MemberKind::Property;
+    resolved.kind = Meta::MemberKind::Property;
     resolved.ownerType = member->ownerType;
     resolved.valueType = member->valueType;
     resolved.propertyFlags = flags;
-    resolved.attached = HasPropertyFlag(flags, Core::PropertyFlags::Attached);
+    resolved.attached = HasPropertyFlag(flags, Meta::PropertyFlags::Attached);
     return resolved;
 }
 
@@ -2395,15 +2388,15 @@ Base::Status RuntimeMemberNotFound() noexcept {
 }
 
 bool SchemaHasPropertyFlag(
-    Core::PropertyFlags value,
-    Core::PropertyFlags flag) noexcept {
+    Meta::PropertyFlags value,
+    Meta::PropertyFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
 bool SchemaHasEventFlag(
-    Core::EventFlags value,
-    Core::EventFlags flag) noexcept {
+    Meta::EventFlags value,
+    Meta::EventFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
         static_cast<std::uint32_t>(flag)) != 0U;
 }
@@ -2425,7 +2418,7 @@ Base::StringView SchemaCanonicalXamlNamespace(
             AeroExtensionsPrefix;
     return value == SchemaWpfPresentationNamespace ||
             value == SchemaBehaviorsNamespace || aeroExtensions
-        ? Core::AeroNamespaceUri()
+        ? Meta::AeroNamespaceUri()
         : value;
 }
 
@@ -2492,19 +2485,19 @@ Schema::~Schema() noexcept {
     impl_ = nullptr;
 }
 
-Base::Result<const Core::TypeInfo*> Schema::ResolveType(
+Base::Result<const Meta::TypeInfo*> Schema::ResolveType(
     Base::StringView xamlNamespace,
     Base::StringView localName) const noexcept {
     if (!frozen_ || domain_ == nullptr || !domain_->IsReady()) {
         return RuntimeSchemaNotReady();
     }
 
-    const Core::TypeInfo* descriptor =
+    const Meta::TypeInfo* descriptor =
         domain_->Types().FindType(
             SchemaIsSystemNamespace(xamlNamespace) &&
                 (localName == Base::StringView("String") ||
                  localName == Base::StringView("Double"))
-                ? Core::AeroNamespaceUri()
+                ? Meta::AeroNamespaceUri()
                 : SchemaCanonicalXamlNamespace(xamlNamespace),
             SchemaCanonicalXamlTypeName(localName));
     if (descriptor == nullptr) return RuntimeTypeNotFound();
@@ -2512,14 +2505,14 @@ Base::Result<const Core::TypeInfo*> Schema::ResolveType(
 }
 
 Base::Result<ResolvedMember> Schema::ResolveMember(
-    Core::TypeId targetType,
+    Meta::TypeId targetType,
     const QualifiedName& name,
     MemberSyntax syntax) const noexcept {
     if (!frozen_ || domain_ == nullptr || !domain_->IsReady()) {
         return RuntimeSchemaNotReady();
     }
 
-    const Core::TypeInfo* target =
+    const Meta::TypeInfo* target =
         domain_->Types().FindType(targetType);
     if (target == nullptr || name.LocalName().Empty()) {
         return RuntimeMemberNotFound();
@@ -2553,9 +2546,9 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
         // WPF exposes ToolTip as a FrameworkElement property even though the
         // storage and display policy live in ToolTipService. Retain that XAML
         // surface while keeping the existing shared service implementation.
-        const Core::TypeInfo* service =
+        const Meta::TypeInfo* service =
             domain_->Types().FindType(
-                Core::AeroNamespaceUri(), "ToolTipService");
+                Meta::AeroNamespaceUri(), "ToolTipService");
         if (service == nullptr) return resolved.GetStatus();
         return ResolvePropertyOrEvent(
             targetType, service->Id(), localName, syntax, false);
@@ -2586,8 +2579,8 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
                 syntax,
                 false);
         }
-        const Core::TypeInfo* aeroOwner = domain_->Types().FindType(
-            Core::AeroNamespaceUri(),
+        const Meta::TypeInfo* aeroOwner = domain_->Types().FindType(
+            Meta::AeroNamespaceUri(),
             SchemaCanonicalXamlTypeName(ownerName));
         if (aeroOwner != nullptr) {
             return ResolvePropertyOrEvent(
@@ -2600,14 +2593,14 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
             syntax,
             false);
     }
-    const Core::TypeInfo* owner =
+    const Meta::TypeInfo* owner =
         domain_->Types().FindType(
             SchemaCanonicalXamlNamespace(ownerNamespace),
             SchemaCanonicalXamlTypeName(ownerName));
     if (owner == nullptr) return RuntimeMemberNotFound();
     if (memberName == Base::StringView("ContextMenu")) {
-        const Core::TypeInfo* service = domain_->Types().FindType(
-            Core::AeroNamespaceUri(), "ContextMenuService");
+        const Meta::TypeInfo* service = domain_->Types().FindType(
+            Meta::AeroNamespaceUri(), "ContextMenuService");
         if (service != nullptr) {
             return ResolvePropertyOrEvent(
                 targetType, service->Id(), memberName, syntax, true);
@@ -2619,19 +2612,19 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
 
 Base::Result<ResolvedMember>
 Schema::ResolvePropertyOrEvent(
-    Core::TypeId targetType,
-    Core::TypeId ownerType,
+    Meta::TypeId targetType,
+    Meta::TypeId ownerType,
     Base::StringView memberName,
     MemberSyntax syntax,
     bool ownerWasExplicit) const noexcept {
-    const Core::TypeRegistry& descriptors = domain_->Types();
-    const Core::PropertyInfo* property =
+    const Meta::TypeRegistry& descriptors = domain_->Types();
+    const Meta::PropertyInfo* property =
         descriptors.FindProperty(ownerType, memberName, true);
     if (property != nullptr &&
         syntax == MemberSyntax::Attribute &&
         SchemaHasPropertyFlag(
             property->Flags(),
-            Core::PropertyFlags::Collection)) {
+            Meta::PropertyFlags::Collection)) {
         Base::String textAlias;
         Base::Result<void> aliasStatus =
             textAlias.TryAssign(memberName);
@@ -2640,19 +2633,19 @@ Schema::ResolvePropertyOrEvent(
         }
         if (!aliasStatus) return aliasStatus.GetStatus();
 
-        const Core::PropertyInfo* alias =
+        const Meta::PropertyInfo* alias =
             descriptors.FindProperty(
                 ownerType, textAlias.View(), true);
         if (alias != nullptr &&
             !SchemaHasPropertyFlag(
                 alias->Flags(),
-                Core::PropertyFlags::Collection)) {
+                Meta::PropertyFlags::Collection)) {
             property = alias;
         }
     }
     if (property != nullptr) {
         const bool attached = SchemaHasPropertyFlag(
-            property->Flags(), Core::PropertyFlags::Attached);
+            property->Flags(), Meta::PropertyFlags::Attached);
         if (ownerWasExplicit && syntax == MemberSyntax::Attribute &&
             !attached) {
             return Base::Status::Failure(
@@ -2669,7 +2662,7 @@ Schema::ResolvePropertyOrEvent(
 
         ResolvedMember resolved;
         resolved.id = property->Id();
-        resolved.kind = Core::MemberKind::Property;
+        resolved.kind = Meta::MemberKind::Property;
         resolved.ownerType = property->OwnerType();
         resolved.valueType = property->ValueType();
         resolved.propertyFlags = property->Flags();
@@ -2677,11 +2670,11 @@ Schema::ResolvePropertyOrEvent(
         return resolved;
     }
 
-    const Core::EventInfo* event =
+    const Meta::EventInfo* event =
         descriptors.FindEvent(ownerType, memberName, true);
     if (event != nullptr) {
         const bool attached = SchemaHasEventFlag(
-            event->Flags(), Core::EventFlags::Attached);
+            event->Flags(), Meta::EventFlags::Attached);
         if (ownerWasExplicit && syntax == MemberSyntax::Attribute &&
             !attached) {
             return Base::Status::Failure(
@@ -2698,7 +2691,7 @@ Schema::ResolvePropertyOrEvent(
 
         ResolvedMember resolved;
         resolved.id = event->Id();
-        resolved.kind = Core::MemberKind::Event;
+        resolved.kind = Meta::MemberKind::Event;
         resolved.ownerType = event->OwnerType();
         resolved.valueType = event->EventArgsType();
         resolved.eventFlags = event->Flags();
@@ -2710,19 +2703,19 @@ Schema::ResolvePropertyOrEvent(
 }
 
 Base::Result<ResolvedMember> Schema::ResolveContentMember(
-    Core::TypeId targetType) const noexcept {
+    Meta::TypeId targetType) const noexcept {
     if (!frozen_ || domain_ == nullptr || !domain_->IsReady()) {
         return RuntimeSchemaNotReady();
     }
 
-    const Core::MemberId contentMember =
+    const Meta::MemberId contentMember =
         domain_->FindContentMember(targetType);
-    if (contentMember == Core::InvalidMemberId) {
+    if (contentMember == Meta::InvalidMemberId) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "XAML runtime type has no content facet");
     }
-    const Core::PropertyInfo* property =
+    const Meta::PropertyInfo* property =
         domain_->Types().FindProperty(contentMember);
     if (property == nullptr) {
         return Base::Status::Failure(
@@ -2732,17 +2725,17 @@ Base::Result<ResolvedMember> Schema::ResolveContentMember(
 
     ResolvedMember resolved;
     resolved.id = property->Id();
-    resolved.kind = Core::MemberKind::Property;
+    resolved.kind = Meta::MemberKind::Property;
     resolved.ownerType = property->OwnerType();
     resolved.valueType = property->ValueType();
     resolved.propertyFlags = property->Flags();
     resolved.attached = SchemaHasPropertyFlag(
-        property->Flags(), Core::PropertyFlags::Attached);
+        property->Flags(), Meta::PropertyFlags::Attached);
     return resolved;
 }
 
 Base::Result<Base::Ref<Base::Object>> Schema::CreateObject(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     if (!frozen_ || domain_ == nullptr || !domain_->IsReady()) {
         return RuntimeSchemaNotReady();
     }
@@ -2757,7 +2750,7 @@ Schema::ResolvePropertyTarget(
     }
     ::Aero::DependencyObject* target = nullptr;
     if (domain_->Types().IsAssignableFrom(
-            Core::TypeOf<::Aero::DependencyObject>(),
+            Meta::TypeOf<::Aero::DependencyObject>(),
             object.RuntimeType())) {
         target = static_cast<::Aero::DependencyObject*>(&object);
     } else {
@@ -2785,14 +2778,14 @@ Schema::ResolvePropertyTarget(
 
 Base::Result<void> Schema::SetMember(
     Base::Object& object,
-    Core::TypeId objectType,
+    Meta::TypeId objectType,
     const ResolvedMember& member,
-    const Core::Value& value) const noexcept {
+    const Meta::Value& value) const noexcept {
     if (!frozen_ || domain_ == nullptr ||
         !domain_->IsReady() || !member.IsValid()) {
         return RuntimeSchemaNotReady();
     }
-    if (member.kind != Core::MemberKind::Property) {
+    if (member.kind != Meta::MemberKind::Property) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "XAML runtime event assignment requires an event adapter");
@@ -2806,10 +2799,10 @@ Base::Result<void> Schema::SetMember(
 
     const bool runtimeWritable =
         domain_->CanWriteProperty(member.id);
-    Base::Result<Core::ContentInfo> content =
+    Base::Result<Meta::ContentInfo> content =
         !runtimeWritable
         ? domain_->GetContentInfo(member.id)
-        : Base::Result<Core::ContentInfo>(
+        : Base::Result<Meta::ContentInfo>(
             Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "Runtime content metadata was not requested"));
@@ -2821,18 +2814,18 @@ Base::Result<void> Schema::SetMember(
             "XAML runtime member has no writable facet or adapter");
     }
 
-    Core::Value convertedValue = value;
+    Meta::Value convertedValue = value;
     // FrameworkElement keeps the renderer-facing font family as text, while
     // WPF resources conventionally expose a FontFamily object. Coerce that
     // resource at the markup boundary without changing the authored XAML.
-    if (member.valueType == Core::TypeOf<Base::String>() &&
-        value.Kind() == Core::ValueKind::Object &&
+    if (member.valueType == Meta::TypeOf<Base::String>() &&
+        value.Kind() == Meta::ValueKind::Object &&
         !value.IsNullObject() && value.AsObject() &&
         value.Type() == Media::FontFamily::StaticTypeId()) {
-        Base::Result<Core::Value> encoded = Core::Value::TryFromString(
+        Base::Result<Meta::Value> encoded = Meta::Value::TryFromString(
             member.valueType,
             static_cast<Media::FontFamily*>(
-                value.AsObject().Get())->Source());
+                value.AsObject().Get())->GetSource());
         if (!encoded) return encoded.GetStatus();
         convertedValue = std::move(encoded).Value();
     }
@@ -2840,26 +2833,26 @@ Base::Result<void> Schema::SetMember(
         (static_cast<std::uint32_t>(
              member.propertyFlags) &
          static_cast<std::uint32_t>(
-             Core::PropertyFlags::AnyValue)) != 0U;
-    // Core::Value is the metadata representation of WPF's object-valued
+             Meta::PropertyFlags::AnyValue)) != 0U;
+    // Meta::Value is the metadata representation of WPF's object-valued
     // member and must retain the concrete type supplied by markup (enums,
     // scalars, objects, or null), even when an older descriptor omitted the
     // redundant AnyValue flag.
     const bool acceptsAnyValue = metadataAcceptsAnyValue ||
-        member.valueType == Core::TypeOf<Core::Value>();
+        member.valueType == Meta::TypeOf<Meta::Value>();
     if (!acceptsAnyValue) {
         bool compatible = convertedValue.Type() == member.valueType;
-        if (convertedValue.Kind() == Core::ValueKind::Object &&
+        if (convertedValue.Kind() == Meta::ValueKind::Object &&
             convertedValue.AsObject()) {
             compatible = domain_->Types().IsDerivedFrom(
                 convertedValue.Type(), member.valueType);
         }
         if (!compatible) {
-            const Core::TypeInfo* owner =
+            const Meta::TypeInfo* owner =
                 domain_->Types().FindType(member.ownerType);
-            const Core::TypeInfo* expected =
+            const Meta::TypeInfo* expected =
                 domain_->Types().FindType(member.valueType);
-            const Core::TypeInfo* actual =
+            const Meta::TypeInfo* actual =
                 domain_->Types().FindType(convertedValue.Type());
             thread_local char message[384]{};
             std::snprintf(
@@ -2885,7 +2878,7 @@ Base::Result<void> Schema::SetMember(
             object, member.id, convertedValue);
     }
     if (runtimeContentWritable) {
-        if (convertedValue.Kind() != Core::ValueKind::Object ||
+        if (convertedValue.Kind() != Meta::ValueKind::Object ||
             convertedValue.IsNullObject() || !convertedValue.AsObject()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -2903,28 +2896,28 @@ MemberWritePolicy Schema::ResolveMemberWritePolicy(
     const ResolvedMember& member) const noexcept {
     if (domain_ == nullptr || !domain_->IsReady()) return {};
     if (domain_->CanWriteProperty(member.id)) {
-        Base::Result<Core::ContentInfo> content =
+        Base::Result<Meta::ContentInfo> content =
             domain_->GetContentInfo(member.id);
         const bool acceptsAnyValue =
             (static_cast<std::uint32_t>(
                  member.propertyFlags) &
              static_cast<std::uint32_t>(
-                 Core::PropertyFlags::AnyValue)) != 0U ||
-            member.valueType == Core::TypeOf<Core::Value>();
+                 Meta::PropertyFlags::AnyValue)) != 0U ||
+            member.valueType == Meta::TypeOf<Meta::Value>();
         return {
             content && content.Value().writable &&
                     content.Value().kind ==
-                        Core::ContentKind::Collection
+                        Meta::ContentKind::Collection
                 ? MemberWriteMode::Collection
                 : MemberWriteMode::SetOnce,
             acceptsAnyValue,
             true};
     }
-    Base::Result<Core::ContentInfo> content =
+    Base::Result<Meta::ContentInfo> content =
         domain_->GetContentInfo(member.id);
     if (content && content.Value().writable) {
         return {
-            content.Value().kind == Core::ContentKind::Collection
+            content.Value().kind == Meta::ContentKind::Collection
                 ? MemberWriteMode::Collection
                 : MemberWriteMode::SetOnce,
             false,
@@ -2957,12 +2950,12 @@ constexpr const char* MessageInvalidMarkupExtension =
 constexpr const char* MessageMissingMarkupExtension =
     "XAML markup-extension type has no registered value provider";
 
-bool SchemaHasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
+bool SchemaHasTypeFlag(Meta::TypeFlags value, Meta::TypeFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
-Base::Result<Core::TypeReference> ResolveTypeReference(
+Base::Result<Meta::TypeReference> ResolveTypeReference(
     Base::StringView name,
     const ExtensionServices& services) noexcept {
     if (services.schema == nullptr || name.Empty()) {
@@ -2999,20 +2992,20 @@ Base::Result<Core::TypeReference> ResolveTypeReference(
     Base::Result<Base::StringView> uri =
         services.namespaces.Lookup(prefix);
     if (!uri) return uri.GetStatus();
-    Base::Result<const Core::TypeInfo*> resolved =
+    Base::Result<const Meta::TypeInfo*> resolved =
         services.schema->ResolveType(
             uri.Value(), localName);
     if (!resolved) return resolved.GetStatus();
-    const Core::TypeInfo* type = resolved.Value();
+    const Meta::TypeInfo* type = resolved.Value();
     if (type == nullptr ||
         SchemaHasTypeFlag(
             type->Flags(),
-            Core::TypeFlags::ValueType)) {
+            Meta::TypeFlags::ValueType)) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Type reference target was not found or is not an object type");
     }
-    return Core::TypeReference{type->Id()};
+    return Meta::TypeReference{type->Id()};
 }
 
 } // namespace
@@ -3032,8 +3025,8 @@ Base::Result<void> Schema::Freeze() noexcept {
     return {};
 }
 
-Base::Result<Core::Value> Schema::ConvertText(
-    Core::TypeId type,
+Base::Result<Meta::Value> Schema::ConvertText(
+    Meta::TypeId type,
     Base::StringView text,
     const ExtensionServices* services) const noexcept {
     if (!frozen_ || domain_ == nullptr || !domain_->IsReady()) {
@@ -3041,28 +3034,28 @@ Base::Result<Core::Value> Schema::ConvertText(
             Base::ErrorCode::InvalidState,
             MessageSchemaNotFrozen);
     }
-    if (type == Core::TypeOf<Core::TypeReference>()) {
+    if (type == Meta::TypeOf<Meta::TypeReference>()) {
         if (services == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Type-reference conversion requires markup services");
         }
-        Base::Result<Core::TypeReference> reference =
+        Base::Result<Meta::TypeReference> reference =
             ResolveTypeReference(text, *services);
         return reference
-            ? Core::ValueCodec<Core::TypeReference>::Encode(
+            ? Meta::ValueCodec<Meta::TypeReference>::Encode(
                   reference.Value())
-            : Base::Result<Core::Value>(
+            : Base::Result<Meta::Value>(
                   reference.GetStatus());
     }
     // Members flagged AnyValue still need a concrete runtime value. Preserve
     // literal XAML text as a String so style and template finalizers can
     // convert it after resolving the actual target dependency property.
-    if (type == Core::TypeOf<Core::Value>()) {
-        return Core::Value::TryFromString(
-            Core::TypeOf<Base::String>(), text);
+    if (type == Meta::TypeOf<Meta::Value>()) {
+        return Meta::Value::TryFromString(
+            Meta::TypeOf<Base::String>(), text);
     }
-    if (type == Core::TypeOf<Base::ResourceUri>() &&
+    if (type == Meta::TypeOf<Base::ResourceUri>() &&
         services != nullptr &&
         services->baseUri != nullptr &&
         !services->baseUri->Empty()) {
@@ -3079,7 +3072,7 @@ Base::Result<Core::Value> Schema::ConvertText(
 }
 
 Base::Result<ProvidedValue> Schema::ProvideMarkupExtensionValue(
-    Core::TypeId type,
+    Meta::TypeId type,
     Base::StringView arguments,
     const ExtensionServices& services) const noexcept {
     if (!frozen_) {
@@ -3087,12 +3080,12 @@ Base::Result<ProvidedValue> Schema::ProvideMarkupExtensionValue(
             Base::ErrorCode::InvalidState,
             MessageSchemaNotFrozen);
     }
-    const Core::TypeInfo* info =
+    const Meta::TypeInfo* info =
         domain_->Types().FindType(type);
     const XamlMarkupExtensionFacet* registration =
         impl_->facets.FindMarkupExtension(type);
     if (info == nullptr ||
-        !SchemaHasTypeFlag(info->Flags(), Core::TypeFlags::MarkupExtension) ||
+        !SchemaHasTypeFlag(info->Flags(), Meta::TypeFlags::MarkupExtension) ||
         registration == nullptr || registration->provideValue == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
@@ -3105,7 +3098,7 @@ Base::Result<ProvidedValue> Schema::ProvideMarkupExtensionValue(
 }
 
 Base::Result<void> Schema::BeginInit(
-    Core::TypeId type,
+    Meta::TypeId type,
     Base::Object& object) const noexcept {
     const Base::Span<const std::uint32_t> lifecycle =
         impl_->facets.LifecyclePlan(type);
@@ -3121,7 +3114,7 @@ Base::Result<void> Schema::BeginInit(
 }
 
 Base::Result<void> Schema::EndInit(
-    Core::TypeId type,
+    Meta::TypeId type,
     Base::Object& object,
     const ExtensionServices& services) const noexcept {
     const Base::Span<const std::uint32_t> lifecycle =
@@ -3146,7 +3139,7 @@ Base::Result<void> Schema::EndInit(
 }
 
 void Schema::AbortInit(
-    Core::TypeId type,
+    Meta::TypeId type,
     Base::Object& object) const noexcept {
     const Base::Span<const std::uint32_t> lifecycle =
         impl_->facets.LifecyclePlan(type);
@@ -3161,21 +3154,21 @@ void Schema::AbortInit(
     }
 }
 
-bool Schema::CreatesNameScope(Core::TypeId type) const noexcept {
+bool Schema::CreatesNameScope(Meta::TypeId type) const noexcept {
     const XamlNameScopeFacet* facet = impl_->facets.FindNameScope(
         type, domain_->Types());
     return facet != nullptr && facet->createsNameScope;
 }
 
 bool Schema::CreatesResourceScope(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     const XamlResourceScopeFacet* facet = impl_->facets.FindResourceScope(
         type, domain_->Types());
     return facet != nullptr && facet->createsResourceScope;
 }
 
 bool Schema::DefersVisualContent(
-    Core::TypeId type) const noexcept {
+    Meta::TypeId type) const noexcept {
     const XamlDeferredContentFacet* facet =
         impl_->facets.FindDeferredContent(
         type, domain_->Types());
@@ -3183,7 +3176,7 @@ bool Schema::DefersVisualContent(
 }
 
 Base::Result<void> Schema::RegisterName(
-    Core::TypeId scopeType,
+    Meta::TypeId scopeType,
     Base::Object& scopeOwner,
     Base::StringView name,
     Base::Object& object) const noexcept {
@@ -3195,10 +3188,10 @@ Base::Result<void> Schema::RegisterName(
 }
 
 Base::Result<void> Schema::AddResource(
-    Core::TypeId scopeType,
+    Meta::TypeId scopeType,
     Base::Object& scopeOwner,
     const Aero::ResourceKey& key,
-    const Core::Value& value) const noexcept {
+    const Meta::Value& value) const noexcept {
     const XamlResourceScopeFacet* facet = impl_->facets.FindResourceScope(
         scopeType, domain_->Types());
     if (facet == nullptr) return {};
@@ -3218,7 +3211,7 @@ Base::Result<void> Schema::AddResource(
 }
 
 Aero::ResourceDictionary* Schema::ResolveResourceScope(
-    Core::TypeId scopeType,
+    Meta::TypeId scopeType,
     Base::Object& scopeOwner) const noexcept {
     const XamlResourceScopeFacet* facet = impl_->facets.FindResourceScope(
         scopeType, domain_->Types());
@@ -3229,7 +3222,7 @@ Aero::ResourceDictionary* Schema::ResolveResourceScope(
 
 Base::Result<Aero::ResourceKey>
 Schema::ResolveImplicitResourceKey(
-    Core::TypeId type,
+    Meta::TypeId type,
     const Base::Object& object) const noexcept {
     const XamlImplicitResourceKeyFacet* facet =
         impl_->facets.FindImplicitResourceKey(
@@ -3421,7 +3414,7 @@ Base::Result<void> GuiSchema::Finalize(
             Base::MemoryTag::Markup,
             Markup::UiObjectModelOptions{
                 &impl_->metadata,
-                &Core::Detail::MetadataPrivate::
+                &Internal::MetadataPrivate::
                     DependencyProperties(impl_->metadata),
                 &programAllocator});
     if (!uiObjectModel) {
@@ -3435,28 +3428,28 @@ Base::Result<void> GuiSchema::Finalize(
     if (status) {
         status = impl_->dynamicResource->Register(
             *impl_->schema,
-            Core::MakeTypeId(
+            Meta::MakeTypeId(
                 Base::StringView("urn:aero"),
                 Base::StringView("DynamicResource")));
     }
     if (status) {
         status = impl_->binding->Register(
             *impl_->schema,
-            Core::MakeTypeId(
+            Meta::MakeTypeId(
                 Base::StringView("urn:aero"),
                 Base::StringView("Binding")));
     }
     if (status) {
         status = impl_->staticExtension.Register(
             *impl_->schema,
-            Core::MakeTypeId(
+            Meta::MakeTypeId(
                 Markup::LanguageNamespaceUri(),
                 Base::StringView("Static")));
     }
     if (status) {
         status = impl_->typeExtension.Register(
             *impl_->schema,
-            Core::MakeTypeId(
+            Meta::MakeTypeId(
                 Markup::LanguageNamespaceUri(),
                 Base::StringView("Type")));
     }
@@ -3464,8 +3457,8 @@ Base::Result<void> GuiSchema::Finalize(
         status =
             impl_->templateBindingExtension.Register(
                 *impl_->schema,
-                Core::MakeTypeId(
-                    Core::AeroNamespaceUri(),
+                Meta::MakeTypeId(
+                    Meta::AeroNamespaceUri(),
                     Base::StringView(
                         "TemplateBinding")));
     }

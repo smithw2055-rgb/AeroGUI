@@ -1,20 +1,20 @@
 #include "ControlBehavior.hpp"
 
 
-#include <Aero/Controls/Base.hpp>
+#include <Aero/Controls/Core.hpp>
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Primitives.hpp>
-#include <Aero/Controls/Standard.hpp>
+#include <Aero/Controls/Common.hpp>
 #include <Aero/Controls/Text.hpp>
 
-namespace Aero::Controls::Detail {
+namespace Aero::Internal {
 
 ControlBehavior::ControlBehavior(
     Base::IAllocator& allocator,
     ::Aero::Meta::Registry& metadata,
     Aero::ElementTree& tree,
-    Aero::Detail::EventRouter& events,
-    Aero::Detail::InputRouter& input,
+    Aero::Internal::EventRouter& events,
+    Aero::Internal::InputRouter& input,
     VisualStateManager* visualStates,
     Integration::IClipboard* clipboard,
     bool controlsEnabled,
@@ -71,53 +71,53 @@ Base::Result<void> ControlBehavior::Initialize() noexcept {
     }
 
     if (controlsEnabled_) {
-        Base::Result<Aero::Detail::ButtonBehavior*> buttons =
-            Construct<Aero::Detail::ButtonBehavior>(
+        Base::Result<Aero::Internal::ButtonBehavior*> buttons =
+            Construct<Aero::Internal::ButtonBehavior>(
                 *tree_, *events_, *input_, visualStates_);
         if (!buttons) return buttons.GetStatus();
         buttons_ = buttons.Value();
         Base::Result<void> status = buttons_->Initialize();
         if (!status) return status.GetStatus();
 
-        Base::Result<Aero::Detail::ScrollBehavior*> scrolling =
-            Construct<Aero::Detail::ScrollBehavior>(*tree_, *events_);
+        Base::Result<Aero::Internal::ScrollBehavior*> scrolling =
+            Construct<Aero::Internal::ScrollBehavior>(*tree_, *events_);
         if (!scrolling) return scrolling.GetStatus();
         scrolling_ = scrolling.Value();
 
-        Base::Result<Aero::Detail::SliderBehavior*> sliders =
-            Construct<Aero::Detail::SliderBehavior>(
+        Base::Result<Aero::Internal::SliderBehavior*> sliders =
+            Construct<Aero::Internal::SliderBehavior>(
                 *tree_, *events_, *input_);
         if (!sliders) return sliders.GetStatus();
         sliders_ = sliders.Value();
 
-        Base::Result<Aero::Detail::ListBehavior*> lists =
-            Construct<Aero::Detail::ListBehavior>(
+        Base::Result<Aero::Internal::ListBehavior*> lists =
+            Construct<Aero::Internal::ListBehavior>(
                 *tree_, *events_, *input_, visualStates_);
         if (!lists) return lists.GetStatus();
         lists_ = lists.Value();
 
-        Base::Result<Aero::Detail::ComboBehavior*> combos =
-            Construct<Aero::Detail::ComboBehavior>(
+        Base::Result<Aero::Internal::ComboBehavior*> combos =
+            Construct<Aero::Internal::ComboBehavior>(
                 *tree_, *events_, *input_);
         if (!combos) return combos.GetStatus();
         combos_ = combos.Value();
 
-        Base::Result<Aero::Detail::TreeBehavior*> trees =
-            Construct<Aero::Detail::TreeBehavior>(
+        Base::Result<Aero::Internal::TreeBehavior*> trees =
+            Construct<Aero::Internal::TreeBehavior>(
                 *tree_, *events_, *input_, visualStates_);
         if (!trees) return trees.GetStatus();
         trees_ = trees.Value();
 
-        Base::Result<Aero::Detail::MenuBehavior*> menus =
-            Construct<Aero::Detail::MenuBehavior>(
+        Base::Result<Aero::Internal::MenuBehavior*> menus =
+            Construct<Aero::Internal::MenuBehavior>(
                 *tree_, *events_, *input_);
         if (!menus) return menus.GetStatus();
         menus_ = menus.Value();
     }
 
     if (textEditingEnabled_ && clipboard_ != nullptr) {
-        Base::Result<Aero::Detail::TextEditBehavior*> text =
-            Construct<Aero::Detail::TextEditBehavior>(
+        Base::Result<Aero::Internal::TextEditBehavior*> text =
+            Construct<Aero::Internal::TextEditBehavior>(
                 *tree_, *events_, *input_, *clipboard_);
         if (!text) return text.GetStatus();
         textBoxes_ = text.Value();
@@ -135,7 +135,7 @@ Base::Result<void> ControlBehavior::Attach(
             Base::ErrorCode::NotInitialized,
             "Control behavior is not initialized");
     }
-    const Core::TypeId type = visual.RuntimeType();
+    const Meta::TypeId type = visual.RuntimeType();
     auto& types = metadata_->Types();
     if (types.IsDerivedFrom(type, Control::StaticTypeId())) {
         SetVisualStateManager(
@@ -150,9 +150,7 @@ Base::Result<void> ControlBehavior::Attach(
     if (types.IsDerivedFrom(type, TextBox::StaticTypeId())) {
         auto& textBox = *static_cast<TextBox*>(&visual);
         if (inputMethodHost != nullptr) {
-            Base::Result<void> result =
-                textBox.SetInputMethodHost(inputMethodHost);
-            if (!result) return result.GetStatus();
+            textBox.SetInputMethodHost(inputMethodHost);
         }
         if (textBoxes_ != nullptr) {
             Base::Result<void> result = textBoxes_->Attach(textBox);
@@ -162,9 +160,7 @@ Base::Result<void> ControlBehavior::Attach(
     if (types.IsDerivedFrom(type, PasswordBox::StaticTypeId())) {
         auto& passwordBox = *static_cast<PasswordBox*>(&visual);
         if (inputMethodHost != nullptr) {
-            Base::Result<void> result =
-                passwordBox.SetInputMethodHost(inputMethodHost);
-            if (!result) return result.GetStatus();
+            passwordBox.SetInputMethodHost(inputMethodHost);
         }
         if (textBoxes_ != nullptr) {
             Base::Result<void> result = textBoxes_->Attach(passwordBox);
@@ -231,4 +227,4 @@ void ControlBehavior::Shutdown() noexcept {
     initialized_ = false;
 }
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Internal

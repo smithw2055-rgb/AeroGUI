@@ -1,4 +1,4 @@
-#include <Aero/Text/EditableText.hpp>
+#include "EditableText.hpp"
 
 #include <Aero/Base/Utf8.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -9,7 +9,7 @@
 #include <new>
 #include <utility>
 
-namespace Aero::Text {
+namespace Aero::Internal {
 namespace {
 
 constexpr std::uint32_t InitialGapBytes = 64U;
@@ -507,7 +507,7 @@ struct EditableTextModel::Impl final {
         const std::uint32_t byteStart =
             graphemeOffsets[range.start];
         const std::uint32_t byteEnd =
-            graphemeOffsets[range.End()];
+            graphemeOffsets[range.GetEnd()];
         const std::uint32_t removedBytes =
             byteEnd - byteStart;
         if (replacement.SizeBytes() >
@@ -776,15 +776,15 @@ Base::Result<void> EditableTextModel::ReplaceSelection(
     Base::StringView replacement) noexcept {
     const TextSelection selection = Selection();
     return ReplaceRange(
-        {selection.Start(), selection.Length()},
+        {selection.GetStart(), selection.GetLength()},
         replacement);
 }
 
 Base::Result<void> EditableTextModel::DeleteBackward() noexcept {
     const TextSelection selection = Selection();
-    if (!selection.Empty()) {
+    if (!selection.GetIsEmpty()) {
         return ReplaceRange(
-            {selection.Start(), selection.Length()},
+            {selection.GetStart(), selection.GetLength()},
             {});
     }
     if (selection.caret == 0U) {
@@ -796,9 +796,9 @@ Base::Result<void> EditableTextModel::DeleteBackward() noexcept {
 
 Base::Result<void> EditableTextModel::DeleteForward() noexcept {
     const TextSelection selection = Selection();
-    if (!selection.Empty()) {
+    if (!selection.GetIsEmpty()) {
         return ReplaceRange(
-            {selection.Start(), selection.Length()},
+            {selection.GetStart(), selection.GetLength()},
             {});
     }
     if (selection.caret >= GraphemeCount()) {
@@ -996,4 +996,4 @@ void EditableTextModel::ClearHistory() noexcept {
     }
 }
 
-} // namespace Aero::Text
+} // namespace Aero::Internal

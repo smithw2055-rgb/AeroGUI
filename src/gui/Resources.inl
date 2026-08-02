@@ -8,7 +8,7 @@ Base::Result<void> PopulateUiResources(
     resourceDictionary
         .Property<
             Base::ResourceUri,
-            &ResourceDictionary::Source,
+            &ResourceDictionary::GetSource,
             &ResourceDictionary::SetSource>(
             "Source",
             PropertyFlags::None)
@@ -26,19 +26,31 @@ Base::Result<void> PopulateUiResources(
     auto geometry = Meta::Register<Media::Geometry>(context);
     geometry
         .Property(
-            "Value", &Media::Geometry::Value, &Media::Geometry::SetValue,
+            "Transform", &Media::Geometry::GetTransform, &Media::Geometry::SetTransform,
             PropertyFlags::Structural)
         .Content(MakeMemberId(
-            Media::Geometry::StaticTypeId(), MemberKind::Property, "Value"))
+            Media::Geometry::StaticTypeId(), MemberKind::Property, "Transform"))
         .TextConverter(&ConvertGeometryText)
         .Factory();
     status = geometry.Result();
     if (!status) return status.GetStatus();
 
+    auto streamGeometry = Meta::Register<Media::StreamGeometry>(context);
+    streamGeometry
+        .Property(
+            "Data", &Media::StreamGeometry::GetData, &Media::StreamGeometry::SetData,
+            PropertyFlags::Structural)
+        .Content(MakeMemberId(
+            Media::StreamGeometry::StaticTypeId(), MemberKind::Property, "Data"))
+        .TextConverter(&ConvertGeometryText)
+        .Factory();
+    status = streamGeometry.Result();
+    if (!status) return status.GetStatus();
+
     auto fontFamily = Meta::Register<Media::FontFamily>(context);
     fontFamily
         .Property(
-            "Source", &Media::FontFamily::Source, &Media::FontFamily::SetSource,
+            "Source", &Media::FontFamily::GetSource, &Media::FontFamily::SetSource,
             PropertyFlags::Structural)
         .Content(MakeMemberId(
             Media::FontFamily::StaticTypeId(), MemberKind::Property, "Source"))

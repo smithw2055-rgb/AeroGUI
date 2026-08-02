@@ -13,7 +13,7 @@ namespace {
 
 struct RoutedHandlerRecord final {
     RoutedEventHandle event;
-    Aero::Detail::RoutedHandlerStorage handler;
+    Aero::Internal::RoutedHandlerStorage handler;
     std::uint64_t sequence = 0U;
     bool handledEventsToo = false;
 };
@@ -29,7 +29,7 @@ Base::Status InvalidArgument(const char* message) noexcept {
 
 } // namespace
 
-ContentElement::ContentElement(Core::TypeId runtimeType) noexcept
+ContentElement::ContentElement(Meta::TypeId runtimeType) noexcept
     : DependencyObject(runtimeType) {}
 
 ContentElement::~ContentElement() {
@@ -79,7 +79,7 @@ Base::Result<void> ContentElement::TryAddHandlerCore(
 
     RoutedHandlerRecord record;
     record.event = event;
-    record.handler = Aero::Detail::RoutedHandlerStorage(
+    record.handler = Aero::Internal::RoutedHandlerStorage(
         handler.value,
         handler.operations->size,
         handler.operations->alignment,
@@ -101,7 +101,7 @@ bool ContentElement::RemoveHandlerCore(
         handler.operations == nullptr || routedHandlers_ == nullptr) {
         return false;
     }
-    Aero::Detail::RoutedHandlerStorage probe(
+    Aero::Internal::RoutedHandlerStorage probe(
         handler.value,
         handler.operations->size,
         handler.operations->alignment,
@@ -155,31 +155,30 @@ void ContentElement::CleanupHandlers() noexcept {
     routedHandlers_ = nullptr;
 }
 
-Base::Result<void> ContentElement::RaiseEvent(
+void ContentElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
     if (eventRouter_ == nullptr && contentHost_ != nullptr) {
-        eventRouter_ = Aero::Detail::ElementPrivate::EventRouterFor(
+        eventRouter_ = Aero::Internal::ElementPrivate::EventRouterFor(
             *contentHost_);
     }
     if (eventRouter_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "ContentElement is not attached to an event router");
+        return;
     }
-    return static_cast<Aero::Detail::EventRouter*>(eventRouter_)
-        ->RaiseEvent(*this, event, args);
+    static_cast<void>(
+        static_cast<Aero::Internal::EventRouter*>(eventRouter_)
+            ->RaiseEvent(*this, event, args));
 }
 
 FrameworkContentElement::FrameworkContentElement(
-    Core::TypeId runtimeType) noexcept
+    Meta::TypeId runtimeType) noexcept
     : ContentElement(runtimeType) {}
 
 FrameworkContentElement::~FrameworkContentElement() = default;
 
-Base::Result<void> FrameworkContentElement::SetResources(
+void FrameworkContentElement::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
-    return Aero::Detail::AssignResourceDictionary(
+    (void)Aero::Internal::AssignResourceDictionary(
         resources_,
         std::move(value),
         "FrameworkContentElement Resources is already assigned");

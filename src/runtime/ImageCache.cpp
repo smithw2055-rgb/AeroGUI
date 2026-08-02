@@ -4,13 +4,14 @@
 
 #include "media/BrushInternals.hpp"
 
-#include <Aero/Controls/Standard.hpp>
+#include <Aero/Controls/Common.hpp>
 #include <Aero/Shapes.hpp>
 
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
 #include "gui/ElementInternal.hpp"
 
+#include <algorithm>
 #include <limits>
 #include <utility>
 
@@ -18,7 +19,7 @@
 #define STBI_ONLY_PNG
 #include "stb_image.h"
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 class ImageControlPrivate final {
 public:
@@ -38,6 +39,66 @@ public:
 };
 
 namespace {
+
+struct StbiStreamContext final {
+    Base::Stream* stream = nullptr;
+    bool failed = false;
+    bool eof = false;
+};
+
+int ReadStbiStream(void* user, char* data, int size) {
+    auto* context = static_cast<StbiStreamContext*>(user);
+    if (context == nullptr || context->stream == nullptr ||
+        size <= 0 || context->failed) {
+        return 0;
+    }
+    Base::Result<std::uint32_t> read = context->stream->Read(
+        {reinterpret_cast<std::uint8_t*>(data),
+         static_cast<std::uint32_t>(size)});
+    if (!read) {
+        context->failed = true;
+        return 0;
+    }
+    context->eof = read.Value() == 0U;
+    return static_cast<int>(read.Value());
+}
+
+void SkipStbiStream(void* user, int count) {
+    auto* context = static_cast<StbiStreamContext*>(user);
+    if (context == nullptr || context->stream == nullptr ||
+        context->failed || count == 0) {
+        return;
+    }
+    if (context->stream->CanSeek()) {
+        Base::Result<std::uint64_t> sought = context->stream->Seek(
+            count, Base::SeekOrigin::Current);
+        if (!sought) context->failed = true;
+        return;
+    }
+    if (count < 0) {
+        context->failed = true;
+        return;
+    }
+    std::uint8_t discarded[256];
+    std::uint32_t remaining = static_cast<std::uint32_t>(count);
+    while (remaining != 0U) {
+        const std::uint32_t request =
+            std::min<std::uint32_t>(remaining, sizeof(discarded));
+        Base::Result<std::uint32_t> read = context->stream->Read(
+            {discarded, request});
+        if (!read || read.Value() == 0U) {
+            context->failed = true;
+            context->eof = true;
+            return;
+        }
+        remaining -= read.Value();
+    }
+}
+
+int StbiStreamEof(void* user) {
+    const auto* context = static_cast<const StbiStreamContext*>(user);
+    return context == nullptr || context->failed || context->eof ? 1 : 0;
+}
 
 Base::Status InvalidImage(
     const char* message) noexcept {
@@ -121,7 +182,7 @@ Base::Result<bool> ImageCache::Synchronize(
         pending.PopBack();
         if (visual == nullptr) continue;
         for (Aero::Visual* child :
-             Aero::Detail::ElementPrivate::VisualChildren(*visual)) {
+             Aero::Internal::ElementPrivate::VisualChildren(*visual)) {
             Base::Result<void> queued =
                 pending.TryPushBack(child);
             if (!queued) return queued.GetStatus();
@@ -136,7 +197,7 @@ Base::Result<bool> ImageCache::Synchronize(
             imageControl =
                 static_cast<Controls::Image*>(
                     visual);
-            source = imageControl->Source();
+            source = imageControl->GetSource();
         } else {
             Shapes::Shape* shape = nullptr;
             if (visual->RuntimeType() ==
@@ -155,7 +216,7 @@ Base::Result<bool> ImageCache::Synchronize(
             }
             if (shape == nullptr) continue;
             Base::Ref<Media::Brush>
-                fill = shape->GetFillBrush();
+                fill = shape->GetFill();
             if (!fill ||
                 fill->RuntimeType() !=
                     Media::ImageBrush::
@@ -166,7 +227,7 @@ Base::Result<bool> ImageCache::Synchronize(
                 static_cast<
                     Media::ImageBrush*>(
                         fill.Get());
-            source = imageBrush->Source();
+            source = imageBrush->GetSource();
         }
         if (!source) {
             Base::Result<void> cleared =
@@ -200,7 +261,7 @@ Base::Result<bool> ImageCache::Synchronize(
         Base::Result<Base::ResourceUri> resolved =
             ResolveImageUri(
                 documentUri,
-                bitmap->UriSource());
+                bitmap->GetUriSource());
         if (!resolved) return resolved.GetStatus();
 
         Record* record = nullptr;
@@ -256,29 +317,30 @@ Base::Result<bool> ImageCache::Synchronize(
                     Base::ErrorCode::NotFound,
                     "Image SourceProvider was not found");
             }
-            Base::Result<Integration::Source>
+            Base::Result<Integration::StreamResourceInfo>
                 loaded =
-                    provider.Value().provider->Load(
+                    provider.Value().provider->Open(
                         resolved.Value());
             if (!loaded) return loaded.GetStatus();
-            if (loaded.Value().bytes.Empty() ||
-                loaded.Value().bytes.Size() >
-                    static_cast<std::uint32_t>(
-                        std::numeric_limits<int>::
-                            max())) {
+            if (!loaded.Value().stream) {
                 return InvalidImage(
-                    "Image source bytes are empty or too large");
+                    "Image source stream is empty");
             }
             int width = 0;
             int height = 0;
             int channels = 0;
+            StbiStreamContext streamContext{
+                loaded.Value().stream.Get(), false, false};
+            const stbi_io_callbacks callbacks{
+                &ReadStbiStream,
+                &SkipStbiStream,
+                &StbiStreamEof};
             stbi_uc* decoded =
-                stbi_load_from_memory(
-                    loaded.Value().bytes.Data(),
-                    static_cast<int>(
-                        loaded.Value().bytes.Size()),
+                stbi_load_from_callbacks(
+                    &callbacks,
+                    &streamContext,
                     &width, &height, &channels, 4);
-            if (decoded == nullptr ||
+            if (streamContext.failed || decoded == nullptr ||
                 width <= 0 || height <= 0 ||
                 width >
                     static_cast<int>(
@@ -428,4 +490,4 @@ void ImageCache::Shutdown(
     records_.Clear();
 }
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

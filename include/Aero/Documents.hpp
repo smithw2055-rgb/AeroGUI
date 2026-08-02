@@ -4,25 +4,25 @@
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Text/TextTypes.hpp>
 
 #include <cstdint>
 #include <utility>
 
-namespace Aero::Detail { class DocumentPrivate; }
+namespace Aero::Internal { class DocumentPrivate; }
 
 namespace Aero::Documents {
 
 class Inline;
 class Span;
 class Hyperlink;
+class TextRange;
 
 // Read-only projection over a TextBlock or Span inline collection.
 class AERO_API InlineCollectionView final {
 public:
     InlineCollectionView() noexcept = default;
-    std::uint32_t Count() const noexcept;
-    bool Empty() const noexcept { return Count() == 0U; }
+    std::uint32_t GetCount() const noexcept;
+    bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
     const Inline* At(std::uint32_t index) const noexcept;
 
 private:
@@ -39,13 +39,13 @@ private:
 class AERO_API InlineCollection final {
 public:
     InlineCollection() noexcept = default;
-    std::uint32_t Count() const noexcept;
-    bool Empty() const noexcept { return Count() == 0U; }
+    std::uint32_t GetCount() const noexcept;
+    bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
     Inline* At(std::uint32_t index) const noexcept;
-    InlineCollectionView View() const noexcept;
-    Base::Result<void> Add(Base::Ref<Inline> value) noexcept;
-    Base::Result<bool> Remove(Inline& value) noexcept;
-    Base::Result<void> Clear() noexcept;
+    InlineCollectionView GetView() const noexcept;
+    Base::Result<void> TryAdd(Base::Ref<Inline> value) noexcept;
+    Base::Result<bool> TryRemove(Inline& value) noexcept;
+    void Clear() noexcept;
 
 private:
     friend class Span;
@@ -64,10 +64,10 @@ enum class LogicalDirection : std::uint8_t {
 class AERO_API TextPointer final {
 public:
     TextPointer() noexcept = default;
-    bool IsValid() const noexcept { return container_ != nullptr; }
+    bool GetIsValid() const noexcept { return container_ != nullptr; }
     Controls::TextBlock* GetTextContainer() const noexcept { return container_; }
     LogicalDirection GetLogicalDirection() const noexcept { return direction_; }
-    bool IsAtInsertionPosition() const noexcept { return IsValid(); }
+    bool GetIsAtInsertionPosition() const noexcept { return GetIsValid(); }
 
     Base::Result<std::int32_t> CompareTo(
         const TextPointer& other) const noexcept;
@@ -89,7 +89,7 @@ public:
     }
 
 private:
-    friend class Aero::Detail::DocumentPrivate;
+    friend class Aero::Internal::DocumentPrivate;
     friend class Aero::Controls::TextBlock;
     friend class TextRange;
     TextPointer(
@@ -110,14 +110,14 @@ public:
         TextPointer start,
         TextPointer end) noexcept;
 
-    bool IsValid() const noexcept {
-        return start_.IsValid() && end_.IsValid();
+    bool GetIsValid() const noexcept {
+        return start_.GetIsValid() && end_.GetIsValid();
     }
-    bool IsEmpty() const noexcept {
-        return IsValid() && start_.offset_ == end_.offset_;
+    bool GetIsEmpty() const noexcept {
+        return GetIsValid() && start_.offset_ == end_.offset_;
     }
-    std::uint32_t Length() const noexcept {
-        return IsValid() ? end_.offset_ - start_.offset_ : 0U;
+    std::uint32_t GetLength() const noexcept {
+        return GetIsValid() ? end_.offset_ - start_.offset_ : 0U;
     }
     const TextPointer& GetStart() const noexcept { return start_; }
     const TextPointer& GetEnd() const noexcept { return end_; }
@@ -157,8 +157,8 @@ public:
     FontWeight GetFontWeight() const noexcept {
         return GetValueOr(FontWeightProperty, FontWeight::Normal);
     }
-    Text::FontStyle GetFontStyle() const noexcept {
-        return GetValueOr(FontStyleProperty, Text::FontStyle::Normal);
+    FontStyle GetFontStyle() const noexcept {
+        return GetValueOr(FontStyleProperty, FontStyle::Normal);
     }
     Base::Ref<Media::Brush> GetForeground() const noexcept {
         return GetValueOr(ForegroundProperty, Base::Ref<Media::Brush>{});
@@ -169,35 +169,35 @@ public:
             Controls::TextDecorations::None);
     }
 
-    Base::Result<void> SetFontFamily(Base::StringView value) noexcept {
-        return SetValue(FontFamilyProperty, value);
+    void SetFontFamily(Base::StringView value) noexcept {
+        SetValue(FontFamilyProperty, value);
     }
-    Base::Result<void> SetFontSize(double value) noexcept {
-        return SetValue(FontSizeProperty, value);
+    void SetFontSize(double value) noexcept {
+        SetValue(FontSizeProperty, value);
     }
-    Base::Result<void> SetFontWeight(FontWeight value) noexcept {
-        return SetValue(FontWeightProperty, value);
+    void SetFontWeight(FontWeight value) noexcept {
+        SetValue(FontWeightProperty, value);
     }
-    Base::Result<void> SetFontStyle(Text::FontStyle value) noexcept {
-        return SetValue(FontStyleProperty, value);
+    void SetFontStyle(FontStyle value) noexcept {
+        SetValue(FontStyleProperty, value);
     }
-    Base::Result<void> SetForeground(Base::Ref<Media::Brush> value) noexcept {
-        return SetValue(ForegroundProperty, std::move(value));
+    void SetForeground(Base::Ref<Media::Brush> value) noexcept {
+        SetValue(ForegroundProperty, std::move(value));
     }
-    Base::Result<void> SetTextDecorations(
+    void SetTextDecorations(
         Controls::TextDecorations value) noexcept {
-        return SetValue(TextDecorationsProperty, value);
+        SetValue(TextDecorationsProperty, value);
     }
 
     inline static constexpr Members::Property<Base::String> FontFamilyProperty{"FontFamily"};
     inline static constexpr Members::Property<double> FontSizeProperty{"FontSize"};
     inline static constexpr Members::Property<FontWeight> FontWeightProperty{"FontWeight"};
-    inline static constexpr Members::Property<Text::FontStyle> FontStyleProperty{"FontStyle"};
+    inline static constexpr Members::Property<FontStyle> FontStyleProperty{"FontStyle"};
     inline static constexpr Members::Property<Base::Ref<Media::Brush>> ForegroundProperty{"Foreground"};
     inline static constexpr Members::Property<Controls::TextDecorations> TextDecorationsProperty{"TextDecorations"};
 
 protected:
-    explicit TextElement(Core::TypeId runtimeType) noexcept
+    explicit TextElement(Meta::TypeId runtimeType) noexcept
         : FrameworkContentElement(runtimeType) {}
 };
 
@@ -207,7 +207,7 @@ public:
     ~Inline() override = default;
 
 protected:
-    explicit Inline(Core::TypeId runtimeType) noexcept
+    explicit Inline(Meta::TypeId runtimeType) noexcept
         : TextElement(runtimeType) {}
 };
 
@@ -220,12 +220,12 @@ public:
     Base::StringView GetText() const noexcept {
         return GetValueOr(TextProperty, Base::StringView{});
     }
-    Base::StringView Content() const noexcept { return GetText(); }
-    Base::Result<void> SetText(Base::StringView value) noexcept {
-        return SetValue(TextProperty, value);
+    Base::StringView GetContent() const noexcept { return GetText(); }
+    void SetText(Base::StringView value) noexcept {
+        SetValue(TextProperty, value);
     }
-    Base::Result<void> SetContent(Base::StringView value) noexcept {
-        return SetText(value);
+    void SetContent(Base::StringView value) noexcept {
+        SetText(value);
     }
 
     inline static constexpr Members::Property<Base::String> TextProperty{"Text"};
@@ -241,13 +241,13 @@ public:
     InlineCollectionView GetInlines() const noexcept {
         return InlineCollectionView(*this);
     }
-    Core::Value MetadataInlines() const noexcept;
-    Base::Result<void> SetInlineValue(Core::Value value) noexcept;
-    Base::Result<void> AddOwnedInline(Base::Ref<Inline> value) noexcept;
-    Base::Result<void> ClearOwnedInlines() noexcept;
+    Meta::Value GetMetadataInlines() const noexcept;
+    void SetInlineValue(Meta::Value value) noexcept;
+    Base::Result<void> TryAddOwnedInline(Base::Ref<Inline> value) noexcept;
+    void ClearOwnedInlines() noexcept;
 
 protected:
-    explicit Span(Core::TypeId runtimeType) noexcept
+    explicit Span(Meta::TypeId runtimeType) noexcept
         : Inline(runtimeType), inlines_() {}
     std::uint32_t GetLogicalChildrenCount() const noexcept override {
         return inlines_.Size();
@@ -257,7 +257,7 @@ protected:
     }
 
 private:
-    friend class Aero::Detail::DocumentPrivate;
+    friend class Aero::Internal::DocumentPrivate;
     Base::Vector<Base::Ref<Inline>> inlines_;
     Base::Ref<Inline> pendingInline_;
 };
@@ -326,17 +326,17 @@ public:
         return GetEvent(RequestNavigateEvent);
     }
 
-    Base::StringView NavigateUri() const noexcept;
+    Base::StringView GetNavigateUri() const noexcept;
     Aero::Input::ICommand* GetCommand() const noexcept;
-    Base::Ref<Base::Object> CommandParameter() const noexcept;
-    Aero::UIElement* CommandTarget() const noexcept;
+    Base::Ref<Base::Object> GetCommandParameter() const noexcept;
+    Aero::UIElement* GetCommandTarget() const noexcept;
 
-    Base::Result<void> SetNavigateUri(Base::StringView value) noexcept;
-    Base::Result<void> SetCommand(
+    void SetNavigateUri(Base::StringView value) noexcept;
+    void SetCommand(
         Base::Ref<Aero::Input::ICommand> command) noexcept;
-    Base::Result<void> SetCommandParameter(
+    void SetCommandParameter(
         Base::Ref<Base::Object> parameter) noexcept;
-    Base::Result<void> SetCommandTarget(
+    void SetCommandTarget(
         Base::Ref<Aero::UIElement> target) noexcept;
 
     inline static constexpr Members::Property<Base::String> NavigateUriProperty{"NavigateUri"};
@@ -361,7 +361,7 @@ public:
     }
     Base::Result<void> Attach(Aero::UIElement& root) noexcept;
     bool Detach() noexcept;
-    bool IsAttached() const noexcept { return root_ != nullptr; }
+    bool GetIsAttached() const noexcept { return root_ != nullptr; }
 
 private:
     void OnRequestNavigate(

@@ -55,7 +55,7 @@ protected:
     static_cast<void>(window.GetResizeMode());
     static_cast<void>(window.SourceInitialized());
     static_cast<void>(window.StateChanged());
-    static_cast<void>(window.IsOpen());
+    static_cast<void>(window.GetIsOpen());
 }
 
 [[maybe_unused]] void ConsumeDerivedAppTypes() noexcept {

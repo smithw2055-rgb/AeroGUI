@@ -28,7 +28,9 @@ Gui::Gui(
     impl_ = Base::Ref<Base::Object>(std::move(made).Value());
 }
 
-Gui::~Gui() noexcept = default;
+Gui::~Gui() noexcept {
+    impl_.Reset();
+}
 
 Base::Result<void> Gui::AddModule(
     const ModuleRegistration& registration) noexcept {

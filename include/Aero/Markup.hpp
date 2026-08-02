@@ -8,6 +8,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
+#include <Aero/Base/Stream.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Styling.hpp>
@@ -37,17 +38,13 @@ struct CompiledDocumentLimits final {
 
 namespace Aero::Markup {
 
-namespace Detail {
-class LoadOptionsPrivate;
-}
-
-struct LoadPolicy final {
+struct XamlLoadPolicy final {
     bool allowNetwork = false;
     bool allowFile = true;
     bool allowPackApplication = true;
 };
 
-struct LoadLimits final {
+struct XamlLoadLimits final {
     XmlTokenizerLimits xml;
     CompiledDocumentLimits compiled;
     std::uint64_t maxSourceBytes =
@@ -57,23 +54,18 @@ struct LoadLimits final {
     std::uint32_t maxDependencyDepth = 64U;
 };
 
-struct LoadOptions final {
-    LoadPolicy policy;
-    LoadLimits limits;
-    Base::ResourceUri baseUri;
-
-private:
-    friend class Detail::LoadOptionsPrivate;
-    const void* context_ = nullptr;
+struct XamlReaderSettings final {
+    XamlLoadPolicy policy;
+    XamlLoadLimits limits;
 };
 
 } // namespace Aero::Markup
 
-namespace Aero::Markup {
-
-namespace Detail {
+namespace Aero::Internal {
 class ResourcePrivate;
 }
+
+namespace Aero::Markup {
 
 inline constexpr Base::StringView
 LanguageNamespaceUri() noexcept {
@@ -96,7 +88,7 @@ public:
     }
 
 private:
-    friend class Detail::ResourcePrivate;
+    friend class ::Aero::Internal::ResourcePrivate;
 
     NamespaceScope(
         LookupCallback lookup,
@@ -123,7 +115,7 @@ public:
     }
 
 private:
-    friend class Detail::ResourcePrivate;
+    friend class ::Aero::Internal::ResourcePrivate;
 
     ResourceResolver(
         LookupCallback lookup,
@@ -140,44 +132,46 @@ namespace Aero {
 
 class ResourceDictionary;
 
-namespace Detail {
+namespace Internal {
 class XamlDocumentPrivate;
 }
 
 // Move-only ownership for one successfully loaded XAML document. The document
 // keeps names, resources, dependency URIs, and the declaration/mount plan alive
 // independently from a View until it is mounted or discarded.
-class AERO_API UiDocument final {
+namespace Markup {
+
+class AERO_API XamlDocument final {
 public:
-    UiDocument() noexcept = default;
-    ~UiDocument() noexcept;
+    XamlDocument() noexcept = default;
+    ~XamlDocument() noexcept;
 
-    UiDocument(UiDocument&& other) noexcept;
-    UiDocument& operator=(UiDocument&& other) noexcept;
+    XamlDocument(XamlDocument&& other) noexcept;
+    XamlDocument& operator=(XamlDocument&& other) noexcept;
 
-    UiDocument(const UiDocument&) = delete;
-    UiDocument& operator=(const UiDocument&) = delete;
+    XamlDocument(const XamlDocument&) = delete;
+    XamlDocument& operator=(const XamlDocument&) = delete;
 
     bool IsValid() const noexcept;
     const Base::Ref<Base::Object>& Root() const noexcept;
     template<class T>
     T* Root() noexcept {
         static_assert(std::is_base_of_v<Base::Object, T>,
-            "UiDocument::Root<T> requires an Aero object type");
-        return static_cast<T*>(RootObject(Core::TypeOf<T>()));
+            "XamlDocument::Root<T> requires an Aero object type");
+        return static_cast<T*>(RootObject(Meta::TypeOf<T>()));
     }
     template<class T>
     const T* Root() const noexcept {
-        return const_cast<UiDocument*>(this)->Root<T>();
+        return const_cast<XamlDocument*>(this)->Root<T>();
     }
     Base::Object* FindName(
         Base::StringView name,
-        Core::TypeId expectedType = Core::InvalidTypeId) noexcept;
+        Meta::TypeId expectedType = Meta::InvalidTypeId) noexcept;
     template<class T>
     T* FindName(Base::StringView name) noexcept {
         static_assert(std::is_base_of_v<Base::Object, T>,
-            "UiDocument::FindName<T> requires an Aero object type");
-        return static_cast<T*>(FindName(name, Core::TypeOf<T>()));
+            "XamlDocument::FindName<T> requires an Aero object type");
+        return static_cast<T*>(FindName(name, Meta::TypeOf<T>()));
     }
     std::uint32_t NamedObjectCount() const noexcept;
     Aero::ResourceDictionary* Resources() noexcept;
@@ -186,15 +180,17 @@ public:
     Base::Span<const Base::ResourceUri> Dependencies() const noexcept;
 
 private:
-    friend class Aero::Detail::XamlDocumentPrivate;
+    friend class Aero::Internal::XamlDocumentPrivate;
     struct Impl;
 
     void Reset() noexcept;
-    Base::Object* RootObject(Core::TypeId expectedType) noexcept;
+    Base::Object* RootObject(Meta::TypeId expectedType) noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
 };
+
+} // namespace Markup
 
 } // namespace Aero
 
@@ -204,7 +200,7 @@ class View;
 enum class BuiltInTheme : std::uint8_t;
 enum class ResourceLayer : std::uint8_t;
 enum class ResourceLoadMode : std::uint8_t;
-namespace Core { class IDiagnosticSink; }
+namespace Diagnostics { class IDiagnosticSink; }
 namespace Controls { class ContentControl; }
 namespace Integration { class ISourceProvider; }
 }
@@ -218,23 +214,31 @@ class AERO_API XamlReader final {
 public:
     explicit XamlReader(Aero::View& view) noexcept : view_(&view) {}
 
-    Base::Result<UiDocument> Load(
+    Base::Result<XamlDocument> Load(
         Base::StringView uri,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+        const XamlReaderSettings& settings = {},
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
     template<class T>
-    Base::Result<UiDocument> LoadComponent(
+    Base::Result<XamlDocument> LoadComponent(
         Base::StringView uri,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept {
+        const XamlReaderSettings& settings = {},
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept {
         static_assert(std::is_base_of_v<Base::Object, T>,
             "XamlReader::LoadComponent<T> requires an Aero object type");
         return LoadComponentCore(
-            uri, Core::TypeOf<T>(), diagnostics);
+            uri, Meta::TypeOf<T>(), settings, diagnostics);
     }
-    Base::Result<UiDocument> Parse(
+    Base::Result<XamlDocument> Parse(
         Base::StringView source,
         const Base::ResourceUri& baseUri = {},
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<UiDocument> LoadCompiled(
+        const XamlReaderSettings& settings = {},
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Base::Result<XamlDocument> Load(
+        Base::Stream& source,
+        const Base::ResourceUri& baseUri = {},
+        const XamlReaderSettings& settings = {},
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Base::Result<XamlDocument> LoadCompiled(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri = {}) noexcept;
     Base::Result<void> RegisterSourceProvider(
@@ -244,20 +248,20 @@ public:
 
     Base::Result<void> Mount(
         Controls::ContentControl& host,
-        UiDocument&& document) noexcept;
+        XamlDocument&& document) noexcept;
     Base::Result<void> Unmount(
         Controls::ContentControl& host) noexcept;
     Base::Result<void> LoadResources(
         ResourceLayer layer,
         Base::StringView uri,
         ResourceLoadMode mode,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
     Base::Result<void> LoadCompiledResources(
         ResourceLayer layer,
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri,
         ResourceLoadMode mode) noexcept;
-    Base::Result<void> SetResources(
+    void SetResources(
         ResourceLayer layer,
         Aero::ResourceDictionary& dictionary,
         ResourceLoadMode mode) noexcept;
@@ -266,10 +270,11 @@ public:
     Aero::View& GetView() const noexcept { return *view_; }
 
 private:
-    Base::Result<UiDocument> LoadComponentCore(
+    Base::Result<XamlDocument> LoadComponentCore(
         Base::StringView uri,
-        Core::TypeId expectedRoot,
-        Core::IDiagnosticSink* diagnostics) noexcept;
+        Meta::TypeId expectedRoot,
+        const XamlReaderSettings& settings,
+        Diagnostics::IDiagnosticSink* diagnostics) noexcept;
     Aero::View* view_ = nullptr;
 };
 

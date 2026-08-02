@@ -19,6 +19,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Base/ResourceUri.hpp
     include/Aero/Base/Result.hpp
     include/Aero/Base/Span.hpp
+    include/Aero/Base/Stream.hpp
     include/Aero/Base/String.hpp
     include/Aero/Base/StringView.hpp
     include/Aero/Base/Utf8.hpp
@@ -26,11 +27,11 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/CAPI.h
     include/Aero/ContentElement.hpp
     include/Aero/Controls.hpp
-    include/Aero/Controls/Base.hpp
+    include/Aero/Controls/Core.hpp
     include/Aero/Controls/Items.hpp
     include/Aero/Controls/Panels.hpp
     include/Aero/Controls/Primitives.hpp
-    include/Aero/Controls/Standard.hpp
+    include/Aero/Controls/Common.hpp
     include/Aero/Controls/Text.hpp
     include/Aero/Collections.hpp
     include/Aero/Diagnostics.hpp
@@ -47,7 +48,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/FrameworkElement.hpp
     include/Aero/Gui.hpp
     include/Aero/Input.hpp
-    include/Aero/Input/Values.hpp
     include/Aero/Integration.hpp
     include/Aero/Integration/Platform.hpp
     include/Aero/Integration/NativeWindow.hpp
@@ -61,7 +61,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/App/WindowInterop.hpp
     include/Aero/Layout.hpp
     include/Aero/Markup.hpp
-    include/Aero/Media.hpp
     include/Aero/Media/Brushes.hpp
     include/Aero/Media/Effects.hpp
     include/Aero/Media/Geometry.hpp
@@ -73,10 +72,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Shapes.hpp
     include/Aero/Style.hpp
     include/Aero/Styling.hpp
-    include/Aero/Text/EditableText.hpp
-    include/Aero/Text/Providers.hpp
-    include/Aero/Text/Text.hpp
-    include/Aero/Text/TextTypes.hpp
     include/Aero/UIElement.hpp
     include/Aero/Visual.hpp
     include/Aero/Window.hpp

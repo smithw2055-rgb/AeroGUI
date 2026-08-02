@@ -4,10 +4,83 @@
 
 #include <Aero/Media/Brushes.hpp>
 
-namespace Aero::Detail {
+#include <algorithm>
+
+namespace Aero::Internal {
+
+inline Base::Color SampleGradient(
+    const Media::GradientBrush& brush,
+    double position) noexcept {
+    const auto stops = brush.GetGradientStops();
+    if (stops.Empty()) return {};
+    position = std::clamp(position, 0.0, 1.0);
+    const Media::GradientStop* lower = nullptr;
+    const Media::GradientStop* upper = nullptr;
+    for (const Base::Ref<Media::GradientStop>& stop : stops) {
+        if (!stop) continue;
+        if (stop->GetOffset() <= position &&
+            (lower == nullptr || stop->GetOffset() >= lower->GetOffset())) {
+            lower = stop.Get();
+        }
+        if (stop->GetOffset() >= position &&
+            (upper == nullptr || stop->GetOffset() <= upper->GetOffset())) {
+            upper = stop.Get();
+        }
+    }
+    if (lower == nullptr) lower = upper;
+    if (upper == nullptr) upper = lower;
+    if (lower == nullptr || upper == nullptr) return {};
+    const double span = upper->GetOffset() - lower->GetOffset();
+    const float amount = span > 0.0
+        ? static_cast<float>(std::clamp(
+            (position - lower->GetOffset()) / span, 0.0, 1.0))
+        : 0.0F;
+    const Base::Color a = lower->GetColor();
+    const Base::Color b = upper->GetColor();
+    Base::Color result{
+        a.red + (b.red - a.red) * amount,
+        a.green + (b.green - a.green) * amount,
+        a.blue + (b.blue - a.blue) * amount,
+        a.alpha + (b.alpha - a.alpha) * amount};
+    result.alpha *= static_cast<float>(brush.GetOpacity());
+    return result;
+}
+
+// Brush-to-color sampling is a renderer concern, not part of the WPF Brush
+// authoring surface. Keep the fallback sampler private to implementation
+// units that need to rasterize a brush into a display list.
+inline Base::Color SampleBrush(
+    const Base::Ref<Media::Brush>& brush,
+    double position = 0.5,
+    Base::Color fallback = {0.0F, 0.0F, 0.0F, 0.0F}) noexcept {
+    if (!brush) return fallback;
+    if (brush->RuntimeType() == Media::SolidColorBrush::StaticTypeId()) {
+        Base::Color sampled = static_cast<Media::SolidColorBrush*>(
+            brush.Get())->GetColor();
+        sampled.alpha *= static_cast<float>(brush->GetOpacity());
+        return sampled;
+    }
+    if (brush->RuntimeType() == Media::LinearGradientBrush::StaticTypeId() ||
+        brush->RuntimeType() == Media::RadialGradientBrush::StaticTypeId()) {
+        return SampleGradient(
+            *static_cast<Media::GradientBrush*>(brush.Get()), position);
+    }
+    return fallback;
+}
 
 class BrushPrivate final {
 public:
+    static Aero::FrameworkElement* Owner(
+        const Media::Brush& brush) noexcept {
+        return brush.GetOwner();
+    }
+
+    static void SetOwner(
+        Media::Brush& brush,
+        Aero::FrameworkElement* owner) noexcept {
+        brush.SetOwner(owner);
+    }
+
     static Render::RenderImageId RuntimeImage(
         const Media::ImageBrush& brush) noexcept {
         return brush.renderImage_;
@@ -36,11 +109,11 @@ public:
         brush.pixelWidth_ = width;
         brush.pixelHeight_ = height;
         Aero::FrameworkElement* owner =
-            brush.Owner();
+            brush.GetOwner();
         return changed && owner != nullptr
             ? owner->InvalidateVisual()
             : Base::Result<void>();
     }
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

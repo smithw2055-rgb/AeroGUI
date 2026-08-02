@@ -12,7 +12,7 @@
 
 #include <cstdint>
 
-namespace Aero::Detail::Animation {
+namespace Aero::Internal::Animation {
 
 using AnimationTime = Media::Animation::AnimationTime;
 using FillBehavior = Media::Animation::FillBehavior;
@@ -157,11 +157,11 @@ struct ColorKeyFrameAnimation final {
 
 struct DiscreteAnimationKeyFrame final {
     AnimationTime keyTimeMicroseconds = 0U;
-    Core::PropertyValue value;
+    Meta::PropertyValue value;
 };
 
 struct DiscreteAnimation final {
-    Core::PropertyValue baseValue;
+    Meta::PropertyValue baseValue;
     TimelineTiming timing;
     Base::Span<const DiscreteAnimationKeyFrame> keyFrames;
 };
@@ -194,4 +194,4 @@ struct AnimationDiagnostics final {
 };
 
 
-} // namespace Aero::Detail::Animation
+} // namespace Aero::Internal::Animation

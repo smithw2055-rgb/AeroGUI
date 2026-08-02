@@ -27,8 +27,8 @@ Base::Result<void> PopulateUiElements(
             PropertyOptions(Base::Ref<Style>{}))
         .Property(
             FrameworkContentElement::TagProperty,
-            PropertyOptions(Core::Value::NullObject(
-                Core::TypeOf<Base::Object>())));
+            PropertyOptions(Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>())));
     status = frameworkContentElement.Result();
     if (!status) return status.GetStatus();
 
@@ -172,12 +172,12 @@ Base::Result<void> PopulateUiElements(
             PropertyOptions(Base::Ref<Style>{}))
         .Property(
             FrameworkElement::TagProperty,
-            PropertyOptions(Core::Value::NullObject(
-                Core::TypeOf<Base::Object>())) )
+            PropertyOptions(Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>())) )
         .Property(
             FrameworkElement::ToolTipProperty,
-            PropertyOptions(Core::Value::NullObject(
-                Core::TypeOf<Base::Object>())))
+            PropertyOptions(Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>())))
         .Property(
             FrameworkElement::WidthProperty,
             PropertyOptions(Length::Auto())
@@ -198,25 +198,25 @@ Base::Result<void> PopulateUiElements(
             FrameworkElement::MinWidthProperty,
             PropertyOptions(0.0)
                 .AffectsMeasure()
-                .Validate(&Validate::NonNegative<double>)
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>)
                 .Coerce(&CoerceMinWidth))
         .Property(
             FrameworkElement::MaxWidthProperty,
             PropertyOptions(DefaultMaximum)
                 .AffectsMeasure()
-                .Validate(&Validate::NonNegative<double>)
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>)
                 .Coerce(&CoerceMaxWidth))
         .Property(
             FrameworkElement::MinHeightProperty,
             PropertyOptions(0.0)
                 .AffectsMeasure()
-                .Validate(&Validate::NonNegative<double>)
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>)
                 .Coerce(&CoerceMinHeight))
         .Property(
             FrameworkElement::MaxHeightProperty,
             PropertyOptions(DefaultMaximum)
                 .AffectsMeasure()
-                .Validate(&Validate::NonNegative<double>)
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>)
                 .Coerce(&CoerceMaxHeight))
         .Property(
             FrameworkElement::MarginProperty,

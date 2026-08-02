@@ -3,12 +3,13 @@
 // ===== CoreMetadata =====
 
 #include "MetadataInternal.hpp"
+#include "../media/TransformInternals.hpp"
 
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
 #include "PropertyInternal.hpp"
 
-namespace Aero::Core {
+namespace Aero::Meta {
 Base::Result<void> Detail::PopulateCoreMetadata(
     Meta::Registration& context) noexcept {
     Base::Result<void> status;
@@ -17,58 +18,58 @@ Base::Result<void> Detail::PopulateCoreMetadata(
     if (!status) return status.GetStatus();
 
     status = Meta::Register<bool>(context)
-        .TextConverter<&ValueConversion::ConvertBoolean>()
+        .TextConverter<&::Aero::Base::Detail::ValueConversion::ConvertBoolean>()
         .Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<std::int8_t>(context)
         .TextConverter<
-            &ValueConversion::ConvertInteger<std::int8_t>>()
+            &::Aero::Base::Detail::ValueConversion::ConvertInteger<std::int8_t>>()
         .Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<std::int16_t>(context)
         .TextConverter<
-            &ValueConversion::ConvertInteger<std::int16_t>>()
+            &::Aero::Base::Detail::ValueConversion::ConvertInteger<std::int16_t>>()
         .Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<std::int32_t>(context)
         .TextConverter<
-            &ValueConversion::ConvertInteger<std::int32_t>>()
+            &::Aero::Base::Detail::ValueConversion::ConvertInteger<std::int32_t>>()
         .Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<std::int64_t>(context)
         .TextConverter<
-            &ValueConversion::ConvertInteger<std::int64_t>>()
+            &::Aero::Base::Detail::ValueConversion::ConvertInteger<std::int64_t>>()
         .Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<std::uint8_t>(context)
         .TextConverter<
-            &ValueConversion::ConvertInteger<std::uint8_t>>()
+            &::Aero::Base::Detail::ValueConversion::ConvertInteger<std::uint8_t>>()
         .Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<std::uint16_t>(context)
         .TextConverter<
-            &ValueConversion::ConvertInteger<std::uint16_t>>()
+            &::Aero::Base::Detail::ValueConversion::ConvertInteger<std::uint16_t>>()
         .Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<std::uint32_t>(context)
         .TextConverter<
-            &ValueConversion::ConvertInteger<std::uint32_t>>()
+            &::Aero::Base::Detail::ValueConversion::ConvertInteger<std::uint32_t>>()
         .Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<std::uint64_t>(context)
         .TextConverter<
-            &ValueConversion::ConvertInteger<std::uint64_t>>()
+            &::Aero::Base::Detail::ValueConversion::ConvertInteger<std::uint64_t>>()
         .Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<double>(context)
-        .TextConverter<&ValueConversion::ConvertDouble>()
+        .TextConverter<&::Aero::Base::Detail::ValueConversion::ConvertDouble>()
         .Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<Base::String>(context)
-        .TextConverter<&ValueConversion::ConvertString>()
+        .TextConverter<&::Aero::Base::Detail::ValueConversion::ConvertString>()
         .Result();
     if (!status) return status.GetStatus();
 
@@ -80,7 +81,7 @@ Base::Result<void> Detail::PopulateCoreMetadata(
 
     status = Meta::Register<Base::ResourceUri>(context)
         .ValueSemantics()
-        .TextConverter<&ValueConversion::ConvertResourceUri>()
+        .TextConverter<&::Aero::Base::Detail::ValueConversion::ConvertResourceUri>()
         .Result();
     if (!status) return status.GetStatus();
 
@@ -88,7 +89,7 @@ Base::Result<void> Detail::PopulateCoreMetadata(
         context, TypeFlags::Abstract).Result();
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 
 // ===== UiMetadata =====
@@ -112,19 +113,22 @@ Base::Result<void> Detail::PopulateCoreMetadata(
 #include <Aero/Resources.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Media/Transforms.hpp>
+#include "media/TransformInternals.hpp"
+#include "media/EffectInternals.hpp"
 
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <utility>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using namespace Aero::Input;
 using namespace Aero::Media;
 using namespace Aero::Data;
-using namespace Aero::Detail::Animation;
+using namespace Aero::Internal::Animation;
 namespace {
 #include "gui/Support.inl"
 #include "gui/Resources.inl"
@@ -135,7 +139,7 @@ namespace {
 #include "gui/Elements.inl"
 } // namespace
 
-Base::Result<void> Detail::PopulateUiMetadata(
+Base::Result<void> PopulateUiMetadata(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
     status = PopulateUiResources(context);
@@ -153,4 +157,4 @@ Base::Result<void> Detail::PopulateUiMetadata(
     return {};
 }
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

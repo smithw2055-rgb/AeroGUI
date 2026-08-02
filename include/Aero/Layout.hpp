@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 
 #include <Aero/Base/Allocator.hpp>
@@ -15,7 +15,6 @@ namespace Aero {
 
 namespace Input { class RoutedCommand; }
 
-using namespace Aero::Core;
 using Point = Base::Point;
 using Size = Base::Size;
 using Rect = Base::Rect;
@@ -34,10 +33,10 @@ enum class BlendMode : std::uint8_t {
 
 } // namespace Aero
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Aero::HorizontalAlignment> {
+struct TypeTraits<Aero::HorizontalAlignment> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("HorizontalAlignment");
     }
@@ -51,7 +50,7 @@ struct MetaTypeTraits<Aero::HorizontalAlignment> {
 };
 
 template<>
-struct MetaTypeTraits<Aero::VerticalAlignment> {
+struct TypeTraits<Aero::VerticalAlignment> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("VerticalAlignment");
     }
@@ -65,7 +64,7 @@ struct MetaTypeTraits<Aero::VerticalAlignment> {
 };
 
 template<>
-struct MetaTypeTraits<Aero::Visibility> {
+struct TypeTraits<Aero::Visibility> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("Visibility");
     }
@@ -79,7 +78,7 @@ struct MetaTypeTraits<Aero::Visibility> {
 };
 
 template<>
-struct MetaTypeTraits<Aero::BlendMode> {
+struct TypeTraits<Aero::BlendMode> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("BlendMode");
     }
@@ -95,7 +94,7 @@ struct MetaTypeTraits<Aero::BlendMode> {
 };
 
 template<>
-struct MetaTypeTraits<Base::Thickness> {
+struct TypeTraits<Base::Thickness> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("Thickness"); }
     static constexpr Base::StringView Namespace() noexcept {
         return AeroNamespaceUri();
@@ -105,7 +104,7 @@ struct MetaTypeTraits<Base::Thickness> {
 };
 
 template<>
-struct MetaTypeTraits<Base::CornerRadius> {
+struct TypeTraits<Base::CornerRadius> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("CornerRadius");
     }
@@ -120,11 +119,12 @@ struct MetaTypeTraits<Base::CornerRadius> {
     }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
 namespace Aero {
 
-using namespace Aero::Core;
+using Meta::NoMetadataBase;
+
 
 struct Length final {
     AERO_DECLARE_TYPE(Length, NoMetadataBase)

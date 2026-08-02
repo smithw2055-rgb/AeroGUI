@@ -15,12 +15,12 @@ namespace Aero {
 class Element final : public Base::Object {
     AERO_DECLARE_TYPE(Element, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    inline static constexpr Core::AttachedPropertyRef<Element, double>
+    inline static constexpr Meta::AttachedPropertyRef<Element, double>
         PPAAOutProperty{"PPAAOut"};
-    inline static constexpr Core::AttachedPropertyRef<Element, bool>
+    inline static constexpr Meta::AttachedPropertyRef<Element, bool>
         IsFocusEngagedProperty{"IsFocusEngaged"};
 };
 
@@ -28,10 +28,10 @@ class TextProperties final : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         TextProperties, Base::Object, "urn:aero", "Text")
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    inline static constexpr Core::AttachedPropertyRef<
+    inline static constexpr Meta::AttachedPropertyRef<
         TextProperties, std::uint32_t>
         PasswordLengthProperty{"PasswordLength"};
 };
@@ -41,7 +41,7 @@ public:
 #include <Aero/Styling.hpp>
 #include <Aero/Style.hpp>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 // Private bridge used by XAML and runtime style compilation. Dependency-property
 // registries are implementation state and never appear in the Style SDK.
@@ -49,20 +49,21 @@ class StylePrivate final {
 public:
     static Base::Result<void> Seal(
         Aero::Style& style,
-        const Core::DependencyPropertyRegistry& properties) noexcept {
+        const Meta::DependencyPropertyRegistry& properties) noexcept {
         return style.SealRuntime(&properties);
     }
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal
 
 #include "gui/ElementInternal.hpp"
 #include "gui/PropertyInternal.hpp"
 
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 
 class AERO_API StyleEngine final {
 public:
@@ -105,8 +106,8 @@ public:
     }
 
 private:
-    Core::Detail::StyleProviderSession providerSession_;
-    Core::Detail::StyleProviderSession* values_ = nullptr;
+    Internal::StyleProviderSession providerSession_;
+    Internal::StyleProviderSession* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     struct Application final {
         DependencyObject* object = nullptr;
@@ -162,7 +163,7 @@ private:
 };
 
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal
 
 // Resource-assignment helpers used by style and markup application.
 
@@ -170,7 +171,7 @@ private:
 
 #include <utility>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 inline Base::Result<void> AssignResourceDictionary(
     ResourceDictionary& target,
@@ -183,7 +184,7 @@ inline Base::Result<void> AssignResourceDictionary(
     }
     if (target.Size() != 0U ||
         target.MergedDictionaryCount() != 0U ||
-        !target.Source().Empty()) {
+        !target.GetSource().Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             alreadyAssignedMessage);
@@ -192,4 +193,4 @@ inline Base::Result<void> AssignResourceDictionary(
     return {};
 }
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

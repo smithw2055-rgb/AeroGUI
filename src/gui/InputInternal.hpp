@@ -31,9 +31,10 @@ using PointerCaptureChangedHandler = Base::Delegate<void(std::uint32_t, UIElemen
 #include <Aero/Input.hpp>
 #include <Aero/Layout.hpp>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
-using namespace Aero::Core;
+using namespace Aero::Meta;
+using namespace Aero::Threading;
 using namespace Aero::Input;
 
 class AERO_API CommandState final {
@@ -51,19 +52,19 @@ public:
 
     Base::Result<bool> CanExecute(
         ICommand& command,
-        const Core::Value& parameter,
+        const Meta::Value& parameter,
         UIElement& target) noexcept;
     Base::Result<bool> Execute(
         ICommand& command,
-        const Core::Value& parameter,
+        const Meta::Value& parameter,
         UIElement& target) noexcept;
     Base::Result<bool> CanExecute(
         RoutedCommand& command,
-        const Core::Value& parameter,
+        const Meta::Value& parameter,
         UIElement& target) noexcept;
     Base::Result<bool> Execute(
         RoutedCommand& command,
-        const Core::Value& parameter,
+        const Meta::Value& parameter,
         UIElement& target) noexcept;
     Base::Result<bool> ProcessInput(
         UIElement& target,
@@ -267,9 +268,9 @@ private:
     ElementTree* tree_ = nullptr;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 // View-owned input coordinator. Consumers see one service; focus, hit testing,
 // pointer capture, keyboard/text dispatch and routed commands remain private
@@ -315,10 +316,10 @@ public:
     bool RemoveRequerySuggested(const RequerySuggestedHandler& handler) noexcept { return commands_.RemoveRequerySuggested(handler); }
     void InvalidateRequerySuggested() const noexcept { commands_.InvalidateRequerySuggested(); }
 
-    Base::Result<bool> CanExecute(ICommand& command, const Core::Value& parameter, UIElement& target) noexcept { return commands_.CanExecute(command, parameter, target); }
-    Base::Result<bool> CanExecute(RoutedCommand& command, const Core::Value& parameter, UIElement& target) noexcept { return commands_.CanExecute(command, parameter, target); }
-    Base::Result<bool> Execute(ICommand& command, const Core::Value& parameter, UIElement& target) noexcept { return commands_.Execute(command, parameter, target); }
-    Base::Result<bool> Execute(RoutedCommand& command, const Core::Value& parameter, UIElement& target) noexcept { return commands_.Execute(command, parameter, target); }
+    Base::Result<bool> CanExecute(ICommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.CanExecute(command, parameter, target); }
+    Base::Result<bool> CanExecute(RoutedCommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.CanExecute(command, parameter, target); }
+    Base::Result<bool> Execute(ICommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.Execute(command, parameter, target); }
+    Base::Result<bool> Execute(RoutedCommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.Execute(command, parameter, target); }
 
 private:
     CommandState commands_;
@@ -329,4 +330,4 @@ private:
     TextInputState text_;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

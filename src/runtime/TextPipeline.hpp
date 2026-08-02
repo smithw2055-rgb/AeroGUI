@@ -4,13 +4,13 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Integration/ViewOptions.hpp>
 
-namespace Aero::Controls::Detail {
+namespace Aero::Internal {
 class TextBlockLayout;
 }
 
 namespace Aero::Integration { class RenderDevice; }
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 class TextPipeline final {
 public:
@@ -30,7 +30,7 @@ public:
     Base::Result<std::uint32_t> CollectGarbage() noexcept;
     void Shutdown() noexcept;
 
-    Controls::Detail::TextBlockLayout*
+    Internal::TextBlockLayout*
     Layout() noexcept;
 
 private:
@@ -40,4 +40,4 @@ private:
     Impl* impl_ = nullptr;
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -9,47 +9,40 @@
 #include <cstdint>
 
 namespace Aero { class FrameworkElement; }
+namespace Aero::Internal { class TransformPrivate; }
 
 namespace Aero::Media {
 
 using Transform2D = Base::Transform2D;
 
-enum class TransformOwnerRole : std::uint8_t {
-    Render = 1U,
-    Layout = 2U
-};
-
 class AERO_API Transform : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Transform, ::Aero::DependencyObject)
 public:
-    virtual Base::Transform2D Matrix() const noexcept = 0;
-    Aero::FrameworkElement* Owner() const noexcept { return owner_; }
+    virtual Base::Transform2D GetMatrix() const noexcept = 0;
+
+protected:
+    explicit Transform(Meta::TypeId runtimeType) noexcept
+        : DependencyObject(runtimeType) {}
+    void OnPropertyInvalidated(
+        Meta::PropertyInvalidationFlags flags) noexcept override;
+
+private:
+    friend class ::Aero::Internal::TransformPrivate;
+    friend class TransformGroup;
+    Aero::FrameworkElement* GetOwner() const noexcept { return owner_; }
     virtual void SetOwner(Aero::FrameworkElement* owner) noexcept {
         owner_ = owner;
-        ownerRoles_ = owner != nullptr
-            ? static_cast<std::uint8_t>(
-                  TransformOwnerRole::Render)
-            : 0U;
+        ownerRoles_ = owner != nullptr ? 1U : 0U;
     }
     virtual void AttachOwner(
         Aero::FrameworkElement* owner,
-        TransformOwnerRole role) noexcept;
+        std::uint8_t role) noexcept;
     virtual void DetachOwner(
         Aero::FrameworkElement* owner,
-        TransformOwnerRole role) noexcept;
-    bool HasOwnerRole(
-        TransformOwnerRole role) const noexcept {
-        return (ownerRoles_ &
-            static_cast<std::uint8_t>(role)) != 0U;
+        std::uint8_t role) noexcept;
+    bool HasOwnerRole(std::uint8_t role) const noexcept {
+        return (ownerRoles_ & role) != 0U;
     }
-
-protected:
-    explicit Transform(Core::TypeId runtimeType) noexcept
-        : DependencyObject(runtimeType) {}
-    Base::Result<void> OnPropertyInvalidated(
-        Core::PropertyInvalidationFlags flags) noexcept override;
-
-private:
     Aero::FrameworkElement* owner_ = nullptr;
     std::uint8_t ownerRoles_ = 0U;
 };
@@ -58,86 +51,86 @@ class AERO_API TranslateTransform final : public Transform {
     AERO_DECLARE_TYPE(TranslateTransform, Transform)
 public:
     TranslateTransform() noexcept : Transform(StaticTypeId()) {}
-    double X() const noexcept;
-    double Y() const noexcept;
-    Base::Result<void> SetX(double value) noexcept;
-    Base::Result<void> SetY(double value) noexcept;
+    double GetX() const noexcept;
+    double GetY() const noexcept;
+    void SetX(double value) noexcept;
+    void SetY(double value) noexcept;
 
     inline static constexpr Members::Property<double> XProperty{"X"};
     inline static constexpr Members::Property<double> YProperty{"Y"};
 
-    Base::Transform2D Matrix() const noexcept override;
+    Base::Transform2D GetMatrix() const noexcept override;
 };
 
 class AERO_API ScaleTransform final : public Transform {
     AERO_DECLARE_TYPE(ScaleTransform, Transform)
 public:
     ScaleTransform() noexcept : Transform(StaticTypeId()) {}
-    double ScaleX() const noexcept;
-    double ScaleY() const noexcept;
-    double CenterX() const noexcept;
-    double CenterY() const noexcept;
-    Base::Result<void> SetScaleX(double value) noexcept;
-    Base::Result<void> SetScaleY(double value) noexcept;
-    Base::Result<void> SetCenterX(double value) noexcept;
-    Base::Result<void> SetCenterY(double value) noexcept;
+    double GetScaleX() const noexcept;
+    double GetScaleY() const noexcept;
+    double GetCenterX() const noexcept;
+    double GetCenterY() const noexcept;
+    void SetScaleX(double value) noexcept;
+    void SetScaleY(double value) noexcept;
+    void SetCenterX(double value) noexcept;
+    void SetCenterY(double value) noexcept;
 
     inline static constexpr Members::Property<double> ScaleXProperty{"ScaleX"};
     inline static constexpr Members::Property<double> ScaleYProperty{"ScaleY"};
     inline static constexpr Members::Property<double> CenterXProperty{"CenterX"};
     inline static constexpr Members::Property<double> CenterYProperty{"CenterY"};
 
-    Base::Transform2D Matrix() const noexcept override;
+    Base::Transform2D GetMatrix() const noexcept override;
 };
 
 class AERO_API RotateTransform final : public Transform {
     AERO_DECLARE_TYPE(RotateTransform, Transform)
 public:
     RotateTransform() noexcept : Transform(StaticTypeId()) {}
-    double Angle() const noexcept;
-    double CenterX() const noexcept;
-    double CenterY() const noexcept;
-    Base::Result<void> SetAngle(double value) noexcept;
-    Base::Result<void> SetCenterX(double value) noexcept;
-    Base::Result<void> SetCenterY(double value) noexcept;
+    double GetAngle() const noexcept;
+    double GetCenterX() const noexcept;
+    double GetCenterY() const noexcept;
+    void SetAngle(double value) noexcept;
+    void SetCenterX(double value) noexcept;
+    void SetCenterY(double value) noexcept;
 
     inline static constexpr Members::Property<double> AngleProperty{"Angle"};
     inline static constexpr Members::Property<double> CenterXProperty{"CenterX"};
     inline static constexpr Members::Property<double> CenterYProperty{"CenterY"};
 
-    Base::Transform2D Matrix() const noexcept override;
+    Base::Transform2D GetMatrix() const noexcept override;
 };
 
 class AERO_API SkewTransform final : public Transform {
     AERO_DECLARE_TYPE(SkewTransform, Transform)
 public:
     SkewTransform() noexcept : Transform(StaticTypeId()) {}
-    double AngleX() const noexcept;
-    double AngleY() const noexcept;
-    double CenterX() const noexcept;
-    double CenterY() const noexcept;
-    Base::Result<void> SetAngleX(double value) noexcept;
-    Base::Result<void> SetAngleY(double value) noexcept;
-    Base::Result<void> SetCenterX(double value) noexcept;
-    Base::Result<void> SetCenterY(double value) noexcept;
+    double GetAngleX() const noexcept;
+    double GetAngleY() const noexcept;
+    double GetCenterX() const noexcept;
+    double GetCenterY() const noexcept;
+    void SetAngleX(double value) noexcept;
+    void SetAngleY(double value) noexcept;
+    void SetCenterX(double value) noexcept;
+    void SetCenterY(double value) noexcept;
 
     inline static constexpr Members::Property<double> AngleXProperty{"AngleX"};
     inline static constexpr Members::Property<double> AngleYProperty{"AngleY"};
     inline static constexpr Members::Property<double> CenterXProperty{"CenterX"};
     inline static constexpr Members::Property<double> CenterYProperty{"CenterY"};
 
-    Base::Transform2D Matrix() const noexcept override;
+    Base::Transform2D GetMatrix() const noexcept override;
 };
 
 class AERO_API MatrixTransform final : public Transform {
     AERO_DECLARE_TYPE(MatrixTransform, Transform)
 public:
     MatrixTransform() noexcept : Transform(StaticTypeId()) {}
-    Base::Transform2D Value() const noexcept;
-    Base::Result<void> SetValue(Base::Transform2D value) noexcept;
+    Base::Transform2D GetMatrixValue() const noexcept;
+    void SetMatrixValue(Base::Transform2D value) noexcept;
     inline static constexpr Members::Property<Base::Transform2D> MatrixProperty{"Matrix"};
-    Base::Transform2D Matrix() const noexcept override {
-        return Value();
+    Base::Transform2D GetMatrix() const noexcept override {
+        return GetMatrixValue();
     }
 };
 
@@ -147,21 +140,21 @@ public:
     TransformGroup() noexcept : Transform(StaticTypeId()) {}
     Base::Result<void> TryAddChild(
         Base::Ref<Transform> value) noexcept;
-    Base::Result<void> ClearChildren() noexcept;
+    void ClearChildren() noexcept;
     Base::Span<const Base::Ref<Transform>>
-    Children() const noexcept {
+    GetChildren() const noexcept {
         return {children_.Data(), children_.Size()};
     }
+    Base::Transform2D GetMatrix() const noexcept override;
+
+private:
     void SetOwner(Aero::FrameworkElement* owner) noexcept override;
     void AttachOwner(
         Aero::FrameworkElement* owner,
-        TransformOwnerRole role) noexcept override;
+        std::uint8_t role) noexcept override;
     void DetachOwner(
         Aero::FrameworkElement* owner,
-        TransformOwnerRole role) noexcept override;
-    Base::Transform2D Matrix() const noexcept override;
-
-private:
+        std::uint8_t role) noexcept override;
     Base::Vector<Base::Ref<Transform>> children_;
 };
 
@@ -180,10 +173,10 @@ AERO_API bool TryInvertTransform(
 
 } // namespace Aero::Media
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
 template<>
-struct MetaTypeTraits<Base::Point> {
+struct TypeTraits<Base::Point> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("Point");
     }
@@ -199,7 +192,7 @@ struct MetaTypeTraits<Base::Point> {
 };
 
 template<>
-struct MetaTypeTraits<Base::Transform2D> {
+struct TypeTraits<Base::Transform2D> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("Matrix");
     }
@@ -214,4 +207,4 @@ struct MetaTypeTraits<Base::Transform2D> {
     }
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

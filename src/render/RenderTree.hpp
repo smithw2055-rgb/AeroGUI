@@ -41,6 +41,14 @@ struct RenderNodeSnapshot final {
     std::uint64_t elementRevision = 0U;
 };
 
+} // namespace Aero::Render
+
+namespace Aero::Internal { class RenderTree; }
+
+namespace Aero::Integration {
+
+using namespace ::Aero::Render;
+
 class RenderFrame final {
 public:
     RenderFrame() noexcept : nodes_(), commands_() {}
@@ -55,7 +63,7 @@ public:
     std::uint64_t StableHash() const noexcept;
 
 private:
-    friend class RenderTree;
+    friend class ::Aero::Internal::RenderTree;
     Base::Vector<RenderNodeSnapshot> nodes_;
     Base::Vector<RenderCommand> commands_;
     std::uint64_t version_ = 0U;
@@ -72,9 +80,16 @@ struct RenderDiagnostics final {
     std::uint64_t frameHash = 0U;
 };
 
+} // namespace Aero::Integration
+
+namespace Aero::Internal {
+
+using namespace ::Aero::Render;
+using namespace ::Aero::Integration;
+
 class RenderTree final {
 public:
-    explicit RenderTree(Dispatcher& dispatcher) noexcept;
+    explicit RenderTree(::Aero::Threading::Dispatcher& dispatcher) noexcept;
     ~RenderTree() noexcept;
 
     RenderTree(const RenderTree&) = delete;
@@ -95,25 +110,25 @@ public:
         Base::Span<const Point> origins) noexcept;
     Base::Result<std::uint32_t> Commit() noexcept;
 
-    const RenderFrame& CurrentFrame() const noexcept {
+    const Integration::RenderFrame& CurrentFrame() const noexcept {
         return currentFrame_;
     }
-    RenderDiagnostics Diagnostics() const noexcept;
+    Integration::RenderDiagnostics Diagnostics() const noexcept;
     Base::Status LastCommitStatus() const noexcept {
         return lastCommitStatus_;
     }
 
 private:
-    Dispatcher* dispatcher_ = nullptr;
+    ::Aero::Threading::Dispatcher* dispatcher_ = nullptr;
     FrameworkElement* root_ = nullptr;
-    Base::Vector<Aero::Detail::VisualLease> dirty_;
+    Base::Vector<Aero::Internal::VisualLease> dirty_;
     struct OverlayRecord final {
         FrameworkElement* element = nullptr;
         Point origin;
     };
     Base::Vector<OverlayRecord> overlays_;
-    RenderFrame currentFrame_;
-    DispatcherFrameHookHandle phaseHook_;
+    Integration::RenderFrame currentFrame_;
+    ::Aero::Threading::DispatcherFrameHookHandle phaseHook_;
     RenderNodeId nextNodeId_ = 1U;
     std::uint64_t commitVersion_ = 0U;
     Base::Status lastCommitStatus_;
@@ -128,11 +143,11 @@ private:
     Base::Result<void> BuildSubtree(
         FrameworkElement& element,
         RenderNodeId parentId,
-        RenderFrame& plan,
+        Integration::RenderFrame& plan,
         bool overlayRoot = false) noexcept;
     bool IsOverlay(
         const FrameworkElement& element) const noexcept;
     static void RenderCommitHook(void* context) noexcept;
 };
 
-} // namespace Aero::Render
+} // namespace Aero::Internal

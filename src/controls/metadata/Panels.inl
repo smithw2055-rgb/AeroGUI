@@ -37,12 +37,12 @@ Base::Result<void> PopulateControlsPanels(
             WrapPanel::ItemWidthProperty,
             PropertyOptions(0.0)
                 .AffectsMeasure()
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             WrapPanel::ItemHeightProperty,
             PropertyOptions(0.0)
                 .AffectsMeasure()
-                .Validate(&Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Factory();
     status = wrapPanel.Result();
     if (!status) return status.GetStatus();
@@ -109,7 +109,7 @@ Base::Result<void> PopulateControlsPanels(
                 EstimatedItemExtentProperty,
             PropertyOptions(24.0)
                 .AffectsMeasure()
-                .Validate(&Validate::Positive<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Factory();
     status = virtualizingStackPanel.Result();
     if (!status) return status.GetStatus();
@@ -120,22 +120,22 @@ Base::Result<void> PopulateControlsPanels(
             Canvas::LeftProperty,
             PropertyOptions(0.0)
                 .AffectsParentMeasure()
-                .Validate(&Validate::Finite<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
         .Property(
             Canvas::TopProperty,
             PropertyOptions(0.0)
                 .AffectsParentMeasure()
-                .Validate(&Validate::Finite<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
         .Property(
             Canvas::RightProperty,
             PropertyOptions(0.0)
                 .AffectsParentArrange()
-                .Validate(&Validate::Finite<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
         .Property(
             Canvas::BottomProperty,
             PropertyOptions(0.0)
                 .AffectsParentArrange()
-                .Validate(&Validate::Finite<double>))
+                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
         .Factory();
     status = canvas.Result();
     if (!status) return status.GetStatus();
@@ -145,19 +145,19 @@ Base::Result<void> PopulateControlsPanels(
     columnDefinition
         .Property<
             GridLength,
-            &ColumnDefinition::Width,
+            &ColumnDefinition::GetWidth,
             &ColumnDefinition::SetWidth>(
                 "Width",
                 PropertyFlags::Structural)
         .Property<
             double,
-            &ColumnDefinition::MaxWidth,
+            &ColumnDefinition::GetMaxWidth,
             &ColumnDefinition::SetMaxWidth>(
                 "MaxWidth",
                 PropertyFlags::Structural)
         .Property<
             Base::String,
-            &ColumnDefinition::SharedSizeGroup,
+            &ColumnDefinition::GetSharedSizeGroup,
             &ColumnDefinition::SetSharedSizeGroup>(
                 "SharedSizeGroup",
                 PropertyFlags::Structural)
@@ -170,19 +170,19 @@ Base::Result<void> PopulateControlsPanels(
     rowDefinition
         .Property<
             GridLength,
-            &RowDefinition::Height,
+            &RowDefinition::GetHeight,
             &RowDefinition::SetHeight>(
                 "Height",
                 PropertyFlags::Structural)
         .Property<
             double,
-            &RowDefinition::MaxHeight,
+            &RowDefinition::GetMaxHeight,
             &RowDefinition::SetMaxHeight>(
                 "MaxHeight",
                 PropertyFlags::Structural)
         .Property<
             Base::String,
-            &RowDefinition::SharedSizeGroup,
+            &RowDefinition::GetSharedSizeGroup,
             &RowDefinition::SetSharedSizeGroup>(
                 "SharedSizeGroup",
                 PropertyFlags::Structural)
@@ -235,12 +235,12 @@ Base::Result<void> PopulateControlsPanels(
             Grid::RowSpanProperty,
             PropertyOptions(std::uint32_t{1})
                 .AffectsParentMeasure()
-                .Validate(&Validate::Positive<std::uint32_t>))
+                .Validate(&::Aero::Base::Detail::Validate::Positive<std::uint32_t>))
         .Property(
             Grid::ColumnSpanProperty,
             PropertyOptions(std::uint32_t{1})
                 .AffectsParentMeasure()
-                .Validate(&Validate::Positive<std::uint32_t>))
+                .Validate(&::Aero::Base::Detail::Validate::Positive<std::uint32_t>))
         .Factory();
     status = grid.Result();
     if (!status) return status.GetStatus();

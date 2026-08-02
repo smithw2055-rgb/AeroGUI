@@ -4,29 +4,32 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/FrameworkElement.hpp>
 
+namespace Aero::Internal {
+class ControlPrivate;
+}
+
 namespace Aero::Shapes {
 
-using namespace Aero::Core;
-using namespace Aero;
-using namespace Aero::Media;
-using namespace Aero::Render;
+using ::Aero::Meta::TypeId;
+using ::Aero::Media::Brush;
+using ::Aero::Media::Geometry;
+using ::Aero::Media::Stretch;
+
+enum class PenLineJoin : std::uint8_t { Miter = 0U, Bevel, Round };
+enum class PenLineCap : std::uint8_t { Flat = 0U, Square, Round, Triangle };
 
 class AERO_API Shape : public FrameworkElement {
     AERO_DECLARE_TYPE(Shape, FrameworkElement)
 public:
-    Color GetFill() const noexcept;
-    Base::Ref<Brush> GetFillBrush() const noexcept;
-    Color GetStroke() const noexcept;
-    Base::Ref<Brush> GetStrokeBrush() const noexcept;
+    Base::Ref<Brush> GetFill() const noexcept;
+    Base::Ref<Brush> GetStroke() const noexcept;
     double GetStrokeThickness() const noexcept;
 
-    Base::Result<void> SetFill(Color value) noexcept;
-    Base::Result<void> SetFillBrush(
+    void SetFill(
         Base::Ref<Brush> value) noexcept;
-    Base::Result<void> SetStroke(Color value) noexcept;
-    Base::Result<void> SetStrokeBrush(
+    void SetStroke(
         Base::Ref<Brush> value) noexcept;
-    Base::Result<void> SetStrokeThickness(double value) noexcept;
+    void SetStrokeThickness(double value) noexcept;
 
     inline static constexpr Members::Property<Base::Ref<Brush>> FillProperty{"Fill"};
     inline static constexpr Members::Property<Base::Ref<Brush>> StrokeProperty{"Stroke"};
@@ -46,16 +49,16 @@ public:
 
     double GetRadiusX() const noexcept;
     double GetRadiusY() const noexcept;
-    Base::Result<void> SetRadiusX(double value) noexcept;
-    Base::Result<void> SetRadiusY(double value) noexcept;
+    void SetRadiusX(double value) noexcept;
+    void SetRadiusY(double value) noexcept;
 
     inline static constexpr Members::Property<double> RadiusXProperty{"RadiusX"};
     inline static constexpr Members::Property<double> RadiusYProperty{"RadiusY"};
 
 protected:
-    Base::Result<Size> MeasureOverride(
+    Size MeasureOverride(
         Size availableSize) noexcept override;
-    Base::Result<void> OnRender(
+    void OnRender(
         DrawingContext& context) noexcept override;
 };
 
@@ -66,10 +69,101 @@ public:
     ~Ellipse() override = default;
 
 protected:
-    Base::Result<Size> MeasureOverride(
+    Size MeasureOverride(
         Size availableSize) noexcept override;
-    Base::Result<void> OnRender(
+    void OnRender(
         DrawingContext& context) noexcept override;
 };
 
+// WPF-shaped vector path. The textual Data value accepts the deterministic
+// SVG/WPF subset used by the Gallery vector assets.
+class AERO_API Path final : public FrameworkElement {
+    AERO_DECLARE_TYPE(Path, FrameworkElement)
+public:
+    Path() noexcept;
+    ~Path() override;
+
+    Base::Ref<Geometry> GetData() const noexcept;
+    Base::Ref<Brush> GetFill() const noexcept;
+    Base::Ref<Brush> GetStroke() const noexcept;
+    double GetStrokeThickness() const noexcept;
+    PenLineJoin GetStrokeLineJoin() const noexcept;
+    PenLineCap GetStrokeStartLineCap() const noexcept;
+    PenLineCap GetStrokeEndLineCap() const noexcept;
+    double GetTrimStart() const noexcept;
+    double GetTrimEnd() const noexcept;
+    Stretch GetStretch() const noexcept;
+    Rect GetGeometryBounds() const noexcept { return geometryBounds_; }
+
+    void SetData(Base::Ref<Geometry> value) noexcept;
+    void SetFill(Base::Ref<Brush> value) noexcept;
+    void SetStroke(Base::Ref<Brush> value) noexcept;
+    void SetStrokeThickness(double value) noexcept;
+    void SetStrokeLineJoin(PenLineJoin value) noexcept;
+    void SetStrokeStartLineCap(PenLineCap value) noexcept;
+    void SetStrokeEndLineCap(PenLineCap value) noexcept;
+    void SetTrimStart(double value) noexcept;
+    void SetTrimEnd(double value) noexcept;
+    void SetStretch(Stretch value) noexcept;
+
+    inline static constexpr Members::Property<Base::Ref<Geometry>> DataProperty{"Data"};
+    inline static constexpr Members::Property<Base::Ref<Brush>> FillProperty{"Fill"};
+    inline static constexpr Members::Property<Base::Ref<Brush>> StrokeProperty{"Stroke"};
+    inline static constexpr Members::Property<double> StrokeThicknessProperty{"StrokeThickness"};
+    inline static constexpr Members::Property<PenLineJoin> StrokeLineJoinProperty{"StrokeLineJoin"};
+    inline static constexpr Members::Property<PenLineCap> StrokeStartLineCapProperty{"StrokeStartLineCap"};
+    inline static constexpr Members::Property<PenLineCap> StrokeEndLineCapProperty{"StrokeEndLineCap"};
+    inline static constexpr Members::AttachedProperty<double> TrimStartProperty{"TrimStart"};
+    inline static constexpr Members::AttachedProperty<double> TrimEndProperty{"TrimEnd"};
+    inline static constexpr Members::Property<Stretch> StretchProperty{"Stretch"};
+
+protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
+    void OnRender(DrawingContext& context) noexcept override;
+
+private:
+    friend class Aero::Internal::ControlPrivate;
+
+    Base::Result<void> EnsureGeometry() noexcept;
+    Base::Result<void> EnsureMesh() noexcept;
+    void ResetGeometry() noexcept;
+    void AttachMeshResources(void* services, bool force = false) noexcept;
+    void ReleaseMesh() noexcept;
+
+    Base::Vector<Point> geometryVertices_;
+    Base::Vector<std::uint32_t> geometryIndices_;
+    Base::Vector<Point> pathPoints_;
+    Base::Vector<std::uint32_t> pathContourStarts_;
+    Base::Vector<std::uint32_t> pathContourCounts_;
+    Base::Vector<std::uint8_t> pathContourClosed_;
+    Base::Vector<Point> strokeVertices_;
+    Base::Vector<std::uint32_t> strokeIndices_;
+    Rect geometryBounds_;
+    void* meshServices_ = nullptr;
+    std::uint64_t meshServiceGeneration_ = 0U;
+    std::uint64_t mesh_ = 0U;
+    std::uint64_t strokeMesh_ = 0U;
+    bool geometryDirty_ = true;
+};
+
 } // namespace Aero::Shapes
+
+namespace Aero::Meta {
+
+template<>
+struct TypeTraits<Shapes::PenLineJoin> {
+    static constexpr TypeId Id() noexcept { return MakeTypeId("PenLineJoin"); }
+    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
+    static constexpr Base::StringView Name() noexcept { return "PenLineJoin"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct TypeTraits<Shapes::PenLineCap> {
+    static constexpr TypeId Id() noexcept { return MakeTypeId("PenLineCap"); }
+    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
+    static constexpr Base::StringView Name() noexcept { return "PenLineCap"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+} // namespace Aero::Meta

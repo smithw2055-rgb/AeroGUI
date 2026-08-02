@@ -14,7 +14,7 @@
 
 #include <cstdint>
 
-namespace Aero::Core { class IDiagnosticSink; }
+namespace Aero::Diagnostics { class IDiagnosticSink; }
 
 namespace Aero::App {
 
@@ -37,7 +37,7 @@ struct RunOptions final {
     bool loadBuiltInTheme = true;
     BuiltInTheme builtInTheme = BuiltInTheme::Light;
     Base::Span<const ModuleRegistration> modules;
-    Core::IDiagnosticSink* diagnostics = nullptr;
+    Diagnostics::IDiagnosticSink* diagnostics = nullptr;
     Base::IAllocator* allocator = nullptr;
 };
 

@@ -2,15 +2,15 @@
 
 namespace Aero::Media {
 
-Base::ResourceUri BitmapImage::UriSource() const noexcept {
+Base::ResourceUri BitmapImage::GetUriSource() const noexcept {
     return GetValueOr(
         UriSourceProperty,
         Base::ResourceUri{});
 }
 
-Base::Result<void> BitmapImage::SetUriSource(
+void BitmapImage::SetUriSource(
     const Base::ResourceUri& value) noexcept {
-    return SetValue(UriSourceProperty, value);
+    SetValue(UriSourceProperty, value);
 }
 
 } // namespace Aero::Media

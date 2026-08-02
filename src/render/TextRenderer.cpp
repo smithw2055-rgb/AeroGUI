@@ -334,8 +334,8 @@ TextRenderer::CollectGarbage() noexcept {
 }
 
 Base::Result<void> TextRenderer::ShapeAndPrepare(
-    const Controls::Detail::TextLayoutRequest& request,
-    Controls::Detail::TextLayoutResult& output) noexcept {
+    const Internal::TextLayoutRequest& request,
+    Internal::TextLayoutResult& output) noexcept {
     if (!IsInitialized()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -424,14 +424,14 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
              runIndex < runEnd; ++runIndex) {
             const Text::GlyphRun& run = textRuns[runIndex];
             for (const Text::PositionedGlyph& glyph : run.glyphs) {
-                Text::TextHitRegion region;
+                TextHitRegion region;
                 region.textOffset = glyph.cluster;
                 region.x = glyph.x;
                 region.y = line.y;
                 region.width = std::max(std::fabs(glyph.advanceX), 1.0F);
                 region.height = lineHeight;
                 bool merged = false;
-                for (Text::TextHitRegion& existing : output.hitRegions) {
+                for (TextHitRegion& existing : output.hitRegions) {
                     if (existing.textOffset != region.textOffset ||
                         existing.y != region.y) {
                         continue;
@@ -453,7 +453,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
                 }
             }
         }
-        Text::TextHitRegion endRegion;
+        TextHitRegion endRegion;
         endRegion.textOffset = line.textStart + line.textLength;
         endRegion.x = line.x + line.width;
         endRegion.y = line.y;
@@ -463,9 +463,9 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
             output.hitRegions.TryPushBack(endRegion);
         if (!endAdded) return endAdded.GetStatus();
     }
-    for (Text::TextHitRegion& region : output.hitRegions) {
+    for (TextHitRegion& region : output.hitRegions) {
         std::uint32_t nextOffset = request.text.SizeBytes();
-        for (const Text::TextHitRegion& candidate : output.hitRegions) {
+        for (const TextHitRegion& candidate : output.hitRegions) {
             if (candidate.textOffset > region.textOffset &&
                 candidate.textOffset < nextOffset) {
                 nextOffset = candidate.textOffset;

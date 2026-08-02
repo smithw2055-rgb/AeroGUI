@@ -5,7 +5,7 @@
 #include <Aero/DrawingContext.hpp>
 #include <Aero/FrameworkElement.hpp>
 
-namespace Aero::Detail {
+namespace Aero::Internal {
 
 class DrawingPrivate final {
 public:
@@ -21,4 +21,4 @@ public:
     }
 };
 
-} // namespace Aero::Detail
+} // namespace Aero::Internal

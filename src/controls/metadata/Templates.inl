@@ -21,7 +21,7 @@ Base::Result<void> PopulateControlsTemplates(
     auto controlTemplate = Meta::Register<ControlTemplate>(context);
     controlTemplate
         .Property<
-            Core::TypeReference,
+            Meta::TypeReference,
             &GetControlTemplateTargetType,
             &SetControlTemplateTargetType>(
             "TargetType",
@@ -45,7 +45,7 @@ Base::Result<void> PopulateControlsTemplates(
     auto dataTemplate = Meta::Register<DataTemplate>(context);
     dataTemplate
         .Property<
-            Core::TypeReference,
+            Meta::TypeReference,
             &GetDataTemplateType,
             &SetDataTemplateType>(
             "DataType",

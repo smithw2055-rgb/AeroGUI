@@ -5,10 +5,10 @@
 
 namespace Aero::Diagnostics {
 
-using PropertyValueRank = Core::PropertyValueRank;
-using PropertyValueSourceInfo = Core::PropertyValueSourceInfo;
-using PropertyProviderToken = Core::PropertyProviderToken;
-using PropertyExpressionKind = Core::PropertyExpressionKind;
+using PropertyValueRank = Meta::PropertyValueRank;
+using PropertyValueSourceInfo = Meta::PropertyValueSourceInfo;
+using PropertyProviderToken = Meta::PropertyProviderToken;
+using PropertyExpressionKind = Meta::PropertyExpressionKind;
 
 inline Base::Result<PropertyValueSourceInfo> GetValueSource(const DependencyObject& object, DependencyPropertyHandle property) noexcept {
     return object.GetValueSourceInfo(property);

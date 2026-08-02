@@ -1,41 +1,37 @@
 #include <Aero/Media/Brushes.hpp>
 #include "BrushRendering.hpp"
+#include "BrushInternals.hpp"
 
 #include <algorithm>
 #include <cmath>
 
 namespace Aero::Media {
 
-double Brush::Opacity() const noexcept {
+double Brush::GetOpacity() const noexcept {
     return GetValueOr(OpacityProperty, 1.0);
 }
 
-Base::Result<void> Brush::OnPropertyInvalidated(
+void Brush::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
-    Base::Result<void> base =
-        DependencyObject::OnPropertyInvalidated(
-            flags);
-    if (!base) return base.GetStatus();
-    return owner_ != nullptr
-        ? owner_->InvalidateVisual()
-        : Base::Result<void>();
+    DependencyObject::OnPropertyInvalidated(flags);
+    if (owner_ != nullptr) (void)owner_->InvalidateVisual();
 }
 
-Base::Result<void> Brush::SetOpacity(
+void Brush::SetOpacity(
     double value) noexcept {
-    return SetValue(OpacityProperty, value);
+    SetValue(OpacityProperty, value);
 }
 
 Color SolidColorBrush::GetColor() const noexcept {
     return GetValueOr(ColorProperty, initialColor_);
 }
 
-Base::Result<void> SolidColorBrush::SetColor(
+void SolidColorBrush::SetColor(
     Color value) noexcept {
-    return SetValue(ColorProperty, value);
+    SetValue(ColorProperty, value);
 }
 
-double GradientStop::Offset() const noexcept {
+double GradientStop::GetOffset() const noexcept {
     return GetValueOr(OffsetProperty, 0.0);
 }
 
@@ -43,32 +39,27 @@ Color GradientStop::GetColor() const noexcept {
     return GetValueOr(ColorProperty, Color{});
 }
 
-Base::Result<void> GradientStop::SetOffset(
+void GradientStop::SetOffset(
     double value) noexcept {
-    return SetValue(OffsetProperty, value);
+    SetValue(OffsetProperty, value);
 }
 
-Base::Result<void> GradientStop::SetColor(
+void GradientStop::SetColor(
     Color value) noexcept {
-    return SetValue(ColorProperty, value);
+    SetValue(ColorProperty, value);
 }
 
-Base::Result<void> GradientStop::OnPropertyInvalidated(
+void GradientStop::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
-    Base::Result<void> base =
-        DependencyObject::OnPropertyInvalidated(
-            flags);
-    if (!base) return base.GetStatus();
+    DependencyObject::OnPropertyInvalidated(flags);
     FrameworkElement* visualOwner =
         owner_ != nullptr
-        ? owner_->Owner()
+        ? ::Aero::Internal::BrushPrivate::Owner(*owner_)
         : nullptr;
-    return visualOwner != nullptr
-        ? visualOwner->InvalidateVisual()
-        : Base::Result<void>();
+    if (visualOwner != nullptr) (void)visualOwner->InvalidateVisual();
 }
 
-Base::Result<void> GradientBrush::AddGradientStop(
+Base::Result<void> GradientBrush::TryAddGradientStop(
     Base::Ref<GradientStop> stop) noexcept {
     if (!stop) {
         return Base::Status::Failure(
@@ -85,7 +76,7 @@ Base::Result<void> GradientBrush::AddGradientStop(
     return added;
 }
 
-Base::Result<void> GradientStopCollection::Add(
+Base::Result<void> GradientStopCollection::TryAdd(
     Base::Ref<GradientStop> stop) noexcept {
     if (!stop) {
         return Base::Status::Failure(
@@ -118,80 +109,40 @@ void GradientBrush::ClearGradientStops() noexcept {
     stops_.Clear();
 }
 
-BrushMappingMode GradientBrush::MappingMode() const noexcept {
+BrushMappingMode GradientBrush::GetMappingMode() const noexcept {
     return GetValueOr(
         MappingModeProperty,
         BrushMappingMode::RelativeToBoundingBox);
 }
 
-Base::Result<void> GradientBrush::SetMappingMode(
+void GradientBrush::SetMappingMode(
     BrushMappingMode value) noexcept {
-    return SetValue(MappingModeProperty, value);
+    SetValue(MappingModeProperty, value);
 }
 
-Color GradientBrush::Sample(
-    double position) const noexcept {
-    const auto stops = GradientStops();
-    if (stops.Empty()) return {};
-    position = std::clamp(position, 0.0, 1.0);
-    const GradientStop* lower = nullptr;
-    const GradientStop* upper = nullptr;
-    for (const Base::Ref<GradientStop>& stop : stops) {
-        if (!stop) continue;
-        if (stop->Offset() <= position &&
-            (lower == nullptr ||
-             stop->Offset() >= lower->Offset())) {
-            lower = stop.Get();
-        }
-        if (stop->Offset() >= position &&
-            (upper == nullptr ||
-             stop->Offset() <= upper->Offset())) {
-            upper = stop.Get();
-        }
-    }
-    if (lower == nullptr) lower = upper;
-    if (upper == nullptr) upper = lower;
-    if (lower == nullptr || upper == nullptr) return {};
-    const double span = upper->Offset() - lower->Offset();
-    const float amount = span > 0.0
-        ? static_cast<float>(std::clamp(
-            (position - lower->Offset()) / span,
-            0.0, 1.0))
-        : 0.0F;
-    const Color a = lower->GetColor();
-    const Color b = upper->GetColor();
-    Color result{
-        a.red + (b.red - a.red) * amount,
-        a.green + (b.green - a.green) * amount,
-        a.blue + (b.blue - a.blue) * amount,
-        a.alpha + (b.alpha - a.alpha) * amount};
-    result.alpha *= static_cast<float>(Opacity());
-    return result;
-}
-
-Point LinearGradientBrush::StartPoint() const noexcept {
+Point LinearGradientBrush::GetStartPoint() const noexcept {
     return GetValueOr(StartPointProperty, Point{0.0, 0.0});
 }
 
-Point LinearGradientBrush::EndPoint() const noexcept {
+Point LinearGradientBrush::GetEndPoint() const noexcept {
     return GetValueOr(EndPointProperty, Point{1.0, 1.0});
 }
 
-Base::Result<void> LinearGradientBrush::SetStartPoint(
+void LinearGradientBrush::SetStartPoint(
     Point value) noexcept {
-    return SetValue(StartPointProperty, value);
+    SetValue(StartPointProperty, value);
 }
 
-Base::Result<void> LinearGradientBrush::SetEndPoint(
+void LinearGradientBrush::SetEndPoint(
     Point value) noexcept {
-    return SetValue(EndPointProperty, value);
+    SetValue(EndPointProperty, value);
 }
 
-Point RadialGradientBrush::Center() const noexcept {
+Point RadialGradientBrush::GetCenter() const noexcept {
     return GetValueOr(CenterProperty, Point{0.5, 0.5});
 }
 
-Point RadialGradientBrush::GradientOrigin() const noexcept {
+Point RadialGradientBrush::GetGradientOrigin() const noexcept {
     return GetValueOr(
         GradientOriginProperty, Point{0.5, 0.5});
 }
@@ -204,28 +155,28 @@ double RadialGradientBrush::GetRadiusY() const noexcept {
     return GetValueOr(RadiusYProperty, 0.5);
 }
 
-Base::Result<void> RadialGradientBrush::SetCenter(
+void RadialGradientBrush::SetCenter(
     Point value) noexcept {
-    return SetValue(CenterProperty, value);
+    SetValue(CenterProperty, value);
 }
 
-Base::Result<void> RadialGradientBrush::SetGradientOrigin(
+void RadialGradientBrush::SetGradientOrigin(
     Point value) noexcept {
-    return SetValue(GradientOriginProperty, value);
+    SetValue(GradientOriginProperty, value);
 }
 
-Base::Result<void> RadialGradientBrush::SetRadiusX(
+void RadialGradientBrush::SetRadiusX(
     double value) noexcept {
-    return SetValue(RadiusXProperty, value);
+    SetValue(RadiusXProperty, value);
 }
 
-Base::Result<void> RadialGradientBrush::SetRadiusY(
+void RadialGradientBrush::SetRadiusY(
     double value) noexcept {
-    return SetValue(RadiusYProperty, value);
+    SetValue(RadiusYProperty, value);
 }
 
 Base::Ref<ImageSource>
-ImageBrush::Source() const noexcept {
+ImageBrush::GetSource() const noexcept {
     return GetValueOr(
         ImageSourceProperty,
         Base::Ref<ImageSource>{});
@@ -236,13 +187,13 @@ Stretch ImageBrush::GetStretch() const noexcept {
         StretchProperty, Stretch::Fill);
 }
 
-Rect ImageBrush::Viewbox() const noexcept {
+Rect ImageBrush::GetViewbox() const noexcept {
     return GetValueOr(
         ViewboxProperty,
         Rect{0.0, 0.0, 1.0, 1.0});
 }
 
-Rect ImageBrush::Viewport() const noexcept {
+Rect ImageBrush::GetViewport() const noexcept {
     return GetValueOr(
         ViewportProperty,
         Rect{0.0, 0.0, 1.0, 1.0});
@@ -253,54 +204,30 @@ TileMode ImageBrush::GetTileMode() const noexcept {
         TileModeProperty, TileMode::None);
 }
 
-Base::Result<void> ImageBrush::SetSource(
+void ImageBrush::SetSource(
     Base::Ref<ImageSource> value) noexcept {
-    return SetValue(
+    SetValue(
         ImageSourceProperty, std::move(value));
 }
 
-Base::Result<void> ImageBrush::SetStretch(
+void ImageBrush::SetStretch(
     Stretch value) noexcept {
-    return SetValue(StretchProperty, value);
+    SetValue(StretchProperty, value);
 }
 
-Base::Result<void> ImageBrush::SetViewbox(
+void ImageBrush::SetViewbox(
     Rect value) noexcept {
-    return SetValue(ViewboxProperty, value);
+    SetValue(ViewboxProperty, value);
 }
 
-Base::Result<void> ImageBrush::SetViewport(
+void ImageBrush::SetViewport(
     Rect value) noexcept {
-    return SetValue(ViewportProperty, value);
+    SetValue(ViewportProperty, value);
 }
 
-Base::Result<void> ImageBrush::SetTileMode(
+void ImageBrush::SetTileMode(
     TileMode value) noexcept {
-    return SetValue(TileModeProperty, value);
-}
-
-Color SampleBrush(
-    const Base::Ref<Brush>& brush,
-    double position,
-    Color fallback) noexcept {
-    if (!brush) return fallback;
-    if (brush->RuntimeType() ==
-        SolidColorBrush::StaticTypeId()) {
-        Color sampled =
-            static_cast<SolidColorBrush*>(
-                brush.Get())->GetColor();
-        sampled.alpha *=
-            static_cast<float>(brush->Opacity());
-        return sampled;
-    }
-    if (brush->RuntimeType() ==
-            LinearGradientBrush::StaticTypeId() ||
-        brush->RuntimeType() ==
-            RadialGradientBrush::StaticTypeId()) {
-        return static_cast<GradientBrush*>(
-            brush.Get())->Sample(position);
-    }
-    return fallback;
+    SetValue(TileModeProperty, value);
 }
 
 Base::Result<Base::Ref<Brush>>
@@ -308,9 +235,7 @@ MakeSolidColorBrush(Color color) noexcept {
     Base::Result<Base::Ref<SolidColorBrush>> made =
         Base::MakeRef<SolidColorBrush>();
     if (!made) return made.GetStatus();
-    Base::Result<void> assigned =
-        made.Value()->SetColor(color);
-    if (!assigned) return assigned.GetStatus();
+    made.Value()->SetColor(color);
     return Base::Ref<Brush>(
         std::move(made).Value());
 }
@@ -329,9 +254,9 @@ Base::Result<void> PaintBrushRect(
         const auto& gradient =
             *static_cast<LinearGradientBrush*>(
                 brush.Get());
-        Point start = gradient.StartPoint();
-        Point end = gradient.EndPoint();
-        if (gradient.MappingMode() ==
+        Point start = gradient.GetStartPoint();
+        Point end = gradient.GetEndPoint();
+        if (gradient.GetMappingMode() ==
             BrushMappingMode::RelativeToBoundingBox) {
             start = {
                 bounds.x + start.x * bounds.width,
@@ -377,7 +302,7 @@ Base::Result<void> PaintBrushRect(
             Base::Result<void> painted =
                 builder.FillRect(
                     band,
-                    gradient.Sample(position));
+                    ::Aero::Internal::SampleGradient(gradient, position));
             if (!painted) {
                 return painted.GetStatus();
             }
@@ -389,8 +314,8 @@ Base::Result<void> PaintBrushRect(
         const auto& gradient =
             *static_cast<RadialGradientBrush*>(
                 brush.Get());
-        const Point center = gradient.Center();
-        const Point origin = gradient.GradientOrigin();
+        const Point center = gradient.GetCenter();
+        const Point origin = gradient.GetGradientOrigin();
         const double radiusX =
             std::max(std::fabs(gradient.GetRadiusX()),
                      1.0e-6);
@@ -450,7 +375,7 @@ Base::Result<void> PaintBrushRect(
                                 bounds.width + 0.25,
                             (endY - beginY) *
                                 bounds.height + 0.25},
-                        gradient.Sample(position));
+                        ::Aero::Internal::SampleGradient(gradient, position));
                 if (!painted) {
                     return painted.GetStatus();
                 }
@@ -458,7 +383,7 @@ Base::Result<void> PaintBrushRect(
         }
         return {};
     }
-    const Color color = SampleBrush(brush);
+    const Color color = ::Aero::Internal::SampleBrush(brush);
     if (color.alpha <= 0.0F) return {};
     const double effectiveRadius = std::min(
         std::max(0.0, cornerRadius),

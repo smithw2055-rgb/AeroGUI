@@ -213,7 +213,7 @@ Base::Result<void> ModuleSet::RegisterMetadata(
         const Base::StringView name = module.name.View();
         Base::Result<void> registered =
             domain.TryRegisterModule({
-                Core::MakeMetadataModuleId(name),
+                Meta::MakeMetadataModuleId(name),
                 name,
                 module.schemaVersion,
                 module.registerModule,

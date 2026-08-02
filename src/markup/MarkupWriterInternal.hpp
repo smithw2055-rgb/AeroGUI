@@ -45,9 +45,9 @@ using ProvidedCleanupCallback = void (*)(void* context) noexcept;
 
 struct ProvidedValue final {
     ProvidedValueKind kind = ProvidedValueKind::Value;
-    Core::Value value;
-    Core::EffectiveValueEngine* effectiveValues = nullptr;
-    Core::PropertyExpression expression;
+    Meta::Value value;
+    Meta::EffectiveValueEngine* effectiveValues = nullptr;
+    Meta::PropertyExpression expression;
     void* rollbackContext = nullptr;
     std::uint64_t rollbackToken = 0U;
     ProvidedRollbackCallback rollback = nullptr;
@@ -55,9 +55,9 @@ struct ProvidedValue final {
     ProvidedCleanupCallback cleanup = nullptr;
 
     static ProvidedValue FromValue(
-        Core::Value&& provided) noexcept {
+        Meta::Value&& provided) noexcept {
         ProvidedValue result;
-        result.value = static_cast<Core::Value&&>(provided);
+        result.value = static_cast<Meta::Value&&>(provided);
         return result;
     }
     static ProvidedValue Handled(
@@ -72,8 +72,8 @@ struct ProvidedValue final {
         return result;
     }
     static ProvidedValue Expression(
-        Core::EffectiveValueEngine& engine,
-        const Core::PropertyExpression& provided) noexcept {
+        Meta::EffectiveValueEngine& engine,
+        const Meta::PropertyExpression& provided) noexcept {
         ProvidedValue result;
         result.kind = ProvidedValueKind::Expression;
         result.effectiveValues = &engine;
@@ -116,18 +116,18 @@ struct ProvidedValue final {
 struct ExtensionServices final {
     const Schema* schema = nullptr;
     Base::Object* targetObject = nullptr;
-    Core::TypeId targetObjectType = Core::InvalidTypeId;
-    Core::MemberId targetMember = Core::InvalidMemberId;
-    Core::TypeId targetValueType = Core::InvalidTypeId;
+    Meta::TypeId targetObjectType = Meta::InvalidTypeId;
+    Meta::MemberId targetMember = Meta::InvalidMemberId;
+    Meta::TypeId targetValueType = Meta::InvalidTypeId;
     Base::Object* rootObject = nullptr;
     Base::Object* templatedParent = nullptr;
     const Base::ResourceUri* baseUri = nullptr;
-    Core::SourceSpan source;
+    ::Aero::Diagnostics::SourceSpan source;
     const Aero::NameScope* nameScope = nullptr;
     NamespaceScope namespaces;
     ResourceResolver resources;
-    Core::EffectiveValueEngine* effectiveValues = nullptr;
-    Aero::Detail::BindingEngine* bindings = nullptr;
+    Meta::EffectiveValueEngine* effectiveValues = nullptr;
+    Aero::Internal::BindingEngine* bindings = nullptr;
     Aero::ResourceDictionary* fallbackResources = nullptr;
     Base::Span<const Aero::ResourceDictionary* const>
         ambientResourceChain;
@@ -139,13 +139,13 @@ struct ExtensionServices final {
 struct BindingExtensionOptions final {
     BindingExtensionOptions() noexcept = default;
     BindingExtensionOptions(
-        Aero::Detail::BindingEngine* bindingManager,
-        Core::DependencyPropertyHandle dataContext) noexcept
+        Aero::Internal::BindingEngine* bindingManager,
+        Meta::DependencyPropertyHandle dataContext) noexcept
         : bindings(bindingManager),
           dataContextProperty(dataContext) {}
 
-    Aero::Detail::BindingEngine* bindings = nullptr;
-    Core::DependencyPropertyHandle dataContextProperty;
+    Aero::Internal::BindingEngine* bindings = nullptr;
+    Meta::DependencyPropertyHandle dataContextProperty;
 };
 
 // Registers a {Binding ElementName=..., Path=..., Mode=...} provider. Explicit
@@ -162,9 +162,9 @@ public:
 
     Base::Result<void> Register(
         Schema& schema,
-        Core::TypeId bindingExtensionType) noexcept;
+        Meta::TypeId bindingExtensionType) noexcept;
     void SetDataContextProperty(
-        Core::DependencyPropertyHandle property) noexcept {
+        Meta::DependencyPropertyHandle property) noexcept {
         options_.dataContextProperty = property;
     }
 
@@ -180,38 +180,38 @@ private:
 class AERO_API DynamicResource final {
 public:
     static Base::Result<void> Attach(
-        Core::EffectiveValueEngine& effectiveValues,
+        Meta::EffectiveValueEngine& effectiveValues,
         Aero::ResourceDictionary& resources,
         ::Aero::DependencyObject& target,
-        Core::DependencyPropertyHandle property,
+        Meta::DependencyPropertyHandle property,
         Base::StringView key) noexcept;
     static Base::Result<void> Attach(
-        Core::EffectiveValueEngine& effectiveValues,
+        Meta::EffectiveValueEngine& effectiveValues,
         Base::Span<
             const Aero::ResourceDictionary* const> resourceChain,
         Aero::ResourceDictionary* fallbackResources,
         ::Aero::DependencyObject& target,
-        Core::DependencyPropertyHandle property,
+        Meta::DependencyPropertyHandle property,
         Base::StringView key) noexcept;
-    static Base::Result<Core::PropertyExpression> CreateExpression(
-        Core::EffectiveValueEngine& effectiveValues,
+    static Base::Result<Meta::PropertyExpression> CreateExpression(
+        Meta::EffectiveValueEngine& effectiveValues,
         Base::Span<
             const Aero::ResourceDictionary* const> resourceChain,
         Aero::ResourceDictionary* fallbackResources,
         ::Aero::DependencyObject& target,
-        Core::DependencyPropertyHandle property,
+        Meta::DependencyPropertyHandle property,
         Base::StringView key) noexcept;
 };
 
 struct DynamicResourceExtensionOptions final {
     DynamicResourceExtensionOptions() noexcept = default;
     DynamicResourceExtensionOptions(
-        Core::EffectiveValueEngine* effectiveValueEngine,
+        Meta::EffectiveValueEngine* effectiveValueEngine,
         Aero::ResourceDictionary* resourceDictionary) noexcept
         : effectiveValues(effectiveValueEngine),
           resources(resourceDictionary) {}
 
-    Core::EffectiveValueEngine* effectiveValues = nullptr;
+    Meta::EffectiveValueEngine* effectiveValues = nullptr;
     Aero::ResourceDictionary* resources = nullptr;
 };
 
@@ -226,7 +226,7 @@ public:
 
     Base::Result<void> Register(
         Schema& schema,
-        Core::TypeId dynamicResourceExtensionType) noexcept;
+        Meta::TypeId dynamicResourceExtensionType) noexcept;
 
 private:
     DynamicResourceExtensionOptions options_;
@@ -246,7 +246,7 @@ public:
 
     Base::Result<void> Register(
         Schema& schema,
-        Core::TypeId markupExtensionType) noexcept;
+        Meta::TypeId markupExtensionType) noexcept;
 
 private:
     static Base::Result<ProvidedValue> ProvideValue(
@@ -269,7 +269,7 @@ public:
 
     Base::Result<void> Register(
         Schema& schema,
-        Core::TypeId markupExtensionType) noexcept;
+        Meta::TypeId markupExtensionType) noexcept;
 
 private:
     static Base::Result<ProvidedValue> ProvideValue(
@@ -279,7 +279,7 @@ private:
 };
 
 // Implements the WPF-compatible {x:Static Type.Member} form for registered
-// enum values. The returned Core::Value retains the enum's concrete metadata
+// enum values. The returned Meta::Value retains the enum's concrete metadata
 // type so AnyValue members (for example discrete object key frames) can defer
 // assignment until their target dependency property is known.
 class AERO_API StaticExtension final {
@@ -291,7 +291,7 @@ public:
 
     Base::Result<void> Register(
         Schema& schema,
-        Core::TypeId markupExtensionType) noexcept;
+        Meta::TypeId markupExtensionType) noexcept;
 
 private:
     static Base::Result<ProvidedValue> ProvideValue(
@@ -322,7 +322,7 @@ struct DeferredContentEdge final {
     Base::Object* parent = nullptr;
     Base::Ref<Base::Object> child;
     ::Aero::Meta::Registry* metadata = nullptr;
-    Core::MemberId member = Core::InvalidMemberId;
+    Meta::MemberId member = Meta::InvalidMemberId;
     bool property = false;
 };
 
@@ -330,17 +330,17 @@ struct DeferredBindingEdge final {
     Base::Object* owner = nullptr;
     Base::Object* source = nullptr;
     ::Aero::DependencyObject* target = nullptr;
-    Aero::Detail::BindingEngine* manager = nullptr;
+    Aero::Internal::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
-    Core::DependencyPropertyHandle targetProperty;
-    Core::DependencyPropertyHandle dataContextProperty;
+    Meta::DependencyPropertyHandle targetProperty;
+    Meta::DependencyPropertyHandle dataContextProperty;
     Base::String path;
     Base::String stringFormat;
     bool bindsToSource = false;
     Data::BindingMode mode =
         Data::BindingMode::OneWay;
-    Core::UpdateSourceTrigger updateSourceTrigger =
-        Core::UpdateSourceTrigger::PropertyChanged;
+    Meta::UpdateSourceTrigger updateSourceTrigger =
+        Meta::UpdateSourceTrigger::PropertyChanged;
 };
 
 class DeferredContentPlan final {
@@ -350,13 +350,13 @@ public:
         Base::Object& parent,
         const Base::Ref<Base::Object>& child,
         ::Aero::Meta::Registry& metadata,
-        Core::MemberId member) noexcept;
+        Meta::MemberId member) noexcept;
     Base::Result<void> StageProperty(
         Base::Object& owner,
         Base::Object& parent,
         const Base::Ref<Base::Object>& child,
         ::Aero::Meta::Registry& metadata,
-        Core::MemberId member) noexcept;
+        Meta::MemberId member) noexcept;
     Base::Result<void> CopyForOwner(
         const Base::Object& owner,
         Base::Vector<DeferredContentEdge>& output) const noexcept;
@@ -364,14 +364,14 @@ public:
         Base::Object& owner,
         Base::Object* source,
         ::Aero::DependencyObject& target,
-        Aero::Detail::BindingEngine& manager,
+        Aero::Internal::BindingEngine& manager,
         ::Aero::Meta::Registry& metadata,
-        Core::DependencyPropertyHandle targetProperty,
-        Core::DependencyPropertyHandle dataContextProperty,
+        Meta::DependencyPropertyHandle targetProperty,
+        Meta::DependencyPropertyHandle dataContextProperty,
         Base::StringView path,
         Base::StringView stringFormat,
         Data::BindingMode mode,
-        Core::UpdateSourceTrigger updateSourceTrigger,
+        Meta::UpdateSourceTrigger updateSourceTrigger,
         bool bindsToSource) noexcept;
     Base::Result<void> CopyBindingsForOwner(
         const Base::Object& owner,
@@ -421,60 +421,60 @@ class NodeReader;
 class NodeCursor;
 
 namespace XamlObjectWriterDiagnosticCodes {
-inline constexpr Core::DiagnosticCode UnknownType =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 201U);
-inline constexpr Core::DiagnosticCode TypeNotConstructible =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 202U);
-inline constexpr Core::DiagnosticCode UnknownMember =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 203U);
-inline constexpr Core::DiagnosticCode InvalidAttachedMember =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 204U);
-inline constexpr Core::DiagnosticCode UnsupportedMember =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 205U);
-inline constexpr Core::DiagnosticCode InvalidValue =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 206U);
-inline constexpr Core::DiagnosticCode InvalidWriterState =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 207U);
-inline constexpr Core::DiagnosticCode MissingContentProperty =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 208U);
-inline constexpr Core::DiagnosticCode DuplicateMemberValue =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 209U);
-inline constexpr Core::DiagnosticCode InitializationFailed =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 210U);
-inline constexpr Core::DiagnosticCode UnexpectedText =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 211U);
-inline constexpr Core::DiagnosticCode TypeMismatch =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 212U);
-inline constexpr Core::DiagnosticCode FactoryFailed =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 213U);
-inline constexpr Core::DiagnosticCode MissingMemberValue =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 214U);
-inline constexpr Core::DiagnosticCode MultipleRootObjects =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 215U);
-inline constexpr Core::DiagnosticCode InvalidDirective =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 216U);
-inline constexpr Core::DiagnosticCode DuplicateName =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 217U);
-inline constexpr Core::DiagnosticCode DuplicateResourceKey =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 218U);
-inline constexpr Core::DiagnosticCode StaticResourceNotFound =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 219U);
-inline constexpr Core::DiagnosticCode MissingResourceScope =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 220U);
-inline constexpr Core::DiagnosticCode NullNotAllowed =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 221U);
-inline constexpr Core::DiagnosticCode InvalidMarkupExtension =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 222U);
-inline constexpr Core::DiagnosticCode NamespaceState =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 223U);
-inline constexpr Core::DiagnosticCode NameRegistrationFailed =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 224U);
-inline constexpr Core::DiagnosticCode ResourceRegistrationFailed =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 225U);
-inline constexpr Core::DiagnosticCode UnknownMarkupExtension =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 226U);
-inline constexpr Core::DiagnosticCode MarkupExtensionFailed =
-    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 227U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode UnknownType =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 201U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode TypeNotConstructible =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 202U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode UnknownMember =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 203U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidAttachedMember =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 204U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode UnsupportedMember =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 205U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidValue =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 206U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidWriterState =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 207U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode MissingContentProperty =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 208U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode DuplicateMemberValue =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 209U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode InitializationFailed =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 210U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode UnexpectedText =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 211U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode TypeMismatch =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 212U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode FactoryFailed =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 213U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode MissingMemberValue =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 214U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode MultipleRootObjects =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 215U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidDirective =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 216U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode DuplicateName =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 217U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode DuplicateResourceKey =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 218U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode StaticResourceNotFound =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 219U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode MissingResourceScope =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 220U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode NullNotAllowed =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 221U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidMarkupExtension =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 222U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode NamespaceState =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 223U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode NameRegistrationFailed =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 224U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode ResourceRegistrationFailed =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 225U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode UnknownMarkupExtension =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 226U);
+inline constexpr ::Aero::Diagnostics::DiagnosticCode MarkupExtensionFailed =
+    ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 227U);
 } // namespace XamlObjectWriterDiagnosticCodes
 
 // Immutable writer configuration. Every call creates a fresh one-shot
@@ -484,7 +484,7 @@ class AERO_API ObjectWriter final {
 public:
     explicit ObjectWriter(
         Schema& schema,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
 
     ObjectWriter(const ObjectWriter&) = delete;
     ObjectWriter& operator=(const ObjectWriter&) = delete;
@@ -497,7 +497,7 @@ public:
     Markup::Schema& GetSchema() const noexcept {
         return *schema_;
     }
-    Core::IDiagnosticSink* Diagnostics() const noexcept {
+    Diagnostics::IDiagnosticSink* Diagnostics() const noexcept {
         return diagnostics_;
     }
 
@@ -507,18 +507,18 @@ private:
     static Base::Result<Aero::Visual*> ResolveVisual(
         Markup::Schema& schema,
         Base::Object& object,
-        Core::TypeId type) noexcept;
+        Meta::TypeId type) noexcept;
     static Base::Result<Aero::UIElement*> ResolveUIElement(
         Markup::Schema& schema,
         Base::Object& object,
-        Core::TypeId type) noexcept;
+        Meta::TypeId type) noexcept;
     static Base::Result<void> StageContent(
         Markup::Schema& schema,
         Base::Object& object,
-        const Core::Value& value,
+        const Meta::Value& value,
         const ExtensionServices& services) noexcept;
     Markup::Schema* schema_ = nullptr;
-    Core::IDiagnosticSink* diagnostics_ = nullptr;
+    Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
 };
 
 } // namespace Aero::Markup
@@ -538,7 +538,7 @@ class ObjectBuilder final {
 public:
     explicit ObjectBuilder(
         Schema& schema,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
     explicit ObjectBuilder(
         const ObjectWriter& writer) noexcept
         : ObjectBuilder(
@@ -605,7 +605,7 @@ private:
         std::uint32_t nameScopeIndex = InvalidIndex;
         std::uint32_t resourceScopeIndex = InvalidIndex;
         ResolvedMember member;
-        Core::SourceSpan source;
+        ::Aero::Diagnostics::SourceSpan source;
         std::uint32_t valuesWritten = 0U;
         bool propertyElement = false;
         bool deferredStaticResource = false;
@@ -621,8 +621,8 @@ private:
         CreatedObjectRecord& operator=(const CreatedObjectRecord&) = delete;
 
         Base::Ref<Base::Object> object;
-        Core::Value value;
-        Core::TypeId type = Core::InvalidTypeId;
+        Meta::Value value;
+        Meta::TypeId type = Meta::InvalidTypeId;
         Base::String name;
         Base::String key;
         bool beginCalled = false;
@@ -634,8 +634,15 @@ private:
 
     struct AssignmentRecord final {
         std::uint32_t objectIndex = InvalidIndex;
-        Core::MemberId member = Core::InvalidMemberId;
+        Meta::MemberId member = Meta::InvalidMemberId;
         std::uint32_t count = 0U;
+    };
+
+    struct DeferredStaticResourceRecord final {
+        std::uint32_t targetObjectIndex = InvalidIndex;
+        ResolvedMember member;
+        Base::String key;
+        ::Aero::Diagnostics::SourceSpan source;
     };
 
 
@@ -690,14 +697,16 @@ private:
 
         Base::String prefix;
         Base::String uri;
-        Core::SourceSpan source;
+        ::Aero::Diagnostics::SourceSpan source;
     };
 
     Markup::Schema* schema_ = nullptr;
-    Core::IDiagnosticSink* diagnostics_ = nullptr;
+    Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
     Base::Vector<Frame> frames_;
     Base::Vector<CreatedObjectRecord> created_;
     Base::Vector<AssignmentRecord> assignments_;
+    Base::Vector<DeferredStaticResourceRecord>
+        deferredStaticResources_;
     Base::Vector<CommittedEffect> extensionEffects_;
     Base::Vector<NameScopeRecord> nameScopes_;
     Base::Vector<ResourceScopeRecord> resourceScopes_;
@@ -721,6 +730,7 @@ private:
 
     Base::Result<LoaderResult> CompleteLoad(
         Base::Result<Base::Ref<Base::Object>> loaded) noexcept;
+    Base::Result<void> ResolveDeferredStaticResources() noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadReaderCore(
         NodeReader& reader) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadCompiledCore(
@@ -728,7 +738,7 @@ private:
     Base::Result<Base::Ref<Base::Object>> LoadCursorCore(
         NodeCursor& cursor) noexcept;
     Base::Result<Base::Ref<Base::Object>> CreateObject(
-        Core::TypeId type) const noexcept;
+        Meta::TypeId type) const noexcept;
 
     Base::Result<void> ProcessNode(
         const Node& node) noexcept;
@@ -739,7 +749,7 @@ private:
     Base::Result<void> StartValueObject(
         const Node& node,
         std::uint32_t bindingStart,
-        Core::TypeId type) noexcept;
+        Meta::TypeId type) noexcept;
     Base::Result<void> StartNullObject(
         const Node& node,
         std::uint32_t bindingStart) noexcept;
@@ -770,48 +780,48 @@ private:
     Base::Result<void> CompleteNullObject(
         const Node& node) noexcept;
     Base::Result<void> WriteValueToParent(
-        Core::Value&& value,
-        Core::SourceSpan source) noexcept;
+        Meta::Value&& value,
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<void> WriteObjectToParent(
         std::uint32_t objectIndex,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<void> WriteObjectToContent(
         std::uint32_t parentObjectIndex,
         std::uint32_t childObjectIndex,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<void> WriteNullToParent(
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<void> WriteValueToMember(
         Frame& memberFrame,
-        Core::Value&& value,
-        Core::SourceSpan source) noexcept;
+        Meta::Value&& value,
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<void> WriteProvidedValueToMember(
         Frame& memberFrame,
         ProvidedValue&& value,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<void> WriteProvidedValue(
         std::uint32_t targetObjectIndex,
         const ResolvedMember& member,
         ProvidedValue&& value,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<void> WriteValue(
         std::uint32_t targetObjectIndex,
         const ResolvedMember& member,
-        Core::Value&& value,
-        Core::SourceSpan source) noexcept;
+        Meta::Value&& value,
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
 
     Base::Result<void> RegisterObjectName(
         std::uint32_t objectIndex,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<bool> RegisterObjectResource(
         std::uint32_t objectIndex,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<Aero::ResourceValue> LookupResource(
         Base::StringView key) const noexcept;
     Base::Result<void> CreateScopesForObject(
         std::uint32_t objectIndex,
         Frame& frame,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
 
     Base::Result<void> ActivatePendingNamespaces(
         std::uint32_t& bindingStart) noexcept;
@@ -822,7 +832,7 @@ private:
     ExtensionServices BuildExtensionServices(
         std::uint32_t targetObjectIndex,
         const ResolvedMember& member,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     const Aero::NameScope*
     FindActiveNameScope() const noexcept;
     Base::Object* FindDeferredContentOwner() const noexcept;
@@ -841,7 +851,7 @@ private:
         const ResolvedMember& member,
         Base::StringView extensionName,
         Base::StringView arguments,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     bool IsXamlDirective(
         const QualifiedName& name,
         Base::StringView localName) const noexcept;
@@ -852,16 +862,16 @@ private:
     bool IsWhitespaceOnly(Base::StringView value) const noexcept;
     AssignmentRecord* FindAssignment(
         std::uint32_t objectIndex,
-        Core::MemberId member) noexcept;
+        Meta::MemberId member) noexcept;
 
     void CommitDocumentScopes() noexcept;
     void AbortTransaction() noexcept;
     void ClearTransaction() noexcept;
     Base::Status Failure(
         Base::Status status,
-        Core::DiagnosticCode diagnostic,
+        ::Aero::Diagnostics::DiagnosticCode diagnostic,
         Base::StringView message,
-        Core::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
 
     static Base::Result<Base::StringView>
     NamespaceLookupCallback(
@@ -891,7 +901,9 @@ private:
 
 #include <cstdint>
 
-namespace Aero::Markup::Detail {
+namespace Aero::Internal {
+
+using namespace ::Aero::Markup;
 
 using XamlInitializationCallback = Base::Result<void> (*)(
     Base::Object& object,
@@ -911,7 +923,7 @@ using XamlRegisterNameCallback = Base::Result<void> (*)(
 using XamlAddResourceCallback = Base::Result<void> (*)(
     Base::Object& scopeOwner,
     const Aero::ResourceKey& key,
-    const Core::Value& value,
+    const Meta::Value& value,
     void* context) noexcept;
 using XamlResolveResourceScopeCallback =
     Aero::ResourceDictionary* (*)(
@@ -940,7 +952,7 @@ enum class XamlFacetInheritancePolicy : std::uint8_t {
 // Compatibility registration DTO. TryAdd() atomically projects this record to
 // the narrow capability slots retained by XamlFacets.
 struct XamlTypeFacet final {
-    Core::TypeId type = Core::InvalidTypeId;
+    Meta::TypeId type = Meta::InvalidTypeId;
     XamlInitializationCallback beginInit = nullptr;
     XamlInitializationCallback endInit = nullptr;
     XamlAbortInitializationCallback abortInit = nullptr;
@@ -962,7 +974,7 @@ struct XamlLifecycleFacet final {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::ComposeBaseToDerived;
 
-    Core::TypeId type = Core::InvalidTypeId;
+    Meta::TypeId type = Meta::InvalidTypeId;
     XamlInitializationCallback beginInit = nullptr;
     XamlInitializationCallback endInit = nullptr;
     XamlAbortInitializationCallback abortInit = nullptr;
@@ -975,7 +987,7 @@ struct XamlNameScopeFacet final {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::NearestBase;
 
-    Core::TypeId type = Core::InvalidTypeId;
+    Meta::TypeId type = Meta::InvalidTypeId;
     bool createsNameScope = true;
     XamlRegisterNameCallback registerName = nullptr;
     void* context = nullptr;
@@ -986,7 +998,7 @@ struct XamlResourceScopeFacet final {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::NearestBase;
 
-    Core::TypeId type = Core::InvalidTypeId;
+    Meta::TypeId type = Meta::InvalidTypeId;
     bool createsResourceScope = true;
     XamlAddResourceCallback addResource = nullptr;
     XamlResolveResourceScopeCallback resolveResourceScope = nullptr;
@@ -998,7 +1010,7 @@ struct XamlDeferredContentFacet final {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::NearestBase;
 
-    Core::TypeId type = Core::InvalidTypeId;
+    Meta::TypeId type = Meta::InvalidTypeId;
     bool defersVisualContent = true;
     std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
@@ -1007,7 +1019,7 @@ struct XamlImplicitResourceKeyFacet final {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::NearestBase;
 
-    Core::TypeId type = Core::InvalidTypeId;
+    Meta::TypeId type = Meta::InvalidTypeId;
     XamlResolveImplicitResourceKeyCallback resolve = nullptr;
     void* context = nullptr;
     std::uint32_t abiVersion = XamlFacetAbiVersion;
@@ -1017,7 +1029,7 @@ struct XamlPropertyTargetFacet final {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::NearestBase;
 
-    Core::TypeId type = Core::InvalidTypeId;
+    Meta::TypeId type = Meta::InvalidTypeId;
     XamlResolvePropertyTargetCallback resolve = nullptr;
     void* context = nullptr;
     std::uint32_t abiVersion = XamlFacetAbiVersion;
@@ -1027,7 +1039,7 @@ struct XamlMarkupExtensionFacet final {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::ExactOnly;
 
-    Core::TypeId type = Core::InvalidTypeId;
+    Meta::TypeId type = Meta::InvalidTypeId;
     XamlProvideValueCallback provideValue = nullptr;
     void* context = nullptr;
     std::uint32_t abiVersion = XamlFacetAbiVersion;
@@ -1042,57 +1054,57 @@ public:
 
     Base::Result<void> TryAdd(
         const XamlTypeFacet& facet,
-        const Core::TypeRegistry& descriptors) noexcept;
+        const Meta::TypeRegistry& descriptors) noexcept;
     Base::Result<void> TryAdd(
         const XamlLifecycleFacet& facet,
-        const Core::TypeRegistry& descriptors) noexcept;
+        const Meta::TypeRegistry& descriptors) noexcept;
     Base::Result<void> TryAdd(
         const XamlNameScopeFacet& facet,
-        const Core::TypeRegistry& descriptors) noexcept;
+        const Meta::TypeRegistry& descriptors) noexcept;
     Base::Result<void> TryAdd(
         const XamlResourceScopeFacet& facet,
-        const Core::TypeRegistry& descriptors) noexcept;
+        const Meta::TypeRegistry& descriptors) noexcept;
     Base::Result<void> TryAdd(
         const XamlDeferredContentFacet& facet,
-        const Core::TypeRegistry& descriptors) noexcept;
+        const Meta::TypeRegistry& descriptors) noexcept;
     Base::Result<void> TryAdd(
         const XamlImplicitResourceKeyFacet& facet,
-        const Core::TypeRegistry& descriptors) noexcept;
+        const Meta::TypeRegistry& descriptors) noexcept;
     Base::Result<void> TryAdd(
         const XamlPropertyTargetFacet& facet,
-        const Core::TypeRegistry& descriptors) noexcept;
+        const Meta::TypeRegistry& descriptors) noexcept;
     Base::Result<void> TryAdd(
         const XamlMarkupExtensionFacet& facet,
-        const Core::TypeRegistry& descriptors) noexcept;
+        const Meta::TypeRegistry& descriptors) noexcept;
     Base::Result<void> Freeze(
-        const Core::TypeRegistry& descriptors) noexcept;
+        const Meta::TypeRegistry& descriptors) noexcept;
 
     bool IsFrozen() const noexcept { return frozen_; }
 
     Base::Span<const std::uint32_t> LifecyclePlan(
-        Core::TypeId type) const noexcept;
+        Meta::TypeId type) const noexcept;
     const XamlLifecycleFacet* LifecycleAt(
         std::uint32_t index) const noexcept;
     const XamlLifecycleFacet* FindLifecycle(
-        Core::TypeId type,
-        const Core::TypeRegistry& descriptors) const noexcept;
+        Meta::TypeId type,
+        const Meta::TypeRegistry& descriptors) const noexcept;
     const XamlNameScopeFacet* FindNameScope(
-        Core::TypeId type,
-        const Core::TypeRegistry& descriptors) const noexcept;
+        Meta::TypeId type,
+        const Meta::TypeRegistry& descriptors) const noexcept;
     const XamlResourceScopeFacet* FindResourceScope(
-        Core::TypeId type,
-        const Core::TypeRegistry& descriptors) const noexcept;
+        Meta::TypeId type,
+        const Meta::TypeRegistry& descriptors) const noexcept;
     const XamlDeferredContentFacet* FindDeferredContent(
-        Core::TypeId type,
-        const Core::TypeRegistry& descriptors) const noexcept;
+        Meta::TypeId type,
+        const Meta::TypeRegistry& descriptors) const noexcept;
     const XamlImplicitResourceKeyFacet* FindImplicitResourceKey(
-        Core::TypeId type,
-        const Core::TypeRegistry& descriptors) const noexcept;
+        Meta::TypeId type,
+        const Meta::TypeRegistry& descriptors) const noexcept;
     const XamlPropertyTargetFacet* FindPropertyTarget(
-        Core::TypeId type,
-        const Core::TypeRegistry& descriptors) const noexcept;
+        Meta::TypeId type,
+        const Meta::TypeRegistry& descriptors) const noexcept;
     const XamlMarkupExtensionFacet* FindMarkupExtension(
-        Core::TypeId type) const noexcept;
+        Meta::TypeId type) const noexcept;
 
 private:
     enum class FacetKind : std::uint8_t {
@@ -1110,7 +1122,7 @@ private:
     inline static constexpr std::uint32_t InvalidFacetIndex = UINT32_MAX;
 
     struct DraftType final {
-        Core::TypeId type = Core::InvalidTypeId;
+        Meta::TypeId type = Meta::InvalidTypeId;
         std::uint32_t facets[
             static_cast<std::uint8_t>(FacetKind::Count)] = {
                 InvalidFacetIndex,
@@ -1125,7 +1137,7 @@ private:
     // Runtime record. Exact facets are stored as a compact run in facetRefs_;
     // lifecycle inheritance is flattened once at Freeze().
     struct XamlTypePlan final {
-        Core::TypeId type = Core::InvalidTypeId;
+        Meta::TypeId type = Meta::InvalidTypeId;
         std::uint32_t firstFacetRef = 0U;
         std::uint32_t firstLifecycleRef = 0U;
         FacetMask facetMask = 0U;
@@ -1139,7 +1151,7 @@ private:
     static_assert(sizeof(std::uint32_t) == 4U,
         "XAML facet references must remain 32-bit");
 
-    using FacetIndex = Base::HashMap<Core::TypeId, std::uint32_t>;
+    using FacetIndex = Base::HashMap<Meta::TypeId, std::uint32_t>;
 
     Base::Vector<DraftType> drafts_;
     Base::Vector<XamlTypePlan> plans_;
@@ -1161,34 +1173,45 @@ private:
     }
     static std::uint16_t FacetCountBefore(
         FacetMask mask, FacetKind kind) noexcept;
-    Base::Result<DraftType*> EnsureType(Core::TypeId type) noexcept;
-    DraftType* FindDraft(Core::TypeId type) noexcept;
-    const DraftType* FindDraft(Core::TypeId type) const noexcept;
-    const XamlTypePlan* FindPlan(Core::TypeId type) const noexcept;
+    Base::Result<DraftType*> EnsureType(Meta::TypeId type) noexcept;
+    DraftType* FindDraft(Meta::TypeId type) noexcept;
+    const DraftType* FindDraft(Meta::TypeId type) const noexcept;
+    const XamlTypePlan* FindPlan(Meta::TypeId type) const noexcept;
     std::uint32_t FindFacetIndex(
-        Core::TypeId type, FacetKind kind) const noexcept;
+        Meta::TypeId type, FacetKind kind) const noexcept;
     Base::Result<void> BuildLifecyclePlans(
-        const Core::TypeRegistry& descriptors) noexcept;
+        const Meta::TypeRegistry& descriptors) noexcept;
 
     const XamlLifecycleFacet* FindLifecycleExact(
-        Core::TypeId type) const noexcept;
+        Meta::TypeId type) const noexcept;
     const XamlNameScopeFacet* FindNameScopeExact(
-        Core::TypeId type) const noexcept;
+        Meta::TypeId type) const noexcept;
     const XamlResourceScopeFacet* FindResourceScopeExact(
-        Core::TypeId type) const noexcept;
+        Meta::TypeId type) const noexcept;
     const XamlDeferredContentFacet* FindDeferredContentExact(
-        Core::TypeId type) const noexcept;
+        Meta::TypeId type) const noexcept;
     const XamlImplicitResourceKeyFacet* FindImplicitResourceKeyExact(
-        Core::TypeId type) const noexcept;
+        Meta::TypeId type) const noexcept;
     const XamlPropertyTargetFacet* FindPropertyTargetExact(
-        Core::TypeId type) const noexcept;
+        Meta::TypeId type) const noexcept;
 };
 
-} // namespace Aero::Markup::Detail
-
+} // namespace Aero::Internal
 
 // ===== SchemaInternal contract =====
 
+
+namespace Aero::Markup::Detail {
+using ::Aero::Internal::XamlFacets;
+using ::Aero::Internal::XamlMarkupExtensionFacet;
+using ::Aero::Internal::XamlTypeFacet;
+using ::Aero::Internal::XamlLifecycleFacet;
+using ::Aero::Internal::XamlNameScopeFacet;
+using ::Aero::Internal::XamlResourceScopeFacet;
+using ::Aero::Internal::XamlDeferredContentFacet;
+using ::Aero::Internal::XamlImplicitResourceKeyFacet;
+using ::Aero::Internal::XamlPropertyTargetFacet;
+}
 
 
 namespace Aero::Markup {
@@ -1198,6 +1221,8 @@ struct Schema::Impl final {
 };
 
 namespace Detail {
+
+using namespace ::Aero::Internal;
 
 class SchemaPrivate final {
 public:
@@ -1259,9 +1284,9 @@ public:
             registration, schema.Types());
     }
 
-    static Base::Result<Core::Value> ConvertText(
+    static Base::Result<Meta::Value> ConvertText(
         const Schema& schema,
-        Core::TypeId type,
+        Meta::TypeId type,
         Base::StringView text,
         const ExtensionServices* services = nullptr) noexcept {
         return schema.ConvertText(type, text, services);
@@ -1279,7 +1304,7 @@ public:
         return schema.Metadata();
     }
 
-    static Base::Result<const Core::TypeInfo*> ResolveType(
+    static Base::Result<const Meta::TypeInfo*> ResolveType(
         const Schema& schema,
         Base::StringView xamlNamespace,
         Base::StringView localName) noexcept {
@@ -1316,7 +1341,9 @@ public:
 #include <cstdint>
 
 
-namespace Aero::Markup::Detail {
+namespace Aero::Internal {
+
+using namespace ::Aero::Markup;
 
 class XamlVisualStateObject final : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
@@ -1325,7 +1352,7 @@ class XamlVisualStateObject final : public Base::Object {
         "urn:aero",
         "VisualState")
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
 
@@ -1375,7 +1402,7 @@ class XamlVisualTransitionObject final
         "urn:aero",
         "VisualTransition")
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
 
@@ -1399,9 +1426,7 @@ public:
     Base::Result<void> SetGeneratedDuration(
         Base::StringView value) noexcept {
         Media::Animation::Storyboard validator;
-        Base::Result<void> valid =
-            validator.SetDuration(value);
-        if (!valid) return valid.GetStatus();
+        validator.SetDuration(value);
         return generatedDuration_.TryAssign(value);
     }
     Base::Ref<Media::Animation::EasingFunctionBase>
@@ -1445,7 +1470,7 @@ class XamlVisualStateGroupObject final
         "urn:aero",
         "VisualStateGroup")
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
 
@@ -1494,7 +1519,7 @@ class XamlVisualStates final
     : public Base::Object {
     AERO_DECLARE_TYPE(XamlVisualStates, Base::Object)
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
     Base::Result<void> Add(
@@ -1517,7 +1542,7 @@ class XamlVisualStateManagerObject final
         "urn:aero",
         "VisualStateManager")
 public:
-    Core::TypeId RuntimeType() const noexcept override {
+    Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
 
@@ -1528,8 +1553,8 @@ public:
 };
 
 struct TemplatePrototypeProperty final {
-    Core::DependencyPropertyHandle property;
-    Core::Value value;
+    Meta::DependencyPropertyHandle property;
+    Meta::Value value;
     // A dependency-object property participating in a template Binding is
     // cloned as part of the instance graph rather than shared with the
     // authored prototype (for example SolidColorBrush.Color in a DataTemplate).
@@ -1537,10 +1562,10 @@ struct TemplatePrototypeProperty final {
 };
 
 struct TemplatePrototypeNode final {
-    Core::TypeId type = Core::InvalidTypeId;
+    Meta::TypeId type = Meta::InvalidTypeId;
     Base::String name;
     std::uint32_t parent = UINT32_MAX;
-    Core::MemberId contentMember = Core::InvalidMemberId;
+    Meta::MemberId contentMember = Meta::InvalidMemberId;
     Base::Vector<TemplatePrototypeProperty> properties;
     Base::Vector<Controls::GridLength> gridColumns;
     Base::Vector<Controls::GridLength> gridRows;
@@ -1549,21 +1574,21 @@ struct TemplatePrototypeNode final {
 struct TemplatePrototypeBinding final {
     std::uint32_t target = UINT32_MAX;
     std::uint32_t source = UINT32_MAX;
-    Aero::Detail::BindingEngine* manager = nullptr;
+    Aero::Internal::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
-    Core::DependencyPropertyHandle targetProperty;
-    Core::DependencyPropertyHandle dataContextProperty;
+    Meta::DependencyPropertyHandle targetProperty;
+    Meta::DependencyPropertyHandle dataContextProperty;
     Base::String path;
     Base::String stringFormat;
     Data::BindingMode mode =
         Data::BindingMode::OneWay;
-    Core::UpdateSourceTrigger updateSourceTrigger =
-        Core::UpdateSourceTrigger::PropertyChanged;
+    Meta::UpdateSourceTrigger updateSourceTrigger =
+        Meta::UpdateSourceTrigger::PropertyChanged;
 };
 
 struct CompiledTemplateBlueprint final {
     ::Aero::Meta::Registry* runtime = nullptr;
-    Core::DependencyPropertyRegistry* properties = nullptr;
+    Meta::DependencyPropertyRegistry* properties = nullptr;
     Base::Vector<TemplatePrototypeNode> nodes;
     Base::Vector<TemplatePrototypeBinding> bindings;
     Base::Vector<Base::Ref<Aero::TriggerBase>>
@@ -1579,7 +1604,7 @@ struct CompiledTemplateBlueprint final {
 };
 
 struct CompiledTemplateDefinition final {
-    Core::TypeId targetType = Core::InvalidTypeId;
+    Meta::TypeId targetType = Meta::InvalidTypeId;
     CompiledTemplateBlueprint blueprint;
     Base::Vector<Controls::TemplatePropertyTrigger>
         propertyTriggers;
@@ -1605,7 +1630,7 @@ CompileDeferredTemplateBlueprint(
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
     ::Aero::Meta::Registry& runtime,
-    Core::DependencyPropertyRegistry& properties) noexcept;
+    Meta::DependencyPropertyRegistry& properties) noexcept;
 
 Base::Result<CompiledTemplateDefinition>
 CompileControlTemplateDefinition(
@@ -1613,6 +1638,19 @@ CompileControlTemplateDefinition(
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
     ::Aero::Meta::Registry& runtime,
-    Core::DependencyPropertyRegistry& properties) noexcept;
+    Meta::DependencyPropertyRegistry& properties) noexcept;
 
-} // namespace Aero::Markup::Detail
+} // namespace Aero::Internal
+
+// Markup implementation sources historically referred to the template
+// compiler contracts through Markup::Detail. Keep that source-only bridge
+// while the canonical declarations live in Base::Detail; no aliases are
+// exposed by installed headers.
+namespace Aero::Markup::Detail {
+using ::Aero::Internal::CompiledTemplateBlueprint;
+using ::Aero::Internal::CompiledTemplateDefinition;
+using ::Aero::Internal::BuildCompiledTemplate;
+using ::Aero::Internal::BuildCompiledDeferredTemplate;
+using ::Aero::Internal::CompileDeferredTemplateBlueprint;
+using ::Aero::Internal::CompileControlTemplateDefinition;
+}

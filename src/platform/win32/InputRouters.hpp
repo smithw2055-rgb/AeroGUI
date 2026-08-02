@@ -55,9 +55,9 @@ public:
         std::uint32_t message,
         std::uintptr_t wParam,
         std::intptr_t lParam) noexcept;
-    Base::Result<void> SetClient(
+    void SetClient(
         Integration::ITextCompositionClient* client) noexcept override;
-    Base::Result<void> SetCandidateWindow(
+    void SetCandidateWindow(
         const Integration::ImeCandidateWindow& value) noexcept override;
     Base::Result<void> CancelNativeComposition() noexcept override;
 

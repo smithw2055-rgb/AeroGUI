@@ -1,4 +1,4 @@
-#include <Aero/Text/TextTypes.hpp>
+#include "TextTypes.hpp"
 
 namespace Aero::Text {
 

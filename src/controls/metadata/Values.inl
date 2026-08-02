@@ -121,34 +121,34 @@ Base::Result<void> PopulateControlsValues(
     status = dock.Result();
     if (!status) return status.GetStatus();
 
-    auto textWrapping = Meta::Register<Text::TextWrapping>(context);
+    auto textWrapping = Meta::Register<TextWrapping>(context);
     textWrapping
-        .Value("NoWrap", Text::TextWrapping::NoWrap)
-        .Value("Wrap", Text::TextWrapping::Wrap)
+        .Value("NoWrap", TextWrapping::NoWrap)
+        .Value("Wrap", TextWrapping::Wrap)
         .Value(
             "WrapWithOverflow",
-            Text::TextWrapping::WrapWithOverflow);
+            TextWrapping::WrapWithOverflow);
     status = textWrapping.Result();
     if (!status) return status.GetStatus();
 
-    auto textTrimming = Meta::Register<Text::TextTrimming>(context);
+    auto textTrimming = Meta::Register<TextTrimming>(context);
     textTrimming
-        .Value("None", Text::TextTrimming::None)
+        .Value("None", TextTrimming::None)
         .Value(
             "CharacterEllipsis",
-            Text::TextTrimming::CharacterEllipsis)
+            TextTrimming::CharacterEllipsis)
         .Value(
             "WordEllipsis",
-            Text::TextTrimming::WordEllipsis);
+            TextTrimming::WordEllipsis);
     status = textTrimming.Result();
     if (!status) return status.GetStatus();
 
-    auto textAlignment = Meta::Register<Text::TextAlignment>(context);
+    auto textAlignment = Meta::Register<TextAlignment>(context);
     textAlignment
-        .Value("Left", Text::TextAlignment::Start)
-        .Value("Center", Text::TextAlignment::Center)
-        .Value("Right", Text::TextAlignment::End)
-        .Value("Justify", Text::TextAlignment::Justify);
+        .Value("Left", TextAlignment::Start)
+        .Value("Center", TextAlignment::Center)
+        .Value("Right", TextAlignment::End)
+        .Value("Justify", TextAlignment::Justify);
     status = textAlignment.Result();
     if (!status) return status.GetStatus();
 
@@ -160,11 +160,11 @@ Base::Result<void> PopulateControlsValues(
     status = fontWeight.Result();
     if (!status) return status.GetStatus();
 
-    auto fontStyle = Meta::Register<Text::FontStyle>(context);
+    auto fontStyle = Meta::Register<FontStyle>(context);
     fontStyle
-        .Value("Normal", Text::FontStyle::Normal)
-        .Value("Italic", Text::FontStyle::Italic)
-        .Value("Oblique", Text::FontStyle::Oblique);
+        .Value("Normal", FontStyle::Normal)
+        .Value("Italic", FontStyle::Italic)
+        .Value("Oblique", FontStyle::Oblique);
     status = fontStyle.Result();
     if (!status) return status.GetStatus();
 

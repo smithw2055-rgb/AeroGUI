@@ -55,10 +55,11 @@ SDK.
 | `System.Windows.Shapes` | `Aero::Shapes` | `Rectangle`, `Ellipse`, `Path` |
 | `System.Windows.Markup` | `Aero::Markup` | `MarkupExtension`, `XamlReader` |
 | `System.Windows.Threading` | `Aero::Threading` | `Dispatcher`, `DispatcherObject` |
-| Aero metadata authoring | `Aero::Meta` | `Context`, `Describe`, `TypeId` |
+| Stable value and ID contracts | `Aero::Base` | `TypeId`, `MemberId`, `Value`, `Result`, `Stream` |
+| Aero metadata authoring | `Aero::Meta` | `TypeTraits`, `TypeDescription`, `Registration`, `Registry` |
 | Host and renderer integration | `Aero::Integration` | `ViewOptions`, opaque render attachment and native integration APIs |
 | Default application framework | `Aero::App` | `RunOptions`, generated `App::Run()` bootstrap |
-| Private implementation | `Aero::Detail` or domain `Detail` | property, style, template, XAML and render runtimes |
+| Transitional ABI implementation | `Aero::Base::Detail` | header-only helpers and private ABI seams; never user-facing |
 
 ## Root namespace rule
 
@@ -88,6 +89,24 @@ Aero::Input::ICommand
 
 The SDK must not expose both `Aero::Button` and `Aero::Controls::Button` as
 permanent alternatives.
+
+## Namespace manifest and boundary rules
+
+`cmake/AeroPublicNamespaces.cmake` is the canonical manifest for installed
+namespace prefixes. It contains the WPF semantic families (`Aero`,
+`Controls`, `Media`, `Data`, `Input`, `Documents`, `Shapes`, `Markup`,
+`Threading`, and `Collections`) plus the explicit Base, Integration, App,
+Audio and Meta specialist surfaces. `Aero::Base::Detail` is a transitional
+ABI-only prefix; it may be used for
+forward declarations required by object layout, but may not acquire ordinary
+authoring types.
+
+Installed headers contain no `using namespace` directives. `Aero::Render` and
+product-layer `Detail` namespaces (`Aero::Detail`, `Controls::Detail`,
+`Media::Detail`, `Markup::Detail`, `Integration::Detail` and `App::Detail`)
+are source-only implementation spaces and are rejected by the architecture
+check. Render trees, GPU state, text providers, XAML tokenizers and template
+programs therefore remain under `src/` rather than becoming SDK namespaces.
 
 ## XAML mapping
 
