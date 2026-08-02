@@ -28,7 +28,8 @@ src/
 ├─ gui/           flat WPF semantic kernel
 ├─ controls/      standard controls, templates and default behavior
 ├─ markup/        XAML schema, object writer, compiled XAML and document cache
-├─ text/          shaping, glyph atlas and text-provider adapters
+├─ providers/     XAML provider adapters and routing contracts
+├─ text/          shaping, glyph atlas and private text-provider adapters
 ├─ media/         brushes, images, transforms, effects and animation objects
 ├─ runtime/       View composition, frame lifecycle and built-in modules
 ├─ render/        RenderTree, RenderFrame, Renderer, RenderDevice and GPU backends

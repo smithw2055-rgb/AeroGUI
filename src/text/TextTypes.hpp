@@ -22,7 +22,7 @@ constexpr FontProviderId InvalidFontProviderId = 0U;
 constexpr FontFaceId InvalidFontFaceId = 0U;
 constexpr GlyphId InvalidGlyphId = UINT32_MAX;
 
-struct FontProviderIdentity final {
+struct FontProviderIdentity  {
     FontProviderId id = InvalidFontProviderId;
     FontProviderVersion version = 0U;
 
@@ -43,7 +43,7 @@ constexpr bool operator!=(
     return !(left == right);
 }
 
-class AERO_API Typeface final {
+class AERO_API Typeface  {
 public:
     explicit Typeface(Base::IAllocator* allocator = nullptr) noexcept
         : family_(allocator), language_(allocator) {}
@@ -54,9 +54,9 @@ public:
     FontStyle Style() const noexcept { return style_; }
     FontStretch Stretch() const noexcept { return stretch_; }
 
-    Base::Result<void> TrySetFamily(Base::StringView family) noexcept;
-    Base::Result<void> TrySetLanguage(Base::StringView language) noexcept;
-    Base::Result<void> TrySetWeight(std::uint16_t weight) noexcept;
+    Base::Result<void> SetFamily(Base::StringView family) noexcept;
+    Base::Result<void> SetLanguage(Base::StringView language) noexcept;
+    Base::Result<void> SetWeight(std::uint16_t weight) noexcept;
     void SetStyle(FontStyle style) noexcept { style_ = style; }
     void SetStretch(FontStretch stretch) noexcept { stretch_ = stretch; }
 
@@ -73,14 +73,14 @@ enum class FontSourceKind : std::uint8_t {
     Memory
 };
 
-struct FontSource final {
+struct FontSource  {
     FontSourceKind kind = FontSourceKind::File;
     Base::StringView identifier;
     Base::Span<const std::uint8_t> bytes;
     std::uint32_t faceIndex = 0U;
 };
 
-struct FontFaceHandle final {
+struct FontFaceHandle  {
     FontProviderIdentity provider;
     FontFaceId face = InvalidFontFaceId;
     std::uint32_t generation = 0U;
@@ -106,7 +106,7 @@ constexpr bool operator!=(
     return !(left == right);
 }
 
-struct FontMetrics final {
+struct FontMetrics  {
     float unitsPerEm = 0.0F;
     float ascent = 0.0F;
     float descent = 0.0F;
@@ -115,13 +115,13 @@ struct FontMetrics final {
     float underlineThickness = 0.0F;
 };
 
-struct FontFace final {
+struct FontFace  {
     FontFaceHandle handle;
     FontMetrics metrics;
     bool hasColorGlyphs = false;
 };
 
-struct FontQuery final {
+struct FontQuery  {
     const Typeface* typeface = nullptr;
     std::uint32_t codePoint = 0U;
     bool requireCodePoint = false;
@@ -146,7 +146,7 @@ enum class Script : std::uint16_t {
     Hebrew
 };
 
-struct ShapedGlyph final {
+struct ShapedGlyph  {
     GlyphId glyph = InvalidGlyphId;
     std::uint32_t cluster = 0U;
     float advanceX = 0.0F;
@@ -154,7 +154,7 @@ struct ShapedGlyph final {
     float offsetY = 0.0F;
 };
 
-struct ShapedTextRun final {
+struct ShapedTextRun  {
     explicit ShapedTextRun(
         Base::IAllocator* allocator = nullptr) noexcept
         : glyphs(allocator) {}
@@ -165,7 +165,7 @@ struct ShapedTextRun final {
     Base::Vector<ShapedGlyph> glyphs;
 };
 
-struct GlyphMetrics final {
+struct GlyphMetrics  {
     float width = 0.0F;
     float height = 0.0F;
     float bearingX = 0.0F;
@@ -177,7 +177,7 @@ enum class GlyphPixelFormat : std::uint8_t {
     Gray8 = 0U
 };
 
-struct GlyphBitmap final {
+struct GlyphBitmap  {
     explicit GlyphBitmap(
         Base::IAllocator* allocator = nullptr) noexcept
         : pixels(allocator) {}
@@ -191,7 +191,7 @@ struct GlyphBitmap final {
     Base::Vector<std::uint8_t> pixels;
 };
 
-struct OutlinePoint final {
+struct OutlinePoint  {
     float x = 0.0F;
     float y = 0.0F;
 };
@@ -204,13 +204,13 @@ enum class OutlineCommandKind : std::uint8_t {
     Close
 };
 
-struct OutlineCommand final {
+struct OutlineCommand  {
     OutlineCommandKind kind = OutlineCommandKind::MoveTo;
     OutlinePoint points[3]{};
     std::uint8_t pointCount = 0U;
 };
 
-struct GlyphOutline final {
+struct GlyphOutline  {
     explicit GlyphOutline(
         Base::IAllocator* allocator = nullptr) noexcept
         : commands(allocator) {}

@@ -15,7 +15,7 @@ using namespace ::Aero::Render;
 
 namespace {
 
-struct ImageBrushGeometry final {
+struct ImageBrushGeometry {
     Rect destination;
     Rect sourceUv;
 };

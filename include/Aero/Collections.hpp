@@ -7,6 +7,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyProperty.hpp>
+#include <Aero/Events/ControlEventArgs.hpp>
 #include <Aero/Value.hpp>
 
 #include <cstdint>
@@ -16,32 +17,13 @@ namespace Aero::Collections {
 // The collection contract deliberately lives below Controls: authored
 // resources and view-model objects can be an ItemsSource without depending on
 // a particular control or visual host.
-enum class ItemsChangeAction : std::uint8_t {
-    Add = 0U,
-    Remove,
-    Replace,
-    Move,
-    Reset,
-};
-
-struct ItemsChangedEvent final {
-    ItemsChangeAction action = ItemsChangeAction::Reset;
-    std::uint32_t oldIndex = UINT32_MAX;
-    std::uint32_t newIndex = UINT32_MAX;
-    std::uint32_t oldCount = 0U;
-    std::uint32_t newCount = 0U;
-};
-
-using ItemsChangedHandler =
-    Base::Delegate<void(const ItemsChangedEvent&)>;
-
 class AERO_API IItemsSource {
 public:
     virtual ~IItemsSource() = default;
     virtual std::uint32_t GetCount() const noexcept = 0;
     virtual Base::Ref<Base::Object> GetItem(
         std::uint32_t index) const noexcept = 0;
-    virtual Base::Result<void> TryAddItemsChanged(
+    virtual void AddItemsChanged(
         const ItemsChangedHandler& handler) noexcept = 0;
     virtual bool RemoveItemsChanged(
         const ItemsChangedHandler& handler) noexcept = 0;
@@ -50,7 +32,7 @@ public:
 // Reference-counted observable collection used by view models and bindings.
 // It deliberately lives in Collections rather than Controls so a data source
 // does not acquire a dependency on visual controls or item containers.
-class AERO_API ObservableCollection final :
+class AERO_API ObservableCollection :
     public Base::Object,
     public IItemsSource {
     AERO_DECLARE_TYPE(ObservableCollection, Base::Object)
@@ -67,11 +49,11 @@ public:
         std::uint32_t index) const noexcept override {
         return index < items_.Size() ? items_[index] : Base::Ref<Base::Object>{};
     }
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         Base::Ref<Base::Object> item) noexcept {
-        return TryInsert(items_.Size(), std::move(item));
+        return Insert(items_.Size(), std::move(item));
     }
-    Base::Result<void> TryInsert(
+    Base::Result<void> Insert(
         std::uint32_t index,
         Base::Ref<Base::Object> item) noexcept {
         if (!item || index > items_.Size()) {
@@ -80,10 +62,10 @@ public:
                 "ObservableCollection insert is invalid");
         }
         Base::Result<void> reserved =
-            items_.TryReserve(items_.Size() + 1U);
+            items_.Reserve(items_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
         Base::Ref<Base::Object> placeholder;
-        Base::Result<void> pushed = items_.TryPushBack(std::move(placeholder));
+        Base::Result<void> pushed = items_.PushBack(std::move(placeholder));
         if (!pushed) return pushed.GetStatus();
         for (std::uint32_t current = items_.Size() - 1U;
              current > index; --current) {
@@ -98,7 +80,7 @@ public:
             1U});
         return {};
     }
-    Base::Result<Base::Ref<Base::Object>> TryRemoveAt(
+    Base::Result<Base::Ref<Base::Object>> RemoveAt(
         std::uint32_t index) noexcept {
         if (index >= items_.Size()) {
             return Base::Status::Failure(
@@ -129,9 +111,9 @@ public:
             oldCount,
             0U});
     }
-    Base::Result<void> TryAddItemsChanged(
+    void AddItemsChanged(
         const ItemsChangedHandler& handler) noexcept override {
-        return changed_.TryAdd(handler);
+        changed_.Add(handler);
     }
     bool RemoveItemsChanged(
         const ItemsChangedHandler& handler) noexcept override {

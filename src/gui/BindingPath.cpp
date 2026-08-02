@@ -55,7 +55,7 @@ Base::Status RecordCompileError(
         error->segmentIndex = segmentIndex;
         error->inputType = inputType;
         error->segment.Clear();
-        (void)error->segment.TryAssign(segment);
+        (void)error->segment.Assign(segment);
         error->status = status;
     }
     return status;
@@ -226,7 +226,7 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
         }
 
         Base::Result<void> appended =
-            plan.segments_.TryPushBack(segment);
+            plan.segments_.PushBack(segment);
         if (!appended) return appended.GetStatus();
         currentType = segment.outputType;
         ++segmentIndex;

@@ -21,7 +21,7 @@
 
 namespace Aero::Internal {
 
-class ImageControlPrivate final {
+class ImageControlPrivate {
 public:
     static Base::Result<void> SetRuntimeImage(
         Controls::Image& image,
@@ -40,7 +40,7 @@ public:
 
 namespace {
 
-struct StbiStreamContext final {
+struct StbiStreamContext {
     Base::Stream* stream = nullptr;
     bool failed = false;
     bool eof = false;
@@ -124,7 +124,7 @@ Base::Result<Base::ResourceUri> ResolveImageUri(
 
 } // namespace
 
-struct ImageCache::Record final {
+struct ImageCache::Record {
     Base::ResourceUri resolvedUri;
     Base::Vector<std::uint8_t> pixels;
     Render::RenderImageId renderImage =
@@ -154,7 +154,8 @@ ImageCache::~ImageCache() noexcept {
 Base::Result<bool> ImageCache::Synchronize(
     Aero::Visual* root,
     const Base::ResourceUri& documentUri,
-    Markup::SourceProviders& sources,
+    Markup::XamlProviderRegistry& sources,
+    Integration::TextureProvider* textureProvider,
     ImageResources* backend,
     bool backendGenerationChanged) noexcept {
     ++epoch_;
@@ -173,7 +174,7 @@ Base::Result<bool> ImageCache::Synchronize(
         allocator_);
     if (root != nullptr) {
         Base::Result<void> queued =
-            pending.TryPushBack(root);
+            pending.PushBack(root);
         if (!queued) return queued.GetStatus();
     }
     while (!pending.Empty()) {
@@ -184,7 +185,7 @@ Base::Result<bool> ImageCache::Synchronize(
         for (Aero::Visual* child :
              Aero::Internal::ElementPrivate::VisualChildren(*visual)) {
             Base::Result<void> queued =
-                pending.TryPushBack(child);
+                pending.PushBack(child);
             if (!queued) return queued.GetStatus();
         }
         Controls::Image* imageControl = nullptr;
@@ -277,7 +278,7 @@ Base::Result<bool> ImageCache::Synchronize(
             created.resolvedUri =
                 resolved.Value();
             Base::Result<void> stored =
-                records_.TryPushBack(
+                records_.PushBack(
                     std::move(created));
             if (!stored) return stored.GetStatus();
             record =
@@ -305,24 +306,31 @@ Base::Result<bool> ImageCache::Synchronize(
             record->width = 0U;
             record->height = 0U;
 
-            Base::Result<
-                Markup::SourceProviderResolution>
-                provider =
-                    sources.ResolveDetailed(
+            Base::Ref<Base::Stream> imageStream;
+            if (textureProvider != nullptr) {
+                Base::Result<Integration::TextureResourceInfo>
+                    loadedTexture = textureProvider->Open(
                         resolved.Value());
-            if (!provider ||
-                provider.Value().provider ==
-                    nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "Image SourceProvider was not found");
+                if (!loadedTexture) return loadedTexture.GetStatus();
+                imageStream = std::move(
+                    loadedTexture).Value().source.stream;
+            } else {
+                Base::Result<Markup::XamlProviderResolution>
+                    provider = sources.ResolveDetailed(
+                        resolved.Value());
+                if (!provider ||
+                    provider.Value().provider == nullptr) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::NotFound,
+                        "Image XAML provider was not found");
+                }
+                Base::Result<Integration::StreamResourceInfo>
+                    loaded = provider.Value().provider->Open(
+                        resolved.Value());
+                if (!loaded) return loaded.GetStatus();
+                imageStream = std::move(loaded).Value().stream;
             }
-            Base::Result<Integration::StreamResourceInfo>
-                loaded =
-                    provider.Value().provider->Open(
-                        resolved.Value());
-            if (!loaded) return loaded.GetStatus();
-            if (!loaded.Value().stream) {
+            if (!imageStream) {
                 return InvalidImage(
                     "Image source stream is empty");
             }
@@ -330,7 +338,7 @@ Base::Result<bool> ImageCache::Synchronize(
             int height = 0;
             int channels = 0;
             StbiStreamContext streamContext{
-                loaded.Value().stream.Get(), false, false};
+                imageStream.Get(), false, false};
             const stbi_io_callbacks callbacks{
                 &ReadStbiStream,
                 &SkipStbiStream,
@@ -364,7 +372,7 @@ Base::Result<bool> ImageCache::Synchronize(
                     static_cast<std::uint64_t>(
                         height) * 4U);
             Base::Result<void> resized =
-                record->pixels.TryResize(
+                record->pixels.Resize(
                     byteCount);
             if (!resized) {
                 stbi_image_free(decoded);

@@ -17,7 +17,7 @@
 #include <type_traits>
 
 namespace Aero::Markup {
-struct XmlTokenizerLimits final {
+struct XmlTokenizerLimits {
     std::uint64_t maxInputBytes =
         16ULL * 1024ULL * 1024ULL;
     std::uint32_t maxDepth = 256U;
@@ -27,7 +27,7 @@ struct XmlTokenizerLimits final {
 };
 
 
-struct CompiledDocumentLimits final {
+struct CompiledDocumentLimits {
     std::uint32_t maxNodes = 100000U;
     std::uint32_t maxStringBytes = 16U * 1024U * 1024U;
     std::uint32_t maxDependencies = 4096U;
@@ -38,13 +38,13 @@ struct CompiledDocumentLimits final {
 
 namespace Aero::Markup {
 
-struct XamlLoadPolicy final {
+struct XamlLoadPolicy {
     bool allowNetwork = false;
     bool allowFile = true;
     bool allowPackApplication = true;
 };
 
-struct XamlLoadLimits final {
+struct XamlLoadLimits {
     XmlTokenizerLimits xml;
     CompiledDocumentLimits compiled;
     std::uint64_t maxSourceBytes =
@@ -54,7 +54,7 @@ struct XamlLoadLimits final {
     std::uint32_t maxDependencyDepth = 64U;
 };
 
-struct XamlReaderSettings final {
+struct XamlReaderSettings {
     XamlLoadPolicy policy;
     XamlLoadLimits limits;
 };
@@ -73,7 +73,7 @@ LanguageNamespaceUri() noexcept {
         "http://schemas.microsoft.com/winfx/2006/xaml");
 }
 
-class AERO_API NamespaceScope final {
+class AERO_API NamespaceScope {
 public:
     using LookupCallback = Base::Result<Base::StringView> (*)(
         void* context,
@@ -99,7 +99,7 @@ private:
     void* context_ = nullptr;
 };
 
-class AERO_API ResourceResolver final {
+class AERO_API ResourceResolver {
 public:
     using LookupCallback =
         Base::Result<Aero::ResourceValue> (*)(
@@ -141,7 +141,7 @@ class XamlDocumentPrivate;
 // independently from a View until it is mounted or discarded.
 namespace Markup {
 
-class AERO_API XamlDocument final {
+class AERO_API XamlDocument {
 public:
     XamlDocument() noexcept = default;
     ~XamlDocument() noexcept;
@@ -202,7 +202,7 @@ enum class ResourceLayer : std::uint8_t;
 enum class ResourceLoadMode : std::uint8_t;
 namespace Diagnostics { class IDiagnosticSink; }
 namespace Controls { class ContentControl; }
-namespace Integration { class ISourceProvider; }
+namespace Integration { class XamlProvider; }
 }
 
 namespace Aero::Markup {
@@ -210,7 +210,7 @@ namespace Aero::Markup {
 // XAML and resource facade bound to a View. A reader uses the View's frozen
 // schema, allocator and source providers while keeping loading concerns out of
 // the frame/input/render API.
-class AERO_API XamlReader final {
+class AERO_API XamlReader {
 public:
     explicit XamlReader(Aero::View& view) noexcept : view_(&view) {}
 
@@ -241,8 +241,8 @@ public:
     Base::Result<XamlDocument> LoadCompiled(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri = {}) noexcept;
-    Base::Result<void> RegisterSourceProvider(
-        Integration::ISourceProvider& provider,
+    Base::Result<void> RegisterXamlProvider(
+        Integration::XamlProvider& provider,
         Base::StringView scheme = {},
         Base::StringView assembly = {}) noexcept;
 

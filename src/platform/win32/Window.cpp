@@ -107,7 +107,7 @@ Base::Result<void> ConvertWindowTitle(
             Base::ErrorCode::InvalidUtf8,
             "Win32 window title is not valid UTF-8");
     }
-    Base::Result<void> resized = output.TryResize(
+    Base::Result<void> resized = output.Resize(
         static_cast<std::uint32_t>(required) + 1U);
     if (!resized) {
         return resized.GetStatus();
@@ -131,7 +131,7 @@ Base::Result<void> ConvertWindowTitle(
 
 } // namespace
 
-struct Win32Window::Impl final {
+struct Win32Window::Impl  {
     explicit Impl(Base::IAllocator& allocator) noexcept
         : events(&allocator) {}
 
@@ -147,7 +147,7 @@ struct Win32Window::Impl final {
     std::uint16_t pendingHighSurrogate = 0U;
 
     void Push(const WindowEvent& event) noexcept {
-        Base::Result<void> pushed = events.TryPushBack(event);
+        Base::Result<void> pushed = events.PushBack(event);
         static_cast<void>(pushed);
     }
 

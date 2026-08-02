@@ -105,7 +105,7 @@ RendererShaderSet MakeD3D11RendererShaderSet() noexcept {
     return shaders;
 }
 
-struct D3D11Renderer::Impl final {
+struct D3D11Renderer::Impl {
     Impl(
         Graphics::GraphicsDevice& device,
         std::uint64_t generation,

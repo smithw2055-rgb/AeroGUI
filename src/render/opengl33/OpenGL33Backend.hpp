@@ -12,12 +12,12 @@
 
 namespace Aero::Graphics {
 
-struct OpenGL33BackendOptions final {
+struct OpenGL33BackendOptions  {
     GlEmbeddingMode embeddingMode = GlEmbeddingMode::HostReset;
     bool checkErrors = false;
 };
 
-struct OpenGL33ExternalRenderTargetDescriptor final {
+struct OpenGL33ExternalRenderTargetDescriptor  {
     GlUInt framebuffer = 0U;
     GlUInt colorTexture = 0U;
     GlUInt depthStencilTexture = 0U;
@@ -27,7 +27,7 @@ struct OpenGL33ExternalRenderTargetDescriptor final {
     bool defaultFramebuffer = false;
 };
 
-struct OpenGL33ExternalTextureDescriptor final {
+struct OpenGL33ExternalTextureDescriptor  {
     GlUInt texture = 0U;
     TextureResourceDescriptor descriptor;
     GlContextGeneration contextGeneration = 0U;
@@ -38,7 +38,7 @@ AERO_API Base::Result<void>
 ValidateOpenGL33PipelineDescriptor(
     const PipelineDescriptor& descriptor) noexcept;
 
-class AERO_API OpenGL33GraphicsBackend final
+class AERO_API OpenGL33GraphicsBackend
     : public GraphicsBackend {
 public:
     OpenGL33GraphicsBackend(

@@ -10,7 +10,7 @@ namespace Aero::Internal {
 // source-only header instead of leaking a Controls::Detail namespace.
 using namespace ::Aero::Controls;
 
-struct TemplatePart final {
+struct TemplatePart {
     Base::String name;
     Base::Ref<Base::Object> owner;
     Visual* visual = nullptr;
@@ -19,7 +19,7 @@ struct TemplatePart final {
     Aero::Internal::ElementAttachment mount;
 };
 
-struct TemplateContentProjection final {
+struct TemplateContentProjection {
     ContentControl* owner = nullptr;
     ContentPresenter* presenter = nullptr;
     ContentControl* contentHost = nullptr;
@@ -30,7 +30,7 @@ struct TemplateContentProjection final {
     bool detachedOriginalVisual = false;
 };
 
-struct TemplateBuildState final {
+struct TemplateBuildState {
     TemplateBuildState(ElementTree& tree, Control& parent,
         Aero::Internal::LayoutEngine* layout,
         Aero::Internal::RenderTree* renderer) noexcept

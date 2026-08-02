@@ -6,14 +6,14 @@ namespace Aero::Text {
 
 using GlyphAtlasFence = std::uint64_t;
 
-struct GlyphAtlasConfig final {
+struct GlyphAtlasConfig  {
     std::uint32_t pageWidth = 1024U;
     std::uint32_t pageHeight = 1024U;
     std::uint32_t maxPages = 4U;
     std::uint32_t padding = 1U;
 };
 
-struct GlyphAtlasKey final {
+struct GlyphAtlasKey  {
     FontFaceHandle face;
     GlyphId glyph = InvalidGlyphId;
     std::uint32_t pixelSizeBits = 0U;
@@ -38,7 +38,7 @@ constexpr bool operator!=(
 AERO_API GlyphAtlasKey MakeGlyphAtlasKey(
     const GlyphRequest& request) noexcept;
 
-struct GlyphAtlasPlacement final {
+struct GlyphAtlasPlacement  {
     GlyphAtlasKey key;
     std::uint32_t deviceGeneration = 0U;
     std::uint32_t page = 0U;
@@ -52,7 +52,7 @@ struct GlyphAtlasPlacement final {
     float advanceX = 0.0F;
 };
 
-struct GlyphAtlasUpload final {
+struct GlyphAtlasUpload  {
     explicit GlyphAtlasUpload(
         Base::IAllocator* allocator = nullptr) noexcept
         : pixels(allocator) {}
@@ -68,7 +68,7 @@ struct GlyphAtlasUpload final {
     Base::Vector<std::uint8_t> pixels;
 };
 
-class AERO_API GlyphAtlas final {
+class AERO_API GlyphAtlas  {
 public:
     explicit GlyphAtlas(
         Base::IAllocator* allocator = nullptr) noexcept;

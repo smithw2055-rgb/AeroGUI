@@ -7,33 +7,33 @@
 
 namespace Aero::Base {
 
-struct Point final { double x = 0.0; double y = 0.0; };
-struct Size final { double width = 0.0; double height = 0.0; };
-struct Rect final {
+struct Point  { double x = 0.0; double y = 0.0; };
+struct Size  { double width = 0.0; double height = 0.0; };
+struct Rect  {
     double x = 0.0;
     double y = 0.0;
     double width = 0.0;
     double height = 0.0;
 };
-struct Thickness final {
+struct Thickness {
     double left = 0.0;
     double top = 0.0;
     double right = 0.0;
     double bottom = 0.0;
 };
-struct CornerRadius final {
+struct CornerRadius {
     double topLeft = 0.0;
     double topRight = 0.0;
     double bottomRight = 0.0;
     double bottomLeft = 0.0;
 };
-struct Color final {
+struct Color  {
     float red = 0.0F;
     float green = 0.0F;
     float blue = 0.0F;
     float alpha = 1.0F;
 };
-struct Transform2D final {
+struct Transform2D  {
     double m11 = 1.0;
     double m12 = 0.0;
     double m21 = 0.0;

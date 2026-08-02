@@ -15,13 +15,13 @@ namespace Aero::Base {
 
 template<class K, class V, class Hash = DefaultHash<K>,
     class Equal = DefaultEqual<K>>
-class HashMap final {
+class HashMap  {
 public:
     using KeyType = K;
     using MappedType = V;
     using SizeType = std::uint32_t;
 
-    class Entry final {
+    class Entry  {
     public:
         const K& Key() const noexcept { return key_; }
         V& Value() noexcept { return value_; }
@@ -41,7 +41,7 @@ public:
         V value_;
     };
 
-    struct InsertResult final {
+    struct InsertResult  {
         Entry* entry = nullptr;
         bool inserted = false;
     };
@@ -53,7 +53,7 @@ private:
         Tombstone
     };
 
-    struct Bucket final {
+    struct Bucket  {
         BucketState state = BucketState::Empty;
         alignas(Entry) unsigned char storage[sizeof(Entry)];
 
@@ -68,7 +68,7 @@ private:
 
 public:
     template<bool IsConst>
-    class IteratorBase final {
+    class IteratorBase  {
     private:
         using MapType = typename std::conditional<IsConst,
             const HashMap, HashMap>::type;
@@ -189,7 +189,7 @@ public:
                 other.capacity_ = 0U;
             } else {
                 HashMap temporary(allocator_, other.seed_, other.hash_, other.equal_);
-                const Result<void> reserveResult = temporary.TryReserve(other.size_);
+                const Result<void> reserveResult = temporary.Reserve(other.size_);
                 if (!reserveResult) {
                     ReportOutOfMemory(BucketBytesForCapacity(
                         RequiredCapacityFor(other.size_)), alignof(Bucket),
@@ -199,7 +199,7 @@ public:
                     Bucket& bucket = other.buckets_[index];
                     if (bucket.state == BucketState::Occupied) {
                         Entry* entry = bucket.GetEntry();
-                        const Result<InsertResult> insertResult = temporary.TryInsert(
+                        const Result<InsertResult> insertResult = temporary.Insert(
                             std::move_if_noexcept(entry->key_),
                             std::move_if_noexcept(entry->value_));
                         if (!insertResult) {
@@ -246,7 +246,7 @@ public:
         used_ = 0U;
     }
 
-    Result<void> TryReserve(SizeType expectedElements) noexcept {
+    Result<void> Reserve(SizeType expectedElements) noexcept {
         const SizeType requiredCapacity = RequiredCapacityFor(expectedElements);
         if (expectedElements > 0U && requiredCapacity == 0U) {
             return Status::Failure(ErrorCode::OutOfRange,
@@ -255,7 +255,7 @@ public:
         if (requiredCapacity <= capacity_) {
             return {};
         }
-        return TryRehash(requiredCapacity);
+        return Rehash(requiredCapacity);
     }
 
     V* Find(const K& key) noexcept {
@@ -286,37 +286,37 @@ public:
         return FindEntry(key) != nullptr;
     }
 
-    Result<InsertResult> TryInsert(
+    Result<InsertResult> Insert(
         const K& key, const V& value) noexcept {
-        return TryInsertImpl(key, value);
+        return InsertImpl(key, value);
     }
 
-    Result<InsertResult> TryInsert(
+    Result<InsertResult> Insert(
         K&& key, V&& value) noexcept {
-        return TryInsertImpl(std::move(key), std::move(value));
+        return InsertImpl(std::move(key), std::move(value));
     }
 
-    Result<V*> TrySet(
+    Result<V*> Set(
         const K& key, const V& value) noexcept {
         Entry* existing = FindEntry(key);
         if (existing != nullptr) {
             existing->value_ = value;
             return &existing->value_;
         }
-        Result<InsertResult> inserted = TryInsert(key, value);
+        Result<InsertResult> inserted = Insert(key, value);
         if (!inserted) {
             return inserted.GetStatus();
         }
         return &inserted.Value().entry->value_;
     }
 
-    Result<V*> TrySet(K&& key, V&& value) noexcept {
+    Result<V*> Set(K&& key, V&& value) noexcept {
         Entry* existing = FindEntry(key);
         if (existing != nullptr) {
             existing->value_ = std::move(value);
             return &existing->value_;
         }
-        Result<InsertResult> inserted = TryInsert(
+        Result<InsertResult> inserted = Insert(
             std::move(key), std::move(value));
         if (!inserted) {
             return inserted.GetStatus();
@@ -354,7 +354,7 @@ private:
     static constexpr std::uint64_t LoadDenominator = 10U;
     static constexpr SizeType InvalidIndex = UINT32_MAX;
 
-    struct ProbeResult final {
+    struct ProbeResult  {
         bool found = false;
         SizeType index = InvalidIndex;
     };
@@ -373,7 +373,7 @@ private:
     }
 
     template<class KeyArg, class ValueArg>
-    Result<InsertResult> TryInsertImpl(
+    Result<InsertResult> InsertImpl(
         KeyArg&& key, ValueArg&& value) noexcept {
         HashCode hash = ComputeHash(key);
         if (capacity_ != 0U) {
@@ -405,7 +405,7 @@ private:
 
     Result<void> EnsureInsertCapacity() noexcept {
         if (capacity_ == 0U) {
-            return TryRehash(MinimumCapacity);
+            return Rehash(MinimumCapacity);
         }
 
         const std::uint64_t projectedUsed =
@@ -417,14 +417,14 @@ private:
 
         const SizeType tombstones = used_ - size_;
         if (tombstones > size_ / 2U) {
-            return TryRehash(capacity_);
+            return Rehash(capacity_);
         }
 
         if (capacity_ >= MaximumCapacity) {
             return Status::Failure(ErrorCode::OutOfRange,
                 "HashMap capacity limit reached");
         }
-        return TryRehash(capacity_ * 2U);
+        return Rehash(capacity_ * 2U);
     }
 
     ProbeResult Probe(
@@ -456,7 +456,7 @@ private:
         return {false, firstTombstone};
     }
 
-    Result<void> TryRehash(SizeType newCapacity) noexcept {
+    Result<void> Rehash(SizeType newCapacity) noexcept {
         if (newCapacity < MinimumCapacity) {
             newCapacity = MinimumCapacity;
         }
@@ -545,14 +545,14 @@ private:
     }
 
     void CopyFromOrAbort(const HashMap& other) {
-        const Result<void> reserveResult = TryReserve(other.size_);
+        const Result<void> reserveResult = Reserve(other.size_);
         if (!reserveResult) {
             ReportOutOfMemory(BucketBytesForCapacity(
                 RequiredCapacityFor(other.size_)), alignof(Bucket),
                 MemoryTag::Container);
         }
         for (const Entry& entry : other) {
-            const Result<InsertResult> insertResult = TryInsert(
+            const Result<InsertResult> insertResult = Insert(
                 entry.key_, entry.value_);
             if (!insertResult) {
                 ReportOutOfMemory(BucketBytesForCapacity(

@@ -33,7 +33,9 @@ namespace Internal { struct ViewData; class DesktopHost; }
 namespace Markup { class XamlReader; class XamlDocument; }
 
 namespace Integration {
-class ISourceProvider;
+class XamlProvider;
+class TextureProvider;
+class FontProvider;
 class RenderDevice;
 class ReloadCoordinator;
 struct ViewOptions;
@@ -42,7 +44,7 @@ struct ViewOptions;
 // Process-level GUI composition used by embedded hosts. Application owns this
 // object automatically for desktop programs; engine integrations create one,
 // register optional modules, initialize it once and create one or more Views.
-class AERO_API Gui final {
+class AERO_API Gui {
 public:
     explicit Gui(Base::IAllocator* allocator = nullptr) noexcept;
     ~Gui() noexcept;
@@ -72,8 +74,8 @@ private:
 // Host-driven retained-mode view. The public surface is intentionally limited
 // to content, size, frame update, input and RenderDevice attachment. XAML,
 // resource-layer and fragment operations live on Markup::XamlReader.
-class AERO_API View final : public Base::Object {
-    struct ConstructionToken final {};
+class AERO_API View : public Base::Object {
+    struct ConstructionToken {};
     struct FrameResult;
 
 public:
@@ -110,6 +112,15 @@ public:
         Base::Ref<Integration::RenderDevice> device,
         bool automaticAnimationClock = true) noexcept;
 
+    Base::Result<void> AddXamlProvider(
+        Integration::XamlProvider& provider,
+        Base::StringView scheme = {},
+        Base::StringView assembly = {}) noexcept;
+    Base::Result<void> AddTextureProvider(
+        Integration::TextureProvider& provider) noexcept;
+    Base::Result<void> AddFontProvider(
+        Integration::FontProvider& provider) noexcept;
+
 private:
     friend class Gui;
     friend class Aero::Markup::XamlReader;
@@ -138,11 +149,6 @@ private:
     Base::Result<Markup::XamlDocument> LoadCompiledDocument(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri = {}) noexcept;
-    Base::Result<void> AddSourceProvider(
-        Integration::ISourceProvider& provider,
-        Base::StringView scheme = {},
-        Base::StringView assembly = {}) noexcept;
-
     Base::Result<void> MountContent(
         Controls::ContentControl& host,
         Markup::XamlDocument&& document) noexcept;

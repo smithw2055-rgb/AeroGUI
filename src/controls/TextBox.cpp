@@ -28,7 +28,7 @@ public:
     virtual bool AllowsCut() const noexcept = 0;
 };
 
-class PlainTextDisplayPolicy final : public TextDisplayPolicy {
+class PlainTextDisplayPolicy : public TextDisplayPolicy {
 public:
     Base::Result<void> BuildDisplayText(
         const ::Aero::Internal::EditableTextModel& model,
@@ -39,12 +39,12 @@ public:
     bool AllowsCut() const noexcept override { return true; }
 };
 
-class PasswordTextDisplayPolicy final : public TextDisplayPolicy {
+class PasswordTextDisplayPolicy : public TextDisplayPolicy {
 public:
     explicit PasswordTextDisplayPolicy(
         Base::IAllocator* allocator = nullptr) noexcept
         : mask_(allocator) {
-        static_cast<void>(mask_.TryAssign(
+        static_cast<void>(mask_.Assign(
             Base::StringView(u8"\u2022")));
     }
 
@@ -56,7 +56,7 @@ public:
                 Base::ErrorCode::InvalidArgument,
                 "Password mask must be one grapheme cluster");
         }
-        return mask_.TryAssign(value);
+        return mask_.Assign(value);
     }
 
     Base::StringView GetMask() const noexcept { return mask_.View(); }
@@ -72,7 +72,7 @@ public:
                 "Password display text exceeds capacity");
         }
         Base::Result<void> reserved =
-            output.TryReserve(mask_.SizeBytes() * count);
+            output.Reserve(mask_.SizeBytes() * count);
         if (!reserved) return reserved;
         Base::String source;
         Base::Result<void> snapshot = model.Snapshot(source);
@@ -88,7 +88,7 @@ public:
                 begin.Value(), end.Value() - begin.Value());
             const bool newline = !cluster.Empty() &&
                 (cluster[0] == '\r' || cluster[0] == '\n');
-            Base::Result<void> appended = output.TryAppend(
+            Base::Result<void> appended = output.Append(
                 newline ? cluster : mask_.View());
             if (!appended) return appended;
         }
@@ -210,7 +210,7 @@ TextBox::TextBox() noexcept
           this,
           &TextBox::OnTextPropertyChanged) {
     displayPolicy_ = plainPolicy_;
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         TextProperty, textChangedHandler_));
 }
 
@@ -269,7 +269,7 @@ void PasswordBox::SetPassword(
     }
     Base::String nextPassword;
     Base::Result<void> copied =
-        nextPassword.TryAssign(value);
+        nextPassword.Assign(value);
     if (!copied) return;
     Base::Result<void> modelLimit =
         validation_->SetMaximumLength(
@@ -445,7 +445,7 @@ PasswordBox::SynchronizePasswordFromEditor()
     }
     Base::String next;
     Base::Result<void> copied =
-        next.TryAssign(editor_.GetText());
+        next.Assign(editor_.GetText());
     if (!copied) return copied.GetStatus();
     Base::Result<void> model =
         validation_->SetMaximumLength(
@@ -888,7 +888,7 @@ Base::Result<void> TextBox::UpdateComposition(
         return reset;
     }
     Base::Result<void> stored =
-        compositionText_.TryAssign(
+        compositionText_.Assign(
             filtered.View());
     if (!stored) {
         return stored;
@@ -1058,7 +1058,7 @@ Base::Result<void> TextBox::SanitizeInput(
     Base::StringView input,
     Base::String& output) const noexcept {
     if (GetAcceptsReturn()) {
-        return output.TryAssign(input);
+        return output.Assign(input);
     }
     output.Clear();
     std::uint32_t start = 0U;
@@ -1070,7 +1070,7 @@ Base::Result<void> TextBox::SanitizeInput(
         }
         if (index > start) {
             Base::Result<void> appended =
-                output.TryAppendUnchecked(
+                output.AppendUnchecked(
                     input.Substr(
                         start, index - start));
             if (!appended) {
@@ -1080,7 +1080,7 @@ Base::Result<void> TextBox::SanitizeInput(
         start = index + 1U;
     }
     if (start < input.SizeBytes()) {
-        return output.TryAppendUnchecked(
+        return output.AppendUnchecked(
             input.Substr(start));
     }
     return {};
@@ -1120,7 +1120,7 @@ Base::Result<void> TextBox::ConstrainManualInput(
     }
     Base::String truncated;
     Base::Result<void> copied =
-        truncated.TryAssign(
+        truncated.Assign(
             input.View().Substr(0U, end.Value()));
     if (!copied) {
         return copied;
@@ -1223,7 +1223,7 @@ Base::Result<void> TextBox::SelectedText(
     if (!copied) {
         return copied;
     }
-    return output.TryAssign(
+    return output.Assign(
         snapshot.View().Substr(
             begin.Value(),
             end.Value() - begin.Value()));
@@ -1439,7 +1439,7 @@ TextBox::RebuildCaretStops() noexcept {
     const std::uint32_t graphemes =
         active.GraphemeCount();
     Base::Result<void> capacity =
-        caretStops_.TryReserve(
+        caretStops_.Reserve(
             graphemes + 1U);
     if (!capacity) {
         return capacity;
@@ -1500,7 +1500,7 @@ TextBox::RebuildCaretStops() noexcept {
             std::max(1.0, GetDpiScale());
 
     Base::Result<void> initial =
-        caretStops_.TryResize(
+        caretStops_.Resize(
             graphemes + 1U);
     if (!initial) {
         return initial;
@@ -1583,7 +1583,7 @@ Size TextBox::MeasureOverride(
         displayText_.Empty() &&
         !GetPlaceholder().Empty();
     if (showingPlaceholder_) {
-        display = displayText_.TryAssign(
+        display = displayText_.Assign(
             GetPlaceholder());
         if (!display) {
             return Size{};
@@ -2302,70 +2302,64 @@ TextEditBehavior::Attach(
     Record record;
     record.handle = Aero::Internal::ElementPrivate::Handle(textBox);
     Base::Result<void> appended =
-        records_.TryPushBack(record);
+        records_.PushBack(record);
     if (!appended) {
         return appended;
     }
     if (!captureSubscribed_) {
-        Base::Result<void> capture =
-            input_->TryAddPointerCaptureChanged(
-                captureChangedHandler_);
-        if (!capture) {
-            records_.PopBack();
-            return capture;
-        }
+        input_->AddPointerCaptureChanged(captureChangedHandler_);
         captureSubscribed_ = true;
     }
     Base::Result<void> result =
-        textBox.TryAddHandler(
+        textBox.AddHandlerChecked(
             UIElement::MouseDownEvent,
             mouseDownHandler_);
     if (result) {
-        result = textBox.TryAddHandler(
+        result = textBox.AddHandlerChecked(
             UIElement::MouseMoveEvent,
             mouseMoveHandler_);
     }
     if (result) {
-        result = textBox.TryAddHandler(
+        result = textBox.AddHandlerChecked(
             UIElement::MouseUpEvent,
             mouseUpHandler_);
     }
     if (result) {
-        result = textBox.TryAddHandler(
+        result = textBox.AddHandlerChecked(
             UIElement::KeyDownEvent,
             keyDownHandler_);
     }
     if (result) {
-        result = textBox.TryAddHandler(
+        result = textBox.AddHandlerChecked(
             UIElement::TextInputEvent,
             textInputHandler_);
     }
     if (result) {
-        result = textBox.TryAddHandler(
+        result = textBox.AddHandlerChecked(
             UIElement::LostKeyboardFocusEvent,
             focusChangedHandler_);
     }
     if (result) {
         result =
-            textBox.TryAddValueChangedHandler(
+            textBox.AddValueChangedHandlerChecked(
                 TextBox::TextProperty,
                 propertyChangedHandler_);
     }
     if (result) {
         result =
-            textBox.TryAddValueChangedHandler(
+            textBox.AddValueChangedHandlerChecked(
                 TextBox::IsReadOnlyProperty,
                 propertyChangedHandler_);
     }
     if (result) {
         result =
-            textBox.TryAddValueChangedHandler(
+            textBox.AddValueChangedHandlerChecked(
                 TextBox::MaxLengthProperty,
                 propertyChangedHandler_);
     }
     if (result) {
         result =
-            textBox.TryAddValueChangedHandler(
+            textBox.AddValueChangedHandlerChecked(
                 UIElement::IsEnabledProperty,
                 propertyChangedHandler_);
     }
@@ -2412,52 +2406,46 @@ TextEditBehavior::Attach(
     record.handle = Aero::Internal::ElementPrivate::Handle(passwordBox);
     record.password = true;
     Base::Result<void> appended =
-        records_.TryPushBack(record);
+        records_.PushBack(record);
     if (!appended) return appended.GetStatus();
     if (!captureSubscribed_) {
-        Base::Result<void> capture =
-            input_->TryAddPointerCaptureChanged(
-                captureChangedHandler_);
-        if (!capture) {
-            records_.PopBack();
-            return capture.GetStatus();
-        }
+        input_->AddPointerCaptureChanged(captureChangedHandler_);
         captureSubscribed_ = true;
     }
 
     Base::Result<void> result =
-        passwordBox.TryAddHandler(
+        passwordBox.AddHandlerChecked(
             UIElement::MouseDownEvent,
             mouseDownHandler_);
     if (result) {
-        result = passwordBox.TryAddHandler(
+        result = passwordBox.AddHandlerChecked(
             UIElement::MouseMoveEvent,
             mouseMoveHandler_);
     }
     if (result) {
-        result = passwordBox.TryAddHandler(
+        result = passwordBox.AddHandlerChecked(
             UIElement::MouseUpEvent,
             mouseUpHandler_);
     }
     if (result) {
-        result = passwordBox.TryAddHandler(
+        result = passwordBox.AddHandlerChecked(
             UIElement::KeyDownEvent,
             keyDownHandler_);
     }
     if (result) {
-        result = passwordBox.TryAddHandler(
+        result = passwordBox.AddHandlerChecked(
             UIElement::TextInputEvent,
             textInputHandler_);
     }
     if (result) {
-        result = passwordBox.TryAddHandler(
+        result = passwordBox.AddHandlerChecked(
             UIElement::LostKeyboardFocusEvent,
             focusChangedHandler_);
     }
     if (result) {
         result =
             passwordBox.
-                TryAddValueChangedHandler(
+                AddValueChangedHandlerChecked(
                     PasswordBox::
                         PasswordCharProperty,
                     propertyChangedHandler_);
@@ -2465,7 +2453,7 @@ TextEditBehavior::Attach(
     if (result) {
         result =
             passwordBox.
-                TryAddValueChangedHandler(
+                AddValueChangedHandlerChecked(
                     PasswordBox::
                         MaxLengthProperty,
                     propertyChangedHandler_);
@@ -2473,7 +2461,7 @@ TextEditBehavior::Attach(
     if (result) {
         result =
             passwordBox.
-                TryAddValueChangedHandler(
+                AddValueChangedHandlerChecked(
                     PasswordBox::
                         ForegroundProperty,
                     propertyChangedHandler_);
@@ -2481,7 +2469,7 @@ TextEditBehavior::Attach(
     if (result) {
         result =
             passwordBox.
-                TryAddValueChangedHandler(
+                AddValueChangedHandlerChecked(
                     PasswordBox::
                         SelectionBrushProperty,
                     propertyChangedHandler_);
@@ -2489,7 +2477,7 @@ TextEditBehavior::Attach(
     if (result) {
         result =
             passwordBox.
-                TryAddValueChangedHandler(
+                AddValueChangedHandlerChecked(
                     PasswordBox::
                         CaretBrushProperty,
                     propertyChangedHandler_);
@@ -2497,7 +2485,7 @@ TextEditBehavior::Attach(
     if (result) {
         result =
             passwordBox.
-                TryAddValueChangedHandler(
+                AddValueChangedHandlerChecked(
                     UIElement::
                         IsEnabledProperty,
                     propertyChangedHandler_);

@@ -12,7 +12,7 @@ Base::Result<void> D3D11GraphicsBackend::Submit(
         return InvalidArgument("D3D11 submission fence must increase monotonically");
     }
 
-    Base::Result<void> reserve = impl_->pendingFences.TryReserve(
+    Base::Result<void> reserve = impl_->pendingFences.Reserve(
         impl_->pendingFences.Size() + 1U);
     if (!reserve) {
         return reserve;

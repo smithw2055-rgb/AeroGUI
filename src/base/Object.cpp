@@ -7,7 +7,7 @@
 
 namespace Aero::Base::Detail {
 
-struct ObjectControlBlock final {
+struct ObjectControlBlock {
     std::atomic<std::uint32_t> strong{1U};
     std::atomic<std::uint32_t> weak{1U};
     std::atomic<Object*> object{nullptr};
@@ -52,7 +52,7 @@ void AddStrong(ObjectControlBlock* control) noexcept {
     (void)previous;
 }
 
-bool TryAddStrong(ObjectControlBlock* control) noexcept {
+bool AcquireStrong(ObjectControlBlock* control) noexcept {
     AERO_ASSERT(control != nullptr);
 
     std::uint32_t count = control->strong.load(std::memory_order_acquire);
@@ -136,11 +136,6 @@ namespace Aero::Base {
 void Object::AddRef() noexcept {
     AERO_ASSERT(control_ != nullptr);
     Detail::AddStrong(control_);
-}
-
-bool Object::TryAddRef() noexcept {
-    AERO_ASSERT(control_ != nullptr);
-    return Detail::TryAddStrong(control_);
 }
 
 void Object::Release() noexcept {

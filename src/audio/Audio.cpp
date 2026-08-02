@@ -28,7 +28,7 @@ Base::Result<void> ValidateVolume(float value) noexcept {
 
 } // namespace
 
-struct Engine::Impl final {
+struct Engine::Impl  {
 #if AERO_AUDIO_MINIAUDIO
     ma_engine engine{};
     ma_sound_group musicGroup{};
@@ -146,7 +146,7 @@ Base::Result<void> Engine::PlayMusic(
         ma_sound_uninit(&impl_->music);
         impl_->musicInitialized = false;
     }
-    Base::Result<void> copied = impl_->musicPath.TryAssign(filePath);
+    Base::Result<void> copied = impl_->musicPath.Assign(filePath);
     if (!copied) return copied.GetStatus();
     if (ma_sound_init_from_file(
             &impl_->engine, impl_->musicPath.CStr(),
@@ -190,7 +190,7 @@ Base::Result<void> Engine::PlayEffect(
     if (!initialized) return initialized.GetStatus();
 #if AERO_AUDIO_MINIAUDIO
     Base::String copiedPath;
-    Base::Result<void> copied = copiedPath.TryAssign(filePath);
+    Base::Result<void> copied = copiedPath.Assign(filePath);
     if (!copied) return copied.GetStatus();
     return ma_engine_play_sound(
         &impl_->engine, copiedPath.CStr(),

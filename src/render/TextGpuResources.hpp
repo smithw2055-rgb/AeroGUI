@@ -9,7 +9,7 @@
 
 namespace Aero::Render::Detail {
 
-class RendererGlyphRunSink final
+class RendererGlyphRunSink
     : public GlyphRunResourceSink {
 public:
     explicit RendererGlyphRunSink(
@@ -43,7 +43,7 @@ private:
     Renderer* renderer_ = nullptr;
 };
 
-class TextGpuResources final {
+class TextGpuResources {
 public:
     TextGpuResources(
         Graphics::GraphicsDevice& device,

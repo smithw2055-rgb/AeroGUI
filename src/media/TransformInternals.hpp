@@ -18,7 +18,7 @@ constexpr std::uint8_t OwnerRoleValue(
     return static_cast<std::uint8_t>(role);
 }
 
-class TransformPrivate final {
+class TransformPrivate {
 public:
     static Aero::FrameworkElement* Owner(
         const Aero::Media::Transform& transform) noexcept;

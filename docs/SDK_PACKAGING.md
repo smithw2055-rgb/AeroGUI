@@ -15,7 +15,7 @@ target_link_libraries(AudioFeature PRIVATE Aero::Audio)
 - `Aero::Base` — allocator, strings, containers, ownership and ABI foundation.
 - `Aero::Gui` — retained WPF/XAML object model, controls, markup and drawing.
 - `Aero::Meta` — typed metadata and module authoring layered over Gui.
-- `Aero::Integration` — View, source-provider and native renderer integration.
+- `Aero::Integration` — View, XAML/font/texture providers and native renderer integration.
 - `Aero::App` — optional default native desktop lifetime.
 - `Aero::Audio` — optional audio product independent from Application lifetime.
 

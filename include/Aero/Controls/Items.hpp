@@ -8,6 +8,7 @@
 #include <Aero/Controls/Core.hpp>
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Primitives.hpp>
+#include <Aero/Events/ControlEventArgs.hpp>
 
 namespace Aero::Internal { class ListBehavior; class ComboBehavior; class TreeBehavior; }
 namespace Aero::Internal {
@@ -22,33 +23,33 @@ using ItemsChangeAction = Collections::ItemsChangeAction;
 using ItemsChangedEvent = Collections::ItemsChangedEvent;
 using ItemsChangedHandler = Collections::ItemsChangedHandler;
 
-class AERO_API ItemCollection final : public Collections::IItemsSource {
+class AERO_API ItemCollection : public Collections::IItemsSource {
 public:
     std::uint32_t GetCount() const noexcept override {
         return items_.Size();
     }
     Base::Ref<Base::Object> GetItem(
         std::uint32_t index) const noexcept override;
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         Base::Ref<Base::Object> item) noexcept;
-    Base::Result<void> TryInsert(
+    Base::Result<void> Insert(
         std::uint32_t index,
         Base::Ref<Base::Object> item) noexcept;
-    Base::Result<Base::Ref<Base::Object>> TryRemoveAt(
+    Base::Result<Base::Ref<Base::Object>> RemoveAt(
         std::uint32_t index) noexcept;
-    Base::Result<void> TryReplace(
+    Base::Result<void> Replace(
         std::uint32_t index,
         Base::Ref<Base::Object> item) noexcept;
-    Base::Result<void> TryMove(
+    Base::Result<void> Move(
         std::uint32_t oldIndex,
         std::uint32_t newIndex) noexcept;
     void Reset() noexcept;
-    Base::Result<void> TryReset(
+    bool Reset(
         Base::Span<const Base::Ref<Base::Object>>
             items) noexcept;
-    Base::Result<void> TryAddItemsChanged(
+    void AddItemsChanged(
         const ItemsChangedHandler& handler) noexcept override {
-        return changed_.TryAdd(handler);
+        changed_.Add(handler);
     }
     bool RemoveItemsChanged(
         const ItemsChangedHandler& handler) noexcept override {
@@ -63,7 +64,7 @@ private:
 // WPF AlternationConverter selects an authored value by alternation index.
 // Keeping object values intact lets a binding later return brushes, strings,
 // and other resources without lossy text conversion.
-class AERO_API AlternationConverter final : public Base::Object {
+class AERO_API AlternationConverter : public Base::Object {
     AERO_DECLARE_TYPE(AlternationConverter, Base::Object)
 public:
     AlternationConverter() noexcept
@@ -74,14 +75,14 @@ public:
     Base::Span<const Base::Ref<Base::Object>> GetValues() const noexcept {
         return values_.AsSpan();
     }
-    Base::Result<void> TryAddValue(
+    Base::Result<void> AddValue(
         Base::Ref<Base::Object> value) noexcept {
         if (!value) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "AlternationConverter values cannot be null");
         }
-        return values_.TryPushBack(std::move(value));
+        return values_.PushBack(std::move(value));
     }
     void ClearValues() noexcept { values_.Clear(); }
 private:
@@ -90,12 +91,12 @@ private:
 
 // Adds a scalar value to an ItemsSource without exposing the internal boxing
 // object used by the generator.
-AERO_API Base::Result<void> TryAddBoxedItem(
+AERO_API Base::Result<void> AddBoxedItem(
     Collections::ObservableCollection& source,
     Meta::Value value) noexcept;
 
 // Convenience overload for the common string item case.
-AERO_API Base::Result<void> TryAddBoxedStringItem(
+AERO_API Base::Result<void> AddBoxedStringItem(
     Collections::ObservableCollection& source,
     Base::StringView value) noexcept;
 
@@ -125,7 +126,7 @@ private:
     void* state_ = nullptr;
 };
 
-class AERO_API ItemsPanelTemplate final : public Base::Object {
+class AERO_API ItemsPanelTemplate : public Base::Object {
     AERO_DECLARE_TYPE(ItemsPanelTemplate, Base::Object)
 public:
     ItemsPanelTemplate() noexcept;
@@ -144,7 +145,7 @@ private:
     void* state_ = nullptr;
 };
 
-class AERO_API ItemsPresenter final : public Decorator {
+class AERO_API ItemsPresenter : public Decorator {
     AERO_DECLARE_TYPE(ItemsPresenter, Decorator)
 public:
     ItemsPresenter() noexcept
@@ -212,9 +213,9 @@ public:
     void SetItemContainerStyle(
         const Style* value) noexcept;
 
-    Base::Result<void> TryAddItemsChanged(
+    void AddItemsChanged(
         const ItemsChangedHandler& handler) noexcept {
-        return changed_.TryAdd(handler);
+        changed_.Add(handler);
     }
     bool RemoveItemsChanged(
         const ItemsChangedHandler& handler) noexcept {
@@ -308,7 +309,7 @@ protected:
         : ItemsControl(runtimeType) {}
 };
 
-class AERO_API ItemContainerGenerator final {
+class AERO_API ItemContainerGenerator {
 public:
     ~ItemContainerGenerator() noexcept;
 
@@ -475,7 +476,7 @@ protected:
     ~HeaderedContentControl() override = default;
 };
 
-class AERO_API GroupBox final
+class AERO_API GroupBox
     : public HeaderedContentControl {
     AERO_DECLARE_TYPE(
         GroupBox,
@@ -486,13 +487,13 @@ public:
     ~GroupBox() override = default;
 };
 
-class AERO_API Label final : public ContentControl {
+class AERO_API Label : public ContentControl {
     AERO_DECLARE_TYPE(Label, ContentControl)
 public:
     Label() noexcept : ContentControl(StaticTypeId()) {}
 };
 
-class AERO_API Expander final
+class AERO_API Expander
     : public HeaderedContentControl {
     AERO_DECLARE_TYPE(
         Expander,
@@ -536,7 +537,7 @@ private:
             args) noexcept;
 };
 
-class AERO_API TabItem final
+class AERO_API TabItem
     : public HeaderedContentControl {
     AERO_DECLARE_TYPE(
         TabItem,
@@ -552,7 +553,7 @@ public:
     inline static constexpr Members::Property<bool> IsSelectedProperty{"IsSelected"};
 };
 
-class AERO_API TabControl final : public Control {
+class AERO_API TabControl : public Control {
     AERO_DECLARE_TYPE(TabControl, Control)
 public:
     TabControl() noexcept;
@@ -569,7 +570,7 @@ public:
             Meta::Value::NullObject(
                 Meta::TypeOf<Base::Object>()));
     }
-    Base::Result<void> TryAddOwnedTab(
+    Base::Result<void> AddOwnedTab(
         Base::Ref<TabItem> tab) noexcept;
     void ClearOwnedTabs() noexcept;
     void SetSelectedIndex(
@@ -643,7 +644,7 @@ private:
 
 // Wraps tab headers according to the nearest templated TabControl's strip
 // placement, matching the WPF TabPanel layout contract.
-class AERO_API TabPanel final : public Panel {
+class AERO_API TabPanel : public Panel {
     AERO_DECLARE_TYPE(TabPanel, Panel)
 public:
     TabPanel() noexcept : Panel(StaticTypeId()) {}
@@ -725,20 +726,7 @@ enum class SelectionMode : std::uint8_t {
     Extended,
 };
 
-struct SelectionChangedEvent final {
-    Base::Span<const std::uint32_t> removedIndices;
-    Base::Span<const std::uint32_t> addedIndices;
-    std::uint32_t oldPrimaryIndex = UINT32_MAX;
-    std::uint32_t newPrimaryIndex = UINT32_MAX;
-    Base::Ref<Base::Object> oldPrimaryItem;
-    Base::Ref<Base::Object> newPrimaryItem;
-};
-
 namespace Primitives { class Selector; }
-
-using SelectionChangedHandler =
-    Base::Delegate<void(
-        Primitives::Selector&, const SelectionChangedEvent&)>;
 
 class AERO_API ListBoxItem : public ContentControl {
     AERO_DECLARE_TYPE(ListBoxItem, ContentControl)
@@ -802,9 +790,9 @@ public:
         bool preserveExisting = false) noexcept;
     void ClearSelection() noexcept;
 
-    Base::Result<void> TryAddSelectionChanged(
+    void AddSelectionChanged(
         const SelectionChangedHandler& handler) noexcept {
-        return selectionChanged_.TryAdd(handler);
+        selectionChanged_.Add(handler);
     }
     bool RemoveSelectionChanged(
         const SelectionChangedHandler& handler) noexcept {
@@ -889,7 +877,7 @@ private:
     void* interactions_ = nullptr;
 };
 
-class AERO_API ComboBoxItem final
+class AERO_API ComboBoxItem
     : public ListBoxItem {
     AERO_DECLARE_TYPE(ComboBoxItem, ListBoxItem)
 public:
@@ -905,7 +893,7 @@ public:
 };
 
 
-class AERO_API ComboBox final : public Primitives::Selector {
+class AERO_API ComboBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ComboBox, Primitives::Selector)
 public:
     ComboBox() noexcept;
@@ -1071,7 +1059,7 @@ enum class GridViewColumnHeaderRole : std::uint8_t {
 // Standard GridView header container. The presenter owns header generation
 // and interaction; this control supplies the WPF-visible Role state used by
 // the default templates.
-class AERO_API GridViewColumnHeader final
+class AERO_API GridViewColumnHeader
     : public ContentControl {
     AERO_DECLARE_TYPE(GridViewColumnHeader, ContentControl)
 public:
@@ -1090,7 +1078,7 @@ public:
     inline static constexpr Members::Property<GridViewColumnHeaderRole> RoleProperty{"Role"};
 };
 
-class AERO_API GridViewColumn final
+class AERO_API GridViewColumn
     : public DependencyObject {
     AERO_DECLARE_TYPE(GridViewColumn, DependencyObject)
 public:
@@ -1137,7 +1125,7 @@ public:
     inline static constexpr Members::Property<Base::Ref<Style>> HeaderContainerStyleProperty{"HeaderContainerStyle"};
 };
 
-class AERO_API GridView final
+class AERO_API GridView
     : public Base::Object {
     AERO_DECLARE_TYPE(GridView, Base::Object)
 public:
@@ -1151,7 +1139,7 @@ public:
             columns_.Data(),
             columns_.Size()};
     }
-    Base::Result<void> TryAddColumn(
+    Base::Result<void> AddColumn(
         Base::Ref<GridViewColumn> column)
         noexcept;
     void ClearColumns() noexcept {
@@ -1175,7 +1163,7 @@ private:
 // Hosts GridView column headers inside the ListView ScrollViewer template.
 // The column collection is normally supplied by a template binding from the
 // owning ListView's GridView and is consumed by the view implementation.
-class AERO_API GridViewHeaderRowPresenter final
+class AERO_API GridViewHeaderRowPresenter
     : public Aero::FrameworkElement {
     AERO_DECLARE_TYPE(
         GridViewHeaderRowPresenter,
@@ -1203,7 +1191,7 @@ public:
 // The row counterpart to GridViewHeaderRowPresenter. It is instantiated by
 // ListViewItem templates and receives the active GridView columns/content
 // during ListView container realization.
-class AERO_API GridViewRowPresenter final
+class AERO_API GridViewRowPresenter
     : public Aero::FrameworkElement {
     AERO_DECLARE_TYPE(
         GridViewRowPresenter,
@@ -1216,7 +1204,7 @@ public:
     inline static constexpr Members::Property<Base::Ref<Base::Object>> ContentProperty{"Content"};
 };
 
-class AERO_API ListViewItem final
+class AERO_API ListViewItem
     : public ListBoxItem {
     AERO_DECLARE_TYPE(ListViewItem, ListBoxItem)
 public:
@@ -1225,7 +1213,7 @@ public:
     ~ListViewItem() override = default;
 };
 
-class AERO_API ListView final
+class AERO_API ListView
     : public ListBox {
     AERO_DECLARE_TYPE(ListView, ListBox)
 public:
@@ -1346,10 +1334,10 @@ private:
         std::uint32_t index) const noexcept override {
         return items_.GetItem(index);
     }
-    Base::Result<void> TryAddItemsChanged(
+    void AddItemsChanged(
         const ItemsChangedHandler& handler)
         noexcept override {
-        return items_.TryAddItemsChanged(handler);
+        items_.AddItemsChanged(handler);
     }
     bool RemoveItemsChanged(
         const ItemsChangedHandler& handler)
@@ -1389,7 +1377,7 @@ private:
         SynchronizeTemplate() noexcept;
 };
 
-class AERO_API TreeView final
+class AERO_API TreeView
     : public ItemsControl {
     AERO_DECLARE_TYPE(TreeView, ItemsControl)
 public:
@@ -1438,7 +1426,7 @@ public:
     inline static constexpr Members::AttachedProperty<VirtualizationMode> VirtualizationModeProperty{"VirtualizationMode"};
 };
 
-class AERO_API VirtualizingStackPanel final
+class AERO_API VirtualizingStackPanel
     : public Panel,
       public IScrollInfo {
     AERO_DECLARE_TYPE(VirtualizingStackPanel, Panel)
@@ -1525,7 +1513,7 @@ private:
         std::uint32_t itemCount) noexcept;
     void DetachGenerator(
         ItemContainerGenerator& generator) noexcept;
-    Base::Result<void> TryHandleItemsChanged(
+    Base::Result<void> HandleItemsChanged(
         const ItemsChangedEvent& event,
         std::uint32_t itemCount) noexcept;
     Base::Result<void> ResizeExtentCache(

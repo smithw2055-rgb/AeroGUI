@@ -1,6 +1,6 @@
 #include <Aero/View.hpp>
 
-#include <Aero/Integration/SourceProvider.hpp>
+#include <Aero/Integration/Providers/XamlProvider.hpp>
 #include <Aero/Integration/ViewOptions.hpp>
 #include "runtime/GuiData.hpp"
 

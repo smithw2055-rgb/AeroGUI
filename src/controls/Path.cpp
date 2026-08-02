@@ -30,13 +30,13 @@ bool SamePoint(Point left, Point right) noexcept {
         std::abs(left.y - right.y) <= Epsilon;
 }
 
-struct ContourRecord final {
+struct ContourRecord {
     std::uint32_t offset = 0U;
     std::uint32_t count = 0U;
     bool closed = false;
 };
 
-struct ScanIntersection final {
+struct ScanIntersection {
     double top = 0.0;
     double bottom = 0.0;
     double middle = 0.0;
@@ -82,15 +82,15 @@ Base::Result<void> StoreContour(
     const ContourRecord record{
         points.Size(), contour.Size(), closed};
     Base::Result<void> appended =
-        points.TryAppend(contour.AsSpan());
+        points.Append(contour.AsSpan());
     if (!appended) return appended.GetStatus();
-    appended = contours.TryPushBack(record);
+    appended = contours.PushBack(record);
     if (!appended) return appended.GetStatus();
-    appended = contourStarts.TryPushBack(record.offset);
+    appended = contourStarts.PushBack(record.offset);
     if (!appended) return appended.GetStatus();
-    appended = contourCounts.TryPushBack(record.count);
+    appended = contourCounts.PushBack(record.count);
     if (!appended) return appended.GetStatus();
-    return contourClosed.TryPushBack(
+    return contourClosed.PushBack(
         closed ? std::uint8_t{1U} : std::uint8_t{0U});
 }
 
@@ -115,11 +115,11 @@ Base::Result<void> TessellateEvenOdd(
     Base::Vector<std::uint32_t>& indices) noexcept {
     Base::Vector<double> levels;
     Base::Result<void> reserved =
-        levels.TryReserve(points.Size());
+        levels.Reserve(points.Size());
     if (!reserved) return reserved.GetStatus();
     for (const Point point : points) {
         Base::Result<void> added =
-            levels.TryPushBack(point.y);
+            levels.PushBack(point.y);
         if (!added) return added.GetStatus();
     }
     std::sort(
@@ -172,7 +172,7 @@ Base::Result<void> TessellateEvenOdd(
                     continue;
                 }
                 Base::Result<void> added =
-                    intersections.TryPushBack({
+                    intersections.PushBack({
                         EdgeXAt(start, end, topY),
                         EdgeXAt(start, end, bottomY),
                         EdgeXAt(start, end, middleY)});
@@ -219,12 +219,12 @@ Base::Result<void> TessellateEvenOdd(
                 {right.bottom, bottomY},
                 {left.bottom, bottomY}};
             Base::Result<void> added =
-                vertices.TryAppend({quad, 4U});
+                vertices.Append({quad, 4U});
             if (!added) return added.GetStatus();
             const std::uint32_t triangles[] = {
                 base, base + 1U, base + 2U,
                 base, base + 2U, base + 3U};
-            added = indices.TryAppend({
+            added = indices.Append({
                 triangles, 6U});
             if (!added) return added.GetStatus();
         }
@@ -331,12 +331,12 @@ Base::Result<void> TessellateStroke(
                 {b.x - nx, b.y - ny},
                 {a.x - nx, a.y - ny}};
             Base::Result<void> added =
-                vertices.TryAppend({quad, 4U});
+                vertices.Append({quad, 4U});
             if (!added) return added.GetStatus();
             const std::uint32_t triangles[] = {
                 base, base + 1U, base + 2U,
                 base, base + 2U, base + 3U};
-            added = indices.TryAppend({
+            added = indices.Append({
                 triangles, 6U});
             if (!added) return added.GetStatus();
         }
@@ -344,7 +344,7 @@ Base::Result<void> TessellateStroke(
     return {};
 }
 
-class PolygonPathParser final {
+class PolygonPathParser {
 public:
     PolygonPathParser(
         Base::StringView source,
@@ -461,7 +461,7 @@ public:
                         "Path line command requires an active contour");
                 }
                 Base::Result<void> added =
-                    contour.TryPushBack(point);
+                    contour.PushBack(point);
                 if (!added) return added.GetStatus();
                 current = point;
                 hasCurrent = true;
@@ -486,7 +486,7 @@ public:
                         ? current.y + value : value;
                 }
                 Base::Result<void> added =
-                    contour.TryPushBack(point);
+                    contour.PushBack(point);
                 if (!added) return added.GetStatus();
                 current = point;
                 include(point);
@@ -565,7 +565,7 @@ public:
                                 control2.y +
                             t * t * t * end.y};
                     Base::Result<void> added =
-                        contour.TryPushBack(point);
+                        contour.PushBack(point);
                     if (!added) {
                         return added.GetStatus();
                     }

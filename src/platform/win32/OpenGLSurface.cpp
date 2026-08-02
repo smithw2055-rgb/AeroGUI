@@ -70,7 +70,7 @@ bool IsInvalidWglAddress(const PROC address) noexcept {
 
 } // namespace
 
-struct WglSurfaceBackend::Impl final {
+struct WglSurfaceBackend::Impl  {
     HWND window = nullptr;
     HDC deviceContext = nullptr;
     HGLRC renderContext = nullptr;

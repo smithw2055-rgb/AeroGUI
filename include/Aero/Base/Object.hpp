@@ -33,7 +33,7 @@ AERO_API ObjectControlBlock* CreateObjectControlBlock(
     DestroyObjectFn destroy) noexcept;
 
 AERO_API void AddStrong(ObjectControlBlock* control) noexcept;
-AERO_API bool TryAddStrong(ObjectControlBlock* control) noexcept;
+AERO_API bool AcquireStrong(ObjectControlBlock* control) noexcept;
 AERO_API void ReleaseStrong(ObjectControlBlock* control) noexcept;
 AERO_API void AddWeak(ObjectControlBlock* control) noexcept;
 AERO_API void ReleaseWeak(ObjectControlBlock* control) noexcept;
@@ -48,7 +48,6 @@ public:
     Object& operator=(const Object&) = delete;
 
     void AddRef() noexcept;
-    bool TryAddRef() noexcept;
     void Release() noexcept;
     std::uint32_t UseCount() const noexcept;
     virtual MetaTypeId RuntimeType() const noexcept {

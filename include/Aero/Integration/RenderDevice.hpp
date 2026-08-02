@@ -42,7 +42,7 @@ enum class RenderDeviceState : std::uint8_t {
     Shutdown
 };
 
-struct RenderDeviceStatistics final {
+struct RenderDeviceStatistics {
     std::uint64_t acceptedFrameCount = 0U;
     std::uint64_t completedFrameCount = 0U;
     std::uint64_t failedFrameCount = 0U;
@@ -51,7 +51,7 @@ struct RenderDeviceStatistics final {
     std::uint64_t generation = 1U;
 };
 
-struct RenderFrameStatistics final {
+struct RenderFrameStatistics {
     std::uint32_t sourceCommandCount = 0U;
     std::uint32_t drawPacketCount = 0U;
     std::uint32_t batchCount = 0U;
@@ -65,8 +65,8 @@ struct RenderFrameStatistics final {
 
 // Lightweight host-thread-affine owner for one native rendering backend.
 // View submission is synchronous. The host owns thread and frame scheduling.
-class AERO_API RenderDevice final : public Base::Object {
-    struct ConstructionToken final {};
+class AERO_API RenderDevice : public Base::Object {
+    struct ConstructionToken {};
 
 public:
     RenderDevice(

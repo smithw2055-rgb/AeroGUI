@@ -3,7 +3,7 @@
 # lifetime and OS window implementation over that product.
 set(_aero_integration_sources
     src/integration/OpenGL33Device.cpp
-    src/integration/SourceProvider.cpp
+    src/providers/XamlProvider.cpp
     src/platform/Clipboard.cpp)
 if(WIN32)
     list(APPEND _aero_integration_sources
@@ -59,6 +59,12 @@ add_library(AeroIntegrationHeaderConsumer OBJECT
 target_link_libraries(
     AeroIntegrationHeaderConsumer PRIVATE Aero::Integration)
 aero_apply_compiler_options(AeroIntegrationHeaderConsumer)
+
+add_library(AeroProvidersHeaderConsumer OBJECT
+    tools/sdk-consumers/ProvidersConsumer.cpp)
+target_link_libraries(
+    AeroProvidersHeaderConsumer PRIVATE Aero::Integration)
+aero_apply_compiler_options(AeroProvidersHeaderConsumer)
 
 add_library(AeroD3D11IntegrationHeaderConsumer OBJECT
     tools/sdk-consumers/D3D11IntegrationConsumer.cpp)

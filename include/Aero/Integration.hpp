@@ -7,5 +7,5 @@
 #include <Aero/Integration/NativeWindow.hpp>
 #include <Aero/Integration/ReloadCoordinator.hpp>
 #include <Aero/Integration/RenderDevice.hpp>
-#include <Aero/Integration/SourceProvider.hpp>
+#include <Aero/Integration/Providers/Providers.hpp>
 #include <Aero/Integration/ViewOptions.hpp>

@@ -43,7 +43,7 @@ using ProvidedRollbackCallback = void (*)(
     std::uint64_t token) noexcept;
 using ProvidedCleanupCallback = void (*)(void* context) noexcept;
 
-struct ProvidedValue final {
+struct ProvidedValue {
     ProvidedValueKind kind = ProvidedValueKind::Value;
     Meta::Value value;
     Meta::EffectiveValueEngine* effectiveValues = nullptr;
@@ -113,7 +113,7 @@ struct ProvidedValue final {
     }
 };
 
-struct ExtensionServices final {
+struct ExtensionServices {
     const Schema* schema = nullptr;
     Base::Object* targetObject = nullptr;
     Meta::TypeId targetObjectType = Meta::InvalidTypeId;
@@ -136,7 +136,7 @@ struct ExtensionServices final {
     DeferredContentPlan* deferredContent = nullptr;
 };
 
-struct BindingExtensionOptions final {
+struct BindingExtensionOptions {
     BindingExtensionOptions() noexcept = default;
     BindingExtensionOptions(
         Aero::Internal::BindingEngine* bindingManager,
@@ -152,7 +152,7 @@ struct BindingExtensionOptions final {
 // ElementName wins over DataContext. Paths are compiled to immutable metadata
 // plans; DataContext paths are resolved after tree attachment and recompiled
 // only when the concrete source type changes.
-class AERO_API BindingExtension final {
+class AERO_API BindingExtension {
 public:
     explicit BindingExtension(
         const BindingExtensionOptions& options) noexcept;
@@ -177,7 +177,7 @@ private:
         void* context) noexcept;
 };
 
-class AERO_API DynamicResource final {
+class AERO_API DynamicResource {
 public:
     static Base::Result<void> Attach(
         Meta::EffectiveValueEngine& effectiveValues,
@@ -203,7 +203,7 @@ public:
         Base::StringView key) noexcept;
 };
 
-struct DynamicResourceExtensionOptions final {
+struct DynamicResourceExtensionOptions {
     DynamicResourceExtensionOptions() noexcept = default;
     DynamicResourceExtensionOptions(
         Meta::EffectiveValueEngine* effectiveValueEngine,
@@ -215,7 +215,7 @@ struct DynamicResourceExtensionOptions final {
     Aero::ResourceDictionary* resources = nullptr;
 };
 
-class AERO_API DynamicResourceExtension final {
+class AERO_API DynamicResourceExtension {
 public:
     explicit DynamicResourceExtension(
         const DynamicResourceExtensionOptions& options) noexcept;
@@ -237,7 +237,7 @@ private:
         void* context) noexcept;
 };
 
-class AERO_API TypeExtension final {
+class AERO_API TypeExtension {
 public:
     TypeExtension() noexcept = default;
 
@@ -258,7 +258,7 @@ private:
 // Records a WPF-style one-way property mapping while a ControlTemplate
 // prototype is authored. The prototype keeps no live expression; its immutable
 // runtime plan applies the mapping to every instantiated template tree.
-class AERO_API TemplateBindingExtension final {
+class AERO_API TemplateBindingExtension {
 public:
     TemplateBindingExtension() noexcept = default;
 
@@ -282,7 +282,7 @@ private:
 // enum values. The returned Meta::Value retains the enum's concrete metadata
 // type so AnyValue members (for example discrete object key frames) can defer
 // assignment until their target dependency property is known.
-class AERO_API StaticExtension final {
+class AERO_API StaticExtension {
 public:
     StaticExtension() noexcept = default;
 
@@ -317,7 +317,7 @@ private:
 
 namespace Aero::Markup {
 
-struct DeferredContentEdge final {
+struct DeferredContentEdge {
     Base::Object* owner = nullptr;
     Base::Object* parent = nullptr;
     Base::Ref<Base::Object> child;
@@ -326,7 +326,7 @@ struct DeferredContentEdge final {
     bool property = false;
 };
 
-struct DeferredBindingEdge final {
+struct DeferredBindingEdge {
     Base::Object* owner = nullptr;
     Base::Object* source = nullptr;
     ::Aero::DependencyObject* target = nullptr;
@@ -343,7 +343,7 @@ struct DeferredBindingEdge final {
         Meta::UpdateSourceTrigger::PropertyChanged;
 };
 
-class DeferredContentPlan final {
+class DeferredContentPlan {
 public:
     Base::Result<void> Stage(
         Base::Object& owner,
@@ -480,7 +480,7 @@ inline constexpr ::Aero::Diagnostics::DiagnosticCode MarkupExtensionFailed =
 // Immutable writer configuration. Every call creates a fresh one-shot
 // private writer state so transaction stacks and document scopes never
 // survive a load operation.
-class AERO_API ObjectWriter final {
+class AERO_API ObjectWriter {
 public:
     explicit ObjectWriter(
         Schema& schema,
@@ -534,7 +534,7 @@ private:
 
 namespace Aero::Markup {
 
-class ObjectBuilder final {
+class ObjectBuilder {
 public:
     explicit ObjectBuilder(
         Schema& schema,
@@ -596,7 +596,7 @@ private:
         Invalid
     };
 
-    struct Frame final {
+    struct Frame {
         FrameKind kind = FrameKind::Object;
         DirectiveKind directive = DirectiveKind::None;
         std::uint32_t objectIndex = InvalidIndex;
@@ -611,7 +611,7 @@ private:
         bool deferredStaticResource = false;
     };
 
-    struct CreatedObjectRecord final {
+    struct CreatedObjectRecord {
         CreatedObjectRecord() noexcept = default;
 
         CreatedObjectRecord(CreatedObjectRecord&&) noexcept = default;
@@ -632,13 +632,13 @@ private:
         bool valueElement = false;
     };
 
-    struct AssignmentRecord final {
+    struct AssignmentRecord {
         std::uint32_t objectIndex = InvalidIndex;
         Meta::MemberId member = Meta::InvalidMemberId;
         std::uint32_t count = 0U;
     };
 
-    struct DeferredStaticResourceRecord final {
+    struct DeferredStaticResourceRecord {
         std::uint32_t targetObjectIndex = InvalidIndex;
         ResolvedMember member;
         Base::String key;
@@ -646,7 +646,7 @@ private:
     };
 
 
-    struct NameScopeRecord final {
+    struct NameScopeRecord {
         NameScopeRecord() noexcept = default;
 
         NameScopeRecord(NameScopeRecord&&) noexcept = default;
@@ -659,7 +659,7 @@ private:
         Aero::NameScope names;
     };
 
-    struct ResourceScopeRecord final {
+    struct ResourceScopeRecord {
         ResourceScopeRecord() noexcept = default;
 
         ResourceScopeRecord(ResourceScopeRecord&&) noexcept = default;
@@ -673,7 +673,7 @@ private:
         const Aero::ResourceDictionary* external = nullptr;
     };
 
-    struct NamespaceBindingRecord final {
+    struct NamespaceBindingRecord {
         NamespaceBindingRecord() noexcept = default;
 
         NamespaceBindingRecord(NamespaceBindingRecord&&) noexcept = default;
@@ -686,7 +686,7 @@ private:
         Base::String uri;
     };
 
-    struct PendingNamespaceRecord final {
+    struct PendingNamespaceRecord {
         PendingNamespaceRecord() noexcept = default;
 
         PendingNamespaceRecord(PendingNamespaceRecord&&) noexcept = default;
@@ -949,9 +949,9 @@ enum class XamlFacetInheritancePolicy : std::uint8_t {
     ComposeBaseToDerived
 };
 
-// Compatibility registration DTO. TryAdd() atomically projects this record to
+// Compatibility registration DTO. Add() atomically projects this record to
 // the narrow capability slots retained by XamlFacets.
-struct XamlTypeFacet final {
+struct XamlTypeFacet {
     Meta::TypeId type = Meta::InvalidTypeId;
     XamlInitializationCallback beginInit = nullptr;
     XamlInitializationCallback endInit = nullptr;
@@ -970,7 +970,7 @@ struct XamlTypeFacet final {
     std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
-struct XamlLifecycleFacet final {
+struct XamlLifecycleFacet {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::ComposeBaseToDerived;
 
@@ -983,7 +983,7 @@ struct XamlLifecycleFacet final {
     std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
-struct XamlNameScopeFacet final {
+struct XamlNameScopeFacet {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::NearestBase;
 
@@ -994,7 +994,7 @@ struct XamlNameScopeFacet final {
     std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
-struct XamlResourceScopeFacet final {
+struct XamlResourceScopeFacet {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::NearestBase;
 
@@ -1006,7 +1006,7 @@ struct XamlResourceScopeFacet final {
     std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
-struct XamlDeferredContentFacet final {
+struct XamlDeferredContentFacet {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::NearestBase;
 
@@ -1015,7 +1015,7 @@ struct XamlDeferredContentFacet final {
     std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
-struct XamlImplicitResourceKeyFacet final {
+struct XamlImplicitResourceKeyFacet {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::NearestBase;
 
@@ -1025,7 +1025,7 @@ struct XamlImplicitResourceKeyFacet final {
     std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
-struct XamlPropertyTargetFacet final {
+struct XamlPropertyTargetFacet {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::NearestBase;
 
@@ -1035,7 +1035,7 @@ struct XamlPropertyTargetFacet final {
     std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
-struct XamlMarkupExtensionFacet final {
+struct XamlMarkupExtensionFacet {
     inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
         XamlFacetInheritancePolicy::ExactOnly;
 
@@ -1045,35 +1045,35 @@ struct XamlMarkupExtensionFacet final {
     std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
-class XamlFacets final {
+class XamlFacets {
 public:
     XamlFacets() noexcept = default;
 
     XamlFacets(const XamlFacets&) = delete;
     XamlFacets& operator=(const XamlFacets&) = delete;
 
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         const XamlTypeFacet& facet,
         const Meta::TypeRegistry& descriptors) noexcept;
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         const XamlLifecycleFacet& facet,
         const Meta::TypeRegistry& descriptors) noexcept;
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         const XamlNameScopeFacet& facet,
         const Meta::TypeRegistry& descriptors) noexcept;
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         const XamlResourceScopeFacet& facet,
         const Meta::TypeRegistry& descriptors) noexcept;
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         const XamlDeferredContentFacet& facet,
         const Meta::TypeRegistry& descriptors) noexcept;
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         const XamlImplicitResourceKeyFacet& facet,
         const Meta::TypeRegistry& descriptors) noexcept;
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         const XamlPropertyTargetFacet& facet,
         const Meta::TypeRegistry& descriptors) noexcept;
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         const XamlMarkupExtensionFacet& facet,
         const Meta::TypeRegistry& descriptors) noexcept;
     Base::Result<void> Freeze(
@@ -1121,7 +1121,7 @@ private:
     using FacetMask = std::uint16_t;
     inline static constexpr std::uint32_t InvalidFacetIndex = UINT32_MAX;
 
-    struct DraftType final {
+    struct DraftType {
         Meta::TypeId type = Meta::InvalidTypeId;
         std::uint32_t facets[
             static_cast<std::uint8_t>(FacetKind::Count)] = {
@@ -1136,7 +1136,7 @@ private:
 
     // Runtime record. Exact facets are stored as a compact run in facetRefs_;
     // lifecycle inheritance is flattened once at Freeze().
-    struct XamlTypePlan final {
+    struct XamlTypePlan {
         Meta::TypeId type = Meta::InvalidTypeId;
         std::uint32_t firstFacetRef = 0U;
         std::uint32_t firstLifecycleRef = 0U;
@@ -1216,7 +1216,7 @@ using ::Aero::Internal::XamlPropertyTargetFacet;
 
 namespace Aero::Markup {
 
-struct Schema::Impl final {
+struct Schema::Impl {
     Detail::XamlFacets facets;
 };
 
@@ -1224,63 +1224,63 @@ namespace Detail {
 
 using namespace ::Aero::Internal;
 
-class SchemaPrivate final {
+class SchemaPrivate {
 public:
     // Compatibility aggregate input. XamlFacets projects it atomically and
     // retains only narrow facet records.
     static Base::Result<void> AddType(
         Schema& schema,
         const XamlTypeFacet& registration) noexcept {
-        return schema.impl_->facets.TryAdd(
+        return schema.impl_->facets.Add(
             registration, schema.Types());
     }
 
     static Base::Result<void> AddLifecycle(
         Schema& schema,
         const XamlLifecycleFacet& registration) noexcept {
-        return schema.impl_->facets.TryAdd(
+        return schema.impl_->facets.Add(
             registration, schema.Types());
     }
 
     static Base::Result<void> AddNameScope(
         Schema& schema,
         const XamlNameScopeFacet& registration) noexcept {
-        return schema.impl_->facets.TryAdd(
+        return schema.impl_->facets.Add(
             registration, schema.Types());
     }
 
     static Base::Result<void> AddResourceScope(
         Schema& schema,
         const XamlResourceScopeFacet& registration) noexcept {
-        return schema.impl_->facets.TryAdd(
+        return schema.impl_->facets.Add(
             registration, schema.Types());
     }
 
     static Base::Result<void> AddDeferredContent(
         Schema& schema,
         const XamlDeferredContentFacet& registration) noexcept {
-        return schema.impl_->facets.TryAdd(
+        return schema.impl_->facets.Add(
             registration, schema.Types());
     }
 
     static Base::Result<void> AddImplicitResourceKey(
         Schema& schema,
         const XamlImplicitResourceKeyFacet& registration) noexcept {
-        return schema.impl_->facets.TryAdd(
+        return schema.impl_->facets.Add(
             registration, schema.Types());
     }
 
     static Base::Result<void> AddPropertyTarget(
         Schema& schema,
         const XamlPropertyTargetFacet& registration) noexcept {
-        return schema.impl_->facets.TryAdd(
+        return schema.impl_->facets.Add(
             registration, schema.Types());
     }
 
     static Base::Result<void> AddMarkupExtension(
         Schema& schema,
         const XamlMarkupExtensionFacet& registration) noexcept {
-        return schema.impl_->facets.TryAdd(
+        return schema.impl_->facets.Add(
             registration, schema.Types());
     }
 
@@ -1345,7 +1345,7 @@ namespace Aero::Internal {
 
 using namespace ::Aero::Markup;
 
-class XamlVisualStateObject final : public Base::Object {
+class XamlVisualStateObject : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         XamlVisualStateObject,
         Base::Object,
@@ -1357,14 +1357,14 @@ public:
     }
 
     Base::Result<void> SetName(Base::StringView value) noexcept {
-        return name_.TryAssign(value);
+        return name_.Assign(value);
     }
     Base::StringView Name() const noexcept {
         return name_.View();
     }
     Base::Result<void> AddSetter(
         const Base::Ref<Base::Object>& value) noexcept {
-        return setters_.TryPushBack(value);
+        return setters_.PushBack(value);
     }
     void ClearSetters() noexcept {
         setters_.Clear();
@@ -1394,7 +1394,7 @@ private:
     Base::Ref<Media::Animation::Storyboard> storyboard_;
 };
 
-class XamlVisualTransitionObject final
+class XamlVisualTransitionObject
     : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         XamlVisualTransitionObject,
@@ -1417,17 +1417,17 @@ public:
     }
     Base::Result<void> SetFrom(
         Base::StringView value) noexcept {
-        return from_.TryAssign(value);
+        return from_.Assign(value);
     }
     Base::Result<void> SetTo(
         Base::StringView value) noexcept {
-        return to_.TryAssign(value);
+        return to_.Assign(value);
     }
     Base::Result<void> SetGeneratedDuration(
         Base::StringView value) noexcept {
         Media::Animation::Storyboard validator;
         validator.SetDuration(value);
-        return generatedDuration_.TryAssign(value);
+        return generatedDuration_.Assign(value);
     }
     Base::Ref<Media::Animation::EasingFunctionBase>
     GeneratedEasingFunction() const noexcept {
@@ -1462,7 +1462,7 @@ private:
     Base::Ref<Media::Animation::Storyboard> storyboard_;
 };
 
-class XamlVisualStateGroupObject final
+class XamlVisualStateGroupObject
     : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         XamlVisualStateGroupObject,
@@ -1475,14 +1475,14 @@ public:
     }
 
     Base::Result<void> SetName(Base::StringView value) noexcept {
-        return name_.TryAssign(value);
+        return name_.Assign(value);
     }
     Base::StringView Name() const noexcept {
         return name_.View();
     }
     Base::Result<void> AddState(
         const Base::Ref<Base::Object>& value) noexcept {
-        return states_.TryPushBack(value);
+        return states_.PushBack(value);
     }
     void ClearStates() noexcept {
         states_.Clear();
@@ -1493,7 +1493,7 @@ public:
     }
     Base::Result<void> AddTransition(
         const Base::Ref<Base::Object>& value) noexcept {
-        return transitions_.TryPushBack(value);
+        return transitions_.PushBack(value);
     }
     void ClearTransitions() noexcept {
         transitions_.Clear();
@@ -1515,7 +1515,7 @@ private:
 // ControlTemplate rather than only as a ControlTemplate member. Keep that
 // authored collection on the root dependency object until the template is
 // compiled into its immutable state program.
-class XamlVisualStates final
+class XamlVisualStates
     : public Base::Object {
     AERO_DECLARE_TYPE(XamlVisualStates, Base::Object)
 public:
@@ -1524,7 +1524,7 @@ public:
     }
     Base::Result<void> Add(
         const Base::Ref<Base::Object>& value) noexcept {
-        return groups_.TryPushBack(value);
+        return groups_.PushBack(value);
     }
     Base::Span<const Base::Ref<Base::Object>> Groups() const noexcept {
         return {groups_.Data(), groups_.Size()};
@@ -1534,7 +1534,7 @@ private:
     Base::Vector<Base::Ref<Base::Object>> groups_;
 };
 
-class XamlVisualStateManagerObject final
+class XamlVisualStateManagerObject
     : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         XamlVisualStateManagerObject,
@@ -1552,7 +1552,7 @@ public:
             "_VisualStateGroupStore"};
 };
 
-struct TemplatePrototypeProperty final {
+struct TemplatePrototypeProperty {
     Meta::DependencyPropertyHandle property;
     Meta::Value value;
     // A dependency-object property participating in a template Binding is
@@ -1561,7 +1561,7 @@ struct TemplatePrototypeProperty final {
     std::uint32_t objectNode = UINT32_MAX;
 };
 
-struct TemplatePrototypeNode final {
+struct TemplatePrototypeNode {
     Meta::TypeId type = Meta::InvalidTypeId;
     Base::String name;
     std::uint32_t parent = UINT32_MAX;
@@ -1571,7 +1571,7 @@ struct TemplatePrototypeNode final {
     Base::Vector<Controls::GridLength> gridRows;
 };
 
-struct TemplatePrototypeBinding final {
+struct TemplatePrototypeBinding {
     std::uint32_t target = UINT32_MAX;
     std::uint32_t source = UINT32_MAX;
     Aero::Internal::BindingEngine* manager = nullptr;
@@ -1586,7 +1586,7 @@ struct TemplatePrototypeBinding final {
         Meta::UpdateSourceTrigger::PropertyChanged;
 };
 
-struct CompiledTemplateBlueprint final {
+struct CompiledTemplateBlueprint {
     ::Aero::Meta::Registry* runtime = nullptr;
     Meta::DependencyPropertyRegistry* properties = nullptr;
     Base::Vector<TemplatePrototypeNode> nodes;
@@ -1603,7 +1603,7 @@ struct CompiledTemplateBlueprint final {
     std::uint32_t contentPresenter = UINT32_MAX;
 };
 
-struct CompiledTemplateDefinition final {
+struct CompiledTemplateDefinition {
     Meta::TypeId targetType = Meta::InvalidTypeId;
     CompiledTemplateBlueprint blueprint;
     Base::Vector<Controls::TemplatePropertyTrigger>

@@ -4,7 +4,7 @@
 
 namespace Aero::Text {
 
-class AERO_API FontManager final {
+class AERO_API FontManager  {
 public:
     explicit FontManager(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -53,7 +53,7 @@ public:
     bool IsInitialized() const noexcept { return initialized_; }
 
 private:
-    struct ProviderRecord final {
+    struct ProviderRecord  {
         FontProviderIdentity identity;
         IFontProvider* fonts = nullptr;
         ITextShaper* shaper = nullptr;

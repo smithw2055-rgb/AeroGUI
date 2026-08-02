@@ -21,7 +21,7 @@ Popup::Popup(TypeId runtimeType) noexcept
           this,
           &Popup::OnOpenPropertyChanged) {
     static_cast<void>(SetIsHitTestVisible(false));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         IsOpenProperty,
         openChangedHandler_));
 }
@@ -309,7 +309,7 @@ Expander::Expander() noexcept
       expandedChangedHandler_(
           this,
           &Expander::OnExpandedPropertyChanged) {
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         IsExpandedProperty,
         expandedChangedHandler_));
 }
@@ -442,7 +442,7 @@ TabControl::TabControl() noexcept
       selectionChangedHandler_(
           this,
           &TabControl::OnSelectionPropertyChanged) {
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         SelectedIndexProperty,
         selectionChangedHandler_));
 }
@@ -467,7 +467,7 @@ TabItem* TabControl::GetSelectedTab() const noexcept {
         : nullptr;
 }
 
-Base::Result<void> TabControl::TryAddOwnedTab(
+Base::Result<void> TabControl::AddOwnedTab(
     Base::Ref<TabItem> tab) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
@@ -484,7 +484,7 @@ Base::Result<void> TabControl::TryAddOwnedTab(
         }
     }
     Base::Result<void> added =
-        tabs_.TryPushBack(std::move(tab));
+        tabs_.PushBack(std::move(tab));
     if (!added) return added.GetStatus();
     if (tabs_.Size() == 1U &&
         GetSelectedIndex() == UINT32_MAX) {

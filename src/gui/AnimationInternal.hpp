@@ -7,7 +7,7 @@ namespace Aero::Internal {
 
 using namespace Aero::Internal::Animation;
 
-class AERO_API AnimationEngine final {
+class AERO_API AnimationEngine {
 public:
     AnimationEngine(
         ::Aero::Threading::Dispatcher& dispatcher,

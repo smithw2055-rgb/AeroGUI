@@ -10,9 +10,9 @@
 
 namespace Aero {
 
-struct ModuleSet::Impl final {
-    struct Module final {
-        struct Dependency final {
+struct ModuleSet::Impl {
+    struct Module {
+        struct Dependency {
             Base::String name;
             std::uint32_t minimumSchemaVersion = 1U;
         };
@@ -47,14 +47,14 @@ Base::Result<void> ModuleSet::Impl::ResolveOrder(
     Base::Vector<std::uint32_t>& order) const noexcept {
     order.Clear();
     Base::Result<void> reserved =
-        order.TryReserve(modules.Size());
+        order.Reserve(modules.Size());
     if (!reserved) return reserved.GetStatus();
     Base::Vector<std::uint32_t> indegrees;
     Base::Result<void> sized =
-        indegrees.TryResize(modules.Size(), 0U);
+        indegrees.Resize(modules.Size(), 0U);
     if (!sized) return sized.GetStatus();
     Base::Vector<bool> emitted;
-    sized = emitted.TryResize(modules.Size(), false);
+    sized = emitted.Resize(modules.Size(), false);
     if (!sized) return sized.GetStatus();
 
     for (std::uint32_t index = 0U;
@@ -101,7 +101,7 @@ Base::Result<void> ModuleSet::Impl::ResolveOrder(
         }
         emitted[selected] = true;
         Base::Result<void> appended =
-            order.TryPushBack(selected);
+            order.PushBack(selected);
         if (!appended) return appended.GetStatus();
         const Base::StringView emittedName =
             modules[selected].name.View();
@@ -157,7 +157,7 @@ Base::Result<void> ModuleSet::Add(
 
     Impl::Module module;
     Base::Result<void> named =
-        module.name.TryAssign(registration.name);
+        module.name.Assign(registration.name);
     if (!named) return named.GetStatus();
     module.schemaVersion = registration.schemaVersion;
     module.registerModule = registration.registerModule;
@@ -165,7 +165,7 @@ Base::Result<void> ModuleSet::Add(
         registration.registerModuleWithContext;
     module.context = registration.context;
     module.abiVersion = registration.abiVersion;
-    Base::Result<void> reserved = module.dependencies.TryReserve(
+    Base::Result<void> reserved = module.dependencies.Reserve(
         registration.dependencies.Size());
     if (!reserved) return reserved.GetStatus();
     for (const ModuleDependency& dependency :
@@ -187,15 +187,15 @@ Base::Result<void> ModuleSet::Add(
         }
         Impl::Module::Dependency stored;
         Base::Result<void> dependencyName =
-            stored.name.TryAssign(dependency.name);
+            stored.name.Assign(dependency.name);
         if (!dependencyName) return dependencyName.GetStatus();
         stored.minimumSchemaVersion =
             dependency.minimumSchemaVersion;
         Base::Result<void> appended =
-            module.dependencies.TryPushBack(std::move(stored));
+            module.dependencies.PushBack(std::move(stored));
         if (!appended) return appended.GetStatus();
     }
-    return impl_->modules.TryPushBack(std::move(module));
+    return impl_->modules.PushBack(std::move(module));
 }
 
 Base::Result<void> ModuleSet::RegisterMetadata(
@@ -212,7 +212,7 @@ Base::Result<void> ModuleSet::RegisterMetadata(
         const Impl::Module& module = impl_->modules[index];
         const Base::StringView name = module.name.View();
         Base::Result<void> registered =
-            domain.TryRegisterModule({
+            domain.RegisterModule({
                 Meta::MakeMetadataModuleId(name),
                 name,
                 module.schemaVersion,

@@ -19,7 +19,7 @@ enum class BindingPathSegmentKind : std::uint8_t {
     ValueField
 };
 
-struct BindingPathSegment final {
+struct BindingPathSegment {
     BindingPathSegmentKind kind = BindingPathSegmentKind::ObjectProperty;
     MemberId member = InvalidMemberId;
     TypeId inputType = InvalidTypeId;
@@ -29,7 +29,7 @@ struct BindingPathSegment final {
     bool copyOnWrite = false;
 };
 
-struct BindingPathCompileError final {
+struct BindingPathCompileError {
     std::uint32_t segmentIndex = UINT32_MAX;
     TypeId inputType = InvalidTypeId;
     Base::String segment;
@@ -39,7 +39,7 @@ struct BindingPathCompileError final {
 // Immutable, schema-bound access plan used by Binding and compiled XAML.
 // Compilation resolves every textual segment to stable descriptor IDs. Get/Set
 // execute those IDs directly and never repeat member-name lookup.
-class AERO_API BindingPathPlan final {
+class AERO_API BindingPathPlan {
 public:
     BindingPathPlan() noexcept = default;
 
@@ -122,7 +122,7 @@ using ::Aero::Meta::Registry;
 using Meta::PropertyValue;
 using Meta::TypeId;
 
-struct BindingHandle final {
+struct BindingHandle {
     std::uint64_t value = 0U;
 
     constexpr bool IsValid() const noexcept {
@@ -141,7 +141,7 @@ enum class BindingDiagnosticStage : std::uint8_t {
     WriteSource
 };
 
-struct BindingDiagnostic final {
+struct BindingDiagnostic {
     BindingHandle handle;
     BindingDiagnosticStage stage =
         BindingDiagnosticStage::ResolveSource;
@@ -159,7 +159,7 @@ using BindingDiagnosticCallback = void (*)(
     const BindingDiagnostic& diagnostic,
     void* context) noexcept;
 
-struct BindingDescriptor final {
+struct BindingDescriptor {
     DependencyObject* source = nullptr;
     DependencyPropertyHandle sourceProperty;
     DependencyObject* target = nullptr;
@@ -177,7 +177,7 @@ struct BindingDescriptor final {
     void* diagnosticContext = nullptr;
 };
 
-struct BindingInspection final {
+struct BindingInspection {
     BindingHandle handle;
     Base::Object* source = nullptr;
     DependencyObject* target = nullptr;
@@ -195,7 +195,7 @@ struct BindingInspection final {
 // (including ElementName); otherwise the source is resolved from target's
 // DataContext property. Text is compiled once per concrete source type and the
 // resulting immutable BindingPathPlan is reused until the source changes.
-struct MetadataBindingDescriptor final {
+struct MetadataBindingDescriptor {
     Meta::Registry* metadata = nullptr;
     Base::Object* source = nullptr;
     DependencyObject* target = nullptr;
@@ -238,7 +238,7 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Data;
 
-class AERO_API BindingEngine final {
+class AERO_API BindingEngine {
 public:
     explicit BindingEngine(Dispatcher& dispatcher) noexcept;
     ~BindingEngine() noexcept;
@@ -343,7 +343,7 @@ private:
         DataContext
     };
 
-    struct BindingRecord final {
+    struct BindingRecord {
         BindingHandle handle;
         BindingDescriptor descriptor;
         BindingSourceKind sourceKind =
@@ -366,7 +366,7 @@ private:
         bool forceSourceUpdate = false;
     };
 
-    struct DeferredBindingRecord final {
+    struct DeferredBindingRecord {
         Meta::Registry* metadata = nullptr;
         Base::Object* source = nullptr;
         DependencyObject* target = nullptr;

@@ -23,7 +23,7 @@ using ::Aero::Threading::CurrentDispatcherThreadToken;
 
 using EffectiveValueDiagnostics = PropertyValueSourceInfo;
 
-class AERO_API EffectiveValueEngine final {
+class AERO_API EffectiveValueEngine {
 public:
     EffectiveValueEngine(
         Dispatcher& dispatcher,
@@ -113,14 +113,14 @@ public:
     }
 
 private:
-    struct Entry final {
+    struct Entry {
         DependencyObject* object = nullptr;
         DependencyPropertyHandle property;
         std::uint64_t queueSequence = 0U;
         bool queued = false;
     };
 
-    struct ParentLink final {
+    struct ParentLink {
         DependencyObject* child = nullptr;
         DependencyObject* parent = nullptr;
     };
@@ -176,7 +176,7 @@ private:
 namespace Aero::Meta {
 
 
-struct ObjectFactoryState final {
+struct ObjectFactoryState {
     Dispatcher* dispatcher = nullptr;
     DependencyPropertyRegistry* dependencyProperties = nullptr;
     Meta::Registry* metadata = nullptr;
@@ -193,7 +193,7 @@ AERO_API Base::Result<Value> TryEncodeValue(
     TypeId type,
     const void* source) noexcept;
 
-class AERO_API ObjectFactoryScope final {
+class AERO_API ObjectFactoryScope {
 public:
     ObjectFactoryScope(
         Dispatcher& dispatcher,
@@ -231,7 +231,7 @@ using namespace ::Aero::Meta;
 // Manager-owned provider state. One session belongs to one StyleEngine,
 // StyleEngine or TemplateEngine allocates all provider origins through the
 // shared EffectiveValueEngine, preventing cross-manager token collisions.
-class PropertyProviderSession final {
+class PropertyProviderSession {
 public:
     PropertyProviderSession(
         EffectiveValueEngine& engine,
@@ -276,7 +276,7 @@ public:
         record.object = &object;
         record.property = property;
         record.token = token;
-        Base::Result<void> retained = setterRecords_.TryPushBack(
+        Base::Result<void> retained = setterRecords_.PushBack(
             std::move(record));
         if (!retained) {
             static_cast<void>(engine_->ClearProviderContribution(
@@ -321,7 +321,7 @@ public:
         record.object = &object;
         record.property = property;
         record.token = token;
-        Base::Result<void> retained = triggerRecords_.TryPushBack(
+        Base::Result<void> retained = triggerRecords_.PushBack(
             std::move(record));
         if (!retained) {
             static_cast<void>(engine_->ClearProviderContribution(
@@ -369,13 +369,13 @@ public:
     }
 
 private:
-    struct ContributionRecord final {
+    struct ContributionRecord {
         DependencyObject* object = nullptr;
         DependencyPropertyHandle property;
         PropertyProviderToken token;
     };
 
-    struct ObjectState final {
+    struct ObjectState {
         DependencyObject* object = nullptr;
         std::uint32_t setterOrigin = 0U;
         std::uint32_t triggerOrigin = 0U;
@@ -397,7 +397,7 @@ private:
         }
         ObjectState state;
         state.object = &object;
-        Base::Result<void> retained = states_.TryPushBack(
+        Base::Result<void> retained = states_.PushBack(
             std::move(state));
         if (!retained) return retained.GetStatus();
         return &states_[states_.Size() - 1U];
@@ -514,7 +514,7 @@ private:
     }
 };
 
-class StyleProviderSession final {
+class StyleProviderSession {
 public:
     explicit StyleProviderSession(
         EffectiveValueEngine& engine) noexcept
@@ -556,7 +556,7 @@ private:
     PropertyProviderSession session_;
 };
 
-class TemplatedParentProviderSession final {
+class TemplatedParentProviderSession {
 public:
     explicit TemplatedParentProviderSession(
         EffectiveValueEngine& engine) noexcept

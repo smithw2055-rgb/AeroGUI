@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Assert.hpp>
@@ -51,7 +51,7 @@ using ValueCopyCallback = Base::Result<void> (*)(void* destination, const void* 
 using ValueDestroyCallback = void (*)(void* value, void* context) noexcept;
 using ValueEqualsCallback = bool (*)(const void* left, const void* right, void* context) noexcept;
 
-struct ValueTypeRegistration final {
+struct ValueTypeRegistration {
     std::uint32_t size = 0U;
     std::uint32_t alignment = 0U;
     ValueCopyCallback copy = nullptr;
@@ -61,7 +61,7 @@ struct ValueTypeRegistration final {
     bool inlineSafe = false;
 };
 
-class AERO_API ValueTypeSemantics final : public Base::Object {
+class AERO_API ValueTypeSemantics : public Base::Object {
 public:
     explicit ValueTypeSemantics(const ValueTypeRegistration& registration) noexcept : registration_(registration) {}
     const ValueTypeRegistration& Registration() const noexcept { return registration_; }
@@ -69,7 +69,7 @@ private:
     ValueTypeRegistration registration_;
 };
 
-class AERO_API Value final {
+class AERO_API Value {
 public:
     static constexpr std::uint32_t InlineCapacity = 32U;
     Value() noexcept = default;
@@ -114,7 +114,7 @@ inline bool operator==(const Value& left, const Value& right) noexcept { return 
 inline bool operator!=(const Value& left, const Value& right) noexcept { return !(left == right); }
 
 using TextValueConverterCallback = Base::Result<Value> (*)(TypeId targetType, Base::StringView text, void* context) noexcept;
-struct TextValueConverterRegistration final {
+struct TextValueConverterRegistration {
     TypeId type = InvalidTypeId;
     TextValueConverterCallback convert = nullptr;
     void* context = nullptr;
@@ -253,7 +253,7 @@ constexpr EventFlags operator|(
         static_cast<std::uint32_t>(right));
 }
 
-struct TypeFlagPredicate final {
+struct TypeFlagPredicate {
     constexpr bool operator()(
         TypeFlags value,
         TypeFlags flag) const noexcept {
@@ -264,7 +264,7 @@ struct TypeFlagPredicate final {
 
 inline constexpr TypeFlagPredicate HasTypeFlag{};
 
-struct FieldFlagPredicate final {
+struct FieldFlagPredicate {
     constexpr bool operator()(
         FieldFlags value,
         FieldFlags flag) const noexcept {
@@ -280,7 +280,7 @@ constexpr TypeId MakeTypeId(Base::StringView xamlNamespace, Base::StringView nam
 constexpr Base::StringView AeroNamespaceUri() noexcept { return Base::DefaultMetadataNamespaceUri(); }
 constexpr TypeId MakeTypeId(Base::StringView name) noexcept { return Base::MakeMetaTypeId(name); }
 
-struct NoMetadataBase final {};
+struct NoMetadataBase {};
 
 template<class T>
 struct TypeTraits {
@@ -335,7 +335,7 @@ AERO_API MemberId MakeMethodId(TypeId ownerType, Base::StringView name, Base::Sp
 public: \
     using Self = typeName; \
     using BaseType = metadataBaseType; \
-    struct Members final { \
+    struct Members { \
         template<class TValue> \
         using Property = Aero::DependencyPropertyRef<Self, TValue>; \
         template<class TValue> \
@@ -371,7 +371,7 @@ namespace Aero::Meta {
 // A metadata value that identifies an object type. It is deliberately
 // distinct from the uint32_t storage used by TypeId so markup can resolve
 // qualified type names without treating every integer property as a type.
-struct TypeReference final {
+struct TypeReference {
     TypeId type = InvalidTypeId;
 
     constexpr bool IsValid() const noexcept {
@@ -775,7 +775,7 @@ struct ValueCodec<Base::String, void> {
         }
         Base::String decoded;
         Base::Result<void> assigned =
-            decoded.TryAssign(value.AsString());
+            decoded.Assign(value.AsString());
         if (!assigned) return assigned.GetStatus();
         return decoded;
     }
@@ -899,7 +899,7 @@ Base::Result<T> ConvertInteger(
         !std::is_same_v<T, bool>);
     Base::String buffer;
     Base::Result<void> assigned =
-        buffer.TryAssign(Trim(text));
+        buffer.Assign(Trim(text));
     if (!assigned) return assigned.GetStatus();
     char* end = nullptr;
     errno = 0;

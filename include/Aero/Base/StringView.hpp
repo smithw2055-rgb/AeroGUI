@@ -7,7 +7,7 @@
 
 namespace Aero::Base {
 
-class StringView final {
+class StringView  {
 public:
     constexpr StringView() noexcept = default;
 

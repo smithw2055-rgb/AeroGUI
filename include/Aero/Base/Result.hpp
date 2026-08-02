@@ -28,7 +28,7 @@ enum class ErrorCode : std::uint32_t {
     ValidationFailed
 };
 
-struct Status final {
+struct Status  {
     ErrorCode code = ErrorCode::Ok;
     const char* message = "";
 
@@ -51,7 +51,7 @@ struct Status final {
 };
 
 template<class T>
-class Result final {
+class Result  {
 public:
     Result(const T& value)
         : hasValue_(true) {
@@ -171,7 +171,7 @@ private:
 };
 
 template<>
-class Result<void> final {
+class Result<void>  {
 public:
     Result() noexcept = default;
 

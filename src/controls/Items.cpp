@@ -37,24 +37,24 @@ void ItemsPresenter::SetItemsHost(
 
 using namespace Aero::Internal;
 
-Base::Result<void> TryAddBoxedItem(
+Base::Result<void> AddBoxedItem(
     Collections::ObservableCollection& source,
     Meta::Value value) noexcept {
     Base::Result<Base::Ref<::Aero::Internal::BoxedItemValue>> boxed =
         Base::MakeRef<::Aero::Internal::BoxedItemValue>(std::move(value));
     if (!boxed) return boxed.GetStatus();
-    return source.TryAdd(
+    return source.Add(
         Base::Ref<Base::Object>(std::move(boxed).Value()));
 }
 
-Base::Result<void> TryAddBoxedStringItem(
+Base::Result<void> AddBoxedStringItem(
     Collections::ObservableCollection& source,
     Base::StringView value) noexcept {
     Base::Result<Meta::Value> boxed =
         Meta::Value::TryFromString(
             Meta::TypeOf<Base::String>(), value);
     if (!boxed) return boxed.GetStatus();
-    return TryAddBoxedItem(
+    return AddBoxedItem(
         source, std::move(boxed).Value());
 }
 
@@ -64,7 +64,7 @@ ContentControl::ContentControl(
       foregroundChangedHandler_(
           this,
           &ContentControl::OnForegroundChanged) {
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         Control::ForegroundProperty,
         foregroundChangedHandler_));
 }
@@ -116,12 +116,12 @@ void ItemCollection::Notify(
     if (!changed_.Empty()) changed_.Invoke(event);
 }
 
-Base::Result<void> ItemCollection::TryAdd(
+Base::Result<void> ItemCollection::Add(
     Base::Ref<Base::Object> item) noexcept {
-    return TryInsert(items_.Size(), std::move(item));
+    return Insert(items_.Size(), std::move(item));
 }
 
-Base::Result<void> ItemCollection::TryInsert(
+Base::Result<void> ItemCollection::Insert(
     std::uint32_t index,
     Base::Ref<Base::Object> item) noexcept {
     if (!item || index > items_.Size()) {
@@ -130,10 +130,10 @@ Base::Result<void> ItemCollection::TryInsert(
             "ItemCollection insert is invalid");
     }
     Base::Result<void> reserved =
-        items_.TryReserve(items_.Size() + 1U);
+        items_.Reserve(items_.Size() + 1U);
     if (!reserved) return reserved.GetStatus();
     Base::Result<void> added =
-        items_.TryPushBack(std::move(item));
+        items_.PushBack(std::move(item));
     if (!added) return added.GetStatus();
     Base::Ref<Base::Object> moving =
         std::move(items_.Back());
@@ -154,7 +154,7 @@ Base::Result<void> ItemCollection::TryInsert(
 }
 
 Base::Result<Base::Ref<Base::Object>>
-ItemCollection::TryRemoveAt(
+ItemCollection::RemoveAt(
     std::uint32_t index) noexcept {
     if (index >= items_.Size()) {
         return Base::Status::Failure(
@@ -178,7 +178,7 @@ ItemCollection::TryRemoveAt(
     return removed;
 }
 
-Base::Result<void> ItemCollection::TryReplace(
+Base::Result<void> ItemCollection::Replace(
     std::uint32_t index,
     Base::Ref<Base::Object> item) noexcept {
     if (!item || index >= items_.Size()) {
@@ -196,7 +196,7 @@ Base::Result<void> ItemCollection::TryReplace(
     return {};
 }
 
-Base::Result<void> ItemCollection::TryMove(
+Base::Result<void> ItemCollection::Move(
     std::uint32_t oldIndex,
     std::uint32_t newIndex) noexcept {
     if (oldIndex >= items_.Size() ||
@@ -242,22 +242,20 @@ void ItemCollection::Reset() noexcept {
         0U});
 }
 
-Base::Result<void> ItemCollection::TryReset(
+bool ItemCollection::Reset(
     Base::Span<const Base::Ref<Base::Object>>
         items) noexcept {
     Base::Vector<Base::Ref<Base::Object>> replacement;
     Base::Result<void> reserved =
-        replacement.TryReserve(items.Size());
-    if (!reserved) return reserved.GetStatus();
+        replacement.Reserve(items.Size());
+    if (!reserved) return false;
     for (const Base::Ref<Base::Object>& item : items) {
         if (!item) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "ItemCollection cannot contain null");
+            return false;
         }
         Base::Result<void> added =
-            replacement.TryPushBack(item);
-        if (!added) return added.GetStatus();
+            replacement.PushBack(item);
+        if (!added) return false;
     }
     const std::uint32_t oldCount = items_.Size();
     items_ = std::move(replacement);
@@ -267,7 +265,7 @@ Base::Result<void> ItemCollection::TryReset(
         0U,
         oldCount,
         items_.Size()});
-    return {};
+    return true;
 }
 
 Base::Result<void> Detail::DeferredObjectProgram::Configure(
@@ -504,11 +502,11 @@ Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(ItemsPanelTemplate& va
 void TemplatePrivate::ClearAuthoredVisualTree(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredVisualTree.Reset(); }
 void TemplatePrivate::ClearAuthoredVisualTree(ItemsPanelTemplate& value) noexcept { ItemsPanelTemplateState* state = State(value); if (state != nullptr) state->authoredVisualTree.Reset(); }
 
-Base::Result<void> TemplatePrivate::TryAddAuthoredTrigger(DataTemplate& value, Base::Ref<Aero::TriggerBase> trigger) noexcept {
+Base::Result<void> TemplatePrivate::AddAuthoredTrigger(DataTemplate& value, Base::Ref<Aero::TriggerBase> trigger) noexcept {
     DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     if (!trigger || state->program.factory != nullptr) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate Trigger cannot be added after sealing");
-    return state->authoredTriggers.TryPushBack(std::move(trigger));
+    return state->authoredTriggers.PushBack(std::move(trigger));
 }
 
 void TemplatePrivate::ClearAuthoredTriggers(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredTriggers.Clear(); }
@@ -521,7 +519,7 @@ Base::Span<const Base::Ref<Aero::TriggerBase>> TemplatePrivate::AuthoredTriggers
 Base::Result<void> TemplatePrivate::RegisterAuthoredName(DataTemplate& value, Base::StringView name, Base::Object& object) noexcept {
     DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
-    return state->authoredNames.TryRegister(name, object);
+    return state->authoredNames.Register(name, object);
 }
 
 void TemplatePrivate::ClearAuthoredNames(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredNames.Clear(); }
@@ -661,7 +659,7 @@ void ContentControl::SetContentValue(
 }
 
 Base::Result<Base::Ref<Base::Object>>
-ContentControl::TryCreateTemplatedContent() const noexcept {
+ContentControl::CreateTemplatedContent() const noexcept {
     if (content_ != nullptr) {
         return ownedContent_;
     }
@@ -707,7 +705,7 @@ ItemsControl::ItemsControl(TypeId runtimeType) noexcept
       sourceHandler_(
           this, &ItemsControl::OnSourceChanged) {
     static_cast<void>(
-        items_.TryAddItemsChanged(localHandler_));
+        items_.AddItemsChanged(localHandler_));
 }
 
 ItemsControl::~ItemsControl() {
@@ -796,12 +794,7 @@ void ItemsControl::SetItemsSource(
     Collections::IItemsSource* source) noexcept {
     if (source_ == source) return;
     if (source != nullptr) {
-        Base::Result<void> subscribed =
-            source->TryAddItemsChanged(
-                sourceHandler_);
-        if (!subscribed) {
-            return;
-        }
+        source->AddItemsChanged(sourceHandler_);
     }
     if (source_ != nullptr) {
         static_cast<void>(
@@ -869,7 +862,7 @@ void ItemsControl::PublishItemCount() noexcept {
 Base::Result<Base::Ref<FrameworkElement>>
 ItemsControl::CreateContainer(
     const Base::Ref<Base::Object>&) noexcept {
-    class GeneratedContentControl final : public ContentControl {
+    class GeneratedContentControl : public ContentControl {
     public:
         GeneratedContentControl() noexcept
             : ContentControl(ContentControl::StaticTypeId()) {}
@@ -899,7 +892,7 @@ namespace Aero::Internal {
 using namespace ::Aero;
 using namespace ::Aero::Controls;
 
-class ItemContainerGeneratorImpl final {
+class ItemContainerGeneratorImpl {
 public:
     ItemContainerGeneratorImpl(
         ItemContainerGenerator& facade,
@@ -941,7 +934,7 @@ public:
     Base::Status LastError() const noexcept { return lastError_; }
 
 private:
-    struct Record final {
+    struct Record {
         Base::Ref<Base::Object> item;
         Base::Ref<FrameworkElement> container;
         Base::Ref<Base::Object> content;
@@ -1032,9 +1025,7 @@ Base::Result<void> ItemContainerGeneratorImpl::Attach(
             Base::ErrorCode::InvalidState,
             "ItemContainerGenerator attach state is invalid");
     }
-    Base::Result<void> subscribed =
-        owner.TryAddItemsChanged(changedHandler_);
-    if (!subscribed) return subscribed.GetStatus();
+    owner.AddItemsChanged(changedHandler_);
     owner_ = &owner;
     host_ = &itemsHost;
     virtualizingHost_ = nullptr;
@@ -1071,9 +1062,7 @@ ItemContainerGeneratorImpl::AttachVirtualized(
             Base::ErrorCode::InvalidState,
             "Virtualized item generator attach state is invalid");
     }
-    Base::Result<void> subscribed =
-        owner.TryAddItemsChanged(changedHandler_);
-    if (!subscribed) return subscribed.GetStatus();
+    owner.AddItemsChanged(changedHandler_);
     owner_ = &owner;
     host_ = &itemsHost;
     virtualizingHost_ = &itemsHost;
@@ -1243,7 +1232,7 @@ ItemContainerGeneratorImpl::AttachOwnedSubtree(
     Aero::Visual& root) noexcept {
     Base::Vector<Aero::Visual*> pending;
     Base::Result<void> pushed =
-        pending.TryPushBack(&root);
+        pending.PushBack(&root);
     if (!pushed) return pushed.GetStatus();
 
     const auto attachChild =
@@ -1263,7 +1252,7 @@ ItemContainerGeneratorImpl::AttachOwnedSubtree(
                 owned.Get());
         if (child.GetVisualParent() == &parent &&
             Aero::Internal::ElementPrivate::Tree(child) == tree_) {
-            return pending.TryPushBack(&child);
+            return pending.PushBack(&child);
         }
         if (child.GetVisualParent() != nullptr ||
             child.GetLogicalParent() != nullptr ||
@@ -1278,14 +1267,14 @@ ItemContainerGeneratorImpl::AttachOwnedSubtree(
         ElementAttachment edge =
             std::move(mounted).Value();
         Base::Result<void> tracked =
-            record.subtreeMounts.TryPushBack(
+            record.subtreeMounts.PushBack(
                 std::move(edge));
         if (!tracked) {
             (void)tree_->DetachElement(edge);
             return tracked.GetStatus();
         }
         Base::Result<void> queued =
-            pending.TryPushBack(&child);
+            pending.PushBack(&child);
         if (!queued) {
             ElementAttachment rollback =
                 std::move(record.subtreeMounts.Back());
@@ -1570,7 +1559,7 @@ ItemContainerGeneratorImpl::DetachRecord(
     capture(tree_->DetachElement(record.containerMount));
     if (!record.itemIsOwnContainer &&
         recycleContainer && firstError.IsOk()) {
-        Base::Result<void> recycled = recycledContainers_.TryPushBack(std::move(record.container));
+        Base::Result<void> recycled = recycledContainers_.PushBack(std::move(record.container));
         if (!recycled) {
             capture(values_->DetachObject(container));
             if (firstError.IsOk()) firstError = recycled.GetStatus();
@@ -1618,14 +1607,14 @@ ItemContainerGeneratorImpl::InsertRecord(
             "Generated container insert is out of range");
     }
     Base::Result<void> reserved =
-        records_.TryReserve(records_.Size() + 1U);
+        records_.Reserve(records_.Size() + 1U);
     if (!reserved) {
         const Base::Status error = reserved.GetStatus();
         static_cast<void>(DetachRecord(record));
         return error;
     }
     Base::Result<void> appended =
-        records_.TryPushBack(std::move(record));
+        records_.PushBack(std::move(record));
     if (!appended) {
         const Base::Status error = appended.GetStatus();
         static_cast<void>(DetachRecord(record));
@@ -1704,7 +1693,7 @@ ItemContainerGeneratorImpl::SetRealizationRangeInternal(
     }
 
     Base::Result<void> reserved =
-        records_.TryReserve(count);
+        records_.Reserve(count);
     if (!reserved) return reserved.GetStatus();
     for (std::uint32_t offset = 0U;
         offset < count; ++offset) {
@@ -1724,7 +1713,7 @@ ItemContainerGeneratorImpl::SetRealizationRangeInternal(
             break;
         }
         Base::Result<void> added =
-            records_.TryPushBack(std::move(record));
+            records_.PushBack(std::move(record));
         if (!added) {
             firstError = added.GetStatus();
             static_cast<void>(
@@ -1788,7 +1777,7 @@ Base::Result<void> ItemContainerGeneratorImpl::Refresh() noexcept {
     }
     records_.Clear();
     Base::Result<void> reserved =
-        records_.TryReserve(owner_->GetCount());
+        records_.Reserve(owner_->GetCount());
     if (!reserved) return reserved.GetStatus();
     for (std::uint32_t index = 0U;
         index < owner_->GetCount(); ++index) {
@@ -1818,7 +1807,7 @@ Base::Result<void> ItemContainerGeneratorImpl::Refresh() noexcept {
             return error;
         }
         Base::Result<void> added =
-            records_.TryPushBack(
+            records_.PushBack(
                 std::move(record));
         if (!added) {
             const Base::Status error = added.GetStatus();
@@ -1948,7 +1937,7 @@ void ItemContainerGeneratorImpl::OnItemsChanged(
     if (virtualizingHost_ != nullptr &&
         owner_ != nullptr) {
         applied =
-            virtualizingHost_->TryHandleItemsChanged(
+            virtualizingHost_->HandleItemsChanged(
                 event, owner_->GetCount());
         if (applied) {
             Base::Result<bool> realized =

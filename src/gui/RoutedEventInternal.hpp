@@ -13,7 +13,7 @@
 
 namespace Aero::Internal {
 
-class RoutedHandlerStorage final {
+class RoutedHandlerStorage {
 public:
     RoutedHandlerStorage() noexcept = default;
 
@@ -144,7 +144,7 @@ private:
 
 namespace Aero::Internal {
 
-struct EventRouteNode final {
+struct EventRouteNode {
     Base::Ref<DependencyObject> retained;
     DependencyObject* borrowed = nullptr;
 
@@ -160,7 +160,7 @@ struct EventRouteNode final {
     }
 };
 
-class EventRoute final {
+class EventRoute {
 public:
     explicit EventRoute(Base::IAllocator* allocator = nullptr) noexcept
         : nodes_(allocator != nullptr
@@ -175,7 +175,7 @@ public:
         DependencyObject* current = &source;
         while (current != nullptr) {
             Base::Result<void> appended =
-                nodes_.TryPushBack(EventRouteNode::Acquire(*current));
+                nodes_.PushBack(EventRouteNode::Acquire(*current));
             if (!appended) return appended.GetStatus();
             if (strategy == RoutingStrategy::Direct) break;
             current = GetParent(*current);
@@ -234,7 +234,7 @@ namespace Aero::Internal {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 
-class AERO_API EventRouter final {
+class AERO_API EventRouter {
 public:
     explicit EventRouter(void* eventState) noexcept;
     ~EventRouter() noexcept;
@@ -267,7 +267,7 @@ public:
     }
 
 private:
-    struct ClassHandlerRecord final {
+    struct ClassHandlerRecord {
         RoutedEventHandle event;
         TypeId classType = InvalidTypeId;
         Aero::Internal::RoutedHandlerStorage handler;
@@ -313,7 +313,7 @@ Base::Result<void> EventRouter::RegisterClassHandler(
     value.handler = Aero::Internal::RoutedHandlerStorage(handler);
     value.handledEventsToo = handledEventsToo;
     value.sequence = nextClassSequence_++;
-    return classHandlers_.TryPushBack(std::move(value));
+    return classHandlers_.PushBack(std::move(value));
 }
 
 } // namespace Aero::Internal

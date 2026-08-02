@@ -91,7 +91,7 @@ GlThreadToken ThreadToken() noexcept {
 
 } // namespace
 
-struct GlxSurfaceBackend::Impl final {
+struct GlxSurfaceBackend::Impl  {
     using SwapIntervalExtProc =
         void (*)(Display*, GLXDrawable, int);
 

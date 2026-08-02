@@ -67,7 +67,7 @@ inline constexpr ::Aero::Diagnostics::DiagnosticCode DuplicateAttribute =
         ::Aero::Diagnostics::DiagnosticDomain::Xaml, 14U);
 } // namespace XmlDiagnosticCodes
 
-class AERO_API XmlAttribute final {
+class AERO_API XmlAttribute {
 public:
     XmlAttribute() noexcept = default;
     XmlAttribute(XmlAttribute&&) noexcept = default;
@@ -103,7 +103,7 @@ private:
     ::Aero::Diagnostics::SourceSpan valueSource_;
 };
 
-class AERO_API XmlToken final {
+class AERO_API XmlToken {
 public:
     XmlToken() noexcept = default;
     XmlToken(XmlToken&&) noexcept = default;
@@ -162,7 +162,7 @@ public:
     virtual std::uint32_t Depth() const noexcept = 0;
 };
 
-class AERO_API Utf8XmlTokenizer final
+class AERO_API Utf8XmlTokenizer
     : public IXmlTokenizer {
 public:
     explicit Utf8XmlTokenizer(
@@ -248,7 +248,7 @@ private:
         ::Aero::Diagnostics::SourceSpan source) noexcept;
 };
 
-class AERO_API ExpatXmlTokenizer final
+class AERO_API ExpatXmlTokenizer
     : public IXmlTokenizer {
 public:
     explicit ExpatXmlTokenizer(
@@ -339,7 +339,7 @@ inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidNodeStreamState =
         ::Aero::Diagnostics::DiagnosticDomain::Xaml, 104U);
 } // namespace NodeDiagnosticCodes
 
-class AERO_API QualifiedName final {
+class AERO_API QualifiedName {
 public:
     QualifiedName() noexcept = default;
     QualifiedName(QualifiedName&&) noexcept = default;
@@ -373,7 +373,7 @@ private:
     Base::String namespaceUri_;
 };
 
-class AERO_API Node final {
+class AERO_API Node {
 public:
     Node() noexcept = default;
     Node(Node&&) noexcept = default;
@@ -383,7 +383,7 @@ public:
     Node& operator=(const Node&) = delete;
 
     void Clear() noexcept;
-    static Base::Result<Node> TryClone(
+    static Base::Result<Node> Clone(
         const Node& source) noexcept;
 
     NodeKind Kind() const noexcept { return kind_; }
@@ -419,7 +419,7 @@ private:
     bool fromAttribute_ = false;
 };
 
-class AERO_API NodeReader final {
+class AERO_API NodeReader {
 public:
     explicit NodeReader(
         IXmlTokenizer& tokenizer,
@@ -433,7 +433,7 @@ public:
     }
 
 private:
-    struct NamespaceBinding final {
+    struct NamespaceBinding {
         NamespaceBinding() noexcept = default;
         NamespaceBinding(NamespaceBinding&&) noexcept = default;
         NamespaceBinding& operator=(NamespaceBinding&&) noexcept = default;
@@ -444,7 +444,7 @@ private:
         Base::String uri;
     };
 
-    struct ScopeFrame final {
+    struct ScopeFrame {
         ScopeFrame() noexcept = default;
         ScopeFrame(ScopeFrame&&) noexcept = default;
         ScopeFrame& operator=(ScopeFrame&&) noexcept = default;
@@ -527,7 +527,7 @@ private:
         ::Aero::Diagnostics::SourceSpan source) noexcept;
 };
 
-struct CompiledCacheIdentity final {
+struct CompiledCacheIdentity {
     std::uint32_t cacheFormatVersion =
         XamlCompiledCacheFormatVersion;
     std::uint32_t typeIdAlgorithmVersion =
@@ -567,7 +567,7 @@ AERO_API Base::Result<void> ValidateCompiledCacheIdentity(
 // Immutable replay IR produced from the XML node stream. It removes XML
 // tokenization from the load path and is guarded by the same metadata schema
 // identity used by persisted compiled-XAML caches.
-class AERO_API CompiledDocument final {
+class AERO_API CompiledDocument {
 public:
     CompiledDocument() noexcept = default;
 
@@ -629,7 +629,7 @@ public:
     Base::Span<const Base::ResourceUri> Dependencies() const noexcept {
         return {dependencies_.Data(), dependencies_.Size()};
     }
-    Base::Result<void> TryAddDependency(
+    Base::Result<void> AddDependency(
         const Base::ResourceUri& dependency) noexcept;
     bool IsValid() const noexcept {
         return !nodes_.Empty() &&
@@ -688,7 +688,7 @@ enum class MemberWriteMode : std::uint8_t {
     Collection
 };
 
-struct ResolvedMember final {
+struct ResolvedMember {
     Meta::MemberId id = Meta::InvalidMemberId;
     Meta::MemberKind kind = Meta::MemberKind::Property;
     Meta::TypeId ownerType = Meta::InvalidTypeId;
@@ -705,13 +705,13 @@ struct ResolvedMember final {
     }
 };
 
-struct MemberWritePolicy final {
+struct MemberWritePolicy {
     MemberWriteMode mode = MemberWriteMode::SetOnce;
     bool acceptsAnyValue = false;
     bool writable = false;
 };
 
-class AERO_API Schema final {
+class AERO_API Schema {
 public:
     Schema(
         ::Aero::Meta::Registry& metadata,
@@ -816,21 +816,21 @@ private:
         bool ownerWasExplicit) const noexcept;
 };
 
-struct SchemaManifestLimits final {
+struct SchemaManifestLimits {
     std::uint32_t maxTypes = 100000U;
     std::uint32_t maxMembers = 500000U;
     std::uint32_t maxStringBytes =
         64U * 1024U * 1024U;
 };
 
-struct SchemaTypeInfo final {
+struct SchemaTypeInfo {
     Meta::TypeId id = Meta::InvalidTypeId;
     Meta::MetadataTypeKind kind =
         Meta::MetadataTypeKind::Object;
     Meta::TypeFlags flags = Meta::TypeFlags::None;
 };
 
-class AERO_API SchemaManifest final {
+class AERO_API SchemaManifest {
 public:
     struct Impl;
     explicit SchemaManifest(
@@ -885,12 +885,12 @@ MarkupMetadataModuleName() noexcept {
     return "Aero.Markup";
 }
 
-inline Base::Result<void> TryRegisterMarkupMetadata(
+inline Base::Result<void> RegisterMarkupMetadata(
     ::Aero::Meta::Registry& domain) noexcept {
     constexpr std::uint32_t SchemaVersion = 4U;
     const Base::StringView name =
         MarkupMetadataModuleName();
-    return domain.TryRegisterModule({
+    return domain.RegisterModule({
         Meta::MakeMetadataModuleId(name),
         name,
         SchemaVersion,
@@ -916,7 +916,7 @@ inline Base::Result<void> TryRegisterMarkupMetadata(
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Diagnostics.hpp>
-#include <Aero/Integration/SourceProvider.hpp>
+#include <Aero/Integration/Providers/XamlProvider.hpp>
 
 #include <Aero/Markup.hpp>
 #include <Aero/Markup.hpp>
@@ -936,7 +936,7 @@ namespace Aero::Markup {
 
 class Schema;
 
-class AERO_API EffectLifetime final : public Base::Object {
+class AERO_API EffectLifetime : public Base::Object {
 public:
     EffectLifetime() noexcept = default;
     ~EffectLifetime() noexcept override = default;
@@ -957,43 +957,43 @@ enum class EffectCommitMode : std::uint8_t {
     Deferred
 };
 
-using ISourceProvider = Integration::ISourceProvider;
-using SourceProviderAdapter = Integration::SourceProviderAdapter;
+using XamlProvider = Integration::XamlProvider;
+using XamlProviderAdapter = Integration::XamlProviderAdapter;
 
-struct SourceProviderResolution final {
-    ISourceProvider* provider = nullptr;
+struct XamlProviderResolution {
+    XamlProvider* provider = nullptr;
     std::uint64_t cacheIdentity = 0U;
 };
 
-struct SourceProviderRegistration final {
+struct XamlProviderRegistration {
     Base::String scheme;
     Base::String assembly;
-    ISourceProvider* provider = nullptr;
+    XamlProvider* provider = nullptr;
 };
 
-class AERO_API SourceProviders final {
+class AERO_API XamlProviderRegistry {
 public:
-    Base::Result<void> TryRegister(
-        ISourceProvider& provider,
+    Base::Result<void> Register(
+        XamlProvider& provider,
         Base::StringView scheme = {},
         Base::StringView assembly = {}) noexcept;
-    Base::Result<void> TryRegister(
-        SourceProviderAdapter& provider,
+    Base::Result<void> Register(
+        XamlProviderAdapter& provider,
         Base::StringView scheme = {},
         Base::StringView assembly = {}) noexcept {
         if (!provider.IsValid()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
-                "Markup source provider is invalid");
+                "Markup XAML provider is invalid");
         }
-        return TryRegister(
-            static_cast<ISourceProvider&>(provider),
+        return Register(
+            static_cast<XamlProvider&>(provider),
             scheme,
             assembly);
     }
-    Base::Result<SourceProviderResolution> ResolveDetailed(
+    Base::Result<XamlProviderResolution> ResolveDetailed(
         const Base::ResourceUri& uri) const noexcept;
-    Base::Result<ISourceProvider*> Resolve(
+    Base::Result<XamlProvider*> Resolve(
         const Base::ResourceUri& uri) const noexcept;
 
     std::uint32_t ProviderCount() const noexcept {
@@ -1001,17 +1001,17 @@ public:
     }
 
 private:
-    Base::Vector<SourceProviderRegistration> registrations_;
+    Base::Vector<XamlProviderRegistration> registrations_;
 };
 
-class AERO_API EmbeddedSourceProvider final
-    : public ISourceProvider {
+class AERO_API EmbeddedXamlProvider
+    : public XamlProvider {
 public:
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         const Base::ResourceUri& uri,
         Base::Span<const std::uint8_t> bytes,
         std::uint64_t revision = 1U) noexcept;
-    Base::Result<void> TryAddText(
+    Base::Result<void> AddText(
         const Base::ResourceUri& uri,
         Base::StringView text,
         std::uint64_t revision = 1U) noexcept;
@@ -1031,7 +1031,7 @@ public:
     }
 
 private:
-    struct Entry final {
+    struct Entry {
         Base::ResourceUri uri;
         Base::Vector<std::uint8_t> bytes;
         std::uint64_t revision = 0U;
@@ -1042,10 +1042,10 @@ private:
     bool frozen_ = false;
 };
 
-class AERO_API FileSourceProvider final
-    : public ISourceProvider {
+class AERO_API FileXamlProvider
+    : public XamlProvider {
 public:
-    explicit FileSourceProvider(
+    explicit FileXamlProvider(
         std::uint64_t maxFileBytes =
             64ULL * 1024ULL * 1024ULL) noexcept
         : maxFileBytes_(maxFileBytes) {}
@@ -1063,13 +1063,13 @@ private:
     std::uint64_t maxFileBytes_ = 0U;
 };
 
-struct DocumentCacheLimits final {
+struct DocumentCacheLimits {
     std::uint32_t maxEntries = 256U;
     std::uint64_t maxCompiledBytes =
         64ULL * 1024ULL * 1024ULL;
 };
 
-struct DocumentCacheStatistics final {
+struct DocumentCacheStatistics {
     std::uint32_t entryCount = 0U;
     std::uint64_t compiledBytes = 0U;
     std::uint64_t hitCount = 0U;
@@ -1080,13 +1080,13 @@ struct DocumentCacheStatistics final {
     std::uint64_t generation = 0U;
 };
 
-struct DocumentCacheLookup final {
+struct DocumentCacheLookup {
     bool hit = false;
     std::uint64_t sourceRevision = 0U;
     CompiledDocument document;
 };
 
-class AERO_API DependencyGraph final {
+class AERO_API DependencyGraph {
 public:
     explicit DependencyGraph(
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -1125,7 +1125,7 @@ private:
     Impl* impl_ = nullptr;
 };
 
-class AERO_API DocumentCache final {
+class AERO_API DocumentCache {
 public:
     explicit DocumentCache(
         Base::IAllocator* allocator = nullptr,
@@ -1176,12 +1176,12 @@ public:
 
     bool Contains(
         const Base::ResourceUri& uri) const noexcept;
-    bool TryGetSourceRevision(
+    bool GetSourceRevision(
         const Base::ResourceUri& uri,
         std::uint64_t& revision) const noexcept {
-        return TryGetSourceRevision(uri, 0U, revision);
+        return GetSourceRevision(uri, 0U, revision);
     }
-    bool TryGetSourceRevision(
+    bool GetSourceRevision(
         const Base::ResourceUri& uri,
         std::uint64_t sourceIdentity,
         std::uint64_t& revision) const noexcept;
@@ -1199,11 +1199,11 @@ private:
     Impl* impl_ = nullptr;
 };
 
-class AERO_API Loader final {
+class AERO_API Loader {
 public:
     Loader(
         Schema& schema,
-        SourceProviders& providers,
+        XamlProviderRegistry& providers,
         Diagnostics::IDiagnosticSink* diagnostics = nullptr,
         Base::IAllocator* allocator = nullptr,
         const LoadState* runtime = nullptr) noexcept;
@@ -1269,7 +1269,7 @@ private:
 
 namespace Aero::Internal {
 
-struct VisualEdge final {
+struct VisualEdge {
     UIElement* parent = nullptr;
     UIElement* child = nullptr;
     ElementAttachment state;
@@ -1286,7 +1286,7 @@ using EffectRollbackCallback = void (*)(
     std::uint64_t token) noexcept;
 using EffectCleanupCallback = void (*)(void* context) noexcept;
 
-struct VisualContentEdge final {
+struct VisualContentEdge {
     Base::Ref<Base::Object> parentOwner;
     Base::Ref<Base::Object> childOwner;
     ::Aero::Meta::Registry* metadata = nullptr;
@@ -1297,16 +1297,16 @@ struct VisualContentEdge final {
 // Markup-owned declaration result for visual content. The plan intentionally
 // stores only content ownership and UI mount edges; the UI runtime owns
 // the actual attach/detach sequence through the owning ElementTree.
-struct VisualContentPlan final {
+struct VisualContentPlan {
     Base::Vector<VisualContentEdge> contentEdges;
     Base::Vector<Aero::Internal::VisualEdge> mountEdges;
     Base::Vector<Aero::Visual*> nodes;
 
-    Base::Result<void> TryReserve(
+    Base::Result<void> Reserve(
         std::uint32_t contentEdgeCount,
         std::uint32_t mountEdgeCount,
         std::uint32_t nodeCount) noexcept;
-    Base::Result<void> TryAddNode(
+    Base::Result<void> AddNode(
         Aero::Visual& node) noexcept;
     void ReleaseContent() noexcept;
     void Clear() noexcept;
@@ -1319,7 +1319,7 @@ struct VisualContentPlan final {
 };
 
 
-struct CommittedEffect final {
+struct CommittedEffect {
     Base::Ref<EffectLifetime> lifetime;
     Meta::EffectiveValueEngine* effectiveValues = nullptr;
     ::Aero::DependencyObject* target = nullptr;
@@ -1392,7 +1392,7 @@ struct CommittedEffect final {
     }
 };
 
-class CommittedEffectPlan final {
+class CommittedEffectPlan {
 public:
     CommittedEffectPlan() noexcept = default;
     ~CommittedEffectPlan() noexcept { Rollback(); }
@@ -1443,7 +1443,7 @@ private:
 // Ownership returned by a successful XAML load. The object writer remains a
 // short-lived loading session; mounted runtimes keep names, resources, and the
 // visual content plan here instead of reaching back into Markup services.
-struct LoaderResult final {
+struct LoaderResult {
     Base::Ref<Base::Object> root;
     ::Aero::Meta::Registry* metadata = nullptr;
     Aero::NameScope names;
@@ -1486,7 +1486,7 @@ using LoadFinalizeCallback = Base::Result<void> (*)(
     LoaderResult& result,
     void* context) noexcept;
 
-struct LoadState final {
+struct LoadState {
     const Aero::ResourceDictionary* resources = nullptr;
     Meta::EffectiveValueEngine* effectiveValues = nullptr;
     Aero::Internal::BindingEngine* bindings = nullptr;
@@ -1525,11 +1525,11 @@ class Schema;
 
 namespace Aero {
 
-struct GuiSchemaOptions final {
+struct GuiSchemaOptions {
     Base::IAllocator* allocator = nullptr;
 };
 
-class GuiSchema final {
+class GuiSchema {
 public:
     explicit GuiSchema(
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -1570,7 +1570,7 @@ class Schema;
 
 // Installs the ResourceDictionary schema adapters shared by runtime, compiled,
 // application and theme XAML.
-class AERO_API ResourceExtension final {
+class AERO_API ResourceExtension {
 public:
     Base::Result<void> Register(
         Schema& schema) noexcept;
@@ -1590,7 +1590,7 @@ namespace Aero::Internal {
 
 // Supports the object-element form used by the reference theme, for example
 // <StaticResource ResourceKey="Anim.Expand.Vertical.Loaded"/>.
-class StaticResourceObject final : public ::Aero::DependencyObject {
+class StaticResourceObject : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE_NAMED(
         StaticResourceObject,
         ::Aero::DependencyObject,
@@ -1633,7 +1633,7 @@ namespace Aero::Markup {
 
 class Schema;
 
-struct UiObjectModelOptions final {
+struct UiObjectModelOptions {
     UiObjectModelOptions() noexcept = default;
     UiObjectModelOptions(
         ::Aero::Meta::Registry* metadata,
@@ -1651,7 +1651,7 @@ struct UiObjectModelOptions final {
 // Optional registration override used by schema hosts that expose a custom
 // Style/Setter model. Product runtimes use Register(schema), which
 // registers Aero's complete Style/Trigger/Template object model.
-struct UiObjectModelTypes final {
+struct UiObjectModelTypes {
     Meta::TypeId style = Meta::InvalidTypeId;
     Meta::TypeId setter = Meta::InvalidTypeId;
     Meta::TypeId trigger = Meta::InvalidTypeId;
@@ -1662,7 +1662,7 @@ struct UiObjectModelTypes final {
 // Owns the schema adapters for the UI XAML object model. Parsing,
 // compiled XAML, themes, and application resources all register this same
 // object model instead of constructing independent Style or Template paths.
-class AERO_API UiObjectModel final {
+class AERO_API UiObjectModel {
 public:
     explicit UiObjectModel(
         const UiObjectModelOptions& options) noexcept;
@@ -1696,7 +1696,7 @@ private:
 
 namespace Aero::Markup::Detail {
 
-class XamlStyleSchemaFacet final {
+class XamlStyleSchemaFacet {
 public:
     explicit XamlStyleSchemaFacet(
         const UiObjectModelOptions& options) noexcept;
@@ -1726,7 +1726,7 @@ private:
         void* context) noexcept;
 };
 
-class XamlTemplateSchemaFacet final {
+class XamlTemplateSchemaFacet {
 public:
     XamlTemplateSchemaFacet(
         ::Aero::Meta::Registry& metadata,
@@ -1763,7 +1763,7 @@ using ::Aero::Markup::Detail::XamlTemplateSchemaFacet;
 
 namespace Aero::Internal {
 
-class XamlDocumentPrivate final {
+class XamlDocumentPrivate {
 public:
     static Base::Result<Markup::XamlDocument> Adopt(
         Markup::LoaderResult&& result,

@@ -5,16 +5,17 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Integration/Providers/TextureProvider.hpp>
 
 namespace Aero::Markup {
-class SourceProviders;
+class XamlProviderRegistry;
 }
 
 namespace Aero { class Visual; }
 
 namespace Aero::Internal {
 
-class ImageCache final {
+class ImageCache {
 public:
     explicit ImageCache(
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -27,7 +28,8 @@ public:
     Base::Result<bool> Synchronize(
         Aero::Visual* root,
         const Base::ResourceUri& documentUri,
-        Markup::SourceProviders& sources,
+        Markup::XamlProviderRegistry& sources,
+        Integration::TextureProvider* textureProvider,
         ImageResources* backend,
         bool backendGenerationChanged) noexcept;
     void ReleaseBackendResources(

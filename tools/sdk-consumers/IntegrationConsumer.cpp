@@ -1,9 +1,23 @@
 #include <Aero/Integration.hpp>
+#include <Aero/Integration/Providers/FontProvider.hpp>
+#include <Aero/Integration/Providers/TextureProvider.hpp>
+#include <Aero/Integration/Providers/XamlProvider.hpp>
 #include <Aero/Markup.hpp>
 
 #include <utility>
+#include <type_traits>
 
 namespace {
+
+static_assert(
+    std::is_abstract<Aero::Integration::XamlProvider>::value,
+    "XamlProvider must remain a host-owned contract");
+static_assert(
+    std::is_abstract<Aero::Integration::FontProvider>::value,
+    "FontProvider must remain a host-owned contract");
+static_assert(
+    std::is_abstract<Aero::Integration::TextureProvider>::value,
+    "TextureProvider must remain a host-owned contract");
 
 [[maybe_unused]]
 Aero::Base::Result<Aero::Base::Ref<Aero::View>>

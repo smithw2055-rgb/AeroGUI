@@ -13,8 +13,8 @@
 
 namespace Aero::Integration {
 
-struct ReloadCoordinator::Impl final {
-    struct RevisionRecord final {
+struct ReloadCoordinator::Impl  {
+    struct RevisionRecord  {
         Base::ResourceUri uri;
         std::uint64_t revision = 0U;
     };
@@ -69,7 +69,7 @@ struct ReloadCoordinator::Impl final {
         RevisionRecord record;
         record.uri = uri;
         record.revision = revision;
-        return records.TryPushBack(std::move(record));
+        return records.PushBack(std::move(record));
     }
 
     Base::Result<void> BuildTrackedSources(

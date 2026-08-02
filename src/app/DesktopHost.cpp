@@ -71,8 +71,8 @@ std::uint32_t WindowExtent(
 
 } // namespace
 
-struct DesktopHost::Impl final {
-    struct WindowHost final {
+struct DesktopHost::Impl {
+    struct WindowHost {
         explicit WindowHost(Impl& applicationHost) noexcept
             : owner(&applicationHost),
               runtime{
@@ -556,7 +556,7 @@ struct DesktopHost::Impl final {
           diagnostics(source.diagnostics),
           suppliedApplication(providedApplication),
           suppliedWindow(std::move(providedWindow)) {
-        optionsStatus = applicationFile.TryAssign(source.applicationFile);
+        optionsStatus = applicationFile.Assign(source.applicationFile);
         if (optionsStatus) {
             const Base::StringView path = applicationFile.View();
             std::uint32_t separator = path.SizeBytes();
@@ -565,7 +565,7 @@ struct DesktopHost::Impl final {
                     separator = index;
                 }
             }
-            optionsStatus = assetRoot.TryAssign(
+            optionsStatus = assetRoot.Assign(
                 separator < path.SizeBytes()
                 ? path.Substr(0U, separator)
                 : Base::StringView("."));
@@ -651,7 +651,7 @@ struct DesktopHost::Impl final {
                 Base::ErrorCode::OutOfMemory,
                 "Unable to allocate application Window host");
         }
-        Base::Result<void> appended = windows.TryPushBack(host);
+        Base::Result<void> appended = windows.PushBack(host);
         if (!appended) {
             delete host;
             return appended.GetStatus();

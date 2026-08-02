@@ -61,7 +61,7 @@ using PropertyExpressionEvaluateCallback = Base::Result<PropertyValue> (*)(
     DependencyPropertyHandle property) noexcept;
 using PropertyExpressionCleanupCallback = void (*)(void* context) noexcept;
 
-struct PropertyExpression final {
+struct PropertyExpression {
     void* context = nullptr;
     PropertyExpressionEvaluateCallback evaluate = nullptr;
     PropertyExpressionCleanupCallback cleanup = nullptr;
@@ -72,7 +72,7 @@ struct PropertyExpression final {
     }
 };
 
-struct PropertyProviderToken final {
+struct PropertyProviderToken {
     PropertyValueRank rank = PropertyValueRank::Default;
     std::uint32_t origin = 0U;
     std::uint32_t ordinal = 0U;
@@ -96,7 +96,7 @@ constexpr bool operator!=(
     return !(left == right);
 }
 
-class PropertyProviderOriginAllocator final {
+class PropertyProviderOriginAllocator {
 public:
     explicit constexpr PropertyProviderOriginAllocator(
         std::uint32_t first = FirstCanonicalProviderOrigin) noexcept
@@ -119,7 +119,7 @@ private:
     std::uint32_t next_ = FirstCanonicalProviderOrigin;
 };
 
-struct PropertyValueSourceInfo final {
+struct PropertyValueSourceInfo {
     PropertyValueRank rank = PropertyValueRank::Default;
     PropertyProviderToken token;
     PropertyExpressionKind expressionKind =
@@ -132,7 +132,7 @@ struct PropertyValueSourceInfo final {
     std::uint64_t revision = 0U;
 };
 
-struct PropertyProviderContribution final {
+struct PropertyProviderContribution {
     PropertyProviderToken token;
     PropertyValue value;
 };
@@ -142,41 +142,52 @@ struct PropertyProviderContribution final {
 // ranks win first, followed by later provider origins and declaration ordinals.
 // Origins are allocated by EffectiveValueEngine and are unique across all
 // provider sessions attached to that engine.
-class PropertyProviderSet final {
+class PropertyProviderSet {
 public:
-    Base::Result<void> TrySet(
+    bool Set(
         PropertyProviderToken token,
         const PropertyValue& value) noexcept {
         if (!token.IsValid() || value.IsUnset()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "A property contribution requires a valid token and value");
+            return false;
         }
         const std::uint32_t existing = Find(token);
         if (existing != UINT32_MAX) {
             contributions_[existing].value = value;
-            return {};
+            return true;
         }
-        return contributions_.TryPushBack({token, value});
+        Base::Result<void> added = contributions_.PushBack({token, value});
+        if (!added) {
+            Base::ReportOutOfMemory(
+                sizeof(PropertyProviderContribution),
+                alignof(PropertyProviderContribution),
+                Base::MemoryTag::Container);
+        }
+        return true;
     }
 
-    Base::Result<void> TrySet(
+    bool Set(
         PropertyProviderToken token,
         PropertyValue&& value) noexcept {
         if (!token.IsValid() || value.IsUnset()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "A property contribution requires a valid token and value");
+            return false;
         }
         const std::uint32_t existing = Find(token);
         if (existing != UINT32_MAX) {
             contributions_[existing].value = std::move(value);
-            return {};
+            return true;
         }
         PropertyProviderContribution contribution;
         contribution.token = token;
         contribution.value = std::move(value);
-        return contributions_.TryPushBack(std::move(contribution));
+        Base::Result<void> added =
+            contributions_.PushBack(std::move(contribution));
+        if (!added) {
+            Base::ReportOutOfMemory(
+                sizeof(PropertyProviderContribution),
+                alignof(PropertyProviderContribution),
+                Base::MemoryTag::Container);
+        }
+        return true;
     }
 
     bool Remove(PropertyProviderToken token) noexcept {

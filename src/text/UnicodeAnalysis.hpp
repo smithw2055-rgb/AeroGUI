@@ -52,7 +52,7 @@ enum class ParagraphDirection : std::uint8_t {
     RightToLeft,
 };
 
-struct UnicodeScalar final {
+struct UnicodeScalar  {
     std::uint32_t value = 0U;
     std::uint32_t byteOffset = 0U;
     std::uint8_t byteLength = 0U;
@@ -64,7 +64,7 @@ struct UnicodeScalar final {
     std::uint8_t embeddingLevel = 0U;
 };
 
-struct UnicodeRun final {
+struct UnicodeRun  {
     std::uint32_t firstScalar = 0U;
     std::uint32_t scalarCount = 0U;
     UnicodeScript script = UnicodeScript::Unknown;
@@ -72,13 +72,13 @@ struct UnicodeRun final {
     bool rightToLeft = false;
 };
 
-struct UnicodeBreakOpportunity final {
+struct UnicodeBreakOpportunity  {
     std::uint32_t scalarIndex = 0U;
     bool allowed = false;
     bool mandatory = false;
 };
 
-struct UnicodeClusterMap final {
+struct UnicodeClusterMap  {
     std::uint32_t logicalCluster = 0U;
     std::uint32_t visualCluster = 0U;
 };
@@ -86,7 +86,7 @@ struct UnicodeClusterMap final {
 // Deterministic provider-neutral Unicode analysis used by TextBlock/TextBox.
 // The implementation covers the desktop runtime baseline without depending on
 // ICU and keeps the data model compatible with a generated Unicode table.
-class AERO_API UnicodeTextAnalysis final {
+class AERO_API UnicodeTextAnalysis  {
 public:
     explicit UnicodeTextAnalysis(
         Base::IAllocator* allocator = nullptr) noexcept;

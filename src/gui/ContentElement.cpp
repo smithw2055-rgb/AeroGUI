@@ -11,14 +11,14 @@
 namespace Aero {
 namespace {
 
-struct RoutedHandlerRecord final {
+struct RoutedHandlerRecord {
     RoutedEventHandle event;
     Aero::Internal::RoutedHandlerStorage handler;
     std::uint64_t sequence = 0U;
     bool handledEventsToo = false;
 };
 
-struct ContentElementHandlerState final {
+struct ContentElementHandlerState {
     Base::Vector<RoutedHandlerRecord> handlers;
     std::uint64_t nextSequence = 1U;
 };
@@ -38,7 +38,7 @@ ContentElement::~ContentElement() {
     CleanupHandlers();
 }
 
-Base::Result<void> ContentElement::TryAddHandlerCore(
+Base::Result<void> ContentElement::AddHandlerCore(
     RoutedEventHandle event,
     const HandlerDescriptor& handler,
     bool handledEventsToo) noexcept {
@@ -90,7 +90,7 @@ Base::Result<void> ContentElement::TryAddHandlerCore(
         handler.operations->invoke);
     record.sequence = state->nextSequence++;
     record.handledEventsToo = handledEventsToo;
-    return state->handlers.TryPushBack(std::move(record));
+    return state->handlers.PushBack(std::move(record));
 }
 
 bool ContentElement::RemoveHandlerCore(

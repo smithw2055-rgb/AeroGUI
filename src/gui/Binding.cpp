@@ -206,7 +206,7 @@ Base::Result<Base::String> FormatBindingString(
     case ValueKind::String: {
         Base::String result;
         Base::Result<void> assigned =
-            result.TryAssign(value.AsString());
+            result.Assign(value.AsString());
         return assigned
             ? Base::Result<Base::String>(
                   std::move(result))
@@ -256,7 +256,7 @@ Base::Result<Base::String> FormatBindingString(
                 Media::StreamGeometry::StaticTypeId())) {
             Base::String result;
             Base::Result<void> assigned =
-                result.TryAssign(
+                result.Assign(
                     static_cast<Media::StreamGeometry&>(
                         *value.AsObject()).GetData());
             return assigned
@@ -368,16 +368,16 @@ Base::Result<Base::String> FormatBindingString(
 
     Base::String result;
     Base::Result<void> appended =
-        result.TryAppend(prefix);
+        result.Append(prefix);
     if (appended) {
-        appended = result.TryAppend(
+        appended = result.Append(
             Base::StringView(
                 formatted,
                 static_cast<std::uint32_t>(
                     std::strlen(formatted))));
     }
     if (appended) {
-        appended = result.TryAppend(suffix);
+        appended = result.Append(suffix);
     }
     return appended
         ? Base::Result<Base::String>(
@@ -460,20 +460,20 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     BindingRecord record;
     record.handle.value = nextHandle_++;
     record.descriptor = descriptor;
-    Base::Result<void> appended = bindings_.TryPushBack(std::move(record));
+    Base::Result<void> appended = bindings_.PushBack(std::move(record));
     if (!appended) {
         --nextHandle_;
         return appended.GetStatus();
     }
     Base::Result<void> sourceSubscription =
-        descriptor.source->TryAddValueChangedHandler(
+        descriptor.source->AddValueChangedHandlerChecked(
             descriptor.sourceProperty, propertyChangedHandler_);
     if (!sourceSubscription) {
         RemoveAt(bindings_.Size() - 1U);
         return sourceSubscription.GetStatus();
     }
     Base::Result<void> targetSubscription =
-        descriptor.target->TryAddValueChangedHandler(
+        descriptor.target->AddValueChangedHandlerChecked(
             descriptor.targetProperty, propertyChangedHandler_);
     if (!targetSubscription) {
         (void)descriptor.source->RemoveValueChangedHandler(
@@ -530,12 +530,12 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     record.descriptor.diagnosticContext =
         descriptor.diagnosticContext;
     record.bindsToSource = descriptor.bindsToSource;
-    Base::Result<void> assigned = record.path.TryAssign(descriptor.path);
+    Base::Result<void> assigned = record.path.Assign(descriptor.path);
     if (!assigned) {
         --nextHandle_;
         return assigned.GetStatus();
     }
-    assigned = record.stringFormat.TryAssign(
+    assigned = record.stringFormat.Assign(
         descriptor.stringFormat);
     if (!assigned) {
         --nextHandle_;
@@ -616,14 +616,14 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     }
 
     Base::Result<void> appended =
-        bindings_.TryPushBack(std::move(record));
+        bindings_.PushBack(std::move(record));
     if (!appended) {
         --nextHandle_;
         return appended.GetStatus();
     }
     BindingRecord& stored = bindings_.Back();
     Base::Result<void> targetSubscription =
-        descriptor.target->TryAddValueChangedHandler(
+        descriptor.target->AddValueChangedHandlerChecked(
             descriptor.targetProperty, propertyChangedHandler_);
     if (!targetSubscription) {
         RemoveAt(bindings_.Size() - 1U);
@@ -631,7 +631,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     }
     if (stored.sourceKind == BindingSourceKind::DataContext) {
         Base::Result<void> contextSubscription =
-            descriptor.target->TryAddValueChangedHandler(
+            descriptor.target->AddValueChangedHandlerChecked(
                 descriptor.dataContextProperty,
                 propertyChangedHandler_);
         if (!contextSubscription) {
@@ -687,12 +687,12 @@ Base::Result<void> BindingEngine::QueueDeferred(
     record.diagnosticContext =
         descriptor.diagnosticContext;
     Base::Result<void> assigned =
-        record.path.TryAssign(descriptor.path);
+        record.path.Assign(descriptor.path);
     if (!assigned) return assigned.GetStatus();
-    assigned = record.stringFormat.TryAssign(
+    assigned = record.stringFormat.Assign(
         descriptor.stringFormat);
     if (!assigned) return assigned.GetStatus();
-    return deferredBindings_.TryPushBack(
+    return deferredBindings_.PushBack(
         std::move(record));
 }
 
@@ -747,7 +747,7 @@ BindingEngine::ActivateDeferred(
             deferredBindings_[move - 1U] =
                 std::move(deferredBindings_[move]);
         }
-        (void)deferredBindings_.TryResize(
+        (void)deferredBindings_.Resize(
             deferredBindings_.Size() - 1U);
         ++activated;
     }
@@ -830,7 +830,7 @@ Base::Result<std::uint32_t> BindingEngine::DetachObject(
             deferredBindings_[move - 1U] =
                 std::move(deferredBindings_[move]);
         }
-        (void)deferredBindings_.TryResize(
+        (void)deferredBindings_.Resize(
             deferredBindings_.Size() - 1U);
         ++detached;
     }
@@ -1082,14 +1082,14 @@ BindingEngine::InspectBindings(
         inspection.applied =
             record.applied;
         Base::Result<void> assigned =
-            inspection.path.TryAssign(
+            inspection.path.Assign(
                 record.path.View());
         if (!assigned) {
             output.Clear();
             return assigned.GetStatus();
         }
         Base::Result<void> appended =
-            output.TryPushBack(
+            output.PushBack(
                 std::move(inspection));
         if (!appended) {
             output.Clear();

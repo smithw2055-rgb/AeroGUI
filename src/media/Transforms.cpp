@@ -130,7 +130,7 @@ Base::Rect TransformBounds(
         std::max(0.0, bottom - top)};
 }
 
-bool TryInvertTransform(
+bool InvertTransform(
     const Base::Transform2D& transform,
     Base::Transform2D& inverse) noexcept {
     if (!Base::IsFiniteTransform(transform)) {
@@ -309,7 +309,7 @@ void MatrixTransform::SetMatrixValue(
     DependencyObject::SetValue(MatrixProperty, value);
 }
 
-Base::Result<void> TransformGroup::TryAddChild(
+Base::Result<void> TransformGroup::AddChild(
     Base::Ref<Transform> value) noexcept {
     if (!value) {
         return Base::Status::Failure(
@@ -327,7 +327,7 @@ Base::Result<void> TransformGroup::TryAddChild(
             Internal::OwnerRoleValue(Internal::TransformOwnerRole::Layout));
     }
     Base::Result<void> added =
-        children_.TryPushBack(std::move(value));
+        children_.PushBack(std::move(value));
     if (!added) return added.GetStatus();
     FrameworkElement* owner = GetOwner();
     if (owner == nullptr) return {};

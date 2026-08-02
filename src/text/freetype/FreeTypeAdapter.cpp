@@ -68,7 +68,7 @@ Base::Result<FT_UInt> ToPixelSize(
     return static_cast<FT_UInt>(std::ceil(scaled));
 }
 
-struct OutlineBuilder final {
+struct OutlineBuilder  {
     GlyphOutline* outline = nullptr;
     Base::Status status;
     bool contourOpen = false;
@@ -78,7 +78,7 @@ bool AppendOutline(
     OutlineBuilder& builder,
     const OutlineCommand& command) noexcept {
     Base::Result<void> appended =
-        builder.outline->commands.TryPushBack(command);
+        builder.outline->commands.PushBack(command);
     if (!appended) {
         builder.status = appended.GetStatus();
         return false;
@@ -154,8 +154,8 @@ int CubicToCallback(
 
 } // namespace
 
-struct FreeTypeAdapter::Impl final {
-    struct FaceRecord final {
+struct FreeTypeAdapter::Impl  {
+    struct FaceRecord  {
         explicit FaceRecord(
             Base::IAllocator* allocator = nullptr) noexcept
             : family(allocator), sourceName(allocator), sourceBytes(allocator) {}
@@ -344,7 +344,7 @@ Base::Result<void> FreeTypeAdapter::LoadFace(
         return {};
     }
     Base::Result<Impl::FaceRecord*> appended =
-        impl_->faces.TryEmplaceBack(allocator_);
+        impl_->faces.EmplaceBack(allocator_);
     if (!appended) return appended.GetStatus();
     Impl::FaceRecord& record = *appended.Value();
     record.faceIndex = source.faceIndex;
@@ -353,10 +353,10 @@ Base::Result<void> FreeTypeAdapter::LoadFace(
     record.style = typeface.Style();
     record.stretch = typeface.Stretch();
     Base::Result<void> assigned =
-        record.family.TryAssign(typeface.Family());
-    if (assigned) assigned = record.sourceName.TryAssign(source.identifier);
+        record.family.Assign(typeface.Family());
+    if (assigned) assigned = record.sourceName.Assign(source.identifier);
     if (assigned && source.kind == FontSourceKind::Memory) {
-        assigned = record.sourceBytes.TryAppend(source.bytes);
+        assigned = record.sourceBytes.Append(source.bytes);
     }
     if (!assigned) {
         impl_->faces.PopBack();
@@ -532,7 +532,7 @@ Base::Result<void> FreeTypeAdapter::Shape(
         glyph.advanceX = From26Dot6(
             face->freeTypeFace->glyph->advance.x);
         Base::Result<void> appended =
-            output.glyphs.TryPushBack(glyph);
+            output.glyphs.PushBack(glyph);
         if (!appended) return appended.GetStatus();
     }
     return {};
@@ -615,7 +615,7 @@ Base::Result<void> FreeTypeAdapter::Rasterize(
             "Glyph bitmap exceeds Aero container limits");
     }
     Base::Result<void> resized =
-        output.pixels.TryResize(
+        output.pixels.Resize(
             static_cast<std::uint32_t>(byteCount));
     if (!resized) return resized.GetStatus();
     const int pitch = bitmap.pitch < 0

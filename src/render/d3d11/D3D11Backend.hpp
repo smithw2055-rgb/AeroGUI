@@ -26,7 +26,7 @@ enum class D3D11StatePolicy : std::uint8_t {
     PreserveRequiredState
 };
 
-struct D3D11BackendOptions final {
+struct D3D11BackendOptions  {
     D3D11DeviceMode deviceMode = D3D11DeviceMode::Hardware;
     D3D11StatePolicy statePolicy = D3D11StatePolicy::HostResetsState;
     bool enableDebugLayer = false;
@@ -35,7 +35,7 @@ struct D3D11BackendOptions final {
     std::uintptr_t borrowedImmediateContext = 0U;
 };
 
-struct D3D11ExternalRenderTargetDescriptor final {
+struct D3D11ExternalRenderTargetDescriptor  {
     std::uintptr_t texture2D = 0U;
     std::uintptr_t renderTargetView = 0U;
     std::uintptr_t depthStencilView = 0U;
@@ -43,7 +43,7 @@ struct D3D11ExternalRenderTargetDescriptor final {
     std::uint64_t stableId = 0U;
 };
 
-class AERO_API D3D11GraphicsBackend final : public GraphicsBackend {
+class AERO_API D3D11GraphicsBackend  : public GraphicsBackend {
 public:
     explicit D3D11GraphicsBackend(
         const D3D11BackendOptions& options = {},
@@ -117,7 +117,7 @@ private:
     Impl* impl_ = nullptr;
 };
 
-class AERO_API D3D11SwapChainSurface final : public ISurfaceBackend {
+class AERO_API D3D11SwapChainSurface  : public ISurfaceBackend {
 public:
     explicit D3D11SwapChainSurface(
         D3D11GraphicsBackend& graphics,
@@ -157,7 +157,7 @@ private:
     Impl* impl_ = nullptr;
 };
 
-struct D3D11SurfaceFrame final {
+struct D3D11SurfaceFrame  {
     SurfaceFrame surface;
     ResourceHandle renderTarget;
 
@@ -166,7 +166,7 @@ struct D3D11SurfaceFrame final {
     }
 };
 
-class AERO_API D3D11SurfacePresenter final {
+class AERO_API D3D11SurfacePresenter  {
 public:
     D3D11SurfacePresenter(
         GraphicsDevice& device,

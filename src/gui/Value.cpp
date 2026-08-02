@@ -12,7 +12,7 @@
 namespace Aero::Base {
 namespace {
 
-class StringValueStorage final : public Base::Object {
+class StringValueStorage : public Base::Object {
 public:
     explicit StringValueStorage(Base::String&& value) noexcept : value_(std::move(value)) {}
     Base::StringView View() const noexcept { return value_.View(); }
@@ -20,7 +20,7 @@ private:
     Base::String value_;
 };
 
-class CustomValueStorage final : public Base::Object {
+class CustomValueStorage : public Base::Object {
 public:
     CustomValueStorage(void* value, Base::IAllocator& allocator, const Base::Ref<ValueTypeSemantics>& semantics) noexcept
         : value_(value), allocator_(&allocator), semantics_(semantics) {}
@@ -56,7 +56,7 @@ Value Value::FromDouble(TypeId type, double value) noexcept { Value result; resu
 Base::Result<Value> Value::TryFromString(TypeId type, Base::StringView value) noexcept {
     Base::IAllocator& selected = Base::GetDefaultAllocator();
     Base::String text(&selected);
-    Base::Result<void> assigned = text.TryAssign(value);
+    Base::Result<void> assigned = text.Assign(value);
     if (!assigned) return assigned.GetStatus();
     Base::Result<Base::Ref<StringValueStorage>> storage = Base::MakeRefWithAllocator<StringValueStorage>(selected, std::move(text));
     if (!storage) return storage.GetStatus();
@@ -164,7 +164,7 @@ Base::Result<double> ParseDouble(
     Base::StringView text) noexcept {
     Base::String buffer;
     Base::Result<void> assigned =
-        buffer.TryAssign(Trim(text));
+        buffer.Assign(Trim(text));
     if (!assigned) return assigned.GetStatus();
     char* end = nullptr;
     const double value =
@@ -201,7 +201,7 @@ Base::Result<Base::String> ConvertString(
     Base::StringView text) noexcept {
     Base::String value;
     Base::Result<void> assigned =
-        value.TryAssign(text);
+        value.Assign(text);
     if (!assigned) return assigned.GetStatus();
     return value;
 }
@@ -259,7 +259,7 @@ RegistrationValues Detail::MakeRegistrationValues(
 }
 
 Base::Result<void>
-RegistrationValues::TryRegisterValueSemantics(
+RegistrationValues::RegisterValueSemantics(
     TypeId type,
     const ValueTypeRegistration& registration) const noexcept {
     ValueTable* registrations =
@@ -269,12 +269,12 @@ RegistrationValues::TryRegisterValueSemantics(
             Base::ErrorCode::InvalidState,
             "Metadata registration values are read-only");
     }
-    return registrations->TryRegisterValueSemantics(
+    return registrations->RegisterValueSemantics(
         type, registration);
 }
 
 Base::Result<void>
-RegistrationValues::TryRegisterTextConverter(
+RegistrationValues::RegisterTextConverter(
     const TextValueConverterRegistration& registration) const noexcept {
     ValueTable* registrations =
         MutableStore(mutableRegistrations_);
@@ -283,7 +283,7 @@ RegistrationValues::TryRegisterTextConverter(
             Base::ErrorCode::InvalidState,
             "Metadata registration values are read-only");
     }
-    return registrations->TryRegisterTextConverter(registration);
+    return registrations->RegisterTextConverter(registration);
 }
 
 Base::Result<Value> RegistrationValues::TryCreateValue(
@@ -374,7 +374,7 @@ bool IsValueType(const TypeInfo& type) noexcept {
 
 } // namespace
 
-Base::Result<void> ValueTable::TryRegisterValueSemantics(
+Base::Result<void> ValueTable::RegisterValueSemantics(
     TypeId type,
     const ValueTypeRegistration& registration) noexcept {
     if (frozen_) return FrozenStatus();
@@ -399,10 +399,10 @@ Base::Result<void> ValueTable::TryRegisterValueSemantics(
     Base::Result<Base::Ref<ValueTypeSemantics>> created =
         Base::MakeRef<ValueTypeSemantics>(registration);
     if (!created) return created.GetStatus();
-    return valueSemantics_.TryPushBack({type, std::move(created).Value()});
+    return valueSemantics_.PushBack({type, std::move(created).Value()});
 }
 
-Base::Result<void> ValueTable::TryRegisterTextConverter(
+Base::Result<void> ValueTable::RegisterTextConverter(
     const TextValueConverterRegistration& registration) noexcept {
     if (frozen_) return FrozenStatus();
     if (registration.type == InvalidTypeId || registration.convert == nullptr ||
@@ -416,7 +416,7 @@ Base::Result<void> ValueTable::TryRegisterTextConverter(
             Base::ErrorCode::AlreadyExists,
             "Text value converter is already registered");
     }
-    return textConverters_.TryPushBack(registration);
+    return textConverters_.PushBack(registration);
 }
 
 Base::Result<void> ValueTable::Freeze() noexcept {

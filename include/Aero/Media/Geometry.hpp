@@ -38,7 +38,7 @@ private:
 // Streaming geometry is the WPF-shaped geometry value used by path and
 // vector controls. The textual value remains accepted for authored XAML while
 // the type now has a distinct extension point for incremental path commands.
-class AERO_API StreamGeometry final : public Geometry {
+class AERO_API StreamGeometry : public Geometry {
     AERO_DECLARE_TYPE(StreamGeometry, Geometry)
 public:
     StreamGeometry() noexcept = default;
@@ -48,7 +48,7 @@ public:
     }
     Base::StringView GetData() const noexcept { return data_.View(); }
     void SetData(Base::StringView value) noexcept {
-        (void)data_.TryAssign(value);
+        (void)data_.Assign(value);
     }
     Rect GetBounds() const noexcept override { return bounds_; }
     void SetBounds(Rect value) noexcept {

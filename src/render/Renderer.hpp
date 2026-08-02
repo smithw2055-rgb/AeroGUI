@@ -16,7 +16,7 @@ namespace Detail {
 class RendererGlyphRunSink;
 }
 
-struct RendererShaderSet final {
+struct RendererShaderSet  {
     Graphics::ShaderDescriptor rectangleVertex;
     Graphics::ShaderDescriptor rectangleFragment;
     Graphics::ShaderDescriptor imageVertex;
@@ -29,13 +29,13 @@ struct RendererShaderSet final {
         Graphics::GraphicsTextureFormat::Bgra8Unorm;
 };
 
-struct RenderTarget final {
+struct RenderTarget  {
     Graphics::ResourceHandle color;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
 };
 
-struct RendererStatistics final {
+struct RendererStatistics  {
     std::uint32_t renderPassCount = 0U;
     std::uint32_t drawCallCount = 0U;
     std::uint32_t rectangleInstanceCount = 0U;
@@ -52,7 +52,7 @@ struct RendererStatistics final {
     std::uint32_t textureSamplerBindingCount = 0U;
 };
 
-class Renderer final {
+class Renderer  {
 public:
     Renderer(
         Graphics::GraphicsDevice& device,

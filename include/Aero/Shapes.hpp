@@ -41,7 +41,7 @@ protected:
     ~Shape() override = default;
 };
 
-class AERO_API Rectangle final : public Shape {
+class AERO_API Rectangle : public Shape {
     AERO_DECLARE_TYPE(Rectangle, Shape)
 public:
     Rectangle() noexcept : Shape(StaticTypeId()) {}
@@ -62,7 +62,7 @@ protected:
         DrawingContext& context) noexcept override;
 };
 
-class AERO_API Ellipse final : public Shape {
+class AERO_API Ellipse : public Shape {
     AERO_DECLARE_TYPE(Ellipse, Shape)
 public:
     Ellipse() noexcept : Shape(StaticTypeId()) {}
@@ -77,7 +77,7 @@ protected:
 
 // WPF-shaped vector path. The textual Data value accepts the deterministic
 // SVG/WPF subset used by the Gallery vector assets.
-class AERO_API Path final : public FrameworkElement {
+class AERO_API Path : public FrameworkElement {
     AERO_DECLARE_TYPE(Path, FrameworkElement)
 public:
     Path() noexcept;

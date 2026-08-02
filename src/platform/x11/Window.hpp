@@ -5,7 +5,7 @@
 
 namespace Aero::Platform {
 
-class AERO_API X11Window final : public IWindow {
+class AERO_API X11Window  : public IWindow {
 public:
     explicit X11Window(
         Base::IAllocator* allocator = nullptr) noexcept;

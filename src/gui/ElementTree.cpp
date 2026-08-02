@@ -222,7 +222,7 @@ Visual* ElementTree::ResolveHandle(VisualHandle handle) const noexcept {
 Base::Result<void> ElementTree::CollectLogicalSubtree(
     Visual& node,
     Base::Vector<Visual*>& nodes) noexcept {
-    Base::Result<void> appended = nodes.TryPushBack(&node);
+    Base::Result<void> appended = nodes.PushBack(&node);
     if (!appended) return appended.GetStatus();
     for (Visual* child : node.logicalChildren_) {
         if (child == nullptr) continue;
@@ -256,11 +256,11 @@ Base::Result<void> ElementTree::RegisterHandleSubtree(Visual& node) noexcept {
     }
 
     Base::Result<void> reserved =
-        handles_.TryReserve(handles_.Size() + required);
+        handles_.Reserve(handles_.Size() + required);
     if (!reserved) return reserved.GetStatus();
 
     Base::Vector<Visual*> added;
-    reserved = added.TryReserve(required);
+    reserved = added.Reserve(required);
     if (!reserved) return reserved.GetStatus();
 
     for (Visual* current : nodes) {
@@ -268,7 +268,7 @@ Base::Result<void> ElementTree::RegisterHandleSubtree(Visual& node) noexcept {
 
         HandleEntry entry;
         entry.node = current;
-        Base::Result<void> appended = handles_.TryPushBack(entry);
+        Base::Result<void> appended = handles_.PushBack(entry);
         AERO_ASSERT(appended);
         (void)appended;
         current->handleIndex_ = handles_.Size() - 1U;
@@ -289,7 +289,7 @@ Base::Result<void> ElementTree::RegisterHandleSubtree(Visual& node) noexcept {
             }
             return tracked.GetStatus();
         }
-        Base::Result<void> remembered = added.TryPushBack(current);
+        Base::Result<void> remembered = added.PushBack(current);
         AERO_ASSERT(remembered);
         (void)remembered;
     }
@@ -323,7 +323,7 @@ Base::Result<void> ElementTree::TrackInheritedValues(
         return {};
     }
     Base::Result<void> subscribed =
-        element->TryAddValueChangedHandler(
+        element->AddValueChangedHandlerChecked(
             FrameworkElement::DataContextProperty,
             dataContextChangedHandler_);
     if (!subscribed) return subscribed.GetStatus();
@@ -419,7 +419,7 @@ Base::Result<void> ElementTree::StageLifecycleSubtree(
         record.node = std::move(lease).Value();
         record.loaded = loaded;
         Base::Result<void> appended =
-            staged.TryPushBack(std::move(record));
+            staged.PushBack(std::move(record));
         if (!appended) return appended.GetStatus();
     }
     for (Visual* child : node.logicalChildren_) {
@@ -437,7 +437,7 @@ void ElementTree::PublishLifecycle(
         record.sequence = nextLifecycleSequence_++;
         record.treeVersion = version_;
         Base::Result<void> appended =
-            lifecycleQueue_.TryPushBack(std::move(record));
+            lifecycleQueue_.PushBack(std::move(record));
         AERO_ASSERT(appended);
         (void)appended;
     }
@@ -485,7 +485,7 @@ Base::Result<void> ElementTree::SetRoot(Visual* root) noexcept {
             StageLifecycleSubtree(*root, true, staged);
         if (!prepared) return prepared.GetStatus();
     }
-    Base::Result<void> queueReserved = lifecycleQueue_.TryReserve(
+    Base::Result<void> queueReserved = lifecycleQueue_.Reserve(
         lifecycleQueue_.Size() + staged.Size());
     if (!queueReserved) return queueReserved.GetStatus();
 
@@ -535,7 +535,7 @@ Base::Result<void> ElementTree::AttachLogical(
             "Logical child must be detached and parent must belong to this tree");
     }
 
-    Base::Result<void> childReserved = parent.logicalChildren_.TryReserve(
+    Base::Result<void> childReserved = parent.logicalChildren_.Reserve(
         parent.logicalChildren_.Size() + 1U);
     if (!childReserved) return childReserved.GetStatus();
 
@@ -545,7 +545,7 @@ Base::Result<void> ElementTree::AttachLogical(
             StageLifecycleSubtree(child, true, staged);
         if (!prepared) return prepared.GetStatus();
     }
-    Base::Result<void> queueReserved = lifecycleQueue_.TryReserve(
+    Base::Result<void> queueReserved = lifecycleQueue_.Reserve(
         lifecycleQueue_.Size() + staged.Size());
     if (!queueReserved) return queueReserved.GetStatus();
 
@@ -560,7 +560,7 @@ Base::Result<void> ElementTree::AttachLogical(
 
     mutating_ = true;
     Base::Result<void> appended =
-        parent.logicalChildren_.TryPushBack(&child);
+        parent.logicalChildren_.PushBack(&child);
     AERO_ASSERT(appended);
     (void)appended;
     child.logicalParent_ = &parent;
@@ -602,7 +602,7 @@ Base::Result<void> ElementTree::DetachLogical(
             StageLifecycleSubtree(child, false, staged);
         if (!prepared) return prepared.GetStatus();
     }
-    Base::Result<void> queueReserved = lifecycleQueue_.TryReserve(
+    Base::Result<void> queueReserved = lifecycleQueue_.Reserve(
         lifecycleQueue_.Size() + staged.Size());
     if (!queueReserved) return queueReserved.GetStatus();
 
@@ -638,7 +638,7 @@ Base::Result<void> ElementTree::AttachVisual(
         child.tree_ != this) {
         return InvalidState("Visual nodes must be logical members of this tree");
     }
-    Base::Result<void> appended = parent.visualChildren_.TryPushBack(&child);
+    Base::Result<void> appended = parent.visualChildren_.PushBack(&child);
     if (!appended) {
         return appended;
     }
@@ -702,7 +702,7 @@ Base::Result<std::uint32_t> ElementTree::FlushLifecycle() noexcept {
     if (!access) return access.GetStatus();
 
     Base::Vector<LifecycleRecord> snapshot;
-    Base::Result<void> assigned = snapshot.TryAssign(
+    Base::Result<void> assigned = snapshot.Assign(
         Base::Span<const LifecycleRecord>(
             lifecycleQueue_.Data(), lifecycleQueue_.Size()));
     if (!assigned) return assigned.GetStatus();

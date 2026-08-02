@@ -468,8 +468,8 @@ void HashBytes(
 
 } // namespace
 
-struct OpenGL33GraphicsBackend::Impl final {
-    struct ResourceRecord final {
+struct OpenGL33GraphicsBackend::Impl  {
+    struct ResourceRecord  {
         ResourceHandle handle;
         ResourceDescriptor baseDescriptor;
         TextureResourceDescriptor textureDescriptor;
@@ -490,12 +490,12 @@ struct OpenGL33GraphicsBackend::Impl final {
         bool externalDefaultFramebuffer = false;
     };
 
-    struct PendingFence final {
+    struct PendingFence  {
         FenceValue value = 0U;
         GlSync sync = nullptr;
     };
 
-    struct BufferBinding final {
+    struct BufferBinding  {
         ResourceHandle handle;
         std::uint64_t offset = 0U;
     };
@@ -1063,7 +1063,7 @@ Base::Result<void> OpenGL33GraphicsBackend::CreateResource(
     }
 
     Base::Result<void> appended =
-        impl_->resources.TryPushBack(record);
+        impl_->resources.PushBack(record);
     if (!appended) {
         impl_->DeleteNative(record);
         return appended;
@@ -2320,7 +2320,7 @@ Base::Result<void> OpenGL33GraphicsBackend::Submit(
     fence.value = signalFence;
     fence.sync = sync;
     Base::Result<void> appended =
-        impl_->pendingFences.TryPushBack(fence);
+        impl_->pendingFences.PushBack(fence);
     if (!appended) {
         impl_->functions.deleteSync(sync);
         return appended;

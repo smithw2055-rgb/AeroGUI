@@ -61,7 +61,7 @@ shutdown modes retain distinct WPF semantics.
 Custom rendering follows the WPF-shaped protected hook:
 
 ```cpp
-class Meter final : public Aero::FrameworkElement {
+class Meter : public Aero::FrameworkElement {
 protected:
     void OnRender(
         Aero::DrawingContext& context) noexcept override {

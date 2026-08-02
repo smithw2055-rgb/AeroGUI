@@ -4,7 +4,7 @@
 
 namespace Aero::Text {
 
-struct ShapingRequest final {
+struct ShapingRequest  {
     FontFaceHandle face;
     Base::StringView text;
     float pixelSize = 0.0F;
@@ -13,7 +13,7 @@ struct ShapingRequest final {
     Base::StringView language;
 };
 
-struct GlyphRequest final {
+struct GlyphRequest  {
     FontFaceHandle face;
     GlyphId glyph = InvalidGlyphId;
     float pixelSize = 0.0F;
@@ -66,7 +66,7 @@ public:
         GlyphOutline& output) noexcept = 0;
 };
 
-struct TextProviderRegistration final {
+struct TextProviderRegistration  {
     IFontProvider* fonts = nullptr;
     ITextShaper* shaper = nullptr;
     IGlyphRasterizer* rasterizer = nullptr;

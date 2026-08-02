@@ -25,7 +25,7 @@ Base::Status ClipboardFailure(const char* message) noexcept {
         Base::ErrorCode::InvalidState, message);
 }
 
-class ClipboardScope final {
+class ClipboardScope  {
 public:
     explicit ClipboardScope(void* owner) noexcept
         : opened_(OpenClipboard(
@@ -118,7 +118,7 @@ Base::Result<void> Win32Clipboard::ReadText(
     }
     Base::String converted(&output.Allocator());
     Base::Result<void> reserved =
-        converted.TryReserve(
+        converted.Reserve(
             static_cast<std::uint32_t>(required));
     if (!reserved) {
         static_cast<void>(GlobalUnlock(data));
@@ -149,7 +149,7 @@ Base::Result<void> Win32Clipboard::ReadText(
                 "Win32 failed to convert clipboard text to UTF-8");
         }
         Base::Result<void> appended =
-            converted.TryAppendUnchecked({
+            converted.AppendUnchecked({
                 bytes,
                 static_cast<std::uint32_t>(required)});
         static_cast<void>(GlobalFree(bytes));

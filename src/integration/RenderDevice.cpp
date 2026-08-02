@@ -148,7 +148,7 @@ Base::Result<void> RenderDevice::WaitIdle(
 
 namespace Aero::Internal {
 
-class HeadlessDeviceState final {
+class HeadlessDeviceState {
 public:
     Base::Result<void> Submit(
         const ::Aero::Integration::RenderFrame&) noexcept { return {}; }

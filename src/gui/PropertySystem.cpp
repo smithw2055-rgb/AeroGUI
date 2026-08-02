@@ -279,7 +279,7 @@ PropertyFlags DependencyPropertyRegistry::ToTypeRegistryFlags(
 }
 
 Base::Result<DependencyPropertyRegistrationResult>
-DependencyPropertyRegistry::TryRegister(
+DependencyPropertyRegistry::Register(
     const DependencyPropertyRegistration& registration) noexcept {
     if (frozen_ || typeRegistry_->IsFrozen()) {
         return Base::Status::Failure(
@@ -336,7 +336,7 @@ DependencyPropertyRegistry::TryRegister(
     }
 
     DependencyProperty property;
-    Base::Result<void> nameResult = property.name_.TryAssign(registration.name);
+    Base::Result<void> nameResult = property.name_.Assign(registration.name);
     if (!nameResult) {
         return nameResult.GetStatus();
     }
@@ -349,18 +349,18 @@ DependencyPropertyRegistry::TryRegister(
     ownerMetadata.forType = registration.ownerType;
     ownerMetadata.owner = true;
     ownerMetadata.metadata = registration.metadata;
-    Base::Result<void> metadataResult = property.metadata_.TryPushBack(
+    Base::Result<void> metadataResult = property.metadata_.PushBack(
         std::move(ownerMetadata));
     if (!metadataResult) {
         return metadataResult.GetStatus();
     }
 
-    Base::Result<void> reserveResult = properties_.TryReserve(
+    Base::Result<void> reserveResult = properties_.Reserve(
         properties_.Size() + 1U);
     if (!reserveResult) {
         return reserveResult.GetStatus();
     }
-    reserveResult = memberIndex_.TryReserve(memberIndex_.Size() + 1U);
+    reserveResult = memberIndex_.Reserve(memberIndex_.Size() + 1U);
     if (!reserveResult) {
         return reserveResult.GetStatus();
     }
@@ -384,7 +384,7 @@ DependencyPropertyRegistry::TryRegister(
     }
 
     const std::uint32_t propertyIndex = properties_.Size();
-    Base::Result<void> appendResult = properties_.TryPushBack(
+    Base::Result<void> appendResult = properties_.PushBack(
         std::move(property));
     AERO_ASSERT(appendResult);
     if (!appendResult) {
@@ -394,7 +394,7 @@ DependencyPropertyRegistry::TryRegister(
     }
 
     Base::Result<Base::HashMap<MemberId, std::uint32_t>::InsertResult> indexResult =
-        memberIndex_.TryInsert(member, propertyIndex);
+        memberIndex_.Insert(member, propertyIndex);
     AERO_ASSERT(indexResult && indexResult.Value().inserted);
     if (!indexResult || !indexResult.Value().inserted) {
         properties_.PopBack();
@@ -411,7 +411,7 @@ DependencyPropertyRegistry::TryRegister(
     metaProperty.access = PropertyAccessKind::Provider;
     metaProperty.provider = DependencyPropertyProviderId;
     Base::Result<MemberId> registered = RegistrationTypes(
-        *typeRegistry_, *behaviorRegistrations_).TryRegisterProperty(
+        *typeRegistry_, *behaviorRegistrations_).RegisterProperty(
             registration.ownerType, metaProperty);
     if (!registered) {
         static_cast<void>(memberIndex_.Erase(member));
@@ -434,7 +434,7 @@ DependencyPropertyRegistry::TryRegister(
     return result;
 }
 
-Base::Result<void> DependencyPropertyRegistry::TryAddOwner(
+Base::Result<void> DependencyPropertyRegistry::AddOwner(
     DependencyPropertyHandle propertyHandle,
     TypeId ownerType,
     const PropertyMetadata& metadata) noexcept {
@@ -472,12 +472,12 @@ Base::Result<void> DependencyPropertyRegistry::TryAddOwner(
         return validation.GetStatus();
     }
 
-    Base::Result<void> reserveResult = property.metadata_.TryReserve(
+    Base::Result<void> reserveResult = property.metadata_.Reserve(
         property.metadata_.Size() + 1U);
     if (!reserveResult) {
         return reserveResult.GetStatus();
     }
-    reserveResult = memberIndex_.TryReserve(memberIndex_.Size() + 1U);
+    reserveResult = memberIndex_.Reserve(memberIndex_.Size() + 1U);
     if (!reserveResult) {
         return reserveResult.GetStatus();
     }
@@ -486,7 +486,7 @@ Base::Result<void> DependencyPropertyRegistry::TryAddOwner(
     entry.forType = ownerType;
     entry.owner = true;
     entry.metadata = metadata;
-    Base::Result<void> appendResult = property.metadata_.TryPushBack(
+    Base::Result<void> appendResult = property.metadata_.PushBack(
         std::move(entry));
     AERO_ASSERT(appendResult);
     if (!appendResult) {
@@ -496,7 +496,7 @@ Base::Result<void> DependencyPropertyRegistry::TryAddOwner(
     }
 
     Base::Result<Base::HashMap<MemberId, std::uint32_t>::InsertResult> indexResult =
-        memberIndex_.TryInsert(
+        memberIndex_.Insert(
             MakeMemberId(ownerType, MemberKind::Property, property.Name()),
             propertyIndex);
     AERO_ASSERT(indexResult && indexResult.Value().inserted);
@@ -516,7 +516,7 @@ Base::Result<void> DependencyPropertyRegistry::TryAddOwner(
     metaProperty.access = PropertyAccessKind::Provider;
     metaProperty.provider = DependencyPropertyProviderId;
     Base::Result<MemberId> alias = RegistrationTypes(
-        *typeRegistry_, *behaviorRegistrations_).TryRegisterProperty(
+        *typeRegistry_, *behaviorRegistrations_).RegisterProperty(
             ownerType, metaProperty);
     if (!alias) {
         static_cast<void>(memberIndex_.Erase(aliasMember));
@@ -527,7 +527,7 @@ Base::Result<void> DependencyPropertyRegistry::TryAddOwner(
     return {};
 }
 
-Base::Result<void> DependencyPropertyRegistry::TryOverrideMetadata(
+Base::Result<void> DependencyPropertyRegistry::OverrideMetadata(
     DependencyPropertyHandle propertyHandle,
     TypeId forType,
     const PropertyMetadata& metadata) noexcept {
@@ -572,7 +572,7 @@ Base::Result<void> DependencyPropertyRegistry::TryOverrideMetadata(
         return validation.GetStatus();
     }
 
-    Base::Result<void> reserveResult = property.metadata_.TryReserve(
+    Base::Result<void> reserveResult = property.metadata_.Reserve(
         property.metadata_.Size() + 1U);
     if (!reserveResult) {
         return reserveResult.GetStatus();
@@ -582,7 +582,7 @@ Base::Result<void> DependencyPropertyRegistry::TryOverrideMetadata(
     entry.forType = forType;
     entry.owner = false;
     entry.metadata = metadata;
-    return property.metadata_.TryPushBack(std::move(entry));
+    return property.metadata_.PushBack(std::move(entry));
 }
 
 Base::Result<void> DependencyPropertyRegistry::Freeze() noexcept {
@@ -884,7 +884,7 @@ void DependencyObject::CoerceValue(
     (void)ApplyChange(property, nullptr, ChangeKind::ReCoerce, nullptr);
 }
 
-Base::Result<void> DependencyObject::TryAddValueChangedHandler(
+Base::Result<void> DependencyObject::AddValueChangedHandlerChecked(
     DependencyPropertyHandle property,
     const DependencyPropertyChangedEventHandler& handler) noexcept {
     Base::Result<void> ready = VerifyReady();
@@ -901,7 +901,20 @@ Base::Result<void> DependencyObject::TryAddValueChangedHandler(
     record.property = property;
     record.handler = handler;
     record.active = true;
-    return changeHandlers_.TryPushBack(std::move(record));
+    return changeHandlers_.PushBack(std::move(record));
+}
+
+void DependencyObject::AddValueChangedHandler(
+    DependencyPropertyHandle property,
+    const DependencyPropertyChangedEventHandler& handler) noexcept {
+    Base::Result<void> added =
+        AddValueChangedHandlerChecked(property, handler);
+    if (!added) {
+        Base::ReportOutOfMemory(
+            sizeof(DependencyPropertyChangedEventHandler),
+            alignof(DependencyPropertyChangedEventHandler),
+            Base::MemoryTag::General);
+    }
 }
 
 bool DependencyObject::RemoveValueChangedHandler(
@@ -952,7 +965,7 @@ DependencyObject::BeginMutation(
         }
     }
 
-    Base::Result<void> pushed = updateStack_.TryPushBack(property.value);
+    Base::Result<void> pushed = updateStack_.PushBack(property.value);
     if (!pushed) {
         return pushed.GetStatus();
     }
@@ -992,7 +1005,7 @@ Base::Result<std::uint32_t> DependencyObject::EnsureEffectiveEntry(
     entry.property = propertyHandle;
     entry.baseValue = metadata->defaultValue;
     entry.effectiveValue = metadata->defaultValue;
-    Base::Result<void> appended = values_.TryPushBack(std::move(entry));
+    Base::Result<void> appended = values_.PushBack(std::move(entry));
     if (!appended) return appended.GetStatus();
     return values_.Size() - 1U;
 }
@@ -1014,7 +1027,7 @@ void DependencyObject::ReleaseExpression(EffectiveValueEntry& entry) noexcept {
     if (expression.cleanup != nullptr) expression.cleanup(expression.context);
 }
 
-Base::Result<void> DependencyObject::TrySetProviderContributionInternal(
+Base::Result<void> DependencyObject::ApplyProviderContributionInternal(
     DependencyPropertyHandle property, PropertyProviderToken token,
     const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
@@ -1026,7 +1039,12 @@ Base::Result<void> DependencyObject::TrySetProviderContributionInternal(
     EffectiveValueEntry& entry = values_[ensured.Value()];
     entry.currentValue = PropertyValue::Unset();
     entry.hasCurrent = false;
-    return entry.baseProviders.TrySet(token, value);
+    if (!entry.baseProviders.Set(token, value)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "A property contribution requires a valid token and value");
+    }
+    return {};
 }
 
 Base::Result<bool> DependencyObject::ClearProviderContributionInternal(
@@ -1051,7 +1069,7 @@ Base::Result<bool> DependencyObject::ClearProviderOriginInternal(
     return removed;
 }
 
-Base::Result<void> DependencyObject::TrySetLocalExpressionInternal(
+Base::Result<void> DependencyObject::ApplyLocalExpressionInternal(
     DependencyPropertyHandle property, const PropertyExpression& expression) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
@@ -1096,7 +1114,7 @@ Base::Result<bool> DependencyObject::InvalidateBaseValueInternal(
     return true;
 }
 
-Base::Result<void> DependencyObject::TrySetAnimationValueInternal(
+Base::Result<void> DependencyObject::ApplyAnimationValueInternal(
     DependencyPropertyHandle property, const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
@@ -1120,7 +1138,7 @@ Base::Result<bool> DependencyObject::ClearAnimationValueInternal(
     return true;
 }
 
-Base::Result<void> DependencyObject::TrySetInheritedValueInternal(
+Base::Result<void> DependencyObject::ApplyInheritedValueInternal(
     DependencyPropertyHandle property, const PropertyValue* value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
@@ -1264,7 +1282,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueInternal(
         oldEffective, oldSourceInfo);
 }
 
-Base::Result<void> DependencyObject::TryClearEngineValueStateInternal(
+Base::Result<void> DependencyObject::DropEngineValueStateInternal(
     DependencyPropertyHandle propertyHandle) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
@@ -1467,7 +1485,7 @@ Base::Status InvalidProviderStatus() noexcept {
         "The property provider rank is not a mutable base-value source");
 }
 
-class FlushScope final {
+class FlushScope {
 public:
     explicit FlushScope(bool& flag) noexcept : flag_(&flag) {
         flag = true;
@@ -1619,7 +1637,7 @@ Base::Result<std::uint32_t> EffectiveValueEngine::EnsureEntry(
     entry.object = &object;
     entry.property = property;
     Base::Result<void> appended =
-        entries_.TryPushBack(std::move(entry));
+        entries_.PushBack(std::move(entry));
     if (!appended) return appended.GetStatus();
     return entries_.Size() - 1U;
 }
@@ -1687,7 +1705,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
         parents_[existing].parent = parent;
     } else {
         Base::Result<void> appended =
-            parents_.TryPushBack(ParentLink{&child, parent});
+            parents_.PushBack(ParentLink{&child, parent});
         if (!appended) return appended.GetStatus();
     }
 
@@ -1748,7 +1766,7 @@ Base::Result<void> EffectiveValueEngine::SetProviderContribution(
     if (!ensured) return ensured.GetStatus();
     Base::Result<void> queued = QueueEntry(ensured.Value());
     if (!queued) return queued.GetStatus();
-    return object.TrySetProviderContributionInternal(property, token, value);
+    return object.ApplyProviderContributionInternal(property, token, value);
 }
 
 Base::Result<bool> EffectiveValueEngine::ClearProviderContribution(
@@ -1790,7 +1808,7 @@ Base::Result<void> EffectiveValueEngine::SetLocalExpression(
     Base::Result<std::uint32_t> ensured = EnsureEntry(object, property);
     if (!ensured) return ensured.GetStatus();
     Base::Result<void> queued = QueueEntry(ensured.Value()); if (!queued) return queued.GetStatus();
-    return object.TrySetLocalExpressionInternal(property, expression);
+    return object.ApplyLocalExpressionInternal(property, expression);
 }
 
 Base::Result<void> EffectiveValueEngine::ClearLocalExpression(
@@ -1812,7 +1830,7 @@ Base::Result<void> EffectiveValueEngine::SetAnimationValue(
     Base::Result<std::uint32_t> ensured = EnsureEntry(object, property);
     if (!ensured) return ensured.GetStatus();
     Base::Result<void> queued = QueueEntry(ensured.Value()); if (!queued) return queued.GetStatus();
-    return object.TrySetAnimationValueInternal(property, value);
+    return object.ApplyAnimationValueInternal(property, value);
 }
 
 Base::Result<void> EffectiveValueEngine::ClearAnimationValue(
@@ -1861,7 +1879,7 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
     DependencyObject& parent,
     DependencyPropertyHandle property) noexcept {
     Base::Vector<DependencyObject*> frontier;
-    Base::Result<void> root = frontier.TryPushBack(&parent);
+    Base::Result<void> root = frontier.PushBack(&parent);
     if (!root) return root.GetStatus();
 
     std::uint32_t cursor = 0U;
@@ -1876,7 +1894,7 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
                 if (!queued) return queued.GetStatus();
             }
             Base::Result<void> pushed =
-                frontier.TryPushBack(link.child);
+                frontier.PushBack(link.child);
             if (!pushed) return pushed.GetStatus();
         }
     }
@@ -1901,7 +1919,7 @@ EffectiveValueEngine::EnsureInheritanceSubscription(
         }
 
         Base::Result<void> added =
-            object.TryAddValueChangedHandler(
+            object.AddValueChangedHandlerChecked(
                 property.Handle(),
                 inheritanceChangedHandler_);
         if (!added) {
@@ -1941,7 +1959,7 @@ EffectiveValueEngine::EnsureInheritanceSubscription(
     }
 
     Base::Result<void> retained =
-        inheritanceSubscriptions_.TryPushBack(&object);
+        inheritanceSubscriptions_.PushBack(&object);
     if (!retained) {
         for (const DependencyProperty& property : registry_->Properties()) {
             const PropertyMetadata* metadata =
@@ -2027,7 +2045,7 @@ Base::Result<void> EffectiveValueEngine::Apply(Entry& entry) noexcept {
             inheritedValue = std::move(value).Value(); inherited = &inheritedValue;
         }
     }
-    Base::Result<void> stored = entry.object->TrySetInheritedValueInternal(entry.property, inherited);
+    Base::Result<void> stored = entry.object->ApplyInheritedValueInternal(entry.property, inherited);
     if (!stored) return stored.GetStatus();
     return entry.object->RecomputeEffectiveValueInternal(entry.property);
 }
@@ -2090,7 +2108,7 @@ Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) 
     std::uint32_t entry = 0U;
     while (entry < entries_.Size()) {
         if (entries_[entry].object == &object) {
-            Base::Result<void> cleared = object.TryClearEngineValueStateInternal(entries_[entry].property);
+            Base::Result<void> cleared = object.DropEngineValueStateInternal(entries_[entry].property);
             if (!cleared) return cleared.GetStatus();
             RemoveEntry(entry);
         } else ++entry;

@@ -1,10 +1,11 @@
-﻿#pragma once
+#pragma once
 
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
+#include <Aero/Events/ApplicationEventArgs.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/RoutedEvent.hpp>
 #include <Aero/Resources.hpp>
@@ -24,35 +25,7 @@ enum class ShutdownMode : std::uint8_t {
     OnExplicitShutdown
 };
 
-struct StartupEventArgs final : EventArgs {
-    AERO_DECLARE_TYPE(StartupEventArgs, EventArgs)
-public:
-    StartupEventArgs() noexcept : EventArgs(StaticTypeId()) {}
-    explicit StartupEventArgs(Base::StringView startupUri) noexcept
-        : EventArgs(StaticTypeId()), startupUri_(startupUri) {}
-
-    Base::StringView GetStartupUri() const noexcept { return startupUri_; }
-
-private:
-    Base::StringView startupUri_;
-};
-
-struct ExitEventArgs final : EventArgs {
-    AERO_DECLARE_TYPE(ExitEventArgs, EventArgs)
-public:
-    ExitEventArgs() noexcept : EventArgs(StaticTypeId()) {}
-    explicit ExitEventArgs(int applicationExitCode) noexcept
-        : EventArgs(StaticTypeId()), applicationExitCode_(applicationExitCode) {}
-
-    int GetApplicationExitCode() const noexcept {
-        return applicationExitCode_;
-    }
-
-private:
-    int applicationExitCode_ = 0;
-};
-
-class AERO_API WindowCollection final {
+class AERO_API WindowCollection {
 public:
     std::uint32_t GetCount() const noexcept;
     Window* GetItem(std::uint32_t index) const noexcept;
@@ -75,7 +48,7 @@ public:
 
     Base::StringView GetStartupUri() const noexcept { return startupUri_.View(); }
     void SetStartupUri(Base::StringView value) noexcept {
-        (void)startupUri_.TryAssign(value);
+        (void)startupUri_.Assign(value);
     }
     Base::Ref<ResourceDictionary> GetResources() const noexcept { return resources_; }
     void SetResources(Base::Ref<ResourceDictionary> value) noexcept { resources_ = std::move(value); return; }

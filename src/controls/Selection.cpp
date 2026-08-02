@@ -41,10 +41,10 @@ Base::Result<void> InsertSortedUnique(
         return {};
     }
     Base::Result<void> reserved =
-        values.TryReserve(values.Size() + 1U);
+        values.Reserve(values.Size() + 1U);
     if (!reserved) return reserved.GetStatus();
     Base::Result<void> appended =
-        values.TryPushBack(value);
+        values.PushBack(value);
     if (!appended) return appended.GetStatus();
     for (std::uint32_t current =
             values.Size() - 1U;
@@ -86,18 +86,17 @@ Selector::Selector(TypeId runtimeType) noexcept
           this, &Selector::OnItemsChanged),
       propertyChangedHandler_(
           this, &Selector::OnPropertyChanged) {
-    static_cast<void>(
-        TryAddItemsChanged(itemsChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    AddItemsChanged(itemsChangedHandler_);
+    static_cast<void>(AddValueChangedHandlerChecked(
         SelectionModeProperty,
         propertyChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         SelectedIndexProperty,
         propertyChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         SelectedItemProperty,
         propertyChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         SelectedValueProperty,
         propertyChangedHandler_));
 }
@@ -244,7 +243,7 @@ bool Selector::Select(
     }
     Base::Vector<std::uint32_t> selection;
     Base::Result<void> reserved =
-        selection.TryReserve(
+        selection.Reserve(
             selectedIndices_.Size() + 1U);
     if (!reserved) {
         lastSelectionError_ = reserved.GetStatus();
@@ -253,7 +252,7 @@ bool Selector::Select(
     for (std::uint32_t selected :
         selectedIndices_) {
         Base::Result<void> copied =
-            selection.TryPushBack(selected);
+            selection.PushBack(selected);
         if (!copied) {
             lastSelectionError_ = copied.GetStatus();
             return false;
@@ -290,7 +289,7 @@ bool Selector::Unselect(
     }
     Base::Vector<std::uint32_t> selection;
     Base::Result<void> reserved =
-        selection.TryReserve(
+        selection.Reserve(
             selectedIndices_.Size() - 1U);
     if (!reserved) {
         lastSelectionError_ = reserved.GetStatus();
@@ -300,7 +299,7 @@ bool Selector::Unselect(
         selectedIndices_) {
         if (selected == index) continue;
         Base::Result<void> copied =
-            selection.TryPushBack(selected);
+            selection.PushBack(selected);
         if (!copied) {
             lastSelectionError_ = copied.GetStatus();
             return false;
@@ -357,7 +356,7 @@ bool Selector::SelectRange(
         std::max(first, last);
     Base::Vector<std::uint32_t> selection;
     Base::Result<void> reserved =
-        selection.TryReserve(
+        selection.Reserve(
             (preserveExisting
                 ? selectedIndices_.Size()
                 : 0U) +
@@ -370,7 +369,7 @@ bool Selector::SelectRange(
         for (std::uint32_t selected :
             selectedIndices_) {
             Base::Result<void> copied =
-                selection.TryPushBack(selected);
+                selection.PushBack(selected);
             if (!copied) {
                 lastSelectionError_ = copied.GetStatus();
                 return false;
@@ -411,7 +410,7 @@ Base::Result<bool> Selector::ApplySelection(
     std::uint32_t primaryIndex) noexcept {
     Base::Vector<std::uint32_t> normalized;
     Base::Result<void> reserved =
-        normalized.TryReserve(indices.Size());
+        normalized.Reserve(indices.Size());
     if (!reserved) return reserved.GetStatus();
     for (std::uint32_t index : indices) {
         if (index >= GetCount()) {
@@ -433,7 +432,7 @@ Base::Result<bool> Selector::ApplySelection(
             : normalized[0U];
         normalized.Clear();
         Base::Result<void> added =
-            normalized.TryPushBack(selected);
+            normalized.PushBack(selected);
         if (!added) return added.GetStatus();
     }
     if (normalized.Empty()) {
@@ -458,24 +457,24 @@ Base::Result<bool> Selector::ApplySelection(
     Base::Vector<std::uint32_t> removed;
     Base::Vector<std::uint32_t> added;
     Base::Result<void> removedReserve =
-        removed.TryReserve(selectedIndices_.Size());
+        removed.Reserve(selectedIndices_.Size());
     if (!removedReserve) {
         return removedReserve.GetStatus();
     }
     Base::Result<void> addedReserve =
-        added.TryReserve(normalized.Size());
+        added.Reserve(normalized.Size());
     if (!addedReserve) return addedReserve.GetStatus();
     for (std::uint32_t index : selectedIndices_) {
         if (!ContainsIndex(newSelection, index)) {
             Base::Result<void> stored =
-                removed.TryPushBack(index);
+                removed.PushBack(index);
             if (!stored) return stored.GetStatus();
         }
     }
     for (std::uint32_t index : normalized) {
         if (!ContainsIndex(oldSelection, index)) {
             Base::Result<void> stored =
-                added.TryPushBack(index);
+                added.PushBack(index);
             if (!stored) return stored.GetStatus();
         }
     }
@@ -616,7 +615,7 @@ void Selector::OnItemsChanged(
 
     Base::Vector<std::uint32_t> mapped;
     Base::Result<void> reserved =
-        mapped.TryReserve(
+        mapped.Reserve(
             selectedIndices_.Size());
     if (!reserved) {
         lastSelectionError_ =
@@ -909,21 +908,21 @@ ComboBox::ComboBox() noexcept
       editableTextChangedHandler_(
           this,
           &ComboBox::OnEditableTextChanged) {
-    static_cast<void>(TryAddSelectionChanged(
+    static_cast<void>(AddSelectionChanged(
         selectionChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         IsDropDownOpenProperty,
         dropDownChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         MaxDropDownHeightProperty,
         maxDropDownHeightChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         IsEditableProperty,
         editableChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         TextProperty,
         textChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         Control::ForegroundProperty,
         foregroundChangedHandler_));
 }
@@ -1158,7 +1157,7 @@ void ComboBox::OnApplyTemplate()
     }
     if (editableTextBox_ != nullptr) {
         Base::Result<void> editableHandler =
-            editableTextBox_->TryAddHandler(
+            editableTextBox_->AddHandlerChecked(
                 TextBox::TextChangedEvent,
                 editableTextChangedHandler_);
         if (!editableHandler) {
@@ -1245,7 +1244,7 @@ void ComboBox::OnEditableTextChanged(
     }
     Base::String edited;
     Base::Result<void> copied =
-        edited.TryAssign(
+        edited.Assign(
             editableTextBox_->GetText());
     if (!copied) {
         return;
@@ -1330,7 +1329,7 @@ ComboBox::UpdateSelectionBox() noexcept {
     }
     Base::String value;
     Base::Result<void> assigned =
-        value.TryAssign(text);
+        value.Assign(text);
     if (!assigned) return assigned.GetStatus();
     SetReadOnlyCurrentValue(SelectionBoxTextProperty, value);
     Base::Result<Meta::Value> itemValue =
@@ -1483,13 +1482,13 @@ ComboBehavior::Attach(
         tree_->GetHandle(comboBox);
     if (!handle) return handle.GetStatus();
     Base::Result<void> mouse =
-        comboBox.TryAddHandler(
+        comboBox.AddHandlerChecked(
             UIElement::MouseDownEvent,
             mouseDownHandler_,
             true);
     if (!mouse) return mouse.GetStatus();
     Base::Result<void> key =
-        comboBox.TryAddHandler(
+        comboBox.AddHandlerChecked(
             UIElement::KeyDownEvent,
             keyDownHandler_);
     if (!key) {
@@ -1500,7 +1499,7 @@ ComboBehavior::Attach(
         return key.GetStatus();
     }
     Base::Result<void> stored =
-        records_.TryPushBack(handle.Value());
+        records_.PushBack(handle.Value());
     if (!stored) {
         static_cast<void>(
             comboBox.RemoveHandler(
@@ -1670,12 +1669,12 @@ Base::Result<void> ListBehavior::Attach(
         tree_->GetHandle(listBox);
     if (!handle) return handle.GetStatus();
     Base::Result<void> mouse =
-        listBox.TryAddHandler(
+        listBox.AddHandlerChecked(
             UIElement::MouseDownEvent,
             mouseDownHandler_);
     if (!mouse) return mouse.GetStatus();
     Base::Result<void> key =
-        listBox.TryAddHandler(
+        listBox.AddHandlerChecked(
             UIElement::KeyDownEvent,
             keyDownHandler_);
     if (!key) {
@@ -1687,7 +1686,7 @@ Base::Result<void> ListBehavior::Attach(
     Record record;
     record.handle = handle.Value();
     Base::Result<void> added =
-        records_.TryPushBack(record);
+        records_.PushBack(record);
     if (!added) {
         static_cast<void>(listBox.RemoveHandler(
             UIElement::KeyDownEvent,

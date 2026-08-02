@@ -54,7 +54,7 @@ constexpr AccessibilityActionFlags AccessibilityActionBit(
     return static_cast<AccessibilityActionFlags>(action);
 }
 
-struct AccessibilityNode final {
+struct AccessibilityNode {
     std::uint64_t id = 0U;
     std::uint64_t parent = 0U;
     AccessibilityRole role = AccessibilityRole::Unknown;
@@ -68,7 +68,7 @@ struct AccessibilityNode final {
     bool hidden = false;
 };
 
-class AERO_API AccessibilityTree final {
+class AERO_API AccessibilityTree {
 public:
     explicit AccessibilityTree(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -81,7 +81,7 @@ public:
         return root != nullptr ? CaptureNode(*root) : Base::Result<void>{};
     }
 
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         AccessibilityNode node) noexcept {
         if (node.id == 0U ||
             !Aero::IsValidLayoutRect(node.bounds)) {
@@ -106,7 +106,7 @@ public:
                 Base::ErrorCode::InvalidState,
                 "Focused accessibility node must be enabled, visible and focusable");
         }
-        return nodes_.TryPushBack(std::move(node));
+        return nodes_.PushBack(std::move(node));
     }
 
     const AccessibilityNode* Find(std::uint64_t id) const noexcept {
@@ -172,16 +172,16 @@ private:
                 Documents::CopyText(text, flattened);
             if (!copied) return copied.GetStatus();
             Base::Result<void> named =
-                node.name.TryAssign(flattened.View());
+                node.name.Assign(flattened.View());
             if (!named) return named.GetStatus();
-            named = node.value.TryAssign(flattened.View());
+            named = node.value.Assign(flattened.View());
             if (!named) return named.GetStatus();
         }
         if (isHyperlink) {
             const auto& link =
                 static_cast<const Documents::Hyperlink&>(*element);
             Base::Result<void> value =
-                node.value.TryAssign(link.NavigateUri());
+                node.value.Assign(link.NavigateUri());
             if (!value) return value.GetStatus();
             node.actions = AccessibilityActionBit(
                 AccessibilityAction::Invoke) |
@@ -189,7 +189,7 @@ private:
                 AccessibilityActionBit(AccessibilityAction::Navigate);
         }
         if (node.id != 0U) {
-            Base::Result<void> added = TryAdd(std::move(node));
+            Base::Result<void> added = Add(std::move(node));
             if (!added) return added.GetStatus();
         }
         const Base::Span<Aero::Visual* const> logical =
@@ -225,7 +225,7 @@ using AccessibilityActionCallback = Base::Result<void> (*)(
     Base::StringView value,
     void* context) noexcept;
 
-struct AccessibilityPlatformAdapter final {
+struct AccessibilityPlatformAdapter {
     std::uint32_t abiVersion = 1U;
     AccessibilityPublishCallback publish = nullptr;
     AccessibilityActionCallback performAction = nullptr;
@@ -237,7 +237,7 @@ struct AccessibilityPlatformAdapter final {
     }
 };
 
-struct InspectorTreeNode final {
+struct InspectorTreeNode {
     Aero::VisualHandle handle;
     Aero::VisualHandle logicalParent;
     Aero::VisualHandle visualParent;
@@ -252,14 +252,14 @@ struct InspectorTreeNode final {
     bool renderValid = false;
 };
 
-struct InspectorRenderSummary final {
+struct InspectorRenderSummary {
     std::uint64_t version = 0U;
     std::uint64_t stableHash = 0U;
     std::uint32_t nodeCount = 0U;
     std::uint32_t commandCount = 0U;
 };
 
-class AERO_API RuntimeInspectorSnapshot final {
+class AERO_API RuntimeInspectorSnapshot {
 public:
     explicit RuntimeInspectorSnapshot(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -322,7 +322,7 @@ private:
             node.renderRevision = Aero::Internal::ElementPrivate::RenderRevision(*framework);
             node.renderValid = Aero::Internal::ElementPrivate::IsRenderValid(*framework);
         }
-        Base::Result<void> appended = nodes_.TryPushBack(node);
+        Base::Result<void> appended = nodes_.PushBack(node);
         if (!appended) return appended.GetStatus();
         for (Aero::Visual* child : Aero::Internal::ElementPrivate::LogicalChildren(visual)) {
             if (child == nullptr) continue;
@@ -343,23 +343,23 @@ enum class PerformanceMetric : std::uint8_t {
     DrawCalls,
 };
 
-struct PerformanceBudget final {
+struct PerformanceBudget {
     PerformanceMetric metric = PerformanceMetric::EmptyFrameMicroseconds;
     double limit = 0.0;
 };
 
-struct PerformanceMeasurement final {
+struct PerformanceMeasurement {
     PerformanceMetric metric = PerformanceMetric::EmptyFrameMicroseconds;
     double value = 0.0;
 };
 
-struct PerformanceGateResult final {
+struct PerformanceGateResult {
     std::uint32_t evaluated = 0U;
     std::uint32_t failed = 0U;
     double worstRatio = 0.0;
 };
 
-class AERO_API PerformanceGate final {
+class AERO_API PerformanceGate {
 public:
     explicit PerformanceGate(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -379,7 +379,7 @@ public:
                 return {};
             }
         }
-        return budgets_.TryPushBack({metric, limit});
+        return budgets_.PushBack({metric, limit});
     }
 
     Base::Result<void> Record(
@@ -390,7 +390,7 @@ public:
                 Base::ErrorCode::InvalidArgument,
                 "Performance measurement must be nonnegative");
         }
-        return measurements_.TryPushBack({metric, value});
+        return measurements_.PushBack({metric, value});
     }
 
     Base::Result<PerformanceGateResult> Evaluate() const noexcept {
@@ -427,25 +427,25 @@ using FuzzTargetCallback = Base::Result<void> (*)(
     Base::Span<const std::uint8_t> input,
     void* context) noexcept;
 
-struct FuzzTarget final {
+struct FuzzTarget {
     Base::String name;
     FuzzTargetCallback callback = nullptr;
     void* context = nullptr;
 };
 
-struct FuzzRunResult final {
+struct FuzzRunResult {
     std::uint32_t targetCount = 0U;
     std::uint32_t caseCount = 0U;
     std::uint32_t failureCount = 0U;
 };
 
-class AERO_API FuzzHarness final {
+class AERO_API FuzzHarness {
 public:
     explicit FuzzHarness(
         Base::IAllocator* allocator = nullptr) noexcept
         : targets_(allocator) {}
 
-    Base::Result<void> TryAddTarget(
+    Base::Result<void> AddTarget(
         Base::StringView name,
         FuzzTargetCallback callback,
         void* context = nullptr) noexcept {
@@ -455,11 +455,11 @@ public:
                 "Fuzz target is incomplete");
         }
         FuzzTarget target;
-        Base::Result<void> named = target.name.TryAssign(name);
+        Base::Result<void> named = target.name.Assign(name);
         if (!named) return named.GetStatus();
         target.callback = callback;
         target.context = context;
-        return targets_.TryPushBack(std::move(target));
+        return targets_.PushBack(std::move(target));
     }
 
     FuzzRunResult Run(
@@ -479,7 +479,7 @@ private:
     Base::Vector<FuzzTarget> targets_;
 };
 
-struct CapabilityManifest final {
+struct CapabilityManifest {
     bool cxx17 = true;
     bool exceptionsOff = true;
     bool rttiOff = true;
@@ -506,7 +506,7 @@ struct CapabilityManifest final {
     }
 };
 
-class AERO_API StabilityCounter final {
+class AERO_API StabilityCounter {
 public:
     Base::Result<void> RecordFrame(
         std::uint64_t liveObjects,

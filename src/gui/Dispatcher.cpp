@@ -85,7 +85,7 @@ constexpr Base::Status DelayOverflowStatus() noexcept {
         "Dispatcher delayed due time overflows");
 }
 
-struct CleanupInvocation final {
+struct CleanupInvocation  {
     DispatcherCleanupCallback callback = nullptr;
     void* context = nullptr;
 };
@@ -538,7 +538,7 @@ Dispatcher::RegisterFrameHook(
         record.state = RecordState::Pending;
 
         const Base::Result<void> appendResult =
-            hooks_.TryPushBack(record);
+            hooks_.PushBack(record);
         if (!appendResult) {
             return appendResult.GetStatus();
         }
@@ -804,7 +804,7 @@ Base::Result<void> Dispatcher::InsertReadyLocked(
     const TaskRecord& record) noexcept {
     CompactReadyLocked(false);
     const Base::Result<void> appendResult =
-        ready_.TryPushBack(record);
+        ready_.PushBack(record);
     if (!appendResult) {
         return appendResult.GetStatus();
     }
@@ -822,7 +822,7 @@ Base::Result<void> Dispatcher::InsertDelayedLocked(
     const TaskRecord& record) noexcept {
     CompactDelayedLocked(false);
     const Base::Result<void> appendResult =
-        delayed_.TryPushBack(record);
+        delayed_.PushBack(record);
     if (!appendResult) {
         return appendResult.GetStatus();
     }

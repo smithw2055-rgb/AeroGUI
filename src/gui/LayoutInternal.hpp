@@ -9,7 +9,7 @@ namespace Aero::Internal {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 
-class AERO_API LayoutEngine final {
+class AERO_API LayoutEngine {
 public:
     explicit LayoutEngine(Dispatcher& dispatcher) noexcept;
     ~LayoutEngine() noexcept;

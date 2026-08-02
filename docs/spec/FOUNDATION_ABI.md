@@ -64,7 +64,11 @@ MUST：
 
 Runtime 不通过 C++ exception 报告 OOM。
 
-- 可失败 API 使用 `Try*` 或 `Result<T>`；
+- 只有解析、值转换、条件所有权获取和缓存命中查询使用约定的
+  `TryParse`、`TryFromString`、`TryFromCustom`、`TryFromBorrowed`、
+  `TryConvertText`、`TryEncodeValue`、`TryCreateValue` 或
+  `TryGetCachedReloadRevision`；其它可失败 API
+  直接返回 `Result<T>`；
 - 明确标注 no-fail 的内部路径 MAY 调用宿主 `OutOfMemoryHandler`；
 - OOM handler 不得返回到无法恢复的操作；
 - 容器扩容失败不得破坏原内容；
@@ -123,7 +127,7 @@ template<class T, uint32_t InlineCount> class SmallVector;
 - contiguous storage；
 - 显式 allocator；
 - size/capacity 使用固定宽度或经过边界验证的 size type；
-- `Reserve`、`Resize`、`TryPushBack` 具有强失败保证；
+- `Reserve`、`Resize`、`PushBack` 具有强失败保证；
 - trivially relocatable 优化只能由显式 trait 启用；
 - 不承诺 iterator 跨 mutation 稳定；
 - 不把内部 capacity 或 growth factor 作为 API 合同；

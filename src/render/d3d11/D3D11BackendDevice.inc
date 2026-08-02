@@ -311,7 +311,7 @@ Base::Result<void> D3D11GraphicsBackend::CreateResource(
         return InvalidArgument("D3D11 resource type is unsupported");
     }
 
-    Base::Result<void> appended = impl_->resources.TryPushBack(std::move(record));
+    Base::Result<void> appended = impl_->resources.PushBack(std::move(record));
     return appended ? Base::Result<void>() : Base::Result<void>(appended.GetStatus());
 }
 

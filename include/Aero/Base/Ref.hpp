@@ -11,12 +11,12 @@
 namespace Aero::Base {
 
 namespace Detail {
-struct AdoptRefTag final {};
+struct AdoptRefTag  {};
 inline constexpr AdoptRefTag AdoptRef{};
 } // namespace Detail
 
 template<class T>
-class Ref final {
+class Ref  {
     static_assert(std::is_base_of<Object, T>::value,
         "Ref<T> requires T to derive from Aero::Base::Object");
 
@@ -92,7 +92,7 @@ public:
     static Ref TryFromBorrowed(T& value) noexcept {
         Detail::ObjectControlBlock* control =
             static_cast<Object&>(value).ControlBlock();
-        if (control == nullptr || !Detail::TryAddStrong(control)) {
+        if (control == nullptr || !Detail::AcquireStrong(control)) {
             return {};
         }
         return Ref(&value, Detail::AdoptRef);
@@ -141,7 +141,7 @@ private:
 };
 
 template<class T>
-class WeakRef final {
+class WeakRef  {
     static_assert(std::is_base_of<Object, T>::value,
         "WeakRef<T> requires T to derive from Aero::Base::Object");
 
@@ -215,7 +215,7 @@ public:
     }
 
     Ref<T> Lock() const noexcept {
-        if (control_ == nullptr || !Detail::TryAddStrong(control_)) {
+        if (control_ == nullptr || !Detail::AcquireStrong(control_)) {
             return {};
         }
 

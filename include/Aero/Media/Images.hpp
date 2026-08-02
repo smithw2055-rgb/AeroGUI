@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/DependencyProperty.hpp>
@@ -28,7 +28,7 @@ protected:
     ~ImageSource() override = default;
 };
 
-class AERO_API BitmapImage final : public ImageSource {
+class AERO_API BitmapImage : public ImageSource {
     AERO_DECLARE_TYPE(BitmapImage, ImageSource)
 public:
     BitmapImage() noexcept

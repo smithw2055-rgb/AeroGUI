@@ -31,7 +31,7 @@ using namespace ::Aero::Media;
 using namespace ::Aero::Internal;
 namespace {
 
-struct AnimationTarget final {
+struct AnimationTarget {
     DependencyObject* object = nullptr;
     DependencyPropertyHandle property;
 };
@@ -415,7 +415,7 @@ Aero::Internal::Animation::TimelineTiming ComposeTiming(
 
 namespace Detail {
 
-class VisualStateManagerImpl final {
+class VisualStateManagerImpl {
 public:
     VisualStateManagerImpl(
         EffectiveValueEngine& values,
@@ -441,14 +441,14 @@ public:
         Base::StringView groupName) const noexcept;
 
 private:
-    struct ActiveGroup final {
+    struct ActiveGroup {
         std::uint64_t templateValue = 0U;
         Base::String groupName;
         Base::String stateName;
         Base::Vector<Aero::Internal::Animation::AnimationHandle> animations;
     };
 
-    struct TransitionValue final {
+    struct TransitionValue {
         DependencyObject* target = nullptr;
         DependencyPropertyHandle property;
         PropertyValue from;
@@ -747,7 +747,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
                      frame : authored.GetKeyFrames()) {
                 if (!frame) continue;
                 Base::Result<void> appended =
-                    frames.TryPushBack(
+                    frames.PushBack(
                         Aero::Internal::AnimationPrivate::DoubleFrame(*frame));
                 if (!appended) {
                     return appended.GetStatus();
@@ -820,7 +820,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
                         frame->GetKeyTimeMicroseconds();
                     runtime.value = frame->GetValue();
                     Base::Result<void> appended =
-                        frames.TryPushBack(
+                        frames.PushBack(
                             std::move(runtime));
                     if (!appended) {
                         return appended.GetStatus();
@@ -847,7 +847,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
                     runtime.value =
                         std::move(encoded).Value();
                     Base::Result<void> appended =
-                        frames.TryPushBack(
+                        frames.PushBack(
                             std::move(runtime));
                     if (!appended) {
                         return appended.GetStatus();
@@ -896,7 +896,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
                 runtime);
         }
         if (!started) return started.GetStatus();
-        return active.animations.TryPushBack(
+        return active.animations.PushBack(
             started.Value());
     };
 
@@ -939,7 +939,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::CaptureTransitionValues(
         value.from = current.Value();
         value.to = setter.value;
         Base::Result<void> appended =
-            output.TryPushBack(std::move(value));
+            output.PushBack(std::move(value));
         if (!appended) return appended.GetStatus();
     }
     return {};
@@ -1023,7 +1023,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartTransitionAnimations(
             return started.GetStatus();
         }
         Base::Result<void> retained =
-            active.animations.TryPushBack(
+            active.animations.PushBack(
                 started.Value());
         if (!retained) {
             static_cast<void>(
@@ -1075,11 +1075,11 @@ Base::Result<bool> Detail::VisualStateManagerImpl::GoToState(
     }
     Base::String nextGroup;
     Base::Result<void> groupAssigned =
-        nextGroup.TryAssign(groupName);
+        nextGroup.Assign(groupName);
     if (!groupAssigned) return groupAssigned.GetStatus();
     Base::String nextName;
     Base::Result<void> nameAssigned =
-        nextName.TryAssign(stateName);
+        nextName.Assign(stateName);
     if (!nameAssigned) return nameAssigned.GetStatus();
     bool addedRecord = false;
     if (activeIndex == UINT32_MAX) {
@@ -1087,7 +1087,7 @@ Base::Result<bool> Detail::VisualStateManagerImpl::GoToState(
         active.templateValue = handle.value;
         active.groupName = std::move(nextGroup);
         Base::Result<void> appended =
-            active_.TryPushBack(std::move(active));
+            active_.PushBack(std::move(active));
         if (!appended) return appended.GetStatus();
         activeIndex = active_.Size() - 1U;
         addedRecord = true;

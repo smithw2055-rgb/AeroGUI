@@ -47,7 +47,7 @@ struct DefaultHash<T, std::enable_if_t<
 };
 
 template<>
-struct DefaultHash<bool, void> final {
+struct DefaultHash<bool, void>  {
     HashCode operator()(
         bool value, HashCode seed = 0U) const noexcept {
         return MixHash64((value ? HashCode{1U} : HashCode{0U}) ^ seed);
@@ -55,7 +55,7 @@ struct DefaultHash<bool, void> final {
 };
 
 template<class T>
-struct DefaultHash<T, std::enable_if_t<std::is_enum<T>::value>> final {
+struct DefaultHash<T, std::enable_if_t<std::is_enum<T>::value>>  {
     HashCode operator()(T value, HashCode seed = 0U) const noexcept {
         using Underlying = typename std::underlying_type<T>::type;
         using Unsigned = typename std::make_unsigned<Underlying>::type;
@@ -65,7 +65,7 @@ struct DefaultHash<T, std::enable_if_t<std::is_enum<T>::value>> final {
 };
 
 template<class T>
-struct DefaultHash<T*, void> final {
+struct DefaultHash<T*, void>  {
     HashCode operator()(const T* value, HashCode seed = 0U) const noexcept {
         return MixHash64(static_cast<HashCode>(
             reinterpret_cast<std::uintptr_t>(value)) ^ seed);
@@ -73,7 +73,7 @@ struct DefaultHash<T*, void> final {
 };
 
 template<>
-struct DefaultHash<StringView, void> final {
+struct DefaultHash<StringView, void>  {
     HashCode operator()(
         StringView value, HashCode seed = 0U) const noexcept {
         return HashBytes(value.Data(), value.SizeBytes(), seed);
@@ -81,7 +81,7 @@ struct DefaultHash<StringView, void> final {
 };
 
 template<>
-struct DefaultHash<String, void> final {
+struct DefaultHash<String, void>  {
     HashCode operator()(
         const String& value, HashCode seed = 0U) const noexcept {
         return HashBytes(value.View().Data(), value.View().SizeBytes(), seed);
@@ -89,7 +89,7 @@ struct DefaultHash<String, void> final {
 };
 
 template<class T>
-struct DefaultEqual final {
+struct DefaultEqual  {
     bool operator()(const T& left, const T& right) const
         noexcept(noexcept(left == right)) {
         return left == right;
@@ -97,7 +97,7 @@ struct DefaultEqual final {
 };
 
 template<>
-struct DefaultEqual<String> final {
+struct DefaultEqual<String>  {
     bool operator()(
         const String& left, const String& right) const noexcept {
         return left.View() == right.View();

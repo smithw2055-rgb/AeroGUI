@@ -5,23 +5,22 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Base/StringView.hpp>
-#include <Aero/Base/Vector.hpp>
 #include <Aero/Base/Stream.hpp>
+#include <Aero/Base/StringView.hpp>
 
 #include <cstdint>
 
 namespace Aero::Integration {
 
-struct StreamResourceInfo final {
+struct StreamResourceInfo {
     Base::ResourceUri uri;
     Base::Ref<Base::Stream> stream;
     std::uint64_t revision = 0U;
 };
 
-class AERO_API ISourceProvider {
+class AERO_API XamlProvider {
 public:
-    virtual ~ISourceProvider() = default;
+    virtual ~XamlProvider() = default;
 
     virtual Base::Result<StreamResourceInfo> Open(
         const Base::ResourceUri& uri) const noexcept = 0;
@@ -29,28 +28,27 @@ public:
         const Base::ResourceUri&) const noexcept {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
-            "Source provider does not expose revision probes");
+            "XAML provider does not expose revision probes");
     }
     virtual std::uint64_t CacheIdentity() const noexcept {
-        return Base::DefaultHash<const ISourceProvider*>{}(this);
+        return Base::DefaultHash<const XamlProvider*>{}(this);
     }
 };
 
-using SourceOpenCallback = Base::Result<StreamResourceInfo> (*)(
+using XamlOpenCallback = Base::Result<StreamResourceInfo> (*)(
     const Base::ResourceUri& uri,
     void* context) noexcept;
-using SourceRevisionCallback = Base::Result<std::uint64_t> (*)(
+using XamlRevisionCallback = Base::Result<std::uint64_t> (*)(
     const Base::ResourceUri& uri,
     void* context) noexcept;
 
-class AERO_API SourceProviderAdapter final
-    : public ISourceProvider {
+class AERO_API XamlProviderAdapter : public XamlProvider {
 public:
-    SourceProviderAdapter() noexcept = default;
-    SourceProviderAdapter(
-        SourceOpenCallback open,
+    XamlProviderAdapter() noexcept = default;
+    XamlProviderAdapter(
+        XamlOpenCallback open,
         void* context = nullptr,
-        SourceRevisionCallback revision = nullptr,
+        XamlRevisionCallback revision = nullptr,
         std::uint64_t cacheIdentity = 0U) noexcept
         : open_(open), revision_(revision), context_(context),
           cacheIdentity_(cacheIdentity) {}
@@ -64,10 +62,11 @@ public:
     std::uint64_t CacheIdentity() const noexcept override;
 
 private:
-    SourceOpenCallback open_ = nullptr;
-    SourceRevisionCallback revision_ = nullptr;
+    XamlOpenCallback open_ = nullptr;
+    XamlRevisionCallback revision_ = nullptr;
     void* context_ = nullptr;
     std::uint64_t cacheIdentity_ = 0U;
 };
 
 } // namespace Aero::Integration
+

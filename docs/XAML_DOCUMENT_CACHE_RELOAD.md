@@ -35,7 +35,7 @@ Schema 或旧 cache format 不会被静默重放。缓存写入是优化操作�
 
 ## Revision probe
 
-`Integration::ISourceProvider::Revision()` 是可选能力：
+`Integration::XamlProvider::Revision()` 是可选能力：
 
 - Embedded provider 直接返回注册 revision。
 - File provider 使用文件大小和最后写入时间生成 revision。

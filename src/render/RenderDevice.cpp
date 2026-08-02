@@ -489,7 +489,7 @@ Base::Result<void> CommandEncoder::Append(
     if (!recording) {
         return recording;
     }
-    return buffer_.commands_.TryPushBack(command);
+    return buffer_.commands_.PushBack(command);
 }
 
 Base::Result<void> CommandEncoder::AppendUpload(
@@ -504,7 +504,7 @@ Base::Result<void> CommandEncoder::AppendUpload(
             "Graphics upload payload exceeds the command-buffer limit");
     }
     const std::uint32_t originalSize = buffer_.uploadBytes_.Size();
-    Base::Result<void> appendedBytes = buffer_.uploadBytes_.TryAppend(data);
+    Base::Result<void> appendedBytes = buffer_.uploadBytes_.Append(data);
     if (!appendedBytes) {
         return appendedBytes;
     }
@@ -827,7 +827,7 @@ Base::Result<void> NullGraphicsBackend::CreateResource(
     ResourceRecord record;
     record.handle = handle;
     record.descriptor = descriptor;
-    return resources_.TryPushBack(record);
+    return resources_.PushBack(record);
 }
 
 void NullGraphicsBackend::DestroyResource(ResourceHandle handle) noexcept {

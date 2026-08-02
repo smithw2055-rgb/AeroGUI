@@ -9,7 +9,7 @@
 
 namespace Aero::Render::Detail {
 
-class ImageGpuResources final {
+class ImageGpuResources {
 public:
     ImageGpuResources(
         Graphics::GraphicsDevice& device,
@@ -69,7 +69,7 @@ public:
     }
 
 private:
-    struct Resource final {
+    struct Resource {
         Render::RenderImageId id =
             Render::InvalidRenderImageId;
         Graphics::ResourceHandle texture;
@@ -185,7 +185,7 @@ private:
             return registered.GetStatus();
         }
         Base::Result<void> stored =
-            resources_.TryPushBack(resource);
+            resources_.PushBack(resource);
         if (!stored) {
             static_cast<void>(
                 renderer_->UnregisterImage(

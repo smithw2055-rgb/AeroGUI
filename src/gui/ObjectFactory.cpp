@@ -9,7 +9,7 @@ namespace {
 
 thread_local ObjectFactoryState* activeObjectFactory = nullptr;
 
-struct FallbackObjectFactory final {
+struct FallbackObjectFactory {
     Dispatcher dispatcher;
     TypeRegistry types;
     BehaviorTable behaviors{types};

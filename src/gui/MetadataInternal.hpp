@@ -8,7 +8,7 @@ class MetaTable;
 }
 
 namespace Aero::Meta {
-class PropertyInfo final {
+class PropertyInfo {
 public:
     PropertyInfo(PropertyInfo&&) noexcept = default;
     PropertyInfo& operator=(PropertyInfo&&) noexcept = default;
@@ -29,7 +29,7 @@ private:
     Base::String name_;
 };
 
-class FieldInfo final {
+class FieldInfo {
 public:
     FieldInfo(FieldInfo&&) noexcept = default;
     FieldInfo& operator=(FieldInfo&&) noexcept = default;
@@ -50,7 +50,7 @@ private:
     Base::String name_;
 };
 
-class EnumValueInfo final {
+class EnumValueInfo {
 public:
     EnumValueInfo(EnumValueInfo&&) noexcept = default;
     EnumValueInfo& operator=(EnumValueInfo&&) noexcept = default;
@@ -69,7 +69,7 @@ private:
     Base::String name_;
 };
 
-class MethodParameterInfo final {
+class MethodParameterInfo {
 public:
     MethodParameterInfo(MethodParameterInfo&&) noexcept = default;
     MethodParameterInfo& operator=(MethodParameterInfo&&) noexcept = default;
@@ -84,7 +84,7 @@ private:
     Base::String name_;
 };
 
-class MethodInfo final {
+class MethodInfo {
 public:
     MethodInfo(MethodInfo&&) noexcept = default;
     MethodInfo& operator=(MethodInfo&&) noexcept = default;
@@ -109,7 +109,7 @@ private:
     Base::Vector<MethodParameterInfo> parameters_;
 };
 
-class EventInfo final {
+class EventInfo {
 public:
     EventInfo(EventInfo&&) noexcept = default;
     EventInfo& operator=(EventInfo&&) noexcept = default;
@@ -130,7 +130,7 @@ private:
     Base::String name_;
 };
 
-class TypeInfo final {
+class TypeInfo {
 public:
     TypeInfo(TypeInfo&&) noexcept = default;
     TypeInfo& operator=(TypeInfo&&) noexcept = default;
@@ -173,7 +173,7 @@ private:
     MemberId contentMember_ = InvalidMemberId;
 };
 
-class AERO_API TypeRegistry final {
+class AERO_API TypeRegistry {
 public:
     TypeRegistry() noexcept;
     ~TypeRegistry() = default;
@@ -242,16 +242,16 @@ public:
 private:
     friend class ::Aero::Meta::Registry;
     friend class RegistrationTypes;
-    Base::Result<TypeId> TryRegisterType(BehaviorTable& behaviors, const TypeRegistration& registration) noexcept;
-    Base::Result<void> TryRegisterInterface(TypeId ownerType, TypeId interfaceType) noexcept;
-    Base::Result<MemberId> TryRegisterProperty(BehaviorTable& behaviors, TypeId ownerType, const PropertyRegistration& registration) noexcept;
-    Base::Result<MemberId> TryRegisterField(BehaviorTable& behaviors, TypeId ownerType, const FieldRegistration& registration) noexcept;
-    Base::Result<MemberId> TryRegisterEnumValue(TypeId ownerType, const EnumValueRegistration& registration) noexcept;
-    Base::Result<MemberId> TryRegisterEvent(TypeId ownerType, const EventRegistration& registration) noexcept;
-    Base::Result<MemberId> TryRegisterMethod(BehaviorTable& behaviors, TypeId ownerType, const MethodRegistration& registration) noexcept;
-    Base::Result<void> TrySetFactory(BehaviorTable& behaviors, TypeId type, ObjectFactory factory) noexcept;
-    Base::Result<void> TrySetContentMember(TypeId type, MemberId member) noexcept;
-    struct MemberLocation final { std::uint32_t typeIndex = 0U; std::uint32_t memberIndex = 0U; MemberKind kind = MemberKind::Property; };
+    Base::Result<TypeId> RegisterType(BehaviorTable& behaviors, const TypeRegistration& registration) noexcept;
+    Base::Result<void> RegisterInterface(TypeId ownerType, TypeId interfaceType) noexcept;
+    Base::Result<MemberId> RegisterProperty(BehaviorTable& behaviors, TypeId ownerType, const PropertyRegistration& registration) noexcept;
+    Base::Result<MemberId> RegisterField(BehaviorTable& behaviors, TypeId ownerType, const FieldRegistration& registration) noexcept;
+    Base::Result<MemberId> RegisterEnumValue(TypeId ownerType, const EnumValueRegistration& registration) noexcept;
+    Base::Result<MemberId> RegisterEvent(TypeId ownerType, const EventRegistration& registration) noexcept;
+    Base::Result<MemberId> RegisterMethod(BehaviorTable& behaviors, TypeId ownerType, const MethodRegistration& registration) noexcept;
+    Base::Result<void> SetFactory(BehaviorTable& behaviors, TypeId type, ObjectFactory factory) noexcept;
+    Base::Result<void> SetContentMember(TypeId type, MemberId member) noexcept;
+    struct MemberLocation { std::uint32_t typeIndex = 0U; std::uint32_t memberIndex = 0U; MemberKind kind = MemberKind::Property; };
     Base::Vector<TypeInfo> types_;
     Base::HashMap<TypeId, std::uint32_t> typeIndex_;
     Base::HashMap<MemberId, MemberLocation> memberIndex_;
@@ -289,7 +289,7 @@ using MetadataPropertyProviderSetCallback = Base::Result<void> (*)(
     const Value& value,
     void* context) noexcept;
 
-struct MetadataPropertyProviderRegistration final {
+struct MetadataPropertyProviderRegistration {
     PropertyProviderId id = InvalidPropertyProviderId;
     TypeId objectType = InvalidTypeId;
     MetadataPropertyProviderGetCallback get = nullptr;
@@ -297,7 +297,7 @@ struct MetadataPropertyProviderRegistration final {
     void* context = nullptr;
 };
 
-struct ContentInfo final {
+struct ContentInfo {
     TypeId ownerType = InvalidTypeId;
     MemberId member = InvalidMemberId;
     ContentKind kind = ContentKind::Single;
@@ -331,7 +331,7 @@ using MetadataModuleRegisterContextCallback = Base::Result<void> (*)(
     Meta::Registration& context,
     void* userContext) noexcept;
 
-struct MetadataModuleRegistration final {
+struct MetadataModuleRegistration {
     MetadataModuleId id = InvalidMetadataModuleId;
     Base::StringView name;
     std::uint32_t schemaVersion = 1U;
@@ -370,7 +370,7 @@ using Meta::Value;
 // registration-value views obtained before the next module
 // transaction are provisional because a successful transaction replaces the
 // complete candidate storage.
-class AERO_API Registry final {
+class AERO_API Registry {
 public:
     Registry() noexcept;
     ~Registry() noexcept;
@@ -384,13 +384,13 @@ public:
     bool IsSealed() const noexcept;
     std::uint32_t ModuleCount() const noexcept;
 
-    Base::Result<void> TryRegisterModule(
+    Base::Result<void> RegisterModule(
         const MetadataModuleRegistration& registration) noexcept;
     Base::Result<void> Seal() noexcept;
 
     // Property providers are registered after the structural type graph is
     // sealed. Complete() finalizes executable metadata on this same object.
-    Base::Result<void> TryRegisterPropertyProvider(
+    Base::Result<void> RegisterPropertyProvider(
         const MetadataPropertyProviderRegistration& registration) noexcept;
     Base::Result<void> Complete() noexcept;
     bool IsReady() const noexcept;
@@ -467,7 +467,7 @@ private:
     bool IsRegisteredEnumValue(
         TypeId type,
         const Value& value) const noexcept;
-    Base::Result<Value> TryConvertEnumText(
+    Base::Result<Value> ConvertEnumText(
         const TypeInfo& type,
         Base::StringView input) const noexcept;
     Base::Result<void> ValidatePropertyTarget(
@@ -613,11 +613,11 @@ inline constexpr Base::StringView CoreMetadataModuleName() noexcept {
     return "Aero.Core";
 }
 
-inline Base::Result<void> TryRegisterCoreMetadata(
+inline Base::Result<void> RegisterCoreMetadata(
     Meta::Registry& domain) noexcept {
     constexpr std::uint32_t SchemaVersion = 1U;
     const Base::StringView name = CoreMetadataModuleName();
-    return domain.TryRegisterModule({
+    return domain.RegisterModule({
         MakeMetadataModuleId(name),
         name,
         SchemaVersion,
@@ -645,11 +645,11 @@ inline constexpr Base::StringView UiMetadataModuleName() noexcept {
     return "Aero.UI";
 }
 
-inline Base::Result<void> TryRegisterUiMetadata(
+inline Base::Result<void> RegisterUiMetadata(
     ::Aero::Meta::Registry& domain) noexcept {
     constexpr std::uint32_t SchemaVersion = 11U;
     const Base::StringView name = UiMetadataModuleName();
-    return domain.TryRegisterModule({
+    return domain.RegisterModule({
         ::Aero::Meta::MakeMetadataModuleId(name),
         name,
         SchemaVersion,
@@ -663,7 +663,7 @@ inline Base::Result<void> TryRegisterUiMetadata(
 
 namespace Aero::Internal {
 
-class MetadataPrivate final {
+class MetadataPrivate {
 public:
     static ::Aero::Meta::DependencyPropertyRegistry& DependencyProperties(
         ::Aero::Meta::Registry& domain) noexcept {
@@ -707,7 +707,7 @@ class TypeDescription;
 // TypeRegistry owns callback-free structural metadata only. Registration code
 // enters through RegistrationTypes, which commits structural records to
 // TypeRegistry and executable records to this store as one registration step.
-class AERO_API BehaviorTable final {
+class AERO_API BehaviorTable {
 public:
     explicit BehaviorTable(TypeRegistry& types) noexcept
         : types_(&types) {}
@@ -735,7 +735,7 @@ private:
     friend class RegistrationTypes;
     friend class TypeRegistry;
 
-    struct OwnedBehaviorData final {
+    struct OwnedBehaviorData {
         Base::IAllocator* allocator = nullptr;
         void* value = nullptr;
         void (*destroy)(OwnedBehaviorData&) noexcept = nullptr;
@@ -745,12 +745,12 @@ private:
     };
 
     template<class TContext>
-    Base::Result<std::decay_t<TContext>*> TryOwnContext(
+    Base::Result<std::decay_t<TContext>*> OwnContext(
         TContext&& value) noexcept {
         using Stored = std::decay_t<TContext>;
         Stored temporary(
             std::forward<TContext>(value));
-        Base::Result<void*> stored = TryOwnContextRaw(
+        Base::Result<void*> stored = OwnContextRaw(
             sizeof(Stored),
             alignof(Stored),
             &temporary,
@@ -764,7 +764,7 @@ private:
         if (!stored) return stored.GetStatus();
         return static_cast<Stored*>(stored.Value());
     }
-    Base::Result<void*> TryOwnContextRaw(
+    Base::Result<void*> OwnContextRaw(
         std::size_t size,
         std::size_t alignment,
         void* source,
@@ -805,45 +805,45 @@ private:
 
 // Explicit mutable view for structural and executable type registration.
 // Read-only consumers continue to use TypeRegistry directly.
-class RegistrationTypes final {
+class RegistrationTypes {
 public:
     RegistrationTypes(
         TypeRegistry& types,
         BehaviorTable& behaviors) noexcept
         : types_(&types), behaviors_(&behaviors) {}
 
-    Base::Result<TypeId> TryRegisterType(
+    Base::Result<TypeId> RegisterType(
         const TypeRegistration& registration) const noexcept;
-    Base::Result<void> TryRegisterInterface(
+    Base::Result<void> RegisterInterface(
         TypeId ownerType,
         TypeId interfaceType) const noexcept;
-    Base::Result<MemberId> TryRegisterProperty(
+    Base::Result<MemberId> RegisterProperty(
         TypeId ownerType,
         const PropertyRegistration& registration) const noexcept;
-    Base::Result<MemberId> TryRegisterField(
+    Base::Result<MemberId> RegisterField(
         TypeId ownerType,
         const FieldRegistration& registration) const noexcept;
-    Base::Result<MemberId> TryRegisterEnumValue(
+    Base::Result<MemberId> RegisterEnumValue(
         TypeId ownerType,
         const EnumValueRegistration& registration) const noexcept;
-    Base::Result<MemberId> TryRegisterEvent(
+    Base::Result<MemberId> RegisterEvent(
         TypeId ownerType,
         const EventRegistration& registration) const noexcept;
-    Base::Result<MemberId> TryRegisterMethod(
+    Base::Result<MemberId> RegisterMethod(
         TypeId ownerType,
         const MethodRegistration& registration) const noexcept;
-    Base::Result<void> TrySetFactory(
+    Base::Result<void> SetFactory(
         TypeId type,
         ObjectFactory factory) const noexcept;
-    Base::Result<void> TrySetContentMember(
+    Base::Result<void> SetContentMember(
         TypeId type,
         MemberId member) const noexcept;
-    Base::Result<void> TrySetContentAccessor(
+    Base::Result<void> SetContentAccessor(
         const ContentAccessorRegistration& registration) const noexcept;
-    Base::Result<void> TryRegisterPropertyChangeNotification(
+    Base::Result<void> RegisterPropertyChangeNotification(
         const PropertyChangeNotificationRegistration& registration)
         const noexcept;
-    Base::Result<void> TryRegisterCollectionChangeNotification(
+    Base::Result<void> RegisterCollectionChangeNotification(
         const CollectionChangeNotificationRegistration& registration)
         const noexcept;
 
@@ -858,9 +858,9 @@ private:
     friend class Detail::MetadataAuthoringSession;
 
     template<class TContext>
-    Base::Result<std::decay_t<TContext>*> TryOwnBehaviorContext(
+    Base::Result<std::decay_t<TContext>*> OwnBehaviorContext(
         TContext&& value) const noexcept {
-        return behaviors_->TryOwnContext(
+        return behaviors_->OwnContext(
             std::forward<TContext>(value));
     }
     void ReleaseLastBehaviorContext(void* value) const noexcept {
@@ -895,7 +895,7 @@ class RegistrationValues;
 // The store is owned beside TypeRegistry by Meta::Registry. It validates type
 // identities through the structural registry, but does not make executable
 // value behavior part of TypeRegistry's ownership or public API.
-class AERO_API ValueTable final {
+class AERO_API ValueTable {
 public:
     explicit ValueTable(TypeRegistry& types) noexcept
         : types_(&types) {}
@@ -918,15 +918,15 @@ private:
     friend class Detail::MetaTable;
     friend class RegistrationValues;
 
-    struct ValueSemanticsEntry final {
+    struct ValueSemanticsEntry {
         TypeId type = InvalidTypeId;
         Base::Ref<ValueTypeSemantics> semantics;
     };
 
-    Base::Result<void> TryRegisterValueSemantics(
+    Base::Result<void> RegisterValueSemantics(
         TypeId type,
         const ValueTypeRegistration& registration) noexcept;
-    Base::Result<void> TryRegisterTextConverter(
+    Base::Result<void> RegisterTextConverter(
         const TextValueConverterRegistration& registration) noexcept;
     const Base::Ref<ValueTypeSemantics>* FindValueSemantics(
         TypeId type) const noexcept;
@@ -945,16 +945,16 @@ private:
 
 namespace Aero::Meta {
 
-struct RoutedEventRegistration final {
+struct RoutedEventRegistration {
     Base::StringView name;
     TypeId ownerType = InvalidTypeId;
     TypeId eventArgsType = InvalidTypeId;
     RoutingStrategy strategy = RoutingStrategy::Bubble;
 };
 
-class AERO_API RoutedEventTable final {
+class AERO_API RoutedEventTable {
 public:
-    struct Definition final {
+    struct Definition {
         RoutedEventHandle handle;
         TypeId ownerType = InvalidTypeId;
         TypeId eventArgsType = InvalidTypeId;
@@ -971,7 +971,7 @@ public:
     RoutedEventTable(const RoutedEventTable&) = delete;
     RoutedEventTable& operator=(const RoutedEventTable&) = delete;
 
-    Base::Result<RoutedEventHandle> TryRegister(
+    Base::Result<RoutedEventHandle> Register(
         const RoutedEventRegistration& registration) noexcept;
     Base::Result<void> Freeze() noexcept;
 
@@ -996,7 +996,7 @@ namespace Aero::Internal {
 
 using namespace ::Aero::Meta;
 
-struct RegistrationState final {
+struct RegistrationState {
     TypeRegistry* types = nullptr;
     BehaviorTable* behaviors = nullptr;
     ValueTable* values = nullptr;
@@ -1039,7 +1039,7 @@ using namespace ::Aero::Meta;
 
 // Shared compact-facet positioning kernel. Meta and Markup own independent
 // columns and seal independently; only the mask/rank calculation is shared.
-struct CompactFacetIndex final {
+struct CompactFacetIndex {
     template<class TMask, class TKind>
     static constexpr std::uint16_t CountBefore(
         TMask mask,
@@ -1085,12 +1085,12 @@ constexpr bool HasMetadataFacet(
     return (mask & MetadataFacetBit(kind)) != 0U;
 }
 
-struct TypeFactoryFacet final {
+struct TypeFactoryFacet {
     TypeId type = InvalidTypeId;
     ObjectFactory factory = nullptr;
 };
 
-struct ContentFacet final {
+struct ContentFacet {
     TypeId type = InvalidTypeId;
     MemberId member = InvalidMemberId;
     ContentKind kind = ContentKind::Single;
@@ -1100,7 +1100,7 @@ struct ContentFacet final {
     void* context = nullptr;
 };
 
-struct PropertyAccessorFacet final {
+struct PropertyAccessorFacet {
     MemberId member = InvalidMemberId;
     PropertyAccessKind access = PropertyAccessKind::External;
     PropertyGetCallback get = nullptr;
@@ -1109,20 +1109,20 @@ struct PropertyAccessorFacet final {
     void* context = nullptr;
 };
 
-struct ValueMemberAccessorFacet final {
+struct ValueMemberAccessorFacet {
     MemberId member = InvalidMemberId;
     ValueMemberGetCallback get = nullptr;
     ValueMemberSetCallback set = nullptr;
     void* context = nullptr;
 };
 
-struct MethodInvokerFacet final {
+struct MethodInvokerFacet {
     MemberId member = InvalidMemberId;
     MethodInvokeCallback invoke = nullptr;
     void* context = nullptr;
 };
 
-struct DependencyPropertyFacet final {
+struct DependencyPropertyFacet {
     MemberId member = InvalidMemberId;
     MemberId canonicalMember = InvalidMemberId;
     TypeId registeredOwnerType = InvalidTypeId;
@@ -1132,21 +1132,21 @@ struct DependencyPropertyFacet final {
     const DependencyProperty* property = nullptr;
 };
 
-struct RoutedEventFacet final {
+struct RoutedEventFacet {
     MemberId member = InvalidMemberId;
     TypeId ownerType = InvalidTypeId;
     TypeId eventArgsType = InvalidTypeId;
     RoutingStrategy strategy = RoutingStrategy::Bubble;
 };
 
-struct PropertyChangeNotificationFacet final {
+struct PropertyChangeNotificationFacet {
     TypeId type = InvalidTypeId;
     PropertyChangeSubscribeCallback subscribe = nullptr;
     PropertyChangeUnsubscribeCallback unsubscribe = nullptr;
     void* context = nullptr;
 };
 
-struct CollectionChangeNotificationFacet final {
+struct CollectionChangeNotificationFacet {
     TypeId type = InvalidTypeId;
     CollectionChangeSubscribeCallback subscribe = nullptr;
     CollectionChangeUnsubscribeCallback unsubscribe = nullptr;
@@ -1155,18 +1155,18 @@ struct CollectionChangeNotificationFacet final {
 
 // Sealed value facets own their runtime registrations. No runtime lookup is
 // routed back through TypeRegistry after Meta::Registry::Seal().
-struct ValueSemanticsFacet final {
+struct ValueSemanticsFacet {
     TypeId type = InvalidTypeId;
     Base::Ref<ValueTypeSemantics> semantics;
 };
 
-struct TextConverterFacet final {
+struct TextConverterFacet {
     TypeId type = InvalidTypeId;
     TextValueConverterCallback convert = nullptr;
     void* context = nullptr;
 };
 
-class MetaTable final {
+class MetaTable {
 public:
     MetaTable() noexcept = default;
 
@@ -1216,7 +1216,7 @@ public:
 private:
     inline static constexpr std::uint32_t InvalidFacetIndex = UINT32_MAX;
 
-    struct FacetDraft final {
+    struct FacetDraft {
         std::uint64_t key = 0U;
         std::uint32_t facets[11] = {
             InvalidFacetIndex, InvalidFacetIndex, InvalidFacetIndex,
@@ -1225,7 +1225,7 @@ private:
             InvalidFacetIndex, InvalidFacetIndex};
     };
 
-    struct TypeRecord final {
+    struct TypeRecord {
         TypeId id = InvalidTypeId;
         std::uint32_t firstFacetRef = 0U;
         MetadataFacetMask mask = 0U;
@@ -1233,7 +1233,7 @@ private:
         std::uint16_t reserved = 0U;
     };
 
-    struct MemberRecord final {
+    struct MemberRecord {
         MemberId id = InvalidMemberId;
         std::uint32_t firstFacetRef = 0U;
         MetadataFacetMask mask = 0U;

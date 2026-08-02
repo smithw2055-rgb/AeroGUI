@@ -40,7 +40,7 @@ protected:
 };
 
 template<class T, std::uint32_t InlineCount>
-class BasicVector final : private InlineBuffer<T, InlineCount> {
+class BasicVector  : private InlineBuffer<T, InlineCount> {
 public:
     using ValueType = T;
     using SizeType = std::uint32_t;
@@ -53,7 +53,7 @@ public:
     BasicVector(const BasicVector& other)
         : allocator_(&other.Allocator()) {
         ResetEmptyStorage();
-        const Result<void> result = TryAppend(other.AsSpan());
+        const Result<void> result = Append(other.AsSpan());
         if (!result) {
             ReportOutOfMemory(BytesForCount(other.size_), alignof(T), MemoryTag::Container);
         }
@@ -72,7 +72,7 @@ public:
 
     BasicVector& operator=(const BasicVector& other) {
         if (this != &other) {
-            const Result<void> result = TryAssign(other.AsSpan());
+            const Result<void> result = Assign(other.AsSpan());
             if (!result) {
                 ReportOutOfMemory(BytesForCount(other.size_), alignof(T), MemoryTag::Container);
             }
@@ -89,12 +89,12 @@ public:
                 MoveConstructFrom(other);
             } else {
                 BasicVector temporary(allocator_);
-                const Result<void> reserveResult = temporary.TryReserve(other.size_);
+                const Result<void> reserveResult = temporary.Reserve(other.size_);
                 if (!reserveResult) {
                     ReportOutOfMemory(BytesForCount(other.size_), alignof(T), MemoryTag::Container);
                 }
                 for (SizeType index = 0U; index < other.size_; ++index) {
-                    const Result<T*> appendResult = temporary.TryEmplaceBack(
+                    const Result<T*> appendResult = temporary.EmplaceBack(
                         std::move_if_noexcept(other.data_[index]));
                     if (!appendResult) {
                         ReportOutOfMemory(BytesForCount(other.size_), alignof(T), MemoryTag::Container);
@@ -167,7 +167,7 @@ public:
         data_[size_].~T();
     }
 
-    Result<void> TryReserve(SizeType requestedCapacity) noexcept {
+    Result<void> Reserve(SizeType requestedCapacity) noexcept {
         if (requestedCapacity <= capacity_) {
             return {};
         }
@@ -194,7 +194,7 @@ public:
         return {};
     }
 
-    Result<void> TryResize(SizeType requestedSize) noexcept {
+    Result<void> Resize(SizeType requestedSize) noexcept {
         if (requestedSize < size_) {
             DestroyRange(data_ + requestedSize, size_ - requestedSize);
             size_ = requestedSize;
@@ -217,7 +217,7 @@ public:
         return {};
     }
 
-    Result<void> TryResize(
+    Result<void> Resize(
         SizeType requestedSize, const T& value) noexcept {
         if (requestedSize < size_) {
             DestroyRange(data_ + requestedSize, size_ - requestedSize);
@@ -242,7 +242,7 @@ public:
     }
 
     template<class... Args>
-    Result<T*> TryEmplaceBack(Args&&... args) noexcept {
+    Result<T*> EmplaceBack(Args&&... args) noexcept {
         if (size_ == UINT32_MAX) {
             return Status::Failure(ErrorCode::OutOfRange,
                 "Vector size limit reached");
@@ -258,20 +258,20 @@ public:
         return value;
     }
 
-    Result<void> TryPushBack(const T& value) noexcept {
-        const Result<T*> result = TryEmplaceBack(value);
+    Result<void> PushBack(const T& value) noexcept {
+        const Result<T*> result = EmplaceBack(value);
         return result ? Result<void>() : Result<void>(result.GetStatus());
     }
 
-    Result<void> TryPushBack(T&& value) noexcept {
-        const Result<T*> result = TryEmplaceBack(std::move(value));
+    Result<void> PushBack(T&& value) noexcept {
+        const Result<T*> result = EmplaceBack(std::move(value));
         return result ? Result<void>() : Result<void>(result.GetStatus());
     }
 
-    Result<void> TryAssign(Span<const T> values) noexcept {
+    Result<void> Assign(Span<const T> values) noexcept {
         if (IsAliased(values.Data(), values.Size())) {
             BasicVector temporary(allocator_);
-            const Result<void> temporaryResult = temporary.TryAppend(values);
+            const Result<void> temporaryResult = temporary.Append(values);
             if (!temporaryResult) {
                 return temporaryResult.GetStatus();
             }
@@ -279,7 +279,7 @@ public:
             return {};
         }
 
-        const Result<void> reserveResult = TryReserve(values.Size());
+        const Result<void> reserveResult = Reserve(values.Size());
         if (!reserveResult) {
             return reserveResult.GetStatus();
         }
@@ -293,7 +293,7 @@ public:
         return {};
     }
 
-    Result<void> TryAppend(Span<const T> values) noexcept {
+    Result<void> Append(Span<const T> values) noexcept {
         if (values.Empty()) {
             return {};
         }
@@ -386,7 +386,7 @@ private:
         if (grown < required) {
             grown = required;
         }
-        return TryReserve(grown);
+        return Reserve(grown);
     }
 
     bool IsAliased(

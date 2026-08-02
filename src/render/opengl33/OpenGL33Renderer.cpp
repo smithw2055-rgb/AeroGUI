@@ -428,7 +428,7 @@ RendererShaderSet MakeOpenGL33RendererShaderSet() noexcept {
     return shaders;
 }
 
-struct OpenGL33Renderer::Impl final {
+struct OpenGL33Renderer::Impl {
     Impl(
         Graphics::GraphicsDevice& device,
         std::uint64_t generation,

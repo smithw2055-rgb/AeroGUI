@@ -12,7 +12,7 @@ namespace Aero::App {
 
 // Explicit escape hatch for native hosts. Normal WPF-facing code should use
 // Window lifecycle and dependency properties instead.
-class AERO_API WindowInterop final {
+class AERO_API WindowInterop  {
 public:
     static Integration::NativeWindowHandle NativeHandle(
         const ::Aero::Window& window) noexcept;

@@ -10,7 +10,7 @@
 namespace Aero::Text {
 namespace {
 
-struct GlyphAtlasKeyHash final {
+struct GlyphAtlasKeyHash  {
     Base::HashCode operator()(
         const GlyphAtlasKey& key,
         Base::HashCode seed = 0U) const noexcept {
@@ -55,8 +55,8 @@ GlyphAtlasKey MakeGlyphAtlasKey(
     return key;
 }
 
-struct GlyphAtlas::Impl final {
-    struct Page final {
+struct GlyphAtlas::Impl  {
+    struct Page  {
         std::uint32_t generation = 1U;
         std::uint32_t cursorX = 0U;
         std::uint32_t cursorY = 0U;
@@ -66,7 +66,7 @@ struct GlyphAtlas::Impl final {
         bool hasPendingUploads = false;
     };
 
-    struct Entry final {
+    struct Entry  {
         GlyphAtlasKey key;
         GlyphAtlasPlacement placement;
     };
@@ -86,7 +86,7 @@ struct GlyphAtlas::Impl final {
     Base::Vector<GlyphAtlasUpload> uploads;
     std::uint32_t deviceGeneration = 1U;
 
-    bool TryPlace(
+    bool Place(
         Page& page,
         std::uint32_t contentWidth,
         std::uint32_t contentHeight,
@@ -249,7 +249,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     std::uint32_t y = 0U;
     for (std::uint32_t index = 0U;
          index < impl_->pages.Size(); ++index) {
-        if (impl_->TryPlace(
+        if (impl_->Place(
                 impl_->pages[index],
                 bitmap.width, bitmap.height, x, y)) {
             pageIndex = index;
@@ -259,10 +259,10 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     if (pageIndex == UINT32_MAX &&
         impl_->pages.Size() < impl_->config.maxPages) {
         Base::Result<Impl::Page*> appended =
-            impl_->pages.TryEmplaceBack();
+            impl_->pages.EmplaceBack();
         if (!appended) return appended.GetStatus();
         pageIndex = impl_->pages.Size() - 1U;
-        if (!impl_->TryPlace(
+        if (!impl_->Place(
                 impl_->pages[pageIndex],
                 bitmap.width, bitmap.height, x, y)) {
             return Base::Status::Failure(
@@ -291,7 +291,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
         }
         impl_->ResetPage(victim);
         pageIndex = victim;
-        if (!impl_->TryPlace(
+        if (!impl_->Place(
                 impl_->pages[pageIndex],
                 bitmap.width, bitmap.height, x, y)) {
             return Base::Status::Failure(
@@ -319,7 +319,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     entry.key = key;
     entry.placement = placement;
     Base::Result<Impl::Entry*> stored =
-        impl_->entries.TryEmplaceBack(entry);
+        impl_->entries.EmplaceBack(entry);
     if (!stored) return stored.GetStatus();
     const std::uint32_t entryIndex =
         impl_->entries.Size() - 1U;
@@ -327,7 +327,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
         Base::HashMap<
             GlyphAtlasKey, std::uint32_t,
             GlyphAtlasKeyHash>::InsertResult> indexed =
-        impl_->entryIndex.TryInsert(key, entryIndex);
+        impl_->entryIndex.Insert(key, entryIndex);
     if (!indexed) {
         impl_->entries.PopBack();
         return indexed.GetStatus();
@@ -351,7 +351,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     const std::uint64_t byteCount =
         static_cast<std::uint64_t>(bitmap.width) *
         static_cast<std::uint64_t>(bitmap.height);
-    Base::Result<void> resized = upload.pixels.TryResize(
+    Base::Result<void> resized = upload.pixels.Resize(
         static_cast<std::uint32_t>(byteCount));
     if (!resized) {
         static_cast<void>(impl_->entryIndex.Erase(key));
@@ -366,7 +366,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
             bitmap.width);
     }
     Base::Result<GlyphAtlasUpload*> queued =
-        impl_->uploads.TryEmplaceBack(std::move(upload));
+        impl_->uploads.EmplaceBack(std::move(upload));
     if (!queued) {
         static_cast<void>(impl_->entryIndex.Erase(key));
         impl_->entries.PopBack();

@@ -5,8 +5,8 @@
 namespace Aero::Internal {
 
 // Internal adapter for scalar ItemsSource values. It is deliberately kept out
-// of the public controls surface; callers use TryAddBoxedItem helpers instead.
-class BoxedItemValue final : public Base::Object {
+// of the public controls surface; callers use AddBoxedItem helpers instead.
+class BoxedItemValue : public Base::Object {
     AERO_DECLARE_TYPE(BoxedItemValue, Base::Object)
 public:
     explicit BoxedItemValue(Meta::Value value) noexcept

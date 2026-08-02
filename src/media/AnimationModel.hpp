@@ -41,7 +41,7 @@ enum class EasingFunctionKind : std::uint8_t {
     Elastic
 };
 
-struct EasingFunction final {
+struct EasingFunction {
     EasingFunctionKind kind = EasingFunctionKind::Linear;
     EasingMode mode = EasingMode::EaseOut;
     double power = 2.0;
@@ -50,7 +50,7 @@ struct EasingFunction final {
     double springiness = 3.0;
 };
 
-struct RepeatBehavior final {
+struct RepeatBehavior {
     double count = 1.0;
     bool forever = false;
 
@@ -65,7 +65,7 @@ struct RepeatBehavior final {
     }
 };
 
-struct TimelineTiming final {
+struct TimelineTiming {
     AnimationTime beginTimeMicroseconds = 0U;
     AnimationTime durationMicroseconds = 0U;
     RepeatBehavior repeat;
@@ -81,7 +81,7 @@ enum class DoubleKeyFrameInterpolation : std::uint8_t {
     Spline
 };
 
-struct DoubleKeyFrame final {
+struct DoubleKeyFrame {
     AnimationTime keyTimeMicroseconds = 0U;
     double value = 0.0;
     DoubleKeyFrameInterpolation interpolation =
@@ -94,7 +94,7 @@ struct DoubleKeyFrame final {
     double controlPoint2Y = 1.0;
 };
 
-struct ColorKeyFrame final {
+struct ColorKeyFrame {
     AnimationTime keyTimeMicroseconds = 0U;
     Base::Color value;
     DoubleKeyFrameInterpolation interpolation =
@@ -106,7 +106,7 @@ struct ColorKeyFrame final {
     double controlPoint2Y = 1.0;
 };
 
-struct DoubleAnimation final {
+struct DoubleAnimation {
     double from = 0.0;
     double to = 0.0;
     double accelerationRatio = 0.0;
@@ -115,58 +115,58 @@ struct DoubleAnimation final {
     EasingFunction easing;
 };
 
-struct ColorAnimation final {
+struct ColorAnimation {
     Base::Color from;
     Base::Color to;
     TimelineTiming timing;
     EasingFunction easing;
 };
 
-struct PointAnimation final {
+struct PointAnimation {
     Base::Point from;
     Base::Point to;
     TimelineTiming timing;
     EasingFunction easing;
 };
 
-struct RectAnimation final {
+struct RectAnimation {
     Base::Rect from;
     Base::Rect to;
     TimelineTiming timing;
     EasingFunction easing;
 };
 
-struct ThicknessAnimation final {
+struct ThicknessAnimation {
     Base::Thickness from;
     Base::Thickness to;
     TimelineTiming timing;
     EasingFunction easing;
 };
 
-struct DoubleKeyFrameAnimation final {
+struct DoubleKeyFrameAnimation {
     double baseValue = 0.0;
     TimelineTiming timing;
     Base::Span<const DoubleKeyFrame> keyFrames;
 };
 
-struct ColorKeyFrameAnimation final {
+struct ColorKeyFrameAnimation {
     Base::Color baseValue;
     TimelineTiming timing;
     Base::Span<const ColorKeyFrame> keyFrames;
 };
 
-struct DiscreteAnimationKeyFrame final {
+struct DiscreteAnimationKeyFrame {
     AnimationTime keyTimeMicroseconds = 0U;
     Meta::PropertyValue value;
 };
 
-struct DiscreteAnimation final {
+struct DiscreteAnimation {
     Meta::PropertyValue baseValue;
     TimelineTiming timing;
     Base::Span<const DiscreteAnimationKeyFrame> keyFrames;
 };
 
-struct AnimationHandle final {
+struct AnimationHandle {
     std::uint64_t value = 0U;
 
     constexpr bool IsValid() const noexcept {
@@ -184,7 +184,7 @@ constexpr bool operator!=(
     return !(left == right);
 }
 
-struct AnimationDiagnostics final {
+struct AnimationDiagnostics {
     std::uint32_t activeCount = 0U;
     std::uint32_t pausedCount = 0U;
     std::uint32_t fillingCount = 0U;

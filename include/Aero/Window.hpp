@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <Aero/Controls/Items.hpp>
+#include <Aero/Events/WindowEventArgs.hpp>
 
 namespace Aero {
 namespace Internal { class DesktopPrivate; }
@@ -10,20 +11,6 @@ enum class WindowState : std::uint8_t { Normal = 0U, Minimized, Maximized };
 enum class WindowStyle : std::uint8_t { None = 0U, SingleBorderWindow, ThreeDBorderWindow, ToolWindow };
 enum class ResizeMode : std::uint8_t { NoResize = 0U, CanMinimize, CanResize, CanResizeWithGrip };
 enum class SizeToContent : std::uint8_t { Manual = 0U, Width, Height, WidthAndHeight };
-
-struct CancelEventArgs final : RoutedEventArgs {
-    AERO_DECLARE_TYPE(CancelEventArgs, RoutedEventArgs)
-public:
-    CancelEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
-
-    bool GetCancel() const noexcept { return cancel_; }
-    void SetCancel(bool value) noexcept { cancel_ = value; }
-
-private:
-    bool cancel_ = false;
-};
-
-using CancelEventHandler = Base::Delegate<void(Base::Object*, CancelEventArgs&)>;
 
 class AERO_API Window : public Controls::ContentControl {
     AERO_DECLARE_TYPE(Window, Controls::ContentControl)

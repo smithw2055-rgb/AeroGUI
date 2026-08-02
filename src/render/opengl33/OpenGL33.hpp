@@ -150,7 +150,7 @@ enum class GlEmbeddingMode : std::uint8_t {
     PreserveAndRestore
 };
 
-struct GlLimits final {
+struct GlLimits  {
     std::uint32_t maxTextureSize = 0U;
     std::uint32_t maxArrayTextureLayers = 0U;
     std::uint32_t maxCombinedTextureUnits = 0U;
@@ -162,7 +162,7 @@ struct GlLimits final {
     std::uint32_t maxColorAttachments = 0U;
 };
 
-struct GlCapabilities final {
+struct GlCapabilities  {
     std::uint32_t majorVersion = 0U;
     std::uint32_t minorVersion = 0U;
     std::uint32_t contextFlags = 0U;
@@ -176,7 +176,7 @@ struct GlCapabilities final {
     GlLimits limits;
 };
 
-struct GlContextBinding final {
+struct GlContextBinding  {
     std::uint32_t structSize =
         static_cast<std::uint32_t>(sizeof(GlContextBinding));
     std::uint32_t abiVersion = GlContextBindingAbiVersion;
@@ -190,7 +190,7 @@ struct GlContextBinding final {
     GlEmbeddingMode embeddingMode = GlEmbeddingMode::HostReset;
 };
 
-struct GlFunctionTable final {
+struct GlFunctionTable  {
     using GetStringProc = const std::uint8_t* (AERO_GL_CALL*)(GlEnum);
     using GetStringiProc =
         const std::uint8_t* (AERO_GL_CALL*)(GlEnum, GlUInt);

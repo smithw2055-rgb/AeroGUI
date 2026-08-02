@@ -40,7 +40,7 @@ Graphics::GlThreadToken CurrentThreadToken(
     return value != 0U ? value : 1U;
 }
 
-class OpenGL33EmbeddedSurface final
+class OpenGL33EmbeddedSurface
     : public Graphics::ISurfaceBackend {
 public:
     explicit OpenGL33EmbeddedSurface(
@@ -148,7 +148,7 @@ private:
     bool lost_ = false;
 };
 
-class OpenGL33DeviceState final {
+class OpenGL33DeviceState {
 public:
     OpenGL33DeviceState(
         const OpenGL33WindowDeviceOptions& options,

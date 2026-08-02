@@ -1,0 +1,44 @@
+#pragma once
+
+#include <Aero/Triggers/TriggerBase.hpp>
+
+namespace Aero {
+
+class AERO_API Trigger : public TriggerBase {
+    AERO_DECLARE_TYPE_NAMED(Trigger, TriggerBase, "urn:aero", "Trigger")
+public:
+    explicit Trigger(TypeId runtimeType = StaticTypeId()) noexcept
+        : TriggerBase(runtimeType) {}
+    DependencyPropertyHandle GetProperty() const noexcept { return property_; }
+    const PropertyValue& GetValue() const noexcept { return value_; }
+    void SetProperty(DependencyPropertyHandle value) noexcept;
+    void SetValue(const PropertyValue& value) noexcept;
+    Base::Result<void> AddSetter(const Setter& setter) noexcept;
+    void SetPropertyName(Base::StringView value) noexcept;
+    Base::StringView GetSourceName() const noexcept { return sourceName_.View(); }
+    void SetSourceName(Base::StringView value) noexcept;
+    void SetAuthoredValue(const PropertyValue& value) noexcept;
+    Base::Result<void> AddAuthoredSetter(Base::Ref<Setter> setter) noexcept;
+    void ClearAuthoredSetters() noexcept;
+    Base::StringView GetPropertyName() const noexcept { return propertyName_.View(); }
+    const PropertyValue& GetAuthoredValue() const noexcept { return authoredValue_; }
+    Base::Span<const Base::Ref<Setter>> GetAuthoredSetters() const noexcept {
+        return {authoredSetters_.Data(), authoredSetters_.Size()};
+    }
+    bool GetIsAuthored() const noexcept {
+        return !propertyName_.Empty() && !authoredValue_.IsUnset() &&
+               !authoredSetters_.Empty();
+    }
+    Base::Result<TriggerPlan> BuildPlan() const noexcept;
+
+private:
+    DependencyPropertyHandle property_;
+    PropertyValue value_;
+    Base::Vector<StyleTriggerSetter> setters_;
+    Base::String propertyName_;
+    Base::String sourceName_;
+    PropertyValue authoredValue_;
+    Base::Vector<Base::Ref<Setter>> authoredSetters_;
+};
+
+} // namespace Aero

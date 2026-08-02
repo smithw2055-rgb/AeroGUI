@@ -1231,19 +1231,19 @@ ScrollBar::ScrollBar() noexcept
       trackPropertyChangedHandler_(
           this,
           &ScrollBar::OnTrackPropertyChanged) {
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         OrientationProperty,
         trackPropertyChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         MinimumProperty,
         trackPropertyChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         MaximumProperty,
         trackPropertyChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         ValueProperty,
         trackPropertyChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         ViewportSizeProperty,
         trackPropertyChangedHandler_));
 }
@@ -1311,11 +1311,11 @@ RangeBase::RangeBase(TypeId runtimeType) noexcept
       rangeChangedHandler_(
           this,
           &RangeBase::OnRangePropertyChanged) {
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         MinimumProperty, rangeChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         MaximumProperty, rangeChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         ValueProperty, rangeChangedHandler_));
 }
 
@@ -2130,12 +2130,12 @@ Base::Result<void> ScrollBehavior::Attach(
             "ScrollViewer must be loaded in the interaction tree");
     }
     Base::Result<void> handler =
-        viewer.TryAddHandler(
+        viewer.AddHandlerChecked(
             UIElement::MouseWheelEvent,
             wheelHandler_);
     if (!handler) return handler.GetStatus();
     Base::Result<void> added =
-        viewers_.TryPushBack(
+        viewers_.PushBack(
             {&viewer, Aero::Internal::ElementPrivate::Handle(viewer)});
     if (!added) {
         static_cast<void>(viewer.RemoveHandler(
@@ -2281,27 +2281,24 @@ Base::Result<void> SliderBehavior::Attach(
             "Slider must be loaded in the interaction tree");
     }
     if (sliders_.Empty()) {
-        Base::Result<void> capture =
-            input_->TryAddPointerCaptureChanged(
-                captureChangedHandler_);
-        if (!capture) return capture.GetStatus();
+        input_->AddPointerCaptureChanged(captureChangedHandler_);
     }
     Base::Result<void> status =
-        slider.TryAddHandler(
+        slider.AddHandlerChecked(
             UIElement::MouseDownEvent,
             mouseDownHandler_);
     if (status) {
-        status = slider.TryAddHandler(
+        status = slider.AddHandlerChecked(
             UIElement::MouseMoveEvent,
             mouseMoveHandler_);
     }
     if (status) {
-        status = slider.TryAddHandler(
+        status = slider.AddHandlerChecked(
             UIElement::MouseUpEvent,
             mouseUpHandler_);
     }
     if (status) {
-        status = slider.TryAddHandler(
+        status = slider.AddHandlerChecked(
             UIElement::KeyDownEvent,
             keyDownHandler_);
     }
@@ -2326,7 +2323,7 @@ Base::Result<void> SliderBehavior::Attach(
         return status.GetStatus();
     }
     Base::Result<void> appended =
-        sliders_.TryPushBack(
+        sliders_.PushBack(
             {Aero::Internal::ElementPrivate::Handle(slider), 0U, false});
     if (!appended) {
         static_cast<void>(slider.RemoveHandler(

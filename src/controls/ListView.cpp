@@ -91,7 +91,7 @@ GridViewColumn::SetDisplayMemberBinding(
         DisplayMemberBindingProperty, std::move(value));
 }
 
-Base::Result<void> GridView::TryAddColumn(
+Base::Result<void> GridView::AddColumn(
     Base::Ref<GridViewColumn> column)
     noexcept {
     if (!column) {
@@ -99,7 +99,7 @@ Base::Result<void> GridView::TryAddColumn(
             Base::ErrorCode::InvalidArgument,
             "GridView column is null");
     }
-    return columns_.TryPushBack(
+    return columns_.PushBack(
         std::move(column));
 }
 
@@ -149,7 +149,7 @@ ListView::SynchronizeColumnHeaders() noexcept {
              column : view->GetColumns()) {
             if (!column) continue;
             Base::Result<void> appended =
-                text.TryAppend(column->GetHeader());
+                text.Append(column->GetHeader());
             if (!appended) {
                 return appended.GetStatus();
             }
@@ -175,7 +175,7 @@ ListView::SynchronizeColumnHeaders() noexcept {
             for (std::uint32_t index = 0U;
                  index < padding;
                  ++index) {
-                appended = text.TryAppend(
+                appended = text.Append(
                     Base::StringView(" "));
                 if (!appended) {
                     return appended.GetStatus();

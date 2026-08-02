@@ -15,7 +15,7 @@ class IDiagnosticSink;
 
 namespace Aero::Integration {
 
-struct ReloadResult final {
+struct ReloadResult  {
     bool changed = false;
     bool reloaded = false;
     std::uint32_t invalidatedDocuments = 0U;
@@ -28,7 +28,7 @@ struct ReloadResult final {
 // dependency graph, loads a replacement XamlDocument off to the side, and swaps
 // it into a mounted View only after the replacement is valid. All calls must
 // occur on the View owner thread.
-class AERO_API ReloadCoordinator final {
+class AERO_API ReloadCoordinator  {
 public:
     explicit ReloadCoordinator(
         View& view,

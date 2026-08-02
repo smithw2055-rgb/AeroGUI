@@ -307,7 +307,7 @@ TemplateBuilder::ProjectContentCore(
         contentHost->SetContent(content);
     }
     Base::Result<void> tracked =
-        state.projections.TryPushBack(std::move(projection));
+        state.projections.PushBack(std::move(projection));
     if (!tracked) {
         restore();
         return tracked.GetStatus();
@@ -393,14 +393,14 @@ Base::Result<void> TemplateBuilder::AddOwnedPart(
     auto& state = *static_cast<Aero::Internal::TemplateBuildState*>(state_);
     const auto& mount = *static_cast<const Aero::Internal::ElementAttachment*>(mountState);
     Aero::Internal::TemplatePart part;
-    Base::Result<void> assigned = part.name.TryAssign(name);
+    Base::Result<void> assigned = part.name.Assign(name);
     if (!assigned) return assigned.GetStatus();
     part.owner = std::move(owner);
     part.visual = &visual;
     part.object = &visual;
     part.frameworkElement = visual.AsFrameworkElement();
     part.mount = mount;
-    return state.parts.TryPushBack(std::move(part));
+    return state.parts.PushBack(std::move(part));
 }
 
 void TemplateBuilder::Rollback() noexcept {
@@ -474,7 +474,7 @@ Base::Result<void> Detail::TemplateProgram::SetBaseUri(
     return {};
 }
 
-Base::Result<void> Detail::TemplateProgram::TryAddNamespace(
+Base::Result<void> Detail::TemplateProgram::AddNamespace(
     Base::StringView prefix,
     Base::StringView uri) noexcept {
     if (sealed) {
@@ -496,11 +496,11 @@ Base::Result<void> Detail::TemplateProgram::TryAddNamespace(
     }
     TemplateNamespace entry;
     Base::Result<void> assigned =
-        entry.prefix.TryAssign(prefix);
+        entry.prefix.Assign(prefix);
     if (!assigned) return assigned.GetStatus();
-    assigned = entry.uri.TryAssign(uri);
+    assigned = entry.uri.Assign(uri);
     if (!assigned) return assigned.GetStatus();
-    return namespaces.TryPushBack(std::move(entry));
+    return namespaces.PushBack(std::move(entry));
 }
 
 Base::Result<void> Detail::TemplateProgram::Seal() noexcept {
@@ -599,7 +599,7 @@ const ::Aero::Controls::Detail::FrameworkTemplateState* TemplatePrivate::State(c
     return static_cast<const FrameworkTemplateState*>(value.state_);
 }
 
-Base::Result<void> TemplatePrivate::TrySetTargetType(
+Base::Result<void> TemplatePrivate::SetTargetType(
     FrameworkTemplate& templateValue,
     TypeId value) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -621,7 +621,7 @@ Base::Result<void> TemplatePrivate::ConfigureFactory(
     return state->program.Configure(factory, factoryContext, std::move(factoryOwner));
 }
 
-Base::Result<void> TemplatePrivate::TryAddTemplateBinding(
+Base::Result<void> TemplatePrivate::AddTemplateBinding(
     FrameworkTemplate& templateValue,
     Base::StringView targetName,
     DependencyPropertyHandle sourceProperty,
@@ -631,14 +631,14 @@ Base::Result<void> TemplatePrivate::TryAddTemplateBinding(
     if (state->sealed) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
     if (!sourceProperty.IsValid() || !targetProperty.IsValid()) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "TemplateBinding requires source and target properties");
     TemplateBindingPlan binding;
-    Base::Result<void> assigned = binding.targetName.TryAssign(targetName);
+    Base::Result<void> assigned = binding.targetName.Assign(targetName);
     if (!assigned) return assigned.GetStatus();
     binding.sourceProperty = sourceProperty;
     binding.targetProperty = targetProperty;
-    return state->bindings.TryPushBack(std::move(binding));
+    return state->bindings.PushBack(std::move(binding));
 }
 
-Base::Result<void> TemplatePrivate::TryAddTemplatedParentBinding(
+Base::Result<void> TemplatePrivate::AddTemplatedParentBinding(
     FrameworkTemplate& templateValue,
     Base::StringView targetName,
     Base::StringView path,
@@ -651,16 +651,16 @@ Base::Result<void> TemplatePrivate::TryAddTemplatedParentBinding(
     if (state->sealed) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
     if (path.Empty() || !targetProperty.IsValid()) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "TemplatedParent Binding requires a path and target property");
     TemplateMetadataBindingPlan binding;
-    Base::Result<void> assigned = binding.targetName.TryAssign(targetName);
+    Base::Result<void> assigned = binding.targetName.Assign(targetName);
     if (!assigned) return assigned.GetStatus();
-    assigned = binding.path.TryAssign(path);
+    assigned = binding.path.Assign(path);
     if (!assigned) return assigned.GetStatus();
-    assigned = binding.stringFormat.TryAssign(stringFormat);
+    assigned = binding.stringFormat.Assign(stringFormat);
     if (!assigned) return assigned.GetStatus();
     binding.targetProperty = targetProperty;
     binding.mode = mode;
     binding.updateSourceTrigger = updateSourceTrigger;
-    return state->metadataBindings.TryPushBack(std::move(binding));
+    return state->metadataBindings.PushBack(std::move(binding));
 }
 
 Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(
@@ -673,13 +673,13 @@ Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(
     return {};
 }
 
-Base::Result<void> TemplatePrivate::TryAddAuthoredVisualStateGroup(
+Base::Result<void> TemplatePrivate::AddAuthoredVisualStateGroup(
     ControlTemplate& templateValue,
     const Base::Ref<Base::Object>& value) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ControlTemplate state allocation failed");
     if (state->sealed || !value) return InvalidTemplate("ControlTemplate authored visual state group is invalid");
-    return state->authoredVisualStateGroups.TryPushBack(value);
+    return state->authoredVisualStateGroups.PushBack(value);
 }
 
 void TemplatePrivate::ClearAuthoredVisualTree(ControlTemplate& value) noexcept {
@@ -697,17 +697,17 @@ void TemplatePrivate::ClearAuthoredTriggers(FrameworkTemplate& value) noexcept {
     if (state != nullptr) state->authoredTriggers.Clear();
 }
 
-Base::Result<void> TemplatePrivate::TryAddPropertyTrigger(
+Base::Result<void> TemplatePrivate::AddPropertyTrigger(
     FrameworkTemplate& templateValue,
     TemplatePropertyTrigger trigger) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
     if (state->sealed) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
     if (trigger.conditions.Empty()) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Template property trigger is incomplete");
-    return state->triggers.TryPushBack(std::move(trigger));
+    return state->triggers.PushBack(std::move(trigger));
 }
 
-Base::Result<void> TemplatePrivate::TryAddVisualStateGroup(
+Base::Result<void> TemplatePrivate::AddVisualStateGroup(
     FrameworkTemplate& templateValue,
     VisualStateGroup group) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -812,7 +812,7 @@ Base::Result<void> TemplatePrivate::TryAddVisualStateGroup(
             }
         }
     }
-    return state->visualStateGroups.TryPushBack(std::move(group));
+    return state->visualStateGroups.PushBack(std::move(group));
 }
 
 
@@ -820,7 +820,7 @@ Base::Result<void> TemplatePrivate::RegisterAuthoredName(
     ControlTemplate& templateValue, Base::StringView name, Base::Object& object) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ControlTemplate state allocation failed");
-    return state->authoredNames.TryRegister(name, object);
+    return state->authoredNames.Register(name, object);
 }
 
 Base::Result<Base::String> TemplatePrivate::EnsureAuthoredName(
@@ -833,7 +833,7 @@ Base::Result<Base::String> TemplatePrivate::EnsureAuthoredName(
     if (!existing.Empty()) {
         Base::String result;
         Base::Result<void> assigned =
-            result.TryAssign(existing);
+            result.Assign(existing);
         return assigned
             ? Base::Result<Base::String>(
                   std::move(result))
@@ -869,14 +869,14 @@ Base::Result<Base::String> TemplatePrivate::EnsureAuthoredName(
             continue;
         }
         Base::Result<void> registered =
-            state->authoredNames.TryRegister(
+            state->authoredNames.Register(
                 generated, object);
         if (!registered) {
             return registered.GetStatus();
         }
         Base::String result;
         Base::Result<void> assigned =
-            result.TryAssign(generated);
+            result.Assign(generated);
         return assigned
             ? Base::Result<Base::String>(
                   std::move(result))
@@ -886,12 +886,12 @@ Base::Result<Base::String> TemplatePrivate::EnsureAuthoredName(
 }
 
 
-Base::Result<void> TemplatePrivate::TryAddAuthoredTrigger(
+Base::Result<void> TemplatePrivate::AddAuthoredTrigger(
     FrameworkTemplate& templateValue, Base::Ref<Base::Object> trigger) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
     if (!trigger || state->sealed) return Base::Status::Failure(Base::ErrorCode::InvalidState, "Template Trigger cannot be added after sealing");
-    return state->authoredTriggers.TryPushBack(std::move(trigger));
+    return state->authoredTriggers.PushBack(std::move(trigger));
 }
 
 const Base::Ref<Base::Object>& TemplatePrivate::AuthoredVisualTree(const ControlTemplate& value) noexcept {
@@ -949,10 +949,10 @@ Base::Result<void> TemplatePrivate::SetBaseUri(FrameworkTemplate& value, const B
     return state->program.SetBaseUri(uri);
 }
 
-Base::Result<void> TemplatePrivate::TryAddNamespace(FrameworkTemplate& value, Base::StringView prefix, Base::StringView uri) noexcept {
+Base::Result<void> TemplatePrivate::AddNamespace(FrameworkTemplate& value, Base::StringView prefix, Base::StringView uri) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    return state->program.TryAddNamespace(prefix, uri);
+    return state->program.AddNamespace(prefix, uri);
 }
 
 Base::Span<const TemplateNamespace> TemplatePrivate::Namespaces(const FrameworkTemplate& value) noexcept {
@@ -1297,7 +1297,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
          instance.parts) {
         if (!part.name.Empty() && part.owner) {
             Base::Result<void> named =
-                instance.names.TryRegister(
+                instance.names.Register(
                     part.name.View(),
                     *part.owner);
             if (!named) {
@@ -1317,7 +1317,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
     buildState.rootVisual = nullptr;
     buildState.rootElement = nullptr;
     Base::Result<void> tracked =
-        instances_.TryPushBack(std::move(instance));
+        instances_.PushBack(std::move(instance));
     if (!tracked) {
         --nextHandle_;
         buildState.parts = std::move(instance.parts);
@@ -1475,7 +1475,7 @@ Base::Result<void> TemplateEngine::Subscribe(
         }
         if (first) {
             Base::Result<void> subscribed =
-                instance.parent->TryAddValueChangedHandler(
+                instance.parent->AddValueChangedHandlerChecked(
                     property, propertyChangedHandler_);
             if (!subscribed) return subscribed.GetStatus();
         }
@@ -1495,7 +1495,7 @@ Base::Result<void> TemplateEngine::Subscribe(
                     "Template trigger source name was not found");
             }
             Base::Result<void> subscribed =
-                source->TryAddValueChangedHandler(
+                source->AddValueChangedHandlerChecked(
                     condition.property,
                     propertyChangedHandler_);
             if (!subscribed) return subscribed.GetStatus();
@@ -1605,7 +1605,7 @@ Base::Result<void> TemplateEngine::AttachMetadataBindings(
             "TemplatedParent Binding services are unavailable");
     }
     Base::Result<void> reserved =
-        instance.metadataBindings.TryReserve(
+        instance.metadataBindings.Reserve(
             Aero::Internal::TemplatePrivate::MetadataBindings(*instance.plan).Size());
     if (!reserved) return reserved.GetStatus();
     for (const TemplateMetadataBindingPlan& binding :
@@ -1632,7 +1632,7 @@ Base::Result<void> TemplateEngine::AttachMetadataBindings(
             bindings_->Attach(descriptor);
         if (!attached) return attached.GetStatus();
         Base::Result<void> tracked =
-            instance.metadataBindings.TryPushBack(
+            instance.metadataBindings.PushBack(
                 attached.Value());
         if (!tracked) {
             (void)bindings_->Detach(attached.Value());

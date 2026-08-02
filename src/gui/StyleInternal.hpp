@@ -12,7 +12,7 @@ namespace Aero {
 
 // Private compatibility owners used by the built-in theme schema. They are
 // registered for XAML compatibility but are not C++ authoring APIs.
-class Element final : public Base::Object {
+class Element : public Base::Object {
     AERO_DECLARE_TYPE(Element, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override {
@@ -24,7 +24,7 @@ public:
         IsFocusEngagedProperty{"IsFocusEngaged"};
 };
 
-class TextProperties final : public Base::Object {
+class TextProperties : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         TextProperties, Base::Object, "urn:aero", "Text")
 public:
@@ -45,7 +45,7 @@ namespace Aero::Internal {
 
 // Private bridge used by XAML and runtime style compilation. Dependency-property
 // registries are implementation state and never appear in the Style SDK.
-class StylePrivate final {
+class StylePrivate {
 public:
     static Base::Result<void> Seal(
         Aero::Style& style,
@@ -65,7 +65,7 @@ namespace Aero::Internal {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 
-class AERO_API StyleEngine final {
+class AERO_API StyleEngine {
 public:
     using TriggerActionHandler = Base::Result<void>(*)(
         DependencyObject& owner,
@@ -109,7 +109,7 @@ private:
     Internal::StyleProviderSession providerSession_;
     Internal::StyleProviderSession* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
-    struct Application final {
+    struct Application {
         DependencyObject* object = nullptr;
         const Style* style = nullptr;
         Base::Vector<std::uint8_t> triggerStates;

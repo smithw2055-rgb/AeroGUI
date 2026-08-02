@@ -11,7 +11,7 @@
 
 namespace Aero::Internal {
 
-struct TextLayoutRequest final {
+struct TextLayoutRequest {
     Base::StringView text;
     Aero::Size availableSize;
     double dpiScale = 1.0;
@@ -27,7 +27,7 @@ struct TextLayoutRequest final {
         TextAlignment::Start;
 };
 
-struct TextLayoutResult final {
+struct TextLayoutResult {
     explicit TextLayoutResult(
         Base::IAllocator* allocator = nullptr) noexcept
         : glyphRuns(allocator), hitRegions(allocator) {}

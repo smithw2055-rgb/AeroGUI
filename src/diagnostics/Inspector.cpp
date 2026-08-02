@@ -41,7 +41,7 @@ Result<void> AppendTree(
         node.RuntimeType();
     record.depth = depth;
     Result<void> appended =
-        output.TryPushBack(record);
+        output.PushBack(record);
     if (!appended) {
         return appended.GetStatus();
     }
@@ -172,7 +172,7 @@ using namespace Aero::Threading;
         }
         Result<void> appended =
             output.effectiveProperties.
-                TryPushBack(
+                PushBack(
                     std::move(inspected));
         if (!appended) {
             return appended.GetStatus();

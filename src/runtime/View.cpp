@@ -70,11 +70,11 @@ Base::Status RuntimeNotInitialized(const char* message) noexcept {
 Base::Result<Base::ResourceUri> BuiltInThemeUri(
     Base::StringView name) noexcept {
     Base::String text;
-    Base::Result<void> assigned = text.TryAssign(
+    Base::Result<void> assigned = text.Assign(
         Base::StringView(
             "pack://application:,,,/Aero.Themes;component/"));
     if (!assigned) return assigned.GetStatus();
-    Base::Result<void> appended = text.TryAppend(name);
+    Base::Result<void> appended = text.Append(name);
     if (!appended) return appended.GetStatus();
     return Base::ResourceUri::Parse(text.View());
 }
@@ -134,7 +134,7 @@ constexpr std::size_t MaximumObjectAlignment() noexcept {
     }
 }
 
-class ViewArena final {
+class ViewArena {
 public:
     explicit ViewArena(Base::IAllocator& allocator) noexcept
         : allocator_(&allocator) {}
@@ -292,8 +292,8 @@ void FreeObject(
 
 } // namespace
 
-struct ViewData final {
-    struct FragmentMount final {
+struct ViewData {
+    struct FragmentMount {
         Controls::ContentControl* host = nullptr;
         Markup::LoaderResult document;
         Aero::Internal::ElementAttachment rootEdge;
@@ -346,16 +346,18 @@ struct ViewData final {
     Aero::Visual* attachedRootVisual = nullptr;
     Aero::UIElement* attachedRootLayout = nullptr;
     Aero::FrameworkElement* attachedRootRender = nullptr;
-    Markup::SourceProviders xamlSources;
-    Markup::EmbeddedSourceProvider embeddedXaml;
-    Markup::FileSourceProvider fileXaml;
+    Markup::XamlProviderRegistry xamlSources;
+    Markup::EmbeddedXamlProvider embeddedXaml;
+    Markup::FileXamlProvider fileXaml;
+    Integration::TextureProvider* textureProvider = nullptr;
+    Integration::FontProvider* fontProvider = nullptr;
     Aero::ResourceDictionary applicationResources;
     Aero::ResourceDictionary themeResources;
     Aero::ResourceDictionary systemResources;
     Aero::ResourceDictionary dynamicResourceEnvironment;
 
     Internal::ControlBehavior* controlBehaviors = nullptr;
-    struct StoryboardSession final {
+    struct StoryboardSession {
         explicit StoryboardSession(
             Base::IAllocator* allocator) noexcept
             : handles(allocator) {}
@@ -368,7 +370,7 @@ struct ViewData final {
     };
     Base::Vector<StoryboardSession>
         storyboardSessions;
-    struct StoryboardCompletionSession final {
+    struct StoryboardCompletionSession {
         explicit StoryboardCompletionSession(
             Base::IAllocator* allocator) noexcept
             : handles(allocator) {}
@@ -379,7 +381,7 @@ struct ViewData final {
             Aero::Internal::Animation::AnimationHandle>
             handles;
     };
-    struct StoryboardCompletedSubscription final {
+    struct StoryboardCompletedSubscription {
         MediaAnimation::StoryboardCompletedTrigger* trigger =
             nullptr;
         Aero::FrameworkElement* owner = nullptr;
@@ -438,7 +440,7 @@ struct ViewData final {
         }
         return {};
     }
-    struct AnimationEventState final {
+    struct AnimationEventState {
         ViewData* runtime = nullptr;
         MediaAnimation::EventTrigger* trigger = nullptr;
         Aero::FrameworkElement* owner = nullptr;
@@ -619,7 +621,7 @@ struct ViewData final {
             }
         }
     };
-    struct AnimationEventSubscription final {
+    struct AnimationEventSubscription {
         Aero::UIElement* owner = nullptr;
         Aero::RoutedEventHandle event;
         Aero::RoutedEventHandler handler;
@@ -627,7 +629,7 @@ struct ViewData final {
     };
     Base::Vector<AnimationEventSubscription>
         animationEventSubscriptions;
-    struct DataTemplateTriggerHandlerState final {
+    struct DataTemplateTriggerHandlerState {
         ViewData* runtime = nullptr;
         Base::Ref<
             Aero::Internal::DataTemplateTriggerState>
@@ -641,7 +643,7 @@ struct ViewData final {
                 DependencyPropertyChangedEventArgs&)
             noexcept;
     };
-    struct DataTemplateTriggerSubscription final {
+    struct DataTemplateTriggerSubscription {
         ::Aero::DependencyObject* source = nullptr;
         Meta::DependencyPropertyHandle property;
         Meta::DependencyPropertyChangedEventHandler
@@ -833,7 +835,7 @@ struct ViewData final {
         Base::Result<Base::ResourceUri> light =
             ::Aero::Internal::BuiltInThemeUri(Base::StringView("Light.xaml"));
         if (!light) return light.GetStatus();
-        Base::Result<void> status = embeddedXaml.TryAdd(
+        Base::Result<void> status = embeddedXaml.Add(
             light.Value(),
             {Aero::Internal::AeroThemeLightSource,
              static_cast<std::uint32_t>(
@@ -842,7 +844,7 @@ struct ViewData final {
         Base::Result<Base::ResourceUri> dark =
             ::Aero::Internal::BuiltInThemeUri(Base::StringView("Dark.xaml"));
         if (!dark) return dark.GetStatus();
-        status = embeddedXaml.TryAdd(
+        status = embeddedXaml.Add(
             dark.Value(),
             {Aero::Internal::AeroThemeDarkSource,
              static_cast<std::uint32_t>(
@@ -851,28 +853,28 @@ struct ViewData final {
         Base::Result<Base::ResourceUri> generic =
             ::Aero::Internal::BuiltInThemeUri(Base::StringView("Generic.xaml"));
         if (!generic) return generic.GetStatus();
-        status = embeddedXaml.TryAdd(
+        status = embeddedXaml.Add(
             generic.Value(),
             {Aero::Internal::AeroThemeGenericSource,
              static_cast<std::uint32_t>(
                  sizeof(Aero::Internal::AeroThemeGenericSource))});
         if (!status) return status.GetStatus();
 
-        status = xamlSources.TryRegister(
+        status = xamlSources.Register(
                 embeddedXaml, Base::StringView("pack"));
         if (!status &&
             status.GetStatus().code !=
                 Base::ErrorCode::AlreadyExists) {
             return status.GetStatus();
         }
-        status = xamlSources.TryRegister(
+        status = xamlSources.Register(
             fileXaml, Base::StringView("file"));
         if (!status &&
             status.GetStatus().code !=
                 Base::ErrorCode::AlreadyExists) {
             return status.GetStatus();
         }
-        status = xamlSources.TryRegister(fileXaml);
+        status = xamlSources.Register(fileXaml);
         if (!status &&
             status.GetStatus().code !=
                 Base::ErrorCode::AlreadyExists) {
@@ -1084,16 +1086,16 @@ struct ViewData final {
     Base::Result<void> RebuildDynamicResourceEnvironment() noexcept {
         dynamicResourceEnvironment.Clear();
         Base::Result<void> rebuilt =
-            dynamicResourceEnvironment.TryAddMerged(
+            dynamicResourceEnvironment.AddMerged(
                 systemResources);
         if (rebuilt) {
             rebuilt =
-                dynamicResourceEnvironment.TryAddMerged(
+                dynamicResourceEnvironment.AddMerged(
                     themeResources);
         }
         if (rebuilt) {
             rebuilt =
-                dynamicResourceEnvironment.TryAddMerged(
+                dynamicResourceEnvironment.AddMerged(
                     applicationResources);
         }
         return rebuilt;
@@ -1130,7 +1132,7 @@ struct ViewData final {
         Base::Vector<Aero::Visual*> stack(
             allocator);
         Base::Result<void> appended =
-            stack.TryPushBack(rootVisual);
+            stack.PushBack(rootVisual);
         if (!appended) return appended.GetStatus();
         while (!stack.Empty()) {
             Aero::Visual* node =
@@ -1247,19 +1249,19 @@ struct ViewData final {
                         }
                     }
                     appended =
-                        renderOverlays.TryPushBack(
+                        renderOverlays.PushBack(
                             framework);
                     if (!appended) {
                         return appended.GetStatus();
                     }
                     appended =
-                        overlayOrigins.TryPushBack(
+                        overlayOrigins.PushBack(
                             origin);
                     if (!appended) {
                         return appended.GetStatus();
                     }
                     appended =
-                        inputOverlays.TryPushBack(
+                        inputOverlays.PushBack(
                             input);
                     if (!appended) {
                         return appended.GetStatus();
@@ -1275,7 +1277,7 @@ struct ViewData final {
                  index > 0U;
                  --index) {
                 appended =
-                    stack.TryPushBack(
+                    stack.PushBack(
                         children[index - 1U]);
                 if (!appended) {
                     return appended.GetStatus();
@@ -1731,7 +1733,7 @@ struct ViewData final {
 
         const Aero::ResourceEnvironment resources = ResourceEnvironment();
         Base::Vector<Aero::Visual*> stack(allocator);
-        Base::Result<void> pushed = stack.TryPushBack(&root);
+        Base::Result<void> pushed = stack.PushBack(&root);
         if (!pushed) return pushed.GetStatus();
         while (!stack.Empty()) {
             Aero::Visual* node = stack.Back();
@@ -1798,7 +1800,7 @@ struct ViewData final {
 
             for (Aero::Visual* child :
                  Aero::Internal::ElementPrivate::VisualChildren(*node)) {
-                pushed = stack.TryPushBack(child);
+                pushed = stack.PushBack(child);
                 if (!pushed) return pushed.GetStatus();
             }
         }
@@ -1814,13 +1816,13 @@ struct ViewData final {
 
         Base::Vector<Aero::Visual*> reachable(allocator);
         if (root != nullptr) {
-            (void)reachable.TryPushBack(root);
+            (void)reachable.PushBack(root);
             for (std::uint32_t index = 0U; index < reachable.Size(); ++index) {
                 Aero::Visual* node = reachable[index];
                 if (node == nullptr) continue;
                 for (Aero::Visual* child :
                      Aero::Internal::ElementPrivate::VisualChildren(*node)) {
-                    if (child != nullptr) (void)reachable.TryPushBack(child);
+                    if (child != nullptr) (void)reachable.PushBack(child);
                 }
             }
         }
@@ -1949,7 +1951,7 @@ struct ViewData final {
             if (!handle) return handle.GetStatus();
             return runtime->
                 pendingGeneratedVisuals.
-                    TryPushBack(handle.Value());
+                    PushBack(handle.Value());
         }
         Base::Result<void> applied =
             runtime->ApplyUi(root);
@@ -2016,7 +2018,7 @@ struct ViewData final {
         Aero::Visual& rootVisual) noexcept {
         Base::Vector<Aero::Visual*> stack(allocator);
         Base::Result<void> pushed =
-            stack.TryPushBack(&rootVisual);
+            stack.PushBack(&rootVisual);
         if (!pushed) return pushed.GetStatus();
         while (!stack.Empty()) {
             Aero::Visual* node = stack.Back();
@@ -2092,7 +2094,7 @@ struct ViewData final {
                         return generatedUiApplied.GetStatus();
                     }
                     Base::Result<void> tracked =
-                        itemGenerators.TryPushBack(
+                        itemGenerators.PushBack(
                             generator);
                     if (!tracked) {
                         static_cast<void>(
@@ -2107,7 +2109,7 @@ struct ViewData final {
                 children = Aero::Internal::ElementPrivate::VisualChildren(*node);
             for (std::uint32_t index = 0U;
                  index < children.Size(); ++index) {
-                pushed = stack.TryPushBack(children[index]);
+                pushed = stack.PushBack(children[index]);
                 if (!pushed) return pushed.GetStatus();
             }
         }
@@ -2153,7 +2155,7 @@ struct ViewData final {
         return value.Value().AsString();
     }
 
-    struct ResolvedAnimationProperty final {
+    struct ResolvedAnimationProperty {
         ::Aero::DependencyObject* target = nullptr;
         Meta::DependencyPropertyHandle property;
     };
@@ -2683,7 +2685,7 @@ struct ViewData final {
             propertyTarget, property->Handle()};
     }
 
-    struct StoryboardTimingState final {
+    struct StoryboardTimingState {
         Aero::Internal::Animation::AnimationTime beginTimeMicroseconds = 0U;
         Aero::Internal::Animation::AnimationTime durationMicroseconds = 0U;
         Aero::Internal::Animation::RepeatBehavior repeat;
@@ -2763,7 +2765,7 @@ struct ViewData final {
         }
         if (retainedHandles != nullptr) {
             Base::Result<void> retained =
-                retainedHandles->TryPushBack(
+                retainedHandles->PushBack(
                     started.Value());
             if (!retained) {
                 static_cast<void>(
@@ -2964,7 +2966,7 @@ struct ViewData final {
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
                 Base::Result<void> appended =
-                    frames.TryPushBack(Aero::Internal::AnimationPrivate::DoubleFrame(*frame));
+                    frames.PushBack(Aero::Internal::AnimationPrivate::DoubleFrame(*frame));
                 if (!appended) return appended.GetStatus();
             }
             for (std::uint32_t index = 1U;
@@ -3030,7 +3032,7 @@ struct ViewData final {
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
                 Base::Result<void> appended =
-                    frames.TryPushBack(
+                    frames.PushBack(
                         Aero::Internal::AnimationPrivate::ColorFrame(*frame));
                 if (!appended) {
                     return appended.GetStatus();
@@ -3110,7 +3112,7 @@ struct ViewData final {
                 runtime.value =
                     std::move(encoded).Value();
                 Base::Result<void> appended =
-                    frames.TryPushBack(
+                    frames.PushBack(
                         std::move(runtime));
                 if (!appended) {
                     return appended.GetStatus();
@@ -3132,7 +3134,7 @@ struct ViewData final {
                 if (!encoded) return encoded.GetStatus();
                 runtime.value = std::move(encoded).Value();
                 Base::Result<void> appended =
-                    frames.TryPushBack(std::move(runtime));
+                    frames.PushBack(std::move(runtime));
                 if (!appended) return appended.GetStatus();
             }
         } else if (type ==
@@ -3148,7 +3150,7 @@ struct ViewData final {
                     frame->GetKeyTimeMicroseconds();
                 runtime.value = frame->GetValue();
                 Base::Result<void> appended =
-                    frames.TryPushBack(std::move(runtime));
+                    frames.PushBack(std::move(runtime));
                 if (!appended) return appended.GetStatus();
             }
         } else {
@@ -3516,7 +3518,7 @@ struct ViewData final {
                     handler(callback);
                 Base::Result<void> subscribed =
                     condition.dependencySource->
-                        TryAddValueChangedHandler(
+                        AddValueChangedHandlerChecked(
                             condition.property,
                             handler);
                 if (!subscribed) {
@@ -3534,7 +3536,7 @@ struct ViewData final {
                 record.context = handlerContext;
                 Base::Result<void> retained =
                     dataTemplateTriggerSubscriptions.
-                        TryPushBack(std::move(record));
+                        PushBack(std::move(record));
                 if (!retained) {
                     static_cast<void>(
                         condition.dependencySource->
@@ -3576,7 +3578,7 @@ struct ViewData final {
                      grid.GetInputBindings()) {
                     if (!binding) continue;
                     Base::Result<Input::InputBindingHandle> added =
-                        input->TryAddInputBinding(*element, binding);
+                        input->AddInputBinding(*element, binding);
                     if (!added) return added.GetStatus();
                 }
             }
@@ -3612,7 +3614,7 @@ struct ViewData final {
                         StaticTypeId()) {
                     Base::Result<void> retained =
                         storyboardCompletedSubscriptions.
-                            TryPushBack({
+                            PushBack({
                                 static_cast<
                                     MediaAnimation::
                                         StoryboardCompletedTrigger*>(
@@ -3698,7 +3700,7 @@ struct ViewData final {
                         };
                     Aero::RoutedEventHandler handler(callback);
                     Base::Result<void> subscribed =
-                        eventElement->TryAddHandler(
+                        eventElement->AddHandlerChecked(
                             eventHandle, handler);
                     if (!subscribed) {
                         FreeObject(
@@ -3714,7 +3716,7 @@ struct ViewData final {
                     subscription.handler = handler;
                     subscription.context = eventContext;
                     Base::Result<void> retained =
-                        animationEventSubscriptions.TryPushBack(
+                        animationEventSubscriptions.PushBack(
                             std::move(subscription));
                     if (!retained) {
                         static_cast<void>(
@@ -4091,6 +4093,8 @@ struct ViewData final {
         }
         deviceBound = false;
         device.Reset();
+        textureProvider = nullptr;
+        fontProvider = nullptr;
         initialized = false;
     }
 
@@ -4255,7 +4259,7 @@ struct ViewData final {
                 *rootObject);
         if (merge) {
             Base::Result<void> merged =
-                target.TryAddMerged(dictionary);
+                target.AddMerged(dictionary);
             if (!merged) return merged.GetStatus();
             Base::Result<void> rebuilt =
                 RebuildDynamicResourceEnvironment();
@@ -4401,7 +4405,7 @@ struct ViewData final {
             ResolveUIElement(*requestedRoot, requestedRoot->RuntimeType());
         if (!rootLayout) return rootLayout.GetStatus();
         Base::Result<void> rootTracked =
-            loadedDocument.visualContent.TryAddNode(*rootVisual.Value());
+            loadedDocument.visualContent.AddNode(*rootVisual.Value());
         if (!rootTracked) return rootTracked.GetStatus();
         Base::Result<void> mountedResult = AttachVisualGraph(
             *rootVisual.Value(),
@@ -4812,7 +4816,7 @@ ViewData::ExecuteAnimationAction(
                 }
                 if (index != UINT32_MAX) {
                     Base::Result<Base::Ref<Base::Object>> removed =
-                        items.GetItems().TryRemoveAt(index);
+                        items.GetItems().RemoveAt(index);
                     return removed
                         ? Base::Result<void>()
                         : Base::Result<void>(removed.GetStatus());
@@ -4885,9 +4889,9 @@ ViewData::ExecuteAnimationAction(
         if (!begin.GetName().Empty()) {
             namedSession.owner = &owner;
             Base::Result<void> named =
-                namedSession.name.TryAssign(begin.GetName());
+                namedSession.name.Assign(begin.GetName());
             if (named) {
-                named = namedSession.handles.TryAppend(
+                named = namedSession.handles.Append(
                     completion.handles.AsSpan());
             }
             if (!named) {
@@ -4900,7 +4904,7 @@ ViewData::ExecuteAnimationAction(
             }
         }
         Base::Result<void> retained =
-            storyboardCompletionSessions.TryPushBack(
+            storyboardCompletionSessions.PushBack(
                 std::move(completion));
         if (!retained) {
             for (Aero::Internal::Animation::AnimationHandle handle :
@@ -4911,7 +4915,7 @@ ViewData::ExecuteAnimationAction(
             return retained.GetStatus();
         }
         if (!begin.GetName().Empty()) {
-            retained = storyboardSessions.TryPushBack(
+            retained = storyboardSessions.PushBack(
                 std::move(namedSession));
             if (!retained) {
                 for (Aero::Internal::Animation::AnimationHandle handle :
@@ -5145,15 +5149,15 @@ ViewData::ProcessStoryboardCompletions() noexcept {
 
 namespace Aero {
 
-struct View::FrameResult final {
-    struct Layout final {
+struct View::FrameResult {
+    struct Layout {
         std::uint64_t passVersion = 0U;
         std::uint32_t measuredCount = 0U;
         std::uint32_t arrangedCount = 0U;
         std::uint32_t pendingMeasureCount = 0U;
         std::uint32_t pendingArrangeCount = 0U;
     };
-    struct Render final {
+    struct Render {
         std::uint64_t snapshotVersion = 0U;
         std::uint32_t nodeCount = 0U;
         std::uint32_t commandCount = 0U;
@@ -5331,16 +5335,36 @@ Base::Result<Markup::XamlDocument> View::LoadCompiledDocument(
         bytes, originUri, options.Value());
 }
 
-Base::Result<void> View::AddSourceProvider(
-    Integration::ISourceProvider& provider,
+Base::Result<void> View::AddXamlProvider(
+    Integration::XamlProvider& provider,
     Base::StringView scheme,
     Base::StringView assembly) noexcept {
     if (state_ == nullptr || state_->terminal) {
         return ViewInvalidState(
-            "View cannot register a XAML source provider");
+            "View cannot register a XAML provider");
     }
-    return state_->xamlSources.TryRegister(
+    return state_->xamlSources.Register(
         provider, scheme, assembly);
+}
+
+Base::Result<void> View::AddTextureProvider(
+    Integration::TextureProvider& provider) noexcept {
+    if (state_ == nullptr || state_->terminal) {
+        return ViewInvalidState(
+            "View cannot register a texture provider");
+    }
+    state_->textureProvider = &provider;
+    return {};
+}
+
+Base::Result<void> View::AddFontProvider(
+    Integration::FontProvider& provider) noexcept {
+    if (state_ == nullptr || state_->terminal) {
+        return ViewInvalidState(
+            "View cannot register a font provider");
+    }
+    state_->fontProvider = &provider;
+    return {};
 }
 
 Base::Result<void> View::LoadResources(
@@ -5393,7 +5417,7 @@ void View::SetResourceDictionary(
     if (!shared) return;
     if (mode == ResourceLoadMode::Merge) {
         Base::Result<void> merged =
-            target.Value()->TryAddMerged(shared.Value());
+            target.Value()->AddMerged(shared.Value());
         if (!merged) return;
         (void)state_->RebuildDynamicResourceEnvironment();
         return;
@@ -5640,7 +5664,7 @@ Base::Result<void> View::MountContent(
             Base::ErrorCode::InvalidState,
               "content fragment host already owns non-fragment content");
     }
-    Base::Result<void> capacity = state_->fragmentMounts.TryReserve(
+    Base::Result<void> capacity = state_->fragmentMounts.Reserve(
         state_->fragmentMounts.Size() + 1U);
     if (!capacity) return capacity.GetStatus();
 
@@ -5662,7 +5686,7 @@ Base::Result<void> View::MountContent(
             : Base::Result<void>(rootElement.GetStatus());
     }
     Base::Result<void> tracked =
-        fragment.document.visualContent.TryAddNode(*rootVisual.Value());
+        fragment.document.visualContent.AddNode(*rootVisual.Value());
     if (!tracked) {
         fragment.document.Clear();
         return tracked.GetStatus();
@@ -5750,7 +5774,7 @@ Base::Result<void> View::MountContent(
         return animations.GetStatus();
     }
     Base::Result<void> retained =
-        state_->fragmentMounts.TryPushBack(std::move(fragment));
+        state_->fragmentMounts.PushBack(std::move(fragment));
     if (!retained) {
         return retained.GetStatus();
     }
@@ -5873,6 +5897,7 @@ View::ExecuteFrame() noexcept {
                 state_->RootVisual(),
                 state_->loadedDocument.canonicalUri,
                 state_->xamlSources,
+                state_->textureProvider,
                 state_->GetImageResources(),
                 deviceGenerationChanged);
         if (!synchronized) {
@@ -6270,6 +6295,7 @@ void View::SetRenderDevice(
                 state_->RootVisual(),
                 state_->loadedDocument.canonicalUri,
                 state_->xamlSources,
+                state_->textureProvider,
                 state_->GetImageResources(),
                 true);
         if (!synchronized) {
@@ -6345,7 +6371,7 @@ Base::Result<void> View::QueryReloadSource(
             Base::ErrorCode::InvalidState,
             "XAML reload source is unavailable");
     }
-    Base::Result<Markup::SourceProviderResolution> resolved =
+    Base::Result<Markup::XamlProviderResolution> resolved =
         state_->xamlSources.ResolveDetailed(uri);
     if (!resolved) return resolved.GetStatus();
     sourceIdentity = resolved.Value().cacheIdentity;
@@ -6393,7 +6419,7 @@ bool View::TryGetCachedReloadRevision(
     std::uint64_t sourceIdentity,
     std::uint64_t& revision) noexcept {
     return state_ != nullptr && state_->documentCache != nullptr &&
-        state_->documentCache->TryGetSourceRevision(
+        state_->documentCache->GetSourceRevision(
             uri, sourceIdentity, revision);
 }
 

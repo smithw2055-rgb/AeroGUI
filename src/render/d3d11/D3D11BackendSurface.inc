@@ -1,4 +1,4 @@
-struct D3D11SwapChainSurface::Impl final {
+struct D3D11SwapChainSurface::Impl {
     IDXGISwapChain* swapChain = nullptr;
     ID3D11Texture2D* activeBackBuffer = nullptr;
     NativeSurfaceDescriptor descriptor;

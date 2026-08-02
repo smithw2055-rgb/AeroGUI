@@ -6,7 +6,7 @@
 
 namespace Aero::Platform {
 
-class AERO_API Win32Clipboard final : public Integration::IClipboard {
+class AERO_API Win32Clipboard  : public Integration::IClipboard {
 public:
     explicit Win32Clipboard(
         void* ownerWindow = nullptr) noexcept
@@ -33,7 +33,7 @@ std::intptr_t DispatchWin32ImeWindowMessage(
     std::uintptr_t wParam,
     std::intptr_t lParam) noexcept;
 
-class AERO_API Win32ImeAdapter final
+class AERO_API Win32ImeAdapter
     : public Integration::ITextInputMethodHost {
 public:
     Win32ImeAdapter() noexcept = default;

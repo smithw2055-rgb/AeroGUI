@@ -10,7 +10,7 @@
 
 namespace Aero::Render::Detail {
 
-class MeshGpuResources final {
+class MeshGpuResources {
 public:
     MeshGpuResources(
         Graphics::GraphicsDevice& device,
@@ -57,7 +57,7 @@ public:
     }
 
 private:
-    struct Vertex final {
+    struct Vertex {
         float x = 0.0F;
         float y = 0.0F;
         float red = 1.0F;
@@ -67,14 +67,14 @@ private:
         float coverage = 1.0F;
     };
 
-    struct Weld final {
+    struct Weld {
         std::int64_t x = 0;
         std::int64_t y = 0;
         float normalX = 0.0F;
         float normalY = 0.0F;
     };
 
-    struct BoundaryEdge final {
+    struct BoundaryEdge {
         std::uint32_t a = 0U;
         std::uint32_t b = 0U;
         std::uint32_t weldA = 0U;
@@ -84,7 +84,7 @@ private:
         std::uint32_t uses = 0U;
     };
 
-    struct Resource final {
+    struct Resource {
         Render::RenderMeshId id =
             Render::InvalidRenderMeshId;
         Graphics::ResourceHandle vertexBuffer;
@@ -113,11 +113,11 @@ private:
         Base::Vector<Weld> welds(allocator_);
         Base::Vector<BoundaryEdge> edges(allocator_);
         Base::Vector<std::uint32_t> weldIds(allocator_);
-        Base::Result<void> reserved = vertices.TryReserve(points.Size());
+        Base::Result<void> reserved = vertices.Reserve(points.Size());
         if (!reserved) return reserved.GetStatus();
-        reserved = outputIndices.TryReserve(sourceIndices.Size());
+        reserved = outputIndices.Reserve(sourceIndices.Size());
         if (!reserved) return reserved.GetStatus();
-        reserved = weldIds.TryReserve(points.Size());
+        reserved = weldIds.Reserve(points.Size());
         if (!reserved) return reserved.GetStatus();
 
         constexpr double Quantization = 100000.0;
@@ -132,7 +132,7 @@ private:
                     return index;
                 }
             }
-            Base::Result<Weld*> added = welds.TryEmplaceBack();
+            Base::Result<Weld*> added = welds.EmplaceBack();
             if (!added) return added.GetStatus();
             added.Value()->x = x;
             added.Value()->y = y;
@@ -142,14 +142,14 @@ private:
         for (const Aero::Point point : points) {
             Base::Result<std::uint32_t> weld = findWeld(point);
             if (!weld) return weld.GetStatus();
-            Base::Result<void> added = weldIds.TryPushBack(weld.Value());
+            Base::Result<void> added = weldIds.PushBack(weld.Value());
             if (!added) return added.GetStatus();
-            added = vertices.TryPushBack({
+            added = vertices.PushBack({
                 static_cast<float>(point.x), static_cast<float>(point.y),
                 1.0F, 1.0F, 1.0F, 1.0F, 1.0F});
             if (!added) return added.GetStatus();
         }
-        Base::Result<void> copied = outputIndices.TryAppend(sourceIndices);
+        Base::Result<void> copied = outputIndices.Append(sourceIndices);
         if (!copied) return copied.GetStatus();
 
         for (std::uint32_t index = 0U;
@@ -190,7 +190,7 @@ private:
                 const double dy = end.y - start.y;
                 const double length = std::hypot(dx, dy);
                 if (length <= 1.0e-12) continue;
-                Base::Result<BoundaryEdge*> added = edges.TryEmplaceBack();
+                Base::Result<BoundaryEdge*> added = edges.EmplaceBack();
                 if (!added) return added.GetStatus();
                 BoundaryEdge& edge = *added.Value();
                 edge.a = first;
@@ -222,10 +222,10 @@ private:
                 weld.normalY /= length;
             }
         }
-        Base::Result<void> expanded = vertices.TryReserve(
+        Base::Result<void> expanded = vertices.Reserve(
             vertices.Size() + boundaryCount * 2U);
         if (!expanded) return expanded.GetStatus();
-        expanded = outputIndices.TryReserve(
+        expanded = outputIndices.Reserve(
             outputIndices.Size() + boundaryCount * 6U);
         if (!expanded) return expanded.GetStatus();
         constexpr float FringeWidth = 0.5F;
@@ -234,20 +234,20 @@ private:
             const Weld& a = welds[weldIds[edge.a]];
             const Weld& b = welds[weldIds[edge.b]];
             const std::uint32_t fringeA = vertices.Size();
-            Base::Result<void> added = vertices.TryPushBack({
+            Base::Result<void> added = vertices.PushBack({
                 static_cast<float>(points[edge.a].x) + a.normalX * FringeWidth,
                 static_cast<float>(points[edge.a].y) + a.normalY * FringeWidth,
                 1.0F, 1.0F, 1.0F, 1.0F, 0.0F});
             if (!added) return added.GetStatus();
             const std::uint32_t fringeB = vertices.Size();
-            added = vertices.TryPushBack({
+            added = vertices.PushBack({
                 static_cast<float>(points[edge.b].x) + b.normalX * FringeWidth,
                 static_cast<float>(points[edge.b].y) + b.normalY * FringeWidth,
                 1.0F, 1.0F, 1.0F, 1.0F, 0.0F});
             if (!added) return added.GetStatus();
             const std::uint32_t fringeIndices[] = {
                 edge.a, edge.b, fringeB, edge.a, fringeB, fringeA};
-            added = outputIndices.TryAppend({fringeIndices, 6U});
+            added = outputIndices.Append({fringeIndices, 6U});
             if (!added) return added.GetStatus();
         }
         return {};
@@ -386,7 +386,7 @@ private:
             return registered.GetStatus();
         }
         Base::Result<void> stored =
-            resources_.TryPushBack(resource);
+            resources_.PushBack(resource);
         if (!stored) {
             static_cast<void>(
                 renderer_->UnregisterMesh(

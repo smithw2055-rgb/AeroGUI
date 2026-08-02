@@ -7,7 +7,7 @@
 
 namespace Aero {
 
-struct Gui::Impl final : public Base::Object {
+struct Gui::Impl  : public Base::Object {
     explicit Impl(Base::IAllocator& value) noexcept
         : allocator(&value), schema(&value), documents(&value) {}
 

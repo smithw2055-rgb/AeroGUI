@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 
 #include <Aero/Base/Allocator.hpp>
@@ -126,7 +126,7 @@ namespace Aero {
 using Meta::NoMetadataBase;
 
 
-struct Length final {
+struct Length {
     AERO_DECLARE_TYPE(Length, NoMetadataBase)
     double value = 0.0;
     bool isAuto = true;
@@ -148,7 +148,7 @@ AERO_API Size Inflate(Size value, Thickness padding) noexcept;
 AERO_API Rect Intersect(Rect left, Rect right) noexcept;
 AERO_API double RoundLayoutValue(double value, double dpiScale) noexcept;
 
-struct LayoutDiagnostics final {
+struct LayoutDiagnostics {
     std::uint64_t passVersion = 0U;
     std::uint32_t measuredCount = 0U;
     std::uint32_t arrangedCount = 0U;

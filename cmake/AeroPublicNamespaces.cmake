@@ -16,6 +16,7 @@ set(AERO_PUBLIC_NAMESPACE_PREFIXES
     Aero::Data
     Aero::Diagnostics
     Aero::Documents
+    Aero::Events
     Aero::Input
     Aero::Integration
     Aero::Markup

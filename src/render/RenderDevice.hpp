@@ -16,7 +16,7 @@ namespace Aero::Graphics {
 constexpr std::uint32_t GraphicsDeviceAbiVersion = 2U;
 using FenceValue = std::uint64_t;
 
-struct DeviceCapabilities final {
+struct DeviceCapabilities  {
     std::uint32_t abiVersion = GraphicsDeviceAbiVersion;
     std::uint32_t maxFramesInFlight = 2U;
     std::uint32_t maxTextureDimension = 16384U;
@@ -32,7 +32,7 @@ enum class ResourceType : std::uint8_t {
     RenderTarget
 };
 
-struct ResourceHandle final {
+struct ResourceHandle  {
     std::uint32_t index = UINT32_MAX;
     std::uint32_t generation = 0U;
     ResourceType type = ResourceType::Invalid;
@@ -70,18 +70,18 @@ enum class TextureFormat : std::uint8_t {
     R8Unorm
 };
 
-struct BufferDescriptor final {
+struct BufferDescriptor  {
     std::uint64_t sizeBytes = 0U;
     BufferUsage usage = BufferUsage::Vertex;
 };
 
-struct TextureDescriptor final {
+struct TextureDescriptor  {
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
     TextureFormat format = TextureFormat::Rgba8Unorm;
 };
 
-struct ResourceDescriptor final {
+struct ResourceDescriptor  {
     ResourceType type = ResourceType::Invalid;
     BufferDescriptor buffer;
     TextureDescriptor texture;
@@ -129,7 +129,7 @@ public:
     virtual bool IsDeviceLost() const noexcept = 0;
 };
 
-class AERO_API GraphicsDevice final {
+class AERO_API GraphicsDevice  {
 public:
     explicit GraphicsDevice(
         GraphicsBackend& backend,
@@ -183,13 +183,13 @@ public:
     }
 
 private:
-    struct ResourceSlot final {
+    struct ResourceSlot  {
         ResourceDescriptor descriptor;
         std::uint32_t generation = 1U;
         bool alive = false;
     };
 
-    struct DeferredDestroy final {
+    struct DeferredDestroy  {
         ResourceHandle handle;
         FenceValue retireAfter = 0U;
     };
@@ -280,7 +280,7 @@ constexpr ShaderLanguageFlags ShaderLanguageBit(
         : (UINT32_C(1) << static_cast<std::uint32_t>(language));
 }
 
-struct GraphicsCapabilities final {
+struct GraphicsCapabilities  {
     std::uint32_t abiVersion = GraphicsAbiVersion;
     GraphicsBackendKind backendKind = GraphicsBackendKind::Invalid;
     GraphicsFeatureFlags features = 0U;
@@ -291,7 +291,7 @@ struct GraphicsCapabilities final {
     std::uint32_t uniformBufferAlignment = 16U;
 };
 
-struct ShaderDescriptor final {
+struct ShaderDescriptor  {
     ShaderStage stage = ShaderStage::Vertex;
     ShaderLanguage language = ShaderLanguage::Invalid;
     const std::uint8_t* bytecode = nullptr;
@@ -315,19 +315,19 @@ enum class VertexStepMode : std::uint8_t {
     PerInstance
 };
 
-struct VertexBufferLayout final {
+struct VertexBufferLayout  {
     std::uint32_t stride = 0U;
     VertexStepMode stepMode = VertexStepMode::PerVertex;
 };
 
-struct VertexAttribute final {
+struct VertexAttribute  {
     std::uint8_t location = 0U;
     std::uint8_t bufferSlot = 0U;
     VertexFormat format = VertexFormat::Float2;
     std::uint32_t offset = 0U;
 };
 
-struct VertexLayoutDescriptor final {
+struct VertexLayoutDescriptor  {
     std::uint8_t bufferCount = 0U;
     std::uint8_t attributeCount = 0U;
     VertexBufferLayout buffers[MaxVertexBuffers]{};
@@ -360,13 +360,13 @@ enum class BlendOperation : std::uint8_t {
     Maximum
 };
 
-struct BlendComponent final {
+struct BlendComponent  {
     BlendFactor source = BlendFactor::One;
     BlendFactor destination = BlendFactor::Zero;
     BlendOperation operation = BlendOperation::Add;
 };
 
-struct BlendState final {
+struct BlendState  {
     bool enabled = false;
     BlendComponent color;
     BlendComponent alpha;
@@ -389,7 +389,7 @@ enum class FillMode : std::uint8_t {
     Wireframe
 };
 
-struct RasterState final {
+struct RasterState  {
     CullMode cullMode = CullMode::None;
     FrontFace frontFace = FrontFace::CounterClockwise;
     FillMode fillMode = FillMode::Solid;
@@ -416,14 +416,14 @@ enum class StencilOperation : std::uint8_t {
     Invert
 };
 
-struct StencilFaceState final {
+struct StencilFaceState  {
     CompareOperation compare = CompareOperation::Always;
     StencilOperation fail = StencilOperation::Keep;
     StencilOperation depthFail = StencilOperation::Keep;
     StencilOperation pass = StencilOperation::Keep;
 };
 
-struct DepthStencilState final {
+struct DepthStencilState  {
     bool depthTestEnabled = false;
     bool depthWriteEnabled = false;
     CompareOperation depthCompare = CompareOperation::Always;
@@ -441,7 +441,7 @@ enum class GraphicsTextureFormat : std::uint8_t {
     Depth24Stencil8
 };
 
-struct PipelineDescriptor final {
+struct PipelineDescriptor  {
     ShaderDescriptor vertexShader;
     ShaderDescriptor fragmentShader;
     VertexLayoutDescriptor vertexLayout;
@@ -475,7 +475,7 @@ constexpr bool HasTextureUsage(
     return (value & TextureUsageBit(usage)) != 0U;
 }
 
-struct TextureResourceDescriptor final {
+struct TextureResourceDescriptor  {
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
     std::uint16_t mipLevels = 1U;
@@ -497,7 +497,7 @@ enum class AddressMode : std::uint8_t {
     MirrorRepeat
 };
 
-struct SamplerDescriptor final {
+struct SamplerDescriptor  {
     FilterMode minFilter = FilterMode::Linear;
     FilterMode magFilter = FilterMode::Linear;
     FilterMode mipFilter = FilterMode::Linear;
@@ -520,14 +520,14 @@ enum class StoreOperation : std::uint8_t {
     DontCare
 };
 
-struct ColorAttachmentDescriptor final {
+struct ColorAttachmentDescriptor  {
     ResourceHandle target;
     LoadOperation load = LoadOperation::Load;
     StoreOperation store = StoreOperation::Store;
     Base::Color clearColor;
 };
 
-struct DepthStencilAttachmentDescriptor final {
+struct DepthStencilAttachmentDescriptor  {
     ResourceHandle target;
     LoadOperation depthLoad = LoadOperation::Load;
     StoreOperation depthStore = StoreOperation::Store;
@@ -537,7 +537,7 @@ struct DepthStencilAttachmentDescriptor final {
     std::uint32_t clearStencil = 0U;
 };
 
-struct RenderPassDescriptor final {
+struct RenderPassDescriptor  {
     Base::Rect renderArea;
     std::uint8_t colorAttachmentCount = 0U;
     ColorAttachmentDescriptor colorAttachments[MaxColorAttachments]{};
@@ -545,7 +545,7 @@ struct RenderPassDescriptor final {
     DepthStencilAttachmentDescriptor depthStencil;
 };
 
-struct TextureRegion final {
+struct TextureRegion  {
     std::uint32_t x = 0U;
     std::uint32_t y = 0U;
     std::uint32_t width = 0U;
@@ -575,7 +575,7 @@ enum class CommandKind : std::uint8_t {
     DrawIndexed
 };
 
-struct Command final {
+struct Command  {
     CommandKind kind = CommandKind::Draw;
     ResourceHandle resource0;
     ResourceHandle resource1;
@@ -595,7 +595,7 @@ struct Command final {
     IndexType indexType = IndexType::UInt16;
 };
 
-class AERO_API CommandList final {
+class AERO_API CommandList  {
 public:
     explicit CommandList(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -621,7 +621,7 @@ private:
     Base::Vector<std::uint8_t> uploadBytes_;
 };
 
-class AERO_API CommandEncoder final {
+class AERO_API CommandEncoder  {
 public:
     explicit CommandEncoder(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -696,7 +696,7 @@ AERO_API Base::Result<void> ValidatePipelineDescriptor(
 AERO_API std::uint64_t StablePipelineHash(
     const PipelineDescriptor& descriptor) noexcept;
 
-struct BackendRequest final {
+struct BackendRequest  {
     GraphicsBackendKind preferred = GraphicsBackendKind::Invalid;
     GraphicsFeatureFlags requiredFeatures = 0U;
     ShaderLanguageFlags requiredShaderLanguages = 0U;
@@ -708,7 +708,7 @@ SelectGraphicsBackend(
     Base::Span<GraphicsBackend*> backends,
     const BackendRequest& request) noexcept;
 
-class AERO_API NullGraphicsBackend final : public GraphicsBackend {
+class AERO_API NullGraphicsBackend  : public GraphicsBackend {
 public:
     explicit NullGraphicsBackend(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -768,7 +768,7 @@ private:
         Pipeline
     };
 
-    struct ResourceRecord final {
+    struct ResourceRecord  {
         ResourceHandle handle;
         ResourceDescriptor descriptor;
         TextureResourceDescriptor texture;
@@ -793,7 +793,7 @@ private:
         const CommandList& commands) const noexcept;
 };
 
-struct SokolBackendApi final {
+struct SokolBackendApi  {
     std::uint32_t structSize = 0U;
     std::uint32_t abiVersion = GraphicsAbiVersion;
     void* context = nullptr;
@@ -814,7 +814,7 @@ struct SokolBackendApi final {
     bool (*isDeviceLost)(void*) noexcept = nullptr;
 };
 
-class AERO_API SokolBackendAdapter final : public GraphicsBackend {
+class AERO_API SokolBackendAdapter  : public GraphicsBackend {
 public:
     explicit SokolBackendAdapter(const SokolBackendApi& api) noexcept
         : api_(api) {}

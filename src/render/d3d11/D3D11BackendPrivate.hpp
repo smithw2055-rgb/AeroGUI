@@ -589,8 +589,8 @@ void HashBytes(
 
 } // namespace
 
-struct D3D11GraphicsBackend::Impl final {
-    struct ResourceRecord final {
+struct D3D11GraphicsBackend::Impl  {
+    struct ResourceRecord  {
         ResourceHandle handle;
         Base::IAllocator* allocator = nullptr;
         ResourceDescriptor baseDescriptor;
@@ -756,7 +756,7 @@ struct D3D11GraphicsBackend::Impl final {
         }
     };
 
-    struct PendingFence final {
+    struct PendingFence  {
         FenceValue value = 0U;
         ID3D11Query* query = nullptr;
 
@@ -786,7 +786,7 @@ struct D3D11GraphicsBackend::Impl final {
         }
     };
 
-    struct SubmissionStateCache final {
+    struct SubmissionStateCache  {
         ResourceHandle pipeline;
         ID3D11Buffer* vertexBuffers[
             D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT]{};
@@ -851,7 +851,7 @@ struct D3D11GraphicsBackend::Impl final {
     // The intentionally bounded state set changed by Submit(). It is
     // used only by the explicit PreserveRequiredState integration contract;
     // HostResetsState avoids the Get* calls entirely.
-    struct RequiredStateSnapshot final {
+    struct RequiredStateSnapshot  {
         ID3D11InputLayout* inputLayout = nullptr;
         ID3D11Buffer* vertexBuffers[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT]{};
         UINT vertexStrides[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT]{};

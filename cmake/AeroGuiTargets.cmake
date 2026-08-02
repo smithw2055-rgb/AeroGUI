@@ -207,6 +207,11 @@ add_library(AeroGuiHeaderConsumer OBJECT
 target_link_libraries(AeroGuiHeaderConsumer PRIVATE Aero::Gui)
 aero_apply_compiler_options(AeroGuiHeaderConsumer)
 
+add_library(AeroEventsTriggersHeaderConsumer OBJECT
+    tools/sdk-consumers/EventsTriggersConsumer.cpp)
+target_link_libraries(AeroEventsTriggersHeaderConsumer PRIVATE Aero::Gui)
+aero_apply_compiler_options(AeroEventsTriggersHeaderConsumer)
+
 add_library(AeroMetaHeaderConsumer OBJECT
     tools/sdk-consumers/MetaConsumer.cpp)
 target_link_libraries(AeroMetaHeaderConsumer PRIVATE Aero::Meta)

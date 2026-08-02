@@ -27,7 +27,7 @@ class EffectiveValueEngine;
 class BehaviorTable;
 class DependencyPropertyRegistry;
 
-struct DependencyPropertyHandle final {
+struct DependencyPropertyHandle {
     MemberId value = InvalidMemberId;
 
     constexpr bool IsValid() const noexcept {
@@ -70,14 +70,14 @@ private:
 };
 
 template<class TOwner, class TValue>
-class AttachedPropertyRef final
+class AttachedPropertyRef
     : public DependencyPropertyRef<TOwner, TValue> {
 public:
     using DependencyPropertyRef<TOwner, TValue>::DependencyPropertyRef;
 };
 
 template<class TOwner, class TValue>
-class ReadOnlyPropertyRef final {
+class ReadOnlyPropertyRef {
 public:
     using Owner = TOwner;
     using ValueType = TValue;
@@ -275,7 +275,7 @@ constexpr bool HasFlag(
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
-class DependencyPropertyChangedEventArgs final {
+class DependencyPropertyChangedEventArgs {
 public:
     DependencyPropertyChangedEventArgs(
         DependencyPropertyHandle property,
@@ -326,7 +326,7 @@ struct PropertyMetadata {
     PropertyChangedCallback changed = nullptr;
 };
 
-struct FrameworkPropertyMetadata final : PropertyMetadata {
+struct FrameworkPropertyMetadata : PropertyMetadata {
     FrameworkPropertyMetadata() noexcept = default;
     explicit FrameworkPropertyMetadata(
         PropertyValue value,
@@ -337,7 +337,7 @@ struct FrameworkPropertyMetadata final : PropertyMetadata {
     }
 };
 
-class AERO_API DependencyPropertyKey final {
+class AERO_API DependencyPropertyKey {
 public:
     DependencyPropertyKey() noexcept = default;
 
@@ -359,7 +359,7 @@ private:
     std::uint64_t secret_ = 0U;
 };
 
-struct DependencyPropertyRegistration final {
+struct DependencyPropertyRegistration {
     Base::StringView name;
     TypeId ownerType = InvalidTypeId;
     TypeId valueType = InvalidTypeId;
@@ -367,12 +367,12 @@ struct DependencyPropertyRegistration final {
     PropertyMetadata metadata;
 };
 
-struct DependencyPropertyRegistrationResult final {
+struct DependencyPropertyRegistrationResult {
     DependencyPropertyHandle property;
     DependencyPropertyKey readOnlyKey;
 };
 
-class AERO_API DependencyProperty final {
+class AERO_API DependencyProperty {
 public:
     DependencyProperty(DependencyProperty&&) noexcept = default;
     DependencyProperty& operator=(DependencyProperty&&) noexcept = default;
@@ -415,7 +415,7 @@ private:
     friend class DependencyPropertyRegistry;
     friend class ::Aero::DependencyObject;
 
-    struct MetadataEntry final {
+    struct MetadataEntry {
         TypeId forType = InvalidTypeId;
         bool owner = false;
         PropertyMetadata metadata;
@@ -436,7 +436,7 @@ private:
     Base::Vector<MetadataEntry> metadata_;
 };
 
-class AERO_API DependencyPropertyRegistry final {
+class AERO_API DependencyPropertyRegistry {
 public:
     DependencyPropertyRegistry(
         TypeRegistry& typeRegistry,
@@ -450,16 +450,16 @@ public:
         DependencyPropertyRegistry&&) = delete;
 
     Base::Result<DependencyPropertyRegistrationResult>
-    TryRegister(
+    Register(
         const DependencyPropertyRegistration& registration) noexcept;
 
-    Base::Result<void> TryAddOwner(
+    Base::Result<void> AddOwner(
         DependencyPropertyHandle property,
         TypeId ownerType,
         const PropertyMetadata& metadata) noexcept;
 
     // Override metadata is a complete replacement in the first runtime slice.
-    Base::Result<void> TryOverrideMetadata(
+    Base::Result<void> OverrideMetadata(
         DependencyPropertyHandle property,
         TypeId forType,
         const PropertyMetadata& metadata) noexcept;
@@ -654,15 +654,24 @@ public:
     // Listeners execute after the effective value has committed and after the
     // property's metadata callback. They are intended to queue later work,
     // not to synchronously mutate the same property.
-    Base::Result<void> TryAddValueChangedHandler(
+    Base::Result<void> AddValueChangedHandlerChecked(
+        DependencyPropertyHandle property,
+        const DependencyPropertyChangedEventHandler& handler) noexcept;
+    void AddValueChangedHandler(
         DependencyPropertyHandle property,
         const DependencyPropertyChangedEventHandler& handler) noexcept;
     template<class TOwner, class TValue>
-    Base::Result<void> TryAddValueChangedHandler(
+    Base::Result<void> AddValueChangedHandlerChecked(
         const ReadOnlyPropertyRef<TOwner, TValue>& property,
         const DependencyPropertyChangedEventHandler& handler) noexcept {
-        return TryAddValueChangedHandler(
+        return AddValueChangedHandlerChecked(
             property.Handle(), handler);
+    }
+    template<class TOwner, class TValue>
+    void AddValueChangedHandler(
+        const ReadOnlyPropertyRef<TOwner, TValue>& property,
+        const DependencyPropertyChangedEventHandler& handler) noexcept {
+        AddValueChangedHandler(property.Handle(), handler);
     }
     bool RemoveValueChangedHandler(
         DependencyPropertyHandle property,
@@ -708,7 +717,7 @@ private:
         ReCoerce
     };
 
-    struct EffectiveValueEntry final {
+    struct EffectiveValueEntry {
         DependencyPropertyHandle property;
         PropertyProviderSet baseProviders;
         PropertyExpression localExpression;
@@ -726,13 +735,13 @@ private:
         bool hasAnimation = false;
     };
 
-    struct ChangeHandlerRecord final {
+    struct ChangeHandlerRecord {
         DependencyPropertyHandle property;
         DependencyPropertyChangedEventHandler handler;
         bool active = false;
     };
 
-    class MutationScope final {
+    class MutationScope {
     public:
         MutationScope() noexcept = default;
         MutationScope(MutationScope&& other) noexcept;
@@ -774,7 +783,7 @@ private:
 
     Base::Result<std::uint32_t> EnsureEffectiveEntry(
         DependencyPropertyHandle property) noexcept;
-    Base::Result<void> TrySetProviderContributionInternal(
+    Base::Result<void> ApplyProviderContributionInternal(
         DependencyPropertyHandle property,
         PropertyProviderToken token,
         const PropertyValue& value) noexcept;
@@ -784,24 +793,24 @@ private:
     Base::Result<bool> ClearProviderOriginInternal(
         DependencyPropertyHandle property,
         std::uint32_t origin) noexcept;
-    Base::Result<void> TrySetLocalExpressionInternal(
+    Base::Result<void> ApplyLocalExpressionInternal(
         DependencyPropertyHandle property,
         const PropertyExpression& expression) noexcept;
     Base::Result<bool> ClearLocalExpressionInternal(
         DependencyPropertyHandle property) noexcept;
     Base::Result<bool> InvalidateBaseValueInternal(
         DependencyPropertyHandle property) noexcept;
-    Base::Result<void> TrySetAnimationValueInternal(
+    Base::Result<void> ApplyAnimationValueInternal(
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
     Base::Result<bool> ClearAnimationValueInternal(
         DependencyPropertyHandle property) noexcept;
-    Base::Result<void> TrySetInheritedValueInternal(
+    Base::Result<void> ApplyInheritedValueInternal(
         DependencyPropertyHandle property,
         const PropertyValue* value) noexcept;
     Base::Result<void> RecomputeEffectiveValueInternal(
         DependencyPropertyHandle property) noexcept;
-    Base::Result<void> TryClearEngineValueStateInternal(
+    Base::Result<void> DropEngineValueStateInternal(
         DependencyPropertyHandle property) noexcept;
     Base::Result<void> RecomputeEffectiveValueCore(
         DependencyPropertyHandle property,

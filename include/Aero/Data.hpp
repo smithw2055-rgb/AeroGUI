@@ -29,20 +29,20 @@ enum class RelativeSourceMode : std::uint8_t {
     FindAncestor
 };
 
-class AERO_API PropertyPath final {
+class AERO_API PropertyPath {
 public:
     PropertyPath() noexcept = default;
-    explicit PropertyPath(Base::StringView path) noexcept { static_cast<void>(path_.TryAssign(path)); }
+    explicit PropertyPath(Base::StringView path) noexcept { static_cast<void>(path_.Assign(path)); }
 
     Base::StringView GetPath() const noexcept { return path_.View(); }
     bool GetIsEmpty() const noexcept { return path_.Empty(); }
-    void SetPath(Base::StringView value) noexcept { (void)path_.TryAssign(value); }
+    void SetPath(Base::StringView value) noexcept { (void)path_.Assign(value); }
 
 private:
     Base::String path_;
 };
 
-class AERO_API RelativeSource final : public Base::Object {
+class AERO_API RelativeSource : public Base::Object {
     AERO_DECLARE_TYPE(RelativeSource, Base::Object)
 public:
     RelativeSource() noexcept = default;
@@ -52,7 +52,7 @@ public:
     RelativeSourceMode GetMode() const noexcept { return mode_; }
     void SetMode(RelativeSourceMode value) noexcept { mode_ = value; }
     Base::StringView GetAncestorType() const noexcept { return ancestorType_.View(); }
-    void SetAncestorType(Base::StringView value) noexcept { (void)ancestorType_.TryAssign(value); }
+    void SetAncestorType(Base::StringView value) noexcept { (void)ancestorType_.Assign(value); }
     std::uint32_t GetAncestorLevel() const noexcept { return ancestorLevel_; }
     void SetAncestorLevel(std::uint32_t value) noexcept { ancestorLevel_ = value == 0U ? 1U : value; }
 
@@ -84,7 +84,7 @@ public:
 
     Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
     Base::StringView GetStringFormat() const noexcept { return stringFormat_.View(); }
-    void SetStringFormat(Base::StringView value) noexcept { (void)stringFormat_.TryAssign(value); }
+    void SetStringFormat(Base::StringView value) noexcept { (void)stringFormat_.Assign(value); }
     const Meta::Value& GetFallbackValue() const noexcept { return fallbackValue_; }
     void SetFallbackValue(Meta::Value value) noexcept { fallbackValue_ = std::move(value); }
     const Meta::Value& GetTargetNullValue() const noexcept { return targetNullValue_; }
@@ -100,7 +100,7 @@ private:
     Meta::Value targetNullValue_;
 };
 
-class AERO_API Binding final : public BindingBase {
+class AERO_API Binding : public BindingBase {
     AERO_DECLARE_TYPE(Binding, BindingBase)
 public:
     Binding() noexcept : BindingBase(StaticTypeId()) {}
@@ -110,7 +110,7 @@ public:
     void SetPath(PropertyPath value) noexcept { path_ = std::move(value); return; }
     void SetPath(Base::StringView value) noexcept { path_.SetPath(value); }
     Base::StringView GetElementName() const noexcept { return elementName_.View(); }
-    void SetElementName(Base::StringView value) noexcept { (void)elementName_.TryAssign(value); }
+    void SetElementName(Base::StringView value) noexcept { (void)elementName_.Assign(value); }
     BindingMode GetMode() const noexcept { return mode_; }
     void SetMode(BindingMode value) noexcept { mode_ = value; }
     UpdateSourceTrigger GetUpdateSourceTrigger() const noexcept { return updateSourceTrigger_; }

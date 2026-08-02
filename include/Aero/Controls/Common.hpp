@@ -26,7 +26,7 @@ enum class MenuItemRole : std::uint8_t {
 };
 
 
-class AERO_API MenuItem final
+class AERO_API MenuItem
     : public HeaderedItemsControl {
     AERO_DECLARE_TYPE(MenuItem, HeaderedItemsControl)
 public:
@@ -109,7 +109,7 @@ private:
         nullptr;
 };
 
-class AERO_API ContextMenu final
+class AERO_API ContextMenu
     : public Menu {
     AERO_DECLARE_TYPE(ContextMenu, Menu)
 public:
@@ -142,7 +142,7 @@ private:
             args) noexcept;
 };
 
-class AERO_API ContextMenuService final
+class AERO_API ContextMenuService
     : public Base::Object {
     AERO_DECLARE_TYPE(
         ContextMenuService, Base::Object)
@@ -178,7 +178,7 @@ struct TypeTraits<Controls::MenuItemRole> {
 
 namespace Aero::Controls {
 
-class AERO_API Separator final
+class AERO_API Separator
     : public Control {
     AERO_DECLARE_TYPE(Separator, Control)
 public:
@@ -187,7 +187,7 @@ public:
     ~Separator() override = default;
 };
 
-class AERO_API ToolBar final
+class AERO_API ToolBar
     : public ItemsControl {
     AERO_DECLARE_TYPE(ToolBar, ItemsControl)
 public:
@@ -245,14 +245,14 @@ private:
 };
 
 // Template item hosts for the primary and overflow regions of ToolBar.
-class AERO_API ToolBarPanel final : public Panel {
+class AERO_API ToolBarPanel : public Panel {
     AERO_DECLARE_TYPE(ToolBarPanel, Panel)
 public:
     ToolBarPanel() noexcept : Panel(StaticTypeId()) {}
     ~ToolBarPanel() override = default;
 };
 
-class AERO_API ToolBarOverflowPanel final : public Panel {
+class AERO_API ToolBarOverflowPanel : public Panel {
     AERO_DECLARE_TYPE(ToolBarOverflowPanel, Panel)
 public:
     ToolBarOverflowPanel() noexcept : Panel(StaticTypeId()) {}
@@ -262,14 +262,14 @@ public:
 // Owner for ToolBarTray attached properties. The current toolbar host does not
 // support interactive band rearrangement yet, but authored IsLocked values
 // must round-trip through the same dependency-property system as WPF.
-class AERO_API ToolBarTray final : public Base::Object {
+class AERO_API ToolBarTray : public Base::Object {
     AERO_DECLARE_TYPE(ToolBarTray, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     inline static constexpr Members::AttachedProperty<bool> IsLockedProperty{"IsLocked"};
 };
 
-class AERO_API StatusBarItem final
+class AERO_API StatusBarItem
     : public ContentControl {
     AERO_DECLARE_TYPE(StatusBarItem, ContentControl)
 public:
@@ -278,7 +278,7 @@ public:
     ~StatusBarItem() override = default;
 };
 
-class AERO_API StatusBar final
+class AERO_API StatusBar
     : public ItemsControl {
     AERO_DECLARE_TYPE(StatusBar, ItemsControl)
 public:
@@ -302,7 +302,7 @@ protected:
             noexcept override;
 };
 
-class AERO_API ToolTip final
+class AERO_API ToolTip
     : public Primitives::Popup {
     AERO_DECLARE_TYPE(ToolTip, Primitives::Popup)
 public:
@@ -323,7 +323,7 @@ public:
     inline static constexpr Members::Property<std::uint32_t> ShowDurationProperty{"ShowDuration"};
 };
 
-class AERO_API ToolTipService final
+class AERO_API ToolTipService
     : public Base::Object {
     AERO_DECLARE_TYPE(
         ToolTipService, Base::Object)
@@ -361,7 +361,7 @@ class ImageControlPrivate;
 namespace Aero::Controls {
 
 
-class AERO_API Image final : public FrameworkElement {
+class AERO_API Image : public FrameworkElement {
     AERO_DECLARE_TYPE(Image, FrameworkElement)
 public:
     Image() noexcept

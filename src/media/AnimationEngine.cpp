@@ -156,7 +156,7 @@ using namespace Aero::Threading;
 using namespace Aero::Internal::Animation;
 using namespace Aero::Media;
 
-struct AnimationEngine::Track final {
+struct AnimationEngine::Track {
     enum class Kind : std::uint8_t {
         Double,
         Color,
@@ -489,7 +489,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     Base::Result<void> copied =
-        track.doubleFrames.TryAppend(animation.keyFrames);
+        track.doubleFrames.Append(animation.keyFrames);
     if (!copied) {
         track.state = AnimationState::Stopped;
         CompactStopped();
@@ -536,7 +536,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     Base::Result<void> copied =
-        track.colorFrames.TryAppend(animation.keyFrames);
+        track.colorFrames.Append(animation.keyFrames);
     if (!copied) {
         track.state = AnimationState::Stopped;
         CompactStopped();
@@ -582,7 +582,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     Base::Result<void> copied =
-        track.discreteFrames.TryAppend(animation.keyFrames);
+        track.discreteFrames.Append(animation.keyFrames);
     if (!copied) {
         track.state = AnimationState::Stopped;
         CompactStopped();

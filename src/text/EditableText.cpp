@@ -40,7 +40,7 @@ Base::Status NotFound(const char* message) noexcept {
         Base::ErrorCode::NotFound, message);
 }
 
-struct DecodedCodePoint final {
+struct DecodedCodePoint {
     std::uint32_t value = 0U;
     std::uint32_t length = 0U;
 };
@@ -177,8 +177,8 @@ bool IsNewline(std::uint32_t codePoint) noexcept {
 
 } // namespace
 
-struct EditableTextModel::Impl final {
-    struct EditRecord final {
+struct EditableTextModel::Impl {
+    struct EditRecord {
         explicit EditRecord(
             Base::IAllocator* allocator = nullptr) noexcept
             : removed(allocator),
@@ -239,11 +239,11 @@ struct EditableTextModel::Impl final {
                 "Editable text size exceeds index capacity");
         }
         Base::Result<void> graphemeCapacity =
-            graphemeOffsets.TryReserve(newTextBytes + 1U);
+            graphemeOffsets.Reserve(newTextBytes + 1U);
         if (!graphemeCapacity) {
             return graphemeCapacity;
         }
-        return lineStarts.TryReserve(newTextBytes + 1U);
+        return lineStarts.Reserve(newTextBytes + 1U);
     }
 
     Base::Result<void> EnsureGap(
@@ -269,7 +269,7 @@ struct EditableTextModel::Impl final {
         }
         Base::Vector<char> replacement(&bytes.Allocator());
         Base::Result<void> resized =
-            replacement.TryResize(capacity);
+            replacement.Resize(capacity);
         if (!resized) {
             return resized;
         }
@@ -326,9 +326,9 @@ struct EditableTextModel::Impl final {
         graphemeOffsets.Clear();
         lineStarts.Clear();
         Base::Result<void> start =
-            graphemeOffsets.TryPushBack(0U);
+            graphemeOffsets.PushBack(0U);
         if (start) {
-            start = lineStarts.TryPushBack(0U);
+            start = lineStarts.PushBack(0U);
         }
         if (!start) {
             return start;
@@ -356,7 +356,7 @@ struct EditableTextModel::Impl final {
                     regionalRun);
             if (breakBefore && !first) {
                 Base::Result<void> boundary =
-                    graphemeOffsets.TryPushBack(offset);
+                    graphemeOffsets.PushBack(offset);
                 if (!boundary) {
                     return boundary;
                 }
@@ -377,7 +377,7 @@ struct EditableTextModel::Impl final {
             offset += decoded.length;
         }
         Base::Result<void> end =
-            graphemeOffsets.TryPushBack(textBytes);
+            graphemeOffsets.PushBack(textBytes);
         if (!end) {
             return end;
         }
@@ -392,7 +392,7 @@ struct EditableTextModel::Impl final {
                 Decode(clusterOffset, byteAt);
             if (IsNewline(decoded.value)) {
                 Base::Result<void> line =
-                    lineStarts.TryPushBack(grapheme + 1U);
+                    lineStarts.PushBack(grapheme + 1U);
                 if (!line) {
                     return line;
                 }
@@ -412,7 +412,7 @@ struct EditableTextModel::Impl final {
         }
         output.Clear();
         Base::Result<void> reserved =
-            output.TryReserve(count);
+            output.Reserve(count);
         if (!reserved) {
             return reserved;
         }
@@ -423,7 +423,7 @@ struct EditableTextModel::Impl final {
             const std::uint32_t prefix =
                 std::min(count, gapBegin - start);
             Base::Result<void> appended =
-                output.TryAppendUnchecked({
+                output.AppendUnchecked({
                     bytes.Data() + start, prefix});
             if (!appended) {
                 return appended;
@@ -431,11 +431,11 @@ struct EditableTextModel::Impl final {
             if (prefix == count) {
                 return {};
             }
-            return output.TryAppendUnchecked({
+            return output.AppendUnchecked({
                 bytes.Data() + gapEnd,
                 count - prefix});
         }
-        return output.TryAppendUnchecked({
+        return output.AppendUnchecked({
             bytes.Data() + start + GapSize(), count});
     }
 
@@ -538,7 +538,7 @@ struct EditableTextModel::Impl final {
                 return removed;
             }
             Base::Result<void> inserted =
-                record.inserted.TryAssign(replacement);
+                record.inserted.Assign(replacement);
             if (!inserted) {
                 return inserted;
             }
@@ -551,7 +551,7 @@ struct EditableTextModel::Impl final {
                 range.start + insertedCount.Value(),
                 range.start + insertedCount.Value()};
             Base::Result<void> history =
-                undo.TryReserve(
+                undo.Reserve(
                     std::min(
                         HistoryLimit,
                         undo.Size() + 1U));
@@ -576,7 +576,7 @@ struct EditableTextModel::Impl final {
             redo.Clear();
             TrimHistory(undo);
             Base::Result<void> appended =
-                undo.TryPushBack(std::move(record));
+                undo.PushBack(std::move(record));
             if (!appended) {
                 return appended;
             }
@@ -661,7 +661,7 @@ Base::Result<void> EditableTextModel::SetText(
     }
     Base::Vector<char> replacement(allocator_);
     Base::Result<void> resized =
-        replacement.TryResize(
+        replacement.Resize(
             text.SizeBytes() + InitialGapBytes);
     if (!resized) {
         return resized;
@@ -933,7 +933,7 @@ Base::Result<void> EditableTextModel::Undo() noexcept {
             "Editable text model is read-only");
     }
     Base::Result<void> capacity =
-        impl_->redo.TryReserve(
+        impl_->redo.Reserve(
             std::min(
                 HistoryLimit,
                 impl_->redo.Size() + 1U));
@@ -953,7 +953,7 @@ Base::Result<void> EditableTextModel::Undo() noexcept {
     Impl::EditRecord moved = std::move(record);
     impl_->undo.PopBack();
     impl_->TrimHistory(impl_->redo);
-    return impl_->redo.TryPushBack(std::move(moved));
+    return impl_->redo.PushBack(std::move(moved));
 }
 
 Base::Result<void> EditableTextModel::Redo() noexcept {
@@ -966,7 +966,7 @@ Base::Result<void> EditableTextModel::Redo() noexcept {
             "Editable text model is read-only");
     }
     Base::Result<void> capacity =
-        impl_->undo.TryReserve(
+        impl_->undo.Reserve(
             std::min(
                 HistoryLimit,
                 impl_->undo.Size() + 1U));
@@ -986,7 +986,7 @@ Base::Result<void> EditableTextModel::Redo() noexcept {
     Impl::EditRecord moved = std::move(record);
     impl_->redo.PopBack();
     impl_->TrimHistory(impl_->undo);
-    return impl_->undo.TryPushBack(std::move(moved));
+    return impl_->undo.PushBack(std::move(moved));
 }
 
 void EditableTextModel::ClearHistory() noexcept {

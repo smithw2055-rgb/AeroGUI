@@ -18,13 +18,13 @@ enum class SegmentKind : std::uint8_t {
     Ideograph
 };
 
-struct TextSegment final {
+struct TextSegment  {
     std::uint32_t start = 0U;
     std::uint32_t length = 0U;
     SegmentKind kind = SegmentKind::Word;
 };
 
-struct WordBoundary final {
+struct WordBoundary  {
     std::uint32_t runCount = 0U;
     std::uint32_t textEnd = 0U;
     float width = 0.0F;
@@ -113,7 +113,7 @@ Base::Result<void> TokenizeParagraph(
         segment.length = offset - segmentStart;
         segment.kind = kind;
         Base::Result<void> appended =
-            segments.TryPushBack(segment);
+            segments.PushBack(segment);
         if (!appended) return appended.GetStatus();
     }
     return {};
@@ -159,7 +159,7 @@ Base::Result<void> ValidateRequest(
 
 } // namespace
 
-Base::Result<void> TextLayout::TryAddRun(GlyphRun&& run) noexcept {
+Base::Result<void> TextLayout::AddRun(GlyphRun&& run) noexcept {
     if (!run.face.IsValid() ||
         !std::isfinite(run.pixelSize) ||
         run.pixelSize <= 0.0F) {
@@ -179,13 +179,13 @@ Base::Result<void> TextLayout::TryAddRun(GlyphRun&& run) noexcept {
         }
     }
     Base::Result<GlyphRun*> appended =
-        runs_.TryEmplaceBack(std::move(run));
+        runs_.EmplaceBack(std::move(run));
     return appended
         ? Base::Result<void>()
         : Base::Result<void>(appended.GetStatus());
 }
 
-Base::Result<void> TextLayout::TryAddLine(
+Base::Result<void> TextLayout::AddLine(
     const TextLine& line) noexcept {
     if (line.firstRun > runs_.Size() ||
         line.runCount > runs_.Size() - line.firstRun ||
@@ -202,7 +202,7 @@ Base::Result<void> TextLayout::TryAddLine(
             Base::ErrorCode::InvalidArgument,
             "Text line range or metrics are invalid");
     }
-    return lines_.TryPushBack(line);
+    return lines_.PushBack(line);
 }
 
 Base::Result<void> TextLayout::SetSize(
@@ -333,7 +333,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
             run.direction = shaped.direction;
             run.script = shaped.script;
             Base::Result<void> reserved =
-                run.glyphs.TryReserve(shaped.glyphs.Size());
+                run.glyphs.Reserve(shaped.glyphs.Size());
             if (!reserved) return reserved.GetStatus();
             for (const ShapedGlyph& source : shaped.glyphs) {
                 if (source.advanceX < 0.0F) {
@@ -360,12 +360,12 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                     lineY + baseline - source.offsetY;
                 glyph.advanceX = source.advanceX;
                 Base::Result<void> appended =
-                    run.glyphs.TryPushBack(glyph);
+                    run.glyphs.PushBack(glyph);
                 if (!appended) return appended.GetStatus();
                 width += source.advanceX;
             }
             Base::Result<GlyphRun*> appended =
-                runs.TryEmplaceBack(std::move(run));
+                runs.EmplaceBack(std::move(run));
             return appended
                 ? Base::Result<void>()
                 : Base::Result<void>(
@@ -426,7 +426,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
         }
         for (GlyphRun& run : runs) {
             Base::Result<void> appended =
-                pending.TryAddRun(std::move(run));
+                pending.AddRun(std::move(run));
             if (!appended) return appended.GetStatus();
             ++line.runCount;
         }
@@ -500,12 +500,12 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
             GlyphRun& partial =
                 pending.runs_[line.firstRun + keepRunCount];
             Base::Result<void> resized =
-                partial.glyphs.TryResize(keepGlyphCount);
+                partial.glyphs.Resize(keepGlyphCount);
             if (!resized) return resized.GetStatus();
             ++targetRunCount;
         }
         Base::Result<void> runsResized =
-            pending.runs_.TryResize(line.firstRun + targetRunCount);
+            pending.runs_.Resize(line.firstRun + targetRunCount);
         if (!runsResized) return runsResized.GetStatus();
         line.runCount = targetRunCount;
         line.width = keptWidth;
@@ -551,7 +551,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
             if (!trimmed) return trimmed.GetStatus();
             maximumWidth = std::max(maximumWidth, line.width);
             Base::Result<void> appended =
-                pending.TryAddLine(line);
+                pending.AddLine(line);
             if (!appended) return appended.GetStatus();
             lineY += lineHeight;
             firstRun = pending.runs_.Size();
@@ -578,7 +578,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                     const WordBoundary& boundary =
                         boundaries.Back();
                     Base::Result<void> resized =
-                        pending.runs_.TryResize(
+                        pending.runs_.Resize(
                             firstRun + boundary.runCount);
                     if (!resized) return resized.GetStatus();
                     lineWidth = boundary.width;
@@ -608,13 +608,13 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                 boundary.textEnd = piece.start;
                 boundary.width = lineWidth;
                 Base::Result<void> added =
-                    boundaries.TryPushBack(boundary);
+                    boundaries.PushBack(boundary);
                 if (!added) return added.GetStatus();
             }
 
             for (GlyphRun& run : runs) {
                 Base::Result<void> appended =
-                    pending.TryAddRun(std::move(run));
+                    pending.AddRun(std::move(run));
                 if (!appended) return appended.GetStatus();
             }
             lineWidth += pieceWidth;
@@ -629,7 +629,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                 boundary.textEnd = lineEnd;
                 boundary.width = lineWidth;
                 Base::Result<void> added =
-                    boundaries.TryPushBack(boundary);
+                    boundaries.PushBack(boundary);
                 if (!added) return added.GetStatus();
             }
             return {};

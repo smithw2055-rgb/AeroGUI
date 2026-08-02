@@ -23,7 +23,7 @@ private:
     Aero::FrameworkElement* owner_ = nullptr;
 };
 
-class AERO_API BlurEffect final : public Effect {
+class AERO_API BlurEffect : public Effect {
     AERO_DECLARE_TYPE(BlurEffect, Effect)
 public:
     BlurEffect() noexcept : Effect(StaticTypeId()) {}
@@ -34,7 +34,7 @@ public:
     inline static constexpr Members::Property<double> RadiusProperty{"Radius"};
 };
 
-class AERO_API DropShadowEffect final : public Effect {
+class AERO_API DropShadowEffect : public Effect {
     AERO_DECLARE_TYPE(DropShadowEffect, Effect)
 public:
     DropShadowEffect() noexcept : Effect(StaticTypeId()) {}
@@ -61,7 +61,7 @@ public:
 // Gallery's custom ShaderEffect contract. Rendering backends receive the
 // authored pixel size through the effect snapshot; Size remains a dependency
 // property so bindings can update it at runtime.
-class AERO_API PixelateEffect final : public Effect {
+class AERO_API PixelateEffect : public Effect {
     AERO_DECLARE_TYPE(PixelateEffect, Effect)
 public:
     PixelateEffect() noexcept : Effect(StaticTypeId()) {}

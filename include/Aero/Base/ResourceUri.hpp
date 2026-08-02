@@ -10,7 +10,7 @@ namespace Aero::Base {
 // Canonical identifier for resources loaded by higher-level subsystems.
 // ResourceUri performs syntax normalization only. Security policy (for
 // example, whether http/https are allowed) belongs to the caller.
-class AERO_API ResourceUri final {
+class AERO_API ResourceUri  {
 public:
     ResourceUri() noexcept = default;
 

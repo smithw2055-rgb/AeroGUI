@@ -17,7 +17,8 @@ The supported product umbrellas are:
 - `<Aero/Integration.hpp>` — embedding and renderer endpoint integration;
 - `<Aero/Meta.hpp>` — typed metadata and custom-module authoring.
 
-`Markup.hpp`, concrete Integration backend headers and Text provider headers
+`Markup.hpp`, concrete Integration backend headers and provider contracts under
+`Aero/Integration/Providers` are the SDK boundary. Text shaping providers
 are explicit specialist surfaces. `Integration/Platform.hpp` contains only
 platform-neutral clipboard and text-input contracts; native Win32/X11 adapters are
 private. These specialist headers are not transitively included by ordinary
@@ -142,8 +143,9 @@ The architecture check enforces:
 Property setters and WPF lifecycle hooks use direct values: public `SetXxx`,
 `ClearXxx`, `Reset` and notification methods return `void`, `ApplyTemplate`
 returns `bool`, and measure/arrange/render hooks use `Size`/`void`. `Result<T>`
-is reserved for explicit `Try*`, stream, resource, parsing, registration and
-other boundaries where the caller must observe failure. Dependency-property
+is reserved for the canonical parsing/conversion `Try*` names, streams,
+resources, registration and other boundaries where the caller must observe
+failure. Dependency-property
 validation is completed before commit so a rejected assignment leaves the
 previous effective value unchanged.
 

@@ -28,17 +28,17 @@ TreeViewItem::TreeViewItem(
           this, &TreeViewItem::OnSelectedChanged),
       itemsChangedHandler_(
           this, &TreeViewItem::OnItemsChanged) {
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         HeaderProperty, headerChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         IconProperty, iconChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         IsExpandedProperty,
         expandedChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         IsSelectedProperty,
         selectedChangedHandler_));
-    static_cast<void>(items_.TryAddItemsChanged(
+    static_cast<void>(items_.AddItemsChanged(
         itemsChangedHandler_));
 }
 
@@ -389,12 +389,12 @@ TreeBehavior::Attach(
         tree_->GetHandle(treeView);
     if (!handle) return handle.GetStatus();
     Base::Result<void> mouse =
-        treeView.TryAddHandler(
+        treeView.AddHandlerChecked(
             UIElement::MouseDownEvent,
             mouseDownHandler_);
     if (!mouse) return mouse.GetStatus();
     Base::Result<void> key =
-        treeView.TryAddHandler(
+        treeView.AddHandlerChecked(
             UIElement::KeyDownEvent,
             keyDownHandler_);
     if (!key) {
@@ -405,7 +405,7 @@ TreeBehavior::Attach(
         return key.GetStatus();
     }
     Base::Result<void> stored =
-        records_.TryPushBack(handle.Value());
+        records_.PushBack(handle.Value());
     if (!stored) {
         static_cast<void>(
             treeView.RemoveHandler(
@@ -497,7 +497,7 @@ TreeBehavior::CollectVisibleItems(
                     element->RuntimeType(),
                     TreeViewItem::StaticTypeId())) {
             Base::Result<void> added =
-                items.TryPushBack(
+                items.PushBack(
                     static_cast<TreeViewItem*>(
                         element));
             if (!added) return added.GetStatus();

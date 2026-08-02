@@ -177,7 +177,7 @@ Base::Result<void> Utf8XmlTokenizer::Reset(
                 MessageInputLimit,
                 {{0U, 0U, total}, {0U, 0U, total}});
         }
-        Base::Result<void> appended = ownedInput_.TryAppend(
+        Base::Result<void> appended = ownedInput_.Append(
             Base::StringView(
                 reinterpret_cast<const char*>(buffer),
                 read.Value()));
@@ -525,7 +525,7 @@ Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseStartElement(
         }
         attribute.source_ = SpanFrom(attributeBegin);
 
-        Base::Result<void> appendAttribute = token.attributes_.TryPushBack(
+        Base::Result<void> appendAttribute = token.attributes_.PushBack(
             std::move(attribute));
         if (!appendAttribute) {
             return appendAttribute.GetStatus();
@@ -544,11 +544,11 @@ Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseStartElement(
     }
 
     Base::String openName;
-    Base::Result<void> copyResult = openName.TryAssignUnchecked(token.Name());
+    Base::Result<void> copyResult = openName.AssignUnchecked(token.Name());
     if (!copyResult) {
         return copyResult.GetStatus();
     }
-    Base::Result<void> pushResult = openElements_.TryPushBack(std::move(openName));
+    Base::Result<void> pushResult = openElements_.PushBack(std::move(openName));
     if (!pushResult) {
         return pushResult.GetStatus();
     }
@@ -700,7 +700,7 @@ Base::Result<void> Utf8XmlTokenizer::ParseName(
             SpanFrom(begin));
     }
 
-    Base::Result<void> assignResult = name.TryAssignUnchecked(
+    Base::Result<void> assignResult = name.AssignUnchecked(
         Base::StringView(input_.Data() + startOffset, byteCount));
     if (!assignResult) {
         return assignResult.GetStatus();
@@ -837,19 +837,19 @@ Base::Result<void> Utf8XmlTokenizer::AppendEntity(
     ConsumeAscii(1U);
 
     if (Equals(entity, "lt", 2U)) {
-        return output.TryAppendUnchecked(Base::StringView("<"));
+        return output.AppendUnchecked(Base::StringView("<"));
     }
     if (Equals(entity, "gt", 2U)) {
-        return output.TryAppendUnchecked(Base::StringView(">"));
+        return output.AppendUnchecked(Base::StringView(">"));
     }
     if (Equals(entity, "amp", 3U)) {
-        return output.TryAppendUnchecked(Base::StringView("&"));
+        return output.AppendUnchecked(Base::StringView("&"));
     }
     if (Equals(entity, "quot", 4U)) {
-        return output.TryAppendUnchecked(Base::StringView("\""));
+        return output.AppendUnchecked(Base::StringView("\""));
     }
     if (Equals(entity, "apos", 4U)) {
-        return output.TryAppendUnchecked(Base::StringView("'"));
+        return output.AppendUnchecked(Base::StringView("'"));
     }
 
     return Failure(
@@ -891,7 +891,7 @@ Base::Result<void> Utf8XmlTokenizer::AppendCodePoint(
         bytes[3] = static_cast<char>(0x80U | (codePoint & 0x3FU));
         length = 4U;
     }
-    return output.TryAppendUnchecked(Base::StringView(bytes, length));
+    return output.AppendUnchecked(Base::StringView(bytes, length));
 }
 
 Base::Result<void> Utf8XmlTokenizer::AppendCurrentCodePoint(
@@ -910,7 +910,7 @@ Base::Result<void> Utf8XmlTokenizer::AppendCurrentCodePoint(
     }
 
     if (codePoint == 0xDU) {
-        Base::Result<void> appendResult = output.TryAppendUnchecked(
+        Base::Result<void> appendResult = output.AppendUnchecked(
             attributeValue ? Base::StringView(" ") : Base::StringView("\n"));
         if (!appendResult) {
             return appendResult.GetStatus();
@@ -919,7 +919,7 @@ Base::Result<void> Utf8XmlTokenizer::AppendCurrentCodePoint(
         return {};
     }
     if (attributeValue && (codePoint == 0x9U || codePoint == 0xAU)) {
-        Base::Result<void> appendResult = output.TryAppendUnchecked(
+        Base::Result<void> appendResult = output.AppendUnchecked(
             Base::StringView(" "));
         if (!appendResult) {
             return appendResult.GetStatus();
@@ -928,7 +928,7 @@ Base::Result<void> Utf8XmlTokenizer::AppendCurrentCodePoint(
         return {};
     }
 
-    Base::Result<void> appendResult = output.TryAppendUnchecked(
+    Base::Result<void> appendResult = output.AppendUnchecked(
         Base::StringView(input_.Data() + offset_, length));
     if (!appendResult) {
         return appendResult.GetStatus();
@@ -1007,7 +1007,7 @@ Base::Status Utf8XmlTokenizer::Failure(
     Base::StringView message,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (diagnostics_ != nullptr) {
-        Base::Result<::Aero::Diagnostics::Diagnostic> item = ::Aero::Diagnostics::Diagnostic::TryCreate(
+        Base::Result<::Aero::Diagnostics::Diagnostic> item = ::Aero::Diagnostics::Diagnostic::Create(
             diagnostic,
             ::Aero::Diagnostics::DiagnosticSeverity::Error,
             message,
@@ -1090,29 +1090,29 @@ void Node::Clear() noexcept {
     fromAttribute_ = false;
 }
 
-Base::Result<Node> Node::TryClone(
+Base::Result<Node> Node::Clone(
     const Node& source) noexcept {
     Node clone;
     clone.kind_ = source.kind_;
     clone.source_ = source.source_;
     clone.fromAttribute_ = source.fromAttribute_;
     Base::Result<void> copied =
-        clone.name_.prefix_.TryAssign(
+        clone.name_.prefix_.Assign(
             source.name_.prefix_.View());
     if (!copied) return copied.GetStatus();
-    copied = clone.name_.localName_.TryAssign(
+    copied = clone.name_.localName_.Assign(
         source.name_.localName_.View());
     if (!copied) return copied.GetStatus();
-    copied = clone.name_.namespaceUri_.TryAssign(
+    copied = clone.name_.namespaceUri_.Assign(
         source.name_.namespaceUri_.View());
     if (!copied) return copied.GetStatus();
-    copied = clone.namespacePrefix_.TryAssign(
+    copied = clone.namespacePrefix_.Assign(
         source.namespacePrefix_.View());
     if (!copied) return copied.GetStatus();
-    copied = clone.namespaceUri_.TryAssign(
+    copied = clone.namespaceUri_.Assign(
         source.namespaceUri_.View());
     if (!copied) return copied.GetStatus();
-    copied = clone.value_.TryAssign(source.value_.View());
+    copied = clone.value_.Assign(source.value_.View());
     if (!copied) return copied.GetStatus();
     return clone;
 }
@@ -1306,7 +1306,7 @@ Base::Result<void> NodeReader::QueueStartElement(
         return endResult;
     }
 
-    Base::Result<void> scopeResult = scopes_.TryPushBack(std::move(frame));
+    Base::Result<void> scopeResult = scopes_.PushBack(std::move(frame));
     if (!scopeResult) {
         return scopeResult.GetStatus();
     }
@@ -1351,7 +1351,7 @@ Base::Result<void> NodeReader::QueueText(
     node.kind_ = NodeKind::Value;
     node.source_ = token.Source();
     node.fromAttribute_ = false;
-    Base::Result<void> assignResult = node.value_.TryAssignUnchecked(token.Text());
+    Base::Result<void> assignResult = node.value_.AssignUnchecked(token.Text());
     if (!assignResult) {
         return assignResult.GetStatus();
     }
@@ -1382,11 +1382,11 @@ Base::Result<void> NodeReader::QueueNamespaceDeclaration(
     node.kind_ = NodeKind::NamespaceDeclaration;
     node.source_ = source;
 
-    Base::Result<void> prefixResult = node.namespacePrefix_.TryAssignUnchecked(prefix);
+    Base::Result<void> prefixResult = node.namespacePrefix_.AssignUnchecked(prefix);
     if (!prefixResult) {
         return prefixResult.GetStatus();
     }
-    Base::Result<void> uriResult = node.namespaceUri_.TryAssignUnchecked(uri);
+    Base::Result<void> uriResult = node.namespaceUri_.AssignUnchecked(uri);
     if (!uriResult) {
         return uriResult.GetStatus();
     }
@@ -1436,7 +1436,7 @@ Base::Result<void> NodeReader::QueueMemberNodes(
     value.kind_ = NodeKind::Value;
     value.source_ = attribute.ValueSource();
     value.fromAttribute_ = true;
-    Base::Result<void> valueResult = value.value_.TryAssignUnchecked(attribute.Value());
+    Base::Result<void> valueResult = value.value_.AssignUnchecked(attribute.Value());
     if (!valueResult) {
         return valueResult.GetStatus();
     }
@@ -1457,7 +1457,7 @@ Base::Result<void> NodeReader::QueueMemberNodes(
 }
 
 Base::Result<void> NodeReader::AppendPending(Node&& node) noexcept {
-    return pending_.TryPushBack(std::move(node));
+    return pending_.PushBack(std::move(node));
 }
 
 Base::Result<void> NodeReader::AddNamespaceBinding(
@@ -1487,15 +1487,15 @@ Base::Result<void> NodeReader::AddNamespaceBinding(
     }
 
     NamespaceBinding binding;
-    Base::Result<void> prefixResult = binding.prefix.TryAssignUnchecked(prefix);
+    Base::Result<void> prefixResult = binding.prefix.AssignUnchecked(prefix);
     if (!prefixResult) {
         return prefixResult.GetStatus();
     }
-    Base::Result<void> uriResult = binding.uri.TryAssignUnchecked(uri);
+    Base::Result<void> uriResult = binding.uri.AssignUnchecked(uri);
     if (!uriResult) {
         return uriResult.GetStatus();
     }
-    return bindings_.TryPushBack(std::move(binding));
+    return bindings_.PushBack(std::move(binding));
 }
 
 Base::Result<void> NodeReader::AddIgnorableNamespaces(
@@ -1525,9 +1525,9 @@ Base::Result<void> NodeReader::AddIgnorableNamespaces(
                 MessageUnboundPrefix, source);
         }
         Base::String copied;
-        Base::Result<void> assigned = copied.TryAssign(uri);
+        Base::Result<void> assigned = copied.Assign(uri);
         if (!assigned) return assigned.GetStatus();
-        Base::Result<void> appended = ignorableNamespaces_.TryPushBack(
+        Base::Result<void> appended = ignorableNamespaces_.PushBack(
             std::move(copied));
         if (!appended) return appended.GetStatus();
     }
@@ -1576,15 +1576,15 @@ Base::Result<void> NodeReader::ResolveQualifiedName(
     }
 
     output.Clear();
-    Base::Result<void> prefixResult = output.prefix_.TryAssignUnchecked(prefix);
+    Base::Result<void> prefixResult = output.prefix_.AssignUnchecked(prefix);
     if (!prefixResult) {
         return prefixResult.GetStatus();
     }
-    Base::Result<void> localResult = output.localName_.TryAssignUnchecked(localName);
+    Base::Result<void> localResult = output.localName_.AssignUnchecked(localName);
     if (!localResult) {
         return localResult.GetStatus();
     }
-    Base::Result<void> uriResult = output.namespaceUri_.TryAssignUnchecked(namespaceUri);
+    Base::Result<void> uriResult = output.namespaceUri_.AssignUnchecked(namespaceUri);
     if (!uriResult) {
         return uriResult.GetStatus();
     }
@@ -1595,15 +1595,15 @@ Base::Result<void> NodeReader::CopyQualifiedName(
     const QualifiedName& source,
     QualifiedName& output) noexcept {
     output.Clear();
-    Base::Result<void> prefixResult = output.prefix_.TryAssignUnchecked(source.Prefix());
+    Base::Result<void> prefixResult = output.prefix_.AssignUnchecked(source.Prefix());
     if (!prefixResult) {
         return prefixResult.GetStatus();
     }
-    Base::Result<void> localResult = output.localName_.TryAssignUnchecked(source.LocalName());
+    Base::Result<void> localResult = output.localName_.AssignUnchecked(source.LocalName());
     if (!localResult) {
         return localResult.GetStatus();
     }
-    Base::Result<void> uriResult = output.namespaceUri_.TryAssignUnchecked(source.NamespaceUri());
+    Base::Result<void> uriResult = output.namespaceUri_.AssignUnchecked(source.NamespaceUri());
     if (!uriResult) {
         return uriResult.GetStatus();
     }
@@ -1698,7 +1698,7 @@ Base::Status NodeReader::Failure(
     Base::StringView message,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (diagnostics_ != nullptr) {
-        Base::Result<::Aero::Diagnostics::Diagnostic> item = ::Aero::Diagnostics::Diagnostic::TryCreate(
+        Base::Result<::Aero::Diagnostics::Diagnostic> item = ::Aero::Diagnostics::Diagnostic::Create(
             diagnostic,
             ::Aero::Diagnostics::DiagnosticSeverity::Error,
             message,
@@ -1783,7 +1783,7 @@ void ExpatXmlTokenizer::Stop(
     failure_ = status;
     if (diagnostics_ != nullptr) {
         Base::Result<::Aero::Diagnostics::Diagnostic> diagnostic =
-            ::Aero::Diagnostics::Diagnostic::TryCreate(
+            ::Aero::Diagnostics::Diagnostic::Create(
                 diagnosticCode,
                 ::Aero::Diagnostics::DiagnosticSeverity::Error,
                 message,
@@ -1804,10 +1804,10 @@ Base::Result<void> ExpatXmlTokenizer::PushToken(
     XmlToken&& token,
     std::uint32_t depth) noexcept {
     Base::Result<void> stored =
-        tokens_.TryPushBack(std::move(token));
+        tokens_.PushBack(std::move(token));
     if (!stored) return stored.GetStatus();
     Base::Result<void> depthStored =
-        tokenDepths_.TryPushBack(depth);
+        tokenDepths_.PushBack(depth);
     if (!depthStored) {
         tokens_.PopBack();
         return depthStored.GetStatus();
@@ -1858,7 +1858,7 @@ void ExpatXmlTokenizer::HandleStart(
     token.source_ = {begin, begin};
     token.nameSource_ = {begin, begin};
     Base::Result<void> assigned =
-        token.name_.TryAssign(
+        token.name_.Assign(
             Base::StringView(name, nameBytes));
     if (!assigned) {
         Stop(
@@ -1867,7 +1867,7 @@ void ExpatXmlTokenizer::HandleStart(
             ExpatMessageMalformed);
         return;
     }
-    assigned = token.attributes_.TryReserve(
+    assigned = token.attributes_.Reserve(
         attributeCount);
     if (!assigned) {
         Stop(
@@ -1904,12 +1904,12 @@ void ExpatXmlTokenizer::HandleStart(
             return;
         }
         XmlAttribute attribute;
-        assigned = attribute.name_.TryAssign(
+        assigned = attribute.name_.Assign(
             Base::StringView(
                 attributeName,
                 attributeNameBytes));
         if (assigned) {
-            assigned = attribute.value_.TryAssign(
+            assigned = attribute.value_.Assign(
                 Base::StringView(
                     attributeValue,
                     valueBytes));
@@ -1919,7 +1919,7 @@ void ExpatXmlTokenizer::HandleStart(
             attribute.nameSource_ = {begin, begin};
             attribute.valueSource_ = {begin, begin};
             assigned =
-                token.attributes_.TryPushBack(
+                token.attributes_.PushBack(
                     std::move(attribute));
         }
         if (!assigned) {
@@ -1960,7 +1960,7 @@ void ExpatXmlTokenizer::HandleEnd(
     token.source_ = {begin, begin};
     token.nameSource_ = {begin, begin};
     Base::Result<void> assigned =
-        token.name_.TryAssign(
+        token.name_.Assign(
             Base::StringView(
                 name,
                 static_cast<std::uint32_t>(
@@ -2014,7 +2014,7 @@ void ExpatXmlTokenizer::HandleText(
             return;
         }
         Base::Result<void> appended =
-            tokens_.Back().text_.TryAppend(
+            tokens_.Back().text_.Append(
                 Base::StringView(text, size));
         if (!appended) {
             Stop(
@@ -2029,7 +2029,7 @@ void ExpatXmlTokenizer::HandleText(
     const ::Aero::Diagnostics::SourcePosition begin = Position();
     token.source_ = {begin, begin};
     Base::Result<void> assigned =
-        token.text_.TryAssign(
+        token.text_.Assign(
             Base::StringView(text, size));
     if (!assigned) {
         Stop(

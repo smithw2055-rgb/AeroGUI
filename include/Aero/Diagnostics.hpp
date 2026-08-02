@@ -40,7 +40,7 @@ enum class DiagnosticDomain : std::uint8_t {
     Count
 };
 
-struct DiagnosticCode final {
+struct DiagnosticCode  {
     std::uint32_t value = 0U;
 
     constexpr bool IsValid() const noexcept {
@@ -84,7 +84,7 @@ constexpr bool operator!=(
     return !(left == right);
 }
 
-struct SourcePosition final {
+struct SourcePosition  {
     // Line and column are one-based. A zero pair represents an unknown position.
     std::uint32_t line = 0U;
     std::uint32_t column = 0U;
@@ -95,7 +95,7 @@ struct SourcePosition final {
     }
 };
 
-struct SourceSpan final {
+struct SourceSpan  {
     // End is exclusive when the source provider can identify it precisely.
     SourcePosition begin;
     SourcePosition end;
@@ -109,11 +109,11 @@ AERO_API bool IsValidSourcePosition(
 AERO_API bool IsValidSourceSpan(SourceSpan span) noexcept;
 AERO_API Base::StringView DiagnosticPrefix(
     DiagnosticDomain domain) noexcept;
-AERO_API Base::Result<void> TryFormatDiagnosticCode(
+AERO_API Base::Result<void> FormatDiagnosticCode(
     DiagnosticCode code,
     Base::String& output) noexcept;
 
-class AERO_API DiagnosticNote final {
+class AERO_API DiagnosticNote  {
 public:
     DiagnosticNote(DiagnosticNote&&) noexcept = default;
     DiagnosticNote& operator=(DiagnosticNote&&) noexcept = default;
@@ -136,7 +136,7 @@ private:
     Base::String message_;
 };
 
-class AERO_API Diagnostic final {
+class AERO_API Diagnostic  {
 public:
     Diagnostic(Diagnostic&&) noexcept = default;
     Diagnostic& operator=(Diagnostic&&) noexcept = default;
@@ -144,7 +144,7 @@ public:
     Diagnostic(const Diagnostic&) = delete;
     Diagnostic& operator=(const Diagnostic&) = delete;
 
-    static Base::Result<Diagnostic> TryCreate(
+    static Base::Result<Diagnostic> Create(
         DiagnosticCode code,
         DiagnosticSeverity severity,
         Base::StringView message,
@@ -152,7 +152,7 @@ public:
         DiagnosticObjectId object = InvalidDiagnosticObjectId,
         MemberId member = InvalidMemberId) noexcept;
 
-    Base::Result<void> TryAddNote(
+    Base::Result<void> AddNote(
         Base::StringView message,
         SourceSpan source = {}) noexcept;
 
@@ -194,7 +194,7 @@ public:
         Diagnostic&& diagnostic) noexcept = 0;
 };
 
-class AERO_API DiagnosticBag final : public IDiagnosticSink {
+class AERO_API DiagnosticBag  : public IDiagnosticSink {
 public:
     explicit DiagnosticBag(
         std::uint32_t maxDiagnostics = 1024U) noexcept;
@@ -202,7 +202,7 @@ public:
     Base::Result<void> Report(
         Diagnostic&& diagnostic) noexcept override;
 
-    Base::Result<void> TryReport(
+    Base::Result<void> Report(
         DiagnosticCode code,
         DiagnosticSeverity severity,
         Base::StringView message,

@@ -10,7 +10,7 @@
 
 namespace Aero::Graphics {
 
-class AERO_API GlxSurfaceBackend final : public ISurfaceBackend {
+class AERO_API GlxSurfaceBackend  : public ISurfaceBackend {
 public:
     explicit GlxSurfaceBackend(
         Base::IAllocator* allocator = nullptr) noexcept;

@@ -8,6 +8,7 @@
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/RoutedEvent.hpp>
+#include <Aero/Events/Events.hpp>
 #include <Aero/UIElement.hpp>
 
 #include <Aero/Controls.hpp>
@@ -16,6 +17,7 @@
 #include <Aero/DrawingContext.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Animation.hpp>
+#include <Aero/Triggers/Triggers.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Geometry.hpp>

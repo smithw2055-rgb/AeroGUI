@@ -15,7 +15,7 @@ enum class D3D11StatePreservationPolicy : std::uint8_t {
     PreserveRequiredState
 };
 
-struct D3D11EmbeddedTarget final {
+struct D3D11EmbeddedTarget  {
     std::uintptr_t texture2D = 0U;
     std::uintptr_t renderTargetView = 0U;
     std::uintptr_t depthStencilView = 0U;
@@ -28,7 +28,7 @@ using D3D11TargetCallback = Base::Status (*)(
     void* context,
     D3D11EmbeddedTarget* target) noexcept;
 
-struct D3D11EmbeddedDeviceOptions final {
+struct D3D11EmbeddedDeviceOptions  {
     std::uintptr_t device = 0U;
     std::uintptr_t immediateContext = 0U;
     D3D11TargetCallback acquireTarget = nullptr;
@@ -37,7 +37,7 @@ struct D3D11EmbeddedDeviceOptions final {
         D3D11StatePreservationPolicy::HostResetsState;
 };
 
-struct D3D11WindowDeviceOptions final {
+struct D3D11WindowDeviceOptions  {
     NativeWindowHandle window;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;

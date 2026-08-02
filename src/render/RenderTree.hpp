@@ -14,7 +14,7 @@ enum class RenderEffectKind : std::uint8_t {
     DropShadow
 };
 
-struct RenderEffectSnapshot final {
+struct RenderEffectSnapshot {
     RenderEffectKind kind = RenderEffectKind::None;
     double radius = 0.0;
     double direction = 315.0;
@@ -23,7 +23,7 @@ struct RenderEffectSnapshot final {
     Color color{0.0F, 0.0F, 0.0F, 1.0F};
 };
 
-struct RenderNodeSnapshot final {
+struct RenderNodeSnapshot {
     RenderNodeId id = InvalidRenderNodeId;
     RenderNodeId parentId = InvalidRenderNodeId;
     Rect layoutSlot;
@@ -49,7 +49,7 @@ namespace Aero::Integration {
 
 using namespace ::Aero::Render;
 
-class RenderFrame final {
+class RenderFrame {
 public:
     RenderFrame() noexcept : nodes_(), commands_() {}
 
@@ -71,7 +71,7 @@ private:
 
 Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept;
 
-struct RenderDiagnostics final {
+struct RenderDiagnostics {
     std::uint64_t commitVersion = 0U;
     std::uint32_t nodeCount = 0U;
     std::uint32_t commandCount = 0U;
@@ -87,7 +87,7 @@ namespace Aero::Internal {
 using namespace ::Aero::Render;
 using namespace ::Aero::Integration;
 
-class RenderTree final {
+class RenderTree {
 public:
     explicit RenderTree(::Aero::Threading::Dispatcher& dispatcher) noexcept;
     ~RenderTree() noexcept;
@@ -122,7 +122,7 @@ private:
     ::Aero::Threading::Dispatcher* dispatcher_ = nullptr;
     FrameworkElement* root_ = nullptr;
     Base::Vector<Aero::Internal::VisualLease> dirty_;
-    struct OverlayRecord final {
+    struct OverlayRecord {
         FrameworkElement* element = nullptr;
         Point origin;
     };

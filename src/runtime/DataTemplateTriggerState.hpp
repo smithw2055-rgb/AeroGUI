@@ -10,14 +10,14 @@
 
 namespace Aero::Internal {
 
-struct DataTemplateTriggerSetter final {
+struct DataTemplateTriggerSetter {
     Base::Ref<::Aero::DependencyObject> target;
     Meta::DependencyPropertyHandle property;
     Meta::PropertyValue value;
     Meta::PropertyProviderToken token;
 };
 
-struct DataTemplateTriggerCondition final {
+struct DataTemplateTriggerCondition {
     // Property triggers are compiled directly to a DependencyProperty
     // condition. Data triggers retain their Binding so the runtime can
     // resolve ElementName against the document name scope and subscribe to
@@ -29,7 +29,7 @@ struct DataTemplateTriggerCondition final {
     Meta::PropertyValue value;
 };
 
-struct DataTemplatePropertyTrigger final {
+struct DataTemplatePropertyTrigger {
     Base::Vector<DataTemplateTriggerCondition> conditions;
     Base::Vector<DataTemplateTriggerSetter> setters;
     Base::Vector<Base::Ref<Base::Object>> enterActions;
@@ -37,10 +37,10 @@ struct DataTemplatePropertyTrigger final {
     bool active = false;
 };
 
-class DataTemplateTriggerState final
+class DataTemplateTriggerState
     : public Base::Object {
 public:
-    struct NamedObject final {
+    struct NamedObject {
         Base::String name;
         Base::Ref<Base::Object> object;
     };

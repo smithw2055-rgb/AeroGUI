@@ -26,7 +26,7 @@ MutationJournal::~MutationJournal() noexcept {
     Rollback();
 }
 
-Base::Result<void> MutationJournal::TryAddRollback(
+Base::Result<void> MutationJournal::AddRollback(
     MutationRollbackCallback rollback,
     void* context) noexcept {
     if (committed_ || rollingBack_) {
@@ -37,7 +37,7 @@ Base::Result<void> MutationJournal::TryAddRollback(
         return InvalidArgument(
             "Mutation rollback callback is null");
     }
-    return actions_.TryPushBack({rollback, context});
+    return actions_.PushBack({rollback, context});
 }
 
 void MutationJournal::Commit() noexcept {
@@ -100,7 +100,7 @@ SafeDeferredWorkQueue::Enqueue(
     record.callback = callback;
     record.context = context;
     Base::Result<void> appended =
-        records_.TryPushBack(std::move(record));
+        records_.PushBack(std::move(record));
     if (!appended) {
         return appended.GetStatus();
     }
@@ -194,9 +194,9 @@ EventRouteLifetimeSnapshot::EventRouteLifetimeSnapshot(
     Base::IAllocator* allocator) noexcept
     : nodes_(allocator) {}
 
-Base::Result<void> EventRouteLifetimeSnapshot::TryAdd(
+Base::Result<void> EventRouteLifetimeSnapshot::Add(
     Aero::Visual& visual) noexcept {
-    return nodes_.TryPushBack(
+    return nodes_.PushBack(
         Base::Ref<Aero::Visual>::FromBorrowed(
             visual));
 }

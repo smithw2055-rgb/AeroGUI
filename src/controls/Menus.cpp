@@ -16,16 +16,16 @@ MenuItem::MenuItem() noexcept
       menuPropertyChangedHandler_(
           this,
           &MenuItem::OnMenuPropertyChanged) {
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         InputGestureTextProperty,
         menuPropertyChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         IsCheckableProperty,
         menuPropertyChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         IsCheckedProperty,
         menuPropertyChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         IsSubmenuOpenProperty,
         menuPropertyChangedHandler_));
 }
@@ -252,7 +252,7 @@ ContextMenu::ContextMenu() noexcept
       openChangedHandler_(
           this,
           &ContextMenu::OnOpenChanged) {
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         IsOpenProperty,
         openChangedHandler_));
 }
@@ -407,23 +407,10 @@ MenuBehavior::Attach(
     Base::Result<VisualHandle> handle =
         tree_->GetHandle(menu);
     if (!handle) return handle.GetStatus();
-    Base::Result<void> mouse =
-        menu.TryAddHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_);
-    if (!mouse) return mouse.GetStatus();
-    Base::Result<void> key =
-        menu.TryAddHandler(
-            UIElement::KeyDownEvent,
-            keyDownHandler_);
-    if (!key) {
-        static_cast<void>(menu.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-        return key.GetStatus();
-    }
+    menu.AddHandlerChecked(UIElement::MouseDownEvent, mouseDownHandler_);
+    menu.AddHandlerChecked(UIElement::KeyDownEvent, keyDownHandler_);
     Base::Result<void> stored =
-        records_.TryPushBack(handle.Value());
+        records_.PushBack(handle.Value());
     if (!stored) {
         static_cast<void>(menu.RemoveHandler(
             UIElement::KeyDownEvent,

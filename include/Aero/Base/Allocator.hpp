@@ -20,7 +20,7 @@ enum class MemoryTag : std::uint16_t {
     Test
 };
 
-struct AllocationRequest final {
+struct AllocationRequest  {
     std::size_t size = 0;
     std::size_t alignment = alignof(std::max_align_t);
     MemoryTag tag = MemoryTag::General;
@@ -39,7 +39,7 @@ protected:
     ~IAllocator() = default;
 };
 
-class MallocAllocator final : public IAllocator {
+class MallocAllocator  : public IAllocator {
 public:
     void* Allocate(const AllocationRequest& request) noexcept override;
     void Deallocate(

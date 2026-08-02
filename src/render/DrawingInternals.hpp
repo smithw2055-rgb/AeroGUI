@@ -7,7 +7,7 @@
 
 namespace Aero::Internal {
 
-class DrawingPrivate final {
+class DrawingPrivate {
 public:
     static DrawingContext Create(
         Render::DisplayListBuilder& builder) noexcept {

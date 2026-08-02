@@ -81,7 +81,7 @@ Base::StringView DiagnosticPrefix(DiagnosticDomain domain) noexcept {
     return {};
 }
 
-Base::Result<void> TryFormatDiagnosticCode(
+Base::Result<void> FormatDiagnosticCode(
     DiagnosticCode code,
     Base::String& output) noexcept {
     if (!code.IsValid()) {
@@ -104,18 +104,18 @@ Base::Result<void> TryFormatDiagnosticCode(
         static_cast<char>('0' + (number / 10U) % 10U),
         static_cast<char>('0' + number % 10U)};
 
-    Base::Result<void> result = output.TryAssignUnchecked(prefix);
+    Base::Result<void> result = output.AssignUnchecked(prefix);
     if (!result) {
         return result.GetStatus();
     }
-    result = output.TryAppendUnchecked(Base::StringView(digits, 4U));
+    result = output.AppendUnchecked(Base::StringView(digits, 4U));
     return result ? Base::Result<void>() : Base::Result<void>(result.GetStatus());
 }
 
 Diagnostic::Diagnostic() noexcept
     : message_(), notes_() {}
 
-Base::Result<Diagnostic> Diagnostic::TryCreate(
+Base::Result<Diagnostic> Diagnostic::Create(
     DiagnosticCode code,
     DiagnosticSeverity severity,
     Base::StringView message,
@@ -144,7 +144,7 @@ Base::Result<Diagnostic> Diagnostic::TryCreate(
     }
 
     Diagnostic diagnostic;
-    Base::Result<void> assignResult = diagnostic.message_.TryAssign(message);
+    Base::Result<void> assignResult = diagnostic.message_.Assign(message);
     if (!assignResult) {
         return assignResult.GetStatus();
     }
@@ -157,7 +157,7 @@ Base::Result<Diagnostic> Diagnostic::TryCreate(
     return diagnostic;
 }
 
-Base::Result<void> Diagnostic::TryAddNote(
+Base::Result<void> Diagnostic::AddNote(
     Base::StringView message,
     SourceSpan source) noexcept {
     if (message.Empty()) {
@@ -173,12 +173,12 @@ Base::Result<void> Diagnostic::TryAddNote(
 
     DiagnosticNote note;
     note.source_ = source;
-    Base::Result<void> assignResult = note.message_.TryAssign(message);
+    Base::Result<void> assignResult = note.message_.Assign(message);
     if (!assignResult) {
         return assignResult.GetStatus();
     }
 
-    return notes_.TryPushBack(std::move(note));
+    return notes_.PushBack(std::move(note));
 }
 
 DiagnosticBag::DiagnosticBag(std::uint32_t maxDiagnostics) noexcept
@@ -203,7 +203,7 @@ Base::Result<void> DiagnosticBag::Report(Diagnostic&& diagnostic) noexcept {
     }
 
     const DiagnosticSeverity severity = diagnostic.Severity();
-    Base::Result<void> appendResult = items_.TryPushBack(std::move(diagnostic));
+    Base::Result<void> appendResult = items_.PushBack(std::move(diagnostic));
     if (!appendResult) {
         return appendResult.GetStatus();
     }
@@ -217,14 +217,14 @@ Base::Result<void> DiagnosticBag::Report(Diagnostic&& diagnostic) noexcept {
     return {};
 }
 
-Base::Result<void> DiagnosticBag::TryReport(
+Base::Result<void> DiagnosticBag::Report(
     DiagnosticCode code,
     DiagnosticSeverity severity,
     Base::StringView message,
     SourceSpan source,
     DiagnosticObjectId object,
     MemberId member) noexcept {
-    Base::Result<Diagnostic> diagnostic = Diagnostic::TryCreate(
+    Base::Result<Diagnostic> diagnostic = Diagnostic::Create(
         code,
         severity,
         message,

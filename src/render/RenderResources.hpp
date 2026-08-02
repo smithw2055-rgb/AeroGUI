@@ -16,7 +16,7 @@ namespace Aero::Text { class FontManager; }
 
 namespace Aero::Internal {
 
-struct ImageResources final {
+struct ImageResources {
     std::uint64_t generation = 0U;
     void* context = nullptr;
     Base::Result<Render::RenderImageId> (*create)(
@@ -25,7 +25,7 @@ struct ImageResources final {
     void (*release)(void*, Render::RenderImageId) noexcept = nullptr;
 };
 
-struct MeshResources final {
+struct MeshResources {
     std::uint64_t generation = 0U;
     void* context = nullptr;
     Base::Result<Render::RenderMeshId> (*create)(
@@ -34,7 +34,7 @@ struct MeshResources final {
     void (*release)(void*, Render::RenderMeshId) noexcept = nullptr;
 };
 
-struct TextConfig final {
+struct TextConfig {
     Text::FontFace face;
     Base::Span<const Text::FontFace> fallbackFaces;
     float pixelSize = 16.0F;
@@ -46,7 +46,7 @@ struct TextConfig final {
     Render::RenderGlyphRunId firstGlyphRunId = UINT64_C(1) << 32U;
 };
 
-struct TextResources final {
+struct TextResources {
     std::uint64_t generation = 0U;
     void* context = nullptr;
     Base::Result<Internal::TextBlockLayout*> (*create)(
@@ -61,7 +61,7 @@ struct TextResources final {
 // One resource seam between View and the selected native renderer. It replaces
 // three parallel Contract/Service headers and one virtual dispatch per resource
 // family with a single lightweight value.
-struct RenderResources final {
+struct RenderResources {
     TextResources* text = nullptr;
     MeshResources* meshes = nullptr;
     ImageResources* images = nullptr;

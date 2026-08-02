@@ -50,7 +50,7 @@ public:
 
 } // namespace Primitives
 
-class AERO_API TextBox final
+class AERO_API TextBox
     : public Primitives::TextBoxBase,
       private IScrollInfo,
       private Integration::ITextCompositionClient {
@@ -191,7 +191,7 @@ private:
     friend class PasswordBox;
     friend class ::Aero::Internal::ControlPrivate;
 
-    struct CaretStop final {
+    struct CaretStop {
         double x = 0.0;
         double y = 0.0;
         double height = 0.0;
@@ -270,7 +270,7 @@ private:
             args) noexcept;
 };
 
-class AERO_API PasswordBox final : public Primitives::TextBoxBase {
+class AERO_API PasswordBox : public Primitives::TextBoxBase {
     AERO_DECLARE_TYPE(PasswordBox, Primitives::TextBoxBase)
 public:
     PasswordBox() noexcept;

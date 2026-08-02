@@ -80,7 +80,7 @@ bool WriteDepfile(
     return static_cast<bool>(stream);
 }
 
-struct CommandLine final {
+struct CommandLine {
     const char* schemaPath = nullptr;
     const char* origin = nullptr;
     const char* depfile = nullptr;

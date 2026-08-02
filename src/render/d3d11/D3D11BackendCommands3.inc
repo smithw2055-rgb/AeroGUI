@@ -293,7 +293,7 @@
     pending.value = signalFence;
     pending.query = query;
     query = nullptr;
-    Base::Result<void> appended = impl_->pendingFences.TryPushBack(
+    Base::Result<void> appended = impl_->pendingFences.PushBack(
         std::move(pending));
     if (!appended) {
         return appended;

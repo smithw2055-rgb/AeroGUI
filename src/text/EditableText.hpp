@@ -14,7 +14,7 @@ namespace Aero::Internal {
 // UTF-8 gap-buffer editor model. Public positions are extended grapheme
 // cluster indices; UTF-8 bytes and code-point counts remain queryable for
 // platform text adapters and diagnostics.
-class AERO_API EditableTextModel final {
+class AERO_API EditableTextModel {
 public:
     explicit EditableTextModel(
         Base::IAllocator* allocator = nullptr) noexcept;

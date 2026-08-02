@@ -4,6 +4,7 @@
 #include <Aero/Input.hpp>
 #include <Aero/Controls/Core.hpp>
 #include <Aero/Controls/Panels.hpp>
+#include <Aero/Events/ControlEventArgs.hpp>
 
 namespace Aero::Internal { class ButtonBehavior; class ScrollBehavior; class SliderBehavior; }
 
@@ -203,14 +204,6 @@ enum class TickBarPlacement : std::uint8_t {
     Right
 };
 
-enum class ScrollInputKind : std::uint8_t {
-    Line = 0U,
-    Page,
-    Wheel,
-    Thumb,
-    Touch,
-};
-
 enum class ScrollBarVisibility : std::uint8_t {
     Disabled = 0U,
     Auto,
@@ -242,15 +235,6 @@ enum class GridResizeBehavior : std::uint8_t {
     PreviousAndNext
 };
 
-struct ScrollData final {
-    double horizontalOffset = 0.0;
-    double verticalOffset = 0.0;
-    double extentWidth = 0.0;
-    double extentHeight = 0.0;
-    double viewportWidth = 0.0;
-    double viewportHeight = 0.0;
-};
-
 class AERO_API IScrollInfo {
 public:
     virtual ~IScrollInfo() = default;
@@ -271,32 +255,6 @@ public:
         double direction) noexcept = 0;
 };
 
-
-struct ScrollChangedEventArgs final : RoutedEventArgs {
-    AERO_DECLARE_TYPE(ScrollChangedEventArgs, RoutedEventArgs)
-public:
-    ScrollChangedEventArgs() noexcept
-        : RoutedEventArgs(StaticTypeId()) {}
-    ScrollChangedEventArgs(
-        ScrollData oldData,
-        ScrollData newData,
-        ScrollInputKind inputKind) noexcept
-        : RoutedEventArgs(StaticTypeId()),
-          oldData_(oldData), newData_(newData), inputKind_(inputKind) {}
-
-    ScrollData GetOldData() const noexcept { return oldData_; }
-    ScrollData GetNewData() const noexcept { return newData_; }
-    ScrollInputKind GetInputKind() const noexcept { return inputKind_; }
-
-private:
-    ScrollData oldData_;
-    ScrollData newData_;
-    ScrollInputKind inputKind_ = ScrollInputKind::Line;
-};
-
-using ScrollChangedEventHandler =
-    Base::Delegate<void(
-        Base::Object*, ScrollChangedEventArgs&)>;
 
 class AERO_API ScrollContentPresenter
     : public ContentControl,
@@ -381,7 +339,7 @@ private:
     IScrollInfo* ActiveContentScrollInfo() const noexcept;
 };
 
-class AERO_API ScrollViewer final
+class AERO_API ScrollViewer
     : public ScrollContentPresenter {
     AERO_DECLARE_TYPE(ScrollViewer, ScrollContentPresenter)
 public:
@@ -494,14 +452,14 @@ private:
         const ScrollData& data) noexcept;
 };
 
-struct ThumbDragDelta final {
+struct ThumbDragDelta {
     double horizontalChange = 0.0;
     double verticalChange = 0.0;
 };
 
 namespace Primitives {
 
-class AERO_API Thumb final : public Control {
+class AERO_API Thumb : public Control {
     AERO_DECLARE_TYPE(Thumb, Control)
 public:
     Thumb() noexcept : Control(StaticTypeId()) {}
@@ -528,7 +486,7 @@ private:
     bool dragging_ = false;
 };
 
-class AERO_API Track final : public Control {
+class AERO_API Track : public Control {
     AERO_DECLARE_TYPE(Track, Control)
 public:
     Track() noexcept : Control(StaticTypeId()) {}
@@ -603,7 +561,7 @@ private:
 // WPF-compatible GridSplitter surface. The splitter carries the full
 // resize-policy state even when the hosting grid chooses to apply the delta
 // through a custom interaction adapter.
-class AERO_API GridSplitter final : public Control {
+class AERO_API GridSplitter : public Control {
     AERO_DECLARE_TYPE(GridSplitter, Control)
 public:
     GridSplitter() noexcept : Control(StaticTypeId()) {}
@@ -632,32 +590,6 @@ public:
     inline static constexpr Members::Property<bool> ShowsPreviewProperty{"ShowsPreview"};
     inline static constexpr Members::Property<Base::Ref<Aero::Style>> PreviewStyleProperty{"PreviewStyle"};
 };
-
-struct RangeValueChangedEventArgs final : RoutedEventArgs {
-    AERO_DECLARE_TYPE(
-        RangeValueChangedEventArgs,
-        RoutedEventArgs)
-public:
-    RangeValueChangedEventArgs() noexcept
-        : RoutedEventArgs(StaticTypeId()) {}
-    RangeValueChangedEventArgs(
-        double oldValue,
-        double newValue) noexcept
-        : RoutedEventArgs(StaticTypeId()),
-          oldValue_(oldValue), newValue_(newValue) {}
-
-    double GetOldValue() const noexcept { return oldValue_; }
-    double GetNewValue() const noexcept { return newValue_; }
-
-private:
-    double oldValue_ = 0.0;
-    double newValue_ = 0.0;
-};
-
-using RangeValueChangedEventHandler =
-    Base::Delegate<void(
-        Base::Object*,
-        RangeValueChangedEventArgs&)>;
 
 namespace Primitives {
 
@@ -699,7 +631,7 @@ private:
             args) noexcept;
 };
 
-class AERO_API ScrollBar final : public RangeBase {
+class AERO_API ScrollBar : public RangeBase {
     AERO_DECLARE_TYPE(ScrollBar, RangeBase)
 public:
     ScrollBar() noexcept;
@@ -748,7 +680,7 @@ private:
 
 } // namespace Primitives
 
-class AERO_API Slider final : public Primitives::RangeBase {
+class AERO_API Slider : public Primitives::RangeBase {
     AERO_DECLARE_TYPE(Slider, Primitives::RangeBase)
 public:
     Slider() noexcept : Primitives::RangeBase(StaticTypeId()) {}
@@ -810,7 +742,7 @@ private:
     double GetSnapValue(double value) const noexcept;
 };
 
-class AERO_API TickBar final : public Control {
+class AERO_API TickBar : public Control {
     AERO_DECLARE_TYPE(TickBar, Control)
 public:
     TickBar() noexcept : Control(StaticTypeId()) {}
@@ -831,7 +763,7 @@ protected:
         Aero::DrawingContext& context) noexcept override;
 };
 
-class AERO_API ProgressBar final : public Primitives::RangeBase {
+class AERO_API ProgressBar : public Primitives::RangeBase {
     AERO_DECLARE_TYPE(ProgressBar, Primitives::RangeBase)
 public:
     ProgressBar() noexcept : Primitives::RangeBase(StaticTypeId()) {}

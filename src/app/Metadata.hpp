@@ -16,11 +16,11 @@ inline constexpr Base::StringView AppMetadataModuleName() noexcept {
     return "Aero.App";
 }
 
-inline Base::Result<void> TryRegisterAppMetadata(
+inline Base::Result<void> RegisterAppMetadata(
     ::Aero::Meta::Registry& domain) noexcept {
     constexpr std::uint32_t SchemaVersion = 1U;
     const Base::StringView name = AppMetadataModuleName();
-    return domain.TryRegisterModule({
+    return domain.RegisterModule({
         Meta::MakeMetadataModuleId(name),
         name,
         SchemaVersion,

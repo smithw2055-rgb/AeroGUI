@@ -14,7 +14,7 @@ namespace Aero {
 
 using MutationRollbackCallback = void (*)(void* context) noexcept;
 
-struct MutationRollbackAction final {
+struct MutationRollbackAction  {
     MutationRollbackCallback rollback = nullptr;
     void* context = nullptr;
 };
@@ -22,7 +22,7 @@ struct MutationRollbackAction final {
 // A small failure-atomic journal. Callers register compensation before
 // publishing each externally visible mutation. Unless Commit() is called, the
 // journal unwinds in reverse order, including on early Result returns.
-class AERO_API MutationJournal final {
+class AERO_API MutationJournal  {
 public:
     explicit MutationJournal(
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -31,7 +31,7 @@ public:
     MutationJournal(const MutationJournal&) = delete;
     MutationJournal& operator=(const MutationJournal&) = delete;
 
-    Base::Result<void> TryAddRollback(
+    Base::Result<void> AddRollback(
         MutationRollbackCallback rollback,
         void* context = nullptr) noexcept;
     void Commit() noexcept;
@@ -48,7 +48,7 @@ private:
     bool rollingBack_ = false;
 };
 
-struct DeferredWorkHandle final {
+struct DeferredWorkHandle  {
     std::uint64_t value = 0U;
     constexpr bool IsValid() const noexcept { return value != 0U; }
 };
@@ -57,7 +57,7 @@ using DeferredObjectWorkCallback = Base::Result<void> (*)(
     Base::Object& object,
     void* context) noexcept;
 
-struct DeferredWorkStatistics final {
+struct DeferredWorkStatistics  {
     std::uint64_t queued = 0U;
     std::uint64_t executed = 0U;
     std::uint64_t expired = 0U;
@@ -69,7 +69,7 @@ struct DeferredWorkStatistics final {
 // Deferred runtime work stores WeakRef rather than raw pointers. Destroyed
 // objects are skipped deterministically, while a callback receives a strong
 // reference for the entire invocation.
-class AERO_API SafeDeferredWorkQueue final {
+class AERO_API SafeDeferredWorkQueue  {
 public:
     explicit SafeDeferredWorkQueue(
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -91,7 +91,7 @@ public:
     DeferredWorkStatistics Statistics() const noexcept;
 
 private:
-    struct Record final {
+    struct Record  {
         DeferredWorkHandle handle;
         Base::WeakRef<Base::Object> object;
         DeferredObjectWorkCallback callback = nullptr;
@@ -111,12 +111,12 @@ private:
 
 // Strong route snapshot used when dispatch must tolerate handlers detaching or
 // releasing nodes. Each node remains alive until the snapshot is destroyed.
-class AERO_API EventRouteLifetimeSnapshot final {
+class AERO_API EventRouteLifetimeSnapshot  {
 public:
     explicit EventRouteLifetimeSnapshot(
         Base::IAllocator* allocator = nullptr) noexcept;
 
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         Aero::Visual& visual) noexcept;
     void Clear() noexcept { nodes_.Clear(); }
 

@@ -10,14 +10,14 @@ namespace Aero::Graphics {
 
 constexpr std::uint32_t MaxCachedGlTextureUnits = 32U;
 
-struct GlRectangleState final {
+struct GlRectangleState  {
     GlInt x = 0;
     GlInt y = 0;
     GlSize width = 0;
     GlSize height = 0;
 };
 
-struct GlBlendState final {
+struct GlBlendState  {
     bool enabled = false;
     GlEnum colorEquation = 0U;
     GlEnum alphaEquation = 0U;
@@ -31,20 +31,20 @@ struct GlBlendState final {
     bool writeAlpha = true;
 };
 
-struct GlDepthState final {
+struct GlDepthState  {
     bool enabled = false;
     GlEnum function = 0U;
     bool writeEnabled = true;
 };
 
-struct GlRasterState final {
+struct GlRasterState  {
     bool cullEnabled = false;
     GlEnum cullFace = 0U;
     GlEnum frontFace = 0U;
     GlEnum polygonMode = 0U;
 };
 
-struct GlStencilFaceState final {
+struct GlStencilFaceState  {
     GlEnum function = 0U;
     GlInt reference = 0;
     GlUInt readMask = 0U;
@@ -54,20 +54,20 @@ struct GlStencilFaceState final {
     GlUInt writeMask = 0U;
 };
 
-struct GlStencilState final {
+struct GlStencilState  {
     bool enabled = false;
     GlStencilFaceState front;
     GlStencilFaceState back;
 };
 
-struct GlPixelUnpackState final {
+struct GlPixelUnpackState  {
     GlInt alignment = 4;
     GlInt rowLength = 0;
     GlInt skipRows = 0;
     GlInt skipPixels = 0;
 };
 
-struct GlStateCacheStatistics final {
+struct GlStateCacheStatistics  {
     std::uint64_t emittedCalls = 0U;
     std::uint64_t redundantCalls = 0U;
     std::uint64_t captures = 0U;
@@ -75,7 +75,7 @@ struct GlStateCacheStatistics final {
     std::uint64_t invalidations = 0U;
 };
 
-class AERO_API GlStateCache final {
+class AERO_API GlStateCache  {
 public:
     GlStateCache() noexcept = default;
 
@@ -127,13 +127,13 @@ public:
     void ResetStatistics() noexcept { statistics_ = {}; }
 
 private:
-    struct TextureUnitState final {
+    struct TextureUnitState  {
         GlUInt texture2D = 0U;
         GlUInt texture2DArray = 0U;
         GlUInt sampler = 0U;
     };
 
-    struct State final {
+    struct State  {
         GlUInt program = 0U;
         GlUInt vertexArray = 0U;
         GlUInt arrayBuffer = 0U;
@@ -153,7 +153,7 @@ private:
         GlPixelUnpackState pixelUnpack;
     };
 
-    struct KnownState final {
+    struct KnownState  {
         bool program = false;
         bool vertexArray = false;
         bool arrayBuffer = false;

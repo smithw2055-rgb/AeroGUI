@@ -262,7 +262,7 @@ Base::Result<void> UnicodeTextAnalysis::Decode(
             scalar.cluster = scalars_.Back().cluster;
         }
         Base::Result<void> appended =
-            scalars_.TryPushBack(scalar);
+            scalars_.PushBack(scalar);
         if (!appended) return appended.GetStatus();
         offset += length;
     }
@@ -341,7 +341,7 @@ Base::Result<void> UnicodeTextAnalysis::BuildRuns() noexcept {
             continue;
         }
         Base::Result<void> appended =
-            logicalRuns_.TryPushBack(current);
+            logicalRuns_.PushBack(current);
         if (!appended) return appended.GetStatus();
         current.firstScalar = index;
         current.scalarCount = 1U;
@@ -350,18 +350,18 @@ Base::Result<void> UnicodeTextAnalysis::BuildRuns() noexcept {
         current.rightToLeft =
             (scalar.embeddingLevel & 1U) != 0U;
     }
-    return logicalRuns_.TryPushBack(current);
+    return logicalRuns_.PushBack(current);
 }
 
 Base::Result<void> UnicodeTextAnalysis::BuildVisualOrder() noexcept {
     Base::Result<void> reserve =
-        visualOrder_.TryReserve(scalars_.Size());
+        visualOrder_.Reserve(scalars_.Size());
     if (!reserve) return reserve.GetStatus();
     std::uint8_t maximum = paragraphLevel_;
     std::uint8_t minimumOdd = 255U;
     for (const UnicodeScalar& scalar : scalars_) {
         Base::Result<void> appended =
-            visualOrder_.TryPushBack(visualOrder_.Size());
+            visualOrder_.PushBack(visualOrder_.Size());
         if (!appended) return appended.GetStatus();
         if (scalar.embeddingLevel > maximum) {
             maximum = scalar.embeddingLevel;
@@ -405,9 +405,9 @@ Base::Result<void> UnicodeTextAnalysis::BuildVisualOrder() noexcept {
 
 Base::Result<void> UnicodeTextAnalysis::BuildBreaks() noexcept {
     Base::Result<void> reserve =
-        breaks_.TryReserve(scalars_.Size() + 1U);
+        breaks_.Reserve(scalars_.Size() + 1U);
     if (!reserve) return reserve.GetStatus();
-    Base::Result<void> start = breaks_.TryPushBack({0U, true, false});
+    Base::Result<void> start = breaks_.PushBack({0U, true, false});
     if (!start) return start.GetStatus();
     for (std::uint32_t index = 0U;
          index < scalars_.Size();
@@ -432,7 +432,7 @@ Base::Result<void> UnicodeTextAnalysis::BuildBreaks() noexcept {
             (IsIdeograph(next) &&
              current != UnicodeLineBreakClass::OpeningPunctuation);
         Base::Result<void> appended =
-            breaks_.TryPushBack(opportunity);
+            breaks_.PushBack(opportunity);
         if (!appended) return appended.GetStatus();
     }
     return {};
@@ -441,7 +441,7 @@ Base::Result<void> UnicodeTextAnalysis::BuildBreaks() noexcept {
 Base::Result<void> UnicodeTextAnalysis::BuildClusterMap() noexcept {
     if (clusterCount_ == 0U) return {};
     Base::Result<void> reserve =
-        clusterMap_.TryReserve(clusterCount_);
+        clusterMap_.Reserve(clusterCount_);
     if (!reserve) return reserve.GetStatus();
     for (std::uint32_t logical = 0U;
          logical < clusterCount_;
@@ -450,7 +450,7 @@ Base::Result<void> UnicodeTextAnalysis::BuildClusterMap() noexcept {
         map.logicalCluster = logical;
         map.visualCluster = InvalidIndex;
         Base::Result<void> appended =
-            clusterMap_.TryPushBack(map);
+            clusterMap_.PushBack(map);
         if (!appended) return appended.GetStatus();
     }
     std::uint32_t visualCluster = 0U;

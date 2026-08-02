@@ -456,7 +456,7 @@ Base::Result<void> PopulateControlsTextMedia(
 
     auto passwordBox = Meta::Register<PasswordBox>(context);
     Base::String defaultPasswordChar;
-    status = defaultPasswordChar.TryAssign(
+    status = defaultPasswordChar.Assign(
         Base::StringView(u8"\u2022"));
     if (!status) return status.GetStatus();
     passwordBox

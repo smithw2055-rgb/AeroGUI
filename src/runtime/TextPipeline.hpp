@@ -12,7 +12,7 @@ namespace Aero::Integration { class RenderDevice; }
 
 namespace Aero::Internal {
 
-class TextPipeline final {
+class TextPipeline {
 public:
     explicit TextPipeline(
         Base::IAllocator* allocator = nullptr) noexcept;

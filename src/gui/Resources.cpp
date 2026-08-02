@@ -51,7 +51,7 @@ Base::StringView CallbackKey(
 
 NameScope::NameScope() noexcept = default;
 
-Base::Result<void> NameScope::TryRegister(
+Base::Result<void> NameScope::Register(
     Base::StringView name,
     Base::Object& object) noexcept {
     if (!IsValidName(name)) {
@@ -66,12 +66,12 @@ Base::Result<void> NameScope::TryRegister(
     }
     Entry entry;
     Base::Result<void> assigned =
-        entry.name.TryAssign(name);
+        entry.name.Assign(name);
     if (!assigned) {
         return assigned.GetStatus();
     }
     entry.object = &object;
-    return entries_.TryPushBack(std::move(entry));
+    return entries_.PushBack(std::move(entry));
 }
 
 Base::Object* NameScope::Find(
@@ -127,7 +127,7 @@ Base::Result<ResourceKey> ResourceKey::FromString(
     }
     ResourceKey key;
     Base::Result<void> assigned =
-        key.string_.TryAssign(value);
+        key.string_.Assign(value);
     if (!assigned) {
         return assigned.GetStatus();
     }
@@ -169,20 +169,20 @@ bool operator==(
     return false;
 }
 
-struct ResourceDictionary::Impl final {
-    struct Entry final {
+struct ResourceDictionary::Impl {
+    struct Entry {
         ResourceKey key;
         ResourceValue value;
         ::Aero::Diagnostics::SourceSpan source;
     };
 
-    struct Listener final {
+    struct Listener {
         ResourceChangeSubscription subscription;
         ResourceChangedCallback callback = nullptr;
         void* context = nullptr;
     };
 
-    struct Merged final {
+    struct Merged {
         Impl* dictionary = nullptr;
         ResourceChangeSubscription subscription;
     };
@@ -260,7 +260,7 @@ Base::Result<ResourceValue> LookupImpl(
         }
     }
     Base::Result<void> pushed =
-        visited.TryPushBack(&impl);
+        visited.PushBack(&impl);
     if (!pushed) {
         return pushed.GetStatus();
     }
@@ -309,7 +309,7 @@ bool DependsOn(
             return false;
         }
     }
-    if (!visited.TryPushBack(&root)) {
+    if (!visited.PushBack(&root)) {
         return true;
     }
     for (const ResourceDictionary::Impl::Merged& merged :
@@ -340,7 +340,7 @@ Base::Result<ResourceChangeSubscription> SubscribeImpl(
     const ResourceChangeSubscription subscription{
         impl.nextSubscription++};
     Base::Result<void> appended =
-        impl.listeners.TryPushBack({
+        impl.listeners.PushBack({
             subscription, callback, context});
     if (!appended) {
         return appended.GetStatus();
@@ -475,7 +475,7 @@ void ResourceDictionary::ReleaseImpl(
         Base::MemoryTag::Container);
 }
 
-Base::Result<void> ResourceDictionary::TryAdd(
+Base::Result<void> ResourceDictionary::Add(
     const ResourceKey& key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
@@ -505,7 +505,7 @@ Base::Result<void> ResourceDictionary::TryAdd(
     entry.value = value;
     entry.source = source;
     Base::Result<void> appended =
-        storage.Value()->entries.TryPushBack(
+        storage.Value()->entries.PushBack(
             std::move(entry));
     if (!appended) {
         return appended.GetStatus();
@@ -517,7 +517,7 @@ Base::Result<void> ResourceDictionary::TryAdd(
     return {};
 }
 
-Base::Result<void> ResourceDictionary::TryAdd(
+Base::Result<void> ResourceDictionary::Add(
     Base::StringView key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
@@ -526,18 +526,18 @@ Base::Result<void> ResourceDictionary::TryAdd(
     if (!resourceKey) {
         return resourceKey.GetStatus();
     }
-    return TryAdd(resourceKey.Value(), value, source);
+    return Add(resourceKey.Value(), value, source);
 }
 
-Base::Result<void> ResourceDictionary::TryAdd(
+Base::Result<void> ResourceDictionary::Add(
     Meta::TypeId key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
-    return TryAdd(
+    return Add(
         ResourceKey::FromType(key), value, source);
 }
 
-Base::Result<void> ResourceDictionary::TryAdd(
+Base::Result<void> ResourceDictionary::Add(
     Base::StringView key,
     Meta::TypeId type,
     const Base::Ref<Base::Object>& object,
@@ -547,13 +547,13 @@ Base::Result<void> ResourceDictionary::TryAdd(
             Base::ErrorCode::InvalidArgument,
             MessageInvalidResource);
     }
-    return TryAdd(
+    return Add(
         key,
         Meta::Value::FromObject(type, object),
         source);
 }
 
-Base::Result<void> ResourceDictionary::TrySet(
+Base::Result<void> ResourceDictionary::ApplyChecked(
     const ResourceKey& key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
@@ -576,7 +576,7 @@ Base::Result<void> ResourceDictionary::TrySet(
     Impl::Entry* entry =
         FindLocal(*storage.Value(), key);
     if (entry == nullptr) {
-        return TryAdd(key, value, source);
+        return Add(key, value, source);
     }
     entry->value = value;
     entry->source = source;
@@ -587,7 +587,7 @@ Base::Result<void> ResourceDictionary::TrySet(
     return {};
 }
 
-Base::Result<void> ResourceDictionary::TrySet(
+Base::Result<void> ResourceDictionary::ApplyChecked(
     Base::StringView key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
@@ -596,18 +596,18 @@ Base::Result<void> ResourceDictionary::TrySet(
     if (!resourceKey) {
         return resourceKey.GetStatus();
     }
-    return TrySet(resourceKey.Value(), value, source);
+    return ApplyChecked(resourceKey.Value(), value, source);
 }
 
-Base::Result<void> ResourceDictionary::TrySet(
+Base::Result<void> ResourceDictionary::ApplyChecked(
     Meta::TypeId key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
-    return TrySet(
+    return ApplyChecked(
         ResourceKey::FromType(key), value, source);
 }
 
-Base::Result<void> ResourceDictionary::TrySet(
+Base::Result<void> ResourceDictionary::ApplyChecked(
     Base::StringView key,
     Meta::TypeId type,
     const Base::Ref<Base::Object>& object,
@@ -617,10 +617,39 @@ Base::Result<void> ResourceDictionary::TrySet(
             Base::ErrorCode::InvalidArgument,
             MessageInvalidResource);
     }
-    return TrySet(
+    return ApplyChecked(
         key,
         Meta::Value::FromObject(type, object),
         source);
+}
+
+bool ResourceDictionary::Set(
+    const ResourceKey& key,
+    const ResourceValue& value,
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
+    return static_cast<bool>(ApplyChecked(key, value, source));
+}
+
+bool ResourceDictionary::Set(
+    Base::StringView key,
+    const ResourceValue& value,
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
+    return static_cast<bool>(ApplyChecked(key, value, source));
+}
+
+bool ResourceDictionary::Set(
+    Meta::TypeId key,
+    const ResourceValue& value,
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
+    return static_cast<bool>(ApplyChecked(key, value, source));
+}
+
+bool ResourceDictionary::Set(
+    Base::StringView key,
+    Meta::TypeId type,
+    const Base::Ref<Base::Object>& object,
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
+    return static_cast<bool>(ApplyChecked(key, type, object, source));
 }
 
 Base::Result<bool> ResourceDictionary::Remove(
@@ -740,7 +769,7 @@ bool ResourceDictionary::Contains(
         : ::Aero::Diagnostics::SourceSpan{};
 }
 
-Base::Result<void> ResourceDictionary::TryAddMerged(
+Base::Result<void> ResourceDictionary::AddMerged(
     ResourceDictionary& dictionary) noexcept {
     Base::Result<Impl*> owner = EnsureImpl();
     if (!owner) {
@@ -787,7 +816,7 @@ Base::Result<void> ResourceDictionary::TryAddMerged(
     }
     AddImplRef(child.Value());
     Base::Result<void> appended =
-        owner.Value()->merged.TryPushBack({
+        owner.Value()->merged.PushBack({
             child.Value(), subscribed.Value()});
     if (!appended) {
         UnsubscribeImpl(

@@ -5,6 +5,7 @@
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Events/Event.hpp>
 #include <Aero/RoutedEvent.hpp>
 
 #include <cstddef>
@@ -35,9 +36,9 @@ using Meta::TypeId;
 class UIElement;
 namespace Media { class Transform; class Effect; }
 
-class UIElementChildRange final {
+class UIElementChildRange {
 public:
-    class Iterator final {
+    class Iterator {
     public:
         Iterator(const Visual* owner, std::uint32_t index) noexcept : owner_(owner), index_(index) { Advance(); }
         UIElement* operator*() const noexcept;
@@ -66,43 +67,7 @@ class AERO_API UIElement : public Visual {
     AERO_DECLARE_TYPE(UIElement, Visual)
 public:
     template<class TArgs>
-    class Event final {
-    public:
-        using Handler = Base::Delegate<void(Base::Object*, TArgs&)>;
-        Event(UIElement& element, RoutedEventHandle event) noexcept
-            : element_(&element), event_(event) {}
-
-        Base::Result<void> TryAdd(
-            const Handler& handler,
-            bool handledEventsToo = false) noexcept {
-            return element_->TryAddHandler(event_, handler, handledEventsToo);
-        }
-
-        void Add(const Handler& handler,
-            bool handledEventsToo = false) noexcept {
-            Base::Result<void> result = TryAdd(handler, handledEventsToo);
-            if (!result) {
-                Base::ReportOutOfMemory(
-                    sizeof(Handler),
-                    alignof(Handler),
-                    Base::MemoryTag::General);
-            }
-        }
-
-        void operator+=(const Handler& handler) noexcept { Add(handler); }
-
-        bool Remove(const Handler& handler) noexcept {
-            return element_->RemoveHandler(event_, handler);
-        }
-
-        void operator-=(const Handler& handler) noexcept {
-            static_cast<void>(Remove(handler));
-        }
-
-    private:
-        UIElement* element_ = nullptr;
-        RoutedEventHandle event_;
-    };
+    using Event = ::Aero::Event<UIElement, TArgs>;
 
     template<class TOwner, class TArgs>
     auto GetEvent(
@@ -187,7 +152,7 @@ public:
     }
 
     template<class TArgs>
-    Base::Result<void> TryAddHandler(
+    Base::Result<void> AddHandlerChecked(
         RoutedEventHandle event,
         const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
         bool handledEventsToo = false) noexcept {
@@ -196,14 +161,14 @@ public:
                 Base::ErrorCode::InvalidArgument,
                 "Routed event handler must not be empty");
         }
-        return TryAddHandlerCore(event, DescribeHandler(handler), handledEventsToo);
+        return AddHandlerCore(event, DescribeHandler(handler), handledEventsToo);
     }
     template<class TArgs>
     void AddHandler(
         RoutedEventHandle event,
         const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
         bool handledEventsToo = false) noexcept {
-        Base::Result<void> added = TryAddHandler(event, handler, handledEventsToo);
+        Base::Result<void> added = AddHandlerChecked(event, handler, handledEventsToo);
         if (!added) {
             Base::ReportOutOfMemory(sizeof(handler), alignof(decltype(handler)), Base::MemoryTag::General);
         }
@@ -316,7 +281,7 @@ private:
     friend class Aero::Internal::LayoutEngine;
     friend class Aero::Input::RoutedCommand;
 
-    struct HandlerOperations final {
+    struct HandlerOperations {
         std::size_t size = 0U;
         std::size_t alignment = 0U;
         void (*copy)(void*, const void*) noexcept = nullptr;
@@ -325,7 +290,7 @@ private:
         void (*invoke)(const void*, Base::Object*, RoutedEventArgs&) noexcept = nullptr;
     };
 
-    struct HandlerDescriptor final {
+    struct HandlerDescriptor {
         const void* value = nullptr;
         const HandlerOperations* operations = nullptr;
         Meta::TypeId argsType = Meta::InvalidTypeId;
@@ -351,7 +316,7 @@ private:
         return {&handler, &operations, TArgs::StaticTypeId()};
     }
 
-    Base::Result<void> TryAddHandlerCore(
+    Base::Result<void> AddHandlerCore(
         RoutedEventHandle event,
         const HandlerDescriptor& handler,
         bool handledEventsToo) noexcept;

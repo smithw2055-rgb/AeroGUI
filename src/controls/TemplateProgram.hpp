@@ -11,7 +11,7 @@
 
 namespace Aero::Internal {
 
-struct TemplateHandle final {
+struct TemplateHandle {
     std::uint64_t value = 0U;
     constexpr bool IsValid() const noexcept { return value != 0U; }
 };
@@ -26,7 +26,7 @@ class ContentPresenter;
 class ItemsPanelTemplate;
 class ItemsPresenter;
 
-class TemplateBuilder final {
+class TemplateBuilder {
 public:
     Base::Result<void> SetRoot(Base::Ref<Base::Object> owner, Visual& root) noexcept;
     Base::Result<void> SetRoot(Base::StringView name, Base::Ref<Base::Object> owner, Visual& root) noexcept;
@@ -51,18 +51,18 @@ private:
 
 using TemplateFactoryCallback = Base::Result<void> (*)(TemplateBuilder& context, void* factoryContext) noexcept;
 
-struct TemplateNamespace final {
+struct TemplateNamespace {
     Base::String prefix;
     Base::String uri;
 };
 
-struct TemplateBindingPlan final {
+struct TemplateBindingPlan {
     Base::String targetName;
     DependencyPropertyHandle sourceProperty;
     DependencyPropertyHandle targetProperty;
 };
 
-struct TemplateMetadataBindingPlan final {
+struct TemplateMetadataBindingPlan {
     Base::String targetName;
     Base::String path;
     Base::String stringFormat;
@@ -71,33 +71,33 @@ struct TemplateMetadataBindingPlan final {
     UpdateSourceTrigger updateSourceTrigger = UpdateSourceTrigger::PropertyChanged;
 };
 
-struct TemplateTriggerSetter final {
+struct TemplateTriggerSetter {
     Base::String targetName;
     DependencyPropertyHandle property;
     Meta::PropertyValue value;
 };
 
-struct TemplateTriggerCondition final {
+struct TemplateTriggerCondition {
     Base::String sourceName;
     DependencyPropertyHandle property;
     Meta::PropertyValue value;
 };
 
-struct TemplatePropertyTrigger final {
+struct TemplatePropertyTrigger {
     Base::Vector<TemplateTriggerCondition> conditions;
     Base::Vector<TemplateTriggerSetter> setters;
 };
 
 namespace Detail {
 
-struct TemplateProgram final {
+struct TemplateProgram {
     TemplateProgram() noexcept = default;
     TemplateProgram(TemplateFactoryCallback valueFactory, void* valueFactoryContext = nullptr) noexcept
         : factory(valueFactory), factoryContext(valueFactoryContext) {}
 
     Base::Result<void> Configure(TemplateFactoryCallback valueFactory, void* valueFactoryContext = nullptr, Base::Ref<Base::Object> valueFactoryOwner = {}) noexcept;
     Base::Result<void> SetBaseUri(const Base::ResourceUri& value) noexcept;
-    Base::Result<void> TryAddNamespace(Base::StringView prefix, Base::StringView uri) noexcept;
+    Base::Result<void> AddNamespace(Base::StringView prefix, Base::StringView uri) noexcept;
     Base::Result<void> Seal() noexcept;
     Base::Result<void> FreezeRuntimePlan(Meta::TypeId valueTargetType, Base::Vector<TemplateBindingPlan>&& valueBindings, Base::Vector<TemplateMetadataBindingPlan>&& valueMetadataBindings, Base::Vector<TemplatePropertyTrigger>&& valueTriggers, Base::Vector<VisualStateGroup>&& valueVisualStateGroups) noexcept;
 
@@ -114,7 +114,7 @@ struct TemplateProgram final {
     bool sealed = false;
 };
 
-struct FrameworkTemplateState final {
+struct FrameworkTemplateState {
     Meta::TypeId targetType = Meta::InvalidTypeId;
     TemplateProgram program;
     ResourceDictionary resources;
@@ -132,7 +132,7 @@ struct FrameworkTemplateState final {
 
 using DeferredObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)(const Base::Ref<Base::Object>& item, void* context) noexcept;
 
-struct DeferredObjectProgram final {
+struct DeferredObjectProgram {
     Base::Result<void> Configure(DeferredObjectFactory factory, void* context = nullptr) noexcept;
     Base::Result<void> Configure(DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> factoryOwner) noexcept;
     Base::Result<void> SetBaseUri(const Base::ResourceUri& value) noexcept;
@@ -146,7 +146,7 @@ struct DeferredObjectProgram final {
     bool sealed = false;
 };
 
-struct DataTemplateState final {
+struct DataTemplateState {
     DeferredObjectProgram program;
     TypeId dataType = InvalidTypeId;
     Base::Ref<Base::Object> hierarchicalItemsSource;
@@ -157,7 +157,7 @@ struct DataTemplateState final {
     Aero::NameScope authoredNames;
 };
 
-struct ItemsPanelTemplateState final {
+struct ItemsPanelTemplateState {
     DeferredObjectProgram program;
     ResourceDictionary resources;
     Base::Ref<Base::Object> authoredVisualTree;

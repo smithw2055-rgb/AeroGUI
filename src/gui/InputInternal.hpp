@@ -9,12 +9,12 @@ namespace Aero { class UIElement; }
 
 namespace Aero::Input {
 
-struct CommandBindingHandle final {
+struct CommandBindingHandle {
     std::uint64_t value = 0U;
     constexpr bool IsValid() const noexcept { return value != 0U; }
 };
 
-struct InputBindingHandle final {
+struct InputBindingHandle {
     std::uint64_t value = 0U;
     constexpr bool IsValid() const noexcept { return value != 0U; }
 };
@@ -37,16 +37,16 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Input;
 
-class AERO_API CommandState final {
+class AERO_API CommandState {
 public:
     CommandState(ElementTree& tree, EventRouter& events) noexcept;
 
-    Base::Result<CommandBindingHandle> TryAddBinding(
+    Base::Result<CommandBindingHandle> AddBinding(
         UIElement& owner,
         const CommandBinding& binding) noexcept;
     Base::Result<bool> RemoveBinding(
         CommandBindingHandle handle) noexcept;
-    Base::Result<InputBindingHandle> TryAddInputBinding(
+    Base::Result<InputBindingHandle> AddInputBinding(
         UIElement& owner,
         Base::Ref<KeyBinding> binding) noexcept;
 
@@ -70,19 +70,19 @@ public:
         UIElement& target,
         const KeyboardInput& input) noexcept;
 
-    Base::Result<void> TryAddRequerySuggested(
+    void AddRequerySuggested(
         const RequerySuggestedHandler& handler) noexcept;
     bool RemoveRequerySuggested(
         const RequerySuggestedHandler& handler) noexcept;
     void InvalidateRequerySuggested() const noexcept;
 
 private:
-    struct BindingRecord final {
+    struct BindingRecord {
         CommandBindingHandle handle;
         VisualHandle owner;
         CommandBinding binding;
     };
-    struct InputBindingRecord final {
+    struct InputBindingRecord {
         InputBindingHandle handle;
         VisualHandle owner;
         Base::Ref<KeyBinding> binding;
@@ -100,7 +100,7 @@ private:
     void PruneStaleBindings() noexcept;
     void PruneStaleInputBindings() noexcept;
 };
-class AERO_API HitTestState final {
+class AERO_API HitTestState {
 public:
     HitTestState() noexcept = default;
     Base::Result<void> SetOverlays(
@@ -118,7 +118,7 @@ public:
         Visual& root, Visual& target, Point position) const noexcept;
 
 private:
-    struct OverlayRecord final {
+    struct OverlayRecord {
         UIElement* element = nullptr;
         Point origin;
     };
@@ -131,7 +131,7 @@ private:
     bool IsOverlay(
         const UIElement& element) const noexcept;
 };
-class AERO_API PointerStateMachine final {
+class AERO_API PointerStateMachine {
 public:
     PointerStateMachine(HitTestState& hitTests, EventRouter& events) noexcept;
 
@@ -150,17 +150,17 @@ public:
         std::uint32_t pointerId) noexcept;
     UIElement* CapturedNode(
         std::uint32_t pointerId) noexcept;
-    Base::Result<void> TryAddStateChanged(
+    void AddStateChanged(
         const PointerStateChangedHandler& handler) noexcept {
-        return stateChanged_.TryAdd(handler);
+        stateChanged_.Add(handler);
     }
     bool RemoveStateChanged(
         const PointerStateChangedHandler& handler) noexcept {
         return stateChanged_.Remove(handler);
     }
-    Base::Result<void> TryAddCaptureChanged(
+    void AddCaptureChanged(
         const PointerCaptureChangedHandler& handler) noexcept {
-        return captureChanged_.TryAdd(handler);
+        captureChanged_.Add(handler);
     }
     bool RemoveCaptureChanged(
         const PointerCaptureChangedHandler& handler) noexcept {
@@ -168,11 +168,11 @@ public:
     }
 
 private:
-    struct PointerCapture final {
+    struct PointerCapture {
         std::uint32_t pointerId = 0U;
         VisualHandle target;
     };
-    struct PointerState final {
+    struct PointerState {
         std::uint32_t pointerId = 0U;
         VisualHandle hover;
         VisualHandle pressed;
@@ -199,7 +199,7 @@ private:
     bool HasPressed(VisualHandle target,
         std::uint32_t ignoredIndex) const noexcept;
 };
-class AERO_API FocusState final {
+class AERO_API FocusState {
 public:
     FocusState(ElementTree& tree, EventRouter& events) noexcept;
 
@@ -212,11 +212,11 @@ public:
         bool wrap = true) noexcept;
 
 private:
-    struct ScopeFocus final {
+    struct ScopeFocus {
         VisualHandle scope;
         VisualHandle focused;
     };
-    struct FocusCandidate final {
+    struct FocusCandidate {
         UIElement* element = nullptr;
         std::uint32_t tabIndex = 0U;
         std::uint32_t order = 0U;
@@ -234,7 +234,7 @@ private:
         Base::Vector<FocusCandidate>& candidates,
         std::uint32_t& order) noexcept;
 };
-class AERO_API KeyboardState final {
+class AERO_API KeyboardState {
 public:
     KeyboardState(FocusState& focus, EventRouter& events,
         ElementTree& tree) noexcept;
@@ -254,7 +254,7 @@ private:
     ElementTree* tree_ = nullptr;
     CommandState* commands_ = nullptr;
 };
-class AERO_API TextInputState final {
+class AERO_API TextInputState {
 public:
     TextInputState(FocusState& focus, EventRouter& events,
         ElementTree& tree) noexcept;
@@ -275,7 +275,7 @@ namespace Aero::Internal {
 // View-owned input coordinator. Consumers see one service; focus, hit testing,
 // pointer capture, keyboard/text dispatch and routed commands remain private
 // implementation components behind this facade.
-class InputRouter final {
+class InputRouter {
 public:
     InputRouter(ElementTree& tree, EventRouter& events) noexcept
         : commands_(tree, events),
@@ -298,9 +298,9 @@ public:
     Base::Result<void> CapturePointer(std::uint32_t pointerId, UIElement& target) noexcept { return pointer_.CapturePointer(pointerId, target); }
     Base::Result<bool> ReleasePointer(std::uint32_t pointerId) noexcept { return pointer_.ReleasePointer(pointerId); }
     UIElement* GetCapturedPointer(std::uint32_t pointerId) noexcept { return pointer_.CapturedNode(pointerId); }
-    Base::Result<void> TryAddPointerStateChanged(const PointerStateChangedHandler& handler) noexcept { return pointer_.TryAddStateChanged(handler); }
+    void AddPointerStateChanged(const PointerStateChangedHandler& handler) noexcept { pointer_.AddStateChanged(handler); }
     bool RemovePointerStateChanged(const PointerStateChangedHandler& handler) noexcept { return pointer_.RemoveStateChanged(handler); }
-    Base::Result<void> TryAddPointerCaptureChanged(const PointerCaptureChangedHandler& handler) noexcept { return pointer_.TryAddCaptureChanged(handler); }
+    void AddPointerCaptureChanged(const PointerCaptureChangedHandler& handler) noexcept { pointer_.AddCaptureChanged(handler); }
     bool RemovePointerCaptureChanged(const PointerCaptureChangedHandler& handler) noexcept { return pointer_.RemoveCaptureChanged(handler); }
 
     UIElement* GetFocusedElement() noexcept { return focus_.FocusedNode(); }
@@ -309,10 +309,10 @@ public:
     Base::Result<bool> ClearFocus() noexcept { return focus_.ClearFocus(); }
     Base::Result<bool> MoveFocus(FocusNavigationDirection direction, bool wrap = true) noexcept { return focus_.MoveFocus(direction, wrap); }
 
-    Base::Result<CommandBindingHandle> TryAddCommandBinding(UIElement& owner, const CommandBinding& binding) noexcept { return commands_.TryAddBinding(owner, binding); }
+    Base::Result<CommandBindingHandle> AddCommandBinding(UIElement& owner, const CommandBinding& binding) noexcept { return commands_.AddBinding(owner, binding); }
     Base::Result<bool> RemoveCommandBinding(CommandBindingHandle handle) noexcept { return commands_.RemoveBinding(handle); }
-    Base::Result<InputBindingHandle> TryAddInputBinding(UIElement& owner, Base::Ref<KeyBinding> binding) noexcept { return commands_.TryAddInputBinding(owner, std::move(binding)); }
-    Base::Result<void> TryAddRequerySuggested(const RequerySuggestedHandler& handler) noexcept { return commands_.TryAddRequerySuggested(handler); }
+    Base::Result<InputBindingHandle> AddInputBinding(UIElement& owner, Base::Ref<KeyBinding> binding) noexcept { return commands_.AddInputBinding(owner, std::move(binding)); }
+    void AddRequerySuggested(const RequerySuggestedHandler& handler) noexcept { commands_.AddRequerySuggested(handler); }
     bool RemoveRequerySuggested(const RequerySuggestedHandler& handler) noexcept { return commands_.RemoveRequerySuggested(handler); }
     void InvalidateRequerySuggested() const noexcept { commands_.InvalidateRequerySuggested(); }
 

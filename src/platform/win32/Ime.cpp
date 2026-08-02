@@ -38,7 +38,7 @@ const wchar_t* ImeAdapterPropertyName() noexcept {
     return L"AeroGui.Win32ImeAdapter";
 }
 
-class InputContextScope final {
+class InputContextScope  {
 public:
     explicit InputContextScope(HWND window) noexcept
         : window_(window),
@@ -83,7 +83,7 @@ Base::Result<void> ReadCompositionText(
             byteCount / static_cast<LONG>(sizeof(wchar_t)));
     Base::Vector<wchar_t> wide;
     Base::Result<void> resized =
-        wide.TryResize(characterCount);
+        wide.Resize(characterCount);
     if (!resized) return resized;
     const LONG copied = ImmGetCompositionStringW(
         input.Get(), kind, wide.Data(),
@@ -104,7 +104,7 @@ Base::Result<void> ReadCompositionText(
             "Win32 IME composition is not valid Unicode");
     }
     Base::Vector<char> bytes;
-    Base::Result<void> byteStorage = bytes.TryResize(
+    Base::Result<void> byteStorage = bytes.Resize(
         static_cast<std::uint32_t>(required));
     if (!byteStorage) return byteStorage;
     if (WideCharToMultiByte(
@@ -115,7 +115,7 @@ Base::Result<void> ReadCompositionText(
         return ImeFailure(
             "Win32 IME UTF-8 conversion failed");
     }
-    return output.TryAssignUnchecked({
+    return output.AssignUnchecked({
         bytes.Data(),
         static_cast<std::uint32_t>(required)});
 }

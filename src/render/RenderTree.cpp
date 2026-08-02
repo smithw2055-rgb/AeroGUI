@@ -127,7 +127,7 @@ Base::Result<void> DisplayListBuilder::Append(
     if (finished_) {
         return InvalidState("DisplayListBuilder has already been finished");
     }
-    return list_.commands_.TryPushBack(command);
+    return list_.commands_.PushBack(command);
 }
 
 Base::Result<void> DisplayListBuilder::PushClip(Rect clip) noexcept {
@@ -745,7 +745,7 @@ Base::Result<void> RenderTree::SetRoot(
         Aero::Internal::VisualLease::Acquire(*root);
     if (!lease) return lease.GetStatus();
     Base::Result<void> reserved =
-        dirty_.TryReserve(dirty_.Size() + 1U);
+        dirty_.Reserve(dirty_.Size() + 1U);
     if (!reserved) return reserved.GetStatus();
 
     root_ = root;
@@ -753,7 +753,7 @@ Base::Result<void> RenderTree::SetRoot(
     root->nodeId_ = nextNodeId_++;
     root->renderValid_ = false;
     Base::Result<void> queued =
-        dirty_.TryPushBack(std::move(lease).Value());
+        dirty_.PushBack(std::move(lease).Value());
     AERO_ASSERT(queued);
     (void)queued;
     root->renderQueued_ = true;
@@ -790,7 +790,7 @@ Base::Result<void> RenderTree::Attach(
         if (!current->renderQueued_) ++required;
     }
     Base::Result<void> reserved =
-        dirty_.TryReserve(dirty_.Size() + required);
+        dirty_.Reserve(dirty_.Size() + required);
     if (!reserved) return reserved.GetStatus();
 
     Base::Result<void> invalidated = Invalidate(parent);
@@ -800,7 +800,7 @@ Base::Result<void> RenderTree::Attach(
     child.renderRuntime_ = this;
     child.nodeId_ = nextNodeId_++;
     child.renderValid_ = false;
-    Base::Result<void> queued = dirty_.TryPushBack(
+    Base::Result<void> queued = dirty_.PushBack(
         std::move(childLease).Value());
     AERO_ASSERT(queued);
     (void)queued;
@@ -845,7 +845,7 @@ Base::Result<void> RenderTree::QueueDirty(
         Aero::Internal::VisualLease::Acquire(element);
     if (!lease) return lease.GetStatus();
     Base::Result<void> appended =
-        dirty_.TryPushBack(std::move(lease).Value());
+        dirty_.PushBack(std::move(lease).Value());
     if (!appended) return appended.GetStatus();
     element.renderQueued_ = true;
     return {};
@@ -891,12 +891,12 @@ Base::Result<void> RenderTree::Invalidate(
              ? Aero::Internal::ElementPrivate::RenderParent(*current) : nullptr) {
         Base::Result<void> currentVerified = VerifyElement(*current);
         if (!currentVerified) return currentVerified.GetStatus();
-        Base::Result<void> appended = path.TryPushBack(current);
+        Base::Result<void> appended = path.PushBack(current);
         if (!appended) return appended.GetStatus();
     }
 
     Base::Vector<Aero::Internal::VisualLease> leases;
-    Base::Result<void> reserved = leases.TryReserve(path.Size());
+    Base::Result<void> reserved = leases.Reserve(path.Size());
     if (!reserved) return reserved.GetStatus();
     for (FrameworkElement* current : path) {
         if (current->renderQueued_) continue;
@@ -904,17 +904,17 @@ Base::Result<void> RenderTree::Invalidate(
             Aero::Internal::VisualLease::Acquire(*current);
         if (!lease) return lease.GetStatus();
         Base::Result<void> staged =
-            leases.TryPushBack(std::move(lease).Value());
+            leases.PushBack(std::move(lease).Value());
         if (!staged) return staged.GetStatus();
     }
-    reserved = dirty_.TryReserve(dirty_.Size() + leases.Size());
+    reserved = dirty_.Reserve(dirty_.Size() + leases.Size());
     if (!reserved) return reserved.GetStatus();
 
     std::uint32_t leaseIndex = 0U;
     for (FrameworkElement* current : path) {
         current->renderValid_ = false;
         if (current->renderQueued_) continue;
-        Base::Result<void> queued = dirty_.TryPushBack(
+        Base::Result<void> queued = dirty_.PushBack(
             std::move(leases[leaseIndex++]));
         AERO_ASSERT(queued);
         (void)queued;
@@ -927,14 +927,14 @@ Base::Result<void> RenderTree::Invalidate(
 
 namespace Aero {
 
-Base::Result<void> FrameworkElement::TryAddAuthoredTrigger(
+Base::Result<void> FrameworkElement::AddAuthoredTrigger(
     Base::Ref<Base::Object> trigger) noexcept {
     if (!trigger) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "FrameworkElement trigger cannot be null");
     }
-    return authoredTriggers_.TryPushBack(std::move(trigger));
+    return authoredTriggers_.PushBack(std::move(trigger));
 }
 
 void
@@ -980,7 +980,7 @@ Base::Result<void> RenderTree::SetOverlays(
     }
     Base::Vector<OverlayRecord> next;
     Base::Result<void> reserved =
-        next.TryReserve(overlays.Size());
+        next.Reserve(overlays.Size());
     if (!reserved) return reserved.GetStatus();
     for (std::uint32_t index = 0U;
          index < overlays.Size();
@@ -1006,7 +1006,7 @@ Base::Result<void> RenderTree::SetOverlays(
         }
         if (duplicate) continue;
         Base::Result<void> appended =
-            next.TryPushBack(
+            next.PushBack(
                 {overlay, origins[index]});
         if (!appended) return appended.GetStatus();
     }
@@ -1129,11 +1129,11 @@ Base::Result<void> RenderTree::BuildSubtree(
     snapshot.commandCount = list.CommandCount();
     snapshot.elementRevision = element.renderRevision_ + 1U;
 
-    Base::Result<void> nodeAppend = plan.nodes_.TryPushBack(snapshot);
+    Base::Result<void> nodeAppend = plan.nodes_.PushBack(snapshot);
     if (!nodeAppend) {
         return nodeAppend;
     }
-    Base::Result<void> commandAppend = plan.commands_.TryAppend(list.Commands());
+    Base::Result<void> commandAppend = plan.commands_.Append(list.Commands());
     if (!commandAppend) {
         plan.nodes_.PopBack();
         return commandAppend;

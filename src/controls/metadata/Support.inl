@@ -2,7 +2,7 @@
 // The Gallery uses a bare Control as a style/template host. Keep the public
 // Control base class extensible while providing a concrete runtime instance
 // for that XAML form.
-class BasicControl final : public Control {
+class BasicControl : public Control {
 public:
     BasicControl() noexcept : Control(Control::StaticTypeId()) {}
 };
@@ -26,7 +26,7 @@ void AddTemplateTrigger(
     if (!value) {
         return;
     }
-    (void)Detail::TemplatePrivate::TryAddAuthoredTrigger(
+    (void)Detail::TemplatePrivate::AddAuthoredTrigger(
         static_cast<FrameworkTemplate&>(owner), value);
 }
 
@@ -74,7 +74,7 @@ void AddTemplateVisualStateGroup(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    (void)Detail::TemplatePrivate::TryAddAuthoredVisualStateGroup(
+    (void)Detail::TemplatePrivate::AddAuthoredVisualStateGroup(
         static_cast<ControlTemplate&>(object), value);
 }
 
@@ -93,7 +93,7 @@ Meta::TypeReference GetControlTemplateTargetType(
 void SetControlTemplateTargetType(
     ControlTemplate& target,
     Meta::TypeReference value) noexcept {
-    (void)Detail::TemplatePrivate::TrySetTargetType(target, value.type);
+    (void)Detail::TemplatePrivate::SetTargetType(target, value.type);
 }
 
 Meta::TypeReference GetDataTemplateType(
@@ -246,7 +246,7 @@ Base::Result<void> ParseGridDefinitions(
             ConvertGridLength(token);
         if (!parsed) return parsed.GetStatus();
         Base::Result<void> added =
-            output.TryPushBack(parsed.Value());
+            output.PushBack(parsed.Value());
         if (!added) return added.GetStatus();
         if (end == value.SizeBytes()) break;
         start = end + 1U;
@@ -267,7 +267,7 @@ void AddDataTemplateTrigger(
     if (!retained) {
         return;
     }
-    (void)Detail::TemplatePrivate::TryAddAuthoredTrigger(
+    (void)Detail::TemplatePrivate::AddAuthoredTrigger(
         static_cast<DataTemplate&>(owner), std::move(retained));
 }
 
@@ -289,7 +289,7 @@ void AddGridColumnDefinition(
         return;
     }
     (void)static_cast<Grid&>(owner)
-        .TryAddColumnDefinition(std::move(retained));
+        .AddColumnDefinition(std::move(retained));
 }
 
 void ClearGridColumnDefinitions(
@@ -309,7 +309,7 @@ void AddGridRowDefinition(
         return;
     }
     (void)static_cast<Grid&>(owner)
-        .TryAddRowDefinition(std::move(retained));
+        .AddRowDefinition(std::move(retained));
 }
 
 void ClearGridRowDefinitions(
@@ -326,7 +326,7 @@ void AddGridInputBinding(
         Base::Ref<Input::KeyBinding>::TryFromBorrowed(
             static_cast<Input::KeyBinding&>(*value));
     if (retained) {
-        (void)static_cast<Grid&>(owner).TryAddInputBinding(std::move(retained));
+        (void)static_cast<Grid&>(owner).AddInputBinding(std::move(retained));
     }
 }
 
@@ -634,7 +634,7 @@ void AddTextBlockInline(
             Aero::Documents::Inline::StaticTypeId())) {
         return;
     }
-    text.TryAddOwnedInline(child);
+    text.AddOwnedInline(child);
 }
 
 void ClearTextBlockInlines(
@@ -656,7 +656,7 @@ void AddSpanInline(
             Documents::Inline::StaticTypeId())) {
         return;
     }
-    span.TryAddOwnedInline(
+    span.AddOwnedInline(
         Base::Ref<Documents::Inline>::FromBorrowed(
             *static_cast<Documents::Inline*>(child.Get())));
 }
@@ -674,7 +674,7 @@ void AddItemsControlItem(
     if (!item) {
         return;
     }
-    (void)static_cast<ItemsControl&>(owner).GetItems().TryAdd(item);
+    (void)static_cast<ItemsControl&>(owner).GetItems().Add(item);
 }
 
 void ClearItemsControlItems(
@@ -732,7 +732,7 @@ void AddTreeViewItem(
     if (!item) {
         return;
     }
-    (void)static_cast<TreeViewItem&>(owner).GetItems().TryAdd(item);
+    (void)static_cast<TreeViewItem&>(owner).GetItems().Add(item);
 }
 
 void ClearTreeViewItems(
@@ -752,7 +752,7 @@ void AddGridViewColumn(
         return;
     }
     (void)static_cast<GridView&>(
-        owner).TryAddColumn(
+        owner).AddColumn(
             Base::Ref<GridViewColumn>::
                 FromBorrowed(
                     static_cast<GridViewColumn&>(
@@ -774,7 +774,7 @@ void AddTabControlItem(
         return;
     }
     (void)static_cast<TabControl&>(owner).
-        TryAddOwnedTab(
+        AddOwnedTab(
             Base::Ref<TabItem>::FromBorrowed(
                 static_cast<TabItem&>(*item)));
 }

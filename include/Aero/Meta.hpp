@@ -87,7 +87,7 @@ enum class MetadataCollectionChangeAction : std::uint8_t {
     Move,
     Reset
 };
-struct MetadataCollectionChangedEvent final {
+struct MetadataCollectionChangedEvent {
     MetadataCollectionChangeAction action =
         MetadataCollectionChangeAction::Reset;
     std::uint32_t oldIndex = UINT32_MAX;
@@ -109,7 +109,7 @@ using CollectionChangeUnsubscribeCallback = Base::Result<bool> (*)(
     std::uint64_t subscription,
     void* context) noexcept;
 
-struct TypeRegistration final {
+struct TypeRegistration {
     constexpr TypeRegistration(
         Base::StringView registeredNamespace,
         Base::StringView registeredName,
@@ -188,7 +188,7 @@ struct TypeRegistration final {
     Base::Span<const TypeId> interfaces;
 };
 
-struct PropertyRegistration final {
+struct PropertyRegistration {
     Base::StringView name;
     TypeId valueType = InvalidTypeId;
     PropertyFlags flags = PropertyFlags::None;
@@ -199,7 +199,7 @@ struct PropertyRegistration final {
     void* context = nullptr;
 };
 
-struct FieldRegistration final {
+struct FieldRegistration {
     Base::StringView name;
     TypeId valueType = InvalidTypeId;
     FieldFlags flags = FieldFlags::None;
@@ -208,23 +208,23 @@ struct FieldRegistration final {
     void* context = nullptr;
 };
 
-struct EnumValueRegistration final {
+struct EnumValueRegistration {
     Base::StringView name;
     std::uint64_t rawValue = 0U;
 };
 
-struct EventRegistration final {
+struct EventRegistration {
     Base::StringView name;
     TypeId eventArgsType = InvalidTypeId;
     EventFlags flags = EventFlags::None;
 };
 
-struct MethodParameterRegistration final {
+struct MethodParameterRegistration {
     Base::StringView name;
     TypeId type = InvalidTypeId;
 };
 
-struct MethodRegistration final {
+struct MethodRegistration {
     Base::StringView name;
     TypeId returnType = InvalidTypeId;
     Base::Span<const MethodParameterRegistration> parameters;
@@ -233,12 +233,12 @@ struct MethodRegistration final {
     void* context = nullptr;
 };
 
-struct TypeFactoryRegistration final {
+struct TypeFactoryRegistration {
     TypeId type = InvalidTypeId;
     ObjectFactory factory = nullptr;
 };
 
-struct ContentAccessorRegistration final {
+struct ContentAccessorRegistration {
     TypeId type = InvalidTypeId;
     MemberId member = InvalidMemberId;
     ContentKind kind = ContentKind::Single;
@@ -248,7 +248,7 @@ struct ContentAccessorRegistration final {
     void* context = nullptr;
 };
 
-struct PropertyAccessorRegistration final {
+struct PropertyAccessorRegistration {
     MemberId member = InvalidMemberId;
     PropertyAccessKind access = PropertyAccessKind::External;
     PropertyGetCallback get = nullptr;
@@ -257,27 +257,27 @@ struct PropertyAccessorRegistration final {
     void* context = nullptr;
 };
 
-struct ValueMemberAccessorRegistration final {
+struct ValueMemberAccessorRegistration {
     MemberId member = InvalidMemberId;
     ValueMemberGetCallback get = nullptr;
     ValueMemberSetCallback set = nullptr;
     void* context = nullptr;
 };
 
-struct MethodInvokerRegistration final {
+struct MethodInvokerRegistration {
     MemberId member = InvalidMemberId;
     MethodInvokeCallback invoke = nullptr;
     void* context = nullptr;
 };
 
-struct PropertyChangeNotificationRegistration final {
+struct PropertyChangeNotificationRegistration {
     TypeId type = InvalidTypeId;
     PropertyChangeSubscribeCallback subscribe = nullptr;
     PropertyChangeUnsubscribeCallback unsubscribe = nullptr;
     void* context = nullptr;
 };
 
-struct CollectionChangeNotificationRegistration final {
+struct CollectionChangeNotificationRegistration {
     TypeId type = InvalidTypeId;
     CollectionChangeSubscribeCallback subscribe = nullptr;
     CollectionChangeUnsubscribeCallback unsubscribe = nullptr;
@@ -309,7 +309,7 @@ class Registry;
 // Callback-scoped metadata authoring session. Module authors use Register<T>
 // against this object; mutable tables and registration storage stay private to
 // Registry.
-class AERO_API Registration final {
+class AERO_API Registration {
 private:
     friend class Registry;
     template<class T>
@@ -351,12 +351,12 @@ AERO_API RegistrationValues MakeRegistrationValues(
 
 // Opaque callback-scoped value registration view used by ValueCodec. The
 // backing registration store remains a Core implementation detail.
-class AERO_API RegistrationValues final {
+class AERO_API RegistrationValues {
 public:
-    Base::Result<void> TryRegisterValueSemantics(
+    Base::Result<void> RegisterValueSemantics(
         TypeId type,
         const ValueTypeRegistration& registration) const noexcept;
-    Base::Result<void> TryRegisterTextConverter(
+    Base::Result<void> RegisterTextConverter(
         const TextValueConverterRegistration& registration) const noexcept;
     Base::Result<Value> TryCreateValue(
         TypeId type,
@@ -397,7 +397,7 @@ private:
 namespace Aero::Meta::Detail {
 
 template<class T, class = void>
-struct HasEquality final : std::false_type {};
+struct HasEquality : std::false_type {};
 
 template<class T>
 struct HasEquality<T, std::void_t<decltype(
@@ -489,7 +489,7 @@ template<auto Member>
 struct MemberPointerTraits;
 
 template<class Owner, class Field, Field Owner::*Member>
-struct MemberPointerTraits<Member> final {
+struct MemberPointerTraits<Member> {
     using OwnerType = Owner;
     using FieldType = Field;
 };
@@ -526,7 +526,7 @@ void SetField(
     return;
 }
 
-class AERO_API MetadataAuthoringSession final {
+class AERO_API MetadataAuthoringSession {
 public:
     MetadataAuthoringSession(
         Registration& context,
@@ -735,10 +735,10 @@ namespace Aero::Meta {
 namespace Detail {
 
 template<class T>
-struct IsResultVoid final : std::false_type {};
+struct IsResultVoid : std::false_type {};
 
 template<>
-struct IsResultVoid<Base::Result<void>> final
+struct IsResultVoid<Base::Result<void>>
     : std::true_type {};
 
 template<class T, auto Converter>
@@ -787,7 +787,7 @@ Base::Result<Value> GetOrdinaryProperty(
                     const TOwner&>>>,
             Base::StringView>) {
         Base::String copied;
-        Base::Result<void> assigned = copied.TryAssign(
+        Base::Result<void> assigned = copied.Assign(
             std::invoke(Getter, owner));
         if (!assigned) return assigned.GetStatus();
         return ValueCodec<TValue>::Encode(copied);
@@ -835,7 +835,7 @@ void SetOrdinaryProperty(
 }
 
 template<class TOwner, class TValue, class TGetter, class TSetter>
-struct OrdinaryPropertyAdapter final {
+struct OrdinaryPropertyAdapter {
     TGetter getter;
     TSetter setter;
 
@@ -858,7 +858,7 @@ struct OrdinaryPropertyAdapter final {
                         TGetter, const TOwner&>>>,
                 Base::StringView>) {
             Base::String copied;
-            Base::Result<void> assigned = copied.TryAssign(
+            Base::Result<void> assigned = copied.Assign(
                 std::invoke(adapter->getter, owner));
             if (!assigned) return assigned.GetStatus();
             return ValueCodec<TValue>::Encode(copied);
@@ -1051,7 +1051,7 @@ private:
 };
 
 template<class T>
-class TypeDescription final {
+class TypeDescription {
 public:
     explicit TypeDescription(
         Registration& context,

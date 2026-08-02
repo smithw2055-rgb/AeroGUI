@@ -27,7 +27,7 @@ class BindingEngine;
 class AnimationEngine;
 class StyleEngine;
 
-struct ElementHost final {
+struct ElementHost {
     EventRouter* events = nullptr;
     InputRouter* input = nullptr;
     void* nameScopeContext = nullptr;
@@ -39,7 +39,7 @@ struct ElementHost final {
 
 namespace Aero {
 
-struct VisualHandle final {
+struct VisualHandle {
     std::uint32_t index = UINT32_MAX;
     std::uint32_t generation = 0U;
 
@@ -48,7 +48,7 @@ struct VisualHandle final {
     }
 };
 
-struct ElementTreeLifecycleEvent final {
+struct ElementTreeLifecycleEvent {
     Visual* node = nullptr;
     bool loaded = false;
     std::uint64_t treeVersion = 0U;
@@ -64,7 +64,7 @@ namespace Aero::Internal {
 
 // One private entry point owns all element implementation state. Public WPF
 // classes friend this type instead of exposing one Access class per base type.
-class ElementPrivate final {
+class ElementPrivate {
 public:
     static void SetViewServices(
         Aero::UIElement& element,
@@ -181,10 +181,10 @@ public:
         element.SetTemplatedParent(value);
         return {};
     }
-    static Base::Result<void> TryAddAuthoredTrigger(
+    static Base::Result<void> AddAuthoredTrigger(
         FrameworkElement& element,
         Base::Ref<Base::Object> trigger) noexcept {
-        return element.TryAddAuthoredTrigger(std::move(trigger));
+        return element.AddAuthoredTrigger(std::move(trigger));
     }
     static Base::Result<void> ClearAuthoredTriggers(
         FrameworkElement& element) noexcept {
@@ -237,7 +237,7 @@ public:
     }
 };
 
-class VisualLifetime final : public Base::Object {
+class VisualLifetime : public Base::Object {
 public:
     explicit VisualLifetime(Visual& node) noexcept : node_(&node) {}
     ~VisualLifetime() override = default;
@@ -249,7 +249,7 @@ private:
     Visual* node_ = nullptr;
 };
 
-struct VisualLease final {
+struct VisualLease {
     Base::Ref<Visual> strong;
     Base::Ref<VisualLifetime> lifetime;
 
@@ -274,7 +274,7 @@ namespace Aero::Internal { class RenderTree; }
 
 namespace Aero::Internal {
 
-struct ElementAttachment final {
+struct ElementAttachment {
     Visual* logicalParent = nullptr;
     Visual* visualParent = nullptr;
     Visual* child = nullptr;
@@ -289,7 +289,7 @@ struct ElementAttachment final {
     }
 };
 
-struct VisualAttachment final {
+struct VisualAttachment {
     Visual* visualParent = nullptr;
     Visual* child = nullptr;
     bool visualAttached = false;
@@ -301,7 +301,7 @@ struct VisualAttachment final {
     }
 };
 
-struct RootAttachment final {
+struct RootAttachment {
     Visual* root = nullptr;
     Size availableSize;
     bool contextAttached = false;
@@ -317,7 +317,7 @@ struct RootAttachment final {
 
 namespace Aero {
 
-class AERO_API ElementTree final {
+class AERO_API ElementTree {
 public:
     ElementTree(
         ::Aero::Threading::Dispatcher& dispatcher,
@@ -391,13 +391,13 @@ public:
     }
 
 private:
-    struct LifecycleRecord final {
+    struct LifecycleRecord {
         Aero::Internal::VisualLease node;
         bool loaded = false;
         std::uint64_t sequence = 0U;
         std::uint64_t treeVersion = 0U;
     };
-    struct HandleEntry final {
+    struct HandleEntry {
         Visual* node = nullptr;
         std::uint32_t generation = 1U;
     };

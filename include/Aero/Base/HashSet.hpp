@@ -7,24 +7,24 @@
 
 namespace Aero::Base {
 namespace Detail {
-struct HashSetMarker final {};
+struct HashSetMarker  {};
 } // namespace Detail
 
 template<class T, class Hash = DefaultHash<T>, class Equal = DefaultEqual<T>>
-class HashSet final {
+class HashSet  {
 private:
     using Map = HashMap<T, Detail::HashSetMarker, Hash, Equal>;
 
 public:
     using SizeType = std::uint32_t;
 
-    struct InsertResult final {
+    struct InsertResult  {
         const T* value = nullptr;
         bool inserted = false;
     };
 
     template<bool IsConst>
-    class IteratorBase final {
+    class IteratorBase  {
     private:
         using MapIterator = typename std::conditional<IsConst,
             typename Map::ConstIterator, typename Map::Iterator>::type;
@@ -94,8 +94,8 @@ public:
 
     void Clear() noexcept { map_.Clear(); }
 
-    Result<void> TryReserve(SizeType expectedElements) noexcept {
-        return map_.TryReserve(expectedElements);
+    Result<void> Reserve(SizeType expectedElements) noexcept {
+        return map_.Reserve(expectedElements);
     }
 
     bool Contains(const T& value) const noexcept {
@@ -106,8 +106,8 @@ public:
         return map_.Erase(value);
     }
 
-    Result<InsertResult> TryInsert(const T& value) noexcept {
-        Result<typename Map::InsertResult> result = map_.TryInsert(
+    Result<InsertResult> Insert(const T& value) noexcept {
+        Result<typename Map::InsertResult> result = map_.Insert(
             value, Detail::HashSetMarker{});
         if (!result) {
             return result.GetStatus();
@@ -115,8 +115,8 @@ public:
         return InsertResult{&result.Value().entry->Key(), result.Value().inserted};
     }
 
-    Result<InsertResult> TryInsert(T&& value) noexcept {
-        Result<typename Map::InsertResult> result = map_.TryInsert(
+    Result<InsertResult> Insert(T&& value) noexcept {
+        Result<typename Map::InsertResult> result = map_.Insert(
             std::move(value), Detail::HashSetMarker{});
         if (!result) {
             return result.GetStatus();

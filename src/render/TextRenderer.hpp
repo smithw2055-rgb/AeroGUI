@@ -29,7 +29,7 @@ public:
         Render::RenderGlyphRunId glyphRun) noexcept = 0;
 };
 
-class TextRenderer final
+class TextRenderer
     : public Internal::TextBlockLayout {
 public:
     TextRenderer(

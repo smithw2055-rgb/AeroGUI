@@ -68,7 +68,7 @@ inline Base::Color SampleBrush(
     return fallback;
 }
 
-class BrushPrivate final {
+class BrushPrivate {
 public:
     static Aero::FrameworkElement* Owner(
         const Media::Brush& brush) noexcept {

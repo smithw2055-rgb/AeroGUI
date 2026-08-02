@@ -43,7 +43,7 @@ using namespace Aero::Controls;
 using namespace Aero::Controls::Primitives;
 using Aero::Internal::TemplateHandle;
 
-class AERO_API ButtonBehavior final {
+class AERO_API ButtonBehavior {
 public:
     ButtonBehavior(
         ElementTree& tree,
@@ -64,7 +64,7 @@ public:
 
 private:
     friend class Aero::Controls::Primitives::ButtonBase;
-    struct ButtonRecord final {
+    struct ButtonRecord {
         VisualHandle handle;
         Base::Ref<ICommand> command;
         std::uint32_t pointerId = 0U;
@@ -136,7 +136,7 @@ private:
         bool captured) noexcept;
     void OnRequerySuggested() noexcept;
 };
-class AERO_API TextEditBehavior final {
+class AERO_API TextEditBehavior {
 public:
     TextEditBehavior(
         ElementTree& tree,
@@ -155,7 +155,7 @@ public:
         PasswordBox& passwordBox) noexcept;
 
 private:
-    struct Record final {
+    struct Record {
         VisualHandle handle;
         std::uint32_t pointerId = 0U;
         std::uint32_t anchor = 0U;
@@ -212,7 +212,7 @@ private:
         UIElement* target,
         bool captured) noexcept;
 };
-class AERO_API ScrollBehavior final {
+class AERO_API ScrollBehavior {
 public:
     ScrollBehavior(
         ElementTree& tree,
@@ -225,7 +225,7 @@ public:
         ScrollViewer& viewer) noexcept;
 
 private:
-    struct ViewerRecord final {
+    struct ViewerRecord {
         ScrollViewer* viewer = nullptr;
         VisualHandle handle;
     };
@@ -241,7 +241,7 @@ private:
     std::uint32_t FindViewer(
         const ScrollViewer& viewer) const noexcept;
 };
-class AERO_API SliderBehavior final {
+class AERO_API SliderBehavior {
 public:
     SliderBehavior(
         ElementTree& tree,
@@ -255,7 +255,7 @@ public:
         Slider& slider) noexcept;
 
 private:
-    struct SliderRecord final {
+    struct SliderRecord {
         VisualHandle handle;
         std::uint32_t pointerId = 0U;
         bool dragging = false;
@@ -297,7 +297,7 @@ private:
         UIElement* target,
         bool captured) noexcept;
 };
-class AERO_API TreeBehavior final {
+class AERO_API TreeBehavior {
 public:
     TreeBehavior(
         ElementTree& tree,
@@ -341,7 +341,7 @@ private:
         Base::Object* sender,
         KeyEventArgs& args) noexcept;
 };
-class AERO_API ComboBehavior final {
+class AERO_API ComboBehavior {
 public:
     ComboBehavior(
         ElementTree& tree,
@@ -374,7 +374,7 @@ private:
         Base::Object* sender,
         KeyEventArgs& args) noexcept;
 };
-class AERO_API ListBehavior final {
+class AERO_API ListBehavior {
 public:
     ListBehavior(
         ElementTree& tree,
@@ -387,7 +387,7 @@ public:
     Base::Result<bool> Detach(ListBox& listBox) noexcept;
 
 private:
-    struct Record final {
+    struct Record {
         VisualHandle handle;
         std::uint32_t anchorIndex = UINT32_MAX;
     };
@@ -419,7 +419,7 @@ private:
         Base::Object* sender,
         KeyEventArgs& args) noexcept;
 };
-class AERO_API TemplateEngine final {
+class AERO_API TemplateEngine {
 public:
     TemplateEngine(
         ElementTree& tree,
@@ -460,7 +460,7 @@ public:
         TemplateHandle handle) const noexcept;
 
 private:
-    struct Instance final {
+    struct Instance {
         TemplateHandle handle;
         Control* parent = nullptr;
         const ControlTemplate* plan = nullptr;
@@ -513,7 +513,7 @@ private:
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
 };
-class AERO_API MenuBehavior final {
+class AERO_API MenuBehavior {
 public:
     MenuBehavior(
         ElementTree& tree,
@@ -560,7 +560,7 @@ namespace Aero::Internal {
 // One compact owner for all built-in control interaction state. The behavior
 // objects are placement-constructed in inline storage, avoiding per-behavior
 // heap allocations and eliminating the old Service/Access routing chain.
-class ControlBehavior final {
+class ControlBehavior {
 public:
     ControlBehavior(
         Base::IAllocator& allocator,

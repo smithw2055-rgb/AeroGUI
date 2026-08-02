@@ -18,7 +18,7 @@ Base::Result<AnimationTime> ParseClockTime(
             "Animation clock time is empty");
     }
     Base::String owned;
-    Base::Result<void> assigned = owned.TryAssign(text);
+    Base::Result<void> assigned = owned.Assign(text);
     if (!assigned) return assigned.GetStatus();
     const char* cursor = owned.CStr();
     char* end = nullptr;
@@ -109,7 +109,7 @@ void Timeline::SetBeginTime(
     Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
     if (!parsed) return;
-    Base::Result<void> assigned = beginTimeText_.TryAssign(value);
+    Base::Result<void> assigned = beginTimeText_.Assign(value);
     if (!assigned) return;
     beginTimeMicroseconds_ = parsed.Value();
     return;
@@ -120,7 +120,7 @@ void Timeline::SetDuration(
     Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
     if (!parsed) return;
-    Base::Result<void> assigned = durationText_.TryAssign(value);
+    Base::Result<void> assigned = durationText_.Assign(value);
     if (!assigned) return;
     durationMicroseconds_ = parsed.Value();
     return;
@@ -144,7 +144,7 @@ void Timeline::SetRepeatBehavior(
         repeatCount = count.Value();
     }
     Base::Result<void> assigned =
-        repeatBehaviorText_.TryAssign(value);
+        repeatBehaviorText_.Assign(value);
     if (!assigned) return;
     repeatCount_ = repeatCount;
     repeatForever_ = repeatForever;
@@ -400,7 +400,7 @@ void DoubleKeyFrame::SetKeyTime(
     Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
     if (!parsed) return;
-    Base::Result<void> assigned = keyTimeText_.TryAssign(value);
+    Base::Result<void> assigned = keyTimeText_.Assign(value);
     if (!assigned) return;
     keyTimeMicroseconds_ = parsed.Value();
     return;
@@ -415,7 +415,7 @@ void EasingDoubleKeyFrame::SetEasingFunction(
 void SplineDoubleKeyFrame::SetKeySpline(
     Base::StringView value) noexcept {
     Base::String owned;
-    Base::Result<void> assigned = owned.TryAssign(value);
+    Base::Result<void> assigned = owned.Assign(value);
     if (!assigned) return;
     const char* cursor = owned.CStr();
     double values[4]{};
@@ -432,7 +432,7 @@ void SplineDoubleKeyFrame::SetKeySpline(
     if (*cursor != '\0') {
         return;
     }
-    assigned = keySpline_.TryAssign(value);
+    assigned = keySpline_.Assign(value);
     if (!assigned) return;
     SetSplineControlPoints(
         values[0], values[1], values[2], values[3]);
@@ -440,14 +440,14 @@ void SplineDoubleKeyFrame::SetKeySpline(
 }
 
 Base::Result<void>
-DoubleAnimationUsingKeyFrames::TryAddKeyFrame(
+DoubleAnimationUsingKeyFrames::AddKeyFrame(
     Base::Ref<DoubleKeyFrame> value) noexcept {
     if (!value) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Double key frame cannot be null");
     }
-    return keyFrames_.TryPushBack(std::move(value));
+    return keyFrames_.PushBack(std::move(value));
 }
 
 void
@@ -471,7 +471,7 @@ void ThicknessKeyFrame::SetKeyTime(
         ParseClockTime(value);
     if (!parsed) return;
     Base::Result<void> assigned =
-        keyTimeText_.TryAssign(value);
+        keyTimeText_.Assign(value);
     if (!assigned) return;
     keyTimeMicroseconds_ = parsed.Value();
     return;
@@ -485,14 +485,14 @@ EasingThicknessKeyFrame::SetEasingFunction(
 }
 
 Base::Result<void>
-ThicknessAnimationUsingKeyFrames::TryAddKeyFrame(
+ThicknessAnimationUsingKeyFrames::AddKeyFrame(
     Base::Ref<ThicknessKeyFrame> value) noexcept {
     if (!value) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Thickness key frame cannot be null");
     }
-    return keyFrames_.TryPushBack(
+    return keyFrames_.PushBack(
         std::move(value));
 }
 
@@ -517,7 +517,7 @@ void ColorKeyFrame::SetKeyTime(
         ParseClockTime(value);
     if (!parsed) return;
     Base::Result<void> assigned =
-        keyTimeText_.TryAssign(value);
+        keyTimeText_.Assign(value);
     if (!assigned) return;
     keyTimeMicroseconds_ = parsed.Value();
     return;
@@ -535,7 +535,7 @@ SplineColorKeyFrame::SetKeySpline(
     Base::StringView value) noexcept {
     Base::String owned;
     Base::Result<void> assigned =
-        owned.TryAssign(value);
+        owned.Assign(value);
     if (!assigned) return;
     const char* cursor = owned.CStr();
     double values[4]{};
@@ -559,7 +559,7 @@ SplineColorKeyFrame::SetKeySpline(
     if (*cursor != '\0') {
         return;
     }
-    assigned = keySpline_.TryAssign(value);
+    assigned = keySpline_.Assign(value);
     if (!assigned) return;
     SetSplineControlPoints(
         values[0], values[1], values[2], values[3]);
@@ -567,14 +567,14 @@ SplineColorKeyFrame::SetKeySpline(
 }
 
 Base::Result<void>
-ColorAnimationUsingKeyFrames::TryAddKeyFrame(
+ColorAnimationUsingKeyFrames::AddKeyFrame(
     Base::Ref<ColorKeyFrame> value) noexcept {
     if (!value) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Color key frame cannot be null");
     }
-    return keyFrames_.TryPushBack(
+    return keyFrames_.PushBack(
         std::move(value));
 }
 
@@ -598,21 +598,21 @@ void DiscreteObjectKeyFrame::SetKeyTime(
     Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
     if (!parsed) return;
-    Base::Result<void> assigned = keyTimeText_.TryAssign(value);
+    Base::Result<void> assigned = keyTimeText_.Assign(value);
     if (!assigned) return;
     keyTimeMicroseconds_ = parsed.Value();
     return;
 }
 
 Base::Result<void>
-ObjectAnimationUsingKeyFrames::TryAddKeyFrame(
+ObjectAnimationUsingKeyFrames::AddKeyFrame(
     Base::Ref<DiscreteObjectKeyFrame> value) noexcept {
     if (!value) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Object key frame cannot be null");
     }
-    return keyFrames_.TryPushBack(std::move(value));
+    return keyFrames_.PushBack(std::move(value));
 }
 
 void
@@ -626,21 +626,21 @@ void DiscreteBooleanKeyFrame::SetKeyTime(
     Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
     if (!parsed) return;
-    Base::Result<void> assigned = keyTimeText_.TryAssign(value);
+    Base::Result<void> assigned = keyTimeText_.Assign(value);
     if (!assigned) return;
     keyTimeMicroseconds_ = parsed.Value();
     return;
 }
 
 Base::Result<void>
-BooleanAnimationUsingKeyFrames::TryAddKeyFrame(
+BooleanAnimationUsingKeyFrames::AddKeyFrame(
     Base::Ref<DiscreteBooleanKeyFrame> value) noexcept {
     if (!value) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Boolean key frame cannot be null");
     }
-    return keyFrames_.TryPushBack(std::move(value));
+    return keyFrames_.PushBack(std::move(value));
 }
 
 void
@@ -649,14 +649,14 @@ BooleanAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
     return;
 }
 
-Base::Result<void> Storyboard::TryAddTimeline(
+Base::Result<void> Storyboard::AddTimeline(
     Base::Ref<Timeline> value) noexcept {
     if (!value) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Storyboard timeline cannot be null");
     }
-    return timelines_.TryPushBack(std::move(value));
+    return timelines_.PushBack(std::move(value));
 }
 
 void Storyboard::ClearTimelines() noexcept {
@@ -723,7 +723,7 @@ void SeekStoryboard::SetOffset(
         ParseClockTime(trimmed);
     if (!parsed) return;
     Base::Result<void> assigned =
-        offsetText_.TryAssign(trimmed);
+        offsetText_.Assign(trimmed);
     if (!assigned) return;
     offsetMicroseconds_ = parsed.Value();
     return;
@@ -744,14 +744,14 @@ void EventTrigger::SetSourceName(
     return;
 }
 
-Base::Result<void> EventTrigger::TryAddAction(
+Base::Result<void> EventTrigger::AddAction(
     Base::Ref<TriggerAction> value) noexcept {
     if (!value) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "EventTrigger action cannot be null");
     }
-    return actions_.TryPushBack(std::move(value));
+    return actions_.PushBack(std::move(value));
 }
 
 void EventTrigger::ClearActions() noexcept {
@@ -765,14 +765,14 @@ void StoryboardCompletedTrigger::SetStoryboard(
     return;
 }
 
-Base::Result<void> StoryboardCompletedTrigger::TryAddAction(
+Base::Result<void> StoryboardCompletedTrigger::AddAction(
     Base::Ref<TriggerAction> value) noexcept {
     if (!value) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "StoryboardCompletedTrigger action cannot be null");
     }
-    return actions_.TryPushBack(std::move(value));
+    return actions_.PushBack(std::move(value));
 }
 
 void

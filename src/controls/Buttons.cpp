@@ -258,26 +258,9 @@ ButtonBehavior::~ButtonBehavior() noexcept {
 
 Base::Result<void> ButtonBehavior::Initialize() noexcept {
     if (initialized_) return {};
-    Base::Result<void> state =
-        input_->TryAddPointerStateChanged(
-            pointerStateChangedHandler_);
-    if (!state) return state.GetStatus();
-    Base::Result<void> capture =
-        input_->TryAddPointerCaptureChanged(captureChangedHandler_);
-    if (!capture) {
-        static_cast<void>(input_->RemovePointerStateChanged(
-            pointerStateChangedHandler_));
-        return capture.GetStatus();
-    }
-    Base::Result<void> requery =
-        input_->TryAddRequerySuggested(requeryHandler_);
-    if (!requery) {
-        static_cast<void>(input_->RemovePointerCaptureChanged(
-            captureChangedHandler_));
-        static_cast<void>(input_->RemovePointerStateChanged(
-            pointerStateChangedHandler_));
-        return requery.GetStatus();
-    }
+    input_->AddPointerStateChanged(pointerStateChangedHandler_);
+    input_->AddPointerCaptureChanged(captureChangedHandler_);
+    input_->AddRequerySuggested(requeryHandler_);
     initialized_ = true;
     return {};
 }
@@ -319,12 +302,7 @@ Base::Result<void> ButtonBehavior::SubscribeCommand(
     if (command == nullptr) return {};
     record.command =
         Base::Ref<ICommand>::FromBorrowed(*command);
-    Base::Result<void> subscribed =
-        record.command->TryAddCanExecuteChanged(requeryHandler_);
-    if (!subscribed) {
-        record.command.Reset();
-        return subscribed.GetStatus();
-    }
+    record.command->AddCanExecuteChanged(requeryHandler_);
     return {};
 }
 
@@ -363,27 +341,19 @@ Base::Result<void> ButtonBehavior::Attach(
             static_cast<ToggleButton&>(button));
     }
     Base::Result<void> appended =
-        buttons_.TryPushBack(std::move(record));
+        buttons_.PushBack(std::move(record));
     if (!appended) return appended.GetStatus();
 
-    Base::Result<void> result = button.TryAddHandler(
-        UIElement::MouseDownEvent, mouseDownHandler_);
-    if (result) result = button.TryAddHandler(
-        UIElement::MouseUpEvent, mouseUpHandler_);
-    if (result) result = button.TryAddHandler(
-        UIElement::KeyDownEvent, keyDownHandler_);
-    if (result) result = button.TryAddHandler(
-        UIElement::KeyUpEvent, keyUpHandler_);
-    if (result) result = button.TryAddHandler(
-        UIElement::GotKeyboardFocusEvent,
-        focusChangedHandler_);
-    if (result) result = button.TryAddHandler(
-        UIElement::LostKeyboardFocusEvent,
-        focusChangedHandler_);
-    if (result) result = button.TryAddValueChangedHandler(
+    button.AddHandlerChecked(UIElement::MouseDownEvent, mouseDownHandler_);
+    button.AddHandlerChecked(UIElement::MouseUpEvent, mouseUpHandler_);
+    button.AddHandlerChecked(UIElement::KeyDownEvent, keyDownHandler_);
+    button.AddHandlerChecked(UIElement::KeyUpEvent, keyUpHandler_);
+    button.AddHandlerChecked(UIElement::GotKeyboardFocusEvent, focusChangedHandler_);
+    button.AddHandlerChecked(UIElement::LostKeyboardFocusEvent, focusChangedHandler_);
+    Base::Result<void> result = button.AddValueChangedHandlerChecked(
         ButtonBase::CommandProperty,
         propertyChangedHandler_);
-    if (result) result = button.TryAddValueChangedHandler(
+    if (result) result = button.AddValueChangedHandlerChecked(
         UIElement::IsEnabledProperty,
         propertyChangedHandler_);
     const bool isToggle =
@@ -391,23 +361,23 @@ Base::Result<void> ButtonBehavior::Attach(
         button.RuntimeType() == CheckBox::StaticTypeId() ||
         button.RuntimeType() == RadioButton::StaticTypeId();
     if (result && isToggle) {
-        result = button.TryAddValueChangedHandler(
+        result = button.AddValueChangedHandlerChecked(
             ToggleButton::IsCheckedProperty,
             propertyChangedHandler_);
     }
     if (result && isToggle) {
-        result = button.TryAddValueChangedHandler(
+        result = button.AddValueChangedHandlerChecked(
             ToggleButton::IsThreeStateProperty,
             propertyChangedHandler_);
     }
     if (result && isToggle) {
-        result = button.TryAddValueChangedHandler(
+        result = button.AddValueChangedHandlerChecked(
             ToggleButton::IsIndeterminateProperty,
             propertyChangedHandler_);
     }
     if (result &&
         button.RuntimeType() == RadioButton::StaticTypeId()) {
-        result = button.TryAddValueChangedHandler(
+        result = button.AddValueChangedHandlerChecked(
             RadioButton::GroupNameProperty,
             propertyChangedHandler_);
     }

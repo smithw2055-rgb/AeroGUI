@@ -18,19 +18,19 @@ class TemplatePrivate;
 
 namespace Aero::Controls {
 
-struct VisualStateSetter final {
+struct VisualStateSetter {
     Base::String targetName;
     DependencyPropertyHandle property;
     Meta::PropertyValue value;
 };
 
-struct VisualState final {
+struct VisualState {
     Base::String name;
     Base::Vector<VisualStateSetter> setters;
     Base::Ref<Media::Animation::Storyboard> storyboard;
 };
 
-struct VisualTransition final {
+struct VisualTransition {
     Base::String from;
     Base::String to;
     Media::Animation::AnimationTime generatedDurationMicroseconds = 0U;
@@ -38,7 +38,7 @@ struct VisualTransition final {
     Base::Ref<Media::Animation::Storyboard> storyboard;
 };
 
-struct VisualStateGroup final {
+struct VisualStateGroup {
     Base::String name;
     Base::Vector<VisualState> states;
     Base::Vector<VisualTransition> transitions;
@@ -68,7 +68,7 @@ private:
     void* state_ = nullptr;
 };
 
-class AERO_API ControlTemplate final : public FrameworkTemplate {
+class AERO_API ControlTemplate : public FrameworkTemplate {
     AERO_DECLARE_TYPE(ControlTemplate, FrameworkTemplate)
 public:
     ControlTemplate() noexcept = default;
@@ -78,7 +78,7 @@ public:
 
 // Public authoring uses the WPF static entry point. Runtime state and animation
 // bookkeeping remain private and are accessed only by the controls runtime.
-class AERO_API VisualStateManager final {
+class AERO_API VisualStateManager {
 public:
     static bool GoToState(Control& control, Base::StringView stateName, bool useTransitions = true) noexcept;
 

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Object.hpp>
@@ -129,7 +129,7 @@ private:
 };
 
 #define AERO_DECLARE_SIMPLE_EASING(typeName, kindValue)                    \
-class AERO_API typeName final : public EasingFunctionBase {                \
+class AERO_API typeName : public EasingFunctionBase {                \
     AERO_DECLARE_TYPE(typeName, EasingFunctionBase)                        \
 public:                                                                    \
     typeName() noexcept                                                    \
@@ -151,7 +151,7 @@ AERO_DECLARE_SIMPLE_EASING(
 
 #undef AERO_DECLARE_SIMPLE_EASING
 
-class AERO_API ExponentialEase final : public EasingFunctionBase {
+class AERO_API ExponentialEase : public EasingFunctionBase {
     AERO_DECLARE_TYPE(ExponentialEase, EasingFunctionBase)
 public:
     ExponentialEase() noexcept
@@ -164,7 +164,7 @@ public:
     void SetExponent(double value) noexcept;
 };
 
-class AERO_API PowerEase final : public EasingFunctionBase {
+class AERO_API PowerEase : public EasingFunctionBase {
     AERO_DECLARE_TYPE(PowerEase, EasingFunctionBase)
 public:
     PowerEase() noexcept
@@ -175,7 +175,7 @@ public:
     void SetPower(double value) noexcept;
 };
 
-class AERO_API BackEase final : public EasingFunctionBase {
+class AERO_API BackEase : public EasingFunctionBase {
     AERO_DECLARE_TYPE(BackEase, EasingFunctionBase)
 public:
     BackEase() noexcept
@@ -188,7 +188,7 @@ public:
     void SetAmplitude(double value) noexcept;
 };
 
-class AERO_API BounceEase final : public EasingFunctionBase {
+class AERO_API BounceEase : public EasingFunctionBase {
     AERO_DECLARE_TYPE(BounceEase, EasingFunctionBase)
 public:
     BounceEase() noexcept
@@ -205,7 +205,7 @@ public:
     void SetBounciness(double value) noexcept;
 };
 
-class AERO_API ElasticEase final : public EasingFunctionBase {
+class AERO_API ElasticEase : public EasingFunctionBase {
     AERO_DECLARE_TYPE(ElasticEase, EasingFunctionBase)
 public:
     ElasticEase() noexcept
@@ -222,7 +222,7 @@ public:
     void SetSpringiness(double value) noexcept;
 };
 
-class AERO_API DoubleAnimation final : public Timeline {
+class AERO_API DoubleAnimation : public Timeline {
     AERO_DECLARE_TYPE(DoubleAnimation, Timeline)
 public:
     DoubleAnimation() noexcept : Timeline(StaticTypeId()) {}
@@ -252,7 +252,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API ColorAnimation final : public Timeline {
+class AERO_API ColorAnimation : public Timeline {
     AERO_DECLARE_TYPE(ColorAnimation, Timeline)
 public:
     ColorAnimation() noexcept : Timeline(StaticTypeId()) {}
@@ -272,7 +272,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API PointAnimation final : public Timeline {
+class AERO_API PointAnimation : public Timeline {
     AERO_DECLARE_TYPE(PointAnimation, Timeline)
 public:
     PointAnimation() noexcept
@@ -301,7 +301,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API RectAnimation final : public Timeline {
+class AERO_API RectAnimation : public Timeline {
     AERO_DECLARE_TYPE(RectAnimation, Timeline)
 public:
     RectAnimation() noexcept : Timeline(StaticTypeId()) {}
@@ -321,7 +321,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API ThicknessAnimation final : public Timeline {
+class AERO_API ThicknessAnimation : public Timeline {
     AERO_DECLARE_TYPE(ThicknessAnimation, Timeline)
 public:
     ThicknessAnimation() noexcept : Timeline(StaticTypeId()) {}
@@ -392,7 +392,7 @@ private:
     double controlPoint2Y_ = 1.0;
 };
 
-class AERO_API LinearDoubleKeyFrame final : public DoubleKeyFrame {
+class AERO_API LinearDoubleKeyFrame : public DoubleKeyFrame {
     AERO_DECLARE_TYPE(LinearDoubleKeyFrame, DoubleKeyFrame)
 public:
     LinearDoubleKeyFrame() noexcept
@@ -401,7 +401,7 @@ public:
               DoubleKeyFrame::Interpolation::Linear) {}
 };
 
-class AERO_API DiscreteDoubleKeyFrame final : public DoubleKeyFrame {
+class AERO_API DiscreteDoubleKeyFrame : public DoubleKeyFrame {
     AERO_DECLARE_TYPE(DiscreteDoubleKeyFrame, DoubleKeyFrame)
 public:
     DiscreteDoubleKeyFrame() noexcept
@@ -410,7 +410,7 @@ public:
               DoubleKeyFrame::Interpolation::Discrete) {}
 };
 
-class AERO_API EasingDoubleKeyFrame final : public DoubleKeyFrame {
+class AERO_API EasingDoubleKeyFrame : public DoubleKeyFrame {
     AERO_DECLARE_TYPE(EasingDoubleKeyFrame, DoubleKeyFrame)
 public:
     EasingDoubleKeyFrame() noexcept
@@ -427,7 +427,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API SplineDoubleKeyFrame final : public DoubleKeyFrame {
+class AERO_API SplineDoubleKeyFrame : public DoubleKeyFrame {
     AERO_DECLARE_TYPE(SplineDoubleKeyFrame, DoubleKeyFrame)
 public:
     SplineDoubleKeyFrame() noexcept
@@ -443,12 +443,12 @@ private:
     Base::String keySpline_;
 };
 
-class AERO_API DoubleAnimationUsingKeyFrames final : public Timeline {
+class AERO_API DoubleAnimationUsingKeyFrames : public Timeline {
     AERO_DECLARE_TYPE(DoubleAnimationUsingKeyFrames, Timeline)
 public:
     DoubleAnimationUsingKeyFrames() noexcept
         : Timeline(StaticTypeId()) {}
-    Base::Result<void> TryAddKeyFrame(
+    Base::Result<void> AddKeyFrame(
         Base::Ref<DoubleKeyFrame> value) noexcept;
     void ClearKeyFrames() noexcept;
     Base::Span<const Base::Ref<DoubleKeyFrame>>
@@ -494,7 +494,7 @@ private:
         keyTimeMicroseconds_ = 0U;
 };
 
-class AERO_API LinearThicknessKeyFrame final
+class AERO_API LinearThicknessKeyFrame
     : public ThicknessKeyFrame {
     AERO_DECLARE_TYPE(
         LinearThicknessKeyFrame,
@@ -504,7 +504,7 @@ public:
         : ThicknessKeyFrame(StaticTypeId()) {}
 };
 
-class AERO_API DiscreteThicknessKeyFrame final
+class AERO_API DiscreteThicknessKeyFrame
     : public ThicknessKeyFrame {
     AERO_DECLARE_TYPE(
         DiscreteThicknessKeyFrame,
@@ -514,7 +514,7 @@ public:
         : ThicknessKeyFrame(StaticTypeId()) {}
 };
 
-class AERO_API EasingThicknessKeyFrame final
+class AERO_API EasingThicknessKeyFrame
     : public ThicknessKeyFrame {
     AERO_DECLARE_TYPE(
         EasingThicknessKeyFrame,
@@ -533,7 +533,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API SplineThicknessKeyFrame final
+class AERO_API SplineThicknessKeyFrame
     : public ThicknessKeyFrame {
     AERO_DECLARE_TYPE(
         SplineThicknessKeyFrame,
@@ -546,14 +546,14 @@ public:
     }
     void SetKeySpline(
         Base::StringView value) noexcept {
-        (void)keySpline_.TryAssign(value);
+        (void)keySpline_.Assign(value);
     }
 
 private:
     Base::String keySpline_;
 };
 
-class AERO_API ThicknessAnimationUsingKeyFrames final
+class AERO_API ThicknessAnimationUsingKeyFrames
     : public Timeline {
     AERO_DECLARE_TYPE(
         ThicknessAnimationUsingKeyFrames,
@@ -561,7 +561,7 @@ class AERO_API ThicknessAnimationUsingKeyFrames final
 public:
     ThicknessAnimationUsingKeyFrames() noexcept
         : Timeline(StaticTypeId()) {}
-    Base::Result<void> TryAddKeyFrame(
+    Base::Result<void> AddKeyFrame(
         Base::Ref<ThicknessKeyFrame> value) noexcept;
     void ClearKeyFrames() noexcept;
     Base::Span<const Base::Ref<ThicknessKeyFrame>>
@@ -627,7 +627,7 @@ private:
     double controlPoint2Y_ = 1.0;
 };
 
-class AERO_API LinearColorKeyFrame final : public ColorKeyFrame {
+class AERO_API LinearColorKeyFrame : public ColorKeyFrame {
     AERO_DECLARE_TYPE(LinearColorKeyFrame, ColorKeyFrame)
 public:
     LinearColorKeyFrame() noexcept
@@ -636,7 +636,7 @@ public:
               ColorKeyFrame::Interpolation::Linear) {}
 };
 
-class AERO_API DiscreteColorKeyFrame final : public ColorKeyFrame {
+class AERO_API DiscreteColorKeyFrame : public ColorKeyFrame {
     AERO_DECLARE_TYPE(DiscreteColorKeyFrame, ColorKeyFrame)
 public:
     DiscreteColorKeyFrame() noexcept
@@ -645,7 +645,7 @@ public:
               ColorKeyFrame::Interpolation::Discrete) {}
 };
 
-class AERO_API EasingColorKeyFrame final : public ColorKeyFrame {
+class AERO_API EasingColorKeyFrame : public ColorKeyFrame {
     AERO_DECLARE_TYPE(EasingColorKeyFrame, ColorKeyFrame)
 public:
     EasingColorKeyFrame() noexcept
@@ -662,7 +662,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API SplineColorKeyFrame final : public ColorKeyFrame {
+class AERO_API SplineColorKeyFrame : public ColorKeyFrame {
     AERO_DECLARE_TYPE(SplineColorKeyFrame, ColorKeyFrame)
 public:
     SplineColorKeyFrame() noexcept
@@ -678,12 +678,12 @@ private:
     Base::String keySpline_;
 };
 
-class AERO_API ColorAnimationUsingKeyFrames final : public Timeline {
+class AERO_API ColorAnimationUsingKeyFrames : public Timeline {
     AERO_DECLARE_TYPE(ColorAnimationUsingKeyFrames, Timeline)
 public:
     ColorAnimationUsingKeyFrames() noexcept
         : Timeline(StaticTypeId()) {}
-    Base::Result<void> TryAddKeyFrame(
+    Base::Result<void> AddKeyFrame(
         Base::Ref<ColorKeyFrame> value) noexcept;
     void ClearKeyFrames() noexcept;
     Base::Span<const Base::Ref<ColorKeyFrame>>
@@ -695,7 +695,7 @@ private:
     Base::Vector<Base::Ref<ColorKeyFrame>> keyFrames_;
 };
 
-class AERO_API DiscreteObjectKeyFrame final : public Base::Object {
+class AERO_API DiscreteObjectKeyFrame : public Base::Object {
     AERO_DECLARE_TYPE(DiscreteObjectKeyFrame, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override {
@@ -718,12 +718,12 @@ private:
     AnimationTime keyTimeMicroseconds_ = 0U;
 };
 
-class AERO_API ObjectAnimationUsingKeyFrames final : public Timeline {
+class AERO_API ObjectAnimationUsingKeyFrames : public Timeline {
     AERO_DECLARE_TYPE(ObjectAnimationUsingKeyFrames, Timeline)
 public:
     ObjectAnimationUsingKeyFrames() noexcept
         : Timeline(StaticTypeId()) {}
-    Base::Result<void> TryAddKeyFrame(
+    Base::Result<void> AddKeyFrame(
         Base::Ref<DiscreteObjectKeyFrame> value) noexcept;
     void ClearKeyFrames() noexcept;
     Base::Span<const Base::Ref<DiscreteObjectKeyFrame>>
@@ -735,7 +735,7 @@ private:
     Base::Vector<Base::Ref<DiscreteObjectKeyFrame>> keyFrames_;
 };
 
-class AERO_API DiscreteBooleanKeyFrame final : public Base::Object {
+class AERO_API DiscreteBooleanKeyFrame : public Base::Object {
     AERO_DECLARE_TYPE(DiscreteBooleanKeyFrame, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override {
@@ -760,12 +760,12 @@ private:
     AnimationTime keyTimeMicroseconds_ = 0U;
 };
 
-class AERO_API BooleanAnimationUsingKeyFrames final : public Timeline {
+class AERO_API BooleanAnimationUsingKeyFrames : public Timeline {
     AERO_DECLARE_TYPE(BooleanAnimationUsingKeyFrames, Timeline)
 public:
     BooleanAnimationUsingKeyFrames() noexcept
         : Timeline(StaticTypeId()) {}
-    Base::Result<void> TryAddKeyFrame(
+    Base::Result<void> AddKeyFrame(
         Base::Ref<DiscreteBooleanKeyFrame> value) noexcept;
     void ClearKeyFrames() noexcept;
     Base::Span<const Base::Ref<DiscreteBooleanKeyFrame>>
@@ -777,7 +777,7 @@ private:
     Base::Vector<Base::Ref<DiscreteBooleanKeyFrame>> keyFrames_;
 };
 
-class AERO_API Storyboard final : public Timeline {
+class AERO_API Storyboard : public Timeline {
     AERO_DECLARE_TYPE(Storyboard, Timeline)
 public:
     Storyboard() noexcept : Timeline(StaticTypeId()) {}
@@ -785,7 +785,7 @@ public:
     inline static constexpr Members::AttachedProperty<Base::String> TargetNameProperty{"TargetName"};
     inline static constexpr Members::AttachedProperty<Base::String> TargetPropertyProperty{"TargetProperty"};
 
-    Base::Result<void> TryAddTimeline(
+    Base::Result<void> AddTimeline(
         Base::Ref<Timeline> value) noexcept;
     void ClearTimelines() noexcept;
     Base::Span<const Base::Ref<Timeline>>
@@ -797,385 +797,7 @@ private:
     Base::Vector<Base::Ref<Timeline>> timelines_;
 };
 
-class AERO_API TriggerAction : public Base::Object {
-    AERO_DECLARE_TYPE(TriggerAction, Base::Object)
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return runtimeType_;
-    }
 
-protected:
-    explicit TriggerAction(
-        Meta::TypeId runtimeType) noexcept
-        : runtimeType_(runtimeType) {}
-
-private:
-    Meta::TypeId runtimeType_ = StaticTypeId();
-};
-
-class AERO_API ChangePropertyAction final : public TriggerAction {
-    AERO_DECLARE_TYPE(ChangePropertyAction, TriggerAction)
-public:
-    ChangePropertyAction() noexcept
-        : TriggerAction(StaticTypeId()) {}
-
-    Base::StringView GetTargetName() const noexcept {
-        return targetName_.View();
-    }
-    Base::StringView GetPropertyName() const noexcept {
-        return propertyName_.View();
-    }
-    const Meta::PropertyValue& GetValue() const noexcept {
-        return value_;
-    }
-    void SetTargetName(
-        Base::StringView value) noexcept;
-    void SetPropertyName(
-        Base::StringView value) noexcept;
-    void SetValue(
-        const Meta::PropertyValue& value) noexcept;
-
-private:
-    Base::String targetName_;
-    Base::String propertyName_;
-    Meta::PropertyValue value_;
-};
-
-// Gallery interactivity action. It deliberately uses the trigger owner when
-// no external target is supplied, matching the WPF attached-action form.
-class AERO_API SetFocusAction final : public TriggerAction {
-    AERO_DECLARE_TYPE(SetFocusAction, TriggerAction)
-public:
-    SetFocusAction() noexcept
-        : TriggerAction(StaticTypeId()) {}
-
-    bool GetEngage() const noexcept { return engage_; }
-    void SetEngage(bool value) noexcept {
-        engage_ = value;
-        return;
-    }
-
-private:
-    bool engage_ = true;
-};
-
-// Interactivity's link action is represented in markup as a regular trigger
-// action so it participates in the same event pipeline as the other Gallery
-// actions. The host decides how to open the resolved URI or file.
-class AERO_API LaunchUriOrFileAction final : public TriggerAction {
-    AERO_DECLARE_TYPE(LaunchUriOrFileAction, TriggerAction)
-public:
-    LaunchUriOrFileAction() noexcept : TriggerAction(StaticTypeId()) {}
-    Base::StringView GetPath() const noexcept { return path_.View(); }
-    void SetPath(Base::StringView value) noexcept;
-    Base::Ref<Aero::Data::Binding> GetPathBinding() const noexcept {
-        return pathBinding_;
-    }
-    void SetPathBinding(
-        Base::Ref<Aero::Data::Binding> value) noexcept {
-        pathBinding_ = std::move(value);
-        return;
-    }
-private:
-    Base::String path_;
-    Base::Ref<Aero::Data::Binding> pathBinding_;
-};
-
-class AERO_API RemoveElementAction final : public TriggerAction {
-    AERO_DECLARE_TYPE(RemoveElementAction, TriggerAction)
-public:
-    RemoveElementAction() noexcept
-        : TriggerAction(StaticTypeId()) {}
-
-    Base::Ref<Aero::Data::Binding> GetTargetObject() const noexcept {
-        return targetObject_;
-    }
-    void SetTargetObject(
-        Base::Ref<Aero::Data::Binding> value) noexcept {
-        targetObject_ = std::move(value);
-        return;
-    }
-
-private:
-    Base::Ref<Aero::Data::Binding> targetObject_;
-};
-
-class AERO_API BeginStoryboard final : public TriggerAction {
-    AERO_DECLARE_TYPE(BeginStoryboard, TriggerAction)
-public:
-    BeginStoryboard() noexcept
-        : TriggerAction(StaticTypeId()) {}
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    Base::StringView GetName() const noexcept {
-        return name_.View();
-    }
-    Base::Ref<Storyboard> GetStoryboard() const noexcept {
-        return storyboard_;
-    }
-    void SetName(
-        Base::StringView value) noexcept;
-    void SetStoryboard(
-        Base::Ref<Storyboard> value) noexcept;
-
-private:
-    Base::String name_;
-    Base::Ref<Storyboard> storyboard_;
-};
-
-class AERO_API ControlStoryboardAction final : public TriggerAction {
-    AERO_DECLARE_TYPE(ControlStoryboardAction, TriggerAction)
-public:
-    enum class Option : std::uint8_t { Play = 0U, Stop, TogglePlayPause, Pause, Resume, SkipToFill };
-    ControlStoryboardAction() noexcept : TriggerAction(StaticTypeId()) {}
-    Base::Ref<Storyboard> GetStoryboard() const noexcept { return storyboard_; }
-    void SetStoryboard(Base::Ref<Storyboard> value) noexcept { storyboard_ = std::move(value); return; }
-    Option GetControlOption() const noexcept { return option_; }
-    void SetControlOption(Option value) noexcept { option_ = value; return; }
-private:
-    Base::Ref<Storyboard> storyboard_;
-    Option option_ = Option::Play;
-};
-
-class AERO_API ControllableStoryboardAction :
-    public TriggerAction {
-    AERO_DECLARE_TYPE(
-        ControllableStoryboardAction,
-        TriggerAction)
-public:
-    Base::StringView GetBeginStoryboardName() const noexcept {
-        return beginStoryboardName_.View();
-    }
-    void SetBeginStoryboardName(
-        Base::StringView value) noexcept;
-
-protected:
-    explicit ControllableStoryboardAction(
-        Meta::TypeId runtimeType) noexcept
-        : TriggerAction(runtimeType) {}
-
-private:
-    Base::String beginStoryboardName_;
-};
-
-#define AERO_DECLARE_STORYBOARD_ACTION(typeName)                  \
-class AERO_API typeName final :                                   \
-    public ControllableStoryboardAction {                         \
-    AERO_DECLARE_TYPE(typeName, ControllableStoryboardAction)     \
-public:                                                           \
-    typeName() noexcept                                           \
-        : ControllableStoryboardAction(StaticTypeId()) {}         \
-};
-
-AERO_DECLARE_STORYBOARD_ACTION(PauseStoryboard)
-AERO_DECLARE_STORYBOARD_ACTION(ResumeStoryboard)
-AERO_DECLARE_STORYBOARD_ACTION(StopStoryboard)
-AERO_DECLARE_STORYBOARD_ACTION(RemoveStoryboard)
-
-#undef AERO_DECLARE_STORYBOARD_ACTION
-
-class AERO_API SeekStoryboard final :
-    public ControllableStoryboardAction {
-    AERO_DECLARE_TYPE(
-        SeekStoryboard,
-        ControllableStoryboardAction)
-public:
-    SeekStoryboard() noexcept
-        : ControllableStoryboardAction(
-              StaticTypeId()) {}
-    Base::StringView GetOffset() const noexcept {
-        return offsetText_.View();
-    }
-    AnimationTime
-    GetOffsetMicroseconds() const noexcept {
-        return offsetMicroseconds_;
-    }
-    void SetOffset(
-        Base::StringView value) noexcept;
-
-private:
-    Base::String offsetText_;
-    AnimationTime
-        offsetMicroseconds_ = 0U;
-};
-
-class AERO_API EventTrigger : public Base::Object {
-    AERO_DECLARE_TYPE(EventTrigger, Base::Object)
-public:
-    EventTrigger() noexcept : EventTrigger(StaticTypeId()) {}
-    Meta::TypeId RuntimeType() const noexcept override {
-        return runtimeType_;
-    }
-    Base::StringView GetRoutedEvent() const noexcept {
-        return routedEvent_.View();
-    }
-    Base::StringView GetEventName() const noexcept {
-        return routedEvent_.View();
-    }
-    Base::StringView GetSourceName() const noexcept {
-        return sourceName_.View();
-    }
-    void SetRoutedEvent(
-        Base::StringView value) noexcept;
-    void SetEventName(
-        Base::StringView value) noexcept {
-        SetRoutedEvent(value);
-    }
-    void SetSourceName(
-        Base::StringView value) noexcept;
-    Base::Result<void> TryAddAction(
-        Base::Ref<TriggerAction> value) noexcept;
-    void ClearActions() noexcept;
-    Base::Span<const Base::Ref<TriggerAction>>
-    GetActions() const noexcept {
-        return {actions_.Data(), actions_.Size()};
-    }
-    Base::Result<void> TryAddConditionBehavior(
-        Base::Ref<Base::Object> value) noexcept {
-        return behaviors_.TryPushBack(std::move(value));
-    }
-    void ClearConditionBehaviors() noexcept { behaviors_.Clear(); }
-    Base::Span<const Base::Ref<Base::Object>> GetBehaviors() const noexcept {
-        return {behaviors_.Data(), behaviors_.Size()};
-    }
-
-protected:
-    explicit EventTrigger(Meta::TypeId runtimeType) noexcept
-        : runtimeType_(runtimeType) {}
-
-private:
-    Meta::TypeId runtimeType_ = StaticTypeId();
-    Base::String routedEvent_;
-    Base::String sourceName_;
-    Base::Vector<Base::Ref<TriggerAction>> actions_;
-    Base::Vector<Base::Ref<Base::Object>> behaviors_;
-};
-
-// Compatibility trigger used by the original Gallery's behavior XAML. The
-// runtime treats it as an EventTrigger with a repeatable timer cadence.
-class AERO_API TimerTrigger final : public EventTrigger {
-    AERO_DECLARE_TYPE(TimerTrigger, EventTrigger)
-public:
-    TimerTrigger() noexcept : EventTrigger(StaticTypeId()) {}
-
-    std::uint32_t GetTotalTicks() const noexcept { return totalTicks_; }
-    const Meta::PropertyValue& GetMillisecondsPerTick() const noexcept {
-        return millisecondsPerTick_;
-    }
-    void SetTotalTicks(std::uint32_t value) noexcept {
-        totalTicks_ = value;
-        return;
-    }
-    void SetMillisecondsPerTick(
-        const Meta::PropertyValue& value) noexcept {
-        millisecondsPerTick_ = value;
-        return;
-    }
-
-private:
-    std::uint32_t totalTicks_ = 1U;
-    Meta::PropertyValue millisecondsPerTick_;
-};
-
-class AERO_API ComparisonCondition final : public Base::Object {
-    AERO_DECLARE_TYPE(ComparisonCondition, Base::Object)
-public:
-    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Base::Ref<Aero::Data::Binding> GetLeftOperand() const noexcept { return left_; }
-    void SetLeftOperand(Base::Ref<Aero::Data::Binding> value) noexcept {
-        left_ = std::move(value); return;
-    }
-    const Meta::PropertyValue& GetRightOperand() const noexcept { return right_; }
-    void SetRightOperand(const Meta::PropertyValue& value) noexcept {
-        right_ = value; return;
-    }
-    enum class Operator : std::uint8_t {
-        Equal = 0U,
-        NotEqual,
-        LessThan,
-        LessThanOrEqual,
-        GreaterThan,
-        GreaterThanOrEqual,
-    };
-    Operator GetComparisonOperator() const noexcept { return operator_; }
-    void SetComparisonOperator(Operator value) noexcept {
-        operator_ = value; return;
-    }
-private:
-    Base::Ref<Aero::Data::Binding> left_;
-    Meta::PropertyValue right_;
-    Operator operator_ = Operator::Equal;
-};
-
-class AERO_API ConditionalExpression final : public Base::Object {
-    AERO_DECLARE_TYPE(ConditionalExpression, Base::Object)
-public:
-    enum class ForwardChaining : std::uint8_t {
-        And = 0U,
-        Or,
-    };
-    ConditionalExpression() noexcept : conditions_(&Base::GetDefaultAllocator()) {}
-    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Base::Result<void> TryAddCondition(Base::Ref<ComparisonCondition> value) noexcept {
-        return value ? conditions_.TryPushBack(std::move(value))
-            : Base::Result<void>(Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Condition is null"));
-    }
-    void ClearConditions() noexcept { conditions_.Clear(); }
-    Base::Span<const Base::Ref<ComparisonCondition>> GetConditions() const noexcept {
-        return {conditions_.Data(), conditions_.Size()};
-    }
-    ForwardChaining GetChaining() const noexcept { return chaining_; }
-    void SetChaining(ForwardChaining value) noexcept {
-        chaining_ = value; return;
-    }
-private:
-    Base::Vector<Base::Ref<ComparisonCondition>> conditions_;
-    ForwardChaining chaining_ = ForwardChaining::And;
-};
-
-class AERO_API ConditionBehavior final : public Base::Object {
-    AERO_DECLARE_TYPE(ConditionBehavior, Base::Object)
-public:
-    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Base::Ref<ConditionalExpression> GetExpression() const noexcept { return expression_; }
-    void SetExpression(Base::Ref<ConditionalExpression> value) noexcept {
-        expression_ = std::move(value); return;
-    }
-private:
-    Base::Ref<ConditionalExpression> expression_;
-};
-
-class AERO_API StoryboardCompletedTrigger final :
-    public Base::Object {
-    AERO_DECLARE_TYPE(StoryboardCompletedTrigger, Base::Object)
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    Base::Ref<Storyboard> GetStoryboard() const noexcept {
-        return storyboard_;
-    }
-    void SetStoryboard(
-        Base::Ref<Storyboard> value) noexcept;
-    Base::Result<void> TryAddAction(
-        Base::Ref<TriggerAction> value) noexcept;
-    void ClearActions() noexcept;
-    Base::Span<const Base::Ref<TriggerAction>>
-    GetActions() const noexcept {
-        return {actions_.Data(), actions_.Size()};
-    }
-
-private:
-    Base::Ref<Storyboard> storyboard_;
-    Base::Vector<Base::Ref<TriggerAction>> actions_;
-};
-
-class AERO_API Interaction final : public Base::Object {
-    AERO_DECLARE_TYPE(Interaction, Base::Object)
-private:
-    Interaction() noexcept = default;
-};
 
 } // namespace Aero::Media::Animation
 
@@ -1197,44 +819,9 @@ struct TypeTraits<Media::Animation::EasingMode> {
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 
-template<>
-struct TypeTraits<Media::Animation::ComparisonCondition::Operator> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("ComparisonConditionOperator");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "ComparisonConditionOperator";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Media::Animation::ConditionalExpression::ForwardChaining> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("ForwardChaining");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "ForwardChaining";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Media::Animation::ControlStoryboardAction::Option> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("ControlStoryboardOption"); }
-    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
-    static constexpr Base::StringView Name() noexcept { return "ControlStoryboardOption"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
 } // namespace Aero::Meta
+
+// Trigger actions are exposed through concept-specific headers. They include
+// this animation core and therefore do not introduce a second declaration
+// owner or a dependency cycle.
+#include <Aero/Triggers/TriggerAction.hpp>

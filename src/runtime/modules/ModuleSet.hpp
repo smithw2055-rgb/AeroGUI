@@ -7,7 +7,7 @@ namespace Aero::Meta { class Registry; class Registration; }
 
 namespace Aero {
 
-class ModuleSet final {
+class ModuleSet  {
 public:
     ModuleSet() noexcept;
     ~ModuleSet() noexcept;

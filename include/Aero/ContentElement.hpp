@@ -7,6 +7,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/DependencyObject.hpp>
+#include <Aero/Events/Event.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/RoutedEvent.hpp>
 #include <Aero/Style.hpp>
@@ -29,45 +30,7 @@ class AERO_API ContentElement : public DependencyObject {
     AERO_DECLARE_TYPE(ContentElement, DependencyObject)
 public:
     template<class TArgs>
-    class Event final {
-    public:
-        using Handler = Base::Delegate<void(Base::Object*, TArgs&)>;
-
-        Event(ContentElement& element, RoutedEventHandle event) noexcept
-            : element_(&element), event_(event) {}
-
-        Base::Result<void> TryAdd(
-            const Handler& handler,
-            bool handledEventsToo = false) noexcept {
-            return element_->TryAddHandler(event_, handler, handledEventsToo);
-        }
-
-        void Add(
-            const Handler& handler,
-            bool handledEventsToo = false) noexcept {
-            Base::Result<void> result = TryAdd(handler, handledEventsToo);
-            if (!result) {
-                Base::ReportOutOfMemory(
-                    sizeof(Handler),
-                    alignof(Handler),
-                    Base::MemoryTag::General);
-            }
-        }
-
-        void operator+=(const Handler& handler) noexcept { Add(handler); }
-
-        bool Remove(const Handler& handler) noexcept {
-            return element_->RemoveHandler(event_, handler);
-        }
-
-        void operator-=(const Handler& handler) noexcept {
-            static_cast<void>(Remove(handler));
-        }
-
-    private:
-        ContentElement* element_ = nullptr;
-        RoutedEventHandle event_;
-    };
+    using Event = ::Aero::Event<ContentElement, TArgs>;
 
     template<class TOwner, class TArgs>
     Event<TArgs> GetEvent(
@@ -82,7 +45,7 @@ public:
     UIElement* GetContentHost() const noexcept { return contentHost_; }
 
     template<class TArgs>
-    Base::Result<void> TryAddHandler(
+    Base::Result<void> AddHandlerChecked(
         RoutedEventHandle event,
         const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
         bool handledEventsToo = false) noexcept {
@@ -91,7 +54,7 @@ public:
                 Base::ErrorCode::InvalidArgument,
                 "Routed event handler must not be empty");
         }
-        return TryAddHandlerCore(event, DescribeHandler(handler), handledEventsToo);
+        return AddHandlerCore(event, DescribeHandler(handler), handledEventsToo);
     }
 
     template<class TArgs>
@@ -99,7 +62,7 @@ public:
         RoutedEventHandle event,
         const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
         bool handledEventsToo = false) noexcept {
-        Base::Result<void> added = TryAddHandler(event, handler, handledEventsToo);
+        Base::Result<void> added = AddHandlerChecked(event, handler, handledEventsToo);
         if (!added) {
             Base::ReportOutOfMemory(
                 sizeof(handler),
@@ -124,7 +87,7 @@ private:
     friend class Aero::Internal::ElementPrivate;
     friend class Aero::Internal::EventRouter;
 
-    struct HandlerOperations final {
+    struct HandlerOperations {
         std::size_t size = 0U;
         std::size_t alignment = 0U;
         void (*copy)(void*, const void*) noexcept = nullptr;
@@ -133,7 +96,7 @@ private:
         void (*invoke)(const void*, Base::Object*, RoutedEventArgs&) noexcept = nullptr;
     };
 
-    struct HandlerDescriptor final {
+    struct HandlerDescriptor {
         const void* value = nullptr;
         const HandlerOperations* operations = nullptr;
         Meta::TypeId argsType = Meta::InvalidTypeId;
@@ -165,7 +128,7 @@ private:
         return {&handler, &operations, TArgs::StaticTypeId()};
     }
 
-    Base::Result<void> TryAddHandlerCore(
+    Base::Result<void> AddHandlerCore(
         RoutedEventHandle event,
         const HandlerDescriptor& handler,
         bool handledEventsToo) noexcept;

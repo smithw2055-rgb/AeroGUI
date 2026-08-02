@@ -114,13 +114,13 @@ bool FitsFloat(double value) noexcept {
 constexpr std::uint32_t MaxShaderClips = 32U;
 constexpr std::uint32_t MaxRectangleBatchInstances = 64U;
 
-struct ClipState final {
+struct ClipState  {
     Aero::Rect rect;
     Media::Transform2D transform;
     Aero::Rect bounds;
 };
 
-struct ShaderRectConstants final {
+struct ShaderRectConstants  {
     float rects[MaxRectangleBatchInstances][4]{};
     float colors[MaxRectangleBatchInstances][4]{};
     float cornerRadii[MaxRectangleBatchInstances][4]{};
@@ -135,7 +135,7 @@ struct ShaderRectConstants final {
     float padding = 0.0F;
 };
 
-struct ShaderImageConstants final {
+struct ShaderImageConstants  {
     float rects[MaxRectangleBatchInstances][4]{};
     float sourceUvs[MaxRectangleBatchInstances][4]{};
     float tints[MaxRectangleBatchInstances][4]{};
@@ -148,7 +148,7 @@ struct ShaderImageConstants final {
     float padding[3]{};
 };
 
-struct ShaderMeshConstants final {
+struct ShaderMeshConstants  {
     float tints[MaxRectangleBatchInstances][4]{};
     float transform0[4]{};
     float transform1[4]{};
@@ -159,7 +159,7 @@ struct ShaderMeshConstants final {
     float padding[3]{};
 };
 
-struct ShaderGlyphConstants final {
+struct ShaderGlyphConstants  {
     float tints[MaxRectangleBatchInstances][4]{};
     float transform0[4]{};
     float transform1[4]{};
@@ -204,10 +204,10 @@ Base::Result<void> PushClipState(
     if (!clips.Empty()) {
         bounds = IntersectRect(clips[clips.Size() - 1U].bounds, bounds);
     }
-    return clips.TryPushBack({rect, transform, bounds});
+    return clips.PushBack({rect, transform, bounds});
 }
 
-struct NodeState final {
+struct NodeState  {
     Render::RenderNodeId id = Render::InvalidRenderNodeId;
     Media::Transform2D transform;
     ClipState clip;
@@ -237,13 +237,13 @@ Base::Result<void> AppendDraw(
     return encoded;
 }
 
-struct ImageBinding final {
+struct ImageBinding  {
     Render::RenderImageId id = Render::InvalidRenderImageId;
     ResourceHandle texture;
     ResourceHandle sampler;
 };
 
-struct MeshBinding final {
+struct MeshBinding  {
     Render::RenderMeshId id = Render::InvalidRenderMeshId;
     ResourceHandle vertexBuffer;
     ResourceHandle indexBuffer;
@@ -251,7 +251,7 @@ struct MeshBinding final {
     IndexType indexType = IndexType::UInt16;
 };
 
-struct GlyphBinding final {
+struct GlyphBinding  {
     Render::RenderGlyphRunId id = Render::InvalidRenderGlyphRunId;
     ResourceHandle vertexBuffer;
     ResourceHandle indexBuffer;
@@ -261,7 +261,7 @@ struct GlyphBinding final {
     IndexType indexType = IndexType::UInt16;
 };
 
-struct EffectSurface final {
+struct EffectSurface  {
     ResourceHandle target;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
@@ -269,7 +269,7 @@ struct EffectSurface final {
 
 } // namespace
 
-struct Renderer::Impl final {
+struct Renderer::Impl  {
     explicit Impl(
         GraphicsDevice& device,
         Base::IAllocator* allocator) noexcept
@@ -653,7 +653,7 @@ Base::Result<void> Renderer::RegisterImage(
             return InvalidState("Renderer image ID is already registered");
         }
     }
-    return impl_->images.TryPushBack({image, texture, sampler});
+    return impl_->images.PushBack({image, texture, sampler});
 }
 
 Base::Result<void> Renderer::UnregisterImage(
@@ -696,7 +696,7 @@ Base::Result<void> Renderer::RegisterMesh(
             return InvalidState("Renderer mesh ID is already registered");
         }
     }
-    return impl_->meshes.TryPushBack(
+    return impl_->meshes.PushBack(
         {mesh, vertexBuffer, indexBuffer, indexCount, indexType});
 }
 
@@ -745,7 +745,7 @@ Base::Result<void> Renderer::RegisterGlyphRun(
             return InvalidState("Renderer glyph ID is already registered");
         }
     }
-    return impl_->glyphRuns.TryPushBack(
+    return impl_->glyphRuns.PushBack(
         {glyphRun, vertexBuffer, indexBuffer, indexCount, atlasTexture, sampler,
             indexType});
 }
@@ -831,7 +831,7 @@ Base::Result<CommandList> Renderer::Record(
         }
     }
     Base::Result<void> resizedEffects =
-        impl_->effectSurfaces.TryResize(
+        impl_->effectSurfaces.Resize(
             effectCount);
     if (!resizedEffects) {
         return resizedEffects.GetStatus();
@@ -1144,7 +1144,7 @@ Base::Result<CommandList> Renderer::Record(
             }
             nodeClip.bounds = IntersectRect(parentClip, nodeBounds);
         }
-        Base::Result<void> appendedNode = impl_->nodes.TryPushBack(
+        Base::Result<void> appendedNode = impl_->nodes.PushBack(
             {node.id, nodeTransform, nodeClip, node.clipsToBounds,
              parentIndex, containingEffect,
              containingEffectCount});
@@ -1160,7 +1160,7 @@ Base::Result<CommandList> Renderer::Record(
         // Drawing code always has a current clip. Keep the render target as
         // that root clip, then add only ancestors that explicitly opt into
         // ClipToBounds.
-        Base::Result<void> rootClip = impl_->clips.TryPushBack(
+        Base::Result<void> rootClip = impl_->clips.PushBack(
             {targetClip, IdentityTransform(), targetClip});
         if (!rootClip) {
             encoded = rootClip;
@@ -1173,7 +1173,7 @@ Base::Result<CommandList> Renderer::Record(
                     "Renderer layout clip nesting exceeds shader capacity");
                 break;
             }
-            Base::Result<void> pathAppended = impl_->nodePath.TryPushBack(nodePathIndex);
+            Base::Result<void> pathAppended = impl_->nodePath.PushBack(nodePathIndex);
             if (!pathAppended) {
                 encoded = pathAppended;
                 break;
@@ -1194,7 +1194,7 @@ Base::Result<CommandList> Renderer::Record(
             if (!pathNode.clipsToBounds) {
                 continue;
             }
-            Base::Result<void> pushed = impl_->clips.TryPushBack(pathNode.clip);
+            Base::Result<void> pushed = impl_->clips.PushBack(pathNode.clip);
             if (!pushed) {
                 encoded = pushed;
                 break;
@@ -1203,8 +1203,8 @@ Base::Result<CommandList> Renderer::Record(
         if (!encoded) {
             break;
         }
-        if (!(impl_->transforms.TryPushBack(nodeTransform)) ||
-            !(impl_->opacities.TryPushBack(1.0))) {
+        if (!(impl_->transforms.PushBack(nodeTransform)) ||
+            !(impl_->opacities.PushBack(1.0))) {
             encoded = OutOfMemory("Failed to allocate Renderer state stack");
             break;
         }
@@ -1445,7 +1445,7 @@ Base::Result<CommandList> Renderer::Record(
                     encoded = InvalidArgument("Renderer contains invalid opacity");
                     break;
                 }
-                Base::Result<void> pushed = impl_->opacities.TryPushBack(
+                Base::Result<void> pushed = impl_->opacities.PushBack(
                     impl_->opacities[impl_->opacities.Size() - 1U] * command.scalar);
                 if (!pushed) encoded = pushed;
                 break;
@@ -1462,7 +1462,7 @@ Base::Result<CommandList> Renderer::Record(
                     encoded = InvalidArgument("Renderer contains an invalid transform");
                     break;
                 }
-                Base::Result<void> pushed = impl_->transforms.TryPushBack(Compose(
+                Base::Result<void> pushed = impl_->transforms.PushBack(Compose(
                     command.transform,
                     impl_->transforms[impl_->transforms.Size() - 1U]));
                 if (!pushed) encoded = pushed;

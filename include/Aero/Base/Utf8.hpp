@@ -5,7 +5,7 @@
 
 namespace Aero::Base {
 
-struct Utf8Validation final {
+struct Utf8Validation  {
     bool valid = true;
     std::uint32_t errorOffset = 0;
 };

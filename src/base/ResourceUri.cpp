@@ -8,7 +8,7 @@
 namespace Aero::Base {
 namespace {
 
-struct PathSegment final {
+struct PathSegment  {
     std::uint32_t offset = 0U;
     std::uint32_t length = 0U;
 };
@@ -50,14 +50,14 @@ bool EqualsAsciiInsensitive(
 Result<void> AppendCharacter(
     String& output,
     char value) noexcept {
-    return output.TryAppendUnchecked(StringView(&value, 1U));
+    return output.AppendUnchecked(StringView(&value, 1U));
 }
 
 Result<void> AssignLowerAscii(
     String& output,
     StringView value) noexcept {
     String replacement(&output.Allocator());
-    Result<void> reserve = replacement.TryReserve(value.SizeBytes());
+    Result<void> reserve = replacement.Reserve(value.SizeBytes());
     if (!reserve) {
         return reserve.GetStatus();
     }
@@ -148,18 +148,18 @@ Result<String> NormalizePath(
                 continue;
             }
         }
-        Result<void> append = segments.TryPushBack(segment);
+        Result<void> append = segments.PushBack(segment);
         if (!append) {
             return append.GetStatus();
         }
     }
 
-    Result<void> reserve = normalized.TryReserve(path.SizeBytes());
+    Result<void> reserve = normalized.Reserve(path.SizeBytes());
     if (!reserve) {
         return reserve.GetStatus();
     }
     if (absolute) {
-        Result<void> slash = normalized.TryAppendUnchecked(
+        Result<void> slash = normalized.AppendUnchecked(
             doubleLeading ? StringView("//") : StringView("/"));
         if (!slash) {
             return slash.GetStatus();
@@ -176,7 +176,7 @@ Result<String> NormalizePath(
             }
         }
         const PathSegment& segment = segments[index];
-        Result<void> append = normalized.TryAppendUnchecked(
+        Result<void> append = normalized.AppendUnchecked(
             path.Substr(segment.offset, segment.length));
         if (!append) {
             return append.GetStatus();
@@ -231,19 +231,19 @@ Result<void> AssignAssembly(
             ErrorCode::InvalidArgument,
             "Resource URI component qualifier has no assembly name");
     }
-    return assembly.TryAssign(path.Substr(start, marker - start));
+    return assembly.Assign(path.Substr(start, marker - start));
 }
 
 Result<void> AppendCombined(
     String& output,
     StringView prefix,
     StringView reference) noexcept {
-    Result<void> reserve = output.TryReserve(
+    Result<void> reserve = output.Reserve(
         prefix.SizeBytes() + 1U + reference.SizeBytes());
     if (!reserve) {
         return reserve.GetStatus();
     }
-    Result<void> first = output.TryAppendUnchecked(prefix);
+    Result<void> first = output.AppendUnchecked(prefix);
     if (!first) {
         return first.GetStatus();
     }
@@ -254,7 +254,7 @@ Result<void> AppendCombined(
             return slash.GetStatus();
         }
     }
-    return output.TryAppendUnchecked(reference);
+    return output.AppendUnchecked(reference);
 }
 
 } // namespace
@@ -268,22 +268,22 @@ Result<void> ResourceUri::Build(
     if (!schemeResult) {
         return schemeResult.GetStatus();
     }
-    Result<void> pathResult = uri.path_.TryAssign(path);
+    Result<void> pathResult = uri.path_.Assign(path);
     if (!pathResult) {
         return pathResult.GetStatus();
     }
-    Result<void> reserve = uri.canonical_.TryReserve(
+    Result<void> reserve = uri.canonical_.Reserve(
         prefix.SizeBytes() + path.SizeBytes());
     if (!reserve) {
         return reserve.GetStatus();
     }
     Result<void> prefixResult =
-        uri.canonical_.TryAppendUnchecked(prefix);
+        uri.canonical_.AppendUnchecked(prefix);
     if (!prefixResult) {
         return prefixResult.GetStatus();
     }
     Result<void> canonicalPath =
-        uri.canonical_.TryAppendUnchecked(path);
+        uri.canonical_.AppendUnchecked(path);
     if (!canonicalPath) {
         return canonicalPath.GetStatus();
     }
@@ -343,12 +343,12 @@ Result<ResourceUri> ResourceUri::Parse(StringView text) noexcept {
             return path.GetStatus();
         }
         Result<void> canonical =
-            uri.canonical_.TryAssign(path.Value().View());
+            uri.canonical_.Assign(path.Value().View());
         if (!canonical) {
             return canonical.GetStatus();
         }
         Result<void> resourcePath =
-            uri.path_.TryAssign(path.Value().View());
+            uri.path_.Assign(path.Value().View());
         if (!resourcePath) {
             return resourcePath.GetStatus();
         }
@@ -434,7 +434,7 @@ Result<ResourceUri> ResourceUri::Parse(StringView text) noexcept {
         return path.GetStatus();
     }
     String prefix;
-    Result<void> prefixScheme = prefix.TryAssign(scheme.View());
+    Result<void> prefixScheme = prefix.Assign(scheme.View());
     if (!prefixScheme) {
         return prefixScheme.GetStatus();
     }
@@ -484,7 +484,7 @@ Result<ResourceUri> ResourceUri::Resolve(
             }
         } else if (!baseUri.Scheme().Empty()) {
             Result<void> prefix =
-                rooted.TryAppendUnchecked(baseUri.Scheme());
+                rooted.AppendUnchecked(baseUri.Scheme());
             if (!prefix) {
                 return prefix.GetStatus();
             }
@@ -493,13 +493,13 @@ Result<ResourceUri> ResourceUri::Resolve(
                 return colon.GetStatus();
             }
             Result<void> append =
-                rooted.TryAppendUnchecked(reference);
+                rooted.AppendUnchecked(reference);
             if (!append) {
                 return append.GetStatus();
             }
         } else {
             Result<void> append =
-                rooted.TryAssign(reference);
+                rooted.Assign(reference);
             if (!append) {
                 return append.GetStatus();
             }

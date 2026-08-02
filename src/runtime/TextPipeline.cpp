@@ -51,7 +51,7 @@ bool LooksLikeFontPath(Base::StringView value) noexcept {
 Base::Result<void> Assign(
     Base::String& destination,
     Base::StringView source) noexcept {
-    return destination.TryAssign(source);
+    return destination.Assign(source);
 }
 
 std::string NormalizedFontName(
@@ -186,7 +186,7 @@ Base::Result<bool> SelectPackFontPath(
     const std::string selected =
         best.string();
     Base::Result<void> assigned =
-        output.TryAssign(Base::StringView(
+        output.Assign(Base::StringView(
             selected.data(),
             static_cast<std::uint32_t>(
                 selected.size())));
@@ -222,18 +222,18 @@ Base::Result<void> SelectFontPath(
             Base::String combined(
                 &output.Allocator());
             Base::Result<void> joined =
-                combined.TryAssign(searchRoot);
+                combined.Assign(searchRoot);
             if (joined && !combined.Empty() &&
                 combined.View()[
                     combined.SizeBytes() - 1U] != '/' &&
                 combined.View()[
                     combined.SizeBytes() - 1U] != '\\') {
-                joined = combined.TryAppend(
+                joined = combined.Append(
                     Base::StringView("/"));
             }
             if (joined) {
                 joined =
-                    combined.TryAppend(family);
+                    combined.Append(family);
             }
             if (!joined) {
                 return joined.GetStatus();
@@ -242,7 +242,7 @@ Base::Result<void> SelectFontPath(
                 combined.CStr(),
                 combined.SizeBytes());
             if (FileExists(rooted.c_str())) {
-                return output.TryAssign(
+                return output.Assign(
                     combined.View());
             }
         }
@@ -379,16 +379,16 @@ Base::Result<void> ConfigureTypeface(
     Base::StringView language,
     Base::StringView defaultFamily) noexcept {
     Base::Result<void> assigned =
-        typeface.TrySetFamily(
+        typeface.SetFamily(
             family.Empty() ? defaultFamily : family);
     if (!assigned) return assigned.GetStatus();
     if (!language.Empty()) {
-        assigned = typeface.TrySetLanguage(language);
+        assigned = typeface.SetLanguage(language);
     }
     return assigned;
 }
 
-class TextBlockLayoutProxy final
+class TextBlockLayoutProxy
     : public Internal::TextBlockLayout {
 public:
     using FaceResolver =
@@ -452,7 +452,7 @@ private:
     FaceResolver resolver_ = nullptr;
 };
 
-class HeadlessTextBlockLayout final
+class HeadlessTextBlockLayout
     : public Internal::TextBlockLayout {
 public:
     HeadlessTextBlockLayout(
@@ -464,7 +464,7 @@ public:
           fallbackFaces_(allocator) {
         config_ = config;
         Base::Result<void> copied =
-            fallbackFaces_.TryAppend(
+            fallbackFaces_.Append(
                 config.fallbackFaces);
         valid_ = static_cast<bool>(copied);
         config_.fallbackFaces =
@@ -528,7 +528,7 @@ public:
                     "Headless glyph-run ID space is exhausted");
             }
             Base::Result<void> appended =
-                output.glyphRuns.TryPushBack(
+                output.glyphRuns.PushBack(
                     nextGlyphRun_++);
             if (!appended) return appended.GetStatus();
         }
@@ -550,8 +550,8 @@ private:
 
 } // namespace
 
-struct TextPipeline::Impl final {
-    struct LoadedFont final {
+struct TextPipeline::Impl {
+    struct LoadedFont {
         explicit LoadedFont(
             Base::IAllocator* allocator = nullptr) noexcept
             : request(allocator),
@@ -675,7 +675,7 @@ Base::Result<void> TextPipeline::Initialize(
             }
 
             Base::Result<Impl::LoadedFont*> added =
-                state->loadedFonts.TryEmplaceBack(
+                state->loadedFonts.EmplaceBack(
                     state->allocator);
             if (!added) {
                 return added.GetStatus();
@@ -683,7 +683,7 @@ Base::Result<void> TextPipeline::Initialize(
             Impl::LoadedFont& loaded =
                 *added.Value();
             Base::Result<void> status =
-                loaded.request.TryAssign(family);
+                loaded.request.Assign(family);
             if (status) {
                 status = SelectFontPath(
                     family, false, loaded.path,
@@ -721,18 +721,18 @@ Base::Result<void> TextPipeline::Initialize(
         });
 
     Base::Result<void> status =
-        impl_->primaryFamily.TryAssign(
+        impl_->primaryFamily.Assign(
             options.primaryFamily.Empty()
                 ? Base::StringView("Segoe UI")
                 : options.primaryFamily);
     if (status) {
-        status = impl_->language.TryAssign(
+        status = impl_->language.Assign(
             options.language.Empty()
                 ? Base::StringView("en-US")
                 : options.language);
     }
     if (status) {
-        status = impl_->fontSearchRoot.TryAssign(
+        status = impl_->fontSearchRoot.Assign(
             options.fontSearchRoot);
     }
     if (status) status = impl_->fontProvider.Initialize();
@@ -804,7 +804,7 @@ Base::Result<void> TextPipeline::Initialize(
                 typeface,
                 face);
             if (status) {
-                status = impl_->fallbackFaces.TryPushBack(
+                status = impl_->fallbackFaces.PushBack(
                     face);
             }
         }

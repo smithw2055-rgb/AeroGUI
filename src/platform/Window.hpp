@@ -53,7 +53,7 @@ inline constexpr std::uint32_t WindowKeyRight = 0x27U;
 inline constexpr std::uint32_t WindowKeyDown = 0x28U;
 inline constexpr std::uint32_t WindowKeyDelete = 0x2EU;
 
-struct WindowDescriptor final {
+struct WindowDescriptor  {
     Base::StringView title = "AeroGUI";
     // A zero width/height pair requests the platform's preferred initial
     // size. Backends that have no native preference use a portable fallback.
@@ -63,7 +63,7 @@ struct WindowDescriptor final {
     bool resizable = true;
 };
 
-struct WindowEvent final {
+struct WindowEvent  {
     WindowEventType type = WindowEventType::Invalid;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;

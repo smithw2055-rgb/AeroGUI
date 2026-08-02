@@ -45,6 +45,16 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Diagnostics/DependencyProperty.hpp
     include/Aero/Documents.hpp
     include/Aero/DrawingContext.hpp
+    include/Aero/Events/ApplicationEventArgs.hpp
+    include/Aero/Events/CommandEventArgs.hpp
+    include/Aero/Events/ControlEventArgs.hpp
+    include/Aero/Events/Event.hpp
+    include/Aero/Events/EventArgs.hpp
+    include/Aero/Events/Events.hpp
+    include/Aero/Events/NavigationEventArgs.hpp
+    include/Aero/Events/PropertyEventArgs.hpp
+    include/Aero/Events/RoutedEvent.hpp
+    include/Aero/Events/WindowEventArgs.hpp
     include/Aero/FrameworkElement.hpp
     include/Aero/Gui.hpp
     include/Aero/Input.hpp
@@ -56,7 +66,10 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Integration/OpenGL33.hpp
     include/Aero/Integration/ReloadCoordinator.hpp
     include/Aero/Integration/RenderDevice.hpp
-    include/Aero/Integration/SourceProvider.hpp
+    include/Aero/Integration/Providers/FontProvider.hpp
+    include/Aero/Integration/Providers/Providers.hpp
+    include/Aero/Integration/Providers/TextureProvider.hpp
+    include/Aero/Integration/Providers/XamlProvider.hpp
     include/Aero/Integration/ViewOptions.hpp
     include/Aero/App/WindowInterop.hpp
     include/Aero/Layout.hpp
@@ -72,6 +85,22 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Shapes.hpp
     include/Aero/Style.hpp
     include/Aero/Styling.hpp
+    include/Aero/Triggers/Conditions.hpp
+    include/Aero/Triggers/DataTrigger.hpp
+    include/Aero/Triggers/EventTrigger.hpp
+    include/Aero/Triggers/MultiDataTrigger.hpp
+    include/Aero/Triggers/MultiTrigger.hpp
+    include/Aero/Triggers/StoryboardCompletedTrigger.hpp
+    include/Aero/Triggers/TimerTrigger.hpp
+    include/Aero/Triggers/Trigger.hpp
+    include/Aero/Triggers/TriggerAction.hpp
+    include/Aero/Triggers/TriggerBase.hpp
+    include/Aero/Triggers/Triggers.hpp
+    include/Aero/Triggers/ChangePropertyAction.hpp
+    include/Aero/Triggers/LaunchUriOrFileAction.hpp
+    include/Aero/Triggers/RemoveElementAction.hpp
+    include/Aero/Triggers/SetFocusAction.hpp
+    include/Aero/Triggers/StoryboardActions.hpp
     include/Aero/UIElement.hpp
     include/Aero/Visual.hpp
     include/Aero/Window.hpp

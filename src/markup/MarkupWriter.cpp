@@ -326,7 +326,7 @@ Base::Result<void> ParseArguments(
     return {};
 }
 
-struct DeferredBindingState final {
+struct DeferredBindingState {
     Aero::Internal::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     Base::Object* source = nullptr;
@@ -577,7 +577,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             authoredName = targetName.View();
         }
         Base::Result<void> added =
-            Internal::TemplatePrivate::TryAddTemplatedParentBinding(controlTemplate,
+            Internal::TemplatePrivate::AddTemplatedParentBinding(controlTemplate,
                 authoredName,
                 path,
                 stringFormat,
@@ -690,12 +690,12 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     state->bindsToSource = path.Empty();
     state->updateSourceTrigger = updateSourceTrigger;
     state->allocator = &allocator;
-    Base::Result<void> assigned = state->path.TryAssign(path);
+    Base::Result<void> assigned = state->path.Assign(path);
     if (!assigned) {
         CleanupBinding(state);
         return assigned.GetStatus();
     }
-    assigned = state->stringFormat.TryAssign(
+    assigned = state->stringFormat.Assign(
         stringFormat);
     if (!assigned) {
         CleanupBinding(state);
@@ -727,7 +727,7 @@ using Aero::ResourceDictionary;
 
 namespace {
 
-struct DynamicResourceState final {
+struct DynamicResourceState {
     DynamicResourceState(
         Meta::EffectiveValueEngine& effectiveValues,
         ::Aero::DependencyObject& dependencyObject,
@@ -739,7 +739,7 @@ struct DynamicResourceState final {
           sources(),
           allocator(&Base::GetDefaultAllocator()) {}
 
-    struct Source final {
+    struct Source {
         ResourceDictionary* resources = nullptr;
         ResourceChangeSubscription subscription;
     };
@@ -837,7 +837,7 @@ void CleanupDynamicResource(void* context) noexcept {
 }
 
 
-struct DeferredDynamicResourceState final {
+struct DeferredDynamicResourceState {
     Meta::EffectiveValueEngine* engine = nullptr;
     ::Aero::DependencyObject* target = nullptr;
     Meta::DependencyPropertyHandle property;
@@ -949,7 +949,7 @@ Base::Result<Meta::PropertyExpression> DynamicResource::CreateExpression(
     }
     DynamicResourceState* state = new (memory) DynamicResourceState(
         effectiveValues, target, property);
-    Base::Result<void> assigned = state->key.TryAssign(normalizedKey);
+    Base::Result<void> assigned = state->key.Assign(normalizedKey);
     if (!assigned) {
         state->~DynamicResourceState();
         stateAllocator->Deallocate(
@@ -972,7 +972,7 @@ Base::Result<Meta::PropertyExpression> DynamicResource::CreateExpression(
             return subscription.GetStatus();
         }
         Base::Result<void> added =
-            state->sources.TryPushBack({
+            state->sources.PushBack({
                 resources, subscription.Value()});
         if (!added) {
             static_cast<void>(
@@ -1140,16 +1140,16 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
     state->property = property;
     state->fallbackResources = fallbackResources;
     state->allocator = &allocator;
-    Base::Result<void> reserved = state->resources.TryReserve(
+    Base::Result<void> reserved = state->resources.Reserve(
         services.ambientResourceChain.Size());
     if (reserved) {
         for (const ResourceDictionary* resource :
              services.ambientResourceChain) {
-            reserved = state->resources.TryPushBack(resource);
+            reserved = state->resources.PushBack(resource);
             if (!reserved) break;
         }
     }
-    if (reserved) reserved = state->key.TryAssign(key);
+    if (reserved) reserved = state->key.Assign(key);
     if (!reserved) {
         CleanupDeferredDynamicResource(state);
         return reserved.GetStatus();
@@ -1318,7 +1318,7 @@ TemplateBindingExtension::ProvideValue(
         authoredName = targetName.View();
     }
     Base::Result<void> added =
-        Internal::TemplatePrivate::TryAddTemplateBinding(controlTemplate,
+        Internal::TemplatePrivate::AddTemplateBinding(controlTemplate,
             authoredName,
             source->Handle(),
             destination->Handle());
@@ -1578,7 +1578,7 @@ Base::Result<Aero::ResourceValue> ResourceResolver::Lookup(
 
 namespace Aero::Internal {
 
-class ResourcePrivate final {
+class ResourcePrivate {
 public:
     static ::Aero::Markup::NamespaceScope CreateNamespaceScope(
         ::Aero::Markup::NamespaceScope::LookupCallback lookup,
@@ -1611,7 +1611,7 @@ public:
 
 namespace {
 
-class StreamingXamlNodeCursor final : public NodeCursor {
+class StreamingXamlNodeCursor : public NodeCursor {
 public:
     explicit StreamingXamlNodeCursor(
         NodeReader& reader) noexcept
@@ -1631,7 +1631,7 @@ private:
     NodeReader* reader_ = nullptr;
 };
 
-class CompiledXamlNodeCursor final : public NodeCursor {
+class CompiledXamlNodeCursor : public NodeCursor {
 public:
     explicit CompiledXamlNodeCursor(
         const CompiledDocument& document) noexcept
@@ -1734,10 +1734,10 @@ Base::Status SessionConsumedStatus() noexcept {
 Base::Result<Base::String> StaticResourceNotFoundMessage(
     Base::StringView key) noexcept {
     Base::String message;
-    Base::Result<void> appended = message.TryAssign(
+    Base::Result<void> appended = message.Assign(
         "StaticResource key '");
-    if (appended) appended = message.TryAppend(key);
-    if (appended) appended = message.TryAppend(
+    if (appended) appended = message.Append(key);
+    if (appended) appended = message.Append(
         "' is not available; forward references are not supported");
     return appended
         ? Base::Result<Base::String>(std::move(message))
@@ -1974,7 +1974,7 @@ Base::Result<Base::Ref<Base::Object>> ObjectBuilder::LoadCursorCore(
         }
         if (loadContext_ != nullptr &&
             loadContext_->recordingNodes != nullptr) {
-            Base::Result<Node> cloned = Node::TryClone(*current);
+            Base::Result<Node> cloned = Node::Clone(*current);
             if (!cloned) {
                 const Base::Status status = cloned.GetStatus();
                 AbortTransaction();
@@ -1982,7 +1982,7 @@ Base::Result<Base::Ref<Base::Object>> ObjectBuilder::LoadCursorCore(
                 return status;
             }
             Base::Result<void> recorded =
-                loadContext_->recordingNodes->TryPushBack(
+                loadContext_->recordingNodes->PushBack(
                     std::move(cloned).Value());
             if (!recorded) {
                 const Base::Status status = recorded.GetStatus();
@@ -2115,18 +2115,18 @@ Base::Result<void> ObjectBuilder::QueueNamespaceDeclaration(
     }
 
     PendingNamespaceRecord record;
-    Base::Result<void> prefixResult = record.prefix.TryAssignUnchecked(
+    Base::Result<void> prefixResult = record.prefix.AssignUnchecked(
         node.NamespacePrefix());
     if (!prefixResult) {
         return prefixResult.GetStatus();
     }
-    Base::Result<void> uriResult = record.uri.TryAssignUnchecked(
+    Base::Result<void> uriResult = record.uri.AssignUnchecked(
         node.NamespaceUri());
     if (!uriResult) {
         return uriResult.GetStatus();
     }
     record.source = node.Source();
-    return pendingNamespaces_.TryPushBack(std::move(record));
+    return pendingNamespaces_.PushBack(std::move(record));
 }
 
 Base::Result<void> ObjectBuilder::StartObject(
@@ -2202,7 +2202,7 @@ Base::Result<void> ObjectBuilder::StartObject(
     record.type = type->Id();
     const std::uint32_t objectIndex = created_.Size();
     Base::Result<void> appendObject =
-        created_.TryPushBack(std::move(record));
+        created_.PushBack(std::move(record));
     if (!appendObject) {
         return Failure(
             appendObject.GetStatus(),
@@ -2241,7 +2241,7 @@ Base::Result<void> ObjectBuilder::StartObject(
         return scopeResult.GetStatus();
     }
 
-    Base::Result<void> appendFrame = frames_.TryPushBack(frame);
+    Base::Result<void> appendFrame = frames_.PushBack(frame);
     if (!appendFrame) {
         return Failure(
             appendFrame.GetStatus(),
@@ -2272,7 +2272,7 @@ Base::Result<void> ObjectBuilder::StartValueObject(
     record.type = type;
     record.valueElement = true;
     const std::uint32_t objectIndex = created_.Size();
-    Base::Result<void> appended = created_.TryPushBack(
+    Base::Result<void> appended = created_.PushBack(
         std::move(record));
     if (!appended) return appended.GetStatus();
 
@@ -2281,7 +2281,7 @@ Base::Result<void> ObjectBuilder::StartValueObject(
     frame.objectIndex = objectIndex;
     frame.namespaceBindingStart = bindingStart;
     frame.source = node.Source();
-    appended = frames_.TryPushBack(frame);
+    appended = frames_.PushBack(frame);
     if (!appended) return appended.GetStatus();
     return {};
 }
@@ -2305,7 +2305,7 @@ Base::Result<void> ObjectBuilder::StartNullObject(
     frame.kind = FrameKind::NullObject;
     frame.namespaceBindingStart = bindingStart;
     frame.source = node.Source();
-    Base::Result<void> appendResult = frames_.TryPushBack(frame);
+    Base::Result<void> appendResult = frames_.PushBack(frame);
     if (!appendResult) {
         return appendResult.GetStatus();
     }
@@ -2422,7 +2422,7 @@ Base::Result<void> ObjectBuilder::StartMember(
         frame.kind = FrameKind::ValueMember;
         frame.targetObjectIndex = objectFrame.objectIndex;
         frame.source = node.Source();
-        Base::Result<void> appended = frames_.TryPushBack(frame);
+        Base::Result<void> appended = frames_.PushBack(frame);
         if (!appended) return appended.GetStatus();
         return {};
     }
@@ -2489,7 +2489,7 @@ Base::Result<void> ObjectBuilder::StartMember(
     frame.member = member;
     frame.source = node.Source();
     frame.propertyElement = false;
-    Base::Result<void> appendResult = frames_.TryPushBack(frame);
+    Base::Result<void> appendResult = frames_.PushBack(frame);
     if (!appendResult) {
         return Failure(
             appendResult.GetStatus(),
@@ -2533,7 +2533,7 @@ Base::Result<void> ObjectBuilder::StartDirective(
     frame.directive = directive;
     frame.targetObjectIndex = targetObjectIndex;
     frame.source = node.Source();
-    Base::Result<void> appendResult = frames_.TryPushBack(frame);
+    Base::Result<void> appendResult = frames_.PushBack(frame);
     if (!appendResult) {
         return appendResult.GetStatus();
     }
@@ -2711,11 +2711,11 @@ Base::Result<void> ObjectBuilder::WriteText(
                         frame.targetObjectIndex;
                     deferred.member = frame.member;
                     deferred.source = node.Source();
-                    Base::Result<void> key = deferred.key.TryAssign(
+                    Base::Result<void> key = deferred.key.Assign(
                         argument);
                     if (!key) return key.GetStatus();
                     Base::Result<void> stored =
-                        deferredStaticResources_.TryPushBack(
+                        deferredStaticResources_.PushBack(
                             std::move(deferred));
                     if (!stored) return stored.GetStatus();
                     return {};
@@ -2838,11 +2838,11 @@ Base::Result<void> ObjectBuilder::WriteText(
                 deferred.targetObjectIndex = frame.objectIndex;
                 deferred.member = contentResult.Value();
                 deferred.source = node.Source();
-                Base::Result<void> key = deferred.key.TryAssign(
+                Base::Result<void> key = deferred.key.Assign(
                     argument);
                 if (!key) return key.GetStatus();
                 Base::Result<void> stored =
-                    deferredStaticResources_.TryPushBack(
+                    deferredStaticResources_.PushBack(
                         std::move(deferred));
                 if (!stored) return stored.GetStatus();
                 return {};
@@ -2928,7 +2928,7 @@ Base::Result<void> ObjectBuilder::WriteDirectiveText(
                 MessageInvalidDirective,
                 node.Source());
         }
-        Base::Result<void> assignResult = object.name.TryAssign(node.Value());
+        Base::Result<void> assignResult = object.name.Assign(node.Value());
         if (!assignResult) {
             return assignResult.GetStatus();
         }
@@ -2948,7 +2948,7 @@ Base::Result<void> ObjectBuilder::WriteDirectiveText(
                 MessageInvalidDirective,
                 node.Source());
         }
-        Base::Result<void> assignResult = object.key.TryAssign(node.Value());
+        Base::Result<void> assignResult = object.key.Assign(node.Value());
         if (!assignResult) {
             return assignResult.GetStatus();
         }
@@ -3038,7 +3038,7 @@ Base::Result<void> ObjectBuilder::StartPropertyElement(
     frame.member = member;
     frame.source = node.Source();
     frame.propertyElement = true;
-    Base::Result<void> appendResult = frames_.TryPushBack(frame);
+    Base::Result<void> appendResult = frames_.PushBack(frame);
     if (!appendResult) {
         return Failure(
             appendResult.GetStatus(),
@@ -3122,11 +3122,11 @@ Base::Result<void> ObjectBuilder::CompleteObject(
                             "StaticResource parent frame is invalid");
                     }
                     deferred.source = node.Source();
-                    Base::Result<void> key = deferred.key.TryAssign(
+                    Base::Result<void> key = deferred.key.Assign(
                         extension.ResourceKey());
                     if (!key) return key.GetStatus();
                     Base::Result<void> stored =
-                        deferredStaticResources_.TryPushBack(
+                        deferredStaticResources_.PushBack(
                             std::move(deferred));
                     if (!stored) return stored.GetStatus();
                 }
@@ -3511,7 +3511,7 @@ Base::Result<void> ObjectBuilder::WriteProvidedValue(
             source);
     }
     if (assignment == nullptr) {
-        Base::Result<void> appended = assignments_.TryPushBack({
+        Base::Result<void> appended = assignments_.PushBack({
             targetObjectIndex, member.id, 0U});
         if (!appended) {
             provided.Discard();
@@ -3577,7 +3577,7 @@ Base::Result<void> ObjectBuilder::WriteProvidedValue(
         }
     }
     Base::Result<void> effectStored =
-        extensionEffects_.TryPushBack(std::move(effect));
+        extensionEffects_.PushBack(std::move(effect));
     if (!effectStored) {
         effect.Rollback();
         return effectStored.GetStatus();
@@ -3631,7 +3631,7 @@ Base::Result<void> ObjectBuilder::WriteValue(
     }
 
     if (assignment == nullptr) {
-        Base::Result<void> appendResult = assignments_.TryPushBack({
+        Base::Result<void> appendResult = assignments_.PushBack({
             targetObjectIndex,
             member.id,
             0U});
@@ -3806,7 +3806,7 @@ Base::Result<void> ObjectBuilder::RegisterObjectName(
     }
 
     NameScopeRecord& scope = nameScopes_[scopeIndex];
-    Base::Result<void> localResult = scope.names.TryRegister(
+    Base::Result<void> localResult = scope.names.Register(
         object.name.View(),
         *object.object);
     if (!localResult) {
@@ -3948,7 +3948,7 @@ Base::Result<bool> ObjectBuilder::RegisterObjectResource(
     Meta::Value resourceValue = object.valueElement
         ? object.value
         : Meta::Value::FromObject(object.type, object.object);
-    Base::Result<void> localResult = scope.resources.TryAdd(
+    Base::Result<void> localResult = scope.resources.Add(
         resourceKey.Value(),
         resourceValue,
         source);
@@ -4110,7 +4110,7 @@ Base::Result<void> ObjectBuilder::CreateScopesForObject(
         scope.ownerObjectIndex = objectIndex;
         const std::uint32_t index = nameScopes_.Size();
         Base::Result<void> appendResult =
-            nameScopes_.TryPushBack(std::move(scope));
+            nameScopes_.PushBack(std::move(scope));
         if (!appendResult) {
             return appendResult.GetStatus();
         }
@@ -4129,7 +4129,7 @@ Base::Result<void> ObjectBuilder::CreateScopesForObject(
             *created_[objectIndex].object);
         const std::uint32_t index = resourceScopes_.Size();
         Base::Result<void> appendResult =
-            resourceScopes_.TryPushBack(std::move(scope));
+            resourceScopes_.PushBack(std::move(scope));
         if (!appendResult) {
             return appendResult.GetStatus();
         }
@@ -4146,18 +4146,18 @@ Base::Result<void> ObjectBuilder::ActivatePendingNamespaces(
     bindingStart = namespaceBindings_.Size();
     for (PendingNamespaceRecord& pending : pendingNamespaces_) {
         NamespaceBindingRecord binding;
-        Base::Result<void> prefixResult = binding.prefix.TryAssignUnchecked(
+        Base::Result<void> prefixResult = binding.prefix.AssignUnchecked(
             pending.prefix.View());
         if (!prefixResult) {
             return prefixResult.GetStatus();
         }
-        Base::Result<void> uriResult = binding.uri.TryAssignUnchecked(
+        Base::Result<void> uriResult = binding.uri.AssignUnchecked(
             pending.uri.View());
         if (!uriResult) {
             return uriResult.GetStatus();
         }
         Base::Result<void> appendResult =
-            namespaceBindings_.TryPushBack(std::move(binding));
+            namespaceBindings_.PushBack(std::move(binding));
         if (!appendResult) {
             return appendResult.GetStatus();
         }
@@ -4253,7 +4253,7 @@ ExtensionServices ObjectBuilder::BuildExtensionServices(
         }
         if (!duplicate) {
             Base::Result<void> added =
-                serviceResourceChain_.TryPushBack(dictionary);
+                serviceResourceChain_.PushBack(dictionary);
             if (!added) {
                 serviceResourceChain_.Clear();
                 break;
@@ -4272,7 +4272,7 @@ ExtensionServices ObjectBuilder::BuildExtensionServices(
         }
         if (!duplicate) {
             Base::Result<void> added =
-                serviceResourceChain_.TryPushBack(
+                serviceResourceChain_.PushBack(
                     loadContext_->resources);
             if (!added) {
                 serviceResourceChain_.Clear();
@@ -4624,7 +4624,7 @@ Base::Status ObjectBuilder::Failure(
     Base::StringView message,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (diagnostics_ != nullptr) {
-        Base::Result<::Aero::Diagnostics::Diagnostic> item = ::Aero::Diagnostics::Diagnostic::TryCreate(
+        Base::Result<::Aero::Diagnostics::Diagnostic> item = ::Aero::Diagnostics::Diagnostic::Create(
             diagnostic,
             ::Aero::Diagnostics::DiagnosticSeverity::Error,
             message,
@@ -4702,7 +4702,7 @@ Base::Result<void> DeferredContentPlan::Stage(
             "Deferred XAML content edge is invalid");
     }
     Base::Result<void> retained =
-        edges_.TryPushBack({
+        edges_.PushBack({
             &owner,
             &parent,
             child,
@@ -4737,7 +4737,7 @@ Base::Result<void> DeferredContentPlan::StageProperty(
             "Deferred XAML structural property was not found");
     }
     Base::Result<void> retained =
-        edges_.TryPushBack({
+        edges_.PushBack({
             &owner,
             &parent,
             child,
@@ -4765,7 +4765,7 @@ Base::Result<void> DeferredContentPlan::CopyForOwner(
     for (const DeferredContentEdge& edge : edges_) {
         if (edge.owner != &owner) continue;
         Base::Result<void> copied =
-            output.TryPushBack(edge);
+            output.PushBack(edge);
         if (!copied) {
             output.Clear();
             return copied.GetStatus();
@@ -4805,12 +4805,12 @@ Base::Result<void> DeferredContentPlan::StageBinding(
     edge.bindsToSource = bindsToSource;
     edge.updateSourceTrigger = updateSourceTrigger;
     Base::Result<void> assigned =
-        edge.path.TryAssign(path);
+        edge.path.Assign(path);
     if (!assigned) return assigned.GetStatus();
-    assigned = edge.stringFormat.TryAssign(
+    assigned = edge.stringFormat.Assign(
         stringFormat);
     if (!assigned) return assigned.GetStatus();
-    return bindings_.TryPushBack(std::move(edge));
+    return bindings_.PushBack(std::move(edge));
 }
 
 Base::Result<void>
@@ -4821,7 +4821,7 @@ DeferredContentPlan::CopyBindingsForOwner(
     for (const DeferredBindingEdge& edge : bindings_) {
         if (edge.owner != &owner) continue;
         Base::Result<void> copied =
-            output.TryPushBack(edge);
+            output.PushBack(edge);
         if (!copied) {
             output.Clear();
             return copied.GetStatus();
@@ -4883,7 +4883,7 @@ void DeferredContentPlan::ReleaseOwner(
         }
         ++output;
     }
-    (void)edges_.TryResize(output);
+    (void)edges_.Resize(output);
 
     output = 0U;
     for (std::uint32_t index = 0U;
@@ -4896,7 +4896,7 @@ void DeferredContentPlan::ReleaseOwner(
         }
         ++output;
     }
-    (void)bindings_.TryResize(output);
+    (void)bindings_.Resize(output);
 }
 
 void DeferredContentPlan::ReleaseAll() noexcept {
@@ -5057,7 +5057,7 @@ Base::Result<void> ObjectWriter::StageContent(
                   services.targetMember);
     }
 
-    Base::Result<void> reserved = plan->TryReserve(
+    Base::Result<void> reserved = plan->Reserve(
         plan->contentEdges.Size() + 1U,
         plan->mountEdges.Size() + 1U,
         plan->nodes.Size() + 2U);
@@ -5072,22 +5072,22 @@ Base::Result<void> ObjectWriter::StageContent(
     if (!childNode) return childNode.GetStatus();
 
     Base::Result<void> parentAdded =
-        plan->TryAddNode(*parentNode.Value());
+        plan->AddNode(*parentNode.Value());
     if (!parentAdded) return parentAdded.GetStatus();
     Base::Result<void> childAdded =
-        plan->TryAddNode(*childNode.Value());
+        plan->AddNode(*childNode.Value());
     if (!childAdded) return childAdded.GetStatus();
 
     Base::Ref<Base::Object> parentOwner =
         Base::Ref<Base::Object>::FromBorrowed(object);
     Base::Result<void> tracked =
-        plan->contentEdges.TryPushBack({
+        plan->contentEdges.PushBack({
             std::move(parentOwner), value.AsObject(),
             metadata, services.targetMember,
             structuralProperty});
     if (!tracked) return tracked.GetStatus();
 
-    tracked = plan->mountEdges.TryPushBack({
+    tracked = plan->mountEdges.PushBack({
         parentResult.Value(), childResult.Value(), {}});
     if (!tracked) {
         plan->contentEdges.PopBack();

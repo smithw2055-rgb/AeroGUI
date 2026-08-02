@@ -8,7 +8,7 @@ class HarfBuzzAdapter;
 
 // Owns FreeType library/face state. Instances and loaded faces are confined to
 // the thread on which the adapter is used.
-class AERO_API FreeTypeAdapter final
+class AERO_API FreeTypeAdapter
     : public IFontProvider,
       public ITextShaper,
       public IGlyphRasterizer {

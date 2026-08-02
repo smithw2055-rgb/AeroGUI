@@ -9,7 +9,7 @@
 
 namespace Aero::Internal {
 
-class DocumentPrivate final {
+class DocumentPrivate {
 public:
     static bool IsTextBlock(const Base::Object& owner) noexcept {
         return owner.RuntimeType() == Controls::TextBlock::StaticTypeId() ||
@@ -163,10 +163,10 @@ public:
         Base::Result<void> added;
         if (IsTextBlock(owner)) {
             added = static_cast<Controls::TextBlock&>(owner)
-                .TryAddOwnedInline(Base::Ref<Base::Object>(value));
+                .AddOwnedInline(Base::Ref<Base::Object>(value));
         } else {
             added = static_cast<Documents::Span&>(owner)
-                .TryAddOwnedInline(value);
+                .AddOwnedInline(value);
         }
         if (!added) return added.GetStatus();
 
@@ -250,12 +250,12 @@ public:
         const Meta::TypeRegistry& types = value.PropertyRegistry().Types();
         if (types.IsDerivedFrom(
                 value.RuntimeType(), Documents::Run::StaticTypeId())) {
-            return output.TryAppend(
+            return output.Append(
                 static_cast<const Documents::Run&>(value).GetText());
         }
         if (types.IsDerivedFrom(
                 value.RuntimeType(), Documents::LineBreak::StaticTypeId())) {
-            return output.TryAppend(Base::StringView("\n"));
+            return output.Append(Base::StringView("\n"));
         }
         if (types.IsDerivedFrom(
                 value.RuntimeType(), Documents::Span::StaticTypeId())) {
@@ -273,7 +273,7 @@ public:
     static Base::Result<void> AppendText(
         const Controls::TextBlock& owner,
         Base::String& output) noexcept {
-        Base::Result<void> appended = output.TryAppend(owner.GetText());
+        Base::Result<void> appended = output.Append(owner.GetText());
         if (!appended) return appended.GetStatus();
         for (const Base::Ref<Base::Object>& item : owner.ownedInlines_) {
             if (!item) continue;
@@ -458,7 +458,7 @@ InlineCollectionView InlineCollection::GetView() const noexcept {
         : InlineCollectionView{};
 }
 
-Base::Result<void> InlineCollection::TryAdd(
+Base::Result<void> InlineCollection::Add(
     Base::Ref<Inline> value) noexcept {
     if (owner_ == nullptr) {
         return Base::Status::Failure(
@@ -469,7 +469,7 @@ Base::Result<void> InlineCollection::TryAdd(
         *owner_, std::move(value));
 }
 
-Base::Result<bool> InlineCollection::TryRemove(
+Base::Result<bool> InlineCollection::Remove(
     Inline& value) noexcept {
     if (owner_ == nullptr) {
         return Base::Status::Failure(
@@ -517,7 +517,7 @@ void Span::SetInlineValue(Meta::Value value) noexcept {
     return;
 }
 
-Base::Result<void> Span::TryAddOwnedInline(Base::Ref<Inline> value) noexcept {
+Base::Result<void> Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
     if (!value) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -530,7 +530,7 @@ Base::Result<void> Span::TryAddOwnedInline(Base::Ref<Inline> value) noexcept {
                 "Span already owns the inline");
         }
     }
-    Base::Result<void> appended = inlines_.TryPushBack(value);
+    Base::Result<void> appended = inlines_.PushBack(value);
     if (!appended) return appended.GetStatus();
     Aero::Internal::ElementPrivate::Attach(
         *value, this, GetContentHost(), nullptr);
@@ -604,7 +604,7 @@ Base::Result<TextPointer> TextPointer::GetPositionAtOffset(
     return TextPointer(*container_, resolved, direction);
 }
 
-Base::Result<TextRange> TextRange::TryCreate(
+Base::Result<TextRange> TextRange::Create(
     TextPointer start, TextPointer end) noexcept {
     Base::Result<std::int32_t> order = start.CompareTo(end);
     if (!order) return order.GetStatus();
@@ -639,7 +639,7 @@ Base::Result<void> TextRange::CopyText(
             "TextRange exceeds the document text");
     }
     output.Clear();
-    return output.TryAssign(flattened.View().Substr(
+    return output.Assign(flattened.View().Substr(
         start_.offset_, GetLength()));
 }
 
@@ -719,10 +719,7 @@ Base::Result<void> NavigationService::Attach(
             Base::ErrorCode::InvalidState,
             "NavigationService requires a navigation handler");
     }
-    Base::Result<void> attached = root.TryAddHandler(
-        Hyperlink::RequestNavigateEvent,
-        requestHandler_, true);
-    if (!attached) return attached.GetStatus();
+    root.AddHandlerChecked(Hyperlink::RequestNavigateEvent, requestHandler_, true);
     root_ = &root;
     return {};
 }

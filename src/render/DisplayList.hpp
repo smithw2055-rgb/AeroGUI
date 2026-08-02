@@ -44,7 +44,7 @@ enum class RenderCommandKind : std::uint8_t {
     DrawGlyphRun
 };
 
-struct RenderCommand final {
+struct RenderCommand {
     RenderCommandKind kind = RenderCommandKind::FillRect;
     Rect rect;
     Transform2D transform;
@@ -56,7 +56,7 @@ struct RenderCommand final {
     double scalar = 0.0;
 };
 
-class AERO_API DisplayList final {
+class AERO_API DisplayList {
 public:
     DisplayList() noexcept = default;
 
@@ -74,7 +74,7 @@ private:
     Base::Vector<RenderCommand> commands_;
 };
 
-class AERO_API DisplayListBuilder final {
+class AERO_API DisplayListBuilder {
 public:
     DisplayListBuilder() noexcept = default;
 

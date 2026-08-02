@@ -8,7 +8,7 @@ class FreeTypeAdapter;
 
 // Shapes faces owned by a FreeTypeAdapter without exposing HarfBuzz or
 // FreeType handles through Aero's public ABI.
-class AERO_API HarfBuzzAdapter final : public ITextShaper {
+class AERO_API HarfBuzzAdapter  : public ITextShaper {
 public:
     explicit HarfBuzzAdapter(
         FreeTypeAdapter& fonts) noexcept

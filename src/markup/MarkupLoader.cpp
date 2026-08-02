@@ -105,14 +105,14 @@ constexpr std::uint32_t CompiledDocumentMagic =
 Base::Result<void> AppendU8(
     Base::Vector<std::uint8_t>& output,
     std::uint8_t value) noexcept {
-    return output.TryPushBack(value);
+    return output.PushBack(value);
 }
 
 Base::Result<void> AppendU32(
     Base::Vector<std::uint8_t>& output,
     std::uint32_t value) noexcept {
     for (std::uint32_t shift = 0U; shift < 32U; shift += 8U) {
-        Base::Result<void> appended = output.TryPushBack(
+        Base::Result<void> appended = output.PushBack(
             static_cast<std::uint8_t>(value >> shift));
         if (!appended) return appended.GetStatus();
     }
@@ -123,7 +123,7 @@ Base::Result<void> AppendU64(
     Base::Vector<std::uint8_t>& output,
     std::uint64_t value) noexcept {
     for (std::uint32_t shift = 0U; shift < 64U; shift += 8U) {
-        Base::Result<void> appended = output.TryPushBack(
+        Base::Result<void> appended = output.PushBack(
             static_cast<std::uint8_t>(value >> shift));
         if (!appended) return appended.GetStatus();
     }
@@ -139,14 +139,14 @@ Base::Result<void> AppendString(
     for (std::uint32_t index = 0U;
          index < value.SizeBytes();
          ++index) {
-        Base::Result<void> appended = output.TryPushBack(
+        Base::Result<void> appended = output.PushBack(
             static_cast<std::uint8_t>(value[index]));
         if (!appended) return appended.GetStatus();
     }
     return {};
 }
 
-class Decoder final {
+class Decoder {
 public:
     explicit Decoder(
         Base::Span<const std::uint8_t> bytes) noexcept
@@ -191,7 +191,7 @@ public:
                 "Compiled XAML string bounds are invalid");
         }
         Base::String value;
-        Base::Result<void> assigned = value.TryAssign(
+        Base::Result<void> assigned = value.Assign(
             Base::StringView(
                 reinterpret_cast<const char*>(
                     bytes_.Data() + offset_),
@@ -274,16 +274,16 @@ CompiledDocument::Compile(
     document.originUri_ = originUri;
     if (!originUri.Empty()) {
         Base::Result<void> dependency =
-            document.dependencies_.TryPushBack(originUri);
+            document.dependencies_.PushBack(originUri);
         if (!dependency) return dependency.GetStatus();
     }
     Base::Result<void> reserved =
-        document.nodes_.TryReserve(nodes.Size());
+        document.nodes_.Reserve(nodes.Size());
     if (!reserved) return reserved.GetStatus();
     for (const Node& node : nodes) {
-        Base::Result<Node> cloned = Node::TryClone(node);
+        Base::Result<Node> cloned = Node::Clone(node);
         if (!cloned) return cloned.GetStatus();
-        Base::Result<void> appended = document.nodes_.TryPushBack(
+        Base::Result<void> appended = document.nodes_.PushBack(
             std::move(cloned).Value());
         if (!appended) return appended.GetStatus();
     }
@@ -313,16 +313,16 @@ CompiledDocument::CompileWithIdentity(
     document.originUri_ = originUri;
     if (!originUri.Empty()) {
         Base::Result<void> dependency =
-            document.dependencies_.TryPushBack(originUri);
+            document.dependencies_.PushBack(originUri);
         if (!dependency) return dependency.GetStatus();
     }
     Node node;
     while (true) {
         Base::Result<NodeKind> read = reader.Read(node);
         if (!read) return read.GetStatus();
-        Base::Result<Node> cloned = Node::TryClone(node);
+        Base::Result<Node> cloned = Node::Clone(node);
         if (!cloned) return cloned.GetStatus();
-        Base::Result<void> appended = document.nodes_.TryPushBack(
+        Base::Result<void> appended = document.nodes_.PushBack(
             std::move(cloned).Value());
         if (!appended) return appended.GetStatus();
         if (read.Value() == NodeKind::EndOfDocument) break;
@@ -330,7 +330,7 @@ CompiledDocument::CompileWithIdentity(
     return document;
 }
 
-Base::Result<void> CompiledDocument::TryAddDependency(
+Base::Result<void> CompiledDocument::AddDependency(
     const Base::ResourceUri& dependency) noexcept {
     if (dependency.Empty()) {
         return Base::Status::Failure(
@@ -343,7 +343,7 @@ Base::Result<void> CompiledDocument::TryAddDependency(
             return {};
         }
     }
-    return dependencies_.TryPushBack(dependency);
+    return dependencies_.PushBack(dependency);
 }
 
 Base::Result<Base::Vector<std::uint8_t>>
@@ -486,7 +486,7 @@ CompiledDocument::Deserialize(
             "Compiled XAML dependency count exceeds limits");
     }
     Base::Result<void> reserved =
-        document.dependencies_.TryReserve(
+        document.dependencies_.Reserve(
             dependencyCount.Value());
     if (!reserved) return reserved.GetStatus();
     for (std::uint32_t index = 0U;
@@ -500,7 +500,7 @@ CompiledDocument::Deserialize(
             Base::ResourceUri::Parse(text.Value().View());
         if (!parsed) return parsed.GetStatus();
         Base::Result<void> added =
-            document.TryAddDependency(
+            document.AddDependency(
                 parsed.Value());
         if (!added) return added.GetStatus();
     }
@@ -512,7 +512,7 @@ CompiledDocument::Deserialize(
             Base::ErrorCode::OutOfRange,
             "Compiled XAML node count exceeds limits");
     }
-    reserved = document.nodes_.TryReserve(count.Value());
+    reserved = document.nodes_.Reserve(count.Value());
     if (!reserved) return reserved.GetStatus();
     for (std::uint32_t index = 0U;
          index < count.Value();
@@ -568,7 +568,7 @@ CompiledDocument::Deserialize(
             *destination = std::move(string).Value();
         }
         Base::Result<void> appended =
-            document.nodes_.TryPushBack(std::move(node));
+            document.nodes_.PushBack(std::move(node));
         if (!appended) return appended.GetStatus();
     }
     if (!document.originUri_.Empty()) {
@@ -621,7 +621,7 @@ Base::Result<Base::String> MakeKey(
             "XAML cache URI cannot be empty");
     }
     Base::String key(&allocator);
-    Base::Result<void> assigned = key.TryAssign(uri.Canonical());
+    Base::Result<void> assigned = key.Assign(uri.Canonical());
     if (!assigned) return assigned.GetStatus();
     return key;
 }
@@ -650,8 +650,8 @@ void RemoveKey(
 
 } // namespace
 
-struct DependencyGraph::Impl final {
-    struct Node final {
+struct DependencyGraph::Impl {
+    struct Node {
         explicit Node(Base::IAllocator& allocator) noexcept
             : dependencies(&allocator), dependents(&allocator) {}
 
@@ -673,7 +673,7 @@ struct DependencyGraph::Impl final {
         Node node(*allocator);
         node.uri = uri;
         Base::Result<typename Base::HashMap<Base::String, Node>::InsertResult>
-            inserted = nodes.TryInsert(
+            inserted = nodes.Insert(
                 std::move(key).Value(), std::move(node));
         if (!inserted) return inserted.GetStatus();
         return &inserted.Value().entry->Value();
@@ -744,7 +744,7 @@ Base::Result<void> DependencyGraph::Update(
 
     Base::Vector<Base::String> newDependencies(allocator_);
     Base::Result<void> reserved =
-        newDependencies.TryReserve(dependencies.Size());
+        newDependencies.Reserve(dependencies.Size());
     if (!reserved) return reserved.GetStatus();
     for (const Base::ResourceUri& dependencyUri : dependencies) {
         if (dependencyUri.Empty() || dependencyUri == document) continue;
@@ -757,7 +757,7 @@ Base::Result<void> DependencyGraph::Update(
         Base::Result<Impl::Node*> dependencyNode =
             impl_->EnsureNode(dependencyUri);
         if (!dependencyNode) return dependencyNode.GetStatus();
-        Base::Result<void> appended = newDependencies.TryPushBack(
+        Base::Result<void> appended = newDependencies.PushBack(
             std::move(dependencyKey).Value());
         if (!appended) return appended.GetStatus();
     }
@@ -767,7 +767,7 @@ Base::Result<void> DependencyGraph::Update(
     // references remain stable even when EnsureNode() previously rehashed.
     Base::Vector<Base::String> reverseKeys(allocator_);
     Base::Result<void> reverseReserved =
-        reverseKeys.TryReserve(newDependencies.Size());
+        reverseKeys.Reserve(newDependencies.Size());
     if (!reverseReserved) return reverseReserved.GetStatus();
     for (const Base::String& dependencyKey : newDependencies) {
         Impl::Node* dependency = impl_->nodes.Find(dependencyKey);
@@ -777,14 +777,14 @@ Base::Result<void> DependencyGraph::Update(
                 "XAML dependency graph lost a prepared node");
         }
         Base::Result<void> reverseCapacity =
-            dependency->dependents.TryReserve(
+            dependency->dependents.Reserve(
                 dependency->dependents.Size() + 1U);
         if (!reverseCapacity) return reverseCapacity.GetStatus();
         Base::String reverseKey(allocator_);
-        Base::Result<void> copied = reverseKey.TryAssign(
+        Base::Result<void> copied = reverseKey.Assign(
             documentKey.Value().View());
         if (!copied) return copied.GetStatus();
-        Base::Result<void> stored = reverseKeys.TryPushBack(
+        Base::Result<void> stored = reverseKeys.PushBack(
             std::move(reverseKey));
         if (!stored) return stored.GetStatus();
     }
@@ -820,7 +820,7 @@ Base::Result<void> DependencyGraph::Update(
             continue;
         }
         Base::Result<void> reverse =
-            dependency->dependents.TryPushBack(
+            dependency->dependents.PushBack(
                 std::move(reverseKeys[index]));
         if (!reverse) return reverse.GetStatus();
     }
@@ -838,7 +838,7 @@ bool DependencyGraph::Remove(
     if (node == nullptr) return false;
 
     Base::Vector<Base::String> previousDependencies(allocator_);
-    if (!previousDependencies.TryAppend(
+    if (!previousDependencies.Append(
             node->dependencies.AsSpan())) {
         return false;
     }
@@ -876,12 +876,12 @@ Base::Result<void> DependencyGraph::CopyDependencies(
     const Impl::Node* node = impl_->nodes.Find(key.Value());
     if (node == nullptr) return {};
     Base::Result<void> reserved =
-        output.TryReserve(node->dependencies.Size());
+        output.Reserve(node->dependencies.Size());
     if (!reserved) return reserved.GetStatus();
     for (const Base::String& dependencyKey : node->dependencies) {
         const Impl::Node* dependency = impl_->nodes.Find(dependencyKey);
         if (dependency == nullptr) continue;
-        Base::Result<void> pushed = output.TryPushBack(dependency->uri);
+        Base::Result<void> pushed = output.PushBack(dependency->uri);
         if (!pushed) return pushed.GetStatus();
     }
     return {};
@@ -898,12 +898,12 @@ Base::Result<void> DependencyGraph::CopyDependents(
     const Impl::Node* node = impl_->nodes.Find(key.Value());
     if (node == nullptr) return {};
     Base::Result<void> reserved =
-        output.TryReserve(node->dependents.Size());
+        output.Reserve(node->dependents.Size());
     if (!reserved) return reserved.GetStatus();
     for (const Base::String& dependentKey : node->dependents) {
         const Impl::Node* dependent = impl_->nodes.Find(dependentKey);
         if (dependent == nullptr) continue;
-        Base::Result<void> pushed = output.TryPushBack(dependent->uri);
+        Base::Result<void> pushed = output.PushBack(dependent->uri);
         if (!pushed) return pushed.GetStatus();
     }
     return {};
@@ -921,14 +921,14 @@ Base::Result<void> DependencyGraph::CollectAffected(
         MakeKey(changed, *allocator_);
     if (!changedKey) return changedKey.GetStatus();
     Base::Result<void> queued =
-        queue.TryPushBack(changedKey.Value());
+        queue.PushBack(changedKey.Value());
     if (!queued) return queued.GetStatus();
 
     std::uint32_t cursor = 0U;
     while (cursor < queue.Size()) {
         Base::String key = queue[cursor++];
         Base::Result<typename Base::HashSet<Base::String>::InsertResult>
-            inserted = visited.TryInsert(key);
+            inserted = visited.Insert(key);
         if (!inserted) return inserted.GetStatus();
         if (!inserted.Value().inserted) continue;
 
@@ -936,12 +936,12 @@ Base::Result<void> DependencyGraph::CollectAffected(
         Base::ResourceUri uri = node != nullptr
             ? node->uri
             : changed;
-        Base::Result<void> appended = output.TryPushBack(uri);
+        Base::Result<void> appended = output.PushBack(uri);
         if (!appended) return appended.GetStatus();
         if (node == nullptr) continue;
         for (const Base::String& dependent : node->dependents) {
             if (visited.Contains(dependent)) continue;
-            Base::Result<void> next = queue.TryPushBack(dependent);
+            Base::Result<void> next = queue.PushBack(dependent);
             if (!next) return next.GetStatus();
         }
     }
@@ -956,8 +956,8 @@ std::uint64_t DependencyGraph::Generation() const noexcept {
     return impl_ != nullptr ? impl_->generation : 0U;
 }
 
-struct DocumentCache::Impl final {
-    struct Entry final {
+struct DocumentCache::Impl {
+    struct Entry {
         explicit Entry(Base::IAllocator& allocator) noexcept
             : compiledBytes(&allocator) {}
 
@@ -1149,7 +1149,7 @@ Base::Result<void> DocumentCache::Store(
         entry.lastAccess = ++impl_->accessSequence;
         impl_->compiledBytes += entry.compiledBytes.Size();
         Base::Result<typename Base::HashMap<Base::String, Impl::Entry>::InsertResult>
-            inserted = impl_->entries.TryInsert(
+            inserted = impl_->entries.Insert(
                 std::move(key).Value(), std::move(entry));
         if (!inserted) {
             impl_->compiledBytes -= serializedSize;
@@ -1178,7 +1178,7 @@ Base::Result<std::uint32_t> DocumentCache::Invalidate(
             impl_->graph.CollectAffected(uri, affected);
         if (!collected) return collected.GetStatus();
     } else {
-        Base::Result<void> pushed = affected.TryPushBack(uri);
+        Base::Result<void> pushed = affected.PushBack(uri);
         if (!pushed) return pushed.GetStatus();
     }
     std::uint32_t count = 0U;
@@ -1210,7 +1210,7 @@ bool DocumentCache::Contains(
     return key && impl_->entries.Contains(key.Value());
 }
 
-bool DocumentCache::TryGetSourceRevision(
+bool DocumentCache::GetSourceRevision(
     const Base::ResourceUri& uri,
     std::uint64_t sourceIdentity,
     std::uint64_t& revision) const noexcept {
@@ -1268,23 +1268,23 @@ const DocumentCacheLimits& DocumentCache::Limits() const noexcept {
 
 namespace Aero::Markup {
 
-Base::Result<void> VisualContentPlan::TryReserve(
+Base::Result<void> VisualContentPlan::Reserve(
     std::uint32_t contentEdgeCount,
     std::uint32_t mountEdgeCount,
     std::uint32_t nodeCount) noexcept {
-    Base::Result<void> reserved = contentEdges.TryReserve(contentEdgeCount);
+    Base::Result<void> reserved = contentEdges.Reserve(contentEdgeCount);
     if (!reserved) return reserved.GetStatus();
-    reserved = mountEdges.TryReserve(mountEdgeCount);
+    reserved = mountEdges.Reserve(mountEdgeCount);
     if (!reserved) return reserved.GetStatus();
-    return nodes.TryReserve(nodeCount);
+    return nodes.Reserve(nodeCount);
 }
 
-Base::Result<void> VisualContentPlan::TryAddNode(
+Base::Result<void> VisualContentPlan::AddNode(
     Aero::Visual& node) noexcept {
     for (Aero::Visual* existing : nodes) {
         if (existing == &node) return {};
     }
-    return nodes.TryPushBack(&node);
+    return nodes.PushBack(&node);
 }
 
 void VisualContentPlan::ReleaseContent() noexcept {
@@ -1360,7 +1360,7 @@ namespace Aero::Markup {
 namespace LoaderDiagnosticCodes {
 inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidUri =
     ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 301U);
-inline constexpr ::Aero::Diagnostics::DiagnosticCode SourceProviderNotFound =
+inline constexpr ::Aero::Diagnostics::DiagnosticCode XamlProviderNotFound =
     ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 302U);
 inline constexpr ::Aero::Diagnostics::DiagnosticCode SourceLoadFailed =
     ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 303U);
@@ -1374,10 +1374,10 @@ inline constexpr ::Aero::Diagnostics::DiagnosticCode ResourceDependencyFailed =
     ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 307U);
 } // namespace LoaderDiagnosticCodes
 
-struct Loader::Impl final {
+struct Loader::Impl {
     Impl(
         Schema& schema,
-        SourceProviders& providers,
+        XamlProviderRegistry& providers,
         Diagnostics::IDiagnosticSink* diagnostics = nullptr,
         const LoadState* runtime = nullptr) noexcept;
 
@@ -1412,7 +1412,7 @@ private:
     struct Operation;
 
     Schema* schema_ = nullptr;
-    SourceProviders* providers_ = nullptr;
+    XamlProviderRegistry* providers_ = nullptr;
     Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
     const LoadState* runtime_ = nullptr;
 };
@@ -1421,7 +1421,7 @@ using Aero::ResourceDictionary;
 
 namespace {
 
-class MemoryStream final : public Base::Stream {
+class MemoryStream : public Base::Stream {
 public:
     explicit MemoryStream(
         Base::Span<const std::uint8_t> bytes) noexcept
@@ -1474,7 +1474,7 @@ private:
     std::uint32_t position_ = 0U;
 };
 
-class FileStream final : public Base::Stream {
+class FileStream : public Base::Stream {
 public:
     FileStream(std::FILE* file, std::uint64_t length) noexcept
         : file_(file), length_(length) {}
@@ -1549,7 +1549,7 @@ private:
     std::uint64_t length_ = 0U;
 };
 
-class HashingStream final : public Base::Stream {
+class HashingStream : public Base::Stream {
 public:
     explicit HashingStream(Base::Stream& source) noexcept
         : source_(&source) {}
@@ -1601,14 +1601,14 @@ Base::Result<void> AssignLowerAscii(
     Base::StringView value) noexcept {
     Base::String replacement(&output.Allocator());
     Base::Result<void> reserve =
-        replacement.TryReserve(value.SizeBytes());
+        replacement.Reserve(value.SizeBytes());
     if (!reserve) {
         return reserve.GetStatus();
     }
     for (char character : value) {
         const char lower = ToLowerAscii(character);
         Base::Result<void> append =
-            replacement.TryAppendUnchecked(
+            replacement.AppendUnchecked(
                 Base::StringView(&lower, 1U));
         if (!append) {
             return append.GetStatus();
@@ -1619,7 +1619,7 @@ Base::Result<void> AssignLowerAscii(
 }
 
 bool RegistrationMatches(
-    const SourceProviderRegistration& registration,
+    const XamlProviderRegistration& registration,
     const Base::ResourceUri& uri,
     bool requireScheme,
     bool requireAssembly) noexcept {
@@ -1660,24 +1660,24 @@ Base::Result<Base::ResourceUri> ResolveRequestedUri(
 
 } // namespace
 
-Base::Result<void> SourceProviders::TryRegister(
-    ISourceProvider& provider,
+Base::Result<void> XamlProviderRegistry::Register(
+    XamlProvider& provider,
     Base::StringView scheme,
     Base::StringView assembly) noexcept {
-    SourceProviderRegistration registration;
+    XamlProviderRegistration registration;
     Base::Result<void> schemeResult =
         AssignLowerAscii(registration.scheme, scheme);
     if (!schemeResult) {
         return schemeResult.GetStatus();
     }
     Base::Result<void> assemblyResult =
-        registration.assembly.TryAssign(assembly);
+        registration.assembly.Assign(assembly);
     if (!assemblyResult) {
         return assemblyResult.GetStatus();
     }
     registration.provider = &provider;
 
-    for (const SourceProviderRegistration& existing :
+    for (const XamlProviderRegistration& existing :
          registrations_) {
         if (existing.scheme.View() == registration.scheme.View() &&
             existing.assembly.View() ==
@@ -1687,14 +1687,14 @@ Base::Result<void> SourceProviders::TryRegister(
                 "A XAML source provider is already registered for this route");
         }
     }
-    return registrations_.TryPushBack(
+    return registrations_.PushBack(
         std::move(registration));
 }
 
-Base::Result<SourceProviderResolution>
-SourceProviders::ResolveDetailed(
+Base::Result<XamlProviderResolution>
+XamlProviderRegistry::ResolveDetailed(
     const Base::ResourceUri& uri) const noexcept {
-    const struct Route final {
+    const struct Route {
         bool scheme;
         bool assembly;
     } routes[] = {
@@ -1708,14 +1708,14 @@ SourceProviders::ResolveDetailed(
             (route.assembly && uri.Assembly().Empty())) {
             continue;
         }
-        for (const SourceProviderRegistration& registration :
+        for (const XamlProviderRegistration& registration :
              registrations_) {
             if (RegistrationMatches(
                     registration,
                     uri,
                     route.scheme,
                     route.assembly)) {
-                SourceProviderResolution result;
+                XamlProviderResolution result;
                 result.provider = registration.provider;
                 result.cacheIdentity = Base::MixHash64(
                     registration.provider->CacheIdentity() ^
@@ -1732,17 +1732,17 @@ SourceProviders::ResolveDetailed(
         "No XAML source provider matches the resource URI");
 }
 
-Base::Result<ISourceProvider*>
-SourceProviders::Resolve(
+Base::Result<XamlProvider*>
+XamlProviderRegistry::Resolve(
     const Base::ResourceUri& uri) const noexcept {
-    Base::Result<SourceProviderResolution> resolved =
+    Base::Result<XamlProviderResolution> resolved =
         ResolveDetailed(uri);
     return resolved
-        ? Base::Result<ISourceProvider*>(resolved.Value().provider)
-        : Base::Result<ISourceProvider*>(resolved.GetStatus());
+        ? Base::Result<XamlProvider*>(resolved.Value().provider)
+        : Base::Result<XamlProvider*>(resolved.GetStatus());
 }
 
-Base::Result<void> EmbeddedSourceProvider::TryAdd(
+Base::Result<void> EmbeddedXamlProvider::Add(
     const Base::ResourceUri& uri,
     Base::Span<const std::uint8_t> bytes,
     std::uint64_t revision) noexcept {
@@ -1767,12 +1767,12 @@ Base::Result<void> EmbeddedSourceProvider::TryAdd(
     Entry entry;
     entry.uri = uri;
     Base::Result<void> copied =
-        entry.bytes.TryAppend(bytes);
+        entry.bytes.Append(bytes);
     if (!copied) {
         return copied.GetStatus();
     }
     entry.revision = revision;
-    Base::Result<void> stored = entries_.TryPushBack(std::move(entry));
+    Base::Result<void> stored = entries_.PushBack(std::move(entry));
     if (!stored) return stored.GetStatus();
     cacheIdentity_ = Base::HashBytes(
         uri.Canonical().Data(),
@@ -1783,11 +1783,11 @@ Base::Result<void> EmbeddedSourceProvider::TryAdd(
     return {};
 }
 
-Base::Result<void> EmbeddedSourceProvider::TryAddText(
+Base::Result<void> EmbeddedXamlProvider::AddText(
     const Base::ResourceUri& uri,
     Base::StringView text,
     std::uint64_t revision) noexcept {
-    return TryAdd(
+    return Add(
         uri,
         Base::Span<const std::uint8_t>(
             reinterpret_cast<const std::uint8_t*>(text.Data()),
@@ -1795,13 +1795,13 @@ Base::Result<void> EmbeddedSourceProvider::TryAddText(
         revision);
 }
 
-Base::Result<void> EmbeddedSourceProvider::Freeze() noexcept {
+Base::Result<void> EmbeddedXamlProvider::Freeze() noexcept {
     frozen_ = true;
     return {};
 }
 
 Base::Result<Integration::StreamResourceInfo>
-EmbeddedSourceProvider::Open(
+EmbeddedXamlProvider::Open(
     const Base::ResourceUri& uri) const noexcept {
     for (const Entry& entry : entries_) {
         if (entry.uri == uri) {
@@ -1816,7 +1816,7 @@ EmbeddedSourceProvider::Open(
         "Embedded XAML source was not found");
 }
 
-Base::Result<std::uint64_t> EmbeddedSourceProvider::Revision(
+Base::Result<std::uint64_t> EmbeddedXamlProvider::Revision(
     const Base::ResourceUri& uri) const noexcept {
     for (const Entry& entry : entries_) {
         if (entry.uri == uri) return entry.revision;
@@ -1826,7 +1826,7 @@ Base::Result<std::uint64_t> EmbeddedSourceProvider::Revision(
         "Embedded XAML source was not found");
 }
 
-Base::Result<std::uint64_t> FileSourceProvider::Revision(
+Base::Result<std::uint64_t> FileXamlProvider::Revision(
     const Base::ResourceUri& uri) const noexcept {
     if ((!uri.Scheme().Empty() &&
          uri.Scheme() != Base::StringView("file")) ||
@@ -1836,7 +1836,7 @@ Base::Result<std::uint64_t> FileSourceProvider::Revision(
             "File XAML source URI is invalid");
     }
     Base::String path;
-    Base::Result<void> assigned = path.TryAssign(uri.Path());
+    Base::Result<void> assigned = path.Assign(uri.Path());
     if (!assigned) return assigned.GetStatus();
     std::error_code error;
     const std::filesystem::path filePath(path.CStr());
@@ -1861,7 +1861,7 @@ Base::Result<std::uint64_t> FileSourceProvider::Revision(
 }
 
 Base::Result<Integration::StreamResourceInfo>
-FileSourceProvider::Open(
+FileXamlProvider::Open(
     const Base::ResourceUri& uri) const noexcept {
     if ((!uri.Scheme().Empty() &&
          uri.Scheme() != Base::StringView("file")) ||
@@ -1873,7 +1873,7 @@ FileSourceProvider::Open(
     }
 
     Base::String path;
-    Base::Result<void> assigned = path.TryAssign(uri.Path());
+    Base::Result<void> assigned = path.Assign(uri.Path());
     if (!assigned) {
         return assigned.GetStatus();
     }
@@ -1929,22 +1929,22 @@ FileSourceProvider::Open(
     return source;
 }
 
-struct Loader::Impl::Operation final {
-    struct FinalizeState final {
+struct Loader::Impl::Operation {
+    struct FinalizeState {
         Operation* operation = nullptr;
         const XamlReaderSettings* options = nullptr;
         const Base::ResourceUri* origin = nullptr;
         const CompiledDocument* compiled = nullptr;
     };
 
-    struct PendingResourceMerge final {
+    struct PendingResourceMerge {
         ResourceDictionary target;
         ResourceDictionary source;
     };
 
     Operation(
         Schema& schema,
-        SourceProviders& providers,
+        XamlProviderRegistry& providers,
         Diagnostics::IDiagnosticSink* diagnostics,
         const LoadState* runtime) noexcept
         : schema_(&schema),
@@ -2022,7 +2022,7 @@ struct Loader::Impl::Operation final {
         Base::StringView message) noexcept;
 
     Schema* schema_ = nullptr;
-    SourceProviders* providers_ = nullptr;
+    XamlProviderRegistry* providers_ = nullptr;
     Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
     const LoadState* runtime_ = nullptr;
     Base::Vector<Base::ResourceUri> loadStack_;
@@ -2030,7 +2030,7 @@ struct Loader::Impl::Operation final {
 
 Loader::Impl::Impl(
     Schema& schema,
-    SourceProviders& providers,
+    XamlProviderRegistry& providers,
     Diagnostics::IDiagnosticSink* diagnostics,
     const LoadState* runtime) noexcept
     : schema_(&schema),
@@ -2249,17 +2249,17 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
                 "XAML dependency depth exceeds configured limits"));
     }
 
-    Base::Result<SourceProviderResolution> provider =
+    Base::Result<XamlProviderResolution> provider =
         providers_->ResolveDetailed(uri);
     if (!provider) {
         return Failure(
             provider.GetStatus(),
-            LoaderDiagnosticCodes::SourceProviderNotFound,
+            LoaderDiagnosticCodes::XamlProviderNotFound,
             Base::StringView(
                 "No XAML source provider matches the resource URI"));
     }
     Base::Result<void> pushed =
-        loadStack_.TryPushBack(uri);
+        loadStack_.PushBack(uri);
     if (!pushed) {
         return pushed.GetStatus();
     }
@@ -2349,7 +2349,7 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
             for (const Base::ResourceUri& dependency :
                  loaded.Value().dependencies) {
                 Base::Result<void> added =
-                    compiled.Value().TryAddDependency(dependency);
+                    compiled.Value().AddDependency(dependency);
                 if (!added) {
                     compiled = added.GetStatus();
                     break;
@@ -2657,10 +2657,10 @@ Loader::Impl::Operation::ResolveDictionaryDependencies(
     // earlier palette or brush dictionary.
     ResourceDictionary ambientResources;
     Base::Result<void> ambientMerged =
-        ambientResources.TryAddMerged(dictionary);
+        ambientResources.AddMerged(dictionary);
     for (PendingResourceMerge& discovered : pending) {
         if (ambientMerged) {
-            ambientMerged = ambientResources.TryAddMerged(
+            ambientMerged = ambientResources.AddMerged(
                 discovered.source);
         }
     }
@@ -2712,7 +2712,7 @@ Loader::Impl::Operation::ResolveDictionaryDependencies(
     merge.target = std::move(target).Value();
     merge.source = std::move(sourceDictionary);
     Base::Result<void> staged =
-        pending.TryPushBack(std::move(merge));
+        pending.PushBack(std::move(merge));
     loaded.Value().Clear();
     return staged;
 }
@@ -2727,7 +2727,7 @@ Loader::Impl::Operation::CommitResourceDependencies(
     for (; committed < pending.Size(); ++committed) {
         PendingResourceMerge& merge = pending[committed];
         Base::Result<void> added =
-            merge.target.TryAddMerged(merge.source);
+        merge.target.AddMerged(merge.source);
         if (!added) {
             failure = added.GetStatus();
             break;
@@ -2789,7 +2789,7 @@ Base::Result<void> Loader::Impl::Operation::AppendDependency(
             Base::StringView(
                 "XAML dependency count exceeds configured limits"));
     }
-    return destination.dependencies.TryPushBack(
+    return destination.dependencies.PushBack(
         dependency);
 }
 
@@ -2883,7 +2883,7 @@ Base::Status Loader::Impl::Operation::Failure(
     Base::StringView message) noexcept {
     if (diagnostics_ != nullptr) {
         Base::Result<::Aero::Diagnostics::Diagnostic> diagnostic =
-            ::Aero::Diagnostics::Diagnostic::TryCreate(
+            ::Aero::Diagnostics::Diagnostic::Create(
                 code,
                 ::Aero::Diagnostics::DiagnosticSeverity::Error,
                 message);
@@ -2915,7 +2915,7 @@ Base::Result<XamlDocument> AdoptResult(
 
 Loader::Loader(
     Schema& schema,
-    SourceProviders& providers,
+    XamlProviderRegistry& providers,
     Diagnostics::IDiagnosticSink* diagnostics,
     Base::IAllocator* allocator,
     const LoadState* runtime) noexcept
@@ -3071,7 +3071,7 @@ Base::Result<void> AddResource(
             "XAML resource scope is not a ResourceDictionary");
     }
     return static_cast<ResourceDictionary&>(scopeOwner)
-        .TryAdd(key, value);
+        .Add(key, value);
 }
 
 Base::Result<void> AddFrameworkResource(
@@ -3087,7 +3087,7 @@ Base::Result<void> AddFrameworkResource(
         return InvalidResource(
             "XAML resource scope is not a FrameworkElement");
     }
-    return element->GetResources().TryAdd(key, value);
+    return element->GetResources().Add(key, value);
 }
 
 Base::Result<void> AddApplicationResource(
@@ -3100,7 +3100,7 @@ Base::Result<void> AddApplicationResource(
     Base::Ref<ResourceDictionary> resources =
         static_cast<Aero::Application&>(scopeOwner).GetResources();
     return resources
-        ? resources->TryAdd(key, value)
+        ? resources->Add(key, value)
         : Base::Result<void>(InvalidResource(
               "Application resource dictionary is unavailable"));
 }
@@ -3221,7 +3221,7 @@ Base::Result<void> ResourceExtension::Register(
 
 namespace Aero::Markup {
 
-struct XamlDocument::Impl final {
+struct XamlDocument::Impl {
     explicit Impl(LoaderResult&& value) noexcept
         : result(std::move(value)) {}
 
@@ -3443,11 +3443,11 @@ Base::Result<XamlDocument> XamlReader::LoadCompiled(
     return view_->LoadCompiledDocument(bytes, originUri);
 }
 
-Base::Result<void> XamlReader::RegisterSourceProvider(
-    Integration::ISourceProvider& provider,
+Base::Result<void> XamlReader::RegisterXamlProvider(
+    Integration::XamlProvider& provider,
     Base::StringView scheme,
     Base::StringView assembly) noexcept {
-    return view_->AddSourceProvider(provider, scheme, assembly);
+    return view_->AddXamlProvider(provider, scheme, assembly);
 }
 
 Base::Result<void> XamlReader::Mount(

@@ -4,7 +4,7 @@
 
 namespace {
 
-class ConsumerApplication final : public Aero::Application {
+class ConsumerApplication : public Aero::Application {
     AERO_DECLARE_TYPE_NAMED(
         ConsumerApplication,
         Aero::Application,
@@ -25,7 +25,7 @@ protected:
     }
 };
 
-class ConsumerWindow final : public Aero::Window {
+class ConsumerWindow : public Aero::Window {
     AERO_DECLARE_TYPE_NAMED(
         ConsumerWindow,
         Aero::Window,

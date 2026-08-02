@@ -26,7 +26,7 @@ using OpenGL33IsCurrent = bool (*)(
 using OpenGL33ContextGeneration = std::uint64_t (*)(
     void* context) noexcept;
 
-struct OpenGL33EmbeddedTarget final {
+struct OpenGL33EmbeddedTarget  {
     std::uint32_t framebuffer = 0U;
     std::uint32_t depthStencilTexture = 0U;
     std::uint32_t width = 0U;
@@ -39,7 +39,7 @@ using OpenGL33TargetCallback = Base::Status (*)(
     void* context,
     OpenGL33EmbeddedTarget* target) noexcept;
 
-struct OpenGL33EmbeddedDeviceOptions final {
+struct OpenGL33EmbeddedDeviceOptions  {
     OpenGL33ProcResolver resolve = nullptr;
     OpenGL33MakeCurrent makeCurrent = nullptr;
     OpenGL33IsCurrent isCurrent = nullptr;
@@ -50,7 +50,7 @@ struct OpenGL33EmbeddedDeviceOptions final {
         OpenGL33StatePreservationPolicy::HostResetsState;
 };
 
-struct OpenGL33WindowDeviceOptions final {
+struct OpenGL33WindowDeviceOptions  {
     NativeWindowHandle window;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;

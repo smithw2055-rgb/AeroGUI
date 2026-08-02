@@ -6,7 +6,7 @@
 
 namespace Aero::Base {
 
-class String final {
+class String  {
 public:
     static constexpr std::uint32_t InlineCapacity = 23U;
 
@@ -30,11 +30,11 @@ public:
 
     void Clear() noexcept;
 
-    Result<void> TryReserve(std::uint32_t capacityBytes) noexcept;
-    Result<void> TryAssign(StringView utf8) noexcept;
-    Result<void> TryAssignUnchecked(StringView bytes) noexcept;
-    Result<void> TryAppend(StringView utf8) noexcept;
-    Result<void> TryAppendUnchecked(StringView bytes) noexcept;
+    Result<void> Reserve(std::uint32_t capacityBytes) noexcept;
+    Result<void> Assign(StringView utf8) noexcept;
+    Result<void> AssignUnchecked(StringView bytes) noexcept;
+    Result<void> Append(StringView utf8) noexcept;
+    Result<void> AppendUnchecked(StringView bytes) noexcept;
 
 private:
     IAllocator* allocator_ = nullptr;

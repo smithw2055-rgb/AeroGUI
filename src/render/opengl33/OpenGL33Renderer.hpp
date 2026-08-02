@@ -15,7 +15,7 @@ using OpenGL33RendererStatistics = RendererStatistics;
 
 RendererShaderSet MakeOpenGL33RendererShaderSet() noexcept;
 
-class OpenGL33Renderer final {
+class OpenGL33Renderer {
 public:
     OpenGL33Renderer(
         Graphics::GraphicsDevice& device,

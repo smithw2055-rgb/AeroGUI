@@ -34,7 +34,7 @@ Base::Status WindowFailure(
 
 } // namespace
 
-struct X11Window::Impl final {
+struct X11Window::Impl  {
     explicit Impl(Base::IAllocator& allocator) noexcept
         : events(&allocator) {}
 
@@ -53,7 +53,7 @@ struct X11Window::Impl final {
     bool ownsWindow = false;
 
     void Push(const WindowEvent& event) noexcept {
-        Base::Result<void> pushed = events.TryPushBack(event);
+        Base::Result<void> pushed = events.PushBack(event);
         static_cast<void>(pushed);
     }
 
@@ -93,7 +93,7 @@ struct X11Window::Impl final {
             ? Base::StringView("AeroGUI")
             : title;
         Base::Vector<char> storage(&events.Allocator());
-        Base::Result<void> resized = storage.TryResize(
+        Base::Result<void> resized = storage.Resize(
             source.SizeBytes() + 1U);
         if (!resized) {
             return resized.GetStatus();

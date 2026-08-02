@@ -48,14 +48,14 @@ inline constexpr std::uint32_t
         static_cast<std::uint32_t>(
             DispatcherFramePhase::Count);
 
-struct DispatcherFrameTimings final {
+struct DispatcherFrameTimings  {
     std::uint64_t frameSequence = 0U;
     DispatcherTime totalMicroseconds = 0U;
     DispatcherTime phaseMicroseconds[
         DispatcherFramePhaseCount]{};
 };
 
-struct DispatcherTaskHandle final {
+struct DispatcherTaskHandle  {
     std::uint64_t value = 0U;
 
     constexpr bool IsValid() const noexcept {
@@ -63,7 +63,7 @@ struct DispatcherTaskHandle final {
     }
 };
 
-struct DispatcherFrameHookHandle final {
+struct DispatcherFrameHookHandle  {
     std::uint64_t value = 0U;
 
     constexpr bool IsValid() const noexcept {
@@ -98,7 +98,7 @@ using DispatcherCleanupCallback = void (*)(void* context) noexcept;
 using DispatcherNowCallback = DispatcherTime (*)(void* context) noexcept;
 using DispatcherWakeCallback = void (*)(void* context) noexcept;
 
-struct DispatcherOptions final {
+struct DispatcherOptions  {
     DispatcherNowCallback now = nullptr;
     void* clockContext = nullptr;
     DispatcherWakeCallback wake = nullptr;
@@ -107,7 +107,7 @@ struct DispatcherOptions final {
 
 class Dispatcher;
 
-class AERO_API DispatcherReentrancyGuard final {
+class AERO_API DispatcherReentrancyGuard  {
 public:
     DispatcherReentrancyGuard() noexcept = default;
     DispatcherReentrancyGuard(
@@ -140,7 +140,7 @@ private:
 AERO_API DispatcherThreadToken
 CurrentDispatcherThreadToken() noexcept;
 
-class AERO_API Dispatcher final {
+class AERO_API Dispatcher  {
 public:
     explicit Dispatcher(
         const DispatcherOptions& options = DispatcherOptions{}) noexcept;
@@ -224,7 +224,7 @@ private:
         Finished
     };
 
-    struct TaskRecord final {
+    struct TaskRecord  {
         DispatcherTaskHandle handle;
         std::uint64_t sequence = 0U;
         DispatcherTime dueTimeMicroseconds = 0U;
@@ -235,7 +235,7 @@ private:
         RecordState state = RecordState::Pending;
     };
 
-    struct FrameHookRecord final {
+    struct FrameHookRecord  {
         DispatcherFrameHookHandle handle;
         std::uint64_t sequence = 0U;
         DispatcherFramePhase phase = DispatcherFramePhase::BeginFrame;

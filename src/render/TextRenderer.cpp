@@ -16,14 +16,14 @@ namespace {
 // higher density so an enlarged run is still sampled from sufficient detail.
 constexpr float GlyphRasterScale = 4.0F;
 
-struct GlyphVertex final {
+struct GlyphVertex {
     float x = 0.0F;
     float y = 0.0F;
     float u = 0.0F;
     float v = 0.0F;
 };
 
-struct BatchBuild final {
+struct BatchBuild {
     explicit BatchBuild(
         Base::IAllocator* allocator = nullptr) noexcept
         : vertices(allocator),
@@ -82,12 +82,12 @@ Base::Span<const std::uint8_t> AsBytes(
 
 } // namespace
 
-struct TextRenderer::Impl final {
-    struct PageResource final {
+struct TextRenderer::Impl {
+    struct PageResource {
         Graphics::ResourceHandle texture;
     };
 
-    struct RunResource final {
+    struct RunResource {
         Render::RenderGlyphRunId id =
             Render::InvalidRenderGlyphRunId;
         Graphics::ResourceHandle vertexBuffer;
@@ -165,7 +165,7 @@ Base::Result<void> TextRenderer::Initialize(
     impl_->config = config;
     impl_->nextGlyphRun = config.firstGlyphRunId;
     Base::Result<void> fallbacksCopied =
-        impl_->fallbackFaces.TryAppend(
+        impl_->fallbackFaces.Append(
             config.fallbackFaces);
     if (!fallbacksCopied) {
         Shutdown();
@@ -214,7 +214,7 @@ TextRenderer::RecoverDeviceResources(
     TextConfig config = impl_->config;
     Base::Vector<Text::FontFace> fallbackFaces(allocator_);
     Base::Result<void> copied =
-        fallbackFaces.TryAppend(
+        fallbackFaces.Append(
             impl_->fallbackFaces.AsSpan());
     if (!copied) return copied.GetStatus();
     config.fallbackFaces = fallbackFaces.AsSpan();
@@ -448,7 +448,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
                 }
                 if (!merged) {
                     Base::Result<void> appended =
-                        output.hitRegions.TryPushBack(region);
+                        output.hitRegions.PushBack(region);
                     if (!appended) return appended.GetStatus();
                 }
             }
@@ -460,7 +460,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
         endRegion.width = 1.0F;
         endRegion.height = lineHeight;
         Base::Result<void> endAdded =
-            output.hitRegions.TryPushBack(endRegion);
+            output.hitRegions.PushBack(endRegion);
         if (!endAdded) return endAdded.GetStatus();
     }
     for (TextHitRegion& region : output.hitRegions) {
@@ -497,7 +497,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
             if (batch.page == page) return &batch;
         }
         Base::Result<BatchBuild*> added =
-            batches.TryEmplaceBack(allocator_);
+            batches.EmplaceBack(allocator_);
         if (!added) return added.GetStatus();
         added.Value()->page = page;
         return added.Value();
@@ -583,32 +583,32 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
                 {right, bottom, u1, v1},
                 {left, bottom, u0, v1}};
             Base::Result<void> appended =
-                batch.vertices.TryAppend(vertices);
+                batch.vertices.Append(vertices);
             if (!appended) return appended.GetStatus();
             const std::uint32_t indices[] = {
                 vertexBase, vertexBase + 1U,
                 vertexBase + 2U, vertexBase,
                 vertexBase + 2U, vertexBase + 3U};
-            appended = batch.indices.TryAppend(indices);
+            appended = batch.indices.Append(indices);
             if (!appended) return appended.GetStatus();
-            appended = batch.placements.TryPushBack(placement);
+            appended = batch.placements.PushBack(placement);
             if (!appended) return appended.GetStatus();
         }
     }
     if (batches.Empty()) return {};
 
     Base::Result<void> outputReserved =
-        output.glyphRuns.TryReserve(batches.Size());
+        output.glyphRuns.Reserve(batches.Size());
     if (!outputReserved) return outputReserved.GetStatus();
     Base::Result<void> runsReserved =
-        impl_->runs.TryReserve(
+        impl_->runs.Reserve(
             impl_->runs.Size() + batches.Size());
     if (!runsReserved) return runsReserved.GetStatus();
 
     const std::uint32_t pageCount =
         impl_->atlas.PageCount();
     Base::Result<void> pagesResized =
-        impl_->pages.TryResize(pageCount);
+        impl_->pages.Resize(pageCount);
     if (!pagesResized) return pagesResized.GetStatus();
     for (std::uint32_t page = 0U;
          page < pageCount; ++page) {
@@ -763,7 +763,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
 
     Base::Vector<Impl::RunResource> prepared(allocator_);
     Base::Result<void> preparedReserved =
-        prepared.TryReserve(batches.Size());
+        prepared.Reserve(batches.Size());
     if (!preparedReserved) {
         destroyBatchResources(submitted.Value());
         return preparedReserved.GetStatus();
@@ -807,7 +807,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
         run.indexBuffer = batch.indexBuffer;
         run.placements = std::move(batch.placements);
         Base::Result<void> appended =
-            prepared.TryPushBack(std::move(run));
+            prepared.PushBack(std::move(run));
         if (!appended) {
             (void)sink_->UnregisterGlyphRun(id);
             for (std::uint32_t rollback = 0U;
@@ -824,10 +824,10 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     for (Impl::RunResource& run : prepared) {
         const Render::RenderGlyphRunId id = run.id;
         Base::Result<Impl::RunResource*> stored =
-            impl_->runs.TryEmplaceBack(std::move(run));
+            impl_->runs.EmplaceBack(std::move(run));
         if (!stored) return stored.GetStatus();
         Base::Result<void> appended =
-            output.glyphRuns.TryPushBack(id);
+            output.glyphRuns.PushBack(id);
         if (!appended) return appended.GetStatus();
     }
     return {};

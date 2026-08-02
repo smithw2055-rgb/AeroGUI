@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -47,7 +47,7 @@ private:
     std::uint8_t ownerRoles_ = 0U;
 };
 
-class AERO_API TranslateTransform final : public Transform {
+class AERO_API TranslateTransform : public Transform {
     AERO_DECLARE_TYPE(TranslateTransform, Transform)
 public:
     TranslateTransform() noexcept : Transform(StaticTypeId()) {}
@@ -62,7 +62,7 @@ public:
     Base::Transform2D GetMatrix() const noexcept override;
 };
 
-class AERO_API ScaleTransform final : public Transform {
+class AERO_API ScaleTransform : public Transform {
     AERO_DECLARE_TYPE(ScaleTransform, Transform)
 public:
     ScaleTransform() noexcept : Transform(StaticTypeId()) {}
@@ -83,7 +83,7 @@ public:
     Base::Transform2D GetMatrix() const noexcept override;
 };
 
-class AERO_API RotateTransform final : public Transform {
+class AERO_API RotateTransform : public Transform {
     AERO_DECLARE_TYPE(RotateTransform, Transform)
 public:
     RotateTransform() noexcept : Transform(StaticTypeId()) {}
@@ -101,7 +101,7 @@ public:
     Base::Transform2D GetMatrix() const noexcept override;
 };
 
-class AERO_API SkewTransform final : public Transform {
+class AERO_API SkewTransform : public Transform {
     AERO_DECLARE_TYPE(SkewTransform, Transform)
 public:
     SkewTransform() noexcept : Transform(StaticTypeId()) {}
@@ -122,7 +122,7 @@ public:
     Base::Transform2D GetMatrix() const noexcept override;
 };
 
-class AERO_API MatrixTransform final : public Transform {
+class AERO_API MatrixTransform : public Transform {
     AERO_DECLARE_TYPE(MatrixTransform, Transform)
 public:
     MatrixTransform() noexcept : Transform(StaticTypeId()) {}
@@ -134,11 +134,11 @@ public:
     }
 };
 
-class AERO_API TransformGroup final : public Transform {
+class AERO_API TransformGroup : public Transform {
     AERO_DECLARE_TYPE(TransformGroup, Transform)
 public:
     TransformGroup() noexcept : Transform(StaticTypeId()) {}
-    Base::Result<void> TryAddChild(
+    Base::Result<void> AddChild(
         Base::Ref<Transform> value) noexcept;
     void ClearChildren() noexcept;
     Base::Span<const Base::Ref<Transform>>
@@ -167,7 +167,7 @@ AERO_API Base::Point TransformPoint(
 AERO_API Base::Rect TransformBounds(
     const Base::Transform2D& transform,
     Base::Rect rect) noexcept;
-AERO_API bool TryInvertTransform(
+AERO_API bool InvertTransform(
     const Base::Transform2D& transform,
     Base::Transform2D& inverse) noexcept;
 

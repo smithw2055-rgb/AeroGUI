@@ -145,7 +145,7 @@ double VirtualizingStackPanel::PrefixDeviation(
 Base::Result<void>
 VirtualizingStackPanel::RebuildExtentTree() noexcept {
     Base::Result<void> resized =
-        extentTree_.TryResize(
+        extentTree_.Resize(
             itemExtents_.Size() + 1U, 0.0);
     if (!resized) return resized.GetStatus();
     for (double& value : extentTree_) {
@@ -314,7 +314,7 @@ VirtualizingStackPanel::UpdateRealization(
 Base::Result<void>
 VirtualizingStackPanel::ResizeExtentCache(
     std::uint32_t itemCount) noexcept {
-    return itemExtents_.TryResize(
+    return itemExtents_.Resize(
         itemCount, 0.0);
 }
 
@@ -357,7 +357,7 @@ VirtualizingStackPanel::ApplyExtentDelta(
         const std::uint32_t oldSize =
             itemExtents_.Size();
         Base::Result<void> resized =
-            itemExtents_.TryResize(
+            itemExtents_.Resize(
                 oldSize + event.newCount, 0.0);
         if (!resized) return resized.GetStatus();
         for (std::uint32_t index = oldSize;
@@ -388,7 +388,7 @@ VirtualizingStackPanel::ApplyExtentDelta(
                 itemExtents_[
                     index + event.oldCount];
         }
-        return itemExtents_.TryResize(itemCount);
+        return itemExtents_.Resize(itemCount);
     }
     if (event.action == ItemsChangeAction::Replace &&
         event.oldCount == event.newCount &&
@@ -432,7 +432,7 @@ VirtualizingStackPanel::ApplyExtentDelta(
 }
 
 Base::Result<void>
-VirtualizingStackPanel::TryHandleItemsChanged(
+VirtualizingStackPanel::HandleItemsChanged(
     const ItemsChangedEvent& event,
     std::uint32_t itemCount) noexcept {
     const std::uint32_t oldCount =

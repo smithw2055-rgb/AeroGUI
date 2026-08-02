@@ -143,7 +143,7 @@ Base::Result<ResourceHandle> GraphicsDevice::CreateResource(
         ResourceSlot slot;
         slot.descriptor = descriptor;
         slot.alive = true;
-        Base::Result<void> appended = slots_.TryPushBack(slot);
+        Base::Result<void> appended = slots_.PushBack(slot);
         if (!appended) return appended.GetStatus();
         index = slots_.Size() - 1U;
     } else {
@@ -326,7 +326,7 @@ Base::Result<void> GraphicsDevice::DestroyResource(
     }
     ResourceSlot& slot = slots_[handle.index];
     slot.alive = false;
-    Base::Result<void> appended = deferred_.TryPushBack(
+    Base::Result<void> appended = deferred_.PushBack(
         {handle, retireAfter});
     if (!appended) {
         slot.alive = true;

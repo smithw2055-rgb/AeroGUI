@@ -8,9 +8,9 @@
 
 namespace Aero::Input {
 
-Base::Result<void> ICommand::TryAddCanExecuteChanged(
+void ICommand::AddCanExecuteChanged(
     const CanExecuteChangedHandler& handler) noexcept {
-    return canExecuteChanged_.TryAdd(handler);
+    canExecuteChanged_.Add(handler);
 }
 
 bool ICommand::RemoveCanExecuteChanged(
@@ -35,25 +35,40 @@ RoutedCommand::RoutedCommand() noexcept
 
 RoutedCommand::RoutedCommand(Base::StringView name) noexcept
     : RoutedCommand() {
-    Base::Result<void> assigned = name_.TryAssign(name);
+    Base::Result<void> assigned = name_.Assign(name);
     if (!assigned) {
         Base::ReportOutOfMemory(
             name.SizeBytes() + 1U, alignof(char), Base::MemoryTag::String);
     }
 }
 
-Base::Result<void> RoutedCommand::TrySetName(
+Base::Result<void> RoutedCommand::AssignNameChecked(
     Base::StringView name) noexcept {
-    return name_.TryAssign(name);
+    return name_.Assign(name);
 }
 
-Base::Result<void> RoutedCommand::TryAddInputGesture(
+void RoutedCommand::SetName(Base::StringView name) noexcept {
+    static_cast<void>(AssignNameChecked(name));
+}
+
+Base::Result<void> RoutedCommand::AddInputGestureChecked(
     Base::Ref<InputGesture> gesture) noexcept {
     if (!gesture) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Input gesture must not be null");
     }
-    return gestures_.TryPushBack(std::move(gesture));
+    return gestures_.PushBack(std::move(gesture));
+}
+
+void RoutedCommand::AddInputGesture(
+    Base::Ref<InputGesture> gesture) noexcept {
+    Base::Result<void> added = AddInputGestureChecked(std::move(gesture));
+    if (!added) {
+        Base::ReportOutOfMemory(
+            sizeof(Base::Ref<InputGesture>),
+            alignof(Base::Ref<InputGesture>),
+            Base::MemoryTag::Container);
+    }
 }
 
 bool RoutedCommand::MatchesInput(
@@ -127,7 +142,7 @@ Base::Result<std::uint32_t> ParseModifiersName(
 void KeyBinding::SetCommandName(
     Base::StringView value) noexcept {
     Base::String candidate;
-    if (!candidate.TryAssign(TrimAscii(value))) return;
+    if (!candidate.Assign(TrimAscii(value))) return;
     commandName_ = std::move(candidate);
     command_.Reset();
 }
@@ -135,7 +150,7 @@ void KeyBinding::SetCommandName(
 void KeyBinding::SetKeyName(
     Base::StringView value) noexcept {
     Base::String candidate;
-    if (!candidate.TryAssign(TrimAscii(value))) return;
+    if (!candidate.Assign(TrimAscii(value))) return;
     keyName_ = std::move(candidate);
     command_.Reset();
 }
@@ -143,7 +158,7 @@ void KeyBinding::SetKeyName(
 void KeyBinding::SetModifiersName(
     Base::StringView value) noexcept {
     Base::String candidate;
-    if (!candidate.TryAssign(TrimAscii(value))) return;
+    if (!candidate.Assign(TrimAscii(value))) return;
     modifiersName_ = std::move(candidate);
     command_.Reset();
 }
@@ -165,7 +180,7 @@ Base::Result<void> KeyBinding::Finalize() noexcept {
     Base::Result<Base::Ref<KeyGesture>> gesture =
         Base::MakeRef<KeyGesture>(key.Value(), modifiers.Value());
     if (!gesture) return gesture.GetStatus();
-    Base::Result<void> added = command.Value()->TryAddInputGesture(
+    Base::Result<void> added = command.Value()->AddInputGestureChecked(
         Base::Ref<InputGesture>(std::move(gesture).Value()));
     if (!added) return added.GetStatus();
     command_ = std::move(command).Value();
@@ -254,7 +269,7 @@ void CommandState::PruneStaleInputBindings() noexcept {
     while (inputBindings_.Size() > destination) inputBindings_.PopBack();
 }
 
-Base::Result<CommandBindingHandle> CommandState::TryAddBinding(
+Base::Result<CommandBindingHandle> CommandState::AddBinding(
     UIElement& owner,
     const CommandBinding& binding) noexcept {
     Base::Result<void> verified = VerifyTarget(owner);
@@ -274,7 +289,7 @@ Base::Result<CommandBindingHandle> CommandState::TryAddBinding(
     record.owner = ownerHandle.Value();
     record.binding = binding;
     Base::Result<void> appended =
-        bindings_.TryPushBack(std::move(record));
+        bindings_.PushBack(std::move(record));
     if (!appended) return appended.GetStatus();
     return bindings_[bindings_.Size() - 1U].handle;
 }
@@ -304,7 +319,7 @@ Base::Result<bool> CommandState::RemoveBinding(
     return false;
 }
 
-Base::Result<InputBindingHandle> CommandState::TryAddInputBinding(
+Base::Result<InputBindingHandle> CommandState::AddInputBinding(
     UIElement& owner,
     Base::Ref<KeyBinding> binding) noexcept {
     Base::Result<void> verified = VerifyTarget(owner);
@@ -329,7 +344,7 @@ Base::Result<InputBindingHandle> CommandState::TryAddInputBinding(
     record.handle.value = nextInputBinding_++;
     record.owner = ownerHandle.Value();
     record.binding = std::move(binding);
-    Base::Result<void> appended = inputBindings_.TryPushBack(std::move(record));
+    Base::Result<void> appended = inputBindings_.PushBack(std::move(record));
     if (!appended) return appended.GetStatus();
     return inputBindings_.Back().handle;
 }
@@ -502,9 +517,9 @@ Base::Result<bool> CommandState::ProcessInput(
     return result;
 }
 
-Base::Result<void> CommandState::TryAddRequerySuggested(
+void CommandState::AddRequerySuggested(
     const RequerySuggestedHandler& handler) noexcept {
-    return requerySuggested_.TryAdd(handler);
+    requerySuggested_.Add(handler);
 }
 
 bool CommandState::RemoveRequerySuggested(

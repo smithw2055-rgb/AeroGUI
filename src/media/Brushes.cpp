@@ -59,7 +59,7 @@ void GradientStop::OnPropertyInvalidated(
     if (visualOwner != nullptr) (void)visualOwner->InvalidateVisual();
 }
 
-Base::Result<void> GradientBrush::TryAddGradientStop(
+Base::Result<void> GradientBrush::AddGradientStop(
     Base::Ref<GradientStop> stop) noexcept {
     if (!stop) {
         return Base::Status::Failure(
@@ -69,14 +69,14 @@ Base::Result<void> GradientBrush::TryAddGradientStop(
     GradientStop* retained = stop.Get();
     retained->SetOwner(this);
     Base::Result<void> added =
-        stops_.TryPushBack(std::move(stop));
+        stops_.PushBack(std::move(stop));
     if (!added) {
         retained->SetOwner(nullptr);
     }
     return added;
 }
 
-Base::Result<void> GradientStopCollection::TryAdd(
+Base::Result<void> GradientStopCollection::Add(
     Base::Ref<GradientStop> stop) noexcept {
     if (!stop) {
         return Base::Status::Failure(
@@ -84,7 +84,7 @@ Base::Result<void> GradientStopCollection::TryAdd(
             "GradientStopCollection item cannot be null");
     }
     Base::Result<void> added =
-        stops_.TryPushBack(std::move(stop));
+        stops_.PushBack(std::move(stop));
     if (!added) return added.GetStatus();
     if (!changed_.Empty()) {
         changed_.Invoke({

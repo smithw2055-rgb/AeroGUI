@@ -19,7 +19,7 @@ enum class BatchPipeline : std::uint8_t {
     Glyph,
 };
 
-struct DrawPacket final {
+struct DrawPacket  {
     BatchPipeline pipeline = BatchPipeline::Rectangle;
     RenderCommandKind commandKind =
         RenderCommandKind::FillRect;
@@ -29,7 +29,7 @@ struct DrawPacket final {
     std::uint32_t order = 0U;
 };
 
-struct BatchRecord final {
+struct BatchRecord  {
     BatchPipeline pipeline = BatchPipeline::Rectangle;
     std::uint64_t resource = 0U;
     std::uint64_t stateSignature = 0U;
@@ -37,7 +37,7 @@ struct BatchRecord final {
     std::uint32_t packetCount = 0U;
 };
 
-struct BatchPlanStatistics final {
+struct BatchPlanStatistics  {
     std::uint32_t sourceCommandCount = 0U;
     std::uint32_t drawPacketCount = 0U;
     std::uint32_t batchCount = 0U;
@@ -45,7 +45,7 @@ struct BatchPlanStatistics final {
     std::uint32_t barrierCount = 0U;
 };
 
-class BatchPlan final {
+class BatchPlan  {
 public:
     explicit BatchPlan(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -69,7 +69,7 @@ private:
     BatchPlanStatistics statistics_;
 };
 
-class BatchPlanner final {
+class BatchPlanner  {
 public:
     explicit BatchPlanner(
         Base::IAllocator* allocator = nullptr) noexcept

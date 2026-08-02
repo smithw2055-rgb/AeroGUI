@@ -40,7 +40,7 @@ using namespace ::Aero::Controls;
 // One private entry point owns the standard control storage and template hooks.
 // This replaces per-control-family Access classes without adding a new runtime
 // object or virtual dispatch layer.
-class ControlPrivate final {
+class ControlPrivate {
 public:
     static bool IsTemplateApplied(const Control& control) noexcept {
         return control.templateHandleValue_ != 0U;
@@ -102,7 +102,7 @@ public:
     }
     static Base::Result<Base::Ref<Base::Object>> CreateTemplatedContent(
         const ContentControl& control) noexcept {
-        return control.TryCreateTemplatedContent();
+        return control.CreateTemplatedContent();
     }
 
     static std::uint32_t Count(const Panel& panel) noexcept {

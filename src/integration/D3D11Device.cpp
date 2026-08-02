@@ -23,7 +23,7 @@ Graphics::PresentMode ToRhiPresentMode(
     return Graphics::PresentMode::Fifo;
 }
 
-class D3D11EmbeddedSurface final
+class D3D11EmbeddedSurface
     : public Graphics::ISurfaceBackend {
 public:
     explicit D3D11EmbeddedSurface(
@@ -123,7 +123,7 @@ private:
     bool lost_ = false;
 };
 
-class D3D11DeviceState final {
+class D3D11DeviceState {
 public:
     D3D11DeviceState(
         const D3D11WindowDeviceOptions& options,

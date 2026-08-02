@@ -41,14 +41,14 @@ Size ClampSize(Size value, Size minimum, Size maximum) noexcept {
         ClampDimension(value.height, minimum.height, maximum.height)};
 }
 
-struct RoutedHandlerRecord final {
+struct RoutedHandlerRecord {
     RoutedEventHandle event;
     Aero::Internal::RoutedHandlerStorage handler;
     std::uint64_t sequence = 0U;
     bool handledEventsToo = false;
 };
 
-struct UIElementHandlerState final {
+struct UIElementHandlerState {
     Base::Vector<RoutedHandlerRecord> handlers;
     std::uint64_t nextSequence = 1U;
 };
@@ -63,7 +63,7 @@ Size NaturalConstraintForTransform(
     Size transformed,
     const Base::Transform2D& matrix) noexcept {
     Base::Transform2D inverse;
-    if (!TryInvertTransform(matrix, inverse)) {
+    if (!InvertTransform(matrix, inverse)) {
         return transformed;
     }
     const Rect bounds = TransformBounds(
@@ -198,7 +198,7 @@ UIElement::~UIElement() {
     CleanupHandlers();
 }
 
-Base::Result<void> UIElement::TryAddHandlerCore(
+Base::Result<void> UIElement::AddHandlerCore(
     RoutedEventHandle event,
     const HandlerDescriptor& handler,
     bool handledEventsToo) noexcept {
@@ -246,7 +246,7 @@ Base::Result<void> UIElement::TryAddHandlerCore(
         handler.operations->invoke);
     record.sequence = state->nextSequence++;
     record.handledEventsToo = handledEventsToo;
-    return state->handlers.TryPushBack(std::move(record));
+    return state->handlers.PushBack(std::move(record));
 }
 
 bool UIElement::RemoveHandlerCore(
@@ -848,7 +848,7 @@ Base::Result<void> LayoutEngine::QueueMeasure(
         Aero::Internal::VisualLease::Acquire(element);
     if (!lease) return lease.GetStatus();
     Base::Result<void> appended =
-        measureQueue_.TryPushBack(std::move(lease).Value());
+        measureQueue_.PushBack(std::move(lease).Value());
     if (!appended) return appended.GetStatus();
     element.measureQueued_ = true;
     return {};
@@ -861,7 +861,7 @@ Base::Result<void> LayoutEngine::QueueArrange(
         Aero::Internal::VisualLease::Acquire(element);
     if (!lease) return lease.GetStatus();
     Base::Result<void> appended =
-        arrangeQueue_.TryPushBack(std::move(lease).Value());
+        arrangeQueue_.PushBack(std::move(lease).Value());
     if (!appended) return appended.GetStatus();
     element.arrangeQueued_ = true;
     return {};
@@ -894,14 +894,14 @@ Base::Result<void> LayoutEngine::InvalidateMeasure(
     while (current != nullptr) {
         Base::Result<void> verified = VerifyElement(*current);
         if (!verified) return verified.GetStatus();
-        Base::Result<void> appended = path.TryPushBack(current);
+        Base::Result<void> appended = path.PushBack(current);
         if (!appended) return appended.GetStatus();
         current = current->layoutAttached_
             ? current->LayoutParent() : nullptr;
     }
 
     Base::Vector<Aero::Internal::VisualLease> leases;
-    Base::Result<void> reserved = leases.TryReserve(path.Size());
+    Base::Result<void> reserved = leases.Reserve(path.Size());
     if (!reserved) return reserved.GetStatus();
     for (UIElement* item : path) {
         if (item->measureQueued_) continue;
@@ -909,10 +909,10 @@ Base::Result<void> LayoutEngine::InvalidateMeasure(
             Aero::Internal::VisualLease::Acquire(*item);
         if (!lease) return lease.GetStatus();
         Base::Result<void> staged =
-            leases.TryPushBack(std::move(lease).Value());
+            leases.PushBack(std::move(lease).Value());
         if (!staged) return staged.GetStatus();
     }
-    reserved = measureQueue_.TryReserve(
+    reserved = measureQueue_.Reserve(
         measureQueue_.Size() + leases.Size());
     if (!reserved) return reserved.GetStatus();
 
@@ -921,7 +921,7 @@ Base::Result<void> LayoutEngine::InvalidateMeasure(
         item->measureValid_ = false;
         item->arrangeValid_ = false;
         if (item->measureQueued_) continue;
-        Base::Result<void> queued = measureQueue_.TryPushBack(
+        Base::Result<void> queued = measureQueue_.PushBack(
             std::move(leases[leaseIndex++]));
         AERO_ASSERT(queued);
         (void)queued;
@@ -937,14 +937,14 @@ Base::Result<void> LayoutEngine::InvalidateArrange(
     while (current != nullptr) {
         Base::Result<void> verified = VerifyElement(*current);
         if (!verified) return verified.GetStatus();
-        Base::Result<void> appended = path.TryPushBack(current);
+        Base::Result<void> appended = path.PushBack(current);
         if (!appended) return appended.GetStatus();
         current = current->layoutAttached_
             ? current->LayoutParent() : nullptr;
     }
 
     Base::Vector<Aero::Internal::VisualLease> leases;
-    Base::Result<void> reserved = leases.TryReserve(path.Size());
+    Base::Result<void> reserved = leases.Reserve(path.Size());
     if (!reserved) return reserved.GetStatus();
     for (UIElement* item : path) {
         if (item->arrangeQueued_) continue;
@@ -952,10 +952,10 @@ Base::Result<void> LayoutEngine::InvalidateArrange(
             Aero::Internal::VisualLease::Acquire(*item);
         if (!lease) return lease.GetStatus();
         Base::Result<void> staged =
-            leases.TryPushBack(std::move(lease).Value());
+            leases.PushBack(std::move(lease).Value());
         if (!staged) return staged.GetStatus();
     }
-    reserved = arrangeQueue_.TryReserve(
+    reserved = arrangeQueue_.Reserve(
         arrangeQueue_.Size() + leases.Size());
     if (!reserved) return reserved.GetStatus();
 
@@ -963,7 +963,7 @@ Base::Result<void> LayoutEngine::InvalidateArrange(
     for (UIElement* item : path) {
         item->arrangeValid_ = false;
         if (item->arrangeQueued_) continue;
-        Base::Result<void> queued = arrangeQueue_.TryPushBack(
+        Base::Result<void> queued = arrangeQueue_.PushBack(
             std::move(leases[leaseIndex++]));
         AERO_ASSERT(queued);
         (void)queued;
@@ -992,7 +992,7 @@ Base::Result<void> LayoutEngine::MeasureElement(
             Aero::Internal::VisualLease::Acquire(element);
         if (!lease) return lease.GetStatus();
         pendingArrange = std::move(lease).Value();
-        Base::Result<void> reserved = arrangeQueue_.TryReserve(
+        Base::Result<void> reserved = arrangeQueue_.Reserve(
             arrangeQueue_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
     }
@@ -1007,7 +1007,7 @@ Base::Result<void> LayoutEngine::MeasureElement(
         ++element.layoutRevision_;
         ++measuredCount_;
         if (queueArrange) {
-            Base::Result<void> queued = arrangeQueue_.TryPushBack(
+            Base::Result<void> queued = arrangeQueue_.PushBack(
                 std::move(pendingArrange));
             AERO_ASSERT(queued);
             (void)queued;
@@ -1112,7 +1112,7 @@ Base::Result<void> LayoutEngine::MeasureElement(
     ++element.layoutRevision_;
     ++measuredCount_;
     if (queueArrange) {
-        Base::Result<void> queued = arrangeQueue_.TryPushBack(
+        Base::Result<void> queued = arrangeQueue_.PushBack(
             std::move(pendingArrange));
         AERO_ASSERT(queued);
         (void)queued;

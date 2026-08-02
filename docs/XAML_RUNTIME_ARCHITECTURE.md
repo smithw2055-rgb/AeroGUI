@@ -11,7 +11,7 @@
 
 ```text
 ResourceUri
-  -> XamlSourceProviders
+  -> XamlProviderRegistry
   -> UTF-8 XML tokenizer (Expat or built-in)
   -> XamlNodeReader
   -> XamlLoadSession
@@ -62,7 +62,7 @@ Runtime 在 metadata 冻结后构造并保持私有，不复制进 Core Metadata
 `pack/application` 以及 `assembly;component` 形式。安全策略由
 `XamlLoadPolicy` 执行，默认拒绝网络 scheme。
 
-`XamlSourceProviders` 的路由顺序固定为：
+`XamlProviderRegistry` 的路由顺序固定为：
 
 1. scheme + assembly
 2. scheme

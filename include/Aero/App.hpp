@@ -24,7 +24,7 @@ enum class GraphicsBackend : std::uint8_t {
     OpenGL33
 };
 
-struct RunOptions final {
+struct RunOptions  {
     // Used as the XAML bootstrap document by App::Run() and as the URI/font
     // resolution base by Application::Run().
     Base::StringView applicationFile = "App.xaml";

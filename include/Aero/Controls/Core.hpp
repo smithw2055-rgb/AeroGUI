@@ -51,7 +51,7 @@ enum class TextAlignment : std::uint8_t {
     Justify
 };
 
-struct TextRange final {
+struct TextRange {
     std::uint32_t start = 0U;
     std::uint32_t length = 0U;
 
@@ -59,7 +59,7 @@ struct TextRange final {
     bool GetIsEmpty() const noexcept { return length == 0U; }
 };
 
-struct TextSelection final {
+struct TextSelection {
     std::uint32_t anchor = 0U;
     std::uint32_t caret = 0U;
 
@@ -73,7 +73,7 @@ struct TextSelection final {
     bool GetIsEmpty() const noexcept { return anchor == caret; }
 };
 
-struct TextHitRegion final {
+struct TextHitRegion {
     std::uint32_t textOffset = 0U;
     std::uint32_t textLength = 0U;
     float x = 0.0F;
@@ -154,13 +154,13 @@ class ItemContainerGenerator;
 class DataTemplate;
 class Panel;
 
-class AERO_API UIElementCollection final {
+class AERO_API UIElementCollection {
 public:
     std::uint32_t GetCount() const noexcept;
     bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
     UIElement* GetItem(std::uint32_t index) const noexcept;
-    Base::Result<void> TryAdd(Base::Ref<UIElement> child) noexcept;
-    Base::Result<void> TryRemove(UIElement& child) noexcept;
+    Base::Result<void> Add(Base::Ref<UIElement> child) noexcept;
+    Base::Result<void> Remove(UIElement& child) noexcept;
     void Clear() noexcept;
 
 private:
@@ -585,7 +585,7 @@ private:
     }
     // Stores arbitrary business content without exposing it as a visual.
     // A matching ContentTemplate can materialize it through
-    // TryCreateTemplatedContent(); the UIElement overloads remain the
+    // CreateTemplatedContent(); the UIElement overloads remain the
     // source-compatible direct-content path.
     void SetContentValue(
         Base::Ref<Base::Object> value) noexcept;
@@ -596,7 +596,7 @@ private:
         const Meta::DependencyPropertyChangedEventArgs&
             change) noexcept;
     Base::Result<Base::Ref<Base::Object>>
-        TryCreateTemplatedContent() const noexcept;
+        CreateTemplatedContent() const noexcept;
     UIElement* content_ = nullptr;
     Base::Ref<Base::Object> ownedContent_;
     Base::Ref<Base::Object> contentValue_;
@@ -642,7 +642,7 @@ protected:
 
 // Navigable content surface. It shares UserControl's single-child layout but
 // remains a distinct XAML/runtime type so Page-targeted WPF styles resolve.
-class AERO_API Page final : public UserControl {
+class AERO_API Page : public UserControl {
     AERO_DECLARE_TYPE(Page, UserControl)
 public:
     Page() noexcept : UserControl(StaticTypeId()) {}

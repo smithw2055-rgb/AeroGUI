@@ -19,14 +19,14 @@ class ElementTree;
 class UIElement;
 class Visual;
 
-class AERO_API VisualTreeHelper final {
+class AERO_API VisualTreeHelper {
 public:
     static Visual* GetParent(const Visual& visual) noexcept;
     static std::uint32_t GetChildrenCount(const Visual& visual) noexcept;
     static Visual* GetChild(const Visual& visual, std::uint32_t index) noexcept;
 };
 
-class AERO_API LogicalTreeHelper final {
+class AERO_API LogicalTreeHelper {
 public:
     static DependencyObject* GetParent(const DependencyObject& object) noexcept;
     static std::uint32_t GetChildrenCount(const DependencyObject& object) noexcept;

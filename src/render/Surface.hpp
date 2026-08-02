@@ -57,45 +57,45 @@ enum class PresentMode : std::uint8_t {
     Mailbox
 };
 
-struct D3D11SurfaceNative final {
+struct D3D11SurfaceNative  {
     std::uintptr_t window = 0U;
     std::uintptr_t device = 0U;
     std::uintptr_t immediateContext = 0U;
     std::uintptr_t swapChain = 0U;
 };
 
-struct WglSurfaceNative final {
+struct WglSurfaceNative  {
     std::uintptr_t window = 0U;
     std::uintptr_t deviceContext = 0U;
     std::uintptr_t renderContext = 0U;
 };
 
-struct GlxSurfaceNative final {
+struct GlxSurfaceNative  {
     std::uintptr_t display = 0U;
     std::uintptr_t drawable = 0U;
     std::uintptr_t context = 0U;
     std::int32_t screen = 0;
 };
 
-struct EglSurfaceNative final {
+struct EglSurfaceNative  {
     std::uintptr_t display = 0U;
     std::uintptr_t surface = 0U;
     std::uintptr_t context = 0U;
 };
 
-struct WebGL2SurfaceNative final {
+struct WebGL2SurfaceNative  {
     std::uint32_t contextHandle = 0U;
     std::uint64_t canvasId = 0U;
     bool offscreenCanvas = false;
 };
 
-struct ExternalSurfaceNative final {
+struct ExternalSurfaceNative  {
     std::uintptr_t colorTarget = 0U;
     std::uintptr_t depthStencilTarget = 0U;
     bool defaultFramebuffer = false;
 };
 
-struct NativeSurfaceDescriptor final {
+struct NativeSurfaceDescriptor  {
     std::uint32_t abiVersion = SurfaceAbiVersion;
     SurfaceKind kind = SurfaceKind::Invalid;
     SurfaceOwnership ownership = SurfaceOwnership::Borrowed;
@@ -115,7 +115,7 @@ struct NativeSurfaceDescriptor final {
     ExternalSurfaceNative external;
 };
 
-struct SurfaceCapabilities final {
+struct SurfaceCapabilities  {
     std::uint32_t abiVersion = SurfaceAbiVersion;
     SurfaceKindFlags supportedKinds = 0U;
     std::uint32_t maxWidth = 16384U;
@@ -126,7 +126,7 @@ struct SurfaceCapabilities final {
     bool supportsExternalRenderTargets = false;
 };
 
-struct ExternalRenderTargetDescriptor final {
+struct ExternalRenderTargetDescriptor  {
     std::uintptr_t colorTarget = 0U;
     std::uintptr_t depthStencilTarget = 0U;
     std::uint32_t width = 0U;
@@ -139,7 +139,7 @@ struct ExternalRenderTargetDescriptor final {
     std::uint64_t stableId = 0U;
 };
 
-struct SurfaceFrame final {
+struct SurfaceFrame  {
     std::uint64_t surfaceGeneration = 0U;
     std::uint64_t frameSerial = 0U;
     ExternalRenderTargetDescriptor target;
@@ -177,7 +177,7 @@ public:
     virtual bool IsSurfaceLost() const noexcept = 0;
 };
 
-struct SurfaceFrameCapture final {
+struct SurfaceFrameCapture  {
     GraphicsBackendKind backend = GraphicsBackendKind::Invalid;
     FenceValue signalFence = 0U;
     std::uint64_t surfaceGeneration = 0U;
@@ -191,7 +191,7 @@ struct SurfaceFrameCapture final {
     bool presented = false;
 };
 
-class AERO_API SurfaceSession final {
+class AERO_API SurfaceSession  {
 public:
     explicit SurfaceSession(ISurfaceBackend& backend) noexcept
         : backend_(&backend) {}

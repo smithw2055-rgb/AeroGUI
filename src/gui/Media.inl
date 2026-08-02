@@ -195,7 +195,7 @@ Base::Result<void> PopulateUiMedia(
         .Content<GradientStop>(
             "GradientStops", ContentKind::Collection,
             [](Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {
-                static_cast<ConicGradientShader&>(owner).TryAddGradientStop(
+                static_cast<ConicGradientShader&>(owner).AddGradientStop(
                     Base::Ref<GradientStop>::FromBorrowed(
                         static_cast<GradientStop&>(*value)));
             },

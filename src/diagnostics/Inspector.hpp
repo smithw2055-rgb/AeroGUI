@@ -25,7 +25,7 @@ namespace Aero::Controls {
 
 namespace Aero::Diagnostics {
 
-struct InspectorTreeNode final {
+struct InspectorTreeNode {
     Aero::Visual* node = nullptr;
     Aero::VisualHandle handle;
     Aero::VisualHandle parent;
@@ -34,7 +34,7 @@ struct InspectorTreeNode final {
     std::uint32_t depth = 0U;
 };
 
-struct InspectorProperty final {
+struct InspectorProperty {
     Meta::DependencyPropertyHandle property;
     Meta::PropertyValue value;
     Meta::EffectiveValueSource valueSource =
@@ -44,7 +44,7 @@ struct InspectorProperty final {
     bool hasEngineDiagnostics = false;
 };
 
-struct InspectorSnapshot final {
+struct InspectorSnapshot {
     InspectorSnapshot() noexcept
         : logicalTree(),
           visualTree(),
@@ -75,7 +75,7 @@ struct InspectorSnapshot final {
         frameTimings;
 };
 
-class AERO_API Inspector final {
+class AERO_API Inspector {
 public:
     Inspector(
         Aero::ElementTree& tree,

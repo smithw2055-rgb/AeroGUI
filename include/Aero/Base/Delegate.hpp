@@ -23,7 +23,7 @@ template<class T>
 struct DelegateMulticast;
 
 template<class Ret, class... Args>
-struct DelegateOperations final {
+struct DelegateOperations  {
     Ret (*invoke)(const void* storage, Args... args);
     void (*copy)(void* destination, const void* source) noexcept;
     void (*destroy)(void* storage) noexcept;
@@ -32,15 +32,15 @@ struct DelegateOperations final {
 };
 
 template<class T>
-struct IsDelegate final : std::false_type {};
+struct IsDelegate  : std::false_type {};
 
 template<class T>
-struct IsDelegate<Delegate<T>> final : std::true_type {};
+struct IsDelegate<Delegate<T>>  : std::true_type {};
 
 } // namespace Detail
 
 template<class Ret, class... Args>
-class Delegate<Ret(Args...)> final {
+class Delegate<Ret(Args...)>  {
 public:
     using Signature = Ret(Args...);
     using Operations = Detail::DelegateOperations<Ret, Args...>;
@@ -143,9 +143,6 @@ public:
     }
     bool operator!=(const Delegate& other) const noexcept { return !(*this == other); }
 
-    Result<void> TryAdd(
-        const Delegate& delegate,
-        IAllocator* allocator = nullptr) noexcept;
     void Add(const Delegate& delegate, IAllocator* allocator = nullptr) noexcept;
     void operator+=(const Delegate& delegate) noexcept { Add(delegate); }
     bool Remove(const Delegate& delegate) noexcept;
@@ -164,8 +161,12 @@ public:
     }
 
 private:
+    Result<void> AddChecked(
+        const Delegate& delegate,
+        IAllocator* allocator = nullptr) noexcept;
+
     template<class T>
-    struct OwnedFunctor final {
+    struct OwnedFunctor  {
         T function;
         std::uintptr_t identity = NextOwnedIdentity();
         Ret operator()(Args... args) const {
@@ -177,7 +178,7 @@ private:
     };
 
     template<class T>
-    struct FunctorReference final {
+    struct FunctorReference  {
         const T* function = nullptr;
         Ret operator()(Args... args) const {
             return (*function)(std::forward<Args>(args)...);
@@ -187,7 +188,7 @@ private:
         }
     };
 
-    struct FreeFunction final {
+    struct FreeFunction  {
         Ret (*function)(Args...) = nullptr;
         Ret operator()(Args... args) const {
             return function(std::forward<Args>(args)...);
@@ -198,7 +199,7 @@ private:
     };
 
     template<class C>
-    struct MemberFunction final {
+    struct MemberFunction  {
         C* object = nullptr;
         Ret (C::*method)(Args...) = nullptr;
         Ret operator()(Args... args) const {
@@ -210,7 +211,7 @@ private:
     };
 
     template<class C>
-    struct ConstMemberFunction final {
+    struct ConstMemberFunction  {
         const C* object = nullptr;
         Ret (C::*method)(Args...) const = nullptr;
         Ret operator()(Args... args) const {
@@ -282,7 +283,7 @@ private:
 namespace Detail {
 
 template<class Ret, class... Args>
-struct DelegateMulticast<Ret(Args...)> final {
+struct DelegateMulticast<Ret(Args...)>  {
     std::atomic<std::uint32_t> references{1U};
     IAllocator* allocator = nullptr;
     Vector<Delegate<Ret(Args...)>> delegates;
@@ -385,7 +386,7 @@ Result<void> Delegate<Ret(Args...)>::EnsureUniqueMulticast(
     }
     State* replacement = new (memory) State(allocator);
     for (const Delegate& item : current->delegates) {
-        Result<void> appended = replacement->delegates.TryPushBack(item);
+        Result<void> appended = replacement->delegates.PushBack(item);
         if (!appended) {
             replacement->~State();
             allocator.Deallocate(memory, sizeof(State), alignof(State),
@@ -400,7 +401,7 @@ Result<void> Delegate<Ret(Args...)>::EnsureUniqueMulticast(
 }
 
 template<class Ret, class... Args>
-Result<void> Delegate<Ret(Args...)>::TryAdd(
+Result<void> Delegate<Ret(Args...)>::AddChecked(
     const Delegate& delegate,
     IAllocator* allocator) noexcept {
     if (delegate.Empty()) return {};
@@ -418,9 +419,9 @@ Result<void> Delegate<Ret(Args...)>::TryAdd(
                 "Delegate multicast allocation failed");
         }
         State* state = new (memory) State(selected);
-        Result<void> first = state->delegates.TryPushBack(*this);
+        Result<void> first = state->delegates.PushBack(*this);
         Result<void> second = first
-            ? state->delegates.TryPushBack(delegate)
+            ? state->delegates.PushBack(delegate)
             : Result<void>(first.GetStatus());
         if (!second) {
             state->~State();
@@ -435,14 +436,14 @@ Result<void> Delegate<Ret(Args...)>::TryAdd(
     }
     Result<void> unique = EnsureUniqueMulticast(selected);
     if (!unique) return unique;
-    return Multicast()->delegates.TryPushBack(delegate);
+    return Multicast()->delegates.PushBack(delegate);
 }
 
 template<class Ret, class... Args>
 void Delegate<Ret(Args...)>::Add(
     const Delegate& delegate,
     IAllocator* allocator) noexcept {
-    Result<void> result = TryAdd(delegate, allocator);
+    Result<void> result = AddChecked(delegate, allocator);
     if (!result) {
         ReportOutOfMemory(sizeof(Detail::DelegateMulticast<Signature>),
             alignof(Detail::DelegateMulticast<Signature>), MemoryTag::General);

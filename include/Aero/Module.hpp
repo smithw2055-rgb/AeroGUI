@@ -18,12 +18,12 @@ using ModuleRegisterCallback = Base::Result<void> (*)(
 using ModuleRegisterContextCallback = Base::Result<void> (*)(
     Meta::Registration& registration,
     void* userContext) noexcept;
-struct ModuleDependency final {
+struct ModuleDependency  {
     Base::StringView name;
     std::uint32_t minimumSchemaVersion = 1U;
 };
 
-struct ModuleRegistration final {
+struct ModuleRegistration  {
     Base::StringView name;
     std::uint32_t schemaVersion = 1U;
     ModuleRegisterCallback registerModule = nullptr;

@@ -13,7 +13,7 @@ namespace Aero {
 // WPF-facing retained drawing surface used by FrameworkElement::OnRender().
 // The context records semantic drawing operations; render plans, resource IDs
 // and backend command streams remain private runtime implementation.
-class AERO_API DrawingContext final {
+class AERO_API DrawingContext {
 public:
     DrawingContext(const DrawingContext&) = delete;
     DrawingContext& operator=(const DrawingContext&) = delete;

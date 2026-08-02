@@ -35,7 +35,7 @@ String::String(IAllocator* allocator) noexcept
 
 String::String(const String& other)
     : String(&other.Allocator()) {
-    const Result<void> result = TryAssignUnchecked(other.View());
+    const Result<void> result = AssignUnchecked(other.View());
     if (!result) {
         ReportOutOfMemory(
             static_cast<std::size_t>(other.SizeBytes()) + 1U,
@@ -54,7 +54,7 @@ String::~String() {
 
 String& String::operator=(const String& other) {
     if (this != &other) {
-        const Result<void> result = TryAssignUnchecked(other.View());
+        const Result<void> result = AssignUnchecked(other.View());
         if (!result) {
             ReportOutOfMemory(
                 static_cast<std::size_t>(other.SizeBytes()) + 1U,
@@ -78,11 +78,11 @@ void String::Clear() noexcept {
     data_[0] = '\0';
 }
 
-Result<void> String::TryReserve(std::uint32_t capacityBytes) noexcept {
+Result<void> String::Reserve(std::uint32_t capacityBytes) noexcept {
     return EnsureCapacity(capacityBytes);
 }
 
-Result<void> String::TryAssign(StringView utf8) noexcept {
+Result<void> String::Assign(StringView utf8) noexcept {
     if (utf8.SizeBytes() > 0U && utf8.Data() == nullptr) {
         return Status::Failure(ErrorCode::InvalidArgument,
             "StringView has a null data pointer and a non-zero size");
@@ -90,10 +90,10 @@ Result<void> String::TryAssign(StringView utf8) noexcept {
     if (!ValidateUtf8(utf8).valid) {
         return InvalidUtf8Status();
     }
-    return TryAssignUnchecked(utf8);
+    return AssignUnchecked(utf8);
 }
 
-Result<void> String::TryAssignUnchecked(StringView bytes) noexcept {
+Result<void> String::AssignUnchecked(StringView bytes) noexcept {
     if (bytes.SizeBytes() > 0U && bytes.Data() == nullptr) {
         return Status::Failure(ErrorCode::InvalidArgument,
             "StringView has a null data pointer and a non-zero size");
@@ -133,7 +133,7 @@ Result<void> String::TryAssignUnchecked(StringView bytes) noexcept {
     return {};
 }
 
-Result<void> String::TryAppend(StringView utf8) noexcept {
+Result<void> String::Append(StringView utf8) noexcept {
     if (utf8.SizeBytes() > 0U && utf8.Data() == nullptr) {
         return Status::Failure(ErrorCode::InvalidArgument,
             "StringView has a null data pointer and a non-zero size");
@@ -141,10 +141,10 @@ Result<void> String::TryAppend(StringView utf8) noexcept {
     if (!ValidateUtf8(utf8).valid) {
         return InvalidUtf8Status();
     }
-    return TryAppendUnchecked(utf8);
+    return AppendUnchecked(utf8);
 }
 
-Result<void> String::TryAppendUnchecked(StringView bytes) noexcept {
+Result<void> String::AppendUnchecked(StringView bytes) noexcept {
     if (bytes.SizeBytes() > 0U && bytes.Data() == nullptr) {
         return Status::Failure(ErrorCode::InvalidArgument,
             "StringView has a null data pointer and a non-zero size");

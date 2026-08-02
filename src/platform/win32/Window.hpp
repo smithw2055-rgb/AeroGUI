@@ -5,7 +5,7 @@
 
 namespace Aero::Platform {
 
-class AERO_API Win32Window final : public IWindow {
+class AERO_API Win32Window  : public IWindow {
 public:
     explicit Win32Window(
         Base::IAllocator* allocator = nullptr) noexcept;

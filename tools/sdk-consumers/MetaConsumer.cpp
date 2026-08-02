@@ -6,7 +6,7 @@
 
 namespace SdkConsumer {
 
-struct ViewModel final {
+struct ViewModel {
     bool active = false;
 };
 
@@ -35,7 +35,7 @@ struct TypeTraits<SdkConsumer::ViewModel> {
 
 namespace {
 
-class ConsumerControl final : public Aero::Controls::Control {
+class ConsumerControl : public Aero::Controls::Control {
     AERO_DECLARE_TYPE_NAMED(
         ConsumerControl,
         Aero::Controls::Control,
@@ -58,7 +58,7 @@ protected:
     }
 };
 
-class ConsumerButton final : public Aero::Controls::Button {
+class ConsumerButton : public Aero::Controls::Button {
     AERO_DECLARE_TYPE_NAMED(
         ConsumerButton,
         Aero::Controls::Button,

@@ -6,7 +6,7 @@
 
 namespace Aero::Text {
 
-struct PositionedGlyph final {
+struct PositionedGlyph  {
     GlyphId glyph = InvalidGlyphId;
     std::uint32_t cluster = 0U;
     float x = 0.0F;
@@ -14,7 +14,7 @@ struct PositionedGlyph final {
     float advanceX = 0.0F;
 };
 
-struct GlyphRun final {
+struct GlyphRun  {
     explicit GlyphRun(
         Base::IAllocator* allocator = nullptr) noexcept
         : glyphs(allocator) {}
@@ -26,7 +26,7 @@ struct GlyphRun final {
     Base::Vector<PositionedGlyph> glyphs;
 };
 
-struct TextLine final {
+struct TextLine  {
     std::uint32_t firstRun = 0U;
     std::uint32_t runCount = 0U;
     std::uint32_t textStart = 0U;
@@ -39,12 +39,12 @@ struct TextLine final {
     float y = 0.0F;
 };
 
-struct TextLayoutSize final {
+struct TextLayoutSize  {
     float width = 0.0F;
     float height = 0.0F;
 };
 
-struct TextLayoutRequest final {
+struct TextLayoutRequest  {
     FontFace face;
     Base::Span<const FontFace> fallbackFaces;
     Base::StringView text;
@@ -59,7 +59,7 @@ struct TextLayoutRequest final {
     TextAlignment alignment = TextAlignment::Start;
 };
 
-class AERO_API TextLayout final {
+class AERO_API TextLayout  {
 public:
     explicit TextLayout(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -80,8 +80,8 @@ public:
     }
     bool IsTrimmed() const noexcept { return trimmed_; }
 
-    Base::Result<void> TryAddRun(GlyphRun&& run) noexcept;
-    Base::Result<void> TryAddLine(const TextLine& line) noexcept;
+    Base::Result<void> AddRun(GlyphRun&& run) noexcept;
+    Base::Result<void> AddLine(const TextLine& line) noexcept;
     Base::Result<void> SetSize(TextLayoutSize size) noexcept;
     Base::Result<void> ShapeAndMeasure(
         FontManager& fonts,

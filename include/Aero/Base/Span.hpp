@@ -8,7 +8,7 @@
 namespace Aero::Base {
 
 template<class T>
-class Span final {
+class Span  {
 public:
     using ElementType = T;
 

@@ -27,7 +27,7 @@ bool IsValidTextSize(Size value) noexcept {
     return IsFinite(value) && value.width >= 0.0 && value.height >= 0.0;
 }
 
-struct EffectiveGridSpan final {
+struct EffectiveGridSpan {
     std::uint32_t index = 0U;
     std::uint32_t span = 1U;
 };
@@ -586,7 +586,7 @@ void ColumnDefinition::SetMaxWidth(
 void ColumnDefinition::SetSharedSizeGroup(
     Base::StringView value) noexcept {
     Base::String candidate;
-    if (!candidate.TryAssign(value)) return;
+    if (!candidate.Assign(value)) return;
     sharedSizeGroup_ = std::move(candidate);
 }
 
@@ -612,7 +612,7 @@ void RowDefinition::SetMaxHeight(
 void RowDefinition::SetSharedSizeGroup(
     Base::StringView value) noexcept {
     Base::String candidate;
-    if (!candidate.TryAssign(value)) return;
+    if (!candidate.Assign(value)) return;
     sharedSizeGroup_ = std::move(candidate);
 }
 
@@ -627,7 +627,7 @@ void Grid::SetColumnDefinitions(
     Base::Result<void> valid = ValidateDefinitions(definitions);
     if (!valid) return;
     Base::Vector<GridLength> next;
-    Base::Result<void> copied = next.TryAssign(definitions);
+    Base::Result<void> copied = next.Assign(definitions);
     if (!copied) return;
     columns_ = std::move(next);
     columnDefinitionObjects_.Clear();
@@ -641,7 +641,7 @@ void Grid::SetRowDefinitions(
     Base::Result<void> valid = ValidateDefinitions(definitions);
     if (!valid) return;
     Base::Vector<GridLength> next;
-    Base::Result<void> copied = next.TryAssign(definitions);
+    Base::Result<void> copied = next.Assign(definitions);
     if (!copied) return;
     rows_ = std::move(next);
     rowDefinitionObjects_.Clear();
@@ -675,7 +675,7 @@ void Grid::SetChildCell(
     child.SetValue(ColumnSpanProperty, columnSpan);
 }
 
-Base::Result<void> Grid::TryAddColumnDefinition(
+Base::Result<void> Grid::AddColumnDefinition(
     Base::Ref<ColumnDefinition> definition) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
@@ -685,10 +685,10 @@ Base::Result<void> Grid::TryAddColumnDefinition(
             "Grid ColumnDefinition is null");
     }
     Base::Result<void> objectAdded =
-        columnDefinitionObjects_.TryPushBack(definition);
+        columnDefinitionObjects_.PushBack(definition);
     if (!objectAdded) return objectAdded.GetStatus();
     Base::Result<void> lengthAdded =
-        columns_.TryPushBack(definition->GetWidth());
+        columns_.PushBack(definition->GetWidth());
     if (!lengthAdded) {
         columnDefinitionObjects_.PopBack();
         return lengthAdded.GetStatus();
@@ -696,7 +696,7 @@ Base::Result<void> Grid::TryAddColumnDefinition(
     return InvalidateMeasure();
 }
 
-Base::Result<void> Grid::TryAddRowDefinition(
+Base::Result<void> Grid::AddRowDefinition(
     Base::Ref<RowDefinition> definition) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
@@ -706,10 +706,10 @@ Base::Result<void> Grid::TryAddRowDefinition(
             "Grid RowDefinition is null");
     }
     Base::Result<void> objectAdded =
-        rowDefinitionObjects_.TryPushBack(definition);
+        rowDefinitionObjects_.PushBack(definition);
     if (!objectAdded) return objectAdded.GetStatus();
     Base::Result<void> lengthAdded =
-        rows_.TryPushBack(definition->GetHeight());
+        rows_.PushBack(definition->GetHeight());
     if (!lengthAdded) {
         rowDefinitionObjects_.PopBack();
         return lengthAdded.GetStatus();
@@ -735,7 +735,7 @@ Grid::ClearRowDefinitionObjects() noexcept {
     (void)InvalidateMeasure();
 }
 
-Base::Result<void> Grid::TryAddInputBinding(
+Base::Result<void> Grid::AddInputBinding(
     Base::Ref<Input::KeyBinding> binding) noexcept {
     if (!binding) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
@@ -743,7 +743,7 @@ Base::Result<void> Grid::TryAddInputBinding(
     }
     Base::Result<void> finalized = binding->Finalize();
     if (!finalized) return finalized.GetStatus();
-    return inputBindings_.TryPushBack(std::move(binding));
+    return inputBindings_.PushBack(std::move(binding));
 }
 
 Base::StringView Grid::GetColumnDefinitionsText() const noexcept {
@@ -776,9 +776,9 @@ Size Grid::MeasureOverride(
     const std::uint32_t rows = GetRowCount();
     Base::Vector<double> desiredColumns;
     Base::Vector<double> desiredRows;
-    Base::Result<void> resized = desiredColumns.TryResize(columns, 0.0);
+    Base::Result<void> resized = desiredColumns.Resize(columns, 0.0);
     if (!resized) return Size{};
-    resized = desiredRows.TryResize(rows, 0.0);
+    resized = desiredRows.Resize(rows, 0.0);
     if (!resized) return Size{};
 
     for (std::uint32_t index = 0U; index < columns; ++index) {
@@ -1061,7 +1061,7 @@ Base::Result<void> Grid::ResolveTracks(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Grid track resolution input is invalid");
     }
-    Base::Result<void> resized = resolved.TryResize(count, 0.0);
+    Base::Result<void> resized = resolved.Resize(count, 0.0);
     if (!resized) return resized.GetStatus();
     double occupied = 0.0;
     double totalStarWeight = 0.0;
@@ -1648,7 +1648,7 @@ void TextBlock::SetInlineValue(
                 Documents::Inline::StaticTypeId())) {
             return;
         }
-        (void)TryAddOwnedInline(inlineObject);
+        (void)AddOwnedInline(inlineObject);
         return;
     }
     if (value.Kind() != Meta::ValueKind::String) {
@@ -1663,7 +1663,7 @@ void TextBlock::SetInlineValue(
     return;
 }
 
-Base::Result<void> TextBlock::TryAddOwnedInline(
+Base::Result<void> TextBlock::AddOwnedInline(
     const Base::Ref<Base::Object>& inlineObject) noexcept {
     if (!inlineObject) {
         return Base::Status::Failure(
@@ -1690,7 +1690,7 @@ Base::Result<void> TextBlock::TryAddOwnedInline(
         }
     }
     Base::Result<void> appended =
-        ownedInlines_.TryPushBack(inlineObject);
+        ownedInlines_.PushBack(inlineObject);
     if (!appended) return appended.GetStatus();
     auto& inlineValue = *static_cast<Documents::Inline*>(inlineObject.Get());
     Aero::Internal::ElementPrivate::Attach(
@@ -1750,7 +1750,7 @@ void TextBlock::SetGlyphRun(
     textHitRegions_.Clear();
     if (glyphRun != InvalidRenderGlyphRunId) {
         Base::Result<void> appended =
-            glyphRuns_.TryPushBack(glyphRun);
+            glyphRuns_.PushBack(glyphRun);
         if (!appended) return;
     }
     glyphRunSize_ = size;
@@ -1914,7 +1914,7 @@ ContentPresenter::UpdatePresentedText() noexcept {
     case Meta::ValueKind::String:
         {
             Base::Result<void> assigned =
-                text.TryAssign(
+                text.Assign(
                     contentValue_.AsString());
             if (!assigned) {
                 return assigned.GetStatus();
@@ -1924,7 +1924,7 @@ ContentPresenter::UpdatePresentedText() noexcept {
     case Meta::ValueKind::Boolean:
         {
             Base::Result<void> assigned =
-                text.TryAssign(
+                text.Assign(
                     contentValue_.AsBoolean()
                     ? Base::StringView("True")
                     : Base::StringView("False"));
@@ -1960,7 +1960,7 @@ ContentPresenter::UpdatePresentedText() noexcept {
                     contentValue_.AsDouble());
             }
             Base::Result<void> assigned =
-                text.TryAssign(raw);
+                text.Assign(raw);
             if (!assigned) {
                 return assigned.GetStatus();
             }
@@ -2072,7 +2072,7 @@ UIElement* UIElementCollection::GetItem(std::uint32_t index) const noexcept {
     return child ? static_cast<UIElement*>(child.Get()) : nullptr;
 }
 
-Base::Result<void> UIElementCollection::TryAdd(Base::Ref<UIElement> child) noexcept {
+Base::Result<void> UIElementCollection::Add(Base::Ref<UIElement> child) noexcept {
     if (owner_ == nullptr || !child) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "UIElementCollection requires an owner and child");
     }
@@ -2080,7 +2080,7 @@ Base::Result<void> UIElementCollection::TryAdd(Base::Ref<UIElement> child) noexc
     return owner_->AddChildCore(object, *child);
 }
 
-Base::Result<void> UIElementCollection::TryRemove(UIElement& child) noexcept {
+Base::Result<void> UIElementCollection::Remove(UIElement& child) noexcept {
     if (owner_ == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState, "UIElementCollection has no owner");
     }
@@ -2106,7 +2106,7 @@ Base::Result<void> Panel::AddChildCore(const Base::Ref<Base::Object>& childObjec
             return Base::Status::Failure(Base::ErrorCode::AlreadyExists, "Panel already contains the child");
         }
     }
-    Base::Result<void> appended = ownedChildren_.TryPushBack(childObject);
+    Base::Result<void> appended = ownedChildren_.PushBack(childObject);
     if (!appended) return appended.GetStatus();
     return InvalidateMeasure();
 }

@@ -25,7 +25,7 @@ inline constexpr HashCode StableMetadataIdPrime = UINT64_C(1099511628211);
 inline constexpr HashCode StableMetadataIdNonZeroFallback =
     UINT64_C(0x9E3779B97F4A7C15);
 
-class StableMetadataIdBuilder final {
+class StableMetadataIdBuilder  {
 public:
     constexpr void AddByte(std::uint8_t value) noexcept {
         value_ ^= static_cast<HashCode>(value);

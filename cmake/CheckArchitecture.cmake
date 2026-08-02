@@ -109,10 +109,44 @@ if(public_namespace_declarations)
         "${public_namespace_declarations}")
 endif()
 
+# Try is reserved for parsing, conversion, conditional ownership and cache
+# lookup. Allocation, registration, subscription and ordinary mutation APIs
+# use their direct WPF-style verbs instead of a generic Try prefix.
+set(aero_try_allowlist
+    TryParse
+    TryFromString
+    TryFromCustom
+    TryConvertText
+    TryEncodeValue
+    TryCreateValue
+    TryFromBorrowed
+    TryGetCachedReloadRevision)
+set(public_try_violations)
+foreach(path IN LISTS aero_namespace_headers)
+    file(READ "${path}" content)
+    string(REGEX MATCHALL "Try[A-Z][A-Za-z0-9_]*" try_names "${content}")
+    foreach(try_name IN LISTS try_names)
+        list(FIND aero_try_allowlist "${try_name}" try_index)
+        if(try_index EQUAL -1)
+            file(RELATIVE_PATH relative "${AERO_SOURCE_DIR}" "${path}")
+            list(APPEND public_try_violations
+                "${relative}: ${try_name}")
+        endif()
+    endforeach()
+endforeach()
+if(public_try_violations)
+    list(REMOVE_DUPLICATES public_try_violations)
+    message(FATAL_ERROR
+        "Public headers contain a non-canonical Try API: "
+        "${public_try_violations}")
+endif()
+unset(public_try_violations)
+unset(aero_try_allowlist)
+
 # Public property mutations follow the WPF setter contract: assignment and
 # invalidation are observable through the object state, while failures are
 # handled by validation before commit.  Result<void> remains valid for
-# explicit Try* and IO/registration boundaries, but must not leak through a
+# explicit conversion and IO/registration boundaries, but must not leak through a
 # Set/Clear/Reset/Notify API in the SDK.
 aero_collect_matches(public_result_property_mutators
     "Base::Result<void>[ \t\r\n]+([A-Za-z_][A-Za-z0-9_:]*::)?(Set|Clear|Reset|Notify)[A-Za-z0-9_]*[ \t\r\n]*[(]"
@@ -453,7 +487,12 @@ set(sdk_entry_headers
     "${AERO_SOURCE_DIR}/include/Aero/View.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/ViewOptions.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/RenderDevice.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Integration/SourceProvider.hpp")
+    "${AERO_SOURCE_DIR}/include/Aero/Integration/Providers/Providers.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Integration/Providers/XamlProvider.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Integration/Providers/FontProvider.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Integration/Providers/TextureProvider.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Events/Events.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Triggers/Triggers.hpp")
 aero_collect_matches(sdk_entry_leaks
     "(RuntimeHost|RenderPlan|IRenderBackend|GraphicsDevice|SurfaceSession|Presenter|[A-Za-z]+Manager|[A-Za-z]+Store|[A-Za-z]+Program|DocumentCache|TransactionCallback)"
     ${sdk_entry_headers})
@@ -1087,7 +1126,7 @@ foreach(required_public_entry IN ITEMS
 endforeach()
 
 file(READ "${AERO_SOURCE_DIR}/include/Aero/View.hpp" aero_view_header)
-string(FIND "${aero_view_header}" "class AERO_API View final" aero_view_begin)
+string(FIND "${aero_view_header}" "class AERO_API View" aero_view_begin)
 if(aero_view_begin EQUAL -1)
     message(FATAL_ERROR "Unable to inspect the public View surface")
 endif()
@@ -1100,7 +1139,7 @@ endif()
 string(SUBSTRING "${aero_view_class_tail}" 0 ${aero_view_private}
     aero_view_public_surface)
 if(aero_view_public_surface MATCHES
-        "(Load[ \\t]*\\(|Parse[ \\t]*\\(|LoadCompiled[ \\t]*\\(|RegisterSourceProvider|RunFrame|Advance(Time|AnimationTime)|FindNamedObject|NamedObjectCount)")
+        "(Load[ \\t]*\\(|Parse[ \\t]*\\(|LoadCompiled[ \\t]*\\(|RunFrame|Advance(Time|AnimationTime)|FindNamedObject|NamedObjectCount)")
     message(FATAL_ERROR
         "View public API recreated loader, scheduler or namescope services")
 endif()
@@ -1216,19 +1255,38 @@ endif()
 file(READ "${AERO_SOURCE_DIR}/include/Aero/Meta.hpp"
     aero_meta_header)
 string(FIND "${aero_meta_header}"
-    "class AERO_API Registration final" aero_meta_registration_declaration)
-string(FIND "${aero_meta_header}"
     "TypeDescription<T> Register(" aero_meta_register_declaration)
-string(FIND "${aero_meta_header}"
-    "class AERO_API Registry final" aero_meta_registry_declaration)
-if(aero_meta_registration_declaration EQUAL -1 OR
-        aero_meta_register_declaration EQUAL -1)
+if(aero_meta_register_declaration EQUAL -1)
     message(FATAL_ERROR
         "Meta::Registration/Register is not the canonical public authoring surface")
 endif()
-if(NOT aero_meta_registry_declaration EQUAL -1)
+
+# Class-level final seals public inheritance and conflicts with the WPF-style
+# extension model. Virtual method final remains valid; only declarations of a
+# class or struct itself are rejected.
+file(GLOB_RECURSE class_level_final_sources
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/*.h"
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.h"
+    "${AERO_SOURCE_DIR}/src/*.inc")
+aero_collect_matches(class_level_final_declarations
+    "(^|[\\r\\n])[ \\t]*(class|struct)[^\\r\\n;{}]*[ \\t]final[ \\t]*(\\{|:)"
+    ${class_level_final_sources})
+if(class_level_final_declarations)
     message(FATAL_ERROR
-        "Meta::Registry leaked into the public authoring surface")
+        "Class/struct declarations must not use final; keep final only on virtual methods: "
+        "${class_level_final_declarations}")
+endif()
+
+string(CONCAT retired_source_provider "Source" "Provider")
+aero_collect_matches(retired_provider_api
+    "(Aero::Providers|Aero/Integration/${retired_source_provider}|I${retired_source_provider}|${retired_source_provider}Adapter|Add${retired_source_provider}|Register${retired_source_provider})"
+    ${final_sdk_sources} ${AERO_SOURCE_DIR}/cmake/AeroPublicHeaders.cmake)
+if(retired_provider_api)
+    message(FATAL_ERROR
+        "Retired provider names or paths remain in the SDK surface: ${retired_provider_api}")
 endif()
 
 message(STATUS "Aero architecture dependency checks passed")

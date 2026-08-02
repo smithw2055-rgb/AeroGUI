@@ -44,7 +44,7 @@ bool ParentToLocal(
         return true;
     }
     Base::Transform2D inverse;
-    if (!Media::TryInvertTransform(
+    if (!Media::InvertTransform(
             framework->GetLocalVisualTransform(),
             inverse)) {
         return false;
@@ -94,7 +94,7 @@ Base::Result<void> HitTestState::SetOverlays(
     }
     Base::Vector<OverlayRecord> next;
     Base::Result<void> reserved =
-        next.TryReserve(overlays.Size());
+        next.Reserve(overlays.Size());
     if (!reserved) return reserved.GetStatus();
     for (std::uint32_t index = 0U;
          index < overlays.Size();
@@ -114,7 +114,7 @@ Base::Result<void> HitTestState::SetOverlays(
         }
         if (duplicate) continue;
         Base::Result<void> appended =
-            next.TryPushBack(
+            next.PushBack(
                 {overlay, origins[index]});
         if (!appended) return appended.GetStatus();
     }
@@ -152,7 +152,7 @@ Base::Result<HitTestResult> HitTestState::HitTest(
             overlay->AsFrameworkElement();
         if (overlayFramework != nullptr) {
             Base::Transform2D inverse;
-            if (!Media::TryInvertTransform(
+            if (!Media::InvertTransform(
                     overlayFramework->
                         GetLocalVisualTransform(),
                     inverse)) {
@@ -210,7 +210,7 @@ Base::Result<HitTestResult> HitTestState::RootToLocal(
                 "Pointer capture target is not below the input root");
         }
         Base::Result<void> appended =
-            path.TryPushBack(currentElement);
+            path.PushBack(currentElement);
         if (!appended) {
             return appended.GetStatus();
         }
@@ -379,7 +379,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
     std::uint32_t index = FindState(pointerId);
     if (index == UINT32_MAX) {
         Base::Result<void> appended =
-            states_.TryPushBack({pointerId, {}, {}});
+            states_.PushBack({pointerId, {}, {}});
         if (!appended) return appended.GetStatus();
         index = states_.Size() - 1U;
     }
@@ -497,7 +497,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
     std::uint32_t index = FindState(pointerId);
     if (index == UINT32_MAX) {
         Base::Result<void> appended =
-            states_.TryPushBack({pointerId, {}, {}});
+            states_.PushBack({pointerId, {}, {}});
         if (!appended) return appended.GetStatus();
         index = states_.Size() - 1U;
     }
@@ -588,7 +588,7 @@ Base::Result<void> PointerStateMachine::CapturePointer(
         return {};
     }
     Base::Result<void> appended =
-        captures_.TryPushBack({pointerId, handle.Value()});
+        captures_.PushBack({pointerId, handle.Value()});
     if (!appended) return appended.GetStatus();
     if (!captureChanged_.Empty()) {
         captureChanged_.Invoke(pointerId, &target, true);
@@ -771,7 +771,7 @@ Base::Result<void> FocusState::RememberFocus(
                 }
             }
             if (recordIndex == UINT32_MAX) {
-                Base::Result<void> appended = scopeFocus_.TryPushBack(
+                Base::Result<void> appended = scopeFocus_.PushBack(
                     {scope.Value(), Aero::Internal::ElementPrivate::Handle(node)});
                 if (!appended) return appended.GetStatus();
             } else {
@@ -819,7 +819,7 @@ Base::Result<void> FocusState::CollectCandidates(
             element->GetIsEnabled() &&
             element->GetFocusable() &&
             element->GetIsTabStop()) {
-            Base::Result<void> appended = candidates.TryPushBack(
+            Base::Result<void> appended = candidates.PushBack(
                 {element,
                  element->GetValueOr(
                      KeyboardNavigation::TabIndexProperty,
@@ -864,7 +864,7 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
         if (ancestor == nullptr) break;
         ++ancestorCount;
     }
-    Base::Result<void> reserved = scopeFocus_.TryReserve(
+    Base::Result<void> reserved = scopeFocus_.Reserve(
         scopeFocus_.Size() + ancestorCount);
     if (!reserved) return reserved.GetStatus();
     auto setFocusWithin = [](UIElement& element, bool value)

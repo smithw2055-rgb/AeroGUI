@@ -32,12 +32,12 @@ class Style;
 
 namespace Aero::Media {
 
-class AERO_API FontFamily final : public Base::Object {
+class AERO_API FontFamily : public Base::Object {
     AERO_DECLARE_TYPE(FontFamily, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Base::StringView GetSource() const noexcept { return source_.View(); }
-    void SetSource(Base::StringView value) noexcept { (void)source_.TryAssign(value); }
+    void SetSource(Base::StringView value) noexcept { (void)source_.Assign(value); }
 private:
     Base::String source_;
 };
@@ -63,9 +63,9 @@ namespace Aero {
 
 class FrameworkElement;
 
-class FrameworkElementChildRange final {
+class FrameworkElementChildRange {
 public:
-    class Iterator final {
+    class Iterator {
     public:
         Iterator(const Visual* owner, std::uint32_t index) noexcept : owner_(owner), index_(index) { Advance(); }
         FrameworkElement* operator*() const noexcept;
@@ -225,7 +225,7 @@ private:
         templatedParent_ = value;
         return;
     }
-    Base::Result<void> TryAddAuthoredTrigger(
+    Base::Result<void> AddAuthoredTrigger(
         Base::Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;
     Base::Span<const Base::Ref<Base::Object>>

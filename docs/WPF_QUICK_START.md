@@ -10,7 +10,7 @@ native hosts use `Aero::Integration` explicitly.
 ```cpp
 #include <Aero/App.hpp>
 
-class App final : public Aero::Application {
+class App : public Aero::Application {
     AERO_DECLARE_TYPE_NAMED(App, Aero::Application, "urn:demo", "App")
 
 public:
@@ -130,7 +130,7 @@ does not expose a second loader API.
 Custom controls normally need only `Aero/Gui.hpp` and `Aero/Meta.hpp`:
 
 ```cpp
-class Rating final : public Aero::Controls::Control {
+class Rating : public Aero::Controls::Control {
     AERO_DECLARE_TYPE_NAMED(Rating, Aero::Controls::Control, "urn:demo", "Rating")
 
 public:

@@ -167,7 +167,7 @@ Base::Result<void> HarfBuzzAdapter::Shape(
     output.script = FromHarfBuzzScript(
         hb_buffer_get_script(buffer));
     Base::Result<void> reserve =
-        output.glyphs.TryReserve(count);
+        output.glyphs.Reserve(count);
     if (!reserve) {
         hb_buffer_destroy(buffer);
         hb_font_destroy(font);
@@ -181,7 +181,7 @@ Base::Result<void> HarfBuzzAdapter::Shape(
         glyph.offsetX = From26Dot6(positions[index].x_offset);
         glyph.offsetY = From26Dot6(positions[index].y_offset);
         Base::Result<void> appended =
-            output.glyphs.TryPushBack(glyph);
+            output.glyphs.PushBack(glyph);
         if (!appended) {
             hb_buffer_destroy(buffer);
             hb_font_destroy(font);

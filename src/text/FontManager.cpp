@@ -111,7 +111,7 @@ Base::Result<void> FontManager::RegisterProvider(
     record.fonts = registration.fonts;
     record.shaper = registration.shaper;
     record.rasterizer = registration.rasterizer;
-    return registrations_.TryPushBack(record);
+    return registrations_.PushBack(record);
 }
 
 Base::Result<void> FontManager::UnregisterProvider(

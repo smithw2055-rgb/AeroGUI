@@ -24,7 +24,7 @@ RoutedEventTable::RoutedEventTable(
       behaviorRegistrations_(&behaviors),
       definitions_() {}
 
-Base::Result<RoutedEventHandle> RoutedEventTable::TryRegister(
+Base::Result<RoutedEventHandle> RoutedEventTable::Register(
     const RoutedEventRegistration& registration) noexcept {
     if (frozen_ || types_->IsFrozen()) {
         return InvalidState(
@@ -43,14 +43,14 @@ Base::Result<RoutedEventHandle> RoutedEventTable::TryRegister(
     definition.eventArgsType = registration.eventArgsType;
     definition.strategy = registration.strategy;
     Base::Result<void> nameResult =
-        definition.name.TryAssign(registration.name);
+        definition.name.Assign(registration.name);
     if (!nameResult) return nameResult.GetStatus();
     Base::Result<void> reserveResult =
-        definitions_.TryReserve(definitions_.Size() + 1U);
+        definitions_.Reserve(definitions_.Size() + 1U);
     if (!reserveResult) return reserveResult.GetStatus();
 
     Base::Result<MemberId> member = RegistrationTypes(
-        *types_, *behaviorRegistrations_).TryRegisterEvent(
+        *types_, *behaviorRegistrations_).RegisterEvent(
             registration.ownerType,
             {registration.name, registration.eventArgsType,
              EventFlags::Routed});
@@ -58,7 +58,7 @@ Base::Result<RoutedEventHandle> RoutedEventTable::TryRegister(
 
     definition.handle.value = member.Value();
     Base::Result<void> appended =
-        definitions_.TryPushBack(std::move(definition));
+        definitions_.PushBack(std::move(definition));
     AERO_ASSERT(appended);
     if (!appended) {
         return Base::Status::Failure(

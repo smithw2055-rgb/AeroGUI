@@ -6,7 +6,7 @@
 
 namespace Aero::Internal {
 
-class DesktopPrivate final {
+class DesktopPrivate {
 public:
     static void Attach(
         ::Aero::Application& application,
@@ -27,7 +27,7 @@ public:
 
 // Private implementation of the optional desktop application framework.
 // It is deliberately not installed and does not form a second authoring API.
-class DesktopHost final {
+class DesktopHost {
 public:
     explicit DesktopHost(const ::Aero::App::RunOptions& options) noexcept;
     DesktopHost(

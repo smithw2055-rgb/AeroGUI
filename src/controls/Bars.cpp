@@ -10,16 +10,16 @@ ToolBar::ToolBar() noexcept
     : ItemsControl(StaticTypeId()),
       headerChangedHandler_(
           this, &ToolBar::OnHeaderChanged) {
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         HeaderProperty,
         headerChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         OrientationProperty,
         headerChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         OverflowCapacityProperty,
         headerChangedHandler_));
-    static_cast<void>(TryAddValueChangedHandler(
+    static_cast<void>(AddValueChangedHandlerChecked(
         IsOverflowOpenProperty,
         headerChangedHandler_));
 }

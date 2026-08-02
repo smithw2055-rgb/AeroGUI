@@ -340,9 +340,12 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             "Style TargetType must be assigned before initialization completes");
     }
     if (style.GetTargetType() == Meta::InvalidTypeId) {
-        Base::Result<void> defaultTarget = style.TrySetTargetType(
-            Controls::Control::StaticTypeId());
-        if (!defaultTarget) return defaultTarget.GetStatus();
+        if (!style.SetTargetType(
+                Controls::Control::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Style TargetType assignment failed");
+        }
     }
     const Meta::TypeId targetType = style.GetTargetType();
     const Meta::TypeInfo* targetInfo =
@@ -384,7 +387,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             property->Handle(), value.Value());
         if (!resolved) return resolved.GetStatus();
         Base::Result<void> added =
-            style.TryAddSetter(*setter);
+            style.AddSetter(*setter);
         if (!added) return added.GetStatus();
     }
     for (const Base::Ref<Aero::Trigger>& entry :
@@ -418,10 +421,10 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
         plan.property = condition->Handle();
         plan.value = conditionValue.Value();
         Base::Result<void> actions =
-            plan.enterActions.TryAppend(
+            plan.enterActions.Append(
                 trigger->GetEnterActions());
         if (!actions) return actions.GetStatus();
-        actions = plan.exitActions.TryAppend(
+        actions = plan.exitActions.Append(
             trigger->GetExitActions());
         if (!actions) return actions.GetStatus();
         for (const Base::Ref<Aero::Setter>& setterEntry :
@@ -458,11 +461,11 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             if (!resolved) {
                 return resolved.GetStatus();
             }
-            Base::Result<void> added = plan.setters.TryPushBack({
+            Base::Result<void> added = plan.setters.PushBack({
                 property->Handle(), value.Value()});
             if (!added) return added.GetStatus();
         }
-        Base::Result<void> added = style.TryAddTrigger(
+        Base::Result<void> added = style.AddTrigger(
             std::move(plan));
         if (!added) return added.GetStatus();
     }
@@ -484,7 +487,7 @@ Base::Result<void> XamlStyleSchemaFacet::EndStyleInit(
 
 } // namespace Detail
 
-struct UiObjectModel::Impl final {
+struct UiObjectModel::Impl {
     explicit Impl(
         const UiObjectModelOptions& options) noexcept
         : style(options),
@@ -603,7 +606,7 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 
 
-class CompiledTemplateProgramOwner final
+class CompiledTemplateProgramOwner
     : public Base::Object {
 public:
     explicit CompiledTemplateProgramOwner(
@@ -676,7 +679,7 @@ ResolveTemplateImplicitKey(
 
 namespace Detail {
 
-struct XamlTemplateSchemaFacet::Impl final {
+struct XamlTemplateSchemaFacet::Impl {
     Impl(
         Meta::Registry& metadata,
         DependencyPropertyRegistry& dependencyProperties,
@@ -812,7 +815,7 @@ struct XamlTemplateSchemaFacet::Impl final {
                     static_cast<DataTemplate&>(object);
                 Base::Result<void> reserved =
                     compiled.Value().
-                        dataTemplateTriggers.TryReserve(
+                        dataTemplateTriggers.Reserve(
                             Internal::TemplatePrivate::AuthoredTriggers(dataTemplate).Size());
                 if (!reserved) {
                     return reserved.GetStatus();
@@ -823,7 +826,7 @@ struct XamlTemplateSchemaFacet::Impl final {
                     Base::Result<void> retained =
                         compiled.Value().
                             dataTemplateTriggers.
-                                TryPushBack(trigger);
+                                PushBack(trigger);
                     if (!retained) {
                         return retained.GetStatus();
                     }
@@ -892,7 +895,7 @@ struct XamlTemplateSchemaFacet::Impl final {
             // compile against the common Control contract so its authored
             // bindings and triggers remain valid until then.
             Base::Result<void> inferred =
-                Internal::TemplatePrivate::TrySetTargetType(controlTemplate,
+                Internal::TemplatePrivate::SetTargetType(controlTemplate,
                     Control::StaticTypeId());
             if (!inferred) return inferred.GetStatus();
         }
@@ -937,7 +940,7 @@ struct XamlTemplateSchemaFacet::Impl final {
                  compiled.Value().
                      contentSourceBindings) {
                 configured =
-                    Internal::TemplatePrivate::TryAddTemplateBinding(controlTemplate,
+                    Internal::TemplatePrivate::AddTemplateBinding(controlTemplate,
                             binding.targetName.View(),
                             binding.sourceProperty,
                             binding.targetProperty);
@@ -950,7 +953,7 @@ struct XamlTemplateSchemaFacet::Impl final {
             for (TemplatePropertyTrigger& trigger :
                  compiled.Value().propertyTriggers) {
                 configured =
-                    Internal::TemplatePrivate::TryAddPropertyTrigger(controlTemplate,
+                    Internal::TemplatePrivate::AddPropertyTrigger(controlTemplate,
                         std::move(trigger));
                 if (!configured) {
                     break;
@@ -961,7 +964,7 @@ struct XamlTemplateSchemaFacet::Impl final {
             for (VisualStateGroup& group :
                  compiled.Value().visualStateGroups) {
                 configured =
-                    Internal::TemplatePrivate::TryAddVisualStateGroup(controlTemplate,
+                    Internal::TemplatePrivate::AddVisualStateGroup(controlTemplate,
                         std::move(group));
                 if (!configured) {
                     break;
@@ -1178,7 +1181,7 @@ Base::Status InvalidTemplateCompiler(
         message);
 }
 
-struct PendingPrototypeNode final {
+struct PendingPrototypeNode {
     Base::Ref<Base::Object> object;
     std::uint32_t parent = UINT32_MAX;
     MemberId contentMember = InvalidMemberId;
@@ -1280,7 +1283,7 @@ CompileBlueprint(
 
     Base::Vector<PendingPrototypeNode> pending;
     Base::Result<void> appended =
-        pending.TryPushBack({
+        pending.PushBack({
             visualTree,
             UINT32_MAX,
             InvalidMemberId});
@@ -1314,7 +1317,7 @@ CompileBlueprint(
             ? names->NameOf(*object)
             : Base::StringView{};
         Base::Result<void> named =
-            node.name.TryAssign(name);
+            node.name.Assign(name);
         if (!named) return named.GetStatus();
 
         auto& dependencyObject =
@@ -1346,14 +1349,14 @@ CompileBlueprint(
                         local.Value().AsObject().Get());
                 if (prototypeProperty.objectNode == UINT32_MAX) {
                     prototypeProperty.objectNode = pending.Size();
-                    appended = pending.TryPushBack({
+                    appended = pending.PushBack({
                         local.Value().AsObject(),
                         UINT32_MAX,
                         InvalidMemberId});
                     if (!appended) return appended.GetStatus();
                 }
             }
-            appended = node.properties.TryPushBack(
+            appended = node.properties.PushBack(
                 std::move(prototypeProperty));
             if (!appended) {
                 return appended.GetStatus();
@@ -1365,12 +1368,12 @@ CompileBlueprint(
                 Grid::StaticTypeId())) {
             const auto& grid =
                 static_cast<const Grid&>(*object);
-            appended = node.gridColumns.TryAssign(
+            appended = node.gridColumns.Assign(
                 grid.GetColumnDefinitions());
             if (!appended) {
                 return appended.GetStatus();
             }
-            appended = node.gridRows.TryAssign(
+            appended = node.gridRows.Assign(
                 grid.GetRowDefinitions());
             if (!appended) {
                 return appended.GetStatus();
@@ -1388,7 +1391,7 @@ CompileBlueprint(
             blueprint.contentPresenter = index;
         }
 
-        appended = blueprint.nodes.TryPushBack(
+        appended = blueprint.nodes.PushBack(
             std::move(node));
         if (!appended) return appended.GetStatus();
 
@@ -1401,7 +1404,7 @@ CompileBlueprint(
                 return InvalidTemplateCompiler(
                     "ControlTemplate visual content contains a cycle or duplicate");
             }
-            appended = pending.TryPushBack({
+            appended = pending.PushBack({
                 edge.child,
                 index,
                 edge.member});
@@ -1442,17 +1445,17 @@ CompileBlueprint(
         binding.updateSourceTrigger =
             source.updateSourceTrigger;
         Base::Result<void> assigned =
-            binding.path.TryAssign(
+            binding.path.Assign(
                 source.path.View());
         if (!assigned) {
             return assigned.GetStatus();
         }
-        assigned = binding.stringFormat.TryAssign(
+        assigned = binding.stringFormat.Assign(
             source.stringFormat.View());
         if (!assigned) {
             return assigned.GetStatus();
         }
-        assigned = blueprint.bindings.TryPushBack(
+        assigned = blueprint.bindings.PushBack(
             std::move(binding));
         if (!assigned) {
             return assigned.GetStatus();
@@ -1712,12 +1715,12 @@ CompilePropertyTriggers(
             }
             TemplateTriggerCondition condition;
             Base::Result<void> assigned =
-                condition.sourceName.TryAssign(sourceName);
+                condition.sourceName.Assign(sourceName);
             if (!assigned) return assigned.GetStatus();
             condition.property = indeterminate->Handle();
             condition.value = Value::FromBoolean(
                 TypeOf<bool>(), true);
-            return trigger.conditions.TryPushBack(std::move(condition));
+            return trigger.conditions.PushBack(std::move(condition));
         }
         const DependencyProperty* property =
             propertyName == Base::StringView(
@@ -1740,11 +1743,11 @@ CompilePropertyTriggers(
         if (!value) return value.GetStatus();
         TemplateTriggerCondition condition;
         Base::Result<void> assigned =
-            condition.sourceName.TryAssign(sourceName);
+            condition.sourceName.Assign(sourceName);
         if (!assigned) return assigned.GetStatus();
         condition.property = property->Handle();
         condition.value = std::move(value).Value();
-        return trigger.conditions.TryPushBack(std::move(condition));
+        return trigger.conditions.PushBack(std::move(condition));
     };
     auto appendSetters = [&controlTemplate, &blueprint, &runtime, &properties](
         Base::Span<const Base::Ref<Setter>> setters,
@@ -1789,11 +1792,11 @@ CompilePropertyTriggers(
                 *property, runtime, properties);
             if (!value) return value.GetStatus();
             TemplateTriggerSetter setter;
-            Base::Result<void> assigned = setter.targetName.TryAssign(targetName);
+            Base::Result<void> assigned = setter.targetName.Assign(targetName);
             if (!assigned) return assigned.GetStatus();
             setter.property = property->Handle();
             setter.value = std::move(value).Value();
-            assigned = trigger.setters.TryPushBack(std::move(setter));
+            assigned = trigger.setters.PushBack(std::move(setter));
             if (!assigned) return assigned.GetStatus();
         }
         return {};
@@ -1825,7 +1828,7 @@ CompilePropertyTriggers(
         }
         if (!configured) return configured.GetStatus();
         Base::Result<void> added =
-            compiled.TryPushBack(
+            compiled.PushBack(
                 std::move(trigger));
         if (!added) return added.GetStatus();
     }
@@ -1859,7 +1862,7 @@ CompileVisualStates(
         }
         VisualStateGroup group;
         Base::Result<void> assigned =
-            group.name.TryAssign(
+            group.name.Assign(
                 sourceGroup.Name());
         if (!assigned) return assigned.GetStatus();
 
@@ -1881,7 +1884,7 @@ CompileVisualStates(
                     "VisualState requires Name");
             }
             VisualState state;
-            assigned = state.name.TryAssign(
+            assigned = state.name.Assign(
                 sourceState.Name());
             if (!assigned) {
                 return assigned.GetStatus();
@@ -1935,7 +1938,7 @@ CompileVisualStates(
 
                 VisualStateSetter setter;
                 assigned =
-                    setter.targetName.TryAssign(
+                    setter.targetName.Assign(
                         sourceSetter.GetTargetName());
                 if (!assigned) {
                     return assigned.GetStatus();
@@ -1944,14 +1947,14 @@ CompileVisualStates(
                 setter.value =
                     std::move(value).Value();
                 assigned =
-                    state.setters.TryPushBack(
+                    state.setters.PushBack(
                         std::move(setter));
                 if (!assigned) {
                     return assigned.GetStatus();
                 }
             }
             assigned =
-                group.states.TryPushBack(
+                group.states.PushBack(
                     std::move(state));
             if (!assigned) {
                 return assigned.GetStatus();
@@ -2006,10 +2009,10 @@ CompileVisualStates(
             }
 
             VisualTransition transition;
-            assigned = transition.from.TryAssign(
+            assigned = transition.from.Assign(
                 sourceTransition.From());
             if (assigned) {
-                assigned = transition.to.TryAssign(
+                assigned = transition.to.Assign(
                     sourceTransition.To());
             }
             if (!assigned) return assigned.GetStatus();
@@ -2023,11 +2026,11 @@ CompileVisualStates(
                 sourceTransition.GeneratedEasingFunction();
             transition.storyboard =
                 sourceTransition.StoryboardValue();
-            assigned = group.transitions.TryPushBack(
+            assigned = group.transitions.PushBack(
                 std::move(transition));
             if (!assigned) return assigned.GetStatus();
         }
-        assigned = groups.TryPushBack(
+        assigned = groups.PushBack(
             std::move(group));
         if (!assigned) return assigned.GetStatus();
         return {};
@@ -2114,7 +2117,7 @@ CompileControlTemplateDefinition(
                     "ControlTemplate instance trigger cannot be retained");
             }
             Base::Result<void> added =
-                blueprint.Value().controlTemplateDataTriggers.TryPushBack(
+                blueprint.Value().controlTemplateDataTriggers.PushBack(
                     std::move(retained));
             if (!added) return added.GetStatus();
         } else if (authored->RuntimeType() ==
@@ -2127,7 +2130,7 @@ CompileControlTemplateDefinition(
                     "ControlTemplate EventTrigger cannot be retained");
             }
             Base::Result<void> added =
-                blueprint.Value().controlTemplateEventTriggers.TryPushBack(
+                blueprint.Value().controlTemplateEventTriggers.PushBack(
                     std::move(retained));
             if (!added) return added.GetStatus();
         }
@@ -2183,7 +2186,7 @@ CompileControlTemplateDefinition(
                 return InvalidTemplateCompiler(
                     "ContentPresenter generated template name is invalid");
             }
-            Base::Result<void> named = node.name.TryAssign(
+            Base::Result<void> named = node.name.Assign(
                 Base::StringView(
                     generatedName,
                     static_cast<std::uint32_t>(written)));
@@ -2202,7 +2205,7 @@ CompileControlTemplateDefinition(
         }
         TemplateBindingPlan binding;
         Base::Result<void> assigned =
-            binding.targetName.TryAssign(
+            binding.targetName.Assign(
                 node.name.View());
         if (!assigned) {
             return assigned.GetStatus();
@@ -2213,7 +2216,7 @@ CompileControlTemplateDefinition(
             contentProperty->Handle();
         assigned =
             definition.contentSourceBindings.
-                TryPushBack(std::move(binding));
+                PushBack(std::move(binding));
         if (!assigned) {
             return assigned.GetStatus();
         }
@@ -2475,10 +2478,10 @@ Base::Result<void> BuildCompiledTemplate(
 
     Base::Vector<Base::Ref<Base::Object>> objects;
     Base::Result<void> reserved =
-        objects.TryReserve(blueprint->nodes.Size());
+        objects.Reserve(blueprint->nodes.Size());
     if (!reserved) return reserved.GetStatus();
     Base::Vector<Visual*> visuals;
-    reserved = visuals.TryReserve(blueprint->nodes.Size());
+    reserved = visuals.Reserve(blueprint->nodes.Size());
     if (!reserved) return reserved.GetStatus();
     for (std::uint32_t index = 0U;
          index < blueprint->nodes.Size();
@@ -2500,9 +2503,9 @@ Base::Result<void> BuildCompiledTemplate(
         Visual* visual = blueprint->runtime->Types().IsDerivedFrom(
             node.type, Visual::StaticTypeId())
             ? static_cast<Visual*>(owner.Get()) : nullptr;
-        Base::Result<void> added = objects.TryPushBack(std::move(owner));
+        Base::Result<void> added = objects.PushBack(std::move(owner));
         if (!added) return added.GetStatus();
-        added = visuals.TryPushBack(visual);
+        added = visuals.PushBack(visual);
         if (!added) return added.GetStatus();
     }
     for (std::uint32_t index = 0U;
@@ -2652,12 +2655,12 @@ Base::Result<void> BuildCompiledTemplate(
         for (std::uint32_t index = 0U; index < visuals.Size(); ++index) {
             if (blueprint->nodes[index].name.Empty()) continue;
             Aero::Internal::DataTemplateTriggerState::NamedObject named;
-            Base::Result<void> namedAssigned = named.name.TryAssign(
+            Base::Result<void> namedAssigned = named.name.Assign(
                 blueprint->nodes[index].name.View());
             if (!namedAssigned) return namedAssigned.GetStatus();
             named.object = Base::Ref<Base::Object>::FromBorrowed(
                 *static_cast<Base::Object*>(visuals[index]));
-            namedAssigned = triggerContext->names.TryPushBack(
+            namedAssigned = triggerContext->names.PushBack(
                 std::move(named));
             if (!namedAssigned) return namedAssigned.GetStatus();
         }
@@ -2690,7 +2693,7 @@ Base::Result<void> BuildCompiledTemplate(
                         *static_cast<DependencyObject*>(visuals[target]));
                 runtimeSetter.property = property->Handle();
                 runtimeSetter.value = std::move(value).Value();
-                Base::Result<void> added = runtimeTrigger.setters.TryPushBack(
+                Base::Result<void> added = runtimeTrigger.setters.PushBack(
                     std::move(runtimeSetter));
                 if (!added) return added.GetStatus();
             }
@@ -2751,7 +2754,7 @@ Base::Result<void> BuildCompiledTemplate(
                     *blueprint->runtime, *blueprint->properties);
                 if (!converted) return converted.GetStatus();
                 condition.value = std::move(converted).Value();
-                Base::Result<void> added = runtimeTrigger.conditions.TryPushBack(
+                Base::Result<void> added = runtimeTrigger.conditions.PushBack(
                     std::move(condition));
                 if (!added) return added.GetStatus();
                 // Property-trigger setters continue to be owned by
@@ -2769,7 +2772,7 @@ Base::Result<void> BuildCompiledTemplate(
                 }
                 condition.binding = data.GetBinding();
                 condition.value = data.GetAuthoredValue();
-                Base::Result<void> added = runtimeTrigger.conditions.TryPushBack(
+                Base::Result<void> added = runtimeTrigger.conditions.PushBack(
                     std::move(condition));
                 if (!added) return added.GetStatus();
                 setters = data.GetAuthoredSetters();
@@ -2791,7 +2794,7 @@ Base::Result<void> BuildCompiledTemplate(
                     condition.binding = authoredCondition->GetBinding();
                     condition.value = authoredCondition->GetAuthoredValue();
                     Base::Result<void> added =
-                        runtimeTrigger.conditions.TryPushBack(std::move(condition));
+                        runtimeTrigger.conditions.PushBack(std::move(condition));
                     if (!added) return added.GetStatus();
                 }
                 setters = multi.GetAuthoredSetters();
@@ -2800,21 +2803,21 @@ Base::Result<void> BuildCompiledTemplate(
             }
             Base::Result<void> configured = appendSetters(setters, runtimeTrigger);
             if (configured) {
-                configured = runtimeTrigger.enterActions.TryAppend(
+                configured = runtimeTrigger.enterActions.Append(
                     authored->GetEnterActions());
             }
             if (configured) {
-                configured = runtimeTrigger.exitActions.TryAppend(
+                configured = runtimeTrigger.exitActions.Append(
                     authored->GetExitActions());
             }
             if (configured) {
-                configured = triggerContext->triggers.TryPushBack(
+                configured = triggerContext->triggers.PushBack(
                     std::move(runtimeTrigger));
             }
             if (!configured) return configured.GetStatus();
         }
         Base::Result<void> attached =
-            Aero::Internal::ElementPrivate::TryAddAuthoredTrigger(
+            Aero::Internal::ElementPrivate::AddAuthoredTrigger(
                 *triggerContext->root,
                 Base::Ref<Base::Object>(std::move(triggerContext)));
         if (!attached) return attached.GetStatus();
@@ -2838,7 +2841,7 @@ BuildCompiledDeferredTemplate(
 
     Base::Vector<Base::Ref<Base::Object>> objects;
     Base::Result<void> reserved =
-        objects.TryReserve(blueprint->nodes.Size());
+        objects.Reserve(blueprint->nodes.Size());
     if (!reserved) return reserved.GetStatus();
 
     for (const TemplatePrototypeNode& node : blueprint->nodes) {
@@ -2851,7 +2854,7 @@ BuildCompiledDeferredTemplate(
             return InvalidTemplateCompiler(
                 "Deferred template created an incompatible object");
         }
-        Base::Result<void> added = objects.TryPushBack(std::move(owner));
+        Base::Result<void> added = objects.PushBack(std::move(owner));
         if (!added) return added.GetStatus();
     }
     for (std::uint32_t index = 0U;
@@ -2973,14 +2976,14 @@ BuildCompiledDeferredTemplate(
             Aero::Internal::DataTemplateTriggerState::
                 NamedObject named;
             Base::Result<void> assigned =
-                named.name.TryAssign(
+                named.name.Assign(
                     blueprint->nodes[index].name.View());
             if (!assigned) {
                 return assigned.GetStatus();
             }
             named.object = objects[index];
             assigned =
-                triggerContext->names.TryPushBack(
+                triggerContext->names.PushBack(
                     std::move(named));
             if (!assigned) {
                 return assigned.GetStatus();
@@ -3034,7 +3037,7 @@ BuildCompiledDeferredTemplate(
             runtimeSetter.value =
                 std::move(converted).Value();
             Base::Result<void> added =
-                runtimeTrigger.setters.TryPushBack(
+                runtimeTrigger.setters.PushBack(
                     std::move(runtimeSetter));
             if (!added) return added.GetStatus();
         }
@@ -3100,7 +3103,7 @@ BuildCompiledDeferredTemplate(
                     std::move(converted).Value();
             }
             Base::Result<void> added =
-                runtimeTrigger.conditions.TryPushBack(
+                runtimeTrigger.conditions.PushBack(
                     std::move(condition));
             if (!added) return added.GetStatus();
             authoredSetters =
@@ -3122,7 +3125,7 @@ BuildCompiledDeferredTemplate(
             condition.value =
                 dataTrigger.GetAuthoredValue();
             Base::Result<void> added =
-                runtimeTrigger.conditions.TryPushBack(
+                runtimeTrigger.conditions.PushBack(
                     std::move(condition));
             if (!added) return added.GetStatus();
             authoredSetters =
@@ -3146,7 +3149,7 @@ BuildCompiledDeferredTemplate(
                 condition.value =
                     authoredCondition->GetAuthoredValue();
                 Base::Result<void> added =
-                    runtimeTrigger.conditions.TryPushBack(
+                    runtimeTrigger.conditions.PushBack(
                         std::move(condition));
                 if (!added) return added.GetStatus();
             }
@@ -3157,23 +3160,23 @@ BuildCompiledDeferredTemplate(
             appendRuntimeSetters(
                 authoredSetters, runtimeTrigger);
         if (!retained) return retained.GetStatus();
-        retained = runtimeTrigger.enterActions.TryAppend(
+        retained = runtimeTrigger.enterActions.Append(
                 authored->GetEnterActions());
         if (retained) {
             retained =
-                runtimeTrigger.exitActions.TryAppend(
+                runtimeTrigger.exitActions.Append(
                     authored->GetExitActions());
         }
         if (retained) {
             retained =
-                triggerContext->triggers.TryPushBack(
+                triggerContext->triggers.PushBack(
                     std::move(runtimeTrigger));
         }
         if (!retained) return retained.GetStatus();
     }
     if (triggerContext) {
         Base::Result<void> attached =
-            Aero::Internal::ElementPrivate::TryAddAuthoredTrigger(
+            Aero::Internal::ElementPrivate::AddAuthoredTrigger(
                 static_cast<FrameworkElement&>(*root),
                 Base::Ref<Base::Object>(triggerContext));
         if (!attached) return attached.GetStatus();

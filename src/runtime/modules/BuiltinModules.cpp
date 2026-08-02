@@ -10,15 +10,15 @@ namespace Aero {
 Base::Result<void> RegisterBuiltInUiModules(
     ::Aero::Meta::Registry& domain) noexcept {
     Base::Result<void> registered =
-        Meta::TryRegisterCoreMetadata(domain);
+        Meta::RegisterCoreMetadata(domain);
     if (!registered) return registered.GetStatus();
-    registered = Aero::Internal::TryRegisterUiMetadata(domain);
+    registered = Aero::Internal::RegisterUiMetadata(domain);
     if (!registered) return registered.GetStatus();
-    registered = App::TryRegisterAppMetadata(domain);
+    registered = App::RegisterAppMetadata(domain);
     if (!registered) return registered.GetStatus();
-    registered = Controls::TryRegisterControlsMetadata(domain);
+    registered = Controls::RegisterControlsMetadata(domain);
     if (!registered) return registered.GetStatus();
-    return Markup::TryRegisterMarkupMetadata(domain);
+    return Markup::RegisterMarkupMetadata(domain);
 }
 
 } // namespace Aero

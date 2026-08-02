@@ -8,7 +8,7 @@
 
 namespace Aero::Integration {
 
-struct TextOptions final {
+struct TextOptions  {
     Base::StringView primaryFamily;
     Base::Span<const Base::StringView> fallbackFamilies;
     Base::StringView language;
@@ -19,7 +19,7 @@ struct TextOptions final {
 
 // Immutable creation options copied into a View. The caller may release the
 // RenderDevice reference and all temporary spans after CreateView returns.
-struct ViewOptions final {
+struct ViewOptions  {
     Base::Ref<RenderDevice> renderDevice;
     IClipboard* clipboard = nullptr;
     ITextInputMethodHost* textInputMethodHost = nullptr;

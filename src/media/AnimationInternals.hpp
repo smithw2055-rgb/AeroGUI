@@ -6,7 +6,7 @@
 
 namespace Aero::Internal {
 
-class AnimationPrivate final {
+class AnimationPrivate {
 public:
     static Animation::TimelineTiming Timing(
         const Media::Animation::Timeline& timeline) noexcept {

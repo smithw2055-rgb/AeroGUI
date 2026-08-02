@@ -71,7 +71,7 @@ Base::Result<void> ValidateSchemaCore(
         PropertyElement,
         NullObject
     };
-    struct Frame final {
+    struct Frame {
         FrameKind kind = FrameKind::Object;
         Meta::TypeId type = Meta::InvalidTypeId;
     };
@@ -101,14 +101,14 @@ Base::Result<void> ValidateSchemaCore(
                 if (!member) {
                     return SchemaNodeFailure(member.GetStatus(), node);
                 }
-                Base::Result<void> appended = frames.TryPushBack({
+                Base::Result<void> appended = frames.PushBack({
                     FrameKind::PropertyElement,
                     Meta::InvalidTypeId});
                 if (!appended) return appended.GetStatus();
                 break;
             }
             if (nullObject) {
-                Base::Result<void> appended = frames.TryPushBack({
+                Base::Result<void> appended = frames.PushBack({
                     FrameKind::NullObject,
                     Meta::InvalidTypeId});
                 if (!appended) return appended.GetStatus();
@@ -140,7 +140,7 @@ Base::Result<void> ValidateSchemaCore(
                 }
                 rootSeen = true;
             }
-            Base::Result<void> appended = frames.TryPushBack({
+            Base::Result<void> appended = frames.PushBack({
                 Meta::HasTypeFlag(
                     type.Value().flags,
                     Meta::TypeFlags::ValueType)
@@ -199,7 +199,7 @@ Base::Result<void> ValidateSchemaCore(
                     "Compiled XAML directive is not supported");
             }
             {
-                Base::Result<void> appended = frames.TryPushBack({
+                Base::Result<void> appended = frames.PushBack({
                     FrameKind::Member,
                     Meta::InvalidTypeId});
                 if (!appended) return appended.GetStatus();
@@ -328,7 +328,7 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 
 
-class DynamicResourceExtensionToken final
+class DynamicResourceExtensionToken
     : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         DynamicResourceExtensionToken,
@@ -341,7 +341,7 @@ public:
     }
 };
 
-class StaticExtensionToken final
+class StaticExtensionToken
     : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         StaticExtensionToken,
@@ -354,7 +354,7 @@ public:
     }
 };
 
-class TypeExtensionToken final
+class TypeExtensionToken
     : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         TypeExtensionToken,
@@ -367,7 +367,7 @@ public:
     }
 };
 
-class TemplateBindingExtensionToken final
+class TemplateBindingExtensionToken
     : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         TemplateBindingExtensionToken,
@@ -748,7 +748,7 @@ Base::Result<XamlFacets::DraftType*>
 XamlFacets::EnsureType(Meta::TypeId type) noexcept {
     DraftType* existing = FindDraft(type);
     if (existing != nullptr) return existing;
-    Base::Result<DraftType*> added = drafts_.TryEmplaceBack();
+    Base::Result<DraftType*> added = drafts_.EmplaceBack();
     if (!added) return added.GetStatus();
     added.Value()->type = type;
     return added.Value();
@@ -778,7 +778,7 @@ std::uint32_t XamlFacets::FindFacetIndex(
         : InvalidFacetIndex;
 }
 
-Base::Result<void> XamlFacets::TryAdd(
+Base::Result<void> XamlFacets::Add(
     const XamlTypeFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
@@ -828,32 +828,32 @@ Base::Result<void> XamlFacets::TryAdd(
             "XAML aggregate facet overlaps an existing capability");
     }
 
-    Base::Result<void> reserved = drafts_.TryReserve(
+    Base::Result<void> reserved = drafts_.Reserve(
         drafts_.Size() + (existing == nullptr ? 1U : 0U));
     if (!reserved) return reserved.GetStatus();
     if (addLifecycle) {
-        reserved = lifecycles_.TryReserve(lifecycles_.Size() + 1U);
+        reserved = lifecycles_.Reserve(lifecycles_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
     }
     if (addNameScope) {
-        reserved = nameScopes_.TryReserve(nameScopes_.Size() + 1U);
+        reserved = nameScopes_.Reserve(nameScopes_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
     }
     if (addResourceScope) {
-        reserved = resourceScopes_.TryReserve(resourceScopes_.Size() + 1U);
+        reserved = resourceScopes_.Reserve(resourceScopes_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
     }
     if (addDeferredContent) {
-        reserved = deferredContents_.TryReserve(deferredContents_.Size() + 1U);
+        reserved = deferredContents_.Reserve(deferredContents_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
     }
     if (addImplicitResourceKey) {
-        reserved = implicitResourceKeys_.TryReserve(
+        reserved = implicitResourceKeys_.Reserve(
             implicitResourceKeys_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
     }
     if (addPropertyTarget) {
-        reserved = propertyTargets_.TryReserve(propertyTargets_.Size() + 1U);
+        reserved = propertyTargets_.Reserve(propertyTargets_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
     }
 
@@ -863,40 +863,40 @@ Base::Result<void> XamlFacets::TryAdd(
     if (addLifecycle) {
         draft.facets[static_cast<std::uint8_t>(FacetKind::Lifecycle)] =
             lifecycles_.Size();
-        lifecycles_.TryPushBack({
+        lifecycles_.PushBack({
             facet.type, facet.beginInit, facet.endInit, facet.abortInit,
             facet.endInitWithServices, facet.context});
     }
     if (addNameScope) {
         draft.facets[static_cast<std::uint8_t>(FacetKind::NameScope)] =
             nameScopes_.Size();
-        nameScopes_.TryPushBack({
+        nameScopes_.PushBack({
             facet.type, facet.createsNameScope,
             facet.registerName, facet.context});
     }
     if (addResourceScope) {
         draft.facets[static_cast<std::uint8_t>(FacetKind::ResourceScope)] =
             resourceScopes_.Size();
-        resourceScopes_.TryPushBack({
+        resourceScopes_.PushBack({
             facet.type, facet.createsResourceScope, facet.addResource,
             facet.resolveResourceScope, facet.context});
     }
     if (addDeferredContent) {
         draft.facets[static_cast<std::uint8_t>(FacetKind::DeferredContent)] =
             deferredContents_.Size();
-        deferredContents_.TryPushBack({facet.type, true});
+        deferredContents_.PushBack({facet.type, true});
     }
     if (addImplicitResourceKey) {
         draft.facets[
             static_cast<std::uint8_t>(FacetKind::ImplicitResourceKey)] =
                 implicitResourceKeys_.Size();
-        implicitResourceKeys_.TryPushBack({
+        implicitResourceKeys_.PushBack({
             facet.type, facet.resolveImplicitResourceKey, facet.context});
     }
     if (addPropertyTarget) {
         draft.facets[static_cast<std::uint8_t>(FacetKind::PropertyTarget)] =
             propertyTargets_.Size();
-        propertyTargets_.TryPushBack({
+        propertyTargets_.PushBack({
             facet.type, facet.resolvePropertyTarget, facet.context});
     }
     return {};
@@ -920,18 +920,18 @@ Base::Result<void> XamlFacets::TryAdd(
             InvalidFacetIndex) {                                          \
         return DuplicateFacet(DuplicateMessage);                          \
     }                                                                     \
-    Base::Result<void> reserved = drafts_.TryReserve(                     \
+    Base::Result<void> reserved = drafts_.Reserve(                     \
         drafts_.Size() + (existing == nullptr ? 1U : 0U));                \
     if (!reserved) return reserved.GetStatus();                           \
-    reserved = Column.TryReserve(Column.Size() + 1U);                     \
+    reserved = Column.Reserve(Column.Size() + 1U);                     \
     if (!reserved) return reserved.GetStatus();                           \
     Base::Result<DraftType*> ensured = EnsureType(facet.type);            \
     if (!ensured) return ensured.GetStatus();                             \
     ensured.Value()->facets[static_cast<std::uint8_t>(KindValue)] =       \
         Column.Size();                                                     \
-    return Column.TryPushBack(facet)
+    return Column.PushBack(facet)
 
-Base::Result<void> XamlFacets::TryAdd(
+Base::Result<void> XamlFacets::Add(
     const XamlLifecycleFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
     AERO_ADD_XAML_FACET(
@@ -943,7 +943,7 @@ Base::Result<void> XamlFacets::TryAdd(
         "XAML lifecycle facet is already registered");
 }
 
-Base::Result<void> XamlFacets::TryAdd(
+Base::Result<void> XamlFacets::Add(
     const XamlNameScopeFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
     AERO_ADD_XAML_FACET(
@@ -953,7 +953,7 @@ Base::Result<void> XamlFacets::TryAdd(
         "XAML name-scope facet is already registered");
 }
 
-Base::Result<void> XamlFacets::TryAdd(
+Base::Result<void> XamlFacets::Add(
     const XamlResourceScopeFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
     AERO_ADD_XAML_FACET(
@@ -964,7 +964,7 @@ Base::Result<void> XamlFacets::TryAdd(
         "XAML resource-scope facet is already registered");
 }
 
-Base::Result<void> XamlFacets::TryAdd(
+Base::Result<void> XamlFacets::Add(
     const XamlDeferredContentFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
     AERO_ADD_XAML_FACET(
@@ -975,7 +975,7 @@ Base::Result<void> XamlFacets::TryAdd(
         "XAML deferred-content facet is already registered");
 }
 
-Base::Result<void> XamlFacets::TryAdd(
+Base::Result<void> XamlFacets::Add(
     const XamlImplicitResourceKeyFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
     AERO_ADD_XAML_FACET(
@@ -986,7 +986,7 @@ Base::Result<void> XamlFacets::TryAdd(
         "XAML implicit-resource-key facet is already registered");
 }
 
-Base::Result<void> XamlFacets::TryAdd(
+Base::Result<void> XamlFacets::Add(
     const XamlPropertyTargetFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
     AERO_ADD_XAML_FACET(
@@ -998,7 +998,7 @@ Base::Result<void> XamlFacets::TryAdd(
 
 #undef AERO_ADD_XAML_FACET
 
-Base::Result<void> XamlFacets::TryAdd(
+Base::Result<void> XamlFacets::Add(
     const XamlMarkupExtensionFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
@@ -1016,22 +1016,22 @@ Base::Result<void> XamlFacets::TryAdd(
         return DuplicateFacet(
             "XAML markup-extension facet is already registered");
     }
-    Base::Result<void> reserved = drafts_.TryReserve(
+    Base::Result<void> reserved = drafts_.Reserve(
         drafts_.Size() + (existing == nullptr ? 1U : 0U));
     if (!reserved) return reserved.GetStatus();
-    reserved = markupExtensions_.TryReserve(markupExtensions_.Size() + 1U);
+    reserved = markupExtensions_.Reserve(markupExtensions_.Size() + 1U);
     if (!reserved) return reserved.GetStatus();
     Base::Result<DraftType*> ensured = EnsureType(facet.type);
     if (!ensured) return ensured.GetStatus();
     ensured.Value()->facets[static_cast<std::uint8_t>(
         FacetKind::MarkupExtension)] = markupExtensions_.Size();
-    return markupExtensions_.TryPushBack(facet);
+    return markupExtensions_.PushBack(facet);
 }
 
 Base::Result<void> XamlFacets::BuildLifecyclePlans(
     const Meta::TypeRegistry& descriptors) noexcept {
     Base::Vector<Meta::TypeId> ancestry;
-    Base::Result<void> reserved = ancestry.TryReserve(descriptors.TypeCount());
+    Base::Result<void> reserved = ancestry.Reserve(descriptors.TypeCount());
     if (!reserved) return reserved.GetStatus();
 
     for (XamlTypePlan& plan : plans_) {
@@ -1041,7 +1041,7 @@ Base::Result<void> XamlFacets::BuildLifecyclePlans(
         std::uint32_t depth = 0U;
         while (current != Meta::InvalidTypeId &&
                depth <= descriptors.TypeCount()) {
-            Base::Result<void> added = ancestry.TryPushBack(current);
+            Base::Result<void> added = ancestry.PushBack(current);
             if (!added) return added.GetStatus();
             const Meta::TypeInfo* descriptor = descriptors.FindType(current);
             if (descriptor == nullptr) break;
@@ -1067,7 +1067,7 @@ Base::Result<void> XamlFacets::BuildLifecyclePlans(
                     Base::ErrorCode::OutOfRange,
                     "XAML lifecycle plan exceeds the compact record limit");
             }
-            Base::Result<void> added = lifecycleRefs_.TryPushBack(facet);
+            Base::Result<void> added = lifecycleRefs_.PushBack(facet);
             if (!added) return added.GetStatus();
             ++count;
         }
@@ -1085,11 +1085,11 @@ Base::Result<void> XamlFacets::Freeze(
     lifecycleRefs_.Clear();
     index_.Clear();
 
-    Base::Result<void> reserved = plans_.TryReserve(descriptors.TypeCount());
+    Base::Result<void> reserved = plans_.Reserve(descriptors.TypeCount());
     if (!reserved) return reserved.GetStatus();
-    reserved = index_.TryReserve(descriptors.TypeCount());
+    reserved = index_.Reserve(descriptors.TypeCount());
     if (!reserved) return reserved.GetStatus();
-    reserved = facetRefs_.TryReserve(
+    reserved = facetRefs_.Reserve(
         lifecycles_.Size() + nameScopes_.Size() + resourceScopes_.Size() +
         deferredContents_.Size() + implicitResourceKeys_.Size() +
         propertyTargets_.Size() + markupExtensions_.Size());
@@ -1106,17 +1106,17 @@ Base::Result<void> XamlFacets::Freeze(
                  ++kind) {
                 const std::uint32_t facet = draft->facets[kind];
                 if (facet == InvalidFacetIndex) continue;
-                Base::Result<void> added = facetRefs_.TryPushBack(facet);
+                Base::Result<void> added = facetRefs_.PushBack(facet);
                 if (!added) return added.GetStatus();
                 plan.facetMask |= static_cast<FacetMask>(1U << kind);
                 ++plan.facetCount;
             }
         }
         const std::uint32_t position = plans_.Size();
-        Base::Result<void> added = plans_.TryPushBack(plan);
+        Base::Result<void> added = plans_.PushBack(plan);
         if (!added) return added.GetStatus();
         Base::Result<FacetIndex::InsertResult> inserted =
-            index_.TryInsert(plan.type, position);
+            index_.Insert(plan.type, position);
         if (!inserted) return inserted.GetStatus();
         if (!inserted.Value().inserted) {
             return Base::Status::Failure(
@@ -1389,14 +1389,14 @@ bool IsAeroExtensionsFacade(
 Base::Result<void> AppendU8(
     Base::Vector<std::uint8_t>& output,
     std::uint8_t value) noexcept {
-    return output.TryPushBack(value);
+    return output.PushBack(value);
 }
 
 Base::Result<void> AppendU32(
     Base::Vector<std::uint8_t>& output,
     std::uint32_t value) noexcept {
     for (std::uint32_t shift = 0U; shift < 32U; shift += 8U) {
-        Base::Result<void> appended = output.TryPushBack(
+        Base::Result<void> appended = output.PushBack(
             static_cast<std::uint8_t>(value >> shift));
         if (!appended) return appended.GetStatus();
     }
@@ -1407,7 +1407,7 @@ Base::Result<void> AppendU64(
     Base::Vector<std::uint8_t>& output,
     std::uint64_t value) noexcept {
     for (std::uint32_t shift = 0U; shift < 64U; shift += 8U) {
-        Base::Result<void> appended = output.TryPushBack(
+        Base::Result<void> appended = output.PushBack(
             static_cast<std::uint8_t>(value >> shift));
         if (!appended) return appended.GetStatus();
     }
@@ -1428,7 +1428,7 @@ Base::Result<void> AppendString(
     return {};
 }
 
-class Decoder final {
+class Decoder {
 public:
     explicit Decoder(Base::Span<const std::uint8_t> bytes) noexcept
         : bytes_(bytes) {}
@@ -1470,7 +1470,7 @@ public:
                 "XAML schema manifest string bounds are invalid");
         }
         Base::String value(&allocator);
-        Base::Result<void> assigned = value.TryAssign(
+        Base::Result<void> assigned = value.Assign(
             Base::StringView(
                 reinterpret_cast<const char*>(bytes_.Data() + offset_),
                 length.Value()));
@@ -1495,8 +1495,8 @@ private:
 
 } // namespace
 
-struct SchemaManifest::Impl final {
-    struct TypeRecord final {
+struct SchemaManifest::Impl {
+    struct TypeRecord {
         explicit TypeRecord(Base::IAllocator& allocator) noexcept
             : xamlNamespace(&allocator), name(&allocator) {}
 
@@ -1509,7 +1509,7 @@ struct SchemaManifest::Impl final {
         Base::String name;
     };
 
-    struct MemberRecord final {
+    struct MemberRecord {
         explicit MemberRecord(Base::IAllocator& allocator) noexcept
             : name(&allocator) {}
 
@@ -1539,7 +1539,7 @@ struct SchemaManifest::Impl final {
         memberIndex.Clear();
         for (std::uint32_t index = 0U; index < types.Size(); ++index) {
             Base::Result<typename Base::HashMap<Meta::TypeId, std::uint32_t>::InsertResult>
-                inserted = typeIndex.TryInsert(types[index].id, index);
+                inserted = typeIndex.Insert(types[index].id, index);
             if (!inserted) return inserted.GetStatus();
             if (!inserted.Value().inserted) {
                 return InvalidManifest("XAML schema manifest contains duplicate TypeId values");
@@ -1547,7 +1547,7 @@ struct SchemaManifest::Impl final {
         }
         for (std::uint32_t index = 0U; index < members.Size(); ++index) {
             Base::Result<typename Base::HashMap<Meta::MemberId, std::uint32_t>::InsertResult>
-                inserted = memberIndex.TryInsert(members[index].id, index);
+                inserted = memberIndex.Insert(members[index].id, index);
             if (!inserted) return inserted.GetStatus();
             if (!inserted.Value().inserted) {
                 return InvalidManifest("XAML schema manifest contains duplicate MemberId values");
@@ -1824,12 +1824,12 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
     impl->identity = identity.Value();
 
     const Meta::TypeRegistry& descriptors = schema.Types();
-    Base::Result<void> reserved = impl->types.TryReserve(descriptors.TypeCount());
+    Base::Result<void> reserved = impl->types.Reserve(descriptors.TypeCount());
     if (!reserved) {
         DestroyImpl(selected, impl);
         return reserved.GetStatus();
     }
-    reserved = impl->members.TryReserve(
+    reserved = impl->members.Reserve(
         descriptors.PropertyCount() + descriptors.EventCount());
     if (!reserved) {
         DestroyImpl(selected, impl);
@@ -1842,9 +1842,9 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
         record.baseType = type.BaseType();
         record.kind = type.Kind();
         record.flags = type.Flags();
-        Base::Result<void> assigned = record.xamlNamespace.TryAssign(
+        Base::Result<void> assigned = record.xamlNamespace.Assign(
             type.XamlNamespace());
-        if (assigned) assigned = record.name.TryAssign(type.Name());
+        if (assigned) assigned = record.name.Assign(type.Name());
         if (!assigned) {
             DestroyImpl(selected, impl);
             return assigned.GetStatus();
@@ -1857,7 +1857,7 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
             DestroyImpl(selected, impl);
             return content.GetStatus();
         }
-        Base::Result<void> appended = impl->types.TryPushBack(
+        Base::Result<void> appended = impl->types.PushBack(
             std::move(record));
         if (!appended) {
             DestroyImpl(selected, impl);
@@ -1871,12 +1871,12 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
             member.ownerType = property.OwnerType();
             member.valueType = property.ValueType();
             member.flags = static_cast<std::uint32_t>(property.Flags());
-            assigned = member.name.TryAssign(property.Name());
+            assigned = member.name.Assign(property.Name());
             if (!assigned) {
                 DestroyImpl(selected, impl);
                 return assigned.GetStatus();
             }
-            appended = impl->members.TryPushBack(std::move(member));
+            appended = impl->members.PushBack(std::move(member));
             if (!appended) {
                 DestroyImpl(selected, impl);
                 return appended.GetStatus();
@@ -1890,12 +1890,12 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
             member.ownerType = event.OwnerType();
             member.valueType = event.EventArgsType();
             member.flags = static_cast<std::uint32_t>(event.Flags());
-            assigned = member.name.TryAssign(event.Name());
+            assigned = member.name.Assign(event.Name());
             if (!assigned) {
                 DestroyImpl(selected, impl);
                 return assigned.GetStatus();
             }
-            appended = impl->members.TryPushBack(std::move(member));
+            appended = impl->members.PushBack(std::move(member));
             if (!appended) {
                 DestroyImpl(selected, impl);
                 return appended.GetStatus();
@@ -1977,8 +1977,8 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
             Base::ErrorCode::OutOfRange,
             "XAML schema manifest descriptor count exceeds limits");
     }
-    Base::Result<void> reserved = impl->types.TryReserve(typeCount.Value());
-    if (reserved) reserved = impl->members.TryReserve(memberCount.Value());
+    Base::Result<void> reserved = impl->types.Reserve(typeCount.Value());
+    if (reserved) reserved = impl->members.Reserve(memberCount.Value());
     if (!reserved) {
         DestroyImpl(selected, impl);
         return reserved.GetStatus();
@@ -2039,7 +2039,7 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
         record.contentMember = content.Value();
         record.xamlNamespace = std::move(xamlNamespace).Value();
         record.name = std::move(name).Value();
-        Base::Result<void> appended = impl->types.TryPushBack(std::move(record));
+        Base::Result<void> appended = impl->types.PushBack(std::move(record));
         if (!appended) {
             DestroyImpl(selected, impl);
             return appended.GetStatus();
@@ -2107,7 +2107,7 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
         record.valueType = valueType.Value();
         record.flags = flags.Value();
         record.name = std::move(name).Value();
-        Base::Result<void> appended = impl->members.TryPushBack(std::move(record));
+        Base::Result<void> appended = impl->members.PushBack(std::move(record));
         if (!appended) {
             DestroyImpl(selected, impl);
             return appended.GetStatus();
@@ -2627,9 +2627,9 @@ Schema::ResolvePropertyOrEvent(
             Meta::PropertyFlags::Collection)) {
         Base::String textAlias;
         Base::Result<void> aliasStatus =
-            textAlias.TryAssign(memberName);
+            textAlias.Assign(memberName);
         if (aliasStatus) {
-            aliasStatus = textAlias.TryAppend("Text");
+            aliasStatus = textAlias.Append("Text");
         }
         if (!aliasStatus) return aliasStatus.GetStatus();
 
@@ -3206,7 +3206,7 @@ Base::Result<void> Schema::AddResource(
               facet->context)
         : nullptr;
     return resources != nullptr
-        ? resources->TryAdd(key, value)
+        ? resources->Add(key, value)
         : Base::Result<void>();
 }
 
@@ -3288,7 +3288,7 @@ Base::Status InvalidBundleState(const char* message) noexcept {
 
 } // namespace
 
-struct GuiSchema::Impl final {
+struct GuiSchema::Impl {
     explicit Impl(Base::IAllocator& value) noexcept
         : allocator(&value) {}
 

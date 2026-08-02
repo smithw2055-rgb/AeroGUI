@@ -101,7 +101,7 @@ struct TypeTraits<Controls::Dock> {
 namespace Aero::Controls {
 
 
-class AERO_API StackPanel final : public Panel {
+class AERO_API StackPanel : public Panel {
     AERO_DECLARE_TYPE(StackPanel, Panel)
 public:
     StackPanel() noexcept;
@@ -114,7 +114,7 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
 };
 
-class AERO_API DockPanel final : public Panel {
+class AERO_API DockPanel : public Panel {
     AERO_DECLARE_TYPE(DockPanel, Panel)
 public:
     DockPanel() noexcept : Panel(StaticTypeId()) {}
@@ -130,7 +130,7 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
 };
 
-class AERO_API WrapPanel final : public Panel {
+class AERO_API WrapPanel : public Panel {
     AERO_DECLARE_TYPE(WrapPanel, Panel)
 public:
     WrapPanel() noexcept : Panel(StaticTypeId()) {}
@@ -149,7 +149,7 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
 };
 
-class AERO_API UniformGrid final : public Panel {
+class AERO_API UniformGrid : public Panel {
     AERO_DECLARE_TYPE(UniformGrid, Panel)
 public:
     UniformGrid() noexcept : Panel(StaticTypeId()) {}
@@ -173,7 +173,7 @@ private:
         std::uint32_t& columns) const noexcept;
 };
 
-class AERO_API Canvas final : public Panel {
+class AERO_API Canvas : public Panel {
     AERO_DECLARE_TYPE(Canvas, Panel)
 public:
     Canvas() noexcept;
@@ -190,7 +190,7 @@ protected:
 
 enum class GridUnitType : std::uint8_t { Auto = 0U, Pixel, Star };
 
-struct GridLength final {
+struct GridLength {
     double value = 1.0;
     GridUnitType unit = GridUnitType::Star;
     static constexpr GridLength Auto() noexcept { return {0.0, GridUnitType::Auto}; }
@@ -198,7 +198,7 @@ struct GridLength final {
     static constexpr GridLength Star(double weight = 1.0) noexcept { return {weight, GridUnitType::Star}; }
 };
 
-class AERO_API ColumnDefinition final : public Base::Object {
+class AERO_API ColumnDefinition : public Base::Object {
     AERO_DECLARE_TYPE(ColumnDefinition, Base::Object)
 public:
     ColumnDefinition() noexcept = default;
@@ -220,7 +220,7 @@ private:
     Base::String sharedSizeGroup_;
 };
 
-class AERO_API RowDefinition final : public Base::Object {
+class AERO_API RowDefinition : public Base::Object {
     AERO_DECLARE_TYPE(RowDefinition, Base::Object)
 public:
     RowDefinition() noexcept = default;
@@ -242,7 +242,7 @@ private:
     Base::String sharedSizeGroup_;
 };
 
-class AERO_API Grid final : public Panel {
+class AERO_API Grid : public Panel {
     AERO_DECLARE_TYPE(Grid, Panel)
 public:
     Grid() noexcept;
@@ -255,13 +255,13 @@ public:
         std::uint32_t column,
         std::uint32_t rowSpan,
         std::uint32_t columnSpan) noexcept;
-    Base::Result<void> TryAddColumnDefinition(
+    Base::Result<void> AddColumnDefinition(
         Base::Ref<ColumnDefinition> definition) noexcept;
-    Base::Result<void> TryAddRowDefinition(
+    Base::Result<void> AddRowDefinition(
         Base::Ref<RowDefinition> definition) noexcept;
     void ClearColumnDefinitionObjects() noexcept;
     void ClearRowDefinitionObjects() noexcept;
-    Base::Result<void> TryAddInputBinding(
+    Base::Result<void> AddInputBinding(
         Base::Ref<Aero::Input::KeyBinding> binding) noexcept;
     void ClearInputBindings() noexcept { inputBindings_.Clear(); }
     Base::Span<const Base::Ref<Aero::Input::KeyBinding>>
@@ -315,7 +315,7 @@ private:
 
 // WPF-shaped single-child scaling decorator. The child participates in
 // layout at its natural size and is then fitted into the Viewbox slot.
-class AERO_API Viewbox final : public Decorator {
+class AERO_API Viewbox : public Decorator {
     AERO_DECLARE_TYPE(Viewbox, Decorator)
 public:
     Viewbox() noexcept : Decorator(StaticTypeId()) {}
@@ -424,7 +424,7 @@ public:
         TextAlignment value) noexcept;
     void SetInlineValue(
         Meta::Value value) noexcept;
-    Base::Result<void> TryAddOwnedInline(
+    Base::Result<void> AddOwnedInline(
         const Base::Ref<Base::Object>& inlineObject) noexcept;
     void ClearOwnedInlines() noexcept;
     inline static constexpr Members::Property<Base::String> TextProperty{"Text"};
@@ -468,7 +468,7 @@ private:
     bool serviceOwnsGlyphRun_ = false;
 };
 
-class AERO_API ContentPresenter final : public FrameworkElement {
+class AERO_API ContentPresenter : public FrameworkElement {
     AERO_DECLARE_TYPE(ContentPresenter, FrameworkElement)
 public:
     ContentPresenter() noexcept;

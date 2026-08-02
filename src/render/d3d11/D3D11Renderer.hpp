@@ -14,7 +14,7 @@ using D3D11RendererStatistics = RendererStatistics;
 
 RendererShaderSet MakeD3D11RendererShaderSet() noexcept;
 
-class D3D11Renderer final {
+class D3D11Renderer {
 public:
     D3D11Renderer(
         Graphics::GraphicsDevice& device,

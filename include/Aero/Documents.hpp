@@ -4,6 +4,7 @@
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Media/Brushes.hpp>
+#include <Aero/Events/NavigationEventArgs.hpp>
 
 #include <cstdint>
 #include <utility>
@@ -18,7 +19,7 @@ class Hyperlink;
 class TextRange;
 
 // Read-only projection over a TextBlock or Span inline collection.
-class AERO_API InlineCollectionView final {
+class AERO_API InlineCollectionView {
 public:
     InlineCollectionView() noexcept = default;
     std::uint32_t GetCount() const noexcept;
@@ -36,15 +37,15 @@ private:
 
 // Mutable WPF-shaped collection. The collection itself is the logical child
 // store; Inline objects are not Visuals and are rendered by their TextBlock host.
-class AERO_API InlineCollection final {
+class AERO_API InlineCollection {
 public:
     InlineCollection() noexcept = default;
     std::uint32_t GetCount() const noexcept;
     bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
     Inline* At(std::uint32_t index) const noexcept;
     InlineCollectionView GetView() const noexcept;
-    Base::Result<void> TryAdd(Base::Ref<Inline> value) noexcept;
-    Base::Result<bool> TryRemove(Inline& value) noexcept;
+    Base::Result<void> Add(Base::Ref<Inline> value) noexcept;
+    Base::Result<bool> Remove(Inline& value) noexcept;
     void Clear() noexcept;
 
 private:
@@ -61,7 +62,7 @@ enum class LogicalDirection : std::uint8_t {
 
 // Borrowed text position in a formatted text container. Storage offsets remain
 // private so the public contract is independent of the engine's UTF encoding.
-class AERO_API TextPointer final {
+class AERO_API TextPointer {
 public:
     TextPointer() noexcept = default;
     bool GetIsValid() const noexcept { return container_ != nullptr; }
@@ -103,10 +104,10 @@ private:
     LogicalDirection direction_ = LogicalDirection::Forward;
 };
 
-class AERO_API TextRange final {
+class AERO_API TextRange {
 public:
     TextRange() noexcept = default;
-    static Base::Result<TextRange> TryCreate(
+    static Base::Result<TextRange> Create(
         TextPointer start,
         TextPointer end) noexcept;
 
@@ -211,7 +212,7 @@ protected:
         : TextElement(runtimeType) {}
 };
 
-class AERO_API Run final : public Inline {
+class AERO_API Run : public Inline {
     AERO_DECLARE_TYPE(Run, Inline)
 public:
     Run() noexcept : Inline(StaticTypeId()) {}
@@ -243,7 +244,7 @@ public:
     }
     Meta::Value GetMetadataInlines() const noexcept;
     void SetInlineValue(Meta::Value value) noexcept;
-    Base::Result<void> TryAddOwnedInline(Base::Ref<Inline> value) noexcept;
+    Base::Result<void> AddOwnedInline(Base::Ref<Inline> value) noexcept;
     void ClearOwnedInlines() noexcept;
 
 protected:
@@ -262,56 +263,35 @@ private:
     Base::Ref<Inline> pendingInline_;
 };
 
-class AERO_API Bold final : public Span {
+class AERO_API Bold : public Span {
     AERO_DECLARE_TYPE(Bold, Span)
 public:
     Bold() noexcept : Span(StaticTypeId()) {}
     ~Bold() override = default;
 };
 
-class AERO_API Italic final : public Span {
+class AERO_API Italic : public Span {
     AERO_DECLARE_TYPE(Italic, Span)
 public:
     Italic() noexcept : Span(StaticTypeId()) {}
     ~Italic() override = default;
 };
 
-class AERO_API Underline final : public Span {
+class AERO_API Underline : public Span {
     AERO_DECLARE_TYPE(Underline, Span)
 public:
     Underline() noexcept : Span(StaticTypeId()) {}
     ~Underline() override = default;
 };
 
-class AERO_API LineBreak final : public Inline {
+class AERO_API LineBreak : public Inline {
     AERO_DECLARE_TYPE(LineBreak, Inline)
 public:
     LineBreak() noexcept : Inline(StaticTypeId()) {}
     ~LineBreak() override = default;
 };
 
-struct RequestNavigateEventArgs final : Aero::RoutedEventArgs {
-    AERO_DECLARE_TYPE(RequestNavigateEventArgs, Aero::RoutedEventArgs)
-public:
-    RequestNavigateEventArgs() noexcept
-        : Aero::RoutedEventArgs(StaticTypeId()) {}
-    RequestNavigateEventArgs(
-        Base::StringView uri,
-        Hyperlink* hyperlink) noexcept
-        : Aero::RoutedEventArgs(StaticTypeId()),
-          uri_(uri), hyperlink_(hyperlink) {}
-
-    Base::StringView GetUri() const noexcept { return uri_; }
-    Hyperlink* GetHyperlink() const noexcept { return hyperlink_; }
-
-private:
-    Base::StringView uri_;
-    Hyperlink* hyperlink_ = nullptr;
-};
-using RequestNavigateEventHandler = Base::Delegate<void(
-    Base::Object*, RequestNavigateEventArgs&)>;
-
-class AERO_API Hyperlink final : public Span {
+class AERO_API Hyperlink : public Span {
     AERO_DECLARE_TYPE(Hyperlink, Span)
 public:
     Hyperlink() noexcept : Span(StaticTypeId()) {}
@@ -348,7 +328,7 @@ public:
 using NavigationHandler = Base::Delegate<bool(
     Base::StringView, Hyperlink&)>;
 
-class AERO_API NavigationService final {
+class AERO_API NavigationService {
 public:
     explicit NavigationService(
         NavigationHandler handler = {}) noexcept;

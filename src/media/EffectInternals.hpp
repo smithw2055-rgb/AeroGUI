@@ -7,7 +7,7 @@ namespace Aero::Internal {
 // Effect ownership is a runtime attachment detail.  Keep it out of the SDK
 // surface while allowing the metadata bridge to update it when an Effect
 // property is assigned to a FrameworkElement.
-class EffectPrivate final {
+class EffectPrivate {
 public:
     static Aero::FrameworkElement* Owner(
         const Aero::Media::Effect& effect) noexcept {

@@ -59,7 +59,7 @@ Base::Result<Length> ConvertLength(
 
 Base::Result<Thickness> ParseThickness(Base::StringView input) noexcept {
     Base::String text;
-    Base::Result<void> assigned = text.TryAssign(input);
+    Base::Result<void> assigned = text.Assign(input);
     if (!assigned) return assigned.GetStatus();
     const char* cursor = text.CStr();
     double values[4]{};
@@ -127,7 +127,7 @@ Base::Result<CornerRadius> ConvertCornerRadius(
 Base::Result<Point> ConvertPoint(
     Base::StringView input) noexcept {
     Base::String text;
-    Base::Result<void> assigned = text.TryAssign(input);
+    Base::Result<void> assigned = text.Assign(input);
     if (!assigned) return assigned.GetStatus();
     const char* cursor = text.CStr();
     char* end = nullptr;
@@ -159,7 +159,7 @@ Base::Result<Rect> ConvertRect(
     Base::StringView input) noexcept {
     Base::String text;
     Base::Result<void> assigned =
-        text.TryAssign(input);
+        text.Assign(input);
     if (!assigned) return assigned.GetStatus();
     const char* cursor = text.CStr();
     double values[4]{};
@@ -199,7 +199,7 @@ Base::Result<Rect> ConvertRect(
 Base::Result<Base::Transform2D> ConvertMatrix(
     Base::StringView input) noexcept {
     Base::String text;
-    Base::Result<void> assigned = text.TryAssign(input);
+    Base::Result<void> assigned = text.Assign(input);
     if (!assigned) return assigned.GetStatus();
     const char* cursor = text.CStr();
     double values[6]{};
@@ -235,7 +235,7 @@ int Hex(char value) noexcept {
 Base::Result<Color> ConvertColor(
     Base::StringView text) noexcept {
     const Base::StringView value = ::Aero::Base::Detail::ValueConversion::Trim(text);
-    struct NamedColor final {
+    struct NamedColor {
         Base::StringView name;
         std::uint8_t red;
         std::uint8_t green;

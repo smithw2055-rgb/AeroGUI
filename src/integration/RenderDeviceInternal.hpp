@@ -8,7 +8,7 @@ namespace Aero::Internal {
 
 // One immutable function table connects RenderDevice to a concrete native
 // implementation. It avoids a second public object model and virtual hierarchy.
-struct RenderDeviceFunctions final {
+struct RenderDeviceFunctions {
     void (*destroy)(void*) noexcept = nullptr;
     Base::Result<void> (*submit)(
         void*, const Integration::RenderFrame&) noexcept = nullptr;
@@ -24,7 +24,7 @@ struct RenderDeviceFunctions final {
 
 // The public RenderDevice only exposes the host-facing object. Construction
 // and backend adoption stay behind this source-side factory friend.
-class RenderDeviceFactory final {
+class RenderDeviceFactory {
 public:
     static Base::Result<Base::Ref<::Aero::Integration::RenderDevice>> Adopt(
         ::Aero::Integration::RenderDeviceMode mode,

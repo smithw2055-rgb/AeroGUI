@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Collections.hpp>
@@ -90,7 +90,7 @@ inline constexpr DependencyPropertyRef<
     Base::Ref<Brush>>
     FrameworkElementForegroundProperty{"Foreground"};
 
-class AERO_API SolidColorBrush final : public Brush {
+class AERO_API SolidColorBrush : public Brush {
     AERO_DECLARE_TYPE(SolidColorBrush, Brush)
 public:
     SolidColorBrush() noexcept
@@ -108,7 +108,7 @@ private:
     Color initialColor_{};
 };
 
-class AERO_API GradientStop final : public DependencyObject {
+class AERO_API GradientStop : public DependencyObject {
     AERO_DECLARE_TYPE(GradientStop, DependencyObject)
 public:
     GradientStop() noexcept
@@ -138,7 +138,7 @@ private:
 // Standalone WPF collection resource. GradientBrush keeps its own optimized
 // stops, while this collection is also consumable as an authored resource
 // (for example, as an ItemsSource in the Gallery samples).
-class AERO_API GradientStopCollection final :
+class AERO_API GradientStopCollection :
     public Base::Object,
     public Collections::IItemsSource {
     AERO_DECLARE_TYPE(GradientStopCollection, Base::Object)
@@ -161,15 +161,15 @@ public:
             ? Base::Ref<Base::Object>(stops_[index])
             : Base::Ref<Base::Object>{};
     }
-    Base::Result<void> TryAddItemsChanged(
+    void AddItemsChanged(
         const Collections::ItemsChangedHandler& handler) noexcept override {
-        return changed_.TryAdd(handler);
+        changed_.Add(handler);
     }
     bool RemoveItemsChanged(
         const Collections::ItemsChangedHandler& handler) noexcept override {
         return changed_.Remove(handler);
     }
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         Base::Ref<GradientStop> stop) noexcept;
     void Clear() noexcept {
         const std::uint32_t count = stops_.Size();
@@ -195,7 +195,7 @@ public:
     }
 };
 
-class AERO_API MonochromeShader final : public BrushShader {
+class AERO_API MonochromeShader : public BrushShader {
     AERO_DECLARE_TYPE(MonochromeShader, BrushShader)
 public:
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -207,14 +207,14 @@ private:
     Color color_{};
 };
 
-class AERO_API ConicGradientShader final : public BrushShader {
+class AERO_API ConicGradientShader : public BrushShader {
     AERO_DECLARE_TYPE(ConicGradientShader, BrushShader)
 public:
     ConicGradientShader() noexcept
         : stops_(&Base::GetDefaultAllocator()) {}
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Base::Result<void> TryAddGradientStop(Base::Ref<GradientStop> value) noexcept {
-        return value ? stops_.TryPushBack(std::move(value))
+    Base::Result<void> AddGradientStop(Base::Ref<GradientStop> value) noexcept {
+        return value ? stops_.PushBack(std::move(value))
             : Base::Result<void>(Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument, "ConicGradientShader stop is null"));
     }
@@ -223,7 +223,7 @@ private:
     Base::Vector<Base::Ref<GradientStop>> stops_;
 };
 
-class AERO_API WavesShader final : public BrushShader {
+class AERO_API WavesShader : public BrushShader {
     AERO_DECLARE_TYPE(WavesShader, BrushShader)
 public:
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -242,7 +242,7 @@ public:
         GetGradientStops() const noexcept {
         return stops_.AsSpan();
     }
-    Base::Result<void> TryAddGradientStop(
+    Base::Result<void> AddGradientStop(
         Base::Ref<GradientStop> stop) noexcept;
     void ClearGradientStops() noexcept;
     BrushMappingMode GetMappingMode() const noexcept;
@@ -261,7 +261,7 @@ private:
     Base::Vector<Base::Ref<GradientStop>> stops_;
 };
 
-class AERO_API LinearGradientBrush final
+class AERO_API LinearGradientBrush
     : public GradientBrush {
     AERO_DECLARE_TYPE(LinearGradientBrush, GradientBrush)
 public:
@@ -278,7 +278,7 @@ public:
     inline static constexpr Members::Property<Point> EndPointProperty{"EndPoint"};
 };
 
-class AERO_API RadialGradientBrush final
+class AERO_API RadialGradientBrush
     : public GradientBrush {
     AERO_DECLARE_TYPE(RadialGradientBrush, GradientBrush)
 public:
@@ -302,7 +302,7 @@ public:
     inline static constexpr Members::Property<double> RadiusYProperty{"RadiusY"};
 };
 
-class AERO_API ImageBrush final : public Brush {
+class AERO_API ImageBrush : public Brush {
     AERO_DECLARE_TYPE(ImageBrush, Brush)
 public:
     ImageBrush() noexcept
@@ -341,7 +341,7 @@ private:
 // A visual-backed brush keeps the referenced visual as a dependency property.
 // Rendering it through an offscreen visual target is handled by the renderer;
 // the UI object owns the WPF resource and binding semantics.
-class AERO_API VisualBrush final : public Brush {
+class AERO_API VisualBrush : public Brush {
     AERO_DECLARE_TYPE(VisualBrush, Brush)
 public:
     VisualBrush() noexcept

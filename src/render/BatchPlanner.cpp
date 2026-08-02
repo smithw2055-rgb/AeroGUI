@@ -125,7 +125,7 @@ Base::Result<BatchPlan> BatchPlanner::Build(
                     order++);
             if (!made) return made.GetStatus();
             Base::Result<void> packetAdded =
-                output.packets_.TryPushBack(
+                output.packets_.PushBack(
                     made.Value());
             if (!packetAdded) {
                 return packetAdded.GetStatus();
@@ -151,7 +151,7 @@ Base::Result<BatchPlan> BatchPlanner::Build(
                 output.packets_.Size() - 1U;
             batch.packetCount = 1U;
             Base::Result<void> batchAdded =
-                output.batches_.TryPushBack(batch);
+                output.batches_.PushBack(batch);
             if (!batchAdded) {
                 return batchAdded.GetStatus();
             }
@@ -196,7 +196,7 @@ BatchPlanner::BuildCommandsForTesting(
                 order++);
         if (!made) return made.GetStatus();
         Base::Result<void> packetAdded =
-            output.packets_.TryPushBack(
+            output.packets_.PushBack(
                 made.Value());
         if (!packetAdded) {
             return packetAdded.GetStatus();
@@ -222,7 +222,7 @@ BatchPlanner::BuildCommandsForTesting(
             output.packets_.Size() - 1U;
         batch.packetCount = 1U;
         Base::Result<void> batchAdded =
-            output.batches_.TryPushBack(batch);
+            output.batches_.PushBack(batch);
         if (!batchAdded) {
             return batchAdded.GetStatus();
         }
