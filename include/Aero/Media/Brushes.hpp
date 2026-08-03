@@ -389,39 +389,11 @@ MakeSolidColorBrush(Color color) noexcept;
 
 } // namespace Aero::Media
 
+AERO_DECLARE_TYPE_ENUM(Aero::Media::TileMode)
+
+AERO_DECLARE_TYPE_ENUM(Aero::Media::BrushMappingMode)
+
 namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Aero::Media::TileMode> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("TileMode");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "TileMode";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Aero::Media::BrushMappingMode> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("BrushMappingMode");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "BrushMappingMode";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
 
 template<>
 struct TypeTraits<Base::Rect> {

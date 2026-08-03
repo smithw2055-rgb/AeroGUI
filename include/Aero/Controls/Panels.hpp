@@ -34,69 +34,17 @@ enum class Dock : std::uint8_t { Left = 0U, Top, Right, Bottom };
 
 } // namespace Aero::Controls
 
-namespace Aero::Meta {
+AERO_DECLARE_TYPE_ENUM(Aero::TextWrapping)
 
-template<>
-struct TypeTraits<TextWrapping> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("TextWrapping"); }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept { return "TextWrapping"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
+AERO_DECLARE_TYPE_ENUM(Aero::TextTrimming)
 
-template<>
-struct TypeTraits<TextTrimming> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("TextTrimming"); }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept { return "TextTrimming"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
+AERO_DECLARE_TYPE_ENUM(Aero::TextAlignment)
 
-template<>
-struct TypeTraits<TextAlignment> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("TextAlignment"); }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept { return "TextAlignment"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
+AERO_DECLARE_TYPE_ENUM(Aero::FontStyle)
 
-template<>
-struct TypeTraits<FontStyle> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("FontStyle"); }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept { return "FontStyle"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::Orientation)
 
-template<>
-struct TypeTraits<Controls::Orientation> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("Orientation"); }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept { return "Orientation"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-template<>
-struct TypeTraits<Controls::Dock> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("Dock"); }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept { return "Dock"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::Dock)
 
 namespace Aero::Controls {
 

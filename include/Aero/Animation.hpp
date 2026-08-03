@@ -801,25 +801,9 @@ private:
 
 } // namespace Aero::Media::Animation
 
-namespace Aero::Meta {
+AERO_DECLARE_TYPE_ENUM(Aero::Media::Animation::FillBehavior)
 
-template<>
-struct TypeTraits<Media::Animation::FillBehavior> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("FillBehavior"); }
-    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
-    static constexpr Base::StringView Name() noexcept { return "FillBehavior"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-template<>
-struct TypeTraits<Media::Animation::EasingMode> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("EasingMode"); }
-    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
-    static constexpr Base::StringView Name() noexcept { return "EasingMode"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Media::Animation::EasingMode)
 
 // Trigger actions are exposed through concept-specific headers. They include
 // this animation core and therefore do not introduce a second declaration

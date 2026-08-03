@@ -94,14 +94,5 @@ private:
 
 } // namespace Aero::Media::Animation
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Media::Animation::ControlStoryboardAction::Option> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("ControlStoryboardOption"); }
-    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
-    static constexpr Base::StringView Name() noexcept { return "ControlStoryboardOption"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(
+    Aero::Media::Animation::ControlStoryboardAction::Option)

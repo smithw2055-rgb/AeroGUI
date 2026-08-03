@@ -125,18 +125,6 @@ Base::Result<void> PopulateUiElements(
     status = uiElement.Result();
     if (!status) return status.GetStatus();
 
-    auto inputScope = Meta::Register<InputScope>(context);
-    inputScope
-        .Value("Default", InputScope::Default)
-        .Value("Url", InputScope::Url)
-        .Value("EmailSmtpAddress", InputScope::EmailSmtpAddress)
-        .Value("Digits", InputScope::Digits)
-        .Value("Number", InputScope::Number)
-        .Value("Password", InputScope::Password)
-        .Value("TelephoneNumber", InputScope::TelephoneNumber);
-    status = inputScope.Result();
-    if (!status) return status.GetStatus();
-
     auto frameworkElement = Meta::Register<FrameworkElement>(context);
     frameworkElement
         .Property<

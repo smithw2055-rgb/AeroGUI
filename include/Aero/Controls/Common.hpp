@@ -162,19 +162,7 @@ public:
 
 } // namespace Aero::Controls
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Controls::MenuItemRole> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("MenuItemRole"); }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept { return "MenuItemRole"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::MenuItemRole)
 
 namespace Aero::Controls {
 

@@ -111,41 +111,9 @@ enum class TextDecorations : std::uint8_t {
 
 } // namespace Aero::Controls
 
-namespace Aero::Meta {
+AERO_DECLARE_TYPE_ENUM(Aero::FontWeight)
 
-template<>
-struct TypeTraits<Aero::FontWeight> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("FontWeight");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "FontWeight";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Controls::TextDecorations> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("TextDecorations");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "TextDecorations";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::TextDecorations)
 
 namespace Aero::Controls {
 

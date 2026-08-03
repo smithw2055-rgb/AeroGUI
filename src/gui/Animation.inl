@@ -3,21 +3,6 @@
 Base::Result<void> PopulateUiAnimation(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    auto fillBehavior = Meta::Register<FillBehavior>(context);
-    fillBehavior
-        .Value("HoldEnd", FillBehavior::HoldEnd)
-        .Value("Stop", FillBehavior::Stop);
-    status = fillBehavior.Result();
-    if (!status) return status.GetStatus();
-
-    auto easingMode = Meta::Register<EasingMode>(context);
-    easingMode
-        .Value("EaseOut", EasingMode::EaseOut)
-        .Value("EaseIn", EasingMode::EaseIn)
-        .Value("EaseInOut", EasingMode::EaseInOut);
-    status = easingMode.Result();
-    if (!status) return status.GetStatus();
-
     auto timeline = Meta::Register<Media::Animation::Timeline>(
         context, TypeFlags::Abstract);
     timeline
@@ -616,17 +601,6 @@ Base::Result<void> PopulateUiAnimation(
     status = beginStoryboard.Result();
     if (!status) return status.GetStatus();
 
-    auto controlStoryboardOption = Meta::Register<Media::Animation::ControlStoryboardAction::Option>(context);
-    controlStoryboardOption
-        .Value("Play", Media::Animation::ControlStoryboardAction::Option::Play)
-        .Value("Stop", Media::Animation::ControlStoryboardAction::Option::Stop)
-        .Value("TogglePlayPause", Media::Animation::ControlStoryboardAction::Option::TogglePlayPause)
-        .Value("Pause", Media::Animation::ControlStoryboardAction::Option::Pause)
-        .Value("Resume", Media::Animation::ControlStoryboardAction::Option::Resume)
-        .Value("SkipToFill", Media::Animation::ControlStoryboardAction::Option::SkipToFill);
-    status = controlStoryboardOption.Result();
-    if (!status) return status.GetStatus();
-
     auto controlStoryboard = Meta::Register<Media::Animation::ControlStoryboardAction>(context);
     controlStoryboard
         .Property("Storyboard", &Media::Animation::ControlStoryboardAction::GetStoryboard,
@@ -700,30 +674,6 @@ Base::Result<void> PopulateUiAnimation(
     status = timerTrigger.Result();
     if (!status) return status.GetStatus();
 
-    auto comparisonOperator =
-        Meta::Register<Media::Animation::ComparisonCondition::Operator>(context);
-    comparisonOperator
-        .Value(
-            "Equal",
-            Media::Animation::ComparisonCondition::Operator::Equal)
-        .Value(
-            "NotEqual",
-            Media::Animation::ComparisonCondition::Operator::NotEqual)
-        .Value(
-            "LessThan",
-            Media::Animation::ComparisonCondition::Operator::LessThan)
-        .Value(
-            "LessThanOrEqual",
-            Media::Animation::ComparisonCondition::Operator::LessThanOrEqual)
-        .Value(
-            "GreaterThan",
-            Media::Animation::ComparisonCondition::Operator::GreaterThan)
-        .Value(
-            "GreaterThanOrEqual",
-            Media::Animation::ComparisonCondition::Operator::GreaterThanOrEqual);
-    status = comparisonOperator.Result();
-    if (!status) return status.GetStatus();
-
     auto comparisonCondition = Meta::Register<Media::Animation::ComparisonCondition>(context);
     comparisonCondition
         .Property<
@@ -741,18 +691,6 @@ Base::Result<void> PopulateUiAnimation(
             &Media::Animation::ComparisonCondition::SetComparisonOperator)
         .Factory();
     status = comparisonCondition.Result();
-    if (!status) return status.GetStatus();
-
-    auto conditionChaining =
-        Meta::Register<Media::Animation::ConditionalExpression::ForwardChaining>(context);
-    conditionChaining
-        .Value(
-            "And",
-            Media::Animation::ConditionalExpression::ForwardChaining::And)
-        .Value(
-            "Or",
-            Media::Animation::ConditionalExpression::ForwardChaining::Or);
-    status = conditionChaining.Result();
     if (!status) return status.GetStatus();
 
     auto conditionalExpression = Meta::Register<Media::Animation::ConditionalExpression>(context);

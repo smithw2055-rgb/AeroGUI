@@ -73,51 +73,6 @@ Base::Result<void> PopulateUiMedia(
     status = rect.Result();
     if (!status) return status.GetStatus();
 
-    auto stretch = Meta::Register<Stretch>(context);
-    stretch
-        .Value("None", Stretch::None)
-        .Value("Fill", Stretch::Fill)
-        .Value("Uniform", Stretch::Uniform)
-        .Value(
-            "UniformToFill",
-            Stretch::UniformToFill);
-    status = stretch.Result();
-    if (!status) return status.GetStatus();
-
-    auto stretchDirection =
-        Meta::Register<StretchDirection>(context);
-    stretchDirection
-        .Value(
-            "UpOnly",
-            StretchDirection::UpOnly)
-        .Value(
-            "DownOnly",
-            StretchDirection::DownOnly)
-        .Value(
-            "Both",
-            StretchDirection::Both);
-    status = stretchDirection.Result();
-    if (!status) return status.GetStatus();
-
-    auto tileMode = Meta::Register<TileMode>(context);
-    tileMode
-        .Value("None", TileMode::None)
-        .Value("Tile", TileMode::Tile)
-        .Value("FlipX", TileMode::FlipX)
-        .Value("FlipY", TileMode::FlipY)
-        .Value("FlipXY", TileMode::FlipXY);
-    status = tileMode.Result();
-    if (!status) return status.GetStatus();
-
-    auto brushMappingMode = Meta::Register<BrushMappingMode>(context);
-    brushMappingMode
-        .Value(
-            "RelativeToBoundingBox",
-            BrushMappingMode::RelativeToBoundingBox)
-        .Value("Absolute", BrushMappingMode::Absolute);
-    status = brushMappingMode.Result();
-    if (!status) return status.GetStatus();
-
     // Brush.RelativeTransform is a Transform-valued dependency property, so
     // the abstract value type must exist before Brush metadata is authored.
     status = Meta::Register<Transform>(
@@ -459,24 +414,6 @@ Base::Result<void> PopulateUiMedia(
     status = pixelateEffect.Result();
     if (!status) return status.GetStatus();
 
-    auto horizontal = Meta::Register<HorizontalAlignment>(context);
-    horizontal
-        .Value("Stretch", HorizontalAlignment::Stretch)
-        .Value("Left", HorizontalAlignment::Left)
-        .Value("Center", HorizontalAlignment::Center)
-        .Value("Right", HorizontalAlignment::Right);
-    status = horizontal.Result();
-    if (!status) return status.GetStatus();
-
-    auto vertical = Meta::Register<VerticalAlignment>(context);
-    vertical
-        .Value("Stretch", VerticalAlignment::Stretch)
-        .Value("Top", VerticalAlignment::Top)
-        .Value("Center", VerticalAlignment::Center)
-        .Value("Bottom", VerticalAlignment::Bottom);
-    status = vertical.Result();
-    if (!status) return status.GetStatus();
-
     auto visualBrush = Meta::Register<VisualBrush>(context);
     visualBrush
         .Property(
@@ -493,23 +430,6 @@ Base::Result<void> PopulateUiMedia(
             PropertyOptions(VerticalAlignment::Center))
         .Factory();
     status = visualBrush.Result();
-    if (!status) return status.GetStatus();
-
-    auto visibility = Meta::Register<Visibility>(context);
-    visibility
-        .Value("Visible", Visibility::Visible)
-        .Value("Hidden", Visibility::Hidden)
-        .Value("Collapsed", Visibility::Collapsed);
-    status = visibility.Result();
-    if (!status) return status.GetStatus();
-
-    auto blendMode = Meta::Register<BlendMode>(context);
-    blendMode
-        .Value("Normal", BlendMode::Normal)
-        .Value("Multiply", BlendMode::Multiply)
-        .Value("Screen", BlendMode::Screen)
-        .Value("Additive", BlendMode::Additive);
-    status = blendMode.Result();
     if (!status) return status.GetStatus();
 
     auto command = Meta::Register<ICommand>(

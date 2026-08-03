@@ -168,25 +168,7 @@ protected:
 
 } // namespace Aero::Controls
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Controls::ClickMode> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("ClickMode");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "ClickMode";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::ClickMode)
 
 namespace Aero::Controls {
 
@@ -785,102 +767,9 @@ public:
 
 } // namespace Aero::Controls
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Controls::TickPlacement> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("TickPlacement");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "TickPlacement";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Controls::TickBarPlacement> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("TickBarPlacement");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "TickBarPlacement";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Controls::ScrollBarVisibility> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("ScrollBarVisibility");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "ScrollBarVisibility";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Controls::PanningMode> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("PanningMode");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "PanningMode";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Controls::GridResizeDirection> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("GridResizeDirection");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "GridResizeDirection";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Controls::GridResizeBehavior> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("GridResizeBehavior");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "GridResizeBehavior";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::TickPlacement)
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::TickBarPlacement)
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::ScrollBarVisibility)
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::PanningMode)
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::GridResizeDirection)
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::GridResizeBehavior)

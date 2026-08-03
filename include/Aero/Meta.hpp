@@ -725,6 +725,76 @@ MetadataAuthoringSession CreateDescriptionSession(
     }
 }
 
+template<class T, class = void>
+struct HasRuntimeTypeToken : std::false_type {};
+
+template<class T>
+struct HasRuntimeTypeToken<T, std::void_t<decltype(
+    TypeTraits<T>::Token())>> : std::true_type {};
+
+template<class T>
+MetadataAuthoringSession CreateNamedDescriptionSession(
+    Registration& context,
+    Base::StringView metadataNamespace,
+    Base::StringView metadataName,
+    TypeFlags flags) noexcept {
+    const TypeId typeId = MakeTypeId(metadataNamespace, metadataName);
+    TypeId baseType = InvalidTypeId;
+    MetadataTypeKind kind = MetadataTypeKind::Struct;
+    TypeRegistration registration = TypeRegistration::Struct(
+        metadataNamespace, metadataName, baseType, flags);
+
+    if constexpr (std::is_enum_v<T>) {
+        if constexpr (
+            std::is_signed_v<std::underlying_type_t<T>>) {
+            flags = flags | TypeFlags::SignedEnum;
+        }
+        kind = MetadataTypeKind::Enum;
+        registration = TypeRegistration::Enum(
+            metadataNamespace, metadataName,
+            TypeOf<std::uint32_t>(), flags);
+    } else if constexpr (
+        std::is_arithmetic_v<T> ||
+        std::is_same_v<T, Base::String>) {
+        kind = MetadataTypeKind::Primitive;
+        registration = TypeRegistration::Primitive(
+            metadataNamespace, metadataName, flags);
+    } else if constexpr (
+        std::is_base_of_v<Base::Object, T>) {
+        kind = MetadataTypeKind::Object;
+        baseType = TypeTraits<T>::BaseType();
+        registration = TypeRegistration::Object(
+            metadataNamespace, metadataName, baseType, flags);
+    } else {
+        if constexpr (std::is_trivially_copyable_v<T>) {
+            flags = flags | TypeFlags::TriviallyCopyable;
+        }
+        kind = MetadataTypeKind::Struct;
+        baseType = TypeTraits<T>::BaseType();
+        registration = TypeRegistration::Struct(
+            metadataNamespace, metadataName, baseType, flags);
+    }
+
+    Base::Status bindingStatus = Base::Status::Ok();
+    if constexpr (HasRuntimeTypeToken<T>::value) {
+        bindingStatus = BindRuntimeTypeInfo(
+            TypeTraits<T>::Token(),
+            RuntimeTypeInfo{
+                typeId,
+                metadataNamespace,
+                metadataName,
+                baseType,
+                kind});
+    }
+
+    MetadataAuthoringSession session(
+        context, registration, typeId);
+    if (!bindingStatus.IsOk()) {
+        session.Fail(bindingStatus);
+    }
+    return session;
+}
+
 } // namespace Aero::Meta::Detail
 
 
@@ -1058,6 +1128,14 @@ public:
         TypeFlags flags = TypeFlags::None) noexcept
         : builder_(Detail::CreateDescriptionSession<T>(
               context, flags)) {}
+
+    TypeDescription(
+        Registration& context,
+        Base::StringView metadataNamespace,
+        Base::StringView metadataName,
+        TypeFlags flags = TypeFlags::None) noexcept
+        : builder_(Detail::CreateNamedDescriptionSession<T>(
+              context, metadataNamespace, metadataName, flags)) {}
 
     TypeDescription(const TypeDescription&) = delete;
     TypeDescription& operator=(const TypeDescription&) = delete;
@@ -1484,6 +1562,25 @@ TypeDescription<T> Register(
     Registration& registration,
     TypeFlags flags = TypeFlags::None) noexcept {
     return TypeDescription<T>(registration, flags);
+}
+
+template<class T>
+TypeDescription<T> Register(
+    Registration& registration,
+    Base::StringView name,
+    TypeFlags flags = TypeFlags::None) noexcept {
+    return TypeDescription<T>(
+        registration, AeroNamespaceUri(), name, flags);
+}
+
+template<class T>
+TypeDescription<T> Register(
+    Registration& registration,
+    Base::StringView metadataNamespace,
+    Base::StringView name,
+    TypeFlags flags = TypeFlags::None) noexcept {
+    return TypeDescription<T>(
+        registration, metadataNamespace, name, flags);
 }
 
 } // namespace Aero::Meta

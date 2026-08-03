@@ -116,17 +116,7 @@ struct TextInputDispatchResult {
 
 } // namespace Aero::Input
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Aero::Input::InputScope> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("InputScope"); }
-    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
-    static constexpr Base::StringView Name() noexcept { return "InputScope"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Input::InputScope)
 
 #include <Aero/RoutedEvent.hpp>
 
@@ -329,25 +319,4 @@ public:
 
 } // namespace Aero::Input
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<
-    Aero::Input::KeyboardNavigationMode> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId(
-            "KeyboardNavigationMode");
-    }
-    static constexpr Base::StringView
-    Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "KeyboardNavigationMode";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Input::KeyboardNavigationMode)

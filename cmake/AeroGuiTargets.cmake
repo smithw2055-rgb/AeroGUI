@@ -23,6 +23,7 @@ add_library(AeroGuiKernelObjects OBJECT
     src/gui/Dispatcher.cpp
     src/gui/RoutedEvents.cpp
     src/gui/Metadata.cpp
+    src/gui/EnumMetadata.cpp
     src/gui/BuiltinMetadata.cpp
     src/gui/ObjectFactory.cpp
     src/gui/Value.cpp

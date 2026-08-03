@@ -92,22 +92,7 @@ private:
 
 } // namespace Aero::Media::Animation
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Media::Animation::ComparisonCondition::Operator> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("ComparisonConditionOperator"); }
-    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
-    static constexpr Base::StringView Name() noexcept { return "ComparisonConditionOperator"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-template<>
-struct TypeTraits<Media::Animation::ConditionalExpression::ForwardChaining> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("ForwardChaining"); }
-    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
-    static constexpr Base::StringView Name() noexcept { return "ForwardChaining"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(
+    Aero::Media::Animation::ComparisonCondition::Operator)
+AERO_DECLARE_TYPE_ENUM(
+    Aero::Media::Animation::ConditionalExpression::ForwardChaining)

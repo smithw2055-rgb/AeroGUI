@@ -142,6 +142,8 @@ namespace {
 Base::Result<void> PopulateUiMetadata(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
+    status = PopulateEnumMetadata(context);
+    if (!status) return status.GetStatus();
     status = PopulateUiResources(context);
     if (!status) return status.GetStatus();
     status = PopulateUiStyling(context);

@@ -2,6 +2,7 @@
 #include <Aero/Meta.hpp>
 #include <Aero/Module.hpp>
 
+#include <cstdint>
 #include <type_traits>
 
 namespace SdkConsumer {
@@ -10,7 +11,14 @@ struct ViewModel {
     bool active = false;
 };
 
+enum class Theme : std::uint8_t {
+    Light = 0U,
+    Dark
+};
+
 } // namespace SdkConsumer
+
+AERO_DECLARE_TYPE_ENUM(SdkConsumer::Theme)
 
 namespace Aero::Meta {
 
@@ -72,9 +80,29 @@ public:
 
 Aero::Base::Result<void> RegisterConsumerModule(
     Aero::Meta::Registration& context) noexcept {
+    Aero::Meta::TypeDescription<SdkConsumer::Theme> theme =
+        Aero::Meta::Register<SdkConsumer::Theme>(
+            context, "urn:aero-sdk-consumer", "Theme");
+    theme
+        .Value("Light", SdkConsumer::Theme::Light)
+        .Value("Dark", SdkConsumer::Theme::Dark);
     Aero::Base::Result<void> status =
-        Aero::Meta::Register<SdkConsumer::ViewModel>(context)
-            .Result();
+        theme.Result();
+    if (!status) return status.GetStatus();
+    if (Aero::Meta::TypeOf<SdkConsumer::Theme>() !=
+            Aero::Meta::MakeTypeId(
+                "urn:aero-sdk-consumer", "Theme") ||
+        Aero::Meta::TypeTraits<SdkConsumer::Theme>::Namespace() !=
+            Aero::Base::StringView("urn:aero-sdk-consumer") ||
+        Aero::Meta::TypeTraits<SdkConsumer::Theme>::Name() !=
+            Aero::Base::StringView("Theme") ||
+        Aero::Meta::ValueCodec<SdkConsumer::Theme>::Type() !=
+            Aero::Meta::TypeOf<SdkConsumer::Theme>()) {
+        return Aero::Base::Status::Failure(
+            Aero::Base::ErrorCode::InvalidState,
+            "Runtime enum metadata binding is inconsistent");
+    }
+    status = Aero::Meta::Register<SdkConsumer::ViewModel>(context).Result();
     if (!status) return status.GetStatus();
 
     status =

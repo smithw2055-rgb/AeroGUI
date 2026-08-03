@@ -9,42 +9,12 @@ namespace Aero::App {
 
 Base::Result<void> Detail::PopulateAppMetadata(
     ::Aero::Meta::Registration& context) noexcept {
-    auto shutdownMode = Meta::Register<Aero::ShutdownMode>(context);
-    shutdownMode
-        .Value(
-            "OnLastWindowClose",
-            Aero::ShutdownMode::OnLastWindowClose)
-        .Value(
-            "OnMainWindowClose",
-            Aero::ShutdownMode::OnMainWindowClose)
-        .Value(
-            "OnExplicitShutdown",
-            Aero::ShutdownMode::OnExplicitShutdown);
-    Base::Result<void> status = shutdownMode.Result();
-    if (!status) return status.GetStatus();
-
+    Base::Result<void> status;
     status = Meta::Register<Aero::StartupEventArgs>(context).Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<Aero::ExitEventArgs>(context).Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<Aero::CancelEventArgs>(context).Result();
-    if (!status) return status.GetStatus();
-
-    auto windowState = Meta::Register<Aero::WindowState>(context);
-    windowState.Value("Normal", Aero::WindowState::Normal).Value("Minimized", Aero::WindowState::Minimized).Value("Maximized", Aero::WindowState::Maximized);
-    status = windowState.Result();
-    if (!status) return status.GetStatus();
-    auto windowStyle = Meta::Register<Aero::WindowStyle>(context);
-    windowStyle.Value("None", Aero::WindowStyle::None).Value("SingleBorderWindow", Aero::WindowStyle::SingleBorderWindow).Value("ThreeDBorderWindow", Aero::WindowStyle::ThreeDBorderWindow).Value("ToolWindow", Aero::WindowStyle::ToolWindow);
-    status = windowStyle.Result();
-    if (!status) return status.GetStatus();
-    auto resizeMode = Meta::Register<Aero::ResizeMode>(context);
-    resizeMode.Value("NoResize", Aero::ResizeMode::NoResize).Value("CanMinimize", Aero::ResizeMode::CanMinimize).Value("CanResize", Aero::ResizeMode::CanResize).Value("CanResizeWithGrip", Aero::ResizeMode::CanResizeWithGrip);
-    status = resizeMode.Result();
-    if (!status) return status.GetStatus();
-    auto sizeToContent = Meta::Register<Aero::SizeToContent>(context);
-    sizeToContent.Value("Manual", Aero::SizeToContent::Manual).Value("Width", Aero::SizeToContent::Width).Value("Height", Aero::SizeToContent::Height).Value("WidthAndHeight", Aero::SizeToContent::WidthAndHeight);
-    status = sizeToContent.Result();
     if (!status) return status.GetStatus();
 
     auto application = Meta::Register<Aero::Application>(context);

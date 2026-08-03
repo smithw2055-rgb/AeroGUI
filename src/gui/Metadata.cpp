@@ -15,11 +15,88 @@
 namespace Aero::Meta {
 namespace {
 
+struct RuntimeTypeBinding {
+    TypeId id = InvalidTypeId;
+    TypeId baseType = InvalidTypeId;
+    MetadataTypeKind kind = MetadataTypeKind::Struct;
+    Base::String xamlNamespace;
+    Base::String name;
+};
+
+Base::HashMap<TypeId, RuntimeTypeBinding>& RuntimeTypeBindings() noexcept {
+    static Base::HashMap<TypeId, RuntimeTypeBinding> bindings;
+    return bindings;
+}
+
+bool SameRuntimeTypeInfo(
+    const RuntimeTypeBinding& binding,
+    const RuntimeTypeInfo& info) noexcept {
+    return binding.id == info.id &&
+        binding.baseType == info.baseType &&
+        binding.kind == info.kind &&
+        binding.xamlNamespace == info.xamlNamespace &&
+        binding.name == info.name;
+}
+
 constexpr Base::Status EmptyTypeNameStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::InvalidArgument,
         "Type namespace and name must be non-empty UTF-8 strings");
 }
+
+} // namespace
+
+Base::Status BindRuntimeTypeInfo(
+    TypeId token,
+    const RuntimeTypeInfo& info) noexcept {
+    if (token == InvalidTypeId ||
+        info.id == InvalidTypeId ||
+        info.xamlNamespace.Empty() ||
+        info.name.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Runtime metadata type binding is incomplete");
+    }
+
+    auto& bindings = RuntimeTypeBindings();
+    if (const RuntimeTypeBinding* existing = bindings.Find(token)) {
+        return SameRuntimeTypeInfo(*existing, info)
+            ? Base::Status::Ok()
+            : Base::Status::Failure(
+                Base::ErrorCode::IdCollision,
+                "C++ type is already bound to a different metadata type");
+    }
+
+    RuntimeTypeBinding binding;
+    binding.id = info.id;
+    binding.baseType = info.baseType;
+    binding.kind = info.kind;
+    Base::Result<void> copiedNamespace =
+        binding.xamlNamespace.Assign(info.xamlNamespace);
+    if (!copiedNamespace) return copiedNamespace.GetStatus();
+    Base::Result<void> copiedName = binding.name.Assign(info.name);
+    if (!copiedName) return copiedName.GetStatus();
+
+    Base::Result<Base::HashMap<TypeId, RuntimeTypeBinding>::InsertResult>
+        inserted = bindings.Insert(token, std::move(binding));
+    if (!inserted) return inserted.GetStatus();
+    return Base::Status::Ok();
+}
+
+RuntimeTypeInfo ResolveRuntimeTypeInfo(TypeId token) noexcept {
+    RuntimeTypeInfo result;
+    const RuntimeTypeBinding* binding =
+        RuntimeTypeBindings().Find(token);
+    if (binding == nullptr) return result;
+    result.id = binding->id;
+    result.xamlNamespace = binding->xamlNamespace.View();
+    result.name = binding->name.View();
+    result.baseType = binding->baseType;
+    result.kind = binding->kind;
+    return result;
+}
+
+namespace {
 
 constexpr Base::Status EmptyMemberNameStatus() noexcept {
     return Base::Status::Failure(

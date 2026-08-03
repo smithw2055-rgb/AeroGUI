@@ -44,41 +44,9 @@ public:
 
 } // namespace Aero::Media
 
-namespace Aero::Meta {
+AERO_DECLARE_TYPE_ENUM(Aero::Media::Stretch)
 
-template<>
-struct TypeTraits<Aero::Media::Stretch> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("Stretch");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "Stretch";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Aero::Media::StretchDirection> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("StretchDirection");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "StretchDirection";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Media::StretchDirection)
 
 namespace Aero::Controls {
 using Stretch = Aero::Media::Stretch;

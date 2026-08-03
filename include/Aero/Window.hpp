@@ -90,11 +90,7 @@ private:
 
 } // namespace Aero
 
-namespace Aero::Meta {
-#define AERO_WINDOW_ENUM_TRAITS(TypeName) template<> struct TypeTraits<Aero::TypeName> { static constexpr TypeId Id() noexcept { return MakeTypeId(#TypeName); } static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); } static constexpr Base::StringView Name() noexcept { return #TypeName; } static constexpr TypeId BaseType() noexcept { return InvalidTypeId; } };
-AERO_WINDOW_ENUM_TRAITS(WindowState)
-AERO_WINDOW_ENUM_TRAITS(WindowStyle)
-AERO_WINDOW_ENUM_TRAITS(ResizeMode)
-AERO_WINDOW_ENUM_TRAITS(SizeToContent)
-#undef AERO_WINDOW_ENUM_TRAITS
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::WindowState)
+AERO_DECLARE_TYPE_ENUM(Aero::WindowStyle)
+AERO_DECLARE_TYPE_ENUM(Aero::ResizeMode)
+AERO_DECLARE_TYPE_ENUM(Aero::SizeToContent)

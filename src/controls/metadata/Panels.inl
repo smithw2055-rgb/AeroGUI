@@ -66,20 +66,6 @@ Base::Result<void> PopulateControlsPanels(
     status = uniformGrid.Result();
     if (!status) return status.GetStatus();
 
-    auto scrollUnit = Meta::Register<ScrollUnit>(context);
-    scrollUnit
-        .Value("Item", ScrollUnit::Item)
-        .Value("Pixel", ScrollUnit::Pixel);
-    status = scrollUnit.Result();
-    if (!status) return status.GetStatus();
-
-    auto virtualizationMode = Meta::Register<VirtualizationMode>(context);
-    virtualizationMode
-        .Value("Standard", VirtualizationMode::Standard)
-        .Value("Recycling", VirtualizationMode::Recycling);
-    status = virtualizationMode.Result();
-    if (!status) return status.GetStatus();
-
     auto virtualizingPanel = Meta::Register<VirtualizingPanel>(
         context, TypeFlags::Abstract);
     virtualizingPanel.Property(

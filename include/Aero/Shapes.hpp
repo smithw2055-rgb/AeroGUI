@@ -148,22 +148,6 @@ private:
 
 } // namespace Aero::Shapes
 
-namespace Aero::Meta {
+AERO_DECLARE_TYPE_ENUM(Aero::Shapes::PenLineJoin)
 
-template<>
-struct TypeTraits<Shapes::PenLineJoin> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("PenLineJoin"); }
-    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
-    static constexpr Base::StringView Name() noexcept { return "PenLineJoin"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-template<>
-struct TypeTraits<Shapes::PenLineCap> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("PenLineCap"); }
-    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
-    static constexpr Base::StringView Name() noexcept { return "PenLineCap"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Shapes::PenLineCap)

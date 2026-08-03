@@ -164,6 +164,115 @@ endif()
 unset(public_result_property_mutator_violations)
 unset(public_result_property_mutators)
 
+# Public/XAML enum descriptions have one canonical owner.  The declarations
+# in SDK headers only provide a runtime C++ type token; names, TypeIds and
+# value tables belong to src/gui/EnumMetadata.cpp.
+set(aero_xaml_enum_names
+    ShutdownMode WindowState WindowStyle ResizeMode SizeToContent
+    InputScope KeyboardNavigationMode FillBehavior EasingMode
+    ControlStoryboardOption ComparisonConditionOperator ForwardChaining
+    HorizontalAlignment VerticalAlignment Visibility BlendMode Stretch
+    StretchDirection TileMode BrushMappingMode PenLineJoin PenLineCap
+    TextWrapping TextTrimming TextAlignment FontStyle FontWeight
+    TextDecorations Orientation Dock MenuItemRole ClickMode TickPlacement
+    TickBarPlacement ScrollBarVisibility PanningMode GridResizeDirection
+    GridResizeBehavior SelectionMode ExpandDirection PlacementMode
+    PopupAnimation GridViewColumnHeaderRole ScrollUnit VirtualizationMode)
+string(JOIN "|" aero_xaml_enum_name_pattern ${aero_xaml_enum_names})
+set(aero_enum_trait_pattern
+    "template[ \\t\\r\\n]*<[ \\t]*>[ \\t\\r\\n]*struct[ \\t]+TypeTraits[ \\t]*<[^>]*(${aero_xaml_enum_name_pattern})")
+aero_collect_matches(public_enum_trait_violations
+    "${aero_enum_trait_pattern}"
+    ${aero_namespace_headers})
+if(public_enum_trait_violations)
+    message(FATAL_ERROR
+        "Public enum TypeTraits descriptions must be declared with "
+        "AERO_DECLARE_TYPE_ENUM, not defined inline: "
+        "${public_enum_trait_violations}")
+endif()
+
+set(enum_metadata_file "${AERO_SOURCE_DIR}/src/gui/EnumMetadata.cpp")
+if(NOT EXISTS "${enum_metadata_file}")
+    message(FATAL_ERROR
+        "Central enum metadata owner is missing: src/gui/EnumMetadata.cpp")
+endif()
+file(READ "${enum_metadata_file}" enum_metadata_content)
+if(NOT enum_metadata_content MATCHES "Meta::Register" OR
+   NOT enum_metadata_content MATCHES "PopulateEnumMetadata")
+    message(FATAL_ERROR
+        "src/gui/EnumMetadata.cpp must register enum descriptions through Meta::Register")
+endif()
+set(aero_enum_metadata_names
+    ShutdownMode WindowState WindowStyle ResizeMode SizeToContent
+    InputScope KeyboardNavigationMode FillBehavior EasingMode
+    ControlStoryboardOption ComparisonConditionOperator ForwardChaining
+    HorizontalAlignment VerticalAlignment Visibility BlendMode Stretch
+    StretchDirection TileMode BrushMappingMode PenLineJoin PenLineCap
+    TextWrapping TextTrimming TextAlignment FontStyle FontWeight
+    TextDecorations Orientation Dock MenuItemRole ClickMode TickPlacement
+    TickBarPlacement ScrollBarVisibility PanningMode GridResizeDirection
+    GridResizeBehavior SelectionMode ExpandDirection PlacementMode
+    PopupAnimation GridViewColumnHeaderRole ScrollUnit VirtualizationMode)
+set(enum_metadata_missing_names)
+foreach(enum_name IN LISTS aero_enum_metadata_names)
+    if(NOT enum_metadata_content MATCHES "\\\"${enum_name}\\\"")
+        list(APPEND enum_metadata_missing_names "${enum_name}")
+    endif()
+endforeach()
+if(enum_metadata_missing_names)
+    message(FATAL_ERROR
+        "Central enum metadata is missing XAML names: "
+        "${enum_metadata_missing_names}")
+endif()
+
+file(GLOB_RECURSE enum_registration_sources
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.inl"
+    "${AERO_SOURCE_DIR}/tools/*.cpp"
+    "${AERO_SOURCE_DIR}/tools/*.hpp"
+    "${AERO_SOURCE_DIR}/tests/*.cpp"
+    "${AERO_SOURCE_DIR}/tests/*.hpp")
+aero_collect_matches(enum_registration_matches
+    "Meta::Register[ \\t\\r\\n]*<[^>]*(${aero_xaml_enum_name_pattern})[ \\t\\r\\n>]"
+    ${enum_registration_sources})
+set(enum_registration_violations)
+foreach(relative IN LISTS enum_registration_matches)
+    if(NOT relative STREQUAL "src/gui/EnumMetadata.cpp")
+        list(APPEND enum_registration_violations "${relative}")
+    endif()
+endforeach()
+if(enum_registration_violations)
+    list(REMOVE_DUPLICATES enum_registration_violations)
+    message(FATAL_ERROR
+        "Public/XAML enum registration must be centralized in "
+        "src/gui/EnumMetadata.cpp: ${enum_registration_violations}")
+endif()
+
+string(CONCAT removed_enum_registration_macro_pattern
+    "AERO_DEFINE_TYPE_" "ENUM" "|"
+    "AERO_WINDOW_ENUM_" "TRAITS")
+aero_collect_matches(removed_enum_registration_macros
+    "${removed_enum_registration_macro_pattern}"
+    ${enum_registration_sources} ${aero_namespace_headers})
+if(removed_enum_registration_macros)
+    message(FATAL_ERROR
+        "Removed enum registration macros remain: "
+        "${removed_enum_registration_macros}")
+endif()
+unset(enum_metadata_file)
+unset(enum_metadata_content)
+unset(aero_enum_trait_pattern)
+unset(aero_enum_metadata_names)
+unset(aero_xaml_enum_names)
+unset(aero_xaml_enum_name_pattern)
+unset(public_enum_trait_violations)
+unset(enum_metadata_missing_names)
+unset(enum_registration_sources)
+unset(enum_registration_matches)
+unset(enum_registration_violations)
+unset(removed_enum_registration_macros)
+
 set(public_forbidden_namespace_matches)
 foreach(forbidden_pattern IN LISTS AERO_PUBLIC_NAMESPACE_FORBIDDEN_PATTERNS)
     aero_collect_matches(forbidden_matches
@@ -264,6 +373,7 @@ endif()
 file(GLOB_RECURSE core_files
     "${AERO_SOURCE_DIR}/src/gui/*.cpp"
     "${AERO_SOURCE_DIR}/src/gui/*.hpp")
+list(FILTER core_files EXCLUDE REGEX "/EnumMetadata\\.cpp$")
 list(APPEND core_files
     "${AERO_SOURCE_DIR}/include/Aero/Meta.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Value.hpp"

@@ -33,65 +33,12 @@ enum class BlendMode : std::uint8_t {
 
 } // namespace Aero
 
+AERO_DECLARE_TYPE_ENUM(Aero::HorizontalAlignment)
+AERO_DECLARE_TYPE_ENUM(Aero::VerticalAlignment)
+AERO_DECLARE_TYPE_ENUM(Aero::Visibility)
+AERO_DECLARE_TYPE_ENUM(Aero::BlendMode)
+
 namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Aero::HorizontalAlignment> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("HorizontalAlignment");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "HorizontalAlignment";
-    }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-template<>
-struct TypeTraits<Aero::VerticalAlignment> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("VerticalAlignment");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "VerticalAlignment";
-    }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-template<>
-struct TypeTraits<Aero::Visibility> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("Visibility");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "Visibility";
-    }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-template<>
-struct TypeTraits<Aero::BlendMode> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("BlendMode");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "BlendMode";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
 
 template<>
 struct TypeTraits<Base::Thickness> {

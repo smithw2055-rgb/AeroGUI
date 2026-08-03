@@ -662,57 +662,9 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Controls::ExpandDirection> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("ExpandDirection");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "ExpandDirection";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Controls::Primitives::PlacementMode> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("PlacementMode");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "PlacementMode";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Controls::Primitives::PopupAnimation> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("PopupAnimation");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "PopupAnimation";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::ExpandDirection)
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::Primitives::PlacementMode)
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::Primitives::PopupAnimation)
 
 namespace Aero::Controls {
 
@@ -1028,25 +980,7 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Controls::SelectionMode> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("SelectionMode");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "SelectionMode";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::SelectionMode)
 
 namespace Aero::Controls {
 
@@ -1244,25 +1178,7 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Controls::GridViewColumnHeaderRole> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("GridViewColumnHeaderRole");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "GridViewColumnHeaderRole";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::GridViewColumnHeaderRole)
 
 namespace Aero::Controls {
 
@@ -1551,38 +1467,5 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Controls::ScrollUnit> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("ScrollUnit");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "ScrollUnit";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Controls::VirtualizationMode> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("VirtualizationMode");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "VirtualizationMode";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::ScrollUnit)
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::VirtualizationMode)

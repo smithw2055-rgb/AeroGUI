@@ -634,6 +634,9 @@ namespace Aero::Internal {
 
 using namespace ::Aero::Meta;
 
+AERO_API Base::Result<void> PopulateEnumMetadata(
+    ::Aero::Meta::Registration& context) noexcept;
+
 // Registers the complete built-in UI schema through the typed
 // Fluent metadata DSL. The function leaves all stores mutable for host modules.
 // Module population is an implementation callback; hosts register through the
@@ -647,7 +650,7 @@ inline constexpr Base::StringView UiMetadataModuleName() noexcept {
 
 inline Base::Result<void> RegisterUiMetadata(
     ::Aero::Meta::Registry& domain) noexcept {
-    constexpr std::uint32_t SchemaVersion = 11U;
+    constexpr std::uint32_t SchemaVersion = 12U;
     const Base::StringView name = UiMetadataModuleName();
     return domain.RegisterModule({
         ::Aero::Meta::MakeMetadataModuleId(name),

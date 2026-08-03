@@ -154,6 +154,24 @@ enum class MetadataTypeKind : std::uint8_t {
     Primitive
 };
 
+// Runtime description associated with a C++ enum/value type.  The stable
+// token is deliberately separate from the XAML TypeId: it identifies the C++
+// type without relying on RTTI or a DLL-local address.  Enum and value macros
+// below expose only that token and query this catalog at runtime.
+struct RuntimeTypeInfo {
+    TypeId id = InvalidTypeId;
+    Base::StringView xamlNamespace;
+    Base::StringView name;
+    TypeId baseType = InvalidTypeId;
+    MetadataTypeKind kind = MetadataTypeKind::Struct;
+};
+
+AERO_API Base::Status BindRuntimeTypeInfo(
+    TypeId token,
+    const RuntimeTypeInfo& info) noexcept;
+AERO_API RuntimeTypeInfo ResolveRuntimeTypeInfo(
+    TypeId token) noexcept;
+
 enum class MemberKind : std::uint8_t {
     Property = 1U,
     Event = 2U,
@@ -314,7 +332,64 @@ struct TypeTraits<Base::Object> {
 };
 
 template<class T>
-constexpr TypeId TypeOf() noexcept { return TypeTraits<T>::Id(); }
+inline TypeId TypeOf() noexcept { return TypeTraits<T>::Id(); }
+
+// Enum/value declarations intentionally contain no XAML names, TypeIds or
+// enum value tables.  Those are supplied by Meta::Register from the central
+// metadata implementation.  The token is derived from the spelling supplied
+// to the macro and is therefore stable in static and shared builds without
+// RTTI.
+#define AERO_DECLARE_TYPE_ENUM(typeName) \
+namespace Aero::Meta { \
+template<> struct TypeTraits<typeName> { \
+    static constexpr TypeId Token() noexcept { \
+        return Base::MakeMetaTypeId( \
+            Base::StringView("AERO.CPP.ENUM"), \
+            Base::StringView(#typeName)); \
+    } \
+    static TypeId Id() noexcept { \
+        return ResolveRuntimeTypeInfo(Token()).id; \
+    } \
+    static Base::StringView Namespace() noexcept { \
+        return ResolveRuntimeTypeInfo(Token()).xamlNamespace; \
+    } \
+    static Base::StringView Name() noexcept { \
+        return ResolveRuntimeTypeInfo(Token()).name; \
+    } \
+    static TypeId BaseType() noexcept { \
+        return ResolveRuntimeTypeInfo(Token()).baseType; \
+    } \
+    static constexpr MetadataTypeKind Kind() noexcept { \
+        return MetadataTypeKind::Enum; \
+    } \
+}; \
+}
+
+#define AERO_DECLARE_TYPE_VALUE(typeName) \
+namespace Aero::Meta { \
+template<> struct TypeTraits<typeName> { \
+    static constexpr TypeId Token() noexcept { \
+        return Base::MakeMetaTypeId( \
+            Base::StringView("AERO.CPP.VALUE"), \
+            Base::StringView(#typeName)); \
+    } \
+    static TypeId Id() noexcept { \
+        return ResolveRuntimeTypeInfo(Token()).id; \
+    } \
+    static Base::StringView Namespace() noexcept { \
+        return ResolveRuntimeTypeInfo(Token()).xamlNamespace; \
+    } \
+    static Base::StringView Name() noexcept { \
+        return ResolveRuntimeTypeInfo(Token()).name; \
+    } \
+    static TypeId BaseType() noexcept { \
+        return ResolveRuntimeTypeInfo(Token()).baseType; \
+    } \
+    static constexpr MetadataTypeKind Kind() noexcept { \
+        return MetadataTypeKind::Struct; \
+    } \
+}; \
+}
 
 constexpr MemberId MakeMemberId(TypeId ownerType, MemberKind kind, Base::StringView name) noexcept {
     constexpr char domain[] = "AERO.MEMBER.V1";
@@ -491,7 +566,7 @@ struct TypeTraits<Base::String> {
 
 template<class T, class Enable = void>
 struct ValueCodec {
-    static constexpr TypeId Type() noexcept { return TypeOf<T>(); }
+    static TypeId Type() noexcept { return TypeOf<T>(); }
 
     template<class TMetadata>
     static Base::Result<Value> Encode(
@@ -525,7 +600,7 @@ struct ValueCodec {
 
 template<>
 struct ValueCodec<Value, void> {
-    static constexpr TypeId Type() noexcept {
+    static TypeId Type() noexcept {
         return TypeOf<Value>();
     }
     template<class TMetadata>
@@ -552,7 +627,7 @@ struct ValueCodec<Value, void> {
 
 template<>
 struct ValueCodec<TypeReference, void> {
-    static constexpr TypeId Type() noexcept {
+    static TypeId Type() noexcept {
         return TypeOf<TypeReference>();
     }
     template<class TMetadata>
@@ -602,7 +677,7 @@ struct ValueCodec<TypeReference, void> {
 
 template<>
 struct ValueCodec<bool, void> {
-    static constexpr TypeId Type() noexcept { return TypeOf<bool>(); }
+    static TypeId Type() noexcept { return TypeOf<bool>(); }
     template<class TMetadata>
     static Base::Result<Value> Encode(TMetadata&, bool value) noexcept {
         return Encode(value);
@@ -630,7 +705,7 @@ template<class T>
 struct ValueCodec<T, std::enable_if_t<
     std::is_integral_v<T> && std::is_signed_v<T> &&
     !std::is_same_v<T, bool>>> {
-    static constexpr TypeId Type() noexcept { return TypeOf<T>(); }
+    static TypeId Type() noexcept { return TypeOf<T>(); }
     template<class TMetadata>
     static Base::Result<Value> Encode(TMetadata&, T value) noexcept {
         return Encode(value);
@@ -665,7 +740,7 @@ template<class T>
 struct ValueCodec<T, std::enable_if_t<
     std::is_integral_v<T> && std::is_unsigned_v<T> &&
     !std::is_same_v<T, bool>>> {
-    static constexpr TypeId Type() noexcept { return TypeOf<T>(); }
+    static TypeId Type() noexcept { return TypeOf<T>(); }
     template<class TMetadata>
     static Base::Result<Value> Encode(TMetadata&, T value) noexcept {
         return Encode(value);
@@ -695,7 +770,7 @@ struct ValueCodec<T, std::enable_if_t<
 
 template<>
 struct ValueCodec<double, void> {
-    static constexpr TypeId Type() noexcept { return TypeOf<double>(); }
+    static TypeId Type() noexcept { return TypeOf<double>(); }
     template<class TMetadata>
     static Base::Result<Value> Encode(TMetadata&, double value) noexcept {
         return Encode(value);
@@ -721,7 +796,7 @@ struct ValueCodec<double, void> {
 
 template<>
 struct ValueCodec<float, void> {
-    static constexpr TypeId Type() noexcept { return TypeOf<double>(); }
+    static TypeId Type() noexcept { return TypeOf<double>(); }
     template<class TMetadata>
     static Base::Result<Value> Encode(TMetadata&, float value) noexcept {
         return Encode(value);
@@ -748,7 +823,7 @@ struct ValueCodec<float, void> {
 
 template<>
 struct ValueCodec<Base::String, void> {
-    static constexpr TypeId Type() noexcept {
+    static TypeId Type() noexcept {
         return TypeOf<Base::String>();
     }
     template<class TMetadata>
@@ -784,7 +859,7 @@ struct ValueCodec<Base::String, void> {
 template<class T>
 struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
     using Underlying = std::underlying_type_t<T>;
-    static constexpr TypeId Type() noexcept { return TypeOf<T>(); }
+    static TypeId Type() noexcept { return TypeOf<T>(); }
     template<class TMetadata>
     static Base::Result<Value> Encode(TMetadata&, T value) noexcept {
         return Encode(value);
@@ -837,7 +912,7 @@ struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
 
 template<class T>
 struct ValueCodec<Base::Ref<T>, void> {
-    static constexpr TypeId Type() noexcept { return TypeOf<T>(); }
+    static TypeId Type() noexcept { return TypeOf<T>(); }
     template<class TMetadata>
     static Base::Result<Value> Encode(
         TMetadata&, const Base::Ref<T>& value) noexcept {

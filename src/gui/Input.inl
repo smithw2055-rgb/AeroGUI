@@ -22,29 +22,6 @@ Base::Result<void> PopulateUiInput(
     status = Meta::Register<KeyboardFocusChangedEventArgs>(
         context).Result();
     if (!status) return status.GetStatus();
-    auto keyboardNavigationMode =
-        Meta::Register<KeyboardNavigationMode>(context);
-    keyboardNavigationMode
-        .Value(
-            "Continue",
-            KeyboardNavigationMode::Continue)
-        .Value(
-            "Once",
-            KeyboardNavigationMode::Once)
-        .Value(
-            "Cycle",
-            KeyboardNavigationMode::Cycle)
-        .Value(
-            "None",
-            KeyboardNavigationMode::None)
-        .Value(
-            "Contained",
-            KeyboardNavigationMode::Contained)
-        .Value(
-            "Local",
-            KeyboardNavigationMode::Local);
-    status = keyboardNavigationMode.Result();
-    if (!status) return status.GetStatus();
     auto keyboardNavigation =
         Meta::Register<KeyboardNavigation>(
             context, TypeFlags::Abstract);

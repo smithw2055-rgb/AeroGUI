@@ -99,14 +99,4 @@ private:
 
 } // namespace Aero
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Aero::ShutdownMode> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("ShutdownMode"); }
-    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
-    static constexpr Base::StringView Name() noexcept { return "ShutdownMode"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_ENUM(Aero::ShutdownMode)
