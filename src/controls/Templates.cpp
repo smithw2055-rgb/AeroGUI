@@ -323,7 +323,7 @@ Base::Result<void> TemplateBuilder::PopulateItemsPresenter(
     Base::Ref<Base::Object> owner;
     if (itemsPanel != nullptr) {
         Base::Result<Base::Ref<Base::Object>> created =
-            Detail::TemplatePrivate::Instantiate(*itemsPanel);
+            ItemsPanelTemplate::Impl::Instantiate(*itemsPanel);
         if (!created) return created.GetStatus();
         owner = std::move(created).Value();
     } else {
@@ -577,6 +577,16 @@ const ResourceDictionary& FrameworkTemplate::GetResources() const noexcept {
     return fallback;
 }
 
+Detail::FrameworkTemplateState* FrameworkTemplate::Impl::State(
+    FrameworkTemplate& value) noexcept {
+    return static_cast<Detail::FrameworkTemplateState*>(value.state_);
+}
+
+const Detail::FrameworkTemplateState* FrameworkTemplate::Impl::State(
+    const FrameworkTemplate& value) noexcept {
+    return static_cast<const Detail::FrameworkTemplateState*>(value.state_);
+}
+
 } // namespace Aero::Controls
 
 namespace Aero::Internal {
@@ -592,11 +602,11 @@ Base::Status InvalidTemplate(const char* message) noexcept {
 }
 
 ::Aero::Controls::Detail::FrameworkTemplateState* TemplatePrivate::State(FrameworkTemplate& value) noexcept {
-    return static_cast<FrameworkTemplateState*>(value.state_);
+    return ::Aero::Controls::FrameworkTemplate::Impl::State(value);
 }
 
 const ::Aero::Controls::Detail::FrameworkTemplateState* TemplatePrivate::State(const FrameworkTemplate& value) noexcept {
-    return static_cast<const FrameworkTemplateState*>(value.state_);
+    return ::Aero::Controls::FrameworkTemplate::Impl::State(value);
 }
 
 Base::Result<void> TemplatePrivate::SetTargetType(
@@ -1202,7 +1212,8 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
             Base::ErrorCode::InvalidArgument,
             "ControlTemplate cannot be applied to this control");
     }
-    control.AttachTemplateRuntime(this);
+    ::Aero::Controls::Control::Impl::AttachTemplateEngine(
+        control, this);
     const std::uint32_t existing = FindInstance(control);
     if (existing != UINT32_MAX) {
         if (instances_[existing].plan == &plan) {
@@ -1353,7 +1364,8 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
         (void)ClearAt(instances_.Size() - 1U);
         return status;
     }
-    control.NotifyTemplateApplied(stored.handle.value);
+    ::Aero::Controls::Control::Impl::NotifyTemplateApplied(
+        control, stored.handle.value);
     return stored.handle;
 }
 
@@ -1748,7 +1760,8 @@ Base::Result<void> TemplateEngine::ClearProviders(
 Base::Result<void> TemplateEngine::ClearAt(
     std::uint32_t index) noexcept {
     Instance& instance = instances_[index];
-    instance.parent->NotifyTemplateDetached();
+    ::Aero::Controls::Control::Impl::NotifyTemplateDetached(
+        *instance.parent);
     DetachMetadataBindings(instance);
     Unsubscribe(instance);
     Base::Result<void> providers = ClearProviders(instance);

@@ -4,7 +4,7 @@
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include <Aero/RoutedEvent.hpp>
+#include <Aero/Events/RoutedEvent.hpp>
 #include <Aero/Visual.hpp>
 #include <Aero/ContentElement.hpp>
 #include <Aero/UIElement.hpp>
@@ -15,8 +15,16 @@
 
 namespace Aero::Controls {
 class Control;
+class Decorator;
+class MenuItem;
+class Panel;
+class TreeViewItem;
 class VisualStateManager;
 }
+
+namespace Aero::Controls::Primitives { class Selector; }
+
+namespace Aero::Shapes { class Path; }
 
 namespace Aero::Internal {
 
@@ -60,11 +68,13 @@ using ElementTreeLifecycleHandler = void (*)(
 
 } // namespace Aero
 
-namespace Aero::Internal {
+namespace Aero {
+
+using namespace Internal;
 
 // One private entry point owns all element implementation state. Public WPF
 // classes friend this type instead of exposing one Access class per base type.
-class ElementPrivate {
+struct Visual::Impl {
 public:
     static void SetViewServices(
         Aero::UIElement& element,
@@ -113,6 +123,48 @@ public:
         Aero::UIElement& element,
         RoutedEventHandle event,
         RoutedEventArgs& args) noexcept;
+    static void InvokeContentHandlers(
+        Aero::ContentElement& element,
+        RoutedEventHandle event,
+        RoutedEventArgs& args) noexcept {
+        element.InvokeHandlers(event, args);
+    }
+    static std::uint32_t PanelChildCount(
+        const Aero::Controls::Panel& panel) noexcept;
+    static Base::Ref<Base::Object> PanelChildAt(
+        const Aero::Controls::Panel& panel,
+        std::uint32_t index) noexcept;
+    static Base::Result<void> PanelAddChild(
+        Aero::Controls::Panel& panel,
+        const Base::Ref<Base::Object>& owner,
+        Aero::UIElement& child) noexcept;
+    static Base::Result<bool> PanelRemoveChild(
+        Aero::Controls::Panel& panel,
+        Aero::UIElement& child) noexcept;
+    static void PanelClearChildren(
+        Aero::Controls::Panel& panel) noexcept;
+    static const Base::Ref<Base::Object>& DecoratorOwnedChild(
+        const Aero::Controls::Decorator& decorator) noexcept;
+    static Base::Result<void> DecoratorSetOwnedChild(
+        Aero::Controls::Decorator& decorator,
+        const Base::Ref<Base::Object>& owner,
+        Aero::UIElement& child) noexcept;
+    static void PathInvalidateGeometry(
+        Aero::Shapes::Path& path) noexcept;
+    static void PathAttachMeshResources(
+        Aero::Shapes::Path& path,
+        void* services,
+        bool invalidate) noexcept;
+    static void SetMenuItemHighlighted(
+        Aero::Controls::MenuItem& item,
+        bool value) noexcept;
+    static void SetSelectorStates(
+        Aero::Controls::Primitives::Selector& selector,
+        Aero::Controls::VisualStateManager* states) noexcept;
+    static void SyncSelectorContainers(
+        Aero::Controls::Primitives::Selector& selector) noexcept;
+    static std::uint32_t TreeViewItemCount(
+        const Aero::Controls::TreeViewItem& item) noexcept;
 
     static ElementTree* Tree(const Visual& visual) noexcept {
         return visual.tree_;
@@ -175,6 +227,39 @@ public:
         const FrameworkElement& element) noexcept {
         return element.GetRenderChildren();
     }
+    static void*& RenderRuntime(
+        FrameworkElement& element) noexcept {
+        return element.renderRuntime_;
+    }
+    static bool& RenderAttached(
+        FrameworkElement& element) noexcept {
+        return element.renderAttached_;
+    }
+    static Base::RenderNodeId& NodeId(
+        FrameworkElement& element) noexcept {
+        return element.nodeId_;
+    }
+    static bool& RenderValid(
+        FrameworkElement& element) noexcept {
+        return element.renderValid_;
+    }
+    static bool& RenderQueued(
+        FrameworkElement& element) noexcept {
+        return element.renderQueued_;
+    }
+    static std::uint64_t& RenderRevision(
+        FrameworkElement& element) noexcept {
+        return element.renderRevision_;
+    }
+    static bool& Rendering(
+        FrameworkElement& element) noexcept {
+        return element.rendering_;
+    }
+    static void Render(
+        FrameworkElement& element,
+        DrawingContext& context) noexcept {
+        element.OnRender(context);
+    }
     static Base::Result<void> SetTemplatedParent(
         FrameworkElement& element,
         DependencyObject* value) noexcept {
@@ -236,6 +321,12 @@ public:
         return element.GetLogicalChild(index);
     }
 };
+
+} // namespace Aero
+
+namespace Aero::Internal {
+
+using ElementPrivate = ::Aero::Visual::Impl;
 
 class VisualLifetime : public Base::Object {
 public:

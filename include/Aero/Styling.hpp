@@ -12,10 +12,6 @@
 #include <Aero/Resources.hpp>
 #include <Aero/Style.hpp>
 
-namespace Aero::Internal {
-class TemplatePrivate;
-}
-
 namespace Aero::Controls {
 
 struct VisualStateSetter {
@@ -50,6 +46,8 @@ struct VisualStateGroup {
 class AERO_API FrameworkTemplate : public Base::Object {
     AERO_DECLARE_TYPE(FrameworkTemplate, Base::Object)
 public:
+    struct Impl;
+
     FrameworkTemplate() noexcept;
     ~FrameworkTemplate() noexcept override;
 
@@ -64,7 +62,7 @@ public:
     void SetResources(Base::Ref<ResourceDictionary> value) noexcept;
 
 private:
-    friend class ::Aero::Internal::TemplatePrivate;
+    friend struct Impl;
     void* state_ = nullptr;
 };
 
@@ -80,6 +78,8 @@ public:
 // bookkeeping remain private and are accessed only by the controls runtime.
 class AERO_API VisualStateManager {
 public:
+    struct Impl;
+
     static bool GoToState(Control& control, Base::StringView stateName, bool useTransitions = true) noexcept;
 
     ~VisualStateManager() noexcept;
@@ -87,7 +87,7 @@ public:
     VisualStateManager& operator=(const VisualStateManager&) = delete;
 
 private:
-    friend class ::Aero::Internal::TemplatePrivate;
+    friend struct Impl;
     VisualStateManager() noexcept = default;
     void* impl_ = nullptr;
 };

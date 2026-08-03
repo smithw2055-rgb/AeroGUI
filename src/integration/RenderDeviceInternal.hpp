@@ -4,6 +4,8 @@
 #include "render/RenderResources.hpp"
 #include "render/RenderTree.hpp"
 
+#include <utility>
+
 namespace Aero::Internal {
 
 // One immutable function table connects RenderDevice to a concrete native
@@ -64,6 +66,12 @@ const RenderDeviceFunctions& FunctionsFor() noexcept {
     return functions;
 }
 
+Base::Result<Base::Ref<::Aero::Integration::RenderDevice>> AdoptRenderDevice(
+    ::Aero::Integration::RenderDeviceMode mode,
+    void* state,
+    const RenderDeviceFunctions* functions,
+    Base::IAllocator* allocator = nullptr) noexcept;
+
 template<class T>
 Base::Result<Base::Ref<::Aero::Integration::RenderDevice>> AdoptRenderDevice(
     ::Aero::Integration::RenderDeviceMode mode,
@@ -75,5 +83,96 @@ Base::Result<Base::Ref<::Aero::Integration::RenderDevice>> AdoptRenderDevice(
         &FunctionsFor<T>(),
         allocator);
 }
+
+} // namespace Aero::Internal
+
+namespace Aero::Integration {
+
+// Source-only access to the opaque backend state kept by RenderDevice.
+struct RenderDevice::Impl {
+    static const ::Aero::Internal::RenderDeviceFunctions* Functions(
+        const RenderDevice& device) noexcept {
+        return static_cast<
+            const ::Aero::Internal::RenderDeviceFunctions*>(
+                device.functions_);
+    }
+
+    static void* StateData(RenderDevice& device) noexcept {
+        return device.stateData_;
+    }
+
+    static void SetBackend(
+        RenderDevice& device,
+        void* state,
+        const ::Aero::Internal::RenderDeviceFunctions* functions) noexcept {
+        device.stateData_ = state;
+        device.functions_ = functions;
+    }
+
+    static Base::Result<Base::Ref<RenderDevice>> Create(
+        RenderDeviceMode mode,
+        void* state,
+        const ::Aero::Internal::RenderDeviceFunctions* functions,
+        Base::IAllocator* allocator) noexcept {
+        if (state == nullptr || functions == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Render device implementation is required");
+        }
+        Base::IAllocator& selected = allocator != nullptr
+            ? *allocator
+            : Base::GetDefaultAllocator();
+        Base::Result<Base::Ref<RenderDevice>> made =
+            Base::MakeRefWithAllocator<RenderDevice>(
+                selected,
+                RenderDevice::ConstructionToken{},
+                mode,
+                &selected);
+        if (!made) {
+            functions->destroy(state);
+            return made.GetStatus();
+        }
+        SetBackend(*made.Value(), state, functions);
+        return std::move(made).Value();
+    }
+
+    static ::Aero::Internal::RenderResources Resources(
+        RenderDevice& device) noexcept {
+        const auto* functions = Functions(device);
+        return device.stateData_ != nullptr && functions != nullptr
+            ? functions->resources(device.stateData_)
+            : ::Aero::Internal::RenderResources{};
+    }
+
+    static Base::Result<void> Bind(
+        RenderDevice& device,
+        const void* owner) noexcept {
+        return device.Bind(owner);
+    }
+
+    static void Unbind(
+        RenderDevice& device,
+        const void* owner) noexcept {
+        device.Unbind(owner);
+    }
+
+    static Base::Result<void> Submit(
+        RenderDevice& device,
+        const RenderFrame& frame) noexcept {
+        return device.Submit(frame);
+    }
+
+    static Base::Status FrameStatus(RenderDevice& device) noexcept {
+        return device.GetFrameStatus();
+    }
+};
+
+} // namespace Aero::Integration
+
+namespace Aero::Internal {
+
+Base::Result<Base::Ref<::Aero::Integration::RenderDevice>>
+CreateHeadlessRenderDevice(
+    Base::IAllocator* allocator = nullptr) noexcept;
 
 } // namespace Aero::Internal

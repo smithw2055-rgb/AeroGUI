@@ -12,13 +12,6 @@ class InlineCollection;
 class InlineCollectionView;
 class TextPointer;
 }
-namespace Aero::Internal { class DocumentPrivate; }
-
-namespace Aero::Internal {
-class TextBlockLayout;
-class ControlPrivate;
-}
-
 namespace Aero::Controls {
 
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -329,6 +322,8 @@ protected:
 class AERO_API TextBlock : public FrameworkElement {
     AERO_DECLARE_TYPE(TextBlock, FrameworkElement)
 public:
+    struct Impl;
+
     TextBlock() noexcept;
     ~TextBlock() override;
     Base::StringView GetText() const noexcept;
@@ -399,15 +394,15 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
     void OnRender(DrawingContext& context) noexcept override;
 private:
-    friend class ::Aero::Internal::ControlPrivate;
-    friend class Aero::Internal::DocumentPrivate;
+    friend struct ::Aero::Controls::Control::Impl;
+    friend struct Impl;
 
     Base::StringView EffectiveFontFamily() const noexcept;
     void ReleaseServiceGlyphRun() noexcept;
     void SetGlyphRun(
         std::uint64_t glyphRun, Size size) noexcept;
 
-    ::Aero::Internal::TextBlockLayout* layoutService_ = nullptr;
+    void* layoutService_ = nullptr;
     Base::Vector<std::uint64_t> glyphRuns_;
     Base::Vector<TextHitRegion> textHitRegions_;
     Base::Vector<Base::Ref<Base::Object>> ownedInlines_;

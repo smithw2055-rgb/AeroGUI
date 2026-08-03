@@ -1,5 +1,6 @@
 #include <Aero/Styling.hpp>
 #include "TemplateInternals.hpp"
+#include "ControlInternals.hpp"
 
 #include <Aero/Value.hpp>
 #include <Aero/Media/Transforms.hpp>
@@ -17,7 +18,8 @@ namespace Aero::Internal {
 void ControlBehavior::SetVisualStateManager(
     Control& control,
     VisualStateManager* visualStates) noexcept {
-    control.visualStateRuntime_ = visualStates;
+    ::Aero::Controls::Control::Impl::SetVisualStateManager(
+        control, visualStates);
 }
 
 } // namespace Aero::Internal
@@ -508,6 +510,29 @@ private:
 };
 
 } // namespace Detail
+
+Base::Result<VisualStateManager*>
+VisualStateManager::Impl::Create(
+    Meta::EffectiveValueEngine& values,
+    ::Aero::Internal::TemplateEngine& templates,
+    ::Aero::Internal::AnimationEngine& animations,
+    Meta::DependencyPropertyRegistry& properties) noexcept {
+    auto* manager = new (std::nothrow) VisualStateManager();
+    if (manager == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "VisualStateManager allocation failed");
+    }
+    Runtime(*manager) = new (std::nothrow) Detail::VisualStateManagerImpl(
+        values, templates, animations, properties);
+    if (Runtime(*manager) == nullptr) {
+        delete manager;
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "VisualStateManager runtime allocation failed");
+    }
+    return manager;
+}
 
 std::uint32_t Detail::VisualStateManagerImpl::FindActive(
     TemplateHandle handle,
@@ -1282,7 +1307,8 @@ using namespace ::Aero::Controls::Detail;
 
 Base::Result<bool> TemplatePrivate::GoToState(
     VisualStateManager& manager, Control& control, Base::StringView groupName, Base::StringView stateName, bool useTransitions) noexcept {
-    auto* runtime = static_cast<VisualStateManagerImpl*>(manager.impl_);
+    auto* runtime = static_cast<VisualStateManagerImpl*>(
+        VisualStateManager::Impl::Runtime(manager));
     return runtime != nullptr
         ? runtime->GoToState(control, groupName, stateName, useTransitions)
         : Base::Result<bool>(Base::Status::Failure(Base::ErrorCode::NotInitialized, "VisualStateManager is not initialized"));
@@ -1290,19 +1316,22 @@ Base::Result<bool> TemplatePrivate::GoToState(
 
 Base::Result<bool> TemplatePrivate::ClearState(
     VisualStateManager& manager, Control& control, Base::StringView groupName) noexcept {
-    auto* runtime = static_cast<VisualStateManagerImpl*>(manager.impl_);
+    auto* runtime = static_cast<VisualStateManagerImpl*>(
+        VisualStateManager::Impl::Runtime(manager));
     return runtime != nullptr ? runtime->ClearState(control, groupName) : Base::Result<bool>(false);
 }
 
 Base::Result<std::uint32_t> TemplatePrivate::Clear(
     VisualStateManager& manager, Control& control) noexcept {
-    auto* runtime = static_cast<VisualStateManagerImpl*>(manager.impl_);
+    auto* runtime = static_cast<VisualStateManagerImpl*>(
+        VisualStateManager::Impl::Runtime(manager));
     return runtime != nullptr ? runtime->Clear(control) : Base::Result<std::uint32_t>(0U);
 }
 
 Base::StringView TemplatePrivate::GetCurrentState(
     const VisualStateManager& manager, const Control& control, Base::StringView groupName) noexcept {
-    auto* runtime = static_cast<VisualStateManagerImpl*>(manager.impl_);
+    auto* runtime = static_cast<const VisualStateManagerImpl*>(
+        VisualStateManager::Impl::Runtime(manager));
     return runtime != nullptr ? runtime->CurrentState(control, groupName) : Base::StringView{};
 }
 
@@ -1312,21 +1341,8 @@ TemplatePrivate::Create(
     TemplateEngine& templates,
     Aero::Internal::AnimationEngine& animations,
     Meta::DependencyPropertyRegistry& properties) noexcept {
-    auto* manager = new (std::nothrow) VisualStateManager();
-    if (manager == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "VisualStateManager allocation failed");
-    }
-    manager->impl_ = new (std::nothrow) VisualStateManagerImpl(
+    return ::Aero::Controls::VisualStateManager::Impl::Create(
         values, templates, animations, properties);
-    if (manager->impl_ == nullptr) {
-        delete manager;
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "VisualStateManager runtime allocation failed");
-    }
-    return manager;
 }
 
 } // namespace Aero::Internal

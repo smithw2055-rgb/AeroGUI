@@ -8,17 +8,14 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/DependencyObject.hpp>
 #include <Aero/Events/Event.hpp>
+#include <Aero/Events/EventArgs.hpp>
 #include <Aero/Resources.hpp>
-#include <Aero/RoutedEvent.hpp>
+#include <Aero/Events/RoutedEvent.hpp>
 #include <Aero/Style.hpp>
+#include <Aero/Visual.hpp>
 
 #include <cstddef>
 #include <new>
-
-namespace Aero::Internal {
-class ElementPrivate;
-class EventRouter;
-}
 
 namespace Aero {
 
@@ -84,8 +81,7 @@ protected:
         RoutedEventArgs* args = nullptr) noexcept;
 
 private:
-    friend class Aero::Internal::ElementPrivate;
-    friend class Aero::Internal::EventRouter;
+    friend struct ::Aero::Visual::Impl;
 
     struct HandlerOperations {
         std::size_t size = 0U;
@@ -184,7 +180,7 @@ protected:
     virtual DependencyObject* GetLogicalChild(std::uint32_t) const noexcept { return nullptr; }
 
 private:
-    friend class Aero::Internal::ElementPrivate;
+    friend struct ::Aero::Visual::Impl;
     ResourceDictionary resources_;
 };
 

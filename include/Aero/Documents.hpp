@@ -9,8 +9,6 @@
 #include <cstdint>
 #include <utility>
 
-namespace Aero::Internal { class DocumentPrivate; }
-
 namespace Aero::Documents {
 
 class Inline;
@@ -90,7 +88,7 @@ public:
     }
 
 private:
-    friend class Aero::Internal::DocumentPrivate;
+    friend struct ::Aero::Controls::TextBlock::Impl;
     friend class Aero::Controls::TextBlock;
     friend class TextRange;
     TextPointer(
@@ -258,7 +256,7 @@ protected:
     }
 
 private:
-    friend class Aero::Internal::DocumentPrivate;
+    friend struct ::Aero::Controls::TextBlock::Impl;
     Base::Vector<Base::Ref<Inline>> inlines_;
     Base::Ref<Inline> pendingInline_;
 };

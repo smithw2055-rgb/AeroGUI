@@ -6,8 +6,6 @@
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 
-namespace Aero::Internal { class ButtonBehavior; class ScrollBehavior; class SliderBehavior; }
-
 namespace Aero::Controls {
 
 using ::Aero::Meta::TypeId;
@@ -24,6 +22,8 @@ namespace Primitives {
 class AERO_API ButtonBase : public ContentControl {
     AERO_DECLARE_TYPE(ButtonBase, ContentControl)
 public:
+    struct Impl;
+
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
     UIElement::Event<RoutedEventArgs> Click() noexcept {
         return GetEvent(ClickEvent);
@@ -57,7 +57,7 @@ protected:
     void OnApplyTemplate() noexcept override;
 
 private:
-    friend class Aero::Internal::ButtonBehavior;
+    friend struct Impl;
     void* interactionRuntime_ = nullptr;
     bool commandEnabled_ = true;
 };
@@ -130,7 +130,7 @@ protected:
         : ButtonBase(runtimeType) {}
 
 private:
-    friend class Aero::Internal::ButtonBehavior;
+    friend struct ::Aero::Controls::Primitives::ButtonBase::Impl;
     void SetToggleState(
         std::uint8_t value) noexcept;
 };
@@ -325,6 +325,8 @@ class AERO_API ScrollViewer
     : public ScrollContentPresenter {
     AERO_DECLARE_TYPE(ScrollViewer, ScrollContentPresenter)
 public:
+    struct Impl;
+
     ScrollViewer() noexcept;
     ~ScrollViewer() override;
 
@@ -422,7 +424,7 @@ protected:
 
 private:
     friend class ScrollContentPresenter;
-    friend class Aero::Internal::ScrollBehavior;
+    friend struct Impl;
     void* events_ = nullptr;
     void* interactions_ = nullptr;
     ScrollContentPresenter* contentPresenter_ = nullptr;
@@ -665,6 +667,8 @@ private:
 class AERO_API Slider : public Primitives::RangeBase {
     AERO_DECLARE_TYPE(Slider, Primitives::RangeBase)
 public:
+    struct Impl;
+
     Slider() noexcept : Primitives::RangeBase(StaticTypeId()) {}
     ~Slider() override = default;
 

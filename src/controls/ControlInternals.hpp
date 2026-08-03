@@ -33,14 +33,16 @@ using ItemSubtreeCallback = Base::Result<void> (*)(
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls {
 
-using namespace ::Aero::Controls;
+using namespace ::Aero::Internal;
+
+class VisualStateManager;
 
 // One private entry point owns the standard control storage and template hooks.
 // This replaces per-control-family Access classes without adding a new runtime
 // object or virtual dispatch layer.
-class ControlPrivate {
+struct Control::Impl {
 public:
     static bool IsTemplateApplied(const Control& control) noexcept {
         return control.templateHandleValue_ != 0U;
@@ -62,6 +64,20 @@ public:
         Control& control,
         void* engine) noexcept {
         control.AttachTemplateRuntime(engine);
+    }
+    static void SetVisualStateManager(
+        Control& control,
+        VisualStateManager* manager) noexcept {
+        control.visualStateRuntime_ = manager;
+    }
+    static void NotifyTemplateApplied(
+        Control& control,
+        std::uint64_t handleValue) noexcept {
+        control.NotifyTemplateApplied(handleValue);
+    }
+    static void NotifyTemplateDetached(
+        Control& control) noexcept {
+        control.NotifyTemplateDetached();
     }
 
     static UIElement* ContentElement(
@@ -106,39 +122,39 @@ public:
     }
 
     static std::uint32_t Count(const Panel& panel) noexcept {
-        return panel.ChildCountCore();
+        return ::Aero::Visual::Impl::PanelChildCount(panel);
     }
     static Base::Ref<Base::Object> At(
         const Panel& panel,
         std::uint32_t index) noexcept {
-        return panel.ChildAtCore(index);
+        return ::Aero::Visual::Impl::PanelChildAt(panel, index);
     }
     static Base::Result<void> Add(
         Panel& panel,
         const Base::Ref<Base::Object>& owner,
         UIElement& child) noexcept {
-        return panel.AddChildCore(owner, child);
+        return ::Aero::Visual::Impl::PanelAddChild(panel, owner, child);
     }
     static Base::Result<bool> Remove(
         Panel& panel,
         UIElement& child) noexcept {
-        return panel.RemoveChildCore(child);
+        return ::Aero::Visual::Impl::PanelRemoveChild(panel, child);
     }
     static Base::Result<void> Clear(Panel& panel) noexcept {
-        panel.ClearChildrenCore();
+        ::Aero::Visual::Impl::PanelClearChildren(panel);
         return {};
     }
 
     static const Base::Ref<Base::Object>& OwnedChild(
         const Decorator& decorator) noexcept {
-        return decorator.ownedChild_;
+        return ::Aero::Visual::Impl::DecoratorOwnedChild(decorator);
     }
     static Base::Result<void> SetOwnedChild(
         Decorator& decorator,
         const Base::Ref<Base::Object>& owner,
         UIElement& child) noexcept {
-        decorator.SetOwnedChild(owner, child);
-        return {};
+        return ::Aero::Visual::Impl::DecoratorSetOwnedChild(
+            decorator, owner, child);
     }
 
     static Base::Result<void> SetGeneratedTextContent(
@@ -162,18 +178,15 @@ public:
 
         static void InvalidateGeometry(
             Aero::Shapes::Path& path) noexcept {
-            path.ResetGeometry();
+            ::Aero::Visual::Impl::PathInvalidateGeometry(path);
         }
 
         static void Attach(
             Aero::Shapes::Path& path,
             Aero::Internal::MeshResources* services,
             bool invalidate = false) noexcept {
-            path.AttachMeshResources(
-                services, invalidate);
-            if (invalidate) {
-                static_cast<void>(path.InvalidateVisual());
-            }
+            ::Aero::Visual::Impl::PathAttachMeshResources(
+                path, services, invalidate);
         }
 
         static void Attach(
@@ -225,8 +238,14 @@ public:
         }
 };
 
+} // namespace Aero::Controls
+
+namespace Aero::Internal {
+
+using ControlPrivate = ::Aero::Controls::Control::Impl;
+
 } // namespace Aero::Internal
 
 namespace Aero::Controls::Detail {
-using ::Aero::Internal::ControlPrivate;
+using ControlPrivate = ::Aero::Controls::Control::Impl;
 }

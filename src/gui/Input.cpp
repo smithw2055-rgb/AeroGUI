@@ -58,31 +58,35 @@ bool ParentToLocal(
 
 } // namespace Aero::Input
 
+namespace Aero {
+
+Base::Result<void> Visual::Impl::SetMouseOver(UIElement& element, bool value) noexcept {
+    element.SetMouseOverState(value);
+    return {};
+}
+
+Base::Result<void> Visual::Impl::SetPressed(UIElement& element, bool value) noexcept {
+    element.SetPressedState(value);
+    return {};
+}
+
+Base::Result<void> Visual::Impl::SetKeyboardFocused(UIElement& element, bool value) noexcept {
+    element.SetKeyboardFocusedState(value);
+    return {};
+}
+
+Base::Result<void> Visual::Impl::SetKeyboardFocusWithin(UIElement& element, bool value) noexcept {
+    element.SetKeyboardFocusWithinState(value);
+    return {};
+}
+
+} // namespace Aero
+
 namespace Aero::Internal {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Input;
-
-Base::Result<void> ElementPrivate::SetMouseOver(Aero::UIElement& element, bool value) noexcept {
-    element.SetMouseOverState(value);
-    return {};
-}
-
-Base::Result<void> ElementPrivate::SetPressed(Aero::UIElement& element, bool value) noexcept {
-    element.SetPressedState(value);
-    return {};
-}
-
-Base::Result<void> ElementPrivate::SetKeyboardFocused(Aero::UIElement& element, bool value) noexcept {
-    element.SetKeyboardFocusedState(value);
-    return {};
-}
-
-Base::Result<void> ElementPrivate::SetKeyboardFocusWithin(Aero::UIElement& element, bool value) noexcept {
-    element.SetKeyboardFocusWithinState(value);
-    return {};
-}
 
 Base::Result<void> HitTestState::SetOverlays(
     Base::Span<UIElement* const> overlays,

@@ -29,9 +29,10 @@ RenderDevice::RenderDevice(
       mode_(mode) {}
 
 RenderDevice::~RenderDevice() noexcept {
-    if (stateData_ != nullptr && functions_ != nullptr) {
-        static_cast<void>(functions_->waitIdle(stateData_, 5000U));
-        functions_->destroy(stateData_);
+    const auto* functions = Impl::Functions(*this);
+    if (stateData_ != nullptr && functions != nullptr) {
+        static_cast<void>(functions->waitIdle(stateData_, 5000U));
+        functions->destroy(stateData_);
         stateData_ = nullptr;
         functions_ = nullptr;
     }
@@ -62,8 +63,8 @@ Base::Result<RenderFrameStatistics> RenderDevice::Analyze(
 void RenderDevice::MergeBackendStatistics(
     RenderFrameStatistics& result) const noexcept {
     const RenderFrameStatistics native =
-        stateData_ != nullptr && functions_ != nullptr
-        ? functions_->statistics(stateData_)
+        stateData_ != nullptr && Impl::Functions(*this) != nullptr
+        ? Impl::Functions(*this)->statistics(stateData_)
         : RenderFrameStatistics{};
     result.drawCallCount = native.drawCallCount != 0U
         ? native.drawCallCount
@@ -77,7 +78,8 @@ void RenderDevice::MergeBackendStatistics(
 Base::Result<void> RenderDevice::Resize(
     std::uint32_t width,
     std::uint32_t height) noexcept {
-    if (stateData_ == nullptr || functions_ == nullptr) {
+    const auto* functions = Impl::Functions(*this);
+    if (stateData_ == nullptr || functions == nullptr) {
         return NotInitialized("Render device is not initialized");
     }
     if (width == 0U || height == 0U) {
@@ -90,11 +92,12 @@ Base::Result<void> RenderDevice::Resize(
             "Render device cannot resize in its current state");
     }
     Base::Result<void> idle = WaitIdle();
-    return idle ? functions_->resize(stateData_, width, height) : idle;
+    return idle ? functions->resize(stateData_, width, height) : idle;
 }
 
 void RenderDevice::NotifySurfaceLost() noexcept {
-    if (stateData_ == nullptr || functions_ == nullptr) {
+    const auto* functions = Impl::Functions(*this);
+    if (stateData_ == nullptr || functions == nullptr) {
         return;
     }
     if (state_ != RenderDeviceState::Ready) {
@@ -102,11 +105,12 @@ void RenderDevice::NotifySurfaceLost() noexcept {
     }
     state_ = RenderDeviceState::SurfaceLost;
     ++statistics_.generation;
-    functions_->surfaceLost(stateData_);
+    functions->surfaceLost(stateData_);
 }
 
 void RenderDevice::NotifyDeviceLost() noexcept {
-    if (stateData_ == nullptr || functions_ == nullptr) {
+    const auto* functions = Impl::Functions(*this);
+    if (stateData_ == nullptr || functions == nullptr) {
         return;
     }
     if (state_ != RenderDeviceState::Ready) {
@@ -114,11 +118,12 @@ void RenderDevice::NotifyDeviceLost() noexcept {
     }
     state_ = RenderDeviceState::DeviceLost;
     ++statistics_.generation;
-    functions_->deviceLost(stateData_);
+    functions->deviceLost(stateData_);
 }
 
 Base::Result<void> RenderDevice::Restore() noexcept {
-    if (stateData_ == nullptr || functions_ == nullptr) {
+    const auto* functions = Impl::Functions(*this);
+    if (stateData_ == nullptr || functions == nullptr) {
         return NotInitialized("Render device is not initialized");
     }
     if (state_ != RenderDeviceState::SurfaceLost &&
@@ -126,7 +131,7 @@ Base::Result<void> RenderDevice::Restore() noexcept {
         return InvalidState("Only a lost render device can be restored");
     }
 
-    Base::Result<void> restored = functions_->restore(stateData_);
+    Base::Result<void> restored = functions->restore(stateData_);
     if (!restored) {
         state_ = RenderDeviceState::Failed;
         ++statistics_.failedFrameCount;
@@ -138,8 +143,9 @@ Base::Result<void> RenderDevice::Restore() noexcept {
 
 Base::Result<void> RenderDevice::WaitIdle(
     std::uint32_t timeoutMilliseconds) noexcept {
-    return stateData_ != nullptr && functions_ != nullptr
-        ? functions_->waitIdle(stateData_, timeoutMilliseconds)
+    const auto* functions = Impl::Functions(*this);
+    return stateData_ != nullptr && functions != nullptr
+        ? functions->waitIdle(stateData_, timeoutMilliseconds)
         : Base::Result<void>(
               NotInitialized("Render device is not initialized"));
 }
@@ -170,27 +176,8 @@ RenderDeviceFactory::Adopt(
     void* state,
     const RenderDeviceFunctions* functions,
     Base::IAllocator* allocator) noexcept {
-    if (state == nullptr || functions == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Render device implementation is required");
-    }
-    Base::IAllocator& selected = allocator != nullptr
-        ? *allocator
-        : Base::GetDefaultAllocator();
-    Base::Result<Base::Ref<::Aero::Integration::RenderDevice>> made =
-        Base::MakeRefWithAllocator<::Aero::Integration::RenderDevice>(
-            selected,
-            ::Aero::Integration::RenderDevice::ConstructionToken{},
-            mode,
-            &selected);
-    if (!made) {
-        functions->destroy(state);
-        return made.GetStatus();
-    }
-    made.Value()->stateData_ = state;
-    made.Value()->functions_ = functions;
-    return std::move(made).Value();
+    return ::Aero::Integration::RenderDevice::Impl::Create(
+        mode, state, functions, allocator);
 }
 
 Base::Result<Base::Ref<::Aero::Integration::RenderDevice>>
@@ -248,7 +235,8 @@ void RenderDevice::Unbind(const void* owner) noexcept {
 
 Base::Result<void> RenderDevice::Submit(
     const Integration::RenderFrame& frame) noexcept {
-    if (stateData_ == nullptr || functions_ == nullptr) {
+    const auto* functions = Impl::Functions(*this);
+    if (stateData_ == nullptr || functions == nullptr) {
         return NotInitialized("Render device is not initialized");
     }
     if (state_ != RenderDeviceState::Ready) {
@@ -258,7 +246,7 @@ Base::Result<void> RenderDevice::Submit(
     Base::Result<RenderFrameStatistics> frameStatistics = Analyze(frame);
     if (!frameStatistics) return frameStatistics.GetStatus();
 
-    Base::Result<void> submitted = functions_->submit(stateData_, frame);
+    Base::Result<void> submitted = functions->submit(stateData_, frame);
     if (!submitted) {
         ++statistics_.failedFrameCount;
         state_ = RenderDeviceState::Failed;
@@ -275,7 +263,7 @@ Base::Result<void> RenderDevice::Submit(
 }
 
 Base::Status RenderDevice::GetFrameStatus() noexcept {
-    if (stateData_ == nullptr || functions_ == nullptr) {
+    if (stateData_ == nullptr || Impl::Functions(*this) == nullptr) {
         return NotInitialized("Render device is not initialized");
     }
     switch (state_) {
@@ -291,12 +279,6 @@ Base::Status RenderDevice::GetFrameStatus() noexcept {
         return InvalidState("Render device is shut down");
     }
     return InvalidState("Render device state is invalid");
-}
-
-Aero::Internal::RenderResources RenderDevice::Resources() noexcept {
-    return stateData_ != nullptr && functions_ != nullptr
-        ? functions_->resources(stateData_)
-        : Aero::Internal::RenderResources{};
 }
 
 } // namespace Aero::Integration

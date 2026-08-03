@@ -7,8 +7,7 @@
 #include <Aero/ContentElement.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/RoutedEvent.hpp>
-#include <Aero/Events/Events.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/UIElement.hpp>
 
 #include <Aero/Controls.hpp>

@@ -19,9 +19,9 @@
 #define STBI_ONLY_PNG
 #include "stb_image.h"
 
-namespace Aero::Internal {
+namespace Aero::Controls {
 
-class ImageControlPrivate {
+struct Image::Impl {
 public:
     static Base::Result<void> SetRuntimeImage(
         Controls::Image& image,
@@ -37,6 +37,11 @@ public:
         return renderChanged ? image.InvalidateVisual() : Base::Result<void>();
     }
 };
+
+} // namespace Aero::Controls
+
+namespace Aero::Internal {
+using ImageControlPrivate = ::Aero::Controls::Image::Impl;
 
 namespace {
 

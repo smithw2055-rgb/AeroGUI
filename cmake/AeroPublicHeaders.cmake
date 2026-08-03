@@ -50,7 +50,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Events/ControlEventArgs.hpp
     include/Aero/Events/Event.hpp
     include/Aero/Events/EventArgs.hpp
-    include/Aero/Events/Events.hpp
+    include/Aero/Events.hpp
     include/Aero/Events/NavigationEventArgs.hpp
     include/Aero/Events/PropertyEventArgs.hpp
     include/Aero/Events/RoutedEvent.hpp
@@ -81,7 +81,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Transforms.hpp
     include/Aero/Module.hpp
     include/Aero/Resources.hpp
-    include/Aero/RoutedEvent.hpp
     include/Aero/Shapes.hpp
     include/Aero/Style.hpp
     include/Aero/Styling.hpp

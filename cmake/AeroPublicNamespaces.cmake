@@ -32,35 +32,12 @@ set(AERO_PUBLIC_NAMESPACE_PREFIXES
 set(AERO_PUBLIC_NAMESPACE_DETAIL_PREFIXES
     Aero::Base::Detail)
 
-# Transitional Base detail references are limited to these declaration owners.
-# A new public header must either remove the implementation friend or be
-# reviewed as an explicit ABI exception.
+# The only product-layer header with an unqualified `namespace Detail` is the
+# metadata authoring header.  Base implementation details are tracked by the
+# separate Base list below; do not keep broad historical exceptions here.
 set(AERO_PUBLIC_NAMESPACE_DETAIL_HEADERS
-    include/Aero/Animation.hpp
-    include/Aero/Application.hpp
-    include/Aero/ContentElement.hpp
-    include/Aero/Controls/Common.hpp
-    include/Aero/Controls/Core.hpp
-    include/Aero/Controls/Items.hpp
-    include/Aero/Controls/Panels.hpp
-    include/Aero/Controls/Primitives.hpp
-    include/Aero/Controls/Text.hpp
-    include/Aero/Documents.hpp
-    include/Aero/DrawingContext.hpp
-    include/Aero/FrameworkElement.hpp
-    include/Aero/Integration/RenderDevice.hpp
-    include/Aero/Markup.hpp
-    include/Aero/Media/Brushes.hpp
-    include/Aero/Media/Effects.hpp
-    include/Aero/Media/Transforms.hpp
     include/Aero/Meta.hpp
-    include/Aero/Shapes.hpp
-    include/Aero/Style.hpp
-    include/Aero/Styling.hpp
-    include/Aero/UIElement.hpp
-    include/Aero/View.hpp
-    include/Aero/Visual.hpp
-    include/Aero/Window.hpp)
+    )
 
 set(AERO_PUBLIC_NAMESPACE_BASE_DETAIL_HEADERS
     include/Aero/Base/Delegate.hpp
@@ -76,6 +53,10 @@ set(AERO_PUBLIC_NAMESPACE_BASE_DETAIL_HEADERS
 # headers.  Keep this list explicit so a new namespace cannot silently become
 # part of the SDK through a friend declaration or a forwarding header.
 set(AERO_PUBLIC_NAMESPACE_FORBIDDEN_PATTERNS
+    "namespace[ \t]+Internal([ \t:{]|$)"
+    "namespace[ \t]+Aero::Internal([ \t:{]|$)"
+    "Aero::Internal::"
+    "::Internal::"
     "namespace[ \t]+Aero::Render([ \t:{]|$)"
     "Aero::Render::"
     "namespace[ \t]+Aero::Detail([ \t:{]|$)"
@@ -88,4 +69,5 @@ set(AERO_PUBLIC_NAMESPACE_FORBIDDEN_PATTERNS
     "Aero::Media::Detail::"
     "Aero::Markup::Detail::"
     "Aero::Integration::Detail::"
-    "Aero::App::Detail::")
+    "Aero::App::Detail::"
+    "(^|[^A-Za-z0-9_])(ElementPrivate|ControlPrivate|TemplatePrivate|StylePrivate|TransformPrivate|BrushPrivate|EffectPrivate|AnimationPrivate|DesktopPrivate|ViewData|RenderTree|RenderResources|RenderFunctions|RenderDeviceFactory|AdoptRenderDevice|ITextBlockLayoutService|TextBlockLayoutServiceScope|TextBlockRenderService|D3D11TextBlockRenderService|IGlyphRunResourceRegistry|DisplayListBuilder|RoutedHandlerStorage|RoutedHandlerTraits|RuntimeManagersFwd|ThemeStyleRegistry)([^A-Za-z0-9_]|$)")

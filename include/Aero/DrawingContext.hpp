@@ -4,10 +4,6 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
 
-namespace Aero::Internal {
-class DrawingPrivate;
-}
-
 namespace Aero {
 
 // WPF-facing retained drawing surface used by FrameworkElement::OnRender().
@@ -15,6 +11,8 @@ namespace Aero {
 // and backend command streams remain private runtime implementation.
 class AERO_API DrawingContext {
 public:
+    struct Impl;
+
     DrawingContext(const DrawingContext&) = delete;
     DrawingContext& operator=(const DrawingContext&) = delete;
 
@@ -39,7 +37,7 @@ public:
         double thickness) noexcept;
 
 private:
-    friend class ::Aero::Internal::DrawingPrivate;
+    friend struct Impl;
 
     explicit DrawingContext(void* implementation) noexcept
         : implementation_(implementation) {}

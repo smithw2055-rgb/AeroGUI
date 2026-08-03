@@ -8,6 +8,110 @@ class TemplateEngine;
 class AnimationEngine;
 }
 
+namespace Aero::Controls {
+
+struct DataTemplate::Impl {
+    static Detail::DataTemplateState* State(
+        DataTemplate& value) noexcept;
+    static const Detail::DataTemplateState* State(
+        const DataTemplate& value) noexcept;
+    static Base::Result<void> Configure(
+        DataTemplate& value,
+        Detail::DeferredObjectFactory factory,
+        void* context = nullptr,
+        Base::Ref<Base::Object> owner = {}) noexcept;
+    static Base::Result<void> SetBaseUri(
+        DataTemplate& value,
+        const Base::ResourceUri& uri) noexcept;
+    static const Base::ResourceUri& BaseUri(
+        const DataTemplate& value) noexcept;
+    static Base::Result<void> SetAuthoredVisualTree(
+        DataTemplate& value,
+        const Base::Ref<Base::Object>& tree) noexcept;
+    static void ClearAuthoredVisualTree(
+        DataTemplate& value) noexcept;
+    static Base::Result<void> AddAuthoredTrigger(
+        DataTemplate& value,
+        Base::Ref<Aero::TriggerBase> trigger) noexcept;
+    static void ClearAuthoredTriggers(
+        DataTemplate& value) noexcept;
+    static Base::Span<const Base::Ref<Aero::TriggerBase>>
+        AuthoredTriggers(const DataTemplate& value) noexcept;
+    static Base::Result<void> RegisterAuthoredName(
+        DataTemplate& value,
+        Base::StringView name,
+        Base::Object& object) noexcept;
+    static void ClearAuthoredNames(
+        DataTemplate& value) noexcept;
+    static const Aero::NameScope& AuthoredNames(
+        const DataTemplate& value) noexcept;
+    static const Base::Ref<Base::Object>& AuthoredVisualTree(
+        const DataTemplate& value) noexcept;
+    static Base::Result<void> Seal(
+        DataTemplate& value) noexcept;
+    static Base::Result<Base::Ref<Base::Object>> Instantiate(
+        const DataTemplate& value,
+        const Base::Ref<Base::Object>& item) noexcept;
+};
+
+struct ItemsPanelTemplate::Impl {
+    static Detail::ItemsPanelTemplateState* State(
+        ItemsPanelTemplate& value) noexcept;
+    static const Detail::ItemsPanelTemplateState* State(
+        const ItemsPanelTemplate& value) noexcept;
+    static Base::Result<void> Configure(
+        ItemsPanelTemplate& value,
+        Detail::DeferredObjectFactory factory,
+        void* context = nullptr,
+        Base::Ref<Base::Object> owner = {}) noexcept;
+    static Base::Result<void> SetBaseUri(
+        ItemsPanelTemplate& value,
+        const Base::ResourceUri& uri) noexcept;
+    static const Base::ResourceUri& BaseUri(
+        const ItemsPanelTemplate& value) noexcept;
+    static Base::Result<void> SetAuthoredVisualTree(
+        ItemsPanelTemplate& value,
+        const Base::Ref<Base::Object>& tree) noexcept;
+    static void ClearAuthoredVisualTree(
+        ItemsPanelTemplate& value) noexcept;
+    static Base::Result<void> Seal(
+        ItemsPanelTemplate& value) noexcept;
+    static Base::Result<Base::Ref<Base::Object>> Instantiate(
+        const ItemsPanelTemplate& value) noexcept;
+    static const Base::Ref<Base::Object>& AuthoredVisualTree(
+        const ItemsPanelTemplate& value) noexcept;
+};
+
+struct FrameworkTemplate::Impl {
+    static Detail::FrameworkTemplateState* State(
+        FrameworkTemplate& value) noexcept;
+    static const Detail::FrameworkTemplateState* State(
+        const FrameworkTemplate& value) noexcept;
+};
+
+struct VisualStateManager::Impl {
+    static Base::Result<VisualStateManager*> Create(
+        Meta::EffectiveValueEngine& values,
+        ::Aero::Internal::TemplateEngine& templates,
+        ::Aero::Internal::AnimationEngine& animations,
+        Meta::DependencyPropertyRegistry& properties) noexcept;
+    static void*& Runtime(
+        VisualStateManager& value) noexcept {
+        return value.impl_;
+    }
+    static const void* Runtime(
+        const VisualStateManager& value) noexcept {
+        return value.impl_;
+    }
+};
+
+} // namespace Aero::Controls
+
+namespace Aero::Internal {
+class TemplateEngine;
+class AnimationEngine;
+}
+
 namespace Aero::Internal {
 
 using namespace ::Aero::Controls;

@@ -73,8 +73,14 @@ cycle.
 
 `Input.hpp` owns both the input value types and the command/navigation object
 model. It forward-declares `UIElement` and owns the input value declarations
-before including `RoutedEvent.hpp`, so the routed-event header does not need a
-second input-values header or a cyclic include.
+before including `Aero/Events/RoutedEvent.hpp`, so the routed-event header does
+not need a second input-values header or a cyclic include. The event umbrella
+is `<Aero/Events.hpp>`. That header owns the public event umbrella, including
+the event-argument families and the routed-event declaration. The granular
+`<Aero/Events/RoutedEvent.hpp>` header is the sole declaration owner for
+`RoutedEvent`, `RoutedEventHandle` and the routed-event metadata helpers; it is
+not duplicated or forwarded at the SDK root. Retired compatibility facades are
+not part of the SDK tree.
 
 Media is a specialist surface made up of concrete headers such as
 `Media/Brushes.hpp`, `Media/Geometry.hpp`, `Media/Images.hpp` and

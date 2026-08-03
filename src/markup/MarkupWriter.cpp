@@ -1576,9 +1576,9 @@ Base::Result<Aero::ResourceValue> ResourceResolver::Lookup(
 
 #include <utility>
 
-namespace Aero::Internal {
+namespace Aero::Markup {
 
-class ResourcePrivate {
+struct NamespaceScope::Impl {
 public:
     static ::Aero::Markup::NamespaceScope CreateNamespaceScope(
         ::Aero::Markup::NamespaceScope::LookupCallback lookup,
@@ -1593,12 +1593,12 @@ public:
     }
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Markup
 
 // Source-only bridge for the historical Markup::Detail spelling. The
-// installed API only friends Internal::ResourcePrivate.
+// installed API only friends the opaque NamespaceScope::Impl seam.
 namespace Aero::Markup::Detail {
-using ::Aero::Internal::ResourcePrivate;
+using ResourcePrivate = ::Aero::Markup::NamespaceScope::Impl;
 }
 
 namespace Aero::Markup {

@@ -3,17 +3,6 @@
 #include <Aero/Integration/Platform.hpp>
 #include <Aero/Controls/Primitives.hpp>
 
-namespace Aero::Internal { class TextEditBehavior; }
-namespace Aero::Internal { class EditableTextModel; }
-
-namespace Aero::Internal {
-class TextBlockLayout;
-class ControlPrivate;
-class TextDisplayPolicy;
-class PlainTextDisplayPolicy;
-class PasswordTextDisplayPolicy;
-}
-
 namespace Aero::Controls {
 
 using ::Aero::Meta::TypeId;
@@ -56,6 +45,8 @@ class AERO_API TextBox
       private Integration::ITextCompositionClient {
     AERO_DECLARE_TYPE(TextBox, Primitives::TextBoxBase)
 public:
+    struct Impl;
+
     TextBox() noexcept;
     ~TextBox() override;
 
@@ -187,9 +178,9 @@ protected:
         DrawingContext& context) noexcept override;
 
 private:
-    friend class Aero::Internal::TextEditBehavior;
+    friend struct Impl;
     friend class PasswordBox;
-    friend class ::Aero::Internal::ControlPrivate;
+    friend struct ::Aero::Controls::Control::Impl;
 
     struct CaretStop {
         double x = 0.0;
@@ -198,11 +189,11 @@ private:
         std::uint32_t line = 0U;
     };
 
-    ::Aero::Internal::EditableTextModel* model_ = nullptr;
-    ::Aero::Internal::EditableTextModel* compositionModel_ = nullptr;
-    ::Aero::Internal::TextBlockLayout* layoutService_ = nullptr;
-    ::Aero::Internal::TextDisplayPolicy* displayPolicy_ = nullptr;
-    ::Aero::Internal::PlainTextDisplayPolicy* plainPolicy_ = nullptr;
+    void* model_ = nullptr;
+    void* compositionModel_ = nullptr;
+    void* layoutService_ = nullptr;
+    void* displayPolicy_ = nullptr;
+    void* plainPolicy_ = nullptr;
     Base::String displayText_;
     Base::String compositionText_;
     Base::Vector<std::uint64_t> glyphRuns_;
@@ -250,11 +241,11 @@ private:
         Base::String& output) const noexcept;
     Base::Result<void> ConstrainManualInput(
         Base::String& input,
-        const ::Aero::Internal::EditableTextModel& target,
+        const void* target,
         TextSelection selection) const noexcept;
     void ReleaseGlyphRuns() noexcept;
     double GetLineHeight() const noexcept;
-    const ::Aero::Internal::EditableTextModel&
+    const void*
     GetActiveModel() const noexcept;
     Base::Result<void>
     UpdateCandidateWindow() noexcept;
@@ -273,6 +264,8 @@ private:
 class AERO_API PasswordBox : public Primitives::TextBoxBase {
     AERO_DECLARE_TYPE(PasswordBox, Primitives::TextBoxBase)
 public:
+    struct Impl;
+
     PasswordBox() noexcept;
     ~PasswordBox() override;
 
@@ -325,11 +318,11 @@ protected:
 
 private:
     friend class TextBox;
-    friend class Aero::Internal::TextEditBehavior;
-    friend class ::Aero::Internal::ControlPrivate;
+    friend struct ::Aero::Controls::TextBox::Impl;
+    friend struct ::Aero::Controls::Control::Impl;
     Base::String password_;
-    ::Aero::Internal::EditableTextModel* validation_ = nullptr;
-    ::Aero::Internal::PasswordTextDisplayPolicy* passwordPolicy_ = nullptr;
+    void* validation_ = nullptr;
+    void* passwordPolicy_ = nullptr;
     TextBox editor_;
     bool synchronizingEditor_ = false;
 

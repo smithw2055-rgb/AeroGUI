@@ -109,6 +109,74 @@ if(public_namespace_declarations)
         "${public_namespace_declarations}")
 endif()
 
+# This is a non-negotiable SDK boundary. Keep the exact spellings here in
+# addition to the namespace manifest so a future manifest edit cannot weaken
+# the check accidentally.
+set(public_internal_namespace_patterns
+    "namespace[ \t]+Internal([ \t:{]|$)"
+    "namespace[ \t]+Aero::Internal([ \t:{]|$)"
+    "Aero::Internal::"
+    "::Internal::")
+set(public_internal_namespace_matches)
+foreach(pattern IN LISTS public_internal_namespace_patterns)
+    aero_collect_matches(matches "${pattern}" ${aero_namespace_headers})
+    list(APPEND public_internal_namespace_matches ${matches})
+endforeach()
+if(public_internal_namespace_matches)
+    list(REMOVE_DUPLICATES public_internal_namespace_matches)
+    message(FATAL_ERROR
+        "Public headers expose Aero::Internal or namespace Internal: "
+        "${public_internal_namespace_matches}")
+endif()
+
+set(public_internal_type_pattern
+    "(^|[^A-Za-z0-9_])(ElementPrivate|ControlPrivate|TemplatePrivate|StylePrivate|TransformPrivate|BrushPrivate|EffectPrivate|AnimationPrivate|DesktopPrivate|ViewData|RenderTree|RenderResources|RenderFunctions|RenderDeviceFactory|AdoptRenderDevice|ITextBlockLayoutService|TextBlockLayoutServiceScope|TextBlockRenderService|D3D11TextBlockRenderService|IGlyphRunResourceRegistry|DisplayListBuilder|RoutedHandlerStorage|RoutedHandlerTraits|RuntimeManagersFwd|ThemeStyleRegistry)([^A-Za-z0-9_]|$)")
+aero_collect_matches(public_internal_type_matches
+    "${public_internal_type_pattern}"
+    ${aero_namespace_headers})
+if(public_internal_type_matches)
+    message(FATAL_ERROR
+        "Public headers expose an implementation-only type or gateway: "
+        "${public_internal_type_matches}")
+endif()
+
+if(EXISTS "${AERO_SOURCE_DIR}/include/Aero/RoutedEvent.hpp" OR
+   EXISTS "${AERO_SOURCE_DIR}/include/Aero/Events/Events.hpp")
+    message(FATAL_ERROR
+        "Retired event facade headers must not exist; use <Aero/Events.hpp> "
+        "and <Aero/Events/RoutedEvent.hpp>")
+endif()
+file(GLOB_RECURSE aero_retired_event_path_scan
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/*.h"
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/tools/*.cpp"
+    "${AERO_SOURCE_DIR}/tools/*.hpp"
+    "${AERO_SOURCE_DIR}/docs/*.md"
+    "${AERO_SOURCE_DIR}/docs/*.txt"
+    "${AERO_SOURCE_DIR}/README.md"
+    "${AERO_SOURCE_DIR}/.github/*.yml"
+    "${AERO_SOURCE_DIR}/.github/*.yaml")
+set(retired_event_path_matches)
+foreach(pattern IN ITEMS
+        "#[ \t]*include[ \t]*<Aero/RoutedEvent[.]hpp>"
+        "#[ \t]*include[ \t]*<Aero/Events/Events[.]hpp>")
+    aero_collect_matches(matches "${pattern}" ${aero_retired_event_path_scan})
+    list(APPEND retired_event_path_matches ${matches})
+endforeach()
+if(retired_event_path_matches)
+    message(FATAL_ERROR
+        "Retired event header path remains referenced: "
+        "${retired_event_path_matches}")
+endif()
+unset(public_internal_namespace_patterns)
+unset(public_internal_namespace_matches)
+unset(public_internal_type_pattern)
+unset(public_internal_type_matches)
+unset(aero_retired_event_path_scan)
+unset(retired_event_path_matches)
+
 # Try is reserved for parsing, conversion, conditional ownership and cache
 # lookup. Allocation, registration, subscription and ordinary mutation APIs
 # use their direct WPF-style verbs instead of a generic Try prefix.
@@ -385,7 +453,7 @@ list(APPEND core_files
     "${AERO_SOURCE_DIR}/include/Aero/DependencyProperty.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Diagnostics.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Diagnostics/PropertyValueSource.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/RoutedEvent.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Events/RoutedEvent.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Threading.hpp")
 aero_collect_matches(core_reverse
     "#[ \t]*include[ \t]*<Aero/Controls/"
@@ -601,7 +669,7 @@ set(sdk_entry_headers
     "${AERO_SOURCE_DIR}/include/Aero/Integration/Providers/XamlProvider.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/Providers/FontProvider.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/Providers/TextureProvider.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Events/Events.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Events.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Triggers/Triggers.hpp")
 aero_collect_matches(sdk_entry_leaks
     "(RuntimeHost|RenderPlan|IRenderBackend|GraphicsDevice|SurfaceSession|Presenter|[A-Za-z]+Manager|[A-Za-z]+Store|[A-Za-z]+Program|DocumentCache|TransactionCallback)"
@@ -727,7 +795,7 @@ endif()
 
 
 set(routed_event_headers
-    "${AERO_SOURCE_DIR}/include/Aero/RoutedEvent.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Events/RoutedEvent.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/UIElement.hpp")
 aero_collect_matches(const_routed_event_handlers
     "Delegate<void[(]Base::Object[*],[ \t]*const[ \t]+[A-Za-z0-9_:]+EventArgs[&][)]>"

@@ -26,6 +26,11 @@ private:
 
 } // namespace Aero::Internal
 
+namespace Aero::Internal {
+using ItemContainerGeneratorImpl =
+    ::Aero::Controls::ItemContainerGenerator::Impl;
+}
+
 namespace Aero::Controls::Detail {
 using ::Aero::Internal::BoxedItemValue;
 }

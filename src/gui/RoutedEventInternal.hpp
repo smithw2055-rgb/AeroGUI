@@ -4,7 +4,8 @@
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Delegate.hpp>
-#include <Aero/RoutedEvent.hpp>
+#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events/RoutedEvent.hpp>
 #include "gui/MetadataInternal.hpp"
 
 #include <cstddef>

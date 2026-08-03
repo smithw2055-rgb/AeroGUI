@@ -10,13 +10,6 @@
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 
-namespace Aero::Internal { class ListBehavior; class ComboBehavior; class TreeBehavior; }
-namespace Aero::Internal {
-class ItemContainerGeneratorImpl;
-class ControlPrivate;
-class TemplatePrivate;
-}
-
 namespace Aero::Controls {
 
 using ItemsChangeAction = Collections::ItemsChangeAction;
@@ -103,6 +96,8 @@ AERO_API Base::Result<void> AddBoxedStringItem(
 class AERO_API DataTemplate : public Base::Object {
     AERO_DECLARE_TYPE(DataTemplate, Base::Object)
 public:
+    struct Impl;
+
     DataTemplate() noexcept;
     ~DataTemplate() noexcept override;
     DataTemplate(const DataTemplate&) = delete;
@@ -122,13 +117,15 @@ public:
     bool GetIsSealed() const noexcept;
 
 private:
-    friend class ::Aero::Internal::TemplatePrivate;
+    friend struct Impl;
     void* state_ = nullptr;
 };
 
 class AERO_API ItemsPanelTemplate : public Base::Object {
     AERO_DECLARE_TYPE(ItemsPanelTemplate, Base::Object)
 public:
+    struct Impl;
+
     ItemsPanelTemplate() noexcept;
     ~ItemsPanelTemplate() noexcept override;
     ItemsPanelTemplate(const ItemsPanelTemplate&) = delete;
@@ -141,7 +138,7 @@ public:
     bool GetIsSealed() const noexcept;
 
 private:
-    friend class ::Aero::Internal::TemplatePrivate;
+    friend struct Impl;
     void* state_ = nullptr;
 };
 
@@ -257,7 +254,7 @@ protected:
 
 private:
     friend class ItemContainerGenerator;
-    friend class ::Aero::Internal::ItemContainerGeneratorImpl;
+    friend struct ::Aero::Visual::Impl;
     ItemCollection items_;
     Collections::IItemsSource* source_ = nullptr;
     const DataTemplate* itemTemplate_ = nullptr;
@@ -311,6 +308,8 @@ protected:
 
 class AERO_API ItemContainerGenerator {
 public:
+    struct Impl;
+
     ~ItemContainerGenerator() noexcept;
 
     ItemContainerGenerator(const ItemContainerGenerator&) = delete;
@@ -341,7 +340,8 @@ public:
     Base::Status LastError() const noexcept;
 
 private:
-    friend class ::Aero::Internal::ControlPrivate;
+    friend struct ::Aero::Controls::Control::Impl;
+    friend struct Impl;
 
     ItemContainerGenerator() noexcept = default;
 
@@ -781,8 +781,7 @@ protected:
     void OnContainersChanged() noexcept override;
 
 private:
-    friend class Aero::Internal::ListBehavior;
-    friend class Aero::Internal::ComboBehavior;
+    friend struct ::Aero::Visual::Impl;
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;
     std::uint32_t pendingIndex_ = UINT32_MAX;
@@ -811,6 +810,8 @@ private:
 class AERO_API ListBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ListBox, Primitives::Selector)
 public:
+    struct Impl;
+
     ListBox() noexcept : Primitives::Selector(StaticTypeId()) {}
     ~ListBox() override;
 
@@ -825,7 +826,7 @@ protected:
             const Base::Ref<Base::Object>& item) noexcept override;
 
 private:
-    friend class Aero::Internal::ListBehavior;
+    friend struct Impl;
     void* interactions_ = nullptr;
 };
 
@@ -848,6 +849,8 @@ public:
 class AERO_API ComboBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ComboBox, Primitives::Selector)
 public:
+    struct Impl;
+
     ComboBox() noexcept;
     ~ComboBox() override;
 
@@ -918,7 +921,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend class Aero::Internal::ComboBehavior;
+    friend struct Impl;
     void* interactions_ = nullptr;
     TextBlock* selectionBox_ = nullptr;
     ContentPresenter* selectionPresenter_ =
@@ -1239,7 +1242,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend class Aero::Internal::TreeBehavior;
+    friend struct ::Aero::Visual::Impl;
     // The collection protocol is an implementation detail used by the
     // generated child ItemsControl; it is intentionally not part of the
     // TreeViewItem SDK surface.
@@ -1297,6 +1300,8 @@ class AERO_API TreeView
     : public ItemsControl {
     AERO_DECLARE_TYPE(TreeView, ItemsControl)
 public:
+    struct Impl;
+
     TreeView() noexcept
         : ItemsControl(StaticTypeId()) {}
     ~TreeView() override;
@@ -1315,7 +1320,7 @@ protected:
             noexcept override;
 
 private:
-    friend class Aero::Internal::TreeBehavior;
+    friend struct Impl;
     void* interactions_ =
         nullptr;
     VisualStateManager* states_ = nullptr;
@@ -1409,7 +1414,7 @@ protected:
 
 private:
     friend class ItemContainerGenerator;
-    friend class ::Aero::Internal::ItemContainerGeneratorImpl;
+    friend struct ::Aero::Visual::Impl;
 
     ItemContainerGenerator* generator_ = nullptr;
     Base::Vector<double> itemExtents_;

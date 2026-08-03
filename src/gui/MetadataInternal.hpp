@@ -944,7 +944,7 @@ private:
 
 } // namespace Aero::Meta
 
-#include <Aero/RoutedEvent.hpp>
+#include <Aero/Events/RoutedEvent.hpp>
 
 namespace Aero::Meta {
 

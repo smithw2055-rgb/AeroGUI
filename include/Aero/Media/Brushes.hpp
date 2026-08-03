@@ -7,10 +7,6 @@
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Transforms.hpp>
 
-namespace Aero::Internal {
-class BrushPrivate;
-}
-
 namespace Aero::Media {
 
 using ::Aero::Meta::DependencyPropertyHandle;
@@ -41,6 +37,8 @@ enum class BrushMappingMode : std::uint8_t {
 class AERO_API Brush : public DependencyObject {
     AERO_DECLARE_TYPE(Brush, DependencyObject)
 public:
+    struct Impl;
+
     double GetOpacity() const noexcept;
     void SetOpacity(double value) noexcept;
     Base::Ref<Base::Object> GetShader() const noexcept {
@@ -73,7 +71,7 @@ protected:
         PropertyInvalidationFlags flags) noexcept override;
 
 private:
-    friend class ::Aero::Internal::BrushPrivate;
+    friend struct Impl;
     FrameworkElement* owner_ = nullptr;
 
     FrameworkElement* GetOwner() const noexcept {
@@ -332,7 +330,7 @@ public:
     inline static constexpr Members::Property<TileMode> TileModeProperty{"TileMode"};
 
 private:
-    friend class Aero::Internal::BrushPrivate;
+    friend struct ::Aero::Media::Brush::Impl;
     std::uint64_t renderImage_ = 0U;
     std::uint32_t pixelWidth_ = 0U;
     std::uint32_t pixelHeight_ = 0U;

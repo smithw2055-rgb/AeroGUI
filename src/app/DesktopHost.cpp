@@ -130,7 +130,8 @@ struct DesktopHost::Impl {
             if (!loaded) return loaded.GetStatus();
             const Base::Ref<Base::Object>& root = loaded.Value().Root();
             if (!root ||
-                !view->IsInstanceOf(*root, Window::StaticTypeId())) {
+                !View::Impl::IsInstanceOf(
+                    *view, *root, Window::StaticTypeId())) {
                 return HostFailure(
                     Base::ErrorCode::InvalidArgument,
                     "StartupUri XAML root must be Window");
@@ -189,8 +190,8 @@ struct DesktopHost::Impl {
             } else {
                 view->SetContent(std::move(loadedDocument), size);
             }
-            DesktopPrivate::Attach(*window, &runtime);
-            DesktopPrivate::NotifySourceInitialized(*window);
+            Window::Impl::Attach(*window, &runtime);
+            Window::Impl::NotifySourceInitialized(*window);
             return {};
         }
 
@@ -306,7 +307,7 @@ struct DesktopHost::Impl {
             case Platform::WindowEventType::Closed:
                 closeRequested = true;
                 if (window != nullptr) {
-                    DesktopPrivate::NotifyClosed(*window);
+                    Window::Impl::NotifyClosed(*window);
                 }
                 return {};
             case Platform::WindowEventType::Resized:
@@ -444,7 +445,7 @@ struct DesktopHost::Impl {
             }
             Base::Result<void> shown = nativeWindow->Show();
             if (shown && window != nullptr) {
-                    DesktopPrivate::NotifyContentRendered(*window);
+                    Window::Impl::NotifyContentRendered(*window);
             }
             return shown;
         }
@@ -472,10 +473,10 @@ struct DesktopHost::Impl {
             if (shutdown) return;
             shutdown = true;
             if (renderDevice) static_cast<void>(renderDevice->WaitIdle());
-            if (view) static_cast<void>(view->Unmount());
+            if (view) static_cast<void>(View::Impl::Unmount(*view));
             if (window != nullptr) {
-                DesktopPrivate::NotifyClosed(*window);
-                DesktopPrivate::Detach(*window);
+                Window::Impl::NotifyClosed(*window);
+                Window::Impl::Detach(*window);
             }
 #if defined(_WIN32)
             static_cast<void>(inputMethod.Detach());
@@ -622,8 +623,8 @@ struct DesktopHost::Impl {
         if (!loaded) return loaded.GetStatus();
         const Base::Ref<Base::Object>& root = loaded.Value().Root();
         if (!root ||
-            !loaderView->IsInstanceOf(
-                *root, Application::StaticTypeId())) {
+            !View::Impl::IsInstanceOf(
+                *loaderView, *root, Application::StaticTypeId())) {
             return HostFailure(
                 Base::ErrorCode::InvalidArgument,
                 "Application XAML root must be Application");
@@ -759,7 +760,7 @@ struct DesktopHost::Impl {
             const bool mainClosed = closingWindow != nullptr &&
                 closingWindow == application->GetMainWindow();
             if (host != nullptr && closingWindow != nullptr) {
-                DesktopPrivate::NotifyClosed(*closingWindow);
+                Window::Impl::NotifyClosed(*closingWindow);
             }
             RemoveWindowAt(index);
             const ShutdownMode mode = application->GetShutdownMode();
@@ -909,55 +910,71 @@ Base::Result<int> DesktopHost::Run() noexcept {
     return impl_->Run();
 }
 
-void DesktopPrivate::Attach(
+} // namespace Aero::Internal
+
+namespace Aero {
+
+bool View::Impl::IsInstanceOf(
+    const View& view,
+    const Base::Object& object,
+    Meta::TypeId baseType) noexcept {
+    return view.IsInstanceOf(object, baseType);
+}
+
+Base::Result<void> View::Impl::Unmount(
+    View& view) noexcept {
+    return view.Unmount();
+}
+
+void Application::Impl::Attach(
     Application& application,
     void* hostState,
     Window* mainWindow) noexcept {
     application.Attach(hostState, mainWindow);
 }
 
-void DesktopPrivate::Detach(
+void Application::Impl::Detach(
     Application& application) noexcept {
     application.Detach();
 }
 
-void DesktopPrivate::RaiseStartup(
+void Application::Impl::RaiseStartup(
     Application& application) noexcept {
     application.RaiseStartup();
 }
 
-void DesktopPrivate::RaiseExit(
+void Application::Impl::RaiseExit(
     Application& application,
     int exitCode) noexcept {
     application.RaiseExit(exitCode);
 }
 
-void DesktopPrivate::Attach(
+void Window::Impl::Attach(
     Window& window,
     void* hostState) noexcept {
     window.Attach(hostState);
 }
 
-void DesktopPrivate::Detach(Window& window) noexcept {
+void Window::Impl::Detach(Window& window) noexcept {
     window.Detach();
 }
 
-void DesktopPrivate::NotifySourceInitialized(
+void Window::Impl::NotifySourceInitialized(
     Window& window) noexcept {
     window.NotifySourceInitialized();
 }
 
-void DesktopPrivate::NotifyContentRendered(
+void Window::Impl::NotifyContentRendered(
     Window& window) noexcept {
     window.NotifyContentRendered();
 }
 
-void DesktopPrivate::NotifyClosed(
+void Window::Impl::NotifyClosed(
     Window& window) noexcept {
     window.NotifyClosed();
 }
 
-} // namespace Aero::Internal
+} // namespace Aero
 
 namespace Aero::App {
 

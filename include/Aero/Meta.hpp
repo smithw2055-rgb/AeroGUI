@@ -2,7 +2,7 @@
 
 #include <Aero/Value.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include <Aero/RoutedEvent.hpp>
+#include <Aero/Events/RoutedEvent.hpp>
 #include <Aero/Module.hpp>
 
 #include <functional>

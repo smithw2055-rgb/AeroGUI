@@ -7,9 +7,9 @@
 #include <cmath>
 #include <utility>
 
-namespace Aero::Internal {
+namespace Aero::Controls {
 
-class DocumentPrivate {
+struct TextBlock::Impl {
 public:
     static bool IsTextBlock(const Base::Object& owner) noexcept {
         return owner.RuntimeType() == Controls::TextBlock::StaticTypeId() ||
@@ -395,6 +395,11 @@ public:
             std::max(static_cast<double>(selected->height), 1.0)};
     }
 };
+
+} // namespace Aero::Controls
+
+namespace Aero::Internal {
+using DocumentPrivate = ::Aero::Controls::TextBlock::Impl;
 
 } // namespace Aero::Internal
 

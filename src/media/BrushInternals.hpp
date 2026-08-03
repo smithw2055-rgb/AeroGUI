@@ -68,36 +68,40 @@ inline Base::Color SampleBrush(
     return fallback;
 }
 
-class BrushPrivate {
+} // namespace Aero::Internal
+
+namespace Aero::Media {
+
+struct Brush::Impl {
 public:
     static Aero::FrameworkElement* Owner(
-        const Media::Brush& brush) noexcept {
+        const Brush& brush) noexcept {
         return brush.GetOwner();
     }
 
     static void SetOwner(
-        Media::Brush& brush,
+        Brush& brush,
         Aero::FrameworkElement* owner) noexcept {
         brush.SetOwner(owner);
     }
 
     static Render::RenderImageId RuntimeImage(
-        const Media::ImageBrush& brush) noexcept {
+        const ImageBrush& brush) noexcept {
         return brush.renderImage_;
     }
 
     static std::uint32_t PixelWidth(
-        const Media::ImageBrush& brush) noexcept {
+        const ImageBrush& brush) noexcept {
         return brush.pixelWidth_;
     }
 
     static std::uint32_t PixelHeight(
-        const Media::ImageBrush& brush) noexcept {
+        const ImageBrush& brush) noexcept {
         return brush.pixelHeight_;
     }
 
     static Base::Result<void> SetRuntimeImage(
-        Media::ImageBrush& brush,
+        ImageBrush& brush,
         Render::RenderImageId image,
         std::uint32_t width,
         std::uint32_t height) noexcept {
@@ -115,5 +119,11 @@ public:
             : Base::Result<void>();
     }
 };
+
+} // namespace Aero::Media
+
+namespace Aero::Internal {
+
+using BrushPrivate = ::Aero::Media::Brush::Impl;
 
 } // namespace Aero::Internal

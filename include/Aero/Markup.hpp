@@ -61,10 +61,6 @@ struct XamlReaderSettings {
 
 } // namespace Aero::Markup
 
-namespace Aero::Internal {
-class ResourcePrivate;
-}
-
 namespace Aero::Markup {
 
 inline constexpr Base::StringView
@@ -75,6 +71,8 @@ LanguageNamespaceUri() noexcept {
 
 class AERO_API NamespaceScope {
 public:
+    struct Impl;
+
     using LookupCallback = Base::Result<Base::StringView> (*)(
         void* context,
         Base::StringView prefix) noexcept;
@@ -88,7 +86,7 @@ public:
     }
 
 private:
-    friend class ::Aero::Internal::ResourcePrivate;
+    friend struct Impl;
 
     NamespaceScope(
         LookupCallback lookup,
@@ -101,6 +99,8 @@ private:
 
 class AERO_API ResourceResolver {
 public:
+    struct Impl;
+
     using LookupCallback =
         Base::Result<Aero::ResourceValue> (*)(
         void* context,
@@ -115,7 +115,7 @@ public:
     }
 
 private:
-    friend class ::Aero::Internal::ResourcePrivate;
+    friend struct ::Aero::Markup::NamespaceScope::Impl;
 
     ResourceResolver(
         LookupCallback lookup,
@@ -132,10 +132,6 @@ namespace Aero {
 
 class ResourceDictionary;
 
-namespace Internal {
-class XamlDocumentPrivate;
-}
-
 // Move-only ownership for one successfully loaded XAML document. The document
 // keeps names, resources, dependency URIs, and the declaration/mount plan alive
 // independently from a View until it is mounted or discarded.
@@ -143,6 +139,8 @@ namespace Markup {
 
 class AERO_API XamlDocument {
 public:
+    struct Impl;
+
     XamlDocument() noexcept = default;
     ~XamlDocument() noexcept;
 
@@ -180,8 +178,7 @@ public:
     Base::Span<const Base::ResourceUri> Dependencies() const noexcept;
 
 private:
-    friend class Aero::Internal::XamlDocumentPrivate;
-    struct Impl;
+    friend struct Impl;
 
     void Reset() noexcept;
     Base::Object* RootObject(Meta::TypeId expectedType) noexcept;

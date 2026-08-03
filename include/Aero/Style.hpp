@@ -17,10 +17,6 @@
 #include <Aero/Triggers/MultiDataTrigger.hpp>
 #include <utility>
 
-namespace Aero::Internal {
-class StylePrivate;
-}
-
 namespace Aero {
 
 class Style;
@@ -56,6 +52,8 @@ private:
 class AERO_API Style : public Base::Object {
     AERO_DECLARE_TYPE(Style, Base::Object)
 public:
+    struct Impl;
+
     Style() noexcept;
     explicit Style(
         TypeId targetType,
@@ -179,12 +177,16 @@ public:
     const ResourceDictionary& GetResources() const noexcept { return resources_; }
     void SetResources(Base::Ref<ResourceDictionary> value) noexcept;
 
-private:
-    friend class ::Aero::Internal::StylePrivate;
+public:
+    friend struct Impl;
 
     Base::Result<void> SealRuntime(const void* properties) noexcept;
 
     struct Impl {
+        static Base::Result<void> Seal(
+            Style& style,
+            const void* properties) noexcept;
+
         Impl() noexcept = default;
         Impl(Impl&&) noexcept = default;
         Impl& operator=(Impl&&) noexcept = default;

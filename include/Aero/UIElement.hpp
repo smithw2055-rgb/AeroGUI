@@ -6,25 +6,12 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Events/Event.hpp>
-#include <Aero/RoutedEvent.hpp>
+#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events/RoutedEvent.hpp>
 
 #include <cstddef>
 #include <new>
 #include <type_traits>
-
-namespace Aero::Internal {
-class ElementPrivate;
-class ButtonBehavior;
-class TextEditBehavior;
-class ScrollBehavior;
-class SliderBehavior;
-class ListBehavior;
-class ComboBehavior;
-class TreeBehavior;
-class MenuBehavior;
-class TemplateEngine;
-class LayoutEngine;
-}
 
 namespace Aero::Input { class RoutedCommand; }
 
@@ -66,6 +53,8 @@ private:
 class AERO_API UIElement : public Visual {
     AERO_DECLARE_TYPE(UIElement, Visual)
 public:
+    struct Impl;
+
     template<class TArgs>
     using Event = ::Aero::Event<UIElement, TArgs>;
 
@@ -268,17 +257,8 @@ protected:
     }
 
 private:
-    friend class Aero::Internal::ElementPrivate;
-    friend class Aero::Internal::ButtonBehavior;
-    friend class Aero::Internal::TextEditBehavior;
-    friend class Aero::Internal::ScrollBehavior;
-    friend class Aero::Internal::SliderBehavior;
-    friend class Aero::Internal::ListBehavior;
-    friend class Aero::Internal::ComboBehavior;
-    friend class Aero::Internal::TreeBehavior;
-    friend class Aero::Internal::MenuBehavior;
-    friend class Aero::Internal::TemplateEngine;
-    friend class Aero::Internal::LayoutEngine;
+    friend struct Impl;
+    friend struct ::Aero::Visual::Impl;
     friend class Aero::Input::RoutedCommand;
 
     struct HandlerOperations {

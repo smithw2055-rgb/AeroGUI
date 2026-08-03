@@ -8,8 +8,6 @@
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Panels.hpp>
 
-namespace Aero::Internal { class MenuBehavior; }
-
 namespace Aero::Controls {
 
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -72,7 +70,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend class Aero::Internal::MenuBehavior;
+    friend struct ::Aero::Visual::Impl;
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
     Primitives::Popup* submenuPopup_ = nullptr;
@@ -91,6 +89,8 @@ private:
 class AERO_API Menu : public ItemsControl {
     AERO_DECLARE_TYPE(Menu, ItemsControl)
 public:
+    struct Impl;
+
     Menu() noexcept
         : Menu(StaticTypeId()) {}
     ~Menu() override;
@@ -104,7 +104,7 @@ protected:
             noexcept override;
 
 private:
-    friend class Aero::Internal::MenuBehavior;
+    friend struct Impl;
     void* interactions_ =
         nullptr;
 };
@@ -342,16 +342,14 @@ public:
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
-class ImageControlPrivate;
-}
-
 namespace Aero::Controls {
 
 
 class AERO_API Image : public FrameworkElement {
     AERO_DECLARE_TYPE(Image, FrameworkElement)
 public:
+    struct Impl;
+
     Image() noexcept
         : FrameworkElement(StaticTypeId()) {}
     ~Image() override = default;
@@ -377,7 +375,7 @@ protected:
         DrawingContext& context) noexcept override;
 
 private:
-    friend class Aero::Internal::ImageControlPrivate;
+    friend struct Impl;
     std::uint64_t renderImage_ = 0U;
     std::uint32_t pixelWidth_ = 0U;
     std::uint32_t pixelHeight_ = 0U;

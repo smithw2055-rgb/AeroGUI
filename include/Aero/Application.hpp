@@ -7,7 +7,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Events/ApplicationEventArgs.hpp>
 #include <Aero/Value.hpp>
-#include <Aero/RoutedEvent.hpp>
+#include <Aero/Events/RoutedEvent.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Window.hpp>
 
@@ -17,7 +17,6 @@
 namespace Aero {
 class Application;
 namespace App { struct RunOptions; }
-namespace Internal { class DesktopPrivate; }
 
 enum class ShutdownMode : std::uint8_t {
     OnLastWindowClose = 0U,
@@ -40,6 +39,8 @@ private:
 class AERO_API Application : public Base::Object {
     AERO_DECLARE_TYPE(Application, Base::Object)
 public:
+    struct Impl;
+
     Application() noexcept : Application(StaticTypeId()) {}
     ~Application() noexcept override = default;
 
@@ -77,7 +78,7 @@ protected:
     virtual void OnDeactivated(EventArgs& args) noexcept;
 
 private:
-    friend class ::Aero::Internal::DesktopPrivate;
+    friend struct Impl;
     friend class Window;
     friend class WindowCollection;
 

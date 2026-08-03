@@ -638,6 +638,12 @@ void Style::SetResources(
         "Style Resources is already assigned");
 }
 
+Base::Result<void> Style::Impl::Seal(
+    Style& style,
+    const void* properties) noexcept {
+    return style.SealRuntime(properties);
+}
+
 } // namespace Aero
 
 namespace Aero::Internal {

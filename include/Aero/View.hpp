@@ -29,7 +29,6 @@ enum class ResourceLoadMode : std::uint8_t { Replace = 0U, Merge };
 class FrameworkElement;
 class View;
 namespace Controls { class ContentControl; }
-namespace Internal { struct ViewData; class DesktopHost; }
 namespace Markup { class XamlReader; class XamlDocument; }
 
 namespace Integration {
@@ -79,6 +78,8 @@ class AERO_API View : public Base::Object {
     struct FrameResult;
 
 public:
+    struct Impl;
+
     View(
         ConstructionToken,
         Gui& gui,
@@ -124,7 +125,6 @@ public:
 private:
     friend class Gui;
     friend class Aero::Markup::XamlReader;
-    friend class Aero::Internal::DesktopHost;
     friend class Integration::ReloadCoordinator;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
@@ -212,7 +212,7 @@ private:
 
     Base::IAllocator* allocator_ = nullptr;
     Base::Ref<Base::Object> gui_;
-    Aero::Internal::ViewData* state_ = nullptr;
+    Impl* state_ = nullptr;
 };
 
 } // namespace Aero

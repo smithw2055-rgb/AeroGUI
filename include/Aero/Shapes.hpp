@@ -4,10 +4,6 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/FrameworkElement.hpp>
 
-namespace Aero::Internal {
-class ControlPrivate;
-}
-
 namespace Aero::Shapes {
 
 using ::Aero::Meta::TypeId;
@@ -122,7 +118,7 @@ protected:
     void OnRender(DrawingContext& context) noexcept override;
 
 private:
-    friend class Aero::Internal::ControlPrivate;
+    friend struct ::Aero::Visual::Impl;
 
     Base::Result<void> EnsureGeometry() noexcept;
     Base::Result<void> EnsureMesh() noexcept;

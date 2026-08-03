@@ -1,5 +1,5 @@
 #include <Aero/Gui.hpp>
-#include <Aero/Events/Events.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/Triggers/Triggers.hpp>
 
 #include <type_traits>

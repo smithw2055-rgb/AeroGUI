@@ -308,14 +308,15 @@ bool TreeView::SelectItem(
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
+using namespace ::Aero::Internal;
 
-TreeBehavior::
-TreeBehavior(
+TreeView::Impl::
+Impl(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input,
@@ -326,15 +327,15 @@ TreeBehavior(
       states_(states),
       mouseDownHandler_(
           this,
-          &TreeBehavior::
+          &TreeView::Impl::
               OnMouseDown),
       keyDownHandler_(
           this,
-          &TreeBehavior::
+          &TreeView::Impl::
               OnKeyDown) {}
 
-TreeBehavior::
-~TreeBehavior() noexcept {
+TreeView::Impl::
+~Impl() noexcept {
     while (!records_.Empty()) {
         TreeView* treeView =
             ResolveTreeView(
@@ -349,7 +350,7 @@ TreeBehavior::
 }
 
 std::uint32_t
-TreeBehavior::FindTreeView(
+TreeView::Impl::FindTreeView(
     const TreeView& treeView) const noexcept {
     for (std::uint32_t index = 0U;
         index < records_.Size(); ++index) {
@@ -363,7 +364,7 @@ TreeBehavior::FindTreeView(
 }
 
 TreeView*
-TreeBehavior::ResolveTreeView(
+TreeView::Impl::ResolveTreeView(
     std::uint32_t index) noexcept {
     Visual* visual =
         index < records_.Size()
@@ -376,7 +377,7 @@ TreeBehavior::ResolveTreeView(
 }
 
 Base::Result<void>
-TreeBehavior::Attach(
+TreeView::Impl::Attach(
     TreeView& treeView) noexcept {
     if (treeView.interactions_ != nullptr ||
         Aero::Internal::ElementPrivate::Tree(treeView) != tree_ ||
@@ -423,7 +424,7 @@ TreeBehavior::Attach(
 }
 
 Base::Result<bool>
-TreeBehavior::Detach(
+TreeView::Impl::Detach(
     TreeView& treeView) noexcept {
     const std::uint32_t index =
         FindTreeView(treeView);
@@ -447,7 +448,7 @@ TreeBehavior::Detach(
 }
 
 TreeViewItem*
-TreeBehavior::FindItem(
+TreeView::Impl::FindItem(
     TreeView& treeView,
     Base::Object* source) const noexcept {
     if (source == nullptr ||
@@ -477,7 +478,7 @@ TreeBehavior::FindItem(
 }
 
 Base::Result<void>
-TreeBehavior::CollectVisibleItems(
+TreeView::Impl::CollectVisibleItems(
     Visual& parent,
     Base::Vector<TreeViewItem*>& items)
     noexcept {
@@ -509,7 +510,7 @@ TreeBehavior::CollectVisibleItems(
     return {};
 }
 
-void TreeBehavior::OnMouseDown(
+void TreeView::Impl::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args)
     noexcept {
@@ -530,7 +531,7 @@ void TreeBehavior::OnMouseDown(
     args.SetHandled(true);
 }
 
-void TreeBehavior::OnKeyDown(
+void TreeView::Impl::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     if (args.GetKey() != KeyboardKeyUp &&
@@ -561,7 +562,7 @@ void TreeBehavior::OnKeyDown(
     }
     if (current == nullptr) return;
     if (args.GetKey() == KeyboardKeyRight &&
-        current->GetCount() != 0U &&
+        ::Aero::Visual::Impl::TreeViewItemCount(*current) != 0U &&
         !current->GetIsExpanded()) {
         static_cast<void>(
             current->SetIsExpanded(true));
@@ -577,7 +578,7 @@ void TreeBehavior::OnKeyDown(
     }
     if (args.GetKey() == KeyboardKeyEnter ||
         args.GetKey() == KeyboardKeySpace) {
-        if (current->GetCount() != 0U) {
+        if (::Aero::Visual::Impl::TreeViewItemCount(*current) != 0U) {
             static_cast<void>(
                 current->SetIsExpanded(
                     !current->GetIsExpanded()));
@@ -618,4 +619,4 @@ void TreeBehavior::OnKeyDown(
     args.SetHandled(true);
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls

@@ -141,11 +141,12 @@ void ButtonBase::OnApplyTemplate() noexcept {
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Primitives {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
+using namespace ::Aero::Internal;
 
 namespace {
 
@@ -161,7 +162,7 @@ ToggleState ReadToggleState(
 
 } // namespace
 
-ButtonBehavior::ButtonBehavior(
+ButtonBase::Impl::Impl(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input,
@@ -172,25 +173,25 @@ ButtonBehavior::ButtonBehavior(
       states_(states),
       buttons_(&Base::GetDefaultAllocator()),
       mouseDownHandler_(
-          this, &ButtonBehavior::OnMouseDown),
+          this, &ButtonBase::Impl::OnMouseDown),
       mouseUpHandler_(
-          this, &ButtonBehavior::OnMouseUp),
+          this, &ButtonBase::Impl::OnMouseUp),
       keyDownHandler_(
-          this, &ButtonBehavior::OnKeyDown),
+          this, &ButtonBase::Impl::OnKeyDown),
       keyUpHandler_(
-          this, &ButtonBehavior::OnKeyUp),
+          this, &ButtonBase::Impl::OnKeyUp),
       focusChangedHandler_(
-          this, &ButtonBehavior::OnFocusChanged),
+          this, &ButtonBase::Impl::OnFocusChanged),
       propertyChangedHandler_(
-          this, &ButtonBehavior::OnPropertyChanged),
+          this, &ButtonBase::Impl::OnPropertyChanged),
       pointerStateChangedHandler_(
-          this, &ButtonBehavior::OnPointerStateChanged),
+          this, &ButtonBase::Impl::OnPointerStateChanged),
       captureChangedHandler_(
-          this, &ButtonBehavior::OnCaptureChanged),
+          this, &ButtonBase::Impl::OnCaptureChanged),
       requeryHandler_(
-          this, &ButtonBehavior::OnRequerySuggested) {}
+          this, &ButtonBase::Impl::OnRequerySuggested) {}
 
-ButtonBehavior::~ButtonBehavior() noexcept {
+ButtonBase::Impl::~Impl() noexcept {
     if (initialized_) {
         static_cast<void>(
             input_->RemovePointerStateChanged(
@@ -256,7 +257,7 @@ ButtonBehavior::~ButtonBehavior() noexcept {
     }
 }
 
-Base::Result<void> ButtonBehavior::Initialize() noexcept {
+Base::Result<void> ButtonBase::Impl::Initialize() noexcept {
     if (initialized_) return {};
     input_->AddPointerStateChanged(pointerStateChangedHandler_);
     input_->AddPointerCaptureChanged(captureChangedHandler_);
@@ -265,7 +266,7 @@ Base::Result<void> ButtonBehavior::Initialize() noexcept {
     return {};
 }
 
-std::uint32_t ButtonBehavior::FindButton(
+std::uint32_t ButtonBase::Impl::FindButton(
     const ButtonBase& button) const noexcept {
     for (std::uint32_t index = 0U;
         index < buttons_.Size(); ++index) {
@@ -276,7 +277,7 @@ std::uint32_t ButtonBehavior::FindButton(
     return UINT32_MAX;
 }
 
-ButtonBase* ButtonBehavior::ResolveButton(
+ButtonBase* ButtonBase::Impl::ResolveButton(
     std::uint32_t index) noexcept {
     Visual* visual = tree_->ResolveHandle(buttons_[index].handle);
     return visual != nullptr
@@ -284,7 +285,7 @@ ButtonBase* ButtonBehavior::ResolveButton(
         : nullptr;
 }
 
-void ButtonBehavior::UnsubscribeCommand(
+void ButtonBase::Impl::UnsubscribeCommand(
     ButtonRecord& record) noexcept {
     if (record.command) {
         static_cast<void>(
@@ -294,7 +295,7 @@ void ButtonBehavior::UnsubscribeCommand(
     }
 }
 
-Base::Result<void> ButtonBehavior::SubscribeCommand(
+Base::Result<void> ButtonBase::Impl::SubscribeCommand(
     ButtonBase& button,
     ButtonRecord& record) noexcept {
     UnsubscribeCommand(record);
@@ -306,7 +307,7 @@ Base::Result<void> ButtonBehavior::SubscribeCommand(
     return {};
 }
 
-Base::Result<void> ButtonBehavior::Attach(
+Base::Result<void> ButtonBase::Impl::Attach(
     ButtonBase& button) noexcept {
     Base::Result<void> ready = Initialize();
     if (!ready) return ready.GetStatus();
@@ -413,7 +414,7 @@ Base::Result<void> ButtonBehavior::Attach(
     return {};
 }
 
-void ButtonBehavior::RemoveAt(
+void ButtonBase::Impl::RemoveAt(
     std::uint32_t index) noexcept {
     if (index + 1U != buttons_.Size()) {
         buttons_[index] =
@@ -422,7 +423,7 @@ void ButtonBehavior::RemoveAt(
     buttons_.PopBack();
 }
 
-Base::Result<bool> ButtonBehavior::Detach(
+Base::Result<bool> ButtonBase::Impl::Detach(
     ButtonBase& button) noexcept {
     const std::uint32_t index = FindButton(button);
     if (index == UINT32_MAX) return false;
@@ -483,7 +484,7 @@ Base::Result<bool> ButtonBehavior::Detach(
     return true;
 }
 
-Base::Result<void> ButtonBehavior::RefreshCanExecute(
+Base::Result<void> ButtonBase::Impl::RefreshCanExecute(
     ButtonBase& button) noexcept {
     const std::uint32_t index = FindButton(button);
     if (index == UINT32_MAX) {
@@ -523,7 +524,7 @@ Base::Result<void> ButtonBehavior::RefreshCanExecute(
 }
 
 Base::Result<std::uint32_t>
-ButtonBehavior::AdvanceTime(
+ButtonBase::Impl::AdvanceTime(
     std::uint32_t elapsedMilliseconds) noexcept {
     std::uint32_t emitted = 0U;
     for (std::uint32_t index = 0U;
@@ -560,7 +561,7 @@ ButtonBehavior::AdvanceTime(
     return emitted;
 }
 
-Base::Result<void> ButtonBehavior::InvokeClick(
+Base::Result<void> ButtonBase::Impl::InvokeClick(
     ButtonBase& button) noexcept {
     if (!button.GetIsEnabled()) return {};
     const TypeId type = button.RuntimeType();
@@ -603,7 +604,7 @@ Base::Result<void> ButtonBehavior::InvokeClick(
         : Base::Result<void>(executed.GetStatus());
 }
 
-Base::Result<void> ButtonBehavior::ApplyToggleState(
+Base::Result<void> ButtonBase::Impl::ApplyToggleState(
     ToggleButton& button,
     ToggleState state) noexcept {
     const std::uint32_t index = FindButton(button);
@@ -620,7 +621,7 @@ Base::Result<void> ButtonBehavior::ApplyToggleState(
     return {};
 }
 
-void ButtonBehavior::PublishToggleState(
+void ButtonBase::Impl::PublishToggleState(
     ToggleButton& button,
     ButtonRecord& record) noexcept {
     const ToggleState state = ReadToggleState(button);
@@ -646,7 +647,7 @@ void ButtonBehavior::PublishToggleState(
         SyncVisualState(button));
 }
 
-void ButtonBehavior::UncheckRadioPeers(
+void ButtonBase::Impl::UncheckRadioPeers(
     RadioButton& button) noexcept {
     Visual* parent = button.GetLogicalParent();
     const Base::StringView group = button.GetGroupName();
@@ -670,7 +671,7 @@ void ButtonBehavior::UncheckRadioPeers(
 }
 
 Base::Result<void>
-ButtonBehavior::SyncVisualState(
+ButtonBase::Impl::SyncVisualState(
     ButtonBase& button,
     bool useTransitions) noexcept {
     if (states_ == nullptr) return {};
@@ -727,7 +728,7 @@ ButtonBehavior::SyncVisualState(
     return {};
 }
 
-void ButtonBehavior::OnMouseDown(
+void ButtonBase::Impl::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
@@ -751,7 +752,7 @@ void ButtonBehavior::OnMouseDown(
         SyncVisualState(button));
 }
 
-void ButtonBehavior::OnMouseUp(
+void ButtonBase::Impl::OnMouseUp(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
@@ -773,7 +774,7 @@ void ButtonBehavior::OnMouseUp(
         SyncVisualState(button));
 }
 
-void ButtonBehavior::OnKeyDown(
+void ButtonBase::Impl::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
@@ -787,7 +788,7 @@ void ButtonBehavior::OnKeyDown(
         record.keyboardDown = true;
         record.repeatElapsed = 0U;
         record.nextRepeat = 0U;
-        static_cast<void>(button.SetPressedState(true));
+        static_cast<void>(::Aero::Visual::Impl::SetPressed(button, true));
         if (button.GetClickMode() == ClickMode::Press) {
             static_cast<void>(InvokeClick(button));
         }
@@ -797,7 +798,7 @@ void ButtonBehavior::OnKeyDown(
     args.SetHandled(true);
 }
 
-void ButtonBehavior::OnKeyUp(
+void ButtonBase::Impl::OnKeyUp(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
@@ -809,7 +810,7 @@ void ButtonBehavior::OnKeyUp(
     buttons_[index].keyboardDown = false;
     buttons_[index].repeatElapsed = 0U;
     buttons_[index].nextRepeat = 0U;
-    static_cast<void>(button.SetPressedState(false));
+    static_cast<void>(::Aero::Visual::Impl::SetPressed(button, false));
     args.SetHandled(true);
     if (button.GetIsEnabled() &&
         button.GetClickMode() == ClickMode::Release) {
@@ -819,7 +820,7 @@ void ButtonBehavior::OnKeyUp(
         SyncVisualState(button));
 }
 
-void ButtonBehavior::OnFocusChanged(
+void ButtonBase::Impl::OnFocusChanged(
     Base::Object* sender,
     KeyboardFocusChangedEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
@@ -830,13 +831,13 @@ void ButtonBehavior::OnFocusChanged(
         buttons_[index].keyboardDown = false;
         buttons_[index].repeatElapsed = 0U;
         buttons_[index].nextRepeat = 0U;
-        static_cast<void>(button.SetPressedState(false));
+        static_cast<void>(::Aero::Visual::Impl::SetPressed(button, false));
     }
     static_cast<void>(
         SyncVisualState(button));
 }
 
-void ButtonBehavior::OnPropertyChanged(
+void ButtonBase::Impl::OnPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
     auto& button = static_cast<ButtonBase&>(object);
@@ -886,7 +887,7 @@ void ButtonBehavior::OnPropertyChanged(
     }
 }
 
-void ButtonBehavior::OnPointerStateChanged(
+void ButtonBase::Impl::OnPointerStateChanged(
     UIElement& element) noexcept {
     for (std::uint32_t index = 0U;
         index < buttons_.Size(); ++index) {
@@ -905,7 +906,7 @@ void ButtonBehavior::OnPointerStateChanged(
     }
 }
 
-void ButtonBehavior::OnCaptureChanged(
+void ButtonBase::Impl::OnCaptureChanged(
     std::uint32_t pointerId,
     UIElement* target,
     bool captured) noexcept {
@@ -927,7 +928,7 @@ void ButtonBehavior::OnCaptureChanged(
     }
 }
 
-void ButtonBehavior::OnRequerySuggested() noexcept {
+void ButtonBase::Impl::OnRequerySuggested() noexcept {
     for (std::uint32_t index = 0U;
         index < buttons_.Size(); ++index) {
         ButtonBase* button = ResolveButton(index);
@@ -937,4 +938,4 @@ void ButtonBehavior::OnRequerySuggested() noexcept {
     }
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Primitives

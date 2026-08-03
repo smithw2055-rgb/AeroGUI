@@ -29,34 +29,34 @@ Base::Transform2D AroundCenter(
 
 } // namespace Aero::Media
 
-namespace Aero::Internal {
+namespace Aero::Media {
 
-Aero::FrameworkElement* TransformPrivate::Owner(
+Aero::FrameworkElement* Transform::Impl::Owner(
     const Aero::Media::Transform& transform) noexcept {
     return transform.GetOwner();
 }
 
-bool TransformPrivate::HasOwnerRole(
+bool Aero::Media::Transform::Impl::HasOwnerRole(
     const Aero::Media::Transform& transform,
     std::uint8_t role) noexcept {
     return transform.HasOwnerRole(role);
 }
 
-void TransformPrivate::AttachOwner(
+void Aero::Media::Transform::Impl::AttachOwner(
     Aero::Media::Transform& transform,
     Aero::FrameworkElement* owner,
     std::uint8_t role) noexcept {
     transform.AttachOwner(owner, role);
 }
 
-void TransformPrivate::DetachOwner(
+void Aero::Media::Transform::Impl::DetachOwner(
     Aero::Media::Transform& transform,
     Aero::FrameworkElement* owner,
     std::uint8_t role) noexcept {
     transform.DetachOwner(owner, role);
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Media
 
 namespace Aero::Media {
 

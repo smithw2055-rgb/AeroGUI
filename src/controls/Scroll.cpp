@@ -2068,22 +2068,23 @@ double ProgressBar::GetNormalizedValue() const noexcept {
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
+using namespace ::Aero::Internal;
 
-ScrollBehavior::ScrollBehavior(
+ScrollViewer::Impl::Impl(
     ElementTree& tree,
     EventRouter& events) noexcept
     : tree_(&tree),
       events_(&events),
       wheelHandler_(
           this,
-          &ScrollBehavior::OnMouseWheel) {}
+          &ScrollViewer::Impl::OnMouseWheel) {}
 
-ScrollBehavior::~ScrollBehavior() noexcept {
+ScrollViewer::Impl::~Impl() noexcept {
     while (!viewers_.Empty()) {
         ScrollViewer* viewer =
             viewers_.Back().viewer;
@@ -2095,7 +2096,7 @@ ScrollBehavior::~ScrollBehavior() noexcept {
     }
 }
 
-std::uint32_t ScrollBehavior::FindViewer(
+std::uint32_t ScrollViewer::Impl::FindViewer(
     const ScrollViewer& viewer) const noexcept {
     const VisualHandle handle = Aero::Internal::ElementPrivate::Handle(viewer);
     for (std::uint32_t index = 0U;
@@ -2110,7 +2111,7 @@ std::uint32_t ScrollBehavior::FindViewer(
     return UINT32_MAX;
 }
 
-Base::Result<void> ScrollBehavior::Attach(
+Base::Result<void> ScrollViewer::Impl::Attach(
     ScrollViewer& viewer) noexcept {
     if (FindViewer(viewer) != UINT32_MAX) {
         return Base::Status::Failure(
@@ -2148,7 +2149,7 @@ Base::Result<void> ScrollBehavior::Attach(
     return {};
 }
 
-Base::Result<bool> ScrollBehavior::Detach(
+Base::Result<bool> ScrollViewer::Impl::Detach(
     ScrollViewer& viewer) noexcept {
     const std::uint32_t index = FindViewer(viewer);
     if (index == UINT32_MAX) return false;
@@ -2164,7 +2165,7 @@ Base::Result<bool> ScrollBehavior::Detach(
     return true;
 }
 
-void ScrollBehavior::OnMouseWheel(
+void ScrollViewer::Impl::OnMouseWheel(
     Base::Object* sender,
     MouseWheelEventArgs& args) noexcept {
     auto* viewer = static_cast<ScrollViewer*>(sender);
@@ -2186,7 +2187,7 @@ void ScrollBehavior::OnMouseWheel(
     }
 }
 
-SliderBehavior::SliderBehavior(
+Slider::Impl::Impl(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input) noexcept
@@ -2195,21 +2196,21 @@ SliderBehavior::SliderBehavior(
       input_(&input),
       mouseDownHandler_(
           this,
-          &SliderBehavior::OnMouseDown),
+          &Slider::Impl::OnMouseDown),
       mouseMoveHandler_(
           this,
-          &SliderBehavior::OnMouseMove),
+          &Slider::Impl::OnMouseMove),
       mouseUpHandler_(
           this,
-          &SliderBehavior::OnMouseUp),
+          &Slider::Impl::OnMouseUp),
       keyDownHandler_(
           this,
-          &SliderBehavior::OnKeyDown),
+          &Slider::Impl::OnKeyDown),
       captureChangedHandler_(
           this,
-          &SliderBehavior::OnCaptureChanged) {}
+          &Slider::Impl::OnCaptureChanged) {}
 
-SliderBehavior::~SliderBehavior()
+Slider::Impl::~Impl()
     noexcept {
     while (!sliders_.Empty()) {
         Slider* slider =
@@ -2225,7 +2226,7 @@ SliderBehavior::~SliderBehavior()
             captureChangedHandler_));
 }
 
-std::uint32_t SliderBehavior::Find(
+std::uint32_t Slider::Impl::Find(
     const Slider& slider) const noexcept {
     for (std::uint32_t index = 0U;
          index < sliders_.Size(); ++index) {
@@ -2241,7 +2242,7 @@ std::uint32_t SliderBehavior::Find(
     return UINT32_MAX;
 }
 
-Slider* SliderBehavior::Resolve(
+Slider* Slider::Impl::Resolve(
     std::uint32_t index) noexcept {
     if (index >= sliders_.Size()) return nullptr;
     Visual* node =
@@ -2257,7 +2258,7 @@ Slider* SliderBehavior::Resolve(
     return static_cast<Slider*>(node);
 }
 
-void SliderBehavior::RemoveAt(
+void Slider::Impl::RemoveAt(
     std::uint32_t index) noexcept {
     if (index >= sliders_.Size()) return;
     if (index + 1U != sliders_.Size()) {
@@ -2267,7 +2268,7 @@ void SliderBehavior::RemoveAt(
     sliders_.PopBack();
 }
 
-Base::Result<void> SliderBehavior::Attach(
+Base::Result<void> Slider::Impl::Attach(
     Slider& slider) noexcept {
     if (Find(slider) != UINT32_MAX) {
         return Base::Status::Failure(
@@ -2348,7 +2349,7 @@ Base::Result<void> SliderBehavior::Attach(
     return {};
 }
 
-Base::Result<bool> SliderBehavior::Detach(
+Base::Result<bool> Slider::Impl::Detach(
     Slider& slider) noexcept {
     const std::uint32_t index = Find(slider);
     if (index == UINT32_MAX) return false;
@@ -2379,7 +2380,7 @@ Base::Result<bool> SliderBehavior::Detach(
 }
 
 Base::Result<void>
-SliderBehavior::SetFromPoint(
+Slider::Impl::SetFromPoint(
     Slider& slider,
     Point point) noexcept {
     const bool horizontal =
@@ -2395,7 +2396,7 @@ SliderBehavior::SetFromPoint(
     return {};
 }
 
-void SliderBehavior::OnMouseDown(
+void Slider::Impl::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& slider =
@@ -2462,7 +2463,7 @@ void SliderBehavior::OnMouseDown(
     args.SetHandled(true);
 }
 
-void SliderBehavior::OnMouseMove(
+void Slider::Impl::OnMouseMove(
     Base::Object* sender,
     MouseEventArgs& args) noexcept {
     auto& slider =
@@ -2480,7 +2481,7 @@ void SliderBehavior::OnMouseMove(
     args.SetHandled(true);
 }
 
-void SliderBehavior::OnMouseUp(
+void Slider::Impl::OnMouseUp(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& slider =
@@ -2504,7 +2505,7 @@ void SliderBehavior::OnMouseUp(
     args.SetHandled(true);
 }
 
-void SliderBehavior::OnKeyDown(
+void Slider::Impl::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& slider =
@@ -2553,7 +2554,7 @@ void SliderBehavior::OnKeyDown(
     }
 }
 
-void SliderBehavior::OnCaptureChanged(
+void Slider::Impl::OnCaptureChanged(
     std::uint32_t pointerId,
     UIElement* target,
     bool captured) noexcept {
@@ -2574,4 +2575,4 @@ void SliderBehavior::OnCaptureChanged(
     }
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls

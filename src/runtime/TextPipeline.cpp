@@ -827,7 +827,7 @@ Base::Result<void> TextPipeline::Initialize(
         impl_->config.atlas.pageHeight = 1024U;
         impl_->config.atlas.maxPages = 4U;
         impl_->resources =
-            device.Resources().text;
+            Integration::RenderDevice::Impl::Resources(device).text;
         if (impl_->resources != nullptr) {
             impl_->resourceGeneration =
                 impl_->resources->generation;
@@ -879,7 +879,7 @@ TextPipeline::SynchronizeBackend(
     }
     impl_->device = &device;
     TextResources* current =
-        device.Resources().text;
+        Integration::RenderDevice::Impl::Resources(device).text;
     const std::uint64_t generation =
         current != nullptr
         ? current->generation
@@ -961,7 +961,8 @@ void TextPipeline::Shutdown() noexcept {
         impl_->layout != nullptr &&
         impl_->resources != nullptr) {
         TextResources* current = impl_->device != nullptr
-            ? impl_->device->Resources().text
+            ? Integration::RenderDevice::Impl::Resources(
+                  *impl_->device).text
             : nullptr;
         if (current == impl_->resources &&
             current->generation ==

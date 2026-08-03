@@ -4,6 +4,81 @@
 
 #include <Aero/Layout.hpp>
 
+namespace Aero {
+
+struct UIElement::Impl {
+    static void*& LayoutManager(UIElement& element) noexcept {
+        return element.layoutManager_;
+    }
+    static const void* LayoutManager(
+        const UIElement& element) noexcept {
+        return element.layoutManager_;
+    }
+    static bool& LayoutAttached(UIElement& element) noexcept {
+        return element.layoutAttached_;
+    }
+    static bool& MeasureValid(UIElement& element) noexcept {
+        return element.measureValid_;
+    }
+    static bool& ArrangeValid(UIElement& element) noexcept {
+        return element.arrangeValid_;
+    }
+    static bool& MeasureQueued(UIElement& element) noexcept {
+        return element.measureQueued_;
+    }
+    static bool& ArrangeQueued(UIElement& element) noexcept {
+        return element.arrangeQueued_;
+    }
+    static bool& Measuring(UIElement& element) noexcept {
+        return element.measuring_;
+    }
+    static bool& Arranging(UIElement& element) noexcept {
+        return element.arranging_;
+    }
+    static Size& DesiredSize(UIElement& element) noexcept {
+        return element.desiredSize_;
+    }
+    static Size& RenderSize(UIElement& element) noexcept {
+        return element.renderSize_;
+    }
+    static Size& UntransformedDesiredSize(UIElement& element) noexcept {
+        return element.untransformedDesiredSize_;
+    }
+    static Size& PreviousMeasureConstraint(UIElement& element) noexcept {
+        return element.previousMeasureConstraint_;
+    }
+    static Rect& LayoutSlot(UIElement& element) noexcept {
+        return element.layoutSlot_;
+    }
+    static Rect& LayoutClip(UIElement& element) noexcept {
+        return element.layoutClip_;
+    }
+    static std::uint64_t& LayoutRevision(UIElement& element) noexcept {
+        return element.layoutRevision_;
+    }
+    static Size MeasureOverride(
+        UIElement& element,
+        Size availableSize) noexcept {
+        return element.MeasureOverride(availableSize);
+    }
+    static Size ArrangeOverride(
+        UIElement& element,
+        Size finalSize) noexcept {
+        return element.ArrangeOverride(finalSize);
+    }
+    static void SetActualSize(
+        FrameworkElement& element,
+        double width,
+        double height) noexcept {
+        element.SetReadOnlyCurrentValue(
+            FrameworkElement::ActualWidthProperty, width);
+        element.SetReadOnlyCurrentValue(
+            FrameworkElement::ActualHeightProperty, height);
+    }
+};
+
+} // namespace Aero
+
 namespace Aero::Internal {
 
 using namespace Aero::Meta;

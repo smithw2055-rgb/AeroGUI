@@ -10,8 +10,6 @@
 #include <Aero/Data.hpp>
 #include <cstdint>
 
-namespace Aero::Internal { class AnimationPrivate; }
-
 namespace Aero::Media::Animation {
 
 using AnimationTime = std::uint64_t;
@@ -30,6 +28,8 @@ enum class EasingMode : std::uint8_t {
 class AERO_API Timeline : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Timeline, ::Aero::DependencyObject)
 public:
+    struct Impl;
+
     Base::StringView GetBeginTime() const noexcept {
         return beginTimeText_.View();
     }
@@ -58,8 +58,6 @@ protected:
         : DependencyObject(runtimeType) {}
 
 private:
-    friend class Aero::Internal::AnimationPrivate;
-
     Base::String beginTimeText_;
     Base::String durationText_;
     Base::String repeatBehaviorText_;
@@ -117,7 +115,7 @@ protected:
     void SetSpringinessValue(double value) noexcept { springiness_ = value; }
 
 private:
-    friend class Aero::Internal::AnimationPrivate;
+    friend struct ::Aero::Media::Animation::Timeline::Impl;
 
     Meta::TypeId runtimeType_ = StaticTypeId();
     Kind kind_ = Kind::Linear;
@@ -379,7 +377,7 @@ protected:
     }
 
 private:
-    friend class Aero::Internal::AnimationPrivate;
+    friend struct ::Aero::Media::Animation::Timeline::Impl;
 
     Meta::TypeId runtimeType_ = StaticTypeId();
     double value_ = 0.0;
@@ -614,7 +612,7 @@ protected:
     }
 
 private:
-    friend class Aero::Internal::AnimationPrivate;
+    friend struct ::Aero::Media::Animation::Timeline::Impl;
 
     Meta::TypeId runtimeType_ = StaticTypeId();
     Base::Color value_;

@@ -14,11 +14,6 @@
 #include <cstdint>
 
 
-namespace Aero::Internal {
-class ElementPrivate;
-class RenderTree;
-}
-
 namespace Aero {
 
 using Meta::PropertyInvalidationFlags;
@@ -92,6 +87,8 @@ private:
 class AERO_API FrameworkElement : public UIElement {
     AERO_DECLARE_TYPE(FrameworkElement, UIElement)
 public:
+    struct Impl;
+
     explicit FrameworkElement(TypeId runtimeType) noexcept;
     ~FrameworkElement() override;
 
@@ -244,8 +241,8 @@ private:
         Meta::TypeId expectedType) noexcept;
 
     friend class LogicalTreeHelper;
-    friend class Aero::Internal::ElementPrivate;
-    friend class Aero::Internal::RenderTree;
+    friend struct ::Aero::Visual::Impl;
+    friend struct ::Aero::UIElement::Impl;
     void* renderRuntime_ = nullptr;
     double dpiScale_ = 1.0;
     Base::RenderNodeId nodeId_ = Base::InvalidRenderNodeId;

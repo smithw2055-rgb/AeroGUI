@@ -43,14 +43,20 @@ using namespace Aero::Controls;
 using namespace Aero::Controls::Primitives;
 using Aero::Internal::TemplateHandle;
 
-class AERO_API ButtonBehavior {
+} // namespace Aero::Internal
+
+namespace Aero::Controls::Primitives {
+
+using namespace ::Aero::Internal;
+
+struct ButtonBase::Impl {
 public:
-    ButtonBehavior(
+    Impl(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input,
         VisualStateManager* states = nullptr) noexcept;
-    ~ButtonBehavior() noexcept;
+    ~Impl() noexcept;
 
     Base::Result<void> Initialize() noexcept;
     Base::Result<void> Attach(ButtonBase& button) noexcept;
@@ -136,14 +142,25 @@ private:
         bool captured) noexcept;
     void OnRequerySuggested() noexcept;
 };
-class AERO_API TextEditBehavior {
+
+} // namespace Aero::Controls::Primitives
+
+namespace Aero::Internal {
+using ButtonBehavior = ::Aero::Controls::Primitives::ButtonBase::Impl;
+}
+
+namespace Aero::Controls {
+
+using namespace ::Aero::Internal;
+
+struct TextBox::Impl {
 public:
-    TextEditBehavior(
+    Impl(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input,
         Integration::IClipboard& clipboard) noexcept;
-    ~TextEditBehavior() noexcept;
+    ~Impl() noexcept;
 
     Base::Result<void> Attach(
         TextBox& textBox) noexcept;
@@ -212,12 +229,23 @@ private:
         UIElement* target,
         bool captured) noexcept;
 };
-class AERO_API ScrollBehavior {
+
+} // namespace Aero::Controls
+
+namespace Aero::Internal {
+using TextEditBehavior = ::Aero::Controls::TextBox::Impl;
+}
+
+namespace Aero::Controls {
+
+using namespace ::Aero::Internal;
+
+struct ScrollViewer::Impl {
 public:
-    ScrollBehavior(
+    Impl(
         ElementTree& tree,
         EventRouter& events) noexcept;
-    ~ScrollBehavior() noexcept;
+    ~Impl() noexcept;
 
     Base::Result<void> Attach(
         ScrollViewer& viewer) noexcept;
@@ -241,13 +269,24 @@ private:
     std::uint32_t FindViewer(
         const ScrollViewer& viewer) const noexcept;
 };
-class AERO_API SliderBehavior {
+
+} // namespace Aero::Controls
+
+namespace Aero::Internal {
+using ScrollBehavior = ::Aero::Controls::ScrollViewer::Impl;
+}
+
+namespace Aero::Controls {
+
+using namespace ::Aero::Internal;
+
+struct Slider::Impl {
 public:
-    SliderBehavior(
+    Impl(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input) noexcept;
-    ~SliderBehavior() noexcept;
+    ~Impl() noexcept;
 
     Base::Result<void> Attach(
         Slider& slider) noexcept;
@@ -297,15 +336,26 @@ private:
         UIElement* target,
         bool captured) noexcept;
 };
-class AERO_API TreeBehavior {
+
+} // namespace Aero::Controls
+
+namespace Aero::Internal {
+using SliderBehavior = ::Aero::Controls::Slider::Impl;
+}
+
+namespace Aero::Controls {
+
+using namespace ::Aero::Internal;
+
+struct TreeView::Impl {
 public:
-    TreeBehavior(
+    Impl(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input,
         VisualStateManager* states = nullptr)
         noexcept;
-    ~TreeBehavior() noexcept;
+    ~Impl() noexcept;
 
     Base::Result<void> Attach(
         TreeView& treeView) noexcept;
@@ -341,13 +391,24 @@ private:
         Base::Object* sender,
         KeyEventArgs& args) noexcept;
 };
-class AERO_API ComboBehavior {
+
+} // namespace Aero::Controls
+
+namespace Aero::Internal {
+using TreeBehavior = ::Aero::Controls::TreeView::Impl;
+}
+
+namespace Aero::Controls {
+
+using namespace ::Aero::Internal;
+
+struct ComboBox::Impl {
 public:
-    ComboBehavior(
+    Impl(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input) noexcept;
-    ~ComboBehavior() noexcept;
+    ~Impl() noexcept;
 
     Base::Result<void> Attach(
         ComboBox& comboBox) noexcept;
@@ -374,14 +435,25 @@ private:
         Base::Object* sender,
         KeyEventArgs& args) noexcept;
 };
-class AERO_API ListBehavior {
+
+} // namespace Aero::Controls
+
+namespace Aero::Internal {
+using ComboBehavior = ::Aero::Controls::ComboBox::Impl;
+}
+
+namespace Aero::Controls {
+
+using namespace ::Aero::Internal;
+
+struct ListBox::Impl {
 public:
-    ListBehavior(
+    Impl(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input,
         VisualStateManager* states = nullptr) noexcept;
-    ~ListBehavior() noexcept;
+    ~Impl() noexcept;
 
     Base::Result<void> Attach(ListBox& listBox) noexcept;
     Base::Result<bool> Detach(ListBox& listBox) noexcept;
@@ -419,6 +491,12 @@ private:
         Base::Object* sender,
         KeyEventArgs& args) noexcept;
 };
+
+} // namespace Aero::Controls
+
+namespace Aero::Internal {
+using ListBehavior = ::Aero::Controls::ListBox::Impl;
+
 class AERO_API TemplateEngine {
 public:
     TemplateEngine(
@@ -513,13 +591,20 @@ private:
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
 };
-class AERO_API MenuBehavior {
+
+} // namespace Aero::Internal
+
+namespace Aero::Controls {
+
+using namespace ::Aero::Internal;
+
+struct Menu::Impl {
 public:
-    MenuBehavior(
+    Impl(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input) noexcept;
-    ~MenuBehavior() noexcept;
+    ~Impl() noexcept;
 
     Base::Result<void> Attach(
         Menu& menu) noexcept;
@@ -553,7 +638,11 @@ private:
         KeyEventArgs& args) noexcept;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls
+
+namespace Aero::Internal {
+using MenuBehavior = ::Aero::Controls::Menu::Impl;
+}
 
 namespace Aero::Internal {
 

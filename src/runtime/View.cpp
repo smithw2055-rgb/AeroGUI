@@ -955,12 +955,16 @@ struct ViewData {
 
     Aero::Internal::MeshResources*
     GetMeshResources() noexcept {
-        return device ? device->Resources().meshes : nullptr;
+        return device
+            ? Integration::RenderDevice::Impl::Resources(*device).meshes
+            : nullptr;
     }
 
     Aero::Internal::ImageResources*
     GetImageResources() noexcept {
-        return device ? device->Resources().images : nullptr;
+        return device
+            ? Integration::RenderDevice::Impl::Resources(*device).images
+            : nullptr;
     }
 
     void AttachPathResources(
@@ -4089,7 +4093,7 @@ struct ViewData {
         schema = nullptr;
         metadata = nullptr;
         if (deviceBound && device) {
-            device->Unbind(this);
+            Integration::RenderDevice::Impl::Unbind(*device, this);
         }
         deviceBound = false;
         device.Reset();
@@ -4123,7 +4127,7 @@ struct ViewData {
             device = std::move(headless).Value();
         }
         Base::Result<void> deviceBinding =
-            device->Bind(this);
+            Integration::RenderDevice::Impl::Bind(*device, this);
         if (!deviceBinding) {
             device.Reset();
             terminal = true;
@@ -5147,6 +5151,8 @@ ViewData::ProcessStoryboardCompletions() noexcept {
 
 } // namespace Aero::Internal
 
+#include "runtime/ViewAccess.hpp"
+
 namespace Aero {
 
 struct View::FrameResult {
@@ -5182,7 +5188,7 @@ struct View::FrameResult {
 
 namespace {
 
-Base::Status ViewInvalidState(const char* message) noexcept {
+Base::Status ViewApiInvalidState(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
 }
 
@@ -5201,26 +5207,38 @@ View::View(
           : &Base::GetDefaultAllocator()),
       gui_(gui.impl_) {
     Gui::Impl& guiState = static_cast<Gui::Impl&>(*gui.impl_);
+    void* stateMemory = allocator_->Allocate({
+        sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup});
+    if (stateMemory == nullptr) {
+        Base::ReportOutOfMemory(
+            sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
+    }
+    state_ = new (stateMemory) Impl{};
     void* memory = allocator_->Allocate({
-        sizeof(::Aero::Internal::ViewData), alignof(::Aero::Internal::ViewData),
+        sizeof(::Aero::Internal::ViewData),
+        alignof(::Aero::Internal::ViewData),
         Base::MemoryTag::Markup});
     if (memory == nullptr) {
         Base::ReportOutOfMemory(
             sizeof(::Aero::Internal::ViewData), alignof(::Aero::Internal::ViewData),
             Base::MemoryTag::Markup);
     }
-    state_ = new (memory) ::Aero::Internal::ViewData(
+    state_->data = new (memory) ::Aero::Internal::ViewData(
         *allocator_, guiState.schema, guiState.documents);
 }
 
 View::~View() noexcept {
     Shutdown();
     if (state_ != nullptr) {
-        state_->~ViewData();
+        state_->data->~ViewData();
         allocator_->Deallocate(
-            state_, sizeof(::Aero::Internal::ViewData),
+            state_->data,
+            sizeof(::Aero::Internal::ViewData),
             alignof(::Aero::Internal::ViewData),
             Base::MemoryTag::Markup);
+        state_->~Impl();
+        allocator_->Deallocate(
+            state_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
         state_ = nullptr;
     }
     gui_.Reset();
@@ -5229,28 +5247,28 @@ View::~View() noexcept {
 Base::Result<void> View::Initialize(
     const Integration::ViewOptions& options) noexcept {
     if (state_ == nullptr || !gui_) {
-        return ViewInvalidState("View has no Gui state");
+        return ViewApiInvalidState("View has no Gui state");
     }
     const Gui::Impl& guiState = static_cast<const Gui::Impl&>(*gui_);
     if (!guiState.initialized) {
         return ViewNotInitialized(
             "Gui must be initialized before creating a View");
     }
-    return state_->Initialize(options);
+    return state_->data->Initialize(options);
 }
 
 void View::Shutdown() noexcept {
-    if (state_ == nullptr || state_->terminal) return;
-    state_->Shutdown();
-    state_->terminal = true;
+    if (state_ == nullptr || state_->data->terminal) return;
+    state_->data->Shutdown();
+    state_->data->terminal = true;
 }
 
 bool View::IsInitialized() const noexcept {
-    return state_ != nullptr && state_->initialized;
+    return state_ != nullptr && state_->data->initialized;
 }
 
 bool View::IsMounted() const noexcept {
-    return state_ != nullptr && state_->mounted;
+    return state_ != nullptr && state_->data->mounted;
 }
 
 Base::Result<Markup::XamlDocument> View::LoadDocument(
@@ -5262,14 +5280,14 @@ Base::Result<Markup::XamlDocument> View::LoadDocument(
             "View must be initialized before XAML loading");
     }
     Base::Result<Markup::XamlReaderSettings> options =
-        state_->XamlSettings(true, settings);
+        state_->data->XamlSettings(true, settings);
     if (!options) return options.GetStatus();
     Markup::Loader loader(
-        *state_->schema,
-        state_->xamlSources,
+        *state_->data->schema,
+        state_->data->xamlSources,
         diagnostics,
         allocator_,
-        &state_->loadContext);
+        &state_->data->loadContext);
     return loader.Load(uri, options.Value());
 }
 
@@ -5283,14 +5301,14 @@ Base::Result<Markup::XamlDocument> View::ParseDocument(
             "View must be initialized before XAML parsing");
     }
     Base::Result<Markup::XamlReaderSettings> options =
-        state_->XamlSettings(true, settings);
+        state_->data->XamlSettings(true, settings);
     if (!options) return options.GetStatus();
     Markup::Loader loader(
-        *state_->schema,
-        state_->xamlSources,
+        *state_->data->schema,
+        state_->data->xamlSources,
         diagnostics,
         allocator_,
-        &state_->loadContext);
+        &state_->data->loadContext);
     return loader.Parse(source, baseUri, options.Value());
 }
 
@@ -5304,14 +5322,14 @@ Base::Result<Markup::XamlDocument> View::ParseStreamDocument(
             "View must be initialized before XAML stream parsing");
     }
     Base::Result<Markup::XamlReaderSettings> options =
-        state_->XamlSettings(true, settings);
+        state_->data->XamlSettings(true, settings);
     if (!options) return options.GetStatus();
     Markup::Loader loader(
-        *state_->schema,
-        state_->xamlSources,
+        *state_->data->schema,
+        state_->data->xamlSources,
         diagnostics,
         allocator_,
-        &state_->loadContext);
+        &state_->data->loadContext);
     return loader.Parse(source, baseUri, options.Value());
 }
 
@@ -5323,14 +5341,14 @@ Base::Result<Markup::XamlDocument> View::LoadCompiledDocument(
             "View must be initialized before compiled XAML loading");
     }
     Base::Result<Markup::XamlReaderSettings> options =
-        state_->XamlSettings(true);
+        state_->data->XamlSettings(true);
     if (!options) return options.GetStatus();
     Markup::Loader loader(
-        *state_->schema,
-        state_->xamlSources,
+        *state_->data->schema,
+        state_->data->xamlSources,
         nullptr,
         allocator_,
-        &state_->loadContext);
+        &state_->data->loadContext);
     return loader.LoadCompiled(
         bytes, originUri, options.Value());
 }
@@ -5339,31 +5357,31 @@ Base::Result<void> View::AddXamlProvider(
     Integration::XamlProvider& provider,
     Base::StringView scheme,
     Base::StringView assembly) noexcept {
-    if (state_ == nullptr || state_->terminal) {
-        return ViewInvalidState(
+    if (state_ == nullptr || state_->data->terminal) {
+        return ViewApiInvalidState(
             "View cannot register a XAML provider");
     }
-    return state_->xamlSources.Register(
+    return state_->data->xamlSources.Register(
         provider, scheme, assembly);
 }
 
 Base::Result<void> View::AddTextureProvider(
     Integration::TextureProvider& provider) noexcept {
-    if (state_ == nullptr || state_->terminal) {
-        return ViewInvalidState(
+    if (state_ == nullptr || state_->data->terminal) {
+        return ViewApiInvalidState(
             "View cannot register a texture provider");
     }
-    state_->textureProvider = &provider;
+    state_->data->textureProvider = &provider;
     return {};
 }
 
 Base::Result<void> View::AddFontProvider(
     Integration::FontProvider& provider) noexcept {
-    if (state_ == nullptr || state_->terminal) {
-        return ViewInvalidState(
+    if (state_ == nullptr || state_->data->terminal) {
+        return ViewApiInvalidState(
             "View cannot register a font provider");
     }
-    state_->fontProvider = &provider;
+    state_->data->fontProvider = &provider;
     return {};
 }
 
@@ -5373,9 +5391,9 @@ Base::Result<void> View::LoadResources(
     ResourceLoadMode mode,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
     Base::Result<Aero::ResourceDictionary*> target =
-        state_->ResolveResourceLayer(layer);
+        state_->data->ResolveResourceLayer(layer);
     if (!target) return target.GetStatus();
-    return state_->LoadResourceLayer(
+    return state_->data->LoadResourceLayer(
         uri,
         *target.Value(),
         diagnostics,
@@ -5389,9 +5407,9 @@ View::LoadCompiledResources(
     const Base::ResourceUri& originUri,
     ResourceLoadMode mode) noexcept {
     Base::Result<Aero::ResourceDictionary*> target =
-        state_->ResolveResourceLayer(layer);
+        state_->data->ResolveResourceLayer(layer);
     if (!target) return target.GetStatus();
-    return state_->LoadCompiledResourceLayer(
+    return state_->data->LoadCompiledResourceLayer(
         bytes,
         originUri,
         *target.Value(),
@@ -5402,15 +5420,15 @@ void View::SetResourceDictionary(
     ResourceLayer layer,
     Aero::ResourceDictionary& dictionary,
     ResourceLoadMode mode) noexcept {
-    if (state_ == nullptr || !state_->initialized) {
+    if (state_ == nullptr || !state_->data->initialized) {
         return;
     }
-    if (state_->mounted || state_->root ||
-        state_->loadedDocument.root) {
+    if (state_->data->mounted || state_->data->root ||
+        state_->data->loadedDocument.root) {
         return;
     }
     Base::Result<Aero::ResourceDictionary*> target =
-        state_->ResolveResourceLayer(layer);
+        state_->data->ResolveResourceLayer(layer);
     if (!target) return;
     Base::Result<Aero::ResourceDictionary> shared =
         dictionary.Share();
@@ -5419,7 +5437,7 @@ void View::SetResourceDictionary(
         Base::Result<void> merged =
             target.Value()->AddMerged(shared.Value());
         if (!merged) return;
-        (void)state_->RebuildDynamicResourceEnvironment();
+        (void)state_->data->RebuildDynamicResourceEnvironment();
         return;
     }
 
@@ -5427,18 +5445,18 @@ void View::SetResourceDictionary(
         std::move(*target.Value());
     *target.Value() = std::move(shared).Value();
     Base::Result<void> rebuilt =
-        state_->RebuildDynamicResourceEnvironment();
+        state_->data->RebuildDynamicResourceEnvironment();
     if (rebuilt) return;
     *target.Value() = std::move(previous);
     Base::Result<void> restored =
-        state_->RebuildDynamicResourceEnvironment();
+        state_->data->RebuildDynamicResourceEnvironment();
     (void)restored;
 }
 
 Base::Result<void> View::LoadBuiltInTheme(
     BuiltInTheme theme) noexcept {
     if (state_ == nullptr) {
-        return ViewInvalidState(
+        return ViewApiInvalidState(
             "View has no implementation");
     }
     if (theme != BuiltInTheme::Light &&
@@ -5467,7 +5485,7 @@ Base::Result<void> View::LoadBuiltInTheme(
     if (!genericUri) return genericUri.GetStatus();
 
     Aero::ResourceDictionary previous =
-        std::move(state_->themeResources);
+        std::move(state_->data->themeResources);
     Base::Result<void> loaded = paletteSize != 0U
         ? LoadCompiledResources(
               ResourceLayer::Theme,
@@ -5490,10 +5508,10 @@ Base::Result<void> View::LoadBuiltInTheme(
                   ResourceLoadMode::Merge);
     }
     if (!loaded) {
-        state_->themeResources =
+        state_->data->themeResources =
             std::move(previous);
         Base::Result<void> restored =
-            state_->RebuildDynamicResourceEnvironment();
+            state_->data->RebuildDynamicResourceEnvironment();
         return restored
             ? Base::Result<void>(loaded.GetStatus())
             : Base::Result<void>(restored.GetStatus());
@@ -5525,51 +5543,51 @@ void View::SetContent(
 
 Base::Result<void> View::Mount(
     Aero::Size availableSize) noexcept {
-    if (!state_->loadedDocument.root) {
+    if (!state_->data->loadedDocument.root) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "View has no staged XAML root");
     }
-    return state_->MountRoot(
-        state_->loadedDocument.root, availableSize);
+    return state_->data->MountRoot(
+        state_->data->loadedDocument.root, availableSize);
 }
 
 Base::Result<void> View::Mount(
     Base::Ref<Base::Object> root,
     Aero::Size availableSize) noexcept {
-    return state_->MountRoot(
+    return state_->data->MountRoot(
         std::move(root), availableSize);
 }
 
 Base::Result<void> View::Mount(
     Markup::XamlDocument&& document,
     Aero::Size availableSize) noexcept {
-    Base::Result<void> ready = state_->BeginDocumentLoad();
+    Base::Result<void> ready = state_->data->BeginDocumentLoad();
     if (!ready) return ready.GetStatus();
     if (!document.IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "View cannot mount an empty UI document");
     }
-    if (Aero::Internal::XamlDocumentPrivate::RuntimeLifetime(document) !=
-        state_->effectLifetime.Get()) {
+    if (Aero::Internal::XamlDocumentRuntimeLifetime(document) !=
+        state_->data->effectLifetime.Get()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "UI document belongs to another View");
     }
-    Base::Result<void> valid = state_->ValidateDocumentRoot(document.Root());
+    Base::Result<void> valid = state_->data->ValidateDocumentRoot(document.Root());
     if (!valid) return valid.GetStatus();
-    state_->loadedDocument =
-        Aero::Internal::XamlDocumentPrivate::Take(document);
-    return state_->MountRoot(
-        state_->loadedDocument.root, availableSize);
+    state_->data->loadedDocument =
+        Aero::Internal::TakeXamlDocument(document);
+    return state_->data->MountRoot(
+        state_->data->loadedDocument.root, availableSize);
 }
 
 Base::Result<void> View::ReplaceMountedDocument(
     Markup::XamlDocument&& document,
     Aero::Size availableSize) noexcept {
-    if (state_ == nullptr || !state_->initialized || !state_->mounted) {
-        return ViewInvalidState(
+    if (state_ == nullptr || !state_->data->initialized || !state_->data->mounted) {
+        return ViewApiInvalidState(
             "View document replacement requires a mounted view");
     }
     if (!document.IsValid()) {
@@ -5577,19 +5595,19 @@ Base::Result<void> View::ReplaceMountedDocument(
             Base::ErrorCode::InvalidArgument,
             "View cannot replace a document with an empty document");
     }
-    if (Aero::Internal::XamlDocumentPrivate::RuntimeLifetime(document) !=
-        state_->effectLifetime.Get()) {
+    if (Aero::Internal::XamlDocumentRuntimeLifetime(document) !=
+        state_->data->effectLifetime.Get()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Replacement UI document belongs to another View");
     }
-    Base::Result<void> valid = state_->ValidateDocumentRoot(document.Root());
+    Base::Result<void> valid = state_->data->ValidateDocumentRoot(document.Root());
     if (!valid) return valid.GetStatus();
 
     Markup::LoaderResult next =
-        Aero::Internal::XamlDocumentPrivate::Take(document);
+        Aero::Internal::TakeXamlDocument(document);
     if (!next.root ||
-        !state_->metadata->Types().IsDerivedFrom(
+        !state_->data->metadata->Types().IsDerivedFrom(
             next.root->RuntimeType(),
             Aero::Visual::StaticTypeId())) {
         next.Clear();
@@ -5599,36 +5617,36 @@ Base::Result<void> View::ReplaceMountedDocument(
     }
 
     Base::Result<void> detached =
-        state_->DetachMountedRoot(false);
+        state_->data->DetachMountedRoot(false);
     if (!detached) {
-        Base::Result<void> restored = state_->MountRoot(
-            state_->loadedDocument.root, availableSize);
+        Base::Result<void> restored = state_->data->MountRoot(
+            state_->data->loadedDocument.root, availableSize);
         next.Clear();
         return restored ? detached : restored;
     }
 
     Markup::LoaderResult previous =
-        std::move(state_->loadedDocument);
-    state_->loadedDocument = std::move(next);
-    Base::Result<void> mounted = state_->MountRoot(
-        state_->loadedDocument.root, availableSize);
+        std::move(state_->data->loadedDocument);
+    state_->data->loadedDocument = std::move(next);
+    Base::Result<void> mounted = state_->data->MountRoot(
+        state_->data->loadedDocument.root, availableSize);
     if (mounted) {
         previous.Clear();
         return {};
     }
 
-    state_->loadedDocument = std::move(previous);
-    Base::Result<void> restored = state_->MountRoot(
-        state_->loadedDocument.root, availableSize);
+    state_->data->loadedDocument = std::move(previous);
+    Base::Result<void> restored = state_->data->MountRoot(
+        state_->data->loadedDocument.root, availableSize);
     return restored ? mounted : restored;
 }
 
 Base::Result<void> View::MountContent(
     Controls::ContentControl& host,
     Markup::XamlDocument&& document) noexcept {
-    if (state_ == nullptr || !state_->initialized || !state_->mounted ||
-        state_->tree == nullptr || state_->layout == nullptr) {
-        return ViewInvalidState(
+    if (state_ == nullptr || !state_->data->initialized || !state_->data->mounted ||
+        state_->data->tree == nullptr || state_->data->layout == nullptr) {
+        return ViewApiInvalidState(
             "content fragment mounting requires a mounted View");
     }
     if (!document.IsValid()) {
@@ -5636,13 +5654,13 @@ Base::Result<void> View::MountContent(
             Base::ErrorCode::InvalidArgument,
             "content fragment document must not be empty");
     }
-    if (Aero::Internal::XamlDocumentPrivate::RuntimeLifetime(document) !=
-        state_->effectLifetime.Get()) {
+    if (Aero::Internal::XamlDocumentRuntimeLifetime(document) !=
+        state_->data->effectLifetime.Get()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "content fragment document belongs to another View");
     }
-    if (Aero::Internal::ElementPrivate::Tree(host) != state_->tree) {
+    if (Aero::Internal::ElementPrivate::Tree(host) != state_->data->tree) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "content fragment host does not belong to this View");
@@ -5650,33 +5668,33 @@ Base::Result<void> View::MountContent(
 
     std::uint32_t existing = UINT32_MAX;
     for (std::uint32_t index = 0U;
-         index < state_->fragmentMounts.Size(); ++index) {
-        if (state_->fragmentMounts[index].host == &host) {
+         index < state_->data->fragmentMounts.Size(); ++index) {
+        if (state_->data->fragmentMounts[index].host == &host) {
             existing = index;
             break;
         }
     }
     if (existing != UINT32_MAX) {
-        Base::Result<void> unmounted = state_->UnmountFragmentAt(existing);
+        Base::Result<void> unmounted = state_->data->UnmountFragmentAt(existing);
         if (!unmounted) return unmounted.GetStatus();
     } else if (Internal::ControlPrivate::ContentElement(host) != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
               "content fragment host already owns non-fragment content");
     }
-    Base::Result<void> capacity = state_->fragmentMounts.Reserve(
-        state_->fragmentMounts.Size() + 1U);
+    Base::Result<void> capacity = state_->data->fragmentMounts.Reserve(
+        state_->data->fragmentMounts.Size() + 1U);
     if (!capacity) return capacity.GetStatus();
 
     ::Aero::Internal::ViewData::FragmentMount fragment;
     fragment.host = &host;
-    fragment.document = Aero::Internal::XamlDocumentPrivate::Take(document);
+    fragment.document = Aero::Internal::TakeXamlDocument(document);
     Base::Result<Aero::Visual*> rootVisual =
-        state_->ResolveVisual(
+        state_->data->ResolveVisual(
             *fragment.document.root,
             fragment.document.root->RuntimeType());
     Base::Result<Aero::UIElement*> rootElement =
-        state_->ResolveUIElement(
+        state_->data->ResolveUIElement(
             *fragment.document.root,
             fragment.document.root->RuntimeType());
     if (!rootVisual || !rootElement) {
@@ -5698,7 +5716,7 @@ Base::Result<void> View::MountContent(
         return assigned.GetStatus();
     }
 
-    ElementTree& context = *state_->tree;
+    ElementTree& context = *state_->data->tree;
     Base::Result<Aero::Internal::ElementAttachment> rootMounted =
         context.AttachElement(host, *rootVisual.Value());
     if (!rootMounted) {
@@ -5709,7 +5727,7 @@ Base::Result<void> View::MountContent(
     fragment.rootEdge = std::move(rootMounted).Value();
 
     const auto detachFailedFragment = [&]() noexcept {
-        static_cast<void>(state_->DetachFragment(fragment));
+        static_cast<void>(state_->data->DetachFragment(fragment));
     };
     const auto attachEdges = [&](bool deferred) noexcept
         -> Base::Result<void> {
@@ -5724,8 +5742,8 @@ Base::Result<void> View::MountContent(
                  fragment.document.visualContent.mountEdges) {
                 if (edge.state.logicalAttached || edge.parent == nullptr ||
                     edge.child == nullptr ||
-                    Aero::Internal::ElementPrivate::Tree(*edge.parent) != state_->tree ||
-                    (deferred && Aero::Internal::ElementPrivate::Tree(*edge.child) == state_->tree)) {
+                    Aero::Internal::ElementPrivate::Tree(*edge.parent) != state_->data->tree ||
+                    (deferred && Aero::Internal::ElementPrivate::Tree(*edge.child) == state_->data->tree)) {
                     continue;
                 }
                 Base::Result<Aero::Internal::ElementAttachment> mounted =
@@ -5746,7 +5764,7 @@ Base::Result<void> View::MountContent(
         return attached.GetStatus();
     }
     Base::Result<void> applied =
-        state_->ApplyUi(*rootVisual.Value());
+        state_->data->ApplyUi(*rootVisual.Value());
     if (!applied) {
         detachFailedFragment();
         return applied.GetStatus();
@@ -5756,7 +5774,7 @@ Base::Result<void> View::MountContent(
         detachFailedFragment();
         return attached.GetStatus();
     }
-    applied = state_->ApplyUi(*rootVisual.Value());
+    applied = state_->data->ApplyUi(*rootVisual.Value());
     if (!applied) {
         detachFailedFragment();
         return applied.GetStatus();
@@ -5767,14 +5785,14 @@ Base::Result<void> View::MountContent(
         return effects.GetStatus();
     }
     Base::Result<std::uint32_t> animations =
-        state_->StartLoadedAnimations(
+        state_->data->StartLoadedAnimations(
             rootVisual.Value(), &fragment.document.names);
     if (!animations) {
         detachFailedFragment();
         return animations.GetStatus();
     }
     Base::Result<void> retained =
-        state_->fragmentMounts.PushBack(std::move(fragment));
+        state_->data->fragmentMounts.PushBack(std::move(fragment));
     if (!retained) {
         return retained.GetStatus();
     }
@@ -5783,14 +5801,14 @@ Base::Result<void> View::MountContent(
 
 Base::Result<void> View::UnmountContent(
     Controls::ContentControl& host) noexcept {
-    if (state_ == nullptr || !state_->initialized || !state_->mounted) {
-        return ViewInvalidState(
+    if (state_ == nullptr || !state_->data->initialized || !state_->data->mounted) {
+        return ViewApiInvalidState(
             "content fragment unmounting requires a mounted View");
     }
     for (std::uint32_t index = 0U;
-         index < state_->fragmentMounts.Size(); ++index) {
-        if (state_->fragmentMounts[index].host == &host) {
-            return state_->UnmountFragmentAt(index);
+         index < state_->data->fragmentMounts.Size(); ++index) {
+        if (state_->data->fragmentMounts[index].host == &host) {
+            return state_->data->UnmountFragmentAt(index);
         }
     }
     return Internal::ControlPrivate::ContentElement(host) == nullptr
@@ -5803,14 +5821,14 @@ Base::Result<void> View::UnmountContent(
 void View::SetSize(
     Aero::Size availableSize) noexcept {
     if (!IsMounted() || state_ == nullptr ||
-        !state_->HasAttachedRoot()) {
+        !state_->data->HasAttachedRoot()) {
         return;
     }
-    (void)state_->ResizeVisualRoot(availableSize);
+    (void)state_->data->ResizeVisualRoot(availableSize);
 }
 
 Base::Result<void> View::Unmount() noexcept {
-    return state_->UnmountRoot();
+    return state_->data->UnmountRoot();
 }
 
 Base::Result<void> View::Update(
@@ -5838,81 +5856,82 @@ View::ExecuteFrame() noexcept {
         return ViewNotInitialized(
             "View must be initialized before running frames");
     }
-    if (!state_->animationEventStatus.IsOk()) {
-        return state_->animationEventStatus;
+    if (!state_->data->animationEventStatus.IsOk()) {
+        return state_->data->animationEventStatus;
     }
-    if (state_->styles != nullptr &&
-        !state_->styles->LastActionStatus().IsOk()) {
-        return state_->styles->LastActionStatus();
+    if (state_->data->styles != nullptr &&
+        !state_->data->styles->LastActionStatus().IsOk()) {
+        return state_->data->styles->LastActionStatus();
     }
     bool deviceGenerationChanged = false;
-    if (state_->device) {
+    if (state_->data->device) {
         const Base::Status deviceStatus =
-            state_->device->GetFrameStatus();
+            Integration::RenderDevice::Impl::FrameStatus(
+                *state_->data->device);
         if (!deviceStatus.IsOk()) {
             return deviceStatus;
         }
         const std::uint64_t generation =
-            state_->device->Generation();
+            state_->data->device->Generation();
         if (generation !=
-            state_->deviceGeneration) {
+            state_->data->deviceGeneration) {
             deviceGenerationChanged = true;
             Aero::Visual* rootVisual =
-                state_->RootVisual();
+                state_->data->RootVisual();
             Aero::FrameworkElement* root =
                 rootVisual != nullptr
                 ? rootVisual->AsFrameworkElement()
                 : nullptr;
             if (root != nullptr) {
                 Base::Result<void> invalidated =
-                    state_->renderer->Invalidate(*root);
+                    state_->data->renderer->Invalidate(*root);
                 if (!invalidated) {
                     return invalidated.GetStatus();
                 }
             }
-            state_->VisitPaths(
+            state_->data->VisitPaths(
                 rootVisual,
-                state_->GetMeshResources(),
+                state_->data->GetMeshResources(),
                 true);
-            state_->deviceGeneration = generation;
+            state_->data->deviceGeneration = generation;
         }
     }
-    if (state_->text != nullptr) {
+    if (state_->data->text != nullptr) {
         Base::Result<bool> synchronized =
-            state_->text->SynchronizeBackend(
-                *state_->device, deviceGenerationChanged);
+            state_->data->text->SynchronizeBackend(
+                *state_->data->device, deviceGenerationChanged);
         if (!synchronized) {
             return synchronized.GetStatus();
         }
         if (synchronized.Value()) {
-            state_->VisitTextElements(
-                state_->RootVisual(),
-                state_->text->Layout(),
+            state_->data->VisitTextElements(
+                state_->data->RootVisual(),
+                state_->data->text->Layout(),
                 true);
         }
     }
-    if (state_->images != nullptr) {
+    if (state_->data->images != nullptr) {
         Base::Result<bool> synchronized =
-            state_->images->Synchronize(
-                state_->RootVisual(),
-                state_->loadedDocument.canonicalUri,
-                state_->xamlSources,
-                state_->textureProvider,
-                state_->GetImageResources(),
+            state_->data->images->Synchronize(
+                state_->data->RootVisual(),
+                state_->data->loadedDocument.canonicalUri,
+                state_->data->xamlSources,
+                state_->data->textureProvider,
+                state_->data->GetImageResources(),
                 deviceGenerationChanged);
         if (!synchronized) {
             return synchronized.GetStatus();
         }
         if (synchronized.Value()) {
             Aero::Visual* rootVisual =
-                state_->RootVisual();
+                state_->data->RootVisual();
             Aero::FrameworkElement* root =
                 rootVisual != nullptr
                 ? rootVisual->AsFrameworkElement()
                 : nullptr;
             if (root != nullptr) {
                 Base::Result<void> invalidated =
-                    state_->renderer->Invalidate(*root);
+                    state_->data->renderer->Invalidate(*root);
                 if (!invalidated) {
                     return invalidated.GetStatus();
                 }
@@ -5933,49 +5952,49 @@ View::ExecuteFrame() noexcept {
     for (::Aero::Threading::DispatcherFramePhase phase : phases) {
         if (phase ==
                 ::Aero::Threading::DispatcherFramePhase::Layout &&
-            state_->HasAttachedRoot()) {
+            state_->data->HasAttachedRoot()) {
             Base::Result<void> completed =
-                state_->CompleteVisualEdges({
-                    state_->loadedDocument.visualContent.mountEdges.Data(),
-                    state_->loadedDocument.visualContent.mountEdges.Size()});
+                state_->data->CompleteVisualEdges({
+                    state_->data->loadedDocument.visualContent.mountEdges.Data(),
+                    state_->data->loadedDocument.visualContent.mountEdges.Size()});
             if (!completed) return completed.GetStatus();
         }
         if (phase ==
             ::Aero::Threading::DispatcherFramePhase::
                 RenderCommit) {
             Base::Result<void> overlays =
-                state_->SynchronizeOverlays();
+                state_->data->SynchronizeOverlays();
             if (!overlays) {
                 return overlays.GetStatus();
             }
         }
         const std::uint64_t renderVersionBefore =
             phase == ::Aero::Threading::DispatcherFramePhase::RenderCommit
-                ? state_->renderer->CurrentFrame().Version() : 0U;
+                ? state_->data->renderer->CurrentFrame().Version() : 0U;
         Base::Result<std::uint32_t> ran =
-            state_->dispatcher.RunFramePhase(phase);
+            state_->data->dispatcher.RunFramePhase(phase);
         if (!ran) return ran.GetStatus();
         if (phase ==
             ::Aero::Threading::DispatcherFramePhase::DataBind) {
             Base::Result<void> generatedVisualsFlushed =
-                state_->FlushGeneratedVisuals();
+                state_->data->FlushGeneratedVisuals();
             if (!generatedVisualsFlushed) {
                 return generatedVisualsFlushed.GetStatus();
             }
         }
         if (phase == ::Aero::Threading::DispatcherFramePhase::Layout &&
-            !state_->layout->LastFlushStatus().IsOk()) {
-            return state_->layout->LastFlushStatus();
+            !state_->data->layout->LastFlushStatus().IsOk()) {
+            return state_->data->layout->LastFlushStatus();
         }
         if (phase == ::Aero::Threading::DispatcherFramePhase::Animation &&
-            state_->animations != nullptr) {
+            state_->data->animations != nullptr) {
             const Base::Status animationStatus =
-                state_->animations->LastTickStatus();
+                state_->data->animations->LastTickStatus();
             if (!animationStatus.IsOk()) {
                 return animationStatus;
             }
             Base::Result<std::uint32_t> completed =
-                state_->ProcessStoryboardCompletions();
+                state_->data->ProcessStoryboardCompletions();
             if (!completed) {
                 return completed.GetStatus();
             }
@@ -5988,9 +6007,9 @@ View::ExecuteFrame() noexcept {
             result.callbackCount += completed.Value();
         }
         if (phase == ::Aero::Threading::DispatcherFramePhase::Lifecycle &&
-            state_->animations != nullptr) {
+            state_->data->animations != nullptr) {
             Base::Result<std::uint32_t> initialValues =
-                state_->animations->ApplyPendingInitialValues();
+                state_->data->animations->ApplyPendingInitialValues();
             if (!initialValues) return initialValues.GetStatus();
             if (result.callbackCount >
                 UINT32_MAX - initialValues.Value()) {
@@ -6010,27 +6029,28 @@ View::ExecuteFrame() noexcept {
         if (phase ==
             ::Aero::Threading::DispatcherFramePhase::RenderCommit) {
             const Base::Status committed =
-                state_->renderer->LastCommitStatus();
+                state_->data->renderer->LastCommitStatus();
             if (!committed.IsOk()) return committed;
-            const Integration::RenderFrame& frame = state_->renderer->CurrentFrame();
-            if (state_->device && frame.Version() != renderVersionBefore) {
+            const Integration::RenderFrame& frame = state_->data->renderer->CurrentFrame();
+            if (state_->data->device && frame.Version() != renderVersionBefore) {
                 Base::Result<void> submitted =
-                    state_->device->Submit(frame);
+                    Integration::RenderDevice::Impl::Submit(
+                        *state_->data->device, frame);
                 if (!submitted) return submitted.GetStatus();
             }
-            if (state_->animations != nullptr) {
-                state_->animations->CommitPendingInitialValues();
+            if (state_->data->animations != nullptr) {
+                state_->data->animations->CommitPendingInitialValues();
             }
         }
     }
-    if (state_->text != nullptr) {
+    if (state_->data->text != nullptr) {
         Base::Result<std::uint32_t> collected =
-            state_->text->CollectGarbage();
+            state_->data->text->CollectGarbage();
         if (!collected) return collected.GetStatus();
     }
-    result.frameNumber = ++state_->frameNumber;
+    result.frameNumber = ++state_->data->frameNumber;
     const Aero::LayoutDiagnostics layout =
-        state_->layout->Diagnostics();
+        state_->data->layout->Diagnostics();
     result.layout.passVersion = layout.passVersion;
     result.layout.measuredCount = layout.measuredCount;
     result.layout.arrangedCount = layout.arrangedCount;
@@ -6039,7 +6059,7 @@ View::ExecuteFrame() noexcept {
     result.layout.pendingArrangeCount =
         layout.pendingArrangeCount;
     const Integration::RenderDiagnostics render =
-        state_->renderer->Diagnostics();
+        state_->data->renderer->Diagnostics();
     result.render.snapshotVersion = render.commitVersion;
     result.render.nodeCount = render.nodeCount;
     result.render.commandCount = render.commandCount;
@@ -6047,10 +6067,10 @@ View::ExecuteFrame() noexcept {
         render.glyphCommandCount;
     result.render.dirtyCount = render.dirtyCount;
     result.render.snapshotHash = render.frameHash;
-    if (state_->device) {
+    if (state_->data->device) {
         const Integration::RenderFrameStatistics
             deviceStatistics =
-                state_->device->
+                state_->data->device->
                     LastFrameStatistics();
         result.render.drawPacketCount =
             deviceStatistics.drawPacketCount;
@@ -6075,33 +6095,33 @@ View::ExecuteFrame() noexcept {
 Base::Result<Input::PointerDispatchResult>
 View::DispatchPointer(
     const Input::PointerInput& input) noexcept {
-    if (!IsMounted() || state_->input == nullptr) {
+    if (!IsMounted() || state_->data->input == nullptr) {
         return ViewNotInitialized(
             "Pointer input requires a mounted View");
     }
     Base::Result<
         Input::PointerDispatchResult>
         dispatched =
-            state_->input->DispatchPointer(input);
+            state_->data->input->DispatchPointer(input);
     if (!dispatched) {
         return dispatched.GetStatus();
     }
     Aero::UIElement* target =
         dispatched.Value().hit.target;
     Base::Result<void> dismissed =
-        state_->DismissOverlaysForPointer(
+        state_->data->DismissOverlaysForPointer(
             input, target);
     if (!dismissed) {
         return dismissed.GetStatus();
     }
     Base::Result<void> toolTip =
-        state_->UpdateToolTipForPointer(
+        state_->data->UpdateToolTipForPointer(
             input, target);
     if (!toolTip) {
         return toolTip.GetStatus();
     }
     Base::Result<void> contextMenu =
-        state_->OpenContextMenuForPointer(
+        state_->data->OpenContextMenuForPointer(
             input, target);
     if (!contextMenu) {
         return contextMenu.GetStatus();
@@ -6112,7 +6132,7 @@ View::DispatchPointer(
 Base::Result<Input::KeyboardDispatchResult>
 View::DispatchKeyboard(
     const Input::KeyboardInput& input) noexcept {
-    if (!IsMounted() || state_->input == nullptr) {
+    if (!IsMounted() || state_->data->input == nullptr) {
         return ViewNotInitialized(
             "Keyboard input requires a mounted View");
     }
@@ -6121,7 +6141,7 @@ View::DispatchKeyboard(
         input.key ==
             Input::KeyboardKeyEscape) {
         Base::Result<bool> dismissed =
-            state_->DismissTopOverlayForEscape();
+            state_->data->DismissTopOverlayForEscape();
         if (!dismissed) {
             return dismissed.GetStatus();
         }
@@ -6132,36 +6152,36 @@ View::DispatchKeyboard(
             return result;
         }
     }
-    return state_->input->DispatchKeyboard(input);
+    return state_->data->input->DispatchKeyboard(input);
 }
 
 Base::Result<Input::TextInputDispatchResult>
 View::DispatchText(
     const Input::TextInput& input) noexcept {
-    if (!IsMounted() || state_->input == nullptr) {
+    if (!IsMounted() || state_->data->input == nullptr) {
         return ViewNotInitialized(
             "Text input requires a mounted View");
     }
-    return state_->input->DispatchText(input);
+    return state_->data->input->DispatchText(input);
 }
 
 Base::Result<std::uint32_t>
 View::AdvanceClocks(
     std::uint32_t elapsedMilliseconds) noexcept {
-    if (!IsMounted() || state_->animations == nullptr) {
+    if (!IsMounted() || state_->data->animations == nullptr) {
         return ViewNotInitialized(
             "View timing requires a mounted animation manager");
     }
     std::uint32_t actionCount = 0U;
-    if (state_->controlBehaviors != nullptr) {
+    if (state_->data->controlBehaviors != nullptr) {
         Base::Result<std::uint32_t> controls =
-            state_->controlBehaviors->AdvanceTime(
+            state_->data->controlBehaviors->AdvanceTime(
                 elapsedMilliseconds);
         if (!controls) return controls.GetStatus();
         actionCount = controls.Value();
     }
     Base::Result<std::uint32_t> toolTips =
-        state_->AdvanceToolTipTime(
+        state_->data->AdvanceToolTipTime(
             elapsedMilliseconds);
     if (!toolTips) return toolTips.GetStatus();
     if (actionCount > UINT32_MAX - toolTips.Value()) {
@@ -6170,16 +6190,16 @@ View::AdvanceClocks(
             "Control timing action count overflow");
     }
     actionCount += toolTips.Value();
-    if (state_->options.automaticAnimationClock) {
+    if (state_->data->options.automaticAnimationClock) {
         return actionCount;
     }
     Base::Result<std::uint32_t> animations =
-        state_->animations->AdvanceBy(
+        state_->data->animations->AdvanceBy(
             static_cast<Aero::Internal::Animation::AnimationTime>(
                 elapsedMilliseconds) * 1000U);
     if (!animations) return animations.GetStatus();
     Base::Result<std::uint32_t> completed =
-        state_->ProcessStoryboardCompletions();
+        state_->data->ProcessStoryboardCompletions();
     if (!completed) return completed.GetStatus();
     if (actionCount > UINT32_MAX - animations.Value()) {
         return Base::Status::Failure(
@@ -6198,17 +6218,17 @@ View::AdvanceClocks(
 Base::Result<std::uint32_t>
 View::AdvanceAnimations(
     std::uint32_t elapsedMilliseconds) noexcept {
-    if (!IsMounted() || state_->animations == nullptr) {
+    if (!IsMounted() || state_->data->animations == nullptr) {
         return ViewNotInitialized(
             "Animation timing requires a mounted View");
     }
     Base::Result<std::uint32_t> advanced =
-        state_->animations->AdvanceBy(
+        state_->data->animations->AdvanceBy(
         static_cast<Aero::Internal::Animation::AnimationTime>(
             elapsedMilliseconds) * 1000U);
     if (!advanced) return advanced.GetStatus();
     Base::Result<std::uint32_t> completed =
-        state_->ProcessStoryboardCompletions();
+        state_->data->ProcessStoryboardCompletions();
     if (!completed) return completed.GetStatus();
     if (advanced.Value() >
         UINT32_MAX - completed.Value()) {
@@ -6228,11 +6248,11 @@ void View::SetRenderDevice(
     if (!device) {
         return;
     }
-    if (device.Get() == state_->device.Get()) {
-        state_->options.automaticAnimationClock =
+    if (device.Get() == state_->data->device.Get()) {
+        state_->data->options.automaticAnimationClock =
             automaticAnimationClock;
-        if (state_->animations != nullptr) {
-            state_->animations->SetAutomaticTickingEnabled(
+        if (state_->data->animations != nullptr) {
+            state_->data->animations->SetAutomaticTickingEnabled(
                 automaticAnimationClock);
         }
         return;
@@ -6243,7 +6263,7 @@ void View::SetRenderDevice(
     if (!bound) return;
 
     Base::Ref<Integration::RenderDevice> previous =
-        state_->device;
+        state_->data->device;
     if (previous) {
         Base::Result<void> idle =
             previous->WaitIdle();
@@ -6254,67 +6274,67 @@ void View::SetRenderDevice(
     }
 
     Aero::Internal::ImageResources*
-        previousImages = state_->GetImageResources();
-    if (state_->images != nullptr) {
-        state_->images->ReleaseBackendResources(
+        previousImages = state_->data->GetImageResources();
+    if (state_->data->images != nullptr) {
+        state_->data->images->ReleaseBackendResources(
             previousImages);
     }
-    state_->VisitTextElements(
-        state_->RootVisual(), nullptr);
-    state_->VisitPaths(
-        state_->RootVisual(), nullptr);
+    state_->data->VisitTextElements(
+        state_->data->RootVisual(), nullptr);
+    state_->data->VisitPaths(
+        state_->data->RootVisual(), nullptr);
 
-    state_->device = device;
-    state_->deviceBound = true;
-    state_->deviceGeneration =
+    state_->data->device = device;
+    state_->data->deviceBound = true;
+    state_->data->deviceGeneration =
         device->Generation();
-    state_->options.renderDevice = device;
-    state_->options.automaticAnimationClock =
+    state_->data->options.renderDevice = device;
+    state_->data->options.automaticAnimationClock =
         automaticAnimationClock;
-    if (state_->animations != nullptr) {
-        state_->animations->SetAutomaticTickingEnabled(
+    if (state_->data->animations != nullptr) {
+        state_->data->animations->SetAutomaticTickingEnabled(
             automaticAnimationClock);
     }
 
     Base::Result<void> status;
-    if (state_->text != nullptr) {
+    if (state_->data->text != nullptr) {
         Base::Result<bool> synchronized =
-            state_->text->SynchronizeBackend(*state_->device, true);
+            state_->data->text->SynchronizeBackend(*state_->data->device, true);
         if (!synchronized) {
             status = synchronized.GetStatus();
         } else {
-            state_->VisitTextElements(
-                state_->RootVisual(),
-                state_->text->Layout(),
+            state_->data->VisitTextElements(
+                state_->data->RootVisual(),
+                state_->data->text->Layout(),
                 true);
         }
     }
-    if (status && state_->images != nullptr) {
+    if (status && state_->data->images != nullptr) {
         Base::Result<bool> synchronized =
-            state_->images->Synchronize(
-                state_->RootVisual(),
-                state_->loadedDocument.canonicalUri,
-                state_->xamlSources,
-                state_->textureProvider,
-                state_->GetImageResources(),
+            state_->data->images->Synchronize(
+                state_->data->RootVisual(),
+                state_->data->loadedDocument.canonicalUri,
+                state_->data->xamlSources,
+                state_->data->textureProvider,
+                state_->data->GetImageResources(),
                 true);
         if (!synchronized) {
             status = synchronized.GetStatus();
         }
     }
     if (status) {
-        state_->VisitPaths(
-            state_->RootVisual(),
-            state_->GetMeshResources(),
+        state_->data->VisitPaths(
+            state_->data->RootVisual(),
+            state_->data->GetMeshResources(),
             true);
         Aero::Visual* rootVisual =
-            state_->RootVisual();
+            state_->data->RootVisual();
         Aero::FrameworkElement* root =
             rootVisual != nullptr
             ? rootVisual->AsFrameworkElement()
             : nullptr;
         if (root != nullptr) {
-            status = state_->renderer->Invalidate(*root);
+            status = state_->data->renderer->Invalidate(*root);
         }
     }
 
@@ -6325,14 +6345,14 @@ void View::SetRenderDevice(
 }
 
 FrameworkElement* View::GetContent() noexcept {
-    return state_ != nullptr && state_->RootVisual() != nullptr
-        ? state_->RootVisual()->AsFrameworkElement()
+    return state_ != nullptr && state_->data->RootVisual() != nullptr
+        ? state_->data->RootVisual()->AsFrameworkElement()
         : nullptr;
 }
 
 const FrameworkElement* View::GetContent() const noexcept {
-    return state_ != nullptr && state_->RootVisual() != nullptr
-        ? state_->RootVisual()->AsFrameworkElement()
+    return state_ != nullptr && state_->data->RootVisual() != nullptr
+        ? state_->data->RootVisual()->AsFrameworkElement()
         : nullptr;
 }
 
@@ -6342,23 +6362,23 @@ Base::Object* View::FindNamedObject(
     if (state_ == nullptr || name.Empty()) {
         return nullptr;
     }
-    Base::Object* object = state_->loadedDocument.names.Find(name);
+    Base::Object* object = state_->data->loadedDocument.names.Find(name);
     if (object == nullptr || expectedType == Meta::InvalidTypeId) {
         return object;
     }
-    return state_->metadata->Types().IsAssignableFrom(
+    return state_->data->metadata->Types().IsAssignableFrom(
         expectedType, object->RuntimeType()) ? object : nullptr;
 }
 
 std::uint32_t View::NamedObjectCount() const noexcept {
-    return state_ != nullptr ? state_->loadedDocument.names.Size() : 0U;
+    return state_ != nullptr ? state_->data->loadedDocument.names.Size() : 0U;
 }
 
 bool View::IsInstanceOf(
     const Base::Object& object,
     Meta::TypeId baseType) const noexcept {
-    return state_ != nullptr && state_->metadata != nullptr &&
-        state_->metadata->Types().IsDerivedFrom(
+    return state_ != nullptr && state_->data->metadata != nullptr &&
+        state_->data->metadata->Types().IsDerivedFrom(
             object.RuntimeType(), baseType);
 }
 
@@ -6372,7 +6392,7 @@ Base::Result<void> View::QueryReloadSource(
             "XAML reload source is unavailable");
     }
     Base::Result<Markup::XamlProviderResolution> resolved =
-        state_->xamlSources.ResolveDetailed(uri);
+        state_->data->xamlSources.ResolveDetailed(uri);
     if (!resolved) return resolved.GetStatus();
     sourceIdentity = resolved.Value().cacheIdentity;
     Base::Result<std::uint64_t> probed =
@@ -6418,18 +6438,18 @@ bool View::TryGetCachedReloadRevision(
     const Base::ResourceUri& uri,
     std::uint64_t sourceIdentity,
     std::uint64_t& revision) noexcept {
-    return state_ != nullptr && state_->documentCache != nullptr &&
-        state_->documentCache->GetSourceRevision(
+    return state_ != nullptr && state_->data->documentCache != nullptr &&
+        state_->data->documentCache->GetSourceRevision(
             uri, sourceIdentity, revision);
 }
 
 Base::Result<std::uint32_t> View::InvalidateReloadDocuments(
     const Base::ResourceUri& uri,
     bool includeDependents) noexcept {
-    if (state_ == nullptr || state_->documentCache == nullptr) {
+    if (state_ == nullptr || state_->data->documentCache == nullptr) {
         return std::uint32_t{0U};
     }
-    return state_->documentCache->Invalidate(uri, includeDependents);
+    return state_->data->documentCache->Invalidate(uri, includeDependents);
 }
 
 } // namespace Aero

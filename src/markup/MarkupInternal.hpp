@@ -1762,16 +1762,11 @@ using ::Aero::Markup::Detail::XamlTemplateSchemaFacet;
 
 
 namespace Aero::Internal {
-
-class XamlDocumentPrivate {
-public:
-    static Base::Result<Markup::XamlDocument> Adopt(
-        Markup::LoaderResult&& result,
-        Base::IAllocator& allocator) noexcept;
-    static Markup::LoaderResult Take(
-        Markup::XamlDocument& document) noexcept;
-    static const Markup::EffectLifetime* RuntimeLifetime(
-        const Markup::XamlDocument& document) noexcept;
-};
-
-} // namespace Aero::Internal
+Base::Result<::Aero::Markup::XamlDocument> AdoptXamlDocument(
+    ::Aero::Markup::LoaderResult&& result,
+    Base::IAllocator& allocator) noexcept;
+const ::Aero::Markup::EffectLifetime* XamlDocumentRuntimeLifetime(
+    const ::Aero::Markup::XamlDocument& document) noexcept;
+::Aero::Markup::LoaderResult TakeXamlDocument(
+    ::Aero::Markup::XamlDocument& document) noexcept;
+}

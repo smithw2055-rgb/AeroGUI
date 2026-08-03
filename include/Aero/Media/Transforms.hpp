@@ -9,7 +9,6 @@
 #include <cstdint>
 
 namespace Aero { class FrameworkElement; }
-namespace Aero::Internal { class TransformPrivate; }
 
 namespace Aero::Media {
 
@@ -18,6 +17,8 @@ using Transform2D = Base::Transform2D;
 class AERO_API Transform : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Transform, ::Aero::DependencyObject)
 public:
+    struct Impl;
+
     virtual Base::Transform2D GetMatrix() const noexcept = 0;
 
 protected:
@@ -27,7 +28,7 @@ protected:
         Meta::PropertyInvalidationFlags flags) noexcept override;
 
 private:
-    friend class ::Aero::Internal::TransformPrivate;
+    friend struct Impl;
     friend class TransformGroup;
     Aero::FrameworkElement* GetOwner() const noexcept { return owner_; }
     virtual void SetOwner(Aero::FrameworkElement* owner) noexcept {

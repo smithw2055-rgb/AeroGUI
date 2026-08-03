@@ -8,10 +8,6 @@
 
 #include <cstdint>
 
-namespace Aero::Internal {
-class ElementPrivate;
-}
-
 namespace Aero {
 
 class FrameworkElement;
@@ -39,6 +35,10 @@ public:
 class AERO_API Visual : public DependencyObject {
     AERO_DECLARE_TYPE(Visual, DependencyObject)
 public:
+    // Source-side access and runtime state are intentionally opaque to SDK
+    // consumers.  The complete definition lives in the implementation tree.
+    struct Impl;
+
     explicit Visual(Meta::TypeId runtimeType) noexcept;
     ~Visual() override;
 
@@ -59,8 +59,6 @@ private:
     friend class LogicalTreeHelper;
     friend class ElementTree;
     friend class VisualTreeHelper;
-    friend class Aero::Internal::ElementPrivate;
-
     Base::Result<Base::Ref<Base::Object>> AcquireLifetime() noexcept;
 
     ElementTree* tree_ = nullptr;

@@ -470,7 +470,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
         if (!added) return added.GetStatus();
     }
     return Aero::Internal::StylePrivate::Seal(
-        style, *options_.properties);
+        style, options_.properties);
 }
 
 Base::Result<void> XamlStyleSchemaFacet::EndStyleInit(

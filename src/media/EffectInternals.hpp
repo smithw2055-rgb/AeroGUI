@@ -2,12 +2,12 @@
 
 #include <Aero/Media/Effects.hpp>
 
-namespace Aero::Internal {
+namespace Aero::Media {
 
 // Effect ownership is a runtime attachment detail.  Keep it out of the SDK
 // surface while allowing the metadata bridge to update it when an Effect
 // property is assigned to a FrameworkElement.
-class EffectPrivate {
+struct Effect::Impl {
 public:
     static Aero::FrameworkElement* Owner(
         const Aero::Media::Effect& effect) noexcept {
@@ -20,5 +20,10 @@ public:
         effect.owner_ = owner;
     }
 };
+
+} // namespace Aero::Media
+
+namespace Aero::Internal {
+using EffectPrivate = ::Aero::Media::Effect::Impl;
 
 } // namespace Aero::Internal

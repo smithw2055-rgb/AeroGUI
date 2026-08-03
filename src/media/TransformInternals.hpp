@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Media/Transforms.hpp>
+
 #include <cstdint>
 
 namespace Aero { class FrameworkElement; }
@@ -18,7 +20,11 @@ constexpr std::uint8_t OwnerRoleValue(
     return static_cast<std::uint8_t>(role);
 }
 
-class TransformPrivate {
+} // namespace Aero::Internal
+
+namespace Aero::Media {
+
+struct Transform::Impl {
 public:
     static Aero::FrameworkElement* Owner(
         const Aero::Media::Transform& transform) noexcept;
@@ -34,5 +40,10 @@ public:
         Aero::FrameworkElement* owner,
         std::uint8_t role) noexcept;
 };
+
+} // namespace Aero::Media
+
+namespace Aero::Internal {
+using TransformPrivate = ::Aero::Media::Transform::Impl;
 
 } // namespace Aero::Internal

@@ -118,7 +118,7 @@ struct TextInputDispatchResult {
 
 AERO_DECLARE_TYPE_ENUM(Aero::Input::InputScope)
 
-#include <Aero/RoutedEvent.hpp>
+#include <Aero/Events/RoutedEvent.hpp>
 
 namespace Aero::Input {
 

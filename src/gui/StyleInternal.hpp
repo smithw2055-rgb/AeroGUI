@@ -42,19 +42,8 @@ public:
 #include <Aero/Style.hpp>
 
 namespace Aero::Internal {
-
-// Private bridge used by XAML and runtime style compilation. Dependency-property
-// registries are implementation state and never appear in the Style SDK.
-class StylePrivate {
-public:
-    static Base::Result<void> Seal(
-        Aero::Style& style,
-        const Meta::DependencyPropertyRegistry& properties) noexcept {
-        return style.SealRuntime(&properties);
-    }
-};
-
-} // namespace Aero::Internal
+using StylePrivate = ::Aero::Style::Impl;
+}
 
 #include "gui/ElementInternal.hpp"
 #include "gui/PropertyInternal.hpp"

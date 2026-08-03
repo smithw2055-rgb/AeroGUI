@@ -10,13 +10,6 @@
 
 namespace Aero { class View; }
 namespace Aero::Integration { class RenderFrame; }
-namespace Aero::Internal {
-struct ViewData;
-class TextPipeline;
-struct RenderResources;
-struct RenderDeviceFunctions;
-class RenderDeviceFactory;
-}
 
 namespace Aero::Integration {
 
@@ -69,6 +62,8 @@ class AERO_API RenderDevice : public Base::Object {
     struct ConstructionToken {};
 
 public:
+    struct Impl;
+
     RenderDevice(
         ConstructionToken,
         RenderDeviceMode mode,
@@ -101,9 +96,7 @@ public:
 
 private:
     friend class Aero::View;
-    friend struct Aero::Internal::ViewData;
-    friend class Aero::Internal::TextPipeline;
-    friend class ::Aero::Internal::RenderDeviceFactory;
+    friend struct Impl;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
     Base::MakeRefWithAllocator(
@@ -114,7 +107,6 @@ private:
     void Unbind(const void* owner) noexcept;
     Base::Result<void> Submit(const RenderFrame& frame) noexcept;
     Base::Status GetFrameStatus() noexcept;
-    Aero::Internal::RenderResources Resources() noexcept;
     Base::Result<RenderFrameStatistics> Analyze(
         const RenderFrame& frame) noexcept;
     void MergeBackendStatistics(
@@ -122,7 +114,7 @@ private:
 
     Base::IAllocator* allocator_ = nullptr;
     void* stateData_ = nullptr;
-    const ::Aero::Internal::RenderDeviceFunctions* functions_ = nullptr;
+    const void* functions_ = nullptr;
     const void* owner_ = nullptr;
     RenderDeviceMode mode_ = RenderDeviceMode::Headless;
     RenderDeviceState state_ = RenderDeviceState::Ready;
@@ -131,17 +123,3 @@ private:
 };
 
 } // namespace Aero::Integration
-
-namespace Aero::Internal {
-
-Base::Result<Base::Ref<::Aero::Integration::RenderDevice>> AdoptRenderDevice(
-    ::Aero::Integration::RenderDeviceMode mode,
-    void* state,
-    const RenderDeviceFunctions* functions,
-    Base::IAllocator* allocator = nullptr) noexcept;
-
-Base::Result<Base::Ref<::Aero::Integration::RenderDevice>>
-CreateHeadlessRenderDevice(
-    Base::IAllocator* allocator = nullptr) noexcept;
-
-} // namespace Aero::Internal

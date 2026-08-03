@@ -1088,15 +1088,22 @@ Base::Result<void> ElementTree::DetachRoot(
 
 } // namespace Aero
 
+namespace Aero {
+
+void Visual::Impl::InvokeHandlers(
+    UIElement& element,
+    RoutedEventHandle event,
+    RoutedEventArgs& args) noexcept {
+    element.InvokeHandlers(event, args);
+}
+
+} // namespace Aero
+
 namespace Aero::Internal {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero;
-
-void ElementPrivate::InvokeHandlers(Aero::UIElement& element, RoutedEventHandle event, RoutedEventArgs& args) noexcept {
-    element.InvokeHandlers(event, args);
-}
 
 EventRouter::EventRouter(
     void* eventState) noexcept
@@ -1149,7 +1156,8 @@ void EventRouter::InvokeNode(
     }
     if (catalog.Types().IsDerivedFrom(
             node.RuntimeType(), ContentElement::StaticTypeId())) {
-        static_cast<ContentElement&>(node).InvokeHandlers(
+        ::Aero::Visual::Impl::InvokeContentHandlers(
+            static_cast<ContentElement&>(node),
             args.GetRoutedEvent(), args);
     }
 }

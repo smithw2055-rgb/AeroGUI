@@ -4,28 +4,30 @@
 
 #include "AnimationModel.hpp"
 
-namespace Aero::Internal {
+namespace Aero::Media::Animation {
 
-class AnimationPrivate {
+namespace Runtime = ::Aero::Animation;
+
+struct Timeline::Impl {
 public:
-    static Animation::TimelineTiming Timing(
-        const Media::Animation::Timeline& timeline) noexcept {
-        Animation::TimelineTiming result;
+    static Runtime::TimelineTiming Timing(
+        const Timeline& timeline) noexcept {
+        Runtime::TimelineTiming result;
         result.beginTimeMicroseconds = timeline.beginTimeMicroseconds_;
         result.durationMicroseconds = timeline.durationMicroseconds_;
         result.repeat = timeline.repeatForever_
-            ? Animation::RepeatBehavior::Forever()
-            : Animation::RepeatBehavior::Count(timeline.repeatCount_);
+            ? Runtime::RepeatBehavior::Forever()
+            : Runtime::RepeatBehavior::Count(timeline.repeatCount_);
         result.speedRatio = timeline.speedRatio_;
         result.autoReverse = timeline.autoReverse_;
         result.fillBehavior = timeline.fillBehavior_;
         return result;
     }
 
-    static Animation::EasingFunction Easing(
-        const Media::Animation::EasingFunctionBase& easing) noexcept {
-        Animation::EasingFunction result;
-        result.kind = static_cast<Animation::EasingFunctionKind>(
+    static Runtime::EasingFunction Easing(
+        const EasingFunctionBase& easing) noexcept {
+        Runtime::EasingFunction result;
+        result.kind = static_cast<Runtime::EasingFunctionKind>(
             static_cast<std::uint8_t>(easing.kind_));
         result.mode = easing.easingMode_;
         result.power = easing.power_;
@@ -35,108 +37,106 @@ public:
         return result;
     }
 
-    static Animation::DoubleAnimation Double(
-        const Media::Animation::DoubleAnimation& animation) noexcept {
-        Animation::DoubleAnimation result;
+    static Runtime::DoubleAnimation Double(
+        const DoubleAnimation& animation) noexcept {
+        Runtime::DoubleAnimation result;
         result.from = animation.GetFrom();
         result.to = animation.GetTo();
         result.accelerationRatio = animation.GetAccelerationRatio();
         result.decelerationRatio = animation.GetDecelerationRatio();
         result.timing = Timing(animation);
-        Base::Ref<Media::Animation::EasingFunctionBase> easing =
+        Base::Ref<EasingFunctionBase> easing =
             animation.GetEasingFunction();
         if (easing) result.easing = Easing(*easing);
         return result;
     }
 
-    static Animation::ColorAnimation Color(
-        const Media::Animation::ColorAnimation& animation) noexcept {
-        Animation::ColorAnimation result;
+    static Runtime::ColorAnimation Color(
+        const ColorAnimation& animation) noexcept {
+        Runtime::ColorAnimation result;
         result.from = animation.GetFrom();
         result.to = animation.GetTo();
         result.timing = Timing(animation);
-        Base::Ref<Media::Animation::EasingFunctionBase> easing =
+        Base::Ref<EasingFunctionBase> easing =
             animation.GetEasingFunction();
         if (easing) result.easing = Easing(*easing);
         return result;
     }
 
-    static Animation::PointAnimation Point(
-        const Media::Animation::PointAnimation& animation) noexcept {
-        Animation::PointAnimation result;
+    static Runtime::PointAnimation Point(
+        const PointAnimation& animation) noexcept {
+        Runtime::PointAnimation result;
         result.from = animation.GetFrom();
         result.to = animation.GetTo();
         result.timing = Timing(animation);
-        Base::Ref<Media::Animation::EasingFunctionBase> easing =
+        Base::Ref<EasingFunctionBase> easing =
             animation.GetEasingFunction();
         if (easing) result.easing = Easing(*easing);
         return result;
     }
 
-    static Animation::RectAnimation Rect(
-        const Media::Animation::RectAnimation& animation) noexcept {
-        Animation::RectAnimation result;
+    static Runtime::RectAnimation Rect(
+        const RectAnimation& animation) noexcept {
+        Runtime::RectAnimation result;
         result.from = animation.GetFrom();
         result.to = animation.GetTo();
         result.timing = Timing(animation);
-        Base::Ref<Media::Animation::EasingFunctionBase> easing =
+        Base::Ref<EasingFunctionBase> easing =
             animation.GetEasingFunction();
         if (easing) result.easing = Easing(*easing);
         return result;
     }
 
-    static Animation::ThicknessAnimation Thickness(
-        const Media::Animation::ThicknessAnimation& animation) noexcept {
-        Animation::ThicknessAnimation result;
+    static Runtime::ThicknessAnimation Thickness(
+        const ThicknessAnimation& animation) noexcept {
+        Runtime::ThicknessAnimation result;
         result.from = animation.GetFrom();
         result.to = animation.GetTo();
         result.timing = Timing(animation);
-        Base::Ref<Media::Animation::EasingFunctionBase> easing =
+        Base::Ref<EasingFunctionBase> easing =
             animation.GetEasingFunction();
         if (easing) result.easing = Easing(*easing);
         return result;
     }
 
-    static Animation::DoubleKeyFrame DoubleFrame(
-        const Media::Animation::DoubleKeyFrame& frame) noexcept {
-        Animation::DoubleKeyFrame result;
+    static Runtime::DoubleKeyFrame DoubleFrame(
+        const DoubleKeyFrame& frame) noexcept {
+        Runtime::DoubleKeyFrame result;
         result.keyTimeMicroseconds = frame.keyTimeMicroseconds_;
         result.value = frame.value_;
         result.interpolation =
-            static_cast<Animation::DoubleKeyFrameInterpolation>(
+            static_cast<Runtime::DoubleKeyFrameInterpolation>(
                 static_cast<std::uint8_t>(frame.interpolation_));
         result.controlPoint1X = frame.controlPoint1X_;
         result.controlPoint1Y = frame.controlPoint1Y_;
         result.controlPoint2X = frame.controlPoint2X_;
         result.controlPoint2Y = frame.controlPoint2Y_;
-        if (frame.RuntimeType() ==
-            Media::Animation::EasingDoubleKeyFrame::StaticTypeId()) {
+        if (frame.RuntimeType() == EasingDoubleKeyFrame::StaticTypeId()) {
             const auto& typed = static_cast<
-                const Media::Animation::EasingDoubleKeyFrame&>(frame);
-            Base::Ref<Media::Animation::EasingFunctionBase> easing =
+                const EasingDoubleKeyFrame&>(frame);
+            Base::Ref<EasingFunctionBase> easing =
                 typed.GetEasingFunction();
             if (easing) result.easing = Easing(*easing);
         }
         return result;
     }
 
-    static Animation::ColorKeyFrame ColorFrame(
-        const Media::Animation::ColorKeyFrame& frame) noexcept {
-        Animation::ColorKeyFrame result;
+    static Runtime::ColorKeyFrame ColorFrame(
+        const ColorKeyFrame& frame) noexcept {
+        Runtime::ColorKeyFrame result;
         result.keyTimeMicroseconds = frame.keyTimeMicroseconds_;
         result.value = frame.value_;
         result.interpolation =
-            static_cast<Animation::DoubleKeyFrameInterpolation>(
+            static_cast<Runtime::DoubleKeyFrameInterpolation>(
                 static_cast<std::uint8_t>(frame.interpolation_));
         result.controlPoint1X = frame.controlPoint1X_;
         result.controlPoint1Y = frame.controlPoint1Y_;
         result.controlPoint2X = frame.controlPoint2X_;
         result.controlPoint2Y = frame.controlPoint2Y_;
-        if (frame.RuntimeType() ==
-            Media::Animation::EasingColorKeyFrame::StaticTypeId()) {
+        if (frame.RuntimeType() == EasingColorKeyFrame::StaticTypeId()) {
             const auto& typed = static_cast<
-                const Media::Animation::EasingColorKeyFrame&>(frame);
-            Base::Ref<Media::Animation::EasingFunctionBase> easing =
+                const EasingColorKeyFrame&>(frame);
+            Base::Ref<EasingFunctionBase> easing =
                 typed.GetEasingFunction();
             if (easing) result.easing = Easing(*easing);
         }
@@ -144,4 +144,8 @@ public:
     }
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Media::Animation
+
+namespace Aero::Internal {
+using AnimationPrivate = ::Aero::Media::Animation::Timeline::Impl;
+}

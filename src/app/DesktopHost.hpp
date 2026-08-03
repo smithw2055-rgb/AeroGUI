@@ -3,10 +3,11 @@
 #include <Aero/App.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
+#include "runtime/ViewAccess.hpp"
 
-namespace Aero::Internal {
+namespace Aero {
 
-class DesktopPrivate {
+struct Application::Impl {
 public:
     static void Attach(
         ::Aero::Application& application,
@@ -18,12 +19,25 @@ public:
         ::Aero::Application& application,
         int exitCode) noexcept;
 
-    static void Attach(::Aero::Window& window, void* hostState) noexcept;
+};
+
+struct Window::Impl {
+    static void Attach(
+        ::Aero::Window& window,
+        void* hostState) noexcept;
     static void Detach(::Aero::Window& window) noexcept;
-    static void NotifySourceInitialized(::Aero::Window& window) noexcept;
-    static void NotifyContentRendered(::Aero::Window& window) noexcept;
+    static void NotifySourceInitialized(
+        ::Aero::Window& window) noexcept;
+    static void NotifyContentRendered(
+        ::Aero::Window& window) noexcept;
     static void NotifyClosed(::Aero::Window& window) noexcept;
 };
+
+} // namespace Aero
+
+namespace Aero::Internal {
+
+using DesktopPrivate = ::Aero::Application::Impl;
 
 // Private implementation of the optional desktop application framework.
 // It is deliberately not installed and does not form a second authoring API.

@@ -1,6 +1,8 @@
 #include "gui/MetadataInternal.hpp"
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Panels.hpp>
+#include <Aero/Controls/Common.hpp>
+#include <Aero/Shapes.hpp>
 #include "../media/BrushRendering.hpp"
 #include "../media/BrushInternals.hpp"
 #include "../render/DrawingInternals.hpp"
@@ -14,6 +16,89 @@
 #include <cmath>
 #include <cstdio>
 #include <utility>
+
+namespace Aero {
+
+std::uint32_t Visual::Impl::PanelChildCount(
+    const Controls::Panel& panel) noexcept {
+    return panel.ChildCountCore();
+}
+
+Base::Ref<Base::Object> Visual::Impl::PanelChildAt(
+    const Controls::Panel& panel,
+    std::uint32_t index) noexcept {
+    return panel.ChildAtCore(index);
+}
+
+Base::Result<void> Visual::Impl::PanelAddChild(
+    Controls::Panel& panel,
+    const Base::Ref<Base::Object>& owner,
+    UIElement& child) noexcept {
+    return panel.AddChildCore(owner, child);
+}
+
+Base::Result<bool> Visual::Impl::PanelRemoveChild(
+    Controls::Panel& panel,
+    UIElement& child) noexcept {
+    return panel.RemoveChildCore(child);
+}
+
+void Visual::Impl::PanelClearChildren(
+    Controls::Panel& panel) noexcept {
+    panel.ClearChildrenCore();
+}
+
+const Base::Ref<Base::Object>& Visual::Impl::DecoratorOwnedChild(
+    const Controls::Decorator& decorator) noexcept {
+    return decorator.ownedChild_;
+}
+
+Base::Result<void> Visual::Impl::DecoratorSetOwnedChild(
+    Controls::Decorator& decorator,
+    const Base::Ref<Base::Object>& owner,
+    UIElement& child) noexcept {
+    decorator.SetOwnedChild(owner, child);
+    return {};
+}
+
+void Visual::Impl::PathInvalidateGeometry(
+    Shapes::Path& path) noexcept {
+    path.ResetGeometry();
+}
+
+void Visual::Impl::PathAttachMeshResources(
+    Shapes::Path& path,
+    void* services,
+    bool invalidate) noexcept {
+    path.AttachMeshResources(services, invalidate);
+    if (invalidate) {
+        static_cast<void>(path.InvalidateVisual());
+    }
+}
+
+void Visual::Impl::SetMenuItemHighlighted(
+    Controls::MenuItem& item,
+    bool value) noexcept {
+    item.SetHighlightedState(value);
+}
+
+void Visual::Impl::SetSelectorStates(
+    Controls::Primitives::Selector& selector,
+    Controls::VisualStateManager* states) noexcept {
+    selector.states_ = states;
+}
+
+void Visual::Impl::SyncSelectorContainers(
+    Controls::Primitives::Selector& selector) noexcept {
+    selector.SyncContainers();
+}
+
+std::uint32_t Visual::Impl::TreeViewItemCount(
+    const Controls::TreeViewItem& item) noexcept {
+    return item.GetCount();
+}
+
+} // namespace Aero
 
 namespace Aero::Controls {
 
@@ -1790,7 +1875,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
             request.alignment = GetTextAlignment();
             Internal::TextLayoutResult output;
             Base::Result<void> prepared =
-                layoutService_->ShapeAndPrepare(request, output);
+                static_cast<::Aero::Internal::TextBlockLayout*>(layoutService_)->ShapeAndPrepare(request, output);
             if (!prepared) return Size{};
             bool validGlyphRuns = true;
             for (RenderGlyphRunId glyphRun : output.glyphRuns) {
@@ -1802,7 +1887,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
             if (!IsValidTextSize(output.desiredSize) || !validGlyphRuns) {
                 for (RenderGlyphRunId glyphRun : output.glyphRuns) {
                     if (glyphRun != InvalidRenderGlyphRunId) {
-                        layoutService_->ReleaseGlyphRun(glyphRun);
+                        static_cast<::Aero::Internal::TextBlockLayout*>(layoutService_)->ReleaseGlyphRun(glyphRun);
                     }
                 }
                 return Size{};
@@ -1881,7 +1966,7 @@ void TextBlock::ReleaseServiceGlyphRun() noexcept {
     if (serviceOwnsGlyphRun_ &&
         layoutService_ != nullptr) {
         for (RenderGlyphRunId glyphRun : glyphRuns_) {
-            layoutService_->ReleaseGlyphRun(glyphRun);
+            static_cast<::Aero::Internal::TextBlockLayout*>(layoutService_)->ReleaseGlyphRun(glyphRun);
         }
     }
     serviceOwnsGlyphRun_ = false;

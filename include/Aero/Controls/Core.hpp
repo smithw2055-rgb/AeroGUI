@@ -84,15 +84,6 @@ struct TextHitRegion {
 
 } // namespace Aero
 
-namespace Aero::Internal {
-class TemplateEngine;
-}
-namespace Aero::Internal {
-class ControlBehavior;
-class ControlPrivate;
-}
-
-
 namespace Aero::Controls {
 
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -162,7 +153,7 @@ protected:
         DrawingContext& context) noexcept override;
 private:
     friend class UIElementCollection;
-    friend class ::Aero::Internal::ControlPrivate;
+    friend struct ::Aero::Visual::Impl;
     std::uint32_t ChildCountCore() const noexcept { return ownedChildren_.Size(); }
     Base::Ref<Base::Object> ChildAtCore(std::uint32_t index) const noexcept {
         return index < ownedChildren_.Size() ? ownedChildren_[index] : Base::Ref<Base::Object>{};
@@ -219,7 +210,7 @@ protected:
         return finalSize;
     }
 private:
-    friend class ::Aero::Internal::ControlPrivate;
+    friend struct ::Aero::Visual::Impl;
     void SetOwnedChild(
         const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
         if (!childObject || childObject.Get() != &child) {
@@ -256,6 +247,10 @@ private:
 class AERO_API Control : public FrameworkElement {
     AERO_DECLARE_TYPE(Control, FrameworkElement)
 public:
+    struct Impl;
+
+    struct Impl;
+
     Base::Ref<Aero::Media::Brush> GetBackground() const noexcept {
         return GetValueOr(
             BackgroundProperty,
@@ -394,9 +389,7 @@ protected:
     void OnRender(
         DrawingContext& context) noexcept override;
 private:
-    friend class Aero::Internal::TemplateEngine;
-    friend class ::Aero::Internal::ControlPrivate;
-    friend class ::Aero::Internal::ControlBehavior;
+    friend struct ::Aero::Controls::Control::Impl;
     friend class VisualStateManager;
     void SetTemplateChildCore(UIElement* child) noexcept {
         if (child != nullptr && child->LayoutParent() != this) {
@@ -529,7 +522,7 @@ protected:
         return finalSize;
     }
 private:
-    friend class ::Aero::Internal::ControlPrivate;
+    friend struct ::Aero::Controls::Control::Impl;
     void SetOwnedContent(
         const Base::Ref<Base::Object>& contentObject, UIElement& content) noexcept {
         if (!contentObject || contentObject.Get() != &content) {

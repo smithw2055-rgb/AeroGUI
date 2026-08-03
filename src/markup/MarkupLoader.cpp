@@ -2906,8 +2906,8 @@ Base::Result<XamlDocument> AdoptResult(
     Base::IAllocator& allocator) noexcept {
     if (!loaded) return loaded.GetStatus();
     Base::Result<XamlDocument> document =
-        Aero::Internal::XamlDocumentPrivate::Adopt(
-        std::move(loaded).Value(), allocator);
+        ::Aero::Internal::AdoptXamlDocument(
+            std::move(loaded).Value(), allocator);
     return document;
 }
 
@@ -3225,6 +3225,14 @@ struct XamlDocument::Impl {
     explicit Impl(LoaderResult&& value) noexcept
         : result(std::move(value)) {}
 
+    static Base::Result<XamlDocument> Adopt(
+        LoaderResult&& result,
+        Base::IAllocator& allocator) noexcept;
+    static LoaderResult Take(
+        XamlDocument& document) noexcept;
+    static const EffectLifetime* RuntimeLifetime(
+        const XamlDocument& document) noexcept;
+
     LoaderResult result;
 };
 
@@ -3252,8 +3260,19 @@ XamlDocument& XamlDocument::operator=(XamlDocument&& other) noexcept {
 
 namespace Aero::Internal {
 
-Base::Result<Markup::XamlDocument> XamlDocumentPrivate::Adopt(
-    Markup::LoaderResult&& result,
+Base::Result<::Aero::Markup::XamlDocument> AdoptXamlDocument(
+    ::Aero::Markup::LoaderResult&& result,
+    Base::IAllocator& allocator) noexcept {
+    return ::Aero::Markup::XamlDocument::Impl::Adopt(
+        std::move(result), allocator);
+}
+
+} // namespace Aero::Internal
+
+namespace Aero::Markup {
+
+Base::Result<XamlDocument> XamlDocument::Impl::Adopt(
+    LoaderResult&& result,
     Base::IAllocator& allocator) noexcept {
     if (!result.root) {
         return Base::Status::Failure(
@@ -3261,22 +3280,22 @@ Base::Result<Markup::XamlDocument> XamlDocumentPrivate::Adopt(
             "UI document requires a loaded root object");
     }
     void* memory = allocator.Allocate({
-        sizeof(Markup::XamlDocument::Impl),
-        alignof(Markup::XamlDocument::Impl),
+        sizeof(XamlDocument::Impl),
+        alignof(XamlDocument::Impl),
         Base::MemoryTag::Markup});
     if (memory == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "UI document allocation failed");
     }
-    Markup::XamlDocument document;
+    XamlDocument document;
     document.allocator_ = &allocator;
     document.impl_ =
-        new (memory) Markup::XamlDocument::Impl(std::move(result));
+        new (memory) XamlDocument::Impl(std::move(result));
     return document;
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Markup
 
 namespace Aero::Markup {
 
@@ -3343,26 +3362,41 @@ Base::Span<const Base::ResourceUri> XamlDocument::Dependencies() const noexcept 
 
 } // namespace Aero::Markup
 
-namespace Aero::Internal {
+namespace Aero::Markup {
 
-const Markup::EffectLifetime*
-XamlDocumentPrivate::RuntimeLifetime(
-    const Markup::XamlDocument& document) noexcept {
+const EffectLifetime*
+XamlDocument::Impl::RuntimeLifetime(
+    const XamlDocument& document) noexcept {
     return document.impl_ != nullptr
         ? document.impl_->result.runtimeLifetime.Get()
         : nullptr;
 }
 
-Markup::LoaderResult XamlDocumentPrivate::Take(
-    Markup::XamlDocument& document) noexcept {
+LoaderResult XamlDocument::Impl::Take(
+    XamlDocument& document) noexcept {
     if (document.impl_ == nullptr) {
-        Markup::LoaderResult empty;
+        LoaderResult empty;
         return empty;
     }
-    Markup::LoaderResult result =
+    LoaderResult result =
         std::move(document.impl_->result);
     document.Reset();
     return result;
+}
+
+} // namespace Aero::Markup
+
+namespace Aero::Internal {
+
+const ::Aero::Markup::EffectLifetime*
+XamlDocumentRuntimeLifetime(
+    const ::Aero::Markup::XamlDocument& document) noexcept {
+    return ::Aero::Markup::XamlDocument::Impl::RuntimeLifetime(document);
+}
+
+::Aero::Markup::LoaderResult TakeXamlDocument(
+    ::Aero::Markup::XamlDocument& document) noexcept {
+    return ::Aero::Markup::XamlDocument::Impl::Take(document);
 }
 
 } // namespace Aero::Internal

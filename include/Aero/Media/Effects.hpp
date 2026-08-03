@@ -5,13 +5,14 @@
 #include <Aero/DependencyProperty.hpp>
 
 namespace Aero { class FrameworkElement; }
-namespace Aero::Internal { class EffectPrivate; }
 
 namespace Aero::Media {
 
 class AERO_API Effect : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Effect, ::Aero::DependencyObject)
 public:
+    struct Impl;
+
 protected:
     explicit Effect(Meta::TypeId runtimeType) noexcept
         : DependencyObject(runtimeType) {}
@@ -19,7 +20,7 @@ protected:
         Meta::PropertyInvalidationFlags flags) noexcept override;
 
 private:
-    friend class ::Aero::Internal::EffectPrivate;
+    friend struct Impl;
     Aero::FrameworkElement* owner_ = nullptr;
 };
 

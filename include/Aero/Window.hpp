@@ -4,7 +4,6 @@
 #include <Aero/Events/WindowEventArgs.hpp>
 
 namespace Aero {
-namespace Internal { class DesktopPrivate; }
 namespace App { class WindowInterop; }
 
 enum class WindowState : std::uint8_t { Normal = 0U, Minimized, Maximized };
@@ -15,6 +14,8 @@ enum class SizeToContent : std::uint8_t { Manual = 0U, Width, Height, WidthAndHe
 class AERO_API Window : public Controls::ContentControl {
     AERO_DECLARE_TYPE(Window, Controls::ContentControl)
 public:
+    struct Impl;
+
     Window() noexcept : Window(StaticTypeId()) {}
     ~Window() noexcept override = default;
 
@@ -71,7 +72,7 @@ protected:
     virtual void OnStateChanged(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(StateChangedEvent, &args)); }
 
 private:
-    friend class ::Aero::Internal::DesktopPrivate;
+    friend struct Impl;
     friend class App::WindowInterop;
 
     void Attach(void* hostState) noexcept { hostState_ = hostState; sourceInitialized_ = false; contentRendered_ = false; closed_ = false; }

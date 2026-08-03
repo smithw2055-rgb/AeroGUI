@@ -5,9 +5,9 @@
 #include <Aero/DrawingContext.hpp>
 #include <Aero/FrameworkElement.hpp>
 
-namespace Aero::Internal {
+namespace Aero {
 
-class DrawingPrivate {
+struct DrawingContext::Impl {
 public:
     static DrawingContext Create(
         Render::DisplayListBuilder& builder) noexcept {
@@ -20,5 +20,10 @@ public:
             context.implementation_);
     }
 };
+
+} // namespace Aero
+
+namespace Aero::Internal {
+using DrawingPrivate = ::Aero::DrawingContext::Impl;
 
 } // namespace Aero::Internal
