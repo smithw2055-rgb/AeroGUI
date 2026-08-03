@@ -568,6 +568,8 @@ using ::Aero::Threading::DispatcherReentrancyGuard;
 class AERO_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, Base::Object)
 public:
+    struct Impl;
+
     TypeId RuntimeType() const noexcept override {
         return runtimeType_;
     }
@@ -616,40 +618,94 @@ public:
     void SetValue(
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
+    Base::Result<void> SetValueChecked(
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept;
     template<class TOwner, class TValue>
     void SetValue(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        PropertyAccess<TValue> value) noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<void> SetValueChecked(
         const DependencyPropertyRef<TOwner, TValue>& property,
         PropertyAccess<TValue> value) noexcept;
     template<class TOwner>
     void SetValue(
         const DependencyPropertyRef<TOwner, Base::String>& property,
         Base::StringView value) noexcept;
+    template<class TOwner>
+    Base::Result<void> SetValueChecked(
+        const DependencyPropertyRef<TOwner, Base::String>& property,
+        Base::StringView value) noexcept;
     template<class TOwner, class TValue>
     void SetValue(
         const AttachedPropertyRef<TOwner, TValue>& property,
         PropertyAccess<TValue> value) noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<void> SetValueChecked(
+        const AttachedPropertyRef<TOwner, TValue>& property,
+        PropertyAccess<TValue> value) noexcept;
     void SetValue(
+        const DependencyPropertyKey& key,
+        const PropertyValue& value) noexcept;
+    Base::Result<void> SetValueChecked(
         const DependencyPropertyKey& key,
         const PropertyValue& value) noexcept;
 
     void SetCurrentValue(
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
+    Base::Result<void> SetCurrentValueChecked(
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept;
     template<class TOwner, class TValue>
     void SetCurrentValue(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        PropertyAccess<TValue> value) noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<void> SetCurrentValueChecked(
         const DependencyPropertyRef<TOwner, TValue>& property,
         PropertyAccess<TValue> value) noexcept;
     void SetCurrentValue(
         const DependencyPropertyKey& key,
         const PropertyValue& value) noexcept;
+    Base::Result<void> SetCurrentValueChecked(
+        const DependencyPropertyKey& key,
+        const PropertyValue& value) noexcept;
 
     void ClearValue(
         DependencyPropertyHandle property) noexcept;
+    Base::Result<void> ClearValueChecked(
+        DependencyPropertyHandle property) noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<void> ClearValueChecked(
+        const DependencyPropertyRef<TOwner, TValue>& property) noexcept {
+        return ClearValueChecked(property.Handle());
+    }
+    template<class TOwner, class TValue>
+    Base::Result<void> ClearValueChecked(
+        const AttachedPropertyRef<TOwner, TValue>& property) noexcept {
+        return ClearValueChecked(property.Handle());
+    }
     void ClearValue(
+        const DependencyPropertyKey& key) noexcept;
+    Base::Result<void> ClearValueChecked(
         const DependencyPropertyKey& key) noexcept;
 
     void CoerceValue(
         DependencyPropertyHandle property) noexcept;
+    Base::Result<void> CoerceValueChecked(
+        DependencyPropertyHandle property) noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<void> CoerceValueChecked(
+        const DependencyPropertyRef<TOwner, TValue>& property) noexcept {
+        return CoerceValueChecked(property.Handle());
+    }
+    template<class TOwner, class TValue>
+    Base::Result<void> CoerceValueChecked(
+        const AttachedPropertyRef<TOwner, TValue>& property) noexcept {
+        return CoerceValueChecked(property.Handle());
+    }
 
     // Listeners execute after the effective value has committed and after the
     // property's metadata callback. They are intended to queue later work,
@@ -706,6 +762,7 @@ protected:
         PropertyAccess<TValue> value) noexcept;
     virtual void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept;
+    virtual Base::Result<void> VerifyMutationAllowed() const noexcept;
 
 private:
     friend class Meta::EffectiveValueEngine;
@@ -918,40 +975,68 @@ template<class TOwner, class TValue>
 void DependencyObject::SetValue(
     const DependencyPropertyRef<TOwner, TValue>& property,
     PropertyAccess<TValue> value) noexcept {
+    static_cast<void>(SetValueChecked(property, value));
+}
+
+template<class TOwner, class TValue>
+Base::Result<void> DependencyObject::SetValueChecked(
+    const DependencyPropertyRef<TOwner, TValue>& property,
+    PropertyAccess<TValue> value) noexcept {
     Base::Result<PropertyValue> stored =
         Meta::ValueCodec<TValue>::Encode(value);
-    if (!stored) return;
-    SetValue(property.Handle(), stored.Value());
+    if (!stored) return stored.GetStatus();
+    return SetValueChecked(property.Handle(), stored.Value());
 }
 
 template<class TOwner, class TValue>
 void DependencyObject::SetCurrentValue(
     const DependencyPropertyRef<TOwner, TValue>& property,
     PropertyAccess<TValue> value) noexcept {
+    static_cast<void>(SetCurrentValueChecked(property, value));
+}
+
+template<class TOwner, class TValue>
+Base::Result<void> DependencyObject::SetCurrentValueChecked(
+    const DependencyPropertyRef<TOwner, TValue>& property,
+    PropertyAccess<TValue> value) noexcept {
     Base::Result<PropertyValue> stored =
         Meta::ValueCodec<TValue>::Encode(value);
-    if (!stored) return;
-    SetCurrentValue(property.Handle(), stored.Value());
+    if (!stored) return stored.GetStatus();
+    return SetCurrentValueChecked(property.Handle(), stored.Value());
 }
 
 template<class TOwner>
 void DependencyObject::SetValue(
     const DependencyPropertyRef<TOwner, Base::String>& property,
     Base::StringView value) noexcept {
+    static_cast<void>(SetValueChecked(property, value));
+}
+
+template<class TOwner>
+Base::Result<void> DependencyObject::SetValueChecked(
+    const DependencyPropertyRef<TOwner, Base::String>& property,
+    Base::StringView value) noexcept {
     Base::Result<PropertyValue> stored =
         Base::Value::TryFromString(Meta::TypeOf<Base::String>(), value);
-    if (!stored) return;
-    SetValue(property.Handle(), stored.Value());
+    if (!stored) return stored.GetStatus();
+    return SetValueChecked(property.Handle(), stored.Value());
 }
 
 template<class TOwner, class TValue>
 void DependencyObject::SetValue(
     const AttachedPropertyRef<TOwner, TValue>& property,
     PropertyAccess<TValue> value) noexcept {
+    static_cast<void>(SetValueChecked(property, value));
+}
+
+template<class TOwner, class TValue>
+Base::Result<void> DependencyObject::SetValueChecked(
+    const AttachedPropertyRef<TOwner, TValue>& property,
+    PropertyAccess<TValue> value) noexcept {
     Base::Result<PropertyValue> stored =
         Meta::ValueCodec<TValue>::Encode(value);
-    if (!stored) return;
-    SetValue(property.Handle(), stored.Value());
+    if (!stored) return stored.GetStatus();
+    return SetValueChecked(property.Handle(), stored.Value());
 }
 
 template<class TOwner, class TValue>

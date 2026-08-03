@@ -254,8 +254,22 @@ Base::Result<void> PopulateUiMedia(
             PropertyOptions(
                 Rect{0.0, 0.0, 1.0, 1.0}))
         .Property(
+            ImageBrush::ViewboxUnitsProperty,
+            PropertyOptions(
+                BrushMappingMode::RelativeToBoundingBox))
+        .Property(
+            ImageBrush::ViewportUnitsProperty,
+            PropertyOptions(
+                BrushMappingMode::RelativeToBoundingBox))
+        .Property(
             ImageBrush::TileModeProperty,
             PropertyOptions(TileMode::None))
+        .Property(
+            ImageBrush::AlignmentXProperty,
+            PropertyOptions(HorizontalAlignment::Center))
+        .Property(
+            ImageBrush::AlignmentYProperty,
+            PropertyOptions(VerticalAlignment::Center))
         .Factory();
     status = imageBrush.Result();
     if (!status) return status.GetStatus();

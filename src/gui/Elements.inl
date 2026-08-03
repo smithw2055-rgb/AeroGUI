@@ -63,10 +63,12 @@ Base::Result<void> PopulateUiElements(
         .Property(
             UIElement::EffectProperty,
             PropertyOptions(Base::Ref<Effect>{})
+                .AffectsRender()
                 .Changed(&OnEffectChanged))
         .Property(
             UIElement::OpacityMaskProperty,
             PropertyOptions(Base::Ref<Brush>{})
+                .AffectsRender()
                 .Changed(&OnOpacityMaskChanged))
         .Property(
             UIElement::IsHitTestVisibleProperty,
@@ -116,6 +118,7 @@ Base::Result<void> PopulateUiElements(
         .Property(
             UIElement::RenderTransformProperty,
             PropertyOptions(Base::Ref<Transform>{})
+                .AffectsRender()
                 .Changed(&OnRenderTransformChanged))
         .Property(
             UIElement::RenderTransformOriginProperty,

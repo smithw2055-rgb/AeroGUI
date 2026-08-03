@@ -246,6 +246,8 @@ public:
             return status.GetStatus();
         }
         initialized_ = true;
+        surfaceLost_ = false;
+        deviceLost_ = false;
         return {};
     }
 
@@ -264,7 +266,12 @@ public:
         const void* rendererToken,
         const Integration::RenderFrame& plan) noexcept {
         return renderer_ != nullptr
-            ? renderer_->Render(rendererToken, plan)
+            ? renderer_->Render(
+                  rendererToken,
+                  plan,
+                  embedded_
+                      ? Graphics::LoadOperation::Load
+                      : Graphics::LoadOperation::Clear)
             : Base::Result<void>(
                   Base::Status::Failure(
                       Base::ErrorCode::NotInitialized,
@@ -335,6 +342,22 @@ public:
         return graphics_->WaitForFence(
             renderer_->LastSubmittedFence(),
             timeoutMilliseconds);
+    }
+
+    Detail::BackendHealth Health() const noexcept {
+        if (deviceLost_ ||
+            (device_ != nullptr &&
+             device_->Backend().IsDeviceLost())) {
+            return Detail::BackendHealth::DeviceLost;
+        }
+        if (surfaceLost_ ||
+            (surface_ != nullptr &&
+             surface_->State() != Graphics::SurfaceState::Ready)) {
+            return Detail::BackendHealth::SurfaceLost;
+        }
+        return initialized_ && renderer_ != nullptr
+            ? Detail::BackendHealth::Ready
+            : Detail::BackendHealth::Failed;
     }
 
     RenderFrameStatistics

@@ -24,10 +24,17 @@ option(AERO_BUILD_TESTS "Build AeroGUI unit tests when the test tree is present"
 option(AERO_BUILD_SAMPLES "Build AeroGUI samples when the sample tree is present" OFF)
 option(AERO_BUILD_SHARED "Build AeroGUI as shared libraries" OFF)
 option(AERO_BUILD_TOOLS "Build AeroGUI offline tools" ON)
+option(AERO_BUILD_CONFORMANCE
+    "Build the non-installed Aero runtime conformance executable" OFF)
 add_custom_target(AeroArchitectureCheck ALL
     COMMAND "${CMAKE_COMMAND}"
         "-DAERO_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckArchitecture.cmake"
+    VERBATIM)
+add_custom_target(AeroConventionsCheck ALL
+    COMMAND "${CMAKE_COMMAND}"
+        "-DAERO_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckConventions.cmake"
     VERBATIM)
 option(AERO_PRECOMPILE_BUILTIN_THEMES
     "Precompile built-in XAML themes with a host aero-xamlc" ON)
@@ -509,6 +516,7 @@ endif()
 include(cmake/AeroRuntimeTargets.cmake)
 include(cmake/AeroRenderingTargets.cmake)
 include(cmake/AeroProductTargets.cmake)
+include(cmake/AeroConformanceTargets.cmake)
 include(cmake/AeroInstall.cmake)
 
 if(AERO_BUILD_TESTS)

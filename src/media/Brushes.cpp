@@ -1,6 +1,7 @@
 #include <Aero/Media/Brushes.hpp>
 #include "BrushRendering.hpp"
 #include "media/MediaPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -9,12 +10,6 @@ namespace Aero::Media {
 
 double Brush::GetOpacity() const noexcept {
     return GetValueOr(OpacityProperty, 1.0);
-}
-
-void Brush::OnPropertyInvalidated(
-    PropertyInvalidationFlags flags) noexcept {
-    DependencyObject::OnPropertyInvalidated(flags);
-    if (owner_ != nullptr) (void)owner_->InvalidateVisual();
 }
 
 void Brush::SetOpacity(
@@ -49,43 +44,66 @@ void GradientStop::SetColor(
     SetValue(ColorProperty, value);
 }
 
-void GradientStop::OnPropertyInvalidated(
-    PropertyInvalidationFlags flags) noexcept {
-    DependencyObject::OnPropertyInvalidated(flags);
-    FrameworkElement* visualOwner =
-        owner_ != nullptr
-        ? ::Aero::Media::Detail::BrushPrivate::Owner(*owner_)
-        : nullptr;
-    if (visualOwner != nullptr) (void)visualOwner->InvalidateVisual();
-}
-
 Base::Result<void> GradientBrush::AddGradientStop(
     Base::Ref<GradientStop> stop) noexcept {
+    Base::Result<void> writable = WritePreamble();
+    if (!writable) return writable.GetStatus();
     if (!stop) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "GradientStop cannot be null");
     }
+    if (stopChangedHandler_.Empty()) {
+        stopChangedHandler_ = FreezableChangedHandler(
+            this, &GradientBrush::OnGradientStopChanged);
+    }
     GradientStop* retained = stop.Get();
-    retained->SetOwner(this);
+    if (!retained->IsFrozen()) {
+        Base::Result<void> subscribed =
+            retained->AddChangedHandlerChecked(stopChangedHandler_);
+        if (!subscribed) return subscribed.GetStatus();
+    }
     Base::Result<void> added =
         stops_.PushBack(std::move(stop));
     if (!added) {
-        retained->SetOwner(nullptr);
+        if (!retained->IsFrozen()) {
+            static_cast<void>(
+                retained->RemoveChangedHandler(stopChangedHandler_));
+        }
+        return added.GetStatus();
     }
-    return added;
+    WritePostscript();
+    return {};
 }
 
 Base::Result<void> GradientStopCollection::Add(
     Base::Ref<GradientStop> stop) noexcept {
+    Base::Result<void> writable = WritePreamble();
+    if (!writable) return writable.GetStatus();
     if (!stop) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "GradientStopCollection item cannot be null");
     }
+    if (stopChangedHandler_.Empty()) {
+        stopChangedHandler_ = FreezableChangedHandler(
+            this, &GradientStopCollection::OnStopChanged);
+    }
+    GradientStop* retained = stop.Get();
+    if (!retained->IsFrozen()) {
+        Base::Result<void> subscribed =
+            retained->AddChangedHandlerChecked(stopChangedHandler_);
+        if (!subscribed) return subscribed.GetStatus();
+    }
     Base::Result<void> added =
         stops_.PushBack(std::move(stop));
-    if (!added) return added.GetStatus();
+    if (!added) {
+        if (!retained->IsFrozen()) {
+            static_cast<void>(
+                retained->RemoveChangedHandler(stopChangedHandler_));
+        }
+        return added.GetStatus();
+    }
     if (!changed_.Empty()) {
         changed_.Invoke({
             Collections::ItemsChangeAction::Add,
@@ -94,19 +112,93 @@ Base::Result<void> GradientStopCollection::Add(
             0U,
             1U});
     }
+    WritePostscript();
     return {};
 }
 
 GradientBrush::~GradientBrush() {
-    ClearGradientStops();
+    for (const Base::Ref<GradientStop>& stop : stops_) {
+        if (stop && !stopChangedHandler_.Empty()) {
+            static_cast<void>(
+                stop->RemoveChangedHandler(stopChangedHandler_));
+        }
+    }
 }
 
 void GradientBrush::ClearGradientStops() noexcept {
-    for (const Base::Ref<GradientStop>& stop :
-         stops_) {
-        if (stop) stop->SetOwner(nullptr);
+    if (!WritePreamble() || stops_.Empty()) return;
+    for (const Base::Ref<GradientStop>& stop : stops_) {
+        if (stop && !stopChangedHandler_.Empty()) {
+            static_cast<void>(
+                stop->RemoveChangedHandler(stopChangedHandler_));
+        }
     }
     stops_.Clear();
+    WritePostscript();
+}
+
+void GradientBrush::OnGradientStopChanged(Freezable&) noexcept {
+    WritePostscript();
+}
+
+bool GradientBrush::FreezeCore(bool isChecking) noexcept {
+    for (const Base::Ref<GradientStop>& stop : stops_) {
+        if (!stop) continue;
+        if (isChecking) {
+            if (!stop->CanFreeze()) return false;
+        } else {
+            static_cast<void>(stop->Freeze());
+        }
+    }
+    return Brush::FreezeCore(isChecking);
+}
+
+GradientStopCollection::~GradientStopCollection() {
+    for (const Base::Ref<GradientStop>& stop : stops_) {
+        if (stop && !stopChangedHandler_.Empty()) {
+            static_cast<void>(
+                stop->RemoveChangedHandler(stopChangedHandler_));
+        }
+    }
+}
+
+void GradientStopCollection::Clear() noexcept {
+    if (!WritePreamble() || stops_.Empty()) return;
+    const std::uint32_t count = stops_.Size();
+    for (const Base::Ref<GradientStop>& stop : stops_) {
+        if (stop && !stopChangedHandler_.Empty()) {
+            static_cast<void>(
+                stop->RemoveChangedHandler(stopChangedHandler_));
+        }
+    }
+    stops_.Clear();
+    if (!changed_.Empty()) {
+        changed_.Invoke({
+            Collections::ItemsChangeAction::Reset,
+            0U, 0U, count, 0U});
+    }
+    WritePostscript();
+}
+
+void GradientStopCollection::OnStopChanged(Freezable&) noexcept {
+    WritePostscript();
+}
+
+bool GradientStopCollection::FreezeCore(bool isChecking) noexcept {
+    for (const Base::Ref<GradientStop>& stop : stops_) {
+        if (!stop) continue;
+        if (isChecking) {
+            if (!stop->CanFreeze()) return false;
+        } else {
+            static_cast<void>(stop->Freeze());
+        }
+    }
+    if (!isChecking) changed_.Reset();
+    return Freezable::FreezeCore(isChecking);
+}
+
+std::uint64_t Brush::Impl::Revision(const Brush& brush) noexcept {
+    return Freezable::Impl::Revision(brush);
 }
 
 BrushMappingMode GradientBrush::GetMappingMode() const noexcept {
@@ -199,9 +291,31 @@ Rect ImageBrush::GetViewport() const noexcept {
         Rect{0.0, 0.0, 1.0, 1.0});
 }
 
+BrushMappingMode ImageBrush::GetViewboxUnits() const noexcept {
+    return GetValueOr(
+        ViewboxUnitsProperty,
+        BrushMappingMode::RelativeToBoundingBox);
+}
+
+BrushMappingMode ImageBrush::GetViewportUnits() const noexcept {
+    return GetValueOr(
+        ViewportUnitsProperty,
+        BrushMappingMode::RelativeToBoundingBox);
+}
+
 TileMode ImageBrush::GetTileMode() const noexcept {
     return GetValueOr(
         TileModeProperty, TileMode::None);
+}
+
+HorizontalAlignment ImageBrush::GetAlignmentX() const noexcept {
+    return GetValueOr(
+        AlignmentXProperty, HorizontalAlignment::Center);
+}
+
+VerticalAlignment ImageBrush::GetAlignmentY() const noexcept {
+    return GetValueOr(
+        AlignmentYProperty, VerticalAlignment::Center);
 }
 
 void ImageBrush::SetSource(
@@ -225,9 +339,29 @@ void ImageBrush::SetViewport(
     SetValue(ViewportProperty, value);
 }
 
+void ImageBrush::SetViewboxUnits(
+    BrushMappingMode value) noexcept {
+    SetValue(ViewboxUnitsProperty, value);
+}
+
+void ImageBrush::SetViewportUnits(
+    BrushMappingMode value) noexcept {
+    SetValue(ViewportUnitsProperty, value);
+}
+
 void ImageBrush::SetTileMode(
     TileMode value) noexcept {
     SetValue(TileModeProperty, value);
+}
+
+void ImageBrush::SetAlignmentX(
+    HorizontalAlignment value) noexcept {
+    SetValue(AlignmentXProperty, value);
+}
+
+void ImageBrush::SetAlignmentY(
+    VerticalAlignment value) noexcept {
+    SetValue(AlignmentYProperty, value);
 }
 
 Base::Result<Base::Ref<Brush>>

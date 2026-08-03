@@ -1,18 +1,15 @@
 #include "gui/GuiPrivate.hpp"
 #include <Aero/Layout.hpp>
-#include "gui/GuiPrivate.hpp"
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
 
 #include <Aero/Base/Assert.hpp>
-#include "gui/GuiPrivate.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include "gui/GuiPrivate.hpp"
 
 namespace Aero {
 
@@ -467,6 +464,11 @@ void UIElement::OnPropertyInvalidated(
     } else if (parent != nullptr &&
         HasFlag(flags, PropertyInvalidationFlags::ParentArrange)) {
         (void)parent->InvalidateArrange();
+    }
+    if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
+        static_cast<void>(
+            Aero::GuiPrivate::Detail::ElementPrivate::
+                InvalidateRenderState(*this));
     }
     DependencyObject::OnPropertyInvalidated(flags);
 }

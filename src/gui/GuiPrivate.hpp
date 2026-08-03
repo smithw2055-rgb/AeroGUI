@@ -4,6 +4,7 @@
 // the implementation seams, while consumers use this single domain entry.
 #include "private/Metadata.hpp"
 #include "private/Property.hpp"
+#include "private/Freezable.hpp"
 #include "private/Element.hpp"
 #include "private/RoutedEvent.hpp"
 #include "private/Input.hpp"

@@ -6,6 +6,8 @@
 
 #include <Aero/FrameworkElement.hpp>
 
+#include <array>
+
 namespace Aero::Render {
 
 enum class RenderEffectKind : std::uint8_t {
@@ -49,7 +51,17 @@ struct RenderEffectSnapshot {
 enum class RenderMaskKind : std::uint8_t {
     None = 0U,
     Solid,
-    Image
+    Image,
+    LinearGradient,
+    RadialGradient
+};
+
+inline constexpr std::uint32_t GradientRampWidth = 256U;
+
+struct RenderGradientRampSnapshot {
+    std::uintptr_t brushIdentity = 0U;
+    std::uint64_t revision = 0U;
+    std::array<std::uint8_t, GradientRampWidth * 4U> pixels{};
 };
 
 struct RenderMaskSnapshot {
@@ -57,6 +69,24 @@ struct RenderMaskSnapshot {
     Color color{1.0F, 1.0F, 1.0F, 1.0F};
     RenderImageId image = InvalidRenderImageId;
     Rect sourceUv{0.0, 0.0, 1.0, 1.0};
+    Rect viewport{0.0, 0.0, 1.0, 1.0};
+    Point startPoint{0.0, 0.0};
+    Point endPoint{1.0, 1.0};
+    Point center{0.5, 0.5};
+    Point gradientOrigin{0.5, 0.5};
+    Transform2D relativeTransform;
+    double radiusX = 0.5;
+    double radiusY = 0.5;
+    std::uint32_t gradientRamp = UINT32_MAX;
+    std::uint32_t imageWidth = 0U;
+    std::uint32_t imageHeight = 0U;
+    std::uint8_t mappingMode = 0U;
+    std::uint8_t viewboxUnits = 0U;
+    std::uint8_t viewportUnits = 0U;
+    std::uint8_t stretch = 0U;
+    std::uint8_t tileMode = 0U;
+    std::uint8_t alignmentX = 0U;
+    std::uint8_t alignmentY = 0U;
 };
 
 struct RenderNodeSnapshot {
@@ -97,14 +127,27 @@ public:
     Base::Span<const RenderCommand> Commands() const noexcept {
         return {commands_.Data(), commands_.Size()};
     }
+    Base::Span<const RenderGradientRampSnapshot>
+    GradientRamps() const noexcept {
+        return {gradientRamps_.Data(), gradientRamps_.Size()};
+    }
     std::uint64_t Version() const noexcept { return version_; }
+    Aero::Size LogicalSize() const noexcept { return logicalSize_; }
+    std::uint32_t PixelWidth() const noexcept { return pixelWidth_; }
+    std::uint32_t PixelHeight() const noexcept { return pixelHeight_; }
+    double DpiScale() const noexcept { return dpiScale_; }
     std::uint64_t StableHash() const noexcept;
 
 private:
     friend class ::Aero::Render::Detail::RenderTree;
     Base::Vector<RenderNodeSnapshot> nodes_;
     Base::Vector<RenderCommand> commands_;
+    Base::Vector<RenderGradientRampSnapshot> gradientRamps_;
     std::uint64_t version_ = 0U;
+    Aero::Size logicalSize_{};
+    std::uint32_t pixelWidth_ = 0U;
+    std::uint32_t pixelHeight_ = 0U;
+    double dpiScale_ = 1.0;
 };
 
 Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept;
@@ -148,6 +191,11 @@ public:
     Base::Result<void> SetOverlays(
         Base::Span<FrameworkElement* const> overlays,
         Base::Span<const Point> origins) noexcept;
+    Base::Result<void> SetViewport(
+        Aero::Size logicalSize,
+        std::uint32_t pixelWidth,
+        std::uint32_t pixelHeight,
+        double dpiScale) noexcept;
     Base::Result<std::uint32_t> Commit() noexcept;
 
     const Integration::RenderFrame& CurrentFrame() const noexcept {
@@ -179,6 +227,11 @@ private:
     RenderNodeId nextNodeId_ = 1U;
     std::uint64_t commitVersion_ = 0U;
     Base::Status lastCommitStatus_;
+    Aero::Size logicalSize_{};
+    std::uint32_t pixelWidth_ = 0U;
+    std::uint32_t pixelHeight_ = 0U;
+    double dpiScale_ = 1.0;
+    bool viewportDirty_ = false;
     bool committing_ = false;
 
     Base::Result<void> VerifyElement(

@@ -19,6 +19,7 @@ endfunction()
 add_library(AeroGuiKernelObjects OBJECT
     src/gui/BindingPath.cpp
     src/gui/PropertySystem.cpp
+    src/gui/Freezable.cpp
     src/diagnostics/Diagnostics.cpp
     src/gui/Dispatcher.cpp
     src/gui/RoutedEvents.cpp
@@ -36,6 +37,7 @@ add_library(AeroGuiKernelObjects OBJECT
     src/media/Brushes.cpp
     src/gui/Commands.cpp
     src/media/Effects.cpp
+    src/media/Geometry.cpp
     src/gui/Input.cpp
     src/media/Images.cpp
     src/gui/Layout.cpp
@@ -155,10 +157,8 @@ target_compile_definitions(AeroMarkupObjects PRIVATE
 add_library(AeroModuleSetObjects OBJECT
     src/runtime/modules/Module.cpp
     src/runtime/modules/BuiltinModules.cpp
-    src/markup/MarkupSchema.cpp)
+    src/markup/GuiSchema.cpp)
 aero_configure_internal_objects(AeroModuleSetObjects)
-target_compile_definitions(AeroModuleSetObjects PRIVATE
-    AERO_MARKUP_GUI_SCHEMA_ONLY=1)
 target_link_libraries(AeroModuleSetObjects PUBLIC
     AeroMarkupObjects AeroAppModelObjects)
 

@@ -44,6 +44,8 @@
 #include "integration/IntegrationPrivate.hpp"
 #include "render/RenderTree.hpp"
 
+#include <cmath>
+#include <limits>
 #include <new>
 #include <utility>
 #include "gui/GuiPrivate.hpp"
@@ -65,6 +67,46 @@ Base::Status ViewInvalidState(const char* message) noexcept {
 Base::Status RuntimeNotInitialized(const char* message) noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::NotInitialized, message);
+}
+
+Base::Result<void> ValidateViewport(
+    const View::Viewport& viewport) noexcept {
+    if (!IsValidLayoutSize(viewport.logicalSize) ||
+        !std::isfinite(viewport.dpiScale) ||
+        viewport.dpiScale <= 0.0 ||
+        (viewport.logicalSize.width == 0.0 && viewport.pixelWidth != 0U) ||
+        (viewport.logicalSize.height == 0.0 && viewport.pixelHeight != 0U)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "View viewport is invalid");
+    }
+    return {};
+}
+
+Base::Result<View::Viewport> MakeLogicalViewport(
+    Size logicalSize,
+    double dpiScale) noexcept {
+    View::Viewport viewport;
+    viewport.logicalSize = logicalSize;
+    viewport.dpiScale = dpiScale;
+    Base::Result<void> valid = ValidateViewport(viewport);
+    if (!valid) return valid.GetStatus();
+
+    const double pixelWidth = logicalSize.width * dpiScale;
+    const double pixelHeight = logicalSize.height * dpiScale;
+    constexpr double PixelLimit =
+        static_cast<double>((std::numeric_limits<std::uint32_t>::max)());
+    if (!std::isfinite(pixelWidth) || !std::isfinite(pixelHeight) ||
+        pixelWidth > PixelLimit || pixelHeight > PixelLimit) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "View viewport pixel dimensions are out of range");
+    }
+    viewport.pixelWidth = static_cast<std::uint32_t>(
+        std::floor(pixelWidth + 0.5));
+    viewport.pixelHeight = static_cast<std::uint32_t>(
+        std::floor(pixelHeight + 0.5));
+    return viewport;
 }
 
 Base::Result<Base::ResourceUri> BuiltInThemeUri(
@@ -322,6 +364,7 @@ struct ViewData {
     Integration::ViewOptions options;
     Base::Ref<Integration::RenderDevice> device;
     std::uint64_t deviceGeneration = 0U;
+    View::Viewport viewport;
 
     Meta::ObjectFactoryScope* objectFactory = nullptr;
     Meta::EffectiveValueEngine* values = nullptr;
@@ -777,6 +820,34 @@ struct ViewData {
                 *attachedRootVisual,
                 Aero::Render::RenderInvalidation::State);
         }
+        return {};
+    }
+
+    Base::Result<void> ApplyViewport(
+        const View::Viewport& next) noexcept {
+        if (renderer == nullptr) {
+            return RuntimeNotInitialized(
+                "View render tree is unavailable");
+        }
+        const View::Viewport previous = viewport;
+        Base::Result<void> updated = renderer->SetViewport(
+            next.logicalSize,
+            next.pixelWidth,
+            next.pixelHeight,
+            next.dpiScale);
+        if (!updated) return updated.GetStatus();
+        if (HasAttachedRoot()) {
+            updated = ResizeVisualRoot(next.logicalSize);
+            if (!updated) {
+                static_cast<void>(renderer->SetViewport(
+                    previous.logicalSize,
+                    previous.pixelWidth,
+                    previous.pixelHeight,
+                    previous.dpiScale));
+                return updated.GetStatus();
+            }
+        }
+        viewport = next;
         return {};
     }
 
@@ -4105,6 +4176,22 @@ struct ViewData {
                 "View cannot be restarted after shutdown or failed startup");
         }
         options = requested;
+        options.xamlProviders = {};
+        textureProvider = requested.textureProvider;
+        fontProvider = requested.fontProvider;
+
+        Base::Result<void> status;
+        for (const Integration::XamlProviderRoute& route :
+             requested.xamlProviders) {
+            if (route.provider == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "View XAML provider route has no provider");
+            }
+            status = xamlSources.Register(
+                *route.provider, route.scheme, route.assembly);
+            if (!status) return status.GetStatus();
+        }
 
         Base::Result<Base::Ref<Integration::RenderDevice>>
             headless =
@@ -4120,7 +4207,7 @@ struct ViewData {
         Base::Result<Base::Ref<Markup::EffectLifetime>> lifetime =
             Base::MakeRefWithAllocator<Markup::EffectLifetime>(
                 *allocator);
-        Base::Result<void> status = lifetime
+        status = lifetime
             ? Base::Result<void>()
             : Base::Result<void>(lifetime.GetStatus());
         if (status) effectLifetime = std::move(lifetime).Value();
@@ -4375,6 +4462,19 @@ struct ViewData {
         if (mounted || root) {
             return ViewInvalidState(
                 "View already has a mounted root");
+        }
+        const bool needsViewport =
+            viewport.logicalSize.width != availableSize.width ||
+            viewport.logicalSize.height != availableSize.height ||
+            (availableSize.width > 0.0 && viewport.pixelWidth == 0U) ||
+            (availableSize.height > 0.0 && viewport.pixelHeight == 0U);
+        if (needsViewport) {
+            Base::Result<View::Viewport> nextViewport =
+                MakeLogicalViewport(availableSize, viewport.dpiScale);
+            if (!nextViewport) return nextViewport.GetStatus();
+            Base::Result<void> viewportApplied =
+                ApplyViewport(nextViewport.Value());
+            if (!viewportApplied) return viewportApplied.GetStatus();
         }
         Base::Result<void> validRoot = ValidateDocumentRoot(requestedRoot);
         if (!validRoot) return validRoot.GetStatus();
@@ -5182,21 +5282,19 @@ Base::Status ViewNotInitialized(const char* message) noexcept {
 View::View(
     ConstructionToken,
     Gui& gui,
-    Base::IAllocator* allocator) noexcept
-    : allocator_(allocator != nullptr
-          ? allocator
-          : &Base::GetDefaultAllocator()),
-      gui_(gui.impl_),
-      renderer_(*this) {
+    Base::IAllocator* allocator) noexcept {
+    Base::IAllocator* selected = allocator != nullptr
+        ? allocator
+        : &Base::GetDefaultAllocator();
     Gui::Impl& guiState = static_cast<Gui::Impl&>(*gui.impl_);
-    void* stateMemory = allocator_->Allocate({
+    void* stateMemory = selected->Allocate({
         sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup});
     if (stateMemory == nullptr) {
         Base::ReportOutOfMemory(
             sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
     }
-    state_ = new (stateMemory) Impl{};
-    void* memory = allocator_->Allocate({
+    state_ = new (stateMemory) Impl(*this, *selected, gui.impl_);
+    void* memory = selected->Allocate({
         sizeof(::Aero::Runtime::Detail::ViewData),
         alignof(::Aero::Runtime::Detail::ViewData),
         Base::MemoryTag::Markup});
@@ -5206,33 +5304,33 @@ View::View(
             Base::MemoryTag::Markup);
     }
     state_->data = new (memory) ::Aero::Runtime::Detail::ViewData(
-        *allocator_, guiState.schema, guiState.documents);
+        *selected, guiState.schema, guiState.documents);
 }
 
 View::~View() noexcept {
-    renderer_.Shutdown();
+    if (state_ == nullptr) return;
+    state_->renderer.Shutdown();
     Shutdown();
-    if (state_ != nullptr) {
-        state_->data->~ViewData();
-        allocator_->Deallocate(
-            state_->data,
-            sizeof(::Aero::Runtime::Detail::ViewData),
-            alignof(::Aero::Runtime::Detail::ViewData),
-            Base::MemoryTag::Markup);
-        state_->~Impl();
-        allocator_->Deallocate(
-            state_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
-        state_ = nullptr;
-    }
-    gui_.Reset();
+    Base::IAllocator* allocator = state_->allocator;
+    state_->data->~ViewData();
+    allocator->Deallocate(
+        state_->data,
+        sizeof(::Aero::Runtime::Detail::ViewData),
+        alignof(::Aero::Runtime::Detail::ViewData),
+        Base::MemoryTag::Markup);
+    state_->~Impl();
+    allocator->Deallocate(
+        state_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
+    state_ = nullptr;
 }
 
 Base::Result<void> View::Initialize(
     const Integration::ViewOptions& options) noexcept {
-    if (state_ == nullptr || !gui_) {
+    if (state_ == nullptr || !state_->gui) {
         return ViewApiInvalidState("View has no Gui state");
     }
-    const Gui::Impl& guiState = static_cast<const Gui::Impl&>(*gui_);
+    const Gui::Impl& guiState =
+        static_cast<const Gui::Impl&>(*state_->gui);
     if (!guiState.initialized) {
         return ViewNotInitialized(
             "Gui must be initialized before creating a View");
@@ -5269,7 +5367,7 @@ Base::Result<Markup::XamlDocument> View::LoadDocument(
         *state_->data->schema,
         state_->data->xamlSources,
         diagnostics,
-        allocator_,
+        state_->allocator,
         &state_->data->loadContext);
     return loader.Load(uri, options.Value());
 }
@@ -5290,7 +5388,7 @@ Base::Result<Markup::XamlDocument> View::ParseDocument(
         *state_->data->schema,
         state_->data->xamlSources,
         diagnostics,
-        allocator_,
+        state_->allocator,
         &state_->data->loadContext);
     return loader.Parse(source, baseUri, options.Value());
 }
@@ -5311,7 +5409,7 @@ Base::Result<Markup::XamlDocument> View::ParseStreamDocument(
         *state_->data->schema,
         state_->data->xamlSources,
         diagnostics,
-        allocator_,
+        state_->allocator,
         &state_->data->loadContext);
     return loader.Parse(source, baseUri, options.Value());
 }
@@ -5330,42 +5428,10 @@ Base::Result<Markup::XamlDocument> View::LoadCompiledDocument(
         *state_->data->schema,
         state_->data->xamlSources,
         nullptr,
-        allocator_,
+        state_->allocator,
         &state_->data->loadContext);
     return loader.LoadCompiled(
         bytes, originUri, options.Value());
-}
-
-Base::Result<void> View::AddXamlProvider(
-    Integration::XamlProvider& provider,
-    Base::StringView scheme,
-    Base::StringView assembly) noexcept {
-    if (state_ == nullptr || state_->data->terminal) {
-        return ViewApiInvalidState(
-            "View cannot register a XAML provider");
-    }
-    return state_->data->xamlSources.Register(
-        provider, scheme, assembly);
-}
-
-Base::Result<void> View::AddTextureProvider(
-    Integration::TextureProvider& provider) noexcept {
-    if (state_ == nullptr || state_->data->terminal) {
-        return ViewApiInvalidState(
-            "View cannot register a texture provider");
-    }
-    state_->data->textureProvider = &provider;
-    return {};
-}
-
-Base::Result<void> View::AddFontProvider(
-    Integration::FontProvider& provider) noexcept {
-    if (state_ == nullptr || state_->data->terminal) {
-        return ViewApiInvalidState(
-            "View cannot register a font provider");
-    }
-    state_->data->fontProvider = &provider;
-    return {};
 }
 
 Base::Result<void> View::LoadResources(
@@ -5803,11 +5869,31 @@ Base::Result<void> View::UnmountContent(
 
 void View::SetSize(
     Aero::Size availableSize) noexcept {
-    if (!IsMounted() || state_ == nullptr ||
-        !state_->data->HasAttachedRoot()) {
+    if (!IsInitialized() || state_ == nullptr) return;
+    Base::Result<Viewport> viewport =
+        Aero::Runtime::Detail::MakeLogicalViewport(
+            availableSize,
+            state_->data->viewport.dpiScale);
+    if (!viewport) return;
+    SetViewport(viewport.Value());
+}
+
+void View::SetViewport(
+    const Viewport& viewport) noexcept {
+    if (!IsInitialized() || state_ == nullptr ||
+        state_->data == nullptr) {
         return;
     }
-    (void)state_->data->ResizeVisualRoot(availableSize);
+    Base::Result<void> valid =
+        Aero::Runtime::Detail::ValidateViewport(viewport);
+    if (!valid) return;
+    static_cast<void>(state_->data->ApplyViewport(viewport));
+}
+
+View::Viewport View::GetViewport() const noexcept {
+    return state_ != nullptr && state_->data != nullptr
+        ? state_->data->viewport
+        : Viewport{};
 }
 
 Base::Result<void> View::Unmount() noexcept {
@@ -6224,14 +6310,34 @@ View::AdvanceAnimations(
     return advanced.Value() + completed.Value();
 }
 
+Renderer::Renderer(
+    View& view,
+    Base::IAllocator& allocator) noexcept {
+    void* memory = allocator.Allocate({
+        sizeof(Impl), alignof(Impl), Base::MemoryTag::Render});
+    if (memory == nullptr) {
+        Base::ReportOutOfMemory(
+            sizeof(Impl), alignof(Impl), Base::MemoryTag::Render);
+    }
+    impl_ = new (memory) Impl(view, allocator);
+}
+
 Renderer::~Renderer() noexcept {
+    if (impl_ == nullptr) return;
     Shutdown();
+    Base::IAllocator* allocator = impl_->allocator;
+    impl_->~Impl();
+    allocator->Deallocate(
+        impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Render);
+    impl_ = nullptr;
 }
 
 Base::Result<void> Renderer::Init(
     Base::Ref<Integration::RenderDevice> device) noexcept {
-    if (view_ == nullptr || view_->state_ == nullptr ||
-        view_->state_->data == nullptr || !view_->IsInitialized()) {
+    if (impl_ == nullptr || impl_->view == nullptr ||
+        impl_->view->state_ == nullptr ||
+        impl_->view->state_->data == nullptr ||
+        !impl_->view->IsInitialized()) {
         return ViewNotInitialized(
             "Renderer requires an initialized View");
     }
@@ -6240,8 +6346,8 @@ Base::Result<void> Renderer::Init(
             Base::ErrorCode::InvalidArgument,
             "Renderer requires a RenderDevice");
     }
-    if (initialized_) {
-        return device_.Get() == device.Get()
+    if (impl_->initialized) {
+        return impl_->device.Get() == device.Get()
             ? Base::Result<void>()
             : Base::Result<void>(Base::Status::Failure(
                   Base::ErrorCode::AlreadyExists,
@@ -6254,7 +6360,7 @@ Base::Result<void> Renderer::Init(
         return deviceStatus;
     }
 
-    auto& data = *view_->state_->data;
+    auto& data = *impl_->view->state_->data;
     Base::Ref<Integration::RenderDevice> previous =
         data.device;
     const bool changingDevice =
@@ -6324,43 +6430,49 @@ Base::Result<void> Renderer::Init(
         return status.GetStatus();
     }
 
-    device_ = std::move(device);
-    updatedVersion_ = 0U;
-    renderedVersion_ = 0U;
-    offscreenReady_ = false;
-    initialized_ = true;
+    impl_->device = std::move(device);
+    impl_->updatedVersion = 0U;
+    impl_->renderedVersion = 0U;
+    impl_->offscreenReady = false;
+    impl_->initialized = true;
     return {};
 }
 
 void Renderer::Shutdown() noexcept {
-    if (device_) {
+    if (impl_ == nullptr) return;
+    if (impl_->device) {
         Integration::RenderDevice::Impl::ReleaseRenderer(
-            *device_, this);
-        static_cast<void>(device_->WaitIdle());
+            *impl_->device, this);
+        static_cast<void>(impl_->device->WaitIdle());
     }
-    device_.Reset();
-    updatedVersion_ = 0U;
-    renderedVersion_ = 0U;
-    offscreenReady_ = false;
-    initialized_ = false;
+    impl_->device.Reset();
+    impl_->updatedVersion = 0U;
+    impl_->renderedVersion = 0U;
+    impl_->offscreenReady = false;
+    impl_->initialized = false;
+}
+
+bool Renderer::IsInitialized() const noexcept {
+    return impl_ != nullptr && impl_->initialized;
 }
 
 Base::Result<bool>
 Renderer::UpdateRenderTree() noexcept {
-    if (!initialized_ || !device_ || view_ == nullptr ||
-        view_->state_ == nullptr || view_->state_->data == nullptr ||
-        !view_->IsInitialized()) {
+    if (impl_ == nullptr || !impl_->initialized || !impl_->device ||
+        impl_->view == nullptr || impl_->view->state_ == nullptr ||
+        impl_->view->state_->data == nullptr ||
+        !impl_->view->IsInitialized()) {
         return ViewNotInitialized(
             "Renderer must be initialized before UpdateRenderTree");
     }
 
     Base::Status deviceStatus =
-        Integration::RenderDevice::Impl::FrameStatus(*device_);
+        Integration::RenderDevice::Impl::FrameStatus(*impl_->device);
     if (!deviceStatus.IsOk()) {
         return deviceStatus;
     }
 
-    auto& data = *view_->state_->data;
+    auto& data = *impl_->view->state_->data;
     if (data.renderer == nullptr) {
         return ViewNotInitialized(
             "View render tree is unavailable");
@@ -6375,69 +6487,88 @@ Renderer::UpdateRenderTree() noexcept {
     if (!valid) return valid.GetStatus();
 
     const bool changed =
-        frame.Version() != updatedVersion_;
+        frame.Version() != impl_->updatedVersion;
     if (changed) {
-        updatedVersion_ = frame.Version();
-        offscreenReady_ = false;
+        impl_->updatedVersion = frame.Version();
+        impl_->offscreenReady = false;
     }
     return changed;
 }
 
 Base::Result<void> Renderer::RenderOffscreen() noexcept {
-    if (!initialized_ || !device_ || view_ == nullptr ||
-        view_->state_ == nullptr || view_->state_->data == nullptr) {
+    if (impl_ == nullptr || !impl_->initialized || !impl_->device ||
+        impl_->view == nullptr || impl_->view->state_ == nullptr ||
+        impl_->view->state_->data == nullptr) {
         return ViewNotInitialized(
             "Renderer must be initialized before RenderOffscreen");
     }
 
     const Integration::RenderFrame& frame =
-        view_->state_->data->renderer->CurrentFrame();
+        impl_->view->state_->data->renderer->CurrentFrame();
     if (frame.Version() == 0U) {
-        offscreenReady_ = true;
+        impl_->offscreenReady = true;
         return {};
     }
-    if (frame.Version() != updatedVersion_) {
+    if (frame.PixelWidth() == 0U || frame.PixelHeight() == 0U) {
+        impl_->offscreenReady = true;
+        return {};
+    }
+    if (frame.Version() != impl_->updatedVersion) {
         return ViewApiInvalidState(
             "UpdateRenderTree must run before RenderOffscreen");
     }
 
     Base::Result<void> rendered =
         Integration::RenderDevice::Impl::RenderOffscreen(
-            *device_, this, frame);
+            *impl_->device, this, frame);
     if (!rendered) return rendered.GetStatus();
-    offscreenReady_ = true;
+    impl_->offscreenReady = true;
     return {};
 }
 
 Base::Result<void> Renderer::Render() noexcept {
-    if (!initialized_ || !device_ || view_ == nullptr ||
-        view_->state_ == nullptr || view_->state_->data == nullptr) {
+    if (impl_ == nullptr || !impl_->initialized || !impl_->device ||
+        impl_->view == nullptr || impl_->view->state_ == nullptr ||
+        impl_->view->state_->data == nullptr) {
         return ViewNotInitialized(
             "Renderer must be initialized before Render");
     }
 
     const Integration::RenderFrame& frame =
-        view_->state_->data->renderer->CurrentFrame();
+        impl_->view->state_->data->renderer->CurrentFrame();
     if (frame.Version() == 0U) {
         return {};
     }
-    if (frame.Version() != updatedVersion_) {
+    if (frame.Version() != impl_->updatedVersion) {
         return ViewApiInvalidState(
             "UpdateRenderTree must run before Render");
     }
-    if (!offscreenReady_) {
+    if (!impl_->offscreenReady) {
         return ViewApiInvalidState(
             "RenderOffscreen must run before Render");
+    }
+    if (frame.PixelWidth() == 0U || frame.PixelHeight() == 0U) {
+        impl_->renderedVersion = frame.Version();
+        impl_->offscreenReady = false;
+        return {};
     }
 
     Base::Result<void> submitted =
         Integration::RenderDevice::Impl::Render(
-            *device_, this, frame);
+            *impl_->device, this, frame);
     if (!submitted) return submitted.GetStatus();
 
-    renderedVersion_ = frame.Version();
-    offscreenReady_ = false;
+    impl_->renderedVersion = frame.Version();
+    impl_->offscreenReady = false;
     return {};
+}
+
+Renderer& View::GetRenderer() noexcept {
+    return state_->renderer;
+}
+
+const Renderer& View::GetRenderer() const noexcept {
+    return state_->renderer;
 }
 
 FrameworkElement* View::GetContent() noexcept {
@@ -6449,6 +6580,14 @@ FrameworkElement* View::GetContent() noexcept {
 const FrameworkElement* View::GetContent() const noexcept {
     return state_ != nullptr && state_->data->RootVisual() != nullptr
         ? state_->data->RootVisual()->AsFrameworkElement()
+        : nullptr;
+}
+
+const Integration::RenderFrame* View::Impl::CurrentFrame(
+    const View& view) noexcept {
+    return view.state_ != nullptr && view.state_->data != nullptr &&
+            view.state_->data->renderer != nullptr
+        ? &view.state_->data->renderer->CurrentFrame()
         : nullptr;
 }
 

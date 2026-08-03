@@ -53,6 +53,14 @@ public:
 
     Base::Result<void> AddModule(
         const ModuleRegistration& registration) noexcept;
+    Base::Result<void> AddXamlProvider(
+        Integration::XamlProvider& provider,
+        Base::StringView scheme = {},
+        Base::StringView assembly = {}) noexcept;
+    Base::Result<void> AddTextureProvider(
+        Integration::TextureProvider& provider) noexcept;
+    Base::Result<void> AddFontProvider(
+        Integration::FontProvider& provider) noexcept;
     Base::Result<void> Initialize() noexcept;
     Base::Result<Base::Ref<View>> CreateView(
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -73,12 +81,18 @@ private:
 // Host-driven retained-mode view. View::Update() advances UI state; the
 // per-View Renderer synchronizes and renders the retained frame. XAML,
 // resource-layer and fragment operations live on Markup::XamlReader.
-class AERO_API View : public Base::Object {
+class AERO_API View final : public Base::Object {
     struct ConstructionToken {};
     struct FrameResult;
 
 public:
     struct Impl;
+    struct Viewport {
+        Aero::Size logicalSize{};
+        std::uint32_t pixelWidth = 0U;
+        std::uint32_t pixelHeight = 0U;
+        double dpiScale = 1.0;
+    };
 
     View(
         ConstructionToken,
@@ -99,10 +113,12 @@ public:
     const FrameworkElement* GetContent() const noexcept;
 
     void SetSize(Aero::Size availableSize) noexcept;
+    void SetViewport(const Viewport& viewport) noexcept;
+    Viewport GetViewport() const noexcept;
     Base::Result<void> Update(
         std::uint32_t elapsedMilliseconds = 0U) noexcept;
-    Renderer& GetRenderer() noexcept { return renderer_; }
-    const Renderer& GetRenderer() const noexcept { return renderer_; }
+    Renderer& GetRenderer() noexcept;
+    const Renderer& GetRenderer() const noexcept;
 
     Base::Result<Input::PointerDispatchResult> DispatchPointer(
         const Input::PointerInput& input) noexcept;
@@ -110,15 +126,6 @@ public:
         const Input::KeyboardInput& input) noexcept;
     Base::Result<Input::TextInputDispatchResult> DispatchText(
         const Input::TextInput& input) noexcept;
-
-    Base::Result<void> AddXamlProvider(
-        Integration::XamlProvider& provider,
-        Base::StringView scheme = {},
-        Base::StringView assembly = {}) noexcept;
-    Base::Result<void> AddTextureProvider(
-        Integration::TextureProvider& provider) noexcept;
-    Base::Result<void> AddFontProvider(
-        Integration::FontProvider& provider) noexcept;
 
 private:
     friend class Gui;
@@ -209,10 +216,7 @@ private:
         const Base::Object& object,
         Meta::TypeId baseType) const noexcept;
 
-    Base::IAllocator* allocator_ = nullptr;
-    Base::Ref<Base::Object> gui_;
     Impl* state_ = nullptr;
-    Renderer renderer_;
 };
 
 } // namespace Aero

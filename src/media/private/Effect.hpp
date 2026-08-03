@@ -9,16 +9,8 @@ namespace Aero::Media {
 // property is assigned to a FrameworkElement.
 struct Effect::Impl {
 public:
-    static Aero::FrameworkElement* Owner(
-        const Aero::Media::Effect& effect) noexcept {
-        return effect.owner_;
-    }
-
-    static void SetOwner(
-        Aero::Media::Effect& effect,
-        Aero::FrameworkElement* owner) noexcept {
-        effect.owner_ = owner;
-    }
+    static std::uint64_t Revision(
+        const Aero::Media::Effect& effect) noexcept;
 };
 
 } // namespace Aero::Media

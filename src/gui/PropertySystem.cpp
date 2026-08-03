@@ -729,7 +729,14 @@ DependencyObject::DependencyObject(TypeId runtimeType) noexcept
       changeHandlers_() {}
 
 DependencyObject::~DependencyObject() {
-    for (EffectiveValueEntry& entry : values_) ReleaseExpression(entry);
+    for (EffectiveValueEntry& entry : values_) {
+        Impl::CommitConsumerChange(
+            *this,
+            entry.property,
+            entry.effectiveValue,
+            PropertyValue::Unset());
+        ReleaseExpression(entry);
+    }
 }
 
 Base::Result<void> DependencyObject::VerifyReady() const noexcept {
@@ -828,25 +835,49 @@ PropertyValueSourceInfo DependencyObject::GetValueSourceInfo(
 void DependencyObject::SetValue(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
-    (void)ApplyChange(property, nullptr, ChangeKind::SetLocal, &value);
+    static_cast<void>(SetValueChecked(property, value));
+}
+
+Base::Result<void> DependencyObject::SetValueChecked(
+    DependencyPropertyHandle property,
+    const PropertyValue& value) noexcept {
+    return ApplyChange(property, nullptr, ChangeKind::SetLocal, &value);
 }
 
 void DependencyObject::SetValue(
     const DependencyPropertyKey& key,
     const PropertyValue& value) noexcept {
-    (void)ApplyChange(key.Property(), &key, ChangeKind::SetLocal, &value);
+    static_cast<void>(SetValueChecked(key, value));
+}
+
+Base::Result<void> DependencyObject::SetValueChecked(
+    const DependencyPropertyKey& key,
+    const PropertyValue& value) noexcept {
+    return ApplyChange(key.Property(), &key, ChangeKind::SetLocal, &value);
 }
 
 void DependencyObject::SetCurrentValue(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
-    (void)ApplyChange(property, nullptr, ChangeKind::SetCurrent, &value);
+    static_cast<void>(SetCurrentValueChecked(property, value));
+}
+
+Base::Result<void> DependencyObject::SetCurrentValueChecked(
+    DependencyPropertyHandle property,
+    const PropertyValue& value) noexcept {
+    return ApplyChange(property, nullptr, ChangeKind::SetCurrent, &value);
 }
 
 void DependencyObject::SetCurrentValue(
     const DependencyPropertyKey& key,
     const PropertyValue& value) noexcept {
-    (void)ApplyChange(key.Property(), &key, ChangeKind::SetCurrent, &value);
+    static_cast<void>(SetCurrentValueChecked(key, value));
+}
+
+Base::Result<void> DependencyObject::SetCurrentValueChecked(
+    const DependencyPropertyKey& key,
+    const PropertyValue& value) noexcept {
+    return ApplyChange(key.Property(), &key, ChangeKind::SetCurrent, &value);
 }
 
 void DependencyObject::SetReadOnlyCurrentValue(
@@ -871,17 +902,32 @@ void DependencyObject::SetReadOnlyCurrentValue(
 
 void DependencyObject::ClearValue(
     DependencyPropertyHandle property) noexcept {
-    (void)ApplyChange(property, nullptr, ChangeKind::Clear, nullptr);
+    static_cast<void>(ClearValueChecked(property));
+}
+
+Base::Result<void> DependencyObject::ClearValueChecked(
+    DependencyPropertyHandle property) noexcept {
+    return ApplyChange(property, nullptr, ChangeKind::Clear, nullptr);
 }
 
 void DependencyObject::ClearValue(
     const DependencyPropertyKey& key) noexcept {
-    (void)ApplyChange(key.Property(), &key, ChangeKind::Clear, nullptr);
+    static_cast<void>(ClearValueChecked(key));
+}
+
+Base::Result<void> DependencyObject::ClearValueChecked(
+    const DependencyPropertyKey& key) noexcept {
+    return ApplyChange(key.Property(), &key, ChangeKind::Clear, nullptr);
 }
 
 void DependencyObject::CoerceValue(
     DependencyPropertyHandle property) noexcept {
-    (void)ApplyChange(property, nullptr, ChangeKind::ReCoerce, nullptr);
+    static_cast<void>(CoerceValueChecked(property));
+}
+
+Base::Result<void> DependencyObject::CoerceValueChecked(
+    DependencyPropertyHandle property) noexcept {
+    return ApplyChange(property, nullptr, ChangeKind::ReCoerce, nullptr);
 }
 
 Base::Result<void> DependencyObject::AddValueChangedHandlerChecked(
@@ -957,6 +1003,10 @@ PropertyInvalidationFlags DependencyObject::TakeInvalidations() noexcept {
 Base::Result<DependencyObject::MutationScope>
 DependencyObject::BeginMutation(
     DependencyPropertyHandle property) noexcept {
+    Base::Result<void> writable = VerifyMutationAllowed();
+    if (!writable) {
+        return writable.GetStatus();
+    }
     for (MemberId active : updateStack_) {
         if (active == property.value) {
             return Base::Status::Failure(
@@ -1032,6 +1082,8 @@ Base::Result<void> DependencyObject::ApplyProviderContributionInternal(
     const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    Base::Result<void> writable = VerifyMutationAllowed();
+    if (!writable) return writable.GetStatus();
     Base::Result<void> valid = registry_->ValidateValueFor(property, runtimeType_, value);
     if (!valid) return valid.GetStatus();
     Base::Result<std::uint32_t> ensured = EnsureEffectiveEntry(property);
@@ -1051,6 +1103,8 @@ Base::Result<bool> DependencyObject::ClearProviderContributionInternal(
     DependencyPropertyHandle property, PropertyProviderToken token) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    Base::Result<void> writable = VerifyMutationAllowed();
+    if (!writable) return writable.GetStatus();
     const std::uint32_t index = FindEntryIndex(property);
     if (index == InvalidIndex) return false;
     const bool removed = values_[index].baseProviders.Remove(token);
@@ -1062,6 +1116,8 @@ Base::Result<bool> DependencyObject::ClearProviderOriginInternal(
     DependencyPropertyHandle property, std::uint32_t origin) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    Base::Result<void> writable = VerifyMutationAllowed();
+    if (!writable) return writable.GetStatus();
     const std::uint32_t index = FindEntryIndex(property);
     if (index == InvalidIndex) return false;
     const bool removed = values_[index].baseProviders.RemoveOrigin(origin) != 0U;
@@ -1073,6 +1129,8 @@ Base::Result<void> DependencyObject::ApplyLocalExpressionInternal(
     DependencyPropertyHandle property, const PropertyExpression& expression) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    Base::Result<void> writable = VerifyMutationAllowed();
+    if (!writable) return writable.GetStatus();
     if (!expression.IsValid()) return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
         "A property expression requires an evaluate callback");
     Base::Result<std::uint32_t> ensured = EnsureEffectiveEntry(property);
@@ -1095,6 +1153,8 @@ Base::Result<bool> DependencyObject::ClearLocalExpressionInternal(
     DependencyPropertyHandle property) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    Base::Result<void> writable = VerifyMutationAllowed();
+    if (!writable) return writable.GetStatus();
     const std::uint32_t index = FindEntryIndex(property);
     if (index == InvalidIndex || !values_[index].hasExpression) return false;
     ReleaseExpression(values_[index]);
@@ -1107,6 +1167,8 @@ Base::Result<bool> DependencyObject::InvalidateBaseValueInternal(
     DependencyPropertyHandle property) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    Base::Result<void> writable = VerifyMutationAllowed();
+    if (!writable) return writable.GetStatus();
     const std::uint32_t index = FindEntryIndex(property);
     if (index == InvalidIndex || !values_[index].hasCurrent) return false;
     values_[index].currentValue = PropertyValue::Unset();
@@ -1118,6 +1180,8 @@ Base::Result<void> DependencyObject::ApplyAnimationValueInternal(
     DependencyPropertyHandle property, const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    Base::Result<void> writable = VerifyMutationAllowed();
+    if (!writable) return writable.GetStatus();
     if (value.IsUnset()) return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
         "Animation values cannot be Unset");
     Base::Result<std::uint32_t> ensured = EnsureEffectiveEntry(property);
@@ -1131,6 +1195,8 @@ Base::Result<bool> DependencyObject::ClearAnimationValueInternal(
     DependencyPropertyHandle property) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    Base::Result<void> writable = VerifyMutationAllowed();
+    if (!writable) return writable.GetStatus();
     const std::uint32_t index = FindEntryIndex(property);
     if (index == InvalidIndex || !values_[index].hasAnimation) return false;
     values_[index].animationValue = PropertyValue::Unset();
@@ -1142,6 +1208,8 @@ Base::Result<void> DependencyObject::ApplyInheritedValueInternal(
     DependencyPropertyHandle property, const PropertyValue* value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    Base::Result<void> writable = VerifyMutationAllowed();
+    if (!writable) return writable.GetStatus();
     std::uint32_t index = FindEntryIndex(property);
     if (index == InvalidIndex && value == nullptr) return {};
     if (index == InvalidIndex) {
@@ -1228,6 +1296,15 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     source.isCoerced = newEffective != candidate;
     if (nextValueRevision_ == UINT64_MAX) return Base::Status::Failure(
         Base::ErrorCode::OutOfRange, "Dependency property value revision limit reached");
+    if (newEffective != oldEffective) {
+        Base::Result<void> consumerPrepared =
+            Impl::PrepareConsumerChange(
+                *this,
+                propertyHandle,
+                oldEffective,
+                newEffective);
+        if (!consumerPrepared) return consumerPrepared.GetStatus();
+    }
     source.revision = nextValueRevision_++;
     index = FindEntryIndex(propertyHandle);
     if (index == InvalidIndex) return Base::Status::Failure(Base::ErrorCode::InternalError,
@@ -1236,6 +1313,13 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     entry.baseValue = baseValue;
     entry.effectiveValue = newEffective;
     entry.sourceInfo = source;
+    if (newEffective != oldEffective) {
+        Impl::CommitConsumerChange(
+            *this,
+            propertyHandle,
+            oldEffective,
+            newEffective);
+    }
     const EffectiveValueSource oldSource = ToLegacySource(oldSourceInfo);
     const EffectiveValueSource newSource = ToLegacySource(source);
     if (newEffective != oldEffective) {
@@ -1286,6 +1370,8 @@ Base::Result<void> DependencyObject::DropEngineValueStateInternal(
     DependencyPropertyHandle propertyHandle) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    Base::Result<void> writable = VerifyMutationAllowed();
+    if (!writable) return writable.GetStatus();
     const std::uint32_t index = FindEntryIndex(propertyHandle);
     if (index == InvalidIndex) return {};
     EffectiveValueEntry& entry = values_[index];
@@ -1386,6 +1472,10 @@ Base::Result<void> DependencyObject::ApplyChange(
 
 void DependencyObject::OnPropertyInvalidated(
     PropertyInvalidationFlags) noexcept {
+}
+
+Base::Result<void> DependencyObject::VerifyMutationAllowed() const noexcept {
+    return {};
 }
 
 void DependencyObject::RemoveEntry(std::uint32_t index) noexcept {

@@ -74,17 +74,6 @@ namespace Aero::Media {
 
 struct Brush::Impl {
 public:
-    static Aero::FrameworkElement* Owner(
-        const Brush& brush) noexcept {
-        return brush.GetOwner();
-    }
-
-    static void SetOwner(
-        Brush& brush,
-        Aero::FrameworkElement* owner) noexcept {
-        brush.SetOwner(owner);
-    }
-
     static Render::RenderImageId RuntimeImage(
         const ImageBrush& brush) noexcept {
         return brush.renderImage_;
@@ -112,12 +101,11 @@ public:
         brush.renderImage_ = image;
         brush.pixelWidth_ = width;
         brush.pixelHeight_ = height;
-        Aero::FrameworkElement* owner =
-            brush.GetOwner();
-        return changed && owner != nullptr
-            ? owner->InvalidateVisual()
-            : Base::Result<void>();
+        if (changed) brush.WritePostscript();
+        return {};
     }
+
+    static std::uint64_t Revision(const Brush& brush) noexcept;
 };
 
 } // namespace Aero::Media

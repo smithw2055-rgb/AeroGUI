@@ -4,6 +4,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Vector.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -61,6 +62,26 @@ Media::Transform2D Compose(
     return output;
 }
 
+bool InvertTransform(
+    const Media::Transform2D& value,
+    Media::Transform2D& inverse) noexcept {
+    const double determinant =
+        value.m11 * value.m22 - value.m12 * value.m21;
+    if (!std::isfinite(determinant) ||
+        std::fabs(determinant) < 1.0e-12) {
+        return false;
+    }
+    inverse.m11 = value.m22 / determinant;
+    inverse.m12 = -value.m12 / determinant;
+    inverse.m21 = -value.m21 / determinant;
+    inverse.m22 = value.m11 / determinant;
+    inverse.dx = -(
+        value.dx * inverse.m11 + value.dy * inverse.m21);
+    inverse.dy = -(
+        value.dx * inverse.m12 + value.dy * inverse.m22);
+    return Base::IsFiniteTransform(inverse);
+}
+
 void TransformPoint(
     const Media::Transform2D& transform,
     double x,
@@ -103,6 +124,32 @@ Aero::Rect IntersectRect(Aero::Rect left, Aero::Rect right) noexcept {
 
 bool IsEmpty(Aero::Rect rect) noexcept {
     return rect.width <= 0.0 || rect.height <= 0.0;
+}
+
+Aero::Rect UnionRect(Aero::Rect left, Aero::Rect right) noexcept {
+    if (left.width <= 0.0 || left.height <= 0.0) return right;
+    if (right.width <= 0.0 || right.height <= 0.0) return left;
+    const double x0 = std::fmin(left.x, right.x);
+    const double y0 = std::fmin(left.y, right.y);
+    const double x1 = std::fmax(
+        left.x + left.width, right.x + right.width);
+    const double y1 = std::fmax(
+        left.y + left.height, right.y + right.height);
+    return {x0, y0, x1 - x0, y1 - y0};
+}
+
+bool IsEmptyImageUv(Aero::Rect rect) noexcept {
+    return rect.width == 0.0 || rect.height == 0.0;
+}
+
+bool IsValidImageUv(Aero::Rect value) noexcept {
+    if (!Base::IsFiniteRect(value)) return false;
+    const double endX = value.x + value.width;
+    const double endY = value.y + value.height;
+    return std::fmin(value.x, endX) >= 0.0 &&
+        std::fmax(value.x, endX) <= 1.0 &&
+        std::fmin(value.y, endY) >= 0.0 &&
+        std::fmax(value.y, endY) <= 1.0;
 }
 
 bool FitsFloat(double value) noexcept {
@@ -148,6 +195,26 @@ struct ShaderImageConstants  {
     float padding[3]{};
 };
 
+struct ShaderMaskConstants  {
+    float rect[4]{};
+    float transform0[4]{};
+    float transform1[4]{};
+    float mask0[4]{};
+    float mask1[4]{};
+    float geometry0[4]{};
+    float geometry1[4]{};
+    float geometry2[4]{};
+    float relativeInverse0[4]{};
+    float relativeInverse1[4]{};
+};
+
+struct ShaderEffectConstants {
+    float viewport[4]{};
+    float filter0[4]{};
+    float filter1[4]{};
+    float tint[4]{1.0F, 1.0F, 1.0F, 1.0F};
+};
+
 struct ShaderMeshConstants  {
     float tints[MaxRectangleBatchInstances][4]{};
     float transform0[4]{};
@@ -178,6 +245,10 @@ static_assert(sizeof(ShaderImageConstants) % 16U == 0U,
     "Renderer constant buffers must be float4 aligned");
 static_assert(sizeof(ShaderImageConstants) <= 64U * 1024U,
     "Renderer constant buffers must not exceed 64 KiB");
+static_assert(sizeof(ShaderMaskConstants) % 16U == 0U,
+    "Renderer mask constants must be float4 aligned");
+static_assert(sizeof(ShaderEffectConstants) % 16U == 0U,
+    "Renderer effect constants must be float4 aligned");
 static_assert(sizeof(ShaderMeshConstants) % 16U == 0U,
     "Renderer constant buffers must be float4 aligned");
 static_assert(sizeof(ShaderGlyphConstants) % 16U == 0U,
@@ -244,6 +315,19 @@ struct ImageBinding  {
     ResourceHandle sampler;
 };
 
+struct FrameNodeGeometry {
+    Render::RenderNodeId id = Render::InvalidRenderNodeId;
+    Render::RenderNodeId parentId = Render::InvalidRenderNodeId;
+    Media::Transform2D transform;
+    Aero::Rect bounds;
+};
+
+struct GradientRampBinding {
+    std::uintptr_t key = 0U;
+    std::uint64_t revision = 0U;
+    ResourceHandle texture;
+};
+
 struct MeshBinding  {
     Render::RenderMeshId id = Render::InvalidRenderMeshId;
     ResourceHandle vertexBuffer;
@@ -263,9 +347,14 @@ struct GlyphBinding  {
 };
 
 struct EffectSurface  {
-    ResourceHandle target;
+    Render::RenderNodeId owner = Render::InvalidRenderNodeId;
+    ResourceHandle content;
+    ResourceHandle scratch;
+    ResourceHandle result;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
+    Aero::Rect logicalBounds;
+    bool empty = false;
 };
 
 struct ViewSurface {
@@ -324,6 +413,7 @@ struct Renderer::Impl  {
           opacities(allocator),
           nodePath(allocator),
           images(allocator),
+          gradientRamps(allocator),
           meshes(allocator),
           glyphRuns(allocator),
           effectSurfaces(allocator),
@@ -338,7 +428,10 @@ struct Renderer::Impl  {
     std::array<ResourceHandle, 4U>
         imagePipelines;
     ResourceHandle maskRectanglePipeline;
-    ResourceHandle maskImagePipeline;
+    ResourceHandle maskUniformBuffer;
+    ResourceHandle maskBrushPipeline;
+    ResourceHandle effectUniformBuffer;
+    ResourceHandle effectPipeline;
     ResourceHandle meshUniformBuffer;
     std::array<ResourceHandle, 4U>
         meshPipelines;
@@ -351,6 +444,7 @@ struct Renderer::Impl  {
     Base::Vector<double> opacities;
     Base::Vector<std::uint32_t> nodePath;
     Base::Vector<ImageBinding> images;
+    Base::Vector<GradientRampBinding> gradientRamps;
     Base::Vector<MeshBinding> meshes;
     Base::Vector<GlyphBinding> glyphRuns;
     Base::Vector<EffectSurface> effectSurfaces;
@@ -441,6 +535,28 @@ Base::Result<void> Renderer::Initialize() noexcept {
         return imageUniform.GetStatus();
     }
     impl_->imageUniformBuffer = imageUniform.Value();
+
+    BufferDescriptor maskUniformDescriptor;
+    maskUniformDescriptor.sizeBytes = sizeof(ShaderMaskConstants);
+    maskUniformDescriptor.usage = BufferUsage::Uniform;
+    Base::Result<ResourceHandle> maskUniform =
+        device_->CreateBuffer(maskUniformDescriptor);
+    if (!maskUniform) {
+        Shutdown();
+        return maskUniform.GetStatus();
+    }
+    impl_->maskUniformBuffer = maskUniform.Value();
+
+    BufferDescriptor effectUniformDescriptor;
+    effectUniformDescriptor.sizeBytes = sizeof(ShaderEffectConstants);
+    effectUniformDescriptor.usage = BufferUsage::Uniform;
+    Base::Result<ResourceHandle> effectUniform =
+        device_->CreateBuffer(effectUniformDescriptor);
+    if (!effectUniform) {
+        Shutdown();
+        return effectUniform.GetStatus();
+    }
+    impl_->effectUniformBuffer = effectUniform.Value();
 
     BufferDescriptor meshUniformDescriptor;
     meshUniformDescriptor.sizeBytes = sizeof(ShaderMeshConstants);
@@ -608,25 +724,38 @@ Base::Result<void> Renderer::Initialize() noexcept {
     maskRectangleDescriptor.blend.alpha.source = BlendFactor::Zero;
     maskRectangleDescriptor.blend.alpha.destination =
         BlendFactor::SourceAlpha;
-    PipelineDescriptor maskImageDescriptor =
-        imagePipelineDescriptor;
-    maskImageDescriptor.blend = maskRectangleDescriptor.blend;
+    PipelineDescriptor maskBrushDescriptor =
+        pipelineDescriptor;
+    maskBrushDescriptor.vertexShader = shaders_.maskVertex;
+    maskBrushDescriptor.fragmentShader = shaders_.maskFragment;
+    maskBrushDescriptor.blend = maskRectangleDescriptor.blend;
+    PipelineDescriptor effectDescriptor = pipelineDescriptor;
+    effectDescriptor.vertexShader = shaders_.effectVertex;
+    effectDescriptor.fragmentShader = shaders_.effectFragment;
+    effectDescriptor.blend.enabled = false;
     Base::Result<ResourceHandle> maskRectangle =
         device_->CreatePipeline(maskRectangleDescriptor);
-    Base::Result<ResourceHandle> maskImage =
+    Base::Result<ResourceHandle> maskBrush =
         maskRectangle
-        ? device_->CreatePipeline(maskImageDescriptor)
+        ? device_->CreatePipeline(maskBrushDescriptor)
         : Base::Result<ResourceHandle>(maskRectangle.GetStatus());
-    if (!maskRectangle || !maskImage) {
+    Base::Result<ResourceHandle> effectPipeline =
+        maskBrush
+        ? device_->CreatePipeline(effectDescriptor)
+        : Base::Result<ResourceHandle>(maskBrush.GetStatus());
+    if (!maskRectangle || !maskBrush || !effectPipeline) {
         const Base::Status failure =
             !maskRectangle
             ? maskRectangle.GetStatus()
-            : maskImage.GetStatus();
+            : !maskBrush
+            ? maskBrush.GetStatus()
+            : effectPipeline.GetStatus();
         Shutdown();
         return failure;
     }
     impl_->maskRectanglePipeline = maskRectangle.Value();
-    impl_->maskImagePipeline = maskImage.Value();
+    impl_->maskBrushPipeline = maskBrush.Value();
+    impl_->effectPipeline = effectPipeline.Value();
     impl_->initialized = true;
     return {};
 }
@@ -650,10 +779,25 @@ void Renderer::Shutdown() noexcept {
         }
         for (const EffectSurface& surface :
              impl_->effectSurfaces) {
-            if (surface.target.IsValid()) {
+            const ResourceHandle resources[] = {
+                surface.content,
+                surface.scratch,
+                surface.result};
+            for (ResourceHandle resource : resources) {
+                if (resource.IsValid()) {
+                    static_cast<void>(
+                        device_->DestroyResource(
+                            resource,
+                            retireFence));
+                }
+            }
+        }
+        for (const GradientRampBinding& ramp :
+             impl_->gradientRamps) {
+            if (ramp.texture.IsValid()) {
                 static_cast<void>(
                     device_->DestroyResource(
-                        surface.target,
+                        ramp.texture,
                         retireFence));
             }
         }
@@ -663,9 +807,21 @@ void Renderer::Shutdown() noexcept {
                     impl_->effectSampler,
                     retireFence));
         }
-        if (impl_->maskImagePipeline.IsValid()) {
+        if (impl_->maskBrushPipeline.IsValid()) {
             static_cast<void>(device_->DestroyResource(
-                impl_->maskImagePipeline, retireFence));
+                impl_->maskBrushPipeline, retireFence));
+        }
+        if (impl_->effectPipeline.IsValid()) {
+            static_cast<void>(device_->DestroyResource(
+                impl_->effectPipeline, retireFence));
+        }
+        if (impl_->effectUniformBuffer.IsValid()) {
+            static_cast<void>(device_->DestroyResource(
+                impl_->effectUniformBuffer, retireFence));
+        }
+        if (impl_->maskUniformBuffer.IsValid()) {
+            static_cast<void>(device_->DestroyResource(
+                impl_->maskUniformBuffer, retireFence));
         }
         if (impl_->maskRectanglePipeline.IsValid()) {
             static_cast<void>(device_->DestroyResource(
@@ -908,27 +1064,22 @@ Base::Result<CommandList> Renderer::RecordOffscreen(
         return empty.Finish();
     }
 
-    double maximumX = 1.0;
-    double maximumY = 1.0;
-    for (const Render::RenderNodeSnapshot& node : plan.Nodes()) {
-        maximumX = std::fmax(maximumX,
-            std::fmax(node.layoutSlot.x + node.renderSize.width,
-                      node.clip.x + node.clip.width));
-        maximumY = std::fmax(maximumY,
-            std::fmax(node.layoutSlot.y + node.renderSize.height,
-                      node.clip.y + node.clip.height));
+    const std::uint32_t width = plan.PixelWidth();
+    const std::uint32_t height = plan.PixelHeight();
+    if (width == 0U || height == 0U) {
+        if (surface != nullptr) {
+            surface->version = plan.Version();
+            surface->prepared = false;
+            surface->statistics = {};
+        }
+        CommandEncoder empty(allocator_);
+        return empty.Finish();
     }
-    if (!std::isfinite(maximumX) || !std::isfinite(maximumY) ||
-        maximumX <= 0.0 || maximumY <= 0.0 ||
-        maximumX > device_->Capabilities().maxTextureDimension ||
-        maximumY > device_->Capabilities().maxTextureDimension) {
+    if (width > device_->Capabilities().maxTextureDimension ||
+        height > device_->Capabilities().maxTextureDimension) {
         return InvalidArgument(
             "Offscreen View dimensions exceed device limits");
     }
-    const std::uint32_t width =
-        static_cast<std::uint32_t>(std::ceil(maximumX));
-    const std::uint32_t height =
-        static_cast<std::uint32_t>(std::ceil(maximumY));
     if (surface == nullptr) {
         Base::Result<ViewSurface*> added =
             impl_->viewSurfaces.EmplaceBack();
@@ -959,7 +1110,9 @@ Base::Result<CommandList> Renderer::RecordOffscreen(
         surface->height = height;
     }
     Base::Result<CommandList> recorded =
-        Record(plan, {surface->target, width, height});
+        Record(plan, {
+            surface->target, width, height,
+            LoadOperation::Clear});
     if (!recorded) return recorded.GetStatus();
     surface->version = plan.Version();
     surface->statistics = impl_->lastStatistics;
@@ -1002,13 +1155,21 @@ Base::Result<CommandList> Renderer::RecordOnscreen(
     Base::Result<void> encoded = encoder.UploadBuffer(
         impl_->vertexBuffer, 0U,
         {bytes, static_cast<std::uint32_t>(sizeof(UnitQuad))});
+    const std::uint32_t compositeWidth =
+        (std::min)(surface->width, target.width);
+    const std::uint32_t compositeHeight =
+        (std::min)(surface->height, target.height);
+    if (compositeWidth == 0U || compositeHeight == 0U) {
+        CommandEncoder empty(allocator_);
+        return empty.Finish();
+    }
     RenderPassDescriptor pass;
     pass.renderArea = {0.0, 0.0,
-        static_cast<double>(target.width),
-        static_cast<double>(target.height)};
+        static_cast<double>(compositeWidth),
+        static_cast<double>(compositeHeight)};
     pass.colorAttachmentCount = 1U;
     pass.colorAttachments[0].target = target.color;
-    pass.colorAttachments[0].load = LoadOperation::Clear;
+    pass.colorAttachments[0].load = target.load;
     pass.colorAttachments[0].store = StoreOperation::Store;
     pass.colorAttachments[0].clearColor = {0.0F, 0.0F, 0.0F, 0.0F};
     if (encoded) encoded = encoder.BeginRenderPass(pass);
@@ -1020,10 +1181,14 @@ Base::Result<CommandList> Renderer::RecordOnscreen(
     if (encoded) encoded = encoder.BindTextureSampler(
         0U, surface->target, impl_->effectSampler);
     ShaderImageConstants constants;
-    constants.rects[0][2] = static_cast<float>(target.width);
-    constants.rects[0][3] = static_cast<float>(target.height);
-    constants.sourceUvs[0][2] = 1.0F;
-    constants.sourceUvs[0][3] = 1.0F;
+    constants.rects[0][2] = static_cast<float>(compositeWidth);
+    constants.rects[0][3] = static_cast<float>(compositeHeight);
+    constants.sourceUvs[0][2] =
+        static_cast<float>(compositeWidth) /
+        static_cast<float>(surface->width);
+    constants.sourceUvs[0][3] =
+        static_cast<float>(compositeHeight) /
+        static_cast<float>(surface->height);
     constants.tints[0][0] = 1.0F;
     constants.tints[0][1] = 1.0F;
     constants.tints[0][2] = 1.0F;
@@ -1033,8 +1198,8 @@ Base::Result<CommandList> Renderer::RecordOnscreen(
     constants.transform1[2] = static_cast<float>(target.width);
     constants.transform1[3] = static_cast<float>(target.height);
     constants.clipCount = 1U;
-    constants.clipRect[0][2] = static_cast<float>(target.width);
-    constants.clipRect[0][3] = static_cast<float>(target.height);
+    constants.clipRect[0][2] = static_cast<float>(compositeWidth);
+    constants.clipRect[0][3] = static_cast<float>(compositeHeight);
     constants.clipInverse[0][0] = 1.0F;
     constants.clipInverse[0][3] = 1.0F;
     if (encoded) encoded = AppendDraw(
@@ -1098,8 +1263,69 @@ Base::Result<CommandList> Renderer::Record(
         return InvalidArgument("Renderer target is invalid or unavailable");
     }
 
-    const std::uint32_t width = target.width;
-    const std::uint32_t height = target.height;
+    const std::uint32_t width = plan.PixelWidth() != 0U
+        ? plan.PixelWidth()
+        : target.width;
+    const std::uint32_t height = plan.PixelHeight() != 0U
+        ? plan.PixelHeight()
+        : target.height;
+    const std::uint32_t renderWidth =
+        (std::min)(width, target.width);
+    const std::uint32_t renderHeight =
+        (std::min)(height, target.height);
+    const Aero::Size logicalSize = plan.LogicalSize();
+    const double logicalWidth = logicalSize.width > 0.0
+        ? logicalSize.width
+        : static_cast<double>(width);
+    const double logicalHeight = logicalSize.height > 0.0
+        ? logicalSize.height
+        : static_cast<double>(height);
+    const double pixelScaleX =
+        static_cast<double>(width) / logicalWidth;
+    const double pixelScaleY =
+        static_cast<double>(height) / logicalHeight;
+    const Aero::Rect frameClip = {
+        0.0, 0.0,
+        logicalWidth * static_cast<double>(renderWidth) /
+            static_cast<double>(width),
+        logicalHeight * static_cast<double>(renderHeight) /
+            static_cast<double>(height)};
+    Base::Vector<FrameNodeGeometry> frameGeometry(allocator_);
+    Base::Result<void> geometryReserved =
+        frameGeometry.Reserve(plan.Nodes().Size());
+    if (!geometryReserved) return geometryReserved.GetStatus();
+    for (const Render::RenderNodeSnapshot& node : plan.Nodes()) {
+        Media::Transform2D parentTransform = IdentityTransform();
+        if (node.parentId != Render::InvalidRenderNodeId) {
+            const FrameNodeGeometry* parent = nullptr;
+            for (const FrameNodeGeometry& candidate : frameGeometry) {
+                if (candidate.id == node.parentId) {
+                    parent = &candidate;
+                    break;
+                }
+            }
+            if (parent == nullptr) {
+                return InvalidState(
+                    "Renderer node parent geometry is unavailable");
+            }
+            parentTransform = parent->transform;
+        }
+        const Media::Transform2D transform = Compose(
+            Compose(
+                node.renderTransform,
+                Translation(node.layoutSlot.x, node.layoutSlot.y)),
+            parentTransform);
+        Base::Result<void> appended = frameGeometry.PushBack({
+            node.id,
+            node.parentId,
+            transform,
+            TransformBounds(
+                transform,
+                {0.0, 0.0,
+                 node.renderSize.width,
+                 node.renderSize.height})});
+        if (!appended) return appended.GetStatus();
+    }
     std::uint32_t effectCount = 0U;
     for (const Render::RenderNodeSnapshot& node :
          plan.Nodes()) {
@@ -1110,13 +1336,14 @@ Base::Result<CommandList> Renderer::Record(
     for (std::uint32_t index = effectCount;
          index < impl_->effectSurfaces.Size();
          ++index) {
-        if (impl_->effectSurfaces[index].
-                target.IsValid()) {
-            static_cast<void>(
-                device_->DestroyResource(
-                    impl_->effectSurfaces[index].
-                        target,
-                    device_->LastSubmittedFence()));
+        EffectSurface& surface = impl_->effectSurfaces[index];
+        const ResourceHandle resources[] = {
+            surface.content, surface.scratch, surface.result};
+        for (ResourceHandle resource : resources) {
+            if (resource.IsValid()) {
+                static_cast<void>(device_->DestroyResource(
+                    resource, device_->LastSubmittedFence()));
+            }
         }
     }
     Base::Result<void> resizedEffects =
@@ -1125,23 +1352,119 @@ Base::Result<CommandList> Renderer::Record(
     if (!resizedEffects) {
         return resizedEffects.GetStatus();
     }
-    for (EffectSurface& surface :
-         impl_->effectSurfaces) {
-        if (surface.target.IsValid() &&
-            (surface.width != width ||
-             surface.height != height ||
-             !device_->IsAlive(
-                 surface.target))) {
-            static_cast<void>(
-                device_->DestroyResource(
-                    surface.target,
-                    device_->LastSubmittedFence()));
+    std::uint32_t surfaceOrdinal = 0U;
+    for (const Render::RenderNodeSnapshot& node : plan.Nodes()) {
+        if (!RequiresNodeSurface(node)) continue;
+        EffectSurface& surface = impl_->effectSurfaces[surfaceOrdinal++];
+        Aero::Rect subtreeBounds;
+        bool hasBounds = false;
+        for (const FrameNodeGeometry& candidate : frameGeometry) {
+            const FrameNodeGeometry* cursor = &candidate;
+            bool belongs = false;
+            while (cursor != nullptr) {
+                if (cursor->id == node.id) {
+                    belongs = true;
+                    break;
+                }
+                if (cursor->parentId == Render::InvalidRenderNodeId) break;
+                const FrameNodeGeometry* parent = nullptr;
+                for (const FrameNodeGeometry& possible : frameGeometry) {
+                    if (possible.id == cursor->parentId) {
+                        parent = &possible;
+                        break;
+                    }
+                }
+                cursor = parent;
+            }
+            if (!belongs) continue;
+            Aero::Rect candidateBounds = candidate.bounds;
+            for (const Render::RenderNodeSnapshot& candidateNode :
+                 plan.Nodes()) {
+                if (candidateNode.id != candidate.id) continue;
+                if (candidateNode.effect.kind !=
+                        Render::RenderEffectKind::None) {
+                    const double padding =
+                        std::fmin(candidateNode.effect.radius, 50.0) +
+                        (candidateNode.effect.kind ==
+                             Render::RenderEffectKind::DropShadow
+                         ? candidateNode.effect.depth
+                         : 0.0);
+                    candidateBounds.x -= padding;
+                    candidateBounds.y -= padding;
+                    candidateBounds.width += padding * 2.0;
+                    candidateBounds.height += padding * 2.0;
+                }
+                break;
+            }
+            subtreeBounds = hasBounds
+                ? UnionRect(subtreeBounds, candidateBounds)
+                : candidateBounds;
+            hasBounds = hasBounds || !IsEmpty(candidateBounds);
+        }
+        subtreeBounds = hasBounds
+            ? IntersectRect(subtreeBounds, frameClip)
+            : Aero::Rect{};
+        const bool emptySurface = IsEmpty(subtreeBounds);
+        const double pixelX0 = emptySurface
+            ? 0.0
+            : std::clamp(
+                std::floor(subtreeBounds.x * pixelScaleX),
+                0.0,
+                static_cast<double>(renderWidth));
+        const double pixelY0 = emptySurface
+            ? 0.0
+            : std::clamp(
+                std::floor(subtreeBounds.y * pixelScaleY),
+                0.0,
+                static_cast<double>(renderHeight));
+        const double pixelX1 = emptySurface
+            ? 1.0
+            : std::clamp(
+                std::ceil(
+                    (subtreeBounds.x + subtreeBounds.width) * pixelScaleX),
+                pixelX0,
+                static_cast<double>(renderWidth));
+        const double pixelY1 = emptySurface
+            ? 1.0
+            : std::clamp(
+                std::ceil(
+                    (subtreeBounds.y + subtreeBounds.height) * pixelScaleY),
+                pixelY0,
+                static_cast<double>(renderHeight));
+        const std::uint32_t surfaceWidth = (std::max)(
+            1U,
+            static_cast<std::uint32_t>(pixelX1 - pixelX0));
+        const std::uint32_t surfaceHeight = (std::max)(
+            1U,
+            static_cast<std::uint32_t>(pixelY1 - pixelY0));
+        const Aero::Rect alignedBounds = {
+            pixelX0 / pixelScaleX,
+            pixelY0 / pixelScaleY,
+            static_cast<double>(surfaceWidth) / pixelScaleX,
+            static_cast<double>(surfaceHeight) / pixelScaleY};
+        const bool reusable =
+            surface.width == surfaceWidth &&
+            surface.height == surfaceHeight &&
+            surface.content.IsValid() && surface.scratch.IsValid() &&
+            surface.result.IsValid() &&
+            device_->IsAlive(surface.content) &&
+            device_->IsAlive(surface.scratch) &&
+            device_->IsAlive(surface.result);
+        if (!reusable) {
+            const ResourceHandle resources[] = {
+                surface.content, surface.scratch, surface.result};
+            for (ResourceHandle resource : resources) {
+                if (resource.IsValid()) {
+                    static_cast<void>(device_->DestroyResource(
+                        resource, device_->LastSubmittedFence()));
+                }
+            }
             surface = {};
         }
-        if (!surface.target.IsValid()) {
+        if (!surface.content.IsValid()) {
             TextureResourceDescriptor descriptor;
-            descriptor.width = width;
-            descriptor.height = height;
+            descriptor.width = surfaceWidth;
+            descriptor.height = surfaceHeight;
             descriptor.format =
                 shaders_.colorFormat;
             descriptor.usage =
@@ -1149,19 +1472,118 @@ Base::Result<CommandList> Renderer::Record(
                     TextureUsage::Sampled) |
                 TextureUsageBit(
                     TextureUsage::RenderTarget);
-            Base::Result<ResourceHandle> created =
-                device_->CreateRenderTarget(
-                    descriptor);
-            if (!created) {
-                return created.GetStatus();
+            Base::Result<ResourceHandle> content =
+                device_->CreateRenderTarget(descriptor);
+            Base::Result<ResourceHandle> scratch = content
+                ? device_->CreateRenderTarget(descriptor)
+                : Base::Result<ResourceHandle>(content.GetStatus());
+            Base::Result<ResourceHandle> result = scratch
+                ? device_->CreateRenderTarget(descriptor)
+                : Base::Result<ResourceHandle>(scratch.GetStatus());
+            if (!content || !scratch || !result) {
+                if (content) static_cast<void>(device_->DestroyResource(
+                    content.Value(), device_->LastSubmittedFence()));
+                if (scratch) static_cast<void>(device_->DestroyResource(
+                    scratch.Value(), device_->LastSubmittedFence()));
+                return !content
+                    ? content.GetStatus()
+                    : !scratch
+                    ? scratch.GetStatus()
+                    : result.GetStatus();
             }
-            surface.target = created.Value();
-            surface.width = width;
-            surface.height = height;
+            surface.content = content.Value();
+            surface.scratch = scratch.Value();
+            surface.result = result.Value();
+            surface.width = surfaceWidth;
+            surface.height = surfaceHeight;
         }
+        surface.owner = node.id;
+        surface.logicalBounds = alignedBounds;
+        surface.empty = emptySurface;
     }
 
     CommandEncoder encoder(allocator_);
+    for (std::uint32_t index = 0U;
+         index < impl_->gradientRamps.Size();) {
+        const GradientRampBinding& cached =
+            impl_->gradientRamps[index];
+        bool used = false;
+        for (const Render::RenderGradientRampSnapshot& ramp :
+             plan.GradientRamps()) {
+            if (ramp.brushIdentity == cached.key) {
+                used = true;
+                break;
+            }
+        }
+        if (used) {
+            ++index;
+            continue;
+        }
+        if (cached.texture.IsValid()) {
+            static_cast<void>(device_->DestroyResource(
+                cached.texture, device_->LastSubmittedFence()));
+        }
+        for (std::uint32_t next = index + 1U;
+             next < impl_->gradientRamps.Size(); ++next) {
+            impl_->gradientRamps[next - 1U] =
+                std::move(impl_->gradientRamps[next]);
+        }
+        impl_->gradientRamps.PopBack();
+    }
+    for (const Render::RenderGradientRampSnapshot& ramp :
+         plan.GradientRamps()) {
+        GradientRampBinding* binding = nullptr;
+        for (GradientRampBinding& candidate :
+             impl_->gradientRamps) {
+            if (candidate.key == ramp.brushIdentity) {
+                binding = &candidate;
+                break;
+            }
+        }
+        if (binding == nullptr) {
+            Base::Result<GradientRampBinding*> appended =
+                impl_->gradientRamps.EmplaceBack();
+            if (!appended) return appended.GetStatus();
+            binding = appended.Value();
+            binding->key = ramp.brushIdentity;
+        }
+        const bool current =
+            binding->revision == ramp.revision &&
+            binding->texture.IsValid() &&
+            device_->IsAlive(binding->texture);
+        if (current) continue;
+        if (binding->texture.IsValid()) {
+            static_cast<void>(device_->DestroyResource(
+                binding->texture, device_->LastSubmittedFence()));
+            binding->texture = {};
+        }
+        TextureResourceDescriptor descriptor;
+        descriptor.width = Render::GradientRampWidth;
+        descriptor.height = 1U;
+        descriptor.format = GraphicsTextureFormat::Rgba8Unorm;
+        descriptor.usage =
+            TextureUsageBit(TextureUsage::Sampled) |
+            TextureUsageBit(TextureUsage::CopyDestination);
+        Base::Result<ResourceHandle> created =
+            device_->CreateTexture(descriptor);
+        if (!created) return created.GetStatus();
+        binding->texture = created.Value();
+        TextureRegion region;
+        region.width = Render::GradientRampWidth;
+        region.height = 1U;
+        region.bytesPerRow = Render::GradientRampWidth * 4U;
+        Base::Result<void> uploaded = encoder.UploadTexture(
+            binding->texture,
+            region,
+            {ramp.pixels.data(),
+             static_cast<std::uint32_t>(ramp.pixels.size())});
+        if (!uploaded) {
+            static_cast<void>(device_->DestroyResource(binding->texture));
+            binding->texture = {};
+            return uploaded.GetStatus();
+        }
+        binding->revision = ramp.revision;
+    }
     static constexpr float UnitQuad[] = {
         0.0F, 0.0F, 1.0F, 0.0F,
         0.0F, 1.0F, 1.0F, 1.0F};
@@ -1177,7 +1599,7 @@ Base::Result<CommandList> Renderer::Record(
         0.0, 0.0, static_cast<double>(width), static_cast<double>(height)};
     pass.colorAttachmentCount = 1U;
     pass.colorAttachments[0].target = target.color;
-    pass.colorAttachments[0].load = LoadOperation::Clear;
+    pass.colorAttachments[0].load = target.load;
     pass.colorAttachments[0].store = StoreOperation::Store;
     pass.colorAttachments[0].clearColor = {0.0F, 0.0F, 0.0F, 0.0F};
     RendererStatistics submissionStatistics;
@@ -1293,13 +1715,43 @@ Base::Result<CommandList> Renderer::Record(
         return result;
     };
 
-    const Aero::Rect targetClip = {
-        0.0, 0.0, static_cast<double>(width), static_cast<double>(height)};
+    const Aero::Rect targetClip = frameClip;
     const Base::Span<const Render::RenderCommand> commands = plan.Commands();
     auto recordNodes = [&](
         Render::RenderNodeId effectRoot,
-        bool mainPass) noexcept
+        bool mainPass,
+        const EffectSurface* destinationSurface) noexcept
         -> Base::Result<void> {
+    const double passLogicalWidth = destinationSurface != nullptr
+        ? destinationSurface->logicalBounds.width
+        : logicalWidth;
+    const double passLogicalHeight = destinationSurface != nullptr
+        ? destinationSurface->logicalBounds.height
+        : logicalHeight;
+    const double passPixelScaleX = destinationSurface != nullptr
+        ? static_cast<double>(destinationSurface->width) /
+            passLogicalWidth
+        : pixelScaleX;
+    const double passPixelScaleY = destinationSurface != nullptr
+        ? static_cast<double>(destinationSurface->height) /
+            passLogicalHeight
+        : pixelScaleY;
+    const Aero::Rect passTargetClip = destinationSurface != nullptr
+        ? Aero::Rect{0.0, 0.0, passLogicalWidth, passLogicalHeight}
+        : targetClip;
+    const Media::Transform2D passOrigin = destinationSurface != nullptr
+        ? Translation(
+            -destinationSurface->logicalBounds.x,
+            -destinationSurface->logicalBounds.y)
+        : IdentityTransform();
+    auto passPhysicalScissor = [passPixelScaleX, passPixelScaleY](
+        Aero::Rect logical) noexcept {
+        return Aero::Rect{
+            logical.x * passPixelScaleX,
+            logical.y * passPixelScaleY,
+            logical.width * passPixelScaleX,
+            logical.height * passPixelScaleY};
+    };
     activePipeline = ActivePipeline::None;
     activeBlendMode = UINT32_MAX;
     impl_->nodes.Clear();
@@ -1363,7 +1815,8 @@ Base::Result<CommandList> Renderer::Record(
             break;
         }
         if (static_cast<std::uint8_t>(node.mask.kind) >
-                static_cast<std::uint8_t>(Render::RenderMaskKind::Image) ||
+                static_cast<std::uint8_t>(
+                    Render::RenderMaskKind::RadialGradient) ||
             !Render::IsFinite(node.mask.color) ||
             (node.mask.kind == Render::RenderMaskKind::Image &&
              (node.mask.image == Render::InvalidRenderImageId ||
@@ -1397,8 +1850,8 @@ Base::Result<CommandList> Renderer::Record(
             break;
         }
 
-        Media::Transform2D parentTransform = IdentityTransform();
-        Aero::Rect parentClip = targetClip;
+        Media::Transform2D parentTransform = passOrigin;
+        Aero::Rect parentClip = passTargetClip;
         double parentOpacity = 1.0;
         std::uint32_t parentIndex = UINT32_MAX;
         Render::RenderNodeId containingEffect =
@@ -1426,6 +1879,8 @@ Base::Result<CommandList> Renderer::Record(
             containingEffectCount =
                 parent->containingEffectCount;
         }
+        const Render::RenderNodeId parentContainingEffect =
+            containingEffect;
         if (RequiresNodeSurface(node)) {
             containingEffect = node.id;
             ++containingEffectCount;
@@ -1468,7 +1923,7 @@ Base::Result<CommandList> Renderer::Record(
         // that root clip, then add only ancestors that explicitly opt into
         // ClipToBounds.
         Base::Result<void> rootClip = impl_->clips.PushBack(
-            {targetClip, IdentityTransform(), targetClip});
+            {passTargetClip, IdentityTransform(), passTargetClip});
         if (!rootClip) {
             encoded = rootClip;
             break;
@@ -1517,211 +1972,95 @@ Base::Result<CommandList> Renderer::Record(
         }
         const std::uint32_t baseClipCount = impl_->clips.Size();
 
-        bool isInRequestedSubtree =
-            effectRoot ==
-                Render::InvalidRenderNodeId;
-        for (std::uint32_t pathIndex = 0U;
-             pathIndex < impl_->nodePath.Size();
-             ++pathIndex) {
-            const Render::RenderNodeId pathId =
-                impl_->nodes[
-                    impl_->nodePath[
-                        pathIndex]].id;
-            if (pathId == effectRoot) {
-                isInRequestedSubtree = true;
-            }
-        }
         const NodeState& currentNodeState =
             impl_->nodes[
                 impl_->nodes.Size() - 1U];
-        if (containingEffectCount > 1U) {
-            encoded = Unsupported(
-                "Renderer does not support nested effect or mask groups");
-            break;
-        }
         bool shouldDraw =
             mainPass
             ? currentNodeState.containingEffect ==
                 Render::InvalidRenderNodeId
-            : isInRequestedSubtree;
-        if (mainPass &&
-            currentNodeState.containingEffect ==
-                node.id) {
+            : node.id == effectRoot ||
+                currentNodeState.containingEffect == effectRoot;
+        const bool compositeSurface =
+            RequiresNodeSurface(node) && node.id != effectRoot &&
+            (mainPass
+             ? parentContainingEffect == Render::InvalidRenderNodeId
+             : parentContainingEffect == effectRoot);
+        if (compositeSurface) {
             if (nodeEffectSurfaceIndex >=
                     impl_->effectSurfaces.Size() ||
-                !impl_->effectSurfaces[
-                    nodeEffectSurfaceIndex].
-                    target.IsValid()) {
+                impl_->effectSurfaces[nodeEffectSurfaceIndex].owner != node.id) {
                 encoded = InvalidState(
                     "Renderer effect surface is unavailable");
                 break;
             }
-            Aero::Rect effectBounds =
-                TransformBounds(
-                    nodeTransform,
-                    {0.0, 0.0,
-                     node.renderSize.width,
-                     node.renderSize.height});
-            const double effectPadding =
+            const EffectSurface& effectSurface =
+                impl_->effectSurfaces[nodeEffectSurfaceIndex];
+            const ResourceHandle source =
                 node.effect.kind == Render::RenderEffectKind::None
-                ? 0.0
-                : std::fmin(node.effect.radius, 50.0) +
-                    (node.effect.kind ==
-                         Render::RenderEffectKind::DropShadow
-                     ? node.effect.depth
-                     : 0.0);
-            effectBounds.x -= effectPadding;
-            effectBounds.y -= effectPadding;
-            effectBounds.width +=
-                effectPadding * 2.0;
-            effectBounds.height +=
-                effectPadding * 2.0;
-            effectBounds = IntersectRect(
-                effectBounds, targetClip);
-            auto appendEffectSample = [&](
-                double offsetX,
-                double offsetY,
-                Base::Color tint) noexcept
-                -> Base::Result<void> {
+                ? effectSurface.content
+                : effectSurface.result;
+            if (!source.IsValid() || !device_->IsAlive(source)) {
+                encoded = InvalidState(
+                    "Renderer effect surface output is unavailable");
+                break;
+            }
+            Aero::Rect surfaceBounds = effectSurface.logicalBounds;
+            if (destinationSurface != nullptr) {
+                surfaceBounds.x -= destinationSurface->logicalBounds.x;
+                surfaceBounds.y -= destinationSurface->logicalBounds.y;
+            }
+            const Aero::Rect effectBounds = IntersectRect(
+                surfaceBounds, passTargetClip);
+            if (!IsEmpty(effectBounds)) {
                 ShaderImageConstants constants;
                 constants.transform0[0] = 1.0F;
                 constants.transform0[3] = 1.0F;
-                constants.transform1[2] =
-                    static_cast<float>(width);
-                constants.transform1[3] =
-                    static_cast<float>(height);
+                constants.transform1[2] = static_cast<float>(passLogicalWidth);
+                constants.transform1[3] = static_cast<float>(passLogicalHeight);
                 constants.clipCount = 1U;
-                constants.clipRect[0][2] =
-                    static_cast<float>(width);
-                constants.clipRect[0][3] =
-                    static_cast<float>(height);
+                constants.clipRect[0][2] = static_cast<float>(passLogicalWidth);
+                constants.clipRect[0][3] = static_cast<float>(passLogicalHeight);
                 constants.clipInverse[0][0] = 1.0F;
                 constants.clipInverse[0][3] = 1.0F;
-                constants.rects[0][0] =
-                    static_cast<float>(
-                        effectBounds.x +
-                        offsetX);
-                constants.rects[0][1] =
-                    static_cast<float>(
-                        effectBounds.y +
-                        offsetY);
-                constants.rects[0][2] =
-                    static_cast<float>(
-                        effectBounds.width);
-                constants.rects[0][3] =
-                    static_cast<float>(
-                        effectBounds.height);
-                constants.sourceUvs[0][0] =
-                    static_cast<float>(
-                        effectBounds.x /
-                        static_cast<double>(width));
-                constants.sourceUvs[0][1] =
-                    static_cast<float>(
-                        effectBounds.y /
-                        static_cast<double>(height));
-                constants.sourceUvs[0][2] =
-                    static_cast<float>(
-                        effectBounds.width /
-                        static_cast<double>(width));
-                constants.sourceUvs[0][3] =
-                    static_cast<float>(
-                        effectBounds.height /
-                        static_cast<double>(height));
-                constants.tints[0][0] = tint.red;
-                constants.tints[0][1] = tint.green;
-                constants.tints[0][2] = tint.blue;
-                constants.tints[0][3] = tint.alpha;
-                Base::Result<void> result =
-                    bindImagePipeline(0U);
-                if (result) {
-                    result =
-                        encoder.BindTextureSampler(
-                            0U,
-                            impl_->effectSurfaces[
-                                nodeEffectSurfaceIndex].
-                                target,
-                            impl_->effectSampler);
+                constants.rects[0][0] = static_cast<float>(effectBounds.x);
+                constants.rects[0][1] = static_cast<float>(effectBounds.y);
+                constants.rects[0][2] = static_cast<float>(effectBounds.width);
+                constants.rects[0][3] = static_cast<float>(effectBounds.height);
+                constants.sourceUvs[0][0] = static_cast<float>(
+                    (effectBounds.x - surfaceBounds.x) /
+                    surfaceBounds.width);
+                constants.sourceUvs[0][1] = static_cast<float>(
+                    (effectBounds.y - surfaceBounds.y) /
+                    surfaceBounds.height);
+                constants.sourceUvs[0][2] = static_cast<float>(
+                    effectBounds.width / surfaceBounds.width);
+                constants.sourceUvs[0][3] = static_cast<float>(
+                    effectBounds.height / surfaceBounds.height);
+                constants.tints[0][0] = 1.0F;
+                constants.tints[0][1] = 1.0F;
+                constants.tints[0][2] = 1.0F;
+                constants.tints[0][3] = 1.0F;
+                encoded = bindImagePipeline(blendMode);
+                if (encoded) {
+                    encoded = encoder.BindTextureSampler(
+                        0U, source, impl_->effectSampler);
                 }
-                if (result) {
-                    ++submissionStatistics.
-                        textureSamplerBindingCount;
-                    result = AppendDraw(
+                if (encoded) {
+                    ++submissionStatistics.textureSamplerBindingCount;
+                    encoded = AppendDraw(
                         encoder,
                         impl_->imageUniformBuffer,
                         constants,
-                        targetClip,
+                        passPhysicalScissor(effectBounds),
                         1U);
                 }
-                if (result) {
-                    ++submissionStatistics.drawCallCount;
-                    ++submissionStatistics.
-                        imageInstanceCount;
-                    ++submissionStatistics.
-                        uniformBufferUploadCount;
-                }
-                return result;
-            };
-            const double sampleRadius =
-                std::fmin(
-                    node.effect.radius,
-                    50.0) * 0.5;
-            if (node.effect.kind ==
-                Render::RenderEffectKind::DropShadow) {
-                constexpr double DegreesToRadians =
-                    0.017453292519943295769;
-                const double radians =
-                    node.effect.direction *
-                    DegreesToRadians;
-                const double shadowX =
-                    std::cos(radians) *
-                    node.effect.depth;
-                const double shadowY =
-                    -std::sin(radians) *
-                    node.effect.depth;
-                Base::Color shadowTint =
-                    node.effect.color;
-                shadowTint.alpha =
-                    static_cast<float>(
-                        node.effect.opacity / 9.0);
-                for (std::int32_t y = -1;
-                     y <= 1 && encoded; ++y) {
-                    for (std::int32_t x = -1;
-                         x <= 1 && encoded; ++x) {
-                        encoded = appendEffectSample(
-                            shadowX +
-                                sampleRadius * x,
-                            shadowY +
-                                sampleRadius * y,
-                            shadowTint);
-                    }
-                }
                 if (encoded) {
-                    encoded = appendEffectSample(
-                        0.0, 0.0,
-                        {1.0F, 1.0F, 1.0F,
-                         1.0F});
+                    ++submissionStatistics.drawCallCount;
+                    ++submissionStatistics.imageInstanceCount;
+                    ++submissionStatistics.uniformBufferUploadCount;
                 }
-            } else if (node.effect.kind ==
-                       Render::RenderEffectKind::Blur) {
-                const Base::Color blurTint{
-                    1.0F, 1.0F, 1.0F,
-                    1.0F / 9.0F};
-                for (std::int32_t y = -1;
-                     y <= 1 && encoded; ++y) {
-                    for (std::int32_t x = -1;
-                         x <= 1 && encoded; ++x) {
-                        encoded = appendEffectSample(
-                            sampleRadius * x,
-                            sampleRadius * y,
-                            blurTint);
-                    }
-                }
-            } else {
-                encoded = appendEffectSample(
-                    0.0, 0.0,
-                    {1.0F, 1.0F, 1.0F, 1.0F});
             }
-            if (!encoded) break;
             shouldDraw = false;
         }
 
@@ -1837,8 +2176,10 @@ Base::Result<CommandList> Renderer::Record(
                     constants.transform0[3] = static_cast<float>(transform.m22);
                     constants.transform1[0] = static_cast<float>(transform.dx);
                     constants.transform1[1] = static_cast<float>(transform.dy);
-                    constants.transform1[2] = static_cast<float>(width);
-                    constants.transform1[3] = static_cast<float>(height);
+                    constants.transform1[2] =
+                        static_cast<float>(passLogicalWidth);
+                    constants.transform1[3] =
+                        static_cast<float>(passLogicalHeight);
                     constants.clipCount = impl_->clips.Size();
                     for (std::uint32_t clipIndex = 0U;
                          clipIndex < impl_->clips.Size();
@@ -1890,7 +2231,8 @@ Base::Result<CommandList> Renderer::Record(
                 auto appendConstants = [&](const ShaderRectConstants& constants,
                     std::uint32_t instanceCount) noexcept -> Base::Result<void> {
                     Base::Result<void> result = AppendDraw(
-                        encoder, impl_->uniformBuffer, constants, clip,
+                        encoder, impl_->uniformBuffer, constants,
+                        passPhysicalScissor(clip),
                         instanceCount);
                     if (result) {
                         ++submissionStatistics.drawCallCount;
@@ -2012,10 +2354,7 @@ Base::Result<CommandList> Renderer::Record(
             case Render::RenderCommandKind::DrawImage: {
                 if (command.image == Render::InvalidRenderImageId ||
                     !Aero::IsValidLayoutRect(command.rect) ||
-                    !Aero::IsValidLayoutRect(command.sourceUv) ||
-                    command.sourceUv.x < 0.0 || command.sourceUv.y < 0.0 ||
-                    command.sourceUv.x + command.sourceUv.width > 1.0 ||
-                    command.sourceUv.y + command.sourceUv.height > 1.0 ||
+                    !IsValidImageUv(command.sourceUv) ||
                     !Render::IsFinite(command.color)) {
                     encoded = InvalidArgument(
                         "Renderer contains invalid image geometry");
@@ -2042,7 +2381,7 @@ Base::Result<CommandList> Renderer::Record(
                 const Aero::Rect clip =
                     impl_->clips[impl_->clips.Size() - 1U].bounds;
                 if (IsEmpty(clip) || IsEmpty(command.rect) ||
-                    IsEmpty(command.sourceUv)) {
+                    IsEmptyImageUv(command.sourceUv)) {
                     break;
                 }
                 const Media::Transform2D& transform =
@@ -2069,8 +2408,10 @@ Base::Result<CommandList> Renderer::Record(
                 constants.transform0[3] = static_cast<float>(transform.m22);
                 constants.transform1[0] = static_cast<float>(transform.dx);
                 constants.transform1[1] = static_cast<float>(transform.dy);
-                constants.transform1[2] = static_cast<float>(width);
-                constants.transform1[3] = static_cast<float>(height);
+                constants.transform1[2] =
+                    static_cast<float>(passLogicalWidth);
+                constants.transform1[3] =
+                    static_cast<float>(passLogicalHeight);
                 constants.clipCount = impl_->clips.Size();
                 for (std::uint32_t clipIndex = 0U;
                      clipIndex < impl_->clips.Size();
@@ -2137,16 +2478,14 @@ Base::Result<CommandList> Renderer::Record(
                     }
                     ++batchCommandCount;
                     if (!Aero::IsValidLayoutRect(candidate.rect) ||
-                        !Aero::IsValidLayoutRect(candidate.sourceUv) ||
-                        candidate.sourceUv.x < 0.0 || candidate.sourceUv.y < 0.0 ||
-                        candidate.sourceUv.x + candidate.sourceUv.width > 1.0 ||
-                        candidate.sourceUv.y + candidate.sourceUv.height > 1.0 ||
+                        !IsValidImageUv(candidate.sourceUv) ||
                         !Render::IsFinite(candidate.color)) {
                         encoded = InvalidArgument(
                             "Renderer contains invalid image geometry");
                         break;
                     }
-                    if (IsEmpty(candidate.rect) || IsEmpty(candidate.sourceUv)) {
+                    if (IsEmpty(candidate.rect) ||
+                        IsEmptyImageUv(candidate.sourceUv)) {
                         continue;
                     }
                     if (!FitsFloat(candidate.rect.x) ||
@@ -2199,7 +2538,7 @@ Base::Result<CommandList> Renderer::Record(
                     if (encoded) {
                         ++submissionStatistics.textureSamplerBindingCount;
                         encoded = AppendDraw(encoder, impl_->imageUniformBuffer,
-                            constants, clip, instanceCount);
+                            constants, passPhysicalScissor(clip), instanceCount);
                     }
                     if (encoded) {
                         ++submissionStatistics.drawCallCount;
@@ -2251,8 +2590,10 @@ Base::Result<CommandList> Renderer::Record(
                 constants.transform0[3] = static_cast<float>(transform.m22);
                 constants.transform1[0] = static_cast<float>(transform.dx);
                 constants.transform1[1] = static_cast<float>(transform.dy);
-                constants.transform1[2] = static_cast<float>(width);
-                constants.transform1[3] = static_cast<float>(height);
+                constants.transform1[2] =
+                    static_cast<float>(passLogicalWidth);
+                constants.transform1[3] =
+                    static_cast<float>(passLogicalHeight);
                 constants.clipCount = impl_->clips.Size();
                 for (std::uint32_t clipIndex = 0U;
                      clipIndex < impl_->clips.Size();
@@ -2336,7 +2677,10 @@ Base::Result<CommandList> Renderer::Record(
                     encoded = encoder.UploadBuffer(impl_->meshUniformBuffer, 0U,
                         {bytes, static_cast<std::uint32_t>(sizeof(constants))});
                 }
-                if (encoded) encoded = encoder.SetScissor(clip);
+                if (encoded) {
+                    encoded = encoder.SetScissor(
+                        passPhysicalScissor(clip));
+                }
                 if (encoded) {
                     encoded = encoder.DrawIndexed(
                         meshBinding->indexCount, instanceCount);
@@ -2396,8 +2740,10 @@ Base::Result<CommandList> Renderer::Record(
                 constants.transform0[3] = static_cast<float>(transform.m22);
                 constants.transform1[0] = static_cast<float>(transform.dx);
                 constants.transform1[1] = static_cast<float>(transform.dy);
-                constants.transform1[2] = static_cast<float>(width);
-                constants.transform1[3] = static_cast<float>(height);
+                constants.transform1[2] =
+                    static_cast<float>(passLogicalWidth);
+                constants.transform1[3] =
+                    static_cast<float>(passLogicalHeight);
                 constants.clipCount = impl_->clips.Size();
                 for (std::uint32_t clipIndex = 0U;
                      clipIndex < impl_->clips.Size();
@@ -2495,7 +2841,8 @@ Base::Result<CommandList> Renderer::Record(
                         {bytes, static_cast<std::uint32_t>(sizeof(constants))});
                 }
                 if (encoded) {
-                    encoded = encoder.SetScissor(clip);
+                    encoded = encoder.SetScissor(
+                        passPhysicalScissor(clip));
                 }
                 if (encoded) {
                     encoded = encoder.DrawIndexed(
@@ -2525,9 +2872,185 @@ Base::Result<CommandList> Renderer::Record(
     return encoded;
     };
 
-    auto applyMask = [&](const Render::RenderNodeSnapshot& node) noexcept
+    auto applyEffect = [&](
+        const Render::RenderNodeSnapshot& node,
+        EffectSurface& surface) noexcept -> Base::Result<void> {
+        if (node.effect.kind == Render::RenderEffectKind::None) return {};
+
+        auto runFilterPass = [&](ResourceHandle destination,
+                                 ResourceHandle source,
+                                 const ShaderEffectConstants& constants)
+            noexcept -> Base::Result<void> {
+            pass.colorAttachments[0].target = destination;
+            pass.colorAttachments[0].load = LoadOperation::Clear;
+            pass.renderArea = {
+                0.0, 0.0,
+                static_cast<double>(surface.width),
+                static_cast<double>(surface.height)};
+            Base::Result<void> result = encoder.BeginRenderPass(pass);
+            if (result) {
+                ++submissionStatistics.renderPassCount;
+                result = encoder.BindPipeline(impl_->effectPipeline);
+            }
+            if (result) {
+                ++submissionStatistics.pipelineBindingCount;
+                result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+            }
+            if (result) {
+                ++submissionStatistics.vertexBufferBindingCount;
+                result = encoder.BindUniformBuffer(
+                    0U, impl_->effectUniformBuffer, 0U,
+                    static_cast<std::uint32_t>(sizeof(constants)));
+            }
+            if (result) {
+                ++submissionStatistics.uniformBufferBindingCount;
+                result = encoder.BindTextureSampler(
+                    0U, source, impl_->effectSampler);
+            }
+            if (result) {
+                ++submissionStatistics.textureSamplerBindingCount;
+                result = AppendDraw(
+                    encoder,
+                    impl_->effectUniformBuffer,
+                    constants,
+                    pass.renderArea,
+                    1U);
+            }
+            if (result) {
+                ++submissionStatistics.drawCallCount;
+                ++submissionStatistics.imageInstanceCount;
+                ++submissionStatistics.uniformBufferUploadCount;
+                result = encoder.EndRenderPass();
+            }
+            return result;
+        };
+
+        const double radius = std::fmin(node.effect.radius, 50.0);
+        const double surfaceScaleX =
+            static_cast<double>(surface.width) /
+            surface.logicalBounds.width;
+        const double surfaceScaleY =
+            static_cast<double>(surface.height) /
+            surface.logicalBounds.height;
+        ShaderEffectConstants horizontal;
+        horizontal.viewport[0] = static_cast<float>(surface.width);
+        horizontal.viewport[1] = static_cast<float>(surface.height);
+        horizontal.filter0[0] = static_cast<float>(
+            radius * surfaceScaleX /
+            (4.0 * static_cast<double>(surface.width)));
+        Base::Result<void> result = runFilterPass(
+            surface.scratch, surface.content, horizontal);
+        if (!result) return result;
+
+        ShaderEffectConstants vertical;
+        vertical.viewport[0] = static_cast<float>(surface.width);
+        vertical.viewport[1] = static_cast<float>(surface.height);
+        vertical.filter0[1] = static_cast<float>(
+            radius * surfaceScaleY /
+            (4.0 * static_cast<double>(surface.height)));
+        if (node.effect.kind == Render::RenderEffectKind::DropShadow) {
+            constexpr double DegreesToRadians =
+                0.017453292519943295769;
+            const double radians = node.effect.direction * DegreesToRadians;
+            const double shadowX =
+                std::cos(radians) * node.effect.depth;
+            const double shadowY =
+                -std::sin(radians) * node.effect.depth;
+            vertical.filter0[2] = static_cast<float>(
+                shadowX / surface.logicalBounds.width);
+            vertical.filter0[3] = static_cast<float>(
+                shadowY / surface.logicalBounds.height);
+            vertical.filter1[0] = 1.0F;
+            vertical.tint[0] = node.effect.color.red;
+            vertical.tint[1] = node.effect.color.green;
+            vertical.tint[2] = node.effect.color.blue;
+            vertical.tint[3] = node.effect.color.alpha *
+                static_cast<float>(node.effect.opacity);
+        }
+        result = runFilterPass(
+            surface.result, surface.scratch, vertical);
+        if (!result || node.effect.kind !=
+                Render::RenderEffectKind::DropShadow) {
+            return result;
+        }
+
+        pass.colorAttachments[0].target = surface.result;
+        pass.colorAttachments[0].load = LoadOperation::Load;
+        result = encoder.BeginRenderPass(pass);
+        if (result) {
+            ++submissionStatistics.renderPassCount;
+            result = encoder.BindPipeline(impl_->imagePipelines[0U]);
+        }
+        if (result) {
+            ++submissionStatistics.pipelineBindingCount;
+            result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+        }
+        if (result) {
+            ++submissionStatistics.vertexBufferBindingCount;
+            result = encoder.BindUniformBuffer(
+                0U, impl_->imageUniformBuffer, 0U,
+                static_cast<std::uint32_t>(sizeof(ShaderImageConstants)));
+        }
+        if (result) {
+            ++submissionStatistics.uniformBufferBindingCount;
+            result = encoder.BindTextureSampler(
+                0U, surface.content, impl_->effectSampler);
+        }
+        ShaderImageConstants composite;
+        composite.rects[0][2] =
+            static_cast<float>(surface.logicalBounds.width);
+        composite.rects[0][3] =
+            static_cast<float>(surface.logicalBounds.height);
+        composite.sourceUvs[0][2] = 1.0F;
+        composite.sourceUvs[0][3] = 1.0F;
+        composite.tints[0][0] = 1.0F;
+        composite.tints[0][1] = 1.0F;
+        composite.tints[0][2] = 1.0F;
+        composite.tints[0][3] = 1.0F;
+        composite.transform0[0] = 1.0F;
+        composite.transform0[3] = 1.0F;
+        composite.transform1[2] =
+            static_cast<float>(surface.logicalBounds.width);
+        composite.transform1[3] =
+            static_cast<float>(surface.logicalBounds.height);
+        if (result) {
+            ++submissionStatistics.textureSamplerBindingCount;
+            result = AppendDraw(
+                encoder,
+                impl_->imageUniformBuffer,
+                composite,
+                pass.renderArea,
+                1U);
+        }
+        if (result) {
+            ++submissionStatistics.drawCallCount;
+            ++submissionStatistics.imageInstanceCount;
+            ++submissionStatistics.uniformBufferUploadCount;
+            result = encoder.EndRenderPass();
+        }
+        return result;
+    };
+
+    auto applyMask = [&](const Render::RenderNodeSnapshot& node,
+                         const EffectSurface& surface) noexcept
         -> Base::Result<void> {
         if (node.mask.kind == Render::RenderMaskKind::None) return {};
+        const double maskLogicalWidth = surface.logicalBounds.width;
+        const double maskLogicalHeight = surface.logicalBounds.height;
+        const double maskScaleX =
+            static_cast<double>(surface.width) / maskLogicalWidth;
+        const double maskScaleY =
+            static_cast<double>(surface.height) / maskLogicalHeight;
+        const Aero::Rect maskTargetClip = {
+            0.0, 0.0, maskLogicalWidth, maskLogicalHeight};
+        auto maskPhysicalScissor = [maskScaleX, maskScaleY](
+            Aero::Rect logical) noexcept {
+            return Aero::Rect{
+                logical.x * maskScaleX,
+                logical.y * maskScaleY,
+                logical.width * maskScaleX,
+                logical.height * maskScaleY};
+        };
         const NodeState* state = nullptr;
         for (const NodeState& candidate : impl_->nodes) {
             if (candidate.id == node.id) {
@@ -2539,7 +3062,7 @@ Base::Result<CommandList> Renderer::Record(
             return InvalidState("Renderer mask node state is unavailable");
         }
         const Aero::Rect scissor =
-            IntersectRect(state->clip.bounds, targetClip);
+            IntersectRect(state->clip.bounds, maskTargetClip);
         if (IsEmpty(scissor) ||
             node.renderSize.width <= 0.0 ||
             node.renderSize.height <= 0.0) {
@@ -2567,8 +3090,8 @@ Base::Result<CommandList> Renderer::Record(
                 static_cast<float>(state->transform.dx);
             constants.transform1[1] =
                 static_cast<float>(state->transform.dy);
-            constants.transform1[2] = static_cast<float>(width);
-            constants.transform1[3] = static_cast<float>(height);
+            constants.transform1[2] = static_cast<float>(maskLogicalWidth);
+            constants.transform1[3] = static_cast<float>(maskLogicalHeight);
             Base::Result<void> result =
                 encoder.BindPipeline(impl_->maskRectanglePipeline);
             if (result) {
@@ -2585,7 +3108,7 @@ Base::Result<CommandList> Renderer::Record(
                 ++submissionStatistics.uniformBufferBindingCount;
                 result = AppendDraw(
                     encoder, impl_->uniformBuffer,
-                    constants, scissor, 1U);
+                    constants, maskPhysicalScissor(scissor), 1U);
             }
             if (result) {
                 ++submissionStatistics.drawCallCount;
@@ -2595,35 +3118,13 @@ Base::Result<CommandList> Renderer::Record(
             return result;
         }
 
-        const ImageBinding* binding = nullptr;
-        for (const ImageBinding& candidate : impl_->images) {
-            if (candidate.id == node.mask.image) {
-                binding = &candidate;
-                break;
-            }
-        }
-        if (binding == nullptr ||
-            !device_->IsAlive(binding->texture) ||
-            !device_->IsAlive(binding->sampler)) {
-            return InvalidState("Renderer opacity mask image is unavailable");
-        }
-        ShaderImageConstants constants;
-        constants.rects[0][2] =
+        ResourceHandle maskTexture;
+        ResourceHandle maskSampler;
+        ShaderMaskConstants constants;
+        constants.rect[2] =
             static_cast<float>(node.renderSize.width);
-        constants.rects[0][3] =
+        constants.rect[3] =
             static_cast<float>(node.renderSize.height);
-        constants.sourceUvs[0][0] =
-            static_cast<float>(node.mask.sourceUv.x);
-        constants.sourceUvs[0][1] =
-            static_cast<float>(node.mask.sourceUv.y);
-        constants.sourceUvs[0][2] =
-            static_cast<float>(node.mask.sourceUv.width);
-        constants.sourceUvs[0][3] =
-            static_cast<float>(node.mask.sourceUv.height);
-        constants.tints[0][0] = 1.0F;
-        constants.tints[0][1] = 1.0F;
-        constants.tints[0][2] = 1.0F;
-        constants.tints[0][3] = node.mask.color.alpha;
         constants.transform0[0] =
             static_cast<float>(state->transform.m11);
         constants.transform0[1] =
@@ -2636,10 +3137,141 @@ Base::Result<CommandList> Renderer::Record(
             static_cast<float>(state->transform.dx);
         constants.transform1[1] =
             static_cast<float>(state->transform.dy);
-        constants.transform1[2] = static_cast<float>(width);
-        constants.transform1[3] = static_cast<float>(height);
+        constants.transform1[2] = static_cast<float>(maskLogicalWidth);
+        constants.transform1[3] = static_cast<float>(maskLogicalHeight);
+        constants.mask0[0] = static_cast<float>(
+            static_cast<std::uint8_t>(node.mask.kind));
+        constants.mask0[1] = static_cast<float>(node.mask.mappingMode);
+        constants.mask0[3] = node.mask.kind == Render::RenderMaskKind::Image
+            ? node.mask.color.alpha
+            : 1.0F;
+        constants.mask1[0] = static_cast<float>(node.mask.tileMode);
+        constants.mask1[1] = static_cast<float>(node.mask.stretch);
+        constants.mask1[2] = static_cast<float>(node.mask.alignmentX);
+        constants.mask1[3] = static_cast<float>(node.mask.alignmentY);
+
+        Media::Transform2D relativeInverse;
+        if (!InvertTransform(
+                node.mask.relativeTransform,
+                relativeInverse)) {
+            return Unsupported(
+                "Renderer opacity mask RelativeTransform is singular");
+        }
+        constants.relativeInverse0[0] =
+            static_cast<float>(relativeInverse.m11);
+        constants.relativeInverse0[1] =
+            static_cast<float>(relativeInverse.m12);
+        constants.relativeInverse0[2] =
+            static_cast<float>(relativeInverse.m21);
+        constants.relativeInverse0[3] =
+            static_cast<float>(relativeInverse.m22);
+        constants.relativeInverse1[0] =
+            static_cast<float>(relativeInverse.dx);
+        constants.relativeInverse1[1] =
+            static_cast<float>(relativeInverse.dy);
+
+        if (node.mask.kind == Render::RenderMaskKind::Image) {
+            const ImageBinding* binding = nullptr;
+            for (const ImageBinding& candidate : impl_->images) {
+                if (candidate.id == node.mask.image) {
+                    binding = &candidate;
+                    break;
+                }
+            }
+            if (binding == nullptr ||
+                !device_->IsAlive(binding->texture) ||
+                !device_->IsAlive(binding->sampler)) {
+                return InvalidState(
+                    "Renderer opacity mask image is unavailable");
+            }
+            maskTexture = binding->texture;
+            maskSampler = binding->sampler;
+
+            Aero::Rect sourceUv = node.mask.sourceUv;
+            if (node.mask.viewboxUnits == 1U) {
+                sourceUv.x /= static_cast<double>(node.mask.imageWidth);
+                sourceUv.y /= static_cast<double>(node.mask.imageHeight);
+                sourceUv.width /= static_cast<double>(node.mask.imageWidth);
+                sourceUv.height /= static_cast<double>(node.mask.imageHeight);
+            }
+            sourceUv.x = std::clamp(sourceUv.x, 0.0, 1.0);
+            sourceUv.y = std::clamp(sourceUv.y, 0.0, 1.0);
+            sourceUv.width = std::min(
+                std::clamp(sourceUv.width, 0.0, 1.0),
+                1.0 - sourceUv.x);
+            sourceUv.height = std::min(
+                std::clamp(sourceUv.height, 0.0, 1.0),
+                1.0 - sourceUv.y);
+            constants.geometry0[0] = static_cast<float>(sourceUv.x);
+            constants.geometry0[1] = static_cast<float>(sourceUv.y);
+            constants.geometry0[2] = static_cast<float>(sourceUv.width);
+            constants.geometry0[3] = static_cast<float>(sourceUv.height);
+
+            Aero::Rect viewport = node.mask.viewport;
+            if (node.mask.viewportUnits == 0U) {
+                viewport.x *= node.renderSize.width;
+                viewport.y *= node.renderSize.height;
+                viewport.width *= node.renderSize.width;
+                viewport.height *= node.renderSize.height;
+            }
+            constants.geometry1[0] = static_cast<float>(viewport.x);
+            constants.geometry1[1] = static_cast<float>(viewport.y);
+            constants.geometry1[2] = static_cast<float>(viewport.width);
+            constants.geometry1[3] = static_cast<float>(viewport.height);
+            constants.geometry2[2] = static_cast<float>(node.mask.imageWidth);
+            constants.geometry2[3] = static_cast<float>(node.mask.imageHeight);
+        } else {
+            if (node.mask.gradientRamp >= plan.GradientRamps().Size()) {
+                return InvalidState(
+                    "Renderer opacity mask gradient ramp is unavailable");
+            }
+            const Render::RenderGradientRampSnapshot& ramp =
+                plan.GradientRamps()[node.mask.gradientRamp];
+            const GradientRampBinding* binding = nullptr;
+            for (const GradientRampBinding& candidate :
+                 impl_->gradientRamps) {
+                if (candidate.key == ramp.brushIdentity &&
+                    candidate.revision == ramp.revision) {
+                    binding = &candidate;
+                    break;
+                }
+            }
+            if (binding == nullptr ||
+                !device_->IsAlive(binding->texture) ||
+                !device_->IsAlive(impl_->effectSampler)) {
+                return InvalidState(
+                    "Renderer opacity mask gradient texture is unavailable");
+            }
+            maskTexture = binding->texture;
+            maskSampler = impl_->effectSampler;
+            if (node.mask.kind ==
+                    Render::RenderMaskKind::LinearGradient) {
+                constants.geometry0[0] =
+                    static_cast<float>(node.mask.startPoint.x);
+                constants.geometry0[1] =
+                    static_cast<float>(node.mask.startPoint.y);
+                constants.geometry0[2] =
+                    static_cast<float>(node.mask.endPoint.x);
+                constants.geometry0[3] =
+                    static_cast<float>(node.mask.endPoint.y);
+            } else {
+                constants.geometry1[0] =
+                    static_cast<float>(node.mask.center.x);
+                constants.geometry1[1] =
+                    static_cast<float>(node.mask.center.y);
+                constants.geometry1[2] =
+                    static_cast<float>(node.mask.gradientOrigin.x);
+                constants.geometry1[3] =
+                    static_cast<float>(node.mask.gradientOrigin.y);
+                constants.geometry2[0] =
+                    static_cast<float>(node.mask.radiusX);
+                constants.geometry2[1] =
+                    static_cast<float>(node.mask.radiusY);
+            }
+        }
+
         Base::Result<void> result =
-            encoder.BindPipeline(impl_->maskImagePipeline);
+            encoder.BindPipeline(impl_->maskBrushPipeline);
         if (result) {
             ++submissionStatistics.pipelineBindingCount;
             result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
@@ -2647,19 +3279,19 @@ Base::Result<CommandList> Renderer::Record(
         if (result) {
             ++submissionStatistics.vertexBufferBindingCount;
             result = encoder.BindUniformBuffer(
-                0U, impl_->imageUniformBuffer, 0U,
+                0U, impl_->maskUniformBuffer, 0U,
                 static_cast<std::uint32_t>(sizeof(constants)));
         }
         if (result) {
             ++submissionStatistics.uniformBufferBindingCount;
             result = encoder.BindTextureSampler(
-                0U, binding->texture, binding->sampler);
+                0U, maskTexture, maskSampler);
         }
         if (result) {
             ++submissionStatistics.textureSamplerBindingCount;
             result = AppendDraw(
-                encoder, impl_->imageUniformBuffer,
-                constants, scissor, 1U);
+                encoder, impl_->maskUniformBuffer,
+                constants, maskPhysicalScissor(scissor), 1U);
         }
         if (result) {
             ++submissionStatistics.drawCallCount;
@@ -2669,49 +3301,72 @@ Base::Result<CommandList> Renderer::Record(
         return result;
     };
 
-    std::uint32_t surfaceIndex = 0U;
-    for (const Render::RenderNodeSnapshot& node :
-         plan.Nodes()) {
-        if (!RequiresNodeSurface(node)) {
-            continue;
+    for (std::uint32_t ordinal = impl_->effectSurfaces.Size();
+         ordinal > 0U; --ordinal) {
+        EffectSurface& surface = impl_->effectSurfaces[ordinal - 1U];
+        const Render::RenderNodeSnapshot* node = nullptr;
+        for (const Render::RenderNodeSnapshot& candidate : plan.Nodes()) {
+            if (candidate.id == surface.owner) {
+                node = &candidate;
+                break;
+            }
         }
-        pass.colorAttachments[0].target =
-            impl_->effectSurfaces[
-                surfaceIndex].target;
+        if (node == nullptr) {
+            encoded = InvalidState(
+                "Renderer effect surface owner is unavailable");
+            break;
+        }
+        pass.renderArea = {
+            0.0, 0.0,
+            static_cast<double>(surface.width),
+            static_cast<double>(surface.height)};
+        pass.colorAttachments[0].target = surface.content;
         pass.colorAttachments[0].load = LoadOperation::Clear;
         encoded = encoder.BeginRenderPass(pass);
-        if (encoded) {
+        if (encoded && !surface.empty) {
             ++submissionStatistics.renderPassCount;
             encoded = recordNodes(
-                node.id, false);
+                node->id, false, &surface);
         }
         if (encoded) {
             encoded = encoder.EndRenderPass();
         }
-        if (encoded && node.mask.kind !=
+        if (encoded) {
+            encoded = applyEffect(*node, surface);
+        }
+        const ResourceHandle output =
+            node->effect.kind == Render::RenderEffectKind::None
+            ? surface.content
+            : surface.result;
+        if (encoded && !surface.empty && node->mask.kind !=
                 Render::RenderMaskKind::None) {
+            pass.colorAttachments[0].target = output;
             pass.colorAttachments[0].load = LoadOperation::Load;
             encoded = encoder.BeginRenderPass(pass);
             if (encoded) {
                 ++submissionStatistics.renderPassCount;
-                encoded = applyMask(node);
+                encoded = applyMask(*node, surface);
             }
             if (encoded) encoded = encoder.EndRenderPass();
         }
         if (!encoded) break;
-        ++surfaceIndex;
     }
     if (encoded) {
         pass.colorAttachments[0].target =
             target.color;
-        pass.colorAttachments[0].load = LoadOperation::Clear;
+        pass.renderArea = {
+            0.0, 0.0,
+            static_cast<double>(renderWidth),
+            static_cast<double>(renderHeight)};
+        pass.colorAttachments[0].load = target.load;
         encoded = encoder.BeginRenderPass(pass);
     }
     if (encoded) {
         ++submissionStatistics.renderPassCount;
         encoded = recordNodes(
             Render::InvalidRenderNodeId,
-            true);
+            true,
+            nullptr);
     }
     if (encoded) {
         encoded = encoder.EndRenderPass();

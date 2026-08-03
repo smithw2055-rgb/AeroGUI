@@ -184,9 +184,15 @@ struct DesktopHost::Impl {
             Base::Result<void> renderer =
                 view->GetRenderer().Init(renderDevice);
             if (!renderer) return renderer.GetStatus();
+            dpiScale = nativeWindow->DpiScale();
+            if (!std::isfinite(dpiScale) || dpiScale <= 0.0) {
+                dpiScale = 1.0;
+            }
+            pendingDpiScale = dpiScale;
             const Size size{
-                static_cast<double>(width),
-                static_cast<double>(height)};
+                static_cast<double>(width) / dpiScale,
+                static_cast<double>(height) / dpiScale};
+            view->SetViewport({size, width, height, dpiScale});
             if (programmaticRoot) {
                 view->SetContent(
                     Base::Ref<FrameworkElement>::FromBorrowed(*window),
@@ -316,11 +322,13 @@ struct DesktopHost::Impl {
                 return {};
             case Platform::WindowEventType::Resized:
             case Platform::WindowEventType::ScaleChanged:
-                if (event.width != 0U && event.height != 0U) {
-                    pendingResizeWidth = event.width;
-                    pendingResizeHeight = event.height;
-                    hasPendingResize = true;
+                pendingResizeWidth = event.width;
+                pendingResizeHeight = event.height;
+                if (std::isfinite(event.dpiScale) &&
+                    event.dpiScale > 0.0) {
+                    pendingDpiScale = event.dpiScale;
                 }
+                hasPendingResize = true;
                 return {};
             case Platform::WindowEventType::PointerMove:
             case Platform::WindowEventType::PointerDown:
@@ -330,7 +338,9 @@ struct DesktopHost::Impl {
                 if (!resized) return resized.GetStatus();
                 Input::PointerInput input;
                 input.pointerId = 1U;
-                input.position = {event.x, event.y};
+                input.position = {
+                    event.x / dpiScale,
+                    event.y / dpiScale};
                 input.changedButton = MapButton(event.button);
                 input.wheelDeltaX = event.wheelDeltaX / 120.0;
                 input.wheelDeltaY = event.wheelDeltaY / 120.0;
@@ -384,12 +394,19 @@ struct DesktopHost::Impl {
             if (!hasPendingResize) return {};
             const std::uint32_t width = pendingResizeWidth;
             const std::uint32_t height = pendingResizeHeight;
+            const double nextDpiScale = pendingDpiScale;
             hasPendingResize = false;
-            Base::Result<void> resized = renderDevice->Resize(width, height);
-            if (!resized) return resized.GetStatus();
-            view->SetSize({
-                static_cast<double>(width),
-                static_cast<double>(height)});
+            if (width != 0U && height != 0U) {
+                Base::Result<void> resized =
+                    renderDevice->Resize(width, height);
+                if (!resized) return resized.GetStatus();
+            }
+            const Size logicalSize{
+                static_cast<double>(width) / nextDpiScale,
+                static_cast<double>(height) / nextDpiScale};
+            view->SetViewport({
+                logicalSize, width, height, nextDpiScale});
+            dpiScale = nextDpiScale;
             return {};
         }
 
@@ -545,6 +562,8 @@ struct DesktopHost::Impl {
         bool shutdown = false;
         std::uint32_t pendingResizeWidth = 0U;
         std::uint32_t pendingResizeHeight = 0U;
+        double dpiScale = 1.0;
+        double pendingDpiScale = 1.0;
     };
 
     Impl(

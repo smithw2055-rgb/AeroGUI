@@ -177,61 +177,6 @@ unset(public_internal_type_matches)
 unset(aero_retired_event_path_scan)
 unset(retired_event_path_matches)
 
-# Try is reserved for parsing, conversion, conditional ownership and cache
-# lookup. Allocation, registration, subscription and ordinary mutation APIs
-# use their direct WPF-style verbs instead of a generic Try prefix.
-set(aero_try_allowlist
-    TryParse
-    TryFromString
-    TryFromCustom
-    TryConvertText
-    TryEncodeValue
-    TryCreateValue
-    TryFromBorrowed
-    TryGetCachedReloadRevision)
-set(public_try_violations)
-foreach(path IN LISTS aero_namespace_headers)
-    file(READ "${path}" content)
-    string(REGEX MATCHALL "Try[A-Z][A-Za-z0-9_]*" try_names "${content}")
-    foreach(try_name IN LISTS try_names)
-        list(FIND aero_try_allowlist "${try_name}" try_index)
-        if(try_index EQUAL -1)
-            file(RELATIVE_PATH relative "${AERO_SOURCE_DIR}" "${path}")
-            list(APPEND public_try_violations
-                "${relative}: ${try_name}")
-        endif()
-    endforeach()
-endforeach()
-if(public_try_violations)
-    list(REMOVE_DUPLICATES public_try_violations)
-    message(FATAL_ERROR
-        "Public headers contain a non-canonical Try API: "
-        "${public_try_violations}")
-endif()
-unset(public_try_violations)
-unset(aero_try_allowlist)
-
-# Public property mutations follow the WPF setter contract: assignment and
-# invalidation are observable through the object state, while failures are
-# handled by validation before commit.  Result<void> remains valid for
-# explicit conversion and IO/registration boundaries, but must not leak through a
-# Set/Clear/Reset/Notify API in the SDK.
-aero_collect_matches(public_result_property_mutators
-    "Base::Result<void>[ \t\r\n]+([A-Za-z_][A-Za-z0-9_:]*::)?(Set|Clear|Reset|Notify)[A-Za-z0-9_]*[ \t\r\n]*[(]"
-    ${aero_namespace_headers})
-set(public_result_property_mutator_violations)
-foreach(relative IN LISTS public_result_property_mutators)
-    list(APPEND public_result_property_mutator_violations "${relative}")
-endforeach()
-if(public_result_property_mutator_violations)
-    message(FATAL_ERROR
-        "Public property mutators must not return Base::Result<void>; "
-        "use void or an explicit Try* boundary: "
-        "${public_result_property_mutator_violations}")
-endif()
-unset(public_result_property_mutator_violations)
-unset(public_result_property_mutators)
-
 # Public/XAML enum descriptions have one canonical owner.  The declarations
 # in SDK headers only provide a runtime C++ type token; names, TypeIds and
 # value tables belong to src/gui/EnumMetadata.cpp.
@@ -409,34 +354,6 @@ if(retired_core_namespace_matches)
 endif()
 unset(aero_core_retired_scan)
 unset(retired_core_namespace_matches)
-
-function(aero_collect_duplicate_includes output)
-    set(matches)
-    foreach(relative IN LISTS ARGN)
-        set(path "${AERO_SOURCE_DIR}/${relative}")
-        file(STRINGS "${path}" includes
-            REGEX "^[ \t]*#[ \t]*include[ \t]+")
-        set(seen)
-        foreach(include_line IN LISTS includes)
-            string(STRIP "${include_line}" include_line)
-            list(FIND seen "${include_line}" existing)
-            if(NOT existing EQUAL -1)
-                list(APPEND matches "${relative}: ${include_line}")
-            else()
-                list(APPEND seen "${include_line}")
-            endif()
-        endforeach()
-    endforeach()
-    set(${output} "${matches}" PARENT_SCOPE)
-endfunction()
-
-aero_collect_duplicate_includes(aero_duplicate_public_includes
-    ${AERO_PUBLIC_HEADERS})
-if(aero_duplicate_public_includes)
-    message(FATAL_ERROR
-        "Public headers contain duplicate direct includes: "
-        "${aero_duplicate_public_includes}")
-endif()
 
 file(GLOB_RECURSE core_files
     "${AERO_SOURCE_DIR}/src/gui/*.cpp"
@@ -717,42 +634,6 @@ if(wpf_authoring_leaks)
 endif()
 
 
-set(wpf_single_track_headers
-    "${AERO_SOURCE_DIR}/include/Aero/UIElement.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/FrameworkElement.hpp")
-aero_collect_matches(wpf_legacy_accessors
-    "[ \t](DesiredSize|RenderSize|LayoutSlot|LayoutClip|IsMeasureValid|IsArrangeValid|ClipToBounds|IsHitTestVisible|IsVisible|IsEnabled|AllowDrop|IsMouseOver|IsPressed|IsKeyboardFocused|IsKeyboardFocusWithin|Focusable|IsTabStop|TabIndex|IsFocusScope|RenderTransform|RenderTransformOrigin|UseLayoutRounding|Width|Height|MinSize|MaxSize|Margin|LayoutTransform|LocalVisualTransform|RenderParent|RenderChildren)[ \t]*[(]"
-    ${wpf_single_track_headers})
-if(wpf_legacy_accessors)
-    message(FATAL_ERROR
-        "WPF-facing element headers expose legacy non-Get accessors: "
-        "${wpf_legacy_accessors}")
-endif()
-
-aero_collect_matches(wpf_legacy_setters
-    "[ \t](SetEnabled|SetHitTestVisible|SetTabStop|SetFocusScope|SetLayoutRounding)[ \t]*[(]"
-    ${wpf_single_track_headers}
-    "${AERO_SOURCE_DIR}/include/Aero/FrameworkElement.hpp")
-if(wpf_legacy_setters)
-    message(FATAL_ERROR
-        "WPF-facing element headers expose property setters without the canonical property name: "
-        "${wpf_legacy_setters}")
-endif()
-
-set(wpf_shape_headers
-    "${AERO_SOURCE_DIR}/include/Aero/Shapes.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/Panels.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/Primitives.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Media/Brushes.hpp")
-aero_collect_matches(wpf_shape_legacy_getters
-    "[ \t](Fill|FillBrush|Stroke|StrokeBrush|StrokeThickness|RadiusX|RadiusY|LastChildFill)[ \t]*[(][)]"
-    ${wpf_shape_headers})
-if(wpf_shape_legacy_getters)
-    message(FATAL_ERROR
-        "WPF-facing property getters must use Get<Property>(): "
-        "${wpf_shape_legacy_getters}")
-endif()
-
 aero_collect_matches(default_property_diagnostics
     "using[ \t]+(PropertyValueRank|PropertyValueSourceInfo)[ \t]*="
     "${AERO_SOURCE_DIR}/include/Aero/DependencyObject.hpp")
@@ -765,25 +646,6 @@ endif()
 file(GLOB_RECURSE default_sdk_headers
     "${AERO_SOURCE_DIR}/include/Aero/*.hpp")
 
-set(multiline_static_members)
-foreach(path IN LISTS default_sdk_headers)
-    file(STRINGS "${path}" public_header_lines)
-    set(public_header_line_number 0)
-    foreach(line IN LISTS public_header_lines)
-        math(EXPR public_header_line_number "${public_header_line_number} + 1")
-        if(line MATCHES "inline[ \t]+static[ \t]+constexpr.*(Property|Event)" AND
-           NOT line MATCHES ";[ \t]*$")
-            file(RELATIVE_PATH relative "${AERO_SOURCE_DIR}" "${path}")
-            list(APPEND multiline_static_members
-                "${relative}:${public_header_line_number}")
-        endif()
-    endforeach()
-endforeach()
-if(multiline_static_members)
-    message(FATAL_ERROR
-        "DependencyProperty and routed-event static definitions must stay on one line: "
-        "${multiline_static_members}")
-endif()
 aero_collect_matches(removed_public_services
     "(RoutedEventTable|DescriptionBuilder|ITextBlockLayoutService|TextBlockLayoutServiceScope|TextBlockRenderService|D3D11TextBlockRenderService|IGlyphRunResourceRegistry|DisplayListBuilder|RenderCommand|RenderImageId|RenderMeshId|RenderGlyphRunId|ThemeStyleRegistry|PPAAOutProperty|PasswordLengthProperty|RuntimeManagersFwd|RoutedHandlerStorage|RoutedHandlerTraits|Aero/Detail/|BuildEditorDisplayList|RuntimeAnimation\\(|RuntimeFrame\\(|RuntimeEasing\\(|ItemContainerGeneratorImpl[ \t]*[*]|VisualStateManagerImpl[ \t]*[*])"
     ${default_sdk_headers})
@@ -1156,6 +1018,55 @@ unset(aero_source_namespace_scan)
 unset(source_namespace_forbidden_patterns)
 unset(source_namespace_forbidden_matches)
 
+# A translation unit has exactly one build owner. The D3D11 backend appears a
+# second time only as an OBJECT_DEPENDS anchor for its implementation fragments;
+# every other repeated source token is a duplicate compilation identity.
+set(aero_source_manifest_files
+    "${AERO_SOURCE_DIR}/CMakeLists.txt"
+    "${AERO_SOURCE_DIR}/cmake/AeroGuiTargets.cmake"
+    "${AERO_SOURCE_DIR}/cmake/AeroRuntimeTargets.cmake"
+    "${AERO_SOURCE_DIR}/cmake/AeroRenderingTargets.cmake"
+    "${AERO_SOURCE_DIR}/cmake/AeroProductTargets.cmake"
+    "${AERO_SOURCE_DIR}/cmake/AeroToolsTargets.cmake"
+    "${AERO_SOURCE_DIR}/cmake/AeroConformanceTargets.cmake")
+set(aero_source_claim_keys)
+foreach(manifest IN LISTS aero_source_manifest_files)
+    file(READ "${manifest}" manifest_content)
+    string(REGEX MATCHALL
+        "src/[A-Za-z0-9_./-]+[.]cpp"
+        manifest_source_claims "${manifest_content}")
+    foreach(source IN LISTS manifest_source_claims)
+        string(SHA256 source_key "${source}")
+        if(NOT DEFINED aero_source_claim_${source_key})
+            set(aero_source_claim_${source_key} 0)
+            set(aero_source_path_${source_key} "${source}")
+            list(APPEND aero_source_claim_keys "${source_key}")
+        endif()
+        math(EXPR aero_source_claim_${source_key}
+            "${aero_source_claim_${source_key}} + 1")
+    endforeach()
+endforeach()
+set(aero_duplicate_source_claims)
+foreach(source_key IN LISTS aero_source_claim_keys)
+    set(allowed_claims 1)
+    if(aero_source_path_${source_key} STREQUAL
+            "src/render/d3d11/D3D11Backend.cpp")
+        set(allowed_claims 2)
+    endif()
+    if(aero_source_claim_${source_key} GREATER allowed_claims)
+        list(APPEND aero_duplicate_source_claims
+            "${aero_source_path_${source_key}} (${aero_source_claim_${source_key}} claims)")
+    endif()
+endforeach()
+if(aero_duplicate_source_claims)
+    message(FATAL_ERROR
+        "Aero source files must have one compile owner: "
+        "${aero_duplicate_source_claims}")
+endif()
+unset(aero_source_manifest_files)
+unset(aero_source_claim_keys)
+unset(aero_duplicate_source_claims)
+
 file(GLOB_RECURSE aero_retired_private_reference_scan
     "${AERO_SOURCE_DIR}/src/*.cpp"
     "${AERO_SOURCE_DIR}/src/*.hpp"
@@ -1421,18 +1332,6 @@ unset(aero_framework_element_private)
 unset(aero_framework_element_class_tail)
 unset(aero_framework_element_public_surface)
 
-file(GLOB_RECURSE framework_element_sources
-    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
-    "${AERO_SOURCE_DIR}/src/*.cpp"
-    "${AERO_SOURCE_DIR}/src/*.hpp")
-aero_collect_matches(retired_render_invalidation_name
-    "InvalidateRender[ \\t]*\\(" ${framework_element_sources})
-if(retired_render_invalidation_name)
-    message(FATAL_ERROR
-        "Use WPF-style InvalidateVisual instead of InvalidateRender: "
-        "${retired_render_invalidation_name}")
-endif()
-
 file(GLOB_RECURSE frame_pipeline_sources
     "${AERO_SOURCE_DIR}/src/runtime/*.cpp"
     "${AERO_SOURCE_DIR}/src/runtime/*.hpp"
@@ -1502,25 +1401,6 @@ string(FIND "${aero_meta_header}"
 if(aero_meta_register_declaration EQUAL -1)
     message(FATAL_ERROR
         "Meta::Registration/Register is not the canonical public authoring surface")
-endif()
-
-# Class-level final seals public inheritance and conflicts with the WPF-style
-# extension model. Virtual method final remains valid; only declarations of a
-# class or struct itself are rejected.
-file(GLOB_RECURSE class_level_final_sources
-    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/*.h"
-    "${AERO_SOURCE_DIR}/src/*.cpp"
-    "${AERO_SOURCE_DIR}/src/*.hpp"
-    "${AERO_SOURCE_DIR}/src/*.h"
-    "${AERO_SOURCE_DIR}/src/*.inc")
-aero_collect_matches(class_level_final_declarations
-    "(^|[\\r\\n])[ \\t]*(class|struct)[^\\r\\n;{}]*[ \\t]final[ \\t]*(\\{|:)"
-    ${class_level_final_sources})
-if(class_level_final_declarations)
-    message(FATAL_ERROR
-        "Class/struct declarations must not use final; keep final only on virtual methods: "
-        "${class_level_final_declarations}")
 endif()
 
 string(CONCAT retired_source_provider "Source" "Provider")

@@ -4,6 +4,7 @@
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Value.hpp>
 
+#include <new>
 
 namespace Aero {
 
@@ -355,8 +356,30 @@ Style::Style(
       basedOn_(basedOn),
       authored_(),
       authoredTriggers_(),
-      program_(),
-      resources_() {}
+      implAllocator_(&Base::GetDefaultAllocator()),
+      resources_() {
+    void* memory = implAllocator_->Allocate({
+        sizeof(Impl), alignof(Impl), Base::MemoryTag::Ui});
+    if (memory == nullptr) {
+        Base::ReportOutOfMemory(
+            sizeof(Impl), alignof(Impl), Base::MemoryTag::Ui);
+    }
+    program_ = new (memory) Impl{};
+}
+
+Style::~Style() {
+    if (program_ == nullptr) return;
+    program_->~Impl();
+    implAllocator_->Deallocate(
+        program_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Ui);
+    program_ = nullptr;
+}
+
+TypeId Style::GetTargetType() const noexcept {
+    return sealed_ && program_ != nullptr
+        ? program_->TargetType()
+        : targetType_;
+}
 
 bool Style::SetTargetType(TypeId targetType) noexcept {
     if (sealed_) {
@@ -522,7 +545,8 @@ Base::Result<void> Style::SealRuntime(
 
     Base::Vector<StyleSetter> next;
     if (basedOn_ != nullptr) {
-        Base::Result<void> inherited = next.Append(basedOn_->GetRuntimeSetters());
+        Base::Result<void> inherited = next.Append(
+            Impl::RuntimeSetters(*basedOn_));
         if (!inherited) {
             return inherited.GetStatus();
         }
@@ -565,7 +589,7 @@ Base::Result<void> Style::SealRuntime(
     Base::Vector<TriggerPlan> nextTriggers;
     if (basedOn_ != nullptr) {
         Base::Result<void> inherited =
-            nextTriggers.Append(basedOn_->GetRuntimeTriggers());
+            nextTriggers.Append(Impl::RuntimeTriggers(*basedOn_));
         if (!inherited) return inherited.GetStatus();
     }
     for (const TriggerPlan& trigger : authoredTriggers_) {
@@ -612,12 +636,12 @@ Base::Result<void> Style::SealRuntime(
             nextTriggers.PushBack(trigger);
         if (!appended) return appended.GetStatus();
     }
-    Base::Result<void> frozenProgram = program_.Freeze(
+    Base::Result<void> frozenProgram = program_->Freeze(
         targetType_, std::move(next), std::move(nextTriggers));
     if (!frozenProgram) return frozenProgram.GetStatus();
     Base::Result<void> sealedResources = resources_.Seal();
     if (!sealedResources) {
-        program_.Reset();
+        program_->Reset();
         return sealedResources.GetStatus();
     }
     authored_.Clear();
@@ -642,6 +666,20 @@ Base::Result<void> Style::Impl::Seal(
     Style& style,
     const void* properties) noexcept {
     return style.SealRuntime(properties);
+}
+
+Base::Span<const StyleSetter> Style::Impl::RuntimeSetters(
+    const Style& style) noexcept {
+    return style.program_ != nullptr
+        ? style.program_->Setters()
+        : Base::Span<const StyleSetter>{};
+}
+
+Base::Span<const TriggerPlan> Style::Impl::RuntimeTriggers(
+    const Style& style) noexcept {
+    return style.program_ != nullptr
+        ? style.program_->Triggers()
+        : Base::Span<const TriggerPlan>{};
 }
 
 } // namespace Aero
@@ -695,7 +733,7 @@ Base::Result<void> StyleEngine::Apply(
             return cleared.GetStatus();
         }
     }
-    for (const StyleSetter& setter : style.GetRuntimeSetters()) {
+    for (const StyleSetter& setter : StylePrivate::RuntimeSetters(style)) {
         if (IsDeferredBindingSetterValue(setter.value)) {
             continue;
         }
@@ -711,7 +749,7 @@ Base::Result<void> StyleEngine::Apply(
         application.style = &style;
         Base::Result<void> states =
             application.triggerStates.Resize(
-                style.GetRuntimeTriggers().Size(), 0U);
+                StylePrivate::RuntimeTriggers(style).Size(), 0U);
         if (!states) return states.GetStatus();
         Base::Result<void> tracked =
             applications_.PushBack(
@@ -724,7 +762,7 @@ Base::Result<void> StyleEngine::Apply(
         Base::Result<void> states =
             applications_[existing].
                 triggerStates.Resize(
-                    style.GetRuntimeTriggers().Size(), 0U);
+                    StylePrivate::RuntimeTriggers(style).Size(), 0U);
         if (!states) return states.GetStatus();
     }
     if (requiresSubscription) {
@@ -807,7 +845,7 @@ std::uint32_t StyleEngine::FindApplication(
 Base::Result<void> StyleEngine::ClearSetters(
     DependencyObject& object,
     const Style& style) noexcept {
-    for (const StyleSetter& setter : style.GetRuntimeSetters()) {
+    for (const StyleSetter& setter : StylePrivate::RuntimeSetters(style)) {
         if (IsDeferredBindingSetterValue(setter.value)) {
             continue;
         }
@@ -823,16 +861,16 @@ Base::Result<void> StyleEngine::SubscribeTriggers(
     DependencyObject& object,
     const Style& style) noexcept {
     for (std::uint32_t index = 0U;
-         index < style.GetRuntimeTriggers().Size();
+         index < StylePrivate::RuntimeTriggers(style).Size();
          ++index) {
         const DependencyPropertyHandle property =
-            style.GetRuntimeTriggers()[index].property;
+            StylePrivate::RuntimeTriggers(style)[index].property;
         bool first = true;
         for (std::uint32_t previous = 0U;
              previous < index;
              ++previous) {
             first = first &&
-                style.GetRuntimeTriggers()[previous].property != property;
+                StylePrivate::RuntimeTriggers(style)[previous].property != property;
         }
         if (!first) continue;
         Base::Result<void> subscribed =
@@ -847,16 +885,16 @@ void StyleEngine::UnsubscribeTriggers(
     DependencyObject& object,
     const Style& style) noexcept {
     for (std::uint32_t index = 0U;
-         index < style.GetRuntimeTriggers().Size();
+         index < StylePrivate::RuntimeTriggers(style).Size();
          ++index) {
         const DependencyPropertyHandle property =
-            style.GetRuntimeTriggers()[index].property;
+            StylePrivate::RuntimeTriggers(style)[index].property;
         bool first = true;
         for (std::uint32_t previous = 0U;
              previous < index;
              ++previous) {
             first = first &&
-                style.GetRuntimeTriggers()[previous].property != property;
+                StylePrivate::RuntimeTriggers(style)[previous].property != property;
         }
         if (first) {
             (void)object.RemoveValueChangedHandler(
@@ -881,7 +919,7 @@ Base::Result<void> StyleEngine::EvaluateTriggers(
         ClearTriggerSetters(object, style);
     if (!cleared) return cleared.GetStatus();
     const Base::Span<const TriggerPlan> triggers =
-        style.GetRuntimeTriggers();
+        StylePrivate::RuntimeTriggers(style);
     for (std::uint32_t index = 0U;
          index < triggers.Size(); ++index) {
         const TriggerPlan& trigger =
@@ -954,7 +992,7 @@ Base::Result<void> StyleEngine::ClearTriggerSetters(
     DependencyObject& object,
     const Style& style) noexcept {
     const Base::Span<const TriggerPlan> triggers =
-        style.GetRuntimeTriggers();
+        StylePrivate::RuntimeTriggers(style);
     for (std::uint32_t triggerIndex = 0U;
          triggerIndex < triggers.Size();
          ++triggerIndex) {
@@ -1001,7 +1039,7 @@ void StyleEngine::OnPropertyChanged(
     const std::uint32_t index = FindApplication(object);
     if (index == UINT32_MAX) return;
     const Style& style = *applications_[index].style;
-    for (const TriggerPlan& trigger : style.GetRuntimeTriggers()) {
+    for (const TriggerPlan& trigger : StylePrivate::RuntimeTriggers(style)) {
         if (trigger.property == args.GetProperty()) {
             if (values_->IsFlushing()) {
                 Base::Result<void> queued =

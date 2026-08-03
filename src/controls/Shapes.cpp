@@ -20,6 +20,28 @@ struct ImageBrushGeometry {
     Rect sourceUv;
 };
 
+double AlignmentFactor(HorizontalAlignment alignment) noexcept {
+    switch (alignment) {
+    case HorizontalAlignment::Left:
+        return 0.0;
+    case HorizontalAlignment::Right:
+        return 1.0;
+    default:
+        return 0.5;
+    }
+}
+
+double AlignmentFactor(VerticalAlignment alignment) noexcept {
+    switch (alignment) {
+    case VerticalAlignment::Top:
+        return 0.0;
+    case VerticalAlignment::Bottom:
+        return 1.0;
+    default:
+        return 0.5;
+    }
+}
+
 ImageBrushGeometry FitImageBrush(
     const ImageBrush& brush,
     Rect destination,
@@ -28,12 +50,12 @@ ImageBrushGeometry FitImageBrush(
         static_cast<double>(
             Aero::Media::Detail::BrushPrivate::
                 PixelWidth(brush)) *
-        sourceUv.width;
+        std::fabs(sourceUv.width);
     const double sourceHeight =
         static_cast<double>(
             Aero::Media::Detail::BrushPrivate::
                 PixelHeight(brush)) *
-        sourceUv.height;
+        std::fabs(sourceUv.height);
     if (sourceWidth <= 0.0 ||
         sourceHeight <= 0.0 ||
         destination.width <= 0.0 ||
@@ -42,6 +64,12 @@ ImageBrushGeometry FitImageBrush(
         return {destination, sourceUv};
     }
     if (brush.GetStretch() == Stretch::None) {
+        destination.x +=
+            (destination.width - sourceWidth) *
+            AlignmentFactor(brush.GetAlignmentX());
+        destination.y +=
+            (destination.height - sourceHeight) *
+            AlignmentFactor(brush.GetAlignmentY());
         destination.width = sourceWidth;
         destination.height = sourceHeight;
         return {destination, sourceUv};
@@ -62,12 +90,12 @@ ImageBrushGeometry FitImageBrush(
             sourceUv.width *
             (1.0 -
              destination.width / drawnWidth) *
-            0.5;
+            AlignmentFactor(brush.GetAlignmentX());
         sourceUv.y +=
             sourceUv.height *
             (1.0 -
              destination.height / drawnHeight) *
-            0.5;
+            AlignmentFactor(brush.GetAlignmentY());
         sourceUv.width *=
             destination.width / drawnWidth;
         sourceUv.height *=
@@ -81,9 +109,11 @@ ImageBrushGeometry FitImageBrush(
     const double fittedHeight =
         sourceHeight * scale;
     destination.x +=
-        (destination.width - fittedWidth) * 0.5;
+        (destination.width - fittedWidth) *
+        AlignmentFactor(brush.GetAlignmentX());
     destination.y +=
-        (destination.height - fittedHeight) * 0.5;
+        (destination.height - fittedHeight) *
+        AlignmentFactor(brush.GetAlignmentY());
     destination.width = fittedWidth;
     destination.height = fittedHeight;
     return {destination, sourceUv};
@@ -104,13 +134,24 @@ Base::Result<void> PaintImageBrush(
             PixelHeight(brush) == 0U) {
         return {};
     }
-    const Rect authoredViewbox =
-        brush.GetViewbox();
-    Rect sourceUv{
-        std::clamp(authoredViewbox.x, 0.0, 1.0),
-        std::clamp(authoredViewbox.y, 0.0, 1.0),
-        std::clamp(authoredViewbox.width, 0.0, 1.0),
-        std::clamp(authoredViewbox.height, 0.0, 1.0)};
+    const double pixelWidth = static_cast<double>(
+        Aero::Media::Detail::BrushPrivate::PixelWidth(brush));
+    const double pixelHeight = static_cast<double>(
+        Aero::Media::Detail::BrushPrivate::PixelHeight(brush));
+    const Rect authoredViewbox = brush.GetViewbox();
+    Rect sourceUv = brush.GetViewboxUnits() ==
+            BrushMappingMode::Absolute
+        ? Rect{
+            authoredViewbox.x / pixelWidth,
+            authoredViewbox.y / pixelHeight,
+            authoredViewbox.width / pixelWidth,
+            authoredViewbox.height / pixelHeight}
+        : authoredViewbox;
+    sourceUv = {
+        std::clamp(sourceUv.x, 0.0, 1.0),
+        std::clamp(sourceUv.y, 0.0, 1.0),
+        std::clamp(sourceUv.width, 0.0, 1.0),
+        std::clamp(sourceUv.height, 0.0, 1.0)};
     sourceUv.width = std::min(
         sourceUv.width, 1.0 - sourceUv.x);
     sourceUv.height = std::min(
@@ -122,13 +163,18 @@ Base::Result<void> PaintImageBrush(
 
     const Rect authoredViewport =
         brush.GetViewport();
-    Rect cell{
-        bounds.x +
-            authoredViewport.x * bounds.width,
-        bounds.y +
-            authoredViewport.y * bounds.height,
-        authoredViewport.width * bounds.width,
-        authoredViewport.height * bounds.height};
+    Rect cell = brush.GetViewportUnits() ==
+            BrushMappingMode::Absolute
+        ? Rect{
+            bounds.x + authoredViewport.x,
+            bounds.y + authoredViewport.y,
+            authoredViewport.width,
+            authoredViewport.height}
+        : Rect{
+            bounds.x + authoredViewport.x * bounds.width,
+            bounds.y + authoredViewport.y * bounds.height,
+            authoredViewport.width * bounds.width,
+            authoredViewport.height * bounds.height};
     if (cell.width <= 0.0 ||
         cell.height <= 0.0) {
         return {};
@@ -136,64 +182,95 @@ Base::Result<void> PaintImageBrush(
     const Color tint{
         1.0F, 1.0F, 1.0F,
         static_cast<float>(brush.GetOpacity())};
-    if (brush.GetTileMode() == TileMode::None) {
-        const ImageBrushGeometry geometry =
-            FitImageBrush(
-                brush, cell, sourceUv);
-        return builder.DrawImage(
-            image,
-            geometry.destination,
-            geometry.sourceUv,
-            tint);
+    const Base::Ref<Transform> relativeTransform =
+        brush.GetRelativeTransform();
+    const bool transformed = relativeTransform &&
+        bounds.width > 0.0 && bounds.height > 0.0;
+    const bool clipped = transformed ||
+        brush.GetTileMode() != TileMode::None;
+    Base::Result<void> status;
+    if (clipped) status = builder.PushClip(bounds);
+    if (!status) return status.GetStatus();
+    if (transformed) {
+        Base::Transform2D toNormalized;
+        toNormalized.m11 = 1.0 / bounds.width;
+        toNormalized.m22 = 1.0 / bounds.height;
+        toNormalized.dx = -bounds.x / bounds.width;
+        toNormalized.dy = -bounds.y / bounds.height;
+        Base::Transform2D fromNormalized;
+        fromNormalized.m11 = bounds.width;
+        fromNormalized.m22 = bounds.height;
+        fromNormalized.dx = bounds.x;
+        fromNormalized.dy = bounds.y;
+        const Base::Transform2D absolute = ComposeTransforms(
+            ComposeTransforms(
+                toNormalized,
+                relativeTransform->GetMatrix()),
+            fromNormalized);
+        status = builder.PushTransform(absolute);
+        if (!status) {
+            static_cast<void>(builder.PopClip());
+            return status.GetStatus();
+        }
     }
 
-    Base::Result<void> clipped =
-        builder.PushClip(bounds);
-    if (!clipped) return clipped.GetStatus();
-    Base::Status failure;
-    constexpr std::uint32_t maxTiles = 4096U;
-    std::uint32_t tileCount = 0U;
-    const double startX =
-        bounds.x +
-        std::floor(
-            (bounds.x - cell.x) /
-            cell.width) * cell.width;
-    const double startY =
-        bounds.y +
-        std::floor(
-            (bounds.y - cell.y) /
-            cell.height) * cell.height;
-    for (double y = startY;
-         y < bounds.y + bounds.height &&
-         tileCount < maxTiles;
-         y += cell.height) {
-        for (double x = startX;
-             x < bounds.x + bounds.width &&
-             tileCount < maxTiles;
-             x += cell.width) {
-            Rect tile{
-                x, y, cell.width, cell.height};
-            const ImageBrushGeometry geometry =
-                FitImageBrush(
-                    brush, tile, sourceUv);
-            Base::Result<void> painted =
-                builder.DrawImage(
-                    image,
-                    geometry.destination,
-                    geometry.sourceUv,
-                    tint);
-            if (!painted) {
-                failure = painted.GetStatus();
-                break;
+    if (brush.GetTileMode() == TileMode::None) {
+        const ImageBrushGeometry geometry =
+            FitImageBrush(brush, cell, sourceUv);
+        status = builder.DrawImage(
+            image, geometry.destination, geometry.sourceUv, tint);
+    } else {
+        constexpr std::uint32_t maxTiles = 4096U;
+        std::uint32_t tileCount = 0U;
+        const std::int64_t firstColumn = static_cast<std::int64_t>(
+            std::floor((bounds.x - cell.x) / cell.width));
+        const std::int64_t firstRow = static_cast<std::int64_t>(
+            std::floor((bounds.y - cell.y) / cell.height));
+        for (std::int64_t row = firstRow;
+             cell.y + row * cell.height < bounds.y + bounds.height &&
+             tileCount < maxTiles && status; ++row) {
+            for (std::int64_t column = firstColumn;
+                 cell.x + column * cell.width < bounds.x + bounds.width &&
+                 tileCount < maxTiles; ++column) {
+                Rect tile{
+                    cell.x + column * cell.width,
+                    cell.y + row * cell.height,
+                    cell.width,
+                    cell.height};
+                ImageBrushGeometry geometry =
+                    FitImageBrush(brush, tile, sourceUv);
+                const bool oddColumn = (column & 1) != 0;
+                const bool oddRow = (row & 1) != 0;
+                const TileMode mode = brush.GetTileMode();
+                if (oddColumn &&
+                    (mode == TileMode::FlipX || mode == TileMode::FlipXY)) {
+                    geometry.sourceUv.x += geometry.sourceUv.width;
+                    geometry.sourceUv.width = -geometry.sourceUv.width;
+                }
+                if (oddRow &&
+                    (mode == TileMode::FlipY || mode == TileMode::FlipXY)) {
+                    geometry.sourceUv.y += geometry.sourceUv.height;
+                    geometry.sourceUv.height = -geometry.sourceUv.height;
+                }
+                status = builder.DrawImage(
+                    image, geometry.destination, geometry.sourceUv, tint);
+                if (!status) break;
+                ++tileCount;
             }
-            ++tileCount;
         }
-        if (!failure.IsOk()) break;
     }
-    Base::Result<void> popped =
-        builder.PopClip();
-    if (!failure.IsOk()) return failure;
-    return popped;
+    const Base::Status paintStatus = status
+        ? Base::Status::Ok()
+        : status.GetStatus();
+    if (transformed) {
+        Base::Result<void> popped = builder.PopTransform();
+        if (status && !popped) status = popped.GetStatus();
+    }
+    if (clipped) {
+        Base::Result<void> popped = builder.PopClip();
+        if (status && !popped) status = popped.GetStatus();
+    }
+    return paintStatus.IsOk() ? status : Base::Result<void>(paintStatus);
 }
 
 } // namespace

@@ -270,6 +270,8 @@ public:
             Shutdown();
             return status.GetStatus();
         }
+        surfaceLost_ = false;
+        deviceLost_ = false;
         return {};
     }
 
@@ -292,7 +294,12 @@ public:
         Base::Result<void> current = MakeContextCurrent();
         if (!current) return current.GetStatus();
         return renderer_ != nullptr
-            ? renderer_->Render(rendererToken, plan)
+            ? renderer_->Render(
+                  rendererToken,
+                  plan,
+                  embedded_
+                      ? Graphics::LoadOperation::Load
+                      : Graphics::LoadOperation::Clear)
             : Base::Result<void>(
                   Base::Status::Failure(
                       Base::ErrorCode::NotInitialized,
@@ -324,21 +331,20 @@ public:
 
     void NotifySurfaceLost() noexcept {
         Shutdown();
-        lost_ = true;
+        surfaceLost_ = true;
     }
 
     void NotifyDeviceLost() noexcept {
         Shutdown();
-        lost_ = true;
+        deviceLost_ = true;
     }
 
     Base::Result<void> Restore() noexcept {
-        if (!lost_) {
+        if (!surfaceLost_ && !deviceLost_) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "OpenGL device is not lost");
         }
-        lost_ = false;
         return Initialize();
     }
 
@@ -352,6 +358,23 @@ public:
             renderer_->LastSubmittedFence(),
             static_cast<std::uint64_t>(
                 timeoutMilliseconds) * UINT64_C(1000000));
+    }
+
+    Detail::BackendHealth Health() const noexcept {
+        if (deviceLost_ ||
+            (device_ != nullptr &&
+             device_->Backend().IsDeviceLost())) {
+            return Detail::BackendHealth::DeviceLost;
+        }
+        if (surfaceLost_ ||
+            (surface_ != nullptr &&
+             surface_->State() != Graphics::SurfaceState::Ready)) {
+            return Detail::BackendHealth::SurfaceLost;
+        }
+        return renderer_ != nullptr && graphics_ != nullptr &&
+                device_ != nullptr && surface_ != nullptr
+            ? Detail::BackendHealth::Ready
+            : Detail::BackendHealth::Failed;
     }
 
     RenderFrameStatistics
@@ -586,7 +609,8 @@ private:
     OpenGL33WindowDeviceOptions windowOptions_;
     OpenGL33EmbeddedDeviceOptions embeddedOptions_;
     bool embedded_ = false;
-    bool lost_ = false;
+    bool surfaceLost_ = false;
+    bool deviceLost_ = false;
     std::uint64_t contextGeneration_ = 0U;
     Graphics::NativeSurfaceDescriptor descriptor_;
     OpenGL33EmbeddedSurface* embeddedSurface_ = nullptr;

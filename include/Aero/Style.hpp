@@ -62,6 +62,7 @@ public:
         TypeId targetType,
         const Style* basedOn,
         TypeId runtimeType) noexcept;
+    ~Style() override;
 
     Style(const Style&) = delete;
     Style& operator=(const Style&) = delete;
@@ -160,57 +161,19 @@ public:
     Base::Span<const Base::Ref<Trigger>> GetAuthoredTriggers() const noexcept {
         return {authoredTriggerObjects_.Data(), authoredTriggerObjects_.Size()};
     }
-    TypeId GetTargetType() const noexcept {
-        return sealed_ ? program_.TargetType() : targetType_;
-    }
+    TypeId GetTargetType() const noexcept;
     const Style* GetBasedOn() const noexcept { return basedOn_; }
     SetterBaseCollection GetSetters() noexcept { return SetterBaseCollection(*this); }
     TriggerCollection GetTriggers() noexcept { return TriggerCollection(*this); }
     bool GetIsSealed() const noexcept { return sealed_; }
-    Base::Span<const StyleSetter> GetRuntimeSetters() const noexcept {
-        return program_.Setters();
-    }
-    Base::Span<const TriggerPlan> GetRuntimeTriggers() const noexcept {
-        return program_.Triggers();
-    }
     ResourceDictionary& GetResources() noexcept { return resources_; }
     const ResourceDictionary& GetResources() const noexcept { return resources_; }
     void SetResources(Base::Ref<ResourceDictionary> value) noexcept;
 
-public:
+private:
     friend struct Impl;
 
     Base::Result<void> SealRuntime(const void* properties) noexcept;
-
-    struct Impl {
-        static Base::Result<void> Seal(
-            Style& style,
-            const void* properties) noexcept;
-
-        Impl() noexcept = default;
-        Impl(Impl&&) noexcept = default;
-        Impl& operator=(Impl&&) noexcept = default;
-        Impl(const Impl&) = delete;
-        Impl& operator=(const Impl&) = delete;
-
-        TypeId TargetType() const noexcept { return targetType; }
-        Base::Span<const StyleSetter> Setters() const noexcept {
-            return {setters.Data(), setters.Size()};
-        }
-        Base::Span<const TriggerPlan> Triggers() const noexcept {
-            return {triggers.Data(), triggers.Size()};
-        }
-        Base::Result<void> Freeze(
-            TypeId valueTargetType,
-            Base::Vector<StyleSetter>&& valueSetters,
-            Base::Vector<TriggerPlan>&& valueTriggers) noexcept;
-        void Reset() noexcept;
-
-        TypeId targetType = InvalidTypeId;
-        Base::Vector<StyleSetter> setters;
-        Base::Vector<TriggerPlan> triggers;
-        bool frozen = false;
-    };
 
     TypeId runtimeType_ = StaticTypeId();
     TypeId targetType_ = InvalidTypeId;
@@ -220,7 +183,8 @@ public:
     Base::Vector<Base::Ref<Trigger>> authoredTriggerObjects_;
     Base::Vector<StyleSetter> authored_;
     Base::Vector<TriggerPlan> authoredTriggers_;
-    Impl program_;
+    Base::IAllocator* implAllocator_ = nullptr;
+    Impl* program_ = nullptr;
     ResourceDictionary resources_;
     bool sealed_ = false;
 };

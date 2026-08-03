@@ -238,11 +238,6 @@ public:
     Base::Result<XamlDocument> LoadCompiled(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri = {}) noexcept;
-    Base::Result<void> RegisterXamlProvider(
-        Integration::XamlProvider& provider,
-        Base::StringView scheme = {},
-        Base::StringView assembly = {}) noexcept;
-
     Base::Result<void> Mount(
         Controls::ContentControl& host,
         XamlDocument&& document) noexcept;

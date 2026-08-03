@@ -38,7 +38,7 @@ options.renderDevice = renderDevice;
 auto view = environment.CreateView(options).Value();
 
 Aero::Markup::XamlReader reader(*view);
-reader.RegisterXamlProvider(sourceProvider, "app");
+gui.AddXamlProvider(sourceProvider, "app");
 auto document = reader.Load("app:///MainView.xaml").Value();
 view->SetContent(std::move(document), logicalSize);
 

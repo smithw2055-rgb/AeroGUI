@@ -28,6 +28,7 @@ struct VSOutput {
     float2 localPosition : TEXCOORD0;
     float2 rectangleSize : TEXCOORD1;
     float cornerRadius : TEXCOORD2;
+    float2 canvasPosition : TEXCOORD3;
 };
 
 VSOutput vs_main(VSInput input) {
@@ -64,13 +65,15 @@ VSOutput vs_main(VSInput input) {
     output.localPosition = input.position * activeRect.zw;
     output.rectangleSize = activeRect.zw;
     output.cornerRadius = cornerRadii[rectIndex].x;
+    output.canvasPosition = transformed;
     return output;
 }
 
 float4 ps_main(VSOutput input) : SV_Target {
     [loop]
     for (uint index = 0; index < clipCount; ++index) {
-        const float2 relative = input.position.xy - clipTranslation[index].xy;
+        const float2 relative =
+            input.canvasPosition - clipTranslation[index].xy;
         const float2 local = float2(
             relative.x * clipInverse[index].x +
                 relative.y * clipInverse[index].z,

@@ -18,6 +18,10 @@
 #include "AeroD3D11RenderFrameVertexShader.hpp"
 #include "AeroD3D11RenderFrameImagePixelShader.hpp"
 #include "AeroD3D11RenderFrameImageVertexShader.hpp"
+#include "AeroD3D11RenderFrameMaskPixelShader.hpp"
+#include "AeroD3D11RenderFrameMaskVertexShader.hpp"
+#include "AeroD3D11RenderFrameEffectPixelShader.hpp"
+#include "AeroD3D11RenderFrameEffectVertexShader.hpp"
 #include "AeroD3D11RenderFrameMeshPixelShader.hpp"
 #include "AeroD3D11RenderFrameMeshVertexShader.hpp"
 #include "AeroD3D11RenderFrameGlyphPixelShader.hpp"
@@ -81,6 +85,26 @@ RendererShaderSet MakeD3D11RendererShaderSet() noexcept {
         AeroD3D11RenderFrameImagePixelShader,
         static_cast<std::uint32_t>(sizeof(AeroD3D11RenderFrameImagePixelShader)),
         UINT64_C(0xD3111012), Base::StringView("ps_main"));
+    shaders.maskVertex = Shader(
+        Graphics::ShaderStage::Vertex,
+        AeroD3D11RenderFrameMaskVertexShader,
+        static_cast<std::uint32_t>(sizeof(AeroD3D11RenderFrameMaskVertexShader)),
+        UINT64_C(0xD3111013), Base::StringView("vs_main"));
+    shaders.maskFragment = Shader(
+        Graphics::ShaderStage::Fragment,
+        AeroD3D11RenderFrameMaskPixelShader,
+        static_cast<std::uint32_t>(sizeof(AeroD3D11RenderFrameMaskPixelShader)),
+        UINT64_C(0xD3111014), Base::StringView("ps_main"));
+    shaders.effectVertex = Shader(
+        Graphics::ShaderStage::Vertex,
+        AeroD3D11RenderFrameEffectVertexShader,
+        static_cast<std::uint32_t>(sizeof(AeroD3D11RenderFrameEffectVertexShader)),
+        UINT64_C(0xD3111015), Base::StringView("vs_main"));
+    shaders.effectFragment = Shader(
+        Graphics::ShaderStage::Fragment,
+        AeroD3D11RenderFrameEffectPixelShader,
+        static_cast<std::uint32_t>(sizeof(AeroD3D11RenderFrameEffectPixelShader)),
+        UINT64_C(0xD3111016), Base::StringView("ps_main"));
     shaders.meshVertex = Shader(
         Graphics::ShaderStage::Vertex,
         AeroD3D11RenderFrameMeshVertexShader,
@@ -292,7 +316,8 @@ Base::Result<void> D3D11Renderer::RenderOffscreen(
 
 Base::Result<void> D3D11Renderer::Render(
     const void* rendererToken,
-    const Integration::RenderFrame& plan) noexcept {
+    const Integration::RenderFrame& plan,
+    Graphics::LoadOperation load) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("D3D11 render adapter is not initialized");
     }
@@ -319,7 +344,7 @@ Base::Result<void> D3D11Renderer::Render(
     Base::Result<Graphics::CommandList> recorded =
         impl_->renderer.RecordOnscreen(
             rendererToken, plan,
-            {frame.renderTarget, width, height});
+            {frame.renderTarget, width, height, load});
     if (!recorded) {
         static_cast<void>(presenter_->DiscardFrame(frame));
         return recorded.GetStatus();

@@ -9,15 +9,13 @@ add_library(AeroRuntimeObjects OBJECT
     src/runtime/ImageCache.cpp
     src/runtime/StbImageImplementation.cpp
     src/runtime/TextPipeline.cpp
-    src/markup/MarkupLoader.cpp
+    src/markup/XamlReader.cpp
     "${_aero_generated_theme_header}")
 add_dependencies(AeroRuntimeObjects AeroCompiledThemes)
 aero_configure_internal_objects(AeroRuntimeObjects)
 target_include_directories(AeroRuntimeObjects PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb"
     "${CMAKE_CURRENT_BINARY_DIR}/generated")
-target_compile_definitions(AeroRuntimeObjects PRIVATE
-    AERO_MARKUP_XAML_READER_ONLY=1)
 target_link_libraries(AeroRuntimeObjects PUBLIC
     AeroModuleSetObjects
     AeroTextHarfBuzzObjects)

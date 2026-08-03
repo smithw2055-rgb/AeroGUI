@@ -9,8 +9,6 @@
 #include <Aero/Documents.hpp>
 
 #include "TextBlockLayout.hpp"
-#include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 
 #include <algorithm>
 #include <cmath>

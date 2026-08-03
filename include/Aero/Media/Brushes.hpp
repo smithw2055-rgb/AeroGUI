@@ -3,6 +3,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Collections.hpp>
 #include <Aero/DependencyProperty.hpp>
+#include <Aero/Freezable.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Transforms.hpp>
@@ -34,8 +35,8 @@ enum class BrushMappingMode : std::uint8_t {
     Absolute
 };
 
-class AERO_API Brush : public DependencyObject {
-    AERO_DECLARE_TYPE(Brush, DependencyObject)
+class AERO_API Brush : public Freezable {
+    AERO_DECLARE_TYPE(Brush, Freezable)
 public:
     struct Impl;
 
@@ -65,21 +66,11 @@ public:
 
 protected:
     explicit Brush(TypeId runtimeType) noexcept
-        : DependencyObject(runtimeType) {}
+        : Freezable(runtimeType) {}
     ~Brush() override = default;
-    void OnPropertyInvalidated(
-        PropertyInvalidationFlags flags) noexcept override;
 
 private:
     friend struct Impl;
-    FrameworkElement* owner_ = nullptr;
-
-    FrameworkElement* GetOwner() const noexcept {
-        return owner_;
-    }
-    void SetOwner(FrameworkElement* owner) noexcept {
-        owner_ = owner;
-    }
 };
 
 // Common owner for the WPF-style inheritable Foreground property.
@@ -106,11 +97,11 @@ private:
     Color initialColor_{};
 };
 
-class AERO_API GradientStop : public DependencyObject {
-    AERO_DECLARE_TYPE(GradientStop, DependencyObject)
+class AERO_API GradientStop : public Freezable {
+    AERO_DECLARE_TYPE(GradientStop, Freezable)
 public:
     GradientStop() noexcept
-        : DependencyObject(StaticTypeId()) {}
+        : Freezable(StaticTypeId()) {}
     ~GradientStop() override = default;
 
     double GetOffset() const noexcept;
@@ -121,31 +112,20 @@ public:
     inline static constexpr Members::Property<double> OffsetProperty{"Offset"};
     inline static constexpr Members::Property<Color> ColorProperty{"Color"};
 
-protected:
-    void OnPropertyInvalidated(
-        PropertyInvalidationFlags flags) noexcept override;
-
-private:
-    friend class GradientBrush;
-    void SetOwner(GradientBrush* owner) noexcept {
-        owner_ = owner;
-    }
-    GradientBrush* owner_ = nullptr;
 };
 
 // Standalone WPF collection resource. GradientBrush keeps its own optimized
 // stops, while this collection is also consumable as an authored resource
 // (for example, as an ItemsSource in the Gallery samples).
 class AERO_API GradientStopCollection :
-    public Base::Object,
+    public Freezable,
     public Collections::IItemsSource {
-    AERO_DECLARE_TYPE(GradientStopCollection, Base::Object)
+    AERO_DECLARE_TYPE(GradientStopCollection, Freezable)
 public:
     GradientStopCollection() noexcept
-        : stops_(&Base::GetDefaultAllocator()) {}
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
+        : Freezable(StaticTypeId()),
+          stops_(&Base::GetDefaultAllocator()) {}
+    ~GradientStopCollection() override;
     Base::Span<const Base::Ref<GradientStop>>
     GetItems() const noexcept {
         return stops_.AsSpan();
@@ -161,6 +141,7 @@ public:
     }
     void AddItemsChanged(
         const Collections::ItemsChangedHandler& handler) noexcept override {
+        if (IsFrozen()) return;
         changed_.Add(handler);
     }
     bool RemoveItemsChanged(
@@ -169,18 +150,14 @@ public:
     }
     Base::Result<void> Add(
         Base::Ref<GradientStop> stop) noexcept;
-    void Clear() noexcept {
-        const std::uint32_t count = stops_.Size();
-        stops_.Clear();
-        if (!changed_.Empty()) {
-            changed_.Invoke({
-                Collections::ItemsChangeAction::Reset,
-                0U, 0U, count, 0U});
-        }
-    }
+    void Clear() noexcept;
+protected:
+    bool FreezeCore(bool isChecking) noexcept override;
 private:
+    void OnStopChanged(Freezable&) noexcept;
     Base::Vector<Base::Ref<GradientStop>> stops_;
     Collections::ItemsChangedHandler changed_;
+    FreezableChangedHandler stopChangedHandler_;
 };
 
 class AERO_API BrushShader : public Base::Object {
@@ -254,9 +231,12 @@ protected:
         : Brush(runtimeType),
           stops_(&Base::GetDefaultAllocator()) {}
     ~GradientBrush() override;
+    bool FreezeCore(bool isChecking) noexcept override;
 
 private:
+    void OnGradientStopChanged(Freezable&) noexcept;
     Base::Vector<Base::Ref<GradientStop>> stops_;
+    FreezableChangedHandler stopChangedHandler_;
 };
 
 class AERO_API LinearGradientBrush
@@ -311,7 +291,11 @@ public:
     Stretch GetStretch() const noexcept;
     Rect GetViewbox() const noexcept;
     Rect GetViewport() const noexcept;
+    BrushMappingMode GetViewboxUnits() const noexcept;
+    BrushMappingMode GetViewportUnits() const noexcept;
     TileMode GetTileMode() const noexcept;
+    HorizontalAlignment GetAlignmentX() const noexcept;
+    VerticalAlignment GetAlignmentY() const noexcept;
     void SetSource(
         Base::Ref<ImageSource> value) noexcept;
     void SetStretch(
@@ -320,14 +304,26 @@ public:
         Rect value) noexcept;
     void SetViewport(
         Rect value) noexcept;
+    void SetViewboxUnits(
+        BrushMappingMode value) noexcept;
+    void SetViewportUnits(
+        BrushMappingMode value) noexcept;
     void SetTileMode(
         TileMode value) noexcept;
+    void SetAlignmentX(
+        HorizontalAlignment value) noexcept;
+    void SetAlignmentY(
+        VerticalAlignment value) noexcept;
 
     inline static constexpr Members::Property<Base::Ref<ImageSource>> ImageSourceProperty{"ImageSource"};
     inline static constexpr Members::Property<Stretch> StretchProperty{"Stretch"};
     inline static constexpr Members::Property<Rect> ViewboxProperty{"Viewbox"};
     inline static constexpr Members::Property<Rect> ViewportProperty{"Viewport"};
+    inline static constexpr Members::Property<BrushMappingMode> ViewboxUnitsProperty{"ViewboxUnits"};
+    inline static constexpr Members::Property<BrushMappingMode> ViewportUnitsProperty{"ViewportUnits"};
     inline static constexpr Members::Property<TileMode> TileModeProperty{"TileMode"};
+    inline static constexpr Members::Property<HorizontalAlignment> AlignmentXProperty{"AlignmentX"};
+    inline static constexpr Members::Property<VerticalAlignment> AlignmentYProperty{"AlignmentY"};
 
 private:
     friend struct ::Aero::Media::Brush::Impl;

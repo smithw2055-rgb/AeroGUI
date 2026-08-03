@@ -7,6 +7,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyProperty.hpp>
+#include <Aero/Freezable.hpp>
 #include <Aero/Data.hpp>
 #include <cstdint>
 
@@ -25,8 +26,8 @@ enum class EasingMode : std::uint8_t {
     EaseInOut
 };
 
-class AERO_API Timeline : public ::Aero::DependencyObject {
-    AERO_DECLARE_TYPE(Timeline, ::Aero::DependencyObject)
+class AERO_API Timeline : public ::Aero::Freezable {
+    AERO_DECLARE_TYPE(Timeline, ::Aero::Freezable)
 public:
     struct Impl;
 
@@ -55,7 +56,7 @@ public:
 
 protected:
     explicit Timeline(Meta::TypeId runtimeType) noexcept
-        : DependencyObject(runtimeType) {}
+        : Freezable(runtimeType) {}
 
 private:
     Base::String beginTimeText_;
@@ -779,6 +780,7 @@ class AERO_API Storyboard : public Timeline {
     AERO_DECLARE_TYPE(Storyboard, Timeline)
 public:
     Storyboard() noexcept : Timeline(StaticTypeId()) {}
+    ~Storyboard() override;
 
     inline static constexpr Members::AttachedProperty<Base::String> TargetNameProperty{"TargetName"};
     inline static constexpr Members::AttachedProperty<Base::String> TargetPropertyProperty{"TargetProperty"};
@@ -791,8 +793,13 @@ public:
         return {timelines_.Data(), timelines_.Size()};
     }
 
+protected:
+    bool FreezeCore(bool isChecking) noexcept override;
+
 private:
+    void OnTimelineChanged(Freezable&) noexcept;
     Base::Vector<Base::Ref<Timeline>> timelines_;
+    FreezableChangedHandler timelineChangedHandler_;
 };
 
 

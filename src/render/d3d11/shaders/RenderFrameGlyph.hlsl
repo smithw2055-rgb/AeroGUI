@@ -26,6 +26,7 @@ struct VSOutput {
     float4 position : SV_Position;
     float2 uv : TEXCOORD0;
     float4 tint : COLOR0;
+    float2 canvasPosition : TEXCOORD1;
 };
 
 VSOutput vs_main(VSInput input) {
@@ -40,13 +41,15 @@ VSOutput vs_main(VSInput input) {
         1.0);
     output.uv = input.uv;
     output.tint = tints[input.instanceId];
+    output.canvasPosition = p;
     return output;
 }
 
 float4 ps_main(VSOutput input) : SV_Target {
     [loop]
     for (uint index = 0; index < clipCount; ++index) {
-        const float2 relative = input.position.xy - clipTranslation[index].xy;
+        const float2 relative =
+            input.canvasPosition - clipTranslation[index].xy;
         const float2 local = float2(
             relative.x * clipInverse[index].x + relative.y * clipInverse[index].z,
             relative.x * clipInverse[index].y + relative.y * clipInverse[index].w);

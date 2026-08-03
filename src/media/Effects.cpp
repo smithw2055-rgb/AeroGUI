@@ -1,18 +1,13 @@
 #include <Aero/Media/Effects.hpp>
 
 #include "gui/GuiPrivate.hpp"
-#include <Aero/FrameworkElement.hpp>
+#include "media/MediaPrivate.hpp"
 
 namespace Aero::Media {
 
-void Effect::OnPropertyInvalidated(
-    Meta::PropertyInvalidationFlags flags) noexcept {
-    DependencyObject::OnPropertyInvalidated(flags);
-    if (owner_ != nullptr) {
-        static_cast<void>(
-            Aero::GuiPrivate::Detail::ElementPrivate::
-                InvalidateRenderState(*owner_));
-    }
+std::uint64_t Effect::Impl::Revision(
+    const Effect& effect) noexcept {
+    return Freezable::Impl::Revision(effect);
 }
 
 double BlurEffect::GetRadius() const noexcept {

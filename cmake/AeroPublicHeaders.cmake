@@ -56,6 +56,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Events/RoutedEvent.hpp
     include/Aero/Events/WindowEventArgs.hpp
     include/Aero/FrameworkElement.hpp
+    include/Aero/Freezable.hpp
     include/Aero/Gui.hpp
     include/Aero/Input.hpp
     include/Aero/Integration.hpp

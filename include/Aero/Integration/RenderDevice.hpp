@@ -57,7 +57,7 @@ struct RenderFrameStatistics {
 
 // Host-thread-affine native UI device shared by one or more View Renderers on
 // the same render thread. Frame submission remains a private Renderer detail.
-class AERO_API RenderDevice : public Base::Object {
+class AERO_API RenderDevice final : public Base::Object {
     struct ConstructionToken {};
 
 public:
@@ -72,17 +72,11 @@ public:
     RenderDevice(const RenderDevice&) = delete;
     RenderDevice& operator=(const RenderDevice&) = delete;
 
-    RenderDeviceMode Mode() const noexcept { return mode_; }
-    RenderDeviceState State() const noexcept { return state_; }
-    std::uint64_t Generation() const noexcept {
-        return statistics_.generation;
-    }
-    RenderDeviceStatistics Statistics() const noexcept {
-        return statistics_;
-    }
-    RenderFrameStatistics LastFrameStatistics() const noexcept {
-        return lastFrameStatistics_;
-    }
+    RenderDeviceMode Mode() const noexcept;
+    RenderDeviceState State() const noexcept;
+    std::uint64_t Generation() const noexcept;
+    RenderDeviceStatistics Statistics() const noexcept;
+    RenderFrameStatistics LastFrameStatistics() const noexcept;
 
     Base::Result<void> Resize(
         std::uint32_t width,
@@ -114,13 +108,7 @@ private:
     void MergeBackendStatistics(
         RenderFrameStatistics& result) const noexcept;
 
-    Base::IAllocator* allocator_ = nullptr;
-    void* stateData_ = nullptr;
-    const void* functions_ = nullptr;
-    RenderDeviceMode mode_ = RenderDeviceMode::Headless;
-    RenderDeviceState state_ = RenderDeviceState::Ready;
-    RenderDeviceStatistics statistics_;
-    RenderFrameStatistics lastFrameStatistics_;
+    Impl* impl_ = nullptr;
 };
 
 } // namespace Aero::Integration

@@ -49,7 +49,8 @@ public:
         const Integration::RenderFrame& plan) noexcept;
     Base::Result<void> Render(
         const void* rendererToken,
-        const Integration::RenderFrame& plan) noexcept;
+        const Integration::RenderFrame& plan,
+        Graphics::LoadOperation load) noexcept;
     void ReleaseRenderer(const void* rendererToken) noexcept;
     bool IsInitialized() const noexcept;
     Graphics::FenceValue LastSubmittedFence() const noexcept;

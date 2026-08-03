@@ -92,6 +92,10 @@ if(AERO_ENABLE_D3D11_BACKEND)
         "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders/RenderFrameRect.hlsl")
     set(_aero_d3d11_render_frame_image_shader_source
         "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders/RenderFrameImage.hlsl")
+    set(_aero_d3d11_render_frame_mask_shader_source
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders/RenderFrameMask.hlsl")
+    set(_aero_d3d11_render_frame_effect_shader_source
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders/RenderFrameEffect.hlsl")
     set(_aero_d3d11_render_frame_mesh_shader_source
         "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders/RenderFrameMesh.hlsl")
     set(_aero_d3d11_render_frame_glyph_shader_source
@@ -107,6 +111,14 @@ if(AERO_ENABLE_D3D11_BACKEND)
         "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameImageVertexShader.hpp")
     set(_aero_d3d11_render_frame_image_ps_header
         "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameImagePixelShader.hpp")
+    set(_aero_d3d11_render_frame_mask_vs_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameMaskVertexShader.hpp")
+    set(_aero_d3d11_render_frame_mask_ps_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameMaskPixelShader.hpp")
+    set(_aero_d3d11_render_frame_effect_vs_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameEffectVertexShader.hpp")
+    set(_aero_d3d11_render_frame_effect_ps_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameEffectPixelShader.hpp")
     set(_aero_d3d11_render_frame_mesh_vs_header
         "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameMeshVertexShader.hpp")
     set(_aero_d3d11_render_frame_mesh_ps_header
@@ -178,6 +190,50 @@ if(AERO_ENABLE_D3D11_BACKEND)
         DEPENDS "${_aero_d3d11_render_frame_image_shader_source}"
         VERBATIM)
     add_custom_command(
+        OUTPUT "${_aero_d3d11_render_frame_mask_vs_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T vs_4_0 /E vs_main
+            /Vn AeroD3D11RenderFrameMaskVertexShader
+            /Fh "${_aero_d3d11_render_frame_mask_vs_header}"
+            "${_aero_d3d11_render_frame_mask_shader_source}"
+        DEPENDS "${_aero_d3d11_render_frame_mask_shader_source}"
+        VERBATIM)
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_render_frame_mask_ps_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T ps_4_0 /E ps_main
+            /Vn AeroD3D11RenderFrameMaskPixelShader
+            /Fh "${_aero_d3d11_render_frame_mask_ps_header}"
+            "${_aero_d3d11_render_frame_mask_shader_source}"
+        DEPENDS "${_aero_d3d11_render_frame_mask_shader_source}"
+        VERBATIM)
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_render_frame_effect_vs_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T vs_4_0 /E vs_main
+            /Vn AeroD3D11RenderFrameEffectVertexShader
+            /Fh "${_aero_d3d11_render_frame_effect_vs_header}"
+            "${_aero_d3d11_render_frame_effect_shader_source}"
+        DEPENDS "${_aero_d3d11_render_frame_effect_shader_source}"
+        VERBATIM)
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_render_frame_effect_ps_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T ps_4_0 /E ps_main
+            /Vn AeroD3D11RenderFrameEffectPixelShader
+            /Fh "${_aero_d3d11_render_frame_effect_ps_header}"
+            "${_aero_d3d11_render_frame_effect_shader_source}"
+        DEPENDS "${_aero_d3d11_render_frame_effect_shader_source}"
+        VERBATIM)
+    add_custom_command(
         OUTPUT "${_aero_d3d11_render_frame_mesh_vs_header}"
         COMMAND "${CMAKE_COMMAND}" -E make_directory
             "${_aero_d3d11_shader_directory}"
@@ -231,6 +287,10 @@ if(AERO_ENABLE_D3D11_BACKEND)
             "${_aero_d3d11_render_frame_ps_header}"
             "${_aero_d3d11_render_frame_image_vs_header}"
             "${_aero_d3d11_render_frame_image_ps_header}"
+            "${_aero_d3d11_render_frame_mask_vs_header}"
+            "${_aero_d3d11_render_frame_mask_ps_header}"
+            "${_aero_d3d11_render_frame_effect_vs_header}"
+            "${_aero_d3d11_render_frame_effect_ps_header}"
             "${_aero_d3d11_render_frame_mesh_vs_header}"
             "${_aero_d3d11_render_frame_mesh_ps_header}"
             "${_aero_d3d11_render_frame_glyph_vs_header}"

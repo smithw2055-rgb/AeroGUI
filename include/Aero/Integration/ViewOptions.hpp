@@ -6,6 +6,16 @@
 
 namespace Aero::Integration {
 
+class XamlProvider;
+class TextureProvider;
+class FontProvider;
+
+struct XamlProviderRoute {
+    XamlProvider* provider = nullptr;
+    Base::StringView scheme;
+    Base::StringView assembly;
+};
+
 struct TextOptions  {
     Base::StringView primaryFamily;
     Base::Span<const Base::StringView> fallbackFamilies;
@@ -21,6 +31,9 @@ struct ViewOptions  {
     IClipboard* clipboard = nullptr;
     ITextInputMethodHost* textInputMethodHost = nullptr;
     TextOptions text;
+    Base::Span<const XamlProviderRoute> xamlProviders;
+    TextureProvider* textureProvider = nullptr;
+    FontProvider* fontProvider = nullptr;
     bool attachControlInteractions = true;
     bool attachTextEditing = true;
     bool automaticAnimationClock = true;

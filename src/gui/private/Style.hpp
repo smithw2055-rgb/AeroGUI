@@ -41,6 +41,46 @@ public:
 #include <Aero/Styling.hpp>
 #include <Aero/Style.hpp>
 
+namespace Aero {
+
+struct Style::Impl {
+    static Base::Result<void> Seal(
+        Style& style,
+        const void* properties) noexcept;
+    static Base::Span<const StyleSetter> RuntimeSetters(
+        const Style& style) noexcept;
+    static Base::Span<const TriggerPlan> RuntimeTriggers(
+        const Style& style) noexcept;
+
+    Impl() noexcept
+        : setters(&Base::GetDefaultAllocator()),
+          triggers(&Base::GetDefaultAllocator()) {}
+    Impl(Impl&&) noexcept = default;
+    Impl& operator=(Impl&&) noexcept = default;
+    Impl(const Impl&) = delete;
+    Impl& operator=(const Impl&) = delete;
+
+    TypeId TargetType() const noexcept { return targetType; }
+    Base::Span<const StyleSetter> Setters() const noexcept {
+        return {setters.Data(), setters.Size()};
+    }
+    Base::Span<const TriggerPlan> Triggers() const noexcept {
+        return {triggers.Data(), triggers.Size()};
+    }
+    Base::Result<void> Freeze(
+        TypeId valueTargetType,
+        Base::Vector<StyleSetter>&& valueSetters,
+        Base::Vector<TriggerPlan>&& valueTriggers) noexcept;
+    void Reset() noexcept;
+
+    TypeId targetType = InvalidTypeId;
+    Base::Vector<StyleSetter> setters;
+    Base::Vector<TriggerPlan> triggers;
+    bool frozen = false;
+};
+
+} // namespace Aero
+
 namespace Aero::GuiPrivate::Detail {
 using StylePrivate = ::Aero::Style::Impl;
 }

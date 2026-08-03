@@ -151,9 +151,12 @@ Property setters and WPF lifecycle hooks use direct values: public `SetXxx`,
 returns `bool`, and measure/arrange/render hooks use `Size`/`void`. `Result<T>`
 is reserved for the canonical parsing/conversion `Try*` names, streams,
 resources, registration and other boundaries where the caller must observe
-failure. Dependency-property
-validation is completed before commit so a rejected assignment leaves the
-previous effective value unchanged.
+failure. Dependency-property mutation additionally exposes explicit
+`SetValueChecked`, `SetCurrentValueChecked`, `ClearValueChecked` and
+`CoerceValueChecked` companions. The WPF-shaped `void` methods delegate to
+these checked paths; validation is completed before commit so a rejected
+assignment leaves the previous effective value unchanged. `Freezable` uses
+this contract to return `ReadOnly` after a successful freeze.
 
 Adding a public header is therefore an API decision: it must update the
 whitelist and namespace manifest when needed, fit an existing product/domain

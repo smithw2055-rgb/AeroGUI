@@ -26,35 +26,30 @@ Base::Transform2D AroundCenter(
         ComposeTransforms(before, value), after);
 }
 
+bool ContainsTransform(
+    const Transform& value,
+    const Transform* sought) noexcept {
+    if (&value == sought) return true;
+    if (!value.PropertyRegistry().Types().IsDerivedFrom(
+            value.RuntimeType(), TransformGroup::StaticTypeId())) {
+        return false;
+    }
+    const auto& group = static_cast<const TransformGroup&>(value);
+    for (const Base::Ref<Transform>& child : group.GetChildren()) {
+        if (child && ContainsTransform(*child, sought)) return true;
+    }
+    return false;
+}
+
 } // namespace
 
 } // namespace Aero::Media
 
 namespace Aero::Media {
 
-Aero::FrameworkElement* Transform::Impl::Owner(
-    const Aero::Media::Transform& transform) noexcept {
-    return transform.GetOwner();
-}
-
-bool Aero::Media::Transform::Impl::HasOwnerRole(
-    const Aero::Media::Transform& transform,
-    std::uint8_t role) noexcept {
-    return transform.HasOwnerRole(role);
-}
-
-void Aero::Media::Transform::Impl::AttachOwner(
-    Aero::Media::Transform& transform,
-    Aero::FrameworkElement* owner,
-    std::uint8_t role) noexcept {
-    transform.AttachOwner(owner, role);
-}
-
-void Aero::Media::Transform::Impl::DetachOwner(
-    Aero::Media::Transform& transform,
-    Aero::FrameworkElement* owner,
-    std::uint8_t role) noexcept {
-    transform.DetachOwner(owner, role);
+std::uint64_t Transform::Impl::Revision(
+    const Transform& transform) noexcept {
+    return Freezable::Impl::Revision(transform);
 }
 
 } // namespace Aero::Media
@@ -155,42 +150,6 @@ bool InvertTransform(
         transform.dx * inverse.m12 +
         transform.dy * inverse.m22);
     return Base::IsFiniteTransform(inverse);
-}
-
-void Transform::AttachOwner(
-    FrameworkElement* owner,
-    std::uint8_t role) noexcept {
-    if (owner == nullptr) return;
-    if (owner_ != owner) {
-        owner_ = owner;
-        ownerRoles_ = 0U;
-    }
-    ownerRoles_ |= role;
-}
-
-void Transform::DetachOwner(
-    FrameworkElement* owner,
-    std::uint8_t role) noexcept {
-    if (owner_ != owner || owner == nullptr) return;
-    ownerRoles_ &= static_cast<std::uint8_t>(~role);
-    if (ownerRoles_ == 0U) {
-        owner_ = nullptr;
-    }
-}
-
-void Transform::OnPropertyInvalidated(
-    Meta::PropertyInvalidationFlags flags) noexcept {
-    DependencyObject::OnPropertyInvalidated(flags);
-    FrameworkElement* owner = GetOwner();
-    if (owner == nullptr) return;
-    if (HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(
-            ::Aero::Media::Detail::TransformOwnerRole::Layout))) {
-        (void)owner->InvalidateMeasure();
-    } else {
-        static_cast<void>(
-            Aero::GuiPrivate::Detail::ElementPrivate::
-                InvalidateRenderState(*owner));
-    }
 }
 
 double TranslateTransform::GetX() const noexcept {
@@ -314,85 +273,76 @@ void MatrixTransform::SetMatrixValue(
 
 Base::Result<void> TransformGroup::AddChild(
     Base::Ref<Transform> value) noexcept {
+    Base::Result<void> writable = WritePreamble();
+    if (!writable) return writable.GetStatus();
     if (!value) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "TransformGroup child cannot be null");
     }
-    if (HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Render))) {
-        value->AttachOwner(
-            GetOwner(),
-            ::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Render));
+    if (ContainsTransform(*value, this)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::CycleDetected,
+            "TransformGroup cannot contain itself directly or indirectly");
     }
-    if (HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout))) {
-        value->AttachOwner(
-            GetOwner(),
-            ::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout));
+    if (childChangedHandler_.Empty()) {
+        childChangedHandler_ = FreezableChangedHandler(
+            this, &TransformGroup::OnChildChanged);
+    }
+    Transform* retained = value.Get();
+    if (!retained->IsFrozen()) {
+        Base::Result<void> subscribed =
+            retained->AddChangedHandlerChecked(childChangedHandler_);
+        if (!subscribed) return subscribed.GetStatus();
     }
     Base::Result<void> added =
         children_.PushBack(std::move(value));
-    if (!added) return added.GetStatus();
-    FrameworkElement* owner = GetOwner();
-    if (owner == nullptr) return {};
-    return HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout))
-        ? owner->InvalidateMeasure()
-        : Aero::GuiPrivate::Detail::ElementPrivate::
-            InvalidateRenderState(*owner);
+    if (!added) {
+        if (!retained->IsFrozen()) {
+            static_cast<void>(
+                retained->RemoveChangedHandler(childChangedHandler_));
+        }
+        return added.GetStatus();
+    }
+    WritePostscript();
+    return {};
 }
 
 void TransformGroup::ClearChildren() noexcept {
+    if (!WritePreamble() || children_.Empty()) return;
     for (Base::Ref<Transform>& child : children_) {
-        if (!child) continue;
-        if (HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Render))) {
-            child->DetachOwner(
-                GetOwner(),
-                ::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Render));
-        }
-        if (HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout))) {
-            child->DetachOwner(
-                GetOwner(),
-                ::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout));
+        if (child && !childChangedHandler_.Empty()) {
+            static_cast<void>(
+                child->RemoveChangedHandler(childChangedHandler_));
         }
     }
     children_.Clear();
-    FrameworkElement* owner = GetOwner();
-    if (owner == nullptr) return;
-    if (HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout))) {
-        (void)owner->InvalidateMeasure();
-    } else {
-        static_cast<void>(
-            Aero::GuiPrivate::Detail::ElementPrivate::
-                InvalidateRenderState(*owner));
-    }
+    WritePostscript();
 }
 
-void TransformGroup::SetOwner(FrameworkElement* owner) noexcept {
-    Transform::SetOwner(owner);
+TransformGroup::~TransformGroup() {
     for (Base::Ref<Transform>& child : children_) {
-        if (child) child->SetOwner(owner);
-    }
-}
-
-void TransformGroup::AttachOwner(
-    FrameworkElement* owner,
-    std::uint8_t role) noexcept {
-    Transform::AttachOwner(owner, role);
-    for (Base::Ref<Transform>& child : children_) {
-        if (child) {
-            child->AttachOwner(owner, role);
+        if (child && !childChangedHandler_.Empty()) {
+            static_cast<void>(
+                child->RemoveChangedHandler(childChangedHandler_));
         }
     }
 }
 
-void TransformGroup::DetachOwner(
-    FrameworkElement* owner,
-    std::uint8_t role) noexcept {
+void TransformGroup::OnChildChanged(Freezable&) noexcept {
+    WritePostscript();
+}
+
+bool TransformGroup::FreezeCore(bool isChecking) noexcept {
     for (Base::Ref<Transform>& child : children_) {
-        if (child) {
-            child->DetachOwner(owner, role);
+        if (!child) continue;
+        if (isChecking) {
+            if (!child->CanFreeze()) return false;
+        } else {
+            static_cast<void>(child->Freeze());
         }
     }
-    Transform::DetachOwner(owner, role);
+    return Transform::FreezeCore(isChecking);
 }
 
 Base::Transform2D TransformGroup::GetMatrix() const noexcept {

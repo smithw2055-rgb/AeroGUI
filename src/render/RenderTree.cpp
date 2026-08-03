@@ -10,6 +10,7 @@
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <utility>
@@ -96,6 +97,22 @@ std::uint64_t HashCommand(
 
 bool IsValidColorComponent(float value) noexcept {
     return std::isfinite(value) && value >= 0.0F && value <= 1.0F;
+}
+
+bool IsValidImageUv(Rect value) noexcept {
+    if (!Base::IsFiniteRect(value)) return false;
+    const double endX = value.x + value.width;
+    const double endY = value.y + value.height;
+    return std::fmin(value.x, endX) >= 0.0 &&
+        std::fmax(value.x, endX) <= 1.0 &&
+        std::fmin(value.y, endY) >= 0.0 &&
+        std::fmax(value.y, endY) <= 1.0;
+}
+
+std::uint8_t ToUnorm8(float value) noexcept {
+    if (!std::isfinite(value)) return 0U;
+    return static_cast<std::uint8_t>(std::lround(
+        std::clamp(value, 0.0F, 1.0F) * 255.0F));
 }
 
 } // namespace
@@ -269,9 +286,7 @@ Base::Result<void> DisplayListBuilder::DrawImage(
     Rect sourceUv,
     Color tint) noexcept {
     if (image == InvalidRenderImageId || !IsValidLayoutRect(destination) ||
-        !IsValidLayoutRect(sourceUv) || sourceUv.x < 0.0 || sourceUv.y < 0.0 ||
-        sourceUv.x + sourceUv.width > 1.0 ||
-        sourceUv.y + sourceUv.height > 1.0 || !IsFinite(tint)) {
+        !IsValidImageUv(sourceUv) || !IsFinite(tint)) {
         return InvalidArgument(
             "DrawImage requires a valid image, destination, UV rectangle, and tint");
     }
@@ -328,8 +343,6 @@ namespace Aero {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using Media::Transform;
-using ::Aero::Media::Detail::TransformOwnerRole;
-using ::Aero::Media::Detail::OwnerRoleValue;
 using Media::TransformBounds;
 using Media::ComposeTransforms;
 using Render::DisplayListBuilder;
@@ -337,22 +350,7 @@ using Render::DisplayListBuilder;
 FrameworkElement::FrameworkElement(TypeId runtimeType) noexcept
     : UIElement(runtimeType) {}
 
-FrameworkElement::~FrameworkElement() {
-    Base::Ref<Transform> renderTransform =
-        GetRenderTransform();
-    if (renderTransform) {
-        ::Aero::Media::Detail::TransformPrivate::DetachOwner(
-            *renderTransform, this,
-            OwnerRoleValue(TransformOwnerRole::Render));
-    }
-    Base::Ref<Transform> layoutTransform =
-        GetLayoutTransform();
-    if (layoutTransform) {
-        ::Aero::Media::Detail::TransformPrivate::DetachOwner(
-            *layoutTransform, this,
-            OwnerRoleValue(TransformOwnerRole::Layout));
-    }
-}
+FrameworkElement::~FrameworkElement() = default;
 
 Base::Ref<Transform>
 FrameworkElement::GetLayoutTransform() const noexcept {
@@ -470,8 +468,13 @@ using Aero::Media::DropShadowEffect;
 std::uint64_t RenderFrame::StableHash() const noexcept {
     std::uint64_t hash = 1469598103934665603ULL;
     hash = HashScalar(hash, version_);
+    hash = HashSize(hash, logicalSize_);
+    hash = HashScalar(hash, pixelWidth_);
+    hash = HashScalar(hash, pixelHeight_);
+    hash = HashScalar(hash, dpiScale_);
     hash = HashScalar(hash, nodes_.Size());
     hash = HashScalar(hash, commands_.Size());
+    hash = HashScalar(hash, gradientRamps_.Size());
     for (const RenderNodeSnapshot& node : nodes_) {
         hash = HashScalar(hash, node.id);
         hash = HashScalar(hash, node.parentId);
@@ -492,6 +495,28 @@ std::uint64_t RenderFrame::StableHash() const noexcept {
         hash = HashColor(hash, node.mask.color);
         hash = HashScalar(hash, node.mask.image);
         hash = HashRect(hash, node.mask.sourceUv);
+        hash = HashRect(hash, node.mask.viewport);
+        hash = HashScalar(hash, node.mask.startPoint.x);
+        hash = HashScalar(hash, node.mask.startPoint.y);
+        hash = HashScalar(hash, node.mask.endPoint.x);
+        hash = HashScalar(hash, node.mask.endPoint.y);
+        hash = HashScalar(hash, node.mask.center.x);
+        hash = HashScalar(hash, node.mask.center.y);
+        hash = HashScalar(hash, node.mask.gradientOrigin.x);
+        hash = HashScalar(hash, node.mask.gradientOrigin.y);
+        hash = HashTransform(hash, node.mask.relativeTransform);
+        hash = HashScalar(hash, node.mask.radiusX);
+        hash = HashScalar(hash, node.mask.radiusY);
+        hash = HashScalar(hash, node.mask.gradientRamp);
+        hash = HashScalar(hash, node.mask.imageWidth);
+        hash = HashScalar(hash, node.mask.imageHeight);
+        hash = HashScalar(hash, node.mask.mappingMode);
+        hash = HashScalar(hash, node.mask.viewboxUnits);
+        hash = HashScalar(hash, node.mask.viewportUnits);
+        hash = HashScalar(hash, node.mask.stretch);
+        hash = HashScalar(hash, node.mask.tileMode);
+        hash = HashScalar(hash, node.mask.alignmentX);
+        hash = HashScalar(hash, node.mask.alignmentY);
         hash = HashScalar(
             hash,
             static_cast<std::uint8_t>(
@@ -508,16 +533,39 @@ std::uint64_t RenderFrame::StableHash() const noexcept {
     for (const RenderCommand& command : commands_) {
         hash = HashCommand(hash, command);
     }
+    for (const RenderGradientRampSnapshot& ramp : gradientRamps_) {
+        // brushIdentity is intentionally omitted: it is a process-local cache
+        // key and must not make a frame hash depend on an address.
+        hash = HashScalar(hash, ramp.revision);
+        for (const std::uint8_t value : ramp.pixels) {
+            hash = HashByte(hash, value);
+        }
+    }
     return hash;
 }
 
 
 Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
+    if (!IsValidLayoutSize(frame.LogicalSize()) ||
+        !std::isfinite(frame.DpiScale()) || frame.DpiScale() <= 0.0 ||
+        (frame.LogicalSize().width == 0.0 && frame.PixelWidth() != 0U) ||
+        (frame.LogicalSize().height == 0.0 && frame.PixelHeight() != 0U)) {
+        return InvalidArgument("RenderFrame viewport is invalid");
+    }
     std::uint32_t clipDepth = 0U;
     std::uint32_t opacityDepth = 0U;
     std::uint32_t transformDepth = 0U;
     const Base::Span<const RenderCommand> commands = frame.Commands();
     const Base::Span<const RenderNodeSnapshot> nodes = frame.Nodes();
+    const Base::Span<const RenderGradientRampSnapshot> ramps =
+        frame.GradientRamps();
+
+    for (const RenderGradientRampSnapshot& ramp : ramps) {
+        if (ramp.brushIdentity == 0U) {
+            return InvalidArgument(
+                "RenderFrame gradient ramp has no brush identity");
+        }
+    }
 
     for (std::uint32_t nodeIndex = 0U; nodeIndex < nodes.Size(); ++nodeIndex) {
         const RenderNodeSnapshot& node = nodes[nodeIndex];
@@ -548,18 +596,56 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
             return InvalidArgument("RenderFrame node snapshot is invalid");
         }
         if (static_cast<std::uint8_t>(node.mask.kind) >
-                static_cast<std::uint8_t>(RenderMaskKind::Image) ||
+                static_cast<std::uint8_t>(RenderMaskKind::RadialGradient) ||
             !IsFinite(node.mask.color)) {
             return InvalidArgument("RenderFrame node mask is invalid");
         }
-        if (node.mask.kind == RenderMaskKind::Image &&
-            (node.mask.image == InvalidRenderImageId ||
-             !IsValidLayoutRect(node.mask.sourceUv) ||
-             node.mask.sourceUv.x < 0.0 ||
-             node.mask.sourceUv.y < 0.0 ||
-             node.mask.sourceUv.x + node.mask.sourceUv.width > 1.0 ||
-             node.mask.sourceUv.y + node.mask.sourceUv.height > 1.0)) {
-            return InvalidArgument("RenderFrame image mask is invalid");
+        if (node.mask.kind == RenderMaskKind::Image) {
+            const bool viewboxIsRelative =
+                node.mask.viewboxUnits == static_cast<std::uint8_t>(
+                    Media::BrushMappingMode::RelativeToBoundingBox);
+            const bool validViewbox =
+                IsValidLayoutRect(node.mask.sourceUv) &&
+                node.mask.sourceUv.x >= 0.0 &&
+                node.mask.sourceUv.y >= 0.0 &&
+                (!viewboxIsRelative ||
+                 (node.mask.sourceUv.x + node.mask.sourceUv.width <= 1.0 &&
+                  node.mask.sourceUv.y + node.mask.sourceUv.height <= 1.0));
+            if (node.mask.image == InvalidRenderImageId ||
+                node.mask.imageWidth == 0U || node.mask.imageHeight == 0U ||
+                !validViewbox || !IsValidLayoutRect(node.mask.viewport) ||
+                !IsFinite(node.mask.relativeTransform) ||
+                node.mask.viewboxUnits > static_cast<std::uint8_t>(
+                    Media::BrushMappingMode::Absolute) ||
+                node.mask.viewportUnits > static_cast<std::uint8_t>(
+                    Media::BrushMappingMode::Absolute) ||
+                node.mask.stretch > static_cast<std::uint8_t>(
+                    Media::Stretch::UniformToFill) ||
+                node.mask.tileMode > static_cast<std::uint8_t>(
+                    Media::TileMode::FlipXY) ||
+                node.mask.alignmentX > static_cast<std::uint8_t>(
+                    HorizontalAlignment::Right) ||
+                node.mask.alignmentY > static_cast<std::uint8_t>(
+                    VerticalAlignment::Bottom)) {
+                return InvalidArgument("RenderFrame image mask is invalid");
+            }
+        }
+        if (node.mask.kind == RenderMaskKind::LinearGradient ||
+            node.mask.kind == RenderMaskKind::RadialGradient) {
+            if (node.mask.gradientRamp >= ramps.Size() ||
+                node.mask.mappingMode > static_cast<std::uint8_t>(
+                    Media::BrushMappingMode::Absolute) ||
+                !Aero::IsFinite(node.mask.startPoint) ||
+                !Aero::IsFinite(node.mask.endPoint) ||
+                !Aero::IsFinite(node.mask.center) ||
+                !Aero::IsFinite(node.mask.gradientOrigin) ||
+                !IsFinite(node.mask.relativeTransform) ||
+                !std::isfinite(node.mask.radiusX) ||
+                !std::isfinite(node.mask.radiusY) ||
+                (node.mask.kind == RenderMaskKind::RadialGradient &&
+                 (node.mask.radiusX <= 0.0 || node.mask.radiusY <= 0.0))) {
+                return InvalidArgument("RenderFrame gradient mask is invalid");
+            }
         }
     }
 
@@ -622,10 +708,7 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
         case RenderCommandKind::DrawImage:
             if (command.image == InvalidRenderImageId ||
                 !IsValidLayoutRect(command.rect) ||
-                !IsValidLayoutRect(command.sourceUv) ||
-                command.sourceUv.x < 0.0 || command.sourceUv.y < 0.0 ||
-                command.sourceUv.x + command.sourceUv.width > 1.0 ||
-                command.sourceUv.y + command.sourceUv.height > 1.0 ||
+                !IsValidImageUv(command.sourceUv) ||
                 !IsFinite(command.color)) {
                 return InvalidArgument("RenderFrame contains invalid DrawImage");
             }
@@ -1197,6 +1280,37 @@ Base::Result<void> RenderTree::SetOverlays(
     return {};
 }
 
+Base::Result<void> RenderTree::SetViewport(
+    Aero::Size logicalSize,
+    std::uint32_t pixelWidth,
+    std::uint32_t pixelHeight,
+    double dpiScale) noexcept {
+    Base::Result<void> access = dispatcher_->VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (committing_) {
+        return InvalidState(
+            "Render viewport cannot change during commit");
+    }
+    if (!IsValidLayoutSize(logicalSize) ||
+        !std::isfinite(dpiScale) || dpiScale <= 0.0 ||
+        (logicalSize.width == 0.0 && pixelWidth != 0U) ||
+        (logicalSize.height == 0.0 && pixelHeight != 0U)) {
+        return InvalidArgument("Render viewport is invalid");
+    }
+    if (logicalSize_.width == logicalSize.width &&
+        logicalSize_.height == logicalSize.height &&
+        pixelWidth_ == pixelWidth && pixelHeight_ == pixelHeight &&
+        dpiScale_ == dpiScale) {
+        return {};
+    }
+    logicalSize_ = logicalSize;
+    pixelWidth_ = pixelWidth;
+    pixelHeight_ = pixelHeight;
+    dpiScale_ = dpiScale;
+    viewportDirty_ = true;
+    return {};
+}
+
 Base::Result<void> RenderTree::BuildSubtree(
     Visual& visual,
     RenderNodeId parentId,
@@ -1314,14 +1428,79 @@ Base::Result<void> RenderTree::BuildSubtree(
         : Base::Ref<Media::Brush>{};
     if (opacityMask) {
         const Meta::TypeId maskType = opacityMask->RuntimeType();
-        if (maskType == Media::SolidColorBrush::StaticTypeId() ||
-            maskType == Media::LinearGradientBrush::StaticTypeId() ||
-            maskType == Media::RadialGradientBrush::StaticTypeId()) {
+        if (maskType == Media::SolidColorBrush::StaticTypeId()) {
             const Base::Color sampled =
                 Media::Detail::SampleBrush(opacityMask, 0.5);
             snapshot.mask.kind = RenderMaskKind::Solid;
             snapshot.mask.color =
                 {1.0F, 1.0F, 1.0F, sampled.alpha};
+        } else if (maskType == Media::LinearGradientBrush::StaticTypeId() ||
+                   maskType == Media::RadialGradientBrush::StaticTypeId()) {
+            auto& gradient =
+                static_cast<Media::GradientBrush&>(*opacityMask);
+            snapshot.mask.kind = maskType ==
+                    Media::LinearGradientBrush::StaticTypeId()
+                ? RenderMaskKind::LinearGradient
+                : RenderMaskKind::RadialGradient;
+            snapshot.mask.mappingMode = static_cast<std::uint8_t>(
+                gradient.GetMappingMode());
+            if (const Base::Ref<Media::Transform> relative =
+                    gradient.GetRelativeTransform()) {
+                snapshot.mask.relativeTransform = relative->GetMatrix();
+            }
+            if (snapshot.mask.kind == RenderMaskKind::LinearGradient) {
+                auto& linear =
+                    static_cast<Media::LinearGradientBrush&>(gradient);
+                snapshot.mask.startPoint = linear.GetStartPoint();
+                snapshot.mask.endPoint = linear.GetEndPoint();
+            } else {
+                auto& radial =
+                    static_cast<Media::RadialGradientBrush&>(gradient);
+                snapshot.mask.center = radial.GetCenter();
+                snapshot.mask.gradientOrigin = radial.GetGradientOrigin();
+                snapshot.mask.radiusX = radial.GetRadiusX();
+                snapshot.mask.radiusY = radial.GetRadiusY();
+            }
+
+            const std::uintptr_t identity =
+                reinterpret_cast<std::uintptr_t>(opacityMask.Get());
+            const std::uint64_t revision =
+                Media::Detail::BrushPrivate::Revision(gradient);
+            std::uint32_t rampIndex = UINT32_MAX;
+            for (std::uint32_t index = 0U;
+                 index < plan.gradientRamps_.Size(); ++index) {
+                const RenderGradientRampSnapshot& candidate =
+                    plan.gradientRamps_[index];
+                if (candidate.brushIdentity == identity &&
+                    candidate.revision == revision) {
+                    rampIndex = index;
+                    break;
+                }
+            }
+            if (rampIndex == UINT32_MAX) {
+                RenderGradientRampSnapshot ramp;
+                ramp.brushIdentity = identity;
+                ramp.revision = revision;
+                for (std::uint32_t index = 0U;
+                     index < GradientRampWidth; ++index) {
+                    const double position = GradientRampWidth > 1U
+                        ? static_cast<double>(index) /
+                            static_cast<double>(GradientRampWidth - 1U)
+                        : 0.0;
+                    const Base::Color sampled =
+                        Media::Detail::SampleGradient(gradient, position);
+                    const std::uint32_t pixel = index * 4U;
+                    ramp.pixels[pixel] = ToUnorm8(sampled.red);
+                    ramp.pixels[pixel + 1U] = ToUnorm8(sampled.green);
+                    ramp.pixels[pixel + 2U] = ToUnorm8(sampled.blue);
+                    ramp.pixels[pixel + 3U] = ToUnorm8(sampled.alpha);
+                }
+                Base::Result<void> appended =
+                    plan.gradientRamps_.PushBack(std::move(ramp));
+                if (!appended) return appended.GetStatus();
+                rampIndex = plan.gradientRamps_.Size() - 1U;
+            }
+            snapshot.mask.gradientRamp = rampIndex;
         } else if (maskType == Media::ImageBrush::StaticTypeId()) {
             auto& imageMask =
                 static_cast<Media::ImageBrush&>(*opacityMask);
@@ -1339,6 +1518,27 @@ Base::Result<void> RenderTree::BuildSubtree(
                 snapshot.mask.kind = RenderMaskKind::Image;
                 snapshot.mask.image = image;
                 snapshot.mask.sourceUv = imageMask.GetViewbox();
+                snapshot.mask.viewport = imageMask.GetViewport();
+                snapshot.mask.imageWidth =
+                    Media::Detail::BrushPrivate::PixelWidth(imageMask);
+                snapshot.mask.imageHeight =
+                    Media::Detail::BrushPrivate::PixelHeight(imageMask);
+                snapshot.mask.viewboxUnits = static_cast<std::uint8_t>(
+                    imageMask.GetViewboxUnits());
+                snapshot.mask.viewportUnits = static_cast<std::uint8_t>(
+                    imageMask.GetViewportUnits());
+                snapshot.mask.stretch = static_cast<std::uint8_t>(
+                    imageMask.GetStretch());
+                snapshot.mask.tileMode = static_cast<std::uint8_t>(
+                    imageMask.GetTileMode());
+                snapshot.mask.alignmentX = static_cast<std::uint8_t>(
+                    imageMask.GetAlignmentX());
+                snapshot.mask.alignmentY = static_cast<std::uint8_t>(
+                    imageMask.GetAlignmentY());
+                if (const Base::Ref<Media::Transform> relative =
+                        imageMask.GetRelativeTransform()) {
+                    snapshot.mask.relativeTransform = relative->GetMatrix();
+                }
                 snapshot.mask.color =
                     {1.0F, 1.0F, 1.0F,
                      static_cast<float>(imageMask.GetOpacity())};
@@ -1437,11 +1637,16 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
         dirty_.Clear();
         return 0U;
     }
-    if (dirty_.Empty() && currentFrame_.Version() != 0U) return 0U;
+    if (dirty_.Empty() && !viewportDirty_ &&
+        currentFrame_.Version() != 0U) return 0U;
 
     committing_ = true;
     RenderFrame next;
     next.version_ = commitVersion_ + 1U;
+    next.logicalSize_ = logicalSize_;
+    next.pixelWidth_ = pixelWidth_;
+    next.pixelHeight_ = pixelHeight_;
+    next.dpiScale_ = dpiScale_;
     Base::Result<void> built = BuildSubtree(
         *root_, InvalidRenderNodeId, next);
     if (!built) {
@@ -1471,6 +1676,7 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
     commitVersion_ = currentFrame_.Version();
     MarkCommittedSubtree(*root_, true);
     dirty_.Clear();
+    viewportDirty_ = false;
     committing_ = false;
     return committedNodes;
 }

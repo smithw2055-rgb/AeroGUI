@@ -21,6 +21,10 @@ struct RendererShaderSet  {
     Graphics::ShaderDescriptor rectangleFragment;
     Graphics::ShaderDescriptor imageVertex;
     Graphics::ShaderDescriptor imageFragment;
+    Graphics::ShaderDescriptor maskVertex;
+    Graphics::ShaderDescriptor maskFragment;
+    Graphics::ShaderDescriptor effectVertex;
+    Graphics::ShaderDescriptor effectFragment;
     Graphics::ShaderDescriptor meshVertex;
     Graphics::ShaderDescriptor meshFragment;
     Graphics::ShaderDescriptor glyphVertex;
@@ -33,6 +37,7 @@ struct RenderTarget  {
     Graphics::ResourceHandle color;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
+    Graphics::LoadOperation load = Graphics::LoadOperation::Load;
 };
 
 struct RendererStatistics  {

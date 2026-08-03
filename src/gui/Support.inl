@@ -1030,24 +1030,10 @@ void OnRenderStateChanged(
 
 void OnOpacityMaskChanged(
     DependencyObject& object,
-    const DependencyPropertyChangedEventArgs& args) noexcept {
+    const DependencyPropertyChangedEventArgs&) noexcept {
     FrameworkElement* owner =
         static_cast<UIElement&>(object).AsFrameworkElement();
     if (owner == nullptr) return;
-    Base::Result<Base::Ref<Brush>> oldMask =
-        ValueCodec<Base::Ref<Brush>>::Decode(args.GetOldValue());
-    if (oldMask && oldMask.Value() &&
-        ::Aero::Media::Detail::BrushPrivate::Owner(
-            *oldMask.Value()) == owner) {
-        ::Aero::Media::Detail::BrushPrivate::SetOwner(
-            *oldMask.Value(), nullptr);
-    }
-    Base::Result<Base::Ref<Brush>> newMask =
-        ValueCodec<Base::Ref<Brush>>::Decode(args.GetNewValue());
-    if (newMask && newMask.Value()) {
-        ::Aero::Media::Detail::BrushPrivate::SetOwner(
-            *newMask.Value(), owner);
-    }
     static_cast<void>(
         Aero::GuiPrivate::Detail::ElementPrivate::
             InvalidateRenderState(*owner));
@@ -1055,85 +1041,26 @@ void OnOpacityMaskChanged(
 
 void OnRenderTransformChanged(
     DependencyObject& object,
-    const DependencyPropertyChangedEventArgs& args) noexcept {
+    const DependencyPropertyChangedEventArgs&) noexcept {
     FrameworkElement* owner =
         static_cast<UIElement&>(object).AsFrameworkElement();
     if (owner == nullptr) return;
-    Base::Result<Base::Ref<Transform>> oldTransform =
-        ValueCodec<Base::Ref<Transform>>::Decode(args.GetOldValue());
-    if (oldTransform && oldTransform.Value() &&
-        ::Aero::Media::Detail::TransformPrivate::Owner(
-            *oldTransform.Value()) == owner) {
-        ::Aero::Media::Detail::TransformPrivate::DetachOwner(
-            *oldTransform.Value(), owner,
-            ::Aero::Media::Detail::OwnerRoleValue(
-                ::Aero::Media::Detail::TransformOwnerRole::Render));
-    }
-    Base::Result<Base::Ref<Transform>> newTransform =
-        ValueCodec<Base::Ref<Transform>>::Decode(args.GetNewValue());
-    if (newTransform && newTransform.Value()) {
-        ::Aero::Media::Detail::TransformPrivate::AttachOwner(
-            *newTransform.Value(), owner,
-            ::Aero::Media::Detail::OwnerRoleValue(
-                ::Aero::Media::Detail::TransformOwnerRole::Render));
-    }
     static_cast<void>(
         Aero::GuiPrivate::Detail::ElementPrivate::
             InvalidateRenderState(*owner));
 }
 
 void OnLayoutTransformChanged(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs& args) noexcept {
-    FrameworkElement* owner =
-        static_cast<UIElement&>(object).
-            AsFrameworkElement();
-    if (owner == nullptr) return;
-    Base::Result<Base::Ref<Transform>> oldTransform =
-        ValueCodec<Base::Ref<Transform>>::Decode(
-            args.GetOldValue());
-    if (oldTransform &&
-        oldTransform.Value() &&
-        ::Aero::Media::Detail::TransformPrivate::Owner(
-            *oldTransform.Value()) == owner) {
-        ::Aero::Media::Detail::TransformPrivate::DetachOwner(
-            *oldTransform.Value(), owner,
-            ::Aero::Media::Detail::OwnerRoleValue(
-                ::Aero::Media::Detail::TransformOwnerRole::Layout));
-    }
-    Base::Result<Base::Ref<Transform>> newTransform =
-        ValueCodec<Base::Ref<Transform>>::Decode(
-            args.GetNewValue());
-    if (newTransform && newTransform.Value()) {
-        ::Aero::Media::Detail::TransformPrivate::AttachOwner(
-            *newTransform.Value(), owner,
-            ::Aero::Media::Detail::OwnerRoleValue(
-                ::Aero::Media::Detail::TransformOwnerRole::Layout));
-    }
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&) noexcept {
 }
 
 void OnEffectChanged(
     DependencyObject& object,
-    const DependencyPropertyChangedEventArgs& args) noexcept {
+    const DependencyPropertyChangedEventArgs&) noexcept {
     FrameworkElement* owner =
         static_cast<UIElement&>(object).AsFrameworkElement();
     if (owner == nullptr) return;
-    Base::Result<Base::Ref<Effect>> oldEffect =
-        ValueCodec<Base::Ref<Effect>>::Decode(
-            args.GetOldValue());
-    if (oldEffect && oldEffect.Value() &&
-        ::Aero::Media::Detail::EffectPrivate::Owner(
-            *oldEffect.Value()) == owner) {
-        ::Aero::Media::Detail::EffectPrivate::SetOwner(
-            *oldEffect.Value(), nullptr);
-    }
-    Base::Result<Base::Ref<Effect>> newEffect =
-        ValueCodec<Base::Ref<Effect>>::Decode(
-            args.GetNewValue());
-    if (newEffect && newEffect.Value()) {
-        ::Aero::Media::Detail::EffectPrivate::SetOwner(
-            *newEffect.Value(), owner);
-    }
     static_cast<void>(
         Aero::GuiPrivate::Detail::ElementPrivate::
             InvalidateRenderState(*owner));

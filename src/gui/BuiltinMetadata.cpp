@@ -7,6 +7,7 @@
 
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
+#include <Aero/Freezable.hpp>
 #include "gui/GuiPrivate.hpp"
 
 namespace Aero::Meta {
@@ -85,7 +86,11 @@ Base::Result<void> Detail::PopulateCoreMetadata(
         .Result();
     if (!status) return status.GetStatus();
 
-    return Meta::Register<DependencyObject>(
+    status = Meta::Register<DependencyObject>(
+        context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+
+    return Meta::Register<Freezable>(
         context, TypeFlags::Abstract).Result();
 }
 

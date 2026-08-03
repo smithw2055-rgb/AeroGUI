@@ -65,6 +65,7 @@ out vec4 vertexColor;
 out vec2 localPosition;
 out vec2 rectangleSize;
 out float cornerRadius;
+out vec2 canvasPosition;
 void main() {
     uint rectIndex = instanceMode == 2u ? uint(gl_InstanceID) : 0u;
     vec4 activeRect = rects[rectIndex];
@@ -97,6 +98,7 @@ void main() {
     localPosition = inputPosition * activeRect.zw;
     rectangleSize = activeRect.zw;
     cornerRadius = cornerRadii[rectIndex].x;
+    canvasPosition = transformed;
 }
 )GLSL";
 
@@ -120,12 +122,11 @@ in vec4 vertexColor;
 in vec2 localPosition;
 in vec2 rectangleSize;
 in float cornerRadius;
+in vec2 canvasPosition;
 out vec4 outputColor;
 void main() {
-    vec2 fragmentPosition = vec2(
-        gl_FragCoord.x, transform1.w - gl_FragCoord.y);
     for (uint index = 0u; index < clipCount; ++index) {
-        vec2 relative = fragmentPosition - clipTranslation[index].xy;
+        vec2 relative = canvasPosition - clipTranslation[index].xy;
         vec2 local = vec2(
             relative.x * clipInverse[index].x +
                 relative.y * clipInverse[index].z,
@@ -176,6 +177,7 @@ layout(std140) uniform AeroUniform0 {
 };
 out vec2 textureCoordinate;
 out vec4 vertexTint;
+out vec2 canvasPosition;
 void main() {
     uint index = uint(gl_InstanceID);
     vec4 rectangle = rects[index];
@@ -192,6 +194,7 @@ void main() {
     textureCoordinate =
         sourceUv.xy + inputPosition * sourceUv.zw;
     vertexTint = tints[index];
+    canvasPosition = transformed;
 }
 )GLSL";
 
@@ -212,12 +215,11 @@ layout(std140) uniform AeroUniform0 {
 uniform sampler2D AeroTexture0;
 in vec2 textureCoordinate;
 in vec4 vertexTint;
+in vec2 canvasPosition;
 out vec4 outputColor;
 void main() {
-    vec2 fragmentPosition = vec2(
-        gl_FragCoord.x, transform1.w - gl_FragCoord.y);
     for (uint index = 0u; index < clipCount; ++index) {
-        vec2 relative = fragmentPosition - clipTranslation[index].xy;
+        vec2 relative = canvasPosition - clipTranslation[index].xy;
         vec2 local = vec2(
             relative.x * clipInverse[index].x +
                 relative.y * clipInverse[index].z,
@@ -231,6 +233,242 @@ void main() {
         }
     }
     outputColor = texture(AeroTexture0, textureCoordinate) * vertexTint;
+}
+)GLSL";
+
+static const std::uint8_t MaskVertex[] = R"GLSL(
+#version 330 core
+layout(location = 0) in vec2 inputPosition;
+layout(std140) uniform AeroUniform0 {
+    vec4 maskRect;
+    vec4 transform0;
+    vec4 transform1;
+    vec4 mask0;
+    vec4 mask1;
+    vec4 geometry0;
+    vec4 geometry1;
+    vec4 geometry2;
+    vec4 relativeInverse0;
+    vec4 relativeInverse1;
+};
+out vec2 localPosition;
+void main() {
+    vec2 local = maskRect.xy + inputPosition * maskRect.zw;
+    vec2 transformed = vec2(
+        local.x * transform0.x + local.y * transform0.z + transform1.x,
+        local.x * transform0.y + local.y * transform0.w + transform1.y);
+    gl_Position = vec4(
+        (transformed.x / transform1.z) * 2.0 - 1.0,
+        1.0 - (transformed.y / transform1.w) * 2.0,
+        0.0,
+        1.0);
+    localPosition = local;
+}
+)GLSL";
+
+static const std::uint8_t MaskFragment[] = R"GLSL(
+#version 330 core
+layout(std140) uniform AeroUniform0 {
+    vec4 maskRect;
+    vec4 transform0;
+    vec4 transform1;
+    vec4 mask0;
+    vec4 mask1;
+    vec4 geometry0;
+    vec4 geometry1;
+    vec4 geometry2;
+    vec4 relativeInverse0;
+    vec4 relativeInverse1;
+};
+uniform sampler2D AeroTexture0;
+in vec2 localPosition;
+out vec4 outputColor;
+
+float alignmentFactor(float value) {
+    if (value < 1.5) return 0.0;
+    if (value > 2.5) return 1.0;
+    return 0.5;
+}
+
+vec2 applyRelativeInverse(vec2 point) {
+    return vec2(
+        point.x * relativeInverse0.x +
+            point.y * relativeInverse0.z + relativeInverse1.x,
+        point.x * relativeInverse0.y +
+            point.y * relativeInverse0.w + relativeInverse1.y);
+}
+
+float imageMaskAlpha(vec2 point) {
+    vec4 sourceUv = geometry0;
+    vec4 cell = geometry1;
+    vec2 imageSize = geometry2.zw;
+    if (sourceUv.z <= 0.0 || sourceUv.w <= 0.0 ||
+        cell.z <= 0.0 || cell.w <= 0.0 ||
+        imageSize.x <= 0.0 || imageSize.y <= 0.0) {
+        return 0.0;
+    }
+
+    float tileMode = mask1.x;
+    vec2 tileIndex = floor((point - cell.xy) / cell.zw);
+    if (tileMode < 0.5) {
+        tileIndex = vec2(0.0);
+        if (point.x < cell.x || point.y < cell.y ||
+            point.x > cell.x + cell.z || point.y > cell.y + cell.w) {
+            return 0.0;
+        }
+    }
+    vec2 tileOrigin = cell.xy + tileIndex * cell.zw;
+    vec4 drawRect = vec4(tileOrigin, cell.zw);
+    vec4 fittedUv = sourceUv;
+    vec2 sourceSize = imageSize * abs(sourceUv.zw);
+    float stretch = mask1.y;
+    float alignX = alignmentFactor(mask1.z);
+    float alignY = alignmentFactor(mask1.w);
+
+    if (stretch < 0.5) {
+        drawRect.xy += (drawRect.zw - sourceSize) * vec2(alignX, alignY);
+        drawRect.zw = sourceSize;
+    } else if (stretch > 1.5 && stretch < 2.5) {
+        float scale = min(
+            drawRect.z / sourceSize.x,
+            drawRect.w / sourceSize.y);
+        vec2 fittedSize = sourceSize * scale;
+        drawRect.xy += (drawRect.zw - fittedSize) * vec2(alignX, alignY);
+        drawRect.zw = fittedSize;
+    } else if (stretch > 2.5) {
+        float scale = max(
+            drawRect.z / sourceSize.x,
+            drawRect.w / sourceSize.y);
+        vec2 drawnSize = sourceSize * scale;
+        vec2 visibleFraction = drawRect.zw / drawnSize;
+        fittedUv.xy += fittedUv.zw *
+            (vec2(1.0) - visibleFraction) * vec2(alignX, alignY);
+        fittedUv.zw *= visibleFraction;
+    }
+
+    if (drawRect.z <= 0.0 || drawRect.w <= 0.0 ||
+        point.x < drawRect.x || point.y < drawRect.y ||
+        point.x > drawRect.x + drawRect.z ||
+        point.y > drawRect.y + drawRect.w) {
+        return 0.0;
+    }
+    vec2 unit = (point - drawRect.xy) / drawRect.zw;
+    bool oddColumn = mod(abs(tileIndex.x), 2.0) >= 1.0;
+    bool oddRow = mod(abs(tileIndex.y), 2.0) >= 1.0;
+    if (oddColumn && ((tileMode > 1.5 && tileMode < 2.5) || tileMode > 3.5)) {
+        unit.x = 1.0 - unit.x;
+    }
+    if (oddRow && ((tileMode > 2.5 && tileMode < 3.5) || tileMode > 3.5)) {
+        unit.y = 1.0 - unit.y;
+    }
+    vec2 uv = fittedUv.xy + unit * fittedUv.zw;
+    return texture(AeroTexture0, uv).a * mask0.w;
+}
+
+float linearGradientAlpha(vec2 point) {
+    vec2 startPoint = geometry0.xy;
+    vec2 direction = geometry0.zw - startPoint;
+    float denominator = dot(direction, direction);
+    float position = denominator > 1.0e-12
+        ? dot(point - startPoint, direction) / denominator
+        : 0.0;
+    return texture(AeroTexture0, vec2(clamp(position, 0.0, 1.0), 0.5)).a *
+        mask0.w;
+}
+
+float radialGradientAlpha(vec2 point) {
+    vec2 center = geometry1.xy;
+    vec2 origin = geometry1.zw;
+    vec2 radius = geometry2.xy;
+    if (radius.x <= 0.0 || radius.y <= 0.0) return 0.0;
+    vec2 normalizedPoint = (point - center) / radius;
+    vec2 normalizedOrigin = (origin - center) / radius;
+    vec2 ray = normalizedPoint - normalizedOrigin;
+    float a = dot(ray, ray);
+    float position = 0.0;
+    if (a > 1.0e-12) {
+        float b = 2.0 * dot(normalizedOrigin, ray);
+        float c = dot(normalizedOrigin, normalizedOrigin) - 1.0;
+        float discriminant = max(b * b - 4.0 * a * c, 0.0);
+        float root = (-b + sqrt(discriminant)) / (2.0 * a);
+        position = root > 1.0e-6 ? 1.0 / root : length(normalizedPoint);
+    }
+    return texture(AeroTexture0, vec2(clamp(position, 0.0, 1.0), 0.5)).a *
+        mask0.w;
+}
+
+void main() {
+    vec2 unit = applyRelativeInverse(localPosition / maskRect.zw);
+    float alpha;
+    if (mask0.x < 2.5) {
+        alpha = imageMaskAlpha(unit * maskRect.zw);
+    } else {
+        vec2 point = mask0.y > 0.5 ? unit * maskRect.zw : unit;
+        alpha = mask0.x < 3.5
+            ? linearGradientAlpha(point)
+            : radialGradientAlpha(point);
+    }
+    outputColor = vec4(1.0, 1.0, 1.0, clamp(alpha, 0.0, 1.0));
+}
+)GLSL";
+
+static const std::uint8_t EffectVertex[] = R"GLSL(
+#version 330 core
+layout(location = 0) in vec2 inputPosition;
+layout(std140) uniform AeroUniform0 {
+    vec4 viewport;
+    vec4 filter0;
+    vec4 filter1;
+    vec4 tint;
+};
+out vec2 textureCoordinate;
+void main() {
+    gl_Position = vec4(
+        inputPosition.x * 2.0 - 1.0,
+        1.0 - inputPosition.y * 2.0,
+        0.0,
+        1.0);
+    textureCoordinate = inputPosition;
+}
+)GLSL";
+
+static const std::uint8_t EffectFragment[] = R"GLSL(
+#version 330 core
+layout(std140) uniform AeroUniform0 {
+    vec4 viewport;
+    vec4 filter0;
+    vec4 filter1;
+    vec4 tint;
+};
+uniform sampler2D AeroTexture0;
+in vec2 textureCoordinate;
+out vec4 outputColor;
+
+vec4 sampleOrTransparent(vec2 uv) {
+    if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) {
+        return vec4(0.0);
+    }
+    return texture(AeroTexture0, uv);
+}
+
+void main() {
+    vec2 center = textureCoordinate - filter0.zw;
+    vec2 stepValue = filter0.xy;
+    vec4 blurred =
+        sampleOrTransparent(center - stepValue * 4.0) * 0.01621622 +
+        sampleOrTransparent(center - stepValue * 3.0) * 0.05405405 +
+        sampleOrTransparent(center - stepValue * 2.0) * 0.12162162 +
+        sampleOrTransparent(center - stepValue) * 0.19459459 +
+        sampleOrTransparent(center) * 0.22702703 +
+        sampleOrTransparent(center + stepValue) * 0.19459459 +
+        sampleOrTransparent(center + stepValue * 2.0) * 0.12162162 +
+        sampleOrTransparent(center + stepValue * 3.0) * 0.05405405 +
+        sampleOrTransparent(center + stepValue * 4.0) * 0.01621622;
+    if (filter1.x > 0.5) {
+        outputColor = vec4(tint.rgb, clamp(blurred.a * tint.a, 0.0, 1.0));
+    } else {
+        outputColor = blurred * tint;
+    }
 }
 )GLSL";
 
@@ -251,6 +489,7 @@ layout(std140) uniform AeroUniform0 {
 };
 out vec4 vertexColor;
 out float vertexCoverage;
+out vec2 canvasPosition;
 void main() {
     vec2 transformed = vec2(
         inputPosition.x * transform0.x +
@@ -264,6 +503,7 @@ void main() {
         1.0);
     vertexColor = inputColor * tints[uint(gl_InstanceID)];
     vertexCoverage = inputCoverage;
+    canvasPosition = transformed;
 }
 )GLSL";
 
@@ -281,12 +521,11 @@ layout(std140) uniform AeroUniform0 {
 };
 in vec4 vertexColor;
 in float vertexCoverage;
+in vec2 canvasPosition;
 out vec4 outputColor;
 void main() {
-    vec2 fragmentPosition = vec2(
-        gl_FragCoord.x, transform1.w - gl_FragCoord.y);
     for (uint index = 0u; index < clipCount; ++index) {
-        vec2 relative = fragmentPosition - clipTranslation[index].xy;
+        vec2 relative = canvasPosition - clipTranslation[index].xy;
         vec2 local = vec2(
             relative.x * clipInverse[index].x +
                 relative.y * clipInverse[index].z,
@@ -320,6 +559,7 @@ layout(std140) uniform AeroUniform0 {
 };
 out vec2 textureCoordinate;
 out vec4 vertexTint;
+out vec2 canvasPosition;
 void main() {
     vec2 transformed = vec2(
         inputPosition.x * transform0.x +
@@ -333,6 +573,7 @@ void main() {
         1.0);
     textureCoordinate = inputUv;
     vertexTint = tints[uint(gl_InstanceID)];
+    canvasPosition = transformed;
 }
 )GLSL";
 
@@ -351,12 +592,11 @@ layout(std140) uniform AeroUniform0 {
 uniform sampler2D AeroTexture0;
 in vec2 textureCoordinate;
 in vec4 vertexTint;
+in vec2 canvasPosition;
 out vec4 outputColor;
 void main() {
-    vec2 fragmentPosition = vec2(
-        gl_FragCoord.x, transform1.w - gl_FragCoord.y);
     for (uint index = 0u; index < clipCount; ++index) {
-        vec2 relative = fragmentPosition - clipTranslation[index].xy;
+        vec2 relative = canvasPosition - clipTranslation[index].xy;
         vec2 local = vec2(
             relative.x * clipInverse[index].x +
                 relative.y * clipInverse[index].z,
@@ -404,6 +644,26 @@ RendererShaderSet MakeOpenGL33RendererShaderSet() noexcept {
         ImageFragment,
         ShaderSize(ImageFragment),
         UINT64_C(0x33001012));
+    shaders.maskVertex = Shader(
+        Graphics::ShaderStage::Vertex,
+        MaskVertex,
+        ShaderSize(MaskVertex),
+        UINT64_C(0x33001013));
+    shaders.maskFragment = Shader(
+        Graphics::ShaderStage::Fragment,
+        MaskFragment,
+        ShaderSize(MaskFragment),
+        UINT64_C(0x33001014));
+    shaders.effectVertex = Shader(
+        Graphics::ShaderStage::Vertex,
+        EffectVertex,
+        ShaderSize(EffectVertex),
+        UINT64_C(0x33001015));
+    shaders.effectFragment = Shader(
+        Graphics::ShaderStage::Fragment,
+        EffectFragment,
+        ShaderSize(EffectFragment),
+        UINT64_C(0x33001016));
     shaders.meshVertex = Shader(
         Graphics::ShaderStage::Vertex,
         MeshVertex,
@@ -645,7 +905,8 @@ Base::Result<void> OpenGL33Renderer::RenderOffscreen(
 
 Base::Result<void> OpenGL33Renderer::Render(
     const void* rendererToken,
-    const Integration::RenderFrame& plan) noexcept {
+    const Integration::RenderFrame& plan,
+    Graphics::LoadOperation load) noexcept {
     if (!IsInitialized()) {
         return NotInitialized(
             "OpenGL render adapter is not initialized");
@@ -704,7 +965,8 @@ Base::Result<void> OpenGL33Renderer::Render(
             rendererToken, plan,
             {imported.Value(),
              frame.target.width,
-             frame.target.height});
+             frame.target.height,
+             load});
     if (!recorded) {
         static_cast<void>(surface_->DiscardFrame(frame));
         static_cast<void>(

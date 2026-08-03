@@ -5,6 +5,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyProperty.hpp>
+#include <Aero/Freezable.hpp>
 
 #include <cstdint>
 
@@ -14,8 +15,8 @@ namespace Aero::Media {
 
 using Transform2D = Base::Transform2D;
 
-class AERO_API Transform : public ::Aero::DependencyObject {
-    AERO_DECLARE_TYPE(Transform, ::Aero::DependencyObject)
+class AERO_API Transform : public ::Aero::Freezable {
+    AERO_DECLARE_TYPE(Transform, ::Aero::Freezable)
 public:
     struct Impl;
 
@@ -23,29 +24,10 @@ public:
 
 protected:
     explicit Transform(Meta::TypeId runtimeType) noexcept
-        : DependencyObject(runtimeType) {}
-    void OnPropertyInvalidated(
-        Meta::PropertyInvalidationFlags flags) noexcept override;
+        : Freezable(runtimeType) {}
 
 private:
     friend struct Impl;
-    friend class TransformGroup;
-    Aero::FrameworkElement* GetOwner() const noexcept { return owner_; }
-    virtual void SetOwner(Aero::FrameworkElement* owner) noexcept {
-        owner_ = owner;
-        ownerRoles_ = owner != nullptr ? 1U : 0U;
-    }
-    virtual void AttachOwner(
-        Aero::FrameworkElement* owner,
-        std::uint8_t role) noexcept;
-    virtual void DetachOwner(
-        Aero::FrameworkElement* owner,
-        std::uint8_t role) noexcept;
-    bool HasOwnerRole(std::uint8_t role) const noexcept {
-        return (ownerRoles_ & role) != 0U;
-    }
-    Aero::FrameworkElement* owner_ = nullptr;
-    std::uint8_t ownerRoles_ = 0U;
 };
 
 class AERO_API TranslateTransform : public Transform {
@@ -139,6 +121,7 @@ class AERO_API TransformGroup : public Transform {
     AERO_DECLARE_TYPE(TransformGroup, Transform)
 public:
     TransformGroup() noexcept : Transform(StaticTypeId()) {}
+    ~TransformGroup() override;
     Base::Result<void> AddChild(
         Base::Ref<Transform> value) noexcept;
     void ClearChildren() noexcept;
@@ -149,14 +132,10 @@ public:
     Base::Transform2D GetMatrix() const noexcept override;
 
 private:
-    void SetOwner(Aero::FrameworkElement* owner) noexcept override;
-    void AttachOwner(
-        Aero::FrameworkElement* owner,
-        std::uint8_t role) noexcept override;
-    void DetachOwner(
-        Aero::FrameworkElement* owner,
-        std::uint8_t role) noexcept override;
+    bool FreezeCore(bool isChecking) noexcept override;
+    void OnChildChanged(Freezable&) noexcept;
     Base::Vector<Base::Ref<Transform>> children_;
+    FreezableChangedHandler childChangedHandler_;
 };
 
 AERO_API Base::Transform2D ComposeTransforms(

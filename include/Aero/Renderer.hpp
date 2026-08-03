@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Integration/RenderDevice.hpp>
@@ -23,7 +24,7 @@ public:
     Base::Result<void> Init(
         Base::Ref<Integration::RenderDevice> device) noexcept;
     void Shutdown() noexcept;
-    bool IsInitialized() const noexcept { return initialized_; }
+    bool IsInitialized() const noexcept;
 
     Base::Result<bool> UpdateRenderTree() noexcept;
     Base::Result<void> RenderOffscreen() noexcept;
@@ -32,15 +33,10 @@ public:
 private:
     friend class View;
 
-    explicit Renderer(View& view) noexcept
-        : view_(&view) {}
+    Renderer(View& view, Base::IAllocator& allocator) noexcept;
 
-    View* view_ = nullptr;
-    Base::Ref<Integration::RenderDevice> device_;
-    std::uint64_t updatedVersion_ = 0U;
-    std::uint64_t renderedVersion_ = 0U;
-    bool initialized_ = false;
-    bool offscreenReady_ = false;
+    struct Impl;
+    Impl* impl_ = nullptr;
 };
 
 } // namespace Aero

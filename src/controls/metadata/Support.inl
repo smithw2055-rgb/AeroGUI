@@ -382,20 +382,8 @@ void OnPathDataChanged(
 
 void OnPathColorChanged(
     ::Aero::DependencyObject& object,
-    const Base::Ref<Media::Brush>& oldBrush,
-    const Base::Ref<Media::Brush>& newBrush) noexcept {
-    auto* owner = static_cast<Path&>(object).AsFrameworkElement();
-    if (owner != nullptr) {
-        if (oldBrush &&
-            ::Aero::Media::Detail::BrushPrivate::Owner(*oldBrush) == owner) {
-            ::Aero::Media::Detail::BrushPrivate::SetOwner(
-                *oldBrush, nullptr);
-        }
-        if (newBrush) {
-            ::Aero::Media::Detail::BrushPrivate::SetOwner(
-                *newBrush, owner);
-        }
-    }
+    const Base::Ref<Media::Brush>&,
+    const Base::Ref<Media::Brush>&) noexcept {
     Detail::ControlPrivate::InvalidateGeometry(
         static_cast<Path&>(object));
 }
@@ -425,29 +413,8 @@ void OnPathLineCapChanged(
 }
 
 void OnShapeFillChanged(
-    ::Aero::DependencyObject& object,
-    const Meta::DependencyPropertyChangedEventArgs&
-        args) noexcept {
-    auto* owner =
-        static_cast<Shape&>(object).
-            AsFrameworkElement();
-    if (owner == nullptr) return;
-    Base::Result<Base::Ref<Brush>> oldBrush =
-        ValueCodec<Base::Ref<Brush>>::Decode(
-            args.GetOldValue());
-    if (oldBrush && oldBrush.Value() &&
-        ::Aero::Media::Detail::BrushPrivate::Owner(
-            *oldBrush.Value()) == owner) {
-        ::Aero::Media::Detail::BrushPrivate::SetOwner(
-            *oldBrush.Value(), nullptr);
-    }
-    Base::Result<Base::Ref<Brush>> newBrush =
-        ValueCodec<Base::Ref<Brush>>::Decode(
-            args.GetNewValue());
-    if (newBrush && newBrush.Value()) {
-        ::Aero::Media::Detail::BrushPrivate::SetOwner(
-            *newBrush.Value(), owner);
-    }
+    ::Aero::DependencyObject&,
+    const Meta::DependencyPropertyChangedEventArgs&) noexcept {
 }
 
 void OnScrollViewerVisibilityChanged(

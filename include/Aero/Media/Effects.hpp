@@ -3,25 +3,23 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/DependencyProperty.hpp>
+#include <Aero/Freezable.hpp>
 
 namespace Aero { class FrameworkElement; }
 
 namespace Aero::Media {
 
-class AERO_API Effect : public ::Aero::DependencyObject {
-    AERO_DECLARE_TYPE(Effect, ::Aero::DependencyObject)
+class AERO_API Effect : public ::Aero::Freezable {
+    AERO_DECLARE_TYPE(Effect, ::Aero::Freezable)
 public:
     struct Impl;
 
 protected:
     explicit Effect(Meta::TypeId runtimeType) noexcept
-        : DependencyObject(runtimeType) {}
-    void OnPropertyInvalidated(
-        Meta::PropertyInvalidationFlags flags) noexcept override;
+        : Freezable(runtimeType) {}
 
 private:
     friend struct Impl;
-    Aero::FrameworkElement* owner_ = nullptr;
 };
 
 class AERO_API BlurEffect : public Effect {
