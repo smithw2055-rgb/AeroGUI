@@ -1,9 +1,9 @@
 #include "Metadata.hpp"
 #include <Aero/Documents.hpp>
-#include "ControlInternals.hpp"
-#include "ItemsInternal.hpp"
-#include "TemplateInternals.hpp"
-#include "../media/BrushInternals.hpp"
+#include "controls/ControlsPrivate.hpp"
+#include "controls/ControlsPrivate.hpp"
+#include "controls/ControlsPrivate.hpp"
+#include "../media/MediaPrivate.hpp"
 
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Common.hpp>

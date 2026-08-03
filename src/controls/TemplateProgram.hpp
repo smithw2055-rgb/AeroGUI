@@ -9,16 +9,16 @@
 
 #include <cstdint>
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 struct TemplateHandle {
     std::uint64_t value = 0U;
     constexpr bool IsValid() const noexcept { return value != 0U; }
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail
 
-namespace Aero::Internal { class TemplateEngine; }
+namespace Aero::Controls::Detail { class TemplateEngine; }
 
 namespace Aero::Controls {
 
@@ -38,7 +38,7 @@ public:
     UIElement* RootElement() const noexcept;
 
 private:
-    friend class Aero::Internal::TemplateEngine;
+    friend class Aero::Controls::Detail::TemplateEngine;
     explicit TemplateBuilder(void* state) noexcept : state_(state) {}
     DependencyObject* FindObject(Base::StringView name) const noexcept;
     Base::Result<void> AddOwnedPart(Base::StringView name, Base::Ref<Base::Object> owner, Visual& visual, void* mount) noexcept;
@@ -88,7 +88,9 @@ struct TemplatePropertyTrigger {
     Base::Vector<TemplateTriggerSetter> setters;
 };
 
-namespace Detail {
+} // namespace Aero::Controls
+
+namespace Aero::Controls::Detail {
 
 struct TemplateProgram {
     TemplateProgram() noexcept = default;
@@ -163,5 +165,4 @@ struct ItemsPanelTemplateState {
     Base::Ref<Base::Object> authoredVisualTree;
 };
 
-} // namespace Detail
-} // namespace Aero::Controls
+} // namespace Aero::Controls::Detail

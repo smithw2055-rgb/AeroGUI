@@ -1,4 +1,4 @@
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Controls/Items.hpp>
 
 #include <cmath>

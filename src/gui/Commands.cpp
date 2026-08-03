@@ -1,10 +1,10 @@
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Input.hpp>
-#include "InputInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 
 #include <cctype>
-#include "gui/InputInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Input {
 
@@ -190,8 +190,8 @@ Base::Result<void> KeyBinding::Finalize() noexcept {
 Base::Result<bool> RoutedCommand::CanExecute(
     const Meta::Value& parameter,
     UIElement* target) noexcept {
-    Aero::Internal::InputRouter* input = target != nullptr
-        ? Aero::Internal::ElementPrivate::InputRouterFor(*target)
+    Aero::GuiPrivate::Detail::InputRouter* input = target != nullptr
+        ? Aero::GuiPrivate::Detail::ElementPrivate::InputRouterFor(*target)
         : nullptr;
     if (input == nullptr) {
         return Base::Status::Failure(
@@ -204,8 +204,8 @@ Base::Result<bool> RoutedCommand::CanExecute(
 void RoutedCommand::Execute(
     const Meta::Value& parameter,
     UIElement* target) noexcept {
-    Aero::Internal::InputRouter* input = target != nullptr
-        ? Aero::Internal::ElementPrivate::InputRouterFor(*target)
+    Aero::GuiPrivate::Detail::InputRouter* input = target != nullptr
+        ? Aero::GuiPrivate::Detail::ElementPrivate::InputRouterFor(*target)
         : nullptr;
     if (input == nullptr) {
         return;
@@ -215,7 +215,7 @@ void RoutedCommand::Execute(
 
 } // namespace Aero::Input
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -235,7 +235,7 @@ Base::Result<void> CommandState::VerifyTarget(
     }
     Base::Result<void> access = root->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!target.GetIsLoaded() || Aero::Internal::ElementPrivate::Tree(target) != tree_) {
+    if (!target.GetIsLoaded() || Aero::GuiPrivate::Detail::ElementPrivate::Tree(target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Command target must be loaded in the command tree");
     }
@@ -397,7 +397,7 @@ Base::Result<bool> CommandState::CanExecute(
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::Internal::ElementPrivate::Handle(element);
+            const VisualHandle ownerHandle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -443,7 +443,7 @@ Base::Result<bool> CommandState::Execute(
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::Internal::ElementPrivate::Handle(element);
+            const VisualHandle ownerHandle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -481,7 +481,7 @@ Base::Result<bool> CommandState::ProcessInput(
                 return true;
             }
             auto& element = static_cast<UIElement&>(current);
-            const VisualHandle owner = Aero::Internal::ElementPrivate::Handle(element);
+            const VisualHandle owner = Aero::GuiPrivate::Detail::ElementPrivate::Handle(element);
             for (const InputBindingRecord& record : inputBindings_) {
                 if (record.owner.index != owner.index ||
                     record.owner.generation != owner.generation ||
@@ -531,4 +531,4 @@ void CommandState::InvalidateRequerySuggested() const noexcept {
     if (!requerySuggested_.Empty()) requerySuggested_.Invoke();
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

@@ -41,23 +41,22 @@ src/
 ```
 
 `src/gui` is intentionally flat. Its implementation files are grouped by file
-name rather than by one-directory-per-concept. Shared private contracts are
-limited to:
+name rather than by one-directory-per-concept. Cross-file private contracts
+enter through six domain aggregates:
 
 ```text
-AnimationInternal.hpp
-BindingInternal.hpp
-ElementInternal.hpp
-InputInternal.hpp
-LayoutInternal.hpp
-MetadataInternal.hpp
-PropertyInternal.hpp
-RoutedEventInternal.hpp
-StyleInternal.hpp
+src/gui/GuiPrivate.hpp
+src/controls/ControlsPrivate.hpp
+src/markup/MarkupPrivate.hpp
+src/media/MediaPrivate.hpp
+src/render/RenderPrivate.hpp
+src/integration/IntegrationPrivate.hpp
 ```
 
-The larger metadata stores remain separate only because they have independent
-storage and freeze lifetimes.
+The aggregate headers are the only domain entry points. Their implementation
+fragments live under the corresponding `private/` directory and are never
+included by product code directly. The larger metadata stores remain separate
+only because they have independent storage and freeze lifetimes.
 
 ## Gui context and element relationships
 
@@ -118,7 +117,7 @@ source ownership; they are not an additional link-time product layer.
 
 ## Event and command routing
 
-There is one route implementation in `RoutedEventInternal.hpp` and
+There is one route implementation in `src/gui/GuiPrivate.hpp` and
 `ElementTree.cpp`.
 
 ```text

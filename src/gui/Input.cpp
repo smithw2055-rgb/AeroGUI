@@ -5,8 +5,8 @@
 #include <Aero/Media/Transforms.hpp>
 
 #include <cmath>
-#include "gui/InputInternal.hpp"
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Input {
 
@@ -82,7 +82,7 @@ Base::Result<void> Visual::Impl::SetKeyboardFocusWithin(UIElement& element, bool
 
 } // namespace Aero
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -269,7 +269,7 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
         return HitTestResult{};
     }
 
-    const Base::Span<Visual* const> children = Aero::Internal::ElementPrivate::VisualChildren(element);
+    const Base::Span<Visual* const> children = Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(element);
     for (std::uint32_t index = children.Size(); index > 0U; --index) {
         Visual* childNode = children[index - 1U];
         if (childNode == nullptr) continue;
@@ -333,7 +333,7 @@ bool PointerStateMachine::HasHover(
     VisualHandle target, std::uint32_t ignoredIndex) const noexcept {
     if (!target.IsValid()) return false;
     ElementTree* tree = root_ != nullptr
-        ? Aero::Internal::ElementPrivate::Tree(*root_)
+        ? Aero::GuiPrivate::Detail::ElementPrivate::Tree(*root_)
         : nullptr;
     Visual* targetVisual =
         tree != nullptr
@@ -369,7 +369,7 @@ bool PointerStateMachine::HasPressed(
 
 Base::Result<void> PointerStateMachine::UpdateHover(
     std::uint32_t pointerId, UIElement* target) noexcept {
-    ElementTree* tree = Aero::Internal::ElementPrivate::Tree(*root_);
+    ElementTree* tree = Aero::GuiPrivate::Detail::ElementPrivate::Tree(*root_);
     if (tree == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Pointer state requires an ElementTree");
@@ -487,7 +487,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
 
 Base::Result<void> PointerStateMachine::UpdatePressed(
     std::uint32_t pointerId, UIElement* target) noexcept {
-    ElementTree* tree = Aero::Internal::ElementPrivate::Tree(*root_);
+    ElementTree* tree = Aero::GuiPrivate::Detail::ElementPrivate::Tree(*root_);
     if (tree == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Pointer state requires an ElementTree");
@@ -547,7 +547,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
 UIElement* PointerStateMachine::CapturedNode(std::uint32_t pointerId) noexcept {
     const std::uint32_t index = FindCapture(pointerId);
     if (index == UINT32_MAX) return nullptr;
-    ElementTree* tree = Aero::Internal::ElementPrivate::Tree(*root_);
+    ElementTree* tree = Aero::GuiPrivate::Detail::ElementPrivate::Tree(*root_);
     Visual* target = tree != nullptr
         ? tree->ResolveHandle(captures_[index].target) : nullptr;
     UIElement* element = target != nullptr ? target->AsUIElement() : nullptr;
@@ -568,8 +568,8 @@ Base::Result<void> PointerStateMachine::CapturePointer(
     std::uint32_t pointerId, UIElement& target) noexcept {
     Base::Result<void> access = root_->VerifyAccess();
     if (!access) return access.GetStatus();
-    ElementTree* tree = Aero::Internal::ElementPrivate::Tree(*root_);
-    if (tree == nullptr || Aero::Internal::ElementPrivate::Tree(target) != tree || !target.GetIsLoaded()) {
+    ElementTree* tree = Aero::GuiPrivate::Detail::ElementPrivate::Tree(*root_);
+    if (tree == nullptr || Aero::GuiPrivate::Detail::ElementPrivate::Tree(target) != tree || !target.GetIsLoaded()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Pointer capture target must be loaded in the input tree");
     }
@@ -608,7 +608,7 @@ Base::Result<bool> PointerStateMachine::ReleasePointer(
     if (index == UINT32_MAX) return false;
     Base::Result<void> state = UpdatePressed(pointerId, nullptr);
     if (!state) return state.GetStatus();
-    Visual* visual = Aero::Internal::ElementPrivate::Tree(*root_)->ResolveHandle(
+    Visual* visual = Aero::GuiPrivate::Detail::ElementPrivate::Tree(*root_)->ResolveHandle(
         captures_[index].target);
     UIElement* target =
         visual != nullptr ? visual->AsUIElement() : nullptr;
@@ -710,7 +710,7 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
     if (input.action == PointerAction::Up) {
         const std::uint32_t index = FindCapture(input.pointerId);
         if (index != UINT32_MAX) {
-            Visual* visual = Aero::Internal::ElementPrivate::Tree(*root_)->ResolveHandle(
+            Visual* visual = Aero::GuiPrivate::Detail::ElementPrivate::Tree(*root_)->ResolveHandle(
                 captures_[index].target);
             UIElement* target =
                 visual != nullptr ? visual->AsUIElement() : nullptr;
@@ -776,10 +776,10 @@ Base::Result<void> FocusState::RememberFocus(
             }
             if (recordIndex == UINT32_MAX) {
                 Base::Result<void> appended = scopeFocus_.PushBack(
-                    {scope.Value(), Aero::Internal::ElementPrivate::Handle(node)});
+                    {scope.Value(), Aero::GuiPrivate::Detail::ElementPrivate::Handle(node)});
                 if (!appended) return appended.GetStatus();
             } else {
-                scopeFocus_[recordIndex].focused = Aero::Internal::ElementPrivate::Handle(node);
+                scopeFocus_[recordIndex].focused = Aero::GuiPrivate::Detail::ElementPrivate::Handle(node);
             }
         }
         if (current == root) break;
@@ -815,7 +815,7 @@ Base::Result<void> FocusState::CollectCandidates(
     Visual& parent,
     Base::Vector<FocusCandidate>& candidates,
     std::uint32_t& order) noexcept {
-    for (Visual* child : Aero::Internal::ElementPrivate::VisualChildren(parent)) {
+    for (Visual* child : Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element = child->AsUIElement();
         const std::uint32_t candidateOrder = order++;
@@ -1096,7 +1096,7 @@ Base::Result<KeyboardDispatchResult> KeyboardState::Dispatch(
         result.target = nullptr;
         return result;
     }
-    if (!result.target->GetIsLoaded() || Aero::Internal::ElementPrivate::Tree(*result.target) != tree_) {
+    if (!result.target->GetIsLoaded() || Aero::GuiPrivate::Detail::ElementPrivate::Tree(*result.target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Keyboard focus target is not loaded in the input tree");
     }
@@ -1151,7 +1151,7 @@ Base::Result<TextInputDispatchResult> TextInputState::Dispatch(
     TextInputDispatchResult result;
     result.target = focus_->FocusedNode();
     if (result.target == nullptr) return result;
-    if (!result.target->GetIsLoaded() || Aero::Internal::ElementPrivate::Tree(*result.target) != tree_) {
+    if (!result.target->GetIsLoaded() || Aero::GuiPrivate::Detail::ElementPrivate::Tree(*result.target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Text input focus target is not loaded in the input tree");
     }
@@ -1167,4 +1167,4 @@ Base::Result<TextInputDispatchResult> TextInputState::Dispatch(
     return result;
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

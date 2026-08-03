@@ -13,7 +13,7 @@ int Application::Run() noexcept {
 
 int Application::Run(
     const App::RunOptions& options) noexcept {
-    Internal::DesktopHost host(*this, {}, options);
+    ::Aero::App::Detail::DesktopHost host(*this, {}, options);
     Base::Result<int> result = host.Run();
     return result ? result.Value() : -1;
 }
@@ -27,7 +27,7 @@ int Application::Run(
     Base::Ref<Window> window,
     const App::RunOptions& options) noexcept {
     if (!window) return -1;
-    Internal::DesktopHost host(
+    ::Aero::App::Detail::DesktopHost host(
         *this, std::move(window), options);
     Base::Result<int> result = host.Run();
     return result ? result.Value() : -1;

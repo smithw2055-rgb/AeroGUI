@@ -1,16 +1,16 @@
 #pragma once
 
 #include <Aero/Base/Result.hpp>
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
-namespace Aero::App {
-
-namespace Detail {
+namespace Aero::App::Detail {
 
 AERO_API Base::Result<void> PopulateAppMetadata(
     ::Aero::Meta::Registration& context) noexcept;
 
-} // namespace Detail
+} // namespace Aero::App::Detail
+
+namespace Aero::App {
 
 inline constexpr Base::StringView AppMetadataModuleName() noexcept {
     return "Aero.App";
@@ -24,7 +24,7 @@ inline Base::Result<void> RegisterAppMetadata(
         Meta::MakeMetadataModuleId(name),
         name,
         SchemaVersion,
-        &Detail::PopulateAppMetadata,
+        &::Aero::App::Detail::PopulateAppMetadata,
         nullptr,
         nullptr});
 }

@@ -1,5 +1,5 @@
 #include "Inspector.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Controls/Core.hpp>
 
@@ -35,7 +35,7 @@ Result<void> AppendTree(
     }
     InspectorTreeNode record;
     record.node = &node;
-    record.handle = Aero::Internal::ElementPrivate::Handle(node);
+    record.handle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(node);
     record.parent = parent;
     record.runtimeType =
         node.RuntimeType();
@@ -47,8 +47,8 @@ Result<void> AppendTree(
     }
     const Base::Span<Visual* const> children =
         kind == TreeKind::Logical
-        ? Aero::Internal::ElementPrivate::LogicalChildren(node)
-        : Aero::Internal::ElementPrivate::VisualChildren(node);
+        ? Aero::GuiPrivate::Detail::ElementPrivate::LogicalChildren(node)
+        : Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(node);
     for (Visual* child : children) {
         if (child == nullptr) {
             return Status::Failure(
@@ -90,7 +90,7 @@ using namespace Aero::Threading;
         bindings_ == nullptr ||
         renderer_ == nullptr ||
         maxTreeNodes == 0U ||
-        Aero::Internal::ElementPrivate::Tree(target) != tree_) {
+        Aero::GuiPrivate::Detail::ElementPrivate::Tree(target) != tree_) {
         return Status::Failure(
             ErrorCode::InvalidArgument,
             "Inspector render target "

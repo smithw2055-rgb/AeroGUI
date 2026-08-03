@@ -1,8 +1,8 @@
 #include <Aero/ContentElement.hpp>
 
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/Assert.hpp>
 
@@ -13,7 +13,7 @@ namespace {
 
 struct RoutedHandlerRecord {
     RoutedEventHandle event;
-    Aero::Internal::RoutedHandlerStorage handler;
+    Aero::GuiPrivate::Detail::RoutedHandlerStorage handler;
     std::uint64_t sequence = 0U;
     bool handledEventsToo = false;
 };
@@ -79,7 +79,7 @@ Base::Result<void> ContentElement::AddHandlerCore(
 
     RoutedHandlerRecord record;
     record.event = event;
-    record.handler = Aero::Internal::RoutedHandlerStorage(
+    record.handler = Aero::GuiPrivate::Detail::RoutedHandlerStorage(
         handler.value,
         handler.operations->size,
         handler.operations->alignment,
@@ -101,7 +101,7 @@ bool ContentElement::RemoveHandlerCore(
         handler.operations == nullptr || routedHandlers_ == nullptr) {
         return false;
     }
-    Aero::Internal::RoutedHandlerStorage probe(
+    Aero::GuiPrivate::Detail::RoutedHandlerStorage probe(
         handler.value,
         handler.operations->size,
         handler.operations->alignment,
@@ -159,14 +159,14 @@ void ContentElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
     if (eventRouter_ == nullptr && contentHost_ != nullptr) {
-        eventRouter_ = Aero::Internal::ElementPrivate::EventRouterFor(
+        eventRouter_ = Aero::GuiPrivate::Detail::ElementPrivate::EventRouterFor(
             *contentHost_);
     }
     if (eventRouter_ == nullptr) {
         return;
     }
     static_cast<void>(
-        static_cast<Aero::Internal::EventRouter*>(eventRouter_)
+        static_cast<Aero::GuiPrivate::Detail::EventRouter*>(eventRouter_)
             ->RaiseEvent(*this, event, args));
 }
 
@@ -178,7 +178,7 @@ FrameworkContentElement::~FrameworkContentElement() = default;
 
 void FrameworkContentElement::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
-    (void)Aero::Internal::AssignResourceDictionary(
+    (void)Aero::GuiPrivate::Detail::AssignResourceDictionary(
         resources_,
         std::move(value),
         "FrameworkContentElement Resources is already assigned");

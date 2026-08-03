@@ -1,4 +1,4 @@
-#include "MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/Assert.hpp>
 

@@ -1,8 +1,8 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Shapes.hpp>
-#include "../render/DrawingInternals.hpp"
+#include "../render/RenderPrivate.hpp"
 
-#include "media/BrushInternals.hpp"
+#include "media/MediaPrivate.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -26,12 +26,12 @@ ImageBrushGeometry FitImageBrush(
     Rect sourceUv) noexcept {
     const double sourceWidth =
         static_cast<double>(
-            Aero::Internal::BrushPrivate::
+            Aero::Media::Detail::BrushPrivate::
                 PixelWidth(brush)) *
         sourceUv.width;
     const double sourceHeight =
         static_cast<double>(
-            Aero::Internal::BrushPrivate::
+            Aero::Media::Detail::BrushPrivate::
                 PixelHeight(brush)) *
         sourceUv.height;
     if (sourceWidth <= 0.0 ||
@@ -93,14 +93,14 @@ Base::Result<void> PaintImageBrush(
     DrawingContext& context,
     const ImageBrush& brush,
     Rect bounds) noexcept {
-    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     const RenderImageId image =
-        Aero::Internal::BrushPrivate::
+        Aero::Media::Detail::BrushPrivate::
             RuntimeImage(brush);
     if (image == InvalidRenderImageId ||
-        Aero::Internal::BrushPrivate::
+        Aero::Media::Detail::BrushPrivate::
             PixelWidth(brush) == 0U ||
-        Aero::Internal::BrushPrivate::
+        Aero::Media::Detail::BrushPrivate::
             PixelHeight(brush) == 0U) {
         return {};
     }
@@ -251,7 +251,7 @@ Size Rectangle::MeasureOverride(
 
 void Rectangle::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {
@@ -308,7 +308,7 @@ void Rectangle::OnRender(
                         bounds.height + 0.5};
             const double centerX = band.x + band.width * 0.5;
             const double centerY = band.y + band.height * 0.5;
-            const Color color = ::Aero::Internal::SampleGradient(
+            const Color color = ::Aero::Media::Detail::SampleGradient(
                 gradient,
                 ((centerX - start.x) * axisX +
                  (centerY - start.y) * axisY) /
@@ -328,7 +328,7 @@ void Rectangle::OnRender(
         constexpr std::uint32_t bandCount = 64U;
         Base::Result<void> painted =
             builder.FillRect(
-                bounds, ::Aero::Internal::SampleGradient(
+                bounds, ::Aero::Media::Detail::SampleGradient(
                     gradient, 1.0));
         if (!painted) return;
         for (std::uint32_t index = bandCount;
@@ -346,7 +346,7 @@ void Rectangle::OnRender(
                 {insetX, insetY,
                  bounds.width - insetX * 2.0,
                  bounds.height - insetY * 2.0},
-                ::Aero::Internal::SampleGradient(
+                ::Aero::Media::Detail::SampleGradient(
                     gradient, outer),
                 std::min(
                     bounds.width - insetX * 2.0,
@@ -369,7 +369,7 @@ void Rectangle::OnRender(
             return;
         }
     } else {
-        const Color fill = ::Aero::Internal::SampleBrush(fillBrush);
+        const Color fill = ::Aero::Media::Detail::SampleBrush(fillBrush);
         if (fill.alpha > 0.0F) {
         Base::Result<void> painted = radius > 0.0
             ? builder.FillRoundedRect(bounds, fill, radius)
@@ -378,7 +378,7 @@ void Rectangle::OnRender(
         }
     }
 
-    const Color stroke = ::Aero::Internal::SampleBrush(GetStroke());
+    const Color stroke = ::Aero::Media::Detail::SampleBrush(GetStroke());
     const double thickness = GetStrokeThickness();
     if (stroke.alpha > 0.0F && thickness > 0.0) {
         static_cast<void>(builder.StrokeRect(bounds, stroke, thickness));
@@ -396,14 +396,14 @@ Size Ellipse::MeasureOverride(
 
 void Ellipse::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {
         return;
     }
 
-    const Color fill = ::Aero::Internal::SampleBrush(GetFill());
+    const Color fill = ::Aero::Media::Detail::SampleBrush(GetFill());
     if (fill.alpha > 0.0F) {
         Transform2D scale;
         scale.m11 = renderSize.width;
@@ -424,7 +424,7 @@ void Ellipse::OnRender(
     // The retained command model does not yet expose a rounded-stroke
     // primitive. Preserve a deterministic visible outline until ellipse
     // stroke tessellation is added.
-    const Color stroke = ::Aero::Internal::SampleBrush(GetStroke());
+    const Color stroke = ::Aero::Media::Detail::SampleBrush(GetStroke());
     const double thickness = GetStrokeThickness();
     if (stroke.alpha > 0.0F && thickness > 0.0) {
         static_cast<void>(builder.StrokeRect(

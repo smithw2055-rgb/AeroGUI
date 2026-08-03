@@ -9,7 +9,7 @@
 #include "../text/TextLayout.hpp"
 #include "../text/TextTypes.hpp"
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 struct TextLayoutRequest {
     Base::StringView text;
@@ -48,4 +48,4 @@ public:
         Render::RenderGlyphRunId glyphRun) noexcept = 0;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail

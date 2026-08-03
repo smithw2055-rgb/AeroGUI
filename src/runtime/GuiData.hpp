@@ -1,4 +1,4 @@
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 #pragma once
 
 #include <Aero/View.hpp>

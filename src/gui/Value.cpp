@@ -218,7 +218,7 @@ Base::Result<Base::ResourceUri> ConvertResourceUri(
 
 #include <Aero/Meta.hpp>
 
-#include "MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Meta {
 namespace {
@@ -351,7 +351,7 @@ const TypeRegistry& RegistrationValues::Types() const noexcept {
 
 // ===== ValueTable =====
 
-#include "MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 

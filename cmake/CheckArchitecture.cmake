@@ -448,7 +448,7 @@ list(APPEND core_files
     "${AERO_SOURCE_DIR}/src/diagnostics/Diagnostics.cpp"
     "${AERO_SOURCE_DIR}/src/gui/Dispatcher.cpp"
     "${AERO_SOURCE_DIR}/src/gui/ObjectFactory.cpp"
-    "${AERO_SOURCE_DIR}/src/gui/PropertyInternal.hpp")
+    "${AERO_SOURCE_DIR}/src/gui/GuiPrivate.hpp")
 list(APPEND core_files
     "${AERO_SOURCE_DIR}/include/Aero/DependencyProperty.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Diagnostics.hpp"
@@ -1059,19 +1059,15 @@ if(aero_root_source_files)
 endif()
 
 foreach(required_private_header IN ITEMS
-        "src/gui/RoutedEventInternal.hpp"
-        "src/gui/InputInternal.hpp"
-        "src/gui/LayoutInternal.hpp"
-        "src/gui/BindingInternal.hpp"
-        "src/gui/AnimationInternal.hpp"
-        "src/gui/StyleInternal.hpp"
-        "src/gui/ElementInternal.hpp"
-        "src/gui/MetadataInternal.hpp"
-        "src/gui/PropertyInternal.hpp"
+        "src/gui/GuiPrivate.hpp"
+        "src/controls/ControlsPrivate.hpp"
+        "src/markup/MarkupPrivate.hpp"
+        "src/media/MediaPrivate.hpp"
+        "src/render/RenderPrivate.hpp"
+        "src/integration/IntegrationPrivate.hpp"
         "src/controls/TemplateProgram.hpp"
         "src/controls/TemplateInstance.hpp"
-        "src/controls/TemplateInternals.hpp"
-                "src/platform/win32/InputRouters.hpp"
+        "src/platform/win32/InputRouters.hpp"
         "src/platform/win32/Window.hpp"
         "src/platform/x11/Window.hpp")
     if(NOT EXISTS "${AERO_SOURCE_DIR}/${required_private_header}")
@@ -1081,6 +1077,26 @@ foreach(required_private_header IN ITEMS
 endforeach()
 
 foreach(retired_private_file IN ITEMS
+        "src/gui/AnimationInternal.hpp"
+        "src/gui/BindingInternal.hpp"
+        "src/gui/ElementInternal.hpp"
+        "src/gui/InputInternal.hpp"
+        "src/gui/LayoutInternal.hpp"
+        "src/gui/MetadataInternal.hpp"
+        "src/gui/PropertyInternal.hpp"
+        "src/gui/RoutedEventInternal.hpp"
+        "src/gui/StyleInternal.hpp"
+        "src/controls/ControlInternals.hpp"
+        "src/controls/ItemsInternal.hpp"
+        "src/controls/TemplateInternals.hpp"
+        "src/markup/MarkupInternal.hpp"
+        "src/markup/MarkupWriterInternal.hpp"
+        "src/media/AnimationInternals.hpp"
+        "src/media/BrushInternals.hpp"
+        "src/media/EffectInternals.hpp"
+        "src/media/TransformInternals.hpp"
+        "src/render/DrawingInternals.hpp"
+        "src/integration/RenderDeviceInternal.hpp"
         "src/gui/ControlBehavior.hpp"
         "src/gui/RuntimeServices.hpp"
         "src/controls/TemplateRuntime.hpp"
@@ -1105,6 +1121,61 @@ foreach(retired_private_file IN ITEMS
             "Retired private aggregation file was recreated: ${retired_private_file}")
     endif()
 endforeach()
+
+# Source implementation namespaces are separate from the installed SDK
+# namespace manifest, but they still use one spelling. This prevents the
+# retired Internal/impl layers from reappearing under a new private header.
+file(GLOB_RECURSE aero_source_namespace_scan
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.inl"
+    "${AERO_SOURCE_DIR}/tools/*.cpp"
+    "${AERO_SOURCE_DIR}/tools/*.hpp"
+    "${AERO_SOURCE_DIR}/tools/*.inl")
+set(source_namespace_forbidden_patterns
+    "namespace[ \\t]+Internal([ \\t:{]|$)"
+    "namespace[ \\t]+Aero::Internal([ \\t:{]|$)"
+    "Aero::Internal::"
+    "::Internal::"
+    "namespace[ \\t]+impl([ \\t:{]|$)"
+    "namespace[ \\t]+Aero::impl([ \\t:{]|$)"
+    "::impl::"
+    "namespace[ \\t]+Detail[ \\t]*\\{")
+set(source_namespace_forbidden_matches)
+foreach(pattern IN LISTS source_namespace_forbidden_patterns)
+    aero_collect_matches(matches "${pattern}" ${aero_source_namespace_scan})
+    list(APPEND source_namespace_forbidden_matches ${matches})
+endforeach()
+if(source_namespace_forbidden_matches)
+    list(REMOVE_DUPLICATES source_namespace_forbidden_matches)
+    message(FATAL_ERROR
+        "Source private namespaces must use Aero::<Domain>::Detail; forbidden namespace spelling remains: "
+        "${source_namespace_forbidden_matches}")
+endif()
+unset(aero_source_namespace_scan)
+unset(source_namespace_forbidden_patterns)
+unset(source_namespace_forbidden_matches)
+
+file(GLOB_RECURSE aero_retired_private_reference_scan
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.inl"
+    "${AERO_SOURCE_DIR}/tools/*.cpp"
+    "${AERO_SOURCE_DIR}/tools/*.hpp"
+    "${AERO_SOURCE_DIR}/tools/*.inl"
+    "${AERO_SOURCE_DIR}/docs/*.md"
+    "${AERO_SOURCE_DIR}/docs/*.txt")
+aero_collect_matches(retired_private_reference_matches
+    "(AnimationInternal|BindingInternal|ElementInternal|InputInternal|LayoutInternal|MetadataInternal|PropertyInternal|RoutedEventInternal|StyleInternal|ControlInternals|ItemsInternal|TemplateInternals|MarkupInternal|MarkupWriterInternal|AnimationInternals|BrushInternals|EffectInternals|TransformInternals|DrawingInternals|RenderDeviceInternal)[.]hpp"
+    ${aero_retired_private_reference_scan})
+if(retired_private_reference_matches)
+    list(REMOVE_DUPLICATES retired_private_reference_matches)
+    message(FATAL_ERROR
+        "Retired source-private header is still referenced: "
+        "${retired_private_reference_matches}")
+endif()
+unset(aero_retired_private_reference_scan)
+unset(retired_private_reference_matches)
 
 file(GLOB_RECURSE input_runtime_files
     "${AERO_SOURCE_DIR}/src/gui/*.cpp"
@@ -1184,7 +1255,7 @@ aero_collect_matches(hidden_render_worker
     "${AERO_SOURCE_DIR}/include/Aero/Integration/D3D11.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/OpenGL33.hpp"
     "${AERO_SOURCE_DIR}/src/integration/RenderDevice.cpp"
-    "${AERO_SOURCE_DIR}/src/integration/RenderDeviceInternal.hpp"
+    "${AERO_SOURCE_DIR}/src/integration/IntegrationPrivate.hpp"
     "${AERO_SOURCE_DIR}/src/integration/D3D11Device.cpp"
     "${AERO_SOURCE_DIR}/src/integration/OpenGL33Device.cpp"
     "${AERO_SOURCE_DIR}/src/integration/OpenGL33Device.cpp")
@@ -1220,7 +1291,9 @@ foreach(gui_kernel_child IN LISTS gui_kernel_children)
     if(IS_DIRECTORY "${gui_kernel_child}")
         file(RELATIVE_PATH gui_kernel_relative
             "${AERO_SOURCE_DIR}" "${gui_kernel_child}")
-        list(APPEND gui_kernel_subdirectories "${gui_kernel_relative}")
+        if(NOT gui_kernel_relative STREQUAL "src/gui/private")
+            list(APPEND gui_kernel_subdirectories "${gui_kernel_relative}")
+        endif()
     endif()
 endforeach()
 if(gui_kernel_subdirectories)
@@ -1230,15 +1303,7 @@ if(gui_kernel_subdirectories)
 endif()
 
 foreach(gui_internal_header IN ITEMS
-        "src/gui/AnimationInternal.hpp"
-        "src/gui/BindingInternal.hpp"
-        "src/gui/ElementInternal.hpp"
-        "src/gui/InputInternal.hpp"
-        "src/gui/LayoutInternal.hpp"
-        "src/gui/MetadataInternal.hpp"
-        "src/gui/PropertyInternal.hpp"
-        "src/gui/RoutedEventInternal.hpp"
-        "src/gui/StyleInternal.hpp")
+        "src/gui/GuiPrivate.hpp")
     if(NOT EXISTS "${AERO_SOURCE_DIR}/${gui_internal_header}")
         message(FATAL_ERROR
             "Expected GUI domain header is missing: ${gui_internal_header}")

@@ -1,9 +1,9 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Shapes.hpp>
-#include "../render/DrawingInternals.hpp"
+#include "../render/RenderPrivate.hpp"
 
 #include "render/RenderResources.hpp"
-#include "../media/BrushInternals.hpp"
+#include "../media/MediaPrivate.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -857,7 +857,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
 
 void Path::ReleaseMesh() noexcept {
     auto* services =
-        static_cast<Aero::Internal::MeshResources*>(
+        static_cast<Aero::Render::Detail::MeshResources*>(
             meshServices_);
     if (mesh_ != InvalidRenderMeshId &&
         services != nullptr &&
@@ -883,7 +883,7 @@ void Path::AttachMeshResources(
     void* rawServices,
     bool force) noexcept {
     auto* services =
-        static_cast<Aero::Internal::MeshResources*>(
+        static_cast<Aero::Render::Detail::MeshResources*>(
             rawServices);
     if (!force &&
         meshServices_ == rawServices &&
@@ -911,7 +911,7 @@ Base::Result<void> Path::EnsureMesh() noexcept {
         EnsureGeometry();
     if (!geometry) return geometry.GetStatus();
     auto* services =
-        static_cast<Aero::Internal::MeshResources*>(
+        static_cast<Aero::Render::Detail::MeshResources*>(
             meshServices_);
     if (services == nullptr ||
         services->create == nullptr) {
@@ -1013,7 +1013,7 @@ Size Path::MeasureOverride(
 
 void Path::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     Base::Result<void> mesh =
         EnsureMesh();
     if (!mesh) return;
@@ -1071,13 +1071,13 @@ void Path::OnRender(
     if (mesh_ != InvalidRenderMeshId) {
         Base::Result<void> drawn =
             builder.DrawMesh(
-                mesh_, ::Aero::Internal::SampleBrush(GetFill()));
+                mesh_, ::Aero::Media::Detail::SampleBrush(GetFill()));
         if (!drawn) return;
     }
     if (strokeMesh_ != InvalidRenderMeshId) {
         Base::Result<void> drawn =
             builder.DrawMesh(
-                strokeMesh_, ::Aero::Internal::SampleBrush(GetStroke()));
+                strokeMesh_, ::Aero::Media::Detail::SampleBrush(GetStroke()));
         if (!drawn) return;
     }
     static_cast<void>(builder.PopTransform());

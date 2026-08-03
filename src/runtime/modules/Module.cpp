@@ -3,7 +3,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 #include "BuiltinModules.hpp"
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <new>
 #include <utility>

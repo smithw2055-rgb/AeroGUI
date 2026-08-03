@@ -1,17 +1,17 @@
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Layout.hpp>
-#include "gui/RoutedEventInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
 
 #include <Aero/Base/Assert.hpp>
-#include "gui/PropertyInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include "gui/LayoutInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 namespace Aero {
 
@@ -43,7 +43,7 @@ Size ClampSize(Size value, Size minimum, Size maximum) noexcept {
 
 struct RoutedHandlerRecord {
     RoutedEventHandle event;
-    Aero::Internal::RoutedHandlerStorage handler;
+    Aero::GuiPrivate::Detail::RoutedHandlerStorage handler;
     std::uint64_t sequence = 0U;
     bool handledEventsToo = false;
 };
@@ -235,7 +235,7 @@ Base::Result<void> UIElement::AddHandlerCore(
 
     RoutedHandlerRecord record;
     record.event = event;
-    record.handler = Aero::Internal::RoutedHandlerStorage(
+    record.handler = Aero::GuiPrivate::Detail::RoutedHandlerStorage(
         handler.value,
         handler.operations->size,
         handler.operations->alignment,
@@ -257,7 +257,7 @@ bool UIElement::RemoveHandlerCore(
         handler.operations == nullptr || routedHandlers_ == nullptr) {
         return false;
     }
-    Aero::Internal::RoutedHandlerStorage probe(
+    Aero::GuiPrivate::Detail::RoutedHandlerStorage probe(
         handler.value,
         handler.operations->size,
         handler.operations->alignment,
@@ -310,8 +310,8 @@ void UIElement::CleanupHandlers() noexcept {
 void UIElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
-    Aero::Internal::EventRouter* eventRouter =
-        Aero::Internal::ElementPrivate::EventRouterFor(*this);
+    Aero::GuiPrivate::Detail::EventRouter* eventRouter =
+        Aero::GuiPrivate::Detail::ElementPrivate::EventRouterFor(*this);
     if (eventRouter == nullptr) {
         return;
     }
@@ -324,7 +324,7 @@ Base::Result<void> UIElement::InvalidateMeasure() noexcept {
         arrangeValid_ = false;
         return {};
     }
-    return static_cast<Aero::Internal::LayoutEngine*>(layoutManager_)->InvalidateMeasure(*this);
+    return static_cast<Aero::GuiPrivate::Detail::LayoutEngine*>(layoutManager_)->InvalidateMeasure(*this);
 }
 
 Base::Result<void> UIElement::InvalidateArrange() noexcept {
@@ -332,7 +332,7 @@ Base::Result<void> UIElement::InvalidateArrange() noexcept {
         arrangeValid_ = false;
         return {};
     }
-    return static_cast<Aero::Internal::LayoutEngine*>(layoutManager_)->InvalidateArrange(*this);
+    return static_cast<Aero::GuiPrivate::Detail::LayoutEngine*>(layoutManager_)->InvalidateArrange(*this);
 }
 
 void FrameworkElement::SetUseLayoutRounding(
@@ -640,7 +640,7 @@ Base::Result<void> UIElement::MeasureChild(
                 child.GetVisualParent()));
         return InvalidState(message);
     }
-    return static_cast<Aero::Internal::LayoutEngine*>(layoutManager_)->MeasureElement(child, availableSize);
+    return static_cast<Aero::GuiPrivate::Detail::LayoutEngine*>(layoutManager_)->MeasureElement(child, availableSize);
 }
 
 Base::Result<void> UIElement::ArrangeChild(
@@ -695,12 +695,12 @@ Base::Result<void> UIElement::ArrangeChild(
                 child.GetVisualParent()));
         return InvalidState(message);
     }
-    return static_cast<Aero::Internal::LayoutEngine*>(layoutManager_)->ArrangeElement(child, finalRect);
+    return static_cast<Aero::GuiPrivate::Detail::LayoutEngine*>(layoutManager_)->ArrangeElement(child, finalRect);
 }
 
 } // namespace Aero
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -844,8 +844,8 @@ Base::Result<void> LayoutEngine::SetRoot(
 Base::Result<void> LayoutEngine::QueueMeasure(
     UIElement& element) noexcept {
     if (UIElement::Impl::MeasureQueued(element)) return {};
-    Base::Result<Aero::Internal::VisualLease> lease =
-        Aero::Internal::VisualLease::Acquire(element);
+    Base::Result<Aero::GuiPrivate::Detail::VisualLease> lease =
+        Aero::GuiPrivate::Detail::VisualLease::Acquire(element);
     if (!lease) return lease.GetStatus();
     Base::Result<void> appended =
         measureQueue_.PushBack(std::move(lease).Value());
@@ -857,8 +857,8 @@ Base::Result<void> LayoutEngine::QueueMeasure(
 Base::Result<void> LayoutEngine::QueueArrange(
     UIElement& element) noexcept {
     if (UIElement::Impl::ArrangeQueued(element)) return {};
-    Base::Result<Aero::Internal::VisualLease> lease =
-        Aero::Internal::VisualLease::Acquire(element);
+    Base::Result<Aero::GuiPrivate::Detail::VisualLease> lease =
+        Aero::GuiPrivate::Detail::VisualLease::Acquire(element);
     if (!lease) return lease.GetStatus();
     Base::Result<void> appended =
         arrangeQueue_.PushBack(std::move(lease).Value());
@@ -868,7 +868,7 @@ Base::Result<void> LayoutEngine::QueueArrange(
 }
 
 void LayoutEngine::RemoveQueued(UIElement& element) noexcept {
-    auto remove = [&](Base::Vector<Aero::Internal::VisualLease>& queue) noexcept {
+    auto remove = [&](Base::Vector<Aero::GuiPrivate::Detail::VisualLease>& queue) noexcept {
         for (std::uint32_t index = 0U; index < queue.Size();) {
             if (queue[index].Resolve() != &element) {
                 ++index;
@@ -900,13 +900,13 @@ Base::Result<void> LayoutEngine::InvalidateMeasure(
             ? current->LayoutParent() : nullptr;
     }
 
-    Base::Vector<Aero::Internal::VisualLease> leases;
+    Base::Vector<Aero::GuiPrivate::Detail::VisualLease> leases;
     Base::Result<void> reserved = leases.Reserve(path.Size());
     if (!reserved) return reserved.GetStatus();
     for (UIElement* item : path) {
         if (UIElement::Impl::MeasureQueued(*item)) continue;
-        Base::Result<Aero::Internal::VisualLease> lease =
-            Aero::Internal::VisualLease::Acquire(*item);
+        Base::Result<Aero::GuiPrivate::Detail::VisualLease> lease =
+            Aero::GuiPrivate::Detail::VisualLease::Acquire(*item);
         if (!lease) return lease.GetStatus();
         Base::Result<void> staged =
             leases.PushBack(std::move(lease).Value());
@@ -943,13 +943,13 @@ Base::Result<void> LayoutEngine::InvalidateArrange(
             ? current->LayoutParent() : nullptr;
     }
 
-    Base::Vector<Aero::Internal::VisualLease> leases;
+    Base::Vector<Aero::GuiPrivate::Detail::VisualLease> leases;
     Base::Result<void> reserved = leases.Reserve(path.Size());
     if (!reserved) return reserved.GetStatus();
     for (UIElement* item : path) {
         if (UIElement::Impl::ArrangeQueued(*item)) continue;
-        Base::Result<Aero::Internal::VisualLease> lease =
-            Aero::Internal::VisualLease::Acquire(*item);
+        Base::Result<Aero::GuiPrivate::Detail::VisualLease> lease =
+            Aero::GuiPrivate::Detail::VisualLease::Acquire(*item);
         if (!lease) return lease.GetStatus();
         Base::Result<void> staged =
             leases.PushBack(std::move(lease).Value());
@@ -985,11 +985,11 @@ Base::Result<void> LayoutEngine::MeasureElement(
         return {};
     }
 
-    Aero::Internal::VisualLease pendingArrange;
+    Aero::GuiPrivate::Detail::VisualLease pendingArrange;
     const bool queueArrange = !UIElement::Impl::ArrangeQueued(element);
     if (queueArrange) {
-        Base::Result<Aero::Internal::VisualLease> lease =
-            Aero::Internal::VisualLease::Acquire(element);
+        Base::Result<Aero::GuiPrivate::Detail::VisualLease> lease =
+            Aero::GuiPrivate::Detail::VisualLease::Acquire(element);
         if (!lease) return lease.GetStatus();
         pendingArrange = std::move(lease).Value();
         Base::Result<void> reserved = arrangeQueue_.Reserve(
@@ -1309,16 +1309,16 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         }
     }
 
-    Base::Vector<Aero::Internal::VisualLease> measure =
+    Base::Vector<Aero::GuiPrivate::Detail::VisualLease> measure =
         std::move(measureQueue_);
-    measureQueue_ = Base::Vector<Aero::Internal::VisualLease>();
-    for (const Aero::Internal::VisualLease& lease : measure) {
+    measureQueue_ = Base::Vector<Aero::GuiPrivate::Detail::VisualLease>();
+    for (const Aero::GuiPrivate::Detail::VisualLease& lease : measure) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element != nullptr) UIElement::Impl::MeasureQueued(*element) = false;
     }
-    for (const Aero::Internal::VisualLease& lease : measure) {
+    for (const Aero::GuiPrivate::Detail::VisualLease& lease : measure) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
@@ -1339,16 +1339,16 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         }
     }
 
-    Base::Vector<Aero::Internal::VisualLease> arrange =
+    Base::Vector<Aero::GuiPrivate::Detail::VisualLease> arrange =
         std::move(arrangeQueue_);
-    arrangeQueue_ = Base::Vector<Aero::Internal::VisualLease>();
-    for (const Aero::Internal::VisualLease& lease : arrange) {
+    arrangeQueue_ = Base::Vector<Aero::GuiPrivate::Detail::VisualLease>();
+    for (const Aero::GuiPrivate::Detail::VisualLease& lease : arrange) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element != nullptr) UIElement::Impl::ArrangeQueued(*element) = false;
     }
-    for (const Aero::Internal::VisualLease& lease : arrange) {
+    for (const Aero::GuiPrivate::Detail::VisualLease& lease : arrange) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
@@ -1404,13 +1404,13 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     // A converged root has recursively measured and arranged every attached
     // descendant. Remove stale queue leases created during template
     // application so the next frame starts from a clean layout state.
-    for (const Aero::Internal::VisualLease& lease : measureQueue_) {
+    for (const Aero::GuiPrivate::Detail::VisualLease& lease : measureQueue_) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element != nullptr) UIElement::Impl::MeasureQueued(*element) = false;
     }
-    for (const Aero::Internal::VisualLease& lease : arrangeQueue_) {
+    for (const Aero::GuiPrivate::Detail::VisualLease& lease : arrangeQueue_) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
@@ -1445,4 +1445,4 @@ void LayoutEngine::LayoutHook(void* context) noexcept {
     }
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

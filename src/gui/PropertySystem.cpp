@@ -3,8 +3,8 @@
 // ===== DependencyProperty =====
 
 #include <Aero/DependencyProperty.hpp>
-#include "MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Hash.hpp>
@@ -1466,7 +1466,7 @@ PropertyInvalidationFlags DependencyObject::AccumulateInvalidations(
 
 // ===== EffectiveValueEngine =====
 
-#include "PropertyInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/Assert.hpp>
 

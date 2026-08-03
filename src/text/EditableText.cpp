@@ -9,7 +9,7 @@
 #include <new>
 #include <utility>
 
-namespace Aero::Internal {
+namespace Aero::Text::Detail {
 namespace {
 
 constexpr std::uint32_t InitialGapBytes = 64U;
@@ -996,4 +996,4 @@ void EditableTextModel::ClearHistory() noexcept {
     }
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Text::Detail

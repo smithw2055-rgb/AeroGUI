@@ -1,6 +1,6 @@
 #include <Aero/Media/Brushes.hpp>
 #include "BrushRendering.hpp"
-#include "BrushInternals.hpp"
+#include "media/MediaPrivate.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -54,7 +54,7 @@ void GradientStop::OnPropertyInvalidated(
     DependencyObject::OnPropertyInvalidated(flags);
     FrameworkElement* visualOwner =
         owner_ != nullptr
-        ? ::Aero::Internal::BrushPrivate::Owner(*owner_)
+        ? ::Aero::Media::Detail::BrushPrivate::Owner(*owner_)
         : nullptr;
     if (visualOwner != nullptr) (void)visualOwner->InvalidateVisual();
 }
@@ -302,7 +302,7 @@ Base::Result<void> PaintBrushRect(
             Base::Result<void> painted =
                 builder.FillRect(
                     band,
-                    ::Aero::Internal::SampleGradient(gradient, position));
+                    ::Aero::Media::Detail::SampleGradient(gradient, position));
             if (!painted) {
                 return painted.GetStatus();
             }
@@ -375,7 +375,7 @@ Base::Result<void> PaintBrushRect(
                                 bounds.width + 0.25,
                             (endY - beginY) *
                                 bounds.height + 0.25},
-                        ::Aero::Internal::SampleGradient(gradient, position));
+                        ::Aero::Media::Detail::SampleGradient(gradient, position));
                 if (!painted) {
                     return painted.GetStatus();
                 }
@@ -383,7 +383,7 @@ Base::Result<void> PaintBrushRect(
         }
         return {};
     }
-    const Color color = ::Aero::Internal::SampleBrush(brush);
+    const Color color = ::Aero::Media::Detail::SampleBrush(brush);
     if (color.alpha <= 0.0F) return {};
     const double effectiveRadius = std::min(
         std::max(0.0, cornerRadius),

@@ -1,5 +1,5 @@
-#include "markup/MarkupInternal.hpp"
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
+#include "markup/MarkupPrivate.hpp"
 #include <Aero/Module.hpp>
 #include "runtime/modules/ModuleSet.hpp"
 

@@ -2,7 +2,7 @@
 
 #include <Aero/Controls/Items.hpp>
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 // Internal adapter for scalar ItemsSource values. It is deliberately kept out
 // of the public controls surface; callers use AddBoxedItem helpers instead.
@@ -24,13 +24,13 @@ private:
     Meta::Value value_;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 using ItemContainerGeneratorImpl =
     ::Aero::Controls::ItemContainerGenerator::Impl;
 }
 
 namespace Aero::Controls::Detail {
-using ::Aero::Internal::BoxedItemValue;
+using ::Aero::Controls::Detail::BoxedItemValue;
 }

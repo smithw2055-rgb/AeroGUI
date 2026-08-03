@@ -8,7 +8,7 @@ namespace Aero { class FrameworkElement; }
 
 namespace Aero::Media { class Transform; }
 
-namespace Aero::Internal {
+namespace Aero::Media::Detail {
 
 enum class TransformOwnerRole : std::uint8_t {
     Render = 1U,
@@ -20,7 +20,7 @@ constexpr std::uint8_t OwnerRoleValue(
     return static_cast<std::uint8_t>(role);
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Media::Detail
 
 namespace Aero::Media {
 
@@ -43,7 +43,7 @@ public:
 
 } // namespace Aero::Media
 
-namespace Aero::Internal {
+namespace Aero::Media::Detail {
 using TransformPrivate = ::Aero::Media::Transform::Impl;
 
-} // namespace Aero::Internal
+} // namespace Aero::Media::Detail

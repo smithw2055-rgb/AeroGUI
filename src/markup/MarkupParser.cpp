@@ -2,7 +2,7 @@
 
 // ===== XmlTokenizer =====
 
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 
 // Canonical XML tokenizer implementation.
 
@@ -1033,7 +1033,7 @@ Base::Status Utf8XmlTokenizer::Failure(
 
 // ===== NodeReader =====
 
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 
 // Canonical markup node reader implementation.
 
@@ -1722,7 +1722,7 @@ Base::Status NodeReader::Failure(
 
 #if AERO_WITH_EXPAT
 // ===== ExpatXmlTokenizer =====
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 
 // Optional Expat tokenizer backend.
 

@@ -1,17 +1,17 @@
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Styling.hpp>
-#include "TemplateInternals.hpp"
-#include "gui/BindingInternal.hpp"
-#include "ControlInternals.hpp"
+#include "controls/ControlsPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "controls/ControlsPrivate.hpp"
 
 #include "render/RenderTree.hpp"
 
-#include "gui/StyleInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Layout.hpp>
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <cstdio>
@@ -21,8 +21,8 @@
 
 
 namespace Aero::Controls {
-using Aero::Internal::TemplateEngine;
-using Aero::Internal::TemplateHandle;
+using Aero::Controls::Detail::TemplateEngine;
+using Aero::Controls::Detail::TemplateHandle;
 using namespace Aero::Meta;
 
 namespace {
@@ -91,7 +91,7 @@ Base::Result<void> TemplateBuilder::SetRoot(
     Base::StringView name,
     Base::Ref<Base::Object> owner,
     Visual& root) noexcept {
-    auto& state = *static_cast<Aero::Internal::TemplateBuildState*>(state_);
+    auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     if (state.tree == nullptr || state.parent == nullptr ||
         state.rootVisual != nullptr || !owner ||
         owner.Get() != &root || root.AsUIElement() == nullptr) {
@@ -100,10 +100,10 @@ Base::Result<void> TemplateBuilder::SetRoot(
             "Template root registration is invalid");
     }
 
-    Base::Result<Aero::Internal::ElementAttachment> mounted =
+    Base::Result<Aero::GuiPrivate::Detail::ElementAttachment> mounted =
         state.tree->AttachElement(*state.parent, root);
     if (!mounted) return mounted.GetStatus();
-    Aero::Internal::ElementAttachment mount = std::move(mounted).Value();
+    Aero::GuiPrivate::Detail::ElementAttachment mount = std::move(mounted).Value();
 
     Base::Result<void> selected =
         Detail::ControlPrivate::SetTemplateRoot(*state.parent, root.AsUIElement());
@@ -113,7 +113,7 @@ Base::Result<void> TemplateBuilder::SetRoot(
     }
     if (root.AsFrameworkElement() != nullptr) {
         Base::Result<void> templated =
-            Aero::Internal::ElementPrivate::SetTemplatedParent(
+            Aero::GuiPrivate::Detail::ElementPrivate::SetTemplatedParent(
                 *root.AsFrameworkElement(), state.parent);
         if (!templated) {
             (void)Detail::ControlPrivate::SetTemplateRoot(*state.parent, nullptr);
@@ -125,7 +125,7 @@ Base::Result<void> TemplateBuilder::SetRoot(
         name, std::move(owner), root, &mount);
     if (!added) {
         if (root.AsFrameworkElement() != nullptr) {
-            (void)Aero::Internal::ElementPrivate::SetTemplatedParent(
+            (void)Aero::GuiPrivate::Detail::ElementPrivate::SetTemplatedParent(
                 *root.AsFrameworkElement(), nullptr);
         }
         (void)Detail::ControlPrivate::SetTemplateRoot(*state.parent, nullptr);
@@ -142,7 +142,7 @@ Base::Result<void> TemplateBuilder::AddPart(
     Visual& parent,
     Base::Ref<Base::Object> owner,
     Visual& part) noexcept {
-    auto& state = *static_cast<Aero::Internal::TemplateBuildState*>(state_);
+    auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     if (state.tree == nullptr || state.parent == nullptr ||
         state.rootVisual == nullptr ||
         !owner || owner.Get() != &part ||
@@ -153,13 +153,13 @@ Base::Result<void> TemplateBuilder::AddPart(
             "Template part registration is invalid");
     }
 
-    Base::Result<Aero::Internal::ElementAttachment> mounted = state.tree->AttachElement(parent, part);
+    Base::Result<Aero::GuiPrivate::Detail::ElementAttachment> mounted = state.tree->AttachElement(parent, part);
     if (!mounted) return mounted.GetStatus();
-    Aero::Internal::ElementAttachment mount = std::move(mounted).Value();
+    Aero::GuiPrivate::Detail::ElementAttachment mount = std::move(mounted).Value();
 
     if (part.AsFrameworkElement() != nullptr) {
         Base::Result<void> templated =
-            Aero::Internal::ElementPrivate::SetTemplatedParent(
+            Aero::GuiPrivate::Detail::ElementPrivate::SetTemplatedParent(
                 *part.AsFrameworkElement(), state.parent);
         if (!templated) {
             (void)state.tree->DetachElement(mount);
@@ -170,7 +170,7 @@ Base::Result<void> TemplateBuilder::AddPart(
         name, std::move(owner), part, &mount);
     if (!added) {
         if (part.AsFrameworkElement() != nullptr) {
-            (void)Aero::Internal::ElementPrivate::SetTemplatedParent(
+            (void)Aero::GuiPrivate::Detail::ElementPrivate::SetTemplatedParent(
                 *part.AsFrameworkElement(), nullptr);
         }
         (void)state.tree->DetachElement(mount);
@@ -194,17 +194,17 @@ Base::Result<bool> TemplateBuilder::ProjectContent(
 }
 
 Control& TemplateBuilder::TemplatedParent() const noexcept {
-    auto& state = *static_cast<Aero::Internal::TemplateBuildState*>(state_);
+    auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     return *state.parent;
 }
 
 Visual* TemplateBuilder::RootVisual() const noexcept {
-    auto& state = *static_cast<Aero::Internal::TemplateBuildState*>(state_);
+    auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     return state.rootVisual;
 }
 
 UIElement* TemplateBuilder::RootElement() const noexcept {
-    auto& state = *static_cast<Aero::Internal::TemplateBuildState*>(state_);
+    auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     return state.rootElement;
 }
 
@@ -214,7 +214,7 @@ TemplateBuilder::ProjectContentCore(
     Visual& presenterVisual,
     ContentPresenter* presenter,
     ContentControl* contentHost) noexcept {
-    auto& state = *static_cast<Aero::Internal::TemplateBuildState*>(state_);
+    auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     if (state.tree == nullptr || state.parent == nullptr ||
         &owner != state.parent || state.rootVisual == nullptr ||
         (presenter == nullptr &&
@@ -227,7 +227,7 @@ TemplateBuilder::ProjectContentCore(
     if (content == nullptr) return false;
 
     bool presenterIsPart = false;
-    for (const Aero::Internal::TemplatePart& part : state.parts) {
+    for (const Aero::Controls::Detail::TemplatePart& part : state.parts) {
         presenterIsPart =
             presenterIsPart ||
             part.visual == &presenterVisual;
@@ -242,7 +242,7 @@ TemplateBuilder::ProjectContentCore(
             "Template content cannot be projected");
     }
 
-    Aero::Internal::TemplateContentProjection projection;
+    Aero::Controls::Detail::TemplateContentProjection projection;
     projection.owner = &owner;
     projection.presenter = presenter;
     projection.contentHost = contentHost;
@@ -273,7 +273,7 @@ TemplateBuilder::ProjectContentCore(
         projection.attachedLogical = true;
     }
     if (projection.originalVisualParent != nullptr) {
-        Aero::Internal::VisualAttachment original;
+        Aero::GuiPrivate::Detail::VisualAttachment original;
         original.visualParent = projection.originalVisualParent;
         original.child = content;
         original.visualAttached = true;
@@ -292,7 +292,7 @@ TemplateBuilder::ProjectContentCore(
         projection.detachedOriginalVisual = true;
     }
 
-    Base::Result<Aero::Internal::VisualAttachment> projected =
+    Base::Result<Aero::GuiPrivate::Detail::VisualAttachment> projected =
         state.tree->AttachVisualChild(
             presenterVisual, *content);
     if (!projected) {
@@ -378,8 +378,8 @@ TemplateBuilder::PopulateContentPresenter(
 
 DependencyObject* TemplateBuilder::FindObject(
     Base::StringView name) const noexcept {
-    auto& state = *static_cast<Aero::Internal::TemplateBuildState*>(state_);
-    for (const Aero::Internal::TemplatePart& part : state.parts) {
+    auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
+    for (const Aero::Controls::Detail::TemplatePart& part : state.parts) {
         if (part.name.View() == name) return part.object;
     }
     return nullptr;
@@ -390,9 +390,9 @@ Base::Result<void> TemplateBuilder::AddOwnedPart(
     Base::Ref<Base::Object> owner,
     Visual& visual,
     void* mountState) noexcept {
-    auto& state = *static_cast<Aero::Internal::TemplateBuildState*>(state_);
-    const auto& mount = *static_cast<const Aero::Internal::ElementAttachment*>(mountState);
-    Aero::Internal::TemplatePart part;
+    auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
+    const auto& mount = *static_cast<const Aero::GuiPrivate::Detail::ElementAttachment*>(mountState);
+    Aero::Controls::Detail::TemplatePart part;
     Base::Result<void> assigned = part.name.Assign(name);
     if (!assigned) return assigned.GetStatus();
     part.owner = std::move(owner);
@@ -404,10 +404,10 @@ Base::Result<void> TemplateBuilder::AddOwnedPart(
 }
 
 void TemplateBuilder::Rollback() noexcept {
-    auto& state = *static_cast<Aero::Internal::TemplateBuildState*>(state_);
+    auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     for (std::uint32_t index = state.projections.Size();
          index > 0U; --index) {
-        Aero::Internal::TemplateContentProjection& projection = state.projections[index - 1U];
+        Aero::Controls::Detail::TemplateContentProjection& projection = state.projections[index - 1U];
         if ((projection.presenter == nullptr &&
              projection.contentHost == nullptr) ||
             projection.content == nullptr) {
@@ -433,9 +433,9 @@ void TemplateBuilder::Rollback() noexcept {
     state.projections.Clear();
 
     for (std::uint32_t index = state.parts.Size(); index > 0U; --index) {
-        Aero::Internal::TemplatePart& part = state.parts[index - 1U];
+        Aero::Controls::Detail::TemplatePart& part = state.parts[index - 1U];
         if (part.frameworkElement != nullptr) {
-            (void)Aero::Internal::ElementPrivate::SetTemplatedParent(*part.frameworkElement, nullptr);
+            (void)Aero::GuiPrivate::Detail::ElementPrivate::SetTemplatedParent(*part.frameworkElement, nullptr);
         }
         (void)state.tree->DetachElement(part.mount);
     }
@@ -589,7 +589,7 @@ const Detail::FrameworkTemplateState* FrameworkTemplate::Impl::State(
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 using namespace ::Aero;
 using namespace ::Aero::Meta;
@@ -1120,7 +1120,7 @@ Base::Result<void> TemplatePrivate::Seal(
     return {};
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail
 
 namespace Aero::Controls {
 
@@ -1168,7 +1168,7 @@ void FrameworkTemplate::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
     Detail::FrameworkTemplateState* state = static_cast<Detail::FrameworkTemplateState*>(state_);
     if (state == nullptr) return;
-    (void)Aero::Internal::AssignResourceDictionary(
+    (void)Aero::GuiPrivate::Detail::AssignResourceDictionary(
         state->resources,
         std::move(value),
         "FrameworkTemplate Resources is already assigned");
@@ -1176,7 +1176,7 @@ void FrameworkTemplate::SetResources(
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -1203,7 +1203,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
     const ControlTemplate& plan) noexcept {
     if (tree_ == nullptr || values_ == nullptr ||
         properties_ == nullptr || !plan.GetIsSealed() ||
-        Aero::Internal::ElementPrivate::Tree(control) != tree_ ||
+        Aero::GuiPrivate::Detail::ElementPrivate::Tree(control) != tree_ ||
         !IsTargetCompatible(
             properties_->Types(),
             control.RuntimeType(),
@@ -1228,11 +1228,11 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
             "Template handle sequence is exhausted");
     }
 
-    Aero::Internal::TemplateBuildState buildState(
+    Aero::Controls::Detail::TemplateBuildState buildState(
         *tree_, control, layout_, renderer_);
     TemplateBuilder context(&buildState);
     Base::Result<void> built =
-        Aero::Internal::TemplatePrivate::Factory(plan)(context, Aero::Internal::TemplatePrivate::FactoryContext(plan));
+        Aero::Controls::Detail::TemplatePrivate::Factory(plan)(context, Aero::Controls::Detail::TemplatePrivate::FactoryContext(plan));
     if (!built || context.RootVisual() == nullptr) {
         context.Rollback();
         return built
@@ -1247,7 +1247,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
         for (std::uint32_t index = 0U;
              index < authoredPartCount;
              ++index) {
-            Aero::Internal::TemplatePart& part =
+            Aero::Controls::Detail::TemplatePart& part =
                 buildState.parts[index];
             if (part.object == nullptr ||
                 !properties_->Types().IsDerivedFrom(
@@ -1276,7 +1276,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
         for (std::uint32_t index = 0U;
              index < authoredPartCount;
              ++index) {
-            Aero::Internal::TemplatePart& part = buildState.parts[index];
+            Aero::Controls::Detail::TemplatePart& part = buildState.parts[index];
             if (part.object == nullptr ||
                 !properties_->Types().IsDerivedFrom(
                     part.object->RuntimeType(),
@@ -1304,7 +1304,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
     instance.parts = std::move(buildState.parts);
     instance.projections =
         std::move(buildState.projections);
-    for (const Aero::Internal::TemplatePart& part :
+    for (const Aero::Controls::Detail::TemplatePart& part :
          instance.parts) {
         if (!part.name.Empty() && part.owner) {
             Base::Result<void> named =
@@ -1395,7 +1395,7 @@ DependencyObject* TemplateEngine::FindName(
     Base::Object* found =
         instances_[index].names.Find(name);
     if (found != nullptr) {
-        for (const Aero::Internal::TemplatePart& part :
+        for (const Aero::Controls::Detail::TemplatePart& part :
              instances_[index].parts) {
             if (part.owner.Get() == found) {
                 return part.object;
@@ -1413,7 +1413,7 @@ DependencyObject* TemplateEngine::FindPart(
         type == InvalidTypeId) {
         return nullptr;
     }
-    for (const Aero::Internal::TemplatePart& part :
+    for (const Aero::Controls::Detail::TemplatePart& part :
          instances_[index].parts) {
         if (part.object != nullptr &&
             properties_->Types().IsDerivedFrom(
@@ -1464,7 +1464,7 @@ DependencyObject* TemplateEngine::FindTarget(
     const Instance& instance,
     Base::StringView name) const noexcept {
     if (name.Empty()) return instance.parent;
-    for (const Aero::Internal::TemplatePart& part : instance.parts) {
+    for (const Aero::Controls::Detail::TemplatePart& part : instance.parts) {
         if (part.name.View() == name) return part.object;
     }
     return nullptr;
@@ -1473,16 +1473,16 @@ DependencyObject* TemplateEngine::FindTarget(
 Base::Result<void> TemplateEngine::Subscribe(
     Instance& instance) noexcept {
     for (std::uint32_t index = 0U;
-         index < Aero::Internal::TemplatePrivate::Bindings(*instance.plan).Size();
+         index < Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan).Size();
          ++index) {
         const DependencyPropertyHandle property =
-            Aero::Internal::TemplatePrivate::Bindings(*instance.plan)[index].sourceProperty;
+            Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan)[index].sourceProperty;
         bool first = true;
         for (std::uint32_t previous = 0U;
              previous < index;
              ++previous) {
             first = first &&
-                Aero::Internal::TemplatePrivate::Bindings(*instance.plan)[previous].sourceProperty !=
+                Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan)[previous].sourceProperty !=
                     property;
         }
         if (first) {
@@ -1493,10 +1493,10 @@ Base::Result<void> TemplateEngine::Subscribe(
         }
     }
     for (std::uint32_t index = 0U;
-         index < Aero::Internal::TemplatePrivate::Triggers(*instance.plan).Size();
+         index < Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan).Size();
          ++index) {
         for (const TemplateTriggerCondition& condition :
-             Aero::Internal::TemplatePrivate::Triggers(*instance.plan)[index].conditions) {
+             Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan)[index].conditions) {
             DependencyObject* source =
                 FindTarget(
                     instance,
@@ -1519,16 +1519,16 @@ Base::Result<void> TemplateEngine::Subscribe(
 void TemplateEngine::Unsubscribe(
     Instance& instance) noexcept {
     for (std::uint32_t index = 0U;
-         index < Aero::Internal::TemplatePrivate::Bindings(*instance.plan).Size();
+         index < Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan).Size();
          ++index) {
         const DependencyPropertyHandle property =
-            Aero::Internal::TemplatePrivate::Bindings(*instance.plan)[index].sourceProperty;
+            Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan)[index].sourceProperty;
         bool first = true;
         for (std::uint32_t previous = 0U;
              previous < index;
              ++previous) {
             first = first &&
-                Aero::Internal::TemplatePrivate::Bindings(*instance.plan)[previous].sourceProperty !=
+                Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan)[previous].sourceProperty !=
                     property;
         }
         if (first) {
@@ -1537,10 +1537,10 @@ void TemplateEngine::Unsubscribe(
         }
     }
     for (std::uint32_t index = 0U;
-         index < Aero::Internal::TemplatePrivate::Triggers(*instance.plan).Size();
+         index < Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan).Size();
          ++index) {
         for (const TemplateTriggerCondition& condition :
-             Aero::Internal::TemplatePrivate::Triggers(*instance.plan)[index].conditions) {
+             Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan)[index].conditions) {
             DependencyObject* source =
                 FindTarget(
                     instance,
@@ -1558,7 +1558,7 @@ Base::Result<void> TemplateEngine::ApplyBindings(
     Instance& instance,
     DependencyPropertyHandle changed) noexcept {
     for (const TemplateBindingPlan& binding :
-         Aero::Internal::TemplatePrivate::Bindings(*instance.plan)) {
+         Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan)) {
         if (changed.IsValid() &&
             binding.sourceProperty != changed) {
             continue;
@@ -1608,7 +1608,7 @@ Base::Result<void> TemplateEngine::ApplyBindings(
 
 Base::Result<void> TemplateEngine::AttachMetadataBindings(
     Instance& instance) noexcept {
-    if (Aero::Internal::TemplatePrivate::MetadataBindings(*instance.plan).Empty()) {
+    if (Aero::Controls::Detail::TemplatePrivate::MetadataBindings(*instance.plan).Empty()) {
         return {};
     }
     if (metadata_ == nullptr || bindings_ == nullptr) {
@@ -1618,10 +1618,10 @@ Base::Result<void> TemplateEngine::AttachMetadataBindings(
     }
     Base::Result<void> reserved =
         instance.metadataBindings.Reserve(
-            Aero::Internal::TemplatePrivate::MetadataBindings(*instance.plan).Size());
+            Aero::Controls::Detail::TemplatePrivate::MetadataBindings(*instance.plan).Size());
     if (!reserved) return reserved.GetStatus();
     for (const TemplateMetadataBindingPlan& binding :
-         Aero::Internal::TemplatePrivate::MetadataBindings(*instance.plan)) {
+         Aero::Controls::Detail::TemplatePrivate::MetadataBindings(*instance.plan)) {
         DependencyObject* target =
             FindTarget(instance, binding.targetName.View());
         if (target == nullptr) {
@@ -1668,7 +1668,7 @@ void TemplateEngine::DetachMetadataBindings(
 Base::Result<void> TemplateEngine::EvaluateTriggers(
     Instance& instance) noexcept {
     for (const TemplatePropertyTrigger& trigger :
-         Aero::Internal::TemplatePrivate::Triggers(*instance.plan)) {
+         Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan)) {
         for (const TemplateTriggerSetter& setter :
              trigger.setters) {
             if (IsDeferredBindingSetterValue(setter.value)) {
@@ -1688,7 +1688,7 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
         }
     }
     for (const TemplatePropertyTrigger& trigger :
-         Aero::Internal::TemplatePrivate::Triggers(*instance.plan)) {
+         Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan)) {
         bool active = true;
         for (const TemplateTriggerCondition& triggerCondition :
              trigger.conditions) {
@@ -1727,7 +1727,7 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
 Base::Result<void> TemplateEngine::ClearProviders(
     Instance& instance) noexcept {
     for (const TemplateBindingPlan& binding :
-         Aero::Internal::TemplatePrivate::Bindings(*instance.plan)) {
+         Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan)) {
         DependencyObject* target =
             FindTarget(instance, binding.targetName.View());
         if (target != nullptr) {
@@ -1738,7 +1738,7 @@ Base::Result<void> TemplateEngine::ClearProviders(
         }
     }
     for (const TemplatePropertyTrigger& trigger :
-         Aero::Internal::TemplatePrivate::Triggers(*instance.plan)) {
+         Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan)) {
         for (const TemplateTriggerSetter& setter :
              trigger.setters) {
             if (IsDeferredBindingSetterValue(setter.value)) {
@@ -1767,19 +1767,19 @@ Base::Result<void> TemplateEngine::ClearAt(
     Base::Result<void> providers = ClearProviders(instance);
     if (!providers) return providers.GetStatus();
 
-    for (Aero::Internal::TemplatePart& part : instance.parts) {
+    for (Aero::Controls::Detail::TemplatePart& part : instance.parts) {
         if (part.frameworkElement != nullptr) {
             Base::Result<void> cleared =
-                Aero::Internal::ElementPrivate::SetTemplatedParent(*part.frameworkElement, nullptr);
+                Aero::GuiPrivate::Detail::ElementPrivate::SetTemplatedParent(*part.frameworkElement, nullptr);
             if (!cleared) return cleared.GetStatus();
         }
     }
-    Base::Result<void> child = Aero::Internal::ControlPrivate::SetTemplateRoot(*instance.parent, nullptr);
+    Base::Result<void> child = Aero::Controls::Detail::ControlPrivate::SetTemplateRoot(*instance.parent, nullptr);
     if (!child) return child.GetStatus();
 
     for (std::uint32_t projectionIndex = instance.projections.Size();
          projectionIndex > 0U; --projectionIndex) {
-        Aero::Internal::TemplateContentProjection& projection =
+        Aero::Controls::Detail::TemplateContentProjection& projection =
             instance.projections[projectionIndex - 1U];
         if ((projection.presenter == nullptr &&
              projection.contentHost == nullptr) ||
@@ -1796,7 +1796,7 @@ Base::Result<void> TemplateEngine::ClearAt(
         }
         if (projection.detachedOriginalVisual &&
             projection.originalVisualParent != nullptr) {
-            Base::Result<Aero::Internal::VisualAttachment> restored =
+            Base::Result<Aero::GuiPrivate::Detail::VisualAttachment> restored =
                 tree_->AttachVisualChild(
                     *projection.originalVisualParent, *projection.content);
             if (!restored) return restored.GetStatus();
@@ -1814,7 +1814,7 @@ Base::Result<void> TemplateEngine::ClearAt(
             tree_->DetachElement(instance.parts[partIndex - 1U].mount);
         if (!detached) return detached.GetStatus();
     }
-    for (Aero::Internal::TemplatePart& part : instance.parts) {
+    for (Aero::Controls::Detail::TemplatePart& part : instance.parts) {
         if (part.object == nullptr) continue;
         Base::Result<void> untracked = values_->DetachObject(*part.object);
         if (!untracked) return untracked.GetStatus();
@@ -1836,7 +1836,7 @@ void TemplateEngine::OnPropertyChanged(
         }
         bool triggerChanged = false;
         for (const TemplatePropertyTrigger& trigger :
-             Aero::Internal::TemplatePrivate::Triggers(*instance.plan)) {
+             Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan)) {
             for (const TemplateTriggerCondition& triggerCondition :
                  trigger.conditions) {
                 DependencyObject* source = FindTarget(
@@ -1858,4 +1858,4 @@ void TemplateEngine::OnPropertyChanged(
     }
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail

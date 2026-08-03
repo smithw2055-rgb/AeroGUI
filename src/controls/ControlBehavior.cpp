@@ -7,14 +7,14 @@
 #include <Aero/Controls/Common.hpp>
 #include <Aero/Controls/Text.hpp>
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 ControlBehavior::ControlBehavior(
     Base::IAllocator& allocator,
     ::Aero::Meta::Registry& metadata,
     Aero::ElementTree& tree,
-    Aero::Internal::EventRouter& events,
-    Aero::Internal::InputRouter& input,
+    Aero::GuiPrivate::Detail::EventRouter& events,
+    Aero::GuiPrivate::Detail::InputRouter& input,
     VisualStateManager* visualStates,
     Integration::IClipboard* clipboard,
     bool controlsEnabled,
@@ -71,53 +71,53 @@ Base::Result<void> ControlBehavior::Initialize() noexcept {
     }
 
     if (controlsEnabled_) {
-        Base::Result<Aero::Internal::ButtonBehavior*> buttons =
-            Construct<Aero::Internal::ButtonBehavior>(
+        Base::Result<Aero::Controls::Detail::ButtonBehavior*> buttons =
+            Construct<Aero::Controls::Detail::ButtonBehavior>(
                 *tree_, *events_, *input_, visualStates_);
         if (!buttons) return buttons.GetStatus();
         buttons_ = buttons.Value();
         Base::Result<void> status = buttons_->Initialize();
         if (!status) return status.GetStatus();
 
-        Base::Result<Aero::Internal::ScrollBehavior*> scrolling =
-            Construct<Aero::Internal::ScrollBehavior>(*tree_, *events_);
+        Base::Result<Aero::Controls::Detail::ScrollBehavior*> scrolling =
+            Construct<Aero::Controls::Detail::ScrollBehavior>(*tree_, *events_);
         if (!scrolling) return scrolling.GetStatus();
         scrolling_ = scrolling.Value();
 
-        Base::Result<Aero::Internal::SliderBehavior*> sliders =
-            Construct<Aero::Internal::SliderBehavior>(
+        Base::Result<Aero::Controls::Detail::SliderBehavior*> sliders =
+            Construct<Aero::Controls::Detail::SliderBehavior>(
                 *tree_, *events_, *input_);
         if (!sliders) return sliders.GetStatus();
         sliders_ = sliders.Value();
 
-        Base::Result<Aero::Internal::ListBehavior*> lists =
-            Construct<Aero::Internal::ListBehavior>(
+        Base::Result<Aero::Controls::Detail::ListBehavior*> lists =
+            Construct<Aero::Controls::Detail::ListBehavior>(
                 *tree_, *events_, *input_, visualStates_);
         if (!lists) return lists.GetStatus();
         lists_ = lists.Value();
 
-        Base::Result<Aero::Internal::ComboBehavior*> combos =
-            Construct<Aero::Internal::ComboBehavior>(
+        Base::Result<Aero::Controls::Detail::ComboBehavior*> combos =
+            Construct<Aero::Controls::Detail::ComboBehavior>(
                 *tree_, *events_, *input_);
         if (!combos) return combos.GetStatus();
         combos_ = combos.Value();
 
-        Base::Result<Aero::Internal::TreeBehavior*> trees =
-            Construct<Aero::Internal::TreeBehavior>(
+        Base::Result<Aero::Controls::Detail::TreeBehavior*> trees =
+            Construct<Aero::Controls::Detail::TreeBehavior>(
                 *tree_, *events_, *input_, visualStates_);
         if (!trees) return trees.GetStatus();
         trees_ = trees.Value();
 
-        Base::Result<Aero::Internal::MenuBehavior*> menus =
-            Construct<Aero::Internal::MenuBehavior>(
+        Base::Result<Aero::Controls::Detail::MenuBehavior*> menus =
+            Construct<Aero::Controls::Detail::MenuBehavior>(
                 *tree_, *events_, *input_);
         if (!menus) return menus.GetStatus();
         menus_ = menus.Value();
     }
 
     if (textEditingEnabled_ && clipboard_ != nullptr) {
-        Base::Result<Aero::Internal::TextEditBehavior*> text =
-            Construct<Aero::Internal::TextEditBehavior>(
+        Base::Result<Aero::Controls::Detail::TextEditBehavior*> text =
+            Construct<Aero::Controls::Detail::TextEditBehavior>(
                 *tree_, *events_, *input_, *clipboard_);
         if (!text) return text.GetStatus();
         textBoxes_ = text.Value();
@@ -227,4 +227,4 @@ void ControlBehavior::Shutdown() noexcept {
     initialized_ = false;
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail

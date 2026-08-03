@@ -1,6 +1,6 @@
 #include <Aero/Integration/D3D11.hpp>
 
-#include "RenderDeviceInternal.hpp"
+#include "integration/IntegrationPrivate.hpp"
 
 #include "render/d3d11/D3D11Renderer.hpp"
 #include "render/d3d11/D3D11Backend.hpp"
@@ -341,13 +341,13 @@ public:
         return result;
     }
 
-    Aero::Internal::RenderResources Resources() noexcept {
+    Aero::Render::Detail::RenderResources Resources() noexcept {
         return renderer_ != nullptr
-            ? Aero::Internal::RenderResources{
+            ? Aero::Render::Detail::RenderResources{
                   renderer_->GetTextResources(),
                   renderer_->GetMeshResources(),
                   renderer_->GetImageResources()}
-            : Aero::Internal::RenderResources{};
+            : Aero::Render::Detail::RenderResources{};
     }
 
 private:
@@ -465,7 +465,7 @@ CreateD3D11Device(
         delete driver;
         return initialized.GetStatus();
     }
-    return ::Aero::Internal::AdoptRenderDevice(
+    return ::Aero::Integration::Detail::AdoptRenderDevice(
         mode, driver, &selected);
 }
 

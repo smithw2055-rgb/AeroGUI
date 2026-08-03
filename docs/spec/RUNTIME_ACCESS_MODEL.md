@@ -10,16 +10,15 @@ framework of managers, services, or access objects.
 ## Ownership
 
 The current implementation keeps complete UI and control runtime declarations
-under:
+behind the source-only domain aggregates:
 
-- `src/gui/RuntimeServices.hpp`
-- `src/controls/ControlBehavior.hpp`
+- `src/gui/GuiPrivate.hpp`
+- `src/controls/ControlsPrivate.hpp`
 
-`Aero::Internal::UiRuntimeAccess` and
-`Aero::Internal::ControlRuntimeAccess` are private friendship boundaries used by
-implementation code. Public objects that require an attachment retain opaque
-state and grant friendship to one access owner per domain rather than naming a
-concrete manager in their public declaration.
+GUI implementation seams use `Aero::GuiPrivate::Detail`; controls use
+`Aero::Controls::Detail`. Public objects that require an attachment retain
+opaque state and grant friendship to one access owner per domain rather than
+naming a concrete manager in their public declaration.
 
 Private aliases may keep implementation call sites readable, but they do not
 define product namespaces and are not authoring APIs. New behavior should first

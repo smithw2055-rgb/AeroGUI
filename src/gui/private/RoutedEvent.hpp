@@ -6,13 +6,13 @@
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Events/EventArgs.hpp>
 #include <Aero/Events/RoutedEvent.hpp>
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <cstddef>
 #include <new>
 #include <type_traits>
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 class RoutedHandlerStorage {
 public:
@@ -131,7 +131,7 @@ private:
     void (*invoke_)(const void*, Base::Object*, RoutedEventArgs&) noexcept = nullptr;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail
 
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
@@ -143,7 +143,7 @@ private:
 
 #include <utility>
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 struct EventRouteNode {
     Base::Ref<DependencyObject> retained;
@@ -224,13 +224,13 @@ private:
     Base::Vector<EventRouteNode> nodes_;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail
 
 
 namespace Aero { class ContentElement; }
 
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -271,7 +271,7 @@ private:
     struct ClassHandlerRecord {
         RoutedEventHandle event;
         TypeId classType = InvalidTypeId;
-        Aero::Internal::RoutedHandlerStorage handler;
+        Aero::GuiPrivate::Detail::RoutedHandlerStorage handler;
         std::uint64_t sequence = 0U;
         bool handledEventsToo = false;
     };
@@ -311,10 +311,10 @@ Base::Result<void> EventRouter::RegisterClassHandler(
     ClassHandlerRecord value;
     value.event = event;
     value.classType = classType;
-    value.handler = Aero::Internal::RoutedHandlerStorage(handler);
+    value.handler = Aero::GuiPrivate::Detail::RoutedHandlerStorage(handler);
     value.handledEventsToo = handledEventsToo;
     value.sequence = nextClassSequence_++;
     return classHandlers_.PushBack(std::move(value));
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

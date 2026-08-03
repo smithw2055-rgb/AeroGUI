@@ -1,4 +1,4 @@
-#include "RenderDeviceInternal.hpp"
+#include "integration/IntegrationPrivate.hpp"
 #include "render/BatchPlanner.hpp"
 
 #include <new>
@@ -152,7 +152,7 @@ Base::Result<void> RenderDevice::WaitIdle(
 
 } // namespace Aero::Integration
 
-namespace Aero::Internal {
+namespace Aero::Integration::Detail {
 
 class HeadlessDeviceState {
 public:
@@ -167,7 +167,7 @@ public:
     Base::Result<void> WaitIdle(std::uint32_t) noexcept { return {}; }
     ::Aero::Integration::RenderFrameStatistics
     LastFrameStatistics() const noexcept { return {}; }
-    RenderResources Resources() noexcept { return {}; }
+    ::Aero::Render::Detail::RenderResources Resources() noexcept { return {}; }
 };
 
 Base::Result<Base::Ref<::Aero::Integration::RenderDevice>>
@@ -205,7 +205,7 @@ CreateHeadlessRenderDevice(
         allocator);
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Integration::Detail
 
 namespace Aero::Integration {
 

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "gui/ElementInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/PropertyInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 #include "TemplateInstance.hpp"
 
 // Private control behavior and template implementation for one View.
@@ -13,11 +13,11 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Common.hpp>
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Integration/Platform.hpp>
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <cstddef>
 #include <new>
 #include <utility>
@@ -34,20 +34,21 @@ enum class ToggleState : std::uint8_t {
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 
 using namespace Aero::Controls;
 using namespace Aero::Controls::Primitives;
-using Aero::Internal::TemplateHandle;
+using Aero::Controls::Detail::TemplateHandle;
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail
 
 namespace Aero::Controls::Primitives {
 
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 struct ButtonBase::Impl {
 public:
@@ -145,13 +146,14 @@ private:
 
 } // namespace Aero::Controls::Primitives
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 using ButtonBehavior = ::Aero::Controls::Primitives::ButtonBase::Impl;
 }
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 struct TextBox::Impl {
 public:
@@ -232,13 +234,14 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 using TextEditBehavior = ::Aero::Controls::TextBox::Impl;
 }
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 struct ScrollViewer::Impl {
 public:
@@ -272,13 +275,14 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 using ScrollBehavior = ::Aero::Controls::ScrollViewer::Impl;
 }
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 struct Slider::Impl {
 public:
@@ -339,13 +343,14 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 using SliderBehavior = ::Aero::Controls::Slider::Impl;
 }
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 struct TreeView::Impl {
 public:
@@ -394,13 +399,14 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 using TreeBehavior = ::Aero::Controls::TreeView::Impl;
 }
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 struct ComboBox::Impl {
 public:
@@ -438,13 +444,14 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 using ComboBehavior = ::Aero::Controls::ComboBox::Impl;
 }
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 struct ListBox::Impl {
 public:
@@ -494,7 +501,7 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 using ListBehavior = ::Aero::Controls::ListBox::Impl;
 
 class AERO_API TemplateEngine {
@@ -504,9 +511,9 @@ public:
         EffectiveValueEngine& values,
         DependencyPropertyRegistry& properties,
         LayoutEngine* layout = nullptr,
-        RenderTree* renderer = nullptr,
+        ::Aero::Render::Detail::RenderTree* renderer = nullptr,
         ::Aero::Meta::Registry* metadata = nullptr,
-        Aero::Internal::BindingEngine* bindings = nullptr) noexcept
+        Aero::GuiPrivate::Detail::BindingEngine* bindings = nullptr) noexcept
         : tree_(&tree),
           providerSession_(values),
           values_(&providerSession_),
@@ -544,21 +551,21 @@ private:
         const ControlTemplate* plan = nullptr;
         Visual* rootVisual = nullptr;
         UIElement* rootElement = nullptr;
-        Base::Vector<Aero::Internal::TemplatePart> parts;
-        Base::Vector<Aero::Internal::TemplateContentProjection> projections;
+        Base::Vector<Aero::Controls::Detail::TemplatePart> parts;
+        Base::Vector<Aero::Controls::Detail::TemplateContentProjection> projections;
         NameScope names;
         Base::Vector<Data::BindingHandle>
             metadataBindings;
     };
 
     ElementTree* tree_ = nullptr;
-    Internal::TemplatedParentProviderSession providerSession_;
-    Internal::TemplatedParentProviderSession* values_ = nullptr;
+    ::Aero::GuiPrivate::Detail::TemplatedParentProviderSession providerSession_;
+    ::Aero::GuiPrivate::Detail::TemplatedParentProviderSession* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     LayoutEngine* layout_ = nullptr;
-    RenderTree* renderer_ = nullptr;
+    ::Aero::Render::Detail::RenderTree* renderer_ = nullptr;
     ::Aero::Meta::Registry* metadata_ = nullptr;
-    Aero::Internal::BindingEngine* bindings_ = nullptr;
+    Aero::GuiPrivate::Detail::BindingEngine* bindings_ = nullptr;
     Base::Vector<Instance> instances_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     std::uint64_t nextHandle_ = 1U;
@@ -592,11 +599,12 @@ private:
         const DependencyPropertyChangedEventArgs& args) noexcept;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 struct Menu::Impl {
 public:
@@ -640,11 +648,11 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 using MenuBehavior = ::Aero::Controls::Menu::Impl;
 }
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 // One compact owner for all built-in control interaction state. The behavior
 // objects are placement-constructed in inline storage, avoiding per-behavior
@@ -655,8 +663,8 @@ public:
         Base::IAllocator& allocator,
         ::Aero::Meta::Registry& metadata,
         Aero::ElementTree& tree,
-        Aero::Internal::EventRouter& events,
-        Aero::Internal::InputRouter& input,
+        Aero::GuiPrivate::Detail::EventRouter& events,
+        Aero::GuiPrivate::Detail::InputRouter& input,
         VisualStateManager* visualStates,
         Integration::IClipboard* clipboard,
         bool controlsEnabled,
@@ -685,21 +693,21 @@ private:
     void Destroy(T*& object) noexcept;
 
     static constexpr std::size_t StorageBytes =
-        sizeof(Aero::Internal::ButtonBehavior) +
-        sizeof(Aero::Internal::TextEditBehavior) +
-        sizeof(Aero::Internal::ScrollBehavior) +
-        sizeof(Aero::Internal::SliderBehavior) +
-        sizeof(Aero::Internal::ListBehavior) +
-        sizeof(Aero::Internal::ComboBehavior) +
-        sizeof(Aero::Internal::TreeBehavior) +
-        sizeof(Aero::Internal::MenuBehavior) +
+        sizeof(Aero::Controls::Detail::ButtonBehavior) +
+        sizeof(Aero::Controls::Detail::TextEditBehavior) +
+        sizeof(Aero::Controls::Detail::ScrollBehavior) +
+        sizeof(Aero::Controls::Detail::SliderBehavior) +
+        sizeof(Aero::Controls::Detail::ListBehavior) +
+        sizeof(Aero::Controls::Detail::ComboBehavior) +
+        sizeof(Aero::Controls::Detail::TreeBehavior) +
+        sizeof(Aero::Controls::Detail::MenuBehavior) +
         9U * alignof(std::max_align_t);
 
     Base::IAllocator* allocator_ = nullptr;
     ::Aero::Meta::Registry* metadata_ = nullptr;
     Aero::ElementTree* tree_ = nullptr;
-    Aero::Internal::EventRouter* events_ = nullptr;
-    Aero::Internal::InputRouter* input_ = nullptr;
+    Aero::GuiPrivate::Detail::EventRouter* events_ = nullptr;
+    Aero::GuiPrivate::Detail::InputRouter* input_ = nullptr;
     VisualStateManager* visualStates_ = nullptr;
     Integration::IClipboard* clipboard_ = nullptr;
     bool controlsEnabled_ = false;
@@ -708,14 +716,14 @@ private:
     std::size_t offset_ = 0U;
     alignas(std::max_align_t) std::byte storage_[StorageBytes]{};
 
-    Aero::Internal::ButtonBehavior* buttons_ = nullptr;
-    Aero::Internal::TextEditBehavior* textBoxes_ = nullptr;
-    Aero::Internal::ScrollBehavior* scrolling_ = nullptr;
-    Aero::Internal::SliderBehavior* sliders_ = nullptr;
-    Aero::Internal::ListBehavior* lists_ = nullptr;
-    Aero::Internal::ComboBehavior* combos_ = nullptr;
-    Aero::Internal::TreeBehavior* trees_ = nullptr;
-    Aero::Internal::MenuBehavior* menus_ = nullptr;
+    Aero::Controls::Detail::ButtonBehavior* buttons_ = nullptr;
+    Aero::Controls::Detail::TextEditBehavior* textBoxes_ = nullptr;
+    Aero::Controls::Detail::ScrollBehavior* scrolling_ = nullptr;
+    Aero::Controls::Detail::SliderBehavior* sliders_ = nullptr;
+    Aero::Controls::Detail::ListBehavior* lists_ = nullptr;
+    Aero::Controls::Detail::ComboBehavior* combos_ = nullptr;
+    Aero::Controls::Detail::TreeBehavior* trees_ = nullptr;
+    Aero::Controls::Detail::MenuBehavior* menus_ = nullptr;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail

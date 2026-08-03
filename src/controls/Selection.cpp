@@ -1,20 +1,20 @@
-#include "TemplateInternals.hpp"
+#include "controls/ControlsPrivate.hpp"
 #include <Aero/Controls/Items.hpp>
-#include "ItemsInternal.hpp"
+#include "controls/ControlsPrivate.hpp"
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Text.hpp>
-#include "ControlInternals.hpp"
+#include "controls/ControlsPrivate.hpp"
 
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <algorithm>
 #include <utility>
-#include "gui/RoutedEventInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Internal::ComboBehavior;
-using Aero::Internal::ListBehavior;
+using Aero::Controls::Detail::ComboBehavior;
+using Aero::Controls::Detail::ListBehavior;
 
 using namespace Primitives;
 namespace {
@@ -559,7 +559,7 @@ void Selector::SyncContainers() noexcept {
         item.SetIsSelected(selected);
         if (states_ != nullptr) {
             static_cast<void>(
-                Aero::Internal::TemplatePrivate::GoToState(*states_,
+                Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
                     item,
                     "SelectionStates",
                     selected
@@ -1410,7 +1410,8 @@ namespace Aero::Controls {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 ComboBox::Impl::
 Impl(
@@ -1473,7 +1474,7 @@ Base::Result<void>
 ComboBox::Impl::Attach(
     ComboBox& comboBox) noexcept {
     if (comboBox.interactions_ != nullptr ||
-        Aero::Internal::ElementPrivate::Tree(comboBox) != tree_ ||
+        Aero::GuiPrivate::Detail::ElementPrivate::Tree(comboBox) != tree_ ||
         FindComboBox(comboBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1660,7 +1661,7 @@ ListBox* ListBox::Impl::ResolveListBox(
 Base::Result<void> ListBox::Impl::Attach(
     ListBox& listBox) noexcept {
     if (listBox.interactions_ != nullptr ||
-        Aero::Internal::ElementPrivate::Tree(listBox) != tree_ ||
+        Aero::GuiPrivate::Detail::ElementPrivate::Tree(listBox) != tree_ ||
         FindListBox(listBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,

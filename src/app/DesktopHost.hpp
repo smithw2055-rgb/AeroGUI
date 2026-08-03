@@ -35,7 +35,7 @@ struct Window::Impl {
 
 } // namespace Aero
 
-namespace Aero::Internal {
+namespace Aero::App::Detail {
 
 using DesktopPrivate = ::Aero::Application::Impl;
 
@@ -62,9 +62,9 @@ private:
     Impl* impl_ = nullptr;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::App::Detail
 
 namespace Aero::App::Detail {
-using ::Aero::Internal::DesktopPrivate;
-using ::Aero::Internal::DesktopHost;
+using ::Aero::App::Detail::DesktopPrivate;
+using ::Aero::App::Detail::DesktopHost;
 } // namespace Aero::App::Detail

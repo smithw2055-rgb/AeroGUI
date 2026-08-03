@@ -1,5 +1,5 @@
 #include <Aero/Media/Transforms.hpp>
-#include "TransformInternals.hpp"
+#include "media/MediaPrivate.hpp"
 
 #include <Aero/FrameworkElement.hpp>
 
@@ -182,8 +182,8 @@ void Transform::OnPropertyInvalidated(
     DependencyObject::OnPropertyInvalidated(flags);
     FrameworkElement* owner = GetOwner();
     if (owner == nullptr) return;
-    if (HasOwnerRole(Internal::OwnerRoleValue(
-            Internal::TransformOwnerRole::Layout))) {
+    if (HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(
+            ::Aero::Media::Detail::TransformOwnerRole::Layout))) {
         (void)owner->InvalidateMeasure();
     } else {
         (void)owner->InvalidateVisual();
@@ -316,22 +316,22 @@ Base::Result<void> TransformGroup::AddChild(
             Base::ErrorCode::InvalidArgument,
             "TransformGroup child cannot be null");
     }
-    if (HasOwnerRole(Internal::OwnerRoleValue(Internal::TransformOwnerRole::Render))) {
+    if (HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Render))) {
         value->AttachOwner(
             GetOwner(),
-            Internal::OwnerRoleValue(Internal::TransformOwnerRole::Render));
+            ::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Render));
     }
-    if (HasOwnerRole(Internal::OwnerRoleValue(Internal::TransformOwnerRole::Layout))) {
+    if (HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout))) {
         value->AttachOwner(
             GetOwner(),
-            Internal::OwnerRoleValue(Internal::TransformOwnerRole::Layout));
+            ::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout));
     }
     Base::Result<void> added =
         children_.PushBack(std::move(value));
     if (!added) return added.GetStatus();
     FrameworkElement* owner = GetOwner();
     if (owner == nullptr) return {};
-    return HasOwnerRole(Internal::OwnerRoleValue(Internal::TransformOwnerRole::Layout))
+    return HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout))
         ? owner->InvalidateMeasure()
         : owner->InvalidateVisual();
 }
@@ -339,21 +339,21 @@ Base::Result<void> TransformGroup::AddChild(
 void TransformGroup::ClearChildren() noexcept {
     for (Base::Ref<Transform>& child : children_) {
         if (!child) continue;
-        if (HasOwnerRole(Internal::OwnerRoleValue(Internal::TransformOwnerRole::Render))) {
+        if (HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Render))) {
             child->DetachOwner(
                 GetOwner(),
-                Internal::OwnerRoleValue(Internal::TransformOwnerRole::Render));
+                ::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Render));
         }
-        if (HasOwnerRole(Internal::OwnerRoleValue(Internal::TransformOwnerRole::Layout))) {
+        if (HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout))) {
             child->DetachOwner(
                 GetOwner(),
-                Internal::OwnerRoleValue(Internal::TransformOwnerRole::Layout));
+                ::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout));
         }
     }
     children_.Clear();
     FrameworkElement* owner = GetOwner();
     if (owner == nullptr) return;
-    if (HasOwnerRole(Internal::OwnerRoleValue(Internal::TransformOwnerRole::Layout))) {
+    if (HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout))) {
         (void)owner->InvalidateMeasure();
     } else {
         (void)owner->InvalidateVisual();

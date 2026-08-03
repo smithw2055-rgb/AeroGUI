@@ -1,11 +1,11 @@
-#include "gui/MetadataInternal.hpp"
-#include "markup/MarkupWriterInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "markup/MarkupPrivate.hpp"
 // Consolidated implementation. Keep sections ordered by dependency.
 
 // ===== BindingExtension =====
 
 
-#include "gui/BindingInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 // Binding markup-extension implementation.
 
@@ -13,7 +13,7 @@
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
-#include "../controls/TemplateInternals.hpp"
+#include "../controls/ControlsPrivate.hpp"
 
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Items.hpp>
@@ -327,7 +327,7 @@ Base::Result<void> ParseArguments(
 }
 
 struct DeferredBindingState {
-    Aero::Internal::BindingEngine* manager = nullptr;
+    Aero::GuiPrivate::Detail::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     Base::Object* source = nullptr;
     ::Aero::DependencyObject* target = nullptr;
@@ -567,7 +567,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 *services.targetObject);
         if (authoredName.Empty()) {
             Base::Result<Base::String> generated =
-                Internal::TemplatePrivate::EnsureAuthoredName(controlTemplate,
+                ::Aero::Controls::Detail::TemplatePrivate::EnsureAuthoredName(controlTemplate,
                     *services.targetObject);
             if (!generated) {
                 return generated.GetStatus();
@@ -577,7 +577,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             authoredName = targetName.View();
         }
         Base::Result<void> added =
-            Internal::TemplatePrivate::AddTemplatedParentBinding(controlTemplate,
+            ::Aero::Controls::Detail::TemplatePrivate::AddTemplatedParentBinding(controlTemplate,
                 authoredName,
                 path,
                 stringFormat,
@@ -634,7 +634,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         }
     }
 
-    Aero::Internal::BindingEngine* bindings =
+    Aero::GuiPrivate::Detail::BindingEngine* bindings =
         services.bindings != nullptr
         ? services.bindings
         : extension->options_.bindings;
@@ -1170,7 +1170,7 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
 
 
 
-#include "../controls/TemplateInternals.hpp"
+#include "../controls/ControlsPrivate.hpp"
 
 #include <Aero/Styling.hpp>
 #include <Aero/Value.hpp>
@@ -1308,7 +1308,7 @@ TemplateBindingExtension::ProvideValue(
             *services.targetObject);
     if (authoredName.Empty()) {
         Base::Result<Base::String> generated =
-            Internal::TemplatePrivate::EnsureAuthoredName(controlTemplate,
+            ::Aero::Controls::Detail::TemplatePrivate::EnsureAuthoredName(controlTemplate,
                 *services.targetObject);
         if (!generated) {
             return generated.GetStatus();
@@ -1318,7 +1318,7 @@ TemplateBindingExtension::ProvideValue(
         authoredName = targetName.View();
     }
     Base::Result<void> added =
-        Internal::TemplatePrivate::AddTemplateBinding(controlTemplate,
+        ::Aero::Controls::Detail::TemplatePrivate::AddTemplateBinding(controlTemplate,
             authoredName,
             source->Handle(),
             destination->Handle());
@@ -1571,7 +1571,7 @@ Base::Result<Aero::ResourceValue> ResourceResolver::Lookup(
 
 
 
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 #include <Aero/Media/Brushes.hpp>
 
 #include <utility>
@@ -4673,7 +4673,7 @@ Base::Result<Aero::ResourceValue> ObjectBuilder::ResourceLookupCallback(
 
 
 #include <utility>
-#include "gui/BindingInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Markup {
 namespace {
@@ -4778,7 +4778,7 @@ Base::Result<void> DeferredContentPlan::StageBinding(
     Base::Object& owner,
     Base::Object* source,
     ::Aero::DependencyObject& target,
-    Aero::Internal::BindingEngine& manager,
+    Aero::GuiPrivate::Detail::BindingEngine& manager,
     ::Aero::Meta::Registry& metadata,
     Meta::DependencyPropertyHandle targetProperty,
     Meta::DependencyPropertyHandle dataContextProperty,

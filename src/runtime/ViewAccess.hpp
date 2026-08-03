@@ -2,7 +2,7 @@
 
 #include <Aero/View.hpp>
 
-namespace Aero::Internal {
+namespace Aero::Runtime::Detail {
 struct ViewData;
 }
 
@@ -11,10 +11,10 @@ namespace Aero {
 // Source-only access seam for the opaque View state.  The allocated object
 // owns the source-side ViewData pointer; public headers only see Impl*.
 struct View::Impl {
-    ::Aero::Internal::ViewData* data = nullptr;
+    ::Aero::Runtime::Detail::ViewData* data = nullptr;
 
-    ::Aero::Internal::ViewData* operator->() noexcept { return data; }
-    const ::Aero::Internal::ViewData* operator->() const noexcept {
+    ::Aero::Runtime::Detail::ViewData* operator->() noexcept { return data; }
+    const ::Aero::Runtime::Detail::ViewData* operator->() const noexcept {
         return data;
     }
 

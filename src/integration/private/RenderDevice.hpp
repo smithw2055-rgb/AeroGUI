@@ -6,7 +6,7 @@
 
 #include <utility>
 
-namespace Aero::Internal {
+namespace Aero::Integration::Detail {
 
 // One immutable function table connects RenderDevice to a concrete native
 // implementation. It avoids a second public object model and virtual hierarchy.
@@ -21,7 +21,7 @@ struct RenderDeviceFunctions {
     Base::Result<void> (*restore)(void*) noexcept = nullptr;
     Base::Result<void> (*waitIdle)(void*, std::uint32_t) noexcept = nullptr;
     RenderFrameStatistics (*statistics)(const void*) noexcept = nullptr;
-    Aero::Internal::RenderResources (*resources)(void*) noexcept = nullptr;
+    Aero::Render::Detail::RenderResources (*resources)(void*) noexcept = nullptr;
 };
 
 // The public RenderDevice only exposes the host-facing object. Construction
@@ -77,23 +77,23 @@ Base::Result<Base::Ref<::Aero::Integration::RenderDevice>> AdoptRenderDevice(
     ::Aero::Integration::RenderDeviceMode mode,
     T* state,
     Base::IAllocator* allocator = nullptr) noexcept {
-    return ::Aero::Internal::AdoptRenderDevice(
+    return ::Aero::Integration::Detail::AdoptRenderDevice(
         mode,
         static_cast<void*>(state),
         &FunctionsFor<T>(),
         allocator);
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Integration::Detail
 
 namespace Aero::Integration {
 
 // Source-only access to the opaque backend state kept by RenderDevice.
 struct RenderDevice::Impl {
-    static const ::Aero::Internal::RenderDeviceFunctions* Functions(
+    static const ::Aero::Integration::Detail::RenderDeviceFunctions* Functions(
         const RenderDevice& device) noexcept {
         return static_cast<
-            const ::Aero::Internal::RenderDeviceFunctions*>(
+            const ::Aero::Integration::Detail::RenderDeviceFunctions*>(
                 device.functions_);
     }
 
@@ -104,7 +104,7 @@ struct RenderDevice::Impl {
     static void SetBackend(
         RenderDevice& device,
         void* state,
-        const ::Aero::Internal::RenderDeviceFunctions* functions) noexcept {
+        const ::Aero::Integration::Detail::RenderDeviceFunctions* functions) noexcept {
         device.stateData_ = state;
         device.functions_ = functions;
     }
@@ -112,7 +112,7 @@ struct RenderDevice::Impl {
     static Base::Result<Base::Ref<RenderDevice>> Create(
         RenderDeviceMode mode,
         void* state,
-        const ::Aero::Internal::RenderDeviceFunctions* functions,
+        const ::Aero::Integration::Detail::RenderDeviceFunctions* functions,
         Base::IAllocator* allocator) noexcept {
         if (state == nullptr || functions == nullptr) {
             return Base::Status::Failure(
@@ -136,12 +136,12 @@ struct RenderDevice::Impl {
         return std::move(made).Value();
     }
 
-    static ::Aero::Internal::RenderResources Resources(
+    static ::Aero::Render::Detail::RenderResources Resources(
         RenderDevice& device) noexcept {
         const auto* functions = Functions(device);
         return device.stateData_ != nullptr && functions != nullptr
             ? functions->resources(device.stateData_)
-            : ::Aero::Internal::RenderResources{};
+            : ::Aero::Render::Detail::RenderResources{};
     }
 
     static Base::Result<void> Bind(
@@ -169,10 +169,10 @@ struct RenderDevice::Impl {
 
 } // namespace Aero::Integration
 
-namespace Aero::Internal {
+namespace Aero::Integration::Detail {
 
 Base::Result<Base::Ref<::Aero::Integration::RenderDevice>>
 CreateHeadlessRenderDevice(
     Base::IAllocator* allocator = nullptr) noexcept;
 
-} // namespace Aero::Internal
+} // namespace Aero::Integration::Detail

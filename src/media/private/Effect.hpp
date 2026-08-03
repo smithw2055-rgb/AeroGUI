@@ -23,7 +23,7 @@ public:
 
 } // namespace Aero::Media
 
-namespace Aero::Internal {
+namespace Aero::Media::Detail {
 using EffectPrivate = ::Aero::Media::Effect::Impl;
 
-} // namespace Aero::Internal
+} // namespace Aero::Media::Detail

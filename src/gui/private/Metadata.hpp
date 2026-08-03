@@ -2,7 +2,7 @@
 
 #include <Aero/Meta.hpp>
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 class MetadataPrivate;
 class MetaTable;
 }
@@ -273,10 +273,14 @@ namespace Aero::Meta { class Registration; }
 
 namespace Aero::Meta {
 
-namespace Detail {
+} // namespace Aero::Meta
+
+namespace Aero::Meta::Detail {
 class MetaTable;
 class MetadataPrivate;
-}
+} // namespace Aero::Meta::Detail
+
+namespace Aero::Meta {
 
 
 using MetadataPropertyProviderGetCallback = Base::Result<Value> (*)(
@@ -449,14 +453,14 @@ public:
     Base::Result<Base::HashCode> ComputeSchemaHash() const noexcept;
 
 private:
-    friend class ::Aero::Internal::MetadataPrivate;
+    friend class ::Aero::GuiPrivate::Detail::MetadataPrivate;
 
     struct Storage;
     Storage* storage_ = nullptr;
 
     DependencyPropertyRegistry& DependencyProperties() noexcept;
     void* RoutedEventState() noexcept;
-    const ::Aero::Internal::MetaTable& RuntimeData() const noexcept;
+    const ::Aero::GuiPrivate::Detail::MetaTable& RuntimeData() const noexcept;
 
     static Base::Status OutOfMemoryStatus() noexcept;
     static bool HasPropertyFlag(
@@ -600,14 +604,18 @@ inline constexpr TypeId ScrollChangedEventArgs =
 
 namespace Aero::Meta {
 
-namespace Detail {
+} // namespace Aero::Meta
+
+namespace Aero::Meta::Detail {
 
 // Module population is an implementation callback; hosts register through the
 // Meta::Registry overload below.
 AERO_API Base::Result<void> PopulateCoreMetadata(
     Meta::Registration& context) noexcept;
 
-} // namespace Detail
+} // namespace Aero::Meta::Detail
+
+namespace Aero::Meta {
 
 inline constexpr Base::StringView CoreMetadataModuleName() noexcept {
     return "Aero.Core";
@@ -630,7 +638,7 @@ inline Base::Result<void> RegisterCoreMetadata(
 
 #include <Aero/Base/Result.hpp>
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace ::Aero::Meta;
 
@@ -661,10 +669,10 @@ inline Base::Result<void> RegisterUiMetadata(
         nullptr});
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail
 
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 class MetadataPrivate {
 public:
@@ -679,7 +687,7 @@ public:
     }
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail
 
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/String.hpp>
@@ -697,10 +705,14 @@ public:
 
 namespace Aero::Meta {
 
-namespace Detail {
+} // namespace Aero::Meta
+
+namespace Aero::Meta::Detail {
 class MetaTable;
 class MetadataAuthoringSession;
-}
+} // namespace Aero::Meta::Detail
+
+namespace Aero::Meta {
 class RegistrationTypes;
 template<class T>
 class TypeDescription;
@@ -732,7 +744,7 @@ public:
 
 private:
     friend class ::Aero::Meta::Registry;
-    friend class ::Aero::Internal::MetaTable;
+    friend class ::Aero::GuiPrivate::Detail::MetaTable;
     friend class Detail::MetaTable;
     friend class Detail::MetadataAuthoringSession;
     friend class RegistrationTypes;
@@ -888,9 +900,13 @@ private:
 
 namespace Aero::Meta {
 
-namespace Detail {
+} // namespace Aero::Meta
+
+namespace Aero::Meta::Detail {
 class MetaTable;
-}
+} // namespace Aero::Meta::Detail
+
+namespace Aero::Meta {
 class RegistrationValues;
 
 // Mutable registration storage for custom value semantics and text converters.
@@ -917,7 +933,7 @@ public:
 
 private:
     friend class ::Aero::Meta::Registry;
-    friend class ::Aero::Internal::MetaTable;
+    friend class ::Aero::GuiPrivate::Detail::MetaTable;
     friend class Detail::MetaTable;
     friend class RegistrationValues;
 
@@ -995,7 +1011,7 @@ private:
 
 #include <Aero/DependencyProperty.hpp>
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace ::Aero::Meta;
 
@@ -1007,7 +1023,7 @@ struct RegistrationState {
     RoutedEventTable* events = nullptr;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail
 
 // Private helpers for sealing value behavior into MetadataFacets.
 
@@ -1036,7 +1052,7 @@ class DependencyProperty;
 class DependencyPropertyRegistry;
 }
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace ::Aero::Meta;
 
@@ -1296,10 +1312,10 @@ private:
         MetadataFacetKind kind) const noexcept;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail
 
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace ::Aero::Meta;
 
@@ -1309,4 +1325,4 @@ Base::Result<Base::HashCode> ComputeMetadataValueFacetHash(
     const MetaTable& facets,
     const TypeRegistry& descriptors) noexcept;
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

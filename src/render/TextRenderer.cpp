@@ -334,8 +334,8 @@ TextRenderer::CollectGarbage() noexcept {
 }
 
 Base::Result<void> TextRenderer::ShapeAndPrepare(
-    const Internal::TextLayoutRequest& request,
-    Internal::TextLayoutResult& output) noexcept {
+    const ::Aero::Controls::Detail::TextLayoutRequest& request,
+    ::Aero::Controls::Detail::TextLayoutResult& output) noexcept {
     if (!IsInitialized()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,

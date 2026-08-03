@@ -14,7 +14,7 @@
 
 namespace Aero::Text { class FontManager; }
 
-namespace Aero::Internal {
+namespace Aero::Render::Detail {
 
 struct ImageResources {
     std::uint64_t generation = 0U;
@@ -49,13 +49,13 @@ struct TextConfig {
 struct TextResources {
     std::uint64_t generation = 0U;
     void* context = nullptr;
-    Base::Result<Internal::TextBlockLayout*> (*create)(
+    Base::Result<::Aero::Controls::Detail::TextBlockLayout*> (*create)(
         void*, Text::FontManager&, const TextConfig&,
         Base::IAllocator&) noexcept = nullptr;
     void (*destroy)(
-        void*, Internal::TextBlockLayout*) noexcept = nullptr;
+        void*, ::Aero::Controls::Detail::TextBlockLayout*) noexcept = nullptr;
     Base::Result<std::uint32_t> (*collect)(
-        void*, Internal::TextBlockLayout*) noexcept = nullptr;
+        void*, ::Aero::Controls::Detail::TextBlockLayout*) noexcept = nullptr;
 };
 
 // One resource seam between View and the selected native renderer. It replaces
@@ -67,4 +67,4 @@ struct RenderResources {
     ImageResources* images = nullptr;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Render::Detail

@@ -11,7 +11,7 @@
 
 namespace Aero::Render::Detail {
 
-using TextConfig = Aero::Internal::TextConfig;
+using TextConfig = Aero::Render::Detail::TextConfig;
 
 class GlyphRunResourceSink {
 public:
@@ -30,7 +30,7 @@ public:
 };
 
 class TextRenderer
-    : public Internal::TextBlockLayout {
+    : public ::Aero::Controls::Detail::TextBlockLayout {
 public:
     TextRenderer(
         Text::FontManager& fonts,
@@ -53,8 +53,8 @@ public:
     bool IsInitialized() const noexcept;
 
     Base::Result<void> ShapeAndPrepare(
-        const Internal::TextLayoutRequest& request,
-        Internal::TextLayoutResult& output) noexcept override;
+        const ::Aero::Controls::Detail::TextLayoutRequest& request,
+        ::Aero::Controls::Detail::TextLayoutResult& output) noexcept override;
     void ReleaseGlyphRun(
         Render::RenderGlyphRunId glyphRun) noexcept override;
 

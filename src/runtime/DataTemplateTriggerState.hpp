@@ -8,7 +8,7 @@
 
 #include <cstdint>
 
-namespace Aero::Internal {
+namespace Aero::Runtime::Detail {
 
 struct DataTemplateTriggerSetter {
     Base::Ref<::Aero::DependencyObject> target;
@@ -71,4 +71,4 @@ public:
     Base::Vector<DataTemplatePropertyTrigger> triggers;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Runtime::Detail

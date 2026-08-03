@@ -8,14 +8,12 @@
 #include <Aero/Base/Span.hpp>
 #include <Aero/Threading.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include "gui/PropertyInternal.hpp"
-
 #include <cstdint>
 
-namespace Aero::Internal::Animation {
+namespace Aero::Media::Detail::Animation {
 
-using AnimationTime = Media::Animation::AnimationTime;
-using FillBehavior = Media::Animation::FillBehavior;
+using AnimationTime = ::Aero::Media::Animation::AnimationTime;
+using FillBehavior = ::Aero::Media::Animation::FillBehavior;
 
 enum class AnimationState : std::uint8_t {
     Active = 0U,
@@ -24,7 +22,7 @@ enum class AnimationState : std::uint8_t {
     Stopped
 };
 
-using EasingMode = Media::Animation::EasingMode;
+using EasingMode = ::Aero::Media::Animation::EasingMode;
 
 enum class EasingFunctionKind : std::uint8_t {
     Linear = 0U,
@@ -194,4 +192,4 @@ struct AnimationDiagnostics {
 };
 
 
-} // namespace Aero::Internal::Animation
+} // namespace Aero::Media::Detail::Animation

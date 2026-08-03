@@ -1027,20 +1027,20 @@ void OnRenderTransformChanged(
     Base::Result<Base::Ref<Transform>> oldTransform =
         ValueCodec<Base::Ref<Transform>>::Decode(args.GetOldValue());
     if (oldTransform && oldTransform.Value() &&
-        Internal::TransformPrivate::Owner(
+        ::Aero::Media::Detail::TransformPrivate::Owner(
             *oldTransform.Value()) == owner) {
-        Internal::TransformPrivate::DetachOwner(
+        ::Aero::Media::Detail::TransformPrivate::DetachOwner(
             *oldTransform.Value(), owner,
-            Internal::OwnerRoleValue(
-                Internal::TransformOwnerRole::Render));
+            ::Aero::Media::Detail::OwnerRoleValue(
+                ::Aero::Media::Detail::TransformOwnerRole::Render));
     }
     Base::Result<Base::Ref<Transform>> newTransform =
         ValueCodec<Base::Ref<Transform>>::Decode(args.GetNewValue());
     if (newTransform && newTransform.Value()) {
-        Internal::TransformPrivate::AttachOwner(
+        ::Aero::Media::Detail::TransformPrivate::AttachOwner(
             *newTransform.Value(), owner,
-            Internal::OwnerRoleValue(
-                Internal::TransformOwnerRole::Render));
+            ::Aero::Media::Detail::OwnerRoleValue(
+                ::Aero::Media::Detail::TransformOwnerRole::Render));
     }
 }
 
@@ -1056,21 +1056,21 @@ void OnLayoutTransformChanged(
             args.GetOldValue());
     if (oldTransform &&
         oldTransform.Value() &&
-        Internal::TransformPrivate::Owner(
+        ::Aero::Media::Detail::TransformPrivate::Owner(
             *oldTransform.Value()) == owner) {
-        Internal::TransformPrivate::DetachOwner(
+        ::Aero::Media::Detail::TransformPrivate::DetachOwner(
             *oldTransform.Value(), owner,
-            Internal::OwnerRoleValue(
-                Internal::TransformOwnerRole::Layout));
+            ::Aero::Media::Detail::OwnerRoleValue(
+                ::Aero::Media::Detail::TransformOwnerRole::Layout));
     }
     Base::Result<Base::Ref<Transform>> newTransform =
         ValueCodec<Base::Ref<Transform>>::Decode(
             args.GetNewValue());
     if (newTransform && newTransform.Value()) {
-        Internal::TransformPrivate::AttachOwner(
+        ::Aero::Media::Detail::TransformPrivate::AttachOwner(
             *newTransform.Value(), owner,
-            Internal::OwnerRoleValue(
-                Internal::TransformOwnerRole::Layout));
+            ::Aero::Media::Detail::OwnerRoleValue(
+                ::Aero::Media::Detail::TransformOwnerRole::Layout));
     }
 }
 
@@ -1084,16 +1084,16 @@ void OnEffectChanged(
         ValueCodec<Base::Ref<Effect>>::Decode(
             args.GetOldValue());
     if (oldEffect && oldEffect.Value() &&
-        Internal::EffectPrivate::Owner(
+        ::Aero::Media::Detail::EffectPrivate::Owner(
             *oldEffect.Value()) == owner) {
-        Internal::EffectPrivate::SetOwner(
+        ::Aero::Media::Detail::EffectPrivate::SetOwner(
             *oldEffect.Value(), nullptr);
     }
     Base::Result<Base::Ref<Effect>> newEffect =
         ValueCodec<Base::Ref<Effect>>::Decode(
             args.GetNewValue());
     if (newEffect && newEffect.Value()) {
-        Internal::EffectPrivate::SetOwner(
+        ::Aero::Media::Detail::EffectPrivate::SetOwner(
             *newEffect.Value(), owner);
     }
 }

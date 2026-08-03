@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Layout.hpp>
 
@@ -79,7 +79,7 @@ struct UIElement::Impl {
 
 } // namespace Aero
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -109,8 +109,8 @@ private:
     Dispatcher* dispatcher_ = nullptr;
     UIElement* root_ = nullptr;
     Size rootAvailableSize_;
-    Base::Vector<Aero::Internal::VisualLease> measureQueue_;
-    Base::Vector<Aero::Internal::VisualLease> arrangeQueue_;
+    Base::Vector<Aero::GuiPrivate::Detail::VisualLease> measureQueue_;
+    Base::Vector<Aero::GuiPrivate::Detail::VisualLease> arrangeQueue_;
     DispatcherFrameHookHandle phaseHook_;
     std::uint64_t passVersion_ = 0U;
     std::uint32_t measuredCount_ = 0U;
@@ -127,4 +127,4 @@ private:
     static void LayoutHook(void* context) noexcept;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

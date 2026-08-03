@@ -2,12 +2,12 @@
 
 // ===== CoreMetadata =====
 
-#include "MetadataInternal.hpp"
-#include "../media/TransformInternals.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "../media/MediaPrivate.hpp"
 
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
-#include "PropertyInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Meta {
 Base::Result<void> Detail::PopulateCoreMetadata(
@@ -94,10 +94,10 @@ Base::Result<void> Detail::PopulateCoreMetadata(
 
 // ===== UiMetadata =====
 
-#include "gui/MetadataInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Input.hpp>
@@ -107,28 +107,28 @@ Base::Result<void> Detail::PopulateCoreMetadata(
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Layout.hpp>
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/ContentElement.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Media/Transforms.hpp>
-#include "media/TransformInternals.hpp"
-#include "media/EffectInternals.hpp"
+#include "media/MediaPrivate.hpp"
+#include "media/MediaPrivate.hpp"
 
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <utility>
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Input;
 using namespace Aero::Media;
 using namespace Aero::Data;
-using namespace Aero::Internal::Animation;
+using namespace Aero::Media::Detail::Animation;
 namespace {
 #include "gui/Support.inl"
 #include "gui/Resources.inl"
@@ -159,4 +159,4 @@ Base::Result<void> PopulateUiMetadata(
     return {};
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

@@ -1,15 +1,15 @@
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 #include "../render/DisplayList.hpp"
 #include "ImageCache.hpp"
 
-#include "media/BrushInternals.hpp"
+#include "media/MediaPrivate.hpp"
 
 #include <Aero/Controls/Common.hpp>
 #include <Aero/Shapes.hpp>
 
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -40,8 +40,10 @@ public:
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Runtime::Detail {
 using ImageControlPrivate = ::Aero::Controls::Image::Impl;
+using ImageResources = ::Aero::Render::Detail::ImageResources;
+using BrushPrivate = ::Aero::Media::Detail::BrushPrivate;
 
 namespace {
 
@@ -188,7 +190,7 @@ Base::Result<bool> ImageCache::Synchronize(
         pending.PopBack();
         if (visual == nullptr) continue;
         for (Aero::Visual* child :
-             Aero::Internal::ElementPrivate::VisualChildren(*visual)) {
+             Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*visual)) {
             Base::Result<void> queued =
                 pending.PushBack(child);
             if (!queued) return queued.GetStatus();
@@ -503,4 +505,4 @@ void ImageCache::Shutdown(
     records_.Clear();
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Runtime::Detail

@@ -8,13 +8,13 @@
 #include <Aero/Base/Result.hpp>
 #include "render/RenderDevice.hpp"
 
-namespace Aero::Render {
-
-class D3D11Renderer;
-class OpenGL33Renderer;
-namespace Detail {
+namespace Aero::Render::Detail {
 class RendererGlyphRunSink;
 }
+
+namespace Aero::Render {
+class D3D11Renderer;
+class OpenGL33Renderer;
 
 struct RendererShaderSet  {
     Graphics::ShaderDescriptor rectangleVertex;

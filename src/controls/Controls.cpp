@@ -1,16 +1,16 @@
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Common.hpp>
 #include <Aero/Shapes.hpp>
 #include "../media/BrushRendering.hpp"
-#include "../media/BrushInternals.hpp"
-#include "../render/DrawingInternals.hpp"
+#include "../media/MediaPrivate.hpp"
+#include "../render/RenderPrivate.hpp"
 #include <Aero/Documents.hpp>
 
 #include "TextBlockLayout.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -136,7 +136,7 @@ EffectiveGridSpan CoerceGridSpan(
 
 void Panel::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     static_cast<void>(PaintBrushRect(
         builder,
         GetBackground(),
@@ -148,7 +148,7 @@ void Panel::OnRender(
 
 void Control::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     static_cast<void>(PaintBrushRect(
         builder,
         GetBackground(),
@@ -1471,7 +1471,7 @@ Size Border::ArrangeOverride(Size finalSize) noexcept {
 
 void Border::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     const Rect bounds{0.0, 0.0, GetRenderSize().width, GetRenderSize().height};
     if (bounds.width <= 0.0 ||
         bounds.height <= 0.0) {
@@ -1489,7 +1489,7 @@ void Border::OnRender(
         std::min(
             bounds.width,
             bounds.height) * 0.5);
-    const Color brush = ::Aero::Internal::SampleBrush(GetBorderBrush());
+    const Color brush = ::Aero::Media::Detail::SampleBrush(GetBorderBrush());
     const Thickness thickness = GetBorderThickness();
     const bool uniform =
         thickness.left == thickness.top &&
@@ -1521,7 +1521,7 @@ void Border::OnRender(
         }
         static_cast<void>(builder.FillRoundedRect(
             inner,
-            ::Aero::Internal::SampleBrush(GetBackground()),
+            ::Aero::Media::Detail::SampleBrush(GetBackground()),
             std::min(
                 std::max(0.0, radius - inset),
                 std::min(
@@ -1531,8 +1531,8 @@ void Border::OnRender(
     }
     Base::Result<void> fill = radius > 0.0
         ? builder.FillRoundedRect(
-              bounds, ::Aero::Internal::SampleBrush(GetBackground()), radius)
-        : builder.FillRect(bounds, ::Aero::Internal::SampleBrush(GetBackground()));
+              bounds, ::Aero::Media::Detail::SampleBrush(GetBackground()), radius)
+        : builder.FillRect(bounds, ::Aero::Media::Detail::SampleBrush(GetBackground()));
     if (!fill) return;
     if (uniformThickness > 0.0 &&
         brush.alpha > 0.0F) {
@@ -1778,7 +1778,7 @@ Base::Result<void> TextBlock::AddOwnedInline(
         ownedInlines_.PushBack(inlineObject);
     if (!appended) return appended.GetStatus();
     auto& inlineValue = *static_cast<Documents::Inline*>(inlineObject.Get());
-    Aero::Internal::ElementPrivate::Attach(
+    Aero::GuiPrivate::Detail::ElementPrivate::Attach(
         inlineValue, this, this, nullptr);
     pendingInline_ = inlineObject;
     return InvalidateMeasure();
@@ -1789,7 +1789,7 @@ void TextBlock::ClearOwnedInlines() noexcept {
     if (!access) return;
     for (Base::Ref<Base::Object>& item : ownedInlines_) {
         if (item) {
-            Aero::Internal::ElementPrivate::Detach(
+            Aero::GuiPrivate::Detail::ElementPrivate::Detach(
                 *static_cast<Documents::Inline*>(item.Get()));
         }
     }
@@ -1864,7 +1864,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
                 if (!invalidated) return Size{};
             }
         } else {
-            Internal::TextLayoutRequest request;
+            ::Aero::Controls::Detail::TextLayoutRequest request;
             request.text = text;
             request.availableSize = availableSize;
             request.dpiScale = GetDpiScale();
@@ -1873,9 +1873,9 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
             request.wrapping = GetTextWrapping();
             request.trimming = GetTextTrimming();
             request.alignment = GetTextAlignment();
-            Internal::TextLayoutResult output;
+            ::Aero::Controls::Detail::TextLayoutResult output;
             Base::Result<void> prepared =
-                static_cast<::Aero::Internal::TextBlockLayout*>(layoutService_)->ShapeAndPrepare(request, output);
+                static_cast<::Aero::Controls::Detail::TextBlockLayout*>(layoutService_)->ShapeAndPrepare(request, output);
             if (!prepared) return Size{};
             bool validGlyphRuns = true;
             for (RenderGlyphRunId glyphRun : output.glyphRuns) {
@@ -1887,7 +1887,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
             if (!IsValidTextSize(output.desiredSize) || !validGlyphRuns) {
                 for (RenderGlyphRunId glyphRun : output.glyphRuns) {
                     if (glyphRun != InvalidRenderGlyphRunId) {
-                        static_cast<::Aero::Internal::TextBlockLayout*>(layoutService_)->ReleaseGlyphRun(glyphRun);
+                        static_cast<::Aero::Controls::Detail::TextBlockLayout*>(layoutService_)->ReleaseGlyphRun(glyphRun);
                     }
                 }
                 return Size{};
@@ -1929,8 +1929,8 @@ Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
 
 void TextBlock::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
-    const Color background = ::Aero::Internal::SampleBrush(GetBackground());
+    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    const Color background = ::Aero::Media::Detail::SampleBrush(GetBackground());
     if (background.alpha > 0.0F) {
         Base::Result<void> filled =
             builder.FillRect(
@@ -1942,7 +1942,7 @@ void TextBlock::OnRender(
     }
     for (RenderGlyphRunId glyphRun : glyphRuns_) {
         Base::Result<void> drawn =
-            builder.DrawGlyphRun(glyphRun, ::Aero::Internal::SampleBrush(GetForeground(), 0.5,
+            builder.DrawGlyphRun(glyphRun, ::Aero::Media::Detail::SampleBrush(GetForeground(), 0.5,
                 Color{0.0F, 0.0F, 0.0F, 1.0F}));
         if (!drawn) return;
     }
@@ -1956,7 +1956,7 @@ void TextBlock::OnRender(
             glyphRunSize_.height - thickness * 1.5);
         static_cast<void>(builder.FillRect(
             {0.0, y, glyphRunSize_.width, thickness},
-            ::Aero::Internal::SampleBrush(GetForeground(), 0.5,
+            ::Aero::Media::Detail::SampleBrush(GetForeground(), 0.5,
                 Color{0.0F, 0.0F, 0.0F, 1.0F})));
     }
     return;
@@ -1966,7 +1966,7 @@ void TextBlock::ReleaseServiceGlyphRun() noexcept {
     if (serviceOwnsGlyphRun_ &&
         layoutService_ != nullptr) {
         for (RenderGlyphRunId glyphRun : glyphRuns_) {
-            static_cast<::Aero::Internal::TextBlockLayout*>(layoutService_)->ReleaseGlyphRun(glyphRun);
+            static_cast<::Aero::Controls::Detail::TextBlockLayout*>(layoutService_)->ReleaseGlyphRun(glyphRun);
         }
     }
     serviceOwnsGlyphRun_ = false;

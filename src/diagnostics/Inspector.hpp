@@ -1,10 +1,10 @@
 #pragma once
 
-namespace Aero::Internal { class TemplateEngine; }
+namespace Aero::Controls::Detail { class TemplateEngine; }
 
-#include "gui/ElementInternal.hpp"
-#include "../controls/TemplateInternals.hpp"
-#include "gui/BindingInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "../controls/ControlsPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include "render/RenderTree.hpp"
 
@@ -64,7 +64,7 @@ struct InspectorSnapshot {
     Base::Ref<Base::Object> dataContext;
     const Aero::Style*
         appliedStyle = nullptr;
-    Internal::TemplateHandle
+    ::Aero::Controls::Detail::TemplateHandle
         appliedTemplate;
     Base::Rect layoutRect;
     Base::Rect layoutClip;
@@ -80,13 +80,13 @@ public:
     Inspector(
         Aero::ElementTree& tree,
         Meta::EffectiveValueEngine& values,
-        Aero::Internal::BindingEngine&
+        Aero::GuiPrivate::Detail::BindingEngine&
             bindings,
-        Internal::RenderTree&
+        ::Aero::Render::Detail::RenderTree&
             renderer,
-        Aero::Internal::StyleEngine*
+        Aero::GuiPrivate::Detail::StyleEngine*
             styles = nullptr,
-        Aero::Internal::TemplateEngine*
+        Aero::Controls::Detail::TemplateEngine*
             templates = nullptr) noexcept
         : tree_(&tree),
           values_(&values),
@@ -111,13 +111,13 @@ private:
         nullptr;
     Meta::EffectiveValueEngine* values_ =
         nullptr;
-    Aero::Internal::BindingEngine*
+    Aero::GuiPrivate::Detail::BindingEngine*
         bindings_ = nullptr;
-    Internal::RenderTree*
+    ::Aero::Render::Detail::RenderTree*
         renderer_ = nullptr;
-    Aero::Internal::StyleEngine* styles_ =
+    Aero::GuiPrivate::Detail::StyleEngine* styles_ =
         nullptr;
-    Aero::Internal::TemplateEngine*
+    Aero::Controls::Detail::TemplateEngine*
         templates_ = nullptr;
 };
 

@@ -1,19 +1,19 @@
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Primitives.hpp>
-#include "../render/DrawingInternals.hpp"
-#include "../media/BrushInternals.hpp"
+#include "../render/RenderPrivate.hpp"
+#include "../media/MediaPrivate.hpp"
 #include <Aero/Value.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include "gui/RoutedEventInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Internal::ScrollBehavior;
-using Aero::Internal::SliderBehavior;
+using Aero::Controls::Detail::ScrollBehavior;
+using Aero::Controls::Detail::SliderBehavior;
 
 using namespace Primitives;
 using namespace ::Aero::Render;
@@ -859,7 +859,7 @@ void ScrollViewer::OnScrollDataChanged(
     if (events_ != nullptr) {
         ScrollChangedEventArgs args(oldData, newData, kind);
         static_cast<void>(
-            static_cast<Aero::Internal::EventRouter*>(events_)->RaiseEvent(
+            static_cast<Aero::GuiPrivate::Detail::EventRouter*>(events_)->RaiseEvent(
             *this, ScrollChangedEvent, &args));
     }
 }
@@ -1727,7 +1727,7 @@ Size Slider::ArrangeOverride(
 
 void Slider::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     const TickPlacement placement =
         GetTickPlacement();
     const Size size = GetRenderSize();
@@ -1752,7 +1752,7 @@ void Slider::OnRender(
     const double travel =
         std::max(0.0,
             primary - thumbLength);
-    const Color color = ::Aero::Internal::SampleBrush(GetForeground());
+    const Color color = ::Aero::Media::Detail::SampleBrush(GetForeground());
     Color trackColor = color;
     trackColor.alpha *= 0.35F;
     const double normalized =
@@ -1940,7 +1940,7 @@ void TickBar::SetPlacement(
 
 void TickBar::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     DependencyObject* parent = GetTemplatedParent();
     if (parent == nullptr ||
         !PropertyRegistry().Types().IsDerivedFrom(
@@ -1957,8 +1957,8 @@ void TickBar::OnRender(
     const double range = slider.GetMaximum() - slider.GetMinimum();
     if (primary <= 0.0 || range < 0.0) return;
 
-    const Color color = ::Aero::Internal::SampleBrush(
-        GetFill(), 0.5, ::Aero::Internal::SampleBrush(GetForeground()));
+    const Color color = ::Aero::Media::Detail::SampleBrush(
+        GetFill(), 0.5, ::Aero::Media::Detail::SampleBrush(GetForeground()));
     constexpr double thumbLength = 14.0;
     const double start = std::min(
         primary * 0.5, thumbLength * 0.5);
@@ -2073,7 +2073,8 @@ namespace Aero::Controls {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 ScrollViewer::Impl::Impl(
     ElementTree& tree,
@@ -2098,7 +2099,7 @@ ScrollViewer::Impl::~Impl() noexcept {
 
 std::uint32_t ScrollViewer::Impl::FindViewer(
     const ScrollViewer& viewer) const noexcept {
-    const VisualHandle handle = Aero::Internal::ElementPrivate::Handle(viewer);
+    const VisualHandle handle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(viewer);
     for (std::uint32_t index = 0U;
         index < viewers_.Size(); ++index) {
         if (viewers_[index].viewer == &viewer ||
@@ -2124,8 +2125,8 @@ Base::Result<void> ScrollViewer::Impl::Attach(
             Base::ErrorCode::InvalidState,
             "ScrollViewer belongs to another interaction manager");
     }
-    if (Aero::Internal::ElementPrivate::Tree(viewer) != tree_ ||
-        !Aero::Internal::ElementPrivate::Handle(viewer).IsValid()) {
+    if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(viewer) != tree_ ||
+        !Aero::GuiPrivate::Detail::ElementPrivate::Handle(viewer).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ScrollViewer must be loaded in the interaction tree");
@@ -2137,7 +2138,7 @@ Base::Result<void> ScrollViewer::Impl::Attach(
     if (!handler) return handler.GetStatus();
     Base::Result<void> added =
         viewers_.PushBack(
-            {&viewer, Aero::Internal::ElementPrivate::Handle(viewer)});
+            {&viewer, Aero::GuiPrivate::Detail::ElementPrivate::Handle(viewer)});
     if (!added) {
         static_cast<void>(viewer.RemoveHandler(
             UIElement::MouseWheelEvent,
@@ -2231,7 +2232,7 @@ std::uint32_t Slider::Impl::Find(
     for (std::uint32_t index = 0U;
          index < sliders_.Size(); ++index) {
         const VisualHandle current =
-            Aero::Internal::ElementPrivate::Handle(slider);
+            Aero::GuiPrivate::Detail::ElementPrivate::Handle(slider);
         if (sliders_[index].handle.index ==
                 current.index &&
             sliders_[index].handle.generation ==
@@ -2275,8 +2276,8 @@ Base::Result<void> Slider::Impl::Attach(
             Base::ErrorCode::AlreadyExists,
             "Slider is already attached");
     }
-    if (Aero::Internal::ElementPrivate::Tree(slider) != tree_ ||
-        !Aero::Internal::ElementPrivate::Handle(slider).IsValid()) {
+    if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(slider) != tree_ ||
+        !Aero::GuiPrivate::Detail::ElementPrivate::Handle(slider).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Slider must be loaded in the interaction tree");
@@ -2325,7 +2326,7 @@ Base::Result<void> Slider::Impl::Attach(
     }
     Base::Result<void> appended =
         sliders_.PushBack(
-            {Aero::Internal::ElementPrivate::Handle(slider), 0U, false});
+            {Aero::GuiPrivate::Detail::ElementPrivate::Handle(slider), 0U, false});
     if (!appended) {
         static_cast<void>(slider.RemoveHandler(
             UIElement::MouseDownEvent,

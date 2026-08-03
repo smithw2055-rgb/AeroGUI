@@ -1,19 +1,19 @@
 #include <Aero/Styling.hpp>
-#include "TemplateInternals.hpp"
-#include "ControlInternals.hpp"
+#include "controls/ControlsPrivate.hpp"
+#include "controls/ControlsPrivate.hpp"
 
 #include <Aero/Value.hpp>
 #include <Aero/Media/Transforms.hpp>
-#include "../media/AnimationInternals.hpp"
+#include "../media/MediaPrivate.hpp"
 
 #include <algorithm>
 #include <new>
 #include <utility>
 #include "ControlBehavior.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 void ControlBehavior::SetVisualStateManager(
     Control& control,
@@ -22,15 +22,16 @@ void ControlBehavior::SetVisualStateManager(
         control, visualStates);
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail
 
 namespace Aero::Controls {
-using Aero::Internal::TemplateEngine;
-using Aero::Internal::TemplateHandle;
-using namespace Aero::Internal::Animation;
+using Aero::Controls::Detail::TemplateEngine;
+using Aero::Controls::Detail::TemplateHandle;
+using namespace Aero::Media::Detail::Animation;
 using namespace ::Aero::Meta;
 using namespace ::Aero::Media;
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 namespace {
 
 struct AnimationTarget {
@@ -388,11 +389,11 @@ Base::Result<AnimationTarget> ResolveAnimationTarget(
     return AnimationTarget{target, property->Handle()};
 }
 
-Aero::Internal::Animation::TimelineTiming ComposeTiming(
+Aero::Media::Detail::Animation::TimelineTiming ComposeTiming(
     const Media::Animation::Timeline& timeline,
-    const Aero::Internal::Animation::TimelineTiming& parent) noexcept {
-    Aero::Internal::Animation::TimelineTiming timing =
-        Aero::Internal::AnimationPrivate::Timing(timeline);
+    const Aero::Media::Detail::Animation::TimelineTiming& parent) noexcept {
+    Aero::Media::Detail::Animation::TimelineTiming timing =
+        Aero::Media::Detail::AnimationPrivate::Timing(timeline);
     if (UINT64_MAX - timing.beginTimeMicroseconds <
         parent.beginTimeMicroseconds) {
         timing.beginTimeMicroseconds = UINT64_MAX;
@@ -415,14 +416,16 @@ Aero::Internal::Animation::TimelineTiming ComposeTiming(
 
 } // namespace
 
-namespace Detail {
+} // namespace Aero::Controls
+
+namespace Aero::Controls::Detail {
 
 class VisualStateManagerImpl {
 public:
     VisualStateManagerImpl(
         EffectiveValueEngine& values,
         TemplateEngine& templates,
-        Aero::Internal::AnimationEngine& animations,
+        Aero::GuiPrivate::Detail::AnimationEngine& animations,
         DependencyPropertyRegistry& properties) noexcept
         : values_(&values),
           templates_(&templates),
@@ -447,7 +450,7 @@ private:
         std::uint64_t templateValue = 0U;
         Base::String groupName;
         Base::String stateName;
-        Base::Vector<Aero::Internal::Animation::AnimationHandle> animations;
+        Base::Vector<Aero::Media::Detail::Animation::AnimationHandle> animations;
     };
 
     struct TransitionValue {
@@ -459,7 +462,7 @@ private:
 
     EffectiveValueEngine* values_ = nullptr;
     TemplateEngine* templates_ = nullptr;
-    Aero::Internal::AnimationEngine* animations_ = nullptr;
+    Aero::GuiPrivate::Detail::AnimationEngine* animations_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     Base::Vector<ActiveGroup> active_;
 
@@ -487,13 +490,13 @@ private:
         TemplateHandle handle,
         const VisualState& state,
         ActiveGroup& active,
-        const Aero::Internal::Animation::TimelineTiming& parent = {}) noexcept;
+        const Aero::Media::Detail::Animation::TimelineTiming& parent = {}) noexcept;
     Base::Result<void> StartStoryboardAnimations(
         Control& control,
         TemplateHandle handle,
         Media::Animation::Storyboard& storyboard,
         ActiveGroup& active,
-        const Aero::Internal::Animation::TimelineTiming& parent = {}) noexcept;
+        const Aero::Media::Detail::Animation::TimelineTiming& parent = {}) noexcept;
     Base::Result<void> CaptureTransitionValues(
         TemplateHandle handle,
         const VisualState& next,
@@ -509,13 +512,22 @@ private:
     void RemoveActiveAt(std::uint32_t index) noexcept;
 };
 
-} // namespace Detail
+} // namespace Aero::Controls::Detail
+
+namespace Aero::Controls {
+using Aero::Controls::Detail::TemplateEngine;
+using Aero::Controls::Detail::TemplateHandle;
+using namespace Aero::Media::Detail::Animation;
+using namespace ::Aero::Meta;
+using namespace ::Aero::Media;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 Base::Result<VisualStateManager*>
 VisualStateManager::Impl::Create(
     Meta::EffectiveValueEngine& values,
-    ::Aero::Internal::TemplateEngine& templates,
-    ::Aero::Internal::AnimationEngine& animations,
+    ::Aero::Controls::Detail::TemplateEngine& templates,
+    ::Aero::GuiPrivate::Detail::AnimationEngine& animations,
     Meta::DependencyPropertyRegistry& properties) noexcept {
     auto* manager = new (std::nothrow) VisualStateManager();
     if (manager == nullptr) {
@@ -672,7 +684,7 @@ void Detail::VisualStateManagerImpl::PruneStale() noexcept {
 Base::Result<void> Detail::VisualStateManagerImpl::ClearStateAnimations(
     ActiveGroup& active) noexcept {
     Base::Status first;
-    for (Aero::Internal::Animation::AnimationHandle animation :
+    for (Aero::Media::Detail::Animation::AnimationHandle animation :
          active.animations) {
         Base::Result<void> removed =
             animations_->Remove(animation);
@@ -691,7 +703,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStateAnimations(
     TemplateHandle handle,
     const VisualState& state,
     ActiveGroup& active,
-    const Aero::Internal::Animation::TimelineTiming& parent) noexcept {
+    const Aero::Media::Detail::Animation::TimelineTiming& parent) noexcept {
     if (!state.storyboard) return {};
     return StartStoryboardAnimations(
         control,
@@ -706,17 +718,17 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
     TemplateHandle handle,
     Media::Animation::Storyboard& root,
     ActiveGroup& active,
-    const Aero::Internal::Animation::TimelineTiming& parent) noexcept {
+    const Aero::Media::Detail::Animation::TimelineTiming& parent) noexcept {
     const auto startTimeline =
         [&](const auto& self,
             Media::Animation::Timeline& timeline,
-            const Aero::Internal::Animation::TimelineTiming& parent)
+            const Aero::Media::Detail::Animation::TimelineTiming& parent)
             -> Base::Result<void> {
         if (timeline.RuntimeType() ==
             Media::Animation::Storyboard::StaticTypeId()) {
             auto& storyboard =
                 static_cast<Media::Animation::Storyboard&>(timeline);
-            const Aero::Internal::Animation::TimelineTiming timing =
+            const Aero::Media::Detail::Animation::TimelineTiming timing =
                 ComposeTiming(storyboard, parent);
             for (const Base::Ref<Media::Animation::Timeline>& child :
                  storyboard.GetTimelines()) {
@@ -734,7 +746,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
                 *templates_, *properties_);
         if (!resolved) return resolved.GetStatus();
 
-        Base::Result<Aero::Internal::Animation::AnimationHandle> started =
+        Base::Result<Aero::Media::Detail::Animation::AnimationHandle> started =
             Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "VisualState Storyboard contains an unsupported Timeline");
@@ -742,8 +754,8 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
             Media::Animation::DoubleAnimation::StaticTypeId()) {
             auto& authored =
                 static_cast<Media::Animation::DoubleAnimation&>(timeline);
-            Aero::Internal::Animation::DoubleAnimation runtime =
-                Aero::Internal::AnimationPrivate::Double(authored);
+            Aero::Media::Detail::Animation::DoubleAnimation runtime =
+                Aero::Media::Detail::AnimationPrivate::Double(authored);
             runtime.timing = ComposeTiming(authored, parent);
             started = animations_->Begin(
                 *resolved.Value().object,
@@ -753,8 +765,8 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
                    Media::Animation::ColorAnimation::StaticTypeId()) {
             auto& authored =
                 static_cast<Media::Animation::ColorAnimation&>(timeline);
-            Aero::Internal::Animation::ColorAnimation runtime =
-                Aero::Internal::AnimationPrivate::Color(authored);
+            Aero::Media::Detail::Animation::ColorAnimation runtime =
+                Aero::Media::Detail::AnimationPrivate::Color(authored);
             runtime.timing = ComposeTiming(authored, parent);
             started = animations_->Begin(
                 *resolved.Value().object,
@@ -766,21 +778,21 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
             auto& authored = static_cast<
                 Media::Animation::DoubleAnimationUsingKeyFrames&>(
                     timeline);
-            Base::Vector<Aero::Internal::Animation::DoubleKeyFrame>
+            Base::Vector<Aero::Media::Detail::Animation::DoubleKeyFrame>
                 frames;
             for (const Base::Ref<Media::Animation::DoubleKeyFrame>&
                      frame : authored.GetKeyFrames()) {
                 if (!frame) continue;
                 Base::Result<void> appended =
                     frames.PushBack(
-                        Aero::Internal::AnimationPrivate::DoubleFrame(*frame));
+                        Aero::Media::Detail::AnimationPrivate::DoubleFrame(*frame));
                 if (!appended) {
                     return appended.GetStatus();
                 }
             }
             for (std::uint32_t index = 1U;
                  index < frames.Size(); ++index) {
-                Aero::Internal::Animation::DoubleKeyFrame current =
+                Aero::Media::Detail::Animation::DoubleKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -806,7 +818,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
                 ValueCodec<double>::Decode(
                     base.Value());
             if (!decoded) return decoded.GetStatus();
-            Aero::Internal::Animation::DoubleKeyFrameAnimation runtime;
+            Aero::Media::Detail::Animation::DoubleKeyFrameAnimation runtime;
             runtime.baseValue = decoded.Value();
             runtime.timing =
                 ComposeTiming(authored, parent);
@@ -827,7 +839,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
                 Media::Animation::BooleanAnimationUsingKeyFrames::
                     StaticTypeId()) {
             Base::Vector<
-                Aero::Internal::Animation::DiscreteAnimationKeyFrame>
+                Aero::Media::Detail::Animation::DiscreteAnimationKeyFrame>
                 frames;
             if (timeline.RuntimeType() ==
                 Media::Animation::ObjectAnimationUsingKeyFrames::
@@ -839,7 +851,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
                          Media::Animation::DiscreteObjectKeyFrame>&
                      frame : authored.GetKeyFrames()) {
                     if (!frame) continue;
-                    Aero::Internal::Animation::DiscreteAnimationKeyFrame
+                    Aero::Media::Detail::Animation::DiscreteAnimationKeyFrame
                         runtime;
                     runtime.keyTimeMicroseconds =
                         frame->GetKeyTimeMicroseconds();
@@ -865,7 +877,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
                     if (!encoded) {
                         return encoded.GetStatus();
                     }
-                    Aero::Internal::Animation::DiscreteAnimationKeyFrame
+                    Aero::Media::Detail::Animation::DiscreteAnimationKeyFrame
                         runtime;
                     runtime.keyTimeMicroseconds =
                         frame->GetKeyTimeMicroseconds();
@@ -881,7 +893,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
             }
             for (std::uint32_t index = 1U;
                  index < frames.Size(); ++index) {
-                Aero::Internal::Animation::DiscreteAnimationKeyFrame
+                Aero::Media::Detail::Animation::DiscreteAnimationKeyFrame
                     current =
                         std::move(frames[index]);
                 std::uint32_t position = index;
@@ -906,7 +918,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
                 resolved.Value().object->GetValue(
                     resolved.Value().property);
             if (!base) return base.GetStatus();
-            Aero::Internal::Animation::DiscreteAnimation runtime;
+            Aero::Media::Detail::Animation::DiscreteAnimation runtime;
             runtime.baseValue = base.Value();
             runtime.timing =
                 ComposeTiming(timeline, parent);
@@ -925,7 +937,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartStoryboardAnimations(
             started.Value());
     };
 
-    Aero::Internal::Animation::TimelineTiming rootTiming;
+    Aero::Media::Detail::Animation::TimelineTiming rootTiming;
     rootTiming = parent;
     Base::Result<void> started =
         startTimeline(
@@ -988,7 +1000,7 @@ Base::Result<void> Detail::VisualStateManagerImpl::StartTransitionAnimations(
     }
     const EasingFunction easing =
         transition.generatedEasingFunction
-        ? Aero::Internal::AnimationPrivate::Easing(
+        ? Aero::Media::Detail::AnimationPrivate::Easing(
                 *transition.generatedEasingFunction)
         : EasingFunction{};
     for (const TransitionValue& value : values) {
@@ -1181,7 +1193,7 @@ Base::Result<bool> Detail::VisualStateManagerImpl::GoToState(
             transitionValues.AsSpan(),
             active_[activeIndex]);
     }
-    Aero::Internal::Animation::TimelineTiming stateTiming;
+    Aero::Media::Detail::Animation::TimelineTiming stateTiming;
     if (animated && transition != nullptr) {
         stateTiming.beginTimeMicroseconds =
             transition->generatedDurationMicroseconds;
@@ -1189,7 +1201,7 @@ Base::Result<bool> Detail::VisualStateManagerImpl::GoToState(
             stateTiming.beginTimeMicroseconds =
                 std::max(
                     stateTiming.beginTimeMicroseconds,
-                    Aero::Internal::AnimationPrivate::Timing(
+                    Aero::Media::Detail::AnimationPrivate::Timing(
                         *transition->storyboard).durationMicroseconds);
         }
     }
@@ -1298,7 +1310,7 @@ VisualStateManager::~VisualStateManager() noexcept {
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 using namespace ::Aero;
 using namespace ::Aero::Meta;
@@ -1339,10 +1351,10 @@ Base::Result<VisualStateManager*>
 TemplatePrivate::Create(
     Meta::EffectiveValueEngine& values,
     TemplateEngine& templates,
-    Aero::Internal::AnimationEngine& animations,
+    Aero::GuiPrivate::Detail::AnimationEngine& animations,
     Meta::DependencyPropertyRegistry& properties) noexcept {
     return ::Aero::Controls::VisualStateManager::Impl::Create(
         values, templates, animations, properties);
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail

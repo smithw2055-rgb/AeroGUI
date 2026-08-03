@@ -58,22 +58,22 @@ public:
         table_.create =
             [](void* context,
                Text::FontManager& fonts,
-               const Aero::Internal::TextConfig& config,
+               const Aero::Render::Detail::TextConfig& config,
                Base::IAllocator&) noexcept
                 -> Base::Result<
-                    Internal::TextBlockLayout*> {
+                    ::Aero::Controls::Detail::TextBlockLayout*> {
                 return static_cast<TextGpuResources*>(
                     context)->Create(fonts, config);
             };
         table_.destroy =
             [](void* context,
-               Internal::TextBlockLayout* layout) noexcept {
+               ::Aero::Controls::Detail::TextBlockLayout* layout) noexcept {
                 static_cast<TextGpuResources*>(
                     context)->Destroy(layout);
             };
         table_.collect =
             [](void* context,
-               Internal::TextBlockLayout* layout) noexcept
+               ::Aero::Controls::Detail::TextBlockLayout* layout) noexcept
                 -> Base::Result<std::uint32_t> {
                 return static_cast<TextGpuResources*>(
                     context)->Collect(layout);
@@ -84,7 +84,7 @@ public:
         Shutdown();
     }
 
-    Aero::Internal::TextResources& Table() noexcept {
+    Aero::Render::Detail::TextResources& Table() noexcept {
         return table_;
     }
 
@@ -101,10 +101,10 @@ public:
     }
 
 private:
-    Base::Result<Internal::TextBlockLayout*>
+    Base::Result<::Aero::Controls::Detail::TextBlockLayout*>
     Create(
         Text::FontManager& fonts,
-        const Aero::Internal::TextConfig& config) noexcept {
+        const Aero::Render::Detail::TextConfig& config) noexcept {
         if (renderer_ != nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
@@ -131,17 +131,17 @@ private:
             return failure;
         }
         return static_cast<
-            Internal::TextBlockLayout*>(
+            ::Aero::Controls::Detail::TextBlockLayout*>(
                 renderer_);
     }
 
     void Destroy(
-        Internal::TextBlockLayout* layout) noexcept {
+        ::Aero::Controls::Detail::TextBlockLayout* layout) noexcept {
         if (layout == renderer_) Shutdown();
     }
 
     Base::Result<std::uint32_t> Collect(
-        Internal::TextBlockLayout* layout) noexcept {
+        ::Aero::Controls::Detail::TextBlockLayout* layout) noexcept {
         if (layout == nullptr || layout != renderer_) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -154,7 +154,7 @@ private:
     RendererGlyphRunSink sink_;
     Base::IAllocator* allocator_ = nullptr;
     TextRenderer* renderer_ = nullptr;
-    Aero::Internal::TextResources table_;
+    Aero::Render::Detail::TextResources table_;
 };
 
 } // namespace Aero::Render::Detail

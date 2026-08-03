@@ -3,7 +3,7 @@
 #include <Aero/Markup.hpp>
 #include <Aero/Diagnostics.hpp>
 #include <Aero/Version.hpp>
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 // Canonical compiled-document API.
 
@@ -669,13 +669,17 @@ class ObjectBuilder;
 class SchemaManifest;
 struct LoadState;
 
-namespace Detail {
+} // namespace Aero::Markup
+
+namespace Aero::Markup::Detail {
 class SchemaPrivate;
 class XamlStyleSchemaFacet;
 
 AERO_API Base::Result<void> PopulateMarkupMetadata(
     ::Aero::Meta::Registration& context) noexcept;
-}
+} // namespace Aero::Markup::Detail
+
+namespace Aero::Markup {
 
 enum class MemberSyntax : std::uint8_t {
     Attribute = 0U,
@@ -1260,14 +1264,14 @@ private:
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Value.hpp>
-#include "gui/PropertyInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Markup.hpp>
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <utility>
 
-namespace Aero::Internal {
+namespace Aero::Markup::Detail {
 
 struct VisualEdge {
     UIElement* parent = nullptr;
@@ -1275,7 +1279,7 @@ struct VisualEdge {
     ElementAttachment state;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Markup::Detail
 
 namespace Aero::Markup {
 
@@ -1299,7 +1303,7 @@ struct VisualContentEdge {
 // the actual attach/detach sequence through the owning ElementTree.
 struct VisualContentPlan {
     Base::Vector<VisualContentEdge> contentEdges;
-    Base::Vector<Aero::Internal::VisualEdge> mountEdges;
+    Base::Vector<Aero::Markup::Detail::VisualEdge> mountEdges;
     Base::Vector<Aero::Visual*> nodes;
 
     Base::Result<void> Reserve(
@@ -1474,7 +1478,7 @@ struct LoaderResult {
 
 
 // ===== LoadState contract =====
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 
 
@@ -1489,7 +1493,7 @@ using LoadFinalizeCallback = Base::Result<void> (*)(
 struct LoadState {
     const Aero::ResourceDictionary* resources = nullptr;
     Meta::EffectiveValueEngine* effectiveValues = nullptr;
-    Aero::Internal::BindingEngine* bindings = nullptr;
+    Aero::GuiPrivate::Detail::BindingEngine* bindings = nullptr;
     Aero::ResourceDictionary* fallbackResources = nullptr;
     const Base::ResourceUri* baseUri = nullptr;
     Base::Object* templatedParent = nullptr;
@@ -1586,7 +1590,7 @@ private:
 #include <Aero/Base/String.hpp>
 #include <Aero/DependencyProperty.hpp>
 
-namespace Aero::Internal {
+namespace Aero::Markup::Detail {
 
 // Supports the object-element form used by the reference theme, for example
 // <StaticResource ResourceKey="Anim.Expand.Vertical.Loaded"/>.
@@ -1612,11 +1616,11 @@ public:
         ResourceKeyProperty{"ResourceKey"};
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Markup::Detail
 
 
 namespace Aero::Markup::Detail {
-using ::Aero::Internal::StaticResourceObject;
+using ::Aero::Markup::Detail::StaticResourceObject;
 }
 
 
@@ -1626,7 +1630,7 @@ using ::Aero::Internal::StaticResourceObject;
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/DependencyProperty.hpp>
 
 namespace Aero::Markup {
@@ -1750,7 +1754,7 @@ private:
 
 } // namespace Aero::Markup::Detail
 
-namespace Aero::Internal {
+namespace Aero::Markup::Detail {
 using ::Aero::Markup::Detail::XamlStyleSchemaFacet;
 using ::Aero::Markup::Detail::XamlTemplateSchemaFacet;
 }
@@ -1761,7 +1765,7 @@ using ::Aero::Markup::Detail::XamlTemplateSchemaFacet;
 
 
 
-namespace Aero::Internal {
+namespace Aero::Markup::Detail {
 Base::Result<::Aero::Markup::XamlDocument> AdoptXamlDocument(
     ::Aero::Markup::LoaderResult&& result,
     Base::IAllocator& allocator) noexcept;

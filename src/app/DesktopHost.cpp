@@ -28,7 +28,7 @@
 #include <thread>
 #include <utility>
 
-namespace Aero::Internal {
+namespace Aero::App::Detail {
 
 using namespace ::Aero::App;
 namespace {
@@ -910,7 +910,7 @@ Base::Result<int> DesktopHost::Run() noexcept {
     return impl_->Run();
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::App::Detail
 
 namespace Aero {
 
@@ -979,7 +979,7 @@ void Window::Impl::NotifyClosed(
 namespace Aero::App {
 
 int Run(const RunOptions& options) noexcept {
-    Internal::DesktopHost host(options);
+    ::Aero::App::Detail::DesktopHost host(options);
     Base::Result<int> result = host.Run();
     return result ? result.Value() : -1;
 }

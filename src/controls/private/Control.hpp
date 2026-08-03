@@ -3,7 +3,7 @@
 #include <Aero/Controls/Core.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Controls/Items.hpp>
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include "render/RenderResources.hpp"
 #include "TextBlockLayout.hpp"
 #include <Aero/Controls/Panels.hpp>
@@ -12,7 +12,7 @@
 
 #include <utility>
 
-namespace Aero::Internal { class TemplateEngine; }
+namespace Aero::Controls::Detail { class TemplateEngine; }
 
 namespace Aero {
 class ElementTree;
@@ -35,7 +35,8 @@ using ItemSubtreeCallback = Base::Result<void> (*)(
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 class VisualStateManager;
 
@@ -167,11 +168,11 @@ public:
 
     static Base::Result<ItemContainerGenerator*> Create(
         ElementTree& tree,
-        Aero::Internal::LayoutEngine& layout,
+        Aero::GuiPrivate::Detail::LayoutEngine& layout,
         Meta::EffectiveValueEngine& values,
-        Aero::Internal::StyleEngine* styles = nullptr,
-        Internal::RenderTree* renderer = nullptr,
-        Aero::Internal::TemplateEngine* templates = nullptr,
+        Aero::GuiPrivate::Detail::StyleEngine* styles = nullptr,
+        ::Aero::Render::Detail::RenderTree* renderer = nullptr,
+        Aero::Controls::Detail::TemplateEngine* templates = nullptr,
         ItemSubtreeCallback subtreeCallback = nullptr,
         void* subtreeContext = nullptr) noexcept;
 
@@ -183,7 +184,7 @@ public:
 
         static void Attach(
             Aero::Shapes::Path& path,
-            Aero::Internal::MeshResources* services,
+            Aero::Render::Detail::MeshResources* services,
             bool invalidate = false) noexcept {
             ::Aero::Visual::Impl::PathAttachMeshResources(
                 path, services, invalidate);
@@ -240,11 +241,11 @@ public:
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 using ControlPrivate = ::Aero::Controls::Control::Impl;
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail
 
 namespace Aero::Controls::Detail {
 using ControlPrivate = ::Aero::Controls::Control::Impl;

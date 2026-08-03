@@ -1,28 +1,28 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Text.hpp>
 #include "../text/EditableText.hpp"
-#include "../render/DrawingInternals.hpp"
-#include "../media/BrushInternals.hpp"
+#include "../render/RenderPrivate.hpp"
+#include "../media/MediaPrivate.hpp"
 
 #include "TextBlockLayout.hpp"
 
-#include "gui/PropertyInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <new>
 #include <utility>
-#include "gui/RoutedEventInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include "ControlBehavior.hpp"
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 class TextDisplayPolicy {
 public:
     virtual ~TextDisplayPolicy() = default;
     virtual Base::Result<void> BuildDisplayText(
-        const ::Aero::Internal::EditableTextModel& model,
+        const ::Aero::Text::Detail::EditableTextModel& model,
         Base::String& output) noexcept = 0;
     virtual bool AllowsCopy() const noexcept = 0;
     virtual bool AllowsCut() const noexcept = 0;
@@ -31,7 +31,7 @@ public:
 class PlainTextDisplayPolicy : public TextDisplayPolicy {
 public:
     Base::Result<void> BuildDisplayText(
-        const ::Aero::Internal::EditableTextModel& model,
+        const ::Aero::Text::Detail::EditableTextModel& model,
         Base::String& output) noexcept override {
         return model.Snapshot(output);
     }
@@ -49,7 +49,7 @@ public:
     }
 
     Base::Result<void> SetMask(Base::StringView value) noexcept {
-        ::Aero::Internal::EditableTextModel validation;
+        ::Aero::Text::Detail::EditableTextModel validation;
         Base::Result<void> assigned = validation.SetText(value);
         if (!assigned || validation.GraphemeCount() != 1U) {
             return Base::Status::Failure(
@@ -62,7 +62,7 @@ public:
     Base::StringView GetMask() const noexcept { return mask_.View(); }
 
     Base::Result<void> BuildDisplayText(
-        const ::Aero::Internal::EditableTextModel& model,
+        const ::Aero::Text::Detail::EditableTextModel& model,
         Base::String& output) noexcept override {
         output.Clear();
         const std::uint32_t count = model.GraphemeCount();
@@ -102,19 +102,25 @@ private:
     Base::String mask_;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail
 
 namespace Aero::Controls {
 
 using namespace Primitives;
 using namespace ::Aero::Render;
-namespace Detail {
-using ::Aero::Internal::TextDisplayPolicy;
-using ::Aero::Internal::PlainTextDisplayPolicy;
-using ::Aero::Internal::PasswordTextDisplayPolicy;
-using ::Aero::Internal::TextLayoutRequest;
-using ::Aero::Internal::TextLayoutResult;
-}
+} // namespace Aero::Controls
+
+namespace Aero::Controls::Detail {
+using ::Aero::Controls::Detail::TextDisplayPolicy;
+using ::Aero::Controls::Detail::PlainTextDisplayPolicy;
+using ::Aero::Controls::Detail::PasswordTextDisplayPolicy;
+using ::Aero::Controls::Detail::TextLayoutRequest;
+using ::Aero::Controls::Detail::TextLayoutResult;
+} // namespace Aero::Controls::Detail
+
+namespace Aero::Controls {
+using namespace Primitives;
+using namespace ::Aero::Render;
 
 namespace {
 
@@ -165,29 +171,29 @@ Rect ToRootRect(
 
 } // namespace
 
-::Aero::Internal::EditableTextModel& Model(
+::Aero::Text::Detail::EditableTextModel& Model(
     void* value) noexcept {
-    return *static_cast<::Aero::Internal::EditableTextModel*>(value);
+    return *static_cast<::Aero::Text::Detail::EditableTextModel*>(value);
 }
 
-const ::Aero::Internal::EditableTextModel& Model(
+const ::Aero::Text::Detail::EditableTextModel& Model(
     const void* value) noexcept {
-    return *static_cast<const ::Aero::Internal::EditableTextModel*>(value);
+    return *static_cast<const ::Aero::Text::Detail::EditableTextModel*>(value);
 }
 
-::Aero::Internal::TextDisplayPolicy* DisplayPolicy(
+::Aero::Controls::Detail::TextDisplayPolicy* DisplayPolicy(
     void* value) noexcept {
-    return static_cast<::Aero::Internal::TextDisplayPolicy*>(value);
+    return static_cast<::Aero::Controls::Detail::TextDisplayPolicy*>(value);
 }
 
-::Aero::Internal::PasswordTextDisplayPolicy* PasswordPolicy(
+::Aero::Controls::Detail::PasswordTextDisplayPolicy* PasswordPolicy(
     void* value) noexcept {
-    return static_cast<::Aero::Internal::PasswordTextDisplayPolicy*>(value);
+    return static_cast<::Aero::Controls::Detail::PasswordTextDisplayPolicy*>(value);
 }
 
-::Aero::Internal::TextBlockLayout* LayoutService(
+::Aero::Controls::Detail::TextBlockLayout* LayoutService(
     void* value) noexcept {
-    return static_cast<::Aero::Internal::TextBlockLayout*>(value);
+    return static_cast<::Aero::Controls::Detail::TextBlockLayout*>(value);
 }
 
 Base::Ref<Media::Brush>
@@ -226,8 +232,8 @@ void TextBoxBase::SetCaretBrush(
 
 TextBox::TextBox() noexcept
     : TextBoxBase(StaticTypeId()),
-      model_(new (std::nothrow) ::Aero::Internal::EditableTextModel()),
-      compositionModel_(new (std::nothrow) ::Aero::Internal::EditableTextModel()),
+      model_(new (std::nothrow) ::Aero::Text::Detail::EditableTextModel()),
+      compositionModel_(new (std::nothrow) ::Aero::Text::Detail::EditableTextModel()),
       layoutService_(nullptr),
       displayPolicy_(nullptr),
       plainPolicy_(new (std::nothrow) Detail::PlainTextDisplayPolicy()),
@@ -254,11 +260,11 @@ TextBox::~TextBox() {
             scrollViewer_->SetContentScrollInfo(nullptr));
     }
     ReleaseGlyphRuns();
-    delete static_cast<::Aero::Internal::EditableTextModel*>(model_);
+    delete static_cast<::Aero::Text::Detail::EditableTextModel*>(model_);
     model_ = nullptr;
-    delete static_cast<::Aero::Internal::EditableTextModel*>(compositionModel_);
+    delete static_cast<::Aero::Text::Detail::EditableTextModel*>(compositionModel_);
     compositionModel_ = nullptr;
-    delete static_cast<::Aero::Internal::PlainTextDisplayPolicy*>(plainPolicy_);
+    delete static_cast<::Aero::Controls::Detail::PlainTextDisplayPolicy*>(plainPolicy_);
     plainPolicy_ = nullptr;
     displayPolicy_ = nullptr;
 }
@@ -266,7 +272,7 @@ TextBox::~TextBox() {
 PasswordBox::PasswordBox() noexcept
     : TextBoxBase(StaticTypeId()),
       passwordPolicy_(new (std::nothrow) Detail::PasswordTextDisplayPolicy()),
-      validation_(new (std::nothrow) ::Aero::Internal::EditableTextModel()) {
+      validation_(new (std::nothrow) ::Aero::Text::Detail::EditableTextModel()) {
     editor_.displayPolicy_ =
         passwordPolicy_;
     editor_.coordinateOwner_ = this;
@@ -274,16 +280,16 @@ PasswordBox::PasswordBox() noexcept
 }
 
 PasswordBox::~PasswordBox() {
-    delete static_cast<::Aero::Internal::EditableTextModel*>(validation_);
+    delete static_cast<::Aero::Text::Detail::EditableTextModel*>(validation_);
     validation_ = nullptr;
-    delete static_cast<::Aero::Internal::PasswordTextDisplayPolicy*>(passwordPolicy_);
+    delete static_cast<::Aero::Controls::Detail::PasswordTextDisplayPolicy*>(passwordPolicy_);
     passwordPolicy_ = nullptr;
 }
 
 void PasswordBox::SetPassword(
     Base::StringView value) noexcept {
     if (password_.View() == value) return;
-    ::Aero::Internal::EditableTextModel next;
+    ::Aero::Text::Detail::EditableTextModel next;
     Base::Result<void> limited =
         next.SetMaximumLength(
             EffectiveMaximumLength(
@@ -515,7 +521,7 @@ Base::StringView TextBox::GetText() const noexcept {
 
 void TextBox::SetText(
     Base::StringView value) noexcept {
-    ::Aero::Internal::EditableTextModel validation;
+    ::Aero::Text::Detail::EditableTextModel validation;
     Base::Result<void> checked =
         validation.SetText(value);
     if (!checked) {
@@ -1130,7 +1136,7 @@ Base::Result<void> TextBox::ConstrainManualInput(
         retained >= maximum
         ? 0U
         : maximum - retained;
-    ::Aero::Internal::EditableTextModel inserted;
+    ::Aero::Text::Detail::EditableTextModel inserted;
     Base::Result<void> parsed =
         inserted.SetText(input.View());
     if (!parsed) {
@@ -1835,7 +1841,7 @@ Size TextBox::ArrangeOverride(
 
 void TextBox::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     const Rect bounds{
         0.0, 0.0,
         GetRenderSize().width,
@@ -1846,7 +1852,7 @@ void TextBox::OnRender(
         std::max(border.left, border.right),
         std::max(border.top, border.bottom));
     Color borderBrush =
-        ::Aero::Internal::SampleBrush(GetBorderBrush());
+        ::Aero::Media::Detail::SampleBrush(GetBorderBrush());
     if (GetIsKeyboardFocused() && GetIsEnabled()) {
         borderBrush = Color{
             11.0F / 255.0F,
@@ -1863,7 +1869,7 @@ void TextBox::OnRender(
     Base::Result<void> chrome =
         builder.FillRoundedRect(
             bounds,
-            ::Aero::Internal::SampleBrush(GetBackground()),
+            ::Aero::Media::Detail::SampleBrush(GetBackground()),
             1.75);
     if (!chrome) {
         return;
@@ -1891,7 +1897,7 @@ TextBox::RenderEditor(
     DrawingContext& context,
     Size viewport,
     bool drawCaret) noexcept {
-    auto& builder = Aero::Internal::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     const Thickness padding = GetPadding();
     const Rect contentBounds{
         padding.left,
@@ -1955,7 +1961,7 @@ TextBox::RenderEditor(
                     DefaultAdvance,
                     textSize_.width - first.x);
             Color selectionColor =
-                ::Aero::Internal::SampleBrush(
+                ::Aero::Media::Detail::SampleBrush(
                     GetSelectionBrush(),
                     0.5,
                     Color{
@@ -1983,7 +1989,7 @@ TextBox::RenderEditor(
                 builder.DrawGlyphRun(
                     glyph,
                     showingPlaceholder_
-                    ? ::Aero::Internal::SampleBrush(
+                    ? ::Aero::Media::Detail::SampleBrush(
                         GetPlaceholderForeground(),
                         0.5,
                         Color{
@@ -1991,7 +1997,7 @@ TextBox::RenderEditor(
                             128.0F / 255.0F,
                             133.0F / 255.0F,
                             1.0F})
-                    : ::Aero::Internal::SampleBrush(
+                    : ::Aero::Media::Detail::SampleBrush(
                         GetForeground(),
                         0.5,
                         Color{
@@ -2008,7 +2014,7 @@ TextBox::RenderEditor(
         Base::Result<void> drawn =
             builder.FillRect(
                 caret,
-                ::Aero::Internal::SampleBrush(
+                ::Aero::Media::Detail::SampleBrush(
                     GetCaretBrush(),
                     0.5,
                     Color{
@@ -2185,7 +2191,8 @@ namespace Aero::Controls {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 TextBox::Impl::
 Impl(
@@ -2314,7 +2321,7 @@ TextBox::Impl::Attach(
             "TextBox is already attached");
     }
     if (!textBox.GetIsLoaded() ||
-        Aero::Internal::ElementPrivate::Tree(textBox) != tree_) {
+        Aero::GuiPrivate::Detail::ElementPrivate::Tree(textBox) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "TextBox must be loaded in the interaction tree");
@@ -2325,7 +2332,7 @@ TextBox::Impl::Attach(
         return synced;
     }
     Record record;
-    record.handle = Aero::Internal::ElementPrivate::Handle(textBox);
+    record.handle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(textBox);
     Base::Result<void> appended =
         records_.PushBack(record);
     if (!appended) {
@@ -2406,7 +2413,7 @@ TextBox::Impl::Attach(
             "PasswordBox is already attached");
     }
     if (!passwordBox.GetIsLoaded() ||
-        Aero::Internal::ElementPrivate::Tree(passwordBox) != tree_) {
+        Aero::GuiPrivate::Detail::ElementPrivate::Tree(passwordBox) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "PasswordBox must be loaded in the interaction tree");
@@ -2428,7 +2435,7 @@ TextBox::Impl::Attach(
     if (!synced) return synced.GetStatus();
 
     Record record;
-    record.handle = Aero::Internal::ElementPrivate::Handle(passwordBox);
+    record.handle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(passwordBox);
     record.password = true;
     Base::Result<void> appended =
         records_.PushBack(record);

@@ -387,12 +387,12 @@ void OnPathColorChanged(
     auto* owner = static_cast<Path&>(object).AsFrameworkElement();
     if (owner != nullptr) {
         if (oldBrush &&
-            ::Aero::Internal::BrushPrivate::Owner(*oldBrush) == owner) {
-            ::Aero::Internal::BrushPrivate::SetOwner(
+            ::Aero::Media::Detail::BrushPrivate::Owner(*oldBrush) == owner) {
+            ::Aero::Media::Detail::BrushPrivate::SetOwner(
                 *oldBrush, nullptr);
         }
         if (newBrush) {
-            ::Aero::Internal::BrushPrivate::SetOwner(
+            ::Aero::Media::Detail::BrushPrivate::SetOwner(
                 *newBrush, owner);
         }
     }
@@ -436,16 +436,16 @@ void OnShapeFillChanged(
         ValueCodec<Base::Ref<Brush>>::Decode(
             args.GetOldValue());
     if (oldBrush && oldBrush.Value() &&
-        ::Aero::Internal::BrushPrivate::Owner(
+        ::Aero::Media::Detail::BrushPrivate::Owner(
             *oldBrush.Value()) == owner) {
-        ::Aero::Internal::BrushPrivate::SetOwner(
+        ::Aero::Media::Detail::BrushPrivate::SetOwner(
             *oldBrush.Value(), nullptr);
     }
     Base::Result<Base::Ref<Brush>> newBrush =
         ValueCodec<Base::Ref<Brush>>::Decode(
             args.GetNewValue());
     if (newBrush && newBrush.Value()) {
-        ::Aero::Internal::BrushPrivate::SetOwner(
+        ::Aero::Media::Detail::BrushPrivate::SetOwner(
             *newBrush.Value(), owner);
     }
 }
@@ -501,7 +501,7 @@ Base::Result<Base::String> CoerceTextBoxText(
     ::Aero::DependencyObject& object,
     const Meta::DependencyProperty&,
     const Base::String& value) noexcept {
-    ::Aero::Internal::EditableTextModel validation;
+    ::Aero::Text::Detail::EditableTextModel validation;
     static_cast<void>(object);
     Base::Result<void> limited =
         validation.SetText(value.View());
@@ -515,7 +515,7 @@ Base::Result<Base::String> CoerceTextBoxText(
 
 bool ValidatePasswordChar(
     const Base::String& value) noexcept {
-    ::Aero::Internal::EditableTextModel validation;
+    ::Aero::Text::Detail::EditableTextModel validation;
     Base::Result<void> text =
         validation.SetText(value.View());
     return text &&

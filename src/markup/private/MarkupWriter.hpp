@@ -1,9 +1,9 @@
 #pragma once
-#include "MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 // Consolidated private Markup writing, facet and template contract.
 
 // ===== Extensions contract =====
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 // Canonical markup-extension API.
 
@@ -17,7 +17,7 @@
 #include <Aero/Value.hpp>
 #include <Aero/Data.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include "gui/PropertyInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Markup.hpp>
 
 #include <cstdint>
@@ -127,7 +127,7 @@ struct ExtensionServices {
     NamespaceScope namespaces;
     ResourceResolver resources;
     Meta::EffectiveValueEngine* effectiveValues = nullptr;
-    Aero::Internal::BindingEngine* bindings = nullptr;
+    Aero::GuiPrivate::Detail::BindingEngine* bindings = nullptr;
     Aero::ResourceDictionary* fallbackResources = nullptr;
     Base::Span<const Aero::ResourceDictionary* const>
         ambientResourceChain;
@@ -139,12 +139,12 @@ struct ExtensionServices {
 struct BindingExtensionOptions {
     BindingExtensionOptions() noexcept = default;
     BindingExtensionOptions(
-        Aero::Internal::BindingEngine* bindingManager,
+        Aero::GuiPrivate::Detail::BindingEngine* bindingManager,
         Meta::DependencyPropertyHandle dataContext) noexcept
         : bindings(bindingManager),
           dataContextProperty(dataContext) {}
 
-    Aero::Internal::BindingEngine* bindings = nullptr;
+    Aero::GuiPrivate::Detail::BindingEngine* bindings = nullptr;
     Meta::DependencyPropertyHandle dataContextProperty;
 };
 
@@ -304,14 +304,14 @@ private:
 
 
 // ===== DeferredContent contract =====
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Data.hpp>
 
 
@@ -330,7 +330,7 @@ struct DeferredBindingEdge {
     Base::Object* owner = nullptr;
     Base::Object* source = nullptr;
     ::Aero::DependencyObject* target = nullptr;
-    Aero::Internal::BindingEngine* manager = nullptr;
+    Aero::GuiPrivate::Detail::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     Meta::DependencyPropertyHandle targetProperty;
     Meta::DependencyPropertyHandle dataContextProperty;
@@ -364,7 +364,7 @@ public:
         Base::Object& owner,
         Base::Object* source,
         ::Aero::DependencyObject& target,
-        Aero::Internal::BindingEngine& manager,
+        Aero::GuiPrivate::Detail::BindingEngine& manager,
         ::Aero::Meta::Registry& metadata,
         Meta::DependencyPropertyHandle targetProperty,
         Meta::DependencyPropertyHandle dataContextProperty,
@@ -894,14 +894,14 @@ private:
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Value.hpp>
-#include "gui/PropertyInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 
 #include <Aero/Version.hpp>
 
 #include <cstdint>
 
-namespace Aero::Internal {
+namespace Aero::Markup::Detail {
 
 using namespace ::Aero::Markup;
 
@@ -1196,21 +1196,21 @@ private:
         Meta::TypeId type) const noexcept;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Markup::Detail
 
 // ===== SchemaInternal contract =====
 
 
 namespace Aero::Markup::Detail {
-using ::Aero::Internal::XamlFacets;
-using ::Aero::Internal::XamlMarkupExtensionFacet;
-using ::Aero::Internal::XamlTypeFacet;
-using ::Aero::Internal::XamlLifecycleFacet;
-using ::Aero::Internal::XamlNameScopeFacet;
-using ::Aero::Internal::XamlResourceScopeFacet;
-using ::Aero::Internal::XamlDeferredContentFacet;
-using ::Aero::Internal::XamlImplicitResourceKeyFacet;
-using ::Aero::Internal::XamlPropertyTargetFacet;
+using ::Aero::Markup::Detail::XamlFacets;
+using ::Aero::Markup::Detail::XamlMarkupExtensionFacet;
+using ::Aero::Markup::Detail::XamlTypeFacet;
+using ::Aero::Markup::Detail::XamlLifecycleFacet;
+using ::Aero::Markup::Detail::XamlNameScopeFacet;
+using ::Aero::Markup::Detail::XamlResourceScopeFacet;
+using ::Aero::Markup::Detail::XamlDeferredContentFacet;
+using ::Aero::Markup::Detail::XamlImplicitResourceKeyFacet;
+using ::Aero::Markup::Detail::XamlPropertyTargetFacet;
 }
 
 
@@ -1220,9 +1220,12 @@ struct Schema::Impl {
     Detail::XamlFacets facets;
 };
 
-namespace Detail {
+} // namespace Aero::Markup
 
-using namespace ::Aero::Internal;
+namespace Aero::Markup::Detail {
+
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 class SchemaPrivate {
 public:
@@ -1312,13 +1315,11 @@ public:
     }
 };
 
-} // namespace Detail
-
-} // namespace Aero::Markup
+} // namespace Aero::Markup::Detail
 
 
 // ===== TemplateCompiler contract =====
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 // Private template compiler used by ObjectWriter finalization.
 
@@ -1332,16 +1333,16 @@ public:
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Styling.hpp>
-#include "../controls/TemplateInternals.hpp"
+#include "../controls/ControlsPrivate.hpp"
 #include <Aero/Controls/Panels.hpp>
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Animation.hpp>
 
 #include <cstdint>
 
 
-namespace Aero::Internal {
+namespace Aero::Markup::Detail {
 
 using namespace ::Aero::Markup;
 
@@ -1574,7 +1575,7 @@ struct TemplatePrototypeNode {
 struct TemplatePrototypeBinding {
     std::uint32_t target = UINT32_MAX;
     std::uint32_t source = UINT32_MAX;
-    Aero::Internal::BindingEngine* manager = nullptr;
+    Aero::GuiPrivate::Detail::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     Meta::DependencyPropertyHandle targetProperty;
     Meta::DependencyPropertyHandle dataContextProperty;
@@ -1640,17 +1641,17 @@ CompileControlTemplateDefinition(
     ::Aero::Meta::Registry& runtime,
     Meta::DependencyPropertyRegistry& properties) noexcept;
 
-} // namespace Aero::Internal
+} // namespace Aero::Markup::Detail
 
 // Markup implementation sources historically referred to the template
 // compiler contracts through Markup::Detail. Keep that source-only bridge
 // while the canonical declarations live in Base::Detail; no aliases are
 // exposed by installed headers.
 namespace Aero::Markup::Detail {
-using ::Aero::Internal::CompiledTemplateBlueprint;
-using ::Aero::Internal::CompiledTemplateDefinition;
-using ::Aero::Internal::BuildCompiledTemplate;
-using ::Aero::Internal::BuildCompiledDeferredTemplate;
-using ::Aero::Internal::CompileDeferredTemplateBlueprint;
-using ::Aero::Internal::CompileControlTemplateDefinition;
+using ::Aero::Markup::Detail::CompiledTemplateBlueprint;
+using ::Aero::Markup::Detail::CompiledTemplateDefinition;
+using ::Aero::Markup::Detail::BuildCompiledTemplate;
+using ::Aero::Markup::Detail::BuildCompiledDeferredTemplate;
+using ::Aero::Markup::Detail::CompileDeferredTemplateBlueprint;
+using ::Aero::Markup::Detail::CompileControlTemplateDefinition;
 }

@@ -8,7 +8,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <cstdint>
 
@@ -229,10 +229,10 @@ struct MetadataBindingDescriptor {
 
 } // namespace Aero::Data
 
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -436,4 +436,4 @@ private:
     void RemoveAt(std::uint32_t index) noexcept;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

@@ -1,10 +1,10 @@
-#include "markup/MarkupWriterInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 #if !defined(AERO_MARKUP_XAML_READER_ONLY)
 // Consolidated implementation. Keep sections ordered by dependency.
 
 // ===== CompiledCache =====
 
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 
 namespace Aero::Markup {
 
@@ -89,7 +89,7 @@ Base::Result<void> ValidateCompiledCacheIdentity(
 
 // ===== CompiledDocument =====
 
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 
 // Canonical compiled-document implementation.
 
@@ -603,7 +603,7 @@ CompiledDocument::Deserialize(
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/HashSet.hpp>
 #include <Aero/Base/String.hpp>
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <new>
 #include <utility>
@@ -1264,7 +1264,7 @@ const DocumentCacheLimits& DocumentCache::Limits() const noexcept {
 // ===== LoaderResult =====
 
 
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Markup {
 
@@ -1340,10 +1340,10 @@ void VisualContentPlan::Clear() noexcept {
 
 
 
-#include "gui/PropertyInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Base/Hash.hpp>
 
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Resources.hpp>
 
@@ -2906,7 +2906,7 @@ Base::Result<XamlDocument> AdoptResult(
     Base::IAllocator& allocator) noexcept {
     if (!loaded) return loaded.GetStatus();
     Base::Result<XamlDocument> document =
-        ::Aero::Internal::AdoptXamlDocument(
+        ::Aero::Markup::Detail::AdoptXamlDocument(
             std::move(loaded).Value(), allocator);
     return document;
 }
@@ -3043,7 +3043,7 @@ Base::Result<XamlDocument> Loader::LoadCompiled(
 
 #include <Aero/Application.hpp>
 #include <Aero/Base/ResourceUri.hpp>
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Resources.hpp>
 
@@ -3258,7 +3258,7 @@ XamlDocument& XamlDocument::operator=(XamlDocument&& other) noexcept {
 
 } // namespace Aero::Markup
 
-namespace Aero::Internal {
+namespace Aero::Markup::Detail {
 
 Base::Result<::Aero::Markup::XamlDocument> AdoptXamlDocument(
     ::Aero::Markup::LoaderResult&& result,
@@ -3267,7 +3267,7 @@ Base::Result<::Aero::Markup::XamlDocument> AdoptXamlDocument(
         std::move(result), allocator);
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Markup::Detail
 
 namespace Aero::Markup {
 
@@ -3386,7 +3386,7 @@ LoaderResult XamlDocument::Impl::Take(
 
 } // namespace Aero::Markup
 
-namespace Aero::Internal {
+namespace Aero::Markup::Detail {
 
 const ::Aero::Markup::EffectLifetime*
 XamlDocumentRuntimeLifetime(
@@ -3399,7 +3399,7 @@ XamlDocumentRuntimeLifetime(
     return ::Aero::Markup::XamlDocument::Impl::Take(document);
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Markup::Detail
 
 namespace Aero::Markup {
 

@@ -1,14 +1,14 @@
-#include "gui/MetadataInternal.hpp"
-#include "TemplateInternals.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "controls/ControlsPrivate.hpp"
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 
 #include <utility>
-#include "gui/RoutedEventInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Internal::TreeBehavior;
+using Aero::Controls::Detail::TreeBehavior;
 
 using namespace Primitives;
 
@@ -276,7 +276,7 @@ bool TreeView::SelectItem(
         static_cast<TreeViewItem*>(previous.Get())->SetIsSelected(false);
         if (states_ != nullptr) {
             static_cast<void>(
-                Aero::Internal::TemplatePrivate::GoToState(*states_,
+                Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
                     *static_cast<TreeViewItem*>(
                         previous.Get()),
                     "SelectionStates",
@@ -288,7 +288,7 @@ bool TreeView::SelectItem(
         item->SetIsSelected(true);
         if (states_ != nullptr) {
             Base::Result<bool> state =
-                Aero::Internal::TemplatePrivate::GoToState(*states_,
+                Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
                     *item,
                     "SelectionStates",
                     "Selected");
@@ -313,7 +313,8 @@ namespace Aero::Controls {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 TreeView::Impl::
 Impl(
@@ -380,7 +381,7 @@ Base::Result<void>
 TreeView::Impl::Attach(
     TreeView& treeView) noexcept {
     if (treeView.interactions_ != nullptr ||
-        Aero::Internal::ElementPrivate::Tree(treeView) != tree_ ||
+        Aero::GuiPrivate::Detail::ElementPrivate::Tree(treeView) != tree_ ||
         FindTreeView(treeView) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -483,7 +484,7 @@ TreeView::Impl::CollectVisibleItems(
     Base::Vector<TreeViewItem*>& items)
     noexcept {
     for (Visual* child :
-        Aero::Internal::ElementPrivate::VisualChildren(parent)) {
+        Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element =
             child->AsUIElement();

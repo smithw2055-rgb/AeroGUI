@@ -8,7 +8,7 @@
 
 #include <cstdint>
 
-namespace Aero::Internal { class RenderTree; }
+namespace Aero::Render::Detail { class RenderTree; }
 
 namespace Aero::Render {
 
@@ -70,7 +70,7 @@ public:
 
 private:
     friend class DisplayListBuilder;
-    friend class ::Aero::Internal::RenderTree;
+    friend class ::Aero::Render::Detail::RenderTree;
     Base::Vector<RenderCommand> commands_;
 };
 

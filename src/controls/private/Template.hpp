@@ -1,12 +1,13 @@
 #pragma once
 
 #include "TemplateInstance.hpp"
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 class TemplateEngine;
-class AnimationEngine;
 }
+
+namespace Aero::GuiPrivate::Detail { class AnimationEngine; }
 
 namespace Aero::Controls {
 
@@ -92,8 +93,8 @@ struct FrameworkTemplate::Impl {
 struct VisualStateManager::Impl {
     static Base::Result<VisualStateManager*> Create(
         Meta::EffectiveValueEngine& values,
-        ::Aero::Internal::TemplateEngine& templates,
-        ::Aero::Internal::AnimationEngine& animations,
+        ::Aero::Controls::Detail::TemplateEngine& templates,
+        ::Aero::GuiPrivate::Detail::AnimationEngine& animations,
         Meta::DependencyPropertyRegistry& properties) noexcept;
     static void*& Runtime(
         VisualStateManager& value) noexcept {
@@ -107,12 +108,12 @@ struct VisualStateManager::Impl {
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 class TemplateEngine;
 class AnimationEngine;
 }
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 using namespace ::Aero::Controls;
 using namespace ::Aero::Controls::Detail;
@@ -183,7 +184,7 @@ public:
         static Base::Result<void> Seal(FrameworkTemplate& value, const Meta::DependencyPropertyRegistry& properties) noexcept;
 
         static Base::Result<VisualStateManager*> Create(Meta::EffectiveValueEngine& values,
-            Aero::Internal::TemplateEngine& templates, Aero::Internal::AnimationEngine& animations,
+            Aero::Controls::Detail::TemplateEngine& templates, Aero::GuiPrivate::Detail::AnimationEngine& animations,
             Meta::DependencyPropertyRegistry& properties) noexcept;
         static Base::Result<bool> GoToState(VisualStateManager& manager, Control& control,
             Base::StringView groupName, Base::StringView stateName,
@@ -196,8 +197,8 @@ public:
             const Control& control, Base::StringView groupName) noexcept;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail
 
 namespace Aero::Controls::Detail {
-using ::Aero::Internal::TemplatePrivate;
+using ::Aero::Controls::Detail::TemplatePrivate;
 }

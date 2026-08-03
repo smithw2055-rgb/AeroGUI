@@ -1,11 +1,11 @@
 #pragma once
 
-#include "gui/ElementInternal.hpp"
+#include "gui/private/Property.hpp"
 #include "media/AnimationModel.hpp"
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
-using namespace Aero::Internal::Animation;
+using namespace Aero::Media::Detail::Animation;
 
 class AERO_API AnimationEngine {
 public:
@@ -125,4 +125,4 @@ private:
     static void AnimationFrameHook(void* context) noexcept;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

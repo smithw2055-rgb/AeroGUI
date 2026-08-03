@@ -41,15 +41,15 @@ public:
 #include <Aero/Styling.hpp>
 #include <Aero/Style.hpp>
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 using StylePrivate = ::Aero::Style::Impl;
 }
 
-#include "gui/ElementInternal.hpp"
-#include "gui/PropertyInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -95,8 +95,8 @@ public:
     }
 
 private:
-    Internal::StyleProviderSession providerSession_;
-    Internal::StyleProviderSession* values_ = nullptr;
+    ::Aero::GuiPrivate::Detail::StyleProviderSession providerSession_;
+    ::Aero::GuiPrivate::Detail::StyleProviderSession* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     struct Application {
         DependencyObject* object = nullptr;
@@ -152,7 +152,7 @@ private:
 };
 
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail
 
 // Resource-assignment helpers used by style and markup application.
 
@@ -160,7 +160,7 @@ private:
 
 #include <utility>
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 inline Base::Result<void> AssignResourceDictionary(
     ResourceDictionary& target,
@@ -182,4 +182,4 @@ inline Base::Result<void> AssignResourceDictionary(
     return {};
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

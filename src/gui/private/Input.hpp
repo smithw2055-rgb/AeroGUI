@@ -25,13 +25,13 @@ using PointerCaptureChangedHandler = Base::Delegate<void(std::uint32_t, UIElemen
 
 } // namespace Aero::Input
 
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Input.hpp>
 #include <Aero/Layout.hpp>
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -268,9 +268,9 @@ private:
     ElementTree* tree_ = nullptr;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 // View-owned input coordinator. Consumers see one service; focus, hit testing,
 // pointer capture, keyboard/text dispatch and routed commands remain private
@@ -330,4 +330,4 @@ private:
     TextInputState text_;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

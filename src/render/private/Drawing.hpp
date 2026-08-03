@@ -23,7 +23,7 @@ public:
 
 } // namespace Aero
 
-namespace Aero::Internal {
+namespace Aero::Render::Detail {
 using DrawingPrivate = ::Aero::DrawingContext::Impl;
 
-} // namespace Aero::Internal
+} // namespace Aero::Render::Detail

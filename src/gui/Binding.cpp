@@ -1,6 +1,6 @@
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Data.hpp>
-#include "BindingInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Resources.hpp>
 
 #include <cmath>
@@ -8,7 +8,7 @@
 #include <cstring>
 #include <limits>
 #include <utility>
-#include "gui/BindingInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Data {
 
@@ -390,7 +390,7 @@ Base::Result<Base::String> FormatBindingString(
 
 } // namespace Aero::Data
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -1602,4 +1602,4 @@ void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
     bindings_.PopBack();
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

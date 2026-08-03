@@ -1,4 +1,4 @@
-#include "MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Animation.hpp>
 #include <Aero/Application.hpp>
@@ -15,7 +15,7 @@
 #include <Aero/Triggers/StoryboardActions.hpp>
 #include <Aero/Window.hpp>
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 namespace {
 
 template<class T, class TPopulate>
@@ -394,4 +394,4 @@ Base::Result<void> PopulateEnumMetadata(
     return {};
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

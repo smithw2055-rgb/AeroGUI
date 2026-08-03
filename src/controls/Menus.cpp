@@ -1,12 +1,12 @@
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Controls/Common.hpp>
 
 #include <utility>
-#include "gui/RoutedEventInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Internal::MenuBehavior;
+using Aero::Controls::Detail::MenuBehavior;
 
 using namespace Primitives;
 using namespace Meta;
@@ -338,7 +338,8 @@ namespace Aero::Controls {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 Menu::Impl::
 Impl(
@@ -399,7 +400,7 @@ Base::Result<void>
 Menu::Impl::Attach(
     Menu& menu) noexcept {
     if (menu.interactions_ != nullptr ||
-        Aero::Internal::ElementPrivate::Tree(menu) != tree_ ||
+        Aero::GuiPrivate::Detail::ElementPrivate::Tree(menu) != tree_ ||
         FindMenu(menu) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,

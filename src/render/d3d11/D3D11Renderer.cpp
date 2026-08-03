@@ -256,15 +256,15 @@ Base::Result<void> D3D11Renderer::UnregisterGlyphRun(
             "D3D11 render adapter is not initialized"));
 }
 
-Aero::Internal::TextResources* D3D11Renderer::GetTextResources() noexcept {
+Aero::Render::Detail::TextResources* D3D11Renderer::GetTextResources() noexcept {
     return IsInitialized() ? &impl_->textResources.Table() : nullptr;
 }
 
-Aero::Internal::MeshResources* D3D11Renderer::GetMeshResources() noexcept {
+Aero::Render::Detail::MeshResources* D3D11Renderer::GetMeshResources() noexcept {
     return IsInitialized() ? &impl_->meshResources.Table() : nullptr;
 }
 
-Aero::Internal::ImageResources* D3D11Renderer::GetImageResources() noexcept {
+Aero::Render::Detail::ImageResources* D3D11Renderer::GetImageResources() noexcept {
     return IsInitialized() ? &impl_->imageResources.Table() : nullptr;
 }
 

@@ -1,4 +1,4 @@
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 #include <Aero/View.hpp>
 #include <Aero/Base/Hash.hpp>
 #include "runtime/GuiData.hpp"
@@ -6,8 +6,8 @@
 #include "runtime/ImageCache.hpp"
 #include "runtime/TextPipeline.hpp"
 
-#include "controls/ControlInternals.hpp"
-#include "controls/ItemsInternal.hpp"
+#include "controls/ControlsPrivate.hpp"
+#include "controls/ControlsPrivate.hpp"
 #include "controls/ControlBehavior.hpp"
 
 #include <Aero/Controls/Primitives.hpp>
@@ -17,43 +17,43 @@
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Documents.hpp>
 #include "controls/Metadata.hpp"
-#include "controls/TemplateInternals.hpp"
+#include "controls/ControlsPrivate.hpp"
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Text.hpp>
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
 
 
 
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 #include <Aero/Integration/Platform.hpp>
 #include <Aero/Data.hpp>
 #include "media/AnimationModel.hpp"
-#include "media/AnimationInternals.hpp"
+#include "media/MediaPrivate.hpp"
 #include <Aero/Animation.hpp>
 #include <Aero/Input.hpp>
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/BuiltinThemes.generated.hpp>
 
 #include "runtime/DataTemplateTriggerState.hpp"
-#include "integration/RenderDeviceInternal.hpp"
+#include "integration/IntegrationPrivate.hpp"
 #include "render/RenderTree.hpp"
 
 #include <new>
 #include <utility>
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
-namespace Aero::Internal {
+namespace Aero::Runtime::Detail {
 namespace MediaAnimation = ::Aero::Media::Animation;
 namespace {
 
@@ -229,14 +229,14 @@ constexpr std::size_t ViewArenaCapacity = PackedObjectBytes<
     AnimationEngine,
     Aero::ElementTree,
     LayoutEngine,
-    Internal::RenderTree,
+    ::Aero::Render::Detail::RenderTree,
     ImageCache,
     TextPipeline,
     BindingEngine,
     EventRouter,
     InputRouter,
-    Internal::ControlBehavior,
-    Aero::Internal::TemplateEngine,
+    ::Aero::Controls::Detail::ControlBehavior,
+    Aero::Controls::Detail::TemplateEngine,
     StyleEngine>();
 constexpr std::size_t ViewArenaAlignment = MaximumObjectAlignment<
     Meta::ObjectFactoryScope,
@@ -244,14 +244,14 @@ constexpr std::size_t ViewArenaAlignment = MaximumObjectAlignment<
     AnimationEngine,
     Aero::ElementTree,
     LayoutEngine,
-    Internal::RenderTree,
+    ::Aero::Render::Detail::RenderTree,
     ImageCache,
     TextPipeline,
     BindingEngine,
     EventRouter,
     InputRouter,
-    Internal::ControlBehavior,
-    Aero::Internal::TemplateEngine,
+    ::Aero::Controls::Detail::ControlBehavior,
+    Aero::Controls::Detail::TemplateEngine,
     StyleEngine>();
 
 template<class T, class... TArgs>
@@ -296,7 +296,7 @@ struct ViewData {
     struct FragmentMount {
         Controls::ContentControl* host = nullptr;
         Markup::LoaderResult document;
-        Aero::Internal::ElementAttachment rootEdge;
+        Aero::GuiPrivate::Detail::ElementAttachment rootEdge;
     };
 
     ViewData(
@@ -326,23 +326,23 @@ struct ViewData {
 
     Meta::ObjectFactoryScope* objectFactory = nullptr;
     Meta::EffectiveValueEngine* values = nullptr;
-    Aero::Internal::AnimationEngine* animations = nullptr;
+    Aero::GuiPrivate::Detail::AnimationEngine* animations = nullptr;
     Aero::ElementTree* tree = nullptr;
-    Aero::Internal::LayoutEngine* layout = nullptr;
-    Internal::RenderTree* renderer = nullptr;
-    Aero::Internal::ImageCache* images = nullptr;
-    Aero::Internal::TextPipeline* text = nullptr;
-    Aero::Internal::BindingEngine* bindings = nullptr;
-    Aero::Internal::EventRouter* events = nullptr;
-    Aero::Internal::InputRouter* input = nullptr;
+    Aero::GuiPrivate::Detail::LayoutEngine* layout = nullptr;
+    ::Aero::Render::Detail::RenderTree* renderer = nullptr;
+    Aero::Runtime::Detail::ImageCache* images = nullptr;
+    Aero::Runtime::Detail::TextPipeline* text = nullptr;
+    Aero::GuiPrivate::Detail::BindingEngine* bindings = nullptr;
+    Aero::GuiPrivate::Detail::EventRouter* events = nullptr;
+    Aero::GuiPrivate::Detail::InputRouter* input = nullptr;
 
-    Aero::Internal::TemplateEngine* templates = nullptr;
+    Aero::Controls::Detail::TemplateEngine* templates = nullptr;
     Controls::VisualStateManager* visualStates = nullptr;
-    Aero::Internal::StyleEngine* styles = nullptr;
-    Aero::Internal::ElementHost elementHost;
+    Aero::GuiPrivate::Detail::StyleEngine* styles = nullptr;
+    Aero::GuiPrivate::Detail::ElementHost elementHost;
 
     Markup::Schema* schema = nullptr;
-    Aero::Internal::RootAttachment rootAttachment;
+    Aero::GuiPrivate::Detail::RootAttachment rootAttachment;
     Aero::Visual* attachedRootVisual = nullptr;
     Aero::UIElement* attachedRootLayout = nullptr;
     Aero::FrameworkElement* attachedRootRender = nullptr;
@@ -356,7 +356,7 @@ struct ViewData {
     Aero::ResourceDictionary systemResources;
     Aero::ResourceDictionary dynamicResourceEnvironment;
 
-    Internal::ControlBehavior* controlBehaviors = nullptr;
+    ::Aero::Controls::Detail::ControlBehavior* controlBehaviors = nullptr;
     struct StoryboardSession {
         explicit StoryboardSession(
             Base::IAllocator* allocator) noexcept
@@ -365,7 +365,7 @@ struct ViewData {
         Aero::FrameworkElement* owner = nullptr;
         Base::String name;
         Base::Vector<
-            Aero::Internal::Animation::AnimationHandle>
+            Aero::Media::Detail::Animation::AnimationHandle>
             handles;
     };
     Base::Vector<StoryboardSession>
@@ -378,7 +378,7 @@ struct ViewData {
         Base::Ref<MediaAnimation::Storyboard> storyboard;
         Aero::FrameworkElement* owner = nullptr;
         Base::Vector<
-            Aero::Internal::Animation::AnimationHandle>
+            Aero::Media::Detail::Animation::AnimationHandle>
             handles;
     };
     struct StoryboardCompletedSubscription {
@@ -394,11 +394,11 @@ struct ViewData {
     Base::Result<void> ExecuteAnimationAction(
         MediaAnimation::TriggerAction& action,
         Aero::FrameworkElement& owner,
-        Aero::Internal::DataTemplateTriggerState*
+        Aero::Runtime::Detail::DataTemplateTriggerState*
             dataTemplateContext = nullptr,
         const Aero::NameScope* names = nullptr) noexcept;
     void CancelStoryboardCompletionSessions(
-        Base::Span<const Aero::Internal::Animation::AnimationHandle>
+        Base::Span<const Aero::Media::Detail::Animation::AnimationHandle>
             handles) noexcept;
     Base::Result<std::uint32_t>
     ProcessStoryboardCompletions() noexcept;
@@ -632,7 +632,7 @@ struct ViewData {
     struct DataTemplateTriggerHandlerState {
         ViewData* runtime = nullptr;
         Base::Ref<
-            Aero::Internal::DataTemplateTriggerState>
+            Aero::Runtime::Detail::DataTemplateTriggerState>
             triggerContext;
         std::uint32_t triggerIndex = 0U;
         std::uint32_t conditionIndex = 0U;
@@ -686,7 +686,7 @@ struct ViewData {
         Visual& rootVisual,
         UIElement& rootLayout,
         FrameworkElement* rootRender,
-        Base::Span<Aero::Internal::VisualEdge> edges,
+        Base::Span<Aero::Markup::Detail::VisualEdge> edges,
         Size availableSize) noexcept {
         if (tree == nullptr || layout == nullptr || HasAttachedRoot() ||
             !IsValidLayoutSize(availableSize)) {
@@ -694,7 +694,7 @@ struct ViewData {
                 "Gui root cannot be attached in its current state");
         }
         tree->AttachPresentation(layout, renderer);
-        Base::Result<Aero::Internal::RootAttachment> rootAttached =
+        Base::Result<Aero::GuiPrivate::Detail::RootAttachment> rootAttached =
             tree->AttachRoot(rootVisual, availableSize);
         if (!rootAttached) return rootAttached.GetStatus();
         rootAttachment = std::move(rootAttached).Value();
@@ -705,13 +705,13 @@ struct ViewData {
         std::uint32_t attached = 0U;
         while (attached < edges.Size()) {
             bool progressed = false;
-            for (Aero::Internal::VisualEdge& edge : edges) {
+            for (Aero::Markup::Detail::VisualEdge& edge : edges) {
                 if (edge.state.logicalAttached || edge.parent == nullptr ||
                     edge.child == nullptr ||
-                    Aero::Internal::ElementPrivate::Tree(*edge.parent) != tree) {
+                    Aero::GuiPrivate::Detail::ElementPrivate::Tree(*edge.parent) != tree) {
                     continue;
                 }
-                Base::Result<Aero::Internal::ElementAttachment> edgeAttached =
+                Base::Result<Aero::GuiPrivate::Detail::ElementAttachment> edgeAttached =
                     tree->AttachElement(*edge.parent, *edge.child);
                 if (!edgeAttached) {
                     static_cast<void>(DetachVisualGraph(edges));
@@ -727,26 +727,26 @@ struct ViewData {
     }
 
     Base::Result<void> CompleteVisualEdges(
-        Base::Span<Aero::Internal::VisualEdge> edges) noexcept {
+        Base::Span<Aero::Markup::Detail::VisualEdge> edges) noexcept {
         if (!HasAttachedRoot() || tree == nullptr) {
             return ViewInvalidState(
                 "Deferred visual edges require an attached root");
         }
         std::uint32_t attached = 0U;
-        for (const Aero::Internal::VisualEdge& edge : edges) {
+        for (const Aero::Markup::Detail::VisualEdge& edge : edges) {
             if (edge.state.logicalAttached) ++attached;
         }
         while (attached < edges.Size()) {
             bool progressed = false;
-            for (Aero::Internal::VisualEdge& edge : edges) {
+            for (Aero::Markup::Detail::VisualEdge& edge : edges) {
                 if (edge.state.logicalAttached ||
                     (edge.child != nullptr &&
-                     Aero::Internal::ElementPrivate::Tree(*edge.child) == tree) ||
+                     Aero::GuiPrivate::Detail::ElementPrivate::Tree(*edge.child) == tree) ||
                     edge.parent == nullptr || edge.child == nullptr ||
-                    Aero::Internal::ElementPrivate::Tree(*edge.parent) != tree) {
+                    Aero::GuiPrivate::Detail::ElementPrivate::Tree(*edge.parent) != tree) {
                     continue;
                 }
-                Base::Result<Aero::Internal::ElementAttachment> edgeAttached =
+                Base::Result<Aero::GuiPrivate::Detail::ElementAttachment> edgeAttached =
                     tree->AttachElement(*edge.parent, *edge.child);
                 if (!edgeAttached) return edgeAttached.GetStatus();
                 edge.state = std::move(edgeAttached).Value();
@@ -779,7 +779,7 @@ struct ViewData {
     }
 
     Base::Result<void> DetachVisualGraph(
-        Base::Span<Aero::Internal::VisualEdge> edges) noexcept {
+        Base::Span<Aero::Markup::Detail::VisualEdge> edges) noexcept {
         if (!HasAttachedRoot() && attachedRootVisual == nullptr) return {};
         if (tree == nullptr) {
             return ViewInvalidState(
@@ -787,15 +787,15 @@ struct ViewData {
         }
 
         std::uint32_t remaining = 0U;
-        for (const Aero::Internal::VisualEdge& edge : edges) {
+        for (const Aero::Markup::Detail::VisualEdge& edge : edges) {
             if (edge.state.IsAttached()) ++remaining;
         }
         while (remaining > 0U) {
             bool progressed = false;
-            for (Aero::Internal::VisualEdge& edge : edges) {
+            for (Aero::Markup::Detail::VisualEdge& edge : edges) {
                 if (!edge.state.IsAttached()) continue;
                 bool hasAttachedChild = false;
-                for (const Aero::Internal::VisualEdge& candidate : edges) {
+                for (const Aero::Markup::Detail::VisualEdge& candidate : edges) {
                     if (candidate.state.IsAttached() &&
                         candidate.parent == edge.child) {
                         hasAttachedChild = true;
@@ -833,31 +833,31 @@ struct ViewData {
 
     Base::Result<void> EnsureDefaultXamlProviders() noexcept {
         Base::Result<Base::ResourceUri> light =
-            ::Aero::Internal::BuiltInThemeUri(Base::StringView("Light.xaml"));
+            ::Aero::Runtime::Detail::BuiltInThemeUri(Base::StringView("Light.xaml"));
         if (!light) return light.GetStatus();
         Base::Result<void> status = embeddedXaml.Add(
             light.Value(),
-            {Aero::Internal::AeroThemeLightSource,
+            {Aero::Runtime::Detail::AeroThemeLightSource,
              static_cast<std::uint32_t>(
-                 sizeof(Aero::Internal::AeroThemeLightSource))});
+                 sizeof(Aero::Runtime::Detail::AeroThemeLightSource))});
         if (!status) return status.GetStatus();
         Base::Result<Base::ResourceUri> dark =
-            ::Aero::Internal::BuiltInThemeUri(Base::StringView("Dark.xaml"));
+            ::Aero::Runtime::Detail::BuiltInThemeUri(Base::StringView("Dark.xaml"));
         if (!dark) return dark.GetStatus();
         status = embeddedXaml.Add(
             dark.Value(),
-            {Aero::Internal::AeroThemeDarkSource,
+            {Aero::Runtime::Detail::AeroThemeDarkSource,
              static_cast<std::uint32_t>(
-                 sizeof(Aero::Internal::AeroThemeDarkSource))});
+                 sizeof(Aero::Runtime::Detail::AeroThemeDarkSource))});
         if (!status) return status.GetStatus();
         Base::Result<Base::ResourceUri> generic =
-            ::Aero::Internal::BuiltInThemeUri(Base::StringView("Generic.xaml"));
+            ::Aero::Runtime::Detail::BuiltInThemeUri(Base::StringView("Generic.xaml"));
         if (!generic) return generic.GetStatus();
         status = embeddedXaml.Add(
             generic.Value(),
-            {Aero::Internal::AeroThemeGenericSource,
+            {Aero::Runtime::Detail::AeroThemeGenericSource,
              static_cast<std::uint32_t>(
-                 sizeof(Aero::Internal::AeroThemeGenericSource))});
+                 sizeof(Aero::Runtime::Detail::AeroThemeGenericSource))});
         if (!status) return status.GetStatus();
 
         status = xamlSources.Register(
@@ -910,7 +910,7 @@ struct ViewData {
         loadContext.documentCache = documentCache;
         loadContext.dispatcher = &dispatcher;
         loadContext.dependencyProperties =
-            &Internal::MetadataPrivate::
+            &::Aero::GuiPrivate::Detail::MetadataPrivate::
                 DependencyProperties(*metadata);
         loadContext.effectLifetime = effectLifetime;
         loadContext.effectCommitMode = deferredEffects
@@ -921,14 +921,14 @@ struct ViewData {
 
     void AttachTextLayout(
         Aero::Visual& node,
-        Internal::TextBlockLayout* service,
+        ::Aero::Controls::Detail::TextBlockLayout* service,
         bool invalidate = false) noexcept {
         if (metadata == nullptr) return;
         const Meta::TypeId type = node.RuntimeType();
         if (metadata->Types().IsDerivedFrom(
                 type,
                 Controls::TextBlock::StaticTypeId())) {
-            Internal::ControlPrivate::Attach(
+            ::Aero::Controls::Detail::ControlPrivate::Attach(
                 *static_cast<Controls::TextBlock*>(&node),
                 service,
                 invalidate);
@@ -936,7 +936,7 @@ struct ViewData {
         if (metadata->Types().IsDerivedFrom(
                 type,
                 Controls::TextBox::StaticTypeId())) {
-            Internal::ControlPrivate::Attach(
+            ::Aero::Controls::Detail::ControlPrivate::Attach(
                 *static_cast<Controls::TextBox*>(&node),
                 service,
                 invalidate);
@@ -945,7 +945,7 @@ struct ViewData {
                 type,
                 Controls::PasswordBox::
                     StaticTypeId())) {
-            Internal::ControlPrivate::Attach(
+            ::Aero::Controls::Detail::ControlPrivate::Attach(
                 *static_cast<Controls::PasswordBox*>(
                     &node),
                 service,
@@ -953,14 +953,14 @@ struct ViewData {
         }
     }
 
-    Aero::Internal::MeshResources*
+    Aero::Render::Detail::MeshResources*
     GetMeshResources() noexcept {
         return device
             ? Integration::RenderDevice::Impl::Resources(*device).meshes
             : nullptr;
     }
 
-    Aero::Internal::ImageResources*
+    Aero::Render::Detail::ImageResources*
     GetImageResources() noexcept {
         return device
             ? Integration::RenderDevice::Impl::Resources(*device).images
@@ -969,14 +969,14 @@ struct ViewData {
 
     void AttachPathResources(
         Aero::Visual& node,
-        Aero::Internal::MeshResources* service,
+        Aero::Render::Detail::MeshResources* service,
         bool invalidate = false) noexcept {
         if (metadata == nullptr) return;
         const Meta::TypeId type = node.RuntimeType();
         if (metadata->Types().IsDerivedFrom(
                 type,
                 Shapes::Path::StaticTypeId())) {
-            Internal::ControlPrivate::Attach(
+            ::Aero::Controls::Detail::ControlPrivate::Attach(
                 *static_cast<Shapes::Path*>(&node),
                 service,
                 invalidate);
@@ -985,7 +985,7 @@ struct ViewData {
 
     void VisitTextElements(
         Aero::Visual* rootVisual,
-        Internal::TextBlockLayout* service,
+        ::Aero::Controls::Detail::TextBlockLayout* service,
         bool invalidate = false,
         bool ancestorsVisible = true) noexcept {
         if (rootVisual == nullptr) return;
@@ -1003,7 +1003,7 @@ struct ViewData {
             service,
             invalidate && effectivelyVisible);
         for (Aero::Visual* child :
-             Aero::Internal::ElementPrivate::VisualChildren(*rootVisual)) {
+             Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*rootVisual)) {
             VisitTextElements(
                 child,
                 service,
@@ -1014,7 +1014,7 @@ struct ViewData {
 
     void VisitPaths(
         Aero::Visual* rootVisual,
-        Aero::Internal::MeshResources* service,
+        Aero::Render::Detail::MeshResources* service,
         bool invalidate = false,
         bool ancestorsVisible = true) noexcept {
         if (rootVisual == nullptr) return;
@@ -1032,7 +1032,7 @@ struct ViewData {
             service,
             invalidate && effectivelyVisible);
         for (Aero::Visual* child :
-             Aero::Internal::ElementPrivate::VisualChildren(*rootVisual)) {
+             Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*rootVisual)) {
             VisitPaths(
                 child,
                 service,
@@ -1275,7 +1275,7 @@ struct ViewData {
             const Base::Span<
                 Aero::Visual* const>
                 children =
-                    Aero::Internal::ElementPrivate::VisualChildren(*node);
+                    Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*node);
             for (std::uint32_t index =
                      children.Size();
                  index > 0U;
@@ -1781,7 +1781,7 @@ struct ViewData {
             if (metadata->Types().IsDerivedFrom(
                     node->RuntimeType(), Controls::Control::StaticTypeId())) {
                 auto& control = *static_cast<Controls::Control*>(node);
-                Internal::ControlPrivate::AttachTemplateEngine(
+                ::Aero::Controls::Detail::ControlPrivate::AttachTemplateEngine(
                     control, templates);
                 Base::Result<const Controls::ControlTemplate*> resolved =
                     ResolveUiValue<Controls::ControlTemplate>(
@@ -1791,11 +1791,11 @@ struct ViewData {
                 const Controls::ControlTemplate* controlTemplate =
                     resolved.Value();
                 if (controlTemplate != nullptr) {
-                    const Internal::TemplateHandle existing =
+                    const ::Aero::Controls::Detail::TemplateHandle existing =
                         templates->AppliedHandle(control);
                     if (!existing.IsValid() ||
                         templates->AppliedTemplate(existing) != controlTemplate) {
-                        Base::Result<Internal::TemplateHandle> applied =
+                        Base::Result<::Aero::Controls::Detail::TemplateHandle> applied =
                             templates->Apply(control, *controlTemplate);
                         if (!applied) return applied.GetStatus();
                     }
@@ -1803,7 +1803,7 @@ struct ViewData {
             }
 
             for (Aero::Visual* child :
-                 Aero::Internal::ElementPrivate::VisualChildren(*node)) {
+                 Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*node)) {
                 pushed = stack.PushBack(child);
                 if (!pushed) return pushed.GetStatus();
             }
@@ -1825,7 +1825,7 @@ struct ViewData {
                 Aero::Visual* node = reachable[index];
                 if (node == nullptr) continue;
                 for (Aero::Visual* child :
-                     Aero::Internal::ElementPrivate::VisualChildren(*node)) {
+                     Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*node)) {
                     if (child != nullptr) (void)reachable.PushBack(child);
                 }
             }
@@ -1851,7 +1851,7 @@ struct ViewData {
             }
             auto& control = *static_cast<Controls::Control*>(node);
             if (visualStates != nullptr) {
-                (void)Internal::TemplatePrivate::Clear(
+                (void)::Aero::Controls::Detail::TemplatePrivate::Clear(
                     *visualStates, control);
             }
             if (templates != nullptr) (void)templates->Clear(control);
@@ -1864,22 +1864,22 @@ struct ViewData {
     Base::Result<void> CreateUiEngines() noexcept {
         Base::Result<void> status = arena.Create(
             templates, *tree, *values,
-            Internal::MetadataPrivate::
+            ::Aero::GuiPrivate::Detail::MetadataPrivate::
                 DependencyProperties(*metadata),
             layout, renderer, metadata, bindings);
         if (!status) return status.GetStatus();
         Base::Result<Controls::VisualStateManager*> createdStates =
-            Internal::TemplatePrivate::Create(
+            ::Aero::Controls::Detail::TemplatePrivate::Create(
                 *values,
                 *templates,
                 *animations,
-                Internal::MetadataPrivate::
+                ::Aero::GuiPrivate::Detail::MetadataPrivate::
                     DependencyProperties(*metadata));
         if (!createdStates) return createdStates.GetStatus();
         visualStates = createdStates.Value();
         status = arena.Create(
             styles, *values,
-            Internal::MetadataPrivate::
+            ::Aero::GuiPrivate::Detail::MetadataPrivate::
                 DependencyProperties(*metadata));
         if (!status) return status.GetStatus();
         styles->SetTriggerActionHandler(
@@ -2051,8 +2051,7 @@ struct ViewData {
                 if (host != nullptr &&
                     itemsControl.GetRealizedItemCount() == 0U) {
                     Base::Result<Controls::ItemContainerGenerator*>
-                        created = Internal::
-                            ControlPrivate::Create(
+                        created = ::Aero::Controls::Detail::ControlPrivate::Create(
                                 *tree,
                                 *layout,
                                 *values,
@@ -2110,7 +2109,7 @@ struct ViewData {
                 }
             }
             const Base::Span<Aero::Visual* const>
-                children = Aero::Internal::ElementPrivate::VisualChildren(*node);
+                children = Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*node);
             for (std::uint32_t index = 0U;
                  index < children.Size(); ++index) {
                 pushed = stack.PushBack(children[index]);
@@ -2140,7 +2139,7 @@ struct ViewData {
                     SetInputMethodHost(nullptr));
         }
         for (Aero::Visual* child :
-             Aero::Internal::ElementPrivate::VisualChildren(*node)) {
+             Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*node)) {
             ClearTextInputHosts(child);
         }
     }
@@ -2350,7 +2349,7 @@ struct ViewData {
                           brushOwnerPath.SizeBytes() -
                               ownerDot - 1U);
                 const Meta::DependencyProperty* background =
-                    Internal::MetadataPrivate::
+                    ::Aero::GuiPrivate::Detail::MetadataPrivate::
                         DependencyProperties(*metadata)
                             .Find(
                                 target.RuntimeType(),
@@ -2513,8 +2512,7 @@ struct ViewData {
                             terminalStart - 1U);
                 const Meta::DependencyProperty*
                     ownerDependency =
-                        Internal::
-                            MetadataPrivate::
+                        ::Aero::GuiPrivate::Detail::MetadataPrivate::
                                 DependencyProperties(
                                     *metadata)
                                     .Find(
@@ -2620,8 +2618,7 @@ struct ViewData {
                 nestedProperty == Base::StringView("Color")) {
                 const Meta::DependencyProperty*
                     ownerDependency =
-                        Internal::
-                            MetadataPrivate::
+                        ::Aero::GuiPrivate::Detail::MetadataPrivate::
                                 DependencyProperties(
                                     *metadata)
                                     .Find(
@@ -2677,7 +2674,7 @@ struct ViewData {
                 path.SizeBytes() - ownerDot - 1U);
         }
         const Meta::DependencyProperty* property =
-            Internal::MetadataPrivate::
+            ::Aero::GuiPrivate::Detail::MetadataPrivate::
                 DependencyProperties(*metadata)
                     .Find(propertyTarget->RuntimeType(), path);
         if (property == nullptr) {
@@ -2690,9 +2687,9 @@ struct ViewData {
     }
 
     struct StoryboardTimingState {
-        Aero::Internal::Animation::AnimationTime beginTimeMicroseconds = 0U;
-        Aero::Internal::Animation::AnimationTime durationMicroseconds = 0U;
-        Aero::Internal::Animation::RepeatBehavior repeat;
+        Aero::Media::Detail::Animation::AnimationTime beginTimeMicroseconds = 0U;
+        Aero::Media::Detail::Animation::AnimationTime durationMicroseconds = 0U;
+        Aero::Media::Detail::Animation::RepeatBehavior repeat;
         double speedRatio = 1.0;
         bool hasDuration = false;
         bool hasRepeat = false;
@@ -2706,8 +2703,8 @@ struct ViewData {
             inherited != nullptr
             ? *inherited
             : StoryboardTimingState{};
-        const Aero::Internal::Animation::TimelineTiming authored =
-            Aero::Internal::AnimationPrivate::Timing(storyboard);
+        const Aero::Media::Detail::Animation::TimelineTiming authored =
+            Aero::Media::Detail::AnimationPrivate::Timing(storyboard);
         if (UINT64_MAX - result.beginTimeMicroseconds <
             authored.beginTimeMicroseconds) {
             result.beginTimeMicroseconds = UINT64_MAX;
@@ -2730,11 +2727,11 @@ struct ViewData {
         return result;
     }
 
-    Aero::Internal::Animation::TimelineTiming EffectiveTimelineTiming(
+    Aero::Media::Detail::Animation::TimelineTiming EffectiveTimelineTiming(
         const MediaAnimation::Timeline& timeline,
         const StoryboardTimingState* inherited) noexcept {
-        Aero::Internal::Animation::TimelineTiming result =
-            Aero::Internal::AnimationPrivate::Timing(timeline);
+        Aero::Media::Detail::Animation::TimelineTiming result =
+            Aero::Media::Detail::AnimationPrivate::Timing(timeline);
         if (inherited == nullptr) return result;
         if (UINT64_MAX - inherited->beginTimeMicroseconds <
             result.beginTimeMicroseconds) {
@@ -2759,10 +2756,10 @@ struct ViewData {
     Base::Result<std::uint32_t>
     RetainStartedAnimation(
         Base::Result<
-            Aero::Internal::Animation::AnimationHandle>
+            Aero::Media::Detail::Animation::AnimationHandle>
             started,
         Base::Vector<
-            Aero::Internal::Animation::AnimationHandle>*
+            Aero::Media::Detail::Animation::AnimationHandle>*
             retainedHandles) noexcept {
         if (!started) {
             return started.GetStatus();
@@ -2786,9 +2783,9 @@ struct ViewData {
         Aero::FrameworkElement& triggerOwner,
         const StoryboardTimingState* inherited = nullptr,
         Base::Vector<
-            Aero::Internal::Animation::AnimationHandle>*
+            Aero::Media::Detail::Animation::AnimationHandle>*
             retainedHandles = nullptr,
-        Aero::Internal::DataTemplateTriggerState*
+        Aero::Runtime::Detail::DataTemplateTriggerState*
             dataTemplateContext = nullptr) noexcept {
         if (animations == nullptr) {
             return Base::Status::Failure(
@@ -2864,12 +2861,12 @@ struct ViewData {
         if (type == MediaAnimation::DoubleAnimation::StaticTypeId()) {
             auto& animation =
                 static_cast<MediaAnimation::DoubleAnimation&>(timeline);
-            Aero::Internal::Animation::DoubleAnimation runtime =
-                Aero::Internal::AnimationPrivate::Double(animation);
+            Aero::Media::Detail::Animation::DoubleAnimation runtime =
+                Aero::Media::Detail::AnimationPrivate::Double(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
-            Base::Result<Aero::Internal::Animation::AnimationHandle> started =
+            Base::Result<Aero::Media::Detail::Animation::AnimationHandle> started =
                 animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -2881,12 +2878,12 @@ struct ViewData {
         if (type == MediaAnimation::ColorAnimation::StaticTypeId()) {
             auto& animation =
                 static_cast<MediaAnimation::ColorAnimation&>(timeline);
-            Aero::Internal::Animation::ColorAnimation runtime =
-                Aero::Internal::AnimationPrivate::Color(animation);
+            Aero::Media::Detail::Animation::ColorAnimation runtime =
+                Aero::Media::Detail::AnimationPrivate::Color(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
-            Base::Result<Aero::Internal::Animation::AnimationHandle> started =
+            Base::Result<Aero::Media::Detail::Animation::AnimationHandle> started =
                 animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -2902,13 +2899,13 @@ struct ViewData {
                 static_cast<
                     MediaAnimation::PointAnimation&>(
                         timeline);
-            Aero::Internal::Animation::PointAnimation runtime =
-                Aero::Internal::AnimationPrivate::Point(animation);
+            Aero::Media::Detail::Animation::PointAnimation runtime =
+                Aero::Media::Detail::AnimationPrivate::Point(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Aero::Internal::Animation::AnimationHandle>
+                Aero::Media::Detail::Animation::AnimationHandle>
                 started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -2924,13 +2921,13 @@ struct ViewData {
                 static_cast<
                     MediaAnimation::RectAnimation&>(
                         timeline);
-            Aero::Internal::Animation::RectAnimation runtime =
-                Aero::Internal::AnimationPrivate::Rect(animation);
+            Aero::Media::Detail::Animation::RectAnimation runtime =
+                Aero::Media::Detail::AnimationPrivate::Rect(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Aero::Internal::Animation::AnimationHandle>
+                Aero::Media::Detail::Animation::AnimationHandle>
                 started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -2946,13 +2943,13 @@ struct ViewData {
                 static_cast<
                     MediaAnimation::ThicknessAnimation&>(
                         timeline);
-            Aero::Internal::Animation::ThicknessAnimation runtime =
-                Aero::Internal::AnimationPrivate::Thickness(animation);
+            Aero::Media::Detail::Animation::ThicknessAnimation runtime =
+                Aero::Media::Detail::AnimationPrivate::Thickness(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Aero::Internal::Animation::AnimationHandle>
+                Aero::Media::Detail::Animation::AnimationHandle>
                 started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -2965,17 +2962,17 @@ struct ViewData {
             MediaAnimation::DoubleAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
                 MediaAnimation::DoubleAnimationUsingKeyFrames&>(timeline);
-            Base::Vector<Aero::Internal::Animation::DoubleKeyFrame> frames(allocator);
+            Base::Vector<Aero::Media::Detail::Animation::DoubleKeyFrame> frames(allocator);
             for (const Base::Ref<MediaAnimation::DoubleKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
                 Base::Result<void> appended =
-                    frames.PushBack(Aero::Internal::AnimationPrivate::DoubleFrame(*frame));
+                    frames.PushBack(Aero::Media::Detail::AnimationPrivate::DoubleFrame(*frame));
                 if (!appended) return appended.GetStatus();
             }
             for (std::uint32_t index = 1U;
                  index < frames.Size(); ++index) {
-                Aero::Internal::Animation::DoubleKeyFrame current =
+                Aero::Media::Detail::Animation::DoubleKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -2993,7 +2990,7 @@ struct ViewData {
             if (!base) return base.GetStatus();
             Base::Result<double> baseDouble =
                 Meta::ValueCodec<double>::Decode(base.Value());
-            Aero::Internal::Animation::DoubleKeyFrameAnimation runtime;
+            Aero::Media::Detail::Animation::DoubleKeyFrameAnimation runtime;
             if (baseDouble) {
                 runtime.baseValue = baseDouble.Value();
             } else if (!frames.Empty() &&
@@ -3016,7 +3013,7 @@ struct ViewData {
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Aero::Internal::Animation::AnimationHandle> started =
+            Base::Result<Aero::Media::Detail::Animation::AnimationHandle> started =
                 animations->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -3029,7 +3026,7 @@ struct ViewData {
             auto& animation = static_cast<
                 MediaAnimation::ColorAnimationUsingKeyFrames&>(
                     timeline);
-            Base::Vector<Aero::Internal::Animation::ColorKeyFrame>
+            Base::Vector<Aero::Media::Detail::Animation::ColorKeyFrame>
                 frames(allocator);
             for (const Base::Ref<
                      MediaAnimation::ColorKeyFrame>& frame :
@@ -3037,7 +3034,7 @@ struct ViewData {
                 if (!frame) continue;
                 Base::Result<void> appended =
                     frames.PushBack(
-                        Aero::Internal::AnimationPrivate::ColorFrame(*frame));
+                        Aero::Media::Detail::AnimationPrivate::ColorFrame(*frame));
                 if (!appended) {
                     return appended.GetStatus();
                 }
@@ -3045,7 +3042,7 @@ struct ViewData {
             for (std::uint32_t index = 1U;
                  index < frames.Size();
                  ++index) {
-                Aero::Internal::Animation::ColorKeyFrame current =
+                Aero::Media::Detail::Animation::ColorKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -3068,7 +3065,7 @@ struct ViewData {
             if (!baseColor) {
                 return baseColor.GetStatus();
             }
-            Aero::Internal::Animation::ColorKeyFrameAnimation
+            Aero::Media::Detail::Animation::ColorKeyFrameAnimation
                 runtime;
             runtime.baseValue = baseColor.Value();
             runtime.timing =
@@ -3083,7 +3080,7 @@ struct ViewData {
             }
             runtime.keyFrames = frames.AsSpan();
             Base::Result<
-                Aero::Internal::Animation::AnimationHandle>
+                Aero::Media::Detail::Animation::AnimationHandle>
                 started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -3093,7 +3090,7 @@ struct ViewData {
                 retainedHandles);
         }
 
-        Base::Vector<Aero::Internal::Animation::DiscreteAnimationKeyFrame>
+        Base::Vector<Aero::Media::Detail::Animation::DiscreteAnimationKeyFrame>
             frames(allocator);
         if (type ==
             MediaAnimation::ThicknessAnimationUsingKeyFrames::
@@ -3105,7 +3102,7 @@ struct ViewData {
                      MediaAnimation::ThicknessKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Aero::Internal::Animation::DiscreteAnimationKeyFrame runtime;
+                Aero::Media::Detail::Animation::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
                     frame->GetKeyTimeMicroseconds();
                 Base::Result<Meta::PropertyValue> encoded =
@@ -3130,7 +3127,7 @@ struct ViewData {
                      MediaAnimation::DiscreteBooleanKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Aero::Internal::Animation::DiscreteAnimationKeyFrame runtime;
+                Aero::Media::Detail::Animation::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
                     frame->GetKeyTimeMicroseconds();
                 Base::Result<Meta::PropertyValue> encoded =
@@ -3149,7 +3146,7 @@ struct ViewData {
                      MediaAnimation::DiscreteObjectKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Aero::Internal::Animation::DiscreteAnimationKeyFrame runtime;
+                Aero::Media::Detail::Animation::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
                     frame->GetKeyTimeMicroseconds();
                 runtime.value = frame->GetValue();
@@ -3164,7 +3161,7 @@ struct ViewData {
         }
         for (std::uint32_t index = 1U;
              index < frames.Size(); ++index) {
-            Aero::Internal::Animation::DiscreteAnimationKeyFrame current =
+            Aero::Media::Detail::Animation::DiscreteAnimationKeyFrame current =
                 std::move(frames[index]);
             std::uint32_t position = index;
             while (position > 0U &&
@@ -3180,7 +3177,7 @@ struct ViewData {
         Base::Result<Meta::PropertyValue> base =
             propertyTarget.GetValue(propertyHandle);
         if (!base) return base.GetStatus();
-        Aero::Internal::Animation::DiscreteAnimation runtime;
+        Aero::Media::Detail::Animation::DiscreteAnimation runtime;
         runtime.baseValue = base.Value();
         runtime.timing =
             EffectiveTimelineTiming(
@@ -3191,7 +3188,7 @@ struct ViewData {
                 frames.Back().keyTimeMicroseconds;
         }
         runtime.keyFrames = frames.AsSpan();
-        Base::Result<Aero::Internal::Animation::AnimationHandle> started =
+        Base::Result<Aero::Media::Detail::Animation::AnimationHandle> started =
             animations->Begin(
                 propertyTarget, propertyHandle, runtime);
         return RetainStartedAnimation(
@@ -3206,9 +3203,9 @@ struct ViewData {
             !actual.IsNullObject() &&
             actual.AsObject() &&
             actual.AsObject()->RuntimeType() ==
-                Internal::BoxedItemValue::StaticTypeId()) {
+                ::Aero::Controls::Detail::BoxedItemValue::StaticTypeId()) {
             return DataTemplateTriggerValuesMatch(
-                static_cast<const Internal::BoxedItemValue&>(
+                static_cast<const ::Aero::Controls::Detail::BoxedItemValue&>(
                     *actual.AsObject()).Value(),
                 std::move(expected));
         }
@@ -3233,8 +3230,8 @@ struct ViewData {
     }
 
     Base::Result<bool> EvaluateDataTemplateCondition(
-        Aero::Internal::DataTemplateTriggerState& context,
-        Aero::Internal::DataTemplateTriggerCondition& condition) noexcept {
+        Aero::Runtime::Detail::DataTemplateTriggerState& context,
+        Aero::Runtime::Detail::DataTemplateTriggerCondition& condition) noexcept {
         Meta::PropertyValue current;
         if (condition.dependencySource &&
             condition.property.IsValid()) {
@@ -3278,7 +3275,7 @@ struct ViewData {
     }
 
     Base::Result<void> EnsureDataTemplateProviderTokens(
-        Aero::Internal::DataTemplateTriggerState& context) noexcept {
+        Aero::Runtime::Detail::DataTemplateTriggerState& context) noexcept {
         if (values == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -3292,9 +3289,9 @@ struct ViewData {
         }
 
         std::uint64_t ordinal = 0U;
-        for (Aero::Internal::DataTemplatePropertyTrigger& trigger :
+        for (Aero::Runtime::Detail::DataTemplatePropertyTrigger& trigger :
              context.triggers) {
-            for (Aero::Internal::DataTemplateTriggerSetter& setter :
+            for (Aero::Runtime::Detail::DataTemplateTriggerSetter& setter :
                  trigger.setters) {
                 if (ordinal > UINT32_MAX) {
                     return Base::Status::Failure(
@@ -3318,7 +3315,7 @@ struct ViewData {
     }
 
     Base::Result<void> EvaluateDataTemplateTrigger(
-        Aero::Internal::DataTemplateTriggerState& context,
+        Aero::Runtime::Detail::DataTemplateTriggerState& context,
         std::uint32_t triggerIndex) noexcept {
         if (triggerIndex >= context.triggers.Size() ||
             context.root == nullptr ||
@@ -3331,10 +3328,10 @@ struct ViewData {
             EnsureDataTemplateProviderTokens(context);
         if (!providerTokens) return providerTokens.GetStatus();
 
-        Aero::Internal::DataTemplatePropertyTrigger& trigger =
+        Aero::Runtime::Detail::DataTemplatePropertyTrigger& trigger =
             context.triggers[triggerIndex];
         bool active = !trigger.conditions.Empty();
-        for (Aero::Internal::DataTemplateTriggerCondition& condition :
+        for (Aero::Runtime::Detail::DataTemplateTriggerCondition& condition :
              trigger.conditions) {
             Base::Result<bool> matches =
                 EvaluateDataTemplateCondition(context, condition);
@@ -3347,7 +3344,7 @@ struct ViewData {
         if (active == trigger.active) return {};
 
         if (active) {
-            for (const Aero::Internal::DataTemplateTriggerSetter& setter :
+            for (const Aero::Runtime::Detail::DataTemplateTriggerSetter& setter :
                  trigger.setters) {
                 if (!setter.target) continue;
                 Base::Result<void> applied =
@@ -3361,7 +3358,7 @@ struct ViewData {
                 }
             }
         } else {
-            for (const Aero::Internal::DataTemplateTriggerSetter& setter :
+            for (const Aero::Runtime::Detail::DataTemplateTriggerSetter& setter :
                  trigger.setters) {
                 if (!setter.target) continue;
                 Base::Result<bool> cleared =
@@ -3407,20 +3404,20 @@ struct ViewData {
 
     Base::Result<std::uint32_t>
     StartDataTemplateTriggers(
-        Aero::Internal::DataTemplateTriggerState&
+        Aero::Runtime::Detail::DataTemplateTriggerState&
             context) noexcept {
         std::uint32_t count = 0U;
         for (std::uint32_t triggerIndex = 0U;
              triggerIndex < context.triggers.Size();
              ++triggerIndex) {
-            Aero::Internal::DataTemplatePropertyTrigger&
+            Aero::Runtime::Detail::DataTemplatePropertyTrigger&
                 trigger =
                     context.triggers[triggerIndex];
             for (std::uint32_t conditionIndex = 0U;
                  conditionIndex <
                      trigger.conditions.Size();
                  ++conditionIndex) {
-                Aero::Internal::DataTemplateTriggerCondition&
+                Aero::Runtime::Detail::DataTemplateTriggerCondition&
                     condition =
                         trigger.conditions[conditionIndex];
                 if ((!condition.dependencySource ||
@@ -3443,8 +3440,7 @@ struct ViewData {
                                 StaticTypeId())) {
                         const Meta::DependencyProperty*
                             property =
-                                Internal::
-                                    MetadataPrivate::
+                                ::Aero::GuiPrivate::Detail::MetadataPrivate::
                                     DependencyProperties(
                                         *metadata)
                                         .Find(
@@ -3502,8 +3498,7 @@ struct ViewData {
                 handlerContext->runtime = this;
                 handlerContext->triggerContext =
                     Base::Ref<
-                        Aero::Internal::
-                            DataTemplateTriggerState>::
+                        Aero::Runtime::Detail::DataTemplateTriggerState>::
                         FromBorrowed(context);
                 handlerContext->triggerIndex =
                     triggerIndex;
@@ -3587,19 +3582,17 @@ struct ViewData {
                 }
             }
             for (const Base::Ref<Base::Object>& authored :
-                 Aero::Internal::ElementPrivate::AuthoredTriggers(*element)) {
+                 Aero::GuiPrivate::Detail::ElementPrivate::AuthoredTriggers(*element)) {
                 if (!authored) {
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    Aero::Internal::
-                        DataTemplateTriggerState::
+                    Aero::Runtime::Detail::DataTemplateTriggerState::
                             StaticTypeId()) {
                     Base::Result<std::uint32_t> started =
                         StartDataTemplateTriggers(
                             static_cast<
-                                Aero::Internal::
-                                    DataTemplateTriggerState&>(
+                                Aero::Runtime::Detail::DataTemplateTriggerState&>(
                                         *authored));
                     if (!started) {
                         return started.GetStatus();
@@ -3754,7 +3747,7 @@ struct ViewData {
             }
         }
         for (Aero::Visual* child :
-             Aero::Internal::ElementPrivate::VisualChildren(*visual)) {
+             Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*visual)) {
             Base::Result<std::uint32_t> started =
                 StartLoadedAnimations(child, names);
             if (!started) return started.GetStatus();
@@ -3781,11 +3774,11 @@ struct ViewData {
     }
 
     void ClearDataTemplateTriggerProviders(
-        Aero::Internal::DataTemplateTriggerState& context) noexcept {
+        Aero::Runtime::Detail::DataTemplateTriggerState& context) noexcept {
         if (values != nullptr) {
-            for (Aero::Internal::DataTemplatePropertyTrigger& trigger :
+            for (Aero::Runtime::Detail::DataTemplatePropertyTrigger& trigger :
                  context.triggers) {
-                for (Aero::Internal::DataTemplateTriggerSetter& setter :
+                for (Aero::Runtime::Detail::DataTemplateTriggerSetter& setter :
                      trigger.setters) {
                     if (!setter.target || !setter.token.IsValid()) continue;
                     static_cast<void>(
@@ -3807,16 +3800,16 @@ struct ViewData {
             visual.AsFrameworkElement();
         if (element != nullptr) {
             for (const Base::Ref<Base::Object>& authored :
-                 Aero::Internal::ElementPrivate::AuthoredTriggers(*element)) {
+                 Aero::GuiPrivate::Detail::ElementPrivate::AuthoredTriggers(*element)) {
                 if (authored && authored->RuntimeType() ==
-                    Aero::Internal::DataTemplateTriggerState::StaticTypeId()) {
+                    Aero::Runtime::Detail::DataTemplateTriggerState::StaticTypeId()) {
                     ClearDataTemplateTriggerProviders(
-                        static_cast<Aero::Internal::DataTemplateTriggerState&>(
+                        static_cast<Aero::Runtime::Detail::DataTemplateTriggerState&>(
                             *authored));
                 }
             }
         }
-        for (Aero::Visual* child : Aero::Internal::ElementPrivate::VisualChildren(visual)) {
+        for (Aero::Visual* child : Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(visual)) {
             if (child != nullptr) {
                 ClearDataTemplateTriggerProvidersInSubtree(*child);
             }
@@ -3897,7 +3890,7 @@ struct ViewData {
             }
             CancelStoryboardCompletionSessions(session.handles.AsSpan());
             if (animations != nullptr) {
-                for (Aero::Internal::Animation::AnimationHandle handle : session.handles) {
+                for (Aero::Media::Detail::Animation::AnimationHandle handle : session.handles) {
                     static_cast<void>(animations->Remove(handle));
                 }
             }
@@ -3969,10 +3962,10 @@ struct ViewData {
         if (metadata->Types().IsDerivedFrom(
                 node->RuntimeType(),
                 Controls::Control::StaticTypeId())) {
-            Internal::ControlBehavior::SetVisualStateManager(*static_cast<Controls::Control*>(node), nullptr);
+            ::Aero::Controls::Detail::ControlBehavior::SetVisualStateManager(*static_cast<Controls::Control*>(node), nullptr);
         }
         for (Aero::Visual* child :
-             Aero::Internal::ElementPrivate::VisualChildren(*node)) {
+             Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*node)) {
             ClearElementEvents(child);
         }
     }
@@ -4119,7 +4112,7 @@ struct ViewData {
         if (!device) {
             Base::Result<Base::Ref<Integration::RenderDevice>>
                 headless =
-                    Internal::CreateHeadlessRenderDevice(allocator);
+                    ::Aero::Integration::Detail::CreateHeadlessRenderDevice(allocator);
             if (!headless) {
                 terminal = true;
                 return headless.GetStatus();
@@ -4163,14 +4156,14 @@ struct ViewData {
         if (status) {
             status = arena.Create(
                 objectFactory, dispatcher,
-                Internal::MetadataPrivate::
+                ::Aero::GuiPrivate::Detail::MetadataPrivate::
                     DependencyProperties(*metadata),
                 *metadata);
         }
         if (status) {
             status = arena.Create(
                 values, dispatcher,
-                Internal::MetadataPrivate::
+                ::Aero::GuiPrivate::Detail::MetadataPrivate::
                     DependencyProperties(*metadata));
         }
         if (status) status = values->Initialize();
@@ -4222,7 +4215,7 @@ struct ViewData {
         if (status) {
             status = arena.Create(
                 events,
-                Internal::MetadataPrivate::
+                ::Aero::GuiPrivate::Detail::MetadataPrivate::
                     RoutedEventState(*metadata));
         }
         if (status) {
@@ -4529,17 +4522,17 @@ struct ViewData {
 
         ElementTree& context = *tree;
         std::uint32_t remaining = 0U;
-        for (const Aero::Internal::VisualEdge& edge :
+        for (const Aero::Markup::Detail::VisualEdge& edge :
              fragment.document.visualContent.mountEdges) {
             if (edge.state.IsAttached()) ++remaining;
         }
         while (remaining > 0U) {
             bool progressed = false;
-            for (Aero::Internal::VisualEdge& edge :
+            for (Aero::Markup::Detail::VisualEdge& edge :
                  fragment.document.visualContent.mountEdges) {
                 if (!edge.state.IsAttached()) continue;
                 bool hasMountedChild = false;
-                for (const Aero::Internal::VisualEdge& candidate :
+                for (const Aero::Markup::Detail::VisualEdge& candidate :
                      fragment.document.visualContent.mountEdges) {
                     if (candidate.state.IsAttached() &&
                         candidate.parent == edge.child) {
@@ -4656,7 +4649,7 @@ Base::Result<void>
 ViewData::ExecuteAnimationAction(
     MediaAnimation::TriggerAction& action,
     Aero::FrameworkElement& owner,
-    Aero::Internal::DataTemplateTriggerState*
+    Aero::Runtime::Detail::DataTemplateTriggerState*
         dataTemplateContext,
     const Aero::NameScope* names) noexcept {
     const Meta::TypeId type =
@@ -4697,7 +4690,7 @@ ViewData::ExecuteAnimationAction(
         const Meta::DependencyPropertyHandle propertyHandle =
             resolved.Value().property;
         const Meta::DependencyProperty* property =
-            Internal::MetadataPrivate::
+            ::Aero::GuiPrivate::Detail::MetadataPrivate::
                 DependencyProperties(*metadata)
                     .Find(propertyHandle);
         if (property == nullptr) {
@@ -4856,7 +4849,7 @@ ViewData::ExecuteAnimationAction(
                 }
                 CancelStoryboardCompletionSessions(
                     existing.handles.AsSpan());
-                for (Aero::Internal::Animation::AnimationHandle handle :
+                for (Aero::Media::Detail::Animation::AnimationHandle handle :
                      existing.handles) {
                     static_cast<void>(
                         animations->Remove(handle));
@@ -4882,7 +4875,7 @@ ViewData::ExecuteAnimationAction(
                 &completion.handles,
                 dataTemplateContext);
         if (!started) {
-            for (Aero::Internal::Animation::AnimationHandle handle :
+            for (Aero::Media::Detail::Animation::AnimationHandle handle :
                  completion.handles) {
                 static_cast<void>(
                     animations->Remove(handle));
@@ -4899,7 +4892,7 @@ ViewData::ExecuteAnimationAction(
                     completion.handles.AsSpan());
             }
             if (!named) {
-                for (Aero::Internal::Animation::AnimationHandle handle :
+                for (Aero::Media::Detail::Animation::AnimationHandle handle :
                      completion.handles) {
                     static_cast<void>(
                         animations->Remove(handle));
@@ -4911,7 +4904,7 @@ ViewData::ExecuteAnimationAction(
             storyboardCompletionSessions.PushBack(
                 std::move(completion));
         if (!retained) {
-            for (Aero::Internal::Animation::AnimationHandle handle :
+            for (Aero::Media::Detail::Animation::AnimationHandle handle :
                  completion.handles) {
                 static_cast<void>(
                     animations->Remove(handle));
@@ -4922,7 +4915,7 @@ ViewData::ExecuteAnimationAction(
             retained = storyboardSessions.PushBack(
                 std::move(namedSession));
             if (!retained) {
-                for (Aero::Internal::Animation::AnimationHandle handle :
+                for (Aero::Media::Detail::Animation::AnimationHandle handle :
                      storyboardCompletionSessions.Back().
                          handles) {
                     static_cast<void>(
@@ -4947,7 +4940,7 @@ ViewData::ExecuteAnimationAction(
         for (StoryboardCompletionSession& session : storyboardCompletionSessions) {
             if (session.owner != &owner || session.storyboard.Get() != control.GetStoryboard().Get()) continue;
             found = true;
-            for (Aero::Internal::Animation::AnimationHandle handle : session.handles) {
+            for (Aero::Media::Detail::Animation::AnimationHandle handle : session.handles) {
                 Base::Result<void> result;
                 if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Stop) result = animations->Stop(handle);
                 else if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Pause) result = animations->Pause(handle);
@@ -4990,7 +4983,7 @@ ViewData::ExecuteAnimationAction(
     }
     StoryboardSession& session =
         storyboardSessions[sessionIndex];
-    for (Aero::Internal::Animation::AnimationHandle handle :
+    for (Aero::Media::Detail::Animation::AnimationHandle handle :
          session.handles) {
         Base::Result<void> result;
         if (type ==
@@ -5049,14 +5042,14 @@ ViewData::ExecuteAnimationAction(
 
 void ViewData::
 CancelStoryboardCompletionSessions(
-    Base::Span<const Aero::Internal::Animation::AnimationHandle>
+    Base::Span<const Aero::Media::Detail::Animation::AnimationHandle>
         handles) noexcept {
     for (std::uint32_t index = 0U;
          index < storyboardCompletionSessions.Size();) {
         bool matches = false;
-        for (Aero::Internal::Animation::AnimationHandle sessionHandle :
+        for (Aero::Media::Detail::Animation::AnimationHandle sessionHandle :
              storyboardCompletionSessions[index].handles) {
-            for (Aero::Internal::Animation::AnimationHandle handle :
+            for (Aero::Media::Detail::Animation::AnimationHandle handle :
                  handles) {
                 if (sessionHandle == handle) {
                     matches = true;
@@ -5088,14 +5081,14 @@ ViewData::ProcessStoryboardCompletions() noexcept {
         StoryboardCompletionSession& session =
             storyboardCompletionSessions[index];
         bool completed = true;
-        for (Aero::Internal::Animation::AnimationHandle handle :
+        for (Aero::Media::Detail::Animation::AnimationHandle handle :
              session.handles) {
-            const Aero::Internal::Animation::AnimationState state =
+            const Aero::Media::Detail::Animation::AnimationState state =
                 animations->State(handle);
             if (state ==
-                    Aero::Internal::Animation::AnimationState::Active ||
+                    Aero::Media::Detail::Animation::AnimationState::Active ||
                 state ==
-                    Aero::Internal::Animation::AnimationState::Paused) {
+                    Aero::Media::Detail::Animation::AnimationState::Paused) {
                 completed = false;
                 break;
             }
@@ -5149,7 +5142,7 @@ ViewData::ProcessStoryboardCompletions() noexcept {
 }
 
 
-} // namespace Aero::Internal
+} // namespace Aero::Runtime::Detail
 
 #include "runtime/ViewAccess.hpp"
 
@@ -5215,15 +5208,15 @@ View::View(
     }
     state_ = new (stateMemory) Impl{};
     void* memory = allocator_->Allocate({
-        sizeof(::Aero::Internal::ViewData),
-        alignof(::Aero::Internal::ViewData),
+        sizeof(::Aero::Runtime::Detail::ViewData),
+        alignof(::Aero::Runtime::Detail::ViewData),
         Base::MemoryTag::Markup});
     if (memory == nullptr) {
         Base::ReportOutOfMemory(
-            sizeof(::Aero::Internal::ViewData), alignof(::Aero::Internal::ViewData),
+            sizeof(::Aero::Runtime::Detail::ViewData), alignof(::Aero::Runtime::Detail::ViewData),
             Base::MemoryTag::Markup);
     }
-    state_->data = new (memory) ::Aero::Internal::ViewData(
+    state_->data = new (memory) ::Aero::Runtime::Detail::ViewData(
         *allocator_, guiState.schema, guiState.documents);
 }
 
@@ -5233,8 +5226,8 @@ View::~View() noexcept {
         state_->data->~ViewData();
         allocator_->Deallocate(
             state_->data,
-            sizeof(::Aero::Internal::ViewData),
-            alignof(::Aero::Internal::ViewData),
+            sizeof(::Aero::Runtime::Detail::ViewData),
+            alignof(::Aero::Runtime::Detail::ViewData),
             Base::MemoryTag::Markup);
         state_->~Impl();
         allocator_->Deallocate(
@@ -5467,20 +5460,20 @@ Base::Result<void> View::LoadBuiltInTheme(
     }
     const std::uint8_t* paletteBytes =
         theme == BuiltInTheme::Light
-        ? Aero::Internal::AeroThemeLightCompiled
-        : Aero::Internal::AeroThemeDarkCompiled;
+        ? Aero::Runtime::Detail::AeroThemeLightCompiled
+        : Aero::Runtime::Detail::AeroThemeDarkCompiled;
     const std::uint32_t paletteSize =
         theme == BuiltInTheme::Light
-        ? Aero::Internal::AeroThemeLightCompiledSize
-        : Aero::Internal::AeroThemeDarkCompiledSize;
+        ? Aero::Runtime::Detail::AeroThemeLightCompiledSize
+        : Aero::Runtime::Detail::AeroThemeDarkCompiledSize;
     Base::Result<Base::ResourceUri> paletteUri =
-        ::Aero::Internal::BuiltInThemeUri(
+        ::Aero::Runtime::Detail::BuiltInThemeUri(
             theme == BuiltInTheme::Light
             ? Base::StringView("Light.xaml")
             : Base::StringView("Dark.xaml"));
     if (!paletteUri) return paletteUri.GetStatus();
     Base::Result<Base::ResourceUri> genericUri =
-        ::Aero::Internal::BuiltInThemeUri(
+        ::Aero::Runtime::Detail::BuiltInThemeUri(
             Base::StringView("Generic.xaml"));
     if (!genericUri) return genericUri.GetStatus();
 
@@ -5495,11 +5488,11 @@ Base::Result<void> View::LoadBuiltInTheme(
               ResourceLayer::Theme,
               paletteUri.Value().Canonical());
     if (loaded) {
-        loaded = Aero::Internal::AeroThemeGenericCompiledSize != 0U
+        loaded = Aero::Runtime::Detail::AeroThemeGenericCompiledSize != 0U
             ? LoadCompiledResources(
                   ResourceLayer::Theme,
-                  {Aero::Internal::AeroThemeGenericCompiled,
-                   Aero::Internal::AeroThemeGenericCompiledSize},
+                  {Aero::Runtime::Detail::AeroThemeGenericCompiled,
+                   Aero::Runtime::Detail::AeroThemeGenericCompiledSize},
                   genericUri.Value(),
                   ResourceLoadMode::Merge)
             : LoadResources(
@@ -5569,7 +5562,7 @@ Base::Result<void> View::Mount(
             Base::ErrorCode::InvalidArgument,
             "View cannot mount an empty UI document");
     }
-    if (Aero::Internal::XamlDocumentRuntimeLifetime(document) !=
+    if (Aero::Markup::Detail::XamlDocumentRuntimeLifetime(document) !=
         state_->data->effectLifetime.Get()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -5578,7 +5571,7 @@ Base::Result<void> View::Mount(
     Base::Result<void> valid = state_->data->ValidateDocumentRoot(document.Root());
     if (!valid) return valid.GetStatus();
     state_->data->loadedDocument =
-        Aero::Internal::TakeXamlDocument(document);
+        Aero::Markup::Detail::TakeXamlDocument(document);
     return state_->data->MountRoot(
         state_->data->loadedDocument.root, availableSize);
 }
@@ -5595,7 +5588,7 @@ Base::Result<void> View::ReplaceMountedDocument(
             Base::ErrorCode::InvalidArgument,
             "View cannot replace a document with an empty document");
     }
-    if (Aero::Internal::XamlDocumentRuntimeLifetime(document) !=
+    if (Aero::Markup::Detail::XamlDocumentRuntimeLifetime(document) !=
         state_->data->effectLifetime.Get()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -5605,7 +5598,7 @@ Base::Result<void> View::ReplaceMountedDocument(
     if (!valid) return valid.GetStatus();
 
     Markup::LoaderResult next =
-        Aero::Internal::TakeXamlDocument(document);
+        Aero::Markup::Detail::TakeXamlDocument(document);
     if (!next.root ||
         !state_->data->metadata->Types().IsDerivedFrom(
             next.root->RuntimeType(),
@@ -5654,13 +5647,13 @@ Base::Result<void> View::MountContent(
             Base::ErrorCode::InvalidArgument,
             "content fragment document must not be empty");
     }
-    if (Aero::Internal::XamlDocumentRuntimeLifetime(document) !=
+    if (Aero::Markup::Detail::XamlDocumentRuntimeLifetime(document) !=
         state_->data->effectLifetime.Get()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "content fragment document belongs to another View");
     }
-    if (Aero::Internal::ElementPrivate::Tree(host) != state_->data->tree) {
+    if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(host) != state_->data->tree) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "content fragment host does not belong to this View");
@@ -5677,7 +5670,7 @@ Base::Result<void> View::MountContent(
     if (existing != UINT32_MAX) {
         Base::Result<void> unmounted = state_->data->UnmountFragmentAt(existing);
         if (!unmounted) return unmounted.GetStatus();
-    } else if (Internal::ControlPrivate::ContentElement(host) != nullptr) {
+    } else if (::Aero::Controls::Detail::ControlPrivate::ContentElement(host) != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
               "content fragment host already owns non-fragment content");
@@ -5686,9 +5679,9 @@ Base::Result<void> View::MountContent(
         state_->data->fragmentMounts.Size() + 1U);
     if (!capacity) return capacity.GetStatus();
 
-    ::Aero::Internal::ViewData::FragmentMount fragment;
+    ::Aero::Runtime::Detail::ViewData::FragmentMount fragment;
     fragment.host = &host;
-    fragment.document = Aero::Internal::TakeXamlDocument(document);
+    fragment.document = Aero::Markup::Detail::TakeXamlDocument(document);
     Base::Result<Aero::Visual*> rootVisual =
         state_->data->ResolveVisual(
             *fragment.document.root,
@@ -5709,7 +5702,7 @@ Base::Result<void> View::MountContent(
         fragment.document.Clear();
         return tracked.GetStatus();
     }
-    Base::Result<void> assigned = Internal::ControlPrivate::SetOwnedContent(host,
+    Base::Result<void> assigned = ::Aero::Controls::Detail::ControlPrivate::SetOwnedContent(host,
         fragment.document.root, *rootElement.Value());
     if (!assigned) {
         fragment.document.Clear();
@@ -5717,7 +5710,7 @@ Base::Result<void> View::MountContent(
     }
 
     ElementTree& context = *state_->data->tree;
-    Base::Result<Aero::Internal::ElementAttachment> rootMounted =
+    Base::Result<Aero::GuiPrivate::Detail::ElementAttachment> rootMounted =
         context.AttachElement(host, *rootVisual.Value());
     if (!rootMounted) {
         static_cast<void>(host.SetContent(nullptr));
@@ -5732,21 +5725,21 @@ Base::Result<void> View::MountContent(
     const auto attachEdges = [&](bool deferred) noexcept
         -> Base::Result<void> {
         std::uint32_t attached = 0U;
-        for (const Aero::Internal::VisualEdge& edge :
+        for (const Aero::Markup::Detail::VisualEdge& edge :
              fragment.document.visualContent.mountEdges) {
             if (edge.state.logicalAttached) ++attached;
         }
         while (attached < fragment.document.visualContent.mountEdges.Size()) {
             bool progressed = false;
-            for (Aero::Internal::VisualEdge& edge :
+            for (Aero::Markup::Detail::VisualEdge& edge :
                  fragment.document.visualContent.mountEdges) {
                 if (edge.state.logicalAttached || edge.parent == nullptr ||
                     edge.child == nullptr ||
-                    Aero::Internal::ElementPrivate::Tree(*edge.parent) != state_->data->tree ||
-                    (deferred && Aero::Internal::ElementPrivate::Tree(*edge.child) == state_->data->tree)) {
+                    Aero::GuiPrivate::Detail::ElementPrivate::Tree(*edge.parent) != state_->data->tree ||
+                    (deferred && Aero::GuiPrivate::Detail::ElementPrivate::Tree(*edge.child) == state_->data->tree)) {
                     continue;
                 }
-                Base::Result<Aero::Internal::ElementAttachment> mounted =
+                Base::Result<Aero::GuiPrivate::Detail::ElementAttachment> mounted =
                     context.AttachElement(*edge.parent, *edge.child);
                 if (!mounted) return mounted.GetStatus();
                 edge.state = std::move(mounted).Value();
@@ -5811,7 +5804,7 @@ Base::Result<void> View::UnmountContent(
             return state_->data->UnmountFragmentAt(index);
         }
     }
-    return Internal::ControlPrivate::ContentElement(host) == nullptr
+    return ::Aero::Controls::Detail::ControlPrivate::ContentElement(host) == nullptr
         ? Base::Result<void>()
         : Base::Result<void>(Base::Status::Failure(
               Base::ErrorCode::InvalidState,
@@ -6195,7 +6188,7 @@ View::AdvanceClocks(
     }
     Base::Result<std::uint32_t> animations =
         state_->data->animations->AdvanceBy(
-            static_cast<Aero::Internal::Animation::AnimationTime>(
+            static_cast<Aero::Media::Detail::Animation::AnimationTime>(
                 elapsedMilliseconds) * 1000U);
     if (!animations) return animations.GetStatus();
     Base::Result<std::uint32_t> completed =
@@ -6224,7 +6217,7 @@ View::AdvanceAnimations(
     }
     Base::Result<std::uint32_t> advanced =
         state_->data->animations->AdvanceBy(
-        static_cast<Aero::Internal::Animation::AnimationTime>(
+        static_cast<Aero::Media::Detail::Animation::AnimationTime>(
             elapsedMilliseconds) * 1000U);
     if (!advanced) return advanced.GetStatus();
     Base::Result<std::uint32_t> completed =
@@ -6273,7 +6266,7 @@ void View::SetRenderDevice(
         }
     }
 
-    Aero::Internal::ImageResources*
+    Aero::Render::Detail::ImageResources*
         previousImages = state_->data->GetImageResources();
     if (state_->data->images != nullptr) {
         state_->data->images->ReleaseBackendResources(

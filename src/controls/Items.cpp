@@ -1,23 +1,23 @@
 #include <Aero/Controls/Items.hpp>
-#include "ItemsInternal.hpp"
-#include "ControlInternals.hpp"
-#include "TemplateInternals.hpp"
+#include "controls/ControlsPrivate.hpp"
+#include "controls/ControlsPrivate.hpp"
+#include "controls/ControlsPrivate.hpp"
 
 #include "render/RenderTree.hpp"
-#include "gui/StyleInternal.hpp"
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <new>
 #include <utility>
-#include "gui/LayoutInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Internal::TemplateEngine;
+using Aero::Controls::Detail::TemplateEngine;
 
 Panel* ItemsPresenter::GetItemsHost() const noexcept {
     UIElement* child = GetChild();
@@ -31,17 +31,18 @@ Panel* ItemsPresenter::GetItemsHost() const noexcept {
 void ItemsPresenter::SetItemsHost(
     const Base::Ref<Base::Object>& owner,
     Panel& panel) noexcept {
-    (void)::Aero::Internal::ControlPrivate::SetOwnedChild(*this, owner, panel);
+    (void)::Aero::Controls::Detail::ControlPrivate::SetOwnedChild(*this, owner, panel);
 }
 
 
-using namespace Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 Base::Result<void> AddBoxedItem(
     Collections::ObservableCollection& source,
     Meta::Value value) noexcept {
-    Base::Result<Base::Ref<::Aero::Internal::BoxedItemValue>> boxed =
-        Base::MakeRef<::Aero::Internal::BoxedItemValue>(std::move(value));
+    Base::Result<Base::Ref<::Aero::Controls::Detail::BoxedItemValue>> boxed =
+        Base::MakeRef<::Aero::Controls::Detail::BoxedItemValue>(std::move(value));
     if (!boxed) return boxed.GetStatus();
     return source.Add(
         Base::Ref<Base::Object>(std::move(boxed).Value()));
@@ -572,7 +573,7 @@ Base::Result<Base::Ref<Base::Object>> ItemsPanelTemplate::Impl::Instantiate(cons
 
 } // namespace Aero::Controls
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 using namespace ::Aero::Controls;
 using namespace ::Aero::Controls::Detail;
@@ -725,7 +726,7 @@ Base::Result<Base::Ref<Base::Object>> TemplatePrivate::Instantiate(
     return ItemsPanelTemplate::Impl::Instantiate(value);
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail
 
 namespace Aero::Controls {
 
@@ -746,7 +747,7 @@ void ContentControl::OnContentPropertyChanged(
     if (control.synchronizingContentProperty_) return;
     control.synchronizingContentProperty_ = true;
     static_cast<void>(
-        ::Aero::Internal::ControlPrivate::SetContentValue(control, change.GetNewValue()));
+        ::Aero::Controls::Detail::ControlPrivate::SetContentValue(control, change.GetNewValue()));
     control.synchronizingContentProperty_ = false;
 }
 
@@ -1046,7 +1047,8 @@ namespace Aero::Controls {
 
 using namespace ::Aero;
 using namespace ::Aero::Controls;
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 struct ItemContainerGenerator::Impl {
 public:
@@ -1056,7 +1058,7 @@ public:
         LayoutEngine& layout,
         EffectiveValueEngine& values,
         StyleEngine* styles,
-        RenderTree* renderer,
+        ::Aero::Render::Detail::RenderTree* renderer,
         TemplateEngine* templates,
         ItemSubtreeCallback subtreeCallback,
         void* subtreeContext) noexcept;
@@ -1109,7 +1111,7 @@ private:
     LayoutEngine* layout_ = nullptr;
     EffectiveValueEngine* values_ = nullptr;
     StyleEngine* styles_ = nullptr;
-    RenderTree* renderer_ = nullptr;
+    ::Aero::Render::Detail::RenderTree* renderer_ = nullptr;
     TemplateEngine* templates_ = nullptr;
     ItemSubtreeCallback subtreeCallback_ = nullptr;
     void* subtreeContext_ = nullptr;
@@ -1149,7 +1151,7 @@ ItemContainerGenerator::Impl::Impl(
     LayoutEngine& layout,
     EffectiveValueEngine& values,
     StyleEngine* styles,
-    RenderTree* renderer,
+    ::Aero::Render::Detail::RenderTree* renderer,
     TemplateEngine* templates,
     ItemSubtreeCallback subtreeCallback,
     void* subtreeContext) noexcept
@@ -1175,8 +1177,8 @@ Base::Result<void> ItemContainerGenerator::Impl::Attach(
     Panel& itemsHost) noexcept {
     if (owner_ != nullptr ||
         owner.generator_ != nullptr ||
-        Aero::Internal::ElementPrivate::Tree(owner) != tree_ ||
-        Aero::Internal::ElementPrivate::Tree(itemsHost) != tree_) {
+        Aero::GuiPrivate::Detail::ElementPrivate::Tree(owner) != tree_ ||
+        Aero::GuiPrivate::Detail::ElementPrivate::Tree(itemsHost) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ItemContainerGenerator attach state is invalid");
@@ -1212,8 +1214,8 @@ ItemContainerGenerator::Impl::AttachVirtualized(
     VirtualizingStackPanel& itemsHost) noexcept {
     if (owner_ != nullptr ||
         owner.generator_ != nullptr ||
-        Aero::Internal::ElementPrivate::Tree(owner) != tree_ ||
-        Aero::Internal::ElementPrivate::Tree(itemsHost) != tree_) {
+        Aero::GuiPrivate::Detail::ElementPrivate::Tree(owner) != tree_ ||
+        Aero::GuiPrivate::Detail::ElementPrivate::Tree(itemsHost) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Virtualized item generator attach state is invalid");
@@ -1324,9 +1326,9 @@ ItemContainerGenerator::Impl::CreateRecord(
             std::move(content).Value();
     } else if (
         record.item->RuntimeType() ==
-            ::Aero::Internal::BoxedItemValue::StaticTypeId()) {
+            ::Aero::Controls::Detail::BoxedItemValue::StaticTypeId()) {
         const Meta::Value& value =
-            static_cast<const ::Aero::Internal::BoxedItemValue&>(
+            static_cast<const ::Aero::Controls::Detail::BoxedItemValue&>(
                 *record.item).Value();
         if (value.Kind() !=
                 Meta::ValueKind::String) {
@@ -1407,12 +1409,12 @@ ItemContainerGenerator::Impl::AttachOwnedSubtree(
             *static_cast<Aero::Visual*>(
                 owned.Get());
         if (child.GetVisualParent() == &parent &&
-            Aero::Internal::ElementPrivate::Tree(child) == tree_) {
+            Aero::GuiPrivate::Detail::ElementPrivate::Tree(child) == tree_) {
             return pending.PushBack(&child);
         }
         if (child.GetVisualParent() != nullptr ||
             child.GetLogicalParent() != nullptr ||
-            Aero::Internal::ElementPrivate::Tree(child) != nullptr) {
+            Aero::GuiPrivate::Detail::ElementPrivate::Tree(child) != nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Owned item-template child is already mounted elsewhere");
@@ -1454,12 +1456,12 @@ ItemContainerGenerator::Impl::AttachOwnedSubtree(
             auto& panel =
                 *static_cast<Panel*>(current);
             for (std::uint32_t index = 0U;
-                 index < ::Aero::Internal::ControlPrivate::Count(panel);
+                 index < ::Aero::Controls::Detail::ControlPrivate::Count(panel);
                  ++index) {
                 Base::Result<void> attached =
                     attachChild(
                         panel,
-                        ::Aero::Internal::ControlPrivate::At(panel, index));
+                        ::Aero::Controls::Detail::ControlPrivate::At(panel, index));
                 if (!attached) {
                     (void)DetachOwnedSubtree(record);
                     return attached.GetStatus();
@@ -1474,7 +1476,7 @@ ItemContainerGenerator::Impl::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     decorator,
-                    ::Aero::Internal::ControlPrivate::OwnedChild(decorator));
+                    ::Aero::Controls::Detail::ControlPrivate::OwnedChild(decorator));
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
@@ -1488,7 +1490,7 @@ ItemContainerGenerator::Impl::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     content,
-                    ::Aero::Internal::ControlPrivate::OwnedContent(content));
+                    ::Aero::Controls::Detail::ControlPrivate::OwnedContent(content));
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
@@ -1590,10 +1592,10 @@ ItemContainerGenerator::Impl::AttachRecord(
 
         Base::Result<void> selected =
             record.generatedTextContent
-            ? ::Aero::Internal::ControlPrivate::
+            ? ::Aero::Controls::Detail::ControlPrivate::
                       SetGeneratedTextContent(
                       *contentControl, record.content, content)
-            : ::Aero::Internal::ControlPrivate::SetOwnedContent(*contentControl,
+            : ::Aero::Controls::Detail::ControlPrivate::SetOwnedContent(*contentControl,
                   record.content, content);
         if (!selected) {
             (void)tree_->DetachElement(
@@ -1693,7 +1695,7 @@ ItemContainerGenerator::Impl::DetachRecord(
         templates_ != nullptr &&
         owner_->PropertyRegistry().Types().IsDerivedFrom(
             container.RuntimeType(), Control::StaticTypeId()) &&
-        ::Aero::Internal::ControlPrivate::IsTemplateApplied(
+        ::Aero::Controls::Detail::ControlPrivate::IsTemplateApplied(
             static_cast<Control&>(container))) {
         Base::Result<bool> cleared =
             templates_->Clear(static_cast<Control&>(container));
@@ -1704,7 +1706,7 @@ ItemContainerGenerator::Impl::DetachRecord(
     }
     UIElement* content = nullptr;
     if (!record.itemIsOwnContainer && contentControl != nullptr) {
-        content = ::Aero::Internal::ControlPrivate::ContentElement(
+        content = ::Aero::Controls::Detail::ControlPrivate::ContentElement(
             *contentControl);
     }
     if (content != nullptr) {
@@ -2159,14 +2161,14 @@ ItemContainerGenerator::Impl::ItemFromContainer(
 namespace Aero::Controls {
 
 ItemContainerGenerator::~ItemContainerGenerator() noexcept {
-    delete static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    delete static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     impl_ = nullptr;
 }
 
 Base::Result<void> ItemContainerGenerator::Attach(
     ItemsControl& owner,
     Panel& itemsHost) noexcept {
-    auto* runtime = static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     return runtime != nullptr
         ? runtime->Attach(owner, itemsHost)
         : Base::Result<void>(Base::Status::Failure(
@@ -2177,7 +2179,7 @@ Base::Result<void> ItemContainerGenerator::Attach(
 Base::Result<void> ItemContainerGenerator::AttachVirtualized(
     ItemsControl& owner,
     VirtualizingStackPanel& itemsHost) noexcept {
-    auto* runtime = static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     return runtime != nullptr
         ? runtime->AttachVirtualized(owner, itemsHost)
         : Base::Result<void>(Base::Status::Failure(
@@ -2186,12 +2188,12 @@ Base::Result<void> ItemContainerGenerator::AttachVirtualized(
 }
 
 Base::Result<bool> ItemContainerGenerator::Detach() noexcept {
-    auto* runtime = static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     return runtime != nullptr ? runtime->Detach() : Base::Result<bool>(false);
 }
 
 Base::Result<void> ItemContainerGenerator::Refresh() noexcept {
-    auto* runtime = static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     return runtime != nullptr
         ? runtime->Refresh()
         : Base::Result<void>(Base::Status::Failure(
@@ -2202,52 +2204,52 @@ Base::Result<void> ItemContainerGenerator::Refresh() noexcept {
 void ItemContainerGenerator::SetRealizationRange(
     std::uint32_t firstIndex,
     std::uint32_t count) noexcept {
-    auto* runtime = static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     if (runtime != nullptr) (void)runtime->SetRealizationRange(firstIndex, count);
 }
 
 std::uint32_t ItemContainerGenerator::GetGeneratedCount() const noexcept {
-    auto* runtime = static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     return runtime != nullptr ? runtime->GetGeneratedCount() : 0U;
 }
 
 std::uint32_t ItemContainerGenerator::GetFirstGeneratedIndex() const noexcept {
-    auto* runtime = static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     return runtime != nullptr ? runtime->GetFirstGeneratedIndex() : 0U;
 }
 
 std::uint32_t ItemContainerGenerator::GetCreatedContainerCount() const noexcept {
-    auto* runtime = static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     return runtime != nullptr ? runtime->GetCreatedContainerCount() : 0U;
 }
 
 std::uint32_t ItemContainerGenerator::GetRecycledContainerUseCount() const noexcept {
-    auto* runtime = static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     return runtime != nullptr ? runtime->GetRecycledContainerUseCount() : 0U;
 }
 
 FrameworkElement* ItemContainerGenerator::ContainerFromIndex(
     std::uint32_t index) const noexcept {
-    auto* runtime = static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     return runtime != nullptr ? runtime->ContainerFromIndex(index) : nullptr;
 }
 
 std::uint32_t ItemContainerGenerator::IndexFromContainer(
     const FrameworkElement& container) const noexcept {
-    auto* runtime = static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     return runtime != nullptr ? runtime->IndexFromContainer(container) : UINT32_MAX;
 }
 
 Base::Ref<Base::Object> ItemContainerGenerator::ItemFromContainer(
     const FrameworkElement& container) const noexcept {
-    auto* runtime = static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     return runtime != nullptr
         ? runtime->ItemFromContainer(container)
         : Base::Ref<Base::Object>{};
 }
 
 Base::Status ItemContainerGenerator::LastError() const noexcept {
-    auto* runtime = static_cast<::Aero::Internal::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = static_cast<::Aero::Controls::Detail::ItemContainerGeneratorImpl*>(impl_);
     return runtime != nullptr
         ? runtime->LastError()
         : Base::Status::Failure(
@@ -2260,15 +2262,16 @@ Base::Status ItemContainerGenerator::LastError() const noexcept {
 namespace Aero::Controls {
 
 using namespace ::Aero;
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 Base::Result<ItemContainerGenerator*>
 Control::Impl::Create(
     ElementTree& tree,
-    Aero::Internal::LayoutEngine& layout,
+    Aero::GuiPrivate::Detail::LayoutEngine& layout,
     Meta::EffectiveValueEngine& values,
-    Aero::Internal::StyleEngine* styles,
-    Internal::RenderTree* renderer,
+    Aero::GuiPrivate::Detail::StyleEngine* styles,
+    ::Aero::Render::Detail::RenderTree* renderer,
     TemplateEngine* templates,
     ItemSubtreeCallback subtreeCallback,
     void* subtreeContext) noexcept {
@@ -2304,13 +2307,13 @@ namespace Aero::Controls {
 void DataTemplate::SetResources(Base::Ref<ResourceDictionary> value) noexcept {
     Detail::DataTemplateState* state = static_cast<Detail::DataTemplateState*>(state_);
     if (state == nullptr) return;
-    (void)Aero::Internal::AssignResourceDictionary(state->resources, std::move(value), "DataTemplate Resources is already assigned");
+    (void)Aero::GuiPrivate::Detail::AssignResourceDictionary(state->resources, std::move(value), "DataTemplate Resources is already assigned");
 }
 
 void ItemsPanelTemplate::SetResources(Base::Ref<ResourceDictionary> value) noexcept {
     Detail::ItemsPanelTemplateState* state = static_cast<Detail::ItemsPanelTemplateState*>(state_);
     if (state == nullptr) return;
-    (void)Aero::Internal::AssignResourceDictionary(state->resources, std::move(value), "ItemsPanelTemplate Resources is already assigned");
+    (void)Aero::GuiPrivate::Detail::AssignResourceDictionary(state->resources, std::move(value), "ItemsPanelTemplate Resources is already assigned");
 }
 
 } // namespace Aero::Controls

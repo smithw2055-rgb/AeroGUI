@@ -12,9 +12,9 @@
 #include <cstddef>
 #include <new>
 #include <utility>
-#include "gui/AnimationInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
-namespace Aero::Internal::Animation {
+namespace Aero::Media::Detail::Animation {
 namespace {
 
 constexpr double Pi = 3.1415926535897932384626433832795;
@@ -147,13 +147,13 @@ bool IsTimingValid(const TimelineTiming& timing) noexcept {
 
 } // namespace
 
-} // namespace Aero::Internal::Animation
+} // namespace Aero::Media::Detail::Animation
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
-using namespace Aero::Internal::Animation;
+using namespace Aero::Media::Detail::Animation;
 using namespace Aero::Media;
 
 struct AnimationEngine::Track {
@@ -1316,4 +1316,4 @@ void AnimationEngine::AnimationFrameHook(void* context) noexcept {
     if (!ticked) manager->lastTickStatus_ = ticked.GetStatus();
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Media::Detail

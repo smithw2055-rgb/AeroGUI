@@ -1,5 +1,5 @@
-#include "gui/StyleInternal.hpp"
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Styling.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Value.hpp>
@@ -632,7 +632,7 @@ Base::Result<void> Style::SealRuntime(
 
 void Style::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
-    (void)Aero::Internal::AssignResourceDictionary(
+    (void)Aero::GuiPrivate::Detail::AssignResourceDictionary(
         resources_,
         std::move(value),
         "Style Resources is already assigned");
@@ -646,7 +646,7 @@ Base::Result<void> Style::Impl::Seal(
 
 } // namespace Aero
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -1121,4 +1121,4 @@ void StyleEngine::TriggerPhaseHook(
 }
 
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

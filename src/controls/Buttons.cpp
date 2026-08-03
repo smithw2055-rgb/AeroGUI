@@ -1,12 +1,12 @@
-#include "TemplateInternals.hpp"
+#include "controls/ControlsPrivate.hpp"
 #include <Aero/Controls/Primitives.hpp>
 
 #include <utility>
-#include "gui/RoutedEventInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Internal::ButtonBehavior;
+using Aero::Controls::Detail::ButtonBehavior;
 
 using namespace Primitives;
 
@@ -146,7 +146,8 @@ namespace Aero::Controls::Primitives {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
-using namespace ::Aero::Internal;
+using namespace ::Aero::Controls::Detail;
+using namespace ::Aero::GuiPrivate::Detail;
 
 namespace {
 
@@ -321,7 +322,7 @@ Base::Result<void> ButtonBase::Impl::Attach(
             Base::ErrorCode::AlreadyExists,
             "Button is already attached to another interaction service");
     }
-    if (!button.GetIsLoaded() || Aero::Internal::ElementPrivate::Tree(button) != tree_) {
+    if (!button.GetIsLoaded() || Aero::GuiPrivate::Detail::ElementPrivate::Tree(button) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Button must be loaded in the interaction tree");
@@ -475,7 +476,7 @@ Base::Result<bool> ButtonBase::Impl::Detach(
     }
     UnsubscribeCommand(record);
     if (states_ != nullptr) {
-        static_cast<void>(Aero::Internal::TemplatePrivate::Clear(*states_, button));
+        static_cast<void>(Aero::Controls::Detail::TemplatePrivate::Clear(*states_, button));
     }
     if (button.interactionRuntime_ == this) {
         button.interactionRuntime_ = nullptr;
@@ -681,7 +682,7 @@ ButtonBase::Impl::SyncVisualState(
             Base::StringView state) noexcept
             -> Base::Result<void> {
         Base::Result<bool> changed =
-            Aero::Internal::TemplatePrivate::GoToState(*states_,
+            Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
                 button, group, state,
                 useTransitions);
         if (!changed &&

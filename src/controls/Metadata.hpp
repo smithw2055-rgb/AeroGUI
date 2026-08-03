@@ -1,18 +1,18 @@
 #pragma once
 
 #include <Aero/Base/Result.hpp>
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
-namespace Aero::Controls {
-
-namespace Detail {
+namespace Aero::Controls::Detail {
 
 // Module population is an implementation callback; hosts register through the
 // Meta::Registry overload below.
 AERO_API Base::Result<void> PopulateControlsMetadata(
     ::Aero::Meta::Registration& context) noexcept;
 
-} // namespace Detail
+} // namespace Aero::Controls::Detail
+
+namespace Aero::Controls {
 
 inline constexpr Base::StringView ControlsMetadataModuleName() noexcept {
     return "Aero.Controls";
@@ -26,7 +26,7 @@ inline Base::Result<void> RegisterControlsMetadata(
         Meta::MakeMetadataModuleId(name),
         name,
         SchemaVersion,
-        &Detail::PopulateControlsMetadata,
+        &::Aero::Controls::Detail::PopulateControlsMetadata,
         nullptr,
         nullptr});
 }

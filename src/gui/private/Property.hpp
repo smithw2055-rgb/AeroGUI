@@ -224,7 +224,7 @@ private:
 
 #include <utility>
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using namespace ::Aero::Meta;
 
@@ -596,4 +596,4 @@ private:
     PropertyProviderSession session_;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail

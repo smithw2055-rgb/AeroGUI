@@ -1,5 +1,5 @@
-#include "gui/MetadataInternal.hpp"
-#include "BindingInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Meta {
 namespace {

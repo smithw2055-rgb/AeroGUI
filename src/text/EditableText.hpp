@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-namespace Aero::Internal {
+namespace Aero::Text::Detail {
 
 // UTF-8 gap-buffer editor model. Public positions are extended grapheme
 // cluster indices; UTF-8 bytes and code-point counts remain queryable for
@@ -75,4 +75,4 @@ private:
     Base::Result<void> EnsureImpl() noexcept;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Text::Detail

@@ -6,7 +6,7 @@
 
 #include <algorithm>
 
-namespace Aero::Internal {
+namespace Aero::Media::Detail {
 
 inline Base::Color SampleGradient(
     const Media::GradientBrush& brush,
@@ -68,7 +68,7 @@ inline Base::Color SampleBrush(
     return fallback;
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Media::Detail
 
 namespace Aero::Media {
 
@@ -122,8 +122,8 @@ public:
 
 } // namespace Aero::Media
 
-namespace Aero::Internal {
+namespace Aero::Media::Detail {
 
 using BrushPrivate = ::Aero::Media::Brush::Impl;
 
-} // namespace Aero::Internal
+} // namespace Aero::Media::Detail

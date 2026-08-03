@@ -26,7 +26,7 @@ namespace Aero::Controls::Primitives { class Selector; }
 
 namespace Aero::Shapes { class Path; }
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 class EventRouter;
 class InputRouter;
@@ -43,7 +43,7 @@ struct ElementHost {
         void*, Base::StringView, Meta::TypeId) noexcept = nullptr;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail
 
 namespace Aero {
 
@@ -70,7 +70,7 @@ using ElementTreeLifecycleHandler = void (*)(
 
 namespace Aero {
 
-using namespace Internal;
+using namespace ::Aero::GuiPrivate::Detail;
 
 // One private entry point owns all element implementation state. Public WPF
 // classes friend this type instead of exposing one Access class per base type.
@@ -324,7 +324,7 @@ public:
 
 } // namespace Aero
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 using ElementPrivate = ::Aero::Visual::Impl;
 
@@ -353,17 +353,17 @@ struct VisualLease {
     }
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail
 
 // Per-view Gui context and element attachment state.
 
 #include <Aero/Threading.hpp>
-#include "gui/PropertyInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Layout.hpp>
 
-namespace Aero::Internal { class RenderTree; }
+namespace Aero::Render::Detail { class RenderTree; }
 
-namespace Aero::Internal {
+namespace Aero::GuiPrivate::Detail {
 
 struct ElementAttachment {
     Visual* logicalParent = nullptr;
@@ -404,7 +404,7 @@ struct RootAttachment {
     }
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::GuiPrivate::Detail
 
 namespace Aero {
 
@@ -436,37 +436,37 @@ public:
     Base::Result<void> DetachNode(Visual& node) noexcept;
 
     void AttachPresentation(
-        Aero::Internal::LayoutEngine* layout,
-        Internal::RenderTree* renderer) noexcept {
+        Aero::GuiPrivate::Detail::LayoutEngine* layout,
+        ::Aero::Render::Detail::RenderTree* renderer) noexcept {
         layout_ = layout;
         renderer_ = renderer;
     }
 
-    Base::Result<Aero::Internal::ElementAttachment> AttachElement(
+    Base::Result<Aero::GuiPrivate::Detail::ElementAttachment> AttachElement(
         Visual& parent, Visual& child) noexcept {
         return AttachElement(parent, parent, child);
     }
-    Base::Result<Aero::Internal::ElementAttachment> AttachElement(
+    Base::Result<Aero::GuiPrivate::Detail::ElementAttachment> AttachElement(
         Visual& logicalParent, Visual& visualParent, Visual& child) noexcept;
     Base::Result<void> DetachElement(
-        Aero::Internal::ElementAttachment& state) noexcept;
+        Aero::GuiPrivate::Detail::ElementAttachment& state) noexcept;
     Base::Result<void> DetachVisual(
-        Aero::Internal::ElementAttachment& state) noexcept;
+        Aero::GuiPrivate::Detail::ElementAttachment& state) noexcept;
     Base::Result<void> AttachVisual(
-        Aero::Internal::ElementAttachment& state, Visual& newVisualParent) noexcept;
-    Base::Result<Aero::Internal::VisualAttachment> AttachVisualChild(
+        Aero::GuiPrivate::Detail::ElementAttachment& state, Visual& newVisualParent) noexcept;
+    Base::Result<Aero::GuiPrivate::Detail::VisualAttachment> AttachVisualChild(
         Visual& visualParent, Visual& child) noexcept;
     Base::Result<void> DetachVisual(
-        Aero::Internal::VisualAttachment& state) noexcept;
-    Base::Result<Aero::Internal::VisualAttachment> ReparentVisual(
-        Aero::Internal::VisualAttachment& current, Visual& newVisualParent) noexcept;
-    Base::Result<Aero::Internal::RootAttachment> AttachRoot(
+        Aero::GuiPrivate::Detail::VisualAttachment& state) noexcept;
+    Base::Result<Aero::GuiPrivate::Detail::VisualAttachment> ReparentVisual(
+        Aero::GuiPrivate::Detail::VisualAttachment& current, Visual& newVisualParent) noexcept;
+    Base::Result<Aero::GuiPrivate::Detail::RootAttachment> AttachRoot(
         Visual& root, Size availableSize) noexcept;
     Base::Result<void> DetachRoot(
-        Aero::Internal::RootAttachment& state) noexcept;
+        Aero::GuiPrivate::Detail::RootAttachment& state) noexcept;
 
-    Aero::Internal::LayoutEngine* Layout() const noexcept { return layout_; }
-    Internal::RenderTree* Renderer() const noexcept { return renderer_; }
+    Aero::GuiPrivate::Detail::LayoutEngine* Layout() const noexcept { return layout_; }
+    ::Aero::Render::Detail::RenderTree* Renderer() const noexcept { return renderer_; }
 
     void SetLifecycleHandler(
         ElementTreeLifecycleHandler handler,
@@ -483,7 +483,7 @@ public:
 
 private:
     struct LifecycleRecord {
-        Aero::Internal::VisualLease node;
+        Aero::GuiPrivate::Detail::VisualLease node;
         bool loaded = false;
         std::uint64_t sequence = 0U;
         std::uint64_t treeVersion = 0U;
@@ -495,8 +495,8 @@ private:
 
     ::Aero::Threading::Dispatcher* dispatcher_ = nullptr;
     Meta::EffectiveValueEngine* values_ = nullptr;
-    Aero::Internal::LayoutEngine* layout_ = nullptr;
-    Internal::RenderTree* renderer_ = nullptr;
+    Aero::GuiPrivate::Detail::LayoutEngine* layout_ = nullptr;
+    ::Aero::Render::Detail::RenderTree* renderer_ = nullptr;
     Visual* root_ = nullptr;
     Base::Vector<LifecycleRecord> lifecycleQueue_;
     Base::Vector<HandleEntry> handles_;

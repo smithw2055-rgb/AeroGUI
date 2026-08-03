@@ -1,12 +1,12 @@
 #include "DisplayList.hpp"
-#include "DrawingInternals.hpp"
+#include "render/RenderPrivate.hpp"
 #include "RenderTree.hpp"
-#include "../media/TransformInternals.hpp"
+#include "../media/MediaPrivate.hpp"
 
-#include "gui/StyleInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/Assert.hpp>
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
 
@@ -324,8 +324,8 @@ namespace Aero {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using Media::Transform;
-using Internal::TransformOwnerRole;
-using Internal::OwnerRoleValue;
+using ::Aero::Media::Detail::TransformOwnerRole;
+using ::Aero::Media::Detail::OwnerRoleValue;
 using Media::TransformBounds;
 using Media::ComposeTransforms;
 using Render::DisplayListBuilder;
@@ -339,14 +339,14 @@ FrameworkElement::~FrameworkElement() {
     Base::Ref<Transform> renderTransform =
         GetRenderTransform();
     if (renderTransform) {
-        Internal::TransformPrivate::DetachOwner(
+        ::Aero::Media::Detail::TransformPrivate::DetachOwner(
             *renderTransform, this,
             OwnerRoleValue(TransformOwnerRole::Render));
     }
     Base::Ref<Transform> layoutTransform =
         GetLayoutTransform();
     if (layoutTransform) {
-        Internal::TransformPrivate::DetachOwner(
+        ::Aero::Media::Detail::TransformPrivate::DetachOwner(
             *layoutTransform, this,
             OwnerRoleValue(TransformOwnerRole::Layout));
     }
@@ -450,7 +450,7 @@ Base::Result<void> FrameworkElement::InvalidateVisual() noexcept {
         renderValid_ = false;
         return {};
     }
-    return static_cast<Internal::RenderTree*>(renderRuntime_)->Invalidate(*this);
+    return static_cast<::Aero::Render::Detail::RenderTree*>(renderRuntime_)->Invalidate(*this);
 }
 
 void FrameworkElement::OnRender(
@@ -629,7 +629,7 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
 
 } // namespace Aero::Integration
 
-namespace Aero::Internal {
+namespace Aero::Render::Detail {
 
 using namespace ::Aero;
 using namespace ::Aero::Meta;
@@ -646,7 +646,7 @@ RenderTree::~RenderTree() noexcept {
     }
     if (root_ != nullptr && dispatcher_->CheckAccess()) {
         auto clear = [&](auto&& self, FrameworkElement& element) noexcept -> void {
-            for (FrameworkElement* child : Aero::Internal::ElementPrivate::RenderChildren(element)) {
+            for (FrameworkElement* child : Aero::GuiPrivate::Detail::ElementPrivate::RenderChildren(element)) {
                 self(self, *child);
             }
             ElementPrivate::RenderAttached(element) = false;
@@ -711,7 +711,7 @@ Base::Result<void> RenderTree::SetRoot(
         if (root_ != nullptr) {
             auto clear = [&](auto&& self,
                              FrameworkElement& element) noexcept -> void {
-                for (FrameworkElement* child : Aero::Internal::ElementPrivate::RenderChildren(element)) {
+                for (FrameworkElement* child : Aero::GuiPrivate::Detail::ElementPrivate::RenderChildren(element)) {
                     self(self, *child);
                 }
                 RemoveQueued(element);
@@ -741,8 +741,8 @@ Base::Result<void> RenderTree::SetRoot(
             "Render node ID space exhausted");
     }
 
-    Base::Result<Aero::Internal::VisualLease> lease =
-        Aero::Internal::VisualLease::Acquire(*root);
+    Base::Result<Aero::GuiPrivate::Detail::VisualLease> lease =
+        Aero::GuiPrivate::Detail::VisualLease::Acquire(*root);
     if (!lease) return lease.GetStatus();
     Base::Result<void> reserved =
         dirty_.Reserve(dirty_.Size() + 1U);
@@ -769,7 +769,7 @@ Base::Result<void> RenderTree::Attach(
     if (!verified) return verified.GetStatus();
     if (ElementPrivate::RenderRuntime(parent) != this ||
         ElementPrivate::RenderRuntime(child) != nullptr || ElementPrivate::RenderAttached(child) ||
-        Aero::Internal::ElementPrivate::RenderParent(child) != &parent) {
+        Aero::GuiPrivate::Detail::ElementPrivate::RenderParent(child) != &parent) {
         return InvalidState(
             "Render attachment must match the visual-tree parent");
     }
@@ -779,14 +779,14 @@ Base::Result<void> RenderTree::Attach(
             "Render node ID space exhausted");
     }
 
-    Base::Result<Aero::Internal::VisualLease> childLease =
-        Aero::Internal::VisualLease::Acquire(child);
+    Base::Result<Aero::GuiPrivate::Detail::VisualLease> childLease =
+        Aero::GuiPrivate::Detail::VisualLease::Acquire(child);
     if (!childLease) return childLease.GetStatus();
 
     std::uint32_t required = 1U;
     for (FrameworkElement* current = &parent; current != nullptr;
          current = ElementPrivate::RenderAttached(*current)
-             ? Aero::Internal::ElementPrivate::RenderParent(*current) : nullptr) {
+             ? Aero::GuiPrivate::Detail::ElementPrivate::RenderParent(*current) : nullptr) {
         if (!ElementPrivate::RenderQueued(*current)) ++required;
     }
     Base::Result<void> reserved =
@@ -814,7 +814,7 @@ Base::Result<void> RenderTree::Detach(
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) return verified.GetStatus();
     if (ElementPrivate::RenderRuntime(parent) != this || !ElementPrivate::RenderAttached(child) ||
-        Aero::Internal::ElementPrivate::RenderParent(child) != &parent ||
+        Aero::GuiPrivate::Detail::ElementPrivate::RenderParent(child) != &parent ||
         ElementPrivate::RenderRuntime(child) != this) {
         return NotFound(
             "Render parent-child relationship was not found");
@@ -825,7 +825,7 @@ Base::Result<void> RenderTree::Detach(
 
     auto clear = [&](auto&& self,
                      FrameworkElement& element) noexcept -> void {
-        for (FrameworkElement* descendant : Aero::Internal::ElementPrivate::RenderChildren(element)) {
+        for (FrameworkElement* descendant : Aero::GuiPrivate::Detail::ElementPrivate::RenderChildren(element)) {
             self(self, *descendant);
         }
         RemoveQueued(element);
@@ -841,8 +841,8 @@ Base::Result<void> RenderTree::Detach(
 Base::Result<void> RenderTree::QueueDirty(
     FrameworkElement& element) noexcept {
     if (ElementPrivate::RenderQueued(element)) return {};
-    Base::Result<Aero::Internal::VisualLease> lease =
-        Aero::Internal::VisualLease::Acquire(element);
+    Base::Result<Aero::GuiPrivate::Detail::VisualLease> lease =
+        Aero::GuiPrivate::Detail::VisualLease::Acquire(element);
     if (!lease) return lease.GetStatus();
     Base::Result<void> appended =
         dirty_.PushBack(std::move(lease).Value());
@@ -871,7 +871,7 @@ void RenderTree::MarkCommittedSubtree(
     ++ElementPrivate::RenderRevision(element);
     ElementPrivate::RenderValid(element) = true;
     ElementPrivate::RenderQueued(element) = false;
-    for (FrameworkElement* child : Aero::Internal::ElementPrivate::RenderChildren(element)) {
+    for (FrameworkElement* child : Aero::GuiPrivate::Detail::ElementPrivate::RenderChildren(element)) {
         MarkCommittedSubtree(*child);
     }
 }
@@ -888,20 +888,20 @@ Base::Result<void> RenderTree::Invalidate(
     Base::Vector<FrameworkElement*> path;
     for (FrameworkElement* current = &element; current != nullptr;
          current = ElementPrivate::RenderAttached(*current)
-             ? Aero::Internal::ElementPrivate::RenderParent(*current) : nullptr) {
+             ? Aero::GuiPrivate::Detail::ElementPrivate::RenderParent(*current) : nullptr) {
         Base::Result<void> currentVerified = VerifyElement(*current);
         if (!currentVerified) return currentVerified.GetStatus();
         Base::Result<void> appended = path.PushBack(current);
         if (!appended) return appended.GetStatus();
     }
 
-    Base::Vector<Aero::Internal::VisualLease> leases;
+    Base::Vector<Aero::GuiPrivate::Detail::VisualLease> leases;
     Base::Result<void> reserved = leases.Reserve(path.Size());
     if (!reserved) return reserved.GetStatus();
     for (FrameworkElement* current : path) {
         if (ElementPrivate::RenderQueued(*current)) continue;
-        Base::Result<Aero::Internal::VisualLease> lease =
-            Aero::Internal::VisualLease::Acquire(*current);
+        Base::Result<Aero::GuiPrivate::Detail::VisualLease> lease =
+            Aero::GuiPrivate::Detail::VisualLease::Acquire(*current);
         if (!lease) return lease.GetStatus();
         Base::Result<void> staged =
             leases.PushBack(std::move(lease).Value());
@@ -923,7 +923,7 @@ Base::Result<void> RenderTree::Invalidate(
     return {};
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Render::Detail
 
 namespace Aero {
 
@@ -944,7 +944,7 @@ FrameworkElement::ClearAuthoredTriggers() noexcept {
 
 } // namespace Aero
 
-namespace Aero::Internal {
+namespace Aero::Render::Detail {
 
 using namespace ::Aero;
 using namespace ::Aero::Meta;
@@ -1050,7 +1050,7 @@ Base::Result<void> RenderTree::BuildSubtree(
     ElementPrivate::Rendering(element) = true;
     DisplayListBuilder builder;
     DrawingContext context =
-        Aero::Internal::DrawingPrivate::Create(builder);
+        Aero::Render::Detail::DrawingPrivate::Create(builder);
     if (visible) {
         ElementPrivate::Render(element, context);
     }
@@ -1140,7 +1140,7 @@ Base::Result<void> RenderTree::BuildSubtree(
     }
 
     if (!visible) return {};
-    for (FrameworkElement* child : Aero::Internal::ElementPrivate::RenderChildren(element)) {
+    for (FrameworkElement* child : Aero::GuiPrivate::Detail::ElementPrivate::RenderChildren(element)) {
         if (IsOverlay(*child)) continue;
         Base::Result<void> childResult =
             BuildSubtree(
@@ -1163,7 +1163,7 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
         return InvalidState("Nested render commit is not allowed");
     }
     if (root_ == nullptr) {
-        for (const Aero::Internal::VisualLease& lease : dirty_) {
+        for (const Aero::GuiPrivate::Detail::VisualLease& lease : dirty_) {
             Visual* visual = lease.Resolve();
             FrameworkElement* element = visual != nullptr
                 ? visual->AsFrameworkElement() : nullptr;
@@ -1234,13 +1234,13 @@ void RenderTree::RenderCommitHook(void* context) noexcept {
         : committed.GetStatus();
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Render::Detail
 
 namespace Aero {
 
 void FrameworkElement::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
-    (void)Aero::Internal::AssignResourceDictionary(
+    (void)Aero::GuiPrivate::Detail::AssignResourceDictionary(
         resources_,
         std::move(value),
         "FrameworkElement Resources is already assigned");

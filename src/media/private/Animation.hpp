@@ -6,7 +6,7 @@
 
 namespace Aero::Media::Animation {
 
-namespace Runtime = ::Aero::Animation;
+namespace Runtime = ::Aero::Media::Detail::Animation;
 
 struct Timeline::Impl {
 public:
@@ -146,6 +146,6 @@ public:
 
 } // namespace Aero::Media::Animation
 
-namespace Aero::Internal {
+namespace Aero::Media::Detail {
 using AnimationPrivate = ::Aero::Media::Animation::Timeline::Impl;
 }

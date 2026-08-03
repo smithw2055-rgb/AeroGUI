@@ -48,7 +48,7 @@ public:
         Shutdown();
     }
 
-    Aero::Internal::ImageResources&
+    Aero::Render::Detail::ImageResources&
     Table() noexcept {
         return table_;
     }
@@ -242,7 +242,7 @@ private:
     Graphics::ResourceHandle sampler_;
     Render::RenderImageId nextImage_ =
         UINT64_C(1) << 44U;
-    Aero::Internal::ImageResources table_;
+    Aero::Render::Detail::ImageResources table_;
 };
 
 } // namespace Aero::Render::Detail

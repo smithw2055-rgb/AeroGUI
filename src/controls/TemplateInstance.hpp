@@ -1,9 +1,9 @@
 #pragma once
 
 #include "TemplateProgram.hpp"
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
-namespace Aero::Internal {
+namespace Aero::Controls::Detail {
 
 // The implementation objects live in Base::Detail, while their public model
 // types are owned by Controls.  Keep that dependency explicit in this
@@ -16,7 +16,7 @@ struct TemplatePart {
     Visual* visual = nullptr;
     DependencyObject* object = nullptr;
     FrameworkElement* frameworkElement = nullptr;
-    Aero::Internal::ElementAttachment mount;
+    Aero::GuiPrivate::Detail::ElementAttachment mount;
 };
 
 struct TemplateContentProjection {
@@ -25,20 +25,20 @@ struct TemplateContentProjection {
     ContentControl* contentHost = nullptr;
     UIElement* content = nullptr;
     Visual* originalVisualParent = nullptr;
-    Aero::Internal::VisualAttachment projectedMount;
+    Aero::GuiPrivate::Detail::VisualAttachment projectedMount;
     bool attachedLogical = false;
     bool detachedOriginalVisual = false;
 };
 
 struct TemplateBuildState {
     TemplateBuildState(ElementTree& tree, Control& parent,
-        Aero::Internal::LayoutEngine* layout,
-        Aero::Internal::RenderTree* renderer) noexcept
+        Aero::GuiPrivate::Detail::LayoutEngine* layout,
+        Aero::Render::Detail::RenderTree* renderer) noexcept
         : tree(&tree), layout(layout), renderer(renderer), parent(&parent) {}
 
     ElementTree* tree = nullptr;
-    Aero::Internal::LayoutEngine* layout = nullptr;
-    Aero::Internal::RenderTree* renderer = nullptr;
+    Aero::GuiPrivate::Detail::LayoutEngine* layout = nullptr;
+    Aero::Render::Detail::RenderTree* renderer = nullptr;
     Control* parent = nullptr;
     Visual* rootVisual = nullptr;
     UIElement* rootElement = nullptr;
@@ -46,4 +46,4 @@ struct TemplateBuildState {
     Base::Vector<TemplateContentProjection> projections;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Controls::Detail

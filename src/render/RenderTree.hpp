@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gui/ElementInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include "DisplayList.hpp"
 
@@ -43,7 +43,7 @@ struct RenderNodeSnapshot {
 
 } // namespace Aero::Render
 
-namespace Aero::Internal { class RenderTree; }
+namespace Aero::Render::Detail { class RenderTree; }
 
 namespace Aero::Integration {
 
@@ -63,7 +63,7 @@ public:
     std::uint64_t StableHash() const noexcept;
 
 private:
-    friend class ::Aero::Internal::RenderTree;
+    friend class ::Aero::Render::Detail::RenderTree;
     Base::Vector<RenderNodeSnapshot> nodes_;
     Base::Vector<RenderCommand> commands_;
     std::uint64_t version_ = 0U;
@@ -82,7 +82,7 @@ struct RenderDiagnostics {
 
 } // namespace Aero::Integration
 
-namespace Aero::Internal {
+namespace Aero::Render::Detail {
 
 using namespace ::Aero::Render;
 using namespace ::Aero::Integration;
@@ -121,7 +121,7 @@ public:
 private:
     ::Aero::Threading::Dispatcher* dispatcher_ = nullptr;
     FrameworkElement* root_ = nullptr;
-    Base::Vector<Aero::Internal::VisualLease> dirty_;
+    Base::Vector<Aero::GuiPrivate::Detail::VisualLease> dirty_;
     struct OverlayRecord {
         FrameworkElement* element = nullptr;
         Point origin;
@@ -150,4 +150,4 @@ private:
     static void RenderCommitHook(void* context) noexcept;
 };
 
-} // namespace Aero::Internal
+} // namespace Aero::Render::Detail

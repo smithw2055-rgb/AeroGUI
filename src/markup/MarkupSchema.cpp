@@ -1,15 +1,15 @@
-#include "markup/MarkupWriterInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 #if !defined(AERO_MARKUP_GUI_SCHEMA_ONLY)
 // Consolidated implementation. Keep sections ordered by dependency.
 
 // ===== CompiledSchema =====
 
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 
 // Canonical compiled-schema bridge used by Loader.
 
 #include <Aero/Markup.hpp>
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 
 #include <cstdio>
 #include <utility>
@@ -310,7 +310,7 @@ Base::Result<void> CompiledDocument::ValidateSchema(
 
 // ===== Metadata =====
 
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 
 
 // Markup-specific metadata declarations.
@@ -321,7 +321,7 @@ Base::Result<void> CompiledDocument::ValidateSchema(
 
 
 
-namespace Aero::Internal {
+namespace Aero::Markup::Detail {
 namespace {
 
 using namespace Aero::Meta;
@@ -626,18 +626,7 @@ Base::Result<void> PopulateMarkupMetadata(
     return status;
 }
 
-} // namespace Aero::Internal
-
-// The schema facade keeps its source-level callback in Markup::Detail while
-// the metadata implementation itself is housed with the private XAML
-// objects in Base::Detail.
-namespace Aero::Markup::Detail {
-Base::Result<void> PopulateMarkupMetadata(
-    ::Aero::Meta::Registration& context) noexcept {
-    return ::Aero::Internal::PopulateMarkupMetadata(context);
-}
 } // namespace Aero::Markup::Detail
-
 
 // ===== FacetStore =====
 
@@ -646,7 +635,7 @@ Base::Result<void> PopulateMarkupMetadata(
 #include <cstdint>
 #include <utility>
 
-namespace Aero::Internal {
+namespace Aero::Markup::Detail {
 namespace {
 
 bool HasTypeFlag(
@@ -725,7 +714,7 @@ const T* FindByPolicy(
 std::uint16_t XamlFacets::FacetCountBefore(
     FacetMask mask,
     FacetKind kind) noexcept {
-    return Internal::CompactFacetIndex::CountBefore(mask, kind);
+    return ::Aero::GuiPrivate::Detail::CompactFacetIndex::CountBefore(mask, kind);
 }
 
 XamlFacets::DraftType* XamlFacets::FindDraft(
@@ -1271,12 +1260,12 @@ XamlFacets::FindPropertyTargetExact(
         : nullptr;
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Markup::Detail
 
 
 // ===== SchemaManifest =====
 
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 
 // Immutable compiled-schema manifest implementation.
 
@@ -3244,11 +3233,11 @@ Schema::ResolveImplicitResourceKey(
 
 #include <Aero/Base/Assert.hpp>
 
-#include "gui/MetadataInternal.hpp"
+#include "gui/GuiPrivate.hpp"
 
 
 
-#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupPrivate.hpp"
 
 #include <new>
 #include <utility>
@@ -3414,7 +3403,7 @@ Base::Result<void> GuiSchema::Finalize(
             Base::MemoryTag::Markup,
             Markup::UiObjectModelOptions{
                 &impl_->metadata,
-                &Internal::MetadataPrivate::
+                &::Aero::GuiPrivate::Detail::MetadataPrivate::
                     DependencyProperties(impl_->metadata),
                 &programAllocator});
     if (!uiObjectModel) {

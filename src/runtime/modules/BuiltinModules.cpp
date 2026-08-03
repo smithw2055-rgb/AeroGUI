@@ -2,8 +2,8 @@
 
 #include "app/Metadata.hpp"
 #include "controls/Metadata.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "markup/MarkupInternal.hpp"
+#include "gui/GuiPrivate.hpp"
+#include "markup/MarkupPrivate.hpp"
 
 namespace Aero {
 
@@ -12,7 +12,7 @@ Base::Result<void> RegisterBuiltInUiModules(
     Base::Result<void> registered =
         Meta::RegisterCoreMetadata(domain);
     if (!registered) return registered.GetStatus();
-    registered = Aero::Internal::RegisterUiMetadata(domain);
+    registered = Aero::GuiPrivate::Detail::RegisterUiMetadata(domain);
     if (!registered) return registered.GetStatus();
     registered = App::RegisterAppMetadata(domain);
     if (!registered) return registered.GetStatus();

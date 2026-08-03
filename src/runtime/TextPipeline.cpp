@@ -2,7 +2,7 @@
 #include "TextPipeline.hpp"
 #include "render/RenderResources.hpp"
 
-#include "integration/RenderDeviceInternal.hpp"
+#include "integration/IntegrationPrivate.hpp"
 
 #include <Aero/FrameworkElement.hpp>
 #include "../text/FontManager.hpp"
@@ -19,7 +19,9 @@
 #include <string>
 #include <utility>
 
-namespace Aero::Internal {
+namespace Aero::Runtime::Detail {
+using TextConfig = ::Aero::Render::Detail::TextConfig;
+using TextResources = ::Aero::Render::Detail::TextResources;
 namespace {
 
 bool FileExists(const char* path) noexcept {
@@ -389,7 +391,7 @@ Base::Result<void> ConfigureTypeface(
 }
 
 class TextBlockLayoutProxy
-    : public Internal::TextBlockLayout {
+    : public ::Aero::Controls::Detail::TextBlockLayout {
 public:
     using FaceResolver =
         Base::Result<Text::FontFace> (*)(
@@ -397,7 +399,7 @@ public:
             Base::StringView family) noexcept;
 
     void Set(
-        Internal::TextBlockLayout* layout) noexcept {
+        ::Aero::Controls::Detail::TextBlockLayout* layout) noexcept {
         layout_ = layout;
     }
 
@@ -409,8 +411,8 @@ public:
     }
 
     Base::Result<void> ShapeAndPrepare(
-        const Internal::TextLayoutRequest& request,
-        Internal::TextLayoutResult& output) noexcept override {
+        const ::Aero::Controls::Detail::TextLayoutRequest& request,
+        ::Aero::Controls::Detail::TextLayoutResult& output) noexcept override {
         if (layout_ == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotInitialized,
@@ -432,7 +434,7 @@ public:
         if (!resolved) {
             return resolved.GetStatus();
         }
-        Internal::TextLayoutRequest selected =
+        ::Aero::Controls::Detail::TextLayoutRequest selected =
             request;
         selected.face = resolved.Value();
         return layout_->ShapeAndPrepare(
@@ -447,13 +449,13 @@ public:
     }
 
 private:
-    Internal::TextBlockLayout* layout_ = nullptr;
+    ::Aero::Controls::Detail::TextBlockLayout* layout_ = nullptr;
     void* resolverContext_ = nullptr;
     FaceResolver resolver_ = nullptr;
 };
 
 class HeadlessTextBlockLayout
-    : public Internal::TextBlockLayout {
+    : public ::Aero::Controls::Detail::TextBlockLayout {
 public:
     HeadlessTextBlockLayout(
         Text::FontManager& fonts,
@@ -477,8 +479,8 @@ public:
     }
 
     Base::Result<void> ShapeAndPrepare(
-        const Internal::TextLayoutRequest& request,
-        Internal::TextLayoutResult& output) noexcept override {
+        const ::Aero::Controls::Detail::TextLayoutRequest& request,
+        ::Aero::Controls::Detail::TextLayoutResult& output) noexcept override {
         if (fonts_ == nullptr ||
             !Aero::IsValidLayoutSize(
                 request.availableSize) ||
@@ -589,7 +591,7 @@ struct TextPipeline::Impl {
     Text::FontFace primaryFace;
     TextConfig config;
     TextBlockLayoutProxy proxy;
-    Internal::TextBlockLayout* layout = nullptr;
+    ::Aero::Controls::Detail::TextBlockLayout* layout = nullptr;
     alignas(HeadlessTextBlockLayout) std::uint8_t headlessStorage[sizeof(HeadlessTextBlockLayout)]{};
     HeadlessTextBlockLayout* headlessLayout = nullptr;
     Integration::RenderDevice* device = nullptr;
@@ -838,7 +840,7 @@ Base::Result<void> TextPipeline::Initialize(
                     "Render device has no text layout factory");
             } else {
                 Base::Result<
-                    Internal::TextBlockLayout*>
+                    ::Aero::Controls::Detail::TextBlockLayout*>
                     created =
                         impl_->resources->
                             create(
@@ -912,7 +914,7 @@ TextPipeline::SynchronizeBackend(
                 "Restored device has no text layout factory");
         } else {
             Base::Result<
-                Internal::TextBlockLayout*>
+                ::Aero::Controls::Detail::TextBlockLayout*>
                 created = current->create(
                     current->context,
                     impl_->fonts,
@@ -993,11 +995,11 @@ void TextPipeline::Shutdown() noexcept {
     impl_ = nullptr;
 }
 
-Internal::TextBlockLayout*
+::Aero::Controls::Detail::TextBlockLayout*
 TextPipeline::Layout() noexcept {
     return impl_ != nullptr
         ? &impl_->proxy
         : nullptr;
 }
 
-} // namespace Aero::Internal
+} // namespace Aero::Runtime::Detail

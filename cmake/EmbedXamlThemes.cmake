@@ -45,11 +45,11 @@ function(aero_append_byte_array symbol input)
 endfunction()
 
 file(WRITE "${OUTPUT}"
-    "#pragma once\n\n#include <cstdint>\n\nnamespace Aero::Internal {\n")
+    "#pragma once\n\n#include <cstdint>\n\nnamespace Aero::Runtime::Detail {\n")
 aero_append_byte_array(AeroThemeLightCompiled "${LIGHT_COMPILED}")
 aero_append_byte_array(AeroThemeDarkCompiled "${DARK_COMPILED}")
 aero_append_byte_array(AeroThemeGenericCompiled "${GENERIC_COMPILED}")
 aero_append_byte_array(AeroThemeLightSource "${LIGHT_SOURCE}")
 aero_append_byte_array(AeroThemeDarkSource "${DARK_SOURCE}")
 aero_append_byte_array(AeroThemeGenericSource "${GENERIC_SOURCE}")
-file(APPEND "${OUTPUT}" "} // namespace Aero::Internal\n")
+file(APPEND "${OUTPUT}" "} // namespace Aero::Runtime::Detail\n")
