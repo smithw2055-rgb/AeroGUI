@@ -209,30 +209,6 @@ CreateHeadlessRenderDevice(
 
 namespace Aero::Integration {
 
-Base::Result<void> RenderDevice::Bind(const void* owner) noexcept {
-    if (owner == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Render device binding requires an owner");
-    }
-    if (state_ != RenderDeviceState::Ready) {
-        return InvalidState("Render device is not ready for binding");
-    }
-    if (owner_ != nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "Render device is already bound to a View");
-    }
-    owner_ = owner;
-    return {};
-}
-
-void RenderDevice::Unbind(const void* owner) noexcept {
-    if (owner == nullptr || owner_ != owner) return;
-    static_cast<void>(WaitIdle());
-    owner_ = nullptr;
-}
-
 Base::Result<void> RenderDevice::Submit(
     const Integration::RenderFrame& frame) noexcept {
     const auto* functions = Impl::Functions(*this);

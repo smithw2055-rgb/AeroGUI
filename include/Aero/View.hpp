@@ -8,8 +8,8 @@
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/Integration/RenderDevice.hpp>
 #include <Aero/Layout.hpp>
+#include <Aero/Renderer.hpp>
 #include <Aero/Markup.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Module.hpp>
@@ -70,8 +70,8 @@ private:
     Base::Ref<Base::Object> impl_;
 };
 
-// Host-driven retained-mode view. The public surface is intentionally limited
-// to content, size, frame update, input and RenderDevice attachment. XAML,
+// Host-driven retained-mode view. View::Update() advances UI state; the
+// per-View Renderer synchronizes and renders the retained frame. XAML,
 // resource-layer and fragment operations live on Markup::XamlReader.
 class AERO_API View : public Base::Object {
     struct ConstructionToken {};
@@ -101,6 +101,8 @@ public:
     void SetSize(Aero::Size availableSize) noexcept;
     Base::Result<void> Update(
         std::uint32_t elapsedMilliseconds = 0U) noexcept;
+    Renderer& GetRenderer() noexcept { return renderer_; }
+    const Renderer& GetRenderer() const noexcept { return renderer_; }
 
     Base::Result<Input::PointerDispatchResult> DispatchPointer(
         const Input::PointerInput& input) noexcept;
@@ -108,10 +110,6 @@ public:
         const Input::KeyboardInput& input) noexcept;
     Base::Result<Input::TextInputDispatchResult> DispatchText(
         const Input::TextInput& input) noexcept;
-
-    void SetRenderDevice(
-        Base::Ref<Integration::RenderDevice> device,
-        bool automaticAnimationClock = true) noexcept;
 
     Base::Result<void> AddXamlProvider(
         Integration::XamlProvider& provider,
@@ -124,6 +122,7 @@ public:
 
 private:
     friend class Gui;
+    friend class Renderer;
     friend class Aero::Markup::XamlReader;
     friend class Integration::ReloadCoordinator;
     template<class T, class... Args>
@@ -213,6 +212,7 @@ private:
     Base::IAllocator* allocator_ = nullptr;
     Base::Ref<Base::Object> gui_;
     Impl* state_ = nullptr;
+    Renderer renderer_;
 };
 
 } // namespace Aero

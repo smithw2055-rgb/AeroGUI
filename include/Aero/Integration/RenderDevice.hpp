@@ -8,7 +8,6 @@
 
 #include <cstdint>
 
-namespace Aero { class View; }
 namespace Aero::Integration { class RenderFrame; }
 
 namespace Aero::Integration {
@@ -56,8 +55,8 @@ struct RenderFrameStatistics {
     bool batchingEnabled = true;
 };
 
-// Lightweight host-thread-affine owner for one native rendering backend.
-// View submission is synchronous. The host owns thread and frame scheduling.
+// Host-thread-affine native UI device shared by one or more View Renderers on
+// the same render thread. Frame submission remains a private Renderer detail.
 class AERO_API RenderDevice : public Base::Object {
     struct ConstructionToken {};
 
@@ -95,7 +94,6 @@ public:
         std::uint32_t timeoutMilliseconds = 5000U) noexcept;
 
 private:
-    friend class Aero::View;
     friend struct Impl;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
@@ -103,8 +101,6 @@ private:
         Base::IAllocator&,
         Args&&...) noexcept;
 
-    Base::Result<void> Bind(const void* owner) noexcept;
-    void Unbind(const void* owner) noexcept;
     Base::Result<void> Submit(const RenderFrame& frame) noexcept;
     Base::Status GetFrameStatus() noexcept;
     Base::Result<RenderFrameStatistics> Analyze(
@@ -115,7 +111,6 @@ private:
     Base::IAllocator* allocator_ = nullptr;
     void* stateData_ = nullptr;
     const void* functions_ = nullptr;
-    const void* owner_ = nullptr;
     RenderDeviceMode mode_ = RenderDeviceMode::Headless;
     RenderDeviceState state_ = RenderDeviceState::Ready;
     RenderDeviceStatistics statistics_;

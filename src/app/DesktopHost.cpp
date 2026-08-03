@@ -10,6 +10,7 @@
 #include <Aero/Integration/OpenGL33.hpp>
 #include <Aero/Markup.hpp>
 #include <Aero/Integration/ViewOptions.hpp>
+#include <Aero/Renderer.hpp>
 #include <Aero/View.hpp>
 
 
@@ -93,6 +94,8 @@ struct DesktopHost::Impl {
         Base::Result<void> CreateView() noexcept {
             Integration::ViewOptions options;
             options.text.fontSearchRoot = owner->assetRoot.View();
+            options.automaticAnimationClock =
+                owner->automaticAnimationClock;
 #if defined(_WIN32)
             options.clipboard = &clipboard;
             options.textInputMethodHost = &inputMethod;
@@ -178,8 +181,9 @@ struct DesktopHost::Impl {
             }
             Base::Result<void> graphics = CreateRenderDevice(width, height);
             if (!graphics) return graphics.GetStatus();
-            view->SetRenderDevice(
-                renderDevice, owner->automaticAnimationClock);
+            Base::Result<void> renderer =
+                view->GetRenderer().Init(renderDevice);
+            if (!renderer) return renderer.GetStatus();
             const Size size{
                 static_cast<double>(width),
                 static_cast<double>(height)};
@@ -429,6 +433,20 @@ struct DesktopHost::Impl {
             Base::Result<void> frame =
                 view->Update(elapsedMilliseconds);
             if (!frame) return frame.GetStatus();
+
+            Renderer& renderer = view->GetRenderer();
+            Base::Result<bool> synchronized =
+                renderer.UpdateRenderTree();
+            if (!synchronized) {
+                return synchronized.GetStatus();
+            }
+            Base::Result<void> offscreen =
+                renderer.RenderOffscreen();
+            if (!offscreen) return offscreen.GetStatus();
+            Base::Result<void> rendered =
+                renderer.Render();
+            if (!rendered) return rendered.GetStatus();
+
             firstFrameRendered = true;
             return {};
         }

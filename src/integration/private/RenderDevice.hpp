@@ -144,18 +144,6 @@ struct RenderDevice::Impl {
             : ::Aero::Render::Detail::RenderResources{};
     }
 
-    static Base::Result<void> Bind(
-        RenderDevice& device,
-        const void* owner) noexcept {
-        return device.Bind(owner);
-    }
-
-    static void Unbind(
-        RenderDevice& device,
-        const void* owner) noexcept {
-        device.Unbind(owner);
-    }
-
     static Base::Result<void> Submit(
         RenderDevice& device,
         const RenderFrame& frame) noexcept {

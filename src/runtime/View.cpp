@@ -321,7 +321,6 @@ struct ViewData {
     ::Aero::Meta::Registry* metadata = nullptr;
     Integration::ViewOptions options;
     Base::Ref<Integration::RenderDevice> device;
-    bool deviceBound = false;
     std::uint64_t deviceGeneration = 0U;
 
     Meta::ObjectFactoryScope* objectFactory = nullptr;
@@ -4085,10 +4084,6 @@ struct ViewData {
         arena.Reset();
         schema = nullptr;
         metadata = nullptr;
-        if (deviceBound && device) {
-            Integration::RenderDevice::Impl::Unbind(*device, this);
-        }
-        deviceBound = false;
         device.Reset();
         textureProvider = nullptr;
         fontProvider = nullptr;
@@ -4108,25 +4103,15 @@ struct ViewData {
         }
         options = requested;
 
-        device = options.renderDevice;
-        if (!device) {
-            Base::Result<Base::Ref<Integration::RenderDevice>>
-                headless =
-                    ::Aero::Integration::Detail::CreateHeadlessRenderDevice(allocator);
-            if (!headless) {
-                terminal = true;
-                return headless.GetStatus();
-            }
-            device = std::move(headless).Value();
-        }
-        Base::Result<void> deviceBinding =
-            Integration::RenderDevice::Impl::Bind(*device, this);
-        if (!deviceBinding) {
-            device.Reset();
+        Base::Result<Base::Ref<Integration::RenderDevice>>
+            headless =
+                ::Aero::Integration::Detail::CreateHeadlessRenderDevice(
+                    allocator);
+        if (!headless) {
             terminal = true;
-            return deviceBinding.GetStatus();
+            return headless.GetStatus();
         }
-        deviceBound = true;
+        device = std::move(headless).Value();
         deviceGeneration = device->Generation();
 
         Base::Result<Base::Ref<Markup::EffectLifetime>> lifetime =
@@ -5198,7 +5183,8 @@ View::View(
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()),
-      gui_(gui.impl_) {
+      gui_(gui.impl_),
+      renderer_(*this) {
     Gui::Impl& guiState = static_cast<Gui::Impl&>(*gui.impl_);
     void* stateMemory = allocator_->Allocate({
         sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup});
@@ -5221,6 +5207,7 @@ View::View(
 }
 
 View::~View() noexcept {
+    renderer_.Shutdown();
     Shutdown();
     if (state_ != nullptr) {
         state_->data->~ViewData();
@@ -5961,9 +5948,6 @@ View::ExecuteFrame() noexcept {
                 return overlays.GetStatus();
             }
         }
-        const std::uint64_t renderVersionBefore =
-            phase == ::Aero::Threading::DispatcherFramePhase::RenderCommit
-                ? state_->data->renderer->CurrentFrame().Version() : 0U;
         Base::Result<std::uint32_t> ran =
             state_->data->dispatcher.RunFramePhase(phase);
         if (!ran) return ran.GetStatus();
@@ -6024,13 +6008,6 @@ View::ExecuteFrame() noexcept {
             const Base::Status committed =
                 state_->data->renderer->LastCommitStatus();
             if (!committed.IsOk()) return committed;
-            const Integration::RenderFrame& frame = state_->data->renderer->CurrentFrame();
-            if (state_->data->device && frame.Version() != renderVersionBefore) {
-                Base::Result<void> submitted =
-                    Integration::RenderDevice::Impl::Submit(
-                        *state_->data->device, frame);
-                if (!submitted) return submitted.GetStatus();
-            }
             if (state_->data->animations != nullptr) {
                 state_->data->animations->CommitPendingInitialValues();
             }
@@ -6232,109 +6209,218 @@ View::AdvanceAnimations(
     return advanced.Value() + completed.Value();
 }
 
-void View::SetRenderDevice(
-    Base::Ref<Integration::RenderDevice> device,
-    bool automaticAnimationClock) noexcept {
-    if (!IsInitialized() || state_ == nullptr) {
-        return;
+Renderer::~Renderer() noexcept {
+    Shutdown();
+}
+
+Base::Result<void> Renderer::Init(
+    Base::Ref<Integration::RenderDevice> device) noexcept {
+    if (view_ == nullptr || view_->state_ == nullptr ||
+        view_->state_->data == nullptr || !view_->IsInitialized()) {
+        return ViewNotInitialized(
+            "Renderer requires an initialized View");
     }
     if (!device) {
-        return;
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Renderer requires a RenderDevice");
     }
-    if (device.Get() == state_->data->device.Get()) {
-        state_->data->options.automaticAnimationClock =
-            automaticAnimationClock;
-        if (state_->data->animations != nullptr) {
-            state_->data->animations->SetAutomaticTickingEnabled(
-                automaticAnimationClock);
-        }
-        return;
+    if (initialized_) {
+        return device_.Get() == device.Get()
+            ? Base::Result<void>()
+            : Base::Result<void>(Base::Status::Failure(
+                  Base::ErrorCode::AlreadyExists,
+                  "Renderer is already initialized"));
     }
 
-    Base::Result<void> bound =
-        device->Bind(this);
-    if (!bound) return;
+    Base::Status deviceStatus =
+        Integration::RenderDevice::Impl::FrameStatus(*device);
+    if (!deviceStatus.IsOk()) {
+        return deviceStatus;
+    }
 
+    auto& data = *view_->state_->data;
     Base::Ref<Integration::RenderDevice> previous =
-        state_->data->device;
-    if (previous) {
+        data.device;
+    const bool changingDevice =
+        previous.Get() != device.Get();
+    if (changingDevice && previous) {
         Base::Result<void> idle =
             previous->WaitIdle();
-        if (!idle) {
-            device->Unbind(this);
-            return;
+        if (!idle) return idle.GetStatus();
+
+        Aero::Render::Detail::ImageResources*
+            previousImages = data.GetImageResources();
+        if (data.images != nullptr) {
+            data.images->ReleaseBackendResources(
+                previousImages);
         }
+        data.VisitTextElements(
+            data.RootVisual(), nullptr);
+        data.VisitPaths(
+            data.RootVisual(), nullptr);
     }
 
-    Aero::Render::Detail::ImageResources*
-        previousImages = state_->data->GetImageResources();
-    if (state_->data->images != nullptr) {
-        state_->data->images->ReleaseBackendResources(
-            previousImages);
-    }
-    state_->data->VisitTextElements(
-        state_->data->RootVisual(), nullptr);
-    state_->data->VisitPaths(
-        state_->data->RootVisual(), nullptr);
-
-    state_->data->device = device;
-    state_->data->deviceBound = true;
-    state_->data->deviceGeneration =
+    data.device = device;
+    data.deviceGeneration =
         device->Generation();
-    state_->data->options.renderDevice = device;
-    state_->data->options.automaticAnimationClock =
-        automaticAnimationClock;
-    if (state_->data->animations != nullptr) {
-        state_->data->animations->SetAutomaticTickingEnabled(
-            automaticAnimationClock);
-    }
 
     Base::Result<void> status;
-    if (state_->data->text != nullptr) {
+    if (data.text != nullptr) {
         Base::Result<bool> synchronized =
-            state_->data->text->SynchronizeBackend(*state_->data->device, true);
+            data.text->SynchronizeBackend(
+                *data.device, true);
         if (!synchronized) {
             status = synchronized.GetStatus();
         } else {
-            state_->data->VisitTextElements(
-                state_->data->RootVisual(),
-                state_->data->text->Layout(),
+            data.VisitTextElements(
+                data.RootVisual(),
+                data.text->Layout(),
                 true);
         }
     }
-    if (status && state_->data->images != nullptr) {
+    if (status && data.images != nullptr) {
         Base::Result<bool> synchronized =
-            state_->data->images->Synchronize(
-                state_->data->RootVisual(),
-                state_->data->loadedDocument.canonicalUri,
-                state_->data->xamlSources,
-                state_->data->textureProvider,
-                state_->data->GetImageResources(),
+            data.images->Synchronize(
+                data.RootVisual(),
+                data.loadedDocument.canonicalUri,
+                data.xamlSources,
+                data.textureProvider,
+                data.GetImageResources(),
                 true);
         if (!synchronized) {
             status = synchronized.GetStatus();
         }
     }
     if (status) {
-        state_->data->VisitPaths(
-            state_->data->RootVisual(),
-            state_->data->GetMeshResources(),
+        data.VisitPaths(
+            data.RootVisual(),
+            data.GetMeshResources(),
             true);
         Aero::Visual* rootVisual =
-            state_->data->RootVisual();
+            data.RootVisual();
         Aero::FrameworkElement* root =
             rootVisual != nullptr
             ? rootVisual->AsFrameworkElement()
             : nullptr;
         if (root != nullptr) {
-            status = state_->data->renderer->Invalidate(*root);
+            status = data.renderer->Invalidate(*root);
         }
     }
-
-    if (previous) {
-        previous->Unbind(this);
+    if (!status) {
+        return status.GetStatus();
     }
-    (void)status;
+
+    device_ = std::move(device);
+    updatedVersion_ = 0U;
+    renderedVersion_ = 0U;
+    offscreenReady_ = false;
+    initialized_ = true;
+    return {};
+}
+
+void Renderer::Shutdown() noexcept {
+    if (device_) {
+        static_cast<void>(device_->WaitIdle());
+    }
+    device_.Reset();
+    updatedVersion_ = 0U;
+    renderedVersion_ = 0U;
+    offscreenReady_ = false;
+    initialized_ = false;
+}
+
+Base::Result<bool>
+Renderer::UpdateRenderTree() noexcept {
+    if (!initialized_ || !device_ || view_ == nullptr ||
+        view_->state_ == nullptr || view_->state_->data == nullptr ||
+        !view_->IsInitialized()) {
+        return ViewNotInitialized(
+            "Renderer must be initialized before UpdateRenderTree");
+    }
+
+    Base::Status deviceStatus =
+        Integration::RenderDevice::Impl::FrameStatus(*device_);
+    if (!deviceStatus.IsOk()) {
+        return deviceStatus;
+    }
+
+    auto& data = *view_->state_->data;
+    if (data.renderer == nullptr) {
+        return ViewNotInitialized(
+            "View render tree is unavailable");
+    }
+    const Integration::RenderFrame& frame =
+        data.renderer->CurrentFrame();
+    if (frame.Version() == 0U) {
+        return false;
+    }
+    Base::Result<void> valid =
+        Integration::ValidateRenderFrame(frame);
+    if (!valid) return valid.GetStatus();
+
+    const bool changed =
+        frame.Version() != updatedVersion_;
+    if (changed) {
+        updatedVersion_ = frame.Version();
+        offscreenReady_ = false;
+    }
+    return changed;
+}
+
+Base::Result<void> Renderer::RenderOffscreen() noexcept {
+    if (!initialized_ || !device_ || view_ == nullptr ||
+        view_->state_ == nullptr || view_->state_->data == nullptr) {
+        return ViewNotInitialized(
+            "Renderer must be initialized before RenderOffscreen");
+    }
+
+    const Integration::RenderFrame& frame =
+        view_->state_->data->renderer->CurrentFrame();
+    if (frame.Version() == 0U) {
+        offscreenReady_ = true;
+        return {};
+    }
+    if (frame.Version() != updatedVersion_) {
+        return ViewApiInvalidState(
+            "UpdateRenderTree must run before RenderOffscreen");
+    }
+
+    // Phase R1 keeps the existing single backend submission path. The public
+    // offscreen boundary is now stable; effect passes move here in Phase R3.
+    offscreenReady_ = true;
+    return {};
+}
+
+Base::Result<void> Renderer::Render() noexcept {
+    if (!initialized_ || !device_ || view_ == nullptr ||
+        view_->state_ == nullptr || view_->state_->data == nullptr) {
+        return ViewNotInitialized(
+            "Renderer must be initialized before Render");
+    }
+
+    const Integration::RenderFrame& frame =
+        view_->state_->data->renderer->CurrentFrame();
+    if (frame.Version() == 0U) {
+        return {};
+    }
+    if (frame.Version() != updatedVersion_) {
+        return ViewApiInvalidState(
+            "UpdateRenderTree must run before Render");
+    }
+    if (!offscreenReady_) {
+        return ViewApiInvalidState(
+            "RenderOffscreen must run before Render");
+    }
+
+    Base::Result<void> submitted =
+        Integration::RenderDevice::Impl::Submit(
+            *device_, frame);
+    if (!submitted) return submitted.GetStatus();
+
+    renderedVersion_ = frame.Version();
+    offscreenReady_ = false;
+    return {};
 }
 
 FrameworkElement* View::GetContent() noexcept {

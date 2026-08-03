@@ -1,10 +1,8 @@
 #pragma once
 
-#include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Integration/Platform.hpp>
-#include <Aero/Integration/RenderDevice.hpp>
 
 namespace Aero::Integration {
 
@@ -17,10 +15,9 @@ struct TextOptions  {
     float defaultPixelSize = 16.0F;
 };
 
-// Immutable creation options copied into a View. The caller may release the
-// RenderDevice reference and all temporary spans after CreateView returns.
+// Immutable creation options copied into a View. Rendering devices are attached
+// explicitly through View::GetRenderer().Init() after CreateView returns.
 struct ViewOptions  {
-    Base::Ref<RenderDevice> renderDevice;
     IClipboard* clipboard = nullptr;
     ITextInputMethodHost* textInputMethodHost = nullptr;
     TextOptions text;

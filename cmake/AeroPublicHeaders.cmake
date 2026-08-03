@@ -61,6 +61,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Integration.hpp
     include/Aero/Integration/Platform.hpp
     include/Aero/Integration/NativeWindow.hpp
+    include/Aero/Renderer.hpp
     include/Aero/View.hpp
     include/Aero/Integration/D3D11.hpp
     include/Aero/Integration/OpenGL33.hpp

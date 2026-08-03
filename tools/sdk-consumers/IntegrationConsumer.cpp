@@ -26,8 +26,13 @@ CreateIntegratedView(
     Aero::Base::Ref<Aero::Integration::RenderDevice>
         endpoint) noexcept {
     Aero::Integration::ViewOptions options;
-    options.renderDevice = std::move(endpoint);
-    return environment.CreateView(options);
+    Aero::Base::Result<Aero::Base::Ref<Aero::View>> created =
+        environment.CreateView(options);
+    if (!created) return created.GetStatus();
+    Aero::Base::Result<void> initialized =
+        created.Value()->GetRenderer().Init(std::move(endpoint));
+    if (!initialized) return initialized.GetStatus();
+    return std::move(created).Value();
 }
 
 [[maybe_unused]]
@@ -35,6 +40,9 @@ void ConsumeViewSurface(Aero::View& view) noexcept {
     Aero::Markup::XamlReader reader(view);
     static_cast<void>(reader.GetView());
     static_cast<void>(view.Update(16U));
+    static_cast<void>(view.GetRenderer().UpdateRenderTree());
+    static_cast<void>(view.GetRenderer().RenderOffscreen());
+    static_cast<void>(view.GetRenderer().Render());
 }
 
 } // namespace
