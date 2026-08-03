@@ -219,47 +219,61 @@ public:
         return visual.AcquireLifetime();
     }
 
-    static FrameworkElement* RenderParent(
-        const FrameworkElement& element) noexcept {
-        return element.GetRenderParent();
+    static Visual* RenderParent(
+        const Visual& visual) noexcept {
+        return visual.visualParent_;
     }
-    static FrameworkElementChildRange RenderChildren(
-        const FrameworkElement& element) noexcept {
-        return element.GetRenderChildren();
+    static Base::Span<Visual* const> RenderChildren(
+        const Visual& visual) noexcept {
+        return {
+            visual.visualChildren_.Data(),
+            visual.visualChildren_.Size()};
     }
     static void*& RenderRuntime(
-        FrameworkElement& element) noexcept {
-        return element.renderRuntime_;
+        Visual& visual) noexcept {
+        return visual.renderRuntime_;
     }
     static bool& RenderAttached(
-        FrameworkElement& element) noexcept {
-        return element.renderAttached_;
+        Visual& visual) noexcept {
+        return visual.renderAttached_;
     }
     static Base::RenderNodeId& NodeId(
-        FrameworkElement& element) noexcept {
-        return element.nodeId_;
+        Visual& visual) noexcept {
+        return visual.renderNodeId_;
     }
     static bool& RenderValid(
-        FrameworkElement& element) noexcept {
-        return element.renderValid_;
+        Visual& visual) noexcept {
+        return visual.renderValid_;
     }
     static bool& RenderQueued(
-        FrameworkElement& element) noexcept {
-        return element.renderQueued_;
+        Visual& visual) noexcept {
+        return visual.renderQueued_;
     }
     static std::uint64_t& RenderRevision(
-        FrameworkElement& element) noexcept {
-        return element.renderRevision_;
+        Visual& visual) noexcept {
+        return visual.renderRevision_;
     }
     static bool& Rendering(
-        FrameworkElement& element) noexcept {
-        return element.rendering_;
+        Visual& visual) noexcept {
+        return visual.rendering_;
+    }
+    static std::uint8_t& RenderDirtyFlags(
+        Visual& visual) noexcept {
+        return visual.renderDirtyFlags_;
     }
     static void Render(
-        FrameworkElement& element,
+        Visual& visual,
         DrawingContext& context) noexcept {
-        element.OnRender(context);
+        FrameworkElement* element =
+            visual.AsFrameworkElement();
+        if (element != nullptr) {
+            element->OnRender(context);
+        }
     }
+    static Base::Result<void> InvalidateRenderDrawing(
+        Visual& visual) noexcept;
+    static Base::Result<void> InvalidateRenderState(
+        Visual& visual) noexcept;
     static Base::Result<void> SetTemplatedParent(
         FrameworkElement& element,
         DependencyObject* value) noexcept {
@@ -281,12 +295,12 @@ public:
         return element.AuthoredTriggers();
     }
     static bool GetIsRenderValid(
-        const FrameworkElement& element) noexcept {
-        return element.GetIsRenderValid();
+        const Visual& visual) noexcept {
+        return visual.renderValid_;
     }
     static std::uint64_t GetRenderRevision(
-        const FrameworkElement& element) noexcept {
-        return element.GetRenderRevision();
+        const Visual& visual) noexcept {
+        return visual.renderRevision_;
     }
 
     static void Attach(

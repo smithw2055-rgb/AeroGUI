@@ -334,8 +334,6 @@ FrameworkElement::FrameworkElement(TypeId runtimeType) noexcept
     : UIElement(runtimeType) {}
 
 FrameworkElement::~FrameworkElement() {
-    AERO_ASSERT(renderRuntime_ == nullptr);
-    AERO_ASSERT(!renderAttached_);
     Base::Ref<Transform> renderTransform =
         GetRenderTransform();
     if (renderTransform) {
@@ -446,11 +444,8 @@ Base::Result<void> FrameworkElement::InvalidateVisual() noexcept {
     if (!access) {
         return access;
     }
-    if (renderRuntime_ == nullptr) {
-        renderValid_ = false;
-        return {};
-    }
-    return static_cast<::Aero::Render::Detail::RenderTree*>(renderRuntime_)->Invalidate(*this);
+    return Aero::GuiPrivate::Detail::ElementPrivate::
+        InvalidateRenderDrawing(*this);
 }
 
 void FrameworkElement::OnRender(
@@ -485,6 +480,7 @@ std::uint64_t RenderFrame::StableHash() const noexcept {
             hash,
             static_cast<std::uint8_t>(
                 node.blendMode));
+        hash = HashScalar(hash, node.opacity);
         hash = HashScalar(
             hash,
             static_cast<std::uint8_t>(
@@ -535,6 +531,7 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
             !IsValidLayoutRect(node.clip) ||
             !IsValidLayoutSize(node.renderSize) ||
             !Base::IsFiniteTransform(node.renderTransform) ||
+            !IsValidOpacity(node.opacity) ||
             node.commandOffset > commands.Size() ||
             node.commandCount > commands.Size() - node.commandOffset) {
             return InvalidArgument("RenderFrame node snapshot is invalid");
@@ -638,22 +635,26 @@ using namespace ::Aero::Render;
 using namespace ::Aero::Threading;
 
 RenderTree::RenderTree(Dispatcher& dispatcher) noexcept
-    : dispatcher_(&dispatcher), dirty_(), currentFrame_() {}
+    : dispatcher_(&dispatcher), dirty_(), drawings_(), currentFrame_() {}
 
 RenderTree::~RenderTree() noexcept {
     if (phaseHook_.IsValid() && dispatcher_->CheckAccess()) {
         (void)dispatcher_->RemoveFrameHook(phaseHook_);
     }
     if (root_ != nullptr && dispatcher_->CheckAccess()) {
-        auto clear = [&](auto&& self, FrameworkElement& element) noexcept -> void {
-            for (FrameworkElement* child : Aero::GuiPrivate::Detail::ElementPrivate::RenderChildren(element)) {
+        auto clear = [&](auto&& self, Visual& visual) noexcept -> void {
+            for (Visual* child :
+                 Aero::GuiPrivate::Detail::ElementPrivate::
+                     RenderChildren(visual)) {
+                if (child == nullptr) continue;
                 self(self, *child);
             }
-            ElementPrivate::RenderAttached(element) = false;
-            ElementPrivate::RenderRuntime(element) = nullptr;
-            ElementPrivate::RenderQueued(element) = false;
-            ElementPrivate::RenderValid(element) = false;
-            ElementPrivate::NodeId(element) = InvalidRenderNodeId;
+            ElementPrivate::RenderAttached(visual) = false;
+            ElementPrivate::RenderRuntime(visual) = nullptr;
+            ElementPrivate::RenderQueued(visual) = false;
+            ElementPrivate::RenderValid(visual) = false;
+            ElementPrivate::NodeId(visual) = InvalidRenderNodeId;
+            RemoveDrawing(visual);
         };
         clear(clear, *root_);
         root_ = nullptr;
@@ -680,7 +681,7 @@ Base::Result<void> RenderTree::Initialize() noexcept {
 }
 
 Base::Result<void> RenderTree::VerifyElement(
-    const FrameworkElement& element) const noexcept {
+    const Visual& element) const noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) {
         return access;
@@ -691,7 +692,7 @@ Base::Result<void> RenderTree::VerifyElement(
     if (&element.GetDispatcher() != dispatcher_) {
         return Base::Status::Failure(
             Base::ErrorCode::WrongThread,
-            "FrameworkElement belongs to another Dispatcher");
+            "Visual belongs to another Dispatcher");
     }
     if (committing_) {
         return InvalidState("Render tree mutation during commit is not allowed");
@@ -700,7 +701,7 @@ Base::Result<void> RenderTree::VerifyElement(
 }
 
 Base::Result<void> RenderTree::SetRoot(
-    FrameworkElement* root) noexcept {
+    Visual* root) noexcept {
     if (root == nullptr) {
         Base::Result<void> access = dispatcher_->VerifyAccess();
         if (!access) return access.GetStatus();
@@ -710,20 +711,28 @@ Base::Result<void> RenderTree::SetRoot(
         }
         if (root_ != nullptr) {
             auto clear = [&](auto&& self,
-                             FrameworkElement& element) noexcept -> void {
-                for (FrameworkElement* child : Aero::GuiPrivate::Detail::ElementPrivate::RenderChildren(element)) {
+                             Visual& element) noexcept -> void {
+                for (Visual* child :
+                     Aero::GuiPrivate::Detail::ElementPrivate::
+                         RenderChildren(element)) {
+                    if (child == nullptr) continue;
                     self(self, *child);
                 }
                 RemoveQueued(element);
+                RemoveDrawing(element);
                 ElementPrivate::RenderAttached(element) = false;
                 ElementPrivate::RenderRuntime(element) = nullptr;
                 ElementPrivate::RenderValid(element) = false;
+                ElementPrivate::RenderDirtyFlags(element) =
+                    static_cast<std::uint8_t>(
+                        RenderInvalidation::All);
                 ElementPrivate::NodeId(element) = InvalidRenderNodeId;
             };
             clear(clear, *root_);
         }
         root_ = nullptr;
         dirty_.Clear();
+        drawings_.Clear();
         overlays_.Clear();
         return {};
     }
@@ -752,6 +761,9 @@ Base::Result<void> RenderTree::SetRoot(
     ElementPrivate::RenderRuntime(*root) = this;
     ElementPrivate::NodeId(*root) = nextNodeId_++;
     ElementPrivate::RenderValid(*root) = false;
+    ElementPrivate::RenderDirtyFlags(*root) =
+        static_cast<std::uint8_t>(
+            RenderInvalidation::All);
     Base::Result<void> queued =
         dirty_.PushBack(std::move(lease).Value());
     AERO_ASSERT(queued);
@@ -761,8 +773,8 @@ Base::Result<void> RenderTree::SetRoot(
 }
 
 Base::Result<void> RenderTree::Attach(
-    FrameworkElement& parent,
-    FrameworkElement& child) noexcept {
+    Visual& parent,
+    Visual& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) return verified.GetStatus();
     verified = VerifyElement(child);
@@ -784,22 +796,26 @@ Base::Result<void> RenderTree::Attach(
     if (!childLease) return childLease.GetStatus();
 
     std::uint32_t required = 1U;
-    for (FrameworkElement* current = &parent; current != nullptr;
+    for (Visual* current = &parent; current != nullptr;
          current = ElementPrivate::RenderAttached(*current)
-             ? Aero::GuiPrivate::Detail::ElementPrivate::RenderParent(*current) : nullptr) {
+             ? ElementPrivate::RenderParent(*current) : nullptr) {
         if (!ElementPrivate::RenderQueued(*current)) ++required;
     }
     Base::Result<void> reserved =
         dirty_.Reserve(dirty_.Size() + required);
     if (!reserved) return reserved.GetStatus();
 
-    Base::Result<void> invalidated = Invalidate(parent);
+    Base::Result<void> invalidated = Invalidate(
+        parent, RenderInvalidation::Children);
     if (!invalidated) return invalidated.GetStatus();
 
     ElementPrivate::RenderAttached(child) = true;
     ElementPrivate::RenderRuntime(child) = this;
     ElementPrivate::NodeId(child) = nextNodeId_++;
     ElementPrivate::RenderValid(child) = false;
+    ElementPrivate::RenderDirtyFlags(child) =
+        static_cast<std::uint8_t>(
+            RenderInvalidation::All);
     Base::Result<void> queued = dirty_.PushBack(
         std::move(childLease).Value());
     AERO_ASSERT(queued);
@@ -809,8 +825,8 @@ Base::Result<void> RenderTree::Attach(
 }
 
 Base::Result<void> RenderTree::Detach(
-    FrameworkElement& parent,
-    FrameworkElement& child) noexcept {
+    Visual& parent,
+    Visual& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) return verified.GetStatus();
     if (ElementPrivate::RenderRuntime(parent) != this || !ElementPrivate::RenderAttached(child) ||
@@ -820,18 +836,26 @@ Base::Result<void> RenderTree::Detach(
             "Render parent-child relationship was not found");
     }
 
-    Base::Result<void> invalidated = Invalidate(parent);
+    Base::Result<void> invalidated = Invalidate(
+        parent, RenderInvalidation::Children);
     if (!invalidated) return invalidated.GetStatus();
 
     auto clear = [&](auto&& self,
-                     FrameworkElement& element) noexcept -> void {
-        for (FrameworkElement* descendant : Aero::GuiPrivate::Detail::ElementPrivate::RenderChildren(element)) {
+                     Visual& element) noexcept -> void {
+        for (Visual* descendant :
+             Aero::GuiPrivate::Detail::ElementPrivate::
+                 RenderChildren(element)) {
+            if (descendant == nullptr) continue;
             self(self, *descendant);
         }
         RemoveQueued(element);
+        RemoveDrawing(element);
         ElementPrivate::RenderAttached(element) = false;
         ElementPrivate::RenderRuntime(element) = nullptr;
         ElementPrivate::RenderValid(element) = false;
+        ElementPrivate::RenderDirtyFlags(element) =
+            static_cast<std::uint8_t>(
+                RenderInvalidation::All);
         ElementPrivate::NodeId(element) = InvalidRenderNodeId;
     };
     clear(clear, child);
@@ -839,7 +863,7 @@ Base::Result<void> RenderTree::Detach(
 }
 
 Base::Result<void> RenderTree::QueueDirty(
-    FrameworkElement& element) noexcept {
+    Visual& element) noexcept {
     if (ElementPrivate::RenderQueued(element)) return {};
     Base::Result<Aero::GuiPrivate::Detail::VisualLease> lease =
         Aero::GuiPrivate::Detail::VisualLease::Acquire(element);
@@ -851,7 +875,7 @@ Base::Result<void> RenderTree::QueueDirty(
     return {};
 }
 
-void RenderTree::RemoveQueued(FrameworkElement& element) noexcept {
+void RenderTree::RemoveQueued(Visual& element) noexcept {
     for (std::uint32_t index = 0U; index < dirty_.Size();) {
         if (dirty_[index].Resolve() != &element) {
             ++index;
@@ -866,29 +890,105 @@ void RenderTree::RemoveQueued(FrameworkElement& element) noexcept {
     ElementPrivate::RenderQueued(element) = false;
 }
 
+RenderTree::DrawingRecord*
+RenderTree::FindDrawing(Visual& visual) noexcept {
+    for (DrawingRecord& record : drawings_) {
+        if (record.visual == &visual) {
+            return &record;
+        }
+    }
+    return nullptr;
+}
+
+void RenderTree::RemoveDrawing(Visual& visual) noexcept {
+    for (std::uint32_t index = 0U;
+         index < drawings_.Size(); ++index) {
+        if (drawings_[index].visual != &visual) continue;
+        for (std::uint32_t next = index + 1U;
+             next < drawings_.Size(); ++next) {
+            drawings_[next - 1U] =
+                std::move(drawings_[next]);
+        }
+        drawings_.PopBack();
+        return;
+    }
+}
+
 void RenderTree::MarkCommittedSubtree(
-    FrameworkElement& element) noexcept {
-    ++ElementPrivate::RenderRevision(element);
-    ElementPrivate::RenderValid(element) = true;
-    ElementPrivate::RenderQueued(element) = false;
-    for (FrameworkElement* child : Aero::GuiPrivate::Detail::ElementPrivate::RenderChildren(element)) {
-        MarkCommittedSubtree(*child);
+    Visual& visual,
+    bool ancestorVisible) noexcept {
+    UIElement* element = visual.AsUIElement();
+    FrameworkElement* framework =
+        visual.AsFrameworkElement();
+    const bool visible =
+        ancestorVisible &&
+        (element == nullptr ||
+         element->GetVisibility() ==
+             Visibility::Visible);
+    std::uint8_t processed =
+        ElementPrivate::RenderDirtyFlags(visual);
+    if (!visible && framework != nullptr) {
+        processed &= static_cast<std::uint8_t>(
+            ~static_cast<std::uint8_t>(
+                RenderInvalidation::Drawing));
+    }
+    if (processed != 0U &&
+        ElementPrivate::RenderRevision(visual) !=
+            UINT64_MAX) {
+        ++ElementPrivate::RenderRevision(visual);
+    }
+    ElementPrivate::RenderDirtyFlags(visual) &=
+        static_cast<std::uint8_t>(~processed);
+    ElementPrivate::RenderValid(visual) =
+        ElementPrivate::RenderDirtyFlags(visual) == 0U;
+    ElementPrivate::RenderQueued(visual) = false;
+    for (Visual* child :
+         ElementPrivate::RenderChildren(visual)) {
+        if (child != nullptr) {
+            MarkCommittedSubtree(*child, visible);
+        }
     }
 }
 
 Base::Result<void> RenderTree::Invalidate(
-    FrameworkElement& element) noexcept {
+    Visual& element,
+    RenderInvalidation invalidation) noexcept {
     Base::Result<void> verified = VerifyElement(element);
     if (!verified) return verified.GetStatus();
     if (ElementPrivate::RenderRuntime(element) != this) {
         return InvalidState(
-            "FrameworkElement is not attached to this RenderTree");
+            "Visual is not attached to this RenderTree");
     }
 
-    Base::Vector<FrameworkElement*> path;
-    for (FrameworkElement* current = &element; current != nullptr;
+    ElementPrivate::RenderDirtyFlags(element) |=
+        static_cast<std::uint8_t>(invalidation);
+    ElementPrivate::RenderValid(element) = false;
+    if (HasRenderInvalidation(
+            invalidation,
+            RenderInvalidation::Drawing) &&
+        HasRenderInvalidation(
+            invalidation,
+            RenderInvalidation::Children)) {
+        auto dirtySubtree = [&](auto&& self,
+                                Visual& visual) noexcept -> void {
+            for (Visual* child :
+                 ElementPrivate::RenderChildren(visual)) {
+                if (child == nullptr) continue;
+                ElementPrivate::RenderDirtyFlags(*child) |=
+                    static_cast<std::uint8_t>(
+                        RenderInvalidation::State |
+                        RenderInvalidation::Drawing);
+                ElementPrivate::RenderValid(*child) = false;
+                self(self, *child);
+            }
+        };
+        dirtySubtree(dirtySubtree, element);
+    }
+
+    Base::Vector<Visual*> path;
+    for (Visual* current = &element; current != nullptr;
          current = ElementPrivate::RenderAttached(*current)
-             ? Aero::GuiPrivate::Detail::ElementPrivate::RenderParent(*current) : nullptr) {
+             ? ElementPrivate::RenderParent(*current) : nullptr) {
         Base::Result<void> currentVerified = VerifyElement(*current);
         if (!currentVerified) return currentVerified.GetStatus();
         Base::Result<void> appended = path.PushBack(current);
@@ -898,7 +998,7 @@ Base::Result<void> RenderTree::Invalidate(
     Base::Vector<Aero::GuiPrivate::Detail::VisualLease> leases;
     Base::Result<void> reserved = leases.Reserve(path.Size());
     if (!reserved) return reserved.GetStatus();
-    for (FrameworkElement* current : path) {
+    for (Visual* current : path) {
         if (ElementPrivate::RenderQueued(*current)) continue;
         Base::Result<Aero::GuiPrivate::Detail::VisualLease> lease =
             Aero::GuiPrivate::Detail::VisualLease::Acquire(*current);
@@ -911,8 +1011,7 @@ Base::Result<void> RenderTree::Invalidate(
     if (!reserved) return reserved.GetStatus();
 
     std::uint32_t leaseIndex = 0U;
-    for (FrameworkElement* current : path) {
-        ElementPrivate::RenderValid(*current) = false;
+    for (Visual* current : path) {
         if (ElementPrivate::RenderQueued(*current)) continue;
         Base::Result<void> queued = dirty_.PushBack(
             std::move(leases[leaseIndex++]));
@@ -926,6 +1025,42 @@ Base::Result<void> RenderTree::Invalidate(
 } // namespace Aero::Render::Detail
 
 namespace Aero {
+
+Base::Result<void>
+Visual::Impl::InvalidateRenderDrawing(
+    Visual& visual) noexcept {
+    using Render::RenderInvalidation;
+    using Render::Detail::RenderTree;
+    if (RenderRuntime(visual) == nullptr) {
+        RenderDirtyFlags(visual) |=
+            static_cast<std::uint8_t>(
+                RenderInvalidation::Drawing);
+        RenderValid(visual) = false;
+        return {};
+    }
+    return static_cast<RenderTree*>(
+        RenderRuntime(visual))->Invalidate(
+            visual,
+            RenderInvalidation::Drawing);
+}
+
+Base::Result<void>
+Visual::Impl::InvalidateRenderState(
+    Visual& visual) noexcept {
+    using Render::RenderInvalidation;
+    using Render::Detail::RenderTree;
+    if (RenderRuntime(visual) == nullptr) {
+        RenderDirtyFlags(visual) |=
+            static_cast<std::uint8_t>(
+                RenderInvalidation::State);
+        RenderValid(visual) = false;
+        return {};
+    }
+    return static_cast<RenderTree*>(
+        RenderRuntime(visual))->Invalidate(
+            visual,
+            RenderInvalidation::State);
+}
 
 Base::Result<void> FrameworkElement::AddAuthoredTrigger(
     Base::Ref<Base::Object> trigger) noexcept {
@@ -953,7 +1088,7 @@ using namespace ::Aero::Render;
 using namespace ::Aero::Threading;
 
 bool RenderTree::IsOverlay(
-    const FrameworkElement& element) const noexcept {
+    const Visual& element) const noexcept {
     for (const OverlayRecord& overlay :
          overlays_) {
         if (overlay.element == &element) {
@@ -1030,55 +1165,98 @@ Base::Result<void> RenderTree::SetOverlays(
     if (!changed) return {};
     overlays_ = std::move(next);
     if (root_ != nullptr) {
-        return Invalidate(*root_);
+        return Invalidate(
+            *root_,
+            RenderInvalidation::Children);
     }
     return {};
 }
 
 Base::Result<void> RenderTree::BuildSubtree(
-    FrameworkElement& element,
+    Visual& visual,
     RenderNodeId parentId,
     RenderFrame& plan,
     bool overlayRoot) noexcept {
+    UIElement* element = visual.AsUIElement();
+    FrameworkElement* framework =
+        visual.AsFrameworkElement();
     const bool visible =
-        element.GetVisibility() ==
-        Visibility::Visible;
-    if ((visible && !element.GetIsArrangeValid()) ||
-        ElementPrivate::Rendering(element)) {
-        return InvalidState("FrameworkElement must be arranged and non-reentrant");
+        element == nullptr ||
+        element->GetVisibility() ==
+            Visibility::Visible;
+    if ((visible && element != nullptr &&
+         !element->GetIsArrangeValid()) ||
+        ElementPrivate::Rendering(visual)) {
+        return InvalidState(
+            "Visual must be arranged and non-reentrant");
     }
-    ElementPrivate::Rendering(element) = true;
-    DisplayListBuilder builder;
-    DrawingContext context =
-        Aero::Render::Detail::DrawingPrivate::Create(builder);
-    if (visible) {
-        ElementPrivate::Render(element, context);
+    DrawingRecord* record = FindDrawing(visual);
+    const bool drawingDirty =
+        HasRenderInvalidation(
+            static_cast<RenderInvalidation>(
+                ElementPrivate::
+                    RenderDirtyFlags(visual)),
+            RenderInvalidation::Drawing);
+    if (visible && framework != nullptr &&
+        (record == nullptr || !record->valid ||
+         drawingDirty)) {
+        ElementPrivate::Rendering(visual) = true;
+        DisplayListBuilder builder;
+        DrawingContext context =
+            Aero::Render::Detail::DrawingPrivate::
+                Create(builder);
+        ElementPrivate::Render(visual, context);
+        Base::Result<DisplayList> recorded =
+            builder.Finish();
+        ElementPrivate::Rendering(visual) = false;
+        if (!recorded) {
+            return recorded.GetStatus();
+        }
+        if (record == nullptr) {
+            Base::Result<DrawingRecord*> added =
+                drawings_.EmplaceBack();
+            if (!added) return added.GetStatus();
+            record = added.Value();
+            record->visual = &visual;
+        }
+        record->drawing =
+            std::move(recorded).Value();
+        record->valid = true;
     }
-    Base::Result<DisplayList> listResult = builder.Finish();
-    ElementPrivate::Rendering(element) = false;
-    if (!listResult) {
-        return listResult.GetStatus();
+    if (record == nullptr) {
+        Base::Result<DrawingRecord*> added =
+            drawings_.EmplaceBack();
+        if (!added) return added.GetStatus();
+        record = added.Value();
+        record->visual = &visual;
+        record->valid = framework == nullptr;
     }
-    DisplayList list = std::move(listResult).Value();
+    const DisplayList& list = record->drawing;
+    const std::uint32_t commandCount =
+        visible && record->valid
+        ? list.CommandCount()
+        : 0U;
 
-    if (plan.commands_.Size() > UINT32_MAX - list.CommandCount()) {
+    if (plan.commands_.Size() > UINT32_MAX - commandCount) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "RenderFrame command count exceeds 32-bit range");
     }
-    if (ElementPrivate::RenderRevision(element) == UINT64_MAX) {
+    if (ElementPrivate::RenderRevision(visual) == UINT64_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "Render element revision space exhausted");
     }
     RenderNodeSnapshot snapshot;
-    snapshot.id = ElementPrivate::NodeId(element);
+    snapshot.id = ElementPrivate::NodeId(visual);
     snapshot.parentId = parentId;
-    snapshot.layoutSlot = element.GetLayoutSlot();
+    snapshot.layoutSlot = element != nullptr
+        ? element->GetLayoutSlot()
+        : Rect{};
     if (overlayRoot) {
         for (const OverlayRecord& overlay :
              overlays_) {
-            if (overlay.element == &element) {
+            if (overlay.element == framework) {
                 snapshot.layoutSlot.x =
                     overlay.origin.x;
                 snapshot.layoutSlot.y =
@@ -1087,15 +1265,28 @@ Base::Result<void> RenderTree::BuildSubtree(
             }
         }
     }
-    snapshot.clip = element.GetLayoutClip();
-    snapshot.clipsToBounds = element.GetClipToBounds();
-    snapshot.renderSize = element.GetRenderSize();
-    snapshot.renderTransform =
-        element.GetLocalVisualTransform();
-    snapshot.blendMode =
-        element.GetBlendMode();
+    snapshot.clip = element != nullptr
+        ? element->GetLayoutClip()
+        : Rect{};
+    snapshot.clipsToBounds =
+        element != nullptr &&
+        element->GetClipToBounds();
+    snapshot.renderSize = element != nullptr
+        ? element->GetRenderSize()
+        : Size{};
+    snapshot.renderTransform = framework != nullptr
+        ? framework->GetLocalVisualTransform()
+        : Transform2D{};
+    snapshot.blendMode = element != nullptr
+        ? element->GetBlendMode()
+        : BlendMode::Normal;
+    snapshot.opacity = element != nullptr
+        ? element->GetOpacity()
+        : 1.0;
     Base::Ref<Effect> effect =
-        element.GetEffect();
+        element != nullptr
+        ? element->GetEffect()
+        : Base::Ref<Effect>{};
     if (effect) {
         if (effect->RuntimeType() ==
             BlurEffect::StaticTypeId()) {
@@ -1126,25 +1317,36 @@ Base::Result<void> RenderTree::BuildSubtree(
         }
     }
     snapshot.commandOffset = plan.commands_.Size();
-    snapshot.commandCount = list.CommandCount();
-    snapshot.elementRevision = ElementPrivate::RenderRevision(element) + 1U;
+    snapshot.commandCount = commandCount;
+    snapshot.elementRevision =
+        ElementPrivate::RenderRevision(visual) +
+        (ElementPrivate::RenderDirtyFlags(visual) != 0U
+         ? 1U : 0U);
 
     Base::Result<void> nodeAppend = plan.nodes_.PushBack(snapshot);
     if (!nodeAppend) {
         return nodeAppend;
     }
-    Base::Result<void> commandAppend = plan.commands_.Append(list.Commands());
+    Base::Result<void> commandAppend =
+        commandCount != 0U
+        ? plan.commands_.Append(list.Commands())
+        : Base::Result<void>();
     if (!commandAppend) {
         plan.nodes_.PopBack();
         return commandAppend;
     }
 
     if (!visible) return {};
-    for (FrameworkElement* child : Aero::GuiPrivate::Detail::ElementPrivate::RenderChildren(element)) {
+    for (Visual* child :
+         Aero::GuiPrivate::Detail::ElementPrivate::
+             RenderChildren(visual)) {
+        if (child == nullptr) continue;
         if (IsOverlay(*child)) continue;
         Base::Result<void> childResult =
             BuildSubtree(
-                *child, ElementPrivate::NodeId(element), plan);
+                *child,
+                ElementPrivate::NodeId(visual),
+                plan);
         if (!childResult) {
             return childResult;
         }
@@ -1165,9 +1367,7 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
     if (root_ == nullptr) {
         for (const Aero::GuiPrivate::Detail::VisualLease& lease : dirty_) {
             Visual* visual = lease.Resolve();
-            FrameworkElement* element = visual != nullptr
-                ? visual->AsFrameworkElement() : nullptr;
-            if (element != nullptr) ElementPrivate::RenderQueued(*element) = false;
+            if (visual != nullptr) ElementPrivate::RenderQueued(*visual) = false;
         }
         dirty_.Clear();
         return 0U;
@@ -1188,7 +1388,7 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
         FrameworkElement* overlay =
             record.element;
         if (overlay == nullptr ||
-            overlay == root_ ||
+            static_cast<Visual*>(overlay) == root_ ||
             !ElementPrivate::RenderAttached(*overlay) ||
             overlay->GetVisibility() != Visibility::Visible ||
             !overlay->GetIsArrangeValid()) {
@@ -1204,7 +1404,7 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
     const std::uint32_t committedNodes = next.nodes_.Size();
     currentFrame_ = std::move(next);
     commitVersion_ = currentFrame_.Version();
-    MarkCommittedSubtree(*root_);
+    MarkCommittedSubtree(*root_, true);
     dirty_.Clear();
     committing_ = false;
     return committedNodes;

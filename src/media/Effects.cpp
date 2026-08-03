@@ -1,5 +1,6 @@
 #include <Aero/Media/Effects.hpp>
 
+#include "gui/GuiPrivate.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 namespace Aero::Media {
@@ -7,7 +8,11 @@ namespace Aero::Media {
 void Effect::OnPropertyInvalidated(
     Meta::PropertyInvalidationFlags flags) noexcept {
     DependencyObject::OnPropertyInvalidated(flags);
-    if (owner_ != nullptr) (void)owner_->InvalidateVisual();
+    if (owner_ != nullptr) {
+        static_cast<void>(
+            Aero::GuiPrivate::Detail::ElementPrivate::
+                InvalidateRenderState(*owner_));
+    }
 }
 
 double BlurEffect::GetRadius() const noexcept {

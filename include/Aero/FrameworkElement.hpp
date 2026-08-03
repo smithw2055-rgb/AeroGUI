@@ -231,10 +231,6 @@ private:
             authoredTriggers_.Data(),
             authoredTriggers_.Size()};
     }
-    bool GetIsRenderValid() const noexcept { return renderValid_; }
-    std::uint64_t GetRenderRevision() const noexcept {
-        return renderRevision_;
-    }
 
     Base::Object* FindNameObject(
         Base::StringView name,
@@ -243,14 +239,7 @@ private:
     friend class LogicalTreeHelper;
     friend struct ::Aero::Visual::Impl;
     friend struct ::Aero::UIElement::Impl;
-    void* renderRuntime_ = nullptr;
     double dpiScale_ = 1.0;
-    Base::RenderNodeId nodeId_ = Base::InvalidRenderNodeId;
-    std::uint64_t renderRevision_ = 0U;
-    bool renderAttached_ = false;
-    bool renderValid_ = false;
-    bool renderQueued_ = false;
-    bool rendering_ = false;
     DependencyObject* templatedParent_ = nullptr;
     ResourceDictionary resources_;
     Base::Vector<Base::Ref<Base::Object>> authoredTriggers_;

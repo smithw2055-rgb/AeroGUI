@@ -185,6 +185,7 @@ public:
             OpacityMaskProperty,
             Base::Ref<Base::Object>{});
     }
+    double GetOpacity() const noexcept;
     bool GetIsHitTestVisible() const noexcept;
     Visibility GetVisibility() const noexcept;
     bool GetIsVisible() const noexcept {

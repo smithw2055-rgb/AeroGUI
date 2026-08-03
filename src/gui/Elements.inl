@@ -53,21 +53,22 @@ Base::Result<void> PopulateUiElements(
         .Event(UIElement::TextInputEvent)
         .Property(
             UIElement::ClipToBoundsProperty,
-            PropertyOptions(false).AffectsArrange())
+            PropertyOptions(false)
+                .AffectsArrange()
+                .Changed(&OnRenderStateChanged))
         .Property(
             UIElement::BlendModeProperty,
             PropertyOptions(BlendMode::Normal)
-                .AffectsRender())
+                .Changed(&OnRenderStateChanged))
         .Property(
             UIElement::EffectProperty,
             PropertyOptions(Base::Ref<Effect>{})
-                .AffectsRender()
                 .Changed(&OnEffectChanged))
         .Property(
             UIElement::OpacityMaskProperty,
             PropertyOptions(
                 Base::Ref<Base::Object>{})
-                .AffectsRender())
+                .Changed(&OnRenderStateChanged))
         .Property(
             UIElement::IsHitTestVisibleProperty,
             PropertyOptions(true))
@@ -75,7 +76,7 @@ Base::Result<void> PopulateUiElements(
             UIElement::VisibilityProperty,
             PropertyOptions(Visibility::Visible)
                 .AffectsMeasure()
-                .AffectsRender())
+                .Changed(&OnRenderStateChanged))
         .Property(
             UIElement::IsEnabledProperty,
             PropertyOptions(true)
@@ -111,17 +112,16 @@ Base::Result<void> PopulateUiElements(
         .Property(
             UIElement::OpacityProperty,
             PropertyOptions(1.0)
-                .AffectsRender()
+                .Changed(&OnRenderStateChanged)
                 .Validate(&ValidateUnitDouble))
         .Property(
             UIElement::RenderTransformProperty,
             PropertyOptions(Base::Ref<Transform>{})
-                .AffectsRender()
                 .Changed(&OnRenderTransformChanged))
         .Property(
             UIElement::RenderTransformOriginProperty,
             PropertyOptions(Point{})
-                .AffectsRender());
+                .Changed(&OnRenderStateChanged));
     status = uiElement.Result();
     if (!status) return status.GetStatus();
 

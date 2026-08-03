@@ -131,6 +131,11 @@ Visual::~Visual() {
     AERO_ASSERT(visualParent_ == nullptr);
     AERO_ASSERT(logicalChildren_.Empty());
     AERO_ASSERT(visualChildren_.Empty());
+    AERO_ASSERT(renderRuntime_ == nullptr);
+    AERO_ASSERT(!renderAttached_);
+    AERO_ASSERT(!renderQueued_);
+    AERO_ASSERT(!rendering_);
+    AERO_ASSERT(renderNodeId_ == Base::InvalidRenderNodeId);
     if (lifetime_) static_cast<Aero::GuiPrivate::Detail::VisualLifetime*>(lifetime_.Get())->Invalidate();
 }
 
@@ -743,12 +748,10 @@ Base::Result<void> ElementTree::AttachLayout(
 
 Base::Result<void> ElementTree::AttachRender(
     Visual& parent, Visual& child, bool& attached) noexcept {
-    FrameworkElement* parentElement = parent.AsFrameworkElement();
-    FrameworkElement* childElement = child.AsFrameworkElement();
-    if (renderer_ == nullptr || parentElement == nullptr || childElement == nullptr) {
+    if (renderer_ == nullptr) {
         return {};
     }
-    Base::Result<void> result = renderer_->Attach(*parentElement, *childElement);
+    Base::Result<void> result = renderer_->Attach(parent, child);
     if (!result) return result.GetStatus();
     attached = true;
     return {};
@@ -771,12 +774,10 @@ Base::Result<void> ElementTree::DetachLayout(
 Base::Result<void> ElementTree::DetachRender(
     Visual& parent, Visual& child, bool& attached) noexcept {
     if (!attached) return {};
-    FrameworkElement* parentElement = parent.AsFrameworkElement();
-    FrameworkElement* childElement = child.AsFrameworkElement();
-    if (renderer_ == nullptr || parentElement == nullptr || childElement == nullptr) {
+    if (renderer_ == nullptr) {
         return InvalidState("Attached render edge has no render tree");
     }
-    Base::Result<void> result = renderer_->Detach(*parentElement, *childElement);
+    Base::Result<void> result = renderer_->Detach(parent, child);
     if (!result) return result.GetStatus();
     attached = false;
     return {};
@@ -928,11 +929,11 @@ Base::Result<Aero::GuiPrivate::Detail::VisualAttachment> ElementTree::AttachVisu
         (void)DetachVisual(visualParent, child);
         return render.GetStatus();
     }
-    if (state.renderAttached && renderer_ != nullptr &&
-        child.AsFrameworkElement() != nullptr) {
-        auto attachDescendants = [&](auto&& self, FrameworkElement& parent) noexcept
+    if (state.renderAttached && renderer_ != nullptr) {
+        auto attachDescendants = [&](auto&& self, Visual& parent) noexcept
             -> Base::Result<void> {
-            for (FrameworkElement* descendant : Aero::GuiPrivate::Detail::ElementPrivate::RenderChildren(parent)) {
+            for (Visual* descendant :
+                 Aero::GuiPrivate::Detail::ElementPrivate::RenderChildren(parent)) {
                 if (descendant == nullptr) continue;
                 Base::Result<void> attached = renderer_->Attach(parent, *descendant);
                 if (!attached) return attached.GetStatus();
@@ -942,7 +943,7 @@ Base::Result<Aero::GuiPrivate::Detail::VisualAttachment> ElementTree::AttachVisu
             return {};
         };
         Base::Result<void> descendants =
-            attachDescendants(attachDescendants, *child.AsFrameworkElement());
+            attachDescendants(attachDescendants, child);
         if (!descendants) {
             (void)DetachRender(visualParent, child, state.renderAttached);
             (void)DetachLayout(visualParent, child, state.layoutAttached);
@@ -1033,9 +1034,8 @@ Base::Result<Aero::GuiPrivate::Detail::RootAttachment> ElementTree::AttachRoot(
         state.layoutAttached = true;
     }
 
-    FrameworkElement* renderRoot = root.AsFrameworkElement();
-    if (renderRoot != nullptr && renderer_ != nullptr) {
-        Base::Result<void> render = renderer_->SetRoot(renderRoot);
+    if (renderer_ != nullptr) {
+        Base::Result<void> render = renderer_->SetRoot(&root);
         if (!render) {
             if (state.layoutAttached) (void)layout_->SetRoot(nullptr, {});
             (void)SetRoot(nullptr);
@@ -1059,8 +1059,9 @@ Base::Result<void> ElementTree::DetachRoot(
     if (state.layoutAttached) {
         Base::Result<void> result = layout_->SetRoot(nullptr, {});
         if (!result) {
-            if (state.root->AsFrameworkElement() != nullptr && renderer_ != nullptr) {
-                Base::Result<void> restored = renderer_->SetRoot(state.root->AsFrameworkElement());
+            if (renderer_ != nullptr) {
+                Base::Result<void> restored =
+                    renderer_->SetRoot(state.root);
                 if (restored) state.renderAttached = true;
             }
             return result.GetStatus();
@@ -1075,8 +1076,9 @@ Base::Result<void> ElementTree::DetachRoot(
                     layout_->SetRoot(state.root->AsUIElement(), state.availableSize);
                 if (restored) state.layoutAttached = true;
             }
-            if (state.root->AsFrameworkElement() != nullptr && renderer_ != nullptr) {
-                Base::Result<void> restored = renderer_->SetRoot(state.root->AsFrameworkElement());
+            if (renderer_ != nullptr) {
+                Base::Result<void> restored =
+                    renderer_->SetRoot(state.root);
                 if (restored) state.renderAttached = true;
             }
             return result.GetStatus();

@@ -362,6 +362,9 @@ Base::Ref<Effect> UIElement::GetEffect() const noexcept {
         EffectProperty,
         Base::Ref<Effect>{});
 }
+double UIElement::GetOpacity() const noexcept {
+    return GetValueOr(OpacityProperty, 1.0);
+}
 bool UIElement::GetIsHitTestVisible() const noexcept {
     return GetValueOr(IsHitTestVisibleProperty, true);
 }

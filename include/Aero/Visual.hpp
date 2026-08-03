@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -67,8 +68,17 @@ private:
     Base::Vector<Visual*> logicalChildren_;
     Base::Vector<Visual*> visualChildren_;
     Base::Ref<Base::Object> lifetime_;
+    void* renderRuntime_ = nullptr;
+    Base::RenderNodeId renderNodeId_ =
+        Base::InvalidRenderNodeId;
+    std::uint64_t renderRevision_ = 0U;
     std::uint32_t handleIndex_ = UINT32_MAX;
     std::uint32_t handleGeneration_ = 0U;
+    std::uint8_t renderDirtyFlags_ = 0x07U;
+    bool renderAttached_ = false;
+    bool renderValid_ = false;
+    bool renderQueued_ = false;
+    bool rendering_ = false;
     bool loaded_ = false;
 };
 

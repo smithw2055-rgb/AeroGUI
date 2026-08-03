@@ -771,8 +771,11 @@ struct ViewData {
         Base::Result<void> resized =
             layout->SetRoot(attachedRootLayout, availableSize);
         if (!resized) return resized.GetStatus();
-        if (renderer != nullptr && attachedRootRender != nullptr) {
-            return renderer->Invalidate(*attachedRootRender);
+        if (renderer != nullptr &&
+            attachedRootVisual != nullptr) {
+            return renderer->Invalidate(
+                *attachedRootVisual,
+                Aero::Render::RenderInvalidation::State);
         }
         return {};
     }
@@ -5858,13 +5861,11 @@ View::ExecuteFrame() noexcept {
             deviceGenerationChanged = true;
             Aero::Visual* rootVisual =
                 state_->data->RootVisual();
-            Aero::FrameworkElement* root =
-                rootVisual != nullptr
-                ? rootVisual->AsFrameworkElement()
-                : nullptr;
-            if (root != nullptr) {
+            if (rootVisual != nullptr) {
                 Base::Result<void> invalidated =
-                    state_->data->renderer->Invalidate(*root);
+                    state_->data->renderer->Invalidate(
+                        *rootVisual,
+                        Aero::Render::RenderInvalidation::All);
                 if (!invalidated) {
                     return invalidated.GetStatus();
                 }
@@ -5905,13 +5906,11 @@ View::ExecuteFrame() noexcept {
         if (synchronized.Value()) {
             Aero::Visual* rootVisual =
                 state_->data->RootVisual();
-            Aero::FrameworkElement* root =
-                rootVisual != nullptr
-                ? rootVisual->AsFrameworkElement()
-                : nullptr;
-            if (root != nullptr) {
+            if (rootVisual != nullptr) {
                 Base::Result<void> invalidated =
-                    state_->data->renderer->Invalidate(*root);
+                    state_->data->renderer->Invalidate(
+                        *rootVisual,
+                        Aero::Render::RenderInvalidation::All);
                 if (!invalidated) {
                     return invalidated.GetStatus();
                 }
@@ -5962,6 +5961,22 @@ View::ExecuteFrame() noexcept {
         if (phase == ::Aero::Threading::DispatcherFramePhase::Layout &&
             !state_->data->layout->LastFlushStatus().IsOk()) {
             return state_->data->layout->LastFlushStatus();
+        }
+        if (phase ==
+                ::Aero::Threading::DispatcherFramePhase::Layout &&
+            state_->data->layout->Diagnostics().arrangedCount != 0U) {
+            Aero::Visual* rootVisual =
+                state_->data->RootVisual();
+            if (rootVisual != nullptr &&
+                state_->data->renderer != nullptr) {
+                Base::Result<void> invalidated =
+                    state_->data->renderer->Invalidate(
+                        *rootVisual,
+                        Aero::Render::RenderInvalidation::All);
+                if (!invalidated) {
+                    return invalidated.GetStatus();
+                }
+            }
         }
         if (phase == ::Aero::Threading::DispatcherFramePhase::Animation &&
             state_->data->animations != nullptr) {
@@ -6299,12 +6314,10 @@ Base::Result<void> Renderer::Init(
             true);
         Aero::Visual* rootVisual =
             data.RootVisual();
-        Aero::FrameworkElement* root =
-            rootVisual != nullptr
-            ? rootVisual->AsFrameworkElement()
-            : nullptr;
-        if (root != nullptr) {
-            status = data.renderer->Invalidate(*root);
+        if (rootVisual != nullptr) {
+            status = data.renderer->Invalidate(
+                *rootVisual,
+                Aero::Render::RenderInvalidation::All);
         }
     }
     if (!status) {

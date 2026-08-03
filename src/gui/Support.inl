@@ -1018,6 +1018,16 @@ void ClearTransformGroupChildren(
     return;
 }
 
+void OnRenderStateChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+    auto& visual =
+        static_cast<UIElement&>(object);
+    static_cast<void>(
+        Aero::GuiPrivate::Detail::ElementPrivate::
+            InvalidateRenderState(visual));
+}
+
 void OnRenderTransformChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
@@ -1042,6 +1052,9 @@ void OnRenderTransformChanged(
             ::Aero::Media::Detail::OwnerRoleValue(
                 ::Aero::Media::Detail::TransformOwnerRole::Render));
     }
+    static_cast<void>(
+        Aero::GuiPrivate::Detail::ElementPrivate::
+            InvalidateRenderState(*owner));
 }
 
 void OnLayoutTransformChanged(
@@ -1096,4 +1109,7 @@ void OnEffectChanged(
         ::Aero::Media::Detail::EffectPrivate::SetOwner(
             *newEffect.Value(), owner);
     }
+    static_cast<void>(
+        Aero::GuiPrivate::Detail::ElementPrivate::
+            InvalidateRenderState(*owner));
 }

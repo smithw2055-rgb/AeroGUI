@@ -212,6 +212,7 @@ struct NodeState  {
     Media::Transform2D transform;
     ClipState clip;
     bool clipsToBounds = false;
+    double opacity = 1.0;
     std::uint32_t parentIndex = UINT32_MAX;
     Render::RenderNodeId containingEffect =
         Render::InvalidRenderNodeId;
@@ -1069,6 +1070,11 @@ Base::Result<CommandList> Renderer::Record(
                 "Renderer node transform is invalid");
             break;
         }
+        if (!Render::IsValidOpacity(node.opacity)) {
+            encoded = InvalidArgument(
+                "Renderer node opacity is invalid");
+            break;
+        }
         if (static_cast<std::uint8_t>(
                 node.effect.kind) >
                 static_cast<std::uint8_t>(
@@ -1096,6 +1102,7 @@ Base::Result<CommandList> Renderer::Record(
 
         Media::Transform2D parentTransform = IdentityTransform();
         Aero::Rect parentClip = targetClip;
+        double parentOpacity = 1.0;
         std::uint32_t parentIndex = UINT32_MAX;
         Render::RenderNodeId containingEffect =
             Render::InvalidRenderNodeId;
@@ -1116,6 +1123,7 @@ Base::Result<CommandList> Renderer::Record(
             }
             parentTransform = parent->transform;
             parentClip = parent->clip.bounds;
+            parentOpacity = parent->opacity;
             containingEffect =
                 parent->containingEffect;
             containingEffectCount =
@@ -1144,8 +1152,11 @@ Base::Result<CommandList> Renderer::Record(
             }
             nodeClip.bounds = IntersectRect(parentClip, nodeBounds);
         }
+        const double nodeOpacity =
+            parentOpacity * node.opacity;
         Base::Result<void> appendedNode = impl_->nodes.PushBack(
             {node.id, nodeTransform, nodeClip, node.clipsToBounds,
+             nodeOpacity,
              parentIndex, containingEffect,
              containingEffectCount});
         if (!appendedNode) {
@@ -1204,7 +1215,7 @@ Base::Result<CommandList> Renderer::Record(
             break;
         }
         if (!(impl_->transforms.PushBack(nodeTransform)) ||
-            !(impl_->opacities.PushBack(1.0))) {
+            !(impl_->opacities.PushBack(nodeOpacity))) {
             encoded = OutOfMemory("Failed to allocate Renderer state stack");
             break;
         }

@@ -1,5 +1,6 @@
 #include <Aero/Media/Transforms.hpp>
 #include "media/MediaPrivate.hpp"
+#include "gui/GuiPrivate.hpp"
 
 #include <Aero/FrameworkElement.hpp>
 
@@ -186,7 +187,9 @@ void Transform::OnPropertyInvalidated(
             ::Aero::Media::Detail::TransformOwnerRole::Layout))) {
         (void)owner->InvalidateMeasure();
     } else {
-        (void)owner->InvalidateVisual();
+        static_cast<void>(
+            Aero::GuiPrivate::Detail::ElementPrivate::
+                InvalidateRenderState(*owner));
     }
 }
 
@@ -333,7 +336,8 @@ Base::Result<void> TransformGroup::AddChild(
     if (owner == nullptr) return {};
     return HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout))
         ? owner->InvalidateMeasure()
-        : owner->InvalidateVisual();
+        : Aero::GuiPrivate::Detail::ElementPrivate::
+            InvalidateRenderState(*owner);
 }
 
 void TransformGroup::ClearChildren() noexcept {
@@ -356,7 +360,9 @@ void TransformGroup::ClearChildren() noexcept {
     if (HasOwnerRole(::Aero::Media::Detail::OwnerRoleValue(::Aero::Media::Detail::TransformOwnerRole::Layout))) {
         (void)owner->InvalidateMeasure();
     } else {
-        (void)owner->InvalidateVisual();
+        static_cast<void>(
+            Aero::GuiPrivate::Detail::ElementPrivate::
+                InvalidateRenderState(*owner));
     }
 }
 

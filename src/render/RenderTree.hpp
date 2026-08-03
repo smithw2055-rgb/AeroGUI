@@ -14,6 +14,29 @@ enum class RenderEffectKind : std::uint8_t {
     DropShadow
 };
 
+enum class RenderInvalidation : std::uint8_t {
+    None = 0U,
+    State = 1U << 0U,
+    Drawing = 1U << 1U,
+    Children = 1U << 2U,
+    All = 0x07U
+};
+
+constexpr RenderInvalidation operator|(
+    RenderInvalidation left,
+    RenderInvalidation right) noexcept {
+    return static_cast<RenderInvalidation>(
+        static_cast<std::uint8_t>(left) |
+        static_cast<std::uint8_t>(right));
+}
+
+constexpr bool HasRenderInvalidation(
+    RenderInvalidation value,
+    RenderInvalidation flag) noexcept {
+    return (static_cast<std::uint8_t>(value) &
+        static_cast<std::uint8_t>(flag)) != 0U;
+}
+
 struct RenderEffectSnapshot {
     RenderEffectKind kind = RenderEffectKind::None;
     double radius = 0.0;
@@ -35,6 +58,7 @@ struct RenderNodeSnapshot {
     Size renderSize;
     Transform2D renderTransform;
     BlendMode blendMode = BlendMode::Normal;
+    double opacity = 1.0;
     RenderEffectSnapshot effect;
     std::uint32_t commandOffset = 0U;
     std::uint32_t commandCount = 0U;
@@ -96,15 +120,17 @@ public:
     RenderTree& operator=(const RenderTree&) = delete;
 
     Base::Result<void> Initialize() noexcept;
-    Base::Result<void> SetRoot(FrameworkElement* root) noexcept;
+    Base::Result<void> SetRoot(Visual* root) noexcept;
     Base::Result<void> Attach(
-        FrameworkElement& parent,
-        FrameworkElement& child) noexcept;
+        Visual& parent,
+        Visual& child) noexcept;
     Base::Result<void> Detach(
-        FrameworkElement& parent,
-        FrameworkElement& child) noexcept;
+        Visual& parent,
+        Visual& child) noexcept;
     Base::Result<void> Invalidate(
-        FrameworkElement& element) noexcept;
+        Visual& visual,
+        RenderInvalidation invalidation =
+            RenderInvalidation::Drawing) noexcept;
     Base::Result<void> SetOverlays(
         Base::Span<FrameworkElement* const> overlays,
         Base::Span<const Point> origins) noexcept;
@@ -119,9 +145,16 @@ public:
     }
 
 private:
+    struct DrawingRecord {
+        Visual* visual = nullptr;
+        DisplayList drawing;
+        bool valid = false;
+    };
+
     ::Aero::Threading::Dispatcher* dispatcher_ = nullptr;
-    FrameworkElement* root_ = nullptr;
+    Visual* root_ = nullptr;
     Base::Vector<Aero::GuiPrivate::Detail::VisualLease> dirty_;
+    Base::Vector<DrawingRecord> drawings_;
     struct OverlayRecord {
         FrameworkElement* element = nullptr;
         Point origin;
@@ -135,18 +168,22 @@ private:
     bool committing_ = false;
 
     Base::Result<void> VerifyElement(
-        const FrameworkElement& element) const noexcept;
+        const Visual& visual) const noexcept;
     Base::Result<void> QueueDirty(
-        FrameworkElement& element) noexcept;
-    void RemoveQueued(FrameworkElement& element) noexcept;
-    void MarkCommittedSubtree(FrameworkElement& element) noexcept;
+        Visual& visual) noexcept;
+    void RemoveQueued(Visual& visual) noexcept;
+    void MarkCommittedSubtree(
+        Visual& visual,
+        bool ancestorVisible = true) noexcept;
+    DrawingRecord* FindDrawing(Visual& visual) noexcept;
+    void RemoveDrawing(Visual& visual) noexcept;
     Base::Result<void> BuildSubtree(
-        FrameworkElement& element,
+        Visual& visual,
         RenderNodeId parentId,
         Integration::RenderFrame& plan,
         bool overlayRoot = false) noexcept;
     bool IsOverlay(
-        const FrameworkElement& element) const noexcept;
+        const Visual& visual) const noexcept;
     static void RenderCommitHook(void* context) noexcept;
 };
 
