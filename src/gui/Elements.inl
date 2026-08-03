@@ -66,9 +66,8 @@ Base::Result<void> PopulateUiElements(
                 .Changed(&OnEffectChanged))
         .Property(
             UIElement::OpacityMaskProperty,
-            PropertyOptions(
-                Base::Ref<Base::Object>{})
-                .Changed(&OnRenderStateChanged))
+            PropertyOptions(Base::Ref<Brush>{})
+                .Changed(&OnOpacityMaskChanged))
         .Property(
             UIElement::IsHitTestVisibleProperty,
             PropertyOptions(true))

@@ -21,7 +21,7 @@ using Meta::PropertyInvalidationFlags;
 using Meta::TypeId;
 
 class UIElement;
-namespace Media { class Transform; class Effect; }
+namespace Media { class Transform; class Effect; class Brush; }
 
 class UIElementChildRange {
 public:
@@ -180,11 +180,7 @@ public:
     bool GetClipToBounds() const noexcept;
     BlendMode GetBlendMode() const noexcept;
     Base::Ref<Media::Effect> GetEffect() const noexcept;
-    Base::Ref<Base::Object> GetOpacityMask() const noexcept {
-        return GetValueOr(
-            OpacityMaskProperty,
-            Base::Ref<Base::Object>{});
-    }
+    Base::Ref<Media::Brush> GetOpacityMask() const noexcept;
     double GetOpacity() const noexcept;
     bool GetIsHitTestVisible() const noexcept;
     Visibility GetVisibility() const noexcept;
@@ -209,7 +205,7 @@ public:
     inline static constexpr Members::Property<bool> ClipToBoundsProperty{"ClipToBounds"};
     inline static constexpr Members::Property<BlendMode> BlendModeProperty{"BlendMode"};
     inline static constexpr Members::Property<Base::Ref<Media::Effect>> EffectProperty{"Effect"};
-    inline static constexpr Members::Property<Base::Ref<Base::Object>> OpacityMaskProperty{"OpacityMask"};
+    inline static constexpr Members::Property<Base::Ref<Media::Brush>> OpacityMaskProperty{"OpacityMask"};
     inline static constexpr Members::Property<bool> IsHitTestVisibleProperty{"IsHitTestVisible"};
     inline static constexpr Members::Property<Visibility> VisibilityProperty{"Visibility"};
     inline static constexpr Members::Property<bool> IsEnabledProperty{"IsEnabled"};
@@ -232,6 +228,8 @@ public:
         BlendMode value) noexcept;
     void SetEffect(
         Base::Ref<Media::Effect> value) noexcept;
+    void SetOpacityMask(
+        Base::Ref<Media::Brush> value) noexcept;
     void SetIsHitTestVisible(bool value) noexcept;
     void SetVisibility(Visibility value) noexcept;
     void SetIsEnabled(bool value) noexcept;

@@ -12,8 +12,11 @@ namespace Aero::Integration::Detail {
 // implementation. It avoids a second public object model and virtual hierarchy.
 struct RenderDeviceFunctions {
     void (*destroy)(void*) noexcept = nullptr;
-    Base::Result<void> (*submit)(
-        void*, const Integration::RenderFrame&) noexcept = nullptr;
+    Base::Result<void> (*renderOffscreen)(
+        void*, const void*, const Integration::RenderFrame&) noexcept = nullptr;
+    Base::Result<void> (*render)(
+        void*, const void*, const Integration::RenderFrame&) noexcept = nullptr;
+    void (*releaseRenderer)(void*, const void*) noexcept = nullptr;
     Base::Result<void> (*resize)(
         void*, std::uint32_t, std::uint32_t) noexcept = nullptr;
     void (*surfaceLost)(void*) noexcept = nullptr;
@@ -39,8 +42,16 @@ template<class T>
 const RenderDeviceFunctions& FunctionsFor() noexcept {
     static const RenderDeviceFunctions functions{
         [](void* state) noexcept { delete static_cast<T*>(state); },
-        [](void* state, const Integration::RenderFrame& frame) noexcept {
-            return static_cast<T*>(state)->Submit(frame);
+        [](void* state, const void* renderer,
+           const Integration::RenderFrame& frame) noexcept {
+            return static_cast<T*>(state)->RenderOffscreen(renderer, frame);
+        },
+        [](void* state, const void* renderer,
+           const Integration::RenderFrame& frame) noexcept {
+            return static_cast<T*>(state)->Render(renderer, frame);
+        },
+        [](void* state, const void* renderer) noexcept {
+            static_cast<T*>(state)->ReleaseRenderer(renderer);
         },
         [](void* state, std::uint32_t width, std::uint32_t height) noexcept {
             return static_cast<T*>(state)->Resize(width, height);
@@ -144,10 +155,24 @@ struct RenderDevice::Impl {
             : ::Aero::Render::Detail::RenderResources{};
     }
 
-    static Base::Result<void> Submit(
+    static Base::Result<void> RenderOffscreen(
         RenderDevice& device,
+        const void* rendererToken,
         const RenderFrame& frame) noexcept {
-        return device.Submit(frame);
+        return device.RenderOffscreen(rendererToken, frame);
+    }
+
+    static Base::Result<void> Render(
+        RenderDevice& device,
+        const void* rendererToken,
+        const RenderFrame& frame) noexcept {
+        return device.Render(rendererToken, frame);
+    }
+
+    static void ReleaseRenderer(
+        RenderDevice& device,
+        const void* rendererToken) noexcept {
+        device.ReleaseRenderer(rendererToken);
     }
 
     static Base::Status FrameStatus(RenderDevice& device) noexcept {

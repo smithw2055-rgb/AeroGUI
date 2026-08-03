@@ -1028,6 +1028,31 @@ void OnRenderStateChanged(
             InvalidateRenderState(visual));
 }
 
+void OnOpacityMaskChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    FrameworkElement* owner =
+        static_cast<UIElement&>(object).AsFrameworkElement();
+    if (owner == nullptr) return;
+    Base::Result<Base::Ref<Brush>> oldMask =
+        ValueCodec<Base::Ref<Brush>>::Decode(args.GetOldValue());
+    if (oldMask && oldMask.Value() &&
+        ::Aero::Media::Detail::BrushPrivate::Owner(
+            *oldMask.Value()) == owner) {
+        ::Aero::Media::Detail::BrushPrivate::SetOwner(
+            *oldMask.Value(), nullptr);
+    }
+    Base::Result<Base::Ref<Brush>> newMask =
+        ValueCodec<Base::Ref<Brush>>::Decode(args.GetNewValue());
+    if (newMask && newMask.Value()) {
+        ::Aero::Media::Detail::BrushPrivate::SetOwner(
+            *newMask.Value(), owner);
+    }
+    static_cast<void>(
+        Aero::GuiPrivate::Detail::ElementPrivate::
+            InvalidateRenderState(*owner));
+}
+
 void OnRenderTransformChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {

@@ -618,7 +618,33 @@ Aero::Render::Detail::ImageResources* OpenGL33Renderer::GetImageResources() noex
     return IsInitialized() ? &impl_->imageResources.Table() : nullptr;
 }
 
-Base::Result<void> OpenGL33Renderer::Submit(
+Base::Result<void> OpenGL33Renderer::RenderOffscreen(
+    const void* rendererToken,
+    const Integration::RenderFrame& plan) noexcept {
+    if (!IsInitialized()) {
+        return NotInitialized(
+            "OpenGL render adapter is not initialized");
+    }
+    if (device_->Backend().IsDeviceLost()) {
+        return InvalidState(
+            "Cannot render offscreen on a lost OpenGL device");
+    }
+    Base::Result<std::uint32_t> collected =
+        device_->CollectGarbage();
+    if (!collected) return collected.GetStatus();
+    Base::Result<Graphics::CommandList> recorded =
+        impl_->renderer.RecordOffscreen(rendererToken, plan);
+    if (!recorded) return recorded.GetStatus();
+    if (recorded.Value().CommandCount() == 0U) return {};
+    Base::Result<Graphics::FenceValue> submitted =
+        device_->Submit(recorded.Value());
+    if (!submitted) return submitted.GetStatus();
+    impl_->lastSubmittedFence = submitted.Value();
+    return {};
+}
+
+Base::Result<void> OpenGL33Renderer::Render(
+    const void* rendererToken,
     const Integration::RenderFrame& plan) noexcept {
     if (!IsInitialized()) {
         return NotInitialized(
@@ -627,7 +653,7 @@ Base::Result<void> OpenGL33Renderer::Submit(
     if (device_->Backend().IsDeviceLost() ||
         surface_->State() != Graphics::SurfaceState::Ready) {
         return InvalidState(
-            "Cannot submit a RenderFrame to a lost OpenGL surface");
+            "Cannot render a RenderFrame to a lost OpenGL surface");
     }
     Base::Result<std::uint32_t> collected =
         device_->CollectGarbage();
@@ -674,8 +700,8 @@ Base::Result<void> OpenGL33Renderer::Submit(
     }
 
     Base::Result<Graphics::CommandList> recorded =
-        impl_->renderer.Record(
-            plan,
+        impl_->renderer.RecordOnscreen(
+            rendererToken, plan,
             {imported.Value(),
              frame.target.width,
              frame.target.height});
@@ -706,6 +732,13 @@ Base::Result<void> OpenGL33Renderer::Submit(
         return destroyed;
     }
     return {};
+}
+
+void OpenGL33Renderer::ReleaseRenderer(
+    const void* rendererToken) noexcept {
+    if (impl_ != nullptr) {
+        impl_->renderer.ReleaseRenderer(rendererToken);
+    }
 }
 
 Graphics::FenceValue

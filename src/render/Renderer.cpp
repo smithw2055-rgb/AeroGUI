@@ -268,6 +268,49 @@ struct EffectSurface  {
     std::uint32_t height = 0U;
 };
 
+struct ViewSurface {
+    const void* owner = nullptr;
+    ResourceHandle target;
+    std::uint32_t width = 0U;
+    std::uint32_t height = 0U;
+    std::uint64_t version = 0U;
+    RendererStatistics statistics;
+    bool prepared = false;
+};
+
+bool RequiresNodeSurface(
+    const Render::RenderNodeSnapshot& node) noexcept {
+    return node.effect.kind != Render::RenderEffectKind::None ||
+        node.mask.kind != Render::RenderMaskKind::None;
+}
+
+bool RequiresFrameSurface(
+    const Integration::RenderFrame& frame) noexcept {
+    for (const Render::RenderNodeSnapshot& node : frame.Nodes()) {
+        if (RequiresNodeSurface(node)) return true;
+    }
+    return false;
+}
+
+void AddStatistics(
+    RendererStatistics& target,
+    const RendererStatistics& source) noexcept {
+    target.renderPassCount += source.renderPassCount;
+    target.drawCallCount += source.drawCallCount;
+    target.rectangleInstanceCount += source.rectangleInstanceCount;
+    target.imageInstanceCount += source.imageInstanceCount;
+    target.meshDrawCallCount += source.meshDrawCallCount;
+    target.meshInstanceCount += source.meshInstanceCount;
+    target.glyphDrawCallCount += source.glyphDrawCallCount;
+    target.glyphInstanceCount += source.glyphInstanceCount;
+    target.uniformBufferUploadCount += source.uniformBufferUploadCount;
+    target.pipelineBindingCount += source.pipelineBindingCount;
+    target.vertexBufferBindingCount += source.vertexBufferBindingCount;
+    target.indexBufferBindingCount += source.indexBufferBindingCount;
+    target.uniformBufferBindingCount += source.uniformBufferBindingCount;
+    target.textureSamplerBindingCount += source.textureSamplerBindingCount;
+}
+
 } // namespace
 
 struct Renderer::Impl  {
@@ -283,7 +326,8 @@ struct Renderer::Impl  {
           images(allocator),
           meshes(allocator),
           glyphRuns(allocator),
-          effectSurfaces(allocator) {}
+          effectSurfaces(allocator),
+          viewSurfaces(allocator) {}
 
     GraphicsDevice* device = nullptr;
     ResourceHandle vertexBuffer;
@@ -293,6 +337,8 @@ struct Renderer::Impl  {
     ResourceHandle imageUniformBuffer;
     std::array<ResourceHandle, 4U>
         imagePipelines;
+    ResourceHandle maskRectanglePipeline;
+    ResourceHandle maskImagePipeline;
     ResourceHandle meshUniformBuffer;
     std::array<ResourceHandle, 4U>
         meshPipelines;
@@ -308,6 +354,7 @@ struct Renderer::Impl  {
     Base::Vector<MeshBinding> meshes;
     Base::Vector<GlyphBinding> glyphRuns;
     Base::Vector<EffectSurface> effectSurfaces;
+    Base::Vector<ViewSurface> viewSurfaces;
     ResourceHandle effectSampler;
     RendererStatistics lastStatistics;
     bool batchingEnabled = true;
@@ -552,6 +599,34 @@ Base::Result<void> Renderer::Initialize() noexcept {
         impl_->glyphPipelines[mode] =
             glyph.Value();
     }
+
+    PipelineDescriptor maskRectangleDescriptor =
+        pipelineDescriptor;
+    maskRectangleDescriptor.blend.color.source = BlendFactor::Zero;
+    maskRectangleDescriptor.blend.color.destination =
+        BlendFactor::SourceAlpha;
+    maskRectangleDescriptor.blend.alpha.source = BlendFactor::Zero;
+    maskRectangleDescriptor.blend.alpha.destination =
+        BlendFactor::SourceAlpha;
+    PipelineDescriptor maskImageDescriptor =
+        imagePipelineDescriptor;
+    maskImageDescriptor.blend = maskRectangleDescriptor.blend;
+    Base::Result<ResourceHandle> maskRectangle =
+        device_->CreatePipeline(maskRectangleDescriptor);
+    Base::Result<ResourceHandle> maskImage =
+        maskRectangle
+        ? device_->CreatePipeline(maskImageDescriptor)
+        : Base::Result<ResourceHandle>(maskRectangle.GetStatus());
+    if (!maskRectangle || !maskImage) {
+        const Base::Status failure =
+            !maskRectangle
+            ? maskRectangle.GetStatus()
+            : maskImage.GetStatus();
+        Shutdown();
+        return failure;
+    }
+    impl_->maskRectanglePipeline = maskRectangle.Value();
+    impl_->maskImagePipeline = maskImage.Value();
     impl_->initialized = true;
     return {};
 }
@@ -564,6 +639,15 @@ void Renderer::Shutdown() noexcept {
         ? device_->LastSubmittedFence()
         : 0U;
     if (device_ != nullptr) {
+        for (const ViewSurface& surface :
+             impl_->viewSurfaces) {
+            if (surface.target.IsValid()) {
+                static_cast<void>(
+                    device_->DestroyResource(
+                        surface.target,
+                        retireFence));
+            }
+        }
         for (const EffectSurface& surface :
              impl_->effectSurfaces) {
             if (surface.target.IsValid()) {
@@ -578,6 +662,14 @@ void Renderer::Shutdown() noexcept {
                 device_->DestroyResource(
                     impl_->effectSampler,
                     retireFence));
+        }
+        if (impl_->maskImagePipeline.IsValid()) {
+            static_cast<void>(device_->DestroyResource(
+                impl_->maskImagePipeline, retireFence));
+        }
+        if (impl_->maskRectanglePipeline.IsValid()) {
+            static_cast<void>(device_->DestroyResource(
+                impl_->maskRectanglePipeline, retireFence));
         }
         for (ResourceHandle pipeline :
              impl_->glyphPipelines) {
@@ -792,6 +884,203 @@ bool Renderer::IsBatchingEnabled() const noexcept {
         impl_->batchingEnabled;
 }
 
+Base::Result<CommandList> Renderer::RecordOffscreen(
+    const void* rendererToken,
+    const Integration::RenderFrame& plan) noexcept {
+    if (!IsInitialized() || rendererToken == nullptr) {
+        return NotInitialized(
+            "Offscreen rendering requires an initialized Renderer and token");
+    }
+    ViewSurface* surface = nullptr;
+    for (ViewSurface& candidate : impl_->viewSurfaces) {
+        if (candidate.owner == rendererToken) {
+            surface = &candidate;
+            break;
+        }
+    }
+    if (!RequiresFrameSurface(plan)) {
+        if (surface != nullptr) {
+            surface->version = plan.Version();
+            surface->prepared = false;
+            surface->statistics = {};
+        }
+        CommandEncoder empty(allocator_);
+        return empty.Finish();
+    }
+
+    double maximumX = 1.0;
+    double maximumY = 1.0;
+    for (const Render::RenderNodeSnapshot& node : plan.Nodes()) {
+        maximumX = std::fmax(maximumX,
+            std::fmax(node.layoutSlot.x + node.renderSize.width,
+                      node.clip.x + node.clip.width));
+        maximumY = std::fmax(maximumY,
+            std::fmax(node.layoutSlot.y + node.renderSize.height,
+                      node.clip.y + node.clip.height));
+    }
+    if (!std::isfinite(maximumX) || !std::isfinite(maximumY) ||
+        maximumX <= 0.0 || maximumY <= 0.0 ||
+        maximumX > device_->Capabilities().maxTextureDimension ||
+        maximumY > device_->Capabilities().maxTextureDimension) {
+        return InvalidArgument(
+            "Offscreen View dimensions exceed device limits");
+    }
+    const std::uint32_t width =
+        static_cast<std::uint32_t>(std::ceil(maximumX));
+    const std::uint32_t height =
+        static_cast<std::uint32_t>(std::ceil(maximumY));
+    if (surface == nullptr) {
+        Base::Result<ViewSurface*> added =
+            impl_->viewSurfaces.EmplaceBack();
+        if (!added) return added.GetStatus();
+        surface = added.Value();
+        surface->owner = rendererToken;
+    }
+    if (surface->target.IsValid() &&
+        (surface->width != width || surface->height != height ||
+         !device_->IsAlive(surface->target))) {
+        static_cast<void>(device_->DestroyResource(
+            surface->target, device_->LastSubmittedFence()));
+        surface->target = {};
+    }
+    if (!surface->target.IsValid()) {
+        TextureResourceDescriptor descriptor;
+        descriptor.width = width;
+        descriptor.height = height;
+        descriptor.format = shaders_.colorFormat;
+        descriptor.usage =
+            TextureUsageBit(TextureUsage::Sampled) |
+            TextureUsageBit(TextureUsage::RenderTarget);
+        Base::Result<ResourceHandle> created =
+            device_->CreateRenderTarget(descriptor);
+        if (!created) return created.GetStatus();
+        surface->target = created.Value();
+        surface->width = width;
+        surface->height = height;
+    }
+    Base::Result<CommandList> recorded =
+        Record(plan, {surface->target, width, height});
+    if (!recorded) return recorded.GetStatus();
+    surface->version = plan.Version();
+    surface->statistics = impl_->lastStatistics;
+    surface->prepared = true;
+    return std::move(recorded).Value();
+}
+
+Base::Result<CommandList> Renderer::RecordOnscreen(
+    const void* rendererToken,
+    const Integration::RenderFrame& plan,
+    const RenderTarget& target) noexcept {
+    if (!RequiresFrameSurface(plan)) {
+        return Record(plan, target);
+    }
+    ViewSurface* surface = nullptr;
+    for (ViewSurface& candidate : impl_->viewSurfaces) {
+        if (candidate.owner == rendererToken) {
+            surface = &candidate;
+            break;
+        }
+    }
+    if (surface == nullptr || !surface->prepared ||
+        surface->version != plan.Version() ||
+        !surface->target.IsValid() ||
+        !device_->IsAlive(surface->target)) {
+        return InvalidState(
+            "RenderOffscreen must prepare the current View before Render");
+    }
+    if (!target.color.IsValid() || !device_->IsAlive(target.color) ||
+        target.width == 0U || target.height == 0U) {
+        return InvalidArgument("Onscreen render target is invalid");
+    }
+
+    CommandEncoder encoder(allocator_);
+    static constexpr float UnitQuad[] = {
+        0.0F, 0.0F, 1.0F, 0.0F,
+        0.0F, 1.0F, 1.0F, 1.0F};
+    const auto* bytes =
+        reinterpret_cast<const std::uint8_t*>(UnitQuad);
+    Base::Result<void> encoded = encoder.UploadBuffer(
+        impl_->vertexBuffer, 0U,
+        {bytes, static_cast<std::uint32_t>(sizeof(UnitQuad))});
+    RenderPassDescriptor pass;
+    pass.renderArea = {0.0, 0.0,
+        static_cast<double>(target.width),
+        static_cast<double>(target.height)};
+    pass.colorAttachmentCount = 1U;
+    pass.colorAttachments[0].target = target.color;
+    pass.colorAttachments[0].load = LoadOperation::Clear;
+    pass.colorAttachments[0].store = StoreOperation::Store;
+    pass.colorAttachments[0].clearColor = {0.0F, 0.0F, 0.0F, 0.0F};
+    if (encoded) encoded = encoder.BeginRenderPass(pass);
+    if (encoded) encoded = encoder.BindPipeline(impl_->imagePipelines[0U]);
+    if (encoded) encoded = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+    if (encoded) encoded = encoder.BindUniformBuffer(
+        0U, impl_->imageUniformBuffer, 0U,
+        static_cast<std::uint32_t>(sizeof(ShaderImageConstants)));
+    if (encoded) encoded = encoder.BindTextureSampler(
+        0U, surface->target, impl_->effectSampler);
+    ShaderImageConstants constants;
+    constants.rects[0][2] = static_cast<float>(target.width);
+    constants.rects[0][3] = static_cast<float>(target.height);
+    constants.sourceUvs[0][2] = 1.0F;
+    constants.sourceUvs[0][3] = 1.0F;
+    constants.tints[0][0] = 1.0F;
+    constants.tints[0][1] = 1.0F;
+    constants.tints[0][2] = 1.0F;
+    constants.tints[0][3] = 1.0F;
+    constants.transform0[0] = 1.0F;
+    constants.transform0[3] = 1.0F;
+    constants.transform1[2] = static_cast<float>(target.width);
+    constants.transform1[3] = static_cast<float>(target.height);
+    constants.clipCount = 1U;
+    constants.clipRect[0][2] = static_cast<float>(target.width);
+    constants.clipRect[0][3] = static_cast<float>(target.height);
+    constants.clipInverse[0][0] = 1.0F;
+    constants.clipInverse[0][3] = 1.0F;
+    if (encoded) encoded = AppendDraw(
+        encoder, impl_->imageUniformBuffer, constants,
+        pass.renderArea, 1U);
+    if (encoded) encoded = encoder.EndRenderPass();
+    Base::Result<CommandList> finished = encoded
+        ? encoder.Finish()
+        : Base::Result<CommandList>(encoded.GetStatus());
+    if (!finished) return finished.GetStatus();
+
+    RendererStatistics composite;
+    composite.renderPassCount = 1U;
+    composite.drawCallCount = 1U;
+    composite.imageInstanceCount = 1U;
+    composite.uniformBufferUploadCount = 1U;
+    composite.pipelineBindingCount = 1U;
+    composite.vertexBufferBindingCount = 1U;
+    composite.uniformBufferBindingCount = 1U;
+    composite.textureSamplerBindingCount = 1U;
+    impl_->lastStatistics = surface->statistics;
+    AddStatistics(impl_->lastStatistics, composite);
+    return std::move(finished).Value();
+}
+
+void Renderer::ReleaseRenderer(
+    const void* rendererToken) noexcept {
+    if (impl_ == nullptr || rendererToken == nullptr) return;
+    for (std::uint32_t index = 0U;
+         index < impl_->viewSurfaces.Size(); ++index) {
+        ViewSurface& surface = impl_->viewSurfaces[index];
+        if (surface.owner != rendererToken) continue;
+        if (device_ != nullptr && surface.target.IsValid()) {
+            static_cast<void>(device_->DestroyResource(
+                surface.target, device_->LastSubmittedFence()));
+        }
+        for (std::uint32_t next = index + 1U;
+             next < impl_->viewSurfaces.Size(); ++next) {
+            impl_->viewSurfaces[next - 1U] =
+                std::move(impl_->viewSurfaces[next]);
+        }
+        impl_->viewSurfaces.PopBack();
+        return;
+    }
+}
+
 Base::Result<CommandList> Renderer::Record(
     const Integration::RenderFrame& plan,
     const RenderTarget& target) noexcept {
@@ -814,8 +1103,7 @@ Base::Result<CommandList> Renderer::Record(
     std::uint32_t effectCount = 0U;
     for (const Render::RenderNodeSnapshot& node :
          plan.Nodes()) {
-        if (node.effect.kind !=
-            Render::RenderEffectKind::None) {
+        if (RequiresNodeSurface(node)) {
             ++effectCount;
         }
     }
@@ -1019,8 +1307,7 @@ Base::Result<CommandList> Renderer::Record(
     for (const Render::RenderNodeSnapshot& node : plan.Nodes()) {
         const std::uint32_t nodeEffectSurfaceIndex =
             effectOrdinal;
-        if (node.effect.kind !=
-            Render::RenderEffectKind::None) {
+        if (RequiresNodeSurface(node)) {
             ++effectOrdinal;
         }
         const std::uint32_t blendMode =
@@ -1073,6 +1360,16 @@ Base::Result<CommandList> Renderer::Record(
         if (!Render::IsValidOpacity(node.opacity)) {
             encoded = InvalidArgument(
                 "Renderer node opacity is invalid");
+            break;
+        }
+        if (static_cast<std::uint8_t>(node.mask.kind) >
+                static_cast<std::uint8_t>(Render::RenderMaskKind::Image) ||
+            !Render::IsFinite(node.mask.color) ||
+            (node.mask.kind == Render::RenderMaskKind::Image &&
+             (node.mask.image == Render::InvalidRenderImageId ||
+              !Aero::IsValidLayoutRect(node.mask.sourceUv)))) {
+            encoded = InvalidArgument(
+                "Renderer node opacity mask is invalid");
             break;
         }
         if (static_cast<std::uint8_t>(
@@ -1129,8 +1426,7 @@ Base::Result<CommandList> Renderer::Record(
             containingEffectCount =
                 parent->containingEffectCount;
         }
-        if (node.effect.kind !=
-            Render::RenderEffectKind::None) {
+        if (RequiresNodeSurface(node)) {
             containingEffect = node.id;
             ++containingEffectCount;
         }
@@ -1240,7 +1536,7 @@ Base::Result<CommandList> Renderer::Record(
                 impl_->nodes.Size() - 1U];
         if (containingEffectCount > 1U) {
             encoded = Unsupported(
-                "Renderer does not support nested effects");
+                "Renderer does not support nested effect or mask groups");
             break;
         }
         bool shouldDraw =
@@ -1267,13 +1563,13 @@ Base::Result<CommandList> Renderer::Record(
                      node.renderSize.width,
                      node.renderSize.height});
             const double effectPadding =
-                std::fmin(
-                    node.effect.radius,
-                    50.0) +
-                (node.effect.kind ==
-                     Render::RenderEffectKind::DropShadow
-                 ? node.effect.depth
-                 : 0.0);
+                node.effect.kind == Render::RenderEffectKind::None
+                ? 0.0
+                : std::fmin(node.effect.radius, 50.0) +
+                    (node.effect.kind ==
+                         Render::RenderEffectKind::DropShadow
+                     ? node.effect.depth
+                     : 0.0);
             effectBounds.x -= effectPadding;
             effectBounds.y -= effectPadding;
             effectBounds.width +=
@@ -1405,7 +1701,8 @@ Base::Result<CommandList> Renderer::Record(
                         {1.0F, 1.0F, 1.0F,
                          1.0F});
                 }
-            } else {
+            } else if (node.effect.kind ==
+                       Render::RenderEffectKind::Blur) {
                 const Base::Color blurTint{
                     1.0F, 1.0F, 1.0F,
                     1.0F / 9.0F};
@@ -1419,6 +1716,10 @@ Base::Result<CommandList> Renderer::Record(
                             blurTint);
                     }
                 }
+            } else {
+                encoded = appendEffectSample(
+                    0.0, 0.0,
+                    {1.0F, 1.0F, 1.0F, 1.0F});
             }
             if (!encoded) break;
             shouldDraw = false;
@@ -2224,16 +2525,160 @@ Base::Result<CommandList> Renderer::Record(
     return encoded;
     };
 
+    auto applyMask = [&](const Render::RenderNodeSnapshot& node) noexcept
+        -> Base::Result<void> {
+        if (node.mask.kind == Render::RenderMaskKind::None) return {};
+        const NodeState* state = nullptr;
+        for (const NodeState& candidate : impl_->nodes) {
+            if (candidate.id == node.id) {
+                state = &candidate;
+                break;
+            }
+        }
+        if (state == nullptr) {
+            return InvalidState("Renderer mask node state is unavailable");
+        }
+        const Aero::Rect scissor =
+            IntersectRect(state->clip.bounds, targetClip);
+        if (IsEmpty(scissor) ||
+            node.renderSize.width <= 0.0 ||
+            node.renderSize.height <= 0.0) {
+            return {};
+        }
+        if (node.mask.kind == Render::RenderMaskKind::Solid) {
+            ShaderRectConstants constants;
+            constants.rects[0][2] =
+                static_cast<float>(node.renderSize.width);
+            constants.rects[0][3] =
+                static_cast<float>(node.renderSize.height);
+            constants.colors[0][0] = 1.0F;
+            constants.colors[0][1] = 1.0F;
+            constants.colors[0][2] = 1.0F;
+            constants.colors[0][3] = node.mask.color.alpha;
+            constants.transform0[0] =
+                static_cast<float>(state->transform.m11);
+            constants.transform0[1] =
+                static_cast<float>(state->transform.m12);
+            constants.transform0[2] =
+                static_cast<float>(state->transform.m21);
+            constants.transform0[3] =
+                static_cast<float>(state->transform.m22);
+            constants.transform1[0] =
+                static_cast<float>(state->transform.dx);
+            constants.transform1[1] =
+                static_cast<float>(state->transform.dy);
+            constants.transform1[2] = static_cast<float>(width);
+            constants.transform1[3] = static_cast<float>(height);
+            Base::Result<void> result =
+                encoder.BindPipeline(impl_->maskRectanglePipeline);
+            if (result) {
+                ++submissionStatistics.pipelineBindingCount;
+                result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+            }
+            if (result) {
+                ++submissionStatistics.vertexBufferBindingCount;
+                result = encoder.BindUniformBuffer(
+                    0U, impl_->uniformBuffer, 0U,
+                    static_cast<std::uint32_t>(sizeof(constants)));
+            }
+            if (result) {
+                ++submissionStatistics.uniformBufferBindingCount;
+                result = AppendDraw(
+                    encoder, impl_->uniformBuffer,
+                    constants, scissor, 1U);
+            }
+            if (result) {
+                ++submissionStatistics.drawCallCount;
+                ++submissionStatistics.rectangleInstanceCount;
+                ++submissionStatistics.uniformBufferUploadCount;
+            }
+            return result;
+        }
+
+        const ImageBinding* binding = nullptr;
+        for (const ImageBinding& candidate : impl_->images) {
+            if (candidate.id == node.mask.image) {
+                binding = &candidate;
+                break;
+            }
+        }
+        if (binding == nullptr ||
+            !device_->IsAlive(binding->texture) ||
+            !device_->IsAlive(binding->sampler)) {
+            return InvalidState("Renderer opacity mask image is unavailable");
+        }
+        ShaderImageConstants constants;
+        constants.rects[0][2] =
+            static_cast<float>(node.renderSize.width);
+        constants.rects[0][3] =
+            static_cast<float>(node.renderSize.height);
+        constants.sourceUvs[0][0] =
+            static_cast<float>(node.mask.sourceUv.x);
+        constants.sourceUvs[0][1] =
+            static_cast<float>(node.mask.sourceUv.y);
+        constants.sourceUvs[0][2] =
+            static_cast<float>(node.mask.sourceUv.width);
+        constants.sourceUvs[0][3] =
+            static_cast<float>(node.mask.sourceUv.height);
+        constants.tints[0][0] = 1.0F;
+        constants.tints[0][1] = 1.0F;
+        constants.tints[0][2] = 1.0F;
+        constants.tints[0][3] = node.mask.color.alpha;
+        constants.transform0[0] =
+            static_cast<float>(state->transform.m11);
+        constants.transform0[1] =
+            static_cast<float>(state->transform.m12);
+        constants.transform0[2] =
+            static_cast<float>(state->transform.m21);
+        constants.transform0[3] =
+            static_cast<float>(state->transform.m22);
+        constants.transform1[0] =
+            static_cast<float>(state->transform.dx);
+        constants.transform1[1] =
+            static_cast<float>(state->transform.dy);
+        constants.transform1[2] = static_cast<float>(width);
+        constants.transform1[3] = static_cast<float>(height);
+        Base::Result<void> result =
+            encoder.BindPipeline(impl_->maskImagePipeline);
+        if (result) {
+            ++submissionStatistics.pipelineBindingCount;
+            result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+        }
+        if (result) {
+            ++submissionStatistics.vertexBufferBindingCount;
+            result = encoder.BindUniformBuffer(
+                0U, impl_->imageUniformBuffer, 0U,
+                static_cast<std::uint32_t>(sizeof(constants)));
+        }
+        if (result) {
+            ++submissionStatistics.uniformBufferBindingCount;
+            result = encoder.BindTextureSampler(
+                0U, binding->texture, binding->sampler);
+        }
+        if (result) {
+            ++submissionStatistics.textureSamplerBindingCount;
+            result = AppendDraw(
+                encoder, impl_->imageUniformBuffer,
+                constants, scissor, 1U);
+        }
+        if (result) {
+            ++submissionStatistics.drawCallCount;
+            ++submissionStatistics.imageInstanceCount;
+            ++submissionStatistics.uniformBufferUploadCount;
+        }
+        return result;
+    };
+
     std::uint32_t surfaceIndex = 0U;
     for (const Render::RenderNodeSnapshot& node :
          plan.Nodes()) {
-        if (node.effect.kind ==
-            Render::RenderEffectKind::None) {
+        if (!RequiresNodeSurface(node)) {
             continue;
         }
         pass.colorAttachments[0].target =
             impl_->effectSurfaces[
                 surfaceIndex].target;
+        pass.colorAttachments[0].load = LoadOperation::Clear;
         encoded = encoder.BeginRenderPass(pass);
         if (encoded) {
             ++submissionStatistics.renderPassCount;
@@ -2243,12 +2688,23 @@ Base::Result<CommandList> Renderer::Record(
         if (encoded) {
             encoded = encoder.EndRenderPass();
         }
+        if (encoded && node.mask.kind !=
+                Render::RenderMaskKind::None) {
+            pass.colorAttachments[0].load = LoadOperation::Load;
+            encoded = encoder.BeginRenderPass(pass);
+            if (encoded) {
+                ++submissionStatistics.renderPassCount;
+                encoded = applyMask(node);
+            }
+            if (encoded) encoded = encoder.EndRenderPass();
+        }
         if (!encoded) break;
         ++surfaceIndex;
     }
     if (encoded) {
         pass.colorAttachments[0].target =
             target.color;
+        pass.colorAttachments[0].load = LoadOperation::Clear;
         encoded = encoder.BeginRenderPass(pass);
     }
     if (encoded) {

@@ -101,7 +101,13 @@ private:
         Base::IAllocator&,
         Args&&...) noexcept;
 
-    Base::Result<void> Submit(const RenderFrame& frame) noexcept;
+    Base::Result<void> RenderOffscreen(
+        const void* rendererToken,
+        const RenderFrame& frame) noexcept;
+    Base::Result<void> Render(
+        const void* rendererToken,
+        const RenderFrame& frame) noexcept;
+    void ReleaseRenderer(const void* rendererToken) noexcept;
     Base::Status GetFrameStatus() noexcept;
     Base::Result<RenderFrameStatistics> Analyze(
         const RenderFrame& frame) noexcept;

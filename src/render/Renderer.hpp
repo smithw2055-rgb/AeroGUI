@@ -85,6 +85,14 @@ public:
     Base::Result<Graphics::CommandList> Record(
         const Integration::RenderFrame& plan,
         const RenderTarget& target) noexcept;
+    Base::Result<Graphics::CommandList> RecordOffscreen(
+        const void* rendererToken,
+        const Integration::RenderFrame& plan) noexcept;
+    Base::Result<Graphics::CommandList> RecordOnscreen(
+        const void* rendererToken,
+        const Integration::RenderFrame& plan,
+        const RenderTarget& target) noexcept;
+    void ReleaseRenderer(const void* rendererToken) noexcept;
     RendererStatistics LastStatistics() const noexcept;
     void SetBatchingEnabled(bool enabled) noexcept;
     bool IsBatchingEnabled() const noexcept;

@@ -195,18 +195,23 @@ Base::Result<bool> ImageCache::Synchronize(
                 pending.PushBack(child);
             if (!queued) return queued.GetStatus();
         }
+        // A visual may reference one bitmap for its content/fill and another
+        // for OpacityMask. Process both through the same device image table.
+        for (std::uint32_t targetIndex = 0U;
+             targetIndex < 2U; ++targetIndex) {
         Controls::Image* imageControl = nullptr;
         Media::ImageBrush* imageBrush =
             nullptr;
         Base::Ref<Media::ImageSource>
             source;
-        if (visual->RuntimeType() ==
+        if (targetIndex == 0U &&
+            visual->RuntimeType() ==
                 Controls::Image::StaticTypeId()) {
             imageControl =
                 static_cast<Controls::Image*>(
                     visual);
             source = imageControl->GetSource();
-        } else {
+        } else if (targetIndex == 0U) {
             Shapes::Shape* shape = nullptr;
             if (visual->RuntimeType() ==
                 Shapes::Rectangle::StaticTypeId()) {
@@ -235,6 +240,18 @@ Base::Result<bool> ImageCache::Synchronize(
                 static_cast<
                     Media::ImageBrush*>(
                         fill.Get());
+            source = imageBrush->GetSource();
+        } else {
+            UIElement* element = visual->AsUIElement();
+            Base::Ref<Media::Brush> mask =
+                element != nullptr
+                ? element->GetOpacityMask()
+                : Base::Ref<Media::Brush>{};
+            if (!mask || mask->RuntimeType() !=
+                    Media::ImageBrush::StaticTypeId()) {
+                continue;
+            }
+            imageBrush = static_cast<Media::ImageBrush*>(mask.Get());
             source = imageBrush->GetSource();
         }
         if (!source) {
@@ -452,6 +469,7 @@ Base::Result<bool> ImageCache::Synchronize(
                 record->width,
                 record->height);
         if (!assigned) return assigned.GetStatus();
+        }
     }
 
     for (std::uint32_t index =

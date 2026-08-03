@@ -156,8 +156,13 @@ namespace Aero::Integration::Detail {
 
 class HeadlessDeviceState {
 public:
-    Base::Result<void> Submit(
+    Base::Result<void> RenderOffscreen(
+        const void*,
         const ::Aero::Integration::RenderFrame&) noexcept { return {}; }
+    Base::Result<void> Render(
+        const void*,
+        const ::Aero::Integration::RenderFrame&) noexcept { return {}; }
+    void ReleaseRenderer(const void*) noexcept {}
     Base::Result<void> Resize(
         std::uint32_t,
         std::uint32_t) noexcept { return {}; }
@@ -209,7 +214,28 @@ CreateHeadlessRenderDevice(
 
 namespace Aero::Integration {
 
-Base::Result<void> RenderDevice::Submit(
+Base::Result<void> RenderDevice::RenderOffscreen(
+    const void* rendererToken,
+    const Integration::RenderFrame& frame) noexcept {
+    const auto* functions = Impl::Functions(*this);
+    if (stateData_ == nullptr || functions == nullptr) {
+        return NotInitialized("Render device is not initialized");
+    }
+    if (state_ != RenderDeviceState::Ready) {
+        return InvalidState("Render device is not ready");
+    }
+    Base::Result<void> rendered = functions->renderOffscreen(
+        stateData_, rendererToken, frame);
+    if (!rendered) {
+        ++statistics_.failedFrameCount;
+        state_ = RenderDeviceState::Failed;
+        return rendered.GetStatus();
+    }
+    return {};
+}
+
+Base::Result<void> RenderDevice::Render(
+    const void* rendererToken,
     const Integration::RenderFrame& frame) noexcept {
     const auto* functions = Impl::Functions(*this);
     if (stateData_ == nullptr || functions == nullptr) {
@@ -222,11 +248,12 @@ Base::Result<void> RenderDevice::Submit(
     Base::Result<RenderFrameStatistics> frameStatistics = Analyze(frame);
     if (!frameStatistics) return frameStatistics.GetStatus();
 
-    Base::Result<void> submitted = functions->submit(stateData_, frame);
-    if (!submitted) {
+    Base::Result<void> rendered = functions->render(
+        stateData_, rendererToken, frame);
+    if (!rendered) {
         ++statistics_.failedFrameCount;
         state_ = RenderDeviceState::Failed;
-        return submitted.GetStatus();
+        return rendered.GetStatus();
     }
 
     MergeBackendStatistics(frameStatistics.Value());
@@ -236,6 +263,15 @@ Base::Result<void> RenderDevice::Submit(
     statistics_.lastAcceptedVersion = frame.Version();
     statistics_.lastCompletedVersion = frame.Version();
     return {};
+}
+
+void RenderDevice::ReleaseRenderer(
+    const void* rendererToken) noexcept {
+    const auto* functions = Impl::Functions(*this);
+    if (stateData_ != nullptr && functions != nullptr &&
+        functions->releaseRenderer != nullptr) {
+        functions->releaseRenderer(stateData_, rendererToken);
+    }
 }
 
 Base::Status RenderDevice::GetFrameStatus() noexcept {

@@ -46,6 +46,19 @@ struct RenderEffectSnapshot {
     Color color{0.0F, 0.0F, 0.0F, 1.0F};
 };
 
+enum class RenderMaskKind : std::uint8_t {
+    None = 0U,
+    Solid,
+    Image
+};
+
+struct RenderMaskSnapshot {
+    RenderMaskKind kind = RenderMaskKind::None;
+    Color color{1.0F, 1.0F, 1.0F, 1.0F};
+    RenderImageId image = InvalidRenderImageId;
+    Rect sourceUv{0.0, 0.0, 1.0, 1.0};
+};
+
 struct RenderNodeSnapshot {
     RenderNodeId id = InvalidRenderNodeId;
     RenderNodeId parentId = InvalidRenderNodeId;
@@ -59,6 +72,7 @@ struct RenderNodeSnapshot {
     Transform2D renderTransform;
     BlendMode blendMode = BlendMode::Normal;
     double opacity = 1.0;
+    RenderMaskSnapshot mask;
     RenderEffectSnapshot effect;
     std::uint32_t commandOffset = 0U;
     std::uint32_t commandCount = 0U;

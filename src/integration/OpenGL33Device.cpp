@@ -273,16 +273,37 @@ public:
         return {};
     }
 
-    Base::Result<void> Submit(
+    Base::Result<void> RenderOffscreen(
+        const void* rendererToken,
         const Integration::RenderFrame& plan) noexcept {
         Base::Result<void> current = MakeContextCurrent();
         if (!current) return current.GetStatus();
         return renderer_ != nullptr
-            ? renderer_->Submit(plan)
+            ? renderer_->RenderOffscreen(rendererToken, plan)
             : Base::Result<void>(
                   Base::Status::Failure(
                       Base::ErrorCode::NotInitialized,
                       "OpenGL device is not initialized"));
+    }
+
+    Base::Result<void> Render(
+        const void* rendererToken,
+        const Integration::RenderFrame& plan) noexcept {
+        Base::Result<void> current = MakeContextCurrent();
+        if (!current) return current.GetStatus();
+        return renderer_ != nullptr
+            ? renderer_->Render(rendererToken, plan)
+            : Base::Result<void>(
+                  Base::Status::Failure(
+                      Base::ErrorCode::NotInitialized,
+                      "OpenGL device is not initialized"));
+    }
+
+    void ReleaseRenderer(const void* rendererToken) noexcept {
+        Base::Result<void> current = MakeContextCurrent();
+        if (current && renderer_ != nullptr) {
+            renderer_->ReleaseRenderer(rendererToken);
+        }
     }
 
     Base::Result<void> Resize(

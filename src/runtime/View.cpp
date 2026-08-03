@@ -6334,6 +6334,8 @@ Base::Result<void> Renderer::Init(
 
 void Renderer::Shutdown() noexcept {
     if (device_) {
+        Integration::RenderDevice::Impl::ReleaseRenderer(
+            *device_, this);
         static_cast<void>(device_->WaitIdle());
     }
     device_.Reset();
@@ -6399,8 +6401,10 @@ Base::Result<void> Renderer::RenderOffscreen() noexcept {
             "UpdateRenderTree must run before RenderOffscreen");
     }
 
-    // Phase R1 keeps the existing single backend submission path. The public
-    // offscreen boundary is now stable; effect passes move here in Phase R3.
+    Base::Result<void> rendered =
+        Integration::RenderDevice::Impl::RenderOffscreen(
+            *device_, this, frame);
+    if (!rendered) return rendered.GetStatus();
     offscreenReady_ = true;
     return {};
 }
@@ -6427,8 +6431,8 @@ Base::Result<void> Renderer::Render() noexcept {
     }
 
     Base::Result<void> submitted =
-        Integration::RenderDevice::Impl::Submit(
-            *device_, frame);
+        Integration::RenderDevice::Impl::Render(
+            *device_, this, frame);
     if (!submitted) return submitted.GetStatus();
 
     renderedVersion_ = frame.Version();

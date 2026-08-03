@@ -268,7 +268,8 @@ Aero::Render::Detail::ImageResources* D3D11Renderer::GetImageResources() noexcep
     return IsInitialized() ? &impl_->imageResources.Table() : nullptr;
 }
 
-Base::Result<void> D3D11Renderer::Submit(
+Base::Result<void> D3D11Renderer::RenderOffscreen(
+    const void* rendererToken,
     const Integration::RenderFrame& plan) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("D3D11 render adapter is not initialized");
@@ -276,7 +277,29 @@ Base::Result<void> D3D11Renderer::Submit(
     if (device_->Backend().IsDeviceLost()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "Cannot submit a RenderFrame to a lost D3D11 device");
+            "Cannot render offscreen on a lost D3D11 device");
+    }
+    Base::Result<Graphics::CommandList> recorded =
+        impl_->renderer.RecordOffscreen(rendererToken, plan);
+    if (!recorded) return recorded.GetStatus();
+    if (recorded.Value().CommandCount() == 0U) return {};
+    Base::Result<Graphics::FenceValue> submitted =
+        device_->Submit(recorded.Value());
+    if (!submitted) return submitted.GetStatus();
+    impl_->lastSubmittedFence = submitted.Value();
+    return {};
+}
+
+Base::Result<void> D3D11Renderer::Render(
+    const void* rendererToken,
+    const Integration::RenderFrame& plan) noexcept {
+    if (!IsInitialized()) {
+        return NotInitialized("D3D11 render adapter is not initialized");
+    }
+    if (device_->Backend().IsDeviceLost()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Cannot render a RenderFrame to a lost D3D11 device");
     }
 
     Base::Result<Graphics::D3D11SurfaceFrame> acquired =
@@ -293,8 +316,10 @@ Base::Result<void> D3D11Renderer::Submit(
             "D3D11 surface frame has an empty render target");
     }
 
-    Base::Result<Graphics::CommandList> recorded = impl_->renderer.Record(
-        plan, {frame.renderTarget, width, height});
+    Base::Result<Graphics::CommandList> recorded =
+        impl_->renderer.RecordOnscreen(
+            rendererToken, plan,
+            {frame.renderTarget, width, height});
     if (!recorded) {
         static_cast<void>(presenter_->DiscardFrame(frame));
         return recorded.GetStatus();
@@ -306,6 +331,13 @@ Base::Result<void> D3D11Renderer::Submit(
     }
     impl_->lastSubmittedFence = submitted.Value();
     return {};
+}
+
+void D3D11Renderer::ReleaseRenderer(
+    const void* rendererToken) noexcept {
+    if (impl_ != nullptr) {
+        impl_->renderer.ReleaseRenderer(rendererToken);
+    }
 }
 
 Graphics::FenceValue

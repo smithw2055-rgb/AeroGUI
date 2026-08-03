@@ -249,14 +249,32 @@ public:
         return {};
     }
 
-    Base::Result<void> Submit(
+    Base::Result<void> RenderOffscreen(
+        const void* rendererToken,
         const Integration::RenderFrame& plan) noexcept {
         return renderer_ != nullptr
-            ? renderer_->Submit(plan)
+            ? renderer_->RenderOffscreen(rendererToken, plan)
             : Base::Result<void>(
                   Base::Status::Failure(
                       Base::ErrorCode::NotInitialized,
                       "D3D11 device is not initialized"));
+    }
+
+    Base::Result<void> Render(
+        const void* rendererToken,
+        const Integration::RenderFrame& plan) noexcept {
+        return renderer_ != nullptr
+            ? renderer_->Render(rendererToken, plan)
+            : Base::Result<void>(
+                  Base::Status::Failure(
+                      Base::ErrorCode::NotInitialized,
+                      "D3D11 device is not initialized"));
+    }
+
+    void ReleaseRenderer(const void* rendererToken) noexcept {
+        if (renderer_ != nullptr) {
+            renderer_->ReleaseRenderer(rendererToken);
+        }
     }
 
     Base::Result<void> Resize(

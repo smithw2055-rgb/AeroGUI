@@ -32,6 +32,10 @@ Base::Status NotFound(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::NotFound, message);
 }
 
+Base::Status Unsupported(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::Unsupported, message);
+}
+
 std::uint64_t HashByte(std::uint64_t hash, std::uint8_t value) noexcept {
     constexpr std::uint64_t Prime = 1099511628211ULL;
     return (hash ^ value) * Prime;
@@ -484,6 +488,13 @@ std::uint64_t RenderFrame::StableHash() const noexcept {
         hash = HashScalar(
             hash,
             static_cast<std::uint8_t>(
+                node.mask.kind));
+        hash = HashColor(hash, node.mask.color);
+        hash = HashScalar(hash, node.mask.image);
+        hash = HashRect(hash, node.mask.sourceUv);
+        hash = HashScalar(
+            hash,
+            static_cast<std::uint8_t>(
                 node.effect.kind));
         hash = HashScalar(hash, node.effect.radius);
         hash = HashScalar(hash, node.effect.direction);
@@ -535,6 +546,20 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
             node.commandOffset > commands.Size() ||
             node.commandCount > commands.Size() - node.commandOffset) {
             return InvalidArgument("RenderFrame node snapshot is invalid");
+        }
+        if (static_cast<std::uint8_t>(node.mask.kind) >
+                static_cast<std::uint8_t>(RenderMaskKind::Image) ||
+            !IsFinite(node.mask.color)) {
+            return InvalidArgument("RenderFrame node mask is invalid");
+        }
+        if (node.mask.kind == RenderMaskKind::Image &&
+            (node.mask.image == InvalidRenderImageId ||
+             !IsValidLayoutRect(node.mask.sourceUv) ||
+             node.mask.sourceUv.x < 0.0 ||
+             node.mask.sourceUv.y < 0.0 ||
+             node.mask.sourceUv.x + node.mask.sourceUv.width > 1.0 ||
+             node.mask.sourceUv.y + node.mask.sourceUv.height > 1.0)) {
+            return InvalidArgument("RenderFrame image mask is invalid");
         }
     }
 
@@ -1283,6 +1308,46 @@ Base::Result<void> RenderTree::BuildSubtree(
     snapshot.opacity = element != nullptr
         ? element->GetOpacity()
         : 1.0;
+    Base::Ref<Media::Brush> opacityMask =
+        element != nullptr
+        ? element->GetOpacityMask()
+        : Base::Ref<Media::Brush>{};
+    if (opacityMask) {
+        const Meta::TypeId maskType = opacityMask->RuntimeType();
+        if (maskType == Media::SolidColorBrush::StaticTypeId() ||
+            maskType == Media::LinearGradientBrush::StaticTypeId() ||
+            maskType == Media::RadialGradientBrush::StaticTypeId()) {
+            const Base::Color sampled =
+                Media::Detail::SampleBrush(opacityMask, 0.5);
+            snapshot.mask.kind = RenderMaskKind::Solid;
+            snapshot.mask.color =
+                {1.0F, 1.0F, 1.0F, sampled.alpha};
+        } else if (maskType == Media::ImageBrush::StaticTypeId()) {
+            auto& imageMask =
+                static_cast<Media::ImageBrush&>(*opacityMask);
+            if (!imageMask.GetSource()) {
+                snapshot.mask.kind = RenderMaskKind::Solid;
+                snapshot.mask.color =
+                    {1.0F, 1.0F, 1.0F, 0.0F};
+            } else {
+                const RenderImageId image =
+                    Media::Detail::BrushPrivate::RuntimeImage(imageMask);
+                if (image == InvalidRenderImageId) {
+                    return InvalidState(
+                        "OpacityMask ImageBrush has no synchronized render image");
+                }
+                snapshot.mask.kind = RenderMaskKind::Image;
+                snapshot.mask.image = image;
+                snapshot.mask.sourceUv = imageMask.GetViewbox();
+                snapshot.mask.color =
+                    {1.0F, 1.0F, 1.0F,
+                     static_cast<float>(imageMask.GetOpacity())};
+            }
+        } else {
+            return Unsupported(
+                "OpacityMask currently supports solid, gradient, and image brushes");
+        }
+    }
     Base::Ref<Effect> effect =
         element != nullptr
         ? element->GetEffect()

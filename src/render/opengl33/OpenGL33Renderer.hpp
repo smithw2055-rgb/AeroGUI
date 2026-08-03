@@ -47,8 +47,13 @@ public:
             Graphics::IndexType::UInt16) noexcept;
     Base::Result<void> UnregisterMesh(
         Render::RenderMeshId mesh) noexcept;
-    Base::Result<void> Submit(
+    Base::Result<void> RenderOffscreen(
+        const void* rendererToken,
         const Integration::RenderFrame& plan) noexcept;
+    Base::Result<void> Render(
+        const void* rendererToken,
+        const Integration::RenderFrame& plan) noexcept;
+    void ReleaseRenderer(const void* rendererToken) noexcept;
     bool IsInitialized() const noexcept;
     Graphics::FenceValue LastSubmittedFence() const noexcept;
     OpenGL33RendererStatistics

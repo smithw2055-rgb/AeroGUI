@@ -1,6 +1,7 @@
 #include "gui/GuiPrivate.hpp"
 #include <Aero/Layout.hpp>
 #include "gui/GuiPrivate.hpp"
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
 
@@ -482,6 +483,17 @@ void UIElement::SetBlendMode(
 void UIElement::SetEffect(
     Base::Ref<Effect> value) noexcept {
     SetValue(EffectProperty, std::move(value));
+}
+
+Base::Ref<Media::Brush> UIElement::GetOpacityMask() const noexcept {
+    return GetValueOr(
+        OpacityMaskProperty,
+        Base::Ref<Media::Brush>{});
+}
+
+void UIElement::SetOpacityMask(
+    Base::Ref<Media::Brush> value) noexcept {
+    SetValue(OpacityMaskProperty, std::move(value));
 }
 
 void UIElement::SetIsHitTestVisible(bool value) noexcept {

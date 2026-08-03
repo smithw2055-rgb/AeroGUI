@@ -1426,7 +1426,7 @@ file(GLOB_RECURSE framework_element_sources
     "${AERO_SOURCE_DIR}/src/*.cpp"
     "${AERO_SOURCE_DIR}/src/*.hpp")
 aero_collect_matches(retired_render_invalidation_name
-    "InvalidateRender" ${framework_element_sources})
+    "InvalidateRender[ \\t]*\\(" ${framework_element_sources})
 if(retired_render_invalidation_name)
     message(FATAL_ERROR
         "Use WPF-style InvalidateVisual instead of InvalidateRender: "
