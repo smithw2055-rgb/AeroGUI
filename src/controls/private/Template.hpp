@@ -206,7 +206,3 @@ public:
 };
 
 } // namespace Aero::Controls::Detail
-
-namespace Aero::Controls::Detail {
-using ::Aero::Controls::Detail::TemplatePrivate;
-}

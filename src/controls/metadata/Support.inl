@@ -665,31 +665,32 @@ void OnItemsSourceChanged(
                 value.Get());
         }
     }
-    static_cast<ItemsControl&>(object).SetItemsSource(source);
+    ItemsControl::Impl::SetItemsSource(
+        static_cast<ItemsControl&>(object), source);
 }
 
 void OnItemTemplateChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<DataTemplate>&,
     const Base::Ref<DataTemplate>& value) noexcept {
-    static_cast<ItemsControl&>(object)
-        .SetItemTemplate(value.Get());
+    ItemsControl::Impl::SetItemTemplate(
+        static_cast<ItemsControl&>(object), value.Get());
 }
 
 void OnItemsPanelChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<ItemsPanelTemplate>&,
     const Base::Ref<ItemsPanelTemplate>& value) noexcept {
-    static_cast<ItemsControl&>(object)
-        .SetItemsPanel(value.Get());
+    ItemsControl::Impl::SetItemsPanel(
+        static_cast<ItemsControl&>(object), value.Get());
 }
 
 void OnItemContainerStyleChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<Style>&,
     const Base::Ref<Style>& value) noexcept {
-    static_cast<ItemsControl&>(object)
-        .SetItemContainerStyle(value.Get());
+    ItemsControl::Impl::SetItemContainerStyle(
+        static_cast<ItemsControl&>(object), value.Get());
 }
 
 void AddTreeViewItem(

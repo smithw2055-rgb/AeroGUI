@@ -77,7 +77,9 @@ public:
     Base::Result<void> SetGeneratedDuration(
         Base::StringView value) noexcept {
         Media::Animation::Storyboard validator;
-        validator.SetDuration(value);
+        Base::Result<void> valid =
+            validator.SetDurationChecked(value);
+        if (!valid) return valid.GetStatus();
         return generatedDuration_.Assign(value);
     }
     Base::Ref<Media::Animation::EasingFunctionBase>
@@ -224,7 +226,7 @@ public:
         Base::StringView stateName,
         bool useTransitions = true) noexcept;
 
-    inline static constexpr Members::AttachedProperty<Base::Ref<VisualStateGroupCollection>> VisualStateGroupsProperty{"_VisualStateGroupStore"};
+    inline static constexpr Members::AttachedProperty<Base::Ref<VisualStateGroupCollection>> VisualStateGroupsProperty{"VisualStateGroups"};
 
     ~VisualStateManager() noexcept override;
     VisualStateManager(const VisualStateManager&) = delete;

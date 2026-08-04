@@ -250,7 +250,3 @@ namespace Aero::Controls::Detail {
 using ControlPrivate = ::Aero::Controls::Control::Impl;
 
 } // namespace Aero::Controls::Detail
-
-namespace Aero::Controls::Detail {
-using ControlPrivate = ::Aero::Controls::Control::Impl;
-}

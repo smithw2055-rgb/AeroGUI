@@ -164,6 +164,8 @@ class VirtualizingStackPanel;
 class AERO_API ItemsControl : public Control {
     AERO_DECLARE_TYPE(ItemsControl, Control)
 public:
+    struct Impl;
+
     ItemsControl() noexcept;
     ~ItemsControl() override;
 
@@ -188,7 +190,10 @@ public:
         Base::Ref<Base::Object> source) noexcept {
         SetValue(ItemsSourceProperty, std::move(source));
     }
-    void SetItemsSource(
+    // Explicit non-owning path for host-defined IItemsSource implementations
+    // that are not Aero objects. The canonical XAML/binding path remains the
+    // ItemsSource dependency property above.
+    void SetItemsSourceBorrowed(
         Collections::IItemsSource* source) noexcept;
     std::uint32_t GetAlternationCount() const noexcept {
         return GetValueOr(AlternationCountProperty, 0U);
@@ -202,17 +207,53 @@ public:
         return itemTemplate_;
     }
     void SetItemTemplate(
-        const DataTemplate* value) noexcept;
+        Base::Ref<DataTemplate> value) noexcept {
+        SetValue(ItemTemplateProperty, std::move(value));
+    }
+    void SetItemTemplate(
+        const DataTemplate* value) noexcept {
+        Base::Ref<DataTemplate> retained;
+        if (value != nullptr) {
+            retained = Base::Ref<DataTemplate>::TryFromBorrowed(
+                *const_cast<DataTemplate*>(value));
+            if (!retained) return;
+        }
+        SetItemTemplate(std::move(retained));
+    }
     const ItemsPanelTemplate* GetItemsPanel() const noexcept {
         return itemsPanel_;
     }
     void SetItemsPanel(
-        const ItemsPanelTemplate* value) noexcept;
+        Base::Ref<ItemsPanelTemplate> value) noexcept {
+        SetValue(ItemsPanelProperty, std::move(value));
+    }
+    void SetItemsPanel(
+        const ItemsPanelTemplate* value) noexcept {
+        Base::Ref<ItemsPanelTemplate> retained;
+        if (value != nullptr) {
+            retained = Base::Ref<ItemsPanelTemplate>::TryFromBorrowed(
+                *const_cast<ItemsPanelTemplate*>(value));
+            if (!retained) return;
+        }
+        SetItemsPanel(std::move(retained));
+    }
     const Style* GetItemContainerStyle() const noexcept {
         return itemContainerStyle_;
     }
     void SetItemContainerStyle(
-        const Style* value) noexcept;
+        Base::Ref<Style> value) noexcept {
+        SetValue(ItemContainerStyleProperty, std::move(value));
+    }
+    void SetItemContainerStyle(
+        const Style* value) noexcept {
+        Base::Ref<Style> retained;
+        if (value != nullptr) {
+            retained = Base::Ref<Style>::TryFromBorrowed(
+                *const_cast<Style*>(value));
+            if (!retained) return;
+        }
+        SetItemContainerStyle(std::move(retained));
+    }
 
     void AddItemsChanged(
         const ItemsChangedHandler& handler) noexcept {
@@ -258,6 +299,7 @@ protected:
 
 private:
     friend class ItemContainerGenerator;
+    friend struct Impl;
     friend struct ::Aero::Visual::Impl;
     ItemCollection items_;
     Collections::IItemsSource* source_ = nullptr;
@@ -270,6 +312,14 @@ private:
     ItemsChangedHandler localHandler_;
     ItemsChangedHandler sourceHandler_;
 
+    void SetItemsSourceCore(
+        Collections::IItemsSource* source) noexcept;
+    void SetItemTemplateCore(
+        const DataTemplate* value) noexcept;
+    void SetItemsPanelCore(
+        const ItemsPanelTemplate* value) noexcept;
+    void SetItemContainerStyleCore(
+        const Style* value) noexcept;
     void OnLocalChanged(
         const ItemsChangedEvent& event) noexcept;
     void OnSourceChanged(

@@ -146,8 +146,8 @@ Template implementation is split by real responsibility:
 
 - `TemplateProgram.hpp`: immutable compiled instructions and deferred factories;
 - `TemplateInstance.hpp`: mounted parts, projections and rollback state;
-- `TemplateAccess.hpp`: narrow cross-translation-unit bridge;
-- `VisualStateRuntime.hpp`: current state and transition bookkeeping.
+- `private/Template.hpp`: narrow cross-translation-unit bridge;
+- `VisualStates.cpp`: current state and transition bookkeeping.
 
 Do not recreate a catch-all `TemplateRuntime.hpp` or per-control Access headers.
 Default control behavior is coordinated by one private

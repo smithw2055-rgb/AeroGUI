@@ -2,6 +2,36 @@
 
 #include <Aero/Controls/Items.hpp>
 
+namespace Aero::Controls {
+
+// Narrow property-change bridge for the cached views used by ItemsControl.
+// DependencyProperty ownership remains canonical; these methods only mirror
+// committed effective values into the hot runtime pointers.
+struct ItemsControl::Impl {
+    static void SetItemsSource(
+        ItemsControl& control,
+        Collections::IItemsSource* source) noexcept {
+        control.SetItemsSourceCore(source);
+    }
+    static void SetItemTemplate(
+        ItemsControl& control,
+        const DataTemplate* value) noexcept {
+        control.SetItemTemplateCore(value);
+    }
+    static void SetItemsPanel(
+        ItemsControl& control,
+        const ItemsPanelTemplate* value) noexcept {
+        control.SetItemsPanelCore(value);
+    }
+    static void SetItemContainerStyle(
+        ItemsControl& control,
+        const Style* value) noexcept {
+        control.SetItemContainerStyleCore(value);
+    }
+};
+
+} // namespace Aero::Controls
+
 namespace Aero::Controls::Detail {
 
 // Internal adapter for scalar ItemsSource values. It is deliberately kept out
@@ -24,13 +54,7 @@ private:
     Meta::Value value_;
 };
 
-} // namespace Aero::Controls::Detail
-
-namespace Aero::Controls::Detail {
 using ItemContainerGeneratorImpl =
     ::Aero::Controls::ItemContainerGenerator::Impl;
-}
 
-namespace Aero::Controls::Detail {
-using ::Aero::Controls::Detail::BoxedItemValue;
-}
+} // namespace Aero::Controls::Detail

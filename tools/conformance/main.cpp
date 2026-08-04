@@ -1000,6 +1000,60 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
         target.Value(), device.LastSubmittedFence()));
 }
 
+void VerifyAuthoringPropertySynchronization() noexcept {
+    Aero::Controls::ItemsControl items;
+
+    auto itemTemplate = Aero::Base::MakeRef<Aero::DataTemplate>();
+    Check(itemTemplate.HasValue(),
+        "DataTemplate allocation failed");
+    if (itemTemplate) {
+        items.SetItemTemplate(itemTemplate.Value());
+        const Aero::Value local = items.ReadLocalValue(
+            Aero::Controls::ItemsControl::ItemTemplateProperty);
+        Check(items.GetItemTemplate() == itemTemplate.Value().Get() &&
+                local.Kind() == Aero::ValueKind::Object &&
+                local.AsObject().Get() == itemTemplate.Value().Get(),
+            "ItemsControl ItemTemplate setter bypassed dependency-property state");
+    }
+
+    auto itemsPanel =
+        Aero::Base::MakeRef<Aero::Controls::ItemsPanelTemplate>();
+    Check(itemsPanel.HasValue(),
+        "ItemsPanelTemplate allocation failed");
+    if (itemsPanel) {
+        items.SetItemsPanel(itemsPanel.Value());
+        const Aero::Value local = items.ReadLocalValue(
+            Aero::Controls::ItemsControl::ItemsPanelProperty);
+        Check(items.GetItemsPanel() == itemsPanel.Value().Get() &&
+                local.Kind() == Aero::ValueKind::Object &&
+                local.AsObject().Get() == itemsPanel.Value().Get(),
+            "ItemsControl ItemsPanel setter bypassed dependency-property state");
+    }
+
+    auto containerStyle = Aero::Base::MakeRef<Aero::Style>();
+    Check(containerStyle.HasValue(), "Style allocation failed");
+    if (containerStyle) {
+        items.SetItemContainerStyle(containerStyle.Value());
+        const Aero::Value local = items.ReadLocalValue(
+            Aero::Controls::ItemsControl::ItemContainerStyleProperty);
+        Check(items.GetItemContainerStyle() ==
+                    containerStyle.Value().Get() &&
+                local.Kind() == Aero::ValueKind::Object &&
+                local.AsObject().Get() == containerStyle.Value().Get(),
+            "ItemsControl ItemContainerStyle setter bypassed dependency-property state");
+    }
+
+    Aero::VisualTransition transition;
+    Check(!transition.SetGeneratedDuration("not-a-duration"),
+        "VisualTransition accepted an invalid GeneratedDuration");
+    Check(transition.SetGeneratedDuration("250ms").HasValue(),
+        "VisualTransition rejected a valid GeneratedDuration");
+    Check(
+        Aero::VisualStateManager::VisualStateGroupsProperty.Name() ==
+            Aero::Base::StringView("VisualStateGroups"),
+        "VisualStateManager exposes an internal attached-property name");
+}
+
 } // namespace
 
 int main() {
@@ -1034,6 +1088,7 @@ int main() {
             VerifySharedConsumers();
             VerifyGradientFreeze();
             VerifyViewport(*view.Value());
+            VerifyAuthoringPropertySynchronization();
         }
     }
     if (failures != 0) return 1;

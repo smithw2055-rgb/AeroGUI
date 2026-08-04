@@ -56,14 +56,14 @@ mounting belong to `Markup::XamlReader`.
 ## Metadata model
 
 Custom modules receive `Aero::Meta::Registration` and author types through
-`Aero::Meta::Describe<T>()`. Process composition owns one
+`Aero::Meta::Register<T>()`. Process composition owns one
 `Aero::Meta::Registry`. Both are canonical public types, not aliases of private
 Core types.
 
 ```cpp
 Aero::Base::Result<void> RegisterTypes(
     Aero::Meta::Registration& registration) noexcept {
-    return Aero::Meta::Describe<MyControl>(registration)
+    return Aero::Meta::Register<MyControl>(registration)
         .Factory()
         .Result();
 }
@@ -94,8 +94,8 @@ RuntimeEnvironment
 ViewHost
 ViewFrameResult
 RenderEndpoint
-Meta::Registry
-Meta::Registration
+ MetadataContext
+ MetadataRuntime
 ```
 
 Architecture checks enforce this rule together with the narrowed View and

@@ -48,6 +48,8 @@ public:
 
     void SetBeginTime(Base::StringView value) noexcept;
     void SetDuration(Base::StringView value) noexcept;
+    Base::Result<void> SetDurationChecked(
+        Base::StringView value) noexcept;
     void SetRepeatBehavior(
         Base::StringView value) noexcept;
     void SetSpeedRatio(double value) noexcept;

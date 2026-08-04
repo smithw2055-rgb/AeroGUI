@@ -994,7 +994,18 @@ Base::Ref<Base::Object> ItemsControl::GetItem(
         : items_.GetItem(index);
 }
 
-void ItemsControl::SetItemsSource(
+void ItemsControl::SetItemsSourceBorrowed(
+    Collections::IItemsSource* source) noexcept {
+    // A borrowed source cannot be represented by the object-valued DP.
+    // Publish an explicit null local value so bindings and diagnostics never
+    // report an object owner that is no longer the active source.
+    SetValue(
+        ItemsSourceProperty,
+        Base::Ref<Base::Object>{});
+    SetItemsSourceCore(source);
+}
+
+void ItemsControl::SetItemsSourceCore(
     Collections::IItemsSource* source) noexcept {
     if (source_ == source) return;
     if (source != nullptr) {
@@ -1010,21 +1021,21 @@ void ItemsControl::SetItemsSource(
     PublishReset();
 }
 
-void ItemsControl::SetItemTemplate(
+void ItemsControl::SetItemTemplateCore(
     const DataTemplate* value) noexcept {
     if (itemTemplate_ == value) return;
     itemTemplate_ = value;
     PublishReset();
 }
 
-void ItemsControl::SetItemsPanel(
+void ItemsControl::SetItemsPanelCore(
     const ItemsPanelTemplate* value) noexcept {
     if (itemsPanel_ == value) return;
     itemsPanel_ = value;
     PublishReset();
 }
 
-void ItemsControl::SetItemContainerStyle(
+void ItemsControl::SetItemContainerStyleCore(
     const Style* value) noexcept {
     if (itemContainerStyle_ == value) return;
     itemContainerStyle_ = value;

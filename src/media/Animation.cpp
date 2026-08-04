@@ -132,14 +132,21 @@ void Timeline::SetBeginTime(
 
 void Timeline::SetDuration(
     Base::StringView value) noexcept {
-    if (!WritePreamble()) return;
+    static_cast<void>(SetDurationChecked(value));
+}
+
+Base::Result<void> Timeline::SetDurationChecked(
+    Base::StringView value) noexcept {
+    Base::Result<void> writable = WritePreamble();
+    if (!writable) return writable.GetStatus();
     Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
-    if (!parsed) return;
+    if (!parsed) return parsed.GetStatus();
     Base::Result<void> assigned = durationText_.Assign(value);
-    if (!assigned) return;
+    if (!assigned) return assigned.GetStatus();
     durationMicroseconds_ = parsed.Value();
     WritePostscript();
+    return {};
 }
 
 void Timeline::SetRepeatBehavior(

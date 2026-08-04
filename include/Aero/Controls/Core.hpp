@@ -250,8 +250,6 @@ class AERO_API Control : public FrameworkElement {
 public:
     struct Impl;
 
-    struct Impl;
-
     Base::Ref<Aero::Media::Brush> GetBackground() const noexcept {
         return GetValueOr(
             BackgroundProperty,
