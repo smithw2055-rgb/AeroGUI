@@ -85,6 +85,7 @@ struct CommandLine {
     const char* input = nullptr;
     const char* output = nullptr;
     bool checkOnly = false;
+    bool stripSourceMap = false;
     bool showVersion = false;
 };
 
@@ -98,6 +99,9 @@ bool ParseCommandLine(int argc, char** argv, CommandLine& options) {
         } else if (argument == "--check") {
             if (options.checkOnly) return false;
             options.checkOnly = true;
+        } else if (argument == "--strip-source-map") {
+            if (options.stripSourceMap) return false;
+            options.stripSourceMap = true;
         } else if (argument == "--schema") {
             if (options.schemaPath != nullptr || index + 1 >= argc) {
                 return false;
@@ -176,7 +180,8 @@ int main(int argc, char** argv) {
     if (!ParseCommandLine(argc, argv, options)) {
         return Fail(
             "usage: aero-xamlc [--schema file.aeroschema] "
-            "[--origin uri] <input.xaml> <output.axb>, or "
+            "[--origin uri] [--strip-source-map] "
+            "<input.xaml> <output.axb>, or "
             "aero-xamlc [--schema file.aeroschema] "
             "[--origin uri] --check <input.xaml>, or "
             "aero-xamlc --version");
@@ -217,8 +222,12 @@ int main(int argc, char** argv) {
     if (!compiled) return Fail(compiled.GetStatus());
     if (options.checkOnly) return 0;
 
+    Aero::Markup::CompiledDocumentSerializeOptions
+        serializeOptions;
+    serializeOptions.includeSourceMap =
+        !options.stripSourceMap;
     Aero::Base::Result<Aero::Base::Vector<std::uint8_t>> encoded =
-        compiled.Value().Serialize();
+        compiled.Value().Serialize(serializeOptions);
     if (!encoded) return Fail(encoded.GetStatus());
     if (!WriteFile(options.output, {
             encoded.Value().Data(), encoded.Value().Size()})) {

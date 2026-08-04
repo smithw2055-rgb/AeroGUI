@@ -449,18 +449,21 @@ if(AERO_PRECOMPILE_BUILTIN_THEMES)
             "${_aero_compiled_theme_directory}"
         COMMAND "${_aero_xamlc_command}"
             ${_aero_xaml_schema_arguments}
+            --strip-source-map
             --origin
             "pack://application:,,,/Aero.Themes;component/Light.xaml"
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
             "${_aero_light_theme_compiled}"
         COMMAND "${_aero_xamlc_command}"
             ${_aero_xaml_schema_arguments}
+            --strip-source-map
             --origin
             "pack://application:,,,/Aero.Themes;component/Dark.xaml"
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml"
             "${_aero_dark_theme_compiled}"
         COMMAND "${_aero_xamlc_command}"
             ${_aero_xaml_schema_arguments}
+            --strip-source-map
             --origin
             "pack://application:,,,/Aero.Themes;component/Generic.xaml"
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"

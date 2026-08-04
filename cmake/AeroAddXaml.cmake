@@ -10,7 +10,7 @@ function(aero_add_xaml target)
 
     cmake_parse_arguments(
         AERO_XAML
-        ""
+        "STRIP_SOURCE_MAP"
         "OUTPUT_DIRECTORY;ORIGIN_PREFIX;SCHEMA;OUTPUTS_VAR"
         "SOURCES"
         ${ARGN})
@@ -85,6 +85,11 @@ function(aero_add_xaml target)
             list(APPEND _aero_origin_arguments
                 --origin "${AERO_XAML_ORIGIN_PREFIX}/${_aero_relative}")
         endif()
+        set(_aero_source_map_arguments)
+        if(AERO_XAML_STRIP_SOURCE_MAP)
+            list(APPEND _aero_source_map_arguments
+                --strip-source-map)
+        endif()
         set(_aero_depfile_arguments)
         set(_aero_depfile_property)
         if(CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
@@ -99,6 +104,7 @@ function(aero_add_xaml target)
             COMMAND "${_aero_xamlc}"
                 ${_aero_schema_arguments}
                 ${_aero_origin_arguments}
+                ${_aero_source_map_arguments}
                 ${_aero_depfile_arguments}
                 "${_aero_absolute}" "${_aero_output}"
             DEPENDS

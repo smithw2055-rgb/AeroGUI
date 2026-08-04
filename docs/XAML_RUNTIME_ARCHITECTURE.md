@@ -221,17 +221,25 @@ application module registrations
 
 ## Compiled XAML
 
-compiled cache format 当前为 11，document encoding 为 6。AXB2 保存 origin URI、
+compiled cache format 当前为 12，document encoding 为 7。AXB2 保存 origin URI、
 依赖清单、字符串/类型/成员表和紧凑 instruction IR；模板不再维护一份未使用的
 旁路 range 表。runtime/compiled 使用相同 object writer。
 
 冻结 Schema 可在编译期把不含 markup extension 的 Boolean、整数、Double、
-String 和 enum literal 转换为 typed value record。运行时 object writer 直接写入
-这些 `Meta::Value`，不再重复执行文本转换。使用 manifest 的 host tool 至少转换
-稳定 primitive 类型；manifest 不携带的 enum 名称和自定义 converter 继续保留
-字符串回退。Object、Custom value、Brush、Color、Thickness 和 markup extension
-仍走原有字符串/extension 路径，因此 AXB2 typed value 是渐进优化，不改变 XAML
-可表达范围。
+String、enum literal，以及 `Length`、`Thickness`、`CornerRadius`、`Color`、
+`Point`、`Matrix`、`GridLength` 等稳定内建结构值转换为 typed value record。
+结构值按字段使用 endian-stable 数值 payload，而不是复制 C++ 内存布局；相同
+typed record 仍由 Values 表统一去重。运行时 object writer 直接写入
+`Meta::Value`，不再重复执行文本转换。
+
+manifest-driven host tool 对上述稳定内建值的稳定词法形式执行同样转换；例如
+十六进制 Color 会编译为 typed record，而依赖完整运行时色名表或自定义 converter
+的形式继续保留字符串。应用自定义 Struct、Object、Brush 和 markup extension
+同样维持字符串或 extension 回退，因此优化不改变 XAML 可表达范围。
+
+SourceMap 是可选 section。`aero-xamlc --strip-source-map` 和
+`aero_add_xaml(... STRIP_SOURCE_MAP)` 可生成发布用紧凑资产；内置主题默认裁剪
+SourceMap。开发构建仍默认保留每个 instruction 的源码位置，以维持精确诊断。
 
 当 cache identity、encoding 或 metadata schema 不兼容且调用方提供了可加载的
 origin URI 时，内部 compiled loader 回退到该源文档；没有源 URI 时返回明确的

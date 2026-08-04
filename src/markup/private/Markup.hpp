@@ -594,6 +594,13 @@ AERO_API Base::Result<void> ValidateCompiledCacheIdentity(
     const CompiledCacheIdentity& cached,
     const ::Aero::Meta::Registry& currentDomain) noexcept;
 
+struct CompiledDocumentSerializeOptions {
+    // Source positions are useful for development diagnostics but account for
+    // 32 bytes per instruction in the current stable representation. Release
+    // assets may omit them without changing object-writer semantics.
+    bool includeSourceMap = true;
+};
+
 // Immutable replay IR produced from the XML node stream. It removes XML
 // tokenization from the load path and is guarded by the same metadata schema
 // identity used by persisted compiled-XAML caches.
@@ -641,7 +648,8 @@ public:
     Base::Result<void> ValidateSchema(
         const SchemaManifest& manifest) const noexcept;
     Base::Result<Base::Vector<std::uint8_t>>
-    Serialize() const noexcept;
+    Serialize(
+        const CompiledDocumentSerializeOptions& options = {}) const noexcept;
     static Base::Result<CompiledDocument> Deserialize(
         Base::Span<const std::uint8_t> bytes,
         const ::Aero::Meta::Registry& domain,

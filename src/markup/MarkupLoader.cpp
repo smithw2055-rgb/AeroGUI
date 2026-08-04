@@ -90,6 +90,7 @@ Base::Result<void> ValidateCompiledCacheIdentity(
 
 // Canonical compiled-document implementation.
 
+#include <cmath>
 #include <cstring>
 #include <utility>
 
@@ -130,13 +131,17 @@ enum class AxbValueKind : std::uint8_t {
     SignedInteger,
     UnsignedInteger,
     Double,
-    String
+    String,
+    Custom
 };
+
+inline constexpr std::uint8_t AxbMaxValuePayloads = 6U;
 
 struct AxbValueRecord {
     AxbValueKind kind = AxbValueKind::Text;
+    std::uint8_t payloadCount = 0U;
     std::uint32_t typeIndex = InvalidTableIndex;
-    std::uint64_t payload = 0U;
+    std::uint64_t payload[AxbMaxValuePayloads]{};
 };
 
 template<class TDestination, class TSource>
@@ -149,6 +154,38 @@ TDestination CopyValueBits(
     std::memcpy(
         &destination, &source, sizeof(destination));
     return destination;
+}
+
+std::uint64_t PackFloatPair(
+    float low,
+    float high) noexcept {
+    const std::uint32_t lowBits =
+        CopyValueBits<std::uint32_t>(low);
+    const std::uint32_t highBits =
+        CopyValueBits<std::uint32_t>(high);
+    return static_cast<std::uint64_t>(lowBits) |
+        (static_cast<std::uint64_t>(highBits) << 32U);
+}
+
+float UnpackFloat(
+    std::uint64_t payload,
+    bool high) noexcept {
+    const std::uint32_t bits = high
+        ? static_cast<std::uint32_t>(payload >> 32U)
+        : static_cast<std::uint32_t>(payload);
+    return CopyValueBits<float>(bits);
+}
+
+template<class T>
+Base::Result<Meta::Value> MakeStoredCustomValue(
+    Meta::TypeId type,
+    const T& value) noexcept {
+    Base::Result<Base::Ref<Meta::ValueTypeSemantics>> semantics =
+        Base::MakeRef<Meta::ValueTypeSemantics>(
+            Meta::Detail::MakeValueTypeRegistration<T>());
+    if (!semantics) return semantics.GetStatus();
+    return Meta::Value::TryFromCustom(
+        type, &value, semantics.Value());
 }
 
 
@@ -345,10 +382,11 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
         Base::Result<std::uint32_t> stringIndex =
             InternString(strings, node.Value());
         if (!stringIndex) return stringIndex.GetStatus();
-        return AxbValueRecord{
-            AxbValueKind::Text,
-            InvalidTableIndex,
-            stringIndex.Value()};
+        AxbValueRecord record;
+        record.kind = AxbValueKind::Text;
+        record.payloadCount = 1U;
+        record.payload[0] = stringIndex.Value();
+        return record;
     };
 
     if (!node.HasCompiledValue()) return makeText();
@@ -368,38 +406,176 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
     switch (value.Kind()) {
     case Meta::ValueKind::Boolean:
         record.kind = AxbValueKind::Boolean;
-        record.payload = value.AsBoolean() ? 1U : 0U;
+        record.payloadCount = 1U;
+        record.payload[0] =
+            value.AsBoolean() ? 1U : 0U;
         return record;
     case Meta::ValueKind::SignedInteger: {
         record.kind = AxbValueKind::SignedInteger;
+        record.payloadCount = 1U;
         const std::int64_t stored =
             value.AsSignedInteger();
-        record.payload =
+        record.payload[0] =
             CopyValueBits<std::uint64_t>(stored);
         return record;
     }
     case Meta::ValueKind::UnsignedInteger:
         record.kind = AxbValueKind::UnsignedInteger;
-        record.payload = value.AsUnsignedInteger();
+        record.payloadCount = 1U;
+        record.payload[0] =
+            value.AsUnsignedInteger();
         return record;
     case Meta::ValueKind::Double: {
         record.kind = AxbValueKind::Double;
+        record.payloadCount = 1U;
         const double stored = value.AsDouble();
-        record.payload =
+        record.payload[0] =
             CopyValueBits<std::uint64_t>(stored);
         return record;
     }
     case Meta::ValueKind::String: {
         record.kind = AxbValueKind::String;
+        record.payloadCount = 1U;
         Base::Result<std::uint32_t> stringIndex =
             InternString(strings, value.AsString());
         if (!stringIndex) return stringIndex.GetStatus();
-        record.payload = stringIndex.Value();
+        record.payload[0] = stringIndex.Value();
         return record;
+    }
+    case Meta::ValueKind::Custom: {
+        record.kind = AxbValueKind::Custom;
+        if (value.Type() ==
+            Meta::TypeOf<::Aero::Length>()) {
+            Base::Result<::Aero::Length> decoded =
+                Meta::ValueCodec<::Aero::Length>::
+                    Decode(value);
+            if (!decoded) return makeText();
+            record.payloadCount = 2U;
+            record.payload[0] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().value);
+            record.payload[1] =
+                decoded.Value().isAuto ? 1U : 0U;
+            return record;
+        }
+        if (value.Type() ==
+            Meta::TypeOf<Base::Thickness>()) {
+            Base::Result<Base::Thickness> decoded =
+                Meta::ValueCodec<Base::Thickness>::
+                    Decode(value);
+            if (!decoded) return makeText();
+            record.payloadCount = 4U;
+            record.payload[0] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().left);
+            record.payload[1] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().top);
+            record.payload[2] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().right);
+            record.payload[3] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().bottom);
+            return record;
+        }
+        if (value.Type() ==
+            Meta::TypeOf<Base::CornerRadius>()) {
+            Base::Result<Base::CornerRadius> decoded =
+                Meta::ValueCodec<Base::CornerRadius>::
+                    Decode(value);
+            if (!decoded) return makeText();
+            record.payloadCount = 4U;
+            record.payload[0] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().topLeft);
+            record.payload[1] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().topRight);
+            record.payload[2] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().bottomRight);
+            record.payload[3] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().bottomLeft);
+            return record;
+        }
+        if (value.Type() ==
+            Meta::TypeOf<Base::Color>()) {
+            Base::Result<Base::Color> decoded =
+                Meta::ValueCodec<Base::Color>::
+                    Decode(value);
+            if (!decoded) return makeText();
+            record.payloadCount = 2U;
+            record.payload[0] = PackFloatPair(
+                decoded.Value().red,
+                decoded.Value().green);
+            record.payload[1] = PackFloatPair(
+                decoded.Value().blue,
+                decoded.Value().alpha);
+            return record;
+        }
+        if (value.Type() ==
+            Meta::TypeOf<Base::Point>()) {
+            Base::Result<Base::Point> decoded =
+                Meta::ValueCodec<Base::Point>::
+                    Decode(value);
+            if (!decoded) return makeText();
+            record.payloadCount = 2U;
+            record.payload[0] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().x);
+            record.payload[1] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().y);
+            return record;
+        }
+        if (value.Type() ==
+            Meta::TypeOf<Base::Transform2D>()) {
+            Base::Result<Base::Transform2D> decoded =
+                Meta::ValueCodec<Base::Transform2D>::
+                    Decode(value);
+            if (!decoded) return makeText();
+            record.payloadCount = 6U;
+            record.payload[0] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().m11);
+            record.payload[1] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().m12);
+            record.payload[2] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().m21);
+            record.payload[3] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().m22);
+            record.payload[4] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().dx);
+            record.payload[5] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().dy);
+            return record;
+        }
+        if (value.Type() ==
+            Meta::TypeOf<Controls::GridLength>()) {
+            Base::Result<Controls::GridLength> decoded =
+                Meta::ValueCodec<Controls::GridLength>::
+                    Decode(value);
+            if (!decoded) return makeText();
+            record.payloadCount = 2U;
+            record.payload[0] =
+                CopyValueBits<std::uint64_t>(
+                    decoded.Value().value);
+            record.payload[1] =
+                static_cast<std::uint64_t>(
+                    decoded.Value().unit);
+            return record;
+        }
+        return makeText();
     }
     case Meta::ValueKind::Unset:
     case Meta::ValueKind::Object:
-    case Meta::ValueKind::Custom:
         return makeText();
     }
     return makeText();
@@ -411,11 +587,20 @@ Base::Result<std::uint32_t> InternAxbValue(
     for (std::uint32_t index = 0U;
          index < values.Size(); ++index) {
         const AxbValueRecord& current = values[index];
-        if (current.kind == value.kind &&
-            current.typeIndex == value.typeIndex &&
-            current.payload == value.payload) {
-            return index;
+        if (current.kind != value.kind ||
+            current.payloadCount != value.payloadCount ||
+            current.typeIndex != value.typeIndex) {
+            continue;
         }
+        bool equal = true;
+        for (std::uint32_t payloadIndex = 0U;
+             payloadIndex < value.payloadCount;
+             ++payloadIndex) {
+            equal = equal &&
+                current.payload[payloadIndex] ==
+                    value.payload[payloadIndex];
+        }
+        if (equal) return index;
     }
     Base::Result<void> appended =
         values.PushBack(value);
@@ -435,41 +620,152 @@ Base::Result<Meta::Value> DecodeCompiledValue(
             "AXB2 typed value has an invalid type");
     }
     const Meta::TypeId type = types[record.typeIndex];
+    const auto requirePayloads =
+        [&record](std::uint8_t count) noexcept {
+            return record.payloadCount == count;
+        };
+
     switch (record.kind) {
     case AxbValueKind::Boolean:
+        if (!requirePayloads(1U) ||
+            record.payload[0] > 1U) break;
         return Meta::Value::FromBoolean(
-            type, record.payload != 0U);
+            type, record.payload[0] != 0U);
     case AxbValueKind::SignedInteger: {
+        if (!requirePayloads(1U)) break;
         const std::int64_t value =
             CopyValueBits<std::int64_t>(
-                record.payload);
+                record.payload[0]);
         return Meta::Value::FromSignedInteger(
             type, value);
     }
     case AxbValueKind::UnsignedInteger:
+        if (!requirePayloads(1U)) break;
         return Meta::Value::FromUnsignedInteger(
-            type, record.payload);
+            type, record.payload[0]);
     case AxbValueKind::Double: {
+        if (!requirePayloads(1U)) break;
         const double value =
-            CopyValueBits<double>(record.payload);
+            CopyValueBits<double>(
+                record.payload[0]);
+        if (!std::isfinite(value)) break;
         return Meta::Value::FromDouble(type, value);
     }
     case AxbValueKind::String:
-        if (record.payload >= strings.Size()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "AXB2 typed string references an invalid string");
+        if (!requirePayloads(1U) ||
+            record.payload[0] >= strings.Size()) {
+            break;
         }
         return Meta::Value::TryFromString(
             type,
             strings[static_cast<std::uint32_t>(
-                record.payload)].View());
+                record.payload[0])].View());
+    case AxbValueKind::Custom: {
+        if (type == Meta::TypeOf<::Aero::Length>() &&
+            requirePayloads(2U)) {
+            const double value =
+                CopyValueBits<double>(
+                    record.payload[0]);
+            if (!std::isfinite(value) ||
+                record.payload[1] > 1U ||
+                (record.payload[1] == 0U &&
+                 value < 0.0)) {
+                break;
+            }
+            return MakeStoredCustomValue(
+                type,
+                record.payload[1] != 0U
+                    ? ::Aero::Length::Auto()
+                    : ::Aero::Length::Pixels(value));
+        }
+        if (type == Meta::TypeOf<Base::Thickness>() &&
+            requirePayloads(4U)) {
+            const Base::Thickness value{
+                CopyValueBits<double>(record.payload[0]),
+                CopyValueBits<double>(record.payload[1]),
+                CopyValueBits<double>(record.payload[2]),
+                CopyValueBits<double>(record.payload[3])};
+            if (!::Aero::IsFinite(value)) break;
+            return MakeStoredCustomValue(type, value);
+        }
+        if (type == Meta::TypeOf<Base::CornerRadius>() &&
+            requirePayloads(4U)) {
+            const Base::CornerRadius value{
+                CopyValueBits<double>(record.payload[0]),
+                CopyValueBits<double>(record.payload[1]),
+                CopyValueBits<double>(record.payload[2]),
+                CopyValueBits<double>(record.payload[3])};
+            if (!std::isfinite(value.topLeft) ||
+                !std::isfinite(value.topRight) ||
+                !std::isfinite(value.bottomRight) ||
+                !std::isfinite(value.bottomLeft)) {
+                break;
+            }
+            return MakeStoredCustomValue(type, value);
+        }
+        if (type == Meta::TypeOf<Base::Color>() &&
+            requirePayloads(2U)) {
+            const Base::Color value{
+                UnpackFloat(record.payload[0], false),
+                UnpackFloat(record.payload[0], true),
+                UnpackFloat(record.payload[1], false),
+                UnpackFloat(record.payload[1], true)};
+            if (!Base::IsFiniteColor(value) ||
+                value.red < 0.0F || value.red > 1.0F ||
+                value.green < 0.0F || value.green > 1.0F ||
+                value.blue < 0.0F || value.blue > 1.0F ||
+                value.alpha < 0.0F || value.alpha > 1.0F) {
+                break;
+            }
+            return MakeStoredCustomValue(type, value);
+        }
+        if (type == Meta::TypeOf<Base::Point>() &&
+            requirePayloads(2U)) {
+            const Base::Point value{
+                CopyValueBits<double>(record.payload[0]),
+                CopyValueBits<double>(record.payload[1])};
+            if (!::Aero::IsFinite(value)) break;
+            return MakeStoredCustomValue(type, value);
+        }
+        if (type == Meta::TypeOf<Base::Transform2D>() &&
+            requirePayloads(6U)) {
+            const Base::Transform2D value{
+                CopyValueBits<double>(record.payload[0]),
+                CopyValueBits<double>(record.payload[1]),
+                CopyValueBits<double>(record.payload[2]),
+                CopyValueBits<double>(record.payload[3]),
+                CopyValueBits<double>(record.payload[4]),
+                CopyValueBits<double>(record.payload[5])};
+            if (!Base::IsFiniteTransform(value)) break;
+            return MakeStoredCustomValue(type, value);
+        }
+        if (type == Meta::TypeOf<Controls::GridLength>() &&
+            requirePayloads(2U)) {
+            const double value =
+                CopyValueBits<double>(
+                    record.payload[0]);
+            if (!std::isfinite(value) ||
+                value < 0.0 ||
+                record.payload[1] >
+                    static_cast<std::uint64_t>(
+                        Controls::GridUnitType::Star)) {
+                break;
+            }
+            return MakeStoredCustomValue(
+                type,
+                Controls::GridLength{
+                    value,
+                    static_cast<Controls::GridUnitType>(
+                        record.payload[1])});
+        }
+        break;
+    }
     case AxbValueKind::Text:
         break;
     }
     return Base::Status::Failure(
         Base::ErrorCode::ValidationFailed,
-        "AXB2 typed value kind is invalid");
+        "AXB2 typed value payload is invalid");
 }
 
 const AxbSectionDirectoryEntry* FindSection(
@@ -616,7 +912,8 @@ Base::Result<void> CompiledDocument::AddDependency(
 }
 
 Base::Result<Base::Vector<std::uint8_t>>
-CompiledDocument::Serialize() const noexcept {
+CompiledDocument::Serialize(
+    const CompiledDocumentSerializeOptions& options) const noexcept {
     if (!IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -751,20 +1048,32 @@ CompiledDocument::Serialize() const noexcept {
     result = AppendU32(valueBytes, values.Size());
     if (!result) return result.GetStatus();
     for (const AxbValueRecord& value : values) {
+        if (value.payloadCount == 0U ||
+            value.payloadCount > AxbMaxValuePayloads) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "AXB2 value payload count is invalid");
+        }
         result = AppendU8(
             valueBytes,
             static_cast<std::uint8_t>(value.kind));
         if (!result) return result.GetStatus();
-        result = AppendU8(valueBytes, 0U);
+        result = AppendU8(
+            valueBytes, value.payloadCount);
         if (!result) return result.GetStatus();
         result = AppendU16(valueBytes, 0U);
         if (!result) return result.GetStatus();
         result = AppendU32(
             valueBytes, value.typeIndex);
         if (!result) return result.GetStatus();
-        result = AppendU64(
-            valueBytes, value.payload);
-        if (!result) return result.GetStatus();
+        for (std::uint32_t payloadIndex = 0U;
+             payloadIndex < value.payloadCount;
+             ++payloadIndex) {
+            result = AppendU64(
+                valueBytes,
+                value.payload[payloadIndex]);
+            if (!result) return result.GetStatus();
+        }
     }
     result = addSection(
         AxbSectionKind::Values, values.Size(), std::move(valueBytes));
@@ -824,7 +1133,9 @@ CompiledDocument::Serialize() const noexcept {
         }
         result = AppendU32(
             instructionBytes,
-            nodeIndex);
+            options.includeSourceMap
+                ? nodeIndex
+                : InvalidTableIndex);
         if (!result) return result.GetStatus();
     }
     result = addSection(
@@ -833,20 +1144,25 @@ CompiledDocument::Serialize() const noexcept {
         std::move(instructionBytes));
     if (!result) return result.GetStatus();
 
-    Base::Vector<std::uint8_t> sourceMapBytes;
-    result = AppendU32(sourceMapBytes, nodes_.Size());
-    if (!result) return result.GetStatus();
-    for (const Node& node : nodes_) {
-        result = AppendPosition(sourceMapBytes, node.source_.begin);
+    if (options.includeSourceMap) {
+        Base::Vector<std::uint8_t> sourceMapBytes;
+        result = AppendU32(
+            sourceMapBytes, nodes_.Size());
         if (!result) return result.GetStatus();
-        result = AppendPosition(sourceMapBytes, node.source_.end);
+        for (const Node& node : nodes_) {
+            result = AppendPosition(
+                sourceMapBytes, node.source_.begin);
+            if (!result) return result.GetStatus();
+            result = AppendPosition(
+                sourceMapBytes, node.source_.end);
+            if (!result) return result.GetStatus();
+        }
+        result = addSection(
+            AxbSectionKind::SourceMap,
+            nodes_.Size(),
+            std::move(sourceMapBytes));
         if (!result) return result.GetStatus();
     }
-    result = addSection(
-        AxbSectionKind::SourceMap,
-        nodes_.Size(),
-        std::move(sourceMapBytes));
-    if (!result) return result.GetStatus();
 
     Base::Vector<std::uint8_t> output;
     result = AppendU32(output, CompiledDocumentMagic);
@@ -1126,59 +1442,74 @@ CompiledDocument::Deserialize(
         Base::Result<std::uint8_t> kind =
             valuesDecoder.ReadU8();
         if (!kind) return kind.GetStatus();
-        Base::Result<std::uint8_t> flags =
+        Base::Result<std::uint8_t> payloadCount =
             valuesDecoder.ReadU8();
-        if (!flags) return flags.GetStatus();
+        if (!payloadCount) return payloadCount.GetStatus();
         Base::Result<std::uint16_t> reservedBits =
             valuesDecoder.ReadU16();
         if (!reservedBits) return reservedBits.GetStatus();
         Base::Result<std::uint32_t> typeIndex =
             valuesDecoder.ReadU32();
         if (!typeIndex) return typeIndex.GetStatus();
-        Base::Result<std::uint64_t> payload =
-            valuesDecoder.ReadU64();
-        if (!payload) return payload.GetStatus();
 
         if (kind.Value() >
                 static_cast<std::uint8_t>(
-                    AxbValueKind::String) ||
-            flags.Value() != 0U ||
+                    AxbValueKind::Custom) ||
+            payloadCount.Value() == 0U ||
+            payloadCount.Value() > AxbMaxValuePayloads ||
             reservedBits.Value() != 0U) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
                 "AXB2 value record header is invalid");
         }
-        const AxbValueKind valueKind =
+
+        AxbValueRecord record;
+        record.kind =
             static_cast<AxbValueKind>(kind.Value());
+        record.payloadCount = payloadCount.Value();
+        record.typeIndex = typeIndex.Value();
+        for (std::uint32_t payloadIndex = 0U;
+             payloadIndex < record.payloadCount;
+             ++payloadIndex) {
+            Base::Result<std::uint64_t> payload =
+                valuesDecoder.ReadU64();
+            if (!payload) return payload.GetStatus();
+            record.payload[payloadIndex] =
+                payload.Value();
+        }
+
         const bool textValue =
-            valueKind == AxbValueKind::Text;
+            record.kind == AxbValueKind::Text;
         if ((textValue &&
-             typeIndex.Value() != InvalidTableIndex) ||
+             record.typeIndex != InvalidTableIndex) ||
             (!textValue &&
-             (typeIndex.Value() == InvalidTableIndex ||
-              typeIndex.Value() >= types.Size()))) {
+             (record.typeIndex == InvalidTableIndex ||
+              record.typeIndex >= types.Size()))) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
                 "AXB2 value record type is invalid");
         }
-        if ((valueKind == AxbValueKind::Text ||
-             valueKind == AxbValueKind::String) &&
-            (payload.Value() > UINT32_MAX ||
-             payload.Value() >= strings.Size())) {
+        if (record.kind != AxbValueKind::Custom &&
+            record.payloadCount != 1U) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 scalar value payload count is invalid");
+        }
+        if ((record.kind == AxbValueKind::Text ||
+             record.kind == AxbValueKind::String) &&
+            (record.payload[0] > UINT32_MAX ||
+             record.payload[0] >= strings.Size())) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
                 "AXB2 value record string is invalid");
         }
-        if (valueKind == AxbValueKind::Boolean &&
-            payload.Value() > 1U) {
+        if (record.kind == AxbValueKind::Boolean &&
+            record.payload[0] > 1U) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
                 "AXB2 Boolean payload is invalid");
         }
-        reserved = values.PushBack({
-            valueKind,
-            typeIndex.Value(),
-            payload.Value()});
+        reserved = values.PushBack(record);
         if (!reserved) return reserved.GetStatus();
     }
     if (!valuesDecoder.AtEnd()) {
@@ -1359,7 +1690,7 @@ CompiledDocument::Deserialize(
             if (stored.kind == AxbValueKind::Text) {
                 assigned = node.value_.Assign(
                     strings[static_cast<std::uint32_t>(
-                        stored.payload)].View());
+                        stored.payload[0])].View());
                 if (!assigned) return assigned.GetStatus();
             } else {
                 Base::Result<Meta::Value> decoded =
