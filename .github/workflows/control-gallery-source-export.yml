@@ -1,6 +1,9 @@
 name: ControlGallery Source Export
 
 on:
+  pull_request:
+    branches:
+      - codex/local-no-samples-tests
   push:
     branches:
       - agent/control-gallery-xaml-alignment
