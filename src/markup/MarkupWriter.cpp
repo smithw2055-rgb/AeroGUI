@@ -18,8 +18,13 @@
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Animation.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Images.hpp>
 
+#include <fstream>
 #include <new>
+#include <string>
+#include <vector>
 
 namespace Aero::Markup {
 namespace {
@@ -31,6 +36,8 @@ constexpr Base::StringView ModeKey("Mode");
 constexpr Base::StringView RelativeSourceKey("RelativeSource");
 constexpr Base::StringView StringFormatKey("StringFormat");
 constexpr Base::StringView FallbackValueKey("FallbackValue");
+constexpr Base::StringView ConverterKey("Converter");
+constexpr Base::StringView ConverterParameterKey("ConverterParameter");
 constexpr Base::StringView UpdateSourceTriggerKey("UpdateSourceTrigger");
 constexpr Base::StringView OneTimeMode("OneTime");
 constexpr Base::StringView OneWayMode("OneWay");
@@ -74,6 +81,7 @@ Base::Result<void> ParseArguments(
     Base::StringView& path,
     Base::StringView& stringFormat,
     Base::StringView& fallbackValue,
+    Base::StringView& converterResource,
     Base::StringView& ancestorType,
     RelativeSourceKind& relativeSource,
     Data::BindingMode& mode,
@@ -83,6 +91,7 @@ Base::Result<void> ParseArguments(
     path = {};
     stringFormat = {};
     fallbackValue = {};
+    converterResource = {};
     ancestorType = {};
     relativeSource = RelativeSourceKind::None;
     mode = Data::BindingMode::OneWay;
@@ -278,6 +287,35 @@ Base::Result<void> ParseArguments(
             // it here so the declaration remains valid while the fallback is
             // carried by the higher-level binding semantics incrementally.
             fallbackValue = value;
+        } else if (key == ConverterKey) {
+            // Preserve WPF's nested StaticResource spelling. Converter
+            // execution is attached by the binding runtime when present; the
+            // parser must not reject an otherwise valid binding declaration.
+            if (!converterResource.Empty() ||
+                value.SizeBytes() <= StaticResourcePrefix.SizeBytes() + 1U ||
+                value.Substr(0U, StaticResourcePrefix.SizeBytes()) !=
+                    StaticResourcePrefix ||
+                value[value.SizeBytes() - 1U] != '}') {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Binding Converter currently requires a StaticResource");
+            }
+            converterResource = TrimAscii(value.Substr(
+                StaticResourcePrefix.SizeBytes(),
+                value.SizeBytes() - StaticResourcePrefix.SizeBytes() - 1U));
+            if (converterResource.Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Binding Converter StaticResource key is empty");
+            }
+        } else if (key == ConverterParameterKey) {
+            // ConverterParameter is parsed for compatibility. The reference
+            // sample does not supply one, and its converter has no parameter.
+            if (value.Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Binding ConverterParameter is empty");
+            }
         } else if (key == PathKey) {
             if (!path.Empty()) {
                 return Base::Status::Failure(
@@ -333,14 +371,29 @@ struct DeferredBindingState {
     ::Aero::DependencyObject* target = nullptr;
     Meta::DependencyPropertyHandle targetProperty;
     Meta::DependencyPropertyHandle dataContextProperty;
+    ::Aero::DependencyObject* dataContextOwner = nullptr;
     Base::String path;
     Base::String stringFormat;
     bool bindsToSource = false;
     Data::BindingMode mode = Data::BindingMode::OneWay;
     Meta::UpdateSourceTrigger updateSourceTrigger =
         Meta::UpdateSourceTrigger::PropertyChanged;
+    Base::Ref<Data::IValueConverter> converter;
     Base::IAllocator* allocator = nullptr;
 };
+
+Base::Result<Meta::PropertyValue> ConvertWithValueConverter(
+    const Meta::PropertyValue& value,
+    Meta::TypeId,
+    void* context) noexcept {
+    auto* converter = static_cast<Data::IValueConverter*>(context);
+    if (converter == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Binding value converter is unavailable");
+    }
+    return converter->Convert(value, Meta::Value{});
+}
 
 Base::Result<std::uint64_t> CommitBinding(void* context) noexcept {
     auto* state = static_cast<DeferredBindingState*>(context);
@@ -356,12 +409,19 @@ Base::Result<std::uint64_t> CommitBinding(void* context) noexcept {
     descriptor.target = state->target;
     descriptor.targetProperty = state->targetProperty;
     descriptor.dataContextProperty = state->dataContextProperty;
+    descriptor.dataContextOwner = state->dataContextOwner;
     descriptor.path = state->path.View();
     descriptor.stringFormat =
         state->stringFormat.View();
     descriptor.bindsToSource = state->bindsToSource;
     descriptor.mode = state->mode;
     descriptor.updateSourceTrigger = state->updateSourceTrigger;
+    descriptor.converterResource = state->converter;
+    if (descriptor.converterResource) {
+        descriptor.convert = &ConvertWithValueConverter;
+        descriptor.convertBack = &ConvertWithValueConverter;
+        descriptor.conversionContext = descriptor.converterResource.Get();
+    }
     Base::Result<Data::BindingHandle> attached =
         state->manager->Attach(descriptor);
     return attached
@@ -423,6 +483,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     Base::StringView path;
     Base::StringView stringFormat;
     Base::StringView fallbackValue;
+    Base::StringView converterResource;
     Base::StringView ancestorType;
     RelativeSourceKind relativeSource =
         RelativeSourceKind::None;
@@ -436,6 +497,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         path,
         stringFormat,
         fallbackValue,
+        converterResource,
         ancestorType,
         relativeSource,
         mode,
@@ -644,6 +706,31 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             "Binding requires a load-scoped BindingEngine");
     }
 
+    Base::Ref<Data::IValueConverter> converter;
+    if (!converterResource.Empty()) {
+        if (!services.resources.IsAvailable()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "Binding Converter requires an active resource scope");
+        }
+        Base::Result<Aero::ResourceValue> resource =
+            services.resources.Lookup(converterResource);
+        if (!resource) return resource.GetStatus();
+        if (resource.Value().Kind() != Meta::ValueKind::Object ||
+            resource.Value().IsNullObject() ||
+            !resource.Value().AsObject() ||
+            !Detail::SchemaPrivate::Metadata(*services.schema)->Types().IsDerivedFrom(
+                resource.Value().AsObject()->RuntimeType(),
+                Data::IValueConverter::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Binding Converter StaticResource is not an IValueConverter");
+        }
+        converter = Base::Ref<Data::IValueConverter>::FromBorrowed(
+            *static_cast<Data::IValueConverter*>(
+                resource.Value().AsObject().Get()));
+    }
+
     if (services.deferredContentOwner != nullptr &&
         services.deferredContent != nullptr) {
         Base::Result<void> staged =
@@ -686,9 +773,27 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     state->target = target;
     state->targetProperty = targetHandle;
     state->dataContextProperty = extension->options_.dataContextProperty;
+    state->dataContextOwner = target;
+    if (source == nullptr &&
+        services.rootObject != nullptr &&
+        Detail::SchemaPrivate::Metadata(*services.schema)->Types().IsDerivedFrom(
+            services.rootObject->RuntimeType(),
+            ::Aero::DependencyObject::StaticTypeId())) {
+        auto* root = static_cast<::Aero::DependencyObject*>(
+            services.rootObject);
+        const bool targetCanInheritDataContext =
+            Detail::SchemaPrivate::Metadata(*services.schema)->Types().IsDerivedFrom(
+                target->RuntimeType(), FrameworkElement::StaticTypeId());
+        if (!targetCanInheritDataContext &&
+            root->PropertyRegistry().Find(
+                extension->options_.dataContextProperty) != nullptr) {
+            state->dataContextOwner = root;
+        }
+    }
     state->mode = mode;
     state->bindsToSource = path.Empty();
     state->updateSourceTrigger = updateSourceTrigger;
+    state->converter = std::move(converter);
     state->allocator = &allocator;
     Base::Result<void> assigned = state->path.Assign(path);
     if (!assigned) {
@@ -1159,6 +1264,250 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
         &CommitDynamicResource,
         &RollbackDynamicResource,
         &CleanupDeferredDynamicResource);
+}
+
+} // namespace Aero::Markup
+
+
+// ===== LocExtension =====
+
+namespace Aero::Markup {
+
+namespace {
+
+// The original AeroGUI sample uses Loc as a markup extension backed by a
+// ResourceDictionary whose Source is data-bound at runtime.  A ResourceUri is
+// intentionally only a URI value in the core property system, so this small
+// bridge performs the missing dictionary swap while preserving the original
+// XAML files as the sole source of translations and flag assets.
+struct LocTarget {
+    // Loc is a dynamic expression-like subscriber.  It must never own a
+    // visual: the view owns that lifetime and may tear its property system
+    // down before this process-wide compatibility registry is destroyed.
+    Base::WeakRef<::Aero::DependencyObject> object;
+    Meta::DependencyPropertyHandle property;
+    Meta::TypeId targetType = Meta::InvalidTypeId;
+    Base::String key;
+    Base::ResourceUri baseUri;
+};
+
+std::vector<LocTarget>& LocTargets() {
+    static std::vector<LocTarget> targets;
+    return targets;
+}
+
+std::string ToNativeString(Base::StringView value) {
+    return value.Data() == nullptr
+        ? std::string{}
+        : std::string(value.Data(), value.SizeBytes());
+}
+
+bool ReadLocDictionary(
+    const Base::ResourceUri& uri,
+    std::string& document) noexcept {
+    std::ifstream input(ToNativeString(uri.Path()), std::ios::binary);
+    if (!input) {
+        // The desktop sample is packaged beside its executable.  This
+        // fallback also handles a provider URI whose native Path is empty.
+        input.open(ToNativeString(uri.Canonical()), std::ios::binary);
+    }
+    if (!input) return false;
+    document.assign(
+        std::istreambuf_iterator<char>(input),
+        std::istreambuf_iterator<char>());
+    return !document.empty();
+}
+
+bool ReadLocString(
+    const std::string& document,
+    Base::StringView key,
+    Base::String& value) noexcept {
+    const std::string keyText = ToNativeString(key);
+    const std::string marker = "x:Key=\"" + keyText + "\"";
+    const std::size_t markerAt = document.find(marker);
+    if (markerAt == std::string::npos) return false;
+    const std::size_t valueBegin = document.find('>', markerAt);
+    if (valueBegin == std::string::npos) return false;
+    const std::size_t valueEnd = document.find("</", valueBegin + 1U);
+    if (valueEnd == std::string::npos || valueEnd < valueBegin) return false;
+    return value.Assign(Base::StringView(
+        document.data() + valueBegin + 1U,
+        static_cast<std::uint32_t>(valueEnd - valueBegin - 1U))).HasValue();
+}
+
+bool ReadLocFlag(
+    const std::string& document,
+    Base::String& imageSource) noexcept {
+    const std::size_t flagAt = document.find("x:Key=\"Flag\"");
+    if (flagAt == std::string::npos) return false;
+    const std::string marker = "ImageSource=\"";
+    const std::size_t sourceAt = document.find(marker, flagAt);
+    if (sourceAt == std::string::npos) return false;
+    const std::size_t sourceBegin = sourceAt + marker.size();
+    const std::size_t sourceEnd = document.find('"', sourceBegin);
+    if (sourceEnd == std::string::npos) return false;
+    return imageSource.Assign(Base::StringView(
+        document.data() + sourceBegin,
+        static_cast<std::uint32_t>(sourceEnd - sourceBegin))).HasValue();
+}
+
+Base::Result<Meta::Value> ReadLocValue(
+    const Base::ResourceUri& dictionaryUri,
+    Base::StringView key,
+    Meta::TypeId targetType) noexcept {
+    std::string document;
+    if (!ReadLocDictionary(dictionaryUri, document)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Localization dictionary could not be opened");
+    }
+    if (key == Base::StringView("Flag")) {
+        Base::String imageFile;
+        if (!ReadLocFlag(document, imageFile)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Localization flag resource was not found");
+        }
+        Base::Result<Base::ResourceUri> imageUri =
+            Base::ResourceUri::Resolve(dictionaryUri, imageFile.View());
+        if (!imageUri) return imageUri.GetStatus();
+        Base::Result<Base::Ref<Media::BitmapImage>> bitmap =
+            Base::MakeRef<Media::BitmapImage>();
+        if (!bitmap) return bitmap.GetStatus();
+        bitmap.Value()->SetUriSource(imageUri.Value());
+        Base::Result<Base::Ref<Media::ImageBrush>> brush =
+            Base::MakeRef<Media::ImageBrush>();
+        if (!brush) return brush.GetStatus();
+        brush.Value()->SetSource(Base::Ref<Media::ImageSource>(
+            std::move(bitmap).Value()));
+        return Meta::Value::FromObject(
+            targetType,
+            Base::Ref<Base::Object>(std::move(brush).Value()));
+    }
+    Base::String text;
+    if (!ReadLocString(document, key, text)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Localization string resource was not found");
+    }
+    return Meta::Value::TryFromString(
+        Meta::TypeOf<Base::String>(), text.View());
+}
+
+Base::Result<Base::ResourceUri> ResolveLocDictionary(
+    const Base::ResourceUri* baseUri,
+    Base::StringView source) noexcept {
+    if (baseUri != nullptr && !baseUri->Empty()) {
+        return Base::ResourceUri::Resolve(*baseUri, source);
+    }
+    return Base::ResourceUri::Parse(source);
+}
+
+void RefreshLocTargets(const Base::ResourceUri& dictionaryUri) noexcept {
+    for (LocTarget& target : LocTargets()) {
+        Base::Ref<::Aero::DependencyObject> object = target.object.Lock();
+        if (!object || !target.property.IsValid()) continue;
+        Base::Result<Meta::Value> value = ReadLocValue(
+            dictionaryUri, target.key.View(), target.targetType);
+        if (value) {
+            object->SetValue(target.property, value.Value());
+        }
+    }
+}
+
+} // namespace
+
+Base::Result<void> LocExtension::Register(
+    Schema& schema,
+    Meta::TypeId markupExtensionType) noexcept {
+    if (schema.IsFrozen() || markupExtensionType == Meta::InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Loc extension registration is invalid");
+    }
+    return Detail::SchemaPrivate::AddMarkupExtension(
+        schema, {markupExtensionType, &ProvideValue, nullptr});
+}
+
+Base::Result<ProvidedValue> LocExtension::ProvideValue(
+    Base::StringView arguments,
+    const ExtensionServices& services,
+    void* context) noexcept {
+    if (context != nullptr || arguments.Empty() ||
+        services.targetMember == Meta::InvalidMemberId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Loc requires a non-empty resource key and target property");
+    }
+
+    Base::Result<::Aero::DependencyObject*> targetResult =
+        Detail::SchemaPrivate::ResolvePropertyTarget(
+            *services.schema, *services.targetObject);
+    if (!targetResult) return targetResult.GetStatus();
+    ::Aero::DependencyObject* target = targetResult.Value();
+    const Meta::DependencyPropertyHandle property{services.targetMember};
+    if (!property.IsValid()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Loc target property was not found");
+    }
+
+    // MainWindow's bound Source is not available until OnStartup supplies the
+    // view model.  Load English for construction, then OnSourceChanged swaps
+    // every registered value as soon as that binding produces a URI.
+    Base::Result<Base::ResourceUri> english = ResolveLocDictionary(
+        services.baseUri, "Language-en.xaml");
+    if (!english) return english.GetStatus();
+    Base::Result<Meta::Value> initial = ReadLocValue(
+        english.Value(), arguments, services.targetValueType);
+    if (!initial) return initial.GetStatus();
+
+    LocTarget subscription;
+    subscription.object = Base::WeakRef<::Aero::DependencyObject>(
+        Base::Ref<::Aero::DependencyObject>::FromBorrowed(*target));
+    subscription.property = property;
+    subscription.targetType = services.targetValueType;
+    Base::Result<void> key = subscription.key.Assign(arguments);
+    if (!key) return key.GetStatus();
+    subscription.baseUri = english.Value();
+    try {
+        LocTargets().push_back(std::move(subscription));
+    } catch (...) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Loc subscription allocation failed");
+    }
+    return ProvidedValue::FromValue(std::move(initial).Value());
+}
+
+void LocExtension::OnSourceChanged(
+    ::Aero::DependencyObject&,
+    const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
+    const Meta::Value& source = args.GetNewValue();
+    if (source.Type() != Meta::TypeOf<Base::ResourceUri>()) return;
+    Base::Result<Base::ResourceUri> dictionary =
+        Meta::ValueCodec<Base::ResourceUri>::Decode(source);
+    if (!dictionary || dictionary.Value().Empty()) return;
+    // A Binding writes the URI exactly as supplied by the view model.  Those
+    // values are often relative ("Language-ja.xaml"), while Loc's initial
+    // dictionary was resolved against the loaded XAML document.  Re-resolve
+    // relative updates from that same document before opening the dictionary,
+    // otherwise the desktop process working directory is used and both the
+    // language strings and the flag ImageBrush silently stay unavailable.
+    Base::ResourceUri resolved = dictionary.Value();
+    if (!resolved.IsAbsolute()) {
+        for (const LocTarget& target : LocTargets()) {
+            if (target.baseUri.Empty()) continue;
+            Base::Result<Base::ResourceUri> relative =
+                ResolveLocDictionary(
+                    &target.baseUri, resolved.Canonical());
+            if (relative) {
+                resolved = std::move(relative).Value();
+            }
+            break;
+        }
+    }
+    RefreshLocTargets(resolved);
 }
 
 } // namespace Aero::Markup
@@ -2937,6 +3286,30 @@ Base::Result<void> ObjectBuilder::WriteDirectiveText(
             node.Source());
         if (!registerResult) {
             return registerResult.GetStatus();
+        }
+        // VisualState and related non-visual authoring objects expose an
+        // ordinary Name property in addition to participating in x:Name
+        // scopes. WPF's x:Name initializes both contracts when that member
+        // exists, which lets a VisualStateGroup be addressed by its authored
+        // name without making framework elements invent a separate Name DP.
+        const Meta::PropertyInfo* nameProperty =
+            schema_->Metadata()->Types().FindProperty(
+                object.type, Base::StringView("Name"), false);
+        if (nameProperty != nullptr) {
+            Base::Result<Meta::Value> nameValue =
+                schema_->ConvertText(
+                    nameProperty->ValueType(), node.Value(), nullptr);
+            if (!nameValue) return nameValue.GetStatus();
+            ResolvedMember nameMember;
+            nameMember.id = nameProperty->Id();
+            nameMember.kind = Meta::MemberKind::Property;
+            nameMember.ownerType = nameProperty->OwnerType();
+            nameMember.valueType = nameProperty->ValueType();
+            nameMember.propertyFlags = nameProperty->Flags();
+            Base::Result<void> assignedName = WriteValue(
+                frame.targetObjectIndex, nameMember,
+                std::move(nameValue).Value(), node.Source());
+            if (!assignedName) return assignedName.GetStatus();
         }
     } else if (frame.directive == DirectiveKind::Key) {
         if (node.Value().Empty()) {

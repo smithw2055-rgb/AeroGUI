@@ -61,7 +61,9 @@ float4 ps_main(VSOutput input) : SV_Target {
         }
     }
 
+    const float distance = atlas.Sample(atlasSampler, input.uv).r;
+    const float smoothing = max(fwidth(distance), 1.0 / 512.0);
     float4 color = input.tint;
-    color.a *= atlas.Sample(atlasSampler, input.uv).r;
+    color.a *= smoothstep(0.5 - smoothing, 0.5 + smoothing, distance);
     return color;
 }

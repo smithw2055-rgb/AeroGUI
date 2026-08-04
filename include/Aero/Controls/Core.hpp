@@ -410,7 +410,6 @@ private:
         std::uint64_t handleValue) noexcept {
         templateHandleValue_ = handleValue;
         ++templateGeneration_;
-        return;
     }
     void NotifyTemplateDetached() noexcept {
         if (templateHandleValue_ != 0U) {

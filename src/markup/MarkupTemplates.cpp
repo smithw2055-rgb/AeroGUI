@@ -1728,8 +1728,10 @@ CompilePropertyTriggers(
             return trigger.conditions.PushBack(std::move(condition));
         }
         const DependencyProperty* property =
-            propertyName == Base::StringView(
-                "local:Element.IsFocusEngaged")
+            (propertyName == Base::StringView(
+                "local:Element.IsFocusEngaged") ||
+             propertyName == Base::StringView(
+                "aero:Element.IsFocusEngaged"))
             ? properties.Find(
                 Aero::Element::
                     IsFocusEngagedProperty.Handle())
@@ -2951,6 +2953,19 @@ BuildCompiledDeferredTemplate(
             binding.manager->QueueDeferred(
                 descriptor);
         if (!queued) return queued.GetStatus();
+        // A DataTemplate receives its item as the DataContext of its root
+        // before it is attached to an ItemsHost. Activate bindings targeted
+        // at that root now: closed selectors and other content projections
+        // may consume their template presentation before a popup is visible.
+        // Nested elements remain deferred until the normal visual-tree walk
+        // establishes inherited values for them.
+        if (payload &&
+            binding.source == UINT32_MAX &&
+            descriptor.target == root.Get()) {
+            Base::Result<std::uint32_t> activated =
+                binding.manager->ActivateDeferred(*descriptor.target);
+            if (!activated) return activated.GetStatus();
+        }
     }
     Base::Ref<Aero::Runtime::Detail::DataTemplateTriggerState>
         triggerContext;

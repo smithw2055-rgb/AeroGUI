@@ -141,6 +141,7 @@ Base::Result<bool> SelectPackFontPath(
     }
 
     std::filesystem::path best;
+    bool bestIsRegular = false;
     std::size_t bestPrefix = 0U;
     std::size_t bestDistance = SIZE_MAX;
     for (std::filesystem::directory_iterator iterator(
@@ -157,6 +158,13 @@ Base::Result<bool> SelectPackFontPath(
             NormalizedFontName(
                 iterator->path().
                     stem().string());
+        // A package FontFamily such as "./#PT Sans" names the family, not a
+        // face. Pick its Regular face deterministically before using the
+        // legacy closest-file fallback; otherwise PTSans-Bold happens to win
+        // merely because its filename is shorter than PTSans-Regular.
+        const bool candidateIsRegular =
+            candidate == normalizedRequest + "regular" ||
+            candidate == normalizedRequest;
         std::size_t prefix = 0U;
         while (prefix < candidate.size() &&
             prefix < normalizedRequest.size() &&
@@ -172,10 +180,13 @@ Base::Result<bool> SelectPackFontPath(
             : normalizedRequest.size() -
                 candidate.size();
         if (best.empty() ||
-            prefix > bestPrefix ||
-            (prefix == bestPrefix &&
-             distance < bestDistance)) {
+            (candidateIsRegular && !bestIsRegular) ||
+            (candidateIsRegular == bestIsRegular &&
+             (prefix > bestPrefix ||
+              (prefix == bestPrefix &&
+               distance < bestDistance)))) {
             best = iterator->path();
+            bestIsRegular = candidateIsRegular;
             bestPrefix = prefix;
             bestDistance = distance;
         }
@@ -511,6 +522,7 @@ public:
         layoutRequest.wrapping = request.wrapping;
         layoutRequest.trimming = request.trimming;
         layoutRequest.alignment = request.alignment;
+        layoutRequest.direction = request.direction;
         Text::TextLayout layout(allocator_);
         Base::Result<void> shaped =
             layout.ShapeAndMeasure(

@@ -421,7 +421,9 @@ Base::Result<void> PopulateControlsPrimitives(
                 .Coerce(&CoerceRangeMinimum))
         .Property(
             RangeBase::MaximumProperty,
-            PropertyOptions(1.0)
+            // WPF/AeroGUI RangeBase defaults to a 0..100 range. Controls
+            // that operate in normalized coordinates set their own maximum.
+            PropertyOptions(100.0)
                 .AffectsArrange()
                 .Validate(&::Aero::Base::Detail::Validate::Finite<double>)
                 .Coerce(&CoerceRangeMaximum))

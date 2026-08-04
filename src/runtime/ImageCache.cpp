@@ -5,6 +5,7 @@
 #include "media/MediaPrivate.hpp"
 
 #include <Aero/Controls/Common.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include <Aero/Shapes.hpp>
 
 #include <Aero/Media/Brushes.hpp>
@@ -227,9 +228,18 @@ Base::Result<bool> ImageCache::Synchronize(
                         Shapes::Ellipse*>(
                             visual);
             }
-            if (shape == nullptr) continue;
-            Base::Ref<Media::Brush>
+            Base::Ref<Media::Brush> fill;
+            if (shape != nullptr) {
                 fill = shape->GetFill();
+            } else if (visual->RuntimeType() ==
+                       Controls::Border::StaticTypeId()) {
+                // ImageBrush is a normal background brush. Keep it in the
+                // same image cache as Image controls and Shape.Fill so a
+                // localized brush can be used directly on Border.Background.
+                fill = static_cast<Controls::Border*>(visual)->GetBackground();
+            } else {
+                continue;
+            }
             if (!fill ||
                 fill->RuntimeType() !=
                     Media::ImageBrush::

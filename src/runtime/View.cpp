@@ -1,6 +1,7 @@
 #include "markup/MarkupPrivate.hpp"
 #include <Aero/View.hpp>
 #include <Aero/Base/Hash.hpp>
+#include <cstdio>
 #include "runtime/GuiData.hpp"
 #include <Aero/FrameworkElement.hpp>
 #include "runtime/ImageCache.hpp"
@@ -1871,6 +1872,13 @@ struct ViewData {
                         Base::Result<::Aero::Controls::Detail::TemplateHandle> applied =
                             templates->Apply(control, *controlTemplate);
                         if (!applied) return applied.GetStatus();
+                        // TemplateEngine installs the handle while its
+                        // transaction is active. Invoke the control callback
+                        // only after Apply has returned so PART_* lookups and
+                        // ItemsHost realization cannot re-enter that
+                        // transaction.
+                        ::Aero::Controls::Detail::ControlPrivate::
+                            InvokeTemplateApplied(control);
                     }
                 }
             }
@@ -2121,6 +2129,12 @@ struct ViewData {
                         node);
                 Controls::Panel* host =
                     itemsControl.GetItemsHost();
+                std::fprintf(stderr,
+                    "VisitAndAttach ItemsControl=%p host=%p treeHost=%p realized=%u\n",
+                    static_cast<void*>(&itemsControl), static_cast<void*>(host),
+                    host != nullptr ? static_cast<void*>(
+                        Aero::GuiPrivate::Detail::ElementPrivate::Tree(*host)) : nullptr,
+                    itemsControl.GetRealizedItemCount());
                 if (host != nullptr &&
                     itemsControl.GetRealizedItemCount() == 0U) {
                     Base::Result<Controls::ItemContainerGenerator*>

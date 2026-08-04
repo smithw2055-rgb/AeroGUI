@@ -2,13 +2,98 @@
 
 #include <Aero/Base/HashMap.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <new>
 #include <utility>
 
 namespace Aero::Text {
 namespace {
+
+constexpr std::uint32_t SdfSpread = 8U;
+constexpr float SdfDiagonalStep = 1.41421356237F;
+
+// Deterministic two-pass chamfer transform. Keeping generation in the text
+// layer avoids backend-specific font output and external image dependencies.
+Base::Result<void> ConvertCoverageToSdf(
+    GlyphBitmap& bitmap,
+    Base::IAllocator* allocator) noexcept {
+    if (bitmap.format == GlyphPixelFormat::Sdf8) return {};
+    if (bitmap.format != GlyphPixelFormat::Gray8 || bitmap.width == 0U ||
+        bitmap.height == 0U || bitmap.strideBytes < bitmap.width) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "Glyph coverage bitmap is invalid for SDF conversion");
+    }
+    const std::uint64_t width64 =
+        static_cast<std::uint64_t>(bitmap.width) + SdfSpread * 2U;
+    const std::uint64_t height64 =
+        static_cast<std::uint64_t>(bitmap.height) + SdfSpread * 2U;
+    const std::uint64_t count64 = width64 * height64;
+    if (width64 > UINT32_MAX || height64 > UINT32_MAX || count64 > UINT32_MAX) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange,
+            "Glyph SDF dimensions exceed Aero container limits");
+    }
+    const std::uint32_t width = static_cast<std::uint32_t>(width64);
+    const std::uint32_t height = static_cast<std::uint32_t>(height64);
+    const std::uint32_t count = static_cast<std::uint32_t>(count64);
+    Base::Vector<float> foreground(allocator);
+    Base::Vector<float> background(allocator);
+    Base::Vector<std::uint8_t> pixels(allocator);
+    Base::Result<void> status = foreground.Resize(count);
+    if (status) status = background.Resize(count);
+    if (status) status = pixels.Resize(count);
+    if (!status) return status.GetStatus();
+    constexpr float Infinity = std::numeric_limits<float>::max() / 8.0F;
+    auto at = [width](std::uint32_t x, std::uint32_t y) noexcept {
+        return y * width + x;
+    };
+    for (std::uint32_t y = 0U; y < height; ++y) {
+        for (std::uint32_t x = 0U; x < width; ++x) {
+            const bool inside = x >= SdfSpread && y >= SdfSpread &&
+                x - SdfSpread < bitmap.width && y - SdfSpread < bitmap.height &&
+                bitmap.pixels[(y - SdfSpread) * bitmap.strideBytes +
+                    (x - SdfSpread)] >= 128U;
+            foreground[at(x, y)] = inside ? 0.0F : Infinity;
+            background[at(x, y)] = inside ? Infinity : 0.0F;
+        }
+    }
+    auto transform = [&](Base::Vector<float>& distances) noexcept {
+        for (std::uint32_t y = 0U; y < height; ++y) for (std::uint32_t x = 0U; x < width; ++x) {
+            float value = distances[at(x, y)];
+            if (x > 0U) value = std::min(value, distances[at(x - 1U, y)] + 1.0F);
+            if (y > 0U) value = std::min(value, distances[at(x, y - 1U)] + 1.0F);
+            if (x > 0U && y > 0U) value = std::min(value, distances[at(x - 1U, y - 1U)] + SdfDiagonalStep);
+            if (x + 1U < width && y > 0U) value = std::min(value, distances[at(x + 1U, y - 1U)] + SdfDiagonalStep);
+            distances[at(x, y)] = value;
+        }
+        for (std::uint32_t y = height; y-- > 0U;) for (std::uint32_t x = width; x-- > 0U;) {
+            float value = distances[at(x, y)];
+            if (x + 1U < width) value = std::min(value, distances[at(x + 1U, y)] + 1.0F);
+            if (y + 1U < height) value = std::min(value, distances[at(x, y + 1U)] + 1.0F);
+            if (x + 1U < width && y + 1U < height) value = std::min(value, distances[at(x + 1U, y + 1U)] + SdfDiagonalStep);
+            if (x > 0U && y + 1U < height) value = std::min(value, distances[at(x - 1U, y + 1U)] + SdfDiagonalStep);
+            distances[at(x, y)] = value;
+        }
+    };
+    transform(foreground);
+    transform(background);
+    for (std::uint32_t index = 0U; index < count; ++index) {
+        const float signedDistance = background[index] - foreground[index];
+        const float normalized = std::max(0.0F, std::min(1.0F,
+            0.5F + signedDistance / (2.0F * static_cast<float>(SdfSpread))));
+        pixels[index] = static_cast<std::uint8_t>(normalized * 255.0F + 0.5F);
+    }
+    bitmap.pixels = std::move(pixels);
+    bitmap.format = GlyphPixelFormat::Sdf8;
+    bitmap.width = width;
+    bitmap.height = height;
+    bitmap.strideBytes = width;
+    bitmap.bearingX -= static_cast<std::int32_t>(SdfSpread);
+    bitmap.bearingY += static_cast<std::int32_t>(SdfSpread);
+    return {};
+}
 
 struct GlyphAtlasKeyHash  {
     Base::HashCode operator()(
@@ -224,6 +309,8 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     Base::Result<void> rasterized =
         fonts.RasterizeGlyph(request, bitmap);
     if (!rasterized) return rasterized.GetStatus();
+    Base::Result<void> sdf = ConvertCoverageToSdf(bitmap, allocator_);
+    if (!sdf) return sdf.GetStatus();
     GlyphMetrics metrics;
     Base::Result<void> measured =
         fonts.GetGlyphMetrics(request, metrics);

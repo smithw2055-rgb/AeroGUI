@@ -9,6 +9,9 @@ Base::Result<void> PopulateUiStyling(
             Element::PPAAOutProperty,
             PropertyOptions(0.0).AffectsRender())
         .Property(
+            Element::PPAAModeProperty,
+            PropertyOptions(Base::String{}).AffectsRender())
+        .Property(
             Element::IsFocusEngagedProperty,
             PropertyOptions(false).AffectsRender());
     status = element.Result();
@@ -19,6 +22,14 @@ Base::Result<void> PopulateUiStyling(
         TextProperties::PasswordLengthProperty,
         PropertyOptions(std::uint32_t{0}).AffectsRender());
     status = text.Result();
+    if (!status) return status.GetStatus();
+
+    auto richText = Meta::Register<RichText>(context, TypeFlags::Abstract);
+    richText.Property(
+        RichText::TextProperty,
+        PropertyOptions(Base::String{}).AffectsMeasure().Changed(
+            &RichText::OnTextChanged));
+    status = richText.Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<SetterBase>(context, TypeFlags::Abstract).Result();

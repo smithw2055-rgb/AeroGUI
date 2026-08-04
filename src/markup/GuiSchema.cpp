@@ -53,6 +53,7 @@ struct GuiSchema::Impl {
     Markup::ResourceExtension resourceExtension;
     Markup::StaticExtension staticExtension;
     Markup::TypeExtension typeExtension;
+    Markup::LocExtension locExtension;
     Markup::TemplateBindingExtension templateBindingExtension;
     bool prepared = false;
     bool frozen = false;
@@ -202,6 +203,13 @@ Base::Result<void> GuiSchema::Finalize(
             Meta::MakeTypeId(
                 Markup::LanguageNamespaceUri(),
                 Base::StringView("Type")));
+    }
+    if (status) {
+        status = impl_->locExtension.Register(
+            *impl_->schema,
+            Meta::MakeTypeId(
+                Meta::AeroNamespaceUri(),
+                Base::StringView("Loc")));
     }
     if (status) {
         status = impl_->templateBindingExtension.Register(

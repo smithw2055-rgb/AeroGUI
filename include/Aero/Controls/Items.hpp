@@ -785,6 +785,10 @@ private:
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;
     std::uint32_t pendingIndex_ = UINT32_MAX;
+    // A bound SelectedItem can arrive before a delayed ItemsSource. Retain it
+    // until its matching item materializes instead of writing null back
+    // through the TwoWay binding.
+    Base::Ref<Base::Object> pendingSelectedItem_;
     SelectionChangedHandler selectionChanged_;
     ItemsChangedHandler itemsChangedHandler_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
@@ -940,6 +944,8 @@ private:
         textChangedHandler_;
     DependencyPropertyChangedEventHandler
         foregroundChangedHandler_;
+    DependencyPropertyChangedEventHandler
+        selectedValueChangedHandler_;
     RoutedEventHandler editableTextChangedHandler_;
     bool synchronizingEditableText_ = false;
 
@@ -964,6 +970,10 @@ private:
         const DependencyPropertyChangedEventArgs&
             args) noexcept;
     void OnForegroundPropertyChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs&
+            args) noexcept;
+    void OnSelectedValuePropertyChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs&
             args) noexcept;

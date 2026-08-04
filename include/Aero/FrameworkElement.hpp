@@ -121,6 +121,9 @@ public:
     Base::StringView GetFontFamily() const noexcept {
         return GetValueOr(FontFamilyProperty, Base::StringView{});
     }
+    FlowDirection GetFlowDirection() const noexcept {
+        return GetValueOr(FlowDirectionProperty, FlowDirection::LeftToRight);
+    }
     Base::Object* FindName(Base::StringView name) noexcept;
     template<class T>
     T* FindName(Base::StringView name) noexcept {
@@ -148,6 +151,7 @@ public:
     // A common inherited owner lets Window, controls and text elements share
     // the same WPF-style FontFamily value through the visual tree.
     inline static constexpr Members::Property<Base::String> FontFamilyProperty{"FontFamily"};
+    inline static constexpr Members::Property<FlowDirection> FlowDirectionProperty{"FlowDirection"};
     // Cursor names use the WPF built-in names (for example, "Hand"). The
     // platform input bridge consumes this inherited value when choosing the
     // native pointer cursor.
@@ -189,6 +193,9 @@ public:
     void SetFontFamily(
         Base::StringView value) noexcept {
         SetValue(FontFamilyProperty, value);
+    }
+    void SetFlowDirection(FlowDirection value) noexcept {
+        SetValue(FlowDirectionProperty, value);
     }
     void ClearDataContext() noexcept;
     void SetHorizontalAlignment(

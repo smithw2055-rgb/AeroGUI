@@ -255,6 +255,31 @@ private:
         void* context) noexcept;
 };
 
+// Compatibility provider for AeroGUIExtensions.Loc. Its attached Source is
+// registered by the markup schema; the provider supplies values to ordinary
+// property attributes such as {aero:Loc TitleLabel}.
+class AERO_API LocExtension {
+public:
+    LocExtension() noexcept = default;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId markupExtensionType) noexcept;
+
+    // Called by the inheritable aero:Loc.Source compatibility property.  The
+    // implementation swaps the source XAML dictionary for all Loc values
+    // authored in the same loaded visual tree.
+    static void OnSourceChanged(
+        ::Aero::DependencyObject& object,
+        const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
+
+private:
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
 // Records a WPF-style one-way property mapping while a ControlTemplate
 // prototype is authored. The prototype keeps no live expression; its immutable
 // runtime plan applies the mapping to every instantiated template tree.

@@ -20,6 +20,10 @@ public:
     }
     inline static constexpr Meta::AttachedPropertyRef<Element, double>
         PPAAOutProperty{"PPAAOut"};
+    // Compatibility setting retained for authored AeroGUI XAML. SDF text is
+    // the renderer default, so this marker never switches back to grayscale.
+    inline static constexpr Meta::AttachedPropertyRef<Element, Base::String>
+        PPAAModeProperty{"PPAAMode"};
     inline static constexpr Meta::AttachedPropertyRef<Element, bool>
         IsFocusEngagedProperty{"IsFocusEngaged"};
 };
@@ -34,6 +38,21 @@ public:
     inline static constexpr Meta::AttachedPropertyRef<
         TextProperties, std::uint32_t>
         PasswordLengthProperty{"PasswordLength"};
+};
+
+class RichText : public Base::Object {
+    AERO_DECLARE_TYPE_NAMED(
+        RichText, Base::Object, "urn:aero", "RichText")
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    inline static constexpr Meta::AttachedPropertyRef<
+        RichText, Base::String>
+        TextProperty{"Text"};
+    static void OnTextChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
 };
 
 } // namespace Aero

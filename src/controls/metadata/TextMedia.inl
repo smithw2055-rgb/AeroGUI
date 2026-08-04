@@ -69,6 +69,11 @@ Base::Result<void> PopulateControlsTextMedia(
                 TextAlignment::Start)
                 .AffectsMeasure())
         .Property(
+            TextBlock::LineHeightProperty,
+            PropertyOptions(0.0)
+                .AffectsMeasure()
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+        .Property(
             TextBlock::PaddingProperty,
             PropertyOptions(Aero::Thickness{})
                 .AffectsMeasure()

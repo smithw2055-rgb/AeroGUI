@@ -404,13 +404,17 @@ TypeReference GetStyleTargetType(
 void SetStyleTargetType(
     Style& style,
     TypeReference value) noexcept {
-    return;
+    // TargetType is authored as a TypeReference by the XAML schema.  Keep the
+    // resolved runtime TypeId on the Style so implicit style keys remain
+    // distinct (for example Label, ComboBox, and ComboBoxItem).
+    (void)style.SetTargetType(value.type);
 }
 
 void SetStyleBasedOn(
     Style& style,
     Base::Ref<Style> value) noexcept {
-    return;
+    (void)style.SetBasedOn(Base::Ref<Base::Object>(
+        std::move(value)));
 }
 
 void AddMergedDictionary(
@@ -431,13 +435,17 @@ void AddStyleSetter(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value || value->RuntimeType() != Setter::StaticTypeId()) {
+        return;
+    }
     Base::Ref<Setter> retained =
         Base::Ref<Setter>::TryFromBorrowed(
             static_cast<Setter&>(*value));
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(static_cast<Style&>(owner).AddAuthoredSetter(
+        std::move(retained)));
 }
 
 void ClearStyleSetters(
@@ -451,13 +459,17 @@ void AddStyleTrigger(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value || value->RuntimeType() != Trigger::StaticTypeId()) {
+        return;
+    }
     Base::Ref<Trigger> retained =
         Base::Ref<Trigger>::TryFromBorrowed(
             static_cast<Trigger&>(*value));
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(static_cast<Style&>(owner).AddAuthoredTrigger(
+        std::move(retained)));
 }
 
 void ClearStyleTriggers(
@@ -471,13 +483,17 @@ void AddTriggerSetter(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value || value->RuntimeType() != Setter::StaticTypeId()) {
+        return;
+    }
     Base::Ref<Setter> retained =
         Base::Ref<Setter>::TryFromBorrowed(
             static_cast<Setter&>(*value));
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(static_cast<Trigger&>(owner).AddAuthoredSetter(
+        std::move(retained)));
 }
 
 void ClearTriggerSetters(
@@ -648,7 +664,8 @@ void AddGradientStop(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    if (!value) {
+    if (!value || value->RuntimeType() !=
+            GradientStop::StaticTypeId()) {
         return;
     }
     Base::Ref<GradientStop> retained =
@@ -657,7 +674,9 @@ void AddGradientStop(
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(
+        static_cast<GradientBrush&>(owner).AddGradientStop(
+            std::move(retained)));
 }
 
 void ClearGradientStops(
@@ -676,7 +695,10 @@ void AddGradientStopCollectionItem(
             GradientStop::StaticTypeId()) {
         return;
     }
-    return;
+    static_cast<void>(
+        static_cast<GradientStopCollection&>(owner).Add(
+            Base::Ref<GradientStop>::FromBorrowed(
+                static_cast<GradientStop&>(*value))));
 }
 
 void ClearGradientStopCollectionItems(

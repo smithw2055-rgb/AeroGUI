@@ -1680,6 +1680,9 @@ Size TextBox::MeasureOverride(
         request.fontFamily = family;
         request.wrapping = GetTextWrapping();
         request.alignment = GetTextAlignment();
+        request.direction = GetFlowDirection() == FlowDirection::RightToLeft
+            ? Text::TextDirection::RightToLeft
+            : Text::TextDirection::LeftToRight;
         Detail::TextLayoutResult result;
         Base::Result<void> prepared =
             LayoutService(layoutService_)->ShapeAndPrepare(

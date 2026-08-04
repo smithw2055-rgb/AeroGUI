@@ -174,7 +174,10 @@ struct GlyphMetrics  {
 };
 
 enum class GlyphPixelFormat : std::uint8_t {
-    Gray8 = 0U
+    // Rasterizers return coverage; the atlas stores SDF values for stable
+    // filtering across Viewbox and DPI scaling.
+    Gray8 = 0U,
+    Sdf8
 };
 
 struct GlyphBitmap  {

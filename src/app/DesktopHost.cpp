@@ -638,13 +638,37 @@ struct DesktopHost::Impl {
     Base::Result<void> LoadApplication() noexcept {
         if (suppliedApplication != nullptr) {
             application = suppliedApplication;
-            if (!application->GetStartupUri().Empty()) {
-                Base::Result<Base::ResourceUri> baseUri =
-                    Base::ResourceUri::Parse(applicationFile.View());
-                if (!baseUri) return baseUri.GetStatus();
+            // A C++ Application supplies lifecycle callbacks, but App.xaml is
+            // still its authored resource and StartupUri contract. Loading it
+            // here keeps source XAML resources in their Application layer
+            // instead of forcing samples to duplicate their theme in code.
+            Base::Result<Base::Ref<View>> created = CreateLoaderView();
+            if (!created) return created.GetStatus();
+            loaderView = std::move(created).Value();
+            Markup::XamlReader reader(*loaderView);
+            Base::Result<Markup::XamlDocument> loaded = reader.Load(
+                applicationFile.View(), {}, diagnostics);
+            if (!loaded) return loaded.GetStatus();
+            const Base::Ref<Base::Object>& root = loaded.Value().Root();
+            if (!root || !View::Impl::IsInstanceOf(
+                    *loaderView, *root, Application::StaticTypeId())) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Application XAML root must be Application");
+            }
+            applicationOwner = root;
+            Application& authored = static_cast<Application&>(*root);
+            if (authored.GetResources()) {
+                application->SetResources(authored.GetResources());
+            }
+            const Base::StringView startup =
+                application->GetStartupUri().Empty()
+                ? authored.GetStartupUri()
+                : application->GetStartupUri();
+            if (!startup.Empty()) {
                 Base::Result<Base::ResourceUri> resolved =
                     Base::ResourceUri::Resolve(
-                        baseUri.Value(), application->GetStartupUri());
+                        loaded.Value().CanonicalUri(), startup);
                 if (!resolved) return resolved.GetStatus();
                 startupUri = std::move(resolved).Value();
             }

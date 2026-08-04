@@ -95,6 +95,7 @@ private:
     TextLayoutSize size_;
     TextLayoutSize naturalSize_;
     TextAlignment alignment_ = TextAlignment::Start;
+    TextDirection direction_ = TextDirection::Auto;
     bool trimmed_ = false;
 };
 

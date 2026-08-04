@@ -403,6 +403,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     layoutRequest.wrapping = request.wrapping;
     layoutRequest.trimming = request.trimming;
     layoutRequest.alignment = request.alignment;
+    layoutRequest.direction = request.direction;
     Text::TextLayout layout(allocator_);
     Base::Result<void> laidOut =
         layout.ShapeAndMeasure(*fonts_, layoutRequest);

@@ -337,6 +337,7 @@ public:
     TextWrapping GetTextWrapping() const noexcept;
     TextTrimming GetTextTrimming() const noexcept;
     TextAlignment GetTextAlignment() const noexcept;
+    double GetLineHeight() const noexcept;
     std::uint32_t GetInlineCount() const noexcept {
         return ownedInlines_.Size();
     }
@@ -365,6 +366,7 @@ public:
         TextTrimming value) noexcept;
     void SetTextAlignment(
         TextAlignment value) noexcept;
+    void SetLineHeight(double value) noexcept;
     void SetInlineValue(
         Meta::Value value) noexcept;
     Base::Result<void> AddOwnedInline(
@@ -387,6 +389,7 @@ public:
     inline static constexpr Members::Property<TextWrapping> TextWrappingProperty{"TextWrapping"};
     inline static constexpr Members::Property<TextTrimming> TextTrimmingProperty{"TextTrimming"};
     inline static constexpr Members::Property<TextAlignment> TextAlignmentProperty{"TextAlignment"};
+    inline static constexpr Members::Property<double> LineHeightProperty{"LineHeight"};
     inline static constexpr Members::Property<Thickness> PaddingProperty{"Padding"};
 protected:
     explicit TextBlock(TypeId runtimeType) noexcept;

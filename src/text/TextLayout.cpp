@@ -229,6 +229,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
     Base::IAllocator* const allocator = &runs_.Allocator();
     TextLayout pending(allocator);
     pending.alignment_ = request.alignment;
+    pending.direction_ = request.direction;
     if (request.text.Empty()) {
         *this = std::move(pending);
         return {};
@@ -724,7 +725,9 @@ Base::Result<void> TextLayout::Arrange(
         float targetX = 0.0F;
         if (alignment_ == TextAlignment::Center) {
             targetX = available * 0.5F;
-        } else if (alignment_ == TextAlignment::End) {
+        } else if (alignment_ == TextAlignment::End ||
+                   (alignment_ == TextAlignment::Start &&
+                    direction_ == TextDirection::RightToLeft)) {
             targetX = available;
         }
         const float delta = targetX - line.x;
@@ -748,6 +751,7 @@ void TextLayout::Clear() noexcept {
     size_ = {};
     naturalSize_ = {};
     alignment_ = TextAlignment::Start;
+    direction_ = TextDirection::Auto;
     trimmed_ = false;
 }
 

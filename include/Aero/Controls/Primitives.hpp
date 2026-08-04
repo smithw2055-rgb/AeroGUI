@@ -669,8 +669,8 @@ class AERO_API Slider : public Primitives::RangeBase {
 public:
     struct Impl;
 
-    Slider() noexcept : Primitives::RangeBase(StaticTypeId()) {}
-    ~Slider() override = default;
+    Slider() noexcept;
+    ~Slider() override;
 
     Orientation GetOrientation() const noexcept;
     double GetSmallChange() const noexcept;
@@ -718,12 +718,20 @@ public:
     inline static constexpr Members::Property<bool> IsMoveToPointEnabledProperty{"IsMoveToPointEnabled"};
 
 protected:
+    void OnApplyTemplate() noexcept override;
+    void OnTemplateDetached() noexcept override;
     Size ArrangeOverride(
         Size finalSize) noexcept override;
     void OnRender(
         DrawingContext& context) noexcept override;
 
 private:
+    Primitives::Track* track_ = nullptr;
+    DependencyPropertyChangedEventHandler trackPropertyChangedHandler_;
+    void OnTrackPropertyChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
+    void SynchronizeTrack() noexcept;
     double GetNormalizedValueForLayout() const noexcept;
     double GetSnapValue(double value) const noexcept;
 };

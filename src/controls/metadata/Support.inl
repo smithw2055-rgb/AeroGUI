@@ -449,7 +449,7 @@ Base::Result<Base::Ref<Base::Object>> CoerceSelectedObject(
     const Base::Ref<Base::Object>& value) noexcept {
     const auto& selector =
         static_cast<const Selector&>(object);
-    if (value &&
+    if (value && selector.GetCount() != 0U &&
         selector.GetIndexOfItem(value.Get()) == UINT32_MAX) {
         return Base::Ref<Base::Object>{};
     }

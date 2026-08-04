@@ -80,6 +80,10 @@ public:
         Control& control) noexcept {
         control.NotifyTemplateDetached();
     }
+    static void InvokeTemplateApplied(
+        Control& control) noexcept {
+        control.OnApplyTemplate();
+    }
 
     static UIElement* ContentElement(
         const ContentControl& control) noexcept {

@@ -3028,6 +3028,25 @@ Base::Result<Registry::Storage*> Registry::BuildCandidate(
         }
     }
 
+    // Value semantics are prerequisites for cloning any property default or
+    // behavior payload that stores a non-inline value.  Restore them before
+    // property registrations so a second registry candidate observes the
+    // same value codec domain as the committed registry.
+    for (const ValueTable::ValueSemanticsEntry& semantics :
+         storage_->valueRegistrations.valueSemantics_) {
+        Base::Result<void> cloned =
+            candidate->valueRegistrations.RegisterValueSemantics(
+                semantics.type,
+                semantics.semantics->Registration());
+        if (!cloned) return fail(cloned.GetStatus());
+    }
+    for (const TextValueConverterRegistration& converter :
+         storage_->valueRegistrations.textConverters_) {
+        Base::Result<void> cloned =
+            candidate->valueRegistrations.RegisterTextConverter(converter);
+        if (!cloned) return fail(cloned.GetStatus());
+    }
+
     // Dependency properties create both their catalog entry and structural
     // property descriptor, so they are cloned before ordinary members.
     for (const Meta::DependencyProperty& property :
@@ -3177,21 +3196,6 @@ Base::Result<Registry::Storage*> Registry::BuildCandidate(
         if (!cloned) return fail(cloned.GetStatus());
     }
 
-    for (const ValueTable::ValueSemanticsEntry& semantics :
-         storage_->valueRegistrations.valueSemantics_) {
-        Base::Result<void> cloned =
-            candidate->valueRegistrations.RegisterValueSemantics(
-                semantics.type,
-                semantics.semantics->Registration());
-        if (!cloned) return fail(cloned.GetStatus());
-    }
-    for (const TextValueConverterRegistration& converter :
-         storage_->valueRegistrations.textConverters_) {
-        Base::Result<void> cloned =
-            candidate->valueRegistrations.RegisterTextConverter(converter);
-        if (!cloned) return fail(cloned.GetStatus());
-    }
-
     for (const Storage::ModuleRecord& source : storage_->modules) {
         Storage::ModuleRecord record;
         record.id = source.id;
@@ -3291,34 +3295,54 @@ Base::Result<void> Registry::RegisterModule(
         }
     }
 
-    Base::Result<Storage*> candidate = BuildCandidate(&registration, false);
-    if (!candidate) return candidate.GetStatus();
-    Base::Result<void> adopted =
-        candidate.Value()->behaviorRegistrations.AdoptOwnedContextsFrom(
-            storage_->behaviorRegistrations);
-    if (!adopted) {
-        delete candidate.Value();
-        return adopted.GetStatus();
-    }
-    delete storage_;
-    storage_ = candidate.Value();
-    return {};
+    // Modules are accumulated only while the registry is mutable. Applying
+    // directly keeps behavior contexts owned by their registering table and
+    // avoids rebuilding the value-semantic store once per module. Seal() then
+    // freezes this single registry into the immutable runtime snapshot.
+    ::Aero::GuiPrivate::Detail::RegistrationState contextState{
+        &storage_->types,
+        &storage_->behaviorRegistrations,
+        &storage_->valueRegistrations,
+        &storage_->dependencyProperties,
+        &storage_->routedEvents};
+    Registration context(&contextState);
+    Base::Result<void> applied = registration.registerModule != nullptr
+        ? registration.registerModule(context)
+        : registration.registerModuleWithContext(
+              context, registration.context);
+    if (!applied) return applied.GetStatus();
+
+    Storage::ModuleRecord record;
+    record.id = registration.id;
+    record.schemaVersion = registration.schemaVersion;
+    Base::Result<void> assigned = record.name.Assign(registration.name);
+    if (!assigned) return assigned.GetStatus();
+    return storage_->modules.PushBack(std::move(record));
 }
 
 Base::Result<void> Registry::Seal() noexcept {
     if (storage_ == nullptr) return OutOfMemoryStatus();
     if (storage_->sealed) return {};
-    Base::Result<Storage*> candidate = BuildCandidate(nullptr, true);
-    if (!candidate) return candidate.GetStatus();
-    Base::Result<void> adopted =
-        candidate.Value()->behaviorRegistrations.AdoptOwnedContextsFrom(
-            storage_->behaviorRegistrations);
-    if (!adopted) {
-        delete candidate.Value();
-        return adopted.GetStatus();
-    }
-    delete storage_;
-    storage_ = candidate.Value();
+    Base::Result<void> frozen = storage_->types.Freeze();
+    if (!frozen) return frozen.GetStatus();
+    frozen = storage_->behaviorRegistrations.Freeze();
+    if (!frozen) return frozen.GetStatus();
+    frozen = storage_->valueRegistrations.Freeze();
+    if (!frozen) return frozen.GetStatus();
+    frozen = storage_->dependencyProperties.Freeze();
+    if (!frozen) return frozen.GetStatus();
+    frozen = storage_->routedEvents.Freeze();
+    if (!frozen) return frozen.GetStatus();
+    frozen = storage_->facets.Build(
+        storage_->types,
+        storage_->behaviorRegistrations,
+        storage_->dependencyProperties,
+        storage_->routedEvents);
+    if (!frozen) return frozen.GetStatus();
+    frozen = storage_->facets.BuildValueFacets(
+        storage_->valueRegistrations, storage_->types);
+    if (!frozen) return frozen.GetStatus();
+    storage_->sealed = true;
     return {};
 }
 

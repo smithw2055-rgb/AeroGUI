@@ -1475,6 +1475,9 @@ void Border::OnRender(
         bounds.height <= 0.0) {
         return;
     }
+    const Base::Ref<Brush> background = GetBackground();
+    const bool imageBackground = background &&
+        background->RuntimeType() == Media::ImageBrush::StaticTypeId();
     const CornerRadius radii = GetCornerRadius();
     const double radius = std::min(
         std::max(
@@ -1517,20 +1520,27 @@ void Border::OnRender(
             inner.height <= 0.0) {
             return;
         }
-        static_cast<void>(builder.FillRoundedRect(
-            inner,
-            ::Aero::Media::Detail::SampleBrush(GetBackground()),
-            std::min(
-                std::max(0.0, radius - inset),
+        if (imageBackground) {
+            static_cast<void>(PaintBrushRect(builder, background, inner));
+        } else {
+            static_cast<void>(builder.FillRoundedRect(
+                inner,
+                ::Aero::Media::Detail::SampleBrush(background),
                 std::min(
-                    inner.width,
-                    inner.height) * 0.5)));
+                    std::max(0.0, radius - inset),
+                    std::min(
+                        inner.width,
+                        inner.height) * 0.5)));
+        }
         return;
     }
-    Base::Result<void> fill = radius > 0.0
-        ? builder.FillRoundedRect(
-              bounds, ::Aero::Media::Detail::SampleBrush(GetBackground()), radius)
-        : builder.FillRect(bounds, ::Aero::Media::Detail::SampleBrush(GetBackground()));
+    Base::Result<void> fill = imageBackground
+        ? PaintBrushRect(builder, background, bounds, radius)
+        : (radius > 0.0
+            ? builder.FillRoundedRect(
+                  bounds, ::Aero::Media::Detail::SampleBrush(background), radius)
+            : builder.FillRect(
+                  bounds, ::Aero::Media::Detail::SampleBrush(background)));
     if (!fill) return;
     if (uniformThickness > 0.0 &&
         brush.alpha > 0.0F) {
@@ -1652,6 +1662,10 @@ TextAlignment TextBlock::GetTextAlignment() const noexcept {
         TextAlignment::Start);
 }
 
+double TextBlock::GetLineHeight() const noexcept {
+    return GetValueOr(LineHeightProperty, 0.0);
+}
+
 void TextBlock::SetText(Base::StringView value) noexcept {
     SetValue(TextProperty, value);
     textHitRegions_.Clear();
@@ -1706,6 +1720,10 @@ void TextBlock::SetTextTrimming(
 void TextBlock::SetTextAlignment(
     TextAlignment value) noexcept {
     SetValue(TextAlignmentProperty, value);
+}
+
+void TextBlock::SetLineHeight(double value) noexcept {
+    SetValue(LineHeightProperty, value);
 }
 
 Meta::Value TextBlock::GetMetadataInlines() const noexcept {
@@ -1867,10 +1885,14 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
             request.availableSize = availableSize;
             request.dpiScale = GetDpiScale();
             request.pixelSize = static_cast<float>(GetFontSize());
+            request.lineHeight = static_cast<float>(GetLineHeight());
             request.fontFamily = EffectiveFontFamily();
             request.wrapping = GetTextWrapping();
             request.trimming = GetTextTrimming();
             request.alignment = GetTextAlignment();
+            request.direction = GetFlowDirection() == FlowDirection::RightToLeft
+                ? Text::TextDirection::RightToLeft
+                : Text::TextDirection::LeftToRight;
             ::Aero::Controls::Detail::TextLayoutResult output;
             Base::Result<void> prepared =
                 static_cast<::Aero::Controls::Detail::TextBlockLayout*>(layoutService_)->ShapeAndPrepare(request, output);

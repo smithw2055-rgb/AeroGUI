@@ -383,6 +383,37 @@ Base::Result<void> PaintBrushRect(
         bounds.height <= 0.0) {
         return {};
     }
+    if (brush->RuntimeType() == ImageBrush::StaticTypeId()) {
+        const auto& imageBrush =
+            *static_cast<ImageBrush*>(brush.Get());
+        const Render::RenderImageId image =
+            Detail::BrushPrivate::RuntimeImage(imageBrush);
+        const std::uint32_t pixelWidth =
+            Detail::BrushPrivate::PixelWidth(imageBrush);
+        const std::uint32_t pixelHeight =
+            Detail::BrushPrivate::PixelHeight(imageBrush);
+        if (image == Render::InvalidRenderImageId ||
+            pixelWidth == 0U || pixelHeight == 0U) {
+            return {};
+        }
+        Rect source = imageBrush.GetViewbox();
+        if (imageBrush.GetViewboxUnits() ==
+            BrushMappingMode::Absolute) {
+            source.x /= static_cast<double>(pixelWidth);
+            source.y /= static_cast<double>(pixelHeight);
+            source.width /= static_cast<double>(pixelWidth);
+            source.height /= static_cast<double>(pixelHeight);
+        }
+        source.x = std::clamp(source.x, 0.0, 1.0);
+        source.y = std::clamp(source.y, 0.0, 1.0);
+        source.width = std::clamp(source.width, 0.0, 1.0 - source.x);
+        source.height = std::clamp(source.height, 0.0, 1.0 - source.y);
+        if (source.width <= 0.0 || source.height <= 0.0) return {};
+        return builder.DrawImage(
+            image, bounds, source,
+            Color{1.0F, 1.0F, 1.0F,
+                  static_cast<float>(imageBrush.GetOpacity())});
+    }
     if (brush->RuntimeType() ==
         LinearGradientBrush::StaticTypeId()) {
         const auto& gradient =

@@ -888,6 +888,51 @@ void ItemsControl::OnApplyTemplate() noexcept {
             ItemsPresenter::StaticTypeId());
     }
     if (part == nullptr) {
+        // Reference XAML is also allowed to declare an items host directly
+        // (<StackPanel IsItemsHost="True"/>), without an ItemsPresenter or a
+        // PART name. TemplateEngine resolves such a panel before returning a
+        // generic Panel part.
+        part = GetTemplateChild(Panel::StaticTypeId());
+    }
+    if (part == nullptr) {
+        // Content inside a Popup is structurally projected by the template
+        // builder and is therefore not necessarily present in the outer
+        // template part table. Discover the direct IsItemsHost declaration
+        // from the complete applied visual subtree.
+        Base::Vector<Visual*> pending;
+        UIElement* root = GetTemplateRoot();
+        if (root != nullptr) {
+            static_cast<void>(pending.PushBack(root));
+        }
+        while (!pending.Empty() && part == nullptr) {
+            Visual* current = pending.Back();
+            pending.PopBack();
+            if (current == nullptr) continue;
+            if (PropertyRegistry().Types().IsDerivedFrom(
+                    current->RuntimeType(), Panel::StaticTypeId())) {
+                auto& panel = *static_cast<Panel*>(current);
+                if (panel.GetValueOr(Panel::IsItemsHostProperty, false)) {
+                    part = current;
+                    break;
+                }
+            }
+            if (PropertyRegistry().Types().IsDerivedFrom(
+                    current->RuntimeType(), ContentControl::StaticTypeId())) {
+                UIElement* content = Detail::ControlPrivate::ContentElement(
+                    *static_cast<ContentControl*>(current));
+                if (content != nullptr) {
+                    static_cast<void>(pending.PushBack(content));
+                }
+            }
+            for (Visual* child : Aero::GuiPrivate::Detail::
+                     ElementPrivate::VisualChildren(*current)) {
+                if (child != nullptr) {
+                    static_cast<void>(pending.PushBack(child));
+                }
+            }
+        }
+    }
+    if (part == nullptr) {
         return;
     }
     if (PropertyRegistry().Types().IsDerivedFrom(

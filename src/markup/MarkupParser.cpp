@@ -1238,7 +1238,11 @@ Base::Result<void> NodeReader::QueueStartElement(
     }
 
     for (const XmlAttribute& attribute : token.Attributes()) {
-        if (!IsMarkupCompatibilityIgnorable(attribute)) continue;
+        Base::StringView prefix;
+        if (IsNamespaceDeclaration(attribute.Name(), prefix) ||
+            !IsMarkupCompatibilityIgnorable(attribute)) {
+            continue;
+        }
         Base::Result<void> ignored = AddIgnorableNamespaces(
             attribute.Value(), attribute.Source());
         if (!ignored) return ignored.GetStatus();

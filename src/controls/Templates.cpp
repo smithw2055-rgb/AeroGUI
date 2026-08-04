@@ -1139,6 +1139,10 @@ bool Control::ApplyTemplate() noexcept {
         static_cast<TemplateEngine*>(templateRuntime_)->
             Apply(*this, *value);
     if (!applied) return false;
+    // TemplateEngine has now completed its instance transaction and installed
+    // the handle/name scope. Derived controls may safely resolve PART_* and
+    // materialize item containers without re-entering the transaction.
+    OnApplyTemplate();
     return true;
 }
 
@@ -1413,8 +1417,25 @@ DependencyObject* TemplateEngine::FindPart(
         type == InvalidTypeId) {
         return nullptr;
     }
+    // A direct panel declared with IsItemsHost is the XAML contract for an
+    // ItemsControl without an ItemsPresenter. Prefer it over structural
+    // panels such as the template root when a caller asks for a Panel.
+    if (type == Panel::StaticTypeId()) {
+        for (const Aero::Controls::Detail::TemplatePart& part :
+             instances_[index].parts) {
+            if (part.object == nullptr ||
+                !properties_->Types().IsDerivedFrom(
+                    part.object->RuntimeType(), Panel::StaticTypeId())) {
+                continue;
+            }
+            auto& panel = *static_cast<Panel*>(part.object);
+            if (panel.GetValueOr(Panel::IsItemsHostProperty, false)) {
+                return part.object;
+            }
+        }
+    }
     for (const Aero::Controls::Detail::TemplatePart& part :
-         instances_[index].parts) {
+        instances_[index].parts) {
         if (part.object != nullptr &&
             properties_->Types().IsDerivedFrom(
                 part.object->RuntimeType(), type)) {

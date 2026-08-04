@@ -1,5 +1,7 @@
 #include "gui/GuiPrivate.hpp"
 #include "gui/GuiPrivate.hpp"
+#include "gui/private/Style.hpp"
+#include <Aero/Controls/Panels.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Value.hpp>
@@ -7,6 +9,26 @@
 #include <new>
 
 namespace Aero {
+
+void RichText::OnTextChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+    if (object.RuntimeType() != Controls::TextBlock::StaticTypeId()) return;
+    const Base::StringView source = object.GetValueOr(
+        TextProperty, Base::StringView{});
+    Base::String plain;
+    bool tag = false;
+    for (std::uint32_t index = 0U; index < source.SizeBytes(); ++index) {
+        const char character = source[index];
+        if (character == '[') { tag = true; continue; }
+        if (tag) {
+            if (character == ']') tag = false;
+            continue;
+        }
+        if (!plain.Append(Base::StringView(&character, 1U))) return;
+    }
+    static_cast<Controls::TextBlock&>(object).SetText(plain.View());
+}
 
 std::uint32_t SetterBaseCollection::Count() const noexcept {
     return owner_ != nullptr ? owner_->GetAuthoredSetters().Size() : 0U;

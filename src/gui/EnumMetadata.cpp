@@ -240,6 +240,12 @@ Base::Result<void> PopulateEnumMetadata(
             .Value("Right", ::Aero::TextAlignment::End)
             .Value("Justify", ::Aero::TextAlignment::Justify););
     AERO_REGISTER_ENUM(
+        ::Aero::FlowDirection,
+        "FlowDirection",
+        description
+            .Value("LeftToRight", ::Aero::FlowDirection::LeftToRight)
+            .Value("RightToLeft", ::Aero::FlowDirection::RightToLeft););
+    AERO_REGISTER_ENUM(
         ::Aero::FontStyle,
         "FontStyle",
         description

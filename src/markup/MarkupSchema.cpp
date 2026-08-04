@@ -379,6 +379,27 @@ public:
     }
 };
 
+// AeroGUI's application samples expose Loc both as a markup extension and as
+// an attached Source property.  The token deliberately lives in the normal
+// schema so the legacy AeroGUIExtensions namespace resolves to the same type
+// as other compatibility extensions.
+class LocExtensionToken
+    : public Base::Object {
+    AERO_DECLARE_TYPE_NAMED(
+        LocExtensionToken,
+        Base::Object,
+        "urn:aero",
+        "Loc")
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+
+    inline static constexpr Meta::AttachedPropertyRef<
+        LocExtensionToken, Base::ResourceUri>
+        SourceProperty{"Source"};
+};
+
 void AddGroupState(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
@@ -531,7 +552,16 @@ Base::Result<void> PopulateMarkupMetadata(
     status = Meta::Register<TemplateBindingExtensionToken>(
         context,
         TypeFlags::MarkupExtension |
-            TypeFlags::Sealed).Result();
+                TypeFlags::Sealed).Result();
+    if (!status) return status.GetStatus();
+    auto loc = Meta::Register<LocExtensionToken>(
+        context,
+        TypeFlags::MarkupExtension | TypeFlags::Abstract);
+    loc.Property(
+        LocExtensionToken::SourceProperty,
+        PropertyOptions(Base::ResourceUri{}).Inherits().Changed(
+            &LocExtension::OnSourceChanged));
+    status = loc.Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<StaticResourceObject>(context)
         .Property(
@@ -1354,6 +1384,11 @@ Base::StringView CanonicalXamlTypeName(
     Base::StringView value) noexcept {
     return value == Base::StringView("HierarchicalDataTemplate")
         ? Base::StringView("DataTemplate")
+        // WPF's Geometry type converter materializes a StreamGeometry for
+        // textual path data. Aero exposes that concrete representation, so
+        // preserve the portable <Geometry> XAML spelling as its alias.
+        : value == Base::StringView("Geometry")
+        ? Base::StringView("StreamGeometry")
         : value;
 }
 
@@ -1370,8 +1405,9 @@ bool IsAeroExtensionsFacade(
     return namespaceMatches &&
         (ownerName == Base::StringView("Text") ||
          ownerName == Base::StringView("Path") ||
-          ownerName == Base::StringView("Brush") ||
-          ownerName == Base::StringView("Element"));
+         ownerName == Base::StringView("Brush") ||
+          ownerName == Base::StringView("Element") ||
+          ownerName == Base::StringView("RichText"));
 }
 
 Base::Result<void> AppendU8(
@@ -2424,6 +2460,8 @@ Base::StringView SchemaCanonicalXamlTypeName(
     // hierarchy-specific item expansion is applied by TreeViewItem later.
     return value == Base::StringView("HierarchicalDataTemplate")
         ? Base::StringView("DataTemplate")
+        : value == Base::StringView("Geometry")
+        ? Base::StringView("StreamGeometry")
         : value;
 }
 
@@ -2440,8 +2478,9 @@ bool SchemaIsAeroExtensionsFacade(
     return namespaceMatches &&
         (ownerName == Base::StringView("Text") ||
          ownerName == Base::StringView("Path") ||
-          ownerName == Base::StringView("Brush") ||
-          ownerName == Base::StringView("Element"));
+         ownerName == Base::StringView("Brush") ||
+          ownerName == Base::StringView("Element") ||
+          ownerName == Base::StringView("RichText"));
 }
 
 } // namespace

@@ -609,8 +609,10 @@ void main() {
             discard;
         }
     }
+    float distance = texture(AeroTexture0, textureCoordinate).r;
+    float smoothing = max(fwidth(distance), 1.0 / 512.0);
     outputColor = vertexTint;
-    outputColor.a *= texture(AeroTexture0, textureCoordinate).r;
+    outputColor.a *= smoothstep(0.5 - smoothing, 0.5 + smoothing, distance);
 }
 )GLSL";
 

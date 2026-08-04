@@ -188,6 +188,20 @@ bool HasDefaultTargetConversion(
          sourceType != InvalidTypeId);
 }
 
+// A TwoWay object binding may intentionally expose a concrete source object
+// through an Object-typed target property (for example a view-model Language
+// through Selector.SelectedItem). The forward assignment is type-safe; the
+// reverse assignment is checked against the runtime object's real type.
+bool CanRoundTripObjectValue(
+    const TypeRegistry& types,
+    TypeId sourceType,
+    TypeId targetType) noexcept {
+    return sourceType != InvalidTypeId &&
+        targetType != InvalidTypeId &&
+        sourceType != targetType &&
+        types.IsAssignableFrom(targetType, sourceType);
+}
+
 Base::Result<Base::String> FormatBindingString(
     const PropertyValue& value,
     Base::StringView format) noexcept {
@@ -513,6 +527,9 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     record.metadata = descriptor.metadata;
     record.metadataSource = descriptor.source;
     record.dataContextProperty = descriptor.dataContextProperty;
+    record.dataContextOwner = descriptor.dataContextOwner != nullptr
+        ? descriptor.dataContextOwner
+        : descriptor.target;
     record.descriptor.target = descriptor.target;
     record.descriptor.targetProperty = descriptor.targetProperty;
     record.descriptor.mode = descriptor.mode;
@@ -520,6 +537,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         descriptor.updateSourceTrigger;
     record.descriptor.convert = descriptor.convert;
     record.descriptor.convertBack = descriptor.convertBack;
+    record.descriptor.converterResource = descriptor.converterResource;
     record.descriptor.validate = descriptor.validate;
     record.descriptor.validateBack = descriptor.validateBack;
     record.descriptor.conversionContext =
@@ -585,7 +603,11 @@ Base::Result<BindingHandle> BindingEngine::Attach(
             descriptor.convertBack == nullptr &&
             !HasDefaultTargetConversion(
                 targetProperty->ValueType(),
-                record.pathPlan.ResultType())) {
+                record.pathPlan.ResultType()) &&
+            !CanRoundTripObjectValue(
+                record.metadata->Types(),
+                record.pathPlan.ResultType(),
+                targetProperty->ValueType())) {
             --nextHandle_;
             return InvalidArgument(
                 "Binding requires ConvertBack for different source and target types");
@@ -631,7 +653,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     }
     if (stored.sourceKind == BindingSourceKind::DataContext) {
         Base::Result<void> contextSubscription =
-            descriptor.target->AddValueChangedHandlerChecked(
+            stored.dataContextOwner->AddValueChangedHandlerChecked(
                 descriptor.dataContextProperty,
                 propertyChangedHandler_);
         if (!contextSubscription) {
@@ -670,12 +692,14 @@ Base::Result<void> BindingEngine::QueueDeferred(
     record.targetProperty = descriptor.targetProperty;
     record.dataContextProperty =
         descriptor.dataContextProperty;
+    record.dataContextOwner = descriptor.dataContextOwner;
     record.mode = descriptor.mode;
     record.updateSourceTrigger =
         descriptor.updateSourceTrigger;
     record.bindsToSource = descriptor.bindsToSource;
     record.convert = descriptor.convert;
     record.convertBack = descriptor.convertBack;
+    record.converterResource = descriptor.converterResource;
     record.validate = descriptor.validate;
     record.validateBack = descriptor.validateBack;
     record.conversionContext =
@@ -716,6 +740,7 @@ BindingEngine::ActivateDeferred(
             record.targetProperty;
         descriptor.dataContextProperty =
             record.dataContextProperty;
+        descriptor.dataContextOwner = record.dataContextOwner;
         descriptor.path = record.path.View();
         descriptor.stringFormat =
             record.stringFormat.View();
@@ -726,6 +751,7 @@ BindingEngine::ActivateDeferred(
             record.updateSourceTrigger;
         descriptor.convert = record.convert;
         descriptor.convertBack = record.convertBack;
+        descriptor.converterResource = record.converterResource;
         descriptor.validate = record.validate;
         descriptor.validateBack =
             record.validateBack;
@@ -808,7 +834,8 @@ Base::Result<std::uint32_t> BindingEngine::DetachObject(
         const BindingRecord& record = bindings_[index];
         if (record.descriptor.source != &object &&
             record.metadataSource != &object &&
-            record.descriptor.target != &object) {
+            record.descriptor.target != &object &&
+            record.dataContextOwner != &object) {
             ++index;
             continue;
         }
@@ -820,7 +847,8 @@ Base::Result<std::uint32_t> BindingEngine::DetachObject(
         const DeferredBindingRecord& record =
             deferredBindings_[index];
         if (record.source != &object &&
-            record.target != &object) {
+            record.target != &object &&
+            record.dataContextOwner != &object) {
             ++index;
             continue;
         }
@@ -1116,7 +1144,7 @@ void BindingEngine::OnPropertyChanged(
             record.sourceDirty = true;
         }
         if (record.sourceKind == BindingSourceKind::DataContext &&
-            record.descriptor.target == &object &&
+            record.dataContextOwner == &object &&
             record.dataContextProperty == args.GetProperty()) {
             ReleaseMetadataSource(record);
             record.metadataSource = nullptr;
@@ -1238,18 +1266,10 @@ Base::Result<void> BindingEngine::VerifyDescriptor(
         return InvalidArgument(
             "Binding target-null value type differs from the target property");
     }
-    if (descriptor.source == nullptr) {
-        Base::Result<PropertyValue> dataContext =
-            descriptor.target->GetValue(
-                descriptor.dataContextProperty);
-        if (!dataContext) return dataContext.GetStatus();
-        if (dataContext.Value().Kind() != ValueKind::Object) {
-            return InvalidArgument(
-                "Binding DataContext property must contain an object");
-        }
-    } else if (descriptor.source->RuntimeType() == InvalidTypeId ||
+    if (descriptor.source != nullptr &&
+        (descriptor.source->RuntimeType() == InvalidTypeId ||
         descriptor.metadata->Types().FindType(
-            descriptor.source->RuntimeType()) == nullptr) {
+            descriptor.source->RuntimeType()) == nullptr)) {
         return InvalidArgument(
             "Binding metadata source has no registered runtime type");
     }
@@ -1272,14 +1292,11 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
                 "Binding metadata source is not resolved"));
     }
     Base::Result<PropertyValue> dataContext =
-        record.descriptor.target->GetValue(
+        record.dataContextOwner->GetValue(
             record.dataContextProperty);
     if (!dataContext) return dataContext.GetStatus();
-    if (dataContext.Value().Kind() != ValueKind::Object) {
-        return InvalidArgument(
-            "Binding DataContext property is not an object");
-    }
-    if (dataContext.Value().IsNullObject()) {
+    if (dataContext.Value().Kind() != ValueKind::Object ||
+        dataContext.Value().IsNullObject()) {
         ReleaseMetadataSource(record);
         record.metadataSource = nullptr;
         record.pathPlan = {};
@@ -1334,7 +1351,11 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
         record.descriptor.convertBack == nullptr &&
         !HasDefaultTargetConversion(
             targetProperty->ValueType(),
-            compiled.Value().ResultType())) {
+            compiled.Value().ResultType()) &&
+        !CanRoundTripObjectValue(
+            record.metadata->Types(),
+            compiled.Value().ResultType(),
+            targetProperty->ValueType())) {
         return InvalidArgument(
             "Binding requires ConvertBack for different source and target types");
     }
@@ -1522,6 +1543,18 @@ Base::Result<PropertyValue> BindingEngine::ConvertForSource(
         converted = std::move(result).Value();
     }
     if (converted.Type() != sourceType) {
+        if (converted.Kind() == ValueKind::Object &&
+            !converted.IsNullObject() && converted.AsObject() &&
+            record.metadata->Types().IsAssignableFrom(
+                sourceType,
+                converted.AsObject()->RuntimeType())) {
+            converted = PropertyValue::FromObject(
+                sourceType,
+                Base::Ref<Base::Object>::FromBorrowed(
+                    *converted.AsObject()));
+        }
+    }
+    if (converted.Type() != sourceType) {
         return InvalidArgument(
             "Binding ConvertBack returned a value with the wrong source type");
     }
@@ -1587,7 +1620,7 @@ void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
         ReleaseMetadataSource(removed);
         if (removed.sourceKind ==
             BindingSourceKind::DataContext) {
-            (void)removed.descriptor.target->RemoveValueChangedHandler(
+            (void)removed.dataContextOwner->RemoveValueChangedHandler(
                 removed.dataContextProperty,
                 propertyChangedHandler_);
         }

@@ -1178,10 +1178,15 @@ Size Track::ArrangeOverride(
         GetOrientation() == Orientation::Vertical;
     const double length =
         vertical ? finalSize.height : finalSize.width;
+    const double desiredThumbLength = thumb_
+        ? std::max(0.0, vertical
+            ? thumb_->GetDesiredSize().height
+            : thumb_->GetDesiredSize().width)
+        : 8.0;
     const double thumbLength =
-        GetThumbLength(length);
+        GetThumbLength(length, desiredThumbLength);
     const double thumbOffset =
-        GetThumbOffset(length);
+        GetThumbOffset(length, desiredThumbLength);
     const double before = thumbOffset;
     const double after = std::max(
         0.0, length - thumbOffset - thumbLength);
@@ -1486,6 +1491,65 @@ Base::Result<bool> ScrollBar::DragThumb(
     const double oldValue = GetValue();
     SetValue(value.Value());
     return !Same(oldValue, GetValue());
+}
+
+Slider::Slider() noexcept
+    : Primitives::RangeBase(StaticTypeId()),
+      trackPropertyChangedHandler_(
+          this, &Slider::OnTrackPropertyChanged) {
+    static_cast<void>(AddValueChangedHandlerChecked(
+        OrientationProperty, trackPropertyChangedHandler_));
+    static_cast<void>(AddValueChangedHandlerChecked(
+        MinimumProperty, trackPropertyChangedHandler_));
+    static_cast<void>(AddValueChangedHandlerChecked(
+        MaximumProperty, trackPropertyChangedHandler_));
+    static_cast<void>(AddValueChangedHandlerChecked(
+        ValueProperty, trackPropertyChangedHandler_));
+    static_cast<void>(AddValueChangedHandlerChecked(
+        IsDirectionReversedProperty, trackPropertyChangedHandler_));
+}
+
+Slider::~Slider() {
+    static_cast<void>(RemoveValueChangedHandler(
+        OrientationProperty, trackPropertyChangedHandler_));
+    static_cast<void>(RemoveValueChangedHandler(
+        MinimumProperty, trackPropertyChangedHandler_));
+    static_cast<void>(RemoveValueChangedHandler(
+        MaximumProperty, trackPropertyChangedHandler_));
+    static_cast<void>(RemoveValueChangedHandler(
+        ValueProperty, trackPropertyChangedHandler_));
+    static_cast<void>(RemoveValueChangedHandler(
+        IsDirectionReversedProperty, trackPropertyChangedHandler_));
+}
+
+void Slider::OnApplyTemplate() noexcept {
+    Control::OnApplyTemplate();
+    DependencyObject* part = GetTemplateChild("PART_Track");
+    track_ = part != nullptr &&
+        PropertyRegistry().Types().IsDerivedFrom(
+            part->RuntimeType(), Track::StaticTypeId())
+        ? static_cast<Track*>(part)
+        : nullptr;
+    SynchronizeTrack();
+}
+
+void Slider::OnTemplateDetached() noexcept {
+    track_ = nullptr;
+    Control::OnTemplateDetached();
+}
+
+void Slider::OnTrackPropertyChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+    SynchronizeTrack();
+}
+
+void Slider::SynchronizeTrack() noexcept {
+    if (track_ == nullptr) return;
+    track_->SetOrientation(GetOrientation());
+    track_->SetRange(GetMinimum(), GetMaximum());
+    track_->SetValue(GetValue());
+    track_->SetIsDirectionReversed(GetIsDirectionReversed());
 }
 
 Orientation Slider::GetOrientation() const noexcept {

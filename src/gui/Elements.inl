@@ -144,6 +144,11 @@ Base::Result<void> PopulateUiElements(
                 .Inherits()
                 .AffectsMeasure())
         .Property(
+            FrameworkElement::FlowDirectionProperty,
+            PropertyOptions(FlowDirection::LeftToRight)
+                .Inherits()
+                .AffectsMeasure())
+        .Property(
             FrameworkElement::CursorProperty,
             PropertyOptions(Base::String{}).Inherits())
         .Property(

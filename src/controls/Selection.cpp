@@ -192,6 +192,7 @@ void Selector::SetSelectedIndex(
         ClearSelection();
         return;
     }
+    pendingSelectedItem_.Reset();
     const std::uint32_t values[] = {index};
     Base::Result<bool> result = ApplySelection(values, index);
     if (!result) {
@@ -210,11 +211,13 @@ void Selector::SetSelectedItem(
     const std::uint32_t index =
         GetIndexOfItem(item.Get());
     if (index == UINT32_MAX) {
+        pendingSelectedItem_ = std::move(item);
         lastSelectionError_ = Base::Status::Failure(
             Base::ErrorCode::NotFound,
-            "Selector selected item is not in Items");
+            "Selector selected item is pending ItemsSource materialization");
         return;
     }
+    pendingSelectedItem_.Reset();
     SetSelectedIndex(index);
 }
 
@@ -397,6 +400,7 @@ bool Selector::SelectRange(
 }
 
 void Selector::ClearSelection() noexcept {
+    pendingSelectedItem_.Reset();
     Base::Result<bool> result = ApplySelection({}, UINT32_MAX);
     if (!result) {
         lastSelectionError_ = result.GetStatus();
@@ -571,6 +575,27 @@ void Selector::SyncContainers() noexcept {
 
 void Selector::OnItemsChanged(
     const ItemsChangedEvent& event) noexcept {
+    if (pendingSelectedItem_) {
+        const std::uint32_t index = GetIndexOfItem(
+            pendingSelectedItem_.Get());
+        if (index != UINT32_MAX) {
+            pendingSelectedItem_.Reset();
+            const std::uint32_t values[] = {index};
+            Base::Result<bool> realized = ApplySelection(values, index);
+            if (!realized) {
+                lastSelectionError_ = realized.GetStatus();
+            }
+            return;
+        }
+        // A bound ItemsSource frequently emits Reset before it emits the
+        // populated collection. Keep the requested object through that
+        // transition rather than clearing the TwoWay SelectedItem source.
+        if (event.action == ItemsChangeAction::Reset) {
+            selectedIndices_.Clear();
+            primaryIndex_ = UINT32_MAX;
+            return;
+        }
+    }
     if (pendingIndex_ != UINT32_MAX) {
         if (pendingIndex_ < GetCount()) {
             const std::uint32_t selected =
@@ -740,9 +765,12 @@ void Selector::OnPropertyChanged(
             const std::uint32_t index =
                 GetIndexOfItem(item.Get());
             if (index == UINT32_MAX) {
-                ClearSelection();
+                pendingSelectedItem_ = item;
+                selectedIndices_.Clear();
+                primaryIndex_ = UINT32_MAX;
                 applied = true;
             } else {
+                pendingSelectedItem_.Reset();
                 const std::uint32_t values[] = {
                     index};
                 applied = ApplySelection(
@@ -905,6 +933,9 @@ ComboBox::ComboBox() noexcept
       foregroundChangedHandler_(
           this,
           &ComboBox::OnForegroundPropertyChanged),
+      selectedValueChangedHandler_(
+          this,
+          &ComboBox::OnSelectedValuePropertyChanged),
       editableTextChangedHandler_(
           this,
           &ComboBox::OnEditableTextChanged) {
@@ -925,6 +956,12 @@ ComboBox::ComboBox() noexcept
     static_cast<void>(AddValueChangedHandlerChecked(
         Control::ForegroundProperty,
         foregroundChangedHandler_));
+    static_cast<void>(AddValueChangedHandlerChecked(
+        Selector::SelectedIndexProperty,
+        selectedValueChangedHandler_));
+    static_cast<void>(AddValueChangedHandlerChecked(
+        Selector::SelectedItemProperty,
+        selectedValueChangedHandler_));
 }
 
 ComboBox::~ComboBox() {
@@ -950,6 +987,12 @@ ComboBox::~ComboBox() {
     static_cast<void>(RemoveValueChangedHandler(
         Control::ForegroundProperty,
         foregroundChangedHandler_));
+    static_cast<void>(RemoveValueChangedHandler(
+        Selector::SelectedIndexProperty,
+        selectedValueChangedHandler_));
+    static_cast<void>(RemoveValueChangedHandler(
+        Selector::SelectedItemProperty,
+        selectedValueChangedHandler_));
 }
 
 bool ComboBox::GetIsDropDownOpen() const noexcept {
@@ -1076,6 +1119,12 @@ void ComboBox::SynchronizeContainers() noexcept {
 void ComboBox::OnContainersChanged() noexcept {
     Selector::OnContainersChanged();
     SynchronizeContainers();
+    // Popup item containers are often generated after the closed presenter.
+    // Once the full template exists, reuse their ItemTemplate projection for
+    // the selected model item.
+    if (popup_ != nullptr) {
+        static_cast<void>(UpdateSelectionBox());
+    }
 }
 
 void ComboBox::OnApplyTemplate()
@@ -1212,6 +1261,16 @@ void ComboBox::OnForegroundPropertyChanged(
     }
 }
 
+void ComboBox::OnSelectedValuePropertyChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+    // SelectedItem can be supplied before an ItemsSource has materialized.
+    // The later SelectedIndex publication is the point at which the closed
+    // presenter must refresh, even when the SelectedItem reference itself
+    // did not change.
+    static_cast<void>(UpdateSelectionBox());
+}
+
 void ComboBox::OnEditablePropertyChanged(
     DependencyObject&,
     const DependencyPropertyChangedEventArgs&)
@@ -1327,6 +1386,29 @@ ComboBox::UpdateSelectionBox() noexcept {
                 content)->GetText();
         }
     }
+    if (text.Empty() && selected) {
+        // Data items are displayed through their existing ItemTemplate. This
+        // is the same presentation the popup list uses and avoids a
+        // Localization-specific model branch in ComboBox.
+        ItemContainerGenerator* generator = AttachedGenerator();
+        const std::uint32_t index = GetSelectedIndex();
+        FrameworkElement* container =
+            generator != nullptr && index != UINT32_MAX
+            ? generator->ContainerFromIndex(index)
+            : nullptr;
+        if (container != nullptr &&
+            PropertyRegistry().Types().IsDerivedFrom(
+                container->RuntimeType(),
+                ContentControl::StaticTypeId())) {
+            UIElement* content = Detail::ControlPrivate::ContentElement(
+                *static_cast<ContentControl*>(container));
+            if (content != nullptr &&
+                PropertyRegistry().Types().IsDerivedFrom(
+                    content->RuntimeType(), TextBlock::StaticTypeId())) {
+                text = static_cast<TextBlock*>(content)->GetText();
+            }
+        }
+    }
     Base::String value;
     Base::Result<void> assigned =
         value.Assign(text);
@@ -1339,8 +1421,16 @@ ComboBox::UpdateSelectionBox() noexcept {
     if (!itemValue) {
         return itemValue.GetStatus();
     }
-    SetReadOnlyCurrentValue(SelectionBoxItemProperty,
-        std::move(itemValue).Value());
+    Meta::Value selectionItem = std::move(itemValue).Value();
+    SetReadOnlyCurrentValue(SelectionBoxItemProperty, selectionItem);
+    // ContentSource is compiled into a TemplateBinding, but the closed
+    // presenter is constructed before ItemsSource has materialized its first
+    // selection.  Feed its current content at the same point as the
+    // read-only source update so the initial selection is visible without
+    // waiting for another template application or user selection change.
+    if (selectionPresenter_ != nullptr) {
+        selectionPresenter_->SetContentValue(selectionItem);
+    }
     if (selectionBox_ != nullptr) {
         selectionBox_->SetText(text);
     }

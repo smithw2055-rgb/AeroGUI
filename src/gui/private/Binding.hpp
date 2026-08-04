@@ -168,6 +168,9 @@ struct BindingDescriptor {
     UpdateSourceTrigger updateSourceTrigger = UpdateSourceTrigger::PropertyChanged;
     BindingConvertCallback convert = nullptr;
     BindingConvertCallback convertBack = nullptr;
+    // Keep a markup-provided converter alive for the complete expression
+    // lifetime; conversionContext points at this object when present.
+    Base::Ref<IValueConverter> converterResource;
     BindingValidateCallback validate = nullptr;
     BindingValidateCallback validateBack = nullptr;
     void* conversionContext = nullptr;
@@ -201,6 +204,10 @@ struct MetadataBindingDescriptor {
     DependencyObject* target = nullptr;
     DependencyPropertyHandle targetProperty;
     DependencyPropertyHandle dataContextProperty;
+    // Ordinarily this is the target itself. Non-visual Freezables (brushes,
+    // transforms, effects) have no inherited DataContext, so markup supplies
+    // their containing visual root as the owner instead.
+    DependencyObject* dataContextOwner = nullptr;
     Base::StringView path;
     Base::StringView stringFormat;
     // WPF permits an ElementName/Source binding with no Path; in that form the
@@ -211,6 +218,7 @@ struct MetadataBindingDescriptor {
         UpdateSourceTrigger::PropertyChanged;
     BindingConvertCallback convert = nullptr;
     BindingConvertCallback convertBack = nullptr;
+    Base::Ref<IValueConverter> converterResource;
     BindingValidateCallback validate = nullptr;
     BindingValidateCallback validateBack = nullptr;
     void* conversionContext = nullptr;
@@ -351,6 +359,7 @@ private:
         Meta::Registry* metadata = nullptr;
         Base::Object* metadataSource = nullptr;
         DependencyPropertyHandle dataContextProperty;
+        DependencyObject* dataContextOwner = nullptr;
         Base::String path;
         Base::String stringFormat;
         bool bindsToSource = false;
@@ -372,6 +381,7 @@ private:
         DependencyObject* target = nullptr;
         DependencyPropertyHandle targetProperty;
         DependencyPropertyHandle dataContextProperty;
+        DependencyObject* dataContextOwner = nullptr;
         Base::String path;
         Base::String stringFormat;
         bool bindsToSource = false;
@@ -380,6 +390,7 @@ private:
             UpdateSourceTrigger::PropertyChanged;
         BindingConvertCallback convert = nullptr;
         BindingConvertCallback convertBack = nullptr;
+        Base::Ref<IValueConverter> converterResource;
         BindingValidateCallback validate = nullptr;
         BindingValidateCallback validateBack = nullptr;
         void* conversionContext = nullptr;
