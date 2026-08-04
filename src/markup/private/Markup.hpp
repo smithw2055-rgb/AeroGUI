@@ -351,6 +351,9 @@ struct CompiledMemberBinding {
     Meta::MemberKind kind = Meta::MemberKind::Property;
     Meta::TypeId ownerType = Meta::InvalidTypeId;
     Meta::TypeId valueType = Meta::InvalidTypeId;
+    Meta::MetadataTypeKind valueTypeKind =
+        Meta::MetadataTypeKind::Object;
+    Meta::TypeFlags valueTypeFlags = Meta::TypeFlags::None;
     Meta::PropertyFlags propertyFlags = Meta::PropertyFlags::None;
     Meta::EventFlags eventFlags = Meta::EventFlags::None;
     std::uint8_t writeMode = 0U;
@@ -358,10 +361,33 @@ struct CompiledMemberBinding {
     bool acceptsAnyValue = false;
     bool writable = false;
 
+    bool ValueTypeIsObject() const noexcept {
+        return valueTypeKind ==
+            Meta::MetadataTypeKind::Object;
+    }
+    bool ValueTypeIsValueType() const noexcept {
+        return valueTypeFlags != Meta::TypeFlags::None &&
+            HasTypeFlag(valueTypeFlags, Meta::TypeFlags::ValueType);
+    }
+
     bool IsValid() const noexcept {
         return id != Meta::InvalidMemberId &&
             ownerType != Meta::InvalidTypeId &&
             valueType != Meta::InvalidTypeId;
+    }
+};
+
+struct CompiledTypeBinding {
+    Meta::TypeId id = Meta::InvalidTypeId;
+    Meta::MetadataTypeKind kind =
+        Meta::MetadataTypeKind::Object;
+    Meta::TypeFlags flags = Meta::TypeFlags::None;
+    CompiledMemberBinding contentMember;
+    bool hasContentMember = false;
+
+    bool HasContentMember() const noexcept {
+        return hasContentMember &&
+            contentMember.IsValid();
     }
 };
 
@@ -437,6 +463,13 @@ public:
     Meta::TypeId CompiledTypeId() const noexcept {
         return compiledTypeId_;
     }
+    bool HasCompiledTypeBinding() const noexcept {
+        return compiledTypeBinding_.id !=
+            Meta::InvalidTypeId;
+    }
+    const CompiledTypeBinding& CompiledType() const noexcept {
+        return compiledTypeBinding_;
+    }
     Meta::MemberId CompiledMemberId() const noexcept {
         return compiledMemberId_;
     }
@@ -449,6 +482,10 @@ public:
     }
     void BindCompiledType(Meta::TypeId type) noexcept {
         compiledTypeId_ = type;
+    }
+    void BindCompiledType(const CompiledTypeBinding& type) noexcept {
+        compiledTypeBinding_ = type;
+        compiledTypeId_ = type.id;
     }
     void BindCompiledMember(Meta::MemberId member) noexcept {
         compiledMemberId_ = member;
@@ -481,6 +518,7 @@ private:
     ::Aero::Diagnostics::SourceSpan source_;
     bool fromAttribute_ = false;
     Meta::TypeId compiledTypeId_ = Meta::InvalidTypeId;
+    CompiledTypeBinding compiledTypeBinding_;
     Meta::MemberId compiledMemberId_ = Meta::InvalidMemberId;
     CompiledMemberBinding compiledMemberBinding_;
     Meta::Value compiledValue_;

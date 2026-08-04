@@ -2105,13 +2105,10 @@ bool HasTypeFlag(Meta::TypeFlags value, Meta::TypeFlags flag) noexcept {
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
-bool IsValueType(
-    const Meta::TypeRegistry& descriptors,
-    Meta::TypeId type) noexcept {
-    const Meta::TypeInfo* info = descriptors.FindType(type);
-    return info != nullptr &&
-        HasTypeFlag(info->Flags(), Meta::TypeFlags::ValueType);
-}
+ResolvedMember ResolveCompiledMember(
+    const CompiledMemberBinding& binding) noexcept;
+MemberWritePolicy ResolveCompiledMemberPolicy(
+    const CompiledMemberBinding& binding) noexcept;
 
 } // namespace
 
@@ -2255,7 +2252,10 @@ Base::Result<void> ObjectBuilder::ResolveDeferredStaticResources() noexcept {
             deferred.targetObjectIndex,
             deferred.member,
             std::move(resource).Value(),
-            deferred.source);
+            deferred.source,
+            deferred.hasPolicy
+                ? &deferred.policy
+                : nullptr);
         if (!written) return written.GetStatus();
     }
     deferredStaticResources_.Clear();
@@ -2469,6 +2469,15 @@ Base::Result<void> ObjectBuilder::QueueNamespaceDeclaration(
     return pendingNamespaces_.PushBack(std::move(record));
 }
 
+namespace {
+
+ResolvedMember ResolveCompiledMember(
+    const CompiledMemberBinding& binding) noexcept;
+MemberWritePolicy ResolveCompiledMemberPolicy(
+    const CompiledMemberBinding& binding) noexcept;
+
+} // namespace
+
 Base::Result<void> ObjectBuilder::StartObject(
     const Node& node) noexcept {
     if (frames_.Empty() && root_) {
@@ -2506,11 +2515,22 @@ Base::Result<void> ObjectBuilder::StartObject(
         return StartNullObject(node, bindingStart);
     }
 
-    const Meta::TypeInfo* type = nullptr;
+    Meta::TypeId typeId = Meta::InvalidTypeId;
+    Meta::TypeFlags typeFlags = Meta::TypeFlags::None;
+    const CompiledTypeBinding* compiledType = nullptr;
     Base::Status typeStatus;
-    if (node.CompiledTypeId() != Meta::InvalidTypeId) {
-        type = schema_->Types().FindType(node.CompiledTypeId());
-        if (type == nullptr) {
+    if (node.HasCompiledTypeBinding()) {
+        const CompiledTypeBinding& binding = node.CompiledType();
+        compiledType = &binding;
+        typeId = binding.id;
+        typeFlags = binding.flags;
+    } else if (node.CompiledTypeId() != Meta::InvalidTypeId) {
+        const Meta::TypeInfo* type =
+            schema_->Types().FindType(node.CompiledTypeId());
+        if (type != nullptr) {
+            typeId = type->Id();
+            typeFlags = type->Flags();
+        } else {
             typeStatus = Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "AXB2 type id is absent from the frozen schema");
@@ -2521,12 +2541,13 @@ Base::Result<void> ObjectBuilder::StartObject(
                 node.Name().NamespaceUri(),
                 node.Name().LocalName());
         if (typeResult) {
-            type = typeResult.Value();
+            typeId = typeResult.Value()->Id();
+            typeFlags = typeResult.Value()->Flags();
         } else {
             typeStatus = typeResult.GetStatus();
         }
     }
-    if (type == nullptr) {
+    if (typeId == Meta::InvalidTypeId) {
         return Failure(
             typeStatus,
             XamlObjectWriterDiagnosticCodes::UnknownType,
@@ -2534,11 +2555,11 @@ Base::Result<void> ObjectBuilder::StartObject(
             node.Source());
     }
 
-    if (HasTypeFlag(type->Flags(), Meta::TypeFlags::ValueType)) {
-        return StartValueObject(node, bindingStart, type->Id());
+    if (HasTypeFlag(typeFlags, Meta::TypeFlags::ValueType)) {
+        return StartValueObject(node, bindingStart, typeId);
     }
     Base::Result<Base::Ref<Base::Object>> createResult =
-        CreateObject(type->Id());
+        CreateObject(typeId);
     if (!createResult) {
         const bool nonConstructible =
             createResult.GetStatus().code == Base::ErrorCode::Unsupported;
@@ -2555,7 +2576,43 @@ Base::Result<void> ObjectBuilder::StartObject(
 
     CreatedObjectRecord record;
     record.object = std::move(createResult).Value();
-    record.type = type->Id();
+    record.type = typeId;
+    if (compiledType != nullptr &&
+        compiledType->HasContentMember()) {
+        record.contentMember =
+            ResolveCompiledMember(compiledType->contentMember);
+        record.contentPolicy =
+            ResolveCompiledMemberPolicy(
+                compiledType->contentMember);
+        record.hasContentMember = true;
+        record.contentValueTypeIsObject =
+            compiledType->contentMember.ValueTypeIsObject();
+        record.contentValueTypeIsValueType =
+            compiledType->contentMember.ValueTypeIsValueType();
+    } else if (schema_ != nullptr) {
+        Base::Result<ResolvedMember> content =
+            schema_->ResolveContentMember(typeId);
+        if (content) {
+            record.contentMember = content.Value();
+            record.contentPolicy =
+                schema_->ResolveMemberWritePolicy(
+                    record.contentMember);
+            record.hasContentMember = true;
+            if (const Meta::TypeInfo* valueType =
+                    schema_->Types().FindType(
+                        record.contentMember.valueType)) {
+                record.contentValueTypeIsObject =
+                    valueType->Kind() ==
+                        Meta::MetadataTypeKind::Object;
+                record.contentValueTypeIsValueType =
+                    valueType->Kind() !=
+                        Meta::MetadataTypeKind::Object &&
+                    HasTypeFlag(
+                        valueType->Flags(),
+                        Meta::TypeFlags::ValueType);
+            }
+        }
+    }
     const std::uint32_t objectIndex = created_.Size();
     Base::Result<void> appendObject =
         created_.PushBack(std::move(record));
@@ -2854,12 +2911,18 @@ Base::Result<void> ObjectBuilder::StartMember(
     ResolvedMember member;
     MemberWritePolicy memberPolicy;
     bool hasCompiledPolicy = false;
+    bool memberValueTypeIsObject = false;
+    bool memberValueTypeIsValueType = false;
     if (node.HasCompiledMemberBinding()) {
         member = ResolveCompiledMember(
             node.CompiledMember());
         memberPolicy = ResolveCompiledMemberPolicy(
             node.CompiledMember());
         hasCompiledPolicy = true;
+        memberValueTypeIsObject =
+            node.CompiledMember().ValueTypeIsObject();
+        memberValueTypeIsValueType =
+            node.CompiledMember().ValueTypeIsValueType();
         if (!IsCompiledMemberCompatible(
                 *schema_,
                 created_[objectFrame.objectIndex].type,
@@ -2901,6 +2964,17 @@ Base::Result<void> ObjectBuilder::StartMember(
         member = memberResult.Value();
         memberPolicy =
             schema_->ResolveMemberWritePolicy(member);
+        if (const Meta::TypeInfo* valueType =
+                schema_->Types().FindType(
+                    member.valueType)) {
+            memberValueTypeIsObject =
+                valueType->Kind() ==
+                    Meta::MetadataTypeKind::Object;
+            memberValueTypeIsValueType =
+                HasTypeFlag(
+                    valueType->Flags(),
+                    Meta::TypeFlags::ValueType);
+        }
     }
 
     if (member.kind != Meta::MemberKind::Property ||
@@ -2921,6 +2995,10 @@ Base::Result<void> ObjectBuilder::StartMember(
     frame.memberPolicy = memberPolicy;
     frame.hasMemberPolicy =
         hasCompiledPolicy;
+    frame.memberValueTypeIsObject =
+        memberValueTypeIsObject;
+    frame.memberValueTypeIsValueType =
+        memberValueTypeIsValueType;
     frame.source = node.Source();
     frame.propertyElement = false;
     Base::Result<void> appendResult = frames_.PushBack(frame);
@@ -3081,12 +3159,13 @@ Base::Result<void> ObjectBuilder::WriteText(
         }
         if (frame.kind == FrameKind::Object &&
             frame.objectIndex < created_.Size()) {
-            Base::Result<ResolvedMember> content =
-                schema_->ResolveContentMember(
-                    created_[frame.objectIndex].type);
-            if (!content) {
+            const CreatedObjectRecord& object =
+                created_[frame.objectIndex];
+            if (!object.hasContentMember) {
                 return Failure(
-                    content.GetStatus(),
+                    Base::Status::Failure(
+                        Base::ErrorCode::NotFound,
+                        MessageMissingContentProperty.Data()),
                     XamlObjectWriterDiagnosticCodes::
                         MissingContentProperty,
                     MessageMissingContentProperty,
@@ -3094,9 +3173,10 @@ Base::Result<void> ObjectBuilder::WriteText(
             }
             return WriteValue(
                 frame.objectIndex,
-                content.Value(),
+                object.contentMember,
                 std::move(value),
-                node.Source());
+                node.Source(),
+                &object.contentPolicy);
         }
         return Failure(
             InvalidStateStatus(),
@@ -3180,7 +3260,7 @@ Base::Result<void> ObjectBuilder::WriteText(
                 node.Source());
         }
         if (markup == MarkupValueKind::Null) {
-            if (IsValueType(schema_->Types(), frame.member.valueType) &&
+            if (frame.memberValueTypeIsValueType &&
                 !acceptsAnyValue) {
                 return Failure(
                     Base::Status::Failure(
@@ -3204,6 +3284,8 @@ Base::Result<void> ObjectBuilder::WriteText(
                     deferred.targetObjectIndex =
                         frame.targetObjectIndex;
                     deferred.member = frame.member;
+                    deferred.policy = policy;
+                    deferred.hasPolicy = true;
                     deferred.source = node.Source();
                     Base::Result<void> key = deferred.key.Assign(
                         argument);
@@ -3276,15 +3358,19 @@ Base::Result<void> ObjectBuilder::WriteText(
             node.Source());
     }
 
-    Base::Result<ResolvedMember> contentResult =
-        schema_->ResolveContentMember(created_[frame.objectIndex].type);
-    if (!contentResult) {
+    const CreatedObjectRecord& contentOwner =
+        created_[frame.objectIndex];
+    if (!contentOwner.hasContentMember) {
         return Failure(
-            contentResult.GetStatus(),
+            Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                MessageUnexpectedText.Data()),
             XamlObjectWriterDiagnosticCodes::UnexpectedText,
             MessageUnexpectedText,
             node.Source());
     }
+    const ResolvedMember& contentMember =
+        contentOwner.contentMember;
 
     Base::StringView extensionName;
     Base::StringView argument;
@@ -3302,9 +3388,7 @@ Base::Result<void> ObjectBuilder::WriteText(
             node.Source());
     }
     if (markup == MarkupValueKind::Null) {
-        if (IsValueType(
-                schema_->Types(),
-                contentResult.Value().valueType)) {
+        if (contentOwner.contentValueTypeIsValueType) {
             return Failure(
                 Base::Status::Failure(
                     Base::ErrorCode::ValidationFailed,
@@ -3314,12 +3398,13 @@ Base::Result<void> ObjectBuilder::WriteText(
                 node.Source());
         }
         Meta::Value value = Meta::Value::NullObject(
-            contentResult.Value().valueType);
+            contentMember.valueType);
         return WriteValue(
             frame.objectIndex,
-            contentResult.Value(),
+            contentMember,
             std::move(value),
-            node.Source());
+            node.Source(),
+            &contentOwner.contentPolicy);
     }
     if (markup == MarkupValueKind::StaticResource) {
         Base::Result<Aero::ResourceValue> resource = LookupResource(argument);
@@ -3330,7 +3415,9 @@ Base::Result<void> ObjectBuilder::WriteText(
                 hasDeferredStaticResources_ = true;
                 DeferredStaticResourceRecord deferred;
                 deferred.targetObjectIndex = frame.objectIndex;
-                deferred.member = contentResult.Value();
+                deferred.member = contentMember;
+                deferred.policy = contentOwner.contentPolicy;
+                deferred.hasPolicy = true;
                 deferred.source = node.Source();
                 Base::Result<void> key = deferred.key.Assign(
                     argument);
@@ -3352,33 +3439,35 @@ Base::Result<void> ObjectBuilder::WriteText(
         }
         return WriteValue(
             frame.objectIndex,
-            contentResult.Value(),
+            contentMember,
             std::move(resource).Value(),
-            node.Source());
+            node.Source(),
+            &contentOwner.contentPolicy);
     }
 
     if (markup == MarkupValueKind::Extension) {
         Base::Result<ProvidedValue> value =
             EvaluateMarkupExtension(
                 frame.objectIndex,
-                contentResult.Value(),
+                contentMember,
                 extensionName,
                 argument,
                 node.Source());
         if (!value) return value.GetStatus();
         return WriteProvidedValue(
             frame.objectIndex,
-            contentResult.Value(),
+            contentMember,
             std::move(value).Value(),
-            node.Source());
+            node.Source(),
+            &contentOwner.contentPolicy);
     }
 
     const ExtensionServices services = BuildExtensionServices(
         frame.objectIndex,
-        contentResult.Value(),
+        contentMember,
         node.Source());
     Base::Result<Meta::Value> convertResult = schema_->ConvertText(
-        contentResult.Value().valueType,
+        contentMember.valueType,
         markup == MarkupValueKind::EscapedLiteral
             ? argument
             : node.Value(),
@@ -3392,9 +3481,10 @@ Base::Result<void> ObjectBuilder::WriteText(
     }
     return WriteValue(
         frame.objectIndex,
-        contentResult.Value(),
+        contentMember,
         std::move(convertResult).Value(),
-        node.Source());
+        node.Source(),
+        &contentOwner.contentPolicy);
 }
 
 Base::Result<void> ObjectBuilder::WriteDirectiveText(
@@ -3515,12 +3605,18 @@ Base::Result<void> ObjectBuilder::StartPropertyElement(
     ResolvedMember member;
     MemberWritePolicy memberPolicy;
     bool hasCompiledPolicy = false;
+    bool memberValueTypeIsObject = false;
+    bool memberValueTypeIsValueType = false;
     if (node.HasCompiledMemberBinding()) {
         member = ResolveCompiledMember(
             node.CompiledMember());
         memberPolicy = ResolveCompiledMemberPolicy(
             node.CompiledMember());
         hasCompiledPolicy = true;
+        memberValueTypeIsObject =
+            node.CompiledMember().ValueTypeIsObject();
+        memberValueTypeIsValueType =
+            node.CompiledMember().ValueTypeIsValueType();
         if (!IsCompiledMemberCompatible(
                 *schema_,
                 created_[targetObjectIndex].type,
@@ -3562,16 +3658,23 @@ Base::Result<void> ObjectBuilder::StartPropertyElement(
         member = memberResult.Value();
         memberPolicy =
             schema_->ResolveMemberWritePolicy(member);
+        if (const Meta::TypeInfo* valueType =
+                schema_->Types().FindType(
+                    member.valueType)) {
+            memberValueTypeIsObject =
+                valueType->Kind() == Meta::MetadataTypeKind::Object;
+            memberValueTypeIsValueType =
+                HasTypeFlag(
+                    valueType->Flags(),
+                    Meta::TypeFlags::ValueType);
+        }
     }
 
-    Base::Result<ResolvedMember> contentMember =
-        schema_->ResolveContentMember(
-            created_[targetObjectIndex].type);
     const bool resourceEntries =
         created_[targetObjectIndex].type ==
             Aero::ResourceDictionary::StaticTypeId() &&
-        contentMember &&
-        contentMember.Value().id == member.id;
+        created_[targetObjectIndex].hasContentMember &&
+        created_[targetObjectIndex].contentMember.id == member.id;
     if (member.kind != Meta::MemberKind::Property ||
         (!memberPolicy.writable && !resourceEntries)) {
         return Failure(
@@ -3591,6 +3694,8 @@ Base::Result<void> ObjectBuilder::StartPropertyElement(
     frame.memberPolicy = memberPolicy;
     frame.hasMemberPolicy =
         hasCompiledPolicy;
+    frame.memberValueTypeIsObject = memberValueTypeIsObject;
+    frame.memberValueTypeIsValueType = memberValueTypeIsValueType;
     frame.source = node.Source();
     frame.propertyElement = true;
     Base::Result<void> appendResult = frames_.PushBack(frame);
@@ -3662,15 +3767,27 @@ Base::Result<void> ObjectBuilder::CompleteObject(
                         deferred.targetObjectIndex =
                             parent.targetObjectIndex;
                         deferred.member = parent.member;
+                        deferred.policy = parent.hasMemberPolicy
+                            ? parent.memberPolicy
+                            : schema_->ResolveMemberWritePolicy(
+                                parent.member);
+                        deferred.hasPolicy = true;
                     } else if (parent.kind == FrameKind::Object &&
                                parent.objectIndex < created_.Size()) {
-                        Base::Result<ResolvedMember> content =
-                            schema_->ResolveContentMember(
-                                created_[parent.objectIndex].type);
-                        if (!content) return content.GetStatus();
+                        const CreatedObjectRecord& contentOwner =
+                            created_[parent.objectIndex];
+                        if (!contentOwner.hasContentMember) {
+                            return Base::Status::Failure(
+                                Base::ErrorCode::NotFound,
+                                MessageMissingContentProperty.Data());
+                        }
                         deferred.targetObjectIndex =
                             parent.objectIndex;
-                        deferred.member = content.Value();
+                        deferred.member =
+                            contentOwner.contentMember;
+                        deferred.policy =
+                            contentOwner.contentPolicy;
+                        deferred.hasPolicy = true;
                     } else {
                         return Base::Status::Failure(
                             Base::ErrorCode::InvalidState,
@@ -3891,11 +4008,13 @@ Base::Result<void> ObjectBuilder::WriteObjectToContent(
             source);
     }
 
-    Base::Result<ResolvedMember> contentResult =
-        schema_->ResolveContentMember(created_[parentObjectIndex].type);
-    if (!contentResult) {
+    const CreatedObjectRecord& contentOwner =
+        created_[parentObjectIndex];
+    if (!contentOwner.hasContentMember) {
         return Failure(
-            contentResult.GetStatus(),
+            Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                MessageMissingContentProperty.Data()),
             XamlObjectWriterDiagnosticCodes::MissingContentProperty,
             MessageMissingContentProperty,
             source);
@@ -3906,9 +4025,10 @@ Base::Result<void> ObjectBuilder::WriteObjectToContent(
         created_[childObjectIndex].object);
     return WriteValue(
         parentObjectIndex,
-        contentResult.Value(),
+        contentOwner.contentMember,
         std::move(value),
-        source);
+        source,
+        &contentOwner.contentPolicy);
 }
 
 Base::Result<void> ObjectBuilder::WriteNullToParent(
@@ -3932,7 +4052,7 @@ Base::Result<void> ObjectBuilder::WriteNullToParent(
                   parent.member);
         const bool acceptsAnyValue =
             policy.acceptsAnyValue;
-        if (IsValueType(schema_->Types(), parent.member.valueType) &&
+        if (parent.memberValueTypeIsValueType &&
             !acceptsAnyValue) {
             return Failure(
                 Base::Status::Failure(
@@ -3954,26 +4074,29 @@ Base::Result<void> ObjectBuilder::WriteNullToParent(
             source);
     }
 
-    Base::Result<ResolvedMember> contentResult =
-        schema_->ResolveContentMember(created_[parent.objectIndex].type);
-    if (!contentResult ||
-        IsValueType(schema_->Types(), contentResult.Value().valueType)) {
+    const CreatedObjectRecord& contentOwner =
+        created_[parent.objectIndex];
+    if (!contentOwner.hasContentMember ||
+        contentOwner.contentValueTypeIsValueType) {
         return Failure(
-            contentResult ? Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                MessageNullNotAllowed.Data()) : contentResult.GetStatus(),
+            Base::Status::Failure(
+                contentOwner.hasContentMember
+                    ? Base::ErrorCode::ValidationFailed
+                    : Base::ErrorCode::NotFound,
+                MessageNullNotAllowed.Data()),
             XamlObjectWriterDiagnosticCodes::NullNotAllowed,
             MessageNullNotAllowed,
             source);
     }
 
     Meta::Value value = Meta::Value::NullObject(
-        contentResult.Value().valueType);
+        contentOwner.contentMember.valueType);
     return WriteValue(
         parent.objectIndex,
-        contentResult.Value(),
+        contentOwner.contentMember,
         std::move(value),
-        source);
+        source,
+        &contentOwner.contentPolicy);
 }
 
 Base::Result<void> ObjectBuilder::WriteValueToMember(
@@ -4436,12 +4559,13 @@ Base::Result<bool> ObjectBuilder::RegisterObjectResource(
         if (parentObjectIndex < created_.Size() &&
             created_[parentObjectIndex].type ==
                 Aero::ResourceDictionary::StaticTypeId()) {
-            Base::Result<ResolvedMember> content =
-                schema_->ResolveContentMember(
-                    created_[parentObjectIndex].type);
-            dictionaryContent = content &&
+            const CreatedObjectRecord& dictionary =
+                created_[parentObjectIndex];
+            dictionaryContent =
+                dictionary.hasContentMember &&
                 (targetMember == Meta::InvalidMemberId ||
-                 targetMember == content.Value().id);
+                 targetMember ==
+                     dictionary.contentMember.id);
         } else if (
             parentObjectIndex < created_.Size() &&
             targetMember != Meta::InvalidMemberId &&
@@ -4450,12 +4574,9 @@ Base::Result<bool> ObjectBuilder::RegisterObjectResource(
                     StaticTypeId() &&
             schema_->CreatesResourceScope(
                 created_[parentObjectIndex].type)) {
-            const Meta::PropertyInfo* property =
-                schema_->Types().FindProperty(
-                    targetMember);
             dictionaryContent =
-                property != nullptr &&
-                property->ValueType() ==
+                parent.kind == FrameKind::Member &&
+                parent.member.valueType ==
                     Aero::ResourceDictionary::
                         StaticTypeId();
         }

@@ -571,9 +571,20 @@ Base::Result<void> BindCompiledValue(
     return {};
 }
 
+CompiledMemberBinding BuildCompiledMemberBinding(
+    const Schema& schema,
+    const ResolvedMember& member) noexcept;
+
 void BindCompiledMemberInstruction(
     const Schema& schema,
     Node& node,
+    const ResolvedMember& member) noexcept {
+    node.BindCompiledMember(
+        BuildCompiledMemberBinding(schema, member));
+}
+
+CompiledMemberBinding BuildCompiledMemberBinding(
+    const Schema& schema,
     const ResolvedMember& member) noexcept {
     const MemberWritePolicy policy =
         Detail::SchemaPrivate::ResolveMemberWritePolicy(
@@ -583,6 +594,11 @@ void BindCompiledMemberInstruction(
     binding.kind = member.kind;
     binding.ownerType = member.ownerType;
     binding.valueType = member.valueType;
+    if (const Meta::TypeInfo* valueType =
+            schema.Types().FindType(member.valueType)) {
+        binding.valueTypeKind = valueType->Kind();
+        binding.valueTypeFlags = valueType->Flags();
+    }
     binding.propertyFlags = member.propertyFlags;
     binding.eventFlags = member.eventFlags;
     binding.writeMode =
@@ -591,7 +607,7 @@ void BindCompiledMemberInstruction(
     binding.acceptsAnyValue =
         policy.acceptsAnyValue;
     binding.writable = policy.writable;
-    node.BindCompiledMember(binding);
+    return binding;
 }
 
 void BindCompiledMemberInstruction(
@@ -602,6 +618,42 @@ void BindCompiledMemberInstruction(
     // Persist the stable id; the target runtime expands it after identity
     // validation during AXB2 deserialization.
     node.BindCompiledMember(member.id);
+}
+
+Base::Result<void> BindCompiledTypeInstruction(
+    const Schema& schema,
+    Node& node,
+    const SchemaTypeInfo& type) noexcept {
+    CompiledTypeBinding binding;
+    binding.id = type.id;
+    binding.kind = type.kind;
+    binding.flags = type.flags;
+
+    Base::Result<ResolvedMember> content =
+        schema.ResolveContentMember(type.id);
+    if (content) {
+        binding.contentMember =
+            BuildCompiledMemberBinding(
+                schema, content.Value());
+        binding.hasContentMember = true;
+    } else if (content.GetStatus().code !=
+               Base::ErrorCode::NotFound) {
+        return content.GetStatus();
+    }
+
+    node.BindCompiledType(binding);
+    return {};
+}
+
+Base::Result<void> BindCompiledTypeInstruction(
+    const SchemaManifest&,
+    Node& node,
+    const SchemaTypeInfo& type) noexcept {
+    // Manifest files intentionally carry no executable content/accessor
+    // policy. The target runtime expands the stable TypeId after validating
+    // the AXB2 identity.
+    node.BindCompiledType(type.id);
+    return {};
 }
 
 template<class TSchema>
@@ -703,7 +755,14 @@ Base::Result<void> ValidateSchemaCore(
                 return SchemaNodeFailure(type.GetStatus(), node);
             }
             if (bindInstructions) {
-                const_cast<Node&>(node).BindCompiledType(type.Value().id);
+                Base::Result<void> boundType =
+                    BindCompiledTypeInstruction(
+                        schema,
+                        const_cast<Node&>(node),
+                        type.Value());
+                if (!boundType) {
+                    return boundType.GetStatus();
+                }
             }
             if (!frames.Empty() &&
                 frames.Back().kind == FrameKind::Object) {

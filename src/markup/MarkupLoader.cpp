@@ -928,6 +928,14 @@ ResolveCompiledMemberBinding(
         binding.kind = Meta::MemberKind::Property;
         binding.ownerType = property->OwnerType();
         binding.valueType = property->ValueType();
+        if (const Meta::TypeInfo* valueType =
+                domain.Types().FindType(
+                    property->ValueType())) {
+            binding.valueTypeKind =
+                valueType->Kind();
+            binding.valueTypeFlags =
+                valueType->Flags();
+        }
         binding.propertyFlags = property->Flags();
         binding.attached =
             (static_cast<std::uint32_t>(
@@ -965,6 +973,14 @@ ResolveCompiledMemberBinding(
         binding.kind = Meta::MemberKind::Event;
         binding.ownerType = event->OwnerType();
         binding.valueType = event->EventArgsType();
+        if (const Meta::TypeInfo* valueType =
+                domain.Types().FindType(
+                    event->EventArgsType())) {
+            binding.valueTypeKind =
+                valueType->Kind();
+            binding.valueTypeFlags =
+                valueType->Flags();
+        }
         binding.eventFlags = event->Flags();
         binding.attached =
             (static_cast<std::uint32_t>(
@@ -977,6 +993,36 @@ ResolveCompiledMemberBinding(
     return Base::Status::Failure(
         Base::ErrorCode::ValidationFailed,
         "AXB2 member table references an unknown frozen member id");
+}
+
+Base::Result<CompiledTypeBinding>
+ResolveCompiledTypeBinding(
+    const ::Aero::Meta::Registry& domain,
+    Meta::TypeId typeId) noexcept {
+    const Meta::TypeInfo* type =
+        domain.Types().FindType(typeId);
+    if (type == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 type table references an unknown frozen type id");
+    }
+
+    CompiledTypeBinding binding;
+    binding.id = typeId;
+    binding.kind = type->Kind();
+    binding.flags = type->Flags();
+
+    const Meta::MemberId contentId = domain.FindContentMember(typeId);
+    if (contentId != Meta::InvalidMemberId) {
+        Base::Result<CompiledMemberBinding> content =
+            ResolveCompiledMemberBinding(
+                domain,
+                contentId);
+        if (!content) return content.GetStatus();
+        binding.contentMember = content.Value();
+        binding.hasContentMember = true;
+    }
+    return binding;
 }
 
 const AxbSectionDirectoryEntry* FindSection(
@@ -1651,18 +1697,25 @@ CompiledDocument::Deserialize(
             "AXB2 type table count exceeds limits");
     }
     Base::Vector<std::uint64_t> types;
+    Base::Vector<CompiledTypeBinding> typeBindings;
     reserved = types.Reserve(typeCount.Value());
+    if (!reserved) return reserved.GetStatus();
+    reserved = typeBindings.Reserve(typeCount.Value());
     if (!reserved) return reserved.GetStatus();
     for (std::uint32_t index = 0U; index < typeCount.Value(); ++index) {
         Base::Result<std::uint64_t> id = typesDecoder.ReadU64();
         if (!id) return id.GetStatus();
-        if (id.Value() == Meta::InvalidTypeId ||
-            domain.Types().FindType(id.Value()) == nullptr) {
+        if (id.Value() == Meta::InvalidTypeId) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
-                "AXB2 type table references an unknown frozen type id");
+                "AXB2 type table contains an invalid type id");
         }
+        Base::Result<CompiledTypeBinding> binding =
+            ResolveCompiledTypeBinding(domain, id.Value());
+        if (!binding) return binding.GetStatus();
         reserved = types.PushBack(id.Value());
+        if (!reserved) return reserved.GetStatus();
+        reserved = typeBindings.PushBack(binding.Value());
         if (!reserved) return reserved.GetStatus();
     }
     if (!typesDecoder.AtEnd()) {
@@ -2032,10 +2085,9 @@ CompiledDocument::Deserialize(
             HasInstructionFlag(
                 flags.Value(),
                 AxbInstructionFromAttribute);
-        node.compiledTypeId_ =
-            typeIndex == InvalidTableIndex
-            ? Meta::InvalidTypeId
-            : types[typeIndex];
+        if (typeIndex != InvalidTableIndex) {
+            node.BindCompiledType(typeBindings[typeIndex]);
+        }
         if (memberIndex != InvalidTableIndex) {
             node.BindCompiledMember(
                 members[memberIndex]);

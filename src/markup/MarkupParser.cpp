@@ -1086,6 +1086,7 @@ void Node::Clear() noexcept {
     source_ = {};
     fromAttribute_ = false;
     compiledTypeId_ = Meta::InvalidTypeId;
+    compiledTypeBinding_ = {};
     compiledMemberId_ = Meta::InvalidMemberId;
     compiledMemberBinding_ = {};
     compiledValue_ = Meta::Value{};
@@ -1098,6 +1099,8 @@ Base::Result<Node> Node::Clone(
     clone.source_ = source.source_;
     clone.fromAttribute_ = source.fromAttribute_;
     clone.compiledTypeId_ = source.compiledTypeId_;
+    clone.compiledTypeBinding_ =
+        source.compiledTypeBinding_;
     clone.compiledMemberId_ = source.compiledMemberId_;
     clone.compiledMemberBinding_ =
         source.compiledMemberBinding_;

@@ -619,6 +619,8 @@ private:
         ::Aero::Diagnostics::SourceSpan source;
         std::uint32_t valuesWritten = 0U;
         bool hasMemberPolicy = false;
+        bool memberValueTypeIsObject = false;
+        bool memberValueTypeIsValueType = false;
         bool propertyElement = false;
         bool deferredStaticResource = false;
     };
@@ -642,6 +644,11 @@ private:
         bool nameRegistered = false;
         bool resourceRegistered = false;
         bool valueElement = false;
+        ResolvedMember contentMember;
+        MemberWritePolicy contentPolicy;
+        bool hasContentMember = false;
+        bool contentValueTypeIsObject = false;
+        bool contentValueTypeIsValueType = false;
     };
 
     struct AssignmentRecord {
@@ -653,8 +660,10 @@ private:
     struct DeferredStaticResourceRecord {
         std::uint32_t targetObjectIndex = InvalidIndex;
         ResolvedMember member;
+        MemberWritePolicy policy;
         Base::String key;
         ::Aero::Diagnostics::SourceSpan source;
+        bool hasPolicy = false;
     };
 
 
