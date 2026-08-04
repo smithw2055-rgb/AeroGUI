@@ -144,6 +144,62 @@ struct AxbValueRecord {
     std::uint64_t payload[AxbMaxValuePayloads]{};
 };
 
+enum AxbInstructionFlag : std::uint8_t {
+    AxbInstructionFromAttribute = 1U << 0U,
+    AxbInstructionHasType = 1U << 1U,
+    AxbInstructionHasMember = 1U << 2U,
+    AxbInstructionHasValue = 1U << 3U,
+    AxbInstructionHasQualifiedName = 1U << 4U,
+    AxbInstructionHasNamespace = 1U << 5U
+};
+
+inline constexpr std::uint8_t AxbInstructionKnownFlags =
+    AxbInstructionFromAttribute |
+    AxbInstructionHasType |
+    AxbInstructionHasMember |
+    AxbInstructionHasValue |
+    AxbInstructionHasQualifiedName |
+    AxbInstructionHasNamespace;
+
+bool HasInstructionFlag(
+    std::uint8_t flags,
+    AxbInstructionFlag flag) noexcept {
+    return (flags & static_cast<std::uint8_t>(flag)) != 0U;
+}
+
+bool NeedsInstructionQualifiedName(
+    const Node& node) noexcept {
+    if (node.Kind() == NodeKind::StartObject) {
+        return node.CompiledTypeId() == Meta::InvalidTypeId &&
+            node.CompiledMemberId() == Meta::InvalidMemberId;
+    }
+    if (node.Kind() == NodeKind::StartMember) {
+        return node.CompiledMemberId() == Meta::InvalidMemberId;
+    }
+    return false;
+}
+
+bool IsInstructionShapeValid(
+    NodeKind kind,
+    std::uint8_t flags) noexcept {
+    if ((flags & ~AxbInstructionKnownFlags) != 0U) {
+        return false;
+    }
+
+    const bool hasValue = HasInstructionFlag(
+        flags, AxbInstructionHasValue);
+    const bool hasNamespace = HasInstructionFlag(
+        flags, AxbInstructionHasNamespace);
+
+    if (hasNamespace !=
+        (kind == NodeKind::NamespaceDeclaration)) {
+        return false;
+    }
+
+    return hasValue == (kind == NodeKind::Value);
+}
+
+
 template<class TDestination, class TSource>
 TDestination CopyValueBits(
     const TSource& source) noexcept {
@@ -226,6 +282,30 @@ Base::Result<void> AppendU64(
     return {};
 }
 
+Base::Result<void> AppendVarU64(
+    Base::Vector<std::uint8_t>& output,
+    std::uint64_t value) noexcept {
+    do {
+        std::uint8_t byte =
+            static_cast<std::uint8_t>(value & 0x7FU);
+        value >>= 7U;
+        if (value != 0U) {
+            byte = static_cast<std::uint8_t>(
+                byte | 0x80U);
+        }
+        Base::Result<void> appended =
+            output.PushBack(byte);
+        if (!appended) return appended.GetStatus();
+    } while (value != 0U);
+    return {};
+}
+
+Base::Result<void> AppendVarU32(
+    Base::Vector<std::uint8_t>& output,
+    std::uint32_t value) noexcept {
+    return AppendVarU64(output, value);
+}
+
 Base::Result<void> AppendString(
     Base::Vector<std::uint8_t>& output,
     Base::StringView value) noexcept {
@@ -282,6 +362,38 @@ public:
         return value;
     }
 
+    Base::Result<std::uint64_t> ReadVarU64() noexcept {
+        std::uint64_t value = 0U;
+        for (std::uint32_t byteIndex = 0U;
+             byteIndex < 10U; ++byteIndex) {
+            Base::Result<std::uint8_t> byte = ReadU8();
+            if (!byte) return byte.GetStatus();
+            const std::uint8_t payload =
+                static_cast<std::uint8_t>(
+                    byte.Value() & 0x7FU);
+            if (byteIndex == 9U && payload > 1U) {
+                return InvalidVarUInt();
+            }
+            value |= static_cast<std::uint64_t>(
+                payload) << (byteIndex * 7U);
+            if ((byte.Value() & 0x80U) == 0U) {
+                return value;
+            }
+        }
+        return InvalidVarUInt();
+    }
+
+    Base::Result<std::uint32_t> ReadVarU32() noexcept {
+        Base::Result<std::uint64_t> value =
+            ReadVarU64();
+        if (!value) return value.GetStatus();
+        if (value.Value() > UINT32_MAX) {
+            return InvalidVarUInt();
+        }
+        return static_cast<std::uint32_t>(
+            value.Value());
+    }
+
     Base::Result<Base::String> ReadString(
         std::uint32_t& totalStringBytes,
         std::uint32_t maxStringBytes) noexcept {
@@ -320,6 +432,12 @@ private:
             "Compiled XAML payload is truncated");
     }
 
+    static Base::Status InvalidVarUInt() noexcept {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 variable-length integer is invalid");
+    }
+
     Base::Span<const std::uint8_t> bytes_;
     std::uint32_t offset_ = 0U;
 };
@@ -328,20 +446,23 @@ Base::Result<void> AppendPosition(
     Base::Vector<std::uint8_t>& output,
     ::Aero::Diagnostics::SourcePosition position) noexcept {
     Base::Result<void> result =
-        AppendU32(output, position.line);
+        AppendVarU32(output, position.line);
     if (!result) return result.GetStatus();
-    result = AppendU32(output, position.column);
+    result = AppendVarU32(output, position.column);
     if (!result) return result.GetStatus();
-    return AppendU64(output, position.byteOffset);
+    return AppendVarU64(output, position.byteOffset);
 }
 
 Base::Result<::Aero::Diagnostics::SourcePosition> ReadPosition(
     Decoder& decoder) noexcept {
-    Base::Result<std::uint32_t> line = decoder.ReadU32();
+    Base::Result<std::uint32_t> line =
+        decoder.ReadVarU32();
     if (!line) return line.GetStatus();
-    Base::Result<std::uint32_t> column = decoder.ReadU32();
+    Base::Result<std::uint32_t> column =
+        decoder.ReadVarU32();
     if (!column) return column.GetStatus();
-    Base::Result<std::uint64_t> offset = decoder.ReadU64();
+    Base::Result<std::uint64_t> offset =
+        decoder.ReadVarU64();
     if (!offset) return offset.GetStatus();
     return ::Aero::Diagnostics::SourcePosition{
         line.Value(), column.Value(), offset.Value()};
@@ -371,6 +492,33 @@ Base::Result<std::uint32_t> InternId(
     Base::Result<void> appended = ids.PushBack(value);
     if (!appended) return appended.GetStatus();
     return ids.Size() - 1U;
+}
+
+Base::Result<std::uint32_t> FindInternedString(
+    const Base::Vector<Base::String>& strings,
+    Base::StringView value) noexcept {
+    for (std::uint32_t index = 0U;
+         index < strings.Size(); ++index) {
+        if (strings[index].View() == value) {
+            return index;
+        }
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidState,
+        "AXB2 instruction string was not interned");
+}
+
+Base::Result<std::uint32_t> FindInternedId(
+    const Base::Vector<std::uint64_t>& ids,
+    std::uint64_t value) noexcept {
+    if (value == 0U) return InvalidTableIndex;
+    for (std::uint32_t index = 0U;
+         index < ids.Size(); ++index) {
+        if (ids[index] == value) return index;
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidState,
+        "AXB2 instruction id was not interned");
 }
 
 Base::Result<AxbValueRecord> MakeAxbValueRecord(
@@ -941,21 +1089,28 @@ CompiledDocument::Serialize(
     }
 
     for (const Node& node : nodes_) {
-        const bool retainQualifiedName =
-            node.compiledTypeId_ == Meta::InvalidTypeId &&
-            node.compiledMemberId_ == Meta::InvalidMemberId;
-        const Base::StringView nodeStrings[] = {
-            node.name_.prefix_.View(),
-            node.name_.localName_.View(),
-            node.name_.namespaceUri_.View(),
-            node.namespacePrefix_.View(),
-            node.namespaceUri_.View()};
-        for (std::uint32_t stringSlot = 0U;
-             stringSlot < 5U; ++stringSlot) {
-            if (!retainQualifiedName && stringSlot < 3U) continue;
-            Base::Result<std::uint32_t> index = InternString(
-                strings, nodeStrings[stringSlot]);
-            if (!index) return index.GetStatus();
+        if (NeedsInstructionQualifiedName(node)) {
+            const Base::StringView qualifiedName[] = {
+                node.name_.prefix_.View(),
+                node.name_.localName_.View(),
+                node.name_.namespaceUri_.View()};
+            for (Base::StringView value : qualifiedName) {
+                Base::Result<std::uint32_t> index =
+                    InternString(strings, value);
+                if (!index) return index.GetStatus();
+            }
+        }
+        if (node.kind_ == NodeKind::NamespaceDeclaration) {
+            Base::Result<std::uint32_t> prefix =
+                InternString(
+                    strings,
+                    node.namespacePrefix_.View());
+            if (!prefix) return prefix.GetStatus();
+            Base::Result<std::uint32_t> uri =
+                InternString(
+                    strings,
+                    node.namespaceUri_.View());
+            if (!uri) return uri.GetStatus();
         }
 
         std::uint32_t valueIndex = InvalidTableIndex;
@@ -1080,63 +1235,126 @@ CompiledDocument::Serialize(
     if (!result) return result.GetStatus();
 
     Base::Vector<std::uint8_t> instructionBytes;
-    result = AppendU32(instructionBytes, nodes_.Size());
+    result = AppendVarU32(
+        instructionBytes, nodes_.Size());
     if (!result) return result.GetStatus();
     for (std::uint32_t nodeIndex = 0U;
          nodeIndex < nodes_.Size(); ++nodeIndex) {
         const Node& node = nodes_[nodeIndex];
-        result = AppendU8(
-            instructionBytes, static_cast<std::uint8_t>(node.kind_));
-        if (!result) return result.GetStatus();
-        result = AppendU8(
-            instructionBytes, node.fromAttribute_ ? 1U : 0U);
-        if (!result) return result.GetStatus();
-        result = AppendU16(instructionBytes, 0U);
-        if (!result) return result.GetStatus();
-
-        Base::Result<std::uint32_t> typeIndex = InternId(
-            types, node.compiledTypeId_);
+        Base::Result<std::uint32_t> typeIndex =
+            FindInternedId(
+                types, node.compiledTypeId_);
         if (!typeIndex) return typeIndex.GetStatus();
-        Base::Result<std::uint32_t> memberIndex = InternId(
-            members, node.compiledMemberId_);
+        Base::Result<std::uint32_t> memberIndex =
+            FindInternedId(
+                members, node.compiledMemberId_);
         if (!memberIndex) return memberIndex.GetStatus();
-        result = AppendU32(instructionBytes, typeIndex.Value());
-        if (!result) return result.GetStatus();
-        result = AppendU32(instructionBytes, memberIndex.Value());
-        if (!result) return result.GetStatus();
+        const std::uint32_t valueIndex =
+            nodeValueIndices[nodeIndex];
+        const bool hasQualifiedName =
+            NeedsInstructionQualifiedName(node);
+        const bool hasNamespace =
+            node.kind_ == NodeKind::NamespaceDeclaration;
 
-        result = AppendU32(
+        std::uint8_t flags = node.fromAttribute_
+            ? AxbInstructionFromAttribute
+            : 0U;
+        if (typeIndex.Value() != InvalidTableIndex) {
+            flags = static_cast<std::uint8_t>(
+                flags | AxbInstructionHasType);
+        }
+        if (memberIndex.Value() != InvalidTableIndex) {
+            flags = static_cast<std::uint8_t>(
+                flags | AxbInstructionHasMember);
+        }
+        if (valueIndex != InvalidTableIndex) {
+            flags = static_cast<std::uint8_t>(
+                flags | AxbInstructionHasValue);
+        }
+        if (hasQualifiedName) {
+            flags = static_cast<std::uint8_t>(
+                flags |
+                AxbInstructionHasQualifiedName);
+        }
+        if (hasNamespace) {
+            flags = static_cast<std::uint8_t>(
+                flags | AxbInstructionHasNamespace);
+        }
+        if (!IsInstructionShapeValid(
+                node.kind_, flags)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "AXB2 instruction shape is invalid");
+        }
+
+        result = AppendU8(
             instructionBytes,
-            nodeValueIndices[nodeIndex]);
+            static_cast<std::uint8_t>(
+                node.kind_));
+        if (!result) return result.GetStatus();
+        result = AppendU8(
+            instructionBytes, flags);
         if (!result) return result.GetStatus();
 
-        const Base::StringView nodeStrings[] = {
-            node.name_.prefix_.View(),
-            node.name_.localName_.View(),
-            node.name_.namespaceUri_.View(),
-            node.namespacePrefix_.View(),
-            node.namespaceUri_.View()};
-        const bool retainQualifiedName =
-            node.compiledTypeId_ == Meta::InvalidTypeId &&
-            node.compiledMemberId_ == Meta::InvalidMemberId;
-        for (std::uint32_t stringSlot = 0U;
-             stringSlot < 5U; ++stringSlot) {
-            std::uint32_t indexValue = InvalidTableIndex;
-            if (retainQualifiedName || stringSlot >= 3U) {
-                Base::Result<std::uint32_t> index = InternString(
-                    strings, nodeStrings[stringSlot]);
-                if (!index) return index.GetStatus();
-                indexValue = index.Value();
-            }
-            result = AppendU32(instructionBytes, indexValue);
+        if (HasInstructionFlag(
+                flags, AxbInstructionHasType)) {
+            result = AppendVarU32(
+                instructionBytes,
+                typeIndex.Value());
             if (!result) return result.GetStatus();
         }
-        result = AppendU32(
-            instructionBytes,
-            options.includeSourceMap
-                ? nodeIndex
-                : InvalidTableIndex);
-        if (!result) return result.GetStatus();
+        if (HasInstructionFlag(
+                flags, AxbInstructionHasMember)) {
+            result = AppendVarU32(
+                instructionBytes,
+                memberIndex.Value());
+            if (!result) return result.GetStatus();
+        }
+        if (HasInstructionFlag(
+                flags, AxbInstructionHasValue)) {
+            result = AppendVarU32(
+                instructionBytes, valueIndex);
+            if (!result) return result.GetStatus();
+        }
+        if (hasQualifiedName) {
+            const Base::StringView qualifiedName[] = {
+                node.name_.prefix_.View(),
+                node.name_.localName_.View(),
+                node.name_.namespaceUri_.View()};
+            for (Base::StringView value :
+                 qualifiedName) {
+                Base::Result<std::uint32_t> index =
+                    FindInternedString(
+                        strings, value);
+                if (!index) return index.GetStatus();
+                result = AppendVarU32(
+                    instructionBytes,
+                    index.Value());
+                if (!result) {
+                    return result.GetStatus();
+                }
+            }
+        }
+        if (hasNamespace) {
+            Base::Result<std::uint32_t> prefix =
+                FindInternedString(
+                    strings,
+                    node.namespacePrefix_.View());
+            if (!prefix) return prefix.GetStatus();
+            Base::Result<std::uint32_t> uri =
+                FindInternedString(
+                    strings,
+                    node.namespaceUri_.View());
+            if (!uri) return uri.GetStatus();
+            result = AppendVarU32(
+                instructionBytes,
+                prefix.Value());
+            if (!result) return result.GetStatus();
+            result = AppendVarU32(
+                instructionBytes,
+                uri.Value());
+            if (!result) return result.GetStatus();
+        }
     }
     result = addSection(
         AxbSectionKind::Instructions,
@@ -1146,7 +1364,7 @@ CompiledDocument::Serialize(
 
     if (options.includeSourceMap) {
         Base::Vector<std::uint8_t> sourceMapBytes;
-        result = AppendU32(
+        result = AppendVarU32(
             sourceMapBytes, nodes_.Size());
         if (!result) return result.GetStatus();
         for (const Node& node : nodes_) {
@@ -1567,7 +1785,8 @@ CompiledDocument::Deserialize(
         opened = OpenSection(bytes, *sourceMapSection);
         if (!opened) return opened.GetStatus();
         Decoder sourceDecoder = opened.Value();
-        Base::Result<std::uint32_t> sourceCount = sourceDecoder.ReadU32();
+        Base::Result<std::uint32_t> sourceCount =
+            sourceDecoder.ReadVarU32();
         if (!sourceCount) return sourceCount.GetStatus();
         if (sourceCount.Value() != sourceMapSection->count ||
             sourceCount.Value() > limits.maxNodes) {
@@ -1604,7 +1823,7 @@ CompiledDocument::Deserialize(
     if (!opened) return opened.GetStatus();
     Decoder instructionsDecoder = opened.Value();
     Base::Result<std::uint32_t> instructionCount =
-        instructionsDecoder.ReadU32();
+        instructionsDecoder.ReadVarU32();
     if (!instructionCount) return instructionCount.GetStatus();
     if (instructionCount.Value() == 0U ||
         instructionCount.Value() != instructionSection->count ||
@@ -1613,100 +1832,206 @@ CompiledDocument::Deserialize(
             Base::ErrorCode::OutOfRange,
             "AXB2 instruction count exceeds limits");
     }
+    if (sourceMapSection != nullptr &&
+        sourceMap.Size() != instructionCount.Value()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 source map is not aligned with instructions");
+    }
+
     reserved = document.nodes_.Reserve(instructionCount.Value());
     if (!reserved) return reserved.GetStatus();
     for (std::uint32_t index = 0U;
          index < instructionCount.Value(); ++index) {
-        Base::Result<std::uint8_t> kind = instructionsDecoder.ReadU8();
+        Base::Result<std::uint8_t> kind =
+            instructionsDecoder.ReadU8();
         if (!kind) return kind.GetStatus();
-        Base::Result<std::uint8_t> flags = instructionsDecoder.ReadU8();
+        Base::Result<std::uint8_t> flags =
+            instructionsDecoder.ReadU8();
         if (!flags) return flags.GetStatus();
-        Base::Result<std::uint16_t> reservedBits =
-            instructionsDecoder.ReadU16();
-        if (!reservedBits) return reservedBits.GetStatus();
-        if (kind.Value() == static_cast<std::uint8_t>(NodeKind::None) ||
-            kind.Value() > static_cast<std::uint8_t>(
-                NodeKind::EndOfDocument) ||
-            flags.Value() > 1U || reservedBits.Value() != 0U) {
+        if (kind.Value() ==
+                static_cast<std::uint8_t>(
+                    NodeKind::None) ||
+            kind.Value() >
+                static_cast<std::uint8_t>(
+                    NodeKind::EndOfDocument)) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
-                "AXB2 instruction header is invalid");
+                "AXB2 instruction kind is invalid");
         }
-        Base::Result<std::uint32_t> typeIndex =
-            instructionsDecoder.ReadU32();
-        if (!typeIndex) return typeIndex.GetStatus();
-        Base::Result<std::uint32_t> memberIndex =
-            instructionsDecoder.ReadU32();
-        if (!memberIndex) return memberIndex.GetStatus();
-        Base::Result<std::uint32_t> valueIndex =
-            instructionsDecoder.ReadU32();
-        if (!valueIndex) return valueIndex.GetStatus();
-        std::uint32_t stringIndices[5]{};
-        for (std::uint32_t& stringIndex : stringIndices) {
-            Base::Result<std::uint32_t> read = instructionsDecoder.ReadU32();
+
+        const NodeKind nodeKind =
+            static_cast<NodeKind>(kind.Value());
+        if (!IsInstructionShapeValid(
+                nodeKind, flags.Value())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 instruction shape is invalid");
+        }
+
+        std::uint32_t typeIndex =
+            InvalidTableIndex;
+        std::uint32_t memberIndex =
+            InvalidTableIndex;
+        std::uint32_t valueIndex =
+            InvalidTableIndex;
+        std::uint32_t qualifiedName[3]{
+            InvalidTableIndex,
+            InvalidTableIndex,
+            InvalidTableIndex};
+        std::uint32_t namespacePair[2]{
+            InvalidTableIndex,
+            InvalidTableIndex};
+
+        if (HasInstructionFlag(
+                flags.Value(),
+                AxbInstructionHasType)) {
+            Base::Result<std::uint32_t> read =
+                instructionsDecoder.ReadVarU32();
             if (!read) return read.GetStatus();
-            stringIndex = read.Value();
+            typeIndex = read.Value();
         }
-        Base::Result<std::uint32_t> sourceIndex =
-            instructionsDecoder.ReadU32();
-        if (!sourceIndex) return sourceIndex.GetStatus();
-        if ((typeIndex.Value() != InvalidTableIndex &&
-             typeIndex.Value() >= types.Size()) ||
-            (memberIndex.Value() != InvalidTableIndex &&
-             memberIndex.Value() >= members.Size()) ||
-            (valueIndex.Value() != InvalidTableIndex &&
-             valueIndex.Value() >= values.Size()) ||
-            (sourceIndex.Value() != InvalidTableIndex &&
-             sourceIndex.Value() >= sourceMap.Size())) {
+        if (HasInstructionFlag(
+                flags.Value(),
+                AxbInstructionHasMember)) {
+            Base::Result<std::uint32_t> read =
+                instructionsDecoder.ReadVarU32();
+            if (!read) return read.GetStatus();
+            memberIndex = read.Value();
+        }
+        if (HasInstructionFlag(
+                flags.Value(),
+                AxbInstructionHasValue)) {
+            Base::Result<std::uint32_t> read =
+                instructionsDecoder.ReadVarU32();
+            if (!read) return read.GetStatus();
+            valueIndex = read.Value();
+        }
+        if (HasInstructionFlag(
+                flags.Value(),
+                AxbInstructionHasQualifiedName)) {
+            for (std::uint32_t& stringIndex :
+                 qualifiedName) {
+                Base::Result<std::uint32_t> read =
+                    instructionsDecoder.ReadVarU32();
+                if (!read) return read.GetStatus();
+                stringIndex = read.Value();
+            }
+        }
+        if (HasInstructionFlag(
+                flags.Value(),
+                AxbInstructionHasNamespace)) {
+            for (std::uint32_t& stringIndex :
+                 namespacePair) {
+                Base::Result<std::uint32_t> read =
+                    instructionsDecoder.ReadVarU32();
+                if (!read) return read.GetStatus();
+                stringIndex = read.Value();
+            }
+        }
+
+        if ((typeIndex != InvalidTableIndex &&
+             typeIndex >= types.Size()) ||
+            (memberIndex != InvalidTableIndex &&
+             memberIndex >= members.Size()) ||
+            (valueIndex != InvalidTableIndex &&
+             valueIndex >= values.Size())) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
                 "AXB2 instruction operand is outside its table");
         }
+        for (std::uint32_t stringIndex :
+             qualifiedName) {
+            if (stringIndex != InvalidTableIndex &&
+                stringIndex >= strings.Size()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "AXB2 qualified name index is invalid");
+            }
+        }
+        for (std::uint32_t stringIndex :
+             namespacePair) {
+            if (stringIndex != InvalidTableIndex &&
+                stringIndex >= strings.Size()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "AXB2 namespace index is invalid");
+            }
+        }
+
         Node node;
-        node.kind_ = static_cast<NodeKind>(kind.Value());
-        node.fromAttribute_ = flags.Value() != 0U;
-        node.compiledTypeId_ = typeIndex.Value() == InvalidTableIndex
-            ? Meta::InvalidTypeId : types[typeIndex.Value()];
-        node.compiledMemberId_ = memberIndex.Value() == InvalidTableIndex
-            ? Meta::InvalidMemberId : members[memberIndex.Value()];
-        Base::Result<void> assigned = AssignInternedString(
-            node.name_.prefix_, strings.AsSpan(), stringIndices[0]);
-        if (!assigned) return assigned.GetStatus();
-        assigned = AssignInternedString(
-            node.name_.localName_, strings.AsSpan(), stringIndices[1]);
-        if (!assigned) return assigned.GetStatus();
-        assigned = AssignInternedString(
-            node.name_.namespaceUri_, strings.AsSpan(), stringIndices[2]);
-        if (!assigned) return assigned.GetStatus();
-        assigned = AssignInternedString(
-            node.namespacePrefix_, strings.AsSpan(), stringIndices[3]);
-        if (!assigned) return assigned.GetStatus();
-        assigned = AssignInternedString(
-            node.namespaceUri_, strings.AsSpan(), stringIndices[4]);
-        if (!assigned) return assigned.GetStatus();
-        if (valueIndex.Value() != InvalidTableIndex) {
+        node.kind_ = nodeKind;
+        node.fromAttribute_ =
+            HasInstructionFlag(
+                flags.Value(),
+                AxbInstructionFromAttribute);
+        node.compiledTypeId_ =
+            typeIndex == InvalidTableIndex
+            ? Meta::InvalidTypeId
+            : types[typeIndex];
+        node.compiledMemberId_ =
+            memberIndex == InvalidTableIndex
+            ? Meta::InvalidMemberId
+            : members[memberIndex];
+
+        Base::Result<void> assigned;
+        if (qualifiedName[0] != InvalidTableIndex) {
+            assigned = AssignInternedString(
+                node.name_.prefix_,
+                strings.AsSpan(),
+                qualifiedName[0]);
+            if (!assigned) return assigned.GetStatus();
+            assigned = AssignInternedString(
+                node.name_.localName_,
+                strings.AsSpan(),
+                qualifiedName[1]);
+            if (!assigned) return assigned.GetStatus();
+            assigned = AssignInternedString(
+                node.name_.namespaceUri_,
+                strings.AsSpan(),
+                qualifiedName[2]);
+            if (!assigned) return assigned.GetStatus();
+        }
+        if (namespacePair[0] != InvalidTableIndex) {
+            assigned = AssignInternedString(
+                node.namespacePrefix_,
+                strings.AsSpan(),
+                namespacePair[0]);
+            if (!assigned) return assigned.GetStatus();
+            assigned = AssignInternedString(
+                node.namespaceUri_,
+                strings.AsSpan(),
+                namespacePair[1]);
+            if (!assigned) return assigned.GetStatus();
+        }
+        if (valueIndex != InvalidTableIndex) {
             const AxbValueRecord& stored =
-                values[valueIndex.Value()];
+                values[valueIndex];
             if (stored.kind == AxbValueKind::Text) {
                 assigned = node.value_.Assign(
                     strings[static_cast<std::uint32_t>(
                         stored.payload[0])].View());
-                if (!assigned) return assigned.GetStatus();
+                if (!assigned) {
+                    return assigned.GetStatus();
+                }
             } else {
                 Base::Result<Meta::Value> decoded =
                     DecodeCompiledValue(
                         stored,
                         types.AsSpan(),
                         strings.AsSpan());
-                if (!decoded) return decoded.GetStatus();
+                if (!decoded) {
+                    return decoded.GetStatus();
+                }
                 node.BindCompiledValue(
                     std::move(decoded).Value());
             }
         }
-        if (sourceIndex.Value() != InvalidTableIndex) {
-            node.source_ = sourceMap[sourceIndex.Value()];
+        if (!sourceMap.Empty()) {
+            node.source_ = sourceMap[index];
         }
-        reserved = document.nodes_.PushBack(std::move(node));
+        reserved = document.nodes_.PushBack(
+            std::move(node));
         if (!reserved) return reserved.GetStatus();
     }
     if (!instructionsDecoder.AtEnd()) {

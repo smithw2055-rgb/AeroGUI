@@ -221,9 +221,15 @@ application module registrations
 
 ## Compiled XAML
 
-compiled cache format 当前为 12，document encoding 为 7。AXB2 保存 origin URI、
+compiled cache format 当前为 13，document encoding 为 8。AXB2 保存 origin URI、
 依赖清单、字符串/类型/成员表和紧凑 instruction IR；模板不再维护一份未使用的
 旁路 range 表。runtime/compiled 使用相同 object writer。
+
+instruction 不再使用固定 40 字节记录。每条记录由 kind/flags 两字节头开始，只为
+实际存在的 Type、Member、Value、QName 或 namespace operands 写入 VarUInt 索引。
+普通 StartObject、StartMember、Value 通常只需要约 3 字节；EndObject、
+EndMember 和 EndOfDocument 通常只需要 2 字节。已绑定结束节点不再向 Strings 表
+保留 object/member QName。
 
 冻结 Schema 可在编译期把不含 markup extension 的 Boolean、整数、Double、
 String、enum literal，以及 `Length`、`Thickness`、`CornerRadius`、`Color`、
@@ -237,9 +243,11 @@ manifest-driven host tool 对上述稳定内建值的稳定词法形式执行同
 的形式继续保留字符串。应用自定义 Struct、Object、Brush 和 markup extension
 同样维持字符串或 extension 回退，因此优化不改变 XAML 可表达范围。
 
-SourceMap 是可选 section。`aero-xamlc --strip-source-map` 和
-`aero_add_xaml(... STRIP_SOURCE_MAP)` 可生成发布用紧凑资产；内置主题默认裁剪
-SourceMap。开发构建仍默认保留每个 instruction 的源码位置，以维持精确诊断。
+SourceMap 是可选 section。保留时，line、column 和 byte offset 使用有界
+VarUInt 编码，并按 instruction 顺序一一对应，不再为每个节点固定占用 32 字节。
+`aero-xamlc --strip-source-map` 和 `aero_add_xaml(... STRIP_SOURCE_MAP)` 可生成
+发布用紧凑资产；内置主题默认裁剪 SourceMap。开发构建仍默认保留每个
+instruction 的源码位置，以维持精确诊断。
 
 当 cache identity、encoding 或 metadata schema 不兼容且调用方提供了可加载的
 origin URI 时，内部 compiled loader 回退到该源文档；没有源 URI 时返回明确的
