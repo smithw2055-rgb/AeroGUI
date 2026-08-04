@@ -2,8 +2,11 @@
 
 #include <Aero/Markup.hpp>
 #include <Aero/Diagnostics.hpp>
+#include <Aero/Value.hpp>
 #include <Aero/Version.hpp>
 #include "gui/GuiPrivate.hpp"
+
+#include <utility>
 
 // Canonical compiled-document API.
 
@@ -420,6 +423,15 @@ public:
     void BindCompiledMember(Meta::MemberId member) noexcept {
         compiledMemberId_ = member;
     }
+    bool HasCompiledValue() const noexcept {
+        return !compiledValue_.IsUnset();
+    }
+    const Meta::Value& CompiledValue() const noexcept {
+        return compiledValue_;
+    }
+    void BindCompiledValue(Meta::Value value) noexcept {
+        compiledValue_ = std::move(value);
+    }
 
 private:
     friend class NodeReader;
@@ -434,6 +446,7 @@ private:
     bool fromAttribute_ = false;
     Meta::TypeId compiledTypeId_ = Meta::InvalidTypeId;
     Meta::MemberId compiledMemberId_ = Meta::InvalidMemberId;
+    Meta::Value compiledValue_;
 };
 
 class AERO_API NodeReader {

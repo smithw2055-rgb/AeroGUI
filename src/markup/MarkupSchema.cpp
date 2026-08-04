@@ -8,7 +8,11 @@
 
 #include <Aero/Markup.hpp>
 
+#include <cerrno>
+#include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <limits>
 #include <utility>
 
 namespace Aero::Markup {
@@ -52,6 +56,246 @@ Base::Result<SchemaTypeInfo> ResolveTypeInfo(
     return schema.ResolveType(xamlNamespace, localName);
 }
 
+bool IsCompiledWhitespace(char value) noexcept {
+    return value == ' ' || value == '\t' ||
+        value == '\r' || value == '\n';
+}
+
+Base::StringView TrimCompiledText(
+    Base::StringView value) noexcept {
+    std::uint32_t begin = 0U;
+    std::uint32_t end = value.SizeBytes();
+    while (begin < end && IsCompiledWhitespace(value[begin])) {
+        ++begin;
+    }
+    while (end > begin && IsCompiledWhitespace(value[end - 1U])) {
+        --end;
+    }
+    return value.Substr(begin, end - begin);
+}
+
+bool IsWhitespaceOnly(
+    Base::StringView value) noexcept {
+    return TrimCompiledText(value).Empty();
+}
+
+bool EqualsAsciiInsensitive(
+    Base::StringView value,
+    Base::StringView expected) noexcept {
+    if (value.SizeBytes() != expected.SizeBytes()) return false;
+    for (std::uint32_t index = 0U;
+         index < value.SizeBytes(); ++index) {
+        char left = value[index];
+        char right = expected[index];
+        if (left >= 'A' && left <= 'Z') {
+            left = static_cast<char>(left - 'A' + 'a');
+        }
+        if (right >= 'A' && right <= 'Z') {
+            right = static_cast<char>(right - 'A' + 'a');
+        }
+        if (left != right) return false;
+    }
+    return true;
+}
+
+bool TryGetCompiledLiteral(
+    Base::StringView authored,
+    Base::StringView& literal) noexcept {
+    const Base::StringView trimmed =
+        TrimCompiledText(authored);
+    if (trimmed.Empty() || trimmed[0] != '{') {
+        literal = authored;
+        return true;
+    }
+    if (trimmed.SizeBytes() >= 2U &&
+        trimmed[1] == '}') {
+        literal = trimmed.Substr(
+            2U, trimmed.SizeBytes() - 2U);
+        return true;
+    }
+    return false;
+}
+
+bool IsPersistableCompiledValue(
+    const Meta::Value& value) noexcept {
+    if (value.Type() == Meta::InvalidTypeId) return false;
+    switch (value.Kind()) {
+    case Meta::ValueKind::Boolean:
+    case Meta::ValueKind::SignedInteger:
+    case Meta::ValueKind::UnsignedInteger:
+    case Meta::ValueKind::Double:
+    case Meta::ValueKind::String:
+        return true;
+    case Meta::ValueKind::Unset:
+    case Meta::ValueKind::Object:
+    case Meta::ValueKind::Custom:
+        return false;
+    }
+    return false;
+}
+
+Base::Result<Meta::Value>
+ConvertManifestPrimitive(
+    Meta::TypeId type,
+    Base::StringView literal) noexcept {
+    if (type == Meta::TypeOf<Base::String>()) {
+        return Meta::Value::TryFromString(type, literal);
+    }
+
+    const Base::StringView text =
+        TrimCompiledText(literal);
+    if (type == Meta::TypeOf<bool>()) {
+        if (EqualsAsciiInsensitive(text, "true") ||
+            text == Base::StringView("1")) {
+            return Meta::Value::FromBoolean(type, true);
+        }
+        if (EqualsAsciiInsensitive(text, "false") ||
+            text == Base::StringView("0")) {
+            return Meta::Value::FromBoolean(type, false);
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 Boolean literal is invalid");
+    }
+
+    Base::String owned;
+    Base::Result<void> assigned = owned.Assign(text);
+    if (!assigned) return assigned.GetStatus();
+    char* end = nullptr;
+
+    if (type == Meta::TypeOf<double>()) {
+        errno = 0;
+        const double parsed = std::strtod(
+            owned.CStr(), &end);
+        if (errno == ERANGE || end == owned.CStr() ||
+            *end != '\0' || !std::isfinite(parsed)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 Double literal is invalid");
+        }
+        return Meta::Value::FromDouble(type, parsed);
+    }
+
+    const bool signedType =
+        type == Meta::TypeOf<std::int8_t>() ||
+        type == Meta::TypeOf<std::int16_t>() ||
+        type == Meta::TypeOf<std::int32_t>() ||
+        type == Meta::TypeOf<std::int64_t>();
+    if (signedType) {
+        errno = 0;
+        const long long parsed = std::strtoll(
+            owned.CStr(), &end, 10);
+        if (errno == ERANGE || end == owned.CStr() ||
+            *end != '\0') {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 signed integer literal is invalid");
+        }
+        std::int64_t minimum =
+            (std::numeric_limits<std::int64_t>::min)();
+        std::int64_t maximum =
+            (std::numeric_limits<std::int64_t>::max)();
+        if (type == Meta::TypeOf<std::int8_t>()) {
+            minimum = (std::numeric_limits<std::int8_t>::min)();
+            maximum = (std::numeric_limits<std::int8_t>::max)();
+        } else if (type == Meta::TypeOf<std::int16_t>()) {
+            minimum = (std::numeric_limits<std::int16_t>::min)();
+            maximum = (std::numeric_limits<std::int16_t>::max)();
+        } else if (type == Meta::TypeOf<std::int32_t>()) {
+            minimum = (std::numeric_limits<std::int32_t>::min)();
+            maximum = (std::numeric_limits<std::int32_t>::max)();
+        }
+        if (parsed < minimum || parsed > maximum) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "AXB2 signed integer literal is out of range");
+        }
+        return Meta::Value::FromSignedInteger(
+            type, static_cast<std::int64_t>(parsed));
+    }
+
+    const bool unsignedType =
+        type == Meta::TypeOf<std::uint8_t>() ||
+        type == Meta::TypeOf<std::uint16_t>() ||
+        type == Meta::TypeOf<std::uint32_t>() ||
+        type == Meta::TypeOf<std::uint64_t>();
+    if (unsignedType) {
+        if (!text.Empty() && text[0] == '-') {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "AXB2 unsigned integer literal is negative");
+        }
+        errno = 0;
+        const unsigned long long parsed = std::strtoull(
+            owned.CStr(), &end, 10);
+        if (errno == ERANGE || end == owned.CStr() ||
+            *end != '\0') {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 unsigned integer literal is invalid");
+        }
+        std::uint64_t maximum =
+            (std::numeric_limits<std::uint64_t>::max)();
+        if (type == Meta::TypeOf<std::uint8_t>()) {
+            maximum = (std::numeric_limits<std::uint8_t>::max)();
+        } else if (type == Meta::TypeOf<std::uint16_t>()) {
+            maximum = (std::numeric_limits<std::uint16_t>::max)();
+        } else if (type == Meta::TypeOf<std::uint32_t>()) {
+            maximum = (std::numeric_limits<std::uint32_t>::max)();
+        }
+        if (parsed > maximum) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "AXB2 unsigned integer literal is out of range");
+        }
+        return Meta::Value::FromUnsignedInteger(
+            type, static_cast<std::uint64_t>(parsed));
+    }
+
+    return Base::Status::Failure(
+        Base::ErrorCode::Unsupported,
+        "AXB2 manifest cannot preconvert this value type");
+}
+
+Base::Result<void> BindCompiledValue(
+    const Schema& schema,
+    Node& node,
+    Meta::TypeId valueType) noexcept {
+    Base::StringView literal;
+    if (valueType == Meta::InvalidTypeId ||
+        !TryGetCompiledLiteral(node.Value(), literal)) {
+        return {};
+    }
+    Base::Result<Meta::Value> converted =
+        Detail::SchemaPrivate::ConvertText(
+            schema, valueType, literal);
+    if (converted &&
+        IsPersistableCompiledValue(converted.Value())) {
+        node.BindCompiledValue(
+            std::move(converted).Value());
+    }
+    return {};
+}
+
+Base::Result<void> BindCompiledValue(
+    const SchemaManifest&,
+    Node& node,
+    Meta::TypeId valueType) noexcept {
+    Base::StringView literal;
+    if (valueType == Meta::InvalidTypeId ||
+        !TryGetCompiledLiteral(node.Value(), literal)) {
+        return {};
+    }
+    Base::Result<Meta::Value> converted =
+        ConvertManifestPrimitive(valueType, literal);
+    if (converted &&
+        IsPersistableCompiledValue(converted.Value())) {
+        node.BindCompiledValue(
+            std::move(converted).Value());
+    }
+    return {};
+}
+
 template<class TSchema>
 Base::Result<void> ValidateSchemaCore(
     const CompiledDocument& document,
@@ -78,8 +322,33 @@ Base::Result<void> ValidateSchemaCore(
     for (const Node& node : document.Nodes()) {
         switch (node.Kind()) {
         case NodeKind::NamespaceDeclaration:
-        case NodeKind::Value:
             break;
+        case NodeKind::Value: {
+            if (!bindInstructions || frames.Empty() ||
+                (!node.IsFromAttribute() &&
+                 IsWhitespaceOnly(node.Value()))) {
+                break;
+            }
+            const Frame& frame = frames.Back();
+            Meta::TypeId valueType = Meta::InvalidTypeId;
+            if (frame.kind == FrameKind::Member ||
+                frame.kind == FrameKind::PropertyElement ||
+                frame.kind == FrameKind::ValueObject) {
+                valueType = frame.type;
+            } else if (frame.kind == FrameKind::Object) {
+                Base::Result<ResolvedMember> content =
+                    schema.ResolveContentMember(frame.type);
+                if (content) {
+                    valueType = content.Value().valueType;
+                }
+            }
+            Base::Result<void> bound = BindCompiledValue(
+                schema,
+                const_cast<Node&>(node),
+                valueType);
+            if (!bound) return bound.GetStatus();
+            break;
+        }
         case NodeKind::StartObject: {
             const bool nullObject =
                 node.Name().NamespaceUri() == LanguageNamespaceUri() &&
@@ -105,7 +374,7 @@ Base::Result<void> ValidateSchemaCore(
                 }
                 Base::Result<void> appended = frames.PushBack({
                     FrameKind::PropertyElement,
-                    Meta::InvalidTypeId});
+                    member.Value().valueType});
                 if (!appended) return appended.GetStatus();
                 break;
             }
@@ -167,7 +436,7 @@ Base::Result<void> ValidateSchemaCore(
             }
             frames.PopBack();
             break;
-        case NodeKind::StartMember:
+        case NodeKind::StartMember: {
             if (frames.Empty() ||
                 (frames.Back().kind != FrameKind::Object &&
                  frames.Back().kind != FrameKind::ValueObject)) {
@@ -175,6 +444,7 @@ Base::Result<void> ValidateSchemaCore(
                     Base::ErrorCode::ValidationFailed,
                     "Compiled XAML member has no object owner");
             }
+            Meta::TypeId memberValueType = Meta::InvalidTypeId;
             if (frames.Back().kind == FrameKind::ValueObject &&
                 node.Name().NamespaceUri() != LanguageNamespaceUri()) {
                 if (!node.IsFromAttribute() ||
@@ -183,6 +453,7 @@ Base::Result<void> ValidateSchemaCore(
                         Base::ErrorCode::NotFound,
                         "Compiled XAML value-type member was not found");
                 }
+                memberValueType = frames.Back().type;
             } else if (node.Name().NamespaceUri() !=
                        LanguageNamespaceUri()) {
                 Base::Result<ResolvedMember> member = schema.ResolveMember(
@@ -192,6 +463,7 @@ Base::Result<void> ValidateSchemaCore(
                 if (!member) {
                     return SchemaNodeFailure(member.GetStatus(), node);
                 }
+                memberValueType = member.Value().valueType;
                 if (bindInstructions) {
                     const_cast<Node&>(node).BindCompiledMember(
                         member.Value().id);
@@ -207,13 +479,12 @@ Base::Result<void> ValidateSchemaCore(
                     Base::ErrorCode::Unsupported,
                     "Compiled XAML directive is not supported");
             }
-            {
-                Base::Result<void> appended = frames.PushBack({
-                    FrameKind::Member,
-                    Meta::InvalidTypeId});
-                if (!appended) return appended.GetStatus();
-            }
+            Base::Result<void> appended = frames.PushBack({
+                FrameKind::Member,
+                memberValueType});
+            if (!appended) return appended.GetStatus();
             break;
+        }
         case NodeKind::EndMember:
             if (frames.Empty() ||
                 frames.Back().kind != FrameKind::Member) {

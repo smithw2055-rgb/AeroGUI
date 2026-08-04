@@ -2961,7 +2961,9 @@ Base::Result<void> ObjectBuilder::EndMember(
 
 Base::Result<void> ObjectBuilder::WriteText(
     const Node& node) noexcept {
-    if (!node.IsFromAttribute() && IsWhitespaceOnly(node.Value())) {
+    if (!node.HasCompiledValue() &&
+        !node.IsFromAttribute() &&
+        IsWhitespaceOnly(node.Value())) {
         return {};
     }
     if (frames_.Empty()) {
@@ -2975,6 +2977,60 @@ Base::Result<void> ObjectBuilder::WriteText(
     }
 
     Frame& frame = frames_.Back();
+    if (node.HasCompiledValue()) {
+        Meta::Value value = node.CompiledValue();
+        if (frame.kind == FrameKind::ValueMember ||
+            frame.kind == FrameKind::ValueObject) {
+            const std::uint32_t objectIndex =
+                frame.kind == FrameKind::ValueMember
+                    ? frame.targetObjectIndex
+                    : frame.objectIndex;
+            if (objectIndex >= created_.Size() ||
+                !created_[objectIndex].valueElement ||
+                !created_[objectIndex].value.IsUnset() ||
+                frame.valuesWritten != 0U) {
+                return Failure(
+                    Base::Status::Failure(
+                        Base::ErrorCode::AlreadyExists,
+                        MessageDuplicateMemberValue.Data()),
+                    XamlObjectWriterDiagnosticCodes::
+                        DuplicateMemberValue,
+                    MessageDuplicateMemberValue,
+                    node.Source());
+            }
+            created_[objectIndex].value = std::move(value);
+            ++frame.valuesWritten;
+            return {};
+        }
+        if (frame.kind == FrameKind::Member) {
+            return WriteValueToMember(
+                frame, std::move(value), node.Source());
+        }
+        if (frame.kind == FrameKind::Object &&
+            frame.objectIndex < created_.Size()) {
+            Base::Result<ResolvedMember> content =
+                schema_->ResolveContentMember(
+                    created_[frame.objectIndex].type);
+            if (!content) {
+                return Failure(
+                    content.GetStatus(),
+                    XamlObjectWriterDiagnosticCodes::
+                        MissingContentProperty,
+                    MessageMissingContentProperty,
+                    node.Source());
+            }
+            return WriteValue(
+                frame,
+                content.Value(),
+                std::move(value),
+                node.Source());
+        }
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            node.Source());
+    }
     if (frame.kind == FrameKind::Directive) {
         return WriteDirectiveText(frame, node);
     }

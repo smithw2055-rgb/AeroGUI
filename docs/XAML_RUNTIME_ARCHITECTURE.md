@@ -221,12 +221,20 @@ application module registrations
 
 ## Compiled XAML
 
-compiled cache format 当前为 7。document 只保存加载链实际消费的 origin URI、
-依赖清单和 node IR；模板不再维护一份未使用的旁路 range 表。
-runtime/compiled 使用相同 object writer。
+compiled cache format 当前为 11，document encoding 为 6。AXB2 保存 origin URI、
+依赖清单、字符串/类型/成员表和紧凑 instruction IR；模板不再维护一份未使用的
+旁路 range 表。runtime/compiled 使用相同 object writer。
 
-当 cache identity 或 metadata schema 不兼容且调用方提供了可加载的 origin
-URI 时，内部 compiled loader 回退到该源文档；没有源 URI 时返回明确的
+冻结 Schema 可在编译期把不含 markup extension 的 Boolean、整数、Double、
+String 和 enum literal 转换为 typed value record。运行时 object writer 直接写入
+这些 `Meta::Value`，不再重复执行文本转换。使用 manifest 的 host tool 至少转换
+稳定 primitive 类型；manifest 不携带的 enum 名称和自定义 converter 继续保留
+字符串回退。Object、Custom value、Brush、Color、Thickness 和 markup extension
+仍走原有字符串/extension 路径，因此 AXB2 typed value 是渐进优化，不改变 XAML
+可表达范围。
+
+当 cache identity、encoding 或 metadata schema 不兼容且调用方提供了可加载的
+origin URI 时，内部 compiled loader 回退到该源文档；没有源 URI 时返回明确的
 `Unsupported` 或 `ValidationFailed`。
 
 `aero-xamlc` 与 View 注册相同的 Resource、DynamicResource、Style、

@@ -1087,6 +1087,7 @@ void Node::Clear() noexcept {
     fromAttribute_ = false;
     compiledTypeId_ = Meta::InvalidTypeId;
     compiledMemberId_ = Meta::InvalidMemberId;
+    compiledValue_ = Meta::Value{};
 }
 
 Base::Result<Node> Node::Clone(
@@ -1097,6 +1098,7 @@ Base::Result<Node> Node::Clone(
     clone.fromAttribute_ = source.fromAttribute_;
     clone.compiledTypeId_ = source.compiledTypeId_;
     clone.compiledMemberId_ = source.compiledMemberId_;
+    clone.compiledValue_ = source.compiledValue_;
     Base::Result<void> copied =
         clone.name_.prefix_.Assign(
             source.name_.prefix_.View());

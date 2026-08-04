@@ -90,6 +90,7 @@ Base::Result<void> ValidateCompiledCacheIdentity(
 
 // Canonical compiled-document implementation.
 
+#include <cstring>
 #include <utility>
 
 namespace Aero::Markup {
@@ -122,6 +123,33 @@ struct AxbSectionDirectoryEntry {
     std::uint32_t size = 0U;
     std::uint32_t count = 0U;
 };
+
+enum class AxbValueKind : std::uint8_t {
+    Text = 0U,
+    Boolean,
+    SignedInteger,
+    UnsignedInteger,
+    Double,
+    String
+};
+
+struct AxbValueRecord {
+    AxbValueKind kind = AxbValueKind::Text;
+    std::uint32_t typeIndex = InvalidTableIndex;
+    std::uint64_t payload = 0U;
+};
+
+template<class TDestination, class TSource>
+TDestination CopyValueBits(
+    const TSource& source) noexcept {
+    static_assert(
+        sizeof(TDestination) == sizeof(TSource),
+        "AXB2 value bit copy requires equal sizes");
+    TDestination destination{};
+    std::memcpy(
+        &destination, &source, sizeof(destination));
+    return destination;
+}
 
 
 Base::Result<void> AppendU8(
@@ -308,6 +336,142 @@ Base::Result<std::uint32_t> InternId(
     return ids.Size() - 1U;
 }
 
+Base::Result<AxbValueRecord> MakeAxbValueRecord(
+    const Node& node,
+    Base::Vector<Base::String>& strings,
+    Base::Vector<std::uint64_t>& types) noexcept {
+    const auto makeText = [&]() noexcept
+        -> Base::Result<AxbValueRecord> {
+        Base::Result<std::uint32_t> stringIndex =
+            InternString(strings, node.Value());
+        if (!stringIndex) return stringIndex.GetStatus();
+        return AxbValueRecord{
+            AxbValueKind::Text,
+            InvalidTableIndex,
+            stringIndex.Value()};
+    };
+
+    if (!node.HasCompiledValue()) return makeText();
+    const Meta::Value& value = node.CompiledValue();
+    Base::Result<std::uint32_t> typeIndex =
+        InternId(types, value.Type());
+    if (!typeIndex ||
+        typeIndex.Value() == InvalidTableIndex) {
+        return typeIndex
+            ? makeText()
+            : Base::Result<AxbValueRecord>(
+                  typeIndex.GetStatus());
+    }
+
+    AxbValueRecord record;
+    record.typeIndex = typeIndex.Value();
+    switch (value.Kind()) {
+    case Meta::ValueKind::Boolean:
+        record.kind = AxbValueKind::Boolean;
+        record.payload = value.AsBoolean() ? 1U : 0U;
+        return record;
+    case Meta::ValueKind::SignedInteger: {
+        record.kind = AxbValueKind::SignedInteger;
+        const std::int64_t stored =
+            value.AsSignedInteger();
+        record.payload =
+            CopyValueBits<std::uint64_t>(stored);
+        return record;
+    }
+    case Meta::ValueKind::UnsignedInteger:
+        record.kind = AxbValueKind::UnsignedInteger;
+        record.payload = value.AsUnsignedInteger();
+        return record;
+    case Meta::ValueKind::Double: {
+        record.kind = AxbValueKind::Double;
+        const double stored = value.AsDouble();
+        record.payload =
+            CopyValueBits<std::uint64_t>(stored);
+        return record;
+    }
+    case Meta::ValueKind::String: {
+        record.kind = AxbValueKind::String;
+        Base::Result<std::uint32_t> stringIndex =
+            InternString(strings, value.AsString());
+        if (!stringIndex) return stringIndex.GetStatus();
+        record.payload = stringIndex.Value();
+        return record;
+    }
+    case Meta::ValueKind::Unset:
+    case Meta::ValueKind::Object:
+    case Meta::ValueKind::Custom:
+        return makeText();
+    }
+    return makeText();
+}
+
+Base::Result<std::uint32_t> InternAxbValue(
+    Base::Vector<AxbValueRecord>& values,
+    const AxbValueRecord& value) noexcept {
+    for (std::uint32_t index = 0U;
+         index < values.Size(); ++index) {
+        const AxbValueRecord& current = values[index];
+        if (current.kind == value.kind &&
+            current.typeIndex == value.typeIndex &&
+            current.payload == value.payload) {
+            return index;
+        }
+    }
+    Base::Result<void> appended =
+        values.PushBack(value);
+    if (!appended) return appended.GetStatus();
+    return values.Size() - 1U;
+}
+
+Base::Result<Meta::Value> DecodeCompiledValue(
+    const AxbValueRecord& record,
+    Base::Span<const std::uint64_t> types,
+    Base::Span<const Base::String> strings) noexcept {
+    if (record.kind == AxbValueKind::Text ||
+        record.typeIndex == InvalidTableIndex ||
+        record.typeIndex >= types.Size()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 typed value has an invalid type");
+    }
+    const Meta::TypeId type = types[record.typeIndex];
+    switch (record.kind) {
+    case AxbValueKind::Boolean:
+        return Meta::Value::FromBoolean(
+            type, record.payload != 0U);
+    case AxbValueKind::SignedInteger: {
+        const std::int64_t value =
+            CopyValueBits<std::int64_t>(
+                record.payload);
+        return Meta::Value::FromSignedInteger(
+            type, value);
+    }
+    case AxbValueKind::UnsignedInteger:
+        return Meta::Value::FromUnsignedInteger(
+            type, record.payload);
+    case AxbValueKind::Double: {
+        const double value =
+            CopyValueBits<double>(record.payload);
+        return Meta::Value::FromDouble(type, value);
+    }
+    case AxbValueKind::String:
+        if (record.payload >= strings.Size()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 typed string references an invalid string");
+        }
+        return Meta::Value::TryFromString(
+            type,
+            strings[static_cast<std::uint32_t>(
+                record.payload)].View());
+    case AxbValueKind::Text:
+        break;
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::ValidationFailed,
+        "AXB2 typed value kind is invalid");
+}
+
 const AxbSectionDirectoryEntry* FindSection(
     Base::Span<const AxbSectionDirectoryEntry> directory,
     AxbSectionKind kind) noexcept {
@@ -462,7 +626,8 @@ CompiledDocument::Serialize() const noexcept {
     Base::Vector<Base::String> strings;
     Base::Vector<std::uint64_t> types;
     Base::Vector<std::uint64_t> members;
-    Base::Vector<std::uint32_t> values;
+    Base::Vector<AxbValueRecord> values;
+    Base::Vector<std::uint32_t> nodeValueIndices;
 
     Base::Result<std::uint32_t> originString = InternString(
         strings, originUri_.Canonical());
@@ -471,6 +636,11 @@ CompiledDocument::Serialize() const noexcept {
         Base::Result<std::uint32_t> index = InternString(
             strings, dependency.Canonical());
         if (!index) return index.GetStatus();
+    }
+    Base::Result<void> valueIndexCapacity =
+        nodeValueIndices.Reserve(nodes_.Size());
+    if (!valueIndexCapacity) {
+        return valueIndexCapacity.GetStatus();
     }
 
     for (const Node& node : nodes_) {
@@ -490,23 +660,21 @@ CompiledDocument::Serialize() const noexcept {
                 strings, nodeStrings[stringSlot]);
             if (!index) return index.GetStatus();
         }
+
+        std::uint32_t valueIndex = InvalidTableIndex;
         if (node.kind_ == NodeKind::Value) {
-            Base::Result<std::uint32_t> stringIndex = InternString(
-                strings, node.value_.View());
-            if (!stringIndex) return stringIndex.GetStatus();
-            std::uint32_t valueIndex = InvalidTableIndex;
-            for (std::uint32_t index = 0U; index < values.Size(); ++index) {
-                if (values[index] == stringIndex.Value()) {
-                    valueIndex = index;
-                    break;
-                }
-            }
-            if (valueIndex == InvalidTableIndex) {
-                Base::Result<void> appended = values.PushBack(
-                    stringIndex.Value());
-                if (!appended) return appended.GetStatus();
-            }
+            Base::Result<AxbValueRecord> record =
+                MakeAxbValueRecord(node, strings, types);
+            if (!record) return record.GetStatus();
+            Base::Result<std::uint32_t> interned =
+                InternAxbValue(values, record.Value());
+            if (!interned) return interned.GetStatus();
+            valueIndex = interned.Value();
         }
+        Base::Result<void> tracked =
+            nodeValueIndices.PushBack(valueIndex);
+        if (!tracked) return tracked.GetStatus();
+
         Base::Result<std::uint32_t> typeIndex = InternId(
             types, node.compiledTypeId_);
         if (!typeIndex) return typeIndex.GetStatus();
@@ -582,8 +750,20 @@ CompiledDocument::Serialize() const noexcept {
     Base::Vector<std::uint8_t> valueBytes;
     result = AppendU32(valueBytes, values.Size());
     if (!result) return result.GetStatus();
-    for (std::uint32_t value : values) {
-        result = AppendU32(valueBytes, value);
+    for (const AxbValueRecord& value : values) {
+        result = AppendU8(
+            valueBytes,
+            static_cast<std::uint8_t>(value.kind));
+        if (!result) return result.GetStatus();
+        result = AppendU8(valueBytes, 0U);
+        if (!result) return result.GetStatus();
+        result = AppendU16(valueBytes, 0U);
+        if (!result) return result.GetStatus();
+        result = AppendU32(
+            valueBytes, value.typeIndex);
+        if (!result) return result.GetStatus();
+        result = AppendU64(
+            valueBytes, value.payload);
         if (!result) return result.GetStatus();
     }
     result = addSection(
@@ -593,7 +773,9 @@ CompiledDocument::Serialize() const noexcept {
     Base::Vector<std::uint8_t> instructionBytes;
     result = AppendU32(instructionBytes, nodes_.Size());
     if (!result) return result.GetStatus();
-    for (const Node& node : nodes_) {
+    for (std::uint32_t nodeIndex = 0U;
+         nodeIndex < nodes_.Size(); ++nodeIndex) {
+        const Node& node = nodes_[nodeIndex];
         result = AppendU8(
             instructionBytes, static_cast<std::uint8_t>(node.kind_));
         if (!result) return result.GetStatus();
@@ -614,19 +796,9 @@ CompiledDocument::Serialize() const noexcept {
         result = AppendU32(instructionBytes, memberIndex.Value());
         if (!result) return result.GetStatus();
 
-        std::uint32_t valueIndex = InvalidTableIndex;
-        if (node.kind_ == NodeKind::Value) {
-            Base::Result<std::uint32_t> stringIndex = InternString(
-                strings, node.value_.View());
-            if (!stringIndex) return stringIndex.GetStatus();
-            for (std::uint32_t index = 0U; index < values.Size(); ++index) {
-                if (values[index] == stringIndex.Value()) {
-                    valueIndex = index;
-                    break;
-                }
-            }
-        }
-        result = AppendU32(instructionBytes, valueIndex);
+        result = AppendU32(
+            instructionBytes,
+            nodeValueIndices[nodeIndex]);
         if (!result) return result.GetStatus();
 
         const Base::StringView nodeStrings[] = {
@@ -652,7 +824,7 @@ CompiledDocument::Serialize() const noexcept {
         }
         result = AppendU32(
             instructionBytes,
-            static_cast<std::uint32_t>(&node - nodes_.Data()));
+            nodeIndex);
         if (!result) return result.GetStatus();
     }
     result = addSection(
@@ -946,18 +1118,67 @@ CompiledDocument::Deserialize(
             Base::ErrorCode::OutOfRange,
             "AXB2 value table count exceeds limits");
     }
-    Base::Vector<std::uint32_t> values;
+    Base::Vector<AxbValueRecord> values;
     reserved = values.Reserve(valueCount.Value());
     if (!reserved) return reserved.GetStatus();
-    for (std::uint32_t index = 0U; index < valueCount.Value(); ++index) {
-        Base::Result<std::uint32_t> stringIndex = valuesDecoder.ReadU32();
-        if (!stringIndex) return stringIndex.GetStatus();
-        if (stringIndex.Value() >= strings.Size()) {
+    for (std::uint32_t index = 0U;
+         index < valueCount.Value(); ++index) {
+        Base::Result<std::uint8_t> kind =
+            valuesDecoder.ReadU8();
+        if (!kind) return kind.GetStatus();
+        Base::Result<std::uint8_t> flags =
+            valuesDecoder.ReadU8();
+        if (!flags) return flags.GetStatus();
+        Base::Result<std::uint16_t> reservedBits =
+            valuesDecoder.ReadU16();
+        if (!reservedBits) return reservedBits.GetStatus();
+        Base::Result<std::uint32_t> typeIndex =
+            valuesDecoder.ReadU32();
+        if (!typeIndex) return typeIndex.GetStatus();
+        Base::Result<std::uint64_t> payload =
+            valuesDecoder.ReadU64();
+        if (!payload) return payload.GetStatus();
+
+        if (kind.Value() >
+                static_cast<std::uint8_t>(
+                    AxbValueKind::String) ||
+            flags.Value() != 0U ||
+            reservedBits.Value() != 0U) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
-                "AXB2 value table references an invalid string");
+                "AXB2 value record header is invalid");
         }
-        reserved = values.PushBack(stringIndex.Value());
+        const AxbValueKind valueKind =
+            static_cast<AxbValueKind>(kind.Value());
+        const bool textValue =
+            valueKind == AxbValueKind::Text;
+        if ((textValue &&
+             typeIndex.Value() != InvalidTableIndex) ||
+            (!textValue &&
+             (typeIndex.Value() == InvalidTableIndex ||
+              typeIndex.Value() >= types.Size()))) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 value record type is invalid");
+        }
+        if ((valueKind == AxbValueKind::Text ||
+             valueKind == AxbValueKind::String) &&
+            (payload.Value() > UINT32_MAX ||
+             payload.Value() >= strings.Size())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 value record string is invalid");
+        }
+        if (valueKind == AxbValueKind::Boolean &&
+            payload.Value() > 1U) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 Boolean payload is invalid");
+        }
+        reserved = values.PushBack({
+            valueKind,
+            typeIndex.Value(),
+            payload.Value()});
         if (!reserved) return reserved.GetStatus();
     }
     if (!valuesDecoder.AtEnd()) {
@@ -1133,9 +1354,23 @@ CompiledDocument::Deserialize(
             node.namespaceUri_, strings.AsSpan(), stringIndices[4]);
         if (!assigned) return assigned.GetStatus();
         if (valueIndex.Value() != InvalidTableIndex) {
-            assigned = node.value_.Assign(
-                strings[values[valueIndex.Value()]].View());
-            if (!assigned) return assigned.GetStatus();
+            const AxbValueRecord& stored =
+                values[valueIndex.Value()];
+            if (stored.kind == AxbValueKind::Text) {
+                assigned = node.value_.Assign(
+                    strings[static_cast<std::uint32_t>(
+                        stored.payload)].View());
+                if (!assigned) return assigned.GetStatus();
+            } else {
+                Base::Result<Meta::Value> decoded =
+                    DecodeCompiledValue(
+                        stored,
+                        types.AsSpan(),
+                        strings.AsSpan());
+                if (!decoded) return decoded.GetStatus();
+                node.BindCompiledValue(
+                    std::move(decoded).Value());
+            }
         }
         if (sourceIndex.Value() != InvalidTableIndex) {
             node.source_ = sourceMap[sourceIndex.Value()];
