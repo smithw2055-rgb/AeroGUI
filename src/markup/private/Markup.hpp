@@ -342,6 +342,29 @@ inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidNodeStreamState =
         ::Aero::Diagnostics::DiagnosticDomain::Xaml, 104U);
 } // namespace NodeDiagnosticCodes
 
+// Runtime-only replay record. AXB2 continues to persist only MemberId; a
+// compatible frozen Registry expands each unique id to this record once during
+// binding/deserialization so ObjectBuilder does not repeat schema lookup or
+// write-policy discovery for every member occurrence.
+struct CompiledMemberBinding {
+    Meta::MemberId id = Meta::InvalidMemberId;
+    Meta::MemberKind kind = Meta::MemberKind::Property;
+    Meta::TypeId ownerType = Meta::InvalidTypeId;
+    Meta::TypeId valueType = Meta::InvalidTypeId;
+    Meta::PropertyFlags propertyFlags = Meta::PropertyFlags::None;
+    Meta::EventFlags eventFlags = Meta::EventFlags::None;
+    std::uint8_t writeMode = 0U;
+    bool attached = false;
+    bool acceptsAnyValue = false;
+    bool writable = false;
+
+    bool IsValid() const noexcept {
+        return id != Meta::InvalidMemberId &&
+            ownerType != Meta::InvalidTypeId &&
+            valueType != Meta::InvalidTypeId;
+    }
+};
+
 class AERO_API QualifiedName {
 public:
     QualifiedName() noexcept = default;
@@ -417,11 +440,24 @@ public:
     Meta::MemberId CompiledMemberId() const noexcept {
         return compiledMemberId_;
     }
+    bool HasCompiledMemberBinding() const noexcept {
+        return compiledMemberBinding_.IsValid();
+    }
+    const CompiledMemberBinding&
+    CompiledMember() const noexcept {
+        return compiledMemberBinding_;
+    }
     void BindCompiledType(Meta::TypeId type) noexcept {
         compiledTypeId_ = type;
     }
     void BindCompiledMember(Meta::MemberId member) noexcept {
         compiledMemberId_ = member;
+        compiledMemberBinding_ = {};
+    }
+    void BindCompiledMember(
+        const CompiledMemberBinding& member) noexcept {
+        compiledMemberId_ = member.id;
+        compiledMemberBinding_ = member;
     }
     bool HasCompiledValue() const noexcept {
         return !compiledValue_.IsUnset();
@@ -446,6 +482,7 @@ private:
     bool fromAttribute_ = false;
     Meta::TypeId compiledTypeId_ = Meta::InvalidTypeId;
     Meta::MemberId compiledMemberId_ = Meta::InvalidMemberId;
+    CompiledMemberBinding compiledMemberBinding_;
     Meta::Value compiledValue_;
 };
 

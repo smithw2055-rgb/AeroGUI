@@ -571,6 +571,39 @@ Base::Result<void> BindCompiledValue(
     return {};
 }
 
+void BindCompiledMemberInstruction(
+    const Schema& schema,
+    Node& node,
+    const ResolvedMember& member) noexcept {
+    const MemberWritePolicy policy =
+        Detail::SchemaPrivate::ResolveMemberWritePolicy(
+            schema, member);
+    CompiledMemberBinding binding;
+    binding.id = member.id;
+    binding.kind = member.kind;
+    binding.ownerType = member.ownerType;
+    binding.valueType = member.valueType;
+    binding.propertyFlags = member.propertyFlags;
+    binding.eventFlags = member.eventFlags;
+    binding.writeMode =
+        static_cast<std::uint8_t>(policy.mode);
+    binding.attached = member.attached;
+    binding.acceptsAnyValue =
+        policy.acceptsAnyValue;
+    binding.writable = policy.writable;
+    node.BindCompiledMember(binding);
+}
+
+void BindCompiledMemberInstruction(
+    const SchemaManifest&,
+    Node& node,
+    const ResolvedMember& member) noexcept {
+    // A manifest intentionally carries no runtime accessor/facet callbacks.
+    // Persist the stable id; the target runtime expands it after identity
+    // validation during AXB2 deserialization.
+    node.BindCompiledMember(member.id);
+}
+
 template<class TSchema>
 Base::Result<void> ValidateSchemaCore(
     const CompiledDocument& document,
@@ -644,8 +677,10 @@ Base::Result<void> ValidateSchemaCore(
                     return SchemaNodeFailure(member.GetStatus(), node);
                 }
                 if (bindInstructions) {
-                    const_cast<Node&>(node).BindCompiledMember(
-                        member.Value().id);
+                    BindCompiledMemberInstruction(
+                        schema,
+                        const_cast<Node&>(node),
+                        member.Value());
                 }
                 Base::Result<void> appended = frames.PushBack({
                     FrameKind::PropertyElement,
@@ -740,8 +775,10 @@ Base::Result<void> ValidateSchemaCore(
                 }
                 memberValueType = member.Value().valueType;
                 if (bindInstructions) {
-                    const_cast<Node&>(node).BindCompiledMember(
-                        member.Value().id);
+                    BindCompiledMemberInstruction(
+                        schema,
+                        const_cast<Node&>(node),
+                        member.Value());
                 }
             } else if (
                 (frames.Back().kind == FrameKind::ValueObject &&

@@ -231,6 +231,14 @@ instruction 不再使用固定 40 字节记录。每条记录由 kind/flags 两�
 EndMember 和 EndOfDocument 通常只需要 2 字节。已绑定结束节点不再向 Strings 表
 保留 object/member QName。
 
+磁盘 Members section 仍只保存稳定 MemberId。完整 runtime Schema 编译或 AXB2
+反序列化时，每个唯一 MemberId 只展开一次为 runtime replay binding：owner/value
+TypeId、member kind、flags、attached 语义和写策略。随后 ObjectBuilder 的
+StartMember、property element、value/null/markup-extension 写入路径直接复用该
+binding，不再针对每个节点重复调用 `Schema::ResolveMember()` 和
+`ResolveMemberWritePolicy()`。源 XAML 和 manifest-only 的内存文档继续使用动态
+解析路径，因此这项优化不扩大公共 API，也不改变源加载语义。
+
 冻结 Schema 可在编译期把不含 markup extension 的 Boolean、整数、Double、
 String、enum literal，以及 `Length`、`Thickness`、`CornerRadius`、`Color`、
 `Point`、`Matrix`、`GridLength` 等稳定内建结构值转换为 typed value record。

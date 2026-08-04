@@ -615,8 +615,10 @@ private:
         std::uint32_t nameScopeIndex = InvalidIndex;
         std::uint32_t resourceScopeIndex = InvalidIndex;
         ResolvedMember member;
+        MemberWritePolicy memberPolicy;
         ::Aero::Diagnostics::SourceSpan source;
         std::uint32_t valuesWritten = 0U;
+        bool hasMemberPolicy = false;
         bool propertyElement = false;
         bool deferredStaticResource = false;
     };
@@ -813,12 +815,14 @@ private:
         std::uint32_t targetObjectIndex,
         const ResolvedMember& member,
         ProvidedValue&& value,
-        ::Aero::Diagnostics::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source,
+        const MemberWritePolicy* policy = nullptr) noexcept;
     Base::Result<void> WriteValue(
         std::uint32_t targetObjectIndex,
         const ResolvedMember& member,
         Meta::Value&& value,
-        ::Aero::Diagnostics::SourceSpan source) noexcept;
+        ::Aero::Diagnostics::SourceSpan source,
+        const MemberWritePolicy* policy = nullptr) noexcept;
 
     Base::Result<void> RegisterObjectName(
         std::uint32_t objectIndex,
@@ -1296,6 +1300,12 @@ public:
         Base::StringView text,
         const ExtensionServices* services = nullptr) noexcept {
         return schema.ConvertText(type, text, services);
+    }
+
+    static MemberWritePolicy ResolveMemberWritePolicy(
+        const Schema& schema,
+        const ResolvedMember& member) noexcept {
+        return schema.ResolveMemberWritePolicy(member);
     }
 
     static Base::Result<::Aero::DependencyObject*>

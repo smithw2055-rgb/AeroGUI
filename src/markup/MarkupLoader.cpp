@@ -916,6 +916,69 @@ Base::Result<Meta::Value> DecodeCompiledValue(
         "AXB2 typed value payload is invalid");
 }
 
+Base::Result<CompiledMemberBinding>
+ResolveCompiledMemberBinding(
+    const ::Aero::Meta::Registry& domain,
+    Meta::MemberId memberId) noexcept {
+    CompiledMemberBinding binding;
+    binding.id = memberId;
+
+    if (const Meta::PropertyInfo* property =
+            domain.Types().FindProperty(memberId)) {
+        binding.kind = Meta::MemberKind::Property;
+        binding.ownerType = property->OwnerType();
+        binding.valueType = property->ValueType();
+        binding.propertyFlags = property->Flags();
+        binding.attached =
+            (static_cast<std::uint32_t>(
+                 property->Flags()) &
+             static_cast<std::uint32_t>(
+                 Meta::PropertyFlags::Attached)) != 0U;
+
+        const bool runtimeWritable =
+            domain.CanWriteProperty(memberId);
+        Base::Result<Meta::ContentInfo> content =
+            domain.GetContentInfo(memberId);
+        const bool contentWritable =
+            content && content.Value().writable;
+        binding.writable =
+            runtimeWritable || contentWritable;
+        binding.writeMode = static_cast<std::uint8_t>(
+            contentWritable &&
+                    content.Value().kind ==
+                        Meta::ContentKind::Collection
+                ? MemberWriteMode::Collection
+                : MemberWriteMode::SetOnce);
+        binding.acceptsAnyValue =
+            runtimeWritable &&
+            (((static_cast<std::uint32_t>(
+                   property->Flags()) &
+               static_cast<std::uint32_t>(
+                   Meta::PropertyFlags::AnyValue)) != 0U) ||
+             property->ValueType() ==
+                 Meta::TypeOf<Meta::Value>());
+        return binding;
+    }
+
+    if (const Meta::EventInfo* event =
+            domain.Types().FindEvent(memberId)) {
+        binding.kind = Meta::MemberKind::Event;
+        binding.ownerType = event->OwnerType();
+        binding.valueType = event->EventArgsType();
+        binding.eventFlags = event->Flags();
+        binding.attached =
+            (static_cast<std::uint32_t>(
+                 event->Flags()) &
+             static_cast<std::uint32_t>(
+                 Meta::EventFlags::Attached)) != 0U;
+        return binding;
+    }
+
+    return Base::Status::Failure(
+        Base::ErrorCode::ValidationFailed,
+        "AXB2 member table references an unknown frozen member id");
+}
+
 const AxbSectionDirectoryEntry* FindSection(
     Base::Span<const AxbSectionDirectoryEntry> directory,
     AxbSectionKind kind) noexcept {
@@ -1619,20 +1682,24 @@ CompiledDocument::Deserialize(
             Base::ErrorCode::OutOfRange,
             "AXB2 member table count exceeds limits");
     }
-    Base::Vector<std::uint64_t> members;
+    Base::Vector<CompiledMemberBinding> members;
     reserved = members.Reserve(memberCount.Value());
     if (!reserved) return reserved.GetStatus();
     for (std::uint32_t index = 0U; index < memberCount.Value(); ++index) {
-        Base::Result<std::uint64_t> id = membersDecoder.ReadU64();
+        Base::Result<std::uint64_t> id =
+            membersDecoder.ReadU64();
         if (!id) return id.GetStatus();
-        if (id.Value() == Meta::InvalidMemberId ||
-            (domain.Types().FindProperty(id.Value()) == nullptr &&
-             domain.Types().FindEvent(id.Value()) == nullptr)) {
+        if (id.Value() == Meta::InvalidMemberId) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
-                "AXB2 member table references an unknown frozen member id");
+                "AXB2 member table contains an invalid member id");
         }
-        reserved = members.PushBack(id.Value());
+        Base::Result<CompiledMemberBinding> binding =
+            ResolveCompiledMemberBinding(
+                domain, id.Value());
+        if (!binding) return binding.GetStatus();
+        reserved = members.PushBack(
+            binding.Value());
         if (!reserved) return reserved.GetStatus();
     }
     if (!membersDecoder.AtEnd()) {
@@ -1969,10 +2036,10 @@ CompiledDocument::Deserialize(
             typeIndex == InvalidTableIndex
             ? Meta::InvalidTypeId
             : types[typeIndex];
-        node.compiledMemberId_ =
-            memberIndex == InvalidTableIndex
-            ? Meta::InvalidMemberId
-            : members[memberIndex];
+        if (memberIndex != InvalidTableIndex) {
+            node.BindCompiledMember(
+                members[memberIndex]);
+        }
 
         Base::Result<void> assigned;
         if (qualifiedName[0] != InvalidTableIndex) {

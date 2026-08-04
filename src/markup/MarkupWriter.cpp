@@ -2729,6 +2729,46 @@ Base::Result<void> ObjectBuilder::EndObject(
     return CompleteObject(node);
 }
 
+namespace {
+
+ResolvedMember ResolveCompiledMember(
+    const CompiledMemberBinding& binding) noexcept {
+    ResolvedMember member;
+    member.id = binding.id;
+    member.kind = binding.kind;
+    member.ownerType = binding.ownerType;
+    member.valueType = binding.valueType;
+    member.propertyFlags = binding.propertyFlags;
+    member.eventFlags = binding.eventFlags;
+    member.attached = binding.attached;
+    return member;
+}
+
+MemberWritePolicy ResolveCompiledMemberPolicy(
+    const CompiledMemberBinding& binding) noexcept {
+    MemberWritePolicy policy;
+    policy.mode = binding.writeMode ==
+            static_cast<std::uint8_t>(
+                MemberWriteMode::Collection)
+        ? MemberWriteMode::Collection
+        : MemberWriteMode::SetOnce;
+    policy.acceptsAnyValue =
+        binding.acceptsAnyValue;
+    policy.writable = binding.writable;
+    return policy;
+}
+
+bool IsCompiledMemberCompatible(
+    const Schema& schema,
+    Meta::TypeId targetType,
+    const ResolvedMember& member) noexcept {
+    return member.attached ||
+        schema.Types().IsDerivedFrom(
+            targetType, member.ownerType);
+}
+
+} // namespace
+
 Base::Result<void> ObjectBuilder::StartMember(
     const Node& node) noexcept {
     if (frames_.Empty() ||
@@ -2811,30 +2851,60 @@ Base::Result<void> ObjectBuilder::StartMember(
             node.Source());
     }
 
-    Base::Result<ResolvedMember> memberResult =
-        node.CompiledMemberId() != Meta::InvalidMemberId
-        ? schema_->ResolveMember(
-              created_[objectFrame.objectIndex].type,
-              node.CompiledMemberId())
-        : schema_->ResolveMember(
-              created_[objectFrame.objectIndex].type,
-              node.Name(),
-              MemberSyntax::Attribute);
-    if (!memberResult) {
-        const bool notFound =
-            memberResult.GetStatus().code == Base::ErrorCode::NotFound;
-        return Failure(
-            memberResult.GetStatus(),
-            notFound
-                ? XamlObjectWriterDiagnosticCodes::UnknownMember
-                : XamlObjectWriterDiagnosticCodes::InvalidAttachedMember,
-            notFound ? MessageUnknownMember : MessageInvalidAttachedMember,
-            node.Source());
+    ResolvedMember member;
+    MemberWritePolicy memberPolicy;
+    bool hasCompiledPolicy = false;
+    if (node.HasCompiledMemberBinding()) {
+        member = ResolveCompiledMember(
+            node.CompiledMember());
+        memberPolicy = ResolveCompiledMemberPolicy(
+            node.CompiledMember());
+        hasCompiledPolicy = true;
+        if (!IsCompiledMemberCompatible(
+                *schema_,
+                created_[objectFrame.objectIndex].type,
+                member)) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    MessageInvalidAttachedMember.Data()),
+                XamlObjectWriterDiagnosticCodes::
+                    InvalidAttachedMember,
+                MessageInvalidAttachedMember,
+                node.Source());
+        }
+    } else {
+        Base::Result<ResolvedMember> memberResult =
+            node.CompiledMemberId() != Meta::InvalidMemberId
+            ? schema_->ResolveMember(
+                  created_[objectFrame.objectIndex].type,
+                  node.CompiledMemberId())
+            : schema_->ResolveMember(
+                  created_[objectFrame.objectIndex].type,
+                  node.Name(),
+                  MemberSyntax::Attribute);
+        if (!memberResult) {
+            const bool notFound =
+                memberResult.GetStatus().code ==
+                    Base::ErrorCode::NotFound;
+            return Failure(
+                memberResult.GetStatus(),
+                notFound
+                    ? XamlObjectWriterDiagnosticCodes::UnknownMember
+                    : XamlObjectWriterDiagnosticCodes::
+                        InvalidAttachedMember,
+                notFound
+                    ? MessageUnknownMember
+                    : MessageInvalidAttachedMember,
+                node.Source());
+        }
+        member = memberResult.Value();
+        memberPolicy =
+            schema_->ResolveMemberWritePolicy(member);
     }
 
-    const ResolvedMember member = memberResult.Value();
     if (member.kind != Meta::MemberKind::Property ||
-        !schema_->ResolveMemberWritePolicy(member).writable) {
+        !memberPolicy.writable) {
         return Failure(
             Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
@@ -2848,6 +2918,9 @@ Base::Result<void> ObjectBuilder::StartMember(
     frame.kind = FrameKind::Member;
     frame.targetObjectIndex = objectFrame.objectIndex;
     frame.member = member;
+    frame.memberPolicy = memberPolicy;
+    frame.hasMemberPolicy =
+        hasCompiledPolicy;
     frame.source = node.Source();
     frame.propertyElement = false;
     Base::Result<void> appendResult = frames_.PushBack(frame);
@@ -3085,8 +3158,12 @@ Base::Result<void> ObjectBuilder::WriteText(
 
     if (frame.kind == FrameKind::Member) {
         const MemberWritePolicy policy =
-            schema_->ResolveMemberWritePolicy(frame.member);
-        const bool acceptsAnyValue = policy.acceptsAnyValue;
+            frame.hasMemberPolicy
+            ? frame.memberPolicy
+            : schema_->ResolveMemberWritePolicy(
+                  frame.member);
+        const bool acceptsAnyValue =
+            policy.acceptsAnyValue;
         Base::StringView extensionName;
         Base::StringView argument;
         const MarkupValueKind markup = ParseMarkupValue(
@@ -3435,28 +3512,58 @@ Base::Result<void> ObjectBuilder::StartPropertyElement(
 
     const std::uint32_t targetObjectIndex =
         frames_[targetFrameIndex].objectIndex;
-    Base::Result<ResolvedMember> memberResult =
-        node.CompiledMemberId() != Meta::InvalidMemberId
-        ? schema_->ResolveMember(
-              created_[targetObjectIndex].type,
-              node.CompiledMemberId())
-        : schema_->ResolveMember(
-              created_[targetObjectIndex].type,
-              node.Name(),
-              MemberSyntax::PropertyElement);
-    if (!memberResult) {
-        const bool notFound =
-            memberResult.GetStatus().code == Base::ErrorCode::NotFound;
-        return Failure(
-            memberResult.GetStatus(),
-            notFound
-                ? XamlObjectWriterDiagnosticCodes::UnknownMember
-                : XamlObjectWriterDiagnosticCodes::InvalidAttachedMember,
-            notFound ? MessageUnknownMember : MessageInvalidAttachedMember,
-            node.Source());
+    ResolvedMember member;
+    MemberWritePolicy memberPolicy;
+    bool hasCompiledPolicy = false;
+    if (node.HasCompiledMemberBinding()) {
+        member = ResolveCompiledMember(
+            node.CompiledMember());
+        memberPolicy = ResolveCompiledMemberPolicy(
+            node.CompiledMember());
+        hasCompiledPolicy = true;
+        if (!IsCompiledMemberCompatible(
+                *schema_,
+                created_[targetObjectIndex].type,
+                member)) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    MessageInvalidAttachedMember.Data()),
+                XamlObjectWriterDiagnosticCodes::
+                    InvalidAttachedMember,
+                MessageInvalidAttachedMember,
+                node.Source());
+        }
+    } else {
+        Base::Result<ResolvedMember> memberResult =
+            node.CompiledMemberId() != Meta::InvalidMemberId
+            ? schema_->ResolveMember(
+                  created_[targetObjectIndex].type,
+                  node.CompiledMemberId())
+            : schema_->ResolveMember(
+                  created_[targetObjectIndex].type,
+                  node.Name(),
+                  MemberSyntax::PropertyElement);
+        if (!memberResult) {
+            const bool notFound =
+                memberResult.GetStatus().code ==
+                    Base::ErrorCode::NotFound;
+            return Failure(
+                memberResult.GetStatus(),
+                notFound
+                    ? XamlObjectWriterDiagnosticCodes::UnknownMember
+                    : XamlObjectWriterDiagnosticCodes::
+                        InvalidAttachedMember,
+                notFound
+                    ? MessageUnknownMember
+                    : MessageInvalidAttachedMember,
+                node.Source());
+        }
+        member = memberResult.Value();
+        memberPolicy =
+            schema_->ResolveMemberWritePolicy(member);
     }
 
-    const ResolvedMember member = memberResult.Value();
     Base::Result<ResolvedMember> contentMember =
         schema_->ResolveContentMember(
             created_[targetObjectIndex].type);
@@ -3466,8 +3573,7 @@ Base::Result<void> ObjectBuilder::StartPropertyElement(
         contentMember &&
         contentMember.Value().id == member.id;
     if (member.kind != Meta::MemberKind::Property ||
-        (!schema_->ResolveMemberWritePolicy(member).writable &&
-         !resourceEntries)) {
+        (!memberPolicy.writable && !resourceEntries)) {
         return Failure(
             Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
@@ -3482,6 +3588,9 @@ Base::Result<void> ObjectBuilder::StartPropertyElement(
     frame.targetObjectIndex = targetObjectIndex;
     frame.namespaceBindingStart = bindingStart;
     frame.member = member;
+    frame.memberPolicy = memberPolicy;
+    frame.hasMemberPolicy =
+        hasCompiledPolicy;
     frame.source = node.Source();
     frame.propertyElement = true;
     Base::Result<void> appendResult = frames_.PushBack(frame);
@@ -3817,8 +3926,12 @@ Base::Result<void> ObjectBuilder::WriteNullToParent(
     Frame& parent = frames_.Back();
     if (parent.kind == FrameKind::Member) {
         const MemberWritePolicy policy =
-            schema_->ResolveMemberWritePolicy(parent.member);
-        const bool acceptsAnyValue = policy.acceptsAnyValue;
+            parent.hasMemberPolicy
+            ? parent.memberPolicy
+            : schema_->ResolveMemberWritePolicy(
+                  parent.member);
+        const bool acceptsAnyValue =
+            policy.acceptsAnyValue;
         if (IsValueType(schema_->Types(), parent.member.valueType) &&
             !acceptsAnyValue) {
             return Failure(
@@ -3871,7 +3984,10 @@ Base::Result<void> ObjectBuilder::WriteValueToMember(
         memberFrame.targetObjectIndex,
         memberFrame.member,
         std::move(value),
-        source);
+        source,
+        memberFrame.hasMemberPolicy
+            ? &memberFrame.memberPolicy
+            : nullptr);
     if (!result) {
         return result.GetStatus();
     }
@@ -3896,7 +4012,10 @@ Base::Result<void> ObjectBuilder::WriteProvidedValueToMember(
         memberFrame.targetObjectIndex,
         memberFrame.member,
         std::move(provided),
-        source);
+        source,
+        memberFrame.hasMemberPolicy
+            ? &memberFrame.memberPolicy
+            : nullptr);
     if (!result) return result.GetStatus();
     if (memberFrame.valuesWritten == UINT32_MAX) {
         return Failure(
@@ -3915,13 +4034,15 @@ Base::Result<void> ObjectBuilder::WriteProvidedValue(
     std::uint32_t targetObjectIndex,
     const ResolvedMember& member,
     ProvidedValue&& provided,
-    ::Aero::Diagnostics::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source,
+    const MemberWritePolicy* compiledPolicy) noexcept {
     if (provided.kind == ProvidedValueKind::Value) {
         return WriteValue(
             targetObjectIndex,
             member,
             std::move(provided.value),
-            source);
+            source,
+            compiledPolicy);
     }
     if (targetObjectIndex >= created_.Size()) {
         provided.Discard();
@@ -3933,7 +4054,9 @@ Base::Result<void> ObjectBuilder::WriteProvidedValue(
     }
 
     const MemberWritePolicy policy =
-        schema_->ResolveMemberWritePolicy(member);
+        compiledPolicy != nullptr
+        ? *compiledPolicy
+        : schema_->ResolveMemberWritePolicy(member);
     AssignmentRecord* assignment = FindAssignment(
         targetObjectIndex, member.id);
     if (!policy.writable ||
@@ -4041,7 +4164,8 @@ Base::Result<void> ObjectBuilder::WriteValue(
     std::uint32_t targetObjectIndex,
     const ResolvedMember& member,
     Meta::Value&& value,
-    ::Aero::Diagnostics::SourceSpan source) noexcept {
+    ::Aero::Diagnostics::SourceSpan source,
+    const MemberWritePolicy* compiledPolicy) noexcept {
     if (targetObjectIndex >= created_.Size()) {
         return Failure(
             InvalidStateStatus(),
@@ -4051,7 +4175,9 @@ Base::Result<void> ObjectBuilder::WriteValue(
     }
 
     const MemberWritePolicy policy =
-        schema_->ResolveMemberWritePolicy(member);
+        compiledPolicy != nullptr
+        ? *compiledPolicy
+        : schema_->ResolveMemberWritePolicy(member);
     if (!policy.writable) {
         return Failure(
             Base::Status::Failure(
