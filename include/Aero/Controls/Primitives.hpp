@@ -31,7 +31,7 @@ public:
 
     ClickMode GetClickMode() const noexcept;
     ICommand* GetCommand() const noexcept;
-    Base::Ref<Base::Object> GetCommandParameter() const noexcept;
+    Value GetCommandParameter() const noexcept;
     UIElement* GetCommandTarget() const noexcept;
     bool GetIsCommandEnabled() const noexcept {
         return commandEnabled_;
@@ -40,25 +40,23 @@ public:
     void SetClickMode(ClickMode value) noexcept;
     void SetCommand(
         Base::Ref<ICommand> command) noexcept;
-    void SetCommandParameter(
-        Base::Ref<Base::Object> parameter) noexcept;
+    void SetCommandParameter(Value parameter) noexcept;
     void SetCommandTarget(
         Base::Ref<UIElement> target) noexcept;
 
     inline static constexpr Members::Property<ClickMode> ClickModeProperty{"ClickMode"};
     inline static constexpr Members::Property<Base::Ref<ICommand>> CommandProperty{"Command"};
-    inline static constexpr Members::Property<Base::Ref<Base::Object>> CommandParameterProperty{"CommandParameter"};
+    inline static constexpr Members::Property<Value> CommandParameterProperty{"CommandParameter"};
     inline static constexpr Members::Property<Base::Ref<UIElement>> CommandTargetProperty{"CommandTarget"};
 
 protected:
     explicit ButtonBase(TypeId runtimeType) noexcept
         : ContentControl(runtimeType) {}
-    ~ButtonBase() override = default;
+    ~ButtonBase() override;
     void OnApplyTemplate() noexcept override;
 
 private:
     friend struct Impl;
-    void* interactionRuntime_ = nullptr;
     bool commandEnabled_ = true;
 };
 
@@ -425,8 +423,6 @@ protected:
 private:
     friend class ScrollContentPresenter;
     friend struct Impl;
-    void* events_ = nullptr;
-    void* interactions_ = nullptr;
     ScrollContentPresenter* contentPresenter_ = nullptr;
     void AdoptPresenterData(
         ScrollContentPresenter& presenter,

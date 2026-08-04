@@ -3,12 +3,10 @@
 
 // ===== CompiledSchema =====
 
-#include "markup/MarkupPrivate.hpp"
 
 // Canonical compiled-schema bridge used by Loader.
 
 #include <Aero/Markup.hpp>
-#include "markup/MarkupPrivate.hpp"
 
 #include <cstdio>
 #include <utility>
@@ -57,7 +55,8 @@ Base::Result<SchemaTypeInfo> ResolveTypeInfo(
 template<class TSchema>
 Base::Result<void> ValidateSchemaCore(
     const CompiledDocument& document,
-    const TSchema& schema) noexcept {
+    const TSchema& schema,
+    bool bindInstructions = false) noexcept {
     if (!document.IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -100,6 +99,10 @@ Base::Result<void> ValidateSchemaCore(
                 if (!member) {
                     return SchemaNodeFailure(member.GetStatus(), node);
                 }
+                if (bindInstructions) {
+                    const_cast<Node&>(node).BindCompiledMember(
+                        member.Value().id);
+                }
                 Base::Result<void> appended = frames.PushBack({
                     FrameKind::PropertyElement,
                     Meta::InvalidTypeId});
@@ -119,6 +122,9 @@ Base::Result<void> ValidateSchemaCore(
                 node.Name().LocalName());
             if (!type) {
                 return SchemaNodeFailure(type.GetStatus(), node);
+            }
+            if (bindInstructions) {
+                const_cast<Node&>(node).BindCompiledType(type.Value().id);
             }
             if (!frames.Empty() &&
                 frames.Back().kind == FrameKind::Object) {
@@ -186,6 +192,10 @@ Base::Result<void> ValidateSchemaCore(
                 if (!member) {
                     return SchemaNodeFailure(member.GetStatus(), node);
                 }
+                if (bindInstructions) {
+                    const_cast<Node&>(node).BindCompiledMember(
+                        member.Value().id);
+                }
             } else if (
                 (frames.Back().kind == FrameKind::ValueObject &&
                  node.Name().LocalName() != Base::StringView("Key")) ||
@@ -250,7 +260,7 @@ Base::Result<CompiledDocument> CompiledDocument::Compile(
         BuildCompiledCacheIdentity(schema.Domain());
     if (!identity) return identity.GetStatus();
     compiled.Value().identity_ = identity.Value();
-    Base::Result<void> valid = compiled.Value().ValidateSchema(schema);
+    Base::Result<void> valid = compiled.Value().BindSchema(schema);
     if (!valid) return valid.GetStatus();
     return std::move(compiled).Value();
 }
@@ -273,7 +283,7 @@ Base::Result<CompiledDocument> CompiledDocument::Compile(
     Base::Result<CompiledDocument> compiled =
         CompileWithIdentity(reader, manifest.Identity(), originUri);
     if (!compiled) return compiled.GetStatus();
-    Base::Result<void> valid = compiled.Value().ValidateSchema(manifest);
+    Base::Result<void> valid = compiled.Value().BindSchema(manifest);
     if (!valid) return valid.GetStatus();
     return std::move(compiled).Value();
 }
@@ -286,6 +296,16 @@ Base::Result<void> CompiledDocument::ValidateSchema(
             "Compiled XAML validation requires a frozen runtime schema");
     }
     return ValidateSchemaCore(*this, schema);
+}
+
+Base::Result<void> CompiledDocument::BindSchema(
+    const Schema& schema) noexcept {
+    if (!schema.IsFrozen()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "AXB2 binding requires a frozen runtime schema");
+    }
+    return ValidateSchemaCore(*this, schema, true);
 }
 
 Base::Result<void> CompiledDocument::ValidateSchema(
@@ -304,12 +324,27 @@ Base::Result<void> CompiledDocument::ValidateSchema(
     return ValidateSchemaCore(*this, manifest);
 }
 
+Base::Result<void> CompiledDocument::BindSchema(
+    const SchemaManifest& manifest) noexcept {
+    if (!manifest.IsValid()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "AXB2 binding requires a valid schema manifest");
+    }
+    if (CompareCompiledCacheIdentity(identity_, manifest.Identity()) !=
+        CompiledCacheCompatibility::Compatible) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 identity does not match the schema manifest");
+    }
+    return ValidateSchemaCore(*this, manifest, true);
+}
+
 } // namespace Aero::Markup
 
 
 // ===== Metadata =====
 
-#include "markup/MarkupPrivate.hpp"
 
 
 // Markup-specific metadata declarations.
@@ -405,16 +440,18 @@ void AddGroupState(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value || value->RuntimeType() !=
-            XamlVisualStateObject::StaticTypeId()) {
+            VisualState::StaticTypeId()) {
         return;
     }
-    (void)static_cast<XamlVisualStateGroupObject&>(object).AddState(value);
+    (void)static_cast<VisualStateGroup&>(object).AddState(
+        Base::Ref<VisualState>::FromBorrowed(
+            *static_cast<VisualState*>(value.Get())));
 }
 
 void ClearGroupStates(
     Base::Object& object,
     void*) noexcept {
-    static_cast<XamlVisualStateGroupObject&>(object).ClearStates();
+    static_cast<VisualStateGroup&>(object).ClearStates();
 }
 
 void AddGroupTransition(
@@ -422,17 +459,18 @@ void AddGroupTransition(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value || value->RuntimeType() !=
-            XamlVisualTransitionObject::StaticTypeId()) {
+            VisualTransition::StaticTypeId()) {
         return;
     }
-    (void)static_cast<XamlVisualStateGroupObject&>(
-        object).AddTransition(value);
+    (void)static_cast<VisualStateGroup&>(object).AddTransition(
+        Base::Ref<VisualTransition>::FromBorrowed(
+            *static_cast<VisualTransition*>(value.Get())));
 }
 
 void ClearGroupTransitions(
     Base::Object& object,
     void*) noexcept {
-    static_cast<XamlVisualStateGroupObject&>(
+    static_cast<VisualStateGroup&>(
         object).ClearTransitions();
 }
 
@@ -441,39 +479,33 @@ void AddElementVisualStateGroup(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value || value->RuntimeType() !=
-            XamlVisualStateGroupObject::StaticTypeId()) {
+            VisualStateGroup::StaticTypeId()) {
         return;
     }
     auto& target = static_cast<::Aero::DependencyObject&>(object);
-    Base::Ref<Base::Object> valueStore = target.GetValueOr(
-        XamlVisualStateManagerObject::
-            VisualStateGroupStoreProperty,
-        Base::Ref<Base::Object>{});
+    Base::Ref<VisualStateGroupCollection> valueStore = target.GetValueOr(
+        VisualStateManager::VisualStateGroupsProperty,
+        Base::Ref<VisualStateGroupCollection>{});
     if (!valueStore) {
-        Base::Result<Base::Ref<XamlVisualStates>> created =
-            Base::MakeRef<XamlVisualStates>();
+        Base::Result<Base::Ref<VisualStateGroupCollection>> created =
+            Base::MakeRef<VisualStateGroupCollection>();
         if (!created) return;
-        valueStore = Base::Ref<Base::Object>(
-            std::move(created).Value());
+        valueStore = std::move(created).Value();
         target.SetValue(
-            XamlVisualStateManagerObject::
-                VisualStateGroupStoreProperty,
+            VisualStateManager::VisualStateGroupsProperty,
             valueStore);
     }
-    if (valueStore->RuntimeType() !=
-            XamlVisualStates::StaticTypeId()) {
-        return;
-    }
-    (void)static_cast<XamlVisualStates&>(*valueStore).Add(value);
+    (void)valueStore->Add(
+        Base::Ref<VisualStateGroup>::FromBorrowed(
+            *static_cast<VisualStateGroup*>(value.Get())));
 }
 
 void ClearElementVisualStateGroups(
     Base::Object& object,
     void*) noexcept {
     static_cast<::Aero::DependencyObject&>(object).SetValue(
-        XamlVisualStateManagerObject::
-            VisualStateGroupStoreProperty,
-        Base::Ref<Base::Object>{});
+        VisualStateManager::VisualStateGroupsProperty,
+        Base::Ref<VisualStateGroupCollection>{});
 }
 
 void AddStateContent(
@@ -484,7 +516,7 @@ void AddStateContent(
         return;
     }
     auto& state =
-        static_cast<XamlVisualStateObject&>(object);
+        static_cast<VisualState&>(object);
     if (value->RuntimeType() == Setter::StaticTypeId()) {
         (void)state.AddSetter(value);
         return;
@@ -503,7 +535,7 @@ void ClearStateContent(
     Base::Object& object,
     void*) noexcept {
     auto& state =
-        static_cast<XamlVisualStateObject&>(object);
+        static_cast<VisualState&>(object);
     state.ClearSetters();
     state.SetStoryboard({});
 }
@@ -516,7 +548,7 @@ void SetTransitionStoryboard(
             Media::Animation::Storyboard::StaticTypeId()) {
         return;
     }
-    static_cast<XamlVisualTransitionObject&>(
+    static_cast<VisualTransition&>(
         object).SetStoryboard(
             Base::Ref<Media::Animation::Storyboard>::FromBorrowed(
                 *static_cast<Media::Animation::Storyboard*>(
@@ -526,7 +558,7 @@ void SetTransitionStoryboard(
 void ClearTransitionStoryboard(
     Base::Object& object,
     void*) noexcept {
-    static_cast<XamlVisualTransitionObject&>(object).SetStoryboard({});
+    static_cast<VisualTransition&>(object).SetStoryboard({});
 }
 
 } // namespace
@@ -571,37 +603,39 @@ Base::Result<void> PopulateMarkupMetadata(
         .Result();
     if (!status) return status.GetStatus();
 
+    status = Meta::Register<VisualStateGroupCollection>(
+        context, TypeFlags::Sealed).Result();
+    if (!status) return status.GetStatus();
+
     auto visualStateManager =
-        Meta::Register<XamlVisualStateManagerObject>(
+        Meta::Register<VisualStateManager>(
             context, TypeFlags::Abstract);
     visualStateManager
         .Property(
-            XamlVisualStateManagerObject::
-                VisualStateGroupStoreProperty,
-            PropertyOptions(Base::Ref<Base::Object>{}))
+            VisualStateManager::VisualStateGroupsProperty,
+            PropertyOptions(Base::Ref<VisualStateGroupCollection>{}))
         .Collection<Base::Object>(
             "VisualStateGroups",
             &AddElementVisualStateGroup,
             &ClearElementVisualStateGroups,
             PropertyFlags::Structural |
-                PropertyFlags::Attached)
-        .Factory();
+                PropertyFlags::Attached);
     status = visualStateManager.Result();
     if (!status) return status.GetStatus();
 
     auto stateGroup =
-        Meta::Register<XamlVisualStateGroupObject>(context);
+        Meta::Register<VisualStateGroup>(context);
     stateGroup
         .Property(
             "Name",
-            &XamlVisualStateGroupObject::Name,
-            &XamlVisualStateGroupObject::SetName)
-        .Content<XamlVisualStateObject>(
+            &VisualStateGroup::GetName,
+            &VisualStateGroup::SetName)
+        .Content<VisualState>(
             "States",
             ContentKind::Collection,
             &AddGroupState,
             &ClearGroupStates)
-        .Collection<XamlVisualTransitionObject>(
+        .Collection<VisualTransition>(
             "Transitions",
             &AddGroupTransition,
             &ClearGroupTransitions)
@@ -609,12 +643,12 @@ Base::Result<void> PopulateMarkupMetadata(
     status = stateGroup.Result();
     if (!status) return status.GetStatus();
 
-    auto state = Meta::Register<XamlVisualStateObject>(context);
+    auto state = Meta::Register<VisualState>(context);
     state
         .Property(
             "Name",
-            &XamlVisualStateObject::Name,
-            &XamlVisualStateObject::SetName)
+            &VisualState::GetName,
+            &VisualState::SetName)
         .Content<Base::Object>(
             "Content",
             ContentKind::Collection,
@@ -625,24 +659,24 @@ Base::Result<void> PopulateMarkupMetadata(
     if (!status) return status.GetStatus();
 
     auto transition =
-        Meta::Register<XamlVisualTransitionObject>(context);
+        Meta::Register<VisualTransition>(context);
     transition
         .Property(
             "From",
-            &XamlVisualTransitionObject::From,
-            &XamlVisualTransitionObject::SetFrom)
+            &VisualTransition::GetFrom,
+            &VisualTransition::SetFrom)
         .Property(
             "To",
-            &XamlVisualTransitionObject::To,
-            &XamlVisualTransitionObject::SetTo)
+            &VisualTransition::GetTo,
+            &VisualTransition::SetTo)
         .Property(
             "GeneratedDuration",
-            &XamlVisualTransitionObject::GeneratedDuration,
-            &XamlVisualTransitionObject::SetGeneratedDuration)
+            &VisualTransition::GetGeneratedDuration,
+            &VisualTransition::SetGeneratedDuration)
         .Property<
             Base::Ref<Media::Animation::EasingFunctionBase>,
-            &XamlVisualTransitionObject::GeneratedEasingFunction,
-            &XamlVisualTransitionObject::SetGeneratedEasingFunction>(
+            &VisualTransition::GetGeneratedEasingFunction,
+            &VisualTransition::SetGeneratedEasingFunction>(
             "GeneratedEasingFunction",
             PropertyFlags::Structural)
         .Content<Media::Animation::Storyboard>(
@@ -662,7 +696,6 @@ Base::Result<void> PopulateMarkupMetadata(
 
 
 #include <cstdint>
-#include <utility>
 
 namespace Aero::Markup::Detail {
 namespace {
@@ -1294,15 +1327,12 @@ XamlFacets::FindPropertyTargetExact(
 
 // ===== SchemaManifest =====
 
-#include "markup/MarkupPrivate.hpp"
 
 // Immutable compiled-schema manifest implementation.
 
 #include <Aero/Base/Assert.hpp>
-#include <Aero/Markup.hpp>
 
 #include <new>
-#include <utility>
 
 namespace Aero::Markup {
 namespace {
@@ -2385,8 +2415,6 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveContentMember(
 
 // Query surface is public; execution operations are reached by source-side
 // friends and SchemaPrivate.
-#include <cstdio>
-#include <new>
 
 namespace Aero::Markup {
 using namespace Detail;
@@ -2637,6 +2665,62 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
         targetType, owner->Id(), memberName, syntax, true);
 }
 
+Base::Result<ResolvedMember> Schema::ResolveMember(
+    Meta::TypeId targetType,
+    Meta::MemberId memberId) const noexcept {
+    if (!frozen_ || domain_ == nullptr || !domain_->IsReady()) {
+        return RuntimeSchemaNotReady();
+    }
+    if (targetType == Meta::InvalidTypeId ||
+        memberId == Meta::InvalidMemberId) {
+        return RuntimeMemberNotFound();
+    }
+
+    const Meta::TypeRegistry& descriptors = domain_->Types();
+    if (descriptors.FindType(targetType) == nullptr) {
+        return RuntimeMemberNotFound();
+    }
+    if (const Meta::PropertyInfo* property =
+            descriptors.FindProperty(memberId)) {
+        const bool attached = SchemaHasPropertyFlag(
+            property->Flags(), Meta::PropertyFlags::Attached);
+        if (!attached && !descriptors.IsDerivedFrom(
+                targetType, property->OwnerType())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "AXB2 member owner is incompatible with the target type");
+        }
+        ResolvedMember resolved;
+        resolved.id = property->Id();
+        resolved.kind = Meta::MemberKind::Property;
+        resolved.ownerType = property->OwnerType();
+        resolved.valueType = property->ValueType();
+        resolved.propertyFlags = property->Flags();
+        resolved.attached = attached;
+        return resolved;
+    }
+    if (const Meta::EventInfo* event =
+            descriptors.FindEvent(memberId)) {
+        const bool attached = SchemaHasEventFlag(
+            event->Flags(), Meta::EventFlags::Attached);
+        if (!attached && !descriptors.IsDerivedFrom(
+                targetType, event->OwnerType())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "AXB2 event owner is incompatible with the target type");
+        }
+        ResolvedMember resolved;
+        resolved.id = event->Id();
+        resolved.kind = Meta::MemberKind::Event;
+        resolved.ownerType = event->OwnerType();
+        resolved.valueType = event->EventArgsType();
+        resolved.eventFlags = event->Flags();
+        resolved.attached = attached;
+        return resolved;
+    }
+    return RuntimeMemberNotFound();
+}
+
 Base::Result<ResolvedMember>
 Schema::ResolvePropertyOrEvent(
     Meta::TypeId targetType,
@@ -2842,20 +2926,6 @@ Base::Result<void> Schema::SetMember(
     }
 
     Meta::Value convertedValue = value;
-    // FrameworkElement keeps the renderer-facing font family as text, while
-    // WPF resources conventionally expose a FontFamily object. Coerce that
-    // resource at the markup boundary without changing the authored XAML.
-    if (member.valueType == Meta::TypeOf<Base::String>() &&
-        value.Kind() == Meta::ValueKind::Object &&
-        !value.IsNullObject() && value.AsObject() &&
-        value.Type() == Media::FontFamily::StaticTypeId()) {
-        Base::Result<Meta::Value> encoded = Meta::Value::TryFromString(
-            member.valueType,
-            static_cast<Media::FontFamily*>(
-                value.AsObject().Get())->GetSource());
-        if (!encoded) return encoded.GetStatus();
-        convertedValue = std::move(encoded).Value();
-    }
     const bool metadataAcceptsAnyValue =
         (static_cast<std::uint32_t>(
              member.propertyFlags) &
@@ -2960,8 +3030,6 @@ MemberWritePolicy Schema::ResolveMemberWritePolicy(
 
 #include <Aero/Value.hpp>
 
-#include <cstdint>
-#include <utility>
 
 namespace Aero::Markup {
 using namespace Detail;

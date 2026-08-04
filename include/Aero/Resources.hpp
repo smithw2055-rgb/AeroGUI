@@ -93,7 +93,7 @@ inline bool operator!=(
     return !(left == right);
 }
 
-using ResourceValue = Meta::Value;
+using ResourceValue = Value;
 
 struct ResourceEntrySnapshot {
     ResourceKey key;

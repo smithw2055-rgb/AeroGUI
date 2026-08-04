@@ -26,7 +26,6 @@ using PointerCaptureChangedHandler = Base::Delegate<void(std::uint32_t, UIElemen
 } // namespace Aero::Input
 
 #include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Input.hpp>
 #include <Aero/Layout.hpp>

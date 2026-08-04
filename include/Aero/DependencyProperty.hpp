@@ -560,8 +560,6 @@ using Meta::TypeId;
 using Meta::TypeOf;
 using Meta::UpdateSourceTrigger;
 using Meta::ValueCodec;
-using Meta::Value;
-using Meta::ValueKind;
 using ::Aero::Threading::DispatcherObject;
 using ::Aero::Threading::DispatcherReentrancyGuard;
 

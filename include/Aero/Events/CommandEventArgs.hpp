@@ -18,8 +18,8 @@ public:
 
     Input::RoutedCommand* GetCommand() const noexcept { return command_; }
     void SetCommand(Input::RoutedCommand* value) noexcept { command_ = value; }
-    const Meta::Value& GetParameter() const noexcept { return parameter_; }
-    void SetParameter(Meta::Value value) noexcept {
+    const Value& GetParameter() const noexcept { return parameter_; }
+    void SetParameter(Value value) noexcept {
         parameter_ = std::move(value);
     }
     UIElement* GetTarget() const noexcept { return target_; }
@@ -33,7 +33,7 @@ public:
 
 private:
     Input::RoutedCommand* command_ = nullptr;
-    Meta::Value parameter_;
+    Value parameter_;
     UIElement* target_ = nullptr;
     bool canExecute_ = false;
     bool continueRouting_ = true;
@@ -47,8 +47,8 @@ public:
 
     Input::RoutedCommand* GetCommand() const noexcept { return command_; }
     void SetCommand(Input::RoutedCommand* value) noexcept { command_ = value; }
-    const Meta::Value& GetParameter() const noexcept { return parameter_; }
-    void SetParameter(Meta::Value value) noexcept {
+    const Value& GetParameter() const noexcept { return parameter_; }
+    void SetParameter(Value value) noexcept {
         parameter_ = std::move(value);
     }
     UIElement* GetTarget() const noexcept { return target_; }
@@ -60,7 +60,7 @@ public:
 
 private:
     Input::RoutedCommand* command_ = nullptr;
-    Meta::Value parameter_;
+    Value parameter_;
     UIElement* target_ = nullptr;
     bool continueRouting_ = true;
 };

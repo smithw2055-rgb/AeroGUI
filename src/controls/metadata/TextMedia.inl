@@ -105,7 +105,8 @@ Base::Result<void> PopulateControlsTextMedia(
     textElement
         .Property(
             Documents::TextElement::FontFamilyProperty,
-            PropertyOptions(Base::String{}).Inherits().AffectsMeasure())
+            PropertyOptions(Base::Ref<Media::FontFamily>{})
+                .Inherits().AffectsMeasure())
         .Property(
             Documents::TextElement::FontWeightProperty,
             PropertyOptions(FontWeight::Normal).Inherits().AffectsMeasure())
@@ -213,7 +214,8 @@ Base::Result<void> PopulateControlsTextMedia(
             PropertyOptions(Base::Ref<ICommand>{}))
         .Property(
             Documents::Hyperlink::CommandParameterProperty,
-            PropertyOptions(Base::Ref<Base::Object>{}))
+            PropertyOptions(Value::NullObject(
+                TypeOf<Base::Object>())))
         .Property(
             Documents::Hyperlink::CommandTargetProperty,
             PropertyOptions(Base::Ref<UIElement>{}))

@@ -8,29 +8,56 @@
 namespace Aero {
 
 int Application::Run() noexcept {
-    return Run(App::RunOptions{});
+    Base::Result<int> result = RunChecked();
+    return result ? result.Value() : -1;
 }
 
 int Application::Run(
     const App::RunOptions& options) noexcept {
-    ::Aero::App::Detail::DesktopHost host(*this, {}, options);
-    Base::Result<int> result = host.Run();
+    Base::Result<int> result = RunChecked(options);
     return result ? result.Value() : -1;
 }
 
 int Application::Run(
     Base::Ref<Window> window) noexcept {
-    return Run(std::move(window), App::RunOptions{});
+    Base::Result<int> result = RunChecked(std::move(window));
+    return result ? result.Value() : -1;
 }
 
 int Application::Run(
     Base::Ref<Window> window,
     const App::RunOptions& options) noexcept {
-    if (!window) return -1;
+    Base::Result<int> result = RunChecked(
+        std::move(window), options);
+    return result ? result.Value() : -1;
+}
+
+Base::Result<int> Application::RunChecked() noexcept {
+    return RunChecked(App::RunOptions{});
+}
+
+Base::Result<int> Application::RunChecked(
+    const App::RunOptions& options) noexcept {
+    ::Aero::App::Detail::DesktopHost host(*this, {}, options);
+    return host.Run();
+}
+
+Base::Result<int> Application::RunChecked(
+    Base::Ref<Window> window) noexcept {
+    return RunChecked(std::move(window), App::RunOptions{});
+}
+
+Base::Result<int> Application::RunChecked(
+    Base::Ref<Window> window,
+    const App::RunOptions& options) noexcept {
+    if (!window) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Application.RunChecked requires a Window");
+    }
     ::Aero::App::Detail::DesktopHost host(
         *this, std::move(window), options);
-    Base::Result<int> result = host.Run();
-    return result ? result.Value() : -1;
+    return host.Run();
 }
 
 } // namespace Aero

@@ -1,6 +1,5 @@
 #include "gui/GuiPrivate.hpp"
 #include <Aero/Controls/Common.hpp>
-#include "gui/GuiPrivate.hpp"
 
 #include <utility>
 
@@ -50,6 +49,15 @@ Meta::Value ToolBar::GetHeader()
 void ToolBar::SetHeader(
     const Meta::Value& value) noexcept {
     SetValue(HeaderProperty, value);
+}
+
+Base::Result<void> ToolBar::SetHeader(
+    Base::StringView value) noexcept {
+    Base::Result<Value> boxed = Value::TryFromString(
+        Meta::TypeOf<Base::String>(), value);
+    if (!boxed) return boxed.GetStatus();
+    SetHeader(std::move(boxed).Value());
+    return {};
 }
 
 Base::Ref<DataTemplate>

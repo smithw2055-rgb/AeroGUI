@@ -12,6 +12,8 @@
 
 namespace Aero {
 
+class VisualStateManager;
+
 // WPF-facing text values are shared by TextBlock, TextBox and document
 // elements.  Provider and shaping contracts remain private to src/text.
 enum class FontStyle : std::uint8_t {
@@ -110,7 +112,6 @@ namespace Aero::Controls {
 
 class ControlTemplate;
 class ItemContainerGenerator;
-class DataTemplate;
 class Panel;
 
 class AERO_API UIElementCollection {
@@ -390,7 +391,7 @@ protected:
         DrawingContext& context) noexcept override;
 private:
     friend struct ::Aero::Controls::Control::Impl;
-    friend class VisualStateManager;
+    friend class ::Aero::VisualStateManager;
     void SetTemplateChildCore(UIElement* child) noexcept {
         if (child != nullptr && child->LayoutParent() != this) {
             return;
@@ -402,10 +403,6 @@ private:
         return;
     }
 
-    void AttachTemplateRuntime(
-        void* manager) noexcept {
-        templateRuntime_ = manager;
-    }
     void NotifyTemplateApplied(
         std::uint64_t handleValue) noexcept {
         templateHandleValue_ = handleValue;
@@ -418,8 +415,6 @@ private:
             ++templateGeneration_;
         }
     }
-    void* templateRuntime_ = nullptr;
-    void* visualStateRuntime_ = nullptr;
     UIElement* templateChild_ = nullptr;
     std::uint64_t templateHandleValue_ = 0U;
     std::uint64_t templateGeneration_ = 0U;
@@ -428,12 +423,12 @@ private:
 class AERO_API ContentControl : public Control {
     AERO_DECLARE_TYPE(ContentControl, Control)
 public:
-    inline static constexpr Members::Property<Meta::Value> ContentProperty{"Content"};
+    inline static constexpr Members::Property<Value> ContentProperty{"Content"};
     inline static constexpr Members::Property<Base::Ref<Base::Object>> ContentTemplateProperty{"ContentTemplate"};
     inline static constexpr Members::Property<Base::Ref<Base::Object>> ContentTemplateSelectorProperty{"ContentTemplateSelector"};
 
-    Meta::Value GetContent() const noexcept {
-        return GetValueOr(ContentProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()));
+    Value GetContent() const noexcept {
+        return GetValueOr(ContentProperty, Value::NullObject(Meta::TypeOf<Base::Object>()));
     }
     Base::Ref<Base::Object> GetContentTemplate() const noexcept {
         return GetValueOr(
@@ -457,7 +452,7 @@ public:
     void SetContent(Base::Ref<Base::Object> content) noexcept {
         SetContentValue(std::move(content));
     }
-    void SetContent(Meta::Value content) noexcept {
+    void SetContent(Value content) noexcept {
         SetContentValue(std::move(content));
     }
     void SetContent(UIElement* content) noexcept {
@@ -465,13 +460,13 @@ public:
         if (!access) return;
         Base::Result<void> valid = ValidateContent(content);
         if (!valid) return;
-        Meta::Value propertyValue =
+        Value propertyValue =
             content != nullptr
-            ? Meta::Value::FromObject(
+            ? Value::FromObject(
                   content->RuntimeType(),
                   Base::Ref<Base::Object>::FromBorrowed(
                       *content))
-            : Meta::Value::NullObject(
+            : Value::NullObject(
                   Meta::TypeOf<Base::Object>());
         Base::Result<void> stored =
             StoreContentProperty(
@@ -533,7 +528,7 @@ private:
         if (!valid) return;
         Base::Result<void> stored =
             StoreContentProperty(
-                Meta::Value::FromObject(
+                Value::FromObject(
                     contentObject->RuntimeType(),
                     contentObject));
         if (!stored) return;
@@ -550,7 +545,7 @@ private:
     void SetContentValue(
         Base::Ref<Base::Object> value) noexcept;
     void SetContentValue(
-        Meta::Value value) noexcept;
+        Value value) noexcept;
     static void OnContentPropertyChanged(
         ::Aero::DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs&
@@ -560,13 +555,13 @@ private:
     UIElement* content_ = nullptr;
     Base::Ref<Base::Object> ownedContent_;
     Base::Ref<Base::Object> contentValue_;
-    Meta::Value authoredContent_;
+    Value authoredContent_;
     DependencyPropertyChangedEventHandler
         foregroundChangedHandler_;
     bool literalTextContent_ = false;
     bool synchronizingContentProperty_ = false;
     Base::Result<void> StoreContentProperty(
-        Meta::Value value) noexcept;
+        Value value) noexcept;
     void SetGeneratedTextContent(
         const Base::Ref<Base::Object>& contentObject,
         UIElement& content) noexcept;

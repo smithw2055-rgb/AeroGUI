@@ -1,8 +1,6 @@
 #include "Metadata.hpp"
 #include <Aero/Documents.hpp>
 #include "controls/ControlsPrivate.hpp"
-#include "controls/ControlsPrivate.hpp"
-#include "controls/ControlsPrivate.hpp"
 #include "../media/MediaPrivate.hpp"
 
 #include <Aero/Controls/Primitives.hpp>

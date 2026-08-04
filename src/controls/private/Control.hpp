@@ -38,8 +38,6 @@ namespace Aero::Controls {
 using namespace ::Aero::Controls::Detail;
 using namespace ::Aero::GuiPrivate::Detail;
 
-class VisualStateManager;
-
 // One private entry point owns the standard control storage and template hooks.
 // This replaces per-control-family Access classes without adding a new runtime
 // object or virtual dispatch layer.
@@ -64,12 +62,14 @@ public:
     static void AttachTemplateEngine(
         Control& control,
         void* engine) noexcept {
-        control.AttachTemplateRuntime(engine);
+        static_cast<void>(control);
+        static_cast<void>(engine);
     }
     static void SetVisualStateManager(
         Control& control,
-        VisualStateManager* manager) noexcept {
-        control.visualStateRuntime_ = manager;
+        Aero::VisualStateManager* manager) noexcept {
+        static_cast<void>(control);
+        static_cast<void>(manager);
     }
     static void NotifyTemplateApplied(
         Control& control,
@@ -198,11 +198,11 @@ public:
             TextBlock& text,
             TextBlockLayout* service,
             bool invalidate = false) noexcept {
-            if (text.layoutService_ == service && !invalidate) {
+            if (::Aero::Visual::Impl::TextLayoutRuntime(text) == service &&
+                !invalidate) {
                 return;
             }
             text.ReleaseServiceGlyphRun();
-            text.layoutService_ = service;
             text.glyphRuns_.Clear();
             text.glyphRunSize_ = {};
             if (invalidate) {
@@ -215,11 +215,11 @@ public:
             TextBox& text,
             TextBlockLayout* service,
             bool invalidate = false) noexcept {
-            if (text.layoutService_ == service && !invalidate) {
+            if (::Aero::Visual::Impl::TextLayoutRuntime(text) == service &&
+                !invalidate) {
                 return;
             }
             text.ReleaseGlyphRuns();
-            text.layoutService_ = service;
             if (invalidate) {
                 static_cast<void>(text.InvalidateMeasure());
                 static_cast<void>(text.InvalidateVisual());

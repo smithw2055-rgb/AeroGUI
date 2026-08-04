@@ -17,7 +17,7 @@ public:
     struct Impl;
 
     Window() noexcept : Window(StaticTypeId()) {}
-    ~Window() noexcept override = default;
+    ~Window() noexcept override;
 
     Base::StringView GetTitle() const noexcept { return GetValueOr(TitleProperty, Base::StringView{}); }
     void SetTitle(Base::StringView value) noexcept { SetValue(TitleProperty, value); }
@@ -34,8 +34,10 @@ public:
     bool GetTopmost() const noexcept { return GetValueOr(TopmostProperty, false); }
     void SetTopmost(bool value) noexcept { SetValue(TopmostProperty, value); }
 
-    Base::Result<void> Show() noexcept;
+    void Show() noexcept;
+    Base::Result<void> ShowChecked() noexcept;
     void Close() noexcept;
+    Base::Result<void> CloseChecked() noexcept;
     bool GetIsOpen() const noexcept;
 
     inline static constexpr Members::Property<Base::String> TitleProperty{"Title"};
@@ -62,7 +64,7 @@ public:
     UIElement::Event<RoutedEventArgs> StateChanged() noexcept { return GetEvent(StateChangedEvent); }
 
 protected:
-    explicit Window(Meta::TypeId runtimeType) noexcept : ContentControl(runtimeType) {}
+    explicit Window(Meta::TypeId runtimeType) noexcept;
     virtual void OnClosing(CancelEventArgs& args) noexcept { static_cast<void>(RaiseEvent(ClosingEvent, &args)); }
     virtual void OnClosed(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(ClosedEvent, &args)); }
     virtual void OnActivated(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(ActivatedEvent, &args)); }
@@ -75,18 +77,15 @@ private:
     friend struct Impl;
     friend class App::WindowInterop;
 
-    void Attach(void* hostState) noexcept { hostState_ = hostState; sourceInitialized_ = false; contentRendered_ = false; closed_ = false; }
-    void Detach() noexcept { hostState_ = nullptr; }
+    void Attach(void* hostState) noexcept;
+    void Detach() noexcept;
     void NotifySourceInitialized() noexcept;
     void NotifyActivated() noexcept;
     void NotifyDeactivated() noexcept;
     void NotifyContentRendered() noexcept;
     void NotifyClosed() noexcept;
 
-    void* hostState_ = nullptr;
-    bool sourceInitialized_ = false;
-    bool contentRendered_ = false;
-    bool closed_ = false;
+    Impl* impl_ = nullptr;
 };
 
 } // namespace Aero

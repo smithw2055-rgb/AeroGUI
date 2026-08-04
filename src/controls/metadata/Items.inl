@@ -79,7 +79,8 @@ Base::Result<void> PopulateControlsItems(
     headeredItemsControl
         .Property(
             HeaderedItemsControl::HeaderProperty,
-            PropertyOptions(Base::String{}).AffectsMeasure())
+            PropertyOptions(Value::NullObject(
+                TypeOf<Base::Object>())).AffectsMeasure())
         .Property(
             HeaderedItemsControl::HeaderTemplateProperty,
             PropertyOptions(Base::Ref<DataTemplate>{}).AffectsMeasure());
@@ -295,7 +296,8 @@ Base::Result<void> PopulateControlsItems(
         .Event(TreeViewItem::UnselectedEvent)
         .Property(
             TreeViewItem::HeaderProperty,
-            PropertyOptions(Base::String{})
+            PropertyOptions(Value::NullObject(
+                TypeOf<Base::Object>()))
                 .AffectsMeasure())
         .Property(
             TreeViewItem::IconProperty,
@@ -377,8 +379,8 @@ Base::Result<void> PopulateControlsItems(
                 Base::Ref<ICommand>{}))
         .Property(
             MenuItem::CommandParameterProperty,
-            PropertyOptions(
-                Base::Ref<Base::Object>{}))
+            PropertyOptions(Value::NullObject(
+                TypeOf<Base::Object>())))
         .Factory();
     status = menuItem.Result();
     if (!status) return status.GetStatus();
@@ -429,7 +431,8 @@ Base::Result<void> PopulateControlsItems(
     gridViewColumn
         .Property(
             GridViewColumn::HeaderProperty,
-            PropertyOptions(Base::String{}))
+            PropertyOptions(Value::NullObject(
+                TypeOf<Base::Object>())))
         .Property(
             GridViewColumn::WidthProperty,
             PropertyOptions(100.0)

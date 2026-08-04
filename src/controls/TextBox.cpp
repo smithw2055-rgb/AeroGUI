@@ -13,7 +13,6 @@
 #include <limits>
 #include <new>
 #include <utility>
-#include "gui/GuiPrivate.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls::Detail {
@@ -192,8 +191,9 @@ const ::Aero::Text::Detail::EditableTextModel& Model(
 }
 
 ::Aero::Controls::Detail::TextBlockLayout* LayoutService(
-    void* value) noexcept {
-    return static_cast<::Aero::Controls::Detail::TextBlockLayout*>(value);
+    const Visual& visual) noexcept {
+    return static_cast<::Aero::Controls::Detail::TextBlockLayout*>(
+        ::Aero::Visual::Impl::TextLayoutRuntime(visual));
 }
 
 Base::Ref<Media::Brush>
@@ -234,7 +234,6 @@ TextBox::TextBox() noexcept
     : TextBoxBase(StaticTypeId()),
       model_(new (std::nothrow) ::Aero::Text::Detail::EditableTextModel()),
       compositionModel_(new (std::nothrow) ::Aero::Text::Detail::EditableTextModel()),
-      layoutService_(nullptr),
       displayPolicy_(nullptr),
       plainPolicy_(new (std::nothrow) Detail::PlainTextDisplayPolicy()),
       textChangedHandler_(
@@ -639,13 +638,18 @@ void TextBox::SetFontSize(
     SetValue(FontSizeProperty, value);
 }
 
-Base::StringView TextBox::GetFontFamily() const noexcept {
+Base::Ref<Media::FontFamily> TextBox::GetFontFamily() const noexcept {
     return FrameworkElement::GetFontFamily();
 }
 
 void TextBox::SetFontFamily(
+    Base::Ref<Media::FontFamily> value) noexcept {
+    FrameworkElement::SetFontFamily(std::move(value));
+}
+
+Base::Result<void> TextBox::SetFontFamily(
     Base::StringView value) noexcept {
-    SetValue(FontFamilyProperty, value);
+    return FrameworkElement::SetFontFamily(value);
 }
 
 FontWeight TextBox::GetFontWeight() const noexcept {
@@ -1639,7 +1643,8 @@ Size TextBox::MeasureOverride(
                 static_cast<double>(UINT32_MAX),
                 std::max(1.0, columns)));
     }
-    if (layoutService_ != nullptr &&
+    auto* layoutService = LayoutService(*this);
+    if (layoutService != nullptr &&
         !displayText_.Empty()) {
         Detail::TextLayoutRequest request;
         request.text = displayText_.View();
@@ -1651,8 +1656,11 @@ Size TextBox::MeasureOverride(
         request.lineHeight =
             static_cast<float>(
                 GetFontSize() * 1.6);
-        Base::StringView family =
+        const Base::Ref<Media::FontFamily> configuredFamily =
             GetFontFamily();
+        Base::StringView family = configuredFamily
+            ? configuredFamily->GetSource()
+            : Base::StringView{};
         const bool defaultFamily =
             family.Empty() ||
             family == Base::StringView(
@@ -1685,7 +1693,7 @@ Size TextBox::MeasureOverride(
             : Text::TextDirection::LeftToRight;
         Detail::TextLayoutResult result;
         Base::Result<void> prepared =
-            LayoutService(layoutService_)->ShapeAndPrepare(
+            layoutService->ShapeAndPrepare(
                 request, result);
         if (!prepared) {
             return Size{};
@@ -1698,7 +1706,7 @@ Size TextBox::MeasureOverride(
                      result.glyphRuns) {
                     if (release !=
                         InvalidRenderGlyphRunId) {
-                        LayoutService(layoutService_)->
+                        layoutService->
                             ReleaseGlyphRun(release);
                     }
                 }
@@ -2035,11 +2043,11 @@ TextBox::RenderEditor(
 }
 
 void TextBox::ReleaseGlyphRuns() noexcept {
-    if (serviceOwnsGlyphRuns_ &&
-        layoutService_ != nullptr) {
+    auto* layoutService = LayoutService(*this);
+    if (serviceOwnsGlyphRuns_ && layoutService != nullptr) {
         for (RenderGlyphRunId glyph :
              glyphRuns_) {
-            LayoutService(layoutService_)->ReleaseGlyphRun(glyph);
+            layoutService->ReleaseGlyphRun(glyph);
         }
     }
     glyphRuns_.Clear();

@@ -180,7 +180,7 @@ Generic 提供隐式 Style，ControlTemplate 由 Style 的 `Template` setter 提
 ControlGallery 不再逐控件调用主题 apply，也不再包含程序化外观补丁。
 
 本机构建默认通过 `AeroCompiledThemes` 调用 `aero-xamlc --origin`，将 Light、
-Dark、Generic 编译为 AXIR 并嵌入 View runtime object component，最终折叠进 `Aero::Integration`。交叉编译可提供
+Dark、Generic 编译为 AXB2 并嵌入 View runtime object component，最终折叠进 `Aero::Integration`。交叉编译可提供
 `AERO_HOST_XAMLC_EXECUTABLE`；关闭 `AERO_PRECOMPILE_BUILTIN_THEMES` 时只嵌入
 原始 XAML，并通过相同 pack URI/provider 路径加载。`XamlReader::LoadTheme` 优先加载
 compiled document，compiled payload 不存在或 schema identity 不兼容时确定性
@@ -206,11 +206,11 @@ application module registrations
   -> native host schema generator
   -> App.aeroschema
   -> aero-xamlc --schema App.aeroschema
-  -> AXIR carrying the same metadata schema hash
+  -> AXB2 carrying the same metadata schema hash
 ```
 
 因此 target runtime 与 host xamlc 不需要链接同一平台二进制。运行时仍使用完整
-`GuiSchema` 和 callbacks；xamlc 仅使用 manifest 做结构验证。AXIR identity
+`GuiSchema` 和 callbacks；xamlc 仅使用 manifest 做结构验证。AXB2 identity
 直接继承 manifest identity，目标 Runtime 在加载时继续使用自己的 `Meta::Registry`
 做兼容性校验。
 
@@ -244,12 +244,12 @@ Template 和 `XamlContentWriter` schema extension。值类型元素（例如
 ## Document Cache、依赖图与完整文档热重载
 
 `Gui` 拥有共享 `XamlDocumentCache`。缓存项只保存由当前 Schema
-验证的 serialized AXIR、source revision 和 dependency URI，不保存实例对象或
+验证的 serialized AXB2、source revision 和 dependency URI，不保存实例对象或
 View service。多个 `View` 可以复用同一缓存，同时继续拥有独立的
 Binding、资源环境、布局和渲染状态。
 
 Provider 可通过 `Revision()` 暴露低成本版本探测。缓存命中时 Loader 直接重放
-AXIR；未提供 revision probe 时回退到 source load 和 byte hash。成功的首次 source
+AXB2；未提供 revision probe 时回退到 source load 和 byte hash。成功的首次 source
 load 仍走原 object-writer 语义，随后以不影响结果语义的附加步骤填充 cache，因此
 cache 失败不会改变文档加载结果。
 

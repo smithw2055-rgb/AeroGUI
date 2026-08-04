@@ -158,9 +158,11 @@ public:
         const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
         bool handledEventsToo = false) noexcept {
         Base::Result<void> added = AddHandlerChecked(event, handler, handledEventsToo);
-        if (!added) {
+        if (added) return;
+        if (added.GetStatus().code == Base::ErrorCode::OutOfMemory) {
             Base::ReportOutOfMemory(sizeof(handler), alignof(decltype(handler)), Base::MemoryTag::General);
         }
+        AERO_ASSERT(false && "UIElement::AddHandler failed; use AddHandlerChecked for diagnostics");
     }
     template<class TArgs>
     bool RemoveHandler(
@@ -304,8 +306,6 @@ private:
         const HandlerDescriptor& handler) noexcept;
     void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
 
-    void* layoutManager_ = nullptr;
-    void* viewServices_ = nullptr;
     void* routedHandlers_ = nullptr;
     Size desiredSize_;
     Size untransformedDesiredSize_;

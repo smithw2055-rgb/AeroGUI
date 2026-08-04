@@ -78,7 +78,7 @@ function(aero_add_xaml target)
             set(_aero_output_dir
                 "${_aero_xaml_output}/${_aero_relative_dir}")
         endif()
-        set(_aero_output "${_aero_output_dir}/${_aero_name}.axir")
+        set(_aero_output "${_aero_output_dir}/${_aero_name}.axb")
         set(_aero_depfile "${_aero_output}.d")
         set(_aero_origin_arguments)
         if(AERO_XAML_ORIGIN_PREFIX)

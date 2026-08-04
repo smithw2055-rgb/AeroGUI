@@ -275,11 +275,11 @@ public:
         return contributions_.AsSpan();
     }
 
-    std::uint32_t Count() const noexcept {
+    std::uint32_t GetCount() const noexcept {
         return contributions_.Size();
     }
 
-    bool Empty() const noexcept {
+    bool GetIsEmpty() const noexcept {
         return contributions_.Empty();
     }
 

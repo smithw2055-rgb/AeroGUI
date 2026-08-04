@@ -4,7 +4,6 @@
 #include <Aero/Styling.hpp>
 
 #include <utility>
-#include "gui/GuiPrivate.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
@@ -60,15 +59,25 @@ TreeViewItem::~TreeViewItem() {
         itemsChangedHandler_));
 }
 
-Base::StringView
+Value
 TreeViewItem::GetHeader() const noexcept {
     return GetValueOr(
-        HeaderProperty, Base::StringView{});
+        HeaderProperty,
+        Value::NullObject(Meta::TypeOf<Base::Object>()));
 }
 
 void TreeViewItem::SetHeader(
+    Value value) noexcept {
+    SetValue(HeaderProperty, std::move(value));
+}
+
+Base::Result<void> TreeViewItem::SetHeader(
     Base::StringView value) noexcept {
-    SetValue(HeaderProperty, value);
+    Base::Result<Value> boxed = Value::TryFromString(
+        Meta::TypeOf<Base::String>(), value);
+    if (!boxed) return boxed.GetStatus();
+    SetHeader(std::move(boxed).Value());
+    return {};
 }
 
 Base::StringView TreeViewItem::GetIcon() const noexcept {
@@ -185,7 +194,11 @@ void TreeViewItem::OnTemplateDetached() noexcept {
 Base::Result<void>
 TreeViewItem::SynchronizeTemplate() noexcept {
     if (headerText_ != nullptr) {
-        headerText_->SetText(GetHeader());
+        const Value header = GetHeader();
+        headerText_->SetText(
+            header.Kind() == ValueKind::String
+            ? header.AsString()
+            : Base::StringView{});
     }
     if (iconText_ != nullptr) {
         iconText_->SetText(GetIcon());
@@ -240,10 +253,10 @@ void TreeViewItem::OnSelectedChanged(
 }
 
 TreeView::~TreeView() {
-    if (interactions_ != nullptr) {
-        static_cast<void>(
-            static_cast<TreeBehavior*>(
-                interactions_)->Detach(*this));
+    auto* behaviors = static_cast<Detail::ControlBehavior*>(
+        Visual::Impl::ControlBehaviorRuntime(*this));
+    if (behaviors != nullptr) {
+        static_cast<void>(behaviors->Detach(*this));
     }
 }
 
@@ -266,6 +279,8 @@ TreeView::CreateContainer(
 
 bool TreeView::SelectItem(
     TreeViewItem* item) noexcept {
+    auto* states = static_cast<Aero::VisualStateManager*>(
+        Visual::Impl::VisualStateRuntime(*this));
     Base::Ref<Base::Object> previous =
         GetSelectedItem();
     if (previous.Get() == item) return false;
@@ -274,9 +289,9 @@ bool TreeView::SelectItem(
             previous->RuntimeType(),
             TreeViewItem::StaticTypeId())) {
         static_cast<TreeViewItem*>(previous.Get())->SetIsSelected(false);
-        if (states_ != nullptr) {
+        if (states != nullptr) {
             static_cast<void>(
-                Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
+                Aero::Controls::Detail::TemplatePrivate::GoToState(*states,
                     *static_cast<TreeViewItem*>(
                         previous.Get()),
                     "SelectionStates",
@@ -286,9 +301,9 @@ bool TreeView::SelectItem(
     Base::Ref<Base::Object> next;
     if (item != nullptr) {
         item->SetIsSelected(true);
-        if (states_ != nullptr) {
+        if (states != nullptr) {
             Base::Result<bool> state =
-                Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
+                Aero::Controls::Detail::TemplatePrivate::GoToState(*states,
                     *item,
                     "SelectionStates",
                     "Selected");
@@ -380,8 +395,7 @@ TreeView::Impl::ResolveTreeView(
 Base::Result<void>
 TreeView::Impl::Attach(
     TreeView& treeView) noexcept {
-    if (treeView.interactions_ != nullptr ||
-        Aero::GuiPrivate::Detail::ElementPrivate::Tree(treeView) != tree_ ||
+    if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(treeView) != tree_ ||
         FindTreeView(treeView) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -419,8 +433,6 @@ TreeView::Impl::Attach(
                 mouseDownHandler_));
         return stored.GetStatus();
     }
-    treeView.interactions_ = this;
-    treeView.states_ = states_;
     return {};
 }
 
@@ -443,8 +455,6 @@ TreeView::Impl::Detach(
             records_[current + 1U];
     }
     records_.PopBack();
-    treeView.interactions_ = nullptr;
-    treeView.states_ = nullptr;
     return true;
 }
 

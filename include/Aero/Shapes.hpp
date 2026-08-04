@@ -135,7 +135,6 @@ private:
     Base::Vector<Point> strokeVertices_;
     Base::Vector<std::uint32_t> strokeIndices_;
     Rect geometryBounds_;
-    void* meshServices_ = nullptr;
     std::uint64_t meshServiceGeneration_ = 0U;
     std::uint64_t mesh_ = 0U;
     std::uint64_t strokeMesh_ = 0U;

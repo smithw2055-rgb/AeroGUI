@@ -1,8 +1,6 @@
 #include <Aero/ContentElement.hpp>
 
 #include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/Assert.hpp>
 

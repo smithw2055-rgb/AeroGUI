@@ -3,17 +3,28 @@
 
 #include <Aero/App/WindowInterop.hpp>
 #include "ApplicationState.hpp"
+#include "DesktopHost.hpp"
 
 namespace Aero {
 
+void Window::Show() noexcept {
+    static_cast<void>(ShowChecked());
+}
 
-Base::Result<void> Window::Show() noexcept {
-    auto* state = static_cast<::Aero::App::Detail::WindowHostState*>(hostState_);
+Base::Result<void> Window::ShowChecked() noexcept {
+    if (impl_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Window implementation allocation failed");
+    }
+    auto* state = static_cast<::Aero::App::Detail::WindowHostState*>(
+        impl_->hostState);
     if (state == nullptr) {
         Application* application = Application::Current();
-        auto* applicationState = application != nullptr
+        auto* applicationState = application != nullptr &&
+                application->impl_ != nullptr
             ? static_cast<::Aero::App::Detail::ApplicationHostState*>(
-                  application->hostState_)
+                  application->impl_->hostState)
             : nullptr;
         if (applicationState == nullptr ||
             applicationState->showWindow == nullptr) {
@@ -24,7 +35,8 @@ Base::Result<void> Window::Show() noexcept {
         Base::Result<void> attached =
             applicationState->showWindow(applicationState->context, *this);
         if (!attached) return attached.GetStatus();
-        state = static_cast<::Aero::App::Detail::WindowHostState*>(hostState_);
+        state = static_cast<::Aero::App::Detail::WindowHostState*>(
+            impl_->hostState);
     }
     if (state == nullptr || state->show == nullptr) {
         return Base::Status::Failure(
@@ -49,23 +61,49 @@ void Window::SetWindowState(WindowState value) noexcept {
 }
 
 bool Window::GetIsOpen() const noexcept {
-    const auto* state = static_cast<const ::Aero::App::Detail::WindowHostState*>(hostState_);
+    const auto* state = impl_ != nullptr
+        ? static_cast<const ::Aero::App::Detail::WindowHostState*>(
+              impl_->hostState)
+        : nullptr;
     return state != nullptr && state->isOpen != nullptr && state->isOpen(state->context);
 }
 
 void Window::Close() noexcept {
-    if (closed_) return;
+    static_cast<void>(CloseChecked());
+}
+
+Base::Result<void> Window::CloseChecked() noexcept {
+    if (impl_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Window implementation allocation failed");
+    }
+    if (impl_->closed) return {};
     CancelEventArgs closing;
     OnClosing(closing);
-    if (closing.GetCancel()) return;
-    auto* state = static_cast<::Aero::App::Detail::WindowHostState*>(hostState_);
+    if (closing.GetCancel()) return {};
+    auto* state = static_cast<::Aero::App::Detail::WindowHostState*>(
+        impl_->hostState);
     if (state != nullptr && state->close != nullptr) state->close(state->context);
     NotifyClosed();
+    return {};
+}
+
+void Window::Attach(void* hostState) noexcept {
+    if (impl_ == nullptr) return;
+    impl_->hostState = hostState;
+    impl_->sourceInitialized = false;
+    impl_->contentRendered = false;
+    impl_->closed = false;
+}
+
+void Window::Detach() noexcept {
+    if (impl_ != nullptr) impl_->hostState = nullptr;
 }
 
 void Window::NotifySourceInitialized() noexcept {
-    if (sourceInitialized_) return;
-    sourceInitialized_ = true;
+    if (impl_ == nullptr || impl_->sourceInitialized) return;
+    impl_->sourceInitialized = true;
     RoutedEventArgs args;
     OnSourceInitialized(args);
 }
@@ -83,15 +121,15 @@ void Window::NotifyDeactivated() noexcept {
 }
 
 void Window::NotifyContentRendered() noexcept {
-    if (contentRendered_) return;
-    contentRendered_ = true;
+    if (impl_ == nullptr || impl_->contentRendered) return;
+    impl_->contentRendered = true;
     RoutedEventArgs args;
     OnContentRendered(args);
 }
 
 void Window::NotifyClosed() noexcept {
-    if (closed_) return;
-    closed_ = true;
+    if (impl_ == nullptr || impl_->closed) return;
+    impl_->closed = true;
     NotifyDeactivated();
     RoutedEventArgs args;
     OnClosed(args);
@@ -102,12 +140,18 @@ void Window::NotifyClosed() noexcept {
 namespace Aero::App {
 
 Integration::NativeWindowHandle WindowInterop::NativeHandle(const ::Aero::Window& window) noexcept {
-    const auto* state = static_cast<const ::Aero::App::Detail::WindowHostState*>(window.hostState_);
+    const auto* state = window.impl_ != nullptr
+        ? static_cast<const ::Aero::App::Detail::WindowHostState*>(
+              window.impl_->hostState)
+        : nullptr;
     return state != nullptr && state->nativeHandle != nullptr ? state->nativeHandle(state->context) : Integration::NativeWindowHandle{};
 }
 
 ::Aero::View* WindowInterop::HostedView(::Aero::Window& window) noexcept {
-    auto* state = static_cast<::Aero::App::Detail::WindowHostState*>(window.hostState_);
+    auto* state = window.impl_ != nullptr
+        ? static_cast<::Aero::App::Detail::WindowHostState*>(
+              window.impl_->hostState)
+        : nullptr;
     return state != nullptr && state->hostedView != nullptr ? state->hostedView(state->context) : nullptr;
 }
 

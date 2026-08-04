@@ -8,7 +8,6 @@
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Freezable.hpp>
-#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Meta {
 Base::Result<void> Detail::PopulateCoreMetadata(
@@ -99,12 +98,7 @@ Base::Result<void> Detail::PopulateCoreMetadata(
 
 // ===== UiMetadata =====
 
-#include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 
-#include "gui/GuiPrivate.hpp"
-#include <Aero/Meta.hpp>
-#include <Aero/Value.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Animation.hpp>
 #include <Aero/Data.hpp>
@@ -112,13 +106,11 @@ Base::Result<void> Detail::PopulateCoreMetadata(
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Layout.hpp>
-#include "gui/GuiPrivate.hpp"
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/ContentElement.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Media/Transforms.hpp>
-#include "media/MediaPrivate.hpp"
 #include "media/MediaPrivate.hpp"
 
 #include <cctype>

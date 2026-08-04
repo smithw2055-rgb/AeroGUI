@@ -4,7 +4,6 @@ namespace Aero::Controls::Detail { class TemplateEngine; }
 
 #include "gui/GuiPrivate.hpp"
 #include "../controls/ControlsPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 
 #include "render/RenderTree.hpp"
 
@@ -61,7 +60,7 @@ struct InspectorSnapshot {
     Base::Vector<
         Data::BindingInspection>
         activeBindings;
-    Base::Ref<Base::Object> dataContext;
+    Value dataContext;
     const Aero::Style*
         appliedStyle = nullptr;
     ::Aero::Controls::Detail::TemplateHandle

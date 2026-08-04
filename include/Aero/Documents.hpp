@@ -22,7 +22,7 @@ public:
     InlineCollectionView() noexcept = default;
     std::uint32_t GetCount() const noexcept;
     bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
-    const Inline* At(std::uint32_t index) const noexcept;
+    const Inline* GetItem(std::uint32_t index) const noexcept;
 
 private:
     friend class InlineCollection;
@@ -40,7 +40,7 @@ public:
     InlineCollection() noexcept = default;
     std::uint32_t GetCount() const noexcept;
     bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
-    Inline* At(std::uint32_t index) const noexcept;
+    Inline* GetItem(std::uint32_t index) const noexcept;
     InlineCollectionView GetView() const noexcept;
     Base::Result<void> Add(Base::Ref<Inline> value) noexcept;
     Base::Result<bool> Remove(Inline& value) noexcept;
@@ -147,8 +147,9 @@ class AERO_API TextElement : public FrameworkContentElement {
 public:
     ~TextElement() override = default;
 
-    Base::StringView GetFontFamily() const noexcept {
-        return GetValueOr(FontFamilyProperty, Base::StringView{});
+    Base::Ref<Media::FontFamily> GetFontFamily() const noexcept {
+        return GetValueOr(
+            FontFamilyProperty, Base::Ref<Media::FontFamily>{});
     }
     double GetFontSize() const noexcept {
         return GetValueOr(FontSizeProperty, 16.0);
@@ -168,8 +169,16 @@ public:
             Controls::TextDecorations::None);
     }
 
-    void SetFontFamily(Base::StringView value) noexcept {
-        SetValue(FontFamilyProperty, value);
+    void SetFontFamily(Base::Ref<Media::FontFamily> value) noexcept {
+        SetValue(FontFamilyProperty, std::move(value));
+    }
+    Base::Result<void> SetFontFamily(Base::StringView value) noexcept {
+        Base::Result<Base::Ref<Media::FontFamily>> family =
+            Base::MakeRef<Media::FontFamily>();
+        if (!family) return family.GetStatus();
+        family.Value()->SetSource(value);
+        SetFontFamily(std::move(family).Value());
+        return {};
     }
     void SetFontSize(double value) noexcept {
         SetValue(FontSizeProperty, value);
@@ -188,7 +197,7 @@ public:
         SetValue(TextDecorationsProperty, value);
     }
 
-    inline static constexpr Members::Property<Base::String> FontFamilyProperty{"FontFamily"};
+    inline static constexpr Members::Property<Base::Ref<Media::FontFamily>> FontFamilyProperty{"FontFamily"};
     inline static constexpr Members::Property<double> FontSizeProperty{"FontSize"};
     inline static constexpr Members::Property<FontWeight> FontWeightProperty{"FontWeight"};
     inline static constexpr Members::Property<FontStyle> FontStyleProperty{"FontStyle"};
@@ -240,8 +249,8 @@ public:
     InlineCollectionView GetInlines() const noexcept {
         return InlineCollectionView(*this);
     }
-    Meta::Value GetMetadataInlines() const noexcept;
-    void SetInlineValue(Meta::Value value) noexcept;
+    Value GetMetadataInlines() const noexcept;
+    void SetInlineValue(Value value) noexcept;
     Base::Result<void> AddOwnedInline(Base::Ref<Inline> value) noexcept;
     void ClearOwnedInlines() noexcept;
 
@@ -306,20 +315,19 @@ public:
 
     Base::StringView GetNavigateUri() const noexcept;
     Aero::Input::ICommand* GetCommand() const noexcept;
-    Base::Ref<Base::Object> GetCommandParameter() const noexcept;
+    Value GetCommandParameter() const noexcept;
     Aero::UIElement* GetCommandTarget() const noexcept;
 
     void SetNavigateUri(Base::StringView value) noexcept;
     void SetCommand(
         Base::Ref<Aero::Input::ICommand> command) noexcept;
-    void SetCommandParameter(
-        Base::Ref<Base::Object> parameter) noexcept;
+    void SetCommandParameter(Value parameter) noexcept;
     void SetCommandTarget(
         Base::Ref<Aero::UIElement> target) noexcept;
 
     inline static constexpr Members::Property<Base::String> NavigateUriProperty{"NavigateUri"};
     inline static constexpr Members::Property<Base::Ref<Aero::Input::ICommand>> CommandProperty{"Command"};
-    inline static constexpr Members::Property<Base::Ref<Base::Object>> CommandParameterProperty{"CommandParameter"};
+    inline static constexpr Members::Property<Value> CommandParameterProperty{"CommandParameter"};
     inline static constexpr Members::Property<Base::Ref<Aero::UIElement>> CommandTargetProperty{"CommandTarget"};
 };
 

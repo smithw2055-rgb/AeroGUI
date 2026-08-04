@@ -14,7 +14,11 @@
 #include "integration/IntegrationPrivate.hpp"
 #include "render/opengl33/OpenGL33Renderer.hpp"
 #include "render/opengl33/OpenGL33Backend.hpp"
-#include "runtime/ViewAccess.hpp"
+
+namespace Aero::Runtime::Detail {
+const Integration::RenderFrame* CurrentFrameForConformance(
+    const View& view) noexcept;
+}
 
 #if defined(_WIN32)
 #include "render/d3d11/D3D11Backend.hpp"
@@ -864,7 +868,7 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
     view.SetViewport(viewport);
     Check(view.Update().HasValue(), "nested effect View update failed");
     const Aero::Integration::RenderFrame* frame =
-        Aero::View::Impl::CurrentFrame(view);
+        Aero::Runtime::Detail::CurrentFrameForConformance(view);
     if (frame != nullptr && frame->GradientRamps().Empty()) {
         std::fprintf(stderr,
             "render frame diagnostics: version=%llu nodes=%u commands=%u ramps=%u\n",
@@ -968,7 +972,7 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
     firstStop->SetColor({1.0F, 1.0F, 1.0F, 0.6F});
     Check(view.Update().HasValue(),
         "gradient revision View update failed");
-    frame = Aero::View::Impl::CurrentFrame(view);
+    frame = Aero::Runtime::Detail::CurrentFrameForConformance(view);
     auto revised = frame != nullptr
         ? renderer.Record(*frame, renderTarget)
         : Aero::Base::Result<Aero::Graphics::CommandList>(
@@ -1018,6 +1022,12 @@ int main() {
             gui.CreateView();
         Check(view.HasValue(), "View creation failed");
         if (view) {
+            Aero::Markup::XamlReader themeReader(*view.Value());
+            const Aero::Base::Result<void> themeLoaded =
+                themeReader.LoadTheme(
+                    Aero::BuiltInTheme::Light);
+            Check(themeLoaded.HasValue(),
+                "AXB2 built-in theme load failed");
             VerifyMaskAndEffectRendering(*view.Value());
             VerifyFreezeGraph();
             VerifyExpressionFreezeRejection();

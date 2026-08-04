@@ -1033,12 +1033,9 @@ Base::Status Utf8XmlTokenizer::Failure(
 
 // ===== NodeReader =====
 
-#include "markup/MarkupPrivate.hpp"
 
 // Canonical markup node reader implementation.
 
-#include <cstring>
-#include <utility>
 
 namespace Aero::Markup {
 namespace {
@@ -1088,6 +1085,8 @@ void Node::Clear() noexcept {
     value_.Clear();
     source_ = {};
     fromAttribute_ = false;
+    compiledTypeId_ = Meta::InvalidTypeId;
+    compiledMemberId_ = Meta::InvalidMemberId;
 }
 
 Base::Result<Node> Node::Clone(
@@ -1096,6 +1095,8 @@ Base::Result<Node> Node::Clone(
     clone.kind_ = source.kind_;
     clone.source_ = source.source_;
     clone.fromAttribute_ = source.fromAttribute_;
+    clone.compiledTypeId_ = source.compiledTypeId_;
+    clone.compiledMemberId_ = source.compiledMemberId_;
     Base::Result<void> copied =
         clone.name_.prefix_.Assign(
             source.name_.prefix_.View());
@@ -1726,15 +1727,12 @@ Base::Status NodeReader::Failure(
 
 #if AERO_WITH_EXPAT
 // ===== ExpatXmlTokenizer =====
-#include "markup/MarkupPrivate.hpp"
 
 // Optional Expat tokenizer backend.
 
 #include <expat.h>
 
 #include <climits>
-#include <cstring>
-#include <utility>
 
 namespace Aero::Markup {
 namespace {

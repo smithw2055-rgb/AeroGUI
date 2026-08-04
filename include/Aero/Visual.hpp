@@ -68,7 +68,6 @@ private:
     Base::Vector<Visual*> logicalChildren_;
     Base::Vector<Visual*> visualChildren_;
     Base::Ref<Base::Object> lifetime_;
-    void* renderRuntime_ = nullptr;
     Base::RenderNodeId renderNodeId_ =
         Base::InvalidRenderNodeId;
     std::uint64_t renderRevision_ = 0U;

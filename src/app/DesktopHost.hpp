@@ -3,13 +3,12 @@
 #include <Aero/App.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include "runtime/ViewAccess.hpp"
 
 namespace Aero {
 
 struct Application::Impl {
 public:
-    static void Attach(
+    static Base::Result<void> Attach(
         ::Aero::Application& application,
         void* hostState,
         ::Aero::Window* mainWindow) noexcept;
@@ -18,7 +17,11 @@ public:
     static void RaiseExit(
         ::Aero::Application& application,
         int exitCode) noexcept;
+    static void AdoptResources(
+        ::Aero::Application& application,
+        ::Aero::ResourceDictionary&& resources) noexcept;
 
+    void* hostState = nullptr;
 };
 
 struct Window::Impl {
@@ -31,6 +34,11 @@ struct Window::Impl {
     static void NotifyContentRendered(
         ::Aero::Window& window) noexcept;
     static void NotifyClosed(::Aero::Window& window) noexcept;
+
+    void* hostState = nullptr;
+    bool sourceInitialized = false;
+    bool contentRendered = false;
+    bool closed = false;
 };
 
 } // namespace Aero
@@ -62,9 +70,4 @@ private:
     Impl* impl_ = nullptr;
 };
 
-} // namespace Aero::App::Detail
-
-namespace Aero::App::Detail {
-using ::Aero::App::Detail::DesktopPrivate;
-using ::Aero::App::Detail::DesktopHost;
 } // namespace Aero::App::Detail

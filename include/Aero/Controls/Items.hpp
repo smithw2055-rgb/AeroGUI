@@ -10,6 +10,38 @@
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 
+namespace Aero {
+
+class AERO_API DataTemplate : public Base::Object {
+    AERO_DECLARE_TYPE(DataTemplate, Base::Object)
+public:
+    struct Impl;
+
+    DataTemplate() noexcept;
+    ~DataTemplate() noexcept override;
+    DataTemplate(const DataTemplate&) = delete;
+    DataTemplate& operator=(const DataTemplate&) = delete;
+
+    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    TypeId GetDataType() const noexcept;
+    void SetDataType(TypeId value) noexcept;
+    Base::Ref<Base::Object> GetHierarchicalItemsSource() const noexcept;
+    void SetHierarchicalItemsSource(Base::Ref<Base::Object> value) noexcept;
+    Base::Ref<Base::Object> GetHierarchicalItemTemplate() const noexcept;
+    void SetHierarchicalItemTemplate(Base::Ref<Base::Object> value) noexcept;
+    ResourceKey GetImplicitKey() const noexcept;
+    ResourceDictionary& GetResources() noexcept;
+    const ResourceDictionary& GetResources() const noexcept;
+    void SetResources(Base::Ref<ResourceDictionary> value) noexcept;
+    bool GetIsSealed() const noexcept;
+
+private:
+    friend struct Impl;
+    void* state_ = nullptr;
+};
+
+} // namespace Aero
+
 namespace Aero::Controls {
 
 using ItemsChangeAction = Collections::ItemsChangeAction;
@@ -37,7 +69,7 @@ public:
         std::uint32_t oldIndex,
         std::uint32_t newIndex) noexcept;
     void Reset() noexcept;
-    bool Reset(
+    Base::Result<void> Reset(
         Base::Span<const Base::Ref<Base::Object>>
             items) noexcept;
     void AddItemsChanged(
@@ -86,40 +118,12 @@ private:
 // object used by the generator.
 AERO_API Base::Result<void> AddBoxedItem(
     Collections::ObservableCollection& source,
-    Meta::Value value) noexcept;
+    Value value) noexcept;
 
 // Convenience overload for the common string item case.
 AERO_API Base::Result<void> AddBoxedStringItem(
     Collections::ObservableCollection& source,
     Base::StringView value) noexcept;
-
-class AERO_API DataTemplate : public Base::Object {
-    AERO_DECLARE_TYPE(DataTemplate, Base::Object)
-public:
-    struct Impl;
-
-    DataTemplate() noexcept;
-    ~DataTemplate() noexcept override;
-    DataTemplate(const DataTemplate&) = delete;
-    DataTemplate& operator=(const DataTemplate&) = delete;
-
-    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    TypeId GetDataType() const noexcept;
-    void SetDataType(TypeId value) noexcept;
-    Base::Ref<Base::Object> GetHierarchicalItemsSource() const noexcept;
-    void SetHierarchicalItemsSource(Base::Ref<Base::Object> value) noexcept;
-    Base::Ref<Base::Object> GetHierarchicalItemTemplate() const noexcept;
-    void SetHierarchicalItemTemplate(Base::Ref<Base::Object> value) noexcept;
-    ResourceKey GetImplicitKey() const noexcept;
-    ResourceDictionary& GetResources() noexcept;
-    const ResourceDictionary& GetResources() const noexcept;
-    void SetResources(Base::Ref<ResourceDictionary> value) noexcept;
-    bool GetIsSealed() const noexcept;
-
-private:
-    friend struct Impl;
-    void* state_ = nullptr;
-};
 
 class AERO_API ItemsPanelTemplate : public Base::Object {
     AERO_DECLARE_TYPE(ItemsPanelTemplate, Base::Object)
@@ -283,11 +287,20 @@ public:
         : ItemsControl(StaticTypeId()) {}
     ~HeaderedItemsControl() override = default;
 
-    Base::StringView GetHeader() const noexcept {
-        return GetValueOr(HeaderProperty, Base::StringView{});
+    Value GetHeader() const noexcept {
+        return GetValueOr(
+            HeaderProperty,
+            Value::NullObject(Meta::TypeOf<Base::Object>()));
     }
-    void SetHeader(Base::StringView value) noexcept {
-        SetValue(HeaderProperty, value);
+    void SetHeader(Value value) noexcept {
+        SetValue(HeaderProperty, std::move(value));
+    }
+    Base::Result<void> SetHeader(Base::StringView value) noexcept {
+        Base::Result<Value> boxed = Value::TryFromString(
+            Meta::TypeOf<Base::String>(), value);
+        if (!boxed) return boxed.GetStatus();
+        SetHeader(std::move(boxed).Value());
+        return {};
     }
     Base::Ref<DataTemplate> GetHeaderTemplate() const noexcept {
         return GetValueOr(
@@ -298,7 +311,7 @@ public:
         SetValue(HeaderTemplateProperty, std::move(value));
     }
 
-    inline static constexpr Members::Property<Base::String> HeaderProperty{"Header"};
+    inline static constexpr Members::Property<Value> HeaderProperty{"Header"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
 
 protected:
@@ -456,9 +469,10 @@ class AERO_API HeaderedContentControl
         HeaderedContentControl,
         ContentControl)
 public:
-    Meta::Value GetHeader() const noexcept;
+    Value GetHeader() const noexcept;
     void SetHeader(
-        const Meta::Value& value) noexcept;
+        const Value& value) noexcept;
+    Base::Result<void> SetHeader(Base::StringView value) noexcept;
     Base::Ref<DataTemplate> GetHeaderTemplate() const noexcept;
     void SetHeaderTemplate(
         Base::Ref<DataTemplate> value) noexcept;
@@ -466,7 +480,7 @@ public:
     // WPF headers are content, not just text. They can hold an element, a
     // resource object, a scalar, or x:Null and are consumed by a
     // ContentPresenter through ContentSource="Header".
-    inline static constexpr Members::Property<Meta::Value> HeaderProperty{"Header"};
+    inline static constexpr Members::Property<Value> HeaderProperty{"Header"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
 
 protected:
@@ -564,10 +578,10 @@ public:
     }
     std::uint32_t GetSelectedIndex() const noexcept;
     TabItem* GetSelectedTab() const noexcept;
-    Meta::Value GetSelectedContent() const noexcept {
+    Value GetSelectedContent() const noexcept {
         return GetValueOr(
             SelectedContentProperty,
-            Meta::Value::NullObject(
+            Value::NullObject(
                 Meta::TypeOf<Base::Object>()));
     }
     Base::Result<void> AddOwnedTab(
@@ -619,7 +633,7 @@ public:
         return GetEvent(SelectionChangedEvent);
     }
     inline static constexpr Members::Property<std::uint32_t> SelectedIndexProperty{"SelectedIndex"};
-    inline static constexpr Members::ReadOnlyProperty<Meta::Value> SelectedContentProperty{"SelectedContent"};
+    inline static constexpr Members::ReadOnlyProperty<Value> SelectedContentProperty{"SelectedContent"};
     inline static constexpr Members::Property<Base::Ref<Base::Object>> ItemsSourceProperty{"ItemsSource"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> ItemTemplateProperty{"ItemTemplate"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> ContentTemplateProperty{"ContentTemplate"};
@@ -668,7 +682,6 @@ AERO_DECLARE_TYPE_ENUM(Aero::Controls::Primitives::PopupAnimation)
 
 namespace Aero::Controls {
 
-class VisualStateManager;
 namespace Primitives { class Popup; }
 class TextBox;
 
@@ -793,7 +806,6 @@ private:
     ItemsChangedHandler itemsChangedHandler_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     Base::Status lastSelectionError_;
-    VisualStateManager* states_ = nullptr;
     DependencyPropertyHandle activeProperty_;
     bool synchronizingProperties_ = false;
 
@@ -831,7 +843,6 @@ protected:
 
 private:
     friend struct Impl;
-    void* interactions_ = nullptr;
 };
 
 class AERO_API ComboBoxItem
@@ -882,10 +893,10 @@ public:
         SetValue(PlaceholderProperty, value);
     }
     Base::String GetSelectionBoxText() const noexcept;
-    Meta::Value GetSelectionBoxItem() const noexcept {
+    Value GetSelectionBoxItem() const noexcept {
         return GetValueOr(
             SelectionBoxItemProperty,
-            Meta::Value::NullObject(
+            Value::NullObject(
                 Meta::TypeOf<Base::Object>()));
     }
 
@@ -907,7 +918,7 @@ public:
     inline static constexpr Members::Property<Base::String> TextProperty{"Text"};
     inline static constexpr Members::Property<Base::String> PlaceholderProperty{"Placeholder"};
     inline static constexpr Members::ReadOnlyProperty<Base::String> SelectionBoxTextProperty{"SelectionBoxText"};
-    inline static constexpr Members::ReadOnlyProperty<Meta::Value> SelectionBoxItemProperty{"SelectionBoxItem"};
+    inline static constexpr Members::ReadOnlyProperty<Value> SelectionBoxItemProperty{"SelectionBoxItem"};
 
 protected:
     Base::Result<Base::Ref<FrameworkElement>>
@@ -926,7 +937,6 @@ protected:
 
 private:
     friend struct Impl;
-    void* interactions_ = nullptr;
     TextBlock* selectionBox_ = nullptr;
     ContentPresenter* selectionPresenter_ =
         nullptr;
@@ -1031,9 +1041,9 @@ class AERO_API GridViewColumn
 public:
     GridViewColumn() noexcept
         : DependencyObject(StaticTypeId()) {}
-    Base::StringView GetHeader() const noexcept;
-    void SetHeader(
-        Base::StringView value) noexcept;
+    Value GetHeader() const noexcept;
+    void SetHeader(Value value) noexcept;
+    Base::Result<void> SetHeader(Base::StringView value) noexcept;
     double GetWidth() const noexcept;
     void SetWidth(
         double value) noexcept;
@@ -1063,7 +1073,7 @@ public:
         SetValue(HeaderContainerStyleProperty, std::move(value));
     }
 
-    inline static constexpr Members::Property<Base::String> HeaderProperty{"Header"};
+    inline static constexpr Members::Property<Value> HeaderProperty{"Header"};
     inline static constexpr Members::Property<double> WidthProperty{"Width"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> CellTemplateProperty{"CellTemplate"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
@@ -1195,7 +1205,6 @@ AERO_DECLARE_TYPE_ENUM(Aero::Controls::GridViewColumnHeaderRole)
 
 namespace Aero::Controls {
 
-class VisualStateManager;
 
 class AERO_API TreeViewItem
     : public HeaderedItemsControl,
@@ -1205,9 +1214,9 @@ public:
     TreeViewItem() noexcept;
     ~TreeViewItem() override;
 
-    Base::StringView GetHeader() const noexcept;
-    void SetHeader(
-        Base::StringView value) noexcept;
+    Value GetHeader() const noexcept;
+    void SetHeader(Value value) noexcept;
+    Base::Result<void> SetHeader(Base::StringView value) noexcept;
     Base::StringView GetIcon() const noexcept;
     void SetIcon(
         Base::StringView value) noexcept;
@@ -1231,7 +1240,7 @@ public:
     const ItemCollection& GetItems() const noexcept {
         return items_;
     }
-    inline static constexpr Members::Property<Base::String> HeaderProperty{"Header"};
+    inline static constexpr Members::Property<Value> HeaderProperty{"Header"};
     inline static constexpr Members::Property<Base::String> IconProperty{"Icon"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
     inline static constexpr Members::Property<bool> IsExpandedProperty{"IsExpanded"};
@@ -1331,9 +1340,6 @@ protected:
 
 private:
     friend struct Impl;
-    void* interactions_ =
-        nullptr;
-    VisualStateManager* states_ = nullptr;
 };
 
 

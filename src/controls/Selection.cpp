@@ -1,15 +1,12 @@
 #include "controls/ControlsPrivate.hpp"
 #include <Aero/Controls/Items.hpp>
-#include "controls/ControlsPrivate.hpp"
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Text.hpp>
-#include "controls/ControlsPrivate.hpp"
 
 #include "gui/GuiPrivate.hpp"
 
 #include <algorithm>
 #include <utility>
-#include "gui/GuiPrivate.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
@@ -544,6 +541,8 @@ Base::Result<void> Selector::PublishProperties() noexcept {
 }
 
 void Selector::SyncContainers() noexcept {
+    auto* states = static_cast<Aero::VisualStateManager*>(
+        Visual::Impl::VisualStateRuntime(*this));
     ItemContainerGenerator* generator =
         AttachedGenerator();
     if (generator == nullptr) return;
@@ -561,9 +560,9 @@ void Selector::SyncContainers() noexcept {
             *static_cast<ListBoxItem*>(container);
         const bool selected = GetIsSelected(index);
         item.SetIsSelected(selected);
-        if (states_ != nullptr) {
+        if (states != nullptr) {
             static_cast<void>(
-                Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
+                Aero::Controls::Detail::TemplatePrivate::GoToState(*states,
                     item,
                     "SelectionStates",
                     selected
@@ -820,10 +819,10 @@ void Selector::OnContainersChanged() noexcept {
 }
 
 ListBox::~ListBox() {
-    if (interactions_ != nullptr) {
-        static_cast<void>(
-            static_cast<ListBehavior*>(
-                interactions_)->Detach(*this));
+    auto* behaviors = static_cast<Detail::ControlBehavior*>(
+        Visual::Impl::ControlBehaviorRuntime(*this));
+    if (behaviors != nullptr) {
+        static_cast<void>(behaviors->Detach(*this));
     }
 }
 
@@ -965,10 +964,10 @@ ComboBox::ComboBox() noexcept
 }
 
 ComboBox::~ComboBox() {
-    if (interactions_ != nullptr) {
-        static_cast<void>(
-            static_cast<ComboBehavior*>(
-                interactions_)->Detach(*this));
+    auto* behaviors = static_cast<Detail::ControlBehavior*>(
+        Visual::Impl::ControlBehaviorRuntime(*this));
+    if (behaviors != nullptr) {
+        static_cast<void>(behaviors->Detach(*this));
     }
     static_cast<void>(RemoveSelectionChanged(
         selectionChangedHandler_));
@@ -1563,8 +1562,7 @@ ComboBox::Impl::ResolveComboBox(
 Base::Result<void>
 ComboBox::Impl::Attach(
     ComboBox& comboBox) noexcept {
-    if (comboBox.interactions_ != nullptr ||
-        Aero::GuiPrivate::Detail::ElementPrivate::Tree(comboBox) != tree_ ||
+    if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(comboBox) != tree_ ||
         FindComboBox(comboBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1603,7 +1601,6 @@ ComboBox::Impl::Attach(
                 mouseDownHandler_));
         return stored.GetStatus();
     }
-    comboBox.interactions_ = this;
     return {};
 }
 
@@ -1628,7 +1625,6 @@ ComboBox::Impl::Detach(
             records_[current + 1U];
     }
     records_.PopBack();
-    comboBox.interactions_ = nullptr;
     return true;
 }
 
@@ -1750,8 +1746,7 @@ ListBox* ListBox::Impl::ResolveListBox(
 
 Base::Result<void> ListBox::Impl::Attach(
     ListBox& listBox) noexcept {
-    if (listBox.interactions_ != nullptr ||
-        Aero::GuiPrivate::Detail::ElementPrivate::Tree(listBox) != tree_ ||
+    if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(listBox) != tree_ ||
         FindListBox(listBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1788,8 +1783,6 @@ Base::Result<void> ListBox::Impl::Attach(
             mouseDownHandler_));
         return added.GetStatus();
     }
-    listBox.interactions_ = this;
-    ::Aero::Visual::Impl::SetSelectorStates(listBox, states_);
     ::Aero::Visual::Impl::SyncSelectorContainers(listBox);
     return {};
 }
@@ -1812,8 +1805,6 @@ Base::Result<bool> ListBox::Impl::Detach(
             std::move(records_[current + 1U]);
     }
     records_.PopBack();
-    listBox.interactions_ = nullptr;
-    ::Aero::Visual::Impl::SetSelectorStates(listBox, nullptr);
     return true;
 }
 

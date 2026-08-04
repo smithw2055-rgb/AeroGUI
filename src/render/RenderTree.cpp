@@ -6,7 +6,6 @@
 #include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/Assert.hpp>
-#include "gui/GuiPrivate.hpp"
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
 
@@ -419,13 +418,13 @@ FrameworkElement::GetLocalVisualTransform() const noexcept {
     return result;
 }
 
-Base::Result<Base::Ref<Base::Object>>
+Base::Result<Value>
 FrameworkElement::GetDataContextResult() const noexcept {
     return GetValue(DataContextProperty);
 }
 
 void FrameworkElement::SetDataContext(
-    Base::Ref<Base::Object> value) noexcept {
+    Value value) noexcept {
     SetValue(DataContextProperty, std::move(value));
 }
 
@@ -758,7 +757,6 @@ RenderTree::~RenderTree() noexcept {
                 self(self, *child);
             }
             ElementPrivate::RenderAttached(visual) = false;
-            ElementPrivate::RenderRuntime(visual) = nullptr;
             ElementPrivate::RenderQueued(visual) = false;
             ElementPrivate::RenderValid(visual) = false;
             ElementPrivate::NodeId(visual) = InvalidRenderNodeId;
@@ -829,7 +827,6 @@ Base::Result<void> RenderTree::SetRoot(
                 RemoveQueued(element);
                 RemoveDrawing(element);
                 ElementPrivate::RenderAttached(element) = false;
-                ElementPrivate::RenderRuntime(element) = nullptr;
                 ElementPrivate::RenderValid(element) = false;
                 ElementPrivate::RenderDirtyFlags(element) =
                     static_cast<std::uint8_t>(
@@ -866,7 +863,6 @@ Base::Result<void> RenderTree::SetRoot(
     if (!reserved) return reserved.GetStatus();
 
     root_ = root;
-    ElementPrivate::RenderRuntime(*root) = this;
     ElementPrivate::NodeId(*root) = nextNodeId_++;
     ElementPrivate::RenderValid(*root) = false;
     ElementPrivate::RenderDirtyFlags(*root) =
@@ -918,7 +914,6 @@ Base::Result<void> RenderTree::Attach(
     if (!invalidated) return invalidated.GetStatus();
 
     ElementPrivate::RenderAttached(child) = true;
-    ElementPrivate::RenderRuntime(child) = this;
     ElementPrivate::NodeId(child) = nextNodeId_++;
     ElementPrivate::RenderValid(child) = false;
     ElementPrivate::RenderDirtyFlags(child) =
@@ -959,7 +954,6 @@ Base::Result<void> RenderTree::Detach(
         RemoveQueued(element);
         RemoveDrawing(element);
         ElementPrivate::RenderAttached(element) = false;
-        ElementPrivate::RenderRuntime(element) = nullptr;
         ElementPrivate::RenderValid(element) = false;
         ElementPrivate::RenderDirtyFlags(element) =
             static_cast<std::uint8_t>(

@@ -431,11 +431,11 @@ endif()
 set(_aero_compiled_theme_directory
     "${CMAKE_CURRENT_BINARY_DIR}/generated/Aero")
 set(_aero_light_theme_compiled
-    "${_aero_compiled_theme_directory}/Light.axir")
+    "${_aero_compiled_theme_directory}/Light.axb")
 set(_aero_dark_theme_compiled
-    "${_aero_compiled_theme_directory}/Dark.axir")
+    "${_aero_compiled_theme_directory}/Dark.axb")
 set(_aero_generic_theme_compiled
-    "${_aero_compiled_theme_directory}/Generic.axir")
+    "${_aero_compiled_theme_directory}/Generic.axb")
 set(_aero_generated_theme_header
     "${_aero_compiled_theme_directory}/BuiltinThemes.generated.hpp")
 if(AERO_PRECOMPILE_BUILTIN_THEMES)

@@ -5,7 +5,6 @@
 // ===== StyleSupport =====
 
 
-#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/String.hpp>
 
@@ -419,16 +418,8 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             targetType,
             trigger->GetPropertyName());
         if (!conditionValue) return conditionValue.GetStatus();
-        Aero::TriggerPlan plan;
-        plan.property = condition->Handle();
-        plan.value = conditionValue.Value();
-        Base::Result<void> actions =
-            plan.enterActions.Append(
-                trigger->GetEnterActions());
-        if (!actions) return actions.GetStatus();
-        actions = plan.exitActions.Append(
-            trigger->GetExitActions());
-        if (!actions) return actions.GetStatus();
+        trigger->SetProperty(condition->Handle());
+        trigger->SetValue(conditionValue.Value());
         for (const Base::Ref<Aero::Setter>& setterEntry :
              trigger->GetAuthoredSetters()) {
             Aero::Setter* setter =
@@ -463,12 +454,10 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             if (!resolved) {
                 return resolved.GetStatus();
             }
-            Base::Result<void> added = plan.setters.PushBack({
-                property->Handle(), value.Value()});
+            Base::Result<void> added = trigger->AddSetter(*setter);
             if (!added) return added.GetStatus();
         }
-        Base::Result<void> added = style.AddTrigger(
-            std::move(plan));
+        Base::Result<void> added = style.AddTrigger(*trigger);
         if (!added) return added.GetStatus();
     }
     return Aero::GuiPrivate::Detail::StylePrivate::Seal(
@@ -587,19 +576,14 @@ Base::Result<void> UiObjectModel::Register(
 
 
 
-#include <Aero/Base/String.hpp>
 #include <Aero/Controls/Core.hpp>
 #include <Aero/Controls/Items.hpp>
 #include "../controls/ControlsPrivate.hpp"
 #include <Aero/Styling.hpp>
 
-#include "markup/MarkupPrivate.hpp"
 
 
-#include "../controls/ControlsPrivate.hpp"
 
-#include <new>
-#include <utility>
 
 
 namespace Aero::Markup {
@@ -967,7 +951,7 @@ struct XamlTemplateSchemaFacet::Impl {
             }
         }
         if (configured) {
-            for (VisualStateGroup& group :
+            for (Controls::Detail::VisualStateGroupPlan& group :
                  compiled.Value().visualStateGroups) {
                 configured =
                     ::Aero::Controls::Detail::TemplatePrivate::AddVisualStateGroup(controlTemplate,
@@ -1151,22 +1135,12 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
 
 // ===== TemplateCompiler =====
 
-#include "gui/GuiPrivate.hpp"
 
-#include "gui/GuiPrivate.hpp"
-#include "../controls/ControlsPrivate.hpp"
 #include "../runtime/DataTemplateTriggerState.hpp"
 #include "../media/MediaPrivate.hpp"
 
-#include <Aero/Controls/Core.hpp>
 #include <Aero/Controls/Primitives.hpp>
-#include <Aero/Controls/Items.hpp>
-#include <Aero/Controls/Panels.hpp>
-#include <Aero/Styling.hpp>
-#include <Aero/FrameworkElement.hpp>
 
-#include <cstdio>
-#include <utility>
 #include "../controls/ControlBehavior.hpp"
 
 
@@ -1842,66 +1816,66 @@ CompilePropertyTriggers(
     return compiled;
 }
 
-Base::Result<Base::Vector<VisualStateGroup>>
+Base::Result<Base::Vector<Controls::Detail::VisualStateGroupPlan>>
 CompileVisualStates(
     ControlTemplate& controlTemplate,
     const CompiledTemplateBlueprint& blueprint,
     Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
-    Base::Vector<VisualStateGroup> groups;
+    Base::Vector<Controls::Detail::VisualStateGroupPlan> groups;
     auto compileGroup = [&groups, &blueprint, &runtime, &properties](
         const Base::Ref<Base::Object>& groupObject)
         -> Base::Result<void> {
         if (!groupObject ||
             groupObject->RuntimeType() !=
-                XamlVisualStateGroupObject::
+                VisualStateGroup::
                     StaticTypeId()) {
             return InvalidTemplateCompiler(
                 "ControlTemplate VisualStateGroups contains an invalid object");
         }
         const auto& sourceGroup =
             static_cast<
-                const XamlVisualStateGroupObject&>(
+                const VisualStateGroup&>(
                     *groupObject);
-        if (sourceGroup.Name().Empty()) {
+        if (sourceGroup.GetName().Empty()) {
             return InvalidTemplateCompiler(
                 "VisualStateGroup requires Name");
         }
-        VisualStateGroup group;
+        Controls::Detail::VisualStateGroupPlan group;
         Base::Result<void> assigned =
             group.name.Assign(
-                sourceGroup.Name());
+                sourceGroup.GetName());
         if (!assigned) return assigned.GetStatus();
 
-        for (const Base::Ref<Base::Object>& stateObject :
-             sourceGroup.States()) {
+        for (const Base::Ref<VisualState>& stateObject :
+             sourceGroup.GetStates()) {
             if (!stateObject ||
                 stateObject->RuntimeType() !=
-                    XamlVisualStateObject::
+                    VisualState::
                         StaticTypeId()) {
                 return InvalidTemplateCompiler(
                     "VisualStateGroup contains an invalid VisualState");
             }
             const auto& sourceState =
                 static_cast<
-                    const XamlVisualStateObject&>(
-                        *stateObject);
-            if (sourceState.Name().Empty()) {
+                const VisualState&>(
+                    *stateObject);
+            if (sourceState.GetName().Empty()) {
                 return InvalidTemplateCompiler(
                     "VisualState requires Name");
             }
-            VisualState state;
+            Controls::Detail::VisualStatePlan state;
             assigned = state.name.Assign(
-                sourceState.Name());
+                sourceState.GetName());
             if (!assigned) {
                 return assigned.GetStatus();
             }
             state.storyboard =
-                sourceState.StoryboardValue();
+                sourceState.GetStoryboard();
 
             for (const Base::Ref<Base::Object>&
                      setterObject :
-                 sourceState.Setters()) {
+                 sourceState.GetSetters()) {
                 if (!setterObject ||
                     setterObject->RuntimeType() !=
                         Setter::StaticTypeId()) {
@@ -1943,7 +1917,7 @@ CompileVisualStates(
                     return value.GetStatus();
                 }
 
-                VisualStateSetter setter;
+                Controls::Detail::VisualStateSetterPlan setter;
                 assigned =
                     setter.targetName.Assign(
                         sourceSetter.GetTargetName());
@@ -1967,47 +1941,47 @@ CompileVisualStates(
                 return assigned.GetStatus();
             }
         }
-        for (const Base::Ref<Base::Object>&
-                 transitionObject :
-             sourceGroup.Transitions()) {
+        for (const Base::Ref<VisualTransition>&
+                  transitionObject :
+              sourceGroup.GetTransitions()) {
             if (!transitionObject ||
                 transitionObject->RuntimeType() !=
-                    XamlVisualTransitionObject::
+                    VisualTransition::
                         StaticTypeId()) {
                 return InvalidTemplateCompiler(
                     "VisualStateGroup contains an invalid VisualTransition");
             }
             const auto& sourceTransition =
                 static_cast<
-                    const XamlVisualTransitionObject&>(
-                        *transitionObject);
-            if (sourceTransition.From().Empty() &&
-                sourceTransition.To().Empty() &&
-                sourceTransition.GeneratedDuration().Empty() &&
-                !sourceTransition.StoryboardValue()) {
+                const VisualTransition&>(
+                    *transitionObject);
+            if (sourceTransition.GetFrom().Empty() &&
+                sourceTransition.GetTo().Empty() &&
+                sourceTransition.GetGeneratedDuration().Empty() &&
+                !sourceTransition.GetStoryboard()) {
                 return InvalidTemplateCompiler(
                     "VisualTransition must specify a duration or Storyboard");
             }
-            if (!sourceTransition.From().Empty()) {
+            if (!sourceTransition.GetFrom().Empty()) {
                 bool found = false;
-                for (const VisualState& state :
+                for (const Controls::Detail::VisualStatePlan& state :
                      group.states) {
                     found = found ||
                         state.name.View() ==
-                            sourceTransition.From();
+                            sourceTransition.GetFrom();
                 }
                 if (!found) {
                     return InvalidTemplateCompiler(
                         "VisualTransition From state was not found");
                 }
             }
-            if (!sourceTransition.To().Empty()) {
+            if (!sourceTransition.GetTo().Empty()) {
                 bool found = false;
-                for (const VisualState& state :
+                for (const Controls::Detail::VisualStatePlan& state :
                      group.states) {
                     found = found ||
                         state.name.View() ==
-                            sourceTransition.To();
+                            sourceTransition.GetTo();
                 }
                 if (!found) {
                     return InvalidTemplateCompiler(
@@ -2015,24 +1989,24 @@ CompileVisualStates(
                 }
             }
 
-            VisualTransition transition;
+            Controls::Detail::VisualTransitionPlan transition;
             assigned = transition.from.Assign(
-                sourceTransition.From());
+                sourceTransition.GetFrom());
             if (assigned) {
                 assigned = transition.to.Assign(
-                    sourceTransition.To());
+                    sourceTransition.GetTo());
             }
             if (!assigned) return assigned.GetStatus();
-            if (!sourceTransition.GeneratedDuration().Empty()) {
+            if (!sourceTransition.GetGeneratedDuration().Empty()) {
                 Media::Animation::Storyboard duration;
-                duration.SetDuration(sourceTransition.GeneratedDuration());
+                duration.SetDuration(sourceTransition.GetGeneratedDuration());
                 transition.generatedDurationMicroseconds =
                     Aero::Media::Detail::AnimationPrivate::Timing(duration).durationMicroseconds;
             }
             transition.generatedEasingFunction =
-                sourceTransition.GeneratedEasingFunction();
+                sourceTransition.GetGeneratedEasingFunction();
             transition.storyboard =
-                sourceTransition.StoryboardValue();
+                sourceTransition.GetStoryboard();
             assigned = group.transitions.PushBack(
                 std::move(transition));
             if (!assigned) return assigned.GetStatus();
@@ -2054,16 +2028,14 @@ CompileVisualStates(
             authoredRoot->RuntimeType(),
             ::Aero::DependencyObject::StaticTypeId())) {
         auto& root = static_cast<::Aero::DependencyObject&>(*authoredRoot);
-        Base::Ref<Base::Object> valueStore = root.GetValueOr(
-            XamlVisualStateManagerObject::
-                VisualStateGroupStoreProperty,
-            Base::Ref<Base::Object>{});
-        if (valueStore && valueStore->RuntimeType() ==
-                XamlVisualStates::StaticTypeId()) {
-            for (const Base::Ref<Base::Object>& groupObject :
-                 static_cast<XamlVisualStates&>(
-                     *valueStore).Groups()) {
-                Base::Result<void> compiled = compileGroup(groupObject);
+        Base::Ref<VisualStateGroupCollection> valueStore = root.GetValueOr(
+            VisualStateManager::VisualStateGroupsProperty,
+            Base::Ref<VisualStateGroupCollection>{});
+        if (valueStore) {
+            for (const Base::Ref<VisualStateGroup>& groupObject :
+                 valueStore->GetItems()) {
+                Base::Result<void> compiled = compileGroup(
+                    Base::Ref<Base::Object>(groupObject));
                 if (!compiled) return compiled.GetStatus();
             }
         }
@@ -2091,7 +2063,7 @@ CompileControlTemplateDefinition(
     if (!blueprint) {
         return blueprint.GetStatus();
     }
-    Base::Result<Base::Vector<VisualStateGroup>>
+    Base::Result<Base::Vector<Controls::Detail::VisualStateGroupPlan>>
         groups = CompileVisualStates(
             controlTemplate,
             blueprint.Value(),

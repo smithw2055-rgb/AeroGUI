@@ -1,7 +1,6 @@
 #include "gui/GuiPrivate.hpp"
 #include <Aero/Documents.hpp>
 
-#include "gui/GuiPrivate.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -438,7 +437,7 @@ std::uint32_t InlineCollectionView::GetCount() const noexcept {
         : 0U;
 }
 
-const Inline* InlineCollectionView::At(
+const Inline* InlineCollectionView::GetItem(
     std::uint32_t index) const noexcept {
     return owner_ != nullptr
         ? Aero::Controls::Detail::DocumentPrivate::At(*owner_, index)
@@ -451,7 +450,7 @@ std::uint32_t InlineCollection::GetCount() const noexcept {
         : 0U;
 }
 
-Inline* InlineCollection::At(std::uint32_t index) const noexcept {
+Inline* InlineCollection::GetItem(std::uint32_t index) const noexcept {
     return owner_ != nullptr
         ? Aero::Controls::Detail::DocumentPrivate::At(*owner_, index)
         : nullptr;
@@ -671,10 +670,10 @@ Input::ICommand* Hyperlink::GetCommand() const noexcept {
         Base::Ref<Input::ICommand>{}).Get();
 }
 
-Base::Ref<Base::Object> Hyperlink::GetCommandParameter() const noexcept {
+Value Hyperlink::GetCommandParameter() const noexcept {
     return GetValueOr(
         CommandParameterProperty,
-        Base::Ref<Base::Object>{});
+        Value::NullObject(Meta::TypeOf<Base::Object>()));
 }
 
 Aero::UIElement* Hyperlink::GetCommandTarget() const noexcept {
@@ -694,7 +693,7 @@ void Hyperlink::SetCommand(
 }
 
 void Hyperlink::SetCommandParameter(
-    Base::Ref<Base::Object> parameter) noexcept {
+    Value parameter) noexcept {
     SetValue(CommandParameterProperty, std::move(parameter));
 }
 

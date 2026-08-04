@@ -21,7 +21,8 @@ Base::Result<void> PopulateUiElements(
                 PropertyFlags::Structural)
         .Property(
             FrameworkContentElement::DataContextProperty,
-            PropertyOptions(Base::Ref<Base::Object>{}).Inherits())
+            PropertyOptions(Value::NullObject(
+                TypeOf<Base::Object>())).Inherits())
         .Property(
             FrameworkContentElement::StyleProperty,
             PropertyOptions(Base::Ref<Style>{}))
@@ -136,11 +137,12 @@ Base::Result<void> PopulateUiElements(
                 PropertyFlags::Structural)
         .Property(
             FrameworkElement::DataContextProperty,
-            PropertyOptions(Base::Ref<Base::Object>{})
+            PropertyOptions(Value::NullObject(
+                TypeOf<Base::Object>()))
                 .Inherits())
         .Property(
             FrameworkElement::FontFamilyProperty,
-            PropertyOptions(Base::String{})
+            PropertyOptions(Base::Ref<Media::FontFamily>{})
                 .Inherits()
                 .AffectsMeasure())
         .Property(

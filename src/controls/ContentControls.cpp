@@ -289,6 +289,15 @@ void HeaderedContentControl::SetHeader(
     SetValue(HeaderProperty, value);
 }
 
+Base::Result<void> HeaderedContentControl::SetHeader(
+    Base::StringView value) noexcept {
+    Base::Result<Value> boxed = Value::TryFromString(
+        Meta::TypeOf<Base::String>(), value);
+    if (!boxed) return boxed.GetStatus();
+    SetHeader(std::move(boxed).Value());
+    return {};
+}
+
 Base::Ref<DataTemplate>
 HeaderedContentControl::GetHeaderTemplate() const noexcept {
     return GetValueOr(

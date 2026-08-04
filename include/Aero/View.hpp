@@ -22,6 +22,8 @@ class IDiagnosticSink;
 
 namespace Aero {
 
+namespace App::Detail { class DesktopHost; }
+
 enum class BuiltInTheme : std::uint8_t { Light = 0U, Dark };
 enum class ResourceLayer : std::uint8_t { Application = 0U, Theme, System };
 enum class ResourceLoadMode : std::uint8_t { Replace = 0U, Merge };
@@ -132,6 +134,7 @@ private:
     friend class Renderer;
     friend class Aero::Markup::XamlReader;
     friend class Integration::ReloadCoordinator;
+    friend class App::Detail::DesktopHost;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
     Base::MakeRefWithAllocator(

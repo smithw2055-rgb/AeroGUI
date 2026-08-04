@@ -140,6 +140,24 @@ if(public_internal_type_matches)
         "${public_internal_type_matches}")
 endif()
 
+set(aero_public_style_headers
+    "${AERO_SOURCE_DIR}/include/Aero/Style.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Styling.hpp")
+file(GLOB aero_public_trigger_headers
+    "${AERO_SOURCE_DIR}/include/Aero/Triggers/*.hpp")
+aero_collect_matches(public_style_plan_matches
+    "(^|[^A-Za-z0-9_])(StyleSetter|StyleTriggerSetter|TriggerPlan|StyleProgram|TemplateProgram)([^A-Za-z0-9_]|$)"
+    ${aero_public_style_headers}
+    ${aero_public_trigger_headers})
+if(public_style_plan_matches)
+    message(FATAL_ERROR
+        "Public Style/Trigger authoring headers expose runtime plans or programs: "
+        "${public_style_plan_matches}")
+endif()
+unset(aero_public_style_headers)
+unset(aero_public_trigger_headers)
+unset(public_style_plan_matches)
+
 if(EXISTS "${AERO_SOURCE_DIR}/include/Aero/RoutedEvent.hpp" OR
    EXISTS "${AERO_SOURCE_DIR}/include/Aero/Events/Events.hpp")
     message(FATAL_ERROR
@@ -1410,6 +1428,115 @@ aero_collect_matches(retired_provider_api
 if(retired_provider_api)
     message(FATAL_ERROR
         "Retired provider names or paths remain in the SDK surface: ${retired_provider_api}")
+endif()
+
+# R4 SDK freeze gates. The installed object model must not regain per-object
+# View/Render/Layout/Template service pointers or private XAML author proxies.
+aero_collect_matches(public_runtime_service_fields
+    "(renderRuntime_|layoutManager_|layoutService_|viewServices_|templateRuntime_|visualStateRuntime_|interactionRuntime_|interactions_|meshServices_)"
+    ${aero_namespace_headers})
+if(public_runtime_service_fields)
+    message(FATAL_ERROR
+        "Installed headers expose View/Render/Layout/Template runtime services: "
+        "${public_runtime_service_fields}")
+endif()
+
+file(READ "${AERO_SOURCE_DIR}/include/Aero/Application.hpp"
+    aero_application_header)
+file(READ "${AERO_SOURCE_DIR}/include/Aero/Window.hpp"
+    aero_window_header)
+file(READ "${AERO_SOURCE_DIR}/src/app/Application.cpp"
+    aero_application_source)
+foreach(required_application_surface IN ITEMS
+        "ResourceDictionary& GetResources() noexcept"
+        "void SetMainWindow(Base::Ref<Window> value) noexcept"
+        "void SetMainWindowBorrowed(Window* value) noexcept"
+        "Base::Result<int> RunChecked() noexcept")
+    string(FIND "${aero_application_header}"
+        "${required_application_surface}" application_surface_index)
+    if(application_surface_index EQUAL -1)
+        message(FATAL_ERROR
+            "R4 Application SDK surface regressed: ${required_application_surface}")
+    endif()
+endforeach()
+foreach(required_window_surface IN ITEMS
+        "void Show() noexcept"
+        "Base::Result<void> ShowChecked() noexcept"
+        "Base::Result<void> CloseChecked() noexcept")
+    string(FIND "${aero_window_header}"
+        "${required_window_surface}" window_surface_index)
+    if(window_surface_index EQUAL -1)
+        message(FATAL_ERROR
+            "R4 Window SDK surface regressed: ${required_window_surface}")
+    endif()
+endforeach()
+if(aero_application_source MATCHES "thread_local[ \t]+Application")
+    message(FATAL_ERROR
+        "Application::Current must be process-wide rather than thread_local")
+endif()
+
+file(GLOB_RECURSE aero_object_model_sources
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp")
+aero_collect_matches(private_xaml_author_proxies
+    "XamlVisual(State|Transition|States|StateGroup|StateManager)"
+    ${aero_object_model_sources})
+if(private_xaml_author_proxies)
+    message(FATAL_ERROR
+        "Private XAML author proxies recreated a second public object model: "
+        "${private_xaml_author_proxies}")
+endif()
+
+set(aero_product_entry_checks
+    "include/Aero/Gui.hpp|Aero::Gui"
+    "include/Aero/App.hpp|Aero::App"
+    "include/Aero/Integration.hpp|Aero::Integration"
+    "include/Aero/Meta.hpp|Aero::Meta")
+foreach(product_check IN LISTS aero_product_entry_checks)
+    string(REPLACE "|" ";" product_parts "${product_check}")
+    list(GET product_parts 0 product_header)
+    list(GET product_parts 1 product_target)
+    if(NOT EXISTS "${AERO_SOURCE_DIR}/${product_header}")
+        message(FATAL_ERROR "R4 product entry is missing: ${product_header}")
+    endif()
+    file(GLOB aero_product_target_files
+        "${AERO_SOURCE_DIR}/CMakeLists.txt"
+        "${AERO_SOURCE_DIR}/cmake/*.cmake")
+    aero_collect_matches(product_target_match
+        "add_library[ \t\r\n]*[(][ \t\r\n]*${product_target}[ \t]+ALIAS"
+        ${aero_product_target_files})
+    if(NOT product_target_match)
+        message(FATAL_ERROR "R4 product target is missing: ${product_target}")
+    endif()
+endforeach()
+
+file(READ "${AERO_SOURCE_DIR}/src/markup/MarkupLoader.cpp"
+    aero_compiled_xaml_source)
+foreach(axb2_marker IN ITEMS
+        "0x32425841"
+        "AxbSectionKind::Types"
+        "AxbSectionKind::Members"
+        "AxbSectionKind::Values"
+        "AxbSectionKind::Instructions")
+    string(FIND "${aero_compiled_xaml_source}"
+        "${axb2_marker}" axb2_marker_position)
+    if(axb2_marker_position EQUAL -1)
+        message(FATAL_ERROR "AXB2 format marker is missing: ${axb2_marker}")
+    endif()
+endforeach()
+file(READ "${AERO_SOURCE_DIR}/cmake/AeroAddXaml.cmake"
+    aero_add_xaml_r4_content)
+if(NOT aero_add_xaml_r4_content MATCHES "[.]axb\"")
+    message(FATAL_ERROR "AeroAddXaml must emit AXB2 .axb artifacts")
+endif()
+
+file(READ "${AERO_SOURCE_DIR}/cmake/AeroInstall.cmake"
+    aero_install_r4_content)
+if(aero_install_r4_content MATCHES
+        "list[ \t\r\n]*[(]APPEND[ \t]+_aero_sdk_targets[^)]*Objects")
+    message(FATAL_ERROR
+        "Installed CMake targets expose an internal object library")
 endif()
 
 message(STATUS "Aero architecture dependency checks passed")

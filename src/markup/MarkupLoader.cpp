@@ -3,7 +3,6 @@
 
 // ===== CompiledCache =====
 
-#include "markup/MarkupPrivate.hpp"
 
 namespace Aero::Markup {
 
@@ -88,7 +87,6 @@ Base::Result<void> ValidateCompiledCacheIdentity(
 
 // ===== CompiledDocument =====
 
-#include "markup/MarkupPrivate.hpp"
 
 // Canonical compiled-document implementation.
 
@@ -98,7 +96,32 @@ namespace Aero::Markup {
 namespace {
 
 constexpr std::uint32_t CompiledDocumentMagic =
-    UINT32_C(0x52495841);
+    UINT32_C(0x32425841); // "AXB2"
+constexpr std::uint32_t InvalidTableIndex = UINT32_MAX;
+
+enum class AxbSectionKind : std::uint32_t {
+    Dependencies = 1U,
+    Strings = 2U,
+    Types = 3U,
+    Members = 4U,
+    Values = 5U,
+    Instructions = 6U,
+    SourceMap = 7U,
+    SourceFallback = 8U
+};
+
+struct AxbSection {
+    AxbSectionKind kind = AxbSectionKind::Strings;
+    std::uint32_t count = 0U;
+    Base::Vector<std::uint8_t> bytes;
+};
+
+struct AxbSectionDirectoryEntry {
+    AxbSectionKind kind = AxbSectionKind::Strings;
+    std::uint32_t offset = 0U;
+    std::uint32_t size = 0U;
+    std::uint32_t count = 0U;
+};
 
 
 Base::Result<void> AppendU8(
@@ -116,6 +139,15 @@ Base::Result<void> AppendU32(
         if (!appended) return appended.GetStatus();
     }
     return {};
+}
+
+Base::Result<void> AppendU16(
+    Base::Vector<std::uint8_t>& output,
+    std::uint16_t value) noexcept {
+    Base::Result<void> appended = output.PushBack(
+        static_cast<std::uint8_t>(value));
+    if (!appended) return appended.GetStatus();
+    return output.PushBack(static_cast<std::uint8_t>(value >> 8U));
 }
 
 Base::Result<void> AppendU64(
@@ -166,6 +198,15 @@ public:
         return value;
     }
 
+    Base::Result<std::uint16_t> ReadU16() noexcept {
+        if (bytes_.Size() - offset_ < 2U) return Truncated();
+        const std::uint16_t value = static_cast<std::uint16_t>(
+            bytes_[offset_]) |
+            static_cast<std::uint16_t>(bytes_[offset_ + 1U] << 8U);
+        offset_ += 2U;
+        return value;
+    }
+
     Base::Result<std::uint64_t> ReadU64() noexcept {
         if (bytes_.Size() - offset_ < 8U) return Truncated();
         std::uint64_t value = 0U;
@@ -205,6 +246,8 @@ public:
         return offset_ == bytes_.Size();
     }
 
+    std::uint32_t Offset() const noexcept { return offset_; }
+
 private:
     static Base::Status Truncated() noexcept {
         return Base::Status::Failure(
@@ -237,6 +280,69 @@ Base::Result<::Aero::Diagnostics::SourcePosition> ReadPosition(
     if (!offset) return offset.GetStatus();
     return ::Aero::Diagnostics::SourcePosition{
         line.Value(), column.Value(), offset.Value()};
+}
+
+Base::Result<std::uint32_t> InternString(
+    Base::Vector<Base::String>& strings,
+    Base::StringView value) noexcept {
+    for (std::uint32_t index = 0U; index < strings.Size(); ++index) {
+        if (strings[index].View() == value) return index;
+    }
+    Base::String stored;
+    Base::Result<void> assigned = stored.Assign(value);
+    if (!assigned) return assigned.GetStatus();
+    Base::Result<void> appended = strings.PushBack(std::move(stored));
+    if (!appended) return appended.GetStatus();
+    return strings.Size() - 1U;
+}
+
+Base::Result<std::uint32_t> InternId(
+    Base::Vector<std::uint64_t>& ids,
+    std::uint64_t value) noexcept {
+    if (value == 0U) return InvalidTableIndex;
+    for (std::uint32_t index = 0U; index < ids.Size(); ++index) {
+        if (ids[index] == value) return index;
+    }
+    Base::Result<void> appended = ids.PushBack(value);
+    if (!appended) return appended.GetStatus();
+    return ids.Size() - 1U;
+}
+
+const AxbSectionDirectoryEntry* FindSection(
+    Base::Span<const AxbSectionDirectoryEntry> directory,
+    AxbSectionKind kind) noexcept {
+    for (const AxbSectionDirectoryEntry& entry : directory) {
+        if (entry.kind == kind) return &entry;
+    }
+    return nullptr;
+}
+
+Base::Result<Decoder> OpenSection(
+    Base::Span<const std::uint8_t> document,
+    const AxbSectionDirectoryEntry& section) noexcept {
+    if (section.offset > document.Size() ||
+        section.size > document.Size() - section.offset) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "AXB2 section range is outside the document");
+    }
+    return Decoder({document.Data() + section.offset, section.size});
+}
+
+Base::Result<void> AssignInternedString(
+    Base::String& destination,
+    Base::Span<const Base::String> strings,
+    std::uint32_t index) noexcept {
+    if (index == InvalidTableIndex) {
+        destination.Clear();
+        return {};
+    }
+    if (index >= strings.Size()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 instruction references an invalid string index");
+    }
+    return destination.Assign(strings[index].View());
 }
 
 } // namespace
@@ -297,7 +403,7 @@ CompiledDocument::Compile(
     Base::Result<CompiledDocument> compiled =
         Compile(nodes, schema.Domain(), originUri);
     if (!compiled) return compiled.GetStatus();
-    Base::Result<void> valid = compiled.Value().ValidateSchema(schema);
+    Base::Result<void> valid = compiled.Value().BindSchema(schema);
     if (!valid) return valid.GetStatus();
     return std::move(compiled).Value();
 }
@@ -350,14 +456,230 @@ CompiledDocument::Serialize() const noexcept {
     if (!IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "Compiled XAML document is not valid");
+            "AXB2 document is not valid");
     }
-    Base::Vector<std::uint8_t> output;
-    Base::Result<void> result =
-        AppendU32(output, CompiledDocumentMagic);
+
+    Base::Vector<Base::String> strings;
+    Base::Vector<std::uint64_t> types;
+    Base::Vector<std::uint64_t> members;
+    Base::Vector<std::uint32_t> values;
+
+    Base::Result<std::uint32_t> originString = InternString(
+        strings, originUri_.Canonical());
+    if (!originString) return originString.GetStatus();
+    for (const Base::ResourceUri& dependency : dependencies_) {
+        Base::Result<std::uint32_t> index = InternString(
+            strings, dependency.Canonical());
+        if (!index) return index.GetStatus();
+    }
+
+    for (const Node& node : nodes_) {
+        const bool retainQualifiedName =
+            node.compiledTypeId_ == Meta::InvalidTypeId &&
+            node.compiledMemberId_ == Meta::InvalidMemberId;
+        const Base::StringView nodeStrings[] = {
+            node.name_.prefix_.View(),
+            node.name_.localName_.View(),
+            node.name_.namespaceUri_.View(),
+            node.namespacePrefix_.View(),
+            node.namespaceUri_.View()};
+        for (std::uint32_t stringSlot = 0U;
+             stringSlot < 5U; ++stringSlot) {
+            if (!retainQualifiedName && stringSlot < 3U) continue;
+            Base::Result<std::uint32_t> index = InternString(
+                strings, nodeStrings[stringSlot]);
+            if (!index) return index.GetStatus();
+        }
+        if (node.kind_ == NodeKind::Value) {
+            Base::Result<std::uint32_t> stringIndex = InternString(
+                strings, node.value_.View());
+            if (!stringIndex) return stringIndex.GetStatus();
+            std::uint32_t valueIndex = InvalidTableIndex;
+            for (std::uint32_t index = 0U; index < values.Size(); ++index) {
+                if (values[index] == stringIndex.Value()) {
+                    valueIndex = index;
+                    break;
+                }
+            }
+            if (valueIndex == InvalidTableIndex) {
+                Base::Result<void> appended = values.PushBack(
+                    stringIndex.Value());
+                if (!appended) return appended.GetStatus();
+            }
+        }
+        Base::Result<std::uint32_t> typeIndex = InternId(
+            types, node.compiledTypeId_);
+        if (!typeIndex) return typeIndex.GetStatus();
+        Base::Result<std::uint32_t> memberIndex = InternId(
+            members, node.compiledMemberId_);
+        if (!memberIndex) return memberIndex.GetStatus();
+    }
+
+    Base::Vector<AxbSection> sections;
+    auto addSection = [&sections](
+        AxbSectionKind kind,
+        std::uint32_t count,
+        Base::Vector<std::uint8_t>&& bytes) noexcept -> Base::Result<void> {
+        AxbSection section;
+        section.kind = kind;
+        section.count = count;
+        section.bytes = std::move(bytes);
+        return sections.PushBack(std::move(section));
+    };
+
+    Base::Vector<std::uint8_t> dependencyBytes;
+    Base::Result<void> result = AppendU32(
+        dependencyBytes, originString.Value());
     if (!result) return result.GetStatus();
-    result = AppendU32(
-        output, XamlCompiledDocumentEncodingVersion);
+    result = AppendU32(dependencyBytes, dependencies_.Size());
+    if (!result) return result.GetStatus();
+    for (const Base::ResourceUri& dependency : dependencies_) {
+        Base::Result<std::uint32_t> index = InternString(
+            strings, dependency.Canonical());
+        if (!index) return index.GetStatus();
+        result = AppendU32(dependencyBytes, index.Value());
+        if (!result) return result.GetStatus();
+    }
+    result = addSection(
+        AxbSectionKind::Dependencies,
+        dependencies_.Size(),
+        std::move(dependencyBytes));
+    if (!result) return result.GetStatus();
+
+    Base::Vector<std::uint8_t> stringBytes;
+    result = AppendU32(stringBytes, strings.Size());
+    if (!result) return result.GetStatus();
+    for (const Base::String& string : strings) {
+        result = AppendString(stringBytes, string.View());
+        if (!result) return result.GetStatus();
+    }
+    result = addSection(
+        AxbSectionKind::Strings, strings.Size(), std::move(stringBytes));
+    if (!result) return result.GetStatus();
+
+    Base::Vector<std::uint8_t> typeBytes;
+    result = AppendU32(typeBytes, types.Size());
+    if (!result) return result.GetStatus();
+    for (std::uint64_t type : types) {
+        result = AppendU64(typeBytes, type);
+        if (!result) return result.GetStatus();
+    }
+    result = addSection(
+        AxbSectionKind::Types, types.Size(), std::move(typeBytes));
+    if (!result) return result.GetStatus();
+
+    Base::Vector<std::uint8_t> memberBytes;
+    result = AppendU32(memberBytes, members.Size());
+    if (!result) return result.GetStatus();
+    for (std::uint64_t member : members) {
+        result = AppendU64(memberBytes, member);
+        if (!result) return result.GetStatus();
+    }
+    result = addSection(
+        AxbSectionKind::Members, members.Size(), std::move(memberBytes));
+    if (!result) return result.GetStatus();
+
+    Base::Vector<std::uint8_t> valueBytes;
+    result = AppendU32(valueBytes, values.Size());
+    if (!result) return result.GetStatus();
+    for (std::uint32_t value : values) {
+        result = AppendU32(valueBytes, value);
+        if (!result) return result.GetStatus();
+    }
+    result = addSection(
+        AxbSectionKind::Values, values.Size(), std::move(valueBytes));
+    if (!result) return result.GetStatus();
+
+    Base::Vector<std::uint8_t> instructionBytes;
+    result = AppendU32(instructionBytes, nodes_.Size());
+    if (!result) return result.GetStatus();
+    for (const Node& node : nodes_) {
+        result = AppendU8(
+            instructionBytes, static_cast<std::uint8_t>(node.kind_));
+        if (!result) return result.GetStatus();
+        result = AppendU8(
+            instructionBytes, node.fromAttribute_ ? 1U : 0U);
+        if (!result) return result.GetStatus();
+        result = AppendU16(instructionBytes, 0U);
+        if (!result) return result.GetStatus();
+
+        Base::Result<std::uint32_t> typeIndex = InternId(
+            types, node.compiledTypeId_);
+        if (!typeIndex) return typeIndex.GetStatus();
+        Base::Result<std::uint32_t> memberIndex = InternId(
+            members, node.compiledMemberId_);
+        if (!memberIndex) return memberIndex.GetStatus();
+        result = AppendU32(instructionBytes, typeIndex.Value());
+        if (!result) return result.GetStatus();
+        result = AppendU32(instructionBytes, memberIndex.Value());
+        if (!result) return result.GetStatus();
+
+        std::uint32_t valueIndex = InvalidTableIndex;
+        if (node.kind_ == NodeKind::Value) {
+            Base::Result<std::uint32_t> stringIndex = InternString(
+                strings, node.value_.View());
+            if (!stringIndex) return stringIndex.GetStatus();
+            for (std::uint32_t index = 0U; index < values.Size(); ++index) {
+                if (values[index] == stringIndex.Value()) {
+                    valueIndex = index;
+                    break;
+                }
+            }
+        }
+        result = AppendU32(instructionBytes, valueIndex);
+        if (!result) return result.GetStatus();
+
+        const Base::StringView nodeStrings[] = {
+            node.name_.prefix_.View(),
+            node.name_.localName_.View(),
+            node.name_.namespaceUri_.View(),
+            node.namespacePrefix_.View(),
+            node.namespaceUri_.View()};
+        const bool retainQualifiedName =
+            node.compiledTypeId_ == Meta::InvalidTypeId &&
+            node.compiledMemberId_ == Meta::InvalidMemberId;
+        for (std::uint32_t stringSlot = 0U;
+             stringSlot < 5U; ++stringSlot) {
+            std::uint32_t indexValue = InvalidTableIndex;
+            if (retainQualifiedName || stringSlot >= 3U) {
+                Base::Result<std::uint32_t> index = InternString(
+                    strings, nodeStrings[stringSlot]);
+                if (!index) return index.GetStatus();
+                indexValue = index.Value();
+            }
+            result = AppendU32(instructionBytes, indexValue);
+            if (!result) return result.GetStatus();
+        }
+        result = AppendU32(
+            instructionBytes,
+            static_cast<std::uint32_t>(&node - nodes_.Data()));
+        if (!result) return result.GetStatus();
+    }
+    result = addSection(
+        AxbSectionKind::Instructions,
+        nodes_.Size(),
+        std::move(instructionBytes));
+    if (!result) return result.GetStatus();
+
+    Base::Vector<std::uint8_t> sourceMapBytes;
+    result = AppendU32(sourceMapBytes, nodes_.Size());
+    if (!result) return result.GetStatus();
+    for (const Node& node : nodes_) {
+        result = AppendPosition(sourceMapBytes, node.source_.begin);
+        if (!result) return result.GetStatus();
+        result = AppendPosition(sourceMapBytes, node.source_.end);
+        if (!result) return result.GetStatus();
+    }
+    result = addSection(
+        AxbSectionKind::SourceMap,
+        nodes_.Size(),
+        std::move(sourceMapBytes));
+    if (!result) return result.GetStatus();
+
+    Base::Vector<std::uint8_t> output;
+    result = AppendU32(output, CompiledDocumentMagic);
+    if (!result) return result.GetStatus();
+    result = AppendU32(output, XamlCompiledDocumentEncodingVersion);
     if (!result) return result.GetStatus();
     result = AppendU32(output, identity_.cacheFormatVersion);
     if (!result) return result.GetStatus();
@@ -371,42 +693,30 @@ CompiledDocument::Serialize() const noexcept {
     if (!result) return result.GetStatus();
     result = AppendU64(output, identity_.metadataSchemaHash);
     if (!result) return result.GetStatus();
-    result = AppendString(
-        output, originUri_.Canonical());
-    if (!result) return result.GetStatus();
-    result = AppendU32(output, dependencies_.Size());
-    if (!result) return result.GetStatus();
-    for (const Base::ResourceUri& dependency :
-         dependencies_) {
-        result = AppendString(
-            output, dependency.Canonical());
-        if (!result) return result.GetStatus();
-    }
-    result = AppendU32(output, nodes_.Size());
+    result = AppendU32(output, sections.Size());
     if (!result) return result.GetStatus();
 
-    for (const Node& node : nodes_) {
-        result = AppendU8(
-            output, static_cast<std::uint8_t>(node.kind_));
+    std::uint32_t sectionOffset =
+        40U + sections.Size() * 16U;
+    for (const AxbSection& section : sections) {
+        if (sectionOffset > UINT32_MAX - section.bytes.Size()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "AXB2 document exceeds the 32-bit section range");
+        }
+        result = AppendU32(output, static_cast<std::uint32_t>(section.kind));
         if (!result) return result.GetStatus();
-        result = AppendU8(
-            output, node.fromAttribute_ ? 1U : 0U);
+        result = AppendU32(output, sectionOffset);
         if (!result) return result.GetStatus();
-        result = AppendU32(output, 0U);
+        result = AppendU32(output, section.bytes.Size());
         if (!result) return result.GetStatus();
-        result = AppendPosition(output, node.source_.begin);
+        result = AppendU32(output, section.count);
         if (!result) return result.GetStatus();
-        result = AppendPosition(output, node.source_.end);
-        if (!result) return result.GetStatus();
-        const Base::StringView strings[] = {
-            node.name_.prefix_.View(),
-            node.name_.localName_.View(),
-            node.name_.namespaceUri_.View(),
-            node.namespacePrefix_.View(),
-            node.namespaceUri_.View(),
-            node.value_.View()};
-        for (Base::StringView string : strings) {
-            result = AppendString(output, string);
+        sectionOffset += section.bytes.Size();
+    }
+    for (const AxbSection& section : sections) {
+        for (std::uint8_t byte : section.bytes) {
+            result = output.PushBack(byte);
             if (!result) return result.GetStatus();
         }
     }
@@ -433,7 +743,7 @@ CompiledDocument::Deserialize(
         encoding.Value() != XamlCompiledDocumentEncodingVersion) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
-            "Compiled XAML encoding is not supported");
+            "AXB2 encoding is not supported");
     }
 
     CompiledDocument document;
@@ -455,120 +765,388 @@ CompiledDocument::Deserialize(
     Base::Result<std::uint64_t> hash = decoder.ReadU64();
     if (!hash) return hash.GetStatus();
     document.identity_.metadataSchemaHash = hash.Value();
-    Base::Result<void> compatible =
-        ValidateCompiledCacheIdentity(
-            document.identity_, domain);
+    Base::Result<void> compatible = ValidateCompiledCacheIdentity(
+        document.identity_, domain);
     if (!compatible) return compatible.GetStatus();
 
+    Base::Result<std::uint32_t> sectionCount = decoder.ReadU32();
+    if (!sectionCount) return sectionCount.GetStatus();
+    if (sectionCount.Value() < 6U || sectionCount.Value() > 8U) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 section count is invalid");
+    }
+    Base::Vector<AxbSectionDirectoryEntry> directory;
+    Base::Result<void> reserved = directory.Reserve(sectionCount.Value());
+    if (!reserved) return reserved.GetStatus();
+    const std::uint32_t payloadBegin =
+        40U + sectionCount.Value() * 16U;
+    for (std::uint32_t index = 0U; index < sectionCount.Value(); ++index) {
+        Base::Result<std::uint32_t> kind = decoder.ReadU32();
+        if (!kind) return kind.GetStatus();
+        Base::Result<std::uint32_t> offset = decoder.ReadU32();
+        if (!offset) return offset.GetStatus();
+        Base::Result<std::uint32_t> size = decoder.ReadU32();
+        if (!size) return size.GetStatus();
+        Base::Result<std::uint32_t> count = decoder.ReadU32();
+        if (!count) return count.GetStatus();
+        if (kind.Value() < static_cast<std::uint32_t>(
+                AxbSectionKind::Dependencies) ||
+            kind.Value() > static_cast<std::uint32_t>(
+                AxbSectionKind::SourceFallback) ||
+            offset.Value() < payloadBegin ||
+            offset.Value() > bytes.Size() ||
+            size.Value() > bytes.Size() - offset.Value()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 section directory is invalid");
+        }
+        for (const AxbSectionDirectoryEntry& existing : directory) {
+            const bool duplicate = existing.kind ==
+                static_cast<AxbSectionKind>(kind.Value());
+            const bool overlap =
+                offset.Value() < existing.offset + existing.size &&
+                existing.offset < offset.Value() + size.Value();
+            if (duplicate || overlap) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "AXB2 sections are duplicated or overlapping");
+            }
+        }
+        reserved = directory.PushBack({
+            static_cast<AxbSectionKind>(kind.Value()),
+            offset.Value(), size.Value(), count.Value()});
+        if (!reserved) return reserved.GetStatus();
+    }
+
+    const Base::Span<const AxbSectionDirectoryEntry> directorySpan{
+        directory.Data(), directory.Size()};
+    const AxbSectionDirectoryEntry* dependencySection = FindSection(
+        directorySpan, AxbSectionKind::Dependencies);
+    const AxbSectionDirectoryEntry* stringSection = FindSection(
+        directorySpan, AxbSectionKind::Strings);
+    const AxbSectionDirectoryEntry* typeSection = FindSection(
+        directorySpan, AxbSectionKind::Types);
+    const AxbSectionDirectoryEntry* memberSection = FindSection(
+        directorySpan, AxbSectionKind::Members);
+    const AxbSectionDirectoryEntry* valueSection = FindSection(
+        directorySpan, AxbSectionKind::Values);
+    const AxbSectionDirectoryEntry* instructionSection = FindSection(
+        directorySpan, AxbSectionKind::Instructions);
+    const AxbSectionDirectoryEntry* sourceMapSection = FindSection(
+        directorySpan, AxbSectionKind::SourceMap);
+    if (dependencySection == nullptr || stringSection == nullptr ||
+        typeSection == nullptr || memberSection == nullptr ||
+        valueSection == nullptr || instructionSection == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 is missing a required section");
+    }
+
+    Base::Result<Decoder> opened = OpenSection(bytes, *stringSection);
+    if (!opened) return opened.GetStatus();
+    Decoder stringsDecoder = opened.Value();
+    Base::Result<std::uint32_t> stringCount = stringsDecoder.ReadU32();
+    if (!stringCount) return stringCount.GetStatus();
+    if (stringCount.Value() != stringSection->count) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 string table count is invalid");
+    }
+    Base::Vector<Base::String> strings;
+    reserved = strings.Reserve(stringCount.Value());
+    if (!reserved) return reserved.GetStatus();
     std::uint32_t totalStringBytes = 0U;
-    Base::Result<Base::String> origin =
-        decoder.ReadString(
-            totalStringBytes,
-            limits.maxStringBytes);
-    if (!origin) return origin.GetStatus();
-    if (!origin.Value().Empty()) {
-        Base::Result<Base::ResourceUri> parsed =
-            Base::ResourceUri::Parse(origin.Value().View());
-        if (!parsed) return parsed.GetStatus();
-        document.originUri_ =
-            std::move(parsed).Value();
+    for (std::uint32_t index = 0U; index < stringCount.Value(); ++index) {
+        Base::Result<Base::String> string = stringsDecoder.ReadString(
+            totalStringBytes, limits.maxStringBytes);
+        if (!string) return string.GetStatus();
+        reserved = strings.PushBack(std::move(string).Value());
+        if (!reserved) return reserved.GetStatus();
     }
-    Base::Result<std::uint32_t> dependencyCount =
-        decoder.ReadU32();
-    if (!dependencyCount) {
-        return dependencyCount.GetStatus();
+    if (!stringsDecoder.AtEnd()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 string table has trailing data");
     }
-    if (dependencyCount.Value() >
-        limits.maxDependencies) {
+
+    opened = OpenSection(bytes, *typeSection);
+    if (!opened) return opened.GetStatus();
+    Decoder typesDecoder = opened.Value();
+    Base::Result<std::uint32_t> typeCount = typesDecoder.ReadU32();
+    if (!typeCount) return typeCount.GetStatus();
+    if (typeCount.Value() != typeSection->count ||
+        typeCount.Value() > limits.maxNodes) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
-            "Compiled XAML dependency count exceeds limits");
+            "AXB2 type table count exceeds limits");
     }
-    Base::Result<void> reserved =
-        document.dependencies_.Reserve(
-            dependencyCount.Value());
+    Base::Vector<std::uint64_t> types;
+    reserved = types.Reserve(typeCount.Value());
     if (!reserved) return reserved.GetStatus();
-    for (std::uint32_t index = 0U;
-         index < dependencyCount.Value(); ++index) {
-        Base::Result<Base::String> text =
-            decoder.ReadString(
-                totalStringBytes,
-                limits.maxStringBytes);
-        if (!text) return text.GetStatus();
-        Base::Result<Base::ResourceUri> parsed =
-            Base::ResourceUri::Parse(text.Value().View());
+    for (std::uint32_t index = 0U; index < typeCount.Value(); ++index) {
+        Base::Result<std::uint64_t> id = typesDecoder.ReadU64();
+        if (!id) return id.GetStatus();
+        if (id.Value() == Meta::InvalidTypeId ||
+            domain.Types().FindType(id.Value()) == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 type table references an unknown frozen type id");
+        }
+        reserved = types.PushBack(id.Value());
+        if (!reserved) return reserved.GetStatus();
+    }
+    if (!typesDecoder.AtEnd()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 type table has trailing data");
+    }
+
+    opened = OpenSection(bytes, *memberSection);
+    if (!opened) return opened.GetStatus();
+    Decoder membersDecoder = opened.Value();
+    Base::Result<std::uint32_t> memberCount = membersDecoder.ReadU32();
+    if (!memberCount) return memberCount.GetStatus();
+    if (memberCount.Value() != memberSection->count ||
+        memberCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "AXB2 member table count exceeds limits");
+    }
+    Base::Vector<std::uint64_t> members;
+    reserved = members.Reserve(memberCount.Value());
+    if (!reserved) return reserved.GetStatus();
+    for (std::uint32_t index = 0U; index < memberCount.Value(); ++index) {
+        Base::Result<std::uint64_t> id = membersDecoder.ReadU64();
+        if (!id) return id.GetStatus();
+        if (id.Value() == Meta::InvalidMemberId ||
+            (domain.Types().FindProperty(id.Value()) == nullptr &&
+             domain.Types().FindEvent(id.Value()) == nullptr)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 member table references an unknown frozen member id");
+        }
+        reserved = members.PushBack(id.Value());
+        if (!reserved) return reserved.GetStatus();
+    }
+    if (!membersDecoder.AtEnd()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 member table has trailing data");
+    }
+
+    opened = OpenSection(bytes, *valueSection);
+    if (!opened) return opened.GetStatus();
+    Decoder valuesDecoder = opened.Value();
+    Base::Result<std::uint32_t> valueCount = valuesDecoder.ReadU32();
+    if (!valueCount) return valueCount.GetStatus();
+    if (valueCount.Value() != valueSection->count ||
+        valueCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "AXB2 value table count exceeds limits");
+    }
+    Base::Vector<std::uint32_t> values;
+    reserved = values.Reserve(valueCount.Value());
+    if (!reserved) return reserved.GetStatus();
+    for (std::uint32_t index = 0U; index < valueCount.Value(); ++index) {
+        Base::Result<std::uint32_t> stringIndex = valuesDecoder.ReadU32();
+        if (!stringIndex) return stringIndex.GetStatus();
+        if (stringIndex.Value() >= strings.Size()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 value table references an invalid string");
+        }
+        reserved = values.PushBack(stringIndex.Value());
+        if (!reserved) return reserved.GetStatus();
+    }
+    if (!valuesDecoder.AtEnd()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 value table has trailing data");
+    }
+
+    opened = OpenSection(bytes, *dependencySection);
+    if (!opened) return opened.GetStatus();
+    Decoder dependenciesDecoder = opened.Value();
+    Base::Result<std::uint32_t> originIndex = dependenciesDecoder.ReadU32();
+    if (!originIndex) return originIndex.GetStatus();
+    Base::Result<std::uint32_t> dependencyCount =
+        dependenciesDecoder.ReadU32();
+    if (!dependencyCount) return dependencyCount.GetStatus();
+    if (dependencyCount.Value() != dependencySection->count ||
+        dependencyCount.Value() > limits.maxDependencies ||
+        originIndex.Value() >= strings.Size()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "AXB2 dependency table exceeds limits");
+    }
+    if (!strings[originIndex.Value()].Empty()) {
+        Base::Result<Base::ResourceUri> parsed = Base::ResourceUri::Parse(
+            strings[originIndex.Value()].View());
         if (!parsed) return parsed.GetStatus();
-        Base::Result<void> added =
-            document.AddDependency(
-                parsed.Value());
+        document.originUri_ = std::move(parsed).Value();
+    }
+    reserved = document.dependencies_.Reserve(dependencyCount.Value());
+    if (!reserved) return reserved.GetStatus();
+    for (std::uint32_t index = 0U; index < dependencyCount.Value(); ++index) {
+        Base::Result<std::uint32_t> stringIndex =
+            dependenciesDecoder.ReadU32();
+        if (!stringIndex) return stringIndex.GetStatus();
+        if (stringIndex.Value() >= strings.Size()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 dependency references an invalid string");
+        }
+        Base::Result<Base::ResourceUri> parsed = Base::ResourceUri::Parse(
+            strings[stringIndex.Value()].View());
+        if (!parsed) return parsed.GetStatus();
+        Base::Result<void> added = document.AddDependency(parsed.Value());
         if (!added) return added.GetStatus();
     }
-    Base::Result<std::uint32_t> count = decoder.ReadU32();
-    if (!count) return count.GetStatus();
-    if (count.Value() == 0U ||
-        count.Value() > limits.maxNodes) {
+    if (!dependenciesDecoder.AtEnd()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 dependency table has trailing data");
+    }
+
+    Base::Vector<::Aero::Diagnostics::SourceSpan> sourceMap;
+    if (sourceMapSection != nullptr) {
+        opened = OpenSection(bytes, *sourceMapSection);
+        if (!opened) return opened.GetStatus();
+        Decoder sourceDecoder = opened.Value();
+        Base::Result<std::uint32_t> sourceCount = sourceDecoder.ReadU32();
+        if (!sourceCount) return sourceCount.GetStatus();
+        if (sourceCount.Value() != sourceMapSection->count ||
+            sourceCount.Value() > limits.maxNodes) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "AXB2 source map count exceeds limits");
+        }
+        reserved = sourceMap.Reserve(sourceCount.Value());
+        if (!reserved) return reserved.GetStatus();
+        for (std::uint32_t index = 0U; index < sourceCount.Value(); ++index) {
+            Base::Result<::Aero::Diagnostics::SourcePosition> begin =
+                ReadPosition(sourceDecoder);
+            if (!begin) return begin.GetStatus();
+            Base::Result<::Aero::Diagnostics::SourcePosition> end =
+                ReadPosition(sourceDecoder);
+            if (!end) return end.GetStatus();
+            ::Aero::Diagnostics::SourceSpan span{begin.Value(), end.Value()};
+            if (!::Aero::Diagnostics::IsValidSourceSpan(span)) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "AXB2 source map span is invalid");
+            }
+            reserved = sourceMap.PushBack(span);
+            if (!reserved) return reserved.GetStatus();
+        }
+        if (!sourceDecoder.AtEnd()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 source map has trailing data");
+        }
+    }
+
+    opened = OpenSection(bytes, *instructionSection);
+    if (!opened) return opened.GetStatus();
+    Decoder instructionsDecoder = opened.Value();
+    Base::Result<std::uint32_t> instructionCount =
+        instructionsDecoder.ReadU32();
+    if (!instructionCount) return instructionCount.GetStatus();
+    if (instructionCount.Value() == 0U ||
+        instructionCount.Value() != instructionSection->count ||
+        instructionCount.Value() > limits.maxNodes) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
-            "Compiled XAML node count exceeds limits");
+            "AXB2 instruction count exceeds limits");
     }
-    reserved = document.nodes_.Reserve(count.Value());
+    reserved = document.nodes_.Reserve(instructionCount.Value());
     if (!reserved) return reserved.GetStatus();
     for (std::uint32_t index = 0U;
-         index < count.Value();
-         ++index) {
-        Base::Result<std::uint8_t> kind = decoder.ReadU8();
+         index < instructionCount.Value(); ++index) {
+        Base::Result<std::uint8_t> kind = instructionsDecoder.ReadU8();
         if (!kind) return kind.GetStatus();
-        Base::Result<std::uint8_t> attribute = decoder.ReadU8();
-        if (!attribute) return attribute.GetStatus();
-        Base::Result<std::uint32_t> reservedValue =
-            decoder.ReadU32();
-        if (!reservedValue) return reservedValue.GetStatus();
-        if (kind.Value() >
-                static_cast<std::uint8_t>(
-                    NodeKind::EndOfDocument) ||
-            kind.Value() ==
-                static_cast<std::uint8_t>(
-                    NodeKind::None) ||
-            attribute.Value() > 1U ||
-            reservedValue.Value() != 0U) {
+        Base::Result<std::uint8_t> flags = instructionsDecoder.ReadU8();
+        if (!flags) return flags.GetStatus();
+        Base::Result<std::uint16_t> reservedBits =
+            instructionsDecoder.ReadU16();
+        if (!reservedBits) return reservedBits.GetStatus();
+        if (kind.Value() == static_cast<std::uint8_t>(NodeKind::None) ||
+            kind.Value() > static_cast<std::uint8_t>(
+                NodeKind::EndOfDocument) ||
+            flags.Value() > 1U || reservedBits.Value() != 0U) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
-                "Compiled XAML node header is invalid");
+                "AXB2 instruction header is invalid");
+        }
+        Base::Result<std::uint32_t> typeIndex =
+            instructionsDecoder.ReadU32();
+        if (!typeIndex) return typeIndex.GetStatus();
+        Base::Result<std::uint32_t> memberIndex =
+            instructionsDecoder.ReadU32();
+        if (!memberIndex) return memberIndex.GetStatus();
+        Base::Result<std::uint32_t> valueIndex =
+            instructionsDecoder.ReadU32();
+        if (!valueIndex) return valueIndex.GetStatus();
+        std::uint32_t stringIndices[5]{};
+        for (std::uint32_t& stringIndex : stringIndices) {
+            Base::Result<std::uint32_t> read = instructionsDecoder.ReadU32();
+            if (!read) return read.GetStatus();
+            stringIndex = read.Value();
+        }
+        Base::Result<std::uint32_t> sourceIndex =
+            instructionsDecoder.ReadU32();
+        if (!sourceIndex) return sourceIndex.GetStatus();
+        if ((typeIndex.Value() != InvalidTableIndex &&
+             typeIndex.Value() >= types.Size()) ||
+            (memberIndex.Value() != InvalidTableIndex &&
+             memberIndex.Value() >= members.Size()) ||
+            (valueIndex.Value() != InvalidTableIndex &&
+             valueIndex.Value() >= values.Size()) ||
+            (sourceIndex.Value() != InvalidTableIndex &&
+             sourceIndex.Value() >= sourceMap.Size())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 instruction operand is outside its table");
         }
         Node node;
-        node.kind_ =
-            static_cast<NodeKind>(kind.Value());
-        node.fromAttribute_ = attribute.Value() != 0U;
-        Base::Result<::Aero::Diagnostics::SourcePosition> begin =
-            ReadPosition(decoder);
-        if (!begin) return begin.GetStatus();
-        Base::Result<::Aero::Diagnostics::SourcePosition> end =
-            ReadPosition(decoder);
-        if (!end) return end.GetStatus();
-        node.source_ = {begin.Value(), end.Value()};
-        if (!::Aero::Diagnostics::IsValidSourceSpan(node.source_)) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "Compiled XAML source span is invalid");
+        node.kind_ = static_cast<NodeKind>(kind.Value());
+        node.fromAttribute_ = flags.Value() != 0U;
+        node.compiledTypeId_ = typeIndex.Value() == InvalidTableIndex
+            ? Meta::InvalidTypeId : types[typeIndex.Value()];
+        node.compiledMemberId_ = memberIndex.Value() == InvalidTableIndex
+            ? Meta::InvalidMemberId : members[memberIndex.Value()];
+        Base::Result<void> assigned = AssignInternedString(
+            node.name_.prefix_, strings.AsSpan(), stringIndices[0]);
+        if (!assigned) return assigned.GetStatus();
+        assigned = AssignInternedString(
+            node.name_.localName_, strings.AsSpan(), stringIndices[1]);
+        if (!assigned) return assigned.GetStatus();
+        assigned = AssignInternedString(
+            node.name_.namespaceUri_, strings.AsSpan(), stringIndices[2]);
+        if (!assigned) return assigned.GetStatus();
+        assigned = AssignInternedString(
+            node.namespacePrefix_, strings.AsSpan(), stringIndices[3]);
+        if (!assigned) return assigned.GetStatus();
+        assigned = AssignInternedString(
+            node.namespaceUri_, strings.AsSpan(), stringIndices[4]);
+        if (!assigned) return assigned.GetStatus();
+        if (valueIndex.Value() != InvalidTableIndex) {
+            assigned = node.value_.Assign(
+                strings[values[valueIndex.Value()]].View());
+            if (!assigned) return assigned.GetStatus();
         }
-        Base::String* destinations[] = {
-            &node.name_.prefix_,
-            &node.name_.localName_,
-            &node.name_.namespaceUri_,
-            &node.namespacePrefix_,
-            &node.namespaceUri_,
-            &node.value_};
-        for (Base::String* destination : destinations) {
-            Base::Result<Base::String> string =
-                decoder.ReadString(
-                    totalStringBytes,
-                    limits.maxStringBytes);
-            if (!string) return string.GetStatus();
-            *destination = std::move(string).Value();
+        if (sourceIndex.Value() != InvalidTableIndex) {
+            node.source_ = sourceMap[sourceIndex.Value()];
         }
-        Base::Result<void> appended =
-            document.nodes_.PushBack(std::move(node));
-        if (!appended) return appended.GetStatus();
+        reserved = document.nodes_.PushBack(std::move(node));
+        if (!reserved) return reserved.GetStatus();
+    }
+    if (!instructionsDecoder.AtEnd()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "AXB2 instruction stream has trailing data");
     }
     if (!document.originUri_.Empty()) {
         bool originListed = false;
@@ -584,10 +1162,10 @@ CompiledDocument::Deserialize(
                 "Compiled XAML origin is absent from dependencies");
         }
     }
-    if (!decoder.AtEnd() || !document.IsValid()) {
+    if (!document.IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
-            "Compiled XAML payload has trailing or incomplete data");
+            "AXB2 instruction stream is incomplete");
     }
     return document;
 }
@@ -605,7 +1183,6 @@ CompiledDocument::Deserialize(
 #include "gui/GuiPrivate.hpp"
 
 #include <new>
-#include <utility>
 
 
 namespace Aero::Markup {
@@ -1263,7 +1840,6 @@ const DocumentCacheLimits& DocumentCache::Limits() const noexcept {
 // ===== LoaderResult =====
 
 
-#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Markup {
 
@@ -1339,10 +1915,8 @@ void VisualContentPlan::Clear() noexcept {
 
 
 
-#include "gui/GuiPrivate.hpp"
 #include <Aero/Base/Hash.hpp>
 
-#include "markup/MarkupPrivate.hpp"
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Resources.hpp>
 
@@ -1351,8 +1925,6 @@ void VisualContentPlan::Clear() noexcept {
 #include <cstring>
 #include <filesystem>
 #include <limits>
-#include <new>
-#include <utility>
 
 
 namespace Aero::Markup {
@@ -3042,9 +3614,6 @@ Base::Result<XamlDocument> Loader::LoadCompiled(
 
 #include <Aero/Application.hpp>
 #include <Aero/Base/ResourceUri.hpp>
-#include "markup/MarkupPrivate.hpp"
-#include <Aero/FrameworkElement.hpp>
-#include <Aero/Resources.hpp>
 
 namespace Aero::Markup {
 namespace {
@@ -3096,12 +3665,9 @@ Base::Result<void> AddApplicationResource(
     void*) noexcept {
     // This callback is selected through the inherited Application XAML facet,
     // so derived application types are valid scope owners.
-    Base::Ref<ResourceDictionary> resources =
-        static_cast<Aero::Application&>(scopeOwner).GetResources();
-    return resources
-        ? resources->Add(key, value)
-        : Base::Result<void>(InvalidResource(
-              "Application resource dictionary is unavailable"));
+    return static_cast<Aero::Application&>(scopeOwner)
+        .GetResources()
+        .Add(key, value);
 }
 
 ResourceDictionary* ResolveDictionaryScope(
@@ -3129,9 +3695,8 @@ ResourceDictionary* ResolveFrameworkScope(
 ResourceDictionary* ResolveApplicationScope(
     Base::Object& scopeOwner,
     void*) noexcept {
-    Base::Ref<ResourceDictionary> resources =
-        static_cast<Aero::Application&>(scopeOwner).GetResources();
-    return resources.Get();
+    return &static_cast<Aero::Application&>(scopeOwner)
+        .GetResources();
 }
 
 } // namespace
@@ -3211,12 +3776,9 @@ Base::Result<void> ResourceExtension::Register(
 #include <Aero/Markup.hpp>
 
 #include <Aero/Base/Result.hpp>
-#include <Aero/Resources.hpp>
 
 
 
-#include <new>
-#include <utility>
 
 namespace Aero::Markup {
 

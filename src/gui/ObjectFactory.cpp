@@ -1,8 +1,6 @@
 #include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/Assert.hpp>
-#include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Meta {
 namespace {

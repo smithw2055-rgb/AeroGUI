@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include "gui/GuiPrivate.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
@@ -541,10 +540,10 @@ ScrollViewer::ScrollViewer() noexcept
 }
 
 ScrollViewer::~ScrollViewer() {
-    if (interactions_ != nullptr) {
-        static_cast<void>(
-            static_cast<ScrollBehavior*>(
-                interactions_)->Detach(*this));
+    auto* behaviors = static_cast<Detail::ControlBehavior*>(
+        Visual::Impl::ControlBehaviorRuntime(*this));
+    if (behaviors != nullptr) {
+        static_cast<void>(behaviors->Detach(*this));
     }
 }
 
@@ -856,10 +855,11 @@ void ScrollViewer::OnScrollDataChanged(
             "PART_VerticalScrollBar"),
         false);
 
-    if (events_ != nullptr) {
+    auto* events = Visual::Impl::EventRouterFor(*this);
+    if (events != nullptr) {
         ScrollChangedEventArgs args(oldData, newData, kind);
         static_cast<void>(
-            static_cast<Aero::GuiPrivate::Detail::EventRouter*>(events_)->RaiseEvent(
+            events->RaiseEvent(
             *this, ScrollChangedEvent, &args));
     }
 }
@@ -2183,12 +2183,6 @@ Base::Result<void> ScrollViewer::Impl::Attach(
             Base::ErrorCode::AlreadyExists,
             "ScrollViewer is already attached");
     }
-    if (viewer.interactions_ != nullptr &&
-        viewer.interactions_ != this) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "ScrollViewer belongs to another interaction manager");
-    }
     if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(viewer) != tree_ ||
         !Aero::GuiPrivate::Detail::ElementPrivate::Handle(viewer).IsValid()) {
         return Base::Status::Failure(
@@ -2209,8 +2203,6 @@ Base::Result<void> ScrollViewer::Impl::Attach(
             wheelHandler_));
         return added.GetStatus();
     }
-    viewer.events_ = events_;
-    viewer.interactions_ = this;
     return {};
 }
 
@@ -2221,8 +2213,6 @@ Base::Result<bool> ScrollViewer::Impl::Detach(
     static_cast<void>(viewer.RemoveHandler(
         UIElement::MouseWheelEvent,
         wheelHandler_));
-    viewer.events_ = nullptr;
-    viewer.interactions_ = nullptr;
     if (index + 1U != viewers_.Size()) {
         viewers_[index] = viewers_.Back();
     }

@@ -74,9 +74,9 @@ public:
     double GetFontSize() const noexcept;
     void SetFontSize(
         double value) noexcept;
-    Base::StringView GetFontFamily() const noexcept;
-    void SetFontFamily(
-        Base::StringView value) noexcept;
+    Base::Ref<Media::FontFamily> GetFontFamily() const noexcept;
+    void SetFontFamily(Base::Ref<Media::FontFamily> value) noexcept;
+    Base::Result<void> SetFontFamily(Base::StringView value) noexcept;
     FontWeight GetFontWeight() const noexcept;
     void SetFontWeight(
         FontWeight value) noexcept;
@@ -191,7 +191,6 @@ private:
 
     void* model_ = nullptr;
     void* compositionModel_ = nullptr;
-    void* layoutService_ = nullptr;
     void* displayPolicy_ = nullptr;
     void* plainPolicy_ = nullptr;
     Base::String displayText_;

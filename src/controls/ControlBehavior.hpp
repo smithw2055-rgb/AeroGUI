@@ -1,8 +1,6 @@
 #pragma once
 
 #include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 #include "TemplateInstance.hpp"
 
 // Private control behavior and template implementation for one View.
@@ -13,11 +11,7 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Common.hpp>
-#include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 #include <Aero/Integration/Platform.hpp>
-#include "gui/GuiPrivate.hpp"
 #include <cstddef>
 #include <new>
 #include <utility>
@@ -64,6 +58,11 @@ public:
     Base::Result<bool> Detach(ButtonBase& button) noexcept;
     Base::Result<void> RefreshCanExecute(
         ButtonBase& button) noexcept;
+    Base::Result<void> RefreshVisualState(
+        ButtonBase& button,
+        bool useTransitions = true) noexcept {
+        return SyncVisualState(button, useTransitions);
+    }
     // Host-driven deterministic clock for RepeatButton. A single call emits
     // at most 1024 repeats and skips excess backlog.
     Base::Result<std::uint32_t> AdvanceTime(
@@ -678,6 +677,10 @@ public:
     Base::Result<void> Attach(
         Visual& visual,
         Integration::ITextInputMethodHost* inputMethodHost) noexcept;
+    Base::Result<bool> Detach(Visual& visual) noexcept;
+    Base::Result<void> RefreshButtonVisualState(
+        Primitives::ButtonBase& button,
+        bool useTransitions = true) noexcept;
     Base::Result<std::uint32_t> AdvanceTime(
         std::uint32_t elapsedMilliseconds) noexcept;
     void Shutdown() noexcept;

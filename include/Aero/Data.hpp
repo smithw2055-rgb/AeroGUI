@@ -70,8 +70,8 @@ class AERO_API IValueConverter : public Base::Object {
 public:
     ~IValueConverter() override = default;
 
-    virtual Base::Result<Meta::Value> Convert(const Meta::Value& value, const Meta::Value& parameter) noexcept = 0;
-    virtual Base::Result<Meta::Value> ConvertBack(const Meta::Value& value, const Meta::Value& parameter) noexcept = 0;
+    virtual Base::Result<Value> Convert(const Value& value, const Value& parameter) noexcept = 0;
+    virtual Base::Result<Value> ConvertBack(const Value& value, const Value& parameter) noexcept = 0;
 
 protected:
     IValueConverter() noexcept = default;
@@ -85,10 +85,10 @@ public:
     Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
     Base::StringView GetStringFormat() const noexcept { return stringFormat_.View(); }
     void SetStringFormat(Base::StringView value) noexcept { (void)stringFormat_.Assign(value); }
-    const Meta::Value& GetFallbackValue() const noexcept { return fallbackValue_; }
-    void SetFallbackValue(Meta::Value value) noexcept { fallbackValue_ = std::move(value); }
-    const Meta::Value& GetTargetNullValue() const noexcept { return targetNullValue_; }
-    void SetTargetNullValue(Meta::Value value) noexcept { targetNullValue_ = std::move(value); }
+    const Value& GetFallbackValue() const noexcept { return fallbackValue_; }
+    void SetFallbackValue(Value value) noexcept { fallbackValue_ = std::move(value); }
+    const Value& GetTargetNullValue() const noexcept { return targetNullValue_; }
+    void SetTargetNullValue(Value value) noexcept { targetNullValue_ = std::move(value); }
 
 protected:
     explicit BindingBase(Meta::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
@@ -96,8 +96,8 @@ protected:
 private:
     Meta::TypeId runtimeType_ = StaticTypeId();
     Base::String stringFormat_;
-    Meta::Value fallbackValue_;
-    Meta::Value targetNullValue_;
+    Value fallbackValue_;
+    Value targetNullValue_;
 };
 
 class AERO_API Binding : public BindingBase {
@@ -121,8 +121,8 @@ public:
     void SetRelativeSource(Base::Ref<RelativeSource> value) noexcept { relativeSource_ = std::move(value); }
     Base::Ref<IValueConverter> GetConverter() const noexcept { return converter_; }
     void SetConverter(Base::Ref<IValueConverter> value) noexcept { converter_ = std::move(value); }
-    const Meta::Value& GetConverterParameter() const noexcept { return converterParameter_; }
-    void SetConverterParameter(Meta::Value value) noexcept { converterParameter_ = std::move(value); }
+    const Value& GetConverterParameter() const noexcept { return converterParameter_; }
+    void SetConverterParameter(Value value) noexcept { converterParameter_ = std::move(value); }
 
 private:
     PropertyPath path_;
@@ -132,7 +132,7 @@ private:
     Base::Ref<Base::Object> source_;
     Base::Ref<RelativeSource> relativeSource_;
     Base::Ref<IValueConverter> converter_;
-    Meta::Value converterParameter_;
+    Value converterParameter_;
 };
 
 } // namespace Aero::Data

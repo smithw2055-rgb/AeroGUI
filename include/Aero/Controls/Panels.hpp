@@ -330,7 +330,7 @@ public:
     Base::Ref<Brush> GetForeground() const noexcept;
     Base::Ref<Brush> GetBackground() const noexcept;
     double GetFontSize() const noexcept;
-    Base::StringView GetFontFamily() const noexcept;
+    Base::Ref<Media::FontFamily> GetFontFamily() const noexcept;
     FontWeight GetFontWeight() const noexcept;
     FontStyle GetFontStyle() const noexcept;
     TextDecorations GetTextDecorations() const noexcept;
@@ -345,15 +345,15 @@ public:
     Documents::InlineCollectionView GetInlines() const noexcept;
     Documents::TextPointer GetContentStart() noexcept;
     Documents::TextPointer GetContentEnd() noexcept;
-    Meta::Value GetMetadataInlines() const noexcept;
+    Value GetMetadataInlines() const noexcept;
     void SetText(Base::StringView value) noexcept;
     void SetForeground(
         Base::Ref<Brush> value) noexcept;
     void SetBackground(
         Base::Ref<Brush> value) noexcept;
     void SetFontSize(double value) noexcept;
-    void SetFontFamily(
-        Base::StringView value) noexcept;
+    void SetFontFamily(Base::Ref<Media::FontFamily> value) noexcept;
+    Base::Result<void> SetFontFamily(Base::StringView value) noexcept;
     void SetFontWeight(
         FontWeight value) noexcept;
     void SetFontStyle(
@@ -368,7 +368,7 @@ public:
         TextAlignment value) noexcept;
     void SetLineHeight(double value) noexcept;
     void SetInlineValue(
-        Meta::Value value) noexcept;
+        Value value) noexcept;
     Base::Result<void> AddOwnedInline(
         const Base::Ref<Base::Object>& inlineObject) noexcept;
     void ClearOwnedInlines() noexcept;
@@ -405,7 +405,6 @@ private:
     void SetGlyphRun(
         std::uint64_t glyphRun, Size size) noexcept;
 
-    void* layoutService_ = nullptr;
     Base::Vector<std::uint64_t> glyphRuns_;
     Base::Vector<TextHitRegion> textHitRegions_;
     Base::Vector<Base::Ref<Base::Object>> ownedInlines_;
@@ -420,7 +419,7 @@ public:
     ContentPresenter() noexcept;
     UIElement* GetContent() const noexcept { return content_; }
     const Base::Ref<Base::Object>& GetOwnedContent() const noexcept { return ownedContent_; }
-    const Meta::Value& GetContentValue() const noexcept {
+    const Value& GetContentValue() const noexcept {
         return contentValue_;
     }
     Base::StringView GetContentSource() const noexcept {
@@ -431,7 +430,7 @@ public:
     void SetContentSource(
         Base::StringView value) noexcept;
     void SetContentValue(
-        Meta::Value value) noexcept {
+        Value value) noexcept {
         SetValue(ContentProperty, std::move(value));
     }
     void SetContent(UIElement* content) noexcept;
@@ -455,7 +454,7 @@ public:
         UIElement& content) noexcept;
 
     inline static constexpr Members::Property<Base::String> ContentSourceProperty{"ContentSource"};
-    inline static constexpr Members::Property<Meta::Value> ContentProperty{"Content"};
+    inline static constexpr Members::Property<Value> ContentProperty{"Content"};
     inline static constexpr Members::Property<Base::Ref<Base::Object>> ContentTemplateProperty{"ContentTemplate"};
     static void OnContentPropertyChanged(
         ::Aero::DependencyObject& object,
@@ -467,8 +466,8 @@ protected:
 private:
     UIElement* content_ = nullptr;
     Base::Ref<Base::Object> ownedContent_;
-    Meta::Value contentValue_ =
-        Meta::Value::NullObject(
+    Value contentValue_ =
+        Value::NullObject(
             Meta::TypeOf<Base::Object>());
     bool IsOnlyAttachedContent(const UIElement& content) const noexcept;
     Base::Result<void> ValidateContent(UIElement* content) const noexcept;

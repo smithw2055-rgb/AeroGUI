@@ -126,7 +126,6 @@ bool Value::Equals(const Value& other) const noexcept {
 
 // ===== ValueConversion =====
 
-#include <Aero/Value.hpp>
 
 #include <cctype>
 
@@ -351,12 +350,10 @@ const TypeRegistry& RegistrationValues::Types() const noexcept {
 
 // ===== ValueTable =====
 
-#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 
 #include <cstddef>
-#include <utility>
 
 namespace Aero::Meta {
 namespace {

@@ -7,7 +7,7 @@
 ## 目标
 
 - 相同 XAML source revision 重复加载时跳过 XML tokenization 和 node 编译。
-- 缓存内容只包含可重放 AXIR，不保存 View 对象、BindingEngine 或 GPU 状态。
+- 缓存内容只包含可重放 AXB2，不保存 View 对象、BindingEngine 或 GPU 状态。
 - 一个 `Gui` 的缓存可以供多个 `View` 复用；调用必须位于同一宿主线程，或由宿主提供外部同步。
 - ResourceDictionary `Source` 等依赖形成正反向 URI 图。
 - 任意依赖变化时，可以确定性失效所有受影响的上层文档。
@@ -20,13 +20,13 @@
 identity 作为命中条件。不同 View 即使对同一 URI 返回相同 revision，只要它们的
 provider identity 不同，就不会重放彼此的缓存内容。缓存项保存：
 
-- serialized AXIR
+- serialized AXB2（依赖、字符串、类型、成员、值和指令表，以及可选 source map）
 - source revision 与 provider identity
 - canonical origin URI
 - dependency URI list
 - LRU access sequence
 
-每次命中仍会用当前 `Meta::Registry` 反序列化并检查 AXIR identity，因此旧
+每次命中仍会用当前 `Meta::Registry` 反序列化并检查 AXB2 identity，因此旧
 Schema 或旧 cache format 不会被静默重放。缓存写入是优化操作：一次 XAML
 加载已成功时，缓存分配或编译失败不会反向破坏该加载结果。
 
@@ -43,7 +43,7 @@ Schema 或旧 cache format 不会被静默重放。缓存写入是优化操作�
 - 不支持 probe 的 provider 返回 `Unsupported`，Loader 自动回退到 `Load()` 并
   对 source bytes 计算内容 hash。
 
-当 revision probe 与缓存匹配时，Loader 不读取 source body，直接重放 AXIR。
+当 revision probe 与缓存匹配时，Loader 不读取 source body，直接重放 AXB2。
 
 ## 依赖图
 

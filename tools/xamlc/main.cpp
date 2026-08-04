@@ -1,7 +1,5 @@
 #include "markup/MarkupPrivate.hpp"
 #include <Aero/Base/ResourceUri.hpp>
-#include "markup/MarkupPrivate.hpp"
-#include "markup/MarkupPrivate.hpp"
 #include <Aero/Module.hpp>
 #include "runtime/modules/ModuleSet.hpp"
 
@@ -178,14 +176,14 @@ int main(int argc, char** argv) {
     if (!ParseCommandLine(argc, argv, options)) {
         return Fail(
             "usage: aero-xamlc [--schema file.aeroschema] "
-            "[--origin uri] <input.xaml> <output.axir>, or "
+            "[--origin uri] <input.xaml> <output.axb>, or "
             "aero-xamlc [--schema file.aeroschema] "
             "[--origin uri] --check <input.xaml>, or "
             "aero-xamlc --version");
     }
     if (options.showVersion) {
         std::printf(
-            "aero-xamlc %u.%u.%u (schema ABI %u, AXIR cache %u, encoding %u)\n",
+            "aero-xamlc %u.%u.%u (schema ABI %u, AXB2 cache %u, encoding %u)\n",
             Aero::VersionMajor,
             Aero::VersionMinor,
             Aero::VersionPatch,

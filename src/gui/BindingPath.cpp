@@ -1,5 +1,4 @@
 #include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Meta {
 namespace {

@@ -1034,3 +1034,13 @@ bool Positive(const T& value) noexcept {
 } // namespace Validate
 
 } // namespace Aero::Base::Detail
+
+namespace Aero {
+
+// WPF's object-valued properties use the SDK-level Value name. Metadata owns
+// codecs and descriptors, but ordinary control authoring does not need to
+// mention the Meta namespace.
+using Base::Value;
+using Base::ValueKind;
+
+} // namespace Aero

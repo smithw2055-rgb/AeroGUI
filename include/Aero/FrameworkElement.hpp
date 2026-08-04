@@ -117,9 +117,10 @@ public:
     Thickness GetMargin() const noexcept;
     Base::Ref<Media::Transform> GetLayoutTransform() const noexcept;
     Base::Transform2D GetLocalVisualTransform() const noexcept;
-    Base::Result<Base::Ref<Base::Object>> GetDataContextResult() const noexcept;
-    Base::StringView GetFontFamily() const noexcept {
-        return GetValueOr(FontFamilyProperty, Base::StringView{});
+    Base::Result<Value> GetDataContextResult() const noexcept;
+    Base::Ref<Media::FontFamily> GetFontFamily() const noexcept {
+        return GetValueOr(
+            FontFamilyProperty, Base::Ref<Media::FontFamily>{});
     }
     FlowDirection GetFlowDirection() const noexcept {
         return GetValueOr(FlowDirectionProperty, FlowDirection::LeftToRight);
@@ -142,15 +143,16 @@ public:
     }
     HorizontalAlignment GetHorizontalAlignment() const noexcept;
     VerticalAlignment GetVerticalAlignment() const noexcept;
-    Base::Ref<Base::Object> GetDataContext() const noexcept {
-        Base::Result<Base::Ref<Base::Object>> value = GetDataContextResult();
-        return value ? value.Value() : Base::Ref<Base::Object>{};
+    Value GetDataContext() const noexcept {
+        Base::Result<Value> value = GetDataContextResult();
+        return value ? value.Value() :
+            Value::NullObject(Meta::TypeOf<Base::Object>());
     }
 
-    inline static constexpr Members::Property<Base::Ref<Base::Object>> DataContextProperty{"DataContext"};
+    inline static constexpr Members::Property<Value> DataContextProperty{"DataContext"};
     // A common inherited owner lets Window, controls and text elements share
     // the same WPF-style FontFamily value through the visual tree.
-    inline static constexpr Members::Property<Base::String> FontFamilyProperty{"FontFamily"};
+    inline static constexpr Members::Property<Base::Ref<Media::FontFamily>> FontFamilyProperty{"FontFamily"};
     inline static constexpr Members::Property<FlowDirection> FlowDirectionProperty{"FlowDirection"};
     // Cursor names use the WPF built-in names (for example, "Hand"). The
     // platform input bridge consumes this inherited value when choosing the
@@ -162,8 +164,8 @@ public:
     inline static constexpr Members::Property<Base::Ref<Style>> StyleProperty{"Style"};
     // WPF-compatible application payload. It deliberately has no layout or
     // rendering effect and accepts the markup value without coercion.
-    inline static constexpr Members::Property<Meta::Value> TagProperty{"Tag"};
-    inline static constexpr Members::Property<Meta::Value> ToolTipProperty{"ToolTip"};
+    inline static constexpr Members::Property<Value> TagProperty{"Tag"};
+    inline static constexpr Members::Property<Value> ToolTipProperty{"ToolTip"};
     inline static constexpr Members::Property<Input::InputScope> InputScopeProperty{"InputScope"};
     inline static constexpr Members::Property<Length> WidthProperty{"Width"};
     inline static constexpr Members::Property<Length> HeightProperty{"Height"};
@@ -188,11 +190,23 @@ public:
     void SetMinSize(Size value) noexcept;
     void SetMaxSize(Size value) noexcept;
     void SetMargin(Thickness value) noexcept;
-    void SetDataContext(
-        Base::Ref<Base::Object> value) noexcept;
+    void SetDataContext(Value value) noexcept;
+    void SetDataContext(Base::Ref<Base::Object> value) noexcept {
+        SetDataContext(Value::FromObject(
+            Meta::TypeOf<Base::Object>(), std::move(value)));
+    }
     void SetFontFamily(
+        Base::Ref<Media::FontFamily> value) noexcept {
+        SetValue(FontFamilyProperty, std::move(value));
+    }
+    Base::Result<void> SetFontFamily(
         Base::StringView value) noexcept {
-        SetValue(FontFamilyProperty, value);
+        Base::Result<Base::Ref<Media::FontFamily>> family =
+            Base::MakeRef<Media::FontFamily>();
+        if (!family) return family.GetStatus();
+        family.Value()->SetSource(value);
+        SetFontFamily(std::move(family).Value());
+        return {};
     }
     void SetFlowDirection(FlowDirection value) noexcept {
         SetValue(FlowDirectionProperty, value);

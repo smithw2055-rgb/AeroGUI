@@ -154,11 +154,17 @@ public:
     const ResourceDictionary& GetResources() const noexcept { return resources_; }
     void SetResources(Base::Ref<ResourceDictionary> value) noexcept;
 
-    Base::Ref<Base::Object> GetDataContext() const noexcept {
-        return GetValueOr(DataContextProperty, Base::Ref<Base::Object>{});
+    Value GetDataContext() const noexcept {
+        return GetValueOr(
+            DataContextProperty,
+            Value::NullObject(Meta::TypeOf<Base::Object>()));
+    }
+    void SetDataContext(Value value) noexcept {
+        SetValue(DataContextProperty, std::move(value));
     }
     void SetDataContext(Base::Ref<Base::Object> value) noexcept {
-        SetValue(DataContextProperty, std::move(value));
+        SetDataContext(Value::FromObject(
+            Meta::TypeOf<Base::Object>(), std::move(value)));
     }
     void ClearDataContext() noexcept {
         ClearValue(DataContextProperty);
@@ -171,9 +177,9 @@ public:
         SetValue(StyleProperty, std::move(value));
     }
 
-    inline static constexpr Members::Property<Base::Ref<Base::Object>> DataContextProperty{"DataContext"};
+    inline static constexpr Members::Property<Value> DataContextProperty{"DataContext"};
     inline static constexpr Members::Property<Base::Ref<Style>> StyleProperty{"Style"};
-    inline static constexpr Members::Property<Meta::Value> TagProperty{"Tag"};
+    inline static constexpr Members::Property<Value> TagProperty{"Tag"};
 
 protected:
     virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return 0U; }

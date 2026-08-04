@@ -80,6 +80,14 @@ View, render target and input-services record per top-level Window, so
 `Application::Windows` and the three `ShutdownMode` policies have real
 multi-window semantics.
 
+`Application::GetResources()` always returns a dictionary reference.
+`SetMainWindow(Ref<Window>)` is the owning API, while
+`SetMainWindowBorrowed(Window*)` makes non-ownership explicit. The WPF-shaped
+`Run()`, `Window::Show()` and `Window::Close()` methods remain simple; code that
+needs diagnostics uses `RunChecked()`, `ShowChecked()` and `CloseChecked()`.
+Only one default `Application` may be active process-wide; multiple independent
+embedded UI instances remain a `Gui`/`View` responsibility.
+
 Audio and other optional subsystems are separate products; constructing an
 Application never creates unrelated platform devices.
 
@@ -130,7 +138,7 @@ aero_add_xaml(MyApp
 
 Cross-compiling builds set `AERO_HOST_XAMLC_EXECUTABLE` to a host-native
 `aero-xamlc`. Target-platform executables are never run by the build. Generated
-AXIR paths preserve source-relative directories so equal basenames do not
+AXB2 `.axb` paths preserve source-relative directories so equal basenames do not
 collide.
 
 ## Build and install ownership

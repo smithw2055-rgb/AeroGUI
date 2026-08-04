@@ -110,11 +110,11 @@ struct DesktopHost::Impl {
                     owner->builtInTheme);
                 if (!themed) return themed.GetStatus();
             }
-            Base::Ref<ResourceDictionary> resources =
+            ResourceDictionary* resources =
                 owner->application != nullptr
-                ? owner->application->GetResources()
-                : Base::Ref<ResourceDictionary>{};
-            if (resources) {
+                ? &owner->application->GetResources()
+                : nullptr;
+            if (resources != nullptr) {
                 reader.SetResources(
                     ResourceLayer::Application,
                     *resources,
@@ -133,8 +133,7 @@ struct DesktopHost::Impl {
             if (!loaded) return loaded.GetStatus();
             const Base::Ref<Base::Object>& root = loaded.Value().Root();
             if (!root ||
-                !View::Impl::IsInstanceOf(
-                    *view, *root, Window::StaticTypeId())) {
+                !view->IsInstanceOf(*root, Window::StaticTypeId())) {
                 return HostFailure(
                     Base::ErrorCode::InvalidArgument,
                     "StartupUri XAML root must be Window");
@@ -508,7 +507,7 @@ struct DesktopHost::Impl {
             if (shutdown) return;
             shutdown = true;
             if (renderDevice) static_cast<void>(renderDevice->WaitIdle());
-            if (view) static_cast<void>(View::Impl::Unmount(*view));
+            if (view) static_cast<void>(view->Unmount());
             if (window != nullptr) {
                 Window::Impl::NotifyClosed(*window);
                 Window::Impl::Detach(*window);
@@ -650,17 +649,22 @@ struct DesktopHost::Impl {
                 applicationFile.View(), {}, diagnostics);
             if (!loaded) return loaded.GetStatus();
             const Base::Ref<Base::Object>& root = loaded.Value().Root();
-            if (!root || !View::Impl::IsInstanceOf(
-                    *loaderView, *root, Application::StaticTypeId())) {
+            if (!root || !loaderView->IsInstanceOf(
+                    *root, Application::StaticTypeId())) {
                 return HostFailure(
                     Base::ErrorCode::InvalidArgument,
                     "Application XAML root must be Application");
             }
             applicationOwner = root;
             Application& authored = static_cast<Application&>(*root);
-            if (authored.GetResources()) {
-                application->SetResources(authored.GetResources());
+            Base::Result<ResourceDictionary> sharedResources =
+                authored.GetResources().Share();
+            if (!sharedResources) {
+                return sharedResources.GetStatus();
             }
+            DesktopPrivate::AdoptResources(
+                *application,
+                std::move(sharedResources).Value());
             const Base::StringView startup =
                 application->GetStartupUri().Empty()
                 ? authored.GetStartupUri()
@@ -684,8 +688,8 @@ struct DesktopHost::Impl {
         if (!loaded) return loaded.GetStatus();
         const Base::Ref<Base::Object>& root = loaded.Value().Root();
         if (!root ||
-            !View::Impl::IsInstanceOf(
-                *loaderView, *root, Application::StaticTypeId())) {
+                !loaderView->IsInstanceOf(
+                    *root, Application::StaticTypeId())) {
             return HostFailure(
                 Base::ErrorCode::InvalidArgument,
                 "Application XAML root must be Application");
@@ -739,8 +743,9 @@ struct DesktopHost::Impl {
     }
 
     Base::Result<void> StartApplication() noexcept {
-        DesktopPrivate::Attach(
+        Base::Result<void> attached = DesktopPrivate::Attach(
             *application, &applicationRuntime, nullptr);
+        if (!attached) return attached.GetStatus();
 
         if (suppliedWindow || !startupUri.Empty()) {
             Base::Result<WindowHost*> allocated = CreateWindowHost();
@@ -755,7 +760,7 @@ struct DesktopHost::Impl {
             }
             mainWindow = host->window;
             if (application->GetMainWindow() == nullptr) {
-                application->SetMainWindow(mainWindow);
+                application->SetMainWindowBorrowed(mainWindow);
             }
         }
 
@@ -763,7 +768,7 @@ struct DesktopHost::Impl {
         // application creates and shows one or more windows from OnStartup().
         DesktopPrivate::RaiseStartup(*application);
         if (application->GetMainWindow() == nullptr && !windows.Empty()) {
-            application->SetMainWindow(windows[0]->window);
+            application->SetMainWindowBorrowed(windows[0]->window);
         }
         return {};
     }
@@ -786,7 +791,7 @@ struct DesktopHost::Impl {
             return loaded.GetStatus();
         }
         if (application->GetMainWindow() == nullptr) {
-            application->SetMainWindow(host->window);
+            application->SetMainWindowBorrowed(host->window);
         }
         Base::Result<void> rendered = host->RenderFrame();
         if (!rendered) {
@@ -975,23 +980,11 @@ Base::Result<int> DesktopHost::Run() noexcept {
 
 namespace Aero {
 
-bool View::Impl::IsInstanceOf(
-    const View& view,
-    const Base::Object& object,
-    Meta::TypeId baseType) noexcept {
-    return view.IsInstanceOf(object, baseType);
-}
-
-Base::Result<void> View::Impl::Unmount(
-    View& view) noexcept {
-    return view.Unmount();
-}
-
-void Application::Impl::Attach(
+Base::Result<void> Application::Impl::Attach(
     Application& application,
     void* hostState,
     Window* mainWindow) noexcept {
-    application.Attach(hostState, mainWindow);
+    return application.Attach(hostState, mainWindow);
 }
 
 void Application::Impl::Detach(
@@ -1008,6 +1001,12 @@ void Application::Impl::RaiseExit(
     Application& application,
     int exitCode) noexcept {
     application.RaiseExit(exitCode);
+}
+
+void Application::Impl::AdoptResources(
+    Application& application,
+    ResourceDictionary&& resources) noexcept {
+    application.resources_ = std::move(resources);
 }
 
 void Window::Impl::Attach(

@@ -157,7 +157,8 @@ Base::Result<void> PopulateControlsPrimitives(
             PropertyOptions(Base::Ref<ICommand>{}))
         .Property(
             ButtonBase::CommandParameterProperty,
-            PropertyOptions(Base::Ref<Base::Object>{}))
+            PropertyOptions(Value::NullObject(
+                TypeOf<Base::Object>())))
         .Property(
             ButtonBase::CommandTargetProperty,
             PropertyOptions(Base::Ref<UIElement>{}))

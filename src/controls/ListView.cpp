@@ -6,15 +6,25 @@
 
 namespace Aero::Controls {
 
-Base::StringView GridViewColumn::GetHeader()
+Value GridViewColumn::GetHeader()
     const noexcept {
     return GetValueOr(
-        HeaderProperty, Base::StringView{});
+        HeaderProperty,
+        Value::NullObject(Meta::TypeOf<Base::Object>()));
 }
 
 void GridViewColumn::SetHeader(
+    Value value) noexcept {
+    SetValue(HeaderProperty, std::move(value));
+}
+
+Base::Result<void> GridViewColumn::SetHeader(
     Base::StringView value) noexcept {
-    SetValue(HeaderProperty, value);
+    Base::Result<Value> boxed = Value::TryFromString(
+        Meta::TypeOf<Base::String>(), value);
+    if (!boxed) return boxed.GetStatus();
+    SetHeader(std::move(boxed).Value());
+    return {};
 }
 
 double GridViewColumn::GetWidth()
@@ -148,13 +158,18 @@ ListView::SynchronizeColumnHeaders() noexcept {
         for (const Base::Ref<GridViewColumn>&
              column : view->GetColumns()) {
             if (!column) continue;
-            Base::Result<void> appended =
-                text.Append(column->GetHeader());
+            const Value header = column->GetHeader();
+            Base::Result<void> appended = text.Append(
+                header.Kind() == ValueKind::String
+                ? header.AsString()
+                : Base::StringView{});
             if (!appended) {
                 return appended.GetStatus();
             }
             const std::uint32_t headerCharacters =
-                column->GetHeader().SizeBytes();
+                header.Kind() == ValueKind::String
+                ? header.AsString().SizeBytes()
+                : 0U;
             const std::uint32_t columnCharacters =
                 column->GetWidth() > 0.0
                 ? static_cast<std::uint32_t>(

@@ -1,7 +1,5 @@
 #include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 #include "gui/private/Style.hpp"
-#include <Aero/Controls/Panels.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Value.hpp>
@@ -10,58 +8,46 @@
 
 namespace Aero {
 
-void RichText::OnTextChanged(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    if (object.RuntimeType() != Controls::TextBlock::StaticTypeId()) return;
-    const Base::StringView source = object.GetValueOr(
-        TextProperty, Base::StringView{});
-    Base::String plain;
-    bool tag = false;
-    for (std::uint32_t index = 0U; index < source.SizeBytes(); ++index) {
-        const char character = source[index];
-        if (character == '[') { tag = true; continue; }
-        if (tag) {
-            if (character == ']') tag = false;
-            continue;
-        }
-        if (!plain.Append(Base::StringView(&character, 1U))) return;
-    }
-    static_cast<Controls::TextBlock&>(object).SetText(plain.View());
-}
-
-std::uint32_t SetterBaseCollection::Count() const noexcept {
+std::uint32_t SetterBaseCollection::GetCount() const noexcept {
     return owner_ != nullptr ? owner_->GetAuthoredSetters().Size() : 0U;
 }
 
-SetterBase* SetterBaseCollection::At(std::uint32_t index) const noexcept {
+SetterBase* SetterBaseCollection::GetItem(std::uint32_t index) const noexcept {
     if (owner_ == nullptr || index >= owner_->GetAuthoredSetters().Size()) return nullptr;
     return owner_->GetAuthoredSetters()[index].Get();
 }
 
-void SetterBaseCollection::Add(Base::Ref<Setter> setter) noexcept {
-    if (owner_ == nullptr) return;
-    Base::Result<void> added = owner_->AddAuthoredSetter(std::move(setter));
-    if (!added) Base::ReportOutOfMemory(sizeof(Setter), alignof(Setter), Base::MemoryTag::Ui);
+Base::Result<void> SetterBaseCollection::Add(
+    Base::Ref<Setter> setter) noexcept {
+    if (owner_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Setter collection is detached");
+    }
+    return owner_->AddAuthoredSetter(std::move(setter));
 }
 
 void SetterBaseCollection::Clear() noexcept {
     if (owner_ != nullptr) static_cast<void>(owner_->ClearAuthoredSetters());
 }
 
-std::uint32_t TriggerCollection::Count() const noexcept {
+std::uint32_t TriggerCollection::GetCount() const noexcept {
     return owner_ != nullptr ? owner_->GetAuthoredTriggers().Size() : 0U;
 }
 
-TriggerBase* TriggerCollection::At(std::uint32_t index) const noexcept {
+TriggerBase* TriggerCollection::GetItem(std::uint32_t index) const noexcept {
     if (owner_ == nullptr || index >= owner_->GetAuthoredTriggers().Size()) return nullptr;
     return owner_->GetAuthoredTriggers()[index].Get();
 }
 
-void TriggerCollection::Add(Base::Ref<Trigger> trigger) noexcept {
-    if (owner_ == nullptr) return;
-    Base::Result<void> added = owner_->AddAuthoredTrigger(std::move(trigger));
-    if (!added) Base::ReportOutOfMemory(sizeof(Trigger), alignof(Trigger), Base::MemoryTag::Ui);
+Base::Result<void> TriggerCollection::Add(
+    Base::Ref<Trigger> trigger) noexcept {
+    if (owner_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Trigger collection is detached");
+    }
+    return owner_->AddAuthoredTrigger(std::move(trigger));
 }
 
 void TriggerCollection::Clear() noexcept {
@@ -112,18 +98,9 @@ bool IsDeferredBindingSetterValue(
 }
 
 Base::Result<PropertyValue> NormalizeStyleValue(
-    const DependencyProperty& property,
+    const DependencyProperty&,
     const PropertyValue& value) noexcept {
-    if (property.Name() != Base::StringView("FontFamily") ||
-        property.ValueType() != Meta::TypeOf<Base::String>() ||
-        value.Kind() != ValueKind::Object || value.IsNullObject() ||
-        !value.AsObject() ||
-        value.Type() != Media::FontFamily::StaticTypeId()) {
-        return value;
-    }
-    return PropertyValue::TryFromString(
-        property.ValueType(),
-        static_cast<Media::FontFamily*>(value.AsObject().Get())->GetSource());
+    return value;
 }
 
 } // namespace
@@ -155,6 +132,29 @@ void Style::Impl::Reset() noexcept {
     setters.Clear();
     triggers.Clear();
     frozen = false;
+}
+
+Base::Result<void> Style::Impl::AddAuthoredSetter(
+    DependencyPropertyHandle property,
+    const PropertyValue& value) noexcept {
+    for (const StyleSetter& setter : authoredSetters) {
+        if (setter.property == property) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "Style already has a setter for this property");
+        }
+    }
+    return authoredSetters.PushBack({property, value});
+}
+
+Base::Result<void> Style::Impl::AddAuthoredTrigger(
+    TriggerPlan trigger) noexcept {
+    return authoredTriggers.PushBack(std::move(trigger));
+}
+
+void Style::Impl::ClearAuthored() noexcept {
+    authoredSetters.Clear();
+    authoredTriggers.Clear();
 }
 
 void Setter::SetPropertyName(
@@ -234,8 +234,16 @@ Base::Result<void> Trigger::AddSetter(
             Base::ErrorCode::InvalidArgument,
             "Trigger setter is invalid");
     }
-    return setters_.PushBack({
-        setter.GetProperty(), setter.GetValue()});
+    Base::Result<void> property =
+        setterProperties_.PushBack(setter.GetProperty());
+    if (!property) return property.GetStatus();
+    Base::Result<void> value =
+        setterValues_.PushBack(setter.GetValue());
+    if (!value) {
+        setterProperties_.PopBack();
+        return value.GetStatus();
+    }
+    return {};
 }
 
 void Trigger::SetPropertyName(
@@ -273,30 +281,6 @@ Base::Result<void> Trigger::AddAuthoredSetter(
 void
 Trigger::ClearAuthoredSetters() noexcept {
     authoredSetters_.Clear();
-}
-
-Base::Result<TriggerPlan>
-Trigger::BuildPlan() const noexcept {
-    if (!property_.IsValid() || value_.IsUnset()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Trigger is incomplete");
-    }
-    TriggerPlan plan;
-    plan.property = property_;
-    plan.value = value_;
-    Base::Result<void> copied =
-        plan.setters.Append(setters_.AsSpan());
-    if (!copied) {
-        return copied.GetStatus();
-    }
-    copied = plan.enterActions.Append(
-        GetEnterActions());
-    if (!copied) return copied.GetStatus();
-    copied = plan.exitActions.Append(
-        GetExitActions());
-    if (!copied) return copied.GetStatus();
-    return plan;
 }
 
 Base::Result<void> DataTrigger::AddAuthoredSetter(
@@ -376,8 +360,6 @@ Style::Style(
     : runtimeType_(runtimeType),
       targetType_(targetType),
       basedOn_(basedOn),
-      authored_(),
-      authoredTriggers_(),
       implAllocator_(&Base::GetDefaultAllocator()),
       resources_() {
     void* memory = implAllocator_->Allocate({
@@ -436,14 +418,7 @@ Base::Result<void> Style::AddSetter(
             Base::ErrorCode::InvalidArgument,
             "Style setter requires a property and concrete value");
     }
-    for (const StyleSetter& setter : authored_) {
-        if (setter.property == property) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "Style already has a setter for this property");
-        }
-    }
-    return authored_.PushBack({property, value});
+    return program_->AddAuthoredSetter(property, value);
 }
 
 bool Style::SetBasedOn(
@@ -505,29 +480,56 @@ Base::Result<void> Style::AddSetter(
         setter.GetProperty(), setter.GetValue());
 }
 
-Base::Result<void> Style::AddTrigger(
-    TriggerPlan trigger) noexcept {
+Base::Result<void> Style::AddPropertyTrigger(
+    DependencyPropertyHandle condition,
+    const PropertyValue& conditionValue,
+    DependencyPropertyHandle property,
+    PropertyValue value) noexcept {
     if (sealed_) {
         return InvalidStyle("Cannot modify a sealed Style");
     }
-    if (!trigger.property.IsValid() || trigger.value.IsUnset() ||
-        trigger.setters.Empty()) {
+    if (!condition.IsValid() || conditionValue.IsUnset() ||
+        !property.IsValid() || value.IsUnset()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Style property trigger is incomplete");
     }
-    return authoredTriggers_.PushBack(std::move(trigger));
+    TriggerPlan trigger;
+    trigger.property = condition;
+    trigger.value = conditionValue;
+    Base::Result<void> setter = trigger.setters.PushBack(
+        {property, std::move(value)});
+    if (!setter) return setter.GetStatus();
+    return program_->AddAuthoredTrigger(std::move(trigger));
 }
 
 Base::Result<void> Style::AddTrigger(
     const Trigger& trigger) noexcept {
-    Base::Result<TriggerPlan> plan =
-        trigger.BuildPlan();
-    if (!plan) {
-        return plan.GetStatus();
+    if (sealed_) {
+        return InvalidStyle("Cannot modify a sealed Style");
     }
-    return AddTrigger(
-        std::move(plan).Value());
+    if (!trigger.property_.IsValid() || trigger.value_.IsUnset() ||
+        trigger.setterProperties_.Empty() ||
+        trigger.setterProperties_.Size() != trigger.setterValues_.Size()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Trigger is incomplete");
+    }
+    TriggerPlan plan;
+    plan.property = trigger.property_;
+    plan.value = trigger.value_;
+    for (std::uint32_t index = 0U;
+         index < trigger.setterProperties_.Size(); ++index) {
+        Base::Result<void> copied = plan.setters.PushBack({
+            trigger.setterProperties_[index], trigger.setterValues_[index]});
+        if (!copied) return copied.GetStatus();
+    }
+    Base::Result<void> copied = plan.enterActions.Append(
+        trigger.GetEnterActions());
+    if (!copied) return copied.GetStatus();
+    copied = plan.exitActions.Append(trigger.GetExitActions());
+    if (!copied) return copied.GetStatus();
+    return program_->AddAuthoredTrigger(std::move(plan));
 }
 
 Base::Result<void> Style::SealRuntime(
@@ -573,7 +575,7 @@ Base::Result<void> Style::SealRuntime(
             return inherited.GetStatus();
         }
     }
-    for (const StyleSetter& setter : authored_) {
+    for (const StyleSetter& setter : program_->authoredSetters) {
         const DependencyProperty* property = properties.Find(setter.property);
         if (property == nullptr || property->MetadataFor(targetType_) == nullptr) {
             return Base::Status::Failure(
@@ -614,7 +616,7 @@ Base::Result<void> Style::SealRuntime(
             nextTriggers.Append(Impl::RuntimeTriggers(*basedOn_));
         if (!inherited) return inherited.GetStatus();
     }
-    for (const TriggerPlan& trigger : authoredTriggers_) {
+    for (const TriggerPlan& trigger : program_->authoredTriggers) {
         const DependencyProperty* condition =
             properties.Find(trigger.property);
         if (condition == nullptr ||
@@ -666,8 +668,7 @@ Base::Result<void> Style::SealRuntime(
         program_->Reset();
         return sealedResources.GetStatus();
     }
-    authored_.Clear();
-    authoredTriggers_.Clear();
+    program_->ClearAuthored();
     authoredSetterObjects_.Clear();
     authoredTriggerObjects_.Clear();
     basedOn_ = nullptr;

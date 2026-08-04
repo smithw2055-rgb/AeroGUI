@@ -19,8 +19,9 @@ class Decorator;
 class MenuItem;
 class Panel;
 class TreeViewItem;
-class VisualStateManager;
 }
+
+namespace Aero { class VisualStateManager; }
 
 namespace Aero::Controls::Primitives { class Selector; }
 
@@ -38,6 +39,11 @@ class StyleEngine;
 struct ElementHost {
     EventRouter* events = nullptr;
     InputRouter* input = nullptr;
+    void* templates = nullptr;
+    void* visualStates = nullptr;
+    void* textLayout = nullptr;
+    void* controlBehaviors = nullptr;
+    void* meshResources = nullptr;
     void* nameScopeContext = nullptr;
     Base::Object* (*findName)(
         void*, Base::StringView, Meta::TypeId) noexcept = nullptr;
@@ -78,19 +84,23 @@ struct Visual::Impl {
 public:
     static void SetViewServices(
         Aero::UIElement& element,
-        ElementHost* services) noexcept {
-        element.viewServices_ = services;
+        ElementHost*) noexcept {
+        // View services are owned once by ElementTree. Per-element service
+        // pointers are deliberately absent from the public object layout.
+        static_cast<void>(element);
     }
+
+    static ElementHost* Host(const Visual& visual) noexcept;
 
     static EventRouter* EventRouterFor(
         const Aero::UIElement& element) noexcept {
-        auto* services = static_cast<ElementHost*>(element.viewServices_);
+        ElementHost* services = Host(element);
         return services != nullptr ? services->events : nullptr;
     }
 
     static InputRouter* InputRouterFor(
         const Aero::UIElement& element) noexcept {
-        auto* services = static_cast<ElementHost*>(element.viewServices_);
+        ElementHost* services = Host(element);
         return services != nullptr ? services->input : nullptr;
     }
 
@@ -98,7 +108,7 @@ public:
         const Aero::UIElement& element,
         Base::StringView name,
         Meta::TypeId expectedType = Meta::InvalidTypeId) noexcept {
-        auto* services = static_cast<ElementHost*>(element.viewServices_);
+        ElementHost* services = Host(element);
         return services != nullptr && services->findName != nullptr
             ? services->findName(
                   services->nameScopeContext,
@@ -158,9 +168,6 @@ public:
     static void SetMenuItemHighlighted(
         Aero::Controls::MenuItem& item,
         bool value) noexcept;
-    static void SetSelectorStates(
-        Aero::Controls::Primitives::Selector& selector,
-        Aero::Controls::VisualStateManager* states) noexcept;
     static void SyncSelectorContainers(
         Aero::Controls::Primitives::Selector& selector) noexcept;
     static std::uint32_t TreeViewItemCount(
@@ -229,9 +236,28 @@ public:
             visual.visualChildren_.Data(),
             visual.visualChildren_.Size()};
     }
-    static void*& RenderRuntime(
-        Visual& visual) noexcept {
-        return visual.renderRuntime_;
+    static void* RenderRuntime(const Visual& visual) noexcept;
+    static void* TemplateRuntime(const Visual& visual) noexcept {
+        ElementHost* host = Host(visual);
+        return host != nullptr ? host->templates : nullptr;
+    }
+    static void* VisualStateRuntime(const Visual& visual) noexcept {
+        ElementHost* host = Host(visual);
+        return host != nullptr ? host->visualStates : nullptr;
+    }
+    static void* TextLayoutRuntime(const Visual& visual) noexcept {
+        ElementHost* host = Host(visual);
+        return host != nullptr ? host->textLayout : nullptr;
+    }
+    static void* ControlBehaviorRuntime(
+        const Visual& visual) noexcept {
+        ElementHost* host = Host(visual);
+        return host != nullptr ? host->controlBehaviors : nullptr;
+    }
+    static void* MeshResourcesRuntime(
+        const Visual& visual) noexcept {
+        ElementHost* host = Host(visual);
+        return host != nullptr ? host->meshResources : nullptr;
     }
     static bool& RenderAttached(
         Visual& visual) noexcept {
@@ -481,6 +507,12 @@ public:
 
     Aero::GuiPrivate::Detail::LayoutEngine* Layout() const noexcept { return layout_; }
     ::Aero::Render::Detail::RenderTree* Renderer() const noexcept { return renderer_; }
+    void SetHost(Aero::GuiPrivate::Detail::ElementHost* host) noexcept {
+        host_ = host;
+    }
+    Aero::GuiPrivate::Detail::ElementHost* Host() const noexcept {
+        return host_;
+    }
 
     void SetLifecycleHandler(
         ElementTreeLifecycleHandler handler,
@@ -511,6 +543,7 @@ private:
     Meta::EffectiveValueEngine* values_ = nullptr;
     Aero::GuiPrivate::Detail::LayoutEngine* layout_ = nullptr;
     ::Aero::Render::Detail::RenderTree* renderer_ = nullptr;
+    Aero::GuiPrivate::Detail::ElementHost* host_ = nullptr;
     Visual* root_ = nullptr;
     Base::Vector<LifecycleRecord> lifecycleQueue_;
     Base::Vector<HandleEntry> handles_;
@@ -557,5 +590,18 @@ private:
     Base::Result<void> DetachRender(Visual& parent, Visual& child, bool& attached) noexcept;
     static void LifecycleHook(void* context) noexcept;
 };
+
+inline Aero::GuiPrivate::Detail::ElementHost*
+Visual::Impl::Host(const Visual& visual) noexcept {
+    return visual.tree_ != nullptr ? visual.tree_->Host() : nullptr;
+}
+
+inline void* Visual::Impl::RenderRuntime(
+    const Visual& visual) noexcept {
+    return visual.tree_ != nullptr &&
+        visual.renderNodeId_ != Base::InvalidRenderNodeId
+        ? static_cast<void*>(visual.tree_->Renderer())
+        : nullptr;
+}
 
 } // namespace Aero

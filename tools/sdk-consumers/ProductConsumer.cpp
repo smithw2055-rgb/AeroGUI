@@ -1,6 +1,7 @@
 #include <Aero/App.hpp>
 
 #include <type_traits>
+#include <utility>
 
 namespace {
 
@@ -45,7 +46,7 @@ protected:
 [[maybe_unused]] void ConsumeApplicationSdk(
     Aero::Application& application,
     Aero::Window& window) noexcept {
-    application.SetMainWindow(&window);
+    application.SetMainWindowBorrowed(&window);
     application.SetShutdownMode(
         Aero::ShutdownMode::OnExplicitShutdown);
     static_cast<void>(application.GetMainWindow());
@@ -82,5 +83,26 @@ static_assert(
         Aero::Window,
         ConsumerWindow>::value,
     "WPF Window must remain derivable");
+
+static_assert(
+    std::is_same<
+        decltype(std::declval<Aero::Application&>().GetResources()),
+        Aero::ResourceDictionary&>::value,
+    "Application resources must always be available by reference");
+
+static_assert(
+    std::is_same<
+        decltype(std::declval<Aero::Application&>().RunChecked()),
+        Aero::Base::Result<int>>::value,
+    "Application must expose a diagnostic RunChecked boundary");
+
+static_assert(
+    std::is_same<
+        decltype(std::declval<Aero::Window&>().Show()),
+        void>::value &&
+    std::is_same<
+        decltype(std::declval<Aero::Window&>().ShowChecked()),
+        Aero::Base::Result<void>>::value,
+    "Window must expose WPF-shaped and checked Show boundaries");
 
 } // namespace

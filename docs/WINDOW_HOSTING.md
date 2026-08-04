@@ -24,6 +24,13 @@ normal entry in that collection, while `ShutdownMode` independently implements
 last-window, main-window and explicit shutdown policies. No public Launcher,
 WindowPeer or application service locator is required.
 
+The default application is process-wide rather than thread-local. Main-window
+ownership is explicit: `SetMainWindow(Ref<Window>)` retains the window and
+`SetMainWindowBorrowed(Window*)` does not. Application resources are always
+available by reference. Diagnostic hosts can use the `RunChecked`,
+`ShowChecked` and `CloseChecked` variants without complicating ordinary WPF-style
+call sites.
+
 ## Embedded host sequence
 
 An engine or editor host uses the explicit Integration surface:

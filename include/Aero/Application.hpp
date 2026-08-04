@@ -42,19 +42,25 @@ public:
     struct Impl;
 
     Application() noexcept : Application(StaticTypeId()) {}
-    ~Application() noexcept override = default;
+    ~Application() noexcept override;
 
     Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
     static Application* Current() noexcept;
 
-    Base::StringView GetStartupUri() const noexcept { return startupUri_.View(); }
+    Base::StringView GetStartupUri() const noexcept {
+        return startupUri_.View();
+    }
     void SetStartupUri(Base::StringView value) noexcept {
         (void)startupUri_.Assign(value);
     }
-    Base::Ref<ResourceDictionary> GetResources() const noexcept { return resources_; }
-    void SetResources(Base::Ref<ResourceDictionary> value) noexcept { resources_ = std::move(value); return; }
+    ResourceDictionary& GetResources() noexcept { return resources_; }
+    const ResourceDictionary& GetResources() const noexcept {
+        return resources_;
+    }
+    void SetResources(Base::Ref<ResourceDictionary> value) noexcept;
     Window* GetMainWindow() const noexcept { return mainWindow_; }
-    void SetMainWindow(Window* value) noexcept;
+    void SetMainWindow(Base::Ref<Window> value) noexcept;
+    void SetMainWindowBorrowed(Window* value) noexcept;
     WindowCollection GetWindows() const noexcept { return WindowCollection(*this); }
     ShutdownMode GetShutdownMode() const noexcept { return shutdownMode_; }
     void SetShutdownMode(ShutdownMode value) noexcept { shutdownMode_ = value; }
@@ -67,11 +73,19 @@ public:
     int Run(
         Base::Ref<Window> window,
         const App::RunOptions& options) noexcept;
+    Base::Result<int> RunChecked() noexcept;
+    Base::Result<int> RunChecked(
+        const App::RunOptions& options) noexcept;
+    Base::Result<int> RunChecked(
+        Base::Ref<Window> window) noexcept;
+    Base::Result<int> RunChecked(
+        Base::Ref<Window> window,
+        const App::RunOptions& options) noexcept;
 
     void Shutdown(int exitCode = 0) noexcept;
 
 protected:
-    explicit Application(Meta::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    explicit Application(Meta::TypeId runtimeType) noexcept;
     virtual void OnStartup(StartupEventArgs& args) noexcept;
     virtual void OnExit(ExitEventArgs& args) noexcept;
     virtual void OnActivated(EventArgs& args) noexcept;
@@ -82,7 +96,9 @@ private:
     friend class Window;
     friend class WindowCollection;
 
-    void Attach(void* hostState, Window* mainWindow) noexcept;
+    Base::Result<void> Attach(
+        void* hostState,
+        Window* mainWindow) noexcept;
     void Detach() noexcept;
     void RaiseStartup() noexcept;
     void RaiseExit(int exitCode) noexcept;
@@ -91,11 +107,11 @@ private:
 
     Meta::TypeId runtimeType_ = StaticTypeId();
     Base::String startupUri_;
-    Base::Ref<ResourceDictionary> resources_;
-    void* hostState_ = nullptr;
+    ResourceDictionary resources_;
     Base::Ref<Base::Object> mainWindowOwner_;
     Window* mainWindow_ = nullptr;
     ShutdownMode shutdownMode_ = ShutdownMode::OnLastWindowClose;
+    Impl* impl_ = nullptr;
 };
 
 } // namespace Aero

@@ -7,12 +7,10 @@
 namespace Aero {
 
 struct UIElement::Impl {
-    static void*& LayoutManager(UIElement& element) noexcept {
-        return element.layoutManager_;
-    }
-    static const void* LayoutManager(
+    static void* LayoutManager(
         const UIElement& element) noexcept {
-        return element.layoutManager_;
+        ElementTree* tree = Visual::Impl::Tree(element);
+        return tree != nullptr ? tree->Layout() : nullptr;
     }
     static bool& LayoutAttached(UIElement& element) noexcept {
         return element.layoutAttached_;

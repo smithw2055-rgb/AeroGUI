@@ -97,8 +97,9 @@ Aero::View::Impl
 ```
 
 `Aero::View` does not expose a service-locator surface. Repository-owned
-inspection and reload code uses the narrow `ViewAccess` bridge implemented next
-to `Aero::View::Impl`.
+inspection and reload code enters through private `View::Impl` helpers and the
+source-only conformance bridge. Runtime services remain owned by the View and
+are distributed to attached elements through the private element host.
 
 The stable per-View services are placement-constructed in one aligned arena. This
 replaces thirteen small allocator calls with one allocation while retaining

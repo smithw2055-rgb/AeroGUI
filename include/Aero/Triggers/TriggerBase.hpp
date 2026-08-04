@@ -15,27 +15,6 @@ using Meta::DependencyPropertyHandle;
 using Meta::PropertyValue;
 using Meta::TypeId;
 
-struct StyleSetter {
-    DependencyPropertyHandle property;
-    PropertyValue value;
-};
-
-struct StyleTriggerSetter {
-    DependencyPropertyHandle property;
-    PropertyValue value;
-};
-
-// Compact representation consumed by the private style engine after a
-// Trigger has been sealed.  It is intentionally separate from authoring
-// objects so a style can be compiled without retaining the source graph.
-struct TriggerPlan {
-    DependencyPropertyHandle property;
-    PropertyValue value;
-    Base::Vector<StyleTriggerSetter> setters;
-    Base::Vector<Base::Ref<Base::Object>> enterActions;
-    Base::Vector<Base::Ref<Base::Object>> exitActions;
-};
-
 class AERO_API SetterBase : public Base::Object {
     AERO_DECLARE_TYPE(SetterBase, Base::Object)
 public:
@@ -66,13 +45,19 @@ public:
         value_ = value;
     }
     template<class TOwner, class TValue>
-    bool Set(const Meta::DependencyPropertyRef<TOwner, TValue>& property,
-             const TValue& value) noexcept {
+    Base::Result<void> Set(
+        const Meta::DependencyPropertyRef<TOwner, TValue>& property,
+        const TValue& value) noexcept {
         Base::Result<PropertyValue> encoded = Meta::ValueCodec<TValue>::Encode(value);
-        if (!encoded || !property.Handle().IsValid()) return false;
+        if (!encoded) return encoded.GetStatus();
+        if (!property.Handle().IsValid()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Setter property is invalid");
+        }
         SetProperty(property.Handle());
         SetValue(encoded.Value());
-        return true;
+        return {};
     }
     void SetPropertyName(Base::StringView value) noexcept;
     void SetTargetName(Base::StringView value) noexcept;

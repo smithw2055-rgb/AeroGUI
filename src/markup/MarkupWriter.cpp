@@ -5,7 +5,6 @@
 // ===== BindingExtension =====
 
 
-#include "gui/GuiPrivate.hpp"
 
 // Binding markup-extension implementation.
 
@@ -532,7 +531,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         targetMember->Name() == Base::StringView("Value");
     const bool authoredHierarchicalItemsSource =
         targetMember != nullptr &&
-        targetMember->OwnerType() == Controls::DataTemplate::StaticTypeId() &&
+        targetMember->OwnerType() == DataTemplate::StaticTypeId() &&
         targetMember->Name() == Base::StringView("ItemsSource");
     const bool authoredLaunchPath =
         targetMember != nullptr &&
@@ -821,9 +820,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
 // Dynamic-resource markup-extension implementation.
 
 
-#include <Aero/Styling.hpp>
 
-#include <new>
 #include <utility>
 
 namespace Aero::Markup {
@@ -1519,9 +1516,7 @@ void LocExtension::OnSourceChanged(
 
 
 
-#include "../controls/ControlsPrivate.hpp"
 
-#include <Aero/Styling.hpp>
 #include <Aero/Value.hpp>
 
 
@@ -1685,7 +1680,6 @@ TemplateBindingExtension::ProvideValue(
 
 
 
-#include <utility>
 
 
 
@@ -1920,10 +1914,7 @@ Base::Result<Aero::ResourceValue> ResourceResolver::Lookup(
 
 
 
-#include "markup/MarkupPrivate.hpp"
-#include <Aero/Media/Brushes.hpp>
 
-#include <utility>
 
 namespace Aero::Markup {
 
@@ -2503,7 +2494,8 @@ Base::Result<void> ObjectBuilder::StartObject(
 
     if (!frames_.Empty() &&
         frames_.Back().kind == FrameKind::Object &&
-        HasPropertyElementSyntax(node.Name())) {
+        (node.CompiledMemberId() != Meta::InvalidMemberId ||
+         HasPropertyElementSyntax(node.Name()))) {
         return StartPropertyElement(
             node,
             frames_.Size() - 1U,
@@ -2514,19 +2506,34 @@ Base::Result<void> ObjectBuilder::StartObject(
         return StartNullObject(node, bindingStart);
     }
 
-    Base::Result<const Meta::TypeInfo*> typeResult =
-        schema_->ResolveType(
-            node.Name().NamespaceUri(),
-            node.Name().LocalName());
-    if (!typeResult) {
+    const Meta::TypeInfo* type = nullptr;
+    Base::Status typeStatus;
+    if (node.CompiledTypeId() != Meta::InvalidTypeId) {
+        type = schema_->Types().FindType(node.CompiledTypeId());
+        if (type == nullptr) {
+            typeStatus = Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "AXB2 type id is absent from the frozen schema");
+        }
+    } else {
+        Base::Result<const Meta::TypeInfo*> typeResult =
+            schema_->ResolveType(
+                node.Name().NamespaceUri(),
+                node.Name().LocalName());
+        if (typeResult) {
+            type = typeResult.Value();
+        } else {
+            typeStatus = typeResult.GetStatus();
+        }
+    }
+    if (type == nullptr) {
         return Failure(
-            typeResult.GetStatus(),
+            typeStatus,
             XamlObjectWriterDiagnosticCodes::UnknownType,
             MessageUnknownType,
             node.Source());
     }
 
-    const Meta::TypeInfo* type = typeResult.Value();
     if (HasTypeFlag(type->Flags(), Meta::TypeFlags::ValueType)) {
         return StartValueObject(node, bindingStart, type->Id());
     }
@@ -2804,10 +2811,15 @@ Base::Result<void> ObjectBuilder::StartMember(
             node.Source());
     }
 
-    Base::Result<ResolvedMember> memberResult = schema_->ResolveMember(
-        created_[objectFrame.objectIndex].type,
-        node.Name(),
-        MemberSyntax::Attribute);
+    Base::Result<ResolvedMember> memberResult =
+        node.CompiledMemberId() != Meta::InvalidMemberId
+        ? schema_->ResolveMember(
+              created_[objectFrame.objectIndex].type,
+              node.CompiledMemberId())
+        : schema_->ResolveMember(
+              created_[objectFrame.objectIndex].type,
+              node.Name(),
+              MemberSyntax::Attribute);
     if (!memberResult) {
         const bool notFound =
             memberResult.GetStatus().code == Base::ErrorCode::NotFound;
@@ -3367,10 +3379,15 @@ Base::Result<void> ObjectBuilder::StartPropertyElement(
 
     const std::uint32_t targetObjectIndex =
         frames_[targetFrameIndex].objectIndex;
-    Base::Result<ResolvedMember> memberResult = schema_->ResolveMember(
-        created_[targetObjectIndex].type,
-        node.Name(),
-        MemberSyntax::PropertyElement);
+    Base::Result<ResolvedMember> memberResult =
+        node.CompiledMemberId() != Meta::InvalidMemberId
+        ? schema_->ResolveMember(
+              created_[targetObjectIndex].type,
+              node.CompiledMemberId())
+        : schema_->ResolveMember(
+              created_[targetObjectIndex].type,
+              node.Name(),
+              MemberSyntax::PropertyElement);
     if (!memberResult) {
         const bool notFound =
             memberResult.GetStatus().code == Base::ErrorCode::NotFound;
@@ -4054,18 +4071,6 @@ Base::Result<void> ObjectBuilder::WriteValue(
             Media::Brush::StaticTypeId(),
             Base::Ref<Base::Object>(
                 std::move(brush).Value()));
-    }
-    if (member.valueType == Meta::TypeOf<Base::String>() &&
-        value.Type() == Media::FontFamily::StaticTypeId() &&
-        value.Kind() == Meta::ValueKind::Object && value.AsObject()) {
-        const auto& family = static_cast<const Media::FontFamily&>(
-            *value.AsObject());
-        Base::Result<Meta::Value> converted = Meta::Value::TryFromString(
-            Meta::TypeOf<Base::String>(), family.GetSource());
-        if (!converted) return Failure(converted.GetStatus(),
-            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
-            MessageInvalidWriterState, source);
-        value = std::move(converted).Value();
     }
     Base::Result<Meta::ContentInfo> content =
         schema_->Metadata()->GetContentInfo(member.id);
@@ -5045,8 +5050,6 @@ Base::Result<Aero::ResourceValue> ObjectBuilder::ResourceLookupCallback(
 
 
 
-#include <utility>
-#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Markup {
 namespace {

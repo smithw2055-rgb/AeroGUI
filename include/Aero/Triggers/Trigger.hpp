@@ -4,6 +4,8 @@
 
 namespace Aero {
 
+class Style;
+
 class AERO_API Trigger : public TriggerBase {
     AERO_DECLARE_TYPE_NAMED(Trigger, TriggerBase, "urn:aero", "Trigger")
 public:
@@ -29,12 +31,13 @@ public:
         return !propertyName_.Empty() && !authoredValue_.IsUnset() &&
                !authoredSetters_.Empty();
     }
-    Base::Result<TriggerPlan> BuildPlan() const noexcept;
-
 private:
+    friend class Style;
+
     DependencyPropertyHandle property_;
     PropertyValue value_;
-    Base::Vector<StyleTriggerSetter> setters_;
+    Base::Vector<DependencyPropertyHandle> setterProperties_;
+    Base::Vector<PropertyValue> setterValues_;
     Base::String propertyName_;
     Base::String sourceName_;
     PropertyValue authoredValue_;

@@ -10,6 +10,14 @@ using Aero::Controls::Detail::ButtonBehavior;
 
 using namespace Primitives;
 
+ButtonBase::~ButtonBase() {
+    auto* behaviors = static_cast<Detail::ControlBehavior*>(
+        Visual::Impl::ControlBehaviorRuntime(*this));
+    if (behaviors != nullptr) {
+        static_cast<void>(behaviors->Detach(*this));
+    }
+}
+
 ClickMode ButtonBase::GetClickMode() const noexcept {
     return GetValueOr(ClickModeProperty, ClickMode::Release);
 }
@@ -19,10 +27,10 @@ ICommand* ButtonBase::GetCommand() const noexcept {
         CommandProperty, Base::Ref<ICommand>{}).Get();
 }
 
-Base::Ref<Base::Object> ButtonBase::GetCommandParameter() const noexcept {
+Value ButtonBase::GetCommandParameter() const noexcept {
     return GetValueOr(
         CommandParameterProperty,
-        Base::Ref<Base::Object>{});
+        Value::NullObject(TypeOf<Base::Object>()));
 }
 
 UIElement* ButtonBase::GetCommandTarget() const noexcept {
@@ -42,7 +50,7 @@ void ButtonBase::SetCommand(
 }
 
 void ButtonBase::SetCommandParameter(
-    Base::Ref<Base::Object> parameter) noexcept {
+    Value parameter) noexcept {
     SetValue(
         CommandParameterProperty, std::move(parameter));
 }
@@ -133,9 +141,11 @@ void RadioButton::SetGroupName(
 
 void ButtonBase::OnApplyTemplate() noexcept {
     ContentControl::OnApplyTemplate();
-    if (interactionRuntime_ != nullptr) {
-        static_cast<void>(static_cast<ButtonBehavior*>(
-            interactionRuntime_)->SyncVisualState(*this, false));
+    auto* behaviors = static_cast<Detail::ControlBehavior*>(
+        Visual::Impl::ControlBehaviorRuntime(*this));
+    if (behaviors != nullptr) {
+        static_cast<void>(behaviors->RefreshButtonVisualState(
+            *this, false));
     }
 }
 
@@ -207,9 +217,6 @@ ButtonBase::Impl::~Impl() noexcept {
         const std::uint32_t index = buttons_.Size() - 1U;
         ButtonBase* button = ResolveButton(index);
         if (button != nullptr) {
-            if (button->interactionRuntime_ == this) {
-                button->interactionRuntime_ = nullptr;
-            }
             static_cast<void>(button->RemoveHandler(
                 UIElement::MouseDownEvent, mouseDownHandler_));
             static_cast<void>(button->RemoveHandler(
@@ -317,11 +324,6 @@ Base::Result<void> ButtonBase::Impl::Attach(
             Base::ErrorCode::AlreadyExists,
             "Button is already attached to interaction services");
     }
-    if (button.interactionRuntime_ != nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "Button is already attached to another interaction service");
-    }
     if (!button.GetIsLoaded() || Aero::GuiPrivate::Detail::ElementPrivate::Tree(button) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -402,7 +404,6 @@ Base::Result<void> ButtonBase::Impl::Attach(
             UncheckRadioPeers(radio);
         }
     }
-    button.interactionRuntime_ = this;
     result = SyncVisualState(button, false);
     if (!result &&
         result.GetStatus().code !=
@@ -478,9 +479,6 @@ Base::Result<bool> ButtonBase::Impl::Detach(
     if (states_ != nullptr) {
         static_cast<void>(Aero::Controls::Detail::TemplatePrivate::Clear(*states_, button));
     }
-    if (button.interactionRuntime_ == this) {
-        button.interactionRuntime_ = nullptr;
-    }
     RemoveAt(index);
     return true;
 }
@@ -498,12 +496,9 @@ Base::Result<void> ButtonBase::Impl::RefreshCanExecute(
     if (command != nullptr) {
         UIElement* target = button.GetCommandTarget();
         if (target == nullptr) target = &button;
-        Base::Ref<Base::Object> parameter =
-            button.GetCommandParameter();
-        const Value value = Value::FromObject(
-            TypeOf<Base::Object>(), std::move(parameter));
+        const Value parameter = button.GetCommandParameter();
         Base::Result<bool> allowed =
-            input_->CanExecute(*command, value, *target);
+            input_->CanExecute(*command, parameter, *target);
         if (!allowed) return allowed.GetStatus();
         enabled = allowed.Value();
     }
@@ -594,12 +589,9 @@ Base::Result<void> ButtonBase::Impl::InvokeClick(
     if (command == nullptr) return {};
     UIElement* target = button.GetCommandTarget();
     if (target == nullptr) target = &button;
-    Base::Ref<Base::Object> parameter =
-        button.GetCommandParameter();
-    const Value value = Value::FromObject(
-        TypeOf<Base::Object>(), std::move(parameter));
+    const Value parameter = button.GetCommandParameter();
     Base::Result<bool> executed =
-        input_->Execute(*command, value, *target);
+        input_->Execute(*command, parameter, *target);
     return executed
         ? Base::Result<void>()
         : Base::Result<void>(executed.GetStatus());

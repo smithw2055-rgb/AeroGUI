@@ -1,16 +1,12 @@
 #include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 #include <Aero/Layout.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/ContentElement.hpp>
 
-#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/Assert.hpp>
 
 #include <utility>
-#include "gui/GuiPrivate.hpp"
 #include "render/RenderTree.hpp"
 
 namespace Aero {
@@ -131,7 +127,6 @@ Visual::~Visual() {
     AERO_ASSERT(visualParent_ == nullptr);
     AERO_ASSERT(logicalChildren_.Empty());
     AERO_ASSERT(visualChildren_.Empty());
-    AERO_ASSERT(renderRuntime_ == nullptr);
     AERO_ASSERT(!renderAttached_);
     AERO_ASSERT(!renderQueued_);
     AERO_ASSERT(!rendering_);

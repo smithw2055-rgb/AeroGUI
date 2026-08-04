@@ -190,8 +190,7 @@ UIElement::UIElement(TypeId runtimeType) noexcept
     : Visual(runtimeType) {}
 
 UIElement::~UIElement() {
-    AERO_ASSERT(layoutManager_ == nullptr);
-    AERO_ASSERT(viewServices_ == nullptr);
+    AERO_ASSERT(Aero::UIElement::Impl::LayoutManager(*this) == nullptr);
     AERO_ASSERT(!layoutAttached_);
     CleanupHandlers();
 }
@@ -317,20 +316,24 @@ void UIElement::RaiseEvent(
 }
 
 Base::Result<void> UIElement::InvalidateMeasure() noexcept {
-    if (layoutManager_ == nullptr) {
+    auto* layout = static_cast<Aero::GuiPrivate::Detail::LayoutEngine*>(
+        Aero::UIElement::Impl::LayoutManager(*this));
+    if (layout == nullptr) {
         measureValid_ = false;
         arrangeValid_ = false;
         return {};
     }
-    return static_cast<Aero::GuiPrivate::Detail::LayoutEngine*>(layoutManager_)->InvalidateMeasure(*this);
+    return layout->InvalidateMeasure(*this);
 }
 
 Base::Result<void> UIElement::InvalidateArrange() noexcept {
-    if (layoutManager_ == nullptr) {
+    auto* layout = static_cast<Aero::GuiPrivate::Detail::LayoutEngine*>(
+        Aero::UIElement::Impl::LayoutManager(*this));
+    if (layout == nullptr) {
         arrangeValid_ = false;
         return {};
     }
-    return static_cast<Aero::GuiPrivate::Detail::LayoutEngine*>(layoutManager_)->InvalidateArrange(*this);
+    return layout->InvalidateArrange(*this);
 }
 
 void FrameworkElement::SetUseLayoutRounding(
@@ -608,7 +611,9 @@ Size UIElement::ArrangeOverride(Size finalSize) noexcept {
 Base::Result<void> UIElement::MeasureChild(
     UIElement& child,
     Size availableSize) noexcept {
-    if (layoutManager_ == nullptr || !child.layoutAttached_ ||
+    auto* layout = static_cast<Aero::GuiPrivate::Detail::LayoutEngine*>(
+        Aero::UIElement::Impl::LayoutManager(*this));
+    if (layout == nullptr || !child.layoutAttached_ ||
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
@@ -657,13 +662,15 @@ Base::Result<void> UIElement::MeasureChild(
                 child.GetVisualParent()));
         return InvalidState(message);
     }
-    return static_cast<Aero::GuiPrivate::Detail::LayoutEngine*>(layoutManager_)->MeasureElement(child, availableSize);
+    return layout->MeasureElement(child, availableSize);
 }
 
 Base::Result<void> UIElement::ArrangeChild(
     UIElement& child,
     Rect finalRect) noexcept {
-    if (layoutManager_ == nullptr || !child.layoutAttached_ ||
+    auto* layout = static_cast<Aero::GuiPrivate::Detail::LayoutEngine*>(
+        Aero::UIElement::Impl::LayoutManager(*this));
+    if (layout == nullptr || !child.layoutAttached_ ||
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
@@ -712,7 +719,7 @@ Base::Result<void> UIElement::ArrangeChild(
                 child.GetVisualParent()));
         return InvalidState(message);
     }
-    return static_cast<Aero::GuiPrivate::Detail::LayoutEngine*>(layoutManager_)->ArrangeElement(child, finalRect);
+    return layout->ArrangeElement(child, finalRect);
 }
 
 } // namespace Aero
@@ -732,10 +739,7 @@ LayoutEngine::~LayoutEngine() noexcept {
     if (phaseHook_.IsValid() && dispatcher_->CheckAccess()) {
         (void)dispatcher_->RemoveFrameHook(phaseHook_);
     }
-    if (root_ != nullptr) {
-        UIElement::Impl::LayoutManager(*root_) = nullptr;
-        root_ = nullptr;
-    }
+    root_ = nullptr;
 }
 
 Base::Result<void> LayoutEngine::Initialize() noexcept {
@@ -797,8 +801,6 @@ Base::Result<void> LayoutEngine::Attach(
     Base::Result<void> invalidated = InvalidateMeasure(parent);
     if (!invalidated) return invalidated.GetStatus();
 
-    UIElement::Impl::LayoutManager(parent) = this;
-    UIElement::Impl::LayoutManager(child) = this;
     UIElement::Impl::LayoutAttached(child) = true;
     UIElement::Impl::MeasureValid(child) = false;
     UIElement::Impl::ArrangeValid(child) = false;
@@ -822,7 +824,6 @@ Base::Result<void> LayoutEngine::Detach(
 
     RemoveQueued(child);
     UIElement::Impl::LayoutAttached(child) = false;
-    UIElement::Impl::LayoutManager(child) = nullptr;
     UIElement::Impl::MeasureValid(child) = false;
     UIElement::Impl::ArrangeValid(child) = false;
     return {};
@@ -850,11 +851,9 @@ Base::Result<void> LayoutEngine::SetRoot(
 
     if (root_ != nullptr && root_ != root) {
         RemoveQueued(*root_);
-        UIElement::Impl::LayoutManager(*root_) = nullptr;
     }
     root_ = root;
     rootAvailableSize_ = availableSize;
-    if (root_ != nullptr) UIElement::Impl::LayoutManager(*root_) = this;
     return {};
 }
 

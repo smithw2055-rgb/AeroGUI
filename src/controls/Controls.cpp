@@ -1,4 +1,5 @@
 #include "gui/GuiPrivate.hpp"
+#include "gui/private/Style.hpp"
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Common.hpp>
@@ -16,6 +17,29 @@
 #include <utility>
 
 namespace Aero {
+
+void RichText::OnTextChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+    if (object.RuntimeType() != Controls::TextBlock::StaticTypeId()) return;
+    const Base::StringView source = object.GetValueOr(
+        TextProperty, Base::StringView{});
+    Base::String plain;
+    bool tag = false;
+    for (std::uint32_t index = 0U; index < source.SizeBytes(); ++index) {
+        const char character = source[index];
+        if (character == '[') {
+            tag = true;
+            continue;
+        }
+        if (tag) {
+            if (character == ']') tag = false;
+            continue;
+        }
+        if (!plain.Append(Base::StringView(&character, 1U))) return;
+    }
+    static_cast<Controls::TextBlock&>(object).SetText(plain.View());
+}
 
 std::uint32_t Visual::Impl::PanelChildCount(
     const Controls::Panel& panel) noexcept {
@@ -80,12 +104,6 @@ void Visual::Impl::SetMenuItemHighlighted(
     item.SetHighlightedState(value);
 }
 
-void Visual::Impl::SetSelectorStates(
-    Controls::Primitives::Selector& selector,
-    Controls::VisualStateManager* states) noexcept {
-    selector.states_ = states;
-}
-
 void Visual::Impl::SyncSelectorContainers(
     Controls::Primitives::Selector& selector) noexcept {
     selector.SyncContainers();
@@ -108,6 +126,12 @@ namespace {
 
 bool IsValidTextSize(Size value) noexcept {
     return IsFinite(value) && value.width >= 0.0 && value.height >= 0.0;
+}
+
+::Aero::Controls::Detail::TextBlockLayout* TextLayoutFor(
+    const Visual& visual) noexcept {
+    return static_cast<::Aero::Controls::Detail::TextBlockLayout*>(
+        ::Aero::Visual::Impl::TextLayoutRuntime(visual));
 }
 
 struct EffectiveGridSpan {
@@ -1586,7 +1610,6 @@ TextBlock::TextBlock() noexcept
 
 TextBlock::TextBlock(TypeId runtimeType) noexcept
     : FrameworkElement(runtimeType),
-      layoutService_(nullptr),
       textHitRegions_(),
       ownedInlines_(),
       pendingInline_() {}
@@ -1613,7 +1636,7 @@ double TextBlock::GetFontSize() const noexcept {
     return GetValueOr(FontSizeProperty, 16.0);
 }
 
-Base::StringView TextBlock::GetFontFamily() const noexcept {
+Base::Ref<Media::FontFamily> TextBlock::GetFontFamily() const noexcept {
     return FrameworkElement::GetFontFamily();
 }
 
@@ -1688,8 +1711,13 @@ void TextBlock::SetFontSize(double value) noexcept {
 }
 
 void TextBlock::SetFontFamily(
+    Base::Ref<Media::FontFamily> value) noexcept {
+    FrameworkElement::SetFontFamily(std::move(value));
+}
+
+Base::Result<void> TextBlock::SetFontFamily(
     Base::StringView value) noexcept {
-    SetValue(FontFamilyProperty, value);
+    return FrameworkElement::SetFontFamily(value);
 }
 
 void TextBlock::SetFontWeight(
@@ -1815,7 +1843,10 @@ void TextBlock::ClearOwnedInlines() noexcept {
 }
 
 Base::StringView TextBlock::EffectiveFontFamily() const noexcept {
-    const Base::StringView configured = GetFontFamily();
+    const Base::Ref<Media::FontFamily> family = GetFontFamily();
+    const Base::StringView configured = family
+        ? family->GetSource()
+        : Base::StringView{};
     const bool defaultFamily =
         configured.Empty() ||
         configured == Base::StringView("Segoe UI");
@@ -1864,7 +1895,8 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     Base::Result<void> copied = Documents::CopyText(*this, flattened);
     if (!copied) return Size{};
 
-    if (layoutService_ != nullptr) {
+    auto* layoutService = TextLayoutFor(*this);
+    if (layoutService != nullptr) {
         const Base::StringView text = flattened.View();
         if (text.Empty()) {
             const bool changed =
@@ -1895,7 +1927,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
                 : Text::TextDirection::LeftToRight;
             ::Aero::Controls::Detail::TextLayoutResult output;
             Base::Result<void> prepared =
-                static_cast<::Aero::Controls::Detail::TextBlockLayout*>(layoutService_)->ShapeAndPrepare(request, output);
+                layoutService->ShapeAndPrepare(request, output);
             if (!prepared) return Size{};
             bool validGlyphRuns = true;
             for (RenderGlyphRunId glyphRun : output.glyphRuns) {
@@ -1907,7 +1939,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
             if (!IsValidTextSize(output.desiredSize) || !validGlyphRuns) {
                 for (RenderGlyphRunId glyphRun : output.glyphRuns) {
                     if (glyphRun != InvalidRenderGlyphRunId) {
-                        static_cast<::Aero::Controls::Detail::TextBlockLayout*>(layoutService_)->ReleaseGlyphRun(glyphRun);
+                        layoutService->ReleaseGlyphRun(glyphRun);
                     }
                 }
                 return Size{};
@@ -1983,10 +2015,10 @@ void TextBlock::OnRender(
 }
 
 void TextBlock::ReleaseServiceGlyphRun() noexcept {
-    if (serviceOwnsGlyphRun_ &&
-        layoutService_ != nullptr) {
+    auto* layoutService = TextLayoutFor(*this);
+    if (serviceOwnsGlyphRun_ && layoutService != nullptr) {
         for (RenderGlyphRunId glyphRun : glyphRuns_) {
-            static_cast<::Aero::Controls::Detail::TextBlockLayout*>(layoutService_)->ReleaseGlyphRun(glyphRun);
+            layoutService->ReleaseGlyphRun(glyphRun);
         }
     }
     serviceOwnsGlyphRun_ = false;

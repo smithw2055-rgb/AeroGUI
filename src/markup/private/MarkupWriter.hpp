@@ -17,7 +17,6 @@
 #include <Aero/Value.hpp>
 #include <Aero/Data.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include "gui/GuiPrivate.hpp"
 #include <Aero/Markup.hpp>
 
 #include <cstdint>
@@ -329,15 +328,10 @@ private:
 
 
 // ===== DeferredContent contract =====
-#include "gui/GuiPrivate.hpp"
 
-#include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
-#include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include "gui/GuiPrivate.hpp"
-#include <Aero/Data.hpp>
 
 
 namespace Aero::Markup {
@@ -421,18 +415,9 @@ private:
 // Private object materializer used by Loader.
 
 #include <Aero/Base/Allocator.hpp>
-#include <Aero/Base/Config.hpp>
-#include <Aero/Base/Object.hpp>
-#include <Aero/Base/Ref.hpp>
-#include <Aero/Base/Result.hpp>
-#include <Aero/Base/String.hpp>
-#include <Aero/Base/Vector.hpp>
-#include <Aero/Diagnostics.hpp>
-
-#include <Aero/Markup.hpp>
 
 
-#include <cstdint>
+
 
 namespace Aero {
 class UIElement;
@@ -914,17 +899,10 @@ private:
 
 // ===== XamlFacets contract =====
 #include <Aero/Base/HashMap.hpp>
-#include <Aero/Base/Object.hpp>
-#include <Aero/Base/Result.hpp>
-#include <Aero/Base/StringView.hpp>
-#include <Aero/Base/Vector.hpp>
-#include <Aero/Value.hpp>
-#include "gui/GuiPrivate.hpp"
 
 
 #include <Aero/Version.hpp>
 
-#include <cstdint>
 
 namespace Aero::Markup::Detail {
 
@@ -1344,239 +1322,22 @@ public:
 
 
 // ===== TemplateCompiler contract =====
-#include "gui/GuiPrivate.hpp"
 
 // Private template compiler used by ObjectWriter finalization.
 
 
 
-#include <Aero/Base/Object.hpp>
-#include <Aero/Base/Ref.hpp>
-#include <Aero/Base/Result.hpp>
-#include <Aero/Base/Span.hpp>
-#include <Aero/Base/String.hpp>
-#include <Aero/Base/StringView.hpp>
-#include <Aero/Base/Vector.hpp>
 #include <Aero/Styling.hpp>
 #include "../controls/ControlsPrivate.hpp"
 #include <Aero/Controls/Panels.hpp>
-#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Animation.hpp>
 
-#include <cstdint>
 
 
 namespace Aero::Markup::Detail {
 
 using namespace ::Aero::Markup;
-
-class XamlVisualStateObject : public Base::Object {
-    AERO_DECLARE_TYPE_NAMED(
-        XamlVisualStateObject,
-        Base::Object,
-        "urn:aero",
-        "VisualState")
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-
-    Base::Result<void> SetName(Base::StringView value) noexcept {
-        return name_.Assign(value);
-    }
-    Base::StringView Name() const noexcept {
-        return name_.View();
-    }
-    Base::Result<void> AddSetter(
-        const Base::Ref<Base::Object>& value) noexcept {
-        return setters_.PushBack(value);
-    }
-    void ClearSetters() noexcept {
-        setters_.Clear();
-    }
-    Base::Span<const Base::Ref<Base::Object>>
-    Setters() const noexcept {
-        return {setters_.Data(), setters_.Size()};
-    }
-    Base::Result<void> SetStoryboard(
-        Base::Ref<Media::Animation::Storyboard> value) noexcept {
-        if (storyboard_ && value) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "VisualState accepts only one Storyboard");
-        }
-        storyboard_ = std::move(value);
-        return {};
-    }
-    const Base::Ref<Media::Animation::Storyboard>&
-    StoryboardValue() const noexcept {
-        return storyboard_;
-    }
-
-private:
-    Base::String name_;
-    Base::Vector<Base::Ref<Base::Object>> setters_;
-    Base::Ref<Media::Animation::Storyboard> storyboard_;
-};
-
-class XamlVisualTransitionObject
-    : public Base::Object {
-    AERO_DECLARE_TYPE_NAMED(
-        XamlVisualTransitionObject,
-        Base::Object,
-        "urn:aero",
-        "VisualTransition")
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-
-    Base::StringView From() const noexcept {
-        return from_.View();
-    }
-    Base::StringView To() const noexcept {
-        return to_.View();
-    }
-    Base::StringView GeneratedDuration() const noexcept {
-        return generatedDuration_.View();
-    }
-    Base::Result<void> SetFrom(
-        Base::StringView value) noexcept {
-        return from_.Assign(value);
-    }
-    Base::Result<void> SetTo(
-        Base::StringView value) noexcept {
-        return to_.Assign(value);
-    }
-    Base::Result<void> SetGeneratedDuration(
-        Base::StringView value) noexcept {
-        Media::Animation::Storyboard validator;
-        validator.SetDuration(value);
-        return generatedDuration_.Assign(value);
-    }
-    Base::Ref<Media::Animation::EasingFunctionBase>
-    GeneratedEasingFunction() const noexcept {
-        return generatedEasingFunction_;
-    }
-    Base::Result<void> SetGeneratedEasingFunction(
-        Base::Ref<Media::Animation::EasingFunctionBase> value) noexcept {
-        generatedEasingFunction_ = std::move(value);
-        return {};
-    }
-    Base::Result<void> SetStoryboard(
-        Base::Ref<Media::Animation::Storyboard> value) noexcept {
-        if (storyboard_ && value) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "VisualTransition accepts only one Storyboard");
-        }
-        storyboard_ = std::move(value);
-        return {};
-    }
-    const Base::Ref<Media::Animation::Storyboard>&
-    StoryboardValue() const noexcept {
-        return storyboard_;
-    }
-
-private:
-    Base::String from_;
-    Base::String to_;
-    Base::String generatedDuration_;
-    Base::Ref<Media::Animation::EasingFunctionBase>
-        generatedEasingFunction_;
-    Base::Ref<Media::Animation::Storyboard> storyboard_;
-};
-
-class XamlVisualStateGroupObject
-    : public Base::Object {
-    AERO_DECLARE_TYPE_NAMED(
-        XamlVisualStateGroupObject,
-        Base::Object,
-        "urn:aero",
-        "VisualStateGroup")
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-
-    Base::Result<void> SetName(Base::StringView value) noexcept {
-        return name_.Assign(value);
-    }
-    Base::StringView Name() const noexcept {
-        return name_.View();
-    }
-    Base::Result<void> AddState(
-        const Base::Ref<Base::Object>& value) noexcept {
-        return states_.PushBack(value);
-    }
-    void ClearStates() noexcept {
-        states_.Clear();
-    }
-    Base::Span<const Base::Ref<Base::Object>>
-    States() const noexcept {
-        return {states_.Data(), states_.Size()};
-    }
-    Base::Result<void> AddTransition(
-        const Base::Ref<Base::Object>& value) noexcept {
-        return transitions_.PushBack(value);
-    }
-    void ClearTransitions() noexcept {
-        transitions_.Clear();
-    }
-    Base::Span<const Base::Ref<Base::Object>>
-    Transitions() const noexcept {
-        return {
-            transitions_.Data(),
-            transitions_.Size()};
-    }
-
-private:
-    Base::String name_;
-    Base::Vector<Base::Ref<Base::Object>> states_;
-    Base::Vector<Base::Ref<Base::Object>> transitions_;
-};
-
-// WPF permits VisualStateManager.VisualStateGroups on the root element of a
-// ControlTemplate rather than only as a ControlTemplate member. Keep that
-// authored collection on the root dependency object until the template is
-// compiled into its immutable state program.
-class XamlVisualStates
-    : public Base::Object {
-    AERO_DECLARE_TYPE(XamlVisualStates, Base::Object)
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    Base::Result<void> Add(
-        const Base::Ref<Base::Object>& value) noexcept {
-        return groups_.PushBack(value);
-    }
-    Base::Span<const Base::Ref<Base::Object>> Groups() const noexcept {
-        return {groups_.Data(), groups_.Size()};
-    }
-
-private:
-    Base::Vector<Base::Ref<Base::Object>> groups_;
-};
-
-class XamlVisualStateManagerObject
-    : public Base::Object {
-    AERO_DECLARE_TYPE_NAMED(
-        XamlVisualStateManagerObject,
-        Base::Object,
-        "urn:aero",
-        "VisualStateManager")
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-
-    inline static constexpr Members::AttachedProperty<
-        Base::Ref<Base::Object>>
-        VisualStateGroupStoreProperty{
-            "_VisualStateGroupStore"};
-};
 
 struct TemplatePrototypeProperty {
     Meta::DependencyPropertyHandle property;
@@ -1636,7 +1397,7 @@ struct CompiledTemplateDefinition {
         propertyTriggers;
     Base::Vector<Controls::TemplateBindingPlan>
         contentSourceBindings;
-    Base::Vector<Controls::VisualStateGroup>
+    Base::Vector<Controls::Detail::VisualStateGroupPlan>
         visualStateGroups;
 };
 

@@ -405,6 +405,21 @@ public:
     bool IsFromAttribute() const noexcept {
         return fromAttribute_;
     }
+    // AXB2 binds object and member instructions to the frozen metadata
+    // domain at compile time. Invalid ids identify syntax-only instructions
+    // such as namespace declarations and XAML directives.
+    Meta::TypeId CompiledTypeId() const noexcept {
+        return compiledTypeId_;
+    }
+    Meta::MemberId CompiledMemberId() const noexcept {
+        return compiledMemberId_;
+    }
+    void BindCompiledType(Meta::TypeId type) noexcept {
+        compiledTypeId_ = type;
+    }
+    void BindCompiledMember(Meta::MemberId member) noexcept {
+        compiledMemberId_ = member;
+    }
 
 private:
     friend class NodeReader;
@@ -417,6 +432,8 @@ private:
     Base::String value_;
     ::Aero::Diagnostics::SourceSpan source_;
     bool fromAttribute_ = false;
+    Meta::TypeId compiledTypeId_ = Meta::InvalidTypeId;
+    Meta::MemberId compiledMemberId_ = Meta::InvalidMemberId;
 };
 
 class AERO_API NodeReader {
@@ -638,6 +655,10 @@ public:
     }
 
 private:
+    Base::Result<void> BindSchema(
+        const Schema& schema) noexcept;
+    Base::Result<void> BindSchema(
+        const SchemaManifest& manifest) noexcept;
     static Base::Result<CompiledDocument> CompileWithIdentity(
         NodeReader& reader,
         const CompiledCacheIdentity& identity,
@@ -736,6 +757,9 @@ public:
         Meta::TypeId targetType,
         const QualifiedName& name,
         MemberSyntax syntax) const noexcept;
+    Base::Result<ResolvedMember> ResolveMember(
+        Meta::TypeId targetType,
+        Meta::MemberId member) const noexcept;
     Base::Result<ResolvedMember> ResolveContentMember(
         Meta::TypeId targetType) const noexcept;
 
@@ -919,11 +943,8 @@ inline Base::Result<void> RegisterMarkupMetadata(
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Diagnostics.hpp>
 #include <Aero/Integration/Providers/XamlProvider.hpp>
 
-#include <Aero/Markup.hpp>
-#include <Aero/Markup.hpp>
 
 #include <atomic>
 #include <cstdint>
@@ -1258,16 +1279,8 @@ private:
 // ===== LoaderResult contract =====
 // Private transaction result consumed by Loader, XamlDocument, and View.
 
-#include <Aero/Base/Object.hpp>
-#include <Aero/Base/Ref.hpp>
-#include <Aero/Base/ResourceUri.hpp>
-#include <Aero/Base/Result.hpp>
-#include <Aero/Base/Vector.hpp>
 #include <Aero/Value.hpp>
-#include "gui/GuiPrivate.hpp"
 
-#include <Aero/Markup.hpp>
-#include "gui/GuiPrivate.hpp"
 
 #include <utility>
 
@@ -1478,7 +1491,6 @@ struct LoaderResult {
 
 
 // ===== LoadState contract =====
-#include "gui/GuiPrivate.hpp"
 
 
 
@@ -1517,8 +1529,6 @@ struct LoadState {
 // ===== GuiSchema contract =====
 #include "runtime/modules/ModuleSet.hpp"
 
-#include <Aero/Base/Allocator.hpp>
-#include <Aero/Base/Result.hpp>
 
 namespace Aero::Meta { class Registry; class Registration; }
 
@@ -1565,8 +1575,6 @@ private:
 // ===== ResourceSupport contract =====
 // Private XAML resource-scope registration.
 
-#include <Aero/Base/Config.hpp>
-#include <Aero/Base/Result.hpp>
 
 namespace Aero::Markup {
 
@@ -1587,7 +1595,6 @@ private:
 
 
 // ===== StaticResourceObject contract =====
-#include <Aero/Base/String.hpp>
 #include <Aero/DependencyProperty.hpp>
 
 namespace Aero::Markup::Detail {
@@ -1627,11 +1634,6 @@ using ::Aero::Markup::Detail::StaticResourceObject;
 // ===== UiObjectModel contract =====
 // Private registration bridge for UI authoring objects.
 
-#include <Aero/Base/Allocator.hpp>
-#include <Aero/Base/Config.hpp>
-#include <Aero/Base/Result.hpp>
-#include "gui/GuiPrivate.hpp"
-#include <Aero/DependencyProperty.hpp>
 
 namespace Aero::Markup {
 
@@ -1761,7 +1763,6 @@ using ::Aero::Markup::Detail::XamlTemplateSchemaFacet;
 
 
 // ===== XamlDocumentInternal contract =====
-#include <Aero/Markup.hpp>
 
 
 

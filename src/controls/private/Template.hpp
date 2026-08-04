@@ -9,16 +9,16 @@ class TemplateEngine;
 
 namespace Aero::GuiPrivate::Detail { class AnimationEngine; }
 
-namespace Aero::Controls {
+namespace Aero {
 
 struct DataTemplate::Impl {
-    static Detail::DataTemplateState* State(
+    static Controls::Detail::DataTemplateState* State(
         DataTemplate& value) noexcept;
-    static const Detail::DataTemplateState* State(
+    static const Controls::Detail::DataTemplateState* State(
         const DataTemplate& value) noexcept;
     static Base::Result<void> Configure(
         DataTemplate& value,
-        Detail::DeferredObjectFactory factory,
+        Controls::Detail::DeferredObjectFactory factory,
         void* context = nullptr,
         Base::Ref<Base::Object> owner = {}) noexcept;
     static Base::Result<void> SetBaseUri(
@@ -55,6 +55,10 @@ struct DataTemplate::Impl {
         const Base::Ref<Base::Object>& item) noexcept;
 };
 
+} // namespace Aero
+
+namespace Aero::Controls {
+
 struct ItemsPanelTemplate::Impl {
     static Detail::ItemsPanelTemplateState* State(
         ItemsPanelTemplate& value) noexcept;
@@ -83,10 +87,14 @@ struct ItemsPanelTemplate::Impl {
         const ItemsPanelTemplate& value) noexcept;
 };
 
+} // namespace Aero::Controls
+
+namespace Aero {
+
 struct FrameworkTemplate::Impl {
-    static Detail::FrameworkTemplateState* State(
+    static Controls::Detail::FrameworkTemplateState* State(
         FrameworkTemplate& value) noexcept;
-    static const Detail::FrameworkTemplateState* State(
+    static const Controls::Detail::FrameworkTemplateState* State(
         const FrameworkTemplate& value) noexcept;
 };
 
@@ -106,7 +114,7 @@ struct VisualStateManager::Impl {
     }
 };
 
-} // namespace Aero::Controls
+} // namespace Aero
 
 namespace Aero::Controls::Detail {
 class TemplateEngine;
@@ -156,7 +164,7 @@ public:
         static Base::Result<void> AddTemplateBinding(FrameworkTemplate& value, Base::StringView targetName, DependencyPropertyHandle sourceProperty, DependencyPropertyHandle targetProperty) noexcept;
         static Base::Result<void> AddTemplatedParentBinding(FrameworkTemplate& value, Base::StringView targetName, Base::StringView path, Base::StringView stringFormat, DependencyPropertyHandle targetProperty, Data::BindingMode mode, UpdateSourceTrigger updateSourceTrigger) noexcept;
         static Base::Result<void> AddPropertyTrigger(FrameworkTemplate& value, TemplatePropertyTrigger trigger) noexcept;
-        static Base::Result<void> AddVisualStateGroup(FrameworkTemplate& value, VisualStateGroup group) noexcept;
+        static Base::Result<void> AddVisualStateGroup(FrameworkTemplate& value, VisualStateGroupPlan group) noexcept;
         static Base::Result<void> AddAuthoredTrigger(FrameworkTemplate& value, Base::Ref<Base::Object> trigger) noexcept;
         static Base::Result<void> SetAuthoredVisualTree(ControlTemplate& value, const Base::Ref<Base::Object>& tree) noexcept;
         static Base::Result<void> AddAuthoredVisualStateGroup(ControlTemplate& value, const Base::Ref<Base::Object>& group) noexcept;
@@ -180,7 +188,7 @@ public:
         static Base::Span<const TemplateBindingPlan> Bindings(const FrameworkTemplate& value) noexcept;
         static Base::Span<const TemplateMetadataBindingPlan> MetadataBindings(const FrameworkTemplate& value) noexcept;
         static Base::Span<const TemplatePropertyTrigger> Triggers(const FrameworkTemplate& value) noexcept;
-        static Base::Span<const VisualStateGroup> VisualStateGroups(const FrameworkTemplate& value) noexcept;
+        static Base::Span<const VisualStateGroupPlan> VisualStateGroups(const FrameworkTemplate& value) noexcept;
         static Base::Result<void> Seal(FrameworkTemplate& value, const Meta::DependencyPropertyRegistry& properties) noexcept;
 
         static Base::Result<VisualStateManager*> Create(Meta::EffectiveValueEngine& values,

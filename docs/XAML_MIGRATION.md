@@ -80,7 +80,7 @@ URI、依赖和统一 node IR。
 
 ```text
 aero-xamlc --origin pack://application:,,,/My.App;component/Main.xaml \
-  Main.xaml Main.axir
+  Main.xaml Main.axb
 ```
 
 内置 Light/Dark/Generic 由 `AeroCompiledThemes` 在构建时以同一命令生成并嵌入
@@ -96,7 +96,7 @@ Runtime；应用代码不再自行读取或编译这些主题。
 应用含自定义控件或属性时，不再要求 host `aero-xamlc` 加载目标平台模块。
 使用应用自己的 host tool 通过 `Aero::Meta::Registry` 生成 `App.aeroschema`，并在
 `aero_add_xaml(... SCHEMA App.aeroschema)` 中使用。manifest 变化会使 XAML
-重新编译，AXIR 中的 metadata schema hash 仍与目标 Runtime 严格匹配。
+重新编译，AXB2 中的 metadata schema hash 仍与目标 Runtime 严格匹配。
 
 
 ## 构建配置

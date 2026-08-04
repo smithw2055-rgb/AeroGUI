@@ -6,7 +6,6 @@
 
 #include <cmath>
 #include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Input {
 

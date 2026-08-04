@@ -1,19 +1,14 @@
 #include <Aero/Controls/Items.hpp>
 #include "controls/ControlsPrivate.hpp"
-#include "controls/ControlsPrivate.hpp"
-#include "controls/ControlsPrivate.hpp"
 
 #include "render/RenderTree.hpp"
 #include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 
-#include "gui/GuiPrivate.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <new>
 #include <utility>
-#include "gui/GuiPrivate.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
@@ -243,20 +238,22 @@ void ItemCollection::Reset() noexcept {
         0U});
 }
 
-bool ItemCollection::Reset(
+Base::Result<void> ItemCollection::Reset(
     Base::Span<const Base::Ref<Base::Object>>
         items) noexcept {
     Base::Vector<Base::Ref<Base::Object>> replacement;
     Base::Result<void> reserved =
         replacement.Reserve(items.Size());
-    if (!reserved) return false;
+    if (!reserved) return reserved.GetStatus();
     for (const Base::Ref<Base::Object>& item : items) {
         if (!item) {
-            return false;
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "ItemCollection reset item must not be null");
         }
         Base::Result<void> added =
             replacement.PushBack(item);
-        if (!added) return false;
+        if (!added) return added.GetStatus();
     }
     const std::uint32_t oldCount = items_.Size();
     items_ = std::move(replacement);
@@ -266,7 +263,7 @@ bool ItemCollection::Reset(
         0U,
         oldCount,
         items_.Size()});
-    return true;
+    return {};
 }
 
 Base::Result<void> Detail::DeferredObjectProgram::Configure(
@@ -324,25 +321,31 @@ Base::Result<Base::Ref<Base::Object>> Detail::DeferredObjectProgram::Instantiate
         "Deferred object factory returned null");
 }
 
+} // namespace Aero::Controls
+
+namespace Aero {
+
+using namespace Controls;
+
 DataTemplate::DataTemplate() noexcept
-    : state_(new (std::nothrow) Detail::DataTemplateState()) {
+    : state_(new (std::nothrow) Controls::Detail::DataTemplateState()) {
     if (state_ == nullptr) {
-        Base::ReportOutOfMemory(sizeof(Detail::DataTemplateState), alignof(Detail::DataTemplateState), Base::MemoryTag::Ui);
+        Base::ReportOutOfMemory(sizeof(Controls::Detail::DataTemplateState), alignof(Controls::Detail::DataTemplateState), Base::MemoryTag::Ui);
     }
 }
 
 DataTemplate::~DataTemplate() noexcept {
-    delete static_cast<Detail::DataTemplateState*>(state_);
+    delete static_cast<Controls::Detail::DataTemplateState*>(state_);
     state_ = nullptr;
 }
 
 TypeId DataTemplate::GetDataType() const noexcept {
-    const Detail::DataTemplateState* state = static_cast<const Detail::DataTemplateState*>(state_);
+    const Controls::Detail::DataTemplateState* state = static_cast<const Controls::Detail::DataTemplateState*>(state_);
     return state != nullptr ? state->dataType : InvalidTypeId;
 }
 
 void DataTemplate::SetDataType(TypeId value) noexcept {
-    Detail::DataTemplateState* state = static_cast<Detail::DataTemplateState*>(state_);
+    Controls::Detail::DataTemplateState* state = static_cast<Controls::Detail::DataTemplateState*>(state_);
     if (state == nullptr) return;
     if (state->program.sealed || value == InvalidTypeId) {
         return;
@@ -351,22 +354,22 @@ void DataTemplate::SetDataType(TypeId value) noexcept {
 }
 
 Base::Ref<Base::Object> DataTemplate::GetHierarchicalItemsSource() const noexcept {
-    const Detail::DataTemplateState* state = static_cast<const Detail::DataTemplateState*>(state_);
+    const Controls::Detail::DataTemplateState* state = static_cast<const Controls::Detail::DataTemplateState*>(state_);
     return state != nullptr ? state->hierarchicalItemsSource : Base::Ref<Base::Object>{};
 }
 
 void DataTemplate::SetHierarchicalItemsSource(Base::Ref<Base::Object> value) noexcept {
-    Detail::DataTemplateState* state = static_cast<Detail::DataTemplateState*>(state_);
+    Controls::Detail::DataTemplateState* state = static_cast<Controls::Detail::DataTemplateState*>(state_);
     if (state != nullptr) state->hierarchicalItemsSource = std::move(value);
 }
 
 Base::Ref<Base::Object> DataTemplate::GetHierarchicalItemTemplate() const noexcept {
-    const Detail::DataTemplateState* state = static_cast<const Detail::DataTemplateState*>(state_);
+    const Controls::Detail::DataTemplateState* state = static_cast<const Controls::Detail::DataTemplateState*>(state_);
     return state != nullptr ? state->hierarchicalItemTemplate : Base::Ref<Base::Object>{};
 }
 
 void DataTemplate::SetHierarchicalItemTemplate(Base::Ref<Base::Object> value) noexcept {
-    Detail::DataTemplateState* state = static_cast<Detail::DataTemplateState*>(state_);
+    Controls::Detail::DataTemplateState* state = static_cast<Controls::Detail::DataTemplateState*>(state_);
     if (state != nullptr) state->hierarchicalItemTemplate = std::move(value);
 }
 
@@ -375,58 +378,58 @@ ResourceKey DataTemplate::GetImplicitKey() const noexcept {
 }
 
 ResourceDictionary& DataTemplate::GetResources() noexcept {
-    Detail::DataTemplateState* state = static_cast<Detail::DataTemplateState*>(state_);
+    Controls::Detail::DataTemplateState* state = static_cast<Controls::Detail::DataTemplateState*>(state_);
     if (state != nullptr) return state->resources;
     static ResourceDictionary fallback;
     return fallback;
 }
 
 const ResourceDictionary& DataTemplate::GetResources() const noexcept {
-    const Detail::DataTemplateState* state = static_cast<const Detail::DataTemplateState*>(state_);
+    const Controls::Detail::DataTemplateState* state = static_cast<const Controls::Detail::DataTemplateState*>(state_);
     if (state != nullptr) return state->resources;
     static ResourceDictionary fallback;
     return fallback;
 }
 
 bool DataTemplate::GetIsSealed() const noexcept {
-    const Detail::DataTemplateState* state = static_cast<const Detail::DataTemplateState*>(state_);
+    const Controls::Detail::DataTemplateState* state = static_cast<const Controls::Detail::DataTemplateState*>(state_);
     return state != nullptr && state->program.sealed;
 }
 
 ItemsPanelTemplate::ItemsPanelTemplate() noexcept
-    : state_(new (std::nothrow) Detail::ItemsPanelTemplateState()) {
+    : state_(new (std::nothrow) Controls::Detail::ItemsPanelTemplateState()) {
     if (state_ == nullptr) {
-        Base::ReportOutOfMemory(sizeof(Detail::ItemsPanelTemplateState), alignof(Detail::ItemsPanelTemplateState), Base::MemoryTag::Ui);
+        Base::ReportOutOfMemory(sizeof(Controls::Detail::ItemsPanelTemplateState), alignof(Controls::Detail::ItemsPanelTemplateState), Base::MemoryTag::Ui);
     }
 }
 
 ItemsPanelTemplate::~ItemsPanelTemplate() noexcept {
-    delete static_cast<Detail::ItemsPanelTemplateState*>(state_);
+    delete static_cast<Controls::Detail::ItemsPanelTemplateState*>(state_);
     state_ = nullptr;
 }
 
 ResourceDictionary& ItemsPanelTemplate::GetResources() noexcept {
-    Detail::ItemsPanelTemplateState* state = static_cast<Detail::ItemsPanelTemplateState*>(state_);
+    Controls::Detail::ItemsPanelTemplateState* state = static_cast<Controls::Detail::ItemsPanelTemplateState*>(state_);
     if (state != nullptr) return state->resources;
     static ResourceDictionary fallback;
     return fallback;
 }
 
 const ResourceDictionary& ItemsPanelTemplate::GetResources() const noexcept {
-    const Detail::ItemsPanelTemplateState* state = static_cast<const Detail::ItemsPanelTemplateState*>(state_);
+    const Controls::Detail::ItemsPanelTemplateState* state = static_cast<const Controls::Detail::ItemsPanelTemplateState*>(state_);
     if (state != nullptr) return state->resources;
     static ResourceDictionary fallback;
     return fallback;
 }
 
 bool ItemsPanelTemplate::GetIsSealed() const noexcept {
-    const Detail::ItemsPanelTemplateState* state = static_cast<const Detail::ItemsPanelTemplateState*>(state_);
+    const Controls::Detail::ItemsPanelTemplateState* state = static_cast<const Controls::Detail::ItemsPanelTemplateState*>(state_);
     return state != nullptr && state->program.sealed;
 }
 
-} // namespace Aero::Controls
+} // namespace Aero
 
-namespace Aero::Controls {
+namespace Aero {
 
 using namespace ::Aero;
 using namespace ::Aero::Controls;
@@ -571,7 +574,7 @@ Base::Result<Base::Ref<Base::Object>> ItemsPanelTemplate::Impl::Instantiate(cons
     return state->program.Instantiate();
 }
 
-} // namespace Aero::Controls
+} // namespace Aero
 
 namespace Aero::Controls::Detail {
 
@@ -1610,11 +1613,10 @@ ItemContainerGenerator::Impl::AttachRecord(
         const auto assignHeader = [&]() noexcept -> Base::Result<void> {
             if (owner_->PropertyRegistry().Types().IsDerivedFrom(
                     container.RuntimeType(), TreeViewItem::StaticTypeId())) {
-                static_cast<TreeViewItem&>(container).SetHeader(text.GetText());
-                return {};
+                return static_cast<TreeViewItem&>(container).SetHeader(
+                    text.GetText());
             }
-            headeredItemsControl->SetHeader(text.GetText());
-            return {};
+            return headeredItemsControl->SetHeader(text.GetText());
         };
         Base::Result<void> assigned = assignHeader();
         if (!assigned) {
@@ -1724,10 +1726,12 @@ ItemContainerGenerator::Impl::DetachRecord(
         const auto clearHeader = [&]() noexcept {
             if (owner_->PropertyRegistry().Types().IsDerivedFrom(
                     container.RuntimeType(), TreeViewItem::StaticTypeId())) {
-                static_cast<TreeViewItem&>(container).SetHeader({});
+                static_cast<TreeViewItem&>(container).SetHeader(
+                    Value::NullObject(Meta::TypeOf<Base::Object>()));
                 return;
             }
-            headeredItemsControl->SetHeader({});
+            headeredItemsControl->SetHeader(
+                Value::NullObject(Meta::TypeOf<Base::Object>()));
         };
         clearHeader();
         record.generatedHeader = false;
@@ -2347,18 +2351,18 @@ Control::Impl::Create(
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls {
+namespace Aero {
 
 void DataTemplate::SetResources(Base::Ref<ResourceDictionary> value) noexcept {
-    Detail::DataTemplateState* state = static_cast<Detail::DataTemplateState*>(state_);
+    Controls::Detail::DataTemplateState* state = static_cast<Controls::Detail::DataTemplateState*>(state_);
     if (state == nullptr) return;
     (void)Aero::GuiPrivate::Detail::AssignResourceDictionary(state->resources, std::move(value), "DataTemplate Resources is already assigned");
 }
 
-void ItemsPanelTemplate::SetResources(Base::Ref<ResourceDictionary> value) noexcept {
-    Detail::ItemsPanelTemplateState* state = static_cast<Detail::ItemsPanelTemplateState*>(state_);
+void Controls::ItemsPanelTemplate::SetResources(Base::Ref<ResourceDictionary> value) noexcept {
+    Controls::Detail::ItemsPanelTemplateState* state = static_cast<Controls::Detail::ItemsPanelTemplateState*>(state_);
     if (state == nullptr) return;
     (void)Aero::GuiPrivate::Detail::AssignResourceDictionary(state->resources, std::move(value), "ItemsPanelTemplate Resources is already assigned");
 }
 
-} // namespace Aero::Controls
+} // namespace Aero

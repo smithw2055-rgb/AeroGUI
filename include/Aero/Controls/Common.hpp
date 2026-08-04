@@ -49,10 +49,8 @@ public:
     ICommand* GetCommand() const noexcept;
     void SetCommand(
         Base::Ref<ICommand> command) noexcept;
-    Base::Ref<Base::Object>
-        GetCommandParameter() const noexcept;
-    void SetCommandParameter(
-        Base::Ref<Base::Object> value) noexcept;
+    Value GetCommandParameter() const noexcept;
+    void SetCommandParameter(Value value) noexcept;
 
     inline static constexpr Members::Property<Base::String> InputGestureTextProperty{"InputGestureText"};
     inline static constexpr Members::Property<bool> IsCheckableProperty{"IsCheckable"};
@@ -61,7 +59,7 @@ public:
     inline static constexpr Members::Property<bool> IsSubmenuOpenProperty{"IsSubmenuOpen"};
     inline static constexpr Members::ReadOnlyProperty<MenuItemRole> RoleProperty{"Role"};
     inline static constexpr Members::Property<Base::Ref<ICommand>> CommandProperty{"Command"};
-    inline static constexpr Members::Property<Base::Ref<Base::Object>> CommandParameterProperty{"CommandParameter"};
+    inline static constexpr Members::Property<Value> CommandParameterProperty{"CommandParameter"};
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
 
 protected:
@@ -105,8 +103,6 @@ protected:
 
 private:
     friend struct Impl;
-    void* interactions_ =
-        nullptr;
 };
 
 class AERO_API ContextMenu
@@ -185,9 +181,10 @@ public:
     // Unlike the pre-gallery placeholder, WPF ToolBar.Header is content and
     // may therefore be an element, a scalar, or x:Null. Keep it as an
     // unboxed metadata value so template triggers can observe null directly.
-    Meta::Value GetHeader() const noexcept;
+    Value GetHeader() const noexcept;
     void SetHeader(
-        const Meta::Value& value) noexcept;
+        const Value& value) noexcept;
+    Base::Result<void> SetHeader(Base::StringView value) noexcept;
     Base::Ref<DataTemplate> GetHeaderTemplate() const noexcept;
     void SetHeaderTemplate(
         Base::Ref<DataTemplate> value) noexcept;
@@ -205,7 +202,7 @@ public:
     std::uint32_t GetOverflowItemCount()
         const noexcept;
 
-    inline static constexpr Members::Property<Meta::Value> HeaderProperty{"Header"};
+    inline static constexpr Members::Property<Value> HeaderProperty{"Header"};
     inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
     inline static constexpr Members::Property<Orientation> OrientationProperty{"Orientation"};
     inline static constexpr Members::Property<std::uint32_t> OverflowCapacityProperty{"OverflowCapacity"};

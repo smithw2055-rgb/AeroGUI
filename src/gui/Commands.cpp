@@ -1,10 +1,8 @@
 #include "gui/GuiPrivate.hpp"
 #include <Aero/Input.hpp>
-#include "gui/GuiPrivate.hpp"
 
 
 #include <cctype>
-#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Input {
 

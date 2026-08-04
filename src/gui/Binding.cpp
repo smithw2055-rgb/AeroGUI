@@ -1,6 +1,5 @@
 #include "gui/GuiPrivate.hpp"
 #include <Aero/Data.hpp>
-#include "gui/GuiPrivate.hpp"
 #include <Aero/Resources.hpp>
 
 #include <cmath>
@@ -8,7 +7,6 @@
 #include <cstring>
 #include <limits>
 #include <utility>
-#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Data {
 

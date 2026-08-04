@@ -1246,7 +1246,6 @@ const MethodInfo* TypeRegistry::MethodAt(
 
 #include <Aero/Meta.hpp>
 
-#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Meta::Detail {
 
@@ -1680,14 +1679,11 @@ void MetadataAuthoringSession::Record(
 
 // ===== MetaTable =====
 
-#include "gui/GuiPrivate.hpp"
 
 // Executable metadata behavior is private to Meta::Registry.
-#include "gui/GuiPrivate.hpp"
 
 #include <Aero/DependencyProperty.hpp>
 
-#include <utility>
 
 namespace Aero::GuiPrivate::Detail {
 namespace {
@@ -2394,9 +2390,7 @@ Base::Result<Base::HashCode> MetaTable::ComputeHash() const noexcept {
 
 // ===== BehaviorTable =====
 
-#include "gui/GuiPrivate.hpp"
 
-#include <cstdint>
 
 namespace Aero::Meta {
 
@@ -2884,18 +2878,12 @@ RegistrationTypes::RegisterCollectionChangeNotification(
 
 // ===== Registry =====
 
-#include "gui/GuiPrivate.hpp"
 
-#include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 
-#include <Aero/Base/Assert.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 
 #include <new>
-#include <utility>
 
 namespace Aero::Meta {
 
@@ -3403,9 +3391,6 @@ Base::Result<Base::HashCode> Registry::ComputeSchemaHash() const noexcept {
 } // namespace Aero::Meta
 
 // Executable metadata operations share the Registry storage and lifetime.
-#include "gui/GuiPrivate.hpp"
-#include <Aero/Value.hpp>
-#include <cstdio>
 
 namespace Aero::Meta {
 
@@ -4212,9 +4197,7 @@ Registry::FindProvider(
 
 // ===== Registration =====
 
-#include <Aero/Meta.hpp>
 
-#include "gui/GuiPrivate.hpp"
 
 namespace Aero::Meta {
 
@@ -4260,10 +4243,7 @@ Registration::DependencyProperties() noexcept {
 
 // ===== MetadataValueFacets =====
 
-#include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 
-#include <utility>
 
 namespace Aero::GuiPrivate::Detail {
 namespace {

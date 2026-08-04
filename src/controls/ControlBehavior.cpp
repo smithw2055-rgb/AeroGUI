@@ -206,6 +206,70 @@ Base::Result<void> ControlBehavior::Attach(
     return {};
 }
 
+Base::Result<bool> ControlBehavior::Detach(
+    Visual& visual) noexcept {
+    if (metadata_ == nullptr) return false;
+    const Meta::TypeId type = visual.RuntimeType();
+    auto& types = metadata_->Types();
+    Base::Result<bool> detached = false;
+    if (buttons_ != nullptr &&
+        types.IsDerivedFrom(
+            type, Primitives::ButtonBase::StaticTypeId())) {
+        detached = buttons_->Detach(
+            *static_cast<Primitives::ButtonBase*>(&visual));
+    } else if (textBoxes_ != nullptr &&
+               types.IsDerivedFrom(type, TextBox::StaticTypeId())) {
+        detached = textBoxes_->Detach(
+            *static_cast<TextBox*>(&visual));
+    } else if (textBoxes_ != nullptr &&
+               types.IsDerivedFrom(type, PasswordBox::StaticTypeId())) {
+        detached = textBoxes_->Detach(
+            *static_cast<PasswordBox*>(&visual));
+    } else if (scrolling_ != nullptr &&
+               types.IsDerivedFrom(type, ScrollViewer::StaticTypeId())) {
+        detached = scrolling_->Detach(
+            *static_cast<ScrollViewer*>(&visual));
+    } else if (sliders_ != nullptr &&
+               types.IsDerivedFrom(type, Slider::StaticTypeId())) {
+        detached = sliders_->Detach(
+            *static_cast<Slider*>(&visual));
+    } else if (lists_ != nullptr &&
+               types.IsDerivedFrom(type, ListBox::StaticTypeId())) {
+        detached = lists_->Detach(
+            *static_cast<ListBox*>(&visual));
+    } else if (combos_ != nullptr &&
+               types.IsDerivedFrom(type, ComboBox::StaticTypeId())) {
+        detached = combos_->Detach(
+            *static_cast<ComboBox*>(&visual));
+    } else if (trees_ != nullptr &&
+               types.IsDerivedFrom(type, TreeView::StaticTypeId())) {
+        detached = trees_->Detach(
+            *static_cast<TreeView*>(&visual));
+    } else if (menus_ != nullptr &&
+               types.IsDerivedFrom(type, Menu::StaticTypeId())) {
+        detached = menus_->Detach(
+            *static_cast<Menu*>(&visual));
+    }
+    if (!detached) return detached.GetStatus();
+    if (types.IsDerivedFrom(type, Control::StaticTypeId())) {
+        SetVisualStateManager(
+            *static_cast<Control*>(&visual), nullptr);
+    }
+    return detached.Value();
+}
+
+Base::Result<void> ControlBehavior::RefreshButtonVisualState(
+    Primitives::ButtonBase& button,
+    bool useTransitions) noexcept {
+    if (buttons_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "Button behavior is unavailable");
+    }
+    return buttons_->RefreshVisualState(
+        button, useTransitions);
+}
+
 Base::Result<std::uint32_t> ControlBehavior::AdvanceTime(
     std::uint32_t elapsedMilliseconds) noexcept {
     return buttons_ != nullptr

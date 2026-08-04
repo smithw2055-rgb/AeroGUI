@@ -4,7 +4,6 @@
 
 #include <Aero/DependencyProperty.hpp>
 #include "gui/GuiPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Hash.hpp>
@@ -1339,7 +1338,8 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
         const EffectiveValueEntry& finalEntry = values_[index];
         const bool shouldStore = finalEntry.hasLocal || finalEntry.hasCurrent ||
             finalEntry.hasExpression || finalEntry.hasInherited || finalEntry.hasAnimation ||
-            !finalEntry.baseProviders.Empty() || finalEntry.effectiveValue != metadata.defaultValue;
+            !finalEntry.baseProviders.GetIsEmpty() ||
+            finalEntry.effectiveValue != metadata.defaultValue;
         if (!shouldStore) RemoveEntry(index);
     }
     return {};
@@ -1556,13 +1556,8 @@ PropertyInvalidationFlags DependencyObject::AccumulateInvalidations(
 
 // ===== EffectiveValueEngine =====
 
-#include "gui/GuiPrivate.hpp"
 
-#include <Aero/Base/Assert.hpp>
 
-#include <cstdint>
-#include <cstdio>
-#include <utility>
 
 namespace Aero::Meta {
 namespace {

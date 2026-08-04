@@ -16,6 +16,33 @@ struct TemplateHandle {
     constexpr bool IsValid() const noexcept { return value != 0U; }
 };
 
+struct VisualStateSetterPlan {
+    Base::String targetName;
+    DependencyPropertyHandle property;
+    Meta::PropertyValue value;
+};
+
+struct VisualStatePlan {
+    Base::String name;
+    Base::Vector<VisualStateSetterPlan> setters;
+    Base::Ref<Media::Animation::Storyboard> storyboard;
+};
+
+struct VisualTransitionPlan {
+    Base::String from;
+    Base::String to;
+    Media::Animation::AnimationTime generatedDurationMicroseconds = 0U;
+    Base::Ref<Media::Animation::EasingFunctionBase>
+        generatedEasingFunction;
+    Base::Ref<Media::Animation::Storyboard> storyboard;
+};
+
+struct VisualStateGroupPlan {
+    Base::String name;
+    Base::Vector<VisualStatePlan> states;
+    Base::Vector<VisualTransitionPlan> transitions;
+};
+
 } // namespace Aero::Controls::Detail
 
 namespace Aero::Controls::Detail { class TemplateEngine; }
@@ -101,7 +128,7 @@ struct TemplateProgram {
     Base::Result<void> SetBaseUri(const Base::ResourceUri& value) noexcept;
     Base::Result<void> AddNamespace(Base::StringView prefix, Base::StringView uri) noexcept;
     Base::Result<void> Seal() noexcept;
-    Base::Result<void> FreezeRuntimePlan(Meta::TypeId valueTargetType, Base::Vector<TemplateBindingPlan>&& valueBindings, Base::Vector<TemplateMetadataBindingPlan>&& valueMetadataBindings, Base::Vector<TemplatePropertyTrigger>&& valueTriggers, Base::Vector<VisualStateGroup>&& valueVisualStateGroups) noexcept;
+    Base::Result<void> FreezeRuntimePlan(Meta::TypeId valueTargetType, Base::Vector<TemplateBindingPlan>&& valueBindings, Base::Vector<TemplateMetadataBindingPlan>&& valueMetadataBindings, Base::Vector<TemplatePropertyTrigger>&& valueTriggers, Base::Vector<VisualStateGroupPlan>&& valueVisualStateGroups) noexcept;
 
     TemplateFactoryCallback factory = nullptr;
     void* factoryContext = nullptr;
@@ -112,7 +139,7 @@ struct TemplateProgram {
     Base::Vector<TemplateBindingPlan> bindings;
     Base::Vector<TemplateMetadataBindingPlan> metadataBindings;
     Base::Vector<TemplatePropertyTrigger> triggers;
-    Base::Vector<VisualStateGroup> visualStateGroups;
+    Base::Vector<VisualStateGroupPlan> visualStateGroups;
     bool sealed = false;
 };
 
@@ -123,7 +150,7 @@ struct FrameworkTemplateState {
     Base::Vector<TemplateBindingPlan> bindings;
     Base::Vector<TemplateMetadataBindingPlan> metadataBindings;
     Base::Vector<TemplatePropertyTrigger> triggers;
-    Base::Vector<VisualStateGroup> visualStateGroups;
+    Base::Vector<VisualStateGroupPlan> visualStateGroups;
     Base::Vector<Base::Ref<Base::Object>> authoredTriggers;
     Base::Ref<Base::Object> authoredVisualTree;
     Base::Vector<Base::Ref<Base::Object>> authoredVisualStateGroups;

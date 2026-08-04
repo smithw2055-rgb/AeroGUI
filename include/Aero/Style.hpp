@@ -23,9 +23,10 @@ class Style;
 
 class AERO_API SetterBaseCollection {
 public:
-    std::uint32_t Count() const noexcept;
-    SetterBase* At(std::uint32_t index) const noexcept;
-    void Add(Base::Ref<Setter> setter) noexcept;
+    std::uint32_t GetCount() const noexcept;
+    SetterBase* GetItem(std::uint32_t index) const noexcept;
+    bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
+    Base::Result<void> Add(Base::Ref<Setter> setter) noexcept;
     void Clear() noexcept;
 
 private:
@@ -36,9 +37,10 @@ private:
 
 class AERO_API TriggerCollection {
 public:
-    std::uint32_t Count() const noexcept;
-    TriggerBase* At(std::uint32_t index) const noexcept;
-    void Add(Base::Ref<Trigger> trigger) noexcept;
+    std::uint32_t GetCount() const noexcept;
+    TriggerBase* GetItem(std::uint32_t index) const noexcept;
+    bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
+    Base::Result<void> Add(Base::Ref<Trigger> trigger) noexcept;
     void Clear() noexcept;
 
 private:
@@ -76,29 +78,21 @@ public:
     Base::Result<void> AddSetter(
         const Setter& setter) noexcept;
     Base::Result<void> AddTrigger(
-        TriggerPlan trigger) noexcept;
-    Base::Result<void> AddTrigger(
         const Trigger& trigger) noexcept;
 
     class TriggerBuilder {
     public:
         template<class TOwner, class TValue>
-        bool Set(
+        Base::Result<void> Set(
             const Meta::DependencyPropertyRef<TOwner, TValue>& property,
             const TValue& value) noexcept {
             if (!status_.IsOk()) return status_;
             Base::Result<PropertyValue> encoded =
                 Meta::ValueCodec<TValue>::Encode(value);
-            if (!encoded) return false;
-            TriggerPlan trigger;
-            trigger.property = condition_;
-            trigger.value = std::move(conditionValue_);
-            Base::Result<void> added =
-                trigger.setters.PushBack({
-                    property.Handle(),
-                    std::move(encoded).Value()});
-            if (!added) return false;
-            return static_cast<bool>(owner_->AddTrigger(std::move(trigger)));
+            if (!encoded) return encoded.GetStatus();
+            return owner_->AddPropertyTrigger(
+                condition_, conditionValue_, property.Handle(),
+                std::move(encoded).Value());
         }
 
     private:
@@ -121,13 +115,13 @@ public:
     };
 
     template<class TOwner, class TValue>
-    bool Set(
+    Base::Result<void> Set(
         const Meta::DependencyPropertyRef<TOwner, TValue>& property,
         const TValue& value) noexcept {
         Base::Result<PropertyValue> encoded =
             Meta::ValueCodec<TValue>::Encode(value);
-        if (!encoded) return false;
-        return static_cast<bool>(AddSetter(property.Handle(), encoded.Value()));
+        if (!encoded) return encoded.GetStatus();
+        return AddSetter(property.Handle(), encoded.Value());
     }
     template<class TOwner, class TValue>
     TriggerBuilder When(
@@ -173,6 +167,11 @@ public:
 private:
     friend struct Impl;
 
+    Base::Result<void> AddPropertyTrigger(
+        DependencyPropertyHandle condition,
+        const PropertyValue& conditionValue,
+        DependencyPropertyHandle property,
+        PropertyValue value) noexcept;
     Base::Result<void> SealRuntime(const void* properties) noexcept;
 
     TypeId runtimeType_ = StaticTypeId();
@@ -181,8 +180,6 @@ private:
     Base::Ref<Base::Object> basedOnOwner_;
     Base::Vector<Base::Ref<Setter>> authoredSetterObjects_;
     Base::Vector<Base::Ref<Trigger>> authoredTriggerObjects_;
-    Base::Vector<StyleSetter> authored_;
-    Base::Vector<TriggerPlan> authoredTriggers_;
     Base::IAllocator* implAllocator_ = nullptr;
     Impl* program_ = nullptr;
     ResourceDictionary resources_;

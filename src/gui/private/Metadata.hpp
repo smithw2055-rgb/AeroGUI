@@ -693,10 +693,7 @@ public:
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 // ===== Behavior facets =====
-#include <Aero/Base/Config.hpp>
 #include <Aero/Base/Allocator.hpp>
-#include <Aero/Base/Result.hpp>
-#include <Aero/Base/Vector.hpp>
 
 
 #include <new>
@@ -891,11 +888,7 @@ private:
 } // namespace Aero::Meta
 
 // ===== Value facets =====
-#include <Aero/Base/Config.hpp>
 #include <Aero/Base/Ref.hpp>
-#include <Aero/Base/Result.hpp>
-#include <Aero/Base/StringView.hpp>
-#include <Aero/Base/Vector.hpp>
 
 
 namespace Aero::Meta {
@@ -1032,14 +1025,8 @@ struct RegistrationState {
 // Private executable metadata storage. TypeRegistry is the public structural
 // source of truth; these records never cross the Gui-kernel boundary.
 
-#include <Aero/Base/Config.hpp>
-#include <Aero/Base/Hash.hpp>
 #include <Aero/Base/HashMap.hpp>
-#include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include <Aero/Base/String.hpp>
-#include <Aero/Base/StringView.hpp>
-#include <Aero/Base/Vector.hpp>
 
 
 

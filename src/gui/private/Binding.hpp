@@ -237,7 +237,6 @@ struct MetadataBindingDescriptor {
 
 } // namespace Aero::Data
 
-#include "gui/GuiPrivate.hpp"
 
 
 namespace Aero::GuiPrivate::Detail {

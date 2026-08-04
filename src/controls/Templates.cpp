@@ -1,17 +1,13 @@
 #include "gui/GuiPrivate.hpp"
 #include <Aero/Styling.hpp>
 #include "controls/ControlsPrivate.hpp"
-#include "gui/GuiPrivate.hpp"
-#include "controls/ControlsPrivate.hpp"
 
 #include "render/RenderTree.hpp"
 
-#include "gui/GuiPrivate.hpp"
 
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Layout.hpp>
-#include "gui/GuiPrivate.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <cstdio>
@@ -519,7 +515,7 @@ Base::Result<void> Detail::TemplateProgram::FreezeRuntimePlan(
     Base::Vector<TemplateMetadataBindingPlan>&&
         valueMetadataBindings,
     Base::Vector<TemplatePropertyTrigger>&& valueTriggers,
-    Base::Vector<VisualStateGroup>&& valueVisualStateGroups) noexcept {
+    Base::Vector<VisualStateGroupPlan>&& valueVisualStateGroups) noexcept {
     if (sealed) {
         return InvalidTemplate(
             "TemplateProgram runtime plan is already frozen");
@@ -540,54 +536,58 @@ Base::Result<void> Detail::TemplateProgram::FreezeRuntimePlan(
 }
 
 
+} // namespace Aero::Controls
+
+namespace Aero {
+
 FrameworkTemplate::FrameworkTemplate() noexcept
-    : state_(new (std::nothrow) Detail::FrameworkTemplateState()) {
+    : state_(new (std::nothrow) Controls::Detail::FrameworkTemplateState()) {
     if (state_ == nullptr) {
-        Base::ReportOutOfMemory(sizeof(Detail::FrameworkTemplateState), alignof(Detail::FrameworkTemplateState), Base::MemoryTag::Ui);
+        Base::ReportOutOfMemory(sizeof(Controls::Detail::FrameworkTemplateState), alignof(Controls::Detail::FrameworkTemplateState), Base::MemoryTag::Ui);
     }
 }
 
 FrameworkTemplate::~FrameworkTemplate() noexcept {
-    delete static_cast<Detail::FrameworkTemplateState*>(state_);
+    delete static_cast<Controls::Detail::FrameworkTemplateState*>(state_);
     state_ = nullptr;
 }
 
 Meta::TypeId FrameworkTemplate::GetTargetType() const noexcept {
-    const Detail::FrameworkTemplateState* state = static_cast<const Detail::FrameworkTemplateState*>(state_);
+    const Controls::Detail::FrameworkTemplateState* state = static_cast<const Controls::Detail::FrameworkTemplateState*>(state_);
     if (state == nullptr) return Meta::InvalidTypeId;
     return state->sealed ? state->program.targetType : state->targetType;
 }
 
 bool FrameworkTemplate::GetIsSealed() const noexcept {
-    const Detail::FrameworkTemplateState* state = static_cast<const Detail::FrameworkTemplateState*>(state_);
+    const Controls::Detail::FrameworkTemplateState* state = static_cast<const Controls::Detail::FrameworkTemplateState*>(state_);
     return state != nullptr && state->sealed;
 }
 
 ResourceDictionary& FrameworkTemplate::GetResources() noexcept {
-    auto* state = static_cast<Detail::FrameworkTemplateState*>(state_);
+    auto* state = static_cast<Controls::Detail::FrameworkTemplateState*>(state_);
     if (state != nullptr) return state->resources;
     static ResourceDictionary fallback;
     return fallback;
 }
 
 const ResourceDictionary& FrameworkTemplate::GetResources() const noexcept {
-    const auto* state = static_cast<const Detail::FrameworkTemplateState*>(state_);
+    const auto* state = static_cast<const Controls::Detail::FrameworkTemplateState*>(state_);
     if (state != nullptr) return state->resources;
     static ResourceDictionary fallback;
     return fallback;
 }
 
-Detail::FrameworkTemplateState* FrameworkTemplate::Impl::State(
+Controls::Detail::FrameworkTemplateState* FrameworkTemplate::Impl::State(
     FrameworkTemplate& value) noexcept {
-    return static_cast<Detail::FrameworkTemplateState*>(value.state_);
+    return static_cast<Controls::Detail::FrameworkTemplateState*>(value.state_);
 }
 
-const Detail::FrameworkTemplateState* FrameworkTemplate::Impl::State(
+const Controls::Detail::FrameworkTemplateState* FrameworkTemplate::Impl::State(
     const FrameworkTemplate& value) noexcept {
-    return static_cast<const Detail::FrameworkTemplateState*>(value.state_);
+    return static_cast<const Controls::Detail::FrameworkTemplateState*>(value.state_);
 }
 
-} // namespace Aero::Controls
+} // namespace Aero
 
 namespace Aero::Controls::Detail {
 
@@ -602,11 +602,11 @@ Base::Status InvalidTemplate(const char* message) noexcept {
 }
 
 ::Aero::Controls::Detail::FrameworkTemplateState* TemplatePrivate::State(FrameworkTemplate& value) noexcept {
-    return ::Aero::Controls::FrameworkTemplate::Impl::State(value);
+    return ::Aero::FrameworkTemplate::Impl::State(value);
 }
 
 const ::Aero::Controls::Detail::FrameworkTemplateState* TemplatePrivate::State(const FrameworkTemplate& value) noexcept {
-    return ::Aero::Controls::FrameworkTemplate::Impl::State(value);
+    return ::Aero::FrameworkTemplate::Impl::State(value);
 }
 
 Base::Result<void> TemplatePrivate::SetTargetType(
@@ -719,7 +719,7 @@ Base::Result<void> TemplatePrivate::AddPropertyTrigger(
 
 Base::Result<void> TemplatePrivate::AddVisualStateGroup(
     FrameworkTemplate& templateValue,
-    VisualStateGroup group) noexcept {
+    VisualStateGroupPlan group) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
     if (state->sealed) {
@@ -731,7 +731,7 @@ Base::Result<void> TemplatePrivate::AddVisualStateGroup(
             Base::ErrorCode::InvalidArgument,
             "Visual state group requires a name and at least one state");
     }
-    for (const VisualStateGroup& existing : state->visualStateGroups) {
+    for (const VisualStateGroupPlan& existing : state->visualStateGroups) {
         if (existing.name.View() == group.name.View()) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
@@ -740,7 +740,7 @@ Base::Result<void> TemplatePrivate::AddVisualStateGroup(
     }
     for (std::uint32_t stateIndex = 0U;
         stateIndex < group.states.Size(); ++stateIndex) {
-        const VisualState& state = group.states[stateIndex];
+        const VisualStatePlan& state = group.states[stateIndex];
         if (state.name.Empty()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -757,7 +757,7 @@ Base::Result<void> TemplatePrivate::AddVisualStateGroup(
         }
         for (std::uint32_t setterIndex = 0U;
             setterIndex < state.setters.Size(); ++setterIndex) {
-            const VisualStateSetter& setter =
+            const VisualStateSetterPlan& setter =
                 state.setters[setterIndex];
             if (!setter.property.IsValid() ||
                 setter.value.IsUnset()) {
@@ -767,7 +767,7 @@ Base::Result<void> TemplatePrivate::AddVisualStateGroup(
             }
             for (std::uint32_t previous = 0U;
                 previous < setterIndex; ++previous) {
-                const VisualStateSetter& candidate =
+                const VisualStateSetterPlan& candidate =
                     state.setters[previous];
                 if (candidate.property == setter.property &&
                     candidate.targetName.View() ==
@@ -782,7 +782,7 @@ Base::Result<void> TemplatePrivate::AddVisualStateGroup(
     for (std::uint32_t transitionIndex = 0U;
          transitionIndex < group.transitions.Size();
          ++transitionIndex) {
-        const VisualTransition& transition =
+        const VisualTransitionPlan& transition =
             group.transitions[transitionIndex];
         if (transition.generatedDurationMicroseconds == 0U &&
             !transition.storyboard) {
@@ -793,7 +793,7 @@ Base::Result<void> TemplatePrivate::AddVisualStateGroup(
         const auto stateExists =
             [&](Base::StringView name) noexcept {
                 if (name.Empty()) return true;
-                for (const VisualState& state :
+                for (const VisualStatePlan& state :
                      group.states) {
                     if (state.name.View() == name) {
                         return true;
@@ -810,7 +810,7 @@ Base::Result<void> TemplatePrivate::AddVisualStateGroup(
         for (std::uint32_t previous = 0U;
              previous < transitionIndex;
              ++previous) {
-            const VisualTransition& candidate =
+            const VisualTransitionPlan& candidate =
                 group.transitions[previous];
             if (candidate.from.View() ==
                     transition.from.View() &&
@@ -991,7 +991,7 @@ Base::Span<const TemplatePropertyTrigger> TemplatePrivate::Triggers(const Framew
     return {values.Data(), values.Size()};
 }
 
-Base::Span<const VisualStateGroup> TemplatePrivate::VisualStateGroups(const FrameworkTemplate& value) noexcept {
+Base::Span<const VisualStateGroupPlan> TemplatePrivate::VisualStateGroups(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     if (state == nullptr) return {};
     const auto& values = state->sealed ? state->program.visualStateGroups : state->visualStateGroups;
@@ -1063,10 +1063,10 @@ Base::Result<void> TemplatePrivate::Seal(
     }
     for (std::uint32_t groupIndex = 0U;
         groupIndex < templateState->visualStateGroups.Size(); ++groupIndex) {
-        const VisualStateGroup& group =
+        const VisualStateGroupPlan& group =
             templateState->visualStateGroups[groupIndex];
-        for (const VisualState& state : group.states) {
-            for (const VisualStateSetter& setter : state.setters) {
+        for (const VisualStatePlan& state : group.states) {
+            for (const VisualStateSetterPlan& setter : state.setters) {
                 const DependencyProperty* property =
                     properties.Find(setter.property);
                 if (property == nullptr || property->GetIsReadOnly()) {
@@ -1082,9 +1082,9 @@ Base::Result<void> TemplatePrivate::Seal(
                 if (!valid) return valid.GetStatus();
                 for (std::uint32_t otherIndex = 0U;
                     otherIndex < groupIndex; ++otherIndex) {
-                    for (const VisualState& otherState :
+                    for (const VisualStatePlan& otherState :
                         templateState->visualStateGroups[otherIndex].states) {
-                        for (const VisualStateSetter& otherSetter :
+                        for (const VisualStateSetterPlan& otherSetter :
                             otherState.setters) {
                             if (otherSetter.property ==
                                     setter.property &&
@@ -1129,15 +1129,16 @@ bool Control::ApplyTemplate() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return false;
     if (Detail::ControlPrivate::IsTemplateApplied(*this)) return false;
-    if (templateRuntime_ == nullptr) {
+    auto* templateRuntime = static_cast<TemplateEngine*>(
+        ::Aero::Visual::Impl::TemplateRuntime(*this));
+    if (templateRuntime == nullptr) {
         return false;
     }
     const Base::Ref<ControlTemplate> value =
         GetValue(TemplateProperty);
     if (!value) return false;
     Base::Result<TemplateHandle> applied =
-        static_cast<TemplateEngine*>(templateRuntime_)->
-            Apply(*this, *value);
+        templateRuntime->Apply(*this, *value);
     if (!applied) return false;
     // TemplateEngine has now completed its instance transaction and installed
     // the handle/name scope. Derived controls may safely resolve PART_* and
@@ -1148,29 +1149,38 @@ bool Control::ApplyTemplate() noexcept {
 
 DependencyObject* Control::GetTemplateChild(
     Base::StringView name) const noexcept {
-    if (templateRuntime_ == nullptr ||
+    auto* templateRuntime = static_cast<TemplateEngine*>(
+        ::Aero::Visual::Impl::TemplateRuntime(*this));
+    if (templateRuntime == nullptr ||
         templateHandleValue_ == 0U ||
         name.Empty()) {
         return nullptr;
     }
-    return static_cast<TemplateEngine*>(templateRuntime_)->FindName(
+    return templateRuntime->FindName(
         TemplateHandle{templateHandleValue_}, name);
 }
 
 DependencyObject* Control::GetTemplateChild(
     TypeId type) const noexcept {
-    if (templateRuntime_ == nullptr ||
+    auto* templateRuntime = static_cast<TemplateEngine*>(
+        ::Aero::Visual::Impl::TemplateRuntime(*this));
+    if (templateRuntime == nullptr ||
         templateHandleValue_ == 0U ||
         type == InvalidTypeId) {
         return nullptr;
     }
-    return static_cast<TemplateEngine*>(templateRuntime_)->FindPart(
+    return templateRuntime->FindPart(
         TemplateHandle{templateHandleValue_}, type);
 }
 
+} // namespace Aero::Controls
+
+namespace Aero {
+
 void FrameworkTemplate::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
-    Detail::FrameworkTemplateState* state = static_cast<Detail::FrameworkTemplateState*>(state_);
+    Controls::Detail::FrameworkTemplateState* state =
+        static_cast<Controls::Detail::FrameworkTemplateState*>(state_);
     if (state == nullptr) return;
     (void)Aero::GuiPrivate::Detail::AssignResourceDictionary(
         state->resources,
@@ -1178,7 +1188,7 @@ void FrameworkTemplate::SetResources(
         "FrameworkTemplate Resources is already assigned");
 }
 
-} // namespace Aero::Controls
+} // namespace Aero
 
 namespace Aero::Controls::Detail {
 

@@ -858,7 +858,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
 void Path::ReleaseMesh() noexcept {
     auto* services =
         static_cast<Aero::Render::Detail::MeshResources*>(
-            meshServices_);
+            Visual::Impl::MeshResourcesRuntime(*this));
     if (mesh_ != InvalidRenderMeshId &&
         services != nullptr &&
         services->release != nullptr &&
@@ -885,8 +885,11 @@ void Path::AttachMeshResources(
     auto* services =
         static_cast<Aero::Render::Detail::MeshResources*>(
             rawServices);
+    auto* currentServices =
+        static_cast<Aero::Render::Detail::MeshResources*>(
+            Visual::Impl::MeshResourcesRuntime(*this));
     if (!force &&
-        meshServices_ == rawServices &&
+        currentServices == services &&
         (services == nullptr ||
          meshServiceGeneration_ ==
              services->generation)) {
@@ -901,7 +904,6 @@ void Path::AttachMeshResources(
         mesh_ = InvalidRenderMeshId;
         strokeMesh_ = InvalidRenderMeshId;
     }
-    meshServices_ = services;
     meshServiceGeneration_ =
         services != nullptr ? services->generation : 0U;
 }
@@ -912,7 +914,7 @@ Base::Result<void> Path::EnsureMesh() noexcept {
     if (!geometry) return geometry.GetStatus();
     auto* services =
         static_cast<Aero::Render::Detail::MeshResources*>(
-            meshServices_);
+            Visual::Impl::MeshResourcesRuntime(*this));
     if (services == nullptr ||
         services->create == nullptr) {
         return {};

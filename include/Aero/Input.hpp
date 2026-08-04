@@ -130,10 +130,10 @@ public:
     ~ICommand() override = default;
 
     virtual Base::Result<bool> CanExecute(
-        const Meta::Value& parameter,
+        const Value& parameter,
         UIElement* target = nullptr) noexcept = 0;
     virtual void Execute(
-        const Meta::Value& parameter,
+        const Value& parameter,
         UIElement* target = nullptr) noexcept = 0;
 
     void AddCanExecuteChanged(
@@ -197,10 +197,10 @@ public:
     bool MatchesInput(const KeyboardInput& input) const noexcept;
 
     Base::Result<bool> CanExecute(
-        const Meta::Value& parameter,
+        const Value& parameter,
         UIElement* target = nullptr) noexcept override;
     void Execute(
-        const Meta::Value& parameter,
+        const Value& parameter,
         UIElement* target = nullptr) noexcept override;
 
     void InvalidateCanExecute() const noexcept {

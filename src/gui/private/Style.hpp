@@ -62,6 +62,24 @@ public:
 
 namespace Aero {
 
+struct StyleSetter {
+    DependencyPropertyHandle property;
+    PropertyValue value;
+};
+
+struct StyleTriggerSetter {
+    DependencyPropertyHandle property;
+    PropertyValue value;
+};
+
+struct TriggerPlan {
+    DependencyPropertyHandle property;
+    PropertyValue value;
+    Base::Vector<StyleTriggerSetter> setters;
+    Base::Vector<Base::Ref<Base::Object>> enterActions;
+    Base::Vector<Base::Ref<Base::Object>> exitActions;
+};
+
 struct Style::Impl {
     static Base::Result<void> Seal(
         Style& style,
@@ -72,7 +90,9 @@ struct Style::Impl {
         const Style& style) noexcept;
 
     Impl() noexcept
-        : setters(&Base::GetDefaultAllocator()),
+        : authoredSetters(&Base::GetDefaultAllocator()),
+          authoredTriggers(&Base::GetDefaultAllocator()),
+          setters(&Base::GetDefaultAllocator()),
           triggers(&Base::GetDefaultAllocator()) {}
     Impl(Impl&&) noexcept = default;
     Impl& operator=(Impl&&) noexcept = default;
@@ -90,9 +110,17 @@ struct Style::Impl {
         TypeId valueTargetType,
         Base::Vector<StyleSetter>&& valueSetters,
         Base::Vector<TriggerPlan>&& valueTriggers) noexcept;
+    Base::Result<void> AddAuthoredSetter(
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept;
+    Base::Result<void> AddAuthoredTrigger(
+        TriggerPlan trigger) noexcept;
+    void ClearAuthored() noexcept;
     void Reset() noexcept;
 
     TypeId targetType = InvalidTypeId;
+    Base::Vector<StyleSetter> authoredSetters;
+    Base::Vector<TriggerPlan> authoredTriggers;
     Base::Vector<StyleSetter> setters;
     Base::Vector<TriggerPlan> triggers;
     bool frozen = false;
@@ -104,7 +132,6 @@ namespace Aero::GuiPrivate::Detail {
 using StylePrivate = ::Aero::Style::Impl;
 }
 
-#include "gui/GuiPrivate.hpp"
 #include "gui/GuiPrivate.hpp"
 
 

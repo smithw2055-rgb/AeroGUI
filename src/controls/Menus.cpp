@@ -2,7 +2,6 @@
 #include <Aero/Controls/Common.hpp>
 
 #include <utility>
-#include "gui/GuiPrivate.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
@@ -110,16 +109,16 @@ void MenuItem::SetCommand(
         CommandProperty, std::move(command));
 }
 
-Base::Ref<Base::Object>
+Value
 MenuItem::GetCommandParameter() const noexcept {
     return GetValueOr(
         CommandParameterProperty,
-        Base::Ref<Base::Object>{});
+        Value::NullObject(TypeOf<Base::Object>()));
 }
 
 void
 MenuItem::SetCommandParameter(
-    Base::Ref<Base::Object> value) noexcept {
+    Value value) noexcept {
     SetValue(
         CommandParameterProperty,
         std::move(value));
@@ -230,10 +229,10 @@ void MenuItem::SetRoleState(
 }
 
 Menu::~Menu() {
-    if (interactions_ != nullptr) {
-        static_cast<void>(
-            static_cast<MenuBehavior*>(
-                interactions_)->Detach(*this));
+    auto* behaviors = static_cast<Detail::ControlBehavior*>(
+        Visual::Impl::ControlBehaviorRuntime(*this));
+    if (behaviors != nullptr) {
+        static_cast<void>(behaviors->Detach(*this));
     }
 }
 
@@ -399,8 +398,7 @@ Menu* Menu::Impl::ResolveMenu(
 Base::Result<void>
 Menu::Impl::Attach(
     Menu& menu) noexcept {
-    if (menu.interactions_ != nullptr ||
-        Aero::GuiPrivate::Detail::ElementPrivate::Tree(menu) != tree_ ||
+    if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(menu) != tree_ ||
         FindMenu(menu) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -422,7 +420,6 @@ Menu::Impl::Attach(
             mouseDownHandler_));
         return stored.GetStatus();
     }
-    menu.interactions_ = this;
     return {};
 }
 
@@ -445,7 +442,6 @@ Menu::Impl::Detach(
             records_[current + 1U];
     }
     records_.PopBack();
-    menu.interactions_ = nullptr;
     return true;
 }
 
@@ -496,13 +492,9 @@ Base::Result<void>
     if (!raised) return raised.GetStatus();
     ICommand* command = item.GetCommand();
     if (command != nullptr) {
-        Base::Ref<Base::Object> parameter =
-            item.GetCommandParameter();
-        const Value value = Value::FromObject(
-            TypeOf<Base::Object>(),
-            std::move(parameter));
+        const Value parameter = item.GetCommandParameter();
         Base::Result<bool> executed =
-            input_->Execute(*command, value, item);
+            input_->Execute(*command, parameter, item);
         if (!executed) {
             return executed.GetStatus();
         }

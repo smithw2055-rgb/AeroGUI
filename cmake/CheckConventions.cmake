@@ -57,14 +57,50 @@ endif()
 set(public_result_property_mutators)
 foreach(path IN LISTS aero_public_headers)
     file(READ "${path}" content)
+    file(RELATIVE_PATH relative "${AERO_SOURCE_DIR}" "${path}")
     string(REGEX REPLACE
         "Base::Result<void>[ \t\r\n]+([A-Za-z_][A-Za-z0-9_:]*::)?(Set|Clear|Reset|Notify)[A-Za-z0-9_]*Checked[ \t\r\n]*[(]"
         "" content_without_checked_mutators "${content}")
+    # Style and Setter Set() are authoring/build operations: type conversion,
+    # sealing and allocation can fail, so R4 keeps their direct Result API.
+    if(relative STREQUAL "include/Aero/Style.hpp" OR
+       relative STREQUAL "include/Aero/Triggers/TriggerBase.hpp")
+        string(REGEX REPLACE
+            "Base::Result<void>[ \t\r\n]+Set[ \t\r\n]*[(]"
+            "" content_without_checked_mutators
+            "${content_without_checked_mutators}")
+    endif()
+    if(relative STREQUAL "include/Aero/Controls/Items.hpp")
+        string(REGEX REPLACE
+            "Base::Result<void>[ \t\r\n]+(Reset|SetHeader)[ \t\r\n]*[(]"
+            "" content_without_checked_mutators
+            "${content_without_checked_mutators}")
+    endif()
+    if(relative STREQUAL "include/Aero/Styling.hpp")
+        string(REGEX REPLACE
+            "Base::Result<void>[ \t\r\n]+Set[A-Za-z0-9_]*[ \t\r\n]*[(]"
+            "" content_without_checked_mutators
+            "${content_without_checked_mutators}")
+    endif()
+    if(relative STREQUAL "include/Aero/FrameworkElement.hpp" OR
+       relative STREQUAL "include/Aero/Documents.hpp" OR
+       relative STREQUAL "include/Aero/Controls/Panels.hpp" OR
+       relative STREQUAL "include/Aero/Controls/Text.hpp")
+        string(REGEX REPLACE
+            "Base::Result<void>[ \t\r\n]+SetFontFamily[ \t\r\n]*[(]"
+            "" content_without_checked_mutators
+            "${content_without_checked_mutators}")
+    endif()
+    if(relative STREQUAL "include/Aero/Controls/Common.hpp")
+        string(REGEX REPLACE
+            "Base::Result<void>[ \t\r\n]+SetHeader[ \t\r\n]*[(]"
+            "" content_without_checked_mutators
+            "${content_without_checked_mutators}")
+    endif()
     string(REGEX MATCH
         "Base::Result<void>[ \t\r\n]+([A-Za-z_][A-Za-z0-9_:]*::)?(Set|Clear|Reset|Notify)[A-Za-z0-9_]*[ \t\r\n]*[(]"
         forbidden_result_mutator "${content_without_checked_mutators}")
     if(forbidden_result_mutator)
-        file(RELATIVE_PATH relative "${AERO_SOURCE_DIR}" "${path}")
         list(APPEND public_result_property_mutators "${relative}")
     endif()
 endforeach()

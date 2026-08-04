@@ -190,7 +190,7 @@ using namespace Aero::Threading;
     FrameworkElement* element =
         target.AsFrameworkElement();
     if (element != nullptr) {
-        Result<Ref<Object>> context =
+        Result<Value> context =
             element->GetDataContextResult();
         if (!context) {
             return context.GetStatus();
