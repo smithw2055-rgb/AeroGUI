@@ -3020,7 +3020,7 @@ Base::Result<void> ObjectBuilder::WriteText(
                     node.Source());
             }
             return WriteValue(
-                frame,
+                frame.objectIndex,
                 content.Value(),
                 std::move(value),
                 node.Source());

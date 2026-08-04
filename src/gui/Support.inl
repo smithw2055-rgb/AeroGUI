@@ -421,7 +421,13 @@ void AddMergedDictionary(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    return;
+    if (!value ||
+        value->RuntimeType() != ResourceDictionary::StaticTypeId()) {
+        return;
+    }
+    static_cast<void>(
+        static_cast<ResourceDictionary&>(owner).AddMerged(
+            static_cast<ResourceDictionary&>(*value)));
 }
 
 void ClearMergedDictionaries(
@@ -507,7 +513,9 @@ void AddTriggerEnterAction(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    return;
+    if (!value) return;
+    static_cast<void>(
+        static_cast<TriggerBase&>(owner).AddEnterAction(value));
 }
 
 void ClearTriggerEnterActions(
@@ -522,7 +530,9 @@ void AddTriggerExitAction(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    return;
+    if (!value) return;
+    static_cast<void>(
+        static_cast<TriggerBase&>(owner).AddExitAction(value));
 }
 
 void ClearTriggerExitActions(
@@ -537,10 +547,14 @@ void AddDataTriggerSetter(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Setter> retained =
         Base::Ref<Setter>::TryFromBorrowed(
             static_cast<Setter&>(*value));
-    return;
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<DataTrigger&>(owner).AddAuthoredSetter(
+            std::move(retained)));
 }
 
 void ClearDataTriggerSetters(
@@ -555,10 +569,14 @@ void AddMultiDataCondition(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Condition> retained =
         Base::Ref<Condition>::TryFromBorrowed(
             static_cast<Condition&>(*value));
-    return;
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<MultiDataTrigger&>(owner).AddCondition(
+            std::move(retained)));
 }
 
 void ClearMultiDataConditions(
@@ -573,10 +591,14 @@ void AddMultiDataSetter(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Setter> retained =
         Base::Ref<Setter>::TryFromBorrowed(
             static_cast<Setter&>(*value));
-    return;
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<MultiDataTrigger&>(owner).AddAuthoredSetter(
+            std::move(retained)));
 }
 
 void ClearMultiDataSetters(
@@ -591,10 +613,14 @@ void AddMultiTriggerCondition(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Condition> retained =
         Base::Ref<Condition>::TryFromBorrowed(
             static_cast<Condition&>(*value));
-    return;
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<MultiTrigger&>(owner).AddCondition(
+            std::move(retained)));
 }
 
 void ClearMultiTriggerConditions(
@@ -608,10 +634,14 @@ void AddMultiTriggerSetter(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Setter> retained =
         Base::Ref<Setter>::TryFromBorrowed(
             static_cast<Setter&>(*value));
-    return;
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<MultiTrigger&>(owner).AddAuthoredSetter(
+            std::move(retained)));
 }
 
 void ClearMultiTriggerSetters(
@@ -625,32 +655,41 @@ void AddFrameworkEventTrigger(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Media::Animation::EventTrigger> retained =
         Base::Ref<Media::Animation::EventTrigger>::TryFromBorrowed(
             static_cast<Media::Animation::EventTrigger&>(*value));
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(
+        ::Aero::Visual::Impl::AddAuthoredTrigger(
+            static_cast<FrameworkElement&>(owner),
+            Base::Ref<Base::Object>(std::move(retained))));
 }
 
 void ClearFrameworkEventTriggers(
     Base::Object& owner,
     void*) noexcept {
-    return;
+    static_cast<void>(
+        ::Aero::Visual::Impl::ClearAuthoredTriggers(
+            static_cast<FrameworkElement&>(owner)));
 }
 
 void AddStoryboardTimeline(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Media::Animation::Timeline> retained =
         Base::Ref<Media::Animation::Timeline>::TryFromBorrowed(
             static_cast<Media::Animation::Timeline&>(*value));
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(
+        static_cast<Media::Animation::Storyboard&>(owner)
+            .AddTimeline(std::move(retained)));
 }
 
 void ClearStoryboardTimelines(
@@ -810,13 +849,16 @@ void AddDoubleKeyFrame(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Media::Animation::DoubleKeyFrame> retained =
         Base::Ref<Media::Animation::DoubleKeyFrame>::TryFromBorrowed(
             static_cast<Media::Animation::DoubleKeyFrame&>(*value));
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(
+        static_cast<Media::Animation::DoubleAnimationUsingKeyFrames&>(
+            owner).AddKeyFrame(std::move(retained)));
 }
 
 void ClearDoubleKeyFrames(
@@ -831,6 +873,7 @@ void AddThicknessKeyFrame(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Media::Animation::ThicknessKeyFrame> retained =
         Base::Ref<Media::Animation::ThicknessKeyFrame>::
             TryFromBorrowed(
@@ -840,7 +883,9 @@ void AddThicknessKeyFrame(
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(
+        static_cast<Media::Animation::ThicknessAnimationUsingKeyFrames&>(
+            owner).AddKeyFrame(std::move(retained)));
 }
 
 void ClearThicknessKeyFrames(
@@ -855,13 +900,16 @@ void AddColorKeyFrame(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Media::Animation::ColorKeyFrame> retained =
         Base::Ref<Media::Animation::ColorKeyFrame>::TryFromBorrowed(
             static_cast<Media::Animation::ColorKeyFrame&>(*value));
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(
+        static_cast<Media::Animation::ColorAnimationUsingKeyFrames&>(
+            owner).AddKeyFrame(std::move(retained)));
 }
 
 void ClearColorKeyFrames(
@@ -876,13 +924,16 @@ void AddObjectKeyFrame(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Media::Animation::DiscreteObjectKeyFrame> retained =
         Base::Ref<Media::Animation::DiscreteObjectKeyFrame>::TryFromBorrowed(
             static_cast<Media::Animation::DiscreteObjectKeyFrame&>(*value));
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(
+        static_cast<Media::Animation::ObjectAnimationUsingKeyFrames&>(
+            owner).AddKeyFrame(std::move(retained)));
 }
 
 void ClearObjectKeyFrames(
@@ -897,13 +948,16 @@ void AddBooleanKeyFrame(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Media::Animation::DiscreteBooleanKeyFrame> retained =
         Base::Ref<Media::Animation::DiscreteBooleanKeyFrame>::TryFromBorrowed(
             static_cast<Media::Animation::DiscreteBooleanKeyFrame&>(*value));
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(
+        static_cast<Media::Animation::BooleanAnimationUsingKeyFrames&>(
+            owner).AddKeyFrame(std::move(retained)));
 }
 
 void ClearBooleanKeyFrames(
@@ -918,13 +972,16 @@ void AddEventTriggerAction(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Media::Animation::TriggerAction> retained =
         Base::Ref<Media::Animation::TriggerAction>::TryFromBorrowed(
             static_cast<Media::Animation::TriggerAction&>(*value));
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(
+        static_cast<Media::Animation::EventTrigger&>(owner)
+            .AddAction(std::move(retained)));
 }
 
 void ClearEventTriggerActions(
@@ -936,14 +993,24 @@ void ClearEventTriggerActions(
 
 void AddEventTriggerBehavior(
     Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {
-    return;
+    if (!value) return;
+    static_cast<void>(
+        static_cast<Media::Animation::EventTrigger&>(owner)
+            .AddConditionBehavior(value));
 }
 void ClearEventTriggerBehaviors(Base::Object& owner, void*) noexcept {
     static_cast<Media::Animation::EventTrigger&>(owner).ClearConditionBehaviors(); return;
 }
 void AddConditionalComparison(
     Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {
-    return;
+    if (!value) return;
+    Base::Ref<Media::Animation::ComparisonCondition> retained =
+        Base::Ref<Media::Animation::ComparisonCondition>::TryFromBorrowed(
+            static_cast<Media::Animation::ComparisonCondition&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<Media::Animation::ConditionalExpression&>(owner)
+            .AddCondition(std::move(retained)));
 }
 void ClearConditionalComparisons(Base::Object& owner, void*) noexcept {
     static_cast<Media::Animation::ConditionalExpression&>(owner).ClearConditions(); return;
@@ -964,13 +1031,16 @@ void AddStoryboardCompletedTriggerAction(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Media::Animation::TriggerAction> retained =
         Base::Ref<Media::Animation::TriggerAction>::TryFromBorrowed(
             static_cast<Media::Animation::TriggerAction&>(*value));
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(
+        static_cast<Media::Animation::StoryboardCompletedTrigger&>(owner)
+            .AddAction(std::move(retained)));
 }
 
 void ClearStoryboardCompletedTriggerActions(
@@ -988,13 +1058,13 @@ void AddInteractionTrigger(
     if (!value) {
         return;
     }
-    return;
+    static_cast<void>(owner);
 }
 
 void ClearInteractionTriggers(
     Base::Object& owner,
     void*) noexcept {
-    return;
+    static_cast<void>(owner);
 }
 
 void SetBeginStoryboardContent(
@@ -1024,13 +1094,16 @@ void AddTransformGroupChild(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
+    if (!value) return;
     Base::Ref<Transform> retained =
         Base::Ref<Transform>::TryFromBorrowed(
             static_cast<Transform&>(*value));
     if (!retained) {
         return;
     }
-    return;
+    static_cast<void>(
+        static_cast<TransformGroup&>(owner)
+            .AddChild(std::move(retained)));
 }
 
 void ClearTransformGroupChildren(

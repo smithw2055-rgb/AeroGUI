@@ -2887,8 +2887,6 @@ RegistrationTypes::RegisterCollectionChangeNotification(
 
 namespace Aero::Meta {
 
-using namespace Meta;
-
 struct Registry::Storage {
     struct ModuleRecord {
         MetadataModuleId id = InvalidMetadataModuleId;
@@ -3393,8 +3391,6 @@ Base::Result<Base::HashCode> Registry::ComputeSchemaHash() const noexcept {
 // Executable metadata operations share the Registry storage and lifetime.
 
 namespace Aero::Meta {
-
-using namespace Meta;
 
 Base::Result<void> Registry::RegisterPropertyProvider(
     const MetadataPropertyProviderRegistration& registration) noexcept {
@@ -4201,7 +4197,6 @@ Registry::FindProvider(
 
 namespace Aero::Meta {
 
-using namespace Meta;
 namespace {
 
 ::Aero::GuiPrivate::Detail::RegistrationState& State(void* value) noexcept {

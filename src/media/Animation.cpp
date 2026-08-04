@@ -804,12 +804,12 @@ void BeginStoryboard::SetStoryboard(
 
 void BeginStoryboard::SetName(
     Base::StringView value) noexcept {
-    return;
+    static_cast<void>(name_.Assign(value));
 }
 
 void ChangePropertyAction::SetTargetName(
     Base::StringView value) noexcept {
-    return;
+    static_cast<void>(targetName_.Assign(value));
 }
 
 void ChangePropertyAction::SetPropertyName(
@@ -819,7 +819,7 @@ void ChangePropertyAction::SetPropertyName(
     if (trimmed.Empty()) {
         return;
     }
-    return;
+    static_cast<void>(propertyName_.Assign(trimmed));
 }
 
 void ChangePropertyAction::SetValue(
@@ -833,7 +833,7 @@ void ChangePropertyAction::SetValue(
 
 void LaunchUriOrFileAction::SetPath(
     Base::StringView value) noexcept {
-    return;
+    static_cast<void>(path_.Assign(value));
 }
 
 void
@@ -844,7 +844,7 @@ ControllableStoryboardAction::SetBeginStoryboardName(
     if (trimmed.Empty()) {
         return;
     }
-    return;
+    static_cast<void>(beginStoryboardName_.Assign(trimmed));
 }
 
 void SeekStoryboard::SetOffset(
@@ -868,12 +868,12 @@ void EventTrigger::SetRoutedEvent(
     if (trimmed.Empty()) {
         return;
     }
-    return;
+    static_cast<void>(routedEvent_.Assign(trimmed));
 }
 
 void EventTrigger::SetSourceName(
     Base::StringView value) noexcept {
-    return;
+    static_cast<void>(sourceName_.Assign(value));
 }
 
 Base::Result<void> EventTrigger::AddAction(

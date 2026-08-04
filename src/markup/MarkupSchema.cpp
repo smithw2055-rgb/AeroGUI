@@ -882,15 +882,13 @@ Base::Result<void> PopulateMarkupMetadata(
         Meta::Register<VisualStateManager>(
             context, TypeFlags::Abstract);
     visualStateManager
-        .Property(
-            VisualStateManager::VisualStateGroupsProperty,
-            PropertyOptions(Base::Ref<VisualStateGroupCollection>{})
-                .Structural())
-        .ContentAccessor(
-            VisualStateManager::VisualStateGroupsProperty.Id(),
-            ContentKind::Collection,
+        .Collection<Base::Object>(
+            "VisualStateGroups",
             &AddElementVisualStateGroup,
-            &ClearElementVisualStateGroups);
+            &ClearElementVisualStateGroups,
+            PropertyFlags::Structural |
+                PropertyFlags::Collection |
+                PropertyFlags::Attached);
     status = visualStateManager.Result();
     if (!status) return status.GetStatus();
 

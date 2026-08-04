@@ -43,7 +43,7 @@ TreeViewItem::TreeViewItem(
 
 TreeViewItem::~TreeViewItem() {
     if (childItems_ != nullptr) {
-    childItems_->SetItemsSource(static_cast<Collections::IItemsSource*>(nullptr));
+        childItems_->SetItemsSourceBorrowed(nullptr);
     }
     static_cast<void>(RemoveValueChangedHandler(
         HeaderProperty, headerChangedHandler_));
@@ -176,13 +176,13 @@ TreeViewItem::OnApplyTemplate() noexcept {
         childItems_ == nullptr) {
         return;
     }
-    childItems_->SetItemsSource(this);
+    childItems_->SetItemsSourceBorrowed(this);
     static_cast<void>(SynchronizeTemplate());
 }
 
 void TreeViewItem::OnTemplateDetached() noexcept {
     if (childItems_ != nullptr) {
-        childItems_->SetItemsSource(static_cast<Collections::IItemsSource*>(nullptr));
+        childItems_->SetItemsSourceBorrowed(nullptr);
     }
     headerText_ = nullptr;
     iconText_ = nullptr;
