@@ -212,6 +212,17 @@ void GradientBrush::SetMappingMode(
     SetValue(MappingModeProperty, value);
 }
 
+GradientSpreadMethod GradientBrush::GetSpreadMethod() const noexcept {
+    return GetValueOr(
+        SpreadMethodProperty,
+        GradientSpreadMethod::Pad);
+}
+
+void GradientBrush::SetSpreadMethod(
+    GradientSpreadMethod value) noexcept {
+    SetValue(SpreadMethodProperty, value);
+}
+
 Point LinearGradientBrush::GetStartPoint() const noexcept {
     return GetValueOr(StartPointProperty, Point{0.0, 0.0});
 }
@@ -409,10 +420,78 @@ Base::Result<void> PaintBrushRect(
         source.width = std::clamp(source.width, 0.0, 1.0 - source.x);
         source.height = std::clamp(source.height, 0.0, 1.0 - source.y);
         if (source.width <= 0.0 || source.height <= 0.0) return {};
-        return builder.DrawImage(
-            image, bounds, source,
-            Color{1.0F, 1.0F, 1.0F,
-                  static_cast<float>(imageBrush.GetOpacity())});
+        Rect viewport = imageBrush.GetViewport();
+        if (imageBrush.GetViewportUnits() ==
+            BrushMappingMode::RelativeToBoundingBox) {
+            viewport = {
+                bounds.x + viewport.x * bounds.width,
+                bounds.y + viewport.y * bounds.height,
+                viewport.width * bounds.width,
+                viewport.height * bounds.height};
+        } else {
+            viewport.x += bounds.x;
+            viewport.y += bounds.y;
+        }
+        if (!Aero::IsFinite(viewport) ||
+            imageBrush.GetTileMode() == TileMode::None ||
+            viewport.width <= 0.0 || viewport.height <= 0.0) {
+            viewport = bounds;
+        }
+        const bool tiled = imageBrush.GetTileMode() != TileMode::None;
+        const std::int32_t firstColumn = tiled
+            ? static_cast<std::int32_t>(std::floor(
+                (bounds.x - viewport.x) / viewport.width))
+            : 0;
+        const std::int32_t requestedLastColumn = tiled
+            ? static_cast<std::int32_t>(std::ceil(
+                (bounds.x + bounds.width - viewport.x) / viewport.width))
+            : 1;
+        const std::int32_t lastColumn = std::min(
+            requestedLastColumn, firstColumn + 256);
+        const std::int32_t firstRow = tiled
+            ? static_cast<std::int32_t>(std::floor(
+                (bounds.y - viewport.y) / viewport.height))
+            : 0;
+        const std::int32_t requestedLastRow = tiled
+            ? static_cast<std::int32_t>(std::ceil(
+                (bounds.y + bounds.height - viewport.y) / viewport.height))
+            : 1;
+        const std::int32_t lastRow = std::min(
+            requestedLastRow, firstRow + 256);
+        for (std::int32_t row = firstRow; row < lastRow; ++row) {
+            for (std::int32_t column = firstColumn;
+                 column < lastColumn; ++column) {
+                Rect tile{
+                    viewport.x + column * viewport.width,
+                    viewport.y + row * viewport.height,
+                    viewport.width, viewport.height};
+                tile = Aero::Intersect(tile, bounds);
+                if (tile.width <= 0.0 || tile.height <= 0.0) continue;
+                Rect uv = source;
+                const double relativeX =
+                    (tile.x - (viewport.x + column * viewport.width)) /
+                    viewport.width;
+                const double relativeY =
+                    (tile.y - (viewport.y + row * viewport.height)) /
+                    viewport.height;
+                uv.x += uv.width * relativeX;
+                uv.y += uv.height * relativeY;
+                uv.width *= tile.width / viewport.width;
+                uv.height *= tile.height / viewport.height;
+                const Point center{
+                    (tile.x - bounds.x + tile.width * 0.5) / bounds.width,
+                    (tile.y - bounds.y + tile.height * 0.5) / bounds.height};
+                const Color tint = Detail::SampleBrush(
+                    brush, 0.5,
+                    {1.0F, 1.0F, 1.0F,
+                     static_cast<float>(imageBrush.GetOpacity())},
+                    center, Base::Size{bounds.width, bounds.height});
+                Base::Result<void> drawn =
+                    builder.DrawImage(image, tile, uv, tint);
+                if (!drawn) return drawn.GetStatus();
+            }
+        }
+        return {};
     }
     if (brush->RuntimeType() ==
         LinearGradientBrush::StaticTypeId()) {
@@ -460,14 +539,25 @@ Base::Result<void> PaintBrushRect(
                         bounds.height + 0.5};
             const double centerX = band.x + band.width * 0.5;
             const double centerY = band.y + band.height * 0.5;
+            Point samplePoint{centerX, centerY};
+            Base::Transform2D inverse;
+            if (gradient.GetRelativeTransform() &&
+                InvertTransform(
+                    gradient.GetRelativeTransform()->GetMatrix(), inverse)) {
+                samplePoint = TransformPoint(inverse, samplePoint);
+            }
             const double position =
-                ((centerX - start.x) * axisX +
-                 (centerY - start.y) * axisY) /
+                ((samplePoint.x - start.x) * axisX +
+                 (samplePoint.y - start.y) * axisY) /
                 axisLengthSquared;
             Base::Result<void> painted =
                 builder.FillRect(
                     band,
-                    ::Aero::Media::Detail::SampleGradient(gradient, position));
+                    ::Aero::Media::Detail::SampleBrush(
+                        brush, position, {},
+                        {(centerX - bounds.x) / bounds.width,
+                         (centerY - bounds.y) / bounds.height},
+                        Base::Size{bounds.width, bounds.height}));
             if (!painted) {
                 return painted.GetStatus();
             }
@@ -507,6 +597,13 @@ Base::Result<void> PaintBrushRect(
                     (beginX + endX) * 0.5;
                 const double y =
                     (beginY + endY) * 0.5;
+                Point sample{x, y};
+                Base::Transform2D inverse;
+                if (gradient.GetRelativeTransform() &&
+                    InvertTransform(
+                        gradient.GetRelativeTransform()->GetMatrix(), inverse)) {
+                    sample = TransformPoint(inverse, sample);
+                }
 
                 // WPF's common centered radial gradient maps
                 // normalized ellipse distance directly to the
@@ -519,16 +616,13 @@ Base::Result<void> PaintBrushRect(
                 const double focalY =
                     (origin.y - center.y) / radiusY;
                 const double normalizedX =
-                    (x - center.x) / radiusX -
+                    (sample.x - center.x) / radiusX -
                     focalX;
                 const double normalizedY =
-                    (y - center.y) / radiusY -
+                    (sample.y - center.y) / radiusY -
                     focalY;
-                const double position = std::clamp(
-                    std::hypot(
-                        normalizedX, normalizedY),
-                    0.0,
-                    1.0);
+                const double position =
+                    std::hypot(normalizedX, normalizedY);
                 Base::Result<void> painted =
                     builder.FillRect(
                         Rect{
@@ -540,7 +634,10 @@ Base::Result<void> PaintBrushRect(
                                 bounds.width + 0.25,
                             (endY - beginY) *
                                 bounds.height + 0.25},
-                        ::Aero::Media::Detail::SampleGradient(gradient, position));
+                        ::Aero::Media::Detail::SampleBrush(
+                            brush, position, {},
+                            {x, y},
+                            Base::Size{bounds.width, bounds.height}));
                 if (!painted) {
                     return painted.GetStatus();
                 }

@@ -48,6 +48,11 @@ Base::Result<void> PopulateUiStyling(
             Element::IsFocusEngagedProperty,
             PropertyOptions(false).AffectsRender())
         .Property(
+            Element::BlendingModeProperty,
+            PropertyOptions(BlendMode::Normal)
+                .AffectsRender()
+                .Changed(&Element::OnBlendingModeChanged))
+        .Property(
             Element::Transform3DProperty,
             PropertyOptions(Base::Ref<Media::CompositeTransform3D>{})
                 .AffectsRender());

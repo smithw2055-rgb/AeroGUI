@@ -311,6 +311,9 @@ Base::Result<void> PopulateUiAnimation(
     status = Meta::Register<Media::Animation::DiscretePointKeyFrame>(context)
         .Factory().Result();
     if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::EasingPointKeyFrame>(context)
+        .Factory().Result();
+    if (!status) return status.GetStatus();
 
     auto pointFrames =
         Meta::Register<Media::Animation::PointAnimationUsingKeyFrames>(context);

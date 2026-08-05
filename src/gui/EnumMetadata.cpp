@@ -211,6 +211,13 @@ Base::Result<void> PopulateEnumMetadata(
             .Value("RelativeToBoundingBox", ::Aero::Media::BrushMappingMode::RelativeToBoundingBox)
             .Value("Absolute", ::Aero::Media::BrushMappingMode::Absolute););
     AERO_REGISTER_ENUM(
+        ::Aero::Media::GradientSpreadMethod,
+        "GradientSpreadMethod",
+        description
+            .Value("Pad", ::Aero::Media::GradientSpreadMethod::Pad)
+            .Value("Reflect", ::Aero::Media::GradientSpreadMethod::Reflect)
+            .Value("Repeat", ::Aero::Media::GradientSpreadMethod::Repeat););
+    AERO_REGISTER_ENUM(
         ::Aero::Shapes::PenLineJoin,
         "PenLineJoin",
         description

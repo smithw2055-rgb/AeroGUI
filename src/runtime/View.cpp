@@ -1,5 +1,6 @@
 #include <Aero/View.hpp>
 #include <Aero/Audio/Audio.hpp>
+#include <Aero/Media/Geometry.hpp>
 #include <Aero/Triggers/Behavior.hpp>
 #include <Aero/Base/Hash.hpp>
 #include "runtime/GuiData.hpp"
@@ -1157,6 +1158,27 @@ struct View::Impl {
             {Aero::Runtime::Detail::AeroThemeGenericSource,
              static_cast<std::uint32_t>(
                  sizeof(Aero::Runtime::Detail::AeroThemeGenericSource))});
+        if (!status) return status.GetStatus();
+
+        Base::Result<Base::ResourceUri> lightBlue =
+            Base::ResourceUri::Parse(
+                "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.LightBlue.xaml");
+        if (!lightBlue) return lightBlue.GetStatus();
+        status = embeddedXaml.Add(
+            lightBlue.Value(),
+            {Aero::Runtime::Detail::AeroThemeLightSource,
+             static_cast<std::uint32_t>(
+                 sizeof(Aero::Runtime::Detail::AeroThemeLightSource))});
+        if (!status) return status.GetStatus();
+        Base::Result<Base::ResourceUri> darkBlue =
+            Base::ResourceUri::Parse(
+                "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.DarkBlue.xaml");
+        if (!darkBlue) return darkBlue.GetStatus();
+        status = embeddedXaml.Add(
+            darkBlue.Value(),
+            {Aero::Runtime::Detail::AeroThemeDarkSource,
+             static_cast<std::uint32_t>(
+                 sizeof(Aero::Runtime::Detail::AeroThemeDarkSource))});
         if (!status) return status.GetStatus();
 
         status = xamlSources.Register(
@@ -2500,6 +2522,96 @@ struct View::Impl {
     ResolveAnimationProperty(
         ::Aero::DependencyObject& target,
         Base::StringView authoredPath) noexcept {
+        // Object-model geometry uses two indexed collection hops. Resolve the
+        // exact WPF path before the generic collection cases below.
+        const Base::StringView figuresToken("PathGeometry.Figures");
+        const Base::StringView segmentsToken("PathFigure.Segments");
+        const auto findText = [](
+            Base::StringView text,
+            Base::StringView token) noexcept {
+            for (std::uint32_t index = 0U;
+                 index + token.SizeBytes() <= text.SizeBytes();
+                 ++index) {
+                if (text.Substr(index, token.SizeBytes()) == token) {
+                    return index;
+                }
+            }
+            return UINT32_MAX;
+        };
+        if (findText(authoredPath, figuresToken) != UINT32_MAX &&
+            findText(authoredPath, segmentsToken) != UINT32_MAX) {
+            std::uint32_t indices[2]{};
+            std::uint32_t found = 0U;
+            for (std::uint32_t cursor = 0U;
+                 cursor < authoredPath.SizeBytes() && found < 2U;
+                 ++cursor) {
+                if (authoredPath[cursor] != '[') continue;
+                std::uint32_t value = 0U;
+                ++cursor;
+                bool digit = false;
+                while (cursor < authoredPath.SizeBytes() &&
+                       authoredPath[cursor] != ']') {
+                    if (authoredPath[cursor] < '0' ||
+                        authoredPath[cursor] > '9') {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::ValidationFailed,
+                            "PathGeometry Storyboard index must be numeric");
+                    }
+                    digit = true;
+                    value = value * 10U +
+                        static_cast<std::uint32_t>(
+                            authoredPath[cursor] - '0');
+                    ++cursor;
+                }
+                if (!digit) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::ValidationFailed,
+                        "PathGeometry Storyboard index is empty");
+                }
+                indices[found++] = value;
+            }
+            const Meta::DependencyProperty* dataProperty =
+                ::Aero::GuiPrivate::Detail::MetadataPrivate::
+                    DependencyProperties(*metadata).Find(
+                        target.RuntimeType(), "Data");
+            if (found != 2U || dataProperty == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "PathGeometry Storyboard Data property was not found");
+            }
+            Base::Result<Meta::PropertyValue> data =
+                target.GetValue(dataProperty->Handle());
+            if (!data ||
+                data.Value().Kind() != Meta::ValueKind::Object ||
+                !data.Value().AsObject() ||
+                data.Value().AsObject()->RuntimeType() !=
+                    Media::PathGeometry::StaticTypeId()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "Storyboard target Data is not a PathGeometry");
+            }
+            auto& geometry = static_cast<Media::PathGeometry&>(
+                *data.Value().AsObject());
+            const auto figures = geometry.GetFigures();
+            if (indices[0] >= figures.Size() || !figures[indices[0]]) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::OutOfRange,
+                    "Storyboard PathGeometry figure index is invalid");
+            }
+            const auto segments = figures[indices[0]]->GetSegments();
+            if (indices[1] >= segments.Size() || !segments[indices[1]] ||
+                segments[indices[1]]->RuntimeType() !=
+                    Media::LineSegment::StaticTypeId()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::OutOfRange,
+                    "Storyboard PathGeometry segment index is invalid");
+            }
+            auto* line = static_cast<Media::LineSegment*>(
+                segments[indices[1]].Get());
+            return ResolvedAnimationProperty{
+                line, Media::LineSegment::PointProperty.Handle()};
+        }
+
         const auto findDependencyProperty =
             [this](::Aero::DependencyObject& object,
                    Base::StringView authored) noexcept
@@ -3097,6 +3209,70 @@ struct View::Impl {
                 // Owner-qualified direct properties such as
                 // FrameworkElement.MinWidth resolve on the original target.
                 path = nestedProperty;
+            }
+        }
+        // Resolve ordinary and parenthesized object-property chains such as
+        // Foreground.Color and Fill.(aero:Brush.Shader).Time.
+        if (indexedOpen == UINT32_MAX) {
+            ::Aero::DependencyObject* current = propertyTarget;
+            std::uint32_t start = 0U;
+            std::uint32_t depth = 0U;
+            while (start < path.SizeBytes()) {
+                std::uint32_t end = start;
+                std::uint32_t parentheses = 0U;
+                while (end < path.SizeBytes()) {
+                    const char character = path[end];
+                    if (character == '(') ++parentheses;
+                    else if (character == ')' && parentheses != 0U) {
+                        --parentheses;
+                    } else if (character == '.' && parentheses == 0U) {
+                        break;
+                    }
+                    ++end;
+                }
+                Base::StringView token = path.Substr(start, end - start);
+                while (!token.Empty() &&
+                       (token[0] == '(' || token[0] == ' ')) {
+                    token = token.Substr(1U, token.SizeBytes() - 1U);
+                }
+                while (!token.Empty() &&
+                       (token[token.SizeBytes() - 1U] == ')' ||
+                        token[token.SizeBytes() - 1U] == ' ')) {
+                    token = token.Substr(0U, token.SizeBytes() - 1U);
+                }
+                std::uint32_t owner = UINT32_MAX;
+                for (std::uint32_t index = 0U;
+                     index < token.SizeBytes(); ++index) {
+                    if (token[index] == '.') owner = index;
+                }
+                if (owner != UINT32_MAX) {
+                    token = token.Substr(
+                        owner + 1U,
+                        token.SizeBytes() - owner - 1U);
+                }
+                const Meta::DependencyProperty* dependency =
+                    ::Aero::GuiPrivate::Detail::MetadataPrivate::
+                        DependencyProperties(*metadata).Find(
+                            current->RuntimeType(), token);
+                if (dependency == nullptr) break;
+                if (end >= path.SizeBytes()) {
+                    return ResolvedAnimationProperty{
+                        current, dependency->Handle()};
+                }
+                Base::Result<Meta::PropertyValue> value =
+                    current->GetValue(dependency->Handle());
+                if (!value ||
+                    value.Value().Kind() != Meta::ValueKind::Object ||
+                    !value.Value().AsObject() ||
+                    !metadata->Types().IsDerivedFrom(
+                        value.Value().AsObject()->RuntimeType(),
+                        ::Aero::DependencyObject::StaticTypeId())) {
+                    break;
+                }
+                current = static_cast<::Aero::DependencyObject*>(
+                    value.Value().AsObject().Get());
+                start = end + 1U;
+                if (++depth > 16U) break;
             }
         }
         if (path.SizeBytes() >= 2U &&
@@ -8155,6 +8331,19 @@ View::ExecuteFrame() noexcept {
                 state_->animations->LastTickStatus();
             if (!animationStatus.IsOk()) {
                 return animationStatus;
+            }
+            const auto animationDiagnostics =
+                state_->animations->Diagnostics();
+            if (animationDiagnostics.appliedValueCount != 0U) {
+                Aero::Visual* rootVisual = state_->RootVisual();
+                if (rootVisual != nullptr &&
+                    state_->renderer != nullptr) {
+                    Base::Result<void> invalidated =
+                        state_->renderer->Invalidate(
+                            *rootVisual,
+                            Aero::Render::RenderInvalidation::All);
+                    if (!invalidated) return invalidated.GetStatus();
+                }
             }
             Base::Result<std::uint32_t> completed =
                 state_->ProcessStoryboardCompletions();

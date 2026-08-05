@@ -1,5 +1,6 @@
 #include <Aero/Media/Geometry.hpp>
 
+#include <cstdio>
 #include <utility>
 
 namespace Aero::Media {
@@ -46,6 +47,78 @@ bool Geometry::FreezeCore(bool isChecking) noexcept {
         }
     }
     return Freezable::FreezeCore(isChecking);
+}
+
+Base::Result<void> PathFigure::AddSegment(
+    Base::Ref<PathSegment> value) noexcept {
+    Base::Result<void> writable = WritePreamble();
+    if (!writable) return writable.GetStatus();
+    if (!value) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "PathFigure segment cannot be null");
+    }
+    Base::Result<void> added = segments_.PushBack(std::move(value));
+    if (added) WritePostscript();
+    return added;
+}
+
+Base::Result<void> PathGeometry::AddFigure(
+    Base::Ref<PathFigure> value) noexcept {
+    Base::Result<void> writable = WritePreamble();
+    if (!writable) return writable.GetStatus();
+    if (!value) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "PathGeometry figure cannot be null");
+    }
+    Base::Result<void> added = figures_.PushBack(std::move(value));
+    if (added) WritePostscript();
+    return added;
+}
+
+namespace {
+Base::Result<void> AppendPoint(
+    Base::String& output,
+    char command,
+    Base::Point point) noexcept {
+    char text[96]{};
+    const int length = std::snprintf(
+        text, sizeof(text), "%c%.17g,%.17g", command, point.x, point.y);
+    if (length <= 0 || static_cast<std::size_t>(length) >= sizeof(text)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "PathGeometry coordinate text is too large");
+    }
+    return output.Append(Base::StringView(
+        text, static_cast<std::uint32_t>(length)));
+}
+} // namespace
+
+Base::Result<Base::String> PathGeometry::ToStreamData() const noexcept {
+    Base::String result;
+    for (const Base::Ref<PathFigure>& figure : figures_) {
+        if (!figure) continue;
+        Base::Result<void> appended =
+            AppendPoint(result, 'M', figure->GetStartPoint());
+        if (!appended) return appended.GetStatus();
+        for (const Base::Ref<PathSegment>& segment : figure->GetSegments()) {
+            if (!segment || segment->RuntimeType() != LineSegment::StaticTypeId()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "PathGeometry currently supports LineSegment content");
+            }
+            appended = AppendPoint(
+                result, 'L',
+                static_cast<const LineSegment&>(*segment).GetPoint());
+            if (!appended) return appended.GetStatus();
+        }
+        if (figure->GetIsClosed()) {
+            appended = result.Append(Base::StringView("Z"));
+            if (!appended) return appended.GetStatus();
+        }
+    }
+    return result;
 }
 
 } // namespace Aero::Media

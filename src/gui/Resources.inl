@@ -47,6 +47,43 @@ Base::Result<void> PopulateUiResources(
     status = streamGeometry.Result();
     if (!status) return status.GetStatus();
 
+    status = Meta::Register<Media::PathSegment>(
+        context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+
+    auto lineSegment = Meta::Register<Media::LineSegment>(context);
+    lineSegment
+        .Property(
+            Media::LineSegment::PointProperty,
+            PropertyOptions(Point{}).AffectsRender())
+        .Factory();
+    status = lineSegment.Result();
+    if (!status) return status.GetStatus();
+
+    auto pathFigure = Meta::Register<Media::PathFigure>(context);
+    pathFigure
+        .Property(
+            Media::PathFigure::StartPointProperty,
+            PropertyOptions(Point{}).AffectsRender())
+        .Property(
+            Media::PathFigure::IsClosedProperty,
+            PropertyOptions(false).AffectsRender())
+        .Content<Media::PathSegment>(
+            "Segments", ContentKind::Collection,
+            &AddPathFigureSegment, &ClearPathFigureSegments)
+        .Factory();
+    status = pathFigure.Result();
+    if (!status) return status.GetStatus();
+
+    auto pathGeometry = Meta::Register<Media::PathGeometry>(context);
+    pathGeometry
+        .Content<Media::PathFigure>(
+            "Figures", ContentKind::Collection,
+            &AddPathGeometryFigure, &ClearPathGeometryFigures)
+        .Factory();
+    status = pathGeometry.Result();
+    if (!status) return status.GetStatus();
+
     auto fontFamily = Meta::Register<Media::FontFamily>(context);
     fontFamily
         .Property(

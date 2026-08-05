@@ -85,13 +85,16 @@ Base::Result<void> PopulateUiMedia(
         .Property(
             Brush::OpacityProperty,
             PropertyOptions(1.0)
-                .Validate(&ValidateUnitDouble))
+                .Validate(&ValidateUnitDouble)
+                .AffectsRender())
         .Property(
             Brush::ShaderProperty,
-            PropertyOptions(Base::Ref<Base::Object>{}))
+            PropertyOptions(Base::Ref<Base::Object>{})
+                .AffectsRender())
         .Property(
             Brush::RelativeTransformProperty,
-            PropertyOptions(Base::Ref<Transform>{}))
+            PropertyOptions(Base::Ref<Transform>{})
+                .AffectsRender())
         .TextConverter(&ConvertBrushText);
     status = brush.Result();
     if (!status) return status.GetStatus();
@@ -178,6 +181,10 @@ Base::Result<void> PopulateUiMedia(
             GradientBrush::MappingModeProperty,
             PropertyOptions(
                 BrushMappingMode::RelativeToBoundingBox))
+        .Property(
+            GradientBrush::SpreadMethodProperty,
+            PropertyOptions(GradientSpreadMethod::Pad)
+                .AffectsRender())
         .Content<GradientStop>(
             "GradientStops",
             ContentKind::Collection,

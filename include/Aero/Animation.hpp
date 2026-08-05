@@ -481,6 +481,13 @@ public:
         : PointKeyFrame(StaticTypeId()) {}
 };
 
+class AERO_API EasingPointKeyFrame : public PointKeyFrame {
+    AERO_DECLARE_TYPE(EasingPointKeyFrame, PointKeyFrame)
+public:
+    EasingPointKeyFrame() noexcept
+        : PointKeyFrame(StaticTypeId()) {}
+};
+
 class AERO_API PointAnimationUsingKeyFrames : public Timeline {
     AERO_DECLARE_TYPE(PointAnimationUsingKeyFrames, Timeline)
 public:

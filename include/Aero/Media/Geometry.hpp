@@ -3,6 +3,7 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/Vector.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Freezable.hpp>
@@ -67,5 +68,78 @@ public:
 private:
     Base::String data_;
     Rect bounds_{};
+};
+
+class AERO_API PathSegment : public Freezable {
+    AERO_DECLARE_TYPE(PathSegment, Freezable)
+protected:
+    explicit PathSegment(Meta::TypeId runtimeType) noexcept
+        : Freezable(runtimeType) {}
+    ~PathSegment() override = default;
+};
+
+class AERO_API LineSegment : public PathSegment {
+    AERO_DECLARE_TYPE(LineSegment, PathSegment)
+public:
+    LineSegment() noexcept : PathSegment(StaticTypeId()) {}
+    Point GetPoint() const noexcept {
+        return GetValueOr(PointProperty, Point{});
+    }
+    void SetPoint(Point value) noexcept {
+        SetValue(PointProperty, value);
+    }
+    inline static constexpr Members::Property<Point> PointProperty{"Point"};
+};
+
+class AERO_API PathFigure : public Freezable {
+    AERO_DECLARE_TYPE(PathFigure, Freezable)
+public:
+    PathFigure() noexcept : Freezable(StaticTypeId()) {}
+    Point GetStartPoint() const noexcept {
+        return GetValueOr(StartPointProperty, Point{});
+    }
+    void SetStartPoint(Point value) noexcept {
+        SetValue(StartPointProperty, value);
+    }
+    bool GetIsClosed() const noexcept {
+        return GetValueOr(IsClosedProperty, false);
+    }
+    void SetIsClosed(bool value) noexcept {
+        SetValue(IsClosedProperty, value);
+    }
+    Base::Result<void> AddSegment(Base::Ref<PathSegment> value) noexcept;
+    void ClearSegments() noexcept {
+        if (!WritePreamble()) return;
+        segments_.Clear();
+        WritePostscript();
+    }
+    Base::Span<const Base::Ref<PathSegment>> GetSegments() const noexcept {
+        return segments_.AsSpan();
+    }
+    inline static constexpr Members::Property<Point> StartPointProperty{"StartPoint"};
+    inline static constexpr Members::Property<bool> IsClosedProperty{"IsClosed"};
+private:
+    Base::Vector<Base::Ref<PathSegment>> segments_;
+};
+
+class AERO_API PathGeometry : public Geometry {
+    AERO_DECLARE_TYPE(PathGeometry, Geometry)
+public:
+    PathGeometry() noexcept : Geometry(StaticTypeId()) {}
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Base::Result<void> AddFigure(Base::Ref<PathFigure> value) noexcept;
+    void ClearFigures() noexcept {
+        if (!WritePreamble()) return;
+        figures_.Clear();
+        WritePostscript();
+    }
+    Base::Span<const Base::Ref<PathFigure>> GetFigures() const noexcept {
+        return figures_.AsSpan();
+    }
+    Base::Result<Base::String> ToStreamData() const noexcept;
+private:
+    Base::Vector<Base::Ref<PathFigure>> figures_;
 };
 } // namespace Aero::Media

@@ -801,13 +801,19 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
     strokeIndices_.Clear();
     geometryBounds_ = {};
     Base::Ref<Geometry> geometry = GetData();
-    const Base::StringView data =
-        geometry &&
-            geometry->RuntimeType() ==
-                StreamGeometry::StaticTypeId()
-        ? static_cast<StreamGeometry*>(
-              geometry.Get())->GetData()
-        : Base::StringView{};
+    Base::String generatedData;
+    Base::StringView data;
+    if (geometry && geometry->RuntimeType() ==
+            StreamGeometry::StaticTypeId()) {
+        data = static_cast<StreamGeometry*>(geometry.Get())->GetData();
+    } else if (geometry && geometry->RuntimeType() ==
+                   PathGeometry::StaticTypeId()) {
+        Base::Result<Base::String> generated =
+            static_cast<PathGeometry*>(geometry.Get())->ToStreamData();
+        if (!generated) return generated.GetStatus();
+        generatedData = std::move(generated).Value();
+        data = generatedData.View();
+    }
     if (data.Empty()) {
         geometryDirty_ = false;
         return {};
@@ -1016,6 +1022,14 @@ Size Path::MeasureOverride(
 void Path::OnRender(
     DrawingContext& context) noexcept {
     auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    Base::Ref<Geometry> authoredGeometry = GetData();
+    if (authoredGeometry && authoredGeometry->RuntimeType() ==
+            PathGeometry::StaticTypeId()) {
+        // Segment points can be animation targets. Rebuild the lightweight
+        // mesh when rendering object-model geometry so those changes are
+        // visible without coupling Geometry to the visual tree.
+        ResetGeometry();
+    }
     Base::Result<void> mesh =
         EnsureMesh();
     if (!mesh) return;

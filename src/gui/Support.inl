@@ -722,6 +722,48 @@ void ClearGradientStopCollectionItems(
     return;
 }
 
+void AddPathFigureSegment(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::PathSegment> retained =
+        Base::Ref<Media::PathSegment>::TryFromBorrowed(
+            static_cast<Media::PathSegment&>(*value));
+    if (retained) {
+        static_cast<void>(
+            static_cast<Media::PathFigure&>(owner)
+                .AddSegment(std::move(retained)));
+    }
+}
+
+void ClearPathFigureSegments(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<Media::PathFigure&>(owner).ClearSegments();
+}
+
+void AddPathGeometryFigure(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::PathFigure> retained =
+        Base::Ref<Media::PathFigure>::TryFromBorrowed(
+            static_cast<Media::PathFigure&>(*value));
+    if (retained) {
+        static_cast<void>(
+            static_cast<Media::PathGeometry&>(owner)
+                .AddFigure(std::move(retained)));
+    }
+}
+
+void ClearPathGeometryFigures(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<Media::PathGeometry&>(owner).ClearFigures();
+}
+
 Base::Result<Value> ConvertBrushText(
     TypeId targetType,
     Base::StringView text,

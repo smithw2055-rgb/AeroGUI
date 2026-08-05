@@ -4,6 +4,7 @@
 
 #include <Aero/Base/Object.hpp>
 #include <Aero/Value.hpp>
+#include <Aero/Layout.hpp>
 #include <Aero/DependencyProperty.hpp>
 
 #include <cstdint>
@@ -28,6 +29,11 @@ public:
         PPAAModeProperty{"PPAAMode"};
     inline static constexpr Meta::AttachedPropertyRef<Element, bool>
         IsFocusEngagedProperty{"IsFocusEngaged"};
+    inline static constexpr Meta::AttachedPropertyRef<Element, BlendMode>
+        BlendingModeProperty{"BlendingMode"};
+    static void OnBlendingModeChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
     inline static constexpr Meta::AttachedPropertyRef<
         Element, Base::Ref<Media::CompositeTransform3D>>
         Transform3DProperty{"Transform3D"};

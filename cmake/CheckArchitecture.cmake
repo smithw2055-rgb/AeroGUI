@@ -203,7 +203,8 @@ set(aero_xaml_enum_names
     InputScope KeyboardNavigationMode FillBehavior EasingMode
     ControlStoryboardOption ComparisonConditionOperator ForwardChaining
     HorizontalAlignment VerticalAlignment Visibility BlendMode Stretch
-    StretchDirection TileMode BrushMappingMode PenLineJoin PenLineCap
+    StretchDirection TileMode BrushMappingMode GradientSpreadMethod
+    PenLineJoin PenLineCap
     TextWrapping TextTrimming TextAlignment FontStyle FontWeight
     TextDecorations Orientation Dock MenuItemRole ClickMode TickPlacement
     TickBarPlacement ScrollBarVisibility PanningMode GridResizeDirection
@@ -238,7 +239,8 @@ set(aero_enum_metadata_names
     InputScope KeyboardNavigationMode FillBehavior EasingMode
     ControlStoryboardOption ComparisonConditionOperator ForwardChaining
     HorizontalAlignment VerticalAlignment Visibility BlendMode Stretch
-    StretchDirection TileMode BrushMappingMode PenLineJoin PenLineCap
+    StretchDirection TileMode BrushMappingMode GradientSpreadMethod
+    PenLineJoin PenLineCap
     TextWrapping TextTrimming TextAlignment FontStyle FontWeight
     TextDecorations Orientation Dock MenuItemRole ClickMode TickPlacement
     TickBarPlacement ScrollBarVisibility PanningMode GridResizeDirection

@@ -35,6 +35,12 @@ enum class BrushMappingMode : std::uint8_t {
     Absolute
 };
 
+enum class GradientSpreadMethod : std::uint8_t {
+    Pad = 0U,
+    Reflect,
+    Repeat
+};
+
 class AERO_API Brush : public Freezable {
     AERO_DECLARE_TYPE(Brush, Freezable)
 public:
@@ -195,6 +201,9 @@ public:
                 Base::ErrorCode::InvalidArgument, "ConicGradientShader stop is null"));
     }
     void ClearGradientStops() noexcept { stops_.Clear(); }
+    Base::Span<const Base::Ref<GradientStop>> GetGradientStops() const noexcept {
+        return stops_.AsSpan();
+    }
 private:
     Base::Vector<Base::Ref<GradientStop>> stops_;
 };
@@ -225,8 +234,11 @@ public:
     BrushMappingMode GetMappingMode() const noexcept;
     void SetMappingMode(
         BrushMappingMode value) noexcept;
+    GradientSpreadMethod GetSpreadMethod() const noexcept;
+    void SetSpreadMethod(GradientSpreadMethod value) noexcept;
 
     inline static constexpr Members::Property<BrushMappingMode> MappingModeProperty{"MappingMode"};
+    inline static constexpr Members::Property<GradientSpreadMethod> SpreadMethodProperty{"SpreadMethod"};
 
 protected:
     explicit GradientBrush(TypeId runtimeType) noexcept
@@ -388,6 +400,8 @@ MakeSolidColorBrush(Color color) noexcept;
 AERO_DECLARE_TYPE_ENUM(Aero::Media::TileMode)
 
 AERO_DECLARE_TYPE_ENUM(Aero::Media::BrushMappingMode)
+
+AERO_DECLARE_TYPE_ENUM(Aero::Media::GradientSpreadMethod)
 
 namespace Aero::Meta {
 

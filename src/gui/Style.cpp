@@ -8,6 +8,19 @@
 
 namespace Aero {
 
+void Element::OnBlendingModeChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    if (!object.PropertyRegistry().Types().IsDerivedFrom(
+            object.RuntimeType(), UIElement::StaticTypeId())) {
+        return;
+    }
+    Base::Result<BlendMode> value =
+        Meta::ValueCodec<BlendMode>::Decode(args.GetNewValue());
+    if (!value) return;
+    static_cast<UIElement&>(object).SetBlendMode(value.Value());
+}
+
 void TextProperties::OnCompatibilityPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
@@ -610,6 +623,40 @@ Base::Result<void> Style::SealRuntime(
         const DependencyPropertyRegistry*>(propertiesState);
     if (sealed_) {
         return {};
+    }
+    // WPF permits an explicitly keyed Style to omit TargetType when its
+    // setters use owner-qualified properties. Infer the owner for declarations
+    // such as Property="local:DateTime.Template".
+    if (targetType_ == InvalidTypeId) {
+        for (const Base::Ref<Setter>& authored : authoredSetterObjects_) {
+            if (!authored) continue;
+            Base::StringView name = authored->GetPropertyName();
+            std::uint32_t dot = UINT32_MAX;
+            for (std::uint32_t index = 0U;
+                 index < name.SizeBytes(); ++index) {
+                if (name[index] == '.') dot = index;
+            }
+            if (dot == UINT32_MAX || dot == 0U) continue;
+            Base::StringView owner = name.Substr(0U, dot);
+            const Base::StringView propertyName = name.Substr(
+                dot + 1U, name.SizeBytes() - dot - 1U);
+            for (std::uint32_t index = 0U;
+                 index < owner.SizeBytes(); ++index) {
+                if (owner[index] == ':') {
+                    owner = owner.Substr(
+                        index + 1U, owner.SizeBytes() - index - 1U);
+                    break;
+                }
+            }
+            for (const TypeInfo& type : properties.Types().Types()) {
+                if (type.Name() == owner &&
+                    properties.Find(type.Id(), propertyName) != nullptr) {
+                    targetType_ = type.Id();
+                    break;
+                }
+            }
+            if (targetType_ != InvalidTypeId) break;
+        }
     }
     if (!properties.IsFrozen() || targetType_ == InvalidTypeId ||
         properties.Types().FindType(targetType_) == nullptr) {

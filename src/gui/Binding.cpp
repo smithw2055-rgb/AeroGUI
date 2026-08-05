@@ -298,6 +298,17 @@ bool TryParseFixedPrecision(
     return true;
 }
 
+bool IsZeroPaddingFormat(
+    Base::StringView specifier) noexcept {
+    if (specifier.Empty()) return false;
+    for (std::uint32_t index = 0U;
+         index < specifier.SizeBytes();
+         ++index) {
+        if (specifier[index] != '0') return false;
+    }
+    return true;
+}
+
 Base::Result<Base::String> FormatBindingString(
     const PropertyValue& value,
     Base::StringView format) noexcept {
@@ -417,6 +428,10 @@ Base::Result<Base::String> FormatBindingString(
         }
         break;
     }
+    if (specifier.Empty() && !activeFormat.Empty() &&
+        activeFormat[0] != '{') {
+        specifier = activeFormat;
+    }
 
     char formatted[160]{};
     std::uint32_t fixedPrecision = 0U;
@@ -424,6 +439,9 @@ Base::Result<Base::String> FormatBindingString(
         numeric &&
         TryParseFixedPrecision(
             specifier, fixedPrecision);
+    const bool zeroPadding =
+        numeric &&
+        IsZeroPaddingFormat(specifier);
     const bool thousandsScale =
         numeric &&
         specifier == Base::StringView("#,.##");
@@ -434,6 +452,13 @@ Base::Result<Base::String> FormatBindingString(
             "%.*f",
             static_cast<int>(fixedPrecision),
             numericValue);
+    } else if (zeroPadding) {
+        std::snprintf(
+            formatted,
+            sizeof(formatted),
+            "%0*lld",
+            static_cast<int>(specifier.SizeBytes()),
+            static_cast<long long>(numericValue));
     } else if (thousandsScale) {
         char decimal[96]{};
         std::snprintf(
