@@ -213,12 +213,54 @@ public:
     inline static constexpr Members::Property<double> SpringinessProperty{"Springiness"};
 };
 
-class AERO_API DoubleAnimation : public Timeline {
-    AERO_DECLARE_TYPE(DoubleAnimation, Timeline)
+class AERO_API DoubleAnimationBase : public Timeline {
+    AERO_DECLARE_TYPE(DoubleAnimationBase, Timeline)
 public:
-    DoubleAnimation() noexcept : Timeline(StaticTypeId()) {}
+    ~DoubleAnimationBase() override = default;
     double GetFrom() const noexcept { return from_; }
     double GetTo() const noexcept { return to_; }
+    bool GetHasFrom() const noexcept { return hasFrom_; }
+    bool GetHasTo() const noexcept { return hasTo_; }
+    double ResolveFrom(double defaultOriginValue) const noexcept {
+        return hasFrom_ ? from_ : defaultOriginValue;
+    }
+    double ResolveTo(double defaultDestinationValue) const noexcept {
+        return hasTo_ ? to_ : defaultDestinationValue;
+    }
+    void SetFrom(double value) noexcept;
+    void SetTo(double value) noexcept;
+
+    double GetCurrentValue(
+        double defaultOriginValue,
+        double defaultDestinationValue,
+        double progress) const noexcept {
+        return GetCurrentValueCore(
+            defaultOriginValue,
+            defaultDestinationValue,
+            progress);
+    }
+
+protected:
+    explicit DoubleAnimationBase(
+        Meta::TypeId runtimeType) noexcept
+        : Timeline(runtimeType) {}
+    virtual double GetCurrentValueCore(
+        double defaultOriginValue,
+        double defaultDestinationValue,
+        double progress) const noexcept = 0;
+
+private:
+    double from_ = 0.0;
+    double to_ = 0.0;
+    bool hasFrom_ = false;
+    bool hasTo_ = false;
+};
+
+class AERO_API DoubleAnimation : public DoubleAnimationBase {
+    AERO_DECLARE_TYPE(DoubleAnimation, DoubleAnimationBase)
+public:
+    DoubleAnimation() noexcept
+        : DoubleAnimationBase(StaticTypeId()) {}
     double GetAccelerationRatio() const noexcept {
         return accelerationRatio_;
     }
@@ -228,16 +270,22 @@ public:
     Base::Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
         return easing_;
     }
-    void SetFrom(double value) noexcept;
-    void SetTo(double value) noexcept;
     void SetAccelerationRatio(double value) noexcept;
     void SetDecelerationRatio(double value) noexcept;
     void SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
 
+protected:
+    double GetCurrentValueCore(
+        double defaultOriginValue,
+        double defaultDestinationValue,
+        double progress) const noexcept override {
+        const double from = ResolveFrom(defaultOriginValue);
+        const double to = ResolveTo(defaultDestinationValue);
+        return from + (to - from) * progress;
+    }
+
 private:
-    double from_ = 0.0;
-    double to_ = 0.0;
     double accelerationRatio_ = 0.0;
     double decelerationRatio_ = 0.0;
     Base::Ref<EasingFunctionBase> easing_;
@@ -825,7 +873,7 @@ private:
 class AERO_API Storyboard : public Timeline {
     AERO_DECLARE_TYPE(Storyboard, Timeline)
 public:
-    Storyboard() noexcept : Timeline(StaticTypeId()) {}
+    Storyboard() noexcept : Storyboard(StaticTypeId()) {}
     ~Storyboard() override;
 
     inline static constexpr Members::AttachedProperty<Base::String> TargetNameProperty{"TargetName"};
@@ -840,6 +888,8 @@ public:
     }
 
 protected:
+    explicit Storyboard(Meta::TypeId runtimeType) noexcept
+        : Timeline(runtimeType) {}
     bool FreezeCore(bool isChecking) noexcept override;
 
 private:
@@ -848,6 +898,14 @@ private:
     FreezableChangedHandler timelineChangedHandler_;
 };
 
+// Timeline group with independent BeginTime/Duration/RepeatBehavior. It shares
+// Storyboard's child collection but does not introduce a second clock model.
+class AERO_API ParallelTimeline final : public Storyboard {
+    AERO_DECLARE_TYPE(ParallelTimeline, Storyboard)
+public:
+    ParallelTimeline() noexcept
+        : Storyboard(StaticTypeId()) {}
+};
 
 
 } // namespace Aero::Media::Animation

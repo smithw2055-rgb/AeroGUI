@@ -61,6 +61,33 @@ struct Renderer::Impl {
     bool offscreenReady = false;
 };
 
+namespace {
+
+RenderingEventHandler& CompositionRenderingHandlers() noexcept {
+    static RenderingEventHandler handlers;
+    return handlers;
+}
+
+} // namespace
+
+void CompositionTarget::AddRendering(
+    const RenderingEventHandler& handler) noexcept {
+    if (!handler.Empty()) {
+        CompositionRenderingHandlers().Add(handler);
+    }
+}
+
+bool CompositionTarget::RemoveRendering(
+    const RenderingEventHandler& handler) noexcept {
+    return CompositionRenderingHandlers().Remove(handler);
+}
+
+void CompositionTarget::RaiseRendering() noexcept {
+    RenderingEventHandler& handlers =
+        CompositionRenderingHandlers();
+    if (!handlers.Empty()) handlers.Invoke();
+}
+
 } // namespace Aero
 
 namespace Aero::Runtime::Detail {
@@ -3311,11 +3338,13 @@ struct View::Impl {
         bool hasDuration = false;
         bool hasRepeat = false;
         bool autoReverse = false;
+        bool preservesChildDuration = false;
     };
 
     StoryboardTimingState ComposeStoryboardTiming(
         const StoryboardTimingState* inherited,
-        const MediaAnimation::Timeline& storyboard) noexcept {
+        const MediaAnimation::Timeline& storyboard,
+        bool preservesChildDuration) noexcept {
         StoryboardTimingState result =
             inherited != nullptr
             ? *inherited
@@ -3333,6 +3362,8 @@ struct View::Impl {
             result.durationMicroseconds =
                 authored.durationMicroseconds;
             result.hasDuration = true;
+            result.preservesChildDuration =
+                preservesChildDuration;
         }
         if (!storyboard.GetRepeatBehavior().Empty()) {
             result.repeat = authored.repeat;
@@ -3357,9 +3388,51 @@ struct View::Impl {
             result.beginTimeMicroseconds +=
                 inherited->beginTimeMicroseconds;
         }
-        if (inherited->hasDuration) {
+        if (inherited->hasDuration &&
+            !inherited->preservesChildDuration) {
             result.durationMicroseconds =
                 inherited->durationMicroseconds;
+        } else if (inherited->hasDuration &&
+                   inherited->preservesChildDuration) {
+            const Aero::Media::Detail::Animation::AnimationTime childBegin =
+                Aero::Media::Detail::AnimationPrivate::
+                    Timing(timeline).beginTimeMicroseconds;
+            const Aero::Media::Detail::Animation::AnimationTime available =
+                childBegin >= inherited->durationMicroseconds
+                ? 0U
+                : inherited->durationMicroseconds - childBegin;
+            if (result.durationMicroseconds == 0U) {
+                result.durationMicroseconds = available;
+                result.repeat =
+                    Aero::Media::Detail::Animation::
+                        RepeatBehavior::Once();
+            } else {
+                const long double cycle =
+                    static_cast<long double>(
+                        result.durationMicroseconds) *
+                    (result.autoReverse ? 2.0L : 1.0L);
+                const double maximumCount =
+                    cycle > 0.0L
+                    ? static_cast<double>(
+                        static_cast<long double>(available) /
+                        cycle)
+                    : 1.0;
+                if (available == 0U) {
+                    result.durationMicroseconds = 0U;
+                    result.repeat =
+                        Aero::Media::Detail::Animation::
+                            RepeatBehavior::Once();
+                } else if (result.repeat.forever ||
+                           result.repeat.count >
+                               maximumCount) {
+                    result.repeat =
+                        Aero::Media::Detail::Animation::
+                            RepeatBehavior::Count(
+                                std::max(
+                                    maximumCount,
+                                    1.0e-9));
+                }
+            }
         }
         if (inherited->hasRepeat) {
             result.repeat = inherited->repeat;
@@ -3409,13 +3482,18 @@ struct View::Impl {
                 Base::ErrorCode::NotInitialized,
                 "Storyboard requires the animation manager");
         }
-        if (timeline.RuntimeType() ==
-            MediaAnimation::Storyboard::StaticTypeId()) {
+        if (metadata->Types().IsDerivedFrom(
+                timeline.RuntimeType(),
+                MediaAnimation::Storyboard::StaticTypeId())) {
             auto& nested =
                 static_cast<MediaAnimation::Storyboard&>(timeline);
             const StoryboardTimingState timing =
                 ComposeStoryboardTiming(
-                    inherited, nested);
+                    inherited,
+                    nested,
+                    timeline.RuntimeType() ==
+                        MediaAnimation::ParallelTimeline::
+                            StaticTypeId());
             std::uint32_t count = 0U;
             for (const Base::Ref<MediaAnimation::Timeline>& child :
                  nested.GetTimelines()) {
@@ -3485,6 +3563,43 @@ struct View::Impl {
                     animation, inherited);
             Base::Result<Aero::Media::Detail::Animation::AnimationHandle> started =
                 animations->Begin(
+                    propertyTarget,
+                    propertyHandle,
+                    runtime);
+            return RetainStartedAnimation(
+                std::move(started),
+                retainedHandles);
+        }
+        if (metadata->Types().IsDerivedFrom(
+                type,
+                MediaAnimation::DoubleAnimationBase::StaticTypeId())) {
+            auto& animation = static_cast<
+                MediaAnimation::DoubleAnimationBase&>(timeline);
+            Base::Result<Meta::PropertyValue> current =
+                propertyTarget.GetValue(propertyHandle);
+            if (!current) return current.GetStatus();
+            Base::Result<double> origin =
+                Meta::ValueCodec<double>::Decode(current.Value());
+            if (!origin) return origin.GetStatus();
+
+            Aero::Media::Detail::Animation::CustomDoubleAnimation runtime;
+            runtime.animation =
+                Base::Ref<MediaAnimation::DoubleAnimationBase>::
+                    TryFromBorrowed(animation);
+            if (!runtime.animation) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "Custom DoubleAnimation is not reference-counted");
+            }
+            runtime.defaultOriginValue = origin.Value();
+            runtime.defaultDestinationValue =
+                animation.ResolveTo(origin.Value());
+            runtime.timing =
+                EffectiveTimelineTiming(
+                    animation, inherited);
+            Base::Result<
+                Aero::Media::Detail::Animation::AnimationHandle>
+                started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
                     runtime);
@@ -8270,6 +8385,7 @@ View::ExecuteFrame() noexcept {
         if (phase ==
             ::Aero::Threading::DispatcherFramePhase::
                 RenderCommit) {
+            CompositionTarget::RaiseRendering();
             Base::Result<void> overlays =
                 state_->SynchronizeOverlays();
             if (!overlays) {

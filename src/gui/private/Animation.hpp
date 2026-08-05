@@ -28,6 +28,10 @@ public:
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
         Meta::DependencyPropertyHandle property,
+        const CustomDoubleAnimation& animation) noexcept;
+    Base::Result<AnimationHandle> Begin(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
         const ColorAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,

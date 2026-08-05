@@ -115,6 +115,9 @@ Base::Result<void> PopulateUiStyling(
 
     status = Meta::Register<Data::IValueConverter>(context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
+    status = Meta::Register<Data::IMultiValueConverter>(
+        context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
 
     status = Meta::Register<Data::BooleanToVisibilityConverter>(context)
         .Factory()
@@ -127,7 +130,79 @@ Base::Result<void> PopulateUiStyling(
     status = Meta::Register<Data::RelativeSource>(context).Factory().Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Register<Data::Binding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed).Factory().Result();
+    auto binding = Meta::Register<Data::Binding>(
+        context, TypeFlags::MarkupExtension | TypeFlags::Sealed);
+    binding
+        .Property(
+            "Path",
+            &Data::Binding::GetPathText,
+            static_cast<void (Data::Binding::*)(Base::StringView) noexcept>(
+                &Data::Binding::SetPath))
+        .Property(
+            "ElementName",
+            &Data::Binding::GetElementName,
+            &Data::Binding::SetElementName)
+        .Property(
+            "Converter",
+            &Data::Binding::GetConverter,
+            &Data::Binding::SetConverter)
+        .Property<
+            Value,
+            &Data::Binding::GetConverterParameter,
+            &Data::Binding::SetConverterParameter>(
+                "ConverterParameter",
+                PropertyFlags::AnyValue)
+        .Factory();
+    status = binding.Result();
+    if (!status) return status.GetStatus();
+
+    auto multiBinding = Meta::Register<Data::MultiBinding>(
+        context, TypeFlags::MarkupExtension | TypeFlags::Sealed);
+    multiBinding
+        .Property(
+            "Converter",
+            &Data::MultiBinding::GetConverter,
+            &Data::MultiBinding::SetConverter)
+        .Property<
+            Value,
+            &Data::MultiBinding::GetConverterParameter,
+            &Data::MultiBinding::SetConverterParameter>(
+                "ConverterParameter",
+                PropertyFlags::AnyValue)
+        .Content<Data::Binding>(
+            "Bindings",
+            ContentKind::Collection,
+            [](Base::Object& owner,
+               const Base::Ref<Base::Object>& value,
+               void*) noexcept {
+                if (!value) return;
+                Base::Ref<Data::Binding> retained =
+                    Base::Ref<Data::Binding>::TryFromBorrowed(
+                        static_cast<Data::Binding&>(*value));
+                if (retained) {
+                    static_cast<void>(
+                        static_cast<Data::MultiBinding&>(owner)
+                            .AddBinding(std::move(retained)));
+                }
+            },
+            [](Base::Object& owner, void*) noexcept {
+                static_cast<Data::MultiBinding&>(owner)
+                    .ClearBindings();
+            })
+        .Factory();
+    status = multiBinding.Result();
+    if (!status) return status.GetStatus();
+
+    auto multiBindingProxy =
+        Meta::Register<Data::MultiBindingProxy>(context);
+    multiBindingProxy
+        .Property(
+            Data::MultiBindingProxy::ValueProperty,
+            PropertyOptions(
+                Value::NullObject(
+                    TypeOf<Base::Object>())))
+        .Factory();
+    status = multiBindingProxy.Result();
     if (!status) return status.GetStatus();
 
     auto triggerBase = Meta::Register<TriggerBase>(

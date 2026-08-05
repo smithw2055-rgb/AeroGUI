@@ -113,6 +113,15 @@ struct DoubleAnimation {
     EasingFunction easing;
 };
 
+struct CustomDoubleAnimation {
+    Base::Ref<
+        ::Aero::Media::Animation::DoubleAnimationBase>
+        animation;
+    double defaultOriginValue = 0.0;
+    double defaultDestinationValue = 0.0;
+    TimelineTiming timing;
+};
+
 struct ColorAnimation {
     Base::Color from;
     Base::Color to;

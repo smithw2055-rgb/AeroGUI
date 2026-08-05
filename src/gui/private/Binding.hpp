@@ -128,6 +128,23 @@ using ::Aero::Meta::Registry;
 using Meta::PropertyValue;
 using Meta::TypeId;
 
+// Internal dependency-object endpoint used to compose MultiBinding from normal
+// BindingEngine expressions. Value is an AnyValue dependency property because
+// each child expression may expose a different concrete metadata type.
+class MultiBindingProxy final : public DependencyObject {
+    AERO_DECLARE_TYPE_NAMED(
+        MultiBindingProxy,
+        DependencyObject,
+        "urn:aero.internal",
+        "MultiBindingProxy")
+public:
+    MultiBindingProxy() noexcept
+        : DependencyObject(StaticTypeId()) {}
+
+    inline static constexpr Members::Property<Value>
+        ValueProperty{"Value"};
+};
+
 struct BindingHandle {
     std::uint64_t value = 0U;
 

@@ -1,6 +1,8 @@
 #include <Aero/DrawingContext.hpp>
 
 #include "render/RenderPrivate.hpp"
+#include "../media/BrushRendering.hpp"
+#include "../media/MediaPrivate.hpp"
 
 namespace Aero {
 
@@ -44,6 +46,28 @@ Base::Result<void> DrawingContext::DrawRectangle(
         .FillRect(bounds, color);
 }
 
+Base::Result<void> DrawingContext::DrawRectangle(
+    Base::Rect bounds,
+    const Base::Ref<Media::Brush>& brush) noexcept {
+    return Media::PaintBrushRect(
+        ::Aero::Render::Detail::DrawingPrivate::Builder(*this),
+        brush,
+        bounds);
+}
+
+Base::Result<void> DrawingContext::DrawRectangle(
+    const Base::Ref<Media::Brush>& fill,
+    const Base::Ref<Media::Brush>& stroke,
+    Base::Rect bounds,
+    double strokeThickness) noexcept {
+    Base::Result<void> result = DrawRectangle(bounds, fill);
+    if (!result || !stroke || strokeThickness <= 0.0) {
+        return result;
+    }
+    return DrawRectangleOutline(
+        bounds, stroke, strokeThickness);
+}
+
 Base::Result<void> DrawingContext::DrawRoundedRectangle(
     Base::Rect bounds,
     Base::Color color,
@@ -52,12 +76,35 @@ Base::Result<void> DrawingContext::DrawRoundedRectangle(
         .FillRoundedRect(bounds, color, radius);
 }
 
+Base::Result<void> DrawingContext::DrawRoundedRectangle(
+    Base::Rect bounds,
+    const Base::Ref<Media::Brush>& brush,
+    double radius) noexcept {
+    return Media::PaintBrushRect(
+        ::Aero::Render::Detail::DrawingPrivate::Builder(*this),
+        brush,
+        bounds,
+        radius);
+}
+
 Base::Result<void> DrawingContext::DrawRectangleOutline(
     Base::Rect bounds,
     Base::Color color,
     double thickness) noexcept {
     return ::Aero::Render::Detail::DrawingPrivate::Builder(*this)
         .StrokeRect(bounds, color, thickness);
+}
+
+Base::Result<void> DrawingContext::DrawRectangleOutline(
+    Base::Rect bounds,
+    const Base::Ref<Media::Brush>& brush,
+    double thickness) noexcept {
+    const Base::Color color =
+        Media::Detail::SampleBrush(brush);
+    return color.alpha > 0.0F
+        ? ::Aero::Render::Detail::DrawingPrivate::Builder(*this)
+              .StrokeRect(bounds, color, thickness)
+        : Base::Result<void>();
 }
 
 } // namespace Aero

@@ -4,8 +4,10 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/Span.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
+#include <Aero/Base/Vector.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/DependencyObject.hpp>
 
@@ -77,6 +79,23 @@ protected:
     IValueConverter() noexcept = default;
 };
 
+// Composite converter used by MultiBinding. Values preserve their concrete
+// metadata types, so application converters can combine numbers, colors,
+// strings and object references without an additional boxing layer.
+class AERO_API IMultiValueConverter : public Base::Object {
+    AERO_DECLARE_TYPE(IMultiValueConverter, Base::Object)
+public:
+    ~IMultiValueConverter() override = default;
+
+    virtual Base::Result<Value> Convert(
+        Base::Span<const Value> values,
+        Meta::TypeId targetType,
+        const Value& parameter) noexcept = 0;
+
+protected:
+    IMultiValueConverter() noexcept = default;
+};
+
 
 // WPF-compatible BooleanToVisibilityConverter. Keeping this converter in the
 // data layer lets resource dictionaries use it without pulling in Controls.
@@ -124,6 +143,7 @@ public:
     explicit Binding(Base::StringView path) noexcept : BindingBase(StaticTypeId()), path_(path) {}
 
     const PropertyPath& GetPath() const noexcept { return path_; }
+    Base::StringView GetPathText() const noexcept { return path_.GetPath(); }
     void SetPath(PropertyPath value) noexcept { path_ = std::move(value); return; }
     void SetPath(Base::StringView value) noexcept { path_.SetPath(value); }
     Base::StringView GetElementName() const noexcept { return elementName_.View(); }
@@ -149,6 +169,46 @@ private:
     Base::Ref<Base::Object> source_;
     Base::Ref<RelativeSource> relativeSource_;
     Base::Ref<IValueConverter> converter_;
+    Value converterParameter_;
+};
+
+// WPF-shaped composite binding declaration. The live expression is created by
+// the XAML writer from ordinary BindingEngine expressions, keeping source
+// resolution and notification behavior in one runtime.
+class AERO_API MultiBinding final : public BindingBase {
+    AERO_DECLARE_TYPE(MultiBinding, BindingBase)
+public:
+    MultiBinding() noexcept
+        : BindingBase(StaticTypeId()),
+          bindings_(&Base::GetDefaultAllocator()) {}
+
+    Base::Ref<IMultiValueConverter> GetConverter() const noexcept {
+        return converter_;
+    }
+    void SetConverter(Base::Ref<IMultiValueConverter> value) noexcept {
+        converter_ = std::move(value);
+    }
+    const Value& GetConverterParameter() const noexcept {
+        return converterParameter_;
+    }
+    void SetConverterParameter(Value value) noexcept {
+        converterParameter_ = std::move(value);
+    }
+    Base::Span<const Base::Ref<Binding>> GetBindings() const noexcept {
+        return bindings_.AsSpan();
+    }
+    Base::Result<void> AddBinding(Base::Ref<Binding> value) noexcept {
+        return value
+            ? bindings_.PushBack(std::move(value))
+            : Base::Result<void>(Base::Status::Failure(
+                  Base::ErrorCode::InvalidArgument,
+                  "MultiBinding child Binding is null"));
+    }
+    void ClearBindings() noexcept { bindings_.Clear(); }
+
+private:
+    Base::Vector<Base::Ref<Binding>> bindings_;
+    Base::Ref<IMultiValueConverter> converter_;
     Value converterParameter_;
 };
 

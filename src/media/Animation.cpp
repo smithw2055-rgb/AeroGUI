@@ -106,7 +106,8 @@ bool ContainsTimeline(
     const Timeline& value,
     const Timeline* sought) noexcept {
     if (&value == sought) return true;
-    if (value.RuntimeType() != Storyboard::StaticTypeId()) {
+    if (value.RuntimeType() != Storyboard::StaticTypeId() &&
+        value.RuntimeType() != ParallelTimeline::StaticTypeId()) {
         return false;
     }
     const auto& storyboard = static_cast<const Storyboard&>(value);
@@ -254,21 +255,21 @@ void ElasticEase::SetSpringiness(double value) noexcept {
     return;
 }
 
-void DoubleAnimation::SetFrom(double value) noexcept {
-    if (!WritePreamble()) return;
-    if (!std::isfinite(value)) {
+void DoubleAnimationBase::SetFrom(double value) noexcept {
+    if (!WritePreamble() || !std::isfinite(value)) {
         return;
     }
     from_ = value;
+    hasFrom_ = true;
     WritePostscript();
 }
 
-void DoubleAnimation::SetTo(double value) noexcept {
-    if (!WritePreamble()) return;
-    if (!std::isfinite(value)) {
+void DoubleAnimationBase::SetTo(double value) noexcept {
+    if (!WritePreamble() || !std::isfinite(value)) {
         return;
     }
     to_ = value;
+    hasTo_ = true;
     WritePostscript();
 }
 

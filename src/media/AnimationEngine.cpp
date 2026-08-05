@@ -159,6 +159,7 @@ using namespace Aero::Media;
 struct AnimationEngine::Track {
     enum class Kind : std::uint8_t {
         Double,
+        CustomDouble,
         Color,
         Point,
         Rect,
@@ -194,6 +195,10 @@ struct AnimationEngine::Track {
     double from = 0.0;
     double to = 0.0;
     double baseValue = 0.0;
+    double defaultDestinationValue = 0.0;
+    Base::Ref<
+        ::Aero::Media::Animation::DoubleAnimationBase>
+        customDouble;
     Base::Color fromColor;
     Base::Color toColor;
     Base::Point fromPoint;
@@ -328,6 +333,37 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.kind = Track::Kind::Double;
     track.from = animation.from;
     track.to = animation.to;
+    track.startTimeMicroseconds = currentTimeMicroseconds_;
+    track.pendingInitialSample = automaticTickingEnabled_;
+    return track.handle;
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject& target,
+    Meta::DependencyPropertyHandle property,
+    const CustomDoubleAnimation& animation) noexcept {
+    Base::Result<void> access = dispatcher_->VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!property.IsValid() ||
+        !animation.animation ||
+        !IsTimingValid(animation.timing) ||
+        !std::isfinite(animation.defaultOriginValue) ||
+        !std::isfinite(animation.defaultDestinationValue)) {
+        return InvalidAnimation(
+            "Custom DoubleAnimation has invalid target, timing, or values");
+    }
+    Base::Result<Track*> added = AddTrack();
+    if (!added) return added.GetStatus();
+    Track& track = *added.Value();
+    track.handle = {nextHandle_++};
+    track.target = &target;
+    track.property = property;
+    track.timing = animation.timing;
+    track.kind = Track::Kind::CustomDouble;
+    track.baseValue = animation.defaultOriginValue;
+    track.defaultDestinationValue =
+        animation.defaultDestinationValue;
+    track.customDouble = animation.animation;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
     track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
@@ -902,6 +938,24 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
             track.easing);
         value = Meta::ValueCodec<double>::Encode(
             track.from + (track.to - track.from) * eased).Value();
+    } else if (track.kind == Track::Kind::CustomDouble) {
+        if (!track.customDouble) {
+            return InvalidAnimation(
+                "Custom DoubleAnimation object is unavailable");
+        }
+        const double sampled =
+            track.customDouble->GetCurrentValue(
+                track.baseValue,
+                track.defaultDestinationValue,
+                progress);
+        if (!std::isfinite(sampled)) {
+            return InvalidAnimation(
+                "Custom DoubleAnimation returned a non-finite value");
+        }
+        Base::Result<Meta::PropertyValue> encoded =
+            Meta::ValueCodec<double>::Encode(sampled);
+        if (!encoded) return encoded.GetStatus();
+        value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::Color) {
         const float eased =
             static_cast<float>(Ease(progress, track.easing));

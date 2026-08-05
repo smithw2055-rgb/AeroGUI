@@ -2,7 +2,10 @@
 
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Geometry.hpp>
+#include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
+
+namespace Aero::Media { class Brush; }
 
 namespace Aero {
 
@@ -27,13 +30,29 @@ public:
     Base::Result<void> DrawRectangle(
         Base::Rect bounds,
         Base::Color color) noexcept;
+    Base::Result<void> DrawRectangle(
+        Base::Rect bounds,
+        const Base::Ref<Media::Brush>& brush) noexcept;
+    Base::Result<void> DrawRectangle(
+        const Base::Ref<Media::Brush>& fill,
+        const Base::Ref<Media::Brush>& stroke,
+        Base::Rect bounds,
+        double strokeThickness = 1.0) noexcept;
     Base::Result<void> DrawRoundedRectangle(
         Base::Rect bounds,
         Base::Color color,
         double radius) noexcept;
+    Base::Result<void> DrawRoundedRectangle(
+        Base::Rect bounds,
+        const Base::Ref<Media::Brush>& brush,
+        double radius) noexcept;
     Base::Result<void> DrawRectangleOutline(
         Base::Rect bounds,
         Base::Color color,
+        double thickness) noexcept;
+    Base::Result<void> DrawRectangleOutline(
+        Base::Rect bounds,
+        const Base::Ref<Media::Brush>& brush,
         double thickness) noexcept;
 
 private:

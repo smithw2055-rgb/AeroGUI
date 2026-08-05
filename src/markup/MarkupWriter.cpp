@@ -527,6 +527,458 @@ void CleanupBinding(void* context) noexcept {
         alignof(DeferredBindingState), Base::MemoryTag::Markup);
 }
 
+struct DeferredMultiBindingState {
+    explicit DeferredMultiBindingState(
+        Base::IAllocator& value) noexcept
+        : sources(&value),
+          inputs(&value),
+          ready(&value),
+          handles(&value),
+          changed(
+              this,
+              &DeferredMultiBindingState::OnInputChanged),
+          allocator(&value) {}
+
+    Aero::GuiPrivate::Detail::BindingEngine* manager = nullptr;
+    ::Aero::Meta::Registry* metadata = nullptr;
+    Base::Ref<::Aero::DependencyObject> targetOwner;
+    ::Aero::DependencyObject* target = nullptr;
+    Meta::DependencyPropertyHandle targetProperty;
+    Meta::DependencyPropertyHandle dataContextProperty;
+    ::Aero::DependencyObject* dataContextOwner = nullptr;
+    Base::Ref<Data::MultiBinding> binding;
+    Base::Vector<Base::Object*> sources;
+    Base::Vector<Base::Ref<Data::MultiBindingProxy>> inputs;
+    Base::Vector<std::uint8_t> ready;
+    Base::Ref<Data::MultiBindingProxy> result;
+    Base::Vector<Data::BindingHandle> handles;
+    DependencyPropertyChangedEventHandler changed;
+    Base::IAllocator* allocator = nullptr;
+    Base::Status lastStatus;
+
+    bool AllInputsReady() const noexcept {
+        if (ready.Size() != inputs.Size() || ready.Empty()) {
+            return false;
+        }
+        for (std::uint8_t value : ready) {
+            if (value == 0U) return false;
+        }
+        return true;
+    }
+
+    Base::Result<void> Recompute() noexcept {
+        if (!AllInputsReady()) return {};
+        if (!binding || !binding->GetConverter() || !result ||
+            target == nullptr || metadata == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "MultiBinding runtime is incomplete");
+        }
+
+        Base::Vector<Meta::Value> values(allocator);
+        Base::Result<void> reserved =
+            values.Reserve(inputs.Size());
+        if (!reserved) return reserved.GetStatus();
+        for (const Base::Ref<Data::MultiBindingProxy>& input :
+             inputs) {
+            if (!input) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "MultiBinding input proxy is unavailable");
+            }
+            const Meta::Value current = input->GetValue(
+                Data::MultiBindingProxy::ValueProperty.Handle());
+            Base::Result<void> added =
+                values.PushBack(current);
+            if (!added) return added.GetStatus();
+        }
+
+        const Meta::DependencyProperty* targetInfo =
+            target->PropertyRegistry().Find(targetProperty);
+        if (targetInfo == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "MultiBinding target property was not found");
+        }
+        Base::Result<Meta::Value> converted =
+            binding->GetConverter()->Convert(
+                values.AsSpan(),
+                targetInfo->ValueType(),
+                binding->GetConverterParameter());
+        if (!converted) return converted.GetStatus();
+        Meta::Value value = std::move(converted).Value();
+
+        if (targetInfo->ValueType() ==
+                Media::Brush::StaticTypeId() &&
+            value.Type() == Meta::TypeOf<Base::Color>()) {
+            Base::Result<Base::Color> color =
+                Meta::ValueCodec<Base::Color>::Decode(value);
+            if (!color) return color.GetStatus();
+            Base::Result<Base::Ref<Media::Brush>> brush =
+                Media::MakeSolidColorBrush(color.Value());
+            if (!brush) return brush.GetStatus();
+            value = Meta::Value::FromObject(
+                Media::Brush::StaticTypeId(),
+                Base::Ref<Base::Object>(
+                    std::move(brush).Value()));
+        }
+        if (value.Kind() == Meta::ValueKind::Object &&
+            value.Type() != targetInfo->ValueType()) {
+            if (value.IsNullObject()) {
+                value = Meta::Value::NullObject(
+                    targetInfo->ValueType());
+            } else if (value.AsObject() &&
+                metadata->Types().IsAssignableFrom(
+                    targetInfo->ValueType(),
+                    value.AsObject()->RuntimeType())) {
+                value = Meta::Value::FromObject(
+                    targetInfo->ValueType(),
+                    value.AsObject());
+            }
+        }
+        if (!targetInfo->AcceptsAnyValue() &&
+            value.Type() != targetInfo->ValueType()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "MultiBinding converter returned the wrong target type");
+        }
+        return result->SetValueChecked(
+            Data::MultiBindingProxy::ValueProperty.Handle(),
+            value);
+    }
+
+    void OnInputChanged(
+        DependencyObject& input,
+        const DependencyPropertyChangedEventArgs&) noexcept {
+        for (std::uint32_t index = 0U;
+             index < inputs.Size(); ++index) {
+            if (inputs[index].Get() == &input) {
+                ready[index] = 1U;
+                break;
+            }
+        }
+        Base::Result<void> recomputed = Recompute();
+        lastStatus = recomputed
+            ? Base::Status::Ok()
+            : recomputed.GetStatus();
+    }
+
+    void Detach() noexcept {
+        if (manager != nullptr) {
+            for (Data::BindingHandle handle : handles) {
+                if (handle.IsValid()) {
+                    static_cast<void>(
+                        manager->Detach(handle));
+                }
+            }
+        }
+        handles.Clear();
+        for (const Base::Ref<Data::MultiBindingProxy>& input :
+             inputs) {
+            if (input) {
+                static_cast<void>(
+                    input->RemoveValueChangedHandler(
+                        Data::MultiBindingProxy::
+                            ValueProperty.Handle(),
+                        changed));
+            }
+        }
+    }
+};
+
+Base::Result<void> PrepareMultiBinding(
+    void* context,
+    const Aero::NameScope& names) noexcept {
+    auto* state =
+        static_cast<DeferredMultiBindingState*>(context);
+    if (state == nullptr || !state->binding) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Deferred MultiBinding state is invalid");
+    }
+    state->sources.Clear();
+    Base::Result<void> reserved =
+        state->sources.Reserve(
+            state->binding->GetBindings().Size());
+    if (!reserved) return reserved.GetStatus();
+    for (const Base::Ref<Data::Binding>& child :
+         state->binding->GetBindings()) {
+        if (!child) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "MultiBinding contains a null Binding");
+        }
+        Base::Object* source = child->GetSource().Get();
+        if (source == nullptr &&
+            !child->GetElementName().Empty()) {
+            source = names.Find(child->GetElementName());
+            if (source == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "MultiBinding ElementName was not found");
+            }
+        }
+        if (source == nullptr && child->GetRelativeSource()) {
+            if (child->GetRelativeSource()->GetMode() ==
+                    Data::RelativeSourceMode::Self) {
+                source = state->target;
+            } else {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "MultiBinding child RelativeSource mode is unsupported");
+            }
+        }
+        Base::Result<void> added =
+            state->sources.PushBack(source);
+        if (!added) return added.GetStatus();
+    }
+    return {};
+}
+
+Base::Result<std::uint64_t> CommitMultiBinding(
+    void* context) noexcept {
+    auto* state =
+        static_cast<DeferredMultiBindingState*>(context);
+    if (state == nullptr || state->manager == nullptr ||
+        state->metadata == nullptr || state->target == nullptr ||
+        !state->binding || !state->binding->GetConverter()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Deferred MultiBinding state is incomplete");
+    }
+    const auto children = state->binding->GetBindings();
+    if (children.Empty() ||
+        state->sources.Size() != children.Size()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "MultiBinding has no prepared child bindings");
+    }
+
+    Base::Result<Base::Ref<Data::MultiBindingProxy>>
+        resultProxy = Base::MakeRef<Data::MultiBindingProxy>();
+    if (!resultProxy) return resultProxy.GetStatus();
+    state->result = std::move(resultProxy).Value();
+
+    const Meta::Value initial =
+        state->target->GetValue(state->targetProperty);
+    Base::Result<void> initialized =
+        state->result->SetValueChecked(
+            Data::MultiBindingProxy::ValueProperty.Handle(),
+            initial);
+    if (!initialized) return initialized.GetStatus();
+
+    Base::Result<void> reservedInputs =
+        state->inputs.Reserve(children.Size());
+    if (reservedInputs) {
+        reservedInputs =
+            state->ready.Reserve(children.Size());
+    }
+    if (!reservedInputs) {
+        state->Detach();
+        return reservedInputs.GetStatus();
+    }
+
+    for (std::uint32_t index = 0U;
+         index < children.Size(); ++index) {
+        Base::Result<Base::Ref<Data::MultiBindingProxy>>
+            input = Base::MakeRef<Data::MultiBindingProxy>();
+        if (!input) {
+            state->Detach();
+            return input.GetStatus();
+        }
+        Base::Result<void> retained =
+            state->inputs.PushBack(input.Value());
+        if (retained) {
+            retained = state->ready.PushBack(0U);
+        }
+        if (!retained) {
+            state->Detach();
+            return retained.GetStatus();
+        }
+        Base::Result<void> subscribed =
+            input.Value()->AddValueChangedHandlerChecked(
+                Data::MultiBindingProxy::ValueProperty.Handle(),
+                state->changed);
+        if (!subscribed) {
+            state->Detach();
+            return subscribed.GetStatus();
+        }
+
+        const Base::Ref<Data::Binding>& child =
+            children[index];
+        Data::MetadataBindingDescriptor descriptor;
+        descriptor.metadata = state->metadata;
+        descriptor.source = state->sources[index];
+        descriptor.target = input.Value().Get();
+        descriptor.targetProperty =
+            Data::MultiBindingProxy::ValueProperty.Handle();
+        descriptor.dataContextProperty =
+            state->dataContextProperty;
+        descriptor.dataContextOwner =
+            state->dataContextOwner;
+        descriptor.path = child->GetPath().GetPath();
+        descriptor.stringFormat =
+            child->GetStringFormat();
+        descriptor.bindsToSource =
+            child->GetPath().GetIsEmpty();
+        descriptor.mode = Data::BindingMode::OneWay;
+        descriptor.updateSourceTrigger =
+            Meta::UpdateSourceTrigger::PropertyChanged;
+        descriptor.converterResource =
+            child->GetConverter();
+        if (descriptor.converterResource) {
+            descriptor.convert =
+                &ConvertWithValueConverter;
+            descriptor.conversionContext =
+                descriptor.converterResource.Get();
+        }
+        Base::Result<Data::BindingHandle> attached =
+            state->manager->Attach(descriptor);
+        if (!attached) {
+            state->Detach();
+            return attached.GetStatus();
+        }
+        Base::Result<void> retainedHandle =
+            state->handles.PushBack(attached.Value());
+        if (!retainedHandle) {
+            static_cast<void>(
+                state->manager->Detach(attached.Value()));
+            state->Detach();
+            return retainedHandle.GetStatus();
+        }
+    }
+
+    // Attach the aggregate expression after its child expressions. During a
+    // DataBind flush, child values then update the result proxy before the
+    // final target expression is evaluated in the same pass.
+    Data::BindingDescriptor output;
+    output.source = state->result.Get();
+    output.sourceProperty =
+        Data::MultiBindingProxy::ValueProperty.Handle();
+    output.target = state->target;
+    output.targetProperty = state->targetProperty;
+    output.mode = Data::BindingMode::OneWay;
+    Base::Result<Data::BindingHandle> outputHandle =
+        state->manager->Attach(output);
+    if (!outputHandle) {
+        state->Detach();
+        return outputHandle.GetStatus();
+    }
+    Base::Result<void> retainedOutput =
+        state->handles.PushBack(outputHandle.Value());
+    if (!retainedOutput) {
+        static_cast<void>(
+            state->manager->Detach(outputHandle.Value()));
+        state->Detach();
+        return retainedOutput.GetStatus();
+    }
+    return UINT64_C(1);
+}
+
+void RollbackMultiBinding(
+    void* context,
+    std::uint64_t) noexcept {
+    auto* state =
+        static_cast<DeferredMultiBindingState*>(context);
+    if (state != nullptr) state->Detach();
+}
+
+void CleanupMultiBinding(void* context) noexcept {
+    auto* state =
+        static_cast<DeferredMultiBindingState*>(context);
+    if (state == nullptr) return;
+    state->Detach();
+    Base::IAllocator* allocator = state->allocator;
+    state->~DeferredMultiBindingState();
+    allocator->Deallocate(
+        state,
+        sizeof(DeferredMultiBindingState),
+        alignof(DeferredMultiBindingState),
+        Base::MemoryTag::Markup);
+}
+
+Base::Result<ProvidedValue> CreateMultiBindingValue(
+    Data::MultiBinding& binding,
+    const ExtensionServices& services) noexcept {
+    if (services.schema == nullptr ||
+        services.targetObject == nullptr ||
+        services.targetMember == Meta::InvalidMemberId ||
+        services.bindings == nullptr ||
+        services.nameScope == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "MultiBinding has no target service context");
+    }
+    Base::Result<DependencyObject*> target =
+        Detail::SchemaPrivate::ResolvePropertyTarget(
+            *services.schema,
+            *services.targetObject);
+    if (!target) return target.GetStatus();
+    ::Aero::Meta::Registry* metadata =
+        Detail::SchemaPrivate::Metadata(
+            *services.schema);
+    if (metadata == nullptr ||
+        target.Value()->PropertyRegistry().Find(
+            Meta::DependencyPropertyHandle{
+                services.targetMember}) == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "MultiBinding target dependency property was not found");
+    }
+
+    Base::IAllocator& allocator =
+        Base::GetDefaultAllocator();
+    void* memory = allocator.Allocate({
+        sizeof(DeferredMultiBindingState),
+        alignof(DeferredMultiBindingState),
+        Base::MemoryTag::Markup});
+    if (memory == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "MultiBinding state allocation failed");
+    }
+    auto* state = new (memory)
+        DeferredMultiBindingState(allocator);
+    state->manager = services.bindings;
+    state->metadata = metadata;
+    state->targetOwner =
+        Base::Ref<DependencyObject>::TryFromBorrowed(
+            *target.Value());
+    state->target = state->targetOwner.Get();
+    state->targetProperty = {
+        services.targetMember};
+    state->dataContextProperty =
+        FrameworkElement::DataContextProperty.Handle();
+    state->dataContextOwner =
+        target.Value();
+    if (!metadata->Types().IsDerivedFrom(
+            target.Value()->RuntimeType(),
+            FrameworkElement::StaticTypeId()) &&
+        services.rootObject != nullptr &&
+        metadata->Types().IsDerivedFrom(
+            services.rootObject->RuntimeType(),
+            DependencyObject::StaticTypeId())) {
+        state->dataContextOwner =
+            static_cast<DependencyObject*>(
+                services.rootObject);
+    }
+    state->binding =
+        Base::Ref<Data::MultiBinding>::TryFromBorrowed(
+            binding);
+    if (!state->targetOwner || !state->binding) {
+        CleanupMultiBinding(state);
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "MultiBinding objects are not reference-counted");
+    }
+    return ProvidedValue::Deferred(
+        state,
+        &CommitMultiBinding,
+        &RollbackMultiBinding,
+        &CleanupMultiBinding,
+        &PrepareMultiBinding);
+}
+
 } // namespace
 
 BindingExtension::BindingExtension(
@@ -4761,6 +5213,36 @@ Base::Result<void> ObjectBuilder::WriteValue(
             MessageInvalidWriterState,
             source);
     }
+    if (value.Kind() == Meta::ValueKind::Object &&
+        !value.IsNullObject() &&
+        value.AsObject() &&
+        value.AsObject()->RuntimeType() ==
+            Data::MultiBinding::StaticTypeId()) {
+        const ExtensionServices services =
+            BuildExtensionServices(
+                targetObjectIndex,
+                member,
+                source);
+        Base::Result<ProvidedValue> provided =
+            CreateMultiBindingValue(
+                static_cast<Data::MultiBinding&>(
+                    *value.AsObject()),
+                services);
+        if (!provided) {
+            return Failure(
+                provided.GetStatus(),
+                XamlObjectWriterDiagnosticCodes::InvalidValue,
+                MessageInvalidValue,
+                source);
+        }
+        return WriteProvidedValue(
+            targetObjectIndex,
+            member,
+            std::move(provided).Value(),
+            source,
+            compiledPolicy);
+    }
+
 
     const MemberWritePolicy policy =
         compiledPolicy != nullptr

@@ -2,6 +2,7 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
@@ -31,6 +32,23 @@ enum class ResourceLoadMode : std::uint8_t { Replace = 0U, Merge };
 class FrameworkElement;
 class View;
 namespace Controls { class ContentControl; }
+
+// Global frame notification matching WPF CompositionTarget.Rendering. Hosts
+// still own the frame clock through View::Update; subscribers use this event to
+// invalidate custom visuals immediately before retained render commit.
+using RenderingEventHandler = Base::Delegate<void()>;
+
+class AERO_API CompositionTarget final {
+public:
+    static void AddRendering(
+        const RenderingEventHandler& handler) noexcept;
+    static bool RemoveRendering(
+        const RenderingEventHandler& handler) noexcept;
+
+private:
+    friend class View;
+    static void RaiseRendering() noexcept;
+};
 namespace Markup { class XamlReader; class XamlDocument; }
 
 namespace Integration {

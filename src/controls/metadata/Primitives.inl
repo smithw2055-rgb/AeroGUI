@@ -145,6 +145,14 @@ Base::Result<void> PopulateControlsPrimitives(
     status = contentControl.Result();
     if (!status) return status.GetStatus();
 
+    // UserControl is a concrete ContentControl root for LoadComponent. Content
+    // and resource semantics are inherited from ContentControl; the distinct
+    // factory preserves the application's registered runtime type.
+    status = Meta::Register<UserControl>(context)
+        .Factory()
+        .Result();
+    if (!status) return status.GetStatus();
+
     auto buttonBase = Meta::Register<ButtonBase>(
         context, TypeFlags::Abstract);
     buttonBase

@@ -108,16 +108,23 @@ Base::Result<void> PopulateUiAnimation(
     status = elasticEase.Result();
     if (!status) return status.GetStatus();
 
+    auto doubleAnimationBase =
+        Meta::Register<Media::Animation::DoubleAnimationBase>(
+            context, TypeFlags::Abstract);
+    doubleAnimationBase
+        .Property<
+            double,
+            &Media::Animation::DoubleAnimationBase::GetFrom,
+            &Media::Animation::DoubleAnimationBase::SetFrom>("From")
+        .Property<
+            double,
+            &Media::Animation::DoubleAnimationBase::GetTo,
+            &Media::Animation::DoubleAnimationBase::SetTo>("To");
+    status = doubleAnimationBase.Result();
+    if (!status) return status.GetStatus();
+
     auto doubleAnimation = Meta::Register<Media::Animation::DoubleAnimation>(context);
     doubleAnimation
-        .Property<
-            double,
-            &Media::Animation::DoubleAnimation::GetFrom,
-            &Media::Animation::DoubleAnimation::SetFrom>("From")
-        .Property<
-            double,
-            &Media::Animation::DoubleAnimation::GetTo,
-            &Media::Animation::DoubleAnimation::SetTo>("To")
         .Property<
             double,
             &Media::Animation::DoubleAnimation::GetAccelerationRatio,
@@ -521,6 +528,18 @@ Base::Result<void> PopulateUiAnimation(
             &ClearStoryboardTimelines)
         .Factory();
     status = storyboard.Result();
+    if (!status) return status.GetStatus();
+
+    auto parallelTimeline =
+        Meta::Register<Media::Animation::ParallelTimeline>(context);
+    parallelTimeline
+        .Content<Media::Animation::Timeline>(
+            "Children",
+            ContentKind::Collection,
+            &AddStoryboardTimeline,
+            &ClearStoryboardTimelines)
+        .Factory();
+    status = parallelTimeline.Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<Media::Animation::TriggerAction>(
