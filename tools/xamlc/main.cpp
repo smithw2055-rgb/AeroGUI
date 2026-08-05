@@ -1,4 +1,5 @@
 #include "markup/MarkupPrivate.hpp"
+#include "app/Metadata.hpp"
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Module.hpp>
 #include "runtime/modules/ModuleSet.hpp"
@@ -143,9 +144,11 @@ CompileWithBuiltInSchema(
     Aero::Markup::NodeReader& reader,
     const Aero::Base::ResourceUri& origin) noexcept {
     Aero::ModuleSet modules;
-    Aero::GuiSchema bundle;
     Aero::Base::Result<void> status =
-        bundle.Prepare(modules);
+        modules.Add(Aero::App::AppMetadataModule());
+    if (!status) return status.GetStatus();
+    Aero::GuiSchema bundle;
+    status = bundle.Prepare(modules);
     if (!status) return status.GetStatus();
     status = bundle.Finalize({});
     if (!status) return status.GetStatus();

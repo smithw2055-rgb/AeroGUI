@@ -590,7 +590,7 @@ struct DeferredMultiBindingState {
                 binding->GetConverterParameter());
         if (!converted) return converted.GetStatus();
         Base::Result<Meta::Value> coerced =
-            Data::CoerceBindingTargetValue(
+            GuiPrivate::Detail::NormalizeValueForProperty(
                 metadata,
                 *targetInfo,
                 std::move(converted).Value());

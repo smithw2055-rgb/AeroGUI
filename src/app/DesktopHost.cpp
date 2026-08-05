@@ -1,4 +1,5 @@
 #include "DesktopHost.hpp"
+#include "Metadata.hpp"
 
 #include <Aero/Application.hpp>
 #include <Aero/Window.hpp>
@@ -621,6 +622,9 @@ struct DesktopHost::Impl {
 
     Base::Result<void> CreateRuntime() noexcept {
         if (!optionsStatus) return optionsStatus.GetStatus();
+        Base::Result<void> appModule =
+            environment.AddModule(AppMetadataModule());
+        if (!appModule) return appModule.GetStatus();
         for (const ModuleRegistration& module : modules) {
             Base::Result<void> added = environment.AddModule(module);
             if (!added) return added.GetStatus();

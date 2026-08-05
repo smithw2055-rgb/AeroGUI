@@ -1,4 +1,5 @@
 #include "markup/MarkupPrivate.hpp"
+#include "app/Metadata.hpp"
 #include <Aero/Module.hpp>
 #include "runtime/modules/ModuleSet.hpp"
 
@@ -50,9 +51,11 @@ bool WriteFile(
 Aero::Base::Result<Aero::Markup::SchemaManifest>
 BuildBuiltInManifest() noexcept {
     Aero::ModuleSet modules;
-    Aero::GuiSchema bundle;
     Aero::Base::Result<void> status =
-        bundle.Prepare(modules);
+        modules.Add(Aero::App::AppMetadataModule());
+    if (!status) return status.GetStatus();
+    Aero::GuiSchema bundle;
+    status = bundle.Prepare(modules);
     if (!status) return status.GetStatus();
     status = bundle.Finalize({});
     if (!status) return status.GetStatus();

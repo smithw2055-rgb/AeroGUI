@@ -82,8 +82,9 @@ target_link_libraries(AeroControlsObjects
 target_compile_definitions(AeroControlsObjects PRIVATE
     AERO_CONTROLS_TEMPLATE_ABI=10)
 
-# Application object state and metadata are consumed by Runtime and App, but
-# native hosting remains outside this component.
+# Application/Window object state and descriptors belong to the optional App
+# product. Offline schema tools fold the same objects without pulling in a
+# native desktop host.
 add_library(AeroAppModelObjects OBJECT
     src/app/Application.cpp
     src/app/Metadata.cpp)
@@ -155,14 +156,15 @@ target_link_libraries(AeroMarkupObjects PUBLIC
 target_compile_definitions(AeroMarkupObjects PRIVATE
     AERO_MARKUP_UI_RESOURCES=1)
 
-# Module/schema composition is folded into Integration and the offline tools.
+# Platform-neutral module/schema composition is folded into Integration and the
+# offline tools. It must not depend on the optional App object model.
 add_library(AeroModuleSetObjects OBJECT
     src/runtime/modules/Module.cpp
     src/runtime/modules/BuiltinModules.cpp
     src/markup/GuiSchema.cpp)
 aero_configure_internal_objects(AeroModuleSetObjects)
 target_link_libraries(AeroModuleSetObjects PUBLIC
-    AeroMarkupObjects AeroAppModelObjects)
+    AeroMarkupObjects)
 
 # The supported GUI SDK is one real binary rather than an interface route over
 # separately installed implementation archives.

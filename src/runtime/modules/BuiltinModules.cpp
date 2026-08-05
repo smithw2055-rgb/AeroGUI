@@ -1,6 +1,5 @@
 #include "BuiltinModules.hpp"
 
-#include "app/Metadata.hpp"
 #include "controls/Metadata.hpp"
 #include "gui/GuiPrivate.hpp"
 #include "markup/MarkupPrivate.hpp"
@@ -14,10 +13,11 @@ Base::Result<void> RegisterBuiltInUiModules(
     if (!registered) return registered.GetStatus();
     registered = Aero::GuiPrivate::Detail::RegisterUiMetadata(domain);
     if (!registered) return registered.GetStatus();
-    registered = App::RegisterAppMetadata(domain);
-    if (!registered) return registered.GetStatus();
-    registered = Controls::RegisterControlsMetadata(domain);
-    if (!registered) return registered.GetStatus();
+    return Controls::RegisterControlsMetadata(domain);
+}
+
+Base::Result<void> RegisterBuiltInMarkupModule(
+    ::Aero::Meta::Registry& domain) noexcept {
     return Markup::RegisterMarkupMetadata(domain);
 }
 

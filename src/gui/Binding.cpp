@@ -2,7 +2,7 @@
 #include "controls/ControlsPrivate.hpp"
 #include <Aero/Data.hpp>
 #include <Aero/Resources.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Geometry.hpp>
 
 #include <cmath>
 #include <cstdio>
@@ -372,10 +372,8 @@ Base::Result<Base::String> FormatBindingString(
     case ValueKind::Object:
         if (!value.IsNullObject() &&
             value.AsObject() &&
-            (value.AsObject()->RuntimeType() ==
-                Media::Geometry::StaticTypeId() ||
-             value.AsObject()->RuntimeType() ==
-                Media::StreamGeometry::StaticTypeId())) {
+            value.AsObject()->RuntimeType() ==
+                Media::StreamGeometry::StaticTypeId()) {
             Base::String result;
             Base::Result<void> assigned =
                 result.Assign(
@@ -551,53 +549,7 @@ Base::Result<PropertyValue> UnboxItemsValue(
 
 } // namespace
 
-Base::Result<PropertyValue> CoerceBindingTargetValue(
-    Meta::Registry* metadata,
-    const Meta::DependencyProperty& targetProperty,
-    PropertyValue value) noexcept {
-    const TypeId targetType = targetProperty.ValueType();
-    if (targetProperty.AcceptsAnyValue() || value.Type() == targetType) {
-        return value;
-    }
-    if (value.Kind() == ValueKind::String) {
-        Base::Result<PropertyValue> converted =
-            metadata != nullptr
-            ? metadata->TryConvertText(targetType, value.AsString())
-            : Base::Result<PropertyValue>(InvalidState(
-                  "Binding text conversion requires metadata"));
-        if (!converted) return converted.GetStatus();
-        value = std::move(converted).Value();
-    }
-    if (targetType == Media::Brush::StaticTypeId() &&
-        value.Type() == TypeOf<Base::Color>()) {
-        Base::Result<Base::Color> color =
-            ValueCodec<Base::Color>::Decode(value);
-        if (!color) return color.GetStatus();
-        Base::Result<Base::Ref<Media::Brush>> brush =
-            Media::MakeSolidColorBrush(color.Value());
-        if (!brush) return brush.GetStatus();
-        value = PropertyValue::FromObject(
-            Media::Brush::StaticTypeId(),
-            Base::Ref<Base::Object>(std::move(brush).Value()));
-    }
-    if (value.Kind() == ValueKind::Object && value.Type() != targetType) {
-        if (value.IsNullObject()) {
-            value = PropertyValue::NullObject(targetType);
-        } else if (value.AsObject() &&
-                   metadata != nullptr &&
-                   metadata->Types().IsAssignableFrom(
-                       targetType, value.AsObject()->RuntimeType())) {
-            value = PropertyValue::FromObject(
-                targetType,
-                Base::Ref<Base::Object>::FromBorrowed(*value.AsObject()));
-        }
-    }
-    if (value.Type() != targetType) {
-        return InvalidArgument(
-            "Binding value cannot be assigned to the target property");
-    }
-    return value;
-}
+
 
 } // namespace Aero::Data
 
@@ -1738,7 +1690,7 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
         converted = std::move(result).Value();
     }
     Base::Result<PropertyValue> coerced =
-        Aero::Data::CoerceBindingTargetValue(
+        NormalizeValueForProperty(
             record.metadata,
             *targetProperty,
             std::move(converted));

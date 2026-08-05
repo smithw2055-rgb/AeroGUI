@@ -13,6 +13,52 @@
 #include <limits>
 #include <utility>
 
+namespace Aero::GuiPrivate::Detail {
+
+Base::Result<Meta::PropertyValue> NormalizeValueForProperty(
+    Meta::Registry* metadata,
+    const Meta::DependencyProperty& property,
+    Meta::PropertyValue value) noexcept {
+    const Meta::TypeId targetType = property.ValueType();
+    if (property.AcceptsAnyValue() || value.Type() == targetType) {
+        return value;
+    }
+
+    if (value.Kind() == Meta::ValueKind::String) {
+        if (metadata == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Dependency-property text conversion requires metadata");
+        }
+        Base::Result<Meta::PropertyValue> converted =
+            metadata->TryConvertText(targetType, value.AsString());
+        if (!converted) return converted.GetStatus();
+        value = std::move(converted).Value();
+    }
+
+    if (value.Kind() == Meta::ValueKind::Object &&
+        value.Type() != targetType) {
+        if (value.IsNullObject()) {
+            value = Meta::PropertyValue::NullObject(targetType);
+        } else if (metadata != nullptr && value.AsObject() &&
+                   metadata->Types().IsAssignableFrom(
+                       targetType, value.AsObject()->RuntimeType())) {
+            value = Meta::PropertyValue::FromObject(
+                targetType,
+                Base::Ref<Base::Object>::FromBorrowed(*value.AsObject()));
+        }
+    }
+
+    if (value.Type() != targetType) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Expression value cannot be assigned to the dependency property");
+    }
+    return value;
+}
+
+} // namespace Aero::GuiPrivate::Detail
+
 namespace Aero::Meta {
 namespace {
 

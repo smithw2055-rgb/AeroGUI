@@ -228,6 +228,16 @@ namespace Aero::GuiPrivate::Detail {
 
 using namespace ::Aero::Meta;
 
+// Canonical expression-to-DP boundary. Binding and MultiBinding use this
+// after their explicit converters; other expression runtimes can share it
+// without depending on Data. Type-specific conversions belong to metadata
+// codecs or an authored converter; this helper only normalizes text,
+// null-object typing and object covariance.
+AERO_API Base::Result<PropertyValue> NormalizeValueForProperty(
+    Meta::Registry* metadata,
+    const DependencyProperty& property,
+    PropertyValue value) noexcept;
+
 // Manager-owned provider state. One session belongs to one StyleEngine,
 // StyleEngine or TemplateEngine allocates all provider origins through the
 // shared EffectiveValueEngine, preventing cross-manager token collisions.

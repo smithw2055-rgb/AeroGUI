@@ -1,6 +1,6 @@
-# Integration folds View runtime, rendering, text providers and schema
-# composition into one product binary. App layers only the default desktop
-# lifetime and OS window implementation over that product.
+# Integration folds only the embeddable View runtime, rendering, providers and
+# schema composition. App owns the WPF Application/Window object model together
+# with the default desktop lifetime and OS window implementation.
 set(_aero_integration_sources
     src/integration/OpenGL33Device.cpp
     src/providers/XamlProvider.cpp
@@ -14,7 +14,6 @@ add_library(AeroIntegration ${AERO_LIBRARY_TYPE}
     ${_aero_integration_sources})
 add_library(Aero::Integration ALIAS AeroIntegration)
 target_sources(AeroIntegration PRIVATE
-    $<TARGET_OBJECTS:AeroAppModelObjects>
     $<TARGET_OBJECTS:AeroModuleSetObjects>
     $<TARGET_OBJECTS:AeroTextFreeTypeObjects>
     $<TARGET_OBJECTS:AeroTextHarfBuzzObjects>
@@ -95,6 +94,8 @@ endif()
 add_library(AeroApp ${AERO_LIBRARY_TYPE}
     ${_aero_app_sources})
 add_library(Aero::App ALIAS AeroApp)
+target_sources(AeroApp PRIVATE
+    $<TARGET_OBJECTS:AeroAppModelObjects>)
 target_include_directories(AeroApp
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -130,7 +131,21 @@ add_library(AeroProductHeaderConsumer OBJECT
 target_link_libraries(AeroProductHeaderConsumer PRIVATE Aero::App)
 aero_apply_compiler_options(AeroProductHeaderConsumer)
 
-# Product dependency direction is intentionally short and public.
+# Product dependency direction is intentionally short and public. The App
+# object model must never leak back into the embeddable Integration product.
+get_target_property(_aero_integration_sources_property
+    AeroIntegration SOURCES)
+if("${_aero_integration_sources_property}" MATCHES
+        "AeroAppModelObjects")
+    message(FATAL_ERROR
+        "Integration must not fold the optional Application/Window model")
+endif()
+get_target_property(_aero_app_sources_property AeroApp SOURCES)
+if(NOT "${_aero_app_sources_property}" MATCHES
+        "AeroAppModelObjects")
+    message(FATAL_ERROR
+        "App must own the Application/Window object model")
+endif()
 get_target_property(_aero_integration_links
     AeroIntegration LINK_LIBRARIES)
 if("${_aero_integration_links}" MATCHES
@@ -143,5 +158,7 @@ get_target_property(_aero_meta_links
 if(NOT "${_aero_meta_links}" STREQUAL "Aero::Gui")
     message(FATAL_ERROR "AeroMeta must remain a Gui-only authoring facade")
 endif()
+unset(_aero_integration_sources_property)
+unset(_aero_app_sources_property)
 unset(_aero_integration_links)
 unset(_aero_meta_links)

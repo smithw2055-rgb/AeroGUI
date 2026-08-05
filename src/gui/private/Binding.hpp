@@ -223,14 +223,6 @@ struct BindingInspection {
 // (including ElementName); otherwise the source is resolved from target's
 // DataContext property. Text is compiled once per concrete source type and the
 // resulting immutable BindingPathPlan is reused until the source changes.
-// Coerces a converter or authored value to a dependency property's declared
-// type. Binding, MultiBinding and trigger actions share this path so object
-// covariance, null values, text conversion and Color-to-Brush conversion do
-// not drift between runtimes.
-Base::Result<PropertyValue> CoerceBindingTargetValue(
-    Meta::Registry* metadata,
-    const Meta::DependencyProperty& targetProperty,
-    PropertyValue value) noexcept;
 
 struct MetadataBindingDescriptor {
     Meta::Registry* metadata = nullptr;

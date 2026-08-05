@@ -221,7 +221,7 @@ Base::Result<void> ModuleSet::RegisterMetadata(
                 module.context});
         if (!registered) return registered.GetStatus();
     }
-    return {};
+    return RegisterBuiltInMarkupModule(domain);
 }
 
 Base::Result<void> ModuleSet::Freeze() noexcept {
