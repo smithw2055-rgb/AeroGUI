@@ -105,6 +105,9 @@ public:
     View(const View&) = delete;
     View& operator=(const View&) = delete;
 
+    Base::Result<void> SetContentChecked(
+        Markup::XamlDocument&& document,
+        Aero::Size availableSize) noexcept;
     void SetContent(
         Markup::XamlDocument&& document,
         Aero::Size availableSize) noexcept;

@@ -1,4 +1,5 @@
 #include "gui/GuiPrivate.hpp"
+#include "controls/ControlsPrivate.hpp"
 #include <Aero/Data.hpp>
 #include <Aero/Resources.hpp>
 
@@ -73,6 +74,31 @@ Base::Status BindingTypeMismatch(
             targetValueName.SizeBytes()),
         targetValueName.Data());
     return InvalidArgument(message);
+}
+
+Base::Status BindingPathFailure(
+    const TypeRegistry& types,
+    Base::StringView path,
+    const BindingPathCompileError& error,
+    Base::Status status) noexcept {
+    thread_local char message[512];
+    const TypeInfo* input = types.FindType(error.inputType);
+    const Base::StringView inputName = input != nullptr
+        ? input->Name()
+        : Base::StringView("<unknown>");
+    std::snprintf(
+        message,
+        sizeof(message),
+        "Binding path '%.*s' failed at segment %u '%.*s' on type '%.*s': %s",
+        static_cast<int>(path.SizeBytes()),
+        path.Data(),
+        error.segmentIndex,
+        static_cast<int>(error.segment.SizeBytes()),
+        error.segment.CStr(),
+        static_cast<int>(inputName.SizeBytes()),
+        inputName.Data(),
+        status.message != nullptr ? status.message : "operation failed");
+    return Base::Status::Failure(status.code, message);
 }
 
 bool IsNumericType(TypeId type) noexcept {
@@ -182,8 +208,43 @@ bool HasDefaultTargetConversion(
         (sourceType != targetType &&
          IsNumericType(sourceType) &&
          IsNumericType(targetType)) ||
+        (IsNumericType(sourceType) &&
+         targetType == TypeOf<Aero::Length>()) ||
+        (sourceType == TypeOf<Aero::Length>() &&
+         IsNumericType(targetType)) ||
         (targetType == TypeOf<Base::String>() &&
-         sourceType != InvalidTypeId);
+         sourceType != InvalidTypeId) ||
+        (sourceType == TypeOf<Base::String>() &&
+         targetType != InvalidTypeId);
+}
+
+Base::Result<PropertyValue> ConvertLengthValue(
+    const PropertyValue& value,
+    TypeId targetType) noexcept {
+    if (targetType == TypeOf<Aero::Length>() &&
+        IsNumericType(value.Type())) {
+        Base::Result<PropertyValue> numeric =
+            ConvertNumericValue(value, TypeOf<double>());
+        if (!numeric) return numeric.GetStatus();
+        return Meta::ValueCodec<Aero::Length>::Encode(
+            Aero::Length::Pixels(numeric.Value().AsDouble()));
+    }
+    if (value.Type() == TypeOf<Aero::Length>() &&
+        IsNumericType(targetType)) {
+        Base::Result<Aero::Length> length =
+            Meta::ValueCodec<Aero::Length>::Decode(value);
+        if (!length) return length.GetStatus();
+        if (length.Value().isAuto) {
+            return InvalidArgument(
+                "Auto Length cannot be converted to a numeric binding target");
+        }
+        return ConvertNumericValue(
+            PropertyValue::FromDouble(
+                TypeOf<double>(), length.Value().value),
+            targetType);
+    }
+    return InvalidArgument(
+        "Binding Length conversion is not supported");
 }
 
 // A TwoWay object binding may intentionally expose a concrete source object
@@ -398,6 +459,21 @@ Base::Result<Base::String> FormatBindingString(
               appended.GetStatus());
 }
 
+Base::Result<PropertyValue> UnboxItemsValue(
+    Base::Result<PropertyValue> value) noexcept {
+    if (!value) return value.GetStatus();
+    const PropertyValue& current = value.Value();
+    if (current.Kind() == ValueKind::Object &&
+        !current.IsNullObject() && current.AsObject() &&
+        current.AsObject()->RuntimeType() ==
+            ::Aero::Controls::Detail::BoxedItemValue::StaticTypeId()) {
+        return static_cast<const
+            ::Aero::Controls::Detail::BoxedItemValue&>(
+                *current.AsObject()).Value();
+    }
+    return value;
+}
+
 } // namespace
 
 } // namespace Aero::Data
@@ -559,26 +635,35 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     }
 
     if (record.sourceKind == BindingSourceKind::MetadataPath) {
+        BindingPathCompileError compileError;
         Base::Result<BindingPathPlan> compiled = BindingPathPlan::Compile(
             *record.metadata,
             record.metadataSource->RuntimeType(),
-            record.path.View());
+            record.path.View(),
+            &compileError);
         if (!compiled) {
             --nextHandle_;
-            return compiled.GetStatus();
+            return BindingPathFailure(
+                record.metadata->Types(),
+                record.path.View(),
+                compileError,
+                compiled.GetStatus());
         }
         record.pathPlan = std::move(compiled).Value();
         const DependencyProperty* targetProperty =
             descriptor.target->PropertyRegistry().Find(
                 descriptor.targetProperty);
         if (targetProperty == nullptr ||
+            (!targetProperty->AcceptsAnyValue() &&
             (descriptor.convert == nullptr &&
+            !record.pathPlan.HasDynamicResult() &&
+            record.pathPlan.ResultType() != TypeOf<Base::Object>() &&
             !record.metadata->Types().IsAssignableFrom(
                 targetProperty->ValueType(),
                 record.pathPlan.ResultType()) &&
             !HasDefaultTargetConversion(
                 record.pathPlan.ResultType(),
-                targetProperty->ValueType()))) {
+                targetProperty->ValueType())))) {
             --nextHandle_;
             return BindingTypeMismatch(
                 record.metadata->Types(),
@@ -597,6 +682,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         }
         if ((descriptor.mode == BindingMode::TwoWay ||
              descriptor.mode == BindingMode::OneWayToSource) &&
+            !record.pathPlan.HasDynamicResult() &&
             targetProperty->ValueType() != record.pathPlan.ResultType() &&
             descriptor.convertBack == nullptr &&
             !HasDefaultTargetConversion(
@@ -615,9 +701,10 @@ Base::Result<BindingHandle> BindingEngine::Attach(
             descriptor.target->PropertyRegistry().Find(
                 descriptor.targetProperty);
         if (targetProperty == nullptr ||
+            (!targetProperty->AcceptsAnyValue() &&
             !record.metadata->Types().IsAssignableFrom(
                 targetProperty->ValueType(),
-                record.metadataSource->RuntimeType())) {
+                record.metadataSource->RuntimeType()))) {
             --nextHandle_;
             return BindingTypeMismatch(
                 record.metadata->Types(),
@@ -1242,7 +1329,6 @@ Base::Result<void> BindingEngine::VerifyDescriptor(
         descriptor.target == nullptr ||
         !descriptor.targetProperty.IsValid() ||
         (descriptor.path.Empty() && !descriptor.bindsToSource) ||
-        (descriptor.bindsToSource && descriptor.source == nullptr) ||
         (descriptor.source == nullptr &&
          !descriptor.dataContextProperty.IsValid())) {
         return InvalidArgument("Metadata binding descriptor is incomplete");
@@ -1305,30 +1391,70 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
 
     Base::Object* source = dataContext.Value().AsObject().Get();
     if (source == record.metadataSource &&
-        record.pathPlan.IsValid()) {
+        (record.bindsToSource || record.pathPlan.IsValid())) {
         return {};
     }
     ReleaseMetadataSource(record);
     record.metadataSource = nullptr;
     record.pathPlan = {};
 
+    if (record.bindsToSource) {
+        const DependencyProperty* targetProperty =
+            record.descriptor.target->PropertyRegistry().Find(
+                record.descriptor.targetProperty);
+        if (targetProperty == nullptr ||
+            (!targetProperty->AcceptsAnyValue() &&
+            (record.descriptor.convert == nullptr &&
+             !record.metadata->Types().IsAssignableFrom(
+                 targetProperty->ValueType(),
+                 source->RuntimeType())))) {
+            return BindingTypeMismatch(
+                record.metadata->Types(),
+                Base::StringView("."),
+                source->RuntimeType(),
+                *record.descriptor.target,
+                targetProperty);
+        }
+        if (record.descriptor.mode == BindingMode::TwoWay ||
+            record.descriptor.mode == BindingMode::OneWayToSource) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ReadOnly,
+                "Binding to the DataContext object does not support writeback");
+        }
+        record.metadataSource = source;
+        record.sourceDirty = true;
+        record.applied = false;
+        return {};
+    }
+
+    BindingPathCompileError compileError;
     Base::Result<BindingPathPlan> compiled =
         BindingPathPlan::Compile(
             *record.metadata,
             source->RuntimeType(),
-            record.path.View());
-    if (!compiled) return compiled.GetStatus();
+            record.path.View(),
+            &compileError);
+    if (!compiled) {
+        return BindingPathFailure(
+            record.metadata->Types(),
+            record.path.View(),
+            compileError,
+            compiled.GetStatus());
+    }
     const DependencyProperty* targetProperty =
         record.descriptor.target->PropertyRegistry().Find(
             record.descriptor.targetProperty);
     if (targetProperty == nullptr ||
+        (!targetProperty->AcceptsAnyValue() &&
         (record.descriptor.convert == nullptr &&
+        !compiled.Value().HasDynamicResult() &&
+        compiled.Value().ResultType() != TypeOf<Base::Object>() &&
         !record.metadata->Types().IsAssignableFrom(
             targetProperty->ValueType(),
             compiled.Value().ResultType()) &&
         !HasDefaultTargetConversion(
             compiled.Value().ResultType(),
-            targetProperty->ValueType()))) {
+            targetProperty->ValueType())))) {
         return BindingTypeMismatch(
             record.metadata->Types(),
             record.path.View(),
@@ -1345,6 +1471,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
     }
     if ((record.descriptor.mode == BindingMode::TwoWay ||
          record.descriptor.mode == BindingMode::OneWayToSource) &&
+        !compiled.Value().HasDynamicResult() &&
         targetProperty->ValueType() != compiled.Value().ResultType() &&
         record.descriptor.convertBack == nullptr &&
         !HasDefaultTargetConversion(
@@ -1375,19 +1502,29 @@ Base::Result<PropertyValue> BindingEngine::ReadSource(
     BindingRecord& record) noexcept {
     if (record.sourceKind ==
         BindingSourceKind::DependencyProperty) {
-        return record.descriptor.source->GetValue(
-            record.descriptor.sourceProperty);
+        return Aero::Data::UnboxItemsValue(
+            record.descriptor.source->GetValue(
+                record.descriptor.sourceProperty));
     }
     if (record.sourceKind == BindingSourceKind::MetadataObject) {
-        return PropertyValue::FromObject(
-            record.metadataSource->RuntimeType(),
-            Base::Ref<Base::Object>::FromBorrowed(
-                *record.metadataSource));
+        return Aero::Data::UnboxItemsValue(
+            PropertyValue::FromObject(
+                record.metadataSource->RuntimeType(),
+                Base::Ref<Base::Object>::FromBorrowed(
+                    *record.metadataSource)));
     }
     Base::Result<void> resolved = ResolveMetadataSource(record);
     if (!resolved) return resolved.GetStatus();
-    return record.pathPlan.Get(
-        *record.metadata, *record.metadataSource);
+    if (record.bindsToSource) {
+        return Aero::Data::UnboxItemsValue(
+            PropertyValue::FromObject(
+                record.metadataSource->RuntimeType(),
+                Base::Ref<Base::Object>::FromBorrowed(
+                    *record.metadataSource)));
+    }
+    return Aero::Data::UnboxItemsValue(
+        record.pathPlan.Get(
+            *record.metadata, *record.metadataSource));
 }
 
 Base::Result<void> BindingEngine::WriteSource(
@@ -1399,7 +1536,8 @@ Base::Result<void> BindingEngine::WriteSource(
             record.descriptor.sourceProperty, value);
         return {};
     }
-    if (record.sourceKind == BindingSourceKind::MetadataObject) {
+    if (record.sourceKind == BindingSourceKind::MetadataObject ||
+        record.bindsToSource) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
             "Binding source object cannot be replaced through writeback");
@@ -1439,13 +1577,17 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
                    converted.Type(),
                    targetProperty->ValueType())) {
         Base::Result<PropertyValue> result =
-            IsNumericType(converted.Type()) &&
-                IsNumericType(
-                    targetProperty->ValueType())
-            ? ConvertNumericValue(
-                  converted,
-                  targetProperty->ValueType())
-            : [&]() noexcept
+            ((IsNumericType(converted.Type()) &&
+              targetProperty->ValueType() == TypeOf<Aero::Length>()) ||
+             (converted.Type() == TypeOf<Aero::Length>() &&
+              IsNumericType(targetProperty->ValueType())))
+            ? ConvertLengthValue(
+                  converted, targetProperty->ValueType())
+            : IsNumericType(converted.Type()) &&
+                  IsNumericType(targetProperty->ValueType())
+                ? ConvertNumericValue(
+                      converted, targetProperty->ValueType())
+                : [&]() noexcept
                   -> Base::Result<PropertyValue> {
                 Base::Result<Base::String> text =
                     FormatBindingString(
@@ -1523,11 +1665,15 @@ Base::Result<PropertyValue> BindingEngine::ConvertForSource(
     } else if (HasDefaultTargetConversion(
                    converted.Type(), sourceType)) {
         Base::Result<PropertyValue> result =
-            IsNumericType(converted.Type()) &&
-                IsNumericType(sourceType)
-            ? ConvertNumericValue(
-                  converted, sourceType)
-            : [&]() noexcept
+            ((IsNumericType(converted.Type()) &&
+              sourceType == TypeOf<Aero::Length>()) ||
+             (converted.Type() == TypeOf<Aero::Length>() &&
+              IsNumericType(sourceType)))
+            ? ConvertLengthValue(converted, sourceType)
+            : IsNumericType(converted.Type()) &&
+                  IsNumericType(sourceType)
+                ? ConvertNumericValue(converted, sourceType)
+                : [&]() noexcept
                   -> Base::Result<PropertyValue> {
                 Base::Result<Base::String> text =
                     FormatBindingString(

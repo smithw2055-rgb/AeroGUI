@@ -1615,6 +1615,7 @@ TextBlock::TextBlock(TypeId runtimeType) noexcept
       pendingInline_() {}
 
 TextBlock::~TextBlock() {
+    ClearOwnedInlines();
     ReleaseServiceGlyphRun();
 }
 

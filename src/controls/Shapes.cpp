@@ -227,14 +227,14 @@ Base::Result<void> PaintImageBrush(
         const std::int64_t firstRow = static_cast<std::int64_t>(
             std::floor((bounds.y - cell.y) / cell.height));
         for (std::int64_t row = firstRow;
-             cell.y + row * cell.height < bounds.y + bounds.height &&
+             cell.y + static_cast<double>(row) * cell.height < bounds.y + bounds.height &&
              tileCount < maxTiles && status; ++row) {
             for (std::int64_t column = firstColumn;
-                 cell.x + column * cell.width < bounds.x + bounds.width &&
+                 cell.x + static_cast<double>(column) * cell.width < bounds.x + bounds.width &&
                  tileCount < maxTiles; ++column) {
                 Rect tile{
-                    cell.x + column * cell.width,
-                    cell.y + row * cell.height,
+                    cell.x + static_cast<double>(column) * cell.width,
+                    cell.y + static_cast<double>(row) * cell.height,
                     cell.width,
                     cell.height};
                 ImageBrushGeometry geometry =

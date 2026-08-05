@@ -8,6 +8,41 @@
 
 namespace Aero {
 
+void TextProperties::OnCompatibilityPropertyChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    const Meta::DependencyProperty* source =
+        object.PropertyRegistry().Find(args.GetProperty());
+    if (source == nullptr) return;
+
+    const Meta::PropertyInfo* targetInfo =
+        object.PropertyRegistry().Types().FindProperty(
+            object.RuntimeType(), source->Name(), false);
+    if (targetInfo == nullptr ||
+        targetInfo->Id() == source->Handle().value) {
+        return;
+    }
+    const Meta::DependencyProperty* target =
+        object.PropertyRegistry().Find(
+            Meta::DependencyPropertyHandle{targetInfo->Id()});
+    if (target == nullptr ||
+        target->MetadataFor(object.RuntimeType()) == nullptr) {
+        return;
+    }
+
+    Meta::Value value = args.GetNewValue();
+    if (!target->AcceptsAnyValue() &&
+        value.Type() != target->ValueType() &&
+        value.Kind() == Meta::ValueKind::Object &&
+        !value.IsNullObject() && value.AsObject() &&
+        object.PropertyRegistry().Types().IsDerivedFrom(
+            value.AsObject()->RuntimeType(), target->ValueType())) {
+        value = Meta::Value::FromObject(
+            target->ValueType(), value.AsObject());
+    }
+    (void)object.SetValueChecked(target->Handle(), value);
+}
+
 std::uint32_t SetterBaseCollection::GetCount() const noexcept {
     return owner_ != nullptr ? owner_->GetAuthoredSetters().Size() : 0U;
 }
@@ -41,7 +76,7 @@ TriggerBase* TriggerCollection::GetItem(std::uint32_t index) const noexcept {
 }
 
 Base::Result<void> TriggerCollection::Add(
-    Base::Ref<Trigger> trigger) noexcept {
+    Base::Ref<TriggerBase> trigger) noexcept {
     if (owner_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -447,7 +482,7 @@ Base::Result<void> Style::AddAuthoredSetter(
 }
 
 Base::Result<void> Style::AddAuthoredTrigger(
-    Base::Ref<Trigger> trigger) noexcept {
+    Base::Ref<TriggerBase> trigger) noexcept {
     if (sealed_) {
         return InvalidStyle(
             "Cannot modify a sealed Style");
@@ -522,6 +557,40 @@ Base::Result<void> Style::AddTrigger(
          index < trigger.setterProperties_.Size(); ++index) {
         Base::Result<void> copied = plan.setters.PushBack({
             trigger.setterProperties_[index], trigger.setterValues_[index]});
+        if (!copied) return copied.GetStatus();
+    }
+    Base::Result<void> copied = plan.enterActions.Append(
+        trigger.GetEnterActions());
+    if (!copied) return copied.GetStatus();
+    copied = plan.exitActions.Append(trigger.GetExitActions());
+    if (!copied) return copied.GetStatus();
+    return program_->AddAuthoredTrigger(std::move(plan));
+}
+
+Base::Result<void> Style::AddTrigger(
+    const DataTrigger& trigger) noexcept {
+    if (sealed_) {
+        return InvalidStyle("Cannot modify a sealed Style");
+    }
+    if (!trigger.GetBinding() || trigger.GetAuthoredValue().IsUnset() ||
+        trigger.GetAuthoredSetters().Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "DataTrigger is incomplete");
+    }
+    TriggerPlan plan;
+    plan.binding = trigger.GetBinding();
+    plan.value = trigger.GetAuthoredValue();
+    for (const Base::Ref<Setter>& authored :
+         trigger.GetAuthoredSetters()) {
+        if (!authored || !authored->GetProperty().IsValid() ||
+            authored->GetValue().IsUnset()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "DataTrigger Setter is incomplete");
+        }
+        Base::Result<void> copied = plan.setters.PushBack({
+            authored->GetProperty(), authored->GetValue()});
         if (!copied) return copied.GetStatus();
     }
     Base::Result<void> copied = plan.enterActions.Append(
@@ -617,17 +686,25 @@ Base::Result<void> Style::SealRuntime(
         if (!inherited) return inherited.GetStatus();
     }
     for (const TriggerPlan& trigger : program_->authoredTriggers) {
-        const DependencyProperty* condition =
-            properties.Find(trigger.property);
-        if (condition == nullptr ||
-            condition->MetadataFor(targetType_) == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "Style trigger condition does not apply to TargetType");
+        if (trigger.IsBindingTrigger()) {
+            if (!trigger.binding || trigger.value.IsUnset()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "Style DataTrigger Binding or Value is incomplete");
+            }
+        } else {
+            const DependencyProperty* condition =
+                properties.Find(trigger.property);
+            if (condition == nullptr ||
+                condition->MetadataFor(targetType_) == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "Style trigger condition does not apply to TargetType");
+            }
+            Base::Result<void> validCondition = properties.ValidateValueFor(
+                trigger.property, targetType_, trigger.value);
+            if (!validCondition) return validCondition.GetStatus();
         }
-        Base::Result<void> validCondition = properties.ValidateValueFor(
-            trigger.property, targetType_, trigger.value);
-        if (!validCondition) return validCondition.GetStatus();
         for (std::uint32_t index = 0U;
              index < trigger.setters.Size();
              ++index) {
@@ -773,6 +850,10 @@ Base::Result<void> StyleEngine::Apply(
         Base::Result<void> states =
             application.triggerStates.Resize(
                 StylePrivate::RuntimeTriggers(style).Size(), 0U);
+        if (states) states = application.bindingTriggerStates.Resize(
+            StylePrivate::RuntimeTriggers(style).Size(), 0U);
+        if (states) states = application.bindingTriggerKnown.Resize(
+            StylePrivate::RuntimeTriggers(style).Size(), 0U);
         if (!states) return states.GetStatus();
         Base::Result<void> tracked =
             applications_.PushBack(
@@ -783,9 +864,12 @@ Base::Result<void> StyleEngine::Apply(
     } else if (requiresSubscription) {
         applications_[existing].style = &style;
         Base::Result<void> states =
-            applications_[existing].
-                triggerStates.Resize(
-                    StylePrivate::RuntimeTriggers(style).Size(), 0U);
+            applications_[existing].triggerStates.Resize(
+                StylePrivate::RuntimeTriggers(style).Size(), 0U);
+        if (states) states = applications_[existing].bindingTriggerStates.Resize(
+            StylePrivate::RuntimeTriggers(style).Size(), 0U);
+        if (states) states = applications_[existing].bindingTriggerKnown.Resize(
+            StylePrivate::RuntimeTriggers(style).Size(), 0U);
         if (!states) return states.GetStatus();
     }
     if (requiresSubscription) {
@@ -793,6 +877,26 @@ Base::Result<void> StyleEngine::Apply(
             SubscribeTriggers(object, style);
         if (!subscribed) return subscribed.GetStatus();
     }
+    return EvaluateTriggers(object, style);
+}
+
+Base::Result<void> StyleEngine::SetBindingTriggerState(
+    DependencyObject& object,
+    const Style& style,
+    std::uint32_t triggerIndex,
+    bool active) noexcept {
+    const std::uint32_t applicationIndex = FindApplication(object);
+    if (applicationIndex == UINT32_MAX ||
+        applications_[applicationIndex].style != &style ||
+        triggerIndex >= StylePrivate::RuntimeTriggers(style).Size() ||
+        !StylePrivate::RuntimeTriggers(style)[triggerIndex].IsBindingTrigger()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Style DataTrigger application was not found");
+    }
+    Application& application = applications_[applicationIndex];
+    application.bindingTriggerKnown[triggerIndex] = 1U;
+    application.bindingTriggerStates[triggerIndex] = active ? 1U : 0U;
     return EvaluateTriggers(object, style);
 }
 
@@ -886,14 +990,17 @@ Base::Result<void> StyleEngine::SubscribeTriggers(
     for (std::uint32_t index = 0U;
          index < StylePrivate::RuntimeTriggers(style).Size();
          ++index) {
-        const DependencyPropertyHandle property =
-            StylePrivate::RuntimeTriggers(style)[index].property;
+        const TriggerPlan& trigger =
+            StylePrivate::RuntimeTriggers(style)[index];
+        if (trigger.IsBindingTrigger()) continue;
+        const DependencyPropertyHandle property = trigger.property;
         bool first = true;
         for (std::uint32_t previous = 0U;
              previous < index;
              ++previous) {
             first = first &&
-                StylePrivate::RuntimeTriggers(style)[previous].property != property;
+                (StylePrivate::RuntimeTriggers(style)[previous].IsBindingTrigger() ||
+                 StylePrivate::RuntimeTriggers(style)[previous].property != property);
         }
         if (!first) continue;
         Base::Result<void> subscribed =
@@ -910,14 +1017,17 @@ void StyleEngine::UnsubscribeTriggers(
     for (std::uint32_t index = 0U;
          index < StylePrivate::RuntimeTriggers(style).Size();
          ++index) {
-        const DependencyPropertyHandle property =
-            StylePrivate::RuntimeTriggers(style)[index].property;
+        const TriggerPlan& trigger =
+            StylePrivate::RuntimeTriggers(style)[index];
+        if (trigger.IsBindingTrigger()) continue;
+        const DependencyPropertyHandle property = trigger.property;
         bool first = true;
         for (std::uint32_t previous = 0U;
              previous < index;
              ++previous) {
             first = first &&
-                StylePrivate::RuntimeTriggers(style)[previous].property != property;
+                (StylePrivate::RuntimeTriggers(style)[previous].IsBindingTrigger() ||
+                 StylePrivate::RuntimeTriggers(style)[previous].property != property);
         }
         if (first) {
             (void)object.RemoveValueChangedHandler(
@@ -947,11 +1057,16 @@ Base::Result<void> StyleEngine::EvaluateTriggers(
          index < triggers.Size(); ++index) {
         const TriggerPlan& trigger =
             triggers[index];
-        Base::Result<PropertyValue> current =
-            object.GetValue(trigger.property);
-        if (!current) return current.GetStatus();
-        const bool active =
-            current.Value() == trigger.value;
+        bool active = false;
+        if (trigger.IsBindingTrigger()) {
+            active = application.bindingTriggerKnown[index] != 0U &&
+                application.bindingTriggerStates[index] != 0U;
+        } else {
+            Base::Result<PropertyValue> current =
+                object.GetValue(trigger.property);
+            if (!current) return current.GetStatus();
+            active = current.Value() == trigger.value;
+        }
         if (active) {
             for (const StyleTriggerSetter& setter :
                  trigger.setters) {
@@ -975,11 +1090,16 @@ Base::Result<void> StyleEngine::EvaluateTriggers(
          index < triggers.Size(); ++index) {
         const TriggerPlan& trigger =
             triggers[index];
-        Base::Result<PropertyValue> current =
-            object.GetValue(trigger.property);
-        if (!current) return current.GetStatus();
-        const bool active =
-            current.Value() == trigger.value;
+        bool active = false;
+        if (trigger.IsBindingTrigger()) {
+            active = application.bindingTriggerKnown[index] != 0U &&
+                application.bindingTriggerStates[index] != 0U;
+        } else {
+            Base::Result<PropertyValue> current =
+                object.GetValue(trigger.property);
+            if (!current) return current.GetStatus();
+            active = current.Value() == trigger.value;
+        }
         const bool wasActive =
             application.triggerStates[index] != 0U;
         if (active == wasActive) continue;
@@ -1063,7 +1183,8 @@ void StyleEngine::OnPropertyChanged(
     if (index == UINT32_MAX) return;
     const Style& style = *applications_[index].style;
     for (const TriggerPlan& trigger : StylePrivate::RuntimeTriggers(style)) {
-        if (trigger.property == args.GetProperty()) {
+        if (!trigger.IsBindingTrigger() &&
+            trigger.property == args.GetProperty()) {
             if (values_->IsFlushing()) {
                 Base::Result<void> queued =
                     QueueTriggerEvaluation(object);

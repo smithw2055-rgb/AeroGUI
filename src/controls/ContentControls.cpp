@@ -183,6 +183,7 @@ Size Popup::ArrangeOverride(
     if (!GetIsOpen()) {
         Base::Result<void> hidden =
             ArrangeChild(*popupChild, {});
+        (void)hidden;
         return finalSize;
     }
 
@@ -273,6 +274,7 @@ Size Popup::ArrangeOverride(
             {x, y,
              contentSize.width,
              contentSize.height});
+    (void)arranged;
     return finalSize;
 }
 

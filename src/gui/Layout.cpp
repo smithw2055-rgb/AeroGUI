@@ -154,6 +154,30 @@ bool IsValidLayoutSize(Size value) noexcept {
     return IsFinite(value) && value.width >= 0.0 && value.height >= 0.0;
 }
 
+UIElement* FindInvalidVisibleLayout(Visual& visual) noexcept {
+    UIElement* element = visual.AsUIElement();
+    if (element != nullptr &&
+        element->GetVisibility() == Visibility::Visible &&
+        (!UIElement::Impl::MeasureValid(*element) ||
+         !UIElement::Impl::ArrangeValid(*element))) {
+        return element;
+    }
+    const std::uint32_t childCount =
+        VisualTreeHelper::GetChildrenCount(visual);
+    for (std::uint32_t index = 0U; index < childCount; ++index) {
+        Visual* child = VisualTreeHelper::GetChild(visual, index);
+        if (child != nullptr) {
+            UIElement* invalid = FindInvalidVisibleLayout(*child);
+            if (invalid != nullptr) return invalid;
+        }
+    }
+    return nullptr;
+}
+
+bool HasInvalidVisibleLayout(Visual& visual) noexcept {
+    return FindInvalidVisibleLayout(visual) != nullptr;
+}
+
 bool IsValidLayoutRect(Rect value) noexcept {
     return IsFinite(value) && value.width >= 0.0 && value.height >= 0.0;
 }
@@ -435,9 +459,16 @@ Size FrameworkElement::GetMinSize() const noexcept {
         GetValueOr(MinHeightProperty, 0.0)};
 }
 Size FrameworkElement::GetMaxSize() const noexcept {
+    const Size minimum = GetMinSize();
+    const double authoredWidth =
+        GetValueOr(MaxWidthProperty, 1.0e12);
+    const double authoredHeight =
+        GetValueOr(MaxHeightProperty, 1.0e12);
+    // Resolve contradictory template/style ordering at layout time. Min values
+    // take precedence without rejecting an otherwise valid WPF template.
     return {
-        GetValueOr(MaxWidthProperty, 1.0e12),
-        GetValueOr(MaxHeightProperty, 1.0e12)};
+        authoredWidth < minimum.width ? minimum.width : authoredWidth,
+        authoredHeight < minimum.height ? minimum.height : authoredHeight};
 }
 Thickness FrameworkElement::GetMargin() const noexcept {
     return GetValueOr(MarginProperty, Thickness{});
@@ -1392,9 +1423,11 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     constexpr std::uint32_t MaxConvergencePasses = 8U;
     std::uint32_t convergencePass = 0U;
     while (root_ != nullptr &&
-           (!UIElement::Impl::MeasureValid(*root_) || !UIElement::Impl::ArrangeValid(*root_)) &&
+           HasInvalidVisibleLayout(*root_) &&
            convergencePass < MaxConvergencePasses) {
         ++convergencePass;
+        UIElement::Impl::MeasureValid(*root_) = false;
+        UIElement::Impl::ArrangeValid(*root_) = false;
         Base::Result<void> measured =
             MeasureElement(*root_, rootAvailableSize_);
         if (!measured) {
@@ -1410,11 +1443,38 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
             return arranged.GetStatus();
         }
     }
-    if (root_ != nullptr &&
-        (!UIElement::Impl::MeasureValid(*root_) || !UIElement::Impl::ArrangeValid(*root_))) {
+    if (root_ != nullptr && HasInvalidVisibleLayout(*root_)) {
         flushing_ = false;
-        return InvalidState(
-            "Layout did not converge after template application");
+        UIElement* invalid = FindInvalidVisibleLayout(*root_);
+        const TypeInfo* type = invalid != nullptr
+            ? invalid->PropertyRegistry().Types().FindType(
+                  invalid->RuntimeType())
+            : nullptr;
+        const Base::StringView typeName = type != nullptr
+            ? type->Name()
+            : Base::StringView("<unknown>");
+        UIElement* layoutParent = invalid != nullptr
+            ? invalid->LayoutParent()
+            : nullptr;
+        const TypeInfo* parentType = layoutParent != nullptr
+            ? layoutParent->PropertyRegistry().Types().FindType(
+                  layoutParent->RuntimeType())
+            : nullptr;
+        const Base::StringView parentName = parentType != nullptr
+            ? parentType->Name()
+            : Base::StringView("<none>");
+        thread_local char message[256];
+        std::snprintf(
+            message,
+            sizeof(message),
+            "Layout did not converge for visible '%.*s' (measure=%u arrange=%u parent='%.*s') after template application",
+            static_cast<int>(typeName.SizeBytes()),
+            typeName.Data(),
+            invalid != nullptr && UIElement::Impl::MeasureValid(*invalid) ? 1U : 0U,
+            invalid != nullptr && UIElement::Impl::ArrangeValid(*invalid) ? 1U : 0U,
+            static_cast<int>(parentName.SizeBytes()),
+            parentName.Data());
+        return InvalidState(message);
     }
 
     // A converged root has recursively measured and arranged every attached

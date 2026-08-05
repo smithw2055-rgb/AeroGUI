@@ -490,6 +490,10 @@ void InlineCollection::Clear() noexcept {
     (void)Aero::Controls::Detail::DocumentPrivate::Clear(*owner_);
 }
 
+Span::~Span() {
+    ClearOwnedInlines();
+}
+
 Meta::Value Span::GetMetadataInlines() const noexcept {
     if (pendingInline_) {
         return Meta::Value::FromObject(

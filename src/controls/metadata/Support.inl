@@ -19,6 +19,39 @@ CreateBasicControl() noexcept {
             created.GetStatus());
 }
 
+
+class BasicContentControl : public ContentControl {
+public:
+    BasicContentControl() noexcept
+        : ContentControl(ContentControl::StaticTypeId()) {}
+};
+
+Base::Result<Base::Ref<Base::Object>>
+CreateBasicContentControl() noexcept {
+    Base::Result<Base::Ref<BasicContentControl>> created =
+        Base::MakeRef<BasicContentControl>();
+    return created
+        ? Base::Result<Base::Ref<Base::Object>>(
+              Base::Ref<Base::Object>(std::move(created).Value()))
+        : Base::Result<Base::Ref<Base::Object>>(created.GetStatus());
+}
+
+class BasicHeaderedContentControl : public HeaderedContentControl {
+public:
+    BasicHeaderedContentControl() noexcept
+        : HeaderedContentControl(
+              HeaderedContentControl::StaticTypeId()) {}
+};
+
+Base::Result<Base::Ref<Base::Object>>
+CreateBasicHeaderedContentControl() noexcept {
+    Base::Result<Base::Ref<BasicHeaderedContentControl>> created =
+        Base::MakeRef<BasicHeaderedContentControl>();
+    return created
+        ? Base::Result<Base::Ref<Base::Object>>(
+              Base::Ref<Base::Object>(std::move(created).Value()))
+        : Base::Result<Base::Ref<Base::Object>>(created.GetStatus());
+}
 void AddTemplateTrigger(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
@@ -114,7 +147,7 @@ bool ValidateThicknessValue(
         thickness.right >= 0.0 && thickness.bottom >= 0.0;
 }
 
-bool ValidateColorValue(
+[[maybe_unused]] bool ValidateColorValue(
     const Base::Color& color) noexcept {
     return std::isfinite(color.red) && std::isfinite(color.green) &&
         std::isfinite(color.blue) && std::isfinite(color.alpha) &&
@@ -392,8 +425,15 @@ void OnPathDoubleChanged(
     ::Aero::DependencyObject& object,
     const double&,
     const double&) noexcept {
-    Detail::ControlPrivate::InvalidateGeometry(
-        static_cast<Path&>(object));
+    if (object.PropertyRegistry().Types().IsDerivedFrom(
+            object.RuntimeType(), Path::StaticTypeId())) {
+        Detail::ControlPrivate::InvalidateGeometry(
+            static_cast<Path&>(object));
+    } else if (object.PropertyRegistry().Types().IsDerivedFrom(
+                   object.RuntimeType(), FrameworkElement::StaticTypeId())) {
+        static_cast<void>(
+            static_cast<FrameworkElement&>(object).InvalidateVisual());
+    }
 }
 
 void OnPathLineJoinChanged(

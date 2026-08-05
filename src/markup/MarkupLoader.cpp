@@ -1109,7 +1109,7 @@ CompiledDocument::Compile(
             std::move(cloned).Value());
         if (!appended) return appended.GetStatus();
     }
-    return std::move(document);
+    return document;
 }
 
 Base::Result<CompiledDocument>
@@ -1366,8 +1366,8 @@ CompiledDocument::Serialize(
             node.kind_ == NodeKind::NamespaceDeclaration;
 
         std::uint8_t flags = node.fromAttribute_
-            ? AxbInstructionFromAttribute
-            : 0U;
+            ? static_cast<std::uint8_t>(AxbInstructionFromAttribute)
+            : static_cast<std::uint8_t>(0U);
         if (typeIndex.Value() != InvalidTableIndex) {
             flags = static_cast<std::uint8_t>(
                 flags | AxbInstructionHasType);

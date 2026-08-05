@@ -51,6 +51,14 @@ public:
         Base::Ref<ICommand> command) noexcept;
     Value GetCommandParameter() const noexcept;
     void SetCommandParameter(Value value) noexcept;
+    Value GetIcon() const noexcept {
+        return GetValueOr(
+            IconProperty,
+            Value::NullObject(Meta::TypeOf<Base::Object>()));
+    }
+    void SetIcon(Value value) noexcept {
+        SetValue(IconProperty, std::move(value));
+    }
 
     inline static constexpr Members::Property<Base::String> InputGestureTextProperty{"InputGestureText"};
     inline static constexpr Members::Property<bool> IsCheckableProperty{"IsCheckable"};
@@ -60,6 +68,7 @@ public:
     inline static constexpr Members::ReadOnlyProperty<MenuItemRole> RoleProperty{"Role"};
     inline static constexpr Members::Property<Base::Ref<ICommand>> CommandProperty{"Command"};
     inline static constexpr Members::Property<Value> CommandParameterProperty{"CommandParameter"};
+    inline static constexpr Members::Property<Value> IconProperty{"Icon"};
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
 
 protected:
@@ -235,6 +244,9 @@ class AERO_API ToolBarPanel : public Panel {
 public:
     ToolBarPanel() noexcept : Panel(StaticTypeId()) {}
     ~ToolBarPanel() override = default;
+protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
 };
 
 class AERO_API ToolBarOverflowPanel : public Panel {
@@ -242,6 +254,9 @@ class AERO_API ToolBarOverflowPanel : public Panel {
 public:
     ToolBarOverflowPanel() noexcept : Panel(StaticTypeId()) {}
     ~ToolBarOverflowPanel() override = default;
+protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
 };
 
 // Owner for ToolBarTray attached properties. The current toolbar host does not

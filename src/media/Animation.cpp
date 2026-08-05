@@ -201,7 +201,7 @@ void PowerEase::SetPower(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "PowerEase Power must be nonnegative");
     if (!valid) return;
-    SetPowerValue(value);
+    SetValue(PowerProperty, value);
     return;
 }
 
@@ -210,7 +210,7 @@ void ExponentialEase::SetExponent(
     Base::Result<void> valid = ValidateNonNegative(
         value, "ExponentialEase Exponent must be nonnegative");
     if (!valid) return;
-    SetPowerValue(value);
+    SetValue(ExponentProperty, value);
     return;
 }
 
@@ -218,7 +218,7 @@ void BackEase::SetAmplitude(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "BackEase Amplitude must be nonnegative");
     if (!valid) return;
-    SetAmplitudeValue(value);
+    SetValue(AmplitudeProperty, value);
     return;
 }
 
@@ -226,7 +226,7 @@ void BounceEase::SetBounces(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "BounceEase Bounces must be nonnegative");
     if (!valid) return;
-    SetOscillationsValue(value);
+    SetValue(BouncesProperty, value);
     return;
 }
 
@@ -234,7 +234,7 @@ void BounceEase::SetBounciness(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "BounceEase Bounciness must be nonnegative");
     if (!valid) return;
-    SetSpringinessValue(value);
+    SetValue(BouncinessProperty, value);
     return;
 }
 
@@ -242,7 +242,7 @@ void ElasticEase::SetOscillations(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "ElasticEase Oscillations must be nonnegative");
     if (!valid) return;
-    SetOscillationsValue(value);
+    SetValue(OscillationsProperty, value);
     return;
 }
 
@@ -250,7 +250,7 @@ void ElasticEase::SetSpringiness(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "ElasticEase Springiness must be nonnegative");
     if (!valid) return;
-    SetSpringinessValue(value);
+    SetValue(SpringinessProperty, value);
     return;
 }
 
@@ -452,8 +452,7 @@ void DoubleKeyFrame::SetKeyTime(
 
 void EasingDoubleKeyFrame::SetEasingFunction(
     Base::Ref<EasingFunctionBase> value) noexcept {
-    easing_ = std::move(value);
-    return;
+    DependencyObject::SetValue(EasingFunctionProperty, std::move(value));
 }
 
 void SplineDoubleKeyFrame::SetKeySpline(
@@ -829,6 +828,11 @@ void ChangePropertyAction::SetValue(
     }
     value_ = value;
     return;
+}
+
+void ChangePropertyAction::SetValueBinding(
+    Base::Ref<Aero::Data::Binding> value) noexcept {
+    valueBinding_ = std::move(value);
 }
 
 void LaunchUriOrFileAction::SetPath(

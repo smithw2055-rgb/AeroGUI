@@ -1,5 +1,6 @@
 #include "gui/GuiPrivate.hpp"
 
+
 namespace Aero::Meta {
 namespace {
 
@@ -81,6 +82,50 @@ bool IsObjectLike(MetadataTypeKind kind) noexcept {
         kind == MetadataTypeKind::Interface;
 }
 
+const PropertyInfo* FindAttachedProperty(
+    const TypeRegistry& descriptors,
+    Base::StringView authored) noexcept {
+    authored = TrimAscii(authored);
+    if (authored.SizeBytes() < 5U || authored[0] != '(' ||
+        authored[authored.SizeBytes() - 1U] != ')') {
+        return nullptr;
+    }
+    const Base::StringView expression = TrimAscii(authored.Substr(
+        1U, authored.SizeBytes() - 2U));
+    std::uint32_t separator = expression.SizeBytes();
+    for (std::uint32_t index = 0U;
+         index < expression.SizeBytes(); ++index) {
+        if (expression[index] == '.') separator = index;
+    }
+    if (separator == 0U || separator + 1U >= expression.SizeBytes()) {
+        return nullptr;
+    }
+    Base::StringView ownerName = TrimAscii(
+        expression.Substr(0U, separator));
+    const Base::StringView propertyName = TrimAscii(expression.Substr(
+        separator + 1U,
+        expression.SizeBytes() - separator - 1U));
+    for (std::uint32_t index = 0U;
+         index < ownerName.SizeBytes(); ++index) {
+        if (ownerName[index] == ':') {
+            ownerName = ownerName.Substr(
+                index + 1U,
+                ownerName.SizeBytes() - index - 1U);
+        }
+    }
+    if (ownerName.Empty() || propertyName.Empty()) return nullptr;
+    for (const TypeInfo& type : descriptors.Types()) {
+        if (type.Name() != ownerName) continue;
+        const PropertyInfo* property = descriptors.FindProperty(
+            type.Id(), propertyName, false);
+        if (property != nullptr &&
+            HasPropertyFlag(property->Flags(), PropertyFlags::Attached)) {
+            return property;
+        }
+    }
+    return nullptr;
+}
+
 } // namespace
 
 Base::Result<BindingPathPlan> BindingPathPlan::Compile(
@@ -123,9 +168,24 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
     TypeId currentType = rootType;
     std::uint32_t segmentIndex = 0U;
     std::uint32_t begin = 0U;
-    while (begin <= path.SizeBytes()) {
+    while (begin < path.SizeBytes()) {
         std::uint32_t end = begin;
-        while (end < path.SizeBytes() && path[end] != '.') ++end;
+        const bool attachedSyntax = path[begin] == '(';
+        if (attachedSyntax) {
+            while (end < path.SizeBytes() && path[end] != ')') ++end;
+            if (end >= path.SizeBytes()) {
+                return RecordCompileError(
+                    error,
+                    segmentIndex,
+                    currentType,
+                    path.Substr(begin, path.SizeBytes() - begin),
+                    InvalidPath(
+                        "Binding attached-property segment is missing ')'"));
+            }
+            ++end;
+        } else {
+            while (end < path.SizeBytes() && path[end] != '.') ++end;
+        }
         const Base::StringView name =
             TrimAscii(path.Substr(begin, end - begin));
         if (name.Empty()) {
@@ -153,9 +213,28 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
         BindingPathSegment segment;
         segment.inputType = currentType;
         if (IsObjectLike(input->Kind())) {
-            const PropertyInfo* property =
-                descriptors.FindProperty(currentType, name, true);
+            const PropertyInfo* property = attachedSyntax
+                ? FindAttachedProperty(descriptors, name)
+                : descriptors.FindProperty(currentType, name, true);
             if (property == nullptr) {
+                const bool runtimePolymorphic =
+                    currentType == Meta::TypeOf<Base::Object>() ||
+                    input->Kind() == MetadataTypeKind::Interface ||
+                    (static_cast<std::uint32_t>(input->Flags()) &
+                     static_cast<std::uint32_t>(TypeFlags::Abstract)) != 0U;
+                if (!attachedSyntax && runtimePolymorphic) {
+                    Base::Result<void> storedName =
+                        segment.dynamicName.Assign(name);
+                    if (!storedName) return storedName.GetStatus();
+                    segment.kind =
+                        BindingPathSegmentKind::ObjectProperty;
+                    segment.outputType =
+                        Meta::TypeOf<Base::Object>();
+                    segment.readable = true;
+                    segment.writable = false;
+                    segment.dynamic = true;
+                    plan.hasDynamicResult_ = true;
+                } else {
                 return RecordCompileError(
                     error,
                     segmentIndex,
@@ -163,17 +242,21 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                     name,
                     Base::Status::Failure(
                         Base::ErrorCode::NotFound,
-                        "Binding path object property was not found"));
+                        attachedSyntax
+                            ? "Binding path attached property was not found"
+                            : "Binding path object property was not found"));
+                }
+            } else {
+                segment.kind = BindingPathSegmentKind::ObjectProperty;
+                segment.member = property->Id();
+                segment.outputType = property->ValueType();
+                segment.readable = PropertyReadable(
+                    *property,
+                    runtime.CanReadProperty(property->Id()));
+                segment.writable = PropertyWritable(
+                    *property,
+                    runtime.CanWriteProperty(property->Id()));
             }
-            segment.kind = BindingPathSegmentKind::ObjectProperty;
-            segment.member = property->Id();
-            segment.outputType = property->ValueType();
-            segment.readable = PropertyReadable(
-                *property,
-                runtime.CanReadProperty(property->Id()));
-            segment.writable = PropertyWritable(
-                *property,
-                runtime.CanWriteProperty(property->Id()));
         } else if (input->Kind() == MetadataTypeKind::Struct) {
             const FieldInfo* field =
                 descriptors.FindField(currentType, name);
@@ -219,13 +302,22 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                     "Binding path output type descriptor was not found"));
         }
         const bool hasMore = end < path.SizeBytes();
+        if (hasMore && path[end] != '.') {
+            return RecordCompileError(
+                error,
+                segmentIndex,
+                currentType,
+                name,
+                InvalidPath(
+                    "Binding path segment separator is invalid"));
+        }
         if (segment.kind == BindingPathSegmentKind::ObjectProperty &&
             hasMore && output->Kind() == MetadataTypeKind::Struct) {
             segment.copyOnWrite = true;
         }
 
         Base::Result<void> appended =
-            plan.segments_.PushBack(segment);
+            plan.segments_.PushBack(std::move(segment));
         if (!appended) return appended.GetStatus();
         currentType = segment.outputType;
         ++segmentIndex;
@@ -326,8 +418,23 @@ Base::Result<Value> BindingPathPlan::GetObject(
             Base::ErrorCode::InvalidState,
             "Binding path plan expected a value field on an object");
     }
+    MemberId member = segment.member;
+    if (segment.dynamic) {
+        const PropertyInfo* property =
+            runtime.Types().FindProperty(
+                object.RuntimeType(),
+                segment.dynamicName.View(),
+                true);
+        if (property == nullptr ||
+            !runtime.CanReadProperty(property->Id())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Binding dynamic path property was not found");
+        }
+        member = property->Id();
+    }
     Base::Result<Value> current =
-        runtime.GetProperty(object, segment.member);
+        runtime.GetProperty(object, member);
     if (!current || segmentIndex + 1U == segments_.Size()) return current;
     return GetValue(runtime, current.Value(), segmentIndex + 1U);
 }
@@ -426,17 +533,32 @@ Base::Result<void> BindingPathPlan::SetObject(
             Base::ErrorCode::InvalidState,
             "Binding path plan expected a value field on an object");
     }
+    MemberId member = segment.member;
+    if (segment.dynamic) {
+        const PropertyInfo* property =
+            runtime.Types().FindProperty(
+                object.RuntimeType(),
+                segment.dynamicName.View(),
+                true);
+        if (property == nullptr ||
+            !runtime.CanWriteProperty(property->Id())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ReadOnly,
+                "Binding dynamic path property is not writable");
+        }
+        member = property->Id();
+    }
     if (segmentIndex + 1U == segments_.Size()) {
-        return runtime.SetProperty(object, segment.member, value);
+        return runtime.SetProperty(object, member, value);
     }
     Base::Result<Value> child =
-        runtime.GetProperty(object, segment.member);
+        runtime.GetProperty(object, member);
     if (!child) return child.GetStatus();
     Base::Result<bool> changed =
         SetValue(runtime, child.Value(), segmentIndex + 1U, value);
     if (!changed) return changed.GetStatus();
     return changed.Value()
-        ? runtime.SetProperty(object, segment.member, child.Value())
+        ? runtime.SetProperty(object, member, child.Value())
         : Base::Result<void>();
 }
 

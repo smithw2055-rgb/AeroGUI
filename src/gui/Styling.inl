@@ -18,9 +18,25 @@ Base::Result<void> PopulateUiStyling(
     if (!status) return status.GetStatus();
 
     auto text = Meta::Register<TextProperties>(context, TypeFlags::Abstract);
-    text.Property(
-        TextProperties::PasswordLengthProperty,
-        PropertyOptions(std::uint32_t{0}).AffectsRender());
+    text
+        .Property(
+            TextProperties::PasswordLengthProperty,
+            PropertyOptions(std::uint32_t{0}).AffectsRender())
+        .Property(
+            TextProperties::PlaceholderProperty,
+            PropertyOptions(Base::String{})
+                .AffectsRender()
+                .Changed(&TextProperties::OnCompatibilityPropertyChanged))
+        .Property(
+            TextProperties::StrokeProperty,
+            PropertyOptions(Value::NullObject(TypeOf<Base::Object>()))
+                .AffectsRender()
+                .Changed(&TextProperties::OnCompatibilityPropertyChanged))
+        .Property(
+            TextProperties::StrokeThicknessProperty,
+            PropertyOptions(0.0)
+                .AffectsRender()
+                .Changed(&TextProperties::OnCompatibilityPropertyChanged));
     status = text.Result();
     if (!status) return status.GetStatus();
 
@@ -123,11 +139,11 @@ Base::Result<void> PopulateUiStyling(
             "Comparison",
             &DataTrigger::GetComparison,
             &DataTrigger::SetComparison)
-        .Content<Setter>(
+        .Content<Base::Object>(
             "Setters",
             ContentKind::Collection,
-            &AddDataTriggerSetter,
-            &ClearDataTriggerSetters)
+            &AddDataTriggerContent,
+            &ClearDataTriggerContent)
         .Factory();
     status = dataTrigger.Result();
     if (!status) return status.GetStatus();
@@ -206,7 +222,7 @@ Base::Result<void> PopulateUiStyling(
             &Style::SetResources>(
                 "Resources",
                 PropertyFlags::Structural)
-        .Collection<Trigger>(
+        .Collection<TriggerBase>(
             "Triggers",
             &AddStyleTrigger,
             &ClearStyleTriggers)

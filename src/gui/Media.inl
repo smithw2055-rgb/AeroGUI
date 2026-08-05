@@ -139,8 +139,9 @@ Base::Result<void> PopulateUiMedia(
 
     auto monochromeBrush = Meta::Register<MonochromeShader>(context);
     monochromeBrush
-        .Property<Color, &MonochromeShader::GetColor,
-            &MonochromeShader::SetColor>("Color")
+        .Property(
+            MonochromeShader::ColorProperty,
+            PropertyOptions(Color{}).AffectsRender())
         .Factory();
     status = monochromeBrush.Result();
     if (!status) return status.GetStatus();
@@ -163,7 +164,9 @@ Base::Result<void> PopulateUiMedia(
 
     auto wavesBrush = Meta::Register<WavesShader>(context);
     wavesBrush
-        .Property<double, &WavesShader::GetTime, &WavesShader::SetTime>("Time")
+        .Property(
+            WavesShader::TimeProperty,
+            PropertyOptions(0.0).AffectsRender())
         .Factory();
     status = wavesBrush.Result();
     if (!status) return status.GetStatus();

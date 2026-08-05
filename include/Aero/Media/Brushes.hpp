@@ -160,34 +160,35 @@ private:
     FreezableChangedHandler stopChangedHandler_;
 };
 
-class AERO_API BrushShader : public Base::Object {
-    AERO_DECLARE_TYPE(BrushShader, Base::Object)
+class AERO_API BrushShader : public DependencyObject {
+    AERO_DECLARE_TYPE(BrushShader, DependencyObject)
 public:
-    BrushShader() noexcept = default;
+    BrushShader() noexcept : BrushShader(StaticTypeId()) {}
     ~BrushShader() override = default;
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
+protected:
+    explicit BrushShader(TypeId runtimeType) noexcept
+        : DependencyObject(runtimeType) {}
 };
 
 class AERO_API MonochromeShader : public BrushShader {
     AERO_DECLARE_TYPE(MonochromeShader, BrushShader)
 public:
-    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Color GetColor() const noexcept { return color_; }
-    void SetColor(Color value) noexcept {
-        color_ = value; return;
+    MonochromeShader() noexcept : BrushShader(StaticTypeId()) {}
+    Color GetColor() const noexcept {
+        return GetValueOr(ColorProperty, Color{});
     }
-private:
-    Color color_{};
+    void SetColor(Color value) noexcept {
+        SetValue(ColorProperty, value);
+    }
+    inline static constexpr Members::Property<Color> ColorProperty{"Color"};
 };
 
 class AERO_API ConicGradientShader : public BrushShader {
     AERO_DECLARE_TYPE(ConicGradientShader, BrushShader)
 public:
     ConicGradientShader() noexcept
-        : stops_(&Base::GetDefaultAllocator()) {}
-    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+        : BrushShader(StaticTypeId()),
+          stops_(&Base::GetDefaultAllocator()) {}
     Base::Result<void> AddGradientStop(Base::Ref<GradientStop> value) noexcept {
         return value ? stops_.PushBack(std::move(value))
             : Base::Result<void>(Base::Status::Failure(
@@ -201,13 +202,14 @@ private:
 class AERO_API WavesShader : public BrushShader {
     AERO_DECLARE_TYPE(WavesShader, BrushShader)
 public:
-    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    double GetTime() const noexcept { return time_; }
-    void SetTime(double value) noexcept {
-        time_ = value; return;
+    WavesShader() noexcept : BrushShader(StaticTypeId()) {}
+    double GetTime() const noexcept {
+        return GetValueOr(TimeProperty, 0.0);
     }
-private:
-    double time_ = 0.0;
+    void SetTime(double value) noexcept {
+        SetValue(TimeProperty, value);
+    }
+    inline static constexpr Members::Property<double> TimeProperty{"Time"};
 };
 
 class AERO_API GradientBrush : public Brush {

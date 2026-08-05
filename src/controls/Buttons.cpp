@@ -96,6 +96,11 @@ void ToggleButton::SetIsChecked(
     SetReadOnlyCurrentValue(IsIndeterminateProperty, false);
 }
 
+void ToggleButton::SetIsIndeterminate() noexcept {
+    SetValue(IsCheckedProperty, false);
+    SetReadOnlyCurrentValue(IsIndeterminateProperty, true);
+}
+
 void ToggleButton::SetIsThreeState(
     bool value) noexcept {
     SetValue(IsThreeStateProperty, value);

@@ -446,6 +446,16 @@ Base::Result<void> PointerStateMachine::UpdateHover(
                 Base::Result<void> set =
                     ElementPrivate::SetMouseOver(*element, true);
                 if (!set) return set.GetStatus();
+                if (events_ != nullptr) {
+                    MouseEventArgs args;
+                    args.SetPointerId(pointerId);
+                    Base::Result<void> raised =
+                        events_->RaiseEvent(
+                            *element,
+                            UIElement::MouseEnterEvent,
+                            &args);
+                    if (!raised) return raised.GetStatus();
+                }
                 if (!stateChanged_.Empty()) {
                     stateChanged_.Invoke(*element);
                 }
@@ -470,6 +480,16 @@ Base::Result<void> PointerStateMachine::UpdateHover(
                     ElementPrivate::SetMouseOver(*element, false);
                 if (!cleared) {
                     return cleared.GetStatus();
+                }
+                if (events_ != nullptr) {
+                    MouseEventArgs args;
+                    args.SetPointerId(pointerId);
+                    Base::Result<void> raised =
+                        events_->RaiseEvent(
+                            *element,
+                            UIElement::MouseLeaveEvent,
+                            &args);
+                    if (!raised) return raised.GetStatus();
                 }
                 if (!stateChanged_.Empty()) {
                     stateChanged_.Invoke(*element);
@@ -703,6 +723,19 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
             ? MouseButtonState::Pressed : MouseButtonState::Released);
         raised = events_->RaiseEvent(*result.hit.target, previewEvent, &args);
         if (raised) raised = events_->RaiseEvent(*result.hit.target, event, &args);
+        if (raised && input.action == PointerAction::Down &&
+            input.changedButton == MouseButton::Left) {
+            raised = events_->RaiseEvent(
+                *result.hit.target,
+                UIElement::PreviewMouseLeftButtonDownEvent,
+                &args);
+            if (raised) {
+                raised = events_->RaiseEvent(
+                    *result.hit.target,
+                    UIElement::MouseLeftButtonDownEvent,
+                    &args);
+            }
+        }
     }
     if (!raised) return raised.GetStatus();
     result.routed = true;

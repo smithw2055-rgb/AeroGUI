@@ -320,6 +320,20 @@ public:
         const FrameworkElement& element) noexcept {
         return element.AuthoredTriggers();
     }
+    static Base::Result<void> AddAuthoredTrigger(
+        FrameworkContentElement& element,
+        Base::Ref<Base::Object> trigger) noexcept {
+        return element.AddAuthoredTrigger(std::move(trigger));
+    }
+    static Base::Result<void> ClearAuthoredTriggers(
+        FrameworkContentElement& element) noexcept {
+        element.ClearAuthoredTriggers();
+        return {};
+    }
+    static Base::Span<const Base::Ref<Base::Object>> AuthoredTriggers(
+        const FrameworkContentElement& element) noexcept {
+        return element.AuthoredTriggers();
+    }
     static bool GetIsRenderValid(
         const Visual& visual) noexcept {
         return visual.renderValid_;

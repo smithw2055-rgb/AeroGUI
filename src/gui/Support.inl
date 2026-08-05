@@ -246,6 +246,7 @@ Base::Result<Color> ConvertColor(
         {"Aquamarine", 127, 255, 212, 255},
         {"Black", 0, 0, 0, 255},
         {"Blue", 0, 0, 255, 255},
+        {"BurlyWood", 222, 184, 135, 255},
         {"CadetBlue", 95, 158, 160, 255},
         {"Cyan", 0, 255, 255, 255},
         {"DodgerBlue", 30, 144, 255, 255},
@@ -284,9 +285,37 @@ Base::Result<Color> ConvertColor(
             candidate.blue / 255.0F,
             candidate.alpha / 255.0F};
     }
-    if ((value.SizeBytes() != 7U && value.SizeBytes() != 9U) || value[0] != '#') {
+    if ((value.SizeBytes() != 4U && value.SizeBytes() != 5U &&
+         value.SizeBytes() != 7U && value.SizeBytes() != 9U) ||
+        value[0] != '#') {
         return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-            "Color requires #RRGGBB or #AARRGGBB");
+            "Color requires #RGB, #ARGB, #RRGGBB, or #AARRGGBB");
+    }
+    if (value.SizeBytes() == 4U || value.SizeBytes() == 5U) {
+        const bool alpha = value.SizeBytes() == 5U;
+        std::uint8_t components[4]{255U, 0U, 0U, 0U};
+        const std::uint32_t count = alpha ? 4U : 3U;
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            const int digit = Hex(value[1U + index]);
+            if (digit < 0) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Color contains a non-hex digit");
+            }
+            components[index] = static_cast<std::uint8_t>(
+                (digit << 4) | digit);
+        }
+        return alpha
+            ? Color{
+                  components[1] / 255.0F,
+                  components[2] / 255.0F,
+                  components[3] / 255.0F,
+                  components[0] / 255.0F}
+            : Color{
+                  components[0] / 255.0F,
+                  components[1] / 255.0F,
+                  components[2] / 255.0F,
+                  1.0F};
     }
     std::uint8_t bytes[4]{255U, 0U, 0U, 0U};
     const std::uint32_t count = value.SizeBytes() == 9U ? 4U : 3U;
@@ -343,59 +372,6 @@ bool ValidateMarginValue(const Thickness& t) noexcept {
     // WPF permits negative margins for overlap and shared-border layouts.
     return IsFinite(t);
 }
-template<class TProperty>
-Base::Result<double> CheckMinimum(
-    DependencyObject& object,
-    const double& value,
-    const TProperty& maximum) noexcept {
-    Base::Result<double> other = object.GetValue(maximum);
-    if (!other || value > other.Value()) {
-        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-            "Minimum layout size exceeds maximum layout size");
-    }
-    return value;
-}
-template<class TProperty>
-Base::Result<double> CheckMaximum(
-    DependencyObject& object,
-    const double& value,
-    const TProperty& minimum) noexcept {
-    Base::Result<double> other = object.GetValue(minimum);
-    if (!other || value < other.Value()) {
-        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-            "Maximum layout size is below minimum layout size");
-    }
-    return value;
-}
-Base::Result<double> CoerceMinWidth(
-    DependencyObject& object,
-    const DependencyProperty&,
-    const double& value) noexcept {
-    return CheckMinimum(
-        object, value, FrameworkElement::MaxWidthProperty);
-}
-Base::Result<double> CoerceMaxWidth(
-    DependencyObject& object,
-    const DependencyProperty&,
-    const double& value) noexcept {
-    return CheckMaximum(
-        object, value, FrameworkElement::MinWidthProperty);
-}
-Base::Result<double> CoerceMinHeight(
-    DependencyObject& object,
-    const DependencyProperty&,
-    const double& value) noexcept {
-    return CheckMinimum(
-        object, value, FrameworkElement::MaxHeightProperty);
-}
-Base::Result<double> CoerceMaxHeight(
-    DependencyObject& object,
-    const DependencyProperty&,
-    const double& value) noexcept {
-    return CheckMaximum(
-        object, value, FrameworkElement::MinHeightProperty);
-}
-
 TypeReference GetStyleTargetType(
     const Style& style) noexcept {
     return {style.GetTargetType()};
@@ -465,12 +441,12 @@ void AddStyleTrigger(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    if (!value || value->RuntimeType() != Trigger::StaticTypeId()) {
+    if (!value) {
         return;
     }
-    Base::Ref<Trigger> retained =
-        Base::Ref<Trigger>::TryFromBorrowed(
-            static_cast<Trigger&>(*value));
+    Base::Ref<TriggerBase> retained =
+        Base::Ref<TriggerBase>::TryFromBorrowed(
+            static_cast<TriggerBase&>(*value));
     if (!retained) {
         return;
     }
@@ -543,28 +519,27 @@ void ClearTriggerExitActions(
     return;
 }
 
-void AddDataTriggerSetter(
+
+void AddDataTriggerContent(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Setter> retained =
-        Base::Ref<Setter>::TryFromBorrowed(
+    auto& trigger = static_cast<DataTrigger&>(owner);
+    if (value->RuntimeType() == Setter::StaticTypeId()) {
+        Base::Ref<Setter> setter = Base::Ref<Setter>::TryFromBorrowed(
             static_cast<Setter&>(*value));
-    if (!retained) return;
-    static_cast<void>(
-        static_cast<DataTrigger&>(owner).AddAuthoredSetter(
-            std::move(retained)));
+        if (setter) static_cast<void>(trigger.AddAuthoredSetter(std::move(setter)));
+        return;
+    }
+    static_cast<void>(trigger.AddEnterAction(value));
 }
 
-void ClearDataTriggerSetters(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<DataTrigger&>(owner)
-        .ClearAuthoredSetters();
-    return;
+void ClearDataTriggerContent(Base::Object& owner, void*) noexcept {
+    auto& trigger = static_cast<DataTrigger&>(owner);
+    trigger.ClearAuthoredSetters();
+    trigger.ClearEnterActions();
 }
-
 void AddMultiDataCondition(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
@@ -991,15 +966,31 @@ void ClearEventTriggerActions(
     return;
 }
 
-void AddEventTriggerBehavior(
+void AddInteractionBehavior(
     Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {
     if (!value) return;
-    static_cast<void>(
-        static_cast<Media::Animation::EventTrigger&>(owner)
+    if (owner.RuntimeType() == DataTrigger::StaticTypeId()) {
+        static_cast<void>(static_cast<DataTrigger&>(owner).AddBehavior(value));
+    } else if (owner.RuntimeType() ==
+               Media::Animation::StoryboardCompletedTrigger::StaticTypeId()) {
+        static_cast<void>(static_cast<Media::Animation::StoryboardCompletedTrigger&>(owner)
             .AddConditionBehavior(value));
+    } else {
+        static_cast<void>(static_cast<Media::Animation::EventTrigger&>(owner)
+            .AddConditionBehavior(value));
+    }
 }
-void ClearEventTriggerBehaviors(Base::Object& owner, void*) noexcept {
-    static_cast<Media::Animation::EventTrigger&>(owner).ClearConditionBehaviors(); return;
+void ClearInteractionBehaviors(Base::Object& owner, void*) noexcept {
+    if (owner.RuntimeType() == DataTrigger::StaticTypeId()) {
+        static_cast<DataTrigger&>(owner).ClearBehaviors();
+    } else if (owner.RuntimeType() ==
+               Media::Animation::StoryboardCompletedTrigger::StaticTypeId()) {
+        static_cast<Media::Animation::StoryboardCompletedTrigger&>(owner)
+            .ClearConditionBehaviors();
+    } else {
+        static_cast<Media::Animation::EventTrigger&>(owner)
+            .ClearConditionBehaviors();
+    }
 }
 void AddConditionalComparison(
     Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {
@@ -1055,16 +1046,44 @@ void AddInteractionTrigger(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    if (!value) {
-        return;
+    if (!value) return;
+    auto& dependencyObject =
+        static_cast<DependencyObject&>(owner);
+    const Meta::TypeRegistry& types =
+        dependencyObject.PropertyRegistry().Types();
+    if (types.IsDerivedFrom(
+            owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
+        static_cast<void>(
+            ::Aero::Visual::Impl::AddAuthoredTrigger(
+                static_cast<FrameworkElement&>(owner), value));
+    } else if (types.IsDerivedFrom(
+                   owner.RuntimeType(),
+                   FrameworkContentElement::StaticTypeId())) {
+        static_cast<void>(
+            ::Aero::Visual::Impl::AddAuthoredTrigger(
+                static_cast<FrameworkContentElement&>(owner), value));
     }
-    static_cast<void>(owner);
 }
 
 void ClearInteractionTriggers(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<void>(owner);
+    auto& dependencyObject =
+        static_cast<DependencyObject&>(owner);
+    const Meta::TypeRegistry& types =
+        dependencyObject.PropertyRegistry().Types();
+    if (types.IsDerivedFrom(
+            owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
+        static_cast<void>(
+            ::Aero::Visual::Impl::ClearAuthoredTriggers(
+                static_cast<FrameworkElement&>(owner)));
+    } else if (types.IsDerivedFrom(
+                   owner.RuntimeType(),
+                   FrameworkContentElement::StaticTypeId())) {
+        static_cast<void>(
+            ::Aero::Visual::Impl::ClearAuthoredTriggers(
+                static_cast<FrameworkContentElement&>(owner)));
+    }
 }
 
 void SetBeginStoryboardContent(

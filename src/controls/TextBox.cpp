@@ -270,8 +270,8 @@ TextBox::~TextBox() {
 
 PasswordBox::PasswordBox() noexcept
     : TextBoxBase(StaticTypeId()),
-      passwordPolicy_(new (std::nothrow) Detail::PasswordTextDisplayPolicy()),
-      validation_(new (std::nothrow) ::Aero::Text::Detail::EditableTextModel()) {
+      validation_(new (std::nothrow) ::Aero::Text::Detail::EditableTextModel()),
+      passwordPolicy_(new (std::nothrow) Detail::PasswordTextDisplayPolicy()) {
     editor_.displayPolicy_ =
         passwordPolicy_;
     editor_.coordinateOwner_ = this;

@@ -15,10 +15,21 @@ public:
     Base::Span<const Base::Ref<TriggerAction>> GetActions() const noexcept {
         return {actions_.Data(), actions_.Size()};
     }
+    Base::Result<void> AddConditionBehavior(Base::Ref<Base::Object> value) noexcept {
+        return value ? behaviors_.PushBack(std::move(value))
+                     : Base::Result<void>(Base::Status::Failure(
+                           Base::ErrorCode::InvalidArgument,
+                           "StoryboardCompletedTrigger behavior cannot be null"));
+    }
+    void ClearConditionBehaviors() noexcept { behaviors_.Clear(); }
+    Base::Span<const Base::Ref<Base::Object>> GetBehaviors() const noexcept {
+        return {behaviors_.Data(), behaviors_.Size()};
+    }
 
 private:
     Base::Ref<Storyboard> storyboard_;
     Base::Vector<Base::Ref<TriggerAction>> actions_;
+    Base::Vector<Base::Ref<Base::Object>> behaviors_;
 };
 
 } // namespace Aero::Media::Animation

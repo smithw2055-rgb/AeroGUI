@@ -5,7 +5,7 @@
 #include <Aero/Controls/Items.hpp>
 #include "gui/GuiPrivate.hpp"
 #include "render/RenderResources.hpp"
-#include "TextBlockLayout.hpp"
+#include "../TextBlockLayout.hpp"
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Text.hpp>
 #include <Aero/Shapes.hpp>

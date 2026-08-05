@@ -1,6 +1,6 @@
 #pragma once
 
-#include "TemplateInstance.hpp"
+#include "../TemplateInstance.hpp"
 #include "gui/GuiPrivate.hpp"
 
 namespace Aero::Controls::Detail {

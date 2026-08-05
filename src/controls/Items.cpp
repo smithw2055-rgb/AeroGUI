@@ -7,6 +7,7 @@
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
+#include <cstdio>
 #include <new>
 #include <utility>
 #include "ControlBehavior.hpp"
@@ -26,7 +27,12 @@ Panel* ItemsPresenter::GetItemsHost() const noexcept {
 void ItemsPresenter::SetItemsHost(
     const Base::Ref<Base::Object>& owner,
     Panel& panel) noexcept {
-    (void)::Aero::Controls::Detail::ControlPrivate::SetOwnedChild(*this, owner, panel);
+    Base::Result<void> assigned =
+        ::Aero::Controls::Detail::ControlPrivate::SetOwnedChild(
+            *this, owner, panel);
+    if (assigned) {
+        static_cast<void>(InvalidateMeasure());
+    }
 }
 
 
@@ -1091,14 +1097,22 @@ ItemsControl::CreateContainer(
 }
 
 Base::Result<void> ItemsControl::PrepareContainer(
-    FrameworkElement&,
-    const Base::Ref<Base::Object>&,
+    FrameworkElement& container,
+    const Base::Ref<Base::Object>& item,
     std::uint32_t) noexcept {
+    if (item && item.Get() != &container) {
+        container.SetDataContext(
+            Value::FromObject(
+                item->RuntimeType(), item));
+    }
     return {};
 }
 
 void ItemsControl::ClearContainer(
-    FrameworkElement&) noexcept {}
+    FrameworkElement& container) noexcept {
+    container.ClearValue(
+        FrameworkElement::DataContextProperty);
+}
 
 } // namespace Aero::Controls
 
@@ -1389,16 +1403,65 @@ ItemContainerGenerator::Impl::CreateRecord(
         const Meta::Value& value =
             static_cast<const ::Aero::Controls::Detail::BoxedItemValue&>(
                 *record.item).Value();
-        if (value.Kind() !=
-                Meta::ValueKind::String) {
+        Base::String display;
+        Base::Result<void> formatted;
+        switch (value.Kind()) {
+        case Meta::ValueKind::String:
+            formatted = display.Assign(value.AsString());
+            break;
+        case Meta::ValueKind::Boolean:
+            formatted = display.Assign(
+                value.AsBoolean() ? Base::StringView("True")
+                                  : Base::StringView("False"));
+            break;
+        case Meta::ValueKind::SignedInteger: {
+            char buffer[48]{};
+            const int length = std::snprintf(
+                buffer, sizeof(buffer), "%lld",
+                static_cast<long long>(value.AsSignedInteger()));
+            formatted = length > 0
+                ? display.Assign(Base::StringView(
+                      buffer, static_cast<std::uint32_t>(length)))
+                : Base::Result<void>(Base::Status::Failure(
+                      Base::ErrorCode::ValidationFailed,
+                      "Boxed integer item formatting failed"));
+            break;
+        }
+        case Meta::ValueKind::UnsignedInteger: {
+            char buffer[48]{};
+            const int length = std::snprintf(
+                buffer, sizeof(buffer), "%llu",
+                static_cast<unsigned long long>(value.AsUnsignedInteger()));
+            formatted = length > 0
+                ? display.Assign(Base::StringView(
+                      buffer, static_cast<std::uint32_t>(length)))
+                : Base::Result<void>(Base::Status::Failure(
+                      Base::ErrorCode::ValidationFailed,
+                      "Boxed unsigned item formatting failed"));
+            break;
+        }
+        case Meta::ValueKind::Double: {
+            char buffer[64]{};
+            const int length = std::snprintf(
+                buffer, sizeof(buffer), "%.15g", value.AsDouble());
+            formatted = length > 0
+                ? display.Assign(Base::StringView(
+                      buffer, static_cast<std::uint32_t>(length)))
+                : Base::Result<void>(Base::Status::Failure(
+                      Base::ErrorCode::ValidationFailed,
+                      "Boxed numeric item formatting failed"));
+            break;
+        }
+        default:
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "Boxed data item has no default text representation");
         }
+        if (!formatted) return formatted.GetStatus();
         Base::Result<Base::Ref<TextBlock>> text =
             Base::MakeRef<TextBlock>();
         if (!text) return text.GetStatus();
-        text.Value()->SetText(value.AsString());
+        text.Value()->SetText(display.View());
         record.content =
             Base::Ref<Base::Object>(
                 std::move(text).Value());
@@ -1408,6 +1471,19 @@ ItemContainerGenerator::Impl::CreateRecord(
             record.item->RuntimeType(),
             UIElement::StaticTypeId())) {
         record.content = record.item;
+    } else if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+                   owner_->RuntimeType(),
+                   ListView::StaticTypeId()) &&
+               static_cast<ListView*>(owner_)->GetView()) {
+        // GridView presents the data item through GridViewRowPresenter and
+        // column bindings. Keep a zero-content visual for the container's
+        // ordinary ContentControl contract while DataContext carries the item.
+        Base::Result<Base::Ref<TextBlock>> placeholder =
+            Base::MakeRef<TextBlock>();
+        if (!placeholder) return placeholder.GetStatus();
+        record.content = Base::Ref<Base::Object>(
+            std::move(placeholder).Value());
+        record.generatedTextContent = true;
     } else {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,

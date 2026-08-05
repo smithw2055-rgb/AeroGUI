@@ -20,6 +20,7 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
 
+#include <cmath>
 #include <fstream>
 #include <new>
 #include <string>
@@ -70,6 +71,64 @@ Base::StringView TrimAscii(Base::StringView value) noexcept {
         --last;
     }
     return value.Substr(first, last - first);
+}
+
+
+Base::Result<long double> ReadConstantBindingNumber(
+    const Meta::Value& value) noexcept {
+    switch (value.Kind()) {
+    case Meta::ValueKind::SignedInteger:
+        return static_cast<long double>(
+            value.AsSignedInteger());
+    case Meta::ValueKind::UnsignedInteger:
+        return static_cast<long double>(
+            value.AsUnsignedInteger());
+    case Meta::ValueKind::Double:
+        return static_cast<long double>(
+            value.AsDouble());
+    default:
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Binding constant is not numeric");
+    }
+}
+
+Base::Result<Meta::Value> ConvertConstantBindingValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType) noexcept {
+    if (targetType == Meta::InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Binding constant target type is invalid");
+    }
+    if (value.Type() == targetType) return value;
+
+    Base::Result<long double> number =
+        ReadConstantBindingNumber(value);
+    if (!number) return number.GetStatus();
+    const double converted =
+        static_cast<double>(number.Value());
+    if (!std::isfinite(converted)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "Binding constant is outside the target range");
+    }
+    if (targetType ==
+            Meta::TypeOf<Controls::GridLength>()) {
+        return Meta::ValueCodec<Controls::GridLength>::Encode(
+            Controls::GridLength::Pixel(converted));
+    }
+    if (targetType == Meta::TypeOf<Aero::Length>()) {
+        return Meta::ValueCodec<Aero::Length>::Encode(
+            Aero::Length::Pixels(converted));
+    }
+    if (targetType == Meta::TypeOf<double>()) {
+        return Meta::Value::FromDouble(
+            targetType, converted);
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidArgument,
+        "Binding constant cannot be converted to the target property");
 }
 
 
@@ -353,13 +412,10 @@ Base::Result<void> ParseArguments(
         }
         begin = end + 1U;
     }
-    if (path.Empty() && elementName.Empty() &&
-        sourceResource.Empty() &&
-        relativeSource == RelativeSourceKind::None) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "Binding requires Path, Source, ElementName, or RelativeSource");
-    }
+    // An empty Binding is WPF's canonical "bind to the current source
+    // object" spelling. With no explicit source that means the inherited
+    // DataContext object; with ElementName/Source/RelativeSource it means the
+    // selected object itself. The runtime records this as bindsToSource.
     return {};
 }
 
@@ -367,10 +423,12 @@ struct DeferredBindingState {
     Aero::GuiPrivate::Detail::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     Base::Object* source = nullptr;
+    Base::Ref<::Aero::DependencyObject> targetOwner;
     ::Aero::DependencyObject* target = nullptr;
     Meta::DependencyPropertyHandle targetProperty;
     Meta::DependencyPropertyHandle dataContextProperty;
     ::Aero::DependencyObject* dataContextOwner = nullptr;
+    Base::String elementName;
     Base::String path;
     Base::String stringFormat;
     bool bindsToSource = false;
@@ -392,6 +450,27 @@ Base::Result<Meta::PropertyValue> ConvertWithValueConverter(
             "Binding value converter is unavailable");
     }
     return converter->Convert(value, Meta::Value{});
+}
+
+
+Base::Result<void> PrepareBinding(
+    void* context,
+    const Aero::NameScope& names) noexcept {
+    auto* state = static_cast<DeferredBindingState*>(context);
+    if (state == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Deferred Binding state is invalid");
+    }
+    if (state->source != nullptr || state->elementName.Empty()) {
+        return {};
+    }
+    state->source = names.Find(state->elementName.View());
+    return state->source != nullptr
+        ? Base::Result<void>()
+        : Base::Result<void>(Base::Status::Failure(
+              Base::ErrorCode::NotFound,
+              "Binding ElementName was not found in the completed NameScope"));
 }
 
 Base::Result<std::uint64_t> CommitBinding(void* context) noexcept {
@@ -523,6 +602,36 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         ? metadata->Types().FindProperty(
             services.targetMember)
         : nullptr;
+    if (!sourceResource.Empty() &&
+        path.Empty() &&
+        stringFormat.Empty() &&
+        converterResource.Empty() &&
+        elementName.Empty() &&
+        relativeSource == RelativeSourceKind::None &&
+        services.resources.IsAvailable()) {
+        Base::Result<Aero::ResourceValue> constant =
+            services.resources.Lookup(sourceResource);
+        if (!constant) return constant.GetStatus();
+        if (constant.Value().Kind() !=
+                Meta::ValueKind::Object) {
+            if (mode == Data::BindingMode::TwoWay ||
+                mode == Data::BindingMode::OneWayToSource) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "A scalar StaticResource Binding cannot write back");
+            }
+            Base::Result<Meta::Value> converted =
+                ConvertConstantBindingValue(
+                    constant.Value(),
+                    services.targetValueType);
+            return converted
+                ? Base::Result<ProvidedValue>(
+                      ProvidedValue::FromValue(
+                          std::move(converted).Value()))
+                : Base::Result<ProvidedValue>(
+                      converted.GetStatus());
+        }
+    }
     // Setter is only an authored declaration. Its target object is created
     // when the Style is applied, so preserve the binding specification here.
     const bool authoredSetterValue =
@@ -538,11 +647,23 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         services.targetObject->RuntimeType() ==
             Media::Animation::LaunchUriOrFileAction::StaticTypeId() &&
         targetMember->Name() == Base::StringView("Path");
+    const bool authoredChangePropertyValue =
+        targetMember != nullptr &&
+        services.targetObject->RuntimeType() ==
+            Media::Animation::ChangePropertyAction::StaticTypeId() &&
+        targetMember->Name() == Base::StringView("Value");
+    const bool authoredTimerInterval =
+        targetMember != nullptr &&
+        services.targetObject->RuntimeType() ==
+            Media::Animation::TimerTrigger::StaticTypeId() &&
+        targetMember->Name() ==
+            Base::StringView("MillisecondsPerTick");
     if ((targetMember != nullptr &&
          targetMember->ValueType() ==
              Data::Binding::StaticTypeId()) ||
         authoredSetterValue || authoredHierarchicalItemsSource ||
-        authoredLaunchPath) {
+        authoredLaunchPath || authoredChangePropertyValue ||
+        authoredTimerInterval) {
         if (!sourceResource.Empty()) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
@@ -578,6 +699,18 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         if (authoredLaunchPath) {
             static_cast<Media::Animation::LaunchUriOrFileAction*>(
                 services.targetObject)->SetPathBinding(
+                    std::move(binding).Value());
+            return ProvidedValue::Handled();
+        }
+        if (authoredChangePropertyValue) {
+            static_cast<Media::Animation::ChangePropertyAction*>(
+                services.targetObject)->SetValueBinding(
+                    std::move(binding).Value());
+            return ProvidedValue::Handled();
+        }
+        if (authoredTimerInterval) {
+            static_cast<Media::Animation::TimerTrigger*>(
+                services.targetObject)->SetMillisecondsPerTickBinding(
                     std::move(binding).Value());
             return ProvidedValue::Handled();
         }
@@ -671,12 +804,10 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         }
         source = resource.Value().AsObject().Get();
     } else if (!elementName.Empty()) {
+        // ElementName may legally refer forward in the same NameScope. Resolve
+        // what is already available now and prepare unresolved references once
+        // the object writer has completed the document scope.
         source = services.nameScope->Find(elementName);
-        if (source == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "Binding ElementName was not found in the active NameScope");
-        }
     } else if (relativeSource == RelativeSourceKind::Self) {
         source = services.targetObject;
     } else if (relativeSource ==
@@ -736,6 +867,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             services.deferredContent->StageBinding(
                 *services.deferredContentOwner,
                 source,
+                elementName,
                 *target,
                 *bindings,
                 *Detail::SchemaPrivate::Metadata(
@@ -769,7 +901,15 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     state->metadata = Detail::SchemaPrivate::Metadata(
         *services.schema);
     state->source = source;
-    state->target = target;
+    state->targetOwner =
+        Base::Ref<::Aero::DependencyObject>::TryFromBorrowed(*target);
+    if (!state->targetOwner) {
+        CleanupBinding(state);
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Binding target is not reference-counted");
+    }
+    state->target = state->targetOwner.Get();
     state->targetProperty = targetHandle;
     state->dataContextProperty = extension->options_.dataContextProperty;
     state->dataContextOwner = target;
@@ -794,7 +934,13 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     state->updateSourceTrigger = updateSourceTrigger;
     state->converter = std::move(converter);
     state->allocator = &allocator;
-    Base::Result<void> assigned = state->path.Assign(path);
+    Base::Result<void> assigned =
+        state->elementName.Assign(elementName);
+    if (!assigned) {
+        CleanupBinding(state);
+        return assigned.GetStatus();
+    }
+    assigned = state->path.Assign(path);
     if (!assigned) {
         CleanupBinding(state);
         return assigned.GetStatus();
@@ -806,7 +952,8 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         return assigned.GetStatus();
     }
     return ProvidedValue::Deferred(
-        state, &CommitBinding, &RollbackBinding, &CleanupBinding);
+        state, &CommitBinding, &RollbackBinding, &CleanupBinding,
+        &PrepareBinding);
 }
 
 } // namespace Aero::Markup
@@ -842,7 +989,8 @@ struct DynamicResourceState {
           allocator(&Base::GetDefaultAllocator()) {}
 
     struct Source {
-        ResourceDictionary* resources = nullptr;
+        const ResourceDictionary* identity = nullptr;
+        ResourceDictionary resources;
         ResourceChangeSubscription subscription;
     };
 
@@ -883,11 +1031,11 @@ Base::Result<Meta::PropertyValue> EvaluateDynamicResource(
     }
     for (const DynamicResourceState::Source& source :
          state->sources) {
-        if (source.resources == nullptr) {
+        if (source.identity == nullptr) {
             continue;
         }
         Base::Result<Aero::ResourceValue> resource =
-            source.resources->Lookup(state->key.View());
+            source.resources.Lookup(state->key.View());
         if (resource) {
             return resource.Value();
         }
@@ -924,9 +1072,9 @@ void CleanupDynamicResource(void* context) noexcept {
     Base::IAllocator* allocator = state->allocator;
     for (DynamicResourceState::Source& source :
          state->sources) {
-        if (source.resources != nullptr) {
+        if (source.identity != nullptr) {
             static_cast<void>(
-                source.resources->Unsubscribe(
+                source.resources.Unsubscribe(
                     source.subscription));
         }
     }
@@ -941,10 +1089,12 @@ void CleanupDynamicResource(void* context) noexcept {
 
 struct DeferredDynamicResourceState {
     Meta::EffectiveValueEngine* engine = nullptr;
+    Base::Ref<::Aero::DependencyObject> targetOwner;
     ::Aero::DependencyObject* target = nullptr;
     Meta::DependencyPropertyHandle property;
-    Base::Vector<const ResourceDictionary*> resources;
-    ResourceDictionary* fallbackResources = nullptr;
+    Base::Vector<ResourceDictionary> resources;
+    ResourceDictionary fallbackResources;
+    bool hasFallbackResources = false;
     Base::String key;
     Base::IAllocator* allocator = nullptr;
 };
@@ -957,10 +1107,22 @@ Base::Result<std::uint64_t> CommitDynamicResource(void* context) noexcept {
             Base::ErrorCode::InvalidState,
             "Deferred DynamicResource state is invalid");
     }
+    Base::Vector<const ResourceDictionary*> chain;
+    Base::Result<void> prepared = chain.Reserve(
+        state->resources.Size());
+    if (prepared) {
+        for (const ResourceDictionary& resources : state->resources) {
+            prepared = chain.PushBack(&resources);
+            if (!prepared) break;
+        }
+    }
+    if (!prepared) return prepared.GetStatus();
     Base::Result<void> attached = DynamicResource::Attach(
         *state->engine,
-        {state->resources.Data(), state->resources.Size()},
-        state->fallbackResources,
+        {chain.Data(), chain.Size()},
+        state->hasFallbackResources
+            ? &state->fallbackResources
+            : nullptr,
         *state->target, state->property, state->key.View());
     return attached
         ? Base::Result<std::uint64_t>(1U)
@@ -972,8 +1134,11 @@ void RollbackDynamicResource(
     auto* state = static_cast<DeferredDynamicResourceState*>(context);
     if (state != nullptr && token != 0U && state->engine != nullptr &&
         state->target != nullptr) {
-        static_cast<void>(state->engine->ClearLocalExpression(
-            *state->target, state->property));
+        // Deferred resource effects are transaction-scoped. Teardown must
+        // remove every queued effective-value record before targetOwner is
+        // released; ClearLocalExpression would enqueue a final refresh and
+        // leave a dangling object pointer in the engine.
+        static_cast<void>(state->engine->DetachObject(*state->target));
     }
 }
 
@@ -1065,7 +1230,7 @@ Base::Result<Meta::PropertyExpression> DynamicResource::CreateExpression(
         if (resources == nullptr) return {};
         for (const DynamicResourceState::Source& source :
              state->sources) {
-            if (source.resources == resources) return {};
+            if (source.identity == resources) return {};
         }
         Base::Result<ResourceChangeSubscription> subscription =
             resources->SubscribeChanged(
@@ -1073,9 +1238,19 @@ Base::Result<Meta::PropertyExpression> DynamicResource::CreateExpression(
         if (!subscription) {
             return subscription.GetStatus();
         }
+        Base::Result<ResourceDictionary> shared =
+            resources->Share();
+        if (!shared) {
+            static_cast<void>(resources->Unsubscribe(
+                subscription.Value()));
+            return shared.GetStatus();
+        }
+        DynamicResourceState::Source source;
+        source.identity = resources;
+        source.resources = std::move(shared).Value();
+        source.subscription = subscription.Value();
         Base::Result<void> added =
-            state->sources.PushBack({
-                resources, subscription.Value()});
+            state->sources.PushBack(std::move(source));
         if (!added) {
             static_cast<void>(
                 resources->Unsubscribe(
@@ -1155,7 +1330,15 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
             Base::ErrorCode::InvalidState,
             "DynamicResource markup extension has no target service context");
     }
-    const Base::StringView key = TrimDynamicResourceText(arguments);
+    Base::StringView key = TrimDynamicResourceText(arguments);
+    constexpr Base::StringView ResourceKeyPrefix("ResourceKey=");
+    if (key.SizeBytes() > ResourceKeyPrefix.SizeBytes() &&
+        key.Substr(0U, ResourceKeyPrefix.SizeBytes()) ==
+            ResourceKeyPrefix) {
+        key = TrimDynamicResourceText(key.Substr(
+            ResourceKeyPrefix.SizeBytes(),
+            key.SizeBytes() - ResourceKeyPrefix.SizeBytes()));
+    }
     if (key.Empty() || key.Data() == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
@@ -1238,17 +1421,43 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
     }
     auto* state = new (memory) DeferredDynamicResourceState();
     state->engine = effectiveValues;
-    state->target = target;
+    state->targetOwner =
+        Base::Ref<::Aero::DependencyObject>::TryFromBorrowed(*target);
+    if (!state->targetOwner) {
+        CleanupDeferredDynamicResource(state);
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "DynamicResource target is not reference-counted");
+    }
+    state->target = state->targetOwner.Get();
     state->property = property;
-    state->fallbackResources = fallbackResources;
     state->allocator = &allocator;
     Base::Result<void> reserved = state->resources.Reserve(
         services.ambientResourceChain.Size());
     if (reserved) {
         for (const ResourceDictionary* resource :
              services.ambientResourceChain) {
-            reserved = state->resources.PushBack(resource);
+            if (resource == nullptr) continue;
+            Base::Result<ResourceDictionary> shared =
+                resource->Share();
+            if (!shared) {
+                reserved = shared.GetStatus();
+                break;
+            }
+            reserved = state->resources.PushBack(
+                std::move(shared).Value());
             if (!reserved) break;
+        }
+    }
+    if (reserved && fallbackResources != nullptr) {
+        Base::Result<ResourceDictionary> shared =
+            fallbackResources->Share();
+        if (!shared) {
+            reserved = shared.GetStatus();
+        } else {
+            state->fallbackResources =
+                std::move(shared).Value();
+            state->hasFallbackResources = true;
         }
     }
     if (reserved) reserved = state->key.Assign(key);
@@ -1288,8 +1497,8 @@ struct LocTarget {
     Base::ResourceUri baseUri;
 };
 
-std::vector<LocTarget>& LocTargets() {
-    static std::vector<LocTarget> targets;
+Base::Vector<LocTarget>& LocTargets() {
+    static Base::Vector<LocTarget> targets;
     return targets;
 }
 
@@ -1467,13 +1676,9 @@ Base::Result<ProvidedValue> LocExtension::ProvideValue(
     Base::Result<void> key = subscription.key.Assign(arguments);
     if (!key) return key.GetStatus();
     subscription.baseUri = english.Value();
-    try {
-        LocTargets().push_back(std::move(subscription));
-    } catch (...) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Loc subscription allocation failed");
-    }
+    Base::Result<void> retained =
+        LocTargets().PushBack(std::move(subscription));
+    if (!retained) return retained.GetStatus();
     return ProvidedValue::FromValue(std::move(initial).Value());
 }
 
@@ -2187,15 +2392,6 @@ Base::Result<LoaderResult> ObjectBuilder::Load(
 Base::Result<LoaderResult> ObjectBuilder::CompleteLoad(
     Base::Result<Base::Ref<Base::Object>> loaded) noexcept {
     if (!loaded) return loaded.GetStatus();
-    if (hasDeferredStaticResources_) {
-        Base::Result<void> resolved =
-            ResolveDeferredStaticResources();
-        if (!resolved) {
-            const Base::Status status = resolved.GetStatus();
-            AbortTransaction();
-            return status;
-        }
-    }
     LoaderResult result;
     result.root = std::move(loaded).Value();
     result.metadata = schema_->Metadata();
@@ -2227,6 +2423,29 @@ Base::Result<LoaderResult> ObjectBuilder::CompleteLoad(
             AbortTransaction();
             return status;
         }
+    }
+    // Source-backed merged dictionaries are committed by the loader finalizer.
+    // Resolve queued StaticResource references only after that transaction so
+    // sibling theme dictionaries participate in WPF resource lookup order.
+    if (hasDeferredStaticResources_) {
+        Base::Result<void> resolved =
+            ResolveDeferredStaticResources();
+        if (!resolved) {
+            const Base::Status status = resolved.GetStatus();
+            result.Clear();
+            AbortTransaction();
+            return status;
+        }
+    }
+    result.hasDeferredStaticResources =
+        hasDeferredStaticResources_;
+    Base::Result<void> prepared =
+        result.effects.Prepare(result.names);
+    if (!prepared) {
+        const Base::Status status = prepared.GetStatus();
+        result.Clear();
+        AbortTransaction();
+        return status;
     }
     ClearTransaction();
     return result;
@@ -3260,6 +3479,24 @@ Base::Result<void> ObjectBuilder::WriteText(
                 node.Source());
         }
         if (markup == MarkupValueKind::Null) {
+            if (frame.targetObjectIndex < created_.Size() &&
+                frame.member.id ==
+                    Controls::Primitives::ToggleButton::
+                        IsCheckedProperty.Handle().value &&
+                schema_->Types().IsDerivedFrom(
+                    created_[frame.targetObjectIndex].type,
+                    Controls::Primitives::ToggleButton::
+                        StaticTypeId())) {
+                Meta::Value unchecked = Meta::Value::FromBoolean(
+                    Meta::TypeOf<bool>(), false);
+                Base::Result<void> written = WriteValueToMember(
+                    frame, std::move(unchecked), node.Source());
+                if (!written) return written.GetStatus();
+                static_cast<Controls::Primitives::ToggleButton&>(
+                    *created_[frame.targetObjectIndex].object)
+                    .SetIsIndeterminate();
+                return {};
+            }
             if (frame.memberValueTypeIsValueType &&
                 !acceptsAnyValue) {
                 return Failure(
@@ -3466,8 +3703,16 @@ Base::Result<void> ObjectBuilder::WriteText(
         frame.objectIndex,
         contentMember,
         node.Source());
+    const bool itemsControlScalarContent =
+        schema_->Types().IsDerivedFrom(
+            contentOwner.type,
+            Controls::ItemsControl::StaticTypeId()) &&
+        contentOwner.hasContentMember &&
+        contentOwner.contentMember.id == contentMember.id;
     Base::Result<Meta::Value> convertResult = schema_->ConvertText(
-        contentMember.valueType,
+        itemsControlScalarContent
+            ? Meta::TypeOf<Base::String>()
+            : contentMember.valueType,
         markup == MarkupValueKind::EscapedLiteral
             ? argument
             : node.Value(),
@@ -4045,6 +4290,24 @@ Base::Result<void> ObjectBuilder::WriteNullToParent(
 
     Frame& parent = frames_.Back();
     if (parent.kind == FrameKind::Member) {
+        if (parent.targetObjectIndex < created_.Size() &&
+            parent.member.id ==
+                Controls::Primitives::ToggleButton::
+                    IsCheckedProperty.Handle().value &&
+            schema_->Types().IsDerivedFrom(
+                created_[parent.targetObjectIndex].type,
+                Controls::Primitives::ToggleButton::
+                    StaticTypeId())) {
+            Meta::Value unchecked = Meta::Value::FromBoolean(
+                Meta::TypeOf<bool>(), false);
+            Base::Result<void> written = WriteValueToMember(
+                parent, std::move(unchecked), source);
+            if (!written) return written.GetStatus();
+            static_cast<Controls::Primitives::ToggleButton&>(
+                *created_[parent.targetObjectIndex].object)
+                .SetIsIndeterminate();
+            return {};
+        }
         const MemberWritePolicy policy =
             parent.hasMemberPolicy
             ? parent.memberPolicy
@@ -4232,7 +4495,16 @@ Base::Result<void> ObjectBuilder::WriteProvidedValue(
             return target.GetStatus();
         }
         effect.effectiveValues = provided.effectiveValues;
-        effect.target = target.Value();
+        effect.targetOwner =
+            Base::Ref<::Aero::DependencyObject>::TryFromBorrowed(
+                *target.Value());
+        if (!effect.targetOwner) {
+            provided.Discard();
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Markup expression target is not reference-counted");
+        }
+        effect.target = effect.targetOwner.Get();
         effect.property = Meta::DependencyPropertyHandle{member.id};
         effect.pendingExpression = provided.expression;
         provided.expression = {};
@@ -4245,10 +4517,12 @@ Base::Result<void> ObjectBuilder::WriteProvidedValue(
         provided.rollback = nullptr;
     } else if (provided.kind == ProvidedValueKind::Deferred) {
         effect.context = provided.rollbackContext;
+        effect.prepare = provided.prepare;
         effect.commit = provided.commit;
         effect.rollback = provided.rollback;
         effect.cleanup = provided.cleanup;
         provided.rollbackContext = nullptr;
+        provided.prepare = nullptr;
         provided.commit = nullptr;
         provided.rollback = nullptr;
         provided.cleanup = nullptr;
@@ -4340,10 +4614,47 @@ Base::Result<void> ObjectBuilder::WriteValue(
         assignment = &assignments_.Back();
     }
 
+    CreatedObjectRecord& targetRecord =
+        created_[targetObjectIndex];
+    if (value.Kind() != Meta::ValueKind::Object &&
+        targetRecord.hasContentMember &&
+        targetRecord.contentMember.id == member.id &&
+        schema_->Types().IsDerivedFrom(
+            targetRecord.type,
+            Controls::ItemsControl::StaticTypeId())) {
+        Base::Result<Base::Ref<
+            Controls::Detail::BoxedItemValue>> boxed =
+                Base::MakeRef<Controls::Detail::BoxedItemValue>(
+                    value);
+        if (!boxed) return boxed.GetStatus();
+        value = Meta::Value::FromObject(
+            member.valueType,
+            Base::Ref<Base::Object>(
+                std::move(boxed).Value()));
+    }
+
     const ExtensionServices services = BuildExtensionServices(
         targetObjectIndex,
         member,
         source);
+    if ((member.valueType == Meta::TypeOf<Aero::Length>() ||
+         member.valueType == Meta::TypeOf<Controls::GridLength>()) &&
+        value.Type() != member.valueType &&
+        (value.Kind() == Meta::ValueKind::SignedInteger ||
+         value.Kind() == Meta::ValueKind::UnsignedInteger ||
+         value.Kind() == Meta::ValueKind::Double)) {
+        Base::Result<Meta::Value> converted =
+            ConvertConstantBindingValue(
+                value, member.valueType);
+        if (!converted) {
+            return Failure(
+                converted.GetStatus(),
+                XamlObjectWriterDiagnosticCodes::TypeMismatch,
+                MessageTypeMismatch,
+                source);
+        }
+        value = std::move(converted).Value();
+    }
     if (member.valueType ==
             Media::Brush::StaticTypeId() &&
         value.Type() ==
@@ -4664,6 +4975,60 @@ Base::Result<bool> ObjectBuilder::RegisterObjectResource(
             XamlObjectWriterDiagnosticCodes::ResourceRegistrationFailed,
             MessageResourceRegistrationFailed,
             source);
+    }
+
+    if (!explicitKey &&
+        object.type == Aero::Style::StaticTypeId() &&
+        object.object) {
+        const auto& style = static_cast<const Aero::Style&>(
+            *object.object);
+        const Meta::TypeInfo* targetType =
+            schema_->Types().FindType(
+                style.GetTargetType());
+        if (targetType != nullptr &&
+            !targetType->Name().Empty()) {
+            Base::String alias;
+            Base::Result<void> named =
+                alias.Assign("Style.");
+            if (named) {
+                named = alias.Append(
+                    targetType->Name());
+            }
+            if (!named) return named.GetStatus();
+            if (!scope.resources.Contains(alias.View())) {
+                Base::Result<Aero::ResourceKey> aliasKey =
+                    Aero::ResourceKey::FromString(
+                        alias.View());
+                if (!aliasKey) return aliasKey.GetStatus();
+                Base::Result<void> localAlias =
+                    scope.resources.Add(
+                        aliasKey.Value(),
+                        resourceValue,
+                        source);
+                if (!localAlias) {
+                    return Failure(
+                        localAlias.GetStatus(),
+                        XamlObjectWriterDiagnosticCodes::
+                            ResourceRegistrationFailed,
+                        MessageResourceRegistrationFailed,
+                        source);
+                }
+                Base::Result<void> callbackAlias =
+                    schema_->AddResource(
+                        owner.type,
+                        *owner.object,
+                        aliasKey.Value(),
+                        resourceValue);
+                if (!callbackAlias) {
+                    return Failure(
+                        callbackAlias.GetStatus(),
+                        XamlObjectWriterDiagnosticCodes::
+                            ResourceRegistrationFailed,
+                        MessageResourceRegistrationFailed,
+                        source);
+                }
+            }
+        }
     }
 
     object.resourceRegistered = true;
@@ -5456,6 +5821,7 @@ Base::Result<void> DeferredContentPlan::CopyForOwner(
 Base::Result<void> DeferredContentPlan::StageBinding(
     Base::Object& owner,
     Base::Object* source,
+    Base::StringView sourceName,
     ::Aero::DependencyObject& target,
     Aero::GuiPrivate::Detail::BindingEngine& manager,
     ::Aero::Meta::Registry& metadata,
@@ -5475,6 +5841,9 @@ Base::Result<void> DeferredContentPlan::StageBinding(
     DeferredBindingEdge edge;
     edge.owner = &owner;
     edge.source = source;
+    Base::Result<void> sourceAssigned =
+        edge.sourceName.Assign(sourceName);
+    if (!sourceAssigned) return sourceAssigned.GetStatus();
     edge.target = &target;
     edge.manager = &manager;
     edge.metadata = &metadata;

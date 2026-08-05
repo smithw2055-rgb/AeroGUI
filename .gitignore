@@ -8,3 +8,4 @@ CMakeUserPresets.json
 *.VC.db
 *.VC.opendb
 .DS_Store
+/tools/control-gallery-conformance/

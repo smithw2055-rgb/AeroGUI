@@ -72,6 +72,16 @@ public:
         return GetEvent(MouseMoveEvent);
     }
 
+    inline static constexpr Members::RoutedEvent<MouseEventArgs> MouseEnterEvent{"MouseEnter"};
+    Event<MouseEventArgs> MouseEnter() noexcept {
+        return GetEvent(MouseEnterEvent);
+    }
+
+    inline static constexpr Members::RoutedEvent<MouseEventArgs> MouseLeaveEvent{"MouseLeave"};
+    Event<MouseEventArgs> MouseLeave() noexcept {
+        return GetEvent(MouseLeaveEvent);
+    }
+
     inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> PreviewMouseDownEvent{"PreviewMouseDown"};
     Event<MouseButtonEventArgs> PreviewMouseDown() noexcept { return GetEvent(PreviewMouseDownEvent); }
 
@@ -79,6 +89,12 @@ public:
     Event<MouseButtonEventArgs> MouseDown() noexcept {
         return GetEvent(MouseDownEvent);
     }
+
+    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> PreviewMouseLeftButtonDownEvent{"PreviewMouseLeftButtonDown"};
+    Event<MouseButtonEventArgs> PreviewMouseLeftButtonDown() noexcept { return GetEvent(PreviewMouseLeftButtonDownEvent); }
+
+    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> MouseLeftButtonDownEvent{"MouseLeftButtonDown"};
+    Event<MouseButtonEventArgs> MouseLeftButtonDown() noexcept { return GetEvent(MouseLeftButtonDownEvent); }
 
     inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> PreviewMouseUpEvent{"PreviewMouseUp"};
     Event<MouseButtonEventArgs> PreviewMouseUp() noexcept { return GetEvent(PreviewMouseUpEvent); }

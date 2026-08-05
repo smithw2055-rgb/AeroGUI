@@ -38,11 +38,9 @@ Base::Result<void> PopulateUiAnimation(
 
     auto easingBase = Meta::Register<Media::Animation::EasingFunctionBase>(
         context, TypeFlags::Abstract);
-    easingBase.Property<
-        EasingMode,
-        &Media::Animation::EasingFunctionBase::GetEasingMode,
-        &Media::Animation::EasingFunctionBase::SetEasingMode>(
-            "EasingMode");
+    easingBase.Property(
+        Media::Animation::EasingFunctionBase::EasingModeProperty,
+        PropertyOptions(EasingMode::EaseOut));
     status = easingBase.Result();
     if (!status) return status.GetStatus();
 
@@ -61,58 +59,51 @@ Base::Result<void> PopulateUiAnimation(
     auto exponentialEase =
         Meta::Register<Media::Animation::ExponentialEase>(context);
     exponentialEase
-        .Property<
-            double,
-            &Media::Animation::ExponentialEase::GetExponent,
-            &Media::Animation::ExponentialEase::SetExponent>("Exponent")
+        .Property(
+            Media::Animation::ExponentialEase::ExponentProperty,
+            PropertyOptions(2.0))
         .Factory();
     status = exponentialEase.Result();
     if (!status) return status.GetStatus();
 
     auto powerEase = Meta::Register<Media::Animation::PowerEase>(context);
     powerEase
-        .Property<
-            double,
-            &Media::Animation::PowerEase::GetPower,
-            &Media::Animation::PowerEase::SetPower>("Power")
+        .Property(
+            Media::Animation::PowerEase::PowerProperty,
+            PropertyOptions(2.0))
         .Factory();
     status = powerEase.Result();
     if (!status) return status.GetStatus();
 
     auto backEase = Meta::Register<Media::Animation::BackEase>(context);
     backEase
-        .Property<
-            double,
-            &Media::Animation::BackEase::GetAmplitude,
-            &Media::Animation::BackEase::SetAmplitude>("Amplitude")
+        .Property(
+            Media::Animation::BackEase::AmplitudeProperty,
+            PropertyOptions(1.0))
         .Factory();
     status = backEase.Result();
     if (!status) return status.GetStatus();
 
     auto bounceEase = Meta::Register<Media::Animation::BounceEase>(context);
     bounceEase
-        .Property<
-            double,
-            &Media::Animation::BounceEase::GetBounces,
-            &Media::Animation::BounceEase::SetBounces>("Bounces")
-        .Property<
-            double,
-            &Media::Animation::BounceEase::GetBounciness,
-            &Media::Animation::BounceEase::SetBounciness>("Bounciness")
+        .Property(
+            Media::Animation::BounceEase::BouncesProperty,
+            PropertyOptions(3.0))
+        .Property(
+            Media::Animation::BounceEase::BouncinessProperty,
+            PropertyOptions(3.0))
         .Factory();
     status = bounceEase.Result();
     if (!status) return status.GetStatus();
 
     auto elasticEase = Meta::Register<Media::Animation::ElasticEase>(context);
     elasticEase
-        .Property<
-            double,
-            &Media::Animation::ElasticEase::GetOscillations,
-            &Media::Animation::ElasticEase::SetOscillations>("Oscillations")
-        .Property<
-            double,
-            &Media::Animation::ElasticEase::GetSpringiness,
-            &Media::Animation::ElasticEase::SetSpringiness>("Springiness")
+        .Property(
+            Media::Animation::ElasticEase::OscillationsProperty,
+            PropertyOptions(3.0))
+        .Property(
+            Media::Animation::ElasticEase::SpringinessProperty,
+            PropertyOptions(3.0))
         .Factory();
     status = elasticEase.Result();
     if (!status) return status.GetStatus();
@@ -271,12 +262,11 @@ Base::Result<void> PopulateUiAnimation(
     auto easingFrame =
         Meta::Register<Media::Animation::EasingDoubleKeyFrame>(context);
     easingFrame
-        .Property<
-            Base::Ref<Media::Animation::EasingFunctionBase>,
-            &Media::Animation::EasingDoubleKeyFrame::GetEasingFunction,
-            &Media::Animation::EasingDoubleKeyFrame::SetEasingFunction>(
-            "EasingFunction",
-            PropertyFlags::Structural)
+        .Property(
+            Media::Animation::EasingDoubleKeyFrame::EasingFunctionProperty,
+            PropertyOptions(
+                Base::Ref<Media::Animation::EasingFunctionBase>{})
+                .AffectsRender())
         .Factory();
     status = easingFrame.Result();
     if (!status) return status.GetStatus();
@@ -745,8 +735,8 @@ Base::Result<void> PopulateUiAnimation(
             PropertyFlags::Structural)
         .Collection<Base::Object>(
             "Behaviors",
-            &AddEventTriggerBehavior,
-            &ClearEventTriggerBehaviors,
+            &AddInteractionBehavior,
+            &ClearInteractionBehaviors,
             PropertyFlags::Attached |
                 PropertyFlags::Structural);
     status = interaction.Result();

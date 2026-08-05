@@ -110,8 +110,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = control.Result();
     if (!status) return status.GetStatus();
 
-    auto contentControl = Meta::Register<ContentControl>(
-        context, TypeFlags::Abstract);
+    auto contentControl = Meta::Register<ContentControl>(context);
     contentControl
         .Property(
             ContentControl::ContentProperty,
@@ -141,7 +140,8 @@ Base::Result<void> PopulateControlsPrimitives(
             ContentKind::Single,
             &SetContentControlContent,
             &ClearContentControlContent,
-            ContentFlags::Visual);
+            ContentFlags::Visual)
+        .Factory(&CreateBasicContentControl);
     status = contentControl.Result();
     if (!status) return status.GetStatus();
 

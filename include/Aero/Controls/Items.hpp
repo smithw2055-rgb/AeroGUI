@@ -1152,19 +1152,58 @@ public:
     void ClearColumns() noexcept {
         columns_.Clear();
     }
+    bool GetAllowsColumnReorder() const noexcept {
+        return allowsColumnReorder_;
+    }
+    void SetAllowsColumnReorder(bool value) noexcept {
+        allowsColumnReorder_ = value;
+    }
     Base::Ref<Style> GetColumnHeaderContainerStyle() const noexcept {
         return columnHeaderContainerStyle_;
     }
     void SetColumnHeaderContainerStyle(
         Base::Ref<Style> value) noexcept {
         columnHeaderContainerStyle_ = std::move(value);
-        return;
     }
+    Base::Ref<Base::Object> GetColumnHeaderContextMenu() const noexcept {
+        return columnHeaderContextMenu_;
+    }
+    void SetColumnHeaderContextMenu(Base::Ref<Base::Object> value) noexcept {
+        columnHeaderContextMenu_ = std::move(value);
+    }
+    Base::Ref<Base::Object> GetColumnHeaderTemplate() const noexcept {
+        return columnHeaderTemplate_;
+    }
+    void SetColumnHeaderTemplate(Base::Ref<Base::Object> value) noexcept {
+        columnHeaderTemplate_ = std::move(value);
+    }
+    Base::Ref<Base::Object> GetColumnHeaderTemplateSelector() const noexcept {
+        return columnHeaderTemplateSelector_;
+    }
+    void SetColumnHeaderTemplateSelector(Base::Ref<Base::Object> value) noexcept {
+        columnHeaderTemplateSelector_ = std::move(value);
+    }
+    Base::Ref<Base::Object> GetColumnHeaderToolTip() const noexcept {
+        return columnHeaderToolTip_;
+    }
+    void SetColumnHeaderToolTip(Base::Ref<Base::Object> value) noexcept {
+        columnHeaderToolTip_ = std::move(value);
+    }
+    Base::Ref<Base::Object> GetColumnsObject() const noexcept {
+        return Base::Ref<Base::Object>::TryFromBorrowed(
+            *const_cast<GridView*>(this));
+    }
+    void SetColumnsObject(Base::Ref<Base::Object>) noexcept {}
 
 private:
     Base::Vector<Base::Ref<GridViewColumn>>
         columns_;
+    bool allowsColumnReorder_ = false;
     Base::Ref<Style> columnHeaderContainerStyle_;
+    Base::Ref<Base::Object> columnHeaderContextMenu_;
+    Base::Ref<Base::Object> columnHeaderTemplate_;
+    Base::Ref<Base::Object> columnHeaderTemplateSelector_;
+    Base::Ref<Base::Object> columnHeaderToolTip_;
 };
 
 // Hosts GridView column headers inside the ListView ScrollViewer template.

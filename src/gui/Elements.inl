@@ -29,7 +29,19 @@ Base::Result<void> PopulateUiElements(
         .Property(
             FrameworkContentElement::TagProperty,
             PropertyOptions(Meta::Value::NullObject(
-                Meta::TypeOf<Base::Object>())));
+                Meta::TypeOf<Base::Object>())))
+        .Property(
+            FrameworkContentElement::IsEnabledProperty,
+            PropertyOptions(true).Inherits())
+        .Property(
+            FrameworkContentElement::IsMouseOverProperty,
+            PropertyOptions(false))
+        .Property(
+            FrameworkContentElement::CursorProperty,
+            PropertyOptions(Base::String{}).Inherits())
+        .Property(
+            FrameworkContentElement::OverridesDefaultStyleProperty,
+            PropertyOptions(false));
     status = frameworkContentElement.Result();
     if (!status) return status.GetStatus();
 
@@ -38,8 +50,12 @@ Base::Result<void> PopulateUiElements(
     uiElement
         .Event(UIElement::PreviewMouseMoveEvent, RoutingStrategy::Tunnel)
         .Event(UIElement::MouseMoveEvent)
+        .Event(UIElement::MouseEnterEvent, RoutingStrategy::Direct)
+        .Event(UIElement::MouseLeaveEvent, RoutingStrategy::Direct)
         .Event(UIElement::PreviewMouseDownEvent, RoutingStrategy::Tunnel)
         .Event(UIElement::MouseDownEvent)
+        .Event(UIElement::PreviewMouseLeftButtonDownEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::MouseLeftButtonDownEvent)
         .Event(UIElement::PreviewMouseUpEvent, RoutingStrategy::Tunnel)
         .Event(UIElement::MouseUpEvent)
         .Event(UIElement::PreviewMouseWheelEvent, RoutingStrategy::Tunnel)
@@ -195,26 +211,22 @@ Base::Result<void> PopulateUiElements(
             FrameworkElement::MinWidthProperty,
             PropertyOptions(0.0)
                 .AffectsMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>)
-                .Coerce(&CoerceMinWidth))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MaxWidthProperty,
             PropertyOptions(DefaultMaximum)
                 .AffectsMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>)
-                .Coerce(&CoerceMaxWidth))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MinHeightProperty,
             PropertyOptions(0.0)
                 .AffectsMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>)
-                .Coerce(&CoerceMinHeight))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MaxHeightProperty,
             PropertyOptions(DefaultMaximum)
                 .AffectsMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>)
-                .Coerce(&CoerceMaxHeight))
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MarginProperty,
             PropertyOptions(Thickness{})

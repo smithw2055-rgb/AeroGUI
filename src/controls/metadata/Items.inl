@@ -381,6 +381,11 @@ Base::Result<void> PopulateControlsItems(
             MenuItem::CommandParameterProperty,
             PropertyOptions(Value::NullObject(
                 TypeOf<Base::Object>())))
+        .Property(
+            MenuItem::IconProperty,
+            PropertyOptions(Value::NullObject(
+                TypeOf<Base::Object>()))
+                .AffectsMeasure())
         .Factory();
     status = menuItem.Result();
     if (!status) return status.GetStatus();
@@ -465,13 +470,48 @@ Base::Result<void> PopulateControlsItems(
     auto gridView = Meta::Register<GridView>(context);
     gridView
         .Property<
+            bool,
+            &GridView::GetAllowsColumnReorder,
+            &GridView::SetAllowsColumnReorder>(
+                "AllowsColumnReorder")
+        .Property<
             Base::Ref<Style>,
             &GridView::GetColumnHeaderContainerStyle,
             &GridView::SetColumnHeaderContainerStyle>(
                 "ColumnHeaderContainerStyle",
                 PropertyFlags::Structural)
+        .Property<
+            Base::Ref<Base::Object>,
+            &GridView::GetColumnHeaderContextMenu,
+            &GridView::SetColumnHeaderContextMenu>(
+                "ColumnHeaderContextMenu",
+                PropertyFlags::Structural)
+        .Property<
+            Base::Ref<Base::Object>,
+            &GridView::GetColumnHeaderTemplate,
+            &GridView::SetColumnHeaderTemplate>(
+                "ColumnHeaderTemplate",
+                PropertyFlags::Structural)
+        .Property<
+            Base::Ref<Base::Object>,
+            &GridView::GetColumnHeaderTemplateSelector,
+            &GridView::SetColumnHeaderTemplateSelector>(
+                "ColumnHeaderTemplateSelector",
+                PropertyFlags::Structural)
+        .Property<
+            Base::Ref<Base::Object>,
+            &GridView::GetColumnHeaderToolTip,
+            &GridView::SetColumnHeaderToolTip>(
+                "ColumnHeaderToolTip",
+                PropertyFlags::Structural)
+        .Property<
+            Base::Ref<Base::Object>,
+            &GridView::GetColumnsObject,
+            &GridView::SetColumnsObject>(
+                "Columns",
+                PropertyFlags::Structural)
         .Content<Base::Object>(
-            "Columns",
+            "ColumnItems",
             ContentKind::Collection,
             &AddGridViewColumn,
             &ClearGridViewColumns)
@@ -654,8 +694,7 @@ Base::Result<void> PopulateControlsItems(
     status = toolTipService.Result();
     if (!status) return status.GetStatus();
 
-    auto headered = Meta::Register<HeaderedContentControl>(
-        context, TypeFlags::Abstract);
+    auto headered = Meta::Register<HeaderedContentControl>(context);
     headered
         .Property(
             HeaderedContentControl::HeaderProperty,
@@ -665,7 +704,8 @@ Base::Result<void> PopulateControlsItems(
         .Property(
             HeaderedContentControl::HeaderTemplateProperty,
             PropertyOptions(Base::Ref<DataTemplate>{})
-                .AffectsMeasure());
+                .AffectsMeasure())
+        .Factory(&CreateBasicHeaderedContentControl);
     status = headered.Result();
     if (!status) return status.GetStatus();
 

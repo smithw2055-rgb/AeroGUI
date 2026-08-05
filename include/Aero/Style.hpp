@@ -40,7 +40,7 @@ public:
     std::uint32_t GetCount() const noexcept;
     TriggerBase* GetItem(std::uint32_t index) const noexcept;
     bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
-    Base::Result<void> Add(Base::Ref<Trigger> trigger) noexcept;
+    Base::Result<void> Add(Base::Ref<TriggerBase> trigger) noexcept;
     void Clear() noexcept;
 
 private:
@@ -79,6 +79,8 @@ public:
         const Setter& setter) noexcept;
     Base::Result<void> AddTrigger(
         const Trigger& trigger) noexcept;
+    Base::Result<void> AddTrigger(
+        const DataTrigger& trigger) noexcept;
 
     class TriggerBuilder {
     public:
@@ -146,13 +148,13 @@ public:
     bool SetBasedOn(const Style* basedOn) noexcept;
     bool SetBasedOn(Base::Ref<Base::Object> basedOn) noexcept;
     Base::Result<void> AddAuthoredSetter(Base::Ref<Setter> setter) noexcept;
-    Base::Result<void> AddAuthoredTrigger(Base::Ref<Trigger> trigger) noexcept;
+    Base::Result<void> AddAuthoredTrigger(Base::Ref<TriggerBase> trigger) noexcept;
     void ClearAuthoredSetters() noexcept;
     void ClearAuthoredTriggers() noexcept;
     Base::Span<const Base::Ref<Setter>> GetAuthoredSetters() const noexcept {
         return {authoredSetterObjects_.Data(), authoredSetterObjects_.Size()};
     }
-    Base::Span<const Base::Ref<Trigger>> GetAuthoredTriggers() const noexcept {
+    Base::Span<const Base::Ref<TriggerBase>> GetAuthoredTriggers() const noexcept {
         return {authoredTriggerObjects_.Data(), authoredTriggerObjects_.Size()};
     }
     TypeId GetTargetType() const noexcept;
@@ -179,7 +181,7 @@ private:
     const Style* basedOn_ = nullptr;
     Base::Ref<Base::Object> basedOnOwner_;
     Base::Vector<Base::Ref<Setter>> authoredSetterObjects_;
-    Base::Vector<Base::Ref<Trigger>> authoredTriggerObjects_;
+    Base::Vector<Base::Ref<TriggerBase>> authoredTriggerObjects_;
     Base::IAllocator* implAllocator_ = nullptr;
     Impl* program_ = nullptr;
     ResourceDictionary resources_;

@@ -1,9 +1,62 @@
 #include "gui/GuiPrivate.hpp"
 #include <Aero/Controls/Common.hpp>
 
+#include <algorithm>
 #include <utility>
 
 namespace Aero::Controls {
+
+Size ToolBarPanel::MeasureOverride(Size availableSize) noexcept {
+    Size desired{};
+    for (UIElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        Base::Result<void> measured = MeasureChild(
+            *child, {1.0e12, availableSize.height});
+        if (!measured) continue;
+        const Size childSize = child->GetDesiredSize();
+        desired.width += childSize.width;
+        desired.height = std::max(desired.height, childSize.height);
+    }
+    return desired;
+}
+
+Size ToolBarPanel::ArrangeOverride(Size finalSize) noexcept {
+    double offset = 0.0;
+    for (UIElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        const Size desired = child->GetDesiredSize();
+        static_cast<void>(ArrangeChild(
+            *child, {offset, 0.0, desired.width, finalSize.height}));
+        offset += desired.width;
+    }
+    return finalSize;
+}
+
+Size ToolBarOverflowPanel::MeasureOverride(Size availableSize) noexcept {
+    Size desired{};
+    for (UIElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        Base::Result<void> measured = MeasureChild(
+            *child, {availableSize.width, 1.0e12});
+        if (!measured) continue;
+        const Size childSize = child->GetDesiredSize();
+        desired.width = std::max(desired.width, childSize.width);
+        desired.height += childSize.height;
+    }
+    return desired;
+}
+
+Size ToolBarOverflowPanel::ArrangeOverride(Size finalSize) noexcept {
+    double offset = 0.0;
+    for (UIElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        const Size desired = child->GetDesiredSize();
+        static_cast<void>(ArrangeChild(
+            *child, {0.0, offset, finalSize.width, desired.height}));
+        offset += desired.height;
+    }
+    return finalSize;
+}
 
 ToolBar::ToolBar() noexcept
     : ItemsControl(StaticTypeId()),

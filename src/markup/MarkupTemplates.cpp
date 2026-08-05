@@ -218,7 +218,8 @@ Base::Result<void> XamlStyleSchemaFacet::Register(
             triggerType, Base::StringView("Setters"), false);
         if (triggers == nullptr || triggerProperty == nullptr ||
             triggerValue == nullptr || triggerSetters == nullptr ||
-            triggers->ValueType() != triggerType ||
+            !schema.Types().IsAssignableFrom(
+                triggers->ValueType(), triggerType) ||
             triggerProperty->ValueType() !=
                 Meta::TypeOf<Base::String>() ||
             triggerValue->ValueType() !=
@@ -391,74 +392,123 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             style.AddSetter(*setter);
         if (!added) return added.GetStatus();
     }
-    for (const Base::Ref<Aero::Trigger>& entry :
+    for (const Base::Ref<Aero::TriggerBase>& entry :
          style.GetAuthoredTriggers()) {
-        Aero::Trigger* trigger =
-            entry.Get();
-        if (trigger == nullptr ||
-            !trigger->GetIsAuthored()) {
+        Aero::TriggerBase* authored = entry.Get();
+        if (authored == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
-                "Style Trigger requires Property, Value, and Setters");
+                "Style Trigger cannot be null");
         }
-        const Meta::DependencyProperty* condition =
-            ResolveStyleProperty(
-                *options_.properties,
-                targetType,
-                trigger->GetPropertyName());
-        if (condition == nullptr) {
-            return MissingStyleProperty(
-                "Trigger property",
-                trigger->GetPropertyName(),
-                targetType,
-                options_.properties->Types());
-        }
-        Base::Result<Meta::PropertyValue> conditionValue = ConvertValueForProperty(
-            trigger->GetAuthoredValue(),
-            targetType,
-            trigger->GetPropertyName());
-        if (!conditionValue) return conditionValue.GetStatus();
-        trigger->SetProperty(condition->Handle());
-        trigger->SetValue(conditionValue.Value());
-        for (const Base::Ref<Aero::Setter>& setterEntry :
-             trigger->GetAuthoredSetters()) {
-            Aero::Setter* setter =
-                setterEntry.Get();
-            if (setter == nullptr ||
-                !setter->GetIsAuthored()) {
+        if (authored->RuntimeType() == Aero::Trigger::StaticTypeId()) {
+            auto* trigger = static_cast<Aero::Trigger*>(authored);
+            if (!trigger->GetIsAuthored()) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidState,
-                    "Style Trigger Setter requires Property and Value");
+                    "Style Trigger requires Property, Value, and Setters");
             }
-            const Meta::DependencyProperty* property =
+            const Meta::DependencyProperty* condition =
                 ResolveStyleProperty(
                     *options_.properties,
                     targetType,
-                    setter->GetPropertyName());
-            if (property == nullptr) {
+                    trigger->GetPropertyName());
+            if (condition == nullptr) {
                 return MissingStyleProperty(
-                    "Trigger Setter property",
-                    setter->GetPropertyName(),
+                    "Trigger property",
+                    trigger->GetPropertyName(),
                     targetType,
                     options_.properties->Types());
             }
-            Base::Result<Meta::PropertyValue> value = ConvertValueForProperty(
-                setter->GetAuthoredValue(),
-                targetType,
-                setter->GetPropertyName());
-            if (!value) return value.GetStatus();
-            Base::Result<void> resolved =
-                setter->Resolve(
-                    property->Handle(),
-                    value.Value());
-            if (!resolved) {
-                return resolved.GetStatus();
+            Base::Result<Meta::PropertyValue> conditionValue =
+                ConvertValueForProperty(
+                    trigger->GetAuthoredValue(),
+                    targetType,
+                    trigger->GetPropertyName());
+            if (!conditionValue) return conditionValue.GetStatus();
+            trigger->SetProperty(condition->Handle());
+            trigger->SetValue(conditionValue.Value());
+            for (const Base::Ref<Aero::Setter>& setterEntry :
+                 trigger->GetAuthoredSetters()) {
+                Aero::Setter* setter = setterEntry.Get();
+                if (setter == nullptr || !setter->GetIsAuthored()) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::InvalidState,
+                        "Style Trigger Setter requires Property and Value");
+                }
+                const Meta::DependencyProperty* property =
+                    ResolveStyleProperty(
+                        *options_.properties,
+                        targetType,
+                        setter->GetPropertyName());
+                if (property == nullptr) {
+                    return MissingStyleProperty(
+                        "Trigger Setter property",
+                        setter->GetPropertyName(),
+                        targetType,
+                        options_.properties->Types());
+                }
+                Base::Result<Meta::PropertyValue> value =
+                    ConvertValueForProperty(
+                        setter->GetAuthoredValue(),
+                        targetType,
+                        setter->GetPropertyName());
+                if (!value) return value.GetStatus();
+                Base::Result<void> resolved = setter->Resolve(
+                    property->Handle(), value.Value());
+                if (!resolved) return resolved.GetStatus();
+                Base::Result<void> added = trigger->AddSetter(*setter);
+                if (!added) return added.GetStatus();
             }
-            Base::Result<void> added = trigger->AddSetter(*setter);
+            Base::Result<void> added = style.AddTrigger(*trigger);
             if (!added) return added.GetStatus();
+            continue;
         }
-        Base::Result<void> added = style.AddTrigger(*trigger);
-        if (!added) return added.GetStatus();
+        if (authored->RuntimeType() == Aero::DataTrigger::StaticTypeId()) {
+            auto* trigger = static_cast<Aero::DataTrigger*>(authored);
+            if (!trigger->GetBinding() ||
+                trigger->GetAuthoredValue().IsUnset() ||
+                trigger->GetAuthoredSetters().Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "Style DataTrigger requires Binding, Value, and Setters");
+            }
+            for (const Base::Ref<Aero::Setter>& setterEntry :
+                 trigger->GetAuthoredSetters()) {
+                Aero::Setter* setter = setterEntry.Get();
+                if (setter == nullptr || !setter->GetIsAuthored()) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::InvalidState,
+                        "Style DataTrigger Setter requires Property and Value");
+                }
+                const Meta::DependencyProperty* property =
+                    ResolveStyleProperty(
+                        *options_.properties,
+                        targetType,
+                        setter->GetPropertyName());
+                if (property == nullptr) {
+                    return MissingStyleProperty(
+                        "DataTrigger Setter property",
+                        setter->GetPropertyName(),
+                        targetType,
+                        options_.properties->Types());
+                }
+                Base::Result<Meta::PropertyValue> value =
+                    ConvertValueForProperty(
+                        setter->GetAuthoredValue(),
+                        targetType,
+                        setter->GetPropertyName());
+                if (!value) return value.GetStatus();
+                Base::Result<void> resolved = setter->Resolve(
+                    property->Handle(), value.Value());
+                if (!resolved) return resolved.GetStatus();
+            }
+            Base::Result<void> added = style.AddTrigger(*trigger);
+            if (!added) return added.GetStatus();
+            continue;
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "Style trigger type is not supported");
     }
     return Aero::GuiPrivate::Detail::StylePrivate::Seal(
         style, options_.properties);
@@ -1166,18 +1216,6 @@ struct PendingPrototypeNode {
     MemberId contentMember = InvalidMemberId;
 };
 
-bool ContainsObject(
-    const Base::Vector<PendingPrototypeNode>& pending,
-    const Base::Object* object) noexcept {
-    for (const PendingPrototypeNode& current :
-         pending) {
-        if (current.object.Get() == object) {
-            return true;
-        }
-    }
-    return false;
-}
-
 bool RequiresPrototypeObject(
     Base::Span<const DeferredBindingEdge> bindings,
     const Base::Object* object) noexcept {
@@ -1249,6 +1287,8 @@ CompileBlueprint(
     const Aero::NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
+    Base::Span<const Controls::Detail::TemplateMetadataBindingPlan>
+        metadataBindings,
     Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     if (!visualTree) {
@@ -1267,6 +1307,33 @@ CompileBlueprint(
             UINT32_MAX,
             InvalidMemberId});
     if (!appended) return appended.GetStatus();
+
+    // Templated-parent bindings may target Freezables and other named
+    // DependencyObjects nested in a visual property (for example a
+    // GradientStop.Color binding). They are not visual edges, so retain them
+    // explicitly in the prototype graph and later expose them through the
+    // template instance name table.
+    for (const Controls::Detail::TemplateMetadataBindingPlan& binding :
+         metadataBindings) {
+        if (binding.targetName.Empty() || names == nullptr) continue;
+        Base::Object* target = names->Find(binding.targetName.View());
+        if (target == nullptr ||
+            runtime.Types().IsDerivedFrom(
+                target->RuntimeType(), Visual::StaticTypeId())) {
+            continue;
+        }
+        if (!runtime.Types().IsDerivedFrom(
+                target->RuntimeType(), DependencyObject::StaticTypeId())) {
+            return InvalidTemplateCompiler(
+                "TemplatedParent Binding target is not a DependencyObject");
+        }
+        if (FindPrototypeObject(pending, target) != UINT32_MAX) continue;
+        appended = pending.PushBack({
+            Base::Ref<Base::Object>::FromBorrowed(*target),
+            UINT32_MAX,
+            InvalidMemberId});
+        if (!appended) return appended.GetStatus();
+    }
 
     for (std::uint32_t index = 0U;
          index < pending.Size(); ++index) {
@@ -1359,15 +1426,36 @@ CompileBlueprint(
             }
         }
 
-        if (blueprint.contentPresenter == UINT32_MAX &&
-            (runtime.Types().IsDerivedFrom(
-                 node.type,
-                 ContentPresenter::StaticTypeId()) ||
-             runtime.Types().IsDerivedFrom(
-                 node.type,
-                 ScrollContentPresenter::
-                     StaticTypeId()))) {
-            blueprint.contentPresenter = index;
+        const bool contentPresenterCandidate =
+            runtime.Types().IsDerivedFrom(
+                node.type,
+                ContentPresenter::StaticTypeId()) ||
+            runtime.Types().IsDerivedFrom(
+                node.type,
+                ScrollContentPresenter::StaticTypeId());
+        if (contentPresenterCandidate) {
+            constexpr Base::StringView ScrollPresenterPart(
+                "PART_ScrollContentPresenter");
+            const bool explicitScrollPresenter =
+                node.name.View() == ScrollPresenterPart;
+            const bool exactScrollPresenter =
+                node.type == ScrollContentPresenter::StaticTypeId();
+            bool replace = blueprint.contentPresenter == UINT32_MAX;
+            if (!replace &&
+                blueprint.contentPresenter < blueprint.nodes.Size()) {
+                const TemplatePrototypeNode& selected =
+                    blueprint.nodes[blueprint.contentPresenter];
+                const bool selectedExplicit =
+                    selected.name.View() == ScrollPresenterPart;
+                const bool selectedExact =
+                    selected.type == ScrollContentPresenter::StaticTypeId();
+                replace = explicitScrollPresenter ||
+                    (!selectedExplicit && exactScrollPresenter &&
+                     !selectedExact);
+            }
+            if (replace) {
+                blueprint.contentPresenter = index;
+            }
         }
 
         appended = blueprint.nodes.PushBack(
@@ -1377,11 +1465,37 @@ CompileBlueprint(
         for (const DeferredContentEdge& edge :
              edges) {
             if (edge.parent != object) continue;
-            if (!edge.child ||
-                ContainsObject(
-                    pending, edge.child.Get())) {
+            if (!edge.child) {
                 return InvalidTemplateCompiler(
-                    "ControlTemplate visual content contains a cycle or duplicate");
+                    "ControlTemplate visual content contains a null child");
+            }
+            const std::uint32_t existing =
+                FindPrototypeObject(pending, edge.child.Get());
+            if (existing != UINT32_MAX) {
+                if (existing == index) {
+                    return InvalidTemplateCompiler(
+                        "ControlTemplate visual content contains a cycle");
+                }
+                PendingPrototypeNode& existingNode = pending[existing];
+                if (existingNode.parent == UINT32_MAX) {
+                    // A dependency object can first enter the prototype graph
+                    // because a Binding or object-valued property references
+                    // it, and later appear on its actual visual-content edge.
+                    // Retain one clone and attach that clone at the authored
+                    // location instead of treating the two discovery paths as
+                    // duplicate visual content.
+                    existingNode.parent = index;
+                    existingNode.contentMember = edge.member;
+                    continue;
+                }
+                if (existingNode.parent == index &&
+                    existingNode.contentMember == edge.member) {
+                    // Structural and content facets can report the same edge.
+                    // It is one authored child, not two template instances.
+                    continue;
+                }
+                return InvalidTemplateCompiler(
+                    "ControlTemplate visual content contains a duplicate child");
             }
             appended = pending.PushBack({
                 edge.child,
@@ -1398,13 +1512,17 @@ CompileBlueprint(
         const std::uint32_t target =
             FindPrototypeObject(
                 pending, source.target);
+        Base::Object* resolvedSource = source.source;
+        if (resolvedSource == nullptr &&
+            !source.sourceName.Empty() && names != nullptr) {
+            resolvedSource = names->Find(source.sourceName.View());
+        }
         const std::uint32_t bindingSource =
-            source.source != nullptr
-            ? FindPrototypeObject(
-                  pending, source.source)
+            resolvedSource != nullptr
+            ? FindPrototypeObject(pending, resolvedSource)
             : UINT32_MAX;
         if (target == UINT32_MAX ||
-            (source.source != nullptr &&
+            ((!source.sourceName.Empty() || source.source != nullptr) &&
              bindingSource == UINT32_MAX) ||
             source.manager == nullptr ||
             source.metadata == nullptr) {
@@ -1420,6 +1538,8 @@ CompileBlueprint(
             source.targetProperty;
         binding.dataContextProperty =
             source.dataContextProperty;
+        binding.bindsToSource =
+            source.bindsToSource;
         binding.mode = source.mode;
         binding.updateSourceTrigger =
             source.updateSourceTrigger;
@@ -2058,8 +2178,10 @@ CompileControlTemplateDefinition(
         &::Aero::Controls::Detail::TemplatePrivate::AuthoredNames(controlTemplate),
         edges,
         bindings,
+        ::Aero::Controls::Detail::TemplatePrivate::MetadataBindings(
+            controlTemplate),
         runtime,
-            properties);
+        properties);
     if (!blueprint) {
         return blueprint.GetStatus();
     }
@@ -2220,6 +2342,7 @@ CompileDeferredTemplateBlueprint(
         names,
         edges,
         bindings,
+        {},
         runtime,
         properties);
 }
@@ -2535,7 +2658,16 @@ Base::Result<void> BuildCompiledTemplate(
                     *objects[node.parent], node.contentMember, objects[index]);
             if (!content) return content.GetStatus();
         }
-        if (visuals[index] == nullptr) continue;
+        if (visuals[index] == nullptr) {
+            if (!node.name.Empty()) {
+                Base::Result<void> named = context.AddObjectPart(
+                    node.name.View(),
+                    Base::Ref<Base::Object>::FromBorrowed(*objects[index]),
+                    *static_cast<DependencyObject*>(objects[index].Get()));
+                if (!named) return named.GetStatus();
+            }
+            continue;
+        }
         Base::Result<void> added = node.parent == UINT32_MAX
             ? context.SetRoot(node.name.View(),
                 Base::Ref<Base::Object>::FromBorrowed(*objects[index]), *visuals[index])
@@ -2607,6 +2739,8 @@ Base::Result<void> BuildCompiledTemplate(
         descriptor.path = binding.path.View();
         descriptor.stringFormat =
             binding.stringFormat.View();
+        descriptor.bindsToSource =
+            binding.bindsToSource;
         descriptor.mode = binding.mode;
         descriptor.updateSourceTrigger =
             binding.updateSourceTrigger;
@@ -2638,7 +2772,7 @@ Base::Result<void> BuildCompiledTemplate(
                 blueprint->nodes[index].name.View());
             if (!namedAssigned) return namedAssigned.GetStatus();
             named.object = Base::Ref<Base::Object>::FromBorrowed(
-                *static_cast<Base::Object*>(visuals[index]));
+                *objects[index]);
             namedAssigned = triggerContext->names.PushBack(
                 std::move(named));
             if (!namedAssigned) return namedAssigned.GetStatus();
@@ -2683,9 +2817,43 @@ Base::Result<void> BuildCompiledTemplate(
             if (!binding.GetElementName().Empty()) {
                 return triggerContext->FindName(binding.GetElementName());
             }
-            // A control-template binding's Self, TemplatedParent, and
-            // ancestor-at-the-template-boundary all resolve to the templated
-            // control before the visual subtree is mounted.
+            const Base::Ref<Data::RelativeSource> relative =
+                binding.GetRelativeSource();
+            if (relative && relative->GetMode() ==
+                    Data::RelativeSourceMode::FindAncestor) {
+                Base::StringView ancestorName = relative->GetAncestorType();
+                for (std::uint32_t nameIndex = 0U;
+                     nameIndex < ancestorName.SizeBytes(); ++nameIndex) {
+                    if (ancestorName[nameIndex] == ':') {
+                        ancestorName = ancestorName.Substr(
+                            nameIndex + 1U,
+                            ancestorName.SizeBytes() - nameIndex - 1U);
+                        break;
+                    }
+                }
+                std::uint32_t matchedLevel = 0U;
+                Visual* current =
+                    context.TemplatedParent().GetLogicalParent();
+                if (current == nullptr) {
+                    current = context.TemplatedParent().GetVisualParent();
+                }
+                while (current != nullptr) {
+                    const TypeInfo* type = blueprint->runtime->Types().FindType(
+                        current->RuntimeType());
+                    const bool matches = ancestorName.Empty() ||
+                        (type != nullptr && type->Name() == ancestorName);
+                    if (matches && ++matchedLevel ==
+                            relative->GetAncestorLevel()) {
+                        return static_cast<Base::Object*>(current);
+                    }
+                    Visual* next = current->GetLogicalParent();
+                    if (next == nullptr) next = current->GetVisualParent();
+                    current = next;
+                }
+                return nullptr;
+            }
+            // Self and TemplatedParent resolve to the templated control while
+            // authoring a ControlTemplate instance.
             return static_cast<Base::Object*>(&context.TemplatedParent());
         };
         for (const Base::Ref<TriggerBase>& authored :
@@ -2795,10 +2963,15 @@ Base::Result<void> BuildCompiledTemplate(
             }
             if (!configured) return configured.GetStatus();
         }
+        // Do not move triggerContext in the same call expression that reads
+        // triggerContext->root. C++17 does not order function arguments, so
+        // the converting move could clear the Ref before the root argument is
+        // evaluated. Keep the owner alive through both evaluations.
+        FrameworkElement* const triggerRoot = triggerContext->root;
+        Base::Ref<Base::Object> triggerOwner(triggerContext);
         Base::Result<void> attached =
             Aero::GuiPrivate::Detail::ElementPrivate::AddAuthoredTrigger(
-                *triggerContext->root,
-                Base::Ref<Base::Object>(std::move(triggerContext)));
+                *triggerRoot, std::move(triggerOwner));
         if (!attached) return attached.GetStatus();
     }
     return {};
@@ -2918,6 +3091,8 @@ BuildCompiledDeferredTemplate(
         descriptor.path = binding.path.View();
         descriptor.stringFormat =
             binding.stringFormat.View();
+        descriptor.bindsToSource =
+            binding.bindsToSource;
         descriptor.mode = binding.mode;
         descriptor.updateSourceTrigger =
             binding.updateSourceTrigger;

@@ -2,7 +2,7 @@
 
 #include <Aero/Animation.hpp>
 
-#include "AnimationModel.hpp"
+#include "../AnimationModel.hpp"
 
 namespace Aero::Media::Animation {
 
@@ -29,11 +29,22 @@ public:
         Runtime::EasingFunction result;
         result.kind = static_cast<Runtime::EasingFunctionKind>(
             static_cast<std::uint8_t>(easing.kind_));
-        result.mode = easing.easingMode_;
-        result.power = easing.power_;
-        result.amplitude = easing.amplitude_;
-        result.oscillations = easing.oscillations_;
-        result.springiness = easing.springiness_;
+        result.mode = easing.GetEasingMode();
+        if (easing.RuntimeType() == PowerEase::StaticTypeId()) {
+            result.power = static_cast<const PowerEase&>(easing).GetPower();
+        } else if (easing.RuntimeType() == ExponentialEase::StaticTypeId()) {
+            result.power = static_cast<const ExponentialEase&>(easing).GetExponent();
+        } else if (easing.RuntimeType() == BackEase::StaticTypeId()) {
+            result.amplitude = static_cast<const BackEase&>(easing).GetAmplitude();
+        } else if (easing.RuntimeType() == BounceEase::StaticTypeId()) {
+            const auto& bounce = static_cast<const BounceEase&>(easing);
+            result.oscillations = bounce.GetBounces();
+            result.springiness = bounce.GetBounciness();
+        } else if (easing.RuntimeType() == ElasticEase::StaticTypeId()) {
+            const auto& elastic = static_cast<const ElasticEase&>(easing);
+            result.oscillations = elastic.GetOscillations();
+            result.springiness = elastic.GetSpringiness();
+        }
         return result;
     }
 

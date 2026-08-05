@@ -4,6 +4,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/FrameworkElement.hpp>
 
+#include <cstdio>
 #include <new>
 #include <utility>
 
@@ -725,7 +726,22 @@ Base::Result<ResourceValue> ResourceDictionary::Lookup(
     if (!resourceKey) {
         return resourceKey.GetStatus();
     }
-    return Lookup(resourceKey.Value());
+    Base::Result<ResourceValue> result =
+        Lookup(resourceKey.Value());
+    if (!result &&
+        result.GetStatus().code == Base::ErrorCode::NotFound) {
+        thread_local char message[384];
+        std::snprintf(
+            message,
+            sizeof(message),
+            "ResourceDictionary key '%.*s' was not found",
+            static_cast<int>(key.SizeBytes()),
+            key.Data());
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            message);
+    }
+    return result;
 }
 
 Base::Result<ResourceValue> ResourceDictionary::Lookup(
@@ -915,12 +931,10 @@ ResourceDictionary::MergedDictionaryAt(
 
 Base::Result<ResourceDictionary>
 ResourceDictionary::Share() const noexcept {
-    if (impl_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "ResourceDictionary has no backing store");
-    }
-    return ResourceDictionary(impl_, true);
+    Base::Result<Impl*> storage =
+        const_cast<ResourceDictionary*>(this)->EnsureImpl();
+    if (!storage) return storage.GetStatus();
+    return ResourceDictionary(storage.Value(), true);
 }
 
 void ResourceDictionary::SetSource(

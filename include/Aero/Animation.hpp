@@ -73,19 +73,16 @@ private:
     FillBehavior fillBehavior_ = FillBehavior::HoldEnd;
 };
 
-class AERO_API EasingFunctionBase : public Base::Object {
-    AERO_DECLARE_TYPE(EasingFunctionBase, Base::Object)
+class AERO_API EasingFunctionBase : public ::Aero::DependencyObject {
+    AERO_DECLARE_TYPE(EasingFunctionBase, ::Aero::DependencyObject)
 public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return runtimeType_;
-    }
     EasingMode GetEasingMode() const noexcept {
-        return easingMode_;
+        return GetValueOr(EasingModeProperty, EasingMode::EaseOut);
     }
     void SetEasingMode(EasingMode value) noexcept {
-        easingMode_ = value;
-        return;
+        SetValue(EasingModeProperty, value);
     }
+    inline static constexpr Members::Property<EasingMode> EasingModeProperty{"EasingMode"};
 
 protected:
     enum class Kind : std::uint8_t {
@@ -106,27 +103,11 @@ protected:
     EasingFunctionBase(
         Meta::TypeId runtimeType,
         Kind kind) noexcept
-        : runtimeType_(runtimeType), kind_(kind) {}
-
-    double PowerValue() const noexcept { return power_; }
-    double AmplitudeValue() const noexcept { return amplitude_; }
-    double OscillationsValue() const noexcept { return oscillations_; }
-    double SpringinessValue() const noexcept { return springiness_; }
-    void SetPowerValue(double value) noexcept { power_ = value; }
-    void SetAmplitudeValue(double value) noexcept { amplitude_ = value; }
-    void SetOscillationsValue(double value) noexcept { oscillations_ = value; }
-    void SetSpringinessValue(double value) noexcept { springiness_ = value; }
+        : DependencyObject(runtimeType), kind_(kind) {}
 
 private:
     friend struct ::Aero::Media::Animation::Timeline::Impl;
-
-    Meta::TypeId runtimeType_ = StaticTypeId();
     Kind kind_ = Kind::Linear;
-    EasingMode easingMode_ = EasingMode::EaseOut;
-    double power_ = 2.0;
-    double amplitude_ = 1.0;
-    double oscillations_ = 3.0;
-    double springiness_ = 3.0;
 };
 
 #define AERO_DECLARE_SIMPLE_EASING(typeName, kindValue)                    \
@@ -160,9 +141,10 @@ public:
               StaticTypeId(),
               EasingFunctionBase::Kind::Exponential) {}
     double GetExponent() const noexcept {
-        return PowerValue();
+        return GetValueOr(ExponentProperty, 2.0);
     }
     void SetExponent(double value) noexcept;
+    inline static constexpr Members::Property<double> ExponentProperty{"Exponent"};
 };
 
 class AERO_API PowerEase : public EasingFunctionBase {
@@ -172,8 +154,11 @@ public:
         : EasingFunctionBase(
               StaticTypeId(),
               EasingFunctionBase::Kind::Power) {}
-    double GetPower() const noexcept { return PowerValue(); }
+    double GetPower() const noexcept {
+        return GetValueOr(PowerProperty, 2.0);
+    }
     void SetPower(double value) noexcept;
+    inline static constexpr Members::Property<double> PowerProperty{"Power"};
 };
 
 class AERO_API BackEase : public EasingFunctionBase {
@@ -184,9 +169,10 @@ public:
               StaticTypeId(),
               EasingFunctionBase::Kind::Back) {}
     double GetAmplitude() const noexcept {
-        return AmplitudeValue();
+        return GetValueOr(AmplitudeProperty, 1.0);
     }
     void SetAmplitude(double value) noexcept;
+    inline static constexpr Members::Property<double> AmplitudeProperty{"Amplitude"};
 };
 
 class AERO_API BounceEase : public EasingFunctionBase {
@@ -197,13 +183,15 @@ public:
               StaticTypeId(),
               EasingFunctionBase::Kind::Bounce) {}
     double GetBounces() const noexcept {
-        return OscillationsValue();
+        return GetValueOr(BouncesProperty, 3.0);
     }
     double GetBounciness() const noexcept {
-        return SpringinessValue();
+        return GetValueOr(BouncinessProperty, 3.0);
     }
     void SetBounces(double value) noexcept;
     void SetBounciness(double value) noexcept;
+    inline static constexpr Members::Property<double> BouncesProperty{"Bounces"};
+    inline static constexpr Members::Property<double> BouncinessProperty{"Bounciness"};
 };
 
 class AERO_API ElasticEase : public EasingFunctionBase {
@@ -214,13 +202,15 @@ public:
               StaticTypeId(),
               EasingFunctionBase::Kind::Elastic) {}
     double GetOscillations() const noexcept {
-        return OscillationsValue();
+        return GetValueOr(OscillationsProperty, 3.0);
     }
     double GetSpringiness() const noexcept {
-        return SpringinessValue();
+        return GetValueOr(SpringinessProperty, 3.0);
     }
     void SetOscillations(double value) noexcept;
     void SetSpringiness(double value) noexcept;
+    inline static constexpr Members::Property<double> OscillationsProperty{"Oscillations"};
+    inline static constexpr Members::Property<double> SpringinessProperty{"Springiness"};
 };
 
 class AERO_API DoubleAnimation : public Timeline {
@@ -342,12 +332,9 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API DoubleKeyFrame : public Base::Object {
-    AERO_DECLARE_TYPE(DoubleKeyFrame, Base::Object)
+class AERO_API DoubleKeyFrame : public ::Aero::DependencyObject {
+    AERO_DECLARE_TYPE(DoubleKeyFrame, ::Aero::DependencyObject)
 public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return runtimeType_;
-    }
     double GetValue() const noexcept { return value_; }
     Base::StringView GetKeyTime() const noexcept {
         return keyTimeText_.View();
@@ -366,7 +353,7 @@ protected:
     DoubleKeyFrame(
         Meta::TypeId runtimeType,
         Interpolation interpolation) noexcept
-        : runtimeType_(runtimeType), interpolation_(interpolation) {}
+        : DependencyObject(runtimeType), interpolation_(interpolation) {}
 
     void SetSplineControlPoints(
         double x1,
@@ -382,7 +369,6 @@ protected:
 private:
     friend struct ::Aero::Media::Animation::Timeline::Impl;
 
-    Meta::TypeId runtimeType_ = StaticTypeId();
     double value_ = 0.0;
     Base::String keyTimeText_;
     AnimationTime keyTimeMicroseconds_ = 0U;
@@ -419,13 +405,13 @@ public:
               StaticTypeId(),
               DoubleKeyFrame::Interpolation::Easing) {}
     Base::Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
-        return easing_;
+        return GetValueOr(
+            EasingFunctionProperty,
+            Base::Ref<EasingFunctionBase>{});
     }
     void SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
-
-private:
-    Base::Ref<EasingFunctionBase> easing_;
+    inline static constexpr Members::Property<Base::Ref<EasingFunctionBase>> EasingFunctionProperty{"EasingFunction"};
 };
 
 class AERO_API SplineDoubleKeyFrame : public DoubleKeyFrame {

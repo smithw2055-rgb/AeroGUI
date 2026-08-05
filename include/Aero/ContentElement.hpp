@@ -6,6 +6,7 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
+#include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyObject.hpp>
 #include <Aero/Events/Event.hpp>
 #include <Aero/Events/EventArgs.hpp>
@@ -177,9 +178,35 @@ public:
         SetValue(StyleProperty, std::move(value));
     }
 
+    bool GetIsEnabled() const noexcept {
+        return GetValueOr(IsEnabledProperty, true);
+    }
+    void SetIsEnabled(bool value) noexcept {
+        SetValue(IsEnabledProperty, value);
+    }
+    bool GetIsMouseOver() const noexcept {
+        return GetValueOr(IsMouseOverProperty, false);
+    }
+    Base::StringView GetCursor() const noexcept {
+        return GetValueOr(CursorProperty, Base::StringView{});
+    }
+    void SetCursor(Base::StringView value) noexcept {
+        SetValue(CursorProperty, value);
+    }
+    bool GetOverridesDefaultStyle() const noexcept {
+        return GetValueOr(OverridesDefaultStyleProperty, false);
+    }
+    void SetOverridesDefaultStyle(bool value) noexcept {
+        SetValue(OverridesDefaultStyleProperty, value);
+    }
+
     inline static constexpr Members::Property<Value> DataContextProperty{"DataContext"};
     inline static constexpr Members::Property<Base::Ref<Style>> StyleProperty{"Style"};
     inline static constexpr Members::Property<Value> TagProperty{"Tag"};
+    inline static constexpr Members::Property<bool> IsEnabledProperty{"IsEnabled"};
+    inline static constexpr Members::ReadOnlyProperty<bool> IsMouseOverProperty{"IsMouseOver"};
+    inline static constexpr Members::Property<Base::String> CursorProperty{"Cursor"};
+    inline static constexpr Members::Property<bool> OverridesDefaultStyleProperty{"OverridesDefaultStyle"};
 
 protected:
     virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return 0U; }
@@ -187,7 +214,15 @@ protected:
 
 private:
     friend struct ::Aero::Visual::Impl;
+    Base::Result<void> AddAuthoredTrigger(
+        Base::Ref<Base::Object> trigger) noexcept;
+    void ClearAuthoredTriggers() noexcept;
+    Base::Span<const Base::Ref<Base::Object>>
+    AuthoredTriggers() const noexcept {
+        return authoredTriggers_.AsSpan();
+    }
     ResourceDictionary resources_;
+    Base::Vector<Base::Ref<Base::Object>> authoredTriggers_;
 };
 
 } // namespace Aero

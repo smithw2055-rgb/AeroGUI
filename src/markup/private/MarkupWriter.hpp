@@ -35,6 +35,10 @@ enum class ProvidedValueKind : std::uint8_t {
     Deferred
 };
 
+using ProvidedPrepareCallback =
+    Base::Result<void> (*)(
+        void* context,
+        const Aero::NameScope& names) noexcept;
 using ProvidedCommitCallback =
     Base::Result<std::uint64_t> (*)(void* context) noexcept;
 using ProvidedRollbackCallback = void (*)(
@@ -50,6 +54,7 @@ struct ProvidedValue {
     void* rollbackContext = nullptr;
     std::uint64_t rollbackToken = 0U;
     ProvidedRollbackCallback rollback = nullptr;
+    ProvidedPrepareCallback prepare = nullptr;
     ProvidedCommitCallback commit = nullptr;
     ProvidedCleanupCallback cleanup = nullptr;
 
@@ -83,10 +88,12 @@ struct ProvidedValue {
         void* context,
         ProvidedCommitCallback commitCallback,
         ProvidedRollbackCallback rollbackCallback,
-        ProvidedCleanupCallback cleanupCallback) noexcept {
+        ProvidedCleanupCallback cleanupCallback,
+        ProvidedPrepareCallback prepareCallback = nullptr) noexcept {
         ProvidedValue result;
         result.kind = ProvidedValueKind::Deferred;
         result.rollbackContext = context;
+        result.prepare = prepareCallback;
         result.commit = commitCallback;
         result.rollback = rollbackCallback;
         result.cleanup = cleanupCallback;
@@ -107,6 +114,7 @@ struct ProvidedValue {
         rollbackContext = nullptr;
         rollbackToken = 0U;
         rollback = nullptr;
+        prepare = nullptr;
         commit = nullptr;
         cleanup = nullptr;
     }
@@ -348,6 +356,7 @@ struct DeferredContentEdge {
 struct DeferredBindingEdge {
     Base::Object* owner = nullptr;
     Base::Object* source = nullptr;
+    Base::String sourceName;
     ::Aero::DependencyObject* target = nullptr;
     Aero::GuiPrivate::Detail::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
@@ -382,6 +391,7 @@ public:
     Base::Result<void> StageBinding(
         Base::Object& owner,
         Base::Object* source,
+        Base::StringView sourceName,
         ::Aero::DependencyObject& target,
         Aero::GuiPrivate::Detail::BindingEngine& manager,
         ::Aero::Meta::Registry& metadata,
@@ -1347,7 +1357,7 @@ public:
 
 
 #include <Aero/Styling.hpp>
-#include "../controls/ControlsPrivate.hpp"
+#include "../../controls/ControlsPrivate.hpp"
 #include <Aero/Controls/Panels.hpp>
 
 #include <Aero/Animation.hpp>
@@ -1386,6 +1396,7 @@ struct TemplatePrototypeBinding {
     Meta::DependencyPropertyHandle dataContextProperty;
     Base::String path;
     Base::String stringFormat;
+    bool bindsToSource = false;
     Data::BindingMode mode =
         Data::BindingMode::OneWay;
     Meta::UpdateSourceTrigger updateSourceTrigger =

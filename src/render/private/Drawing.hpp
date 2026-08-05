@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DisplayList.hpp"
+#include "../DisplayList.hpp"
 
 #include <Aero/DrawingContext.hpp>
 #include <Aero/FrameworkElement.hpp>

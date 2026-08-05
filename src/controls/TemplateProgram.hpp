@@ -58,6 +58,10 @@ public:
     Base::Result<void> SetRoot(Base::Ref<Base::Object> owner, Visual& root) noexcept;
     Base::Result<void> SetRoot(Base::StringView name, Base::Ref<Base::Object> owner, Visual& root) noexcept;
     Base::Result<void> AddPart(Base::StringView name, Visual& parent, Base::Ref<Base::Object> owner, Visual& part) noexcept;
+    Base::Result<void> AddObjectPart(
+        Base::StringView name,
+        Base::Ref<Base::Object> owner,
+        DependencyObject& object) noexcept;
     Base::Result<bool> ProjectContent(ContentControl& owner, ContentPresenter& presenter) noexcept;
     Base::Result<bool> ProjectContent(ContentControl& owner, ContentControl& presenter) noexcept;
     Control& TemplatedParent() const noexcept;

@@ -197,12 +197,12 @@ public:
         SetValue(TextDecorationsProperty, value);
     }
 
-    inline static constexpr Members::Property<Base::Ref<Media::FontFamily>> FontFamilyProperty{"FontFamily"};
-    inline static constexpr Members::Property<double> FontSizeProperty{"FontSize"};
-    inline static constexpr Members::Property<FontWeight> FontWeightProperty{"FontWeight"};
-    inline static constexpr Members::Property<FontStyle> FontStyleProperty{"FontStyle"};
-    inline static constexpr Members::Property<Base::Ref<Media::Brush>> ForegroundProperty{"Foreground"};
-    inline static constexpr Members::Property<Controls::TextDecorations> TextDecorationsProperty{"TextDecorations"};
+    inline static constexpr Members::AttachedProperty<Base::Ref<Media::FontFamily>> FontFamilyProperty{"FontFamily"};
+    inline static constexpr Members::AttachedProperty<double> FontSizeProperty{"FontSize"};
+    inline static constexpr Members::AttachedProperty<FontWeight> FontWeightProperty{"FontWeight"};
+    inline static constexpr Members::AttachedProperty<FontStyle> FontStyleProperty{"FontStyle"};
+    inline static constexpr Members::AttachedProperty<Base::Ref<Media::Brush>> ForegroundProperty{"Foreground"};
+    inline static constexpr Members::AttachedProperty<Controls::TextDecorations> TextDecorationsProperty{"TextDecorations"};
 
 protected:
     explicit TextElement(Meta::TypeId runtimeType) noexcept
@@ -243,7 +243,7 @@ class AERO_API Span : public Inline {
     AERO_DECLARE_TYPE(Span, Inline)
 public:
     Span() noexcept : Span(StaticTypeId()) {}
-    ~Span() override = default;
+    ~Span() override;
 
     InlineCollection GetInlines() noexcept { return InlineCollection(*this); }
     InlineCollectionView GetInlines() const noexcept {

@@ -174,6 +174,20 @@ FrameworkContentElement::FrameworkContentElement(
 
 FrameworkContentElement::~FrameworkContentElement() = default;
 
+Base::Result<void> FrameworkContentElement::AddAuthoredTrigger(
+    Base::Ref<Base::Object> trigger) noexcept {
+    if (!trigger) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "FrameworkContentElement trigger cannot be null");
+    }
+    return authoredTriggers_.PushBack(std::move(trigger));
+}
+
+void FrameworkContentElement::ClearAuthoredTriggers() noexcept {
+    authoredTriggers_.Clear();
+}
+
 void FrameworkContentElement::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
     (void)Aero::GuiPrivate::Detail::AssignResourceDictionary(

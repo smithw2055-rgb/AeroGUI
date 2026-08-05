@@ -1392,6 +1392,9 @@ struct VisualEdge {
 
 namespace Aero::Markup {
 
+using EffectPrepareCallback = Base::Result<void> (*)(
+    void* context,
+    const Aero::NameScope& names) noexcept;
 using EffectCommitCallback = Base::Result<std::uint64_t> (*)(
     void* context) noexcept;
 using EffectRollbackCallback = void (*)(
@@ -1435,15 +1438,25 @@ struct VisualContentPlan {
 struct CommittedEffect {
     Base::Ref<EffectLifetime> lifetime;
     Meta::EffectiveValueEngine* effectiveValues = nullptr;
+    Base::Ref<::Aero::DependencyObject> targetOwner;
     ::Aero::DependencyObject* target = nullptr;
     Meta::DependencyPropertyHandle property;
     Meta::PropertyExpression pendingExpression;
     void* context = nullptr;
     std::uint64_t token = 0U;
+    EffectPrepareCallback prepare = nullptr;
     EffectCommitCallback commit = nullptr;
     EffectRollbackCallback rollback = nullptr;
     EffectCleanupCallback cleanup = nullptr;
     bool committed = false;
+
+
+    Base::Result<void> Prepare(
+        const Aero::NameScope& names) noexcept {
+        return prepare != nullptr
+            ? prepare(context, names)
+            : Base::Result<void>();
+    }
 
     Base::Result<void> Commit() noexcept {
         if (committed) return {};
@@ -1482,8 +1495,11 @@ struct CommittedEffect {
         const bool runtimeActive = !lifetime || lifetime->IsActive();
         if (committed && runtimeActive) {
             if (effectiveValues != nullptr && target != nullptr) {
-                static_cast<void>(effectiveValues->ClearLocalExpression(
-                    *target, property));
+                // A committed XAML effect is rolled back only when its
+                // document/template lifetime is being discarded. Remove the
+                // complete engine record instead of queueing a recomputation
+                // for an object that may be released immediately afterwards.
+                static_cast<void>(effectiveValues->DetachObject(*target));
             }
             if (rollback != nullptr) {
                 rollback(context, token);
@@ -1495,9 +1511,11 @@ struct CommittedEffect {
         lifetime.Reset();
         effectiveValues = nullptr;
         target = nullptr;
+        targetOwner.Reset();
         pendingExpression = {};
         context = nullptr;
         token = 0U;
+        prepare = nullptr;
         commit = nullptr;
         rollback = nullptr;
         cleanup = nullptr;
@@ -1528,6 +1546,14 @@ public:
     Base::Vector<CommittedEffect>& Items() noexcept { return effects_; }
     const Base::Vector<CommittedEffect>& Items() const noexcept {
         return effects_;
+    }
+    Base::Result<void> Prepare(
+        const Aero::NameScope& names) noexcept {
+        for (CommittedEffect& effect : effects_) {
+            Base::Result<void> prepared = effect.Prepare(names);
+            if (!prepared) return prepared.GetStatus();
+        }
+        return {};
     }
     Base::Result<void> Commit() noexcept {
         for (std::uint32_t index = 0U; index < effects_.Size(); ++index) {

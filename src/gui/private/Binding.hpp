@@ -24,9 +24,11 @@ struct BindingPathSegment {
     MemberId member = InvalidMemberId;
     TypeId inputType = InvalidTypeId;
     TypeId outputType = InvalidTypeId;
+    Base::String dynamicName;
     bool readable = false;
     bool writable = false;
     bool copyOnWrite = false;
+    bool dynamic = false;
 };
 
 struct BindingPathCompileError {
@@ -60,6 +62,7 @@ public:
     Base::HashCode SchemaHash() const noexcept { return schemaHash_; }
     bool CanRead() const noexcept { return canRead_; }
     bool CanWrite() const noexcept { return canWrite_; }
+    bool HasDynamicResult() const noexcept { return hasDynamicResult_; }
     Base::Span<const BindingPathSegment> Segments() const noexcept {
         return {segments_.Data(), segments_.Size()};
     }
@@ -87,6 +90,7 @@ private:
     Base::Vector<BindingPathSegment> segments_;
     bool canRead_ = false;
     bool canWrite_ = false;
+    bool hasDynamicResult_ = false;
 
     Base::Result<void> VerifyRuntime(
         Meta::Registry& runtime) const noexcept;

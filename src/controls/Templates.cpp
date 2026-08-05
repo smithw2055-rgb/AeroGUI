@@ -28,7 +28,7 @@ Base::Status InvalidTemplate(const char* message) noexcept {
         Base::ErrorCode::InvalidState, message);
 }
 
-bool IsTargetCompatible(
+[[maybe_unused]] bool IsTargetCompatible(
     const TypeRegistry& types,
     TypeId derived,
     TypeId expectedBase) noexcept {
@@ -41,6 +41,23 @@ bool IsDeferredBindingSetterValue(
     return value.Kind() == ValueKind::Object &&
         !value.IsNullObject() &&
         value.Type() == Data::Binding::StaticTypeId();
+}
+
+bool MatchesTemplateCondition(
+    DependencyObject& source,
+    const TemplateTriggerCondition& condition,
+    const PropertyValue& current) noexcept {
+    if (condition.value.IsNullObject() &&
+        condition.property ==
+            Primitives::ToggleButton::
+                IsCheckedProperty.Handle() &&
+        source.PropertyRegistry().Types().IsDerivedFrom(
+            source.RuntimeType(),
+            Primitives::ToggleButton::StaticTypeId())) {
+        return static_cast<Primitives::ToggleButton&>(
+            source).GetIsIndeterminate();
+    }
+    return current == condition.value;
 }
 
 Base::Result<PropertyValue> ConvertTemplateBindingValue(
@@ -381,6 +398,27 @@ DependencyObject* TemplateBuilder::FindObject(
     return nullptr;
 }
 
+
+Base::Result<void> TemplateBuilder::AddObjectPart(
+    Base::StringView name,
+    Base::Ref<Base::Object> owner,
+    DependencyObject& object) noexcept {
+    auto& state = *static_cast<
+        Aero::Controls::Detail::TemplateBuildState*>(state_);
+    if (name.Empty() || !owner || owner.Get() != &object ||
+        FindObject(name) != nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Named template object registration is invalid");
+    }
+    Aero::Controls::Detail::TemplatePart part;
+    Base::Result<void> assigned = part.name.Assign(name);
+    if (!assigned) return assigned.GetStatus();
+    part.owner = std::move(owner);
+    part.object = &object;
+    return state.parts.PushBack(std::move(part));
+}
+
 Base::Result<void> TemplateBuilder::AddOwnedPart(
     Base::StringView name,
     Base::Ref<Base::Object> owner,
@@ -433,7 +471,9 @@ void TemplateBuilder::Rollback() noexcept {
         if (part.frameworkElement != nullptr) {
             (void)Aero::GuiPrivate::Detail::ElementPrivate::SetTemplatedParent(*part.frameworkElement, nullptr);
         }
-        (void)state.tree->DetachElement(part.mount);
+        if (part.mount.IsAttached()) {
+            (void)state.tree->DetachElement(part.mount);
+        }
     }
     if (state.parent != nullptr) (void)Detail::ControlPrivate::SetTemplateRoot(*state.parent, nullptr);
     state.parts.Clear();
@@ -1663,9 +1703,28 @@ Base::Result<void> TemplateEngine::AttachMetadataBindings(
         Data::MetadataBindingDescriptor descriptor;
         descriptor.metadata = metadata_;
         descriptor.source = instance.parent;
+        Base::StringView bindingPath = binding.path.View();
+        constexpr Base::StringView parentPrefix("TemplatedParent.");
+        if (bindingPath.SizeBytes() > parentPrefix.SizeBytes() &&
+            bindingPath.Substr(0U, parentPrefix.SizeBytes()) ==
+                parentPrefix &&
+            properties_->Types().IsDerivedFrom(
+                instance.parent->RuntimeType(),
+                FrameworkElement::StaticTypeId())) {
+            auto* frameworkParent = static_cast<FrameworkElement*>(
+                instance.parent);
+            DependencyObject* outerParent =
+                frameworkParent->GetTemplatedParent();
+            if (outerParent != nullptr) {
+                descriptor.source = outerParent;
+                bindingPath = bindingPath.Substr(
+                    parentPrefix.SizeBytes(),
+                    bindingPath.SizeBytes() - parentPrefix.SizeBytes());
+            }
+        }
         descriptor.target = target;
         descriptor.targetProperty = binding.targetProperty;
-        descriptor.path = binding.path.View();
+        descriptor.path = bindingPath;
         descriptor.stringFormat =
             binding.stringFormat.View();
         descriptor.mode = binding.mode;
@@ -1733,7 +1792,10 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
             Base::Result<PropertyValue> current =
                 source->GetValue(triggerCondition.property);
             if (!current) return current.GetStatus();
-            if (current.Value() != triggerCondition.value) {
+            if (!MatchesTemplateCondition(
+                    *source,
+                    triggerCondition,
+                    current.Value())) {
                 active = false;
                 break;
             }
@@ -1841,9 +1903,13 @@ Base::Result<void> TemplateEngine::ClearAt(
 
     for (std::uint32_t partIndex = instance.parts.Size();
          partIndex > 0U; --partIndex) {
-        Base::Result<void> detached =
-            tree_->DetachElement(instance.parts[partIndex - 1U].mount);
-        if (!detached) return detached.GetStatus();
+        auto& mount =
+            instance.parts[partIndex - 1U].mount;
+        if (mount.IsAttached()) {
+            Base::Result<void> detached =
+                tree_->DetachElement(mount);
+            if (!detached) return detached.GetStatus();
+        }
     }
     for (Aero::Controls::Detail::TemplatePart& part : instance.parts) {
         if (part.object == nullptr) continue;

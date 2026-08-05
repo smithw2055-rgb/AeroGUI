@@ -93,6 +93,16 @@ public:
     Base::Span<const Base::Ref<Base::Object>> GetExitActions() const noexcept {
         return {exitActions_.Data(), exitActions_.Size()};
     }
+    Base::Result<void> AddBehavior(Base::Ref<Base::Object> behavior) noexcept {
+        return behavior ? behaviors_.PushBack(std::move(behavior))
+                        : Base::Result<void>(Base::Status::Failure(
+                              Base::ErrorCode::InvalidArgument,
+                              "Trigger behavior cannot be null"));
+    }
+    void ClearBehaviors() noexcept { behaviors_.Clear(); }
+    Base::Span<const Base::Ref<Base::Object>> GetBehaviors() const noexcept {
+        return {behaviors_.Data(), behaviors_.Size()};
+    }
 
 protected:
     explicit TriggerBase(TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
@@ -102,6 +112,7 @@ private:
     TypeId runtimeType_ = StaticTypeId();
     Base::Vector<Base::Ref<Base::Object>> enterActions_;
     Base::Vector<Base::Ref<Base::Object>> exitActions_;
+    Base::Vector<Base::Ref<Base::Object>> behaviors_;
 };
 
 } // namespace Aero

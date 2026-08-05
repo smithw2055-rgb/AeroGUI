@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <utility>
 
@@ -1320,8 +1321,21 @@ Base::Result<void> RenderTree::BuildSubtree(
     if ((visible && element != nullptr &&
          !element->GetIsArrangeValid()) ||
         ElementPrivate::Rendering(visual)) {
-        return InvalidState(
-            "Visual must be arranged and non-reentrant");
+        thread_local char message[256];
+        const TypeInfo* type = element != nullptr
+            ? element->PropertyRegistry().Types().FindType(
+                  visual.RuntimeType())
+            : nullptr;
+        const Base::StringView typeName = type != nullptr
+            ? type->Name()
+            : Base::StringView("<unknown>");
+        std::snprintf(
+            message,
+            sizeof(message),
+            "Visual '%.*s' must be arranged and non-reentrant",
+            static_cast<int>(typeName.SizeBytes()),
+            typeName.Data());
+        return InvalidState(message);
     }
     DrawingRecord* record = FindDrawing(visual);
     const bool drawingDirty =

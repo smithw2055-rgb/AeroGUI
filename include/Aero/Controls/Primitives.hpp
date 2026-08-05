@@ -104,6 +104,7 @@ public:
     bool GetIsThreeState() const noexcept;
     bool GetIsIndeterminate() const noexcept;
     void SetIsChecked(bool value) noexcept;
+    void SetIsIndeterminate() noexcept;
     void SetIsThreeState(bool value) noexcept;
 
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> CheckedEvent{"Checked"};

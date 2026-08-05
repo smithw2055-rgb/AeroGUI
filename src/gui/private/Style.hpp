@@ -38,6 +38,19 @@ public:
     inline static constexpr Meta::AttachedPropertyRef<
         TextProperties, std::uint32_t>
         PasswordLengthProperty{"PasswordLength"};
+    inline static constexpr Meta::AttachedPropertyRef<
+        TextProperties, Base::String>
+        PlaceholderProperty{"Placeholder"};
+    inline static constexpr Meta::AttachedPropertyRef<
+        TextProperties, Value>
+        StrokeProperty{"Stroke"};
+    inline static constexpr Meta::AttachedPropertyRef<
+        TextProperties, double>
+        StrokeThicknessProperty{"StrokeThickness"};
+
+    static void OnCompatibilityPropertyChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
 };
 
 class RichText : public Base::Object {
@@ -74,7 +87,9 @@ struct StyleTriggerSetter {
 
 struct TriggerPlan {
     DependencyPropertyHandle property;
+    Base::Ref<Data::Binding> binding;
     PropertyValue value;
+    bool IsBindingTrigger() const noexcept { return static_cast<bool>(binding); }
     Base::Vector<StyleTriggerSetter> setters;
     Base::Vector<Base::Ref<Base::Object>> enterActions;
     Base::Vector<Base::Ref<Base::Object>> exitActions;
@@ -164,6 +179,11 @@ public:
     Base::Result<void> Clear(
         DependencyObject& object,
         const Style& style) noexcept;
+    Base::Result<void> SetBindingTriggerState(
+        DependencyObject& object,
+        const Style& style,
+        std::uint32_t triggerIndex,
+        bool active) noexcept;
     // Tree/object ownership code calls this before destroying an object.
     Base::Result<bool> DetachObject(
         DependencyObject& object) noexcept;
@@ -188,6 +208,8 @@ private:
         DependencyObject* object = nullptr;
         const Style* style = nullptr;
         Base::Vector<std::uint8_t> triggerStates;
+        Base::Vector<std::uint8_t> bindingTriggerStates;
+        Base::Vector<std::uint8_t> bindingTriggerKnown;
     };
     Base::Vector<Application> applications_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
