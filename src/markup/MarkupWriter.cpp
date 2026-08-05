@@ -2085,31 +2085,46 @@ Base::Result<ProvidedValue> StaticExtension::ProvideValue(
             xamlNamespace.Value(),
             typeName);
     if (!type) return type.GetStatus();
-    if (type.Value()->Kind() != Meta::MetadataTypeKind::Enum) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "x:Static currently supports registered enum members");
-    }
-    const Meta::EnumValueInfo* value =
-        services.schema->Types().FindEnumValue(
-            type.Value()->Id(), memberName);
-    if (value == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "x:Static enum member was not found");
+    if (type.Value()->Kind() == Meta::MetadataTypeKind::Enum) {
+        const Meta::EnumValueInfo* value =
+            services.schema->Types().FindEnumValue(
+                type.Value()->Id(), memberName);
+        if (value == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "x:Static enum member was not found");
+        }
+
+        const bool signedEnum =
+            (static_cast<std::uint32_t>(type.Value()->Flags()) &
+             static_cast<std::uint32_t>(Meta::TypeFlags::SignedEnum)) != 0U;
+        Meta::Value result = signedEnum
+            ? Meta::Value::FromSignedInteger(
+                  type.Value()->Id(),
+                  static_cast<std::int64_t>(value->RawValue()))
+            : Meta::Value::FromUnsignedInteger(
+                  type.Value()->Id(),
+                  value->RawValue());
+        return ProvidedValue::FromValue(std::move(result));
     }
 
-    const bool signedEnum =
-        (static_cast<std::uint32_t>(type.Value()->Flags()) &
-         static_cast<std::uint32_t>(Meta::TypeFlags::SignedEnum)) != 0U;
-    Meta::Value result = signedEnum
-        ? Meta::Value::FromSignedInteger(
-              type.Value()->Id(),
-              static_cast<std::int64_t>(value->RawValue()))
-        : Meta::Value::FromUnsignedInteger(
-              type.Value()->Id(),
-              value->RawValue());
-    return ProvidedValue::FromValue(std::move(result));
+    if (services.targetValueType != Meta::InvalidTypeId &&
+        services.schema->Types().IsAssignableFrom(
+            services.targetValueType,
+            Input::RoutedCommand::StaticTypeId())) {
+        Base::Result<Base::Ref<Input::RoutedCommand>> command =
+            Input::RoutedCommand::ResolveStatic(
+                type.Value()->Id(), memberName);
+        if (!command) return command.GetStatus();
+        Meta::Value result = Meta::Value::FromObject(
+            services.targetValueType,
+            Base::Ref<Base::Object>(command.Value()));
+        return ProvidedValue::FromValue(std::move(result));
+    }
+
+    return Base::Status::Failure(
+        Base::ErrorCode::Unsupported,
+        "x:Static member is not a registered enum or routed command");
 }
 
 } // namespace Aero::Markup

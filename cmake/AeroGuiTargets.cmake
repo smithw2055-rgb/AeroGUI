@@ -56,6 +56,7 @@ target_compile_definitions(AeroGuiKernelObjects PRIVATE
 
 add_library(AeroControlsObjects OBJECT
     src/controls/Bars.cpp
+    src/controls/BlendBehaviors.cpp
     src/controls/Buttons.cpp
     src/controls/ContentControls.cpp
     src/controls/ControlBehavior.cpp

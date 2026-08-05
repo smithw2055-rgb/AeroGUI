@@ -4,6 +4,7 @@
 
 #include "gui/GuiPrivate.hpp"
 #include <Aero/Triggers/Behavior.hpp>
+#include <Aero/Triggers/BlendBehaviors.hpp>
 #include "../media/MediaPrivate.hpp"
 
 #include <Aero/Meta.hpp>

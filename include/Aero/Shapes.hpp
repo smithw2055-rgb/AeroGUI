@@ -20,16 +20,19 @@ public:
     Base::Ref<Brush> GetFill() const noexcept;
     Base::Ref<Brush> GetStroke() const noexcept;
     double GetStrokeThickness() const noexcept;
+    Stretch GetStretch() const noexcept;
 
     void SetFill(
         Base::Ref<Brush> value) noexcept;
     void SetStroke(
         Base::Ref<Brush> value) noexcept;
     void SetStrokeThickness(double value) noexcept;
+    void SetStretch(Stretch value) noexcept;
 
     inline static constexpr Members::Property<Base::Ref<Brush>> FillProperty{"Fill"};
     inline static constexpr Members::Property<Base::Ref<Brush>> StrokeProperty{"Stroke"};
     inline static constexpr Members::Property<double> StrokeThicknessProperty{"StrokeThickness"};
+    inline static constexpr Members::Property<Stretch> StretchProperty{"Stretch"};
 
 protected:
     explicit Shape(TypeId runtimeType) noexcept

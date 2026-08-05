@@ -44,3 +44,16 @@ set_target_properties(aero-inventory-conformance PROPERTIES
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO)
 aero_apply_compiler_options(aero-inventory-conformance)
+
+add_executable(aero-background-blur-conformance
+    tools/background-blur-conformance/main.cpp)
+target_link_libraries(aero-background-blur-conformance PRIVATE
+    Aero::Integration)
+target_include_directories(aero-background-blur-conformance PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(aero-background-blur-conformance PRIVATE cxx_std_17)
+set_target_properties(aero-background-blur-conformance PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(aero-background-blur-conformance)

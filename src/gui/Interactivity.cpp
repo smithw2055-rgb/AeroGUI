@@ -105,7 +105,7 @@ void StyleInteraction::OnTriggersChanged(
     }
     auto& element = static_cast<FrameworkElement&>(object);
     static_cast<void>(
-        GuiPrivate::Detail::ElementPrivate::ClearAuthoredTriggers(element));
+        GuiPrivate::Detail::ElementPrivate::ClearStyleTriggerPrototypes(element));
     const Meta::Value& value = args.GetNewValue();
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
@@ -116,7 +116,7 @@ void StyleInteraction::OnTriggersChanged(
     for (const Base::Ref<Base::Object>& trigger :
          static_cast<StyleTriggerCollection&>(*value.AsObject()).GetItems()) {
         static_cast<void>(
-            GuiPrivate::Detail::ElementPrivate::AddAuthoredTrigger(
+            GuiPrivate::Detail::ElementPrivate::AddStyleTriggerPrototype(
                 element, trigger));
     }
 }

@@ -99,6 +99,7 @@ public:
     DependencyObject* GetParent() const noexcept { return GetLogicalParent(); }
 
     bool GetUseLayoutRounding() const noexcept;
+    bool GetSnapsToDevicePixels() const noexcept;
     double GetDpiScale() const noexcept { return dpiScale_; }
     bool GetHasWidth() const noexcept;
     bool GetHasHeight() const noexcept;
@@ -179,10 +180,12 @@ public:
     inline static constexpr Members::Property<HorizontalAlignment> HorizontalAlignmentProperty{"HorizontalAlignment"};
     inline static constexpr Members::Property<VerticalAlignment> VerticalAlignmentProperty{"VerticalAlignment"};
     inline static constexpr Members::Property<bool> UseLayoutRoundingProperty{"UseLayoutRounding"};
+    inline static constexpr Members::Property<bool> SnapsToDevicePixelsProperty{"SnapsToDevicePixels"};
     inline static constexpr Members::Property<Base::Ref<Media::Transform>> LayoutTransformProperty{"LayoutTransform"};
 
     void SetUseLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;
+    void SetSnapsToDevicePixels(bool enabled) noexcept { SetValue(SnapsToDevicePixelsProperty, enabled); }
     void SetWidth(double value) noexcept;
     void ClearWidth() noexcept;
     void SetHeight(double value) noexcept;
@@ -266,6 +269,13 @@ private:
     StyleBehaviorPrototypes() const noexcept {
         return styleBehaviorPrototypes_.AsSpan();
     }
+    Base::Result<void> AddStyleTriggerPrototype(
+        Base::Ref<Base::Object> trigger) noexcept;
+    void ClearStyleTriggerPrototypes() noexcept;
+    Base::Span<const Base::Ref<Base::Object>>
+    StyleTriggerPrototypes() const noexcept {
+        return styleTriggerPrototypes_.AsSpan();
+    }
 
     Base::Object* FindNameObject(
         Base::StringView name,
@@ -280,6 +290,7 @@ private:
     Base::Vector<Base::Ref<Base::Object>> authoredTriggers_;
     Base::Vector<Base::Ref<Base::Object>> authoredBehaviors_;
     Base::Vector<Base::Ref<Base::Object>> styleBehaviorPrototypes_;
+    Base::Vector<Base::Ref<Base::Object>> styleTriggerPrototypes_;
 };
 
 } // namespace Aero

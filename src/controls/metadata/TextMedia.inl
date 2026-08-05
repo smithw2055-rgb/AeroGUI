@@ -268,6 +268,11 @@ Base::Result<void> PopulateControlsTextMedia(
                 .AffectsMeasure()
                 .AffectsRender()
                 .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+        .Property(
+            Shape::StretchProperty,
+            PropertyOptions(Stretch::Fill)
+                .AffectsMeasure()
+                .AffectsRender())
         .Result();
     if (!status) return status.GetStatus();
 

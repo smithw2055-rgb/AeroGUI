@@ -811,6 +811,43 @@ Base::Result<void> PopulateUiAnimation(
         context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
 
+    auto mouseDragBehavior =
+        Meta::Register<Interactivity::MouseDragElementBehavior>(context);
+    mouseDragBehavior
+        .Property(
+            Interactivity::MouseDragElementBehavior::XProperty,
+            PropertyOptions(0.0)
+                .Changed(&Interactivity::MouseDragElementBehavior::OnPositionChanged))
+        .Property(
+            Interactivity::MouseDragElementBehavior::YProperty,
+            PropertyOptions(0.0)
+                .Changed(&Interactivity::MouseDragElementBehavior::OnPositionChanged))
+        .Property(
+            Interactivity::MouseDragElementBehavior::ConstrainToParentBoundsProperty,
+            PropertyOptions(false))
+        .Factory();
+    status = mouseDragBehavior.Result();
+    if (!status) return status.GetStatus();
+
+    auto backgroundEffectBehavior =
+        Meta::Register<Interactivity::BackgroundEffectBehavior>(context);
+    backgroundEffectBehavior
+        .Property(
+            Interactivity::BackgroundEffectBehavior::SourceProperty,
+            PropertyOptions(Base::Ref<Base::Object>{})
+                .Changed(&Interactivity::BackgroundEffectBehavior::OnBehaviorPropertyChanged))
+        .Property(
+            Interactivity::BackgroundEffectBehavior::EffectProperty,
+            PropertyOptions(Base::Ref<Media::Effect>{})
+                .Changed(&Interactivity::BackgroundEffectBehavior::OnBehaviorPropertyChanged))
+        .Content<Media::Effect>(
+            "Content", ContentKind::Single,
+            &SetBackgroundEffectBehaviorEffect,
+            &ClearBackgroundEffectBehaviorEffect)
+        .Factory();
+    status = backgroundEffectBehavior.Result();
+    if (!status) return status.GetStatus();
+
     auto styleBehaviors =
         Meta::Register<Interactivity::StyleBehaviorCollection>(context);
     styleBehaviors

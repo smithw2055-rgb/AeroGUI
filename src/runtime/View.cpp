@@ -372,6 +372,7 @@ struct View::Impl {
           storyboardSessions(&value),
           storyboardCompletionSessions(&value),
           storyboardCompletedSubscriptions(&value),
+          pendingFocusTargets(&value),
           itemGenerators(&value),
           fragmentMounts(&value) {}
 
@@ -455,6 +456,46 @@ struct View::Impl {
         storyboardCompletionSessions;
     Base::Vector<StoryboardCompletedSubscription>
         storyboardCompletedSubscriptions;
+    Base::Vector<Base::WeakRef<Aero::UIElement>>
+        pendingFocusTargets;
+    Base::Result<void> QueueFocus(Aero::UIElement& target) noexcept {
+        Base::Ref<Aero::UIElement> retained =
+            Base::Ref<Aero::UIElement>::FromBorrowed(target);
+        for (const Base::WeakRef<Aero::UIElement>& pending :
+             pendingFocusTargets) {
+            Base::Ref<Aero::UIElement> existing = pending.Lock();
+            if (existing.Get() == &target) return {};
+        }
+        return pendingFocusTargets.PushBack(
+            Base::WeakRef<Aero::UIElement>(retained));
+    }
+    Base::Result<std::uint32_t> ProcessPendingFocus() noexcept {
+        if (input == nullptr || pendingFocusTargets.Empty()) return 0U;
+        std::uint32_t focusedCount = 0U;
+        std::uint32_t output = 0U;
+        for (std::uint32_t index = 0U;
+             index < pendingFocusTargets.Size(); ++index) {
+            Base::Ref<Aero::UIElement> target =
+                pendingFocusTargets[index].Lock();
+            if (!target) continue;
+            if (!target->GetIsLoaded()) {
+                if (output != index) {
+                    pendingFocusTargets[output] =
+                        std::move(pendingFocusTargets[index]);
+                }
+                ++output;
+                continue;
+            }
+            if (!target->GetIsEnabled()) continue;
+            Base::Result<bool> focused = input->SetFocus(target.Get());
+            if (!focused) return focused.GetStatus();
+            if (focused.Value()) ++focusedCount;
+        }
+        Base::Result<void> resized =
+            pendingFocusTargets.Resize(output);
+        if (!resized) return resized.GetStatus();
+        return focusedCount;
+    }
     Base::Result<void> ExecuteAnimationAction(
         MediaAnimation::TriggerAction& action,
         Aero::FrameworkElement& owner,
@@ -5248,6 +5289,64 @@ struct View::Impl {
                 if (!started) return started.GetStatus();
                 if (started.Value()) ++count;
             }
+            for (const Base::Ref<Base::Object>& authored :
+                 Aero::GuiPrivate::Detail::ElementPrivate::StyleTriggerPrototypes(
+                     *element)) {
+                if (!authored) continue;
+                if (authored->RuntimeType() ==
+                    MediaAnimation::StoryboardCompletedTrigger::StaticTypeId()) {
+                    Base::Result<void> retained =
+                        storyboardCompletedSubscriptions.PushBack({
+                            static_cast<MediaAnimation::StoryboardCompletedTrigger*>(
+                                authored.Get()),
+                            element,
+                            names});
+                    if (!retained) return retained.GetStatus();
+                    continue;
+                }
+                if (authored->RuntimeType() ==
+                    MediaAnimation::PropertyChangedTrigger::StaticTypeId()) {
+                    Base::Result<bool> started = StartPropertyChangedTrigger(
+                        static_cast<MediaAnimation::PropertyChangedTrigger&>(
+                            *authored),
+                        *element,
+                        names);
+                    if (!started) return started.GetStatus();
+                    if (started.Value()) ++count;
+                    continue;
+                }
+                if (authored->RuntimeType() ==
+                    MediaAnimation::KeyTrigger::StaticTypeId()) {
+                    Base::Result<bool> started = StartKeyTrigger(
+                        static_cast<MediaAnimation::KeyTrigger&>(*authored),
+                        *element,
+                        names);
+                    if (!started) return started.GetStatus();
+                    if (started.Value()) ++count;
+                    continue;
+                }
+                if (authored->RuntimeType() ==
+                    Aero::DataTrigger::StaticTypeId()) {
+                    Base::Result<bool> started =
+                        StartInteractionDataTrigger(
+                            static_cast<Aero::DataTrigger&>(*authored),
+                            *element,
+                            names);
+                    if (!started) return started.GetStatus();
+                    if (started.Value()) ++count;
+                    continue;
+                }
+                if (authored->RuntimeType() ==
+                    MediaAnimation::EventTrigger::StaticTypeId()) {
+                    Base::Result<bool> started = StartEventTrigger(
+                        static_cast<MediaAnimation::EventTrigger&>(*authored),
+                        *element,
+                        *element,
+                        names);
+                    if (!started) return started.GetStatus();
+                    if (started.Value()) ++count;
+                }
+            }
             if (styles != nullptr) {
                 const Aero::Style* applied = styles->AppliedStyle(*element);
                 if (applied != nullptr) {
@@ -6729,6 +6828,10 @@ View::Impl::ExecuteAnimationAction(
                 Base::ErrorCode::InvalidState,
                 "SetFocusAction owner is not a UIElement");
         }
+        if (!target->GetIsLoaded()) {
+            return QueueFocus(*target);
+        }
+        if (!target->GetIsEnabled()) return {};
         Base::Result<bool> focused = input->SetFocus(target);
         return focused
             ? Base::Result<void>()
@@ -7920,6 +8023,19 @@ View::ExecuteFrame() noexcept {
             state_->dispatcher.RunFramePhase(phase);
         if (!ran) return ran.GetStatus();
         if (phase ==
+                ::Aero::Threading::DispatcherFramePhase::Lifecycle) {
+            Base::Result<std::uint32_t> focused =
+                state_->ProcessPendingFocus();
+            if (!focused) return focused.GetStatus();
+            if (result.callbackCount >
+                UINT32_MAX - focused.Value()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::OutOfRange,
+                    "View callback count overflow");
+            }
+            result.callbackCount += focused.Value();
+        }
+        if (phase ==
             ::Aero::Threading::DispatcherFramePhase::DataBind) {
             Base::Result<void> generatedVisualsFlushed =
                 state_->FlushGeneratedVisuals();
@@ -7934,6 +8050,11 @@ View::ExecuteFrame() noexcept {
         if (phase ==
                 ::Aero::Threading::DispatcherFramePhase::Layout &&
             state_->layout->Diagnostics().arrangedCount != 0U) {
+            for (auto& behavior : state_->attachedBehaviorInstances) {
+                if (behavior.instance) {
+                    behavior.instance->NotifyLayoutUpdated();
+                }
+            }
             Aero::Visual* rootVisual =
                 state_->RootVisual();
             if (rootVisual != nullptr &&

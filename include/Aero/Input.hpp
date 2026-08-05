@@ -235,6 +235,16 @@ public:
         RaiseCanExecuteChanged();
     }
 
+    // Registers and resolves process-stable WPF-style static command members.
+    // Module metadata registers the supported names once; XAML and control
+    // bindings then resolve the same command object identity.
+    static Base::Result<void> RegisterStatic(
+        Meta::TypeId ownerType,
+        Base::StringView memberName) noexcept;
+    static Base::Result<Base::Ref<RoutedCommand>> ResolveStatic(
+        Meta::TypeId ownerType,
+        Base::StringView memberName) noexcept;
+
 private:
     friend class KeyBinding;
 

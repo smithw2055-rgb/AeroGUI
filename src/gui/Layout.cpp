@@ -459,6 +459,9 @@ bool UIElement::GetIsFocusScope() const noexcept {
 bool FrameworkElement::GetUseLayoutRounding() const noexcept {
     return GetValueOr(UseLayoutRoundingProperty, false);
 }
+bool FrameworkElement::GetSnapsToDevicePixels() const noexcept {
+    return GetValueOr(SnapsToDevicePixelsProperty, false);
+}
 bool FrameworkElement::GetHasWidth() const noexcept {
     return !GetValueOr(
         WidthProperty, Length::Auto()).isAuto;
@@ -1225,7 +1228,8 @@ Base::Result<void> LayoutEngine::ArrangeElement(
     }
     FrameworkElement* framework =
         element.AsFrameworkElement();
-    if (framework != nullptr && framework->GetUseLayoutRounding()) {
+    if (framework != nullptr && (framework->GetUseLayoutRounding() ||
+            framework->GetSnapsToDevicePixels())) {
         slot.x = RoundLayoutValue(slot.x, framework->GetDpiScale());
         slot.y = RoundLayoutValue(slot.y, framework->GetDpiScale());
         slot.width = RoundLayoutValue(slot.width, framework->GetDpiScale());

@@ -2263,7 +2263,19 @@ Slider::Impl::Impl(
           &Slider::Impl::OnKeyDown),
       captureChangedHandler_(
           this,
-          &Slider::Impl::OnCaptureChanged) {}
+          &Slider::Impl::OnCaptureChanged),
+      decreaseSmallHandler_(
+          this,
+          &Slider::Impl::OnDecreaseSmallCommand),
+      increaseSmallHandler_(
+          this,
+          &Slider::Impl::OnIncreaseSmallCommand),
+      decreaseLargeHandler_(
+          this,
+          &Slider::Impl::OnDecreaseLargeCommand),
+      increaseLargeHandler_(
+          this,
+          &Slider::Impl::OnIncreaseLargeCommand) {}
 
 Slider::Impl::~Impl()
     noexcept {
@@ -2378,10 +2390,89 @@ Base::Result<void> Slider::Impl::Attach(
         }
         return status.GetStatus();
     }
+    SliderRecord record;
+    record.handle =
+        Aero::GuiPrivate::Detail::ElementPrivate::Handle(slider);
+    const auto addCommand =
+        [this, &slider](
+            Base::StringView name,
+            const ExecutedRoutedEventHandler& handler,
+            Input::CommandBindingHandle& output) noexcept
+            -> Base::Result<void> {
+        Base::Result<Base::Ref<Input::RoutedCommand>> command =
+            Input::RoutedCommand::ResolveStatic(
+                Slider::StaticTypeId(), name);
+        if (!command) return command.GetStatus();
+        Base::Result<Input::CommandBindingHandle> added =
+            input_->AddCommandBinding(
+                slider,
+                Input::CommandBinding(
+                    std::move(command).Value(), handler));
+        if (!added) return added.GetStatus();
+        output = added.Value();
+        return {};
+    };
+    status = addCommand(
+        "DecreaseSmall", decreaseSmallHandler_,
+        record.decreaseSmallCommand);
+    if (status) {
+        status = addCommand(
+            "IncreaseSmall", increaseSmallHandler_,
+            record.increaseSmallCommand);
+    }
+    if (status) {
+        status = addCommand(
+            "DecreaseLarge", decreaseLargeHandler_,
+            record.decreaseLargeCommand);
+    }
+    if (status) {
+        status = addCommand(
+            "IncreaseLarge", increaseLargeHandler_,
+            record.increaseLargeCommand);
+    }
+    if (!status) {
+        if (record.decreaseSmallCommand.IsValid()) {
+            static_cast<void>(input_->RemoveCommandBinding(
+                record.decreaseSmallCommand));
+        }
+        if (record.increaseSmallCommand.IsValid()) {
+            static_cast<void>(input_->RemoveCommandBinding(
+                record.increaseSmallCommand));
+        }
+        if (record.decreaseLargeCommand.IsValid()) {
+            static_cast<void>(input_->RemoveCommandBinding(
+                record.decreaseLargeCommand));
+        }
+        static_cast<void>(slider.RemoveHandler(
+            UIElement::MouseDownEvent,
+            mouseDownHandler_));
+        static_cast<void>(slider.RemoveHandler(
+            UIElement::MouseMoveEvent,
+            mouseMoveHandler_));
+        static_cast<void>(slider.RemoveHandler(
+            UIElement::MouseUpEvent,
+            mouseUpHandler_));
+        static_cast<void>(slider.RemoveHandler(
+            UIElement::KeyDownEvent,
+            keyDownHandler_));
+        if (sliders_.Empty()) {
+            static_cast<void>(
+                input_->RemovePointerCaptureChanged(
+                    captureChangedHandler_));
+        }
+        return status.GetStatus();
+    }
     Base::Result<void> appended =
-        sliders_.PushBack(
-            {Aero::GuiPrivate::Detail::ElementPrivate::Handle(slider), 0U, false});
+        sliders_.PushBack(record);
     if (!appended) {
+        static_cast<void>(input_->RemoveCommandBinding(
+            record.decreaseSmallCommand));
+        static_cast<void>(input_->RemoveCommandBinding(
+            record.increaseSmallCommand));
+        static_cast<void>(input_->RemoveCommandBinding(
+            record.decreaseLargeCommand));
+        static_cast<void>(input_->RemoveCommandBinding(
+            record.increaseLargeCommand));
         static_cast<void>(slider.RemoveHandler(
             UIElement::MouseDownEvent,
             mouseDownHandler_));
@@ -2425,6 +2516,14 @@ Base::Result<bool> Slider::Impl::Detach(
     static_cast<void>(slider.RemoveHandler(
         UIElement::KeyDownEvent,
         keyDownHandler_));
+    static_cast<void>(input_->RemoveCommandBinding(
+        sliders_[index].decreaseSmallCommand));
+    static_cast<void>(input_->RemoveCommandBinding(
+        sliders_[index].increaseSmallCommand));
+    static_cast<void>(input_->RemoveCommandBinding(
+        sliders_[index].decreaseLargeCommand));
+    static_cast<void>(input_->RemoveCommandBinding(
+        sliders_[index].increaseLargeCommand));
     RemoveAt(index);
     if (sliders_.Empty()) {
         static_cast<void>(
@@ -2432,6 +2531,46 @@ Base::Result<bool> Slider::Impl::Detach(
                 captureChangedHandler_));
     }
     return true;
+}
+
+void Slider::Impl::OnDecreaseSmallCommand(
+    Base::Object* sender,
+    ExecutedRoutedEventArgs& args) noexcept {
+    auto* slider = static_cast<Slider*>(sender);
+    if (slider != nullptr) {
+        static_cast<void>(slider->DecreaseSmall());
+        args.SetHandled(true);
+    }
+}
+
+void Slider::Impl::OnIncreaseSmallCommand(
+    Base::Object* sender,
+    ExecutedRoutedEventArgs& args) noexcept {
+    auto* slider = static_cast<Slider*>(sender);
+    if (slider != nullptr) {
+        static_cast<void>(slider->IncreaseSmall());
+        args.SetHandled(true);
+    }
+}
+
+void Slider::Impl::OnDecreaseLargeCommand(
+    Base::Object* sender,
+    ExecutedRoutedEventArgs& args) noexcept {
+    auto* slider = static_cast<Slider*>(sender);
+    if (slider != nullptr) {
+        static_cast<void>(slider->DecreaseLarge());
+        args.SetHandled(true);
+    }
+}
+
+void Slider::Impl::OnIncreaseLargeCommand(
+    Base::Object* sender,
+    ExecutedRoutedEventArgs& args) noexcept {
+    auto* slider = static_cast<Slider*>(sender);
+    if (slider != nullptr) {
+        static_cast<void>(slider->IncreaseLarge());
+        args.SetHandled(true);
+    }
 }
 
 Base::Result<void>

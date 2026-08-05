@@ -41,6 +41,9 @@ public:
     }
     Base::Result<void> CopyAuthoredBindingsTo(
         Behavior& destination) const noexcept;
+    void NotifyLayoutUpdated() noexcept {
+        if (associatedObject_ != nullptr) OnLayoutUpdated();
+    }
 
 protected:
     explicit Behavior(Meta::TypeId runtimeType) noexcept
@@ -48,6 +51,7 @@ protected:
     ~Behavior() override;
     virtual Base::Result<void> OnAttached() noexcept { return {}; }
     virtual void OnDetaching() noexcept {}
+    virtual void OnLayoutUpdated() noexcept {}
 
 private:
     FrameworkElement* associatedObject_ = nullptr;

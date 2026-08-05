@@ -17,3 +17,5 @@
 #include <Aero/Triggers/LaunchUriOrFileAction.hpp>
 #include <Aero/Triggers/RemoveElementAction.hpp>
 #include <Aero/Triggers/StoryboardActions.hpp>
+
+#include <Aero/Triggers/BlendBehaviors.hpp>

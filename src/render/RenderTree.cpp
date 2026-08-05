@@ -1213,6 +1213,19 @@ Base::Result<void> FrameworkElement::AddStyleBehaviorPrototype(
 void FrameworkElement::ClearStyleBehaviorPrototypes() noexcept {
     styleBehaviorPrototypes_.Clear();
 }
+Base::Result<void> FrameworkElement::AddStyleTriggerPrototype(
+    Base::Ref<Base::Object> trigger) noexcept {
+    if (!trigger) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "FrameworkElement style trigger cannot be null");
+    }
+    return styleTriggerPrototypes_.PushBack(std::move(trigger));
+}
+
+void FrameworkElement::ClearStyleTriggerPrototypes() noexcept {
+    styleTriggerPrototypes_.Clear();
+}
 
 } // namespace Aero
 

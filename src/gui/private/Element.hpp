@@ -348,6 +348,20 @@ public:
         const FrameworkElement& element) noexcept {
         return element.StyleBehaviorPrototypes();
     }
+    static Base::Result<void> AddStyleTriggerPrototype(
+        FrameworkElement& element,
+        Base::Ref<Base::Object> trigger) noexcept {
+        return element.AddStyleTriggerPrototype(std::move(trigger));
+    }
+    static Base::Result<void> ClearStyleTriggerPrototypes(
+        FrameworkElement& element) noexcept {
+        element.ClearStyleTriggerPrototypes();
+        return {};
+    }
+    static Base::Span<const Base::Ref<Base::Object>> StyleTriggerPrototypes(
+        const FrameworkElement& element) noexcept {
+        return element.StyleTriggerPrototypes();
+    }
     static Base::Result<void> AddAuthoredTrigger(
         FrameworkContentElement& element,
         Base::Ref<Base::Object> trigger) noexcept {

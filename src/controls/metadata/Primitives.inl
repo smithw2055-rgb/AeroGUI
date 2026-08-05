@@ -461,6 +461,16 @@ Base::Result<void> PopulateControlsPrimitives(
     status = scrollBar.Result();
     if (!status) return status.GetStatus();
 
+    for (Base::StringView commandName : {
+             Base::StringView("DecreaseSmall"),
+             Base::StringView("IncreaseSmall"),
+             Base::StringView("DecreaseLarge"),
+             Base::StringView("IncreaseLarge")}) {
+        status = Input::RoutedCommand::RegisterStatic(
+            Slider::StaticTypeId(), commandName);
+        if (!status) return status.GetStatus();
+    }
+
     auto slider = Meta::Register<Slider>(context);
     slider
         .Property(

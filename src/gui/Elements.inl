@@ -256,6 +256,9 @@ Base::Result<void> PopulateUiElements(
             FrameworkElement::UseLayoutRoundingProperty,
             PropertyOptions(false).AffectsMeasure())
         .Property(
+            FrameworkElement::SnapsToDevicePixelsProperty,
+            PropertyOptions(false).Inherits().AffectsArrange().AffectsRender())
+        .Property(
             FrameworkElement::LayoutTransformProperty,
             PropertyOptions(Base::Ref<Transform>{})
                 .AffectsMeasure()

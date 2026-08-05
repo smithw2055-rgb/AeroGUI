@@ -289,6 +289,10 @@ double Shape::GetStrokeThickness() const noexcept {
     return GetValueOr(StrokeThicknessProperty, 1.0);
 }
 
+Stretch Shape::GetStretch() const noexcept {
+    return GetValueOr(StretchProperty, Stretch::Fill);
+}
+
 void Shape::SetFill(
     Base::Ref<Brush> value) noexcept {
     SetValue(FillProperty, std::move(value));
@@ -301,6 +305,10 @@ void Shape::SetStroke(
 
 void Shape::SetStrokeThickness(double value) noexcept {
     SetValue(StrokeThicknessProperty, value);
+}
+
+void Shape::SetStretch(Stretch value) noexcept {
+    SetValue(StretchProperty, value);
 }
 
 double Rectangle::GetRadiusX() const noexcept {

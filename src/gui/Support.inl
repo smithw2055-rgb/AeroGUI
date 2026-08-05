@@ -1072,6 +1072,26 @@ void AddStyleBehaviorItem(
 void ClearStyleBehaviorItems(Base::Object& owner, void*) noexcept {
     static_cast<Interactivity::StyleBehaviorCollection&>(owner).Clear();
 }
+void SetBackgroundEffectBehaviorEffect(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    auto& behavior =
+        static_cast<Interactivity::BackgroundEffectBehavior&>(owner);
+    if (!value) {
+        behavior.SetEffect({});
+        return;
+    }
+    Base::Ref<Media::Effect> effect =
+        Base::Ref<Media::Effect>::TryFromBorrowed(
+            static_cast<Media::Effect&>(*value));
+    if (effect) behavior.SetEffect(std::move(effect));
+}
+void ClearBackgroundEffectBehaviorEffect(
+    Base::Object& owner, void*) noexcept {
+    static_cast<Interactivity::BackgroundEffectBehavior&>(owner)
+        .SetEffect({});
+}
 void AddStyleTriggerItem(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,

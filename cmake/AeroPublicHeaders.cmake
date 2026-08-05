@@ -99,6 +99,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Triggers/TriggerBase.hpp
     include/Aero/Triggers/Triggers.hpp
     include/Aero/Triggers/Behavior.hpp
+    include/Aero/Triggers/BlendBehaviors.hpp
     include/Aero/Triggers/ChangePropertyAction.hpp
     include/Aero/Triggers/LaunchUriOrFileAction.hpp
     include/Aero/Triggers/RemoveElementAction.hpp

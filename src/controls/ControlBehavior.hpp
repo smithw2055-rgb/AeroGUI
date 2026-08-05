@@ -299,6 +299,10 @@ public:
 private:
     struct SliderRecord {
         VisualHandle handle;
+        Input::CommandBindingHandle decreaseSmallCommand;
+        Input::CommandBindingHandle increaseSmallCommand;
+        Input::CommandBindingHandle decreaseLargeCommand;
+        Input::CommandBindingHandle increaseLargeCommand;
         std::uint32_t pointerId = 0U;
         bool dragging = false;
     };
@@ -312,6 +316,10 @@ private:
     MouseButtonEventHandler mouseUpHandler_;
     KeyEventHandler keyDownHandler_;
     PointerCaptureChangedHandler captureChangedHandler_;
+    ExecutedRoutedEventHandler decreaseSmallHandler_;
+    ExecutedRoutedEventHandler increaseSmallHandler_;
+    ExecutedRoutedEventHandler decreaseLargeHandler_;
+    ExecutedRoutedEventHandler increaseLargeHandler_;
 
     std::uint32_t Find(
         const Slider& slider) const noexcept;
@@ -338,6 +346,18 @@ private:
         std::uint32_t pointerId,
         UIElement* target,
         bool captured) noexcept;
+    void OnDecreaseSmallCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    void OnIncreaseSmallCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    void OnDecreaseLargeCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    void OnIncreaseLargeCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
 };
 
 } // namespace Aero::Controls

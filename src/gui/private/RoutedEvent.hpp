@@ -94,7 +94,10 @@ public:
     }
 
     void Invoke(Base::Object* sender, RoutedEventArgs& args) const noexcept {
-        AERO_ASSERT(!Empty() && args.GetEventArgsType() == argsType_);
+        AERO_ASSERT(
+            !Empty() &&
+            (args.GetEventArgsType() == argsType_ ||
+             argsType_ == RoutedEventArgs::StaticTypeId()));
         invoke_(storage_, sender, args);
     }
 

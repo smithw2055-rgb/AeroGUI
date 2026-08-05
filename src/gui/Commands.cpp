@@ -3,6 +3,7 @@
 
 
 #include <cctype>
+#include <mutex>
 
 namespace Aero::Input {
 
@@ -18,6 +19,73 @@ bool ICommand::RemoveCanExecuteChanged(
 
 void ICommand::RaiseCanExecuteChanged() const noexcept {
     if (!canExecuteChanged_.Empty()) canExecuteChanged_.Invoke();
+}
+
+
+namespace {
+
+struct StaticRoutedCommandEntry {
+    Meta::TypeId ownerType = Meta::InvalidTypeId;
+    Base::String memberName;
+    Base::Ref<RoutedCommand> command;
+};
+
+Base::Vector<StaticRoutedCommandEntry>& StaticRoutedCommands() noexcept {
+    static Base::Vector<StaticRoutedCommandEntry> commands;
+    return commands;
+}
+
+std::mutex& StaticRoutedCommandMutex() noexcept {
+    static std::mutex mutex;
+    return mutex;
+}
+
+} // namespace
+
+Base::Result<void> RoutedCommand::RegisterStatic(
+    Meta::TypeId ownerType,
+    Base::StringView memberName) noexcept {
+    if (ownerType == Meta::InvalidTypeId || memberName.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Static routed command requires an owner type and member name");
+    }
+    std::lock_guard<std::mutex> lock(StaticRoutedCommandMutex());
+    for (const StaticRoutedCommandEntry& entry : StaticRoutedCommands()) {
+        if (entry.ownerType == ownerType &&
+            entry.memberName.View() == memberName) {
+            return {};
+        }
+    }
+    Base::Result<Base::Ref<RoutedCommand>> created =
+        Base::MakeRef<RoutedCommand>(memberName);
+    if (!created) return created.GetStatus();
+    StaticRoutedCommandEntry entry;
+    entry.ownerType = ownerType;
+    Base::Result<void> assigned = entry.memberName.Assign(memberName);
+    if (!assigned) return assigned.GetStatus();
+    entry.command = std::move(created).Value();
+    return StaticRoutedCommands().PushBack(std::move(entry));
+}
+
+Base::Result<Base::Ref<RoutedCommand>> RoutedCommand::ResolveStatic(
+    Meta::TypeId ownerType,
+    Base::StringView memberName) noexcept {
+    if (ownerType == Meta::InvalidTypeId || memberName.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Static routed command requires an owner type and member name");
+    }
+    std::lock_guard<std::mutex> lock(StaticRoutedCommandMutex());
+    for (const StaticRoutedCommandEntry& entry : StaticRoutedCommands()) {
+        if (entry.ownerType == ownerType &&
+            entry.memberName.View() == memberName) {
+            return entry.command;
+        }
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::NotFound,
+        "Static routed command member is not registered");
 }
 
 bool KeyGesture::Matches(const KeyboardInput& input) const noexcept {
