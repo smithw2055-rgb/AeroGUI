@@ -40,6 +40,15 @@ using RenderingEventHandler = Base::Delegate<void()>;
 
 class AERO_API CompositionTarget final {
 public:
+    // Explicit View overloads are preferred for multi-view hosts. The legacy
+    // overloads remain dispatcher-thread scoped for WPF-shaped source
+    // compatibility.
+    static void AddRendering(
+        View& view,
+        const RenderingEventHandler& handler) noexcept;
+    static bool RemoveRendering(
+        View& view,
+        const RenderingEventHandler& handler) noexcept;
     static void AddRendering(
         const RenderingEventHandler& handler) noexcept;
     static bool RemoveRendering(
@@ -47,7 +56,7 @@ public:
 
 private:
     friend class View;
-    static void RaiseRendering() noexcept;
+    static void RaiseRendering(View& view) noexcept;
 };
 namespace Markup { class XamlReader; class XamlDocument; }
 
@@ -153,6 +162,7 @@ public:
 private:
     friend class Gui;
     friend class Renderer;
+    friend class CompositionTarget;
     friend class Aero::Markup::XamlReader;
     friend class Integration::ReloadCoordinator;
     friend class App::Detail::DesktopHost;

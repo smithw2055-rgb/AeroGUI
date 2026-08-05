@@ -85,35 +85,10 @@ double CubicBezierDerivative(
         3.0 * t * t * (1.0 - second);
 }
 
+template<class TKeyFrame>
 double EvaluateSpline(
     double progress,
-    const DoubleKeyFrame& frame) noexcept {
-    const double target = Clamp01(progress);
-    double parameter = target;
-    for (std::uint32_t iteration = 0U; iteration < 8U; ++iteration) {
-        const double x = CubicBezierCoordinate(
-            parameter, frame.controlPoint1X, frame.controlPoint2X);
-        const double derivative = CubicBezierDerivative(
-            parameter, frame.controlPoint1X, frame.controlPoint2X);
-        if (std::abs(derivative) < 1.0e-7) break;
-        parameter = Clamp01(parameter - (x - target) / derivative);
-    }
-    double low = 0.0;
-    double high = 1.0;
-    for (std::uint32_t iteration = 0U; iteration < 12U; ++iteration) {
-        const double x = CubicBezierCoordinate(
-            parameter, frame.controlPoint1X, frame.controlPoint2X);
-        if (x < target) low = parameter;
-        else high = parameter;
-        parameter = (low + high) * 0.5;
-    }
-    return Clamp01(CubicBezierCoordinate(
-        parameter, frame.controlPoint1Y, frame.controlPoint2Y));
-}
-
-double EvaluateSpline(
-    double progress,
-    const ColorKeyFrame& frame) noexcept {
+    const TKeyFrame& frame) noexcept {
     const double target = Clamp01(progress);
     double parameter = target;
     for (std::uint32_t iteration = 0U; iteration < 8U; ++iteration) {

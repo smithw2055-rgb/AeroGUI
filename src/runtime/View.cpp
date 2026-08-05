@@ -63,8 +63,8 @@ struct Renderer::Impl {
 
 namespace {
 
-RenderingEventHandler& CompositionRenderingHandlers() noexcept {
-    static RenderingEventHandler handlers;
+RenderingEventHandler& LegacyCompositionRenderingHandlers() noexcept {
+    thread_local RenderingEventHandler handlers;
     return handlers;
 }
 
@@ -73,19 +73,13 @@ RenderingEventHandler& CompositionRenderingHandlers() noexcept {
 void CompositionTarget::AddRendering(
     const RenderingEventHandler& handler) noexcept {
     if (!handler.Empty()) {
-        CompositionRenderingHandlers().Add(handler);
+        LegacyCompositionRenderingHandlers().Add(handler);
     }
 }
 
 bool CompositionTarget::RemoveRendering(
     const RenderingEventHandler& handler) noexcept {
-    return CompositionRenderingHandlers().Remove(handler);
-}
-
-void CompositionTarget::RaiseRendering() noexcept {
-    RenderingEventHandler& handlers =
-        CompositionRenderingHandlers();
-    if (!handlers.Empty()) handlers.Invoke();
+    return LegacyCompositionRenderingHandlers().Remove(handler);
 }
 
 } // namespace Aero
@@ -409,6 +403,7 @@ struct View::Impl {
     ViewArena arena;
     Base::Ref<Base::Object> gui;
     Renderer publicRenderer;
+    RenderingEventHandler renderingHandlers;
     Audio::Engine audio;
     ::Aero::Threading::Dispatcher dispatcher;
     GuiSchema* schemaBundle = nullptr;
@@ -6793,6 +6788,31 @@ struct View::Impl {
     }
 };
 
+void CompositionTarget::AddRendering(
+    View& view,
+    const RenderingEventHandler& handler) noexcept {
+    if (view.state_ != nullptr && !handler.Empty()) {
+        view.state_->renderingHandlers.Add(handler);
+    }
+}
+
+bool CompositionTarget::RemoveRendering(
+    View& view,
+    const RenderingEventHandler& handler) noexcept {
+    return view.state_ != nullptr &&
+        view.state_->renderingHandlers.Remove(handler);
+}
+
+void CompositionTarget::RaiseRendering(View& view) noexcept {
+    if (view.state_ != nullptr &&
+        !view.state_->renderingHandlers.Empty()) {
+        view.state_->renderingHandlers.Invoke();
+    }
+    RenderingEventHandler& legacy =
+        LegacyCompositionRenderingHandlers();
+    if (!legacy.Empty()) legacy.Invoke();
+}
+
 void View::Impl::StyleDataTriggerHandlerState::Invoke(
     ::Aero::DependencyObject&,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept {
@@ -6937,62 +6957,15 @@ View::Impl::ExecuteAnimationAction(
         Base::Ref<Data::Binding> valueBinding =
             change.GetValueBinding();
         if (valueBinding) {
-            Base::Object* bindingSource = nullptr;
-            const Base::StringView elementName =
-                valueBinding->GetElementName();
-            if (!elementName.Empty()) {
-                bindingSource = dataTemplateContext != nullptr
-                    ? dataTemplateContext->FindName(elementName)
-                    : names != nullptr
-                        ? names->Find(elementName)
-                        : loadedDocument.names.Find(elementName);
-            } else {
-                Base::Ref<Data::RelativeSource> relative =
-                    valueBinding->GetRelativeSource();
-                if (relative &&
-                    relative->GetMode() ==
-                        Data::RelativeSourceMode::Self) {
-                    bindingSource = &owner;
-                } else {
-                    Meta::Value dataContext =
-                        owner.GetDataContext();
-                    if (dataContext.Kind() ==
-                            Meta::ValueKind::Object &&
-                        !dataContext.IsNullObject() &&
-                        dataContext.AsObject()) {
-                        bindingSource =
-                            dataContext.AsObject().Get();
-                    }
-                }
-            }
-            if (bindingSource == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "ChangePropertyAction Binding source was not found");
-            }
-            const Base::StringView path =
-                valueBinding->GetPath().GetPath();
-            if (path.Empty()) {
-                value = Meta::Value::FromObject(
-                    bindingSource->RuntimeType(),
-                    Base::Ref<Base::Object>::FromBorrowed(
-                        *bindingSource));
-            } else {
-                Meta::BindingPathCompileError pathError;
-                Base::Result<Meta::BindingPathPlan> plan =
-                    Meta::BindingPathPlan::Compile(
-                        *metadata,
-                        bindingSource->RuntimeType(),
-                        path,
-                        &pathError);
-                if (!plan) return plan.GetStatus();
-                Base::Result<Meta::Value> evaluated =
-                    plan.Value().Get(
-                        *metadata,
-                        *bindingSource);
-                if (!evaluated) return evaluated.GetStatus();
-                value = std::move(evaluated).Value();
-            }
+            Base::Result<Meta::PropertyValue> evaluated =
+                EvaluateAuthoredBinding(
+                    *valueBinding,
+                    owner,
+                    dataTemplateContext,
+                    names,
+                    &action);
+            if (!evaluated) return evaluated.GetStatus();
+            value = std::move(evaluated).Value();
         }
         if (value.IsNullObject() &&
             propertyHandle ==
@@ -7006,38 +6979,15 @@ View::Impl::ExecuteAnimationAction(
                 propertyTarget).SetIsIndeterminate();
             return {};
         }
-        if (value.Kind() == Meta::ValueKind::String &&
-            value.Type() != property->ValueType()) {
-            Base::Result<Meta::Value> converted =
-                metadata->TryConvertText(
-                    property->ValueType(),
-                    value.AsString());
-            if (!converted) return converted.GetStatus();
-            value = std::move(converted).Value();
-        } else if (value.IsNullObject() &&
-                   value.Type() != property->ValueType()) {
-            value = Meta::PropertyValue::NullObject(
-                property->ValueType());
-        }
-        if (property->ValueType() ==
-                Media::Brush::StaticTypeId() &&
-            value.Type() == Meta::TypeOf<Base::Color>()) {
-            Base::Result<Base::Color> color =
-                Meta::ValueCodec<Base::Color>::Decode(
-                    value);
-            if (!color) return color.GetStatus();
-            Base::Result<
-                Base::Ref<Media::Brush>>
-                brush =
-                    Media::MakeSolidColorBrush(
-                        color.Value());
-            if (!brush) return brush.GetStatus();
-            value = Meta::PropertyValue::FromObject(
-                Media::Brush::StaticTypeId(),
-                Base::Ref<Base::Object>(
-                    std::move(brush).Value()));
-        }
-        propertyTarget.SetCurrentValue(propertyHandle, value);
+        Base::Result<Meta::PropertyValue> coerced =
+            Data::CoerceBindingTargetValue(
+                metadata,
+                *property,
+                std::move(value));
+        if (!coerced) return coerced.GetStatus();
+        propertyTarget.SetCurrentValue(
+            propertyHandle,
+            std::move(coerced).Value());
         return {};
     }
 
@@ -8236,8 +8186,7 @@ void View::SetSize(
 
 void View::SetViewport(
     const Viewport& viewport) noexcept {
-    if (!IsInitialized() || state_ == nullptr ||
-        state_ == nullptr) {
+    if (!IsInitialized() || state_ == nullptr) {
         return;
     }
     Base::Result<void> valid =
@@ -8385,7 +8334,7 @@ View::ExecuteFrame() noexcept {
         if (phase ==
             ::Aero::Threading::DispatcherFramePhase::
                 RenderCommit) {
-            CompositionTarget::RaiseRendering();
+            CompositionTarget::RaiseRendering(*this);
             Base::Result<void> overlays =
                 state_->SynchronizeOverlays();
             if (!overlays) {

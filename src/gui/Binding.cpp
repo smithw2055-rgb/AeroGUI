@@ -2,6 +2,7 @@
 #include "controls/ControlsPrivate.hpp"
 #include <Aero/Data.hpp>
 #include <Aero/Resources.hpp>
+#include <Aero/Media/Brushes.hpp>
 
 #include <cmath>
 #include <cstdio>
@@ -550,6 +551,54 @@ Base::Result<PropertyValue> UnboxItemsValue(
 
 } // namespace
 
+Base::Result<PropertyValue> CoerceBindingTargetValue(
+    Meta::Registry* metadata,
+    const Meta::DependencyProperty& targetProperty,
+    PropertyValue value) noexcept {
+    const TypeId targetType = targetProperty.ValueType();
+    if (targetProperty.AcceptsAnyValue() || value.Type() == targetType) {
+        return value;
+    }
+    if (value.Kind() == ValueKind::String) {
+        Base::Result<PropertyValue> converted =
+            metadata != nullptr
+            ? metadata->TryConvertText(targetType, value.AsString())
+            : Base::Result<PropertyValue>(InvalidState(
+                  "Binding text conversion requires metadata"));
+        if (!converted) return converted.GetStatus();
+        value = std::move(converted).Value();
+    }
+    if (targetType == Media::Brush::StaticTypeId() &&
+        value.Type() == TypeOf<Base::Color>()) {
+        Base::Result<Base::Color> color =
+            ValueCodec<Base::Color>::Decode(value);
+        if (!color) return color.GetStatus();
+        Base::Result<Base::Ref<Media::Brush>> brush =
+            Media::MakeSolidColorBrush(color.Value());
+        if (!brush) return brush.GetStatus();
+        value = PropertyValue::FromObject(
+            Media::Brush::StaticTypeId(),
+            Base::Ref<Base::Object>(std::move(brush).Value()));
+    }
+    if (value.Kind() == ValueKind::Object && value.Type() != targetType) {
+        if (value.IsNullObject()) {
+            value = PropertyValue::NullObject(targetType);
+        } else if (value.AsObject() &&
+                   metadata != nullptr &&
+                   metadata->Types().IsAssignableFrom(
+                       targetType, value.AsObject()->RuntimeType())) {
+            value = PropertyValue::FromObject(
+                targetType,
+                Base::Ref<Base::Object>::FromBorrowed(*value.AsObject()));
+        }
+    }
+    if (value.Type() != targetType) {
+        return InvalidArgument(
+            "Binding value cannot be assigned to the target property");
+    }
+    return value;
+}
+
 } // namespace Aero::Data
 
 namespace Aero::GuiPrivate::Detail {
@@ -703,6 +752,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     record.descriptor.convert = descriptor.convert;
     record.descriptor.convertBack = descriptor.convertBack;
     record.descriptor.converterResource = descriptor.converterResource;
+    record.descriptor.converterParameter = descriptor.converterParameter;
     record.descriptor.validate = descriptor.validate;
     record.descriptor.validateBack = descriptor.validateBack;
     record.descriptor.conversionContext =
@@ -747,6 +797,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         if (targetProperty == nullptr ||
             (!targetProperty->AcceptsAnyValue() &&
             (descriptor.convert == nullptr &&
+            !descriptor.converterResource &&
             !record.pathPlan.HasDynamicResult() &&
             record.pathPlan.ResultType() != TypeOf<Base::Object>() &&
             !record.metadata->Types().IsAssignableFrom(
@@ -776,6 +827,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
             !record.pathPlan.HasDynamicResult() &&
             targetProperty->ValueType() != record.pathPlan.ResultType() &&
             descriptor.convertBack == nullptr &&
+            !descriptor.converterResource &&
             !HasDefaultTargetConversion(
                 targetProperty->ValueType(),
                 record.pathPlan.ResultType()) &&
@@ -876,6 +928,7 @@ Base::Result<void> BindingEngine::QueueDeferred(
     record.convert = descriptor.convert;
     record.convertBack = descriptor.convertBack;
     record.converterResource = descriptor.converterResource;
+    record.converterParameter = descriptor.converterParameter;
     record.validate = descriptor.validate;
     record.validateBack = descriptor.validateBack;
     record.conversionContext =
@@ -921,13 +974,13 @@ BindingEngine::ActivateDeferred(
         descriptor.stringFormat =
             record.stringFormat.View();
         descriptor.bindsToSource = record.bindsToSource;
-        descriptor.bindsToSource = record.bindsToSource;
         descriptor.mode = record.mode;
         descriptor.updateSourceTrigger =
             record.updateSourceTrigger;
         descriptor.convert = record.convert;
         descriptor.convertBack = record.convertBack;
         descriptor.converterResource = record.converterResource;
+        descriptor.converterParameter = record.converterParameter;
         descriptor.validate = record.validate;
         descriptor.validateBack =
             record.validateBack;
@@ -1041,6 +1094,58 @@ Base::Result<std::uint32_t> BindingEngine::DetachObject(
     return detached;
 }
 
+Base::Result<void> BindingEngine::ApplySourceToTarget(
+    BindingRecord& record,
+    const PropertyValue& source,
+    bool& usedFallback,
+    PropertyValue& target) noexcept {
+    Base::Result<PropertyValue> converted = usedFallback
+        ? Base::Result<PropertyValue>(source)
+        : ConvertForTarget(record, source);
+    if (!converted) {
+        ReportDiagnostic(
+            record,
+            record.conversionFailureStage,
+            converted.GetStatus());
+        if (record.descriptor.fallbackValue.IsUnset() || usedFallback) {
+            return converted.GetStatus();
+        }
+        converted = record.descriptor.fallbackValue;
+        usedFallback = true;
+    }
+    record.descriptor.target->SetValue(
+        record.descriptor.targetProperty,
+        converted.Value());
+    target = converted.Value();
+    return {};
+}
+
+Base::Result<void> BindingEngine::ApplyTargetToSource(
+    BindingRecord& record,
+    const PropertyValue& target,
+    PropertyValue& source) noexcept {
+    Base::Result<PropertyValue> converted =
+        ConvertForSource(record, target);
+    if (!converted) {
+        ReportDiagnostic(
+            record,
+            record.conversionFailureStage,
+            converted.GetStatus());
+        return converted.GetStatus();
+    }
+    Base::Result<void> written =
+        WriteSource(record, converted.Value());
+    if (!written) {
+        ReportDiagnostic(
+            record,
+            BindingDiagnosticStage::WriteSource,
+            written.GetStatus());
+        return written.GetStatus();
+    }
+    source = converted.Value();
+    return {};
+}
+
 Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
@@ -1108,123 +1213,48 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
         switch (record.descriptor.mode) {
         case BindingMode::OneTime:
             if (!record.applied) {
-                Base::Result<PropertyValue> converted = usedFallback
-                    ? Base::Result<PropertyValue>(source.Value())
-                    : ConvertForTarget(record, source.Value());
-                if (!converted) {
-                    ReportDiagnostic(
-                        record,
-                        record.conversionFailureStage,
-                        converted.GetStatus());
-                    if (record.descriptor.fallbackValue.IsUnset() ||
-                        usedFallback) {
-                        applied = converted.GetStatus();
-                        break;
-                    }
-                    converted = record.descriptor.fallbackValue;
-                    usedFallback = true;
-                }
-                record.descriptor.target->SetValue(
-                    record.descriptor.targetProperty, converted.Value());
-                applied = {};
-                target = converted.Value();
-                ++updated;
+                applied = ApplySourceToTarget(
+                    record,
+                    source.Value(),
+                    usedFallback,
+                    target.Value());
+                if (applied) ++updated;
             }
             break;
         case BindingMode::Default:
         case BindingMode::OneWay:
             if (sourceChanged) {
-                Base::Result<PropertyValue> converted = usedFallback
-                    ? Base::Result<PropertyValue>(source.Value())
-                    : ConvertForTarget(record, source.Value());
-                if (!converted) {
-                    ReportDiagnostic(
-                        record,
-                        record.conversionFailureStage,
-                        converted.GetStatus());
-                    if (record.descriptor.fallbackValue.IsUnset() ||
-                        usedFallback) {
-                        applied = converted.GetStatus();
-                        break;
-                    }
-                    converted = record.descriptor.fallbackValue;
-                    usedFallback = true;
-                }
-                record.descriptor.target->SetValue(
-                    record.descriptor.targetProperty, converted.Value());
-                applied = {};
-                target = converted.Value();
-                ++updated;
+                applied = ApplySourceToTarget(
+                    record,
+                    source.Value(),
+                    usedFallback,
+                    target.Value());
+                if (applied) ++updated;
             }
             break;
         case BindingMode::OneWayToSource:
             if (targetChanged) {
-                Base::Result<PropertyValue> converted =
-                    ConvertForSource(record, target.Value());
-                if (!converted) {
-                    ReportDiagnostic(
-                        record,
-                        record.conversionFailureStage,
-                        converted.GetStatus());
-                    applied = converted.GetStatus();
-                    break;
-                }
-                applied = WriteSource(record, converted.Value());
-                if (!applied) {
-                    ReportDiagnostic(
-                        record,
-                        BindingDiagnosticStage::WriteSource,
-                        applied.GetStatus());
-                    break;
-                }
-                source = converted.Value();
-                ++updated;
+                applied = ApplyTargetToSource(
+                    record,
+                    target.Value(),
+                    source.Value());
+                if (applied) ++updated;
             }
             break;
         case BindingMode::TwoWay:
             if (sourceChanged) {
-                Base::Result<PropertyValue> converted = usedFallback
-                    ? Base::Result<PropertyValue>(source.Value())
-                    : ConvertForTarget(record, source.Value());
-                if (!converted) {
-                    ReportDiagnostic(
-                        record,
-                        record.conversionFailureStage,
-                        converted.GetStatus());
-                    if (record.descriptor.fallbackValue.IsUnset() ||
-                        usedFallback) {
-                        applied = converted.GetStatus();
-                        break;
-                    }
-                    converted = record.descriptor.fallbackValue;
-                    usedFallback = true;
-                }
-                record.descriptor.target->SetValue(
-                    record.descriptor.targetProperty, converted.Value());
-                applied = {};
-                target = converted.Value();
-                ++updated;
+                applied = ApplySourceToTarget(
+                    record,
+                    source.Value(),
+                    usedFallback,
+                    target.Value());
+                if (applied) ++updated;
             } else if (targetChanged) {
-                Base::Result<PropertyValue> converted =
-                    ConvertForSource(record, target.Value());
-                if (!converted) {
-                    ReportDiagnostic(
-                        record,
-                        record.conversionFailureStage,
-                        converted.GetStatus());
-                    applied = converted.GetStatus();
-                    break;
-                }
-                applied = WriteSource(record, converted.Value());
-                if (!applied) {
-                    ReportDiagnostic(
-                        record,
-                        BindingDiagnosticStage::WriteSource,
-                        applied.GetStatus());
-                    break;
-                }
-                source = converted.Value();
-                ++updated;
+                applied = ApplyTargetToSource(
+                    record,
+                    target.Value(),
+                    source.Value());
+                if (applied) ++updated;
             }
             break;
         }
@@ -1386,6 +1416,7 @@ Base::Result<void> BindingEngine::VerifyDescriptor(
     }
     if (source.Value().Type() != target.Value().Type() &&
         descriptor.convert == nullptr &&
+        !descriptor.converterResource &&
         !HasDefaultTargetConversion(
             source.Value().Type(), target.Value().Type())) {
         return InvalidArgument("Binding source and target property types differ");
@@ -1394,6 +1425,7 @@ Base::Result<void> BindingEngine::VerifyDescriptor(
          descriptor.mode == BindingMode::OneWayToSource) &&
         source.Value().Type() != target.Value().Type() &&
         descriptor.convertBack == nullptr &&
+        !descriptor.converterResource &&
         !HasDefaultTargetConversion(
             target.Value().Type(),
             source.Value().Type())) {
@@ -1496,6 +1528,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
         if (targetProperty == nullptr ||
             (!targetProperty->AcceptsAnyValue() &&
             (record.descriptor.convert == nullptr &&
+             !record.descriptor.converterResource &&
              !record.metadata->Types().IsAssignableFrom(
                  targetProperty->ValueType(),
                  source->RuntimeType())))) {
@@ -1538,6 +1571,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
     if (targetProperty == nullptr ||
         (!targetProperty->AcceptsAnyValue() &&
         (record.descriptor.convert == nullptr &&
+        !record.descriptor.converterResource &&
         !compiled.Value().HasDynamicResult() &&
         compiled.Value().ResultType() != TypeOf<Base::Object>() &&
         !record.metadata->Types().IsAssignableFrom(
@@ -1565,6 +1599,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
         !compiled.Value().HasDynamicResult() &&
         targetProperty->ValueType() != compiled.Value().ResultType() &&
         record.descriptor.convertBack == nullptr &&
+        !record.descriptor.converterResource &&
         !HasDefaultTargetConversion(
             targetProperty->ValueType(),
             compiled.Value().ResultType()) &&
@@ -1656,6 +1691,13 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
     if (converted.IsNullObject() &&
         !record.descriptor.targetNullValue.IsUnset()) {
         converted = record.descriptor.targetNullValue;
+    } else if (record.descriptor.converterResource) {
+        Base::Result<PropertyValue> result =
+            record.descriptor.converterResource->Convert(
+                converted,
+                record.descriptor.converterParameter);
+        if (!result) return result.GetStatus();
+        converted = std::move(result).Value();
     } else if (record.descriptor.convert != nullptr) {
         Base::Result<PropertyValue> result =
             record.descriptor.convert(
@@ -1695,26 +1737,13 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
         if (!result) return result.GetStatus();
         converted = std::move(result).Value();
     }
-    if (converted.Kind() == ValueKind::Object &&
-        converted.Type() != targetProperty->ValueType()) {
-        if (converted.IsNullObject()) {
-            converted = PropertyValue::NullObject(
-                targetProperty->ValueType());
-        } else if (converted.AsObject().Get() != nullptr &&
-                   record.metadata->Types().IsAssignableFrom(
-                       targetProperty->ValueType(),
-                       converted.AsObject()->RuntimeType())) {
-            converted = PropertyValue::FromObject(
-                targetProperty->ValueType(),
-                Base::Ref<Base::Object>::FromBorrowed(
-                    *converted.AsObject()));
-        }
-    }
-    if (!targetProperty->AcceptsAnyValue() &&
-        converted.Type() != targetProperty->ValueType()) {
-        return InvalidArgument(
-            "Binding converter returned a value with the wrong target type");
-    }
+    Base::Result<PropertyValue> coerced =
+        Aero::Data::CoerceBindingTargetValue(
+            record.metadata,
+            *targetProperty,
+            std::move(converted));
+    if (!coerced) return coerced.GetStatus();
+    converted = std::move(coerced).Value();
     if (record.descriptor.validate != nullptr) {
         record.conversionFailureStage =
             BindingDiagnosticStage::Validate;
@@ -1752,7 +1781,14 @@ Base::Result<PropertyValue> BindingEngine::ConvertForSource(
             "Binding source type was not found");
     }
     PropertyValue converted = value;
-    if (record.descriptor.convertBack != nullptr) {
+    if (record.descriptor.converterResource) {
+        Base::Result<PropertyValue> result =
+            record.descriptor.converterResource->ConvertBack(
+                converted,
+                record.descriptor.converterParameter);
+        if (!result) return result.GetStatus();
+        converted = std::move(result).Value();
+    } else if (record.descriptor.convertBack != nullptr) {
         Base::Result<PropertyValue> result =
             record.descriptor.convertBack(
                 converted,

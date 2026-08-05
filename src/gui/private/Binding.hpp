@@ -191,9 +191,11 @@ struct BindingDescriptor {
     UpdateSourceTrigger updateSourceTrigger = UpdateSourceTrigger::PropertyChanged;
     BindingConvertCallback convert = nullptr;
     BindingConvertCallback convertBack = nullptr;
-    // Keep a markup-provided converter alive for the complete expression
-    // lifetime; conversionContext points at this object when present.
+    // Keep a markup-provided converter and its authored parameter alive for
+    // the complete expression lifetime. Callback-based converters remain
+    // available for lower-level engine integrations.
     Base::Ref<IValueConverter> converterResource;
+    PropertyValue converterParameter;
     BindingValidateCallback validate = nullptr;
     BindingValidateCallback validateBack = nullptr;
     void* conversionContext = nullptr;
@@ -221,6 +223,15 @@ struct BindingInspection {
 // (including ElementName); otherwise the source is resolved from target's
 // DataContext property. Text is compiled once per concrete source type and the
 // resulting immutable BindingPathPlan is reused until the source changes.
+// Coerces a converter or authored value to a dependency property's declared
+// type. Binding, MultiBinding and trigger actions share this path so object
+// covariance, null values, text conversion and Color-to-Brush conversion do
+// not drift between runtimes.
+Base::Result<PropertyValue> CoerceBindingTargetValue(
+    Meta::Registry* metadata,
+    const Meta::DependencyProperty& targetProperty,
+    PropertyValue value) noexcept;
+
 struct MetadataBindingDescriptor {
     Meta::Registry* metadata = nullptr;
     Base::Object* source = nullptr;
@@ -242,6 +253,7 @@ struct MetadataBindingDescriptor {
     BindingConvertCallback convert = nullptr;
     BindingConvertCallback convertBack = nullptr;
     Base::Ref<IValueConverter> converterResource;
+    PropertyValue converterParameter;
     BindingValidateCallback validate = nullptr;
     BindingValidateCallback validateBack = nullptr;
     void* conversionContext = nullptr;
@@ -364,6 +376,9 @@ public:
     Base::Status LastError() const noexcept {
         return lastError_;
     }
+    void RecordError(Base::Status status) noexcept {
+        if (!status.IsOk()) lastError_ = status;
+    }
 
 private:
     enum class BindingSourceKind : std::uint8_t {
@@ -413,6 +428,7 @@ private:
         BindingConvertCallback convert = nullptr;
         BindingConvertCallback convertBack = nullptr;
         Base::Ref<IValueConverter> converterResource;
+        PropertyValue converterParameter;
         BindingValidateCallback validate = nullptr;
         BindingValidateCallback validateBack = nullptr;
         void* conversionContext = nullptr;
@@ -459,6 +475,15 @@ private:
     Base::Result<PropertyValue> ConvertForSource(
         BindingRecord& record,
         const PropertyValue& value) noexcept;
+    Base::Result<void> ApplySourceToTarget(
+        BindingRecord& record,
+        const PropertyValue& source,
+        bool& usedFallback,
+        PropertyValue& target) noexcept;
+    Base::Result<void> ApplyTargetToSource(
+        BindingRecord& record,
+        const PropertyValue& target,
+        PropertyValue& source) noexcept;
     void ReportDiagnostic(
         BindingRecord& record,
         BindingDiagnosticStage stage,

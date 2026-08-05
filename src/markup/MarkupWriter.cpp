@@ -141,6 +141,7 @@ Base::Result<void> ParseArguments(
     Base::StringView& stringFormat,
     Base::StringView& fallbackValue,
     Base::StringView& converterResource,
+    Base::StringView& converterParameter,
     Base::StringView& ancestorType,
     RelativeSourceKind& relativeSource,
     Data::BindingMode& mode,
@@ -151,6 +152,7 @@ Base::Result<void> ParseArguments(
     stringFormat = {};
     fallbackValue = {};
     converterResource = {};
+    converterParameter = {};
     ancestorType = {};
     relativeSource = RelativeSourceKind::None;
     mode = Data::BindingMode::OneWay;
@@ -368,13 +370,12 @@ Base::Result<void> ParseArguments(
                     "Binding Converter StaticResource key is empty");
             }
         } else if (key == ConverterParameterKey) {
-            // ConverterParameter is parsed for compatibility. The reference
-            // sample does not supply one, and its converter has no parameter.
-            if (value.Empty()) {
+            if (!converterParameter.Empty()) {
                 return Base::Status::Failure(
                     Base::ErrorCode::ValidationFailed,
-                    "Binding ConverterParameter is empty");
+                    "Binding ConverterParameter is specified more than once");
             }
+            converterParameter = value;
         } else if (key == PathKey) {
             if (!path.Empty()) {
                 return Base::Status::Failure(
@@ -437,22 +438,9 @@ struct DeferredBindingState {
     Meta::UpdateSourceTrigger updateSourceTrigger =
         Meta::UpdateSourceTrigger::PropertyChanged;
     Base::Ref<Data::IValueConverter> converter;
+    Meta::PropertyValue converterParameter;
     Base::IAllocator* allocator = nullptr;
 };
-
-Base::Result<Meta::PropertyValue> ConvertWithValueConverter(
-    const Meta::PropertyValue& value,
-    Meta::TypeId,
-    void* context) noexcept {
-    auto* converter = static_cast<Data::IValueConverter*>(context);
-    if (converter == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Binding value converter is unavailable");
-    }
-    return converter->Convert(value, Meta::Value{});
-}
-
 
 Base::Result<void> PrepareBinding(
     void* context,
@@ -496,11 +484,7 @@ Base::Result<std::uint64_t> CommitBinding(void* context) noexcept {
     descriptor.mode = state->mode;
     descriptor.updateSourceTrigger = state->updateSourceTrigger;
     descriptor.converterResource = state->converter;
-    if (descriptor.converterResource) {
-        descriptor.convert = &ConvertWithValueConverter;
-        descriptor.convertBack = &ConvertWithValueConverter;
-        descriptor.conversionContext = descriptor.converterResource.Get();
-    }
+    descriptor.converterParameter = state->converterParameter;
     Base::Result<Data::BindingHandle> attached =
         state->manager->Attach(descriptor);
     return attached
@@ -554,7 +538,6 @@ struct DeferredMultiBindingState {
     Base::Vector<Data::BindingHandle> handles;
     DependencyPropertyChangedEventHandler changed;
     Base::IAllocator* allocator = nullptr;
-    Base::Status lastStatus;
 
     bool AllInputsReady() const noexcept {
         if (ready.Size() != inputs.Size() || ready.Empty()) {
@@ -606,45 +589,15 @@ struct DeferredMultiBindingState {
                 targetInfo->ValueType(),
                 binding->GetConverterParameter());
         if (!converted) return converted.GetStatus();
-        Meta::Value value = std::move(converted).Value();
-
-        if (targetInfo->ValueType() ==
-                Media::Brush::StaticTypeId() &&
-            value.Type() == Meta::TypeOf<Base::Color>()) {
-            Base::Result<Base::Color> color =
-                Meta::ValueCodec<Base::Color>::Decode(value);
-            if (!color) return color.GetStatus();
-            Base::Result<Base::Ref<Media::Brush>> brush =
-                Media::MakeSolidColorBrush(color.Value());
-            if (!brush) return brush.GetStatus();
-            value = Meta::Value::FromObject(
-                Media::Brush::StaticTypeId(),
-                Base::Ref<Base::Object>(
-                    std::move(brush).Value()));
-        }
-        if (value.Kind() == Meta::ValueKind::Object &&
-            value.Type() != targetInfo->ValueType()) {
-            if (value.IsNullObject()) {
-                value = Meta::Value::NullObject(
-                    targetInfo->ValueType());
-            } else if (value.AsObject() &&
-                metadata->Types().IsAssignableFrom(
-                    targetInfo->ValueType(),
-                    value.AsObject()->RuntimeType())) {
-                value = Meta::Value::FromObject(
-                    targetInfo->ValueType(),
-                    value.AsObject());
-            }
-        }
-        if (!targetInfo->AcceptsAnyValue() &&
-            value.Type() != targetInfo->ValueType()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "MultiBinding converter returned the wrong target type");
-        }
+        Base::Result<Meta::Value> coerced =
+            Data::CoerceBindingTargetValue(
+                metadata,
+                *targetInfo,
+                std::move(converted).Value());
+        if (!coerced) return coerced.GetStatus();
         return result->SetValueChecked(
             Data::MultiBindingProxy::ValueProperty.Handle(),
-            value);
+            std::move(coerced).Value());
     }
 
     void OnInputChanged(
@@ -658,9 +611,9 @@ struct DeferredMultiBindingState {
             }
         }
         Base::Result<void> recomputed = Recompute();
-        lastStatus = recomputed
-            ? Base::Status::Ok()
-            : recomputed.GetStatus();
+        if (!recomputed && manager != nullptr) {
+            manager->RecordError(recomputed.GetStatus());
+        }
     }
 
     void Detach() noexcept {
@@ -826,12 +779,8 @@ Base::Result<std::uint64_t> CommitMultiBinding(
             Meta::UpdateSourceTrigger::PropertyChanged;
         descriptor.converterResource =
             child->GetConverter();
-        if (descriptor.converterResource) {
-            descriptor.convert =
-                &ConvertWithValueConverter;
-            descriptor.conversionContext =
-                descriptor.converterResource.Get();
-        }
+        descriptor.converterParameter =
+            child->GetConverterParameter();
         Base::Result<Data::BindingHandle> attached =
             state->manager->Attach(descriptor);
         if (!attached) {
@@ -1015,6 +964,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     Base::StringView stringFormat;
     Base::StringView fallbackValue;
     Base::StringView converterResource;
+    Base::StringView converterParameter;
     Base::StringView ancestorType;
     RelativeSourceKind relativeSource =
         RelativeSourceKind::None;
@@ -1029,6 +979,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         stringFormat,
         fallbackValue,
         converterResource,
+        converterParameter,
         ancestorType,
         relativeSource,
         mode,
@@ -1055,6 +1006,32 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         ? metadata->Types().FindProperty(
             services.targetMember)
         : nullptr;
+
+    Base::Ref<Data::IValueConverter> converter;
+    if (!converterResource.Empty()) {
+        if (!services.resources.IsAvailable()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "Binding Converter requires an active resource scope");
+        }
+        Base::Result<Aero::ResourceValue> resource =
+            services.resources.Lookup(converterResource);
+        if (!resource) return resource.GetStatus();
+        if (resource.Value().Kind() != Meta::ValueKind::Object ||
+            resource.Value().IsNullObject() ||
+            !resource.Value().AsObject() ||
+            metadata == nullptr ||
+            !metadata->Types().IsDerivedFrom(
+                resource.Value().AsObject()->RuntimeType(),
+                Data::IValueConverter::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Binding Converter StaticResource is not an IValueConverter");
+        }
+        converter = Base::Ref<Data::IValueConverter>::FromBorrowed(
+            *static_cast<Data::IValueConverter*>(
+                resource.Value().AsObject().Get()));
+    }
     if (!sourceResource.Empty() &&
         path.Empty() &&
         stringFormat.Empty() &&
@@ -1150,6 +1127,16 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         binding.Value()->SetStringFormat(stringFormat);
         binding.Value()->SetMode(mode);
         binding.Value()->SetUpdateSourceTrigger(updateSourceTrigger);
+        if (converter) binding.Value()->SetConverter(converter);
+        if (!converterParameter.Empty()) {
+            Base::Result<Meta::PropertyValue> parameter =
+                Meta::PropertyValue::TryFromString(
+                    Meta::TypeOf<Base::String>(),
+                    converterParameter);
+            if (!parameter) return parameter.GetStatus();
+            binding.Value()->SetConverterParameter(
+                std::move(parameter).Value());
+        }
         if (relativeSource != RelativeSourceKind::None) {
             const Data::RelativeSourceMode sourceMode =
                 relativeSource == RelativeSourceKind::Self
@@ -1328,31 +1315,6 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             "Binding requires a load-scoped BindingEngine");
     }
 
-    Base::Ref<Data::IValueConverter> converter;
-    if (!converterResource.Empty()) {
-        if (!services.resources.IsAvailable()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotInitialized,
-                "Binding Converter requires an active resource scope");
-        }
-        Base::Result<Aero::ResourceValue> resource =
-            services.resources.Lookup(converterResource);
-        if (!resource) return resource.GetStatus();
-        if (resource.Value().Kind() != Meta::ValueKind::Object ||
-            resource.Value().IsNullObject() ||
-            !resource.Value().AsObject() ||
-            !Detail::SchemaPrivate::Metadata(*services.schema)->Types().IsDerivedFrom(
-                resource.Value().AsObject()->RuntimeType(),
-                Data::IValueConverter::StaticTypeId())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Binding Converter StaticResource is not an IValueConverter");
-        }
-        converter = Base::Ref<Data::IValueConverter>::FromBorrowed(
-            *static_cast<Data::IValueConverter*>(
-                resource.Value().AsObject().Get()));
-    }
-
     if (services.deferredContentOwner != nullptr &&
         services.deferredContent != nullptr) {
         Base::Result<void> staged =
@@ -1426,6 +1388,17 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     state->updateSourceTrigger = updateSourceTrigger;
     state->converter = std::move(converter);
     state->allocator = &allocator;
+    if (!converterParameter.Empty()) {
+        Base::Result<Meta::PropertyValue> parameter =
+            Meta::PropertyValue::TryFromString(
+                Meta::TypeOf<Base::String>(),
+                converterParameter);
+        if (!parameter) {
+            CleanupBinding(state);
+            return parameter.GetStatus();
+        }
+        state->converterParameter = std::move(parameter).Value();
+    }
     Base::Result<void> assigned =
         state->elementName.Assign(elementName);
     if (!assigned) {
