@@ -6,6 +6,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Events/RoutedEvent.hpp>
+#include <Aero/Value.hpp>
 
 #include <cstdint>
 
@@ -140,6 +141,88 @@ private:
     double deltaY_ = 0.0;
 };
 
+struct DragEventArgs : MouseEventArgs {
+    AERO_DECLARE_TYPE(DragEventArgs, MouseEventArgs)
+public:
+    DragEventArgs() noexcept
+        : MouseEventArgs(StaticTypeId()) {}
+
+    using MouseEventArgs::GetPosition;
+
+    const Value& GetData() const noexcept { return data_; }
+    void SetData(const Value& value) noexcept { data_ = value; }
+    Input::DragDropEffects GetAllowedEffects() const noexcept {
+        return allowedEffects_;
+    }
+    void SetAllowedEffects(Input::DragDropEffects value) noexcept {
+        allowedEffects_ = value;
+    }
+    Input::DragDropEffects GetEffects() const noexcept {
+        return effects_;
+    }
+    void SetEffects(Input::DragDropEffects value) noexcept {
+        effects_ = value;
+    }
+    Base::Point GetPosition(const UIElement& relativeTo) const noexcept;
+    void SetRootPosition(
+        UIElement* root, Base::Point position) noexcept {
+        root_ = root;
+        rootPosition_ = position;
+    }
+
+private:
+    Value data_;
+    Input::DragDropEffects allowedEffects_ =
+        static_cast<Input::DragDropEffects>(0U);
+    Input::DragDropEffects effects_ =
+        static_cast<Input::DragDropEffects>(0U);
+    UIElement* root_ = nullptr;
+    Base::Point rootPosition_;
+};
+
+struct GiveFeedbackEventArgs : RoutedEventArgs {
+    AERO_DECLARE_TYPE(GiveFeedbackEventArgs, RoutedEventArgs)
+public:
+    GiveFeedbackEventArgs() noexcept
+        : RoutedEventArgs(StaticTypeId()) {}
+    Input::DragDropEffects GetEffects() const noexcept {
+        return effects_;
+    }
+    void SetEffects(Input::DragDropEffects value) noexcept {
+        effects_ = value;
+    }
+    bool GetUseDefaultCursors() const noexcept {
+        return useDefaultCursors_;
+    }
+    void SetUseDefaultCursors(bool value) noexcept {
+        useDefaultCursors_ = value;
+    }
+private:
+    Input::DragDropEffects effects_ = static_cast<Input::DragDropEffects>(0U);
+    bool useDefaultCursors_ = true;
+};
+
+struct DragCompletedEventArgs : RoutedEventArgs {
+    AERO_DECLARE_TYPE(DragCompletedEventArgs, RoutedEventArgs)
+public:
+    DragCompletedEventArgs() noexcept
+        : RoutedEventArgs(StaticTypeId()) {}
+    const Value& GetData() const noexcept { return data_; }
+    void SetData(const Value& value) noexcept { data_ = value; }
+    Input::DragDropEffects GetEffects() const noexcept {
+        return effects_;
+    }
+    void SetEffects(Input::DragDropEffects value) noexcept {
+        effects_ = value;
+    }
+    bool GetCanceled() const noexcept { return canceled_; }
+    void SetCanceled(bool value) noexcept { canceled_ = value; }
+private:
+    Value data_;
+    Input::DragDropEffects effects_ = static_cast<Input::DragDropEffects>(0U);
+    bool canceled_ = false;
+};
+
 struct KeyEventArgs : InputEventArgs {
     AERO_DECLARE_TYPE(KeyEventArgs, InputEventArgs)
 public:
@@ -197,6 +280,9 @@ using RoutedEventHandler = Base::Delegate<void(Base::Object*, RoutedEventArgs&)>
 using MouseEventHandler = Base::Delegate<void(Base::Object*, MouseEventArgs&)>;
 using MouseButtonEventHandler = Base::Delegate<void(Base::Object*, MouseButtonEventArgs&)>;
 using MouseWheelEventHandler = Base::Delegate<void(Base::Object*, MouseWheelEventArgs&)>;
+using DragEventHandler = Base::Delegate<void(Base::Object*, DragEventArgs&)>;
+using GiveFeedbackEventHandler = Base::Delegate<void(Base::Object*, GiveFeedbackEventArgs&)>;
+using DragCompletedEventHandler = Base::Delegate<void(Base::Object*, DragCompletedEventArgs&)>;
 using KeyEventHandler = Base::Delegate<void(Base::Object*, KeyEventArgs&)>;
 using TextCompositionEventHandler = Base::Delegate<void(Base::Object*, TextCompositionEventArgs&)>;
 using KeyboardFocusChangedEventHandler = Base::Delegate<void(Base::Object*, KeyboardFocusChangedEventArgs&)>;

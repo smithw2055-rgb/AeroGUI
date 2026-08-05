@@ -80,6 +80,26 @@ public:
             1U});
         return {};
     }
+    Base::Result<void> Replace(
+        std::uint32_t index,
+        Base::Ref<Base::Object> item) noexcept {
+        if (!item || index >= items_.Size()) {
+            return Base::Status::Failure(
+                index >= items_.Size()
+                    ? Base::ErrorCode::OutOfRange
+                    : Base::ErrorCode::InvalidArgument,
+                "ObservableCollection replace is invalid");
+        }
+        items_[index] = std::move(item);
+        if (!changed_.Empty()) changed_.Invoke({
+            ItemsChangeAction::Replace,
+            index,
+            index,
+            1U,
+            1U});
+        return {};
+    }
+
     Base::Result<Base::Ref<Base::Object>> RemoveAt(
         std::uint32_t index) noexcept {
         if (index >= items_.Size()) {

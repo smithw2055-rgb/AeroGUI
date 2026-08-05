@@ -82,10 +82,23 @@ const Meta::DependencyProperty* ResolveStyleProperty(
         separator + 1U >= name.SizeBytes()) {
         return nullptr;
     }
+    Base::StringView ownerName = name.Substr(0U, separator);
+    // Setter.Property is authored as text, so a qualified attached property
+    // retains its XML prefix (for example aero:Element.Transform3D). The
+    // namespace has already resolved to Aero's compatibility schema while the
+    // object graph was parsed; strip the lexical prefix before metadata lookup.
+    for (std::uint32_t index = 0U; index < ownerName.SizeBytes(); ++index) {
+        if (ownerName[index] == ':') {
+            ownerName = ownerName.Substr(
+                index + 1U,
+                ownerName.SizeBytes() - index - 1U);
+            break;
+        }
+    }
     const Meta::TypeInfo* owner =
         properties.Types().FindType(
             Meta::AeroNamespaceUri(),
-            name.Substr(0U, separator));
+            ownerName);
     const Base::StringView member = name.Substr(
         separator + 1U,
         name.SizeBytes() - separator - 1U);
@@ -461,6 +474,20 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             }
             Base::Result<void> added = style.AddTrigger(*trigger);
             if (!added) return added.GetStatus();
+            continue;
+        }
+        if (options_.properties->Types().IsDerivedFrom(
+                authored->RuntimeType(),
+                Media::Animation::EventTrigger::StaticTypeId())) {
+            auto* trigger =
+                static_cast<Media::Animation::EventTrigger*>(authored);
+            if (trigger->GetRoutedEvent().Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "Style EventTrigger requires RoutedEvent");
+            }
+            // Event triggers are immutable declarations. The View creates a
+            // routed-event subscription per styled element after mounting.
             continue;
         }
         if (authored->RuntimeType() == Aero::DataTrigger::StaticTypeId()) {
@@ -1349,10 +1376,9 @@ CompileBlueprint(
         }
         const bool visual = runtime.Types().IsDerivedFrom(
             object->RuntimeType(), Visual::StaticTypeId());
-        if ((index == 0U || source.parent != UINT32_MAX) &&
-            !visual) {
+        if (index == 0U && !visual) {
             return InvalidTemplateCompiler(
-                "Template VisualTree contains a non-Visual object");
+                "Template VisualTree root must be a Visual object");
         }
 
         TemplatePrototypeNode node;
@@ -1521,9 +1547,11 @@ CompileBlueprint(
             resolvedSource != nullptr
             ? FindPrototypeObject(pending, resolvedSource)
             : UINT32_MAX;
+        const bool externalElementName =
+            resolvedSource == nullptr &&
+            !source.sourceName.Empty();
         if (target == UINT32_MAX ||
-            ((!source.sourceName.Empty() || source.source != nullptr) &&
-             bindingSource == UINT32_MAX) ||
+            (source.source != nullptr && bindingSource == UINT32_MAX) ||
             source.manager == nullptr ||
             source.metadata == nullptr) {
             return InvalidTemplateCompiler(
@@ -1543,6 +1571,12 @@ CompileBlueprint(
         binding.mode = source.mode;
         binding.updateSourceTrigger =
             source.updateSourceTrigger;
+        if (externalElementName) {
+            Base::Result<void> sourceName =
+                binding.sourceName.Assign(
+                    source.sourceName.View());
+            if (!sourceName) return sourceName.GetStatus();
+        }
         Base::Result<void> assigned =
             binding.path.Assign(
                 source.path.View());
@@ -2638,8 +2672,7 @@ Base::Result<void> BuildCompiledTemplate(
          ++index) {
         const TemplatePrototypeNode& node = blueprint->nodes[index];
         if (node.parent != UINT32_MAX) {
-            if (node.parent >= objects.Size() || visuals[index] == nullptr ||
-                visuals[node.parent] == nullptr ||
+            if (node.parent >= objects.Size() ||
                 node.contentMember == InvalidMemberId) {
                 return InvalidTemplateCompiler(
                     "Compiled template content edge is invalid");
@@ -2667,6 +2700,11 @@ Base::Result<void> BuildCompiledTemplate(
                 if (!named) return named.GetStatus();
             }
             continue;
+        }
+        if (node.parent != UINT32_MAX &&
+            visuals[node.parent] == nullptr) {
+            return InvalidTemplateCompiler(
+                "Visual template child has a non-Visual parent");
         }
         Base::Result<void> added = node.parent == UINT32_MAX
             ? context.SetRoot(node.name.View(),
@@ -2717,9 +2755,9 @@ Base::Result<void> BuildCompiledTemplate(
          blueprint->bindings) {
         if (binding.manager == nullptr ||
             binding.metadata == nullptr ||
-            binding.target >= visuals.Size() ||
+            binding.target >= objects.Size() ||
             (binding.source != UINT32_MAX &&
-             binding.source >= visuals.Size())) {
+             binding.source >= objects.Size())) {
             return InvalidTemplateCompiler(
                 "Compiled template Binding declaration is invalid");
         }
@@ -2729,6 +2767,16 @@ Base::Result<void> BuildCompiledTemplate(
             binding.source != UINT32_MAX
             ? objects[binding.source].Get()
             : nullptr;
+        if (descriptor.source == nullptr &&
+            !binding.sourceName.Empty()) {
+            descriptor.source = context.TemplatedParent().FindName(
+                binding.sourceName.View());
+            if (descriptor.source == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "ControlTemplate Binding ElementName was not found in the outer NameScope");
+            }
+        }
         descriptor.target =
             static_cast<DependencyObject*>(
                 objects[binding.target].Get());
@@ -2771,8 +2819,8 @@ Base::Result<void> BuildCompiledTemplate(
             Base::Result<void> namedAssigned = named.name.Assign(
                 blueprint->nodes[index].name.View());
             if (!namedAssigned) return namedAssigned.GetStatus();
-            named.object = Base::Ref<Base::Object>::FromBorrowed(
-                *objects[index]);
+            named.object = Base::WeakRef<Base::Object>(
+                Base::Ref<Base::Object>::FromBorrowed(*objects[index]));
             namedAssigned = triggerContext->names.PushBack(
                 std::move(named));
             if (!namedAssigned) return namedAssigned.GetStatus();
@@ -2802,8 +2850,9 @@ Base::Result<void> BuildCompiledTemplate(
                 if (!value) return value.GetStatus();
                 Aero::Runtime::Detail::DataTemplateTriggerSetter runtimeSetter;
                 runtimeSetter.target =
-                    Base::Ref<DependencyObject>::FromBorrowed(
-                        *static_cast<DependencyObject*>(visuals[target]));
+                    Base::WeakRef<DependencyObject>(
+                        Base::Ref<DependencyObject>::FromBorrowed(
+                            *static_cast<DependencyObject*>(visuals[target])));
                 runtimeSetter.property = property->Handle();
                 runtimeSetter.value = std::move(value).Value();
                 Base::Result<void> added = runtimeTrigger.setters.PushBack(
@@ -2819,6 +2868,13 @@ Base::Result<void> BuildCompiledTemplate(
             }
             const Base::Ref<Data::RelativeSource> relative =
                 binding.GetRelativeSource();
+            if (!relative) {
+                // The default source is not the object visible while the
+                // template prototype is compiled. It is the templated
+                // parent's current DataContext after the instance has been
+                // attached and its inherited values have settled.
+                return static_cast<Base::Object*>(&context.TemplatedParent());
+            }
             if (relative && relative->GetMode() ==
                     Data::RelativeSourceMode::FindAncestor) {
                 Base::StringView ancestorName = relative->GetAncestorType();
@@ -2852,8 +2908,8 @@ Base::Result<void> BuildCompiledTemplate(
                 }
                 return nullptr;
             }
-            // Self and TemplatedParent resolve to the templated control while
-            // authoring a ControlTemplate instance.
+            // Explicit Self and TemplatedParent resolve to the templated
+            // control. The default case above resolves its DataContext.
             return static_cast<Base::Object*>(&context.TemplatedParent());
         };
         for (const Base::Ref<TriggerBase>& authored :
@@ -2890,11 +2946,12 @@ Base::Result<void> BuildCompiledTemplate(
                         blueprint->runtime->Types());
                 }
                 Aero::Runtime::Detail::DataTemplateTriggerCondition condition;
-                condition.source = Base::Ref<Base::Object>::FromBorrowed(
-                    *source);
+                condition.source = Base::WeakRef<Base::Object>(
+                    Base::Ref<Base::Object>::FromBorrowed(*source));
                 condition.dependencySource =
-                    Base::Ref<DependencyObject>::FromBorrowed(
-                        *static_cast<DependencyObject*>(source));
+                    Base::WeakRef<DependencyObject>(
+                        Base::Ref<DependencyObject>::FromBorrowed(
+                            *static_cast<DependencyObject*>(source)));
                 condition.property = sourceProperty->Handle();
                 Base::Result<Value> converted = ConvertTriggerValue(
                     property.GetAuthoredValue(), sourceType, *sourceProperty,
@@ -2915,8 +2972,12 @@ Base::Result<void> BuildCompiledTemplate(
                 Base::Object* source = sourceFor(*data.GetBinding());
                 if (source != nullptr) {
                     condition.source =
-                        Base::Ref<Base::Object>::FromBorrowed(*source);
+                        Base::WeakRef<Base::Object>(
+                            Base::Ref<Base::Object>::FromBorrowed(*source));
                 }
+                condition.usesDataContext =
+                    data.GetBinding()->GetElementName().Empty() &&
+                    !data.GetBinding()->GetRelativeSource();
                 condition.binding = data.GetBinding();
                 condition.value = data.GetAuthoredValue();
                 Base::Result<void> added = runtimeTrigger.conditions.PushBack(
@@ -2936,8 +2997,12 @@ Base::Result<void> BuildCompiledTemplate(
                     Base::Object* source = sourceFor(*authoredCondition->GetBinding());
                     if (source != nullptr) {
                         condition.source =
-                            Base::Ref<Base::Object>::FromBorrowed(*source);
+                            Base::WeakRef<Base::Object>(
+                                Base::Ref<Base::Object>::FromBorrowed(*source));
                     }
+                    condition.usesDataContext =
+                        authoredCondition->GetBinding()->GetElementName().Empty() &&
+                        !authoredCondition->GetBinding()->GetRelativeSource();
                     condition.binding = authoredCondition->GetBinding();
                     condition.value = authoredCondition->GetAuthoredValue();
                     Base::Result<void> added =
@@ -3081,6 +3146,12 @@ BuildCompiledDeferredTemplate(
             binding.source != UINT32_MAX
             ? objects[binding.source].Get()
             : nullptr;
+        if (descriptor.source == nullptr &&
+            !binding.sourceName.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::Unsupported,
+                "DataTemplate Binding cannot resolve an ElementName outside its template NameScope");
+        }
         descriptor.target =
             static_cast<DependencyObject*>(
                 objects[binding.target].Get());
@@ -3147,7 +3218,7 @@ BuildCompiledDeferredTemplate(
             if (!assigned) {
                 return assigned.GetStatus();
             }
-            named.object = objects[index];
+            named.object = Base::WeakRef<Base::Object>(objects[index]);
             assigned =
                 triggerContext->names.PushBack(
                     std::move(named));
@@ -3195,9 +3266,10 @@ BuildCompiledDeferredTemplate(
             Aero::Runtime::Detail::DataTemplateTriggerSetter
                 runtimeSetter;
             runtimeSetter.target =
-                Base::Ref<DependencyObject>::FromBorrowed(
-                    *static_cast<DependencyObject*>(
-                        objects[targetIndex].Get()));
+                Base::WeakRef<DependencyObject>(
+                    Base::Ref<DependencyObject>::FromBorrowed(
+                        *static_cast<DependencyObject*>(
+                            objects[targetIndex].Get())));
             runtimeSetter.property =
                 targetProperty->Handle();
             runtimeSetter.value =
@@ -3244,11 +3316,11 @@ BuildCompiledDeferredTemplate(
             }
             Aero::Runtime::Detail::DataTemplateTriggerCondition
                 condition;
-            condition.source = root;
+            condition.source = Base::WeakRef<Base::Object>(root);
             condition.dependencySource =
-                Base::Ref<DependencyObject>::FromBorrowed(
-                    *static_cast<DependencyObject*>(
-                        root.Get()));
+                Base::WeakRef<DependencyObject>(
+                    Base::Ref<DependencyObject>::FromBorrowed(
+                        *static_cast<DependencyObject*>(root.Get())));
             condition.property =
                 sourceProperty->Handle();
             condition.value =
@@ -3285,7 +3357,7 @@ BuildCompiledDeferredTemplate(
             }
             Aero::Runtime::Detail::DataTemplateTriggerCondition
                 condition;
-            condition.source = payload;
+            condition.source = Base::WeakRef<Base::Object>(payload);
             condition.binding =
                 dataTrigger.GetBinding();
             condition.value =
@@ -3309,7 +3381,7 @@ BuildCompiledDeferredTemplate(
                 }
                 Aero::Runtime::Detail::DataTemplateTriggerCondition
                     condition;
-                condition.source = payload;
+                condition.source = Base::WeakRef<Base::Object>(payload);
                 condition.binding =
                     authoredCondition->GetBinding();
                 condition.value =

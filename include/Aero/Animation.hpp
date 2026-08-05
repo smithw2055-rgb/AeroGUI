@@ -447,6 +447,57 @@ private:
     Base::Vector<Base::Ref<DoubleKeyFrame>> keyFrames_;
 };
 
+class AERO_API PointKeyFrame : public Base::Object {
+    AERO_DECLARE_TYPE(PointKeyFrame, Base::Object)
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return runtimeType_;
+    }
+    Base::Point GetValue() const noexcept { return value_; }
+    Base::StringView GetKeyTime() const noexcept {
+        return keyTimeText_.View();
+    }
+    AnimationTime GetKeyTimeMicroseconds() const noexcept {
+        return keyTimeMicroseconds_;
+    }
+    void SetValue(Base::Point value) noexcept;
+    void SetKeyTime(Base::StringView value) noexcept;
+
+protected:
+    explicit PointKeyFrame(Meta::TypeId runtimeType) noexcept
+        : runtimeType_(runtimeType) {}
+
+private:
+    Meta::TypeId runtimeType_ = StaticTypeId();
+    Base::Point value_;
+    Base::String keyTimeText_;
+    AnimationTime keyTimeMicroseconds_ = 0U;
+};
+
+class AERO_API DiscretePointKeyFrame : public PointKeyFrame {
+    AERO_DECLARE_TYPE(DiscretePointKeyFrame, PointKeyFrame)
+public:
+    DiscretePointKeyFrame() noexcept
+        : PointKeyFrame(StaticTypeId()) {}
+};
+
+class AERO_API PointAnimationUsingKeyFrames : public Timeline {
+    AERO_DECLARE_TYPE(PointAnimationUsingKeyFrames, Timeline)
+public:
+    PointAnimationUsingKeyFrames() noexcept
+        : Timeline(StaticTypeId()) {}
+    Base::Result<void> AddKeyFrame(
+        Base::Ref<PointKeyFrame> value) noexcept;
+    void ClearKeyFrames() noexcept;
+    Base::Span<const Base::Ref<PointKeyFrame>>
+    GetKeyFrames() const noexcept {
+        return {keyFrames_.Data(), keyFrames_.Size()};
+    }
+
+private:
+    Base::Vector<Base::Ref<PointKeyFrame>> keyFrames_;
+};
+
 class AERO_API ThicknessKeyFrame : public Base::Object {
     AERO_DECLARE_TYPE(ThicknessKeyFrame, Base::Object)
 public:

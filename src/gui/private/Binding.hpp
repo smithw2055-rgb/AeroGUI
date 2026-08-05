@@ -16,7 +16,8 @@ namespace Aero::Meta {
 
 enum class BindingPathSegmentKind : std::uint8_t {
     ObjectProperty = 0U,
-    ValueField
+    ValueField,
+    CollectionIndex
 };
 
 struct BindingPathSegment {
@@ -25,6 +26,7 @@ struct BindingPathSegment {
     TypeId inputType = InvalidTypeId;
     TypeId outputType = InvalidTypeId;
     Base::String dynamicName;
+    std::uint32_t collectionIndex = UINT32_MAX;
     bool readable = false;
     bool writable = false;
     bool copyOnWrite = false;

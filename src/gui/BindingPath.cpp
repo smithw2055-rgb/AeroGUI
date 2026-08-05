@@ -1,5 +1,10 @@
 #include "gui/GuiPrivate.hpp"
 
+#include <Aero/Collections.hpp>
+
+#include <cstdio>
+#include <limits>
+
 
 namespace Aero::Meta {
 namespace {
@@ -186,8 +191,53 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
         } else {
             while (end < path.SizeBytes() && path[end] != '.') ++end;
         }
-        const Base::StringView name =
+        const Base::StringView authoredName =
             TrimAscii(path.Substr(begin, end - begin));
+        Base::StringView name = authoredName;
+        bool hasCollectionIndex = false;
+        std::uint32_t collectionIndex = UINT32_MAX;
+        if (!attachedSyntax) {
+            std::uint32_t open = authoredName.SizeBytes();
+            for (std::uint32_t index = 0U;
+                 index < authoredName.SizeBytes(); ++index) {
+                if (authoredName[index] == '[') {
+                    open = index;
+                    break;
+                }
+            }
+            if (open != authoredName.SizeBytes()) {
+                if (open == 0U ||
+                    authoredName[authoredName.SizeBytes() - 1U] != ']' ||
+                    open + 2U > authoredName.SizeBytes()) {
+                    return RecordCompileError(
+                        error, segmentIndex, currentType, authoredName,
+                        InvalidPath("Binding collection index syntax is invalid"));
+                }
+                std::uint64_t parsedIndex = 0U;
+                for (std::uint32_t index = open + 1U;
+                     index + 1U < authoredName.SizeBytes(); ++index) {
+                    const char digit = authoredName[index];
+                    if (digit < '0' || digit > '9') {
+                        return RecordCompileError(
+                            error, segmentIndex, currentType, authoredName,
+                            InvalidPath("Binding collection index must be an unsigned integer"));
+                    }
+                    parsedIndex = parsedIndex * 10U +
+                        static_cast<std::uint64_t>(digit - '0');
+                    if (parsedIndex >
+                        static_cast<std::uint64_t>(UINT32_MAX)) {
+                        return RecordCompileError(
+                            error, segmentIndex, currentType, authoredName,
+                            Base::Status::Failure(
+                                Base::ErrorCode::OutOfRange,
+                                "Binding collection index is out of range"));
+                    }
+                }
+                name = TrimAscii(authoredName.Substr(0U, open));
+                collectionIndex = static_cast<std::uint32_t>(parsedIndex);
+                hasCollectionIndex = true;
+            }
+        }
         if (name.Empty()) {
             return RecordCompileError(
                 error,
@@ -235,6 +285,16 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                     segment.dynamic = true;
                     plan.hasDynamicResult_ = true;
                 } else {
+                thread_local char message[320];
+                std::snprintf(
+                    message,
+                    sizeof(message),
+                    "Binding path %s property '%.*s' was not found on type '%.*s'",
+                    attachedSyntax ? "attached" : "object",
+                    static_cast<int>(name.SizeBytes()),
+                    name.Data(),
+                    static_cast<int>(input->Name().SizeBytes()),
+                    input->Name().Data());
                 return RecordCompileError(
                     error,
                     segmentIndex,
@@ -242,9 +302,7 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                     name,
                     Base::Status::Failure(
                         Base::ErrorCode::NotFound,
-                        attachedSyntax
-                            ? "Binding path attached property was not found"
-                            : "Binding path object property was not found"));
+                        message));
                 }
             } else {
                 segment.kind = BindingPathSegmentKind::ObjectProperty;
@@ -257,6 +315,31 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                     *property,
                     runtime.CanWriteProperty(property->Id()));
             }
+        } else if (currentType == Meta::TypeOf<Meta::Value>()) {
+            // Any-valued dependency properties (Content, Header, selected
+            // item values, and similar WPF surfaces) carry their concrete
+            // runtime value inside Meta::Value. Compile the remaining member
+            // as a dynamic object segment and resolve it from that concrete
+            // object when the plan executes.
+            if (attachedSyntax) {
+                return RecordCompileError(
+                    error,
+                    segmentIndex,
+                    currentType,
+                    name,
+                    Base::Status::Failure(
+                        Base::ErrorCode::NotFound,
+                        "Binding path attached property cannot be resolved from Any"));
+            }
+            Base::Result<void> storedName =
+                segment.dynamicName.Assign(name);
+            if (!storedName) return storedName.GetStatus();
+            segment.kind = BindingPathSegmentKind::ObjectProperty;
+            segment.outputType = Meta::TypeOf<Base::Object>();
+            segment.readable = true;
+            segment.writable = false;
+            segment.dynamic = true;
+            plan.hasDynamicResult_ = true;
         } else if (input->Kind() == MetadataTypeKind::Struct) {
             const FieldInfo* field =
                 descriptors.FindField(currentType, name);
@@ -312,15 +395,42 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                     "Binding path segment separator is invalid"));
         }
         if (segment.kind == BindingPathSegmentKind::ObjectProperty &&
-            hasMore && output->Kind() == MetadataTypeKind::Struct) {
+            (hasMore || hasCollectionIndex) &&
+            output->Kind() == MetadataTypeKind::Struct) {
             segment.copyOnWrite = true;
         }
 
+        const TypeId propertyOutputType = segment.outputType;
         Base::Result<void> appended =
             plan.segments_.PushBack(std::move(segment));
         if (!appended) return appended.GetStatus();
-        currentType = segment.outputType;
+        currentType = propertyOutputType;
         ++segmentIndex;
+
+        if (hasCollectionIndex) {
+            if (!IsObjectLike(output->Kind()) &&
+                currentType != Meta::TypeOf<Meta::Value>()) {
+                return RecordCompileError(
+                    error,
+                    segmentIndex,
+                    currentType,
+                    authoredName,
+                    UnsupportedPath(
+                        "Binding collection index requires an object-valued collection"));
+            }
+            BindingPathSegment indexSegment;
+            indexSegment.kind = BindingPathSegmentKind::CollectionIndex;
+            indexSegment.inputType = currentType;
+            indexSegment.outputType = Meta::TypeOf<Base::Object>();
+            indexSegment.collectionIndex = collectionIndex;
+            indexSegment.readable = true;
+            indexSegment.writable = true;
+            appended = plan.segments_.PushBack(std::move(indexSegment));
+            if (!appended) return appended.GetStatus();
+            currentType = Meta::TypeOf<Base::Object>();
+            plan.hasDynamicResult_ = true;
+            ++segmentIndex;
+        }
         if (!hasMore) break;
         begin = end + 1U;
     }
@@ -413,6 +523,30 @@ Base::Result<Value> BindingPathPlan::GetObject(
     const Base::Object& object,
     std::uint32_t segmentIndex) const noexcept {
     const BindingPathSegment& segment = segments_[segmentIndex];
+    if (segment.kind == BindingPathSegmentKind::CollectionIndex) {
+        if (!runtime.Types().IsDerivedFrom(
+                object.RuntimeType(),
+                Collections::ObservableCollection::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Binding collection index source is not an ObservableCollection");
+        }
+        const auto& collection =
+            static_cast<const Collections::ObservableCollection&>(object);
+        Base::Ref<Base::Object> item =
+            collection.GetItem(segment.collectionIndex);
+        if (!item) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "Binding collection index is outside the collection");
+        }
+        Value current = Value::FromObject(
+            item->RuntimeType(), item);
+        if (segmentIndex + 1U == segments_.Size()) {
+            return current;
+        }
+        return GetValue(runtime, current, segmentIndex + 1U);
+    }
     if (segment.kind != BindingPathSegmentKind::ObjectProperty) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -528,6 +662,42 @@ Base::Result<void> BindingPathPlan::SetObject(
     std::uint32_t segmentIndex,
     const Value& value) const noexcept {
     const BindingPathSegment& segment = segments_[segmentIndex];
+    if (segment.kind == BindingPathSegmentKind::CollectionIndex) {
+        if (!runtime.Types().IsDerivedFrom(
+                object.RuntimeType(),
+                Collections::ObservableCollection::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Binding collection index source is not an ObservableCollection");
+        }
+        auto& collection =
+            static_cast<Collections::ObservableCollection&>(object);
+        if (segmentIndex + 1U == segments_.Size()) {
+            if (value.Kind() != ValueKind::Object ||
+                value.IsNullObject() || !value.AsObject()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Binding collection index assignment requires an object");
+            }
+            return collection.Replace(
+                segment.collectionIndex,
+                value.AsObject());
+        }
+        Base::Ref<Base::Object> item =
+            collection.GetItem(segment.collectionIndex);
+        if (!item) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "Binding collection index is outside the collection");
+        }
+        Value child = Value::FromObject(
+            item->RuntimeType(), item);
+        Base::Result<bool> changed =
+            SetValue(runtime, child, segmentIndex + 1U, value);
+        return changed
+            ? Base::Result<void>()
+            : Base::Result<void>(changed.GetStatus());
+    }
     if (segment.kind != BindingPathSegmentKind::ObjectProperty) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,

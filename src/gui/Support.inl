@@ -844,6 +844,25 @@ void ClearDoubleKeyFrames(
     return;
 }
 
+void AddPointKeyFrame(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::Animation::PointKeyFrame> retained =
+        Base::Ref<Media::Animation::PointKeyFrame>::TryFromBorrowed(
+            static_cast<Media::Animation::PointKeyFrame&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<Media::Animation::PointAnimationUsingKeyFrames&>(owner)
+            .AddKeyFrame(std::move(retained)));
+}
+
+void ClearPointKeyFrames(Base::Object& owner, void*) noexcept {
+    static_cast<Media::Animation::PointAnimationUsingKeyFrames&>(owner)
+        .ClearKeyFrames();
+}
+
 void AddThicknessKeyFrame(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
@@ -966,6 +985,47 @@ void ClearEventTriggerActions(
     return;
 }
 
+void AddPropertyChangedTriggerAction(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::Animation::TriggerAction> retained =
+        Base::Ref<Media::Animation::TriggerAction>::TryFromBorrowed(
+            static_cast<Media::Animation::TriggerAction&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<Media::Animation::PropertyChangedTrigger&>(owner)
+            .AddAction(std::move(retained)));
+}
+
+void ClearPropertyChangedTriggerActions(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<Media::Animation::PropertyChangedTrigger&>(owner)
+        .ClearActions();
+}
+
+void AddKeyTriggerAction(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::Animation::TriggerAction> retained =
+        Base::Ref<Media::Animation::TriggerAction>::TryFromBorrowed(
+            static_cast<Media::Animation::TriggerAction&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<Media::Animation::KeyTrigger&>(owner)
+            .AddAction(std::move(retained)));
+}
+
+void ClearKeyTriggerActions(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<Media::Animation::KeyTrigger&>(owner).ClearActions();
+}
+
 void AddInteractionBehavior(
     Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {
     if (!value) return;
@@ -975,9 +1035,13 @@ void AddInteractionBehavior(
                Media::Animation::StoryboardCompletedTrigger::StaticTypeId()) {
         static_cast<void>(static_cast<Media::Animation::StoryboardCompletedTrigger&>(owner)
             .AddConditionBehavior(value));
-    } else {
+    } else if (owner.RuntimeType() ==
+               Media::Animation::EventTrigger::StaticTypeId()) {
         static_cast<void>(static_cast<Media::Animation::EventTrigger&>(owner)
             .AddConditionBehavior(value));
+    } else {
+        static_cast<void>(::Aero::Visual::Impl::AddAuthoredBehavior(
+            static_cast<FrameworkElement&>(owner), value));
     }
 }
 void ClearInteractionBehaviors(Base::Object& owner, void*) noexcept {
@@ -987,10 +1051,37 @@ void ClearInteractionBehaviors(Base::Object& owner, void*) noexcept {
                Media::Animation::StoryboardCompletedTrigger::StaticTypeId()) {
         static_cast<Media::Animation::StoryboardCompletedTrigger&>(owner)
             .ClearConditionBehaviors();
-    } else {
+    } else if (owner.RuntimeType() ==
+               Media::Animation::EventTrigger::StaticTypeId()) {
         static_cast<Media::Animation::EventTrigger&>(owner)
             .ClearConditionBehaviors();
+    } else {
+        static_cast<void>(::Aero::Visual::Impl::ClearAuthoredBehaviors(
+            static_cast<FrameworkElement&>(owner)));
     }
+}
+
+void AddStyleBehaviorItem(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    static_cast<void>(
+        static_cast<Interactivity::StyleBehaviorCollection&>(owner)
+            .Add(value));
+}
+void ClearStyleBehaviorItems(Base::Object& owner, void*) noexcept {
+    static_cast<Interactivity::StyleBehaviorCollection&>(owner).Clear();
+}
+void AddStyleTriggerItem(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    static_cast<void>(
+        static_cast<Interactivity::StyleTriggerCollection&>(owner)
+            .Add(value));
+}
+void ClearStyleTriggerItems(Base::Object& owner, void*) noexcept {
+    static_cast<Interactivity::StyleTriggerCollection&>(owner).Clear();
 }
 void AddConditionalComparison(
     Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {

@@ -590,6 +590,16 @@ void ElementTree::RemoveChild(
 Base::Result<void> ElementTree::DetachLogical(
     Visual& parent,
     Visual& child) noexcept {
+    // A complete logical subtree may already have been removed from this
+    // ElementTree while its internal parent/child ownership is still being
+    // dismantled leaf-first. Finish that detached-subtree relationship without
+    // re-entering inheritance or lifecycle services owned by the old tree.
+    if (child.logicalParent_ == &parent &&
+        child.tree_ == nullptr && parent.tree_ == nullptr) {
+        RemoveChild(parent.logicalChildren_, child);
+        child.logicalParent_ = nullptr;
+        return {};
+    }
     Base::Result<void> verified = VerifyMutation(parent, &child);
     if (!verified) return verified.GetStatus();
     if (child.logicalParent_ != &parent || child.tree_ != this) {
@@ -650,6 +660,12 @@ Base::Result<void> ElementTree::AttachVisual(
 Base::Result<void> ElementTree::DetachVisual(
     Visual& parent,
     Visual& child) noexcept {
+    if (child.visualParent_ == &parent &&
+        child.tree_ == nullptr && parent.tree_ == nullptr) {
+        RemoveChild(parent.visualChildren_, child);
+        child.visualParent_ = nullptr;
+        return {};
+    }
     Base::Result<void> verified = VerifyMutation(parent, &child);
     if (!verified) {
         return verified;

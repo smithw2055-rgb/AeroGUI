@@ -18,6 +18,29 @@ bool Contains(Size size, Point point) noexcept {
         point.x < size.width && point.y < size.height;
 }
 
+bool HasSelfHitSurface(UIElement& element) noexcept {
+    const Meta::DependencyPropertyRegistry& properties =
+        element.PropertyRegistry();
+    // Panel is a Controls-layer type, while hit testing belongs to the GUI
+    // kernel. Detect the Panel contract through its inherited IsItemsHost DP
+    // instead of introducing a forbidden Core -> Controls dependency.
+    if (properties.Find(
+            element.RuntimeType(),
+            Base::StringView("IsItemsHost")) == nullptr) {
+        return true;
+    }
+    const Meta::DependencyProperty* background =
+        properties.Find(
+            element.RuntimeType(),
+            Base::StringView("Background"));
+    if (background == nullptr) return false;
+    const Meta::PropertyValue value =
+        element.GetValue(background->Handle());
+    return value.Kind() == Meta::ValueKind::Object &&
+        !value.IsNullObject() &&
+        static_cast<bool>(value.AsObject());
+}
+
 bool IsVisualDescendantOrSelf(
     const Visual& root, const Visual& target) noexcept {
     const Visual* current = &target;
@@ -77,6 +100,57 @@ Base::Result<void> Visual::Impl::SetKeyboardFocused(UIElement& element, bool val
 Base::Result<void> Visual::Impl::SetKeyboardFocusWithin(UIElement& element, bool value) noexcept {
     element.SetKeyboardFocusWithinState(value);
     return {};
+}
+
+Base::Point DragEventArgs::GetPosition(
+    const UIElement& relativeTo) const noexcept {
+    if (root_ == nullptr) return MouseEventArgs::GetPosition();
+    GuiPrivate::Detail::InputRouter* input =
+        Visual::Impl::InputRouterFor(relativeTo);
+    if (input == nullptr) return MouseEventArgs::GetPosition();
+    Base::Result<Input::HitTestResult> mapped =
+        input->RootToLocal(
+            *root_,
+            const_cast<UIElement&>(relativeTo),
+            rootPosition_);
+    return mapped ? mapped.Value().position
+                  : MouseEventArgs::GetPosition();
+}
+
+bool UIElement::GetIsDragging() const noexcept {
+    GuiPrivate::Detail::InputRouter* input =
+        Visual::Impl::InputRouterFor(*this);
+    return input != nullptr && input->IsDragSource(*this);
+}
+
+Base::Result<void> UIElement::BeginDrag(
+    std::uint32_t pointerId,
+    const Value& data,
+    Input::DragDropEffects allowedEffects) noexcept {
+    GuiPrivate::Detail::InputRouter* input =
+        Visual::Impl::InputRouterFor(*this);
+    if (input == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "UIElement BeginDrag requires a mounted View");
+    }
+    return input->BeginDrag(
+        *this, pointerId, data, allowedEffects);
+}
+
+Base::Result<bool> UIElement::CancelDrag() noexcept {
+    GuiPrivate::Detail::InputRouter* input =
+        Visual::Impl::InputRouterFor(*this);
+    if (input == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "UIElement CancelDrag requires a mounted View");
+    }
+    return input->CancelDrag();
+}
+
+void UIElement::SetAllowDrop(bool value) noexcept {
+    SetValue(AllowDropProperty, value);
 }
 
 } // namespace Aero
@@ -293,7 +367,7 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
         if (!nested) return nested.GetStatus();
         if (nested.Value().HasTarget()) return nested;
     }
-    return contains
+    return contains && HasSelfHitSurface(element)
         ? HitTestResult{&element, position}
         : HitTestResult{};
 }
@@ -723,17 +797,20 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
             ? MouseButtonState::Pressed : MouseButtonState::Released);
         raised = events_->RaiseEvent(*result.hit.target, previewEvent, &args);
         if (raised) raised = events_->RaiseEvent(*result.hit.target, event, &args);
-        if (raised && input.action == PointerAction::Down &&
-            input.changedButton == MouseButton::Left) {
+        if (raised && input.changedButton == MouseButton::Left) {
+            const RoutedEventHandle leftPreview =
+                input.action == PointerAction::Down
+                    ? UIElement::PreviewMouseLeftButtonDownEvent
+                    : UIElement::PreviewMouseLeftButtonUpEvent;
+            const RoutedEventHandle leftBubble =
+                input.action == PointerAction::Down
+                    ? UIElement::MouseLeftButtonDownEvent
+                    : UIElement::MouseLeftButtonUpEvent;
             raised = events_->RaiseEvent(
-                *result.hit.target,
-                UIElement::PreviewMouseLeftButtonDownEvent,
-                &args);
+                *result.hit.target, leftPreview, &args);
             if (raised) {
                 raised = events_->RaiseEvent(
-                    *result.hit.target,
-                    UIElement::MouseLeftButtonDownEvent,
-                    &args);
+                    *result.hit.target, leftBubble, &args);
             }
         }
     }
@@ -754,6 +831,283 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
         }
     }
     return result;
+}
+
+DragDropState::DragDropState(
+    ElementTree& tree,
+    EventRouter& events,
+    HitTestState& hitTests) noexcept
+    : tree_(&tree), events_(&events), hitTests_(&hitTests) {}
+
+void DragDropState::SetRoot(Visual* root) noexcept {
+    if (root_ == root) return;
+    if (active_) {
+        static_cast<void>(Cancel());
+    }
+    root_ = root;
+}
+
+UIElement* DragDropState::Resolve(
+    VisualHandle handle) const noexcept {
+    Visual* visual = tree_ != nullptr
+        ? tree_->ResolveHandle(handle)
+        : nullptr;
+    UIElement* element = visual != nullptr
+        ? visual->AsUIElement()
+        : nullptr;
+    return element != nullptr && element->GetIsLoaded()
+        ? element
+        : nullptr;
+}
+
+bool DragDropState::IsSource(
+    const UIElement& element) const noexcept {
+    if (!active_) return false;
+    UIElement* source = Resolve(source_);
+    return source == &element;
+}
+
+UIElement* DragDropState::FindDropTarget(
+    UIElement* hit) const noexcept {
+    Visual* current = hit;
+    while (current != nullptr) {
+        UIElement* element = current->AsUIElement();
+        if (element != nullptr &&
+            element->GetAllowDrop() &&
+            element->GetIsEnabled() &&
+            element->GetIsVisible() &&
+            element->GetIsHitTestVisible()) {
+            return element;
+        }
+        if (current == root_) break;
+        current = current->GetLogicalParent() != nullptr
+            ? current->GetLogicalParent()
+            : current->GetVisualParent();
+    }
+    return nullptr;
+}
+
+Base::Result<void> DragDropState::Begin(
+    UIElement& source,
+    std::uint32_t pointerId,
+    const Meta::Value& data,
+    DragDropEffects allowedEffects) noexcept {
+    if (active_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "A drag operation is already active");
+    }
+    if (root_ == nullptr || tree_ == nullptr ||
+        !source.GetIsLoaded() || data.IsUnset() ||
+        allowedEffects == DragDropEffects::None) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Drag operation requires a loaded source, data, and allowed effects");
+    }
+    Base::Result<VisualHandle> handle =
+        tree_->GetHandle(source);
+    if (!handle) return handle.GetStatus();
+    source_ = handle.Value();
+    target_ = {};
+    data_ = data;
+    allowedEffects_ = allowedEffects;
+    effects_ = allowedEffects;
+    pointerId_ = pointerId;
+    active_ = true;
+    return RaiseFeedback();
+}
+
+Base::Result<void> DragDropState::RaiseDragPair(
+    UIElement& target,
+    RoutedEventHandle previewEvent,
+    RoutedEventHandle bubbleEvent,
+    Base::Point rootPosition,
+    DragDropEffects& effects) noexcept {
+    if (root_ == nullptr || hitTests_ == nullptr ||
+        events_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Drag event services are unavailable");
+    }
+    Base::Result<HitTestResult> local =
+        hitTests_->RootToLocal(
+            *root_, target, rootPosition);
+    if (!local) return local.GetStatus();
+    DragEventArgs args;
+    args.SetPointerId(pointerId_);
+    args.SetPosition(local.Value().position);
+    args.SetRootPosition(
+        root_->AsUIElement(), rootPosition);
+    args.SetData(data_);
+    args.SetAllowedEffects(allowedEffects_);
+    args.SetEffects(effects);
+    Base::Result<void> raised =
+        events_->RaiseEvent(target, previewEvent, &args);
+    if (raised) {
+        raised = events_->RaiseEvent(
+            target, bubbleEvent, &args);
+    }
+    if (!raised) return raised.GetStatus();
+    effects = args.GetEffects() & allowedEffects_;
+    return {};
+}
+
+Base::Result<void> DragDropState::RaiseFeedback() noexcept {
+    UIElement* source = Resolve(source_);
+    if (source == nullptr || events_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Drag source is no longer available");
+    }
+    GiveFeedbackEventArgs args;
+    args.SetEffects(effects_);
+    return events_->RaiseEvent(
+        *source, UIElement::GiveFeedbackEvent, &args);
+}
+
+Base::Result<void> DragDropState::UpdateTarget(
+    UIElement* next,
+    Base::Point rootPosition) noexcept {
+    UIElement* previous = Resolve(target_);
+    if (previous == next) return {};
+    if (previous != nullptr) {
+        DragDropEffects leaveEffects = effects_;
+        Base::Result<void> left = RaiseDragPair(
+            *previous,
+            UIElement::PreviewDragLeaveEvent,
+            UIElement::DragLeaveEvent,
+            rootPosition,
+            leaveEffects);
+        if (!left) return left.GetStatus();
+    }
+    target_ = {};
+    effects_ = next != nullptr
+        ? allowedEffects_
+        : DragDropEffects::None;
+    if (next == nullptr) return {};
+    Base::Result<VisualHandle> handle =
+        tree_->GetHandle(*next);
+    if (!handle) return handle.GetStatus();
+    target_ = handle.Value();
+    DragDropEffects enterEffects = allowedEffects_;
+    Base::Result<void> entered = RaiseDragPair(
+        *next,
+        UIElement::PreviewDragEnterEvent,
+        UIElement::DragEnterEvent,
+        rootPosition,
+        enterEffects);
+    if (!entered) return entered.GetStatus();
+    effects_ = enterEffects;
+    return {};
+}
+
+Base::Result<void> DragDropState::Complete(
+    DragDropEffects effects,
+    bool canceled) noexcept {
+    UIElement* source = Resolve(source_);
+    if (source == nullptr || events_ == nullptr) {
+        Clear();
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Drag source was removed before completion");
+    }
+    DragCompletedEventArgs args;
+    args.SetData(data_);
+    args.SetEffects(effects);
+    args.SetCanceled(canceled);
+    Base::Result<void> raised = events_->RaiseEvent(
+        *source, UIElement::DragCompletedEvent, &args);
+    Clear();
+    return raised;
+}
+
+void DragDropState::Clear() noexcept {
+    source_ = {};
+    target_ = {};
+    data_ = {};
+    allowedEffects_ = DragDropEffects::None;
+    effects_ = DragDropEffects::None;
+    pointerId_ = 0U;
+    active_ = false;
+}
+
+Base::Result<bool> DragDropState::Cancel() noexcept {
+    if (!active_) return false;
+    UIElement* target = Resolve(target_);
+    if (target != nullptr) {
+        DragDropEffects leaveEffects = DragDropEffects::None;
+        Base::Result<void> left = RaiseDragPair(
+            *target,
+            UIElement::PreviewDragLeaveEvent,
+            UIElement::DragLeaveEvent,
+            {},
+            leaveEffects);
+        if (!left) return left.GetStatus();
+    }
+    Base::Result<void> completed = Complete(
+        DragDropEffects::None, true);
+    return completed
+        ? Base::Result<bool>(true)
+        : Base::Result<bool>(completed.GetStatus());
+}
+
+Base::Result<void> DragDropState::DispatchPointer(
+    const PointerInput& input) noexcept {
+    if (!active_ || input.pointerId != pointerId_ ||
+        (input.action != PointerAction::Move &&
+         input.action != PointerAction::Up)) {
+        return {};
+    }
+    if (root_ == nullptr || hitTests_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Drag operation has no input root");
+    }
+    Base::Result<HitTestResult> hit =
+        hitTests_->HitTest(*root_, input.position);
+    if (!hit) return hit.GetStatus();
+    UIElement* dropTarget = FindDropTarget(
+        hit.Value().target);
+    Base::Result<void> changed =
+        UpdateTarget(dropTarget, input.position);
+    if (!changed) return changed.GetStatus();
+
+    if (input.action == PointerAction::Move) {
+        if (dropTarget != nullptr) {
+            DragDropEffects overEffects = effects_ == DragDropEffects::None
+                ? allowedEffects_
+                : effects_;
+            Base::Result<void> over = RaiseDragPair(
+                *dropTarget,
+                UIElement::PreviewDragOverEvent,
+                UIElement::DragOverEvent,
+                input.position,
+                overEffects);
+            if (!over) return over.GetStatus();
+            effects_ = overEffects;
+        } else {
+            effects_ = DragDropEffects::None;
+        }
+        return RaiseFeedback();
+    }
+
+    DragDropEffects completedEffects = DragDropEffects::None;
+    if (dropTarget != nullptr) {
+        completedEffects = effects_ == DragDropEffects::None
+            ? allowedEffects_
+            : effects_;
+        Base::Result<void> dropped = RaiseDragPair(
+            *dropTarget,
+            UIElement::PreviewDropEvent,
+            UIElement::DropEvent,
+            input.position,
+            completedEffects);
+        if (!dropped) return dropped.GetStatus();
+    }
+    effects_ = completedEffects;
+    Base::Result<void> feedback = RaiseFeedback();
+    if (!feedback) return feedback.GetStatus();
+    return Complete(completedEffects, false);
 }
 
 FocusState::FocusState(

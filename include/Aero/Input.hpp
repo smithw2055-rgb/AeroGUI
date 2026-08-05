@@ -38,6 +38,33 @@ enum class MouseButton : std::uint8_t {
 };
 enum class MouseButtonState : std::uint8_t { Released = 0U, Pressed };
 
+enum class DragDropEffects : std::uint8_t {
+    None = 0U,
+    Copy = 1U << 0U,
+    Move = 1U << 1U,
+    Link = 1U << 2U,
+    All = Copy | Move | Link
+};
+
+constexpr DragDropEffects operator|(
+    DragDropEffects left, DragDropEffects right) noexcept {
+    return static_cast<DragDropEffects>(
+        static_cast<std::uint8_t>(left) |
+        static_cast<std::uint8_t>(right));
+}
+
+constexpr DragDropEffects operator&(
+    DragDropEffects left, DragDropEffects right) noexcept {
+    return static_cast<DragDropEffects>(
+        static_cast<std::uint8_t>(left) &
+        static_cast<std::uint8_t>(right));
+}
+
+constexpr bool HasDragDropEffect(
+    DragDropEffects value, DragDropEffects effect) noexcept {
+    return (value & effect) != DragDropEffects::None;
+}
+
 struct HitTestResult {
     Aero::UIElement* target = nullptr;
     Base::Point position;
@@ -117,6 +144,7 @@ struct TextInputDispatchResult {
 } // namespace Aero::Input
 
 AERO_DECLARE_TYPE_ENUM(Aero::Input::InputScope)
+AERO_DECLARE_TYPE_ENUM(Aero::Input::DragDropEffects)
 
 #include <Aero/Events/RoutedEvent.hpp>
 

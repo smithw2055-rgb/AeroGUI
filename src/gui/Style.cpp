@@ -747,7 +747,8 @@ Base::Result<void> Style::SealRuntime(
     }
     program_->ClearAuthored();
     authoredSetterObjects_.Clear();
-    authoredTriggerObjects_.Clear();
+    // Retain immutable EventTrigger declarations for per-element routed-event
+    // subscriptions. Property/DataTrigger plans are compiled into program_.
     basedOn_ = nullptr;
     basedOnOwner_.Reset();
     sealed_ = true;

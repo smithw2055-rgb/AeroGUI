@@ -1,14 +1,14 @@
 #pragma once
 
+#include <Aero/Triggers/TriggerBase.hpp>
 #include <Aero/Triggers/TriggerAction.hpp>
 
 namespace Aero::Media::Animation {
 
-class AERO_API EventTrigger : public Base::Object {
-    AERO_DECLARE_TYPE(EventTrigger, Base::Object)
+class AERO_API EventTrigger : public ::Aero::TriggerBase {
+    AERO_DECLARE_TYPE(EventTrigger, ::Aero::TriggerBase)
 public:
     EventTrigger() noexcept : EventTrigger(StaticTypeId()) {}
-    Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
     Base::StringView GetRoutedEvent() const noexcept { return routedEvent_.View(); }
     Base::StringView GetEventName() const noexcept { return routedEvent_.View(); }
     Base::StringView GetSourceName() const noexcept { return sourceName_.View(); }
@@ -29,10 +29,10 @@ public:
     }
 
 protected:
-    explicit EventTrigger(Meta::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    explicit EventTrigger(Meta::TypeId runtimeType) noexcept
+        : ::Aero::TriggerBase(runtimeType) {}
 
 private:
-    Meta::TypeId runtimeType_ = StaticTypeId();
     Base::String routedEvent_;
     Base::String sourceName_;
     Base::Vector<Base::Ref<TriggerAction>> actions_;

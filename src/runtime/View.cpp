@@ -1,4 +1,5 @@
 #include <Aero/View.hpp>
+#include <Aero/Triggers/Behavior.hpp>
 #include <Aero/Base/Hash.hpp>
 #include "runtime/GuiData.hpp"
 #include <Aero/FrameworkElement.hpp>
@@ -38,6 +39,7 @@
 #include "render/RenderTree.hpp"
 
 #include <cmath>
+#include <cstdio>
 #include <limits>
 #include <new>
 #include <utility>
@@ -716,6 +718,75 @@ struct View::Impl {
     Base::Vector<StyleDataTriggerSubscription>
         styleDataTriggerSubscriptions;
 
+    struct AttachedBehaviorInstance {
+        Aero::FrameworkElement* target = nullptr;
+        const Interactivity::Behavior* prototype = nullptr;
+        Base::Ref<Interactivity::Behavior> instance;
+        Base::Vector<Data::BindingHandle> bindings;
+    };
+    Base::Vector<AttachedBehaviorInstance>
+        attachedBehaviorInstances;
+
+    struct PropertyChangedTriggerState {
+        View::Impl* runtime = nullptr;
+        MediaAnimation::PropertyChangedTrigger* trigger = nullptr;
+        Aero::FrameworkElement* owner = nullptr;
+        const Aero::NameScope* names = nullptr;
+
+        void Invoke(
+            ::Aero::DependencyObject&,
+            const Meta::DependencyPropertyChangedEventArgs&) noexcept;
+    };
+    struct PropertyChangedTriggerSubscription {
+        Aero::FrameworkElement* owner = nullptr;
+        ::Aero::DependencyObject* source = nullptr;
+        Meta::DependencyPropertyHandle property;
+        Meta::DependencyPropertyChangedEventHandler handler;
+        PropertyChangedTriggerState* context = nullptr;
+    };
+    Base::Vector<PropertyChangedTriggerSubscription>
+        propertyChangedTriggerSubscriptions;
+
+    struct InteractionDataTriggerState {
+        View::Impl* runtime = nullptr;
+        Aero::DataTrigger* trigger = nullptr;
+        Aero::FrameworkElement* owner = nullptr;
+        const Aero::NameScope* names = nullptr;
+        bool active = false;
+
+        void Invoke(
+            ::Aero::DependencyObject&,
+            const Meta::DependencyPropertyChangedEventArgs&) noexcept;
+    };
+    struct InteractionDataTriggerSubscription {
+        Aero::FrameworkElement* owner = nullptr;
+        ::Aero::DependencyObject* source = nullptr;
+        Meta::DependencyPropertyHandle property;
+        Meta::DependencyPropertyChangedEventHandler handler;
+        InteractionDataTriggerState* context = nullptr;
+    };
+    Base::Vector<InteractionDataTriggerSubscription>
+        interactionDataTriggerSubscriptions;
+
+    struct KeyTriggerState {
+        View::Impl* runtime = nullptr;
+        MediaAnimation::KeyTrigger* trigger = nullptr;
+        Aero::FrameworkElement* owner = nullptr;
+        const Aero::NameScope* names = nullptr;
+
+        void Invoke(
+            Base::Object*,
+            Aero::KeyEventArgs& args) noexcept;
+    };
+    struct KeyTriggerSubscription {
+        Aero::FrameworkElement* owner = nullptr;
+        Aero::UIElement* source = nullptr;
+        Aero::KeyEventHandler handler;
+        KeyTriggerState* context = nullptr;
+    };
+    Base::Vector<KeyTriggerSubscription>
+        keyTriggerSubscriptions;
+
     struct DataTemplateTriggerHandlerState {
         View::Impl* runtime = nullptr;
         Base::Ref<
@@ -745,6 +816,7 @@ struct View::Impl {
         itemGenerators;
     Base::Vector<Aero::VisualHandle>
         pendingGeneratedVisuals;
+    bool deferGeneratedActivation = false;
     Base::Vector<Aero::FrameworkElement*>
         renderOverlays;
     Base::Vector<Aero::UIElement*>
@@ -904,13 +976,79 @@ struct View::Impl {
                 "Gui context is unavailable during root detach");
         }
 
+        const auto reconcileAttachment =
+            [this](Aero::Markup::Detail::VisualEdge& edge) noexcept {
+                auto& state = edge.state;
+                if (state.child == nullptr) {
+                    state.logicalAttached = false;
+                    state.visualAttached = false;
+                    state.layoutAttached = false;
+                    state.renderAttached = false;
+                    return;
+                }
+                state.logicalAttached =
+                    state.logicalParent != nullptr &&
+                    state.child->GetLogicalParent() == state.logicalParent;
+                state.visualAttached =
+                    state.visualParent != nullptr &&
+                    state.child->GetVisualParent() == state.visualParent;
+
+                Aero::UIElement* childElement =
+                    state.child->AsUIElement();
+                Aero::UIElement* parentElement =
+                    state.visualParent != nullptr
+                    ? state.visualParent->AsUIElement()
+                    : nullptr;
+                if (childElement != nullptr &&
+                    Aero::UIElement::Impl::LayoutAttached(*childElement) &&
+                    Aero::UIElement::Impl::LayoutManager(*childElement) == nullptr) {
+                    // The logical subtree has already left its ElementTree, so
+                    // no LayoutEngine remains to consume this stale edge bit.
+                    Aero::UIElement::Impl::LayoutAttached(*childElement) = false;
+                    Aero::UIElement::Impl::MeasureQueued(*childElement) = false;
+                    Aero::UIElement::Impl::ArrangeQueued(*childElement) = false;
+                }
+                state.layoutAttached =
+                    layout != nullptr && childElement != nullptr &&
+                    parentElement != nullptr &&
+                    Aero::UIElement::Impl::LayoutAttached(*childElement) &&
+                    Aero::UIElement::Impl::LayoutManager(*childElement) == layout &&
+                    childElement->LayoutParent() == parentElement;
+
+                if (Aero::GuiPrivate::Detail::ElementPrivate::RenderAttached(
+                        *state.child) &&
+                    Aero::GuiPrivate::Detail::ElementPrivate::RenderRuntime(
+                        *state.child) == nullptr) {
+                    Aero::GuiPrivate::Detail::ElementPrivate::RenderAttached(
+                        *state.child) = false;
+                    Aero::GuiPrivate::Detail::ElementPrivate::RenderQueued(
+                        *state.child) = false;
+                    Aero::GuiPrivate::Detail::ElementPrivate::Rendering(
+                        *state.child) = false;
+                    Aero::GuiPrivate::Detail::ElementPrivate::NodeId(
+                        *state.child) = Base::InvalidRenderNodeId;
+                    Aero::GuiPrivate::Detail::ElementPrivate::RenderValid(
+                        *state.child) = false;
+                }
+                state.renderAttached =
+                    renderer != nullptr &&
+                    Aero::GuiPrivate::Detail::ElementPrivate::RenderAttached(
+                        *state.child) &&
+                    Aero::GuiPrivate::Detail::ElementPrivate::RenderRuntime(
+                        *state.child) == renderer &&
+                    Aero::GuiPrivate::Detail::ElementPrivate::RenderParent(
+                        *state.child) == state.visualParent;
+            };
+
         std::uint32_t remaining = 0U;
-        for (const Aero::Markup::Detail::VisualEdge& edge : edges) {
+        for (Aero::Markup::Detail::VisualEdge& edge : edges) {
+            reconcileAttachment(edge);
             if (edge.state.IsAttached()) ++remaining;
         }
         while (remaining > 0U) {
             bool progressed = false;
             for (Aero::Markup::Detail::VisualEdge& edge : edges) {
+                reconcileAttachment(edge);
                 if (!edge.state.IsAttached()) continue;
                 bool hasAttachedChild = false;
                 for (const Aero::Markup::Detail::VisualEdge& candidate : edges) {
@@ -1984,7 +2122,9 @@ struct View::Impl {
                 (void)::Aero::Controls::Detail::TemplatePrivate::Clear(
                     *visualStates, control);
             }
-            if (templates != nullptr) (void)templates->Clear(control);
+            if (templates != nullptr) {
+                (void)templates->Clear(control);
+            }
         }
         for (Aero::Visual* node : declarationNodes) {
             if (node != nullptr) (void)values->DetachObject(*node);
@@ -2084,8 +2224,9 @@ struct View::Impl {
                 &root, {});
             return {};
         }
-        if (runtime->bindings != nullptr &&
-            runtime->bindings->IsFlushing()) {
+        if (runtime->deferGeneratedActivation ||
+            (runtime->bindings != nullptr &&
+             runtime->bindings->IsFlushing())) {
             Base::Result<Aero::VisualHandle>
                 handle =
                     runtime->tree->GetHandle(root);
@@ -2100,6 +2241,12 @@ struct View::Impl {
             runtime->DetachUi(
                 &root, {});
             return applied.GetStatus();
+        }
+        Base::Result<std::uint32_t> rebound =
+            runtime->bindings->Flush();
+        if (!rebound) {
+            runtime->DetachUi(&root, {});
+            return rebound.GetStatus();
         }
         Base::Result<std::uint32_t> started =
             runtime->StartLoadedAnimations(&root);
@@ -2134,6 +2281,11 @@ struct View::Impl {
                     ApplyUi(
                         *subtreeRoot);
                 if (!applied) return applied.GetStatus();
+                Base::Result<std::uint32_t> reboundBeforeTriggers =
+                    bindings->Flush();
+                if (!reboundBeforeTriggers) {
+                    return reboundBeforeTriggers.GetStatus();
+                }
                 Base::Result<std::uint32_t> started =
                     StartLoadedAnimations(subtreeRoot);
                 if (!started) return started.GetStatus();
@@ -2305,6 +2457,68 @@ struct View::Impl {
     ResolveAnimationProperty(
         ::Aero::DependencyObject& target,
         Base::StringView authoredPath) noexcept {
+        const auto findDependencyProperty =
+            [this](::Aero::DependencyObject& object,
+                   Base::StringView authored) noexcept
+            -> const Meta::DependencyProperty* {
+            while (!authored.Empty() &&
+                   (authored[0] == ' ' || authored[0] == '\t' ||
+                    authored[0] == '(')) {
+                authored = authored.Substr(
+                    1U, authored.SizeBytes() - 1U);
+            }
+            while (!authored.Empty() &&
+                   (authored[authored.SizeBytes() - 1U] == ' ' ||
+                    authored[authored.SizeBytes() - 1U] == '\t' ||
+                    authored[authored.SizeBytes() - 1U] == ')')) {
+                authored = authored.Substr(
+                    0U, authored.SizeBytes() - 1U);
+            }
+            std::uint32_t separator = UINT32_MAX;
+            for (std::uint32_t index = 0U;
+                 index < authored.SizeBytes(); ++index) {
+                if (authored[index] == '.') separator = index;
+            }
+            auto& properties =
+                ::Aero::GuiPrivate::Detail::MetadataPrivate::
+                    DependencyProperties(*metadata);
+            if (separator == UINT32_MAX) {
+                return properties.Find(
+                    object.RuntimeType(), authored);
+            }
+            Base::StringView ownerName = authored.Substr(0U, separator);
+            const Base::StringView propertyName = authored.Substr(
+                separator + 1U,
+                authored.SizeBytes() - separator - 1U);
+            // WPF owner-qualified paths may name a different owner of the
+            // same dependency property (for example TextElement.Foreground
+            // targeting a TextBlock). Prefer the property exposed by the
+            // concrete target before falling back to a true attached owner.
+            if (const Meta::DependencyProperty* targetProperty =
+                    properties.Find(object.RuntimeType(), propertyName)) {
+                return targetProperty;
+            }
+            for (std::uint32_t index = 0U;
+                 index < ownerName.SizeBytes(); ++index) {
+                if (ownerName[index] == ':') {
+                    ownerName = ownerName.Substr(
+                        index + 1U,
+                        ownerName.SizeBytes() - index - 1U);
+                }
+            }
+            for (const Meta::TypeInfo& type : metadata->Types().Types()) {
+                if (type.Name() != ownerName) continue;
+                const Meta::DependencyProperty* property =
+                    properties.Find(type.Id(), propertyName);
+                if (property != nullptr &&
+                    (property->IsAttached() ||
+                     metadata->Types().IsDerivedFrom(
+                         object.RuntimeType(), type.Id()))) {
+                    return property;
+                }
+            }
+            return properties.Find(object.RuntimeType(), propertyName);
+        };
         Base::StringView path = authoredPath;
         while (!path.Empty() &&
                (path[0] == ' ' || path[0] == '\t')) {
@@ -2625,22 +2839,6 @@ struct View::Impl {
                     path.Substr(
                         1U,
                         separator - 1U);
-                std::uint32_t ownerDot =
-                    UINT32_MAX;
-                for (std::uint32_t index = 0U;
-                     index < ownerPath.SizeBytes();
-                     ++index) {
-                    if (ownerPath[index] == '.') {
-                        ownerDot = index;
-                    }
-                }
-                const Base::StringView ownerProperty =
-                    ownerDot == UINT32_MAX
-                    ? ownerPath
-                    : ownerPath.Substr(
-                          ownerDot + 1U,
-                          ownerPath.SizeBytes() -
-                              ownerDot - 1U);
                 const std::uint32_t terminalStart =
                     separator + 3U;
                 Base::StringView terminalPath =
@@ -2650,13 +2848,8 @@ struct View::Impl {
                             terminalStart - 1U);
                 const Meta::DependencyProperty*
                     ownerDependency =
-                        ::Aero::GuiPrivate::Detail::MetadataPrivate::
-                                DependencyProperties(
-                                    *metadata)
-                                    .Find(
-                                        target.
-                                            RuntimeType(),
-                                        ownerProperty);
+                        findDependencyProperty(
+                            target, ownerPath);
                 if (ownerDependency == nullptr) {
                     return Base::Status::Failure(
                         Base::ErrorCode::NotFound,
@@ -2674,9 +2867,25 @@ struct View::Impl {
                             AsObject()->RuntimeType(),
                         ::Aero::DependencyObject::
                             StaticTypeId())) {
+                    thread_local char message[384];
+                    const Meta::TypeInfo* targetType =
+                        metadata->Types().FindType(
+                            target.RuntimeType());
+                    const Base::StringView targetTypeName =
+                        targetType != nullptr
+                        ? targetType->Name()
+                        : Base::StringView("<unknown>");
+                    std::snprintf(
+                        message,
+                        sizeof(message),
+                        "Storyboard compound object property '%.*s' on '%.*s' has no DependencyObject value",
+                        static_cast<int>(ownerPath.SizeBytes()),
+                        ownerPath.Data(),
+                        static_cast<int>(targetTypeName.SizeBytes()),
+                        targetTypeName.Data());
                     return Base::Status::Failure(
                         Base::ErrorCode::NotFound,
-                        "Storyboard compound object property has no DependencyObject value");
+                        message);
                 }
                 propertyTarget =
                     static_cast<
@@ -3282,6 +3491,23 @@ struct View::Impl {
         Base::Vector<Aero::Media::Detail::Animation::DiscreteAnimationKeyFrame>
             frames(allocator);
         if (type ==
+            MediaAnimation::PointAnimationUsingKeyFrames::StaticTypeId()) {
+            auto& animation = static_cast<
+                MediaAnimation::PointAnimationUsingKeyFrames&>(timeline);
+            for (const Base::Ref<MediaAnimation::PointKeyFrame>& frame :
+                 animation.GetKeyFrames()) {
+                if (!frame) continue;
+                Aero::Media::Detail::Animation::DiscreteAnimationKeyFrame runtime;
+                runtime.keyTimeMicroseconds = frame->GetKeyTimeMicroseconds();
+                Base::Result<Meta::PropertyValue> encoded =
+                    Meta::ValueCodec<Base::Point>::Encode(frame->GetValue());
+                if (!encoded) return encoded.GetStatus();
+                runtime.value = std::move(encoded).Value();
+                Base::Result<void> appended =
+                    frames.PushBack(std::move(runtime));
+                if (!appended) return appended.GetStatus();
+            }
+        } else         if (type ==
             MediaAnimation::ThicknessAnimationUsingKeyFrames::
                 StaticTypeId()) {
             auto& animation = static_cast<
@@ -3339,6 +3565,17 @@ struct View::Impl {
                 runtime.keyTimeMicroseconds =
                     frame->GetKeyTimeMicroseconds();
                 runtime.value = frame->GetValue();
+                const Meta::DependencyProperty* targetProperty =
+                    propertyTarget.PropertyRegistry().Find(
+                        propertyHandle);
+                if (targetProperty != nullptr &&
+                    runtime.value.IsNullObject() &&
+                    runtime.value.Type() !=
+                        targetProperty->ValueType()) {
+                    runtime.value =
+                        Meta::PropertyValue::NullObject(
+                            targetProperty->ValueType());
+                }
                 Base::Result<void> appended =
                     frames.PushBack(std::move(runtime));
                 if (!appended) return appended.GetStatus();
@@ -3418,15 +3655,67 @@ struct View::Impl {
         return actual == expected;
     }
 
+    Base::Object* ResolveDataTemplateConditionSource(
+        Aero::Runtime::Detail::DataTemplateTriggerState& context,
+        Aero::Runtime::Detail::DataTemplateTriggerCondition& condition,
+        Base::StringView& path) noexcept {
+        path = condition.binding
+            ? condition.binding->GetPath().GetPath()
+            : Base::StringView{};
+        Base::Object* source = nullptr;
+        if (condition.binding &&
+            !condition.binding->GetElementName().Empty()) {
+            source = context.FindName(
+                condition.binding->GetElementName());
+            if (source == nullptr) {
+                source = loadedDocument.names.Find(
+                    condition.binding->GetElementName());
+            }
+        } else {
+            Base::Ref<Base::Object> retainedSource =
+                condition.source.Lock();
+            source = retainedSource.Get();
+        }
+
+        if (condition.usesDataContext && source != nullptr &&
+            metadata != nullptr &&
+            metadata->Types().IsDerivedFrom(
+                source->RuntimeType(), FrameworkElement::StaticTypeId())) {
+            Meta::Value dataContext =
+                static_cast<FrameworkElement*>(source)->GetDataContext();
+            source = dataContext.Kind() == Meta::ValueKind::Object &&
+                    !dataContext.IsNullObject() && dataContext.AsObject()
+                ? dataContext.AsObject().Get()
+                : nullptr;
+        }
+
+        constexpr Base::StringView TemplatedParentPrefix(
+            "TemplatedParent.");
+        if (source != nullptr &&
+            path.SizeBytes() > TemplatedParentPrefix.SizeBytes() &&
+            path.Substr(0U, TemplatedParentPrefix.SizeBytes()) ==
+                TemplatedParentPrefix &&
+            metadata != nullptr &&
+            metadata->Types().IsDerivedFrom(
+                source->RuntimeType(), FrameworkElement::StaticTypeId())) {
+            source = static_cast<FrameworkElement*>(source)->GetTemplatedParent();
+            path = path.Substr(
+                TemplatedParentPrefix.SizeBytes(),
+                path.SizeBytes() - TemplatedParentPrefix.SizeBytes());
+        }
+        return source;
+    }
+
     Base::Result<bool> EvaluateDataTemplateCondition(
         Aero::Runtime::Detail::DataTemplateTriggerState& context,
         Aero::Runtime::Detail::DataTemplateTriggerCondition& condition) noexcept {
         Meta::PropertyValue current;
-        if (condition.dependencySource &&
+        Base::Ref<DependencyObject> dependencySource =
+            condition.dependencySource.Lock();
+        if (dependencySource &&
             condition.property.IsValid()) {
             Base::Result<Meta::PropertyValue> value =
-                condition.dependencySource->GetValue(
-                    condition.property);
+                dependencySource->GetValue(condition.property);
             if (!value) return value.GetStatus();
             current = std::move(value).Value();
         } else {
@@ -3435,16 +3724,10 @@ struct View::Impl {
                     Base::ErrorCode::InvalidState,
                     "DataTemplate DataTrigger Binding is unavailable");
             }
+            Base::StringView path;
             Base::Object* source =
-                condition.binding->GetElementName().Empty()
-                ? condition.source.Get()
-                : context.FindName(
-                      condition.binding->GetElementName());
-            if (source == nullptr &&
-                !condition.binding->GetElementName().Empty()) {
-                source = loadedDocument.names.Find(
-                    condition.binding->GetElementName());
-            }
+                ResolveDataTemplateConditionSource(
+                    context, condition, path);
             if (source == nullptr) {
                 return false;
             }
@@ -3452,7 +3735,7 @@ struct View::Impl {
                 Meta::BindingPathPlan::Compile(
                     *metadata,
                     source->RuntimeType(),
-                    condition.binding->GetPath().GetPath());
+                    path);
             if (!plan) return plan.GetStatus();
             Base::Result<Meta::PropertyValue> value =
                 plan.Value().Get(*metadata, *source);
@@ -3535,10 +3818,12 @@ struct View::Impl {
         if (active) {
             for (const Aero::Runtime::Detail::DataTemplateTriggerSetter& setter :
                  trigger.setters) {
-                if (!setter.target) continue;
+                Base::Ref<DependencyObject> target =
+                    setter.target.Lock();
+                if (!target) continue;
                 Base::Result<void> applied =
                     values->SetProviderContribution(
-                        *setter.target,
+                        *target,
                         setter.property,
                         setter.token,
                         setter.value);
@@ -3549,10 +3834,12 @@ struct View::Impl {
         } else {
             for (const Aero::Runtime::Detail::DataTemplateTriggerSetter& setter :
                  trigger.setters) {
-                if (!setter.target) continue;
+                Base::Ref<DependencyObject> target =
+                    setter.target.Lock();
+                if (!target) continue;
                 Base::Result<bool> cleared =
                     values->ClearProviderContribution(
-                        *setter.target,
+                        *target,
                         setter.property,
                         setter.token);
                 if (!cleared) {
@@ -3835,19 +4122,15 @@ struct View::Impl {
                 Aero::Runtime::Detail::DataTemplateTriggerCondition&
                     condition =
                         trigger.conditions[conditionIndex];
-                if ((!condition.dependencySource ||
+                Base::Ref<DependencyObject> dependencySource =
+                    condition.dependencySource.Lock();
+                if ((!dependencySource ||
                      !condition.property.IsValid()) &&
                     condition.binding) {
+                    Base::StringView path;
                     Base::Object* source =
-                        condition.binding->GetElementName().Empty()
-                        ? condition.source.Get()
-                        : context.FindName(
-                              condition.binding->GetElementName());
-                    if (source == nullptr &&
-                        !condition.binding->GetElementName().Empty()) {
-                        source = loadedDocument.names.Find(
-                            condition.binding->GetElementName());
-                    }
+                        ResolveDataTemplateConditionSource(
+                            context, condition, path);
                     if (source != nullptr &&
                         metadata->Types().IsDerivedFrom(
                             source->RuntimeType(),
@@ -3861,23 +4144,19 @@ struct View::Impl {
                                         .Find(
                                             source->
                                                 RuntimeType(),
-                                            condition.binding->GetPath().GetPath());
+                                            path);
                         if (property != nullptr) {
+                            dependencySource =
+                                Base::Ref<DependencyObject>::FromBorrowed(
+                                    *static_cast<DependencyObject*>(source));
                             condition.dependencySource =
-                                Base::Ref<
-                                    Meta::
-                                        DependencyObject>::
-                                    FromBorrowed(
-                                        *static_cast<
-                                            Meta::
-                                                DependencyObject*>(
-                                                    source));
-                            condition.property =
-                                property->Handle();
+                                Base::WeakRef<DependencyObject>(
+                                    dependencySource);
+                            condition.property = property->Handle();
                         }
                     }
                 }
-                if (!condition.dependencySource ||
+                if (!dependencySource ||
                     !condition.property.IsValid()) {
                     continue;
                 }
@@ -3931,10 +4210,8 @@ struct View::Impl {
                 Meta::DependencyPropertyChangedEventHandler
                     handler(callback);
                 Base::Result<void> subscribed =
-                    condition.dependencySource->
-                        AddValueChangedHandlerChecked(
-                            condition.property,
-                            handler);
+                    dependencySource->AddValueChangedHandlerChecked(
+                        condition.property, handler);
                 if (!subscribed) {
                     FreeObject(
                         *allocator,
@@ -3943,8 +4220,7 @@ struct View::Impl {
                     return subscribed.GetStatus();
                 }
                 DataTemplateTriggerSubscription record;
-                record.source =
-                    condition.dependencySource.Get();
+                record.source = dependencySource.Get();
                 record.property = condition.property;
                 record.handler = handler;
                 record.context = handlerContext;
@@ -3953,10 +4229,8 @@ struct View::Impl {
                         PushBack(std::move(record));
                 if (!retained) {
                     static_cast<void>(
-                        condition.dependencySource->
-                            RemoveValueChangedHandler(
-                                condition.property,
-                                handler));
+                        dependencySource->RemoveValueChangedHandler(
+                            condition.property, handler));
                     FreeObject(
                         *allocator,
                         Base::MemoryTag::Ui,
@@ -4153,6 +4427,682 @@ struct View::Impl {
         return count;
     }
 
+    Base::Result<Base::Ref<Interactivity::Behavior>>
+    CloneBehaviorPrototype(
+        const Interactivity::Behavior& prototype) noexcept {
+        if (metadata == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Behavior metadata is unavailable");
+        }
+        Base::Result<Base::Ref<Base::Object>> created =
+            metadata->CreateObject(prototype.RuntimeType());
+        if (!created) return created.GetStatus();
+        if (!created.Value() ||
+            !metadata->Types().IsDerivedFrom(
+                created.Value()->RuntimeType(),
+                Interactivity::Behavior::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Behavior factory returned an incompatible object");
+        }
+        Base::Ref<Interactivity::Behavior> clone =
+            Base::Ref<Interactivity::Behavior>::FromBorrowed(
+                *static_cast<Interactivity::Behavior*>(
+                    created.Value().Get()));
+        for (const Meta::DependencyProperty& property :
+             prototype.PropertyRegistry().Properties()) {
+            if (property.MetadataFor(prototype.RuntimeType()) == nullptr ||
+                property.MetadataFor(clone->RuntimeType()) == nullptr) {
+                continue;
+            }
+            Meta::PropertyValue local =
+                prototype.ReadLocalValue(property.Handle());
+            if (local.IsUnset()) continue;
+            Base::Result<void> copied = clone->SetValueChecked(
+                property.Handle(), local);
+            if (!copied) return copied.GetStatus();
+        }
+        Base::Result<void> bindingsCopied =
+            prototype.CopyAuthoredBindingsTo(*clone);
+        if (!bindingsCopied) return bindingsCopied.GetStatus();
+        return clone;
+    }
+
+    Base::Object* ResolveBehaviorBindingSource(
+        const Data::Binding& binding,
+        Interactivity::Behavior& behavior,
+        Aero::FrameworkElement& owner,
+        const Aero::NameScope* names) noexcept {
+        if (binding.GetSource()) return binding.GetSource().Get();
+        if (!binding.GetElementName().Empty()) {
+            Base::Object* source = owner.FindName(
+                binding.GetElementName());
+            if (source == nullptr && names != nullptr) {
+                source = names->Find(binding.GetElementName());
+            }
+            if (source == nullptr) {
+                source = loadedDocument.names.Find(
+                    binding.GetElementName());
+            }
+            return source;
+        }
+        const Base::Ref<Data::RelativeSource> relative =
+            binding.GetRelativeSource();
+        if (!relative) return nullptr;
+        if (relative->GetMode() == Data::RelativeSourceMode::Self) {
+            return &behavior;
+        }
+        if (relative->GetMode() ==
+            Data::RelativeSourceMode::TemplatedParent) {
+            return owner.GetTemplatedParent();
+        }
+        if (relative->GetMode() !=
+            Data::RelativeSourceMode::FindAncestor) {
+            return nullptr;
+        }
+        Base::StringView ancestorName = relative->GetAncestorType();
+        for (std::uint32_t index = 0U;
+             index < ancestorName.SizeBytes(); ++index) {
+            if (ancestorName[index] == ':') {
+                ancestorName = ancestorName.Substr(
+                    index + 1U,
+                    ancestorName.SizeBytes() - index - 1U);
+                break;
+            }
+        }
+        std::uint32_t matched = 0U;
+        Aero::Visual* current = owner.GetLogicalParent();
+        if (current == nullptr) current = owner.GetVisualParent();
+        while (current != nullptr) {
+            const Meta::TypeInfo* type =
+                metadata->Types().FindType(current->RuntimeType());
+            const bool matches = ancestorName.Empty() ||
+                (type != nullptr && type->Name() == ancestorName);
+            if (matches && ++matched == relative->GetAncestorLevel()) {
+                return current;
+            }
+            Aero::Visual* next = current->GetLogicalParent();
+            if (next == nullptr) next = current->GetVisualParent();
+            current = next;
+        }
+        return nullptr;
+    }
+
+    Base::Object* ResolveAuthoredBindingSource(
+        const Data::Binding& binding,
+        Aero::FrameworkElement& owner,
+        Aero::Runtime::Detail::DataTemplateTriggerState*
+            dataTemplateContext,
+        const Aero::NameScope* names,
+        Base::Object* self) noexcept {
+        if (binding.GetSource()) {
+            return binding.GetSource().Get();
+        }
+        if (!binding.GetElementName().Empty()) {
+            Base::Object* source = dataTemplateContext != nullptr
+                ? dataTemplateContext->FindName(binding.GetElementName())
+                : nullptr;
+            if (source == nullptr) {
+                source = owner.FindName(binding.GetElementName());
+            }
+            if (source == nullptr && names != nullptr) {
+                source = names->Find(binding.GetElementName());
+            }
+            if (source == nullptr) {
+                source = loadedDocument.names.Find(
+                    binding.GetElementName());
+            }
+            return source;
+        }
+
+        const Base::Ref<Data::RelativeSource> relative =
+            binding.GetRelativeSource();
+        if (relative) {
+            if (relative->GetMode() ==
+                Data::RelativeSourceMode::Self) {
+                return self != nullptr
+                    ? self
+                    : static_cast<Base::Object*>(&owner);
+            }
+            if (relative->GetMode() ==
+                Data::RelativeSourceMode::TemplatedParent) {
+                return owner.GetTemplatedParent();
+            }
+            if (relative->GetMode() !=
+                Data::RelativeSourceMode::FindAncestor) {
+                return nullptr;
+            }
+            Base::StringView ancestorName =
+                relative->GetAncestorType();
+            for (std::uint32_t index = 0U;
+                 index < ancestorName.SizeBytes(); ++index) {
+                if (ancestorName[index] != ':') continue;
+                ancestorName = ancestorName.Substr(
+                    index + 1U,
+                    ancestorName.SizeBytes() - index - 1U);
+                break;
+            }
+            std::uint32_t matched = 0U;
+            Aero::Visual* current = owner.GetLogicalParent();
+            if (current == nullptr) {
+                current = owner.GetVisualParent();
+            }
+            while (current != nullptr) {
+                const Meta::TypeInfo* type =
+                    metadata != nullptr
+                    ? metadata->Types().FindType(
+                          current->RuntimeType())
+                    : nullptr;
+                const bool matches = ancestorName.Empty() ||
+                    (type != nullptr &&
+                     type->Name() == ancestorName);
+                if (matches &&
+                    ++matched == relative->GetAncestorLevel()) {
+                    return current;
+                }
+                Aero::Visual* next = current->GetLogicalParent();
+                if (next == nullptr) {
+                    next = current->GetVisualParent();
+                }
+                current = next;
+            }
+            return nullptr;
+        }
+
+        Meta::PropertyValue dataContext = owner.GetDataContext();
+        if (dataContext.Kind() != Meta::ValueKind::Object ||
+            dataContext.IsNullObject() ||
+            !dataContext.AsObject()) {
+            return nullptr;
+        }
+        return dataContext.AsObject().Get();
+    }
+
+    Base::Result<Meta::PropertyValue> EvaluateAuthoredBinding(
+        const Data::Binding& binding,
+        Aero::FrameworkElement& owner,
+        Aero::Runtime::Detail::DataTemplateTriggerState*
+            dataTemplateContext,
+        const Aero::NameScope* names,
+        Base::Object* self) noexcept {
+        if (metadata == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Authored Binding metadata is unavailable");
+        }
+        Base::Object* source = ResolveAuthoredBindingSource(
+            binding,
+            owner,
+            dataTemplateContext,
+            names,
+            self);
+        if (source == nullptr) {
+            if (!binding.GetFallbackValue().IsUnset()) {
+                return binding.GetFallbackValue();
+            }
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Authored Binding source was not found");
+        }
+
+        Base::Result<Meta::PropertyValue> value =
+            Meta::PropertyValue::FromObject(
+                source->RuntimeType(),
+                Base::Ref<Base::Object>::FromBorrowed(*source));
+        const Base::StringView path = binding.GetPath().GetPath();
+        if (!path.Empty()) {
+            Meta::BindingPathCompileError pathError;
+            Base::Result<Meta::BindingPathPlan> plan =
+                Meta::BindingPathPlan::Compile(
+                    *metadata,
+                    source->RuntimeType(),
+                    path,
+                    &pathError);
+            if (plan) {
+                value = plan.Value().Get(*metadata, *source);
+            } else {
+                value = plan.GetStatus();
+            }
+        }
+        if (!value) {
+            if (!binding.GetFallbackValue().IsUnset()) {
+                return binding.GetFallbackValue();
+            }
+            return value.GetStatus();
+        }
+
+        Meta::PropertyValue resolved = value.Value();
+        if (resolved.Kind() == Meta::ValueKind::Object &&
+            !resolved.IsNullObject() && resolved.AsObject() &&
+            resolved.AsObject()->RuntimeType() ==
+                Controls::Detail::BoxedItemValue::StaticTypeId()) {
+            resolved = static_cast<const Controls::Detail::BoxedItemValue&>(
+                *resolved.AsObject()).Value();
+        }
+        if (resolved.IsNullObject() &&
+            !binding.GetTargetNullValue().IsUnset()) {
+            resolved = binding.GetTargetNullValue();
+        }
+        if (binding.GetConverter()) {
+            Base::Result<Meta::PropertyValue> converted =
+                binding.GetConverter()->Convert(
+                    resolved,
+                    binding.GetConverterParameter());
+            if (!converted) {
+                if (!binding.GetFallbackValue().IsUnset()) {
+                    return binding.GetFallbackValue();
+                }
+                return converted.GetStatus();
+            }
+            resolved = std::move(converted).Value();
+        }
+        return resolved;
+    }
+
+    Base::Result<void> ExecuteTriggerActions(
+        Base::Span<const Base::Ref<Base::Object>> actions,
+        Aero::FrameworkElement& owner,
+        const Aero::NameScope* names) noexcept {
+        for (const Base::Ref<Base::Object>& authored : actions) {
+            if (!authored || metadata == nullptr ||
+                !metadata->Types().IsDerivedFrom(
+                    authored->RuntimeType(),
+                    MediaAnimation::TriggerAction::StaticTypeId())) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Interaction Trigger contains an invalid action");
+            }
+            Base::Result<void> executed = ExecuteAnimationAction(
+                static_cast<MediaAnimation::TriggerAction&>(*authored),
+                owner,
+                nullptr,
+                names);
+            if (!executed) return executed.GetStatus();
+        }
+        return {};
+    }
+
+    Base::Result<void> ExecuteTriggerActions(
+        Base::Span<const Base::Ref<MediaAnimation::TriggerAction>> actions,
+        Aero::FrameworkElement& owner,
+        const Aero::NameScope* names) noexcept {
+        for (const Base::Ref<MediaAnimation::TriggerAction>& action :
+             actions) {
+            if (!action) continue;
+            Base::Result<void> executed = ExecuteAnimationAction(
+                *action, owner, nullptr, names);
+            if (!executed) return executed.GetStatus();
+        }
+        return {};
+    }
+
+    Base::Result<Meta::DependencyPropertyHandle>
+    ResolveInteractionTriggerProperty(
+        const Data::Binding& binding,
+        Aero::FrameworkElement& owner,
+        const Aero::NameScope* names,
+        ::Aero::DependencyObject*& source) noexcept {
+        Base::Object* sourceObject = ResolveAuthoredBindingSource(
+            binding, owner, nullptr, names, nullptr);
+        if (sourceObject == nullptr || metadata == nullptr ||
+            !metadata->Types().IsDerivedFrom(
+                sourceObject->RuntimeType(),
+                ::Aero::DependencyObject::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Interaction Trigger Binding source is not a DependencyObject");
+        }
+        source = static_cast<::Aero::DependencyObject*>(sourceObject);
+        const Base::StringView path = binding.GetPath().GetPath();
+        if (path.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::Unsupported,
+                "Interaction Trigger Binding requires a property path");
+        }
+        const Meta::DependencyProperty* property =
+            GuiPrivate::Detail::MetadataPrivate::DependencyProperties(
+                *metadata).Find(source->RuntimeType(), path);
+        if (property == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Interaction Trigger Binding property was not found");
+        }
+        return property->Handle();
+    }
+
+    Base::Result<bool> EvaluateInteractionDataTrigger(
+        InteractionDataTriggerState& state) noexcept {
+        if (state.trigger == nullptr || state.owner == nullptr ||
+            !state.trigger->GetBinding()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Interaction DataTrigger state is invalid");
+        }
+        Base::Result<Meta::PropertyValue> actual =
+            EvaluateAuthoredBinding(
+                *state.trigger->GetBinding(),
+                *state.owner,
+                nullptr,
+                state.names,
+                nullptr);
+        if (!actual) return actual.GetStatus();
+        Base::Result<bool> matches = DataTemplateTriggerValuesMatch(
+            actual.Value(), state.trigger->GetAuthoredValue());
+        if (!matches) return matches.GetStatus();
+        const bool active = matches.Value();
+        if (active == state.active) return false;
+        Base::Result<void> executed = ExecuteTriggerActions(
+            active
+                ? state.trigger->GetEnterActions()
+                : state.trigger->GetExitActions(),
+            *state.owner,
+            state.names);
+        if (!executed) return executed.GetStatus();
+        state.active = active;
+        return true;
+    }
+
+    Base::Result<bool> StartPropertyChangedTrigger(
+        MediaAnimation::PropertyChangedTrigger& trigger,
+        Aero::FrameworkElement& owner,
+        const Aero::NameScope* names) noexcept {
+        if (!trigger.GetBinding()) return false;
+        for (const PropertyChangedTriggerSubscription& existing :
+             propertyChangedTriggerSubscriptions) {
+            if (existing.owner == &owner && existing.context != nullptr &&
+                existing.context->trigger == &trigger) {
+                return false;
+            }
+        }
+        ::Aero::DependencyObject* source = nullptr;
+        Base::Result<Meta::DependencyPropertyHandle> property =
+            ResolveInteractionTriggerProperty(
+                *trigger.GetBinding(), owner, names, source);
+        if (!property) return property.GetStatus();
+        PropertyChangedTriggerState* context = nullptr;
+        Base::Result<void> allocated = AllocateObject(
+            *allocator, Base::MemoryTag::Ui, context);
+        if (!allocated) return allocated.GetStatus();
+        context->runtime = this;
+        context->trigger = &trigger;
+        context->owner = &owner;
+        context->names = names;
+        Meta::DependencyPropertyChangedEventHandler handler(
+            [context](
+                ::Aero::DependencyObject& object,
+                const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
+                    context->Invoke(object, args);
+                });
+        Base::Result<void> subscribed =
+            source->AddValueChangedHandlerChecked(
+                property.Value(), handler);
+        if (!subscribed) {
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui, context);
+            return subscribed.GetStatus();
+        }
+        Base::Result<void> retained =
+            propertyChangedTriggerSubscriptions.PushBack({
+                &owner, source, property.Value(), handler, context});
+        if (!retained) {
+            static_cast<void>(source->RemoveValueChangedHandler(
+                property.Value(), handler));
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui, context);
+            return retained.GetStatus();
+        }
+        return true;
+    }
+
+    Base::Result<bool> StartInteractionDataTrigger(
+        Aero::DataTrigger& trigger,
+        Aero::FrameworkElement& owner,
+        const Aero::NameScope* names) noexcept {
+        if (!trigger.GetBinding()) return false;
+        for (const InteractionDataTriggerSubscription& existing :
+             interactionDataTriggerSubscriptions) {
+            if (existing.owner == &owner && existing.context != nullptr &&
+                existing.context->trigger == &trigger) {
+                return false;
+            }
+        }
+        ::Aero::DependencyObject* source = nullptr;
+        Base::Result<Meta::DependencyPropertyHandle> property =
+            ResolveInteractionTriggerProperty(
+                *trigger.GetBinding(), owner, names, source);
+        if (!property) return property.GetStatus();
+        InteractionDataTriggerState* context = nullptr;
+        Base::Result<void> allocated = AllocateObject(
+            *allocator, Base::MemoryTag::Ui, context);
+        if (!allocated) return allocated.GetStatus();
+        context->runtime = this;
+        context->trigger = &trigger;
+        context->owner = &owner;
+        context->names = names;
+        Meta::DependencyPropertyChangedEventHandler handler(
+            [context](
+                ::Aero::DependencyObject& object,
+                const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
+                    context->Invoke(object, args);
+                });
+        Base::Result<void> subscribed =
+            source->AddValueChangedHandlerChecked(
+                property.Value(), handler);
+        if (!subscribed) {
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui, context);
+            return subscribed.GetStatus();
+        }
+        Base::Result<void> retained =
+            interactionDataTriggerSubscriptions.PushBack({
+                &owner, source, property.Value(), handler, context});
+        if (!retained) {
+            static_cast<void>(source->RemoveValueChangedHandler(
+                property.Value(), handler));
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui, context);
+            return retained.GetStatus();
+        }
+        Base::Result<bool> evaluated =
+            EvaluateInteractionDataTrigger(*context);
+        if (!evaluated) return evaluated.GetStatus();
+        return true;
+    }
+
+    static std::uint32_t KeyCodeFromName(
+        Base::StringView key) noexcept {
+        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+                key, "Enter")) {
+            return Input::KeyboardKeyEnter;
+        }
+        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+                key, "Space")) {
+            return Input::KeyboardKeySpace;
+        }
+        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+                key, "Escape")) {
+            return Input::KeyboardKeyEscape;
+        }
+        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+                key, "Tab")) {
+            return Input::KeyboardKeyTab;
+        }
+        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+                key, "Left")) {
+            return Input::KeyboardKeyLeft;
+        }
+        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+                key, "Right")) {
+            return Input::KeyboardKeyRight;
+        }
+        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+                key, "Up")) {
+            return Input::KeyboardKeyUp;
+        }
+        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+                key, "Down")) {
+            return Input::KeyboardKeyDown;
+        }
+        return 0U;
+    }
+
+    Base::Result<bool> StartKeyTrigger(
+        MediaAnimation::KeyTrigger& trigger,
+        Aero::FrameworkElement& owner,
+        const Aero::NameScope* names) noexcept {
+        Aero::UIElement* source = owner.AsUIElement();
+        if (source == nullptr) return false;
+        if (KeyCodeFromName(trigger.GetKey()) == 0U) {
+            return Base::Status::Failure(
+                Base::ErrorCode::Unsupported,
+                "KeyTrigger Key is not supported");
+        }
+        for (const KeyTriggerSubscription& existing :
+             keyTriggerSubscriptions) {
+            if (existing.owner == &owner && existing.context != nullptr &&
+                existing.context->trigger == &trigger) {
+                return false;
+            }
+        }
+        KeyTriggerState* context = nullptr;
+        Base::Result<void> allocated = AllocateObject(
+            *allocator, Base::MemoryTag::Ui, context);
+        if (!allocated) return allocated.GetStatus();
+        context->runtime = this;
+        context->trigger = &trigger;
+        context->owner = &owner;
+        context->names = names;
+        Aero::KeyEventHandler handler(
+            [context](Base::Object* sender, Aero::KeyEventArgs& args) noexcept {
+                context->Invoke(sender, args);
+            });
+        Base::Result<void> subscribed = source->AddHandlerChecked(
+            Aero::UIElement::KeyDownEvent.Handle(), handler);
+        if (!subscribed) {
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui, context);
+            return subscribed.GetStatus();
+        }
+        Base::Result<void> retained = keyTriggerSubscriptions.PushBack({
+            &owner, source, handler, context});
+        if (!retained) {
+            static_cast<void>(source->RemoveHandler(
+                Aero::UIElement::KeyDownEvent.Handle(), handler));
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui, context);
+            return retained.GetStatus();
+        }
+        return true;
+    }
+
+    Base::Result<void> AttachBehavior(
+        const Interactivity::Behavior& prototype,
+        Aero::FrameworkElement& owner,
+        const Aero::NameScope* names,
+        bool clonePrototype) noexcept {
+        for (const AttachedBehaviorInstance& existing :
+             attachedBehaviorInstances) {
+            if (existing.target == &owner &&
+                existing.prototype == &prototype) {
+                return {};
+            }
+        }
+        Base::Ref<Interactivity::Behavior> instance;
+        if (clonePrototype) {
+            Base::Result<Base::Ref<Interactivity::Behavior>> cloned =
+                CloneBehaviorPrototype(prototype);
+            if (!cloned) return cloned.GetStatus();
+            instance = std::move(cloned).Value();
+        } else {
+            instance = Base::Ref<Interactivity::Behavior>::TryFromBorrowed(
+                const_cast<Interactivity::Behavior&>(prototype));
+            if (!instance) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "Direct Behavior instance cannot be retained");
+            }
+        }
+        AttachedBehaviorInstance record;
+        record.target = &owner;
+        record.prototype = &prototype;
+        record.instance = std::move(instance);
+
+        for (const Interactivity::Behavior::AuthoredBinding& authored :
+             record.instance->GetAuthoredBindings()) {
+            if (!authored.binding) continue;
+            Base::Object* source = ResolveBehaviorBindingSource(
+                *authored.binding, *record.instance, owner, names);
+            if ((!authored.binding->GetElementName().Empty() ||
+                 authored.binding->GetSource() ||
+                 authored.binding->GetRelativeSource()) &&
+                source == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "Behavior Binding source was not found");
+            }
+            Data::MetadataBindingDescriptor descriptor;
+            descriptor.metadata = metadata;
+            descriptor.source = source;
+            descriptor.target = record.instance.Get();
+            descriptor.targetProperty = authored.property;
+            descriptor.dataContextProperty =
+                FrameworkElement::DataContextProperty.Handle();
+            descriptor.dataContextOwner = &owner;
+            descriptor.path = authored.binding->GetPath().GetPath();
+            descriptor.stringFormat =
+                authored.binding->GetStringFormat();
+            descriptor.bindsToSource = descriptor.path.Empty();
+            descriptor.mode = authored.binding->GetMode() ==
+                    Data::BindingMode::Default
+                ? Data::BindingMode::OneWay
+                : authored.binding->GetMode();
+            descriptor.updateSourceTrigger =
+                authored.binding->GetUpdateSourceTrigger() ==
+                    Meta::UpdateSourceTrigger::Default
+                ? Meta::UpdateSourceTrigger::PropertyChanged
+                : authored.binding->GetUpdateSourceTrigger();
+            descriptor.fallbackValue =
+                authored.binding->GetFallbackValue();
+            descriptor.targetNullValue =
+                authored.binding->GetTargetNullValue();
+            Base::Result<Data::BindingHandle> attached =
+                bindings->Attach(descriptor);
+            if (!attached) {
+                for (const Data::BindingHandle handle : record.bindings) {
+                    static_cast<void>(bindings->Detach(handle));
+                }
+                return attached.GetStatus();
+            }
+            Base::Result<void> retained = record.bindings.PushBack(
+                attached.Value());
+            if (!retained) {
+                static_cast<void>(bindings->Detach(attached.Value()));
+                for (const Data::BindingHandle handle : record.bindings) {
+                    static_cast<void>(bindings->Detach(handle));
+                }
+                return retained.GetStatus();
+            }
+        }
+        Base::Result<void> attached = record.instance->Attach(owner);
+        if (!attached) {
+            for (const Data::BindingHandle handle : record.bindings) {
+                static_cast<void>(bindings->Detach(handle));
+            }
+            return attached.GetStatus();
+        }
+        Base::Result<void> retained = attachedBehaviorInstances.PushBack(
+            std::move(record));
+        if (!retained) {
+            record.instance->Detach();
+            for (const Data::BindingHandle handle : record.bindings) {
+                static_cast<void>(bindings->Detach(handle));
+            }
+            return retained.GetStatus();
+        }
+        return {};
+    }
+
     Base::Result<std::uint32_t> StartLoadedAnimations(
         Aero::Visual* visual,
         const Aero::NameScope* names = nullptr) noexcept {
@@ -4161,6 +5111,40 @@ struct View::Impl {
         Aero::FrameworkElement* element =
             visual->AsFrameworkElement();
         if (element != nullptr) {
+            for (const Base::Ref<Base::Object>& authoredBehavior :
+                 Aero::GuiPrivate::Detail::ElementPrivate::AuthoredBehaviors(
+                     *element)) {
+                if (!authoredBehavior ||
+                    !metadata->Types().IsDerivedFrom(
+                        authoredBehavior->RuntimeType(),
+                        Interactivity::Behavior::StaticTypeId())) {
+                    continue;
+                }
+                Base::Result<void> attached = AttachBehavior(
+                    static_cast<const Interactivity::Behavior&>(
+                        *authoredBehavior),
+                    *element,
+                    names,
+                    false);
+                if (!attached) return attached.GetStatus();
+            }
+            for (const Base::Ref<Base::Object>& behaviorPrototype :
+                 Aero::GuiPrivate::Detail::ElementPrivate::StyleBehaviorPrototypes(
+                     *element)) {
+                if (!behaviorPrototype ||
+                    !metadata->Types().IsDerivedFrom(
+                        behaviorPrototype->RuntimeType(),
+                        Interactivity::Behavior::StaticTypeId())) {
+                    continue;
+                }
+                Base::Result<void> attached = AttachBehavior(
+                    static_cast<const Interactivity::Behavior&>(
+                        *behaviorPrototype),
+                    *element,
+                    names,
+                    true);
+                if (!attached) return attached.GetStatus();
+            }
             if (input != nullptr &&
                 metadata->Types().IsDerivedFrom(
                     element->RuntimeType(),
@@ -4216,6 +5200,42 @@ struct View::Impl {
                     }
                     continue;
                 }
+                if (authored->RuntimeType() ==
+                    MediaAnimation::PropertyChangedTrigger::
+                        StaticTypeId()) {
+                    Base::Result<bool> started =
+                        StartPropertyChangedTrigger(
+                            static_cast<
+                                MediaAnimation::PropertyChangedTrigger&>(
+                                    *authored),
+                            *element,
+                            names);
+                    if (!started) return started.GetStatus();
+                    if (started.Value()) ++count;
+                    continue;
+                }
+                if (authored->RuntimeType() ==
+                    MediaAnimation::KeyTrigger::StaticTypeId()) {
+                    Base::Result<bool> started = StartKeyTrigger(
+                        static_cast<MediaAnimation::KeyTrigger&>(
+                            *authored),
+                        *element,
+                        names);
+                    if (!started) return started.GetStatus();
+                    if (started.Value()) ++count;
+                    continue;
+                }
+                if (authored->RuntimeType() ==
+                    Aero::DataTrigger::StaticTypeId()) {
+                    Base::Result<bool> started =
+                        StartInteractionDataTrigger(
+                            static_cast<Aero::DataTrigger&>(*authored),
+                            *element,
+                            names);
+                    if (!started) return started.GetStatus();
+                    if (started.Value()) ++count;
+                    continue;
+                }
                 if (authored->RuntimeType() !=
                     MediaAnimation::EventTrigger::StaticTypeId()) {
                     continue;
@@ -4227,6 +5247,28 @@ struct View::Impl {
                     names);
                 if (!started) return started.GetStatus();
                 if (started.Value()) ++count;
+            }
+            if (styles != nullptr) {
+                const Aero::Style* applied = styles->AppliedStyle(*element);
+                if (applied != nullptr) {
+                    for (const Base::Ref<Aero::TriggerBase>& authored :
+                         applied->GetAuthoredTriggers()) {
+                        if (!authored ||
+                            !metadata->Types().IsDerivedFrom(
+                                authored->RuntimeType(),
+                                MediaAnimation::EventTrigger::StaticTypeId())) {
+                            continue;
+                        }
+                        Base::Result<bool> started = StartEventTrigger(
+                            static_cast<MediaAnimation::EventTrigger&>(
+                                *authored),
+                            *element,
+                            *element,
+                            names);
+                        if (!started) return started.GetStatus();
+                        if (started.Value()) ++count;
+                    }
+                }
             }
             if (metadata->Types().IsDerivedFrom(
                     element->RuntimeType(),
@@ -4288,10 +5330,12 @@ struct View::Impl {
                  context.triggers) {
                 for (Aero::Runtime::Detail::DataTemplateTriggerSetter& setter :
                      trigger.setters) {
-                    if (!setter.target || !setter.token.IsValid()) continue;
+                    Base::Ref<DependencyObject> target =
+                        setter.target.Lock();
+                    if (!target || !setter.token.IsValid()) continue;
                     static_cast<void>(
                         values->ClearProviderContribution(
-                            *setter.target,
+                            *target,
                             setter.property,
                             setter.token));
                     setter.token = {};
@@ -4324,8 +5368,33 @@ struct View::Impl {
         }
     }
 
+    void DetachBehaviorsInSubtree(Aero::Visual& visual) noexcept {
+        for (std::uint32_t index = 0U;
+             index < attachedBehaviorInstances.Size();) {
+            AttachedBehaviorInstance& record =
+                attachedBehaviorInstances[index];
+            if (record.target == nullptr ||
+                !IsInVisualSubtree(record.target, visual)) {
+                ++index;
+                continue;
+            }
+            for (const Data::BindingHandle handle : record.bindings) {
+                if (bindings != nullptr) {
+                    static_cast<void>(bindings->Detach(handle));
+                }
+            }
+            if (record.instance) record.instance->Detach();
+            if (index + 1U != attachedBehaviorInstances.Size()) {
+                attachedBehaviorInstances[index] =
+                    std::move(attachedBehaviorInstances.Back());
+            }
+            attachedBehaviorInstances.PopBack();
+        }
+    }
+
     void ClearAnimationSubscriptionsFor(
         Aero::Visual& fragmentRoot) noexcept {
+        DetachBehaviorsInSubtree(fragmentRoot);
         ClearDataTemplateTriggerProvidersInSubtree(fragmentRoot);
         for (std::uint32_t index = 0U;
              index < dataTemplateTriggerSubscriptions.Size();) {
@@ -4365,6 +5434,81 @@ struct View::Impl {
                     std::move(dataTemplateTriggerSubscriptions[next]);
             }
             dataTemplateTriggerSubscriptions.PopBack();
+        }
+        for (std::uint32_t index = 0U;
+             index < propertyChangedTriggerSubscriptions.Size();) {
+            PropertyChangedTriggerSubscription& subscription =
+                propertyChangedTriggerSubscriptions[index];
+            if (subscription.owner == nullptr ||
+                !IsInVisualSubtree(subscription.owner, fragmentRoot)) {
+                ++index;
+                continue;
+            }
+            if (subscription.source != nullptr) {
+                static_cast<void>(
+                    subscription.source->RemoveValueChangedHandler(
+                        subscription.property,
+                        subscription.handler));
+            }
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui,
+                subscription.context);
+            if (index + 1U !=
+                propertyChangedTriggerSubscriptions.Size()) {
+                propertyChangedTriggerSubscriptions[index] =
+                    std::move(
+                        propertyChangedTriggerSubscriptions.Back());
+            }
+            propertyChangedTriggerSubscriptions.PopBack();
+        }
+        for (std::uint32_t index = 0U;
+             index < interactionDataTriggerSubscriptions.Size();) {
+            InteractionDataTriggerSubscription& subscription =
+                interactionDataTriggerSubscriptions[index];
+            if (subscription.owner == nullptr ||
+                !IsInVisualSubtree(subscription.owner, fragmentRoot)) {
+                ++index;
+                continue;
+            }
+            if (subscription.source != nullptr) {
+                static_cast<void>(
+                    subscription.source->RemoveValueChangedHandler(
+                        subscription.property,
+                        subscription.handler));
+            }
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui,
+                subscription.context);
+            if (index + 1U !=
+                interactionDataTriggerSubscriptions.Size()) {
+                interactionDataTriggerSubscriptions[index] =
+                    std::move(
+                        interactionDataTriggerSubscriptions.Back());
+            }
+            interactionDataTriggerSubscriptions.PopBack();
+        }
+        for (std::uint32_t index = 0U;
+             index < keyTriggerSubscriptions.Size();) {
+            KeyTriggerSubscription& subscription =
+                keyTriggerSubscriptions[index];
+            if (subscription.owner == nullptr ||
+                !IsInVisualSubtree(subscription.owner, fragmentRoot)) {
+                ++index;
+                continue;
+            }
+            if (subscription.source != nullptr) {
+                static_cast<void>(subscription.source->RemoveHandler(
+                    Aero::UIElement::KeyDownEvent.Handle(),
+                    subscription.handler));
+            }
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui,
+                subscription.context);
+            if (index + 1U != keyTriggerSubscriptions.Size()) {
+                keyTriggerSubscriptions[index] =
+                    std::move(keyTriggerSubscriptions.Back());
+            }
+            keyTriggerSubscriptions.PopBack();
         }
         for (std::uint32_t index = 0U;
              index < animationEventSubscriptions.Size();) {
@@ -4458,6 +5602,44 @@ struct View::Impl {
                 subscription.context);
         }
         dataTemplateTriggerSubscriptions.Clear();
+        for (PropertyChangedTriggerSubscription& subscription :
+             propertyChangedTriggerSubscriptions) {
+            if (subscription.source != nullptr) {
+                static_cast<void>(
+                    subscription.source->RemoveValueChangedHandler(
+                        subscription.property,
+                        subscription.handler));
+            }
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui,
+                subscription.context);
+        }
+        propertyChangedTriggerSubscriptions.Clear();
+        for (InteractionDataTriggerSubscription& subscription :
+             interactionDataTriggerSubscriptions) {
+            if (subscription.source != nullptr) {
+                static_cast<void>(
+                    subscription.source->RemoveValueChangedHandler(
+                        subscription.property,
+                        subscription.handler));
+            }
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui,
+                subscription.context);
+        }
+        interactionDataTriggerSubscriptions.Clear();
+        for (KeyTriggerSubscription& subscription :
+             keyTriggerSubscriptions) {
+            if (subscription.source != nullptr) {
+                static_cast<void>(subscription.source->RemoveHandler(
+                    Aero::UIElement::KeyDownEvent.Handle(),
+                    subscription.handler));
+            }
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui,
+                subscription.context);
+        }
+        keyTriggerSubscriptions.Clear();
         for (AnimationEventSubscription& subscription :
              animationEventSubscriptions) {
             if (subscription.source != nullptr) {
@@ -4501,6 +5683,9 @@ struct View::Impl {
     }
 
     void BeginDestroyInteractions() noexcept {
+        if (Aero::Visual* rootVisual = RootVisual()) {
+            DetachBehaviorsInSubtree(*rootVisual);
+        }
         CloseAllOverlays();
         ClearOverlays();
         ClearAnimationEventSubscriptions();
@@ -4963,9 +6148,32 @@ struct View::Impl {
         if (!mountedResult) return mountedResult.GetStatus();
         root = std::move(requestedRoot);
         mounted = true;
+        Base::Result<void> effects = loadedDocument.effects.Commit();
+        if (!effects) {
+            static_cast<void>(DetachVisualGraph({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()}));
+            mounted = false;
+            root.Reset();
+            ClearLoadedDocument();
+            return effects.GetStatus();
+        }
+        Base::Result<std::uint32_t> initialBindings =
+            bindings->Flush();
+        if (!initialBindings) {
+            static_cast<void>(DetachVisualGraph({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()}));
+            mounted = false;
+            root.Reset();
+            ClearLoadedDocument();
+            return initialBindings.GetStatus();
+        }
+        deferGeneratedActivation = true;
         Base::Result<void> uiApplied =
             ApplyUi(*rootVisual.Value());
         if (!uiApplied) {
+            deferGeneratedActivation = false;
             DetachUi();
             static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -4978,6 +6186,7 @@ struct View::Impl {
         Base::Result<void> interactions =
             CreateInteractions();
         if (!interactions) {
+            deferGeneratedActivation = false;
             BeginDestroyInteractions();
             DetachUi();
             FinishDestroyInteractions();
@@ -4994,6 +6203,7 @@ struct View::Impl {
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()});
         if (!completed) {
+            deferGeneratedActivation = false;
             BeginDestroyInteractions();
             DetachUi();
             FinishDestroyInteractions();
@@ -5009,6 +6219,7 @@ struct View::Impl {
             ApplyUi(
                 *rootVisual.Value());
         if (!uiApplied) {
+            deferGeneratedActivation = false;
             BeginDestroyInteractions();
             DetachUi();
             FinishDestroyInteractions();
@@ -5020,8 +6231,10 @@ struct View::Impl {
             ClearLoadedDocument();
             return uiApplied.GetStatus();
         }
-        Base::Result<void> effects = loadedDocument.effects.Commit();
-        if (!effects) {
+        Base::Result<std::uint32_t> settledBindings =
+            bindings->Flush();
+        deferGeneratedActivation = false;
+        if (!settledBindings) {
             BeginDestroyInteractions();
             DetachUi();
             FinishDestroyInteractions();
@@ -5031,7 +6244,20 @@ struct View::Impl {
             mounted = false;
             root.Reset();
             ClearLoadedDocument();
-            return effects.GetStatus();
+            return settledBindings.GetStatus();
+        }
+        Base::Result<void> generated = FlushGeneratedVisuals();
+        if (!generated) {
+            BeginDestroyInteractions();
+            DetachUi();
+            FinishDestroyInteractions();
+            static_cast<void>(DetachVisualGraph({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()}));
+            mounted = false;
+            root.Reset();
+            ClearLoadedDocument();
+            return generated.GetStatus();
         }
         Base::Result<std::uint32_t> startedAnimations =
             StartLoadedAnimations(rootVisual.Value());
@@ -5209,6 +6435,57 @@ DataTemplateTriggerHandlerState::Invoke(
     }
 }
 
+void View::Impl::PropertyChangedTriggerState::Invoke(
+    ::Aero::DependencyObject&,
+    const Meta::DependencyPropertyChangedEventArgs&) noexcept {
+    if (runtime == nullptr || trigger == nullptr || owner == nullptr ||
+        !runtime->animationEventStatus.IsOk()) {
+        return;
+    }
+    Base::Result<void> executed = runtime->ExecuteTriggerActions(
+        trigger->GetActions(), *owner, names);
+    if (!executed) {
+        runtime->animationEventStatus = executed.GetStatus();
+    }
+}
+
+void View::Impl::InteractionDataTriggerState::Invoke(
+    ::Aero::DependencyObject&,
+    const Meta::DependencyPropertyChangedEventArgs&) noexcept {
+    if (runtime == nullptr || trigger == nullptr || owner == nullptr ||
+        !runtime->animationEventStatus.IsOk()) {
+        return;
+    }
+    Base::Result<bool> evaluated =
+        runtime->EvaluateInteractionDataTrigger(*this);
+    if (!evaluated) {
+        runtime->animationEventStatus = evaluated.GetStatus();
+    }
+}
+
+void View::Impl::KeyTriggerState::Invoke(
+    Base::Object*,
+    Aero::KeyEventArgs& args) noexcept {
+    if (runtime == nullptr || trigger == nullptr || owner == nullptr ||
+        !runtime->animationEventStatus.IsOk() ||
+        args.GetAction() != Input::KeyboardAction::Down ||
+        args.GetKey() != View::Impl::KeyCodeFromName(trigger->GetKey())) {
+        return;
+    }
+    if (trigger->GetActiveOnFocus()) {
+        Aero::UIElement* expected = owner->AsUIElement();
+        if (expected == nullptr || runtime->input == nullptr ||
+            runtime->input->GetFocusedElement() != expected) {
+            return;
+        }
+    }
+    Base::Result<void> executed = runtime->ExecuteTriggerActions(
+        trigger->GetActions(), *owner, names);
+    if (!executed) {
+        runtime->animationEventStatus = executed.GetStatus();
+    }
+}
+
 Base::Result<void>
 View::Impl::ExecuteAnimationAction(
     MediaAnimation::TriggerAction& action,
@@ -5368,6 +6645,78 @@ View::Impl::ExecuteAnimationAction(
                     std::move(brush).Value()));
         }
         propertyTarget.SetCurrentValue(propertyHandle, value);
+        return {};
+    }
+
+    if (type ==
+        MediaAnimation::InvokeCommandAction::StaticTypeId()) {
+        auto& invoke =
+            static_cast<MediaAnimation::InvokeCommandAction&>(action);
+        Base::Ref<Input::ICommand> command = invoke.GetCommand();
+        if (!command && invoke.GetCommandBinding()) {
+            Base::Result<Meta::PropertyValue> evaluated =
+                EvaluateAuthoredBinding(
+                    *invoke.GetCommandBinding(),
+                    owner,
+                    dataTemplateContext,
+                    names,
+                    &action);
+            if (!evaluated) return evaluated.GetStatus();
+            if (evaluated.Value().Kind() != Meta::ValueKind::Object ||
+                evaluated.Value().IsNullObject() ||
+                !evaluated.Value().AsObject() ||
+                !metadata->Types().IsDerivedFrom(
+                    evaluated.Value().AsObject()->RuntimeType(),
+                    Input::ICommand::StaticTypeId())) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "InvokeCommandAction Binding did not return ICommand");
+            }
+            command = Base::Ref<Input::ICommand>::FromBorrowed(
+                *static_cast<Input::ICommand*>(
+                    evaluated.Value().AsObject().Get()));
+        }
+        if (!command) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "InvokeCommandAction Command is unavailable");
+        }
+
+        Meta::PropertyValue parameter = invoke.GetCommandParameter();
+        if (invoke.GetCommandParameterBinding()) {
+            Base::Result<Meta::PropertyValue> evaluated =
+                EvaluateAuthoredBinding(
+                    *invoke.GetCommandParameterBinding(),
+                    owner,
+                    dataTemplateContext,
+                    names,
+                    &action);
+            if (!evaluated) return evaluated.GetStatus();
+            parameter = std::move(evaluated).Value();
+        }
+        if (parameter.IsUnset()) {
+            parameter = Meta::PropertyValue::NullObject(
+                Meta::TypeOf<Base::Object>());
+        }
+        Aero::UIElement* target = owner.AsUIElement();
+        if (target == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "InvokeCommandAction owner is not a UIElement");
+        }
+        Base::Result<bool> canExecute = input != nullptr
+            ? input->CanExecute(*command, parameter, *target)
+            : command->CanExecute(parameter, target);
+        if (!canExecute) return canExecute.GetStatus();
+        if (!canExecute.Value()) return {};
+        if (input != nullptr) {
+            Base::Result<bool> executed =
+                input->Execute(*command, parameter, *target);
+            return executed
+                ? Base::Result<void>()
+                : Base::Result<void>(executed.GetStatus());
+        }
+        command->Execute(parameter, target);
         return {};
     }
 
@@ -6740,6 +8089,13 @@ View::DispatchKeyboard(
     if (!IsMounted() || state_->input == nullptr) {
         return ViewNotInitialized(
             "Keyboard input requires a mounted View");
+    }
+    if (input.action ==
+            Input::KeyboardAction::Down &&
+        input.key ==
+            Input::KeyboardKeyEscape &&
+        state_->input->IsDragging()) {
+        return state_->input->DispatchKeyboard(input);
     }
     if (input.action ==
             Input::KeyboardAction::Down &&

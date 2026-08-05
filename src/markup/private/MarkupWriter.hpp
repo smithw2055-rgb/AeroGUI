@@ -1390,6 +1390,10 @@ struct TemplatePrototypeNode {
 struct TemplatePrototypeBinding {
     std::uint32_t target = UINT32_MAX;
     std::uint32_t source = UINT32_MAX;
+    // An ElementName that is outside the authored template NameScope is
+    // resolved from the templated parent's document NameScope for each
+    // ControlTemplate instance. Internal names continue to use source above.
+    Base::String sourceName;
     Aero::GuiPrivate::Detail::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     Meta::DependencyPropertyHandle targetProperty;

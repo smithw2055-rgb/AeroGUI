@@ -26,6 +26,9 @@ public:
         PPAAModeProperty{"PPAAMode"};
     inline static constexpr Meta::AttachedPropertyRef<Element, bool>
         IsFocusEngagedProperty{"IsFocusEngaged"};
+    inline static constexpr Meta::AttachedPropertyRef<
+        Element, Base::Ref<Media::CompositeTransform3D>>
+        Transform3DProperty{"Transform3D"};
 };
 
 class TextProperties : public Base::Object {

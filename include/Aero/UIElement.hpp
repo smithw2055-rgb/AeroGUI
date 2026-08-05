@@ -8,12 +8,12 @@
 #include <Aero/Events/Event.hpp>
 #include <Aero/Events/EventArgs.hpp>
 #include <Aero/Events/RoutedEvent.hpp>
+#include <Aero/Input.hpp>
 
 #include <cstddef>
 #include <new>
 #include <type_traits>
 
-namespace Aero::Input { class RoutedCommand; }
 
 namespace Aero {
 
@@ -112,6 +112,36 @@ public:
         return GetEvent(MouseWheelEvent);
     }
 
+    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> PreviewMouseLeftButtonUpEvent{"PreviewMouseLeftButtonUp"};
+    Event<MouseButtonEventArgs> PreviewMouseLeftButtonUp() noexcept {
+        return GetEvent(PreviewMouseLeftButtonUpEvent);
+    }
+    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> MouseLeftButtonUpEvent{"MouseLeftButtonUp"};
+    Event<MouseButtonEventArgs> MouseLeftButtonUp() noexcept {
+        return GetEvent(MouseLeftButtonUpEvent);
+    }
+
+    inline static constexpr Members::RoutedEvent<DragEventArgs> PreviewDragEnterEvent{"PreviewDragEnter"};
+    Event<DragEventArgs> PreviewDragEnter() noexcept { return GetEvent(PreviewDragEnterEvent); }
+    inline static constexpr Members::RoutedEvent<DragEventArgs> DragEnterEvent{"DragEnter"};
+    Event<DragEventArgs> DragEnter() noexcept { return GetEvent(DragEnterEvent); }
+    inline static constexpr Members::RoutedEvent<DragEventArgs> PreviewDragLeaveEvent{"PreviewDragLeave"};
+    Event<DragEventArgs> PreviewDragLeave() noexcept { return GetEvent(PreviewDragLeaveEvent); }
+    inline static constexpr Members::RoutedEvent<DragEventArgs> DragLeaveEvent{"DragLeave"};
+    Event<DragEventArgs> DragLeave() noexcept { return GetEvent(DragLeaveEvent); }
+    inline static constexpr Members::RoutedEvent<DragEventArgs> PreviewDragOverEvent{"PreviewDragOver"};
+    Event<DragEventArgs> PreviewDragOver() noexcept { return GetEvent(PreviewDragOverEvent); }
+    inline static constexpr Members::RoutedEvent<DragEventArgs> DragOverEvent{"DragOver"};
+    Event<DragEventArgs> DragOver() noexcept { return GetEvent(DragOverEvent); }
+    inline static constexpr Members::RoutedEvent<DragEventArgs> PreviewDropEvent{"PreviewDrop"};
+    Event<DragEventArgs> PreviewDrop() noexcept { return GetEvent(PreviewDropEvent); }
+    inline static constexpr Members::RoutedEvent<DragEventArgs> DropEvent{"Drop"};
+    Event<DragEventArgs> Drop() noexcept { return GetEvent(DropEvent); }
+    inline static constexpr Members::RoutedEvent<GiveFeedbackEventArgs> GiveFeedbackEvent{"GiveFeedback"};
+    Event<GiveFeedbackEventArgs> GiveFeedback() noexcept { return GetEvent(GiveFeedbackEvent); }
+    inline static constexpr Members::RoutedEvent<DragCompletedEventArgs> DragCompletedEvent{"DragCompleted"};
+    Event<DragCompletedEventArgs> DragCompleted() noexcept { return GetEvent(DragCompletedEvent); }
+
     inline static constexpr Members::RoutedEvent<KeyboardFocusChangedEventArgs> GotKeyboardFocusEvent{"GotKeyboardFocus"};
     Event<KeyboardFocusChangedEventArgs> GotKeyboardFocus() noexcept {
         return GetEvent(GotKeyboardFocusEvent);
@@ -202,16 +232,22 @@ public:
     double GetOpacity() const noexcept;
     bool GetIsHitTestVisible() const noexcept;
     Visibility GetVisibility() const noexcept;
-    bool GetIsVisible() const noexcept {
-        return GetVisibility() == Visibility::Visible;
-    }
+    bool GetIsVisible() const noexcept;
     bool GetIsEnabled() const noexcept;
     bool GetAllowDrop() const noexcept;
+    bool GetIsDragging() const noexcept;
+    Base::Result<void> BeginDrag(
+        std::uint32_t pointerId,
+        const Value& data,
+        Input::DragDropEffects allowedEffects =
+            Input::DragDropEffects::Move) noexcept;
+    Base::Result<bool> CancelDrag() noexcept;
     bool GetIsMouseOver() const noexcept;
     bool GetIsPressed() const noexcept;
     bool GetIsKeyboardFocused() const noexcept;
     bool GetIsKeyboardFocusWithin() const noexcept;
     bool GetFocusable() const noexcept;
+    Base::Result<bool> Focus() noexcept;
     bool GetIsTabStop() const noexcept;
     std::uint32_t GetTabIndex() const noexcept;
     bool GetIsFocusScope() const noexcept;
@@ -251,6 +287,7 @@ public:
     void SetIsHitTestVisible(bool value) noexcept;
     void SetVisibility(Visibility value) noexcept;
     void SetIsEnabled(bool value) noexcept;
+    void SetAllowDrop(bool value) noexcept;
     void SetIsTabStop(bool value) noexcept;
     void SetTabIndex(std::uint32_t value) noexcept;
     void SetIsFocusScope(bool value) noexcept;

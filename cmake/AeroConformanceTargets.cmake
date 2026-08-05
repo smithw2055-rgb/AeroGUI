@@ -31,3 +31,16 @@ set_target_properties(aero-control-gallery-conformance PROPERTIES
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO)
 aero_apply_compiler_options(aero-control-gallery-conformance)
+
+add_executable(aero-inventory-conformance
+    tools/inventory-conformance/main.cpp)
+target_link_libraries(aero-inventory-conformance PRIVATE
+    Aero::Integration)
+target_include_directories(aero-inventory-conformance PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(aero-inventory-conformance PRIVATE cxx_std_17)
+set_target_properties(aero-inventory-conformance PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(aero-inventory-conformance)

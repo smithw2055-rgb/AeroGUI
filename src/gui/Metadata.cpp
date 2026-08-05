@@ -3627,14 +3627,6 @@ Registry::CreateObject(TypeId type) const noexcept {
         HasTypeFlag(descriptor->Flags(), TypeFlags::Abstract) ||
         factory == nullptr ||
         factory->factory == nullptr) {
-        std::fprintf(
-            stderr,
-            "Metadata type '%.*s' is not constructible (kind=%u, abstract=%u, factory=%u)\n",
-            static_cast<int>(descriptor->Name().SizeBytes()),
-            descriptor->Name().Data(),
-            static_cast<unsigned>(descriptor->Kind()),
-            HasTypeFlag(descriptor->Flags(), TypeFlags::Abstract) ? 1U : 0U,
-            factory != nullptr && factory->factory != nullptr ? 1U : 0U);
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "Metadata type has no constructible factory");

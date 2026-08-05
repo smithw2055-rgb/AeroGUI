@@ -69,12 +69,14 @@ Base::Result<PropertyValue> ConvertTemplateBindingValue(
         return value;
     }
     if (value.Kind() == PropertyValueKind::Object &&
-        !value.IsNullObject() &&
-        value.AsObject() &&
-        types.IsDerivedFrom(
-            value.Type(),
-            target.ValueType())) {
-        return value;
+        !value.IsNullObject() && value.AsObject() &&
+        types.IsAssignableFrom(
+            target.ValueType(),
+            value.AsObject()->RuntimeType())) {
+        return PropertyValue::FromObject(
+            target.ValueType(),
+            Base::Ref<Base::Object>::FromBorrowed(
+                *value.AsObject()));
     }
     if (target.ValueType() ==
             Meta::TypeOf<Aero::Length>() &&
@@ -89,7 +91,7 @@ Base::Result<PropertyValue> ConvertTemplateBindingValue(
     }
     return Base::Status::Failure(
         Base::ErrorCode::InvalidArgument,
-        target.Name().Data());
+        "Template binding value is not assignable to the target property");
 }
 
 } // namespace

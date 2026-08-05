@@ -39,6 +39,7 @@ add_library(AeroGuiKernelObjects OBJECT
     src/media/Effects.cpp
     src/media/Geometry.cpp
     src/gui/Input.cpp
+    src/gui/Interactivity.cpp
     src/media/Images.cpp
     src/gui/Layout.cpp
     src/gui/ContentElement.cpp

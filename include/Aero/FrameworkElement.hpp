@@ -252,6 +252,20 @@ private:
             authoredTriggers_.Data(),
             authoredTriggers_.Size()};
     }
+    Base::Result<void> AddAuthoredBehavior(
+        Base::Ref<Base::Object> behavior) noexcept;
+    void ClearAuthoredBehaviors() noexcept;
+    Base::Span<const Base::Ref<Base::Object>>
+    AuthoredBehaviors() const noexcept {
+        return authoredBehaviors_.AsSpan();
+    }
+    Base::Result<void> AddStyleBehaviorPrototype(
+        Base::Ref<Base::Object> behavior) noexcept;
+    void ClearStyleBehaviorPrototypes() noexcept;
+    Base::Span<const Base::Ref<Base::Object>>
+    StyleBehaviorPrototypes() const noexcept {
+        return styleBehaviorPrototypes_.AsSpan();
+    }
 
     Base::Object* FindNameObject(
         Base::StringView name,
@@ -264,6 +278,8 @@ private:
     DependencyObject* templatedParent_ = nullptr;
     ResourceDictionary resources_;
     Base::Vector<Base::Ref<Base::Object>> authoredTriggers_;
+    Base::Vector<Base::Ref<Base::Object>> authoredBehaviors_;
+    Base::Vector<Base::Ref<Base::Object>> styleBehaviorPrototypes_;
 };
 
 } // namespace Aero

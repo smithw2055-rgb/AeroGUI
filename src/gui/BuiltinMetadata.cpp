@@ -3,6 +3,7 @@
 // ===== CoreMetadata =====
 
 #include "gui/GuiPrivate.hpp"
+#include <Aero/Triggers/Behavior.hpp>
 #include "../media/MediaPrivate.hpp"
 
 #include <Aero/Meta.hpp>

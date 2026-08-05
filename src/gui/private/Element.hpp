@@ -320,6 +320,34 @@ public:
         const FrameworkElement& element) noexcept {
         return element.AuthoredTriggers();
     }
+    static Base::Result<void> AddAuthoredBehavior(
+        FrameworkElement& element,
+        Base::Ref<Base::Object> behavior) noexcept {
+        return element.AddAuthoredBehavior(std::move(behavior));
+    }
+    static Base::Result<void> ClearAuthoredBehaviors(
+        FrameworkElement& element) noexcept {
+        element.ClearAuthoredBehaviors();
+        return {};
+    }
+    static Base::Span<const Base::Ref<Base::Object>> AuthoredBehaviors(
+        const FrameworkElement& element) noexcept {
+        return element.AuthoredBehaviors();
+    }
+    static Base::Result<void> AddStyleBehaviorPrototype(
+        FrameworkElement& element,
+        Base::Ref<Base::Object> behavior) noexcept {
+        return element.AddStyleBehaviorPrototype(std::move(behavior));
+    }
+    static Base::Result<void> ClearStyleBehaviorPrototypes(
+        FrameworkElement& element) noexcept {
+        element.ClearStyleBehaviorPrototypes();
+        return {};
+    }
+    static Base::Span<const Base::Ref<Base::Object>> StyleBehaviorPrototypes(
+        const FrameworkElement& element) noexcept {
+        return element.StyleBehaviorPrototypes();
+    }
     static Base::Result<void> AddAuthoredTrigger(
         FrameworkContentElement& element,
         Base::Ref<Base::Object> trigger) noexcept {

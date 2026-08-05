@@ -11,6 +11,7 @@ namespace Aero::Input {
 enum class KeyboardAction : std::uint8_t;
 enum class MouseButton : std::uint8_t;
 enum class MouseButtonState : std::uint8_t;
+enum class DragDropEffects : std::uint8_t;
 
 } // namespace Aero::Input
 

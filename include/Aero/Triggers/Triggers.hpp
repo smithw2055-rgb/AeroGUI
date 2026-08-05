@@ -1,3 +1,4 @@
+#include <Aero/Triggers/Behavior.hpp>
 #pragma once
 
 #include <Aero/Triggers/TriggerBase.hpp>
@@ -9,6 +10,7 @@
 #include <Aero/Triggers/TriggerAction.hpp>
 #include <Aero/Triggers/EventTrigger.hpp>
 #include <Aero/Triggers/TimerTrigger.hpp>
+#include <Aero/Triggers/InteractionTriggers.hpp>
 #include <Aero/Triggers/StoryboardCompletedTrigger.hpp>
 #include <Aero/Triggers/ChangePropertyAction.hpp>
 #include <Aero/Triggers/SetFocusAction.hpp>

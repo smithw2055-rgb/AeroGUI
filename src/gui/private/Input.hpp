@@ -198,6 +198,55 @@ private:
     bool HasPressed(VisualHandle target,
         std::uint32_t ignoredIndex) const noexcept;
 };
+
+class AERO_API DragDropState {
+public:
+    DragDropState(
+        ElementTree& tree,
+        EventRouter& events,
+        HitTestState& hitTests) noexcept;
+
+    void SetRoot(Visual* root) noexcept;
+    Base::Result<void> Begin(
+        UIElement& source,
+        std::uint32_t pointerId,
+        const Meta::Value& data,
+        DragDropEffects allowedEffects) noexcept;
+    Base::Result<bool> Cancel() noexcept;
+    Base::Result<void> DispatchPointer(
+        const PointerInput& input) noexcept;
+    bool IsDragging() const noexcept { return active_; }
+    bool IsSource(const UIElement& element) const noexcept;
+
+private:
+    ElementTree* tree_ = nullptr;
+    EventRouter* events_ = nullptr;
+    HitTestState* hitTests_ = nullptr;
+    Visual* root_ = nullptr;
+    VisualHandle source_;
+    VisualHandle target_;
+    Meta::Value data_;
+    DragDropEffects allowedEffects_ = DragDropEffects::None;
+    DragDropEffects effects_ = DragDropEffects::None;
+    std::uint32_t pointerId_ = 0U;
+    bool active_ = false;
+
+    UIElement* Resolve(VisualHandle handle) const noexcept;
+    UIElement* FindDropTarget(UIElement* hit) const noexcept;
+    Base::Result<void> UpdateTarget(
+        UIElement* target, Base::Point rootPosition) noexcept;
+    Base::Result<void> RaiseDragPair(
+        UIElement& target,
+        RoutedEventHandle previewEvent,
+        RoutedEventHandle bubbleEvent,
+        Base::Point rootPosition,
+        DragDropEffects& effects) noexcept;
+    Base::Result<void> RaiseFeedback() noexcept;
+    Base::Result<void> Complete(
+        DragDropEffects effects, bool canceled) noexcept;
+    void Clear() noexcept;
+};
+
 class AERO_API FocusState {
 public:
     FocusState(ElementTree& tree, EventRouter& events) noexcept;
@@ -280,13 +329,42 @@ public:
         : commands_(tree, events),
           focus_(tree, events),
           pointer_(hitTests_, events),
+          dragDrop_(tree, events, hitTests_),
           keyboard_(focus_, events, tree, &commands_),
           text_(focus_, events, tree) {}
 
-    void SetRoot(Visual* root) noexcept { pointer_.SetRoot(root); }
+    void SetRoot(Visual* root) noexcept {
+        pointer_.SetRoot(root);
+        dragDrop_.SetRoot(root);
+    }
 
-    Base::Result<PointerDispatchResult> DispatchPointer(const PointerInput& input) noexcept { return pointer_.Dispatch(input); }
-    Base::Result<KeyboardDispatchResult> DispatchKeyboard(const KeyboardInput& input) noexcept { return keyboard_.Dispatch(input); }
+    Base::Result<PointerDispatchResult> DispatchPointer(
+        const PointerInput& input) noexcept {
+        Base::Result<PointerDispatchResult> routed =
+            pointer_.Dispatch(input);
+        if (!routed) return routed.GetStatus();
+        Base::Result<void> dragged =
+            dragDrop_.DispatchPointer(input);
+        return dragged
+            ? routed
+            : Base::Result<PointerDispatchResult>(
+                  dragged.GetStatus());
+    }
+    Base::Result<KeyboardDispatchResult> DispatchKeyboard(
+        const KeyboardInput& input) noexcept {
+        if (dragDrop_.IsDragging() &&
+            input.action == KeyboardAction::Down &&
+            input.key == KeyboardKeyEscape) {
+            Base::Result<bool> canceled = dragDrop_.Cancel();
+            if (!canceled) return canceled.GetStatus();
+            if (canceled.Value()) {
+                KeyboardDispatchResult result;
+                result.routed = true;
+                return result;
+            }
+        }
+        return keyboard_.Dispatch(input);
+    }
     Base::Result<TextInputDispatchResult> DispatchText(const TextInput& input) noexcept { return text_.Dispatch(input); }
 
     Base::Result<void> SetOverlays(Base::Span<UIElement* const> overlays, Base::Span<const Point> origins) noexcept { return hitTests_.SetOverlays(overlays, origins); }
@@ -296,6 +374,23 @@ public:
 
     Base::Result<void> CapturePointer(std::uint32_t pointerId, UIElement& target) noexcept { return pointer_.CapturePointer(pointerId, target); }
     Base::Result<bool> ReleasePointer(std::uint32_t pointerId) noexcept { return pointer_.ReleasePointer(pointerId); }
+    Base::Result<void> BeginDrag(
+        UIElement& source,
+        std::uint32_t pointerId,
+        const Meta::Value& data,
+        DragDropEffects allowedEffects) noexcept {
+        return dragDrop_.Begin(
+            source, pointerId, data, allowedEffects);
+    }
+    Base::Result<bool> CancelDrag() noexcept {
+        return dragDrop_.Cancel();
+    }
+    bool IsDragging() const noexcept {
+        return dragDrop_.IsDragging();
+    }
+    bool IsDragSource(const UIElement& element) const noexcept {
+        return dragDrop_.IsSource(element);
+    }
     UIElement* GetCapturedPointer(std::uint32_t pointerId) noexcept { return pointer_.CapturedNode(pointerId); }
     void AddPointerStateChanged(const PointerStateChangedHandler& handler) noexcept { pointer_.AddStateChanged(handler); }
     bool RemovePointerStateChanged(const PointerStateChangedHandler& handler) noexcept { return pointer_.RemoveStateChanged(handler); }
@@ -325,6 +420,7 @@ private:
     HitTestState hitTests_;
     FocusState focus_;
     PointerStateMachine pointer_;
+    DragDropState dragDrop_;
     KeyboardState keyboard_;
     TextInputState text_;
 };

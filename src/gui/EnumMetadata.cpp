@@ -90,6 +90,15 @@ Base::Result<void> PopulateEnumMetadata(
             .Value("Password", ::Aero::Input::InputScope::Password)
             .Value("TelephoneNumber", ::Aero::Input::InputScope::TelephoneNumber););
     AERO_REGISTER_ENUM(
+        ::Aero::Input::DragDropEffects,
+        "DragDropEffects",
+        description
+            .Value("None", ::Aero::Input::DragDropEffects::None)
+            .Value("Copy", ::Aero::Input::DragDropEffects::Copy)
+            .Value("Move", ::Aero::Input::DragDropEffects::Move)
+            .Value("Link", ::Aero::Input::DragDropEffects::Link)
+            .Value("All", ::Aero::Input::DragDropEffects::All););
+    AERO_REGISTER_ENUM(
         ::Aero::Input::KeyboardNavigationMode,
         "KeyboardNavigationMode",
         description

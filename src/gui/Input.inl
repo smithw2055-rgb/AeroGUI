@@ -15,6 +15,12 @@ Base::Result<void> PopulateUiInput(
     if (!status) return status.GetStatus();
     status = Meta::Register<MouseWheelEventArgs>(context).Result();
     if (!status) return status.GetStatus();
+    status = Meta::Register<DragEventArgs>(context).Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<GiveFeedbackEventArgs>(context).Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<DragCompletedEventArgs>(context).Result();
+    if (!status) return status.GetStatus();
     status = Meta::Register<KeyEventArgs>(context).Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<TextCompositionEventArgs>(context).Result();

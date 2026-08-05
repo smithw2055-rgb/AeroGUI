@@ -157,7 +157,7 @@ bool IsValidLayoutSize(Size value) noexcept {
 UIElement* FindInvalidVisibleLayout(Visual& visual) noexcept {
     UIElement* element = visual.AsUIElement();
     if (element != nullptr &&
-        element->GetVisibility() == Visibility::Visible &&
+        element->GetIsVisible() &&
         (!UIElement::Impl::MeasureValid(*element) ||
          !UIElement::Impl::ArrangeValid(*element))) {
         return element;
@@ -397,6 +397,20 @@ Visibility UIElement::GetVisibility() const noexcept {
     return GetValueOr(
         VisibilityProperty, Visibility::Visible);
 }
+bool UIElement::GetIsVisible() const noexcept {
+    const Visual* current = this;
+    while (current != nullptr) {
+        const UIElement* element = current->AsUIElement();
+        if (element != nullptr &&
+            element->GetVisibility() != Visibility::Visible) {
+            return false;
+        }
+        current = current->GetLogicalParent() != nullptr
+            ? current->GetLogicalParent()
+            : current->GetVisualParent();
+    }
+    return true;
+}
 bool UIElement::GetIsEnabled() const noexcept {
     if (!GetValueOr(IsEnabledProperty, true)) return false;
     Visual* parent = GetLogicalParent() != nullptr
@@ -422,6 +436,16 @@ bool UIElement::GetIsKeyboardFocusWithin() const noexcept {
 }
 bool UIElement::GetFocusable() const noexcept {
     return GetValueOr(FocusableProperty, false);
+}
+Base::Result<bool> UIElement::Focus() noexcept {
+    Aero::GuiPrivate::Detail::InputRouter* input =
+        Visual::Impl::InputRouterFor(*this);
+    if (input == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "UIElement Focus requires a mounted View");
+    }
+    return input->SetFocus(this);
 }
 bool UIElement::GetIsTabStop() const noexcept {
     return GetValueOr(IsTabStopProperty, false);

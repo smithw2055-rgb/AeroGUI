@@ -19,6 +19,7 @@
 #include <Aero/Animation.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
+#include <Aero/Triggers/Behavior.hpp>
 
 #include <cmath>
 #include <fstream>
@@ -658,12 +659,28 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             Media::Animation::TimerTrigger::StaticTypeId() &&
         targetMember->Name() ==
             Base::StringView("MillisecondsPerTick");
+    const bool authoredInvokeCommand =
+        targetMember != nullptr &&
+        services.targetObject->RuntimeType() ==
+            Media::Animation::InvokeCommandAction::StaticTypeId() &&
+        targetMember->Name() == Base::StringView("Command");
+    const bool authoredInvokeParameter =
+        targetMember != nullptr &&
+        services.targetObject->RuntimeType() ==
+            Media::Animation::InvokeCommandAction::StaticTypeId() &&
+        targetMember->Name() == Base::StringView("CommandParameter");
+    const bool authoredBehaviorBinding =
+        targetMember != nullptr && metadata != nullptr &&
+        metadata->Types().IsDerivedFrom(
+            services.targetObject->RuntimeType(),
+            ::Aero::Interactivity::Behavior::StaticTypeId());
     if ((targetMember != nullptr &&
          targetMember->ValueType() ==
              Data::Binding::StaticTypeId()) ||
         authoredSetterValue || authoredHierarchicalItemsSource ||
         authoredLaunchPath || authoredChangePropertyValue ||
-        authoredTimerInterval) {
+        authoredTimerInterval || authoredInvokeCommand ||
+        authoredInvokeParameter || authoredBehaviorBinding) {
         if (!sourceResource.Empty()) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
@@ -713,6 +730,29 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 services.targetObject)->SetMillisecondsPerTickBinding(
                     std::move(binding).Value());
             return ProvidedValue::Handled();
+        }
+        if (authoredInvokeCommand) {
+            static_cast<Media::Animation::InvokeCommandAction*>(
+                services.targetObject)->SetCommandBinding(
+                    std::move(binding).Value());
+            return ProvidedValue::Handled();
+        }
+        if (authoredInvokeParameter) {
+            static_cast<Media::Animation::InvokeCommandAction*>(
+                services.targetObject)->SetCommandParameterBinding(
+                    std::move(binding).Value());
+            return ProvidedValue::Handled();
+        }
+        if (authoredBehaviorBinding) {
+            Base::Result<void> retained =
+                static_cast<::Aero::Interactivity::Behavior*>(
+                    services.targetObject)->AddAuthoredBinding(
+                        Meta::DependencyPropertyHandle{
+                            targetMember->Id()},
+                        std::move(binding).Value());
+            return retained
+                ? Base::Result<ProvidedValue>(ProvidedValue::Handled())
+                : Base::Result<ProvidedValue>(retained.GetStatus());
         }
         Base::Result<Meta::Value> value =
             Meta::Value::FromObject(
@@ -2782,6 +2822,17 @@ Base::Result<void> ObjectBuilder::StartObject(
     if (!createResult) {
         const bool nonConstructible =
             createResult.GetStatus().code == Base::ErrorCode::Unsupported;
+        // WPF permits abstract object types with a text converter to be used
+        // as value elements. ImageSource is the canonical example:
+        // <ImageSource>Images/Atlas.png</ImageSource> materializes a
+        // BitmapImage through the registered ImageSource converter. Defer
+        // construction until the element text is seen; conversion will still
+        // reject abstract types that have no converter.
+        if (nonConstructible &&
+            HasTypeFlag(typeFlags, Meta::TypeFlags::Abstract) &&
+            !frames_.Empty()) {
+            return StartValueObject(node, bindingStart, typeId);
+        }
         return Failure(
             createResult.GetStatus(),
             nonConstructible
@@ -3497,6 +3548,14 @@ Base::Result<void> ObjectBuilder::WriteText(
                     .SetIsIndeterminate();
                 return {};
             }
+            if (frame.member.valueType == Meta::TypeOf<Base::String>()) {
+                Base::Result<Meta::Value> empty =
+                    Meta::Value::TryFromString(
+                        Meta::TypeOf<Base::String>(), {});
+                if (!empty) return empty.GetStatus();
+                return WriteValueToMember(
+                    frame, std::move(empty).Value(), node.Source());
+            }
             if (frame.memberValueTypeIsValueType &&
                 !acceptsAnyValue) {
                 return Failure(
@@ -3806,11 +3865,8 @@ Base::Result<void> ObjectBuilder::WriteDirectiveText(
             return assignResult.GetStatus();
         }
     } else if (frame.directive == DirectiveKind::Class) {
-        // x:Class identifies the code-behind type. Aero loads the authored
-        // object graph through its module factories, so retaining the value
-        // would not affect runtime construction; accepting it keeps WPF XAML
-        // portable without inventing a second type-activation path.
-        if (node.Value().Empty()) {
+        if (node.Value().Empty() ||
+            frame.targetObjectIndex != rootObjectIndex_) {
             return Failure(
                 Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
@@ -3818,6 +3874,118 @@ Base::Result<void> ObjectBuilder::WriteDirectiveText(
                 XamlObjectWriterDiagnosticCodes::InvalidDirective,
                 MessageInvalidDirective,
                 node.Source());
+        }
+        const Base::StringView className = TrimBuilderText(node.Value());
+        std::uint32_t separator = className.SizeBytes();
+        for (std::uint32_t index = 0U;
+             index < className.SizeBytes(); ++index) {
+            if (className[index] == '.') separator = index;
+        }
+        if (separator == 0U ||
+            separator + 1U >= className.SizeBytes()) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "x:Class must use Namespace.Type syntax"),
+                XamlObjectWriterDiagnosticCodes::InvalidDirective,
+                MessageInvalidDirective,
+                node.Source());
+        }
+        Base::String xamlNamespace;
+        Base::Result<void> namespaceAssigned =
+            xamlNamespace.Assign("clr-namespace:");
+        if (namespaceAssigned) {
+            namespaceAssigned = xamlNamespace.Append(
+                className.Substr(0U, separator));
+        }
+        if (!namespaceAssigned) return namespaceAssigned.GetStatus();
+        const Base::StringView localName = className.Substr(
+            separator + 1U,
+            className.SizeBytes() - separator - 1U);
+        Base::Result<const Meta::TypeInfo*> classType =
+            schema_->ResolveType(xamlNamespace.View(), localName);
+        if (!classType) {
+            if (classType.GetStatus().code ==
+                Base::ErrorCode::NotFound) {
+                // A pure-XAML host may intentionally omit the code-behind
+                // class. Keep the authored root type in that case while
+                // activating a registered derived class when one exists.
+                frame.valuesWritten = 1U;
+                return {};
+            }
+            return classType.GetStatus();
+        }
+        if (!schema_->Types().IsDerivedFrom(
+                classType.Value()->Id(), object.type)) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "x:Class type does not derive from the authored root type"),
+                XamlObjectWriterDiagnosticCodes::TypeMismatch,
+                MessageTypeMismatch,
+                node.Source());
+        }
+        if (classType.Value()->Id() != object.type) {
+            Base::Result<Base::Ref<Base::Object>> replacement =
+                CreateObject(classType.Value()->Id());
+            if (!replacement) {
+                return Failure(
+                    replacement.GetStatus(),
+                    XamlObjectWriterDiagnosticCodes::FactoryFailed,
+                    MessageFactoryFailed,
+                    node.Source());
+            }
+            Base::Result<void> initialized = schema_->BeginInit(
+                classType.Value()->Id(), *replacement.Value());
+            if (!initialized) return initialized.GetStatus();
+            if (object.beginCalled && object.object) {
+                schema_->AbortInit(object.type, *object.object);
+            }
+            object.object = std::move(replacement).Value();
+            object.type = classType.Value()->Id();
+            object.beginCalled = true;
+            object.endCalled = false;
+            object.hasContentMember = false;
+            object.contentMember = {};
+            object.contentPolicy = {};
+            object.contentValueTypeIsObject = false;
+            object.contentValueTypeIsValueType = false;
+            Base::Result<ResolvedMember> content =
+                schema_->ResolveContentMember(object.type);
+            if (content) {
+                object.contentMember = content.Value();
+                object.contentPolicy =
+                    schema_->ResolveMemberWritePolicy(
+                        object.contentMember);
+                object.hasContentMember = true;
+                if (const Meta::TypeInfo* valueType =
+                        schema_->Types().FindType(
+                            object.contentMember.valueType)) {
+                    object.contentValueTypeIsObject =
+                        valueType->Kind() ==
+                            Meta::MetadataTypeKind::Object;
+                    object.contentValueTypeIsValueType =
+                        valueType->Kind() !=
+                            Meta::MetadataTypeKind::Object &&
+                        HasTypeFlag(
+                            valueType->Flags(),
+                            Meta::TypeFlags::ValueType);
+                }
+            } else if (content.GetStatus().code !=
+                       Base::ErrorCode::NotFound) {
+                return content.GetStatus();
+            }
+            const std::uint32_t objectFrame =
+                FindObjectFrameIndex(frame.targetObjectIndex);
+            if (objectFrame != InvalidIndex &&
+                frames_[objectFrame].resourceScopeIndex != InvalidIndex &&
+                frames_[objectFrame].resourceScopeIndex <
+                    resourceScopes_.Size()) {
+                resourceScopes_[
+                    frames_[objectFrame].resourceScopeIndex].external =
+                        schema_->ResolveResourceScope(
+                            object.type, *object.object);
+            }
         }
     } else {
         return Failure(
@@ -4315,6 +4483,14 @@ Base::Result<void> ObjectBuilder::WriteNullToParent(
                   parent.member);
         const bool acceptsAnyValue =
             policy.acceptsAnyValue;
+        if (parent.member.valueType == Meta::TypeOf<Base::String>()) {
+            Base::Result<Meta::Value> empty =
+                Meta::Value::TryFromString(
+                    Meta::TypeOf<Base::String>(), {});
+            if (!empty) return empty.GetStatus();
+            return WriteValueToMember(
+                parent, std::move(empty).Value(), source);
+        }
         if (parent.memberValueTypeIsValueType &&
             !acceptsAnyValue) {
             return Failure(
@@ -4690,9 +4866,10 @@ Base::Result<void> ObjectBuilder::WriteValue(
     }
     Base::Result<Meta::ContentInfo> content =
         schema_->Metadata()->GetContentInfo(member.id);
+    const bool hasWritableContent =
+        content && content.Value().writable;
     const bool hasVisualContent =
-        content && content.Value().writable &&
-        content.Value().IsVisual();
+        hasWritableContent && content.Value().IsVisual();
     const Meta::PropertyInfo* memberProperty =
         schema_->Types().FindProperty(member.id);
     const auto isUIElementValue =
@@ -4713,11 +4890,22 @@ Base::Result<void> ObjectBuilder::WriteValue(
             0U &&
         schema_->Metadata()->
             CanWriteProperty(member.id);
+    const bool isDependencyObjectValue =
+        value.Kind() == Meta::ValueKind::Object &&
+        !value.IsNullObject() && value.AsObject() &&
+        schema_->Types().IsDerivedFrom(
+            value.AsObject()->RuntimeType(),
+            Aero::DependencyObject::StaticTypeId());
     const bool stagesVisualContent =
         (hasVisualContent ||
          hasVisualStructuralProperty) &&
         isUIElementValue(value);
-    Base::Result<void> setResult = stagesVisualContent
+    const bool stagesDeferredObjectContent =
+        services.deferredContentOwner != nullptr &&
+        (hasWritableContent || hasVisualStructuralProperty) &&
+        isDependencyObjectValue;
+    Base::Result<void> setResult =
+        (stagesVisualContent || stagesDeferredObjectContent)
         ? ObjectWriter::StageContent(
               *schema_,
               *created_[targetObjectIndex].object,
@@ -6012,11 +6200,11 @@ Base::Result<void> ObjectWriter::StageContent(
     const Meta::Value& value,
     const ExtensionServices& services) noexcept {
     VisualContentPlan* plan = services.visualContent;
-    if (plan == nullptr || services.targetObject != &object ||
+    if (services.targetObject != &object ||
         value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject()) {
         return InvalidContentState(
-            "XAML visual content requires a non-null object");
+            "XAML content requires a non-null object");
     }
 
     ::Aero::Meta::Registry* metadata = schema.Metadata();
@@ -6029,6 +6217,11 @@ Base::Result<void> ObjectWriter::StageContent(
     const Meta::PropertyInfo* property =
         schema.Types().FindProperty(
             services.targetMember);
+    const bool attachedMember =
+        property != nullptr &&
+        (static_cast<std::uint32_t>(property->Flags()) &
+         static_cast<std::uint32_t>(
+             Meta::PropertyFlags::Attached)) != 0U;
     const bool structuralProperty =
         property != nullptr &&
         (static_cast<std::uint32_t>(
@@ -6047,19 +6240,22 @@ Base::Result<void> ObjectWriter::StageContent(
             contentResult.Value();
         if (!content.writable ||
             !content.clearable ||
-            !content.IsVisual() ||
-            !schema.Types().IsDerivedFrom(
-                services.targetObjectType,
-                content.ownerType)) {
+            (!attachedMember &&
+             !schema.Types().IsDerivedFrom(
+                 services.targetObjectType,
+                 content.ownerType)) ||
+            (services.deferredContentOwner == nullptr &&
+             !content.IsVisual())) {
             return InvalidContent(
-                "XAML content target has no visual content facet");
+                "XAML content target has no compatible content facet");
         }
     }
 
     Base::Object* childObject = value.AsObject().Get();
-    Base::Result<Aero::UIElement*> childResult =
-        ResolveUIElement(schema, *childObject, value.Type());
-    if (!childResult) return childResult.GetStatus();
+    const bool childIsDependencyObject =
+        schema.Types().IsDerivedFrom(
+            childObject->RuntimeType(),
+            Aero::DependencyObject::StaticTypeId());
 
     // A deferred template owns a visual root without itself being a Visual.
     // Commit that root through the template's content accessor; descendant
@@ -6078,21 +6274,16 @@ Base::Result<void> ObjectWriter::StageContent(
             value.AsObject());
     }
 
-    Base::Result<Aero::UIElement*> parentResult =
-        ResolveUIElement(
-            schema, object, services.targetObjectType);
-    if (!parentResult) return parentResult.GetStatus();
-
     if (services.deferredContentOwner != nullptr) {
-        if (services.deferredContent == nullptr) {
+        if (services.deferredContent == nullptr ||
+            !childIsDependencyObject) {
             return InvalidContentState(
-                "Deferred XAML content plan is unavailable");
+                "Deferred XAML content requires a DependencyObject child");
         }
         return structuralProperty
             ? services.deferredContent->
                   StageProperty(
-                      *services.
-                           deferredContentOwner,
+                      *services.deferredContentOwner,
                       object,
                       value.AsObject(),
                       *metadata,
@@ -6104,6 +6295,18 @@ Base::Result<void> ObjectWriter::StageContent(
                   *metadata,
                   services.targetMember);
     }
+
+    if (plan == nullptr) {
+        return InvalidContentState(
+            "XAML visual content plan is unavailable");
+    }
+    Base::Result<Aero::UIElement*> childResult =
+        ResolveUIElement(schema, *childObject, value.Type());
+    if (!childResult) return childResult.GetStatus();
+    Base::Result<Aero::UIElement*> parentResult =
+        ResolveUIElement(
+            schema, object, services.targetObjectType);
+    if (!parentResult) return parentResult.GetStatus();
 
     Base::Result<void> reserved = plan->Reserve(
         plan->contentEdges.Size() + 1U,

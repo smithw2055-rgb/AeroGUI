@@ -392,6 +392,14 @@ FrameworkElement::GetLocalVisualTransform() const noexcept {
             bounds.height};
     }
 
+    Base::Result<Base::Ref<Media::CompositeTransform3D>> transform3D =
+        GetValue(Element::Transform3DProperty);
+    if (transform3D && transform3D.Value()) {
+        result = ComposeTransforms(
+            result,
+            transform3D.Value()->GetProjectedMatrix());
+    }
+
     Base::Ref<Transform> renderTransform =
         GetRenderTransform();
     if (renderTransform) {
@@ -1178,6 +1186,32 @@ Base::Result<void> FrameworkElement::AddAuthoredTrigger(
 void
 FrameworkElement::ClearAuthoredTriggers() noexcept {
     authoredTriggers_.Clear();
+}
+Base::Result<void> FrameworkElement::AddAuthoredBehavior(
+    Base::Ref<Base::Object> behavior) noexcept {
+    if (!behavior) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "FrameworkElement behavior cannot be null");
+    }
+    return authoredBehaviors_.PushBack(std::move(behavior));
+}
+
+void FrameworkElement::ClearAuthoredBehaviors() noexcept {
+    authoredBehaviors_.Clear();
+}
+Base::Result<void> FrameworkElement::AddStyleBehaviorPrototype(
+    Base::Ref<Base::Object> behavior) noexcept {
+    if (!behavior) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "FrameworkElement style behavior cannot be null");
+    }
+    return styleBehaviorPrototypes_.PushBack(std::move(behavior));
+}
+
+void FrameworkElement::ClearStyleBehaviorPrototypes() noexcept {
+    styleBehaviorPrototypes_.Clear();
 }
 
 } // namespace Aero

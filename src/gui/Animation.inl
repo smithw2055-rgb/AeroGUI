@@ -294,6 +294,34 @@ Base::Result<void> PopulateUiAnimation(
     status = doubleFrames.Result();
     if (!status) return status.GetStatus();
 
+    auto pointFrame = Meta::Register<Media::Animation::PointKeyFrame>(
+        context, TypeFlags::Abstract);
+    pointFrame
+        .Property(
+            "Value",
+            &Media::Animation::PointKeyFrame::GetValue,
+            &Media::Animation::PointKeyFrame::SetValue)
+        .Property(
+            "KeyTime",
+            &Media::Animation::PointKeyFrame::GetKeyTime,
+            &Media::Animation::PointKeyFrame::SetKeyTime);
+    status = pointFrame.Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Media::Animation::DiscretePointKeyFrame>(context)
+        .Factory().Result();
+    if (!status) return status.GetStatus();
+
+    auto pointFrames =
+        Meta::Register<Media::Animation::PointAnimationUsingKeyFrames>(context);
+    pointFrames
+        .Content<Media::Animation::PointKeyFrame>(
+            "KeyFrames", ContentKind::Collection,
+            &AddPointKeyFrame, &ClearPointKeyFrames)
+        .Factory();
+    status = pointFrames.Result();
+    if (!status) return status.GetStatus();
+
     status = Meta::Register<Media::Animation::ThicknessKeyFrame>(
         context, TypeFlags::Abstract)
         .Property<
@@ -664,6 +692,60 @@ Base::Result<void> PopulateUiAnimation(
     status = timerTrigger.Result();
     if (!status) return status.GetStatus();
 
+    auto propertyChangedTrigger =
+        Meta::Register<Media::Animation::PropertyChangedTrigger>(context);
+    propertyChangedTrigger
+        .Property<
+            Base::Ref<Data::Binding>,
+            &Media::Animation::PropertyChangedTrigger::GetBinding,
+            &Media::Animation::PropertyChangedTrigger::SetBinding>(
+                "Binding")
+        .Content<Media::Animation::TriggerAction>(
+            "Actions",
+            ContentKind::Collection,
+            &AddPropertyChangedTriggerAction,
+            &ClearPropertyChangedTriggerActions)
+        .Factory();
+    status = propertyChangedTrigger.Result();
+    if (!status) return status.GetStatus();
+
+    auto keyTrigger =
+        Meta::Register<Media::Animation::KeyTrigger>(context);
+    keyTrigger
+        .Property(
+            "Key",
+            &Media::Animation::KeyTrigger::GetKey,
+            &Media::Animation::KeyTrigger::SetKey)
+        .Property(
+            "ActiveOnFocus",
+            &Media::Animation::KeyTrigger::GetActiveOnFocus,
+            &Media::Animation::KeyTrigger::SetActiveOnFocus)
+        .Content<Media::Animation::TriggerAction>(
+            "Actions",
+            ContentKind::Collection,
+            &AddKeyTriggerAction,
+            &ClearKeyTriggerActions)
+        .Factory();
+    status = keyTrigger.Result();
+    if (!status) return status.GetStatus();
+
+    auto invokeCommand =
+        Meta::Register<Media::Animation::InvokeCommandAction>(context);
+    invokeCommand
+        .Property(
+            "Command",
+            &Media::Animation::InvokeCommandAction::GetCommand,
+            &Media::Animation::InvokeCommandAction::SetCommand)
+        .Property<
+            Meta::PropertyValue,
+            &Media::Animation::InvokeCommandAction::GetCommandParameter,
+            &Media::Animation::InvokeCommandAction::SetCommandParameter>(
+                "CommandParameter",
+                PropertyFlags::AnyValue)
+        .Factory();
+    status = invokeCommand.Result();
+    if (!status) return status.GetStatus();
+
     auto comparisonCondition = Meta::Register<Media::Animation::ComparisonCondition>(context);
     comparisonCondition
         .Property<
@@ -723,6 +805,46 @@ Base::Result<void> PopulateUiAnimation(
             &ClearStoryboardCompletedTriggerActions)
         .Factory();
     status = storyboardCompleted.Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Interactivity::Behavior>(
+        context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+
+    auto styleBehaviors =
+        Meta::Register<Interactivity::StyleBehaviorCollection>(context);
+    styleBehaviors
+        .Content<Base::Object>(
+            "Items", ContentKind::Collection,
+            &AddStyleBehaviorItem,
+            &ClearStyleBehaviorItems)
+        .Factory();
+    status = styleBehaviors.Result();
+    if (!status) return status.GetStatus();
+
+    auto styleTriggers =
+        Meta::Register<Interactivity::StyleTriggerCollection>(context);
+    styleTriggers
+        .Content<Base::Object>(
+            "Items", ContentKind::Collection,
+            &AddStyleTriggerItem,
+            &ClearStyleTriggerItems)
+        .Factory();
+    status = styleTriggers.Result();
+    if (!status) return status.GetStatus();
+
+    auto styleInteraction = Meta::Register<Interactivity::StyleInteraction>(
+        context, TypeFlags::Abstract);
+    styleInteraction
+        .Property(
+            Interactivity::StyleInteraction::BehaviorsProperty,
+            PropertyOptions(Base::Ref<Interactivity::StyleBehaviorCollection>{})
+                .Changed(&Interactivity::StyleInteraction::OnBehaviorsChanged))
+        .Property(
+            Interactivity::StyleInteraction::TriggersProperty,
+            PropertyOptions(Base::Ref<Interactivity::StyleTriggerCollection>{})
+                .Changed(&Interactivity::StyleInteraction::OnTriggersChanged));
+    status = styleInteraction.Result();
     if (!status) return status.GetStatus();
 
     auto interaction = Meta::Register<Media::Animation::Interaction>(

@@ -11,9 +11,13 @@
 namespace Aero::Runtime::Detail {
 
 struct DataTemplateTriggerSetter {
-    Base::Ref<::Aero::DependencyObject> target;
+    Base::WeakRef<::Aero::DependencyObject> target;
     Meta::DependencyPropertyHandle property;
     Meta::PropertyValue value;
+    // A default Binding in a ControlTemplate observes the templated
+    // parent's current DataContext. Preserve that semantic until the
+    // instance is mounted instead of capturing the authoring-time object.
+    bool usesDataContext = false;
     Meta::PropertyProviderToken token;
 };
 
@@ -22,11 +26,15 @@ struct DataTemplateTriggerCondition {
     // condition. Data triggers retain their Binding so the runtime can
     // resolve ElementName against the document name scope and subscribe to
     // the resulting source property.
-    Base::Ref<Base::Object> source;
+    Base::WeakRef<Base::Object> source;
     Base::Ref<Data::Binding> binding;
-    Base::Ref<::Aero::DependencyObject> dependencySource;
+    Base::WeakRef<::Aero::DependencyObject> dependencySource;
     Meta::DependencyPropertyHandle property;
     Meta::PropertyValue value;
+    // A default Binding in a ControlTemplate observes the templated
+    // parent's current DataContext. Preserve that semantic until the
+    // instance is mounted instead of capturing the authoring-time object.
+    bool usesDataContext = false;
 };
 
 struct DataTemplatePropertyTrigger {
@@ -42,7 +50,7 @@ class DataTemplateTriggerState
 public:
     struct NamedObject {
         Base::String name;
-        Base::Ref<Base::Object> object;
+        Base::WeakRef<Base::Object> object;
     };
 
     static constexpr Meta::TypeId StaticTypeId() noexcept {
@@ -59,7 +67,8 @@ public:
         Base::StringView name) const noexcept {
         for (const NamedObject& named : names) {
             if (named.name.View() == name) {
-                return named.object.Get();
+                Base::Ref<Base::Object> object = named.object.Lock();
+                return object.Get();
             }
         }
         return nullptr;

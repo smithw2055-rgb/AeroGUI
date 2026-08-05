@@ -431,6 +431,40 @@ ThicknessAnimation::SetEasingFunction(
 }
 
 
+void PointKeyFrame::SetValue(Base::Point value) noexcept {
+    if (!std::isfinite(value.x) || !std::isfinite(value.y)) return;
+    value_ = value;
+}
+
+void PointKeyFrame::SetKeyTime(Base::StringView value) noexcept {
+    Base::Result<AnimationTime> parsed = ParseClockTime(value);
+    if (!parsed) return;
+    Base::Result<void> assigned = keyTimeText_.Assign(value);
+    if (!assigned) return;
+    keyTimeMicroseconds_ = parsed.Value();
+}
+
+Base::Result<void> PointAnimationUsingKeyFrames::AddKeyFrame(
+    Base::Ref<PointKeyFrame> value) noexcept {
+    Base::Result<void> writable = WritePreamble();
+    if (!writable) return writable.GetStatus();
+    if (!value) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Point key frame cannot be null");
+    }
+    Base::Result<void> added = keyFrames_.PushBack(std::move(value));
+    if (!added) return added.GetStatus();
+    WritePostscript();
+    return {};
+}
+
+void PointAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
+    if (!WritePreamble()) return;
+    keyFrames_.Clear();
+    WritePostscript();
+}
+
 void DoubleKeyFrame::SetValue(double value) noexcept {
     if (!std::isfinite(value)) {
         return;

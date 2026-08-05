@@ -117,6 +117,58 @@ public:
     }
 };
 
+// AeroGUIExtensions compatibility transform. The renderer remains 2D, so
+// this object projects the authored 3D transform into a deterministic affine
+// transform using a fixed perspective distance. RotationZ is exact; X/Y
+// rotations and TranslateZ produce the expected foreshortening used by the
+// Inventory sample without introducing a second 3D scene graph.
+class AERO_API CompositeTransform3D : public ::Aero::DependencyObject {
+    AERO_DECLARE_TYPE(CompositeTransform3D, ::Aero::DependencyObject)
+public:
+    CompositeTransform3D() noexcept : DependencyObject(StaticTypeId()) {}
+
+    double GetCenterX() const noexcept { return GetValueOr(CenterXProperty, 0.0); }
+    double GetCenterY() const noexcept { return GetValueOr(CenterYProperty, 0.0); }
+    double GetCenterZ() const noexcept { return GetValueOr(CenterZProperty, 0.0); }
+    double GetRotationX() const noexcept { return GetValueOr(RotationXProperty, 0.0); }
+    double GetRotationY() const noexcept { return GetValueOr(RotationYProperty, 0.0); }
+    double GetRotationZ() const noexcept { return GetValueOr(RotationZProperty, 0.0); }
+    double GetScaleX() const noexcept { return GetValueOr(ScaleXProperty, 1.0); }
+    double GetScaleY() const noexcept { return GetValueOr(ScaleYProperty, 1.0); }
+    double GetScaleZ() const noexcept { return GetValueOr(ScaleZProperty, 1.0); }
+    double GetTranslateX() const noexcept { return GetValueOr(TranslateXProperty, 0.0); }
+    double GetTranslateY() const noexcept { return GetValueOr(TranslateYProperty, 0.0); }
+    double GetTranslateZ() const noexcept { return GetValueOr(TranslateZProperty, 0.0); }
+
+    void SetCenterX(double value) noexcept { SetValue(CenterXProperty, value); }
+    void SetCenterY(double value) noexcept { SetValue(CenterYProperty, value); }
+    void SetCenterZ(double value) noexcept { SetValue(CenterZProperty, value); }
+    void SetRotationX(double value) noexcept { SetValue(RotationXProperty, value); }
+    void SetRotationY(double value) noexcept { SetValue(RotationYProperty, value); }
+    void SetRotationZ(double value) noexcept { SetValue(RotationZProperty, value); }
+    void SetScaleX(double value) noexcept { SetValue(ScaleXProperty, value); }
+    void SetScaleY(double value) noexcept { SetValue(ScaleYProperty, value); }
+    void SetScaleZ(double value) noexcept { SetValue(ScaleZProperty, value); }
+    void SetTranslateX(double value) noexcept { SetValue(TranslateXProperty, value); }
+    void SetTranslateY(double value) noexcept { SetValue(TranslateYProperty, value); }
+    void SetTranslateZ(double value) noexcept { SetValue(TranslateZProperty, value); }
+
+    Base::Transform2D GetProjectedMatrix() const noexcept;
+
+    inline static constexpr Members::Property<double> CenterXProperty{"CenterX"};
+    inline static constexpr Members::Property<double> CenterYProperty{"CenterY"};
+    inline static constexpr Members::Property<double> CenterZProperty{"CenterZ"};
+    inline static constexpr Members::Property<double> RotationXProperty{"RotationX"};
+    inline static constexpr Members::Property<double> RotationYProperty{"RotationY"};
+    inline static constexpr Members::Property<double> RotationZProperty{"RotationZ"};
+    inline static constexpr Members::Property<double> ScaleXProperty{"ScaleX"};
+    inline static constexpr Members::Property<double> ScaleYProperty{"ScaleY"};
+    inline static constexpr Members::Property<double> ScaleZProperty{"ScaleZ"};
+    inline static constexpr Members::Property<double> TranslateXProperty{"TranslateX"};
+    inline static constexpr Members::Property<double> TranslateYProperty{"TranslateY"};
+    inline static constexpr Members::Property<double> TranslateZProperty{"TranslateZ"};
+};
+
 class AERO_API TransformGroup : public Transform {
     AERO_DECLARE_TYPE(TransformGroup, Transform)
 public:

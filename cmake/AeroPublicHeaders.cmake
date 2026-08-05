@@ -89,6 +89,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Triggers/Conditions.hpp
     include/Aero/Triggers/DataTrigger.hpp
     include/Aero/Triggers/EventTrigger.hpp
+    include/Aero/Triggers/InteractionTriggers.hpp
     include/Aero/Triggers/MultiDataTrigger.hpp
     include/Aero/Triggers/MultiTrigger.hpp
     include/Aero/Triggers/StoryboardCompletedTrigger.hpp
@@ -97,6 +98,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Triggers/TriggerAction.hpp
     include/Aero/Triggers/TriggerBase.hpp
     include/Aero/Triggers/Triggers.hpp
+    include/Aero/Triggers/Behavior.hpp
     include/Aero/Triggers/ChangePropertyAction.hpp
     include/Aero/Triggers/LaunchUriOrFileAction.hpp
     include/Aero/Triggers/RemoveElementAction.hpp

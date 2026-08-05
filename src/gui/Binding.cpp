@@ -210,12 +210,24 @@ bool HasDefaultTargetConversion(
          IsNumericType(targetType)) ||
         (IsNumericType(sourceType) &&
          targetType == TypeOf<Aero::Length>()) ||
+        (IsNumericType(sourceType) &&
+         targetType == TypeOf<Base::Thickness>()) ||
         (sourceType == TypeOf<Aero::Length>() &&
          IsNumericType(targetType)) ||
         (targetType == TypeOf<Base::String>() &&
          sourceType != InvalidTypeId) ||
         (sourceType == TypeOf<Base::String>() &&
          targetType != InvalidTypeId);
+}
+
+Base::Result<PropertyValue> ConvertThicknessValue(
+    const PropertyValue& value) noexcept {
+    Base::Result<PropertyValue> numeric =
+        ConvertNumericValue(value, TypeOf<double>());
+    if (!numeric) return numeric.GetStatus();
+    const double uniform = numeric.Value().AsDouble();
+    return Meta::ValueCodec<Base::Thickness>::Encode(
+        Base::Thickness{uniform, uniform, uniform, uniform});
 }
 
 Base::Result<PropertyValue> ConvertLengthValue(
@@ -604,6 +616,23 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     record.dataContextOwner = descriptor.dataContextOwner != nullptr
         ? descriptor.dataContextOwner
         : descriptor.target;
+    // A Binding authored on FrameworkElement.DataContext reads from the
+    // inherited parent DataContext. Reading the target property itself would
+    // create a self-reference and hide the inherited value while the
+    // expression is unresolved.
+    if (record.sourceKind == BindingSourceKind::DataContext &&
+        descriptor.targetProperty == descriptor.dataContextProperty &&
+        record.metadata->Types().IsDerivedFrom(
+            descriptor.target->RuntimeType(),
+            FrameworkElement::StaticTypeId())) {
+        auto& targetElement =
+            *static_cast<FrameworkElement*>(descriptor.target);
+        Visual* parent = targetElement.GetLogicalParent();
+        if (parent == nullptr) parent = targetElement.GetVisualParent();
+        if (parent != nullptr && parent->AsFrameworkElement() != nullptr) {
+            record.dataContextOwner = parent->AsFrameworkElement();
+        }
+    }
     record.descriptor.target = descriptor.target;
     record.descriptor.targetProperty = descriptor.targetProperty;
     record.descriptor.mode = descriptor.mode;
@@ -1577,7 +1606,10 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
                    converted.Type(),
                    targetProperty->ValueType())) {
         Base::Result<PropertyValue> result =
-            ((IsNumericType(converted.Type()) &&
+            (IsNumericType(converted.Type()) &&
+             targetProperty->ValueType() == TypeOf<Base::Thickness>())
+            ? ConvertThicknessValue(converted)
+            : ((IsNumericType(converted.Type()) &&
               targetProperty->ValueType() == TypeOf<Aero::Length>()) ||
              (converted.Type() == TypeOf<Aero::Length>() &&
               IsNumericType(targetProperty->ValueType())))
@@ -1616,7 +1648,8 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
                     *converted.AsObject()));
         }
     }
-    if (converted.Type() != targetProperty->ValueType()) {
+    if (!targetProperty->AcceptsAnyValue() &&
+        converted.Type() != targetProperty->ValueType()) {
         return InvalidArgument(
             "Binding converter returned a value with the wrong target type");
     }
@@ -1643,10 +1676,13 @@ Base::Result<PropertyValue> BindingEngine::ConvertForSource(
         if (sourceProperty != nullptr) {
             sourceType = sourceProperty->ValueType();
         }
-    } else if (record.sourceKind == BindingSourceKind::MetadataPath) {
+    } else if (record.sourceKind == BindingSourceKind::MetadataPath ||
+               record.sourceKind == BindingSourceKind::DataContext) {
         Base::Result<void> resolved = ResolveMetadataSource(record);
         if (!resolved) return resolved.GetStatus();
-        sourceType = record.pathPlan.ResultType();
+        if (record.pathPlan.IsValid()) {
+            sourceType = record.pathPlan.ResultType();
+        }
     }
     if (sourceType == InvalidTypeId) {
         return Base::Status::Failure(
