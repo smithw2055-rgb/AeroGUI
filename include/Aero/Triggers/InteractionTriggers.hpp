@@ -111,4 +111,49 @@ private:
     Base::Ref<Aero::Data::Binding> commandParameterBinding_;
 };
 
+// Selects the associated item container. The runtime maps this to the native
+// selector contract instead of synthesizing a mouse click.
+class AERO_API SelectAction : public TriggerAction {
+    AERO_DECLARE_TYPE(SelectAction, TriggerAction)
+public:
+    SelectAction() noexcept : TriggerAction(StaticTypeId()) {}
+};
+
+// Selects all text in the associated TextBox or PasswordBox.
+class AERO_API SelectAllAction : public TriggerAction {
+    AERO_DECLARE_TYPE(SelectAllAction, TriggerAction)
+public:
+    SelectAllAction() noexcept : TriggerAction(StaticTypeId()) {}
+};
+
+// Blend-compatible one-shot sound action. IsEnabled is a dependency property
+// because authored XAML commonly targets it from ChangePropertyAction.
+class AERO_API PlaySoundAction : public TriggerAction {
+    AERO_DECLARE_TYPE(PlaySoundAction, TriggerAction)
+public:
+    PlaySoundAction() noexcept : TriggerAction(StaticTypeId()) {}
+
+    Base::StringView GetSource() const noexcept {
+        return source_.View();
+    }
+    void SetSource(Base::StringView value) noexcept {
+        static_cast<void>(source_.Assign(value));
+    }
+    double GetVolume() const noexcept { return volume_; }
+    void SetVolume(double value) noexcept { volume_ = value; }
+    bool GetIsEnabled() const noexcept {
+        return GetValueOr(IsEnabledProperty, true);
+    }
+    void SetIsEnabled(bool value) noexcept {
+        SetValue(IsEnabledProperty, value);
+    }
+
+    inline static constexpr Members::Property<bool>
+        IsEnabledProperty{"IsEnabled"};
+
+private:
+    Base::String source_;
+    double volume_ = 1.0;
+};
+
 } // namespace Aero::Media::Animation

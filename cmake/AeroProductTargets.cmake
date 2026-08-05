@@ -29,7 +29,7 @@ target_include_directories(AeroIntegration
         "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(AeroIntegration
     PUBLIC Aero::Gui
-    PRIVATE freetype harfbuzz)
+    PRIVATE Aero::Audio freetype harfbuzz)
 if(AERO_ENABLE_WGL_SURFACE)
     target_link_libraries(AeroIntegration PRIVATE
         gdi32 opengl32 user32)

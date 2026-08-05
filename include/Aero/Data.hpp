@@ -77,6 +77,23 @@ protected:
     IValueConverter() noexcept = default;
 };
 
+
+// WPF-compatible BooleanToVisibilityConverter. Keeping this converter in the
+// data layer lets resource dictionaries use it without pulling in Controls.
+class AERO_API BooleanToVisibilityConverter final
+    : public IValueConverter {
+    AERO_DECLARE_TYPE(BooleanToVisibilityConverter, IValueConverter)
+public:
+    BooleanToVisibilityConverter() noexcept = default;
+
+    Base::Result<Value> Convert(
+        const Value& value,
+        const Value& parameter) noexcept override;
+    Base::Result<Value> ConvertBack(
+        const Value& value,
+        const Value& parameter) noexcept override;
+};
+
 class AERO_API BindingBase : public Base::Object {
     AERO_DECLARE_TYPE(BindingBase, Base::Object)
 public:

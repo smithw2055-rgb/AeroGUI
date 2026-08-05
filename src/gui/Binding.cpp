@@ -273,6 +273,31 @@ bool CanRoundTripObjectValue(
         types.IsAssignableFrom(targetType, sourceType);
 }
 
+bool TryParseFixedPrecision(
+    Base::StringView specifier,
+    std::uint32_t& precision) noexcept {
+    if (specifier.Empty() ||
+        (specifier[0] != 'F' && specifier[0] != 'f')) {
+        return false;
+    }
+    if (specifier.SizeBytes() == 1U) {
+        precision = 2U;
+        return true;
+    }
+    std::uint32_t parsed = 0U;
+    for (std::uint32_t index = 1U;
+         index < specifier.SizeBytes();
+         ++index) {
+        const char digit = specifier[index];
+        if (digit < '0' || digit > '9') return false;
+        parsed = parsed * 10U +
+            static_cast<std::uint32_t>(digit - '0');
+        if (parsed > 15U) return false;
+    }
+    precision = parsed;
+    return true;
+}
+
 Base::Result<Base::String> FormatBindingString(
     const PropertyValue& value,
     Base::StringView format) noexcept {
@@ -394,10 +419,22 @@ Base::Result<Base::String> FormatBindingString(
     }
 
     char formatted[160]{};
+    std::uint32_t fixedPrecision = 0U;
+    const bool fixedPoint =
+        numeric &&
+        TryParseFixedPrecision(
+            specifier, fixedPrecision);
     const bool thousandsScale =
         numeric &&
         specifier == Base::StringView("#,.##");
-    if (thousandsScale) {
+    if (fixedPoint) {
+        std::snprintf(
+            formatted,
+            sizeof(formatted),
+            "%.*f",
+            static_cast<int>(fixedPrecision),
+            numericValue);
+    } else if (thousandsScale) {
         char decimal[96]{};
         std::snprintf(
             decimal,

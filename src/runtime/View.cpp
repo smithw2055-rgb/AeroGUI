@@ -1,4 +1,5 @@
 #include <Aero/View.hpp>
+#include <Aero/Audio/Audio.hpp>
 #include <Aero/Triggers/Behavior.hpp>
 #include <Aero/Base/Hash.hpp>
 #include "runtime/GuiData.hpp"
@@ -380,6 +381,7 @@ struct View::Impl {
     ViewArena arena;
     Base::Ref<Base::Object> gui;
     Renderer publicRenderer;
+    Audio::Engine audio;
     ::Aero::Threading::Dispatcher dispatcher;
     GuiSchema* schemaBundle = nullptr;
     Markup::DocumentCache* documentCache = nullptr;
@@ -5858,6 +5860,7 @@ struct View::Impl {
     }
 
     void Shutdown() noexcept {
+        audio.Shutdown();
         BeginDestroyInteractions();
         DetachUi();
         FinishDestroyInteractions();
@@ -6836,6 +6839,84 @@ View::Impl::ExecuteAnimationAction(
         return focused
             ? Base::Result<void>()
             : Base::Result<void>(focused.GetStatus());
+    }
+
+    if (type == MediaAnimation::SelectAction::StaticTypeId()) {
+        if (metadata->Types().IsDerivedFrom(
+                owner.RuntimeType(),
+                Controls::ListBoxItem::StaticTypeId())) {
+            static_cast<Controls::ListBoxItem&>(owner)
+                .SetIsSelected(true);
+            return {};
+        }
+        if (metadata->Types().IsDerivedFrom(
+                owner.RuntimeType(),
+                Controls::TabItem::StaticTypeId())) {
+            static_cast<Controls::TabItem&>(owner)
+                .SetIsSelected(true);
+            return {};
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "SelectAction owner is not a selectable item container");
+    }
+
+    if (type == MediaAnimation::SelectAllAction::StaticTypeId()) {
+        if (metadata->Types().IsDerivedFrom(
+                owner.RuntimeType(),
+                Controls::TextBox::StaticTypeId())) {
+            return static_cast<Controls::TextBox&>(owner)
+                .SelectAll();
+        }
+        if (metadata->Types().IsDerivedFrom(
+                owner.RuntimeType(),
+                Controls::PasswordBox::StaticTypeId())) {
+            return static_cast<Controls::PasswordBox&>(owner)
+                .SelectAll();
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "SelectAllAction owner is not a text editor");
+    }
+
+    if (type == MediaAnimation::PlaySoundAction::StaticTypeId()) {
+        auto& playSound =
+            static_cast<MediaAnimation::PlaySoundAction&>(action);
+        if (!playSound.GetIsEnabled() ||
+            playSound.GetSource().Empty()) {
+            return {};
+        }
+        const double volume = playSound.GetVolume();
+        if (!std::isfinite(volume) ||
+            volume < 0.0 || volume > 1.0) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "PlaySoundAction Volume must be between zero and one");
+        }
+        Base::Result<void> initialized = audio.Initialize();
+        if (!initialized &&
+            (initialized.GetStatus().code ==
+                 Base::ErrorCode::Unsupported ||
+             initialized.GetStatus().code ==
+                 Base::ErrorCode::InvalidState)) {
+            // Audio is optional for headless and provider-free hosts.
+            return {};
+        }
+        if (!initialized) return initialized.GetStatus();
+        audio.SetEffectsVolume(
+            static_cast<float>(volume));
+        Base::Result<void> played =
+            audio.PlayEffect(playSound.GetSource());
+        if (!played &&
+            (played.GetStatus().code ==
+                 Base::ErrorCode::InvalidState ||
+             played.GetStatus().code ==
+                 Base::ErrorCode::NotFound)) {
+            // A missing device or authored file must not poison the UI
+            // trigger pipeline.
+            return {};
+        }
+        return played;
     }
 
     if (type == MediaAnimation::RemoveElementAction::StaticTypeId()) {

@@ -19,6 +19,8 @@ public:
         return StaticTypeId();
     }
     inline static constexpr Meta::AttachedPropertyRef<Element, double>
+        PPAAInProperty{"PPAAIn"};
+    inline static constexpr Meta::AttachedPropertyRef<Element, double>
         PPAAOutProperty{"PPAAOut"};
     // Compatibility setting retained for authored AeroGUI XAML. SDF text is
     // the renderer default, so this marker never switches back to grayscale.

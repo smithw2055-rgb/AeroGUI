@@ -36,6 +36,9 @@ Base::Result<void> PopulateUiStyling(
     auto element = Meta::Register<Element>(context, TypeFlags::Abstract);
     element
         .Property(
+            Element::PPAAInProperty,
+            PropertyOptions(0.0).AffectsRender())
+        .Property(
             Element::PPAAOutProperty,
             PropertyOptions(0.0).AffectsRender())
         .Property(
@@ -106,6 +109,11 @@ Base::Result<void> PopulateUiStyling(
     if (!status) return status.GetStatus();
 
     status = Meta::Register<Data::IValueConverter>(context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Data::BooleanToVisibilityConverter>(context)
+        .Factory()
+        .Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<Data::BindingBase>(context, TypeFlags::Abstract).Result();

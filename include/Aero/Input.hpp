@@ -347,7 +347,20 @@ public:
     inline static constexpr Members::AttachedProperty<KeyboardNavigationMode> DirectionalNavigationProperty{"DirectionalNavigation"};
 
     inline static constexpr Members::AttachedProperty<KeyboardNavigationMode> TabNavigationProperty{"TabNavigation"};
+    inline static constexpr Members::AttachedProperty<KeyboardNavigationMode> ControlTabNavigationProperty{"ControlTabNavigation"};
     inline static constexpr Members::AttachedProperty<std::uint32_t> TabIndexProperty{"TabIndex"};
+};
+
+// Focus scopes are authored as attached properties in WPF.
+class AERO_API FocusManager : public Base::Object {
+    AERO_DECLARE_TYPE(FocusManager, Base::Object)
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+
+    inline static constexpr Members::AttachedProperty<bool> IsFocusScopeProperty{"IsFocusScope"};
+    inline static constexpr Members::AttachedProperty<Base::Ref<Base::Object>> FocusedElementProperty{"FocusedElement"};
 };
 
 

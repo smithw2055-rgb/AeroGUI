@@ -41,10 +41,30 @@ Base::Result<void> PopulateUiInput(
         PropertyOptions(
             KeyboardNavigationMode::Continue));
     keyboardNavigation.Property(
+        KeyboardNavigation::
+            ControlTabNavigationProperty,
+        PropertyOptions(
+            KeyboardNavigationMode::Continue));
+    keyboardNavigation.Property(
         KeyboardNavigation::TabIndexProperty,
         PropertyOptions(std::uint32_t{0}));
     status = keyboardNavigation.Result();
     if (!status) return status.GetStatus();
+
+    auto focusManager =
+        Meta::Register<FocusManager>(
+            context, TypeFlags::Abstract);
+    focusManager
+        .Property(
+            FocusManager::IsFocusScopeProperty,
+            PropertyOptions(false))
+        .Property(
+            FocusManager::FocusedElementProperty,
+            PropertyOptions(
+                Base::Ref<Base::Object>{}));
+    status = focusManager.Result();
+    if (!status) return status.GetStatus();
+
     status = Meta::Register<CanExecuteRoutedEventArgs>(
         context).Result();
     if (!status) return status.GetStatus();

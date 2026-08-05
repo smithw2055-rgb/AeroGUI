@@ -1,20 +1,18 @@
 #pragma once
 
 #include <Aero/Animation.hpp>
+#include <Aero/DependencyObject.hpp>
 
 namespace Aero::Media::Animation {
 
-class AERO_API TriggerAction : public Base::Object {
-    AERO_DECLARE_TYPE(TriggerAction, Base::Object)
-public:
-    Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
-
+// WPF TriggerAction is a DependencyObject so named actions can participate in
+// bindings and ChangePropertyAction targeting.
+class AERO_API TriggerAction : public ::Aero::DependencyObject {
+    AERO_DECLARE_TYPE(TriggerAction, ::Aero::DependencyObject)
 protected:
     explicit TriggerAction(Meta::TypeId runtimeType) noexcept
-        : runtimeType_(runtimeType) {}
-
-private:
-    Meta::TypeId runtimeType_ = StaticTypeId();
+        : DependencyObject(runtimeType) {}
+    ~TriggerAction() override = default;
 };
 
 // Marker object used by the interactivity metadata layer. It remains a

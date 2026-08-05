@@ -746,6 +746,35 @@ Base::Result<void> PopulateUiAnimation(
     status = invokeCommand.Result();
     if (!status) return status.GetStatus();
 
+    status =
+        Meta::Register<Media::Animation::SelectAction>(context)
+            .Factory()
+            .Result();
+    if (!status) return status.GetStatus();
+    status =
+        Meta::Register<Media::Animation::SelectAllAction>(context)
+            .Factory()
+            .Result();
+    if (!status) return status.GetStatus();
+
+    auto playSound =
+        Meta::Register<Media::Animation::PlaySoundAction>(context);
+    playSound
+        .Property(
+            "Source",
+            &Media::Animation::PlaySoundAction::GetSource,
+            &Media::Animation::PlaySoundAction::SetSource)
+        .Property(
+            "Volume",
+            &Media::Animation::PlaySoundAction::GetVolume,
+            &Media::Animation::PlaySoundAction::SetVolume)
+        .Property(
+            Media::Animation::PlaySoundAction::IsEnabledProperty,
+            PropertyOptions(true))
+        .Factory();
+    status = playSound.Result();
+    if (!status) return status.GetStatus();
+
     auto comparisonCondition = Meta::Register<Media::Animation::ComparisonCondition>(context);
     comparisonCondition
         .Property<
