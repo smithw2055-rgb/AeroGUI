@@ -1,5 +1,6 @@
 #pragma once
 #include <Aero/Render/D3D11.hpp>
+#include <Aero/Integration/RenderSurface.hpp>
 
 namespace Aero::Integration {
 using D3D11StatePreservationPolicy =

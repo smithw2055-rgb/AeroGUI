@@ -1726,14 +1726,13 @@ endif()
 unset(public_header_content)
 unset(retired_public_integration_paths)
 
-# S5A canonical namespace surface. Complex ABI-bearing implementations keep
-# private Integration ownership until S5B, but every installed contract must
-# expose its domain spelling now.
+# S5C canonical namespace surface. Installed contracts must use their real
+# declaration namespace; source compatibility aliases are not SDK ownership.
 set(aero_namespace_surface_checks
     "include/Aero/ViewOptions.hpp|namespace Aero"
     "include/Aero/Input/Platform.hpp|namespace Aero::Input"
     "include/Aero/Platform/NativeWindow.hpp|namespace Aero::Platform"
-    "include/Aero/RenderSurface.hpp|using RenderSurface = Integration::RenderSurface"
+    "include/Aero/RenderSurface.hpp|class AERO_API RenderSurface"
     "include/Aero/Render/D3D11.hpp|namespace Aero::Render"
     "include/Aero/Render/OpenGL33.hpp|namespace Aero::Render"
     "include/Aero/Markup/XamlProvider.hpp|namespace Aero::Markup"
@@ -1762,5 +1761,29 @@ unset(namespace_surface_header)
 unset(namespace_surface_marker)
 unset(namespace_surface_content)
 unset(namespace_surface_position)
+
+file(READ "${AERO_SOURCE_DIR}/include/Aero/RenderSurface.hpp"
+    aero_render_surface_public_header)
+if(aero_render_surface_public_header MATCHES
+        "namespace[ \t]+Aero::Integration|using[ \t]+RenderSurface[ \t]*=[ \t]*Integration::")
+    message(FATAL_ERROR
+        "RenderSurface must be declared directly in namespace Aero")
+endif()
+file(READ "${AERO_SOURCE_DIR}/include/Aero/RenderDevice.hpp"
+    aero_render_device_public_header)
+if(aero_render_device_public_header MATCHES
+        "namespace[ \t]+Integration[ \t]*[{][^}]*class[ \t]+RenderSurface")
+    message(FATAL_ERROR
+        "RenderDevice must not redeclare the retired Integration::RenderSurface")
+endif()
+file(READ "${AERO_SOURCE_DIR}/src/runtime/ViewRenderer.hpp"
+    aero_view_renderer_header)
+if(aero_view_renderer_header MATCHES "Integration::RenderSurface")
+    message(FATAL_ERROR
+        "ViewRenderer must consume the canonical Aero::RenderSurface type")
+endif()
+unset(aero_render_surface_public_header)
+unset(aero_render_device_public_header)
+unset(aero_view_renderer_header)
 
 message(STATUS "Aero architecture dependency checks passed")

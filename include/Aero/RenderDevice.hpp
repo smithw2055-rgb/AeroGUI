@@ -8,7 +8,7 @@
 
 #include <cstdint>
 
-namespace Aero::Integration { class RenderFrame; class RenderSurface; }
+namespace Aero::Integration { class RenderFrame; }
 
 namespace Aero {
 
@@ -45,7 +45,7 @@ struct RenderFrameStatistics {
 
 // Host-thread-affine UI render device shared by one or more View renderers on
 // the same render thread. Native graphics resources and surfaces remain hidden
-// behind Integration factories and the private Graphics layer.
+// behind opt-in Render factories and the private Graphics layer.
 class AERO_API RenderDevice final : public Base::Object {
     struct ConstructionToken {};
 

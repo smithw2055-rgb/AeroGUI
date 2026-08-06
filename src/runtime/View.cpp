@@ -8882,7 +8882,7 @@ Runtime::Detail::ViewRenderer::RenderOffscreen() noexcept {
 }
 
 Base::Result<void> Runtime::Detail::ViewRenderer::Render(
-    Integration::RenderSurface& surface) noexcept {
+    RenderSurface& surface) noexcept {
     if (impl_ == nullptr || !impl_->initialized || !impl_->device ||
         impl_->view == nullptr || impl_->view->state_ == nullptr) {
         return ViewNotInitialized(
@@ -8915,7 +8915,7 @@ Base::Result<void> Runtime::Detail::ViewRenderer::Render(
     }
 
     Base::Result<void> submitted =
-        Integration::RenderSurface::Impl::Render(
+        RenderSurface::Impl::Render(
             surface, this, frame);
     if (!submitted) return submitted.GetStatus();
 

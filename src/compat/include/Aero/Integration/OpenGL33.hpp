@@ -1,5 +1,6 @@
 #pragma once
 #include <Aero/Render/OpenGL33.hpp>
+#include <Aero/Integration/RenderSurface.hpp>
 
 namespace Aero::Integration {
 using OpenGL33StatePreservationPolicy =

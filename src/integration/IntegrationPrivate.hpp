@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Integration/RenderSurface.hpp>
+#include <Aero/RenderSurface.hpp>
 #include "private/RenderSurface.hpp"
 
 // Source-private implementation entry point. Rendering types keep their

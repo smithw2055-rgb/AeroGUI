@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Integration/RenderSurface.hpp>
+#include <Aero/RenderSurface.hpp>
 #include "integration/private/RenderDevice.hpp"
 
 namespace Aero::Integration::Detail {
@@ -25,7 +25,7 @@ public:
 
 } // namespace Aero::Integration::Detail
 
-namespace Aero::Integration {
+namespace Aero {
 
 struct RenderSurface::Impl {
     Impl(
@@ -45,20 +45,21 @@ struct RenderSurface::Impl {
 
     Base::IAllocator* allocator = nullptr;
     Base::Ref<Aero::RenderDevice> device;
-    Detail::NativeRenderTarget* target = nullptr;
+    Integration::Detail::NativeRenderTarget* target = nullptr;
     RenderSurfaceKind kind = RenderSurfaceKind::Embedded;
-    Detail::SurfaceHealth health = Detail::SurfaceHealth::Shutdown;
+    Integration::Detail::SurfaceHealth health =
+        Integration::Detail::SurfaceHealth::Shutdown;
     bool ownsTarget = false;
 
     void DestroyTarget() noexcept {
         if (ownsTarget) delete target;
         target = nullptr;
         ownsTarget = false;
-        health = Detail::SurfaceHealth::Shutdown;
+        health = Integration::Detail::SurfaceHealth::Shutdown;
     }
 
     void SetTarget(
-        Detail::NativeRenderTarget* selectedTarget,
+        Integration::Detail::NativeRenderTarget* selectedTarget,
         bool owned) noexcept {
         DestroyTarget();
         target = selectedTarget;
@@ -66,22 +67,22 @@ struct RenderSurface::Impl {
         RefreshHealth();
     }
 
-    Detail::SurfaceHealth RefreshHealth() noexcept {
+    Integration::Detail::SurfaceHealth RefreshHealth() noexcept {
         health = target != nullptr
             ? target->GetSurfaceHealth()
-            : Detail::SurfaceHealth::Shutdown;
+            : Integration::Detail::SurfaceHealth::Shutdown;
         return health;
     }
 
     static Base::Result<Base::Ref<RenderSurface>> Create(
         Base::Ref<Aero::RenderDevice> device,
-        RenderSurfaceKind kind,
+        Aero::RenderSurfaceKind kind,
         Base::IAllocator* allocator = nullptr) noexcept;
 
     static Base::Result<Base::Ref<RenderSurface>> CreateOwned(
         Base::Ref<Aero::RenderDevice> device,
-        Detail::NativeRenderTarget* target,
-        RenderSurfaceKind kind,
+        Integration::Detail::NativeRenderTarget* target,
+        Aero::RenderSurfaceKind kind,
         Base::IAllocator* allocator = nullptr) noexcept;
 
     static Base::Result<void> Render(
@@ -90,18 +91,19 @@ struct RenderSurface::Impl {
         const Integration::RenderFrame& frame) noexcept;
 };
 
-namespace Detail {
+} // namespace Aero
 
-Base::Result<Base::Ref<RenderSurface>> AdoptRenderSurface(
+namespace Aero::Integration::Detail {
+
+Base::Result<Base::Ref<Aero::RenderSurface>> AdoptRenderSurface(
     Base::Ref<Aero::RenderDevice> device,
-    RenderSurfaceKind kind,
+    Aero::RenderSurfaceKind kind,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-Base::Result<Base::Ref<RenderSurface>> AdoptOwnedRenderSurface(
+Base::Result<Base::Ref<Aero::RenderSurface>> AdoptOwnedRenderSurface(
     Base::Ref<Aero::RenderDevice> device,
     NativeRenderTarget* target,
-    RenderSurfaceKind kind,
+    Aero::RenderSurfaceKind kind,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-} // namespace Detail
-} // namespace Aero::Integration
+} // namespace Aero::Integration::Detail

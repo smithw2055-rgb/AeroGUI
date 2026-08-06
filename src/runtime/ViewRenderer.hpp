@@ -29,7 +29,7 @@ public:
     Base::Result<bool> UpdateRenderTree() noexcept override;
     Base::Result<void> RenderOffscreen() noexcept override;
     Base::Result<void> Render(
-        Integration::RenderSurface& surface) noexcept override;
+        RenderSurface& surface) noexcept override;
 
 private:
     struct Impl;
