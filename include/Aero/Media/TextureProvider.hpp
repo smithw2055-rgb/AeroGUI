@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-namespace Aero::Integration {
+namespace Aero::Media {
 
 struct TextureInfo {
     std::uint32_t width = 0U;
@@ -20,7 +20,7 @@ struct TextureInfo {
 };
 
 struct TextureResourceInfo {
-    StreamResourceInfo source;
+    Markup::StreamResourceInfo source;
     TextureInfo texture;
 };
 
@@ -41,5 +41,5 @@ public:
     }
 };
 
-} // namespace Aero::Integration
+} // namespace Aero::Media
 

@@ -3,11 +3,11 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/RenderSurface.hpp>
 
 namespace Aero {
 
 class RenderDevice;
-namespace Integration { class RenderSurface; }
 
 // Render-thread interface owned by one View. UI state is committed through
 // UpdateRenderTree(); GPU work remains explicitly split into offscreen and
@@ -27,7 +27,7 @@ public:
     virtual Base::Result<bool> UpdateRenderTree() noexcept = 0;
     virtual Base::Result<void> RenderOffscreen() noexcept = 0;
     virtual Base::Result<void> Render(
-        Integration::RenderSurface& surface) noexcept = 0;
+        RenderSurface& surface) noexcept = 0;
 
 protected:
     IRenderer() noexcept = default;

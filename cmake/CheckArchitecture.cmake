@@ -1726,4 +1726,41 @@ endif()
 unset(public_header_content)
 unset(retired_public_integration_paths)
 
+# S5A canonical namespace surface. Complex ABI-bearing implementations keep
+# private Integration ownership until S5B, but every installed contract must
+# expose its domain spelling now.
+set(aero_namespace_surface_checks
+    "include/Aero/ViewOptions.hpp|namespace Aero"
+    "include/Aero/Input/Platform.hpp|namespace Aero::Input"
+    "include/Aero/Platform/NativeWindow.hpp|namespace Aero::Platform"
+    "include/Aero/RenderSurface.hpp|using RenderSurface = Integration::RenderSurface"
+    "include/Aero/Render/D3D11.hpp|namespace Aero::Render"
+    "include/Aero/Render/OpenGL33.hpp|namespace Aero::Render"
+    "include/Aero/Markup/XamlProvider.hpp|namespace Aero::Markup"
+    "include/Aero/Markup/ReloadCoordinator.hpp|namespace Aero::Markup"
+    "include/Aero/Media/TextureProvider.hpp|namespace Aero::Media"
+    "include/Aero/Text/FontProvider.hpp|namespace Aero::Text")
+foreach(namespace_surface_check IN LISTS aero_namespace_surface_checks)
+    string(REPLACE "|" ";" namespace_surface_parts
+        "${namespace_surface_check}")
+    list(GET namespace_surface_parts 0 namespace_surface_header)
+    list(GET namespace_surface_parts 1 namespace_surface_marker)
+    file(READ "${AERO_SOURCE_DIR}/${namespace_surface_header}"
+        namespace_surface_content)
+    string(FIND "${namespace_surface_content}"
+        "${namespace_surface_marker}" namespace_surface_position)
+    if(namespace_surface_position EQUAL -1)
+        message(FATAL_ERROR
+            "Canonical SDK namespace marker is missing: "
+            "${namespace_surface_header}: ${namespace_surface_marker}")
+    endif()
+endforeach()
+unset(aero_namespace_surface_checks)
+unset(namespace_surface_check)
+unset(namespace_surface_parts)
+unset(namespace_surface_header)
+unset(namespace_surface_marker)
+unset(namespace_surface_content)
+unset(namespace_surface_position)
+
 message(STATUS "Aero architecture dependency checks passed")

@@ -69,3 +69,8 @@ private:
 };
 
 } // namespace Aero::Integration
+
+namespace Aero::Markup {
+using ReloadResult = ::Aero::Integration::ReloadResult;
+using ReloadCoordinator = ::Aero::Integration::ReloadCoordinator;
+} // namespace Aero::Markup

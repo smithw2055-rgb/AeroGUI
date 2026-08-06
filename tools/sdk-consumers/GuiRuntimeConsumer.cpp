@@ -10,26 +10,26 @@
 namespace {
 
 static_assert(
-    std::is_abstract<Aero::Integration::XamlProvider>::value,
+    std::is_abstract<Aero::Markup::XamlProvider>::value,
     "XamlProvider must remain a host-owned contract");
 static_assert(
-    std::is_abstract<Aero::Integration::FontProvider>::value,
+    std::is_abstract<Aero::Text::FontProvider>::value,
     "FontProvider must remain a host-owned contract");
 static_assert(
-    std::is_abstract<Aero::Integration::TextureProvider>::value,
+    std::is_abstract<Aero::Media::TextureProvider>::value,
     "TextureProvider must remain a host-owned contract");
 
 [[maybe_unused]]
 Aero::Base::Result<Aero::Base::Ref<Aero::View>>
 CreateIntegratedView(
     Aero::Gui& environment,
-    Aero::Base::Ref<Aero::Integration::RenderSurface> surface) noexcept {
+    Aero::Base::Ref<Aero::RenderSurface> surface) noexcept {
     if (!surface) {
         return Aero::Base::Status::Failure(
             Aero::Base::ErrorCode::InvalidArgument,
             "Integrated View requires a RenderSurface");
     }
-    Aero::Integration::ViewOptions options;
+    Aero::ViewOptions options;
     Aero::Base::Result<Aero::Base::Ref<Aero::View>> created =
         environment.CreateView(options);
     if (!created) return created.GetStatus();
@@ -42,7 +42,7 @@ CreateIntegratedView(
 [[maybe_unused]]
 void ConsumeViewSurface(
     Aero::View& view,
-    Aero::Integration::RenderSurface& surface) noexcept {
+    Aero::RenderSurface& surface) noexcept {
     Aero::Markup::XamlReader reader(view);
     static_cast<void>(reader.GetView());
     static_cast<void>(view.Update(16U));

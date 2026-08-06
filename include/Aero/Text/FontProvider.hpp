@@ -17,7 +17,7 @@ enum class FontStyle : std::uint8_t;
 enum class FontStretch : std::uint8_t;
 }
 
-namespace Aero::Integration {
+namespace Aero::Text {
 
 struct FontSource {
     Base::ResourceUri uri;
@@ -47,5 +47,5 @@ public:
     }
 };
 
-} // namespace Aero::Integration
+} // namespace Aero::Text
 

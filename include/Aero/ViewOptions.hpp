@@ -4,9 +4,9 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Input/Platform.hpp>
 
-namespace Aero::Integration {
+namespace Aero {
 
-struct TextOptions  {
+struct TextOptions {
     Base::StringView primaryFamily;
     Base::Span<const Base::StringView> fallbackFamilies;
     Base::StringView language;
@@ -18,13 +18,13 @@ struct TextOptions  {
 // Immutable per-View behavior and platform options. XAML, texture and font
 // providers are process-level Gui configuration and are frozen by
 // Gui::Initialize(); View creation cannot override their ownership.
-struct ViewOptions  {
-    IClipboard* clipboard = nullptr;
-    ITextInputMethodHost* textInputMethodHost = nullptr;
+struct ViewOptions {
+    Input::IClipboard* clipboard = nullptr;
+    Input::ITextInputMethodHost* textInputMethodHost = nullptr;
     TextOptions text;
     bool attachControlInteractions = true;
     bool attachTextEditing = true;
     bool automaticAnimationClock = true;
 };
 
-} // namespace Aero::Integration
+} // namespace Aero

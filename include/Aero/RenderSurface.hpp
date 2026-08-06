@@ -73,3 +73,10 @@ private:
 };
 
 } // namespace Aero::Integration
+
+namespace Aero {
+using PresentMode = Integration::PresentMode;
+using RenderSurfaceKind = Integration::RenderSurfaceKind;
+using RenderSurfaceState = Integration::RenderSurfaceState;
+using RenderSurface = Integration::RenderSurface;
+} // namespace Aero

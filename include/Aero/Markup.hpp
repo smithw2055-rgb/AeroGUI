@@ -199,7 +199,7 @@ enum class ResourceLayer : std::uint8_t;
 enum class ResourceLoadMode : std::uint8_t;
 namespace Diagnostics { class IDiagnosticSink; }
 namespace Controls { class ContentControl; }
-namespace Integration { class XamlProvider; }
+namespace Markup { class XamlProvider; }
 }
 
 namespace Aero::Markup {

@@ -104,9 +104,9 @@ Aero::Gui gui;
 gui.AddModule(MyModule);
 gui.Initialize();
 
-Aero::Integration::D3D11WindowSurfaceOptions targetOptions;
+Aero::Render::D3D11WindowSurfaceOptions targetOptions;
 auto target =
-    Aero::Integration::CreateD3D11WindowSurface(targetOptions).Value();
+    Aero::Render::CreateD3D11WindowSurface(targetOptions).Value();
 auto view = gui.CreateView().Value();
 view->GetRenderer().Init(target->GetDevice());
 
@@ -141,9 +141,10 @@ The installed public paths are ownership-oriented:
 - `Aero/Render/D3D11.hpp` and `Aero/Render/OpenGL33.hpp`.
 
 There is no installed `Aero/Integration.hpp` umbrella or
-`Aero/Integration/` directory. The implementation namespace remains
-`Aero::Integration` during S4 and is migrated separately so path changes do not
-coincide with a repository-wide type rename.
+`Aero/Integration/` directory. Canonical SDK names now use `Aero`,
+`Aero::Input`, `Aero::Platform`, `Aero::Markup`, `Aero::Media`, `Aero::Text`
+and `Aero::Render`. S5A retains selected `Aero::Integration` declarations as
+a temporary source/ABI transition seam; S5B removes those spellings.
 
 ## XAML tools
 

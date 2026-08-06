@@ -1,6 +1,6 @@
-#include <Aero/Integration/Platform.hpp>
+#include <Aero/Input/Platform.hpp>
 
-namespace Aero::Integration {
+namespace Aero::Input {
 
 Base::Result<void> MemoryClipboard::ReadText(
     Base::String& output) noexcept {
@@ -17,4 +17,4 @@ Base::Result<void> MemoryClipboard::WriteText(
     return {};
 }
 
-} // namespace Aero::Integration
+} // namespace Aero::Input

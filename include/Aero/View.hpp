@@ -59,15 +59,15 @@ private:
     friend class View;
     static void RaiseRendering(View& view) noexcept;
 };
-namespace Markup { class XamlReader; class XamlDocument; }
-
-namespace Integration {
+namespace Markup {
+class XamlReader;
+class XamlDocument;
 class XamlProvider;
-class TextureProvider;
-class FontProvider;
 class ReloadCoordinator;
-struct ViewOptions;
 }
+namespace Media { class TextureProvider; }
+namespace Text { class FontProvider; }
+struct ViewOptions;
 
 // Process-level GUI composition used by embedded hosts. Application owns this
 // object automatically for desktop programs; engine integrations create one,
@@ -83,18 +83,18 @@ public:
     Base::Result<void> AddModule(
         const ModuleRegistration& registration) noexcept;
     Base::Result<void> AddXamlProvider(
-        Integration::XamlProvider& provider,
+        Markup::XamlProvider& provider,
         Base::StringView scheme = {},
         Base::StringView assembly = {}) noexcept;
     Base::Result<void> AddTextureProvider(
-        Integration::TextureProvider& provider) noexcept;
+        Media::TextureProvider& provider) noexcept;
     Base::Result<void> AddFontProvider(
-        Integration::FontProvider& provider) noexcept;
+        Text::FontProvider& provider) noexcept;
     Base::Result<void> Initialize() noexcept;
     Base::Result<Base::Ref<View>> CreateView(
         Base::IAllocator* allocator = nullptr) noexcept;
     Base::Result<Base::Ref<View>> CreateView(
-        const Integration::ViewOptions& options,
+        const ViewOptions& options,
         Base::IAllocator* allocator = nullptr) noexcept;
 
     bool IsInitialized() const noexcept;

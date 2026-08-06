@@ -1,4 +1,4 @@
 #pragma once
-#include <Aero/Markup/XamlProvider.hpp>
-#include <Aero/Media/TextureProvider.hpp>
-#include <Aero/Text/FontProvider.hpp>
+#include <Aero/Integration/Providers/FontProvider.hpp>
+#include <Aero/Integration/Providers/TextureProvider.hpp>
+#include <Aero/Integration/Providers/XamlProvider.hpp>

@@ -85,3 +85,15 @@ CreateD3D11WindowSurface(
     Base::IAllocator* allocator = nullptr) noexcept;
 
 } // namespace Aero::Integration
+
+namespace Aero::Render {
+using ::Aero::Integration::D3D11StatePreservationPolicy;
+using ::Aero::Integration::D3D11DeviceOptions;
+using ::Aero::Integration::D3D11EmbeddedTarget;
+using ::Aero::Integration::D3D11TargetCallback;
+using ::Aero::Integration::D3D11EmbeddedSurfaceOptions;
+using ::Aero::Integration::D3D11WindowSurfaceOptions;
+using ::Aero::Integration::CreateD3D11Device;
+using ::Aero::Integration::CreateD3D11EmbeddedSurface;
+using ::Aero::Integration::CreateD3D11WindowSurface;
+} // namespace Aero::Render

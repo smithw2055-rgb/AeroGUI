@@ -19,11 +19,14 @@ set(AERO_PUBLIC_NAMESPACE_PREFIXES
     Aero::Events
     Aero::Input
     Aero::Integration
+    Aero::Platform
+    Aero::Render
     Aero::Markup
     Aero::Media
     Aero::Media::Animation
     Aero::Meta
     Aero::Shapes
+    Aero::Text
     Aero::Threading)
 
 # Base detail templates are a temporary ABI implementation seam. They may be
@@ -68,8 +71,8 @@ set(AERO_PUBLIC_NAMESPACE_FORBIDDEN_PATTERNS
     "Aero::Runtime::Detail::"
     "Aero::Text::Detail::"
     "::impl::"
-    "namespace[ \t]+Aero::Render([ \t:{]|$)"
-    "Aero::Render::"
+    "namespace[ \t]+Aero::Render::Detail([ \t:{]|$)"
+    "Aero::Render::Detail::"
     "namespace[ \t]+Aero::Detail([ \t:{]|$)"
     "namespace[ \t]+Aero::Controls::Detail([ \t:{]|$)"
     "namespace[ \t]+Aero::Media::Detail([ \t:{]|$)"

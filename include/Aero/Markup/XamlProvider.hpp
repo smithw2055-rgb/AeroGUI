@@ -10,7 +10,7 @@
 
 #include <cstdint>
 
-namespace Aero::Integration {
+namespace Aero::Markup {
 
 struct StreamResourceInfo {
     Base::ResourceUri uri;
@@ -68,5 +68,5 @@ private:
     std::uint64_t cacheIdentity_ = 0U;
 };
 
-} // namespace Aero::Integration
+} // namespace Aero::Markup
 

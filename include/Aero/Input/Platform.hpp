@@ -8,7 +8,7 @@
 
 #include <cstdint>
 
-namespace Aero::Integration {
+namespace Aero::Input {
 
 class AERO_API IClipboard {
 public:
@@ -17,7 +17,7 @@ public:
     virtual Base::Result<void> WriteText(Base::StringView text) noexcept = 0;
 };
 
-class AERO_API MemoryClipboard  : public IClipboard {
+class AERO_API MemoryClipboard : public IClipboard {
 public:
     explicit MemoryClipboard(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -36,7 +36,7 @@ private:
     std::uint64_t generation_ = 0U;
 };
 
-struct ImeCandidateWindow  {
+struct ImeCandidateWindow {
     Base::Rect caret;
     double dpiScale = 1.0;
 };
@@ -63,4 +63,4 @@ public:
 };
 
 
-} // namespace Aero::Integration
+} // namespace Aero::Input

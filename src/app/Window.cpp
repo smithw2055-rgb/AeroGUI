@@ -139,12 +139,12 @@ void Window::NotifyClosed() noexcept {
 
 namespace Aero::App {
 
-Integration::NativeWindowHandle WindowInterop::NativeHandle(const ::Aero::Window& window) noexcept {
+Platform::NativeWindowHandle WindowInterop::NativeHandle(const ::Aero::Window& window) noexcept {
     const auto* state = window.impl_ != nullptr
         ? static_cast<const ::Aero::App::Detail::WindowHostState*>(
               window.impl_->hostState)
         : nullptr;
-    return state != nullptr && state->nativeHandle != nullptr ? state->nativeHandle(state->context) : Integration::NativeWindowHandle{};
+    return state != nullptr && state->nativeHandle != nullptr ? state->nativeHandle(state->context) : Platform::NativeWindowHandle{};
 }
 
 ::Aero::View* WindowInterop::HostedView(::Aero::Window& window) noexcept {

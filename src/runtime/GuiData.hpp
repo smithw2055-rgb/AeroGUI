@@ -20,8 +20,8 @@ struct Gui::Impl  : public Base::Object {
     Markup::DocumentCache documents;
     Markup::XamlProviderRegistry xamlProviders;
     Markup::Detail::XamlRuntime xaml;
-    Integration::TextureProvider* textureProvider = nullptr;
-    Integration::FontProvider* fontProvider = nullptr;
+    Media::TextureProvider* textureProvider = nullptr;
+    Text::FontProvider* fontProvider = nullptr;
     bool initialized = false;
 };
 

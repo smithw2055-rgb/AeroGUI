@@ -36,6 +36,6 @@ This is intentionally narrower than public compatibility:
 - architecture checks reject any old path from installed headers;
 - no `AeroIntegration` library or `Aero::Integration` CMake target is recreated.
 
-The following stage can update implementation includes and migrate the C++
-namespace without mixing that repository-wide rename into the physical SDK
-layout change.
+S5A establishes those ownership domains as the canonical C++ authoring
+surface. Selected ABI-bearing declarations retain legacy spellings until S5B
+finishes the implementation migration.

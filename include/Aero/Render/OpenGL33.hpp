@@ -92,3 +92,20 @@ CreateOpenGL33WindowSurface(
     Base::IAllocator* allocator = nullptr) noexcept;
 
 } // namespace Aero::Integration
+
+namespace Aero::Render {
+using ::Aero::Integration::OpenGL33StatePreservationPolicy;
+using ::Aero::Integration::OpenGL33ProcAddress;
+using ::Aero::Integration::OpenGL33ProcResolver;
+using ::Aero::Integration::OpenGL33MakeCurrent;
+using ::Aero::Integration::OpenGL33IsCurrent;
+using ::Aero::Integration::OpenGL33ContextGeneration;
+using ::Aero::Integration::OpenGL33DeviceOptions;
+using ::Aero::Integration::OpenGL33EmbeddedTarget;
+using ::Aero::Integration::OpenGL33TargetCallback;
+using ::Aero::Integration::OpenGL33EmbeddedSurfaceOptions;
+using ::Aero::Integration::OpenGL33WindowSurfaceOptions;
+using ::Aero::Integration::CreateOpenGL33Device;
+using ::Aero::Integration::CreateOpenGL33EmbeddedSurface;
+using ::Aero::Integration::CreateOpenGL33WindowSurface;
+} // namespace Aero::Render

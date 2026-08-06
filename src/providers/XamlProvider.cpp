@@ -1,6 +1,6 @@
-#include <Aero/Integration/Providers/XamlProvider.hpp>
+#include <Aero/Markup/XamlProvider.hpp>
 
-namespace Aero::Integration {
+namespace Aero::Markup {
 
 Base::Result<StreamResourceInfo>
 XamlProviderAdapter::Open(
@@ -28,4 +28,4 @@ XamlProviderAdapter::CacheIdentity() const noexcept {
         : XamlProvider::CacheIdentity();
 }
 
-} // namespace Aero::Integration
+} // namespace Aero::Markup
