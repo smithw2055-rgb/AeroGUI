@@ -576,7 +576,7 @@ bool RenderD3D11Readback(
     }
     const bool rendered = RenderAndReadback(
         backend,
-        Aero::Render::MakeD3D11RendererShaderSet(),
+        Aero::Render::MakeD3D11FrameShaderSet(),
         frame,
         width,
         height,
@@ -670,7 +670,7 @@ bool RenderOpenGL33Readback(
             } else {
                 rendered = RenderAndReadback(
                     backend,
-                    Aero::Render::MakeOpenGL33RendererShaderSet(),
+                    Aero::Render::MakeOpenGL33FrameShaderSet(),
                     frame,
                     width,
                     height,

@@ -2,6 +2,7 @@
 
 #include "integration/IntegrationPrivate.hpp"
 
+#include "render/DeviceRenderer.hpp"
 #include "render/opengl33/OpenGL33Renderer.hpp"
 #include "render/opengl33/OpenGL33Backend.hpp"
 
@@ -17,6 +18,16 @@
 
 namespace Aero::Integration {
 namespace {
+
+Base::Status InvalidArgument(const char* message) noexcept {
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidArgument, message);
+}
+
+Base::Status InvalidState(const char* message) noexcept {
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidState, message);
+}
 
 Graphics::PresentMode ToRhiPresentMode(
     RenderPresentMode value) noexcept {
@@ -255,11 +266,9 @@ public:
         }
 
         renderer_ = new (std::nothrow)
-            Render::OpenGL33Renderer(
+            Render::DeviceRenderer(
                 *device_,
-                *graphics_,
-                *surface_,
-                contextGeneration_,
+                Render::MakeOpenGL33FrameShaderSet(),
                 allocator_);
         if (renderer_ == nullptr) {
             Shutdown();
@@ -280,12 +289,20 @@ public:
         const Integration::RenderFrame& plan) noexcept {
         Base::Result<void> current = MakeContextCurrent();
         if (!current) return current.GetStatus();
-        return renderer_ != nullptr
-            ? renderer_->RenderOffscreen(rendererToken, plan)
-            : Base::Result<void>(
-                  Base::Status::Failure(
-                      Base::ErrorCode::NotInitialized,
-                      "OpenGL device is not initialized"));
+        if (renderer_ == nullptr || device_ == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "OpenGL device renderer is not initialized");
+        }
+        Base::Result<Graphics::CommandList> recorded =
+            renderer_->RecordOffscreen(rendererToken, plan);
+        if (!recorded) return recorded.GetStatus();
+        if (recorded.Value().CommandCount() == 0U) return {};
+        Base::Result<Graphics::FenceValue> submitted =
+            device_->Submit(recorded.Value());
+        if (!submitted) return submitted.GetStatus();
+        lastSubmittedFence_ = submitted.Value();
+        return {};
     }
 
     Base::Result<void> Render(
@@ -293,17 +310,87 @@ public:
         const Integration::RenderFrame& plan) noexcept {
         Base::Result<void> current = MakeContextCurrent();
         if (!current) return current.GetStatus();
-        return renderer_ != nullptr
-            ? renderer_->Render(
-                  rendererToken,
-                  plan,
-                  embedded_
-                      ? Graphics::LoadOperation::Load
-                      : Graphics::LoadOperation::Clear)
-            : Base::Result<void>(
-                  Base::Status::Failure(
-                      Base::ErrorCode::NotInitialized,
-                      "OpenGL device is not initialized"));
+        if (renderer_ == nullptr || device_ == nullptr ||
+            graphics_ == nullptr || surface_ == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "OpenGL surface renderer is not initialized");
+        }
+        if (device_->Backend().IsDeviceLost() ||
+            surface_->State() != Graphics::SurfaceState::Ready) {
+            return InvalidState(
+                "Cannot render to a lost OpenGL surface");
+        }
+
+        Base::Result<Graphics::SurfaceFrame> acquired =
+            surface_->AcquireFrame();
+        if (!acquired) return acquired.GetStatus();
+        Graphics::SurfaceFrame frame = acquired.Value();
+        if (frame.target.width == 0U ||
+            frame.target.height == 0U ||
+            (!frame.target.defaultFramebuffer &&
+             frame.target.colorTarget == 0U)) {
+            static_cast<void>(surface_->DiscardFrame(frame));
+            return InvalidArgument(
+                "OpenGL surface frame has no render target");
+        }
+
+        Graphics::OpenGL33ExternalRenderTargetDescriptor external;
+        external.framebuffer = static_cast<Graphics::GlUInt>(
+            frame.target.colorTarget);
+        external.depthStencilTexture = static_cast<Graphics::GlUInt>(
+            frame.target.depthStencilTarget);
+        external.texture.width = frame.target.width;
+        external.texture.height = frame.target.height;
+        external.texture.format = frame.target.colorFormat;
+        external.texture.sampleCount = frame.target.sampleCount;
+        external.texture.usage =
+            Graphics::TextureUsageBit(
+                Graphics::TextureUsage::RenderTarget);
+        external.contextGeneration = contextGeneration_;
+        external.stableId = frame.target.stableId;
+        external.defaultFramebuffer =
+            frame.target.defaultFramebuffer;
+        Base::Result<Graphics::ResourceHandle> imported =
+            Graphics::ImportOpenGL33ExternalRenderTarget(
+                *device_, *graphics_, external);
+        if (!imported) {
+            static_cast<void>(surface_->DiscardFrame(frame));
+            return imported.GetStatus();
+        }
+
+        Base::Result<Graphics::CommandList> recorded =
+            renderer_->RecordOnscreen(
+                rendererToken,
+                plan,
+                {imported.Value(),
+                 frame.target.width,
+                 frame.target.height,
+                 embedded_
+                     ? Graphics::LoadOperation::Load
+                     : Graphics::LoadOperation::Clear});
+        if (!recorded) {
+            static_cast<void>(surface_->DiscardFrame(frame));
+            static_cast<void>(
+                device_->DestroyResource(imported.Value(), 0U));
+            return recorded.GetStatus();
+        }
+        Base::Result<Graphics::FenceValue> submitted =
+            device_->Submit(recorded.Value());
+        if (!submitted) {
+            static_cast<void>(surface_->DiscardFrame(frame));
+            static_cast<void>(
+                device_->DestroyResource(imported.Value(), 0U));
+            return submitted.GetStatus();
+        }
+        lastSubmittedFence_ = submitted.Value();
+        Base::Result<void> presented =
+            surface_->Present(frame, submitted.Value());
+        Base::Result<void> destroyed =
+            device_->DestroyResource(
+                imported.Value(), submitted.Value());
+        if (!presented) return presented;
+        return destroyed;
     }
 
     void ReleaseRenderer(const void* rendererToken) noexcept {
@@ -330,7 +417,13 @@ public:
     }
 
     void NotifySurfaceLost() noexcept {
-        Shutdown();
+        if (!embedded_) {
+            NotifyDeviceLost();
+            return;
+        }
+        if (surface_ != nullptr) {
+            static_cast<void>(surface_->NotifyContextLost());
+        }
         surfaceLost_ = true;
     }
 
@@ -340,22 +433,28 @@ public:
     }
 
     Base::Result<void> Restore() noexcept {
-        if (!surfaceLost_ && !deviceLost_) {
+        if (deviceLost_) {
+            deviceLost_ = false;
+            return Initialize();
+        }
+        if (!surfaceLost_ || surface_ == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
-                "OpenGL device is not lost");
+                "OpenGL surface is not lost");
         }
-        return Initialize();
+        Base::Result<void> restored =
+            surface_->Restore(descriptor_);
+        if (restored) surfaceLost_ = false;
+        return restored;
     }
 
     Base::Result<void> WaitIdle(
         std::uint32_t timeoutMilliseconds) noexcept {
-        if (graphics_ == nullptr || renderer_ == nullptr ||
-            renderer_->LastSubmittedFence() == 0U) {
+        if (graphics_ == nullptr || lastSubmittedFence_ == 0U) {
             return {};
         }
         return graphics_->WaitForFence(
-            renderer_->LastSubmittedFence(),
+            lastSubmittedFence_,
             static_cast<std::uint64_t>(
                 timeoutMilliseconds) * UINT64_C(1000000));
     }
@@ -381,8 +480,8 @@ public:
     LastFrameStatistics() const noexcept {
         RenderFrameStatistics result;
         if (renderer_ == nullptr) return result;
-        const Render::RendererStatistics source =
-            renderer_->LastSubmitStatistics();
+        const Render::FrameEncoderStatistics source =
+            renderer_->LastStatistics();
         result.drawCallCount =
             source.drawCallCount;
         result.instanceCount =
@@ -576,6 +675,7 @@ private:
     }
 
     void Shutdown() noexcept {
+        lastSubmittedFence_ = 0U;
         if (renderer_ != nullptr) {
             renderer_->Shutdown();
             delete renderer_;
@@ -623,7 +723,8 @@ private:
     Graphics::SurfaceSession* surface_ = nullptr;
     Graphics::OpenGL33GraphicsBackend* graphics_ = nullptr;
     Graphics::GraphicsDevice* device_ = nullptr;
-    Render::OpenGL33Renderer* renderer_ = nullptr;
+    Render::DeviceRenderer* renderer_ = nullptr;
+    Graphics::FenceValue lastSubmittedFence_ = 0U;
 };
 
 template<class TOptions>

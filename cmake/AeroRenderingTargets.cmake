@@ -1,6 +1,6 @@
-# Private retained renderer, render device, native backends and surface adapters.
-# DeviceRenderer owns the backend-neutral encoder and shared GPU resources;
-# backend-specific adapters only acquire and present native surfaces.
+# Private retained renderer, render device, native backends and shader catalogs.
+# Integration owns native surface acquisition/presentation; DeviceRenderer is
+# the only active frame encoder and shared GPU resource owner.
 add_library(AeroRenderingObjects OBJECT
     src/render/RenderDevice.cpp
     src/render/RenderDeviceResources.cpp
@@ -18,7 +18,8 @@ aero_configure_internal_objects(AeroRenderingObjects)
 target_link_libraries(AeroRenderingObjects PUBLIC
     AeroGuiKernelObjects Aero::Base)
 target_compile_definitions(AeroRenderingObjects PRIVATE
-    AERO_HAS_OPENGL33_BACKEND=1)
+    AERO_HAS_OPENGL33_BACKEND=1
+    AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS=0)
 
 if(AERO_ENABLE_WGL_SURFACE)
     if(NOT WIN32)

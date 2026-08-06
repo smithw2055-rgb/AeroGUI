@@ -10,7 +10,9 @@
 
 #include <new>
 
+#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
 #include "../DeviceRenderer.hpp"
+#endif
 
 #include "AeroD3D11RenderFramePixelShader.hpp"
 #include "AeroD3D11RenderFrameVertexShader.hpp"
@@ -28,6 +30,7 @@
 namespace Aero::Render {
 namespace {
 
+#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
 Base::Status NotInitialized(const char* message) noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::NotInitialized, message);
@@ -42,6 +45,7 @@ Base::Status OutOfMemory(const char* message) noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::OutOfMemory, message);
 }
+#endif
 
 Graphics::ShaderDescriptor Shader(
     Graphics::ShaderStage stage,
@@ -61,8 +65,8 @@ Graphics::ShaderDescriptor Shader(
 
 } // namespace
 
-RendererShaderSet MakeD3D11RendererShaderSet() noexcept {
-    RendererShaderSet shaders;
+FrameShaderSet MakeD3D11FrameShaderSet() noexcept {
+    FrameShaderSet shaders;
     shaders.rectangleVertex = Shader(
         Graphics::ShaderStage::Vertex,
         AeroD3D11RenderFrameVertexShader,
@@ -127,13 +131,14 @@ RendererShaderSet MakeD3D11RendererShaderSet() noexcept {
     return shaders;
 }
 
+#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
 struct D3D11Renderer::Impl {
     Impl(
         Graphics::GraphicsDevice& device,
         Base::IAllocator* allocator) noexcept
         : renderer(
               device,
-              MakeD3D11RendererShaderSet(),
+              MakeD3D11FrameShaderSet(),
               allocator) {}
 
     DeviceRenderer renderer;
@@ -369,5 +374,6 @@ void D3D11Renderer::SetBatchingEnabled(
             enabled);
     }
 }
+#endif
 
 } // namespace Aero::Render

@@ -168,26 +168,39 @@ endif()
 unset(aero_public_render_device_header)
 unset(public_render_surface_leaks)
 
-# Native API adapters may acquire and present a target, but must not own a
-# second copy of frame encoding or the shared image/mesh/text GPU tables.
-set(aero_native_surface_adapters
-    "${AERO_SOURCE_DIR}/src/render/d3d11/D3D11Renderer.cpp"
-    "${AERO_SOURCE_DIR}/src/render/opengl33/OpenGL33Renderer.cpp")
-aero_collect_matches(native_surface_resource_ownership
-    "TextGpuResources|MeshGpuResources|ImageGpuResources"
-    ${aero_native_surface_adapters})
-if(native_surface_resource_ownership)
+# Native surface submission belongs to Integration. The old backend Renderer
+# classes remain disabled only while their shader catalogs are being renamed.
+set(aero_native_device_hosts
+    "${AERO_SOURCE_DIR}/src/integration/D3D11Device.cpp"
+    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Device.cpp")
+aero_collect_matches(native_renderer_adapter_use
+    "Render::D3D11Renderer|Render::OpenGL33Renderer"
+    ${aero_native_device_hosts})
+if(native_renderer_adapter_use)
     message(FATAL_ERROR
-        "Native surface adapters must use Render::DeviceRenderer for shared "
-        "frame encoding and GPU resources: ${native_surface_resource_ownership}")
+        "Integration must drive Render::DeviceRenderer directly: "
+        "${native_renderer_adapter_use}")
 endif()
-foreach(adapter IN LISTS aero_native_surface_adapters)
-    if(NOT EXISTS "${adapter}")
-        message(FATAL_ERROR "Native surface adapter is missing: ${adapter}")
-    endif()
-endforeach()
-unset(aero_native_surface_adapters)
-unset(native_surface_resource_ownership)
+aero_collect_matches(legacy_renderer_shader_spelling
+    "Make(D3D11|OpenGL33)RendererShaderSet"
+    ${aero_native_device_hosts}
+    "${AERO_SOURCE_DIR}/tools/conformance/main.cpp")
+if(legacy_renderer_shader_spelling)
+    message(FATAL_ERROR
+        "Backend shader catalogs must use FrameShaderSet vocabulary: "
+        "${legacy_renderer_shader_spelling}")
+endif()
+file(READ "${AERO_SOURCE_DIR}/cmake/AeroRenderingTargets.cmake"
+    aero_rendering_targets_content)
+if(NOT aero_rendering_targets_content MATCHES
+       "AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS=0")
+    message(FATAL_ERROR
+        "Legacy native Renderer adapters must remain disabled")
+endif()
+unset(aero_native_device_hosts)
+unset(native_renderer_adapter_use)
+unset(legacy_renderer_shader_spelling)
+unset(aero_rendering_targets_content)
 
 set(aero_public_style_headers
     "${AERO_SOURCE_DIR}/include/Aero/Style.hpp"

@@ -2,6 +2,7 @@
 
 #include "integration/IntegrationPrivate.hpp"
 
+#include "render/DeviceRenderer.hpp"
 #include "render/d3d11/D3D11Renderer.hpp"
 #include "render/d3d11/D3D11Backend.hpp"
 
@@ -9,6 +10,11 @@
 
 namespace Aero::Integration {
 namespace {
+
+Base::Status InvalidArgument(const char* message) noexcept {
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidArgument, message);
+}
 
 Graphics::PresentMode ToRhiPresentMode(
     RenderPresentMode value) noexcept {
@@ -234,8 +240,10 @@ public:
         }
 
         renderer_ = new (std::nothrow)
-            Render::D3D11Renderer(
-                *device_, *presenter_, allocator_);
+            Render::DeviceRenderer(
+                *device_,
+                Render::MakeD3D11FrameShaderSet(),
+                allocator_);
         if (renderer_ == nullptr) {
             Shutdown();
             return OutOfMemory();
@@ -254,28 +262,68 @@ public:
     Base::Result<void> RenderOffscreen(
         const void* rendererToken,
         const Integration::RenderFrame& plan) noexcept {
-        return renderer_ != nullptr
-            ? renderer_->RenderOffscreen(rendererToken, plan)
-            : Base::Result<void>(
-                  Base::Status::Failure(
-                      Base::ErrorCode::NotInitialized,
-                      "D3D11 device is not initialized"));
+        if (renderer_ == nullptr || device_ == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "D3D11 device renderer is not initialized");
+        }
+        Base::Result<Graphics::CommandList> recorded =
+            renderer_->RecordOffscreen(rendererToken, plan);
+        if (!recorded) return recorded.GetStatus();
+        if (recorded.Value().CommandCount() == 0U) return {};
+        Base::Result<Graphics::FenceValue> submitted =
+            device_->Submit(recorded.Value());
+        if (!submitted) return submitted.GetStatus();
+        lastSubmittedFence_ = submitted.Value();
+        return {};
     }
 
     Base::Result<void> Render(
         const void* rendererToken,
         const Integration::RenderFrame& plan) noexcept {
-        return renderer_ != nullptr
-            ? renderer_->Render(
-                  rendererToken,
-                  plan,
-                  embedded_
-                      ? Graphics::LoadOperation::Load
-                      : Graphics::LoadOperation::Clear)
-            : Base::Result<void>(
-                  Base::Status::Failure(
-                      Base::ErrorCode::NotInitialized,
-                      "D3D11 device is not initialized"));
+        if (renderer_ == nullptr || presenter_ == nullptr ||
+            device_ == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "D3D11 surface renderer is not initialized");
+        }
+        if (device_->Backend().IsDeviceLost()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Cannot render to a lost D3D11 device");
+        }
+
+        Base::Result<Graphics::D3D11SurfaceFrame> acquired =
+            presenter_->AcquireFrame();
+        if (!acquired) return acquired.GetStatus();
+        Graphics::D3D11SurfaceFrame frame = acquired.Value();
+        const std::uint32_t width = frame.surface.target.width;
+        const std::uint32_t height = frame.surface.target.height;
+        if (width == 0U || height == 0U) {
+            static_cast<void>(presenter_->DiscardFrame(frame));
+            return InvalidArgument(
+                "D3D11 surface frame has an empty render target");
+        }
+
+        Base::Result<Graphics::CommandList> recorded =
+            renderer_->RecordOnscreen(
+                rendererToken,
+                plan,
+                {frame.renderTarget,
+                 width,
+                 height,
+                 embedded_
+                     ? Graphics::LoadOperation::Load
+                     : Graphics::LoadOperation::Clear});
+        if (!recorded) {
+            static_cast<void>(presenter_->DiscardFrame(frame));
+            return recorded.GetStatus();
+        }
+        Base::Result<Graphics::FenceValue> submitted =
+            presenter_->SubmitAndPresent(frame, recorded.Value());
+        if (!submitted) return submitted.GetStatus();
+        lastSubmittedFence_ = submitted.Value();
+        return {};
     }
 
     void ReleaseRenderer(const void* rendererToken) noexcept {
@@ -301,7 +349,6 @@ public:
     }
 
     void NotifySurfaceLost() noexcept {
-        if (renderer_ != nullptr) renderer_->Shutdown();
         if (presenter_ != nullptr) presenter_->Shutdown();
         if (surface_ != nullptr) {
             static_cast<void>(surface_->NotifyContextLost());
@@ -328,19 +375,17 @@ public:
         Base::Result<void> status =
             surface_->Restore(descriptor_);
         if (status) status = presenter_->Initialize();
-        if (status) status = renderer_->Initialize();
         if (status) surfaceLost_ = false;
         return status;
     }
 
     Base::Result<void> WaitIdle(
         std::uint32_t timeoutMilliseconds) noexcept {
-        if (graphics_ == nullptr || renderer_ == nullptr ||
-            renderer_->LastSubmittedFence() == 0U) {
+        if (graphics_ == nullptr || lastSubmittedFence_ == 0U) {
             return {};
         }
         return graphics_->WaitForFence(
-            renderer_->LastSubmittedFence(),
+            lastSubmittedFence_,
             timeoutMilliseconds);
     }
 
@@ -364,8 +409,8 @@ public:
     LastFrameStatistics() const noexcept {
         RenderFrameStatistics result;
         if (renderer_ == nullptr) return result;
-        const Render::RendererStatistics source =
-            renderer_->LastSubmitStatistics();
+        const Render::FrameEncoderStatistics source =
+            renderer_->LastStatistics();
         result.drawCallCount =
             source.drawCallCount;
         result.instanceCount =
@@ -438,6 +483,7 @@ private:
 
     void Shutdown() noexcept {
         initialized_ = false;
+        lastSubmittedFence_ = 0U;
         if (renderer_ != nullptr) {
             renderer_->Shutdown();
             delete renderer_;
@@ -482,7 +528,8 @@ private:
     Graphics::ISurfaceBackend* surfaceBackend_ = nullptr;
     Graphics::SurfaceSession* surface_ = nullptr;
     Graphics::D3D11SurfacePresenter* presenter_ = nullptr;
-    Render::D3D11Renderer* renderer_ = nullptr;
+    Render::DeviceRenderer* renderer_ = nullptr;
+    Graphics::FenceValue lastSubmittedFence_ = 0U;
 };
 
 template<class TOptions>

@@ -2,11 +2,14 @@
 
 #include <new>
 
+#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
 #include "../DeviceRenderer.hpp"
+#endif
 
 namespace Aero::Render {
 namespace {
 
+#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
 Base::Status NotInitialized(const char* message) noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::NotInitialized, message);
@@ -26,6 +29,7 @@ Base::Status OutOfMemory(const char* message) noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::OutOfMemory, message);
 }
+#endif
 
 Graphics::ShaderDescriptor Shader(
     Graphics::ShaderStage stage,
@@ -622,8 +626,8 @@ std::uint32_t ShaderSize(
 
 } // namespace
 
-RendererShaderSet MakeOpenGL33RendererShaderSet() noexcept {
-    RendererShaderSet shaders;
+FrameShaderSet MakeOpenGL33FrameShaderSet() noexcept {
+    FrameShaderSet shaders;
     shaders.rectangleVertex = Shader(
         Graphics::ShaderStage::Vertex,
         RectangleVertex,
@@ -688,13 +692,14 @@ RendererShaderSet MakeOpenGL33RendererShaderSet() noexcept {
     return shaders;
 }
 
+#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
 struct OpenGL33Renderer::Impl {
     Impl(
         Graphics::GraphicsDevice& device,
         Base::IAllocator* allocator) noexcept
         : renderer(
               device,
-              MakeOpenGL33RendererShaderSet(),
+              MakeOpenGL33FrameShaderSet(),
               allocator) {}
 
     DeviceRenderer renderer;
@@ -1009,5 +1014,6 @@ void OpenGL33Renderer::SetBatchingEnabled(
             enabled);
     }
 }
+#endif
 
 } // namespace Aero::Render

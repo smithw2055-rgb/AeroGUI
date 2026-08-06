@@ -2,7 +2,7 @@
 
 #include "../DisplayList.hpp"
 
-#include "../DeviceRenderer.hpp"
+#include "../FrameEncoder.hpp"
 
 #include "render/d3d11/D3D11Backend.hpp"
 
@@ -10,9 +10,10 @@ namespace Aero::Render::Detail { struct TextResources; struct MeshResources; str
 
 namespace Aero::Render {
 
-using D3D11RendererStatistics = FrameEncoderStatistics;
+FrameShaderSet MakeD3D11FrameShaderSet() noexcept;
 
-FrameShaderSet MakeD3D11RendererShaderSet() noexcept;
+#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
+using D3D11RendererStatistics = FrameEncoderStatistics;
 
 // D3D11-only surface acquisition and presentation adapter. DeviceRenderer owns
 // the backend-neutral encoder and all shared GPU resource registries.
@@ -82,5 +83,6 @@ private:
     Impl* impl_ = nullptr;
     bool batchingEnabled_ = true;
 };
+#endif
 
 } // namespace Aero::Render

@@ -2,7 +2,7 @@
 
 #include "../DisplayList.hpp"
 
-#include "../DeviceRenderer.hpp"
+#include "../FrameEncoder.hpp"
 
 #include "render/opengl33/OpenGL33Backend.hpp"
 #include "render/Surface.hpp"
@@ -11,9 +11,10 @@ namespace Aero::Render::Detail { struct TextResources; struct MeshResources; str
 
 namespace Aero::Render {
 
-using OpenGL33RendererStatistics = FrameEncoderStatistics;
+FrameShaderSet MakeOpenGL33FrameShaderSet() noexcept;
 
-FrameShaderSet MakeOpenGL33RendererShaderSet() noexcept;
+#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
+using OpenGL33RendererStatistics = FrameEncoderStatistics;
 
 // OpenGL-only context, target acquisition and presentation adapter. Shared
 // encoding and GPU resource ownership live in DeviceRenderer.
@@ -87,5 +88,6 @@ private:
     Impl* impl_ = nullptr;
     bool batchingEnabled_ = true;
 };
+#endif
 
 } // namespace Aero::Render
