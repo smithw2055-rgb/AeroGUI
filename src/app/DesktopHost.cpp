@@ -13,6 +13,7 @@
 #include <Aero/Integration/ViewOptions.hpp>
 #include <Aero/IRenderer.hpp>
 #include <Aero/View.hpp>
+#include "runtime/ViewAccess.hpp"
 
 
 #if defined(_WIN32)
@@ -134,7 +135,8 @@ struct DesktopHost::Impl {
             if (!loaded) return loaded.GetStatus();
             const Base::Ref<Base::Object>& root = loaded.Value().Root();
             if (!root ||
-                !view->IsInstanceOf(*root, Window::StaticTypeId())) {
+                !::Aero::Runtime::Detail::ViewAccess::IsInstanceOf(
+                    *view, *root, Window::StaticTypeId())) {
                 return HostFailure(
                     Base::ErrorCode::InvalidArgument,
                     "StartupUri XAML root must be Window");
@@ -523,7 +525,10 @@ struct DesktopHost::Impl {
                 Base::Ref<RenderDevice> device = renderSurface->GetDevice();
                 if (device) static_cast<void>(device->WaitIdle());
             }
-            if (view) static_cast<void>(view->Unmount());
+            if (view) {
+                static_cast<void>(
+                    ::Aero::Runtime::Detail::ViewAccess::Unmount(*view));
+            }
             if (window != nullptr) {
                 Window::Impl::NotifyClosed(*window);
                 Window::Impl::Detach(*window);
@@ -668,8 +673,9 @@ struct DesktopHost::Impl {
                 applicationFile.View(), {}, diagnostics);
             if (!loaded) return loaded.GetStatus();
             const Base::Ref<Base::Object>& root = loaded.Value().Root();
-            if (!root || !loaderView->IsInstanceOf(
-                    *root, Application::StaticTypeId())) {
+            if (!root ||
+                !::Aero::Runtime::Detail::ViewAccess::IsInstanceOf(
+                    *loaderView, *root, Application::StaticTypeId())) {
                 return HostFailure(
                     Base::ErrorCode::InvalidArgument,
                     "Application XAML root must be Application");
@@ -707,8 +713,8 @@ struct DesktopHost::Impl {
         if (!loaded) return loaded.GetStatus();
         const Base::Ref<Base::Object>& root = loaded.Value().Root();
         if (!root ||
-                !loaderView->IsInstanceOf(
-                    *root, Application::StaticTypeId())) {
+            !::Aero::Runtime::Detail::ViewAccess::IsInstanceOf(
+                *loaderView, *root, Application::StaticTypeId())) {
             return HostFailure(
                 Base::ErrorCode::InvalidArgument,
                 "Application XAML root must be Application");

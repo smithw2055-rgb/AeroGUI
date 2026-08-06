@@ -8,6 +8,7 @@
 
 #include <new>
 #include <utility>
+#include "runtime/ViewAccess.hpp"
 
 #include "controls/ControlBehavior.hpp"
 
@@ -33,8 +34,9 @@ struct ReloadCoordinator::Impl  {
         }
         std::uint64_t sourceIdentity = 0U;
         std::uint64_t revision = 0U;
-        Base::Result<void> queried = view->QueryReloadSource(
-            uri, sourceIdentity, revision);
+        Base::Result<void> queried =
+            ::Aero::Runtime::Detail::ViewAccess::QueryReloadSource(
+                *view, uri, sourceIdentity, revision);
         return queried
             ? Base::Result<std::uint64_t>(revision)
             : Base::Result<std::uint64_t>(queried.GetStatus());
@@ -60,12 +62,14 @@ struct ReloadCoordinator::Impl  {
         }
         std::uint64_t sourceIdentity = 0U;
         std::uint64_t currentRevision = 0U;
-        Base::Result<void> queried = view->QueryReloadSource(
-            uri, sourceIdentity, currentRevision);
+        Base::Result<void> queried =
+            ::Aero::Runtime::Detail::ViewAccess::QueryReloadSource(
+                *view, uri, sourceIdentity, currentRevision);
         if (!queried) return queried.GetStatus();
         std::uint64_t revision = currentRevision;
-        static_cast<void>(view->TryGetCachedReloadRevision(
-            uri, sourceIdentity, revision));
+        static_cast<void>(
+            ::Aero::Runtime::Detail::ViewAccess::TryGetCachedReloadRevision(
+                *view, uri, sourceIdentity, revision));
         RevisionRecord record;
         record.uri = uri;
         record.revision = revision;
@@ -102,18 +106,21 @@ struct ReloadCoordinator::Impl  {
     Base::Result<ReloadResult> ReloadFor(
         const Base::ResourceUri& changed,
         Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-        if (!active || view == nullptr || !view->IsMounted()) {
+        if (!active || view == nullptr ||
+            !::Aero::Runtime::Detail::ViewAccess::IsMounted(*view)) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "XAML reload coordinator is not active");
         }
         Base::Result<std::uint32_t> invalidated =
-            view->InvalidateReloadDocuments(changed, true);
+            ::Aero::Runtime::Detail::ViewAccess::InvalidateReloadDocuments(
+                *view, changed, true);
         if (!invalidated) return invalidated.GetStatus();
         const std::uint32_t invalidatedCount = invalidated.Value();
 
         Base::Result<Markup::XamlDocument> replacement =
-            view->LoadDocument(rootUri.Canonical(), diagnostics);
+            ::Aero::Runtime::Detail::ViewAccess::LoadDocument(
+                *view, rootUri.Canonical(), diagnostics);
         if (!replacement) return replacement.GetStatus();
         Base::ResourceUri replacementRoot = rootUri;
         Base::Vector<RevisionRecord> replacementRevisions(allocator);
@@ -121,8 +128,8 @@ struct ReloadCoordinator::Impl  {
             replacement.Value(), replacementRoot, replacementRevisions);
         if (!tracked) return tracked.GetStatus();
         Base::Result<void> replaced =
-            view->ReplaceMountedDocument(
-                std::move(replacement).Value(), availableSize);
+            ::Aero::Runtime::Detail::ViewAccess::ReplaceMountedDocument(
+                *view, std::move(replacement).Value(), availableSize);
         if (!replaced) return replaced.GetStatus();
         rootUri = replacementRoot;
         revisions = std::move(replacementRevisions);
@@ -194,12 +201,14 @@ Base::Result<void> ReloadCoordinator::Start(
     Aero::Size availableSize,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
     if (impl_ == nullptr || impl_->view == nullptr ||
-        !impl_->view->IsInitialized()) {
+        !::Aero::Runtime::Detail::ViewAccess::IsInitialized(
+            *impl_->view)) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "XAML reload requires an initialized View");
     }
-    if (impl_->active || impl_->view->IsMounted()) {
+    if (impl_->active ||
+        ::Aero::Runtime::Detail::ViewAccess::IsMounted(*impl_->view)) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "XAML reload requires an unmounted View");
@@ -208,15 +217,17 @@ Base::Result<void> ReloadCoordinator::Start(
         Base::ResourceUri::Parse(rootUri);
     if (!parsed) return parsed.GetStatus();
     Base::Result<Markup::XamlDocument> document =
-        impl_->view->LoadDocument(rootUri, diagnostics);
+        ::Aero::Runtime::Detail::ViewAccess::LoadDocument(
+            *impl_->view, rootUri, diagnostics);
     if (!document) return document.GetStatus();
     Base::ResourceUri resolvedRoot = parsed.Value();
     Base::Vector<Impl::RevisionRecord> revisions(impl_->allocator);
     Base::Result<void> tracked = impl_->BuildTrackedSources(
         document.Value(), resolvedRoot, revisions);
     if (!tracked) return tracked.GetStatus();
-    Base::Result<void> mounted = impl_->view->Mount(
-        std::move(document).Value(), availableSize);
+    Base::Result<void> mounted =
+        ::Aero::Runtime::Detail::ViewAccess::Mount(
+            *impl_->view, std::move(document).Value(), availableSize);
     if (!mounted) return mounted.GetStatus();
 
     impl_->rootUri = resolvedRoot;
