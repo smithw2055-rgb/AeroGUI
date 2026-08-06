@@ -871,7 +871,7 @@ Aero::Render::Detail::ImageResources* OpenGL33Renderer::GetImageResources() noex
 
 Base::Result<void> OpenGL33Renderer::RenderOffscreen(
     const void* rendererToken,
-    const Integration::RenderFrame& plan) noexcept {
+    const ::Aero::Render::Detail::RenderFrame& plan) noexcept {
     if (!IsInitialized()) {
         return NotInitialized(
             "OpenGL render adapter is not initialized");
@@ -896,7 +896,7 @@ Base::Result<void> OpenGL33Renderer::RenderOffscreen(
 
 Base::Result<void> OpenGL33Renderer::Render(
     const void* rendererToken,
-    const Integration::RenderFrame& plan,
+    const ::Aero::Render::Detail::RenderFrame& plan,
     Graphics::LoadOperation load) noexcept {
     if (!IsInitialized()) {
         return NotInitialized(

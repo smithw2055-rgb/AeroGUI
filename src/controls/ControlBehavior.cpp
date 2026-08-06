@@ -16,7 +16,7 @@ ControlBehavior::ControlBehavior(
     Aero::GuiPrivate::Detail::EventRouter& events,
     Aero::GuiPrivate::Detail::InputRouter& input,
     VisualStateManager* visualStates,
-    Integration::IClipboard* clipboard,
+    ::Aero::Input::IClipboard* clipboard,
     bool controlsEnabled,
     bool textEditingEnabled) noexcept
     : allocator_(&allocator),
@@ -129,7 +129,7 @@ Base::Result<void> ControlBehavior::Initialize() noexcept {
 
 Base::Result<void> ControlBehavior::Attach(
     Visual& visual,
-    Integration::ITextInputMethodHost* inputMethodHost) noexcept {
+    ::Aero::Input::ITextInputMethodHost* inputMethodHost) noexcept {
     if (!initialized_ || metadata_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,

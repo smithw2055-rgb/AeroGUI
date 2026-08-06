@@ -685,7 +685,7 @@ public:
         Aero::GuiPrivate::Detail::EventRouter& events,
         Aero::GuiPrivate::Detail::InputRouter& input,
         VisualStateManager* visualStates,
-        Integration::IClipboard* clipboard,
+        ::Aero::Input::IClipboard* clipboard,
         bool controlsEnabled,
         bool textEditingEnabled) noexcept;
     ~ControlBehavior() noexcept;
@@ -696,7 +696,7 @@ public:
     Base::Result<void> Initialize() noexcept;
     Base::Result<void> Attach(
         Visual& visual,
-        Integration::ITextInputMethodHost* inputMethodHost) noexcept;
+        ::Aero::Input::ITextInputMethodHost* inputMethodHost) noexcept;
     Base::Result<bool> Detach(Visual& visual) noexcept;
     Base::Result<void> RefreshButtonVisualState(
         Primitives::ButtonBase& button,
@@ -732,7 +732,7 @@ private:
     Aero::GuiPrivate::Detail::EventRouter* events_ = nullptr;
     Aero::GuiPrivate::Detail::InputRouter* input_ = nullptr;
     VisualStateManager* visualStates_ = nullptr;
-    Integration::IClipboard* clipboard_ = nullptr;
+    ::Aero::Input::IClipboard* clipboard_ = nullptr;
     bool controlsEnabled_ = false;
     bool textEditingEnabled_ = false;
     bool initialized_ = false;

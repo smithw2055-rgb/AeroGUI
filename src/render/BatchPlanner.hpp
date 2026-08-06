@@ -10,7 +10,6 @@
 
 namespace Aero::Render::Detail {
 
-using ::Aero::Integration::RenderFrame;
 
 enum class BatchPipeline : std::uint8_t {
     Rectangle = 0U,

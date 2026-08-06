@@ -975,7 +975,7 @@ void TextPipeline::Shutdown() noexcept {
         impl_->layout != nullptr &&
         impl_->resources != nullptr) {
         TextResources* current = impl_->device != nullptr
-            ? Integration::RenderDevice::Impl::Resources(
+            ? ::Aero::RenderDevice::Impl::Resources(
                   *impl_->device).text
             : nullptr;
         if (current == impl_->resources &&

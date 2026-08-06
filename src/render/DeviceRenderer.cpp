@@ -167,7 +167,7 @@ Base::Result<void> DeviceRenderer::UnregisterGlyphRun(
 }
 
 Base::Result<Graphics::CommandList> DeviceRenderer::Record(
-    const Integration::RenderFrame& frame,
+    const ::Aero::Render::Detail::RenderFrame& frame,
     const RenderTarget& target) noexcept {
     return IsInitialized()
         ? impl_->encoder.Record(frame, target)
@@ -177,7 +177,7 @@ Base::Result<Graphics::CommandList> DeviceRenderer::Record(
 
 Base::Result<Graphics::CommandList> DeviceRenderer::RecordOffscreen(
     const void* rendererToken,
-    const Integration::RenderFrame& frame) noexcept {
+    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
     return IsInitialized()
         ? impl_->encoder.RecordOffscreen(rendererToken, frame)
         : Base::Result<Graphics::CommandList>(NotInitialized(
@@ -186,7 +186,7 @@ Base::Result<Graphics::CommandList> DeviceRenderer::RecordOffscreen(
 
 Base::Result<Graphics::CommandList> DeviceRenderer::RecordOnscreen(
     const void* rendererToken,
-    const Integration::RenderFrame& frame,
+    const ::Aero::Render::Detail::RenderFrame& frame,
     const RenderTarget& target) noexcept {
     return IsInitialized()
         ? impl_->encoder.RecordOnscreen(rendererToken, frame, target)

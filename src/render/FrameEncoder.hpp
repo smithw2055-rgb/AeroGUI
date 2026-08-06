@@ -87,14 +87,14 @@ public:
         Graphics::IndexType indexType = Graphics::IndexType::UInt16) noexcept;
     Base::Result<void> UnregisterMesh(Render::RenderMeshId mesh) noexcept;
     Base::Result<Graphics::CommandList> Record(
-        const Integration::RenderFrame& plan,
+        const ::Aero::Render::Detail::RenderFrame& plan,
         const RenderTarget& target) noexcept;
     Base::Result<Graphics::CommandList> RecordOffscreen(
         const void* rendererToken,
-        const Integration::RenderFrame& plan) noexcept;
+        const ::Aero::Render::Detail::RenderFrame& plan) noexcept;
     Base::Result<Graphics::CommandList> RecordOnscreen(
         const void* rendererToken,
-        const Integration::RenderFrame& plan,
+        const ::Aero::Render::Detail::RenderFrame& plan,
         const RenderTarget& target) noexcept;
     void ReleaseRenderer(const void* rendererToken) noexcept;
     RendererStatistics LastStatistics() const noexcept;

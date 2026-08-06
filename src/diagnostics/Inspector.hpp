@@ -68,7 +68,7 @@ struct InspectorSnapshot {
     Base::Rect layoutRect;
     Base::Rect layoutClip;
     Base::Size renderSize;
-    Integration::RenderDiagnostics
+    ::Aero::Render::Detail::RenderDiagnostics
         render;
     ::Aero::Threading::DispatcherFrameTimings
         frameTimings;
@@ -100,7 +100,7 @@ public:
         std::uint32_t maxTreeNodes =
             4096U) const noexcept;
 
-    const Integration::RenderFrame&
+    const ::Aero::Render::Detail::RenderFrame&
     RenderFrame() const noexcept {
         return renderer_->CurrentFrame();
     }

@@ -1830,4 +1830,32 @@ unset(aero_retired_integration_include_scan)
 unset(retired_integration_include_paths)
 unset(public_integration_host_types)
 
+# S6: C++ implementation ownership no longer uses the retired Integration
+# namespace or retired public include paths. CMake target guards and historical
+# documentation are outside this source scan.
+file(GLOB_RECURSE aero_cpp_namespace_sources
+    "${AERO_SOURCE_DIR}/include/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/tools/*.hpp"
+    "${AERO_SOURCE_DIR}/tools/*.cpp")
+set(aero_retired_cpp_namespace_sources)
+foreach(aero_cpp_namespace_source IN LISTS aero_cpp_namespace_sources)
+    file(READ "${aero_cpp_namespace_source}" aero_cpp_namespace_content)
+    if(aero_cpp_namespace_content MATCHES
+            "namespace[ \t]+Aero::Integration|::Aero::Integration|(^|[^A-Za-z0-9_])Integration::|Aero/Integration(/|[.]hpp)")
+        list(APPEND aero_retired_cpp_namespace_sources
+            "${aero_cpp_namespace_source}")
+    endif()
+endforeach()
+if(aero_retired_cpp_namespace_sources)
+    message(FATAL_ERROR
+        "Retired C++ Integration ownership remains in: "
+        "${aero_retired_cpp_namespace_sources}")
+endif()
+unset(aero_cpp_namespace_sources)
+unset(aero_cpp_namespace_source)
+unset(aero_cpp_namespace_content)
+unset(aero_retired_cpp_namespace_sources)
+
 message(STATUS "Aero architecture dependency checks passed")

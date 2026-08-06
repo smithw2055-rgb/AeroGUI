@@ -2,8 +2,8 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Diagnostics.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/Integration/Providers/XamlProvider.hpp>
-#include <Aero/Integration/ViewOptions.hpp>
+#include <Aero/Markup/XamlProvider.hpp>
+#include <Aero/ViewOptions.hpp>
 #include <Aero/Markup.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Meta.hpp>
@@ -610,10 +610,10 @@ std::string ComponentPath(Aero::Base::StringView path) {
     return value;
 }
 
-class InventoryXamlProvider final : public Aero::Integration::XamlProvider {
+class InventoryXamlProvider final : public ::Aero::Markup::XamlProvider {
 public:
     explicit InventoryXamlProvider(std::string root) noexcept : root_(std::move(root)) {}
-    Aero::Base::Result<Aero::Integration::StreamResourceInfo> Open(const Aero::Base::ResourceUri& uri) const noexcept override {
+    Aero::Base::Result<::Aero::Markup::StreamResourceInfo> Open(const Aero::Base::ResourceUri& uri) const noexcept override {
         if (!uri.Assembly().Empty() && uri.Assembly() != Aero::Base::StringView("Inventory")) {
             return Aero::Base::Status::Failure(Aero::Base::ErrorCode::NotFound, "Inventory assembly route was not found");
         }
@@ -627,7 +627,7 @@ public:
         if (length < 0 || std::fseek(file, 0L, SEEK_SET) != 0) { std::fclose(file); return Aero::Base::Status::Failure(Aero::Base::ErrorCode::InternalError, "Inventory file rewind failed"); }
         Aero::Base::Result<Aero::Base::Ref<FileStream>> stream = Aero::Base::MakeRef<FileStream>(file, static_cast<std::uint64_t>(length));
         if (!stream) { std::fclose(file); return stream.GetStatus(); }
-        Aero::Integration::StreamResourceInfo info;
+        ::Aero::Markup::StreamResourceInfo info;
         info.uri = uri;
         info.stream = Aero::Base::Ref<Aero::Base::Stream>(std::move(stream).Value());
         info.revision = 1U;
@@ -1006,7 +1006,7 @@ bool LoadOne(Aero::Gui& gui, const char* relative) {
     Inventory::DragAdornerBehavior::ResetCounters();
     Inventory::DragItemBehavior::ResetCounters();
     Inventory::DropItemBehavior::ResetCounters();
-    Aero::Integration::ViewOptions viewOptions;
+    ::Aero::ViewOptions viewOptions;
     viewOptions.automaticAnimationClock = false;
     Aero::Base::Result<Aero::Base::Ref<Aero::View>> made =
         gui.CreateView(viewOptions);

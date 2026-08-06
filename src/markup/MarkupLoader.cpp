@@ -3215,14 +3215,14 @@ bool RegistrationMatches(
     return schemeMatches && assemblyMatches;
 }
 
-Base::Result<Integration::StreamResourceInfo> CreateMemoryResource(
+Base::Result<::Aero::Markup::StreamResourceInfo> CreateMemoryResource(
     const Base::ResourceUri& uri,
     Base::Span<const std::uint8_t> bytes,
     std::uint64_t revision) noexcept {
     Base::Result<Base::Ref<MemoryStream>> stream =
         Base::MakeRef<MemoryStream>(bytes);
     if (!stream) return stream.GetStatus();
-    Integration::StreamResourceInfo result;
+    ::Aero::Markup::StreamResourceInfo result;
     result.uri = uri;
     result.stream = std::move(stream).Value();
     result.revision = revision;
@@ -3402,7 +3402,7 @@ Base::Result<void> EmbeddedXamlProvider::Freeze() noexcept {
     return {};
 }
 
-Base::Result<Integration::StreamResourceInfo>
+Base::Result<::Aero::Markup::StreamResourceInfo>
 EmbeddedXamlProvider::Open(
     const Base::ResourceUri& uri) const noexcept {
     for (const Entry& entry : entries_) {
@@ -3462,7 +3462,7 @@ Base::Result<std::uint64_t> FileXamlProvider::Revision(
         static_cast<std::uint64_t>(size) ^ Base::MixHash64(ticks));
 }
 
-Base::Result<Integration::StreamResourceInfo>
+Base::Result<::Aero::Markup::StreamResourceInfo>
 FileXamlProvider::Open(
     const Base::ResourceUri& uri) const noexcept {
     if ((!uri.Scheme().Empty() &&
@@ -3521,7 +3521,7 @@ FileXamlProvider::Open(
         std::fclose(file);
         return stream.GetStatus();
     }
-    Integration::StreamResourceInfo source;
+    ::Aero::Markup::StreamResourceInfo source;
     source.uri = uri;
     source.stream = std::move(stream).Value();
     Base::Result<std::uint64_t> revision = Revision(uri);
@@ -3899,7 +3899,7 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
         }
     }
 
-    Base::Result<Integration::StreamResourceInfo> source =
+    Base::Result<::Aero::Markup::StreamResourceInfo> source =
         provider.Value().provider->Open(uri);
     if (!source) {
         loadStack_.PopBack();
@@ -3908,7 +3908,7 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
             LoaderDiagnosticCodes::SourceLoadFailed,
             Base::StringView("XAML source could not be loaded"));
     }
-    Integration::StreamResourceInfo sourceInfo =
+    ::Aero::Markup::StreamResourceInfo sourceInfo =
         std::move(source).Value();
     if (!sourceInfo.stream ||
         !sourceInfo.stream->CanRead()) {

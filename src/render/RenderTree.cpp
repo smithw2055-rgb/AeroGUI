@@ -465,7 +465,7 @@ void FrameworkElement::OnRender(
 
 } // namespace Aero
 
-namespace Aero::Integration {
+namespace Aero::Render::Detail {
 
 using namespace ::Aero::Render;
 using Aero::FrameworkElement;
@@ -740,13 +740,12 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
     return {};
 }
 
-} // namespace Aero::Integration
+} // namespace Aero::Render::Detail
 
 namespace Aero::Render::Detail {
 
 using namespace ::Aero;
 using namespace ::Aero::Meta;
-using namespace ::Aero::Integration;
 using namespace ::Aero::Render;
 using namespace ::Aero::Threading;
 
@@ -1233,7 +1232,6 @@ namespace Aero::Render::Detail {
 
 using namespace ::Aero;
 using namespace ::Aero::Meta;
-using namespace ::Aero::Integration;
 using namespace ::Aero::Render;
 using namespace ::Aero::Threading;
 

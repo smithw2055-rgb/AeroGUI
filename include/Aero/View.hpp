@@ -214,7 +214,7 @@ private:
     Base::Result<std::uint32_t> AdvanceAnimations(
         std::uint32_t elapsedMilliseconds) noexcept;
     Base::Result<void> Initialize(
-        const Integration::ViewOptions& options) noexcept;
+        const ::Aero::ViewOptions& options) noexcept;
     void Shutdown() noexcept;
     bool IsInitialized() const noexcept;
     bool IsMounted() const noexcept;

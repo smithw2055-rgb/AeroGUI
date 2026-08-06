@@ -4,7 +4,7 @@
 #include <new>
 #include <utility>
 
-namespace Aero::Integration {
+namespace Aero::Render::Detail {
 
 // The remaining OpenGL window path creates its native context and target as one
 // object. Embedded OpenGL and all D3D11 paths use independently owned targets.
@@ -12,7 +12,7 @@ Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33WindowDevice(
     const OpenGL33WindowSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept;
 
-} // namespace Aero::Integration
+} // namespace Aero::Render::Detail
 
 namespace Aero {
 namespace {
@@ -74,13 +74,13 @@ RenderSurfaceState RenderSurface::State() const noexcept {
         return RenderSurfaceState::Shutdown;
     }
     switch (impl_->RefreshHealth()) {
-    case Integration::Detail::SurfaceHealth::Ready:
+    case ::Aero::Render::Detail::SurfaceHealth::Ready:
         return RenderSurfaceState::Ready;
-    case Integration::Detail::SurfaceHealth::Lost:
+    case ::Aero::Render::Detail::SurfaceHealth::Lost:
         return RenderSurfaceState::Lost;
-    case Integration::Detail::SurfaceHealth::Failed:
+    case ::Aero::Render::Detail::SurfaceHealth::Failed:
         return RenderSurfaceState::Failed;
-    case Integration::Detail::SurfaceHealth::Shutdown:
+    case ::Aero::Render::Detail::SurfaceHealth::Shutdown:
         return RenderSurfaceState::Shutdown;
     }
     return RenderSurfaceState::Failed;
@@ -104,7 +104,7 @@ Base::Result<void> RenderSurface::Resize(
             "Render surface dimensions must be nonzero");
     }
     if (impl_->device->State() != Aero::RenderDeviceState::Ready ||
-        impl_->RefreshHealth() != Integration::Detail::SurfaceHealth::Ready) {
+        impl_->RefreshHealth() != ::Aero::Render::Detail::SurfaceHealth::Ready) {
         return InvalidState("Render surface cannot resize in its current state");
     }
     Base::Result<void> idle = impl_->device->WaitIdle();
@@ -117,10 +117,10 @@ Base::Result<void> RenderSurface::Resize(
 void RenderSurface::NotifyLost() noexcept {
     if (impl_ == nullptr || !impl_->device || impl_->target == nullptr ||
         impl_->device->State() != Aero::RenderDeviceState::Ready ||
-        impl_->RefreshHealth() != Integration::Detail::SurfaceHealth::Ready) {
+        impl_->RefreshHealth() != ::Aero::Render::Detail::SurfaceHealth::Ready) {
         return;
     }
-    impl_->health = Integration::Detail::SurfaceHealth::Lost;
+    impl_->health = ::Aero::Render::Detail::SurfaceHealth::Lost;
     impl_->target->NotifySurfaceLost();
     Aero::RenderDevice::Impl::RefreshHealth(*impl_->device);
     impl_->RefreshHealth();
@@ -131,7 +131,7 @@ Base::Result<void> RenderSurface::Restore() noexcept {
         return NotInitialized("Render surface is not initialized");
     }
     if (impl_->device->State() != Aero::RenderDeviceState::Ready ||
-        impl_->RefreshHealth() != Integration::Detail::SurfaceHealth::Lost) {
+        impl_->RefreshHealth() != ::Aero::Render::Detail::SurfaceHealth::Lost) {
         return InvalidState("Only a lost render surface can be restored");
     }
     Base::Result<void> restored = impl_->target->RestoreSurface();
@@ -162,7 +162,7 @@ Base::Result<Base::Ref<RenderSurface>> RenderSurface::Impl::Create(
 
 Base::Result<Base::Ref<RenderSurface>> RenderSurface::Impl::CreateOwned(
     Base::Ref<Aero::RenderDevice> device,
-    Integration::Detail::NativeRenderTarget* target,
+    ::Aero::Render::Detail::NativeRenderTarget* target,
     RenderSurfaceKind kind,
     Base::IAllocator* allocator) noexcept {
     if (!device || target == nullptr) {
@@ -192,7 +192,7 @@ Base::Result<Base::Ref<RenderSurface>> RenderSurface::Impl::CreateOwned(
 Base::Result<void> RenderSurface::Impl::Render(
     RenderSurface& surface,
     const void* rendererToken,
-    const Integration::RenderFrame& frame) noexcept {
+    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
     Impl* impl = surface.impl_;
     if (impl == nullptr || !impl->device || impl->target == nullptr) {
         return NotInitialized("Render surface is not initialized");
@@ -200,7 +200,7 @@ Base::Result<void> RenderSurface::Impl::Render(
     Base::Status deviceReady =
         Aero::RenderDevice::Impl::FrameStatus(*impl->device);
     if (!deviceReady.IsOk()) return deviceReady;
-    if (impl->RefreshHealth() != Integration::Detail::SurfaceHealth::Ready) {
+    if (impl->RefreshHealth() != ::Aero::Render::Detail::SurfaceHealth::Ready) {
         return InvalidState("Render surface is not ready");
     }
 
@@ -222,7 +222,7 @@ Base::Result<void> RenderSurface::Impl::Render(
 
 } // namespace Aero
 
-namespace Aero::Integration::Detail {
+namespace Aero::Render::Detail {
 
 Base::Result<Base::Ref<Aero::RenderSurface>> AdoptRenderSurface(
     Base::Ref<Aero::RenderDevice> device,
@@ -241,9 +241,9 @@ Base::Result<Base::Ref<Aero::RenderSurface>> AdoptOwnedRenderSurface(
         std::move(device), target, kind, allocator);
 }
 
-} // namespace Aero::Integration::Detail
+} // namespace Aero::Render::Detail
 
-namespace Aero::Integration {
+namespace Aero::Render::Detail {
 
 Base::Result<Base::Ref<Aero::RenderSurface>> CreateOpenGL33WindowSurface(
     const OpenGL33WindowSurfaceOptions& options,
@@ -251,8 +251,8 @@ Base::Result<Base::Ref<Aero::RenderSurface>> CreateOpenGL33WindowSurface(
     Base::Result<Base::Ref<Aero::RenderDevice>> device =
         CreateOpenGL33WindowDevice(options, allocator);
     if (!device) return device.GetStatus();
-    return Detail::AdoptRenderSurface(
+    return AdoptRenderSurface(
         std::move(device).Value(), Aero::RenderSurfaceKind::Window, allocator);
 }
 
-} // namespace Aero::Integration
+} // namespace Aero::Render::Detail

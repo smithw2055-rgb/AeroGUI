@@ -108,7 +108,7 @@ public:
             revision = probed.Value();
             return {};
         }
-        Base::Result<Integration::StreamResourceInfo> source =
+        Base::Result<::Aero::Markup::StreamResourceInfo> source =
             resolved.Value().provider->Open(uri);
         if (!source) return source.GetStatus();
         if (source.Value().revision != 0U) {

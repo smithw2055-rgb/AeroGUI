@@ -2,8 +2,8 @@
 #include <Aero/Diagnostics.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/Integration/Providers/XamlProvider.hpp>
-#include <Aero/Integration/ViewOptions.hpp>
+#include <Aero/Markup/XamlProvider.hpp>
+#include <Aero/ViewOptions.hpp>
 #include <Aero/Markup.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Media/Brushes.hpp>
@@ -100,12 +100,12 @@ std::string ComponentPath(Aero::Base::StringView path) {
 }
 
 class BackgroundBlurXamlProvider final
-    : public Aero::Integration::XamlProvider {
+    : public ::Aero::Markup::XamlProvider {
 public:
     explicit BackgroundBlurXamlProvider(std::string root) noexcept
         : root_(std::move(root)) {}
 
-    Aero::Base::Result<Aero::Integration::StreamResourceInfo> Open(
+    Aero::Base::Result<::Aero::Markup::StreamResourceInfo> Open(
         const Aero::Base::ResourceUri& uri) const noexcept override {
         if (!uri.Assembly().Empty() &&
             uri.Assembly() != Aero::Base::StringView("BackgroundBlur")) {
@@ -142,7 +142,7 @@ public:
             std::fclose(file);
             return stream.GetStatus();
         }
-        Aero::Integration::StreamResourceInfo info;
+        ::Aero::Markup::StreamResourceInfo info;
         info.uri = uri;
         info.stream = Aero::Base::Ref<Aero::Base::Stream>(
             std::move(stream).Value());
@@ -486,7 +486,7 @@ bool VerifyStoryboard(
 }
 
 bool Run(Aero::Gui& gui) {
-    Aero::Integration::ViewOptions options;
+    ::Aero::ViewOptions options;
     options.automaticAnimationClock = false;
     Aero::Base::Result<Aero::Base::Ref<Aero::View>> made =
         gui.CreateView(options);

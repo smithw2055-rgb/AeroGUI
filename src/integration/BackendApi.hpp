@@ -4,7 +4,7 @@
 #include <Aero/Render/OpenGL33.hpp>
 #include <Aero/RenderSurface.hpp>
 
-namespace Aero::Integration {
+namespace Aero::Render::Detail {
 
 // Source-private backend entry points. Public hosts use Aero::Render factories;
 // these declarations keep existing backend translation units independent from
@@ -80,4 +80,4 @@ CreateOpenGL33WindowDevice(
     const OpenGL33WindowSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-} // namespace Aero::Integration
+} // namespace Aero::Render::Detail

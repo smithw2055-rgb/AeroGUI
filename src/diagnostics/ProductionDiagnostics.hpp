@@ -267,7 +267,7 @@ public:
 
     Base::Result<void> Capture(
         const Aero::ElementTree& tree,
-        const Integration::RenderFrame* plan = nullptr) noexcept {
+        const ::Aero::Render::Detail::RenderFrame* plan = nullptr) noexcept {
         nodes_.Clear();
         const Aero::Visual* root = tree.Root();
         if (root != nullptr) {

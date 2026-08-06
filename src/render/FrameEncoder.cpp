@@ -374,7 +374,7 @@ bool RequiresNodeSurface(
 }
 
 bool RequiresFrameSurface(
-    const Integration::RenderFrame& frame) noexcept {
+    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
     for (const Render::RenderNodeSnapshot& node : frame.Nodes()) {
         if (RequiresNodeSurface(node)) return true;
     }
@@ -1042,7 +1042,7 @@ bool Renderer::IsBatchingEnabled() const noexcept {
 
 Base::Result<CommandList> Renderer::RecordOffscreen(
     const void* rendererToken,
-    const Integration::RenderFrame& plan) noexcept {
+    const ::Aero::Render::Detail::RenderFrame& plan) noexcept {
     if (!IsInitialized() || rendererToken == nullptr) {
         return NotInitialized(
             "Offscreen rendering requires an initialized Renderer and token");
@@ -1122,7 +1122,7 @@ Base::Result<CommandList> Renderer::RecordOffscreen(
 
 Base::Result<CommandList> Renderer::RecordOnscreen(
     const void* rendererToken,
-    const Integration::RenderFrame& plan,
+    const ::Aero::Render::Detail::RenderFrame& plan,
     const RenderTarget& target) noexcept {
     if (!RequiresFrameSurface(plan)) {
         return Record(plan, target);
@@ -1247,7 +1247,7 @@ void Renderer::ReleaseRenderer(
 }
 
 Base::Result<CommandList> Renderer::Record(
-    const Integration::RenderFrame& plan,
+    const ::Aero::Render::Detail::RenderFrame& plan,
     const RenderTarget& target) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer is not initialized");

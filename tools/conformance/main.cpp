@@ -17,7 +17,7 @@
 #include "render/opengl33/OpenGL33Backend.hpp"
 
 namespace Aero::Runtime::Detail {
-const Integration::RenderFrame* CurrentFrameForConformance(
+const ::Aero::Render::Detail::RenderFrame* CurrentFrameForConformance(
     const View& view) noexcept;
 }
 
@@ -299,24 +299,24 @@ bool HasTargetLoadOperation(
 }
 
 class ProbeRenderDeviceState final
-    : public Aero::Integration::Detail::NativeRenderDevice,
-      public Aero::Integration::Detail::NativeRenderTarget {
+    : public Aero::Render::Detail::NativeRenderDevice,
+      public Aero::Render::Detail::NativeRenderTarget {
 public:
-    Aero::Integration::Detail::RenderBackendKind Backend() const noexcept override {
-        return Aero::Integration::Detail::RenderBackendKind::Headless;
+    Aero::Render::Detail::RenderBackendKind Backend() const noexcept override {
+        return Aero::Render::Detail::RenderBackendKind::Headless;
     }
-    Aero::Integration::Detail::NativeRenderTarget* DefaultTarget() noexcept override {
+    Aero::Render::Detail::NativeRenderTarget* DefaultTarget() noexcept override {
         return this;
     }
     Aero::Base::Result<void> RenderOffscreen(
         const void*,
-        const Aero::Integration::RenderFrame&) noexcept {
+        const ::Aero::Render::Detail::RenderFrame&) noexcept {
         return RenderFrame();
     }
 
     Aero::Base::Result<void> Render(
         const void*,
-        const Aero::Integration::RenderFrame&) noexcept {
+        const ::Aero::Render::Detail::RenderFrame&) noexcept {
         return RenderFrame();
     }
 
@@ -329,21 +329,21 @@ public:
     }
 
     void NotifySurfaceLost() noexcept {
-        surfaceHealth = Aero::Integration::Detail::SurfaceHealth::Lost;
+        surfaceHealth = Aero::Render::Detail::SurfaceHealth::Lost;
     }
 
     void NotifyDeviceLost() noexcept {
-        deviceHealth = Aero::Integration::Detail::BackendHealth::DeviceLost;
+        deviceHealth = Aero::Render::Detail::BackendHealth::DeviceLost;
     }
 
     Aero::Base::Result<void> RestoreDevice() noexcept {
-        deviceHealth = Aero::Integration::Detail::BackendHealth::Ready;
-        surfaceHealth = Aero::Integration::Detail::SurfaceHealth::Ready;
+        deviceHealth = Aero::Render::Detail::BackendHealth::Ready;
+        surfaceHealth = Aero::Render::Detail::SurfaceHealth::Ready;
         return {};
     }
 
     Aero::Base::Result<void> RestoreSurface() noexcept {
-        surfaceHealth = Aero::Integration::Detail::SurfaceHealth::Ready;
+        surfaceHealth = Aero::Render::Detail::SurfaceHealth::Ready;
         return {};
     }
 
@@ -351,11 +351,11 @@ public:
         return {};
     }
 
-    Aero::Integration::Detail::BackendHealth GetDeviceHealth() const noexcept {
+    Aero::Render::Detail::BackendHealth GetDeviceHealth() const noexcept {
         return deviceHealth;
     }
 
-    Aero::Integration::Detail::SurfaceHealth GetSurfaceHealth() const noexcept {
+    Aero::Render::Detail::SurfaceHealth GetSurfaceHealth() const noexcept {
         return surfaceHealth;
     }
 
@@ -372,10 +372,10 @@ public:
     }
 
     bool failNext = false;
-    Aero::Integration::Detail::BackendHealth deviceHealth =
-        Aero::Integration::Detail::BackendHealth::Ready;
-    Aero::Integration::Detail::SurfaceHealth surfaceHealth =
-        Aero::Integration::Detail::SurfaceHealth::Ready;
+    Aero::Render::Detail::BackendHealth deviceHealth =
+        Aero::Render::Detail::BackendHealth::Ready;
+    Aero::Render::Detail::SurfaceHealth surfaceHealth =
+        Aero::Render::Detail::SurfaceHealth::Ready;
 
 private:
     Aero::Base::Result<void> RenderFrame() noexcept {
@@ -388,26 +388,26 @@ private:
 };
 
 void VerifyRenderDeviceState(
-    const Aero::Integration::RenderFrame& frame) noexcept {
+    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
     auto* state = new (std::nothrow) ProbeRenderDeviceState();
     Check(state != nullptr, "render device probe allocation failed");
     if (state == nullptr) return;
-    auto made = Aero::Integration::Detail::AdoptRenderDevice(
+    auto made = Aero::Render::Detail::AdoptRenderDevice(
         state);
     Check(made.HasValue(), "render device probe adoption failed");
     if (!made) return;
     Aero::Base::Ref<Aero::RenderDevice> device =
         std::move(made).Value();
-    auto surfaceMade = Aero::Integration::Detail::AdoptRenderSurface(
-        device, Aero::Integration::RenderSurfaceKind::Embedded);
+    auto surfaceMade = Aero::Render::Detail::AdoptRenderSurface(
+        device, ::Aero::RenderSurfaceKind::Embedded);
     Check(surfaceMade.HasValue(), "render surface probe adoption failed");
     if (!surfaceMade) return;
-    Aero::Base::Ref<Aero::Integration::RenderSurface> surface =
+    Aero::Base::Ref<Aero::RenderSurface> surface =
         std::move(surfaceMade).Value();
 
     state->failNext = true;
     Aero::Base::Result<void> unsupported =
-        Aero::Integration::RenderSurface::Impl::Render(
+        ::Aero::RenderSurface::Impl::Render(
             *surface, state, frame);
     Check(!unsupported &&
             unsupported.GetStatus().code ==
@@ -415,11 +415,11 @@ void VerifyRenderDeviceState(
         "probe Unsupported frame did not fail as requested");
     Check(device->State() == Aero::RenderDeviceState::Ready &&
             surface->State() ==
-                Aero::Integration::RenderSurfaceState::Ready &&
+                ::Aero::RenderSurfaceState::Ready &&
             device->Statistics().failedFrameCount == 1U,
         "ordinary frame failure poisoned a ready render target");
 
-    Check(Aero::Integration::RenderSurface::Impl::Render(
+    Check(::Aero::RenderSurface::Impl::Render(
             *surface, state, frame).HasValue(),
         "normal frame after Unsupported failure did not render");
     Check(device->Statistics().acceptedFrameCount == 1U &&
@@ -429,32 +429,32 @@ void VerifyRenderDeviceState(
     surface->NotifyLost();
     Check(device->State() == Aero::RenderDeviceState::Ready &&
             surface->State() ==
-                Aero::Integration::RenderSurfaceState::Lost,
+                ::Aero::RenderSurfaceState::Lost,
         "surface loss incorrectly poisoned the render device");
     Check(surface->Restore().HasValue() &&
             surface->State() ==
-                Aero::Integration::RenderSurfaceState::Ready,
+                ::Aero::RenderSurfaceState::Ready,
         "surface loss restore failed");
 
     device->NotifyDeviceLost();
     Check(device->State() == Aero::RenderDeviceState::DeviceLost &&
             surface->State() ==
-                Aero::Integration::RenderSurfaceState::DeviceLost,
+                ::Aero::RenderSurfaceState::DeviceLost,
         "device loss did not propagate to the render surface");
     Check(device->Restore().HasValue() &&
             device->State() == Aero::RenderDeviceState::Ready &&
             surface->State() ==
-                Aero::Integration::RenderSurfaceState::Ready,
+                ::Aero::RenderSurfaceState::Ready,
         "device loss restore failed");
 
-    state->deviceHealth = Aero::Integration::Detail::BackendHealth::Failed;
-    state->surfaceHealth = Aero::Integration::Detail::SurfaceHealth::Failed;
+    state->deviceHealth = Aero::Render::Detail::BackendHealth::Failed;
+    state->surfaceHealth = Aero::Render::Detail::SurfaceHealth::Failed;
     state->failNext = true;
-    Check(!Aero::Integration::RenderSurface::Impl::Render(
+    Check(!::Aero::RenderSurface::Impl::Render(
             *surface, state, frame) &&
             device->State() == Aero::RenderDeviceState::Failed &&
             surface->State() ==
-                Aero::Integration::RenderSurfaceState::Failed,
+                ::Aero::RenderSurfaceState::Failed,
         "fatal backend health did not fail the render target");
 }
 
@@ -462,7 +462,7 @@ template<class TBackend>
 bool RenderAndReadback(
     TBackend& backend,
     const Aero::Render::RendererShaderSet& shaders,
-    const Aero::Integration::RenderFrame& frame,
+    const ::Aero::Render::Detail::RenderFrame& frame,
     std::uint32_t width,
     std::uint32_t height,
     Aero::Base::Vector<std::uint8_t>& pixels,
@@ -578,7 +578,7 @@ LRESULT CALLBACK ConformanceWindowProcedure(
 }
 
 bool RenderD3D11Readback(
-    const Aero::Integration::RenderFrame& frame,
+    const ::Aero::Render::Detail::RenderFrame& frame,
     std::uint32_t width,
     std::uint32_t height,
     Aero::Base::Vector<std::uint8_t>& pixels) noexcept {
@@ -607,7 +607,7 @@ bool RenderD3D11Readback(
 }
 
 bool RenderOpenGL33Readback(
-    const Aero::Integration::RenderFrame& frame,
+    const ::Aero::Render::Detail::RenderFrame& frame,
     std::uint32_t width,
     std::uint32_t height,
     Aero::Base::Vector<std::uint8_t>& pixels) noexcept {
@@ -709,7 +709,7 @@ bool RenderOpenGL33Readback(
 }
 
 void VerifyNativePixelReadback(
-    const Aero::Integration::RenderFrame& frame,
+    const ::Aero::Render::Detail::RenderFrame& frame,
     std::uint32_t width,
     std::uint32_t height) noexcept {
     Aero::Base::Vector<std::uint8_t> d3dPixels;
@@ -901,7 +901,7 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
     view.SetContent(std::move(document).Value(), viewport.logicalSize);
     view.SetViewport(viewport);
     Check(view.Update().HasValue(), "nested effect View update failed");
-    const Aero::Integration::RenderFrame* frame =
+    const ::Aero::Render::Detail::RenderFrame* frame =
         Aero::Runtime::Detail::CurrentFrameForConformance(view);
     if (frame != nullptr && frame->GradientRamps().Empty()) {
         std::fprintf(stderr,

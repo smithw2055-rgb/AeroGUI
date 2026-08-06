@@ -14,7 +14,7 @@
 #include <new>
 #include <thread>
 
-namespace Aero::Integration {
+namespace Aero::Render::Detail {
 namespace {
 
 Base::Status InvalidArgument(const char* message) noexcept {
@@ -158,8 +158,8 @@ private:
 };
 
 class OpenGL33DeviceState final
-    : public Detail::NativeRenderDevice,
-      public Detail::NativeRenderTarget {
+    : public NativeRenderDevice,
+      public NativeRenderTarget {
 public:
     OpenGL33DeviceState(
         const OpenGL33WindowSurfaceOptions& options,
@@ -179,10 +179,10 @@ public:
         Shutdown();
     }
 
-    Detail::RenderBackendKind Backend() const noexcept override {
-        return Detail::RenderBackendKind::OpenGL33;
+    RenderBackendKind Backend() const noexcept override {
+        return RenderBackendKind::OpenGL33;
     }
-    Detail::NativeRenderTarget* DefaultTarget() noexcept override {
+    NativeRenderTarget* DefaultTarget() noexcept override {
         return this;
     }
 
@@ -273,9 +273,9 @@ public:
         }
 
         renderer_ = new (std::nothrow)
-            Render::DeviceRenderer(
+            ::Aero::Render::DeviceRenderer(
                 *device_,
-                Render::MakeOpenGL33FrameShaderSet(),
+                ::Aero::Render::MakeOpenGL33FrameShaderSet(),
                 allocator_);
         if (renderer_ == nullptr) {
             Shutdown();
@@ -293,7 +293,7 @@ public:
 
     Base::Result<void> RenderOffscreen(
         const void* rendererToken,
-        const Integration::RenderFrame& plan) noexcept {
+        const ::Aero::Render::Detail::RenderFrame& plan) noexcept {
         Base::Result<void> current = MakeContextCurrent();
         if (!current) return current.GetStatus();
         if (renderer_ == nullptr || device_ == nullptr) {
@@ -314,7 +314,7 @@ public:
 
     Base::Result<void> Render(
         const void* rendererToken,
-        const Integration::RenderFrame& plan) noexcept {
+        const ::Aero::Render::Detail::RenderFrame& plan) noexcept {
         Base::Result<void> current = MakeContextCurrent();
         if (!current) return current.GetStatus();
         if (renderer_ == nullptr || device_ == nullptr ||
@@ -472,34 +472,34 @@ public:
                 timeoutMilliseconds) * UINT64_C(1000000));
     }
 
-    Detail::BackendHealth GetDeviceHealth() const noexcept {
+    BackendHealth GetDeviceHealth() const noexcept {
         if (deviceLost_ ||
             (device_ != nullptr &&
              device_->Backend().IsDeviceLost())) {
-            return Detail::BackendHealth::DeviceLost;
+            return BackendHealth::DeviceLost;
         }
         return renderer_ != nullptr && graphics_ != nullptr &&
                 device_ != nullptr
-            ? Detail::BackendHealth::Ready
-            : Detail::BackendHealth::Failed;
+            ? BackendHealth::Ready
+            : BackendHealth::Failed;
     }
 
-    Detail::SurfaceHealth GetSurfaceHealth() const noexcept {
+    SurfaceHealth GetSurfaceHealth() const noexcept {
         if (surfaceLost_ ||
             (surface_ != nullptr &&
              surface_->State() != Graphics::SurfaceState::Ready)) {
-            return Detail::SurfaceHealth::Lost;
+            return SurfaceHealth::Lost;
         }
         return surface_ != nullptr
-            ? Detail::SurfaceHealth::Ready
-            : Detail::SurfaceHealth::Failed;
+            ? SurfaceHealth::Ready
+            : SurfaceHealth::Failed;
     }
 
     ::Aero::RenderFrameStatistics
     LastFrameStatistics() const noexcept {
         ::Aero::RenderFrameStatistics result;
         if (renderer_ == nullptr) return result;
-        const Render::FrameEncoderStatistics source =
+        const ::Aero::Render::FrameEncoderStatistics source =
             renderer_->LastStatistics();
         result.drawCallCount =
             source.drawCallCount;
@@ -563,7 +563,7 @@ private:
     Base::Result<void> CreateWindowSurface() noexcept {
 #if defined(_WIN32) && AERO_HAS_WGL_SURFACE
         if (windowOptions_.window.system !=
-            Integration::WindowSystem::Win32) {
+            ::Aero::Platform::WindowSystem::Win32) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "WGL requires a Win32 native window");
@@ -576,7 +576,7 @@ private:
             : Base::Result<void>(OutOfMemory());
 #elif defined(__linux__) && AERO_HAS_GLX_SURFACE
         if (windowOptions_.window.system !=
-            Integration::WindowSystem::X11) {
+            ::Aero::Platform::WindowSystem::X11) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "GLX requires an X11 native window");
@@ -742,12 +742,12 @@ private:
     Graphics::SurfaceSession* surface_ = nullptr;
     Graphics::OpenGL33GraphicsBackend* graphics_ = nullptr;
     Graphics::GraphicsDevice* device_ = nullptr;
-    Render::DeviceRenderer* renderer_ = nullptr;
+    ::Aero::Render::DeviceRenderer* renderer_ = nullptr;
     Graphics::FenceValue lastSubmittedFence_ = 0U;
 };
 
 template<class TOptions>
-Base::Result<Base::Ref<::Aero::RenderDevice>>
+Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateOpenGL33Device(
     const TOptions& options,
     Base::IAllocator* allocator) noexcept {
@@ -766,13 +766,13 @@ CreateOpenGL33Device(
         delete driver;
         return initialized.GetStatus();
     }
-    return ::Aero::Integration::Detail::AdoptRenderDevice(
+    return ::Aero::Render::Detail::AdoptRenderDevice(
         driver, &selected);
 }
 
 } // namespace
 
-Base::Result<Base::Ref<::Aero::RenderDevice>>
+Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateOpenGL33EmbeddedDevice(
     const OpenGL33EmbeddedSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept {
@@ -792,7 +792,7 @@ CreateOpenGL33EmbeddedDevice(
         allocator);
 }
 
-Base::Result<Base::Ref<::Aero::RenderDevice>>
+Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateOpenGL33WindowDevice(
     const OpenGL33WindowSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept {
@@ -808,4 +808,4 @@ CreateOpenGL33WindowDevice(
         allocator);
 }
 
-} // namespace Aero::Integration
+} // namespace Aero::Render::Detail

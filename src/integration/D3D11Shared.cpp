@@ -6,7 +6,7 @@
 
 #include <new>
 
-namespace Aero::Integration {
+namespace Aero::Render::Detail {
 namespace {
 
 Base::Status InvalidArgument(const char* message) noexcept {
@@ -37,7 +37,7 @@ Graphics::PresentMode ToRhiPresentMode(PresentMode value) noexcept {
 class D3D11SurfaceState;
 
 class D3D11DeviceState final
-    : public Detail::NativeRenderDevice {
+    : public NativeRenderDevice {
 public:
     D3D11DeviceState(
         const D3D11DeviceOptions& options,
@@ -49,23 +49,23 @@ public:
     Base::Result<void> Initialize() noexcept;
     Base::Result<void> RenderOffscreen(
         const void* rendererToken,
-        const Integration::RenderFrame& frame) noexcept;
+        const ::Aero::Render::Detail::RenderFrame& frame) noexcept;
     void ReleaseRenderer(const void* rendererToken) noexcept;
     void NotifyDeviceLost() noexcept;
     Base::Result<void> RestoreDevice() noexcept;
     Base::Result<void> WaitIdle(std::uint32_t timeoutMilliseconds) noexcept;
-    Detail::BackendHealth GetDeviceHealth() const noexcept;
+    BackendHealth GetDeviceHealth() const noexcept;
     ::Aero::RenderFrameStatistics LastFrameStatistics() const noexcept;
     Aero::Render::Detail::RenderResources Resources() noexcept;
 
-    Detail::RenderBackendKind Backend() const noexcept override {
-        return Detail::RenderBackendKind::D3D11;
+    RenderBackendKind Backend() const noexcept override {
+        return RenderBackendKind::D3D11;
     }
     Graphics::D3D11GraphicsBackend* GraphicsBackend() noexcept {
         return graphics_;
     }
     Graphics::GraphicsDevice* GraphicsDevice() noexcept { return device_; }
-    Render::DeviceRenderer* Renderer() noexcept { return renderer_; }
+    ::Aero::Render::DeviceRenderer* Renderer() noexcept { return renderer_; }
     std::uint64_t Generation() const noexcept { return generation_; }
     bool IsReady() const noexcept {
         return initialized_ && !deviceLost_ && graphics_ != nullptr &&
@@ -87,7 +87,7 @@ private:
     Base::IAllocator* allocator_ = nullptr;
     Graphics::D3D11GraphicsBackend* graphics_ = nullptr;
     Graphics::GraphicsDevice* device_ = nullptr;
-    Render::DeviceRenderer* renderer_ = nullptr;
+    ::Aero::Render::DeviceRenderer* renderer_ = nullptr;
     D3D11SurfaceState* surfaces_ = nullptr;
     Graphics::FenceValue lastSubmittedFence_ = 0U;
     std::uint64_t generation_ = 0U;
@@ -170,7 +170,7 @@ private:
 };
 
 class D3D11SurfaceState final
-    : public Detail::NativeRenderTarget {
+    : public NativeRenderTarget {
 public:
     D3D11SurfaceState(
         D3D11DeviceState& device,
@@ -197,7 +197,7 @@ public:
 
     Base::Result<void> Initialize() noexcept {
         if (device_ == nullptr || !device_->IsReady()) {
-            health_ = Detail::SurfaceHealth::Lost;
+            health_ = SurfaceHealth::Lost;
             return NotInitialized("D3D11 surface requires a ready render device");
         }
         ShutdownSurface();
@@ -212,20 +212,20 @@ public:
             surfaceBackend_ = swapChain_;
         }
         if (surfaceBackend_ == nullptr) {
-            health_ = Detail::SurfaceHealth::Failed;
+            health_ = SurfaceHealth::Failed;
             return OutOfMemory("Unable to allocate D3D11 surface backend");
         }
         surface_ = new (std::nothrow) Graphics::SurfaceSession(*surfaceBackend_);
         if (surface_ == nullptr) {
             ShutdownSurface();
-            health_ = Detail::SurfaceHealth::Failed;
+            health_ = SurfaceHealth::Failed;
             return OutOfMemory("Unable to allocate D3D11 surface session");
         }
         descriptor_ = MakeDescriptor();
         Base::Result<void> initialized = surface_->Initialize(descriptor_);
         if (!initialized) {
             ShutdownSurface();
-            health_ = Detail::SurfaceHealth::Failed;
+            health_ = SurfaceHealth::Failed;
             return initialized.GetStatus();
         }
         presenter_ = new (std::nothrow) Graphics::D3D11SurfacePresenter(
@@ -234,23 +234,23 @@ public:
             *surface_);
         if (presenter_ == nullptr) {
             ShutdownSurface();
-            health_ = Detail::SurfaceHealth::Failed;
+            health_ = SurfaceHealth::Failed;
             return OutOfMemory("Unable to allocate D3D11 surface presenter");
         }
         initialized = presenter_->Initialize();
         if (!initialized) {
             ShutdownSurface();
-            health_ = Detail::SurfaceHealth::Failed;
+            health_ = SurfaceHealth::Failed;
             return initialized.GetStatus();
         }
         deviceGeneration_ = device_->Generation();
-        health_ = Detail::SurfaceHealth::Ready;
+        health_ = SurfaceHealth::Ready;
         return {};
     }
 
     Base::Result<void> Render(
         const void* rendererToken,
-        const Integration::RenderFrame& frame) noexcept {
+        const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
         if (!IsReady()) {
             return InvalidState("D3D11 surface is not ready");
         }
@@ -307,37 +307,37 @@ public:
 
     void NotifySurfaceLost() noexcept {
         ShutdownSurface();
-        health_ = Detail::SurfaceHealth::Lost;
+        health_ = SurfaceHealth::Lost;
     }
 
     Base::Result<void> RestoreSurface() noexcept {
-        if (health_ != Detail::SurfaceHealth::Lost) {
+        if (health_ != SurfaceHealth::Lost) {
             return InvalidState("Only a lost D3D11 surface can be restored");
         }
         return Initialize();
     }
 
-    Detail::SurfaceHealth GetSurfaceHealth() const noexcept {
-        if (device_ == nullptr) return Detail::SurfaceHealth::Shutdown;
+    SurfaceHealth GetSurfaceHealth() const noexcept {
+        if (device_ == nullptr) return SurfaceHealth::Shutdown;
         if (!device_->IsReady() || deviceGeneration_ != device_->Generation()) {
-            return Detail::SurfaceHealth::Lost;
+            return SurfaceHealth::Lost;
         }
-        if (health_ != Detail::SurfaceHealth::Ready) return health_;
+        if (health_ != SurfaceHealth::Ready) return health_;
         return surface_ != nullptr &&
                 surface_->State() == Graphics::SurfaceState::Ready
-            ? Detail::SurfaceHealth::Ready
-            : Detail::SurfaceHealth::Lost;
+            ? SurfaceHealth::Ready
+            : SurfaceHealth::Lost;
     }
 
     void OnDeviceLost() noexcept {
         ShutdownSurface();
-        health_ = Detail::SurfaceHealth::Lost;
+        health_ = SurfaceHealth::Lost;
     }
 
     void OnDeviceRestored() noexcept {
         if (device_ == nullptr || !device_->IsReady()) return;
         Base::Result<void> restored = Initialize();
-        if (!restored) health_ = Detail::SurfaceHealth::Lost;
+        if (!restored) health_ = SurfaceHealth::Lost;
     }
 
     void OnDeviceDestroyed() noexcept {
@@ -345,21 +345,21 @@ public:
         device_ = nullptr;
         previous_ = nullptr;
         next_ = nullptr;
-        health_ = Detail::SurfaceHealth::Shutdown;
+        health_ = SurfaceHealth::Shutdown;
     }
 
 private:
     friend class D3D11DeviceState;
 
     bool IsReady() const noexcept {
-        return GetSurfaceHealth() == Detail::SurfaceHealth::Ready &&
+        return GetSurfaceHealth() == SurfaceHealth::Ready &&
             presenter_ != nullptr && device_->Renderer() != nullptr;
     }
 
     void RefreshHealth() noexcept {
         if (surface_ != nullptr &&
             surface_->State() != Graphics::SurfaceState::Ready) {
-            health_ = Detail::SurfaceHealth::Lost;
+            health_ = SurfaceHealth::Lost;
         }
     }
 
@@ -423,7 +423,7 @@ private:
     Graphics::SurfaceSession* surface_ = nullptr;
     Graphics::D3D11SurfacePresenter* presenter_ = nullptr;
     std::uint64_t deviceGeneration_ = 0U;
-    Detail::SurfaceHealth health_ = Detail::SurfaceHealth::Lost;
+    SurfaceHealth health_ = SurfaceHealth::Lost;
     D3D11SurfaceState* previous_ = nullptr;
     D3D11SurfaceState* next_ = nullptr;
 };
@@ -480,8 +480,8 @@ Base::Result<void> D3D11DeviceState::Initialize() noexcept {
         ShutdownDevice(false);
         return status.GetStatus();
     }
-    renderer_ = new (std::nothrow) Render::DeviceRenderer(
-        *device_, Render::MakeD3D11FrameShaderSet(), allocator_);
+    renderer_ = new (std::nothrow) ::Aero::Render::DeviceRenderer(
+        *device_, ::Aero::Render::MakeD3D11FrameShaderSet(), allocator_);
     if (renderer_ == nullptr) {
         ShutdownDevice(false);
         return OutOfMemory("Unable to allocate D3D11 device renderer");
@@ -501,7 +501,7 @@ Base::Result<void> D3D11DeviceState::Initialize() noexcept {
 
 Base::Result<void> D3D11DeviceState::RenderOffscreen(
     const void* rendererToken,
-    const Integration::RenderFrame& frame) noexcept {
+    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
     if (!IsReady()) return NotInitialized("D3D11 device is not initialized");
     Base::Result<Graphics::CommandList> commands =
         renderer_->RecordOffscreen(rendererToken, frame);
@@ -539,21 +539,21 @@ Base::Result<void> D3D11DeviceState::WaitIdle(
     return graphics_->WaitForFence(lastSubmittedFence_, timeoutMilliseconds);
 }
 
-Detail::BackendHealth D3D11DeviceState::GetDeviceHealth() const noexcept {
+BackendHealth D3D11DeviceState::GetDeviceHealth() const noexcept {
     if (deviceLost_ ||
         (device_ != nullptr && device_->Backend().IsDeviceLost())) {
-        return Detail::BackendHealth::DeviceLost;
+        return BackendHealth::DeviceLost;
     }
     return IsReady()
-        ? Detail::BackendHealth::Ready
-        : Detail::BackendHealth::Failed;
+        ? BackendHealth::Ready
+        : BackendHealth::Failed;
 }
 
 ::Aero::RenderFrameStatistics
 D3D11DeviceState::LastFrameStatistics() const noexcept {
     ::Aero::RenderFrameStatistics result;
     if (renderer_ == nullptr) return result;
-    const Render::FrameEncoderStatistics source = renderer_->LastStatistics();
+    const ::Aero::Render::FrameEncoderStatistics source = renderer_->LastStatistics();
     result.drawCallCount = source.drawCallCount;
     result.instanceCount = source.rectangleInstanceCount +
         source.imageInstanceCount + source.meshInstanceCount +
@@ -642,7 +642,7 @@ D3D11DeviceState* DeviceStateFrom(
     const Base::Ref<Aero::RenderDevice>& device) noexcept {
     if (!device ||
         Aero::RenderDevice::Impl::Backend(*device) !=
-            Detail::RenderBackendKind::D3D11) {
+            RenderBackendKind::D3D11) {
         return nullptr;
     }
     return static_cast<D3D11DeviceState*>(
@@ -667,7 +667,7 @@ Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11Device(
         delete state;
         return initialized.GetStatus();
     }
-    return Detail::AdoptRenderDevice(state, &selected);
+    return AdoptRenderDevice(state, &selected);
 }
 
 Base::Result<Base::Ref<RenderSurface>> CreateD3D11EmbeddedSurface(
@@ -697,7 +697,7 @@ Base::Result<Base::Ref<RenderSurface>> CreateD3D11EmbeddedSurface(
         delete surface;
         return initialized.GetStatus();
     }
-    return Detail::AdoptOwnedRenderSurface(
+    return AdoptOwnedRenderSurface(
         std::move(device), surface, RenderSurfaceKind::Embedded, &selected);
 }
 
@@ -721,7 +721,7 @@ Base::Result<Base::Ref<RenderSurface>> CreateD3D11WindowSurface(
         delete surface;
         return initialized.GetStatus();
     }
-    return Detail::AdoptOwnedRenderSurface(
+    return AdoptOwnedRenderSurface(
         std::move(device), surface, RenderSurfaceKind::Window, &selected);
 }
 
@@ -745,4 +745,4 @@ Base::Result<Base::Ref<RenderSurface>> CreateD3D11WindowSurface(
         std::move(device).Value(), options, allocator);
 }
 
-} // namespace Aero::Integration
+} // namespace Aero::Render::Detail

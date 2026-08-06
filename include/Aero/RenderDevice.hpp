@@ -8,7 +8,7 @@
 
 #include <cstdint>
 
-namespace Aero::Integration { class RenderFrame; }
+namespace Aero::Render::Detail { class RenderFrame; }
 
 namespace Aero {
 
@@ -80,11 +80,11 @@ private:
 
     Base::Result<void> RenderOffscreen(
         const void* rendererToken,
-        const Integration::RenderFrame& frame) noexcept;
+        const ::Aero::Render::Detail::RenderFrame& frame) noexcept;
     void ReleaseRenderer(const void* rendererToken) noexcept;
     Base::Status GetFrameStatus() noexcept;
     Base::Result<RenderFrameStatistics> Analyze(
-        const Integration::RenderFrame& frame) noexcept;
+        const ::Aero::Render::Detail::RenderFrame& frame) noexcept;
     void MergeBackendStatistics(
         RenderFrameStatistics& result) const noexcept;
 

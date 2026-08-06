@@ -283,7 +283,7 @@ Aero::Render::Detail::ImageResources* D3D11Renderer::GetImageResources() noexcep
 
 Base::Result<void> D3D11Renderer::RenderOffscreen(
     const void* rendererToken,
-    const Integration::RenderFrame& plan) noexcept {
+    const ::Aero::Render::Detail::RenderFrame& plan) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("D3D11 render adapter is not initialized");
     }
@@ -305,7 +305,7 @@ Base::Result<void> D3D11Renderer::RenderOffscreen(
 
 Base::Result<void> D3D11Renderer::Render(
     const void* rendererToken,
-    const Integration::RenderFrame& plan,
+    const ::Aero::Render::Detail::RenderFrame& plan,
     Graphics::LoadOperation load) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("D3D11 render adapter is not initialized");

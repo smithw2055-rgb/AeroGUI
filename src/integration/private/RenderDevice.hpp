@@ -6,7 +6,7 @@
 
 #include <utility>
 
-namespace Aero::Integration::Detail {
+namespace Aero::Render::Detail {
 
 enum class RenderBackendKind : std::uint8_t {
     Unknown = 0U,
@@ -40,7 +40,7 @@ public:
     virtual RenderBackendKind Backend() const noexcept = 0;
     virtual Base::Result<void> RenderOffscreen(
         const void* rendererToken,
-        const Integration::RenderFrame& frame) noexcept = 0;
+        const ::Aero::Render::Detail::RenderFrame& frame) noexcept = 0;
     virtual void ReleaseRenderer(const void* rendererToken) noexcept = 0;
     virtual void NotifyDeviceLost() noexcept = 0;
     virtual Base::Result<void> RestoreDevice() noexcept = 0;
@@ -58,16 +58,16 @@ public:
 
 class RenderDeviceFactory {
 public:
-    static Base::Result<Base::Ref<::Aero::RenderDevice>> Adopt(
+    static Base::Result<Base::Ref<Aero::RenderDevice>> Adopt(
         NativeRenderDevice* backend,
         Base::IAllocator* allocator = nullptr) noexcept;
 };
 
-Base::Result<Base::Ref<::Aero::RenderDevice>> AdoptRenderDevice(
+Base::Result<Base::Ref<Aero::RenderDevice>> AdoptRenderDevice(
     NativeRenderDevice* backend,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-} // namespace Aero::Integration::Detail
+} // namespace Aero::Render::Detail
 
 namespace Aero {
 
@@ -76,38 +76,38 @@ struct RenderDevice::Impl {
         : allocator(&selectedAllocator) {}
 
     Base::IAllocator* allocator = nullptr;
-    Integration::Detail::NativeRenderDevice* native = nullptr;
+    ::Aero::Render::Detail::NativeRenderDevice* native = nullptr;
     RenderDeviceState state = RenderDeviceState::Ready;
     RenderDeviceStatistics statistics;
     RenderFrameStatistics lastFrameStatistics;
 
-    static Integration::Detail::NativeRenderDevice* NativeBackend(
+    static ::Aero::Render::Detail::NativeRenderDevice* NativeBackend(
         RenderDevice& device) noexcept {
         return device.impl_ != nullptr ? device.impl_->native : nullptr;
     }
 
-    static const Integration::Detail::NativeRenderDevice* NativeBackend(
+    static const ::Aero::Render::Detail::NativeRenderDevice* NativeBackend(
         const RenderDevice& device) noexcept {
         return device.impl_ != nullptr ? device.impl_->native : nullptr;
     }
 
-    static Integration::Detail::NativeRenderTarget* DefaultTarget(
+    static ::Aero::Render::Detail::NativeRenderTarget* DefaultTarget(
         RenderDevice& device) noexcept {
         return device.impl_ != nullptr && device.impl_->native != nullptr
             ? device.impl_->native->DefaultTarget()
             : nullptr;
     }
 
-    static Integration::Detail::RenderBackendKind Backend(
+    static ::Aero::Render::Detail::RenderBackendKind Backend(
         const RenderDevice& device) noexcept {
         const auto* native = NativeBackend(device);
         return native != nullptr
             ? native->Backend()
-            : Integration::Detail::RenderBackendKind::Unknown;
+            : ::Aero::Render::Detail::RenderBackendKind::Unknown;
     }
 
     static Base::Result<Base::Ref<RenderDevice>> Create(
-        Integration::Detail::NativeRenderDevice* backend,
+        ::Aero::Render::Detail::NativeRenderDevice* backend,
         Base::IAllocator* allocator) noexcept {
         if (backend == nullptr) {
             return Base::Status::Failure(
@@ -141,7 +141,7 @@ struct RenderDevice::Impl {
     static Base::Result<void> RenderOffscreen(
         RenderDevice& device,
         const void* rendererToken,
-        const Integration::RenderFrame& frame) noexcept {
+        const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
         return device.RenderOffscreen(rendererToken, frame);
     }
 
@@ -157,10 +157,10 @@ struct RenderDevice::Impl {
 
     static Base::Result<RenderFrameStatistics> BeginSurfaceFrame(
         RenderDevice& device,
-        const Integration::RenderFrame& frame) noexcept;
+        const ::Aero::Render::Detail::RenderFrame& frame) noexcept;
     static void CompleteSurfaceFrame(
         RenderDevice& device,
-        const Integration::RenderFrame& frame,
+        const ::Aero::Render::Detail::RenderFrame& frame,
         RenderFrameStatistics& statistics) noexcept;
     static void RecordSurfaceFailure(RenderDevice& device) noexcept;
     static void RefreshHealth(RenderDevice& device) noexcept;
@@ -168,10 +168,10 @@ struct RenderDevice::Impl {
 
 } // namespace Aero
 
-namespace Aero::Integration::Detail {
+namespace Aero::Render::Detail {
 
-Base::Result<Base::Ref<::Aero::RenderDevice>>
+Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateHeadlessRenderDevice(
     Base::IAllocator* allocator = nullptr) noexcept;
 
-} // namespace Aero::Integration::Detail
+} // namespace Aero::Render::Detail

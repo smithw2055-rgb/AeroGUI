@@ -46,14 +46,14 @@ public:
     Base::Result<void> UnregisterGlyphRun(RenderGlyphRunId glyphRun) noexcept;
 
     Base::Result<Graphics::CommandList> Record(
-        const Integration::RenderFrame& frame,
+        const ::Aero::Render::Detail::RenderFrame& frame,
         const RenderTarget& target) noexcept;
     Base::Result<Graphics::CommandList> RecordOffscreen(
         const void* rendererToken,
-        const Integration::RenderFrame& frame) noexcept;
+        const ::Aero::Render::Detail::RenderFrame& frame) noexcept;
     Base::Result<Graphics::CommandList> RecordOnscreen(
         const void* rendererToken,
-        const Integration::RenderFrame& frame,
+        const ::Aero::Render::Detail::RenderFrame& frame,
         const RenderTarget& target) noexcept;
     void ReleaseRenderer(const void* rendererToken) noexcept;
 

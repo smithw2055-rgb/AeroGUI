@@ -113,7 +113,7 @@ struct RenderNodeSnapshot {
 
 namespace Aero::Render::Detail { class RenderTree; }
 
-namespace Aero::Integration {
+namespace Aero::Render::Detail {
 
 using namespace ::Aero::Render;
 
@@ -161,12 +161,11 @@ struct RenderDiagnostics {
     std::uint64_t frameHash = 0U;
 };
 
-} // namespace Aero::Integration
+} // namespace Aero::Render::Detail
 
 namespace Aero::Render::Detail {
 
 using namespace ::Aero::Render;
-using namespace ::Aero::Integration;
 
 class RenderTree {
 public:
@@ -198,10 +197,10 @@ public:
         double dpiScale) noexcept;
     Base::Result<std::uint32_t> Commit() noexcept;
 
-    const Integration::RenderFrame& CurrentFrame() const noexcept {
+    const ::Aero::Render::Detail::RenderFrame& CurrentFrame() const noexcept {
         return currentFrame_;
     }
-    Integration::RenderDiagnostics Diagnostics() const noexcept;
+    ::Aero::Render::Detail::RenderDiagnostics Diagnostics() const noexcept;
     Base::Status LastCommitStatus() const noexcept {
         return lastCommitStatus_;
     }
@@ -222,7 +221,7 @@ private:
         Point origin;
     };
     Base::Vector<OverlayRecord> overlays_;
-    Integration::RenderFrame currentFrame_;
+    ::Aero::Render::Detail::RenderFrame currentFrame_;
     ::Aero::Threading::DispatcherFrameHookHandle phaseHook_;
     RenderNodeId nextNodeId_ = 1U;
     std::uint64_t commitVersion_ = 0U;
@@ -247,7 +246,7 @@ private:
     Base::Result<void> BuildSubtree(
         Visual& visual,
         RenderNodeId parentId,
-        Integration::RenderFrame& plan,
+        ::Aero::Render::Detail::RenderFrame& plan,
         bool overlayRoot = false) noexcept;
     bool IsOverlay(
         const Visual& visual) const noexcept;

@@ -373,7 +373,7 @@ using namespace Runtime::Detail;
 namespace MediaAnimation = ::Aero::Media::Animation;
 
 struct View::Impl {
-    static const Integration::RenderFrame* CurrentFrame(
+    static const ::Aero::Render::Detail::RenderFrame* CurrentFrame(
         const View& view) noexcept;
 
     struct FragmentMount {
@@ -6225,7 +6225,7 @@ struct View::Impl {
 
         Base::Result<Base::Ref<RenderDevice>>
             headless =
-                ::Aero::Integration::Detail::CreateHeadlessRenderDevice(
+                ::Aero::Render::Detail::CreateHeadlessRenderDevice(
                     allocator);
         if (!headless) {
             terminal = true;
@@ -8246,7 +8246,7 @@ View::ExecuteFrame() noexcept {
     bool deviceGenerationChanged = false;
     if (state_->device) {
         const Base::Status deviceStatus =
-            Integration::RenderDevice::Impl::FrameStatus(
+            ::Aero::RenderDevice::Impl::FrameStatus(
                 *state_->device);
         if (!deviceStatus.IsOk()) {
             return deviceStatus;
@@ -8474,7 +8474,7 @@ View::ExecuteFrame() noexcept {
         layout.pendingMeasureCount;
     result.layout.pendingArrangeCount =
         layout.pendingArrangeCount;
-    const Integration::RenderDiagnostics render =
+    const ::Aero::Render::Detail::RenderDiagnostics render =
         state_->renderer->Diagnostics();
     result.render.snapshotVersion = render.commitVersion;
     result.render.nodeCount = render.nodeCount;
@@ -8484,7 +8484,7 @@ View::ExecuteFrame() noexcept {
     result.render.dirtyCount = render.dirtyCount;
     result.render.snapshotHash = render.frameHash;
     if (state_->device) {
-        const Integration::RenderFrameStatistics
+        const ::Aero::RenderFrameStatistics
             deviceStatistics =
                 state_->device->
                     LastFrameStatistics();
@@ -8831,13 +8831,13 @@ Runtime::Detail::ViewRenderer::UpdateRenderTree() noexcept {
         return ViewNotInitialized(
             "View render tree is unavailable");
     }
-    const Integration::RenderFrame& frame =
+    const ::Aero::Render::Detail::RenderFrame& frame =
         data.renderer->CurrentFrame();
     if (frame.Version() == 0U) {
         return false;
     }
     Base::Result<void> valid =
-        Integration::ValidateRenderFrame(frame);
+        ::Aero::Render::Detail::ValidateRenderFrame(frame);
     if (!valid) return valid.GetStatus();
 
     const bool changed =
@@ -8858,7 +8858,7 @@ Runtime::Detail::ViewRenderer::RenderOffscreen() noexcept {
             "Renderer must be initialized before RenderOffscreen");
     }
 
-    const Integration::RenderFrame& frame =
+    const ::Aero::Render::Detail::RenderFrame& frame =
         impl_->view->state_->renderer->CurrentFrame();
     if (frame.Version() == 0U) {
         impl_->offscreenReady = true;
@@ -8895,7 +8895,7 @@ Base::Result<void> Runtime::Detail::ViewRenderer::Render(
             "RenderSurface must belong to the renderer RenderDevice");
     }
 
-    const Integration::RenderFrame& frame =
+    const ::Aero::Render::Detail::RenderFrame& frame =
         impl_->view->state_->renderer->CurrentFrame();
     if (frame.Version() == 0U) {
         return {};
@@ -8944,7 +8944,7 @@ const FrameworkElement* View::GetContent() const noexcept {
         : nullptr;
 }
 
-const Integration::RenderFrame* View::Impl::CurrentFrame(
+const ::Aero::Render::Detail::RenderFrame* View::Impl::CurrentFrame(
     const View& view) noexcept {
     return view.state_ != nullptr && view.state_->renderer != nullptr
         ? &view.state_->renderer->CurrentFrame()
@@ -8953,7 +8953,7 @@ const Integration::RenderFrame* View::Impl::CurrentFrame(
 
 namespace Runtime::Detail {
 
-const Integration::RenderFrame* CurrentFrameForConformance(
+const ::Aero::Render::Detail::RenderFrame* CurrentFrameForConformance(
     const View& view) noexcept {
     return View::Impl::CurrentFrame(view);
 }

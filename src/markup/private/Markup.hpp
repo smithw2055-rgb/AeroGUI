@@ -1039,7 +1039,7 @@ inline Base::Result<void> RegisterMarkupMetadata(
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Integration/Providers/XamlProvider.hpp>
+#include <Aero/Markup/XamlProvider.hpp>
 
 
 #include <atomic>
@@ -1078,8 +1078,6 @@ enum class EffectCommitMode : std::uint8_t {
     Deferred
 };
 
-using XamlProvider = Integration::XamlProvider;
-using XamlProviderAdapter = Integration::XamlProviderAdapter;
 
 struct XamlProviderResolution {
     XamlProvider* provider = nullptr;
@@ -1153,7 +1151,7 @@ public:
         std::uint64_t revision = 1U) noexcept;
     Base::Result<void> Freeze() noexcept;
 
-    Base::Result<Integration::StreamResourceInfo> Open(
+    Base::Result<::Aero::Markup::StreamResourceInfo> Open(
         const Base::ResourceUri& uri) const noexcept override;
     Base::Result<std::uint64_t> Revision(
         const Base::ResourceUri& uri) const noexcept override;
@@ -1186,7 +1184,7 @@ public:
             64ULL * 1024ULL * 1024ULL) noexcept
         : maxFileBytes_(maxFileBytes) {}
 
-    Base::Result<Integration::StreamResourceInfo> Open(
+    Base::Result<::Aero::Markup::StreamResourceInfo> Open(
         const Base::ResourceUri& uri) const noexcept override;
     Base::Result<std::uint64_t> Revision(
         const Base::ResourceUri& uri) const noexcept override;

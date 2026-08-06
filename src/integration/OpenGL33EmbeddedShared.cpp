@@ -8,7 +8,7 @@
 #include <new>
 #include <thread>
 
-namespace Aero::Integration {
+namespace Aero::Render::Detail {
 namespace {
 
 Base::Status InvalidArgument(const char* message) noexcept {
@@ -36,7 +36,7 @@ Graphics::GlThreadToken CurrentThreadToken(void*) noexcept {
 class OpenGL33EmbeddedSurfaceState;
 
 class OpenGL33DeviceState final
-    : public Detail::NativeRenderDevice {
+    : public NativeRenderDevice {
 public:
     OpenGL33DeviceState(
         const OpenGL33DeviceOptions& options,
@@ -48,24 +48,24 @@ public:
     Base::Result<void> Initialize() noexcept;
     Base::Result<void> RenderOffscreen(
         const void* rendererToken,
-        const Integration::RenderFrame& frame) noexcept;
+        const ::Aero::Render::Detail::RenderFrame& frame) noexcept;
     void ReleaseRenderer(const void* rendererToken) noexcept;
     void NotifyDeviceLost() noexcept;
     Base::Result<void> RestoreDevice() noexcept;
     Base::Result<void> WaitIdle(std::uint32_t timeoutMilliseconds) noexcept;
-    Detail::BackendHealth GetDeviceHealth() const noexcept;
+    BackendHealth GetDeviceHealth() const noexcept;
     ::Aero::RenderFrameStatistics LastFrameStatistics() const noexcept;
     Aero::Render::Detail::RenderResources Resources() noexcept;
 
-    Detail::RenderBackendKind Backend() const noexcept override {
-        return Detail::RenderBackendKind::OpenGL33;
+    RenderBackendKind Backend() const noexcept override {
+        return RenderBackendKind::OpenGL33;
     }
     Base::Result<void> MakeCurrent() noexcept;
     Graphics::OpenGL33GraphicsBackend* GraphicsBackend() noexcept {
         return graphics_;
     }
     Graphics::GraphicsDevice* GraphicsDevice() noexcept { return device_; }
-    Render::DeviceRenderer* Renderer() noexcept { return renderer_; }
+    ::Aero::Render::DeviceRenderer* Renderer() noexcept { return renderer_; }
     Graphics::GlContextGeneration ContextGeneration() const noexcept {
         return contextGeneration_;
     }
@@ -94,7 +94,7 @@ private:
     Base::IAllocator* allocator_ = nullptr;
     Graphics::OpenGL33GraphicsBackend* graphics_ = nullptr;
     Graphics::GraphicsDevice* device_ = nullptr;
-    Render::DeviceRenderer* renderer_ = nullptr;
+    ::Aero::Render::DeviceRenderer* renderer_ = nullptr;
     OpenGL33EmbeddedSurfaceState* surfaces_ = nullptr;
     Graphics::FenceValue lastSubmittedFence_ = 0U;
     Graphics::GlContextGeneration contextGeneration_ = 0U;
@@ -185,7 +185,7 @@ private:
 };
 
 class OpenGL33EmbeddedSurfaceState final
-    : public Detail::NativeRenderTarget {
+    : public NativeRenderTarget {
 public:
     OpenGL33EmbeddedSurfaceState(
         OpenGL33DeviceState& device,
@@ -202,19 +202,19 @@ public:
 
     Base::Result<void> Initialize() noexcept {
         if (device_ == nullptr || !device_->IsReady()) {
-            health_ = Detail::SurfaceHealth::Lost;
+            health_ = SurfaceHealth::Lost;
             return NotInitialized("OpenGL surface requires a ready render device");
         }
         ShutdownSurface();
         backend_ = new (std::nothrow) OpenGL33ExternalSurface(*device_, options_);
         if (backend_ == nullptr) {
-            health_ = Detail::SurfaceHealth::Failed;
+            health_ = SurfaceHealth::Failed;
             return OutOfMemory("Unable to allocate OpenGL surface backend");
         }
         surface_ = new (std::nothrow) Graphics::SurfaceSession(*backend_);
         if (surface_ == nullptr) {
             ShutdownSurface();
-            health_ = Detail::SurfaceHealth::Failed;
+            health_ = SurfaceHealth::Failed;
             return OutOfMemory("Unable to allocate OpenGL surface session");
         }
         descriptor_ = {};
@@ -230,17 +230,17 @@ public:
         Base::Result<void> initialized = surface_->Initialize(descriptor_);
         if (!initialized) {
             ShutdownSurface();
-            health_ = Detail::SurfaceHealth::Failed;
+            health_ = SurfaceHealth::Failed;
             return initialized.GetStatus();
         }
         deviceGeneration_ = device_->Generation();
-        health_ = Detail::SurfaceHealth::Ready;
+        health_ = SurfaceHealth::Ready;
         return {};
     }
 
     Base::Result<void> Render(
         const void* rendererToken,
-        const Integration::RenderFrame& frame) noexcept {
+        const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
         if (!IsReady()) return InvalidState("OpenGL embedded surface is not ready");
         Base::Result<void> current = device_->MakeCurrent();
         if (!current) return current.GetStatus();
@@ -307,36 +307,36 @@ public:
         if (surface_ != nullptr) {
             static_cast<void>(surface_->NotifyContextLost());
         }
-        health_ = Detail::SurfaceHealth::Lost;
+        health_ = SurfaceHealth::Lost;
     }
 
     Base::Result<void> RestoreSurface() noexcept {
-        if (health_ != Detail::SurfaceHealth::Lost) {
+        if (health_ != SurfaceHealth::Lost) {
             return InvalidState("Only a lost OpenGL surface can be restored");
         }
         return Initialize();
     }
 
-    Detail::SurfaceHealth GetSurfaceHealth() const noexcept {
-        if (device_ == nullptr) return Detail::SurfaceHealth::Shutdown;
+    SurfaceHealth GetSurfaceHealth() const noexcept {
+        if (device_ == nullptr) return SurfaceHealth::Shutdown;
         if (!device_->IsReady() || deviceGeneration_ != device_->Generation()) {
-            return Detail::SurfaceHealth::Lost;
+            return SurfaceHealth::Lost;
         }
-        if (health_ != Detail::SurfaceHealth::Ready) return health_;
+        if (health_ != SurfaceHealth::Ready) return health_;
         return surface_ != nullptr && surface_->State() == Graphics::SurfaceState::Ready
-            ? Detail::SurfaceHealth::Ready
-            : Detail::SurfaceHealth::Lost;
+            ? SurfaceHealth::Ready
+            : SurfaceHealth::Lost;
     }
 
     void OnDeviceLost() noexcept {
         ShutdownSurface();
-        health_ = Detail::SurfaceHealth::Lost;
+        health_ = SurfaceHealth::Lost;
     }
 
     void OnDeviceRestored() noexcept {
         if (device_ == nullptr || !device_->IsReady()) return;
         Base::Result<void> restored = Initialize();
-        if (!restored) health_ = Detail::SurfaceHealth::Lost;
+        if (!restored) health_ = SurfaceHealth::Lost;
     }
 
     void OnDeviceDestroyed() noexcept {
@@ -344,20 +344,20 @@ public:
         device_ = nullptr;
         previous_ = nullptr;
         next_ = nullptr;
-        health_ = Detail::SurfaceHealth::Shutdown;
+        health_ = SurfaceHealth::Shutdown;
     }
 
 private:
     friend class OpenGL33DeviceState;
 
     bool IsReady() const noexcept {
-        return GetSurfaceHealth() == Detail::SurfaceHealth::Ready &&
+        return GetSurfaceHealth() == SurfaceHealth::Ready &&
             device_->Renderer() != nullptr;
     }
 
     void RefreshHealth() noexcept {
         if (surface_ != nullptr && surface_->State() != Graphics::SurfaceState::Ready) {
-            health_ = Detail::SurfaceHealth::Lost;
+            health_ = SurfaceHealth::Lost;
         }
     }
 
@@ -381,7 +381,7 @@ private:
     OpenGL33EmbeddedSurfaceState* previous_ = nullptr;
     OpenGL33EmbeddedSurfaceState* next_ = nullptr;
     std::uint64_t deviceGeneration_ = 0U;
-    Detail::SurfaceHealth health_ = Detail::SurfaceHealth::Shutdown;
+    SurfaceHealth health_ = SurfaceHealth::Shutdown;
 };
 
 Graphics::GlProcAddress OpenGL33DeviceState::Resolve(
@@ -465,8 +465,8 @@ Base::Result<void> OpenGL33DeviceState::Initialize() noexcept {
         ShutdownDevice(false);
         return initialized.GetStatus();
     }
-    renderer_ = new (std::nothrow) Render::DeviceRenderer(
-        *device_, Render::MakeOpenGL33FrameShaderSet(), allocator_);
+    renderer_ = new (std::nothrow) ::Aero::Render::DeviceRenderer(
+        *device_, ::Aero::Render::MakeOpenGL33FrameShaderSet(), allocator_);
     if (renderer_ == nullptr) {
         ShutdownDevice(false);
         return OutOfMemory("Unable to allocate OpenGL device renderer");
@@ -486,7 +486,7 @@ Base::Result<void> OpenGL33DeviceState::Initialize() noexcept {
 
 Base::Result<void> OpenGL33DeviceState::RenderOffscreen(
     const void* rendererToken,
-    const Integration::RenderFrame& frame) noexcept {
+    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
     if (!IsReady()) return NotInitialized("OpenGL device is not initialized");
     Base::Result<void> current = MakeCurrent();
     if (!current) return current.GetStatus();
@@ -531,19 +531,19 @@ Base::Result<void> OpenGL33DeviceState::WaitIdle(
         static_cast<std::uint64_t>(timeoutMilliseconds) * UINT64_C(1000000));
 }
 
-Detail::BackendHealth OpenGL33DeviceState::GetDeviceHealth() const noexcept {
+BackendHealth OpenGL33DeviceState::GetDeviceHealth() const noexcept {
     if (deviceLost_ ||
         (device_ != nullptr && device_->Backend().IsDeviceLost())) {
-        return Detail::BackendHealth::DeviceLost;
+        return BackendHealth::DeviceLost;
     }
-    return IsReady() ? Detail::BackendHealth::Ready : Detail::BackendHealth::Failed;
+    return IsReady() ? BackendHealth::Ready : BackendHealth::Failed;
 }
 
 ::Aero::RenderFrameStatistics
 OpenGL33DeviceState::LastFrameStatistics() const noexcept {
     ::Aero::RenderFrameStatistics result;
     if (renderer_ == nullptr) return result;
-    const Render::FrameEncoderStatistics source = renderer_->LastStatistics();
+    const ::Aero::Render::FrameEncoderStatistics source = renderer_->LastStatistics();
     result.drawCallCount = source.drawCallCount;
     result.instanceCount = source.rectangleInstanceCount +
         source.imageInstanceCount + source.meshInstanceCount +
@@ -613,7 +613,7 @@ void OpenGL33DeviceState::RestoreSurfaces() noexcept {
 OpenGL33DeviceState* DeviceStateFrom(
     const Base::Ref<Aero::RenderDevice>& device) noexcept {
     if (!device || Aero::RenderDevice::Impl::Backend(*device) !=
-            Detail::RenderBackendKind::OpenGL33) {
+            RenderBackendKind::OpenGL33) {
         return nullptr;
     }
     return static_cast<OpenGL33DeviceState*>(
@@ -664,7 +664,7 @@ Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33Device(
         delete state;
         return initialized.GetStatus();
     }
-    return Detail::AdoptRenderDevice(state, &selected);
+    return AdoptRenderDevice(state, &selected);
 }
 
 Base::Result<Base::Ref<RenderSurface>> CreateOpenGL33EmbeddedSurface(
@@ -687,7 +687,7 @@ Base::Result<Base::Ref<RenderSurface>> CreateOpenGL33EmbeddedSurface(
         delete surface;
         return initialized.GetStatus();
     }
-    return Detail::AdoptOwnedRenderSurface(
+    return AdoptOwnedRenderSurface(
         std::move(device), surface, RenderSurfaceKind::Embedded, &selected);
 }
 
@@ -701,4 +701,4 @@ Base::Result<Base::Ref<RenderSurface>> CreateOpenGL33EmbeddedSurface(
         std::move(device).Value(), options, allocator);
 }
 
-} // namespace Aero::Integration
+} // namespace Aero::Render::Detail

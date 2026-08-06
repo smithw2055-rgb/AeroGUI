@@ -19,16 +19,16 @@ Base::Status NotInitialized(const char* message) noexcept {
 
 bool ApplyBackendHealth(
     RenderDevice::Impl& device,
-    Integration::Detail::BackendHealth health) noexcept {
+    ::Aero::Render::Detail::BackendHealth health) noexcept {
     const RenderDeviceState previous = device.state;
     switch (health) {
-    case Integration::Detail::BackendHealth::Ready:
+    case ::Aero::Render::Detail::BackendHealth::Ready:
         device.state = RenderDeviceState::Ready;
         break;
-    case Integration::Detail::BackendHealth::DeviceLost:
+    case ::Aero::Render::Detail::BackendHealth::DeviceLost:
         device.state = RenderDeviceState::DeviceLost;
         break;
-    case Integration::Detail::BackendHealth::Failed:
+    case ::Aero::Render::Detail::BackendHealth::Failed:
         device.state = RenderDeviceState::Failed;
         break;
     }
@@ -86,8 +86,8 @@ RenderFrameStatistics RenderDevice::LastFrameStatistics() const noexcept {
 }
 
 Base::Result<RenderFrameStatistics> RenderDevice::Analyze(
-    const Integration::RenderFrame& frame) noexcept {
-    Base::Result<void> valid = Integration::ValidateRenderFrame(frame);
+    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
+    Base::Result<void> valid = ::Aero::Render::Detail::ValidateRenderFrame(frame);
     if (!valid) return valid.GetStatus();
 
     Render::Detail::BatchPlanner planner(impl_->allocator);
@@ -149,7 +149,7 @@ Base::Result<void> RenderDevice::Restore() noexcept {
         }
         return restored.GetStatus();
     }
-    ApplyBackendHealth(*impl_, Integration::Detail::BackendHealth::Ready);
+    ApplyBackendHealth(*impl_, ::Aero::Render::Detail::BackendHealth::Ready);
     return {};
 }
 
@@ -164,7 +164,7 @@ Base::Result<void> RenderDevice::WaitIdle(
 
 } // namespace Aero
 
-namespace Aero::Integration::Detail {
+namespace Aero::Render::Detail {
 
 class HeadlessDeviceState final : public NativeRenderDevice {
 public:
@@ -173,7 +173,7 @@ public:
     }
     Base::Result<void> RenderOffscreen(
         const void*,
-        const ::Aero::Integration::RenderFrame&) noexcept override { return {}; }
+        const ::Aero::Render::Detail::RenderFrame&) noexcept override { return {}; }
     void ReleaseRenderer(const void*) noexcept override {}
     void NotifyDeviceLost() noexcept override {}
     Base::Result<void> RestoreDevice() noexcept override { return {}; }
@@ -188,21 +188,21 @@ public:
     }
 };
 
-Base::Result<Base::Ref<::Aero::RenderDevice>>
+Base::Result<Base::Ref<Aero::RenderDevice>>
 RenderDeviceFactory::Adopt(
     NativeRenderDevice* backend,
     Base::IAllocator* allocator) noexcept {
     return ::Aero::RenderDevice::Impl::Create(backend, allocator);
 }
 
-Base::Result<Base::Ref<::Aero::RenderDevice>>
+Base::Result<Base::Ref<Aero::RenderDevice>>
 AdoptRenderDevice(
     NativeRenderDevice* backend,
     Base::IAllocator* allocator) noexcept {
     return RenderDeviceFactory::Adopt(backend, allocator);
 }
 
-Base::Result<Base::Ref<::Aero::RenderDevice>>
+Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateHeadlessRenderDevice(
     Base::IAllocator* allocator) noexcept {
     auto* backend = new (std::nothrow) HeadlessDeviceState();
@@ -214,13 +214,13 @@ CreateHeadlessRenderDevice(
     return AdoptRenderDevice(backend, allocator);
 }
 
-} // namespace Aero::Integration::Detail
+} // namespace Aero::Render::Detail
 
 namespace Aero {
 
 Base::Result<void> RenderDevice::RenderOffscreen(
     const void* rendererToken,
-    const Integration::RenderFrame& frame) noexcept {
+    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
     auto* native = Impl::NativeBackend(*this);
     if (impl_ == nullptr || native == nullptr) {
         return NotInitialized("Render device is not initialized");
@@ -243,7 +243,7 @@ Base::Result<void> RenderDevice::RenderOffscreen(
 Base::Result<RenderFrameStatistics>
 RenderDevice::Impl::BeginSurfaceFrame(
     RenderDevice& device,
-    const Integration::RenderFrame& frame) noexcept {
+    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
     Base::Status ready = device.GetFrameStatus();
     if (!ready.IsOk()) return ready;
     Base::Result<RenderFrameStatistics> statistics = device.Analyze(frame);
@@ -255,7 +255,7 @@ RenderDevice::Impl::BeginSurfaceFrame(
 
 void RenderDevice::Impl::CompleteSurfaceFrame(
     RenderDevice& device,
-    const Integration::RenderFrame& frame,
+    const ::Aero::Render::Detail::RenderFrame& frame,
     RenderFrameStatistics& statistics) noexcept {
     if (device.impl_ == nullptr) return;
     device.MergeBackendStatistics(statistics);
@@ -272,7 +272,7 @@ void RenderDevice::Impl::RefreshHealth(
     auto* native = NativeBackend(device);
     const auto health = native != nullptr
         ? native->GetDeviceHealth()
-        : Integration::Detail::BackendHealth::Failed;
+        : ::Aero::Render::Detail::BackendHealth::Failed;
     if (ApplyBackendHealth(*device.impl_, health)) {
         ++device.impl_->statistics.generation;
     }
