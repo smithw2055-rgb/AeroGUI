@@ -140,6 +140,21 @@ if(public_internal_type_matches)
         "${public_internal_type_matches}")
 endif()
 
+if(EXISTS "${AERO_SOURCE_DIR}/include/Aero/Renderer.hpp" OR
+   EXISTS "${AERO_SOURCE_DIR}/include/Aero/Integration/RenderDevice.hpp")
+    message(FATAL_ERROR
+        "Retired rendering facade headers must not exist; use "
+        "<Aero/IRenderer.hpp> and <Aero/RenderDevice.hpp>")
+endif()
+aero_collect_matches(public_legacy_render_device
+    "Integration::RenderDevice|class[ \\t]+Renderer([ \\t:{]|$)"
+    ${aero_namespace_headers})
+if(public_legacy_render_device)
+    message(FATAL_ERROR
+        "Installed headers expose a retired renderer/device spelling: "
+        "${public_legacy_render_device}")
+endif()
+
 set(aero_public_style_headers
     "${AERO_SOURCE_DIR}/include/Aero/Style.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Styling.hpp")

@@ -10,7 +10,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/Renderer.hpp>
+#include <Aero/IRenderer.hpp>
 #include <Aero/Markup.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Module.hpp>
@@ -24,6 +24,7 @@ class IDiagnosticSink;
 namespace Aero {
 
 namespace App::Detail { class DesktopHost; }
+namespace Runtime::Detail { class ViewRenderer; }
 
 enum class BuiltInTheme : std::uint8_t { Light = 0U, Dark };
 enum class ResourceLayer : std::uint8_t { Application = 0U, Theme, System };
@@ -64,7 +65,6 @@ namespace Integration {
 class XamlProvider;
 class TextureProvider;
 class FontProvider;
-class RenderDevice;
 class ReloadCoordinator;
 struct ViewOptions;
 }
@@ -149,8 +149,8 @@ public:
     Viewport GetViewport() const noexcept;
     Base::Result<void> Update(
         std::uint32_t elapsedMilliseconds = 0U) noexcept;
-    Renderer& GetRenderer() noexcept;
-    const Renderer& GetRenderer() const noexcept;
+    IRenderer& GetRenderer() noexcept;
+    const IRenderer& GetRenderer() const noexcept;
 
     Base::Result<Input::PointerDispatchResult> DispatchPointer(
         const Input::PointerInput& input) noexcept;
@@ -161,7 +161,7 @@ public:
 
 private:
     friend class Gui;
-    friend class Renderer;
+    friend class Runtime::Detail::ViewRenderer;
     friend class CompositionTarget;
     friend class Aero::Markup::XamlReader;
     friend class Integration::ReloadCoordinator;

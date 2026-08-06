@@ -4,7 +4,7 @@
 #include <new>
 #include <utility>
 
-namespace Aero::Integration {
+namespace Aero {
 namespace {
 
 Base::Status InvalidState(const char* message) noexcept {
@@ -18,15 +18,15 @@ Base::Status NotInitialized(const char* message) noexcept {
 }
 
 RenderDeviceState ToPublicState(
-    Detail::BackendHealth health) noexcept {
+    Integration::Detail::BackendHealth health) noexcept {
     switch (health) {
-    case Detail::BackendHealth::Ready:
+    case Integration::Detail::BackendHealth::Ready:
         return RenderDeviceState::Ready;
-    case Detail::BackendHealth::SurfaceLost:
+    case Integration::Detail::BackendHealth::SurfaceLost:
         return RenderDeviceState::SurfaceLost;
-    case Detail::BackendHealth::DeviceLost:
+    case Integration::Detail::BackendHealth::DeviceLost:
         return RenderDeviceState::DeviceLost;
-    case Detail::BackendHealth::Failed:
+    case Integration::Detail::BackendHealth::Failed:
         return RenderDeviceState::Failed;
     }
     return RenderDeviceState::Failed;
@@ -187,7 +187,7 @@ Base::Result<void> RenderDevice::Restore() noexcept {
         const RenderDeviceState backendState = ToPublicState(
             functions->health != nullptr
                 ? functions->health(impl_->stateData)
-                : Detail::BackendHealth::Failed);
+                : Integration::Detail::BackendHealth::Failed);
         if (backendState != RenderDeviceState::Ready &&
             backendState != impl_->state) {
             impl_->state = backendState;
@@ -208,7 +208,7 @@ Base::Result<void> RenderDevice::WaitIdle(
               NotInitialized("Render device is not initialized"));
 }
 
-} // namespace Aero::Integration
+} // namespace Aero
 
 namespace Aero::Integration::Detail {
 
@@ -231,24 +231,24 @@ public:
     BackendHealth Health() const noexcept {
         return BackendHealth::Ready;
     }
-    ::Aero::Integration::RenderFrameStatistics
+    ::Aero::RenderFrameStatistics
     LastFrameStatistics() const noexcept { return {}; }
     ::Aero::Render::Detail::RenderResources Resources() noexcept { return {}; }
 };
 
-Base::Result<Base::Ref<::Aero::Integration::RenderDevice>>
+Base::Result<Base::Ref<::Aero::RenderDevice>>
 RenderDeviceFactory::Adopt(
-    ::Aero::Integration::RenderDeviceMode mode,
+    ::Aero::RenderDeviceMode mode,
     void* state,
     const RenderDeviceFunctions* functions,
     Base::IAllocator* allocator) noexcept {
-    return ::Aero::Integration::RenderDevice::Impl::Create(
+    return ::Aero::RenderDevice::Impl::Create(
         mode, state, functions, allocator);
 }
 
-Base::Result<Base::Ref<::Aero::Integration::RenderDevice>>
+Base::Result<Base::Ref<::Aero::RenderDevice>>
 AdoptRenderDevice(
-    ::Aero::Integration::RenderDeviceMode mode,
+    ::Aero::RenderDeviceMode mode,
     void* state,
     const RenderDeviceFunctions* functions,
     Base::IAllocator* allocator) noexcept {
@@ -256,7 +256,7 @@ AdoptRenderDevice(
         mode, state, functions, allocator);
 }
 
-Base::Result<Base::Ref<::Aero::Integration::RenderDevice>>
+Base::Result<Base::Ref<::Aero::RenderDevice>>
 CreateHeadlessRenderDevice(
     Base::IAllocator* allocator) noexcept {
     auto* backend = new (std::nothrow) HeadlessDeviceState();
@@ -266,14 +266,14 @@ CreateHeadlessRenderDevice(
             "Unable to allocate the headless render device");
     }
     return AdoptRenderDevice(
-        ::Aero::Integration::RenderDeviceMode::Headless,
+        ::Aero::RenderDeviceMode::Headless,
         backend,
         allocator);
 }
 
 } // namespace Aero::Integration::Detail
 
-namespace Aero::Integration {
+namespace Aero {
 
 Base::Result<void> RenderDevice::RenderOffscreen(
     const void* rendererToken,
@@ -292,7 +292,7 @@ Base::Result<void> RenderDevice::RenderOffscreen(
         const RenderDeviceState backendState = ToPublicState(
             functions->health != nullptr
                 ? functions->health(impl_->stateData)
-                : Detail::BackendHealth::Failed);
+                : Integration::Detail::BackendHealth::Failed);
         if (backendState != impl_->state) {
             impl_->state = backendState;
             if (backendState != RenderDeviceState::Ready) {
@@ -328,7 +328,7 @@ Base::Result<void> RenderDevice::Render(
         const RenderDeviceState backendState = ToPublicState(
             functions->health != nullptr
                 ? functions->health(impl_->stateData)
-                : Detail::BackendHealth::Failed);
+                : Integration::Detail::BackendHealth::Failed);
         if (backendState != impl_->state) {
             impl_->state = backendState;
             if (backendState != RenderDeviceState::Ready) {
@@ -376,4 +376,4 @@ Base::Status RenderDevice::GetFrameStatus() noexcept {
     return InvalidState("Render device state is invalid");
 }
 
-} // namespace Aero::Integration
+} // namespace Aero

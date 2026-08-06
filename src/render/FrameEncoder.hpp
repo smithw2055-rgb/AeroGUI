@@ -1,22 +1,22 @@
 #pragma once
 
 #include "DisplayList.hpp"
-
 #include "render/RenderTree.hpp"
+#include "render/RenderDevice.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
-#include "render/RenderDevice.hpp"
-
-namespace Aero::Render::Detail {
-class RendererGlyphRunSink;
-}
 
 namespace Aero::Render {
 class D3D11Renderer;
 class OpenGL33Renderer;
+}
 
-struct RendererShaderSet  {
+namespace Aero::Render::Detail {
+
+class RendererGlyphRunSink;
+
+struct RendererShaderSet {
     Graphics::ShaderDescriptor rectangleVertex;
     Graphics::ShaderDescriptor rectangleFragment;
     Graphics::ShaderDescriptor imageVertex;
@@ -33,14 +33,14 @@ struct RendererShaderSet  {
         Graphics::GraphicsTextureFormat::Bgra8Unorm;
 };
 
-struct RenderTarget  {
+struct RenderTarget {
     Graphics::ResourceHandle color;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
     Graphics::LoadOperation load = Graphics::LoadOperation::Load;
 };
 
-struct RendererStatistics  {
+struct RendererStatistics {
     std::uint32_t renderPassCount = 0U;
     std::uint32_t drawCallCount = 0U;
     std::uint32_t rectangleInstanceCount = 0U;
@@ -57,10 +57,12 @@ struct RendererStatistics  {
     std::uint32_t textureSamplerBindingCount = 0U;
 };
 
-class Renderer  {
+// Low-level retained-frame encoder. The implementation name remains confined
+// to Detail; all callers use the semantic FrameEncoder name below.
+class Renderer {
 public:
     Renderer(
-        Graphics::GraphicsDevice& device,
+        Graphics::Device& device,
         const RendererShaderSet& shaders,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~Renderer() noexcept;
@@ -83,10 +85,8 @@ public:
         Graphics::ResourceHandle vertexBuffer,
         Graphics::ResourceHandle indexBuffer,
         std::uint32_t indexCount,
-        Graphics::IndexType indexType =
-            Graphics::IndexType::UInt16) noexcept;
-    Base::Result<void> UnregisterMesh(
-        Render::RenderMeshId mesh) noexcept;
+        Graphics::IndexType indexType = Graphics::IndexType::UInt16) noexcept;
+    Base::Result<void> UnregisterMesh(Render::RenderMeshId mesh) noexcept;
     Base::Result<Graphics::CommandList> Record(
         const Integration::RenderFrame& plan,
         const RenderTarget& target) noexcept;
@@ -103,9 +103,9 @@ public:
     bool IsBatchingEnabled() const noexcept;
 
 private:
-    friend class D3D11Renderer;
-    friend class OpenGL33Renderer;
-    friend class Detail::RendererGlyphRunSink;
+    friend class ::Aero::Render::D3D11Renderer;
+    friend class ::Aero::Render::OpenGL33Renderer;
+    friend class RendererGlyphRunSink;
 
     struct Impl;
     Base::Result<void> RegisterGlyphRun(
@@ -119,10 +119,23 @@ private:
     Base::Result<void> UnregisterGlyphRun(
         Render::RenderGlyphRunId glyphRun) noexcept;
 
-    Graphics::GraphicsDevice* device_ = nullptr;
+    Graphics::Device* device_ = nullptr;
     RendererShaderSet shaders_;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
 };
+
+} // namespace Aero::Render::Detail
+
+namespace Aero::Render {
+
+using FrameShaderSet = Detail::RendererShaderSet;
+using FrameEncoderStatistics = Detail::RendererStatistics;
+using RenderTarget = Detail::RenderTarget;
+using FrameEncoder = Detail::Renderer;
+
+// Source-private compatibility for backend implementation files.
+using RendererShaderSet = FrameShaderSet;
+using RendererStatistics = FrameEncoderStatistics;
 
 } // namespace Aero::Render

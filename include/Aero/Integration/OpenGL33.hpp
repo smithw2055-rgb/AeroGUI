@@ -3,7 +3,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Integration/RenderDevice.hpp>
+#include <Aero/RenderDevice.hpp>
 #include <Aero/Integration/NativeWindow.hpp>
 
 #include <cstdint>
@@ -54,16 +54,16 @@ struct OpenGL33WindowDeviceOptions  {
     NativeWindowHandle window;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
-    RenderPresentMode presentMode = RenderPresentMode::Fifo;
+    Aero::RenderPresentMode presentMode = Aero::RenderPresentMode::Fifo;
     bool enableDebugContext = false;
 };
 
-AERO_API Base::Result<Base::Ref<RenderDevice>>
+AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateOpenGL33EmbeddedDevice(
     const OpenGL33EmbeddedDeviceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_API Base::Result<Base::Ref<RenderDevice>>
+AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateOpenGL33WindowDevice(
     const OpenGL33WindowDeviceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;

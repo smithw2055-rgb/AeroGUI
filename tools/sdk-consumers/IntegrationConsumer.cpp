@@ -23,7 +23,7 @@ static_assert(
 Aero::Base::Result<Aero::Base::Ref<Aero::View>>
 CreateIntegratedView(
     Aero::Gui& environment,
-    Aero::Base::Ref<Aero::Integration::RenderDevice>
+    Aero::Base::Ref<Aero::RenderDevice>
         endpoint) noexcept {
     Aero::Integration::ViewOptions options;
     Aero::Base::Result<Aero::Base::Ref<Aero::View>> created =

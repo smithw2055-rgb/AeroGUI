@@ -4,7 +4,7 @@ namespace {
 
 [[maybe_unused]]
 Aero::Base::Result<
-    Aero::Base::Ref<Aero::Integration::RenderDevice>>
+    Aero::Base::Ref<Aero::RenderDevice>>
 CreateD3D11Device(
     Aero::Integration::NativeWindowHandle window) noexcept {
     Aero::Integration::D3D11WindowDeviceOptions options;

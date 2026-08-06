@@ -10,8 +10,9 @@
 
 namespace Aero::Integration { class RenderFrame; }
 
-namespace Aero::Integration {
+namespace Aero {
 
+class IRenderer;
 class RenderDevice;
 
 enum class RenderDeviceMode : std::uint8_t {
@@ -55,8 +56,9 @@ struct RenderFrameStatistics {
     bool batchingEnabled = true;
 };
 
-// Host-thread-affine native UI device shared by one or more View Renderers on
-// the same render thread. Frame submission remains a private Renderer detail.
+// Host-thread-affine UI render device shared by one or more View renderers on
+// the same render thread. Native graphics resources and surfaces remain hidden
+// behind Integration factories and the private Graphics layer.
 class AERO_API RenderDevice final : public Base::Object {
     struct ConstructionToken {};
 
@@ -89,6 +91,7 @@ public:
 
 private:
     friend struct Impl;
+    friend class IRenderer;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
     Base::MakeRefWithAllocator(
@@ -97,18 +100,18 @@ private:
 
     Base::Result<void> RenderOffscreen(
         const void* rendererToken,
-        const RenderFrame& frame) noexcept;
+        const Integration::RenderFrame& frame) noexcept;
     Base::Result<void> Render(
         const void* rendererToken,
-        const RenderFrame& frame) noexcept;
+        const Integration::RenderFrame& frame) noexcept;
     void ReleaseRenderer(const void* rendererToken) noexcept;
     Base::Status GetFrameStatus() noexcept;
     Base::Result<RenderFrameStatistics> Analyze(
-        const RenderFrame& frame) noexcept;
+        const Integration::RenderFrame& frame) noexcept;
     void MergeBackendStatistics(
         RenderFrameStatistics& result) const noexcept;
 
     Impl* impl_ = nullptr;
 };
 
-} // namespace Aero::Integration
+} // namespace Aero

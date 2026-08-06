@@ -4,7 +4,7 @@ namespace {
 
 [[maybe_unused]]
 Aero::Base::Result<
-    Aero::Base::Ref<Aero::Integration::RenderDevice>>
+    Aero::Base::Ref<Aero::RenderDevice>>
 CreateOpenGL33Device(
     Aero::Integration::NativeWindowHandle window) noexcept {
     Aero::Integration::OpenGL33WindowDeviceOptions options;

@@ -6,7 +6,7 @@
 
 namespace Aero::Controls::Detail { class TextBlockLayout; }
 
-namespace Aero::Integration { class RenderDevice; }
+namespace Aero { class RenderDevice; }
 
 namespace Aero::Runtime::Detail {
 
@@ -20,10 +20,10 @@ public:
     TextPipeline& operator=(const TextPipeline&) = delete;
 
     Base::Result<void> Initialize(
-        Integration::RenderDevice& device,
+        RenderDevice& device,
         const Integration::TextOptions& options) noexcept;
     Base::Result<bool> SynchronizeBackend(
-        Integration::RenderDevice& device,
+        RenderDevice& device,
         bool force = false) noexcept;
     Base::Result<std::uint32_t> CollectGarbage() noexcept;
     void Shutdown() noexcept;

@@ -2,7 +2,7 @@
 
 #include "../DisplayList.hpp"
 
-#include "../Renderer.hpp"
+#include "../FrameEncoder.hpp"
 
 #include "render/opengl33/OpenGL33Backend.hpp"
 #include "render/Surface.hpp"
@@ -11,14 +11,14 @@ namespace Aero::Render::Detail { struct TextResources; struct MeshResources; str
 
 namespace Aero::Render {
 
-using OpenGL33RendererStatistics = RendererStatistics;
+using OpenGL33RendererStatistics = FrameEncoderStatistics;
 
-RendererShaderSet MakeOpenGL33RendererShaderSet() noexcept;
+FrameShaderSet MakeOpenGL33RendererShaderSet() noexcept;
 
 class OpenGL33Renderer {
 public:
     OpenGL33Renderer(
-        Graphics::GraphicsDevice& device,
+        Graphics::Device& device,
         Graphics::OpenGL33GraphicsBackend& graphicsBackend,
         Graphics::SurfaceSession& surface,
         Graphics::GlContextGeneration contextGeneration,
@@ -77,7 +77,7 @@ private:
     Base::Result<void> UnregisterGlyphRun(
         Render::RenderGlyphRunId glyphRun) noexcept;
 
-    Graphics::GraphicsDevice* device_ = nullptr;
+    Graphics::Device* device_ = nullptr;
     Graphics::OpenGL33GraphicsBackend* graphicsBackend_ = nullptr;
     Graphics::SurfaceSession* surface_ = nullptr;
     Graphics::GlContextGeneration contextGeneration_ = 0U;

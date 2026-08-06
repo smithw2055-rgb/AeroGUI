@@ -211,6 +211,11 @@ private:
 };
 
 
+// Canonical private Graphics vocabulary. The longer legacy spellings remain
+// implementation types in this file only; higher layers use Backend/Device.
+using Backend = GraphicsBackend;
+using Device = GraphicsDevice;
+
 constexpr std::uint32_t GraphicsAbiVersion = 2U;
 constexpr std::uint32_t MaxVertexBuffers = 4U;
 constexpr std::uint32_t MaxVertexAttributes = 16U;

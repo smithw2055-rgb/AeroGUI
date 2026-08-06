@@ -1,5 +1,5 @@
 #include "DisplayList.hpp"
-#include "Renderer.hpp"
+#include "FrameEncoder.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -13,7 +13,7 @@
 #include <new>
 #include <utility>
 
-namespace Aero::Render {
+namespace Aero::Render::Detail {
 using namespace Aero::Graphics;
 namespace {
 
@@ -3381,4 +3381,4 @@ Base::Result<CommandList> Renderer::Record(
     return std::move(finished).Value();
 }
 
-} // namespace Aero::Render
+} // namespace Aero::Render::Detail

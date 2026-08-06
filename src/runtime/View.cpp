@@ -7,6 +7,7 @@
 #include <Aero/FrameworkElement.hpp>
 #include "runtime/ImageCache.hpp"
 #include "runtime/TextPipeline.hpp"
+#include "runtime/ViewRenderer.hpp"
 
 #include "controls/ControlsPrivate.hpp"
 #include "controls/ControlBehavior.hpp"
@@ -48,7 +49,7 @@
 
 namespace Aero {
 
-struct Renderer::Impl {
+struct Runtime::Detail::ViewRenderer::Impl {
     explicit Impl(View& owner, Base::IAllocator& selected) noexcept
         : allocator(&selected), view(&owner) {}
 
@@ -402,7 +403,7 @@ struct View::Impl {
     Base::IAllocator* allocator = nullptr;
     ViewArena arena;
     Base::Ref<Base::Object> gui;
-    Renderer publicRenderer;
+    Runtime::Detail::ViewRenderer publicRenderer;
     RenderingEventHandler renderingHandlers;
     Audio::Engine audio;
     ::Aero::Threading::Dispatcher dispatcher;
@@ -8656,7 +8657,7 @@ View::AdvanceAnimations(
     return advanced.Value() + completed.Value();
 }
 
-Renderer::Renderer(
+Runtime::Detail::ViewRenderer::ViewRenderer(
     View& view,
     Base::IAllocator& allocator) noexcept {
     void* memory = allocator.Allocate({
@@ -8668,7 +8669,7 @@ Renderer::Renderer(
     impl_ = new (memory) Impl(view, allocator);
 }
 
-Renderer::~Renderer() noexcept {
+Runtime::Detail::ViewRenderer::~ViewRenderer() noexcept {
     if (impl_ == nullptr) return;
     Shutdown();
     Base::IAllocator* allocator = impl_->allocator;
@@ -8678,7 +8679,7 @@ Renderer::~Renderer() noexcept {
     impl_ = nullptr;
 }
 
-Base::Result<void> Renderer::Init(
+Base::Result<void> Runtime::Detail::ViewRenderer::Init(
     Base::Ref<Integration::RenderDevice> device) noexcept {
     if (impl_ == nullptr || impl_->view == nullptr ||
         impl_->view->state_ == nullptr ||
@@ -8786,7 +8787,7 @@ Base::Result<void> Renderer::Init(
     return {};
 }
 
-void Renderer::Shutdown() noexcept {
+void Runtime::Detail::ViewRenderer::Shutdown() noexcept {
     if (impl_ == nullptr) return;
     if (impl_->device) {
         Integration::RenderDevice::Impl::ReleaseRenderer(
@@ -8800,12 +8801,12 @@ void Renderer::Shutdown() noexcept {
     impl_->initialized = false;
 }
 
-bool Renderer::IsInitialized() const noexcept {
+bool Runtime::Detail::ViewRenderer::IsInitialized() const noexcept {
     return impl_ != nullptr && impl_->initialized;
 }
 
 Base::Result<bool>
-Renderer::UpdateRenderTree() noexcept {
+Runtime::Detail::ViewRenderer::UpdateRenderTree() noexcept {
     if (impl_ == nullptr || !impl_->initialized || !impl_->device ||
         impl_->view == nullptr || impl_->view->state_ == nullptr ||
         impl_->view->state_ == nullptr ||
@@ -8843,7 +8844,8 @@ Renderer::UpdateRenderTree() noexcept {
     return changed;
 }
 
-Base::Result<void> Renderer::RenderOffscreen() noexcept {
+Base::Result<void>
+Runtime::Detail::ViewRenderer::RenderOffscreen() noexcept {
     if (impl_ == nullptr || !impl_->initialized || !impl_->device ||
         impl_->view == nullptr || impl_->view->state_ == nullptr ||
         impl_->view->state_ == nullptr) {
@@ -8874,7 +8876,7 @@ Base::Result<void> Renderer::RenderOffscreen() noexcept {
     return {};
 }
 
-Base::Result<void> Renderer::Render() noexcept {
+Base::Result<void> Runtime::Detail::ViewRenderer::Render() noexcept {
     if (impl_ == nullptr || !impl_->initialized || !impl_->device ||
         impl_->view == nullptr || impl_->view->state_ == nullptr ||
         impl_->view->state_ == nullptr) {
@@ -8911,11 +8913,11 @@ Base::Result<void> Renderer::Render() noexcept {
     return {};
 }
 
-Renderer& View::GetRenderer() noexcept {
+IRenderer& View::GetRenderer() noexcept {
     return state_->publicRenderer;
 }
 
-const Renderer& View::GetRenderer() const noexcept {
+const IRenderer& View::GetRenderer() const noexcept {
     return state_->publicRenderer;
 }
 

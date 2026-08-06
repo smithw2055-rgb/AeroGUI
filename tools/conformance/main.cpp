@@ -9,7 +9,7 @@
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/View.hpp>
 
-#include "render/Renderer.hpp"
+#include "render/FrameEncoder.hpp"
 #include "gui/private/Property.hpp"
 #include "integration/IntegrationPrivate.hpp"
 #include "render/opengl33/OpenGL33Renderer.hpp"
@@ -443,7 +443,7 @@ bool RenderAndReadback(
         Check(false, failureMessage);
         return false;
     }
-    Aero::Render::Renderer renderer(device, shaders);
+    Aero::Render::FrameEncoder renderer(device, shaders);
     initialized = renderer.Initialize();
     if (!initialized) {
         std::fprintf(stderr, "%s: renderer initialize: %u %s\n",
@@ -895,7 +895,7 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
     Aero::Graphics::GraphicsDevice device(backend);
     Check(device.Initialize().HasValue(),
         "Null graphics device initialization failed");
-    Aero::Render::Renderer renderer(
+    Aero::Render::FrameEncoder renderer(
         device,
         Aero::Render::MakeOpenGL33RendererShaderSet());
     Check(renderer.Initialize().HasValue(),

@@ -706,7 +706,7 @@ struct OpenGL33Renderer::Impl {
           imageResources(
               device, renderer, generation, *allocator) {}
 
-    Renderer renderer;
+    FrameEncoder renderer;
     Detail::TextGpuResources textResources;
     Detail::MeshGpuResources meshResources;
     Detail::ImageGpuResources imageResources;

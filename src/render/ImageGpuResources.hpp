@@ -2,7 +2,7 @@
 
 #include "DisplayList.hpp"
 
-#include "Renderer.hpp"
+#include "FrameEncoder.hpp"
 #include "render/RenderResources.hpp"
 
 #include <limits>

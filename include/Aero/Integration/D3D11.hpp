@@ -3,7 +3,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Integration/RenderDevice.hpp>
+#include <Aero/RenderDevice.hpp>
 #include <Aero/Integration/NativeWindow.hpp>
 
 #include <cstdint>
@@ -41,18 +41,18 @@ struct D3D11WindowDeviceOptions  {
     NativeWindowHandle window;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
-    RenderPresentMode presentMode = RenderPresentMode::Fifo;
+    Aero::RenderPresentMode presentMode = Aero::RenderPresentMode::Fifo;
     bool useWarp = false;
     bool allowWarpFallback = true;
     bool enableDebugLayer = false;
 };
 
-AERO_API Base::Result<Base::Ref<RenderDevice>>
+AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateD3D11EmbeddedDevice(
     const D3D11EmbeddedDeviceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_API Base::Result<Base::Ref<RenderDevice>>
+AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateD3D11WindowDevice(
     const D3D11WindowDeviceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;

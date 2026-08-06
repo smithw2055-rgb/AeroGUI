@@ -2,7 +2,7 @@
 
 #include "../DisplayList.hpp"
 
-#include "../Renderer.hpp"
+#include "../FrameEncoder.hpp"
 
 #include "render/d3d11/D3D11Backend.hpp"
 
@@ -10,14 +10,14 @@ namespace Aero::Render::Detail { struct TextResources; struct MeshResources; str
 
 namespace Aero::Render {
 
-using D3D11RendererStatistics = RendererStatistics;
+using D3D11RendererStatistics = FrameEncoderStatistics;
 
-RendererShaderSet MakeD3D11RendererShaderSet() noexcept;
+FrameShaderSet MakeD3D11RendererShaderSet() noexcept;
 
 class D3D11Renderer {
 public:
     D3D11Renderer(
-        Graphics::GraphicsDevice& device,
+        Graphics::Device& device,
         Graphics::D3D11SurfacePresenter& presenter,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~D3D11Renderer() noexcept;
@@ -74,7 +74,7 @@ private:
     Base::Result<void> UnregisterGlyphRun(
         Render::RenderGlyphRunId glyphRun) noexcept;
 
-    Graphics::GraphicsDevice* device_ = nullptr;
+    Graphics::Device* device_ = nullptr;
     Graphics::D3D11SurfacePresenter* presenter_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;

@@ -11,7 +11,7 @@
 #include <Aero/Integration/OpenGL33.hpp>
 #include <Aero/Markup.hpp>
 #include <Aero/Integration/ViewOptions.hpp>
-#include <Aero/Renderer.hpp>
+#include <Aero/IRenderer.hpp>
 #include <Aero/View.hpp>
 
 
@@ -268,9 +268,9 @@ struct DesktopHost::Impl {
                 options.window = nativeWindow->NativeHandle();
                 options.width = width;
                 options.height = height;
-                options.presentMode = Integration::RenderPresentMode::Fifo;
+                options.presentMode = RenderPresentMode::Fifo;
                 options.allowWarpFallback = true;
-                Base::Result<Base::Ref<Integration::RenderDevice>> created =
+                Base::Result<Base::Ref<RenderDevice>> created =
                     Integration::CreateD3D11WindowDevice(
                         options, owner->allocator);
                 if (!created) return created.GetStatus();
@@ -289,8 +289,8 @@ struct DesktopHost::Impl {
                 options.window = nativeWindow->NativeHandle();
                 options.width = width;
                 options.height = height;
-                options.presentMode = Integration::RenderPresentMode::Fifo;
-                Base::Result<Base::Ref<Integration::RenderDevice>> created =
+                options.presentMode = RenderPresentMode::Fifo;
+                Base::Result<Base::Ref<RenderDevice>> created =
                     Integration::CreateOpenGL33WindowDevice(
                         options, owner->allocator);
                 if (!created) return created.GetStatus();
@@ -545,7 +545,7 @@ struct DesktopHost::Impl {
         Impl* owner = nullptr;
         WindowHostState runtime;
         Base::Ref<View> view;
-        Base::Ref<Integration::RenderDevice> renderDevice;
+        Base::Ref<RenderDevice> renderDevice;
         Base::Ref<Base::Object> windowOwner;
         Markup::XamlDocument loadedDocument;
         Window* window = nullptr;

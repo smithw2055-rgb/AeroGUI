@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Integration/RenderDevice.hpp>
+#include <Aero/RenderDevice.hpp>
 #include "render/RenderResources.hpp"
 #include "render/RenderTree.hpp"
 
@@ -31,7 +31,7 @@ struct RenderDeviceFunctions {
     Base::Result<void> (*restore)(void*) noexcept = nullptr;
     Base::Result<void> (*waitIdle)(void*, std::uint32_t) noexcept = nullptr;
     BackendHealth (*health)(const void*) noexcept = nullptr;
-    RenderFrameStatistics (*statistics)(const void*) noexcept = nullptr;
+    ::Aero::RenderFrameStatistics (*statistics)(const void*) noexcept = nullptr;
     Aero::Render::Detail::RenderResources (*resources)(void*) noexcept = nullptr;
 };
 
@@ -39,8 +39,8 @@ struct RenderDeviceFunctions {
 // and backend adoption stay behind this source-side factory friend.
 class RenderDeviceFactory {
 public:
-    static Base::Result<Base::Ref<::Aero::Integration::RenderDevice>> Adopt(
-        ::Aero::Integration::RenderDeviceMode mode,
+    static Base::Result<Base::Ref<::Aero::RenderDevice>> Adopt(
+        ::Aero::RenderDeviceMode mode,
         void* state,
         const RenderDeviceFunctions* functions,
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -88,15 +88,15 @@ const RenderDeviceFunctions& FunctionsFor() noexcept {
     return functions;
 }
 
-Base::Result<Base::Ref<::Aero::Integration::RenderDevice>> AdoptRenderDevice(
-    ::Aero::Integration::RenderDeviceMode mode,
+Base::Result<Base::Ref<::Aero::RenderDevice>> AdoptRenderDevice(
+    ::Aero::RenderDeviceMode mode,
     void* state,
     const RenderDeviceFunctions* functions,
     Base::IAllocator* allocator = nullptr) noexcept;
 
 template<class T>
-Base::Result<Base::Ref<::Aero::Integration::RenderDevice>> AdoptRenderDevice(
-    ::Aero::Integration::RenderDeviceMode mode,
+Base::Result<Base::Ref<::Aero::RenderDevice>> AdoptRenderDevice(
+    ::Aero::RenderDeviceMode mode,
     T* state,
     Base::IAllocator* allocator = nullptr) noexcept {
     return ::Aero::Integration::Detail::AdoptRenderDevice(
@@ -108,7 +108,7 @@ Base::Result<Base::Ref<::Aero::Integration::RenderDevice>> AdoptRenderDevice(
 
 } // namespace Aero::Integration::Detail
 
-namespace Aero::Integration {
+namespace Aero {
 
 // Source-only access to the opaque backend state kept by RenderDevice.
 struct RenderDevice::Impl {
@@ -186,14 +186,14 @@ struct RenderDevice::Impl {
     static Base::Result<void> RenderOffscreen(
         RenderDevice& device,
         const void* rendererToken,
-        const RenderFrame& frame) noexcept {
+        const Integration::RenderFrame& frame) noexcept {
         return device.RenderOffscreen(rendererToken, frame);
     }
 
     static Base::Result<void> Render(
         RenderDevice& device,
         const void* rendererToken,
-        const RenderFrame& frame) noexcept {
+        const Integration::RenderFrame& frame) noexcept {
         return device.Render(rendererToken, frame);
     }
 
@@ -208,11 +208,11 @@ struct RenderDevice::Impl {
     }
 };
 
-} // namespace Aero::Integration
+} // namespace Aero
 
 namespace Aero::Integration::Detail {
 
-Base::Result<Base::Ref<::Aero::Integration::RenderDevice>>
+Base::Result<Base::Ref<::Aero::RenderDevice>>
 CreateHeadlessRenderDevice(
     Base::IAllocator* allocator = nullptr) noexcept;
 
