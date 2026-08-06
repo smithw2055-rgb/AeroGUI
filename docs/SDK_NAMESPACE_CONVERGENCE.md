@@ -1,34 +1,28 @@
-# S6 render-private namespace convergence
+# S7 physical source-layout convergence
 
-All host-facing contracts already use their owning public namespaces. S6 now
-removes the final C++ implementation namespace left behind by the former
-Integration product.
+S6 removed the final C++ `Aero::Integration` namespace. S7 removes the remaining
+historical repository layout as well: no active source file lives under
+`src/integration` after this stage.
 
-Private render state belongs to `Aero::Render::Detail`:
+The physical ownership model is now direct and intentionally shallow:
 
-- immutable retained `RenderFrame` snapshots and diagnostics;
-- native render devices and targets;
-- backend health and surface health state;
-- backend adoption and headless-device factories;
-- D3D11 and OpenGL implementation entry points.
+- `src/render/RenderDevice.cpp` implements the host-facing `Aero::RenderDevice`;
+- `src/render/RenderSurface.cpp` implements `Aero::RenderSurface`;
+- `src/render/private` owns native render-device/surface and backend factory
+  contracts used only inside the product;
+- `src/render/d3d11` owns D3D11 device/surface/factory implementation;
+- `src/render/opengl33` owns OpenGL 3.3 device/surface/factory implementation;
+- `src/markup/ReloadCoordinator.cpp` owns markup reload implementation.
 
-Other retired Integration aliases are normalized to their owning domains:
-`Aero::Input`, `Aero::Platform`, `Aero::Markup`, `Aero::Media`, `Aero::Text`,
-`Aero::Render`, or the root `Aero` namespace. Old Integration include paths are
-removed from source and conformance consumers as well.
+The former low-level `src/render/RenderDevice.cpp/.hpp` pair and
+`RenderDeviceResources.cpp` actually implement `Aero::Graphics::Device`. They
+are renamed to `GraphicsDevice.cpp/.hpp` and `GraphicsDeviceResources.cpp` so
+the source tree no longer contains two unrelated RenderDevice concepts.
 
-`Aero::RenderSurface` and `Aero::RenderDevice` remain the host-facing objects.
-D3D11/OpenGL creation remains under the opt-in public `Aero::Render` factory
-headers. The `src/integration` directory is only a temporary physical source
-location and no longer defines an Integration namespace or product boundary.
+`IntegrationPrivate.hpp` is deleted instead of being renamed. Its only job was
+to aggregate the backend API and private RenderSurface contract; consumers now
+include those two source-private headers directly.
 
-`src/integration/D3D11Device.cpp` is removed in this stage. It is an obsolete,
-unreferenced pre-convergence duplicate: it includes the already retired public
-Integration header and calls the superseded render-device adoption signature.
-The active Windows backend remains `D3D11Shared.cpp`.
-
-Architecture checks reject `namespace Aero::Integration`,
-`::Aero::Integration`, any `Integration::` spelling, and any
-`Aero/Integration/...` include in C++ source. A later physical-layout stage may
-move the remaining source files without changing API or implementation
-ownership again.
+No new SDK product, service layer, Runtime facade, or backend abstraction is
+introduced. S7 is a repository-ownership cleanup only; public C++ names and
+runtime behavior remain the S6 model.

@@ -11,8 +11,8 @@
 
 #include "render/FrameEncoder.hpp"
 #include "gui/private/Property.hpp"
-#include "integration/IntegrationPrivate.hpp"
-#include "integration/private/RenderSurface.hpp"
+#include "render/private/BackendApi.hpp"
+#include "render/private/RenderSurface.hpp"
 #include "render/opengl33/OpenGL33Shaders.hpp"
 #include "render/opengl33/OpenGL33Backend.hpp"
 

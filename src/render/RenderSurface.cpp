@@ -1,5 +1,5 @@
-#include "integration/IntegrationPrivate.hpp"
-#include "integration/private/RenderSurface.hpp"
+#include "render/private/BackendApi.hpp"
+#include "render/private/RenderSurface.hpp"
 
 #include <new>
 #include <utility>

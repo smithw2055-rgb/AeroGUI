@@ -2,16 +2,16 @@
 # model together with View runtime, providers, native rendering and backend
 # factories. App adds only the default desktop lifetime and OS window policy.
 set(_aero_gui_runtime_sources
-    src/integration/RenderSurface.cpp
-    src/integration/OpenGL33Device.cpp
-    src/integration/OpenGL33EmbeddedShared.cpp
-    src/render/OpenGL33Factories.cpp
+    src/render/RenderSurface.cpp
+    src/render/opengl33/OpenGL33Device.cpp
+    src/render/opengl33/OpenGL33Embedded.cpp
+    src/render/opengl33/OpenGL33Factories.cpp
     src/providers/XamlProvider.cpp
     src/platform/Clipboard.cpp)
 if(WIN32)
     list(APPEND _aero_gui_runtime_sources
-        src/integration/D3D11Shared.cpp
-        src/render/D3D11Factories.cpp)
+        src/render/d3d11/D3D11Device.cpp
+        src/render/d3d11/D3D11Factories.cpp)
 endif()
 
 target_sources(AeroGui PRIVATE

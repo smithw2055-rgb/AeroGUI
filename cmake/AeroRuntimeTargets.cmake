@@ -3,8 +3,8 @@
 add_library(AeroRuntimeObjects OBJECT
     src/runtime/Gui.cpp
     src/runtime/View.cpp
-    src/integration/ReloadCoordinator.cpp
-    src/integration/RenderDevice.cpp
+    src/markup/ReloadCoordinator.cpp
+    src/render/RenderDevice.cpp
     src/runtime/Invariants.cpp
     src/runtime/ImageCache.cpp
     src/runtime/StbImageImplementation.cpp

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/RenderSurface.hpp>
-#include "integration/private/RenderDevice.hpp"
+#include "render/private/RenderDevice.hpp"
 
 namespace Aero::Render::Detail {
 

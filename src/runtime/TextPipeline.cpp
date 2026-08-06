@@ -2,7 +2,8 @@
 #include "TextPipeline.hpp"
 #include "render/RenderResources.hpp"
 
-#include "integration/IntegrationPrivate.hpp"
+#include "render/private/BackendApi.hpp"
+#include "render/private/RenderSurface.hpp"
 
 #include <Aero/FrameworkElement.hpp>
 #include "../text/FontManager.hpp"

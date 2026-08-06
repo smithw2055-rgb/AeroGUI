@@ -2,8 +2,8 @@
 # AeroGui owns native surface acquisition and presentation; DeviceRenderer is
 # the only active frame encoder and shared GPU resource owner.
 add_library(AeroRenderingObjects OBJECT
-    src/render/RenderDevice.cpp
-    src/render/RenderDeviceResources.cpp
+    src/render/GraphicsDevice.cpp
+    src/render/GraphicsDeviceResources.cpp
     src/render/Surface.cpp
     src/render/FrameEncoder.cpp
     src/render/DeviceRenderer.cpp

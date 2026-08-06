@@ -1,4 +1,4 @@
-#include "render/RenderDevice.hpp"
+#include "render/GraphicsDevice.hpp"
 
 namespace Aero::Graphics {
 namespace {

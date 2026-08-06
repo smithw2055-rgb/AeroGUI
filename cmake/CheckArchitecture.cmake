@@ -213,10 +213,10 @@ endif()
 set(aero_renderer_boundary_scan
     "${AERO_SOURCE_DIR}/src/render/FrameEncoder.hpp"
     "${AERO_SOURCE_DIR}/src/integration/IntegrationPrivate.hpp"
-    "${AERO_SOURCE_DIR}/src/integration/D3D11Shared.cpp"
-    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Device.cpp"
-    "${AERO_SOURCE_DIR}/src/integration/OpenGL33EmbeddedShared.cpp"
-    "${AERO_SOURCE_DIR}/src/integration/RenderSurface.cpp"
+    "${AERO_SOURCE_DIR}/src/render/d3d11/D3D11Device.cpp"
+    "${AERO_SOURCE_DIR}/src/render/opengl33/OpenGL33Device.cpp"
+    "${AERO_SOURCE_DIR}/src/render/opengl33/OpenGL33Embedded.cpp"
+    "${AERO_SOURCE_DIR}/src/render/RenderSurface.cpp"
     "${AERO_SOURCE_DIR}/tools/conformance/main.cpp")
 aero_collect_matches(retired_native_renderer_types
     "D3D11Renderer|OpenGL33Renderer|D3D11EmbeddedDeviceOptions|D3D11WindowDeviceOptions|OpenGL33EmbeddedDeviceOptions|OpenGL33WindowDeviceOptions"
@@ -243,9 +243,9 @@ unset(retired_native_renderer_types)
 unset(private_rendering_aliases)
 
 set(aero_render_device_private_header
-    "${AERO_SOURCE_DIR}/src/integration/private/RenderDevice.hpp")
+    "${AERO_SOURCE_DIR}/src/render/private/RenderDevice.hpp")
 set(aero_render_surface_private_header
-    "${AERO_SOURCE_DIR}/src/integration/private/RenderSurface.hpp")
+    "${AERO_SOURCE_DIR}/src/render/private/RenderSurface.hpp")
 aero_collect_matches(render_device_surface_gateway_leaks
     "ResizeSurface|NotifySurfaceLost|RestoreSurface|SurfaceState|SurfaceStatus|Base::Result<void>[ \t\r\n]+[(][*]render[)]|[(][*]resize[)]|[(][*]surfaceLost[)]"
     "${aero_render_device_private_header}")
@@ -1326,7 +1326,7 @@ endif()
 
 aero_collect_matches(ungated_window_surface_backends
     "#if[ \t]+defined[(]_WIN32[)]([ \t\r\n]*)$|#elif[ \t]+defined[(]__linux__[)]([ \t\r\n]*)$"
-    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Device.cpp")
+    "${AERO_SOURCE_DIR}/src/render/opengl33/OpenGL33Device.cpp")
 if(ungated_window_surface_backends)
     message(FATAL_ERROR
         "OpenGL window endpoint backends must be gated by enabled surface options: "
@@ -1347,11 +1347,11 @@ aero_collect_matches(hidden_render_worker
     "${AERO_SOURCE_DIR}/include/Aero/Integration/RenderDevice.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/D3D11.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/OpenGL33.hpp"
-    "${AERO_SOURCE_DIR}/src/integration/RenderDevice.cpp"
+    "${AERO_SOURCE_DIR}/src/render/RenderDevice.cpp"
     "${AERO_SOURCE_DIR}/src/integration/IntegrationPrivate.hpp"
     "${AERO_SOURCE_DIR}/src/integration/D3D11Device.cpp"
-    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Device.cpp"
-    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Device.cpp")
+    "${AERO_SOURCE_DIR}/src/render/opengl33/OpenGL33Device.cpp"
+    "${AERO_SOURCE_DIR}/src/render/opengl33/OpenGL33Device.cpp")
 if(hidden_render_worker)
     message(FATAL_ERROR
         "Render scheduling belongs to the host; hidden endpoint workers or "
@@ -1360,7 +1360,7 @@ endif()
 
 aero_collect_matches(hidden_endpoint_thread
     "(std::thread|condition_variable)"
-    "${AERO_SOURCE_DIR}/src/integration/RenderDevice.cpp")
+    "${AERO_SOURCE_DIR}/src/render/RenderDevice.cpp")
 if(hidden_endpoint_thread)
     message(FATAL_ERROR
         "RenderDevice must not create or coordinate a private thread: "
@@ -1821,7 +1821,7 @@ if(public_integration_host_types)
         "Installed headers expose retired Integration host types: "
         "${public_integration_host_types}")
 endif()
-if(NOT EXISTS "${AERO_SOURCE_DIR}/src/integration/BackendApi.hpp")
+if(NOT EXISTS "${AERO_SOURCE_DIR}/src/render/private/BackendApi.hpp")
     message(FATAL_ERROR
         "The source-private backend API declaration header is missing")
 endif()
@@ -1857,5 +1857,83 @@ unset(aero_cpp_namespace_sources)
 unset(aero_cpp_namespace_source)
 unset(aero_cpp_namespace_content)
 unset(aero_retired_cpp_namespace_sources)
+
+# S7: physical source ownership follows the canonical product domains.
+file(GLOB_RECURSE aero_retired_integration_source_files
+    "${AERO_SOURCE_DIR}/src/integration/*")
+if(aero_retired_integration_source_files)
+    message(FATAL_ERROR
+        "The retired src/integration source tree must be empty: "
+        "${aero_retired_integration_source_files}")
+endif()
+unset(aero_retired_integration_source_files)
+
+set(aero_s7_required_source_files
+    "src/render/GraphicsDevice.cpp"
+    "src/render/GraphicsDevice.hpp"
+    "src/render/GraphicsDeviceResources.cpp"
+    "src/render/RenderDevice.cpp"
+    "src/render/RenderSurface.cpp"
+    "src/render/private/BackendApi.hpp"
+    "src/render/private/RenderDevice.hpp"
+    "src/render/private/RenderSurface.hpp"
+    "src/render/d3d11/D3D11Device.cpp"
+    "src/render/d3d11/D3D11Factories.cpp"
+    "src/render/opengl33/OpenGL33Device.cpp"
+    "src/render/opengl33/OpenGL33Embedded.cpp"
+    "src/render/opengl33/OpenGL33Factories.cpp"
+    "src/markup/ReloadCoordinator.cpp")
+foreach(aero_s7_required_source_file IN LISTS aero_s7_required_source_files)
+    if(NOT EXISTS "${AERO_SOURCE_DIR}/${aero_s7_required_source_file}")
+        message(FATAL_ERROR
+            "S7 canonical source file is missing: ${aero_s7_required_source_file}")
+    endif()
+endforeach()
+unset(aero_s7_required_source_files)
+unset(aero_s7_required_source_file)
+
+file(GLOB aero_s7_cmake_files
+    "${AERO_SOURCE_DIR}/CMakeLists.txt"
+    "${AERO_SOURCE_DIR}/cmake/*.cmake")
+set(aero_s7_retired_cmake_paths)
+foreach(aero_s7_cmake_file IN LISTS aero_s7_cmake_files)
+    file(READ "${aero_s7_cmake_file}" aero_s7_cmake_content)
+    if(aero_s7_cmake_content MATCHES "src/integration/")
+        list(APPEND aero_s7_retired_cmake_paths "${aero_s7_cmake_file}")
+    endif()
+endforeach()
+if(aero_s7_retired_cmake_paths)
+    message(FATAL_ERROR
+        "CMake still references retired src/integration paths: "
+        "${aero_s7_retired_cmake_paths}")
+endif()
+unset(aero_s7_cmake_files)
+unset(aero_s7_cmake_file)
+unset(aero_s7_cmake_content)
+unset(aero_s7_retired_cmake_paths)
+
+file(GLOB_RECURSE aero_s7_cpp_sources
+    "${AERO_SOURCE_DIR}/include/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/tools/*.hpp"
+    "${AERO_SOURCE_DIR}/tools/*.cpp")
+set(aero_s7_retired_include_paths)
+foreach(aero_s7_cpp_source IN LISTS aero_s7_cpp_sources)
+    file(READ "${aero_s7_cpp_source}" aero_s7_cpp_content)
+    if(aero_s7_cpp_content MATCHES
+            "#[ 	]*include[ 	]+[<\"]([^>\"]*/)?integration/")
+        list(APPEND aero_s7_retired_include_paths "${aero_s7_cpp_source}")
+    endif()
+endforeach()
+if(aero_s7_retired_include_paths)
+    message(FATAL_ERROR
+        "C++ still includes retired integration source paths: "
+        "${aero_s7_retired_include_paths}")
+endif()
+unset(aero_s7_cpp_sources)
+unset(aero_s7_cpp_source)
+unset(aero_s7_cpp_content)
+unset(aero_s7_retired_include_paths)
 
 message(STATUS "Aero architecture dependency checks passed")

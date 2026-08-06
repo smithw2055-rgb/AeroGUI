@@ -5,7 +5,7 @@
 #include "../controls/TextBlockLayout.hpp"
 #include "RenderResources.hpp"
 
-#include "render/RenderDevice.hpp"
+#include "render/GraphicsDevice.hpp"
 
 #include <cstdint>
 

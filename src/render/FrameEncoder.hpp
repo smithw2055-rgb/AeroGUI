@@ -2,7 +2,7 @@
 
 #include "DisplayList.hpp"
 #include "render/RenderTree.hpp"
-#include "render/RenderDevice.hpp"
+#include "render/GraphicsDevice.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>

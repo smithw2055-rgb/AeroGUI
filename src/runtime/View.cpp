@@ -8,7 +8,7 @@
 #include "runtime/ImageCache.hpp"
 #include "runtime/TextPipeline.hpp"
 #include "runtime/ViewRenderer.hpp"
-#include "integration/private/RenderSurface.hpp"
+#include "render/private/RenderSurface.hpp"
 
 #include "controls/ControlsPrivate.hpp"
 #include "controls/ControlBehavior.hpp"
@@ -39,7 +39,8 @@
 #include <Aero/BuiltinThemes.generated.hpp>
 
 #include "runtime/DataTemplateTriggerState.hpp"
-#include "integration/IntegrationPrivate.hpp"
+#include "render/private/BackendApi.hpp"
+#include "render/private/RenderSurface.hpp"
 #include "render/RenderTree.hpp"
 
 #include <cmath>
