@@ -3,7 +3,7 @@
 #include "integration/IntegrationPrivate.hpp"
 
 #include "render/DeviceRenderer.hpp"
-#include "render/opengl33/OpenGL33Renderer.hpp"
+#include "render/opengl33/OpenGL33Shaders.hpp"
 #include "render/opengl33/OpenGL33Backend.hpp"
 
 #if defined(_WIN32) && AERO_HAS_WGL_SURFACE
@@ -30,13 +30,13 @@ Base::Status InvalidState(const char* message) noexcept {
 }
 
 Graphics::PresentMode ToRhiPresentMode(
-    RenderPresentMode value) noexcept {
+    PresentMode value) noexcept {
     switch (value) {
-    case RenderPresentMode::Immediate:
+    case PresentMode::Immediate:
         return Graphics::PresentMode::Immediate;
-    case RenderPresentMode::Mailbox:
+    case PresentMode::Mailbox:
         return Graphics::PresentMode::Mailbox;
-    case RenderPresentMode::Fifo:
+    case PresentMode::Fifo:
         return Graphics::PresentMode::Fifo;
     }
     return Graphics::PresentMode::Fifo;
@@ -55,7 +55,7 @@ class OpenGL33EmbeddedSurface
     : public Graphics::ISurfaceBackend {
 public:
     explicit OpenGL33EmbeddedSurface(
-        const OpenGL33EmbeddedDeviceOptions& options) noexcept
+        const OpenGL33EmbeddedSurfaceOptions& options) noexcept
         : options_(options) {}
 
     Graphics::SurfaceCapabilities
@@ -155,21 +155,21 @@ public:
     }
 
 private:
-    OpenGL33EmbeddedDeviceOptions options_;
+    OpenGL33EmbeddedSurfaceOptions options_;
     bool lost_ = false;
 };
 
 class OpenGL33DeviceState {
 public:
     OpenGL33DeviceState(
-        const OpenGL33WindowDeviceOptions& options,
+        const OpenGL33WindowSurfaceOptions& options,
         Base::IAllocator& allocator) noexcept
         : allocator_(&allocator),
           windowOptions_(options),
           embedded_(false) {}
 
     OpenGL33DeviceState(
-        const OpenGL33EmbeddedDeviceOptions& options,
+        const OpenGL33EmbeddedSurfaceOptions& options,
         Base::IAllocator& allocator) noexcept
         : allocator_(&allocator),
           embeddedOptions_(options),
@@ -476,9 +476,9 @@ public:
             : Detail::BackendHealth::Failed;
     }
 
-    RenderFrameStatistics
+    ::Aero::RenderFrameStatistics
     LastFrameStatistics() const noexcept {
-        RenderFrameStatistics result;
+        ::Aero::RenderFrameStatistics result;
         if (renderer_ == nullptr) return result;
         const Render::FrameEncoderStatistics source =
             renderer_->LastStatistics();
@@ -706,8 +706,8 @@ private:
     }
 
     Base::IAllocator* allocator_ = nullptr;
-    OpenGL33WindowDeviceOptions windowOptions_;
-    OpenGL33EmbeddedDeviceOptions embeddedOptions_;
+    OpenGL33WindowSurfaceOptions windowOptions_;
+    OpenGL33EmbeddedSurfaceOptions embeddedOptions_;
     bool embedded_ = false;
     bool surfaceLost_ = false;
     bool deviceLost_ = false;
@@ -728,10 +728,10 @@ private:
 };
 
 template<class TOptions>
-Base::Result<Base::Ref<RenderDevice>>
+Base::Result<Base::Ref<::Aero::RenderDevice>>
 CreateOpenGL33Device(
     const TOptions& options,
-    RenderDeviceMode mode,
+    Detail::RenderDeviceMode mode,
     Base::IAllocator* allocator) noexcept {
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
@@ -754,9 +754,9 @@ CreateOpenGL33Device(
 
 } // namespace
 
-Base::Result<Base::Ref<RenderDevice>>
+Base::Result<Base::Ref<::Aero::RenderDevice>>
 CreateOpenGL33EmbeddedDevice(
-    const OpenGL33EmbeddedDeviceOptions& options,
+    const OpenGL33EmbeddedSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept {
     if (options.resolve == nullptr ||
         options.makeCurrent == nullptr ||
@@ -771,13 +771,13 @@ CreateOpenGL33EmbeddedDevice(
     }
     return CreateOpenGL33Device(
         options,
-        RenderDeviceMode::Embedded,
+        Detail::RenderDeviceMode::Embedded,
         allocator);
 }
 
-Base::Result<Base::Ref<RenderDevice>>
+Base::Result<Base::Ref<::Aero::RenderDevice>>
 CreateOpenGL33WindowDevice(
-    const OpenGL33WindowDeviceOptions& options,
+    const OpenGL33WindowSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept {
     if (!options.window.IsValid() ||
         options.width == 0U ||
@@ -788,7 +788,7 @@ CreateOpenGL33WindowDevice(
     }
     return CreateOpenGL33Device(
         options,
-        RenderDeviceMode::Window,
+        Detail::RenderDeviceMode::Window,
         allocator);
 }
 

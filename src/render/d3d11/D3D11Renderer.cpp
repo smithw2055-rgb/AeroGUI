@@ -1,4 +1,4 @@
-#include "D3D11Renderer.hpp"
+#include "D3D11Shaders.hpp"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -10,7 +10,7 @@
 
 #include <new>
 
-#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
+#if 0 // Retired native Renderer adapter; shader catalog only
 #include "../DeviceRenderer.hpp"
 #endif
 
@@ -30,7 +30,7 @@
 namespace Aero::Render {
 namespace {
 
-#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
+#if 0 // Retired native Renderer adapter; shader catalog only
 Base::Status NotInitialized(const char* message) noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::NotInitialized, message);
@@ -131,7 +131,7 @@ FrameShaderSet MakeD3D11FrameShaderSet() noexcept {
     return shaders;
 }
 
-#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
+#if 0 // Retired native Renderer adapter; shader catalog only
 struct D3D11Renderer::Impl {
     Impl(
         Graphics::GraphicsDevice& device,

@@ -9,8 +9,6 @@
 
 namespace Aero::Render {
 class DeviceRenderer;
-class D3D11Renderer;
-class OpenGL33Renderer;
 }
 
 namespace Aero::Render::Detail {
@@ -104,8 +102,6 @@ public:
     bool IsBatchingEnabled() const noexcept;
 
 private:
-    friend class ::Aero::Render::D3D11Renderer;
-    friend class ::Aero::Render::OpenGL33Renderer;
     friend class ::Aero::Render::DeviceRenderer;
     friend class RendererGlyphRunSink;
 

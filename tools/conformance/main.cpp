@@ -13,7 +13,7 @@
 #include "gui/private/Property.hpp"
 #include "integration/IntegrationPrivate.hpp"
 #include "integration/private/RenderSurface.hpp"
-#include "render/opengl33/OpenGL33Renderer.hpp"
+#include "render/opengl33/OpenGL33Shaders.hpp"
 #include "render/opengl33/OpenGL33Backend.hpp"
 
 namespace Aero::Runtime::Detail {
@@ -23,7 +23,7 @@ const Integration::RenderFrame* CurrentFrameForConformance(
 
 #if defined(_WIN32)
 #include "render/d3d11/D3D11Backend.hpp"
-#include "render/d3d11/D3D11Renderer.hpp"
+#include "render/d3d11/D3D11Shaders.hpp"
 #include "platform/win32/OpenGLSurface.hpp"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -341,9 +341,9 @@ public:
         return health;
     }
 
-    Aero::Integration::RenderFrameStatistics
+    Aero::RenderFrameStatistics
     LastFrameStatistics() const noexcept {
-        Aero::Integration::RenderFrameStatistics result;
+        Aero::RenderFrameStatistics result;
         result.drawCallCount = 1U;
         result.instanceCount = 1U;
         return result;

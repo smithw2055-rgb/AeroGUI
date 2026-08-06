@@ -18,8 +18,7 @@ aero_configure_internal_objects(AeroRenderingObjects)
 target_link_libraries(AeroRenderingObjects PUBLIC
     AeroGuiKernelObjects Aero::Base)
 target_compile_definitions(AeroRenderingObjects PRIVATE
-    AERO_HAS_OPENGL33_BACKEND=1
-    AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS=0)
+    AERO_HAS_OPENGL33_BACKEND=1)
 
 if(AERO_ENABLE_WGL_SURFACE)
     if(NOT WIN32)

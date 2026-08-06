@@ -1,15 +1,15 @@
-#include "OpenGL33Renderer.hpp"
+#include "OpenGL33Shaders.hpp"
 
 #include <new>
 
-#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
+#if 0 // Retired native Renderer adapter; shader catalog only
 #include "../DeviceRenderer.hpp"
 #endif
 
 namespace Aero::Render {
 namespace {
 
-#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
+#if 0 // Retired native Renderer adapter; shader catalog only
 Base::Status NotInitialized(const char* message) noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::NotInitialized, message);
@@ -692,7 +692,7 @@ FrameShaderSet MakeOpenGL33FrameShaderSet() noexcept {
     return shaders;
 }
 
-#if AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS
+#if 0 // Retired native Renderer adapter; shader catalog only
 struct OpenGL33Renderer::Impl {
     Impl(
         Graphics::GraphicsDevice& device,

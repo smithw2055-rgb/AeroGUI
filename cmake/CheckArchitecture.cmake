@@ -168,39 +168,70 @@ endif()
 unset(aero_public_render_device_header)
 unset(public_render_surface_leaks)
 
-# Native surface submission belongs to Integration. The old backend Renderer
-# classes remain disabled only while their shader catalogs are being renamed.
-set(aero_native_device_hosts
+# Backend-specific rendering files are shader catalogs only. Surface acquire,
+# target import, submission and presentation belong to Integration; the only
+# active renderer implementation is Render::DeviceRenderer.
+set(aero_retired_native_renderer_headers
+    "${AERO_SOURCE_DIR}/src/render/d3d11/D3D11Renderer.hpp"
+    "${AERO_SOURCE_DIR}/src/render/opengl33/OpenGL33Renderer.hpp")
+foreach(header IN LISTS aero_retired_native_renderer_headers)
+    if(EXISTS "${header}")
+        message(FATAL_ERROR
+            "Retired native Renderer header must not exist: ${header}")
+    endif()
+endforeach()
+set(aero_shader_catalog_headers
+    "${AERO_SOURCE_DIR}/src/render/d3d11/D3D11Shaders.hpp"
+    "${AERO_SOURCE_DIR}/src/render/opengl33/OpenGL33Shaders.hpp")
+foreach(header IN LISTS aero_shader_catalog_headers)
+    if(NOT EXISTS "${header}")
+        message(FATAL_ERROR
+            "Native shader catalog header is missing: ${header}")
+    endif()
+endforeach()
+file(GLOB_RECURSE aero_native_renderer_reference_scan
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/tools/*.cpp"
+    "${AERO_SOURCE_DIR}/tools/*.hpp")
+aero_collect_matches(retired_native_renderer_header_references
+    "D3D11Renderer[.]hpp|OpenGL33Renderer[.]hpp"
+    ${aero_native_renderer_reference_scan})
+if(retired_native_renderer_header_references)
+    message(FATAL_ERROR
+        "Retired native Renderer header reference remains: "
+        "${retired_native_renderer_header_references}")
+endif()
+set(aero_renderer_boundary_scan
+    "${AERO_SOURCE_DIR}/src/render/FrameEncoder.hpp"
+    "${AERO_SOURCE_DIR}/src/integration/IntegrationPrivate.hpp"
     "${AERO_SOURCE_DIR}/src/integration/D3D11Device.cpp"
-    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Device.cpp")
-aero_collect_matches(native_renderer_adapter_use
-    "Render::D3D11Renderer|Render::OpenGL33Renderer"
-    ${aero_native_device_hosts})
-if(native_renderer_adapter_use)
-    message(FATAL_ERROR
-        "Integration must drive Render::DeviceRenderer directly: "
-        "${native_renderer_adapter_use}")
-endif()
-aero_collect_matches(legacy_renderer_shader_spelling
-    "Make(D3D11|OpenGL33)RendererShaderSet"
-    ${aero_native_device_hosts}
+    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Device.cpp"
+    "${AERO_SOURCE_DIR}/src/integration/RenderSurface.cpp"
     "${AERO_SOURCE_DIR}/tools/conformance/main.cpp")
-if(legacy_renderer_shader_spelling)
+aero_collect_matches(retired_native_renderer_types
+    "D3D11Renderer|OpenGL33Renderer|D3D11EmbeddedDeviceOptions|D3D11WindowDeviceOptions|OpenGL33EmbeddedDeviceOptions|OpenGL33WindowDeviceOptions"
+    ${aero_renderer_boundary_scan})
+if(retired_native_renderer_types)
     message(FATAL_ERROR
-        "Backend shader catalogs must use FrameShaderSet vocabulary: "
-        "${legacy_renderer_shader_spelling}")
+        "Retired native Renderer or device-option alias remains active: "
+        "${retired_native_renderer_types}")
 endif()
-file(READ "${AERO_SOURCE_DIR}/cmake/AeroRenderingTargets.cmake"
-    aero_rendering_targets_content)
-if(NOT aero_rendering_targets_content MATCHES
-       "AERO_ENABLE_LEGACY_NATIVE_RENDERER_ADAPTERS=0")
+aero_collect_matches(private_rendering_aliases
+    "using[ \t]+(RenderDevice|RenderDeviceMode|RenderPresentMode|RenderDeviceState|RenderDeviceStatistics|RenderFrameStatistics)[ \t]*="
+    "${AERO_SOURCE_DIR}/src/integration/IntegrationPrivate.hpp")
+if(private_rendering_aliases)
     message(FATAL_ERROR
-        "Legacy native Renderer adapters must remain disabled")
+        "IntegrationPrivate must not re-export rendering type aliases: "
+        "${private_rendering_aliases}")
 endif()
-unset(aero_native_device_hosts)
-unset(native_renderer_adapter_use)
-unset(legacy_renderer_shader_spelling)
-unset(aero_rendering_targets_content)
+unset(aero_retired_native_renderer_headers)
+unset(aero_shader_catalog_headers)
+unset(aero_native_renderer_reference_scan)
+unset(retired_native_renderer_header_references)
+unset(aero_renderer_boundary_scan)
+unset(retired_native_renderer_types)
+unset(private_rendering_aliases)
 
 set(aero_public_style_headers
     "${AERO_SOURCE_DIR}/include/Aero/Style.hpp"

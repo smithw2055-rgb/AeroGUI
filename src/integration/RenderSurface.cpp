@@ -13,17 +13,17 @@ namespace Aero::Integration {
 // ownership are physically separated in the backend implementation files.
 #if defined(_WIN32)
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11EmbeddedDevice(
-    const D3D11EmbeddedDeviceOptions& options,
+    const D3D11EmbeddedSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept;
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11WindowDevice(
-    const D3D11WindowDeviceOptions& options,
+    const D3D11WindowSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept;
 #endif
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33EmbeddedDevice(
-    const OpenGL33EmbeddedDeviceOptions& options,
+    const OpenGL33EmbeddedSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept;
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33WindowDevice(
-    const OpenGL33WindowDeviceOptions& options,
+    const OpenGL33WindowSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept;
 
 RenderSurface::RenderSurface(

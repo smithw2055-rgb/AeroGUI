@@ -3,7 +3,7 @@
 #include "integration/IntegrationPrivate.hpp"
 
 #include "render/DeviceRenderer.hpp"
-#include "render/d3d11/D3D11Renderer.hpp"
+#include "render/d3d11/D3D11Shaders.hpp"
 #include "render/d3d11/D3D11Backend.hpp"
 
 #include <new>
@@ -17,13 +17,13 @@ Base::Status InvalidArgument(const char* message) noexcept {
 }
 
 Graphics::PresentMode ToRhiPresentMode(
-    RenderPresentMode value) noexcept {
+    PresentMode value) noexcept {
     switch (value) {
-    case RenderPresentMode::Immediate:
+    case PresentMode::Immediate:
         return Graphics::PresentMode::Immediate;
-    case RenderPresentMode::Mailbox:
+    case PresentMode::Mailbox:
         return Graphics::PresentMode::Mailbox;
-    case RenderPresentMode::Fifo:
+    case PresentMode::Fifo:
         return Graphics::PresentMode::Fifo;
     }
     return Graphics::PresentMode::Fifo;
@@ -33,7 +33,7 @@ class D3D11EmbeddedSurface
     : public Graphics::ISurfaceBackend {
 public:
     explicit D3D11EmbeddedSurface(
-        const D3D11EmbeddedDeviceOptions& options) noexcept
+        const D3D11EmbeddedSurfaceOptions& options) noexcept
         : options_(options) {}
 
     Graphics::SurfaceCapabilities
@@ -125,21 +125,21 @@ public:
     }
 
 private:
-    D3D11EmbeddedDeviceOptions options_;
+    D3D11EmbeddedSurfaceOptions options_;
     bool lost_ = false;
 };
 
 class D3D11DeviceState {
 public:
     D3D11DeviceState(
-        const D3D11WindowDeviceOptions& options,
+        const D3D11WindowSurfaceOptions& options,
         Base::IAllocator& allocator) noexcept
         : allocator_(&allocator),
           windowOptions_(options),
           embedded_(false) {}
 
     D3D11DeviceState(
-        const D3D11EmbeddedDeviceOptions& options,
+        const D3D11EmbeddedSurfaceOptions& options,
         Base::IAllocator& allocator) noexcept
         : allocator_(&allocator),
           embeddedOptions_(options),
@@ -405,9 +405,9 @@ public:
             : Detail::BackendHealth::Failed;
     }
 
-    RenderFrameStatistics
+    ::Aero::RenderFrameStatistics
     LastFrameStatistics() const noexcept {
-        RenderFrameStatistics result;
+        ::Aero::RenderFrameStatistics result;
         if (renderer_ == nullptr) return result;
         const Render::FrameEncoderStatistics source =
             renderer_->LastStatistics();
@@ -514,8 +514,8 @@ private:
     }
 
     Base::IAllocator* allocator_ = nullptr;
-    D3D11WindowDeviceOptions windowOptions_;
-    D3D11EmbeddedDeviceOptions embeddedOptions_;
+    D3D11WindowSurfaceOptions windowOptions_;
+    D3D11EmbeddedSurfaceOptions embeddedOptions_;
     bool embedded_ = false;
     bool initialized_ = false;
     bool surfaceLost_ = false;
@@ -533,10 +533,10 @@ private:
 };
 
 template<class TOptions>
-Base::Result<Base::Ref<RenderDevice>>
+Base::Result<Base::Ref<::Aero::RenderDevice>>
 CreateD3D11Device(
     const TOptions& options,
-    RenderDeviceMode mode,
+    Detail::RenderDeviceMode mode,
     Base::IAllocator* allocator) noexcept {
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
@@ -559,9 +559,9 @@ CreateD3D11Device(
 
 } // namespace
 
-Base::Result<Base::Ref<RenderDevice>>
+Base::Result<Base::Ref<::Aero::RenderDevice>>
 CreateD3D11EmbeddedDevice(
-    const D3D11EmbeddedDeviceOptions& options,
+    const D3D11EmbeddedSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept {
     if (options.device == 0U ||
         options.immediateContext == 0U ||
@@ -572,13 +572,13 @@ CreateD3D11EmbeddedDevice(
     }
     return CreateD3D11Device(
         options,
-        RenderDeviceMode::Embedded,
+        Detail::RenderDeviceMode::Embedded,
         allocator);
 }
 
-Base::Result<Base::Ref<RenderDevice>>
+Base::Result<Base::Ref<::Aero::RenderDevice>>
 CreateD3D11WindowDevice(
-    const D3D11WindowDeviceOptions& options,
+    const D3D11WindowSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept {
     if (!options.window.IsValid() ||
         options.window.system !=
@@ -591,7 +591,7 @@ CreateD3D11WindowDevice(
     }
     return CreateD3D11Device(
         options,
-        RenderDeviceMode::Window,
+        Detail::RenderDeviceMode::Window,
         allocator);
 }
 
