@@ -5,7 +5,7 @@
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Stream.hpp>
-#include <Aero/Integration/Providers/XamlProvider.hpp>
+#include <Aero/Markup/XamlProvider.hpp>
 
 #include <cstdint>
 

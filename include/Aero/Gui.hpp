@@ -1,8 +1,8 @@
 #pragma once
 
-// Public retained-mode WPF/XAML class library surface. This header contains UI
-// semantics only; application lifetime lives in Aero/App.hpp, metadata authoring
-// in Aero/Meta.hpp and engine/backend integration in Aero/Integration.hpp.
+// Complete embeddable WPF/XAML product surface. Application lifetime remains
+// optional in <Aero/App.hpp>; concrete D3D11/OpenGL factories are opt-in under
+// <Aero/Render/>.
 #include <Aero/DependencyObject.hpp>
 #include <Aero/Freezable.hpp>
 #include <Aero/ContentElement.hpp>
@@ -16,14 +16,27 @@
 #include <Aero/Data.hpp>
 #include <Aero/DrawingContext.hpp>
 #include <Aero/Input.hpp>
+#include <Aero/Input/Platform.hpp>
 #include <Aero/Animation.hpp>
 #include <Aero/Triggers/Triggers.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Media/Images.hpp>
+#include <Aero/Media/TextureProvider.hpp>
 #include <Aero/Media/Transforms.hpp>
+#include <Aero/Text/FontProvider.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Threading.hpp>
+
+#include <Aero/Markup.hpp>
+#include <Aero/Markup/XamlProvider.hpp>
+#include <Aero/Markup/ReloadCoordinator.hpp>
+#include <Aero/View.hpp>
+#include <Aero/ViewOptions.hpp>
+#include <Aero/IRenderer.hpp>
+#include <Aero/RenderDevice.hpp>
+#include <Aero/RenderSurface.hpp>
+#include <Aero/Platform/NativeWindow.hpp>

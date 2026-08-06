@@ -1,4 +1,4 @@
-#include <Aero/Integration/OpenGL33.hpp>
+#include <Aero/Render/OpenGL33.hpp>
 
 namespace {
 

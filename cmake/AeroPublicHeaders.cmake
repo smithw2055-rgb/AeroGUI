@@ -59,21 +59,19 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Freezable.hpp
     include/Aero/Gui.hpp
     include/Aero/Input.hpp
-    include/Aero/Integration.hpp
     include/Aero/IRenderer.hpp
-    include/Aero/Integration/Platform.hpp
-    include/Aero/Integration/NativeWindow.hpp
+    include/Aero/Input/Platform.hpp
+    include/Aero/Platform/NativeWindow.hpp
     include/Aero/RenderDevice.hpp
     include/Aero/View.hpp
-    include/Aero/Integration/D3D11.hpp
-    include/Aero/Integration/OpenGL33.hpp
-    include/Aero/Integration/ReloadCoordinator.hpp
-    include/Aero/Integration/RenderSurface.hpp
-    include/Aero/Integration/Providers/FontProvider.hpp
-    include/Aero/Integration/Providers/Providers.hpp
-    include/Aero/Integration/Providers/TextureProvider.hpp
-    include/Aero/Integration/Providers/XamlProvider.hpp
-    include/Aero/Integration/ViewOptions.hpp
+    include/Aero/Render/D3D11.hpp
+    include/Aero/Render/OpenGL33.hpp
+    include/Aero/Markup/ReloadCoordinator.hpp
+    include/Aero/RenderSurface.hpp
+    include/Aero/Text/FontProvider.hpp
+    include/Aero/Media/TextureProvider.hpp
+    include/Aero/Markup/XamlProvider.hpp
+    include/Aero/ViewOptions.hpp
     include/Aero/App/WindowInterop.hpp
     include/Aero/Layout.hpp
     include/Aero/Markup.hpp

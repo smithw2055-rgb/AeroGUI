@@ -1,7 +1,6 @@
-#include <Aero/Integration/Providers/FontProvider.hpp>
-#include <Aero/Integration/Providers/TextureProvider.hpp>
-#include <Aero/Integration/Providers/XamlProvider.hpp>
-#include <Aero/Integration/Providers/Providers.hpp>
+#include <Aero/Text/FontProvider.hpp>
+#include <Aero/Media/TextureProvider.hpp>
+#include <Aero/Markup/XamlProvider.hpp>
 
 #include <type_traits>
 

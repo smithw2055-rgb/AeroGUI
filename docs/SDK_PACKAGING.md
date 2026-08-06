@@ -97,7 +97,7 @@ opt-in C++ API groups; they do not correspond to a second product binary:
 
 ```cpp
 #include <Aero/Gui.hpp>
-#include <Aero/Integration/D3D11.hpp>
+#include <Aero/Render/D3D11.hpp>
 #include <Aero/Markup.hpp>
 
 Aero::Gui gui;
@@ -121,14 +121,29 @@ view->GetRenderer().Render(*target);
 
 Concrete backend factories remain opt-in:
 
-- `Aero/Integration/D3D11.hpp`;
-- `Aero/Integration/OpenGL33.hpp`.
+- `Aero/Render/D3D11.hpp`;
+- `Aero/Render/OpenGL33.hpp`.
 
-These paths are API grouping only. The installed CMake package intentionally
-does not export `Aero::Integration`. Public integration headers do not expose
+The installed CMake package intentionally does not export `Aero::Integration`.
+Domain-owned host headers do not expose
 immutable RenderFrame storage, command streams, caches or native backend
 resource handles. Submission is synchronous on the caller-selected thread;
 applications and engines own render threads, queues and frame-coalescing policy.
+
+
+The installed public paths are ownership-oriented:
+
+- `Aero/ViewOptions.hpp` and `Aero/RenderSurface.hpp` — View and presentation contracts;
+- `Aero/Markup/XamlProvider.hpp` and `Aero/Markup/ReloadCoordinator.hpp`;
+- `Aero/Media/TextureProvider.hpp`;
+- `Aero/Text/FontProvider.hpp`;
+- `Aero/Input/Platform.hpp` and `Aero/Platform/NativeWindow.hpp`;
+- `Aero/Render/D3D11.hpp` and `Aero/Render/OpenGL33.hpp`.
+
+There is no installed `Aero/Integration.hpp` umbrella or
+`Aero/Integration/` directory. The implementation namespace remains
+`Aero::Integration` during S4 and is migrated separately so path changes do not
+coincide with a repository-wide type rename.
 
 ## XAML tools
 

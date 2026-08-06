@@ -60,17 +60,15 @@ Application/Window model + desktop host + native window/input
 
 They are not exported as SDK products.
 
-## Follow-up
+## S4 header ownership
 
-The next stage may move the remaining public headers from
-`Aero/Integration/...` into their semantic products:
+The public-header migration is complete. Installed headers no longer use
+`Aero/Integration.hpp` or `Aero/Integration/...`. Contracts are physically
+owned by View, Input, Platform, Markup, Media, Text and Render paths.
 
-- View options into Gui;
-- XAML providers into Markup;
-- font providers into Text;
-- texture providers into Media;
-- backend factories into Render;
-- native window contracts into App.
+Source files may temporarily include the retired paths through non-installed
+forwarders under `src/compat/include`; those forwarders are build scaffolding,
+not an SDK compatibility promise or a second product layer.
 
-That physical migration must preserve the product boundary established here:
-it must not recreate an Integration library, facade target or service layer.
+The next stage may migrate the remaining `Aero::Integration` C++ namespace and
+then delete the private forwarders.

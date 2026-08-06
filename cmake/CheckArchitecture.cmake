@@ -31,6 +31,14 @@ if(aero_public_detail_headers)
         "${aero_public_detail_headers}")
 endif()
 
+if(EXISTS "${AERO_SOURCE_DIR}/include/Aero/Integration.hpp" OR
+   IS_DIRECTORY "${AERO_SOURCE_DIR}/include/Aero/Integration")
+    message(FATAL_ERROR
+        "The installed SDK must not recreate the retired Integration header "
+        "group; use Gui, View, Input, Platform, Markup, Media, Text and Render "
+        "ownership paths")
+endif()
+
 file(GLOB aero_control_public_headers
     "${AERO_SOURCE_DIR}/include/Aero/Controls/*.hpp")
 list(LENGTH aero_control_public_headers aero_control_public_header_count)
@@ -1446,7 +1454,16 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Markup.hpp"
         "include/Aero/Meta.hpp"
         "include/Aero/Value.hpp"
-        "include/Aero/Integration/Platform.hpp")
+        "include/Aero/ViewOptions.hpp"
+        "include/Aero/Input/Platform.hpp"
+        "include/Aero/Platform/NativeWindow.hpp"
+        "include/Aero/RenderSurface.hpp"
+        "include/Aero/Render/D3D11.hpp"
+        "include/Aero/Render/OpenGL33.hpp"
+        "include/Aero/Markup/XamlProvider.hpp"
+        "include/Aero/Markup/ReloadCoordinator.hpp"
+        "include/Aero/Media/TextureProvider.hpp"
+        "include/Aero/Text/FontProvider.hpp")
     if(NOT EXISTS "${AERO_SOURCE_DIR}/${required_public_entry}")
         message(FATAL_ERROR
             "Required converged SDK entry is missing: ${required_public_entry}")
@@ -1693,5 +1710,20 @@ if(aero_install_r4_content MATCHES
     message(FATAL_ERROR
         "Installed CMake targets expose an internal object library")
 endif()
+
+set(retired_public_integration_paths)
+foreach(relative IN LISTS AERO_PUBLIC_HEADERS)
+    file(READ "${AERO_SOURCE_DIR}/${relative}" public_header_content)
+    if(public_header_content MATCHES "Aero/Integration(/|[.]hpp)")
+        list(APPEND retired_public_integration_paths "${relative}")
+    endif()
+endforeach()
+if(retired_public_integration_paths)
+    message(FATAL_ERROR
+        "Installed headers still include a retired Integration path: "
+        "${retired_public_integration_paths}")
+endif()
+unset(public_header_content)
+unset(retired_public_integration_paths)
 
 message(STATUS "Aero architecture dependency checks passed")

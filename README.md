@@ -9,8 +9,8 @@ AeroGUI exposes a small product surface organized by WPF semantics:
 - `Aero/App.hpp` + `Aero::App` add the optional default desktop lifetime;
   ordinary C++ applications call `Aero::Application::Run()`, while
   `Aero::App::Run()` is reserved for generated `App.xaml` bootstrap code.
-- `Aero/Integration.hpp` groups opt-in host and backend C++ APIs. These APIs
-  are implemented by `Aero::Gui`; there is no separate Integration product.
+- Host contracts are grouped by their real domains under `Aero/Input`,
+  `Aero/Markup`, `Aero/Media`, `Aero/Text`, `Aero/Platform` and `Aero/Render`.
 - `Aero/Meta.hpp` / `Aero/Module.hpp` + `Aero::Meta` provide typed custom-type
   and module authoring.
 
@@ -18,8 +18,8 @@ Legacy host facades, service locators, graphics support targets and runtime
 manager classes are implementation details. The installed tree is an explicit
 whitelist, has no `Aero/Detail` directory, and groups all standard controls into
 six stable family headers. D3D11 and OpenGL factories remain opt-in headers
-under `Aero/Integration`; private backends consume the same Renderer and
-RenderDevice contracts. See [`docs/WINDOW_HOSTING.md`](docs/WINDOW_HOSTING.md),
+under `Aero/Render`; private backends consume the same Renderer and RenderDevice
+contracts. See [`docs/WINDOW_HOSTING.md`](docs/WINDOW_HOSTING.md),
 [`docs/SDK_PACKAGING.md`](docs/SDK_PACKAGING.md), and
 [`docs/spec/PUBLIC_HEADER_MODEL.md`](docs/spec/PUBLIC_HEADER_MODEL.md).
 

@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Integration/Platform.hpp>
+#include <Aero/Input/Platform.hpp>
 
 namespace Aero::Integration {
 

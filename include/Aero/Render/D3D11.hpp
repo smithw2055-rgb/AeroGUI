@@ -3,8 +3,8 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Integration/RenderSurface.hpp>
-#include <Aero/Integration/NativeWindow.hpp>
+#include <Aero/RenderSurface.hpp>
+#include <Aero/Platform/NativeWindow.hpp>
 
 #include <cstdint>
 

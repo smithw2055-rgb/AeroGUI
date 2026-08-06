@@ -41,7 +41,7 @@ target_compile_definitions(AeroGui PRIVATE
     AERO_HAS_GLX_SURFACE=$<BOOL:${AERO_ENABLE_GLX_SURFACE}>)
 
 add_library(AeroRuntimeHeaderConsumer OBJECT
-    tools/sdk-consumers/IntegrationConsumer.cpp)
+    tools/sdk-consumers/GuiRuntimeConsumer.cpp)
 target_link_libraries(
     AeroRuntimeHeaderConsumer PRIVATE Aero::Gui)
 aero_apply_compiler_options(AeroRuntimeHeaderConsumer)
@@ -53,13 +53,13 @@ target_link_libraries(
 aero_apply_compiler_options(AeroProvidersHeaderConsumer)
 
 add_library(AeroD3D11HeaderConsumer OBJECT
-    tools/sdk-consumers/D3D11IntegrationConsumer.cpp)
+    tools/sdk-consumers/D3D11Consumer.cpp)
 target_link_libraries(
     AeroD3D11HeaderConsumer PRIVATE Aero::Gui)
 aero_apply_compiler_options(AeroD3D11HeaderConsumer)
 
 add_library(AeroOpenGL33HeaderConsumer OBJECT
-    tools/sdk-consumers/OpenGL33IntegrationConsumer.cpp)
+    tools/sdk-consumers/OpenGL33Consumer.cpp)
 target_link_libraries(
     AeroOpenGL33HeaderConsumer PRIVATE Aero::Gui)
 aero_apply_compiler_options(AeroOpenGL33HeaderConsumer)
