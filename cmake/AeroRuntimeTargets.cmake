@@ -1,5 +1,5 @@
-# View/runtime composition is folded into the Integration product. Keeping it
-# as an object component preserves source ownership without another SDK binary.
+# View/runtime composition is folded directly into AeroGui. Keeping it as an
+# object component preserves source ownership without another SDK binary.
 add_library(AeroRuntimeObjects OBJECT
     src/runtime/Gui.cpp
     src/runtime/View.cpp

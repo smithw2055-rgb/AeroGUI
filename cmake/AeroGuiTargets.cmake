@@ -156,7 +156,7 @@ target_link_libraries(AeroMarkupObjects PUBLIC
 target_compile_definitions(AeroMarkupObjects PRIVATE
     AERO_MARKUP_UI_RESOURCES=1)
 
-# Platform-neutral module/schema composition is folded into Integration and the
+# Platform-neutral module/schema composition is folded into AeroGui and the
 # offline tools. It must not depend on the optional App object model.
 add_library(AeroModuleSetObjects OBJECT
     src/runtime/modules/Module.cpp

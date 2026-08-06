@@ -1,32 +1,31 @@
 # AeroGUI SDK packaging and boundary
 
-The installed package exposes six product targets and no Aero implementation
+The installed package exposes five product targets and no Aero implementation
 archives:
 
 ```cmake
 find_package(Aero 0.3 CONFIG REQUIRED)
 
 target_link_libraries(MyControls PRIVATE Aero::Gui Aero::Meta)
+target_link_libraries(EngineHost PRIVATE Aero::Gui)
 target_link_libraries(DesktopApp PRIVATE Aero::App)
-target_link_libraries(EngineHost PRIVATE Aero::Integration)
 target_link_libraries(AudioFeature PRIVATE Aero::Audio)
 ```
 
 - `Aero::Base` — allocator, strings, containers, ownership and ABI foundation.
-- `Aero::Gui` — retained WPF/XAML object model, controls, markup and drawing.
+- `Aero::Gui` — the complete embeddable WPF/XAML runtime: object model,
+  controls, markup, View, providers and native GPU rendering.
 - `Aero::Meta` — typed metadata and module authoring layered over Gui.
-- `Aero::Integration` — View, XAML/font/texture providers and native renderer integration.
-- `Aero::App` — optional default native desktop lifetime.
+- `Aero::App` — optional default native desktop lifetime layered over Gui.
 - `Aero::Audio` — optional audio product independent from Application lifetime.
 
 Internal Gui, Controls, Markup, Runtime, text-provider and rendering domains
-compile as build-only object components. They are folded into the product
-binaries and never appear in `AeroTargets.cmake`. Static packages additionally
-carry only the vendored archives required to resolve private third-party
-symbols. Their imported names are `_PrivateFreeType`, `_PrivateHarfBuzz` and,
-when applicable, `_PrivateExpat`; they are not Aero SDK layers and carry no
-source-compatibility promise. Shared packages export only the six product
-targets.
+compile as build-only object components. They are folded into `Aero::Gui` and
+never appear in `AeroTargets.cmake`. Static packages additionally carry only
+the vendored archives required to resolve private third-party symbols. Their
+imported names are `_PrivateFreeType`, `_PrivateHarfBuzz` and, when applicable,
+`_PrivateExpat`; they are not Aero SDK layers and carry no source-compatibility
+promise. Shared packages export only the five product targets.
 
 The installed header set is declared explicitly in
 `cmake/AeroPublicHeaders.cmake`; the build does not recursively install the
@@ -91,29 +90,33 @@ embedded UI instances remain a `Gui`/`View` responsibility.
 Audio and other optional subsystems are separate products; constructing an
 Application never creates unrelated platform devices.
 
-## Integration and backend opt-in
+## Embedding and backend opt-in
 
-Engine/editor/native hosts link `Aero::Integration`, initialize one environment,
-load XAML through `Markup::XamlReader`, and create Views directly:
+Engine, editor and native hosts link only `Aero::Gui`. Backend headers remain
+opt-in C++ API groups; they do not correspond to a second product binary:
 
 ```cpp
-#include <Aero/Integration.hpp>
+#include <Aero/Gui.hpp>
 #include <Aero/Integration/D3D11.hpp>
-#include <Aero/Markup/XamlReader.hpp>
+#include <Aero/Markup.hpp>
 
-Aero::Gui environment;
-environment.AddModule(MyModule);
-environment.Initialize();
+Aero::Gui gui;
+gui.AddModule(MyModule);
+gui.Initialize();
 
-Aero::Integration::ViewOptions options;
-options.renderDevice =
-    Aero::Integration::CreateD3D11WindowDevice(endpointOptions).Value();
+Aero::Integration::D3D11WindowSurfaceOptions targetOptions;
+auto target =
+    Aero::Integration::CreateD3D11WindowSurface(targetOptions).Value();
+auto view = gui.CreateView().Value();
+view->GetRenderer().Init(target->GetDevice());
 
-auto view = environment.CreateView(options).Value();
 Aero::Markup::XamlReader reader(*view);
 auto document = reader.Load("MainWindow.xaml").Value();
 view->SetContent(std::move(document), {1280.0, 720.0});
 view->Update(16U);
+view->GetRenderer().UpdateRenderTree();
+view->GetRenderer().RenderOffscreen();
+view->GetRenderer().Render(*target);
 ```
 
 Concrete backend factories remain opt-in:
@@ -121,10 +124,11 @@ Concrete backend factories remain opt-in:
 - `Aero/Integration/D3D11.hpp`;
 - `Aero/Integration/OpenGL33.hpp`.
 
-The default integration headers do not expose immutable RenderFrame storage,
-RenderDevice command streams, caches or native backend resource handles.
-Submission is synchronous on the caller-selected thread; applications and
-engines own render threads, queues and frame-coalescing policy.
+These paths are API grouping only. The installed CMake package intentionally
+does not export `Aero::Integration`. Public integration headers do not expose
+immutable RenderFrame storage, command streams, caches or native backend
+resource handles. Submission is synchronous on the caller-selected thread;
+applications and engines own render threads, queues and frame-coalescing policy.
 
 ## XAML tools
 
@@ -149,13 +153,11 @@ support libraries:
 ```text
 AeroGuiKernelObjects + AeroTextObjects + AeroControlsObjects
 + AeroMarkupKernelObjects + AeroMarkupObjects + AeroInspectorObjects
++ AeroModuleSetObjects + AeroRuntimeObjects + AeroRenderingObjects
++ built-in text-provider objects + native backend factories
     -> Aero::Gui
 
-AeroAppModelObjects + AeroModuleSetObjects + AeroRuntimeObjects
-+ AeroRenderingObjects + built-in text-provider objects
-    -> Aero::Integration
-
-private desktop host + OS window/input adapters
+AeroAppModelObjects + private desktop host + OS window/input adapters
     -> Aero::App
 ```
 
@@ -163,7 +165,7 @@ This model has three consequences:
 
 1. an installed consumer sees product concepts rather than repository topology;
 2. static and shared packages use the same public dependency graph;
-3. internal refactoring does not create or rename imported SDK targets.
+3. internal refactoring does not create repository-shaped support products.
 
 ## Version domains
 
@@ -181,6 +183,6 @@ freezing.
 
 ## Platform implementation ownership
 
-There is no standalone platform target. Platform-neutral contracts are part of
-Integration; reusable memory-backed services are implemented there, while the
-default OS window, clipboard and IME adapters are private App sources.
+There is no standalone platform target. Platform-neutral contracts and reusable
+memory-backed services are part of `Aero::Gui`; the default OS window, clipboard
+and IME adapters remain private `Aero::App` sources.

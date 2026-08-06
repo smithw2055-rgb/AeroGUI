@@ -5,7 +5,7 @@ endif()
 add_executable(aero-conformance
     tools/conformance/main.cpp)
 target_link_libraries(aero-conformance PRIVATE
-    Aero::Integration)
+    Aero::Gui)
 if(WIN32)
     target_link_libraries(aero-conformance PRIVATE
         d3d11 dxgi d3dcompiler gdi32 opengl32 user32)
@@ -22,7 +22,7 @@ aero_apply_compiler_options(aero-conformance)
 add_executable(aero-control-gallery-conformance
     tools/control-gallery-conformance/main.cpp)
 target_link_libraries(aero-control-gallery-conformance PRIVATE
-    Aero::Integration)
+    Aero::Gui)
 target_include_directories(aero-control-gallery-conformance PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_features(aero-control-gallery-conformance PRIVATE cxx_std_17)
@@ -35,7 +35,7 @@ aero_apply_compiler_options(aero-control-gallery-conformance)
 add_executable(aero-inventory-conformance
     tools/inventory-conformance/main.cpp)
 target_link_libraries(aero-inventory-conformance PRIVATE
-    Aero::Integration)
+    Aero::Gui)
 target_include_directories(aero-inventory-conformance PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_features(aero-inventory-conformance PRIVATE cxx_std_17)
@@ -48,7 +48,7 @@ aero_apply_compiler_options(aero-inventory-conformance)
 add_executable(aero-background-blur-conformance
     tools/background-blur-conformance/main.cpp)
 target_link_libraries(aero-background-blur-conformance PRIVATE
-    Aero::Integration)
+    Aero::Gui)
 target_include_directories(aero-background-blur-conformance PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_features(aero-background-blur-conformance PRIVATE cxx_std_17)

@@ -1,5 +1,5 @@
 # Private retained renderer, render device, native backends and shader catalogs.
-# Integration owns native surface acquisition/presentation; DeviceRenderer is
+# AeroGui owns native surface acquisition and presentation; DeviceRenderer is
 # the only active frame encoder and shared GPU resource owner.
 add_library(AeroRenderingObjects OBJECT
     src/render/RenderDevice.cpp

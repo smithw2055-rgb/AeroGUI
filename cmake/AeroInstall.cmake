@@ -5,7 +5,6 @@ set_target_properties(AeroBase PROPERTIES EXPORT_NAME Base)
 set_target_properties(AeroAudio PROPERTIES EXPORT_NAME Audio)
 set_target_properties(AeroGui PROPERTIES EXPORT_NAME Gui)
 set_target_properties(AeroMeta PROPERTIES EXPORT_NAME Meta)
-set_target_properties(AeroIntegration PROPERTIES EXPORT_NAME Integration)
 set_target_properties(AeroApp PROPERTIES EXPORT_NAME App)
 
 set(_aero_sdk_targets
@@ -13,7 +12,6 @@ set(_aero_sdk_targets
     AeroAudio
     AeroGui
     AeroMeta
-    AeroIntegration
     AeroApp)
 
 if(NOT AERO_BUILD_SHARED)

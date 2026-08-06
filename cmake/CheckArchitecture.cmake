@@ -1647,7 +1647,6 @@ endif()
 set(aero_product_entry_checks
     "include/Aero/Gui.hpp|Aero::Gui"
     "include/Aero/App.hpp|Aero::App"
-    "include/Aero/Integration.hpp|Aero::Integration"
     "include/Aero/Meta.hpp|Aero::Meta")
 foreach(product_check IN LISTS aero_product_entry_checks)
     string(REPLACE "|" ";" product_parts "${product_check}")
