@@ -401,11 +401,11 @@ Base::Result<void> PasswordBox::SelectAll() noexcept {
 }
 
 void PasswordBox::SetInputMethodHost(
-    Integration::ITextInputMethodHost* host) noexcept {
+    Input::ITextInputMethodHost* host) noexcept {
     (void)editor_.SetInputMethodHost(host);
 }
 
-Integration::ITextInputMethodHost*
+Input::ITextInputMethodHost*
 PasswordBox::GetInputMethodHost() const noexcept {
     return editor_.GetInputMethodHost();
 }
@@ -795,7 +795,7 @@ Base::Result<void> TextBox::AttachScrollViewer(
 }
 
 void TextBox::SetInputMethodHost(
-    Integration::ITextInputMethodHost* host) noexcept {
+    Input::ITextInputMethodHost* host) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) {
         return;
@@ -1266,7 +1266,7 @@ Base::Result<void> TextBox::SelectedText(
 }
 
 Base::Result<void> TextBox::CopySelection(
-    Integration::IClipboard& clipboard) const noexcept {
+    Input::IClipboard& clipboard) const noexcept {
     if (!DisplayPolicy(displayPolicy_)->AllowsCopy()) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
@@ -1286,7 +1286,7 @@ Base::Result<void> TextBox::CopySelection(
 }
 
 Base::Result<void> TextBox::CutSelection(
-    Integration::IClipboard& clipboard) noexcept {
+    Input::IClipboard& clipboard) noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
             CancelCompositionForFocusLoss();
@@ -1323,7 +1323,7 @@ Base::Result<void> TextBox::CutSelection(
 }
 
 Base::Result<void> TextBox::Paste(
-    Integration::IClipboard& clipboard) noexcept {
+    Input::IClipboard& clipboard) noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
             CancelCompositionForFocusLoss();
@@ -2180,7 +2180,7 @@ TextBox::UpdateCandidateWindow() noexcept {
         !compositionActive_) {
         return {};
     }
-    Integration::ImeCandidateWindow candidate;
+    Input::ImeCandidateWindow candidate;
     Rect caret = GetCaretRectangle();
     caret.x += GetPadding().left;
     caret.y += GetPadding().top;
@@ -2210,7 +2210,7 @@ Impl(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input,
-    Integration::IClipboard& clipboard) noexcept
+    Input::IClipboard& clipboard) noexcept
     : tree_(&tree),
       events_(&events),
       input_(&input),

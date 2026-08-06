@@ -164,7 +164,7 @@ Base::Result<bool> ImageCache::Synchronize(
     Aero::Visual* root,
     const Base::ResourceUri& documentUri,
     Markup::XamlProviderRegistry& sources,
-    Integration::TextureProvider* textureProvider,
+    Media::TextureProvider* textureProvider,
     ImageResources* backend,
     bool backendGenerationChanged) noexcept {
     ++epoch_;
@@ -343,7 +343,7 @@ Base::Result<bool> ImageCache::Synchronize(
 
             Base::Ref<Base::Stream> imageStream;
             if (textureProvider != nullptr) {
-                Base::Result<Integration::TextureResourceInfo>
+                Base::Result<Media::TextureResourceInfo>
                     loadedTexture = textureProvider->Open(
                         resolved.Value());
                 if (!loadedTexture) return loadedTexture.GetStatus();
@@ -359,7 +359,7 @@ Base::Result<bool> ImageCache::Synchronize(
                         Base::ErrorCode::NotFound,
                         "Image XAML provider was not found");
                 }
-                Base::Result<Integration::StreamResourceInfo>
+                Base::Result<Markup::StreamResourceInfo>
                     loaded = provider.Value().provider->Open(
                         resolved.Value());
                 if (!loaded) return loaded.GetStatus();

@@ -22,20 +22,14 @@ ownership:
 `Aero/Gui.hpp` is the normal embeddable product umbrella. Backend factories
 remain explicit opt-in includes.
 
-## Source transition
+## Source closure
 
-Existing implementation files are not all renamed in the same patch. A private
-forwarding tree under `src/compat/include` maps retired include spellings to the
-new public paths. CMake exposes that directory only while building AeroGUI; it
-is never installed or exported.
+S5A-S5D completed the implementation migration. Repository sources include the
+ownership-oriented headers directly, and the former `src/compat/include`
+forwarding tree has been removed. The build does not add a compatibility include
+path.
 
-This is intentionally narrower than public compatibility:
-
-- external code using an old include fails immediately;
-- the public header whitelist contains only the new paths;
-- architecture checks reject any old path from installed headers;
-- no `AeroIntegration` library or `Aero::Integration` CMake target is recreated.
-
-S5A establishes those ownership domains as the canonical C++ authoring
-surface. Selected ABI-bearing declarations retain legacy spellings until S5B
-finishes the implementation migration.
+External code using a retired include fails immediately, the public header
+whitelist contains only canonical paths, and architecture checks reject a
+recreated compatibility tree or old include spelling. No `AeroIntegration`
+library or `Aero::Integration` CMake target is recreated.

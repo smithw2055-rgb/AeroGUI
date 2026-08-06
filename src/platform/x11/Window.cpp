@@ -653,11 +653,11 @@ double X11Window::DpiScale() const noexcept {
     return impl_ != nullptr ? impl_->dpiScale : 1.0;
 }
 
-Integration::NativeWindowHandle X11Window::NativeHandle() const noexcept {
-    Integration::NativeWindowHandle handle;
+NativeWindowHandle X11Window::NativeHandle() const noexcept {
+    NativeWindowHandle handle;
 #if AERO_PLATFORM_HAS_X11_WINDOW
     if (impl_ != nullptr) {
-        handle.system = Integration::WindowSystem::X11;
+        handle.system = WindowSystem::X11;
         handle.display = reinterpret_cast<std::uintptr_t>(impl_->display);
         handle.window = static_cast<std::uintptr_t>(impl_->window);
     }

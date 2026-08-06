@@ -1786,4 +1786,48 @@ unset(aero_render_surface_public_header)
 unset(aero_render_device_public_header)
 unset(aero_view_renderer_header)
 
+# S5D removes the source compatibility include tree. Backend implementation
+# declarations live in one normal private header; no C++ source may include a
+# retired installed path.
+if(IS_DIRECTORY "${AERO_SOURCE_DIR}/src/compat/include")
+    message(FATAL_ERROR
+        "The retired source compatibility include tree must not exist")
+endif()
+file(READ "${AERO_SOURCE_DIR}/CMakeLists.txt"
+    aero_root_cmake_content)
+if(aero_root_cmake_content MATCHES "src/compat/include")
+    message(FATAL_ERROR
+        "CMake must not inject the retired compatibility include path")
+endif()
+file(GLOB_RECURSE aero_retired_integration_include_scan
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/tools/*.cpp"
+    "${AERO_SOURCE_DIR}/tools/*.hpp")
+aero_collect_matches(retired_integration_include_paths
+    "#[ \\t]*include[ \\t]*[<\"]Aero/Integration(/|[.]hpp)"
+    ${aero_retired_integration_include_scan})
+if(retired_integration_include_paths)
+    message(FATAL_ERROR
+        "Retired Integration include path remains: "
+        "${retired_integration_include_paths}")
+endif()
+aero_collect_matches(public_integration_host_types
+    "Integration::(ViewOptions|TextOptions|IClipboard|MemoryClipboard|ImeCandidateWindow|ITextCompositionClient|ITextInputMethodHost|NativeWindowHandle|WindowSystem|XamlProvider|TextureProvider|FontProvider|ReloadCoordinator|RenderSurface)"
+    ${aero_namespace_headers})
+if(public_integration_host_types)
+    message(FATAL_ERROR
+        "Installed headers expose retired Integration host types: "
+        "${public_integration_host_types}")
+endif()
+if(NOT EXISTS "${AERO_SOURCE_DIR}/src/integration/BackendApi.hpp")
+    message(FATAL_ERROR
+        "The source-private backend API declaration header is missing")
+endif()
+unset(aero_root_cmake_content)
+unset(aero_retired_integration_include_scan)
+unset(retired_integration_include_paths)
+unset(public_integration_host_types)
+
 message(STATUS "Aero architecture dependency checks passed")

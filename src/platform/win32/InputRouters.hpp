@@ -1,12 +1,12 @@
 #pragma once
 
-#include <Aero/Integration/Platform.hpp>
+#include <Aero/Input/Platform.hpp>
 
 #include <cstdint>
 
 namespace Aero::Platform {
 
-class AERO_API Win32Clipboard  : public Integration::IClipboard {
+class AERO_API Win32Clipboard  : public Input::IClipboard {
 public:
     explicit Win32Clipboard(
         void* ownerWindow = nullptr) noexcept
@@ -34,7 +34,7 @@ std::intptr_t DispatchWin32ImeWindowMessage(
     std::intptr_t lParam) noexcept;
 
 class AERO_API Win32ImeAdapter
-    : public Integration::ITextInputMethodHost {
+    : public Input::ITextInputMethodHost {
 public:
     Win32ImeAdapter() noexcept = default;
     ~Win32ImeAdapter() override;
@@ -56,9 +56,9 @@ public:
         std::uintptr_t wParam,
         std::intptr_t lParam) noexcept;
     void SetClient(
-        Integration::ITextCompositionClient* client) noexcept override;
+        Input::ITextCompositionClient* client) noexcept override;
     void SetCandidateWindow(
-        const Integration::ImeCandidateWindow& value) noexcept override;
+        const Input::ImeCandidateWindow& value) noexcept override;
     Base::Result<void> CancelNativeComposition() noexcept override;
 
 private:
@@ -68,7 +68,7 @@ private:
 
     void* window_ = nullptr;
     void* previousProcedure_ = nullptr;
-    Integration::ITextCompositionClient* client_ = nullptr;
+    Input::ITextCompositionClient* client_ = nullptr;
     bool composing_ = false;
     bool caretCreated_ = false;
     bool caretVisible_ = false;

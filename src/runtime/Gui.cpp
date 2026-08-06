@@ -1,9 +1,9 @@
 #include <Aero/View.hpp>
 
-#include <Aero/Integration/Providers/XamlProvider.hpp>
-#include <Aero/Integration/Providers/TextureProvider.hpp>
-#include <Aero/Integration/Providers/FontProvider.hpp>
-#include <Aero/Integration/ViewOptions.hpp>
+#include <Aero/Markup/XamlProvider.hpp>
+#include <Aero/Media/TextureProvider.hpp>
+#include <Aero/Text/FontProvider.hpp>
+#include <Aero/ViewOptions.hpp>
 #include "runtime/GuiData.hpp"
 
 #include <new>
@@ -46,7 +46,7 @@ Base::Result<void> Gui::AddModule(
 }
 
 Base::Result<void> Gui::AddXamlProvider(
-    Integration::XamlProvider& provider,
+    Markup::XamlProvider& provider,
     Base::StringView scheme,
     Base::StringView assembly) noexcept {
     Impl& state = static_cast<Impl&>(*impl_);
@@ -59,7 +59,7 @@ Base::Result<void> Gui::AddXamlProvider(
 }
 
 Base::Result<void> Gui::AddTextureProvider(
-    Integration::TextureProvider& provider) noexcept {
+    Media::TextureProvider& provider) noexcept {
     Impl& state = static_cast<Impl&>(*impl_);
     if (state.initialized) {
         return Base::Status::Failure(
@@ -71,7 +71,7 @@ Base::Result<void> Gui::AddTextureProvider(
 }
 
 Base::Result<void> Gui::AddFontProvider(
-    Integration::FontProvider& provider) noexcept {
+    Text::FontProvider& provider) noexcept {
     Impl& state = static_cast<Impl&>(*impl_);
     if (state.initialized) {
         return Base::Status::Failure(
@@ -98,11 +98,11 @@ Base::Result<void> Gui::Initialize() noexcept {
 
 Base::Result<Base::Ref<View>> Gui::CreateView(
     Base::IAllocator* allocator) noexcept {
-    return CreateView(Integration::ViewOptions{}, allocator);
+    return CreateView(ViewOptions{}, allocator);
 }
 
 Base::Result<Base::Ref<View>> Gui::CreateView(
-    const Integration::ViewOptions& options,
+    const ViewOptions& options,
     Base::IAllocator* allocator) noexcept {
     if (!IsInitialized()) {
         return Base::Status::Failure(

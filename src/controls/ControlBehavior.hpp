@@ -11,7 +11,7 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Common.hpp>
-#include <Aero/Integration/Platform.hpp>
+#include <Aero/Input/Platform.hpp>
 #include <cstddef>
 #include <new>
 #include <utility>
@@ -160,7 +160,7 @@ public:
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input,
-        Integration::IClipboard& clipboard) noexcept;
+        Input::IClipboard& clipboard) noexcept;
     ~Impl() noexcept;
 
     Base::Result<void> Attach(
@@ -184,7 +184,7 @@ private:
     ElementTree* tree_ = nullptr;
     [[maybe_unused]] EventRouter* events_ = nullptr;
     InputRouter* input_ = nullptr;
-    Integration::IClipboard* clipboard_ = nullptr;
+    Input::IClipboard* clipboard_ = nullptr;
     Base::Vector<Record> records_;
     MouseButtonEventHandler mouseDownHandler_;
     MouseEventHandler mouseMoveHandler_;

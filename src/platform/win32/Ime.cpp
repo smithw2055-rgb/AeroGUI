@@ -354,7 +354,7 @@ Base::Result<bool> Win32ImeAdapter::Detach() noexcept {
 }
 
 void Win32ImeAdapter::SetClient(
-    Integration::ITextCompositionClient* client) noexcept {
+    Input::ITextCompositionClient* client) noexcept {
 #if defined(_WIN32)
     if (client != nullptr &&
         client_ != nullptr &&
@@ -449,7 +449,7 @@ Base::Result<bool> Win32ImeAdapter::HandleMessage(
 
 void
 Win32ImeAdapter::SetCandidateWindow(
-    const Integration::ImeCandidateWindow& value) noexcept {
+    const Input::ImeCandidateWindow& value) noexcept {
 #if defined(_WIN32)
     if (!IsAttached()) {
         Base::Result<bool> attached = AttachActiveWindow();

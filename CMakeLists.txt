@@ -19,10 +19,6 @@ configure_file(
     "${AERO_GENERATED_INCLUDE_DIR}/Aero/Version.hpp"
     @ONLY)
 include_directories(BEFORE "${AERO_GENERATED_INCLUDE_DIR}")
-# Retired public Integration include paths remain available only while building
-# the repository. This directory is never installed or exported by Aero::Gui.
-include_directories(BEFORE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/compat/include")
 
 option(AERO_BUILD_TESTS "Build AeroGUI unit tests when the test tree is present" OFF)
 option(AERO_BUILD_SAMPLES "Build AeroGUI samples when the sample tree is present" OFF)

@@ -27,7 +27,7 @@
 
 
 
-#include <Aero/Integration/Platform.hpp>
+#include <Aero/Input/Platform.hpp>
 #include <Aero/Data.hpp>
 #include "media/AnimationModel.hpp"
 #include "media/MediaPrivate.hpp"
@@ -56,7 +56,7 @@ struct Runtime::Detail::ViewRenderer::Impl {
 
     Base::IAllocator* allocator = nullptr;
     View* view = nullptr;
-    Base::Ref<Integration::RenderDevice> device;
+    Base::Ref<RenderDevice> device;
     std::uint64_t updatedVersion = 0U;
     std::uint64_t renderedVersion = 0U;
     bool initialized = false;
@@ -412,8 +412,8 @@ struct View::Impl {
     GuiSchema* schemaBundle = nullptr;
     Markup::DocumentCache* documentCache = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
-    Integration::ViewOptions options;
-    Base::Ref<Integration::RenderDevice> device;
+    ViewOptions options;
+    Base::Ref<RenderDevice> device;
     std::uint64_t deviceGeneration = 0U;
     View::Viewport viewport;
 
@@ -442,8 +442,8 @@ struct View::Impl {
     Markup::XamlProviderRegistry xamlSources;
     Markup::EmbeddedXamlProvider embeddedXaml;
     Markup::FileXamlProvider fileXaml;
-    Integration::TextureProvider* textureProvider = nullptr;
-    Integration::FontProvider* fontProvider = nullptr;
+    Media::TextureProvider* textureProvider = nullptr;
+    Text::FontProvider* fontProvider = nullptr;
     Aero::ResourceDictionary applicationResources;
     Aero::ResourceDictionary themeResources;
     Aero::ResourceDictionary systemResources;
@@ -1302,14 +1302,14 @@ struct View::Impl {
     Aero::Render::Detail::MeshResources*
     GetMeshResources() noexcept {
         return device
-            ? Integration::RenderDevice::Impl::Resources(*device).meshes
+            ? RenderDevice::Impl::Resources(*device).meshes
             : nullptr;
     }
 
     Aero::Render::Detail::ImageResources*
     GetImageResources() noexcept {
         return device
-            ? Integration::RenderDevice::Impl::Resources(*device).images
+            ? RenderDevice::Impl::Resources(*device).images
             : nullptr;
     }
 
@@ -6202,7 +6202,7 @@ struct View::Impl {
     }
 
     Base::Result<void> Initialize(
-        const Integration::ViewOptions& requested) noexcept {
+        const ViewOptions& requested) noexcept {
         if (initialized) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
@@ -6223,7 +6223,7 @@ struct View::Impl {
 
         Base::Result<void> status;
 
-        Base::Result<Base::Ref<Integration::RenderDevice>>
+        Base::Result<Base::Ref<RenderDevice>>
             headless =
                 ::Aero::Integration::Detail::CreateHeadlessRenderDevice(
                     allocator);
@@ -7623,7 +7623,7 @@ View::~View() noexcept {
 }
 
 Base::Result<void> View::Initialize(
-    const Integration::ViewOptions& options) noexcept {
+    const ViewOptions& options) noexcept {
     if (state_ == nullptr || !state_->gui) {
         return ViewApiInvalidState("View has no Gui state");
     }
@@ -8685,7 +8685,7 @@ Runtime::Detail::ViewRenderer::~ViewRenderer() noexcept {
 }
 
 Base::Result<void> Runtime::Detail::ViewRenderer::Init(
-    Base::Ref<Integration::RenderDevice> device) noexcept {
+    Base::Ref<RenderDevice> device) noexcept {
     if (impl_ == nullptr || impl_->view == nullptr ||
         impl_->view->state_ == nullptr ||
         !impl_->view->IsInitialized()) {
@@ -8706,13 +8706,13 @@ Base::Result<void> Runtime::Detail::ViewRenderer::Init(
     }
 
     Base::Status deviceStatus =
-        Integration::RenderDevice::Impl::FrameStatus(*device);
+        RenderDevice::Impl::FrameStatus(*device);
     if (!deviceStatus.IsOk()) {
         return deviceStatus;
     }
 
     auto& data = *impl_->view->state_;
-    Base::Ref<Integration::RenderDevice> previous =
+    Base::Ref<RenderDevice> previous =
         data.device;
     const bool changingDevice =
         previous.Get() != device.Get();
@@ -8795,7 +8795,7 @@ Base::Result<void> Runtime::Detail::ViewRenderer::Init(
 void Runtime::Detail::ViewRenderer::Shutdown() noexcept {
     if (impl_ == nullptr) return;
     if (impl_->device) {
-        Integration::RenderDevice::Impl::ReleaseRenderer(
+        RenderDevice::Impl::ReleaseRenderer(
             *impl_->device, this);
         static_cast<void>(impl_->device->WaitIdle());
     }
@@ -8821,7 +8821,7 @@ Runtime::Detail::ViewRenderer::UpdateRenderTree() noexcept {
     }
 
     Base::Status deviceStatus =
-        Integration::RenderDevice::Impl::FrameStatus(*impl_->device);
+        RenderDevice::Impl::FrameStatus(*impl_->device);
     if (!deviceStatus.IsOk()) {
         return deviceStatus;
     }
@@ -8874,7 +8874,7 @@ Runtime::Detail::ViewRenderer::RenderOffscreen() noexcept {
     }
 
     Base::Result<void> rendered =
-        Integration::RenderDevice::Impl::RenderOffscreen(
+        RenderDevice::Impl::RenderOffscreen(
             *impl_->device, this, frame);
     if (!rendered) return rendered.GetStatus();
     impl_->offscreenReady = true;

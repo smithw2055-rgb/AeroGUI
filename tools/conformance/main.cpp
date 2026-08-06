@@ -1,7 +1,7 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Freezable.hpp>
 #include <Aero/Gui.hpp>
-#include <Aero/Integration/ViewOptions.hpp>
+#include <Aero/ViewOptions.hpp>
 #include <Aero/Markup.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>

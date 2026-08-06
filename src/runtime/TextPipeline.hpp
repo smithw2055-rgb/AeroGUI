@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Integration/ViewOptions.hpp>
+#include <Aero/ViewOptions.hpp>
 
 namespace Aero::Controls::Detail { class TextBlockLayout; }
 
@@ -21,7 +21,7 @@ public:
 
     Base::Result<void> Initialize(
         RenderDevice& device,
-        const Integration::TextOptions& options) noexcept;
+        const TextOptions& options) noexcept;
     Base::Result<bool> SynchronizeBackend(
         RenderDevice& device,
         bool force = false) noexcept;

@@ -39,7 +39,7 @@ struct WindowHostState {
     Base::Result<void> (*show)(void* context) noexcept = nullptr;
     void (*close)(void* context) noexcept = nullptr;
     bool (*isOpen)(const void* context) noexcept = nullptr;
-    Integration::NativeWindowHandle (*nativeHandle)(
+    Platform::NativeWindowHandle (*nativeHandle)(
         const void* context) noexcept = nullptr;
     View* (*hostedView)(void* context) noexcept = nullptr;
 };

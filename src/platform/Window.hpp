@@ -3,7 +3,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Integration/NativeWindow.hpp>
+#include <Aero/Platform/NativeWindow.hpp>
 
 #include <cstdint>
 
@@ -101,7 +101,7 @@ public:
     virtual std::uint32_t ClientWidth() const noexcept = 0;
     virtual std::uint32_t ClientHeight() const noexcept = 0;
     virtual double DpiScale() const noexcept = 0;
-    virtual Integration::NativeWindowHandle NativeHandle() const noexcept = 0;
+    virtual NativeWindowHandle NativeHandle() const noexcept = 0;
 };
 
 } // namespace Aero::Platform

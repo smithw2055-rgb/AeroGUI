@@ -141,10 +141,10 @@ The installed public paths are ownership-oriented:
 - `Aero/Render/D3D11.hpp` and `Aero/Render/OpenGL33.hpp`.
 
 There is no installed `Aero/Integration.hpp` umbrella or
-`Aero/Integration/` directory. Canonical SDK names now use `Aero`,
-`Aero::Input`, `Aero::Platform`, `Aero::Markup`, `Aero::Media`, `Aero::Text`
-and `Aero::Render`. S5A retains selected `Aero::Integration` declarations as
-a temporary source/ABI transition seam; S5B removes those spellings.
+`Aero/Integration/` directory. Canonical SDK names use `Aero`, `Aero::Input`,
+`Aero::Platform`, `Aero::Markup`, `Aero::Media`, `Aero::Text` and
+`Aero::Render`. The repository also has no compatibility include tree; native
+backend declarations live in one source-private implementation header.
 
 ## XAML tools
 

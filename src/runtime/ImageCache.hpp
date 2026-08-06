@@ -5,7 +5,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Integration/Providers/TextureProvider.hpp>
+#include <Aero/Media/TextureProvider.hpp>
 
 namespace Aero::Markup {
 class XamlProviderRegistry;
@@ -29,7 +29,7 @@ public:
         Aero::Visual* root,
         const Base::ResourceUri& documentUri,
         Markup::XamlProviderRegistry& sources,
-        Integration::TextureProvider* textureProvider,
+        Media::TextureProvider* textureProvider,
         ::Aero::Render::Detail::ImageResources* backend,
         bool backendGenerationChanged) noexcept;
     void ReleaseBackendResources(

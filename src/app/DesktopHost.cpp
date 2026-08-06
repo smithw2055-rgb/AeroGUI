@@ -8,16 +8,16 @@
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Integration/OpenGL33.hpp>
+#include <Aero/Render/OpenGL33.hpp>
 #include <Aero/Markup.hpp>
-#include <Aero/Integration/ViewOptions.hpp>
+#include <Aero/ViewOptions.hpp>
 #include <Aero/IRenderer.hpp>
 #include <Aero/View.hpp>
 #include "runtime/ViewAccess.hpp"
 
 
 #if defined(_WIN32)
-#include <Aero/Integration/D3D11.hpp>
+#include <Aero/Render/D3D11.hpp>
 #include "platform/win32/InputRouters.hpp"
 #include "platform/win32/Window.hpp"
 #else
@@ -94,7 +94,7 @@ struct DesktopHost::Impl {
         WindowHost& operator=(const WindowHost&) = delete;
 
         Base::Result<void> CreateView() noexcept {
-            Integration::ViewOptions options;
+            ViewOptions options;
             options.text.fontSearchRoot = owner->assetRoot.View();
             options.automaticAnimationClock =
                 owner->automaticAnimationClock;
@@ -241,7 +241,7 @@ struct DesktopHost::Impl {
                 nativeWindow->Create(descriptor);
             if (!created) return created.GetStatus();
 #if defined(_WIN32)
-            const Integration::NativeWindowHandle handle =
+            const Platform::NativeWindowHandle handle =
                 nativeWindow->NativeHandle();
             void* nativeHandle = reinterpret_cast<void*>(handle.window);
             clipboard.SetOwnerWindow(nativeHandle);
@@ -273,14 +273,14 @@ struct DesktopHost::Impl {
 #if defined(_WIN32)
             if (selected == GraphicsBackend::D3D11) {
 #if AERO_APP_HAS_D3D11
-                Integration::D3D11WindowSurfaceOptions options;
+                Render::D3D11WindowSurfaceOptions options;
                 options.window = nativeWindow->NativeHandle();
                 options.width = width;
                 options.height = height;
-                options.presentMode = Integration::PresentMode::Fifo;
+                options.presentMode = PresentMode::Fifo;
                 options.allowWarpFallback = true;
-                Base::Result<Base::Ref<Integration::RenderSurface>> created =
-                    Integration::CreateD3D11WindowSurface(
+                Base::Result<Base::Ref<RenderSurface>> created =
+                    Render::CreateD3D11WindowSurface(
                         options, owner->allocator);
                 if (!created) return created.GetStatus();
                 renderSurface = std::move(created).Value();
@@ -294,13 +294,13 @@ struct DesktopHost::Impl {
 #endif
             if (selected == GraphicsBackend::OpenGL33) {
 #if AERO_APP_HAS_OPENGL_WINDOW
-                Integration::OpenGL33WindowSurfaceOptions options;
+                Render::OpenGL33WindowSurfaceOptions options;
                 options.window = nativeWindow->NativeHandle();
                 options.width = width;
                 options.height = height;
-                options.presentMode = Integration::PresentMode::Fifo;
-                Base::Result<Base::Ref<Integration::RenderSurface>> created =
-                    Integration::CreateOpenGL33WindowSurface(
+                options.presentMode = PresentMode::Fifo;
+                Base::Result<Base::Ref<RenderSurface>> created =
+                    Render::CreateOpenGL33WindowSurface(
                         options, owner->allocator);
                 if (!created) return created.GetStatus();
                 renderSurface = std::move(created).Value();
@@ -510,10 +510,10 @@ struct DesktopHost::Impl {
             return !closeRequested && nativeWindow && nativeWindow->IsOpen();
         }
 
-        Integration::NativeWindowHandle NativeHandle() const noexcept {
+        Platform::NativeWindowHandle NativeHandle() const noexcept {
             return nativeWindow
                 ? nativeWindow->NativeHandle()
-                : Integration::NativeWindowHandle{};
+                : Platform::NativeWindowHandle{};
         }
 
         View* HostedView() noexcept { return view.Get(); }
@@ -554,7 +554,7 @@ struct DesktopHost::Impl {
         static bool IsOpenThunk(const void* context) noexcept {
             return static_cast<const WindowHost*>(context)->IsOpen();
         }
-        static Integration::NativeWindowHandle NativeHandleThunk(
+        static Platform::NativeWindowHandle NativeHandleThunk(
             const void* context) noexcept {
             return static_cast<const WindowHost*>(context)->NativeHandle();
         }
@@ -565,7 +565,7 @@ struct DesktopHost::Impl {
         Impl* owner = nullptr;
         WindowHostState runtime;
         Base::Ref<View> view;
-        Base::Ref<Integration::RenderSurface> renderSurface;
+        Base::Ref<RenderSurface> renderSurface;
         Base::Ref<Base::Object> windowOwner;
         Markup::XamlDocument loadedDocument;
         Window* window = nullptr;
@@ -653,7 +653,7 @@ struct DesktopHost::Impl {
     }
 
     Base::Result<Base::Ref<View>> CreateLoaderView() noexcept {
-        Integration::ViewOptions options;
+        ViewOptions options;
         options.text.fontSearchRoot = assetRoot.View();
         return environment.CreateView(options, allocator);
     }

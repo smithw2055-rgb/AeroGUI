@@ -578,7 +578,7 @@ struct TextPipeline::Impl {
 
     Impl(
         Base::IAllocator& allocator,
-        Integration::RenderDevice& selectedDevice) noexcept
+        RenderDevice& selectedDevice) noexcept
         : fontProvider(&allocator),
           shaper(fontProvider),
           fonts(&allocator),
@@ -606,7 +606,7 @@ struct TextPipeline::Impl {
     ::Aero::Controls::Detail::TextBlockLayout* layout = nullptr;
     alignas(HeadlessTextBlockLayout) std::uint8_t headlessStorage[sizeof(HeadlessTextBlockLayout)]{};
     HeadlessTextBlockLayout* headlessLayout = nullptr;
-    Integration::RenderDevice* device = nullptr;
+    RenderDevice* device = nullptr;
     TextResources* resources = nullptr;
     std::uint64_t resourceGeneration = 0U;
     Base::IAllocator* allocator = nullptr;
@@ -642,8 +642,8 @@ TextPipeline::~TextPipeline() noexcept {
 }
 
 Base::Result<void> TextPipeline::Initialize(
-    Integration::RenderDevice& device,
-    const Integration::TextOptions& options) noexcept {
+    RenderDevice& device,
+    const TextOptions& options) noexcept {
     if (impl_ != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
@@ -841,7 +841,7 @@ Base::Result<void> TextPipeline::Initialize(
         impl_->config.atlas.pageHeight = 1024U;
         impl_->config.atlas.maxPages = 4U;
         impl_->resources =
-            Integration::RenderDevice::Impl::Resources(device).text;
+            RenderDevice::Impl::Resources(device).text;
         if (impl_->resources != nullptr) {
             impl_->resourceGeneration =
                 impl_->resources->generation;
@@ -884,7 +884,7 @@ Base::Result<void> TextPipeline::Initialize(
 
 Base::Result<bool>
 TextPipeline::SynchronizeBackend(
-    Integration::RenderDevice& device,
+    RenderDevice& device,
     bool force) noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
@@ -893,7 +893,7 @@ TextPipeline::SynchronizeBackend(
     }
     impl_->device = &device;
     TextResources* current =
-        Integration::RenderDevice::Impl::Resources(device).text;
+        RenderDevice::Impl::Resources(device).text;
     const std::uint64_t generation =
         current != nullptr
         ? current->generation

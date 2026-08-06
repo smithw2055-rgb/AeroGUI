@@ -1,5 +1,3 @@
-#include <Aero/Integration/OpenGL33.hpp>
-
 #include "integration/IntegrationPrivate.hpp"
 #include "integration/private/RenderSurface.hpp"
 #include "render/DeviceRenderer.hpp"
