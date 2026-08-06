@@ -390,9 +390,10 @@ struct View::Impl {
           arena(value),
           gui(std::move(guiState)),
           publicRenderer(owner, value),
-          schemaBundle(&static_cast<Gui::Impl&>(*gui).schema),
-          documentCache(&static_cast<Gui::Impl&>(*gui).documents),
-          xamlSources(&static_cast<Gui::Impl&>(*gui).xamlProviders, &value),
+          xamlRuntime(&static_cast<Gui::Impl&>(*gui).xaml),
+          schemaBundle(&xamlRuntime->SchemaBundle()),
+          documentCache(&xamlRuntime->Documents()),
+          xamlSources(&xamlRuntime->Providers(), &value),
           storyboardSessions(&value),
           storyboardCompletionSessions(&value),
           storyboardCompletedSubscriptions(&value),
@@ -407,6 +408,7 @@ struct View::Impl {
     RenderingEventHandler renderingHandlers;
     Audio::Engine audio;
     ::Aero::Threading::Dispatcher dispatcher;
+    Markup::Detail::XamlRuntime* xamlRuntime = nullptr;
     GuiSchema* schemaBundle = nullptr;
     Markup::DocumentCache* documentCache = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
@@ -6412,14 +6414,16 @@ struct View::Impl {
         if (!loadOptions) {
             return loadOptions.GetStatus();
         }
-        Markup::Loader loader(
-            *schema,
-            xamlSources,
-            diagnostics,
-            allocator,
-            &loadContext);
+        if (xamlRuntime == nullptr) {
+            return RuntimeNotInitialized(
+                "Gui XAML runtime is unavailable");
+        }
         Base::Result<Markup::XamlDocument> loaded =
-            loader.Load(uri, loadOptions.Value());
+            xamlRuntime->Load(
+            xamlSources,
+            &loadContext,
+            allocator,
+            uri, loadOptions.Value(), diagnostics);
         if (!loaded) {
             return loaded.GetStatus();
         }
@@ -6445,11 +6449,13 @@ struct View::Impl {
         Base::Result<Markup::XamlReaderSettings> loadOptions =
             XamlSettings();
         if (!loadOptions) return loadOptions.GetStatus();
-        Markup::Loader loader(
-            *schema, xamlSources, nullptr, allocator,
-            &loadContext);
+        if (xamlRuntime == nullptr) {
+            return RuntimeNotInitialized(
+                "Gui XAML runtime is unavailable");
+        }
         Base::Result<Markup::XamlDocument> loaded =
-            loader.LoadCompiled(
+            xamlRuntime->LoadCompiled(
+                xamlSources, &loadContext, allocator,
                 bytes, originUri, loadOptions.Value());
         if (!loaded) return loaded.GetStatus();
 
@@ -7655,13 +7661,15 @@ Base::Result<Markup::XamlDocument> View::LoadDocument(
     Base::Result<Markup::XamlReaderSettings> options =
         state_->XamlSettings(true, settings);
     if (!options) return options.GetStatus();
-    Markup::Loader loader(
-        *state_->schema,
+    if (state_->xamlRuntime == nullptr) {
+        return ViewApiInvalidState(
+            "View has no Gui XAML runtime");
+    }
+    return state_->xamlRuntime->Load(
         state_->xamlSources,
-        diagnostics,
+        &state_->loadContext,
         state_->allocator,
-        &state_->loadContext);
-    return loader.Load(uri, options.Value());
+        uri, options.Value(), diagnostics);
 }
 
 Base::Result<Markup::XamlDocument> View::ParseDocument(
@@ -7676,13 +7684,15 @@ Base::Result<Markup::XamlDocument> View::ParseDocument(
     Base::Result<Markup::XamlReaderSettings> options =
         state_->XamlSettings(true, settings);
     if (!options) return options.GetStatus();
-    Markup::Loader loader(
-        *state_->schema,
+    if (state_->xamlRuntime == nullptr) {
+        return ViewApiInvalidState(
+            "View has no Gui XAML runtime");
+    }
+    return state_->xamlRuntime->Parse(
         state_->xamlSources,
-        diagnostics,
+        &state_->loadContext,
         state_->allocator,
-        &state_->loadContext);
-    return loader.Parse(source, baseUri, options.Value());
+        source, baseUri, options.Value(), diagnostics);
 }
 
 Base::Result<Markup::XamlDocument> View::ParseStreamDocument(
@@ -7697,13 +7707,15 @@ Base::Result<Markup::XamlDocument> View::ParseStreamDocument(
     Base::Result<Markup::XamlReaderSettings> options =
         state_->XamlSettings(true, settings);
     if (!options) return options.GetStatus();
-    Markup::Loader loader(
-        *state_->schema,
+    if (state_->xamlRuntime == nullptr) {
+        return ViewApiInvalidState(
+            "View has no Gui XAML runtime");
+    }
+    return state_->xamlRuntime->Parse(
         state_->xamlSources,
-        diagnostics,
+        &state_->loadContext,
         state_->allocator,
-        &state_->loadContext);
-    return loader.Parse(source, baseUri, options.Value());
+        source, baseUri, options.Value(), diagnostics);
 }
 
 Base::Result<Markup::XamlDocument> View::LoadCompiledDocument(
@@ -7716,13 +7728,14 @@ Base::Result<Markup::XamlDocument> View::LoadCompiledDocument(
     Base::Result<Markup::XamlReaderSettings> options =
         state_->XamlSettings(true);
     if (!options) return options.GetStatus();
-    Markup::Loader loader(
-        *state_->schema,
+    if (state_->xamlRuntime == nullptr) {
+        return ViewApiInvalidState(
+            "View has no Gui XAML runtime");
+    }
+    return state_->xamlRuntime->LoadCompiled(
         state_->xamlSources,
-        nullptr,
+        &state_->loadContext,
         state_->allocator,
-        &state_->loadContext);
-    return loader.LoadCompiled(
         bytes, originUri, options.Value());
 }
 
@@ -8977,70 +8990,31 @@ Base::Result<void> View::QueryReloadSource(
     const Base::ResourceUri& uri,
     std::uint64_t& sourceIdentity,
     std::uint64_t& revision) noexcept {
-    if (state_ == nullptr || uri.Empty()) {
+    if (state_ == nullptr || state_->xamlRuntime == nullptr || uri.Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "XAML reload source is unavailable");
     }
-    Base::Result<Markup::XamlProviderResolution> resolved =
-        state_->xamlSources.ResolveDetailed(uri);
-    if (!resolved) return resolved.GetStatus();
-    sourceIdentity = resolved.Value().cacheIdentity;
-    Base::Result<std::uint64_t> probed =
-        resolved.Value().provider->Revision(uri);
-    if (probed && probed.Value() != 0U) {
-        revision = probed.Value();
-        return {};
-    }
-    Base::Result<Integration::StreamResourceInfo> source =
-        resolved.Value().provider->Open(uri);
-    if (!source) return source.GetStatus();
-    if (source.Value().revision != 0U) {
-        revision = source.Value().revision;
-        return {};
-    }
-    if (!source.Value().stream) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "XAML reload source stream is invalid");
-    }
-    constexpr Base::HashCode OffsetBasis =
-        UINT64_C(14695981039346656037);
-    constexpr Base::HashCode Prime = UINT64_C(1099511628211);
-    Base::HashCode hash = OffsetBasis ^ Base::MixHash64(0U);
-    std::uint64_t size = 0U;
-    std::uint8_t buffer[4096];
-    for (;;) {
-        Base::Result<std::uint32_t> read =
-            source.Value().stream->Read({buffer, sizeof(buffer)});
-        if (!read) return read.GetStatus();
-        if (read.Value() == 0U) break;
-        for (std::uint32_t index = 0U; index < read.Value(); ++index) {
-            hash ^= static_cast<Base::HashCode>(buffer[index]);
-            hash *= Prime;
-        }
-        size += read.Value();
-    }
-    revision = Base::MixHash64(hash ^ size);
-    return {};
+    return state_->xamlRuntime->QuerySource(
+        state_->xamlSources, uri, sourceIdentity, revision);
 }
 
 bool View::TryGetCachedReloadRevision(
     const Base::ResourceUri& uri,
     std::uint64_t sourceIdentity,
     std::uint64_t& revision) noexcept {
-    return state_ != nullptr && state_->documentCache != nullptr &&
-        state_->documentCache->GetSourceRevision(
+    return state_ != nullptr && state_->xamlRuntime != nullptr &&
+        state_->xamlRuntime->TryGetCachedRevision(
             uri, sourceIdentity, revision);
 }
 
 Base::Result<std::uint32_t> View::InvalidateReloadDocuments(
     const Base::ResourceUri& uri,
     bool includeDependents) noexcept {
-    if (state_ == nullptr || state_->documentCache == nullptr) {
+    if (state_ == nullptr || state_->xamlRuntime == nullptr) {
         return std::uint32_t{0U};
     }
-    return state_->documentCache->Invalidate(uri, includeDependents);
+    return state_->xamlRuntime->Invalidate(uri, includeDependents);
 }
 
 } // namespace Aero

@@ -1290,6 +1290,24 @@ if(view_owned_document_implementation)
         "${view_owned_document_implementation}")
 endif()
 
+set(aero_gui_xaml_runtime_header
+    "${AERO_SOURCE_DIR}/src/markup/XamlRuntime.hpp")
+if(NOT EXISTS "${aero_gui_xaml_runtime_header}")
+    message(FATAL_ERROR
+        "Gui-owned XAML runtime header is missing: "
+        "${aero_gui_xaml_runtime_header}")
+endif()
+aero_collect_matches(view_owned_xaml_runtime_work
+    "Markup::Loader[ \\t]+|GetSourceRevision[ \\t]*\\(|documentCache->[ \\t]*(Invalidate|Lookup|Store)"
+    "${AERO_SOURCE_DIR}/src/runtime/View.cpp")
+if(view_owned_xaml_runtime_work)
+    message(FATAL_ERROR
+        "Schema/provider/cache loading belongs to Gui XamlRuntime, not View: "
+        "${view_owned_xaml_runtime_work}")
+endif()
+unset(aero_gui_xaml_runtime_header)
+unset(view_owned_xaml_runtime_work)
+
 aero_collect_matches(view_owned_control_state_mutation
     "${AERO_SOURCE_DIR}/src/runtime/View.cpp")
 if(view_owned_control_state_mutation)
