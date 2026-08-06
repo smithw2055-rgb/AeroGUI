@@ -1,4 +1,4 @@
-# S5A SDK namespace convergence
+# S5B backend and reload namespace convergence
 
 The installed headers now expose host-facing contracts through their owning
 C++ namespaces:
@@ -11,11 +11,12 @@ C++ namespaces:
 - `Aero::Text` for font providers;
 - `Aero::Render` for D3D11 and OpenGL 3.3 factory APIs.
 
-The domain spellings are the canonical authoring surface. During S5A, selected
-ABI-bearing declarations still use `Aero::Integration` internally and publish
-domain aliases from the new headers. Repository sources that still use old
-include paths consume private aliases from `src/compat/include`; that tree is
-never installed.
+D3D11 and OpenGL factory declarations now belong directly to `Aero::Render`;
+the product binary exports forwarding symbols in that namespace while the
+existing backend implementations remain source-private. `ReloadCoordinator`
+now has its real declaration and implementation in `Aero::Markup`.
 
-S5B moves the remaining ABI-bearing declarations and implementations, removes
-the legacy namespace spellings, and deletes the private forwarding tree.
+The non-installed compatibility headers declare only the legacy symbols needed
+by backend implementation files. They are no longer part of the public type
+model. RenderSurface implementation migration and complete removal of the
+compatibility tree remain the final S5C closure.

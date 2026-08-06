@@ -1,4 +1,4 @@
-#include <Aero/Integration/ReloadCoordinator.hpp>
+#include <Aero/Markup/ReloadCoordinator.hpp>
 
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Diagnostics.hpp>
@@ -12,7 +12,7 @@
 
 #include "controls/ControlBehavior.hpp"
 
-namespace Aero::Integration {
+namespace Aero::Markup {
 
 struct ReloadCoordinator::Impl  {
     struct RevisionRecord  {
@@ -77,7 +77,7 @@ struct ReloadCoordinator::Impl  {
     }
 
     Base::Result<void> BuildTrackedSources(
-        const Markup::XamlDocument& document,
+        const XamlDocument& document,
         Base::ResourceUri& resolvedRoot,
         Base::Vector<RevisionRecord>& output) noexcept {
         output.Clear();
@@ -118,7 +118,7 @@ struct ReloadCoordinator::Impl  {
         if (!invalidated) return invalidated.GetStatus();
         const std::uint32_t invalidatedCount = invalidated.Value();
 
-        Base::Result<Markup::XamlDocument> replacement =
+        Base::Result<XamlDocument> replacement =
             ::Aero::Runtime::Detail::ViewAccess::LoadDocument(
                 *view, rootUri.Canonical(), diagnostics);
         if (!replacement) return replacement.GetStatus();
@@ -216,7 +216,7 @@ Base::Result<void> ReloadCoordinator::Start(
     Base::Result<Base::ResourceUri> parsed =
         Base::ResourceUri::Parse(rootUri);
     if (!parsed) return parsed.GetStatus();
-    Base::Result<Markup::XamlDocument> document =
+    Base::Result<XamlDocument> document =
         ::Aero::Runtime::Detail::ViewAccess::LoadDocument(
             *impl_->view, rootUri, diagnostics);
     if (!document) return document.GetStatus();
@@ -302,4 +302,4 @@ std::uint32_t ReloadCoordinator::TrackedSourceCount() const noexcept {
     return impl_ != nullptr ? impl_->revisions.Size() : 0U;
 }
 
-} // namespace Aero::Integration
+} // namespace Aero::Markup

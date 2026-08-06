@@ -8,7 +8,7 @@
 
 #include <cstdint>
 
-namespace Aero::Integration {
+namespace Aero::Render {
 
 enum class D3D11StatePreservationPolicy : std::uint8_t {
     HostResetsState = 0U,
@@ -48,7 +48,7 @@ struct D3D11EmbeddedSurfaceOptions  {
 };
 
 struct D3D11WindowSurfaceOptions  {
-    NativeWindowHandle window;
+    Platform::NativeWindowHandle window;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
     PresentMode presentMode = PresentMode::Fifo;
@@ -84,16 +84,4 @@ CreateD3D11WindowSurface(
     const D3D11WindowSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-} // namespace Aero::Integration
-
-namespace Aero::Render {
-using ::Aero::Integration::D3D11StatePreservationPolicy;
-using ::Aero::Integration::D3D11DeviceOptions;
-using ::Aero::Integration::D3D11EmbeddedTarget;
-using ::Aero::Integration::D3D11TargetCallback;
-using ::Aero::Integration::D3D11EmbeddedSurfaceOptions;
-using ::Aero::Integration::D3D11WindowSurfaceOptions;
-using ::Aero::Integration::CreateD3D11Device;
-using ::Aero::Integration::CreateD3D11EmbeddedSurface;
-using ::Aero::Integration::CreateD3D11WindowSurface;
 } // namespace Aero::Render

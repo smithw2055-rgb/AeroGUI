@@ -13,7 +13,7 @@ namespace Aero::Diagnostics {
 class IDiagnosticSink;
 }
 
-namespace Aero::Integration {
+namespace Aero::Markup {
 
 struct ReloadResult  {
     bool changed = false;
@@ -68,9 +68,4 @@ private:
     Impl* impl_ = nullptr;
 };
 
-} // namespace Aero::Integration
-
-namespace Aero::Markup {
-using ReloadResult = ::Aero::Integration::ReloadResult;
-using ReloadCoordinator = ::Aero::Integration::ReloadCoordinator;
 } // namespace Aero::Markup

@@ -5,11 +5,13 @@ set(_aero_gui_runtime_sources
     src/integration/RenderSurface.cpp
     src/integration/OpenGL33Device.cpp
     src/integration/OpenGL33EmbeddedShared.cpp
+    src/render/OpenGL33Factories.cpp
     src/providers/XamlProvider.cpp
     src/platform/Clipboard.cpp)
 if(WIN32)
     list(APPEND _aero_gui_runtime_sources
-        src/integration/D3D11Shared.cpp)
+        src/integration/D3D11Shared.cpp
+        src/render/D3D11Factories.cpp)
 endif()
 
 target_sources(AeroGui PRIVATE
