@@ -2,7 +2,7 @@
 
 #include "../DisplayList.hpp"
 
-#include "../FrameEncoder.hpp"
+#include "../DeviceRenderer.hpp"
 
 #include "render/opengl33/OpenGL33Backend.hpp"
 #include "render/Surface.hpp"
@@ -15,6 +15,8 @@ using OpenGL33RendererStatistics = FrameEncoderStatistics;
 
 FrameShaderSet MakeOpenGL33RendererShaderSet() noexcept;
 
+// OpenGL-only context, target acquisition and presentation adapter. Shared
+// encoding and GPU resource ownership live in DeviceRenderer.
 class OpenGL33Renderer {
 public:
     OpenGL33Renderer(
@@ -83,7 +85,6 @@ private:
     Graphics::GlContextGeneration contextGeneration_ = 0U;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
-    std::uint64_t textGeneration_ = 0U;
     bool batchingEnabled_ = true;
 };
 

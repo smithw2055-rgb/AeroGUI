@@ -2,9 +2,7 @@
 
 #include <new>
 
-#include "../MeshGpuResources.hpp"
-#include "../ImageGpuResources.hpp"
-#include "../TextGpuResources.hpp"
+#include "../DeviceRenderer.hpp"
 
 namespace Aero::Render {
 namespace {
@@ -693,23 +691,13 @@ RendererShaderSet MakeOpenGL33RendererShaderSet() noexcept {
 struct OpenGL33Renderer::Impl {
     Impl(
         Graphics::GraphicsDevice& device,
-        std::uint64_t generation,
         Base::IAllocator* allocator) noexcept
         : renderer(
               device,
               MakeOpenGL33RendererShaderSet(),
-              allocator),
-          textResources(
-              device, renderer, generation, *allocator),
-          meshResources(
-              device, renderer, generation, *allocator),
-          imageResources(
-              device, renderer, generation, *allocator) {}
+              allocator) {}
 
-    FrameEncoder renderer;
-    Detail::TextGpuResources textResources;
-    Detail::MeshGpuResources meshResources;
-    Detail::ImageGpuResources imageResources;
+    DeviceRenderer renderer;
     Graphics::FenceValue lastSubmittedFence = 0U;
     bool initialized = false;
 };
@@ -753,10 +741,8 @@ OpenGL33Renderer::Initialize() noexcept {
             return OutOfMemory(
                 "Failed to allocate OpenGL render adapter state");
         }
-        ++textGeneration_;
-        if (textGeneration_ == 0U) ++textGeneration_;
         impl_ = new (memory) Impl(
-            *device_, textGeneration_, allocator_);
+            *device_, allocator_);
     }
     Base::Result<void> initialized = impl_->renderer.Initialize();
     if (!initialized) {
@@ -773,8 +759,6 @@ void OpenGL33Renderer::Shutdown() noexcept {
     if (impl_ == nullptr) {
         return;
     }
-    impl_->textResources.Shutdown();
-    impl_->meshResources.Shutdown();
     impl_->renderer.Shutdown();
     impl_->~Impl();
     allocator_->Deallocate(
@@ -869,15 +853,15 @@ OpenGL33Renderer::UnregisterGlyphRun(
 }
 
 Aero::Render::Detail::TextResources* OpenGL33Renderer::GetTextResources() noexcept {
-    return IsInitialized() ? &impl_->textResources.Table() : nullptr;
+    return IsInitialized() ? impl_->renderer.GetTextResources() : nullptr;
 }
 
 Aero::Render::Detail::MeshResources* OpenGL33Renderer::GetMeshResources() noexcept {
-    return IsInitialized() ? &impl_->meshResources.Table() : nullptr;
+    return IsInitialized() ? impl_->renderer.GetMeshResources() : nullptr;
 }
 
 Aero::Render::Detail::ImageResources* OpenGL33Renderer::GetImageResources() noexcept {
-    return IsInitialized() ? &impl_->imageResources.Table() : nullptr;
+    return IsInitialized() ? impl_->renderer.GetImageResources() : nullptr;
 }
 
 Base::Result<void> OpenGL33Renderer::RenderOffscreen(

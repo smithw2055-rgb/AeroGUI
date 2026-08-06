@@ -8,6 +8,7 @@
 #include <Aero/Base/Result.hpp>
 
 namespace Aero::Render {
+class DeviceRenderer;
 class D3D11Renderer;
 class OpenGL33Renderer;
 }
@@ -105,6 +106,7 @@ public:
 private:
     friend class ::Aero::Render::D3D11Renderer;
     friend class ::Aero::Render::OpenGL33Renderer;
+    friend class ::Aero::Render::DeviceRenderer;
     friend class RendererGlyphRunSink;
 
     struct Impl;

@@ -2,7 +2,7 @@
 
 #include "../DisplayList.hpp"
 
-#include "../FrameEncoder.hpp"
+#include "../DeviceRenderer.hpp"
 
 #include "render/d3d11/D3D11Backend.hpp"
 
@@ -14,6 +14,8 @@ using D3D11RendererStatistics = FrameEncoderStatistics;
 
 FrameShaderSet MakeD3D11RendererShaderSet() noexcept;
 
+// D3D11-only surface acquisition and presentation adapter. DeviceRenderer owns
+// the backend-neutral encoder and all shared GPU resource registries.
 class D3D11Renderer {
 public:
     D3D11Renderer(
@@ -78,7 +80,6 @@ private:
     Graphics::D3D11SurfacePresenter* presenter_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
-    std::uint64_t textGeneration_ = 0U;
     bool batchingEnabled_ = true;
 };
 

@@ -1,11 +1,12 @@
 # Private retained renderer, render device, native backends and surface adapters.
-# One binary owns this implementation graph; backend-specific classes remain
-# private source domains rather than separately installed support libraries.
+# DeviceRenderer owns the backend-neutral encoder and shared GPU resources;
+# backend-specific adapters only acquire and present native surfaces.
 add_library(AeroRenderingObjects OBJECT
     src/render/RenderDevice.cpp
     src/render/RenderDeviceResources.cpp
     src/render/Surface.cpp
     src/render/FrameEncoder.cpp
+    src/render/DeviceRenderer.cpp
     src/render/TextRenderer.cpp
     src/render/opengl33/OpenGL33Backend.cpp
     src/render/opengl33/OpenGL33Context.cpp

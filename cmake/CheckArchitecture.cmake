@@ -168,6 +168,27 @@ endif()
 unset(aero_public_render_device_header)
 unset(public_render_surface_leaks)
 
+# Native API adapters may acquire and present a target, but must not own a
+# second copy of frame encoding or the shared image/mesh/text GPU tables.
+set(aero_native_surface_adapters
+    "${AERO_SOURCE_DIR}/src/render/d3d11/D3D11Renderer.cpp"
+    "${AERO_SOURCE_DIR}/src/render/opengl33/OpenGL33Renderer.cpp")
+aero_collect_matches(native_surface_resource_ownership
+    "TextGpuResources|MeshGpuResources|ImageGpuResources"
+    ${aero_native_surface_adapters})
+if(native_surface_resource_ownership)
+    message(FATAL_ERROR
+        "Native surface adapters must use Render::DeviceRenderer for shared "
+        "frame encoding and GPU resources: ${native_surface_resource_ownership}")
+endif()
+foreach(adapter IN LISTS aero_native_surface_adapters)
+    if(NOT EXISTS "${adapter}")
+        message(FATAL_ERROR "Native surface adapter is missing: ${adapter}")
+    endif()
+endforeach()
+unset(aero_native_surface_adapters)
+unset(native_surface_resource_ownership)
+
 set(aero_public_style_headers
     "${AERO_SOURCE_DIR}/include/Aero/Style.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Styling.hpp")
