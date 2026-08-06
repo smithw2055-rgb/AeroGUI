@@ -144,6 +144,10 @@ public:
         return capabilities_;
     }
     GraphicsBackend& Backend() const noexcept { return *backend_; }
+    bool IsReady() const noexcept {
+        return initialized_ && backend_ != nullptr &&
+            !backend_->IsDeviceLost();
+    }
 
     Base::Result<ResourceHandle> CreateBuffer(
         const BufferDescriptor& descriptor) noexcept;

@@ -13,6 +13,7 @@ public:
     DeviceRenderer(
         Graphics::Device& device,
         const FrameShaderSet& shaders,
+        std::uint64_t generation,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~DeviceRenderer() noexcept;
 
@@ -61,9 +62,7 @@ public:
     void SetBatchingEnabled(bool enabled) noexcept;
     bool IsBatchingEnabled() const noexcept;
 
-    Detail::TextResources* GetTextResources() noexcept;
-    Detail::MeshResources* GetMeshResources() noexcept;
-    Detail::ImageResources* GetImageResources() noexcept;
+    Detail::RenderResources Resources() noexcept;
 
 private:
     struct Impl;
@@ -72,7 +71,7 @@ private:
     FrameShaderSet shaders_;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
-    std::uint64_t resourceGeneration_ = 0U;
+    std::uint64_t generation_ = 0U;
     bool batchingEnabled_ = true;
 };
 

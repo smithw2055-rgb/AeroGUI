@@ -83,10 +83,10 @@ Base::Result<void> GraphicsDevice::VerifyReady() const noexcept {
             Base::ErrorCode::NotInitialized,
             "RHI device is not initialized");
     }
-    if (backend_ == nullptr || backend_->IsDeviceLost()) {
-        return InvalidState("RHI device is lost");
-    }
-    return {};
+    return IsReady()
+        ? Base::Result<void>()
+        : Base::Result<void>(
+              InvalidState("RHI device is lost"));
 }
 
 Base::Result<void> GraphicsDevice::ValidateDescriptor(

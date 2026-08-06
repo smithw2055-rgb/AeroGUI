@@ -51,9 +51,24 @@ public:
         LastFrameStatistics() const noexcept = 0;
     virtual Aero::Render::Detail::RenderResources Resources() noexcept = 0;
 
-    // Only the legacy combined OpenGL window object supplies a borrowed target.
+    // Only the combined OpenGL window object supplies a borrowed target.
     // Shared-device D3D11 and embedded OpenGL use independently owned targets.
     virtual NativeRenderTarget* DefaultTarget() noexcept { return nullptr; }
+
+    std::uint64_t Generation() const noexcept { return generation_; }
+
+protected:
+    Base::Result<std::uint64_t> AdvanceGeneration() noexcept {
+        if (generation_ == UINT64_MAX) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "Native render device generation space is exhausted");
+        }
+        return ++generation_;
+    }
+
+private:
+    std::uint64_t generation_ = 0U;
 };
 
 class RenderDeviceFactory {

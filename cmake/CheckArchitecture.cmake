@@ -1936,4 +1936,58 @@ unset(aero_s7_cpp_source)
 unset(aero_s7_cpp_content)
 unset(aero_s7_retired_include_paths)
 
+# S8 render/graphics lifecycle convergence. Graphics::Device owns submission
+# fences; SurfaceSession owns frame completion; backend device wrappers must not
+# recreate those lifecycles.
+set(aero_s8_forbidden_presenter_files
+    "src/render/d3d11/D3D11Backend.hpp"
+    "src/render/d3d11/D3D11BackendSurface.inc"
+    "src/render/d3d11/D3D11Device.cpp")
+foreach(aero_s8_file IN LISTS aero_s8_forbidden_presenter_files)
+    file(READ "${AERO_SOURCE_DIR}/${aero_s8_file}" aero_s8_content)
+    if(aero_s8_content MATCHES "D3D11SurfacePresenter")
+        message(FATAL_ERROR
+            "S8 forbids the retired D3D11SurfacePresenter layer: ${aero_s8_file}")
+    endif()
+endforeach()
+foreach(aero_s8_file IN ITEMS
+        "src/render/d3d11/D3D11Device.cpp"
+        "src/render/opengl33/OpenGL33Device.cpp"
+        "src/render/opengl33/OpenGL33Embedded.cpp")
+    file(READ "${AERO_SOURCE_DIR}/${aero_s8_file}" aero_s8_content)
+    if(aero_s8_content MATCHES "lastSubmittedFence_")
+        message(FATAL_ERROR
+            "S8 native renderer must use Graphics::Device submission fences: ${aero_s8_file}")
+    endif()
+    if(aero_s8_content MATCHES "std::uint64_t[ \t]+generation_" OR
+       aero_s8_content MATCHES "renderer_->Shutdown")
+        message(FATAL_ERROR
+            "S8 native renderer must not mirror renderer generation/lifecycle: ${aero_s8_file}")
+    endif()
+endforeach()
+file(READ "${AERO_SOURCE_DIR}/src/render/Surface.hpp" aero_s8_surface)
+if(NOT aero_s8_surface MATCHES "SubmitFrame" OR
+   aero_s8_surface MATCHES "SubmitAndPresent")
+    message(FATAL_ERROR "S8 SurfaceSession must own frame submission/completion")
+endif()
+file(READ "${AERO_SOURCE_DIR}/src/render/DeviceRenderer.hpp" aero_s8_renderer)
+if(aero_s8_renderer MATCHES "resourceGeneration_|GetTextResources|GetMeshResources|GetImageResources")
+    message(FATAL_ERROR "S8 DeviceRenderer must expose one resource seam and one native generation")
+endif()
+file(READ "${AERO_SOURCE_DIR}/src/render/DeviceRenderer.cpp" aero_s8_renderer_impl)
+if(aero_s8_renderer_impl MATCHES "imageResources[.]Shutdown|meshResources[.]Shutdown|textResources[.]Shutdown|encoder[.]Shutdown")
+    message(FATAL_ERROR "S8 DeviceRenderer Impl destructors must own shutdown")
+endif()
+file(READ "${AERO_SOURCE_DIR}/src/render/private/RenderDevice.hpp" aero_s8_native)
+if(NOT aero_s8_native MATCHES "AdvanceGeneration")
+    message(FATAL_ERROR "S8 NativeRenderDevice must own renderer resource generations")
+endif()
+unset(aero_s8_forbidden_presenter_files)
+unset(aero_s8_file)
+unset(aero_s8_content)
+unset(aero_s8_surface)
+unset(aero_s8_renderer)
+unset(aero_s8_renderer_impl)
+unset(aero_s8_native)
+
 message(STATUS "Aero architecture dependency checks passed")

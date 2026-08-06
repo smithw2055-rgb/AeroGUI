@@ -273,10 +273,16 @@ public:
             return status.GetStatus();
         }
 
+        Base::Result<std::uint64_t> generation = AdvanceGeneration();
+        if (!generation) {
+            Shutdown();
+            return generation.GetStatus();
+        }
         renderer_ = new (std::nothrow)
             ::Aero::Render::DeviceRenderer(
                 *device_,
                 ::Aero::Render::MakeOpenGL33FrameShaderSet(),
+                generation.Value(),
                 allocator_);
         if (renderer_ == nullptr) {
             Shutdown();
@@ -309,7 +315,6 @@ public:
         Base::Result<Graphics::FenceValue> submitted =
             device_->Submit(recorded.Value());
         if (!submitted) return submitted.GetStatus();
-        lastSubmittedFence_ = submitted.Value();
         return {};
     }
 
@@ -383,21 +388,15 @@ public:
                 device_->DestroyResource(imported.Value(), 0U));
             return recorded.GetStatus();
         }
-        Base::Result<Graphics::FenceValue> submitted =
-            device_->Submit(recorded.Value());
-        if (!submitted) {
-            static_cast<void>(surface_->DiscardFrame(frame));
-            static_cast<void>(
-                device_->DestroyResource(imported.Value(), 0U));
-            return submitted.GetStatus();
-        }
-        lastSubmittedFence_ = submitted.Value();
-        Base::Result<void> presented =
-            surface_->Present(frame, submitted.Value());
+        Base::Result<Graphics::FenceValue> completed =
+            surface_->SubmitFrame(
+                *device_, frame, recorded.Value());
+        const Graphics::FenceValue retireFence =
+            device_->LastSubmittedFence();
         Base::Result<void> destroyed =
             device_->DestroyResource(
-                imported.Value(), submitted.Value());
-        if (!presented) return presented;
+                imported.Value(), retireFence);
+        if (!completed) return completed.GetStatus();
         return destroyed;
     }
 
@@ -464,13 +463,17 @@ public:
 
     Base::Result<void> WaitIdle(
         std::uint32_t timeoutMilliseconds) noexcept {
-        if (graphics_ == nullptr || lastSubmittedFence_ == 0U) {
+        if (graphics_ == nullptr || device_ == nullptr) {
             return {};
         }
-        return graphics_->WaitForFence(
-            lastSubmittedFence_,
-            static_cast<std::uint64_t>(
-                timeoutMilliseconds) * UINT64_C(1000000));
+        const Graphics::FenceValue fence =
+            device_->LastSubmittedFence();
+        return fence != 0U
+            ? graphics_->WaitForFence(
+                  fence,
+                  static_cast<std::uint64_t>(
+                      timeoutMilliseconds) * UINT64_C(1000000))
+            : Base::Result<void>();
     }
 
     BackendHealth GetDeviceHealth() const noexcept {
@@ -520,10 +523,7 @@ public:
 
     Aero::Render::Detail::RenderResources Resources() noexcept {
         return renderer_ != nullptr
-            ? Aero::Render::Detail::RenderResources{
-                  renderer_->GetTextResources(),
-                  renderer_->GetMeshResources(),
-                  renderer_->GetImageResources()}
+            ? renderer_->Resources()
             : Aero::Render::Detail::RenderResources{};
     }
 
@@ -695,9 +695,7 @@ private:
     }
 
     void Shutdown() noexcept {
-        lastSubmittedFence_ = 0U;
         if (renderer_ != nullptr) {
-            renderer_->Shutdown();
             delete renderer_;
             renderer_ = nullptr;
         }
@@ -744,7 +742,6 @@ private:
     Graphics::OpenGL33GraphicsBackend* graphics_ = nullptr;
     Graphics::GraphicsDevice* device_ = nullptr;
     ::Aero::Render::DeviceRenderer* renderer_ = nullptr;
-    Graphics::FenceValue lastSubmittedFence_ = 0U;
 };
 
 template<class TOptions>

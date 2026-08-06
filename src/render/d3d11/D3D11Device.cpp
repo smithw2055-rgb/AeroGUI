@@ -66,13 +66,9 @@ public:
     }
     Graphics::GraphicsDevice* GraphicsDevice() noexcept { return device_; }
     ::Aero::Render::DeviceRenderer* Renderer() noexcept { return renderer_; }
-    std::uint64_t Generation() const noexcept { return generation_; }
     bool IsReady() const noexcept {
         return initialized_ && !deviceLost_ && graphics_ != nullptr &&
             device_ != nullptr && renderer_ != nullptr;
-    }
-    void SetLastSubmittedFence(Graphics::FenceValue fence) noexcept {
-        lastSubmittedFence_ = fence;
     }
 
     void Attach(D3D11SurfaceState& surface) noexcept;
@@ -89,8 +85,6 @@ private:
     Graphics::GraphicsDevice* device_ = nullptr;
     ::Aero::Render::DeviceRenderer* renderer_ = nullptr;
     D3D11SurfaceState* surfaces_ = nullptr;
-    Graphics::FenceValue lastSubmittedFence_ = 0U;
-    std::uint64_t generation_ = 0U;
     bool initialized_ = false;
     bool deviceLost_ = false;
 };
@@ -228,21 +222,6 @@ public:
             health_ = SurfaceHealth::Failed;
             return initialized.GetStatus();
         }
-        presenter_ = new (std::nothrow) Graphics::D3D11SurfacePresenter(
-            *device_->GraphicsDevice(),
-            *device_->GraphicsBackend(),
-            *surface_);
-        if (presenter_ == nullptr) {
-            ShutdownSurface();
-            health_ = SurfaceHealth::Failed;
-            return OutOfMemory("Unable to allocate D3D11 surface presenter");
-        }
-        initialized = presenter_->Initialize();
-        if (!initialized) {
-            ShutdownSurface();
-            health_ = SurfaceHealth::Failed;
-            return initialized.GetStatus();
-        }
         deviceGeneration_ = device_->Generation();
         health_ = SurfaceHealth::Ready;
         return {};
@@ -254,41 +233,75 @@ public:
         if (!IsReady()) {
             return InvalidState("D3D11 surface is not ready");
         }
-        Base::Result<Graphics::D3D11SurfaceFrame> acquired =
-            presenter_->AcquireFrame();
+        Base::Result<Graphics::SurfaceFrame> acquired =
+            surface_->AcquireFrame();
         if (!acquired) {
             RefreshHealth();
             return acquired.GetStatus();
         }
-        Graphics::D3D11SurfaceFrame nativeFrame = acquired.Value();
-        const std::uint32_t width = nativeFrame.surface.target.width;
-        const std::uint32_t height = nativeFrame.surface.target.height;
-        if (width == 0U || height == 0U) {
-            static_cast<void>(presenter_->DiscardFrame(nativeFrame));
-            return InvalidArgument("D3D11 surface frame has an empty target");
+        Graphics::SurfaceFrame nativeFrame = acquired.Value();
+        if (nativeFrame.target.defaultFramebuffer ||
+            nativeFrame.target.colorTarget == 0U ||
+            nativeFrame.target.width == 0U ||
+            nativeFrame.target.height == 0U) {
+            static_cast<void>(surface_->DiscardFrame(nativeFrame));
+            return InvalidArgument(
+                "D3D11 surface frame has no importable render target");
         }
+
+        Graphics::D3D11ExternalRenderTargetDescriptor external;
+        external.texture2D = nativeFrame.target.colorTarget;
+        external.depthStencilView = nativeFrame.target.depthStencilTarget;
+        external.texture.width = nativeFrame.target.width;
+        external.texture.height = nativeFrame.target.height;
+        external.texture.sampleCount = nativeFrame.target.sampleCount;
+        external.texture.format = nativeFrame.target.colorFormat;
+        external.texture.usage =
+            Graphics::TextureUsageBit(Graphics::TextureUsage::RenderTarget) |
+            Graphics::TextureUsageBit(Graphics::TextureUsage::CopySource);
+        external.stableId = nativeFrame.target.stableId;
+        Base::Result<Graphics::ResourceHandle> imported =
+            Graphics::ImportD3D11ExternalRenderTarget(
+                *device_->GraphicsDevice(),
+                *device_->GraphicsBackend(),
+                external);
+        if (!imported) {
+            static_cast<void>(surface_->DiscardFrame(nativeFrame));
+            return imported.GetStatus();
+        }
+
         Base::Result<Graphics::CommandList> commands =
             device_->Renderer()->RecordOnscreen(
                 rendererToken,
                 frame,
-                {nativeFrame.renderTarget,
-                 width,
-                 height,
+                {imported.Value(),
+                 nativeFrame.target.width,
+                 nativeFrame.target.height,
                  embedded_
                      ? Graphics::LoadOperation::Load
                      : Graphics::LoadOperation::Clear});
         if (!commands) {
-            static_cast<void>(presenter_->DiscardFrame(nativeFrame));
+            static_cast<void>(surface_->DiscardFrame(nativeFrame));
+            static_cast<void>(device_->GraphicsDevice()->DestroyResource(
+                imported.Value(), 0U));
             return commands.GetStatus();
         }
+
         Base::Result<Graphics::FenceValue> submitted =
-            presenter_->SubmitAndPresent(nativeFrame, commands.Value());
+            surface_->SubmitFrame(
+                *device_->GraphicsDevice(),
+                nativeFrame,
+                commands.Value());
+        const Graphics::FenceValue retireFence =
+            device_->GraphicsDevice()->LastSubmittedFence();
+        Base::Result<void> retired =
+            device_->GraphicsDevice()->DestroyResource(
+                imported.Value(), retireFence);
         if (!submitted) {
             RefreshHealth();
             return submitted.GetStatus();
         }
-        device_->SetLastSubmittedFence(submitted.Value());
-        return {};
+        return retired;
     }
 
     Base::Result<void> Resize(
@@ -300,7 +313,10 @@ public:
         windowOptions_.height = height;
         descriptor_.width = width;
         descriptor_.height = height;
-        Base::Result<void> resized = presenter_->Resize(width, height);
+        Base::Result<std::uint32_t> collected =
+            device_->GraphicsDevice()->CollectGarbage();
+        if (!collected) return collected.GetStatus();
+        Base::Result<void> resized = surface_->Resize(width, height);
         if (!resized) RefreshHealth();
         return resized;
     }
@@ -353,7 +369,7 @@ private:
 
     bool IsReady() const noexcept {
         return GetSurfaceHealth() == SurfaceHealth::Ready &&
-            presenter_ != nullptr && device_->Renderer() != nullptr;
+            surface_ != nullptr && device_->Renderer() != nullptr;
     }
 
     void RefreshHealth() noexcept {
@@ -393,11 +409,6 @@ private:
     }
 
     void ShutdownSurface() noexcept {
-        if (presenter_ != nullptr) {
-            presenter_->Shutdown();
-            delete presenter_;
-            presenter_ = nullptr;
-        }
         if (surface_ != nullptr) {
             surface_->Shutdown();
             delete surface_;
@@ -421,7 +432,6 @@ private:
     Graphics::D3D11SwapChainSurface* swapChain_ = nullptr;
     Graphics::ISurfaceBackend* surfaceBackend_ = nullptr;
     Graphics::SurfaceSession* surface_ = nullptr;
-    Graphics::D3D11SurfacePresenter* presenter_ = nullptr;
     std::uint64_t deviceGeneration_ = 0U;
     SurfaceHealth health_ = SurfaceHealth::Lost;
     D3D11SurfaceState* previous_ = nullptr;
@@ -480,8 +490,14 @@ Base::Result<void> D3D11DeviceState::Initialize() noexcept {
         ShutdownDevice(false);
         return status.GetStatus();
     }
+    Base::Result<std::uint64_t> generation = AdvanceGeneration();
+    if (!generation) {
+        ShutdownDevice(false);
+        return generation.GetStatus();
+    }
     renderer_ = new (std::nothrow) ::Aero::Render::DeviceRenderer(
-        *device_, ::Aero::Render::MakeD3D11FrameShaderSet(), allocator_);
+        *device_, ::Aero::Render::MakeD3D11FrameShaderSet(),
+        generation.Value(), allocator_);
     if (renderer_ == nullptr) {
         ShutdownDevice(false);
         return OutOfMemory("Unable to allocate D3D11 device renderer");
@@ -493,8 +509,6 @@ Base::Result<void> D3D11DeviceState::Initialize() noexcept {
     }
     initialized_ = true;
     deviceLost_ = false;
-    ++generation_;
-    if (generation_ == 0U) ++generation_;
     RestoreSurfaces();
     return {};
 }
@@ -510,7 +524,6 @@ Base::Result<void> D3D11DeviceState::RenderOffscreen(
     Base::Result<Graphics::FenceValue> submitted =
         device_->Submit(commands.Value());
     if (!submitted) return submitted.GetStatus();
-    lastSubmittedFence_ = submitted.Value();
     return {};
 }
 
@@ -535,8 +548,11 @@ Base::Result<void> D3D11DeviceState::RestoreDevice() noexcept {
 
 Base::Result<void> D3D11DeviceState::WaitIdle(
     std::uint32_t timeoutMilliseconds) noexcept {
-    if (graphics_ == nullptr || lastSubmittedFence_ == 0U) return {};
-    return graphics_->WaitForFence(lastSubmittedFence_, timeoutMilliseconds);
+    if (graphics_ == nullptr || device_ == nullptr) return {};
+    const Graphics::FenceValue fence = device_->LastSubmittedFence();
+    return fence != 0U
+        ? graphics_->WaitForFence(fence, timeoutMilliseconds)
+        : Base::Result<void>();
 }
 
 BackendHealth D3D11DeviceState::GetDeviceHealth() const noexcept {
@@ -566,10 +582,7 @@ D3D11DeviceState::LastFrameStatistics() const noexcept {
 
 Aero::Render::Detail::RenderResources D3D11DeviceState::Resources() noexcept {
     return renderer_ != nullptr
-        ? Aero::Render::Detail::RenderResources{
-              renderer_->GetTextResources(),
-              renderer_->GetMeshResources(),
-              renderer_->GetImageResources()}
+        ? renderer_->Resources()
         : Aero::Render::Detail::RenderResources{};
 }
 
@@ -591,9 +604,7 @@ void D3D11DeviceState::Detach(D3D11SurfaceState& surface) noexcept {
 void D3D11DeviceState::ShutdownDevice(bool notifySurfaces) noexcept {
     if (notifySurfaces) NotifySurfacesDeviceLost();
     initialized_ = false;
-    lastSubmittedFence_ = 0U;
     if (renderer_ != nullptr) {
-        renderer_->Shutdown();
         delete renderer_;
         renderer_ = nullptr;
     }

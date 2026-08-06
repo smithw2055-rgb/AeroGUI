@@ -209,7 +209,9 @@ public:
     Base::Result<void> Present(
         SurfaceFrame& frame,
         FenceValue signalFence) noexcept;
-    Base::Result<FenceValue> SubmitAndPresent(
+    // Submits commands and completes the acquired frame. Presentable
+    // surfaces present; borrowed/external targets are simply released.
+    Base::Result<FenceValue> SubmitFrame(
         GraphicsDevice& device,
         SurfaceFrame& frame,
         const CommandList& commands) noexcept;

@@ -422,22 +422,19 @@ void SurfaceSession::Shutdown() noexcept {
     }
 }
 
-Base::Result<FenceValue> SurfaceSession::SubmitAndPresent(
+Base::Result<FenceValue> SurfaceSession::SubmitFrame(
     GraphicsDevice& device,
     SurfaceFrame& frame,
     const CommandList& commands) noexcept {
     if (!IsCurrentFrame(frame)) {
         return InvalidState("Surface frame is stale or not active");
     }
-    if (!capabilities_.supportsPresent) {
+    if (!device.IsReady()) {
         static_cast<void>(DiscardFrame(frame));
-        return Unsupported("Surface does not support presentation");
-    }
-    if (device.Backend().IsDeviceLost()) {
-        static_cast<void>(DiscardFrame(frame));
-        return InvalidState("Graphics backend is lost");
+        return InvalidState("Graphics device is not ready");
     }
 
+    const bool present = capabilities_.supportsPresent;
     const std::uint64_t surfaceGeneration = frame.surfaceGeneration;
     const std::uint64_t frameSerial = frame.frameSerial;
     const ExternalRenderTargetDescriptor target = frame.target;
@@ -459,12 +456,22 @@ Base::Result<FenceValue> SurfaceSession::SubmitAndPresent(
     lastCapture_.commandHash = commands.StableHash();
     lastCapture_.presented = false;
 
-    Base::Result<void> presented = Present(frame, submitted.Value());
-    if (!presented) {
-        static_cast<void>(DiscardFrame(frame));
-        return presented.GetStatus();
+    Base::Result<void> completed;
+    if (present) {
+        completed = Present(frame, submitted.Value());
+    } else {
+        backend_->DiscardSurfaceFrame(frame.frameSerial);
+        activeFrameSerial_ = 0U;
+        frame.surfaceGeneration = 0U;
+        frame.frameSerial = 0U;
     }
-    lastCapture_.presented = true;
+    if (!completed) {
+        if (IsCurrentFrame(frame)) {
+            static_cast<void>(DiscardFrame(frame));
+        }
+        return completed.GetStatus();
+    }
+    lastCapture_.presented = present;
     return submitted.Value();
 }
 

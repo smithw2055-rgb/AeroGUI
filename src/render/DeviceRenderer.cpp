@@ -42,12 +42,14 @@ struct DeviceRenderer::Impl {
 DeviceRenderer::DeviceRenderer(
     Graphics::Device& device,
     const FrameShaderSet& shaders,
+    std::uint64_t generation,
     Base::IAllocator* allocator) noexcept
     : device_(&device),
       shaders_(shaders),
       allocator_(allocator != nullptr
           ? allocator
-          : &Base::GetDefaultAllocator()) {}
+          : &Base::GetDefaultAllocator()),
+      generation_(generation) {}
 
 DeviceRenderer::~DeviceRenderer() noexcept {
     Shutdown();
@@ -55,9 +57,10 @@ DeviceRenderer::~DeviceRenderer() noexcept {
 
 Base::Result<void> DeviceRenderer::Initialize() noexcept {
     if (IsInitialized()) return {};
-    if (device_ == nullptr || device_->Backend().IsDeviceLost()) {
+    if (device_ == nullptr || !device_->IsReady() ||
+        generation_ == 0U) {
         return NotInitialized(
-            "Device renderer requires a ready graphics device");
+            "Device renderer requires a ready graphics device and generation");
     }
     if (impl_ == nullptr) {
         void* memory = allocator_->Allocate({
@@ -66,10 +69,8 @@ Base::Result<void> DeviceRenderer::Initialize() noexcept {
             return OutOfMemory(
                 "Failed to allocate device renderer state");
         }
-        ++resourceGeneration_;
-        if (resourceGeneration_ == 0U) ++resourceGeneration_;
         impl_ = new (memory) Impl(
-            *device_, shaders_, resourceGeneration_, *allocator_);
+            *device_, shaders_, generation_, *allocator_);
     }
     Base::Result<void> initialized = impl_->encoder.Initialize();
     if (!initialized) {
@@ -83,10 +84,8 @@ Base::Result<void> DeviceRenderer::Initialize() noexcept {
 
 void DeviceRenderer::Shutdown() noexcept {
     if (impl_ == nullptr) return;
-    impl_->imageResources.Shutdown();
-    impl_->meshResources.Shutdown();
-    impl_->textResources.Shutdown();
-    impl_->encoder.Shutdown();
+    // Impl member destructors own resource and encoder shutdown in
+    // dependency-safe reverse declaration order.
     impl_->~Impl();
     allocator_->Deallocate(
         impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Render);
@@ -220,16 +219,13 @@ bool DeviceRenderer::IsBatchingEnabled() const noexcept {
         : batchingEnabled_;
 }
 
-Detail::TextResources* DeviceRenderer::GetTextResources() noexcept {
-    return IsInitialized() ? &impl_->textResources.Table() : nullptr;
-}
-
-Detail::MeshResources* DeviceRenderer::GetMeshResources() noexcept {
-    return IsInitialized() ? &impl_->meshResources.Table() : nullptr;
-}
-
-Detail::ImageResources* DeviceRenderer::GetImageResources() noexcept {
-    return IsInitialized() ? &impl_->imageResources.Table() : nullptr;
+Detail::RenderResources DeviceRenderer::Resources() noexcept {
+    return IsInitialized()
+        ? Detail::RenderResources{
+              &impl_->textResources.Table(),
+              &impl_->meshResources.Table(),
+              &impl_->imageResources.Table()}
+        : Detail::RenderResources{};
 }
 
 } // namespace Aero::Render

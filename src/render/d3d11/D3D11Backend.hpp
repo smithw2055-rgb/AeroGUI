@@ -157,63 +157,6 @@ private:
     Impl* impl_ = nullptr;
 };
 
-struct D3D11SurfaceFrame  {
-    SurfaceFrame surface;
-    ResourceHandle renderTarget;
-
-    bool IsValid() const noexcept {
-        return surface.frameSerial != 0U && renderTarget.IsValid();
-    }
-};
-
-class AERO_API D3D11SurfacePresenter  {
-public:
-    D3D11SurfacePresenter(
-        GraphicsDevice& device,
-        D3D11GraphicsBackend& backend,
-        SurfaceSession& surface) noexcept;
-    ~D3D11SurfacePresenter() noexcept;
-
-    D3D11SurfacePresenter(const D3D11SurfacePresenter&) = delete;
-    D3D11SurfacePresenter& operator=(const D3D11SurfacePresenter&) = delete;
-
-    Base::Result<void> Initialize() noexcept;
-    void Shutdown() noexcept;
-
-    Base::Result<D3D11SurfaceFrame> AcquireFrame() noexcept;
-    Base::Result<FenceValue> SubmitAndPresent(
-        D3D11SurfaceFrame& frame,
-        const CommandList& commands) noexcept;
-    Base::Result<void> DiscardFrame(
-        D3D11SurfaceFrame& frame) noexcept;
-    Base::Result<void> Resize(
-        std::uint32_t width,
-        std::uint32_t height,
-        std::uint32_t timeoutMilliseconds = 5000U) noexcept;
-    Base::Result<std::uint32_t> CollectGarbage() noexcept;
-
-    FenceValue LastSubmittedFence() const noexcept {
-        return lastSubmittedFence_;
-    }
-    bool HasFrameInFlight() const noexcept {
-        return active_.IsValid();
-    }
-
-private:
-    GraphicsDevice* device_ = nullptr;
-    D3D11GraphicsBackend* backend_ = nullptr;
-    SurfaceSession* surface_ = nullptr;
-    D3D11SurfaceFrame active_;
-    FenceValue lastSubmittedFence_ = 0U;
-    bool initialized_ = false;
-
-    bool Matches(
-        const D3D11SurfaceFrame& frame) const noexcept;
-    void ClearFrame(D3D11SurfaceFrame& frame) noexcept;
-    Base::Result<void> RetireRenderTarget(
-        ResourceHandle handle,
-        FenceValue fence) noexcept;
-};
 
 AERO_API Base::Result<ResourceHandle>
 ImportD3D11ExternalRenderTarget(

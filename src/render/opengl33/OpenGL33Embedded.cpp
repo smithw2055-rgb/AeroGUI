@@ -69,13 +69,9 @@ public:
     Graphics::GlContextGeneration ContextGeneration() const noexcept {
         return contextGeneration_;
     }
-    std::uint64_t Generation() const noexcept { return generation_; }
     bool IsReady() const noexcept {
         return initialized_ && !deviceLost_ && graphics_ != nullptr &&
             device_ != nullptr && renderer_ != nullptr;
-    }
-    void SetLastSubmittedFence(Graphics::FenceValue fence) noexcept {
-        lastSubmittedFence_ = fence;
     }
 
     const OpenGL33DeviceOptions& Options() const noexcept { return options_; }
@@ -96,9 +92,7 @@ private:
     Graphics::GraphicsDevice* device_ = nullptr;
     ::Aero::Render::DeviceRenderer* renderer_ = nullptr;
     OpenGL33EmbeddedSurfaceState* surfaces_ = nullptr;
-    Graphics::FenceValue lastSubmittedFence_ = 0U;
     Graphics::GlContextGeneration contextGeneration_ = 0U;
-    std::uint64_t generation_ = 0U;
     bool initialized_ = false;
     bool deviceLost_ = false;
 };
@@ -293,11 +287,15 @@ public:
                 imported.Value(), 0U));
             return submitted.GetStatus();
         }
-        device_->SetLastSubmittedFence(submitted.Value());
-        Base::Result<void> presented = surface_->Present(nativeFrame, submitted.Value());
-        Base::Result<void> destroyed = device_->GraphicsDevice()->DestroyResource(
-            imported.Value(), submitted.Value());
-        if (!presented) return presented;
+        Base::Result<Graphics::FenceValue> completed =
+            surface_->SubmitFrame(
+                *device_->GraphicsDevice(), nativeFrame, commands.Value());
+        const Graphics::FenceValue retireFence =
+            device_->GraphicsDevice()->LastSubmittedFence();
+        Base::Result<void> destroyed =
+            device_->GraphicsDevice()->DestroyResource(
+                imported.Value(), retireFence);
+        if (!completed) return completed.GetStatus();
         return destroyed;
     }
 
@@ -465,8 +463,14 @@ Base::Result<void> OpenGL33DeviceState::Initialize() noexcept {
         ShutdownDevice(false);
         return initialized.GetStatus();
     }
+    Base::Result<std::uint64_t> generation = AdvanceGeneration();
+    if (!generation) {
+        ShutdownDevice(false);
+        return generation.GetStatus();
+    }
     renderer_ = new (std::nothrow) ::Aero::Render::DeviceRenderer(
-        *device_, ::Aero::Render::MakeOpenGL33FrameShaderSet(), allocator_);
+        *device_, ::Aero::Render::MakeOpenGL33FrameShaderSet(),
+        generation.Value(), allocator_);
     if (renderer_ == nullptr) {
         ShutdownDevice(false);
         return OutOfMemory("Unable to allocate OpenGL device renderer");
@@ -478,8 +482,6 @@ Base::Result<void> OpenGL33DeviceState::Initialize() noexcept {
     }
     initialized_ = true;
     deviceLost_ = false;
-    ++generation_;
-    if (generation_ == 0U) ++generation_;
     RestoreSurfaces();
     return {};
 }
@@ -498,7 +500,6 @@ Base::Result<void> OpenGL33DeviceState::RenderOffscreen(
     if (commands.Value().CommandCount() == 0U) return {};
     Base::Result<Graphics::FenceValue> submitted = device_->Submit(commands.Value());
     if (!submitted) return submitted.GetStatus();
-    lastSubmittedFence_ = submitted.Value();
     return {};
 }
 
@@ -525,10 +526,13 @@ Base::Result<void> OpenGL33DeviceState::RestoreDevice() noexcept {
 
 Base::Result<void> OpenGL33DeviceState::WaitIdle(
     std::uint32_t timeoutMilliseconds) noexcept {
-    if (graphics_ == nullptr || lastSubmittedFence_ == 0U) return {};
-    return graphics_->WaitForFence(
-        lastSubmittedFence_,
-        static_cast<std::uint64_t>(timeoutMilliseconds) * UINT64_C(1000000));
+    if (graphics_ == nullptr || device_ == nullptr) return {};
+    const Graphics::FenceValue fence = device_->LastSubmittedFence();
+    return fence != 0U
+        ? graphics_->WaitForFence(
+              fence,
+              static_cast<std::uint64_t>(timeoutMilliseconds) * UINT64_C(1000000))
+        : Base::Result<void>();
 }
 
 BackendHealth OpenGL33DeviceState::GetDeviceHealth() const noexcept {
@@ -556,9 +560,7 @@ OpenGL33DeviceState::LastFrameStatistics() const noexcept {
 
 Aero::Render::Detail::RenderResources OpenGL33DeviceState::Resources() noexcept {
     return renderer_ != nullptr
-        ? Aero::Render::Detail::RenderResources{
-              renderer_->GetTextResources(), renderer_->GetMeshResources(),
-              renderer_->GetImageResources()}
+        ? renderer_->Resources()
         : Aero::Render::Detail::RenderResources{};
 }
 
@@ -580,9 +582,7 @@ void OpenGL33DeviceState::Detach(OpenGL33EmbeddedSurfaceState& surface) noexcept
 void OpenGL33DeviceState::ShutdownDevice(bool notifySurfaces) noexcept {
     if (notifySurfaces) NotifySurfacesDeviceLost();
     initialized_ = false;
-    lastSubmittedFence_ = 0U;
     if (renderer_ != nullptr) {
-        renderer_->Shutdown();
         delete renderer_;
         renderer_ = nullptr;
     }
