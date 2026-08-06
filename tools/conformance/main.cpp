@@ -298,8 +298,16 @@ bool HasTargetLoadOperation(
     return false;
 }
 
-class ProbeRenderDeviceState {
+class ProbeRenderDeviceState final
+    : public Aero::Integration::Detail::NativeRenderDevice,
+      public Aero::Integration::Detail::NativeRenderTarget {
 public:
+    Aero::Integration::Detail::RenderBackendKind Backend() const noexcept override {
+        return Aero::Integration::Detail::RenderBackendKind::Headless;
+    }
+    Aero::Integration::Detail::NativeRenderTarget* DefaultTarget() noexcept override {
+        return this;
+    }
     Aero::Base::Result<void> RenderOffscreen(
         const void*,
         const Aero::Integration::RenderFrame&) noexcept {
@@ -385,7 +393,6 @@ void VerifyRenderDeviceState(
     Check(state != nullptr, "render device probe allocation failed");
     if (state == nullptr) return;
     auto made = Aero::Integration::Detail::AdoptRenderDevice(
-        Aero::Integration::Detail::RenderDeviceMode::Embedded,
         state);
     Check(made.HasValue(), "render device probe adoption failed");
     if (!made) return;
@@ -460,7 +467,7 @@ bool RenderAndReadback(
     std::uint32_t height,
     Aero::Base::Vector<std::uint8_t>& pixels,
     const char* failureMessage) noexcept {
-    Aero::Graphics::GraphicsDevice device(backend);
+    Aero::Graphics::Device device(backend);
     Aero::Base::Result<void> initialized = device.Initialize();
     if (!initialized) {
         std::fprintf(stderr, "%s: device initialize: %u %s\n",

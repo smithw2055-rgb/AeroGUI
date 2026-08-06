@@ -205,8 +205,9 @@ endif()
 set(aero_renderer_boundary_scan
     "${AERO_SOURCE_DIR}/src/render/FrameEncoder.hpp"
     "${AERO_SOURCE_DIR}/src/integration/IntegrationPrivate.hpp"
-    "${AERO_SOURCE_DIR}/src/integration/D3D11Device.cpp"
+    "${AERO_SOURCE_DIR}/src/integration/D3D11Shared.cpp"
     "${AERO_SOURCE_DIR}/src/integration/OpenGL33Device.cpp"
+    "${AERO_SOURCE_DIR}/src/integration/OpenGL33EmbeddedShared.cpp"
     "${AERO_SOURCE_DIR}/src/integration/RenderSurface.cpp"
     "${AERO_SOURCE_DIR}/tools/conformance/main.cpp")
 aero_collect_matches(retired_native_renderer_types
@@ -245,17 +246,35 @@ if(render_device_surface_gateway_leaks)
         "RenderDevice private contract still owns surface operations: "
         "${render_device_surface_gateway_leaks}")
 endif()
-aero_collect_matches(render_surface_contract_missing
-    "struct[ \t]+RenderSurfaceFunctions|restoreSurface|SurfaceHealth"
-    "${aero_render_surface_private_header}")
-if(NOT render_surface_contract_missing)
+aero_collect_matches(render_device_contract
+    "class[ \t]+NativeRenderDevice"
+    "${aero_render_device_private_header}")
+if(NOT render_device_contract)
     message(FATAL_ERROR
-        "RenderSurface private contract does not own its lifecycle functions")
+        "RenderDevice must own one polymorphic native backend contract")
+endif()
+aero_collect_matches(render_surface_contract
+    "class[ \t]+NativeRenderTarget|RestoreSurface|SurfaceHealth"
+    "${aero_render_surface_private_header}")
+if(NOT render_surface_contract)
+    message(FATAL_ERROR
+        "RenderSurface must own one polymorphic native target contract")
+endif()
+aero_collect_matches(retired_render_function_tables
+    "RenderDeviceFunctions|RenderSurfaceFunctions|DeviceFunctionsFor|SurfaceFunctionsFor"
+    "${aero_render_device_private_header}"
+    "${aero_render_surface_private_header}")
+if(retired_render_function_tables)
+    message(FATAL_ERROR
+        "Native rendering must use direct polymorphism, not manual function tables: "
+        "${retired_render_function_tables}")
 endif()
 unset(aero_render_device_private_header)
 unset(aero_render_surface_private_header)
 unset(render_device_surface_gateway_leaks)
-unset(render_surface_contract_missing)
+unset(render_device_contract)
+unset(render_surface_contract)
+unset(retired_render_function_tables)
 
 set(aero_public_style_headers
     "${AERO_SOURCE_DIR}/include/Aero/Style.hpp"

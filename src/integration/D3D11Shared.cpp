@@ -38,7 +38,8 @@ Graphics::PresentMode ToRhiPresentMode(PresentMode value) noexcept {
 
 class D3D11SurfaceState;
 
-class D3D11DeviceState {
+class D3D11DeviceState final
+    : public Detail::NativeRenderDevice {
 public:
     D3D11DeviceState(
         const D3D11DeviceOptions& options,
@@ -59,6 +60,9 @@ public:
     ::Aero::RenderFrameStatistics LastFrameStatistics() const noexcept;
     Aero::Render::Detail::RenderResources Resources() noexcept;
 
+    Detail::RenderBackendKind Backend() const noexcept override {
+        return Detail::RenderBackendKind::D3D11;
+    }
     Graphics::D3D11GraphicsBackend* GraphicsBackend() noexcept {
         return graphics_;
     }
@@ -167,7 +171,8 @@ private:
     bool lost_ = false;
 };
 
-class D3D11SurfaceState {
+class D3D11SurfaceState final
+    : public Detail::NativeRenderTarget {
 public:
     D3D11SurfaceState(
         D3D11DeviceState& device,
@@ -643,7 +648,7 @@ D3D11DeviceState* DeviceStateFrom(
         return nullptr;
     }
     return static_cast<D3D11DeviceState*>(
-        Aero::RenderDevice::Impl::NativeState(*device));
+        Aero::RenderDevice::Impl::NativeBackend(*device));
 }
 
 } // namespace
@@ -664,11 +669,7 @@ Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11Device(
         delete state;
         return initialized.GetStatus();
     }
-    return Detail::AdoptRenderDevice(
-        Detail::RenderDeviceMode::Embedded,
-        Detail::RenderBackendKind::D3D11,
-        state,
-        &selected);
+    return Detail::AdoptRenderDevice(state, &selected);
 }
 
 Base::Result<Base::Ref<RenderSurface>> CreateD3D11EmbeddedSurface(

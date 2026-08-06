@@ -159,7 +159,9 @@ private:
     bool lost_ = false;
 };
 
-class OpenGL33DeviceState {
+class OpenGL33DeviceState final
+    : public Detail::NativeRenderDevice,
+      public Detail::NativeRenderTarget {
 public:
     OpenGL33DeviceState(
         const OpenGL33WindowSurfaceOptions& options,
@@ -177,6 +179,13 @@ public:
 
     ~OpenGL33DeviceState() {
         Shutdown();
+    }
+
+    Detail::RenderBackendKind Backend() const noexcept override {
+        return Detail::RenderBackendKind::OpenGL33;
+    }
+    Detail::NativeRenderTarget* DefaultTarget() noexcept override {
+        return this;
     }
 
     Base::Result<void> Initialize() noexcept {
@@ -743,7 +752,6 @@ template<class TOptions>
 Base::Result<Base::Ref<::Aero::RenderDevice>>
 CreateOpenGL33Device(
     const TOptions& options,
-    Detail::RenderDeviceMode mode,
     Base::IAllocator* allocator) noexcept {
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
@@ -761,7 +769,7 @@ CreateOpenGL33Device(
         return initialized.GetStatus();
     }
     return ::Aero::Integration::Detail::AdoptRenderDevice(
-        mode, driver, &selected);
+        driver, &selected);
 }
 
 } // namespace
@@ -783,7 +791,6 @@ CreateOpenGL33EmbeddedDevice(
     }
     return CreateOpenGL33Device(
         options,
-        Detail::RenderDeviceMode::Embedded,
         allocator);
 }
 
@@ -800,7 +807,6 @@ CreateOpenGL33WindowDevice(
     }
     return CreateOpenGL33Device(
         options,
-        Detail::RenderDeviceMode::Window,
         allocator);
 }
 

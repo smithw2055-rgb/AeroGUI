@@ -35,7 +35,6 @@ bool ApplyBackendHealth(
     return previous != device.state;
 }
 
-
 } // namespace
 
 RenderDevice::RenderDevice(
@@ -55,13 +54,10 @@ RenderDevice::RenderDevice(
 
 RenderDevice::~RenderDevice() noexcept {
     if (impl_ == nullptr) return;
-    const auto* functions = Impl::Functions(*this);
-    if (impl_->stateData != nullptr && functions != nullptr) {
-        static_cast<void>(functions->waitIdle(impl_->stateData, 5000U));
-        functions->destroy(impl_->stateData);
-        impl_->stateData = nullptr;
-        impl_->functions = nullptr;
-        impl_->defaultSurfaceFunctions = nullptr;
+    if (impl_->native != nullptr) {
+        static_cast<void>(impl_->native->WaitIdle(5000U));
+        delete impl_->native;
+        impl_->native = nullptr;
     }
     impl_->state = RenderDeviceState::Shutdown;
     Base::IAllocator* allocator = impl_->allocator;
@@ -112,9 +108,9 @@ Base::Result<RenderFrameStatistics> RenderDevice::Analyze(
 
 void RenderDevice::MergeBackendStatistics(
     RenderFrameStatistics& result) const noexcept {
-    const RenderFrameStatistics native =
-        impl_->stateData != nullptr && Impl::Functions(*this) != nullptr
-        ? Impl::Functions(*this)->statistics(impl_->stateData)
+    const auto* nativeBackend = Impl::NativeBackend(*this);
+    const RenderFrameStatistics native = nativeBackend != nullptr
+        ? nativeBackend->LastFrameStatistics()
         : RenderFrameStatistics{};
     result.drawCallCount = native.drawCallCount != 0U
         ? native.drawCallCount
@@ -126,32 +122,29 @@ void RenderDevice::MergeBackendStatistics(
 }
 
 void RenderDevice::NotifyDeviceLost() noexcept {
-    const auto* functions = Impl::Functions(*this);
-    if (impl_ == nullptr || impl_->stateData == nullptr || functions == nullptr ||
+    auto* native = Impl::NativeBackend(*this);
+    if (impl_ == nullptr || native == nullptr ||
         impl_->state != RenderDeviceState::Ready) {
         return;
     }
     impl_->state = RenderDeviceState::DeviceLost;
     ++impl_->statistics.generation;
-    functions->deviceLost(impl_->stateData);
+    native->NotifyDeviceLost();
 }
 
 Base::Result<void> RenderDevice::Restore() noexcept {
-    const auto* functions = Impl::Functions(*this);
-    if (impl_ == nullptr || impl_->stateData == nullptr || functions == nullptr) {
+    auto* native = Impl::NativeBackend(*this);
+    if (impl_ == nullptr || native == nullptr) {
         return NotInitialized("Render device is not initialized");
     }
     if (impl_->state != RenderDeviceState::DeviceLost) {
         return InvalidState("Only a lost render device can be restored");
     }
 
-    Base::Result<void> restored = functions->restoreDevice(impl_->stateData);
+    Base::Result<void> restored = native->RestoreDevice();
     if (!restored) {
         ++impl_->statistics.failedFrameCount;
-        const auto health = functions->health != nullptr
-            ? functions->health(impl_->stateData)
-            : Integration::Detail::BackendHealth::Failed;
-        if (ApplyBackendHealth(*impl_, health)) {
+        if (ApplyBackendHealth(*impl_, native->GetDeviceHealth())) {
             ++impl_->statistics.generation;
         }
         return restored.GetStatus();
@@ -162,9 +155,9 @@ Base::Result<void> RenderDevice::Restore() noexcept {
 
 Base::Result<void> RenderDevice::WaitIdle(
     std::uint32_t timeoutMilliseconds) noexcept {
-    const auto* functions = Impl::Functions(*this);
-    return impl_ != nullptr && impl_->stateData != nullptr && functions != nullptr
-        ? functions->waitIdle(impl_->stateData, timeoutMilliseconds)
+    auto* native = Impl::NativeBackend(*this);
+    return native != nullptr
+        ? native->WaitIdle(timeoutMilliseconds)
         : Base::Result<void>(
               NotInitialized("Render device is not initialized"));
 }
@@ -173,54 +166,40 @@ Base::Result<void> RenderDevice::WaitIdle(
 
 namespace Aero::Integration::Detail {
 
-class HeadlessDeviceState {
+class HeadlessDeviceState final : public NativeRenderDevice {
 public:
+    RenderBackendKind Backend() const noexcept override {
+        return RenderBackendKind::Headless;
+    }
     Base::Result<void> RenderOffscreen(
         const void*,
-        const ::Aero::Integration::RenderFrame&) noexcept { return {}; }
-    Base::Result<void> Render(
-        const void*,
-        const ::Aero::Integration::RenderFrame&) noexcept { return {}; }
-    void ReleaseRenderer(const void*) noexcept {}
-    Base::Result<void> Resize(
-        std::uint32_t,
-        std::uint32_t) noexcept { return {}; }
-    void NotifySurfaceLost() noexcept {}
-    void NotifyDeviceLost() noexcept {}
-    Base::Result<void> RestoreDevice() noexcept { return {}; }
-    Base::Result<void> RestoreSurface() noexcept { return {}; }
-    Base::Result<void> WaitIdle(std::uint32_t) noexcept { return {}; }
-    BackendHealth GetDeviceHealth() const noexcept { return BackendHealth::Ready; }
-    SurfaceHealth GetSurfaceHealth() const noexcept {
-        return SurfaceHealth::Shutdown;
+        const ::Aero::Integration::RenderFrame&) noexcept override { return {}; }
+    void ReleaseRenderer(const void*) noexcept override {}
+    void NotifyDeviceLost() noexcept override {}
+    Base::Result<void> RestoreDevice() noexcept override { return {}; }
+    Base::Result<void> WaitIdle(std::uint32_t) noexcept override { return {}; }
+    BackendHealth GetDeviceHealth() const noexcept override {
+        return BackendHealth::Ready;
     }
     ::Aero::RenderFrameStatistics
-    LastFrameStatistics() const noexcept { return {}; }
-    ::Aero::Render::Detail::RenderResources Resources() noexcept { return {}; }
+    LastFrameStatistics() const noexcept override { return {}; }
+    ::Aero::Render::Detail::RenderResources Resources() noexcept override {
+        return {};
+    }
 };
 
 Base::Result<Base::Ref<::Aero::RenderDevice>>
 RenderDeviceFactory::Adopt(
-    RenderDeviceMode mode,
-    RenderBackendKind backend,
-    void* state,
-    const RenderDeviceFunctions* functions,
-    const RenderSurfaceFunctions* defaultSurfaceFunctions,
+    NativeRenderDevice* backend,
     Base::IAllocator* allocator) noexcept {
-    return ::Aero::RenderDevice::Impl::Create(
-        mode, backend, state, functions, defaultSurfaceFunctions, allocator);
+    return ::Aero::RenderDevice::Impl::Create(backend, allocator);
 }
 
 Base::Result<Base::Ref<::Aero::RenderDevice>>
 AdoptRenderDevice(
-    RenderDeviceMode mode,
-    RenderBackendKind backend,
-    void* state,
-    const RenderDeviceFunctions* functions,
-    const RenderSurfaceFunctions* defaultSurfaceFunctions,
+    NativeRenderDevice* backend,
     Base::IAllocator* allocator) noexcept {
-    return RenderDeviceFactory::Adopt(
-        mode, backend, state, functions, defaultSurfaceFunctions, allocator);
+    return RenderDeviceFactory::Adopt(backend, allocator);
 }
 
 Base::Result<Base::Ref<::Aero::RenderDevice>>
@@ -232,11 +211,7 @@ CreateHeadlessRenderDevice(
             Base::ErrorCode::OutOfMemory,
             "Unable to allocate the headless render device");
     }
-    return AdoptRenderDevice(
-        RenderDeviceMode::Headless,
-        RenderBackendKind::Headless,
-        backend,
-        allocator);
+    return AdoptRenderDevice(backend, allocator);
 }
 
 } // namespace Aero::Integration::Detail
@@ -246,21 +221,18 @@ namespace Aero {
 Base::Result<void> RenderDevice::RenderOffscreen(
     const void* rendererToken,
     const Integration::RenderFrame& frame) noexcept {
-    const auto* functions = Impl::Functions(*this);
-    if (impl_ == nullptr || impl_->stateData == nullptr || functions == nullptr) {
+    auto* native = Impl::NativeBackend(*this);
+    if (impl_ == nullptr || native == nullptr) {
         return NotInitialized("Render device is not initialized");
     }
     if (impl_->state != RenderDeviceState::Ready) {
         return InvalidState("Render device is not ready");
     }
-    Base::Result<void> rendered = functions->renderOffscreen(
-        impl_->stateData, rendererToken, frame);
+    Base::Result<void> rendered =
+        native->RenderOffscreen(rendererToken, frame);
     if (!rendered) {
         ++impl_->statistics.failedFrameCount;
-        const auto health = functions->health != nullptr
-            ? functions->health(impl_->stateData)
-            : Integration::Detail::BackendHealth::Failed;
-        if (ApplyBackendHealth(*impl_, health)) {
+        if (ApplyBackendHealth(*impl_, native->GetDeviceHealth())) {
             ++impl_->statistics.generation;
         }
         return rendered.GetStatus();
@@ -297,10 +269,9 @@ void RenderDevice::Impl::CompleteSurfaceFrame(
 void RenderDevice::Impl::RefreshHealth(
     RenderDevice& device) noexcept {
     if (device.impl_ == nullptr) return;
-    const auto* functions = Functions(device);
-    const auto health = device.impl_->stateData != nullptr &&
-            functions != nullptr && functions->health != nullptr
-        ? functions->health(device.impl_->stateData)
+    auto* native = NativeBackend(device);
+    const auto health = native != nullptr
+        ? native->GetDeviceHealth()
         : Integration::Detail::BackendHealth::Failed;
     if (ApplyBackendHealth(*device.impl_, health)) {
         ++device.impl_->statistics.generation;
@@ -316,16 +287,12 @@ void RenderDevice::Impl::RecordSurfaceFailure(
 
 void RenderDevice::ReleaseRenderer(
     const void* rendererToken) noexcept {
-    const auto* functions = Impl::Functions(*this);
-    if (impl_ != nullptr && impl_->stateData != nullptr && functions != nullptr &&
-        functions->releaseRenderer != nullptr) {
-        functions->releaseRenderer(impl_->stateData, rendererToken);
-    }
+    auto* native = Impl::NativeBackend(*this);
+    if (native != nullptr) native->ReleaseRenderer(rendererToken);
 }
 
 Base::Status RenderDevice::GetFrameStatus() noexcept {
-    if (impl_ == nullptr || impl_->stateData == nullptr ||
-        Impl::Functions(*this) == nullptr) {
+    if (impl_ == nullptr || Impl::NativeBackend(*this) == nullptr) {
         return NotInitialized("Render device is not initialized");
     }
     switch (impl_->state) {
@@ -340,6 +307,5 @@ Base::Status RenderDevice::GetFrameStatus() noexcept {
     }
     return InvalidState("Render device state is invalid");
 }
-
 
 } // namespace Aero

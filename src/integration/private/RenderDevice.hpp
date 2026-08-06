@@ -8,12 +8,6 @@
 
 namespace Aero::Integration::Detail {
 
-enum class RenderDeviceMode : std::uint8_t {
-    Headless = 0U,
-    Embedded,
-    Window
-};
-
 enum class RenderBackendKind : std::uint8_t {
     Unknown = 0U,
     Headless,
@@ -34,106 +28,44 @@ enum class SurfaceHealth : std::uint8_t {
     Shutdown
 };
 
-struct RenderSurfaceFunctions;
+class NativeRenderTarget;
 
-// Native device contract. Surface ownership, resize, present and recovery are
-// intentionally absent so one device can back multiple independent surfaces.
-struct RenderDeviceFunctions {
-    void (*destroy)(void*) noexcept = nullptr;
-    Base::Result<void> (*renderOffscreen)(
-        void*, const void*, const Integration::RenderFrame&) noexcept = nullptr;
-    void (*releaseRenderer)(void*, const void*) noexcept = nullptr;
-    void (*deviceLost)(void*) noexcept = nullptr;
-    Base::Result<void> (*restoreDevice)(void*) noexcept = nullptr;
-    Base::Result<void> (*waitIdle)(void*, std::uint32_t) noexcept = nullptr;
-    BackendHealth (*health)(const void*) noexcept = nullptr;
-    ::Aero::RenderFrameStatistics (*statistics)(const void*) noexcept = nullptr;
-    Aero::Render::Detail::RenderResources (*resources)(void*) noexcept = nullptr;
+// One real private backend object replaces the former void* plus function-table
+// gateway. It owns the backend-neutral Graphics::Device and DeviceRenderer for
+// its API implementation; Graphics::Device is no longer a peer lifecycle.
+class NativeRenderDevice {
+public:
+    virtual ~NativeRenderDevice() noexcept = default;
+
+    virtual RenderBackendKind Backend() const noexcept = 0;
+    virtual Base::Result<void> RenderOffscreen(
+        const void* rendererToken,
+        const Integration::RenderFrame& frame) noexcept = 0;
+    virtual void ReleaseRenderer(const void* rendererToken) noexcept = 0;
+    virtual void NotifyDeviceLost() noexcept = 0;
+    virtual Base::Result<void> RestoreDevice() noexcept = 0;
+    virtual Base::Result<void> WaitIdle(
+        std::uint32_t timeoutMilliseconds) noexcept = 0;
+    virtual BackendHealth GetDeviceHealth() const noexcept = 0;
+    virtual ::Aero::RenderFrameStatistics
+        LastFrameStatistics() const noexcept = 0;
+    virtual Aero::Render::Detail::RenderResources Resources() noexcept = 0;
+
+    // Only the legacy combined OpenGL window object supplies a borrowed target.
+    // Shared-device D3D11 and embedded OpenGL use independently owned targets.
+    virtual NativeRenderTarget* DefaultTarget() noexcept { return nullptr; }
 };
 
 class RenderDeviceFactory {
 public:
     static Base::Result<Base::Ref<::Aero::RenderDevice>> Adopt(
-        RenderDeviceMode mode,
-        RenderBackendKind backend,
-        void* state,
-        const RenderDeviceFunctions* functions,
-        const RenderSurfaceFunctions* defaultSurfaceFunctions,
+        NativeRenderDevice* backend,
         Base::IAllocator* allocator = nullptr) noexcept;
 };
 
-template<class T>
-const RenderDeviceFunctions& DeviceFunctionsFor() noexcept {
-    static const RenderDeviceFunctions functions{
-        [](void* state) noexcept { delete static_cast<T*>(state); },
-        [](void* state, const void* renderer,
-           const Integration::RenderFrame& frame) noexcept {
-            return static_cast<T*>(state)->RenderOffscreen(renderer, frame);
-        },
-        [](void* state, const void* renderer) noexcept {
-            static_cast<T*>(state)->ReleaseRenderer(renderer);
-        },
-        [](void* state) noexcept {
-            static_cast<T*>(state)->NotifyDeviceLost();
-        },
-        [](void* state) noexcept {
-            return static_cast<T*>(state)->RestoreDevice();
-        },
-        [](void* state, std::uint32_t timeout) noexcept {
-            return static_cast<T*>(state)->WaitIdle(timeout);
-        },
-        [](const void* state) noexcept {
-            return static_cast<const T*>(state)->GetDeviceHealth();
-        },
-        [](const void* state) noexcept {
-            return static_cast<const T*>(state)->LastFrameStatistics();
-        },
-        [](void* state) noexcept {
-            return static_cast<T*>(state)->Resources();
-        }};
-    return functions;
-}
-
-template<class T>
-const RenderSurfaceFunctions& SurfaceFunctionsFor() noexcept;
-
 Base::Result<Base::Ref<::Aero::RenderDevice>> AdoptRenderDevice(
-    RenderDeviceMode mode,
-    RenderBackendKind backend,
-    void* state,
-    const RenderDeviceFunctions* functions,
-    const RenderSurfaceFunctions* defaultSurfaceFunctions = nullptr,
+    NativeRenderDevice* backend,
     Base::IAllocator* allocator = nullptr) noexcept;
-
-template<class T>
-Base::Result<Base::Ref<::Aero::RenderDevice>> AdoptRenderDevice(
-    RenderDeviceMode mode,
-    RenderBackendKind backend,
-    T* state,
-    Base::IAllocator* allocator = nullptr) noexcept {
-    return AdoptRenderDevice(
-        mode,
-        backend,
-        static_cast<void*>(state),
-        &DeviceFunctionsFor<T>(),
-        nullptr,
-        allocator);
-}
-
-// Source-private compatibility for the remaining single-window OpenGL path.
-template<class T>
-Base::Result<Base::Ref<::Aero::RenderDevice>> AdoptRenderDevice(
-    RenderDeviceMode mode,
-    T* state,
-    Base::IAllocator* allocator = nullptr) noexcept {
-    return AdoptRenderDevice(
-        mode,
-        RenderBackendKind::Unknown,
-        static_cast<void*>(state),
-        &DeviceFunctionsFor<T>(),
-        &SurfaceFunctionsFor<T>(),
-        allocator);
-}
 
 } // namespace Aero::Integration::Detail
 
@@ -144,62 +76,40 @@ struct RenderDevice::Impl {
         : allocator(&selectedAllocator) {}
 
     Base::IAllocator* allocator = nullptr;
-    void* stateData = nullptr;
-    const Integration::Detail::RenderDeviceFunctions* functions = nullptr;
-    const Integration::Detail::RenderSurfaceFunctions* defaultSurfaceFunctions = nullptr;
-    Integration::Detail::RenderDeviceMode mode =
-        Integration::Detail::RenderDeviceMode::Headless;
-    Integration::Detail::RenderBackendKind backend =
-        Integration::Detail::RenderBackendKind::Unknown;
+    Integration::Detail::NativeRenderDevice* native = nullptr;
     RenderDeviceState state = RenderDeviceState::Ready;
     RenderDeviceStatistics statistics;
     RenderFrameStatistics lastFrameStatistics;
 
-    static const Integration::Detail::RenderDeviceFunctions* Functions(
-        const RenderDevice& device) noexcept {
-        return device.impl_ != nullptr ? device.impl_->functions : nullptr;
+    static Integration::Detail::NativeRenderDevice* NativeBackend(
+        RenderDevice& device) noexcept {
+        return device.impl_ != nullptr ? device.impl_->native : nullptr;
     }
 
-    static const Integration::Detail::RenderSurfaceFunctions* DefaultSurfaceFunctions(
+    static const Integration::Detail::NativeRenderDevice* NativeBackend(
         const RenderDevice& device) noexcept {
-        return device.impl_ != nullptr
-            ? device.impl_->defaultSurfaceFunctions
+        return device.impl_ != nullptr ? device.impl_->native : nullptr;
+    }
+
+    static Integration::Detail::NativeRenderTarget* DefaultTarget(
+        RenderDevice& device) noexcept {
+        return device.impl_ != nullptr && device.impl_->native != nullptr
+            ? device.impl_->native->DefaultTarget()
             : nullptr;
     }
 
     static Integration::Detail::RenderBackendKind Backend(
         const RenderDevice& device) noexcept {
-        return device.impl_ != nullptr
-            ? device.impl_->backend
+        const auto* native = NativeBackend(device);
+        return native != nullptr
+            ? native->Backend()
             : Integration::Detail::RenderBackendKind::Unknown;
     }
 
-    static void* NativeState(RenderDevice& device) noexcept {
-        return device.impl_ != nullptr ? device.impl_->stateData : nullptr;
-    }
-
-    static void SetBackend(
-        RenderDevice& device,
-        Integration::Detail::RenderDeviceMode mode,
-        Integration::Detail::RenderBackendKind backend,
-        void* state,
-        const Integration::Detail::RenderDeviceFunctions* functions,
-        const Integration::Detail::RenderSurfaceFunctions* defaultSurfaceFunctions) noexcept {
-        device.impl_->mode = mode;
-        device.impl_->backend = backend;
-        device.impl_->stateData = state;
-        device.impl_->functions = functions;
-        device.impl_->defaultSurfaceFunctions = defaultSurfaceFunctions;
-    }
-
     static Base::Result<Base::Ref<RenderDevice>> Create(
-        Integration::Detail::RenderDeviceMode mode,
-        Integration::Detail::RenderBackendKind backend,
-        void* state,
-        const Integration::Detail::RenderDeviceFunctions* functions,
-        const Integration::Detail::RenderSurfaceFunctions* defaultSurfaceFunctions,
+        Integration::Detail::NativeRenderDevice* backend,
         Base::IAllocator* allocator) noexcept {
-        if (state == nullptr || functions == nullptr) {
+        if (backend == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Render device implementation is required");
@@ -213,21 +123,18 @@ struct RenderDevice::Impl {
                 RenderDevice::ConstructionToken{},
                 &selected);
         if (!made) {
-            functions->destroy(state);
+            delete backend;
             return made.GetStatus();
         }
-        SetBackend(
-            *made.Value(), mode, backend, state,
-            functions, defaultSurfaceFunctions);
+        made.Value()->impl_->native = backend;
         return std::move(made).Value();
     }
 
     static ::Aero::Render::Detail::RenderResources Resources(
         RenderDevice& device) noexcept {
-        const auto* functions = Functions(device);
-        return device.impl_ != nullptr &&
-            device.impl_->stateData != nullptr && functions != nullptr
-            ? functions->resources(device.impl_->stateData)
+        auto* native = NativeBackend(device);
+        return native != nullptr
+            ? native->Resources()
             : ::Aero::Render::Detail::RenderResources{};
     }
 

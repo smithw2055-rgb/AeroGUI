@@ -37,7 +37,8 @@ Graphics::GlThreadToken CurrentThreadToken(void*) noexcept {
 
 class OpenGL33EmbeddedSurfaceState;
 
-class OpenGL33DeviceState {
+class OpenGL33DeviceState final
+    : public Detail::NativeRenderDevice {
 public:
     OpenGL33DeviceState(
         const OpenGL33DeviceOptions& options,
@@ -58,6 +59,9 @@ public:
     ::Aero::RenderFrameStatistics LastFrameStatistics() const noexcept;
     Aero::Render::Detail::RenderResources Resources() noexcept;
 
+    Detail::RenderBackendKind Backend() const noexcept override {
+        return Detail::RenderBackendKind::OpenGL33;
+    }
     Base::Result<void> MakeCurrent() noexcept;
     Graphics::OpenGL33GraphicsBackend* GraphicsBackend() noexcept {
         return graphics_;
@@ -182,7 +186,8 @@ private:
     bool lost_ = false;
 };
 
-class OpenGL33EmbeddedSurfaceState {
+class OpenGL33EmbeddedSurfaceState final
+    : public Detail::NativeRenderTarget {
 public:
     OpenGL33EmbeddedSurfaceState(
         OpenGL33DeviceState& device,
@@ -614,7 +619,7 @@ OpenGL33DeviceState* DeviceStateFrom(
         return nullptr;
     }
     return static_cast<OpenGL33DeviceState*>(
-        Aero::RenderDevice::Impl::NativeState(*device));
+        Aero::RenderDevice::Impl::NativeBackend(*device));
 }
 
 OpenGL33DeviceOptions DeviceOptionsFrom(
@@ -661,11 +666,7 @@ Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33Device(
         delete state;
         return initialized.GetStatus();
     }
-    return Detail::AdoptRenderDevice(
-        Detail::RenderDeviceMode::Embedded,
-        Detail::RenderBackendKind::OpenGL33,
-        state,
-        &selected);
+    return Detail::AdoptRenderDevice(state, &selected);
 }
 
 Base::Result<Base::Ref<RenderSurface>> CreateOpenGL33EmbeddedSurface(
