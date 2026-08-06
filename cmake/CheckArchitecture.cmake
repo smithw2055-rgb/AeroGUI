@@ -233,6 +233,30 @@ unset(aero_renderer_boundary_scan)
 unset(retired_native_renderer_types)
 unset(private_rendering_aliases)
 
+set(aero_render_device_private_header
+    "${AERO_SOURCE_DIR}/src/integration/private/RenderDevice.hpp")
+set(aero_render_surface_private_header
+    "${AERO_SOURCE_DIR}/src/integration/private/RenderSurface.hpp")
+aero_collect_matches(render_device_surface_gateway_leaks
+    "ResizeSurface|NotifySurfaceLost|RestoreSurface|SurfaceState|SurfaceStatus|Base::Result<void>[ \t\r\n]+[(][*]render[)]|[(][*]resize[)]|[(][*]surfaceLost[)]"
+    "${aero_render_device_private_header}")
+if(render_device_surface_gateway_leaks)
+    message(FATAL_ERROR
+        "RenderDevice private contract still owns surface operations: "
+        "${render_device_surface_gateway_leaks}")
+endif()
+aero_collect_matches(render_surface_contract_missing
+    "struct[ \t]+RenderSurfaceFunctions|restoreSurface|SurfaceHealth"
+    "${aero_render_surface_private_header}")
+if(NOT render_surface_contract_missing)
+    message(FATAL_ERROR
+        "RenderSurface private contract does not own its lifecycle functions")
+endif()
+unset(aero_render_device_private_header)
+unset(aero_render_surface_private_header)
+unset(render_device_surface_gateway_leaks)
+unset(render_surface_contract_missing)
+
 set(aero_public_style_headers
     "${AERO_SOURCE_DIR}/include/Aero/Style.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Styling.hpp")

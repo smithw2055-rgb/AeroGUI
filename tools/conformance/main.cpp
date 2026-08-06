@@ -321,15 +321,21 @@ public:
     }
 
     void NotifySurfaceLost() noexcept {
-        health = Aero::Integration::Detail::BackendHealth::SurfaceLost;
+        surfaceHealth = Aero::Integration::Detail::SurfaceHealth::Lost;
     }
 
     void NotifyDeviceLost() noexcept {
-        health = Aero::Integration::Detail::BackendHealth::DeviceLost;
+        deviceHealth = Aero::Integration::Detail::BackendHealth::DeviceLost;
     }
 
-    Aero::Base::Result<void> Restore() noexcept {
-        health = Aero::Integration::Detail::BackendHealth::Ready;
+    Aero::Base::Result<void> RestoreDevice() noexcept {
+        deviceHealth = Aero::Integration::Detail::BackendHealth::Ready;
+        surfaceHealth = Aero::Integration::Detail::SurfaceHealth::Ready;
+        return {};
+    }
+
+    Aero::Base::Result<void> RestoreSurface() noexcept {
+        surfaceHealth = Aero::Integration::Detail::SurfaceHealth::Ready;
         return {};
     }
 
@@ -337,8 +343,12 @@ public:
         return {};
     }
 
-    Aero::Integration::Detail::BackendHealth Health() const noexcept {
-        return health;
+    Aero::Integration::Detail::BackendHealth GetDeviceHealth() const noexcept {
+        return deviceHealth;
+    }
+
+    Aero::Integration::Detail::SurfaceHealth GetSurfaceHealth() const noexcept {
+        return surfaceHealth;
     }
 
     Aero::RenderFrameStatistics
@@ -354,8 +364,10 @@ public:
     }
 
     bool failNext = false;
-    Aero::Integration::Detail::BackendHealth health =
+    Aero::Integration::Detail::BackendHealth deviceHealth =
         Aero::Integration::Detail::BackendHealth::Ready;
+    Aero::Integration::Detail::SurfaceHealth surfaceHealth =
+        Aero::Integration::Detail::SurfaceHealth::Ready;
 
 private:
     Aero::Base::Result<void> RenderFrame() noexcept {
@@ -428,7 +440,8 @@ void VerifyRenderDeviceState(
                 Aero::Integration::RenderSurfaceState::Ready,
         "device loss restore failed");
 
-    state->health = Aero::Integration::Detail::BackendHealth::Failed;
+    state->deviceHealth = Aero::Integration::Detail::BackendHealth::Failed;
+    state->surfaceHealth = Aero::Integration::Detail::SurfaceHealth::Failed;
     state->failNext = true;
     Check(!Aero::Integration::RenderSurface::Impl::Render(
             *surface, state, frame) &&

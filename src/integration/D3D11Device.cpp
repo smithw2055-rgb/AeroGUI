@@ -361,16 +361,22 @@ public:
         deviceLost_ = true;
     }
 
-    Base::Result<void> Restore() noexcept {
-        if (deviceLost_) {
-            deviceLost_ = false;
-            return Initialize();
+    Base::Result<void> RestoreDevice() noexcept {
+        if (!deviceLost_) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "D3D11 device is not lost");
         }
+        deviceLost_ = false;
+        return Initialize();
+    }
+
+    Base::Result<void> RestoreSurface() noexcept {
         if (!surfaceLost_ || surface_ == nullptr ||
             presenter_ == nullptr || renderer_ == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
-                "D3D11 device has no lost surface");
+                "D3D11 surface is not lost");
         }
         Base::Result<void> status =
             surface_->Restore(descriptor_);
@@ -389,20 +395,27 @@ public:
             timeoutMilliseconds);
     }
 
-    Detail::BackendHealth Health() const noexcept {
+    Detail::BackendHealth GetDeviceHealth() const noexcept {
         if (deviceLost_ ||
             (device_ != nullptr &&
              device_->Backend().IsDeviceLost())) {
             return Detail::BackendHealth::DeviceLost;
         }
+        return initialized_ && renderer_ != nullptr &&
+                graphics_ != nullptr && device_ != nullptr
+            ? Detail::BackendHealth::Ready
+            : Detail::BackendHealth::Failed;
+    }
+
+    Detail::SurfaceHealth GetSurfaceHealth() const noexcept {
         if (surfaceLost_ ||
             (surface_ != nullptr &&
              surface_->State() != Graphics::SurfaceState::Ready)) {
-            return Detail::BackendHealth::SurfaceLost;
+            return Detail::SurfaceHealth::Lost;
         }
-        return initialized_ && renderer_ != nullptr
-            ? Detail::BackendHealth::Ready
-            : Detail::BackendHealth::Failed;
+        return initialized_ && surface_ != nullptr && presenter_ != nullptr
+            ? Detail::SurfaceHealth::Ready
+            : Detail::SurfaceHealth::Failed;
     }
 
     ::Aero::RenderFrameStatistics

@@ -432,11 +432,17 @@ public:
         deviceLost_ = true;
     }
 
-    Base::Result<void> Restore() noexcept {
-        if (deviceLost_) {
-            deviceLost_ = false;
-            return Initialize();
+    Base::Result<void> RestoreDevice() noexcept {
+        if (!deviceLost_) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "OpenGL device is not lost");
         }
+        deviceLost_ = false;
+        return Initialize();
+    }
+
+    Base::Result<void> RestoreSurface() noexcept {
         if (!surfaceLost_ || surface_ == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -459,21 +465,27 @@ public:
                 timeoutMilliseconds) * UINT64_C(1000000));
     }
 
-    Detail::BackendHealth Health() const noexcept {
+    Detail::BackendHealth GetDeviceHealth() const noexcept {
         if (deviceLost_ ||
             (device_ != nullptr &&
              device_->Backend().IsDeviceLost())) {
             return Detail::BackendHealth::DeviceLost;
         }
+        return renderer_ != nullptr && graphics_ != nullptr &&
+                device_ != nullptr
+            ? Detail::BackendHealth::Ready
+            : Detail::BackendHealth::Failed;
+    }
+
+    Detail::SurfaceHealth GetSurfaceHealth() const noexcept {
         if (surfaceLost_ ||
             (surface_ != nullptr &&
              surface_->State() != Graphics::SurfaceState::Ready)) {
-            return Detail::BackendHealth::SurfaceLost;
+            return Detail::SurfaceHealth::Lost;
         }
-        return renderer_ != nullptr && graphics_ != nullptr &&
-                device_ != nullptr && surface_ != nullptr
-            ? Detail::BackendHealth::Ready
-            : Detail::BackendHealth::Failed;
+        return surface_ != nullptr
+            ? Detail::SurfaceHealth::Ready
+            : Detail::SurfaceHealth::Failed;
     }
 
     ::Aero::RenderFrameStatistics

@@ -8,9 +8,22 @@
 #include <utility>
 
 namespace Aero::Integration {
+namespace {
 
-// Source-private backend constructors retained until native Device and Surface
-// ownership are physically separated in the backend implementation files.
+Base::Status InvalidState(const char* message) noexcept {
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidState, message);
+}
+
+Base::Status NotInitialized(const char* message) noexcept {
+    return Base::Status::Failure(
+        Base::ErrorCode::NotInitialized, message);
+}
+
+} // namespace
+
+// Source-private combined constructors retained until native Device and Surface
+// allocation are physically separated in each backend implementation.
 #if defined(_WIN32)
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11EmbeddedDevice(
     const D3D11EmbeddedSurfaceOptions& options,
@@ -70,7 +83,7 @@ RenderSurfaceState RenderSurface::State() const noexcept {
     case Aero::RenderDeviceState::Shutdown:
         return RenderSurfaceState::Shutdown;
     }
-    switch (Aero::RenderDevice::Impl::SurfaceState(*impl_->device)) {
+    switch (impl_->RefreshHealth()) {
     case Detail::SurfaceHealth::Ready:
         return RenderSurfaceState::Ready;
     case Detail::SurfaceHealth::Lost:
@@ -92,36 +105,65 @@ Base::Ref<Aero::RenderDevice> RenderSurface::GetDevice() const noexcept {
 Base::Result<void> RenderSurface::Resize(
     std::uint32_t width,
     std::uint32_t height) noexcept {
-    return impl_ != nullptr && impl_->device
-        ? Aero::RenderDevice::Impl::ResizeSurface(
-              *impl_->device, width, height)
-        : Base::Result<void>(Base::Status::Failure(
-              Base::ErrorCode::NotInitialized,
-              "Render surface is not initialized"));
+    if (impl_ == nullptr || !impl_->device || impl_->stateData == nullptr ||
+        impl_->functions == nullptr) {
+        return NotInitialized("Render surface is not initialized");
+    }
+    if (width == 0U || height == 0U) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Render surface dimensions must be nonzero");
+    }
+    if (impl_->device->State() != Aero::RenderDeviceState::Ready ||
+        impl_->RefreshHealth() != Detail::SurfaceHealth::Ready) {
+        return InvalidState("Render surface cannot resize in its current state");
+    }
+    Base::Result<void> idle = impl_->device->WaitIdle();
+    if (!idle) return idle.GetStatus();
+    Base::Result<void> resized =
+        impl_->functions->resize(impl_->stateData, width, height);
+    if (!resized) impl_->RefreshHealth();
+    return resized;
 }
 
 void RenderSurface::NotifyLost() noexcept {
-    if (impl_ != nullptr && impl_->device) {
-        Aero::RenderDevice::Impl::NotifySurfaceLost(*impl_->device);
+    if (impl_ == nullptr || !impl_->device || impl_->stateData == nullptr ||
+        impl_->functions == nullptr ||
+        impl_->device->State() != Aero::RenderDeviceState::Ready ||
+        impl_->RefreshHealth() != Detail::SurfaceHealth::Ready) {
+        return;
     }
+    impl_->health = Detail::SurfaceHealth::Lost;
+    impl_->functions->surfaceLost(impl_->stateData);
+    Aero::RenderDevice::Impl::RefreshHealth(*impl_->device);
+    impl_->RefreshHealth();
 }
 
 Base::Result<void> RenderSurface::Restore() noexcept {
-    return impl_ != nullptr && impl_->device
-        ? Aero::RenderDevice::Impl::RestoreSurface(*impl_->device)
-        : Base::Result<void>(Base::Status::Failure(
-              Base::ErrorCode::NotInitialized,
-              "Render surface is not initialized"));
+    if (impl_ == nullptr || !impl_->device || impl_->stateData == nullptr ||
+        impl_->functions == nullptr) {
+        return NotInitialized("Render surface is not initialized");
+    }
+    if (impl_->device->State() != Aero::RenderDeviceState::Ready ||
+        impl_->RefreshHealth() != Detail::SurfaceHealth::Lost) {
+        return InvalidState("Only a lost render surface can be restored");
+    }
+    Base::Result<void> restored =
+        impl_->functions->restoreSurface(impl_->stateData);
+    Aero::RenderDevice::Impl::RefreshHealth(*impl_->device);
+    impl_->RefreshHealth();
+    return restored;
 }
 
 Base::Result<Base::Ref<RenderSurface>> RenderSurface::Impl::Create(
     Base::Ref<Aero::RenderDevice> device,
     RenderSurfaceKind kind,
     Base::IAllocator* allocator) noexcept {
-    if (!device) {
+    if (!device || Aero::RenderDevice::Impl::NativeState(*device) == nullptr ||
+        Aero::RenderDevice::Impl::SurfaceFunctions(*device) == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "Render surface requires a render device");
+            "Render surface requires a surface-capable render device");
     }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
@@ -138,16 +180,33 @@ Base::Result<void> RenderSurface::Impl::Render(
     RenderSurface& surface,
     const void* rendererToken,
     const Integration::RenderFrame& frame) noexcept {
-    if (surface.impl_ == nullptr || !surface.impl_->device) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "Render surface is not initialized");
+    Impl* impl = surface.impl_;
+    if (impl == nullptr || !impl->device || impl->stateData == nullptr ||
+        impl->functions == nullptr) {
+        return NotInitialized("Render surface is not initialized");
     }
-    Base::Status ready = Aero::RenderDevice::Impl::SurfaceStatus(
-        *surface.impl_->device);
-    if (!ready.IsOk()) return ready;
-    return Aero::RenderDevice::Impl::Render(
-        *surface.impl_->device, rendererToken, frame);
+    Base::Status deviceReady =
+        Aero::RenderDevice::Impl::FrameStatus(*impl->device);
+    if (!deviceReady.IsOk()) return deviceReady;
+    if (impl->RefreshHealth() != Detail::SurfaceHealth::Ready) {
+        return InvalidState("Render surface is not ready");
+    }
+
+    Base::Result<Aero::RenderFrameStatistics> statistics =
+        Aero::RenderDevice::Impl::BeginSurfaceFrame(*impl->device, frame);
+    if (!statistics) return statistics.GetStatus();
+
+    Base::Result<void> rendered = impl->functions->render(
+        impl->stateData, rendererToken, frame);
+    if (!rendered) {
+        Aero::RenderDevice::Impl::RecordSurfaceFailure(*impl->device);
+        impl->RefreshHealth();
+        return rendered.GetStatus();
+    }
+
+    Aero::RenderDevice::Impl::CompleteSurfaceFrame(
+        *impl->device, frame, statistics.Value());
+    return {};
 }
 
 namespace Detail {
