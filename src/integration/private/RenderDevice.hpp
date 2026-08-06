@@ -14,6 +14,13 @@ enum class RenderDeviceMode : std::uint8_t {
     Window
 };
 
+enum class RenderBackendKind : std::uint8_t {
+    Unknown = 0U,
+    Headless,
+    D3D11,
+    OpenGL33
+};
+
 enum class BackendHealth : std::uint8_t {
     Ready = 0U,
     DeviceLost,
@@ -29,8 +36,8 @@ enum class SurfaceHealth : std::uint8_t {
 
 struct RenderSurfaceFunctions;
 
-// Device-only backend contract. Presentation, resize and surface recovery are
-// deliberately absent and live in RenderSurfaceFunctions.
+// Native device contract. Surface ownership, resize, present and recovery are
+// intentionally absent so one device can back multiple independent surfaces.
 struct RenderDeviceFunctions {
     void (*destroy)(void*) noexcept = nullptr;
     Base::Result<void> (*renderOffscreen)(
@@ -48,9 +55,10 @@ class RenderDeviceFactory {
 public:
     static Base::Result<Base::Ref<::Aero::RenderDevice>> Adopt(
         RenderDeviceMode mode,
+        RenderBackendKind backend,
         void* state,
         const RenderDeviceFunctions* functions,
-        const RenderSurfaceFunctions* surfaceFunctions,
+        const RenderSurfaceFunctions* defaultSurfaceFunctions,
         Base::IAllocator* allocator = nullptr) noexcept;
 };
 
@@ -91,11 +99,28 @@ const RenderSurfaceFunctions& SurfaceFunctionsFor() noexcept;
 
 Base::Result<Base::Ref<::Aero::RenderDevice>> AdoptRenderDevice(
     RenderDeviceMode mode,
+    RenderBackendKind backend,
     void* state,
     const RenderDeviceFunctions* functions,
-    const RenderSurfaceFunctions* surfaceFunctions,
+    const RenderSurfaceFunctions* defaultSurfaceFunctions = nullptr,
     Base::IAllocator* allocator = nullptr) noexcept;
 
+template<class T>
+Base::Result<Base::Ref<::Aero::RenderDevice>> AdoptRenderDevice(
+    RenderDeviceMode mode,
+    RenderBackendKind backend,
+    T* state,
+    Base::IAllocator* allocator = nullptr) noexcept {
+    return AdoptRenderDevice(
+        mode,
+        backend,
+        static_cast<void*>(state),
+        &DeviceFunctionsFor<T>(),
+        nullptr,
+        allocator);
+}
+
+// Source-private compatibility for the remaining single-window OpenGL path.
 template<class T>
 Base::Result<Base::Ref<::Aero::RenderDevice>> AdoptRenderDevice(
     RenderDeviceMode mode,
@@ -103,6 +128,7 @@ Base::Result<Base::Ref<::Aero::RenderDevice>> AdoptRenderDevice(
     Base::IAllocator* allocator = nullptr) noexcept {
     return AdoptRenderDevice(
         mode,
+        RenderBackendKind::Unknown,
         static_cast<void*>(state),
         &DeviceFunctionsFor<T>(),
         &SurfaceFunctionsFor<T>(),
@@ -120,9 +146,11 @@ struct RenderDevice::Impl {
     Base::IAllocator* allocator = nullptr;
     void* stateData = nullptr;
     const Integration::Detail::RenderDeviceFunctions* functions = nullptr;
-    const Integration::Detail::RenderSurfaceFunctions* surfaceFunctions = nullptr;
+    const Integration::Detail::RenderSurfaceFunctions* defaultSurfaceFunctions = nullptr;
     Integration::Detail::RenderDeviceMode mode =
         Integration::Detail::RenderDeviceMode::Headless;
+    Integration::Detail::RenderBackendKind backend =
+        Integration::Detail::RenderBackendKind::Unknown;
     RenderDeviceState state = RenderDeviceState::Ready;
     RenderDeviceStatistics statistics;
     RenderFrameStatistics lastFrameStatistics;
@@ -132,9 +160,18 @@ struct RenderDevice::Impl {
         return device.impl_ != nullptr ? device.impl_->functions : nullptr;
     }
 
-    static const Integration::Detail::RenderSurfaceFunctions* SurfaceFunctions(
+    static const Integration::Detail::RenderSurfaceFunctions* DefaultSurfaceFunctions(
         const RenderDevice& device) noexcept {
-        return device.impl_ != nullptr ? device.impl_->surfaceFunctions : nullptr;
+        return device.impl_ != nullptr
+            ? device.impl_->defaultSurfaceFunctions
+            : nullptr;
+    }
+
+    static Integration::Detail::RenderBackendKind Backend(
+        const RenderDevice& device) noexcept {
+        return device.impl_ != nullptr
+            ? device.impl_->backend
+            : Integration::Detail::RenderBackendKind::Unknown;
     }
 
     static void* NativeState(RenderDevice& device) noexcept {
@@ -144,22 +181,25 @@ struct RenderDevice::Impl {
     static void SetBackend(
         RenderDevice& device,
         Integration::Detail::RenderDeviceMode mode,
+        Integration::Detail::RenderBackendKind backend,
         void* state,
         const Integration::Detail::RenderDeviceFunctions* functions,
-        const Integration::Detail::RenderSurfaceFunctions* surfaceFunctions) noexcept {
+        const Integration::Detail::RenderSurfaceFunctions* defaultSurfaceFunctions) noexcept {
         device.impl_->mode = mode;
+        device.impl_->backend = backend;
         device.impl_->stateData = state;
         device.impl_->functions = functions;
-        device.impl_->surfaceFunctions = surfaceFunctions;
+        device.impl_->defaultSurfaceFunctions = defaultSurfaceFunctions;
     }
 
     static Base::Result<Base::Ref<RenderDevice>> Create(
         Integration::Detail::RenderDeviceMode mode,
+        Integration::Detail::RenderBackendKind backend,
         void* state,
         const Integration::Detail::RenderDeviceFunctions* functions,
-        const Integration::Detail::RenderSurfaceFunctions* surfaceFunctions,
+        const Integration::Detail::RenderSurfaceFunctions* defaultSurfaceFunctions,
         Base::IAllocator* allocator) noexcept {
-        if (state == nullptr || functions == nullptr || surfaceFunctions == nullptr) {
+        if (state == nullptr || functions == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Render device implementation is required");
@@ -176,7 +216,9 @@ struct RenderDevice::Impl {
             functions->destroy(state);
             return made.GetStatus();
         }
-        SetBackend(*made.Value(), mode, state, functions, surfaceFunctions);
+        SetBackend(
+            *made.Value(), mode, backend, state,
+            functions, defaultSurfaceFunctions);
         return std::move(made).Value();
     }
 

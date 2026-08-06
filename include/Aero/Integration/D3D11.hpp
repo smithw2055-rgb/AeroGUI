@@ -15,6 +15,16 @@ enum class D3D11StatePreservationPolicy : std::uint8_t {
     PreserveRequiredState
 };
 
+struct D3D11DeviceOptions {
+    std::uintptr_t device = 0U;
+    std::uintptr_t immediateContext = 0U;
+    D3D11StatePreservationPolicy statePolicy =
+        D3D11StatePreservationPolicy::HostResetsState;
+    bool useWarp = false;
+    bool allowWarpFallback = true;
+    bool enableDebugLayer = false;
+};
+
 struct D3D11EmbeddedTarget  {
     std::uintptr_t texture2D = 0U;
     std::uintptr_t renderTargetView = 0U;
@@ -46,6 +56,23 @@ struct D3D11WindowSurfaceOptions  {
     bool allowWarpFallback = true;
     bool enableDebugLayer = false;
 };
+
+AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
+CreateD3D11Device(
+    const D3D11DeviceOptions& options = {},
+    Base::IAllocator* allocator = nullptr) noexcept;
+
+AERO_API Base::Result<Base::Ref<RenderSurface>>
+CreateD3D11EmbeddedSurface(
+    Base::Ref<Aero::RenderDevice> device,
+    const D3D11EmbeddedSurfaceOptions& options,
+    Base::IAllocator* allocator = nullptr) noexcept;
+
+AERO_API Base::Result<Base::Ref<RenderSurface>>
+CreateD3D11WindowSurface(
+    Base::Ref<Aero::RenderDevice> device,
+    const D3D11WindowSurfaceOptions& options,
+    Base::IAllocator* allocator = nullptr) noexcept;
 
 AERO_API Base::Result<Base::Ref<RenderSurface>>
 CreateD3D11EmbeddedSurface(

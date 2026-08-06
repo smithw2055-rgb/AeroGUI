@@ -32,9 +32,9 @@ enum class RenderSurfaceState : std::uint8_t {
     Shutdown
 };
 
-// Host-owned onscreen target. A surface owns the RenderDevice created by the
-// backend factory while IRenderer binds only to that device and receives the
-// surface explicitly for the onscreen pass.
+// Host-owned onscreen target. A surface keeps a strong reference to a shared
+// RenderDevice and owns only its native presentation state. Multiple surfaces
+// may therefore render through the same device and GPU resource registries.
 class AERO_API RenderSurface final : public Base::Object {
     struct ConstructionToken {};
 

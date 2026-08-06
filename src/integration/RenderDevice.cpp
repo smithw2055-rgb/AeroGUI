@@ -61,7 +61,7 @@ RenderDevice::~RenderDevice() noexcept {
         functions->destroy(impl_->stateData);
         impl_->stateData = nullptr;
         impl_->functions = nullptr;
-        impl_->surfaceFunctions = nullptr;
+        impl_->defaultSurfaceFunctions = nullptr;
     }
     impl_->state = RenderDeviceState::Shutdown;
     Base::IAllocator* allocator = impl_->allocator;
@@ -202,23 +202,25 @@ public:
 Base::Result<Base::Ref<::Aero::RenderDevice>>
 RenderDeviceFactory::Adopt(
     RenderDeviceMode mode,
+    RenderBackendKind backend,
     void* state,
     const RenderDeviceFunctions* functions,
-    const RenderSurfaceFunctions* surfaceFunctions,
+    const RenderSurfaceFunctions* defaultSurfaceFunctions,
     Base::IAllocator* allocator) noexcept {
     return ::Aero::RenderDevice::Impl::Create(
-        mode, state, functions, surfaceFunctions, allocator);
+        mode, backend, state, functions, defaultSurfaceFunctions, allocator);
 }
 
 Base::Result<Base::Ref<::Aero::RenderDevice>>
 AdoptRenderDevice(
     RenderDeviceMode mode,
+    RenderBackendKind backend,
     void* state,
     const RenderDeviceFunctions* functions,
-    const RenderSurfaceFunctions* surfaceFunctions,
+    const RenderSurfaceFunctions* defaultSurfaceFunctions,
     Base::IAllocator* allocator) noexcept {
     return RenderDeviceFactory::Adopt(
-        mode, state, functions, surfaceFunctions, allocator);
+        mode, backend, state, functions, defaultSurfaceFunctions, allocator);
 }
 
 Base::Result<Base::Ref<::Aero::RenderDevice>>
@@ -232,6 +234,7 @@ CreateHeadlessRenderDevice(
     }
     return AdoptRenderDevice(
         RenderDeviceMode::Headless,
+        RenderBackendKind::Headless,
         backend,
         allocator);
 }

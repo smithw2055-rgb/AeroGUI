@@ -22,19 +22,9 @@ Base::Status NotInitialized(const char* message) noexcept {
 
 } // namespace
 
-// Source-private combined constructors retained until native Device and Surface
-// allocation are physically separated in each backend implementation.
-#if defined(_WIN32)
-Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11EmbeddedDevice(
-    const D3D11EmbeddedSurfaceOptions& options,
-    Base::IAllocator* allocator) noexcept;
-Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11WindowDevice(
-    const D3D11WindowSurfaceOptions& options,
-    Base::IAllocator* allocator) noexcept;
-#endif
-Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33EmbeddedDevice(
-    const OpenGL33EmbeddedSurfaceOptions& options,
-    Base::IAllocator* allocator) noexcept;
+// The remaining OpenGL window path creates its native context and surface as
+// one platform object. Embedded OpenGL and all D3D11 paths use independent
+// device/surface factories below.
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33WindowDevice(
     const OpenGL33WindowSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept;
@@ -160,7 +150,7 @@ Base::Result<Base::Ref<RenderSurface>> RenderSurface::Impl::Create(
     RenderSurfaceKind kind,
     Base::IAllocator* allocator) noexcept {
     if (!device || Aero::RenderDevice::Impl::NativeState(*device) == nullptr ||
-        Aero::RenderDevice::Impl::SurfaceFunctions(*device) == nullptr) {
+        Aero::RenderDevice::Impl::DefaultSurfaceFunctions(*device) == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Render surface requires a surface-capable render device");
@@ -174,6 +164,40 @@ Base::Result<Base::Ref<RenderSurface>> RenderSurface::Impl::Create(
         std::move(device),
         kind,
         &selected);
+}
+
+Base::Result<Base::Ref<RenderSurface>> RenderSurface::Impl::CreateOwned(
+    Base::Ref<Aero::RenderDevice> device,
+    void* state,
+    const Detail::RenderSurfaceFunctions* functions,
+    RenderSurfaceKind kind,
+    Base::IAllocator* allocator) noexcept {
+    if (!device || state == nullptr || functions == nullptr ||
+        functions->destroy == nullptr) {
+        if (state != nullptr && functions != nullptr &&
+            functions->destroy != nullptr) {
+            functions->destroy(state);
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Owned render surface requires device, state, and destroy function");
+    }
+    Base::IAllocator& selected = allocator != nullptr
+        ? *allocator
+        : Base::GetDefaultAllocator();
+    Base::Result<Base::Ref<RenderSurface>> made =
+        Base::MakeRefWithAllocator<RenderSurface>(
+            selected,
+            RenderSurface::ConstructionToken{},
+            std::move(device),
+            kind,
+            &selected);
+    if (!made) {
+        functions->destroy(state);
+        return made.GetStatus();
+    }
+    made.Value()->impl_->SetState(state, functions);
+    return std::move(made).Value();
 }
 
 Base::Result<void> RenderSurface::Impl::Render(
@@ -219,39 +243,17 @@ Base::Result<Base::Ref<RenderSurface>> AdoptRenderSurface(
         std::move(device), kind, allocator);
 }
 
+Base::Result<Base::Ref<RenderSurface>> AdoptOwnedRenderSurface(
+    Base::Ref<Aero::RenderDevice> device,
+    void* state,
+    const RenderSurfaceFunctions* functions,
+    RenderSurfaceKind kind,
+    Base::IAllocator* allocator) noexcept {
+    return RenderSurface::Impl::CreateOwned(
+        std::move(device), state, functions, kind, allocator);
+}
+
 } // namespace Detail
-
-#if defined(_WIN32)
-Base::Result<Base::Ref<RenderSurface>> CreateD3D11EmbeddedSurface(
-    const D3D11EmbeddedSurfaceOptions& options,
-    Base::IAllocator* allocator) noexcept {
-    Base::Result<Base::Ref<Aero::RenderDevice>> device =
-        CreateD3D11EmbeddedDevice(options, allocator);
-    if (!device) return device.GetStatus();
-    return Detail::AdoptRenderSurface(
-        std::move(device).Value(), RenderSurfaceKind::Embedded, allocator);
-}
-
-Base::Result<Base::Ref<RenderSurface>> CreateD3D11WindowSurface(
-    const D3D11WindowSurfaceOptions& options,
-    Base::IAllocator* allocator) noexcept {
-    Base::Result<Base::Ref<Aero::RenderDevice>> device =
-        CreateD3D11WindowDevice(options, allocator);
-    if (!device) return device.GetStatus();
-    return Detail::AdoptRenderSurface(
-        std::move(device).Value(), RenderSurfaceKind::Window, allocator);
-}
-#endif
-
-Base::Result<Base::Ref<RenderSurface>> CreateOpenGL33EmbeddedSurface(
-    const OpenGL33EmbeddedSurfaceOptions& options,
-    Base::IAllocator* allocator) noexcept {
-    Base::Result<Base::Ref<Aero::RenderDevice>> device =
-        CreateOpenGL33EmbeddedDevice(options, allocator);
-    if (!device) return device.GetStatus();
-    return Detail::AdoptRenderSurface(
-        std::move(device).Value(), RenderSurfaceKind::Embedded, allocator);
-}
 
 Base::Result<Base::Ref<RenderSurface>> CreateOpenGL33WindowSurface(
     const OpenGL33WindowSurfaceOptions& options,

@@ -11,7 +11,7 @@ add_library(AeroRenderingObjects OBJECT
     src/render/opengl33/OpenGL33Backend.cpp
     src/render/opengl33/OpenGL33Context.cpp
     src/render/opengl33/OpenGL33StateCache.cpp
-    src/render/opengl33/OpenGL33Renderer.cpp)
+    src/render/opengl33/OpenGL33Shaders.cpp)
 
 
 aero_configure_internal_objects(AeroRenderingObjects)
@@ -313,7 +313,7 @@ if(AERO_ENABLE_D3D11_BACKEND)
 
     target_sources(AeroRenderingObjects PRIVATE
         src/render/d3d11/D3D11Backend.cpp
-        src/render/d3d11/D3D11Renderer.cpp
+        src/render/d3d11/D3D11Shaders.cpp
         ${_aero_d3d11_backend_fragments})
     add_dependencies(AeroRenderingObjects
         AeroD3D11RenderFrameShaders)

@@ -4,11 +4,12 @@
 set(_aero_integration_sources
     src/integration/RenderSurface.cpp
     src/integration/OpenGL33Device.cpp
+    src/integration/OpenGL33EmbeddedShared.cpp
     src/providers/XamlProvider.cpp
     src/platform/Clipboard.cpp)
 if(WIN32)
     list(APPEND _aero_integration_sources
-        src/integration/D3D11Device.cpp)
+        src/integration/D3D11Shared.cpp)
 endif()
 
 add_library(AeroIntegration ${AERO_LIBRARY_TYPE}

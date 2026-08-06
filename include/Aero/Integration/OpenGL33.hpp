@@ -26,6 +26,17 @@ using OpenGL33IsCurrent = bool (*)(
 using OpenGL33ContextGeneration = std::uint64_t (*)(
     void* context) noexcept;
 
+struct OpenGL33DeviceOptions {
+    OpenGL33ProcResolver resolve = nullptr;
+    OpenGL33MakeCurrent makeCurrent = nullptr;
+    OpenGL33IsCurrent isCurrent = nullptr;
+    OpenGL33ContextGeneration contextGeneration = nullptr;
+    void* callbackContext = nullptr;
+    OpenGL33StatePreservationPolicy statePolicy =
+        OpenGL33StatePreservationPolicy::HostResetsState;
+    bool checkErrors = false;
+};
+
 struct OpenGL33EmbeddedTarget  {
     std::uint32_t framebuffer = 0U;
     std::uint32_t depthStencilTexture = 0U;
@@ -46,6 +57,7 @@ struct OpenGL33EmbeddedSurfaceOptions  {
     OpenGL33ContextGeneration contextGeneration = nullptr;
     OpenGL33TargetCallback acquireTarget = nullptr;
     void* callbackContext = nullptr;
+    void* targetContext = nullptr;
     OpenGL33StatePreservationPolicy statePolicy =
         OpenGL33StatePreservationPolicy::HostResetsState;
 };
@@ -57,6 +69,17 @@ struct OpenGL33WindowSurfaceOptions  {
     PresentMode presentMode = PresentMode::Fifo;
     bool enableDebugContext = false;
 };
+
+AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
+CreateOpenGL33Device(
+    const OpenGL33DeviceOptions& options,
+    Base::IAllocator* allocator = nullptr) noexcept;
+
+AERO_API Base::Result<Base::Ref<RenderSurface>>
+CreateOpenGL33EmbeddedSurface(
+    Base::Ref<Aero::RenderDevice> device,
+    const OpenGL33EmbeddedSurfaceOptions& options,
+    Base::IAllocator* allocator = nullptr) noexcept;
 
 AERO_API Base::Result<Base::Ref<RenderSurface>>
 CreateOpenGL33EmbeddedSurface(
