@@ -68,6 +68,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Integration/D3D11.hpp
     include/Aero/Integration/OpenGL33.hpp
     include/Aero/Integration/ReloadCoordinator.hpp
+    include/Aero/Integration/RenderSurface.hpp
     include/Aero/Integration/Providers/FontProvider.hpp
     include/Aero/Integration/Providers/Providers.hpp
     include/Aero/Integration/Providers/TextureProvider.hpp

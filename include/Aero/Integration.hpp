@@ -4,6 +4,7 @@
 // must not depend on whether this umbrella header was included first.
 #include <Aero/IRenderer.hpp>
 #include <Aero/RenderDevice.hpp>
+#include <Aero/Integration/RenderSurface.hpp>
 #include <Aero/View.hpp>
 #include <Aero/Integration/Platform.hpp>
 #include <Aero/Integration/NativeWindow.hpp>

@@ -2,6 +2,7 @@
 # schema composition. App owns the WPF Application/Window object model together
 # with the default desktop lifetime and OS window implementation.
 set(_aero_integration_sources
+    src/integration/RenderSurface.cpp
     src/integration/OpenGL33Device.cpp
     src/providers/XamlProvider.cpp
     src/platform/Clipboard.cpp)

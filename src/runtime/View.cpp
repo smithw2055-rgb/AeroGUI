@@ -8,6 +8,7 @@
 #include "runtime/ImageCache.hpp"
 #include "runtime/TextPipeline.hpp"
 #include "runtime/ViewRenderer.hpp"
+#include "integration/private/RenderSurface.hpp"
 
 #include "controls/ControlsPrivate.hpp"
 #include "controls/ControlBehavior.hpp"
@@ -8876,12 +8877,18 @@ Runtime::Detail::ViewRenderer::RenderOffscreen() noexcept {
     return {};
 }
 
-Base::Result<void> Runtime::Detail::ViewRenderer::Render() noexcept {
+Base::Result<void> Runtime::Detail::ViewRenderer::Render(
+    Integration::RenderSurface& surface) noexcept {
     if (impl_ == nullptr || !impl_->initialized || !impl_->device ||
-        impl_->view == nullptr || impl_->view->state_ == nullptr ||
-        impl_->view->state_ == nullptr) {
+        impl_->view == nullptr || impl_->view->state_ == nullptr) {
         return ViewNotInitialized(
             "Renderer must be initialized before Render");
+    }
+
+    Base::Ref<RenderDevice> surfaceDevice = surface.GetDevice();
+    if (!surfaceDevice || surfaceDevice.Get() != impl_->device.Get()) {
+        return ViewApiInvalidState(
+            "RenderSurface must belong to the renderer RenderDevice");
     }
 
     const Integration::RenderFrame& frame =
@@ -8904,8 +8911,8 @@ Base::Result<void> Runtime::Detail::ViewRenderer::Render() noexcept {
     }
 
     Base::Result<void> submitted =
-        Integration::RenderDevice::Impl::Render(
-            *impl_->device, this, frame);
+        Integration::RenderSurface::Impl::Render(
+            surface, this, frame);
     if (!submitted) return submitted.GetStatus();
 
     impl_->renderedVersion = frame.Version();

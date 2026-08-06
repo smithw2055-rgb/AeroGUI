@@ -3,7 +3,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/RenderDevice.hpp>
+#include <Aero/Integration/RenderSurface.hpp>
 #include <Aero/Integration/NativeWindow.hpp>
 
 #include <cstdint>
@@ -28,7 +28,7 @@ using D3D11TargetCallback = Base::Status (*)(
     void* context,
     D3D11EmbeddedTarget* target) noexcept;
 
-struct D3D11EmbeddedDeviceOptions  {
+struct D3D11EmbeddedSurfaceOptions  {
     std::uintptr_t device = 0U;
     std::uintptr_t immediateContext = 0U;
     D3D11TargetCallback acquireTarget = nullptr;
@@ -37,24 +37,24 @@ struct D3D11EmbeddedDeviceOptions  {
         D3D11StatePreservationPolicy::HostResetsState;
 };
 
-struct D3D11WindowDeviceOptions  {
+struct D3D11WindowSurfaceOptions  {
     NativeWindowHandle window;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
-    Aero::RenderPresentMode presentMode = Aero::RenderPresentMode::Fifo;
+    PresentMode presentMode = PresentMode::Fifo;
     bool useWarp = false;
     bool allowWarpFallback = true;
     bool enableDebugLayer = false;
 };
 
-AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
-CreateD3D11EmbeddedDevice(
-    const D3D11EmbeddedDeviceOptions& options,
+AERO_API Base::Result<Base::Ref<RenderSurface>>
+CreateD3D11EmbeddedSurface(
+    const D3D11EmbeddedSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
-CreateD3D11WindowDevice(
-    const D3D11WindowDeviceOptions& options,
+AERO_API Base::Result<Base::Ref<RenderSurface>>
+CreateD3D11WindowSurface(
+    const D3D11WindowSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
 } // namespace Aero::Integration

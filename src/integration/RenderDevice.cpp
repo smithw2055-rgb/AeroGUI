@@ -17,26 +17,41 @@ Base::Status NotInitialized(const char* message) noexcept {
         Base::ErrorCode::NotInitialized, message);
 }
 
-RenderDeviceState ToPublicState(
+bool ApplyBackendHealth(
+    RenderDevice::Impl& device,
     Integration::Detail::BackendHealth health) noexcept {
+    const RenderDeviceState previousDevice = device.state;
+    const Integration::Detail::SurfaceHealth previousSurface = device.surface;
     switch (health) {
     case Integration::Detail::BackendHealth::Ready:
-        return RenderDeviceState::Ready;
+        device.state = RenderDeviceState::Ready;
+        device.surface =
+            device.mode == Integration::Detail::RenderDeviceMode::Headless
+            ? Integration::Detail::SurfaceHealth::Shutdown
+            : Integration::Detail::SurfaceHealth::Ready;
+        break;
     case Integration::Detail::BackendHealth::SurfaceLost:
-        return RenderDeviceState::SurfaceLost;
+        if (device.state == RenderDeviceState::Ready) {
+            device.surface = Integration::Detail::SurfaceHealth::Lost;
+        }
+        break;
     case Integration::Detail::BackendHealth::DeviceLost:
-        return RenderDeviceState::DeviceLost;
+        device.state = RenderDeviceState::DeviceLost;
+        device.surface = Integration::Detail::SurfaceHealth::Lost;
+        break;
     case Integration::Detail::BackendHealth::Failed:
-        return RenderDeviceState::Failed;
+        device.state = RenderDeviceState::Failed;
+        device.surface = Integration::Detail::SurfaceHealth::Failed;
+        break;
     }
-    return RenderDeviceState::Failed;
+    return previousDevice != device.state || previousSurface != device.surface;
 }
+
 
 } // namespace
 
 RenderDevice::RenderDevice(
     ConstructionToken,
-    RenderDeviceMode mode,
     Base::IAllocator* allocator) noexcept {
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
@@ -47,7 +62,7 @@ RenderDevice::RenderDevice(
         Base::ReportOutOfMemory(
             sizeof(Impl), alignof(Impl), Base::MemoryTag::Render);
     }
-    impl_ = new (memory) Impl(mode, selected);
+    impl_ = new (memory) Impl(selected);
 }
 
 RenderDevice::~RenderDevice() noexcept {
@@ -60,15 +75,12 @@ RenderDevice::~RenderDevice() noexcept {
         impl_->functions = nullptr;
     }
     impl_->state = RenderDeviceState::Shutdown;
+    impl_->surface = Integration::Detail::SurfaceHealth::Shutdown;
     Base::IAllocator* allocator = impl_->allocator;
     impl_->~Impl();
     allocator->Deallocate(
         impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Render);
     impl_ = nullptr;
-}
-
-RenderDeviceMode RenderDevice::Mode() const noexcept {
-    return impl_ != nullptr ? impl_->mode : RenderDeviceMode::Headless;
 }
 
 RenderDeviceState RenderDevice::State() const noexcept {
@@ -125,48 +137,50 @@ void RenderDevice::MergeBackendStatistics(
     result.stateBindingCount = native.stateBindingCount;
 }
 
-Base::Result<void> RenderDevice::Resize(
+Base::Result<void> RenderDevice::Impl::ResizeSurface(
+    RenderDevice& device,
     std::uint32_t width,
     std::uint32_t height) noexcept {
-    const auto* functions = Impl::Functions(*this);
-    if (impl_ == nullptr || impl_->stateData == nullptr || functions == nullptr) {
-        return NotInitialized("Render device is not initialized");
+    Impl* impl = device.impl_;
+    const auto* functions = Functions(device);
+    if (impl == nullptr || impl->stateData == nullptr || functions == nullptr) {
+        return NotInitialized("Render surface is not initialized");
     }
     if (width == 0U || height == 0U) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "Render device dimensions must be nonzero");
+            "Render surface dimensions must be nonzero");
     }
-    if (impl_->state != RenderDeviceState::Ready) {
+    if (impl->state != RenderDeviceState::Ready ||
+        impl->surface != Integration::Detail::SurfaceHealth::Ready) {
         return InvalidState(
-            "Render device cannot resize in its current state");
+            "Render surface cannot resize in its current state");
     }
-    Base::Result<void> idle = WaitIdle();
-    return idle ? functions->resize(impl_->stateData, width, height) : idle;
+    Base::Result<void> idle = device.WaitIdle();
+    return idle ? functions->resize(impl->stateData, width, height) : idle;
 }
 
-void RenderDevice::NotifySurfaceLost() noexcept {
-    const auto* functions = Impl::Functions(*this);
-    if (impl_ == nullptr || impl_->stateData == nullptr || functions == nullptr) {
+void RenderDevice::Impl::NotifySurfaceLost(RenderDevice& device) noexcept {
+    Impl* impl = device.impl_;
+    const auto* functions = Functions(device);
+    if (impl == nullptr || impl->stateData == nullptr || functions == nullptr ||
+        impl->state != RenderDeviceState::Ready ||
+        impl->surface != Integration::Detail::SurfaceHealth::Ready) {
         return;
     }
-    if (impl_->state != RenderDeviceState::Ready) {
-        return;
-    }
-    impl_->state = RenderDeviceState::SurfaceLost;
-    ++impl_->statistics.generation;
-    functions->surfaceLost(impl_->stateData);
+    impl->surface = Integration::Detail::SurfaceHealth::Lost;
+    ++impl->statistics.generation;
+    functions->surfaceLost(impl->stateData);
 }
 
 void RenderDevice::NotifyDeviceLost() noexcept {
     const auto* functions = Impl::Functions(*this);
-    if (impl_ == nullptr || impl_->stateData == nullptr || functions == nullptr) {
-        return;
-    }
-    if (impl_->state != RenderDeviceState::Ready) {
+    if (impl_ == nullptr || impl_->stateData == nullptr || functions == nullptr ||
+        impl_->state != RenderDeviceState::Ready) {
         return;
     }
     impl_->state = RenderDeviceState::DeviceLost;
+    impl_->surface = Integration::Detail::SurfaceHealth::Lost;
     ++impl_->statistics.generation;
     functions->deviceLost(impl_->stateData);
 }
@@ -176,26 +190,49 @@ Base::Result<void> RenderDevice::Restore() noexcept {
     if (impl_ == nullptr || impl_->stateData == nullptr || functions == nullptr) {
         return NotInitialized("Render device is not initialized");
     }
-    if (impl_->state != RenderDeviceState::SurfaceLost &&
-        impl_->state != RenderDeviceState::DeviceLost) {
+    if (impl_->state != RenderDeviceState::DeviceLost) {
         return InvalidState("Only a lost render device can be restored");
     }
 
     Base::Result<void> restored = functions->restore(impl_->stateData);
     if (!restored) {
         ++impl_->statistics.failedFrameCount;
-        const RenderDeviceState backendState = ToPublicState(
-            functions->health != nullptr
-                ? functions->health(impl_->stateData)
-                : Integration::Detail::BackendHealth::Failed);
-        if (backendState != RenderDeviceState::Ready &&
-            backendState != impl_->state) {
-            impl_->state = backendState;
+        const auto health = functions->health != nullptr
+            ? functions->health(impl_->stateData)
+            : Integration::Detail::BackendHealth::Failed;
+        if (ApplyBackendHealth(*impl_, health)) {
             ++impl_->statistics.generation;
         }
         return restored.GetStatus();
     }
-    impl_->state = RenderDeviceState::Ready;
+    ApplyBackendHealth(*impl_, Integration::Detail::BackendHealth::Ready);
+    return {};
+}
+
+Base::Result<void> RenderDevice::Impl::RestoreSurface(
+    RenderDevice& device) noexcept {
+    Impl* impl = device.impl_;
+    const auto* functions = Functions(device);
+    if (impl == nullptr || impl->stateData == nullptr || functions == nullptr) {
+        return NotInitialized("Render surface is not initialized");
+    }
+    if (impl->state != RenderDeviceState::Ready ||
+        impl->surface != Integration::Detail::SurfaceHealth::Lost) {
+        return InvalidState("Only a lost render surface can be restored");
+    }
+
+    Base::Result<void> restored = functions->restore(impl->stateData);
+    if (!restored) {
+        ++impl->statistics.failedFrameCount;
+        const auto health = functions->health != nullptr
+            ? functions->health(impl->stateData)
+            : Integration::Detail::BackendHealth::Failed;
+        if (ApplyBackendHealth(*impl, health)) {
+            ++impl->statistics.generation;
+        }
+        return restored.GetStatus();
+    }
+    impl->surface = Integration::Detail::SurfaceHealth::Ready;
     return {};
 }
 
@@ -228,9 +265,7 @@ public:
     void NotifyDeviceLost() noexcept {}
     Base::Result<void> Restore() noexcept { return {}; }
     Base::Result<void> WaitIdle(std::uint32_t) noexcept { return {}; }
-    BackendHealth Health() const noexcept {
-        return BackendHealth::Ready;
-    }
+    BackendHealth Health() const noexcept { return BackendHealth::Ready; }
     ::Aero::RenderFrameStatistics
     LastFrameStatistics() const noexcept { return {}; }
     ::Aero::Render::Detail::RenderResources Resources() noexcept { return {}; }
@@ -238,7 +273,7 @@ public:
 
 Base::Result<Base::Ref<::Aero::RenderDevice>>
 RenderDeviceFactory::Adopt(
-    ::Aero::RenderDeviceMode mode,
+    RenderDeviceMode mode,
     void* state,
     const RenderDeviceFunctions* functions,
     Base::IAllocator* allocator) noexcept {
@@ -248,7 +283,7 @@ RenderDeviceFactory::Adopt(
 
 Base::Result<Base::Ref<::Aero::RenderDevice>>
 AdoptRenderDevice(
-    ::Aero::RenderDeviceMode mode,
+    RenderDeviceMode mode,
     void* state,
     const RenderDeviceFunctions* functions,
     Base::IAllocator* allocator) noexcept {
@@ -266,7 +301,7 @@ CreateHeadlessRenderDevice(
             "Unable to allocate the headless render device");
     }
     return AdoptRenderDevice(
-        ::Aero::RenderDeviceMode::Headless,
+        RenderDeviceMode::Headless,
         backend,
         allocator);
 }
@@ -289,15 +324,11 @@ Base::Result<void> RenderDevice::RenderOffscreen(
         impl_->stateData, rendererToken, frame);
     if (!rendered) {
         ++impl_->statistics.failedFrameCount;
-        const RenderDeviceState backendState = ToPublicState(
-            functions->health != nullptr
-                ? functions->health(impl_->stateData)
-                : Integration::Detail::BackendHealth::Failed);
-        if (backendState != impl_->state) {
-            impl_->state = backendState;
-            if (backendState != RenderDeviceState::Ready) {
-                ++impl_->statistics.generation;
-            }
+        const auto health = functions->health != nullptr
+            ? functions->health(impl_->stateData)
+            : Integration::Detail::BackendHealth::Failed;
+        if (ApplyBackendHealth(*impl_, health)) {
+            ++impl_->statistics.generation;
         }
         return rendered.GetStatus();
     }
@@ -314,6 +345,9 @@ Base::Result<void> RenderDevice::Render(
     if (impl_->state != RenderDeviceState::Ready) {
         return InvalidState("Render device is not ready");
     }
+    if (impl_->surface != Integration::Detail::SurfaceHealth::Ready) {
+        return InvalidState("Render surface is not ready");
+    }
 
     Base::Result<RenderFrameStatistics> frameStatistics = Analyze(frame);
     if (!frameStatistics) {
@@ -325,15 +359,11 @@ Base::Result<void> RenderDevice::Render(
         impl_->stateData, rendererToken, frame);
     if (!rendered) {
         ++impl_->statistics.failedFrameCount;
-        const RenderDeviceState backendState = ToPublicState(
-            functions->health != nullptr
-                ? functions->health(impl_->stateData)
-                : Integration::Detail::BackendHealth::Failed);
-        if (backendState != impl_->state) {
-            impl_->state = backendState;
-            if (backendState != RenderDeviceState::Ready) {
-                ++impl_->statistics.generation;
-            }
+        const auto health = functions->health != nullptr
+            ? functions->health(impl_->stateData)
+            : Integration::Detail::BackendHealth::Failed;
+        if (ApplyBackendHealth(*impl_, health)) {
+            ++impl_->statistics.generation;
         }
         return rendered.GetStatus();
     }
@@ -364,16 +394,38 @@ Base::Status RenderDevice::GetFrameStatus() noexcept {
     switch (impl_->state) {
     case RenderDeviceState::Ready:
         return {};
-    case RenderDeviceState::SurfaceLost:
-        return InvalidState("Render device surface is lost");
     case RenderDeviceState::DeviceLost:
-        return InvalidState("Render device device is lost");
+        return InvalidState("Render device is lost");
     case RenderDeviceState::Failed:
         return InvalidState("Render device has failed");
     case RenderDeviceState::Shutdown:
         return InvalidState("Render device is shut down");
     }
     return InvalidState("Render device state is invalid");
+}
+
+Integration::Detail::SurfaceHealth RenderDevice::Impl::SurfaceState(
+    const RenderDevice& device) noexcept {
+    return device.impl_ != nullptr
+        ? device.impl_->surface
+        : Integration::Detail::SurfaceHealth::Shutdown;
+}
+
+Base::Status RenderDevice::Impl::SurfaceStatus(
+    RenderDevice& device) noexcept {
+    Base::Status deviceStatus = device.GetFrameStatus();
+    if (!deviceStatus.IsOk()) return deviceStatus;
+    switch (device.impl_->surface) {
+    case Integration::Detail::SurfaceHealth::Ready:
+        return {};
+    case Integration::Detail::SurfaceHealth::Lost:
+        return InvalidState("Render surface is lost");
+    case Integration::Detail::SurfaceHealth::Failed:
+        return InvalidState("Render surface has failed");
+    case Integration::Detail::SurfaceHealth::Shutdown:
+        return InvalidState("Render surface is unavailable");
+    }
+    return InvalidState("Render surface state is invalid");
 }
 
 } // namespace Aero

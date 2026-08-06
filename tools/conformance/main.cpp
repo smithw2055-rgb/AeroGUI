@@ -12,6 +12,7 @@
 #include "render/FrameEncoder.hpp"
 #include "gui/private/Property.hpp"
 #include "integration/IntegrationPrivate.hpp"
+#include "integration/private/RenderSurface.hpp"
 #include "render/opengl33/OpenGL33Renderer.hpp"
 #include "render/opengl33/OpenGL33Backend.hpp"
 
@@ -372,56 +373,69 @@ void VerifyRenderDeviceState(
     Check(state != nullptr, "render device probe allocation failed");
     if (state == nullptr) return;
     auto made = Aero::Integration::Detail::AdoptRenderDevice(
-        Aero::Integration::RenderDeviceMode::Embedded,
+        Aero::Integration::Detail::RenderDeviceMode::Embedded,
         state);
     Check(made.HasValue(), "render device probe adoption failed");
     if (!made) return;
-    Aero::Base::Ref<Aero::Integration::RenderDevice> device =
+    Aero::Base::Ref<Aero::RenderDevice> device =
         std::move(made).Value();
+    auto surfaceMade = Aero::Integration::Detail::AdoptRenderSurface(
+        device, Aero::Integration::RenderSurfaceKind::Embedded);
+    Check(surfaceMade.HasValue(), "render surface probe adoption failed");
+    if (!surfaceMade) return;
+    Aero::Base::Ref<Aero::Integration::RenderSurface> surface =
+        std::move(surfaceMade).Value();
 
     state->failNext = true;
     Aero::Base::Result<void> unsupported =
-        Aero::Integration::RenderDevice::Impl::Render(
-            *device, state, frame);
+        Aero::Integration::RenderSurface::Impl::Render(
+            *surface, state, frame);
     Check(!unsupported &&
             unsupported.GetStatus().code ==
                 Aero::Base::ErrorCode::Unsupported,
         "probe Unsupported frame did not fail as requested");
-    Check(device->State() ==
-            Aero::Integration::RenderDeviceState::Ready &&
+    Check(device->State() == Aero::RenderDeviceState::Ready &&
+            surface->State() ==
+                Aero::Integration::RenderSurfaceState::Ready &&
             device->Statistics().failedFrameCount == 1U,
-        "ordinary frame failure poisoned a ready render device");
+        "ordinary frame failure poisoned a ready render target");
 
-    Check(Aero::Integration::RenderDevice::Impl::Render(
-            *device, state, frame).HasValue(),
+    Check(Aero::Integration::RenderSurface::Impl::Render(
+            *surface, state, frame).HasValue(),
         "normal frame after Unsupported failure did not render");
     Check(device->Statistics().acceptedFrameCount == 1U &&
             device->Statistics().completedFrameCount == 1U,
         "successful recovery frame statistics are incorrect");
 
-    device->NotifySurfaceLost();
-    Check(device->State() ==
-            Aero::Integration::RenderDeviceState::SurfaceLost,
-        "surface loss did not change render device state");
-    Check(device->Restore().HasValue() &&
-            device->State() == Aero::Integration::RenderDeviceState::Ready,
+    surface->NotifyLost();
+    Check(device->State() == Aero::RenderDeviceState::Ready &&
+            surface->State() ==
+                Aero::Integration::RenderSurfaceState::Lost,
+        "surface loss incorrectly poisoned the render device");
+    Check(surface->Restore().HasValue() &&
+            surface->State() ==
+                Aero::Integration::RenderSurfaceState::Ready,
         "surface loss restore failed");
 
     device->NotifyDeviceLost();
-    Check(device->State() ==
-            Aero::Integration::RenderDeviceState::DeviceLost,
-        "device loss did not change render device state");
+    Check(device->State() == Aero::RenderDeviceState::DeviceLost &&
+            surface->State() ==
+                Aero::Integration::RenderSurfaceState::DeviceLost,
+        "device loss did not propagate to the render surface");
     Check(device->Restore().HasValue() &&
-            device->State() == Aero::Integration::RenderDeviceState::Ready,
+            device->State() == Aero::RenderDeviceState::Ready &&
+            surface->State() ==
+                Aero::Integration::RenderSurfaceState::Ready,
         "device loss restore failed");
 
     state->health = Aero::Integration::Detail::BackendHealth::Failed;
     state->failNext = true;
-    Check(!Aero::Integration::RenderDevice::Impl::Render(
-            *device, state, frame) &&
-            device->State() ==
-                Aero::Integration::RenderDeviceState::Failed,
-        "fatal backend health did not fail the render device");
+    Check(!Aero::Integration::RenderSurface::Impl::Render(
+            *surface, state, frame) &&
+            device->State() == Aero::RenderDeviceState::Failed &&
+            surface->State() ==
+                Aero::Integration::RenderSurfaceState::Failed,
+        "fatal backend health did not fail the render target");
 }
 
 template<class TBackend>

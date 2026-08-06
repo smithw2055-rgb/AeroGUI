@@ -155,6 +155,19 @@ if(public_legacy_render_device)
         "${public_legacy_render_device}")
 endif()
 
+set(aero_public_render_device_header
+    "${AERO_SOURCE_DIR}/include/Aero/RenderDevice.hpp")
+aero_collect_matches(public_render_surface_leaks
+    "RenderDeviceMode|RenderPresentMode|NotifySurfaceLost|Resize[ \t\r\n]*[(]"
+    "${aero_public_render_device_header}")
+if(public_render_surface_leaks)
+    message(FATAL_ERROR
+        "RenderDevice must not expose presentation or surface lifecycle: "
+        "${public_render_surface_leaks}")
+endif()
+unset(aero_public_render_device_header)
+unset(public_render_surface_leaks)
+
 set(aero_public_style_headers
     "${AERO_SOURCE_DIR}/include/Aero/Style.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Styling.hpp")

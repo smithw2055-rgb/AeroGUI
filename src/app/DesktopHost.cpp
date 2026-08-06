@@ -179,10 +179,17 @@ struct DesktopHost::Impl {
                     Base::ErrorCode::InvalidState,
                     "Application native window has an empty client area");
             }
-            Base::Result<void> graphics = CreateRenderDevice(width, height);
+            Base::Result<void> graphics = CreateRenderSurface(width, height);
             if (!graphics) return graphics.GetStatus();
+            Base::Ref<RenderDevice> renderDevice =
+                renderSurface->GetDevice();
+            if (!renderDevice) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidState,
+                    "Application render surface has no render device");
+            }
             Base::Result<void> renderer =
-                view->GetRenderer().Init(renderDevice);
+                view->GetRenderer().Init(std::move(renderDevice));
             if (!renderer) return renderer.GetStatus();
             dpiScale = nativeWindow->DpiScale();
             if (!std::isfinite(dpiScale) || dpiScale <= 0.0) {
@@ -246,7 +253,7 @@ struct DesktopHost::Impl {
             return {};
         }
 
-        Base::Result<void> CreateRenderDevice(
+        Base::Result<void> CreateRenderSurface(
             std::uint32_t width,
             std::uint32_t height) noexcept {
 #if !AERO_APP_HAS_D3D11 && !AERO_APP_HAS_OPENGL_WINDOW
@@ -264,17 +271,17 @@ struct DesktopHost::Impl {
 #if defined(_WIN32)
             if (selected == GraphicsBackend::D3D11) {
 #if AERO_APP_HAS_D3D11
-                Integration::D3D11WindowDeviceOptions options;
+                Integration::D3D11WindowSurfaceOptions options;
                 options.window = nativeWindow->NativeHandle();
                 options.width = width;
                 options.height = height;
-                options.presentMode = RenderPresentMode::Fifo;
+                options.presentMode = Integration::PresentMode::Fifo;
                 options.allowWarpFallback = true;
-                Base::Result<Base::Ref<RenderDevice>> created =
-                    Integration::CreateD3D11WindowDevice(
+                Base::Result<Base::Ref<Integration::RenderSurface>> created =
+                    Integration::CreateD3D11WindowSurface(
                         options, owner->allocator);
                 if (!created) return created.GetStatus();
-                renderDevice = std::move(created).Value();
+                renderSurface = std::move(created).Value();
                 return {};
 #else
                 return HostFailure(
@@ -285,16 +292,16 @@ struct DesktopHost::Impl {
 #endif
             if (selected == GraphicsBackend::OpenGL33) {
 #if AERO_APP_HAS_OPENGL_WINDOW
-                Integration::OpenGL33WindowDeviceOptions options;
+                Integration::OpenGL33WindowSurfaceOptions options;
                 options.window = nativeWindow->NativeHandle();
                 options.width = width;
                 options.height = height;
-                options.presentMode = RenderPresentMode::Fifo;
-                Base::Result<Base::Ref<RenderDevice>> created =
-                    Integration::CreateOpenGL33WindowDevice(
+                options.presentMode = Integration::PresentMode::Fifo;
+                Base::Result<Base::Ref<Integration::RenderSurface>> created =
+                    Integration::CreateOpenGL33WindowSurface(
                         options, owner->allocator);
                 if (!created) return created.GetStatus();
-                renderDevice = std::move(created).Value();
+                renderSurface = std::move(created).Value();
                 return {};
 #else
                 return HostFailure(
@@ -398,7 +405,7 @@ struct DesktopHost::Impl {
             hasPendingResize = false;
             if (width != 0U && height != 0U) {
                 Base::Result<void> resized =
-                    renderDevice->Resize(width, height);
+                    renderSurface->Resize(width, height);
                 if (!resized) return resized.GetStatus();
             }
             const Size logicalSize{
@@ -451,7 +458,12 @@ struct DesktopHost::Impl {
                 view->Update(elapsedMilliseconds);
             if (!frame) return frame.GetStatus();
 
-            Renderer& renderer = view->GetRenderer();
+            if (!renderSurface) {
+                return HostFailure(
+                    Base::ErrorCode::NotInitialized,
+                    "Application render surface is unavailable");
+            }
+            IRenderer& renderer = view->GetRenderer();
             Base::Result<bool> synchronized =
                 renderer.UpdateRenderTree();
             if (!synchronized) {
@@ -461,7 +473,7 @@ struct DesktopHost::Impl {
                 renderer.RenderOffscreen();
             if (!offscreen) return offscreen.GetStatus();
             Base::Result<void> rendered =
-                renderer.Render();
+                renderer.Render(*renderSurface);
             if (!rendered) return rendered.GetStatus();
 
             firstFrameRendered = true;
@@ -507,7 +519,10 @@ struct DesktopHost::Impl {
         void Shutdown() noexcept {
             if (shutdown) return;
             shutdown = true;
-            if (renderDevice) static_cast<void>(renderDevice->WaitIdle());
+            if (renderSurface) {
+                Base::Ref<RenderDevice> device = renderSurface->GetDevice();
+                if (device) static_cast<void>(device->WaitIdle());
+            }
             if (view) static_cast<void>(view->Unmount());
             if (window != nullptr) {
                 Window::Impl::NotifyClosed(*window);
@@ -518,7 +533,7 @@ struct DesktopHost::Impl {
 #endif
             if (nativeWindow) nativeWindow->Close();
             loadedDocument = {};
-            renderDevice.Reset();
+            renderSurface.Reset();
             view.Reset();
             windowOwner.Reset();
             window = nullptr;
@@ -545,7 +560,7 @@ struct DesktopHost::Impl {
         Impl* owner = nullptr;
         WindowHostState runtime;
         Base::Ref<View> view;
-        Base::Ref<RenderDevice> renderDevice;
+        Base::Ref<Integration::RenderSurface> renderSurface;
         Base::Ref<Base::Object> windowOwner;
         Markup::XamlDocument loadedDocument;
         Window* window = nullptr;

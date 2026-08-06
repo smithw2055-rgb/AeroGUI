@@ -8,6 +8,12 @@
 
 namespace Aero::Integration::Detail {
 
+enum class RenderDeviceMode : std::uint8_t {
+    Headless = 0U,
+    Embedded,
+    Window
+};
+
 enum class BackendHealth : std::uint8_t {
     Ready = 0U,
     SurfaceLost,
@@ -15,8 +21,16 @@ enum class BackendHealth : std::uint8_t {
     Failed
 };
 
+enum class SurfaceHealth : std::uint8_t {
+    Ready = 0U,
+    Lost,
+    Failed,
+    Shutdown
+};
+
 // One immutable function table connects RenderDevice to a concrete native
-// implementation. It avoids a second public object model and virtual hierarchy.
+// implementation. Backends still own their native surface during this stage,
+// while the public API addresses that surface through RenderSurface.
 struct RenderDeviceFunctions {
     void (*destroy)(void*) noexcept = nullptr;
     Base::Result<void> (*renderOffscreen)(
@@ -35,12 +49,10 @@ struct RenderDeviceFunctions {
     Aero::Render::Detail::RenderResources (*resources)(void*) noexcept = nullptr;
 };
 
-// The public RenderDevice only exposes the host-facing object. Construction
-// and backend adoption stay behind this source-side factory friend.
 class RenderDeviceFactory {
 public:
     static Base::Result<Base::Ref<::Aero::RenderDevice>> Adopt(
-        ::Aero::RenderDeviceMode mode,
+        RenderDeviceMode mode,
         void* state,
         const RenderDeviceFunctions* functions,
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -89,17 +101,17 @@ const RenderDeviceFunctions& FunctionsFor() noexcept {
 }
 
 Base::Result<Base::Ref<::Aero::RenderDevice>> AdoptRenderDevice(
-    ::Aero::RenderDeviceMode mode,
+    RenderDeviceMode mode,
     void* state,
     const RenderDeviceFunctions* functions,
     Base::IAllocator* allocator = nullptr) noexcept;
 
 template<class T>
 Base::Result<Base::Ref<::Aero::RenderDevice>> AdoptRenderDevice(
-    ::Aero::RenderDeviceMode mode,
+    RenderDeviceMode mode,
     T* state,
     Base::IAllocator* allocator = nullptr) noexcept {
-    return ::Aero::Integration::Detail::AdoptRenderDevice(
+    return AdoptRenderDevice(
         mode,
         static_cast<void*>(state),
         &FunctionsFor<T>(),
@@ -110,47 +122,43 @@ Base::Result<Base::Ref<::Aero::RenderDevice>> AdoptRenderDevice(
 
 namespace Aero {
 
-// Source-only access to the opaque backend state kept by RenderDevice.
 struct RenderDevice::Impl {
-    Impl(
-        RenderDeviceMode selectedMode,
-        Base::IAllocator& selectedAllocator) noexcept
-        : allocator(&selectedAllocator), mode(selectedMode) {}
+    explicit Impl(Base::IAllocator& selectedAllocator) noexcept
+        : allocator(&selectedAllocator) {}
 
     Base::IAllocator* allocator = nullptr;
     void* stateData = nullptr;
-    const ::Aero::Integration::Detail::RenderDeviceFunctions* functions =
-        nullptr;
-    RenderDeviceMode mode = RenderDeviceMode::Headless;
+    const Integration::Detail::RenderDeviceFunctions* functions = nullptr;
+    Integration::Detail::RenderDeviceMode mode =
+        Integration::Detail::RenderDeviceMode::Headless;
     RenderDeviceState state = RenderDeviceState::Ready;
+    Integration::Detail::SurfaceHealth surface =
+        Integration::Detail::SurfaceHealth::Ready;
     RenderDeviceStatistics statistics;
     RenderFrameStatistics lastFrameStatistics;
 
-    static const ::Aero::Integration::Detail::RenderDeviceFunctions* Functions(
+    static const Integration::Detail::RenderDeviceFunctions* Functions(
         const RenderDevice& device) noexcept {
-        return device.impl_ != nullptr
-            ? device.impl_->functions
-            : nullptr;
-    }
-
-    static void* StateData(RenderDevice& device) noexcept {
-        return device.impl_ != nullptr
-            ? device.impl_->stateData
-            : nullptr;
+        return device.impl_ != nullptr ? device.impl_->functions : nullptr;
     }
 
     static void SetBackend(
         RenderDevice& device,
+        Integration::Detail::RenderDeviceMode mode,
         void* state,
-        const ::Aero::Integration::Detail::RenderDeviceFunctions* functions) noexcept {
+        const Integration::Detail::RenderDeviceFunctions* functions) noexcept {
+        device.impl_->mode = mode;
         device.impl_->stateData = state;
         device.impl_->functions = functions;
+        device.impl_->surface = mode == Integration::Detail::RenderDeviceMode::Headless
+            ? Integration::Detail::SurfaceHealth::Shutdown
+            : Integration::Detail::SurfaceHealth::Ready;
     }
 
     static Base::Result<Base::Ref<RenderDevice>> Create(
-        RenderDeviceMode mode,
+        Integration::Detail::RenderDeviceMode mode,
         void* state,
-        const ::Aero::Integration::Detail::RenderDeviceFunctions* functions,
+        const Integration::Detail::RenderDeviceFunctions* functions,
         Base::IAllocator* allocator) noexcept {
         if (state == nullptr || functions == nullptr) {
             return Base::Status::Failure(
@@ -164,13 +172,12 @@ struct RenderDevice::Impl {
             Base::MakeRefWithAllocator<RenderDevice>(
                 selected,
                 RenderDevice::ConstructionToken{},
-                mode,
                 &selected);
         if (!made) {
             functions->destroy(state);
             return made.GetStatus();
         }
-        SetBackend(*made.Value(), state, functions);
+        SetBackend(*made.Value(), mode, state, functions);
         return std::move(made).Value();
     }
 
@@ -182,6 +189,16 @@ struct RenderDevice::Impl {
             ? functions->resources(device.impl_->stateData)
             : ::Aero::Render::Detail::RenderResources{};
     }
+
+    static Base::Result<void> ResizeSurface(
+        RenderDevice& device,
+        std::uint32_t width,
+        std::uint32_t height) noexcept;
+    static void NotifySurfaceLost(RenderDevice& device) noexcept;
+    static Base::Result<void> RestoreSurface(RenderDevice& device) noexcept;
+    static Integration::Detail::SurfaceHealth SurfaceState(
+        const RenderDevice& device) noexcept;
+    static Base::Status SurfaceStatus(RenderDevice& device) noexcept;
 
     static Base::Result<void> RenderOffscreen(
         RenderDevice& device,

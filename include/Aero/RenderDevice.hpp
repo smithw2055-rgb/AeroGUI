@@ -8,28 +8,15 @@
 
 #include <cstdint>
 
-namespace Aero::Integration { class RenderFrame; }
+namespace Aero::Integration { class RenderFrame; class RenderSurface; }
 
 namespace Aero {
 
 class IRenderer;
 class RenderDevice;
 
-enum class RenderDeviceMode : std::uint8_t {
-    Headless = 0U,
-    Embedded,
-    Window
-};
-
-enum class RenderPresentMode : std::uint8_t {
-    Immediate = 0U,
-    Fifo,
-    Mailbox
-};
-
 enum class RenderDeviceState : std::uint8_t {
     Ready = 0U,
-    SurfaceLost,
     DeviceLost,
     Failed,
     Shutdown
@@ -67,23 +54,17 @@ public:
 
     RenderDevice(
         ConstructionToken,
-        RenderDeviceMode mode,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~RenderDevice() noexcept override;
 
     RenderDevice(const RenderDevice&) = delete;
     RenderDevice& operator=(const RenderDevice&) = delete;
 
-    RenderDeviceMode Mode() const noexcept;
     RenderDeviceState State() const noexcept;
     std::uint64_t Generation() const noexcept;
     RenderDeviceStatistics Statistics() const noexcept;
     RenderFrameStatistics LastFrameStatistics() const noexcept;
 
-    Base::Result<void> Resize(
-        std::uint32_t width,
-        std::uint32_t height) noexcept;
-    void NotifySurfaceLost() noexcept;
     void NotifyDeviceLost() noexcept;
     Base::Result<void> Restore() noexcept;
     Base::Result<void> WaitIdle(
@@ -91,7 +72,6 @@ public:
 
 private:
     friend struct Impl;
-    friend class IRenderer;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
     Base::MakeRefWithAllocator(
