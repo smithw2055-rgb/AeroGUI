@@ -385,15 +385,14 @@ struct View::Impl {
     Impl(
         View& owner,
         Base::IAllocator& value,
-        Base::Ref<Base::Object> guiState,
-        GuiSchema& sharedSchema,
-        Markup::DocumentCache& sharedDocuments) noexcept
+        Base::Ref<Base::Object> guiState) noexcept
         : allocator(&value),
           arena(value),
           gui(std::move(guiState)),
           publicRenderer(owner, value),
-          schemaBundle(&sharedSchema),
-          documentCache(&sharedDocuments),
+          schemaBundle(&static_cast<Gui::Impl&>(*gui).schema),
+          documentCache(&static_cast<Gui::Impl&>(*gui).documents),
+          xamlSources(&static_cast<Gui::Impl&>(*gui).xamlProviders, &value),
           storyboardSessions(&value),
           storyboardCompletionSessions(&value),
           storyboardCompletedSubscriptions(&value),
@@ -6212,22 +6211,15 @@ struct View::Impl {
                 "View cannot be restarted after shutdown or failed startup");
         }
         options = requested;
-        options.xamlProviders = {};
-        textureProvider = requested.textureProvider;
-        fontProvider = requested.fontProvider;
+        if (!gui) {
+            return ViewInvalidState("View has no Gui provider state");
+        }
+        const Gui::Impl& guiState =
+            static_cast<const Gui::Impl&>(*gui);
+        textureProvider = guiState.textureProvider;
+        fontProvider = guiState.fontProvider;
 
         Base::Result<void> status;
-        for (const Integration::XamlProviderRoute& route :
-             requested.xamlProviders) {
-            if (route.provider == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidArgument,
-                    "View XAML provider route has no provider");
-            }
-            status = xamlSources.Register(
-                *route.provider, route.scheme, route.assembly);
-            if (!status) return status.GetStatus();
-        }
 
         Base::Result<Base::Ref<Integration::RenderDevice>>
             headless =
@@ -7603,7 +7595,6 @@ View::View(
     Base::IAllocator* selected = allocator != nullptr
         ? allocator
         : &Base::GetDefaultAllocator();
-    Gui::Impl& guiState = static_cast<Gui::Impl&>(*gui.impl_);
     void* stateMemory = selected->Allocate({
         sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup});
     if (stateMemory == nullptr) {
@@ -7611,7 +7602,7 @@ View::View(
             sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
     }
     state_ = new (stateMemory) Impl(
-        *this, *selected, gui.impl_, guiState.schema, guiState.documents);
+        *this, *selected, gui.impl_);
 }
 
 View::~View() noexcept {

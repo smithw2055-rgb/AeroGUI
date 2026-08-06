@@ -3273,6 +3273,39 @@ Base::Result<void> XamlProviderRegistry::Register(
 }
 
 Base::Result<XamlProviderResolution>
+XamlProviderRegistry::ResolveRoute(
+    const Base::ResourceUri& uri,
+    bool requireScheme,
+    bool requireAssembly) const noexcept {
+    if (parent_ != nullptr) {
+        Base::Result<XamlProviderResolution> inherited =
+            parent_->ResolveRoute(uri, requireScheme, requireAssembly);
+        if (inherited) return inherited;
+        if (inherited.GetStatus().code != Base::ErrorCode::NotFound) {
+            return inherited.GetStatus();
+        }
+    }
+    for (const XamlProviderRegistration& registration : registrations_) {
+        if (!RegistrationMatches(
+                registration, uri, requireScheme, requireAssembly)) {
+            continue;
+        }
+        XamlProviderResolution result;
+        result.provider = registration.provider;
+        result.cacheIdentity = Base::MixHash64(
+            registration.provider->CacheIdentity() ^
+            Base::DefaultHash<Base::StringView>{}(
+                registration.scheme.View()) ^
+            Base::DefaultHash<Base::StringView>{}(
+                registration.assembly.View(), UINT64_C(0xA3E0)));
+        return result;
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::NotFound,
+        "No XAML source provider matches this route shape");
+}
+
+Base::Result<XamlProviderResolution>
 XamlProviderRegistry::ResolveDetailed(
     const Base::ResourceUri& uri) const noexcept {
     const struct Route {
@@ -3289,23 +3322,11 @@ XamlProviderRegistry::ResolveDetailed(
             (route.assembly && uri.Assembly().Empty())) {
             continue;
         }
-        for (const XamlProviderRegistration& registration :
-             registrations_) {
-            if (RegistrationMatches(
-                    registration,
-                    uri,
-                    route.scheme,
-                    route.assembly)) {
-                XamlProviderResolution result;
-                result.provider = registration.provider;
-                result.cacheIdentity = Base::MixHash64(
-                    registration.provider->CacheIdentity() ^
-                    Base::DefaultHash<Base::StringView>{}(
-                        registration.scheme.View()) ^
-                    Base::DefaultHash<Base::StringView>{}(
-                        registration.assembly.View(), UINT64_C(0xA3E0)));
-                return result;
-            }
+        Base::Result<XamlProviderResolution> resolved =
+            ResolveRoute(uri, route.scheme, route.assembly);
+        if (resolved) return resolved;
+        if (resolved.GetStatus().code != Base::ErrorCode::NotFound) {
+            return resolved.GetStatus();
         }
     }
     return Base::Status::Failure(

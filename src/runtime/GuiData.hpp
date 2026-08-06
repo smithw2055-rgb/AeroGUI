@@ -3,20 +3,9 @@
 #include "markup/MarkupPrivate.hpp"
 #include <Aero/View.hpp>
 
-
-
 namespace Aero {
 
 struct Gui::Impl  : public Base::Object {
-    struct XamlRoute {
-        explicit XamlRoute(Base::IAllocator& allocator) noexcept
-            : scheme(&allocator), assembly(&allocator) {}
-
-        Integration::XamlProvider* provider = nullptr;
-        Base::String scheme;
-        Base::String assembly;
-    };
-
     explicit Impl(Base::IAllocator& value) noexcept
         : allocator(&value),
           schema(&value),
@@ -27,7 +16,7 @@ struct Gui::Impl  : public Base::Object {
     ModuleSet modules;
     GuiSchema schema;
     Markup::DocumentCache documents;
-    Base::Vector<XamlRoute> xamlProviders;
+    Markup::XamlProviderRegistry xamlProviders;
     Integration::TextureProvider* textureProvider = nullptr;
     Integration::FontProvider* fontProvider = nullptr;
     bool initialized = false;

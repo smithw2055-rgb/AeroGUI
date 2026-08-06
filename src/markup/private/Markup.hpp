@@ -1094,6 +1094,14 @@ struct XamlProviderRegistration {
 
 class AERO_API XamlProviderRegistry {
 public:
+    explicit XamlProviderRegistry(
+        Base::IAllocator* allocator = nullptr) noexcept
+        : registrations_(allocator) {}
+    XamlProviderRegistry(
+        const XamlProviderRegistry* parent,
+        Base::IAllocator* allocator) noexcept
+        : registrations_(allocator), parent_(parent) {}
+
     Base::Result<void> Register(
         XamlProvider& provider,
         Base::StringView scheme = {},
@@ -1118,11 +1126,18 @@ public:
         const Base::ResourceUri& uri) const noexcept;
 
     std::uint32_t ProviderCount() const noexcept {
-        return registrations_.Size();
+        return registrations_.Size() +
+            (parent_ != nullptr ? parent_->ProviderCount() : 0U);
     }
 
 private:
+    Base::Result<XamlProviderResolution> ResolveRoute(
+        const Base::ResourceUri& uri,
+        bool requireScheme,
+        bool requireAssembly) const noexcept;
+
     Base::Vector<XamlProviderRegistration> registrations_;
+    const XamlProviderRegistry* parent_ = nullptr;
 };
 
 class AERO_API EmbeddedXamlProvider
