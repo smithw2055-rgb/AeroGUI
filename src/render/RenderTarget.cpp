@@ -1,13 +1,10 @@
 #include "render/private/BackendApi.hpp"
 #include "render/private/RenderTarget.hpp"
 
-#include <new>
 #include <utility>
 
 namespace Aero::Render::Detail {
 
-// The remaining OpenGL window path creates its native context and target as one
-// object. Embedded OpenGL and all D3D11 paths use independently owned targets.
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33WindowDevice(
     const OpenGL33WindowSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept;
@@ -32,27 +29,17 @@ Base::Status NotInitialized(const char* message) noexcept {
 RenderTarget::RenderTarget(
     ConstructionToken,
     Base::Ref<Aero::RenderDevice> device,
-    Aero::RenderTargetKind kind,
-    Base::IAllocator* allocator) noexcept {
-    Base::IAllocator& selected = allocator != nullptr
-        ? *allocator
-        : Base::GetDefaultAllocator();
-    void* memory = selected.Allocate({
-        sizeof(Impl), alignof(Impl), Base::MemoryTag::Render});
-    if (memory == nullptr) {
-        Base::ReportOutOfMemory(
-            sizeof(Impl), alignof(Impl), Base::MemoryTag::Render);
-    }
-    impl_ = new (memory) Impl(std::move(device), kind, selected);
-}
+    Impl* implementation,
+    bool ownsImplementation) noexcept
+    : device_(std::move(device)),
+      impl_(implementation),
+      ownsImpl_(ownsImplementation) {}
 
 RenderTarget::~RenderTarget() noexcept {
-    if (impl_ == nullptr) return;
-    Base::IAllocator* allocator = impl_->allocator;
-    impl_->~Impl();
-    allocator->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Render);
+    if (ownsImpl_) delete impl_;
     impl_ = nullptr;
+    ownsImpl_ = false;
+    device_.Reset();
 }
 
 RenderTargetKind RenderTarget::Kind() const noexcept {
@@ -60,10 +47,10 @@ RenderTargetKind RenderTarget::Kind() const noexcept {
 }
 
 RenderTargetState RenderTarget::State() const noexcept {
-    if (impl_ == nullptr || !impl_->device) {
+    if (impl_ == nullptr || !device_) {
         return RenderTargetState::Shutdown;
     }
-    switch (impl_->device->State()) {
+    switch (device_->State()) {
     case Aero::RenderDeviceState::Ready:
         break;
     case Aero::RenderDeviceState::DeviceLost:
@@ -73,7 +60,7 @@ RenderTargetState RenderTarget::State() const noexcept {
     case Aero::RenderDeviceState::Shutdown:
         return RenderTargetState::Shutdown;
     }
-    switch (impl_->RefreshHealth()) {
+    switch (impl_->Health()) {
     case ::Aero::Render::Detail::SurfaceHealth::Ready:
         return RenderTargetState::Ready;
     case ::Aero::Render::Detail::SurfaceHealth::Lost:
@@ -87,15 +74,13 @@ RenderTargetState RenderTarget::State() const noexcept {
 }
 
 Base::Ref<Aero::RenderDevice> RenderTarget::GetDevice() const noexcept {
-    return impl_ != nullptr
-        ? impl_->device
-        : Base::Ref<Aero::RenderDevice>{};
+    return device_;
 }
 
 Base::Result<void> RenderTarget::Resize(
     std::uint32_t width,
     std::uint32_t height) noexcept {
-    if (impl_ == nullptr || !impl_->device || impl_->target == nullptr) {
+    if (impl_ == nullptr || !device_) {
         return NotInitialized("Render target is not initialized");
     }
     if (width == 0U || height == 0U) {
@@ -103,51 +88,46 @@ Base::Result<void> RenderTarget::Resize(
             Base::ErrorCode::InvalidArgument,
             "Render target dimensions must be nonzero");
     }
-    if (impl_->device->State() != Aero::RenderDeviceState::Ready ||
-        impl_->RefreshHealth() != ::Aero::Render::Detail::SurfaceHealth::Ready) {
+    if (device_->State() != Aero::RenderDeviceState::Ready ||
+        impl_->Health() != ::Aero::Render::Detail::SurfaceHealth::Ready) {
         return InvalidState("Render target cannot resize in its current state");
     }
-    Base::Result<void> idle = impl_->device->WaitIdle();
+    Base::Result<void> idle = device_->WaitIdle();
     if (!idle) return idle.GetStatus();
-    Base::Result<void> resized = impl_->target->Resize(width, height);
-    if (!resized) impl_->RefreshHealth();
-    return resized;
+    return impl_->ResizeNative(width, height);
 }
 
 void RenderTarget::NotifyLost() noexcept {
-    if (impl_ == nullptr || !impl_->device || impl_->target == nullptr ||
-        impl_->device->State() != Aero::RenderDeviceState::Ready ||
-        impl_->RefreshHealth() != ::Aero::Render::Detail::SurfaceHealth::Ready) {
+    if (impl_ == nullptr || !device_ ||
+        device_->State() != Aero::RenderDeviceState::Ready ||
+        impl_->Health() != ::Aero::Render::Detail::SurfaceHealth::Ready) {
         return;
     }
-    impl_->health = ::Aero::Render::Detail::SurfaceHealth::Lost;
-    impl_->target->NotifySurfaceLost();
-    Aero::RenderDevice::Impl::RefreshHealth(*impl_->device);
-    impl_->RefreshHealth();
+    impl_->NotifyLostNative();
+    Aero::RenderDevice::Impl::RefreshHealth(*device_);
 }
 
 Base::Result<void> RenderTarget::Restore() noexcept {
-    if (impl_ == nullptr || !impl_->device || impl_->target == nullptr) {
+    if (impl_ == nullptr || !device_) {
         return NotInitialized("Render target is not initialized");
     }
-    if (impl_->device->State() != Aero::RenderDeviceState::Ready ||
-        impl_->RefreshHealth() != ::Aero::Render::Detail::SurfaceHealth::Lost) {
+    if (device_->State() != Aero::RenderDeviceState::Ready ||
+        impl_->Health() != ::Aero::Render::Detail::SurfaceHealth::Lost) {
         return InvalidState("Only a lost render target can be restored");
     }
-    Base::Result<void> restored = impl_->target->RestoreSurface();
-    Aero::RenderDevice::Impl::RefreshHealth(*impl_->device);
-    impl_->RefreshHealth();
+    Base::Result<void> restored = impl_->RestoreNative();
+    Aero::RenderDevice::Impl::RefreshHealth(*device_);
     return restored;
 }
 
-Base::Result<Base::Ref<RenderTarget>> RenderTarget::Impl::Create(
+Base::Result<Base::Ref<RenderTarget>> RenderTarget::Impl::CreateBorrowed(
     Base::Ref<Aero::RenderDevice> device,
-    Aero::RenderTargetKind kind,
+    Impl* implementation,
     Base::IAllocator* allocator) noexcept {
-    if (!device || Aero::RenderDevice::Impl::DefaultTarget(*device) == nullptr) {
+    if (!device || implementation == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "Render target requires a target-capable render device");
+            "Render target requires a device and implementation");
     }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
@@ -156,20 +136,19 @@ Base::Result<Base::Ref<RenderTarget>> RenderTarget::Impl::Create(
         selected,
         RenderTarget::ConstructionToken{},
         std::move(device),
-        kind,
-        &selected);
+        implementation,
+        false);
 }
 
 Base::Result<Base::Ref<RenderTarget>> RenderTarget::Impl::CreateOwned(
     Base::Ref<Aero::RenderDevice> device,
-    ::Aero::Render::Detail::NativeRenderTarget* target,
-    RenderTargetKind kind,
+    Impl* implementation,
     Base::IAllocator* allocator) noexcept {
-    if (!device || target == nullptr) {
-        delete target;
+    if (!device || implementation == nullptr) {
+        delete implementation;
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "Owned render target requires device and native target");
+            "Owned render target requires a device and implementation");
     }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
@@ -179,44 +158,40 @@ Base::Result<Base::Ref<RenderTarget>> RenderTarget::Impl::CreateOwned(
             selected,
             RenderTarget::ConstructionToken{},
             std::move(device),
-            kind,
-            &selected);
-    if (!made) {
-        delete target;
-        return made.GetStatus();
-    }
-    made.Value()->impl_->SetTarget(target, true);
-    return std::move(made).Value();
+            implementation,
+            true);
+    if (!made) delete implementation;
+    return made;
 }
 
 Base::Result<void> RenderTarget::Impl::Render(
     RenderTarget& target,
     const void* rendererToken,
     const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
-    Impl* impl = target.impl_;
-    if (impl == nullptr || !impl->device || impl->target == nullptr) {
+    if (target.impl_ == nullptr || !target.device_) {
         return NotInitialized("Render target is not initialized");
     }
     Base::Status deviceReady =
-        Aero::RenderDevice::Impl::FrameStatus(*impl->device);
+        Aero::RenderDevice::Impl::FrameStatus(*target.device_);
     if (!deviceReady.IsOk()) return deviceReady;
-    if (impl->RefreshHealth() != ::Aero::Render::Detail::SurfaceHealth::Ready) {
+    if (target.impl_->Health() !=
+            ::Aero::Render::Detail::SurfaceHealth::Ready) {
         return InvalidState("Render target is not ready");
     }
 
     Base::Result<Aero::RenderFrameStatistics> statistics =
-        Aero::RenderDevice::Impl::BeginSurfaceFrame(*impl->device, frame);
+        Aero::RenderDevice::Impl::BeginSurfaceFrame(*target.device_, frame);
     if (!statistics) return statistics.GetStatus();
 
-    Base::Result<void> rendered = impl->target->Render(rendererToken, frame);
+    Base::Result<void> rendered =
+        target.impl_->RenderNative(rendererToken, frame);
     if (!rendered) {
-        Aero::RenderDevice::Impl::RecordSurfaceFailure(*impl->device);
-        impl->RefreshHealth();
+        Aero::RenderDevice::Impl::RecordSurfaceFailure(*target.device_);
         return rendered.GetStatus();
     }
 
     Aero::RenderDevice::Impl::CompleteSurfaceFrame(
-        *impl->device, frame, statistics.Value());
+        *target.device_, frame, statistics.Value());
     return {};
 }
 
@@ -228,21 +203,32 @@ Base::Result<Base::Ref<Aero::RenderTarget>> AdoptRenderTarget(
     Base::Ref<Aero::RenderDevice> device,
     Aero::RenderTargetKind kind,
     Base::IAllocator* allocator) noexcept {
-    return Aero::RenderTarget::Impl::Create(
-        std::move(device), kind, allocator);
+    if (!device) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Render target requires a render device");
+    }
+    Aero::RenderTarget::Impl* implementation =
+        Aero::RenderDevice::Impl::DefaultTarget(*device);
+    if (implementation == nullptr || implementation->kind != kind) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Render device has no compatible default target");
+    }
+    return Aero::RenderTarget::Impl::CreateBorrowed(
+        std::move(device), implementation, allocator);
 }
 
 Base::Result<Base::Ref<Aero::RenderTarget>> AdoptOwnedRenderTarget(
     Base::Ref<Aero::RenderDevice> device,
-    NativeRenderTarget* target,
+    Aero::RenderTarget::Impl* target,
     Aero::RenderTargetKind kind,
     Base::IAllocator* allocator) noexcept {
+    if (target != nullptr) target->kind = kind;
     return Aero::RenderTarget::Impl::CreateOwned(
-        std::move(device), target, kind, allocator);
+        std::move(device), target, allocator);
 }
 
-// Temporary source-only names used by backend implementation files. The public
-// API and install tree have no RenderSurface type.
 Base::Result<Base::Ref<Aero::RenderTarget>> AdoptRenderSurface(
     Base::Ref<Aero::RenderDevice> device,
     Aero::RenderTargetKind kind,
@@ -252,7 +238,7 @@ Base::Result<Base::Ref<Aero::RenderTarget>> AdoptRenderSurface(
 
 Base::Result<Base::Ref<Aero::RenderTarget>> AdoptOwnedRenderSurface(
     Base::Ref<Aero::RenderDevice> device,
-    NativeRenderTarget* target,
+    Aero::RenderTarget::Impl* target,
     Aero::RenderTargetKind kind,
     Base::IAllocator* allocator) noexcept {
     return AdoptOwnedRenderTarget(std::move(device), target, kind, allocator);
