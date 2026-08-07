@@ -15,8 +15,11 @@ Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11RenderTarget(
     Base::Ref<Aero::RenderDevice> device,
     const D3D11RenderTargetOptions& options,
     Base::IAllocator* allocator) noexcept {
+    ::Aero::Render::Detail::D3D11EmbeddedSurfaceOptions native;
+    native.acquireTarget = options.acquireTarget;
+    native.callbackContext = options.callbackContext;
     return ::Aero::Render::Detail::CreateD3D11EmbeddedSurface(
-        std::move(device), options, allocator);
+        std::move(device), native, allocator);
 }
 
 } // namespace Aero::Render
