@@ -3,15 +3,16 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/RenderSurface.hpp>
+#include <Aero/RenderTarget.hpp>
 
 namespace Aero {
 
 class RenderDevice;
 
 // Render-thread interface owned by one View. UI state is committed through
-// UpdateRenderTree(); GPU work remains explicitly split into offscreen and
-// onscreen passes so the host retains scheduling control.
+// UpdateRenderTree(); true means a new immutable frame was published. Hosts may
+// skip GPU work when it returns false unless native exposure/resize requires a
+// re-present. Offscreen and onscreen passes remain explicit for host scheduling.
 class AERO_API IRenderer {
 public:
     virtual ~IRenderer() = default;
@@ -27,7 +28,7 @@ public:
     virtual Base::Result<bool> UpdateRenderTree() noexcept = 0;
     virtual Base::Result<void> RenderOffscreen() noexcept = 0;
     virtual Base::Result<void> Render(
-        RenderSurface& surface) noexcept = 0;
+        RenderTarget& target) noexcept = 0;
 
 protected:
     IRenderer() noexcept = default;

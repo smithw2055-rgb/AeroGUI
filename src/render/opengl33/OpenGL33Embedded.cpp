@@ -238,8 +238,6 @@ public:
         if (!IsReady()) return InvalidState("OpenGL embedded surface is not ready");
         Base::Result<void> current = device_->MakeCurrent();
         if (!current) return current.GetStatus();
-        Base::Result<std::uint32_t> collected = device_->GraphicsDevice()->CollectGarbage();
-        if (!collected) return collected.GetStatus();
         Base::Result<Graphics::SurfaceFrame> acquired = surface_->AcquireFrame();
         if (!acquired) {
             RefreshHealth();
@@ -267,29 +265,14 @@ public:
             static_cast<void>(surface_->DiscardFrame(nativeFrame));
             return imported.GetStatus();
         }
-        Base::Result<Graphics::CommandList> commands =
-            device_->Renderer()->RecordOnscreen(
+        Base::Result<Graphics::FenceValue> completed =
+            device_->Renderer()->RenderOnscreen(
                 rendererToken,
                 frame,
                 {imported.Value(), nativeFrame.target.width,
-                 nativeFrame.target.height, Graphics::LoadOperation::Load});
-        if (!commands) {
-            static_cast<void>(surface_->DiscardFrame(nativeFrame));
-            static_cast<void>(device_->GraphicsDevice()->DestroyResource(
-                imported.Value(), 0U));
-            return commands.GetStatus();
-        }
-        Base::Result<Graphics::FenceValue> submitted =
-            device_->GraphicsDevice()->Submit(commands.Value());
-        if (!submitted) {
-            static_cast<void>(surface_->DiscardFrame(nativeFrame));
-            static_cast<void>(device_->GraphicsDevice()->DestroyResource(
-                imported.Value(), 0U));
-            return submitted.GetStatus();
-        }
-        Base::Result<Graphics::FenceValue> completed =
-            surface_->SubmitFrame(
-                *device_->GraphicsDevice(), nativeFrame, commands.Value());
+                 nativeFrame.target.height, Graphics::LoadOperation::Load},
+                *surface_,
+                nativeFrame);
         const Graphics::FenceValue retireFence =
             device_->GraphicsDevice()->LastSubmittedFence();
         Base::Result<void> destroyed =
@@ -492,13 +475,8 @@ Base::Result<void> OpenGL33DeviceState::RenderOffscreen(
     if (!IsReady()) return NotInitialized("OpenGL device is not initialized");
     Base::Result<void> current = MakeCurrent();
     if (!current) return current.GetStatus();
-    Base::Result<std::uint32_t> collected = device_->CollectGarbage();
-    if (!collected) return collected.GetStatus();
-    Base::Result<Graphics::CommandList> commands =
-        renderer_->RecordOffscreen(rendererToken, frame);
-    if (!commands) return commands.GetStatus();
-    if (commands.Value().CommandCount() == 0U) return {};
-    Base::Result<Graphics::FenceValue> submitted = device_->Submit(commands.Value());
+    Base::Result<Graphics::FenceValue> submitted =
+        renderer_->RenderOffscreen(rendererToken, frame);
     if (!submitted) return submitted.GetStatus();
     return {};
 }

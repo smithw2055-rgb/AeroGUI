@@ -27,7 +27,7 @@ function(aero_add_xaml target)
     endif()
 
     if(DEFINED AERO_HOST_XAMLC_EXECUTABLE AND
-       NOT AERO_HOST_XAMLC_EXECUTABLE STREQUAL "")
+       NOT "${AERO_HOST_XAMLC_EXECUTABLE}" STREQUAL "")
         set(_aero_xamlc "${AERO_HOST_XAMLC_EXECUTABLE}")
         set(_aero_xamlc_dependency "${AERO_HOST_XAMLC_EXECUTABLE}")
     elseif(TARGET Aero::xamlc AND NOT CMAKE_CROSSCOMPILING)

@@ -3,8 +3,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/RenderSurface.hpp>
-#include <Aero/Platform/NativeWindow.hpp>
+#include <Aero/RenderTarget.hpp>
 
 #include <cstdint>
 
@@ -37,7 +36,7 @@ struct OpenGL33DeviceOptions {
     bool checkErrors = false;
 };
 
-struct OpenGL33EmbeddedTarget  {
+struct OpenGL33EmbeddedTarget {
     std::uint32_t framebuffer = 0U;
     std::uint32_t depthStencilTexture = 0U;
     std::uint32_t width = 0U;
@@ -50,45 +49,25 @@ using OpenGL33TargetCallback = Base::Status (*)(
     void* context,
     OpenGL33EmbeddedTarget* target) noexcept;
 
-struct OpenGL33EmbeddedSurfaceOptions  {
-    OpenGL33ProcResolver resolve = nullptr;
-    OpenGL33MakeCurrent makeCurrent = nullptr;
-    OpenGL33IsCurrent isCurrent = nullptr;
-    OpenGL33ContextGeneration contextGeneration = nullptr;
+// Device/context activation belongs to the explicitly supplied RenderDevice.
+// The target contract only selects the framebuffer exposed by the host.
+struct OpenGL33RenderTargetOptions {
     OpenGL33TargetCallback acquireTarget = nullptr;
     void* callbackContext = nullptr;
     void* targetContext = nullptr;
-    OpenGL33StatePreservationPolicy statePolicy =
-        OpenGL33StatePreservationPolicy::HostResetsState;
 };
 
-struct OpenGL33WindowSurfaceOptions  {
-    Platform::NativeWindowHandle window;
-    std::uint32_t width = 0U;
-    std::uint32_t height = 0U;
-    PresentMode presentMode = PresentMode::Fifo;
-    bool enableDebugContext = false;
-};
-
+#if !defined(AERO_RENDER_BACKEND_IMPLEMENTATION)
 AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateOpenGL33Device(
     const OpenGL33DeviceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_API Base::Result<Base::Ref<RenderSurface>>
-CreateOpenGL33EmbeddedSurface(
+AERO_API Base::Result<Base::Ref<Aero::RenderTarget>>
+CreateOpenGL33RenderTarget(
     Base::Ref<Aero::RenderDevice> device,
-    const OpenGL33EmbeddedSurfaceOptions& options,
+    const OpenGL33RenderTargetOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
-
-AERO_API Base::Result<Base::Ref<RenderSurface>>
-CreateOpenGL33EmbeddedSurface(
-    const OpenGL33EmbeddedSurfaceOptions& options,
-    Base::IAllocator* allocator = nullptr) noexcept;
-
-AERO_API Base::Result<Base::Ref<RenderSurface>>
-CreateOpenGL33WindowSurface(
-    const OpenGL33WindowSurfaceOptions& options,
-    Base::IAllocator* allocator = nullptr) noexcept;
+#endif
 
 } // namespace Aero::Render

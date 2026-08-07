@@ -7,7 +7,8 @@ they disagree with this file, this file describes the current implementation.
 ## Product boundary
 
 The installed products are `Aero::Base`, `Aero::Gui`, `Aero::Meta`,
-`Aero::Integration`, `Aero::App`, and optional `Aero::Audio`. Repository object
+`Aero::App`, and optional `Aero::Audio`. `Aero::Gui` is the embeddable runtime;
+`Aero::App` adds the default desktop lifetime/window policy. Repository object
 targets are build components only and are never exported as SDK products.
 
 `cmake/AeroPublicHeaders.cmake` is the complete installation whitelist. Public
@@ -31,9 +32,9 @@ the only installed Detail surfaces. Class-local `Impl` names are opaque state,
 not a namespace convention.
 
 Cross-translation-unit private declarations enter through the domain headers
-`GuiPrivate.hpp`, `ControlsPrivate.hpp`, `MarkupPrivate.hpp`,
-`MediaPrivate.hpp`, `RenderPrivate.hpp`, and `IntegrationPrivate.hpp`.
-Single-translation-unit helpers stay in anonymous namespaces.
+`GuiPrivate.hpp`, `ControlsPrivate.hpp`, `MarkupPrivate.hpp`, and domain-private
+render/platform headers under `src`. Single-translation-unit helpers stay in
+anonymous namespaces; there is no Integration private aggregate.
 
 Every `.cpp` has one compile owner. In particular, `MarkupSchema.cpp` and
 `MarkupLoader.cpp` own the reusable Markup implementation, while
@@ -65,7 +66,7 @@ while provider object lifetime remains host-owned.
 The frame path is:
 
 ```text
-retained UI -> immutable RenderFrame -> Renderer -> RenderDevice -> backend
+retained UI -> immutable RenderFrame -> RenderDevice -> Render::Renderer -> backend
 ```
 
 `View::Viewport` carries logical size, exact pixel size, and DPI. Offscreen

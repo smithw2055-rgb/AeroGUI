@@ -1,10 +1,19 @@
 #pragma once
 
+#include <Aero/Diagnostics/Rendering.hpp>
 #include <Aero/RenderDevice.hpp>
+#include <Aero/RenderTarget.hpp>
 #include "render/RenderResources.hpp"
 #include "render/RenderTree.hpp"
 
 #include <utility>
+
+namespace Aero {
+// Source-only aliases keep backend implementation code compact while installed
+// code uses the Diagnostics namespace explicitly.
+using RenderDeviceStatistics = Diagnostics::RenderDeviceStatistics;
+using RenderFrameStatistics = Diagnostics::RenderFrameStatistics;
+}
 
 namespace Aero::Render::Detail {
 
@@ -28,11 +37,6 @@ enum class SurfaceHealth : std::uint8_t {
     Shutdown
 };
 
-class NativeRenderTarget;
-
-// One real private backend object replaces the former void* plus function-table
-// gateway. It owns the backend-neutral Graphics::Device and DeviceRenderer for
-// its API implementation; Graphics::Device is no longer a peer lifecycle.
 class NativeRenderDevice {
 public:
     virtual ~NativeRenderDevice() noexcept = default;
@@ -50,10 +54,9 @@ public:
     virtual ::Aero::RenderFrameStatistics
         LastFrameStatistics() const noexcept = 0;
     virtual Aero::Render::Detail::RenderResources Resources() noexcept = 0;
-
-    // Only the combined OpenGL window object supplies a borrowed target.
-    // Shared-device D3D11 and embedded OpenGL use independently owned targets.
-    virtual NativeRenderTarget* DefaultTarget() noexcept { return nullptr; }
+    virtual Aero::RenderTarget::Impl* DefaultTarget() noexcept {
+        return nullptr;
+    }
 
     std::uint64_t Generation() const noexcept { return generation_; }
 
@@ -106,7 +109,7 @@ struct RenderDevice::Impl {
         return device.impl_ != nullptr ? device.impl_->native : nullptr;
     }
 
-    static ::Aero::Render::Detail::NativeRenderTarget* DefaultTarget(
+    static ::Aero::RenderTarget::Impl* DefaultTarget(
         RenderDevice& device) noexcept {
         return device.impl_ != nullptr && device.impl_->native != nullptr
             ? device.impl_->native->DefaultTarget()

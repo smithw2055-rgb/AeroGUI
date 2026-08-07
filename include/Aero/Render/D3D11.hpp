@@ -3,8 +3,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/RenderSurface.hpp>
-#include <Aero/Platform/NativeWindow.hpp>
+#include <Aero/RenderTarget.hpp>
 
 #include <cstdint>
 
@@ -25,7 +24,7 @@ struct D3D11DeviceOptions {
     bool enableDebugLayer = false;
 };
 
-struct D3D11EmbeddedTarget  {
+struct D3D11EmbeddedTarget {
     std::uintptr_t texture2D = 0U;
     std::uintptr_t renderTargetView = 0U;
     std::uintptr_t depthStencilView = 0U;
@@ -38,50 +37,24 @@ using D3D11TargetCallback = Base::Status (*)(
     void* context,
     D3D11EmbeddedTarget* target) noexcept;
 
-struct D3D11EmbeddedSurfaceOptions  {
-    std::uintptr_t device = 0U;
-    std::uintptr_t immediateContext = 0U;
+// Target options describe only how to acquire the host-owned target. Device and
+// immediate-context ownership belongs to the explicitly supplied RenderDevice.
+struct D3D11RenderTargetOptions {
     D3D11TargetCallback acquireTarget = nullptr;
     void* callbackContext = nullptr;
-    D3D11StatePreservationPolicy statePolicy =
-        D3D11StatePreservationPolicy::HostResetsState;
 };
 
-struct D3D11WindowSurfaceOptions  {
-    Platform::NativeWindowHandle window;
-    std::uint32_t width = 0U;
-    std::uint32_t height = 0U;
-    PresentMode presentMode = PresentMode::Fifo;
-    bool useWarp = false;
-    bool allowWarpFallback = true;
-    bool enableDebugLayer = false;
-};
-
+#if !defined(AERO_RENDER_BACKEND_IMPLEMENTATION)
 AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateD3D11Device(
     const D3D11DeviceOptions& options = {},
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_API Base::Result<Base::Ref<RenderSurface>>
-CreateD3D11EmbeddedSurface(
+AERO_API Base::Result<Base::Ref<Aero::RenderTarget>>
+CreateD3D11RenderTarget(
     Base::Ref<Aero::RenderDevice> device,
-    const D3D11EmbeddedSurfaceOptions& options,
+    const D3D11RenderTargetOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
-
-AERO_API Base::Result<Base::Ref<RenderSurface>>
-CreateD3D11WindowSurface(
-    Base::Ref<Aero::RenderDevice> device,
-    const D3D11WindowSurfaceOptions& options,
-    Base::IAllocator* allocator = nullptr) noexcept;
-
-AERO_API Base::Result<Base::Ref<RenderSurface>>
-CreateD3D11EmbeddedSurface(
-    const D3D11EmbeddedSurfaceOptions& options,
-    Base::IAllocator* allocator = nullptr) noexcept;
-
-AERO_API Base::Result<Base::Ref<RenderSurface>>
-CreateD3D11WindowSurface(
-    const D3D11WindowSurfaceOptions& options,
-    Base::IAllocator* allocator = nullptr) noexcept;
+#endif
 
 } // namespace Aero::Render

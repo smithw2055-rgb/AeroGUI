@@ -75,7 +75,9 @@ Base::Result<void> Detail::PopulateCoreMetadata(
         .Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Register<Value>(context).Result();
+    status = Meta::Register<Value>(context)
+        .ValueSemantics()
+        .Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<TypeReference>(context).Result();
@@ -143,13 +145,16 @@ Base::Result<void> PopulateUiMetadata(
     Base::Result<void> status;
     status = PopulateEnumMetadata(context);
     if (!status) return status.GetStatus();
+    status = PopulateUiInput(context);
+    if (!status) return status.GetStatus();
+    // Media registers foundational value types such as Point. Resources author
+    // Geometry dependency-property defaults that consume those values, so keep
+    // Media ahead of Resources in the deterministic metadata bootstrap.
+    status = PopulateUiMedia(context);
+    if (!status) return status.GetStatus();
     status = PopulateUiResources(context);
     if (!status) return status.GetStatus();
     status = PopulateUiStyling(context);
-    if (!status) return status.GetStatus();
-    status = PopulateUiInput(context);
-    if (!status) return status.GetStatus();
-    status = PopulateUiMedia(context);
     if (!status) return status.GetStatus();
     status = PopulateUiAnimation(context);
     if (!status) return status.GetStatus();

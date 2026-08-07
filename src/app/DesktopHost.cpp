@@ -1,5 +1,6 @@
 #include "DesktopHost.hpp"
 #include "Metadata.hpp"
+#include "RenderContext.hpp"
 
 #include <Aero/Application.hpp>
 #include <Aero/Window.hpp>
@@ -8,16 +9,13 @@
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Render/OpenGL33.hpp>
 #include <Aero/Markup.hpp>
 #include <Aero/ViewOptions.hpp>
 #include <Aero/IRenderer.hpp>
 #include <Aero/View.hpp>
 #include "runtime/ViewAccess.hpp"
 
-
 #if defined(_WIN32)
-#include <Aero/Render/D3D11.hpp>
 #include "platform/win32/InputRouters.hpp"
 #include "platform/win32/Window.hpp"
 #else
@@ -28,7 +26,6 @@
 #include <cmath>
 #include <memory>
 #include <new>
-#include <thread>
 #include <utility>
 
 namespace Aero::App::Detail {
@@ -181,14 +178,18 @@ struct DesktopHost::Impl {
                     Base::ErrorCode::InvalidState,
                     "Application native window has an empty client area");
             }
-            Base::Result<void> graphics = CreateRenderSurface(width, height);
+            Base::Result<void> graphics = renderContext.Create(
+                owner->backend,
+                nativeWindow->NativeHandle(),
+                width,
+                height,
+                owner->allocator);
             if (!graphics) return graphics.GetStatus();
-            Base::Ref<RenderDevice> renderDevice =
-                renderSurface->GetDevice();
+            Base::Ref<RenderDevice> renderDevice = renderContext.Device();
             if (!renderDevice) {
                 return HostFailure(
                     Base::ErrorCode::InvalidState,
-                    "Application render surface has no render device");
+                    "Application render context has no render device");
             }
             Base::Result<void> renderer =
                 view->GetRenderer().Init(std::move(renderDevice));
@@ -255,67 +256,6 @@ struct DesktopHost::Impl {
             return {};
         }
 
-        Base::Result<void> CreateRenderSurface(
-            std::uint32_t width,
-            std::uint32_t height) noexcept {
-#if !AERO_APP_HAS_D3D11 && !AERO_APP_HAS_OPENGL_WINDOW
-            static_cast<void>(width);
-            static_cast<void>(height);
-#endif
-            GraphicsBackend selected = owner->backend;
-            if (selected == GraphicsBackend::Automatic) {
-#if defined(_WIN32)
-                selected = GraphicsBackend::D3D11;
-#else
-                selected = GraphicsBackend::OpenGL33;
-#endif
-            }
-#if defined(_WIN32)
-            if (selected == GraphicsBackend::D3D11) {
-#if AERO_APP_HAS_D3D11
-                Render::D3D11WindowSurfaceOptions options;
-                options.window = nativeWindow->NativeHandle();
-                options.width = width;
-                options.height = height;
-                options.presentMode = PresentMode::Fifo;
-                options.allowWarpFallback = true;
-                Base::Result<Base::Ref<RenderSurface>> created =
-                    Render::CreateD3D11WindowSurface(
-                        options, owner->allocator);
-                if (!created) return created.GetStatus();
-                renderSurface = std::move(created).Value();
-                return {};
-#else
-                return HostFailure(
-                    Base::ErrorCode::Unsupported,
-                    "D3D11 application backend is not enabled");
-#endif
-            }
-#endif
-            if (selected == GraphicsBackend::OpenGL33) {
-#if AERO_APP_HAS_OPENGL_WINDOW
-                Render::OpenGL33WindowSurfaceOptions options;
-                options.window = nativeWindow->NativeHandle();
-                options.width = width;
-                options.height = height;
-                options.presentMode = PresentMode::Fifo;
-                Base::Result<Base::Ref<RenderSurface>> created =
-                    Render::CreateOpenGL33WindowSurface(
-                        options, owner->allocator);
-                if (!created) return created.GetStatus();
-                renderSurface = std::move(created).Value();
-                return {};
-#else
-                return HostFailure(
-                    Base::ErrorCode::Unsupported,
-                    "OpenGL window application backend is not enabled");
-#endif
-            }
-            return HostFailure(
-                Base::ErrorCode::Unsupported,
-                "Requested application graphics backend is unavailable");
-        }
-
         Base::Result<void> HandleEvent(
             const Platform::WindowEvent& event) noexcept {
             switch (event.type) {
@@ -331,6 +271,7 @@ struct DesktopHost::Impl {
                 return {};
             case Platform::WindowEventType::Resized:
             case Platform::WindowEventType::ScaleChanged:
+                frameRequested = true;
                 pendingResizeWidth = event.width;
                 pendingResizeHeight = event.height;
                 if (std::isfinite(event.dpiScale) &&
@@ -364,6 +305,7 @@ struct DesktopHost::Impl {
                 }
                 Base::Result<Input::PointerDispatchResult> dispatched =
                     view->DispatchPointer(input);
+                frameRequested = true;
                 return dispatched
                     ? Base::Result<void>()
                     : Base::Result<void>(dispatched.GetStatus());
@@ -380,6 +322,7 @@ struct DesktopHost::Impl {
                 input.isRepeat = event.repeat;
                 Base::Result<Input::KeyboardDispatchResult> dispatched =
                     view->DispatchKeyboard(input);
+                frameRequested = true;
                 return dispatched
                     ? Base::Result<void>()
                     : Base::Result<void>(dispatched.GetStatus());
@@ -388,11 +331,14 @@ struct DesktopHost::Impl {
                 if (event.textSize == 0U) return {};
                 Base::Result<Input::TextInputDispatchResult> dispatched =
                     view->DispatchText({event.Text()});
+                frameRequested = true;
                 return dispatched
                     ? Base::Result<void>()
                     : Base::Result<void>(dispatched.GetStatus());
             }
             case Platform::WindowEventType::Exposed:
+                frameRequested = true;
+                return {};
             case Platform::WindowEventType::Invalid:
             default:
                 return {};
@@ -407,7 +353,7 @@ struct DesktopHost::Impl {
             hasPendingResize = false;
             if (width != 0U && height != 0U) {
                 Base::Result<void> resized =
-                    renderSurface->Resize(width, height);
+                    renderContext.Resize(width, height);
                 if (!resized) return resized.GetStatus();
             }
             const Size logicalSize{
@@ -416,6 +362,7 @@ struct DesktopHost::Impl {
             view->SetViewport({
                 logicalSize, width, height, nextDpiScale});
             dpiScale = nextDpiScale;
+            frameRequested = true;
             return {};
         }
 
@@ -439,7 +386,28 @@ struct DesktopHost::Impl {
             return handled;
         }
 
-        Base::Result<void> RenderFrame() noexcept {
+        Base::Result<bool> WaitForActivity(
+            std::uint32_t timeoutMilliseconds,
+            bool blockUntilEvent) noexcept {
+            if (!nativeWindow || !nativeWindow->IsOpen() || closeRequested) {
+                return false;
+            }
+            Platform::WindowEvent event;
+            Base::Result<bool> received = blockUntilEvent
+                ? nativeWindow->WaitEvent(event)
+                : nativeWindow->WaitEventFor(event, timeoutMilliseconds);
+            if (!received) return received.GetStatus();
+            bool handled = received.Value();
+            if (handled) {
+                Base::Result<void> status = HandleEvent(event);
+                if (!status) return status.GetStatus();
+            }
+            Base::Result<bool> drained = PumpEvents();
+            if (!drained) return drained.GetStatus();
+            return handled || drained.Value();
+        }
+
+        Base::Result<void> RenderFrame(bool force = false) noexcept {
             if (closeRequested || !view || !nativeWindow ||
                 !nativeWindow->IsOpen()) {
                 return {};
@@ -460,10 +428,10 @@ struct DesktopHost::Impl {
                 view->Update(elapsedMilliseconds);
             if (!frame) return frame.GetStatus();
 
-            if (!renderSurface) {
+            if (!renderContext.IsReady()) {
                 return HostFailure(
                     Base::ErrorCode::NotInitialized,
-                    "Application render surface is unavailable");
+                    "Application render context is unavailable");
             }
             IRenderer& renderer = view->GetRenderer();
             Base::Result<bool> synchronized =
@@ -471,13 +439,17 @@ struct DesktopHost::Impl {
             if (!synchronized) {
                 return synchronized.GetStatus();
             }
+            const bool needsRender = force || frameRequested ||
+                synchronized.Value() || !firstFrameRendered;
+            if (!needsRender) return {};
+
             Base::Result<void> offscreen =
                 renderer.RenderOffscreen();
             if (!offscreen) return offscreen.GetStatus();
-            Base::Result<void> rendered =
-                renderer.Render(*renderSurface);
+            Base::Result<void> rendered = renderContext.Render(renderer);
             if (!rendered) return rendered.GetStatus();
 
+            frameRequested = false;
             firstFrameRendered = true;
             return {};
         }
@@ -489,12 +461,12 @@ struct DesktopHost::Impl {
                     "Window native host is unavailable");
             }
             if (!firstFrameRendered) {
-                Base::Result<void> rendered = RenderFrame();
+                Base::Result<void> rendered = RenderFrame(true);
                 if (!rendered) return rendered.GetStatus();
             }
             Base::Result<void> shown = nativeWindow->Show();
             if (shown && window != nullptr) {
-                    Window::Impl::NotifyContentRendered(*window);
+                Window::Impl::NotifyContentRendered(*window);
             }
             return shown;
         }
@@ -521,10 +493,7 @@ struct DesktopHost::Impl {
         void Shutdown() noexcept {
             if (shutdown) return;
             shutdown = true;
-            if (renderSurface) {
-                Base::Ref<RenderDevice> device = renderSurface->GetDevice();
-                if (device) static_cast<void>(device->WaitIdle());
-            }
+            renderContext.Shutdown();
             if (view) {
                 static_cast<void>(
                     ::Aero::Runtime::Detail::ViewAccess::Unmount(*view));
@@ -538,7 +507,6 @@ struct DesktopHost::Impl {
 #endif
             if (nativeWindow) nativeWindow->Close();
             loadedDocument = {};
-            renderSurface.Reset();
             view.Reset();
             windowOwner.Reset();
             window = nullptr;
@@ -565,7 +533,7 @@ struct DesktopHost::Impl {
         Impl* owner = nullptr;
         WindowHostState runtime;
         Base::Ref<View> view;
-        Base::Ref<RenderSurface> renderSurface;
+        RenderContext renderContext;
         Base::Ref<Base::Object> windowOwner;
         Markup::XamlDocument loadedDocument;
         Window* window = nullptr;
@@ -577,6 +545,7 @@ struct DesktopHost::Impl {
         bool closeRequested = false;
         bool hasPendingResize = false;
         bool firstFrameRendered = false;
+        bool frameRequested = true;
         bool updateClockInitialized = false;
         std::chrono::steady_clock::time_point lastUpdate;
         bool shutdown = false;
@@ -871,7 +840,7 @@ struct DesktopHost::Impl {
         if (!status) return status.GetStatus();
 
         for (WindowHost* host : windows) {
-            status = host->RenderFrame();
+            status = host->RenderFrame(true);
             if (!status) return status.GetStatus();
         }
         if (visible && !windows.Empty()) {
@@ -893,12 +862,25 @@ struct DesktopHost::Impl {
             status = RemoveClosedWindows();
             if (!status) return status.GetStatus();
             if (exitRequested) break;
+
             for (WindowHost* host : windows) {
                 status = host->RenderFrame();
                 if (!status) return status.GetStatus();
             }
-            if (!handledEvent) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+            if (!handledEvent && !windows.Empty()) {
+                WindowHost* waiter = windows[0];
+                if (waiter != nullptr) {
+                    // A single non-animated window can block fully on native
+                    // events. Animation or multi-window hosting uses a 16 ms
+                    // timed native wait so other windows and the animation
+                    // clock remain responsive without a 1 ms polling loop.
+                    const bool blockUntilEvent =
+                        !automaticAnimationClock && windows.Size() == 1U;
+                    Base::Result<bool> waited = waiter->WaitForActivity(
+                        16U, blockUntilEvent);
+                    if (!waited) return waited.GetStatus();
+                }
             }
         }
 

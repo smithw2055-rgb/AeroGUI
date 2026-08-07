@@ -270,8 +270,8 @@ public:
             return imported.GetStatus();
         }
 
-        Base::Result<Graphics::CommandList> commands =
-            device_->Renderer()->RecordOnscreen(
+        Base::Result<Graphics::FenceValue> submitted =
+            device_->Renderer()->RenderOnscreen(
                 rendererToken,
                 frame,
                 {imported.Value(),
@@ -279,19 +279,9 @@ public:
                  nativeFrame.target.height,
                  embedded_
                      ? Graphics::LoadOperation::Load
-                     : Graphics::LoadOperation::Clear});
-        if (!commands) {
-            static_cast<void>(surface_->DiscardFrame(nativeFrame));
-            static_cast<void>(device_->GraphicsDevice()->DestroyResource(
-                imported.Value(), 0U));
-            return commands.GetStatus();
-        }
-
-        Base::Result<Graphics::FenceValue> submitted =
-            surface_->SubmitFrame(
-                *device_->GraphicsDevice(),
-                nativeFrame,
-                commands.Value());
+                     : Graphics::LoadOperation::Clear},
+                *surface_,
+                nativeFrame);
         const Graphics::FenceValue retireFence =
             device_->GraphicsDevice()->LastSubmittedFence();
         Base::Result<void> retired =
@@ -517,12 +507,8 @@ Base::Result<void> D3D11DeviceState::RenderOffscreen(
     const void* rendererToken,
     const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
     if (!IsReady()) return NotInitialized("D3D11 device is not initialized");
-    Base::Result<Graphics::CommandList> commands =
-        renderer_->RecordOffscreen(rendererToken, frame);
-    if (!commands) return commands.GetStatus();
-    if (commands.Value().CommandCount() == 0U) return {};
     Base::Result<Graphics::FenceValue> submitted =
-        device_->Submit(commands.Value());
+        renderer_->RenderOffscreen(rendererToken, frame);
     if (!submitted) return submitted.GetStatus();
     return {};
 }

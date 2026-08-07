@@ -11,26 +11,16 @@ Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33Device(
     return ::Aero::Render::Detail::CreateOpenGL33Device(options, allocator);
 }
 
-Base::Result<Base::Ref<Aero::RenderSurface>>
-CreateOpenGL33EmbeddedSurface(
+Base::Result<Base::Ref<Aero::RenderTarget>> CreateOpenGL33RenderTarget(
     Base::Ref<Aero::RenderDevice> device,
-    const OpenGL33EmbeddedSurfaceOptions& options,
+    const OpenGL33RenderTargetOptions& options,
     Base::IAllocator* allocator) noexcept {
+    ::Aero::Render::Detail::OpenGL33EmbeddedSurfaceOptions native;
+    native.acquireTarget = options.acquireTarget;
+    native.callbackContext = options.callbackContext;
+    native.targetContext = options.targetContext;
     return ::Aero::Render::Detail::CreateOpenGL33EmbeddedSurface(
-        std::move(device), options, allocator);
-}
-
-Base::Result<Base::Ref<Aero::RenderSurface>>
-CreateOpenGL33EmbeddedSurface(
-    const OpenGL33EmbeddedSurfaceOptions& options,
-    Base::IAllocator* allocator) noexcept {
-    return ::Aero::Render::Detail::CreateOpenGL33EmbeddedSurface(options, allocator);
-}
-
-Base::Result<Base::Ref<Aero::RenderSurface>> CreateOpenGL33WindowSurface(
-    const OpenGL33WindowSurfaceOptions& options,
-    Base::IAllocator* allocator) noexcept {
-    return ::Aero::Render::Detail::CreateOpenGL33WindowSurface(options, allocator);
+        std::move(device), native, allocator);
 }
 
 } // namespace Aero::Render

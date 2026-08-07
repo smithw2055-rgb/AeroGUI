@@ -19,7 +19,10 @@ enum class FontStretch : std::uint8_t;
 
 namespace Aero::Text {
 
-struct FontSource {
+// Host-facing font resource returned by FontProvider. The lower-level text
+// engine has its own private file/memory source descriptor and the two models
+// deliberately use distinct names.
+struct FontResource {
     Base::ResourceUri uri;
     Base::Ref<Base::Stream> stream;
     std::uint32_t faceIndex = 0U;
@@ -29,7 +32,7 @@ class AERO_API FontProvider {
 public:
     virtual ~FontProvider() = default;
 
-    virtual Base::Result<FontSource> MatchFont(
+    virtual Base::Result<FontResource> MatchFont(
         const Base::ResourceUri& baseUri,
         Base::StringView familyName,
         Aero::FontWeight& weight,
@@ -48,4 +51,3 @@ public:
 };
 
 } // namespace Aero::Text
-

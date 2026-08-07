@@ -209,12 +209,14 @@ public:
     Base::Result<void> Present(
         SurfaceFrame& frame,
         FenceValue signalFence) noexcept;
-    // Submits commands and completes the acquired frame. Presentable
-    // surfaces present; borrowed/external targets are simply released.
-    Base::Result<FenceValue> SubmitFrame(
-        GraphicsDevice& device,
+    // Completes an already-submitted frame. Submission belongs exclusively to
+    // Render::Renderer; SurfaceSession only captures and presents/releases the
+    // acquired native target.
+    Base::Result<void> CompleteFrame(
+        const GraphicsDevice& device,
         SurfaceFrame& frame,
-        const CommandList& commands) noexcept;
+        const CommandList& commands,
+        FenceValue signalFence) noexcept;
     Base::Result<void> DiscardFrame(
         SurfaceFrame& frame) noexcept;
     Base::Result<void> NotifyContextLost() noexcept;

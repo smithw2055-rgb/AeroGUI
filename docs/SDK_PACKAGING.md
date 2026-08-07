@@ -104,11 +104,13 @@ Aero::Gui gui;
 gui.AddModule(MyModule);
 gui.Initialize();
 
-Aero::Render::D3D11WindowSurfaceOptions targetOptions;
-auto target =
-    Aero::Render::CreateD3D11WindowSurface(targetOptions).Value();
+Aero::Render::D3D11DeviceOptions deviceOptions;
+auto device = Aero::Render::CreateD3D11Device(deviceOptions).Value();
+Aero::Render::D3D11RenderTargetOptions targetOptions;
+auto target = Aero::Render::CreateD3D11RenderTarget(
+    device, targetOptions).Value();
 auto view = gui.CreateView().Value();
-view->GetRenderer().Init(target->GetDevice());
+view->GetRenderer().Init(device);
 
 Aero::Markup::XamlReader reader(*view);
 auto document = reader.Load("MainWindow.xaml").Value();
@@ -133,7 +135,7 @@ applications and engines own render threads, queues and frame-coalescing policy.
 
 The installed public paths are ownership-oriented:
 
-- `Aero/ViewOptions.hpp` and `Aero/RenderSurface.hpp` — View and presentation contracts;
+- `Aero/ViewOptions.hpp` and `Aero/RenderTarget.hpp` — View and presentation contracts;
 - `Aero/Markup/XamlProvider.hpp` and `Aero/Markup/ReloadCoordinator.hpp`;
 - `Aero/Media/TextureProvider.hpp`;
 - `Aero/Text/FontProvider.hpp`;

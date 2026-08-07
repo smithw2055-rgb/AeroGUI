@@ -23,32 +23,32 @@ static_assert(
 Aero::Base::Result<Aero::Base::Ref<Aero::View>>
 CreateIntegratedView(
     Aero::Gui& environment,
-    Aero::Base::Ref<Aero::RenderSurface> surface) noexcept {
-    if (!surface) {
+    Aero::Base::Ref<Aero::RenderTarget> target) noexcept {
+    if (!target) {
         return Aero::Base::Status::Failure(
             Aero::Base::ErrorCode::InvalidArgument,
-            "Integrated View requires a RenderSurface");
+            "Integrated View requires a RenderTarget");
     }
     Aero::ViewOptions options;
     Aero::Base::Result<Aero::Base::Ref<Aero::View>> created =
         environment.CreateView(options);
     if (!created) return created.GetStatus();
     Aero::Base::Result<void> initialized =
-        created.Value()->GetRenderer().Init(surface->GetDevice());
+        created.Value()->GetRenderer().Init(target->GetDevice());
     if (!initialized) return initialized.GetStatus();
     return std::move(created).Value();
 }
 
 [[maybe_unused]]
-void ConsumeViewSurface(
+void ConsumeViewTarget(
     Aero::View& view,
-    Aero::RenderSurface& surface) noexcept {
+    Aero::RenderTarget& target) noexcept {
     Aero::Markup::XamlReader reader(view);
     static_cast<void>(reader.GetView());
     static_cast<void>(view.Update(16U));
     static_cast<void>(view.GetRenderer().UpdateRenderTree());
     static_cast<void>(view.GetRenderer().RenderOffscreen());
-    static_cast<void>(view.GetRenderer().Render(surface));
+    static_cast<void>(view.GetRenderer().Render(target));
 }
 
 } // namespace

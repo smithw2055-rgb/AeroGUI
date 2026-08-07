@@ -422,30 +422,26 @@ void SurfaceSession::Shutdown() noexcept {
     }
 }
 
-Base::Result<FenceValue> SurfaceSession::SubmitFrame(
-    GraphicsDevice& device,
+Base::Result<void> SurfaceSession::CompleteFrame(
+    const GraphicsDevice& device,
     SurfaceFrame& frame,
-    const CommandList& commands) noexcept {
+    const CommandList& commands,
+    FenceValue signalFence) noexcept {
     if (!IsCurrentFrame(frame)) {
         return InvalidState("Surface frame is stale or not active");
     }
-    if (!device.IsReady()) {
+    if (signalFence == 0U) {
         static_cast<void>(DiscardFrame(frame));
-        return InvalidState("Graphics device is not ready");
+        return InvalidArgument("Surface completion requires a non-zero fence");
     }
 
     const bool present = capabilities_.supportsPresent;
     const std::uint64_t surfaceGeneration = frame.surfaceGeneration;
     const std::uint64_t frameSerial = frame.frameSerial;
     const ExternalRenderTargetDescriptor target = frame.target;
-    Base::Result<FenceValue> submitted = device.Submit(commands);
-    if (!submitted) {
-        static_cast<void>(DiscardFrame(frame));
-        return submitted.GetStatus();
-    }
 
     lastCapture_.backend = device.Backend().Kind();
-    lastCapture_.signalFence = submitted.Value();
+    lastCapture_.signalFence = signalFence;
     lastCapture_.surfaceGeneration = surfaceGeneration;
     lastCapture_.frameSerial = frameSerial;
     lastCapture_.targetStableId = target.stableId;
@@ -458,7 +454,7 @@ Base::Result<FenceValue> SurfaceSession::SubmitFrame(
 
     Base::Result<void> completed;
     if (present) {
-        completed = Present(frame, submitted.Value());
+        completed = Present(frame, signalFence);
     } else {
         backend_->DiscardSurfaceFrame(frame.frameSerial);
         activeFrameSerial_ = 0U;
@@ -472,7 +468,7 @@ Base::Result<FenceValue> SurfaceSession::SubmitFrame(
         return completed.GetStatus();
     }
     lastCapture_.presented = present;
-    return submitted.Value();
+    return {};
 }
 
 } // namespace Aero::Graphics

@@ -3,7 +3,7 @@
 AeroGUI keeps WPF/XAML names and semantics while using ordinary C++17 methods.
 Code-first desktop applications call `Application::Run()`; generated XAML
 bootstrap code may call `App::Run()` to load `App.xaml`. Engine and custom
-native hosts use `Aero::Integration` explicitly.
+native hosts use `Aero::Gui` with an explicit RenderDevice/RenderTarget.
 
 ## Application and Window
 

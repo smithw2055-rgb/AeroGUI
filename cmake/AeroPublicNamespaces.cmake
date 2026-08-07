@@ -1,10 +1,8 @@
 # Canonical namespace manifest for installed Aero headers.
 #
 # The list is intentionally expressed as semantic namespace prefixes rather
-# than as a generated inventory of every type.  A nested namespace is allowed
-# only when it belongs to one of these prefixes; implementation-only Detail
-# namespaces are listed separately so the architecture check can keep their
-# transitional ABI surface explicit.
+# than as a generated inventory of every type. A nested namespace is allowed
+# only when it belongs to one of these prefixes.
 set(AERO_PUBLIC_NAMESPACE_PREFIXES
     Aero
     Aero::App
@@ -18,7 +16,6 @@ set(AERO_PUBLIC_NAMESPACE_PREFIXES
     Aero::Documents
     Aero::Events
     Aero::Input
-    Aero::Integration
     Aero::Platform
     Aero::Render
     Aero::Markup
@@ -35,12 +32,8 @@ set(AERO_PUBLIC_NAMESPACE_PREFIXES
 set(AERO_PUBLIC_NAMESPACE_DETAIL_PREFIXES
     Aero::Base::Detail)
 
-# The only product-layer header with an unqualified `namespace Detail` is the
-# metadata authoring header.  Base implementation details are tracked by the
-# separate Base list below; do not keep broad historical exceptions here.
 set(AERO_PUBLIC_NAMESPACE_DETAIL_HEADERS
-    include/Aero/Meta.hpp
-    )
+    include/Aero/Meta.hpp)
 
 set(AERO_PUBLIC_NAMESPACE_BASE_DETAIL_HEADERS
     include/Aero/Base/Delegate.hpp
@@ -53,8 +46,8 @@ set(AERO_PUBLIC_NAMESPACE_BASE_DETAIL_HEADERS
     include/Aero/Value.hpp)
 
 # Product-layer implementation namespaces are never allowed in installed
-# headers.  Keep this list explicit so a new namespace cannot silently become
-# part of the SDK through a friend declaration or a forwarding header.
+# headers. Source-private Detail namespaces are valid implementation choices,
+# but must not leak through the SDK surface.
 set(AERO_PUBLIC_NAMESPACE_FORBIDDEN_PATTERNS
     "namespace[ \t]+Internal([ \t:{]|$)"
     "namespace[ \t]+Aero::Internal([ \t:{]|$)"
@@ -77,11 +70,9 @@ set(AERO_PUBLIC_NAMESPACE_FORBIDDEN_PATTERNS
     "namespace[ \t]+Aero::Controls::Detail([ \t:{]|$)"
     "namespace[ \t]+Aero::Media::Detail([ \t:{]|$)"
     "namespace[ \t]+Aero::Markup::Detail([ \t:{]|$)"
-    "namespace[ \t]+Aero::Integration::Detail([ \t:{]|$)"
     "namespace[ \t]+Aero::App::Detail([ \t:{]|$)"
     "Aero::Controls::Detail::"
     "Aero::Media::Detail::"
     "Aero::Markup::Detail::"
-    "Aero::Integration::Detail::"
     "Aero::App::Detail::"
     "(^|[^A-Za-z0-9_])(ElementPrivate|ControlPrivate|TemplatePrivate|StylePrivate|TransformPrivate|BrushPrivate|EffectPrivate|AnimationPrivate|DesktopPrivate|ViewData|RenderTree|RenderResources|RenderFunctions|RenderDeviceFactory|AdoptRenderDevice|ITextBlockLayoutService|TextBlockLayoutServiceScope|TextBlockRenderService|D3D11TextBlockRenderService|IGlyphRunResourceRegistry|DisplayListBuilder|RoutedHandlerStorage|RoutedHandlerTraits|RuntimeManagersFwd|ThemeStyleRegistry)([^A-Za-z0-9_]|$)")

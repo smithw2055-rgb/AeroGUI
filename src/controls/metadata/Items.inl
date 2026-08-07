@@ -212,11 +212,6 @@ Base::Result<void> PopulateControlsItems(
     status = comboBoxItem.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Register<UserControl>(context)
-        .Factory()
-        .Result();
-    if (!status) return status.GetStatus();
-
     status = Meta::Register<Page>(context)
         .Factory()
         .Result();

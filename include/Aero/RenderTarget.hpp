@@ -11,20 +11,12 @@
 
 namespace Aero {
 
-// Presentation policy belongs to a window or embedded target, not to the
-// shared GPU device.
-enum class PresentMode : std::uint8_t {
-    Immediate = 0U,
-    Fifo,
-    Mailbox
-};
-
-enum class RenderSurfaceKind : std::uint8_t {
+enum class RenderTargetKind : std::uint8_t {
     Embedded = 0U,
     Window
 };
 
-enum class RenderSurfaceState : std::uint8_t {
+enum class RenderTargetState : std::uint8_t {
     Ready = 0U,
     Lost,
     DeviceLost,
@@ -32,27 +24,27 @@ enum class RenderSurfaceState : std::uint8_t {
     Shutdown
 };
 
-// Host-owned onscreen target. A surface keeps a strong reference to a shared
-// RenderDevice and owns only its native presentation state. Multiple surfaces
-// may therefore render through the same device and GPU resource registries.
-class AERO_API RenderSurface final : public Base::Object {
+// Host-owned onscreen target. Native backend state is the source-private Impl
+// itself, avoiding a second NativeRenderTarget wrapper. Native acquire/present
+// remains an implementation concern under src/render.
+class AERO_API RenderTarget final : public Base::Object {
     struct ConstructionToken {};
 
 public:
     struct Impl;
 
-    RenderSurface(
+    RenderTarget(
         ConstructionToken,
         Base::Ref<Aero::RenderDevice> device,
-        RenderSurfaceKind kind,
-        Base::IAllocator* allocator = nullptr) noexcept;
-    ~RenderSurface() noexcept override;
+        Impl* implementation,
+        bool ownsImplementation) noexcept;
+    ~RenderTarget() noexcept override;
 
-    RenderSurface(const RenderSurface&) = delete;
-    RenderSurface& operator=(const RenderSurface&) = delete;
+    RenderTarget(const RenderTarget&) = delete;
+    RenderTarget& operator=(const RenderTarget&) = delete;
 
-    RenderSurfaceKind Kind() const noexcept;
-    RenderSurfaceState State() const noexcept;
+    RenderTargetKind Kind() const noexcept;
+    RenderTargetState State() const noexcept;
     Base::Ref<Aero::RenderDevice> GetDevice() const noexcept;
 
     Base::Result<void> Resize(
@@ -69,7 +61,9 @@ private:
         Base::IAllocator&,
         Args&&...) noexcept;
 
+    Base::Ref<Aero::RenderDevice> device_;
     Impl* impl_ = nullptr;
+    bool ownsImpl_ = false;
 };
 
 } // namespace Aero

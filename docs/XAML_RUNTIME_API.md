@@ -1,8 +1,8 @@
 # XAML Runtime API
 
-The public SDK is organized as Base, Gui, Meta, Integration, App and optional Audio products. WPF-facing
-application and control code does not construct runtime managers or renderer
-objects.
+The public SDK is organized as Base, Gui, Meta, App and optional Audio products.
+WPF-facing application and control code does not construct runtime managers or
+renderer implementation objects.
 
 ## Gui and Meta authoring
 
@@ -77,29 +77,36 @@ builders, render resource identifiers and GPU command streams remain runtime
 implementation. `ICommand` is likewise manager-free, and public Binding types
 contain authoring state rather than scheduler descriptors.
 
-## Integration
+## Embedded hosting
 
-Embedded hosts link `Aero::Integration` and explicitly compose a View:
+Embedded engine/editor hosts link `Aero::Gui`, choose an explicit backend
+`RenderDevice` and `RenderTarget`, then drive the View from their own frame loop:
 
 ```cpp
-#include <Aero/Integration.hpp>
-#include <Aero/Integration/D3D11.hpp>
+#include <Aero/Gui.hpp>
+#include <Aero/Render/D3D11.hpp>
 
 Aero::Gui environment;
 environment.AddModule(module);
 environment.Initialize();
 
-auto endpoint =
-    Aero::Integration::CreateD3D11WindowDevice(endpointOptions);
-Aero::Integration::ViewOptions options;
-options.renderDevice = std::move(endpoint).Value();
-auto created = environment.CreateView(options);
+auto device = Aero::Render::CreateD3D11Device(deviceOptions).Value();
+auto target = Aero::Render::CreateD3D11RenderTarget(
+    device, targetOptions).Value();
+auto view = environment.CreateView().Value();
+view->GetRenderer().Init(device);
+
+view->Update(elapsedMilliseconds);
+if (view->GetRenderer().UpdateRenderTree().Value()) {
+    view->GetRenderer().RenderOffscreen();
+    view->GetRenderer().Render(*target);
+}
 ```
 
-`Gui` freezes module/schema composition. Each View owns resource,
-interaction, layout, text and frame state. `RenderDevice` remains opaque.
-Concrete backends are opt-in and never leak renderer or RenderDevice
-implementation objects into Gui. The host drives frames through `View::Update()`.
+`Gui` freezes module/schema composition. Each View owns resource, interaction,
+layout, text and immutable-frame state. The host owns frame scheduling and
+native target acquisition callbacks; public Render backend headers expose no
+native-window/present policy.
 
 ## XAML load transaction
 

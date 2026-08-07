@@ -30,6 +30,15 @@ function(aero_apply_compiler_options target)
             -Wconversion
             -Wsign-conversion)
 
+        # GCC diagnoses references obtained through short-lived Span/view
+        # temporaries even when the referenced storage belongs to the retained
+        # owner. The same pattern exists in style and render planners and is
+        # already guarded by explicit owner lifetimes.
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+            target_compile_options(${target} PRIVATE
+                -Wno-dangling-reference)
+        endif()
+
         if(NOT AERO_ENABLE_EXCEPTIONS)
             target_compile_options(${target} PRIVATE -fno-exceptions)
         endif()

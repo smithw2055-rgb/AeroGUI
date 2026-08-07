@@ -355,7 +355,7 @@ set(_aero_schema_manifest "")
 set(_aero_schema_manifest_dependency "")
 set(_aero_generated_schema_manifest
     "${CMAKE_CURRENT_BINARY_DIR}/generated/Aero/Aero.aeroschema")
-if(NOT AERO_BUILTIN_SCHEMA_MANIFEST STREQUAL "")
+if(NOT "${AERO_BUILTIN_SCHEMA_MANIFEST}" STREQUAL "")
     if(NOT EXISTS "${AERO_BUILTIN_SCHEMA_MANIFEST}")
         message(FATAL_ERROR
             "AERO_BUILTIN_SCHEMA_MANIFEST does not exist: "
@@ -363,7 +363,7 @@ if(NOT AERO_BUILTIN_SCHEMA_MANIFEST STREQUAL "")
     endif()
     set(_aero_schema_manifest "${AERO_BUILTIN_SCHEMA_MANIFEST}")
     set(_aero_schema_manifest_dependency "${AERO_BUILTIN_SCHEMA_MANIFEST}")
-elseif(NOT AERO_HOST_SCHEMA_GEN_EXECUTABLE STREQUAL "")
+elseif(NOT "${AERO_HOST_SCHEMA_GEN_EXECUTABLE}" STREQUAL "")
     if(NOT EXISTS "${AERO_HOST_SCHEMA_GEN_EXECUTABLE}")
         message(FATAL_ERROR
             "AERO_HOST_SCHEMA_GEN_EXECUTABLE does not exist: "
@@ -405,7 +405,7 @@ endif()
 set(_aero_xamlc_command "")
 set(_aero_xamlc_dependency "")
 if(AERO_PRECOMPILE_BUILTIN_THEMES)
-    if(NOT AERO_HOST_XAMLC_EXECUTABLE STREQUAL "")
+    if(NOT "${AERO_HOST_XAMLC_EXECUTABLE}" STREQUAL "")
         if(NOT EXISTS "${AERO_HOST_XAMLC_EXECUTABLE}")
             message(FATAL_ERROR
                 "AERO_HOST_XAMLC_EXECUTABLE does not exist: "
@@ -422,9 +422,10 @@ if(AERO_PRECOMPILE_BUILTIN_THEMES)
         set(_aero_xamlc_command "$<TARGET_FILE:aero-xamlc>")
         set(_aero_xamlc_dependency aero-xamlc)
     else()
-        message(FATAL_ERROR
-            "AERO_PRECOMPILE_BUILTIN_THEMES requires AERO_BUILD_TOOLS=ON "
-            "or AERO_HOST_XAMLC_EXECUTABLE")
+        message(STATUS
+            "No host/in-tree xamlc is available; built-in themes will use "
+            "the embedded source fallback")
+        set(AERO_PRECOMPILE_BUILTIN_THEMES OFF)
     endif()
 endif()
 

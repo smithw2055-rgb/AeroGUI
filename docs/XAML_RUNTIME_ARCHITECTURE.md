@@ -179,12 +179,14 @@ Generic/Light/Dark 都是普通 ResourceDictionary。Light/Dark 提供调色板�
 Generic 提供隐式 Style，ControlTemplate 由 Style 的 `Template` setter 提供。
 ControlGallery 不再逐控件调用主题 apply，也不再包含程序化外观补丁。
 
-本机构建默认通过 `AeroCompiledThemes` 调用 `aero-xamlc --origin`，将 Light、
-Dark、Generic 编译为 AXB2 并嵌入 View runtime object component，最终折叠进 `Aero::Integration`。交叉编译可提供
-`AERO_HOST_XAMLC_EXECUTABLE`；关闭 `AERO_PRECOMPILE_BUILTIN_THEMES` 时只嵌入
-原始 XAML，并通过相同 pack URI/provider 路径加载。`XamlReader::LoadTheme` 优先加载
-compiled document，compiled payload 不存在或 schema identity 不兼容时确定性
-回退到内嵌源 XAML。
+内置主题有两条明确分离的构建路径。没有独立 host tool 时，`Aero::Gui`
+在 configure 阶段把 Light/Dark/Generic 源 XAML 嵌入 `runtime-generated/Aero`，
+从而不让运行时库反向依赖链接自身的 `aero-xamlc`。`AeroCompiledThemes` 作为
+Gui 完成后的资产目标仍可用同一 `Aero.aeroschema` 调用 `aero-xamlc --origin`
+生成 AXB2。交叉编译或生产工具链可提供 `AERO_HOST_XAMLC_EXECUTABLE` 以及
+host schema-gen / 预生成 manifest，使运行时直接消费预编译内置主题。两条路径
+使用相同 pack URI；compiled payload 不存在或 schema identity 不兼容时确定性
+回退到内嵌源 XAML。最终产品二进制是 `Aero::Gui`，不再存在 Integration 产品层。
 
 ## 构建边界
 
@@ -286,7 +288,7 @@ load 仍走原 object-writer 语义，随后以不影响结果语义的附加步
 cache 失败不会改变文档加载结果。
 
 `XamlDependencyGraph` 同时维护正向和反向 URI edges。ResourceDictionary Source
-变化会传递失效上层文档。`Integration::ReloadCoordinator` 由宿主显式轮询或接收资产变更
+变化会传递失效上层文档。`Markup::ReloadCoordinator` 由宿主显式轮询或接收资产变更
 通知，构建新的 `XamlDocument` 后调用 `View::SetContent()`。
 
 Binding handle 与 DynamicResource expression 的 committed rollback records 现在

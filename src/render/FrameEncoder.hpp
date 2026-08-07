@@ -8,7 +8,7 @@
 #include <Aero/Base/Result.hpp>
 
 namespace Aero::Render {
-class DeviceRenderer;
+class Renderer;
 }
 
 namespace Aero::Render::Detail {
@@ -56,8 +56,8 @@ struct RendererStatistics {
     std::uint32_t textureSamplerBindingCount = 0U;
 };
 
-// Low-level retained-frame encoder. The implementation name remains confined
-// to Detail; all callers use the semantic FrameEncoder name below.
+// Low-level command encoder. It is an implementation detail owned by the one
+// semantic Render::Renderer and does not form a peer renderer lifecycle.
 class Renderer {
 public:
     Renderer(
@@ -102,7 +102,7 @@ public:
     bool IsBatchingEnabled() const noexcept;
 
 private:
-    friend class ::Aero::Render::DeviceRenderer;
+    friend class ::Aero::Render::Renderer;
     friend class RendererGlyphRunSink;
 
     struct Impl;
@@ -130,9 +130,10 @@ namespace Aero::Render {
 using FrameShaderSet = Detail::RendererShaderSet;
 using FrameEncoderStatistics = Detail::RendererStatistics;
 using RenderTarget = Detail::RenderTarget;
-using FrameEncoder = Detail::Renderer;
 
-// Source-private compatibility for backend implementation files.
+// Conformance/source compatibility spelling for the low-level encoder. Product
+// rendering uses Render::Renderer directly.
+using FrameEncoder = Detail::Renderer;
 using RendererShaderSet = FrameShaderSet;
 using RendererStatistics = FrameEncoderStatistics;
 

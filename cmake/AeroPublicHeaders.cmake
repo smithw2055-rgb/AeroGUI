@@ -35,14 +35,15 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/Text.hpp
     include/Aero/Collections.hpp
     include/Aero/Diagnostics.hpp
+    include/Aero/Diagnostics/DependencyProperty.hpp
+    include/Aero/Diagnostics/PropertyValueSource.hpp
+    include/Aero/Diagnostics/Rendering.hpp
     include/Aero/Threading.hpp
     include/Aero/Meta.hpp
     include/Aero/Value.hpp
     include/Aero/DependencyProperty.hpp
-    include/Aero/Diagnostics/PropertyValueSource.hpp
     include/Aero/Data.hpp
     include/Aero/DependencyObject.hpp
-    include/Aero/Diagnostics/DependencyProperty.hpp
     include/Aero/Documents.hpp
     include/Aero/DrawingContext.hpp
     include/Aero/Events/ApplicationEventArgs.hpp
@@ -63,11 +64,11 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Input/Platform.hpp
     include/Aero/Platform/NativeWindow.hpp
     include/Aero/RenderDevice.hpp
+    include/Aero/RenderTarget.hpp
     include/Aero/View.hpp
     include/Aero/Render/D3D11.hpp
     include/Aero/Render/OpenGL33.hpp
     include/Aero/Markup/ReloadCoordinator.hpp
-    include/Aero/RenderSurface.hpp
     include/Aero/Text/FontProvider.hpp
     include/Aero/Media/TextureProvider.hpp
     include/Aero/Markup/XamlProvider.hpp

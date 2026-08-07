@@ -2,7 +2,10 @@
 
 #include "markup/MarkupPrivate.hpp"
 #include "markup/XamlRuntime.hpp"
+#include "gui/private/Property.hpp"
 #include <Aero/View.hpp>
+
+#include <utility>
 
 namespace Aero {
 
@@ -26,3 +29,18 @@ struct Gui::Impl  : public Base::Object {
 };
 
 } // namespace Aero
+
+namespace Aero::Data {
+
+// Source-only bridge used by ChangePropertyAction. Dependency-property value
+// normalization already has one canonical implementation in the Gui property
+// engine; do not duplicate binding conversion rules in View.
+inline Base::Result<Meta::PropertyValue> CoerceBindingTargetValue(
+    Meta::Registry* metadata,
+    const Meta::DependencyProperty& property,
+    Meta::PropertyValue value) noexcept {
+    return ::Aero::GuiPrivate::Detail::NormalizeValueForProperty(
+        metadata, property, std::move(value));
+}
+
+} // namespace Aero::Data

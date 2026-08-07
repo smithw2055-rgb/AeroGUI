@@ -1,26 +1,38 @@
 # AeroGUI source architecture
 
-This document defines ownership inside `src/`. It is an implementation guide,
-not an additional SDK layer. Supported products remain `Aero::Gui`,
-`Aero::Meta`, `Aero::Integration`, `Aero::App`, `Aero::Base`, and the optional
-`Aero::Audio` module.
+This document defines current implementation ownership inside `src/`. It is an
+implementation guide, not another SDK layer.
+
+## Product boundary
+
+The installed product surface is intentionally small:
+
+```text
+Aero::Base
+   ↑
+Aero::Gui        Aero::Audio (optional)
+   ↑
+Aero::App (optional desktop lifetime)
+```
+
+`Aero::Meta` is a Gui authoring facade, not a separate runtime product.
+`Aero::Integration` is retired. Embedded backend factories live under
+`Aero::Render`; default desktop hosting belongs to `Aero::App`.
 
 ## Design rules
 
-1. Public types follow WPF naming and semantics. Private implementation names do
-   not create a second authoring model.
-2. A directory owns a product responsibility, not an abstract interface tier.
-3. A private header must describe a shared domain contract. Single-use helpers
-   stay in the owning `.cpp` file.
-4. `Access`, `Manager`, `Provider`, and `Runtime` are not default layering
-   patterns. Add one only when it represents shared state or a real lifetime.
-5. Logical and visual relationships are framework semantics. There is no public
-   or private `ObjectTree` product abstraction.
+1. Public types follow WPF naming and semantics.
+2. A directory owns a real product responsibility, not an abstract interface tier.
+3. Private helpers do not create a second authoring model.
+4. `Access`, `Manager`, `Provider`, `Runtime`, and `Context` are not default
+   layering patterns; each must represent real shared state or lifetime.
+5. Logical and visual relationships remain framework semantics; there is no
+   `ObjectTree` product abstraction.
 6. UI objects never cross the immutable `RenderFrame` boundary.
-7. Public DependencyProperty and RoutedEvent static declarations remain on one
-   physical line.
+7. The host owns frame scheduling; AeroGUI owns no hidden render worker.
+8. Historical migration constraints are not permanent architecture gates.
 
-## Directory ownership
+## Current source ownership
 
 ```text
 src/
@@ -28,180 +40,113 @@ src/
 ├─ gui/           flat WPF semantic kernel
 ├─ controls/      standard controls, templates and default behavior
 ├─ markup/        XAML schema, object writer, compiled XAML and document cache
-├─ providers/     XAML provider adapters and routing contracts
-├─ text/          shaping, glyph atlas and private text-provider adapters
+├─ providers/     source-provider adapters pending final domain relocation
+├─ text/          shaping, glyph atlas and text adapters
 ├─ media/         brushes, images, transforms, effects and animation objects
-├─ runtime/       View composition, frame lifecycle and built-in modules
-├─ render/        RenderTree, RenderFrame, Renderer, RenderDevice and GPU backends
-├─ platform/      OS-private windows, clipboard, IME and context adapters
-├─ integration/   public backend factories and host integration
-├─ app/           default Application/Window desktop lifetime
-├─ diagnostics/   inspector and diagnostics implementation
+├─ runtime/       View composition pending final relocation into Gui/Media/Text
+├─ render/        RenderTree, Renderer, RenderDevice and native GPU backends
+├─ platform/      OS-private window/input adapters used by App
+├─ app/           Application, Window, DesktopHost and private RenderContext
+├─ diagnostics/   inspector and opt-in runtime/render diagnostics
 └─ audio/         optional audio module
 ```
 
-`src/gui` is intentionally flat. Its implementation files are grouped by file
-name rather than by one-directory-per-concept. Cross-file private contracts
-enter through six domain aggregates:
+`src/integration` no longer exists. The remaining `runtime`, `providers`, and
+`platform` directories describe physical ownership still scheduled for the SDK
+source-layout closure; they are not installed products.
+
+## Gui and View
+
+`Aero::Gui` owns process-level schema/module/provider state and creates Views.
+Each `Aero::View` owns presentation-affine state such as layout, input, binding,
+style/template execution and an immutable retained render tree.
+
+Stable per-View engines may use one packed allocation as an implementation
+optimization, but the allocation strategy is not part of the architecture
+contract and is not enforced by source-string gates.
+
+Public traversal remains WPF-shaped:
 
 ```text
-src/gui/GuiPrivate.hpp
-src/controls/ControlsPrivate.hpp
-src/markup/MarkupPrivate.hpp
-src/media/MediaPrivate.hpp
-src/render/RenderPrivate.hpp
-src/integration/IntegrationPrivate.hpp
+VisualTreeHelper  -> visual parent and children
+LogicalTreeHelper -> logical parent and children
 ```
 
-The aggregate headers are the only domain entry points. Their implementation
-fragments live under the corresponding `private/` directory and are never
-included by product code directly. The larger metadata stores remain separate
-only because they have independent storage and freeze lifetimes.
+`ContentElement` and `FrameworkContentElement` participate in logical content and
+routed events without becoming Visual objects.
 
-## Gui context and element relationships
+## Rendering
 
-`ElementTree` is a private per-View context. It owns Dispatcher-affine lifecycle,
-property inheritance integration, event/input/layout coordination and stable
-runtime identity. It is not a public tree API and it does not replace WPF's
-logical-tree and visual-tree semantics.
-
-Public traversal remains:
-
-```text
-VisualTreeHelper  -> visual parent and visual children
-LogicalTreeHelper -> logical parent and logical children
-```
-
-`ContentElement` and `FrameworkContentElement` participate in logical content
-and routed events without becoming Visual objects. `TextElement` and `Inline`
-therefore remain nonvisual; `TextBlock` is their layout and rendering host.
-
-The retired `ObjectTree`, `MountService`, and `VisualTreeMount` layers must not
-be recreated. Root and child attachment are coordinated directly by
-`ElementTree` while controls remain the owners of Content, Items and Children.
-See `TREE_MODEL.md` for the detailed contract.
-
-## Runtime composition
-
-```text
-Aero::View::Impl
-├─ schema, document cache and resource layers
-├─ one packed service allocation
-│  ├─ metadata, dependency properties and animation
-│  ├─ ElementTree, routed events and input
-│  ├─ layout, binding, style and templates
-│  ├─ RenderTree
-│  └─ text and image runtime
-├─ dynamic document/template sessions
-└─ opaque render attachment
-```
-
-`Aero::View` does not expose a service-locator surface. Repository-owned
-inspection and reload code enters through private `View::Impl` helpers and the
-source-only conformance bridge. Runtime services remain owned by the View and
-are distributed to attached elements through the private element host.
-
-The stable per-View services are placement-constructed in one aligned arena. This
-replaces thirteen small allocator calls with one allocation while retaining
-explicit destructor order. Dynamic trigger, fragment and control sessions keep
-their independent lifetimes and are not forced into the arena.
-
-Platform-neutral clipboard and text-input contracts are declared in
-`Aero/Integration/Platform.hpp`. The default App owns concrete adapters
-from `src/platform/win32` or another OS directory. Controls and View state consume
-only the interfaces; native message types and window procedures never cross the
-installed SDK boundary.
-There is no standalone platform library. The reusable in-memory clipboard
-implementation belongs to Integration, while the default OS window, clipboard
-and IME adapters are compiled directly into App. Platform directories organize
-source ownership; they are not an additional link-time product layer.
-
-## Event and command routing
-
-There is one route implementation in `src/gui/GuiPrivate.hpp` and
-`ElementTree.cpp`.
-
-```text
-input, command or content source
-→ resolve one event parent chain
-→ create one stable route snapshot
-→ preview/tunnel traversal
-→ bubble traversal
-→ class handlers
-→ instance handlers
-```
-
-Route nodes are `DependencyObject` instances, so both `UIElement` and
-`ContentElement` participate. Commands visit the same route through
-`EventRouter`; command code must not walk visual or logical parents directly.
-
-Loaded `UIElement` objects carry one private View-services attachment. It
-provides the canonical `EventRouter` and `InputRouter`; separate event-router
-and command-router pointers are not stored on each element. Layout ownership
-and routed-handler storage remain explicit element state.
-
-## Templates and controls
-
-Template implementation is split by real responsibility:
-
-- `TemplateProgram.hpp`: immutable compiled instructions and deferred factories;
-- `TemplateInstance.hpp`: mounted parts, projections and rollback state;
-- `private/Template.hpp`: narrow cross-translation-unit bridge;
-- `VisualStates.cpp`: current state and transition bookkeeping.
-
-Do not recreate a catch-all `TemplateRuntime.hpp` or per-control Access headers.
-Default control behavior is coordinated by one private
-`ControlBehavior` and routed class handlers.
-
-## Render and graphics path
+The canonical host-visible rendering path is:
 
 ```text
 retained UI
 → RenderTree::Commit() creates immutable RenderFrame
-→ the View render attachment hands the frame to Renderer
-→ Renderer records the private RenderDevice command stream
-→ the selected D3D11/OpenGL device submits and presents
+→ IRenderer synchronizes one View
+→ RenderDevice owns shared GPU lifetime
+→ source-private Render::Renderer records GPU commands
+→ RenderTarget identifies the current embedded/window target
 ```
 
-Render resources use explicit image, mesh and glyph contracts. Magic service
-identifiers and `QueryInternalService()` lookup are forbidden. Submission is
-synchronous on the caller-selected thread; the core library owns no render
-worker, pending-frame queue or coalescing policy. The former HostedGraphics
-command vocabulary is removed, so every backend consumes the same Renderer and
-RenderDevice semantics.
+`RenderSurface` is not an installed SDK type. Public D3D11/OpenGL headers expose
+explicit `Create*Device()` plus `Create*RenderTarget(device, options)` for
+embedded hosts. They do not expose native-window or presentation policy.
+
+Backend target state derives directly from `RenderTarget::Impl`; the former
+`NativeRenderTarget` spelling is only a source compatibility alias and no longer
+represents an extra object or allocation. Backend-neutral acquire/present
+mechanics remain source-private in `Graphics::SurfaceSession` and concrete
+swap-chain/context surface adapters.
+
+`Render::Renderer` is the one semantic backend renderer. The old
+`DeviceRenderer` spelling is a source-only alias. `FrameEncoder.cpp` remains the
+low-level command encoder implementation rather than a peer renderer lifetime.
+
+Rendering statistics are opt-in through `<Aero/Diagnostics/Rendering.hpp>` and
+are not methods on the normal RenderDevice authoring surface.
+
+For the default desktop product:
+
+```text
+DesktopHost
+  ├─ NativeWindow
+  ├─ View
+  └─ App::Detail::RenderContext
+       ├─ source-private backend/window target creation
+       ├─ resize
+       ├─ RenderDevice handoff
+       ├─ IRenderer::Render(RenderTarget&)
+       └─ idle/shutdown
+```
+
+This keeps swap-chain/context presentation policy out of View and out of the
+installed backend factory headers.
+
+## Markup
+
+Schema, document cache and provider routing are Gui-owned. Object creation,
+name-scope effects and mounted resource state remain View-affine where required.
+`XamlReader` is still View-bound in the current source baseline; moving the
+facade to Gui ownership and removing the remaining `ViewAccess` forwarding layer
+is the next Gui/XAML convergence stage.
 
 ## CMake ownership
 
-Repository domains compile as build-only object components:
+Installed targets are product targets only. Object libraries are internal build
+components and may be merged, split or removed without changing architecture.
+No architecture gate requires a particular internal Object Library name.
 
-- `AeroGuiTargets.cmake` owns Gui kernel, Controls, Markup, App-model and the
-  real `Aero::Gui` product binary;
-- `AeroRuntimeTargets.cmake` owns the View/runtime object component;
-- `AeroRenderingTargets.cmake` owns the Renderer, RenderDevice, native GPU
-  backends and private surface/context adapters as one object component;
-- `AeroProductTargets.cmake` folds runtime/rendering into `Aero::Integration`
-  and owns the default `Aero::App` desktop product;
-- `AeroToolsTargets.cmake` folds the required object components into
-  `aero-schema-gen` and `aero-xamlc`;
-- `AeroInstall.cmake` exports only product targets and, for static packages,
-  private third-party archives.
+The permanent build contract is limited to final SDK/dependency invariants:
 
-No internal Aero domain is an installed binary target. Product consumers see
-`Aero::Base`, `Aero::Gui`, `Aero::Meta`, `Aero::Integration`, `Aero::App` and
-`Aero::Audio`, independent of repository source decomposition.
+- installed headers exist and do not include source-private contracts;
+- `Aero::Integration` and `src/integration` cannot return;
+- `RenderTarget` is the installed target object and window surface policy stays private;
+- `RenderTree` never owns GPU submission;
+- `Render::Renderer` is the semantic backend renderer;
+- desktop presentation is coordinated by App's private `RenderContext`;
+- rendering statistics remain an opt-in Diagnostics API;
+- product targets remain `Aero::Base`, `Aero::Gui`, `Aero::App` and optional
+  modules/facades.
 
-## Architecture gates
-
-`cmake/CheckArchitecture.cmake` verifies that:
-
-- the physical public tree equals the install whitelist;
-- public `Core`, `Platform`, and `Detail` directories are not recreated;
-- `src/gui` stays flat and within explicit file budgets;
-- ObjectTree/MountService/VisualTreeMount and the old runtime forward layer stay
-  removed;
-- `Aero::View` does not expose internal service accessors;
-- commands and content use the single routed-event route;
-- RenderTree only creates immutable frames and owns no submission;
-- DependencyProperty and RoutedEvent declarations remain single-line;
-- internal domains remain object components and never enter installed targets;
-- `Aero::Gui` remains a real product binary rather than an interface route.
+Historical H/J/K/R/S migration markers belong in Git history and focused design
+notes, not in `CheckArchitecture.cmake` or `CheckConventions.cmake`.

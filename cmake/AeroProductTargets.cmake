@@ -2,7 +2,7 @@
 # model together with View runtime, providers, native rendering and backend
 # factories. App adds only the default desktop lifetime and OS window policy.
 set(_aero_gui_runtime_sources
-    src/render/RenderSurface.cpp
+    src/render/RenderTarget.cpp
     src/render/opengl33/OpenGL33Device.cpp
     src/render/opengl33/OpenGL33Embedded.cpp
     src/render/opengl33/OpenGL33Factories.cpp
@@ -67,8 +67,10 @@ target_link_libraries(
 aero_apply_compiler_options(AeroOpenGL33HeaderConsumer)
 
 set(_aero_app_sources
+    src/platform/WindowWait.cpp
     src/app/ApplicationRun.cpp
     src/app/DesktopHost.cpp
+    src/app/RenderContext.cpp
     src/app/Window.cpp)
 if(WIN32)
     list(APPEND _aero_app_sources

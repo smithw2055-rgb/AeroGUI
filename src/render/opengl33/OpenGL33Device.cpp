@@ -308,12 +308,8 @@ public:
                 Base::ErrorCode::NotInitialized,
                 "OpenGL device renderer is not initialized");
         }
-        Base::Result<Graphics::CommandList> recorded =
-            renderer_->RecordOffscreen(rendererToken, plan);
-        if (!recorded) return recorded.GetStatus();
-        if (recorded.Value().CommandCount() == 0U) return {};
         Base::Result<Graphics::FenceValue> submitted =
-            device_->Submit(recorded.Value());
+            renderer_->RenderOffscreen(rendererToken, plan);
         if (!submitted) return submitted.GetStatus();
         return {};
     }
@@ -372,8 +368,8 @@ public:
             return imported.GetStatus();
         }
 
-        Base::Result<Graphics::CommandList> recorded =
-            renderer_->RecordOnscreen(
+        Base::Result<Graphics::FenceValue> completed =
+            renderer_->RenderOnscreen(
                 rendererToken,
                 plan,
                 {imported.Value(),
@@ -381,16 +377,9 @@ public:
                  frame.target.height,
                  embedded_
                      ? Graphics::LoadOperation::Load
-                     : Graphics::LoadOperation::Clear});
-        if (!recorded) {
-            static_cast<void>(surface_->DiscardFrame(frame));
-            static_cast<void>(
-                device_->DestroyResource(imported.Value(), 0U));
-            return recorded.GetStatus();
-        }
-        Base::Result<Graphics::FenceValue> completed =
-            surface_->SubmitFrame(
-                *device_, frame, recorded.Value());
+                     : Graphics::LoadOperation::Clear},
+                *surface_,
+                frame);
         const Graphics::FenceValue retireFence =
             device_->LastSubmittedFence();
         Base::Result<void> destroyed =

@@ -95,6 +95,9 @@ public:
         WindowEvent& event) noexcept = 0;
     virtual Base::Result<bool> WaitEvent(
         WindowEvent& event) noexcept = 0;
+    virtual Base::Result<bool> WaitEventFor(
+        WindowEvent& event,
+        std::uint32_t timeoutMilliseconds) noexcept;
     virtual void Close() noexcept = 0;
 
     virtual bool IsOpen() const noexcept = 0;
