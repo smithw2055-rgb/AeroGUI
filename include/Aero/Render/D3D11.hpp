@@ -3,7 +3,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/RenderSurface.hpp>
+#include <Aero/RenderTarget.hpp>
 #include <Aero/Platform/NativeWindow.hpp>
 
 #include <cstdint>
@@ -38,7 +38,7 @@ using D3D11TargetCallback = Base::Status (*)(
     void* context,
     D3D11EmbeddedTarget* target) noexcept;
 
-struct D3D11EmbeddedSurfaceOptions  {
+struct D3D11RenderTargetOptions  {
     std::uintptr_t device = 0U;
     std::uintptr_t immediateContext = 0U;
     D3D11TargetCallback acquireTarget = nullptr;
@@ -47,6 +47,8 @@ struct D3D11EmbeddedSurfaceOptions  {
         D3D11StatePreservationPolicy::HostResetsState;
 };
 
+// Window-surface construction remains available for the optional App product.
+// Embedded hosts should use CreateD3D11RenderTarget() instead.
 struct D3D11WindowSurfaceOptions  {
     Platform::NativeWindowHandle window;
     std::uint32_t width = 0U;
@@ -62,24 +64,19 @@ CreateD3D11Device(
     const D3D11DeviceOptions& options = {},
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_API Base::Result<Base::Ref<RenderSurface>>
-CreateD3D11EmbeddedSurface(
+AERO_API Base::Result<Base::Ref<Aero::RenderTarget>>
+CreateD3D11RenderTarget(
     Base::Ref<Aero::RenderDevice> device,
-    const D3D11EmbeddedSurfaceOptions& options,
+    const D3D11RenderTargetOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_API Base::Result<Base::Ref<RenderSurface>>
+AERO_API Base::Result<Base::Ref<Aero::RenderTarget>>
 CreateD3D11WindowSurface(
     Base::Ref<Aero::RenderDevice> device,
     const D3D11WindowSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_API Base::Result<Base::Ref<RenderSurface>>
-CreateD3D11EmbeddedSurface(
-    const D3D11EmbeddedSurfaceOptions& options,
-    Base::IAllocator* allocator = nullptr) noexcept;
-
-AERO_API Base::Result<Base::Ref<RenderSurface>>
+AERO_API Base::Result<Base::Ref<Aero::RenderTarget>>
 CreateD3D11WindowSurface(
     const D3D11WindowSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
