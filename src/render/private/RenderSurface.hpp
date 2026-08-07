@@ -1,8 +1,6 @@
 #pragma once
 
 // Source-only migration shim. Public code must include <Aero/RenderTarget.hpp>.
-// Backend translation units are moved off these spellings incrementally without
-// preserving them in the installed SDK.
 #include "render/private/RenderTarget.hpp"
 
 namespace Aero {
@@ -18,7 +16,7 @@ Base::Result<Base::Ref<Aero::RenderTarget>> AdoptRenderSurface(
     Base::IAllocator* allocator = nullptr) noexcept;
 Base::Result<Base::Ref<Aero::RenderTarget>> AdoptOwnedRenderSurface(
     Base::Ref<Aero::RenderDevice> device,
-    NativeRenderTarget* target,
+    Aero::RenderTarget::Impl* target,
     Aero::RenderTargetKind kind,
     Base::IAllocator* allocator = nullptr) noexcept;
 }
