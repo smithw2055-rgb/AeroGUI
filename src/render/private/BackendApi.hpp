@@ -18,8 +18,17 @@ using D3D11StatePreservationPolicy =
 using D3D11DeviceOptions = ::Aero::Render::D3D11DeviceOptions;
 using D3D11EmbeddedTarget = ::Aero::Render::D3D11EmbeddedTarget;
 using D3D11TargetCallback = ::Aero::Render::D3D11TargetCallback;
-using D3D11EmbeddedSurfaceOptions =
-    ::Aero::Render::D3D11RenderTargetOptions;
+
+// Legacy/full embedded options remain source-private for conformance and the
+// internal implicit-device helper. Installed code uses D3D11RenderTargetOptions.
+struct D3D11EmbeddedSurfaceOptions {
+    std::uintptr_t device = 0U;
+    std::uintptr_t immediateContext = 0U;
+    D3D11TargetCallback acquireTarget = nullptr;
+    void* callbackContext = nullptr;
+    D3D11StatePreservationPolicy statePolicy =
+        D3D11StatePreservationPolicy::HostResetsState;
+};
 
 struct D3D11WindowSurfaceOptions {
     Platform::NativeWindowHandle window;
@@ -42,8 +51,18 @@ using OpenGL33ContextGeneration =
 using OpenGL33DeviceOptions = ::Aero::Render::OpenGL33DeviceOptions;
 using OpenGL33EmbeddedTarget = ::Aero::Render::OpenGL33EmbeddedTarget;
 using OpenGL33TargetCallback = ::Aero::Render::OpenGL33TargetCallback;
-using OpenGL33EmbeddedSurfaceOptions =
-    ::Aero::Render::OpenGL33RenderTargetOptions;
+
+struct OpenGL33EmbeddedSurfaceOptions {
+    OpenGL33ProcResolver resolve = nullptr;
+    OpenGL33MakeCurrent makeCurrent = nullptr;
+    OpenGL33IsCurrent isCurrent = nullptr;
+    OpenGL33ContextGeneration contextGeneration = nullptr;
+    OpenGL33TargetCallback acquireTarget = nullptr;
+    void* callbackContext = nullptr;
+    void* targetContext = nullptr;
+    OpenGL33StatePreservationPolicy statePolicy =
+        OpenGL33StatePreservationPolicy::HostResetsState;
+};
 
 struct OpenGL33WindowSurfaceOptions {
     Platform::NativeWindowHandle window;
