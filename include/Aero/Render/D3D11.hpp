@@ -44,6 +44,7 @@ struct D3D11RenderTargetOptions {
     void* callbackContext = nullptr;
 };
 
+#if !defined(AERO_RENDER_BACKEND_IMPLEMENTATION)
 AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateD3D11Device(
     const D3D11DeviceOptions& options = {},
@@ -54,5 +55,6 @@ CreateD3D11RenderTarget(
     Base::Ref<Aero::RenderDevice> device,
     const D3D11RenderTargetOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
+#endif
 
 } // namespace Aero::Render
