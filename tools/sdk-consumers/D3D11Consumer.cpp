@@ -4,8 +4,8 @@ namespace {
 
 [[maybe_unused]]
 Aero::Base::Result<
-    Aero::Base::Ref<Aero::RenderSurface>>
-CreateD3D11Surface(
+    Aero::Base::Ref<Aero::RenderTarget>>
+CreateD3D11Target(
     Aero::Platform::NativeWindowHandle window) noexcept {
     Aero::Render::D3D11WindowSurfaceOptions options;
     options.window = window;
