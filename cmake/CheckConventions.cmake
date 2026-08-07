@@ -206,9 +206,9 @@ if(retired_render_invalidation_name)
         "${retired_render_invalidation_name}")
 endif()
 
-# Most public authoring types stay extensible. These three service/host objects
-# are intentionally final strict-PImpl boundaries.
-set(final_class_allowlist View Renderer RenderDevice)
+# Most public authoring types stay extensible. Strict PImpl service/host objects
+# are intentionally final boundaries.
+set(final_class_allowlist View Renderer RenderDevice RenderTarget)
 set(class_level_final_violations)
 file(GLOB_RECURSE class_level_final_sources
     "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
