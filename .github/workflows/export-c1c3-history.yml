@@ -1,0 +1,52 @@
+name: Export C1-C3 History
+
+on:
+  pull_request:
+    branches: [main]
+    types: [synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.event.pull_request.head.ref == 'agent/c1c3-patch-export'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/c1c3-patch-export
+          fetch-depth: 0
+      - name: Export unique staging blobs
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git fetch origin agent/c1-c3-closure agent/c1-c3-closure-monitor agent/c1-c3-closure-pr-sentinel agent/c1-c3-payload-v3
+          mkdir -p history
+          python3 - <<'PY'
+          import pathlib, subprocess
+          refs=['origin/agent/c1-c3-closure','origin/agent/c1-c3-closure-monitor','origin/agent/c1-c3-closure-pr-sentinel','origin/agent/c1-c3-payload-v3']
+          commits=[]
+          for ref in refs:
+              commits += subprocess.check_output(['git','rev-list',ref]).decode().splitlines()
+          commits=list(dict.fromkeys(commits))
+          seen=set(); out=pathlib.Path('history'); manifest=[]
+          for commit in commits:
+              rows=subprocess.check_output(['git','ls-tree','-r',commit,'.c1c3']).decode(errors='replace').splitlines()
+              for row in rows:
+                  if not row: continue
+                  meta,path=row.split('\t',1); blob=meta.split()[2]
+                  if blob in seen: continue
+                  seen.add(blob)
+                  data=subprocess.check_output(['git','cat-file','blob',blob])
+                  fname=f'{blob}-{pathlib.Path(path).name}'
+                  (out/fname).write_bytes(data)
+                  manifest.append(f'{blob}\t{path}\t{len(data)}\t{fname}')
+          (out/'manifest.tsv').write_text('\n'.join(manifest)+'\n')
+          print('exported blobs',len(seen))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: c1c3-history-blobs
+          path: history
+          retention-days: 1
