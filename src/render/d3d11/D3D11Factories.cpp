@@ -11,15 +11,15 @@ Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11Device(
     return ::Aero::Render::Detail::CreateD3D11Device(options, allocator);
 }
 
-Base::Result<Base::Ref<Aero::RenderSurface>> CreateD3D11EmbeddedSurface(
+Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11RenderTarget(
     Base::Ref<Aero::RenderDevice> device,
-    const D3D11EmbeddedSurfaceOptions& options,
+    const D3D11RenderTargetOptions& options,
     Base::IAllocator* allocator) noexcept {
     return ::Aero::Render::Detail::CreateD3D11EmbeddedSurface(
         std::move(device), options, allocator);
 }
 
-Base::Result<Base::Ref<Aero::RenderSurface>> CreateD3D11WindowSurface(
+Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11WindowSurface(
     Base::Ref<Aero::RenderDevice> device,
     const D3D11WindowSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept {
@@ -27,13 +27,7 @@ Base::Result<Base::Ref<Aero::RenderSurface>> CreateD3D11WindowSurface(
         std::move(device), options, allocator);
 }
 
-Base::Result<Base::Ref<Aero::RenderSurface>> CreateD3D11EmbeddedSurface(
-    const D3D11EmbeddedSurfaceOptions& options,
-    Base::IAllocator* allocator) noexcept {
-    return ::Aero::Render::Detail::CreateD3D11EmbeddedSurface(options, allocator);
-}
-
-Base::Result<Base::Ref<Aero::RenderSurface>> CreateD3D11WindowSurface(
+Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11WindowSurface(
     const D3D11WindowSurfaceOptions& options,
     Base::IAllocator* allocator) noexcept {
     return ::Aero::Render::Detail::CreateD3D11WindowSurface(options, allocator);
