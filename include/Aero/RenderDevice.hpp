@@ -5,6 +5,9 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
+#if defined(AERO_INTERNAL_CONFORMANCE)
+#include <Aero/Diagnostics/Rendering.hpp>
+#endif
 
 #include <cstdint>
 
@@ -54,6 +57,14 @@ public:
     Base::Result<void> Restore() noexcept;
     Base::Result<void> WaitIdle(
         std::uint32_t timeoutMilliseconds = 5000U) noexcept;
+
+#if defined(AERO_INTERNAL_CONFORMANCE)
+    // Repository-only bridge for the legacy conformance executable. It is not
+    // present in normal installed SDK compilation.
+    Diagnostics::RenderDeviceStatistics Statistics() const noexcept {
+        return Diagnostics::GetRenderDeviceStatistics(*this);
+    }
+#endif
 
 private:
     friend struct Impl;
