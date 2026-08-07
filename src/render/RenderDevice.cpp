@@ -76,16 +76,6 @@ std::uint64_t RenderDevice::Generation() const noexcept {
     return impl_ != nullptr ? impl_->statistics.generation : 0U;
 }
 
-RenderDeviceStatistics RenderDevice::Statistics() const noexcept {
-    return impl_ != nullptr ? impl_->statistics : RenderDeviceStatistics{};
-}
-
-RenderFrameStatistics RenderDevice::LastFrameStatistics() const noexcept {
-    return impl_ != nullptr
-        ? impl_->lastFrameStatistics
-        : RenderFrameStatistics{};
-}
-
 Base::Result<RenderFrameStatistics> RenderDevice::Analyze(
     const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
     Base::Result<void> valid = ::Aero::Render::Detail::ValidateRenderFrame(frame);
@@ -189,22 +179,19 @@ public:
     }
 };
 
-Base::Result<Base::Ref<Aero::RenderDevice>>
-RenderDeviceFactory::Adopt(
+Base::Result<Base::Ref<Aero::RenderDevice>> RenderDeviceFactory::Adopt(
     NativeRenderDevice* backend,
     Base::IAllocator* allocator) noexcept {
     return ::Aero::RenderDevice::Impl::Create(backend, allocator);
 }
 
-Base::Result<Base::Ref<Aero::RenderDevice>>
-AdoptRenderDevice(
+Base::Result<Base::Ref<Aero::RenderDevice>> AdoptRenderDevice(
     NativeRenderDevice* backend,
     Base::IAllocator* allocator) noexcept {
     return RenderDeviceFactory::Adopt(backend, allocator);
 }
 
-Base::Result<Base::Ref<Aero::RenderDevice>>
-CreateHeadlessRenderDevice(
+Base::Result<Base::Ref<Aero::RenderDevice>> CreateHeadlessRenderDevice(
     Base::IAllocator* allocator) noexcept {
     auto* backend = new (std::nothrow) HeadlessDeviceState();
     if (backend == nullptr) {
@@ -241,8 +228,7 @@ Base::Result<void> RenderDevice::RenderOffscreen(
     return {};
 }
 
-Base::Result<RenderFrameStatistics>
-RenderDevice::Impl::BeginSurfaceFrame(
+Base::Result<RenderFrameStatistics> RenderDevice::Impl::BeginSurfaceFrame(
     RenderDevice& device,
     const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
     Base::Status ready = device.GetFrameStatus();
@@ -310,3 +296,21 @@ Base::Status RenderDevice::GetFrameStatus() noexcept {
 }
 
 } // namespace Aero
+
+namespace Aero::Diagnostics {
+
+RenderDeviceStatistics GetRenderDeviceStatistics(
+    const Aero::RenderDevice& device) noexcept {
+    return device.impl_ != nullptr
+        ? device.impl_->statistics
+        : RenderDeviceStatistics{};
+}
+
+RenderFrameStatistics GetLastRenderFrameStatistics(
+    const Aero::RenderDevice& device) noexcept {
+    return device.impl_ != nullptr
+        ? device.impl_->lastFrameStatistics
+        : RenderFrameStatistics{};
+}
+
+} // namespace Aero::Diagnostics
