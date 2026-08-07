@@ -24,9 +24,9 @@ enum class RenderTargetState : std::uint8_t {
     Shutdown
 };
 
-// Host-owned onscreen target. A target keeps a strong reference to a shared
-// RenderDevice. Native swap-chain/context presentation remains an App/backend
-// implementation detail and is not part of the installed Render API.
+// Host-owned onscreen target. Native backend state is the source-private Impl
+// itself, avoiding a second NativeRenderTarget wrapper. Native acquire/present
+// remains an implementation concern under src/render.
 class AERO_API RenderTarget final : public Base::Object {
     struct ConstructionToken {};
 
@@ -36,8 +36,8 @@ public:
     RenderTarget(
         ConstructionToken,
         Base::Ref<Aero::RenderDevice> device,
-        RenderTargetKind kind,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        Impl* implementation,
+        bool ownsImplementation) noexcept;
     ~RenderTarget() noexcept override;
 
     RenderTarget(const RenderTarget&) = delete;
@@ -61,7 +61,9 @@ private:
         Base::IAllocator&,
         Args&&...) noexcept;
 
+    Base::Ref<Aero::RenderDevice> device_;
     Impl* impl_ = nullptr;
+    bool ownsImpl_ = false;
 };
 
 } // namespace Aero
