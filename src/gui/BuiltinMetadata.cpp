@@ -75,7 +75,9 @@ Base::Result<void> Detail::PopulateCoreMetadata(
         .Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Register<Value>(context).Result();
+    status = Meta::Register<Value>(context)
+        .ValueSemantics()
+        .Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<TypeReference>(context).Result();
