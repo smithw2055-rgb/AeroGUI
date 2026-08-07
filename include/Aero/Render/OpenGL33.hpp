@@ -3,7 +3,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/RenderSurface.hpp>
+#include <Aero/RenderTarget.hpp>
 #include <Aero/Platform/NativeWindow.hpp>
 
 #include <cstdint>
@@ -50,7 +50,7 @@ using OpenGL33TargetCallback = Base::Status (*)(
     void* context,
     OpenGL33EmbeddedTarget* target) noexcept;
 
-struct OpenGL33EmbeddedSurfaceOptions  {
+struct OpenGL33RenderTargetOptions  {
     OpenGL33ProcResolver resolve = nullptr;
     OpenGL33MakeCurrent makeCurrent = nullptr;
     OpenGL33IsCurrent isCurrent = nullptr;
@@ -62,6 +62,8 @@ struct OpenGL33EmbeddedSurfaceOptions  {
         OpenGL33StatePreservationPolicy::HostResetsState;
 };
 
+// Window-surface construction remains available for the optional App product.
+// Embedded hosts should use CreateOpenGL33RenderTarget() instead.
 struct OpenGL33WindowSurfaceOptions  {
     Platform::NativeWindowHandle window;
     std::uint32_t width = 0U;
@@ -75,18 +77,13 @@ CreateOpenGL33Device(
     const OpenGL33DeviceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_API Base::Result<Base::Ref<RenderSurface>>
-CreateOpenGL33EmbeddedSurface(
+AERO_API Base::Result<Base::Ref<Aero::RenderTarget>>
+CreateOpenGL33RenderTarget(
     Base::Ref<Aero::RenderDevice> device,
-    const OpenGL33EmbeddedSurfaceOptions& options,
+    const OpenGL33RenderTargetOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_API Base::Result<Base::Ref<RenderSurface>>
-CreateOpenGL33EmbeddedSurface(
-    const OpenGL33EmbeddedSurfaceOptions& options,
-    Base::IAllocator* allocator = nullptr) noexcept;
-
-AERO_API Base::Result<Base::Ref<RenderSurface>>
+AERO_API Base::Result<Base::Ref<Aero::RenderTarget>>
 CreateOpenGL33WindowSurface(
     const OpenGL33WindowSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
