@@ -47,6 +47,8 @@ if(_aero_runtime_precompiled_themes)
     add_dependencies(AeroRuntimeObjects AeroCompiledThemes)
 endif()
 aero_configure_internal_objects(AeroRuntimeObjects)
+target_compile_definitions(AeroRuntimeObjects PRIVATE
+    AERO_INTERNAL_RUNTIME=1)
 target_include_directories(AeroRuntimeObjects PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb"
     "${CMAKE_CURRENT_BINARY_DIR}/generated")
