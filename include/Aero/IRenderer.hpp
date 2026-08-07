@@ -3,7 +3,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/RenderSurface.hpp>
+#include <Aero/RenderTarget.hpp>
 
 namespace Aero {
 
@@ -27,7 +27,7 @@ public:
     virtual Base::Result<bool> UpdateRenderTree() noexcept = 0;
     virtual Base::Result<void> RenderOffscreen() noexcept = 0;
     virtual Base::Result<void> Render(
-        RenderSurface& surface) noexcept = 0;
+        RenderTarget& target) noexcept = 0;
 
 protected:
     IRenderer() noexcept = default;
