@@ -1,10 +1,5 @@
 #include "RenderContext.hpp"
-
-#include <Aero/Render/OpenGL33.hpp>
-
-#if defined(_WIN32)
-#include <Aero/Render/D3D11.hpp>
-#endif
+#include "render/private/BackendApi.hpp"
 
 #include <utility>
 
@@ -46,14 +41,13 @@ Base::Result<void> RenderContext::Create(
 #if defined(_WIN32)
     if (selected == GraphicsBackend::D3D11) {
 #if AERO_APP_HAS_D3D11
-        Render::D3D11WindowSurfaceOptions options;
+        Render::Detail::D3D11WindowSurfaceOptions options;
         options.window = window;
         options.width = width;
         options.height = height;
-        options.presentMode = PresentMode::Fifo;
         options.allowWarpFallback = true;
         Base::Result<Base::Ref<RenderTarget>> created =
-            Render::CreateD3D11WindowSurface(options, allocator);
+            Render::Detail::CreateD3D11WindowSurface(options, allocator);
         if (!created) return created.GetStatus();
         target_ = std::move(created).Value();
         return {};
@@ -65,13 +59,12 @@ Base::Result<void> RenderContext::Create(
 
     if (selected == GraphicsBackend::OpenGL33) {
 #if AERO_APP_HAS_OPENGL_WINDOW
-        Render::OpenGL33WindowSurfaceOptions options;
+        Render::Detail::OpenGL33WindowSurfaceOptions options;
         options.window = window;
         options.width = width;
         options.height = height;
-        options.presentMode = PresentMode::Fifo;
         Base::Result<Base::Ref<RenderTarget>> created =
-            Render::CreateOpenGL33WindowSurface(options, allocator);
+            Render::Detail::CreateOpenGL33WindowSurface(options, allocator);
         if (!created) return created.GetStatus();
         target_ = std::move(created).Value();
         return {};
