@@ -509,7 +509,7 @@ Base::Result<Base::Ref<Aero::RenderTarget>> CreateOpenGL33EmbeddedTarget(
         delete target;
         return initialized.GetStatus();
     }
-    return AdoptOwnedRenderTarget(
+    return AdoptRenderTarget(
         std::move(device), target, RenderTargetKind::Embedded, &selected);
 }
 

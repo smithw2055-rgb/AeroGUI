@@ -36,8 +36,7 @@ public:
     RenderTarget(
         ConstructionToken,
         Base::Ref<Aero::RenderDevice> device,
-        Impl* implementation,
-        bool ownsImplementation) noexcept;
+        Impl* implementation) noexcept;
     ~RenderTarget() noexcept override;
 
     RenderTarget(const RenderTarget&) = delete;
@@ -63,7 +62,6 @@ private:
 
     Base::Ref<Aero::RenderDevice> device_;
     Impl* impl_ = nullptr;
-    bool ownsImpl_ = false;
 };
 
 } // namespace Aero

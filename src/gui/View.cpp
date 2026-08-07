@@ -8,11 +8,26 @@
 #include <Aero/FrameworkElement.hpp>
 #include "media/ImageCache.hpp"
 #include "text/TextPipeline.hpp"
-#include "render/ViewRenderer.hpp"
 #include "render/private/RenderTarget.hpp"
 
-#include "controls/ControlsPrivate.hpp"
+#include "controls/private/Control.hpp"
+#include "controls/private/Items.hpp"
+#include "controls/private/Template.hpp"
 #include "controls/ControlBehavior.hpp"
+#include "gui/private/Metadata.hpp"
+#include "gui/private/Property.hpp"
+#include "gui/private/Freezable.hpp"
+#include "gui/private/Element.hpp"
+#include "gui/private/RoutedEvent.hpp"
+#include "gui/private/Input.hpp"
+#include "gui/private/Layout.hpp"
+#include "gui/private/Binding.hpp"
+#include "gui/private/Animation.hpp"
+#include "gui/private/Style.hpp"
+#include "media/private/Animation.hpp"
+#include "media/private/Brush.hpp"
+#include "media/private/Effect.hpp"
+#include "media/private/Transform.hpp"
 
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Common.hpp>
@@ -23,7 +38,6 @@
 #include "controls/Metadata.hpp"
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Text.hpp>
-#include "gui/GuiPrivate.hpp"
 
 
 
@@ -31,7 +45,6 @@
 #include <Aero/Input/Platform.hpp>
 #include <Aero/Data.hpp>
 #include "media/AnimationModel.hpp"
-#include "media/MediaPrivate.hpp"
 #include <Aero/Animation.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Media/Brushes.hpp>
@@ -51,7 +64,27 @@
 
 namespace Aero {
 
-struct Runtime::Detail::ViewRenderer::Impl {
+class View::Renderer final : public IRenderer {
+public:
+    Renderer(View& view, Base::IAllocator& allocator) noexcept;
+    ~Renderer() noexcept override;
+
+    Renderer(const Renderer&) = delete;
+    Renderer& operator=(const Renderer&) = delete;
+
+    Base::Result<void> Init(Base::Ref<RenderDevice> device) noexcept override;
+    void Shutdown() noexcept override;
+    bool IsInitialized() const noexcept override;
+    Base::Result<bool> UpdateRenderTree() noexcept override;
+    Base::Result<void> RenderOffscreen() noexcept override;
+    Base::Result<void> Render(RenderTarget& target) noexcept override;
+
+private:
+    struct Impl;
+    Impl* impl_ = nullptr;
+};
+
+struct View::Renderer::Impl {
     explicit Impl(View& owner, Base::IAllocator& selected) noexcept
         : allocator(&selected), view(&owner) {}
 
@@ -87,7 +120,8 @@ bool CompositionTarget::RemoveRendering(
 
 } // namespace Aero
 
-namespace Aero::Runtime::Detail {
+namespace Aero::ViewDetail {
+using namespace ::Aero::GuiPrivate::Detail;
 namespace MediaAnimation = ::Aero::Media::Animation;
 namespace {
 
@@ -304,8 +338,8 @@ constexpr std::size_t ViewArenaCapacity = PackedObjectBytes<
     Aero::ElementTree,
     LayoutEngine,
     ::Aero::Render::Detail::RenderTree,
-    ImageCache,
-    TextPipeline,
+    Aero::Media::Detail::ImageCache,
+    Aero::Text::Detail::TextPipeline,
     BindingEngine,
     EventRouter,
     InputRouter,
@@ -319,8 +353,8 @@ constexpr std::size_t ViewArenaAlignment = MaximumObjectAlignment<
     Aero::ElementTree,
     LayoutEngine,
     ::Aero::Render::Detail::RenderTree,
-    ImageCache,
-    TextPipeline,
+    Aero::Media::Detail::ImageCache,
+    Aero::Text::Detail::TextPipeline,
     BindingEngine,
     EventRouter,
     InputRouter,
@@ -366,11 +400,11 @@ void FreeObject(
 
 } // namespace
 
-} // namespace Aero::Runtime::Detail
+} // namespace Aero::ViewDetail
 
 namespace Aero {
 
-using namespace Runtime::Detail;
+using namespace ViewDetail;
 namespace MediaAnimation = ::Aero::Media::Animation;
 
 struct View::Impl {
@@ -408,7 +442,7 @@ struct View::Impl {
     ViewArena arena;
     Gui* guiOwner = nullptr;
     Base::Ref<Base::Object> gui;
-    Runtime::Detail::ViewRenderer publicRenderer;
+    View::Renderer publicRenderer;
     RenderingEventHandler renderingHandlers;
     Audio::Engine audio;
     ::Aero::Threading::Dispatcher* dispatcher = nullptr;
@@ -427,8 +461,8 @@ struct View::Impl {
     Aero::ElementTree* tree = nullptr;
     Aero::GuiPrivate::Detail::LayoutEngine* layout = nullptr;
     ::Aero::Render::Detail::RenderTree* renderer = nullptr;
-    Aero::Runtime::Detail::ImageCache* images = nullptr;
-    Aero::Runtime::Detail::TextPipeline* text = nullptr;
+    Aero::Media::Detail::ImageCache* images = nullptr;
+    Aero::Text::Detail::TextPipeline* text = nullptr;
     Aero::GuiPrivate::Detail::BindingEngine* bindings = nullptr;
     Aero::GuiPrivate::Detail::EventRouter* events = nullptr;
     Aero::GuiPrivate::Detail::InputRouter* input = nullptr;
@@ -7676,20 +7710,20 @@ Base::Result<void> View::LoadBuiltInTheme(
     }
     const std::uint8_t* paletteBytes =
         theme == BuiltInTheme::Light
-        ? Aero::Runtime::Detail::AeroThemeLightCompiled
-        : Aero::Runtime::Detail::AeroThemeDarkCompiled;
+        ? Aero::GuiPrivate::Detail::AeroThemeLightCompiled
+        : Aero::GuiPrivate::Detail::AeroThemeDarkCompiled;
     const std::uint32_t paletteSize =
         theme == BuiltInTheme::Light
-        ? Aero::Runtime::Detail::AeroThemeLightCompiledSize
-        : Aero::Runtime::Detail::AeroThemeDarkCompiledSize;
+        ? Aero::GuiPrivate::Detail::AeroThemeLightCompiledSize
+        : Aero::GuiPrivate::Detail::AeroThemeDarkCompiledSize;
     Base::Result<Base::ResourceUri> paletteUri =
-        ::Aero::Runtime::Detail::BuiltInThemeUri(
+        ::Aero::ViewDetail::BuiltInThemeUri(
             theme == BuiltInTheme::Light
             ? Base::StringView("Light.xaml")
             : Base::StringView("Dark.xaml"));
     if (!paletteUri) return paletteUri.GetStatus();
     Base::Result<Base::ResourceUri> genericUri =
-        ::Aero::Runtime::Detail::BuiltInThemeUri(
+        ::Aero::ViewDetail::BuiltInThemeUri(
             Base::StringView("Generic.xaml"));
     if (!genericUri) return genericUri.GetStatus();
 
@@ -7704,11 +7738,11 @@ Base::Result<void> View::LoadBuiltInTheme(
               ResourceLayer::Theme,
               paletteUri.Value().Canonical());
     if (loaded) {
-        loaded = Aero::Runtime::Detail::AeroThemeGenericCompiledSize != 0U
+        loaded = Aero::GuiPrivate::Detail::AeroThemeGenericCompiledSize != 0U
             ? LoadCompiledResources(
                   ResourceLayer::Theme,
-                  {Aero::Runtime::Detail::AeroThemeGenericCompiled,
-                   Aero::Runtime::Detail::AeroThemeGenericCompiledSize},
+                  {Aero::GuiPrivate::Detail::AeroThemeGenericCompiled,
+                   Aero::GuiPrivate::Detail::AeroThemeGenericCompiledSize},
                   genericUri.Value(),
                   ResourceLoadMode::Merge)
             : LoadResources(
@@ -8507,7 +8541,7 @@ View::AdvanceAnimations(
     return advanced.Value() + completed.Value();
 }
 
-Runtime::Detail::ViewRenderer::ViewRenderer(
+View::Renderer::Renderer(
     View& view,
     Base::IAllocator& allocator) noexcept {
     void* memory = allocator.Allocate({
@@ -8519,7 +8553,7 @@ Runtime::Detail::ViewRenderer::ViewRenderer(
     impl_ = new (memory) Impl(view, allocator);
 }
 
-Runtime::Detail::ViewRenderer::~ViewRenderer() noexcept {
+View::Renderer::~Renderer() noexcept {
     if (impl_ == nullptr) return;
     Shutdown();
     Base::IAllocator* allocator = impl_->allocator;
@@ -8529,7 +8563,7 @@ Runtime::Detail::ViewRenderer::~ViewRenderer() noexcept {
     impl_ = nullptr;
 }
 
-Base::Result<void> Runtime::Detail::ViewRenderer::Init(
+Base::Result<void> View::Renderer::Init(
     Base::Ref<RenderDevice> device) noexcept {
     if (impl_ == nullptr || impl_->view == nullptr ||
         impl_->view->state_ == nullptr ||
@@ -8637,7 +8671,7 @@ Base::Result<void> Runtime::Detail::ViewRenderer::Init(
     return {};
 }
 
-void Runtime::Detail::ViewRenderer::Shutdown() noexcept {
+void View::Renderer::Shutdown() noexcept {
     if (impl_ == nullptr) return;
     if (impl_->device) {
         RenderDevice::Impl::ReleaseRenderer(
@@ -8651,12 +8685,12 @@ void Runtime::Detail::ViewRenderer::Shutdown() noexcept {
     impl_->initialized = false;
 }
 
-bool Runtime::Detail::ViewRenderer::IsInitialized() const noexcept {
+bool View::Renderer::IsInitialized() const noexcept {
     return impl_ != nullptr && impl_->initialized;
 }
 
 Base::Result<bool>
-Runtime::Detail::ViewRenderer::UpdateRenderTree() noexcept {
+View::Renderer::UpdateRenderTree() noexcept {
     if (impl_ == nullptr || !impl_->initialized || !impl_->device ||
         impl_->view == nullptr || impl_->view->state_ == nullptr ||
         impl_->view->state_ == nullptr ||
@@ -8695,7 +8729,7 @@ Runtime::Detail::ViewRenderer::UpdateRenderTree() noexcept {
 }
 
 Base::Result<void>
-Runtime::Detail::ViewRenderer::RenderOffscreen() noexcept {
+View::Renderer::RenderOffscreen() noexcept {
     if (impl_ == nullptr || !impl_->initialized || !impl_->device ||
         impl_->view == nullptr || impl_->view->state_ == nullptr ||
         impl_->view->state_ == nullptr) {
@@ -8726,7 +8760,7 @@ Runtime::Detail::ViewRenderer::RenderOffscreen() noexcept {
     return {};
 }
 
-Base::Result<void> Runtime::Detail::ViewRenderer::Render(
+Base::Result<void> View::Renderer::Render(
     RenderTarget& target) noexcept {
     if (impl_ == nullptr || !impl_->initialized || !impl_->device ||
         impl_->view == nullptr || impl_->view->state_ == nullptr) {
@@ -8804,14 +8838,14 @@ const ::Aero::Render::Detail::RenderFrame* View::Impl::CurrentFrame(
         : nullptr;
 }
 
-namespace Runtime::Detail {
+namespace ViewDetail {
 
 const ::Aero::Render::Detail::RenderFrame* CurrentFrameForConformance(
     const View& view) noexcept {
     return View::Impl::CurrentFrame(view);
 }
 
-} // namespace Runtime::Detail
+} // namespace ViewDetail
 
 Base::Object* View::FindNamedObject(
     Base::StringView name,

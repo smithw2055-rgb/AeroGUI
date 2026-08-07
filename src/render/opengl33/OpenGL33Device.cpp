@@ -11,6 +11,7 @@
 #endif
 
 #include <new>
+#include <utility>
 
 namespace Aero::Render::Detail {
 namespace {
@@ -37,14 +38,12 @@ Graphics::PresentMode ToRhiPresentMode(PresentMode value) noexcept {
 }
 
 class OpenGL33WindowDeviceState final
-    : public Aero::RenderDevice::Impl,
-      public Aero::RenderTarget::Impl {
+    : public Aero::RenderDevice::Impl {
 public:
     OpenGL33WindowDeviceState(
         const OpenGL33WindowTargetOptions& options,
         Base::IAllocator& allocator) noexcept
         : Aero::RenderDevice::Impl(allocator),
-          Aero::RenderTarget::Impl(RenderTargetKind::Window),
           allocator_(&allocator),
           options_(options) {}
 
@@ -54,16 +53,12 @@ public:
         return RenderBackendKind::OpenGL33;
     }
 
-    Aero::RenderTarget::Impl* DefaultTarget() noexcept override {
-        return static_cast<Aero::RenderTarget::Impl*>(this);
-    }
-
     Base::Result<void> Initialize() noexcept {
         if (initialized_) return {};
         Base::Result<void> surface = CreateWindowSurface();
         if (!surface) return surface.GetStatus();
         descriptor_ = MakeDescriptor();
-        Graphics::ISurfaceBackend* backend = SurfaceBackend();
+        Graphics::WindowSurfaceBackend* backend = SurfaceBackend();
         if (backend == nullptr) {
             Shutdown();
             return NotInitialized("OpenGL window surface backend is unavailable");
@@ -158,7 +153,7 @@ public:
 
     Base::Result<void> Render(
         const void* rendererToken,
-        const ::Aero::Render::Detail::RenderFrame& frame) noexcept override {
+        const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
         if (!IsReady() || GetSurfaceHealth() != SurfaceHealth::Ready) {
             return InvalidState("OpenGL window target is not ready");
         }
@@ -287,8 +282,8 @@ public:
 
     Base::Result<void> Resize(
         std::uint32_t width,
-        std::uint32_t height) noexcept override {
-        Graphics::ISurfaceBackend* surface = SurfaceBackend();
+        std::uint32_t height) noexcept {
+        Graphics::WindowSurfaceBackend* surface = SurfaceBackend();
         if (!IsReady() || surface == nullptr) {
             return InvalidState("OpenGL window target is not ready");
         }
@@ -303,17 +298,17 @@ public:
         return resized;
     }
 
-    void NotifySurfaceLost() noexcept override {
-        Graphics::ISurfaceBackend* surface = SurfaceBackend();
+    void NotifySurfaceLost() noexcept {
+        Graphics::WindowSurfaceBackend* surface = SurfaceBackend();
         if (surface != nullptr) surface->NotifySurfaceLost();
         surfaceLost_ = true;
     }
 
-    Base::Result<void> RestoreSurface() noexcept override {
+    Base::Result<void> RestoreSurface() noexcept {
         if (!surfaceLost_) {
             return InvalidState("OpenGL window target is not lost");
         }
-        Graphics::ISurfaceBackend* surface = SurfaceBackend();
+        Graphics::WindowSurfaceBackend* surface = SurfaceBackend();
         if (surface == nullptr) {
             return NotInitialized("OpenGL window surface backend is unavailable");
         }
@@ -326,8 +321,8 @@ public:
         return restored;
     }
 
-    SurfaceHealth GetSurfaceHealth() const noexcept override {
-        Graphics::ISurfaceBackend* surface =
+    SurfaceHealth GetSurfaceHealth() const noexcept {
+        Graphics::WindowSurfaceBackend* surface =
             const_cast<OpenGL33WindowDeviceState*>(this)->SurfaceBackend();
         if (surfaceLost_ || surface == nullptr || surface->IsSurfaceLost()) {
             return SurfaceHealth::Lost;
@@ -369,7 +364,7 @@ private:
 #endif
     }
 
-    Graphics::ISurfaceBackend* SurfaceBackend() noexcept {
+    Graphics::WindowSurfaceBackend* SurfaceBackend() noexcept {
 #if defined(_WIN32) && AERO_HAS_WGL_SURFACE
         return wglSurface_;
 #elif defined(__linux__) && AERO_HAS_GLX_SURFACE
@@ -441,7 +436,7 @@ private:
     }
 
     void RefreshSurfaceHealth() noexcept {
-        Graphics::ISurfaceBackend* surface = SurfaceBackend();
+        Graphics::WindowSurfaceBackend* surface = SurfaceBackend();
         if (surface == nullptr || surface->IsSurfaceLost()) surfaceLost_ = true;
     }
 
@@ -456,7 +451,7 @@ private:
             delete graphics_;
             graphics_ = nullptr;
         }
-        Graphics::ISurfaceBackend* surface = SurfaceBackend();
+        Graphics::WindowSurfaceBackend* surface = SurfaceBackend();
         if (surface != nullptr) surface->DestroySurface();
 #if defined(_WIN32) && AERO_HAS_WGL_SURFACE
         delete wglSurface_;
@@ -486,9 +481,55 @@ private:
     ::Aero::Render::Renderer* renderer_ = nullptr;
 };
 
+class OpenGL33WindowTargetState final : public Aero::RenderTarget::Impl {
+public:
+    explicit OpenGL33WindowTargetState(
+        OpenGL33WindowDeviceState& device) noexcept
+        : Aero::RenderTarget::Impl(RenderTargetKind::Window),
+          device_(&device) {}
+
+    Base::Result<void> Render(
+        const void* rendererToken,
+        const ::Aero::Render::Detail::RenderFrame& frame) noexcept override {
+        return device_ != nullptr
+            ? device_->Render(rendererToken, frame)
+            : Base::Result<void>(NotInitialized(
+                  "OpenGL window target has no render device"));
+    }
+
+    Base::Result<void> Resize(
+        std::uint32_t width,
+        std::uint32_t height) noexcept override {
+        return device_ != nullptr
+            ? device_->Resize(width, height)
+            : Base::Result<void>(NotInitialized(
+                  "OpenGL window target has no render device"));
+    }
+
+    void NotifySurfaceLost() noexcept override {
+        if (device_ != nullptr) device_->NotifySurfaceLost();
+    }
+
+    Base::Result<void> RestoreSurface() noexcept override {
+        return device_ != nullptr
+            ? device_->RestoreSurface()
+            : Base::Result<void>(NotInitialized(
+                  "OpenGL window target has no render device"));
+    }
+
+    SurfaceHealth GetSurfaceHealth() const noexcept override {
+        return device_ != nullptr
+            ? device_->GetSurfaceHealth()
+            : SurfaceHealth::Shutdown;
+    }
+
+private:
+    OpenGL33WindowDeviceState* device_ = nullptr;
+};
+
 } // namespace
 
-Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33WindowDevice(
+Base::Result<WindowRenderPair> CreateOpenGL33WindowRenderPair(
     const OpenGL33WindowTargetOptions& options,
     Base::IAllocator* allocator) noexcept {
     if (!options.window.IsValid() || options.width == 0U || options.height == 0U) {
@@ -508,7 +549,26 @@ Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33WindowDevice(
         delete state;
         return initialized.GetStatus();
     }
-    return AdoptRenderDevice(state, &selected);
+    Base::Result<Base::Ref<Aero::RenderDevice>> adoptedDevice =
+        AdoptRenderDevice(state, &selected);
+    if (!adoptedDevice) return adoptedDevice.GetStatus();
+
+    Base::Ref<Aero::RenderDevice> device =
+        std::move(adoptedDevice).Value();
+    auto* targetState = new (std::nothrow)
+        OpenGL33WindowTargetState(*state);
+    if (targetState == nullptr) {
+        return OutOfMemory("Unable to allocate OpenGL window target state");
+    }
+    Base::Result<Base::Ref<Aero::RenderTarget>> adoptedTarget =
+        AdoptRenderTarget(
+            device, targetState, RenderTargetKind::Window, &selected);
+    if (!adoptedTarget) return adoptedTarget.GetStatus();
+
+    WindowRenderPair result;
+    result.device = std::move(device);
+    result.target = std::move(adoptedTarget).Value();
+    return result;
 }
 
 } // namespace Aero::Render::Detail

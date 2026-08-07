@@ -42,7 +42,7 @@ public:
 
 } // namespace Aero::Controls
 
-namespace Aero::Runtime::Detail {
+namespace Aero::Media::Detail {
 using ImageControlPrivate = ::Aero::Controls::Image::Impl;
 using ImageResources = ::Aero::Render::Detail::ImageResources;
 using BrushPrivate = ::Aero::Media::Detail::BrushPrivate;
@@ -534,4 +534,4 @@ void ImageCache::Shutdown(
     records_.Clear();
 }
 
-} // namespace Aero::Runtime::Detail
+} // namespace Aero::Media::Detail

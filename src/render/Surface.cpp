@@ -20,8 +20,9 @@ bool IsDepthFormat(GraphicsTextureFormat format) noexcept {
 }
 
 bool IsKnownSurfaceKind(SurfaceKind kind) noexcept {
-    return kind >= SurfaceKind::Headless &&
-        kind <= SurfaceKind::ExternalRenderTarget;
+    return kind == SurfaceKind::D3D11Window ||
+        kind == SurfaceKind::WglWindow ||
+        kind == SurfaceKind::GlxWindow;
 }
 
 bool IsKnownOwnership(SurfaceOwnership ownership) noexcept {
@@ -66,8 +67,6 @@ Base::Result<void> ValidateNativeSurfaceDescriptor(
     }
 
     switch (descriptor.kind) {
-    case SurfaceKind::Headless:
-        return {};
     case SurfaceKind::D3D11Window:
         if (descriptor.d3d11.device == 0U ||
             descriptor.d3d11.immediateContext == 0U ||
@@ -94,28 +93,6 @@ Base::Result<void> ValidateNativeSurfaceDescriptor(
              descriptor.glx.context == 0U)) {
             return InvalidArgument(
                 "Borrowed GLX surfaces require a display, drawable, and context");
-        }
-        return {};
-    case SurfaceKind::EglWindow:
-        if (descriptor.egl.display == 0U ||
-            descriptor.egl.surface == 0U ||
-            descriptor.egl.context == 0U) {
-            return InvalidArgument(
-                "EGL surface requires a display, surface, and context");
-        }
-        return {};
-    case SurfaceKind::WebGL2Canvas:
-        if (descriptor.webgl2.contextHandle == 0U) {
-            return InvalidArgument(
-                "WebGL 2 surface requires a valid context handle");
-        }
-        return {};
-    case SurfaceKind::ExternalRenderTarget:
-        if (!capabilities.supportsExternalRenderTargets ||
-            (descriptor.external.colorTarget == 0U &&
-             !descriptor.external.defaultFramebuffer)) {
-            return InvalidArgument(
-                "External surface requires an importable color target or default framebuffer");
         }
         return {};
     case SurfaceKind::Invalid:

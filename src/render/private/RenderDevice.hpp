@@ -61,7 +61,6 @@ struct RenderDevice::Impl {
         GetDeviceHealth() const noexcept = 0;
     virtual RenderFrameStatistics LastFrameStatistics() const noexcept = 0;
     virtual ::Aero::Render::Detail::RenderResources Resources() noexcept = 0;
-    virtual RenderTarget::Impl* DefaultTarget() noexcept { return nullptr; }
 
     std::uint64_t BackendGeneration() const noexcept {
         return backendGeneration_;
@@ -77,12 +76,6 @@ struct RenderDevice::Impl {
     }
     static const Impl* BackendState(const RenderDevice& device) noexcept {
         return device.impl_;
-    }
-
-    static RenderTarget::Impl* DefaultTarget(RenderDevice& device) noexcept {
-        return device.impl_ != nullptr
-            ? device.impl_->DefaultTarget()
-            : nullptr;
     }
 
     static ::Aero::Render::Detail::RenderBackendKind Backend(

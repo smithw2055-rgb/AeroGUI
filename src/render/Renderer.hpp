@@ -54,7 +54,7 @@ public:
     Base::Result<Graphics::FenceValue> RenderOnscreen(
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& frame,
-        const RenderTarget& target) noexcept;
+        const FrameTarget& target) noexcept;
     void ReleaseRenderer(const void* rendererToken) noexcept;
 
     FrameEncoderStatistics LastStatistics() const noexcept;

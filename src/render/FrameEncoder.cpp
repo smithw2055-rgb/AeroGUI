@@ -15,6 +15,14 @@
 
 namespace Aero::Render::Detail {
 using namespace Aero::Graphics;
+
+// Keep this translation unit mechanically stable while the source-private
+// class is named for what it actually does. No Renderer alias escapes this TU.
+using Renderer = CommandEncoder;
+using RendererShaderSet = CommandEncoderShaderSet;
+using RendererStatistics = CommandEncoderStatistics;
+using RenderTarget = FrameTarget;
+
 namespace {
 
 Base::Status InvalidArgument(const char* message) noexcept {

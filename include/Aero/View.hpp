@@ -24,7 +24,6 @@ class IDiagnosticSink;
 namespace Aero {
 
 namespace App::Detail { class DesktopHost; }
-namespace Runtime::Detail { class ViewRenderer; }
 
 enum class BuiltInTheme : std::uint8_t { Light = 0U, Dark };
 enum class ResourceLayer : std::uint8_t { Application = 0U, Theme, System };
@@ -122,8 +121,8 @@ public:
         const Input::TextInput& input) noexcept;
 
 private:
+    class Renderer;
     friend class Gui;
-    friend class Runtime::Detail::ViewRenderer;
     friend class CompositionTarget;
     friend class Markup::XamlReader;
     friend class App::Detail::DesktopHost;

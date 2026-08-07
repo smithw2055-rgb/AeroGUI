@@ -3,8 +3,6 @@
 #include "render/RenderResources.hpp"
 
 #include "render/private/BackendApi.hpp"
-#include "render/private/RenderSurface.hpp"
-
 #include <Aero/FrameworkElement.hpp>
 #include "../text/FontManager.hpp"
 #include "../text/FreeTypeAdapter.hpp"
@@ -20,7 +18,7 @@
 #include <string>
 #include <utility>
 
-namespace Aero::Runtime::Detail {
+namespace Aero::Text::Detail {
 using TextConfig = ::Aero::Render::Detail::TextConfig;
 using TextResources = ::Aero::Render::Detail::TextResources;
 namespace {
@@ -1015,4 +1013,4 @@ TextPipeline::Layout() noexcept {
         : nullptr;
 }
 
-} // namespace Aero::Runtime::Detail
+} // namespace Aero::Text::Detail

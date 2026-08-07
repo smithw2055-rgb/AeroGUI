@@ -43,7 +43,7 @@ struct Renderer::Impl {
           meshResources(device, encoder, generation, allocator),
           imageResources(device, encoder, generation, allocator) {}
 
-    Detail::Renderer encoder;
+    Detail::CommandEncoder encoder;
     Detail::TextGpuResources textResources;
     Detail::MeshGpuResources meshResources;
     Detail::ImageGpuResources imageResources;
@@ -207,7 +207,7 @@ Base::Result<Graphics::FenceValue> Renderer::RenderOffscreen(
 Base::Result<Graphics::FenceValue> Renderer::RenderOnscreen(
     const void* rendererToken,
     const ::Aero::Render::Detail::RenderFrame& frame,
-    const RenderTarget& target) noexcept {
+    const FrameTarget& target) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
     Base::Result<std::uint32_t> collected = device_->CollectGarbage();

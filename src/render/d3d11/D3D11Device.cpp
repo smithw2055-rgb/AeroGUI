@@ -355,13 +355,7 @@ private:
         descriptor.sampleCount = 1U;
         descriptor.stableId = static_cast<std::uint64_t>(
             reinterpret_cast<std::uintptr_t>(this));
-        if (embedded_) {
-            descriptor.width = 1U;
-            descriptor.height = 1U;
-            descriptor.kind = Graphics::SurfaceKind::ExternalRenderTarget;
-            descriptor.ownership = Graphics::SurfaceOwnership::Borrowed;
-            descriptor.external.colorTarget = 1U;
-        } else {
+        if (!embedded_) {
             descriptor.width = windowOptions_.width;
             descriptor.height = windowOptions_.height;
             descriptor.kind = Graphics::SurfaceKind::D3D11Window;
@@ -634,7 +628,7 @@ Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11EmbeddedTarget(
         delete target;
         return initialized.GetStatus();
     }
-    return AdoptOwnedRenderTarget(
+    return AdoptRenderTarget(
         std::move(device), target, RenderTargetKind::Embedded, &selected);
 }
 
@@ -658,7 +652,7 @@ Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11WindowTarget(
         delete target;
         return initialized.GetStatus();
     }
-    return AdoptOwnedRenderTarget(
+    return AdoptRenderTarget(
         std::move(device), target, RenderTargetKind::Window, &selected);
 }
 

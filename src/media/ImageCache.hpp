@@ -13,7 +13,7 @@ class XamlProviderRegistry;
 
 namespace Aero { class Visual; }
 
-namespace Aero::Runtime::Detail {
+namespace Aero::Media::Detail {
 
 class ImageCache {
 public:
@@ -47,4 +47,4 @@ private:
             UINT64_C(1) << 40U;
 };
 
-} // namespace Aero::Runtime::Detail
+} // namespace Aero::Media::Detail

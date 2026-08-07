@@ -62,17 +62,6 @@ private:
 
 } // namespace Primitives
 
-class AERO_API Button : public Primitives::ButtonBase {
-    AERO_DECLARE_TYPE(Button, Primitives::ButtonBase)
-public:
-    Button() noexcept : Button(StaticTypeId()) {}
-    ~Button() override = default;
-
-protected:
-    explicit Button(TypeId runtimeType) noexcept
-        : Primitives::ButtonBase(runtimeType) {}
-};
-
 namespace Primitives {
 
 class AERO_API RepeatButton : public ButtonBase {
@@ -135,35 +124,6 @@ private:
 };
 
 } // namespace Primitives
-
-class AERO_API CheckBox : public Primitives::ToggleButton {
-    AERO_DECLARE_TYPE(CheckBox, Primitives::ToggleButton)
-public:
-    CheckBox() noexcept : CheckBox(StaticTypeId()) {}
-    ~CheckBox() override = default;
-
-protected:
-    explicit CheckBox(TypeId runtimeType) noexcept
-        : Primitives::ToggleButton(runtimeType) {}
-};
-
-class AERO_API RadioButton : public Primitives::ToggleButton {
-    AERO_DECLARE_TYPE(RadioButton, Primitives::ToggleButton)
-public:
-    RadioButton() noexcept : RadioButton(StaticTypeId()) {}
-    ~RadioButton() override = default;
-
-    Base::StringView GetGroupName() const noexcept;
-    void SetGroupName(
-        Base::StringView value) noexcept;
-
-    inline static constexpr Members::Property<Base::String> GroupNameProperty{"GroupName"};
-
-protected:
-    explicit RadioButton(TypeId runtimeType) noexcept
-        : Primitives::ToggleButton(runtimeType) {}
-};
-
 
 } // namespace Aero::Controls
 
@@ -782,3 +742,7 @@ AERO_DECLARE_TYPE_ENUM(Aero::Controls::ScrollBarVisibility)
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::PanningMode)
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::GridResizeDirection)
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::GridResizeBehavior)
+
+#include <Aero/Controls/Button.hpp>
+#include <Aero/Controls/CheckBox.hpp>
+#include <Aero/Controls/RadioButton.hpp>

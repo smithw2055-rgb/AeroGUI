@@ -20,16 +20,13 @@ Base::Status NotInitialized(const char* message) noexcept {
 RenderTarget::RenderTarget(
     ConstructionToken,
     Base::Ref<Aero::RenderDevice> device,
-    Impl* implementation,
-    bool ownsImplementation) noexcept
+    Impl* implementation) noexcept
     : device_(std::move(device)),
-      impl_(implementation),
-      ownsImpl_(ownsImplementation) {}
+      impl_(implementation) {}
 
 RenderTarget::~RenderTarget() noexcept {
-    if (ownsImpl_) delete impl_;
+    delete impl_;
     impl_ = nullptr;
-    ownsImpl_ = false;
     device_.Reset();
 }
 
@@ -114,27 +111,7 @@ Base::Result<void> RenderTarget::Restore() noexcept {
     return restored;
 }
 
-Base::Result<Base::Ref<RenderTarget>> RenderTarget::Impl::CreateBorrowed(
-    Base::Ref<Aero::RenderDevice> device,
-    Impl* implementation,
-    Base::IAllocator* allocator) noexcept {
-    if (!device || implementation == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Render target requires a device and implementation");
-    }
-    Base::IAllocator& selected = allocator != nullptr
-        ? *allocator
-        : Base::GetDefaultAllocator();
-    return Base::MakeRefWithAllocator<RenderTarget>(
-        selected,
-        RenderTarget::ConstructionToken{},
-        std::move(device),
-        implementation,
-        false);
-}
-
-Base::Result<Base::Ref<RenderTarget>> RenderTarget::Impl::CreateOwned(
+Base::Result<Base::Ref<RenderTarget>> RenderTarget::Impl::Create(
     Base::Ref<Aero::RenderDevice> device,
     Impl* implementation,
     Base::IAllocator* allocator) noexcept {
@@ -142,7 +119,7 @@ Base::Result<Base::Ref<RenderTarget>> RenderTarget::Impl::CreateOwned(
         delete implementation;
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "Owned render target requires a device and implementation");
+            "Render target requires a device and implementation");
     }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
@@ -152,8 +129,7 @@ Base::Result<Base::Ref<RenderTarget>> RenderTarget::Impl::CreateOwned(
             selected,
             RenderTarget::ConstructionToken{},
             std::move(device),
-            implementation,
-            true);
+            implementation);
     if (!made) delete implementation;
     return made;
 }
@@ -195,32 +171,11 @@ namespace Aero::Render::Detail {
 
 Base::Result<Base::Ref<Aero::RenderTarget>> AdoptRenderTarget(
     Base::Ref<Aero::RenderDevice> device,
-    Aero::RenderTargetKind kind,
-    Base::IAllocator* allocator) noexcept {
-    if (!device) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Render target requires a render device");
-    }
-    Aero::RenderTarget::Impl* implementation =
-        Aero::RenderDevice::Impl::DefaultTarget(*device);
-    if (implementation == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Render device has no default target");
-    }
-    implementation->kind = kind;
-    return Aero::RenderTarget::Impl::CreateBorrowed(
-        std::move(device), implementation, allocator);
-}
-
-Base::Result<Base::Ref<Aero::RenderTarget>> AdoptOwnedRenderTarget(
-    Base::Ref<Aero::RenderDevice> device,
     Aero::RenderTarget::Impl* target,
     Aero::RenderTargetKind kind,
     Base::IAllocator* allocator) noexcept {
     if (target != nullptr) target->kind = kind;
-    return Aero::RenderTarget::Impl::CreateOwned(
+    return Aero::RenderTarget::Impl::Create(
         std::move(device), target, allocator);
 }
 

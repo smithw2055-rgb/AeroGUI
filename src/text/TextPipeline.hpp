@@ -8,7 +8,7 @@ namespace Aero::Controls::Detail { class TextBlockLayout; }
 
 namespace Aero { class RenderDevice; }
 
-namespace Aero::Runtime::Detail {
+namespace Aero::Text::Detail {
 
 class TextPipeline {
 public:
@@ -38,4 +38,4 @@ private:
     Impl* impl_ = nullptr;
 };
 
-} // namespace Aero::Runtime::Detail
+} // namespace Aero::Text::Detail

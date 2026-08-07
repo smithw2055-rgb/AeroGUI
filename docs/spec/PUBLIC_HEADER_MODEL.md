@@ -14,15 +14,14 @@ The supported product umbrellas are:
 
 - `<Aero/Gui.hpp>` — retained WPF/XAML authoring surface;
 - `<Aero/App.hpp>` — `Application::Run()` and optional default desktop lifetime;
-- `<Aero/Integration.hpp>` — embedding and renderer endpoint integration;
 - `<Aero/Meta.hpp>` — typed metadata and custom-module authoring.
 
-`Markup.hpp`, concrete Integration backend headers and provider contracts under
-`Aero/Integration/Providers` are the SDK boundary. Text shaping providers
-are explicit specialist surfaces. `Integration/Platform.hpp` contains only
-platform-neutral clipboard and text-input contracts; native Win32/X11 adapters are
-private. These specialist headers are not transitively included by ordinary
-WPF-style application code.
+Embedding uses the installed `RenderDevice`/`RenderTarget` contracts plus the
+opt-in `<Aero/Render/D3D11.hpp>` and `<Aero/Render/OpenGL33.hpp>` factories.
+`Aero::Integration` is retired. `Markup.hpp`, provider contracts under their
+owning domains, and `Input/Platform.hpp` are specialist surfaces. Native
+Win32/X11 adapters remain private. These specialist headers are not transitively
+included by ordinary WPF-style application code.
 
 ## Canonical declaration ownership
 
@@ -90,9 +89,9 @@ provider, shaping and editing implementation remains private under `src/text`.
 Generic `Media.hpp` and `Text/Text.hpp` aggregation headers are not part of
 the installed SDK.
 
-## Controls family headers
+## Controls headers
 
-The complete public Controls directory contains exactly six family headers:
+The six family headers remain convenient aggregation points:
 
 ```text
 Aero/Controls/Core.hpp
@@ -103,9 +102,13 @@ Aero/Controls/Common.hpp
 Aero/Controls/Text.hpp
 ```
 
-`Aero/Controls.hpp` is the only umbrella. New controls join an existing family
-unless they establish a genuinely independent authoring domain. File growth by
-itself is not a reason to create another public package.
+`Aero/Controls.hpp` is the broad umbrella. High-traffic WPF leaf types may own
+their declaration in a type-named header (`Button.hpp`, `CheckBox.hpp`,
+`RadioButton.hpp`, and progressively other stable leaves) while family headers
+remain source-compatible aggregators. A type-named header must not be a fake
+three-line forwarding facade once it becomes the canonical declaration owner.
+File count is not an architecture invariant; declaration ownership and include
+cost are.
 
 ## Private implementation placement
 
@@ -136,9 +139,9 @@ The architecture check enforces:
 
 - no installed legacy metadata, platform, or detail tree;
 - no public `Aero/Detail` headers;
-- exactly six Controls family headers;
+- one canonical declaration owner for each public type;
 - the canonical namespace manifest, with no public `using namespace` directives;
-- no public `Aero::Render` or product-layer `Detail` namespace;
+- no product-layer `Detail` namespace in installed headers;
 - no duplicate direct includes in public headers;
 - no retired forwarding/compatibility paths;
 - no native Win32/X11 adapter types in the public platform-service contract;

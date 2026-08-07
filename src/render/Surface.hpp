@@ -15,13 +15,9 @@ constexpr std::uint32_t SurfaceAbiVersion = 1U;
 
 enum class SurfaceKind : std::uint8_t {
     Invalid = 0U,
-    Headless,
     D3D11Window,
     WglWindow,
-    GlxWindow,
-    EglWindow,
-    WebGL2Canvas,
-    ExternalRenderTarget
+    GlxWindow
 };
 
 using SurfaceKindFlags = std::uint32_t;
@@ -77,24 +73,6 @@ struct GlxSurfaceNative  {
     std::int32_t screen = 0;
 };
 
-struct EglSurfaceNative  {
-    std::uintptr_t display = 0U;
-    std::uintptr_t surface = 0U;
-    std::uintptr_t context = 0U;
-};
-
-struct WebGL2SurfaceNative  {
-    std::uint32_t contextHandle = 0U;
-    std::uint64_t canvasId = 0U;
-    bool offscreenCanvas = false;
-};
-
-struct ExternalSurfaceNative  {
-    std::uintptr_t colorTarget = 0U;
-    std::uintptr_t depthStencilTarget = 0U;
-    bool defaultFramebuffer = false;
-};
-
 struct NativeSurfaceDescriptor  {
     std::uint32_t abiVersion = SurfaceAbiVersion;
     SurfaceKind kind = SurfaceKind::Invalid;
@@ -110,9 +88,6 @@ struct NativeSurfaceDescriptor  {
     D3D11SurfaceNative d3d11;
     WglSurfaceNative wgl;
     GlxSurfaceNative glx;
-    EglSurfaceNative egl;
-    WebGL2SurfaceNative webgl2;
-    ExternalSurfaceNative external;
 };
 
 struct SurfaceCapabilities  {
@@ -123,7 +98,6 @@ struct SurfaceCapabilities  {
     bool supportsResize = false;
     bool supportsPresent = false;
     bool supportsContextLossRecovery = false;
-    bool supportsExternalRenderTargets = false;
 };
 
 struct ExternalRenderTargetDescriptor  {
@@ -153,9 +127,9 @@ AERO_API Base::Result<void>
 ValidateExternalRenderTargetDescriptor(
     const ExternalRenderTargetDescriptor& descriptor) noexcept;
 
-class AERO_API ISurfaceBackend {
+class AERO_API WindowSurfaceBackend {
 public:
-    virtual ~ISurfaceBackend() = default;
+    virtual ~WindowSurfaceBackend() = default;
 
     virtual SurfaceCapabilities
     QuerySurfaceCapabilities() const noexcept = 0;

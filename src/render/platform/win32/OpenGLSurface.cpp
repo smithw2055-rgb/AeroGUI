@@ -481,7 +481,6 @@ WglSurfaceBackend::QuerySurfaceCapabilities() const noexcept {
     capabilities.supportsResize = true;
     capabilities.supportsPresent = true;
     capabilities.supportsContextLossRecovery = true;
-    capabilities.supportsExternalRenderTargets = true;
     return capabilities;
 }
 

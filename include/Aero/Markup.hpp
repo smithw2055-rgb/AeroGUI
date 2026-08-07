@@ -239,6 +239,17 @@ public:
     Base::Result<XamlDocument> LoadCompiled(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri = {}) noexcept;
+
+    Aero::Gui& GetGui() const noexcept { return *gui_; }
+
+    // Mount/resource helpers are retained only for repository conformance and
+    // source-private framework plumbing. Normal SDK code loads a XamlDocument
+    // here and hands it to View::SetContent().
+#if defined(AERO_INTERNAL_CONFORMANCE)
+public:
+#else
+private:
+#endif
     Base::Result<void> Mount(
         Aero::View& view,
         Controls::ContentControl& host,
@@ -266,9 +277,6 @@ public:
     Base::Result<void> LoadTheme(
         Aero::View& view,
         BuiltInTheme theme) noexcept;
-
-    Aero::Gui& GetGui() const noexcept { return *gui_; }
-
 private:
     Base::Result<XamlDocument> LoadComponentCore(
         Base::StringView uri,

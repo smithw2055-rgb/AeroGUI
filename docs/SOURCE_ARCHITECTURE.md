@@ -37,23 +37,21 @@ Aero::App (optional desktop lifetime)
 ```text
 src/
 ├─ base/          allocation, strings, object ownership and C ABI
-├─ gui/           flat WPF semantic kernel
+├─ gui/           WPF semantic kernel plus Gui/View composition
 ├─ controls/      standard controls, templates and default behavior
-├─ markup/        XAML schema, object writer, compiled XAML and document cache
-├─ providers/     source-provider adapters pending final domain relocation
+├─ markup/        XAML schema, providers, object writer, compiled XAML and cache
+├─ input/         platform-neutral input services
 ├─ text/          shaping, glyph atlas and text adapters
-├─ media/         brushes, images, transforms, effects and animation objects
-├─ runtime/       View composition pending final relocation into Gui/Media/Text
-├─ render/        RenderTree, Renderer, RenderDevice and native GPU backends
-├─ platform/      OS-private window/input adapters used by App
+├─ media/         brushes, images, transforms, effects, animation and image cache
+├─ render/        RenderTree, Renderer, RenderDevice, targets and GPU backends
 ├─ app/           Application, Window, DesktopHost and private RenderContext
+│  └─ platform/   OS-private window, IME and clipboard adapters
 ├─ diagnostics/   inspector and opt-in runtime/render diagnostics
 └─ audio/         optional audio module
 ```
 
-`src/integration` no longer exists. The remaining `runtime`, `providers`, and
-`platform` directories describe physical ownership still scheduled for the SDK
-source-layout closure; they are not installed products.
+`src/integration`, `src/runtime`, `src/providers`, and the former root
+`src/platform` are retired. Runtime helpers live with their real owners.
 
 ## Gui and View
 
@@ -93,14 +91,15 @@ explicit `Create*Device()` plus `Create*RenderTarget(device, options)` for
 embedded hosts. They do not expose native-window or presentation policy.
 
 Backend target state derives directly from `RenderTarget::Impl`; the former
-`NativeRenderTarget` spelling is only a source compatibility alias and no longer
-represents an extra object or allocation. Backend-neutral acquire/present
-mechanics remain source-private in `Graphics::SurfaceSession` and concrete
-swap-chain/context surface adapters.
+native-target wrapper is gone. Every RenderTarget owns exactly one target Impl;
+D3D11 and OpenGL use the same separate Device/Target lifetime model. Window
+acquire/present mechanics remain source-private in concrete swap-chain/context
+adapters.
 
-`Render::Renderer` is the one semantic backend renderer. The old
-`DeviceRenderer` spelling is a source-only alias. `FrameEncoder.cpp` remains the
-low-level command encoder implementation rather than a peer renderer lifetime.
+`Render::Renderer` is the one semantic backend renderer. `FrameEncoder.cpp`
+implements the source-private `CommandEncoder`; it records command lists but has
+no peer renderer lifetime. Its target value is `FrameTarget`, avoiding collision
+with the installed `Aero::RenderTarget` object.
 
 Rendering statistics are opt-in through `<Aero/Diagnostics/Rendering.hpp>` and
 are not methods on the normal RenderDevice authoring surface.

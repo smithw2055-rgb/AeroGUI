@@ -1,8 +1,8 @@
 # Rendering 与 Platform 规范
 
-- **状态**：S10 Architecture Baseline
+- **状态**：C8-C12 Structure Closure
 - **语言**：C++17
-- **Renderer**：retained-mode native GPU / WebGL 2
+- **Renderer**：retained-mode native GPU（D3D11 / OpenGL 3.3）
 - **Skia**：不支持
 
 ## 1. 唯一渲染链路
@@ -47,8 +47,8 @@ RenderFrame MUST：
 - pipeline/resource binding；
 - glyph/image/mesh resource registration。
 
-低层 `FrameEncoder.cpp` 是 Renderer 拥有的 command encoder 实现，不是第二个
-Renderer 生命周期。旧 `DeviceRenderer` spelling 仅保留 source-only alias。
+低层 `FrameEncoder.cpp` 实现 Renderer 拥有的 `CommandEncoder`，只记录 command
+list，不形成第二个 Renderer 生命周期或兼容 alias。
 
 Batching 不得跨越 clip、opacity group、effect、render target、read-after-write
 或 painter-order barrier。
@@ -63,11 +63,11 @@ RenderTarget 是唯一安装的目标对象：
 ```text
 RenderTarget
   → backend RenderTarget::Impl
-     → source-private Graphics::SurfaceSession（需要 acquire/present 时）
+     → concrete embedded target / window swap-chain-context adapter
 ```
 
-原 `NativeRenderTarget` 不再是对象层，只是 `RenderTarget::Impl` 的 source-only
-兼容 alias。`RenderSurface` 不再是 SDK 类型。
+每个 RenderTarget 始终拥有一个 Impl；不存在 borrowed/default-target 分支。
+`RenderSurface`、`NativeRenderTarget` 和 `SurfaceSession` 均不再是运行时层。
 
 D3D11/OpenGL embedded API 采用显式 device + target：
 
@@ -105,12 +105,11 @@ presentation。Embedded backend 不自行 present。
 平台代码只处理 native ownership：
 
 ```text
-window/canvas
+window
 DPI and resize
 input, IME and clipboard
-WGL/GLX/EGL/context current
+WGL/GLX context current
 swapchain/surface/present
-browser context-loss events
 ```
 
 平台实现不形成额外安装产品，也不定义 drawing primitive。
@@ -155,15 +154,9 @@ GetLastRenderFrameStatistics(device)
 | Backend | Release form |
 | --- | --- |
 | D3D11 | offline DXBC |
-| D3D12 | offline DXIL |
-| Vulkan | offline SPIR-V |
-| Metal | packaged metallib/platform package |
 | OpenGL 3.3 | generated/validated GLSL 330 source, runtime link |
-| GLES 3.0 | generated/validated GLSL ES 300 source, runtime link |
-| WebGL 2 | embedded validated GLSL ES 300 source, browser link |
-| Console | private offline package |
 
-Runtime GL/WebGL compile/link 是 API 约束，不允许动态生成任意 shader source。
+未来 backend 在真正进入产品构建时再扩展该表，不提前冻结推测性 RHI 枚举。
 
 ## 11. 架构与性能门禁
 

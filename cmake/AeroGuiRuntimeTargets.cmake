@@ -57,7 +57,7 @@ if(_aero_runtime_precompiled_themes)
     add_dependencies(AeroGui AeroCompiledThemes)
 endif()
 target_sources(AeroGui PRIVATE ${_aero_runtime_sources})
-target_compile_definitions(AeroGui PRIVATE AERO_INTERNAL_RUNTIME=1)
+target_compile_definitions(AeroGui PRIVATE AERO_INTERNAL_GUI_RUNTIME=1)
 target_include_directories(AeroGui PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb"
     "${_aero_runtime_theme_include_dir}"

@@ -267,7 +267,6 @@ D3D11SwapChainSurface::QuerySurfaceCapabilities() const noexcept {
     capabilities.supportsResize = true;
     capabilities.supportsPresent = true;
     capabilities.supportsContextLossRecovery = true;
-    capabilities.supportsExternalRenderTargets = false;
     if (graphics_ != nullptr && graphics_->IsInitialized()) {
         capabilities.maxWidth = graphics_->Capabilities().maxTextureDimension;
         capabilities.maxHeight = graphics_->Capabilities().maxTextureDimension;

@@ -73,14 +73,11 @@ Base::Result<void> RenderContext::Create(
         options.window = window;
         options.width = width;
         options.height = height;
-        Base::Result<Base::Ref<RenderDevice>> device =
-            Render::Detail::CreateOpenGL33WindowDevice(options, allocator);
-        if (!device) return device.GetStatus();
-        Base::Result<Base::Ref<RenderTarget>> created =
-            Render::Detail::AdoptRenderTarget(
-                std::move(device).Value(), RenderTargetKind::Window, allocator);
-        if (!created) return created.GetStatus();
-        target_ = std::move(created).Value();
+        Base::Result<Render::Detail::WindowRenderPair> pair =
+            Render::Detail::CreateOpenGL33WindowRenderPair(options, allocator);
+        if (!pair) return pair.GetStatus();
+        Render::Detail::WindowRenderPair created = std::move(pair).Value();
+        target_ = std::move(created.target);
         return {};
 #else
         return Unsupported("OpenGL application backend is not enabled");

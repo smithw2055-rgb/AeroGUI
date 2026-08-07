@@ -572,13 +572,13 @@ GlxSurfaceBackend::ContextBinding() noexcept {
         return current.GetStatus();
     }
     GlContextBinding contract;
-    binding.userData = impl_;
-    binding.contextHandle = impl_->context;
-    binding.resolve = &Impl::Resolve;
-    binding.isCurrent = &Impl::IsCurrent;
-    binding.currentThreadToken = &Impl::CurrentThread;
-    binding.owningThreadToken = impl_->owningThread;
-    binding.generation = impl_->generation;
+    contract.userData = impl_;
+    contract.contextHandle = impl_->context;
+    contract.resolve = &Impl::Resolve;
+    contract.isCurrent = &Impl::IsCurrent;
+    contract.currentThreadToken = &Impl::CurrentThread;
+    contract.owningThreadToken = impl_->owningThread;
+    contract.generation = impl_->generation;
     contract.embeddingMode =
         impl_->descriptor.ownership == SurfaceOwnership::Borrowed
         ? GlEmbeddingMode::PreserveAndRestore
@@ -603,7 +603,6 @@ GlxSurfaceBackend::QuerySurfaceCapabilities() const noexcept {
     capabilities.supportsResize = true;
     capabilities.supportsPresent = true;
     capabilities.supportsContextLossRecovery = true;
-    capabilities.supportsExternalRenderTargets = true;
     return capabilities;
 }
 

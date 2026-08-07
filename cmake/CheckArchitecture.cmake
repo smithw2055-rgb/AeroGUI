@@ -194,6 +194,42 @@ aero_forbid_text(
     "src/render/FrameEncoder.hpp"
     "using FrameEncoder ="
     "The low-level command encoder must not be exposed through a migration alias")
+aero_require_text(
+    "src/render/FrameEncoder.hpp"
+    "class CommandEncoder"
+    "The low-level recorder must be named CommandEncoder")
+aero_forbid_text(
+    "src/render/FrameEncoder.hpp"
+    "class Renderer"
+    "FrameEncoder must not recreate a peer semantic Renderer")
+aero_forbid_text(
+    "src/render/FrameEncoder.hpp"
+    "using RenderTarget ="
+    "The frame attachment value must not shadow the SDK RenderTarget")
+aero_forbid_text(
+    "src/render/private/RenderDevice.hpp"
+    "DefaultTarget("
+    "RenderDevice must not own an implicit target lifetime")
+aero_forbid_text(
+    "src/render/private/RenderTarget.hpp"
+    "CreateBorrowed("
+    "Every RenderTarget must own exactly one target implementation")
+aero_forbid_text(
+    "include/Aero/RenderTarget.hpp"
+    "ownsImpl_"
+    "RenderTarget ownership must not be conditional")
+aero_forbid_text(
+    "src/render/opengl33/OpenGL33Device.cpp"
+    "public Aero::RenderTarget::Impl"
+    "OpenGL device and target lifetimes must be separate")
+aero_forbid_text(
+    "src/render/Surface.hpp"
+    "EglWindow"
+    "Speculative EGL surface vocabulary is outside the current product")
+aero_forbid_text(
+    "src/render/Surface.hpp"
+    "WebGL2Canvas"
+    "Speculative WebGL surface vocabulary is outside the current product")
 aero_forbid_text(
     "src/render/RenderTree.hpp"
     "RenderDevice"
@@ -239,6 +275,48 @@ aero_require_text(
     "src/markup/ReloadCoordinator.cpp"
     "state.xaml.QuerySource"
     "ReloadCoordinator must query the Gui-owned XAML runtime directly")
+aero_forbid_file("src/render/ViewRenderer.hpp")
+aero_forbid_file("cmake/AeroRuntimeTargets.cmake")
+aero_forbid_text(
+    "include/Aero/View.hpp"
+    "Runtime::Detail"
+    "View must not expose a generic Runtime implementation namespace")
+aero_forbid_text(
+    "src/media/ImageCache.hpp"
+    "Runtime::Detail"
+    "ImageCache belongs to Media rather than a generic Runtime namespace")
+aero_forbid_text(
+    "src/text/TextPipeline.hpp"
+    "Runtime::Detail"
+    "TextPipeline belongs to Text rather than a generic Runtime namespace")
+aero_forbid_text(
+    "src/text/TextPipeline.cpp"
+    "RenderSurface.hpp"
+    "TextPipeline must not depend on the retired RenderSurface contract")
+aero_forbid_text(
+    "cmake/AeroGuiRuntimeTargets.cmake"
+    "AERO_INTERNAL_RUNTIME"
+    "Gui runtime compilation must not recreate the generic Runtime product spelling")
+aero_forbid_text(
+    "src/gui/View.cpp"
+    "controls/ControlsPrivate.hpp"
+    "View must include the private control contracts it actually consumes")
+aero_forbid_text(
+    "src/gui/View.cpp"
+    "gui/GuiPrivate.hpp"
+    "View must not import the whole private Gui domain")
+aero_forbid_text(
+    "src/gui/View.cpp"
+    "media/MediaPrivate.hpp"
+    "View must not import the whole private Media domain")
+aero_require_text(
+    "include/Aero/Controls/Button.hpp"
+    "class AERO_API Button"
+    "Button.hpp must own the Button declaration")
+aero_forbid_text(
+    "include/Aero/Controls/Primitives.hpp"
+    "class AERO_API Button :"
+    "Button must not have two declaration owners")
 
 # ---------------------------------------------------------------------------
 # Public API and build model

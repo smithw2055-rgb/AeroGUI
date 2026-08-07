@@ -117,7 +117,7 @@ private:
     Impl* impl_ = nullptr;
 };
 
-class AERO_API D3D11SwapChainSurface  : public ISurfaceBackend {
+class AERO_API D3D11SwapChainSurface  : public WindowSurfaceBackend {
 public:
     explicit D3D11SwapChainSurface(
         D3D11GraphicsBackend& graphics,

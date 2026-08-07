@@ -11,11 +11,11 @@
 
 namespace Aero::Render::Detail {
 
-class RendererGlyphRunSink
+class CommandEncoderGlyphRunSink
     : public GlyphRunResourceSink {
 public:
-    explicit RendererGlyphRunSink(
-        Renderer& renderer) noexcept
+    explicit CommandEncoderGlyphRunSink(
+        CommandEncoder& renderer) noexcept
         : renderer_(&renderer) {}
 
     Base::Result<void> RegisterGlyphRun(
@@ -42,14 +42,14 @@ public:
     }
 
 private:
-    Renderer* renderer_ = nullptr;
+    CommandEncoder* renderer_ = nullptr;
 };
 
 class TextGpuResources {
 public:
     TextGpuResources(
         Graphics::GraphicsDevice& device,
-        Renderer& renderer,
+        CommandEncoder& renderer,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
         : device_(&device),
@@ -204,7 +204,7 @@ private:
     }
 
     Graphics::GraphicsDevice* device_ = nullptr;
-    RendererGlyphRunSink sink_;
+    CommandEncoderGlyphRunSink sink_;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<TextRenderer*> renderers_;
     std::uint64_t nextGlyphRunBase_ =

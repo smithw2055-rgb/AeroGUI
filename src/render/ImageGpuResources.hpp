@@ -13,7 +13,7 @@ class ImageGpuResources {
 public:
     ImageGpuResources(
         Graphics::GraphicsDevice& device,
-        Renderer& renderer,
+        CommandEncoder& renderer,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
         : device_(&device),
@@ -236,7 +236,7 @@ private:
     }
 
     Graphics::GraphicsDevice* device_ = nullptr;
-    Renderer* renderer_ = nullptr;
+    CommandEncoder* renderer_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Resource> resources_;
     Graphics::ResourceHandle sampler_;

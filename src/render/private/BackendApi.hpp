@@ -55,6 +55,14 @@ struct OpenGL33WindowTargetOptions {
     bool enableDebugContext = false;
 };
 
+// Window OpenGL context creation and its first target are coupled by WGL/GLX,
+// but the SDK lifetimes remain separate objects. This private pair only
+// transports those two independently owned objects to App::RenderContext.
+struct WindowRenderPair {
+    Base::Ref<Aero::RenderDevice> device;
+    Base::Ref<Aero::RenderTarget> target;
+};
+
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11Device(
     const D3D11DeviceOptions& options = {},
     Base::IAllocator* allocator = nullptr) noexcept;
@@ -74,7 +82,7 @@ Base::Result<Base::Ref<Aero::RenderTarget>> CreateOpenGL33EmbeddedTarget(
     Base::Ref<Aero::RenderDevice> device,
     const OpenGL33EmbeddedTargetOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
-Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33WindowDevice(
+Base::Result<WindowRenderPair> CreateOpenGL33WindowRenderPair(
     const OpenGL33WindowTargetOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 

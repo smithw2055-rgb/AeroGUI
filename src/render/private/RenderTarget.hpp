@@ -29,11 +29,7 @@ struct RenderTarget::Impl {
 
     RenderTargetKind kind = RenderTargetKind::Embedded;
 
-    static Base::Result<Base::Ref<RenderTarget>> CreateBorrowed(
-        Base::Ref<Aero::RenderDevice> device,
-        Impl* implementation,
-        Base::IAllocator* allocator = nullptr) noexcept;
-    static Base::Result<Base::Ref<RenderTarget>> CreateOwned(
+    static Base::Result<Base::Ref<RenderTarget>> Create(
         Base::Ref<Aero::RenderDevice> device,
         Impl* implementation,
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -48,11 +44,6 @@ struct RenderTarget::Impl {
 namespace Aero::Render::Detail {
 
 Base::Result<Base::Ref<Aero::RenderTarget>> AdoptRenderTarget(
-    Base::Ref<Aero::RenderDevice> device,
-    Aero::RenderTargetKind kind,
-    Base::IAllocator* allocator = nullptr) noexcept;
-
-Base::Result<Base::Ref<Aero::RenderTarget>> AdoptOwnedRenderTarget(
     Base::Ref<Aero::RenderDevice> device,
     Aero::RenderTarget::Impl* target,
     Aero::RenderTargetKind kind,

@@ -13,9 +13,9 @@ class Renderer;
 
 namespace Aero::Render::Detail {
 
-class RendererGlyphRunSink;
+class CommandEncoderGlyphRunSink;
 
-struct RendererShaderSet {
+struct CommandEncoderShaderSet {
     Graphics::ShaderDescriptor rectangleVertex;
     Graphics::ShaderDescriptor rectangleFragment;
     Graphics::ShaderDescriptor imageVertex;
@@ -32,14 +32,14 @@ struct RendererShaderSet {
         Graphics::GraphicsTextureFormat::Bgra8Unorm;
 };
 
-struct RenderTarget {
+struct FrameTarget {
     Graphics::ResourceHandle color;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
     Graphics::LoadOperation load = Graphics::LoadOperation::Load;
 };
 
-struct RendererStatistics {
+struct CommandEncoderStatistics {
     std::uint32_t renderPassCount = 0U;
     std::uint32_t drawCallCount = 0U;
     std::uint32_t rectangleInstanceCount = 0U;
@@ -58,16 +58,16 @@ struct RendererStatistics {
 
 // Low-level command encoder. It is an implementation detail owned by the one
 // semantic Render::Renderer and does not form a peer renderer lifecycle.
-class Renderer {
+class CommandEncoder {
 public:
-    Renderer(
+    CommandEncoder(
         Graphics::Device& device,
-        const RendererShaderSet& shaders,
+        const CommandEncoderShaderSet& shaders,
         Base::IAllocator* allocator = nullptr) noexcept;
-    ~Renderer() noexcept;
+    ~CommandEncoder() noexcept;
 
-    Renderer(const Renderer&) = delete;
-    Renderer& operator=(const Renderer&) = delete;
+    CommandEncoder(const CommandEncoder&) = delete;
+    CommandEncoder& operator=(const CommandEncoder&) = delete;
 
     Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
@@ -88,14 +88,14 @@ public:
     Base::Result<void> UnregisterMesh(Render::RenderMeshId mesh) noexcept;
     Base::Result<Graphics::CommandList> Record(
         const ::Aero::Render::Detail::RenderFrame& plan,
-        const RenderTarget& target) noexcept;
+        const FrameTarget& target) noexcept;
     Base::Result<Graphics::CommandList> RecordOffscreen(
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& plan) noexcept;
     Base::Result<Graphics::CommandList> RecordOnscreen(
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& plan,
-        const RenderTarget& target) noexcept;
+        const FrameTarget& target) noexcept;
     void ReleaseRenderer(const void* rendererToken) noexcept;
     RendererStatistics LastStatistics() const noexcept;
     void SetBatchingEnabled(bool enabled) noexcept;
@@ -103,7 +103,7 @@ public:
 
 private:
     friend class ::Aero::Render::Renderer;
-    friend class RendererGlyphRunSink;
+    friend class CommandEncoderGlyphRunSink;
 
     struct Impl;
     Base::Result<void> RegisterGlyphRun(
@@ -118,7 +118,7 @@ private:
         Render::RenderGlyphRunId glyphRun) noexcept;
 
     Graphics::Device* device_ = nullptr;
-    RendererShaderSet shaders_;
+    CommandEncoderShaderSet shaders_;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
 };
@@ -127,9 +127,8 @@ private:
 
 namespace Aero::Render {
 
-using FrameShaderSet = Detail::RendererShaderSet;
-using FrameEncoderStatistics = Detail::RendererStatistics;
-using RenderTarget = Detail::RenderTarget;
-
+using FrameShaderSet = Detail::CommandEncoderShaderSet;
+using FrameEncoderStatistics = Detail::CommandEncoderStatistics;
+using FrameTarget = Detail::FrameTarget;
 
 } // namespace Aero::Render

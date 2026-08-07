@@ -517,7 +517,7 @@ else()
         DEPENDS "${_aero_generated_theme_header}")
 endif()
 
-include(cmake/AeroRuntimeTargets.cmake)
+include(cmake/AeroGuiRuntimeTargets.cmake)
 include(cmake/AeroRenderingTargets.cmake)
 include(cmake/AeroProductTargets.cmake)
 include(cmake/AeroConformanceTargets.cmake)

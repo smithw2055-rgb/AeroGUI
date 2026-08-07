@@ -92,8 +92,9 @@ UI objects
 ```
 
 `RenderSurface` is retired from the installed SDK. Native acquire/present state
-remains source-private. The old `NativeRenderTarget` and `DeviceRenderer`
-spellings are zero-cost source aliases, not additional objects or lifetimes.
+remains source-private. The former native-target wrapper, borrowed-target path
+and `DeviceRenderer` compatibility spelling are removed rather than retained as
+aliases.
 
 Rendering statistics are opt-in through `<Aero/Diagnostics/Rendering.hpp>`;
 they are not part of the normal RenderDevice authoring surface.
