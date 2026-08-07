@@ -49,16 +49,12 @@ using OpenGL33TargetCallback = Base::Status (*)(
     void* context,
     OpenGL33EmbeddedTarget* target) noexcept;
 
+// Device/context activation belongs to the explicitly supplied RenderDevice.
+// The target contract only selects the framebuffer exposed by the host.
 struct OpenGL33RenderTargetOptions {
-    OpenGL33ProcResolver resolve = nullptr;
-    OpenGL33MakeCurrent makeCurrent = nullptr;
-    OpenGL33IsCurrent isCurrent = nullptr;
-    OpenGL33ContextGeneration contextGeneration = nullptr;
     OpenGL33TargetCallback acquireTarget = nullptr;
     void* callbackContext = nullptr;
     void* targetContext = nullptr;
-    OpenGL33StatePreservationPolicy statePolicy =
-        OpenGL33StatePreservationPolicy::HostResetsState;
 };
 
 AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
