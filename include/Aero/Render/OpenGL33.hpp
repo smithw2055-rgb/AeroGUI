@@ -57,6 +57,7 @@ struct OpenGL33RenderTargetOptions {
     void* targetContext = nullptr;
 };
 
+#if !defined(AERO_RENDER_BACKEND_IMPLEMENTATION)
 AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateOpenGL33Device(
     const OpenGL33DeviceOptions& options,
@@ -67,5 +68,6 @@ CreateOpenGL33RenderTarget(
     Base::Ref<Aero::RenderDevice> device,
     const OpenGL33RenderTargetOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
+#endif
 
 } // namespace Aero::Render
