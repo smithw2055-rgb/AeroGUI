@@ -1,8 +1,10 @@
 #pragma once
 
 #include <Aero/Platform/NativeWindow.hpp>
+#define AERO_RENDER_BACKEND_IMPLEMENTATION 1
 #include <Aero/Render/D3D11.hpp>
 #include <Aero/Render/OpenGL33.hpp>
+#undef AERO_RENDER_BACKEND_IMPLEMENTATION
 #include "render/Surface.hpp"
 #include "render/private/RenderSurface.hpp"
 
