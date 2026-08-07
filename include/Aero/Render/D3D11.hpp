@@ -37,13 +37,11 @@ using D3D11TargetCallback = Base::Status (*)(
     void* context,
     D3D11EmbeddedTarget* target) noexcept;
 
+// Target options describe only how to acquire the host-owned target. Device and
+// immediate-context ownership belongs to the explicitly supplied RenderDevice.
 struct D3D11RenderTargetOptions {
-    std::uintptr_t device = 0U;
-    std::uintptr_t immediateContext = 0U;
     D3D11TargetCallback acquireTarget = nullptr;
     void* callbackContext = nullptr;
-    D3D11StatePreservationPolicy statePolicy =
-        D3D11StatePreservationPolicy::HostResetsState;
 };
 
 AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
