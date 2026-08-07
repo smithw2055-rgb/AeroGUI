@@ -63,11 +63,11 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Input/Platform.hpp
     include/Aero/Platform/NativeWindow.hpp
     include/Aero/RenderDevice.hpp
+    include/Aero/RenderTarget.hpp
     include/Aero/View.hpp
     include/Aero/Render/D3D11.hpp
     include/Aero/Render/OpenGL33.hpp
     include/Aero/Markup/ReloadCoordinator.hpp
-    include/Aero/RenderSurface.hpp
     include/Aero/Text/FontProvider.hpp
     include/Aero/Media/TextureProvider.hpp
     include/Aero/Markup/XamlProvider.hpp
