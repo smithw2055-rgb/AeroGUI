@@ -58,6 +58,8 @@ set(AERO_DEFAULT_THEME_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
     "${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
     "${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml")
+# TARGET_FILE_DIR creates the required AeroDefaultThemes -> AeroGui ordering.
+# Do not add the reverse AeroGui -> AeroDefaultThemes dependency.
 add_custom_target(AeroDefaultThemes ALL
     COMMAND "${CMAKE_COMMAND}" -E make_directory
         "$<TARGET_FILE_DIR:AeroGui>/themes"
@@ -66,7 +68,6 @@ add_custom_target(AeroDefaultThemes ALL
         "$<TARGET_FILE_DIR:AeroGui>/themes"
     DEPENDS ${AERO_DEFAULT_THEME_FILES}
     VERBATIM)
-add_dependencies(AeroGui AeroDefaultThemes)
 
 unset(_aero_runtime_precompiled_themes)
 unset(_aero_theme_embed_result)
