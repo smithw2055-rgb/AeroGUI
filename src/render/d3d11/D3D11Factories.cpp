@@ -19,18 +19,4 @@ Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11RenderTarget(
         std::move(device), options, allocator);
 }
 
-Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11WindowSurface(
-    Base::Ref<Aero::RenderDevice> device,
-    const D3D11WindowSurfaceOptions& options,
-    Base::IAllocator* allocator) noexcept {
-    return ::Aero::Render::Detail::CreateD3D11WindowSurface(
-        std::move(device), options, allocator);
-}
-
-Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11WindowSurface(
-    const D3D11WindowSurfaceOptions& options,
-    Base::IAllocator* allocator) noexcept {
-    return ::Aero::Render::Detail::CreateD3D11WindowSurface(options, allocator);
-}
-
 } // namespace Aero::Render
