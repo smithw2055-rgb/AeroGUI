@@ -67,7 +67,7 @@ Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11WindowSurface(
 Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11EmbeddedSurface(
     const D3D11EmbeddedSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
-Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11WindowSurface(
+AERO_API Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11WindowSurface(
     const D3D11WindowSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
@@ -83,7 +83,7 @@ Base::Result<Base::Ref<Aero::RenderTarget>>
 CreateOpenGL33EmbeddedSurface(
     const OpenGL33EmbeddedSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
-Base::Result<Base::Ref<Aero::RenderTarget>>
+AERO_API Base::Result<Base::Ref<Aero::RenderTarget>>
 CreateOpenGL33WindowSurface(
     const OpenGL33WindowSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
