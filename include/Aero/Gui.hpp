@@ -38,5 +38,5 @@
 #include <Aero/ViewOptions.hpp>
 #include <Aero/IRenderer.hpp>
 #include <Aero/RenderDevice.hpp>
-#include <Aero/RenderSurface.hpp>
+#include <Aero/RenderTarget.hpp>
 #include <Aero/Platform/NativeWindow.hpp>
