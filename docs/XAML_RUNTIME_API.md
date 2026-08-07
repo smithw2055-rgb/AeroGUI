@@ -6,8 +6,9 @@ renderer implementation objects.
 
 ## Gui and Meta authoring
 
-Normal control code includes `Aero/Gui.hpp`; custom types additionally include
-`Aero/Meta.hpp` and `Aero/Module.hpp`:
+Hosts include `Aero/Gui.hpp` for the runtime entry point. Control code includes
+the WPF type headers it uses (or `Aero/Controls.hpp`); custom types additionally
+include `Aero/Meta.hpp` and `Aero/Module.hpp`:
 
 ```cpp
 Aero::Base::Result<void> RegisterModule(
@@ -41,7 +42,8 @@ static_cast<void>(application.SetStartupUri("MainWindow.xaml"));
 const Aero::ModuleRegistration modules[] = {module};
 Aero::App::RunOptions options;
 options.modules = modules;
-return application.Run(options);
+auto run = application.Run(options);
+return run ? run.Value() : 1;
 ```
 
 `Application` and `Window` retain WPF/XAML semantics. Native-window creation,
@@ -110,9 +112,11 @@ native-window/present policy.
 
 ## XAML load transaction
 
-`Markup::XamlDocument` is a move-only load result. `Markup::XamlReader` creates an
-unmounted object graph; `View::SetContent` commits binding, dynamic-resource
-and mount side effects. Failure leaves no partially mounted document.
+`Markup::XamlDocument` is a move-only load result. `Markup::XamlReader` is
+Gui-owned and creates an unmounted object graph without requiring a View;
+`View::SetContent` binds the current View services and commits binding,
+dynamic-resource and mount side effects. Failure leaves no partially mounted
+document.
 
 The public schema surface resolves types and members. Object construction,
 member writes, initialization, NameScope/resource scopes, deferred content and

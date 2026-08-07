@@ -52,7 +52,8 @@ struct DataTemplate::Impl {
         DataTemplate& value) noexcept;
     static Base::Result<Base::Ref<Base::Object>> Instantiate(
         const DataTemplate& value,
-        const Base::Ref<Base::Object>& item) noexcept;
+        const Base::Ref<Base::Object>& item,
+        GuiPrivate::Detail::BindingEngine* bindings = nullptr) noexcept;
 };
 
 } // namespace Aero
@@ -154,7 +155,9 @@ public:
         static const Base::Ref<Base::Object>& AuthoredVisualTree(const ItemsPanelTemplate& value) noexcept;
         static Base::Result<void> Seal(DataTemplate& value) noexcept;
         static Base::Result<void> Seal(ItemsPanelTemplate& value) noexcept;
-        static Base::Result<Base::Ref<Base::Object>> Instantiate(const DataTemplate& value, const Base::Ref<Base::Object>& item) noexcept;
+        static Base::Result<Base::Ref<Base::Object>> Instantiate(
+            const DataTemplate& value, const Base::Ref<Base::Object>& item,
+            GuiPrivate::Detail::BindingEngine* bindings = nullptr) noexcept;
         static Base::Result<Base::Ref<Base::Object>> Instantiate(const ItemsPanelTemplate& value) noexcept;
 
         static FrameworkTemplateState* State(FrameworkTemplate& value) noexcept;

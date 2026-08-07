@@ -26,7 +26,8 @@ protected:
 
 int main() {
     App app;
-    return app.Run();
+    auto run = app.Run();
+return run ? run.Value() : 1;
 }
 ```
 
@@ -115,7 +116,7 @@ Aero::Gui environment;
 environment.Initialize();
 
 auto view = environment.CreateView(options).Value();
-Aero::Markup::XamlReader reader(*view);
+Aero::Markup::XamlReader reader(environment);
 auto document = reader.Load("app:///MainView.xaml").Value();
 view->SetContent(std::move(document), {1280.0, 720.0});
 view->Update(elapsedMilliseconds);
@@ -127,7 +128,7 @@ does not expose a second loader API.
 
 ## Custom controls
 
-Custom controls normally need only `Aero/Gui.hpp` and `Aero/Meta.hpp`:
+Custom controls include their WPF base type plus `Aero/Meta.hpp` (for example `Aero/Controls/Control.hpp`):
 
 ```cpp
 class Rating : public Aero::Controls::Control {

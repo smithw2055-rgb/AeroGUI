@@ -6,9 +6,9 @@
 #include "render/opengl33/OpenGL33Backend.hpp"
 
 #if defined(_WIN32) && AERO_HAS_WGL_SURFACE
-#include "platform/win32/OpenGLSurface.hpp"
+#include "render/platform/win32/OpenGLSurface.hpp"
 #elif defined(__linux__) && AERO_HAS_GLX_SURFACE
-#include "platform/x11/OpenGLSurface.hpp"
+#include "render/platform/x11/OpenGLSurface.hpp"
 #endif
 
 #include <functional>

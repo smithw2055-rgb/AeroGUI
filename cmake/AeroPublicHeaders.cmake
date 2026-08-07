@@ -27,6 +27,21 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/CAPI.h
     include/Aero/ContentElement.hpp
     include/Aero/Controls.hpp
+    include/Aero/Controls/Button.hpp
+    include/Aero/Controls/Grid.hpp
+    include/Aero/Controls/ListBox.hpp
+    include/Aero/Controls/TextBox.hpp
+    include/Aero/Controls/TreeView.hpp
+    include/Aero/Controls/UserControl.hpp
+    include/Aero/Controls/CheckBox.hpp
+    include/Aero/Controls/RadioButton.hpp
+    include/Aero/Controls/ComboBox.hpp
+    include/Aero/Controls/ListView.hpp
+    include/Aero/Controls/ScrollViewer.hpp
+    include/Aero/Controls/ContentControl.hpp
+    include/Aero/Controls/Control.hpp
+    include/Aero/Controls/Panel.hpp
+    include/Aero/Controls/TextBlock.hpp
     include/Aero/Controls/Core.hpp
     include/Aero/Controls/Items.hpp
     include/Aero/Controls/Panels.hpp

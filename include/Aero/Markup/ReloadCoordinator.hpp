@@ -63,6 +63,22 @@ public:
     std::uint32_t TrackedSourceCount() const noexcept;
 
 private:
+    static bool ViewIsInitialized(const View& view) noexcept;
+    static bool ViewIsMounted(const View& view) noexcept;
+    static Base::Result<void> QueryReloadSource(
+        View& view, const Base::ResourceUri& uri,
+        std::uint64_t& sourceIdentity, std::uint64_t& revision) noexcept;
+    static bool TryGetCachedReloadRevision(
+        View& view, const Base::ResourceUri& uri,
+        std::uint64_t sourceIdentity, std::uint64_t& revision) noexcept;
+    static Base::Result<std::uint32_t> InvalidateReloadDocuments(
+        View& view, const Base::ResourceUri& uri,
+        bool includeDependents) noexcept;
+    static Base::Result<void> ReplaceMountedDocument(
+        View& view, XamlDocument&& document, Aero::Size availableSize) noexcept;
+    static Base::Result<void> MountDocument(
+        View& view, XamlDocument&& document, Aero::Size availableSize) noexcept;
+
     struct Impl;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;

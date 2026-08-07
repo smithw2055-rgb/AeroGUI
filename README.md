@@ -16,8 +16,7 @@ AeroGUI exposes a small product surface organized by WPF semantics:
 
 Legacy host facades, service locators, graphics support targets and runtime
 manager classes are implementation details. The installed tree is an explicit
-whitelist, has no `Aero/Detail` directory, and groups all standard controls into
-six stable family headers. D3D11 and OpenGL factories remain opt-in headers
+whitelist, has no `Aero/Detail` directory, and groups standard controls into stable family headers while also providing WPF-type thin headers such as `Button.hpp`, `Grid.hpp`, `ListBox.hpp` and `TextBox.hpp`. D3D11 and OpenGL factories remain opt-in headers
 under `Aero/Render`; private backends consume the same Renderer and RenderDevice
 contracts. See [`docs/WINDOW_HOSTING.md`](docs/WINDOW_HOSTING.md),
 [`docs/SDK_PACKAGING.md`](docs/SDK_PACKAGING.md), and
@@ -351,16 +350,14 @@ C++17 Runtime
 AeroGUI/
 ├── include/Aero/           # explicit product SDK headers
 ├── src/base/               # foundation implementation
-├── src/gui/                # WPF semantic kernel by domain
+├── src/gui/                # WPF semantic kernel, Gui and View composition
 ├── src/controls/           # standard controls and control behavior
-├── src/markup/             # XAML schema, object writer and XamlDocument
+├── src/markup/             # XAML schema, providers, object writer and XamlDocument
 ├── src/text/               # shaping, fonts and glyph runtime
-├── src/media/              # brushes, images, transforms and effects
-├── src/runtime/            # View composition and frame lifecycle
-├── src/render/             # RenderTree, Renderer, RenderDevice and GPU backends
-├── src/platform/           # private OS window, IME, clipboard and context adapters
-├── src/integration/        # backend factories and host integration
-├── src/app/                # default desktop Application framework
+├── src/media/              # brushes, images, transforms, effects and image cache
+├── src/input/              # platform-neutral input services such as clipboard
+├── src/render/             # RenderTree, Renderer, RenderDevice, GPU and surface adapters
+├── src/app/                # Application, Window and private OS window/IME adapters
 ├── third_party/
 ├── tools/{xamlc,schema-gen}/
 ├── themes/

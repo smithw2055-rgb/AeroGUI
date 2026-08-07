@@ -39,6 +39,7 @@ class StyleEngine;
 struct ElementHost {
     EventRouter* events = nullptr;
     InputRouter* input = nullptr;
+    BindingEngine* bindings = nullptr;
     void* templates = nullptr;
     void* visualStates = nullptr;
     void* textLayout = nullptr;
@@ -102,6 +103,12 @@ public:
         const Aero::UIElement& element) noexcept {
         ElementHost* services = Host(element);
         return services != nullptr ? services->input : nullptr;
+    }
+
+    static BindingEngine* BindingEngineFor(
+        const Aero::UIElement& element) noexcept {
+        ElementHost* services = Host(element);
+        return services != nullptr ? services->bindings : nullptr;
     }
 
     static Base::Object* FindName(

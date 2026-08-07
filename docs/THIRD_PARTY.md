@@ -76,7 +76,7 @@ Vendored static package 可携带 `_PrivateExpat`；使用 system Expat 时 pack
 
 ```text
 src/audio/MiniaudioImplementation.cpp
-src/runtime/StbImageImplementation.cpp
+src/media/StbImageImplementation.cpp
 ```
 
 高层 Audio/Image runtime 不包含 implementation macro，不继承第三方 warning

@@ -66,6 +66,7 @@ public:
 
 
 private:
+    static Base::Result<void> UnmountView(::Aero::View& view) noexcept;
     struct Impl;
     Impl* impl_ = nullptr;
 };

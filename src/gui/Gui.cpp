@@ -1,13 +1,81 @@
+#include <Aero/Gui.hpp>
 #include <Aero/View.hpp>
 
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/Media/TextureProvider.hpp>
 #include <Aero/Text/FontProvider.hpp>
 #include <Aero/ViewOptions.hpp>
-#include "runtime/GuiData.hpp"
+#include "gui/GuiData.hpp"
+#include <Aero/BuiltinThemes.generated.hpp>
 
 #include <new>
 #include <utility>
+
+
+namespace Aero::GuiPrivate::Detail {
+
+Base::Result<Base::ResourceUri> BuiltInThemeUri(
+    Base::StringView name) noexcept {
+    Base::String text;
+    Base::Result<void> assigned = text.Assign(
+        Base::StringView("pack://application:,,,/Aero.Themes;component/"));
+    if (!assigned) return assigned.GetStatus();
+    Base::Result<void> appended = text.Append(name);
+    if (!appended) return appended.GetStatus();
+    return Base::ResourceUri::Parse(text.View());
+}
+
+Base::Result<void> RegisterDefaultXamlProviders(
+    Markup::XamlProviderRegistry& providers,
+    Markup::EmbeddedXamlProvider& embedded,
+    Markup::FileXamlProvider& file) noexcept {
+    Base::Result<Base::ResourceUri> light = BuiltInThemeUri("Light.xaml");
+    if (!light) return light.GetStatus();
+    Base::Result<void> status = embedded.Add(
+        light.Value(), {::Aero::Runtime::Detail::AeroThemeLightSource,
+            static_cast<std::uint32_t>(sizeof(::Aero::Runtime::Detail::AeroThemeLightSource))});
+    if (!status) return status.GetStatus();
+    Base::Result<Base::ResourceUri> dark = BuiltInThemeUri("Dark.xaml");
+    if (!dark) return dark.GetStatus();
+    status = embedded.Add(
+        dark.Value(), {::Aero::Runtime::Detail::AeroThemeDarkSource,
+            static_cast<std::uint32_t>(sizeof(::Aero::Runtime::Detail::AeroThemeDarkSource))});
+    if (!status) return status.GetStatus();
+    Base::Result<Base::ResourceUri> generic = BuiltInThemeUri("Generic.xaml");
+    if (!generic) return generic.GetStatus();
+    status = embedded.Add(
+        generic.Value(), {::Aero::Runtime::Detail::AeroThemeGenericSource,
+            static_cast<std::uint32_t>(sizeof(::Aero::Runtime::Detail::AeroThemeGenericSource))});
+    if (!status) return status.GetStatus();
+    Base::Result<Base::ResourceUri> lightBlue = Base::ResourceUri::Parse(
+        "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.LightBlue.xaml");
+    if (!lightBlue) return lightBlue.GetStatus();
+    status = embedded.Add(
+        lightBlue.Value(), {::Aero::Runtime::Detail::AeroThemeLightSource,
+            static_cast<std::uint32_t>(sizeof(::Aero::Runtime::Detail::AeroThemeLightSource))});
+    if (!status) return status.GetStatus();
+    Base::Result<Base::ResourceUri> darkBlue = Base::ResourceUri::Parse(
+        "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.DarkBlue.xaml");
+    if (!darkBlue) return darkBlue.GetStatus();
+    status = embedded.Add(
+        darkBlue.Value(), {::Aero::Runtime::Detail::AeroThemeDarkSource,
+            static_cast<std::uint32_t>(sizeof(::Aero::Runtime::Detail::AeroThemeDarkSource))});
+    if (!status) return status.GetStatus();
+
+    auto registerProvider = [&](Markup::XamlProvider& provider,
+                                Base::StringView scheme) noexcept -> Base::Result<void> {
+        Base::Result<void> registered = providers.Register(provider, scheme);
+        return !registered && registered.GetStatus().code != Base::ErrorCode::AlreadyExists
+            ? Base::Result<void>(registered.GetStatus()) : Base::Result<void>();
+    };
+    status = registerProvider(embedded, "pack");
+    if (!status) return status.GetStatus();
+    status = registerProvider(file, "file");
+    if (!status) return status.GetStatus();
+    return registerProvider(file, {});
+}
+
+} // namespace Aero::GuiPrivate::Detail
 
 
 namespace Aero {
@@ -90,6 +158,10 @@ Base::Result<void> Gui::Initialize() noexcept {
     Base::Result<void> finalized = state.schema.Finalize(
         GuiSchemaOptions{state.allocator});
     if (!finalized) return finalized.GetStatus();
+    Base::Result<void> providers =
+        GuiPrivate::Detail::RegisterDefaultXamlProviders(
+            state.xamlProviders, state.embeddedXaml, state.fileXaml);
+    if (!providers) return providers.GetStatus();
     Base::Result<void> frozen = state.modules.Freeze();
     if (!frozen) return frozen.GetStatus();
     state.initialized = true;

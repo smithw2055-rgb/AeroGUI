@@ -1,4 +1,4 @@
-#include "platform/x11/OpenGLSurface.hpp"
+#include "render/platform/x11/OpenGLSurface.hpp"
 
 #if !defined(__linux__) && !defined(__unix__)
 #error "GlxSurface.cpp is only supported on Unix/X11"

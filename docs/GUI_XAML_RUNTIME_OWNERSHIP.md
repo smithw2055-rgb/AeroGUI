@@ -1,76 +1,57 @@
 # Gui-owned XAML runtime
 
-S2C moves source loading, parsing, compiled-document replay and shared cache
-invalidation behind one Gui-owned XAML runtime.
+The final Gui/XAML ownership model keeps immutable/shared loading state at Gui
+scope and binds presentation-instance effects only when a document is mounted.
 
-## Ownership
+## Gui ownership
 
-`Gui::Impl` now owns one source-private `Markup::Detail::XamlRuntime`. It binds
-together the three process-level XAML objects that already belong to Gui:
+`Gui::Impl` owns the thread dispatcher, frozen `GuiSchema`, shared
+`DocumentCache`, canonical `XamlProviderRegistry`, default embedded/file
+providers and one source-private `Markup::Detail::XamlRuntime`.
 
-- the frozen `GuiSchema`;
-- the shared `DocumentCache`;
-- the canonical `XamlProviderRegistry`.
+`Markup::XamlReader` is constructed from `Gui&`:
 
-Views retain their Gui state and reference this runtime. A View no longer
-constructs `Markup::Loader` directly and no longer performs provider revision
-probing or compiled-cache invalidation itself.
-
-## View-affine state
-
-Object construction is intentionally still View-affine. Every load operation
-passes the View's `Markup::LoadState` into the Gui-owned runtime. That state
-contains the dispatcher, effective-value engine, resource environment,
-name-scope and effect lifetime required by ObjectWriter.
-
-This split keeps the ownership boundary precise:
-
-```text
-Gui XamlRuntime
-  schema
-  providers
-  compiled document cache
-  source revision and invalidation
-        |
-        | load/parse/compiled replay
-        v
-View LoadState
-  dispatcher and object factory
-  dependency-value engine
-  resource environment
-  effect lifetime
-  mount transaction
+```cpp
+Aero::Gui gui;
+gui.Initialize();
+Aero::Markup::XamlReader reader(gui);
+auto document = reader.Load("app:///MainView.xaml").Value();
 ```
 
-The immutable compiled representation may be shared by all Views created from
-the same Gui. The materialized object graph and side effects remain owned by the
-View that requested the load.
+Loading and compiled replay create an unmounted object graph using Gui-owned
+metadata and the Gui dispatcher. No View is required for schema lookup, provider
+routing, source revision handling or document-cache access.
 
-## Removed View responsibilities
+## View-affine activation
 
-`View.cpp` no longer directly:
-
-- creates `Markup::Loader` for documents or resource dictionaries;
-- resolves an XAML provider to probe source revisions;
-- hashes provider streams when a revision is unavailable;
-- reads or invalidates the shared `DocumentCache`.
-
-The private View methods remain thin compatibility entry points for
-`ViewAccess`; they validate View state, build per-View reader settings and then
-delegate to the Gui-owned runtime.
-
-## Resulting load path
+Binding, MultiBinding and DynamicResource records are emitted as deferred
+effects. When `View::SetContent` or `XamlReader::Mount` commits the document, the
+View injects its current dependency-value, binding, resource and lifetime
+services before the effect plan is committed. ControlTemplate and DataTemplate
+instances likewise receive the binding engine of the View that instantiates
+them rather than capturing a View during XAML loading.
 
 ```text
-XamlReader / ReloadCoordinator
-  -> ViewAccess
-  -> View validation and XamlReaderSettings
-  -> Gui::Impl::xaml
-  -> Loader(schema, providers, View LoadState)
-  -> shared DocumentCache
-  -> View mount transaction
+Gui
+  dispatcher
+  schema + providers
+  document cache
+  XamlRuntime
+       |
+       | load / parse / compiled replay
+       v
+unmounted XamlDocument
+  object graph + deferred effects
+       |
+       | SetContent / Mount
+       v
+View
+  dependency values + binding engine
+  resources + namescope
+  layout/input/animation/render state
 ```
 
-This stage deliberately does not move resource-layer dictionaries or the
-ObjectWriter effect lifetime into Gui. Those objects are presentation-instance
-state and must not be shared between Views.
+This makes a loaded document a Gui/thread-level construction result while
+keeping mutable presentation subscriptions and mounted state View-affine.
+`ViewAccess` and the old View-private Load/Parse/Compiled gateway are no longer
+part of the source architecture.

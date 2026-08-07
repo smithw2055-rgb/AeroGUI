@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Result.hpp>
-#include "../platform/Window.hpp"
+#include "../app/platform/Window.hpp"
 
 #include <cstdint>
 

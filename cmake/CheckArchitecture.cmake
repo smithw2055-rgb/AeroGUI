@@ -70,10 +70,10 @@ aero_forbid_text(
     "include/Aero/IRenderer.hpp"
     "RenderSurface"
     "IRenderer must not expose the retired RenderSurface spelling")
-aero_require_text(
+aero_forbid_text(
     "include/Aero/Gui.hpp"
     "#include <Aero/RenderTarget.hpp>"
-    "Gui umbrella must expose RenderTarget")
+    "Gui core header must not drag the rendering SDK umbrella into every consumer")
 aero_forbid_text(
     "include/Aero/Gui.hpp"
     "RenderSurface"
@@ -151,6 +151,14 @@ aero_require_file("src/render/Renderer.hpp")
 aero_require_file("src/render/Renderer.cpp")
 aero_require_file("src/app/RenderContext.hpp")
 aero_require_file("src/app/RenderContext.cpp")
+aero_require_file("src/gui/Gui.cpp")
+aero_require_file("src/gui/View.cpp")
+aero_require_file("src/markup/XamlProvider.cpp")
+aero_require_file("src/input/Clipboard.cpp")
+aero_forbid_file("src/runtime")
+aero_forbid_file("src/providers")
+aero_forbid_file("src/platform")
+aero_forbid_file("src/runtime/ViewAccess.hpp")
 
 # S11/S12 final frame and host invariants. Renderer is the one semantic submit
 # boundary; SurfaceSession is acquire/present only, and DesktopHost blocks on
@@ -176,7 +184,7 @@ aero_forbid_text(
     "GraphicsDevice()->Submit("
     "OpenGL embedded backend must not bypass Renderer submission")
 aero_require_text(
-    "src/platform/Window.hpp"
+    "src/app/platform/Window.hpp"
     "WaitEventFor("
     "Platform window boundary must support timed native waits")
 aero_require_text(
@@ -208,6 +216,27 @@ aero_require_text(
     "src/render/DeviceRenderer.hpp"
     "using DeviceRenderer = Renderer"
     "DeviceRenderer compatibility spelling must be a zero-cost alias")
+
+aero_require_text(
+    "include/Aero/Markup.hpp"
+    "explicit XamlReader(Aero::Gui& gui)"
+    "XamlReader must be owned by Gui rather than by a View")
+aero_forbid_text(
+    "include/Aero/Markup.hpp"
+    "XamlReader(Aero::View&"
+    "XamlReader must not recreate View-owned loading")
+aero_forbid_text(
+    "include/Aero/Application.hpp"
+    "RunChecked"
+    "Application must expose one Result-returning Run API family")
+aero_forbid_text(
+    "include/Aero/Window.hpp"
+    "ShowChecked"
+    "Window must expose one Result-returning Show API")
+aero_forbid_text(
+    "include/Aero/Window.hpp"
+    "CloseChecked"
+    "Window must expose one Result-returning Close API")
 
 file(GLOB aero_root_source_files
     "${AERO_SOURCE_DIR}/src/*.cpp"
@@ -256,6 +285,15 @@ if(product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*AeroIntegration" OR
    product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*Aero::Integration")
     message(FATAL_ERROR "The retired Integration product must not be recreated")
 endif()
+foreach(retired_object_layer IN ITEMS
+        AeroGuiKernelObjects AeroControlsObjects AeroMarkupKernelObjects
+        AeroMarkupObjects AeroInspectorObjects AeroRuntimeObjects
+        AeroRenderingObjects)
+    if(product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*${retired_object_layer}")
+        message(FATAL_ERROR
+            "Product implementation object layer was recreated: ${retired_object_layer}")
+    endif()
+endforeach()
 
 aero_require_text(
     "cmake/AeroProductTargets.cmake"

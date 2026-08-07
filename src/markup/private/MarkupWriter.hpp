@@ -45,6 +45,8 @@ using ProvidedRollbackCallback = void (*)(
     void* context,
     std::uint64_t token) noexcept;
 using ProvidedCleanupCallback = void (*)(void* context) noexcept;
+using ProvidedBindCallback = Base::Result<void> (*)(
+    void* context, const EffectRuntimeServices& services) noexcept;
 
 struct ProvidedValue {
     ProvidedValueKind kind = ProvidedValueKind::Value;
@@ -57,6 +59,7 @@ struct ProvidedValue {
     ProvidedPrepareCallback prepare = nullptr;
     ProvidedCommitCallback commit = nullptr;
     ProvidedCleanupCallback cleanup = nullptr;
+    ProvidedBindCallback bind = nullptr;
 
     static ProvidedValue FromValue(
         Meta::Value&& provided) noexcept {
@@ -89,7 +92,8 @@ struct ProvidedValue {
         ProvidedCommitCallback commitCallback,
         ProvidedRollbackCallback rollbackCallback,
         ProvidedCleanupCallback cleanupCallback,
-        ProvidedPrepareCallback prepareCallback = nullptr) noexcept {
+        ProvidedPrepareCallback prepareCallback = nullptr,
+        ProvidedBindCallback bindCallback = nullptr) noexcept {
         ProvidedValue result;
         result.kind = ProvidedValueKind::Deferred;
         result.rollbackContext = context;
@@ -97,6 +101,7 @@ struct ProvidedValue {
         result.commit = commitCallback;
         result.rollback = rollbackCallback;
         result.cleanup = cleanupCallback;
+        result.bind = bindCallback;
         return result;
     }
     void Discard() noexcept {
@@ -117,6 +122,7 @@ struct ProvidedValue {
         prepare = nullptr;
         commit = nullptr;
         cleanup = nullptr;
+        bind = nullptr;
     }
 };
 
@@ -358,7 +364,6 @@ struct DeferredBindingEdge {
     Base::Object* source = nullptr;
     Base::String sourceName;
     ::Aero::DependencyObject* target = nullptr;
-    Aero::GuiPrivate::Detail::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     Meta::DependencyPropertyHandle targetProperty;
     Meta::DependencyPropertyHandle dataContextProperty;
@@ -393,7 +398,6 @@ public:
         Base::Object* source,
         Base::StringView sourceName,
         ::Aero::DependencyObject& target,
-        Aero::GuiPrivate::Detail::BindingEngine& manager,
         ::Aero::Meta::Registry& metadata,
         Meta::DependencyPropertyHandle targetProperty,
         Meta::DependencyPropertyHandle dataContextProperty,
@@ -1394,7 +1398,6 @@ struct TemplatePrototypeBinding {
     // resolved from the templated parent's document NameScope for each
     // ControlTemplate instance. Internal names continue to use source above.
     Base::String sourceName;
-    Aero::GuiPrivate::Detail::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     Meta::DependencyPropertyHandle targetProperty;
     Meta::DependencyPropertyHandle dataContextProperty;
@@ -1442,7 +1445,8 @@ Base::Result<void> BuildCompiledTemplate(
 Base::Result<Base::Ref<Base::Object>>
 BuildCompiledDeferredTemplate(
     const Base::Ref<Base::Object>& payload,
-    void* factoryContext) noexcept;
+    void* factoryContext,
+    Aero::GuiPrivate::Detail::BindingEngine* bindings) noexcept;
 
 Base::Result<CompiledTemplateBlueprint>
 CompileDeferredTemplateBlueprint(

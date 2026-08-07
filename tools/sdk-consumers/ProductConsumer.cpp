@@ -65,7 +65,7 @@ protected:
     static_cast<void>(application.RuntimeType());
     static_cast<void>(window.RuntimeType());
     static_cast<void>(
-        static_cast<int (Aero::Application::*)() noexcept>(
+        static_cast<Aero::Base::Result<int> (Aero::Application::*)() noexcept>(
             &Aero::Application::Run));
     static_cast<void>(
         static_cast<int (*)(const Aero::App::RunOptions&) noexcept>(
@@ -92,17 +92,14 @@ static_assert(
 
 static_assert(
     std::is_same<
-        decltype(std::declval<Aero::Application&>().RunChecked()),
+        decltype(std::declval<Aero::Application&>().Run()),
         Aero::Base::Result<int>>::value,
-    "Application must expose a diagnostic RunChecked boundary");
+    "Application must expose a Result-returning Run boundary");
 
 static_assert(
     std::is_same<
         decltype(std::declval<Aero::Window&>().Show()),
-        void>::value &&
-    std::is_same<
-        decltype(std::declval<Aero::Window&>().ShowChecked()),
         Aero::Base::Result<void>>::value,
-    "Window must expose WPF-shaped and checked Show boundaries");
+    "Window must expose one Result-returning Show boundary");
 
 } // namespace

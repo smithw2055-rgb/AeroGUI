@@ -17,8 +17,6 @@ inline constexpr AdoptRefTag AdoptRef{};
 
 template<class T>
 class Ref  {
-    static_assert(std::is_base_of<Object, T>::value,
-        "Ref<T> requires T to derive from Aero::Base::Object");
 
 public:
     constexpr Ref() noexcept = default;
@@ -82,7 +80,7 @@ public:
     // for transactional bookkeeping that must outlive a caller's temporary
     // ownership until the transaction is committed or discarded.
     static Ref FromBorrowed(T& value) noexcept {
-        value.AddRef();
+        reinterpret_cast<Object*>(&value)->AddRef();
         return Ref(&value, Detail::AdoptRef);
     }
 
@@ -91,7 +89,7 @@ public:
     // objects while remaining source-compatible with stack-based test hosts.
     static Ref TryFromBorrowed(T& value) noexcept {
         Detail::ObjectControlBlock* control =
-            static_cast<Object&>(value).ControlBlock();
+            reinterpret_cast<Object*>(&value)->ControlBlock();
         if (control == nullptr || !Detail::AcquireStrong(control)) {
             return {};
         }
@@ -102,7 +100,7 @@ public:
         T* value = value_;
         value_ = nullptr;
         if (value != nullptr) {
-            value->Release();
+            reinterpret_cast<Object*>(value)->Release();
         }
     }
 
@@ -124,7 +122,7 @@ private:
 
     void AddReference() noexcept {
         if (value_ != nullptr) {
-            value_->AddRef();
+            reinterpret_cast<Object*>(value_)->AddRef();
         }
     }
 

@@ -9,6 +9,8 @@
 
 #include <cstdint>
 
+namespace Aero::GuiPrivate::Detail { class BindingEngine; }
+
 namespace Aero::Controls::Detail {
 
 struct TemplateHandle {
@@ -67,6 +69,7 @@ public:
     Control& TemplatedParent() const noexcept;
     Visual* RootVisual() const noexcept;
     UIElement* RootElement() const noexcept;
+    Aero::GuiPrivate::Detail::BindingEngine& Bindings() const noexcept;
 
 private:
     friend class Aero::Controls::Detail::TemplateEngine;
@@ -163,14 +166,18 @@ struct FrameworkTemplateState {
     bool sealed = false;
 };
 
-using DeferredObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)(const Base::Ref<Base::Object>& item, void* context) noexcept;
+using DeferredObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)(
+    const Base::Ref<Base::Object>& item, void* context,
+    Aero::GuiPrivate::Detail::BindingEngine* bindings) noexcept;
 
 struct DeferredObjectProgram {
     Base::Result<void> Configure(DeferredObjectFactory factory, void* context = nullptr) noexcept;
     Base::Result<void> Configure(DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> factoryOwner) noexcept;
     Base::Result<void> SetBaseUri(const Base::ResourceUri& value) noexcept;
     Base::Result<void> Seal() noexcept;
-    Base::Result<Base::Ref<Base::Object>> Instantiate(const Base::Ref<Base::Object>& payload = {}) const noexcept;
+    Base::Result<Base::Ref<Base::Object>> Instantiate(
+        const Base::Ref<Base::Object>& payload = {},
+        Aero::GuiPrivate::Detail::BindingEngine* bindings = nullptr) const noexcept;
 
     DeferredObjectFactory factory = nullptr;
     void* context = nullptr;

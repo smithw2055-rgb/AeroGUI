@@ -193,6 +193,7 @@ private:
 
 namespace Aero {
 class ResourceDictionary;
+class Gui;
 class View;
 enum class BuiltInTheme : std::uint8_t;
 enum class ResourceLayer : std::uint8_t;
@@ -204,12 +205,12 @@ namespace Markup { class XamlProvider; }
 
 namespace Aero::Markup {
 
-// XAML and resource facade bound to a View. A reader uses the View's frozen
-// schema, allocator and source providers while keeping loading concerns out of
-// the frame/input/render API.
+// XAML object-graph reader bound to the process-level Gui runtime. Loading is
+// independent of any View; presentation-affine effects are bound when a
+// document is mounted into a View.
 class AERO_API XamlReader {
 public:
-    explicit XamlReader(Aero::View& view) noexcept : view_(&view) {}
+    explicit XamlReader(Aero::Gui& gui) noexcept : gui_(&gui) {}
 
     Base::Result<XamlDocument> Load(
         Base::StringView uri,
@@ -239,27 +240,34 @@ public:
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri = {}) noexcept;
     Base::Result<void> Mount(
+        Aero::View& view,
         Controls::ContentControl& host,
         XamlDocument&& document) noexcept;
     Base::Result<void> Unmount(
+        Aero::View& view,
         Controls::ContentControl& host) noexcept;
     Base::Result<void> LoadResources(
+        Aero::View& view,
         ResourceLayer layer,
         Base::StringView uri,
         ResourceLoadMode mode,
         Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
     Base::Result<void> LoadCompiledResources(
+        Aero::View& view,
         ResourceLayer layer,
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri,
         ResourceLoadMode mode) noexcept;
     void SetResources(
+        Aero::View& view,
         ResourceLayer layer,
         Aero::ResourceDictionary& dictionary,
         ResourceLoadMode mode) noexcept;
-    Base::Result<void> LoadTheme(BuiltInTheme theme) noexcept;
+    Base::Result<void> LoadTheme(
+        Aero::View& view,
+        BuiltInTheme theme) noexcept;
 
-    Aero::View& GetView() const noexcept { return *view_; }
+    Aero::Gui& GetGui() const noexcept { return *gui_; }
 
 private:
     Base::Result<XamlDocument> LoadComponentCore(
@@ -267,7 +275,7 @@ private:
         Meta::TypeId expectedRoot,
         const XamlReaderSettings& settings,
         Diagnostics::IDiagnosticSink* diagnostics) noexcept;
-    Aero::View* view_ = nullptr;
+    Aero::Gui* gui_ = nullptr;
 };
 
 } // namespace Aero::Markup

@@ -24,7 +24,7 @@ const ::Aero::Render::Detail::RenderFrame* CurrentFrameForConformance(
 #if defined(_WIN32)
 #include "render/d3d11/D3D11Backend.hpp"
 #include "render/d3d11/D3D11Shaders.hpp"
-#include "platform/win32/OpenGLSurface.hpp"
+#include "render/platform/win32/OpenGLSurface.hpp"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif

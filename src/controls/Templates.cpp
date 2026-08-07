@@ -223,6 +223,13 @@ UIElement* TemplateBuilder::RootElement() const noexcept {
     return state.rootElement;
 }
 
+Aero::GuiPrivate::Detail::BindingEngine&
+TemplateBuilder::Bindings() const noexcept {
+    auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
+    AERO_ASSERT(state.bindings != nullptr);
+    return *state.bindings;
+}
+
 Base::Result<bool>
 TemplateBuilder::ProjectContentCore(
     ContentControl& owner,
@@ -1285,7 +1292,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
     }
 
     Aero::Controls::Detail::TemplateBuildState buildState(
-        *tree_, control, layout_, renderer_);
+        *tree_, control, layout_, renderer_, bindings_);
     TemplateBuilder context(&buildState);
     Base::Result<void> built =
         Aero::Controls::Detail::TemplatePrivate::Factory(plan)(context, Aero::Controls::Detail::TemplatePrivate::FactoryContext(plan));

@@ -3,7 +3,8 @@
 #include "markup/MarkupPrivate.hpp"
 #include "markup/XamlRuntime.hpp"
 #include "gui/private/Property.hpp"
-#include <Aero/View.hpp>
+#include <Aero/Gui.hpp>
+#include <Aero/Threading.hpp>
 
 #include <utility>
 
@@ -19,9 +20,12 @@ struct Gui::Impl  : public Base::Object {
 
     Base::IAllocator* allocator = nullptr;
     ModuleSet modules;
+    ::Aero::Threading::Dispatcher dispatcher;
     GuiSchema schema;
     Markup::DocumentCache documents;
     Markup::XamlProviderRegistry xamlProviders;
+    Markup::EmbeddedXamlProvider embeddedXaml;
+    Markup::FileXamlProvider fileXaml;
     Markup::Detail::XamlRuntime xaml;
     Media::TextureProvider* textureProvider = nullptr;
     Text::FontProvider* fontProvider = nullptr;

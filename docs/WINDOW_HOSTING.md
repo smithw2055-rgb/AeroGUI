@@ -45,7 +45,7 @@ auto target = Aero::Render::CreateD3D11RenderTarget(
 auto view = gui.CreateView().Value();
 view->GetRenderer().Init(device);
 
-Aero::Markup::XamlReader reader(*view);
+Aero::Markup::XamlReader reader(gui);
 auto document = reader.Load("app:///MainView.xaml").Value();
 view->SetContent(std::move(document), logicalSize);
 view->SetViewport({logicalSize, pixelWidth, pixelHeight, dpiScale});

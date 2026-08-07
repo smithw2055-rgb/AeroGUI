@@ -1046,7 +1046,7 @@ bool LoadOne(Aero::Gui& gui, const char* relative) {
         root->SetDataContext(Aero::Base::Ref<Aero::Base::Object>(
             vm.Value().viewModel));
     }
-    Aero::Base::Result<void> mounted = view->SetContentChecked(std::move(loaded).Value(), {1000.0, 600.0});
+    Aero::Base::Result<void> mounted = view->SetContent(std::move(loaded).Value(), {1000.0, 600.0});
     if (!mounted) { std::fprintf(stderr, "MOUNT FAIL %s: %s\n", relative, mounted.GetStatus().message); return false; }
     Aero::Base::Result<void> updated = view->Update(16U);
     if (!updated) { std::fprintf(stderr, "UPDATE FAIL %s: %s\n", relative, updated.GetStatus().message); return false; }

@@ -60,15 +60,12 @@ from a base `Geometry` object.
 - Render scheduling remains host-owned; render devices do not create hidden
   worker threads or service locators.
 
-## Next structural stages
+## Structural closure
 
-The next high-value pass should interiorize the remaining private loader,
-resource and namescope helpers declared on `View`. The installed `View` surface
-should read as a host object: content, viewport, update, input and renderer.
-`XamlReader` and source-private runtime accessors can use a single private
-`ViewAccess` friend instead of a growing list of private methods.
-
-After that, split the large consolidated implementation files by stable WPF
-responsibility only when it improves ownership or compilation isolation. Do not
-reintroduce `Runtime`, `Service`, `Manager`, `Contract`, `Catalog` or `Endpoint`
-facades merely to create directories.
+The loader/View convergence described by this review has since been completed:
+`XamlReader` is Gui-owned, the generic `ViewAccess` gateway is gone, and View
+keeps only presentation-instance responsibilities. Top-level `src/runtime`,
+`src/providers` and `src/platform` ownership buckets were also folded into real
+domains. Future changes should split implementation only when a stable WPF
+responsibility or compilation boundary justifies it; do not reintroduce generic
+`Runtime`, `Service`, `Manager`, `Contract`, `Catalog` or `Endpoint` facades.

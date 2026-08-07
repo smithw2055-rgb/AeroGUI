@@ -1,6 +1,9 @@
 #include <Aero/Gui.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Module.hpp>
+#include <Aero/Controls/Control.hpp>
+#include <Aero/Controls/Button.hpp>
+#include <Aero/Shapes.hpp>
 
 #include <cstdint>
 #include <type_traits>

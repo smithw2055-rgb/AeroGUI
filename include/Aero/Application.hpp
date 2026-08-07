@@ -67,18 +67,10 @@ public:
 
     // Runs this application through the optional default desktop host.
     // A StartupUri is required unless an explicit Window is supplied.
-    int Run() noexcept;
-    int Run(const App::RunOptions& options) noexcept;
-    int Run(Base::Ref<Window> window) noexcept;
-    int Run(
-        Base::Ref<Window> window,
-        const App::RunOptions& options) noexcept;
-    Base::Result<int> RunChecked() noexcept;
-    Base::Result<int> RunChecked(
-        const App::RunOptions& options) noexcept;
-    Base::Result<int> RunChecked(
-        Base::Ref<Window> window) noexcept;
-    Base::Result<int> RunChecked(
+    Base::Result<int> Run() noexcept;
+    Base::Result<int> Run(const App::RunOptions& options) noexcept;
+    Base::Result<int> Run(Base::Ref<Window> window) noexcept;
+    Base::Result<int> Run(
         Base::Ref<Window> window,
         const App::RunOptions& options) noexcept;
 

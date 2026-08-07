@@ -34,10 +34,8 @@ public:
     bool GetTopmost() const noexcept { return GetValueOr(TopmostProperty, false); }
     void SetTopmost(bool value) noexcept { SetValue(TopmostProperty, value); }
 
-    void Show() noexcept;
-    Base::Result<void> ShowChecked() noexcept;
-    void Close() noexcept;
-    Base::Result<void> CloseChecked() noexcept;
+    Base::Result<void> Show() noexcept;
+    Base::Result<void> Close() noexcept;
     bool GetIsOpen() const noexcept;
 
     inline static constexpr Members::Property<Base::String> TitleProperty{"Title"};

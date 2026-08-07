@@ -6,8 +6,8 @@ set(_aero_gui_runtime_sources
     src/render/opengl33/OpenGL33Device.cpp
     src/render/opengl33/OpenGL33Embedded.cpp
     src/render/opengl33/OpenGL33Factories.cpp
-    src/providers/XamlProvider.cpp
-    src/platform/Clipboard.cpp)
+    src/markup/XamlProvider.cpp
+    src/input/Clipboard.cpp)
 if(WIN32)
     list(APPEND _aero_gui_runtime_sources
         src/render/d3d11/D3D11Device.cpp
@@ -16,11 +16,10 @@ endif()
 
 target_sources(AeroGui PRIVATE
     ${_aero_gui_runtime_sources}
-    $<TARGET_OBJECTS:AeroModuleSetObjects>
+    $<TARGET_OBJECTS:AeroTextObjects>
     $<TARGET_OBJECTS:AeroTextFreeTypeObjects>
     $<TARGET_OBJECTS:AeroTextHarfBuzzObjects>
-    $<TARGET_OBJECTS:AeroRuntimeObjects>
-    $<TARGET_OBJECTS:AeroRenderingObjects>)
+)
 target_include_directories(AeroGui PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${CMAKE_CURRENT_BINARY_DIR}/generated")
@@ -67,19 +66,19 @@ target_link_libraries(
 aero_apply_compiler_options(AeroOpenGL33HeaderConsumer)
 
 set(_aero_app_sources
-    src/platform/WindowWait.cpp
+    src/app/platform/WindowWait.cpp
     src/app/ApplicationRun.cpp
     src/app/DesktopHost.cpp
     src/app/RenderContext.cpp
     src/app/Window.cpp)
 if(WIN32)
     list(APPEND _aero_app_sources
-        src/platform/win32/Clipboard.cpp
-        src/platform/win32/Ime.cpp
-        src/platform/win32/Window.cpp)
+        src/app/platform/win32/Clipboard.cpp
+        src/app/platform/win32/Ime.cpp
+        src/app/platform/win32/Window.cpp)
 else()
     list(APPEND _aero_app_sources
-        src/platform/x11/Window.cpp)
+        src/app/platform/x11/Window.cpp)
 endif()
 
 add_library(AeroApp ${AERO_LIBRARY_TYPE}
@@ -129,27 +128,12 @@ if(TARGET AeroIntegration OR TARGET Aero::Integration)
         "The retired Integration product target must not be recreated")
 endif()
 get_target_property(_aero_gui_sources_property AeroGui SOURCES)
-foreach(_aero_gui_component IN ITEMS
-        AeroModuleSetObjects
-        AeroTextFreeTypeObjects
-        AeroTextHarfBuzzObjects
-        AeroRuntimeObjects
-        AeroRenderingObjects)
-    if(NOT "${_aero_gui_sources_property}" MATCHES
-            "${_aero_gui_component}")
-        message(FATAL_ERROR
-            "Gui must fold the embeddable component: ${_aero_gui_component}")
-    endif()
-endforeach()
-if("${_aero_gui_sources_property}" MATCHES "AeroAppModelObjects")
-    message(FATAL_ERROR
-        "Gui must not fold the optional Application/Window object model")
+if("${_aero_gui_sources_property}" MATCHES "Aero(AppModel|Runtime|Rendering|GuiKernel|Controls|Markup).*Objects")
+    message(FATAL_ERROR "Gui product sources must not reintroduce implementation object-library layers")
 endif()
 get_target_property(_aero_app_sources_property AeroApp SOURCES)
-if(NOT "${_aero_app_sources_property}" MATCHES
-        "AeroAppModelObjects")
-    message(FATAL_ERROR
-        "App must own the Application/Window object model")
+if(NOT "${_aero_app_sources_property}" MATCHES "AeroAppModelObjects")
+    message(FATAL_ERROR "App must own the Application/Window object model")
 endif()
 get_target_property(_aero_meta_links
     AeroMeta INTERFACE_LINK_LIBRARIES)

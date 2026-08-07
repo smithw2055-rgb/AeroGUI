@@ -124,17 +124,19 @@ installed backend factory headers.
 
 ## Markup
 
-Schema, document cache and provider routing are Gui-owned. Object creation,
-name-scope effects and mounted resource state remain View-affine where required.
-`XamlReader` is still View-bound in the current source baseline; moving the
-facade to Gui ownership and removing the remaining `ViewAccess` forwarding layer
-is the next Gui/XAML convergence stage.
+Schema, document cache, provider routing and XAML object construction are Gui-owned.
+`XamlReader` is constructed from `Gui&` and creates an unmounted document without
+requiring a View. Binding, MultiBinding and DynamicResource effects bind their
+View-affine runtime services only when the document is mounted. `ViewAccess` has
+been removed; View owns content/mount, resource-layer, layout, input and render
+state rather than acting as a loader gateway.
 
 ## CMake ownership
 
-Installed targets are product targets only. Object libraries are internal build
-components and may be merged, split or removed without changing architecture.
-No architecture gate requires a particular internal Object Library name.
+Installed targets are product targets only. Gui, Controls, Markup, runtime and
+rendering implementation sources compile directly into `AeroGui`. Only narrow
+components that are genuinely reused by offline tools (text, module/schema and
+App metadata) remain Object Libraries; they are not SDK targets.
 
 The permanent build contract is limited to final SDK/dependency invariants:
 

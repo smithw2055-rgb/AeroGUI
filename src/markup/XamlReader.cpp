@@ -1,17 +1,53 @@
 #include <Aero/Markup.hpp>
+#include <Aero/Gui.hpp>
 #include <Aero/View.hpp>
-#include "runtime/ViewAccess.hpp"
+
+#include "gui/GuiData.hpp"
+#include "gui/private/Property.hpp"
 
 #include <utility>
 
 namespace Aero::Markup {
+namespace {
+
+struct GuiLoadScope {
+    GuiLoadScope(
+        Threading::Dispatcher& dispatcher,
+        GuiSchema& schema,
+        DocumentCache& documents) noexcept
+        : factory(
+              dispatcher,
+              ::Aero::GuiPrivate::Detail::MetadataPrivate::DependencyProperties(
+                  schema.Metadata()),
+              schema.Metadata()) {
+        load.documentCache = &documents;
+        load.dispatcher = &dispatcher;
+        load.dependencyProperties =
+            &::Aero::GuiPrivate::Detail::MetadataPrivate::DependencyProperties(
+                schema.Metadata());
+        load.effectCommitMode = EffectCommitMode::Deferred;
+    }
+
+    Meta::ObjectFactoryScope factory;
+    LoadState load;
+};
+
+} // namespace
 
 Base::Result<XamlDocument> XamlReader::Load(
     Base::StringView uri,
     const XamlReaderSettings& settings,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    return ::Aero::Runtime::Detail::ViewAccess::LoadDocument(
-        *view_, uri, diagnostics, &settings);
+    if (gui_ == nullptr || !gui_->IsInitialized()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "Gui must be initialized before XAML loading");
+    }
+    Gui::Impl& state = static_cast<Gui::Impl&>(*gui_->impl_);
+    GuiLoadScope scope(state.dispatcher, state.schema, state.documents);
+    return state.xaml.Load(
+        state.xamlProviders, &scope.load, state.allocator,
+        uri, settings, diagnostics);
 }
 
 Base::Result<XamlDocument> XamlReader::Load(
@@ -19,8 +55,15 @@ Base::Result<XamlDocument> XamlReader::Load(
     const Base::ResourceUri& baseUri,
     const XamlReaderSettings& settings,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    return ::Aero::Runtime::Detail::ViewAccess::ParseStreamDocument(
-        *view_, source, baseUri, diagnostics, &settings);
+    if (gui_ == nullptr || !gui_->IsInitialized()) {
+        return Base::Status::Failure(Base::ErrorCode::NotInitialized,
+            "Gui must be initialized before XAML loading");
+    }
+    Gui::Impl& state = static_cast<Gui::Impl&>(*gui_->impl_);
+    GuiLoadScope scope(state.dispatcher, state.schema, state.documents);
+    return state.xaml.Parse(
+        state.xamlProviders, &scope.load, state.allocator,
+        source, baseUri, settings, diagnostics);
 }
 
 Base::Result<XamlDocument> XamlReader::LoadComponentCore(
@@ -28,15 +71,17 @@ Base::Result<XamlDocument> XamlReader::LoadComponentCore(
     Meta::TypeId expectedRoot,
     const XamlReaderSettings& settings,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    Base::Result<XamlDocument> loaded = Load(
-        uri, settings, diagnostics);
+    Base::Result<XamlDocument> loaded = Load(uri, settings, diagnostics);
     if (!loaded) return loaded.GetStatus();
     const Base::Ref<Base::Object>& root = loaded.Value().Root();
-    if (!root || expectedRoot == Meta::InvalidTypeId ||
-        !::Aero::Runtime::Detail::ViewAccess::IsInstanceOf(
-            *view_, *root, expectedRoot)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
+    if (!root || gui_ == nullptr || expectedRoot == Meta::InvalidTypeId) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "XAML component root is incompatible with the requested type");
+    }
+    const Gui::Impl& state = static_cast<const Gui::Impl&>(*gui_->impl_);
+    if (!state.schema.Metadata().Types().IsDerivedFrom(
+            root->RuntimeType(), expectedRoot)) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "XAML component root is incompatible with the requested type");
     }
     return std::move(loaded).Value();
@@ -47,60 +92,74 @@ Base::Result<XamlDocument> XamlReader::Parse(
     const Base::ResourceUri& baseUri,
     const XamlReaderSettings& settings,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    return ::Aero::Runtime::Detail::ViewAccess::ParseDocument(
-        *view_, source, baseUri, diagnostics, &settings);
+    if (gui_ == nullptr || !gui_->IsInitialized()) {
+        return Base::Status::Failure(Base::ErrorCode::NotInitialized,
+            "Gui must be initialized before XAML parsing");
+    }
+    Gui::Impl& state = static_cast<Gui::Impl&>(*gui_->impl_);
+    GuiLoadScope scope(state.dispatcher, state.schema, state.documents);
+    return state.xaml.Parse(
+        state.xamlProviders, &scope.load, state.allocator,
+        source, baseUri, settings, diagnostics);
 }
 
 Base::Result<XamlDocument> XamlReader::LoadCompiled(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri) noexcept {
-    return ::Aero::Runtime::Detail::ViewAccess::LoadCompiledDocument(
-        *view_, bytes, originUri);
+    if (gui_ == nullptr || !gui_->IsInitialized()) {
+        return Base::Status::Failure(Base::ErrorCode::NotInitialized,
+            "Gui must be initialized before compiled XAML loading");
+    }
+    Gui::Impl& state = static_cast<Gui::Impl&>(*gui_->impl_);
+    GuiLoadScope scope(state.dispatcher, state.schema, state.documents);
+    return state.xaml.LoadCompiled(
+        state.xamlProviders, &scope.load, state.allocator,
+        bytes, originUri, XamlReaderSettings{});
 }
 
 Base::Result<void> XamlReader::Mount(
+    Aero::View& view,
     Controls::ContentControl& host,
     XamlDocument&& document) noexcept {
-    return ::Aero::Runtime::Detail::ViewAccess::MountContent(
-        *view_, host, std::move(document));
+    return view.MountContent(host, std::move(document));
 }
 
 Base::Result<void> XamlReader::Unmount(
+    Aero::View& view,
     Controls::ContentControl& host) noexcept {
-    return ::Aero::Runtime::Detail::ViewAccess::UnmountContent(
-        *view_, host);
+    return view.UnmountContent(host);
 }
 
 Base::Result<void> XamlReader::LoadResources(
+    Aero::View& view,
     ResourceLayer layer,
     Base::StringView uri,
     ResourceLoadMode mode,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    return ::Aero::Runtime::Detail::ViewAccess::LoadResources(
-        *view_, layer, uri, mode, diagnostics);
+    return view.LoadResources(layer, uri, mode, diagnostics);
 }
 
 Base::Result<void> XamlReader::LoadCompiledResources(
+    Aero::View& view,
     ResourceLayer layer,
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
     ResourceLoadMode mode) noexcept {
-    return ::Aero::Runtime::Detail::ViewAccess::LoadCompiledResources(
-        *view_, layer, bytes, originUri, mode);
+    return view.LoadCompiledResources(layer, bytes, originUri, mode);
 }
 
 void XamlReader::SetResources(
+    Aero::View& view,
     ResourceLayer layer,
     Aero::ResourceDictionary& dictionary,
     ResourceLoadMode mode) noexcept {
-    ::Aero::Runtime::Detail::ViewAccess::SetResourceDictionary(
-        *view_, layer, dictionary, mode);
+    view.SetResourceDictionary(layer, dictionary, mode);
 }
 
 Base::Result<void> XamlReader::LoadTheme(
+    Aero::View& view,
     BuiltInTheme theme) noexcept {
-    return ::Aero::Runtime::Detail::ViewAccess::LoadBuiltInTheme(
-        *view_, theme);
+    return view.LoadBuiltInTheme(theme);
 }
 
 } // namespace Aero::Markup

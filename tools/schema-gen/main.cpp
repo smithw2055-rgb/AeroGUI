@@ -1,7 +1,7 @@
 #include "markup/MarkupPrivate.hpp"
 #include "app/Metadata.hpp"
 #include <Aero/Module.hpp>
-#include "runtime/modules/ModuleSet.hpp"
+#include "gui/modules/ModuleSet.hpp"
 
 
 #include <cstdio>

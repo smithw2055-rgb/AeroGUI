@@ -7,11 +7,7 @@
 
 namespace Aero {
 
-void Window::Show() noexcept {
-    static_cast<void>(ShowChecked());
-}
-
-Base::Result<void> Window::ShowChecked() noexcept {
+Base::Result<void> Window::Show() noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -68,11 +64,7 @@ bool Window::GetIsOpen() const noexcept {
     return state != nullptr && state->isOpen != nullptr && state->isOpen(state->context);
 }
 
-void Window::Close() noexcept {
-    static_cast<void>(CloseChecked());
-}
-
-Base::Result<void> Window::CloseChecked() noexcept {
+Base::Result<void> Window::Close() noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,

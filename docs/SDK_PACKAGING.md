@@ -67,7 +67,8 @@ Application entry point:
 int main() {
     Aero::Application app;
     static_cast<void>(app.SetStartupUri("MainWindow.xaml"));
-    return app.Run();
+    auto run = app.Run();
+return run ? run.Value() : 1;
 }
 ```
 
@@ -83,7 +84,7 @@ multi-window semantics.
 `SetMainWindow(Ref<Window>)` is the owning API, while
 `SetMainWindowBorrowed(Window*)` makes non-ownership explicit. The WPF-shaped
 `Run()`, `Window::Show()` and `Window::Close()` methods remain simple; code that
-needs diagnostics uses `RunChecked()`, `ShowChecked()` and `CloseChecked()`.
+needs diagnostics uses the Result-returning `Run()`, `Show()` and `Close()` APIs.
 Only one default `Application` may be active process-wide; multiple independent
 embedded UI instances remain a `Gui`/`View` responsibility.
 
@@ -112,7 +113,7 @@ auto target = Aero::Render::CreateD3D11RenderTarget(
 auto view = gui.CreateView().Value();
 view->GetRenderer().Init(device);
 
-Aero::Markup::XamlReader reader(*view);
+Aero::Markup::XamlReader reader(gui);
 auto document = reader.Load("MainWindow.xaml").Value();
 view->SetContent(std::move(document), {1280.0, 720.0});
 view->Update(16U);

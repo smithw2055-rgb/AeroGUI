@@ -33,12 +33,15 @@ struct TemplateContentProjection {
 struct TemplateBuildState {
     TemplateBuildState(ElementTree& tree, Control& parent,
         Aero::GuiPrivate::Detail::LayoutEngine* layout,
-        Aero::Render::Detail::RenderTree* renderer) noexcept
-        : tree(&tree), layout(layout), renderer(renderer), parent(&parent) {}
+        Aero::Render::Detail::RenderTree* renderer,
+        Aero::GuiPrivate::Detail::BindingEngine* bindings) noexcept
+        : tree(&tree), layout(layout), renderer(renderer),
+          bindings(bindings), parent(&parent) {}
 
     ElementTree* tree = nullptr;
     Aero::GuiPrivate::Detail::LayoutEngine* layout = nullptr;
     Aero::Render::Detail::RenderTree* renderer = nullptr;
+    Aero::GuiPrivate::Detail::BindingEngine* bindings = nullptr;
     Control* parent = nullptr;
     Visual* rootVisual = nullptr;
     UIElement* rootElement = nullptr;

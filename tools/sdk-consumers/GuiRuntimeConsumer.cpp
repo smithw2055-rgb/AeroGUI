@@ -1,4 +1,8 @@
 #include <Aero/Gui.hpp>
+#include <Aero/View.hpp>
+#include <Aero/ViewOptions.hpp>
+#include <Aero/RenderTarget.hpp>
+#include <Aero/IRenderer.hpp>
 #include <Aero/Text/FontProvider.hpp>
 #include <Aero/Media/TextureProvider.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
@@ -43,8 +47,8 @@ CreateIntegratedView(
 void ConsumeViewTarget(
     Aero::View& view,
     Aero::RenderTarget& target) noexcept {
-    Aero::Markup::XamlReader reader(view);
-    static_cast<void>(reader.GetView());
+    Aero::Markup::XamlReader reader(view.GetGui());
+    static_cast<void>(reader.GetGui());
     static_cast<void>(view.Update(16U));
     static_cast<void>(view.GetRenderer().UpdateRenderTree());
     static_cast<void>(view.GetRenderer().RenderOffscreen());

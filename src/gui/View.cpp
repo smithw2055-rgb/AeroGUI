@@ -1,13 +1,14 @@
 #include <Aero/View.hpp>
+#include <Aero/Gui.hpp>
 #include <Aero/Audio/Audio.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Triggers/Behavior.hpp>
 #include <Aero/Base/Hash.hpp>
-#include "runtime/GuiData.hpp"
+#include "gui/GuiData.hpp"
 #include <Aero/FrameworkElement.hpp>
-#include "runtime/ImageCache.hpp"
-#include "runtime/TextPipeline.hpp"
-#include "runtime/ViewRenderer.hpp"
+#include "media/ImageCache.hpp"
+#include "text/TextPipeline.hpp"
+#include "render/ViewRenderer.hpp"
 #include "render/private/RenderSurface.hpp"
 
 #include "controls/ControlsPrivate.hpp"
@@ -38,7 +39,7 @@
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/BuiltinThemes.generated.hpp>
 
-#include "runtime/DataTemplateTriggerState.hpp"
+#include "controls/DataTemplateTriggerState.hpp"
 #include "render/private/BackendApi.hpp"
 #include "render/private/RenderSurface.hpp"
 #include "render/RenderTree.hpp"
@@ -385,16 +386,18 @@ struct View::Impl {
 
     Impl(
         View& owner,
+        Gui& guiOwner,
         Base::IAllocator& value,
         Base::Ref<Base::Object> guiState) noexcept
         : allocator(&value),
           arena(value),
+          guiOwner(&guiOwner),
           gui(std::move(guiState)),
           publicRenderer(owner, value),
+          dispatcher(&static_cast<Gui::Impl&>(*gui).dispatcher),
           xamlRuntime(&static_cast<Gui::Impl&>(*gui).xaml),
           schemaBundle(&xamlRuntime->SchemaBundle()),
           documentCache(&xamlRuntime->Documents()),
-          xamlSources(&xamlRuntime->Providers(), &value),
           storyboardSessions(&value),
           storyboardCompletionSessions(&value),
           storyboardCompletedSubscriptions(&value),
@@ -404,11 +407,12 @@ struct View::Impl {
 
     Base::IAllocator* allocator = nullptr;
     ViewArena arena;
+    Gui* guiOwner = nullptr;
     Base::Ref<Base::Object> gui;
     Runtime::Detail::ViewRenderer publicRenderer;
     RenderingEventHandler renderingHandlers;
     Audio::Engine audio;
-    ::Aero::Threading::Dispatcher dispatcher;
+    ::Aero::Threading::Dispatcher* dispatcher = nullptr;
     Markup::Detail::XamlRuntime* xamlRuntime = nullptr;
     GuiSchema* schemaBundle = nullptr;
     Markup::DocumentCache* documentCache = nullptr;
@@ -440,9 +444,6 @@ struct View::Impl {
     Aero::Visual* attachedRootVisual = nullptr;
     Aero::UIElement* attachedRootLayout = nullptr;
     Aero::FrameworkElement* attachedRootRender = nullptr;
-    Markup::XamlProviderRegistry xamlSources;
-    Markup::EmbeddedXamlProvider embeddedXaml;
-    Markup::FileXamlProvider fileXaml;
     Media::TextureProvider* textureProvider = nullptr;
     Text::FontProvider* fontProvider = nullptr;
     Aero::ResourceDictionary applicationResources;
@@ -1157,79 +1158,6 @@ struct View::Impl {
     bool mounted = false;
     bool terminal = false;
 
-    Base::Result<void> EnsureDefaultXamlProviders() noexcept {
-        Base::Result<Base::ResourceUri> light =
-            ::Aero::Runtime::Detail::BuiltInThemeUri(Base::StringView("Light.xaml"));
-        if (!light) return light.GetStatus();
-        Base::Result<void> status = embeddedXaml.Add(
-            light.Value(),
-            {Aero::Runtime::Detail::AeroThemeLightSource,
-             static_cast<std::uint32_t>(
-                 sizeof(Aero::Runtime::Detail::AeroThemeLightSource))});
-        if (!status) return status.GetStatus();
-        Base::Result<Base::ResourceUri> dark =
-            ::Aero::Runtime::Detail::BuiltInThemeUri(Base::StringView("Dark.xaml"));
-        if (!dark) return dark.GetStatus();
-        status = embeddedXaml.Add(
-            dark.Value(),
-            {Aero::Runtime::Detail::AeroThemeDarkSource,
-             static_cast<std::uint32_t>(
-                 sizeof(Aero::Runtime::Detail::AeroThemeDarkSource))});
-        if (!status) return status.GetStatus();
-        Base::Result<Base::ResourceUri> generic =
-            ::Aero::Runtime::Detail::BuiltInThemeUri(Base::StringView("Generic.xaml"));
-        if (!generic) return generic.GetStatus();
-        status = embeddedXaml.Add(
-            generic.Value(),
-            {Aero::Runtime::Detail::AeroThemeGenericSource,
-             static_cast<std::uint32_t>(
-                 sizeof(Aero::Runtime::Detail::AeroThemeGenericSource))});
-        if (!status) return status.GetStatus();
-
-        Base::Result<Base::ResourceUri> lightBlue =
-            Base::ResourceUri::Parse(
-                "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.LightBlue.xaml");
-        if (!lightBlue) return lightBlue.GetStatus();
-        status = embeddedXaml.Add(
-            lightBlue.Value(),
-            {Aero::Runtime::Detail::AeroThemeLightSource,
-             static_cast<std::uint32_t>(
-                 sizeof(Aero::Runtime::Detail::AeroThemeLightSource))});
-        if (!status) return status.GetStatus();
-        Base::Result<Base::ResourceUri> darkBlue =
-            Base::ResourceUri::Parse(
-                "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.DarkBlue.xaml");
-        if (!darkBlue) return darkBlue.GetStatus();
-        status = embeddedXaml.Add(
-            darkBlue.Value(),
-            {Aero::Runtime::Detail::AeroThemeDarkSource,
-             static_cast<std::uint32_t>(
-                 sizeof(Aero::Runtime::Detail::AeroThemeDarkSource))});
-        if (!status) return status.GetStatus();
-
-        status = xamlSources.Register(
-                embeddedXaml, Base::StringView("pack"));
-        if (!status &&
-            status.GetStatus().code !=
-                Base::ErrorCode::AlreadyExists) {
-            return status.GetStatus();
-        }
-        status = xamlSources.Register(
-            fileXaml, Base::StringView("file"));
-        if (!status &&
-            status.GetStatus().code !=
-                Base::ErrorCode::AlreadyExists) {
-            return status.GetStatus();
-        }
-        status = xamlSources.Register(fileXaml);
-        if (!status &&
-            status.GetStatus().code !=
-                Base::ErrorCode::AlreadyExists) {
-            return status.GetStatus();
-        }
-        return {};
-    }
-
     Base::Result<void> BeginDocumentLoad() noexcept {
         if (!initialized) {
             return RuntimeNotInitialized(
@@ -1255,7 +1183,7 @@ struct View::Impl {
         loadContext.fallbackResources =
             &dynamicResourceEnvironment;
         loadContext.documentCache = documentCache;
-        loadContext.dispatcher = &dispatcher;
+        loadContext.dispatcher = dispatcher;
         loadContext.dependencyProperties =
             &::Aero::GuiPrivate::Detail::MetadataPrivate::
                 DependencyProperties(*metadata);
@@ -2247,6 +2175,7 @@ struct View::Impl {
             &View::Impl::ExecuteStyleTriggerActions, this);
         elementHost.events = events;
         elementHost.input = input;
+        elementHost.bindings = bindings;
         elementHost.templates = templates;
         elementHost.visualStates = visualStates;
         elementHost.textLayout = text != nullptr
@@ -6242,7 +6171,7 @@ struct View::Impl {
             ? Base::Result<void>()
             : Base::Result<void>(lifetime.GetStatus());
         if (status) effectLifetime = std::move(lifetime).Value();
-        if (status) status = EnsureDefaultXamlProviders();
+
         if (!status || schemaBundle == nullptr ||
             !schemaBundle->IsFrozen()) {
             terminal = true;
@@ -6261,21 +6190,21 @@ struct View::Impl {
         }
         if (status) {
             status = arena.Create(
-                objectFactory, dispatcher,
+                objectFactory, *dispatcher,
                 ::Aero::GuiPrivate::Detail::MetadataPrivate::
                     DependencyProperties(*metadata),
                 *metadata);
         }
         if (status) {
             status = arena.Create(
-                values, dispatcher,
+                values, *dispatcher,
                 ::Aero::GuiPrivate::Detail::MetadataPrivate::
                     DependencyProperties(*metadata));
         }
         if (status) status = values->Initialize();
         if (status) {
             status = arena.Create(
-                animations, dispatcher, *values, allocator);
+                animations, *dispatcher, *values, allocator);
         }
         if (status) status = animations->Initialize();
         if (status) {
@@ -6284,17 +6213,17 @@ struct View::Impl {
         }
         if (status) {
             status = arena.Create(
-                tree, dispatcher, *values);
+                tree, *dispatcher, *values);
         }
         if (status) status = tree->Initialize();
         if (status) {
             status = arena.Create(
-                layout, dispatcher);
+                layout, *dispatcher);
         }
         if (status) status = layout->Initialize();
         if (status) {
             status = arena.Create(
-                renderer, dispatcher);
+                renderer, *dispatcher);
         }
         if (status) status = renderer->Initialize();
         if (status) {
@@ -6315,7 +6244,7 @@ struct View::Impl {
         }
         if (status) {
             status = arena.Create(
-                bindings, dispatcher);
+                bindings, *dispatcher);
         }
         if (status) status = bindings->Initialize();
         if (status) {
@@ -6421,7 +6350,7 @@ struct View::Impl {
         }
         Base::Result<Markup::XamlDocument> loaded =
             xamlRuntime->Load(
-            xamlSources,
+            xamlRuntime->Providers(),
             &loadContext,
             allocator,
             uri, loadOptions.Value(), diagnostics);
@@ -6456,7 +6385,7 @@ struct View::Impl {
         }
         Base::Result<Markup::XamlDocument> loaded =
             xamlRuntime->LoadCompiled(
-                xamlSources, &loadContext, allocator,
+                xamlRuntime->Providers(), &loadContext, allocator,
                 bytes, originUri, loadOptions.Value());
         if (!loaded) return loaded.GetStatus();
 
@@ -6537,6 +6466,21 @@ struct View::Impl {
         if (!mountedResult) return mountedResult.GetStatus();
         root = std::move(requestedRoot);
         mounted = true;
+        Markup::EffectRuntimeServices runtimeServices;
+        runtimeServices.effectiveValues = values;
+        runtimeServices.bindings = bindings;
+        runtimeServices.fallbackResources = &dynamicResourceEnvironment;
+        runtimeServices.lifetime = effectLifetime;
+        Base::Result<void> bound = loadedDocument.effects.Bind(runtimeServices);
+        if (!bound) {
+            static_cast<void>(DetachVisualGraph({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()}));
+            mounted = false;
+            root.Reset();
+            ClearLoadedDocument();
+            return bound.GetStatus();
+        }
         Base::Result<void> effects = loadedDocument.effects.Commit();
         if (!effects) {
             static_cast<void>(DetachVisualGraph({
@@ -7609,7 +7553,7 @@ View::View(
             sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
     }
     state_ = new (stateMemory) Impl(
-        *this, *selected, gui.impl_);
+        *this, gui, *selected, gui.impl_);
 }
 
 View::~View() noexcept {
@@ -7649,95 +7593,6 @@ bool View::IsInitialized() const noexcept {
 
 bool View::IsMounted() const noexcept {
     return state_ != nullptr && state_->mounted;
-}
-
-Base::Result<Markup::XamlDocument> View::LoadDocument(
-    Base::StringView uri,
-    Diagnostics::IDiagnosticSink* diagnostics,
-    const Markup::XamlReaderSettings* settings) noexcept {
-    if (!IsInitialized()) {
-        return ViewNotInitialized(
-            "View must be initialized before XAML loading");
-    }
-    Base::Result<Markup::XamlReaderSettings> options =
-        state_->XamlSettings(true, settings);
-    if (!options) return options.GetStatus();
-    if (state_->xamlRuntime == nullptr) {
-        return ViewApiInvalidState(
-            "View has no Gui XAML runtime");
-    }
-    return state_->xamlRuntime->Load(
-        state_->xamlSources,
-        &state_->loadContext,
-        state_->allocator,
-        uri, options.Value(), diagnostics);
-}
-
-Base::Result<Markup::XamlDocument> View::ParseDocument(
-    Base::StringView source,
-    const Base::ResourceUri& baseUri,
-    Diagnostics::IDiagnosticSink* diagnostics,
-    const Markup::XamlReaderSettings* settings) noexcept {
-    if (!IsInitialized()) {
-        return ViewNotInitialized(
-            "View must be initialized before XAML parsing");
-    }
-    Base::Result<Markup::XamlReaderSettings> options =
-        state_->XamlSettings(true, settings);
-    if (!options) return options.GetStatus();
-    if (state_->xamlRuntime == nullptr) {
-        return ViewApiInvalidState(
-            "View has no Gui XAML runtime");
-    }
-    return state_->xamlRuntime->Parse(
-        state_->xamlSources,
-        &state_->loadContext,
-        state_->allocator,
-        source, baseUri, options.Value(), diagnostics);
-}
-
-Base::Result<Markup::XamlDocument> View::ParseStreamDocument(
-    Base::Stream& source,
-    const Base::ResourceUri& baseUri,
-    Diagnostics::IDiagnosticSink* diagnostics,
-    const Markup::XamlReaderSettings* settings) noexcept {
-    if (!IsInitialized()) {
-        return ViewNotInitialized(
-            "View must be initialized before XAML stream parsing");
-    }
-    Base::Result<Markup::XamlReaderSettings> options =
-        state_->XamlSettings(true, settings);
-    if (!options) return options.GetStatus();
-    if (state_->xamlRuntime == nullptr) {
-        return ViewApiInvalidState(
-            "View has no Gui XAML runtime");
-    }
-    return state_->xamlRuntime->Parse(
-        state_->xamlSources,
-        &state_->loadContext,
-        state_->allocator,
-        source, baseUri, options.Value(), diagnostics);
-}
-
-Base::Result<Markup::XamlDocument> View::LoadCompiledDocument(
-    Base::Span<const std::uint8_t> bytes,
-    const Base::ResourceUri& originUri) noexcept {
-    if (!IsInitialized()) {
-        return ViewNotInitialized(
-            "View must be initialized before compiled XAML loading");
-    }
-    Base::Result<Markup::XamlReaderSettings> options =
-        state_->XamlSettings(true);
-    if (!options) return options.GetStatus();
-    if (state_->xamlRuntime == nullptr) {
-        return ViewApiInvalidState(
-            "View has no Gui XAML runtime");
-    }
-    return state_->xamlRuntime->LoadCompiled(
-        state_->xamlSources,
-        &state_->loadContext,
-        state_->allocator,
-        bytes, originUri, options.Value());
 }
 
 Base::Result<void> View::LoadResources(
@@ -7874,7 +7729,7 @@ Base::Result<void> View::LoadBuiltInTheme(
     return {};
 }
 
-Base::Result<void> View::SetContentChecked(
+Base::Result<void> View::SetContent(
     Markup::XamlDocument&& document,
     Aero::Size availableSize) noexcept {
     return IsMounted()
@@ -7882,23 +7737,21 @@ Base::Result<void> View::SetContentChecked(
         : Mount(std::move(document), availableSize);
 }
 
-void View::SetContent(
-    Markup::XamlDocument&& document,
-    Aero::Size availableSize) noexcept {
-    static_cast<void>(
-        SetContentChecked(std::move(document), availableSize));
-}
 
-void View::SetContent(
+Base::Result<void> View::SetContent(
     Base::Ref<FrameworkElement> root,
     Aero::Size availableSize) noexcept {
     if (!IsInitialized()) {
-        return;
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "View must be initialized before SetContent");
     }
     if (IsMounted()) {
-        return;
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "View already has mounted content");
     }
-    (void)Mount(
+    return Mount(
         Base::Ref<Base::Object>(std::move(root)),
         availableSize);
 }
@@ -7931,12 +7784,6 @@ Base::Result<void> View::Mount(
             Base::ErrorCode::InvalidArgument,
             "View cannot mount an empty UI document");
     }
-    if (Aero::Markup::Detail::XamlDocumentRuntimeLifetime(document) !=
-        state_->effectLifetime.Get()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "UI document belongs to another View");
-    }
     Base::Result<void> valid = state_->ValidateDocumentRoot(document.Root());
     if (!valid) return valid.GetStatus();
     state_->loadedDocument =
@@ -7956,12 +7803,6 @@ Base::Result<void> View::ReplaceMountedDocument(
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "View cannot replace a document with an empty document");
-    }
-    if (Aero::Markup::Detail::XamlDocumentRuntimeLifetime(document) !=
-        state_->effectLifetime.Get()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Replacement UI document belongs to another View");
     }
     Base::Result<void> valid = state_->ValidateDocumentRoot(document.Root());
     if (!valid) return valid.GetStatus();
@@ -8015,12 +7856,6 @@ Base::Result<void> View::MountContent(
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "content fragment document must not be empty");
-    }
-    if (Aero::Markup::Detail::XamlDocumentRuntimeLifetime(document) !=
-        state_->effectLifetime.Get()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "content fragment document belongs to another View");
     }
     if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(host) != state_->tree) {
         return Base::Status::Failure(
@@ -8140,6 +7975,16 @@ Base::Result<void> View::MountContent(
     if (!applied) {
         detachFailedFragment();
         return applied.GetStatus();
+    }
+    Markup::EffectRuntimeServices runtimeServices;
+    runtimeServices.effectiveValues = state_->values;
+    runtimeServices.bindings = state_->bindings;
+    runtimeServices.fallbackResources = &state_->dynamicResourceEnvironment;
+    runtimeServices.lifetime = state_->effectLifetime;
+    Base::Result<void> boundEffects = fragment.document.effects.Bind(runtimeServices);
+    if (!boundEffects) {
+        detachFailedFragment();
+        return boundEffects.GetStatus();
     }
     Base::Result<void> effects = fragment.document.effects.Commit();
     if (!effects) {
@@ -8296,7 +8141,7 @@ View::ExecuteFrame() noexcept {
             state_->images->Synchronize(
                 state_->RootVisual(),
                 state_->loadedDocument.canonicalUri,
-                state_->xamlSources,
+                state_->xamlRuntime->Providers(),
                 state_->textureProvider,
                 state_->GetImageResources(),
                 deviceGenerationChanged);
@@ -8349,7 +8194,7 @@ View::ExecuteFrame() noexcept {
             }
         }
         Base::Result<std::uint32_t> ran =
-            state_->dispatcher.RunFramePhase(phase);
+            state_->dispatcher->RunFramePhase(phase);
         if (!ran) return ran.GetStatus();
         if (phase ==
                 ::Aero::Threading::DispatcherFramePhase::Lifecycle) {
@@ -8758,7 +8603,7 @@ Base::Result<void> Runtime::Detail::ViewRenderer::Init(
             data.images->Synchronize(
                 data.RootVisual(),
                 data.loadedDocument.canonicalUri,
-                data.xamlSources,
+                data.xamlRuntime->Providers(),
                 data.textureProvider,
                 data.GetImageResources(),
                 true);
@@ -8945,6 +8790,14 @@ const FrameworkElement* View::GetContent() const noexcept {
         : nullptr;
 }
 
+Gui& View::GetGui() noexcept {
+    return *state_->guiOwner;
+}
+
+const Gui& View::GetGui() const noexcept {
+    return *state_->guiOwner;
+}
+
 const ::Aero::Render::Detail::RenderFrame* View::Impl::CurrentFrame(
     const View& view) noexcept {
     return view.state_ != nullptr && view.state_->renderer != nullptr
@@ -8997,7 +8850,7 @@ Base::Result<void> View::QueryReloadSource(
             "XAML reload source is unavailable");
     }
     return state_->xamlRuntime->QuerySource(
-        state_->xamlSources, uri, sourceIdentity, revision);
+        state_->xamlRuntime->Providers(), uri, sourceIdentity, revision);
 }
 
 bool View::TryGetCachedReloadRevision(

@@ -42,31 +42,27 @@ if(NOT _aero_runtime_precompiled_themes)
     endif()
 endif()
 
-add_library(AeroRuntimeObjects OBJECT
-    src/runtime/Gui.cpp
-    src/runtime/View.cpp
+set(_aero_runtime_sources
+    src/gui/Gui.cpp
+    src/gui/View.cpp
     src/markup/ReloadCoordinator.cpp
     src/render/RenderDevice.cpp
-    src/runtime/Invariants.cpp
-    src/runtime/ImageCache.cpp
-    src/runtime/StbImageImplementation.cpp
-    src/runtime/TextPipeline.cpp
+    src/gui/Invariants.cpp
+    src/media/ImageCache.cpp
+    src/media/StbImageImplementation.cpp
+    src/text/TextPipeline.cpp
     src/markup/XamlReader.cpp)
 if(_aero_runtime_precompiled_themes)
-    target_sources(AeroRuntimeObjects PRIVATE
-        "${_aero_generated_theme_header}")
-    add_dependencies(AeroRuntimeObjects AeroCompiledThemes)
+    list(APPEND _aero_runtime_sources "${_aero_generated_theme_header}")
+    add_dependencies(AeroGui AeroCompiledThemes)
 endif()
-aero_configure_internal_objects(AeroRuntimeObjects)
-target_compile_definitions(AeroRuntimeObjects PRIVATE
-    AERO_INTERNAL_RUNTIME=1)
-target_include_directories(AeroRuntimeObjects PRIVATE
+target_sources(AeroGui PRIVATE ${_aero_runtime_sources})
+target_compile_definitions(AeroGui PRIVATE AERO_INTERNAL_RUNTIME=1)
+target_include_directories(AeroGui PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb"
     "${_aero_runtime_theme_include_dir}"
     "${CMAKE_CURRENT_BINARY_DIR}/generated")
-target_link_libraries(AeroRuntimeObjects PUBLIC
-    AeroModuleSetObjects
-    AeroTextHarfBuzzObjects)
+unset(_aero_runtime_sources)
 
 set(AERO_DEFAULT_THEME_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"

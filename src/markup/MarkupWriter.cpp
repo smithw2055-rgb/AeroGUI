@@ -492,6 +492,18 @@ Base::Result<std::uint64_t> CommitBinding(void* context) noexcept {
         : Base::Result<std::uint64_t>(attached.GetStatus());
 }
 
+
+Base::Result<void> BindBindingRuntime(
+    void* context, const EffectRuntimeServices& services) noexcept {
+    auto* state = static_cast<DeferredBindingState*>(context);
+    if (state == nullptr || services.bindings == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Binding requires a mounted View BindingEngine");
+    }
+    return {};
+}
+
 void RollbackBinding(
     void* context,
     std::uint64_t token) noexcept {
@@ -638,6 +650,19 @@ struct DeferredMultiBindingState {
         }
     }
 };
+
+
+Base::Result<void> BindMultiBindingRuntime(
+    void* context, const EffectRuntimeServices& services) noexcept {
+    auto* state = static_cast<DeferredMultiBindingState*>(context);
+    if (state == nullptr || services.bindings == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "MultiBinding requires a mounted View BindingEngine");
+    }
+    state->manager = services.bindings;
+    return {};
+}
 
 Base::Result<void> PrepareMultiBinding(
     void* context,
@@ -852,7 +877,6 @@ Base::Result<ProvidedValue> CreateMultiBindingValue(
     if (services.schema == nullptr ||
         services.targetObject == nullptr ||
         services.targetMember == Meta::InvalidMemberId ||
-        services.bindings == nullptr ||
         services.nameScope == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -925,7 +949,8 @@ Base::Result<ProvidedValue> CreateMultiBindingValue(
         &CommitMultiBinding,
         &RollbackMultiBinding,
         &CleanupMultiBinding,
-        &PrepareMultiBinding);
+        &PrepareMultiBinding,
+        &BindMultiBindingRuntime);
 }
 
 } // namespace
@@ -1305,16 +1330,6 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         }
     }
 
-    Aero::GuiPrivate::Detail::BindingEngine* bindings =
-        services.bindings != nullptr
-        ? services.bindings
-        : extension->options_.bindings;
-    if (bindings == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Binding requires a load-scoped BindingEngine");
-    }
-
     if (services.deferredContentOwner != nullptr &&
         services.deferredContent != nullptr) {
         Base::Result<void> staged =
@@ -1323,7 +1338,6 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 source,
                 elementName,
                 *target,
-                *bindings,
                 *Detail::SchemaPrivate::Metadata(
                     *services.schema),
                 targetHandle,
@@ -1351,7 +1365,6 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             "Deferred Binding allocation failed");
     }
     auto* state = new (memory) DeferredBindingState();
-    state->manager = bindings;
     state->metadata = Detail::SchemaPrivate::Metadata(
         *services.schema);
     state->source = source;
@@ -1418,7 +1431,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     }
     return ProvidedValue::Deferred(
         state, &CommitBinding, &RollbackBinding, &CleanupBinding,
-        &PrepareBinding);
+        &PrepareBinding, &BindBindingRuntime);
 }
 
 } // namespace Aero::Markup
@@ -1563,6 +1576,26 @@ struct DeferredDynamicResourceState {
     Base::String key;
     Base::IAllocator* allocator = nullptr;
 };
+
+
+Base::Result<void> BindDynamicResourceRuntime(
+    void* context, const EffectRuntimeServices& services) noexcept {
+    auto* state = static_cast<DeferredDynamicResourceState*>(context);
+    if (state == nullptr || services.effectiveValues == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "DynamicResource requires mounted View value services");
+    }
+    state->engine = services.effectiveValues;
+    if (!state->hasFallbackResources && services.fallbackResources != nullptr) {
+        Base::Result<ResourceDictionary> shared =
+            services.fallbackResources->Share();
+        if (!shared) return shared.GetStatus();
+        state->fallbackResources = std::move(shared).Value();
+        state->hasFallbackResources = true;
+    }
+    return {};
+}
 
 Base::Result<std::uint64_t> CommitDynamicResource(void* context) noexcept {
     auto* state = static_cast<DeferredDynamicResourceState*>(context);
@@ -1869,11 +1902,6 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
         services.fallbackResources != nullptr
         ? services.fallbackResources
         : extension->options_.resources;
-    if (effectiveValues == nullptr || fallbackResources == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "DynamicResource requires load-scoped effective-value and resource services");
-    }
     Base::IAllocator& allocator = Base::GetDefaultAllocator();
     void* memory = allocator.Allocate({
         sizeof(DeferredDynamicResourceState),
@@ -1934,7 +1962,9 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
         state,
         &CommitDynamicResource,
         &RollbackDynamicResource,
-        &CleanupDeferredDynamicResource);
+        &CleanupDeferredDynamicResource,
+        nullptr,
+        &BindDynamicResourceRuntime);
 }
 
 } // namespace Aero::Markup
@@ -5137,11 +5167,13 @@ Base::Result<void> ObjectBuilder::WriteProvidedValue(
         effect.commit = provided.commit;
         effect.rollback = provided.rollback;
         effect.cleanup = provided.cleanup;
+        effect.bind = provided.bind;
         provided.rollbackContext = nullptr;
         provided.prepare = nullptr;
         provided.commit = nullptr;
         provided.rollback = nullptr;
         provided.cleanup = nullptr;
+        provided.bind = nullptr;
     } else {
         provided.Discard();
         return Base::Status::Failure(
@@ -6481,7 +6513,6 @@ Base::Result<void> DeferredContentPlan::StageBinding(
     Base::Object* source,
     Base::StringView sourceName,
     ::Aero::DependencyObject& target,
-    Aero::GuiPrivate::Detail::BindingEngine& manager,
     ::Aero::Meta::Registry& metadata,
     Meta::DependencyPropertyHandle targetProperty,
     Meta::DependencyPropertyHandle dataContextProperty,
@@ -6503,7 +6534,6 @@ Base::Result<void> DeferredContentPlan::StageBinding(
         edge.sourceName.Assign(sourceName);
     if (!sourceAssigned) return sourceAssigned.GetStatus();
     edge.target = &target;
-    edge.manager = &manager;
     edge.metadata = &metadata;
     edge.targetProperty = targetProperty;
     edge.dataContextProperty = dataContextProperty;

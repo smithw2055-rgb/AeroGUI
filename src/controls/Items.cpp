@@ -316,12 +316,14 @@ Base::Result<void> Detail::DeferredObjectProgram::Seal() noexcept {
 }
 
 Base::Result<Base::Ref<Base::Object>> Detail::DeferredObjectProgram::Instantiate(
-    const Base::Ref<Base::Object>& payload) const noexcept {
+    const Base::Ref<Base::Object>& payload,
+    Aero::GuiPrivate::Detail::BindingEngine* bindings) const noexcept {
     if (factory == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Deferred object program is not ready");
     }
-    Base::Result<Base::Ref<Base::Object>> result = factory(payload, context);
+    Base::Result<Base::Ref<Base::Object>> result =
+        factory(payload, context, bindings);
     if (!result || result.Value()) return result;
     return Base::Status::Failure(Base::ErrorCode::InvalidState,
         "Deferred object factory returned null");
@@ -568,10 +570,12 @@ Base::Result<void> ItemsPanelTemplate::Impl::Seal(ItemsPanelTemplate& value) noe
     return state->resources.Seal();
 }
 
-Base::Result<Base::Ref<Base::Object>> DataTemplate::Impl::Instantiate(const DataTemplate& value, const Base::Ref<Base::Object>& item) noexcept {
+Base::Result<Base::Ref<Base::Object>> DataTemplate::Impl::Instantiate(
+    const DataTemplate& value, const Base::Ref<Base::Object>& item,
+    GuiPrivate::Detail::BindingEngine* bindings) noexcept {
     const DataTemplateState* state = State(value);
     if (state == nullptr || state->program.factory == nullptr || !item) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate is not ready");
-    return state->program.Instantiate(item);
+    return state->program.Instantiate(item, bindings);
 }
 
 Base::Result<Base::Ref<Base::Object>> ItemsPanelTemplate::Impl::Instantiate(const ItemsPanelTemplate& value) noexcept {
@@ -726,8 +730,9 @@ Base::Result<void> TemplatePrivate::Seal(
 
 Base::Result<Base::Ref<Base::Object>> TemplatePrivate::Instantiate(
     const DataTemplate& value,
-    const Base::Ref<Base::Object>& item) noexcept {
-    return DataTemplate::Impl::Instantiate(value, item);
+    const Base::Ref<Base::Object>& item,
+    GuiPrivate::Detail::BindingEngine* bindings) noexcept {
+    return DataTemplate::Impl::Instantiate(value, item, bindings);
 }
 
 Base::Result<Base::Ref<Base::Object>> TemplatePrivate::Instantiate(
@@ -847,7 +852,8 @@ ContentControl::CreateTemplatedContent() const noexcept {
     Base::Result<Base::Ref<Base::Object>> created =
         DataTemplate::Impl::Instantiate(
             *static_cast<DataTemplate*>(contentTemplate.Get()),
-            contentValue_);
+            contentValue_,
+            Aero::Visual::Impl::BindingEngineFor(*this));
     if (!created) return created.GetStatus();
     if (!created.Value() ||
         !PropertyRegistry().Types().IsDerivedFrom(
@@ -1393,7 +1399,9 @@ ItemContainerGenerator::Impl::CreateRecord(
     if (itemTemplate != nullptr) {
         Base::Result<Base::Ref<Base::Object>>
             content =
-                DataTemplate::Impl::Instantiate(*itemTemplate, record.item);
+                DataTemplate::Impl::Instantiate(
+                    *itemTemplate, record.item,
+                    Aero::Visual::Impl::BindingEngineFor(*owner_));
         if (!content) return content.GetStatus();
         record.content =
             std::move(content).Value();

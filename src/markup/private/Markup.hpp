@@ -1415,6 +1415,15 @@ using EffectRollbackCallback = void (*)(
     std::uint64_t token) noexcept;
 using EffectCleanupCallback = void (*)(void* context) noexcept;
 
+struct EffectRuntimeServices {
+    Meta::EffectiveValueEngine* effectiveValues = nullptr;
+    Aero::GuiPrivate::Detail::BindingEngine* bindings = nullptr;
+    Aero::ResourceDictionary* fallbackResources = nullptr;
+    Base::Ref<EffectLifetime> lifetime;
+};
+using EffectBindCallback = Base::Result<void> (*)(
+    void* context, const EffectRuntimeServices& services) noexcept;
+
 struct VisualContentEdge {
     Base::Ref<Base::Object> parentOwner;
     Base::Ref<Base::Object> childOwner;
@@ -1461,8 +1470,19 @@ struct CommittedEffect {
     EffectCommitCallback commit = nullptr;
     EffectRollbackCallback rollback = nullptr;
     EffectCleanupCallback cleanup = nullptr;
+    EffectBindCallback bind = nullptr;
     bool committed = false;
 
+    Base::Result<void> Bind(
+        const EffectRuntimeServices& services) noexcept {
+        if (!lifetime && services.lifetime) lifetime = services.lifetime;
+        if (effectiveValues == nullptr && services.effectiveValues != nullptr) {
+            effectiveValues = services.effectiveValues;
+        }
+        return bind != nullptr
+            ? bind(context, services)
+            : Base::Result<void>();
+    }
 
     Base::Result<void> Prepare(
         const Aero::NameScope& names) noexcept {
@@ -1532,6 +1552,7 @@ struct CommittedEffect {
         commit = nullptr;
         rollback = nullptr;
         cleanup = nullptr;
+        bind = nullptr;
         committed = false;
     }
 };
@@ -1555,6 +1576,15 @@ public:
     CommittedEffectPlan(const CommittedEffectPlan&) = delete;
     CommittedEffectPlan& operator=(
         const CommittedEffectPlan&) = delete;
+
+    Base::Result<void> Bind(
+        const EffectRuntimeServices& services) noexcept {
+        for (CommittedEffect& effect : effects_) {
+            Base::Result<void> bound = effect.Bind(services);
+            if (!bound) return bound.GetStatus();
+        }
+        return {};
+    }
 
     Base::Vector<CommittedEffect>& Items() noexcept { return effects_; }
     const Base::Vector<CommittedEffect>& Items() const noexcept {
@@ -1662,7 +1692,7 @@ struct LoadState {
 
 
 // ===== GuiSchema contract =====
-#include "runtime/modules/ModuleSet.hpp"
+#include "gui/modules/ModuleSet.hpp"
 
 
 namespace Aero::Meta { class Registry; class Registration; }

@@ -1213,7 +1213,7 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
 // ===== TemplateCompiler =====
 
 
-#include "../runtime/DataTemplateTriggerState.hpp"
+#include "../controls/DataTemplateTriggerState.hpp"
 #include "../media/MediaPrivate.hpp"
 
 #include <Aero/Controls/Primitives.hpp>
@@ -1552,7 +1552,6 @@ CompileBlueprint(
             !source.sourceName.Empty();
         if (target == UINT32_MAX ||
             (source.source != nullptr && bindingSource == UINT32_MAX) ||
-            source.manager == nullptr ||
             source.metadata == nullptr) {
             return InvalidTemplateCompiler(
                 "Deferred template Binding target or source is outside its VisualTree");
@@ -1560,7 +1559,6 @@ CompileBlueprint(
         TemplatePrototypeBinding binding;
         binding.target = target;
         binding.source = bindingSource;
-        binding.manager = source.manager;
         binding.metadata = source.metadata;
         binding.targetProperty =
             source.targetProperty;
@@ -2753,8 +2751,7 @@ Base::Result<void> BuildCompiledTemplate(
     }
     for (const TemplatePrototypeBinding& binding :
          blueprint->bindings) {
-        if (binding.manager == nullptr ||
-            binding.metadata == nullptr ||
+        if (binding.metadata == nullptr ||
             binding.target >= objects.Size() ||
             (binding.source != UINT32_MAX &&
              binding.source >= objects.Size())) {
@@ -2793,8 +2790,7 @@ Base::Result<void> BuildCompiledTemplate(
         descriptor.updateSourceTrigger =
             binding.updateSourceTrigger;
         Base::Result<void> queued =
-            binding.manager->QueueDeferred(
-                descriptor);
+            context.Bindings().QueueDeferred(descriptor);
         if (!queued) return queued.GetStatus();
     }
 
@@ -3045,7 +3041,8 @@ Base::Result<void> BuildCompiledTemplate(
 Base::Result<Base::Ref<Base::Object>>
 BuildCompiledDeferredTemplate(
     const Base::Ref<Base::Object>& payload,
-    void* factoryContext) noexcept {
+    void* factoryContext,
+    Aero::GuiPrivate::Detail::BindingEngine* bindings) noexcept {
     auto* blueprint =
         static_cast<CompiledTemplateBlueprint*>(
             factoryContext);
@@ -3132,8 +3129,7 @@ BuildCompiledDeferredTemplate(
     }
     for (const TemplatePrototypeBinding& binding :
          blueprint->bindings) {
-        if (binding.manager == nullptr ||
-            binding.metadata == nullptr ||
+        if (binding.metadata == nullptr ||
             binding.target >= objects.Size() ||
             (binding.source != UINT32_MAX &&
              binding.source >= objects.Size())) {
@@ -3167,9 +3163,13 @@ BuildCompiledDeferredTemplate(
         descriptor.mode = binding.mode;
         descriptor.updateSourceTrigger =
             binding.updateSourceTrigger;
+        if (bindings == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "DataTemplate Binding requires a mounted View binding engine");
+        }
         Base::Result<void> queued =
-            binding.manager->QueueDeferred(
-                descriptor);
+            bindings->QueueDeferred(descriptor);
         if (!queued) return queued.GetStatus();
         // A DataTemplate receives its item as the DataContext of its root
         // before it is attached to an ItemsHost. Activate bindings targeted
@@ -3181,7 +3181,7 @@ BuildCompiledDeferredTemplate(
             binding.source == UINT32_MAX &&
             descriptor.target == root.Get()) {
             Base::Result<std::uint32_t> activated =
-                binding.manager->ActivateDeferred(*descriptor.target);
+                bindings->ActivateDeferred(*descriptor.target);
             if (!activated) return activated.GetStatus();
         }
     }

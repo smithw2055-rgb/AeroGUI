@@ -2,7 +2,7 @@
 #include "app/Metadata.hpp"
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Module.hpp>
-#include "runtime/modules/ModuleSet.hpp"
+#include "gui/modules/ModuleSet.hpp"
 
 #include <Aero/Version.hpp>
 

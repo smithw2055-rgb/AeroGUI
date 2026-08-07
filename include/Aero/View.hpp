@@ -24,13 +24,14 @@ class IDiagnosticSink;
 namespace Aero {
 
 namespace App::Detail { class DesktopHost; }
-namespace Runtime::Detail { class ViewAccess; class ViewRenderer; }
+namespace Runtime::Detail { class ViewRenderer; }
 
 enum class BuiltInTheme : std::uint8_t { Light = 0U, Dark };
 enum class ResourceLayer : std::uint8_t { Application = 0U, Theme, System };
 enum class ResourceLoadMode : std::uint8_t { Replace = 0U, Merge };
 
 class FrameworkElement;
+class Gui;
 class View;
 namespace Controls { class ContentControl; }
 
@@ -69,44 +70,6 @@ namespace Media { class TextureProvider; }
 namespace Text { class FontProvider; }
 struct ViewOptions;
 
-// Process-level GUI composition used by embedded hosts. Application owns this
-// object automatically for desktop programs; engine integrations create one,
-// register optional modules, initialize it once and create one or more Views.
-class AERO_API Gui {
-public:
-    explicit Gui(Base::IAllocator* allocator = nullptr) noexcept;
-    ~Gui() noexcept;
-
-    Gui(const Gui&) = delete;
-    Gui& operator=(const Gui&) = delete;
-
-    Base::Result<void> AddModule(
-        const ModuleRegistration& registration) noexcept;
-    Base::Result<void> AddXamlProvider(
-        Markup::XamlProvider& provider,
-        Base::StringView scheme = {},
-        Base::StringView assembly = {}) noexcept;
-    Base::Result<void> AddTextureProvider(
-        Media::TextureProvider& provider) noexcept;
-    Base::Result<void> AddFontProvider(
-        Text::FontProvider& provider) noexcept;
-    Base::Result<void> Initialize() noexcept;
-    Base::Result<Base::Ref<View>> CreateView(
-        Base::IAllocator* allocator = nullptr) noexcept;
-    Base::Result<Base::Ref<View>> CreateView(
-        const ViewOptions& options,
-        Base::IAllocator* allocator = nullptr) noexcept;
-
-    bool IsInitialized() const noexcept;
-
-private:
-    friend class View;
-
-    struct Impl;
-    Base::IAllocator* allocator_ = nullptr;
-    Base::Ref<Base::Object> impl_;
-};
-
 // Host-driven retained-mode view. View::Update() advances UI state; the
 // per-View Renderer synchronizes and renders the retained frame. XAML,
 // resource-layer and fragment operations live on Markup::XamlReader.
@@ -132,17 +95,16 @@ public:
     View(const View&) = delete;
     View& operator=(const View&) = delete;
 
-    Base::Result<void> SetContentChecked(
+    Base::Result<void> SetContent(
         Markup::XamlDocument&& document,
         Aero::Size availableSize) noexcept;
-    void SetContent(
-        Markup::XamlDocument&& document,
-        Aero::Size availableSize) noexcept;
-    void SetContent(
+    Base::Result<void> SetContent(
         Base::Ref<FrameworkElement> root,
         Aero::Size availableSize) noexcept;
     FrameworkElement* GetContent() noexcept;
     const FrameworkElement* GetContent() const noexcept;
+    Gui& GetGui() noexcept;
+    const Gui& GetGui() const noexcept;
 
     void SetSize(Aero::Size availableSize) noexcept;
     void SetViewport(const Viewport& viewport) noexcept;
@@ -161,32 +123,17 @@ public:
 
 private:
     friend class Gui;
-    friend class Runtime::Detail::ViewAccess;
     friend class Runtime::Detail::ViewRenderer;
     friend class CompositionTarget;
+    friend class Markup::XamlReader;
+    friend class Markup::ReloadCoordinator;
+    friend class App::Detail::DesktopHost;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
     Base::MakeRefWithAllocator(
         Base::IAllocator&,
         Args&&...) noexcept;
 
-    Base::Result<Markup::XamlDocument> LoadDocument(
-        Base::StringView uri,
-        Diagnostics::IDiagnosticSink* diagnostics = nullptr,
-        const Markup::XamlReaderSettings* settings = nullptr) noexcept;
-    Base::Result<Markup::XamlDocument> ParseDocument(
-        Base::StringView source,
-        const Base::ResourceUri& baseUri = {},
-        Diagnostics::IDiagnosticSink* diagnostics = nullptr,
-        const Markup::XamlReaderSettings* settings = nullptr) noexcept;
-    Base::Result<Markup::XamlDocument> ParseStreamDocument(
-        Base::Stream& source,
-        const Base::ResourceUri& baseUri = {},
-        Diagnostics::IDiagnosticSink* diagnostics = nullptr,
-        const Markup::XamlReaderSettings* settings = nullptr) noexcept;
-    Base::Result<Markup::XamlDocument> LoadCompiledDocument(
-        Base::Span<const std::uint8_t> bytes,
-        const Base::ResourceUri& originUri = {}) noexcept;
     Base::Result<void> MountContent(
         Controls::ContentControl& host,
         Markup::XamlDocument&& document) noexcept;

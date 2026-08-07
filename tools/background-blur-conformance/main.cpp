@@ -522,7 +522,7 @@ bool Run(Aero::Gui& gui) {
         std::fprintf(stderr, "LOAD FAIL: MainWindow root is not FrameworkElement\n");
         return false;
     }
-    Aero::Base::Result<void> mounted = view->SetContentChecked(
+    Aero::Base::Result<void> mounted = view->SetContent(
         std::move(loaded).Value(), {1280.0, 720.0});
     if (!mounted) {
         std::fprintf(stderr, "MOUNT FAIL: %s\n", mounted.GetStatus().message);

@@ -1,4 +1,4 @@
-#include "platform/win32/OpenGLSurface.hpp"
+#include "render/platform/win32/OpenGLSurface.hpp"
 
 #if !defined(_WIN32)
 #error "WglSurface.cpp is only supported on Windows"

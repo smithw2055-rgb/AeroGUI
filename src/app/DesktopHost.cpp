@@ -13,13 +13,12 @@
 #include <Aero/ViewOptions.hpp>
 #include <Aero/IRenderer.hpp>
 #include <Aero/View.hpp>
-#include "runtime/ViewAccess.hpp"
 
 #if defined(_WIN32)
-#include "platform/win32/InputRouters.hpp"
-#include "platform/win32/Window.hpp"
+#include "app/platform/win32/InputRouters.hpp"
+#include "app/platform/win32/Window.hpp"
 #else
-#include "platform/x11/Window.hpp"
+#include "app/platform/x11/Window.hpp"
 #endif
 
 #include <chrono>
@@ -29,6 +28,10 @@
 #include <utility>
 
 namespace Aero::App::Detail {
+
+Base::Result<void> DesktopHost::UnmountView(::Aero::View& view) noexcept {
+    return view.Unmount();
+}
 
 using namespace ::Aero::App;
 namespace {
@@ -103,10 +106,10 @@ struct DesktopHost::Impl {
                 owner->environment.CreateView(options, owner->allocator);
             if (!created) return created.GetStatus();
             view = std::move(created).Value();
-            Markup::XamlReader reader(*view);
+            Markup::XamlReader reader(owner->environment);
             if (owner->loadBuiltInTheme) {
                 Base::Result<void> themed = reader.LoadTheme(
-                    owner->builtInTheme);
+                    *view, owner->builtInTheme);
                 if (!themed) return themed.GetStatus();
             }
             ResourceDictionary* resources =
@@ -115,7 +118,7 @@ struct DesktopHost::Impl {
                 : nullptr;
             if (resources != nullptr) {
                 reader.SetResources(
-                    ResourceLayer::Application,
+                    *view, ResourceLayer::Application,
                     *resources,
                     ResourceLoadMode::Replace);
             }
@@ -126,14 +129,13 @@ struct DesktopHost::Impl {
             const Base::ResourceUri& uri) noexcept {
             Base::Result<void> created = CreateView();
             if (!created) return created.GetStatus();
-            Markup::XamlReader reader(*view);
-            Base::Result<Markup::XamlDocument> loaded = reader.Load(
-                uri.Canonical(), {}, owner->diagnostics);
+            Markup::XamlReader reader(owner->environment);
+            Base::Result<Markup::XamlDocument> loaded =
+                reader.LoadComponent<Window>(
+                    uri.Canonical(), {}, owner->diagnostics);
             if (!loaded) return loaded.GetStatus();
             const Base::Ref<Base::Object>& root = loaded.Value().Root();
-            if (!root ||
-                !::Aero::Runtime::Detail::ViewAccess::IsInstanceOf(
-                    *view, *root, Window::StaticTypeId())) {
+            if (!root) {
                 return HostFailure(
                     Base::ErrorCode::InvalidArgument,
                     "StartupUri XAML root must be Window");
@@ -495,8 +497,7 @@ struct DesktopHost::Impl {
             shutdown = true;
             renderContext.Shutdown();
             if (view) {
-                static_cast<void>(
-                    ::Aero::Runtime::Detail::ViewAccess::Unmount(*view));
+                static_cast<void>(DesktopHost::UnmountView(*view));
             }
             if (window != nullptr) {
                 Window::Impl::NotifyClosed(*window);
@@ -637,14 +638,13 @@ struct DesktopHost::Impl {
             Base::Result<Base::Ref<View>> created = CreateLoaderView();
             if (!created) return created.GetStatus();
             loaderView = std::move(created).Value();
-            Markup::XamlReader reader(*loaderView);
-            Base::Result<Markup::XamlDocument> loaded = reader.Load(
-                applicationFile.View(), {}, diagnostics);
+            Markup::XamlReader reader(environment);
+            Base::Result<Markup::XamlDocument> loaded =
+                reader.LoadComponent<Application>(
+                    applicationFile.View(), {}, diagnostics);
             if (!loaded) return loaded.GetStatus();
             const Base::Ref<Base::Object>& root = loaded.Value().Root();
-            if (!root ||
-                !::Aero::Runtime::Detail::ViewAccess::IsInstanceOf(
-                    *loaderView, *root, Application::StaticTypeId())) {
+            if (!root) {
                 return HostFailure(
                     Base::ErrorCode::InvalidArgument,
                     "Application XAML root must be Application");
@@ -676,14 +676,13 @@ struct DesktopHost::Impl {
         Base::Result<Base::Ref<View>> created = CreateLoaderView();
         if (!created) return created.GetStatus();
         loaderView = std::move(created).Value();
-        Markup::XamlReader reader(*loaderView);
-        Base::Result<Markup::XamlDocument> loaded = reader.Load(
-            applicationFile.View(), {}, diagnostics);
+        Markup::XamlReader reader(environment);
+        Base::Result<Markup::XamlDocument> loaded =
+            reader.LoadComponent<Application>(
+                applicationFile.View(), {}, diagnostics);
         if (!loaded) return loaded.GetStatus();
         const Base::Ref<Base::Object>& root = loaded.Value().Root();
-        if (!root ||
-            !::Aero::Runtime::Detail::ViewAccess::IsInstanceOf(
-                *loaderView, *root, Application::StaticTypeId())) {
+        if (!root) {
             return HostFailure(
                 Base::ErrorCode::InvalidArgument,
                 "Application XAML root must be Application");
