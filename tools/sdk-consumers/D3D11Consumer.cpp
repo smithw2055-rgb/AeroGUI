@@ -1,17 +1,16 @@
 #include <Aero/Render/D3D11.hpp>
 
+#include <utility>
+
 namespace {
 
 [[maybe_unused]]
-Aero::Base::Result<
-    Aero::Base::Ref<Aero::RenderTarget>>
+Aero::Base::Result<Aero::Base::Ref<Aero::RenderTarget>>
 CreateD3D11Target(
-    Aero::Platform::NativeWindowHandle window) noexcept {
-    Aero::Render::D3D11WindowSurfaceOptions options;
-    options.window = window;
-    options.width = 640U;
-    options.height = 480U;
-    return Aero::Render::CreateD3D11WindowSurface(options);
+    Aero::Base::Ref<Aero::RenderDevice> device) noexcept {
+    Aero::Render::D3D11RenderTargetOptions options;
+    return Aero::Render::CreateD3D11RenderTarget(
+        std::move(device), options);
 }
 
 } // namespace
