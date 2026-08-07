@@ -1,0 +1,28 @@
+name: Export Codex Baseline
+
+on:
+  pull_request:
+    branches: [main]
+    types: [synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.event.pull_request.head.ref == 'agent/c1c3-patch-export'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/local-no-samples-tests
+          fetch-depth: 1
+          submodules: false
+      - name: Remove git metadata
+        run: rm -rf .git
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aerogui-codex-9162ffae
+          path: .
+          include-hidden-files: true
+          retention-days: 1
