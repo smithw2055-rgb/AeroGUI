@@ -9,43 +9,39 @@
 #include <new>
 #include <utility>
 
-#include "controls/ControlBehavior.hpp"
+#include "gui/GuiData.hpp"
 
 namespace Aero::Markup {
-
-bool ReloadCoordinator::ViewIsInitialized(const View& view) noexcept {
-    return view.IsInitialized();
-}
-
-bool ReloadCoordinator::ViewIsMounted(const View& view) noexcept {
-    return view.IsMounted();
-}
 
 Base::Result<void> ReloadCoordinator::QueryReloadSource(
     View& view, const Base::ResourceUri& uri,
     std::uint64_t& sourceIdentity, std::uint64_t& revision) noexcept {
-    return view.QueryReloadSource(uri, sourceIdentity, revision);
+    Gui& gui = view.GetGui();
+    if (!gui.IsInitialized() || uri.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "XAML reload source is unavailable");
+    }
+    Gui::Impl& state = static_cast<Gui::Impl&>(*gui.impl_);
+    return state.xaml.QuerySource(
+        state.xamlProviders, uri, sourceIdentity, revision);
 }
 
 bool ReloadCoordinator::TryGetCachedReloadRevision(
     View& view, const Base::ResourceUri& uri,
     std::uint64_t sourceIdentity, std::uint64_t& revision) noexcept {
-    return view.TryGetCachedReloadRevision(uri, sourceIdentity, revision);
+    Gui& gui = view.GetGui();
+    if (!gui.IsInitialized()) return false;
+    Gui::Impl& state = static_cast<Gui::Impl&>(*gui.impl_);
+    return state.xaml.TryGetCachedRevision(uri, sourceIdentity, revision);
 }
 
 Base::Result<std::uint32_t> ReloadCoordinator::InvalidateReloadDocuments(
     View& view, const Base::ResourceUri& uri, bool includeDependents) noexcept {
-    return view.InvalidateReloadDocuments(uri, includeDependents);
-}
-
-Base::Result<void> ReloadCoordinator::ReplaceMountedDocument(
-    View& view, XamlDocument&& document, Aero::Size availableSize) noexcept {
-    return view.ReplaceMountedDocument(std::move(document), availableSize);
-}
-
-Base::Result<void> ReloadCoordinator::MountDocument(
-    View& view, XamlDocument&& document, Aero::Size availableSize) noexcept {
-    return view.Mount(std::move(document), availableSize);
+    Gui& gui = view.GetGui();
+    if (!gui.IsInitialized()) return std::uint32_t{0U};
+    Gui::Impl& state = static_cast<Gui::Impl&>(*gui.impl_);
+    return state.xaml.Invalidate(uri, includeDependents);
 }
 
 struct ReloadCoordinator::Impl  {
@@ -140,15 +136,13 @@ struct ReloadCoordinator::Impl  {
     Base::Result<ReloadResult> ReloadFor(
         const Base::ResourceUri& changed,
         Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-        if (!active || view == nullptr ||
-            !ReloadCoordinator::ViewIsMounted(*view)) {
+        if (!active || view == nullptr || view->GetContent() == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "XAML reload coordinator is not active");
         }
         Base::Result<std::uint32_t> invalidated =
-            ReloadCoordinator::InvalidateReloadDocuments(
-                *view, changed, true);
+            ReloadCoordinator::InvalidateReloadDocuments(*view, changed, true);
         if (!invalidated) return invalidated.GetStatus();
         const std::uint32_t invalidatedCount = invalidated.Value();
 
@@ -161,9 +155,8 @@ struct ReloadCoordinator::Impl  {
         Base::Result<void> tracked = BuildTrackedSources(
             replacement.Value(), replacementRoot, replacementRevisions);
         if (!tracked) return tracked.GetStatus();
-        Base::Result<void> replaced =
-            ReloadCoordinator::ReplaceMountedDocument(
-                *view, std::move(replacement).Value(), availableSize);
+        Base::Result<void> replaced = view->SetContent(
+            std::move(replacement).Value(), availableSize);
         if (!replaced) return replaced.GetStatus();
         rootUri = replacementRoot;
         revisions = std::move(replacementRevisions);
@@ -234,15 +227,12 @@ Base::Result<void> ReloadCoordinator::Start(
     Base::StringView rootUri,
     Aero::Size availableSize,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    if (impl_ == nullptr || impl_->view == nullptr ||
-        !ReloadCoordinator::ViewIsInitialized(
-            *impl_->view)) {
+    if (impl_ == nullptr || impl_->view == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
-            "XAML reload requires an initialized View");
+            "XAML reload requires a View");
     }
-    if (impl_->active ||
-        ReloadCoordinator::ViewIsMounted(*impl_->view)) {
+    if (impl_->active || impl_->view->GetContent() != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "XAML reload requires an unmounted View");
@@ -259,9 +249,8 @@ Base::Result<void> ReloadCoordinator::Start(
     Base::Result<void> tracked = impl_->BuildTrackedSources(
         document.Value(), resolvedRoot, revisions);
     if (!tracked) return tracked.GetStatus();
-    Base::Result<void> mounted =
-        ReloadCoordinator::MountDocument(
-            *impl_->view, std::move(document).Value(), availableSize);
+    Base::Result<void> mounted = impl_->view->SetContent(
+        std::move(document).Value(), availableSize);
     if (!mounted) return mounted.GetStatus();
 
     impl_->rootUri = resolvedRoot;

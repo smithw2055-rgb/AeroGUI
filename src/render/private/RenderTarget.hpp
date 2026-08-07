@@ -47,10 +47,6 @@ struct RenderTarget::Impl {
 
 namespace Aero::Render::Detail {
 
-// Compatibility spelling for existing backend implementation declarations.
-// It is an alias, not an additional object/lifetime layer.
-using NativeRenderTarget = ::Aero::RenderTarget::Impl;
-
 Base::Result<Base::Ref<Aero::RenderTarget>> AdoptRenderTarget(
     Base::Ref<Aero::RenderDevice> device,
     Aero::RenderTargetKind kind,

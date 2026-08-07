@@ -1,9 +1,8 @@
-#include "render/private/BackendApi.hpp"
-#include "render/private/RenderSurface.hpp"
+#include "render/private/RenderDevice.hpp"
+#include "render/private/RenderTarget.hpp"
 #include "render/BatchPlanner.hpp"
 
 #include <new>
-#include <utility>
 
 namespace Aero {
 namespace {
@@ -40,31 +39,14 @@ bool ApplyBackendHealth(
 
 RenderDevice::RenderDevice(
     ConstructionToken,
-    Base::IAllocator* allocator) noexcept {
-    Base::IAllocator& selected = allocator != nullptr
-        ? *allocator
-        : Base::GetDefaultAllocator();
-    void* memory = selected.Allocate({
-        sizeof(Impl), alignof(Impl), Base::MemoryTag::Render});
-    if (memory == nullptr) {
-        Base::ReportOutOfMemory(
-            sizeof(Impl), alignof(Impl), Base::MemoryTag::Render);
-    }
-    impl_ = new (memory) Impl(selected);
-}
+    Impl* implementation) noexcept
+    : impl_(implementation) {}
 
 RenderDevice::~RenderDevice() noexcept {
     if (impl_ == nullptr) return;
-    if (impl_->native != nullptr) {
-        static_cast<void>(impl_->native->WaitIdle(5000U));
-        delete impl_->native;
-        impl_->native = nullptr;
-    }
+    static_cast<void>(impl_->WaitIdle(5000U));
     impl_->state = RenderDeviceState::Shutdown;
-    Base::IAllocator* allocator = impl_->allocator;
-    impl_->~Impl();
-    allocator->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Render);
+    delete impl_;
     impl_ = nullptr;
 }
 
@@ -99,9 +81,8 @@ Base::Result<RenderFrameStatistics> RenderDevice::Analyze(
 
 void RenderDevice::MergeBackendStatistics(
     RenderFrameStatistics& result) const noexcept {
-    const auto* nativeBackend = Impl::NativeBackend(*this);
-    const RenderFrameStatistics native = nativeBackend != nullptr
-        ? nativeBackend->LastFrameStatistics()
+    const RenderFrameStatistics native = impl_ != nullptr
+        ? impl_->LastFrameStatistics()
         : RenderFrameStatistics{};
     result.drawCallCount = native.drawCallCount != 0U
         ? native.drawCallCount
@@ -113,29 +94,24 @@ void RenderDevice::MergeBackendStatistics(
 }
 
 void RenderDevice::NotifyDeviceLost() noexcept {
-    auto* native = Impl::NativeBackend(*this);
-    if (impl_ == nullptr || native == nullptr ||
-        impl_->state != RenderDeviceState::Ready) {
-        return;
-    }
+    if (impl_ == nullptr || impl_->state != RenderDeviceState::Ready) return;
     impl_->state = RenderDeviceState::DeviceLost;
     ++impl_->statistics.generation;
-    native->NotifyDeviceLost();
+    impl_->NotifyDeviceLost();
 }
 
 Base::Result<void> RenderDevice::Restore() noexcept {
-    auto* native = Impl::NativeBackend(*this);
-    if (impl_ == nullptr || native == nullptr) {
+    if (impl_ == nullptr) {
         return NotInitialized("Render device is not initialized");
     }
     if (impl_->state != RenderDeviceState::DeviceLost) {
         return InvalidState("Only a lost render device can be restored");
     }
 
-    Base::Result<void> restored = native->RestoreDevice();
+    Base::Result<void> restored = impl_->RestoreDevice();
     if (!restored) {
         ++impl_->statistics.failedFrameCount;
-        if (ApplyBackendHealth(*impl_, native->GetDeviceHealth())) {
+        if (ApplyBackendHealth(*impl_, impl_->GetDeviceHealth())) {
             ++impl_->statistics.generation;
         }
         return restored.GetStatus();
@@ -146,19 +122,20 @@ Base::Result<void> RenderDevice::Restore() noexcept {
 
 Base::Result<void> RenderDevice::WaitIdle(
     std::uint32_t timeoutMilliseconds) noexcept {
-    auto* native = Impl::NativeBackend(*this);
-    return native != nullptr
-        ? native->WaitIdle(timeoutMilliseconds)
-        : Base::Result<void>(
-              NotInitialized("Render device is not initialized"));
+    return impl_ != nullptr
+        ? impl_->WaitIdle(timeoutMilliseconds)
+        : Base::Result<void>(NotInitialized("Render device is not initialized"));
 }
 
 } // namespace Aero
 
 namespace Aero::Render::Detail {
 
-class HeadlessDeviceState final : public NativeRenderDevice {
+class HeadlessDeviceState final : public Aero::RenderDevice::Impl {
 public:
+    explicit HeadlessDeviceState(Base::IAllocator& allocator) noexcept
+        : Aero::RenderDevice::Impl(allocator) {}
+
     RenderBackendKind Backend() const noexcept override {
         return RenderBackendKind::Headless;
     }
@@ -179,27 +156,23 @@ public:
     }
 };
 
-Base::Result<Base::Ref<Aero::RenderDevice>> RenderDeviceFactory::Adopt(
-    NativeRenderDevice* backend,
+Base::Result<Base::Ref<Aero::RenderDevice>> AdoptRenderDevice(
+    Aero::RenderDevice::Impl* backend,
     Base::IAllocator* allocator) noexcept {
     return ::Aero::RenderDevice::Impl::Create(backend, allocator);
 }
 
-Base::Result<Base::Ref<Aero::RenderDevice>> AdoptRenderDevice(
-    NativeRenderDevice* backend,
-    Base::IAllocator* allocator) noexcept {
-    return RenderDeviceFactory::Adopt(backend, allocator);
-}
-
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateHeadlessRenderDevice(
     Base::IAllocator* allocator) noexcept {
-    auto* backend = new (std::nothrow) HeadlessDeviceState();
+    Base::IAllocator& selected = allocator != nullptr
+        ? *allocator : Base::GetDefaultAllocator();
+    auto* backend = new (std::nothrow) HeadlessDeviceState(selected);
     if (backend == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Unable to allocate the headless render device");
     }
-    return AdoptRenderDevice(backend, allocator);
+    return AdoptRenderDevice(backend, &selected);
 }
 
 } // namespace Aero::Render::Detail
@@ -209,18 +182,16 @@ namespace Aero {
 Base::Result<void> RenderDevice::RenderOffscreen(
     const void* rendererToken,
     const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
-    auto* native = Impl::NativeBackend(*this);
-    if (impl_ == nullptr || native == nullptr) {
+    if (impl_ == nullptr) {
         return NotInitialized("Render device is not initialized");
     }
     if (impl_->state != RenderDeviceState::Ready) {
         return InvalidState("Render device is not ready");
     }
-    Base::Result<void> rendered =
-        native->RenderOffscreen(rendererToken, frame);
+    Base::Result<void> rendered = impl_->RenderOffscreen(rendererToken, frame);
     if (!rendered) {
         ++impl_->statistics.failedFrameCount;
-        if (ApplyBackendHealth(*impl_, native->GetDeviceHealth())) {
+        if (ApplyBackendHealth(*impl_, impl_->GetDeviceHealth())) {
             ++impl_->statistics.generation;
         }
         return rendered.GetStatus();
@@ -253,33 +224,25 @@ void RenderDevice::Impl::CompleteSurfaceFrame(
     device.impl_->statistics.lastCompletedVersion = frame.Version();
 }
 
-void RenderDevice::Impl::RefreshHealth(
-    RenderDevice& device) noexcept {
+void RenderDevice::Impl::RefreshHealth(RenderDevice& device) noexcept {
     if (device.impl_ == nullptr) return;
-    auto* native = NativeBackend(device);
-    const auto health = native != nullptr
-        ? native->GetDeviceHealth()
-        : ::Aero::Render::Detail::BackendHealth::Failed;
-    if (ApplyBackendHealth(*device.impl_, health)) {
+    if (ApplyBackendHealth(*device.impl_, device.impl_->GetDeviceHealth())) {
         ++device.impl_->statistics.generation;
     }
 }
 
-void RenderDevice::Impl::RecordSurfaceFailure(
-    RenderDevice& device) noexcept {
+void RenderDevice::Impl::RecordSurfaceFailure(RenderDevice& device) noexcept {
     if (device.impl_ == nullptr) return;
     ++device.impl_->statistics.failedFrameCount;
     RefreshHealth(device);
 }
 
-void RenderDevice::ReleaseRenderer(
-    const void* rendererToken) noexcept {
-    auto* native = Impl::NativeBackend(*this);
-    if (native != nullptr) native->ReleaseRenderer(rendererToken);
+void RenderDevice::ReleaseRenderer(const void* rendererToken) noexcept {
+    if (impl_ != nullptr) impl_->ReleaseRenderer(rendererToken);
 }
 
 Base::Status RenderDevice::GetFrameStatus() noexcept {
-    if (impl_ == nullptr || Impl::NativeBackend(*this) == nullptr) {
+    if (impl_ == nullptr) {
         return NotInitialized("Render device is not initialized");
     }
     switch (impl_->state) {

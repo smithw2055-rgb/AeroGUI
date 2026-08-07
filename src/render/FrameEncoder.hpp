@@ -131,10 +131,5 @@ using FrameShaderSet = Detail::RendererShaderSet;
 using FrameEncoderStatistics = Detail::RendererStatistics;
 using RenderTarget = Detail::RenderTarget;
 
-// Conformance/source compatibility spelling for the low-level encoder. Product
-// rendering uses Render::Renderer directly.
-using FrameEncoder = Detail::Renderer;
-using RendererShaderSet = FrameShaderSet;
-using RendererStatistics = FrameEncoderStatistics;
 
 } // namespace Aero::Render

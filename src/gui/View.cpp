@@ -9,7 +9,7 @@
 #include "media/ImageCache.hpp"
 #include "text/TextPipeline.hpp"
 #include "render/ViewRenderer.hpp"
-#include "render/private/RenderSurface.hpp"
+#include "render/private/RenderTarget.hpp"
 
 #include "controls/ControlsPrivate.hpp"
 #include "controls/ControlBehavior.hpp"
@@ -41,7 +41,6 @@
 
 #include "controls/DataTemplateTriggerState.hpp"
 #include "render/private/BackendApi.hpp"
-#include "render/private/RenderSurface.hpp"
 #include "render/RenderTree.hpp"
 
 #include <cmath>
@@ -8728,17 +8727,17 @@ Runtime::Detail::ViewRenderer::RenderOffscreen() noexcept {
 }
 
 Base::Result<void> Runtime::Detail::ViewRenderer::Render(
-    RenderSurface& surface) noexcept {
+    RenderTarget& target) noexcept {
     if (impl_ == nullptr || !impl_->initialized || !impl_->device ||
         impl_->view == nullptr || impl_->view->state_ == nullptr) {
         return ViewNotInitialized(
             "Renderer must be initialized before Render");
     }
 
-    Base::Ref<RenderDevice> surfaceDevice = surface.GetDevice();
+    Base::Ref<RenderDevice> surfaceDevice = target.GetDevice();
     if (!surfaceDevice || surfaceDevice.Get() != impl_->device.Get()) {
         return ViewApiInvalidState(
-            "RenderSurface must belong to the renderer RenderDevice");
+            "RenderTarget must belong to the renderer RenderDevice");
     }
 
     const ::Aero::Render::Detail::RenderFrame& frame =
@@ -8761,8 +8760,8 @@ Base::Result<void> Runtime::Detail::ViewRenderer::Render(
     }
 
     Base::Result<void> submitted =
-        RenderSurface::Impl::Render(
-            surface, this, frame);
+        RenderTarget::Impl::Render(
+            target, this, frame);
     if (!submitted) return submitted.GetStatus();
 
     impl_->renderedVersion = frame.Version();
@@ -8838,37 +8837,6 @@ bool View::IsInstanceOf(
     return state_ != nullptr && state_->metadata != nullptr &&
         state_->metadata->Types().IsDerivedFrom(
             object.RuntimeType(), baseType);
-}
-
-Base::Result<void> View::QueryReloadSource(
-    const Base::ResourceUri& uri,
-    std::uint64_t& sourceIdentity,
-    std::uint64_t& revision) noexcept {
-    if (state_ == nullptr || state_->xamlRuntime == nullptr || uri.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "XAML reload source is unavailable");
-    }
-    return state_->xamlRuntime->QuerySource(
-        state_->xamlRuntime->Providers(), uri, sourceIdentity, revision);
-}
-
-bool View::TryGetCachedReloadRevision(
-    const Base::ResourceUri& uri,
-    std::uint64_t sourceIdentity,
-    std::uint64_t& revision) noexcept {
-    return state_ != nullptr && state_->xamlRuntime != nullptr &&
-        state_->xamlRuntime->TryGetCachedRevision(
-            uri, sourceIdentity, revision);
-}
-
-Base::Result<std::uint32_t> View::InvalidateReloadDocuments(
-    const Base::ResourceUri& uri,
-    bool includeDependents) noexcept {
-    if (state_ == nullptr || state_->xamlRuntime == nullptr) {
-        return std::uint32_t{0U};
-    }
-    return state_->xamlRuntime->Invalidate(uri, includeDependents);
 }
 
 } // namespace Aero

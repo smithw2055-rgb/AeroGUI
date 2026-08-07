@@ -15,10 +15,10 @@ Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11RenderTarget(
     Base::Ref<Aero::RenderDevice> device,
     const D3D11RenderTargetOptions& options,
     Base::IAllocator* allocator) noexcept {
-    ::Aero::Render::Detail::D3D11EmbeddedSurfaceOptions native;
+    ::Aero::Render::Detail::D3D11EmbeddedTargetOptions native;
     native.acquireTarget = options.acquireTarget;
     native.callbackContext = options.callbackContext;
-    return ::Aero::Render::Detail::CreateD3D11EmbeddedSurface(
+    return ::Aero::Render::Detail::CreateD3D11EmbeddedTarget(
         std::move(device), native, allocator);
 }
 

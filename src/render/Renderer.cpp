@@ -207,40 +207,15 @@ Base::Result<Graphics::FenceValue> Renderer::RenderOffscreen(
 Base::Result<Graphics::FenceValue> Renderer::RenderOnscreen(
     const void* rendererToken,
     const ::Aero::Render::Detail::RenderFrame& frame,
-    const RenderTarget& target,
-    Graphics::SurfaceSession& surface,
-    Graphics::SurfaceFrame& surfaceFrame) noexcept {
+    const RenderTarget& target) noexcept {
     Base::Result<void> ready = VerifyReady();
-    if (!ready) {
-        if (surface.IsCurrentFrame(surfaceFrame)) {
-            static_cast<void>(surface.DiscardFrame(surfaceFrame));
-        }
-        return ready.GetStatus();
-    }
-    if (!surface.IsCurrentFrame(surfaceFrame)) {
-        return DeviceUnavailable("Renderer received a stale surface frame");
-    }
+    if (!ready) return ready.GetStatus();
     Base::Result<std::uint32_t> collected = device_->CollectGarbage();
-    if (!collected) {
-        static_cast<void>(surface.DiscardFrame(surfaceFrame));
-        return collected.GetStatus();
-    }
+    if (!collected) return collected.GetStatus();
     Base::Result<Graphics::CommandList> recorded =
         impl_->encoder.RecordOnscreen(rendererToken, frame, target);
-    if (!recorded) {
-        static_cast<void>(surface.DiscardFrame(surfaceFrame));
-        return recorded.GetStatus();
-    }
-    Base::Result<Graphics::FenceValue> submitted =
-        device_->Submit(recorded.Value());
-    if (!submitted) {
-        static_cast<void>(surface.DiscardFrame(surfaceFrame));
-        return submitted.GetStatus();
-    }
-    Base::Result<void> completed = surface.CompleteFrame(
-        *device_, surfaceFrame, recorded.Value(), submitted.Value());
-    if (!completed) return completed.GetStatus();
-    return submitted.Value();
+    if (!recorded) return recorded.GetStatus();
+    return device_->Submit(recorded.Value());
 }
 
 void Renderer::ReleaseRenderer(

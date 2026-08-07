@@ -1,15 +1,6 @@
-#include "render/private/BackendApi.hpp"
 #include "render/private/RenderTarget.hpp"
 
 #include <utility>
-
-namespace Aero::Render::Detail {
-
-Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33WindowDevice(
-    const OpenGL33WindowSurfaceOptions& options,
-    Base::IAllocator* allocator) noexcept;
-
-} // namespace Aero::Render::Detail
 
 namespace Aero {
 namespace {
@@ -231,31 +222,6 @@ Base::Result<Base::Ref<Aero::RenderTarget>> AdoptOwnedRenderTarget(
     if (target != nullptr) target->kind = kind;
     return Aero::RenderTarget::Impl::CreateOwned(
         std::move(device), target, allocator);
-}
-
-Base::Result<Base::Ref<Aero::RenderTarget>> AdoptRenderSurface(
-    Base::Ref<Aero::RenderDevice> device,
-    Aero::RenderTargetKind kind,
-    Base::IAllocator* allocator) noexcept {
-    return AdoptRenderTarget(std::move(device), kind, allocator);
-}
-
-Base::Result<Base::Ref<Aero::RenderTarget>> AdoptOwnedRenderSurface(
-    Base::Ref<Aero::RenderDevice> device,
-    Aero::RenderTarget::Impl* target,
-    Aero::RenderTargetKind kind,
-    Base::IAllocator* allocator) noexcept {
-    return AdoptOwnedRenderTarget(std::move(device), target, kind, allocator);
-}
-
-Base::Result<Base::Ref<Aero::RenderTarget>> CreateOpenGL33WindowSurface(
-    const OpenGL33WindowSurfaceOptions& options,
-    Base::IAllocator* allocator) noexcept {
-    Base::Result<Base::Ref<Aero::RenderDevice>> device =
-        CreateOpenGL33WindowDevice(options, allocator);
-    if (!device) return device.GetStatus();
-    return AdoptRenderTarget(
-        std::move(device).Value(), Aero::RenderTargetKind::Window, allocator);
 }
 
 } // namespace Aero::Render::Detail

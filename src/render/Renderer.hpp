@@ -2,14 +2,14 @@
 
 #include "FrameEncoder.hpp"
 #include "render/RenderResources.hpp"
-#include "render/Surface.hpp"
 
 #include <thread>
 
 namespace Aero::Render {
 
-// Single backend-neutral renderer owned by each native RenderDevice. It owns
-// frame encoding and device-generation-scoped image/mesh/glyph resources.
+// Single backend-neutral renderer owned by each RenderDevice backend. It owns
+// command encoding, exactly-one submission and generation-scoped GPU resources.
+// Native RenderTarget implementations own acquire/present around this boundary.
 class Renderer {
 public:
     Renderer(
@@ -48,19 +48,13 @@ public:
         Graphics::IndexType indexType) noexcept;
     Base::Result<void> UnregisterGlyphRun(RenderGlyphRunId glyphRun) noexcept;
 
-    // Renderer is the single frame orchestrator: it owns command recording,
-    // exactly-one submission, surface completion/presentation, garbage
-    // collection, and render-thread affinity. Native backends only acquire and
-    // import their target before handing the frame to this boundary.
     Base::Result<Graphics::FenceValue> RenderOffscreen(
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& frame) noexcept;
     Base::Result<Graphics::FenceValue> RenderOnscreen(
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& frame,
-        const RenderTarget& target,
-        Graphics::SurfaceSession& surface,
-        Graphics::SurfaceFrame& surfaceFrame) noexcept;
+        const RenderTarget& target) noexcept;
     void ReleaseRenderer(const void* rendererToken) noexcept;
 
     FrameEncoderStatistics LastStatistics() const noexcept;

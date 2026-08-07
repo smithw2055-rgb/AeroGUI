@@ -126,7 +126,6 @@ private:
     friend class Runtime::Detail::ViewRenderer;
     friend class CompositionTarget;
     friend class Markup::XamlReader;
-    friend class Markup::ReloadCoordinator;
     friend class App::Detail::DesktopHost;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
@@ -180,17 +179,6 @@ private:
         Base::StringView name,
         Meta::TypeId expectedType = Meta::InvalidTypeId) noexcept;
     std::uint32_t NamedObjectCount() const noexcept;
-    Base::Result<void> QueryReloadSource(
-        const Base::ResourceUri& uri,
-        std::uint64_t& sourceIdentity,
-        std::uint64_t& revision) noexcept;
-    bool TryGetCachedReloadRevision(
-        const Base::ResourceUri& uri,
-        std::uint64_t sourceIdentity,
-        std::uint64_t& revision) noexcept;
-    Base::Result<std::uint32_t> InvalidateReloadDocuments(
-        const Base::ResourceUri& uri,
-        bool includeDependents) noexcept;
     bool IsInstanceOf(
         const Base::Object& object,
         Meta::TypeId baseType) const noexcept;

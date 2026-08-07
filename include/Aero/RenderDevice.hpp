@@ -44,7 +44,7 @@ public:
 
     RenderDevice(
         ConstructionToken,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        Impl* implementation) noexcept;
     ~RenderDevice() noexcept override;
 
     RenderDevice(const RenderDevice&) = delete;

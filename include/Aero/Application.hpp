@@ -12,7 +12,6 @@
 #include <Aero/Window.hpp>
 
 #include <cstdint>
-#include <utility>
 
 namespace Aero {
 class Application;
@@ -65,14 +64,10 @@ public:
     ShutdownMode GetShutdownMode() const noexcept { return shutdownMode_; }
     void SetShutdownMode(ShutdownMode value) noexcept { shutdownMode_ = value; }
 
-    // Runs this application through the optional default desktop host.
-    // A StartupUri is required unless an explicit Window is supplied.
+    // Runs this application through the optional default desktop host. Set an
+    // explicit main Window with SetMainWindow(); otherwise StartupUri is used.
     Base::Result<int> Run() noexcept;
     Base::Result<int> Run(const App::RunOptions& options) noexcept;
-    Base::Result<int> Run(Base::Ref<Window> window) noexcept;
-    Base::Result<int> Run(
-        Base::Ref<Window> window,
-        const App::RunOptions& options) noexcept;
 
     void Shutdown(int exitCode = 0) noexcept;
 

@@ -15,11 +15,11 @@ Base::Result<Base::Ref<Aero::RenderTarget>> CreateOpenGL33RenderTarget(
     Base::Ref<Aero::RenderDevice> device,
     const OpenGL33RenderTargetOptions& options,
     Base::IAllocator* allocator) noexcept {
-    ::Aero::Render::Detail::OpenGL33EmbeddedSurfaceOptions native;
+    ::Aero::Render::Detail::OpenGL33EmbeddedTargetOptions native;
     native.acquireTarget = options.acquireTarget;
     native.callbackContext = options.callbackContext;
     native.targetContext = options.targetContext;
-    return ::Aero::Render::Detail::CreateOpenGL33EmbeddedSurface(
+    return ::Aero::Render::Detail::CreateOpenGL33EmbeddedTarget(
         std::move(device), native, allocator);
 }
 

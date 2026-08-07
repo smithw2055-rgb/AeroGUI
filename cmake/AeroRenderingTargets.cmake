@@ -1,5 +1,5 @@
 # Private retained renderer, render device, native backends and shader catalogs.
-# Renderer is the single semantic frame encoder and shared GPU resource owner.
+# Renderer is the single semantic command/submission owner.
 target_sources(AeroGui PRIVATE
     src/render/GraphicsDevice.cpp
     src/render/GraphicsDeviceResources.cpp
@@ -22,11 +22,9 @@ if(AERO_ENABLE_WGL_SURFACE)
         src/render/platform/win32/OpenGLSurface.cpp)
     target_link_libraries(AeroGui PRIVATE
         gdi32 opengl32 user32)
-    target_compile_definitions(AeroGui PRIVATE
-        AERO_HAS_WGL_SURFACE=1)
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_WGL_SURFACE=1)
 else()
-    target_compile_definitions(AeroGui PRIVATE
-        AERO_HAS_WGL_SURFACE=0)
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_WGL_SURFACE=0)
 endif()
 
 if(AERO_ENABLE_GLX_SURFACE)
@@ -40,11 +38,9 @@ if(AERO_ENABLE_GLX_SURFACE)
         src/render/platform/x11/OpenGLSurface.cpp)
     target_link_libraries(AeroGui PRIVATE
         X11::X11 OpenGL::GL Threads::Threads)
-    target_compile_definitions(AeroGui PRIVATE
-        AERO_HAS_GLX_SURFACE=1)
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_GLX_SURFACE=1)
 else()
-    target_compile_definitions(AeroGui PRIVATE
-        AERO_HAS_GLX_SURFACE=0)
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_GLX_SURFACE=0)
 endif()
 
 if(AERO_ENABLE_SOKOL_BACKEND)
@@ -56,24 +52,19 @@ if(AERO_ENABLE_SOKOL_BACKEND)
         message(FATAL_ERROR
             "AERO_SOKOL_BRIDGE_SOURCE does not exist: ${AERO_SOKOL_BRIDGE_SOURCE}")
     endif()
-    target_sources(AeroGui PRIVATE
-        "${AERO_SOKOL_BRIDGE_SOURCE}")
+    target_sources(AeroGui PRIVATE "${AERO_SOKOL_BRIDGE_SOURCE}")
     if(NOT AERO_SOKOL_INCLUDE_DIR STREQUAL "")
-        target_include_directories(AeroGui PRIVATE
-            "${AERO_SOKOL_INCLUDE_DIR}")
+        target_include_directories(AeroGui PRIVATE "${AERO_SOKOL_INCLUDE_DIR}")
     endif()
-    target_compile_definitions(AeroGui PRIVATE
-        AERO_HAS_SOKOL_BACKEND=1)
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_SOKOL_BACKEND=1)
 else()
-    target_compile_definitions(AeroGui PRIVATE
-        AERO_HAS_SOKOL_BACKEND=0)
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_SOKOL_BACKEND=0)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC diagnoses a reference obtained through a temporary Span view even
     # though the view points into the longer-lived immutable RenderFrame.
-    target_compile_options(AeroGui PRIVATE
-        -Wno-dangling-reference)
+    target_compile_options(AeroGui PRIVATE -Wno-dangling-reference)
 endif()
 
 if(AERO_ENABLE_D3D11_BACKEND)
@@ -82,45 +73,9 @@ if(AERO_ENABLE_D3D11_BACKEND)
             "AERO_ENABLE_D3D11_BACKEND is only supported on Windows")
     endif()
 
-    set(_aero_d3d11_render_frame_shader_source
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders/RenderFrameRect.hlsl")
-    set(_aero_d3d11_render_frame_image_shader_source
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders/RenderFrameImage.hlsl")
-    set(_aero_d3d11_render_frame_mask_shader_source
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders/RenderFrameMask.hlsl")
-    set(_aero_d3d11_render_frame_effect_shader_source
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders/RenderFrameEffect.hlsl")
-    set(_aero_d3d11_render_frame_mesh_shader_source
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders/RenderFrameMesh.hlsl")
-    set(_aero_d3d11_render_frame_glyph_shader_source
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders/RenderFrameGlyph.hlsl")
-    set(_aero_d3d11_render_frame_max_rectangle_instances 64)
     set(_aero_d3d11_shader_directory
         "${CMAKE_CURRENT_BINARY_DIR}/generated/d3d11-shaders")
-    set(_aero_d3d11_render_frame_vs_header
-        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameVertexShader.hpp")
-    set(_aero_d3d11_render_frame_ps_header
-        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFramePixelShader.hpp")
-    set(_aero_d3d11_render_frame_image_vs_header
-        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameImageVertexShader.hpp")
-    set(_aero_d3d11_render_frame_image_ps_header
-        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameImagePixelShader.hpp")
-    set(_aero_d3d11_render_frame_mask_vs_header
-        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameMaskVertexShader.hpp")
-    set(_aero_d3d11_render_frame_mask_ps_header
-        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameMaskPixelShader.hpp")
-    set(_aero_d3d11_render_frame_effect_vs_header
-        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameEffectVertexShader.hpp")
-    set(_aero_d3d11_render_frame_effect_ps_header
-        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameEffectPixelShader.hpp")
-    set(_aero_d3d11_render_frame_mesh_vs_header
-        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameMeshVertexShader.hpp")
-    set(_aero_d3d11_render_frame_mesh_ps_header
-        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameMeshPixelShader.hpp")
-    set(_aero_d3d11_render_frame_glyph_vs_header
-        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameGlyphVertexShader.hpp")
-    set(_aero_d3d11_render_frame_glyph_ps_header
-        "${_aero_d3d11_shader_directory}/AeroD3D11RenderFrameGlyphPixelShader.hpp")
+    set(_aero_d3d11_render_frame_max_rectangle_instances 64)
     set(_aero_d3d11_fxc_hints
         "$ENV{WindowsSdkDir}bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/x64")
     file(GLOB _aero_d3d11_fxc_sdk_directories
@@ -135,160 +90,63 @@ if(AERO_ENABLE_D3D11_BACKEND)
         message(FATAL_ERROR
             "AERO_ENABLE_D3D11_BACKEND requires the Windows SDK x64 fxc.exe")
     endif()
-    add_custom_command(
-        OUTPUT "${_aero_d3d11_render_frame_vs_header}"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${_aero_d3d11_shader_directory}"
-        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
-            /T vs_4_0 /E vs_main
-            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_frame_max_rectangle_instances}
-            /Vn AeroD3D11RenderFrameVertexShader
-            /Fh "${_aero_d3d11_render_frame_vs_header}"
-            "${_aero_d3d11_render_frame_shader_source}"
-        DEPENDS "${_aero_d3d11_render_frame_shader_source}"
-        VERBATIM)
-    add_custom_command(
-        OUTPUT "${_aero_d3d11_render_frame_ps_header}"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${_aero_d3d11_shader_directory}"
-        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
-            /T ps_4_0 /E ps_main
-            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_frame_max_rectangle_instances}
-            /Vn AeroD3D11RenderFramePixelShader
-            /Fh "${_aero_d3d11_render_frame_ps_header}"
-            "${_aero_d3d11_render_frame_shader_source}"
-        DEPENDS "${_aero_d3d11_render_frame_shader_source}"
-        VERBATIM)
-    add_custom_command(
-        OUTPUT "${_aero_d3d11_render_frame_image_vs_header}"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${_aero_d3d11_shader_directory}"
-        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
-            /T vs_4_0 /E vs_main
-            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_frame_max_rectangle_instances}
-            /Vn AeroD3D11RenderFrameImageVertexShader
-            /Fh "${_aero_d3d11_render_frame_image_vs_header}"
-            "${_aero_d3d11_render_frame_image_shader_source}"
-        DEPENDS "${_aero_d3d11_render_frame_image_shader_source}"
-        VERBATIM)
-    add_custom_command(
-        OUTPUT "${_aero_d3d11_render_frame_image_ps_header}"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${_aero_d3d11_shader_directory}"
-        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
-            /T ps_4_0 /E ps_main
-            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_frame_max_rectangle_instances}
-            /Vn AeroD3D11RenderFrameImagePixelShader
-            /Fh "${_aero_d3d11_render_frame_image_ps_header}"
-            "${_aero_d3d11_render_frame_image_shader_source}"
-        DEPENDS "${_aero_d3d11_render_frame_image_shader_source}"
-        VERBATIM)
-    add_custom_command(
-        OUTPUT "${_aero_d3d11_render_frame_mask_vs_header}"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${_aero_d3d11_shader_directory}"
-        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
-            /T vs_4_0 /E vs_main
-            /Vn AeroD3D11RenderFrameMaskVertexShader
-            /Fh "${_aero_d3d11_render_frame_mask_vs_header}"
-            "${_aero_d3d11_render_frame_mask_shader_source}"
-        DEPENDS "${_aero_d3d11_render_frame_mask_shader_source}"
-        VERBATIM)
-    add_custom_command(
-        OUTPUT "${_aero_d3d11_render_frame_mask_ps_header}"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${_aero_d3d11_shader_directory}"
-        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
-            /T ps_4_0 /E ps_main
-            /Vn AeroD3D11RenderFrameMaskPixelShader
-            /Fh "${_aero_d3d11_render_frame_mask_ps_header}"
-            "${_aero_d3d11_render_frame_mask_shader_source}"
-        DEPENDS "${_aero_d3d11_render_frame_mask_shader_source}"
-        VERBATIM)
-    add_custom_command(
-        OUTPUT "${_aero_d3d11_render_frame_effect_vs_header}"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${_aero_d3d11_shader_directory}"
-        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
-            /T vs_4_0 /E vs_main
-            /Vn AeroD3D11RenderFrameEffectVertexShader
-            /Fh "${_aero_d3d11_render_frame_effect_vs_header}"
-            "${_aero_d3d11_render_frame_effect_shader_source}"
-        DEPENDS "${_aero_d3d11_render_frame_effect_shader_source}"
-        VERBATIM)
-    add_custom_command(
-        OUTPUT "${_aero_d3d11_render_frame_effect_ps_header}"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${_aero_d3d11_shader_directory}"
-        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
-            /T ps_4_0 /E ps_main
-            /Vn AeroD3D11RenderFrameEffectPixelShader
-            /Fh "${_aero_d3d11_render_frame_effect_ps_header}"
-            "${_aero_d3d11_render_frame_effect_shader_source}"
-        DEPENDS "${_aero_d3d11_render_frame_effect_shader_source}"
-        VERBATIM)
-    add_custom_command(
-        OUTPUT "${_aero_d3d11_render_frame_mesh_vs_header}"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${_aero_d3d11_shader_directory}"
-        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
-            /T vs_4_0 /E vs_main
-            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_frame_max_rectangle_instances}
-            /Vn AeroD3D11RenderFrameMeshVertexShader
-            /Fh "${_aero_d3d11_render_frame_mesh_vs_header}"
-            "${_aero_d3d11_render_frame_mesh_shader_source}"
-        DEPENDS "${_aero_d3d11_render_frame_mesh_shader_source}"
-        VERBATIM)
-    add_custom_command(
-        OUTPUT "${_aero_d3d11_render_frame_mesh_ps_header}"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${_aero_d3d11_shader_directory}"
-        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
-            /T ps_4_0 /E ps_main
-            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_frame_max_rectangle_instances}
-            /Vn AeroD3D11RenderFrameMeshPixelShader
-            /Fh "${_aero_d3d11_render_frame_mesh_ps_header}"
-            "${_aero_d3d11_render_frame_mesh_shader_source}"
-        DEPENDS "${_aero_d3d11_render_frame_mesh_shader_source}"
-        VERBATIM)
-    add_custom_command(
-        OUTPUT "${_aero_d3d11_render_frame_glyph_vs_header}"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${_aero_d3d11_shader_directory}"
-        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
-            /T vs_4_0 /E vs_main
-            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_frame_max_rectangle_instances}
-            /Vn AeroD3D11RenderFrameGlyphVertexShader
-            /Fh "${_aero_d3d11_render_frame_glyph_vs_header}"
-            "${_aero_d3d11_render_frame_glyph_shader_source}"
-        DEPENDS "${_aero_d3d11_render_frame_glyph_shader_source}"
-        VERBATIM)
-    add_custom_command(
-        OUTPUT "${_aero_d3d11_render_frame_glyph_ps_header}"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${_aero_d3d11_shader_directory}"
-        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
-            /T ps_4_0 /E ps_main
-            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_frame_max_rectangle_instances}
-            /Vn AeroD3D11RenderFrameGlyphPixelShader
-            /Fh "${_aero_d3d11_render_frame_glyph_ps_header}"
-            "${_aero_d3d11_render_frame_glyph_shader_source}"
-        DEPENDS "${_aero_d3d11_render_frame_glyph_shader_source}"
-        VERBATIM)
+
+    # Keep shader declarations data-driven. Each pair follows the same naming
+    # convention consumed by D3D11Shaders.cpp; only the source and instance-limit
+    # requirement vary.
+    set_property(GLOBAL PROPERTY AERO_D3D11_SHADER_OUTPUTS "")
+    function(aero_compile_d3d11_shader_pair stem source use_instance_limit)
+        foreach(stage IN ITEMS Vertex Pixel)
+            if(stage STREQUAL "Vertex")
+                set(profile vs_4_0)
+                set(entry vs_main)
+            else()
+                set(profile ps_4_0)
+                set(entry ps_main)
+            endif()
+            set(output
+                "${_aero_d3d11_shader_directory}/AeroD3D11${stem}${stage}Shader.hpp")
+            set(symbol "AeroD3D11${stem}${stage}Shader")
+            set(defines)
+            if(use_instance_limit)
+                list(APPEND defines
+                    /D "AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_frame_max_rectangle_instances}")
+            endif()
+            add_custom_command(
+                OUTPUT "${output}"
+                COMMAND "${CMAKE_COMMAND}" -E make_directory
+                    "${_aero_d3d11_shader_directory}"
+                COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+                    /T ${profile} /E ${entry}
+                    ${defines}
+                    /Vn ${symbol}
+                    /Fh "${output}"
+                    "${source}"
+                DEPENDS "${source}"
+                VERBATIM)
+            set_property(GLOBAL APPEND PROPERTY
+                AERO_D3D11_SHADER_OUTPUTS "${output}")
+        endforeach()
+    endfunction()
+
+    set(_aero_d3d11_shader_root
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders")
+    aero_compile_d3d11_shader_pair(
+        RenderFrame "${_aero_d3d11_shader_root}/RenderFrameRect.hlsl" TRUE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameImage "${_aero_d3d11_shader_root}/RenderFrameImage.hlsl" TRUE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameMask "${_aero_d3d11_shader_root}/RenderFrameMask.hlsl" FALSE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameEffect "${_aero_d3d11_shader_root}/RenderFrameEffect.hlsl" FALSE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameMesh "${_aero_d3d11_shader_root}/RenderFrameMesh.hlsl" TRUE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameGlyph "${_aero_d3d11_shader_root}/RenderFrameGlyph.hlsl" TRUE)
+    get_property(_aero_d3d11_shader_outputs GLOBAL PROPERTY
+        AERO_D3D11_SHADER_OUTPUTS)
     add_custom_target(AeroD3D11RenderFrameShaders
-        DEPENDS
-            "${_aero_d3d11_render_frame_vs_header}"
-            "${_aero_d3d11_render_frame_ps_header}"
-            "${_aero_d3d11_render_frame_image_vs_header}"
-            "${_aero_d3d11_render_frame_image_ps_header}"
-            "${_aero_d3d11_render_frame_mask_vs_header}"
-            "${_aero_d3d11_render_frame_mask_ps_header}"
-            "${_aero_d3d11_render_frame_effect_vs_header}"
-            "${_aero_d3d11_render_frame_effect_ps_header}"
-            "${_aero_d3d11_render_frame_mesh_vs_header}"
-            "${_aero_d3d11_render_frame_mesh_ps_header}"
-            "${_aero_d3d11_render_frame_glyph_vs_header}"
-            "${_aero_d3d11_render_frame_glyph_ps_header}")
+        DEPENDS ${_aero_d3d11_shader_outputs})
 
     set(_aero_d3d11_backend_fragments
         "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendPrivate.hpp"
@@ -308,15 +166,14 @@ if(AERO_ENABLE_D3D11_BACKEND)
         src/render/d3d11/D3D11Backend.cpp
         src/render/d3d11/D3D11Shaders.cpp
         ${_aero_d3d11_backend_fragments})
-    add_dependencies(AeroGui
-        AeroD3D11RenderFrameShaders)
-    target_include_directories(AeroGui PRIVATE
-        "${_aero_d3d11_shader_directory}")
-    target_link_libraries(AeroGui PRIVATE
-        d3d11 dxgi d3dcompiler)
-    target_compile_definitions(AeroGui PRIVATE
-        AERO_HAS_D3D11_BACKEND=1)
+    add_dependencies(AeroGui AeroD3D11RenderFrameShaders)
+    target_include_directories(AeroGui PRIVATE "${_aero_d3d11_shader_directory}")
+    target_link_libraries(AeroGui PRIVATE d3d11 dxgi d3dcompiler)
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_D3D11_BACKEND=1)
+
+    unset(_aero_d3d11_shader_outputs)
+    unset(_aero_d3d11_shader_root)
+    unset(_aero_d3d11_backend_fragments)
 else()
-    target_compile_definitions(AeroGui PRIVATE
-        AERO_HAS_D3D11_BACKEND=0)
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_D3D11_BACKEND=0)
 endif()

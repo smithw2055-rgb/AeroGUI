@@ -4,7 +4,7 @@
 
 namespace Aero::Render {
 
-// D3D11 shader bytecode catalog consumed by the backend-neutral DeviceRenderer.
+// D3D11 shader bytecode catalog consumed by the backend-neutral Renderer.
 FrameShaderSet MakeD3D11FrameShaderSet() noexcept;
 
 } // namespace Aero::Render

@@ -46,13 +46,18 @@ Base::Result<void> RenderContext::Create(
 #if defined(_WIN32)
     if (selected == GraphicsBackend::D3D11) {
 #if AERO_APP_HAS_D3D11
-        Render::Detail::D3D11WindowSurfaceOptions options;
+        Render::Detail::D3D11DeviceOptions deviceOptions;
+        deviceOptions.allowWarpFallback = true;
+        Base::Result<Base::Ref<RenderDevice>> device =
+            Render::Detail::CreateD3D11Device(deviceOptions, allocator);
+        if (!device) return device.GetStatus();
+        Render::Detail::D3D11WindowTargetOptions options;
         options.window = window;
         options.width = width;
         options.height = height;
-        options.allowWarpFallback = true;
         Base::Result<Base::Ref<RenderTarget>> created =
-            Render::Detail::CreateD3D11WindowSurface(options, allocator);
+            Render::Detail::CreateD3D11WindowTarget(
+                std::move(device).Value(), options, allocator);
         if (!created) return created.GetStatus();
         target_ = std::move(created).Value();
         return {};
@@ -64,12 +69,16 @@ Base::Result<void> RenderContext::Create(
 
     if (selected == GraphicsBackend::OpenGL33) {
 #if AERO_APP_HAS_OPENGL_WINDOW
-        Render::Detail::OpenGL33WindowSurfaceOptions options;
+        Render::Detail::OpenGL33WindowTargetOptions options;
         options.window = window;
         options.width = width;
         options.height = height;
+        Base::Result<Base::Ref<RenderDevice>> device =
+            Render::Detail::CreateOpenGL33WindowDevice(options, allocator);
+        if (!device) return device.GetStatus();
         Base::Result<Base::Ref<RenderTarget>> created =
-            Render::Detail::CreateOpenGL33WindowSurface(options, allocator);
+            Render::Detail::AdoptRenderTarget(
+                std::move(device).Value(), RenderTargetKind::Window, allocator);
         if (!created) return created.GetStatus();
         target_ = std::move(created).Value();
         return {};

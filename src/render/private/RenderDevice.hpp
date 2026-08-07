@@ -9,8 +9,6 @@
 #include <utility>
 
 namespace Aero {
-// Source-only aliases keep backend implementation code compact while installed
-// code uses the Diagnostics namespace explicitly.
 using RenderDeviceStatistics = Diagnostics::RenderDeviceStatistics;
 using RenderFrameStatistics = Diagnostics::RenderFrameStatistics;
 }
@@ -37,11 +35,20 @@ enum class SurfaceHealth : std::uint8_t {
     Shutdown
 };
 
-class NativeRenderDevice {
-public:
-    virtual ~NativeRenderDevice() noexcept = default;
+} // namespace Aero::Render::Detail
 
-    virtual RenderBackendKind Backend() const noexcept = 0;
+namespace Aero {
+
+// Source-private backend base. RenderDevice owns exactly one Impl; native
+// backends derive from this type directly instead of sitting behind a second
+// extra native-device lifetime/factory layer.
+struct RenderDevice::Impl {
+    explicit Impl(Base::IAllocator& selectedAllocator) noexcept
+        : allocator(&selectedAllocator) {}
+    virtual ~Impl() noexcept = default;
+
+    virtual ::Aero::Render::Detail::RenderBackendKind
+        Backend() const noexcept = 0;
     virtual Base::Result<void> RenderOffscreen(
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& frame) noexcept = 0;
@@ -50,82 +57,43 @@ public:
     virtual Base::Result<void> RestoreDevice() noexcept = 0;
     virtual Base::Result<void> WaitIdle(
         std::uint32_t timeoutMilliseconds) noexcept = 0;
-    virtual BackendHealth GetDeviceHealth() const noexcept = 0;
-    virtual ::Aero::RenderFrameStatistics
-        LastFrameStatistics() const noexcept = 0;
-    virtual Aero::Render::Detail::RenderResources Resources() noexcept = 0;
-    virtual Aero::RenderTarget::Impl* DefaultTarget() noexcept {
-        return nullptr;
+    virtual ::Aero::Render::Detail::BackendHealth
+        GetDeviceHealth() const noexcept = 0;
+    virtual RenderFrameStatistics LastFrameStatistics() const noexcept = 0;
+    virtual ::Aero::Render::Detail::RenderResources Resources() noexcept = 0;
+    virtual RenderTarget::Impl* DefaultTarget() noexcept { return nullptr; }
+
+    std::uint64_t BackendGeneration() const noexcept {
+        return backendGeneration_;
     }
-
-    std::uint64_t Generation() const noexcept { return generation_; }
-
-protected:
-    Base::Result<std::uint64_t> AdvanceGeneration() noexcept {
-        if (generation_ == UINT64_MAX) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "Native render device generation space is exhausted");
-        }
-        return ++generation_;
-    }
-
-private:
-    std::uint64_t generation_ = 0U;
-};
-
-class RenderDeviceFactory {
-public:
-    static Base::Result<Base::Ref<Aero::RenderDevice>> Adopt(
-        NativeRenderDevice* backend,
-        Base::IAllocator* allocator = nullptr) noexcept;
-};
-
-Base::Result<Base::Ref<Aero::RenderDevice>> AdoptRenderDevice(
-    NativeRenderDevice* backend,
-    Base::IAllocator* allocator = nullptr) noexcept;
-
-} // namespace Aero::Render::Detail
-
-namespace Aero {
-
-struct RenderDevice::Impl {
-    explicit Impl(Base::IAllocator& selectedAllocator) noexcept
-        : allocator(&selectedAllocator) {}
 
     Base::IAllocator* allocator = nullptr;
-    ::Aero::Render::Detail::NativeRenderDevice* native = nullptr;
     RenderDeviceState state = RenderDeviceState::Ready;
     RenderDeviceStatistics statistics;
     RenderFrameStatistics lastFrameStatistics;
 
-    static ::Aero::Render::Detail::NativeRenderDevice* NativeBackend(
-        RenderDevice& device) noexcept {
-        return device.impl_ != nullptr ? device.impl_->native : nullptr;
+    static Impl* BackendState(RenderDevice& device) noexcept {
+        return device.impl_;
+    }
+    static const Impl* BackendState(const RenderDevice& device) noexcept {
+        return device.impl_;
     }
 
-    static const ::Aero::Render::Detail::NativeRenderDevice* NativeBackend(
-        const RenderDevice& device) noexcept {
-        return device.impl_ != nullptr ? device.impl_->native : nullptr;
-    }
-
-    static ::Aero::RenderTarget::Impl* DefaultTarget(
-        RenderDevice& device) noexcept {
-        return device.impl_ != nullptr && device.impl_->native != nullptr
-            ? device.impl_->native->DefaultTarget()
+    static RenderTarget::Impl* DefaultTarget(RenderDevice& device) noexcept {
+        return device.impl_ != nullptr
+            ? device.impl_->DefaultTarget()
             : nullptr;
     }
 
     static ::Aero::Render::Detail::RenderBackendKind Backend(
         const RenderDevice& device) noexcept {
-        const auto* native = NativeBackend(device);
-        return native != nullptr
-            ? native->Backend()
+        return device.impl_ != nullptr
+            ? device.impl_->Backend()
             : ::Aero::Render::Detail::RenderBackendKind::Unknown;
     }
 
     static Base::Result<Base::Ref<RenderDevice>> Create(
-        ::Aero::Render::Detail::NativeRenderDevice* backend,
+        Impl* backend,
         Base::IAllocator* allocator) noexcept {
         if (backend == nullptr) {
             return Base::Status::Failure(
@@ -139,20 +107,18 @@ struct RenderDevice::Impl {
             Base::MakeRefWithAllocator<RenderDevice>(
                 selected,
                 RenderDevice::ConstructionToken{},
-                &selected);
+                backend);
         if (!made) {
             delete backend;
             return made.GetStatus();
         }
-        made.Value()->impl_->native = backend;
         return std::move(made).Value();
     }
 
     static ::Aero::Render::Detail::RenderResources Resources(
         RenderDevice& device) noexcept {
-        auto* native = NativeBackend(device);
-        return native != nullptr
-            ? native->Resources()
+        return device.impl_ != nullptr
+            ? device.impl_->Resources()
             : ::Aero::Render::Detail::RenderResources{};
     }
 
@@ -182,11 +148,28 @@ struct RenderDevice::Impl {
         RenderFrameStatistics& statistics) noexcept;
     static void RecordSurfaceFailure(RenderDevice& device) noexcept;
     static void RefreshHealth(RenderDevice& device) noexcept;
+
+protected:
+    Base::Result<std::uint64_t> AdvanceGeneration() noexcept {
+        if (backendGeneration_ == UINT64_MAX) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "Render device generation space is exhausted");
+        }
+        return ++backendGeneration_;
+    }
+
+private:
+    std::uint64_t backendGeneration_ = 0U;
 };
 
 } // namespace Aero
 
 namespace Aero::Render::Detail {
+
+Base::Result<Base::Ref<Aero::RenderDevice>> AdoptRenderDevice(
+    Aero::RenderDevice::Impl* backend,
+    Base::IAllocator* allocator = nullptr) noexcept;
 
 Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateHeadlessRenderDevice(
