@@ -1,0 +1,37 @@
+name: Export C1-C3 Payload
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.event.pull_request.head.ref == 'agent/c1c3-patch-export'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/c1c3-patch-export
+          fetch-depth: 0
+      - name: Collect raw C1-C3 payload files
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p payload
+          git fetch origin agent/c1-c3-closure:refs/remotes/origin/agent/c1-c3-closure
+          git fetch origin agent/c1-c3-payload-v3:refs/remotes/origin/agent/c1-c3-payload-v3
+          git show origin/agent/c1-c3-closure:.c1c3/v3-part-00 > payload/v3-part-00
+          for n in 01 02 03 04 05 06 07 08; do
+            git show origin/agent/c1-c3-payload-v3:.c1c3/v3-part-$n > payload/v3-part-$n
+          done
+          sha256sum payload/* > payload/sha256.txt
+          wc -c payload/* > payload/sizes.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: c1c3-raw-payload
+          path: payload
+          retention-days: 1
