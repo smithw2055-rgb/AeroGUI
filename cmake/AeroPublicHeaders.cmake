@@ -35,14 +35,15 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/Text.hpp
     include/Aero/Collections.hpp
     include/Aero/Diagnostics.hpp
+    include/Aero/Diagnostics/DependencyProperty.hpp
+    include/Aero/Diagnostics/PropertyValueSource.hpp
+    include/Aero/Diagnostics/Rendering.hpp
     include/Aero/Threading.hpp
     include/Aero/Meta.hpp
     include/Aero/Value.hpp
     include/Aero/DependencyProperty.hpp
-    include/Aero/Diagnostics/PropertyValueSource.hpp
     include/Aero/Data.hpp
     include/Aero/DependencyObject.hpp
-    include/Aero/Diagnostics/DependencyProperty.hpp
     include/Aero/Documents.hpp
     include/Aero/DrawingContext.hpp
     include/Aero/Events/ApplicationEventArgs.hpp
