@@ -43,6 +43,7 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/RenderTarget.hpp"
         "include/Aero/Render/D3D11.hpp"
         "include/Aero/Render/OpenGL33.hpp"
+        "include/Aero/Diagnostics/Rendering.hpp"
         "include/Aero/Markup.hpp"
         "include/Aero/Meta.hpp"
         "include/Aero/App.hpp"
@@ -81,6 +82,10 @@ aero_require_text(
     "include/Aero/RenderTarget.hpp"
     "class AERO_API RenderTarget final"
     "RenderTarget must be the installed target object")
+aero_forbid_text(
+    "include/Aero/RenderTarget.hpp"
+    "PresentMode"
+    "Presentation policy must not be part of the installed RenderTarget")
 
 aero_require_text(
     "include/Aero/Render/D3D11.hpp"
@@ -90,6 +95,18 @@ aero_require_text(
     "include/Aero/Render/OpenGL33.hpp"
     "CreateOpenGL33RenderTarget"
     "OpenGL embedded integration must use RenderTarget vocabulary")
+foreach(backend_header IN ITEMS
+        "include/Aero/Render/D3D11.hpp"
+        "include/Aero/Render/OpenGL33.hpp")
+    aero_forbid_text(
+        "${backend_header}"
+        "WindowSurface"
+        "Window surface creation belongs to App/private backend code")
+    aero_forbid_text(
+        "${backend_header}"
+        "NativeWindow"
+        "Render backend SDK must not own native window hosting")
+endforeach()
 aero_forbid_text(
     "include/Aero/Render/D3D11.hpp"
     "D3D11EmbeddedSurfaceOptions"
@@ -98,6 +115,15 @@ aero_forbid_text(
     "include/Aero/Render/OpenGL33.hpp"
     "OpenGL33EmbeddedSurfaceOptions"
     "OpenGL installed API must not recreate EmbeddedSurface")
+
+aero_require_text(
+    "include/Aero/Diagnostics/Rendering.hpp"
+    "GetRenderDeviceStatistics"
+    "Render statistics must live behind Diagnostics")
+aero_require_text(
+    "include/Aero/Diagnostics/Rendering.hpp"
+    "GetLastRenderFrameStatistics"
+    "Frame statistics must live behind Diagnostics")
 
 # Every installed header in the explicit manifest must exist and must not point
 # back into source-only implementation trees or the retired Integration API.
@@ -118,10 +144,26 @@ endforeach()
 # ---------------------------------------------------------------------------
 aero_forbid_file("src/integration")
 aero_forbid_file("src/render/RenderSurface.cpp")
+aero_forbid_file("src/render/DeviceRenderer.cpp")
 aero_require_file("src/render/RenderTarget.cpp")
 aero_require_file("src/render/private/RenderTarget.hpp")
+aero_require_file("src/render/Renderer.hpp")
+aero_require_file("src/render/Renderer.cpp")
 aero_require_file("src/app/RenderContext.hpp")
 aero_require_file("src/app/RenderContext.cpp")
+
+aero_forbid_text(
+    "src/render/private/RenderTarget.hpp"
+    "class NativeRenderTarget"
+    "NativeRenderTarget must not recreate a separate object layer")
+aero_require_text(
+    "src/render/private/RenderTarget.hpp"
+    "using NativeRenderTarget = ::Aero::RenderTarget::Impl"
+    "Backend compatibility spelling must be a zero-cost alias")
+aero_require_text(
+    "src/render/DeviceRenderer.hpp"
+    "using DeviceRenderer = Renderer"
+    "DeviceRenderer compatibility spelling must be a zero-cost alias")
 
 file(GLOB aero_root_source_files
     "${AERO_SOURCE_DIR}/src/*.cpp"
@@ -179,6 +221,14 @@ aero_require_text(
     "cmake/AeroProductTargets.cmake"
     "src/app/RenderContext.cpp"
     "AeroApp must own the desktop RenderContext")
+aero_require_text(
+    "cmake/AeroRenderingTargets.cmake"
+    "src/render/Renderer.cpp"
+    "Rendering must compile the canonical Renderer")
+aero_forbid_text(
+    "cmake/AeroRenderingTargets.cmake"
+    "src/render/DeviceRenderer.cpp"
+    "Rendering must not compile the retired DeviceRenderer unit")
 aero_forbid_text(
     "cmake/AeroProductTargets.cmake"
     "src/render/RenderSurface.cpp"
@@ -217,8 +267,8 @@ aero_forbid_text(
     "Submit("
     "RenderTree must not own GPU submission")
 
-# The source-private graphics layer may use SurfaceSession to manage native
-# acquire/present semantics, but the installed SDK may not expose it.
+# Native acquire/present remains source-private. It must not leak through the
+# installed SDK even though backend implementation files retain surface terms.
 foreach(public_header IN LISTS AERO_PUBLIC_HEADERS)
     file(READ "${AERO_SOURCE_DIR}/${public_header}" public_content)
     if(public_content MATCHES "SurfaceSession|ISurfaceBackend|NativeSurfaceDescriptor")
