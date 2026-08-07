@@ -16,9 +16,8 @@ Aero::App (optional desktop lifetime)
 ```
 
 `Aero::Meta` is a Gui authoring facade, not a separate runtime product.
-`Aero::Integration` is retired. Backend factories live under `Aero::Render`,
-providers live with their owning domains, and default desktop hosting belongs to
-`Aero::App`.
+`Aero::Integration` is retired. Embedded backend factories live under
+`Aero::Render`; default desktop hosting belongs to `Aero::App`.
 
 ## Design rules
 
@@ -45,10 +44,10 @@ src/
 ├─ text/          shaping, glyph atlas and text adapters
 ├─ media/         brushes, images, transforms, effects and animation objects
 ├─ runtime/       View composition pending final relocation into Gui/Media/Text
-├─ render/        RenderTree, RenderFrame, RenderDevice and native GPU backends
+├─ render/        RenderTree, Renderer, RenderDevice and native GPU backends
 ├─ platform/      OS-private window/input adapters used by App
 ├─ app/           Application, Window, DesktopHost and private RenderContext
-├─ diagnostics/   inspector and diagnostics implementation
+├─ diagnostics/   inspector and opt-in runtime/render diagnostics
 └─ audio/         optional audio module
 ```
 
@@ -84,16 +83,27 @@ The canonical host-visible rendering path is:
 retained UI
 → RenderTree::Commit() creates immutable RenderFrame
 → IRenderer synchronizes one View
-→ RenderDevice owns shared GPU resources
-→ RenderTarget identifies the current onscreen/embedded target
+→ RenderDevice owns shared GPU lifetime
+→ source-private Render::Renderer records GPU commands
+→ RenderTarget identifies the current embedded/window target
 ```
 
-`RenderSurface` is not an installed SDK type.
+`RenderSurface` is not an installed SDK type. Public D3D11/OpenGL headers expose
+explicit `Create*Device()` plus `Create*RenderTarget(device, options)` for
+embedded hosts. They do not expose native-window or presentation policy.
 
-Backend-neutral native acquire/present mechanics remain source-private under
-`src/render` (`Graphics::SurfaceSession` and backend adapters). They are allowed
-to use the word *surface* because it describes the native presentation
-mechanism, not a second public product object.
+Backend target state derives directly from `RenderTarget::Impl`; the former
+`NativeRenderTarget` spelling is only a source compatibility alias and no longer
+represents an extra object or allocation. Backend-neutral acquire/present
+mechanics remain source-private in `Graphics::SurfaceSession` and concrete
+swap-chain/context surface adapters.
+
+`Render::Renderer` is the one semantic backend renderer. The old
+`DeviceRenderer` spelling is a source-only alias. `FrameEncoder.cpp` remains the
+low-level command encoder implementation rather than a peer renderer lifetime.
+
+Rendering statistics are opt-in through `<Aero/Diagnostics/Rendering.hpp>` and
+are not methods on the normal RenderDevice authoring surface.
 
 For the default desktop product:
 
@@ -102,18 +112,15 @@ DesktopHost
   ├─ NativeWindow
   ├─ View
   └─ App::Detail::RenderContext
-       ├─ backend/window target creation
+       ├─ source-private backend/window target creation
        ├─ resize
        ├─ RenderDevice handoff
        ├─ IRenderer::Render(RenderTarget&)
        └─ idle/shutdown
 ```
 
-This keeps swap-chain/context presentation policy out of View and prevents the
-App host from duplicating RenderDevice/target lifecycles.
-
-Embedded hosts create a RenderDevice and RenderTarget explicitly through the
-D3D11/OpenGL factory headers and retain scheduling control.
+This keeps swap-chain/context presentation policy out of View and out of the
+installed backend factory headers.
 
 ## Markup
 
@@ -129,16 +136,17 @@ Installed targets are product targets only. Object libraries are internal build
 components and may be merged, split or removed without changing architecture.
 No architecture gate requires a particular internal Object Library name.
 
-The permanent build contract is limited to dependency and SDK invariants:
+The permanent build contract is limited to final SDK/dependency invariants:
 
 - installed headers exist and do not include source-private contracts;
 - `Aero::Integration` and `src/integration` cannot return;
-- `RenderTarget` is the installed target object;
+- `RenderTarget` is the installed target object and window surface policy stays private;
 - `RenderTree` never owns GPU submission;
+- `Render::Renderer` is the semantic backend renderer;
 - desktop presentation is coordinated by App's private `RenderContext`;
+- rendering statistics remain an opt-in Diagnostics API;
 - product targets remain `Aero::Base`, `Aero::Gui`, `Aero::App` and optional
-  modules/facades;
-- internal object components are never installed as SDK products.
+  modules/facades.
 
 Historical H/J/K/R/S migration markers belong in Git history and focused design
-notes, not in `CheckArchitecture.cmake`.
+notes, not in `CheckArchitecture.cmake` or `CheckConventions.cmake`.
