@@ -1,12 +1,14 @@
 #pragma once
 
+#include <Aero/Platform/NativeWindow.hpp>
 #include <Aero/Render/D3D11.hpp>
 #include <Aero/Render/OpenGL33.hpp>
+#include "render/Surface.hpp"
 #include "render/private/RenderSurface.hpp"
 
 namespace Aero::Render::Detail {
 
-using PresentMode = ::Aero::PresentMode;
+using PresentMode = ::Aero::Graphics::PresentMode;
 using RenderSurfaceKind = ::Aero::RenderTargetKind;
 using RenderSurfaceState = ::Aero::RenderTargetState;
 using RenderSurface = ::Aero::RenderTarget;
@@ -18,8 +20,16 @@ using D3D11EmbeddedTarget = ::Aero::Render::D3D11EmbeddedTarget;
 using D3D11TargetCallback = ::Aero::Render::D3D11TargetCallback;
 using D3D11EmbeddedSurfaceOptions =
     ::Aero::Render::D3D11RenderTargetOptions;
-using D3D11WindowSurfaceOptions =
-    ::Aero::Render::D3D11WindowSurfaceOptions;
+
+struct D3D11WindowSurfaceOptions {
+    Platform::NativeWindowHandle window;
+    std::uint32_t width = 0U;
+    std::uint32_t height = 0U;
+    PresentMode presentMode = PresentMode::Fifo;
+    bool useWarp = false;
+    bool allowWarpFallback = true;
+    bool enableDebugLayer = false;
+};
 
 using OpenGL33StatePreservationPolicy =
     ::Aero::Render::OpenGL33StatePreservationPolicy;
@@ -34,8 +44,14 @@ using OpenGL33EmbeddedTarget = ::Aero::Render::OpenGL33EmbeddedTarget;
 using OpenGL33TargetCallback = ::Aero::Render::OpenGL33TargetCallback;
 using OpenGL33EmbeddedSurfaceOptions =
     ::Aero::Render::OpenGL33RenderTargetOptions;
-using OpenGL33WindowSurfaceOptions =
-    ::Aero::Render::OpenGL33WindowSurfaceOptions;
+
+struct OpenGL33WindowSurfaceOptions {
+    Platform::NativeWindowHandle window;
+    std::uint32_t width = 0U;
+    std::uint32_t height = 0U;
+    PresentMode presentMode = PresentMode::Fifo;
+    bool enableDebugContext = false;
+};
 
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11Device(
     const D3D11DeviceOptions& options = {},
