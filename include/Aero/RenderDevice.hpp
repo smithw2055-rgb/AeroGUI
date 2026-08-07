@@ -15,6 +15,15 @@ namespace Aero {
 class IRenderer;
 class RenderDevice;
 
+namespace Diagnostics {
+struct RenderDeviceStatistics;
+struct RenderFrameStatistics;
+AERO_API RenderDeviceStatistics GetRenderDeviceStatistics(
+    const Aero::RenderDevice& device) noexcept;
+AERO_API RenderFrameStatistics GetLastRenderFrameStatistics(
+    const Aero::RenderDevice& device) noexcept;
+}
+
 enum class RenderDeviceState : std::uint8_t {
     Ready = 0U,
     DeviceLost,
@@ -22,30 +31,8 @@ enum class RenderDeviceState : std::uint8_t {
     Shutdown
 };
 
-struct RenderDeviceStatistics {
-    std::uint64_t acceptedFrameCount = 0U;
-    std::uint64_t completedFrameCount = 0U;
-    std::uint64_t failedFrameCount = 0U;
-    std::uint64_t lastAcceptedVersion = 0U;
-    std::uint64_t lastCompletedVersion = 0U;
-    std::uint64_t generation = 1U;
-};
-
-struct RenderFrameStatistics {
-    std::uint32_t sourceCommandCount = 0U;
-    std::uint32_t drawPacketCount = 0U;
-    std::uint32_t batchCount = 0U;
-    std::uint32_t drawCallCount = 0U;
-    std::uint32_t mergedPacketCount = 0U;
-    std::uint32_t barrierCount = 0U;
-    std::uint32_t instanceCount = 0U;
-    std::uint32_t stateBindingCount = 0U;
-    bool batchingEnabled = true;
-};
-
 // Host-thread-affine UI render device shared by one or more View renderers on
-// the same render thread. Native graphics resources and surfaces remain hidden
-// behind opt-in Render factories and the private Graphics layer.
+// the same render thread. Diagnostics are opt-in under <Aero/Diagnostics/>.
 class AERO_API RenderDevice final : public Base::Object {
     struct ConstructionToken {};
 
@@ -62,8 +49,6 @@ public:
 
     RenderDeviceState State() const noexcept;
     std::uint64_t Generation() const noexcept;
-    RenderDeviceStatistics Statistics() const noexcept;
-    RenderFrameStatistics LastFrameStatistics() const noexcept;
 
     void NotifyDeviceLost() noexcept;
     Base::Result<void> Restore() noexcept;
@@ -72,6 +57,12 @@ public:
 
 private:
     friend struct Impl;
+    friend Diagnostics::RenderDeviceStatistics
+        Diagnostics::GetRenderDeviceStatistics(
+            const Aero::RenderDevice& device) noexcept;
+    friend Diagnostics::RenderFrameStatistics
+        Diagnostics::GetLastRenderFrameStatistics(
+            const Aero::RenderDevice& device) noexcept;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
     Base::MakeRefWithAllocator(
@@ -83,10 +74,10 @@ private:
         const ::Aero::Render::Detail::RenderFrame& frame) noexcept;
     void ReleaseRenderer(const void* rendererToken) noexcept;
     Base::Status GetFrameStatus() noexcept;
-    Base::Result<RenderFrameStatistics> Analyze(
+    Base::Result<Diagnostics::RenderFrameStatistics> Analyze(
         const ::Aero::Render::Detail::RenderFrame& frame) noexcept;
     void MergeBackendStatistics(
-        RenderFrameStatistics& result) const noexcept;
+        Diagnostics::RenderFrameStatistics& result) const noexcept;
 
     Impl* impl_ = nullptr;
 };
