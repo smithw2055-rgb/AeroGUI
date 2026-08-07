@@ -2,17 +2,23 @@
 
 #include <Aero/Render/D3D11.hpp>
 #include <Aero/Render/OpenGL33.hpp>
-#include <Aero/RenderSurface.hpp>
+#include <Aero/RenderTarget.hpp>
+
+// Source-only aliases keep the already-converged backend translation units
+// reviewable while the installed SDK uses RenderTarget exclusively. These
+// spellings are never installed and are rejected from public headers.
+namespace Aero {
+using RenderSurface = RenderTarget;
+using RenderSurfaceKind = RenderTargetKind;
+using RenderSurfaceState = RenderTargetState;
+}
 
 namespace Aero::Render::Detail {
 
-// Source-private backend entry points. Public hosts use Aero::Render factories;
-// these declarations keep existing backend translation units independent from
-// retired public include paths.
 using PresentMode = ::Aero::PresentMode;
-using RenderSurfaceKind = ::Aero::RenderSurfaceKind;
-using RenderSurfaceState = ::Aero::RenderSurfaceState;
-using RenderSurface = ::Aero::RenderSurface;
+using RenderSurfaceKind = ::Aero::RenderTargetKind;
+using RenderSurfaceState = ::Aero::RenderTargetState;
+using RenderSurface = ::Aero::RenderTarget;
 
 using D3D11StatePreservationPolicy =
     ::Aero::Render::D3D11StatePreservationPolicy;
@@ -20,7 +26,7 @@ using D3D11DeviceOptions = ::Aero::Render::D3D11DeviceOptions;
 using D3D11EmbeddedTarget = ::Aero::Render::D3D11EmbeddedTarget;
 using D3D11TargetCallback = ::Aero::Render::D3D11TargetCallback;
 using D3D11EmbeddedSurfaceOptions =
-    ::Aero::Render::D3D11EmbeddedSurfaceOptions;
+    ::Aero::Render::D3D11RenderTargetOptions;
 using D3D11WindowSurfaceOptions =
     ::Aero::Render::D3D11WindowSurfaceOptions;
 
@@ -36,41 +42,41 @@ using OpenGL33DeviceOptions = ::Aero::Render::OpenGL33DeviceOptions;
 using OpenGL33EmbeddedTarget = ::Aero::Render::OpenGL33EmbeddedTarget;
 using OpenGL33TargetCallback = ::Aero::Render::OpenGL33TargetCallback;
 using OpenGL33EmbeddedSurfaceOptions =
-    ::Aero::Render::OpenGL33EmbeddedSurfaceOptions;
+    ::Aero::Render::OpenGL33RenderTargetOptions;
 using OpenGL33WindowSurfaceOptions =
     ::Aero::Render::OpenGL33WindowSurfaceOptions;
 
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11Device(
     const D3D11DeviceOptions& options = {},
     Base::IAllocator* allocator = nullptr) noexcept;
-Base::Result<Base::Ref<Aero::RenderSurface>> CreateD3D11EmbeddedSurface(
+Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11EmbeddedSurface(
     Base::Ref<Aero::RenderDevice> device,
     const D3D11EmbeddedSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
-Base::Result<Base::Ref<Aero::RenderSurface>> CreateD3D11WindowSurface(
+Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11WindowSurface(
     Base::Ref<Aero::RenderDevice> device,
     const D3D11WindowSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
-Base::Result<Base::Ref<Aero::RenderSurface>> CreateD3D11EmbeddedSurface(
+Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11EmbeddedSurface(
     const D3D11EmbeddedSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
-Base::Result<Base::Ref<Aero::RenderSurface>> CreateD3D11WindowSurface(
+Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11WindowSurface(
     const D3D11WindowSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33Device(
     const OpenGL33DeviceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
-Base::Result<Base::Ref<Aero::RenderSurface>>
+Base::Result<Base::Ref<Aero::RenderTarget>>
 CreateOpenGL33EmbeddedSurface(
     Base::Ref<Aero::RenderDevice> device,
     const OpenGL33EmbeddedSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
-Base::Result<Base::Ref<Aero::RenderSurface>>
+Base::Result<Base::Ref<Aero::RenderTarget>>
 CreateOpenGL33EmbeddedSurface(
     const OpenGL33EmbeddedSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
-Base::Result<Base::Ref<Aero::RenderSurface>>
+Base::Result<Base::Ref<Aero::RenderTarget>>
 CreateOpenGL33WindowSurface(
     const OpenGL33WindowSurfaceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
