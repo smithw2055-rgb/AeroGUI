@@ -37,7 +37,7 @@ struct RenderTarget::Impl {
         Base::Ref<Aero::RenderDevice> device,
         Impl* implementation,
         Base::IAllocator* allocator = nullptr) noexcept;
-    static Base::Result<void> RenderTargetFrame(
+    static Base::Result<void> Render(
         RenderTarget& target,
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& frame) noexcept;
