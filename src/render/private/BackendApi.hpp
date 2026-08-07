@@ -2,16 +2,7 @@
 
 #include <Aero/Render/D3D11.hpp>
 #include <Aero/Render/OpenGL33.hpp>
-#include <Aero/RenderTarget.hpp>
-
-// Source-only aliases keep the already-converged backend translation units
-// reviewable while the installed SDK uses RenderTarget exclusively. These
-// spellings are never installed and are rejected from public headers.
-namespace Aero {
-using RenderSurface = RenderTarget;
-using RenderSurfaceKind = RenderTargetKind;
-using RenderSurfaceState = RenderTargetState;
-}
+#include "render/private/RenderSurface.hpp"
 
 namespace Aero::Render::Detail {
 
