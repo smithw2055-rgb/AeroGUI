@@ -11,14 +11,6 @@
 
 namespace Aero {
 
-// Presentation policy is relevant only when a target owns a presentable native
-// surface. Embedded render targets ignore it.
-enum class PresentMode : std::uint8_t {
-    Immediate = 0U,
-    Fifo,
-    Mailbox
-};
-
 enum class RenderTargetKind : std::uint8_t {
     Embedded = 0U,
     Window
@@ -33,8 +25,8 @@ enum class RenderTargetState : std::uint8_t {
 };
 
 // Host-owned onscreen target. A target keeps a strong reference to a shared
-// RenderDevice while native swap-chain/context presentation remains an App or
-// backend implementation detail. Multiple targets may share one device.
+// RenderDevice. Native swap-chain/context presentation remains an App/backend
+// implementation detail and is not part of the installed Render API.
 class AERO_API RenderTarget final : public Base::Object {
     struct ConstructionToken {};
 
@@ -55,8 +47,6 @@ public:
     RenderTargetState State() const noexcept;
     Base::Ref<Aero::RenderDevice> GetDevice() const noexcept;
 
-    // Resize is meaningful for presentable/window targets. Embedded targets
-    // keep their dimensions in the host-provided target descriptor.
     Base::Result<void> Resize(
         std::uint32_t width,
         std::uint32_t height) noexcept;
