@@ -29,6 +29,11 @@ Base::Result<void> RenderContext::Create(
             "Render context dimensions must be nonzero");
     }
 
+    // Some product configurations compile App without any native window
+    // backend. Keep the parameters well-formed under -Werror in that case.
+    static_cast<void>(window);
+    static_cast<void>(allocator);
+
     GraphicsBackend selected = backend;
     if (selected == GraphicsBackend::Automatic) {
 #if defined(_WIN32)
