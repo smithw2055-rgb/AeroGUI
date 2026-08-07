@@ -4,8 +4,8 @@ namespace {
 
 [[maybe_unused]]
 Aero::Base::Result<
-    Aero::Base::Ref<Aero::RenderSurface>>
-CreateOpenGL33Surface(
+    Aero::Base::Ref<Aero::RenderTarget>>
+CreateOpenGL33Target(
     Aero::Platform::NativeWindowHandle window) noexcept {
     Aero::Render::OpenGL33WindowSurfaceOptions options;
     options.window = window;
