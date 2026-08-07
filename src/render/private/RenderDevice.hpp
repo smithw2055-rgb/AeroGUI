@@ -1,11 +1,19 @@
 #pragma once
 
+#include <Aero/Diagnostics/Rendering.hpp>
 #include <Aero/RenderDevice.hpp>
 #include <Aero/RenderTarget.hpp>
 #include "render/RenderResources.hpp"
 #include "render/RenderTree.hpp"
 
 #include <utility>
+
+namespace Aero {
+// Source-only aliases keep backend implementation code compact while installed
+// code uses the Diagnostics namespace explicitly.
+using RenderDeviceStatistics = Diagnostics::RenderDeviceStatistics;
+using RenderFrameStatistics = Diagnostics::RenderFrameStatistics;
+}
 
 namespace Aero::Render::Detail {
 
@@ -29,9 +37,6 @@ enum class SurfaceHealth : std::uint8_t {
     Shutdown
 };
 
-// One private backend device owns resource submission and renderer state. A
-// backend that also owns its default window target returns the target's actual
-// RenderTarget::Impl rather than a second NativeRenderTarget wrapper.
 class NativeRenderDevice {
 public:
     virtual ~NativeRenderDevice() noexcept = default;
