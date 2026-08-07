@@ -1,12 +1,11 @@
 # Private retained renderer, render device, native backends and shader catalogs.
-# AeroGui owns native surface acquisition and presentation; DeviceRenderer is
-# the only active frame encoder and shared GPU resource owner.
+# Renderer is the single semantic frame encoder and shared GPU resource owner.
 add_library(AeroRenderingObjects OBJECT
     src/render/GraphicsDevice.cpp
     src/render/GraphicsDeviceResources.cpp
     src/render/Surface.cpp
     src/render/FrameEncoder.cpp
-    src/render/DeviceRenderer.cpp
+    src/render/Renderer.cpp
     src/render/TextRenderer.cpp
     src/render/opengl33/OpenGL33Backend.cpp
     src/render/opengl33/OpenGL33Context.cpp
