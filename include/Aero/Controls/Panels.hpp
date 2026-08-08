@@ -129,16 +129,6 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
 };
 
-enum class GridUnitType : std::uint8_t { Auto = 0U, Pixel, Star };
-
-struct GridLength {
-    double value = 1.0;
-    GridUnitType unit = GridUnitType::Star;
-    static constexpr GridLength Auto() noexcept { return {0.0, GridUnitType::Auto}; }
-    static constexpr GridLength Pixel(double value) noexcept { return {value, GridUnitType::Pixel}; }
-    static constexpr GridLength Star(double weight = 1.0) noexcept { return {weight, GridUnitType::Star}; }
-};
-
 class AERO_API ColumnDefinition : public Base::Object {
     AERO_DECLARE_TYPE(ColumnDefinition, Base::Object)
 public:
@@ -475,23 +465,3 @@ private:
 };
 
 } // namespace Aero::Controls
-
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Controls::GridLength> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("GridLength");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "GridLength";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta

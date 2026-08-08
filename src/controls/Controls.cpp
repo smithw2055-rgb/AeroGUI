@@ -1682,7 +1682,7 @@ TextTrimming TextBlock::GetTextTrimming() const noexcept {
 TextAlignment TextBlock::GetTextAlignment() const noexcept {
     return GetValueOr(
         TextAlignmentProperty,
-        TextAlignment::Start);
+        TextAlignment::Left);
 }
 
 double TextBlock::GetLineHeight() const noexcept {

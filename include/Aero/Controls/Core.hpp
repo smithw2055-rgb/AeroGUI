@@ -47,9 +47,9 @@ enum class TextTrimming : std::uint8_t {
 };
 
 enum class TextAlignment : std::uint8_t {
-    Start = 0U,
+    Left = 0U,
     Center,
-    End,
+    Right,
     Justify
 };
 

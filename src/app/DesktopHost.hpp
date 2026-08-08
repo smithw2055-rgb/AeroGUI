@@ -12,6 +12,9 @@ public:
         ::Aero::Application& application,
         void* hostState,
         ::Aero::Window* mainWindow) noexcept;
+    static void SetMainWindowBorrowed(
+        ::Aero::Application& application,
+        ::Aero::Window* mainWindow) noexcept;
     static void Detach(::Aero::Application& application) noexcept;
     static void RaiseStartup(::Aero::Application& application) noexcept;
     static void RaiseExit(

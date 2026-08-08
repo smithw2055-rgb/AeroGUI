@@ -752,7 +752,7 @@ struct DesktopHost::Impl {
             }
             mainWindow = host->window;
             if (application->GetMainWindow() == nullptr) {
-                application->SetMainWindowBorrowed(mainWindow);
+                DesktopPrivate::SetMainWindowBorrowed(*application, mainWindow);
             }
         }
 
@@ -760,7 +760,8 @@ struct DesktopHost::Impl {
         // application creates and shows one or more windows from OnStartup().
         DesktopPrivate::RaiseStartup(*application);
         if (application->GetMainWindow() == nullptr && !windows.Empty()) {
-            application->SetMainWindowBorrowed(windows[0]->window);
+            DesktopPrivate::SetMainWindowBorrowed(
+                *application, windows[0]->window);
         }
         return {};
     }
@@ -783,7 +784,8 @@ struct DesktopHost::Impl {
             return loaded.GetStatus();
         }
         if (application->GetMainWindow() == nullptr) {
-            application->SetMainWindowBorrowed(host->window);
+            DesktopPrivate::SetMainWindowBorrowed(
+                *application, host->window);
         }
         Base::Result<void> rendered = host->RenderFrame();
         if (!rendered) {

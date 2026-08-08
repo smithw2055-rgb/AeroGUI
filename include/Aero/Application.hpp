@@ -59,7 +59,6 @@ public:
     void SetResources(Base::Ref<ResourceDictionary> value) noexcept;
     Window* GetMainWindow() const noexcept { return mainWindow_; }
     void SetMainWindow(Base::Ref<Window> value) noexcept;
-    void SetMainWindowBorrowed(Window* value) noexcept;
     WindowCollection GetWindows() const noexcept { return WindowCollection(*this); }
     ShutdownMode GetShutdownMode() const noexcept { return shutdownMode_; }
     void SetShutdownMode(ShutdownMode value) noexcept { shutdownMode_ = value; }
@@ -83,6 +82,7 @@ private:
     friend class Window;
     friend class WindowCollection;
 
+    void SetMainWindowBorrowed(Window* value) noexcept;
     Base::Result<void> Attach(
         void* hostState,
         Window* mainWindow) noexcept;

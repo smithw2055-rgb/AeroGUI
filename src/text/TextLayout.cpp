@@ -725,9 +725,7 @@ Base::Result<void> TextLayout::Arrange(
         float targetX = 0.0F;
         if (alignment_ == TextAlignment::Center) {
             targetX = available * 0.5F;
-        } else if (alignment_ == TextAlignment::End ||
-                   (alignment_ == TextAlignment::Start &&
-                    direction_ == TextDirection::RightToLeft)) {
+        } else if (alignment_ == TextAlignment::Right) {
             targetX = available;
         }
         const float delta = targetX - line.x;
@@ -750,7 +748,7 @@ void TextLayout::Clear() noexcept {
     lines_.Clear();
     size_ = {};
     naturalSize_ = {};
-    alignment_ = TextAlignment::Start;
+    alignment_ = TextAlignment::Left;
     direction_ = TextDirection::Auto;
     trimmed_ = false;
 }

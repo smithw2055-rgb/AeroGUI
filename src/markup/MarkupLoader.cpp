@@ -706,9 +706,9 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
             return record;
         }
         if (value.Type() ==
-            Meta::TypeOf<Controls::GridLength>()) {
-            Base::Result<Controls::GridLength> decoded =
-                Meta::ValueCodec<Controls::GridLength>::
+            Meta::TypeOf<::Aero::GridLength>()) {
+            Base::Result<::Aero::GridLength> decoded =
+                Meta::ValueCodec<::Aero::GridLength>::
                     Decode(value);
             if (!decoded) return makeText();
             record.payloadCount = 2U;
@@ -887,7 +887,7 @@ Base::Result<Meta::Value> DecodeCompiledValue(
             if (!Base::IsFiniteTransform(value)) break;
             return MakeStoredCustomValue(type, value);
         }
-        if (type == Meta::TypeOf<Controls::GridLength>() &&
+        if (type == Meta::TypeOf<::Aero::GridLength>() &&
             requirePayloads(2U)) {
             const double value =
                 CopyValueBits<double>(
@@ -896,14 +896,14 @@ Base::Result<Meta::Value> DecodeCompiledValue(
                 value < 0.0 ||
                 record.payload[1] >
                     static_cast<std::uint64_t>(
-                        Controls::GridUnitType::Star)) {
+                        ::Aero::GridUnitType::Star)) {
                 break;
             }
             return MakeStoredCustomValue(
                 type,
-                Controls::GridLength{
+                ::Aero::GridLength{
                     value,
-                    static_cast<Controls::GridUnitType>(
+                    static_cast<::Aero::GridUnitType>(
                         record.payload[1])});
         }
         break;

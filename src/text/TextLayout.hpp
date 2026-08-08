@@ -56,7 +56,7 @@ struct TextLayoutRequest  {
     Script script = Script::Unknown;
     TextWrapping wrapping = TextWrapping::NoWrap;
     TextTrimming trimming = TextTrimming::None;
-    TextAlignment alignment = TextAlignment::Start;
+    TextAlignment alignment = TextAlignment::Left;
 };
 
 class AERO_API TextLayout  {
@@ -94,7 +94,7 @@ private:
     Base::Vector<TextLine> lines_;
     TextLayoutSize size_;
     TextLayoutSize naturalSize_;
-    TextAlignment alignment_ = TextAlignment::Start;
+    TextAlignment alignment_ = TextAlignment::Left;
     TextDirection direction_ = TextDirection::Auto;
     bool trimmed_ = false;
 };

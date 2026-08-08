@@ -410,6 +410,14 @@ AERO_API MemberId MakeMethodId(TypeId ownerType, Base::StringView name, Base::Sp
 public: \
     using Self = typeName; \
     using BaseType = metadataBaseType; \
+    template<class TValue> \
+    using DependencyProperty = Aero::DependencyPropertyRef<Self, TValue>; \
+    template<class TValue> \
+    using AttachedProperty = Aero::AttachedPropertyRef<Self, TValue>; \
+    template<class TValue> \
+    using ReadOnlyDependencyProperty = Aero::ReadOnlyPropertyRef<Self, TValue>; \
+    template<class TArgs> \
+    using RoutedEvent = Aero::RoutedEventRef<Self, TArgs>; \
     struct Members { \
         template<class TValue> \
         using Property = Aero::DependencyPropertyRef<Self, TValue>; \

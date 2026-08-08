@@ -98,6 +98,12 @@ void Application::SetMainWindowBorrowed(
     }
 }
 
+void Application::Impl::SetMainWindowBorrowed(
+    Application& application,
+    Window* value) noexcept {
+    application.SetMainWindowBorrowed(value);
+}
+
 
 void Application::Shutdown(int exitCode) noexcept {
     auto* state = impl_ != nullptr
