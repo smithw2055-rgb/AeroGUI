@@ -194,7 +194,7 @@ aero_apply_compiler_options(AeroTextObjects)
 
 if(NOT AERO_WITH_FREETYPE OR NOT AERO_WITH_HARFBUZZ)
     message(FATAL_ERROR
-        "AeroRuntime requires the built-in FreeType and HarfBuzz text pipeline")
+        "AeroGui requires the built-in FreeType and HarfBuzz text pipeline")
 endif()
 
 if(AERO_WITH_FREETYPE)

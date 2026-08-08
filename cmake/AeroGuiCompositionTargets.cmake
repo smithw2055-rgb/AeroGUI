@@ -1,8 +1,8 @@
-# View/Gui composition is folded directly into AeroGui. Keeping it as an
-# object component preserves source ownership without another SDK binary.
+# View/Gui composition is folded directly into AeroGui as a source group.
+# It is not a separate object library or SDK binary.
 #
 # In-tree aero-xamlc/aero-schema-gen link Aero::Gui, so they can never be build
-# prerequisites of AeroGui itself. Runtime uses compiled built-in themes only
+# prerequisites of AeroGui itself. Gui composition uses compiled built-in themes only
 # when an independent host tool chain is supplied. Otherwise a source-fallback
 # header is generated synchronously at configure time; the in-tree tools remain
 # ordinary post-Gui tools and AeroCompiledThemes stays an explicit asset target.
@@ -23,7 +23,7 @@ if(NOT _aero_gui_precompiled_themes)
     # otherwise binds View.cpp's generated-header dependency to aero-xamlc and
     # recreates the AeroGui -> aero-xamlc -> AeroGui bootstrap cycle.
     set(_aero_gui_theme_include_dir
-        "${CMAKE_CURRENT_BINARY_DIR}/runtime-generated")
+        "${CMAKE_CURRENT_BINARY_DIR}/gui-generated")
     set(_aero_gui_theme_header
         "${_aero_gui_theme_include_dir}/Aero/BuiltinThemes.generated.hpp")
     file(MAKE_DIRECTORY

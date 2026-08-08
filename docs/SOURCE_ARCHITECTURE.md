@@ -102,8 +102,10 @@ adapters.
 implements the source-private `CommandEncoder`; it records command lists but has
 no peer renderer lifetime. Its target value is `FrameTarget`, avoiding collision
 with the installed `Aero::RenderTarget` object. `Graphics::Device` is only the
-source-private resource/command core used by these backends; its backend and
-shader vocabulary is limited to implementations compiled by this tree.
+source-private resource/command core used by these backends. Direct in-tree
+native backends are D3D11 and OpenGL 3.3; the optional host-supplied Sokol bridge
+may report broader private backend/shader capability tags without expanding the
+installed SDK backend surface.
 
 For OpenGL desktop hosting, WGL/GLX context creation remains physically coupled
 to the device, but presentation state (lost flag and frame serial) belongs to the

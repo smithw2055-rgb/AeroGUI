@@ -15,9 +15,11 @@ Manager/Service/Runtime product layers.
 
 `Graphics::Device` is retained only as a source-private resource/command core
 under `src/render`. It is not a second SDK RenderDevice and is not installed.
-Its backend vocabulary is reduced to the implementations built by this tree:
-Null/Sokol/D3D11/OpenGL33, with DXBC/GLSL 330 shader languages. Speculative
-D3D12/Vulkan/Metal/GLES/WebGL/console vocabulary is removed.
+The direct native backends built in-tree are D3D11 and OpenGL 3.3; `Null` is a
+validation backend and `Sokol` is an optional host-supplied bridge. Private
+`GraphicsBackendKind` and `ShaderLanguage` values may therefore describe the
+host bridge's underlying capability family without advertising another installed
+SDK backend or product layer.
 
 The final FrameEncoder migration aliases are removed from the implementation;
 `CommandEncoder` and `FrameTarget` are the real low-level names.
@@ -56,8 +58,14 @@ The final installed product graph stays intentionally small:
 
 ```text
 Aero::Base
-   鈫?Aero::Gui        Aero::Audio (optional)
-   鈫?Aero::App (optional desktop lifetime)
+   |
+   +-- Aero::Gui
+   |      |
+   |      +-- Aero::Meta facade
+   |
+   +-- Aero::Audio (optional)
+
+Aero::App -> Aero::Gui
 ```
 
 `Aero::Meta` is a Gui facade. `Aero::Render` is a specialist C++ namespace in

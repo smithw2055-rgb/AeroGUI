@@ -150,6 +150,40 @@ if(aero_root_source_files)
     message(FATAL_ERROR
         "Source files must belong to a real domain directory under src/: ${aero_root_source_files}")
 endif()
+# Final source-wide vocabulary checks. These are deliberately global so a
+# retired namespace/include cannot reappear in an unlisted translation unit.
+file(GLOB_RECURSE aero_source_contract_files
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.h"
+    "${AERO_SOURCE_DIR}/src/*.inl"
+    "${AERO_SOURCE_DIR}/src/*.inc")
+foreach(source_contract_file IN LISTS aero_source_contract_files)
+    file(READ "${source_contract_file}" source_contract_content)
+    string(FIND "${source_contract_content}"
+        "Aero::Runtime::Detail" runtime_detail_position)
+    string(FIND "${source_contract_content}"
+        "namespace Aero::Runtime" runtime_namespace_position)
+    if(NOT runtime_detail_position EQUAL -1 OR
+       NOT runtime_namespace_position EQUAL -1)
+        file(RELATIVE_PATH source_contract_relative
+            "${AERO_SOURCE_DIR}" "${source_contract_file}")
+        message(FATAL_ERROR
+            "Retired Runtime namespace remains: ${source_contract_relative}")
+    endif()
+    if(source_contract_content MATCHES
+            "#[ \t]*include[ \t]*[<\"][^>\"]*RenderPrivate[.]hpp[>\"]")
+        file(RELATIVE_PATH source_contract_relative
+            "${AERO_SOURCE_DIR}" "${source_contract_file}")
+        message(FATAL_ERROR
+            "Retired RenderPrivate include remains: ${source_contract_relative}")
+    endif()
+endforeach()
+unset(aero_source_contract_files)
+unset(source_contract_content)
+unset(source_contract_relative)
+unset(runtime_detail_position)
+unset(runtime_namespace_position)
 
 # ---------------------------------------------------------------------------
 # Rendering ownership

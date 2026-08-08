@@ -8,4 +8,6 @@ CMakeUserPresets.json
 *.VC.db
 *.VC.opendb
 .DS_Store
-/tools/control-gallery-conformance/
+/tools/control-gallery-conformance/ 
+/AeroGUI-*.patch
+/AeroGUI-final-cleanup-backup-*/
