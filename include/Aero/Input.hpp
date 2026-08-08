@@ -92,6 +92,30 @@ struct KeyboardInput {
     bool isRepeat = false;
 };
 
+// WPF-shaped key identifiers for the host-friendly View input API. Values
+// intentionally match the platform-neutral key codes already used internally.
+enum class Key : std::uint32_t {
+    None = 0U,
+    Back = 8U,
+    Tab = 9U,
+    Enter = 13U,
+    Escape = 27U,
+    Space = 32U,
+    End = 0x23U,
+    Home = 0x24U,
+    Left = 0x25U,
+    Up = 0x26U,
+    Right = 0x27U,
+    Down = 0x28U,
+    Delete = 0x2EU,
+    A = 0x41U,
+    C = 0x43U,
+    V = 0x56U,
+    X = 0x58U,
+    Y = 0x59U,
+    Z = 0x5AU
+};
+
 inline constexpr std::uint32_t KeyboardKeyTab = 9U;
 inline constexpr std::uint32_t KeyboardKeyBackspace = 8U;
 inline constexpr std::uint32_t KeyboardKeyEnter = 13U;

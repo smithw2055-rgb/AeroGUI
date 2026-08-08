@@ -1552,6 +1552,18 @@ MetadataAuthoringSession::Field(
 }
 
 MetadataAuthoringSession&
+MetadataAuthoringSession::Method(
+    const MethodRegistration& registration) noexcept {
+    if (Ok()) {
+        Base::Result<MemberId> result =
+            context_->Types().RegisterMethod(
+                type_, registration);
+        Record(result);
+    }
+    return *this;
+}
+
+MetadataAuthoringSession&
 MetadataAuthoringSession::EnumValueRaw(
     Base::StringView name,
     std::uint64_t rawValue) noexcept {

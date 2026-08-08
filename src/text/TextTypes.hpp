@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Controls/Core.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>

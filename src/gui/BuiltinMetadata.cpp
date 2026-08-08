@@ -24,6 +24,13 @@ Base::Result<void> Detail::PopulateCoreMetadata(
         .Result();
     if (!status) return status.GetStatus();
 
+    status = Meta::Register<::Aero::Nullable<bool>>(context)
+        .TextConverter<
+            &::Aero::Base::Detail::ValueConversion::
+                ConvertNullableBoolean>()
+        .Result();
+    if (!status) return status.GetStatus();
+
     status = Meta::Register<std::int8_t>(context)
         .TextConverter<
             &::Aero::Base::Detail::ValueConversion::ConvertInteger<std::int8_t>>()

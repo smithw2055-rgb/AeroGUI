@@ -160,9 +160,79 @@ Base::Result<void> RenderTarget::Impl::Render(
         return rendered.GetStatus();
     }
 
+    if (target.impl_->frameOpen) {
+        target.impl_->frameRendered = true;
+    }
+
     Aero::RenderDevice::Impl::CompleteSurfaceFrame(
         *target.device_, frame, statistics.Value());
     return {};
+}
+
+Base::Result<void> RenderTarget::Impl::PresentFrame() noexcept {
+    return InvalidState("Render target does not support desktop presentation");
+}
+
+void RenderTarget::Impl::DiscardFrame() noexcept {}
+
+Base::Result<void> RenderTarget::Impl::BeginFrame(
+    RenderTarget& target) noexcept {
+    if (target.impl_ == nullptr || !target.device_) {
+        return NotInitialized("Render target is not initialized");
+    }
+    if (target.impl_->kind != RenderTargetKind::Window) {
+        return InvalidState("Only window render targets have a desktop frame lifecycle");
+    }
+    if (target.State() != RenderTargetState::Ready) {
+        return InvalidState("Render target is not ready to begin a frame");
+    }
+    if (target.impl_->frameOpen) {
+        return InvalidState("Render target already has an open frame");
+    }
+    target.impl_->frameOpen = true;
+    target.impl_->frameRendered = false;
+    target.impl_->frameEnded = false;
+    return {};
+}
+
+Base::Result<void> RenderTarget::Impl::EndFrame(
+    RenderTarget& target) noexcept {
+    if (target.impl_ == nullptr || !target.impl_->frameOpen) {
+        return InvalidState("Render target has no open frame");
+    }
+    if (!target.impl_->frameRendered) {
+        return InvalidState("Render target frame has not been rendered");
+    }
+    if (target.impl_->frameEnded) {
+        return InvalidState("Render target frame has already ended");
+    }
+    target.impl_->frameEnded = true;
+    return {};
+}
+
+Base::Result<void> RenderTarget::Impl::Present(
+    RenderTarget& target) noexcept {
+    if (target.impl_ == nullptr || !target.impl_->frameOpen ||
+        !target.impl_->frameEnded) {
+        return InvalidState("Render target frame must end before present");
+    }
+    Base::Result<void> presented = target.impl_->PresentFrame();
+    if (!presented) {
+        target.impl_->DiscardFrame();
+        Aero::RenderDevice::Impl::RecordSurfaceFailure(*target.device_);
+    }
+    target.impl_->frameOpen = false;
+    target.impl_->frameRendered = false;
+    target.impl_->frameEnded = false;
+    return presented;
+}
+
+void RenderTarget::Impl::CancelFrame(RenderTarget& target) noexcept {
+    if (target.impl_ == nullptr || !target.impl_->frameOpen) return;
+    target.impl_->DiscardFrame();
+    target.impl_->frameOpen = false;
+    target.impl_->frameRendered = false;
+    target.impl_->frameEnded = false;
 }
 
 } // namespace Aero

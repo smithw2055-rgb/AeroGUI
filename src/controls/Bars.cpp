@@ -1,5 +1,6 @@
 #include "gui/GuiPrivate.hpp"
-#include <Aero/Controls/Common.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls/StackPanel.hpp>
 
 #include <algorithm>
 #include <utility>

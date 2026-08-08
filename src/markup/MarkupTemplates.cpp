@@ -8,8 +8,8 @@
 
 #include <Aero/Base/String.hpp>
 
-#include <Aero/Controls/Panels.hpp>
-#include <Aero/Controls/Common.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/FrameworkElement.hpp>
@@ -653,8 +653,8 @@ Base::Result<void> UiObjectModel::Register(
 
 
 
-#include <Aero/Controls/Core.hpp>
-#include <Aero/Controls/Items.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
 #include "../controls/ControlsPrivate.hpp"
 #include <Aero/Styling.hpp>
 
@@ -1216,7 +1216,7 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
 #include "../controls/DataTemplateTriggerState.hpp"
 #include "../media/MediaPrivate.hpp"
 
-#include <Aero/Controls/Primitives.hpp>
+#include <Aero/Controls.hpp>
 
 #include "../controls/ControlBehavior.hpp"
 

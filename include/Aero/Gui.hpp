@@ -6,11 +6,12 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Module.hpp>
+#include <Aero/ViewOptions.hpp>
 
 namespace Aero {
 
 class View;
-struct ViewOptions;
+class FrameworkElement;
 namespace Markup {
 class XamlProvider;
 class XamlReader;
@@ -44,6 +45,10 @@ public:
         Base::IAllocator* allocator = nullptr) noexcept;
     Base::Result<Base::Ref<View>> CreateView(
         const ViewOptions& options,
+        Base::IAllocator* allocator = nullptr) noexcept;
+    Base::Result<Base::Ref<View>> CreateView(
+        Base::Ref<FrameworkElement> content,
+        const ViewOptions& options = {},
         Base::IAllocator* allocator = nullptr) noexcept;
 
     bool IsInitialized() const noexcept;

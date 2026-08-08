@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/ContentElement.hpp>
-#include <Aero/Controls/Panels.hpp>
+#include <Aero/Gui/TextBlock.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Events/NavigationEventArgs.hpp>

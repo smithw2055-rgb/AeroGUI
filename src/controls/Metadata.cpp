@@ -3,10 +3,10 @@
 #include "controls/ControlsPrivate.hpp"
 #include "../media/MediaPrivate.hpp"
 
-#include <Aero/Controls/Primitives.hpp>
-#include <Aero/Controls/Common.hpp>
-#include <Aero/Controls/Items.hpp>
-#include <Aero/Controls/Panels.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Controls/Text.hpp>
 #include <Aero/Styling.hpp>

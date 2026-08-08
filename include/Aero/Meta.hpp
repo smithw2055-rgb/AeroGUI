@@ -598,6 +598,8 @@ public:
         const PropertyRegistration& registration) noexcept;
     MetadataAuthoringSession& Field(
         const FieldRegistration& registration) noexcept;
+    MetadataAuthoringSession& Method(
+        const MethodRegistration& registration) noexcept;
     MetadataAuthoringSession& EnumValueRaw(
         Base::StringView name,
         std::uint64_t rawValue) noexcept;
@@ -966,6 +968,35 @@ struct OrdinaryPropertyAdapter {
     }
 };
 
+template<class TOwner, class TArgs, auto Handler>
+Base::Result<Value> InvokeEventHandler(
+    Base::Object& object,
+    Base::Span<const Value> arguments,
+    void*) noexcept {
+    static_assert(std::is_base_of_v<Base::Object, TOwner>,
+        "XAML event handler owner must derive from Object");
+    static_assert(std::is_invocable_v<
+        decltype(Handler), TOwner&, Base::Object*, TArgs&>,
+        "XAML event handler must accept (Object*, EventArgs& or const EventArgs&)");
+    if (arguments.Size() != 2U ||
+        arguments[0].Kind() != ValueKind::Object) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML event handler received an incompatible argument list");
+    }
+    Base::Result<TArgs> eventArgs =
+        ValueCodec<TArgs>::Decode(arguments[1]);
+    if (!eventArgs) return eventArgs.GetStatus();
+    std::invoke(
+        Handler,
+        static_cast<TOwner&>(object),
+        arguments[0].IsNullObject()
+            ? nullptr
+            : arguments[0].AsObject().Get(),
+        eventArgs.Value());
+    return Value{};
+}
+
 } // namespace Detail
 
 template<class TValue>
@@ -1331,6 +1362,28 @@ public:
         return *this;
     }
 
+    // Describes a conventional code-behind handler used by XAML attributes
+    // such as Click="OnHelloClick". The runtime connects the named method to
+    // the routed event; users do not author Registry or facet callbacks.
+    template<class TArgs, auto Handler>
+    TypeDescription& EventHandler(
+        Base::StringView name) noexcept {
+        static_assert(std::is_invocable_v<
+            decltype(Handler), T&, Base::Object*, TArgs&>,
+            "XAML event handler must accept (Object*, EventArgs& or const EventArgs&)");
+        const MethodParameterRegistration parameters[] = {
+            {"sender", TypeOf<Base::Object>()},
+            {"args", TypeOf<TArgs>()}};
+        builder_.Method({
+            name,
+            InvalidTypeId,
+            {parameters, 2U},
+            MethodFlags::None,
+            &Detail::InvokeEventHandler<T, TArgs, Handler>,
+            nullptr});
+        return *this;
+    }
+
     template<class TOwner, class TValue>
     TypeDescription& Override(
         const DependencyPropertyRef<TOwner, TValue>& property,
@@ -1584,3 +1637,54 @@ TypeDescription<T> Register(
 }
 
 } // namespace Aero::Meta
+
+namespace Aero::Meta::Detail {
+
+template<class T, class = void>
+struct HasComponentDescription : std::false_type {};
+
+template<class T>
+struct HasComponentDescription<T, std::void_t<decltype(
+    T::DescribeComponent(
+        std::declval<TypeDescription<T>&>()))>>
+    : std::true_type {};
+
+template<class T>
+Base::Result<void> RegisterComponentType(
+    Registration& registration) noexcept {
+    auto type = Register<T>(registration);
+    type.Factory();
+    if constexpr (HasComponentDescription<T>::value) {
+        T::DescribeComponent(type);
+    }
+    return type.Result();
+}
+
+template<class... TComponents>
+Base::Result<void> RegisterComponentTypes(
+    Registration& registration) noexcept {
+    Base::Result<void> status;
+    const bool registered = ((status
+        ? static_cast<bool>(
+              status = RegisterComponentType<TComponents>(registration))
+        : false) && ...);
+    static_cast<void>(registered);
+    return status;
+}
+
+} // namespace Aero::Meta::Detail
+
+namespace Aero {
+
+// One module declaration registers ordinary code-behind/custom-control types,
+// default factories, and optional DescribeComponent metadata. Applications no
+// longer author Registry or XAML facet callbacks for these types.
+template<class... TComponents>
+constexpr ModuleRegistration DefineComponentModule(
+    Base::StringView name) noexcept {
+    return DefineModule(
+        name,
+        &Meta::Detail::RegisterComponentTypes<TComponents...>);
+}
+
+} // namespace Aero

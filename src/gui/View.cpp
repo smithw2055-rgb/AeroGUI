@@ -29,11 +29,11 @@
 #include "media/private/Effect.hpp"
 #include "media/private/Transform.hpp"
 
-#include <Aero/Controls/Primitives.hpp>
-#include <Aero/Controls/Common.hpp>
-#include <Aero/Controls/Core.hpp>
-#include <Aero/Controls/Items.hpp>
-#include <Aero/Controls/Panels.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Documents.hpp>
 #include "controls/Metadata.hpp"
 #include <Aero/Styling.hpp>
@@ -53,9 +53,10 @@
 #include <Aero/BuiltinThemes.generated.hpp>
 
 #include "controls/DataTemplateTriggerState.hpp"
-#include "render/private/BackendApi.hpp"
+#include "render/private/RenderDevice.hpp"
 #include "render/RenderTree.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <limits>
@@ -6954,7 +6955,7 @@ View::Impl::ExecuteAnimationAction(
                 Controls::Primitives::ToggleButton::
                     StaticTypeId())) {
             static_cast<Controls::Primitives::ToggleButton&>(
-                propertyTarget).SetIsIndeterminate();
+                propertyTarget).SetIsChecked(Nullable<bool>{});
             return {};
         }
         Base::Result<Meta::PropertyValue> coerced =
@@ -7780,13 +7781,20 @@ Base::Result<void> View::SetContent(
             "View must be initialized before SetContent");
     }
     if (IsMounted()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "View already has mounted content");
+        Base::Result<void> unmounted = Unmount();
+        if (!unmounted) return unmounted.GetStatus();
     }
     return Mount(
         Base::Ref<Base::Object>(std::move(root)),
         availableSize);
+}
+
+Base::Result<void> View::SetContent(
+    Base::Ref<FrameworkElement> root) noexcept {
+    const Aero::Size availableSize = state_ != nullptr
+        ? state_->viewport.logicalSize
+        : Aero::Size{};
+    return SetContent(std::move(root), availableSize);
 }
 
 Base::Result<void> View::Mount(
@@ -8069,6 +8077,26 @@ void View::SetSize(
     SetViewport(viewport.Value());
 }
 
+void View::SetSize(
+    std::uint32_t width,
+    std::uint32_t height) noexcept {
+    SetSize(Aero::Size{
+        static_cast<double>(width),
+        static_cast<double>(height)});
+}
+
+void View::SetScale(double scale) noexcept {
+    if (!IsInitialized() || state_ == nullptr ||
+        !std::isfinite(scale) || scale <= 0.0) {
+        return;
+    }
+    Base::Result<Viewport> viewport =
+        Aero::ViewDetail::MakeLogicalViewport(
+            state_->viewport.logicalSize, scale);
+    if (!viewport) return;
+    SetViewport(viewport.Value());
+}
+
 void View::SetViewport(
     const Viewport& viewport) noexcept {
     if (!IsInitialized() || state_ == nullptr) {
@@ -8107,6 +8135,34 @@ Base::Result<void> View::Update(
             "View callback count overflow");
     }
     return {};
+}
+
+bool View::Update(double timeInSeconds) noexcept {
+    if (!active_ || !std::isfinite(timeInSeconds) ||
+        timeInSeconds < 0.0) {
+        return false;
+    }
+    double elapsedSeconds = 0.0;
+    if (hasUpdateTime_ && timeInSeconds >= updateTimeSeconds_) {
+        elapsedSeconds = timeInSeconds - updateTimeSeconds_;
+    }
+    updateTimeSeconds_ = timeInSeconds;
+    hasUpdateTime_ = true;
+    const double elapsedMilliseconds = std::min(
+        elapsedSeconds * 1000.0,
+        static_cast<double>(UINT32_MAX));
+    return static_cast<bool>(Update(
+        static_cast<std::uint32_t>(elapsedMilliseconds)));
+}
+
+void View::Activate() noexcept {
+    active_ = true;
+    hasUpdateTime_ = false;
+}
+
+void View::Deactivate() noexcept {
+    active_ = false;
+    hasUpdateTime_ = false;
 }
 
 Base::Result<View::FrameResult>
@@ -8465,6 +8521,166 @@ View::DispatchText(
             "Text input requires a mounted View");
     }
     return state_->input->DispatchText(input);
+}
+
+bool View::MouseMove(int x, int y) noexcept {
+    if (!active_) return false;
+    Input::PointerInput input;
+    input.pointerId = 0U;
+    input.action = Input::PointerAction::Move;
+    input.position = {
+        static_cast<double>(x),
+        static_cast<double>(y)};
+    Base::Result<Input::PointerDispatchResult> dispatched =
+        DispatchPointer(input);
+    return dispatched && dispatched.Value().routed;
+}
+
+bool View::MouseButtonDown(
+    int x,
+    int y,
+    Input::MouseButton button) noexcept {
+    if (!active_) return false;
+    Input::PointerInput input;
+    input.pointerId = 0U;
+    input.action = Input::PointerAction::Down;
+    input.position = {
+        static_cast<double>(x),
+        static_cast<double>(y)};
+    input.changedButton = button;
+    Base::Result<Input::PointerDispatchResult> dispatched =
+        DispatchPointer(input);
+    return dispatched && dispatched.Value().routed;
+}
+
+bool View::MouseButtonUp(
+    int x,
+    int y,
+    Input::MouseButton button) noexcept {
+    if (!active_) return false;
+    Input::PointerInput input;
+    input.pointerId = 0U;
+    input.action = Input::PointerAction::Up;
+    input.position = {
+        static_cast<double>(x),
+        static_cast<double>(y)};
+    input.changedButton = button;
+    Base::Result<Input::PointerDispatchResult> dispatched =
+        DispatchPointer(input);
+    return dispatched && dispatched.Value().routed;
+}
+
+bool View::MouseWheel(
+    int x,
+    int y,
+    int delta) noexcept {
+    if (!active_) return false;
+    Input::PointerInput input;
+    input.pointerId = 0U;
+    input.action = Input::PointerAction::Wheel;
+    input.position = {
+        static_cast<double>(x),
+        static_cast<double>(y)};
+    input.wheelDeltaY = static_cast<double>(delta);
+    Base::Result<Input::PointerDispatchResult> dispatched =
+        DispatchPointer(input);
+    return dispatched && dispatched.Value().routed;
+}
+
+bool View::KeyDown(Input::Key key) noexcept {
+    if (!active_) return false;
+    Input::KeyboardInput input;
+    input.action = Input::KeyboardAction::Down;
+    input.key = static_cast<std::uint32_t>(key);
+    Base::Result<Input::KeyboardDispatchResult> dispatched =
+        DispatchKeyboard(input);
+    return dispatched && dispatched.Value().routed;
+}
+
+bool View::KeyUp(Input::Key key) noexcept {
+    if (!active_) return false;
+    Input::KeyboardInput input;
+    input.action = Input::KeyboardAction::Up;
+    input.key = static_cast<std::uint32_t>(key);
+    Base::Result<Input::KeyboardDispatchResult> dispatched =
+        DispatchKeyboard(input);
+    return dispatched && dispatched.Value().routed;
+}
+
+bool View::Char(std::uint32_t codePoint) noexcept {
+    if (!active_ || codePoint > 0x10FFFFU ||
+        (codePoint >= 0xD800U && codePoint <= 0xDFFFU)) {
+        return false;
+    }
+    char text[4]{};
+    std::uint32_t length = 0U;
+    if (codePoint <= 0x7FU) {
+        text[length++] = static_cast<char>(codePoint);
+    } else if (codePoint <= 0x7FFU) {
+        text[length++] = static_cast<char>(0xC0U | (codePoint >> 6U));
+        text[length++] = static_cast<char>(0x80U | (codePoint & 0x3FU));
+    } else if (codePoint <= 0xFFFFU) {
+        text[length++] = static_cast<char>(0xE0U | (codePoint >> 12U));
+        text[length++] = static_cast<char>(
+            0x80U | ((codePoint >> 6U) & 0x3FU));
+        text[length++] = static_cast<char>(0x80U | (codePoint & 0x3FU));
+    } else {
+        text[length++] = static_cast<char>(0xF0U | (codePoint >> 18U));
+        text[length++] = static_cast<char>(
+            0x80U | ((codePoint >> 12U) & 0x3FU));
+        text[length++] = static_cast<char>(
+            0x80U | ((codePoint >> 6U) & 0x3FU));
+        text[length++] = static_cast<char>(0x80U | (codePoint & 0x3FU));
+    }
+    Base::Result<Input::TextInputDispatchResult> dispatched =
+        DispatchText({Base::StringView(text, length)});
+    return dispatched && dispatched.Value().routed;
+}
+
+namespace {
+
+bool DispatchTouch(
+    View& view,
+    Input::PointerAction action,
+    int x,
+    int y,
+    std::uint64_t id) noexcept {
+    if (id >= static_cast<std::uint64_t>(UINT32_MAX)) return false;
+    Input::PointerInput input;
+    input.pointerId = static_cast<std::uint32_t>(id) + 1U;
+    input.action = action;
+    input.position = {
+        static_cast<double>(x),
+        static_cast<double>(y)};
+    Base::Result<Input::PointerDispatchResult> dispatched =
+        view.DispatchPointer(input);
+    return dispatched && dispatched.Value().routed;
+}
+
+} // namespace
+
+bool View::TouchDown(
+    int x,
+    int y,
+    std::uint64_t id) noexcept {
+    return active_ && DispatchTouch(
+        *this, Input::PointerAction::Down, x, y, id);
+}
+
+bool View::TouchMove(
+    int x,
+    int y,
+    std::uint64_t id) noexcept {
+    return active_ && DispatchTouch(
+        *this, Input::PointerAction::Move, x, y, id);
+}
+
+bool View::TouchUp(
+    int x,
+    int y,
+    std::uint64_t id) noexcept {
+    return active_ && DispatchTouch(
+        *this, Input::PointerAction::Up, x, y, id);
 }
 
 Base::Result<std::uint32_t>

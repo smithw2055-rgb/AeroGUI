@@ -210,15 +210,11 @@ Base::Result<void> PopulateControlsPrimitives(
         .Event(ToggleButton::IndeterminateEvent)
         .Property(
             ToggleButton::IsCheckedProperty,
-            PropertyOptions(false)
+            PropertyOptions(Nullable<bool>{false})
                 .BindsTwoWayByDefault()
                 .AffectsRender())
         .Property(
             ToggleButton::IsThreeStateProperty,
-            PropertyOptions(false)
-                .AffectsRender())
-        .Property(
-            ToggleButton::IsIndeterminateProperty,
             PropertyOptions(false)
                 .AffectsRender())
         .Factory();

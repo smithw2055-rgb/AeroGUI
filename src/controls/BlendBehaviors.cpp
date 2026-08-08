@@ -1,6 +1,6 @@
 #include <Aero/Triggers/BlendBehaviors.hpp>
-#include <Aero/Controls/Core.hpp>
-#include <Aero/Controls/Panels.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Shapes.hpp>
 #include "media/MediaPrivate.hpp"
 

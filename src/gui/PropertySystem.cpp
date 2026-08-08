@@ -24,6 +24,33 @@ Base::Result<Meta::PropertyValue> NormalizeValueForProperty(
         return value;
     }
 
+    const Meta::TypeId nullableBooleanType =
+        Meta::TypeOf<::Aero::Nullable<bool>>();
+    if (targetType == nullableBooleanType) {
+        if (value.Kind() == Meta::ValueKind::Boolean &&
+            value.Type() == Meta::TypeOf<bool>()) {
+            return Meta::ValueCodec<::Aero::Nullable<bool>>::Encode(
+                ::Aero::Nullable<bool>{value.AsBoolean()});
+        }
+        if (value.Kind() == Meta::ValueKind::Object &&
+            value.IsNullObject()) {
+            return Meta::ValueCodec<::Aero::Nullable<bool>>::Encode(
+                ::Aero::Nullable<bool>{});
+        }
+    } else if (targetType == Meta::TypeOf<bool>() &&
+        value.Type() == nullableBooleanType) {
+        Base::Result<::Aero::Nullable<bool>> decoded =
+            Meta::ValueCodec<::Aero::Nullable<bool>>::Decode(value);
+        if (!decoded) return decoded.GetStatus();
+        if (!decoded.Value().GetHasValue()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Indeterminate Nullable Boolean cannot be assigned to Boolean");
+        }
+        return Meta::PropertyValue::FromBoolean(
+            targetType, decoded.Value().GetValue());
+    }
+
     if (value.Kind() == Meta::ValueKind::String) {
         if (metadata == nullptr) {
             return Base::Status::Failure(
@@ -825,7 +852,8 @@ PropertyValue DependencyObject::GetValue(
         return PropertyValue::Unset();
     }
 
-    const DependencyProperty* property = registry_->Find(propertyHandle);
+    const Meta::DependencyProperty* property =
+        registry_->Find(propertyHandle);
     if (property == nullptr) {
         return PropertyValue::Unset();
     }
@@ -847,7 +875,8 @@ PropertyValue DependencyObject::ReadLocalValue(
         return PropertyValue::Unset();
     }
 
-    const DependencyProperty* property = registry_->Find(propertyHandle);
+    const Meta::DependencyProperty* property =
+        registry_->Find(propertyHandle);
     if (property == nullptr || property->MetadataFor(runtimeType_) == nullptr) {
         return PropertyValue::Unset();
     }
@@ -870,7 +899,8 @@ PropertyValueSourceInfo DependencyObject::GetValueSourceInfo(
     DependencyPropertyHandle propertyHandle) const noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return {};
-    const DependencyProperty* property = registry_->Find(propertyHandle);
+    const Meta::DependencyProperty* property =
+        registry_->Find(propertyHandle);
     if (property == nullptr || property->MetadataFor(runtimeType_) == nullptr)
         return {};
     const std::uint32_t index = FindEntryIndex(propertyHandle);
@@ -930,7 +960,8 @@ void DependencyObject::SetReadOnlyCurrentValue(
     const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return;
-    const DependencyProperty* property = registry_->Find(propertyHandle);
+    const Meta::DependencyProperty* property =
+        registry_->Find(propertyHandle);
     if (property == nullptr) {
         return;
     }
@@ -1085,7 +1116,8 @@ Base::Result<std::uint32_t> DependencyObject::EnsureEffectiveEntry(
     DependencyPropertyHandle propertyHandle) noexcept {
     const std::uint32_t existing = FindEntryIndex(propertyHandle);
     if (existing != InvalidIndex) return existing;
-    const DependencyProperty* property = registry_->Find(propertyHandle);
+    const Meta::DependencyProperty* property =
+        registry_->Find(propertyHandle);
     const PropertyMetadata* metadata = property != nullptr
         ? property->MetadataFor(runtimeType_) : nullptr;
     if (property == nullptr || metadata == nullptr) {
@@ -1272,7 +1304,8 @@ Base::Result<void> DependencyObject::ApplyInheritedValueInternal(
 }
 
 Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
-    DependencyPropertyHandle propertyHandle, const DependencyProperty& property,
+    DependencyPropertyHandle propertyHandle,
+    const Meta::DependencyProperty& property,
     const PropertyMetadata& metadata, const PropertyValue& oldEffective,
     const PropertyValueSourceInfo& oldSourceInfo) noexcept {
     std::uint32_t index = FindEntryIndex(propertyHandle);
@@ -1395,7 +1428,8 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueInternal(
     DependencyPropertyHandle propertyHandle) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
-    const DependencyProperty* property = registry_->Find(propertyHandle);
+    const Meta::DependencyProperty* property =
+        registry_->Find(propertyHandle);
     const PropertyMetadata* metadata = property != nullptr
         ? property->MetadataFor(runtimeType_) : nullptr;
     if (property == nullptr || metadata == nullptr) return Base::Status::Failure(
@@ -1438,7 +1472,8 @@ Base::Result<void> DependencyObject::ApplyChange(
     ChangeKind kind, const PropertyValue* requestedValue) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
-    const DependencyProperty* property = registry_->Find(propertyHandle);
+    const Meta::DependencyProperty* property =
+        registry_->Find(propertyHandle);
     if (property == nullptr) return Base::Status::Failure(
         Base::ErrorCode::NotFound, "Dependency property was not found");
     const PropertyMetadata* metadata = property->MetadataFor(runtimeType_);

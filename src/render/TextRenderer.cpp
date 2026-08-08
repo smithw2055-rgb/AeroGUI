@@ -1,4 +1,5 @@
 #include "TextRenderer.hpp"
+#include "render/private/RenderDevice.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -122,7 +123,7 @@ struct TextRenderer::Impl {
 
 TextRenderer::TextRenderer(
     Text::FontManager& fonts,
-    Graphics::GraphicsDevice& device,
+    Aero::RenderDevice::Impl& device,
     GlyphRunResourceSink& sink,
     Base::IAllocator* allocator) noexcept
     : fonts_(&fonts),
@@ -198,14 +199,14 @@ Base::Result<void> TextRenderer::Initialize(
 
 Base::Result<void>
 TextRenderer::RecoverDeviceResources(
-    Graphics::GraphicsDevice& device,
+    Aero::RenderDevice::Impl& device,
     GlyphRunResourceSink& sink) noexcept {
     if (!IsInitialized()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "TextBlock render service is not initialized");
     }
-    if (device.Backend().IsDeviceLost()) {
+    if (device.IsNativeDeviceLost()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Replacement text graphics device is lost");
@@ -292,7 +293,7 @@ TextRenderer::CollectGarbage() noexcept {
             "TextBlock render service is not initialized");
     }
     const Graphics::FenceValue completed =
-        device_->Backend().CompletedFence();
+        device_->NativeCompletedFence();
     std::uint32_t releasedCount = 0U;
     std::uint32_t index = 0U;
     while (index < impl_->runs.Size()) {
@@ -356,7 +357,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
             Base::ErrorCode::InvalidArgument,
             "TextBlock layout request is invalid");
     }
-    if (device_->Backend().IsDeviceLost()) {
+    if (device_->IsNativeDeviceLost()) {
         impl_->atlas.NotifyDeviceLost();
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -490,7 +491,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     const Text::GlyphAtlasConfig atlasConfig =
         impl_->atlas.Config();
     const Graphics::FenceValue completedFence =
-        device_->Backend().CompletedFence();
+        device_->NativeCompletedFence();
 
     auto findBatch = [&](
         std::uint32_t page) noexcept -> Base::Result<BatchBuild*> {
@@ -740,7 +741,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
         return commands.GetStatus();
     }
     Base::Result<Graphics::FenceValue> submitted =
-        device_->Submit(commands.Value());
+        device_->SubmitCommands(commands.Value());
     if (!submitted) {
         destroyBatchResources(
             device_->LastSubmittedFence());

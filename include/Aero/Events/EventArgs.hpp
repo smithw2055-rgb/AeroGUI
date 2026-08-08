@@ -34,10 +34,11 @@ public:
         Meta::TypeId type = StaticTypeId()) noexcept
         : EventArgs(type) {}
 
-    constexpr RoutedEvent GetRoutedEvent() const noexcept {
+    constexpr ::Aero::RoutedEvent GetRoutedEvent() const noexcept {
         return routedEvent_;
     }
-    constexpr void SetRoutedEvent(RoutedEvent value) noexcept {
+    constexpr void SetRoutedEvent(
+        ::Aero::RoutedEvent value) noexcept {
         routedEvent_ = value;
     }
     Base::Object* GetSource() const noexcept { return source_; }
@@ -52,7 +53,7 @@ public:
     constexpr void SetHandled(bool value) noexcept { handled_ = value; }
 
 private:
-    RoutedEvent routedEvent_;
+    ::Aero::RoutedEvent routedEvent_{};
     Base::Object* source_ = nullptr;
     Base::Object* originalSource_ = nullptr;
     bool handled_ = false;

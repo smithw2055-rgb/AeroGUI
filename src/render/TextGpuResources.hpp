@@ -4,6 +4,7 @@
 
 #include "FrameEncoder.hpp"
 #include "TextRenderer.hpp"
+#include "render/private/RenderDevice.hpp"
 
 #include <Aero/Base/Vector.hpp>
 
@@ -48,7 +49,7 @@ private:
 class TextGpuResources {
 public:
     TextGpuResources(
-        Graphics::GraphicsDevice& device,
+        Aero::RenderDevice::Impl& device,
         CommandEncoder& renderer,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
@@ -203,7 +204,7 @@ private:
             "Render-device text layout is stale");
     }
 
-    Graphics::GraphicsDevice* device_ = nullptr;
+    Aero::RenderDevice::Impl* device_ = nullptr;
     CommandEncoderGlyphRunSink sink_;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<TextRenderer*> renderers_;

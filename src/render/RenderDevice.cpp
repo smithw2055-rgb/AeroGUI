@@ -1,6 +1,5 @@
 #include "render/private/RenderDevice.hpp"
 #include "render/private/RenderTarget.hpp"
-#include "render/BatchPlanner.hpp"
 
 #include <new>
 
@@ -63,18 +62,8 @@ Base::Result<RenderFrameStatistics> RenderDevice::Analyze(
     Base::Result<void> valid = ::Aero::Render::Detail::ValidateRenderFrame(frame);
     if (!valid) return valid.GetStatus();
 
-    Render::Detail::BatchPlanner planner(impl_->allocator);
-    Base::Result<Render::Detail::BatchPlan> planned =
-        planner.Build(frame, true);
-    if (!planned) return planned.GetStatus();
-
-    const auto& source = planned.Value().Statistics();
     RenderFrameStatistics result;
-    result.sourceCommandCount = source.sourceCommandCount;
-    result.drawPacketCount = source.drawPacketCount;
-    result.batchCount = source.batchCount;
-    result.mergedPacketCount = source.mergedPacketCount;
-    result.barrierCount = source.barrierCount;
+    result.sourceCommandCount = frame.Commands().Size();
     result.batchingEnabled = true;
     return result;
 }
@@ -84,6 +73,14 @@ void RenderDevice::MergeBackendStatistics(
     const RenderFrameStatistics native = impl_ != nullptr
         ? impl_->LastFrameStatistics()
         : RenderFrameStatistics{};
+    result.sourceCommandCount = native.sourceCommandCount != 0U
+        ? native.sourceCommandCount
+        : result.sourceCommandCount;
+    result.drawPacketCount = native.drawPacketCount;
+    result.batchCount = native.batchCount;
+    result.mergedPacketCount = native.mergedPacketCount;
+    result.barrierCount = native.barrierCount;
+    result.batchingEnabled = native.batchingEnabled;
     result.drawCallCount = native.drawCallCount != 0U
         ? native.drawCallCount
         : result.batchCount;
@@ -142,6 +139,10 @@ public:
     Base::Result<void> RenderOffscreen(
         const void*,
         const ::Aero::Render::Detail::RenderFrame&) noexcept override { return {}; }
+    Base::Result<::Aero::Graphics::FenceValue> DrawBatch(
+        ::Aero::Render::Detail::RenderBatch&&) noexcept override {
+        return ::Aero::Graphics::FenceValue{0U};
+    }
     void ReleaseRenderer(const void*) noexcept override {}
     void NotifyDeviceLost() noexcept override {}
     Base::Result<void> RestoreDevice() noexcept override { return {}; }
@@ -154,6 +155,56 @@ public:
     ::Aero::Render::Detail::RenderResources Resources() noexcept override {
         return {};
     }
+    ::Aero::Graphics::DeviceCapabilities
+    QueryNativeDeviceCapabilities() const noexcept override { return {}; }
+    ::Aero::Graphics::NativeRenderBackendKind
+    NativeBackendKind() const noexcept override {
+        return ::Aero::Graphics::NativeRenderBackendKind::Invalid;
+    }
+    ::Aero::Graphics::GraphicsCapabilities
+    QueryNativeGraphicsCapabilities() const noexcept override { return {}; }
+    Base::Result<void> CreateNativeResource(
+        ::Aero::Graphics::ResourceHandle,
+        const ::Aero::Graphics::ResourceDescriptor&) noexcept override {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "Headless render device has no native resources");
+    }
+    void DestroyNativeResource(
+        ::Aero::Graphics::ResourceHandle) noexcept override {}
+    Base::Result<void> ConfigureNativeTexture(
+        ::Aero::Graphics::ResourceHandle,
+        const ::Aero::Graphics::TextureResourceDescriptor&) noexcept override {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "Headless render device has no textures");
+    }
+    Base::Result<void> ConfigureNativeSampler(
+        ::Aero::Graphics::ResourceHandle,
+        const ::Aero::Graphics::SamplerDescriptor&) noexcept override {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "Headless render device has no samplers");
+    }
+    Base::Result<void> ConfigureNativePipeline(
+        ::Aero::Graphics::ResourceHandle,
+        const ::Aero::Graphics::PipelineDescriptor&) noexcept override {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "Headless render device has no pipelines");
+    }
+    Base::Result<void> SubmitNativeCommands(
+        const ::Aero::Graphics::CommandList&,
+        ::Aero::Graphics::FenceValue) noexcept override {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "Headless render device cannot submit native commands");
+    }
+    ::Aero::Graphics::FenceValue
+    NativeLastSubmittedFence() const noexcept override { return 0U; }
+    ::Aero::Graphics::FenceValue
+    NativeCompletedFence() const noexcept override { return 0U; }
+    bool NativeDeviceLost() const noexcept override { return false; }
 };
 
 Base::Result<Base::Ref<Aero::RenderDevice>> AdoptRenderDevice(

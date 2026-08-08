@@ -677,7 +677,7 @@ TextAlignment
 TextBox::GetTextAlignment() const noexcept {
     return GetValueOr(
         TextAlignmentProperty,
-        TextAlignment::Start);
+        TextAlignment::Left);
 }
 
 void TextBox::SetTextAlignment(

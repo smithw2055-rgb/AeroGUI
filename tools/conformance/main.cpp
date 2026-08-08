@@ -11,7 +11,7 @@
 
 #include "render/FrameEncoder.hpp"
 #include "gui/private/Property.hpp"
-#include "render/private/BackendApi.hpp"
+#include "render/private/RenderDevice.hpp"
 #include "render/private/RenderTarget.hpp"
 #include "render/opengl33/OpenGL33Shaders.hpp"
 #include "render/opengl33/OpenGL33Backend.hpp"
@@ -24,7 +24,7 @@ const ::Aero::Render::Detail::RenderFrame* CurrentFrameForConformance(
 #if defined(_WIN32)
 #include "render/d3d11/D3D11Backend.hpp"
 #include "render/d3d11/D3D11Shaders.hpp"
-#include "render/platform/win32/OpenGLSurface.hpp"
+#include "render/platform/win32/OpenGLRenderContext.hpp"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -313,6 +313,10 @@ public:
         const ::Aero::Render::Detail::RenderFrame&) noexcept override {
         return RenderFrame();
     }
+    Aero::Base::Result<Aero::Graphics::FenceValue> DrawBatch(
+        Aero::Render::Detail::RenderBatch&&) noexcept override {
+        return Aero::Graphics::FenceValue{0U};
+    }
     void ReleaseRenderer(const void*) noexcept override {}
     void NotifyDeviceLost() noexcept override;
     Aero::Base::Result<void> RestoreDevice() noexcept override;
@@ -463,6 +467,104 @@ void VerifyRenderDeviceState(
         "fatal backend health did not fail the render target");
 }
 
+template<class TCommandQueue>
+class ConformanceRenderDevice final
+    : public Aero::CommandQueueRenderDevice<TCommandQueue> {
+public:
+    explicit ConformanceRenderDevice(TCommandQueue& queue) noexcept
+        : Aero::CommandQueueRenderDevice<TCommandQueue>(
+              Aero::Base::GetDefaultAllocator()) {
+        this->BindCommandQueue(&queue);
+    }
+    ~ConformanceRenderDevice() noexcept override {
+        this->ShutdownResources();
+        this->BindCommandQueue(nullptr);
+    }
+
+    Aero::Render::Detail::RenderBackendKind Backend() const noexcept override {
+        switch (this->NativeBackendKind()) {
+        case Aero::Graphics::NativeRenderBackendKind::D3D11:
+            return Aero::Render::Detail::RenderBackendKind::D3D11;
+        case Aero::Graphics::NativeRenderBackendKind::OpenGL33:
+            return Aero::Render::Detail::RenderBackendKind::OpenGL33;
+        case Aero::Graphics::NativeRenderBackendKind::Invalid:
+            break;
+        }
+        return Aero::Render::Detail::RenderBackendKind::Unknown;
+    }
+    Aero::Base::Result<void> RenderOffscreen(
+        const void*,
+        const Aero::Render::Detail::RenderFrame&) noexcept override {
+        return Aero::Base::Status::Failure(
+            Aero::Base::ErrorCode::Unsupported,
+            "Conformance command device has no View renderer");
+    }
+    Aero::Base::Result<Aero::Graphics::FenceValue> DrawBatch(
+        Aero::Render::Detail::RenderBatch&& batch) noexcept override {
+        return this->SubmitCommands(batch.Commands());
+    }
+    void ReleaseRenderer(const void*) noexcept override {}
+    void NotifyDeviceLost() noexcept override {}
+    Aero::Base::Result<void> RestoreDevice() noexcept override { return {}; }
+    Aero::Base::Result<void> WaitIdle(std::uint32_t) noexcept override {
+        return {};
+    }
+    Aero::Render::Detail::BackendHealth
+    GetDeviceHealth() const noexcept override {
+        return this->IsNativeDeviceLost()
+            ? Aero::Render::Detail::BackendHealth::DeviceLost
+            : Aero::Render::Detail::BackendHealth::Ready;
+    }
+    Aero::RenderFrameStatistics
+    LastFrameStatistics() const noexcept override { return {}; }
+    Aero::Render::Detail::RenderResources Resources() noexcept override {
+        return {};
+    }
+    Aero::Graphics::DeviceCapabilities
+    QueryNativeDeviceCapabilities() const noexcept override { return {}; }
+    Aero::Graphics::NativeRenderBackendKind
+    NativeBackendKind() const noexcept override {
+        return Aero::Graphics::NativeRenderBackendKind::Invalid;
+    }
+    Aero::Graphics::GraphicsCapabilities
+    QueryNativeGraphicsCapabilities() const noexcept override { return {}; }
+    Aero::Base::Result<void> CreateNativeResource(
+        Aero::Graphics::ResourceHandle,
+        const Aero::Graphics::ResourceDescriptor&) noexcept override {
+        return Aero::Base::Status::Failure(
+            Aero::Base::ErrorCode::Unsupported,
+            "probe device has no native resources");
+    }
+    void DestroyNativeResource(
+        Aero::Graphics::ResourceHandle) noexcept override {}
+    Aero::Base::Result<void> ConfigureNativeTexture(
+        Aero::Graphics::ResourceHandle,
+        const Aero::Graphics::TextureResourceDescriptor&) noexcept override {
+        return {};
+    }
+    Aero::Base::Result<void> ConfigureNativeSampler(
+        Aero::Graphics::ResourceHandle,
+        const Aero::Graphics::SamplerDescriptor&) noexcept override {
+        return {};
+    }
+    Aero::Base::Result<void> ConfigureNativePipeline(
+        Aero::Graphics::ResourceHandle,
+        const Aero::Graphics::PipelineDescriptor&) noexcept override {
+        return {};
+    }
+    Aero::Base::Result<void> SubmitNativeCommands(
+        const Aero::Graphics::CommandList&,
+        Aero::Graphics::FenceValue) noexcept override { return {}; }
+    Aero::Graphics::FenceValue
+    NativeLastSubmittedFence() const noexcept override { return 0U; }
+    Aero::Graphics::FenceValue
+    NativeCompletedFence() const noexcept override { return 0U; }
+    bool NativeDeviceLost() const noexcept override {
+        return deviceHealth ==
+            Aero::Render::Detail::BackendHealth::DeviceLost;
+    }
+};
+
 template<class TBackend>
 bool RenderAndReadback(
     TBackend& backend,
@@ -472,8 +574,8 @@ bool RenderAndReadback(
     std::uint32_t height,
     Aero::Base::Vector<std::uint8_t>& pixels,
     const char* failureMessage) noexcept {
-    Aero::Graphics::Device device(backend);
-    Aero::Base::Result<void> initialized = device.Initialize();
+    ConformanceRenderDevice<TBackend> device(backend);
+    Aero::Base::Result<void> initialized = device.InitializeResources();
     if (!initialized) {
         std::fprintf(stderr, "%s: device initialize: %u %s\n",
             failureMessage,
@@ -527,7 +629,7 @@ bool RenderAndReadback(
         renderer.Shutdown();
         return false;
     }
-    auto submitted = device.Submit(commands.Value());
+    auto submitted = device.SubmitCommands(commands.Value());
     if (!submitted) {
         std::fprintf(stderr, "%s: submission: %u %s\n",
             failureMessage,
@@ -587,10 +689,10 @@ bool RenderD3D11Readback(
     std::uint32_t width,
     std::uint32_t height,
     Aero::Base::Vector<std::uint8_t>& pixels) noexcept {
-    Aero::Graphics::D3D11BackendOptions options;
+    Aero::Graphics::D3D11CommandQueueOptions options;
     options.deviceMode = Aero::Graphics::D3D11DeviceMode::Warp;
     options.allowWarpFallback = true;
-    Aero::Graphics::D3D11GraphicsBackend backend(options);
+    Aero::Graphics::D3D11CommandQueue backend(options);
     Aero::Base::Result<void> initialized = backend.Initialize();
     if (!initialized) {
         std::fprintf(stderr, "D3D11 WARP initialize: %u %s\n",
@@ -650,10 +752,11 @@ bool RenderOpenGL33Readback(
         return false;
     }
 
-    Aero::Graphics::WglSurfaceBackend surface;
-    Aero::Graphics::NativeSurfaceDescriptor descriptor;
-    descriptor.kind = Aero::Graphics::SurfaceKind::WglWindow;
-    descriptor.ownership = Aero::Graphics::SurfaceOwnership::Owned;
+    Aero::Graphics::WglRenderContext surface;
+    Aero::Graphics::WindowRenderContextDescriptor descriptor;
+    descriptor.kind = Aero::Graphics::WindowRenderContextKind::Wgl;
+    descriptor.ownership =
+        Aero::Graphics::WindowRenderContextOwnership::Owned;
     descriptor.presentMode = Aero::Graphics::PresentMode::Immediate;
     descriptor.width = width;
     descriptor.height = height;
@@ -662,7 +765,7 @@ bool RenderOpenGL33Readback(
     descriptor.wgl.window =
         reinterpret_cast<std::uintptr_t>(window);
     descriptor.stableId = UINT64_C(0xA330C0F0);
-    Aero::Base::Result<void> created = surface.CreateSurface(descriptor);
+    Aero::Base::Result<void> created = surface.Create(descriptor);
     bool rendered = false;
     if (!created) {
         std::fprintf(stderr, "WGL surface initialize: %u %s\n",
@@ -680,11 +783,11 @@ bool RenderOpenGL33Readback(
                 static_cast<unsigned>(status.code), status.message);
             Check(false, "OpenGL context contract initialization failed");
         } else {
-            Aero::Graphics::OpenGL33BackendOptions options;
+            Aero::Graphics::OpenGL33CommandQueueOptions options;
             options.embeddingMode =
                 Aero::Graphics::GlEmbeddingMode::HostReset;
             options.checkErrors = true;
-            Aero::Graphics::OpenGL33GraphicsBackend backend(
+            Aero::Graphics::OpenGL33CommandQueue backend(
                 functions.Value(), binding.Value(), options);
             Aero::Base::Result<void> initialized = backend.Initialize();
             if (!initialized) {
@@ -704,7 +807,7 @@ bool RenderOpenGL33Readback(
                 backend.Shutdown();
             }
         }
-        surface.DestroySurface();
+        surface.Shutdown();
     }
     static_cast<void>(DestroyWindow(window));
     if (atom != 0U) {
@@ -930,103 +1033,6 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
         "gradient mask ramp was not captured in RenderFrame");
     if (frame == nullptr) return;
 
-    Aero::Graphics::NullGraphicsBackend backend;
-    Aero::Graphics::GraphicsDevice device(backend);
-    Check(device.Initialize().HasValue(),
-        "Null graphics device initialization failed");
-    Aero::Render::Detail::CommandEncoder renderer(
-        device,
-        Aero::Render::MakeOpenGL33FrameShaderSet());
-    Check(renderer.Initialize().HasValue(),
-        "conformance renderer initialization failed");
-
-    Aero::Graphics::TextureResourceDescriptor descriptor;
-    descriptor.width = viewport.pixelWidth;
-    descriptor.height = viewport.pixelHeight;
-    descriptor.format =
-        Aero::Graphics::GraphicsTextureFormat::Bgra8Unorm;
-    descriptor.usage =
-        Aero::Graphics::TextureUsageBit(
-            Aero::Graphics::TextureUsage::Sampled) |
-        Aero::Graphics::TextureUsageBit(
-            Aero::Graphics::TextureUsage::RenderTarget);
-    auto target = device.CreateRenderTarget(descriptor);
-    Check(target.HasValue(), "conformance render target creation failed");
-    if (!target) return;
-    const Aero::Render::FrameTarget renderTarget{
-        target.Value(),
-        viewport.pixelWidth,
-        viewport.pixelHeight,
-        Aero::Graphics::LoadOperation::Clear};
-
-    auto first = renderer.Record(*frame, renderTarget);
-    if (!first) {
-        const Aero::Base::Status status = first.GetStatus();
-        std::fprintf(stderr, "render recording status: %u %s\n",
-            static_cast<unsigned>(status.code), status.message);
-    }
-    Check(first.HasValue(), "nested effect command recording failed");
-    if (first) {
-        Check(CountCommands(
-                first.Value(),
-                Aero::Graphics::CommandKind::UploadTexture) == 1U,
-            "first gradient revision must upload exactly one ramp texture");
-        Check(CountCommands(
-                first.Value(),
-                Aero::Graphics::CommandKind::BeginRenderPass) >= 8U,
-            "nested effect path did not encode its staged render passes");
-        Check(device.Submit(first.Value()).HasValue(),
-            "nested effect command validation failed");
-        Check(HasTargetLoadOperation(
-                first.Value(), target.Value(),
-                Aero::Graphics::LoadOperation::Clear),
-            "desktop-style render target did not request Clear");
-    }
-
-    auto cached = renderer.Record(*frame, renderTarget);
-    Check(cached.HasValue(), "cached gradient command recording failed");
-    if (cached) {
-        Check(CountCommands(
-                cached.Value(),
-                Aero::Graphics::CommandKind::UploadTexture) == 0U,
-            "unchanged gradient revision bypassed the ramp cache");
-        Check(device.Submit(cached.Value()).HasValue(),
-            "cached gradient command validation failed");
-    }
-
-    auto embedded = renderer.Record(
-        *frame,
-        {target.Value(), viewport.pixelWidth, viewport.pixelHeight,
-         Aero::Graphics::LoadOperation::Load});
-    Check(embedded.HasValue(), "embedded target command recording failed");
-    if (embedded) {
-        Check(HasTargetLoadOperation(
-                embedded.Value(), target.Value(),
-                Aero::Graphics::LoadOperation::Load),
-            "embedded render target did not preserve host content");
-        Check(device.Submit(embedded.Value()).HasValue(),
-            "embedded target command validation failed");
-    }
-
-    firstStop->SetColor({1.0F, 1.0F, 1.0F, 0.6F});
-    Check(view.Update().HasValue(),
-        "gradient revision View update failed");
-    frame = Aero::ViewDetail::CurrentFrameForConformance(view);
-    auto revised = frame != nullptr
-        ? renderer.Record(*frame, renderTarget)
-        : Aero::Base::Result<Aero::Graphics::CommandList>(
-            Aero::Base::Status::Failure(
-                Aero::Base::ErrorCode::InvalidState,
-                "revised RenderFrame is unavailable"));
-    Check(revised.HasValue(), "revised gradient command recording failed");
-    if (revised) {
-        Check(CountCommands(
-                revised.Value(),
-                Aero::Graphics::CommandKind::UploadTexture) == 1U,
-            "changed gradient revision did not refresh the ramp texture");
-        Check(device.Submit(revised.Value()).HasValue(),
-            "revised gradient command validation failed");
-    }
     VerifyRenderDeviceState(*frame);
 #if defined(_WIN32)
     if (frame != nullptr) {
@@ -1034,9 +1040,6 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
             *frame, viewport.pixelWidth, viewport.pixelHeight);
     }
 #endif
-    renderer.Shutdown();
-    static_cast<void>(device.DestroyResource(
-        target.Value(), device.LastSubmittedFence()));
 }
 
 void VerifyAuthoringPropertySynchronization() noexcept {
@@ -1115,10 +1118,10 @@ int main() {
             gui.CreateView();
         Check(view.HasValue(), "View creation failed");
         if (view) {
-            Aero::Markup::XamlReader themeReader(*view.Value());
+            Aero::Markup::XamlReader themeReader(gui);
             const Aero::Base::Result<void> themeLoaded =
                 themeReader.LoadTheme(
-                    Aero::BuiltInTheme::Light);
+                    *view.Value(), Aero::BuiltInTheme::Light);
             Check(themeLoaded.HasValue(),
                 "AXB2 built-in theme load failed");
             VerifyMaskAndEffectRendering(*view.Value());

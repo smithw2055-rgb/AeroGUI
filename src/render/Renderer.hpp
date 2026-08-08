@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FrameEncoder.hpp"
+#include "RenderBatch.hpp"
 #include "render/RenderResources.hpp"
 
 #include <thread>
@@ -13,7 +14,7 @@ namespace Aero::Render {
 class Renderer {
 public:
     Renderer(
-        Graphics::Device& device,
+        Aero::RenderDevice::Impl& device,
         const FrameShaderSet& shaders,
         std::uint64_t generation,
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -48,10 +49,10 @@ public:
         Graphics::IndexType indexType) noexcept;
     Base::Result<void> UnregisterGlyphRun(RenderGlyphRunId glyphRun) noexcept;
 
-    Base::Result<Graphics::FenceValue> RenderOffscreen(
+    Base::Result<Detail::RenderBatch> BuildOffscreenBatch(
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& frame) noexcept;
-    Base::Result<Graphics::FenceValue> RenderOnscreen(
+    Base::Result<Detail::RenderBatch> BuildOnscreenBatch(
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& frame,
         const FrameTarget& target) noexcept;
@@ -67,7 +68,7 @@ private:
 
     Base::Result<void> VerifyReady() const noexcept;
 
-    Graphics::Device* device_ = nullptr;
+    Aero::RenderDevice::Impl* device_ = nullptr;
     FrameShaderSet shaders_;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;

@@ -4,7 +4,8 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include "render/GraphicsDevice.hpp"
+#include "render/RenderCommands.hpp"
+#include <Aero/RenderDevice.hpp>
 #include "OpenGL33.hpp"
 #include "OpenGL33State.hpp"
 
@@ -12,12 +13,12 @@
 
 namespace Aero::Graphics {
 
-struct OpenGL33BackendOptions  {
+struct OpenGL33CommandQueueOptions  {
     GlEmbeddingMode embeddingMode = GlEmbeddingMode::HostReset;
     bool checkErrors = false;
 };
 
-struct OpenGL33ExternalRenderTargetDescriptor  {
+struct OpenGL33RenderTargetBinding  {
     GlUInt framebuffer = 0U;
     GlUInt colorTexture = 0U;
     GlUInt depthStencilTexture = 0U;
@@ -38,20 +39,19 @@ AERO_API Base::Result<void>
 ValidateOpenGL33PipelineDescriptor(
     const PipelineDescriptor& descriptor) noexcept;
 
-class AERO_API OpenGL33GraphicsBackend
-    : public GraphicsBackend {
+class AERO_API OpenGL33CommandQueue {
 public:
-    OpenGL33GraphicsBackend(
+    OpenGL33CommandQueue(
         const GlFunctionTable& functions,
         const GlContextBinding& context,
-        const OpenGL33BackendOptions& options = {},
+        const OpenGL33CommandQueueOptions& options = {},
         Base::IAllocator* allocator = nullptr) noexcept;
-    ~OpenGL33GraphicsBackend() noexcept override;
+    ~OpenGL33CommandQueue() noexcept;
 
-    OpenGL33GraphicsBackend(
-        const OpenGL33GraphicsBackend&) = delete;
-    OpenGL33GraphicsBackend& operator=(
-        const OpenGL33GraphicsBackend&) = delete;
+    OpenGL33CommandQueue(
+        const OpenGL33CommandQueue&) = delete;
+    OpenGL33CommandQueue& operator=(
+        const OpenGL33CommandQueue&) = delete;
 
     Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
@@ -62,7 +62,7 @@ public:
 
     Base::Result<void> ImportExternalRenderTarget(
         ResourceHandle handle,
-        const OpenGL33ExternalRenderTargetDescriptor& descriptor) noexcept;
+        const OpenGL33RenderTargetBinding& descriptor) noexcept;
     Base::Result<void> ImportExternalTexture(
         ResourceHandle handle,
         const OpenGL33ExternalTextureDescriptor& descriptor) noexcept;
@@ -78,53 +78,53 @@ public:
         std::uint64_t timeoutNanoseconds =
             UINT64_C(5000000000)) noexcept;
 
-    DeviceCapabilities Capabilities() const noexcept override;
-    GraphicsBackendKind Kind() const noexcept override {
-        return GraphicsBackendKind::OpenGL33;
+    DeviceCapabilities Capabilities() const noexcept;
+    NativeRenderBackendKind Kind() const noexcept {
+        return NativeRenderBackendKind::OpenGL33;
     }
     GraphicsCapabilities
-    QueryGraphicsCapabilities() const noexcept override;
+    QueryGraphicsCapabilities() const noexcept;
 
     Base::Result<void> CreateResource(
         ResourceHandle handle,
-        const ResourceDescriptor& descriptor) noexcept override;
-    void DestroyResource(ResourceHandle handle) noexcept override;
+        const ResourceDescriptor& descriptor) noexcept;
+    void DestroyResource(ResourceHandle handle) noexcept;
     Base::Result<void> ConfigureTexture(
         ResourceHandle handle,
-        const TextureResourceDescriptor& descriptor) noexcept override;
+        const TextureResourceDescriptor& descriptor) noexcept;
     Base::Result<void> ConfigureSampler(
         ResourceHandle handle,
-        const SamplerDescriptor& descriptor) noexcept override;
+        const SamplerDescriptor& descriptor) noexcept;
     Base::Result<void> ConfigurePipeline(
         ResourceHandle handle,
-        const PipelineDescriptor& descriptor) noexcept override;
+        const PipelineDescriptor& descriptor) noexcept;
     Base::Result<void> Submit(
         const CommandList& commands,
-        FenceValue signalFence) noexcept override;
-    FenceValue LastSubmittedFence() const noexcept override;
-    FenceValue CompletedFence() const noexcept override;
-    bool IsDeviceLost() const noexcept override;
+        FenceValue signalFence) noexcept;
+    FenceValue LastSubmittedFence() const noexcept;
+    FenceValue CompletedFence() const noexcept;
+    bool IsDeviceLost() const noexcept;
 
 private:
     struct Impl;
 
     GlFunctionTable functions_;
     GlContextBinding context_;
-    OpenGL33BackendOptions options_;
+    OpenGL33CommandQueueOptions options_;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
 };
 
 AERO_API Base::Result<ResourceHandle>
 ImportOpenGL33ExternalRenderTarget(
-    GraphicsDevice& device,
-    OpenGL33GraphicsBackend& backend,
-    const OpenGL33ExternalRenderTargetDescriptor& descriptor) noexcept;
+    Aero::RenderDevice::Impl& device,
+    OpenGL33CommandQueue& backend,
+    const OpenGL33RenderTargetBinding& descriptor) noexcept;
 
 AERO_API Base::Result<ResourceHandle>
 ImportOpenGL33ExternalTexture(
-    GraphicsDevice& device,
-    OpenGL33GraphicsBackend& backend,
+    Aero::RenderDevice::Impl& device,
+    OpenGL33CommandQueue& backend,
     const OpenGL33ExternalTextureDescriptor& descriptor) noexcept;
 
 } // namespace Aero::Graphics

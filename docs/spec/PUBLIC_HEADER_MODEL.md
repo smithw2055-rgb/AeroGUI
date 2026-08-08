@@ -94,11 +94,11 @@ the installed SDK.
 The six family headers remain convenient aggregation points:
 
 ```text
-Aero/Controls/Core.hpp
-Aero/Controls/Panels.hpp
-Aero/Controls/Primitives.hpp
-Aero/Controls/Items.hpp
-Aero/Controls/Common.hpp
+Aero/Gui/Control.hpp
+Aero/Gui/Panel.hpp
+Aero/Gui/ButtonBase.hpp
+Aero/Gui/ItemsControl.hpp
+Aero/Gui/ContentControl.hpp
 Aero/Controls/Text.hpp
 ```
 

@@ -1,6 +1,6 @@
 #include "../render/DisplayList.hpp"
-#include <Aero/Controls/Panels.hpp>
-#include <Aero/Controls/Common.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
 
 #include <algorithm>
 #include <cmath>

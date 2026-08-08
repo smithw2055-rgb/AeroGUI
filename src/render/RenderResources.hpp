@@ -41,7 +41,7 @@ struct TextConfig {
     float lineHeight = 0.0F;
     TextWrapping wrapping = TextWrapping::NoWrap;
     TextTrimming trimming = TextTrimming::None;
-    TextAlignment alignment = TextAlignment::Start;
+    TextAlignment alignment = TextAlignment::Left;
     Text::GlyphAtlasConfig atlas;
     Render::RenderGlyphRunId firstGlyphRunId = UINT64_C(1) << 32U;
 };

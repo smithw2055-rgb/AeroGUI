@@ -1,10 +1,10 @@
 #include "ControlBehavior.hpp"
 
 
-#include <Aero/Controls/Core.hpp>
-#include <Aero/Controls/Items.hpp>
-#include <Aero/Controls/Primitives.hpp>
-#include <Aero/Controls/Common.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Controls/Text.hpp>
 
 namespace Aero::Controls::Detail {

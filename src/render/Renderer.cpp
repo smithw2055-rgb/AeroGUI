@@ -1,4 +1,5 @@
 #include "Renderer.hpp"
+#include "render/private/RenderDevice.hpp"
 
 #include "ImageGpuResources.hpp"
 #include "MeshGpuResources.hpp"
@@ -34,7 +35,7 @@ Base::Status DeviceUnavailable(const char* message) noexcept {
 
 struct Renderer::Impl {
     Impl(
-        Graphics::Device& device,
+        Aero::RenderDevice::Impl& device,
         const FrameShaderSet& shaders,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
@@ -52,7 +53,7 @@ struct Renderer::Impl {
 };
 
 Renderer::Renderer(
-    Graphics::Device& device,
+    Aero::RenderDevice::Impl& device,
     const FrameShaderSet& shaders,
     std::uint64_t generation,
     Base::IAllocator* allocator) noexcept
@@ -74,7 +75,7 @@ Base::Result<void> Renderer::Initialize() noexcept {
             : Base::Result<void>(WrongThread(
                   "Renderer initialization must stay on its owning render thread"));
     }
-    if (device_ == nullptr || !device_->IsReady() ||
+    if (device_ == nullptr || !device_->AreResourcesReady() ||
         generation_ == 0U) {
         return NotInitialized(
             "Renderer requires a ready graphics device and generation");
@@ -119,8 +120,7 @@ Base::Result<void> Renderer::VerifyReady() const noexcept {
     if (impl_->ownerThread != std::this_thread::get_id()) {
         return WrongThread("Renderer must be used from its owning render thread");
     }
-    if (device_ == nullptr || !device_->IsReady() ||
-        device_->Backend().IsDeviceLost()) {
+    if (device_ == nullptr || !device_->AreResourcesReady()) {
         return DeviceUnavailable("Renderer graphics device is unavailable");
     }
     return {};
@@ -188,7 +188,7 @@ Base::Result<void> Renderer::UnregisterGlyphRun(
         : Base::Result<void>(NotInitialized("Renderer is not initialized"));
 }
 
-Base::Result<Graphics::FenceValue> Renderer::RenderOffscreen(
+Base::Result<Detail::RenderBatch> Renderer::BuildOffscreenBatch(
     const void* rendererToken,
     const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
     Base::Result<void> ready = VerifyReady();
@@ -198,13 +198,10 @@ Base::Result<Graphics::FenceValue> Renderer::RenderOffscreen(
     Base::Result<Graphics::CommandList> recorded =
         impl_->encoder.RecordOffscreen(rendererToken, frame);
     if (!recorded) return recorded.GetStatus();
-    if (recorded.Value().CommandCount() == 0U) {
-        return Graphics::FenceValue{0U};
-    }
-    return device_->Submit(recorded.Value());
+    return Detail::RenderBatch(std::move(recorded).Value());
 }
 
-Base::Result<Graphics::FenceValue> Renderer::RenderOnscreen(
+Base::Result<Detail::RenderBatch> Renderer::BuildOnscreenBatch(
     const void* rendererToken,
     const ::Aero::Render::Detail::RenderFrame& frame,
     const FrameTarget& target) noexcept {
@@ -215,7 +212,7 @@ Base::Result<Graphics::FenceValue> Renderer::RenderOnscreen(
     Base::Result<Graphics::CommandList> recorded =
         impl_->encoder.RecordOnscreen(rendererToken, frame, target);
     if (!recorded) return recorded.GetStatus();
-    return device_->Submit(recorded.Value());
+    return Detail::RenderBatch(std::move(recorded).Value());
 }
 
 void Renderer::ReleaseRenderer(

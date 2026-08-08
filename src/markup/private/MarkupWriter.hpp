@@ -17,6 +17,7 @@
 #include <Aero/Value.hpp>
 #include <Aero/Data.hpp>
 #include <Aero/DependencyProperty.hpp>
+#include <Aero/Layout.hpp>
 #include <Aero/Markup.hpp>
 
 #include <cstdint>
@@ -850,6 +851,10 @@ private:
     Base::Result<void> RegisterObjectName(
         std::uint32_t objectIndex,
         ::Aero::Diagnostics::SourceSpan source) noexcept;
+    Base::Result<void> ConnectEvent(
+        Frame& memberFrame,
+        Base::StringView handlerName,
+        ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<bool> RegisterObjectResource(
         std::uint32_t objectIndex,
         ::Aero::Diagnostics::SourceSpan source) noexcept;
@@ -1362,7 +1367,7 @@ public:
 
 #include <Aero/Styling.hpp>
 #include "../../controls/ControlsPrivate.hpp"
-#include <Aero/Controls/Panels.hpp>
+#include <Aero/Controls.hpp>
 
 #include <Aero/Animation.hpp>
 
@@ -1387,8 +1392,8 @@ struct TemplatePrototypeNode {
     std::uint32_t parent = UINT32_MAX;
     Meta::MemberId contentMember = Meta::InvalidMemberId;
     Base::Vector<TemplatePrototypeProperty> properties;
-    Base::Vector<Controls::GridLength> gridColumns;
-    Base::Vector<Controls::GridLength> gridRows;
+    Base::Vector<::Aero::GridLength> gridColumns;
+    Base::Vector<::Aero::GridLength> gridRows;
 };
 
 struct TemplatePrototypeBinding {

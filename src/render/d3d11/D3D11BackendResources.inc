@@ -1,4 +1,4 @@
-Base::Result<void> D3D11GraphicsBackend::ConfigureTexture(
+Base::Result<void> D3D11CommandQueue::ConfigureTexture(
     ResourceHandle handle,
     const TextureResourceDescriptor& descriptor) noexcept {
     if (impl_ == nullptr) {
@@ -116,7 +116,7 @@ Base::Result<void> D3D11GraphicsBackend::ConfigureTexture(
     return {};
 }
 
-Base::Result<void> D3D11GraphicsBackend::ConfigureSampler(
+Base::Result<void> D3D11CommandQueue::ConfigureSampler(
     ResourceHandle handle,
     const SamplerDescriptor& descriptor) noexcept {
     if (impl_ == nullptr) {
@@ -167,7 +167,7 @@ Base::Result<void> D3D11GraphicsBackend::ConfigureSampler(
     return {};
 }
 
-Base::Result<void> D3D11GraphicsBackend::ConfigurePipeline(
+Base::Result<void> D3D11CommandQueue::ConfigurePipeline(
     ResourceHandle handle,
     const PipelineDescriptor& descriptor) noexcept {
     if (impl_ == nullptr) {
@@ -397,9 +397,9 @@ Base::Result<void> D3D11GraphicsBackend::ConfigurePipeline(
     return {};
 }
 
-Base::Result<void> D3D11GraphicsBackend::ImportExternalRenderTarget(
+Base::Result<void> D3D11CommandQueue::ImportExternalRenderTarget(
     ResourceHandle handle,
-    const D3D11ExternalRenderTargetDescriptor& descriptor) noexcept {
+    const D3D11RenderTargetBinding& descriptor) noexcept {
     if (impl_ == nullptr) {
         return NotInitialized("D3D11 backend is not initialized");
     }

@@ -9,7 +9,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Controls/Primitives.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Layout.hpp>
 #include "gui/GuiPrivate.hpp"

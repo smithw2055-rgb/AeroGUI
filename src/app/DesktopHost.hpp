@@ -37,8 +37,14 @@ struct Window::Impl {
     static void NotifyContentRendered(
         ::Aero::Window& window) noexcept;
     static void NotifyClosed(::Aero::Window& window) noexcept;
+    static bool ComponentRequested(
+        const ::Aero::Window& window) noexcept;
+    static Base::StringView ComponentUri(
+        const ::Aero::Window& window) noexcept;
 
     void* hostState = nullptr;
+    Base::String componentUri;
+    bool componentRequested = false;
     bool sourceInitialized = false;
     bool contentRendered = false;
     bool closed = false;

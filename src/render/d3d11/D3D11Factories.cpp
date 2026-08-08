@@ -1,12 +1,12 @@
 #include <Aero/Render/D3D11.hpp>
-#include "render/private/BackendApi.hpp"
+#include "render/private/RenderDevice.hpp"
 
 #include <utility>
 
 namespace Aero::Render {
 
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11Device(
-    const D3D11DeviceOptions& options,
+    const ::Aero::Render::D3D11DeviceOptions& options,
     Base::IAllocator* allocator) noexcept {
     return ::Aero::Render::Detail::CreateD3D11Device(options, allocator);
 }

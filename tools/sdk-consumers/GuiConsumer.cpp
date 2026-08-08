@@ -6,6 +6,46 @@
 #include <Aero/Events.hpp>
 #include <Aero/Triggers/Triggers.hpp>
 
+#include <Aero/Gui/Application.hpp>
+#include <Aero/Gui/Binding.hpp>
+#include <Aero/Gui/BindingBase.hpp>
+#include <Aero/Gui/Border.hpp>
+#include <Aero/Gui/Brush.hpp>
+#include <Aero/Gui/Button.hpp>
+#include <Aero/Gui/ButtonBase.hpp>
+#include <Aero/Gui/ContentControl.hpp>
+#include <Aero/Gui/Control.hpp>
+#include <Aero/Gui/ControlTemplate.hpp>
+#include <Aero/Gui/DataTemplate.hpp>
+#include <Aero/Gui/DependencyObject.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/Gui/FrameworkContentElement.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/Gui/Geometry.hpp>
+#include <Aero/Gui/Grid.hpp>
+#include <Aero/Gui/IRenderer.hpp>
+#include <Aero/Gui/ItemsControl.hpp>
+#include <Aero/Gui/ListBox.hpp>
+#include <Aero/Gui/Panel.hpp>
+#include <Aero/Gui/RenderDevice.hpp>
+#include <Aero/Gui/RenderTarget.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
+#include <Aero/Gui/RoutedEvent.hpp>
+#include <Aero/Gui/StackPanel.hpp>
+#include <Aero/Gui/Storyboard.hpp>
+#include <Aero/Gui/Style.hpp>
+#include <Aero/Gui/TextBlock.hpp>
+#include <Aero/Gui/TextBox.hpp>
+#include <Aero/Gui/TextBoxBase.hpp>
+#include <Aero/Gui/ToggleButton.hpp>
+#include <Aero/Gui/Transform.hpp>
+#include <Aero/Gui/TreeView.hpp>
+#include <Aero/Gui/UIElement.hpp>
+#include <Aero/Gui/View.hpp>
+#include <Aero/Gui/Visual.hpp>
+#include <Aero/Gui/Window.hpp>
+#include <Aero/Gui/XamlReader.hpp>
+
 #include <type_traits>
 
 namespace {

@@ -1,5 +1,6 @@
 #include "DisplayList.hpp"
 #include "FrameEncoder.hpp"
+#include "render/private/RenderDevice.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -403,13 +404,19 @@ void AddStatistics(
     target.indexBufferBindingCount += source.indexBufferBindingCount;
     target.uniformBufferBindingCount += source.uniformBufferBindingCount;
     target.textureSamplerBindingCount += source.textureSamplerBindingCount;
+    target.sourceCommandCount += source.sourceCommandCount;
+    target.drawPacketCount += source.drawPacketCount;
+    target.batchCount += source.batchCount;
+    target.mergedPacketCount += source.mergedPacketCount;
+    target.barrierCount += source.barrierCount;
+    target.batchingEnabled = target.batchingEnabled && source.batchingEnabled;
 }
 
 } // namespace
 
 struct CommandEncoder::Impl  {
     explicit Impl(
-        GraphicsDevice& device,
+        Aero::RenderDevice::Impl& device,
         Base::IAllocator* allocator) noexcept
         : device(&device),
           nodes(allocator),
@@ -424,7 +431,7 @@ struct CommandEncoder::Impl  {
           effectSurfaces(allocator),
           viewSurfaces(allocator) {}
 
-    GraphicsDevice* device = nullptr;
+    Aero::RenderDevice::Impl* device = nullptr;
     ResourceHandle vertexBuffer;
     ResourceHandle uniformBuffer;
     std::array<ResourceHandle, 4U>
@@ -461,7 +468,7 @@ struct CommandEncoder::Impl  {
 };
 
 CommandEncoder::CommandEncoder(
-    GraphicsDevice& device,
+    Aero::RenderDevice::Impl& device,
     const CommandEncoderShaderSet& shaders,
     Base::IAllocator* allocator) noexcept
     : device_(&device),
@@ -478,7 +485,7 @@ Base::Result<void> CommandEncoder::Initialize() noexcept {
     if (impl_ != nullptr && impl_->initialized) {
         return {};
     }
-    if (device_ == nullptr || device_->Backend().IsDeviceLost()) {
+    if (device_ == nullptr || device_->IsNativeDeviceLost()) {
         return NotInitialized("Renderer requires a ready graphics device");
     }
     if (impl_ == nullptr) {
@@ -1257,7 +1264,7 @@ Base::Result<CommandList> CommandEncoder::Record(
     if (!IsInitialized()) {
         return NotInitialized("Renderer is not initialized");
     }
-    if (device_->Backend().IsDeviceLost()) {
+    if (device_->IsNativeDeviceLost()) {
         return InvalidState("Cannot record a RenderFrame for a lost graphics device");
     }
     if (!target.color.IsValid() ||
@@ -3382,6 +3389,22 @@ Base::Result<CommandList> CommandEncoder::Record(
     if (!finished) {
         return finished.GetStatus();
     }
+    submissionStatistics.sourceCommandCount = plan.Commands().Size();
+    submissionStatistics.drawPacketCount =
+        submissionStatistics.rectangleInstanceCount +
+        submissionStatistics.imageInstanceCount +
+        submissionStatistics.meshInstanceCount +
+        submissionStatistics.glyphInstanceCount;
+    submissionStatistics.batchCount = submissionStatistics.drawCallCount;
+    submissionStatistics.mergedPacketCount =
+        submissionStatistics.drawPacketCount > submissionStatistics.batchCount
+        ? submissionStatistics.drawPacketCount - submissionStatistics.batchCount
+        : 0U;
+    submissionStatistics.barrierCount =
+        submissionStatistics.renderPassCount > 0U
+        ? submissionStatistics.renderPassCount - 1U
+        : 0U;
+    submissionStatistics.batchingEnabled = impl_->batchingEnabled;
     impl_->lastStatistics = submissionStatistics;
     return std::move(finished).Value();
 }

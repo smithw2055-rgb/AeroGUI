@@ -1,9 +1,12 @@
 #include "gui/GuiPrivate.hpp"
 #include "gui/private/Style.hpp"
 #include "../render/DisplayList.hpp"
-#include <Aero/Controls/Panels.hpp>
-#include <Aero/Controls/Common.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls/ListBox.hpp>
+#include <Aero/Controls/TreeView.hpp>
 #include <Aero/Shapes.hpp>
+#include <Aero/Media/Transforms.hpp>
 #include "../media/BrushRendering.hpp"
 #include "../media/MediaPrivate.hpp"
 #include <Aero/Documents.hpp>
@@ -1290,7 +1293,7 @@ Base::Result<void> Viewbox::ApplyViewTransform(
         viewTransform_.Reset();
         return {};
     }
-    Base::Ref<Transform> current =
+    Base::Ref<Media::Transform> current =
         child->GetRenderTransform();
     if (current &&
         (!viewTransform_ ||

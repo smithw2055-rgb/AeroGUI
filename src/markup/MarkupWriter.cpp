@@ -15,7 +15,10 @@
 #include "../controls/ControlsPrivate.hpp"
 
 #include <Aero/Styling.hpp>
-#include <Aero/Controls/Items.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls/ButtonBase.hpp>
+#include <Aero/ContentElement.hpp>
+#include <Aero/UIElement.hpp>
 #include <Aero/Animation.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
@@ -115,9 +118,9 @@ Base::Result<Meta::Value> ConvertConstantBindingValue(
             "Binding constant is outside the target range");
     }
     if (targetType ==
-            Meta::TypeOf<Controls::GridLength>()) {
-        return Meta::ValueCodec<Controls::GridLength>::Encode(
-            Controls::GridLength::Pixel(converted));
+            Meta::TypeOf<::Aero::GridLength>()) {
+        return Meta::ValueCodec<::Aero::GridLength>::Encode(
+            ::Aero::GridLength::Pixel(converted));
     }
     if (targetType == Meta::TypeOf<Aero::Length>()) {
         return Meta::ValueCodec<Aero::Length>::Encode(
@@ -2774,6 +2777,64 @@ constexpr Base::StringView DirectiveNull("Null");
 constexpr Base::StringView NullMarkup("x:Null");
 constexpr Base::StringView StaticResourceMarkup("StaticResource");
 
+class XamlEventConnection final : public Base::Object {
+public:
+    XamlEventConnection(
+        Base::WeakRef<Base::Object> target,
+        Meta::Registry& metadata,
+        Meta::MemberId method) noexcept
+        : target_(std::move(target)),
+          metadata_(&metadata),
+          method_(method) {}
+
+    void Invoke(
+        Base::Object* sender,
+        RoutedEventArgs& args) noexcept {
+        Base::Ref<Base::Object> target = target_.Lock();
+        if (!target || metadata_ == nullptr ||
+            method_ == Meta::InvalidMemberId) {
+            return;
+        }
+        Base::Ref<Base::Object> senderRef = sender != nullptr
+            ? Base::Ref<Base::Object>::TryFromBorrowed(*sender)
+            : Base::Ref<Base::Object>{};
+        Meta::Value arguments[2] = {
+            senderRef
+                ? Meta::Value::FromObject(
+                      Meta::TypeOf<Base::Object>(),
+                      std::move(senderRef))
+                : Meta::Value::NullObject(
+                      Meta::TypeOf<Base::Object>()),
+            {}};
+        Base::Result<Meta::Value> encodedArgs =
+            metadata_->TryCreateValue(
+                args.GetEventArgsType(), &args);
+        if (!encodedArgs) return;
+        arguments[1] = std::move(encodedArgs).Value();
+        static_cast<void>(metadata_->InvokeMethod(
+            *target, method_, {arguments, 2U}));
+    }
+
+private:
+    Base::WeakRef<Base::Object> target_;
+    Meta::Registry* metadata_ = nullptr;
+    Meta::MemberId method_ = Meta::InvalidMemberId;
+};
+
+struct XamlEventInvoker {
+    Base::Ref<XamlEventConnection> connection;
+
+    void operator()(
+        Base::Object* sender,
+        RoutedEventArgs& args) const noexcept {
+        if (connection) connection->Invoke(sender, args);
+    }
+
+    bool operator==(const XamlEventInvoker& other) const noexcept {
+        return connection.Get() == other.connection.Get();
+    }
+};
+
 Base::Status InvalidStateStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::InvalidState,
@@ -3717,8 +3778,12 @@ Base::Result<void> ObjectBuilder::StartMember(
         }
     }
 
-    if (member.kind != Meta::MemberKind::Property ||
-        !memberPolicy.writable) {
+    const bool eventAttribute =
+        member.kind == Meta::MemberKind::Event &&
+        node.IsFromAttribute();
+    if (!eventAttribute &&
+        (member.kind != Meta::MemberKind::Property ||
+         !memberPolicy.writable)) {
         return Failure(
             Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
@@ -3977,6 +4042,23 @@ Base::Result<void> ObjectBuilder::WriteText(
     }
 
     if (frame.kind == FrameKind::Member) {
+        if (frame.member.kind == Meta::MemberKind::Event) {
+            if (frame.valuesWritten != 0U ||
+                node.HasCompiledValue()) {
+                return Failure(
+                    Base::Status::Failure(
+                        Base::ErrorCode::AlreadyExists,
+                        MessageDuplicateMemberValue.Data()),
+                    XamlObjectWriterDiagnosticCodes::DuplicateMemberValue,
+                    MessageDuplicateMemberValue,
+                    node.Source());
+            }
+            Base::Result<void> connected = ConnectEvent(
+                frame, TrimBuilderText(node.Value()), node.Source());
+            if (!connected) return connected.GetStatus();
+            ++frame.valuesWritten;
+            return {};
+        }
         const MemberWritePolicy policy =
             frame.hasMemberPolicy
             ? frame.memberPolicy
@@ -4008,14 +4090,13 @@ Base::Result<void> ObjectBuilder::WriteText(
                     created_[frame.targetObjectIndex].type,
                     Controls::Primitives::ToggleButton::
                         StaticTypeId())) {
-                Meta::Value unchecked = Meta::Value::FromBoolean(
-                    Meta::TypeOf<bool>(), false);
+                Base::Result<Meta::Value> nullable =
+                    Meta::ValueCodec<Nullable<bool>>::Encode(
+                        Nullable<bool>{});
+                if (!nullable) return nullable.GetStatus();
                 Base::Result<void> written = WriteValueToMember(
-                    frame, std::move(unchecked), node.Source());
+                    frame, std::move(nullable).Value(), node.Source());
                 if (!written) return written.GetStatus();
-                static_cast<Controls::Primitives::ToggleButton&>(
-                    *created_[frame.targetObjectIndex].object)
-                    .SetIsIndeterminate();
                 return {};
             }
             if (frame.member.valueType == Meta::TypeOf<Base::String>()) {
@@ -4936,14 +5017,13 @@ Base::Result<void> ObjectBuilder::WriteNullToParent(
                 created_[parent.targetObjectIndex].type,
                 Controls::Primitives::ToggleButton::
                     StaticTypeId())) {
-            Meta::Value unchecked = Meta::Value::FromBoolean(
-                Meta::TypeOf<bool>(), false);
+            Base::Result<Meta::Value> nullable =
+                Meta::ValueCodec<Nullable<bool>>::Encode(
+                    Nullable<bool>{});
+            if (!nullable) return nullable.GetStatus();
             Base::Result<void> written = WriteValueToMember(
-                parent, std::move(unchecked), source);
+                parent, std::move(nullable).Value(), source);
             if (!written) return written.GetStatus();
-            static_cast<Controls::Primitives::ToggleButton&>(
-                *created_[parent.targetObjectIndex].object)
-                .SetIsIndeterminate();
             return {};
         }
         const MemberWritePolicy policy =
@@ -5316,7 +5396,7 @@ Base::Result<void> ObjectBuilder::WriteValue(
         member,
         source);
     if ((member.valueType == Meta::TypeOf<Aero::Length>() ||
-         member.valueType == Meta::TypeOf<Controls::GridLength>()) &&
+         member.valueType == Meta::TypeOf<::Aero::GridLength>()) &&
         value.Type() != member.valueType &&
         (value.Kind() == Meta::ValueKind::SignedInteger ||
          value.Kind() == Meta::ValueKind::UnsignedInteger ||
@@ -5528,6 +5608,90 @@ Base::Result<void> ObjectBuilder::RegisterObjectName(
 
     object.nameRegistered = true;
     return {};
+}
+
+Base::Result<void> ObjectBuilder::ConnectEvent(
+    Frame& memberFrame,
+    Base::StringView handlerName,
+    ::Aero::Diagnostics::SourceSpan source) noexcept {
+    if (handlerName.Empty() ||
+        memberFrame.targetObjectIndex >= created_.Size() ||
+        rootObjectIndex_ >= created_.Size() ||
+        memberFrame.member.kind != Meta::MemberKind::Event) {
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "XAML event attribute requires a handler name"),
+            XamlObjectWriterDiagnosticCodes::InvalidValue,
+            MessageInvalidValue,
+            source);
+    }
+
+    CreatedObjectRecord& eventSource =
+        created_[memberFrame.targetObjectIndex];
+    CreatedObjectRecord& codeBehind =
+        created_[rootObjectIndex_];
+    if (!eventSource.object || !codeBehind.object) {
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            source);
+    }
+
+    const Meta::TypeId parameterTypes[] = {
+        Meta::TypeOf<Base::Object>(),
+        memberFrame.member.valueType};
+    const Meta::MethodInfo* method =
+        schema_->Metadata()->Types().FindMethod(
+            codeBehind.type,
+            handlerName,
+            {parameterTypes, 2U},
+            true);
+    if (method == nullptr) {
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "XAML event handler is not registered on the x:Class type"),
+            XamlObjectWriterDiagnosticCodes::UnknownMember,
+            MessageUnknownMember,
+            source);
+    }
+
+    Base::Result<Base::Ref<XamlEventConnection>> connection =
+        Base::MakeRef<XamlEventConnection>(
+            Base::WeakRef<Base::Object>(root_),
+            *schema_->Metadata(),
+            method->Id());
+    if (!connection) return connection.GetStatus();
+    Base::Delegate<void(Base::Object*, RoutedEventArgs&)> handler(
+        XamlEventInvoker{std::move(connection).Value()});
+    const RoutedEventHandle routedEvent{memberFrame.member.id};
+
+    Base::Result<void> connected;
+    if (schema_->Types().IsDerivedFrom(
+            eventSource.type, UIElement::StaticTypeId())) {
+        connected = static_cast<UIElement*>(
+            eventSource.object.Get())->AddHandlerChecked(
+                routedEvent, handler);
+    } else if (schema_->Types().IsDerivedFrom(
+                   eventSource.type,
+                   ContentElement::StaticTypeId())) {
+        connected = static_cast<ContentElement*>(
+            eventSource.object.Get())->AddHandlerChecked(
+                routedEvent, handler);
+    } else {
+        connected = Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "XAML event source does not support routed handlers");
+    }
+    return connected
+        ? Base::Result<void>{}
+        : Base::Result<void>(Failure(
+              connected.GetStatus(),
+              XamlObjectWriterDiagnosticCodes::UnsupportedMember,
+              MessageUnsupportedMember,
+              source));
 }
 
 Base::Result<bool> ObjectBuilder::RegisterObjectResource(

@@ -1,6 +1,6 @@
 #include "gui/GuiPrivate.hpp"
 #include "../render/DisplayList.hpp"
-#include <Aero/Controls/Primitives.hpp>
+#include <Aero/Controls.hpp>
 #include "../media/MediaPrivate.hpp"
 #include <Aero/Value.hpp>
 

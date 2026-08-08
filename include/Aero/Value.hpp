@@ -123,6 +123,47 @@ struct TextValueConverterRegistration {
 } // namespace Aero::Base
 
 namespace Aero { template<class TOwner, class TArgs> class RoutedEventRef; }
+namespace Aero {
+
+// WPF-shaped nullable value used by dependency properties such as
+// ToggleButton::IsChecked. It stays a small value type instead of introducing
+// a C#-style property proxy or another ownership layer.
+template<class T>
+class Nullable {
+public:
+    constexpr Nullable() noexcept = default;
+    constexpr Nullable(std::nullptr_t) noexcept {}
+    constexpr Nullable(const T& value) noexcept
+        : value_(value), hasValue_(true) {}
+
+    constexpr bool GetHasValue() const noexcept { return hasValue_; }
+    constexpr const T& GetValue() const noexcept { return value_; }
+    constexpr T GetValueOr(T fallback) const noexcept {
+        return hasValue_ ? value_ : fallback;
+    }
+    constexpr void Reset() noexcept {
+        value_ = T{};
+        hasValue_ = false;
+    }
+
+    friend constexpr bool operator==(
+        const Nullable& left,
+        const Nullable& right) noexcept {
+        return left.hasValue_ == right.hasValue_ &&
+            (!left.hasValue_ || left.value_ == right.value_);
+    }
+    friend constexpr bool operator!=(
+        const Nullable& left,
+        const Nullable& right) noexcept {
+        return !(left == right);
+    }
+
+private:
+    T value_{};
+    bool hasValue_ = false;
+};
+
+} // namespace Aero
 namespace Aero::Meta { class Registry; class Registration; }
 namespace Aero::Meta {
 using Base::InvalidMemberId;
@@ -514,6 +555,22 @@ struct TypeTraits<bool> {
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 
+template<>
+struct TypeTraits<::Aero::Nullable<bool>> {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId("NullableBoolean");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "NullableBoolean";
+    }
+    static constexpr TypeId BaseType() noexcept {
+        return InvalidTypeId;
+    }
+};
+
 #define AERO_DEFINE_INTEGER_META_TYPE(cppType, metadataName) \
     template<> \
     struct TypeTraits<cppType> { \
@@ -696,6 +753,47 @@ struct ValueCodec<bool, void> {
                 "Boolean metadata value is incompatible");
         }
         return value.AsBoolean();
+    }
+};
+
+template<>
+struct ValueCodec<::Aero::Nullable<bool>, void> {
+    using NullableBoolean = ::Aero::Nullable<bool>;
+
+    static TypeId Type() noexcept {
+        return TypeOf<NullableBoolean>();
+    }
+    template<class TMetadata>
+    static Base::Result<Value> Encode(
+        TMetadata&,
+        NullableBoolean value) noexcept {
+        return Encode(value);
+    }
+    static Base::Result<Value> Encode(
+        NullableBoolean value) noexcept {
+        const std::int64_t encoded = !value.GetHasValue()
+            ? -1
+            : (value.GetValue() ? 1 : 0);
+        return Value::FromSignedInteger(Type(), encoded);
+    }
+    template<class TMetadata>
+    static Base::Result<NullableBoolean> Decode(
+        TMetadata&,
+        const Value& value) noexcept {
+        return Decode(value);
+    }
+    static Base::Result<NullableBoolean> Decode(
+        const Value& value) noexcept {
+        if (value.Type() != Type() ||
+            value.Kind() != ValueKind::SignedInteger ||
+            value.AsSignedInteger() < -1 ||
+            value.AsSignedInteger() > 1) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Nullable Boolean metadata value is incompatible");
+        }
+        if (value.AsSignedInteger() < 0) return NullableBoolean{};
+        return NullableBoolean{value.AsSignedInteger() != 0};
     }
 };
 
@@ -956,6 +1054,8 @@ AERO_API Base::Result<double> ParseDouble(
     Base::StringView text) noexcept;
 
 AERO_API Base::Result<bool> ConvertBoolean(
+    Base::StringView text) noexcept;
+AERO_API Base::Result<::Aero::Nullable<bool>> ConvertNullableBoolean(
     Base::StringView text) noexcept;
 AERO_API Base::Result<double> ConvertDouble(
     Base::StringView text) noexcept;

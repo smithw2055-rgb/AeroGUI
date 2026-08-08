@@ -1,4 +1,5 @@
 #include <Aero/App.hpp>
+#include <Aero/Meta.hpp>
 
 #include <type_traits>
 #include <utility>
@@ -35,18 +36,40 @@ class ConsumerWindow : public Aero::Window {
 
 public:
     ConsumerWindow() noexcept
-        : Window(StaticTypeId()) {}
+        : Window(StaticTypeId()) {
+        InitializeComponent();
+    }
+
+    static void DescribeComponent(
+        Aero::Meta::TypeDescription<ConsumerWindow>& type) noexcept {
+        type.EventHandler<
+            Aero::RoutedEventArgs,
+            &ConsumerWindow::OnHelloClick>("OnHelloClick");
+    }
 
 protected:
     void OnClosing(Aero::CancelEventArgs& args) noexcept override {
         Aero::Window::OnClosing(args);
     }
+
+private:
+    void OnHelloClick(
+        Aero::Base::Object*,
+        const Aero::RoutedEventArgs&) noexcept {}
 };
+
+inline constexpr Aero::ModuleRegistration ConsumerComponents =
+    Aero::DefineComponentModule<ConsumerWindow>(
+        "Aero.SdkConsumer.Components");
 
 [[maybe_unused]] void ConsumeApplicationSdk(
     Aero::Application& application,
     Aero::Window& window) noexcept {
-    application.SetMainWindowBorrowed(&window);
+    Aero::Base::Ref<Aero::Window> retained =
+        Aero::Base::Ref<Aero::Window>::TryFromBorrowed(window);
+    if (retained) {
+        application.SetMainWindow(std::move(retained));
+    }
     application.SetShutdownMode(
         Aero::ShutdownMode::OnExplicitShutdown);
     static_cast<void>(application.GetMainWindow());
@@ -62,6 +85,7 @@ protected:
 [[maybe_unused]] void ConsumeDerivedAppTypes() noexcept {
     ConsumerApplication application;
     ConsumerWindow window;
+    static_cast<void>(ConsumerComponents);
     static_cast<void>(application.RuntimeType());
     static_cast<void>(window.RuntimeType());
     static_cast<void>(

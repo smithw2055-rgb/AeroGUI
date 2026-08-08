@@ -1,4 +1,4 @@
-FenceValue D3D11GraphicsBackend::CompletedFence() const noexcept {
+FenceValue D3D11CommandQueue::CompletedFence() const noexcept {
     if (impl_ == nullptr) {
         return 0U;
     }
@@ -6,7 +6,7 @@ FenceValue D3D11GraphicsBackend::CompletedFence() const noexcept {
     return impl_->completedFence;
 }
 
-bool D3D11GraphicsBackend::IsDeviceLost() const noexcept {
+bool D3D11CommandQueue::IsDeviceLost() const noexcept {
     if (impl_ == nullptr || !impl_->initialized) {
         return true;
     }
@@ -14,7 +14,7 @@ bool D3D11GraphicsBackend::IsDeviceLost() const noexcept {
     return impl_->deviceLost;
 }
 
-Base::Result<void> D3D11GraphicsBackend::WaitForFence(
+Base::Result<void> D3D11CommandQueue::WaitForFence(
     FenceValue fence,
     std::uint32_t timeoutMilliseconds) noexcept {
     if (impl_ == nullptr) {
@@ -45,7 +45,7 @@ Base::Result<void> D3D11GraphicsBackend::WaitForFence(
     return {};
 }
 
-Base::Result<void> D3D11GraphicsBackend::ReadbackTexture(
+Base::Result<void> D3D11CommandQueue::ReadbackTexture(
     ResourceHandle handle,
     Base::Span<std::uint8_t> destination,
     std::uint32_t destinationRowPitch) noexcept {
@@ -140,7 +140,7 @@ Base::Result<void> D3D11GraphicsBackend::ReadbackTexture(
 }
 
 Base::Result<std::uint64_t>
-D3D11GraphicsBackend::ReadbackTextureChecksum(
+D3D11CommandQueue::ReadbackTextureChecksum(
     ResourceHandle handle) noexcept {
     if (impl_ == nullptr) {
         return NotInitialized("D3D11 backend is not initialized");
@@ -227,9 +227,9 @@ D3D11GraphicsBackend::ReadbackTextureChecksum(
 }
 
 Base::Result<ResourceHandle> ImportD3D11ExternalRenderTarget(
-    GraphicsDevice& device,
-    D3D11GraphicsBackend& backend,
-    const D3D11ExternalRenderTargetDescriptor& descriptor) noexcept {
+    Aero::RenderDevice::Impl& device,
+    D3D11CommandQueue& backend,
+    const D3D11RenderTargetBinding& descriptor) noexcept {
     if (descriptor.texture.format == GraphicsTextureFormat::Depth24Stencil8) {
         return InvalidArgument("D3D11 external color target cannot use a depth format");
     }

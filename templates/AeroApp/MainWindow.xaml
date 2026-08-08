@@ -1,0 +1,16 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    x:Class="Sample.MainWindow"
+    Title="AeroGUI Sample"
+    Width="960"
+    Height="640">
+    <Grid>
+        <Button
+            x:Name="HelloButton"
+            Content="Hello"
+            Click="OnHelloClick"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center" />
+    </Grid>
+</Window>

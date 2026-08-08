@@ -66,7 +66,7 @@ Base::Result<void> PopulateControlsTextMedia(
         .Property(
             TextBlock::TextAlignmentProperty,
             PropertyOptions(
-                TextAlignment::Start)
+                TextAlignment::Left)
                 .AffectsMeasure())
         .Property(
             TextBlock::LineHeightProperty,
@@ -447,7 +447,7 @@ Base::Result<void> PopulateControlsTextMedia(
         .Property(
             TextBox::TextAlignmentProperty,
             PropertyOptions(
-                TextAlignment::Start)
+                TextAlignment::Left)
                 .AffectsMeasure())
         .Property(
             TextBox::MaxLinesProperty,

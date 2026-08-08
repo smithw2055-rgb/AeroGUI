@@ -125,7 +125,7 @@ bool IsPersistableCompiledCustomType(
         type == Meta::TypeOf<Base::Color>() ||
         type == Meta::TypeOf<Base::Point>() ||
         type == Meta::TypeOf<Base::Transform2D>() ||
-        type == Meta::TypeOf<Controls::GridLength>();
+        type == Meta::TypeOf<::Aero::GridLength>();
 }
 
 bool IsPersistableCompiledValue(
@@ -485,10 +485,10 @@ ConvertManifestPrimitive(
                 values[3], values[4], values[5]});
     }
 
-    if (type == Meta::TypeOf<Controls::GridLength>()) {
+    if (type == Meta::TypeOf<::Aero::GridLength>()) {
         if (EqualsAsciiInsensitive(text, "auto")) {
             return MakeManifestCustomValue(
-                type, Controls::GridLength::Auto());
+                type, ::Aero::GridLength::Auto());
         }
 
         if (!text.Empty() &&
@@ -510,7 +510,7 @@ ConvertManifestPrimitive(
                 weight = parsed.Value();
             }
             return MakeManifestCustomValue(
-                type, Controls::GridLength::Star(weight));
+                type, ::Aero::GridLength::Star(weight));
         }
 
         Base::Result<double> pixels =
@@ -523,7 +523,7 @@ ConvertManifestPrimitive(
         }
         return MakeManifestCustomValue(
             type,
-            Controls::GridLength::Pixel(
+            ::Aero::GridLength::Pixel(
                 pixels.Value()));
     }
 

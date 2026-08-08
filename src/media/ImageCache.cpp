@@ -4,8 +4,8 @@
 
 #include "media/MediaPrivate.hpp"
 
-#include <Aero/Controls/Common.hpp>
-#include <Aero/Controls/Panels.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Shapes.hpp>
 
 #include <Aero/Media/Brushes.hpp>

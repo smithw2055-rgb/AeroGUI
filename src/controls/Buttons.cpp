@@ -1,5 +1,5 @@
 #include "controls/ControlsPrivate.hpp"
-#include <Aero/Controls/Primitives.hpp>
+#include <Aero/Controls.hpp>
 
 #include <utility>
 #include "gui/GuiPrivate.hpp"
@@ -78,35 +78,22 @@ void RepeatButton::SetInterval(
     SetValue(IntervalProperty, value);
 }
 
-bool ToggleButton::GetIsChecked() const noexcept {
-    return GetValueOr(IsCheckedProperty, false);
+Nullable<bool> ToggleButton::GetIsChecked() const noexcept {
+    return GetValueOr(IsCheckedProperty, Nullable<bool>{false});
 }
 
 bool ToggleButton::GetIsThreeState() const noexcept {
     return GetValueOr(IsThreeStateProperty, false);
 }
 
-bool ToggleButton::GetIsIndeterminate() const noexcept {
-    return GetValueOr(IsIndeterminateProperty, false);
-}
-
 void ToggleButton::SetIsChecked(
-    bool value) noexcept {
+    Nullable<bool> value) noexcept {
     SetValue(IsCheckedProperty, value);
-    SetReadOnlyCurrentValue(IsIndeterminateProperty, false);
-}
-
-void ToggleButton::SetIsIndeterminate() noexcept {
-    SetValue(IsCheckedProperty, false);
-    SetReadOnlyCurrentValue(IsIndeterminateProperty, true);
 }
 
 void ToggleButton::SetIsThreeState(
     bool value) noexcept {
     SetValue(IsThreeStateProperty, value);
-    if (!value && GetIsIndeterminate()) {
-        SetReadOnlyCurrentValue(IsIndeterminateProperty, false);
-    }
 }
 
 void ToggleButton::SetToggleState(
@@ -120,16 +107,13 @@ void ToggleButton::SetToggleState(
     }
     switch (value) {
     case ToggleState::Checked:
-        SetValue(IsCheckedProperty, true);
-        SetReadOnlyCurrentValue(IsIndeterminateProperty, false);
+        SetValue(IsCheckedProperty, Nullable<bool>{true});
         return;
     case ToggleState::Unchecked:
-        SetReadOnlyCurrentValue(IsIndeterminateProperty, false);
-        SetValue(IsCheckedProperty, false);
+        SetValue(IsCheckedProperty, Nullable<bool>{false});
         return;
     case ToggleState::Indeterminate:
-        SetReadOnlyCurrentValue(IsIndeterminateProperty, true);
-        SetValue(IsCheckedProperty, false);
+        SetValue(IsCheckedProperty, Nullable<bool>{});
         return;
     }
     return;
@@ -168,10 +152,11 @@ namespace {
 
 ToggleState ReadToggleState(
     const ToggleButton& button) noexcept {
-    if (button.GetIsIndeterminate()) {
+    const Nullable<bool> value = button.GetIsChecked();
+    if (!value.GetHasValue()) {
         return ToggleState::Indeterminate;
     }
-    return button.GetIsChecked()
+    return value.GetValue()
         ? ToggleState::Checked
         : ToggleState::Unchecked;
 }
@@ -253,9 +238,6 @@ ButtonBase::Impl::~Impl() noexcept {
                     propertyChangedHandler_));
                 static_cast<void>(button->RemoveValueChangedHandler(
                     ToggleButton::IsThreeStateProperty,
-                    propertyChangedHandler_));
-                static_cast<void>(button->RemoveValueChangedHandler(
-                    ToggleButton::IsIndeterminateProperty,
                     propertyChangedHandler_));
             }
             if (button->RuntimeType() ==
@@ -379,11 +361,6 @@ Base::Result<void> ButtonBase::Impl::Attach(
             ToggleButton::IsThreeStateProperty,
             propertyChangedHandler_);
     }
-    if (result && isToggle) {
-        result = button.AddValueChangedHandlerChecked(
-            ToggleButton::IsIndeterminateProperty,
-            propertyChangedHandler_);
-    }
     if (result &&
         button.RuntimeType() == RadioButton::StaticTypeId()) {
         result = button.AddValueChangedHandlerChecked(
@@ -470,9 +447,6 @@ Base::Result<bool> ButtonBase::Impl::Detach(
             propertyChangedHandler_));
         static_cast<void>(button.RemoveValueChangedHandler(
             ToggleButton::IsThreeStateProperty,
-            propertyChangedHandler_));
-        static_cast<void>(button.RemoveValueChangedHandler(
-            ToggleButton::IsIndeterminateProperty,
             propertyChangedHandler_));
     }
     if (button.RuntimeType() == RadioButton::StaticTypeId()) {
@@ -856,25 +830,6 @@ void ButtonBase::Impl::OnPropertyChanged(
         if (!isToggle) return;
         auto& toggle = static_cast<ToggleButton&>(button);
         ButtonRecord& record = buttons_[index];
-        if (!record.updatingToggle &&
-            args.GetProperty() == ToggleButton::IsCheckedProperty &&
-            toggle.GetIsIndeterminate()) {
-            record.updatingToggle = true;
-            static_cast<void>(toggle.SetReadOnlyCurrentValue(
-                ToggleButton::IsIndeterminateProperty,
-                false));
-            record.updatingToggle = false;
-        } else if (!record.updatingToggle &&
-            args.GetProperty() ==
-                ToggleButton::IsThreeStateProperty &&
-            !toggle.GetIsThreeState() &&
-            toggle.GetIsIndeterminate()) {
-            record.updatingToggle = true;
-            static_cast<void>(toggle.SetReadOnlyCurrentValue(
-                ToggleButton::IsIndeterminateProperty,
-                false));
-            record.updatingToggle = false;
-        }
         PublishToggleState(toggle, record);
         if (type == RadioButton::StaticTypeId() &&
             args.GetProperty() == RadioButton::GroupNameProperty &&

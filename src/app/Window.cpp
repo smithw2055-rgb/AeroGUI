@@ -7,6 +7,19 @@
 
 namespace Aero {
 
+void Window::InitializeComponent() noexcept {
+    if (impl_ == nullptr) return;
+    impl_->componentRequested = true;
+    impl_->componentUri.Clear();
+}
+
+void Window::InitializeComponent(
+    Base::StringView componentUri) noexcept {
+    if (impl_ == nullptr) return;
+    impl_->componentRequested = true;
+    static_cast<void>(impl_->componentUri.Assign(componentUri));
+}
+
 Base::Result<void> Window::Show() noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(

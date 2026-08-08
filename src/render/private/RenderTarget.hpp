@@ -27,7 +27,17 @@ struct RenderTarget::Impl {
     virtual ::Aero::Render::Detail::SurfaceHealth
         GetSurfaceHealth() const noexcept = 0;
 
+    // Desktop presentation is driven by App::Detail::RenderContext. Embedded
+    // targets keep the explicit IRenderer::Render(target) one-call contract.
+    // A window target therefore defers its native present while frameOpen is
+    // true and completes it through PresentFrame().
+    virtual Base::Result<void> PresentFrame() noexcept;
+    virtual void DiscardFrame() noexcept;
+
     RenderTargetKind kind = RenderTargetKind::Embedded;
+    bool frameOpen = false;
+    bool frameRendered = false;
+    bool frameEnded = false;
 
     static Base::Result<Base::Ref<RenderTarget>> Create(
         Base::Ref<Aero::RenderDevice> device,
@@ -37,6 +47,10 @@ struct RenderTarget::Impl {
         RenderTarget& target,
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& frame) noexcept;
+    static Base::Result<void> BeginFrame(RenderTarget& target) noexcept;
+    static Base::Result<void> EndFrame(RenderTarget& target) noexcept;
+    static Base::Result<void> Present(RenderTarget& target) noexcept;
+    static void CancelFrame(RenderTarget& target) noexcept;
 };
 
 } // namespace Aero

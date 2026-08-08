@@ -1,14 +1,14 @@
-D3D11GraphicsBackend::D3D11GraphicsBackend(
-    const D3D11BackendOptions& options,
+D3D11CommandQueue::D3D11CommandQueue(
+    const D3D11CommandQueueOptions& options,
     Base::IAllocator* allocator) noexcept
     : options_(options),
       allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()) {}
 
-D3D11GraphicsBackend::~D3D11GraphicsBackend() noexcept {
+D3D11CommandQueue::~D3D11CommandQueue() noexcept {
     Shutdown();
 }
 
-Base::Result<void> D3D11GraphicsBackend::Initialize() noexcept {
+Base::Result<void> D3D11CommandQueue::Initialize() noexcept {
     if (impl_ != nullptr && impl_->initialized) {
         return {};
     }
@@ -139,7 +139,7 @@ Base::Result<void> D3D11GraphicsBackend::Initialize() noexcept {
     return {};
 }
 
-void D3D11GraphicsBackend::Shutdown() noexcept {
+void D3D11CommandQueue::Shutdown() noexcept {
     if (impl_ == nullptr) {
         return;
     }
@@ -149,39 +149,39 @@ void D3D11GraphicsBackend::Shutdown() noexcept {
     impl_ = nullptr;
 }
 
-void D3D11GraphicsBackend::MarkDeviceLost() noexcept {
+void D3D11CommandQueue::MarkDeviceLost() noexcept {
     if (impl_ != nullptr) {
         impl_->deviceLost = true;
     }
 }
 
-bool D3D11GraphicsBackend::IsInitialized() const noexcept {
+bool D3D11CommandQueue::IsInitialized() const noexcept {
     return impl_ != nullptr && impl_->initialized;
 }
 
-std::uintptr_t D3D11GraphicsBackend::NativeDevice() const noexcept {
+std::uintptr_t D3D11CommandQueue::NativeDevice() const noexcept {
     return IsInitialized()
         ? reinterpret_cast<std::uintptr_t>(impl_->device)
         : 0U;
 }
 
-std::uintptr_t D3D11GraphicsBackend::NativeImmediateContext() const noexcept {
+std::uintptr_t D3D11CommandQueue::NativeImmediateContext() const noexcept {
     return IsInitialized()
         ? reinterpret_cast<std::uintptr_t>(impl_->context)
         : 0U;
 }
 
-std::uint32_t D3D11GraphicsBackend::NativeFeatureLevel() const noexcept {
+std::uint32_t D3D11CommandQueue::NativeFeatureLevel() const noexcept {
     return IsInitialized()
         ? static_cast<std::uint32_t>(impl_->featureLevel)
         : 0U;
 }
 
-std::uint32_t D3D11GraphicsBackend::LiveResourceCount() const noexcept {
+std::uint32_t D3D11CommandQueue::LiveResourceCount() const noexcept {
     return impl_ != nullptr ? impl_->resources.Size() : 0U;
 }
 
-DeviceCapabilities D3D11GraphicsBackend::Capabilities() const noexcept {
+DeviceCapabilities D3D11CommandQueue::Capabilities() const noexcept {
     DeviceCapabilities capabilities;
     if (!IsInitialized()) {
         capabilities.abiVersion = 0U;
@@ -198,15 +198,15 @@ DeviceCapabilities D3D11GraphicsBackend::Capabilities() const noexcept {
 }
 
 GraphicsCapabilities
-D3D11GraphicsBackend::QueryGraphicsCapabilities() const noexcept {
+D3D11CommandQueue::QueryGraphicsCapabilities() const noexcept {
     GraphicsCapabilities capabilities;
     if (!IsInitialized()) {
         capabilities.abiVersion = 0U;
-        capabilities.backendKind = GraphicsBackendKind::Invalid;
+        capabilities.backendKind = NativeRenderBackendKind::Invalid;
         return capabilities;
     }
 
-    capabilities.backendKind = GraphicsBackendKind::D3D11;
+    capabilities.backendKind = NativeRenderBackendKind::D3D11;
     capabilities.features =
         FeatureBit(GraphicsFeature::TextureSampling) |
         FeatureBit(GraphicsFeature::RenderTargets) |
@@ -227,7 +227,7 @@ D3D11GraphicsBackend::QueryGraphicsCapabilities() const noexcept {
     return capabilities;
 }
 
-Base::Result<void> D3D11GraphicsBackend::CreateResource(
+Base::Result<void> D3D11CommandQueue::CreateResource(
     ResourceHandle handle,
     const ResourceDescriptor& descriptor) noexcept {
     if (impl_ == nullptr) {
@@ -315,7 +315,7 @@ Base::Result<void> D3D11GraphicsBackend::CreateResource(
     return appended ? Base::Result<void>() : Base::Result<void>(appended.GetStatus());
 }
 
-void D3D11GraphicsBackend::DestroyResource(ResourceHandle handle) noexcept {
+void D3D11CommandQueue::DestroyResource(ResourceHandle handle) noexcept {
     if (impl_ == nullptr) {
         return;
     }

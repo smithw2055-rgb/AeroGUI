@@ -196,6 +196,24 @@ Base::Result<Base::Ref<View>> Gui::CreateView(
     return std::move(made).Value();
 }
 
+Base::Result<Base::Ref<View>> Gui::CreateView(
+    Base::Ref<FrameworkElement> content,
+    const ViewOptions& options,
+    Base::IAllocator* allocator) noexcept {
+    if (!content) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "View content is required");
+    }
+    Base::Result<Base::Ref<View>> made =
+        CreateView(options, allocator);
+    if (!made) return made.GetStatus();
+    Base::Result<void> mounted =
+        made.Value()->SetContent(std::move(content));
+    if (!mounted) return mounted.GetStatus();
+    return std::move(made).Value();
+}
+
 bool Gui::IsInitialized() const noexcept {
     const Impl& state = static_cast<const Impl&>(*impl_);
     return state.initialized && state.schema.IsFrozen();

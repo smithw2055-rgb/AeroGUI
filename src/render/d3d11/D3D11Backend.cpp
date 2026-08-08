@@ -3,6 +3,7 @@
 #include <climits>
 
 #include "D3D11BackendPrivate.hpp"
+#include "render/private/RenderDevice.hpp"
 
 namespace Aero::Graphics {
 
@@ -12,7 +13,7 @@ namespace Aero::Graphics {
 #include "D3D11BackendCommands2.inc"
 #include "D3D11BackendCommands3.inc"
 #include "D3D11BackendReadback.inc"
-#include "D3D11BackendSurface.inc"
+#include "D3D11RenderContext.inc"
 
 // D3D11 implementation fragments deliberately share one private translation
 // unit so cross-stage SRV hazard tracking, state caching/preservation, capability

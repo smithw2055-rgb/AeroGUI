@@ -1,7 +1,7 @@
 #include "Inspector.hpp"
 #include "gui/GuiPrivate.hpp"
 
-#include <Aero/Controls/Core.hpp>
+#include <Aero/Controls.hpp>
 
 #include "../controls/ControlBehavior.hpp"
 

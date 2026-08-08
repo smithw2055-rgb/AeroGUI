@@ -1,4 +1,5 @@
 #include "render/opengl33/OpenGL33Backend.hpp"
+#include "render/private/RenderDevice.hpp"
 
 #include <Aero/Base/Vector.hpp>
 
@@ -468,7 +469,7 @@ void HashBytes(
 
 } // namespace
 
-struct OpenGL33GraphicsBackend::Impl  {
+struct OpenGL33CommandQueue::Impl  {
     struct ResourceRecord  {
         ResourceHandle handle;
         ResourceDescriptor baseDescriptor;
@@ -503,7 +504,7 @@ struct OpenGL33GraphicsBackend::Impl  {
     explicit Impl(
         const GlFunctionTable& functionTable,
         const GlContextBinding& contextBinding,
-        const OpenGL33BackendOptions& backendOptions,
+        const OpenGL33CommandQueueOptions& backendOptions,
         Base::IAllocator* allocatorValue) noexcept
         : functions(functionTable),
           context(contextBinding),
@@ -516,7 +517,7 @@ struct OpenGL33GraphicsBackend::Impl  {
 
     GlFunctionTable functions;
     GlContextBinding context;
-    OpenGL33BackendOptions options;
+    OpenGL33CommandQueueOptions options;
     Base::IAllocator* allocator = nullptr;
     Base::Vector<ResourceRecord> resources;
     mutable Base::Vector<PendingFence> pendingFences;
@@ -835,10 +836,10 @@ struct OpenGL33GraphicsBackend::Impl  {
     }
 };
 
-OpenGL33GraphicsBackend::OpenGL33GraphicsBackend(
+OpenGL33CommandQueue::OpenGL33CommandQueue(
     const GlFunctionTable& functions,
     const GlContextBinding& context,
-    const OpenGL33BackendOptions& options,
+    const OpenGL33CommandQueueOptions& options,
     Base::IAllocator* allocator) noexcept
     : functions_(functions),
       context_(context),
@@ -847,11 +848,11 @@ OpenGL33GraphicsBackend::OpenGL33GraphicsBackend(
           ? allocator
           : &Base::GetDefaultAllocator()) {}
 
-OpenGL33GraphicsBackend::~OpenGL33GraphicsBackend() noexcept {
+OpenGL33CommandQueue::~OpenGL33CommandQueue() noexcept {
     Shutdown();
 }
 
-Base::Result<void> OpenGL33GraphicsBackend::Initialize() noexcept {
+Base::Result<void> OpenGL33CommandQueue::Initialize() noexcept {
     if (impl_ != nullptr && impl_->initialized) {
         return {};
     }
@@ -907,7 +908,7 @@ Base::Result<void> OpenGL33GraphicsBackend::Initialize() noexcept {
     return {};
 }
 
-void OpenGL33GraphicsBackend::Shutdown() noexcept {
+void OpenGL33CommandQueue::Shutdown() noexcept {
     if (impl_ == nullptr) {
         return;
     }
@@ -947,7 +948,7 @@ void OpenGL33GraphicsBackend::Shutdown() noexcept {
     impl_ = nullptr;
 }
 
-void OpenGL33GraphicsBackend::NotifyContextLost() noexcept {
+void OpenGL33CommandQueue::NotifyContextLost() noexcept {
     if (impl_ != nullptr) {
         impl_->deviceLost = true;
         impl_->stateCache.Invalidate(
@@ -955,16 +956,16 @@ void OpenGL33GraphicsBackend::NotifyContextLost() noexcept {
     }
 }
 
-bool OpenGL33GraphicsBackend::IsInitialized() const noexcept {
+bool OpenGL33CommandQueue::IsInitialized() const noexcept {
     return impl_ != nullptr && impl_->initialized;
 }
 
-std::uint32_t OpenGL33GraphicsBackend::LiveResourceCount() const noexcept {
+std::uint32_t OpenGL33CommandQueue::LiveResourceCount() const noexcept {
     return impl_ != nullptr ? impl_->resources.Size() : 0U;
 }
 
 DeviceCapabilities
-OpenGL33GraphicsBackend::Capabilities() const noexcept {
+OpenGL33CommandQueue::Capabilities() const noexcept {
     DeviceCapabilities capabilities;
     capabilities.maxFramesInFlight = 2U;
     capabilities.maxTextureDimension =
@@ -976,9 +977,9 @@ OpenGL33GraphicsBackend::Capabilities() const noexcept {
 }
 
 GraphicsCapabilities
-OpenGL33GraphicsBackend::QueryGraphicsCapabilities() const noexcept {
+OpenGL33CommandQueue::QueryGraphicsCapabilities() const noexcept {
     GraphicsCapabilities capabilities;
-    capabilities.backendKind = GraphicsBackendKind::OpenGL33;
+    capabilities.backendKind = NativeRenderBackendKind::OpenGL33;
     capabilities.features =
         FeatureBit(GraphicsFeature::TextureSampling) |
         FeatureBit(GraphicsFeature::RenderTargets) |
@@ -1005,7 +1006,7 @@ OpenGL33GraphicsBackend::QueryGraphicsCapabilities() const noexcept {
     return capabilities;
 }
 
-Base::Result<void> OpenGL33GraphicsBackend::CreateResource(
+Base::Result<void> OpenGL33CommandQueue::CreateResource(
     ResourceHandle handle,
     const ResourceDescriptor& descriptor) noexcept {
     if (impl_ == nullptr) {
@@ -1071,7 +1072,7 @@ Base::Result<void> OpenGL33GraphicsBackend::CreateResource(
     return {};
 }
 
-void OpenGL33GraphicsBackend::DestroyResource(
+void OpenGL33CommandQueue::DestroyResource(
     ResourceHandle handle) noexcept {
     if (impl_ == nullptr) {
         return;
@@ -1092,7 +1093,7 @@ void OpenGL33GraphicsBackend::DestroyResource(
     impl_->RemoveResourceAt(index);
 }
 
-Base::Result<void> OpenGL33GraphicsBackend::ConfigureTexture(
+Base::Result<void> OpenGL33CommandQueue::ConfigureTexture(
     ResourceHandle handle,
     const TextureResourceDescriptor& descriptor) noexcept {
     if (impl_ == nullptr) {
@@ -1241,7 +1242,7 @@ Base::Result<void> OpenGL33GraphicsBackend::ConfigureTexture(
     return {};
 }
 
-Base::Result<void> OpenGL33GraphicsBackend::ConfigureSampler(
+Base::Result<void> OpenGL33CommandQueue::ConfigureSampler(
     ResourceHandle handle,
     const SamplerDescriptor& descriptor) noexcept {
     if (impl_ == nullptr) {
@@ -1342,7 +1343,7 @@ ValidateOpenGL33PipelineDescriptor(
     return {};
 }
 
-Base::Result<void> OpenGL33GraphicsBackend::ConfigurePipeline(
+Base::Result<void> OpenGL33CommandQueue::ConfigurePipeline(
     ResourceHandle handle,
     const PipelineDescriptor& descriptor) noexcept {
     if (impl_ == nullptr) {
@@ -1481,9 +1482,9 @@ Base::Result<void> OpenGL33GraphicsBackend::ConfigurePipeline(
 }
 
 Base::Result<void>
-OpenGL33GraphicsBackend::ImportExternalRenderTarget(
+OpenGL33CommandQueue::ImportExternalRenderTarget(
     ResourceHandle handle,
-    const OpenGL33ExternalRenderTargetDescriptor& descriptor) noexcept {
+    const OpenGL33RenderTargetBinding& descriptor) noexcept {
     if (impl_ == nullptr) {
         return NotInitialized(
             "OpenGL 3.3 backend is not initialized");
@@ -1531,7 +1532,7 @@ OpenGL33GraphicsBackend::ImportExternalRenderTarget(
 }
 
 Base::Result<void>
-OpenGL33GraphicsBackend::ImportExternalTexture(
+OpenGL33CommandQueue::ImportExternalTexture(
     ResourceHandle handle,
     const OpenGL33ExternalTextureDescriptor& descriptor) noexcept {
     if (impl_ == nullptr) {
@@ -1569,7 +1570,7 @@ OpenGL33GraphicsBackend::ImportExternalTexture(
     return {};
 }
 
-Base::Result<void> OpenGL33GraphicsBackend::Submit(
+Base::Result<void> OpenGL33CommandQueue::Submit(
     const CommandList& commands,
     FenceValue signalFence) noexcept {
     if (impl_ == nullptr) {
@@ -2330,11 +2331,11 @@ Base::Result<void> OpenGL33GraphicsBackend::Submit(
     return {};
 }
 
-FenceValue OpenGL33GraphicsBackend::LastSubmittedFence() const noexcept {
+FenceValue OpenGL33CommandQueue::LastSubmittedFence() const noexcept {
     return impl_ != nullptr ? impl_->lastSubmittedFence : 0U;
 }
 
-FenceValue OpenGL33GraphicsBackend::CompletedFence() const noexcept {
+FenceValue OpenGL33CommandQueue::CompletedFence() const noexcept {
     if (impl_ == nullptr || impl_->deviceLost ||
         !ValidateGlContextBinding(impl_->context)) {
         return impl_ != nullptr ? impl_->completedFence : 0U;
@@ -2343,13 +2344,13 @@ FenceValue OpenGL33GraphicsBackend::CompletedFence() const noexcept {
     return impl_->completedFence;
 }
 
-bool OpenGL33GraphicsBackend::IsDeviceLost() const noexcept {
+bool OpenGL33CommandQueue::IsDeviceLost() const noexcept {
     return impl_ == nullptr ||
         !impl_->initialized ||
         impl_->deviceLost;
 }
 
-Base::Result<void> OpenGL33GraphicsBackend::WaitForFence(
+Base::Result<void> OpenGL33CommandQueue::WaitForFence(
     FenceValue fence,
     std::uint64_t timeoutNanoseconds) noexcept {
     if (impl_ == nullptr) {
@@ -2396,7 +2397,7 @@ Base::Result<void> OpenGL33GraphicsBackend::WaitForFence(
     return NotFound("OpenGL fence was not found");
 }
 
-Base::Result<void> OpenGL33GraphicsBackend::ReadbackTexture(
+Base::Result<void> OpenGL33CommandQueue::ReadbackTexture(
     ResourceHandle handle,
     Base::Span<std::uint8_t> destination,
     std::uint32_t destinationRowPitch) noexcept {
@@ -2531,7 +2532,7 @@ Base::Result<void> OpenGL33GraphicsBackend::ReadbackTexture(
 }
 
 Base::Result<std::uint64_t>
-OpenGL33GraphicsBackend::ReadbackTextureChecksum(
+OpenGL33CommandQueue::ReadbackTextureChecksum(
     ResourceHandle handle) noexcept {
     if (impl_ == nullptr) {
         return NotInitialized(
@@ -2592,9 +2593,9 @@ OpenGL33GraphicsBackend::ReadbackTextureChecksum(
 
 Base::Result<ResourceHandle>
 ImportOpenGL33ExternalRenderTarget(
-    GraphicsDevice& device,
-    OpenGL33GraphicsBackend& backend,
-    const OpenGL33ExternalRenderTargetDescriptor& descriptor) noexcept {
+    Aero::RenderDevice::Impl& device,
+    OpenGL33CommandQueue& backend,
+    const OpenGL33RenderTargetBinding& descriptor) noexcept {
     if (descriptor.texture.format ==
         GraphicsTextureFormat::Depth24Stencil8) {
         return InvalidArgument(
@@ -2618,8 +2619,8 @@ ImportOpenGL33ExternalRenderTarget(
 
 Base::Result<ResourceHandle>
 ImportOpenGL33ExternalTexture(
-    GraphicsDevice& device,
-    OpenGL33GraphicsBackend& backend,
+    Aero::RenderDevice::Impl& device,
+    OpenGL33CommandQueue& backend,
     const OpenGL33ExternalTextureDescriptor& descriptor) noexcept {
     Base::Result<ResourceHandle> created =
         device.CreateExternalTexture(descriptor.descriptor);

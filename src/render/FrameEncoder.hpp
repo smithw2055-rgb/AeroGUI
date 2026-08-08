@@ -2,7 +2,8 @@
 
 #include "DisplayList.hpp"
 #include "render/RenderTree.hpp"
-#include "render/GraphicsDevice.hpp"
+#include "render/RenderCommands.hpp"
+#include <Aero/RenderDevice.hpp>
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
@@ -40,6 +41,11 @@ struct FrameTarget {
 };
 
 struct CommandEncoderStatistics {
+    std::uint32_t sourceCommandCount = 0U;
+    std::uint32_t drawPacketCount = 0U;
+    std::uint32_t batchCount = 0U;
+    std::uint32_t mergedPacketCount = 0U;
+    std::uint32_t barrierCount = 0U;
     std::uint32_t renderPassCount = 0U;
     std::uint32_t drawCallCount = 0U;
     std::uint32_t rectangleInstanceCount = 0U;
@@ -54,6 +60,7 @@ struct CommandEncoderStatistics {
     std::uint32_t indexBufferBindingCount = 0U;
     std::uint32_t uniformBufferBindingCount = 0U;
     std::uint32_t textureSamplerBindingCount = 0U;
+    bool batchingEnabled = true;
 };
 
 // Low-level command encoder. It is an implementation detail owned by the one
@@ -61,7 +68,7 @@ struct CommandEncoderStatistics {
 class CommandEncoder {
 public:
     CommandEncoder(
-        Graphics::Device& device,
+        Aero::RenderDevice::Impl& device,
         const CommandEncoderShaderSet& shaders,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~CommandEncoder() noexcept;
@@ -117,7 +124,7 @@ private:
     Base::Result<void> UnregisterGlyphRun(
         Render::RenderGlyphRunId glyphRun) noexcept;
 
-    Graphics::Device* device_ = nullptr;
+    Aero::RenderDevice::Impl* device_ = nullptr;
     CommandEncoderShaderSet shaders_;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Controls/Items.hpp>
+#include <Aero/Controls.hpp>
 
 namespace Aero::Controls {
 
@@ -12,6 +12,11 @@ struct ItemsControl::Impl {
         ItemsControl& control,
         Collections::IItemsSource* source) noexcept {
         control.SetItemsSourceCore(source);
+    }
+    static void SetItemsSourceBorrowed(
+        ItemsControl& control,
+        Collections::IItemsSource* source) noexcept {
+        control.SetItemsSourceBorrowed(source);
     }
     static void SetItemTemplate(
         ItemsControl& control,

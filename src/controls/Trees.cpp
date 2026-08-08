@@ -1,6 +1,6 @@
 #include "gui/GuiPrivate.hpp"
 #include "controls/ControlsPrivate.hpp"
-#include <Aero/Controls/Items.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Styling.hpp>
 
 #include <utility>
@@ -43,7 +43,8 @@ TreeViewItem::TreeViewItem(
 
 TreeViewItem::~TreeViewItem() {
     if (childItems_ != nullptr) {
-        childItems_->SetItemsSourceBorrowed(nullptr);
+        ItemsControl::Impl::SetItemsSourceBorrowed(
+            *childItems_, nullptr);
     }
     static_cast<void>(RemoveValueChangedHandler(
         HeaderProperty, headerChangedHandler_));
@@ -176,13 +177,15 @@ TreeViewItem::OnApplyTemplate() noexcept {
         childItems_ == nullptr) {
         return;
     }
-    childItems_->SetItemsSourceBorrowed(this);
+    ItemsControl::Impl::SetItemsSourceBorrowed(
+        *childItems_, this);
     static_cast<void>(SynchronizeTemplate());
 }
 
 void TreeViewItem::OnTemplateDetached() noexcept {
     if (childItems_ != nullptr) {
-        childItems_->SetItemsSourceBorrowed(nullptr);
+        ItemsControl::Impl::SetItemsSourceBorrowed(
+            *childItems_, nullptr);
     }
     headerText_ = nullptr;
     iconText_ = nullptr;

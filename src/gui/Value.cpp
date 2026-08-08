@@ -9,6 +9,21 @@
 #include <cstring>
 #include <utility>
 
+namespace Aero::Base::Detail::ValueConversion {
+
+Base::Result<::Aero::Nullable<bool>> ConvertNullableBoolean(
+    Base::StringView text) noexcept {
+    const Base::StringView value = Trim(text);
+    if (value.Empty() || EqualsAsciiInsensitive(value, "null")) {
+        return ::Aero::Nullable<bool>{};
+    }
+    Base::Result<bool> converted = ConvertBoolean(value);
+    if (!converted) return converted.GetStatus();
+    return ::Aero::Nullable<bool>{converted.Value()};
+}
+
+} // namespace Aero::Base::Detail::ValueConversion
+
 namespace Aero::Base {
 namespace {
 

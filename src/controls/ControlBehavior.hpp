@@ -5,12 +5,12 @@
 
 // Private control behavior and template implementation for one View.
 // Public controls expose WPF semantics; these classes only retain interaction state.
-#include <Aero/Controls/Primitives.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Controls/Text.hpp>
-#include <Aero/Controls/Items.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Styling.hpp>
-#include <Aero/Controls/Common.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Input/Platform.hpp>
 #include <cstddef>
 #include <new>

@@ -154,6 +154,64 @@ struct DesktopHost::Impl {
             }
             Base::Result<void> created = CreateView();
             if (!created) return created.GetStatus();
+            if (Window::Impl::ComponentRequested(*value)) {
+                Base::String componentPath;
+                const Base::StringView authored =
+                    Window::Impl::ComponentUri(*value);
+                Base::Result<void> assigned;
+                if (!authored.Empty()) {
+                    const bool absolute = authored.SizeBytes() > 2U &&
+                        (authored[1] == ':' || authored[0] == '/' ||
+                         authored[0] == '\\');
+                    if (!absolute) {
+                        assigned = componentPath.Assign(
+                            owner->assetRoot.View());
+                        if (assigned && !componentPath.Empty()) {
+                            assigned = componentPath.Append("/");
+                        }
+                    }
+                    if (assigned) {
+                        assigned = componentPath.Append(authored);
+                    }
+                } else {
+                    const Meta::RuntimeTypeInfo type =
+                        Meta::ResolveRuntimeTypeInfo(
+                            value->RuntimeType());
+                    if (type.id == Meta::InvalidTypeId ||
+                        type.name.Empty()) {
+                        return HostFailure(
+                            Base::ErrorCode::NotFound,
+                            "InitializeComponent requires a registered Window type");
+                    }
+                    assigned = componentPath.Assign(
+                        owner->assetRoot.View());
+                    if (assigned && !componentPath.Empty()) {
+                        assigned = componentPath.Append("/");
+                    }
+                    if (assigned) {
+                        assigned = componentPath.Append(type.name);
+                    }
+                    if (assigned) {
+                        assigned = componentPath.Append(".xaml");
+                    }
+                }
+                if (!assigned) return assigned.GetStatus();
+                Markup::XamlReader reader(owner->environment);
+                Base::Result<Markup::XamlDocument> loaded =
+                    reader.LoadComponent<Window>(
+                        componentPath.View(), {}, owner->diagnostics);
+                if (!loaded) return loaded.GetStatus();
+                const Base::Ref<Base::Object>& root = loaded.Value().Root();
+                if (!root) {
+                    return HostFailure(
+                        Base::ErrorCode::InvalidArgument,
+                        "InitializeComponent XAML root must be Window");
+                }
+                windowOwner = root;
+                window = static_cast<Window*>(windowOwner.Get());
+                loadedDocument = std::move(loaded).Value();
+                return FinishInitialization(false);
+            }
             windowOwner = Base::Ref<Base::Object>(value);
             window = value.Get();
             return FinishInitialization(true);
@@ -179,14 +237,15 @@ struct DesktopHost::Impl {
                     Base::ErrorCode::InvalidState,
                     "Application native window has an empty client area");
             }
-            Base::Result<void> graphics = renderContext.Create(
+            Base::Result<RenderContext*> graphics = CreateRenderContext(
                 owner->backend,
                 nativeWindow->NativeHandle(),
                 width,
                 height,
                 owner->allocator);
             if (!graphics) return graphics.GetStatus();
-            Base::Ref<RenderDevice> renderDevice = renderContext.Device();
+            renderContext.reset(graphics.Value());
+            Base::Ref<RenderDevice> renderDevice = renderContext->Device();
             if (!renderDevice) {
                 return HostFailure(
                     Base::ErrorCode::InvalidState,
@@ -354,7 +413,7 @@ struct DesktopHost::Impl {
             hasPendingResize = false;
             if (width != 0U && height != 0U) {
                 Base::Result<void> resized =
-                    renderContext.Resize(width, height);
+                    renderContext->Resize(width, height);
                 if (!resized) return resized.GetStatus();
             }
             const Size logicalSize{
@@ -429,7 +488,7 @@ struct DesktopHost::Impl {
                 view->Update(elapsedMilliseconds);
             if (!frame) return frame.GetStatus();
 
-            if (!renderContext.IsReady()) {
+            if (!renderContext || !renderContext->IsReady()) {
                 return HostFailure(
                     Base::ErrorCode::NotInitialized,
                     "Application render context is unavailable");
@@ -447,7 +506,7 @@ struct DesktopHost::Impl {
             Base::Result<void> offscreen =
                 renderer.RenderOffscreen();
             if (!offscreen) return offscreen.GetStatus();
-            Base::Result<void> rendered = renderContext.Render(renderer);
+            Base::Result<void> rendered = renderContext->Render(renderer);
             if (!rendered) return rendered.GetStatus();
 
             frameRequested = false;
@@ -494,7 +553,7 @@ struct DesktopHost::Impl {
         void Shutdown() noexcept {
             if (shutdown) return;
             shutdown = true;
-            renderContext.Shutdown();
+            if (renderContext) renderContext->Shutdown();
             if (view) {
                 static_cast<void>(DesktopHost::UnmountView(*view));
             }
@@ -533,7 +592,7 @@ struct DesktopHost::Impl {
         Impl* owner = nullptr;
         WindowHostState runtime;
         Base::Ref<View> view;
-        RenderContext renderContext;
+        std::unique_ptr<RenderContext> renderContext;
         Base::Ref<Base::Object> windowOwner;
         Markup::XamlDocument loadedDocument;
         Window* window = nullptr;
@@ -1039,6 +1098,19 @@ void Window::Impl::NotifyContentRendered(
 void Window::Impl::NotifyClosed(
     Window& window) noexcept {
     window.NotifyClosed();
+}
+
+bool Window::Impl::ComponentRequested(
+    const Window& window) noexcept {
+    return window.impl_ != nullptr &&
+        window.impl_->componentRequested;
+}
+
+Base::StringView Window::Impl::ComponentUri(
+    const Window& window) noexcept {
+    return window.impl_ != nullptr
+        ? window.impl_->componentUri.View()
+        : Base::StringView{};
 }
 
 } // namespace Aero

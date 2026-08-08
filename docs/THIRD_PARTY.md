@@ -27,7 +27,6 @@ AeroGUI 自有对象模型、XAML、布局、绑定、渲染树、Renderer 和 R
 | Expat | `AERO_WITH_EXPAT` | ON | streaming XML tokenization |
 | miniaudio | `AERO_WITH_MINIAUDIO` | ON | optional audio implementation |
 | stb_image | Runtime private source | ON | current image decode implementation |
-| sokol_gfx | `AERO_ENABLE_SOKOL_BACKEND` | OFF | optional RenderDevice validation bridge |
 
 libtess2 与 Ryu 仍是可选候选，不进入当前默认产品闭包。
 

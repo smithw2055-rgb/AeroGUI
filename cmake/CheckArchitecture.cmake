@@ -37,6 +37,45 @@ endfunction()
 # ---------------------------------------------------------------------------
 foreach(required_public_entry IN ITEMS
         "include/Aero/Gui.hpp"
+        "include/Aero/Gui/Application.hpp"
+        "include/Aero/Gui/Window.hpp"
+        "include/Aero/Gui/DependencyObject.hpp"
+        "include/Aero/Gui/DependencyProperty.hpp"
+        "include/Aero/Gui/RoutedEvent.hpp"
+        "include/Aero/Gui/Visual.hpp"
+        "include/Aero/Gui/UIElement.hpp"
+        "include/Aero/Gui/FrameworkElement.hpp"
+        "include/Aero/Gui/FrameworkContentElement.hpp"
+        "include/Aero/Gui/Control.hpp"
+        "include/Aero/Gui/ContentControl.hpp"
+        "include/Aero/Gui/Panel.hpp"
+        "include/Aero/Gui/ButtonBase.hpp"
+        "include/Aero/Gui/Button.hpp"
+        "include/Aero/Gui/ToggleButton.hpp"
+        "include/Aero/Gui/Grid.hpp"
+        "include/Aero/Gui/StackPanel.hpp"
+        "include/Aero/Gui/Border.hpp"
+        "include/Aero/Gui/ItemsControl.hpp"
+        "include/Aero/Gui/ListBox.hpp"
+        "include/Aero/Gui/TreeView.hpp"
+        "include/Aero/Gui/TextBlock.hpp"
+        "include/Aero/Gui/TextBoxBase.hpp"
+        "include/Aero/Gui/TextBox.hpp"
+        "include/Aero/Gui/BindingBase.hpp"
+        "include/Aero/Gui/Binding.hpp"
+        "include/Aero/Gui/ResourceDictionary.hpp"
+        "include/Aero/Gui/Style.hpp"
+        "include/Aero/Gui/ControlTemplate.hpp"
+        "include/Aero/Gui/DataTemplate.hpp"
+        "include/Aero/Gui/Storyboard.hpp"
+        "include/Aero/Gui/Brush.hpp"
+        "include/Aero/Gui/Geometry.hpp"
+        "include/Aero/Gui/Transform.hpp"
+        "include/Aero/Gui/XamlReader.hpp"
+        "include/Aero/Gui/View.hpp"
+        "include/Aero/Gui/IRenderer.hpp"
+        "include/Aero/Gui/RenderDevice.hpp"
+        "include/Aero/Gui/RenderTarget.hpp"
         "include/Aero/View.hpp"
         "include/Aero/IRenderer.hpp"
         "include/Aero/RenderDevice.hpp"
@@ -63,19 +102,19 @@ foreach(retired_public_entry IN ITEMS
 endforeach()
 
 aero_require_text(
-    "include/Aero/IRenderer.hpp"
+    "include/Aero/Gui/IRenderer.hpp"
     "RenderTarget& target"
     "IRenderer must render to the canonical RenderTarget")
 aero_forbid_text(
-    "include/Aero/IRenderer.hpp"
+    "include/Aero/Gui/IRenderer.hpp"
     "RenderSurface"
     "IRenderer must not expose the retired RenderSurface spelling")
 aero_require_text(
-    "include/Aero/RenderTarget.hpp"
+    "include/Aero/Gui/RenderTarget.hpp"
     "class AERO_API RenderTarget final"
     "RenderTarget must be the installed target object")
 aero_forbid_text(
-    "include/Aero/RenderTarget.hpp"
+    "include/Aero/Gui/RenderTarget.hpp"
     "PresentMode"
     "Presentation policy must remain source-private")
 
@@ -122,6 +161,9 @@ foreach(retired_source_entry IN ITEMS
         "src/platform"
         "src/render/DeviceRenderer.cpp"
         "src/render/DeviceRenderer.hpp"
+        "src/render/GraphicsDevice.cpp"
+        "src/render/GraphicsDevice.hpp"
+        "src/render/GraphicsDeviceResources.cpp"
         "src/render/RenderPrivate.hpp"
         "src/render/RenderSurface.cpp"
         "src/render/private/RenderSurface.hpp")
@@ -135,6 +177,9 @@ foreach(required_source_entry IN ITEMS
         "src/markup/XamlReader.cpp"
         "src/input/Clipboard.cpp"
         "src/render/RenderDevice.cpp"
+        "src/render/RenderDeviceResources.cpp"
+        "src/render/RenderCommands.cpp"
+        "src/render/RenderCommands.hpp"
         "src/render/RenderTarget.cpp"
         "src/render/Renderer.cpp"
         "src/render/private/RenderDevice.hpp"
@@ -190,20 +235,23 @@ unset(runtime_namespace_position)
 # ---------------------------------------------------------------------------
 aero_require_text(
     "src/render/Renderer.hpp"
-    "RenderOnscreen("
-    "Renderer must own onscreen command recording and submission")
+    "BuildOnscreenBatch("
+    "Renderer must own onscreen UI batch recording")
 aero_require_text(
     "src/render/Renderer.hpp"
-    "RenderOffscreen("
-    "Renderer must own offscreen command recording and submission")
+    "BuildOffscreenBatch("
+    "Renderer must own offscreen UI batch recording")
 aero_forbid_text(
     "src/render/Renderer.hpp"
     "SurfaceSession"
     "Renderer must not depend on a second surface lifecycle")
+aero_forbid_file("src/render/Surface.hpp")
+aero_forbid_file("src/render/Surface.cpp")
+aero_require_file("src/render/WindowRenderContext.hpp")
 aero_forbid_text(
-    "src/render/Surface.hpp"
-    "class AERO_API SurfaceSession"
-    "SurfaceSession lifecycle must not be recreated")
+    "src/render/WindowRenderContext.hpp"
+    "WindowSurfaceBackend"
+    "Window contexts must be concrete backend objects")
 aero_forbid_text(
     "src/render/private/RenderTarget.hpp"
     "class NativeRenderTarget"
@@ -216,18 +264,23 @@ aero_forbid_text(
     "src/render/private/RenderDevice.hpp"
     "NativeRenderDevice"
     "RenderDevice::Impl is the only native device object")
+aero_forbid_file("src/render/private/BackendApi.hpp")
 aero_forbid_text(
-    "src/render/private/BackendApi.hpp"
-    "RenderSurface"
-    "Private backend factories must use RenderTarget vocabulary")
+    "src/render/RenderCommands.hpp"
+    "class AERO_API GraphicsDevice"
+    "Command declarations must not recreate the retired generic device")
 aero_forbid_text(
-    "src/render/private/BackendApi.hpp"
-    "EmbeddedSurfaceOptions"
-    "Embedded target factories must not recreate Surface vocabulary")
+    "src/render/RenderCommands.hpp"
+    "class AERO_API GraphicsBackend"
+    "Native command queues must not share an abstract backend lifetime")
+aero_require_text(
+    "src/render/private/RenderDevice.hpp"
+    "struct CommandQueueRenderDevice : RenderDevice::Impl"
+    "Native command services must terminate directly at RenderDevice::Impl")
 aero_forbid_text(
-    "src/render/private/BackendApi.hpp"
-    "WindowSurfaceOptions"
-    "Window target factories must not recreate Surface vocabulary")
+    "cmake/AeroRenderingTargets.cmake"
+    "GraphicsDevice"
+    "The retired generic graphics device must not be built")
 aero_forbid_text(
     "src/render/FrameEncoder.hpp"
     "using FrameEncoder ="
@@ -253,7 +306,7 @@ aero_forbid_text(
     "CreateBorrowed("
     "Every RenderTarget must own exactly one target implementation")
 aero_forbid_text(
-    "include/Aero/RenderTarget.hpp"
+    "include/Aero/Gui/RenderTarget.hpp"
     "ownsImpl_"
     "RenderTarget ownership must not be conditional")
 aero_require_text(
@@ -265,14 +318,6 @@ aero_require_text(
     "std::uint64_t nextFrameSerial_ = 1U;"
     "OpenGL window frame serial ownership must belong to the target")
 aero_forbid_text(
-    "src/render/Surface.hpp"
-    "EglWindow"
-    "Speculative EGL surface vocabulary is outside the current product")
-aero_forbid_text(
-    "src/render/Surface.hpp"
-    "WebGL2Canvas"
-    "Speculative WebGL surface vocabulary is outside the current product")
-aero_forbid_text(
     "src/render/FrameEncoder.cpp"
     "using Renderer ="
     "CommandEncoder must not retain a local Renderer migration alias")
@@ -283,7 +328,7 @@ aero_forbid_text(
 aero_forbid_text(
     "src/render/opengl33/OpenGL33Device.cpp"
     "Graphics::ISurfaceBackend"
-    "OpenGL must use the canonical WindowSurfaceBackend contract")
+    "OpenGL must use a concrete window render context")
 aero_forbid_text(
     "src/render/RenderTree.hpp"
     "RenderDevice"
@@ -295,8 +340,39 @@ aero_forbid_text(
 
 aero_require_text(
     "src/app/RenderContext.cpp"
-    "renderer.Render(*target_)"
-    "RenderContext must own the final desktop target handoff")
+    "RenderTarget::Impl::BeginFrame(*target_)"
+    "RenderContext must own the desktop BeginFrame boundary")
+aero_require_text(
+    "src/app/RenderContext.cpp"
+    "RenderTarget::Impl::Present(*currentTarget_)"
+    "RenderContext must own the final desktop Present boundary")
+aero_require_text(
+    "src/app/RenderContext.cpp"
+    "class D3D11RenderContext final : public RenderContext"
+    "D3D11 window/device creation must belong to a concrete RenderContext")
+aero_require_text(
+    "src/app/RenderContext.cpp"
+    "class GLRenderContext final : public RenderContext"
+    "OpenGL window/device creation must belong to a concrete RenderContext")
+aero_forbid_text(
+    "src/app/RenderContext.hpp"
+    "class RenderContext final"
+    "RenderContext must remain the shared presentation lifecycle base")
+aero_require_file("src/render/RenderBatch.hpp")
+aero_require_text(
+    "src/render/private/RenderDevice.hpp"
+    "DrawBatch("
+    "Backend RenderDevice implementations must submit RenderBatch values")
+aero_require_text(
+    "src/render/Renderer.hpp"
+    "BuildOnscreenBatch("
+    "Renderer must produce the one source-private RenderBatch")
+aero_forbid_file("src/render/BatchPlanner.cpp")
+aero_forbid_file("src/render/BatchPlanner.hpp")
+aero_forbid_text(
+    "cmake/AeroGuiTargets.cmake"
+    "BatchPlanner"
+    "The duplicate diagnostic batching pipeline must not be part of AeroGui")
 aero_forbid_text(
     "src/app/RenderContext.cpp"
     "CreateD3D11WindowSurface"
@@ -307,22 +383,44 @@ aero_forbid_text(
     "Desktop OpenGL hosting must explicitly compose device and target")
 
 # ---------------------------------------------------------------------------
+# WPF code-behind experience
+# ---------------------------------------------------------------------------
+aero_require_text(
+    "include/Aero/Gui/Window.hpp"
+    "void InitializeComponent() noexcept;"
+    "Window code-behind must expose the conventional InitializeComponent entry")
+aero_require_text(
+    "include/Aero/Meta.hpp"
+    "TypeDescription& EventHandler("
+    "Component metadata must expose a direct XAML event-handler description")
+aero_require_text(
+    "include/Aero/Meta.hpp"
+    "DefineComponentModule("
+    "Custom components must not require handwritten Registry or facet adapters")
+aero_require_text(
+    "src/markup/MarkupWriter.cpp"
+    "ObjectBuilder::ConnectEvent("
+    "XAML event attributes must connect through the object-writer pipeline")
+aero_require_file("templates/AeroApp/App.xaml")
+aero_require_file("templates/AeroApp/MainWindow.xaml")
+
+# ---------------------------------------------------------------------------
 # Gui / XAML / View ownership
 # ---------------------------------------------------------------------------
 aero_require_text(
-    "include/Aero/Markup.hpp"
+    "include/Aero/Gui/XamlReader.hpp"
     "explicit XamlReader(Aero::Gui& gui)"
     "XamlReader must be Gui-owned rather than View-owned")
 aero_forbid_text(
-    "include/Aero/Markup.hpp"
+    "include/Aero/Gui/XamlReader.hpp"
     "XamlReader(Aero::View&"
     "XamlReader must not recreate View-owned loading")
 aero_forbid_text(
-    "include/Aero/View.hpp"
+    "include/Aero/Gui/View.hpp"
     "friend class Markup::ReloadCoordinator"
     "ReloadCoordinator must not require View private access")
 aero_forbid_text(
-    "include/Aero/View.hpp"
+    "include/Aero/Gui/View.hpp"
     "QueryReloadSource("
     "Reload source/cache ownership belongs to Gui/Markup")
 aero_require_text(
@@ -334,7 +432,7 @@ aero_forbid_file("cmake/AeroRuntimeTargets.cmake")
 aero_forbid_file("cmake/AeroGuiRuntimeTargets.cmake")
 aero_require_file("cmake/AeroGuiCompositionTargets.cmake")
 aero_forbid_text(
-    "include/Aero/View.hpp"
+    "include/Aero/Gui/View.hpp"
     "Runtime::Detail"
     "View must not expose a generic Runtime implementation namespace")
 aero_forbid_text(
@@ -383,27 +481,24 @@ aero_forbid_text(
 # headers use explicit narrow contracts. Do not break unrelated translation units
 # merely to enforce include topology by string matching.
 aero_require_text(
-    "include/Aero/Controls/Button.hpp"
+    "include/Aero/Gui/Button.hpp"
     "class AERO_API Button"
     "Button.hpp must own the Button declaration")
-aero_forbid_text(
-    "include/Aero/Controls/Primitives.hpp"
-    "class AERO_API Button :"
-    "Button must not have two declaration owners")
+aero_forbid_file("include/Aero/Controls/Primitives.hpp")
 
 # S14: public headers are organized by WPF-visible type ownership. The old
 # implementation-category family headers remain include-only compatibility
 # umbrellas and must never regain declarations.
 foreach(s14_owner IN ITEMS
-        "include/Aero/Controls/Control.hpp|class AERO_API Control"
-        "include/Aero/Controls/ContentControl.hpp|class AERO_API ContentControl"
-        "include/Aero/Controls/Panel.hpp|class AERO_API Panel"
-        "include/Aero/Controls/Grid.hpp|class AERO_API Grid"
-        "include/Aero/Controls/ListBox.hpp|class AERO_API ListBox"
+        "include/Aero/Gui/Control.hpp|class AERO_API Control"
+        "include/Aero/Gui/ContentControl.hpp|class AERO_API ContentControl"
+        "include/Aero/Gui/Panel.hpp|class AERO_API Panel"
+        "include/Aero/Gui/Grid.hpp|class AERO_API Grid"
+        "include/Aero/Gui/ListBox.hpp|class AERO_API ListBox"
         "include/Aero/Controls/ComboBox.hpp|class AERO_API ComboBox"
         "include/Aero/Controls/ListView.hpp|class AERO_API ListView"
-        "include/Aero/Controls/TreeView.hpp|class AERO_API TreeView"
-        "include/Aero/Controls/TextBox.hpp|class AERO_API TextBox")
+        "include/Aero/Gui/TreeView.hpp|class AERO_API TreeView"
+        "include/Aero/Gui/TextBox.hpp|class AERO_API TextBox")
     string(REPLACE "|" ";" s14_owner_parts "${s14_owner}")
     list(GET s14_owner_parts 0 s14_owner_header)
     list(GET s14_owner_parts 1 s14_owner_declaration)
@@ -412,12 +507,15 @@ foreach(s14_owner IN ITEMS
         "${s14_owner_declaration}"
         "S14 leaf header must own its public declaration")
 endforeach()
-foreach(s14_umbrella IN ITEMS
+foreach(s14_retired_umbrella IN ITEMS
         "include/Aero/Controls/Core.hpp"
         "include/Aero/Controls/Common.hpp"
         "include/Aero/Controls/Panels.hpp"
         "include/Aero/Controls/Items.hpp"
-        "include/Aero/Controls/Primitives.hpp"
+        "include/Aero/Controls/Primitives.hpp")
+    aero_forbid_file("${s14_retired_umbrella}")
+endforeach()
+foreach(s14_umbrella IN ITEMS
         "include/Aero/Controls/Text.hpp")
     aero_forbid_text(
         "${s14_umbrella}"
@@ -436,19 +534,19 @@ aero_forbid_text(
 # Public API and build model
 # ---------------------------------------------------------------------------
 aero_forbid_text(
-    "include/Aero/Application.hpp"
+    "include/Aero/Gui/Application.hpp"
     "RunChecked"
     "Application must expose one Result-returning Run family")
 aero_forbid_text(
-    "include/Aero/Application.hpp"
+    "include/Aero/Gui/Application.hpp"
     "Run(Base::Ref<Window>"
     "Explicit windows must be supplied through SetMainWindow")
 aero_forbid_text(
-    "include/Aero/Window.hpp"
+    "include/Aero/Gui/Window.hpp"
     "ShowChecked"
     "Window must expose one Result-returning Show API")
 aero_forbid_text(
-    "include/Aero/Window.hpp"
+    "include/Aero/Gui/Window.hpp"
     "CloseChecked"
     "Window must expose one Result-returning Close API")
 

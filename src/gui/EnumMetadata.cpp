@@ -2,10 +2,10 @@
 
 #include <Aero/Animation.hpp>
 #include <Aero/Application.hpp>
-#include <Aero/Controls/Common.hpp>
-#include <Aero/Controls/Items.hpp>
-#include <Aero/Controls/Panels.hpp>
-#include <Aero/Controls/Primitives.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
@@ -251,9 +251,9 @@ Base::Result<void> PopulateEnumMetadata(
         ::Aero::TextAlignment,
         "TextAlignment",
         description
-            .Value("Left", ::Aero::TextAlignment::Start)
+            .Value("Left", ::Aero::TextAlignment::Left)
             .Value("Center", ::Aero::TextAlignment::Center)
-            .Value("Right", ::Aero::TextAlignment::End)
+            .Value("Right", ::Aero::TextAlignment::Right)
             .Value("Justify", ::Aero::TextAlignment::Justify););
     AERO_REGISTER_ENUM(
         ::Aero::FlowDirection,

@@ -1,4 +1,4 @@
-#include "render/private/BackendApi.hpp"
+#include "render/private/RenderDevice.hpp"
 #include "render/private/RenderTarget.hpp"
 #include "render/Renderer.hpp"
 #include "render/d3d11/D3D11Backend.hpp"
@@ -26,23 +26,24 @@ Base::Status OutOfMemory(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::OutOfMemory, message);
 }
 
-Graphics::PresentMode ToRhiPresentMode(PresentMode value) noexcept {
+Graphics::PresentMode ToRhiPresentMode(Graphics::PresentMode value) noexcept {
     switch (value) {
-    case PresentMode::Immediate: return Graphics::PresentMode::Immediate;
-    case PresentMode::Mailbox: return Graphics::PresentMode::Mailbox;
-    case PresentMode::Fifo: return Graphics::PresentMode::Fifo;
+    case Graphics::PresentMode::Immediate: return Graphics::PresentMode::Immediate;
+    case Graphics::PresentMode::Mailbox: return Graphics::PresentMode::Mailbox;
+    case Graphics::PresentMode::Fifo: return Graphics::PresentMode::Fifo;
     }
     return Graphics::PresentMode::Fifo;
 }
 
 class D3D11TargetState;
 
-class D3D11DeviceState final : public Aero::RenderDevice::Impl {
+class D3D11DeviceState final
+    : public Aero::CommandQueueRenderDevice<Graphics::D3D11CommandQueue> {
 public:
     D3D11DeviceState(
-        const D3D11DeviceOptions& options,
+        const ::Aero::Render::D3D11DeviceOptions& options,
         Base::IAllocator& allocator) noexcept
-        : Aero::RenderDevice::Impl(allocator),
+        : Aero::CommandQueueRenderDevice<Graphics::D3D11CommandQueue>(allocator),
           options_(options),
           allocator_(&allocator) {}
 
@@ -52,6 +53,8 @@ public:
     Base::Result<void> RenderOffscreen(
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& frame) noexcept override;
+    Base::Result<Graphics::FenceValue> DrawBatch(
+        ::Aero::Render::Detail::RenderBatch&& batch) noexcept override;
     void ReleaseRenderer(const void* rendererToken) noexcept override;
     void NotifyDeviceLost() noexcept override;
     Base::Result<void> RestoreDevice() noexcept override;
@@ -65,14 +68,13 @@ public:
     RenderBackendKind Backend() const noexcept override {
         return RenderBackendKind::D3D11;
     }
-    Graphics::D3D11GraphicsBackend* GraphicsBackend() noexcept {
+    Graphics::D3D11CommandQueue* CommandQueue() noexcept {
         return graphics_;
     }
-    Graphics::GraphicsDevice* GraphicsDevice() noexcept { return device_; }
     ::Aero::Render::Renderer* Renderer() noexcept { return renderer_; }
     bool IsReady() const noexcept {
         return initialized_ && !deviceLost_ && graphics_ != nullptr &&
-            device_ != nullptr && renderer_ != nullptr;
+            AreResourcesReady() && renderer_ != nullptr;
     }
 
     void Attach(D3D11TargetState& target) noexcept;
@@ -83,10 +85,9 @@ private:
     void NotifyTargetsDeviceLost() noexcept;
     void RestoreTargets() noexcept;
 
-    D3D11DeviceOptions options_;
+    ::Aero::Render::D3D11DeviceOptions options_;
     Base::IAllocator* allocator_ = nullptr;
-    Graphics::D3D11GraphicsBackend* graphics_ = nullptr;
-    Graphics::GraphicsDevice* device_ = nullptr;
+    Graphics::D3D11CommandQueue* graphics_ = nullptr;
     ::Aero::Render::Renderer* renderer_ = nullptr;
     D3D11TargetState* targets_ = nullptr;
     bool initialized_ = false;
@@ -133,23 +134,23 @@ public:
         descriptor_ = MakeDescriptor();
         if (!embedded_) {
             swapChain_ = new (std::nothrow)
-                Graphics::D3D11SwapChainSurface(
-                    *device_->GraphicsBackend(), allocator_);
+                Graphics::D3D11RenderContext(
+                    *device_->CommandQueue(), allocator_);
             if (swapChain_ == nullptr) {
                 health_ = SurfaceHealth::Failed;
                 return OutOfMemory("Unable to allocate D3D11 window target");
             }
-            const Graphics::SurfaceCapabilities capabilities =
-                swapChain_->QuerySurfaceCapabilities();
+            const Graphics::WindowRenderContextCaps capabilities =
+                swapChain_->Caps();
             Base::Result<void> valid =
-                Graphics::ValidateNativeSurfaceDescriptor(
+                Graphics::ValidateWindowRenderContextDescriptor(
                     descriptor_, capabilities);
             if (!valid) {
                 ShutdownTarget();
                 health_ = SurfaceHealth::Failed;
                 return valid.GetStatus();
             }
-            Base::Result<void> created = swapChain_->CreateSurface(descriptor_);
+            Base::Result<void> created = swapChain_->Create(descriptor_);
             if (!created) {
                 ShutdownTarget();
                 health_ = SurfaceHealth::Failed;
@@ -162,25 +163,25 @@ public:
         return {};
     }
 
-    Base::Result<Graphics::ExternalRenderTargetDescriptor> Acquire(
+    Base::Result<Graphics::RenderTargetBinding> Acquire(
         std::uint64_t frameSerial) noexcept {
         if (!embedded_) {
             if (swapChain_ == nullptr) {
                 return NotInitialized("D3D11 window target is unavailable");
             }
-            return swapChain_->AcquireSurfaceTarget(frameSerial);
+            return swapChain_->AcquireTarget(frameSerial);
         }
         if (embeddedOptions_.acquireTarget == nullptr) {
             return InvalidState("D3D11 embedded target callback is unavailable");
         }
-        D3D11EmbeddedTarget target;
+        ::Aero::Render::D3D11EmbeddedTarget target;
         Base::Status acquired = embeddedOptions_.acquireTarget(
             embeddedOptions_.callbackContext, &target);
         if (!acquired.IsOk()) return acquired;
         if (target.texture2D == 0U || target.width == 0U || target.height == 0U) {
             return InvalidArgument("D3D11 embedded target is invalid");
         }
-        Graphics::ExternalRenderTargetDescriptor result;
+        Graphics::RenderTargetBinding result;
         result.colorTarget = target.texture2D;
         result.depthStencilTarget = target.depthStencilView;
         result.width = target.width;
@@ -190,10 +191,10 @@ public:
         result.sampleCount = 1U;
         result.stableId = target.stableId;
         Base::Result<void> valid =
-            Graphics::ValidateExternalRenderTargetDescriptor(result);
+            Graphics::ValidateRenderTargetBinding(result);
         return valid
-            ? Base::Result<Graphics::ExternalRenderTargetDescriptor>(result)
-            : Base::Result<Graphics::ExternalRenderTargetDescriptor>(valid.GetStatus());
+            ? Base::Result<Graphics::RenderTargetBinding>(result)
+            : Base::Result<Graphics::RenderTargetBinding>(valid.GetStatus());
     }
 
     Base::Result<void> Render(
@@ -206,7 +207,7 @@ public:
                 "D3D11 target frame serial space is exhausted");
         }
         const std::uint64_t frameSerial = nextFrameSerial_++;
-        Base::Result<Graphics::ExternalRenderTargetDescriptor> acquired =
+        Base::Result<Graphics::RenderTargetBinding> acquired =
             Acquire(frameSerial);
         if (!acquired) {
             RefreshHealth();
@@ -214,7 +215,7 @@ public:
         }
         const auto& native = acquired.Value();
 
-        Graphics::D3D11ExternalRenderTargetDescriptor external;
+        Graphics::D3D11RenderTargetBinding external;
         external.texture2D = native.colorTarget;
         external.depthStencilView = native.depthStencilTarget;
         external.texture.width = native.width;
@@ -227,38 +228,46 @@ public:
         external.stableId = native.stableId;
         Base::Result<Graphics::ResourceHandle> imported =
             Graphics::ImportD3D11ExternalRenderTarget(
-                *device_->GraphicsDevice(),
-                *device_->GraphicsBackend(),
+                *device_,
+                *device_->CommandQueue(),
                 external);
         if (!imported) {
             if (!embedded_ && swapChain_ != nullptr) {
-                swapChain_->DiscardSurfaceFrame(frameSerial);
+                swapChain_->DiscardFrame(frameSerial);
             }
             return imported.GetStatus();
         }
 
-        Base::Result<Graphics::FenceValue> submitted =
-            device_->Renderer()->RenderOnscreen(
+        Base::Result<::Aero::Render::Detail::RenderBatch> batch =
+            device_->Renderer()->BuildOnscreenBatch(
                 rendererToken,
                 frame,
                 {imported.Value(), native.width, native.height,
                  embedded_
                      ? Graphics::LoadOperation::Load
                      : Graphics::LoadOperation::Clear});
+        Base::Result<Graphics::FenceValue> submitted = batch
+            ? device_->DrawBatch(std::move(batch).Value())
+            : Base::Result<Graphics::FenceValue>(batch.GetStatus());
         if (!submitted && !embedded_ && swapChain_ != nullptr) {
-            swapChain_->DiscardSurfaceFrame(frameSerial);
+            swapChain_->DiscardFrame(frameSerial);
         }
 
         Base::Result<void> presented;
         if (submitted && !embedded_ && swapChain_ != nullptr) {
-            presented = swapChain_->PresentSurface(
-                frameSerial, submitted.Value());
+            if (frameOpen) {
+                pendingFrameSerial_ = frameSerial;
+                pendingFence_ = submitted.Value();
+            } else {
+                presented = swapChain_->Present(
+                    frameSerial, submitted.Value());
+            }
         }
 
         const Graphics::FenceValue retireFence =
-            device_->GraphicsDevice()->LastSubmittedFence();
+            device_->LastSubmittedFence();
         Base::Result<void> retired =
-            device_->GraphicsDevice()->DestroyResource(
+            device_->DestroyResource(
                 imported.Value(), retireFence);
         if (!submitted) {
             RefreshHealth();
@@ -269,6 +278,30 @@ public:
             return presented.GetStatus();
         }
         return retired;
+    }
+
+    Base::Result<void> PresentFrame() noexcept override {
+        if (embedded_ || swapChain_ == nullptr ||
+            pendingFrameSerial_ == 0U) {
+            return InvalidState("D3D11 window frame is not ready to present");
+        }
+        const std::uint64_t serial = pendingFrameSerial_;
+        const Graphics::FenceValue fence = pendingFence_;
+        pendingFrameSerial_ = 0U;
+        pendingFence_ = 0U;
+        Base::Result<void> presented =
+            swapChain_->Present(serial, fence);
+        if (!presented) RefreshHealth();
+        return presented;
+    }
+
+    void DiscardFrame() noexcept override {
+        if (!embedded_ && swapChain_ != nullptr &&
+            pendingFrameSerial_ != 0U) {
+            swapChain_->DiscardFrame(pendingFrameSerial_);
+        }
+        pendingFrameSerial_ = 0U;
+        pendingFence_ = 0U;
     }
 
     Base::Result<void> Resize(
@@ -283,15 +316,15 @@ public:
         descriptor_.width = width;
         descriptor_.height = height;
         Base::Result<std::uint32_t> collected =
-            device_->GraphicsDevice()->CollectGarbage();
+            device_->CollectGarbage();
         if (!collected) return collected.GetStatus();
-        Base::Result<void> resized = swapChain_->ResizeSurface(width, height);
+        Base::Result<void> resized = swapChain_->Resize(width, height);
         if (!resized) RefreshHealth();
         return resized;
     }
 
     void NotifySurfaceLost() noexcept override {
-        if (swapChain_ != nullptr) swapChain_->NotifySurfaceLost();
+        if (swapChain_ != nullptr) swapChain_->NotifyLost();
         health_ = SurfaceHealth::Lost;
     }
 
@@ -310,7 +343,7 @@ public:
         }
         if (health_ != SurfaceHealth::Ready) return health_;
         return !embedded_ &&
-                (swapChain_ == nullptr || swapChain_->IsSurfaceLost())
+                (swapChain_ == nullptr || swapChain_->IsLost())
             ? SurfaceHealth::Lost
             : SurfaceHealth::Ready;
     }
@@ -343,13 +376,13 @@ private:
     }
 
     void RefreshHealth() noexcept {
-        if (!embedded_ && swapChain_ != nullptr && swapChain_->IsSurfaceLost()) {
+        if (!embedded_ && swapChain_ != nullptr && swapChain_->IsLost()) {
             health_ = SurfaceHealth::Lost;
         }
     }
 
-    Graphics::NativeSurfaceDescriptor MakeDescriptor() const noexcept {
-        Graphics::NativeSurfaceDescriptor descriptor;
+    Graphics::WindowRenderContextDescriptor MakeDescriptor() const noexcept {
+        Graphics::WindowRenderContextDescriptor descriptor;
         descriptor.colorFormat = Graphics::GraphicsTextureFormat::Bgra8Unorm;
         descriptor.depthStencilFormat = Graphics::GraphicsTextureFormat::Depth24Stencil8;
         descriptor.sampleCount = 1U;
@@ -358,20 +391,21 @@ private:
         if (!embedded_) {
             descriptor.width = windowOptions_.width;
             descriptor.height = windowOptions_.height;
-            descriptor.kind = Graphics::SurfaceKind::D3D11Window;
-            descriptor.ownership = Graphics::SurfaceOwnership::Owned;
+            descriptor.kind = Graphics::WindowRenderContextKind::D3D11;
+            descriptor.ownership = Graphics::WindowRenderContextOwnership::Owned;
             descriptor.presentMode = ToRhiPresentMode(windowOptions_.presentMode);
             descriptor.d3d11.window = windowOptions_.window.window;
-            descriptor.d3d11.device = device_->GraphicsBackend()->NativeDevice();
+            descriptor.d3d11.device = device_->CommandQueue()->NativeDevice();
             descriptor.d3d11.immediateContext =
-                device_->GraphicsBackend()->NativeImmediateContext();
+                device_->CommandQueue()->NativeImmediateContext();
         }
         return descriptor;
     }
 
     void ShutdownTarget() noexcept {
+        DiscardFrame();
         if (swapChain_ != nullptr) {
-            swapChain_->DestroySurface();
+            swapChain_->Shutdown();
             delete swapChain_;
             swapChain_ = nullptr;
         }
@@ -383,10 +417,12 @@ private:
     D3D11EmbeddedTargetOptions embeddedOptions_;
     D3D11WindowTargetOptions windowOptions_;
     bool embedded_ = false;
-    Graphics::NativeSurfaceDescriptor descriptor_;
-    Graphics::D3D11SwapChainSurface* swapChain_ = nullptr;
+    Graphics::WindowRenderContextDescriptor descriptor_;
+    Graphics::D3D11RenderContext* swapChain_ = nullptr;
     std::uint64_t deviceGeneration_ = 0U;
     std::uint64_t nextFrameSerial_ = 1U;
+    std::uint64_t pendingFrameSerial_ = 0U;
+    Graphics::FenceValue pendingFence_ = 0U;
     SurfaceHealth health_ = SurfaceHealth::Lost;
     D3D11TargetState* previous_ = nullptr;
     D3D11TargetState* next_ = nullptr;
@@ -403,7 +439,7 @@ D3D11DeviceState::~D3D11DeviceState() noexcept {
 
 Base::Result<void> D3D11DeviceState::Initialize() noexcept {
     if (initialized_) return {};
-    Graphics::D3D11BackendOptions graphicsOptions;
+    Graphics::D3D11CommandQueueOptions graphicsOptions;
     const bool borrowed = options_.device != 0U ||
         options_.immediateContext != 0U;
     if (borrowed) {
@@ -415,7 +451,7 @@ Base::Result<void> D3D11DeviceState::Initialize() noexcept {
         graphicsOptions.borrowedDevice = options_.device;
         graphicsOptions.borrowedImmediateContext = options_.immediateContext;
         graphicsOptions.statePolicy =
-            options_.statePolicy == D3D11StatePreservationPolicy::PreserveRequiredState
+            options_.statePolicy == ::Aero::Render::D3D11StatePreservationPolicy::PreserveRequiredState
             ? Graphics::D3D11StatePolicy::PreserveRequiredState
             : Graphics::D3D11StatePolicy::HostResetsState;
     } else {
@@ -426,7 +462,7 @@ Base::Result<void> D3D11DeviceState::Initialize() noexcept {
         graphicsOptions.enableDebugLayer = options_.enableDebugLayer;
     }
     graphics_ = new (std::nothrow)
-        Graphics::D3D11GraphicsBackend(graphicsOptions, allocator_);
+        Graphics::D3D11CommandQueue(graphicsOptions, allocator_);
     if (graphics_ == nullptr) {
         return OutOfMemory("Unable to allocate D3D11 backend");
     }
@@ -435,12 +471,8 @@ Base::Result<void> D3D11DeviceState::Initialize() noexcept {
         ShutdownDevice(false);
         return status.GetStatus();
     }
-    device_ = new (std::nothrow) Graphics::GraphicsDevice(*graphics_, allocator_);
-    if (device_ == nullptr) {
-        ShutdownDevice(false);
-        return OutOfMemory("Unable to allocate D3D11 graphics device");
-    }
-    status = device_->Initialize();
+    BindCommandQueue(graphics_);
+    status = InitializeResources();
     if (!status) {
         ShutdownDevice(false);
         return status.GetStatus();
@@ -451,7 +483,7 @@ Base::Result<void> D3D11DeviceState::Initialize() noexcept {
         return generation.GetStatus();
     }
     renderer_ = new (std::nothrow) ::Aero::Render::Renderer(
-        *device_, ::Aero::Render::MakeD3D11FrameShaderSet(),
+        *this, ::Aero::Render::MakeD3D11FrameShaderSet(),
         generation.Value(), allocator_);
     if (renderer_ == nullptr) {
         ShutdownDevice(false);
@@ -472,9 +504,19 @@ Base::Result<void> D3D11DeviceState::RenderOffscreen(
     const void* rendererToken,
     const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
     if (!IsReady()) return NotInitialized("D3D11 device is not initialized");
+    Base::Result<::Aero::Render::Detail::RenderBatch> batch =
+        renderer_->BuildOffscreenBatch(rendererToken, frame);
+    if (!batch) return batch.GetStatus();
     Base::Result<Graphics::FenceValue> submitted =
-        renderer_->RenderOffscreen(rendererToken, frame);
+        DrawBatch(std::move(batch).Value());
     return submitted ? Base::Result<void>() : Base::Result<void>(submitted.GetStatus());
+}
+
+Base::Result<Graphics::FenceValue> D3D11DeviceState::DrawBatch(
+    ::Aero::Render::Detail::RenderBatch&& batch) noexcept {
+    if (!IsReady()) return NotInitialized("D3D11 device is not initialized");
+    if (batch.Empty()) return Graphics::FenceValue{0U};
+    return SubmitCommands(batch.Commands());
 }
 
 void D3D11DeviceState::ReleaseRenderer(const void* rendererToken) noexcept {
@@ -498,16 +540,15 @@ Base::Result<void> D3D11DeviceState::RestoreDevice() noexcept {
 
 Base::Result<void> D3D11DeviceState::WaitIdle(
     std::uint32_t timeoutMilliseconds) noexcept {
-    if (graphics_ == nullptr || device_ == nullptr) return {};
-    const Graphics::FenceValue fence = device_->LastSubmittedFence();
+    if (graphics_ == nullptr) return {};
+    const Graphics::FenceValue fence = LastSubmittedFence();
     return fence != 0U
         ? graphics_->WaitForFence(fence, timeoutMilliseconds)
         : Base::Result<void>();
 }
 
 BackendHealth D3D11DeviceState::GetDeviceHealth() const noexcept {
-    if (deviceLost_ ||
-        (device_ != nullptr && device_->Backend().IsDeviceLost())) {
+    if (deviceLost_ || (graphics_ != nullptr && IsNativeDeviceLost())) {
         return BackendHealth::DeviceLost;
     }
     return IsReady() ? BackendHealth::Ready : BackendHealth::Failed;
@@ -519,6 +560,12 @@ D3D11DeviceState::LastFrameStatistics() const noexcept {
     if (renderer_ == nullptr) return result;
     const ::Aero::Render::FrameEncoderStatistics source =
         renderer_->LastStatistics();
+    result.sourceCommandCount = source.sourceCommandCount;
+    result.drawPacketCount = source.drawPacketCount;
+    result.batchCount = source.batchCount;
+    result.mergedPacketCount = source.mergedPacketCount;
+    result.barrierCount = source.barrierCount;
+    result.batchingEnabled = source.batchingEnabled;
     result.drawCallCount = source.drawCallCount;
     result.instanceCount = source.rectangleInstanceCount +
         source.imageInstanceCount + source.meshInstanceCount +
@@ -555,8 +602,8 @@ void D3D11DeviceState::ShutdownDevice(bool notifyTargets) noexcept {
     initialized_ = false;
     delete renderer_;
     renderer_ = nullptr;
-    delete device_;
-    device_ = nullptr;
+    ShutdownResources();
+    BindCommandQueue(nullptr);
     if (graphics_ != nullptr) {
         graphics_->Shutdown();
         delete graphics_;
@@ -591,7 +638,7 @@ D3D11DeviceState* DeviceStateFrom(
 } // namespace
 
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11Device(
-    const D3D11DeviceOptions& options,
+    const ::Aero::Render::D3D11DeviceOptions& options,
     Base::IAllocator* allocator) noexcept {
     if ((options.device == 0U) != (options.immediateContext == 0U)) {
         return InvalidArgument(

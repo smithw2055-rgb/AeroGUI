@@ -5,7 +5,8 @@
 #include "../controls/TextBlockLayout.hpp"
 #include "RenderResources.hpp"
 
-#include "render/GraphicsDevice.hpp"
+#include "render/RenderCommands.hpp"
+#include <Aero/RenderDevice.hpp>
 
 #include <cstdint>
 
@@ -34,7 +35,7 @@ class TextRenderer
 public:
     TextRenderer(
         Text::FontManager& fonts,
-        Graphics::GraphicsDevice& device,
+        Aero::RenderDevice::Impl& device,
         GlyphRunResourceSink& sink,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~TextRenderer() override;
@@ -47,7 +48,7 @@ public:
     Base::Result<void> Initialize(
         const TextConfig& config) noexcept;
     Base::Result<void> RecoverDeviceResources(
-        Graphics::GraphicsDevice& device,
+        Aero::RenderDevice::Impl& device,
         GlyphRunResourceSink& sink) noexcept;
     void Shutdown() noexcept;
     bool IsInitialized() const noexcept;
@@ -64,7 +65,7 @@ private:
     struct Impl;
 
     Text::FontManager* fonts_ = nullptr;
-    Graphics::GraphicsDevice* device_ = nullptr;
+    Aero::RenderDevice::Impl* device_ = nullptr;
     GlyphRunResourceSink* sink_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;

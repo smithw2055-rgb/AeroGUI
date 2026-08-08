@@ -24,7 +24,7 @@ struct TextLayoutRequest {
     TextTrimming trimming =
         TextTrimming::None;
     TextAlignment alignment =
-        TextAlignment::Start;
+        TextAlignment::Left;
     Text::TextDirection direction =
         Text::TextDirection::Auto;
 };

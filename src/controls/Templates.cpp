@@ -5,8 +5,8 @@
 #include "render/RenderTree.hpp"
 
 
-#include <Aero/Controls/Panels.hpp>
-#include <Aero/Controls/Items.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/FrameworkElement.hpp>
 
@@ -54,8 +54,8 @@ bool MatchesTemplateCondition(
         source.PropertyRegistry().Types().IsDerivedFrom(
             source.RuntimeType(),
             Primitives::ToggleButton::StaticTypeId())) {
-        return static_cast<Primitives::ToggleButton&>(
-            source).GetIsIndeterminate();
+        return !static_cast<Primitives::ToggleButton&>(
+            source).GetIsChecked().GetHasValue();
     }
     return current == condition.value;
 }

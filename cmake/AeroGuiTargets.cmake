@@ -64,7 +64,6 @@ set(_aero_gui_sources
     src/gui/Value.cpp
     src/media/AnimationEngine.cpp
     src/media/Animation.cpp
-    src/render/BatchPlanner.cpp
     src/render/DrawingContext.cpp
     src/gui/Binding.cpp
     src/gui/BindingObjects.cpp

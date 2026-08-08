@@ -692,7 +692,8 @@ Base::Result<void> Style::SealRuntime(
         }
     }
     for (const StyleSetter& setter : program_->authoredSetters) {
-        const DependencyProperty* property = properties.Find(setter.property);
+        const Meta::DependencyProperty* property =
+            properties.Find(setter.property);
         if (property == nullptr || property->MetadataFor(targetType_) == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -740,7 +741,7 @@ Base::Result<void> Style::SealRuntime(
                     "Style DataTrigger Binding or Value is incomplete");
             }
         } else {
-            const DependencyProperty* condition =
+            const Meta::DependencyProperty* condition =
                 properties.Find(trigger.property);
             if (condition == nullptr ||
                 condition->MetadataFor(targetType_) == nullptr) {
@@ -756,7 +757,7 @@ Base::Result<void> Style::SealRuntime(
              index < trigger.setters.Size();
              ++index) {
             const StyleTriggerSetter& setter = trigger.setters[index];
-            const DependencyProperty* property =
+            const Meta::DependencyProperty* property =
                 properties.Find(setter.property);
             if (property == nullptr ||
                 property->MetadataFor(targetType_) == nullptr) {

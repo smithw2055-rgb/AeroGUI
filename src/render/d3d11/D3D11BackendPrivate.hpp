@@ -589,7 +589,7 @@ void HashBytes(
 
 } // namespace
 
-struct D3D11GraphicsBackend::Impl  {
+struct D3D11CommandQueue::Impl  {
     struct ResourceRecord  {
         ResourceHandle handle;
         Base::IAllocator* allocator = nullptr;

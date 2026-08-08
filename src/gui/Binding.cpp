@@ -206,6 +206,10 @@ bool HasDefaultTargetConversion(
     TypeId sourceType,
     TypeId targetType) noexcept {
     return sourceType == TypeOf<Meta::Value>() ||
+        (sourceType == TypeOf<bool>() &&
+         targetType == TypeOf<::Aero::Nullable<bool>>()) ||
+        (sourceType == TypeOf<::Aero::Nullable<bool>>() &&
+         targetType == TypeOf<bool>()) ||
         (sourceType != targetType &&
          IsNumericType(sourceType) &&
          IsNumericType(targetType)) ||
@@ -219,6 +223,31 @@ bool HasDefaultTargetConversion(
          sourceType != InvalidTypeId) ||
         (sourceType == TypeOf<Base::String>() &&
          targetType != InvalidTypeId);
+}
+
+Base::Result<PropertyValue> ConvertNullableBooleanValue(
+    const PropertyValue& value,
+    TypeId targetType) noexcept {
+    if (targetType == TypeOf<::Aero::Nullable<bool>>() &&
+        value.Type() == TypeOf<bool>() &&
+        value.Kind() == ValueKind::Boolean) {
+        return ValueCodec<::Aero::Nullable<bool>>::Encode(
+            ::Aero::Nullable<bool>{value.AsBoolean()});
+    }
+    if (targetType == TypeOf<bool>() &&
+        value.Type() == TypeOf<::Aero::Nullable<bool>>()) {
+        Base::Result<::Aero::Nullable<bool>> decoded =
+            ValueCodec<::Aero::Nullable<bool>>::Decode(value);
+        if (!decoded) return decoded.GetStatus();
+        if (!decoded.Value().GetHasValue()) {
+            return InvalidArgument(
+                "Indeterminate Nullable Boolean cannot be converted to Boolean");
+        }
+        return PropertyValue::FromBoolean(
+            targetType, decoded.Value().GetValue());
+    }
+    return InvalidArgument(
+        "Nullable Boolean conversion is incompatible");
 }
 
 Base::Result<PropertyValue> ConvertThicknessValue(
@@ -322,9 +351,23 @@ Base::Result<Base::String> FormatBindingString(
     }
 
     char raw[128]{};
+    if (value.Type() == TypeOf<::Aero::Nullable<bool>>()) {
+        Base::Result<::Aero::Nullable<bool>> decoded =
+            ValueCodec<::Aero::Nullable<bool>>::Decode(value);
+        if (!decoded) return decoded.GetStatus();
+        if (decoded.Value().GetHasValue()) {
+            std::snprintf(
+                raw, sizeof(raw), "%s",
+                decoded.Value().GetValue() ? "True" : "False");
+        }
+    }
     bool numeric = false;
     double numericValue = 0.0;
-    switch (value.Kind()) {
+    switch (value.Type() == TypeOf<::Aero::Nullable<bool>>()
+        ? ValueKind::Unset
+        : value.Kind()) {
+    case ValueKind::Unset:
+        break;
     case ValueKind::String: {
         Base::String result;
         Base::Result<void> assigned =
@@ -1662,7 +1705,14 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
                    converted.Type(),
                    targetProperty->ValueType())) {
         Base::Result<PropertyValue> result =
-            (IsNumericType(converted.Type()) &&
+            ((converted.Type() == TypeOf<bool>() &&
+              targetProperty->ValueType() ==
+                  TypeOf<::Aero::Nullable<bool>>()) ||
+             (converted.Type() == TypeOf<::Aero::Nullable<bool>>() &&
+              targetProperty->ValueType() == TypeOf<bool>()))
+            ? ConvertNullableBooleanValue(
+                  converted, targetProperty->ValueType())
+            : (IsNumericType(converted.Type()) &&
              targetProperty->ValueType() == TypeOf<Base::Thickness>())
             ? ConvertThicknessValue(converted)
             : ((IsNumericType(converted.Type()) &&
@@ -1751,7 +1801,12 @@ Base::Result<PropertyValue> BindingEngine::ConvertForSource(
     } else if (HasDefaultTargetConversion(
                    converted.Type(), sourceType)) {
         Base::Result<PropertyValue> result =
-            ((IsNumericType(converted.Type()) &&
+            ((converted.Type() == TypeOf<bool>() &&
+              sourceType == TypeOf<::Aero::Nullable<bool>>()) ||
+             (converted.Type() == TypeOf<::Aero::Nullable<bool>>() &&
+              sourceType == TypeOf<bool>()))
+            ? ConvertNullableBooleanValue(converted, sourceType)
+            : ((IsNumericType(converted.Type()) &&
               sourceType == TypeOf<Aero::Length>()) ||
              (converted.Type() == TypeOf<Aero::Length>() &&
               IsNumericType(sourceType)))

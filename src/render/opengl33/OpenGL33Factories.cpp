@@ -1,12 +1,12 @@
 #include <Aero/Render/OpenGL33.hpp>
-#include "render/private/BackendApi.hpp"
+#include "render/private/RenderDevice.hpp"
 
 #include <utility>
 
 namespace Aero::Render {
 
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33Device(
-    const OpenGL33DeviceOptions& options,
+    const ::Aero::Render::OpenGL33DeviceOptions& options,
     Base::IAllocator* allocator) noexcept {
     return ::Aero::Render::Detail::CreateOpenGL33Device(options, allocator);
 }

@@ -55,18 +55,12 @@ option(AERO_WITH_EXPAT
     "Build the recommended Expat XML tokenizer adapter" ON)
 option(AERO_WITH_MINIAUDIO
     "Build the built-in miniAudio playback provider" ON)
-option(AERO_ENABLE_SOKOL_BACKEND
-    "Compile a host-supplied sokol_gfx bridge into AeroRendering" OFF)
 option(AERO_ENABLE_D3D11_BACKEND
     "Build the native Windows D3D11 graphics backend" ${WIN32})
 option(AERO_ENABLE_WGL_SURFACE
     "Build the native Windows WGL surface adapter" ${WIN32})
 option(AERO_ENABLE_GLX_SURFACE
     "Build the optional native Linux/X11 GLX surface adapter" OFF)
-set(AERO_SOKOL_BRIDGE_SOURCE "" CACHE FILEPATH
-    "Private C++ source that populates Aero hosted callbacks with sokol_gfx")
-set(AERO_SOKOL_INCLUDE_DIR "" CACHE PATH
-    "Optional private include directory containing sokol_gfx.h")
 set(AERO_THIRD_PARTY_ROOT "" CACHE PATH
     "Root containing the optional freetype and harfbuzz source directories")
 set(AERO_TEXT_TEST_FONT "" CACHE FILEPATH

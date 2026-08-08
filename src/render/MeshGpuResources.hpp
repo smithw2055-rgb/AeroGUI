@@ -4,6 +4,7 @@
 
 #include "FrameEncoder.hpp"
 #include "render/RenderResources.hpp"
+#include "render/private/RenderDevice.hpp"
 
 #include <cmath>
 #include <limits>
@@ -13,7 +14,7 @@ namespace Aero::Render::Detail {
 class MeshGpuResources {
 public:
     MeshGpuResources(
-        Graphics::GraphicsDevice& device,
+        Aero::RenderDevice::Impl& device,
         CommandEncoder& renderer,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
@@ -358,7 +359,7 @@ private:
             return commands.GetStatus();
         }
         Base::Result<Graphics::FenceValue> submitted =
-            device_->Submit(commands.Value());
+            device_->SubmitCommands(commands.Value());
         if (!submitted) {
             DestroyBuffers(resource);
             return submitted.GetStatus();
@@ -454,7 +455,7 @@ private:
         resource.indexBuffer = {};
     }
 
-    Graphics::GraphicsDevice* device_ = nullptr;
+    Aero::RenderDevice::Impl* device_ = nullptr;
     CommandEncoder* renderer_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Resource> resources_;

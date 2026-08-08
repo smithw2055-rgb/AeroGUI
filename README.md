@@ -139,9 +139,8 @@ flowchart LR
     Frame --> Renderer[Private Renderer + RenderDevice]
     Device --> Renderer
 
-    Renderer --> Modern[D3D12 / Vulkan / Metal / Console]
-    Renderer --> Compat[D3D11 / GL3.3 / GLES3 / WebGL2]
-    Renderer -. optional validation adapter .-> Sokol[sokol_gfx]
+    Renderer --> D3D11[D3D11 RenderDevice]
+    Renderer --> OpenGL[OpenGL 3.3 RenderDevice]
 
     Platform --> Surface[GLX / EGL / WGL / HTML Canvas]
 ```
@@ -151,7 +150,6 @@ Public C++ APIs follow the same module boundary:
 ```text
 Aero::Base
   -> Aero::Gui / Aero::Meta
-  -> Aero::Integration
   -> Aero::App
 
 Public C++ types are organized by WPF semantics rather than build targets:

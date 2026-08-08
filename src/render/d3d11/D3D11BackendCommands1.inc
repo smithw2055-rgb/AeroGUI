@@ -1,4 +1,4 @@
-Base::Result<void> D3D11GraphicsBackend::Submit(
+Base::Result<void> D3D11CommandQueue::Submit(
     const CommandList& commands,
     FenceValue signalFence) noexcept {
     if (impl_ == nullptr) {

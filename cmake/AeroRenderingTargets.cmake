@@ -1,9 +1,9 @@
 # Private retained renderer, render device, native backends and shader catalogs.
 # Renderer is the single semantic command/submission owner.
 target_sources(AeroGui PRIVATE
-    src/render/GraphicsDevice.cpp
-    src/render/GraphicsDeviceResources.cpp
-    src/render/Surface.cpp
+    src/render/RenderCommands.cpp
+    src/render/RenderDeviceResources.cpp
+    src/render/WindowRenderContext.cpp
     src/render/FrameEncoder.cpp
     src/render/Renderer.cpp
     src/render/TextRenderer.cpp
@@ -19,7 +19,7 @@ if(AERO_ENABLE_WGL_SURFACE)
             "AERO_ENABLE_WGL_SURFACE is only supported on Windows")
     endif()
     target_sources(AeroGui PRIVATE
-        src/render/platform/win32/OpenGLSurface.cpp)
+        src/render/platform/win32/OpenGLRenderContext.cpp)
     target_link_libraries(AeroGui PRIVATE
         gdi32 opengl32 user32)
     target_compile_definitions(AeroGui PRIVATE AERO_HAS_WGL_SURFACE=1)
@@ -35,30 +35,12 @@ if(AERO_ENABLE_GLX_SURFACE)
     find_package(X11 REQUIRED)
     find_package(OpenGL REQUIRED)
     target_sources(AeroGui PRIVATE
-        src/render/platform/x11/OpenGLSurface.cpp)
+        src/render/platform/x11/OpenGLRenderContext.cpp)
     target_link_libraries(AeroGui PRIVATE
         X11::X11 OpenGL::GL Threads::Threads)
     target_compile_definitions(AeroGui PRIVATE AERO_HAS_GLX_SURFACE=1)
 else()
     target_compile_definitions(AeroGui PRIVATE AERO_HAS_GLX_SURFACE=0)
-endif()
-
-if(AERO_ENABLE_SOKOL_BACKEND)
-    if(AERO_SOKOL_BRIDGE_SOURCE STREQUAL "")
-        message(FATAL_ERROR
-            "AERO_ENABLE_SOKOL_BACKEND requires AERO_SOKOL_BRIDGE_SOURCE")
-    endif()
-    if(NOT EXISTS "${AERO_SOKOL_BRIDGE_SOURCE}")
-        message(FATAL_ERROR
-            "AERO_SOKOL_BRIDGE_SOURCE does not exist: ${AERO_SOKOL_BRIDGE_SOURCE}")
-    endif()
-    target_sources(AeroGui PRIVATE "${AERO_SOKOL_BRIDGE_SOURCE}")
-    if(NOT AERO_SOKOL_INCLUDE_DIR STREQUAL "")
-        target_include_directories(AeroGui PRIVATE "${AERO_SOKOL_INCLUDE_DIR}")
-    endif()
-    target_compile_definitions(AeroGui PRIVATE AERO_HAS_SOKOL_BACKEND=1)
-else()
-    target_compile_definitions(AeroGui PRIVATE AERO_HAS_SOKOL_BACKEND=0)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -156,7 +138,7 @@ if(AERO_ENABLE_D3D11_BACKEND)
         "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendCommands2.inc"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendCommands3.inc"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendReadback.inc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendSurface.inc")
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderContext.inc")
     set_source_files_properties(${_aero_d3d11_backend_fragments}
         PROPERTIES HEADER_FILE_ONLY TRUE)
     set_property(SOURCE src/render/d3d11/D3D11Backend.cpp APPEND

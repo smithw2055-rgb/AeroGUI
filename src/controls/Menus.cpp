@@ -1,5 +1,5 @@
 #include "gui/GuiPrivate.hpp"
-#include <Aero/Controls/Common.hpp>
+#include <Aero/Controls.hpp>
 
 #include <utility>
 #include "ControlBehavior.hpp"
