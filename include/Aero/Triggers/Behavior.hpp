@@ -88,8 +88,8 @@ class AERO_API StyleInteraction : public Base::Object {
     AERO_DECLARE_TYPE(StyleInteraction, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    inline static constexpr Members::AttachedProperty<Base::Ref<StyleBehaviorCollection>> BehaviorsProperty{"Behaviors"};
-    inline static constexpr Members::AttachedProperty<Base::Ref<StyleTriggerCollection>> TriggersProperty{"Triggers"};
+    inline static constexpr AttachedProperty<Base::Ref<StyleBehaviorCollection>> BehaviorsProperty{"Behaviors"};
+    inline static constexpr AttachedProperty<Base::Ref<StyleTriggerCollection>> TriggersProperty{"Triggers"};
 
     static void OnBehaviorsChanged(
         DependencyObject& object,

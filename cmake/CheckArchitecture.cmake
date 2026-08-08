@@ -391,6 +391,47 @@ aero_forbid_text(
     "class AERO_API Button :"
     "Button must not have two declaration owners")
 
+# S14: public headers are organized by WPF-visible type ownership. The old
+# implementation-category family headers remain include-only compatibility
+# umbrellas and must never regain declarations.
+foreach(s14_owner IN ITEMS
+        "include/Aero/Controls/Control.hpp|class AERO_API Control"
+        "include/Aero/Controls/ContentControl.hpp|class AERO_API ContentControl"
+        "include/Aero/Controls/Panel.hpp|class AERO_API Panel"
+        "include/Aero/Controls/Grid.hpp|class AERO_API Grid"
+        "include/Aero/Controls/ListBox.hpp|class AERO_API ListBox"
+        "include/Aero/Controls/ComboBox.hpp|class AERO_API ComboBox"
+        "include/Aero/Controls/ListView.hpp|class AERO_API ListView"
+        "include/Aero/Controls/TreeView.hpp|class AERO_API TreeView"
+        "include/Aero/Controls/TextBox.hpp|class AERO_API TextBox")
+    string(REPLACE "|" ";" s14_owner_parts "${s14_owner}")
+    list(GET s14_owner_parts 0 s14_owner_header)
+    list(GET s14_owner_parts 1 s14_owner_declaration)
+    aero_require_text(
+        "${s14_owner_header}"
+        "${s14_owner_declaration}"
+        "S14 leaf header must own its public declaration")
+endforeach()
+foreach(s14_umbrella IN ITEMS
+        "include/Aero/Controls/Core.hpp"
+        "include/Aero/Controls/Common.hpp"
+        "include/Aero/Controls/Panels.hpp"
+        "include/Aero/Controls/Items.hpp"
+        "include/Aero/Controls/Primitives.hpp"
+        "include/Aero/Controls/Text.hpp")
+    aero_forbid_text(
+        "${s14_umbrella}"
+        "class AERO_API"
+        "S14 family compatibility headers must be include-only")
+    aero_forbid_text(
+        "${s14_umbrella}"
+        "enum class"
+        "S14 family compatibility headers must not own enums")
+endforeach()
+aero_forbid_text(
+    "include/Aero/Value.hpp"
+    "struct Members"
+    "WPF-facing dependency properties and routed events must not use the retired Members category")
 # ---------------------------------------------------------------------------
 # Public API and build model
 # ---------------------------------------------------------------------------

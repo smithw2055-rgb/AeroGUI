@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Controls/Primitives.hpp>
+#include <Aero/Controls/ButtonBase.hpp>
 
 namespace Aero::Controls {
 

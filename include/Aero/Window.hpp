@@ -38,20 +38,20 @@ public:
     Base::Result<void> Close() noexcept;
     bool GetIsOpen() const noexcept;
 
-    inline static constexpr Members::Property<Base::String> TitleProperty{"Title"};
-    inline static constexpr Members::Property<WindowState> WindowStateProperty{"WindowState"};
-    inline static constexpr Members::Property<WindowStyle> WindowStyleProperty{"WindowStyle"};
-    inline static constexpr Members::Property<ResizeMode> ResizeModeProperty{"ResizeMode"};
-    inline static constexpr Members::Property<SizeToContent> SizeToContentProperty{"SizeToContent"};
-    inline static constexpr Members::Property<bool> ShowInTaskbarProperty{"ShowInTaskbar"};
-    inline static constexpr Members::Property<bool> TopmostProperty{"Topmost"};
-    inline static constexpr Members::RoutedEvent<CancelEventArgs> ClosingEvent{"Closing"};
-    inline static constexpr Members::RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
-    inline static constexpr Members::RoutedEvent<RoutedEventArgs> ActivatedEvent{"Activated"};
-    inline static constexpr Members::RoutedEvent<RoutedEventArgs> DeactivatedEvent{"Deactivated"};
-    inline static constexpr Members::RoutedEvent<RoutedEventArgs> ContentRenderedEvent{"ContentRendered"};
-    inline static constexpr Members::RoutedEvent<RoutedEventArgs> SourceInitializedEvent{"SourceInitialized"};
-    inline static constexpr Members::RoutedEvent<RoutedEventArgs> StateChangedEvent{"StateChanged"};
+    inline static constexpr DependencyProperty<Base::String> TitleProperty{"Title"};
+    inline static constexpr DependencyProperty<WindowState> WindowStateProperty{"WindowState"};
+    inline static constexpr DependencyProperty<WindowStyle> WindowStyleProperty{"WindowStyle"};
+    inline static constexpr DependencyProperty<ResizeMode> ResizeModeProperty{"ResizeMode"};
+    inline static constexpr DependencyProperty<SizeToContent> SizeToContentProperty{"SizeToContent"};
+    inline static constexpr DependencyProperty<bool> ShowInTaskbarProperty{"ShowInTaskbar"};
+    inline static constexpr DependencyProperty<bool> TopmostProperty{"Topmost"};
+    inline static constexpr RoutedEvent<CancelEventArgs> ClosingEvent{"Closing"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> ActivatedEvent{"Activated"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> DeactivatedEvent{"Deactivated"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> ContentRenderedEvent{"ContentRendered"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> SourceInitializedEvent{"SourceInitialized"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> StateChangedEvent{"StateChanged"};
 
     UIElement::Event<CancelEventArgs> Closing() noexcept { return GetEvent(ClosingEvent); }
     UIElement::Event<RoutedEventArgs> Closed() noexcept { return GetEvent(ClosedEvent); }

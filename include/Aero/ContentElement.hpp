@@ -200,13 +200,13 @@ public:
         SetValue(OverridesDefaultStyleProperty, value);
     }
 
-    inline static constexpr Members::Property<Value> DataContextProperty{"DataContext"};
-    inline static constexpr Members::Property<Base::Ref<Style>> StyleProperty{"Style"};
-    inline static constexpr Members::Property<Value> TagProperty{"Tag"};
-    inline static constexpr Members::Property<bool> IsEnabledProperty{"IsEnabled"};
-    inline static constexpr Members::ReadOnlyProperty<bool> IsMouseOverProperty{"IsMouseOver"};
-    inline static constexpr Members::Property<Base::String> CursorProperty{"Cursor"};
-    inline static constexpr Members::Property<bool> OverridesDefaultStyleProperty{"OverridesDefaultStyle"};
+    inline static constexpr DependencyProperty<Value> DataContextProperty{"DataContext"};
+    inline static constexpr DependencyProperty<Base::Ref<Style>> StyleProperty{"Style"};
+    inline static constexpr DependencyProperty<Value> TagProperty{"Tag"};
+    inline static constexpr DependencyProperty<bool> IsEnabledProperty{"IsEnabled"};
+    inline static constexpr ReadOnlyDependencyProperty<bool> IsMouseOverProperty{"IsMouseOver"};
+    inline static constexpr DependencyProperty<Base::String> CursorProperty{"Cursor"};
+    inline static constexpr DependencyProperty<bool> OverridesDefaultStyleProperty{"OverridesDefaultStyle"};
 
 protected:
     virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return 0U; }

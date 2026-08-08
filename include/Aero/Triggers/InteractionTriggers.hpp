@@ -148,7 +148,7 @@ public:
         SetValue(IsEnabledProperty, value);
     }
 
-    inline static constexpr Members::Property<bool> IsEnabledProperty{"IsEnabled"};
+    inline static constexpr DependencyProperty<bool> IsEnabledProperty{"IsEnabled"};
 
 private:
     Base::String source_;

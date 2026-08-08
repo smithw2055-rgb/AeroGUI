@@ -57,8 +57,8 @@ public:
     ConsumerControl() noexcept
         : Control(StaticTypeId()) {}
 
-    inline static constexpr Members::Property<bool> ActiveProperty{"Active"};
-    inline static constexpr Members::RoutedEvent<Aero::RoutedEventArgs> ActivatedEvent{"Activated"};
+    inline static constexpr DependencyProperty<bool> ActiveProperty{"Active"};
+    inline static constexpr RoutedEvent<Aero::RoutedEventArgs> ActivatedEvent{"Activated"};
 
 protected:
     void OnRender(

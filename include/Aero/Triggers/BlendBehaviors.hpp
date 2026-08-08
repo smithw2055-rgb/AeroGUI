@@ -29,9 +29,9 @@ public:
         SetValue(ConstrainToParentBoundsProperty, value);
     }
 
-    inline static constexpr Members::Property<double> XProperty{"X"};
-    inline static constexpr Members::Property<double> YProperty{"Y"};
-    inline static constexpr Members::Property<bool> ConstrainToParentBoundsProperty{"ConstrainToParentBounds"};
+    inline static constexpr DependencyProperty<double> XProperty{"X"};
+    inline static constexpr DependencyProperty<double> YProperty{"Y"};
+    inline static constexpr DependencyProperty<bool> ConstrainToParentBoundsProperty{"ConstrainToParentBounds"};
 
     static void OnPositionChanged(
         DependencyObject& object,
@@ -86,8 +86,8 @@ public:
         SetValue(EffectProperty, std::move(value));
     }
 
-    inline static constexpr Members::Property<Base::Ref<Base::Object>> SourceProperty{"Source"};
-    inline static constexpr Members::Property<Base::Ref<Media::Effect>> EffectProperty{"Effect"};
+    inline static constexpr DependencyProperty<Base::Ref<Base::Object>> SourceProperty{"Source"};
+    inline static constexpr DependencyProperty<Base::Ref<Media::Effect>> EffectProperty{"Effect"};
 
     static void OnBehaviorPropertyChanged(
         DependencyObject& object,

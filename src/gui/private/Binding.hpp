@@ -141,7 +141,7 @@ public:
     MultiBindingProxy() noexcept
         : DependencyObject(StaticTypeId()) {}
 
-    inline static constexpr Members::Property<Value>
+    inline static constexpr DependencyProperty<Value>
         ValueProperty{"Value"};
 };
 

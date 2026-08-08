@@ -82,14 +82,14 @@ class Item final : public Aero::DependencyObject {
         "Item")
 public:
     Item() noexcept : DependencyObject(StaticTypeId()) {}
-    inline static constexpr Members::Property<Aero::Base::String> NameProperty{"Name"};
-    inline static constexpr Members::Property<Aero::Base::String> DescriptionProperty{"Description"};
-    inline static constexpr Members::Property<ItemCategory> CategoryProperty{"Category"};
-    inline static constexpr Members::Property<std::int32_t> LifeProperty{"Life"};
-    inline static constexpr Members::Property<std::int32_t> ManaProperty{"Mana"};
-    inline static constexpr Members::Property<std::int32_t> DpsProperty{"Dps"};
-    inline static constexpr Members::Property<std::int32_t> ArmorProperty{"Armor"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Aero::Media::ImageSource>> IconProperty{"Icon"};
+    inline static constexpr DependencyProperty<Aero::Base::String> NameProperty{"Name"};
+    inline static constexpr DependencyProperty<Aero::Base::String> DescriptionProperty{"Description"};
+    inline static constexpr DependencyProperty<ItemCategory> CategoryProperty{"Category"};
+    inline static constexpr DependencyProperty<std::int32_t> LifeProperty{"Life"};
+    inline static constexpr DependencyProperty<std::int32_t> ManaProperty{"Mana"};
+    inline static constexpr DependencyProperty<std::int32_t> DpsProperty{"Dps"};
+    inline static constexpr DependencyProperty<std::int32_t> ArmorProperty{"Armor"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Aero::Media::ImageSource>> IconProperty{"Icon"};
 };
 
 class Slot final : public Aero::DependencyObject {
@@ -100,13 +100,13 @@ class Slot final : public Aero::DependencyObject {
         "Slot")
 public:
     Slot() noexcept : DependencyObject(StaticTypeId()) {}
-    inline static constexpr Members::Property<Aero::Base::String> NameProperty{"Name"};
-    inline static constexpr Members::Property<ItemCategory> AllowedCategoryProperty{"AllowedCategory"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Item>> ItemProperty{"Item"};
-    inline static constexpr Members::Property<bool> IsDragOverProperty{"IsDragOver"};
-    inline static constexpr Members::Property<bool> IsDropAllowedProperty{"IsDropAllowed"};
-    inline static constexpr Members::Property<bool> IsSelectedProperty{"IsSelected"};
-    inline static constexpr Members::Property<bool> MoveFocusProperty{"MoveFocus"};
+    inline static constexpr DependencyProperty<Aero::Base::String> NameProperty{"Name"};
+    inline static constexpr DependencyProperty<ItemCategory> AllowedCategoryProperty{"AllowedCategory"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Item>> ItemProperty{"Item"};
+    inline static constexpr DependencyProperty<bool> IsDragOverProperty{"IsDragOver"};
+    inline static constexpr DependencyProperty<bool> IsDropAllowedProperty{"IsDropAllowed"};
+    inline static constexpr DependencyProperty<bool> IsSelectedProperty{"IsSelected"};
+    inline static constexpr DependencyProperty<bool> MoveFocusProperty{"MoveFocus"};
 };
 
 class Player final : public Aero::DependencyObject {
@@ -117,12 +117,12 @@ class Player final : public Aero::DependencyObject {
         "Player")
 public:
     Player() noexcept : DependencyObject(StaticTypeId()) {}
-    inline static constexpr Members::Property<Aero::Base::String> NameProperty{"Name"};
-    inline static constexpr Members::Property<std::int32_t> LifeProperty{"Life"};
-    inline static constexpr Members::Property<std::int32_t> ManaProperty{"Mana"};
-    inline static constexpr Members::Property<std::int32_t> DpsProperty{"Dps"};
-    inline static constexpr Members::Property<std::int32_t> ArmorProperty{"Armor"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Aero::Base::Object>> SlotsProperty{"Slots"};
+    inline static constexpr DependencyProperty<Aero::Base::String> NameProperty{"Name"};
+    inline static constexpr DependencyProperty<std::int32_t> LifeProperty{"Life"};
+    inline static constexpr DependencyProperty<std::int32_t> ManaProperty{"Mana"};
+    inline static constexpr DependencyProperty<std::int32_t> DpsProperty{"Dps"};
+    inline static constexpr DependencyProperty<std::int32_t> ArmorProperty{"Armor"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Aero::Base::Object>> SlotsProperty{"Slots"};
 };
 
 class ViewModel final : public Aero::DependencyObject {
@@ -133,17 +133,17 @@ class ViewModel final : public Aero::DependencyObject {
         "ViewModel")
 public:
     ViewModel() noexcept : DependencyObject(StaticTypeId()) {}
-    inline static constexpr Members::Property<Aero::Base::String> PlatformProperty{"Platform"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Player>> PlayerProperty{"Player"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Aero::Base::Object>> InventoryProperty{"Inventory"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Aero::Base::Object>> ItemsProperty{"Items"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Aero::Input::ICommand>> StartDragItemProperty{"StartDragItem"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Aero::Input::ICommand>> EndDragItemProperty{"EndDragItem"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Aero::Input::ICommand>> DropItemProperty{"DropItem"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Aero::Input::ICommand>> SelectSlotProperty{"SelectSlot"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Slot>> DragSourceProperty{"DragSource"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Item>> DraggedItemProperty{"DraggedItem"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Slot>> SelectedSlotProperty{"SelectedSlot"};
+    inline static constexpr DependencyProperty<Aero::Base::String> PlatformProperty{"Platform"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Player>> PlayerProperty{"Player"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Aero::Base::Object>> InventoryProperty{"Inventory"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Aero::Base::Object>> ItemsProperty{"Items"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Aero::Input::ICommand>> StartDragItemProperty{"StartDragItem"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Aero::Input::ICommand>> EndDragItemProperty{"EndDragItem"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Aero::Input::ICommand>> DropItemProperty{"DropItem"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Aero::Input::ICommand>> SelectSlotProperty{"SelectSlot"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Slot>> DragSourceProperty{"DragSource"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Item>> DraggedItemProperty{"DraggedItem"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Slot>> SelectedSlotProperty{"SelectedSlot"};
 };
 
 class AnimatedNumber final : public Aero::Controls::UserControl {
@@ -154,9 +154,9 @@ class AnimatedNumber final : public Aero::Controls::UserControl {
         "AnimatedNumber")
 public:
     AnimatedNumber() noexcept : UserControl(StaticTypeId()) {}
-    inline static constexpr Members::Property<std::int32_t> NumberProperty{"Number"};
-    inline static constexpr Members::Property<std::int32_t> AnimatedNumberProperty{"AnimatedNumber"};
-    inline static constexpr Members::Property<Aero::Base::String> AnimationDurationProperty{"AnimationDuration"};
+    inline static constexpr DependencyProperty<std::int32_t> NumberProperty{"Number"};
+    inline static constexpr DependencyProperty<std::int32_t> AnimatedNumberProperty{"AnimatedNumber"};
+    inline static constexpr DependencyProperty<Aero::Base::String> AnimationDurationProperty{"AnimationDuration"};
 };
 
 class DragAdornerBehavior final : public Aero::Interactivity::Behavior {
@@ -170,9 +170,9 @@ public:
         : Behavior(StaticTypeId()),
           dragOverHandler_(this, &DragAdornerBehavior::OnDragOver),
           dropHandler_(this, &DragAdornerBehavior::OnDrop) {}
-    inline static constexpr Members::Property<Aero::Base::Point> DragStartOffsetProperty{"DragStartOffset"};
-    inline static constexpr Members::Property<double> DraggedItemXProperty{"DraggedItemX"};
-    inline static constexpr Members::Property<double> DraggedItemYProperty{"DraggedItemY"};
+    inline static constexpr DependencyProperty<Aero::Base::Point> DragStartOffsetProperty{"DragStartOffset"};
+    inline static constexpr DependencyProperty<double> DraggedItemXProperty{"DraggedItemX"};
+    inline static constexpr DependencyProperty<double> DraggedItemYProperty{"DraggedItemY"};
     inline static std::uint32_t attachedCount = 0U;
     inline static std::uint32_t detachedCount = 0U;
     static void ResetCounters() noexcept {
@@ -234,9 +234,9 @@ public:
           mouseUpHandler_(this, &DragItemBehavior::OnMouseUp),
           mouseMoveHandler_(this, &DragItemBehavior::OnMouseMove),
           completedHandler_(this, &DragItemBehavior::OnDragCompleted) {}
-    inline static constexpr Members::Property<Aero::Base::Point> DragStartOffsetProperty{"DragStartOffset"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Aero::Input::ICommand>> StartDragCommandProperty{"StartDragCommand"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Aero::Input::ICommand>> EndDragCommandProperty{"EndDragCommand"};
+    inline static constexpr DependencyProperty<Aero::Base::Point> DragStartOffsetProperty{"DragStartOffset"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Aero::Input::ICommand>> StartDragCommandProperty{"StartDragCommand"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Aero::Input::ICommand>> EndDragCommandProperty{"EndDragCommand"};
     inline static std::uint32_t attachedCount = 0U;
     inline static std::uint32_t detachedCount = 0U;
     static void ResetCounters() noexcept {
@@ -355,8 +355,8 @@ public:
           enterHandler_(this, &DropItemBehavior::OnDragEnter),
           leaveHandler_(this, &DropItemBehavior::OnDragLeave),
           dropHandler_(this, &DropItemBehavior::OnDrop) {}
-    inline static constexpr Members::Property<bool> IsDragOverProperty{"IsDragOver"};
-    inline static constexpr Members::Property<Aero::Base::Ref<Aero::Input::ICommand>> DropCommandProperty{"DropCommand"};
+    inline static constexpr DependencyProperty<bool> IsDragOverProperty{"IsDragOver"};
+    inline static constexpr DependencyProperty<Aero::Base::Ref<Aero::Input::ICommand>> DropCommandProperty{"DropCommand"};
     inline static std::uint32_t attachedCount = 0U;
     inline static std::uint32_t detachedCount = 0U;
     inline static std::uint32_t enterCount = 0U;

@@ -39,8 +39,8 @@ public:
     void SetX(double value) noexcept;
     void SetY(double value) noexcept;
 
-    inline static constexpr Members::Property<double> XProperty{"X"};
-    inline static constexpr Members::Property<double> YProperty{"Y"};
+    inline static constexpr DependencyProperty<double> XProperty{"X"};
+    inline static constexpr DependencyProperty<double> YProperty{"Y"};
 
     Base::Transform2D GetMatrix() const noexcept override;
 };
@@ -58,10 +58,10 @@ public:
     void SetCenterX(double value) noexcept;
     void SetCenterY(double value) noexcept;
 
-    inline static constexpr Members::Property<double> ScaleXProperty{"ScaleX"};
-    inline static constexpr Members::Property<double> ScaleYProperty{"ScaleY"};
-    inline static constexpr Members::Property<double> CenterXProperty{"CenterX"};
-    inline static constexpr Members::Property<double> CenterYProperty{"CenterY"};
+    inline static constexpr DependencyProperty<double> ScaleXProperty{"ScaleX"};
+    inline static constexpr DependencyProperty<double> ScaleYProperty{"ScaleY"};
+    inline static constexpr DependencyProperty<double> CenterXProperty{"CenterX"};
+    inline static constexpr DependencyProperty<double> CenterYProperty{"CenterY"};
 
     Base::Transform2D GetMatrix() const noexcept override;
 };
@@ -77,9 +77,9 @@ public:
     void SetCenterX(double value) noexcept;
     void SetCenterY(double value) noexcept;
 
-    inline static constexpr Members::Property<double> AngleProperty{"Angle"};
-    inline static constexpr Members::Property<double> CenterXProperty{"CenterX"};
-    inline static constexpr Members::Property<double> CenterYProperty{"CenterY"};
+    inline static constexpr DependencyProperty<double> AngleProperty{"Angle"};
+    inline static constexpr DependencyProperty<double> CenterXProperty{"CenterX"};
+    inline static constexpr DependencyProperty<double> CenterYProperty{"CenterY"};
 
     Base::Transform2D GetMatrix() const noexcept override;
 };
@@ -97,10 +97,10 @@ public:
     void SetCenterX(double value) noexcept;
     void SetCenterY(double value) noexcept;
 
-    inline static constexpr Members::Property<double> AngleXProperty{"AngleX"};
-    inline static constexpr Members::Property<double> AngleYProperty{"AngleY"};
-    inline static constexpr Members::Property<double> CenterXProperty{"CenterX"};
-    inline static constexpr Members::Property<double> CenterYProperty{"CenterY"};
+    inline static constexpr DependencyProperty<double> AngleXProperty{"AngleX"};
+    inline static constexpr DependencyProperty<double> AngleYProperty{"AngleY"};
+    inline static constexpr DependencyProperty<double> CenterXProperty{"CenterX"};
+    inline static constexpr DependencyProperty<double> CenterYProperty{"CenterY"};
 
     Base::Transform2D GetMatrix() const noexcept override;
 };
@@ -111,7 +111,7 @@ public:
     MatrixTransform() noexcept : Transform(StaticTypeId()) {}
     Base::Transform2D GetMatrixValue() const noexcept;
     void SetMatrixValue(Base::Transform2D value) noexcept;
-    inline static constexpr Members::Property<Base::Transform2D> MatrixProperty{"Matrix"};
+    inline static constexpr DependencyProperty<Base::Transform2D> MatrixProperty{"Matrix"};
     Base::Transform2D GetMatrix() const noexcept override {
         return GetMatrixValue();
     }
@@ -155,18 +155,18 @@ public:
 
     Base::Transform2D GetProjectedMatrix() const noexcept;
 
-    inline static constexpr Members::Property<double> CenterXProperty{"CenterX"};
-    inline static constexpr Members::Property<double> CenterYProperty{"CenterY"};
-    inline static constexpr Members::Property<double> CenterZProperty{"CenterZ"};
-    inline static constexpr Members::Property<double> RotationXProperty{"RotationX"};
-    inline static constexpr Members::Property<double> RotationYProperty{"RotationY"};
-    inline static constexpr Members::Property<double> RotationZProperty{"RotationZ"};
-    inline static constexpr Members::Property<double> ScaleXProperty{"ScaleX"};
-    inline static constexpr Members::Property<double> ScaleYProperty{"ScaleY"};
-    inline static constexpr Members::Property<double> ScaleZProperty{"ScaleZ"};
-    inline static constexpr Members::Property<double> TranslateXProperty{"TranslateX"};
-    inline static constexpr Members::Property<double> TranslateYProperty{"TranslateY"};
-    inline static constexpr Members::Property<double> TranslateZProperty{"TranslateZ"};
+    inline static constexpr DependencyProperty<double> CenterXProperty{"CenterX"};
+    inline static constexpr DependencyProperty<double> CenterYProperty{"CenterY"};
+    inline static constexpr DependencyProperty<double> CenterZProperty{"CenterZ"};
+    inline static constexpr DependencyProperty<double> RotationXProperty{"RotationX"};
+    inline static constexpr DependencyProperty<double> RotationYProperty{"RotationY"};
+    inline static constexpr DependencyProperty<double> RotationZProperty{"RotationZ"};
+    inline static constexpr DependencyProperty<double> ScaleXProperty{"ScaleX"};
+    inline static constexpr DependencyProperty<double> ScaleYProperty{"ScaleY"};
+    inline static constexpr DependencyProperty<double> ScaleZProperty{"ScaleZ"};
+    inline static constexpr DependencyProperty<double> TranslateXProperty{"TranslateX"};
+    inline static constexpr DependencyProperty<double> TranslateYProperty{"TranslateY"};
+    inline static constexpr DependencyProperty<double> TranslateZProperty{"TranslateZ"};
 };
 
 class AERO_API TransformGroup : public Transform {

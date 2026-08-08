@@ -418,16 +418,6 @@ public: \
     using ReadOnlyDependencyProperty = Aero::ReadOnlyPropertyRef<Self, TValue>; \
     template<class TArgs> \
     using RoutedEvent = Aero::RoutedEventRef<Self, TArgs>; \
-    struct Members { \
-        template<class TValue> \
-        using Property = Aero::DependencyPropertyRef<Self, TValue>; \
-        template<class TValue> \
-        using AttachedProperty = Aero::AttachedPropertyRef<Self, TValue>; \
-        template<class TValue> \
-        using ReadOnlyProperty = Aero::ReadOnlyPropertyRef<Self, TValue>; \
-        template<class TArgs> \
-        using RoutedEvent = Aero::RoutedEventRef<Self, TArgs>; \
-    }; \
     static constexpr Aero::Base::StringView \
     StaticMetadataNamespace() noexcept { \
         return Aero::Base::StringView(metadataNamespace); \

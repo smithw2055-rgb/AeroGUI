@@ -226,7 +226,7 @@ public:
         Base::StringView stateName,
         bool useTransitions = true) noexcept;
 
-    inline static constexpr Members::AttachedProperty<Base::Ref<VisualStateGroupCollection>> VisualStateGroupsProperty{"VisualStateGroups"};
+    inline static constexpr AttachedProperty<Base::Ref<VisualStateGroupCollection>> VisualStateGroupsProperty{"VisualStateGroups"};
 
     ~VisualStateManager() noexcept override;
     VisualStateManager(const VisualStateManager&) = delete;

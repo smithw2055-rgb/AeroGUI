@@ -150,38 +150,38 @@ public:
             Value::NullObject(Meta::TypeOf<Base::Object>());
     }
 
-    inline static constexpr Members::Property<Value> DataContextProperty{"DataContext"};
+    inline static constexpr DependencyProperty<Value> DataContextProperty{"DataContext"};
     // A common inherited owner lets Window, controls and text elements share
     // the same WPF-style FontFamily value through the visual tree.
-    inline static constexpr Members::Property<Base::Ref<Media::FontFamily>> FontFamilyProperty{"FontFamily"};
-    inline static constexpr Members::Property<FlowDirection> FlowDirectionProperty{"FlowDirection"};
+    inline static constexpr DependencyProperty<Base::Ref<Media::FontFamily>> FontFamilyProperty{"FontFamily"};
+    inline static constexpr DependencyProperty<FlowDirection> FlowDirectionProperty{"FlowDirection"};
     // Cursor names use the WPF built-in names (for example, "Hand"). The
     // platform input bridge consumes this inherited value when choosing the
     // native pointer cursor.
-    inline static constexpr Members::Property<Base::String> CursorProperty{"Cursor"};
+    inline static constexpr DependencyProperty<Base::String> CursorProperty{"Cursor"};
     // When true, this element's Cursor takes precedence over the cursor
     // chosen by the input hit target, matching FrameworkElement.ForceCursor.
-    inline static constexpr Members::Property<bool> ForceCursorProperty{"ForceCursor"};
-    inline static constexpr Members::Property<Base::Ref<Style>> StyleProperty{"Style"};
+    inline static constexpr DependencyProperty<bool> ForceCursorProperty{"ForceCursor"};
+    inline static constexpr DependencyProperty<Base::Ref<Style>> StyleProperty{"Style"};
     // WPF-compatible application payload. It deliberately has no layout or
     // rendering effect and accepts the markup value without coercion.
-    inline static constexpr Members::Property<Value> TagProperty{"Tag"};
-    inline static constexpr Members::Property<Value> ToolTipProperty{"ToolTip"};
-    inline static constexpr Members::Property<Input::InputScope> InputScopeProperty{"InputScope"};
-    inline static constexpr Members::Property<Length> WidthProperty{"Width"};
-    inline static constexpr Members::Property<Length> HeightProperty{"Height"};
-    inline static constexpr Members::ReadOnlyProperty<double> ActualWidthProperty{"ActualWidth"};
-    inline static constexpr Members::ReadOnlyProperty<double> ActualHeightProperty{"ActualHeight"};
-    inline static constexpr Members::Property<double> MinWidthProperty{"MinWidth"};
-    inline static constexpr Members::Property<double> MaxWidthProperty{"MaxWidth"};
-    inline static constexpr Members::Property<double> MinHeightProperty{"MinHeight"};
-    inline static constexpr Members::Property<double> MaxHeightProperty{"MaxHeight"};
-    inline static constexpr Members::Property<Thickness> MarginProperty{"Margin"};
-    inline static constexpr Members::Property<HorizontalAlignment> HorizontalAlignmentProperty{"HorizontalAlignment"};
-    inline static constexpr Members::Property<VerticalAlignment> VerticalAlignmentProperty{"VerticalAlignment"};
-    inline static constexpr Members::Property<bool> UseLayoutRoundingProperty{"UseLayoutRounding"};
-    inline static constexpr Members::Property<bool> SnapsToDevicePixelsProperty{"SnapsToDevicePixels"};
-    inline static constexpr Members::Property<Base::Ref<Media::Transform>> LayoutTransformProperty{"LayoutTransform"};
+    inline static constexpr DependencyProperty<Value> TagProperty{"Tag"};
+    inline static constexpr DependencyProperty<Value> ToolTipProperty{"ToolTip"};
+    inline static constexpr DependencyProperty<Input::InputScope> InputScopeProperty{"InputScope"};
+    inline static constexpr DependencyProperty<Length> WidthProperty{"Width"};
+    inline static constexpr DependencyProperty<Length> HeightProperty{"Height"};
+    inline static constexpr ReadOnlyDependencyProperty<double> ActualWidthProperty{"ActualWidth"};
+    inline static constexpr ReadOnlyDependencyProperty<double> ActualHeightProperty{"ActualHeight"};
+    inline static constexpr DependencyProperty<double> MinWidthProperty{"MinWidth"};
+    inline static constexpr DependencyProperty<double> MaxWidthProperty{"MaxWidth"};
+    inline static constexpr DependencyProperty<double> MinHeightProperty{"MinHeight"};
+    inline static constexpr DependencyProperty<double> MaxHeightProperty{"MaxHeight"};
+    inline static constexpr DependencyProperty<Thickness> MarginProperty{"Margin"};
+    inline static constexpr DependencyProperty<HorizontalAlignment> HorizontalAlignmentProperty{"HorizontalAlignment"};
+    inline static constexpr DependencyProperty<VerticalAlignment> VerticalAlignmentProperty{"VerticalAlignment"};
+    inline static constexpr DependencyProperty<bool> UseLayoutRoundingProperty{"UseLayoutRounding"};
+    inline static constexpr DependencyProperty<bool> SnapsToDevicePixelsProperty{"SnapsToDevicePixels"};
+    inline static constexpr DependencyProperty<Base::Ref<Media::Transform>> LayoutTransformProperty{"LayoutTransform"};
 
     void SetUseLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;

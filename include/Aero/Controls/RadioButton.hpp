@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Controls/Primitives.hpp>
+#include <Aero/Controls/ButtonBase.hpp>
 
 namespace Aero::Controls {
 
@@ -14,7 +14,7 @@ public:
     void SetGroupName(
         Base::StringView value) noexcept;
 
-    inline static constexpr Members::Property<Base::String> GroupNameProperty{"GroupName"};
+    inline static constexpr DependencyProperty<Base::String> GroupNameProperty{"GroupName"};
 
 protected:
     explicit RadioButton(TypeId runtimeType) noexcept

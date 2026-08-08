@@ -1784,7 +1784,7 @@ public:
         SetValue(ResourceKeyProperty, value);
     }
 
-    inline static constexpr Members::Property<Base::String>
+    inline static constexpr DependencyProperty<Base::String>
         ResourceKeyProperty{"ResourceKey"};
 };
 

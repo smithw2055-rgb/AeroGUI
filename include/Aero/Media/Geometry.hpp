@@ -28,7 +28,7 @@ public:
         return transform_;
     }
     void SetTransform(Base::Ref<Transform> value) noexcept;
-    inline static constexpr Members::Property<Base::Ref<Transform>> TransformProperty{"Transform"};
+    inline static constexpr DependencyProperty<Base::Ref<Transform>> TransformProperty{"Transform"};
 private:
     void OnTransformChanged(Freezable&) noexcept;
     Base::Ref<Transform> transform_;
@@ -88,7 +88,7 @@ public:
     void SetPoint(Point value) noexcept {
         SetValue(PointProperty, value);
     }
-    inline static constexpr Members::Property<Point> PointProperty{"Point"};
+    inline static constexpr DependencyProperty<Point> PointProperty{"Point"};
 };
 
 class AERO_API PathFigure : public Freezable {
@@ -116,8 +116,8 @@ public:
     Base::Span<const Base::Ref<PathSegment>> GetSegments() const noexcept {
         return segments_.AsSpan();
     }
-    inline static constexpr Members::Property<Point> StartPointProperty{"StartPoint"};
-    inline static constexpr Members::Property<bool> IsClosedProperty{"IsClosed"};
+    inline static constexpr DependencyProperty<Point> StartPointProperty{"StartPoint"};
+    inline static constexpr DependencyProperty<bool> IsClosedProperty{"IsClosed"};
 private:
     Base::Vector<Base::Ref<PathSegment>> segments_;
 };

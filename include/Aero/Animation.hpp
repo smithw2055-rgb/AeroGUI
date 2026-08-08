@@ -82,7 +82,7 @@ public:
     void SetEasingMode(EasingMode value) noexcept {
         SetValue(EasingModeProperty, value);
     }
-    inline static constexpr Members::Property<EasingMode> EasingModeProperty{"EasingMode"};
+    inline static constexpr DependencyProperty<EasingMode> EasingModeProperty{"EasingMode"};
 
 protected:
     enum class Kind : std::uint8_t {
@@ -144,7 +144,7 @@ public:
         return GetValueOr(ExponentProperty, 2.0);
     }
     void SetExponent(double value) noexcept;
-    inline static constexpr Members::Property<double> ExponentProperty{"Exponent"};
+    inline static constexpr DependencyProperty<double> ExponentProperty{"Exponent"};
 };
 
 class AERO_API PowerEase : public EasingFunctionBase {
@@ -158,7 +158,7 @@ public:
         return GetValueOr(PowerProperty, 2.0);
     }
     void SetPower(double value) noexcept;
-    inline static constexpr Members::Property<double> PowerProperty{"Power"};
+    inline static constexpr DependencyProperty<double> PowerProperty{"Power"};
 };
 
 class AERO_API BackEase : public EasingFunctionBase {
@@ -172,7 +172,7 @@ public:
         return GetValueOr(AmplitudeProperty, 1.0);
     }
     void SetAmplitude(double value) noexcept;
-    inline static constexpr Members::Property<double> AmplitudeProperty{"Amplitude"};
+    inline static constexpr DependencyProperty<double> AmplitudeProperty{"Amplitude"};
 };
 
 class AERO_API BounceEase : public EasingFunctionBase {
@@ -190,8 +190,8 @@ public:
     }
     void SetBounces(double value) noexcept;
     void SetBounciness(double value) noexcept;
-    inline static constexpr Members::Property<double> BouncesProperty{"Bounces"};
-    inline static constexpr Members::Property<double> BouncinessProperty{"Bounciness"};
+    inline static constexpr DependencyProperty<double> BouncesProperty{"Bounces"};
+    inline static constexpr DependencyProperty<double> BouncinessProperty{"Bounciness"};
 };
 
 class AERO_API ElasticEase : public EasingFunctionBase {
@@ -209,8 +209,8 @@ public:
     }
     void SetOscillations(double value) noexcept;
     void SetSpringiness(double value) noexcept;
-    inline static constexpr Members::Property<double> OscillationsProperty{"Oscillations"};
-    inline static constexpr Members::Property<double> SpringinessProperty{"Springiness"};
+    inline static constexpr DependencyProperty<double> OscillationsProperty{"Oscillations"};
+    inline static constexpr DependencyProperty<double> SpringinessProperty{"Springiness"};
 };
 
 class AERO_API DoubleAnimationBase : public Timeline {
@@ -459,7 +459,7 @@ public:
     }
     void SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
-    inline static constexpr Members::Property<Base::Ref<EasingFunctionBase>> EasingFunctionProperty{"EasingFunction"};
+    inline static constexpr DependencyProperty<Base::Ref<EasingFunctionBase>> EasingFunctionProperty{"EasingFunction"};
 };
 
 class AERO_API SplineDoubleKeyFrame : public DoubleKeyFrame {
@@ -876,8 +876,8 @@ public:
     Storyboard() noexcept : Storyboard(StaticTypeId()) {}
     ~Storyboard() override;
 
-    inline static constexpr Members::AttachedProperty<Base::String> TargetNameProperty{"TargetName"};
-    inline static constexpr Members::AttachedProperty<Base::String> TargetPropertyProperty{"TargetProperty"};
+    inline static constexpr AttachedProperty<Base::String> TargetNameProperty{"TargetName"};
+    inline static constexpr AttachedProperty<Base::String> TargetPropertyProperty{"TargetProperty"};
 
     Base::Result<void> AddTimeline(
         Base::Ref<Timeline> value) noexcept;

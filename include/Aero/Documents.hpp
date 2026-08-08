@@ -197,12 +197,12 @@ public:
         SetValue(TextDecorationsProperty, value);
     }
 
-    inline static constexpr Members::AttachedProperty<Base::Ref<Media::FontFamily>> FontFamilyProperty{"FontFamily"};
-    inline static constexpr Members::AttachedProperty<double> FontSizeProperty{"FontSize"};
-    inline static constexpr Members::AttachedProperty<FontWeight> FontWeightProperty{"FontWeight"};
-    inline static constexpr Members::AttachedProperty<FontStyle> FontStyleProperty{"FontStyle"};
-    inline static constexpr Members::AttachedProperty<Base::Ref<Media::Brush>> ForegroundProperty{"Foreground"};
-    inline static constexpr Members::AttachedProperty<Controls::TextDecorations> TextDecorationsProperty{"TextDecorations"};
+    inline static constexpr AttachedProperty<Base::Ref<Media::FontFamily>> FontFamilyProperty{"FontFamily"};
+    inline static constexpr AttachedProperty<double> FontSizeProperty{"FontSize"};
+    inline static constexpr AttachedProperty<FontWeight> FontWeightProperty{"FontWeight"};
+    inline static constexpr AttachedProperty<FontStyle> FontStyleProperty{"FontStyle"};
+    inline static constexpr AttachedProperty<Base::Ref<Media::Brush>> ForegroundProperty{"Foreground"};
+    inline static constexpr AttachedProperty<Controls::TextDecorations> TextDecorationsProperty{"TextDecorations"};
 
 protected:
     explicit TextElement(Meta::TypeId runtimeType) noexcept
@@ -236,7 +236,7 @@ public:
         SetText(value);
     }
 
-    inline static constexpr Members::Property<Base::String> TextProperty{"Text"};
+    inline static constexpr DependencyProperty<Base::String> TextProperty{"Text"};
 };
 
 class AERO_API Span : public Inline {
@@ -304,11 +304,11 @@ public:
     Hyperlink() noexcept : Span(StaticTypeId()) {}
     ~Hyperlink() override = default;
 
-    inline static constexpr Members::RoutedEvent<Aero::RoutedEventArgs> ClickEvent{"Click"};
+    inline static constexpr RoutedEvent<Aero::RoutedEventArgs> ClickEvent{"Click"};
     ContentElement::Event<Aero::RoutedEventArgs> Click() noexcept {
         return GetEvent(ClickEvent);
     }
-    inline static constexpr Members::RoutedEvent<RequestNavigateEventArgs> RequestNavigateEvent{"RequestNavigate"};
+    inline static constexpr RoutedEvent<RequestNavigateEventArgs> RequestNavigateEvent{"RequestNavigate"};
     ContentElement::Event<RequestNavigateEventArgs> RequestNavigate() noexcept {
         return GetEvent(RequestNavigateEvent);
     }
@@ -325,10 +325,10 @@ public:
     void SetCommandTarget(
         Base::Ref<Aero::UIElement> target) noexcept;
 
-    inline static constexpr Members::Property<Base::String> NavigateUriProperty{"NavigateUri"};
-    inline static constexpr Members::Property<Base::Ref<Aero::Input::ICommand>> CommandProperty{"Command"};
-    inline static constexpr Members::Property<Value> CommandParameterProperty{"CommandParameter"};
-    inline static constexpr Members::Property<Base::Ref<Aero::UIElement>> CommandTargetProperty{"CommandTarget"};
+    inline static constexpr DependencyProperty<Base::String> NavigateUriProperty{"NavigateUri"};
+    inline static constexpr DependencyProperty<Base::Ref<Aero::Input::ICommand>> CommandProperty{"Command"};
+    inline static constexpr DependencyProperty<Value> CommandParameterProperty{"CommandParameter"};
+    inline static constexpr DependencyProperty<Base::Ref<Aero::UIElement>> CommandTargetProperty{"CommandTarget"};
 };
 
 using NavigationHandler = Base::Delegate<bool(

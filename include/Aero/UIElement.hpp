@@ -64,114 +64,114 @@ public:
         return Event<TArgs>(*this, event.Handle());
     }
 
-    inline static constexpr Members::RoutedEvent<MouseEventArgs> PreviewMouseMoveEvent{"PreviewMouseMove"};
+    inline static constexpr RoutedEvent<MouseEventArgs> PreviewMouseMoveEvent{"PreviewMouseMove"};
     Event<MouseEventArgs> PreviewMouseMove() noexcept { return GetEvent(PreviewMouseMoveEvent); }
 
-    inline static constexpr Members::RoutedEvent<MouseEventArgs> MouseMoveEvent{"MouseMove"};
+    inline static constexpr RoutedEvent<MouseEventArgs> MouseMoveEvent{"MouseMove"};
     Event<MouseEventArgs> MouseMove() noexcept {
         return GetEvent(MouseMoveEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<MouseEventArgs> MouseEnterEvent{"MouseEnter"};
+    inline static constexpr RoutedEvent<MouseEventArgs> MouseEnterEvent{"MouseEnter"};
     Event<MouseEventArgs> MouseEnter() noexcept {
         return GetEvent(MouseEnterEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<MouseEventArgs> MouseLeaveEvent{"MouseLeave"};
+    inline static constexpr RoutedEvent<MouseEventArgs> MouseLeaveEvent{"MouseLeave"};
     Event<MouseEventArgs> MouseLeave() noexcept {
         return GetEvent(MouseLeaveEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> PreviewMouseDownEvent{"PreviewMouseDown"};
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> PreviewMouseDownEvent{"PreviewMouseDown"};
     Event<MouseButtonEventArgs> PreviewMouseDown() noexcept { return GetEvent(PreviewMouseDownEvent); }
 
-    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> MouseDownEvent{"MouseDown"};
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> MouseDownEvent{"MouseDown"};
     Event<MouseButtonEventArgs> MouseDown() noexcept {
         return GetEvent(MouseDownEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> PreviewMouseLeftButtonDownEvent{"PreviewMouseLeftButtonDown"};
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> PreviewMouseLeftButtonDownEvent{"PreviewMouseLeftButtonDown"};
     Event<MouseButtonEventArgs> PreviewMouseLeftButtonDown() noexcept { return GetEvent(PreviewMouseLeftButtonDownEvent); }
 
-    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> MouseLeftButtonDownEvent{"MouseLeftButtonDown"};
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> MouseLeftButtonDownEvent{"MouseLeftButtonDown"};
     Event<MouseButtonEventArgs> MouseLeftButtonDown() noexcept { return GetEvent(MouseLeftButtonDownEvent); }
 
-    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> PreviewMouseUpEvent{"PreviewMouseUp"};
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> PreviewMouseUpEvent{"PreviewMouseUp"};
     Event<MouseButtonEventArgs> PreviewMouseUp() noexcept { return GetEvent(PreviewMouseUpEvent); }
 
-    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> MouseUpEvent{"MouseUp"};
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> MouseUpEvent{"MouseUp"};
     Event<MouseButtonEventArgs> MouseUp() noexcept {
         return GetEvent(MouseUpEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<MouseWheelEventArgs> PreviewMouseWheelEvent{"PreviewMouseWheel"};
+    inline static constexpr RoutedEvent<MouseWheelEventArgs> PreviewMouseWheelEvent{"PreviewMouseWheel"};
     Event<MouseWheelEventArgs> PreviewMouseWheel() noexcept { return GetEvent(PreviewMouseWheelEvent); }
 
-    inline static constexpr Members::RoutedEvent<MouseWheelEventArgs> MouseWheelEvent{"MouseWheel"};
+    inline static constexpr RoutedEvent<MouseWheelEventArgs> MouseWheelEvent{"MouseWheel"};
     Event<MouseWheelEventArgs> MouseWheel() noexcept {
         return GetEvent(MouseWheelEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> PreviewMouseLeftButtonUpEvent{"PreviewMouseLeftButtonUp"};
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> PreviewMouseLeftButtonUpEvent{"PreviewMouseLeftButtonUp"};
     Event<MouseButtonEventArgs> PreviewMouseLeftButtonUp() noexcept {
         return GetEvent(PreviewMouseLeftButtonUpEvent);
     }
-    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> MouseLeftButtonUpEvent{"MouseLeftButtonUp"};
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> MouseLeftButtonUpEvent{"MouseLeftButtonUp"};
     Event<MouseButtonEventArgs> MouseLeftButtonUp() noexcept {
         return GetEvent(MouseLeftButtonUpEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<DragEventArgs> PreviewDragEnterEvent{"PreviewDragEnter"};
+    inline static constexpr RoutedEvent<DragEventArgs> PreviewDragEnterEvent{"PreviewDragEnter"};
     Event<DragEventArgs> PreviewDragEnter() noexcept { return GetEvent(PreviewDragEnterEvent); }
-    inline static constexpr Members::RoutedEvent<DragEventArgs> DragEnterEvent{"DragEnter"};
+    inline static constexpr RoutedEvent<DragEventArgs> DragEnterEvent{"DragEnter"};
     Event<DragEventArgs> DragEnter() noexcept { return GetEvent(DragEnterEvent); }
-    inline static constexpr Members::RoutedEvent<DragEventArgs> PreviewDragLeaveEvent{"PreviewDragLeave"};
+    inline static constexpr RoutedEvent<DragEventArgs> PreviewDragLeaveEvent{"PreviewDragLeave"};
     Event<DragEventArgs> PreviewDragLeave() noexcept { return GetEvent(PreviewDragLeaveEvent); }
-    inline static constexpr Members::RoutedEvent<DragEventArgs> DragLeaveEvent{"DragLeave"};
+    inline static constexpr RoutedEvent<DragEventArgs> DragLeaveEvent{"DragLeave"};
     Event<DragEventArgs> DragLeave() noexcept { return GetEvent(DragLeaveEvent); }
-    inline static constexpr Members::RoutedEvent<DragEventArgs> PreviewDragOverEvent{"PreviewDragOver"};
+    inline static constexpr RoutedEvent<DragEventArgs> PreviewDragOverEvent{"PreviewDragOver"};
     Event<DragEventArgs> PreviewDragOver() noexcept { return GetEvent(PreviewDragOverEvent); }
-    inline static constexpr Members::RoutedEvent<DragEventArgs> DragOverEvent{"DragOver"};
+    inline static constexpr RoutedEvent<DragEventArgs> DragOverEvent{"DragOver"};
     Event<DragEventArgs> DragOver() noexcept { return GetEvent(DragOverEvent); }
-    inline static constexpr Members::RoutedEvent<DragEventArgs> PreviewDropEvent{"PreviewDrop"};
+    inline static constexpr RoutedEvent<DragEventArgs> PreviewDropEvent{"PreviewDrop"};
     Event<DragEventArgs> PreviewDrop() noexcept { return GetEvent(PreviewDropEvent); }
-    inline static constexpr Members::RoutedEvent<DragEventArgs> DropEvent{"Drop"};
+    inline static constexpr RoutedEvent<DragEventArgs> DropEvent{"Drop"};
     Event<DragEventArgs> Drop() noexcept { return GetEvent(DropEvent); }
-    inline static constexpr Members::RoutedEvent<GiveFeedbackEventArgs> GiveFeedbackEvent{"GiveFeedback"};
+    inline static constexpr RoutedEvent<GiveFeedbackEventArgs> GiveFeedbackEvent{"GiveFeedback"};
     Event<GiveFeedbackEventArgs> GiveFeedback() noexcept { return GetEvent(GiveFeedbackEvent); }
-    inline static constexpr Members::RoutedEvent<DragCompletedEventArgs> DragCompletedEvent{"DragCompleted"};
+    inline static constexpr RoutedEvent<DragCompletedEventArgs> DragCompletedEvent{"DragCompleted"};
     Event<DragCompletedEventArgs> DragCompleted() noexcept { return GetEvent(DragCompletedEvent); }
 
-    inline static constexpr Members::RoutedEvent<KeyboardFocusChangedEventArgs> GotKeyboardFocusEvent{"GotKeyboardFocus"};
+    inline static constexpr RoutedEvent<KeyboardFocusChangedEventArgs> GotKeyboardFocusEvent{"GotKeyboardFocus"};
     Event<KeyboardFocusChangedEventArgs> GotKeyboardFocus() noexcept {
         return GetEvent(GotKeyboardFocusEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<KeyboardFocusChangedEventArgs> LostKeyboardFocusEvent{"LostKeyboardFocus"};
+    inline static constexpr RoutedEvent<KeyboardFocusChangedEventArgs> LostKeyboardFocusEvent{"LostKeyboardFocus"};
     Event<KeyboardFocusChangedEventArgs> LostKeyboardFocus() noexcept {
         return GetEvent(LostKeyboardFocusEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<KeyEventArgs> PreviewKeyDownEvent{"PreviewKeyDown"};
+    inline static constexpr RoutedEvent<KeyEventArgs> PreviewKeyDownEvent{"PreviewKeyDown"};
     Event<KeyEventArgs> PreviewKeyDown() noexcept { return GetEvent(PreviewKeyDownEvent); }
 
-    inline static constexpr Members::RoutedEvent<KeyEventArgs> KeyDownEvent{"KeyDown"};
+    inline static constexpr RoutedEvent<KeyEventArgs> KeyDownEvent{"KeyDown"};
     Event<KeyEventArgs> KeyDown() noexcept {
         return GetEvent(KeyDownEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<KeyEventArgs> PreviewKeyUpEvent{"PreviewKeyUp"};
+    inline static constexpr RoutedEvent<KeyEventArgs> PreviewKeyUpEvent{"PreviewKeyUp"};
     Event<KeyEventArgs> PreviewKeyUp() noexcept { return GetEvent(PreviewKeyUpEvent); }
 
-    inline static constexpr Members::RoutedEvent<KeyEventArgs> KeyUpEvent{"KeyUp"};
+    inline static constexpr RoutedEvent<KeyEventArgs> KeyUpEvent{"KeyUp"};
     Event<KeyEventArgs> KeyUp() noexcept {
         return GetEvent(KeyUpEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<TextCompositionEventArgs> PreviewTextInputEvent{"PreviewTextInput"};
+    inline static constexpr RoutedEvent<TextCompositionEventArgs> PreviewTextInputEvent{"PreviewTextInput"};
     Event<TextCompositionEventArgs> PreviewTextInput() noexcept { return GetEvent(PreviewTextInputEvent); }
 
-    inline static constexpr Members::RoutedEvent<TextCompositionEventArgs> TextInputEvent{"TextInput"};
+    inline static constexpr RoutedEvent<TextCompositionEventArgs> TextInputEvent{"TextInput"};
     Event<TextCompositionEventArgs> TextInput() noexcept {
         return GetEvent(TextInputEvent);
     }
@@ -256,25 +256,25 @@ public:
     std::uint64_t GetLayoutRevision() const noexcept { return layoutRevision_; }
 
     // Dependency properties
-    inline static constexpr Members::Property<bool> ClipToBoundsProperty{"ClipToBounds"};
-    inline static constexpr Members::Property<BlendMode> BlendModeProperty{"BlendMode"};
-    inline static constexpr Members::Property<Base::Ref<Media::Effect>> EffectProperty{"Effect"};
-    inline static constexpr Members::Property<Base::Ref<Media::Brush>> OpacityMaskProperty{"OpacityMask"};
-    inline static constexpr Members::Property<bool> IsHitTestVisibleProperty{"IsHitTestVisible"};
-    inline static constexpr Members::Property<Visibility> VisibilityProperty{"Visibility"};
-    inline static constexpr Members::Property<bool> IsEnabledProperty{"IsEnabled"};
-    inline static constexpr Members::Property<bool> AllowDropProperty{"AllowDrop"};
-    inline static constexpr Members::ReadOnlyProperty<bool> IsMouseOverProperty{"IsMouseOver"};
-    inline static constexpr Members::ReadOnlyProperty<bool> IsPressedProperty{"IsPressed"};
-    inline static constexpr Members::ReadOnlyProperty<bool> IsKeyboardFocusedProperty{"IsKeyboardFocused"};
-    inline static constexpr Members::ReadOnlyProperty<bool> IsKeyboardFocusWithinProperty{"IsKeyboardFocusWithin"};
-    inline static constexpr Members::Property<bool> FocusableProperty{"Focusable"};
-    inline static constexpr Members::Property<bool> IsTabStopProperty{"IsTabStop"};
-    inline static constexpr Members::Property<std::uint32_t> TabIndexProperty{"TabIndex"};
-    inline static constexpr Members::Property<bool> IsFocusScopeProperty{"IsFocusScope"};
-    inline static constexpr Members::Property<double> OpacityProperty{"Opacity"};
-    inline static constexpr Members::Property<Base::Ref<Media::Transform>> RenderTransformProperty{"RenderTransform"};
-    inline static constexpr Members::Property<Point> RenderTransformOriginProperty{"RenderTransformOrigin"};
+    inline static constexpr DependencyProperty<bool> ClipToBoundsProperty{"ClipToBounds"};
+    inline static constexpr DependencyProperty<BlendMode> BlendModeProperty{"BlendMode"};
+    inline static constexpr DependencyProperty<Base::Ref<Media::Effect>> EffectProperty{"Effect"};
+    inline static constexpr DependencyProperty<Base::Ref<Media::Brush>> OpacityMaskProperty{"OpacityMask"};
+    inline static constexpr DependencyProperty<bool> IsHitTestVisibleProperty{"IsHitTestVisible"};
+    inline static constexpr DependencyProperty<Visibility> VisibilityProperty{"Visibility"};
+    inline static constexpr DependencyProperty<bool> IsEnabledProperty{"IsEnabled"};
+    inline static constexpr DependencyProperty<bool> AllowDropProperty{"AllowDrop"};
+    inline static constexpr ReadOnlyDependencyProperty<bool> IsMouseOverProperty{"IsMouseOver"};
+    inline static constexpr ReadOnlyDependencyProperty<bool> IsPressedProperty{"IsPressed"};
+    inline static constexpr ReadOnlyDependencyProperty<bool> IsKeyboardFocusedProperty{"IsKeyboardFocused"};
+    inline static constexpr ReadOnlyDependencyProperty<bool> IsKeyboardFocusWithinProperty{"IsKeyboardFocusWithin"};
+    inline static constexpr DependencyProperty<bool> FocusableProperty{"Focusable"};
+    inline static constexpr DependencyProperty<bool> IsTabStopProperty{"IsTabStop"};
+    inline static constexpr DependencyProperty<std::uint32_t> TabIndexProperty{"TabIndex"};
+    inline static constexpr DependencyProperty<bool> IsFocusScopeProperty{"IsFocusScope"};
+    inline static constexpr DependencyProperty<double> OpacityProperty{"Opacity"};
+    inline static constexpr DependencyProperty<Base::Ref<Media::Transform>> RenderTransformProperty{"RenderTransform"};
+    inline static constexpr DependencyProperty<Point> RenderTransformOriginProperty{"RenderTransformOrigin"};
 
     // Property operations
     void SetClipToBounds(bool value) noexcept;

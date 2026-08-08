@@ -29,10 +29,10 @@ public:
     void SetStrokeThickness(double value) noexcept;
     void SetStretch(Stretch value) noexcept;
 
-    inline static constexpr Members::Property<Base::Ref<Brush>> FillProperty{"Fill"};
-    inline static constexpr Members::Property<Base::Ref<Brush>> StrokeProperty{"Stroke"};
-    inline static constexpr Members::Property<double> StrokeThicknessProperty{"StrokeThickness"};
-    inline static constexpr Members::Property<Stretch> StretchProperty{"Stretch"};
+    inline static constexpr DependencyProperty<Base::Ref<Brush>> FillProperty{"Fill"};
+    inline static constexpr DependencyProperty<Base::Ref<Brush>> StrokeProperty{"Stroke"};
+    inline static constexpr DependencyProperty<double> StrokeThicknessProperty{"StrokeThickness"};
+    inline static constexpr DependencyProperty<Stretch> StretchProperty{"Stretch"};
 
 protected:
     explicit Shape(TypeId runtimeType) noexcept
@@ -51,8 +51,8 @@ public:
     void SetRadiusX(double value) noexcept;
     void SetRadiusY(double value) noexcept;
 
-    inline static constexpr Members::Property<double> RadiusXProperty{"RadiusX"};
-    inline static constexpr Members::Property<double> RadiusYProperty{"RadiusY"};
+    inline static constexpr DependencyProperty<double> RadiusXProperty{"RadiusX"};
+    inline static constexpr DependencyProperty<double> RadiusYProperty{"RadiusY"};
 
 protected:
     Size MeasureOverride(
@@ -105,16 +105,16 @@ public:
     void SetTrimEnd(double value) noexcept;
     void SetStretch(Stretch value) noexcept;
 
-    inline static constexpr Members::Property<Base::Ref<Geometry>> DataProperty{"Data"};
-    inline static constexpr Members::Property<Base::Ref<Brush>> FillProperty{"Fill"};
-    inline static constexpr Members::Property<Base::Ref<Brush>> StrokeProperty{"Stroke"};
-    inline static constexpr Members::Property<double> StrokeThicknessProperty{"StrokeThickness"};
-    inline static constexpr Members::Property<PenLineJoin> StrokeLineJoinProperty{"StrokeLineJoin"};
-    inline static constexpr Members::Property<PenLineCap> StrokeStartLineCapProperty{"StrokeStartLineCap"};
-    inline static constexpr Members::Property<PenLineCap> StrokeEndLineCapProperty{"StrokeEndLineCap"};
-    inline static constexpr Members::AttachedProperty<double> TrimStartProperty{"TrimStart"};
-    inline static constexpr Members::AttachedProperty<double> TrimEndProperty{"TrimEnd"};
-    inline static constexpr Members::Property<Stretch> StretchProperty{"Stretch"};
+    inline static constexpr DependencyProperty<Base::Ref<Geometry>> DataProperty{"Data"};
+    inline static constexpr DependencyProperty<Base::Ref<Brush>> FillProperty{"Fill"};
+    inline static constexpr DependencyProperty<Base::Ref<Brush>> StrokeProperty{"Stroke"};
+    inline static constexpr DependencyProperty<double> StrokeThicknessProperty{"StrokeThickness"};
+    inline static constexpr DependencyProperty<PenLineJoin> StrokeLineJoinProperty{"StrokeLineJoin"};
+    inline static constexpr DependencyProperty<PenLineCap> StrokeStartLineCapProperty{"StrokeStartLineCap"};
+    inline static constexpr DependencyProperty<PenLineCap> StrokeEndLineCapProperty{"StrokeEndLineCap"};
+    inline static constexpr AttachedProperty<double> TrimStartProperty{"TrimStart"};
+    inline static constexpr AttachedProperty<double> TrimEndProperty{"TrimEnd"};
+    inline static constexpr DependencyProperty<Stretch> StretchProperty{"Stretch"};
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;

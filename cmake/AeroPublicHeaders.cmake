@@ -123,4 +123,24 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/UIElement.hpp
     include/Aero/Visual.hpp
     include/Aero/Window.hpp
+    include/Aero/TextFormatting.hpp
+    include/Aero/DataTemplate.hpp
+    include/Aero/Controls/TextFormatting.hpp
+    include/Aero/Controls/Decorator.hpp
+    include/Aero/Controls/StackPanel.hpp
+    include/Aero/Controls/Border.hpp
+    include/Aero/Controls/ContentPresenter.hpp
+    include/Aero/Controls/ButtonBase.hpp
+    include/Aero/Controls/RangeBase.hpp
+    include/Aero/Controls/Popup.hpp
+    include/Aero/Controls/ItemsControl.hpp
+    include/Aero/Controls/HeaderedContentControl.hpp
+    include/Aero/Controls/VirtualizingStackPanel.hpp
+    include/Aero/Controls/Menu.hpp
+    include/Aero/Controls/ToolBar.hpp
+    include/Aero/Controls/StatusBar.hpp
+    include/Aero/Controls/ToolTip.hpp
+    include/Aero/Controls/Image.hpp
+    include/Aero/Controls/TextBoxBase.hpp
+    include/Aero/Controls/PasswordBox.hpp
 )

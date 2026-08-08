@@ -344,11 +344,11 @@ public:
         return StaticTypeId();
     }
 
-    inline static constexpr Members::AttachedProperty<KeyboardNavigationMode> DirectionalNavigationProperty{"DirectionalNavigation"};
+    inline static constexpr AttachedProperty<KeyboardNavigationMode> DirectionalNavigationProperty{"DirectionalNavigation"};
 
-    inline static constexpr Members::AttachedProperty<KeyboardNavigationMode> TabNavigationProperty{"TabNavigation"};
-    inline static constexpr Members::AttachedProperty<KeyboardNavigationMode> ControlTabNavigationProperty{"ControlTabNavigation"};
-    inline static constexpr Members::AttachedProperty<std::uint32_t> TabIndexProperty{"TabIndex"};
+    inline static constexpr AttachedProperty<KeyboardNavigationMode> TabNavigationProperty{"TabNavigation"};
+    inline static constexpr AttachedProperty<KeyboardNavigationMode> ControlTabNavigationProperty{"ControlTabNavigation"};
+    inline static constexpr AttachedProperty<std::uint32_t> TabIndexProperty{"TabIndex"};
 };
 
 // Focus scopes are authored as attached properties in WPF.
@@ -359,8 +359,8 @@ public:
         return StaticTypeId();
     }
 
-    inline static constexpr Members::AttachedProperty<bool> IsFocusScopeProperty{"IsFocusScope"};
-    inline static constexpr Members::AttachedProperty<Base::Ref<Base::Object>> FocusedElementProperty{"FocusedElement"};
+    inline static constexpr AttachedProperty<bool> IsFocusScopeProperty{"IsFocusScope"};
+    inline static constexpr AttachedProperty<Base::Ref<Base::Object>> FocusedElementProperty{"FocusedElement"};
 };
 
 

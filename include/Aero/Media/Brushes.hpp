@@ -66,9 +66,9 @@ public:
         SetValue(RelativeTransformProperty, std::move(value));
     }
 
-    inline static constexpr Members::Property<double> OpacityProperty{"Opacity"};
-    inline static constexpr Members::Property<Base::Ref<Base::Object>> ShaderProperty{"Shader"};
-    inline static constexpr Members::Property<Base::Ref<Transform>> RelativeTransformProperty{"RelativeTransform"};
+    inline static constexpr DependencyProperty<double> OpacityProperty{"Opacity"};
+    inline static constexpr DependencyProperty<Base::Ref<Base::Object>> ShaderProperty{"Shader"};
+    inline static constexpr DependencyProperty<Base::Ref<Transform>> RelativeTransformProperty{"RelativeTransform"};
 
 protected:
     explicit Brush(TypeId runtimeType) noexcept
@@ -97,7 +97,7 @@ public:
     Color GetColor() const noexcept;
     void SetColor(Color value) noexcept;
 
-    inline static constexpr Members::Property<Color> ColorProperty{"Color"};
+    inline static constexpr DependencyProperty<Color> ColorProperty{"Color"};
 
 private:
     Color initialColor_{};
@@ -115,8 +115,8 @@ public:
     void SetOffset(double value) noexcept;
     void SetColor(Color value) noexcept;
 
-    inline static constexpr Members::Property<double> OffsetProperty{"Offset"};
-    inline static constexpr Members::Property<Color> ColorProperty{"Color"};
+    inline static constexpr DependencyProperty<double> OffsetProperty{"Offset"};
+    inline static constexpr DependencyProperty<Color> ColorProperty{"Color"};
 
 };
 
@@ -186,7 +186,7 @@ public:
     void SetColor(Color value) noexcept {
         SetValue(ColorProperty, value);
     }
-    inline static constexpr Members::Property<Color> ColorProperty{"Color"};
+    inline static constexpr DependencyProperty<Color> ColorProperty{"Color"};
 };
 
 class AERO_API ConicGradientShader : public BrushShader {
@@ -218,7 +218,7 @@ public:
     void SetTime(double value) noexcept {
         SetValue(TimeProperty, value);
     }
-    inline static constexpr Members::Property<double> TimeProperty{"Time"};
+    inline static constexpr DependencyProperty<double> TimeProperty{"Time"};
 };
 
 class AERO_API GradientBrush : public Brush {
@@ -237,8 +237,8 @@ public:
     GradientSpreadMethod GetSpreadMethod() const noexcept;
     void SetSpreadMethod(GradientSpreadMethod value) noexcept;
 
-    inline static constexpr Members::Property<BrushMappingMode> MappingModeProperty{"MappingMode"};
-    inline static constexpr Members::Property<GradientSpreadMethod> SpreadMethodProperty{"SpreadMethod"};
+    inline static constexpr DependencyProperty<BrushMappingMode> MappingModeProperty{"MappingMode"};
+    inline static constexpr DependencyProperty<GradientSpreadMethod> SpreadMethodProperty{"SpreadMethod"};
 
 protected:
     explicit GradientBrush(TypeId runtimeType) noexcept
@@ -266,8 +266,8 @@ public:
     void SetStartPoint(Point value) noexcept;
     void SetEndPoint(Point value) noexcept;
 
-    inline static constexpr Members::Property<Point> StartPointProperty{"StartPoint"};
-    inline static constexpr Members::Property<Point> EndPointProperty{"EndPoint"};
+    inline static constexpr DependencyProperty<Point> StartPointProperty{"StartPoint"};
+    inline static constexpr DependencyProperty<Point> EndPointProperty{"EndPoint"};
 };
 
 class AERO_API RadialGradientBrush
@@ -288,10 +288,10 @@ public:
     void SetRadiusX(double value) noexcept;
     void SetRadiusY(double value) noexcept;
 
-    inline static constexpr Members::Property<Point> CenterProperty{"Center"};
-    inline static constexpr Members::Property<Point> GradientOriginProperty{"GradientOrigin"};
-    inline static constexpr Members::Property<double> RadiusXProperty{"RadiusX"};
-    inline static constexpr Members::Property<double> RadiusYProperty{"RadiusY"};
+    inline static constexpr DependencyProperty<Point> CenterProperty{"Center"};
+    inline static constexpr DependencyProperty<Point> GradientOriginProperty{"GradientOrigin"};
+    inline static constexpr DependencyProperty<double> RadiusXProperty{"RadiusX"};
+    inline static constexpr DependencyProperty<double> RadiusYProperty{"RadiusY"};
 };
 
 class AERO_API ImageBrush : public Brush {
@@ -329,15 +329,15 @@ public:
     void SetAlignmentY(
         VerticalAlignment value) noexcept;
 
-    inline static constexpr Members::Property<Base::Ref<ImageSource>> ImageSourceProperty{"ImageSource"};
-    inline static constexpr Members::Property<Stretch> StretchProperty{"Stretch"};
-    inline static constexpr Members::Property<Rect> ViewboxProperty{"Viewbox"};
-    inline static constexpr Members::Property<Rect> ViewportProperty{"Viewport"};
-    inline static constexpr Members::Property<BrushMappingMode> ViewboxUnitsProperty{"ViewboxUnits"};
-    inline static constexpr Members::Property<BrushMappingMode> ViewportUnitsProperty{"ViewportUnits"};
-    inline static constexpr Members::Property<TileMode> TileModeProperty{"TileMode"};
-    inline static constexpr Members::Property<HorizontalAlignment> AlignmentXProperty{"AlignmentX"};
-    inline static constexpr Members::Property<VerticalAlignment> AlignmentYProperty{"AlignmentY"};
+    inline static constexpr DependencyProperty<Base::Ref<ImageSource>> ImageSourceProperty{"ImageSource"};
+    inline static constexpr DependencyProperty<Stretch> StretchProperty{"Stretch"};
+    inline static constexpr DependencyProperty<Rect> ViewboxProperty{"Viewbox"};
+    inline static constexpr DependencyProperty<Rect> ViewportProperty{"Viewport"};
+    inline static constexpr DependencyProperty<BrushMappingMode> ViewboxUnitsProperty{"ViewboxUnits"};
+    inline static constexpr DependencyProperty<BrushMappingMode> ViewportUnitsProperty{"ViewportUnits"};
+    inline static constexpr DependencyProperty<TileMode> TileModeProperty{"TileMode"};
+    inline static constexpr DependencyProperty<HorizontalAlignment> AlignmentXProperty{"AlignmentX"};
+    inline static constexpr DependencyProperty<VerticalAlignment> AlignmentYProperty{"AlignmentY"};
 
 private:
     friend struct ::Aero::Media::Brush::Impl;
@@ -386,10 +386,10 @@ public:
         SetValue(AlignmentYProperty, value);
     }
 
-    inline static constexpr Members::Property<Base::Ref<Base::Object>> VisualProperty{"Visual"};
-    inline static constexpr Members::Property<Stretch> StretchProperty{"Stretch"};
-    inline static constexpr Members::Property<Rect> ViewboxProperty{"Viewbox"};
-    inline static constexpr Members::Property<VerticalAlignment> AlignmentYProperty{"AlignmentY"};
+    inline static constexpr DependencyProperty<Base::Ref<Base::Object>> VisualProperty{"Visual"};
+    inline static constexpr DependencyProperty<Stretch> StretchProperty{"Stretch"};
+    inline static constexpr DependencyProperty<Rect> ViewboxProperty{"Viewbox"};
+    inline static constexpr DependencyProperty<VerticalAlignment> AlignmentYProperty{"AlignmentY"};
 };
 
 AERO_API Base::Result<Base::Ref<Brush>>
