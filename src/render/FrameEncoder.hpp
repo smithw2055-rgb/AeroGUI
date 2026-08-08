@@ -97,7 +97,7 @@ public:
         const ::Aero::Render::Detail::RenderFrame& plan,
         const FrameTarget& target) noexcept;
     void ReleaseRenderer(const void* rendererToken) noexcept;
-    RendererStatistics LastStatistics() const noexcept;
+    CommandEncoderStatistics LastStatistics() const noexcept;
     void SetBatchingEnabled(bool enabled) noexcept;
     bool IsBatchingEnabled() const noexcept;
 

@@ -1,5 +1,5 @@
 #include "DisplayList.hpp"
-#include "render/RenderPrivate.hpp"
+#include "DisplayList.hpp"
 #include "RenderTree.hpp"
 #include "../media/MediaPrivate.hpp"
 

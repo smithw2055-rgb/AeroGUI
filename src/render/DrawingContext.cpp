@@ -1,6 +1,6 @@
 #include <Aero/DrawingContext.hpp>
 
-#include "render/RenderPrivate.hpp"
+#include "DisplayList.hpp"
 #include "../media/BrushRendering.hpp"
 #include "../media/MediaPrivate.hpp"
 

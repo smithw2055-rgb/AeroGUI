@@ -41,11 +41,11 @@ target_compile_definitions(AeroGui PRIVATE
     AERO_HAS_WGL_SURFACE=$<BOOL:${AERO_ENABLE_WGL_SURFACE}>
     AERO_HAS_GLX_SURFACE=$<BOOL:${AERO_ENABLE_GLX_SURFACE}>)
 
-add_library(AeroRuntimeHeaderConsumer OBJECT
-    tools/sdk-consumers/GuiRuntimeConsumer.cpp)
+add_library(AeroGuiCompositionHeaderConsumer OBJECT
+    tools/sdk-consumers/GuiCompositionConsumer.cpp)
 target_link_libraries(
-    AeroRuntimeHeaderConsumer PRIVATE Aero::Gui)
-aero_apply_compiler_options(AeroRuntimeHeaderConsumer)
+    AeroGuiCompositionHeaderConsumer PRIVATE Aero::Gui)
+aero_apply_compiler_options(AeroGuiCompositionHeaderConsumer)
 
 add_library(AeroProvidersHeaderConsumer OBJECT
     tools/sdk-consumers/ProvidersConsumer.cpp)

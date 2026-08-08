@@ -5,7 +5,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#if defined(AERO_INTERNAL_CONFORMANCE) || defined(AERO_INTERNAL_GUI_RUNTIME)
+#if defined(AERO_INTERNAL_CONFORMANCE) || defined(AERO_INTERNAL_GUI_COMPOSITION)
 #include <Aero/Diagnostics/Rendering.hpp>
 #endif
 
@@ -65,8 +65,8 @@ public:
         return Diagnostics::GetRenderDeviceStatistics(*this);
     }
 #endif
-#if defined(AERO_INTERNAL_GUI_RUNTIME)
-    // View runtime keeps its frame diagnostics without placing statistics back
+#if defined(AERO_INTERNAL_GUI_COMPOSITION)
+    // View composition keeps its frame diagnostics without placing statistics back
     // on the installed RenderDevice authoring surface.
     Diagnostics::RenderFrameStatistics LastFrameStatistics() const noexcept {
         return Diagnostics::GetLastRenderFrameStatistics(*this);

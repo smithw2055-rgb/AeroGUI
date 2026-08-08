@@ -1,6 +1,5 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Panels.hpp>
-#include "../render/RenderPrivate.hpp"
 #include <Aero/Controls/Common.hpp>
 
 #include <algorithm>

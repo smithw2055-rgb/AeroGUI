@@ -18,6 +18,8 @@ Aero::App (optional desktop lifetime)
 `Aero::Meta` is a Gui authoring facade, not a separate runtime product.
 `Aero::Integration` is retired. Embedded backend factories live under
 `Aero::Render`; default desktop hosting belongs to `Aero::App`.
+`Aero::Render` is a specialist C++ namespace shipped by the single embeddable
+`Aero::Gui` product, not another CMake/ABI product layer.
 
 ## Design rules
 
@@ -99,7 +101,14 @@ adapters.
 `Render::Renderer` is the one semantic backend renderer. `FrameEncoder.cpp`
 implements the source-private `CommandEncoder`; it records command lists but has
 no peer renderer lifetime. Its target value is `FrameTarget`, avoiding collision
-with the installed `Aero::RenderTarget` object.
+with the installed `Aero::RenderTarget` object. `Graphics::Device` is only the
+source-private resource/command core used by these backends; its backend and
+shader vocabulary is limited to implementations compiled by this tree.
+
+For OpenGL desktop hosting, WGL/GLX context creation remains physically coupled
+to the device, but presentation state (lost flag and frame serial) belongs to the
+`RenderTarget` implementation. The target is therefore no longer a lifecycle-free
+proxy around the device.
 
 Rendering statistics are opt-in through `<Aero/Diagnostics/Rendering.hpp>` and
 are not methods on the normal RenderDevice authoring surface.
@@ -132,10 +141,14 @@ state rather than acting as a loader gateway.
 
 ## CMake ownership
 
-Installed targets are product targets only. Gui, Controls, Markup, runtime and
-rendering implementation sources compile directly into `AeroGui`. Only narrow
-components that are genuinely reused by offline tools (text, module/schema and
-App metadata) remain Object Libraries; they are not SDK targets.
+Installed targets are product targets only. Gui, Controls, Markup, View
+composition and rendering implementation sources compile directly into
+`AeroGui`. Only narrow components that are genuinely reused by offline tools
+(text, module/schema and App metadata) remain Object Libraries; they are not SDK
+targets. A separate `AeroRender` binary is intentionally not created because the
+private renderer consumes the UI-generated immutable `RenderFrame`; adding a
+thin product solely around that boundary would increase SDK layering without an
+independent lifetime or ABI.
 
 The permanent build contract is limited to final SDK/dependency invariants:
 

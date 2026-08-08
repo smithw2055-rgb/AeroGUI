@@ -16,12 +16,9 @@
 namespace Aero::Render::Detail {
 using namespace Aero::Graphics;
 
-// Keep this translation unit mechanically stable while the source-private
-// class is named for what it actually does. No Renderer alias escapes this TU.
-using Renderer = CommandEncoder;
-using RendererShaderSet = CommandEncoderShaderSet;
-using RendererStatistics = CommandEncoderStatistics;
-using RenderTarget = FrameTarget;
+// The frame encoder uses its canonical source-private names directly.
+// Graphics::CommandEncoder is explicitly qualified where command lists
+// are recorded.
 
 namespace {
 
@@ -300,7 +297,7 @@ struct NodeState  {
 
 template <typename Constants>
 Base::Result<void> AppendDraw(
-    CommandEncoder& encoder,
+    Graphics::CommandEncoder& encoder,
     ResourceHandle uniformBuffer,
     const Constants& constants,
     Aero::Rect scissor,
@@ -371,7 +368,7 @@ struct ViewSurface {
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
     std::uint64_t version = 0U;
-    RendererStatistics statistics;
+    CommandEncoderStatistics statistics;
     bool prepared = false;
 };
 
@@ -390,8 +387,8 @@ bool RequiresFrameSurface(
 }
 
 void AddStatistics(
-    RendererStatistics& target,
-    const RendererStatistics& source) noexcept {
+    CommandEncoderStatistics& target,
+    const CommandEncoderStatistics& source) noexcept {
     target.renderPassCount += source.renderPassCount;
     target.drawCallCount += source.drawCallCount;
     target.rectangleInstanceCount += source.rectangleInstanceCount;
@@ -410,7 +407,7 @@ void AddStatistics(
 
 } // namespace
 
-struct Renderer::Impl  {
+struct CommandEncoder::Impl  {
     explicit Impl(
         GraphicsDevice& device,
         Base::IAllocator* allocator) noexcept
@@ -458,14 +455,14 @@ struct Renderer::Impl  {
     Base::Vector<EffectSurface> effectSurfaces;
     Base::Vector<ViewSurface> viewSurfaces;
     ResourceHandle effectSampler;
-    RendererStatistics lastStatistics;
+    CommandEncoderStatistics lastStatistics;
     bool batchingEnabled = true;
     bool initialized = false;
 };
 
-Renderer::Renderer(
+CommandEncoder::CommandEncoder(
     GraphicsDevice& device,
-    const RendererShaderSet& shaders,
+    const CommandEncoderShaderSet& shaders,
     Base::IAllocator* allocator) noexcept
     : device_(&device),
       shaders_(shaders),
@@ -473,11 +470,11 @@ Renderer::Renderer(
           ? allocator
           : &Base::GetDefaultAllocator()) {}
 
-Renderer::~Renderer() noexcept {
+CommandEncoder::~CommandEncoder() noexcept {
     Shutdown();
 }
 
-Base::Result<void> Renderer::Initialize() noexcept {
+Base::Result<void> CommandEncoder::Initialize() noexcept {
     if (impl_ != nullptr && impl_->initialized) {
         return {};
     }
@@ -768,7 +765,7 @@ Base::Result<void> Renderer::Initialize() noexcept {
     return {};
 }
 
-void Renderer::Shutdown() noexcept {
+void CommandEncoder::Shutdown() noexcept {
     if (impl_ == nullptr) {
         return;
     }
@@ -891,7 +888,7 @@ void Renderer::Shutdown() noexcept {
     impl_ = nullptr;
 }
 
-Base::Result<void> Renderer::RegisterImage(
+Base::Result<void> CommandEncoder::RegisterImage(
     Render::RenderImageId image,
     ResourceHandle texture,
     ResourceHandle sampler) noexcept {
@@ -913,7 +910,7 @@ Base::Result<void> Renderer::RegisterImage(
     return impl_->images.PushBack({image, texture, sampler});
 }
 
-Base::Result<void> Renderer::UnregisterImage(
+Base::Result<void> CommandEncoder::UnregisterImage(
     Render::RenderImageId image) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
@@ -932,7 +929,7 @@ Base::Result<void> Renderer::UnregisterImage(
         "Renderer image ID is not registered");
 }
 
-Base::Result<void> Renderer::RegisterMesh(
+Base::Result<void> CommandEncoder::RegisterMesh(
     Render::RenderMeshId mesh,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer,
@@ -957,7 +954,7 @@ Base::Result<void> Renderer::RegisterMesh(
         {mesh, vertexBuffer, indexBuffer, indexCount, indexType});
 }
 
-Base::Result<void> Renderer::UnregisterMesh(
+Base::Result<void> CommandEncoder::UnregisterMesh(
     Render::RenderMeshId mesh) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
@@ -976,7 +973,7 @@ Base::Result<void> Renderer::UnregisterMesh(
         "Renderer mesh ID is not registered");
 }
 
-Base::Result<void> Renderer::RegisterGlyphRun(
+Base::Result<void> CommandEncoder::RegisterGlyphRun(
     Render::RenderGlyphRunId glyphRun,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer,
@@ -1007,7 +1004,7 @@ Base::Result<void> Renderer::RegisterGlyphRun(
             indexType});
 }
 
-Base::Result<void> Renderer::UnregisterGlyphRun(
+Base::Result<void> CommandEncoder::UnregisterGlyphRun(
     Render::RenderGlyphRunId glyphRun) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
@@ -1026,29 +1023,29 @@ Base::Result<void> Renderer::UnregisterGlyphRun(
         "Renderer glyph ID is not registered");
 }
 
-bool Renderer::IsInitialized() const noexcept {
+bool CommandEncoder::IsInitialized() const noexcept {
     return impl_ != nullptr && impl_->initialized;
 }
 
-RendererStatistics
-Renderer::LastStatistics() const noexcept {
+CommandEncoderStatistics
+CommandEncoder::LastStatistics() const noexcept {
     return impl_ != nullptr ? impl_->lastStatistics
-                            : RendererStatistics{};
+                            : CommandEncoderStatistics{};
 }
 
-void Renderer::SetBatchingEnabled(
+void CommandEncoder::SetBatchingEnabled(
     bool enabled) noexcept {
     if (impl_ != nullptr) {
         impl_->batchingEnabled = enabled;
     }
 }
 
-bool Renderer::IsBatchingEnabled() const noexcept {
+bool CommandEncoder::IsBatchingEnabled() const noexcept {
     return impl_ == nullptr ||
         impl_->batchingEnabled;
 }
 
-Base::Result<CommandList> Renderer::RecordOffscreen(
+Base::Result<CommandList> CommandEncoder::RecordOffscreen(
     const void* rendererToken,
     const ::Aero::Render::Detail::RenderFrame& plan) noexcept {
     if (!IsInitialized() || rendererToken == nullptr) {
@@ -1068,7 +1065,7 @@ Base::Result<CommandList> Renderer::RecordOffscreen(
             surface->prepared = false;
             surface->statistics = {};
         }
-        CommandEncoder empty(allocator_);
+        Graphics::CommandEncoder empty(allocator_);
         return empty.Finish();
     }
 
@@ -1080,7 +1077,7 @@ Base::Result<CommandList> Renderer::RecordOffscreen(
             surface->prepared = false;
             surface->statistics = {};
         }
-        CommandEncoder empty(allocator_);
+        Graphics::CommandEncoder empty(allocator_);
         return empty.Finish();
     }
     if (width > device_->Capabilities().maxTextureDimension ||
@@ -1128,10 +1125,10 @@ Base::Result<CommandList> Renderer::RecordOffscreen(
     return std::move(recorded).Value();
 }
 
-Base::Result<CommandList> Renderer::RecordOnscreen(
+Base::Result<CommandList> CommandEncoder::RecordOnscreen(
     const void* rendererToken,
     const ::Aero::Render::Detail::RenderFrame& plan,
-    const RenderTarget& target) noexcept {
+    const FrameTarget& target) noexcept {
     if (!RequiresFrameSurface(plan)) {
         return Record(plan, target);
     }
@@ -1154,7 +1151,7 @@ Base::Result<CommandList> Renderer::RecordOnscreen(
         return InvalidArgument("Onscreen render target is invalid");
     }
 
-    CommandEncoder encoder(allocator_);
+    Graphics::CommandEncoder encoder(allocator_);
     static constexpr float UnitQuad[] = {
         0.0F, 0.0F, 1.0F, 0.0F,
         0.0F, 1.0F, 1.0F, 1.0F};
@@ -1168,7 +1165,7 @@ Base::Result<CommandList> Renderer::RecordOnscreen(
     const std::uint32_t compositeHeight =
         (std::min)(surface->height, target.height);
     if (compositeWidth == 0U || compositeHeight == 0U) {
-        CommandEncoder empty(allocator_);
+        Graphics::CommandEncoder empty(allocator_);
         return empty.Finish();
     }
     RenderPassDescriptor pass;
@@ -1219,7 +1216,7 @@ Base::Result<CommandList> Renderer::RecordOnscreen(
         : Base::Result<CommandList>(encoded.GetStatus());
     if (!finished) return finished.GetStatus();
 
-    RendererStatistics composite;
+    CommandEncoderStatistics composite;
     composite.renderPassCount = 1U;
     composite.drawCallCount = 1U;
     composite.imageInstanceCount = 1U;
@@ -1233,7 +1230,7 @@ Base::Result<CommandList> Renderer::RecordOnscreen(
     return std::move(finished).Value();
 }
 
-void Renderer::ReleaseRenderer(
+void CommandEncoder::ReleaseRenderer(
     const void* rendererToken) noexcept {
     if (impl_ == nullptr || rendererToken == nullptr) return;
     for (std::uint32_t index = 0U;
@@ -1254,9 +1251,9 @@ void Renderer::ReleaseRenderer(
     }
 }
 
-Base::Result<CommandList> Renderer::Record(
+Base::Result<CommandList> CommandEncoder::Record(
     const ::Aero::Render::Detail::RenderFrame& plan,
-    const RenderTarget& target) noexcept {
+    const FrameTarget& target) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer is not initialized");
     }
@@ -1510,7 +1507,7 @@ Base::Result<CommandList> Renderer::Record(
         surface.empty = emptySurface;
     }
 
-    CommandEncoder encoder(allocator_);
+    Graphics::CommandEncoder encoder(allocator_);
     for (std::uint32_t index = 0U;
          index < impl_->gradientRamps.Size();) {
         const GradientRampBinding& cached =
@@ -1610,7 +1607,7 @@ Base::Result<CommandList> Renderer::Record(
     pass.colorAttachments[0].load = target.load;
     pass.colorAttachments[0].store = StoreOperation::Store;
     pass.colorAttachments[0].clearColor = {0.0F, 0.0F, 0.0F, 0.0F};
-    RendererStatistics submissionStatistics;
+    CommandEncoderStatistics submissionStatistics;
     submissionStatistics.renderPassCount = 0U;
     enum class ActivePipeline : std::uint8_t {
         None = 0U,

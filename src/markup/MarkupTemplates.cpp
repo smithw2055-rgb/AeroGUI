@@ -2802,16 +2802,16 @@ Base::Result<void> BuildCompiledTemplate(
                 "ControlTemplate root does not support runtime triggers");
         }
         Base::Result<Base::Ref<
-            Aero::Runtime::Detail::DataTemplateTriggerState>> created =
-            Base::MakeRef<Aero::Runtime::Detail::DataTemplateTriggerState>();
+            Aero::Controls::Detail::DataTemplateTriggerState>> created =
+            Base::MakeRef<Aero::Controls::Detail::DataTemplateTriggerState>();
         if (!created) return created.GetStatus();
-        Base::Ref<Aero::Runtime::Detail::DataTemplateTriggerState> triggerContext =
+        Base::Ref<Aero::Controls::Detail::DataTemplateTriggerState> triggerContext =
             std::move(created).Value();
         triggerContext->root =
             static_cast<FrameworkElement*>(visuals[0U]);
         for (std::uint32_t index = 0U; index < visuals.Size(); ++index) {
             if (blueprint->nodes[index].name.Empty()) continue;
-            Aero::Runtime::Detail::DataTemplateTriggerState::NamedObject named;
+            Aero::Controls::Detail::DataTemplateTriggerState::NamedObject named;
             Base::Result<void> namedAssigned = named.name.Assign(
                 blueprint->nodes[index].name.View());
             if (!namedAssigned) return namedAssigned.GetStatus();
@@ -2823,7 +2823,7 @@ Base::Result<void> BuildCompiledTemplate(
         }
         auto appendSetters =
             [&](Base::Span<const Base::Ref<Setter>> setters,
-                Aero::Runtime::Detail::DataTemplatePropertyTrigger& runtimeTrigger)
+                Aero::Controls::Detail::DataTemplatePropertyTrigger& runtimeTrigger)
                 noexcept -> Base::Result<void> {
             for (const Base::Ref<Setter>& setter : setters) {
                 if (!setter) continue;
@@ -2844,7 +2844,7 @@ Base::Result<void> BuildCompiledTemplate(
                     *setter, blueprint->nodes[target], *property,
                     *blueprint->runtime, *blueprint->properties);
                 if (!value) return value.GetStatus();
-                Aero::Runtime::Detail::DataTemplateTriggerSetter runtimeSetter;
+                Aero::Controls::Detail::DataTemplateTriggerSetter runtimeSetter;
                 runtimeSetter.target =
                     Base::WeakRef<DependencyObject>(
                         Base::Ref<DependencyObject>::FromBorrowed(
@@ -2911,7 +2911,7 @@ Base::Result<void> BuildCompiledTemplate(
         for (const Base::Ref<TriggerBase>& authored :
              blueprint->controlTemplateDataTriggers) {
             if (!authored) continue;
-            Aero::Runtime::Detail::DataTemplatePropertyTrigger runtimeTrigger;
+            Aero::Controls::Detail::DataTemplatePropertyTrigger runtimeTrigger;
             Base::Span<const Base::Ref<Setter>> setters;
             if (authored->RuntimeType() == Trigger::StaticTypeId()) {
                 const auto& property =
@@ -2941,7 +2941,7 @@ Base::Result<void> BuildCompiledTemplate(
                         property.GetPropertyName(), sourceType,
                         blueprint->runtime->Types());
                 }
-                Aero::Runtime::Detail::DataTemplateTriggerCondition condition;
+                Aero::Controls::Detail::DataTemplateTriggerCondition condition;
                 condition.source = Base::WeakRef<Base::Object>(
                     Base::Ref<Base::Object>::FromBorrowed(*source));
                 condition.dependencySource =
@@ -2964,7 +2964,7 @@ Base::Result<void> BuildCompiledTemplate(
                 const auto& data = static_cast<const DataTrigger&>(*authored);
                 if (!data.GetBinding()) return InvalidTemplateCompiler(
                     "ControlTemplate DataTrigger requires Binding");
-                Aero::Runtime::Detail::DataTemplateTriggerCondition condition;
+                Aero::Controls::Detail::DataTemplateTriggerCondition condition;
                 Base::Object* source = sourceFor(*data.GetBinding());
                 if (source != nullptr) {
                     condition.source =
@@ -2989,7 +2989,7 @@ Base::Result<void> BuildCompiledTemplate(
                         return InvalidTemplateCompiler(
                             "ControlTemplate MultiDataTrigger requires complete Conditions");
                     }
-                    Aero::Runtime::Detail::DataTemplateTriggerCondition condition;
+                    Aero::Controls::Detail::DataTemplateTriggerCondition condition;
                     Base::Object* source = sourceFor(*authoredCondition->GetBinding());
                     if (source != nullptr) {
                         condition.source =
@@ -3185,19 +3185,19 @@ BuildCompiledDeferredTemplate(
             if (!activated) return activated.GetStatus();
         }
     }
-    Base::Ref<Aero::Runtime::Detail::DataTemplateTriggerState>
+    Base::Ref<Aero::Controls::Detail::DataTemplateTriggerState>
         triggerContext;
     auto ensureTriggerContext =
         [&]() noexcept
         -> Base::Result<
-            Aero::Runtime::Detail::DataTemplateTriggerState*> {
+            Aero::Controls::Detail::DataTemplateTriggerState*> {
         if (triggerContext) {
             return triggerContext.Get();
         }
         Base::Result<Base::Ref<
-            Aero::Runtime::Detail::DataTemplateTriggerState>>
+            Aero::Controls::Detail::DataTemplateTriggerState>>
             created = Base::MakeRef<
-                Aero::Runtime::Detail::DataTemplateTriggerState>();
+                Aero::Controls::Detail::DataTemplateTriggerState>();
         if (!created) {
             return created.GetStatus();
         }
@@ -3210,7 +3210,7 @@ BuildCompiledDeferredTemplate(
             if (blueprint->nodes[index].name.Empty()) {
                 continue;
             }
-            Aero::Runtime::Detail::DataTemplateTriggerState::
+            Aero::Controls::Detail::DataTemplateTriggerState::
                 NamedObject named;
             Base::Result<void> assigned =
                 named.name.Assign(
@@ -3230,7 +3230,7 @@ BuildCompiledDeferredTemplate(
     };
     auto appendRuntimeSetters =
         [&](Base::Span<const Base::Ref<Setter>> setters,
-            Aero::Runtime::Detail::DataTemplatePropertyTrigger&
+            Aero::Controls::Detail::DataTemplatePropertyTrigger&
                 runtimeTrigger) noexcept
         -> Base::Result<void> {
         for (const Base::Ref<Setter>& setter : setters) {
@@ -3263,7 +3263,7 @@ BuildCompiledDeferredTemplate(
             if (!converted) {
                 return converted.GetStatus();
             }
-            Aero::Runtime::Detail::DataTemplateTriggerSetter
+            Aero::Controls::Detail::DataTemplateTriggerSetter
                 runtimeSetter;
             runtimeSetter.target =
                 Base::WeakRef<DependencyObject>(
@@ -3294,10 +3294,10 @@ BuildCompiledDeferredTemplate(
             continue;
         }
         Base::Result<
-            Aero::Runtime::Detail::DataTemplateTriggerState*>
+            Aero::Controls::Detail::DataTemplateTriggerState*>
             ensured = ensureTriggerContext();
         if (!ensured) return ensured.GetStatus();
-        Aero::Runtime::Detail::DataTemplatePropertyTrigger
+        Aero::Controls::Detail::DataTemplatePropertyTrigger
             runtimeTrigger;
         Base::Span<const Base::Ref<Setter>>
             authoredSetters;
@@ -3314,7 +3314,7 @@ BuildCompiledDeferredTemplate(
                 return InvalidTemplateCompiler(
                     "DataTemplate Trigger source property was not found");
             }
-            Aero::Runtime::Detail::DataTemplateTriggerCondition
+            Aero::Controls::Detail::DataTemplateTriggerCondition
                 condition;
             condition.source = Base::WeakRef<Base::Object>(root);
             condition.dependencySource =
@@ -3355,7 +3355,7 @@ BuildCompiledDeferredTemplate(
                 return InvalidTemplateCompiler(
                     "DataTemplate DataTrigger requires Binding");
             }
-            Aero::Runtime::Detail::DataTemplateTriggerCondition
+            Aero::Controls::Detail::DataTemplateTriggerCondition
                 condition;
             condition.source = Base::WeakRef<Base::Object>(payload);
             condition.binding =
@@ -3379,7 +3379,7 @@ BuildCompiledDeferredTemplate(
                     return InvalidTemplateCompiler(
                         "DataTemplate MultiDataTrigger requires complete Conditions");
                 }
-                Aero::Runtime::Detail::DataTemplateTriggerCondition
+                Aero::Controls::Detail::DataTemplateTriggerCondition
                     condition;
                 condition.source = Base::WeakRef<Base::Object>(payload);
                 condition.binding =

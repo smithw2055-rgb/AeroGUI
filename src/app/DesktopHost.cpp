@@ -106,10 +106,9 @@ struct DesktopHost::Impl {
                 owner->environment.CreateView(options, owner->allocator);
             if (!created) return created.GetStatus();
             view = std::move(created).Value();
-            Markup::XamlReader reader(owner->environment);
             if (owner->loadBuiltInTheme) {
-                Base::Result<void> themed = reader.LoadTheme(
-                    *view, owner->builtInTheme);
+                Base::Result<void> themed =
+                    view->LoadBuiltInTheme(owner->builtInTheme);
                 if (!themed) return themed.GetStatus();
             }
             ResourceDictionary* resources =
@@ -117,8 +116,8 @@ struct DesktopHost::Impl {
                 ? &owner->application->GetResources()
                 : nullptr;
             if (resources != nullptr) {
-                reader.SetResources(
-                    *view, ResourceLayer::Application,
+                view->SetResourceDictionary(
+                    ResourceLayer::Application,
                     *resources,
                     ResourceLoadMode::Replace);
             }

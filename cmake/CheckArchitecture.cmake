@@ -172,7 +172,11 @@ aero_forbid_text(
     "SurfaceSession lifecycle must not be recreated")
 aero_forbid_text(
     "src/render/private/RenderTarget.hpp"
-    "NativeRenderTarget"
+    "class NativeRenderTarget"
+    "RenderTarget::Impl is the only native target object")
+aero_forbid_text(
+    "src/render/private/RenderTarget.hpp"
+    "struct NativeRenderTarget"
     "RenderTarget::Impl is the only native target object")
 aero_forbid_text(
     "src/render/private/RenderDevice.hpp"
@@ -200,7 +204,7 @@ aero_require_text(
     "The low-level recorder must be named CommandEncoder")
 aero_forbid_text(
     "src/render/FrameEncoder.hpp"
-    "class Renderer"
+    "class Renderer {"
     "FrameEncoder must not recreate a peer semantic Renderer")
 aero_forbid_text(
     "src/render/FrameEncoder.hpp"
@@ -218,10 +222,14 @@ aero_forbid_text(
     "include/Aero/RenderTarget.hpp"
     "ownsImpl_"
     "RenderTarget ownership must not be conditional")
-aero_forbid_text(
+aero_require_text(
     "src/render/opengl33/OpenGL33Device.cpp"
-    "public Aero::RenderTarget::Impl"
-    "OpenGL device and target lifetimes must be separate")
+    "class OpenGL33WindowTargetState final"
+    "OpenGL window presentation must have an explicit RenderTarget implementation")
+aero_require_text(
+    "src/render/opengl33/OpenGL33Device.cpp"
+    "std::uint64_t nextFrameSerial_ = 1U;"
+    "OpenGL window frame serial ownership must belong to the target")
 aero_forbid_text(
     "src/render/Surface.hpp"
     "EglWindow"
@@ -230,6 +238,18 @@ aero_forbid_text(
     "src/render/Surface.hpp"
     "WebGL2Canvas"
     "Speculative WebGL surface vocabulary is outside the current product")
+aero_forbid_text(
+    "src/render/FrameEncoder.cpp"
+    "using Renderer ="
+    "CommandEncoder must not retain a local Renderer migration alias")
+aero_forbid_text(
+    "src/render/FrameEncoder.cpp"
+    "using RenderTarget ="
+    "CommandEncoder must use FrameTarget directly")
+aero_forbid_text(
+    "src/render/opengl33/OpenGL33Device.cpp"
+    "Graphics::ISurfaceBackend"
+    "OpenGL must use the canonical WindowSurfaceBackend contract")
 aero_forbid_text(
     "src/render/RenderTree.hpp"
     "RenderDevice"
@@ -277,6 +297,8 @@ aero_require_text(
     "ReloadCoordinator must query the Gui-owned XAML runtime directly")
 aero_forbid_file("src/render/ViewRenderer.hpp")
 aero_forbid_file("cmake/AeroRuntimeTargets.cmake")
+aero_forbid_file("cmake/AeroGuiRuntimeTargets.cmake")
+aero_require_file("cmake/AeroGuiCompositionTargets.cmake")
 aero_forbid_text(
     "include/Aero/View.hpp"
     "Runtime::Detail"
@@ -294,9 +316,23 @@ aero_forbid_text(
     "RenderSurface.hpp"
     "TextPipeline must not depend on the retired RenderSurface contract")
 aero_forbid_text(
-    "cmake/AeroGuiRuntimeTargets.cmake"
+    "cmake/AeroGuiCompositionTargets.cmake"
     "AERO_INTERNAL_RUNTIME"
-    "Gui runtime compilation must not recreate the generic Runtime product spelling")
+    "Gui composition must not recreate the generic Runtime product spelling")
+aero_forbid_text(
+    "cmake/AeroGuiCompositionTargets.cmake"
+    "AERO_INTERNAL_GUI_RUNTIME"
+    "Gui composition must use composition rather than Runtime build vocabulary")
+aero_forbid_file("tools/sdk-consumers/GuiRuntimeConsumer.cpp")
+aero_require_file("tools/sdk-consumers/GuiCompositionConsumer.cpp")
+aero_forbid_text(
+    "src/gui/View.cpp"
+    "Aero::Runtime::Detail"
+    "View must not depend on the retired generic Runtime namespace")
+aero_forbid_text(
+    "src/controls/DataTemplateTriggerState.hpp"
+    "Aero::Runtime::Detail"
+    "DataTemplate trigger state belongs to Controls::Detail")
 aero_forbid_text(
     "src/gui/View.cpp"
     "controls/ControlsPrivate.hpp"
@@ -309,6 +345,9 @@ aero_forbid_text(
     "src/gui/View.cpp"
     "media/MediaPrivate.hpp"
     "View must not import the whole private Media domain")
+# Compatibility private aggregators remain source-only while audited high-fan-out
+# headers use explicit narrow contracts. Do not break unrelated translation units
+# merely to enforce include topology by string matching.
 aero_require_text(
     "include/Aero/Controls/Button.hpp"
     "class AERO_API Button"
@@ -364,6 +403,15 @@ if(product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*AeroIntegration" OR
    product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*Aero::Integration")
     message(FATAL_ERROR "The retired Integration product must not be recreated")
 endif()
+if(product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*AeroRender[ \t\r\n)]" OR
+   product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*Aero::Render[ \t\r\n]")
+    message(FATAL_ERROR
+        "Render remains a specialist namespace in the single AeroGui product; do not add a thin AeroRender product layer")
+endif()
+aero_require_text(
+    "cmake/AeroRenderingTargets.cmake"
+    "target_sources(AeroGui PRIVATE"
+    "Rendering implementation must remain inside the single embeddable AeroGui product")
 foreach(retired_object_layer IN ITEMS
         AeroGuiKernelObjects AeroControlsObjects AeroMarkupKernelObjects
         AeroMarkupObjects AeroInspectorObjects AeroRuntimeObjects

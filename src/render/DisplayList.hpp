@@ -5,6 +5,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/DrawingContext.hpp>
 
 #include <cstdint>
 
@@ -114,3 +115,26 @@ private:
 };
 
 } // namespace Aero::Render
+namespace Aero {
+
+// Source-private bridge used by FrameworkElement::OnRender implementations.
+// Keep it next to DisplayListBuilder instead of recreating a broad render
+// umbrella header.
+struct DrawingContext::Impl {
+    static DrawingContext Create(
+        Render::DisplayListBuilder& builder) noexcept {
+        return DrawingContext(&builder);
+    }
+
+    static Render::DisplayListBuilder& Builder(
+        DrawingContext& context) noexcept {
+        return *static_cast<Render::DisplayListBuilder*>(
+            context.implementation_);
+    }
+};
+
+} // namespace Aero
+
+namespace Aero::Render::Detail {
+using DrawingPrivate = ::Aero::DrawingContext::Impl;
+} // namespace Aero::Render::Detail

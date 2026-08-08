@@ -1,6 +1,5 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Shapes.hpp>
-#include "../render/RenderPrivate.hpp"
 
 #include "render/RenderResources.hpp"
 #include "../media/MediaPrivate.hpp"

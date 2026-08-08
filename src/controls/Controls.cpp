@@ -6,7 +6,6 @@
 #include <Aero/Shapes.hpp>
 #include "../media/BrushRendering.hpp"
 #include "../media/MediaPrivate.hpp"
-#include "../render/RenderPrivate.hpp"
 #include <Aero/Documents.hpp>
 
 #include "TextBlockLayout.hpp"

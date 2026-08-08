@@ -134,9 +134,7 @@ public:
             return status.GetStatus();
         }
         initialized_ = true;
-        surfaceLost_ = false;
         deviceLost_ = false;
-        nextFrameSerial_ = 1U;
         return {};
     }
 
@@ -153,25 +151,20 @@ public:
 
     Base::Result<void> Render(
         const void* rendererToken,
-        const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
+        const ::Aero::Render::Detail::RenderFrame& frame,
+        std::uint64_t frameSerial) noexcept {
         if (!IsReady() || GetSurfaceHealth() != SurfaceHealth::Ready) {
             return InvalidState("OpenGL window target is not ready");
         }
+        if (frameSerial == 0U) {
+            return InvalidState("OpenGL window frame serial must be nonzero");
+        }
         Base::Result<void> current = MakeCurrent();
         if (!current) return current.GetStatus();
-        if (nextFrameSerial_ == UINT64_MAX) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "OpenGL window frame serial space is exhausted");
-        }
-        const std::uint64_t frameSerial = nextFrameSerial_++;
-        Graphics::ISurfaceBackend* surface = SurfaceBackend();
+        Graphics::WindowSurfaceBackend* surface = SurfaceBackend();
         Base::Result<Graphics::ExternalRenderTargetDescriptor> acquired =
             surface->AcquireSurfaceTarget(frameSerial);
-        if (!acquired) {
-            RefreshSurfaceHealth();
-            return acquired.GetStatus();
-        }
+        if (!acquired) return acquired.GetStatus();
         const auto& native = acquired.Value();
         Graphics::OpenGL33ExternalRenderTargetDescriptor external;
         external.framebuffer = static_cast<Graphics::GlUInt>(native.colorTarget);
@@ -208,14 +201,8 @@ public:
         const Graphics::FenceValue retireFence = device_->LastSubmittedFence();
         Base::Result<void> retired =
             device_->DestroyResource(imported.Value(), retireFence);
-        if (!submitted) {
-            RefreshSurfaceHealth();
-            return submitted.GetStatus();
-        }
-        if (!presented) {
-            RefreshSurfaceHealth();
-            return presented.GetStatus();
-        }
+        if (!submitted) return submitted.GetStatus();
+        if (!presented) return presented.GetStatus();
         return retired;
     }
 
@@ -293,38 +280,28 @@ public:
         descriptor_.height = height;
         Base::Result<std::uint32_t> collected = device_->CollectGarbage();
         if (!collected) return collected.GetStatus();
-        Base::Result<void> resized = surface->ResizeSurface(width, height);
-        if (!resized) RefreshSurfaceHealth();
-        return resized;
+        return surface->ResizeSurface(width, height);
     }
 
     void NotifySurfaceLost() noexcept {
         Graphics::WindowSurfaceBackend* surface = SurfaceBackend();
         if (surface != nullptr) surface->NotifySurfaceLost();
-        surfaceLost_ = true;
     }
 
     Base::Result<void> RestoreSurface() noexcept {
-        if (!surfaceLost_) {
-            return InvalidState("OpenGL window target is not lost");
-        }
         Graphics::WindowSurfaceBackend* surface = SurfaceBackend();
         if (surface == nullptr) {
             return NotInitialized("OpenGL window surface backend is unavailable");
         }
         Base::Result<void> restored = surface->RestoreSurface(descriptor_);
-        if (restored) {
-            Base::Result<void> current = MakeCurrent();
-            if (!current) return current.GetStatus();
-            surfaceLost_ = false;
-        }
-        return restored;
+        if (!restored) return restored.GetStatus();
+        return MakeCurrent();
     }
 
     SurfaceHealth GetSurfaceHealth() const noexcept {
         Graphics::WindowSurfaceBackend* surface =
             const_cast<OpenGL33WindowDeviceState*>(this)->SurfaceBackend();
-        if (surfaceLost_ || surface == nullptr || surface->IsSurfaceLost()) {
+        if (surface == nullptr || surface->IsSurfaceLost()) {
             return SurfaceHealth::Lost;
         }
         return initialized_ ? SurfaceHealth::Ready : SurfaceHealth::Failed;
@@ -435,10 +412,7 @@ private:
         return descriptor;
     }
 
-    void RefreshSurfaceHealth() noexcept {
-        Graphics::WindowSurfaceBackend* surface = SurfaceBackend();
-        if (surface == nullptr || surface->IsSurfaceLost()) surfaceLost_ = true;
-    }
+
 
     void Shutdown() noexcept {
         initialized_ = false;
@@ -466,10 +440,8 @@ private:
     Base::IAllocator* allocator_ = nullptr;
     OpenGL33WindowTargetOptions options_;
     bool initialized_ = false;
-    bool surfaceLost_ = false;
     bool deviceLost_ = false;
     std::uint64_t contextGeneration_ = 0U;
-    std::uint64_t nextFrameSerial_ = 1U;
     Graphics::NativeSurfaceDescriptor descriptor_;
 #if defined(_WIN32) && AERO_HAS_WGL_SURFACE
     Graphics::WglSurfaceBackend* wglSurface_ = nullptr;
@@ -491,10 +463,15 @@ public:
     Base::Result<void> Render(
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& frame) noexcept override {
-        return device_ != nullptr
-            ? device_->Render(rendererToken, frame)
-            : Base::Result<void>(NotInitialized(
-                  "OpenGL window target has no render device"));
+        if (device_ == nullptr) {
+            return NotInitialized("OpenGL window target has no render device");
+        }
+        if (nextFrameSerial_ == UINT64_MAX) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "OpenGL window frame serial space is exhausted");
+        }
+        return device_->Render(rendererToken, frame, nextFrameSerial_++);
     }
 
     Base::Result<void> Resize(
@@ -507,17 +484,25 @@ public:
     }
 
     void NotifySurfaceLost() noexcept override {
+        surfaceLost_ = true;
         if (device_ != nullptr) device_->NotifySurfaceLost();
     }
 
     Base::Result<void> RestoreSurface() noexcept override {
-        return device_ != nullptr
-            ? device_->RestoreSurface()
-            : Base::Result<void>(NotInitialized(
-                  "OpenGL window target has no render device"));
+        if (device_ == nullptr) {
+            return NotInitialized("OpenGL window target has no render device");
+        }
+        if (!surfaceLost_ &&
+            device_->GetSurfaceHealth() != SurfaceHealth::Lost) {
+            return InvalidState("OpenGL window target is not lost");
+        }
+        Base::Result<void> restored = device_->RestoreSurface();
+        if (restored) surfaceLost_ = false;
+        return restored;
     }
 
     SurfaceHealth GetSurfaceHealth() const noexcept override {
+        if (surfaceLost_) return SurfaceHealth::Lost;
         return device_ != nullptr
             ? device_->GetSurfaceHealth()
             : SurfaceHealth::Shutdown;
@@ -525,6 +510,8 @@ public:
 
 private:
     OpenGL33WindowDeviceState* device_ = nullptr;
+    bool surfaceLost_ = false;
+    std::uint64_t nextFrameSerial_ = 1U;
 };
 
 } // namespace

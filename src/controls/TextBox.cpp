@@ -1,7 +1,6 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Text.hpp>
 #include "../text/EditableText.hpp"
-#include "../render/RenderPrivate.hpp"
 #include "../media/MediaPrivate.hpp"
 
 #include "TextBlockLayout.hpp"

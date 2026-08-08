@@ -32,34 +32,34 @@ Base::Result<void> RegisterDefaultXamlProviders(
     Base::Result<Base::ResourceUri> light = BuiltInThemeUri("Light.xaml");
     if (!light) return light.GetStatus();
     Base::Result<void> status = embedded.Add(
-        light.Value(), {::Aero::Runtime::Detail::AeroThemeLightSource,
-            static_cast<std::uint32_t>(sizeof(::Aero::Runtime::Detail::AeroThemeLightSource))});
+        light.Value(), {::Aero::GuiPrivate::Detail::AeroThemeLightSource,
+            static_cast<std::uint32_t>(sizeof(::Aero::GuiPrivate::Detail::AeroThemeLightSource))});
     if (!status) return status.GetStatus();
     Base::Result<Base::ResourceUri> dark = BuiltInThemeUri("Dark.xaml");
     if (!dark) return dark.GetStatus();
     status = embedded.Add(
-        dark.Value(), {::Aero::Runtime::Detail::AeroThemeDarkSource,
-            static_cast<std::uint32_t>(sizeof(::Aero::Runtime::Detail::AeroThemeDarkSource))});
+        dark.Value(), {::Aero::GuiPrivate::Detail::AeroThemeDarkSource,
+            static_cast<std::uint32_t>(sizeof(::Aero::GuiPrivate::Detail::AeroThemeDarkSource))});
     if (!status) return status.GetStatus();
     Base::Result<Base::ResourceUri> generic = BuiltInThemeUri("Generic.xaml");
     if (!generic) return generic.GetStatus();
     status = embedded.Add(
-        generic.Value(), {::Aero::Runtime::Detail::AeroThemeGenericSource,
-            static_cast<std::uint32_t>(sizeof(::Aero::Runtime::Detail::AeroThemeGenericSource))});
+        generic.Value(), {::Aero::GuiPrivate::Detail::AeroThemeGenericSource,
+            static_cast<std::uint32_t>(sizeof(::Aero::GuiPrivate::Detail::AeroThemeGenericSource))});
     if (!status) return status.GetStatus();
     Base::Result<Base::ResourceUri> lightBlue = Base::ResourceUri::Parse(
         "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.LightBlue.xaml");
     if (!lightBlue) return lightBlue.GetStatus();
     status = embedded.Add(
-        lightBlue.Value(), {::Aero::Runtime::Detail::AeroThemeLightSource,
-            static_cast<std::uint32_t>(sizeof(::Aero::Runtime::Detail::AeroThemeLightSource))});
+        lightBlue.Value(), {::Aero::GuiPrivate::Detail::AeroThemeLightSource,
+            static_cast<std::uint32_t>(sizeof(::Aero::GuiPrivate::Detail::AeroThemeLightSource))});
     if (!status) return status.GetStatus();
     Base::Result<Base::ResourceUri> darkBlue = Base::ResourceUri::Parse(
         "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.DarkBlue.xaml");
     if (!darkBlue) return darkBlue.GetStatus();
     status = embedded.Add(
-        darkBlue.Value(), {::Aero::Runtime::Detail::AeroThemeDarkSource,
-            static_cast<std::uint32_t>(sizeof(::Aero::Runtime::Detail::AeroThemeDarkSource))});
+        darkBlue.Value(), {::Aero::GuiPrivate::Detail::AeroThemeDarkSource,
+            static_cast<std::uint32_t>(sizeof(::Aero::GuiPrivate::Detail::AeroThemeDarkSource))});
     if (!status) return status.GetStatus();
 
     auto registerProvider = [&](Markup::XamlProvider& provider,

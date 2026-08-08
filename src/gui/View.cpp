@@ -130,7 +130,7 @@ Base::Status ViewInvalidState(const char* message) noexcept {
         Base::ErrorCode::InvalidState, message);
 }
 
-Base::Status RuntimeNotInitialized(const char* message) noexcept {
+Base::Status ViewDetailNotInitialized(const char* message) noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::NotInitialized, message);
 }
@@ -562,7 +562,7 @@ struct View::Impl {
     Base::Result<void> ExecuteAnimationAction(
         MediaAnimation::TriggerAction& action,
         Aero::FrameworkElement& owner,
-        Aero::Runtime::Detail::DataTemplateTriggerState*
+        Aero::Controls::Detail::DataTemplateTriggerState*
             dataTemplateContext = nullptr,
         const Aero::NameScope* names = nullptr) noexcept;
     void CancelStoryboardCompletionSessions(
@@ -894,7 +894,7 @@ struct View::Impl {
     struct DataTemplateTriggerHandlerState {
         View::Impl* runtime = nullptr;
         Base::Ref<
-            Aero::Runtime::Detail::DataTemplateTriggerState>
+            Aero::Controls::Detail::DataTemplateTriggerState>
             triggerContext;
         std::uint32_t triggerIndex = 0U;
         std::uint32_t conditionIndex = 0U;
@@ -1024,7 +1024,7 @@ struct View::Impl {
     Base::Result<void> ResizeVisualRoot(Size availableSize) noexcept {
         if (!HasAttachedRoot() || attachedRootLayout == nullptr ||
             layout == nullptr) {
-            return RuntimeNotInitialized(
+            return ViewDetailNotInitialized(
                 "View resize requires an attached layout root");
         }
         if (!IsValidLayoutSize(availableSize)) {
@@ -1047,7 +1047,7 @@ struct View::Impl {
     Base::Result<void> ApplyViewport(
         const View::Viewport& next) noexcept {
         if (renderer == nullptr) {
-            return RuntimeNotInitialized(
+            return ViewDetailNotInitialized(
                 "View render tree is unavailable");
         }
         const View::Viewport previous = viewport;
@@ -1193,7 +1193,7 @@ struct View::Impl {
 
     Base::Result<void> BeginDocumentLoad() noexcept {
         if (!initialized) {
-            return RuntimeNotInitialized(
+            return ViewDetailNotInitialized(
                 "View must be initialized before XAML loading");
         }
         if (mounted || root || loadedDocument.root) {
@@ -3436,7 +3436,7 @@ struct View::Impl {
         Base::Vector<
             Aero::Media::Detail::Animation::AnimationHandle>*
             retainedHandles = nullptr,
-        Aero::Runtime::Detail::DataTemplateTriggerState*
+        Aero::Controls::Detail::DataTemplateTriggerState*
             dataTemplateContext = nullptr) noexcept {
         if (animations == nullptr) {
             return Base::Status::Failure(
@@ -3951,8 +3951,8 @@ struct View::Impl {
     }
 
     Base::Object* ResolveDataTemplateConditionSource(
-        Aero::Runtime::Detail::DataTemplateTriggerState& context,
-        Aero::Runtime::Detail::DataTemplateTriggerCondition& condition,
+        Aero::Controls::Detail::DataTemplateTriggerState& context,
+        Aero::Controls::Detail::DataTemplateTriggerCondition& condition,
         Base::StringView& path) noexcept {
         path = condition.binding
             ? condition.binding->GetPath().GetPath()
@@ -4002,8 +4002,8 @@ struct View::Impl {
     }
 
     Base::Result<bool> EvaluateDataTemplateCondition(
-        Aero::Runtime::Detail::DataTemplateTriggerState& context,
-        Aero::Runtime::Detail::DataTemplateTriggerCondition& condition) noexcept {
+        Aero::Controls::Detail::DataTemplateTriggerState& context,
+        Aero::Controls::Detail::DataTemplateTriggerCondition& condition) noexcept {
         Meta::PropertyValue current;
         Base::Ref<DependencyObject> dependencySource =
             condition.dependencySource.Lock();
@@ -4042,7 +4042,7 @@ struct View::Impl {
     }
 
     Base::Result<void> EnsureDataTemplateProviderTokens(
-        Aero::Runtime::Detail::DataTemplateTriggerState& context) noexcept {
+        Aero::Controls::Detail::DataTemplateTriggerState& context) noexcept {
         if (values == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -4056,9 +4056,9 @@ struct View::Impl {
         }
 
         std::uint64_t ordinal = 0U;
-        for (Aero::Runtime::Detail::DataTemplatePropertyTrigger& trigger :
+        for (Aero::Controls::Detail::DataTemplatePropertyTrigger& trigger :
              context.triggers) {
-            for (Aero::Runtime::Detail::DataTemplateTriggerSetter& setter :
+            for (Aero::Controls::Detail::DataTemplateTriggerSetter& setter :
                  trigger.setters) {
                 if (ordinal > UINT32_MAX) {
                     return Base::Status::Failure(
@@ -4082,7 +4082,7 @@ struct View::Impl {
     }
 
     Base::Result<void> EvaluateDataTemplateTrigger(
-        Aero::Runtime::Detail::DataTemplateTriggerState& context,
+        Aero::Controls::Detail::DataTemplateTriggerState& context,
         std::uint32_t triggerIndex) noexcept {
         if (triggerIndex >= context.triggers.Size() ||
             context.root == nullptr ||
@@ -4095,10 +4095,10 @@ struct View::Impl {
             EnsureDataTemplateProviderTokens(context);
         if (!providerTokens) return providerTokens.GetStatus();
 
-        Aero::Runtime::Detail::DataTemplatePropertyTrigger& trigger =
+        Aero::Controls::Detail::DataTemplatePropertyTrigger& trigger =
             context.triggers[triggerIndex];
         bool active = !trigger.conditions.Empty();
-        for (Aero::Runtime::Detail::DataTemplateTriggerCondition& condition :
+        for (Aero::Controls::Detail::DataTemplateTriggerCondition& condition :
              trigger.conditions) {
             Base::Result<bool> matches =
                 EvaluateDataTemplateCondition(context, condition);
@@ -4111,7 +4111,7 @@ struct View::Impl {
         if (active == trigger.active) return {};
 
         if (active) {
-            for (const Aero::Runtime::Detail::DataTemplateTriggerSetter& setter :
+            for (const Aero::Controls::Detail::DataTemplateTriggerSetter& setter :
                  trigger.setters) {
                 Base::Ref<DependencyObject> target =
                     setter.target.Lock();
@@ -4127,7 +4127,7 @@ struct View::Impl {
                 }
             }
         } else {
-            for (const Aero::Runtime::Detail::DataTemplateTriggerSetter& setter :
+            for (const Aero::Controls::Detail::DataTemplateTriggerSetter& setter :
                  trigger.setters) {
                 Base::Ref<DependencyObject> target =
                     setter.target.Lock();
@@ -4401,20 +4401,20 @@ struct View::Impl {
 
     Base::Result<std::uint32_t>
     StartDataTemplateTriggers(
-        Aero::Runtime::Detail::DataTemplateTriggerState&
+        Aero::Controls::Detail::DataTemplateTriggerState&
             context) noexcept {
         std::uint32_t count = 0U;
         for (std::uint32_t triggerIndex = 0U;
              triggerIndex < context.triggers.Size();
              ++triggerIndex) {
-            Aero::Runtime::Detail::DataTemplatePropertyTrigger&
+            Aero::Controls::Detail::DataTemplatePropertyTrigger&
                 trigger =
                     context.triggers[triggerIndex];
             for (std::uint32_t conditionIndex = 0U;
                  conditionIndex <
                      trigger.conditions.Size();
                  ++conditionIndex) {
-                Aero::Runtime::Detail::DataTemplateTriggerCondition&
+                Aero::Controls::Detail::DataTemplateTriggerCondition&
                     condition =
                         trigger.conditions[conditionIndex];
                 Base::Ref<DependencyObject> dependencySource =
@@ -4487,7 +4487,7 @@ struct View::Impl {
                 handlerContext->runtime = this;
                 handlerContext->triggerContext =
                     Base::Ref<
-                        Aero::Runtime::Detail::DataTemplateTriggerState>::
+                        Aero::Controls::Detail::DataTemplateTriggerState>::
                         FromBorrowed(context);
                 handlerContext->triggerIndex =
                     triggerIndex;
@@ -4827,7 +4827,7 @@ struct View::Impl {
     Base::Object* ResolveAuthoredBindingSource(
         const Data::Binding& binding,
         Aero::FrameworkElement& owner,
-        Aero::Runtime::Detail::DataTemplateTriggerState*
+        Aero::Controls::Detail::DataTemplateTriggerState*
             dataTemplateContext,
         const Aero::NameScope* names,
         Base::Object* self) noexcept {
@@ -4917,7 +4917,7 @@ struct View::Impl {
     Base::Result<Meta::PropertyValue> EvaluateAuthoredBinding(
         const Data::Binding& binding,
         Aero::FrameworkElement& owner,
-        Aero::Runtime::Detail::DataTemplateTriggerState*
+        Aero::Controls::Detail::DataTemplateTriggerState*
             dataTemplateContext,
         const Aero::NameScope* names,
         Base::Object* self) noexcept {
@@ -5459,12 +5459,12 @@ struct View::Impl {
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    Aero::Runtime::Detail::DataTemplateTriggerState::
+                    Aero::Controls::Detail::DataTemplateTriggerState::
                             StaticTypeId()) {
                     Base::Result<std::uint32_t> started =
                         StartDataTemplateTriggers(
                             static_cast<
-                                Aero::Runtime::Detail::DataTemplateTriggerState&>(
+                                Aero::Controls::Detail::DataTemplateTriggerState&>(
                                         *authored));
                     if (!started) {
                         return started.GetStatus();
@@ -5677,11 +5677,11 @@ struct View::Impl {
     }
 
     void ClearDataTemplateTriggerProviders(
-        Aero::Runtime::Detail::DataTemplateTriggerState& context) noexcept {
+        Aero::Controls::Detail::DataTemplateTriggerState& context) noexcept {
         if (values != nullptr) {
-            for (Aero::Runtime::Detail::DataTemplatePropertyTrigger& trigger :
+            for (Aero::Controls::Detail::DataTemplatePropertyTrigger& trigger :
                  context.triggers) {
-                for (Aero::Runtime::Detail::DataTemplateTriggerSetter& setter :
+                for (Aero::Controls::Detail::DataTemplateTriggerSetter& setter :
                      trigger.setters) {
                     Base::Ref<DependencyObject> target =
                         setter.target.Lock();
@@ -5707,9 +5707,9 @@ struct View::Impl {
             for (const Base::Ref<Base::Object>& authored :
                  Aero::GuiPrivate::Detail::ElementPrivate::AuthoredTriggers(*element)) {
                 if (authored && authored->RuntimeType() ==
-                    Aero::Runtime::Detail::DataTemplateTriggerState::StaticTypeId()) {
+                    Aero::Controls::Detail::DataTemplateTriggerState::StaticTypeId()) {
                     ClearDataTemplateTriggerProviders(
-                        static_cast<Aero::Runtime::Detail::DataTemplateTriggerState&>(
+                        static_cast<Aero::Controls::Detail::DataTemplateTriggerState&>(
                             *authored));
                 }
             }
@@ -6365,7 +6365,7 @@ struct View::Impl {
         Diagnostics::IDiagnosticSink* diagnostics,
         bool merge = false) noexcept {
         if (!initialized) {
-            return RuntimeNotInitialized(
+            return ViewDetailNotInitialized(
                 "View must be initialized before loading resources");
         }
         if (mounted || root || loadedDocument.root) {
@@ -6378,7 +6378,7 @@ struct View::Impl {
             return loadOptions.GetStatus();
         }
         if (xamlRuntime == nullptr) {
-            return RuntimeNotInitialized(
+            return ViewDetailNotInitialized(
                 "Gui XAML runtime is unavailable");
         }
         Base::Result<Markup::XamlDocument> loaded =
@@ -6402,7 +6402,7 @@ struct View::Impl {
         Aero::ResourceDictionary& target,
         bool merge = false) noexcept {
         if (!initialized) {
-            return RuntimeNotInitialized(
+            return ViewDetailNotInitialized(
                 "View must be initialized before loading resources");
         }
         if (mounted || root || loadedDocument.root) {
@@ -6413,7 +6413,7 @@ struct View::Impl {
             XamlSettings();
         if (!loadOptions) return loadOptions.GetStatus();
         if (xamlRuntime == nullptr) {
-            return RuntimeNotInitialized(
+            return ViewDetailNotInitialized(
                 "Gui XAML runtime is unavailable");
         }
         Base::Result<Markup::XamlDocument> loaded =
@@ -6453,7 +6453,7 @@ struct View::Impl {
         Base::Ref<Base::Object> requestedRoot,
         Aero::Size availableSize) noexcept {
         if (!initialized) {
-            return RuntimeNotInitialized(
+            return ViewDetailNotInitialized(
                 "View must be initialized before mounting");
         }
         if (mounted || root) {
@@ -6881,7 +6881,7 @@ Base::Result<void>
 View::Impl::ExecuteAnimationAction(
     MediaAnimation::TriggerAction& action,
     Aero::FrameworkElement& owner,
-    Aero::Runtime::Detail::DataTemplateTriggerState*
+    Aero::Controls::Detail::DataTemplateTriggerState*
         dataTemplateContext,
     const Aero::NameScope* names) noexcept {
     const Meta::TypeId type =
@@ -8062,7 +8062,7 @@ void View::SetSize(
     Aero::Size availableSize) noexcept {
     if (!IsInitialized() || state_ == nullptr) return;
     Base::Result<Viewport> viewport =
-        Aero::Runtime::Detail::MakeLogicalViewport(
+        Aero::ViewDetail::MakeLogicalViewport(
             availableSize,
             state_->viewport.dpiScale);
     if (!viewport) return;
@@ -8075,7 +8075,7 @@ void View::SetViewport(
         return;
     }
     Base::Result<void> valid =
-        Aero::Runtime::Detail::ValidateViewport(viewport);
+        Aero::ViewDetail::ValidateViewport(viewport);
     if (!valid) return;
     static_cast<void>(state_->ApplyViewport(viewport));
 }
