@@ -24,7 +24,7 @@ enum class PanningMode : std::uint8_t {
     VerticalFirst,
 };
 
-class AERO_API IScrollInfo {
+class AERO_GUI_API IScrollInfo {
 public:
     virtual ~IScrollInfo() = default;
     virtual ScrollData GetData() const noexcept = 0;
@@ -44,7 +44,7 @@ public:
         double direction) noexcept = 0;
 };
 
-class AERO_API ScrollContentPresenter
+class AERO_GUI_API ScrollContentPresenter
     : public ContentControl,
       public IScrollInfo {
     AERO_DECLARE_TYPE(ScrollContentPresenter, ContentControl)
@@ -127,11 +127,11 @@ private:
     IScrollInfo* ActiveContentScrollInfo() const noexcept;
 };
 
-class AERO_API ScrollViewer
+class AERO_GUI_API ScrollViewer
     : public ScrollContentPresenter {
     AERO_DECLARE_TYPE(ScrollViewer, ScrollContentPresenter)
 public:
-    struct Impl;
+    struct Access;
 
     ScrollViewer() noexcept;
     ~ScrollViewer() override;
@@ -230,7 +230,7 @@ protected:
 
 private:
     friend class ScrollContentPresenter;
-    friend struct Impl;
+    friend struct Access;
     ScrollContentPresenter* contentPresenter_ = nullptr;
     void AdoptPresenterData(
         ScrollContentPresenter& presenter,

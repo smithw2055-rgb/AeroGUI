@@ -6,7 +6,7 @@ namespace Aero {
 
 class Style;
 
-class AERO_API Trigger : public TriggerBase {
+class AERO_GUI_API Trigger : public TriggerBase {
     AERO_DECLARE_TYPE_NAMED(Trigger, TriggerBase, "urn:aero", "Trigger")
 public:
     explicit Trigger(TypeId runtimeType = StaticTypeId()) noexcept

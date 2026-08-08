@@ -28,7 +28,7 @@ struct ReloadResult  {
 // dependency graph, loads a replacement XamlDocument off to the side, and swaps
 // it into a mounted View only after the replacement is valid. All calls must
 // occur on the View owner thread.
-class AERO_API ReloadCoordinator  {
+class AERO_GUI_API ReloadCoordinator  {
 public:
     explicit ReloadCoordinator(
         View& view,
@@ -63,19 +63,8 @@ public:
     std::uint32_t TrackedSourceCount() const noexcept;
 
 private:
-    static Base::Result<void> QueryReloadSource(
-        View& view, const Base::ResourceUri& uri,
-        std::uint64_t& sourceIdentity, std::uint64_t& revision) noexcept;
-    static bool TryGetCachedReloadRevision(
-        View& view, const Base::ResourceUri& uri,
-        std::uint64_t sourceIdentity, std::uint64_t& revision) noexcept;
-    static Base::Result<std::uint32_t> InvalidateReloadDocuments(
-        View& view, const Base::ResourceUri& uri,
-        bool includeDependents) noexcept;
-
-    struct Impl;
     Base::IAllocator* allocator_ = nullptr;
-    Impl* impl_ = nullptr;
+    void* state_ = nullptr;
 };
 
 } // namespace Aero::Markup

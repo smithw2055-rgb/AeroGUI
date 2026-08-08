@@ -50,10 +50,10 @@ private:
     const ::Aero::Media::Visual* owner_ = nullptr;
 };
 
-class AERO_API UIElement : public ::Aero::Media::Visual {
+class AERO_GUI_API UIElement : public ::Aero::Media::Visual {
     AERO_DECLARE_TYPE(UIElement, ::Aero::Media::Visual)
 public:
-    struct Impl;
+    struct Access;
 
     template<class TArgs>
     using Event = ::Aero::Event<UIElement, TArgs>;
@@ -311,8 +311,8 @@ protected:
     }
 
 private:
-    friend struct Impl;
-    friend struct ::Aero::Media::Visual::Impl;
+    friend struct Access;
+    friend struct ::Aero::Media::Visual::Access;
     friend class Aero::Input::RoutedCommand;
 
     struct HandlerOperations {

@@ -1,5 +1,8 @@
 # C13-C18 structure closure
 
+> Historical milestone record. See `ARCHITECTURE.md` and
+> `REFACTOR_CLOSURE_S18_S24.md` for the current implementation.
+
 This pass finishes the simplification work after C8-C12 without introducing new
 Manager/Service/Runtime product layers.
 

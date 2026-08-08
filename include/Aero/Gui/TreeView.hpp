@@ -7,7 +7,7 @@ namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
-class AERO_API TreeViewItem
+class AERO_GUI_API TreeViewItem
     : public HeaderedItemsControl,
       private Collections::IItemsSource {
     AERO_DECLARE_TYPE(TreeViewItem, HeaderedItemsControl)
@@ -62,7 +62,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend struct ::Aero::Media::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Access;
     // The collection protocol is an implementation detail used by the
     // generated child ItemsControl; it is intentionally not part of the
     // TreeViewItem SDK surface.
@@ -116,11 +116,11 @@ private:
         SynchronizeTemplate() noexcept;
 };
 
-class AERO_API TreeView
+class AERO_GUI_API TreeView
     : public ItemsControl {
     AERO_DECLARE_TYPE(TreeView, ItemsControl)
 public:
-    struct Impl;
+    struct Access;
 
     TreeView() noexcept
         : ItemsControl(StaticTypeId()) {}
@@ -140,6 +140,6 @@ protected:
             noexcept override;
 
 private:
-    friend struct Impl;
+    friend struct Access;
 };
 } // namespace Aero::Controls

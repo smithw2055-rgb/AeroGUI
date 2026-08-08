@@ -1,31 +1,31 @@
 #include "BuiltinModules.hpp"
 
 #include "controls/Metadata.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "controls/ControlInternal.hpp"
-#include "controls/ItemsInternal.hpp"
-#include "controls/TemplateInternal.hpp"
-#include "markup/MarkupInternal.hpp"
-#include "markup/MarkupWriterInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "controls/ControlRuntime.hpp"
+#include "controls/ItemsRuntime.hpp"
+#include "controls/TemplateRuntime.hpp"
+#include "markup/MarkupRuntime.hpp"
+#include "markup/MarkupWriterRuntime.hpp"
 
 namespace Aero {
 
@@ -34,7 +34,7 @@ Base::Result<void> RegisterBuiltInUiModules(
     Base::Result<void> registered =
         Meta::RegisterCoreMetadata(domain);
     if (!registered) return registered.GetStatus();
-    registered = Aero::GuiPrivate::Detail::RegisterUiMetadata(domain);
+    registered = Aero::RegisterUiMetadata(domain);
     if (!registered) return registered.GetStatus();
     return Controls::RegisterControlsMetadata(domain);
 }

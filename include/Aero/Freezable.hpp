@@ -11,10 +11,10 @@ using FreezableChangedHandler = Base::Delegate<void(Freezable&)>;
 // Instance-level shareable dependency object. A frozen object rejects every
 // dependency-property mutation and no longer participates in consumer
 // invalidation. Freezing does not remove the object's dispatcher affinity.
-class AERO_API Freezable : public DependencyObject {
+class AERO_GUI_API Freezable : public DependencyObject {
     AERO_DECLARE_TYPE(Freezable, DependencyObject)
 public:
-    struct Impl;
+    struct Access;
 
     bool IsFrozen() const noexcept;
     bool CanFreeze() const noexcept;
@@ -42,7 +42,7 @@ protected:
 
 private:
     Base::IAllocator* implAllocator_ = nullptr;
-    Impl* impl_ = nullptr;
+    Access* impl_ = nullptr;
 };
 
 } // namespace Aero

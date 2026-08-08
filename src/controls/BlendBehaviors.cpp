@@ -2,20 +2,20 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Shapes.hpp>
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "media/AnimationInternal.hpp"
-#include "media/BrushInternal.hpp"
-#include "media/EffectInternal.hpp"
-#include "media/TransformInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "media/AnimationRuntime.hpp"
+#include "media/BrushRuntime.hpp"
+#include "media/EffectRuntime.hpp"
+#include "media/TransformRuntime.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -117,9 +117,9 @@ Rect NormalizeImageViewbox(
     if (brush.GetViewboxUnits() ==
         Media::BrushMappingMode::Absolute) {
         const double width = static_cast<double>(
-            Media::Detail::BrushPrivate::PixelWidth(brush));
+            Media::BrushPrivate::PixelWidth(brush));
         const double height = static_cast<double>(
-            Media::Detail::BrushPrivate::PixelHeight(brush));
+            Media::BrushPrivate::PixelHeight(brush));
         if (width > 0.0 && height > 0.0) {
             viewbox = {
                 viewbox.x / width,
@@ -136,9 +136,9 @@ Rect DisplayedImageViewbox(
     Size destination) noexcept {
     Rect uv = NormalizeImageViewbox(brush);
     const double pixelWidth = static_cast<double>(
-        Media::Detail::BrushPrivate::PixelWidth(brush));
+        Media::BrushPrivate::PixelWidth(brush));
     const double pixelHeight = static_cast<double>(
-        Media::Detail::BrushPrivate::PixelHeight(brush));
+        Media::BrushPrivate::PixelHeight(brush));
     const double sourceWidth = pixelWidth * std::fabs(uv.width);
     const double sourceHeight = pixelHeight * std::fabs(uv.height);
     if (sourceWidth <= 0.0 || sourceHeight <= 0.0 ||
@@ -274,8 +274,8 @@ void MouseDragElementBehavior::OnDetaching() noexcept {
             associated->PreviewMouseLeftButtonUp().Remove(
                 mouseUpHandler_));
         if (dragging_ && pointerId_ != UINT32_MAX) {
-            GuiPrivate::Detail::InputRouter* input =
-                GuiPrivate::Detail::ElementPrivate::InputRouterFor(
+            Aero::InputRouter* input =
+                Aero::ElementPrivate::InputRouterFor(
                     *associated);
             if (input != nullptr) {
                 static_cast<void>(input->ReleasePointer(pointerId_));
@@ -345,8 +345,8 @@ void MouseDragElementBehavior::OnMouseMove(
             DragThreshold * DragThreshold) {
             return;
         }
-        GuiPrivate::Detail::InputRouter* input =
-            GuiPrivate::Detail::ElementPrivate::InputRouterFor(*associated);
+        Aero::InputRouter* input =
+            Aero::ElementPrivate::InputRouterFor(*associated);
         if (input == nullptr ||
             !input->CapturePointer(pointerId_, *associated)) {
             pointerId_ = UINT32_MAX;
@@ -394,8 +394,8 @@ void MouseDragElementBehavior::OnMouseUp(
     }
     FrameworkElement* associated = GetAssociatedObject();
     if (dragging_ && associated != nullptr) {
-        GuiPrivate::Detail::InputRouter* input =
-            GuiPrivate::Detail::ElementPrivate::InputRouterFor(*associated);
+        Aero::InputRouter* input =
+            Aero::ElementPrivate::InputRouterFor(*associated);
         if (input != nullptr) {
             static_cast<void>(input->ReleasePointer(pointerId_));
         }

@@ -1,28 +1,28 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "controls/ControlInternal.hpp"
-#include "controls/ItemsInternal.hpp"
-#include "controls/TemplateInternal.hpp"
-#include "markup/MarkupInternal.hpp"
-#include "markup/MarkupWriterInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "controls/ControlRuntime.hpp"
+#include "controls/ItemsRuntime.hpp"
+#include "controls/TemplateRuntime.hpp"
+#include "markup/MarkupRuntime.hpp"
+#include "markup/MarkupWriterRuntime.hpp"
 // Consolidated implementation. Keep sections ordered by dependency.
 
 // ===== BindingExtension =====
@@ -35,19 +35,19 @@
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "controls/ControlInternal.hpp"
-#include "controls/ItemsInternal.hpp"
-#include "controls/TemplateInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "controls/ControlRuntime.hpp"
+#include "controls/ItemsRuntime.hpp"
+#include "controls/TemplateRuntime.hpp"
 
 #include <Aero/Gui/ControlTemplate.hpp>
 #include <Aero/Controls.hpp>
@@ -461,7 +461,7 @@ Base::Result<void> ParseArguments(
 }
 
 struct DeferredBindingState {
-    Aero::GuiPrivate::Detail::BindingEngine* manager = nullptr;
+    Aero::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     Base::Object* source = nullptr;
     Base::Ref<::Aero::DependencyObject> targetOwner;
@@ -574,7 +574,7 @@ struct DeferredMultiBindingState {
               &DeferredMultiBindingState::OnInputChanged),
           allocator(&value) {}
 
-    Aero::GuiPrivate::Detail::BindingEngine* manager = nullptr;
+    Aero::BindingEngine* manager = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     Base::Ref<::Aero::DependencyObject> targetOwner;
     ::Aero::DependencyObject* target = nullptr;
@@ -641,7 +641,7 @@ struct DeferredMultiBindingState {
                 binding->GetConverterParameter());
         if (!converted) return converted.GetStatus();
         Base::Result<Meta::Value> coerced =
-            GuiPrivate::Detail::NormalizeValueForProperty(
+            Aero::NormalizeValueForProperty(
                 metadata,
                 *targetInfo,
                 std::move(converted).Value());
@@ -922,12 +922,12 @@ Base::Result<ProvidedValue> CreateMultiBindingValue(
             "MultiBinding has no target service context");
     }
     Base::Result<DependencyObject*> target =
-        Detail::SchemaPrivate::ResolvePropertyTarget(
+        SchemaPrivate::ResolvePropertyTarget(
             *services.schema,
             *services.targetObject);
     if (!target) return target.GetStatus();
     ::Aero::Meta::Registry* metadata =
-        Detail::SchemaPrivate::Metadata(
+        SchemaPrivate::Metadata(
             *services.schema);
     if (metadata == nullptr ||
         target.Value()->PropertyRegistry().Find(
@@ -1001,7 +1001,7 @@ BindingExtension::BindingExtension(
 Base::Result<void> BindingExtension::Register(
     Schema& schema,
     Meta::TypeId bindingExtensionType) noexcept {
-    return Detail::SchemaPrivate::AddMarkupExtension(schema, {
+    return SchemaPrivate::AddMarkupExtension(schema, {
         bindingExtensionType,
         &BindingExtension::ProvideValue,
         this});
@@ -1063,7 +1063,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     }
 
     ::Aero::Meta::Registry* metadata =
-        Detail::SchemaPrivate::Metadata(
+        SchemaPrivate::Metadata(
             *services.schema);
     const Meta::PropertyInfo* targetMember =
         metadata != nullptr
@@ -1270,7 +1270,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     }
 
     Base::Result<::Aero::DependencyObject*> targetResult =
-        Detail::SchemaPrivate::ResolvePropertyTarget(
+        SchemaPrivate::ResolvePropertyTarget(
             *services.schema,
             *services.targetObject);
     if (!targetResult) {
@@ -1283,7 +1283,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     const Meta::DependencyProperty* targetProperty =
         target->PropertyRegistry().Find(targetHandle);
     if (targetProperty == nullptr ||
-        Detail::SchemaPrivate::Metadata(
+        SchemaPrivate::Metadata(
             *services.schema) == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -1304,7 +1304,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 *services.targetObject);
         if (authoredName.Empty()) {
             Base::Result<Base::String> generated =
-                ::Aero::Controls::Detail::TemplatePrivate::EnsureAuthoredName(controlTemplate,
+                ::Aero::Controls::TemplatePrivate::EnsureAuthoredName(controlTemplate,
                     *services.targetObject);
             if (!generated) {
                 return generated.GetStatus();
@@ -1314,7 +1314,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             authoredName = targetName.View();
         }
         Base::Result<void> added =
-            ::Aero::Controls::Detail::TemplatePrivate::AddTemplatedParentBinding(controlTemplate,
+            ::Aero::Controls::TemplatePrivate::AddTemplatedParentBinding(controlTemplate,
                 authoredName,
                 path,
                 stringFormat,
@@ -1377,7 +1377,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 source,
                 elementName,
                 *target,
-                *Detail::SchemaPrivate::Metadata(
+                *SchemaPrivate::Metadata(
                     *services.schema),
                 targetHandle,
                 extension->options_.dataContextProperty,
@@ -1404,7 +1404,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             "Deferred Binding allocation failed");
     }
     auto* state = new (memory) DeferredBindingState();
-    state->metadata = Detail::SchemaPrivate::Metadata(
+    state->metadata = SchemaPrivate::Metadata(
         *services.schema);
     state->source = source;
     state->targetOwner =
@@ -1421,13 +1421,13 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     state->dataContextOwner = target;
     if (source == nullptr &&
         services.rootObject != nullptr &&
-        Detail::SchemaPrivate::Metadata(*services.schema)->Types().IsDerivedFrom(
+        SchemaPrivate::Metadata(*services.schema)->Types().IsDerivedFrom(
             services.rootObject->RuntimeType(),
             ::Aero::DependencyObject::StaticTypeId())) {
         auto* root = static_cast<::Aero::DependencyObject*>(
             services.rootObject);
         const bool targetCanInheritDataContext =
-            Detail::SchemaPrivate::Metadata(*services.schema)->Types().IsDerivedFrom(
+            SchemaPrivate::Metadata(*services.schema)->Types().IsDerivedFrom(
                 target->RuntimeType(), FrameworkElement::StaticTypeId());
         if (!targetCanInheritDataContext &&
             root->PropertyRegistry().Find(
@@ -1848,7 +1848,7 @@ DynamicResourceExtension::DynamicResourceExtension(
 Base::Result<void> DynamicResourceExtension::Register(
     Schema& schema,
     Meta::TypeId dynamicResourceExtensionType) noexcept {
-    return Detail::SchemaPrivate::AddMarkupExtension(schema, {
+    return SchemaPrivate::AddMarkupExtension(schema, {
         dynamicResourceExtensionType,
         &DynamicResourceExtension::ProvideValue,
         this});
@@ -1925,7 +1925,7 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
                 Meta::TypeOf<Base::Object>()));
     }
     Base::Result<::Aero::DependencyObject*> targetResult =
-        Detail::SchemaPrivate::ResolvePropertyTarget(
+        SchemaPrivate::ResolvePropertyTarget(
             *services.schema,
             *services.targetObject);
     if (!targetResult) {
@@ -2165,7 +2165,7 @@ Base::Result<void> LocExtension::Register(
             Base::ErrorCode::InvalidState,
             "Loc extension registration is invalid");
     }
-    return Detail::SchemaPrivate::AddMarkupExtension(
+    return SchemaPrivate::AddMarkupExtension(
         schema, {markupExtensionType, &ProvideValue, nullptr});
 }
 
@@ -2181,7 +2181,7 @@ Base::Result<ProvidedValue> LocExtension::ProvideValue(
     }
 
     Base::Result<::Aero::DependencyObject*> targetResult =
-        Detail::SchemaPrivate::ResolvePropertyTarget(
+        SchemaPrivate::ResolvePropertyTarget(
             *services.schema, *services.targetObject);
     if (!targetResult) return targetResult.GetStatus();
     ::Aero::DependencyObject* target = targetResult.Value();
@@ -2324,7 +2324,7 @@ Base::Result<void> TemplateBindingExtension::Register(
             Base::ErrorCode::InvalidState,
             "TemplateBinding extension registration is invalid");
     }
-    return Detail::SchemaPrivate::AddMarkupExtension(
+    return SchemaPrivate::AddMarkupExtension(
         schema,
         {markupExtensionType, &ProvideValue, nullptr});
 }
@@ -2360,7 +2360,7 @@ TemplateBindingExtension::ProvideValue(
         static_cast<Controls::ControlTemplate&>(
             *services.deferredContentOwner);
     Base::Result<::Aero::DependencyObject*> target =
-        Detail::SchemaPrivate::ResolvePropertyTarget(
+        SchemaPrivate::ResolvePropertyTarget(
             *services.schema,
             *services.targetObject);
     if (!target) return target.GetStatus();
@@ -2391,7 +2391,7 @@ TemplateBindingExtension::ProvideValue(
             *services.targetObject);
     if (authoredName.Empty()) {
         Base::Result<Base::String> generated =
-            ::Aero::Controls::Detail::TemplatePrivate::EnsureAuthoredName(controlTemplate,
+            ::Aero::Controls::TemplatePrivate::EnsureAuthoredName(controlTemplate,
                 *services.targetObject);
         if (!generated) {
             return generated.GetStatus();
@@ -2401,7 +2401,7 @@ TemplateBindingExtension::ProvideValue(
         authoredName = targetName.View();
     }
     Base::Result<void> added =
-        ::Aero::Controls::Detail::TemplatePrivate::AddTemplateBinding(controlTemplate,
+        ::Aero::Controls::TemplatePrivate::AddTemplateBinding(controlTemplate,
             authoredName,
             source->Handle(),
             destination->Handle());
@@ -2442,7 +2442,7 @@ Base::Result<void> TypeExtension::Register(
             Base::ErrorCode::InvalidArgument,
             "x:Type reference token must be a value type");
     }
-    return Detail::SchemaPrivate::AddMarkupExtension(schema, {
+    return SchemaPrivate::AddMarkupExtension(schema, {
         markupExtensionType, &ProvideValue, nullptr});
 }
 
@@ -2456,7 +2456,7 @@ Base::Result<ProvidedValue> TypeExtension::ProvideValue(
             "x:Type extension context is invalid");
     }
     Base::Result<Meta::Value> value =
-        Detail::SchemaPrivate::ConvertText(
+        SchemaPrivate::ConvertText(
             *services.schema,
             Meta::TypeOf<Meta::TypeReference>(),
             arguments,
@@ -2508,7 +2508,7 @@ Base::Result<void> StaticExtension::Register(
             Base::ErrorCode::InvalidState,
             "x:Static extension registration is invalid");
     }
-    return Detail::SchemaPrivate::AddMarkupExtension(schema, {
+    return SchemaPrivate::AddMarkupExtension(schema, {
         markupExtensionType, &ProvideValue, nullptr});
 }
 
@@ -2574,7 +2574,7 @@ Base::Result<ProvidedValue> StaticExtension::ProvideValue(
         services.namespaces.Lookup(prefix);
     if (!xamlNamespace) return xamlNamespace.GetStatus();
     Base::Result<const Meta::TypeInfo*> type =
-        Detail::SchemaPrivate::ResolveType(
+        SchemaPrivate::ResolveType(
             *services.schema,
             xamlNamespace.Value(),
             typeName);
@@ -2669,31 +2669,6 @@ Base::Result<Aero::ResourceValue> ResourceResolver::Lookup(
 
 
 
-
-namespace Aero::Markup {
-
-struct NamespaceScope::Impl {
-public:
-    static ::Aero::Markup::NamespaceScope CreateNamespaceScope(
-        ::Aero::Markup::NamespaceScope::LookupCallback lookup,
-        void* context) noexcept {
-        return ::Aero::Markup::NamespaceScope(lookup, context);
-    }
-
-    static ::Aero::Markup::ResourceResolver CreateResourceResolver(
-        ::Aero::Markup::ResourceResolver::LookupCallback lookup,
-        void* context) noexcept {
-        return ::Aero::Markup::ResourceResolver(lookup, context);
-    }
-};
-
-} // namespace Aero::Markup
-
-// Source-only bridge for the historical Markup::Detail spelling. The
-// installed API only friends the opaque NamespaceScope::Impl seam.
-namespace Aero::Markup::Detail {
-using ResourcePrivate = ::Aero::Markup::NamespaceScope::Impl;
-}
 
 namespace Aero::Markup {
 class NodeCursor {
@@ -4773,9 +4748,9 @@ Base::Result<void> ObjectBuilder::CompleteObject(
     }
 
     if (record.type ==
-        Detail::StaticResourceObject::StaticTypeId()) {
+        StaticResourceObject::StaticTypeId()) {
         const auto& extension =
-            static_cast<const Detail::StaticResourceObject&>(
+            static_cast<const StaticResourceObject&>(
                 *record.object);
         if (extension.ResourceKey().Empty()) {
             return Failure(
@@ -5451,8 +5426,8 @@ Base::Result<void> ObjectBuilder::WriteValue(
             targetRecord.type,
             Controls::ItemsControl::StaticTypeId())) {
         Base::Result<Base::Ref<
-            Controls::Detail::BoxedItemValue>> boxed =
-                Base::MakeRef<Controls::Detail::BoxedItemValue>(
+            Controls::BoxedItemValue>> boxed =
+                Base::MakeRef<Controls::BoxedItemValue>(
                     value);
         if (!boxed) return boxed.GetStatus();
         value = Meta::Value::FromObject(
@@ -6189,14 +6164,12 @@ ExtensionServices ObjectBuilder::BuildExtensionServices(
     }
     services.source = source;
     services.nameScope = FindActiveNameScope();
-    services.namespaces =
-        Detail::ResourcePrivate::CreateNamespaceScope(
-            &ObjectBuilder::NamespaceLookupCallback,
-            this);
-    services.resources =
-        Detail::ResourcePrivate::CreateResourceResolver(
-            &ObjectBuilder::ResourceLookupCallback,
-            this);
+    services.namespaces = NamespaceScope(
+        &ObjectBuilder::NamespaceLookupCallback,
+        this);
+    services.resources = ResourceResolver(
+        &ObjectBuilder::ResourceLookupCallback,
+        this);
     serviceResourceChain_.Clear();
     for (std::uint32_t index = frames_.Size();
          index > 0U; --index) {

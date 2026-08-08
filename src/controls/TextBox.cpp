@@ -1,33 +1,33 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Gui/Text.hpp>
 #include "../text/EditableText.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "media/AnimationInternal.hpp"
-#include "media/BrushInternal.hpp"
-#include "media/EffectInternal.hpp"
-#include "media/TransformInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "media/AnimationRuntime.hpp"
+#include "media/BrushRuntime.hpp"
+#include "media/EffectRuntime.hpp"
+#include "media/TransformRuntime.hpp"
 
 #include "TextBlockLayout.hpp"
 
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -36,13 +36,13 @@
 #include <utility>
 #include "ControlBehavior.hpp"
 
-namespace Aero::Controls::Detail {
+namespace Aero::Controls {
 
 class TextDisplayPolicy {
 public:
     virtual ~TextDisplayPolicy() = default;
     virtual Base::Result<void> BuildDisplayText(
-        const ::Aero::Text::Detail::EditableTextModel& model,
+        const ::Aero::Text::EditableTextModel& model,
         Base::String& output) noexcept = 0;
     virtual bool AllowsCopy() const noexcept = 0;
     virtual bool AllowsCut() const noexcept = 0;
@@ -51,7 +51,7 @@ public:
 class PlainTextDisplayPolicy : public TextDisplayPolicy {
 public:
     Base::Result<void> BuildDisplayText(
-        const ::Aero::Text::Detail::EditableTextModel& model,
+        const ::Aero::Text::EditableTextModel& model,
         Base::String& output) noexcept override {
         return model.Snapshot(output);
     }
@@ -69,7 +69,7 @@ public:
     }
 
     Base::Result<void> SetMask(Base::StringView value) noexcept {
-        ::Aero::Text::Detail::EditableTextModel validation;
+        ::Aero::Text::EditableTextModel validation;
         Base::Result<void> assigned = validation.SetText(value);
         if (!assigned || validation.GraphemeCount() != 1U) {
             return Base::Status::Failure(
@@ -82,7 +82,7 @@ public:
     Base::StringView GetMask() const noexcept { return mask_.View(); }
 
     Base::Result<void> BuildDisplayText(
-        const ::Aero::Text::Detail::EditableTextModel& model,
+        const ::Aero::Text::EditableTextModel& model,
         Base::String& output) noexcept override {
         output.Clear();
         const std::uint32_t count = model.GraphemeCount();
@@ -122,7 +122,7 @@ private:
     Base::String mask_;
 };
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Controls
 
 namespace Aero::Controls {
 
@@ -130,13 +130,13 @@ using namespace Primitives;
 using namespace ::Aero::Render;
 } // namespace Aero::Controls
 
-namespace Aero::Controls::Detail {
-using ::Aero::Controls::Detail::TextDisplayPolicy;
-using ::Aero::Controls::Detail::PlainTextDisplayPolicy;
-using ::Aero::Controls::Detail::PasswordTextDisplayPolicy;
-using ::Aero::Controls::Detail::TextLayoutRequest;
-using ::Aero::Controls::Detail::TextLayoutResult;
-} // namespace Aero::Controls::Detail
+namespace Aero::Controls {
+using ::Aero::Controls::TextDisplayPolicy;
+using ::Aero::Controls::PlainTextDisplayPolicy;
+using ::Aero::Controls::PasswordTextDisplayPolicy;
+using ::Aero::Controls::TextLayoutRequest;
+using ::Aero::Controls::TextLayoutResult;
+} // namespace Aero::Controls
 
 namespace Aero::Controls {
 using namespace Primitives;
@@ -191,30 +191,30 @@ Rect ToRootRect(
 
 } // namespace
 
-::Aero::Text::Detail::EditableTextModel& Model(
+::Aero::Text::EditableTextModel& Model(
     void* value) noexcept {
-    return *static_cast<::Aero::Text::Detail::EditableTextModel*>(value);
+    return *static_cast<::Aero::Text::EditableTextModel*>(value);
 }
 
-const ::Aero::Text::Detail::EditableTextModel& Model(
+const ::Aero::Text::EditableTextModel& Model(
     const void* value) noexcept {
-    return *static_cast<const ::Aero::Text::Detail::EditableTextModel*>(value);
+    return *static_cast<const ::Aero::Text::EditableTextModel*>(value);
 }
 
-::Aero::Controls::Detail::TextDisplayPolicy* DisplayPolicy(
+::Aero::Controls::TextDisplayPolicy* DisplayPolicy(
     void* value) noexcept {
-    return static_cast<::Aero::Controls::Detail::TextDisplayPolicy*>(value);
+    return static_cast<::Aero::Controls::TextDisplayPolicy*>(value);
 }
 
-::Aero::Controls::Detail::PasswordTextDisplayPolicy* PasswordPolicy(
+::Aero::Controls::PasswordTextDisplayPolicy* PasswordPolicy(
     void* value) noexcept {
-    return static_cast<::Aero::Controls::Detail::PasswordTextDisplayPolicy*>(value);
+    return static_cast<::Aero::Controls::PasswordTextDisplayPolicy*>(value);
 }
 
-::Aero::Controls::Detail::TextBlockLayout* LayoutService(
+::Aero::Controls::TextBlockLayout* LayoutService(
     const ::Aero::Media::Visual& visual) noexcept {
-    return static_cast<::Aero::Controls::Detail::TextBlockLayout*>(
-        ::Aero::Media::Visual::Impl::TextLayoutRuntime(visual));
+    return static_cast<::Aero::Controls::TextBlockLayout*>(
+        ::Aero::Media::Visual::Access::TextLayoutRuntime(visual));
 }
 
 Base::Ref<Media::Brush>
@@ -253,10 +253,10 @@ void TextBoxBase::SetCaretBrush(
 
 TextBox::TextBox() noexcept
     : TextBoxBase(StaticTypeId()),
-      model_(new (std::nothrow) ::Aero::Text::Detail::EditableTextModel()),
-      compositionModel_(new (std::nothrow) ::Aero::Text::Detail::EditableTextModel()),
+      model_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
+      compositionModel_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
       displayPolicy_(nullptr),
-      plainPolicy_(new (std::nothrow) Detail::PlainTextDisplayPolicy()),
+      plainPolicy_(new (std::nothrow) PlainTextDisplayPolicy()),
       textChangedHandler_(
           this,
           &TextBox::OnTextPropertyChanged) {
@@ -280,19 +280,19 @@ TextBox::~TextBox() {
             scrollViewer_->SetContentScrollInfo(nullptr));
     }
     ReleaseGlyphRuns();
-    delete static_cast<::Aero::Text::Detail::EditableTextModel*>(model_);
+    delete static_cast<::Aero::Text::EditableTextModel*>(model_);
     model_ = nullptr;
-    delete static_cast<::Aero::Text::Detail::EditableTextModel*>(compositionModel_);
+    delete static_cast<::Aero::Text::EditableTextModel*>(compositionModel_);
     compositionModel_ = nullptr;
-    delete static_cast<::Aero::Controls::Detail::PlainTextDisplayPolicy*>(plainPolicy_);
+    delete static_cast<::Aero::Controls::PlainTextDisplayPolicy*>(plainPolicy_);
     plainPolicy_ = nullptr;
     displayPolicy_ = nullptr;
 }
 
 PasswordBox::PasswordBox() noexcept
     : TextBoxBase(StaticTypeId()),
-      validation_(new (std::nothrow) ::Aero::Text::Detail::EditableTextModel()),
-      passwordPolicy_(new (std::nothrow) Detail::PasswordTextDisplayPolicy()) {
+      validation_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
+      passwordPolicy_(new (std::nothrow) PasswordTextDisplayPolicy()) {
     editor_.displayPolicy_ =
         passwordPolicy_;
     editor_.coordinateOwner_ = this;
@@ -300,16 +300,16 @@ PasswordBox::PasswordBox() noexcept
 }
 
 PasswordBox::~PasswordBox() {
-    delete static_cast<::Aero::Text::Detail::EditableTextModel*>(validation_);
+    delete static_cast<::Aero::Text::EditableTextModel*>(validation_);
     validation_ = nullptr;
-    delete static_cast<::Aero::Controls::Detail::PasswordTextDisplayPolicy*>(passwordPolicy_);
+    delete static_cast<::Aero::Controls::PasswordTextDisplayPolicy*>(passwordPolicy_);
     passwordPolicy_ = nullptr;
 }
 
 void PasswordBox::SetPassword(
     Base::StringView value) noexcept {
     if (password_.View() == value) return;
-    ::Aero::Text::Detail::EditableTextModel next;
+    ::Aero::Text::EditableTextModel next;
     Base::Result<void> limited =
         next.SetMaximumLength(
             EffectiveMaximumLength(
@@ -348,7 +348,7 @@ Base::StringView PasswordBox::GetPasswordChar() const noexcept {
 
 void PasswordBox::SetPasswordChar(
     Base::StringView value) noexcept {
-    Detail::PasswordTextDisplayPolicy validation;
+    PasswordTextDisplayPolicy validation;
     Base::Result<void> valid =
         validation.SetMask(value);
     if (!valid) return;
@@ -541,7 +541,7 @@ Base::StringView TextBox::GetText() const noexcept {
 
 void TextBox::SetText(
     Base::StringView value) noexcept {
-    ::Aero::Text::Detail::EditableTextModel validation;
+    ::Aero::Text::EditableTextModel validation;
     Base::Result<void> checked =
         validation.SetText(value);
     if (!checked) {
@@ -1161,7 +1161,7 @@ Base::Result<void> TextBox::ConstrainManualInput(
         retained >= maximum
         ? 0U
         : maximum - retained;
-    ::Aero::Text::Detail::EditableTextModel inserted;
+    ::Aero::Text::EditableTextModel inserted;
     Base::Result<void> parsed =
         inserted.SetText(input.View());
     if (!parsed) {
@@ -1667,7 +1667,7 @@ Size TextBox::MeasureOverride(
     auto* layoutService = LayoutService(*this);
     if (layoutService != nullptr &&
         !displayText_.Empty()) {
-        Detail::TextLayoutRequest request;
+        TextLayoutRequest request;
         request.text = displayText_.View();
         request.availableSize =
             contentAvailable;
@@ -1712,7 +1712,7 @@ Size TextBox::MeasureOverride(
         request.direction = GetFlowDirection() == FlowDirection::RightToLeft
             ? Text::TextDirection::RightToLeft
             : Text::TextDirection::LeftToRight;
-        Detail::TextLayoutResult result;
+        TextLayoutResult result;
         Base::Result<void> prepared =
             layoutService->ShapeAndPrepare(
                 request, result);
@@ -1873,7 +1873,7 @@ Size TextBox::ArrangeOverride(
 
 void TextBox::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     const Rect bounds{
         0.0, 0.0,
         GetRenderSize().width,
@@ -1884,7 +1884,7 @@ void TextBox::OnRender(
         std::max(border.left, border.right),
         std::max(border.top, border.bottom));
     Color borderBrush =
-        ::Aero::Media::Detail::SampleBrush(GetBorderBrush());
+        ::Aero::Media::SampleBrush(GetBorderBrush());
     if (GetIsKeyboardFocused() && GetIsEnabled()) {
         borderBrush = Color{
             11.0F / 255.0F,
@@ -1901,7 +1901,7 @@ void TextBox::OnRender(
     Base::Result<void> chrome =
         builder.FillRoundedRect(
             bounds,
-            ::Aero::Media::Detail::SampleBrush(GetBackground()),
+            ::Aero::Media::SampleBrush(GetBackground()),
             1.75);
     if (!chrome) {
         return;
@@ -1929,7 +1929,7 @@ TextBox::RenderEditor(
     ::Aero::Media::DrawingContext& context,
     Size viewport,
     bool drawCaret) noexcept {
-    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     const Thickness padding = GetPadding();
     const Rect contentBounds{
         padding.left,
@@ -1993,7 +1993,7 @@ TextBox::RenderEditor(
                     DefaultAdvance,
                     textSize_.width - first.x);
             Color selectionColor =
-                ::Aero::Media::Detail::SampleBrush(
+                ::Aero::Media::SampleBrush(
                     GetSelectionBrush(),
                     0.5,
                     Color{
@@ -2021,7 +2021,7 @@ TextBox::RenderEditor(
                 builder.DrawGlyphRun(
                     glyph,
                     showingPlaceholder_
-                    ? ::Aero::Media::Detail::SampleBrush(
+                    ? ::Aero::Media::SampleBrush(
                         GetPlaceholderForeground(),
                         0.5,
                         Color{
@@ -2029,7 +2029,7 @@ TextBox::RenderEditor(
                             128.0F / 255.0F,
                             133.0F / 255.0F,
                             1.0F})
-                    : ::Aero::Media::Detail::SampleBrush(
+                    : ::Aero::Media::SampleBrush(
                         GetForeground(),
                         0.5,
                         Color{
@@ -2046,7 +2046,7 @@ TextBox::RenderEditor(
         Base::Result<void> drawn =
             builder.FillRect(
                 caret,
-                ::Aero::Media::Detail::SampleBrush(
+                ::Aero::Media::SampleBrush(
                     GetCaretBrush(),
                     0.5,
                     Color{
@@ -2223,11 +2223,11 @@ namespace Aero::Controls {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
-using namespace ::Aero::Controls::Detail;
-using namespace ::Aero::GuiPrivate::Detail;
+using namespace ::Aero::Controls;
+using namespace ::Aero;
 
-TextBox::Impl::
-Impl(
+TextBox::Access::
+Access(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input,
@@ -2238,39 +2238,39 @@ Impl(
       clipboard_(&clipboard),
       mouseDownHandler_(
           this,
-          &TextBox::Impl::
+          &TextBox::Access::
               OnMouseDown),
       mouseMoveHandler_(
           this,
-          &TextBox::Impl::
+          &TextBox::Access::
               OnMouseMove),
       mouseUpHandler_(
           this,
-          &TextBox::Impl::
+          &TextBox::Access::
               OnMouseUp),
       keyDownHandler_(
           this,
-          &TextBox::Impl::
+          &TextBox::Access::
               OnKeyDown),
       textInputHandler_(
           this,
-          &TextBox::Impl::
+          &TextBox::Access::
               OnTextInput),
       focusChangedHandler_(
           this,
-          &TextBox::Impl::
+          &TextBox::Access::
               OnFocusChanged),
       propertyChangedHandler_(
           this,
-          &TextBox::Impl::
+          &TextBox::Access::
               OnPropertyChanged),
       captureChangedHandler_(
           this,
-          &TextBox::Impl::
+          &TextBox::Access::
               OnCaptureChanged) {}
 
-TextBox::Impl::
-~Impl() noexcept {
+TextBox::Access::
+~Access() noexcept {
     while (!records_.Empty()) {
         UIElement* owner =
             ResolveOwner(records_.Size() - 1U);
@@ -2289,7 +2289,7 @@ TextBox::Impl::
     }
 }
 
-std::uint32_t TextBox::Impl::Find(
+std::uint32_t TextBox::Access::Find(
     const UIElement& owner) const noexcept {
     for (std::uint32_t index = 0U;
          index < records_.Size(); ++index) {
@@ -2303,7 +2303,7 @@ std::uint32_t TextBox::Impl::Find(
 }
 
 UIElement*
-TextBox::Impl::ResolveOwner(
+TextBox::Access::ResolveOwner(
     std::uint32_t index) noexcept {
     if (index >= records_.Size()) {
         return nullptr;
@@ -2325,7 +2325,7 @@ TextBox::Impl::ResolveOwner(
 }
 
 TextBox*
-TextBox::Impl::ResolveEditor(
+TextBox::Access::ResolveEditor(
     std::uint32_t index) noexcept {
     UIElement* owner = ResolveOwner(index);
     if (owner == nullptr) return nullptr;
@@ -2335,7 +2335,7 @@ TextBox::Impl::ResolveEditor(
         : static_cast<TextBox*>(owner);
 }
 
-void TextBox::Impl::RemoveAt(
+void TextBox::Access::RemoveAt(
     std::uint32_t index) noexcept {
     if (index + 1U != records_.Size()) {
         records_[index] = std::move(
@@ -2345,7 +2345,7 @@ void TextBox::Impl::RemoveAt(
 }
 
 Base::Result<void>
-TextBox::Impl::Attach(
+TextBox::Access::Attach(
     TextBox& textBox) noexcept {
     if (Find(textBox) != UINT32_MAX) {
         return Base::Status::Failure(
@@ -2353,7 +2353,7 @@ TextBox::Impl::Attach(
             "TextBox is already attached");
     }
     if (!textBox.GetIsLoaded() ||
-        Aero::GuiPrivate::Detail::ElementPrivate::Tree(textBox) != tree_) {
+        Aero::ElementPrivate::Tree(textBox) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "TextBox must be loaded in the interaction tree");
@@ -2364,7 +2364,7 @@ TextBox::Impl::Attach(
         return synced;
     }
     Record record;
-    record.handle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(textBox);
+    record.handle = Aero::ElementPrivate::Handle(textBox);
     Base::Result<void> appended =
         records_.PushBack(record);
     if (!appended) {
@@ -2437,7 +2437,7 @@ TextBox::Impl::Attach(
 }
 
 Base::Result<void>
-TextBox::Impl::Attach(
+TextBox::Access::Attach(
     PasswordBox& passwordBox) noexcept {
     if (Find(passwordBox) != UINT32_MAX) {
         return Base::Status::Failure(
@@ -2445,7 +2445,7 @@ TextBox::Impl::Attach(
             "PasswordBox is already attached");
     }
     if (!passwordBox.GetIsLoaded() ||
-        Aero::GuiPrivate::Detail::ElementPrivate::Tree(passwordBox) != tree_) {
+        Aero::ElementPrivate::Tree(passwordBox) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "PasswordBox must be loaded in the interaction tree");
@@ -2467,7 +2467,7 @@ TextBox::Impl::Attach(
     if (!synced) return synced.GetStatus();
 
     Record record;
-    record.handle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(passwordBox);
+    record.handle = Aero::ElementPrivate::Handle(passwordBox);
     record.password = true;
     Base::Result<void> appended =
         records_.PushBack(record);
@@ -2565,7 +2565,7 @@ TextBox::Impl::Attach(
 }
 
 Base::Result<bool>
-TextBox::Impl::Detach(
+TextBox::Access::Detach(
     TextBox& textBox) noexcept {
     const std::uint32_t index = Find(textBox);
     if (index == UINT32_MAX) {
@@ -2626,7 +2626,7 @@ TextBox::Impl::Detach(
 }
 
 Base::Result<bool>
-TextBox::Impl::Detach(
+TextBox::Access::Detach(
     PasswordBox& passwordBox) noexcept {
     const std::uint32_t index =
         Find(passwordBox);
@@ -2714,7 +2714,7 @@ TextBox::Impl::Detach(
     return true;
 }
 
-void TextBox::Impl::OnMouseDown(
+void TextBox::Access::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& owner =
@@ -2754,7 +2754,7 @@ void TextBox::Impl::OnMouseDown(
     args.SetHandled(true);
 }
 
-void TextBox::Impl::OnMouseMove(
+void TextBox::Access::OnMouseMove(
     Base::Object* sender,
     MouseEventArgs& args) noexcept {
     auto& owner =
@@ -2780,7 +2780,7 @@ void TextBox::Impl::OnMouseMove(
     args.SetHandled(true);
 }
 
-void TextBox::Impl::OnMouseUp(
+void TextBox::Access::OnMouseUp(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& owner =
@@ -2812,7 +2812,7 @@ void TextBox::Impl::OnMouseUp(
     args.SetHandled(true);
 }
 
-void TextBox::Impl::OnKeyDown(
+void TextBox::Access::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& owner =
@@ -2908,7 +2908,7 @@ void TextBox::Impl::OnKeyDown(
     }
 }
 
-void TextBox::Impl::OnTextInput(
+void TextBox::Access::OnTextInput(
     Base::Object* sender,
     TextCompositionEventArgs& args) noexcept {
     auto& owner =
@@ -2939,7 +2939,7 @@ void TextBox::Impl::OnTextInput(
     }
 }
 
-void TextBox::Impl::OnFocusChanged(
+void TextBox::Access::OnFocusChanged(
     Base::Object* sender,
     KeyboardFocusChangedEventArgs& args) noexcept {
     auto& owner =
@@ -2966,7 +2966,7 @@ void TextBox::Impl::OnFocusChanged(
             records_[index].pointerId));
 }
 
-void TextBox::Impl::OnPropertyChanged(
+void TextBox::Access::OnPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
     if (object.RuntimeType() ==
@@ -3077,7 +3077,7 @@ void TextBox::Impl::OnPropertyChanged(
     }
 }
 
-void TextBox::Impl::OnCaptureChanged(
+void TextBox::Access::OnCaptureChanged(
     std::uint32_t pointerId,
     UIElement* target,
     bool captured) noexcept {

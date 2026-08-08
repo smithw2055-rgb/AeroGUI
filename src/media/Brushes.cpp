@@ -1,29 +1,29 @@
 #include <Aero/Gui/Brush.hpp>
 #include "BrushRendering.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "media/AnimationInternal.hpp"
-#include "media/BrushInternal.hpp"
-#include "media/EffectInternal.hpp"
-#include "media/TransformInternal.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "media/AnimationRuntime.hpp"
+#include "media/BrushRuntime.hpp"
+#include "media/EffectRuntime.hpp"
+#include "media/TransformRuntime.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -219,8 +219,8 @@ bool GradientStopCollection::FreezeCore(bool isChecking) noexcept {
     return Freezable::FreezeCore(isChecking);
 }
 
-std::uint64_t Brush::Impl::Revision(const Brush& brush) noexcept {
-    return Freezable::Impl::Revision(brush);
+std::uint64_t Brush::Access::Revision(const Brush& brush) noexcept {
+    return Freezable::Access::Revision(brush);
 }
 
 BrushMappingMode GradientBrush::GetMappingMode() const noexcept {
@@ -420,11 +420,11 @@ Base::Result<void> PaintBrushRect(
         const auto& imageBrush =
             *static_cast<ImageBrush*>(brush.Get());
         const Render::RenderImageId image =
-            Detail::BrushPrivate::RuntimeImage(imageBrush);
+            BrushPrivate::RuntimeImage(imageBrush);
         const std::uint32_t pixelWidth =
-            Detail::BrushPrivate::PixelWidth(imageBrush);
+            BrushPrivate::PixelWidth(imageBrush);
         const std::uint32_t pixelHeight =
-            Detail::BrushPrivate::PixelHeight(imageBrush);
+            BrushPrivate::PixelHeight(imageBrush);
         if (image == Render::InvalidRenderImageId ||
             pixelWidth == 0U || pixelHeight == 0U) {
             return {};
@@ -503,7 +503,7 @@ Base::Result<void> PaintBrushRect(
                 const Point center{
                     (tile.x - bounds.x + tile.width * 0.5) / bounds.width,
                     (tile.y - bounds.y + tile.height * 0.5) / bounds.height};
-                const Color tint = Detail::SampleBrush(
+                const Color tint = SampleBrush(
                     brush, 0.5,
                     {1.0F, 1.0F, 1.0F,
                      static_cast<float>(imageBrush.GetOpacity())},
@@ -575,7 +575,7 @@ Base::Result<void> PaintBrushRect(
             Base::Result<void> painted =
                 builder.FillRect(
                     band,
-                    ::Aero::Media::Detail::SampleBrush(
+                    ::Aero::Media::SampleBrush(
                         brush, position, {},
                         {(centerX - bounds.x) / bounds.width,
                          (centerY - bounds.y) / bounds.height},
@@ -656,7 +656,7 @@ Base::Result<void> PaintBrushRect(
                                 bounds.width + 0.25,
                             (endY - beginY) *
                                 bounds.height + 0.25},
-                        ::Aero::Media::Detail::SampleBrush(
+                        ::Aero::Media::SampleBrush(
                             brush, position, {},
                             {x, y},
                             Base::Size{bounds.width, bounds.height}));
@@ -667,7 +667,7 @@ Base::Result<void> PaintBrushRect(
         }
         return {};
     }
-    const Color color = ::Aero::Media::Detail::SampleBrush(brush);
+    const Color color = ::Aero::Media::SampleBrush(brush);
     if (color.alpha <= 0.0F) return {};
     const double effectiveRadius = std::min(
         std::max(0.0, cornerRadius),

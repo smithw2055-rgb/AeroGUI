@@ -1,13 +1,13 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 #include <Aero/Layout.hpp>
 #include <Aero/Gui/FrameworkElement.hpp>
 #include <Aero/Gui/FrameworkContentElement.hpp>
@@ -82,7 +82,7 @@ std::uint32_t LogicalTreeHelper::GetChildrenCount(
     const TypeRegistry& types = object.PropertyRegistry().Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
-        return Aero::GuiPrivate::Detail::ElementPrivate::LogicalChildrenCount(
+        return Aero::ElementPrivate::LogicalChildrenCount(
             static_cast<const FrameworkContentElement&>(object));
     }
     if (types.IsDerivedFrom(
@@ -102,7 +102,7 @@ DependencyObject* LogicalTreeHelper::GetChild(
     const TypeRegistry& types = object.PropertyRegistry().Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
-        return Aero::GuiPrivate::Detail::ElementPrivate::LogicalChild(
+        return Aero::ElementPrivate::LogicalChild(
             static_cast<const FrameworkContentElement&>(object), index);
     }
     if (types.IsDerivedFrom(
@@ -140,21 +140,21 @@ Media::Visual::~Visual() {
     AERO_ASSERT(!renderQueued_);
     AERO_ASSERT(!rendering_);
     AERO_ASSERT(renderNodeId_ == Base::InvalidRenderNodeId);
-    if (lifetime_) static_cast<Aero::GuiPrivate::Detail::VisualLifetime*>(lifetime_.Get())->Invalidate();
+    if (lifetime_) static_cast<Aero::VisualLifetime*>(lifetime_.Get())->Invalidate();
 }
 
 Base::Result<Base::Ref<Base::Object>>
 Media::Visual::AcquireLifetime() noexcept {
     if (!lifetime_) {
-        Base::Result<Base::Ref<Aero::GuiPrivate::Detail::VisualLifetime>> created =
-            Base::MakeRef<Aero::GuiPrivate::Detail::VisualLifetime>(*this);
+        Base::Result<Base::Ref<Aero::VisualLifetime>> created =
+            Base::MakeRef<Aero::VisualLifetime>(*this);
         if (!created) return created.GetStatus();
         lifetime_ = std::move(created).Value();
     }
     return lifetime_;
 }
 
-Base::Result<Aero::GuiPrivate::Detail::VisualLease> Aero::GuiPrivate::Detail::VisualLease::Acquire(
+Base::Result<Aero::VisualLease> Aero::VisualLease::Acquire(
     ::Aero::Media::Visual& node) noexcept {
     VisualLease lease;
     lease.strong = Base::Ref<::Aero::Media::Visual>::TryFromBorrowed(node);
@@ -420,8 +420,8 @@ Base::Result<void> ElementTree::StageLifecycleSubtree(
     bool loaded,
     Base::Vector<LifecycleRecord>& staged) noexcept {
     if (node.loaded_ != loaded) {
-        Base::Result<Aero::GuiPrivate::Detail::VisualLease> lease =
-            Aero::GuiPrivate::Detail::VisualLease::Acquire(node);
+        Base::Result<Aero::VisualLease> lease =
+            Aero::VisualLease::Acquire(node);
         if (!lease) return lease.GetStatus();
 
         LifecycleRecord record;
@@ -803,13 +803,13 @@ Base::Result<void> ElementTree::DetachRender(
     return {};
 }
 
-Base::Result<Aero::GuiPrivate::Detail::ElementAttachment> ElementTree::AttachElement(
+Base::Result<Aero::ElementAttachment> ElementTree::AttachElement(
     ::Aero::Media::Visual& logicalParent, ::Aero::Media::Visual& visualParent, ::Aero::Media::Visual& child) noexcept {
     if (&logicalParent == &child || &visualParent == &child) {
         return InvalidState("Element cannot be attached to itself");
     }
 
-    Aero::GuiPrivate::Detail::ElementAttachment state;
+    Aero::ElementAttachment state;
     state.logicalParent = &logicalParent;
     state.visualParent = &visualParent;
     state.child = &child;
@@ -850,7 +850,7 @@ Base::Result<Aero::GuiPrivate::Detail::ElementAttachment> ElementTree::AttachEle
 }
 
 Base::Result<void> ElementTree::DetachElement(
-    Aero::GuiPrivate::Detail::ElementAttachment& state) noexcept {
+    Aero::ElementAttachment& state) noexcept {
     if (!state.IsAttached()) return {};
     if (state.logicalParent == nullptr || state.visualParent == nullptr ||
         state.child == nullptr) {
@@ -897,8 +897,8 @@ Base::Result<void> ElementTree::DetachElement(
 }
 
 Base::Result<void> ElementTree::DetachVisual(
-    Aero::GuiPrivate::Detail::ElementAttachment& state) noexcept {
-    Aero::GuiPrivate::Detail::VisualAttachment visualState;
+    Aero::ElementAttachment& state) noexcept {
+    Aero::VisualAttachment visualState;
     visualState.visualParent = state.visualParent;
     visualState.child = state.child;
     visualState.visualAttached = state.visualAttached;
@@ -912,15 +912,15 @@ Base::Result<void> ElementTree::DetachVisual(
 }
 
 Base::Result<void> ElementTree::AttachVisual(
-    Aero::GuiPrivate::Detail::ElementAttachment& state, ::Aero::Media::Visual& newVisualParent) noexcept {
+    Aero::ElementAttachment& state, ::Aero::Media::Visual& newVisualParent) noexcept {
     if (state.child == nullptr || state.visualAttached ||
         state.layoutAttached || state.renderAttached) {
         return InvalidState("Element attachment is not ready for a visual parent");
     }
-    Base::Result<Aero::GuiPrivate::Detail::VisualAttachment> attached =
+    Base::Result<Aero::VisualAttachment> attached =
         AttachVisualChild(newVisualParent, *state.child);
     if (!attached) return attached.GetStatus();
-    Aero::GuiPrivate::Detail::VisualAttachment visualState = std::move(attached).Value();
+    Aero::VisualAttachment visualState = std::move(attached).Value();
     state.visualParent = visualState.visualParent;
     state.visualAttached = visualState.visualAttached;
     state.layoutAttached = visualState.layoutAttached;
@@ -928,9 +928,9 @@ Base::Result<void> ElementTree::AttachVisual(
     return {};
 }
 
-Base::Result<Aero::GuiPrivate::Detail::VisualAttachment> ElementTree::AttachVisualChild(
+Base::Result<Aero::VisualAttachment> ElementTree::AttachVisualChild(
     ::Aero::Media::Visual& visualParent, ::Aero::Media::Visual& child) noexcept {
-    Aero::GuiPrivate::Detail::VisualAttachment state;
+    Aero::VisualAttachment state;
     state.visualParent = &visualParent;
     state.child = &child;
 
@@ -953,7 +953,7 @@ Base::Result<Aero::GuiPrivate::Detail::VisualAttachment> ElementTree::AttachVisu
         auto attachDescendants = [&](auto&& self, ::Aero::Media::Visual& parent) noexcept
             -> Base::Result<void> {
             for (::Aero::Media::Visual* descendant :
-                 Aero::GuiPrivate::Detail::ElementPrivate::RenderChildren(parent)) {
+                 Aero::ElementPrivate::RenderChildren(parent)) {
                 if (descendant == nullptr) continue;
                 Base::Result<void> attached = renderer_->Attach(parent, *descendant);
                 if (!attached) return attached.GetStatus();
@@ -976,7 +976,7 @@ Base::Result<Aero::GuiPrivate::Detail::VisualAttachment> ElementTree::AttachVisu
 }
 
 Base::Result<void> ElementTree::DetachVisual(
-    Aero::GuiPrivate::Detail::VisualAttachment& state) noexcept {
+    Aero::VisualAttachment& state) noexcept {
     if (!state.IsAttached()) return {};
     if (state.visualParent == nullptr || state.child == nullptr) {
         return InvalidState("Visual attachment is incomplete");
@@ -1007,32 +1007,32 @@ Base::Result<void> ElementTree::DetachVisual(
     return {};
 }
 
-Base::Result<Aero::GuiPrivate::Detail::VisualAttachment> ElementTree::ReparentVisual(
-    Aero::GuiPrivate::Detail::VisualAttachment& current, ::Aero::Media::Visual& newVisualParent) noexcept {
+Base::Result<Aero::VisualAttachment> ElementTree::ReparentVisual(
+    Aero::VisualAttachment& current, ::Aero::Media::Visual& newVisualParent) noexcept {
     if (current.child == nullptr || current.visualParent == nullptr) {
         return InvalidState("Visual reparent state is incomplete");
     }
     ::Aero::Media::Visual* oldParent = current.visualParent;
     ::Aero::Media::Visual* child = current.child;
-    Aero::GuiPrivate::Detail::VisualAttachment oldState = current;
+    Aero::VisualAttachment oldState = current;
 
     Base::Result<void> detached = DetachVisual(current);
     if (!detached) return detached.GetStatus();
 
-    Base::Result<Aero::GuiPrivate::Detail::VisualAttachment> attached =
+    Base::Result<Aero::VisualAttachment> attached =
         AttachVisualChild(newVisualParent, *child);
     if (attached) return attached;
 
-    Base::Result<Aero::GuiPrivate::Detail::VisualAttachment> restored =
+    Base::Result<Aero::VisualAttachment> restored =
         AttachVisualChild(*oldParent, *child);
     if (restored) current = std::move(restored).Value();
     else current = oldState;
     return attached.GetStatus();
 }
 
-Base::Result<Aero::GuiPrivate::Detail::RootAttachment> ElementTree::AttachRoot(
+Base::Result<Aero::RootAttachment> ElementTree::AttachRoot(
     ::Aero::Media::Visual& root, Size availableSize) noexcept {
-    Aero::GuiPrivate::Detail::RootAttachment state;
+    Aero::RootAttachment state;
     state.root = &root;
     state.availableSize = availableSize;
 
@@ -1067,7 +1067,7 @@ Base::Result<Aero::GuiPrivate::Detail::RootAttachment> ElementTree::AttachRoot(
 }
 
 Base::Result<void> ElementTree::DetachRoot(
-    Aero::GuiPrivate::Detail::RootAttachment& state) noexcept {
+    Aero::RootAttachment& state) noexcept {
     if (!state.IsAttached()) return {};
     if (state.root == nullptr) return InvalidState("Root attachment is incomplete");
 
@@ -1112,7 +1112,7 @@ Base::Result<void> ElementTree::DetachRoot(
 
 namespace Aero {
 
-void Media::Visual::Impl::InvokeHandlers(
+void Media::Visual::Access::InvokeHandlers(
     UIElement& element,
     RoutedEventHandle event,
     RoutedEventArgs& args) noexcept {
@@ -1121,7 +1121,7 @@ void Media::Visual::Impl::InvokeHandlers(
 
 } // namespace Aero
 
-namespace Aero::GuiPrivate::Detail {
+namespace Aero {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -1178,7 +1178,7 @@ void EventRouter::InvokeNode(
     }
     if (catalog.Types().IsDerivedFrom(
             node.RuntimeType(), ContentElement::StaticTypeId())) {
-        Media::Visual::Impl::InvokeContentHandlers(
+        Media::Visual::Access::InvokeContentHandlers(
             static_cast<ContentElement&>(node),
             args.GetRoutedEvent(), args);
     }
@@ -1233,7 +1233,7 @@ void EventRouter::CleanupClassHandlers() noexcept {
 }
 
 
-} // namespace Aero::GuiPrivate::Detail
+} // namespace Aero
 
 namespace Aero {
 
@@ -1245,7 +1245,7 @@ Base::Object* FrameworkElement::FindName(
 Base::Object* FrameworkElement::FindNameObject(
     Base::StringView name,
     Meta::TypeId expectedType) noexcept {
-    return Aero::GuiPrivate::Detail::ElementPrivate::FindName(
+    return Aero::ElementPrivate::FindName(
         *this, name, expectedType);
 }
 

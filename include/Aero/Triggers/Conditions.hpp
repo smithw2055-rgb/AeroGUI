@@ -5,7 +5,7 @@
 
 namespace Aero {
 
-class AERO_API Condition : public Base::Object {
+class AERO_GUI_API Condition : public Base::Object {
     AERO_DECLARE_TYPE(Condition, Base::Object)
 public:
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -31,7 +31,7 @@ private:
 
 namespace Aero::Media::Animation {
 
-class AERO_API ComparisonCondition : public Base::Object {
+class AERO_GUI_API ComparisonCondition : public Base::Object {
     AERO_DECLARE_TYPE(ComparisonCondition, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -54,7 +54,7 @@ private:
     Operator operator_ = Operator::Equal;
 };
 
-class AERO_API ConditionalExpression : public Base::Object {
+class AERO_GUI_API ConditionalExpression : public Base::Object {
     AERO_DECLARE_TYPE(ConditionalExpression, Base::Object)
 public:
     enum class ForwardChaining : std::uint8_t { And = 0U, Or };
@@ -77,7 +77,7 @@ private:
     ForwardChaining chaining_ = ForwardChaining::And;
 };
 
-class AERO_API ConditionBehavior : public Base::Object {
+class AERO_GUI_API ConditionBehavior : public Base::Object {
     AERO_DECLARE_TYPE(ConditionBehavior, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }

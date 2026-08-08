@@ -15,7 +15,7 @@ using Meta::DependencyPropertyHandle;
 using Meta::PropertyValue;
 using Meta::TypeId;
 
-class AERO_API SetterBase : public Base::Object {
+class AERO_GUI_API SetterBase : public Base::Object {
     AERO_DECLARE_TYPE(SetterBase, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
@@ -28,7 +28,7 @@ private:
     Meta::TypeId runtimeType_ = StaticTypeId();
 };
 
-class AERO_API Setter : public SetterBase {
+class AERO_GUI_API Setter : public SetterBase {
     AERO_DECLARE_TYPE(Setter, SetterBase)
 public:
     explicit Setter(TypeId runtimeType = StaticTypeId()) noexcept
@@ -79,7 +79,7 @@ private:
     PropertyValue authoredValue_;
 };
 
-class AERO_API TriggerBase : public Base::Object {
+class AERO_GUI_API TriggerBase : public Base::Object {
     AERO_DECLARE_TYPE(TriggerBase, Base::Object)
 public:
     TypeId RuntimeType() const noexcept override { return runtimeType_; }

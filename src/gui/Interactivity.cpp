@@ -1,15 +1,15 @@
 #include <Aero/Triggers/Behavior.hpp>
 #include <Aero/Gui/FrameworkElement.hpp>
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
 namespace Aero::Interactivity {
 
@@ -89,7 +89,7 @@ void StyleInteraction::OnBehaviorsChanged(
     }
     auto& element = static_cast<FrameworkElement&>(object);
     static_cast<void>(
-        GuiPrivate::Detail::ElementPrivate::ClearStyleBehaviorPrototypes(element));
+        Aero::ElementPrivate::ClearStyleBehaviorPrototypes(element));
     const Meta::Value& value = args.GetNewValue();
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
@@ -100,7 +100,7 @@ void StyleInteraction::OnBehaviorsChanged(
     for (const Base::Ref<Base::Object>& behavior :
          static_cast<StyleBehaviorCollection&>(*value.AsObject()).GetItems()) {
         static_cast<void>(
-            GuiPrivate::Detail::ElementPrivate::AddStyleBehaviorPrototype(
+            Aero::ElementPrivate::AddStyleBehaviorPrototype(
                 element, behavior));
     }
 }
@@ -114,7 +114,7 @@ void StyleInteraction::OnTriggersChanged(
     }
     auto& element = static_cast<FrameworkElement&>(object);
     static_cast<void>(
-        GuiPrivate::Detail::ElementPrivate::ClearStyleTriggerPrototypes(element));
+        Aero::ElementPrivate::ClearStyleTriggerPrototypes(element));
     const Meta::Value& value = args.GetNewValue();
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
@@ -125,7 +125,7 @@ void StyleInteraction::OnTriggersChanged(
     for (const Base::Ref<Base::Object>& trigger :
          static_cast<StyleTriggerCollection&>(*value.AsObject()).GetItems()) {
         static_cast<void>(
-            GuiPrivate::Detail::ElementPrivate::AddStyleTriggerPrototype(
+            Aero::ElementPrivate::AddStyleTriggerPrototype(
                 element, trigger));
     }
 }

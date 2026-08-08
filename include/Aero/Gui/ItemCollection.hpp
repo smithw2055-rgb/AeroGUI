@@ -9,7 +9,7 @@ using ItemsChangeAction = Collections::ItemsChangeAction;
 using ItemsChangedEvent = Collections::ItemsChangedEvent;
 using ItemsChangedHandler = Collections::ItemsChangedHandler;
 
-class AERO_API ItemCollection : public Collections::IItemsSource {
+class AERO_GUI_API ItemCollection : public Collections::IItemsSource {
 public:
     std::uint32_t GetCount() const noexcept override { return items_.Size(); }
     Base::Ref<Base::Object> GetItem(std::uint32_t index) const noexcept override;
@@ -40,9 +40,9 @@ private:
     void Notify(const ItemsChangedEvent& event) noexcept;
 };
 
-AERO_API Base::Result<void> AddBoxedItem(
+AERO_GUI_API Base::Result<void> AddBoxedItem(
     Collections::ObservableCollection& source, Value value) noexcept;
-AERO_API Base::Result<void> AddBoxedStringItem(
+AERO_GUI_API Base::Result<void> AddBoxedStringItem(
     Collections::ObservableCollection& source,
     Base::StringView value) noexcept;
 

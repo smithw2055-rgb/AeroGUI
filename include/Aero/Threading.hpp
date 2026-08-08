@@ -107,7 +107,7 @@ struct DispatcherOptions  {
 
 class Dispatcher;
 
-class AERO_API DispatcherReentrancyGuard  {
+class AERO_GUI_API DispatcherReentrancyGuard  {
 public:
     DispatcherReentrancyGuard() noexcept = default;
     DispatcherReentrancyGuard(
@@ -137,10 +137,10 @@ private:
     Dispatcher* dispatcher_ = nullptr;
 };
 
-AERO_API DispatcherThreadToken
+AERO_GUI_API DispatcherThreadToken
 CurrentDispatcherThreadToken() noexcept;
 
-class AERO_API Dispatcher  {
+class AERO_GUI_API Dispatcher  {
 public:
     explicit Dispatcher(
         const DispatcherOptions& options = DispatcherOptions{}) noexcept;
@@ -303,7 +303,7 @@ private:
         const TaskRecord& right) noexcept;
 };
 
-class AERO_API DispatcherObject : public Base::Object {
+class AERO_GUI_API DispatcherObject : public Base::Object {
 public:
     bool CheckAccess() const noexcept;
     Base::Result<void> VerifyAccess() const noexcept;

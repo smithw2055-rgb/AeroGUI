@@ -1,20 +1,20 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Shapes.hpp>
 
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "media/AnimationInternal.hpp"
-#include "media/BrushInternal.hpp"
-#include "media/EffectInternal.hpp"
-#include "media/TransformInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "media/AnimationRuntime.hpp"
+#include "media/BrushRuntime.hpp"
+#include "media/EffectRuntime.hpp"
+#include "media/TransformRuntime.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -60,12 +60,12 @@ ImageBrushGeometry FitImageBrush(
     Rect sourceUv) noexcept {
     const double sourceWidth =
         static_cast<double>(
-            Aero::Media::Detail::BrushPrivate::
+            Aero::Media::BrushPrivate::
                 PixelWidth(brush)) *
         std::fabs(sourceUv.width);
     const double sourceHeight =
         static_cast<double>(
-            Aero::Media::Detail::BrushPrivate::
+            Aero::Media::BrushPrivate::
                 PixelHeight(brush)) *
         std::fabs(sourceUv.height);
     if (sourceWidth <= 0.0 ||
@@ -135,21 +135,21 @@ Base::Result<void> PaintImageBrush(
     ::Aero::Media::DrawingContext& context,
     const ImageBrush& brush,
     Rect bounds) noexcept {
-    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     const RenderImageId image =
-        Aero::Media::Detail::BrushPrivate::
+        Aero::Media::BrushPrivate::
             RuntimeImage(brush);
     if (image == InvalidRenderImageId ||
-        Aero::Media::Detail::BrushPrivate::
+        Aero::Media::BrushPrivate::
             PixelWidth(brush) == 0U ||
-        Aero::Media::Detail::BrushPrivate::
+        Aero::Media::BrushPrivate::
             PixelHeight(brush) == 0U) {
         return {};
     }
     const double pixelWidth = static_cast<double>(
-        Aero::Media::Detail::BrushPrivate::PixelWidth(brush));
+        Aero::Media::BrushPrivate::PixelWidth(brush));
     const double pixelHeight = static_cast<double>(
-        Aero::Media::Detail::BrushPrivate::PixelHeight(brush));
+        Aero::Media::BrushPrivate::PixelHeight(brush));
     const Rect authoredViewbox = brush.GetViewbox();
     Rect sourceUv = brush.GetViewboxUnits() ==
             BrushMappingMode::Absolute
@@ -348,7 +348,7 @@ Size Rectangle::MeasureOverride(
 
 void Rectangle::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {
@@ -405,7 +405,7 @@ void Rectangle::OnRender(
                         bounds.height + 0.5};
             const double centerX = band.x + band.width * 0.5;
             const double centerY = band.y + band.height * 0.5;
-            const Color color = ::Aero::Media::Detail::SampleGradient(
+            const Color color = ::Aero::Media::SampleGradient(
                 gradient,
                 ((centerX - start.x) * axisX +
                  (centerY - start.y) * axisY) /
@@ -425,7 +425,7 @@ void Rectangle::OnRender(
         constexpr std::uint32_t bandCount = 64U;
         Base::Result<void> painted =
             builder.FillRect(
-                bounds, ::Aero::Media::Detail::SampleGradient(
+                bounds, ::Aero::Media::SampleGradient(
                     gradient, 1.0));
         if (!painted) return;
         for (std::uint32_t index = bandCount;
@@ -443,7 +443,7 @@ void Rectangle::OnRender(
                 {insetX, insetY,
                  bounds.width - insetX * 2.0,
                  bounds.height - insetY * 2.0},
-                ::Aero::Media::Detail::SampleGradient(
+                ::Aero::Media::SampleGradient(
                     gradient, outer),
                 std::min(
                     bounds.width - insetX * 2.0,
@@ -466,7 +466,7 @@ void Rectangle::OnRender(
             return;
         }
     } else {
-        const Color fill = ::Aero::Media::Detail::SampleBrush(fillBrush);
+        const Color fill = ::Aero::Media::SampleBrush(fillBrush);
         if (fill.alpha > 0.0F) {
         Base::Result<void> painted = radius > 0.0
             ? builder.FillRoundedRect(bounds, fill, radius)
@@ -475,7 +475,7 @@ void Rectangle::OnRender(
         }
     }
 
-    const Color stroke = ::Aero::Media::Detail::SampleBrush(GetStroke());
+    const Color stroke = ::Aero::Media::SampleBrush(GetStroke());
     const double thickness = GetStrokeThickness();
     if (stroke.alpha > 0.0F && thickness > 0.0) {
         static_cast<void>(builder.StrokeRect(bounds, stroke, thickness));
@@ -493,14 +493,14 @@ Size Ellipse::MeasureOverride(
 
 void Ellipse::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {
         return;
     }
 
-    const Color fill = ::Aero::Media::Detail::SampleBrush(GetFill());
+    const Color fill = ::Aero::Media::SampleBrush(GetFill());
     if (fill.alpha > 0.0F) {
         Transform2D scale;
         scale.m11 = renderSize.width;
@@ -521,7 +521,7 @@ void Ellipse::OnRender(
     // The retained command model does not yet expose a rounded-stroke
     // primitive. Preserve a deterministic visible outline until ellipse
     // stroke tessellation is added.
-    const Color stroke = ::Aero::Media::Detail::SampleBrush(GetStroke());
+    const Color stroke = ::Aero::Media::SampleBrush(GetStroke());
     const double thickness = GetStrokeThickness();
     if (stroke.alpha > 0.0F && thickness > 0.0) {
         static_cast<void>(builder.StrokeRect(

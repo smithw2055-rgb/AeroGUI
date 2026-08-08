@@ -84,7 +84,7 @@ struct WindowEvent  {
     }
 };
 
-class AERO_API IWindow {
+class IWindow {
 public:
     virtual ~IWindow() = default;
 

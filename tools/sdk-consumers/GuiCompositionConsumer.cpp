@@ -1,7 +1,7 @@
 #include <Aero/Gui.hpp>
 #include <Aero/Gui/View.hpp>
 #include <Aero/ViewOptions.hpp>
-#include <Aero/Gui/RenderTarget.hpp>
+#include <Aero/Render/RenderTarget.hpp>
 #include <Aero/Gui/IRenderer.hpp>
 #include <Aero/Text/FontProvider.hpp>
 #include <Aero/Media/TextureProvider.hpp>

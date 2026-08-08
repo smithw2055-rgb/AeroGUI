@@ -4,20 +4,20 @@
 
 #include "FrameEncoder.hpp"
 #include "TextRenderer.hpp"
-#include "render/RenderDeviceInternal.hpp"
+#include "render/RenderDeviceState.hpp"
 
 #include <Aero/Base/Vector.hpp>
 
 #include <new>
 
-namespace Aero::Render::Detail {
+namespace Aero::Render {
 
-class BatchGlyphRunSink
+class FrameGlyphRunSink
     : public GlyphRunResourceSink {
 public:
-    explicit BatchGlyphRunSink(
-        BatchComposer& renderer) noexcept
-        : renderer_(&renderer) {}
+    explicit FrameGlyphRunSink(
+        UiFrameEncoder& encoder) noexcept
+        : encoder_(&encoder) {}
 
     Base::Result<void> RegisterGlyphRun(
         Render::RenderGlyphRunId glyphRun,
@@ -27,7 +27,7 @@ public:
         Graphics::ResourceHandle atlasTexture,
         Graphics::ResourceHandle sampler,
         Graphics::IndexType indexType) noexcept override {
-        return renderer_->RegisterGlyphRun(
+        return encoder_->RegisterGlyphRun(
             glyphRun,
             vertexBuffer,
             indexBuffer,
@@ -39,22 +39,22 @@ public:
 
     Base::Result<void> UnregisterGlyphRun(
         Render::RenderGlyphRunId glyphRun) noexcept override {
-        return renderer_->UnregisterGlyphRun(glyphRun);
+        return encoder_->UnregisterGlyphRun(glyphRun);
     }
 
 private:
-    BatchComposer* renderer_ = nullptr;
+    UiFrameEncoder* encoder_ = nullptr;
 };
 
 class TextGpuResources {
 public:
     TextGpuResources(
-        Aero::RenderDevice::Impl& device,
-        BatchComposer& renderer,
+        Aero::RenderDevice::Access& device,
+        UiFrameEncoder& encoder,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
         : device_(&device),
-          sink_(renderer),
+          sink_(encoder),
           allocator_(&allocator),
           renderers_(&allocator) {
         table_.generation = generation;
@@ -62,22 +62,22 @@ public:
         table_.create =
             [](void* context,
                Text::FontManager& fonts,
-               const Aero::Render::Detail::TextConfig& config,
+               const Aero::Render::TextConfig& config,
                Base::IAllocator&) noexcept
                 -> Base::Result<
-                    ::Aero::Controls::Detail::TextBlockLayout*> {
+                    ::Aero::Controls::TextBlockLayout*> {
                 return static_cast<TextGpuResources*>(
                     context)->Create(fonts, config);
             };
         table_.destroy =
             [](void* context,
-               ::Aero::Controls::Detail::TextBlockLayout* layout) noexcept {
+               ::Aero::Controls::TextBlockLayout* layout) noexcept {
                 static_cast<TextGpuResources*>(
                     context)->Destroy(layout);
             };
         table_.collect =
             [](void* context,
-               ::Aero::Controls::Detail::TextBlockLayout* layout) noexcept
+               ::Aero::Controls::TextBlockLayout* layout) noexcept
                 -> Base::Result<std::uint32_t> {
                 return static_cast<TextGpuResources*>(
                     context)->Collect(layout);
@@ -88,7 +88,7 @@ public:
         Shutdown();
     }
 
-    Aero::Render::Detail::TextResources& Table() noexcept {
+    Aero::Render::TextResources& Table() noexcept {
         return table_;
     }
 
@@ -117,10 +117,10 @@ private:
             Base::MemoryTag::Render);
     }
 
-    Base::Result<::Aero::Controls::Detail::TextBlockLayout*>
+    Base::Result<::Aero::Controls::TextBlockLayout*>
     Create(
         Text::FontManager& fonts,
-        const Aero::Render::Detail::TextConfig& config) noexcept {
+        const Aero::Render::TextConfig& config) noexcept {
         if (nextGlyphRunBase_ >
             UINT64_MAX - GlyphRunNamespaceSize) {
             return Base::Status::Failure(
@@ -139,7 +139,7 @@ private:
         TextRenderer* renderer = new (memory)
             TextRenderer(
                 fonts, *device_, sink_, allocator_);
-        Aero::Render::Detail::TextConfig selected =
+        Aero::Render::TextConfig selected =
             config;
         selected.firstGlyphRunId =
             nextGlyphRunBase_;
@@ -162,12 +162,12 @@ private:
         nextGlyphRunBase_ +=
             GlyphRunNamespaceSize;
         return static_cast<
-            ::Aero::Controls::Detail::TextBlockLayout*>(
+            ::Aero::Controls::TextBlockLayout*>(
                 renderer);
     }
 
     void Destroy(
-        ::Aero::Controls::Detail::TextBlockLayout* layout) noexcept {
+        ::Aero::Controls::TextBlockLayout* layout) noexcept {
         if (layout == nullptr) return;
         for (std::uint32_t index = 0U;
              index < renderers_.Size(); ++index) {
@@ -188,7 +188,7 @@ private:
     }
 
     Base::Result<std::uint32_t> Collect(
-        ::Aero::Controls::Detail::TextBlockLayout* layout) noexcept {
+        ::Aero::Controls::TextBlockLayout* layout) noexcept {
         if (layout == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -204,13 +204,13 @@ private:
             "Render-device text layout is stale");
     }
 
-    Aero::RenderDevice::Impl* device_ = nullptr;
-    BatchGlyphRunSink sink_;
+    Aero::RenderDevice::Access* device_ = nullptr;
+    FrameGlyphRunSink sink_;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<TextRenderer*> renderers_;
     std::uint64_t nextGlyphRunBase_ =
         UINT64_C(1) << 32U;
-    Aero::Render::Detail::TextResources table_;
+    Aero::Render::TextResources table_;
 };
 
-} // namespace Aero::Render::Detail
+} // namespace Aero::Render

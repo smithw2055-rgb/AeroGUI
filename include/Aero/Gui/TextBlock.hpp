@@ -14,10 +14,10 @@ namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 using ::Aero::Media::Brush;
 using ::Aero::Media::FrameworkElementForegroundProperty;
-class AERO_API TextBlock : public FrameworkElement {
+class AERO_GUI_API TextBlock : public FrameworkElement {
     AERO_DECLARE_TYPE(TextBlock, FrameworkElement)
 public:
-    struct Impl;
+    struct Access;
 
     TextBlock() noexcept;
     ~TextBlock() override;
@@ -92,8 +92,8 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 private:
-    friend struct ::Aero::Controls::Control::Impl;
-    friend struct Impl;
+    friend struct ::Aero::Controls::Control::Access;
+    friend struct Access;
 
     Base::StringView EffectiveFontFamily() const noexcept;
     void ReleaseServiceGlyphRun() noexcept;

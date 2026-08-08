@@ -1,5 +1,5 @@
 #include "TextRenderer.hpp"
-#include "render/RenderDeviceInternal.hpp"
+#include "render/RenderDeviceState.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -9,7 +9,7 @@
 #include <new>
 #include <utility>
 
-namespace Aero::Render::Detail {
+namespace Aero::Render {
 namespace {
 
 // Text often sits below a Viewbox or another render transform.  Keep the
@@ -83,7 +83,7 @@ Base::Span<const std::uint8_t> AsBytes(
 
 } // namespace
 
-struct TextRenderer::Impl {
+struct TextRendererState {
     struct PageResource {
         Graphics::ResourceHandle texture;
     };
@@ -102,7 +102,7 @@ struct TextRenderer::Impl {
             : placements(allocator) {}
     };
 
-    explicit Impl(
+    explicit TextRendererState(
         Base::IAllocator* allocator) noexcept
         : atlas(allocator),
           fallbackFaces(allocator),
@@ -121,9 +121,14 @@ struct TextRenderer::Impl {
     bool initialized = false;
 };
 
+static_assert(sizeof(TextRendererState) <= 16384U,
+    "TextRenderer inline state storage is too small");
+static_assert(alignof(TextRendererState) <= alignof(std::max_align_t),
+    "TextRenderer inline state alignment is insufficient");
+
 TextRenderer::TextRenderer(
     Text::FontManager& fonts,
-    Aero::RenderDevice::Impl& device,
+    Aero::RenderDevice::Access& device,
     GlyphRunResourceSink& sink,
     Base::IAllocator* allocator) noexcept
     : fonts_(&fonts),
@@ -140,7 +145,7 @@ TextRenderer::~TextRenderer() {
 
 Base::Result<void> TextRenderer::Initialize(
     const TextConfig& config) noexcept {
-    if (impl_ != nullptr) {
+    if (state_ != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "TextBlock render service is already initialized");
@@ -155,28 +160,21 @@ Base::Result<void> TextRenderer::Initialize(
             "TextBlock render service configuration is invalid");
     }
 
-    void* memory = allocator_->Allocate(
-        {sizeof(Impl), alignof(Impl), Base::MemoryTag::Render});
-    if (memory == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "TextBlock render service allocation failed");
-    }
-    impl_ = new (memory) Impl(allocator_);
-    impl_->config = config;
-    impl_->nextGlyphRun = config.firstGlyphRunId;
+    state_ = new (stateStorage_) TextRendererState(allocator_);
+    state_->config = config;
+    state_->nextGlyphRun = config.firstGlyphRunId;
     Base::Result<void> fallbacksCopied =
-        impl_->fallbackFaces.Append(
+        state_->fallbackFaces.Append(
             config.fallbackFaces);
     if (!fallbacksCopied) {
         Shutdown();
         return fallbacksCopied.GetStatus();
     }
-    impl_->config.fallbackFaces =
-        impl_->fallbackFaces.AsSpan();
+    state_->config.fallbackFaces =
+        state_->fallbackFaces.AsSpan();
 
     Base::Result<void> atlasReady =
-        impl_->atlas.Initialize(config.atlas);
+        state_->atlas.Initialize(config.atlas);
     if (!atlasReady) {
         Shutdown();
         return atlasReady.GetStatus();
@@ -192,14 +190,14 @@ Base::Result<void> TextRenderer::Initialize(
         Shutdown();
         return createdSampler.GetStatus();
     }
-    impl_->sampler = createdSampler.Value();
-    impl_->initialized = true;
+    state_->sampler = createdSampler.Value();
+    state_->initialized = true;
     return {};
 }
 
 Base::Result<void>
 TextRenderer::RecoverDeviceResources(
-    Aero::RenderDevice::Impl& device,
+    Aero::RenderDevice::Access& device,
     GlyphRunResourceSink& sink) noexcept {
     if (!IsInitialized()) {
         return Base::Status::Failure(
@@ -212,27 +210,24 @@ TextRenderer::RecoverDeviceResources(
             "Replacement text graphics device is lost");
     }
 
-    TextConfig config = impl_->config;
+    TextConfig config = state_->config;
     Base::Vector<Text::FontFace> fallbackFaces(allocator_);
     Base::Result<void> copied =
         fallbackFaces.Append(
-            impl_->fallbackFaces.AsSpan());
+            state_->fallbackFaces.AsSpan());
     if (!copied) return copied.GetStatus();
     config.fallbackFaces = fallbackFaces.AsSpan();
 
-    for (const Impl::RunResource& run : impl_->runs) {
+    for (const TextRendererState::RunResource& run : state_->runs) {
         if (run.id !=
             Render::InvalidRenderGlyphRunId) {
             (void)sink_->UnregisterGlyphRun(run.id);
         }
     }
-    impl_->atlas.NotifyDeviceLost();
-    impl_->atlas.Shutdown();
-    impl_->~Impl();
-    allocator_->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl),
-        Base::MemoryTag::Render);
-    impl_ = nullptr;
+    state_->atlas.NotifyDeviceLost();
+    state_->atlas.Shutdown();
+    state_->~TextRendererState();
+    state_ = nullptr;
 
     device_ = &device;
     sink_ = &sink;
@@ -240,12 +235,12 @@ TextRenderer::RecoverDeviceResources(
 }
 
 void TextRenderer::Shutdown() noexcept {
-    if (impl_ == nullptr) return;
+    if (state_ == nullptr) return;
     const Graphics::FenceValue retireFence =
         device_ != nullptr
             ? device_->LastSubmittedFence()
             : 0U;
-    for (Impl::RunResource& run : impl_->runs) {
+    for (TextRendererState::RunResource& run : state_->runs) {
         if (sink_ != nullptr &&
             run.id != Render::InvalidRenderGlyphRunId) {
             (void)sink_->UnregisterGlyphRun(run.id);
@@ -262,27 +257,24 @@ void TextRenderer::Shutdown() noexcept {
         }
     }
     if (device_ != nullptr) {
-        for (const Impl::PageResource& page : impl_->pages) {
+        for (const TextRendererState::PageResource& page : state_->pages) {
             if (device_->IsAlive(page.texture)) {
                 (void)device_->DestroyResource(
                     page.texture, retireFence);
             }
         }
-        if (device_->IsAlive(impl_->sampler)) {
+        if (device_->IsAlive(state_->sampler)) {
             (void)device_->DestroyResource(
-                impl_->sampler, retireFence);
+                state_->sampler, retireFence);
         }
     }
-    impl_->atlas.Shutdown();
-    impl_->~Impl();
-    allocator_->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl),
-        Base::MemoryTag::Render);
-    impl_ = nullptr;
+    state_->atlas.Shutdown();
+    state_->~TextRendererState();
+    state_ = nullptr;
 }
 
 bool TextRenderer::IsInitialized() const noexcept {
-    return impl_ != nullptr && impl_->initialized;
+    return state_ != nullptr && state_->initialized;
 }
 
 Base::Result<std::uint32_t>
@@ -296,8 +288,8 @@ TextRenderer::CollectGarbage() noexcept {
         device_->NativeCompletedFence();
     std::uint32_t releasedCount = 0U;
     std::uint32_t index = 0U;
-    while (index < impl_->runs.Size()) {
-        Impl::RunResource& run = impl_->runs[index];
+    while (index < state_->runs.Size()) {
+        TextRendererState::RunResource& run = state_->runs[index];
         if (!run.released || run.retireFence > completed) {
             ++index;
             continue;
@@ -321,11 +313,11 @@ TextRenderer::CollectGarbage() noexcept {
                     run.indexBuffer, run.retireFence);
             if (!destroyed) return destroyed.GetStatus();
         }
-        const std::uint32_t last = impl_->runs.Size() - 1U;
+        const std::uint32_t last = state_->runs.Size() - 1U;
         if (index != last) {
-            impl_->runs[index] = std::move(impl_->runs[last]);
+            state_->runs[index] = std::move(state_->runs[last]);
         }
-        impl_->runs.PopBack();
+        state_->runs.PopBack();
         ++releasedCount;
     }
     Base::Result<std::uint32_t> deviceReleased =
@@ -335,8 +327,8 @@ TextRenderer::CollectGarbage() noexcept {
 }
 
 Base::Result<void> TextRenderer::ShapeAndPrepare(
-    const ::Aero::Controls::Detail::TextLayoutRequest& request,
-    ::Aero::Controls::Detail::TextLayoutResult& output) noexcept {
+    const ::Aero::Controls::TextLayoutRequest& request,
+    ::Aero::Controls::TextLayoutResult& output) noexcept {
     if (!IsInitialized()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -358,7 +350,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
             "TextBlock layout request is invalid");
     }
     if (device_->IsNativeDeviceLost()) {
-        impl_->atlas.NotifyDeviceLost();
+        state_->atlas.NotifyDeviceLost();
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "TextBlock render service detected device loss");
@@ -371,12 +363,12 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     const Graphics::FenceValue lastSubmitted =
         device_->LastSubmittedFence();
     if (lastSubmitted > 0U) {
-        for (Impl::RunResource& run : impl_->runs) {
+        for (TextRendererState::RunResource& run : state_->runs) {
             if (run.released) continue;
             for (const Text::GlyphAtlasPlacement& placement :
                  run.placements) {
                 Base::Result<void> marked =
-                    impl_->atlas.MarkSubmitted(
+                    state_->atlas.MarkSubmitted(
                         placement, lastSubmitted);
                 if (!marked &&
                     marked.GetStatus().code !=
@@ -390,9 +382,9 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     Text::TextLayoutRequest layoutRequest;
     layoutRequest.face = request.face.handle.IsValid()
         ? request.face
-        : impl_->config.face;
+        : state_->config.face;
     layoutRequest.fallbackFaces =
-        impl_->fallbackFaces.AsSpan();
+        state_->fallbackFaces.AsSpan();
     layoutRequest.text = request.text;
     layoutRequest.pixelSize = request.pixelSize;
     layoutRequest.maxWidth =
@@ -400,7 +392,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     layoutRequest.lineHeight =
         request.lineHeight > 0.0F
         ? request.lineHeight
-        : impl_->config.lineHeight;
+        : state_->config.lineHeight;
     layoutRequest.wrapping = request.wrapping;
     layoutRequest.trimming = request.trimming;
     layoutRequest.alignment = request.alignment;
@@ -489,7 +481,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
             "Text glyph raster scale exceeds supported precision");
     }
     const Text::GlyphAtlasConfig atlasConfig =
-        impl_->atlas.Config();
+        state_->atlas.Config();
     const Graphics::FenceValue completedFence =
         device_->NativeCompletedFence();
 
@@ -525,12 +517,12 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
 
             Text::GlyphAtlasPlacement placement;
             Base::Result<void> ensured =
-                impl_->atlas.EnsureGlyph(
+                state_->atlas.EnsureGlyph(
                     *fonts_, glyphRequest,
-                    impl_->useStamp++,
+                    state_->useStamp++,
                     completedFence, placement);
             if (!ensured) return ensured.GetStatus();
-            if (impl_->useStamp == 0U) impl_->useStamp = 1U;
+            if (state_->useStamp == 0U) state_->useStamp = 1U;
 
             Base::Result<BatchBuild*> found =
                 findBatch(placement.page);
@@ -603,19 +595,19 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
         output.glyphRuns.Reserve(batches.Size());
     if (!outputReserved) return outputReserved.GetStatus();
     Base::Result<void> runsReserved =
-        impl_->runs.Reserve(
-            impl_->runs.Size() + batches.Size());
+        state_->runs.Reserve(
+            state_->runs.Size() + batches.Size());
     if (!runsReserved) return runsReserved.GetStatus();
 
     const std::uint32_t pageCount =
-        impl_->atlas.PageCount();
+        state_->atlas.PageCount();
     Base::Result<void> pagesResized =
-        impl_->pages.Resize(pageCount);
+        state_->pages.Resize(pageCount);
     if (!pagesResized) return pagesResized.GetStatus();
     for (std::uint32_t page = 0U;
          page < pageCount; ++page) {
         if (device_->IsAlive(
-                impl_->pages[page].texture)) {
+                state_->pages[page].texture)) {
             continue;
         }
         Graphics::TextureResourceDescriptor descriptor;
@@ -631,13 +623,13 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
         Base::Result<Graphics::ResourceHandle> texture =
             device_->CreateTexture(descriptor);
         if (!texture) return texture.GetStatus();
-        impl_->pages[page].texture = texture.Value();
+        state_->pages[page].texture = texture.Value();
     }
 
-    ::Aero::Render::Detail::RenderBatchBuilder encoder(allocator_);
+    ::Aero::Render::UiDrawContext encoder(*device_, allocator_);
     for (const Text::GlyphAtlasUpload& upload :
-         impl_->atlas.PendingUploads()) {
-        if (upload.page >= impl_->pages.Size()) {
+         state_->atlas.PendingUploads()) {
+        if (upload.page >= state_->pages.Size()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InternalError,
                 "Glyph atlas upload references a missing page");
@@ -650,7 +642,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
         region.bytesPerRow = upload.strideBytes;
         Base::Result<void> uploaded =
             encoder.UploadTexture(
-                impl_->pages[upload.page].texture,
+                state_->pages[upload.page].texture,
                 region, upload.pixels.AsSpan());
         if (!uploaded) return uploaded.GetStatus();
     }
@@ -733,27 +725,20 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
         }
     }
 
-    Base::Result<::Aero::Render::Detail::RenderBatch> commands =
-        encoder.Finish();
-    if (!commands) {
-        destroyBatchResources(
-            device_->LastSubmittedFence());
-        return commands.GetStatus();
-    }
     Base::Result<Graphics::FenceValue> submitted =
-        device_->SubmitBatch(commands.Value());
+        encoder.Finish();
     if (!submitted) {
         destroyBatchResources(
             device_->LastSubmittedFence());
         return submitted.GetStatus();
     }
-    impl_->lastUploadFence = submitted.Value();
-    impl_->atlas.ClearPendingUploads();
+    state_->lastUploadFence = submitted.Value();
+    state_->atlas.ClearPendingUploads();
     for (const BatchBuild& batch : batches) {
         for (const Text::GlyphAtlasPlacement& placement :
              batch.placements) {
             Base::Result<void> marked =
-                impl_->atlas.MarkSubmitted(
+                state_->atlas.MarkSubmitted(
                     placement, submitted.Value());
             if (!marked) {
                 destroyBatchResources(
@@ -763,7 +748,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
         }
     }
 
-    Base::Vector<Impl::RunResource> prepared(allocator_);
+    Base::Vector<TextRendererState::RunResource> prepared(allocator_);
     Base::Result<void> preparedReserved =
         prepared.Reserve(batches.Size());
     if (!preparedReserved) {
@@ -772,7 +757,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     }
     std::uint32_t registeredCount = 0U;
     for (BatchBuild& batch : batches) {
-        if (impl_->nextGlyphRun ==
+        if (state_->nextGlyphRun ==
             Render::InvalidRenderGlyphRunId) {
             for (std::uint32_t rollback = 0U;
                  rollback < registeredCount; ++rollback) {
@@ -785,14 +770,14 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
                 "Text glyph-run ID space is exhausted");
         }
         const Render::RenderGlyphRunId id =
-            impl_->nextGlyphRun++;
+            state_->nextGlyphRun++;
         Base::Result<void> registered =
             sink_->RegisterGlyphRun(
                 id, batch.vertexBuffer,
                 batch.indexBuffer,
                 batch.indices.Size(),
-                impl_->pages[batch.page].texture,
-                impl_->sampler,
+                state_->pages[batch.page].texture,
+                state_->sampler,
                 Graphics::IndexType::UInt32);
         if (!registered) {
             for (std::uint32_t rollback = 0U;
@@ -803,7 +788,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
             destroyBatchResources(submitted.Value());
             return registered.GetStatus();
         }
-        Impl::RunResource run(allocator_);
+        TextRendererState::RunResource run(allocator_);
         run.id = id;
         run.vertexBuffer = batch.vertexBuffer;
         run.indexBuffer = batch.indexBuffer;
@@ -823,10 +808,10 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
         ++registeredCount;
     }
 
-    for (Impl::RunResource& run : prepared) {
+    for (TextRendererState::RunResource& run : prepared) {
         const Render::RenderGlyphRunId id = run.id;
-        Base::Result<Impl::RunResource*> stored =
-            impl_->runs.EmplaceBack(std::move(run));
+        Base::Result<TextRendererState::RunResource*> stored =
+            state_->runs.EmplaceBack(std::move(run));
         if (!stored) return stored.GetStatus();
         Base::Result<void> appended =
             output.glyphRuns.PushBack(id);
@@ -841,7 +826,7 @@ void TextRenderer::ReleaseGlyphRun(
         glyphRun == Render::InvalidRenderGlyphRunId) {
         return;
     }
-    for (Impl::RunResource& run : impl_->runs) {
+    for (TextRendererState::RunResource& run : state_->runs) {
         if (run.id != glyphRun || run.released) {
             continue;
         }
@@ -850,7 +835,7 @@ void TextRenderer::ReleaseGlyphRun(
         if (run.retireFence > 0U) {
             for (const Text::GlyphAtlasPlacement& placement :
                  run.placements) {
-                (void)impl_->atlas.MarkSubmitted(
+                (void)state_->atlas.MarkSubmitted(
                     placement, run.retireFence);
             }
         }
@@ -859,4 +844,4 @@ void TextRenderer::ReleaseGlyphRun(
     }
 }
 
-} // namespace Aero::Render::Detail
+} // namespace Aero::Render

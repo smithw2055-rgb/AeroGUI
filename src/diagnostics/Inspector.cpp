@@ -1,14 +1,14 @@
 #include "Inspector.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
 #include <Aero/Controls.hpp>
 
@@ -44,7 +44,7 @@ Result<void> AppendTree(
     }
     InspectorTreeNode record;
     record.node = &node;
-    record.handle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(node);
+    record.handle = Aero::ElementPrivate::Handle(node);
     record.parent = parent;
     record.runtimeType =
         node.RuntimeType();
@@ -56,8 +56,8 @@ Result<void> AppendTree(
     }
     const Base::Span<::Aero::Media::Visual* const> children =
         kind == TreeKind::Logical
-        ? Aero::GuiPrivate::Detail::ElementPrivate::LogicalChildren(node)
-        : Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(node);
+        ? Aero::ElementPrivate::LogicalChildren(node)
+        : Aero::ElementPrivate::VisualChildren(node);
     for (::Aero::Media::Visual* child : children) {
         if (child == nullptr) {
             return Status::Failure(
@@ -99,7 +99,7 @@ using namespace Aero::Threading;
         bindings_ == nullptr ||
         renderer_ == nullptr ||
         maxTreeNodes == 0U ||
-        Aero::GuiPrivate::Detail::ElementPrivate::Tree(target) != tree_) {
+        Aero::ElementPrivate::Tree(target) != tree_) {
         return Status::Failure(
             ErrorCode::InvalidArgument,
             "Inspector render target "

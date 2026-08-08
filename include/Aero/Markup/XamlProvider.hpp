@@ -18,7 +18,7 @@ struct StreamResourceInfo {
     std::uint64_t revision = 0U;
 };
 
-class AERO_API XamlProvider {
+class AERO_GUI_API XamlProvider {
 public:
     virtual ~XamlProvider() = default;
 
@@ -42,7 +42,7 @@ using XamlRevisionCallback = Base::Result<std::uint64_t> (*)(
     const Base::ResourceUri& uri,
     void* context) noexcept;
 
-class AERO_API XamlProviderAdapter : public XamlProvider {
+class AERO_GUI_API XamlProviderAdapter : public XamlProvider {
 public:
     XamlProviderAdapter() noexcept = default;
     XamlProviderAdapter(

@@ -27,7 +27,7 @@ Base::Result<void> PopulateControlsItems(
     status = alternationConverter.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Register<Detail::BoxedItemValue>(context)
+    status = Meta::Register<::Aero::Controls::BoxedItemValue>(context)
         .Result();
     if (!status) return status.GetStatus();
 

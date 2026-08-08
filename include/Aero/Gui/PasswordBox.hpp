@@ -4,10 +4,10 @@
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
-class AERO_API PasswordBox : public Primitives::TextBoxBase {
+class AERO_GUI_API PasswordBox : public Primitives::TextBoxBase {
     AERO_DECLARE_TYPE(PasswordBox, Primitives::TextBoxBase)
 public:
-    struct Impl;
+    struct Access;
 
     PasswordBox() noexcept;
     ~PasswordBox() override;
@@ -61,8 +61,8 @@ protected:
 
 private:
     friend class TextBox;
-    friend struct ::Aero::Controls::TextBox::Impl;
-    friend struct ::Aero::Controls::Control::Impl;
+    friend struct ::Aero::Controls::TextBox::Access;
+    friend struct ::Aero::Controls::Control::Access;
     Base::String password_;
     void* validation_ = nullptr;
     void* passwordPolicy_ = nullptr;

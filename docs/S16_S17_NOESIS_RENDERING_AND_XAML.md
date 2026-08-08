@@ -1,5 +1,8 @@
 # S16-S17 rendering and XAML closure
 
+> Historical milestone record. S18-S24 superseded the renderer, batch, device,
+> and App context descriptions below; see `REFACTOR_CLOSURE_S18_S24.md`.
+
 ## One UI rendering path
 
 The backend-neutral renderer now records one source-private `RenderBatch`.

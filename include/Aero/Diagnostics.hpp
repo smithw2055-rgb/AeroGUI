@@ -104,16 +104,16 @@ struct SourceSpan  {
 using DiagnosticObjectId = std::uint64_t;
 inline constexpr DiagnosticObjectId InvalidDiagnosticObjectId = 0U;
 
-AERO_API bool IsValidSourcePosition(
+AERO_GUI_API bool IsValidSourcePosition(
     SourcePosition position) noexcept;
-AERO_API bool IsValidSourceSpan(SourceSpan span) noexcept;
-AERO_API Base::StringView DiagnosticPrefix(
+AERO_GUI_API bool IsValidSourceSpan(SourceSpan span) noexcept;
+AERO_GUI_API Base::StringView DiagnosticPrefix(
     DiagnosticDomain domain) noexcept;
-AERO_API Base::Result<void> FormatDiagnosticCode(
+AERO_GUI_API Base::Result<void> FormatDiagnosticCode(
     DiagnosticCode code,
     Base::String& output) noexcept;
 
-class AERO_API DiagnosticNote  {
+class AERO_GUI_API DiagnosticNote  {
 public:
     DiagnosticNote(DiagnosticNote&&) noexcept = default;
     DiagnosticNote& operator=(DiagnosticNote&&) noexcept = default;
@@ -136,7 +136,7 @@ private:
     Base::String message_;
 };
 
-class AERO_API Diagnostic  {
+class AERO_GUI_API Diagnostic  {
 public:
     Diagnostic(Diagnostic&&) noexcept = default;
     Diagnostic& operator=(Diagnostic&&) noexcept = default;
@@ -186,7 +186,7 @@ private:
     Base::Vector<DiagnosticNote> notes_;
 };
 
-class AERO_API IDiagnosticSink {
+class AERO_GUI_API IDiagnosticSink {
 public:
     virtual ~IDiagnosticSink() = default;
 
@@ -194,10 +194,13 @@ public:
         Diagnostic&& diagnostic) noexcept = 0;
 };
 
-class AERO_API DiagnosticBag  : public IDiagnosticSink {
+class AERO_GUI_API DiagnosticBag  : public IDiagnosticSink {
 public:
     explicit DiagnosticBag(
         std::uint32_t maxDiagnostics = 1024U) noexcept;
+
+    DiagnosticBag(const DiagnosticBag&) = delete;
+    DiagnosticBag& operator=(const DiagnosticBag&) = delete;
 
     Base::Result<void> Report(
         Diagnostic&& diagnostic) noexcept override;

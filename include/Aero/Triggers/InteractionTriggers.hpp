@@ -10,7 +10,7 @@ namespace Aero::Media::Animation {
 // Fires its actions whenever the authored Binding source publishes a changed
 // value. The Binding is retained as an authoring plan and is materialized per
 // associated element, matching Blend's PropertyChangedTrigger lifetime.
-class AERO_API PropertyChangedTrigger : public ::Aero::TriggerBase {
+class AERO_GUI_API PropertyChangedTrigger : public ::Aero::TriggerBase {
     AERO_DECLARE_TYPE(PropertyChangedTrigger, ::Aero::TriggerBase)
 public:
     PropertyChangedTrigger() noexcept : TriggerBase(StaticTypeId()) {}
@@ -41,7 +41,7 @@ private:
 // Executes actions for a matching KeyDown routed event. Key remains a string
 // authoring value so WPF spellings such as Enter, Space and Escape remain
 // portable without adding a second public keyboard enum beside KeyboardInput.
-class AERO_API KeyTrigger : public ::Aero::TriggerBase {
+class AERO_GUI_API KeyTrigger : public ::Aero::TriggerBase {
     AERO_DECLARE_TYPE(KeyTrigger, ::Aero::TriggerBase)
 public:
     KeyTrigger() noexcept : TriggerBase(StaticTypeId()) {}
@@ -73,7 +73,7 @@ private:
 // Blend-compatible command action. Bindings are authoring plans because an
 // action can be retained in a Style and must resolve against each styled
 // element's DataContext and NameScope independently.
-class AERO_API InvokeCommandAction : public TriggerAction {
+class AERO_GUI_API InvokeCommandAction : public TriggerAction {
     AERO_DECLARE_TYPE(InvokeCommandAction, TriggerAction)
 public:
     InvokeCommandAction() noexcept : TriggerAction(StaticTypeId()) {}
@@ -113,14 +113,14 @@ private:
 
 // Selects the associated item container. The runtime maps this to the native
 // selector contract instead of synthesizing a mouse click.
-class AERO_API SelectAction : public TriggerAction {
+class AERO_GUI_API SelectAction : public TriggerAction {
     AERO_DECLARE_TYPE(SelectAction, TriggerAction)
 public:
     SelectAction() noexcept : TriggerAction(StaticTypeId()) {}
 };
 
 // Selects all text in the associated TextBox or PasswordBox.
-class AERO_API SelectAllAction : public TriggerAction {
+class AERO_GUI_API SelectAllAction : public TriggerAction {
     AERO_DECLARE_TYPE(SelectAllAction, TriggerAction)
 public:
     SelectAllAction() noexcept : TriggerAction(StaticTypeId()) {}
@@ -128,7 +128,7 @@ public:
 
 // Blend-compatible one-shot sound action. IsEnabled is a dependency property
 // because authored XAML commonly targets it from ChangePropertyAction.
-class AERO_API PlaySoundAction : public TriggerAction {
+class AERO_GUI_API PlaySoundAction : public TriggerAction {
     AERO_DECLARE_TYPE(PlaySoundAction, TriggerAction)
 public:
     PlaySoundAction() noexcept : TriggerAction(StaticTypeId()) {}

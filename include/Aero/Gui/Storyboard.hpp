@@ -26,10 +26,10 @@ enum class EasingMode : std::uint8_t {
     EaseInOut
 };
 
-class AERO_API Timeline : public ::Aero::Freezable {
+class AERO_GUI_API Timeline : public ::Aero::Freezable {
     AERO_DECLARE_TYPE(Timeline, ::Aero::Freezable)
 public:
-    struct Impl;
+    struct Access;
 
     Base::StringView GetBeginTime() const noexcept {
         return beginTimeText_.View();
@@ -73,7 +73,7 @@ private:
     FillBehavior fillBehavior_ = FillBehavior::HoldEnd;
 };
 
-class AERO_API EasingFunctionBase : public ::Aero::DependencyObject {
+class AERO_GUI_API EasingFunctionBase : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(EasingFunctionBase, ::Aero::DependencyObject)
 public:
     EasingMode GetEasingMode() const noexcept {
@@ -106,12 +106,12 @@ protected:
         : DependencyObject(runtimeType), kind_(kind) {}
 
 private:
-    friend struct ::Aero::Media::Animation::Timeline::Impl;
+    friend struct ::Aero::Media::Animation::Timeline::Access;
     Kind kind_ = Kind::Linear;
 };
 
 #define AERO_DECLARE_SIMPLE_EASING(typeName, kindValue)                    \
-class AERO_API typeName : public EasingFunctionBase {                \
+class AERO_GUI_API typeName : public EasingFunctionBase {                \
     AERO_DECLARE_TYPE(typeName, EasingFunctionBase)                        \
 public:                                                                    \
     typeName() noexcept                                                    \
@@ -133,7 +133,7 @@ AERO_DECLARE_SIMPLE_EASING(
 
 #undef AERO_DECLARE_SIMPLE_EASING
 
-class AERO_API ExponentialEase : public EasingFunctionBase {
+class AERO_GUI_API ExponentialEase : public EasingFunctionBase {
     AERO_DECLARE_TYPE(ExponentialEase, EasingFunctionBase)
 public:
     ExponentialEase() noexcept
@@ -147,7 +147,7 @@ public:
     inline static constexpr DependencyProperty<double> ExponentProperty{"Exponent"};
 };
 
-class AERO_API PowerEase : public EasingFunctionBase {
+class AERO_GUI_API PowerEase : public EasingFunctionBase {
     AERO_DECLARE_TYPE(PowerEase, EasingFunctionBase)
 public:
     PowerEase() noexcept
@@ -161,7 +161,7 @@ public:
     inline static constexpr DependencyProperty<double> PowerProperty{"Power"};
 };
 
-class AERO_API BackEase : public EasingFunctionBase {
+class AERO_GUI_API BackEase : public EasingFunctionBase {
     AERO_DECLARE_TYPE(BackEase, EasingFunctionBase)
 public:
     BackEase() noexcept
@@ -175,7 +175,7 @@ public:
     inline static constexpr DependencyProperty<double> AmplitudeProperty{"Amplitude"};
 };
 
-class AERO_API BounceEase : public EasingFunctionBase {
+class AERO_GUI_API BounceEase : public EasingFunctionBase {
     AERO_DECLARE_TYPE(BounceEase, EasingFunctionBase)
 public:
     BounceEase() noexcept
@@ -194,7 +194,7 @@ public:
     inline static constexpr DependencyProperty<double> BouncinessProperty{"Bounciness"};
 };
 
-class AERO_API ElasticEase : public EasingFunctionBase {
+class AERO_GUI_API ElasticEase : public EasingFunctionBase {
     AERO_DECLARE_TYPE(ElasticEase, EasingFunctionBase)
 public:
     ElasticEase() noexcept
@@ -213,7 +213,7 @@ public:
     inline static constexpr DependencyProperty<double> SpringinessProperty{"Springiness"};
 };
 
-class AERO_API DoubleAnimationBase : public Timeline {
+class AERO_GUI_API DoubleAnimationBase : public Timeline {
     AERO_DECLARE_TYPE(DoubleAnimationBase, Timeline)
 public:
     ~DoubleAnimationBase() override = default;
@@ -256,7 +256,7 @@ private:
     bool hasTo_ = false;
 };
 
-class AERO_API DoubleAnimation : public DoubleAnimationBase {
+class AERO_GUI_API DoubleAnimation : public DoubleAnimationBase {
     AERO_DECLARE_TYPE(DoubleAnimation, DoubleAnimationBase)
 public:
     DoubleAnimation() noexcept
@@ -291,7 +291,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API ColorAnimation : public Timeline {
+class AERO_GUI_API ColorAnimation : public Timeline {
     AERO_DECLARE_TYPE(ColorAnimation, Timeline)
 public:
     ColorAnimation() noexcept : Timeline(StaticTypeId()) {}
@@ -311,7 +311,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API PointAnimation : public Timeline {
+class AERO_GUI_API PointAnimation : public Timeline {
     AERO_DECLARE_TYPE(PointAnimation, Timeline)
 public:
     PointAnimation() noexcept
@@ -340,7 +340,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API RectAnimation : public Timeline {
+class AERO_GUI_API RectAnimation : public Timeline {
     AERO_DECLARE_TYPE(RectAnimation, Timeline)
 public:
     RectAnimation() noexcept : Timeline(StaticTypeId()) {}
@@ -360,7 +360,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API ThicknessAnimation : public Timeline {
+class AERO_GUI_API ThicknessAnimation : public Timeline {
     AERO_DECLARE_TYPE(ThicknessAnimation, Timeline)
 public:
     ThicknessAnimation() noexcept : Timeline(StaticTypeId()) {}
@@ -380,7 +380,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API DoubleKeyFrame : public ::Aero::DependencyObject {
+class AERO_GUI_API DoubleKeyFrame : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(DoubleKeyFrame, ::Aero::DependencyObject)
 public:
     double GetValue() const noexcept { return value_; }
@@ -415,7 +415,7 @@ protected:
     }
 
 private:
-    friend struct ::Aero::Media::Animation::Timeline::Impl;
+    friend struct ::Aero::Media::Animation::Timeline::Access;
 
     double value_ = 0.0;
     Base::String keyTimeText_;
@@ -427,7 +427,7 @@ private:
     double controlPoint2Y_ = 1.0;
 };
 
-class AERO_API LinearDoubleKeyFrame : public DoubleKeyFrame {
+class AERO_GUI_API LinearDoubleKeyFrame : public DoubleKeyFrame {
     AERO_DECLARE_TYPE(LinearDoubleKeyFrame, DoubleKeyFrame)
 public:
     LinearDoubleKeyFrame() noexcept
@@ -436,7 +436,7 @@ public:
               DoubleKeyFrame::Interpolation::Linear) {}
 };
 
-class AERO_API DiscreteDoubleKeyFrame : public DoubleKeyFrame {
+class AERO_GUI_API DiscreteDoubleKeyFrame : public DoubleKeyFrame {
     AERO_DECLARE_TYPE(DiscreteDoubleKeyFrame, DoubleKeyFrame)
 public:
     DiscreteDoubleKeyFrame() noexcept
@@ -445,7 +445,7 @@ public:
               DoubleKeyFrame::Interpolation::Discrete) {}
 };
 
-class AERO_API EasingDoubleKeyFrame : public DoubleKeyFrame {
+class AERO_GUI_API EasingDoubleKeyFrame : public DoubleKeyFrame {
     AERO_DECLARE_TYPE(EasingDoubleKeyFrame, DoubleKeyFrame)
 public:
     EasingDoubleKeyFrame() noexcept
@@ -462,7 +462,7 @@ public:
     inline static constexpr DependencyProperty<Base::Ref<EasingFunctionBase>> EasingFunctionProperty{"EasingFunction"};
 };
 
-class AERO_API SplineDoubleKeyFrame : public DoubleKeyFrame {
+class AERO_GUI_API SplineDoubleKeyFrame : public DoubleKeyFrame {
     AERO_DECLARE_TYPE(SplineDoubleKeyFrame, DoubleKeyFrame)
 public:
     SplineDoubleKeyFrame() noexcept
@@ -478,7 +478,7 @@ private:
     Base::String keySpline_;
 };
 
-class AERO_API DoubleAnimationUsingKeyFrames : public Timeline {
+class AERO_GUI_API DoubleAnimationUsingKeyFrames : public Timeline {
     AERO_DECLARE_TYPE(DoubleAnimationUsingKeyFrames, Timeline)
 public:
     DoubleAnimationUsingKeyFrames() noexcept
@@ -495,7 +495,7 @@ private:
     Base::Vector<Base::Ref<DoubleKeyFrame>> keyFrames_;
 };
 
-class AERO_API PointKeyFrame : public Base::Object {
+class AERO_GUI_API PointKeyFrame : public Base::Object {
     AERO_DECLARE_TYPE(PointKeyFrame, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override {
@@ -522,21 +522,21 @@ private:
     AnimationTime keyTimeMicroseconds_ = 0U;
 };
 
-class AERO_API DiscretePointKeyFrame : public PointKeyFrame {
+class AERO_GUI_API DiscretePointKeyFrame : public PointKeyFrame {
     AERO_DECLARE_TYPE(DiscretePointKeyFrame, PointKeyFrame)
 public:
     DiscretePointKeyFrame() noexcept
         : PointKeyFrame(StaticTypeId()) {}
 };
 
-class AERO_API EasingPointKeyFrame : public PointKeyFrame {
+class AERO_GUI_API EasingPointKeyFrame : public PointKeyFrame {
     AERO_DECLARE_TYPE(EasingPointKeyFrame, PointKeyFrame)
 public:
     EasingPointKeyFrame() noexcept
         : PointKeyFrame(StaticTypeId()) {}
 };
 
-class AERO_API PointAnimationUsingKeyFrames : public Timeline {
+class AERO_GUI_API PointAnimationUsingKeyFrames : public Timeline {
     AERO_DECLARE_TYPE(PointAnimationUsingKeyFrames, Timeline)
 public:
     PointAnimationUsingKeyFrames() noexcept
@@ -553,7 +553,7 @@ private:
     Base::Vector<Base::Ref<PointKeyFrame>> keyFrames_;
 };
 
-class AERO_API ThicknessKeyFrame : public Base::Object {
+class AERO_GUI_API ThicknessKeyFrame : public Base::Object {
     AERO_DECLARE_TYPE(ThicknessKeyFrame, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override {
@@ -587,7 +587,7 @@ private:
         keyTimeMicroseconds_ = 0U;
 };
 
-class AERO_API LinearThicknessKeyFrame
+class AERO_GUI_API LinearThicknessKeyFrame
     : public ThicknessKeyFrame {
     AERO_DECLARE_TYPE(
         LinearThicknessKeyFrame,
@@ -597,7 +597,7 @@ public:
         : ThicknessKeyFrame(StaticTypeId()) {}
 };
 
-class AERO_API DiscreteThicknessKeyFrame
+class AERO_GUI_API DiscreteThicknessKeyFrame
     : public ThicknessKeyFrame {
     AERO_DECLARE_TYPE(
         DiscreteThicknessKeyFrame,
@@ -607,7 +607,7 @@ public:
         : ThicknessKeyFrame(StaticTypeId()) {}
 };
 
-class AERO_API EasingThicknessKeyFrame
+class AERO_GUI_API EasingThicknessKeyFrame
     : public ThicknessKeyFrame {
     AERO_DECLARE_TYPE(
         EasingThicknessKeyFrame,
@@ -626,7 +626,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API SplineThicknessKeyFrame
+class AERO_GUI_API SplineThicknessKeyFrame
     : public ThicknessKeyFrame {
     AERO_DECLARE_TYPE(
         SplineThicknessKeyFrame,
@@ -646,7 +646,7 @@ private:
     Base::String keySpline_;
 };
 
-class AERO_API ThicknessAnimationUsingKeyFrames
+class AERO_GUI_API ThicknessAnimationUsingKeyFrames
     : public Timeline {
     AERO_DECLARE_TYPE(
         ThicknessAnimationUsingKeyFrames,
@@ -669,7 +669,7 @@ private:
         keyFrames_;
 };
 
-class AERO_API ColorKeyFrame : public Base::Object {
+class AERO_GUI_API ColorKeyFrame : public Base::Object {
     AERO_DECLARE_TYPE(ColorKeyFrame, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override {
@@ -707,7 +707,7 @@ protected:
     }
 
 private:
-    friend struct ::Aero::Media::Animation::Timeline::Impl;
+    friend struct ::Aero::Media::Animation::Timeline::Access;
 
     Meta::TypeId runtimeType_ = StaticTypeId();
     Base::Color value_;
@@ -720,7 +720,7 @@ private:
     double controlPoint2Y_ = 1.0;
 };
 
-class AERO_API LinearColorKeyFrame : public ColorKeyFrame {
+class AERO_GUI_API LinearColorKeyFrame : public ColorKeyFrame {
     AERO_DECLARE_TYPE(LinearColorKeyFrame, ColorKeyFrame)
 public:
     LinearColorKeyFrame() noexcept
@@ -729,7 +729,7 @@ public:
               ColorKeyFrame::Interpolation::Linear) {}
 };
 
-class AERO_API DiscreteColorKeyFrame : public ColorKeyFrame {
+class AERO_GUI_API DiscreteColorKeyFrame : public ColorKeyFrame {
     AERO_DECLARE_TYPE(DiscreteColorKeyFrame, ColorKeyFrame)
 public:
     DiscreteColorKeyFrame() noexcept
@@ -738,7 +738,7 @@ public:
               ColorKeyFrame::Interpolation::Discrete) {}
 };
 
-class AERO_API EasingColorKeyFrame : public ColorKeyFrame {
+class AERO_GUI_API EasingColorKeyFrame : public ColorKeyFrame {
     AERO_DECLARE_TYPE(EasingColorKeyFrame, ColorKeyFrame)
 public:
     EasingColorKeyFrame() noexcept
@@ -755,7 +755,7 @@ private:
     Base::Ref<EasingFunctionBase> easing_;
 };
 
-class AERO_API SplineColorKeyFrame : public ColorKeyFrame {
+class AERO_GUI_API SplineColorKeyFrame : public ColorKeyFrame {
     AERO_DECLARE_TYPE(SplineColorKeyFrame, ColorKeyFrame)
 public:
     SplineColorKeyFrame() noexcept
@@ -771,7 +771,7 @@ private:
     Base::String keySpline_;
 };
 
-class AERO_API ColorAnimationUsingKeyFrames : public Timeline {
+class AERO_GUI_API ColorAnimationUsingKeyFrames : public Timeline {
     AERO_DECLARE_TYPE(ColorAnimationUsingKeyFrames, Timeline)
 public:
     ColorAnimationUsingKeyFrames() noexcept
@@ -788,7 +788,7 @@ private:
     Base::Vector<Base::Ref<ColorKeyFrame>> keyFrames_;
 };
 
-class AERO_API DiscreteObjectKeyFrame : public Base::Object {
+class AERO_GUI_API DiscreteObjectKeyFrame : public Base::Object {
     AERO_DECLARE_TYPE(DiscreteObjectKeyFrame, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override {
@@ -811,7 +811,7 @@ private:
     AnimationTime keyTimeMicroseconds_ = 0U;
 };
 
-class AERO_API ObjectAnimationUsingKeyFrames : public Timeline {
+class AERO_GUI_API ObjectAnimationUsingKeyFrames : public Timeline {
     AERO_DECLARE_TYPE(ObjectAnimationUsingKeyFrames, Timeline)
 public:
     ObjectAnimationUsingKeyFrames() noexcept
@@ -828,7 +828,7 @@ private:
     Base::Vector<Base::Ref<DiscreteObjectKeyFrame>> keyFrames_;
 };
 
-class AERO_API DiscreteBooleanKeyFrame : public Base::Object {
+class AERO_GUI_API DiscreteBooleanKeyFrame : public Base::Object {
     AERO_DECLARE_TYPE(DiscreteBooleanKeyFrame, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override {
@@ -853,7 +853,7 @@ private:
     AnimationTime keyTimeMicroseconds_ = 0U;
 };
 
-class AERO_API BooleanAnimationUsingKeyFrames : public Timeline {
+class AERO_GUI_API BooleanAnimationUsingKeyFrames : public Timeline {
     AERO_DECLARE_TYPE(BooleanAnimationUsingKeyFrames, Timeline)
 public:
     BooleanAnimationUsingKeyFrames() noexcept
@@ -870,7 +870,7 @@ private:
     Base::Vector<Base::Ref<DiscreteBooleanKeyFrame>> keyFrames_;
 };
 
-class AERO_API Storyboard : public Timeline {
+class AERO_GUI_API Storyboard : public Timeline {
     AERO_DECLARE_TYPE(Storyboard, Timeline)
 public:
     Storyboard() noexcept : Storyboard(StaticTypeId()) {}
@@ -900,7 +900,7 @@ private:
 
 // Timeline group with independent BeginTime/Duration/RepeatBehavior. It shares
 // Storyboard's child collection but does not introduce a second clock model.
-class AERO_API ParallelTimeline final : public Storyboard {
+class AERO_GUI_API ParallelTimeline final : public Storyboard {
     AERO_DECLARE_TYPE(ParallelTimeline, Storyboard)
 public:
     ParallelTimeline() noexcept

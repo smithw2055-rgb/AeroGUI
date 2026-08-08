@@ -14,7 +14,7 @@
 
 namespace Aero {
 
-class AERO_API VisualState : public Base::Object {
+class AERO_GUI_API VisualState : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         VisualState, Base::Object, "urn:aero", "VisualState")
 public:
@@ -55,7 +55,7 @@ private:
     Base::Ref<Media::Animation::Storyboard> storyboard_;
 };
 
-class AERO_API VisualTransition : public Base::Object {
+class AERO_GUI_API VisualTransition : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         VisualTransition, Base::Object, "urn:aero", "VisualTransition")
 public:
@@ -115,7 +115,7 @@ private:
     Base::Ref<Media::Animation::Storyboard> storyboard_;
 };
 
-class AERO_API VisualStateGroup : public Base::Object {
+class AERO_GUI_API VisualStateGroup : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         VisualStateGroup, Base::Object, "urn:aero", "VisualStateGroup")
 public:
@@ -150,7 +150,7 @@ private:
     Base::Vector<Base::Ref<VisualTransition>> transitions_;
 };
 
-class AERO_API VisualStateGroupCollection : public Base::Object {
+class AERO_GUI_API VisualStateGroupCollection : public Base::Object {
     AERO_DECLARE_TYPE(VisualStateGroupCollection, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override {
@@ -171,10 +171,10 @@ private:
 // WPF-shaped template object. XAML compilation, factory callbacks, bindings,
 // triggers, namescopes and the immutable runtime program are implementation
 // details owned by the markup and controls runtime.
-class AERO_API FrameworkTemplate : public Base::Object {
+class AERO_GUI_API FrameworkTemplate : public Base::Object {
     AERO_DECLARE_TYPE(FrameworkTemplate, Base::Object)
 public:
-    struct Impl;
+    struct Access;
 
     FrameworkTemplate() noexcept;
     ~FrameworkTemplate() noexcept override;
@@ -190,7 +190,7 @@ public:
     void SetResources(Base::Ref<ResourceDictionary> value) noexcept;
 
 private:
-    friend struct Impl;
+    friend struct Access;
     void* state_ = nullptr;
 };
 
@@ -198,7 +198,7 @@ private:
 
 namespace Aero::Controls {
 
-class AERO_API ControlTemplate : public Aero::FrameworkTemplate {
+class AERO_GUI_API ControlTemplate : public Aero::FrameworkTemplate {
     AERO_DECLARE_TYPE(ControlTemplate, FrameworkTemplate)
 public:
     ControlTemplate() noexcept = default;
@@ -212,11 +212,11 @@ namespace Aero {
 
 // Public authoring uses the WPF static entry point. Runtime state and animation
 // bookkeeping remain private and are accessed only by the controls runtime.
-class AERO_API VisualStateManager : public Base::Object {
+class AERO_GUI_API VisualStateManager : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         VisualStateManager, Base::Object, "urn:aero", "VisualStateManager")
 public:
-    struct Impl;
+    struct Access;
 
     Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
@@ -233,7 +233,7 @@ public:
     VisualStateManager& operator=(const VisualStateManager&) = delete;
 
 private:
-    friend struct Impl;
+    friend struct Access;
     VisualStateManager() noexcept = default;
     void* impl_ = nullptr;
 };

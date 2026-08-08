@@ -23,7 +23,19 @@ include_directories(BEFORE "${AERO_GENERATED_INCLUDE_DIR}")
 option(AERO_BUILD_TESTS "Build AeroGUI unit tests when the test tree is present" OFF)
 option(AERO_BUILD_SAMPLES "Build AeroGUI samples when the sample tree is present" OFF)
 option(AERO_BUILD_SHARED "Build AeroGUI as shared libraries" OFF)
-option(AERO_BUILD_TOOLS "Build AeroGUI offline tools" ON)
+set(_aero_build_tools_default ON)
+if(AERO_BUILD_SHARED)
+    set(_aero_build_tools_default OFF)
+endif()
+option(AERO_BUILD_TOOLS "Build AeroGUI offline tools" ${_aero_build_tools_default})
+unset(_aero_build_tools_default)
+if(AERO_BUILD_SHARED AND AERO_BUILD_TOOLS)
+    message(FATAL_ERROR
+        "AERO_BUILD_SHARED and in-tree AERO_BUILD_TOOLS cannot be enabled "
+        "together: offline tools consume source-only schema/compiler APIs. "
+        "Build host tools in a static configuration and provide "
+        "AERO_HOST_XAMLC_EXECUTABLE/AERO_HOST_SCHEMA_GEN_EXECUTABLE instead.")
+endif()
 option(AERO_BUILD_CONFORMANCE
     "Build the non-installed Aero runtime conformance executable" OFF)
 option(AERO_ENABLE_DEVELOPMENT_CHECKS
@@ -92,6 +104,7 @@ add_library(AeroBase ${AERO_LIBRARY_TYPE}
     src/base/CAPI.cpp
     src/base/Object.cpp
     src/base/ResourceUri.cpp
+    src/base/Stream.cpp
     src/base/String.cpp
     src/base/Utf8.cpp)
 
@@ -108,9 +121,12 @@ set_target_properties(AeroBase PROPERTIES
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
     POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+    WINDOWS_EXPORT_ALL_SYMBOLS OFF
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
 
 aero_apply_compiler_options(AeroBase)
+aero_verify_windows_exports(AeroBase "Object@Base@Aero@@")
 
 if(MSVC)
     target_compile_options(AeroBase PUBLIC /wd4324)
@@ -160,6 +176,7 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(AeroAudio PRIVATE Threads::Threads ${CMAKE_DL_LIBS} m)
 endif()
 target_compile_definitions(AeroAudio PRIVATE
+    $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_AUDIO_EXPORTS>
     AERO_AUDIO_MINIAUDIO=$<BOOL:${AERO_WITH_MINIAUDIO}>)
 target_compile_features(AeroAudio PUBLIC cxx_std_17)
 set_target_properties(AeroAudio PROPERTIES
@@ -167,8 +184,11 @@ set_target_properties(AeroAudio PROPERTIES
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
     POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+    WINDOWS_EXPORT_ALL_SYMBOLS OFF
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
 aero_apply_compiler_options(AeroAudio)
+aero_verify_windows_exports(AeroAudio "Engine@Audio@Aero@@")
 
 if(NOT AERO_WITH_FREETYPE OR NOT AERO_WITH_HARFBUZZ)
     message(FATAL_ERROR

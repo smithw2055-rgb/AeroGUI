@@ -28,7 +28,7 @@ struct FontResource {
     std::uint32_t faceIndex = 0U;
 };
 
-class AERO_API FontProvider {
+class AERO_GUI_API FontProvider {
 public:
     virtual ~FontProvider() = default;
 

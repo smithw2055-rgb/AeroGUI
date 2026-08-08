@@ -31,7 +31,7 @@ enum class RelativeSourceMode : std::uint8_t {
     FindAncestor
 };
 
-class AERO_API PropertyPath {
+class AERO_GUI_API PropertyPath {
 public:
     PropertyPath() noexcept = default;
     explicit PropertyPath(Base::StringView path) noexcept { static_cast<void>(path_.Assign(path)); }
@@ -44,7 +44,7 @@ private:
     Base::String path_;
 };
 
-class AERO_API RelativeSource : public Base::Object {
+class AERO_GUI_API RelativeSource : public Base::Object {
     AERO_DECLARE_TYPE(RelativeSource, Base::Object)
 public:
     RelativeSource() noexcept = default;
@@ -67,7 +67,7 @@ private:
     std::uint32_t ancestorLevel_ = 1U;
 };
 
-class AERO_API IValueConverter : public Base::Object {
+class AERO_GUI_API IValueConverter : public Base::Object {
     AERO_DECLARE_TYPE(IValueConverter, Base::Object)
 public:
     ~IValueConverter() override = default;
@@ -82,7 +82,7 @@ protected:
 // Composite converter used by MultiBinding. Values preserve their concrete
 // metadata types, so application converters can combine numbers, colors,
 // strings and object references without an additional boxing layer.
-class AERO_API IMultiValueConverter : public Base::Object {
+class AERO_GUI_API IMultiValueConverter : public Base::Object {
     AERO_DECLARE_TYPE(IMultiValueConverter, Base::Object)
 public:
     ~IMultiValueConverter() override = default;
@@ -99,7 +99,7 @@ protected:
 
 // WPF-compatible BooleanToVisibilityConverter. Keeping this converter in the
 // data layer lets resource dictionaries use it without pulling in Controls.
-class AERO_API BooleanToVisibilityConverter final
+class AERO_GUI_API BooleanToVisibilityConverter final
     : public IValueConverter {
     AERO_DECLARE_TYPE(BooleanToVisibilityConverter, IValueConverter)
 public:
@@ -113,7 +113,7 @@ public:
         const Value& parameter) noexcept override;
 };
 
-class AERO_API BindingBase : public Base::Object {
+class AERO_GUI_API BindingBase : public Base::Object {
     AERO_DECLARE_TYPE(BindingBase, Base::Object)
 public:
     ~BindingBase() override = default;
@@ -136,7 +136,7 @@ private:
     Value targetNullValue_;
 };
 
-class AERO_API Binding : public BindingBase {
+class AERO_GUI_API Binding : public BindingBase {
     AERO_DECLARE_TYPE(Binding, BindingBase)
 public:
     Binding() noexcept : BindingBase(StaticTypeId()) {}
@@ -175,7 +175,7 @@ private:
 // WPF-shaped composite binding declaration. The live expression is created by
 // the XAML writer from ordinary BindingEngine expressions, keeping source
 // resolution and notification behavior in one runtime.
-class AERO_API MultiBinding final : public BindingBase {
+class AERO_GUI_API MultiBinding final : public BindingBase {
     AERO_DECLARE_TYPE(MultiBinding, BindingBase)
 public:
     MultiBinding() noexcept

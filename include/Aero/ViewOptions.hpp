@@ -4,7 +4,15 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Input/Platform.hpp>
 
+#include <cstdint>
+
 namespace Aero {
+
+class ResourceDictionary;
+
+enum class BuiltInTheme : std::uint8_t { Light = 0U, Dark };
+enum class ResourceLayer : std::uint8_t { Application = 0U, Theme, System };
+enum class ResourceLoadMode : std::uint8_t { Replace = 0U, Merge };
 
 struct TextOptions {
     Base::StringView primaryFamily;
@@ -22,9 +30,12 @@ struct ViewOptions {
     Input::IClipboard* clipboard = nullptr;
     Input::ITextInputMethodHost* textInputMethodHost = nullptr;
     TextOptions text;
+    ResourceDictionary* applicationResources = nullptr;
+    BuiltInTheme builtInTheme = BuiltInTheme::Light;
     bool attachControlInteractions = true;
     bool attachTextEditing = true;
     bool automaticAnimationClock = true;
+    bool loadBuiltInTheme = false;
 };
 
 } // namespace Aero

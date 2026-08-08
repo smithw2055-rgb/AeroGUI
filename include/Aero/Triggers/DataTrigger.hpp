@@ -5,7 +5,7 @@
 
 namespace Aero {
 
-class AERO_API DataTrigger : public TriggerBase {
+class AERO_GUI_API DataTrigger : public TriggerBase {
     AERO_DECLARE_TYPE(DataTrigger, TriggerBase)
 public:
     DataTrigger() noexcept : TriggerBase(StaticTypeId()) {

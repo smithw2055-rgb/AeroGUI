@@ -75,7 +75,7 @@ struct GlStateCacheStatistics  {
     std::uint64_t invalidations = 0U;
 };
 
-class AERO_API GlStateCache  {
+class GlStateCache  {
 public:
     GlStateCache() noexcept = default;
 

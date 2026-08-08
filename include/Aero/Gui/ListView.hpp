@@ -16,7 +16,7 @@ enum class GridViewColumnHeaderRole : std::uint8_t {
 // Standard GridView header container. The presenter owns header generation
 // and interaction; this control supplies the WPF-visible Role state used by
 // the default templates.
-class AERO_API GridViewColumnHeader
+class AERO_GUI_API GridViewColumnHeader
     : public ContentControl {
     AERO_DECLARE_TYPE(GridViewColumnHeader, ContentControl)
 public:
@@ -35,7 +35,7 @@ public:
     inline static constexpr DependencyProperty<GridViewColumnHeaderRole> RoleProperty{"Role"};
 };
 
-class AERO_API GridViewColumn
+class AERO_GUI_API GridViewColumn
     : public DependencyObject {
     AERO_DECLARE_TYPE(GridViewColumn, DependencyObject)
 public:
@@ -82,7 +82,7 @@ public:
     inline static constexpr DependencyProperty<Base::Ref<Style>> HeaderContainerStyleProperty{"HeaderContainerStyle"};
 };
 
-class AERO_API GridView
+class AERO_GUI_API GridView
     : public Base::Object {
     AERO_DECLARE_TYPE(GridView, Base::Object)
 public:
@@ -159,7 +159,7 @@ private:
 // Hosts GridView column headers inside the ListView ScrollViewer template.
 // The column collection is normally supplied by a template binding from the
 // owning ListView's GridView and is consumed by the view implementation.
-class AERO_API GridViewHeaderRowPresenter
+class AERO_GUI_API GridViewHeaderRowPresenter
     : public Aero::FrameworkElement {
     AERO_DECLARE_TYPE(
         GridViewHeaderRowPresenter,
@@ -187,7 +187,7 @@ public:
 // The row counterpart to GridViewHeaderRowPresenter. It is instantiated by
 // ListViewItem templates and receives the active GridView columns/content
 // during ListView container realization.
-class AERO_API GridViewRowPresenter
+class AERO_GUI_API GridViewRowPresenter
     : public Aero::FrameworkElement {
     AERO_DECLARE_TYPE(
         GridViewRowPresenter,
@@ -200,7 +200,7 @@ public:
     inline static constexpr DependencyProperty<Base::Ref<Base::Object>> ContentProperty{"Content"};
 };
 
-class AERO_API ListViewItem
+class AERO_GUI_API ListViewItem
     : public ListBoxItem {
     AERO_DECLARE_TYPE(ListViewItem, ListBoxItem)
 public:
@@ -209,7 +209,7 @@ public:
     ~ListViewItem() override = default;
 };
 
-class AERO_API ListView
+class AERO_GUI_API ListView
     : public ListBox {
     AERO_DECLARE_TYPE(ListView, ListBox)
 public:

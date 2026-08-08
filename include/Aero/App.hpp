@@ -43,6 +43,6 @@ struct RunOptions  {
 
 // Generated/XAML-only bootstrap. Ordinary C++ applications should call
 // Application::Run() on their application instance.
-AERO_API int Run(const RunOptions& options = {}) noexcept;
+AERO_APP_API int Run(const RunOptions& options = {}) noexcept;
 
 } // namespace Aero::App

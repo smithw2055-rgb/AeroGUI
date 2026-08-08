@@ -140,7 +140,7 @@ GlyphAtlasKey MakeGlyphAtlasKey(
     return key;
 }
 
-struct GlyphAtlas::Impl  {
+struct GlyphAtlasState {
     struct Page  {
         std::uint32_t generation = 1U;
         std::uint32_t cursorX = 0U;
@@ -156,7 +156,7 @@ struct GlyphAtlas::Impl  {
         GlyphAtlasPlacement placement;
     };
 
-    explicit Impl(Base::IAllocator* allocator) noexcept
+    explicit GlyphAtlasState(Base::IAllocator* allocator) noexcept
         : pages(allocator),
           entries(allocator),
           entryIndex(allocator),
@@ -234,6 +234,11 @@ struct GlyphAtlas::Impl  {
     }
 };
 
+static_assert(sizeof(GlyphAtlasState) <= 4096U,
+    "GlyphAtlas inline state storage is too small");
+static_assert(alignof(GlyphAtlasState) <= alignof(std::max_align_t),
+    "GlyphAtlas inline state alignment is insufficient");
+
 GlyphAtlas::GlyphAtlas(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
@@ -245,7 +250,7 @@ GlyphAtlas::~GlyphAtlas() {
 
 Base::Result<void> GlyphAtlas::Initialize(
     const GlyphAtlasConfig& config) noexcept {
-    if (impl_ != nullptr) {
+    if (state_ != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "Glyph atlas is already initialized");
@@ -260,29 +265,19 @@ Base::Result<void> GlyphAtlas::Initialize(
             Base::ErrorCode::InvalidArgument,
             "Glyph atlas configuration is invalid");
     }
-    void* memory = allocator_->Allocate(
-        {sizeof(Impl), alignof(Impl), Base::MemoryTag::Render});
-    if (memory == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Glyph atlas allocation failed");
-    }
-    impl_ = new (memory) Impl(allocator_);
-    impl_->config = config;
+    state_ = new (stateStorage_) GlyphAtlasState(allocator_);
+    state_->config = config;
     return {};
 }
 
 void GlyphAtlas::Shutdown() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->~Impl();
-    allocator_->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl),
-        Base::MemoryTag::Render);
-    impl_ = nullptr;
+    if (state_ == nullptr) return;
+    state_->~GlyphAtlasState();
+    state_ = nullptr;
 }
 
 bool GlyphAtlas::IsInitialized() const noexcept {
-    return impl_ != nullptr;
+    return state_ != nullptr;
 }
 
 Base::Result<void> GlyphAtlas::EnsureGlyph(
@@ -291,16 +286,16 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     std::uint64_t useStamp,
     GlyphAtlasFence completedFence,
     GlyphAtlasPlacement& output) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "Glyph atlas is not initialized");
     }
     const GlyphAtlasKey key = MakeGlyphAtlasKey(request);
-    std::uint32_t* existing = impl_->entryIndex.Find(key);
+    std::uint32_t* existing = state_->entryIndex.Find(key);
     if (existing != nullptr) {
-        Impl::Entry& entry = impl_->entries[*existing];
-        impl_->pages[entry.placement.page].lastUse = useStamp;
+        GlyphAtlasState::Entry& entry = state_->entries[*existing];
+        state_->pages[entry.placement.page].lastUse = useStamp;
         output = entry.placement;
         return {};
     }
@@ -321,11 +316,11 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
             "Glyph atlas cannot place an empty bitmap");
     }
 
-    const std::uint32_t padding = impl_->config.padding;
+    const std::uint32_t padding = state_->config.padding;
     if (AddWouldOverflow(bitmap.width, padding * 2U) ||
         AddWouldOverflow(bitmap.height, padding * 2U) ||
-        bitmap.width + padding * 2U > impl_->config.pageWidth ||
-        bitmap.height + padding * 2U > impl_->config.pageHeight) {
+        bitmap.width + padding * 2U > state_->config.pageWidth ||
+        bitmap.height + padding * 2U > state_->config.pageHeight) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "Glyph bitmap exceeds atlas page dimensions");
@@ -335,22 +330,22 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     std::uint32_t x = 0U;
     std::uint32_t y = 0U;
     for (std::uint32_t index = 0U;
-         index < impl_->pages.Size(); ++index) {
-        if (impl_->Place(
-                impl_->pages[index],
+         index < state_->pages.Size(); ++index) {
+        if (state_->Place(
+                state_->pages[index],
                 bitmap.width, bitmap.height, x, y)) {
             pageIndex = index;
             break;
         }
     }
     if (pageIndex == UINT32_MAX &&
-        impl_->pages.Size() < impl_->config.maxPages) {
-        Base::Result<Impl::Page*> appended =
-            impl_->pages.EmplaceBack();
+        state_->pages.Size() < state_->config.maxPages) {
+        Base::Result<GlyphAtlasState::Page*> appended =
+            state_->pages.EmplaceBack();
         if (!appended) return appended.GetStatus();
-        pageIndex = impl_->pages.Size() - 1U;
-        if (!impl_->Place(
-                impl_->pages[pageIndex],
+        pageIndex = state_->pages.Size() - 1U;
+        if (!state_->Place(
+                state_->pages[pageIndex],
                 bitmap.width, bitmap.height, x, y)) {
             return Base::Status::Failure(
                 Base::ErrorCode::InternalError,
@@ -361,8 +356,8 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
         std::uint32_t victim = UINT32_MAX;
         std::uint64_t oldestUse = UINT64_MAX;
         for (std::uint32_t index = 0U;
-             index < impl_->pages.Size(); ++index) {
-            const Impl::Page& page = impl_->pages[index];
+             index < state_->pages.Size(); ++index) {
+            const GlyphAtlasState::Page& page = state_->pages[index];
             if (page.hasPendingUploads ||
                 page.lastSubmittedFence > completedFence ||
                 page.lastUse >= oldestUse) {
@@ -376,10 +371,10 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
                 Base::ErrorCode::OutOfMemory,
                 "Glyph atlas pages are full or still referenced by GPU work");
         }
-        impl_->ResetPage(victim);
+        state_->ResetPage(victim);
         pageIndex = victim;
-        if (!impl_->Place(
-                impl_->pages[pageIndex],
+        if (!state_->Place(
+                state_->pages[pageIndex],
                 bitmap.width, bitmap.height, x, y)) {
             return Base::Status::Failure(
                 Base::ErrorCode::InternalError,
@@ -387,11 +382,11 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
         }
     }
 
-    Impl::Page& page = impl_->pages[pageIndex];
+    GlyphAtlasState::Page& page = state_->pages[pageIndex];
     page.lastUse = useStamp;
     GlyphAtlasPlacement placement;
     placement.key = key;
-    placement.deviceGeneration = impl_->deviceGeneration;
+    placement.deviceGeneration = state_->deviceGeneration;
     placement.page = pageIndex;
     placement.pageGeneration = page.generation;
     placement.x = x;
@@ -402,32 +397,32 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     placement.bearingY = bitmap.bearingY;
     placement.advanceX = metrics.advanceX;
 
-    Impl::Entry entry;
+    GlyphAtlasState::Entry entry;
     entry.key = key;
     entry.placement = placement;
-    Base::Result<Impl::Entry*> stored =
-        impl_->entries.EmplaceBack(entry);
+    Base::Result<GlyphAtlasState::Entry*> stored =
+        state_->entries.EmplaceBack(entry);
     if (!stored) return stored.GetStatus();
     const std::uint32_t entryIndex =
-        impl_->entries.Size() - 1U;
+        state_->entries.Size() - 1U;
     Base::Result<
         Base::HashMap<
             GlyphAtlasKey, std::uint32_t,
             GlyphAtlasKeyHash>::InsertResult> indexed =
-        impl_->entryIndex.Insert(key, entryIndex);
+        state_->entryIndex.Insert(key, entryIndex);
     if (!indexed) {
-        impl_->entries.PopBack();
+        state_->entries.PopBack();
         return indexed.GetStatus();
     }
     if (!indexed.Value().inserted) {
-        impl_->entries.PopBack();
+        state_->entries.PopBack();
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "Glyph atlas cache key was inserted concurrently");
     }
 
     GlyphAtlasUpload upload(allocator_);
-    upload.deviceGeneration = impl_->deviceGeneration;
+    upload.deviceGeneration = state_->deviceGeneration;
     upload.page = pageIndex;
     upload.pageGeneration = page.generation;
     upload.x = x;
@@ -441,8 +436,8 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     Base::Result<void> resized = upload.pixels.Resize(
         static_cast<std::uint32_t>(byteCount));
     if (!resized) {
-        static_cast<void>(impl_->entryIndex.Erase(key));
-        impl_->entries.PopBack();
+        static_cast<void>(state_->entryIndex.Erase(key));
+        state_->entries.PopBack();
         return resized.GetStatus();
     }
     for (std::uint32_t row = 0U;
@@ -453,10 +448,10 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
             bitmap.width);
     }
     Base::Result<GlyphAtlasUpload*> queued =
-        impl_->uploads.EmplaceBack(std::move(upload));
+        state_->uploads.EmplaceBack(std::move(upload));
     if (!queued) {
-        static_cast<void>(impl_->entryIndex.Erase(key));
-        impl_->entries.PopBack();
+        static_cast<void>(state_->entryIndex.Erase(key));
+        state_->entries.PopBack();
         return queued.GetStatus();
     }
     page.hasPendingUploads = true;
@@ -467,7 +462,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
 Base::Result<void> GlyphAtlas::MarkSubmitted(
     const GlyphAtlasPlacement& placement,
     GlyphAtlasFence fence) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "Glyph atlas is not initialized");
@@ -477,7 +472,7 @@ Base::Result<void> GlyphAtlas::MarkSubmitted(
             Base::ErrorCode::InvalidArgument,
             "Glyph atlas submission references a stale placement");
     }
-    Impl::Page& page = impl_->pages[placement.page];
+    GlyphAtlasState::Page& page = state_->pages[placement.page];
     if (fence > page.lastSubmittedFence) {
         page.lastSubmittedFence = fence;
     }
@@ -486,18 +481,18 @@ Base::Result<void> GlyphAtlas::MarkSubmitted(
 
 bool GlyphAtlas::IsValid(
     const GlyphAtlasPlacement& placement) const noexcept {
-    if (impl_ == nullptr ||
-        placement.deviceGeneration != impl_->deviceGeneration ||
-        placement.page >= impl_->pages.Size() ||
+    if (state_ == nullptr ||
+        placement.deviceGeneration != state_->deviceGeneration ||
+        placement.page >= state_->pages.Size() ||
         placement.pageGeneration !=
-            impl_->pages[placement.page].generation) {
+            state_->pages[placement.page].generation) {
         return false;
     }
     const std::uint32_t* index =
-        impl_->entryIndex.Find(placement.key);
+        state_->entryIndex.Find(placement.key);
     if (index == nullptr) return false;
     const GlyphAtlasPlacement& stored =
-        impl_->entries[*index].placement;
+        state_->entries[*index].placement;
     return stored.deviceGeneration == placement.deviceGeneration &&
         stored.page == placement.page &&
         stored.pageGeneration == placement.pageGeneration &&
@@ -509,31 +504,31 @@ bool GlyphAtlas::IsValid(
 
 Base::Span<const GlyphAtlasUpload>
 GlyphAtlas::PendingUploads() const noexcept {
-    return impl_ != nullptr
-        ? impl_->uploads.AsSpan()
+    return state_ != nullptr
+        ? state_->uploads.AsSpan()
         : Base::Span<const GlyphAtlasUpload>();
 }
 
 void GlyphAtlas::ClearPendingUploads() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->uploads.Clear();
-    for (Impl::Page& page : impl_->pages) {
+    if (state_ == nullptr) return;
+    state_->uploads.Clear();
+    for (GlyphAtlasState::Page& page : state_->pages) {
         page.hasPendingUploads = false;
     }
 }
 
 void GlyphAtlas::NotifyDeviceLost() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->entries.Clear();
-    impl_->entryIndex.Clear();
-    impl_->uploads.Clear();
-    ++impl_->deviceGeneration;
-    if (impl_->deviceGeneration == 0U) {
-        impl_->deviceGeneration = 1U;
+    if (state_ == nullptr) return;
+    state_->entries.Clear();
+    state_->entryIndex.Clear();
+    state_->uploads.Clear();
+    ++state_->deviceGeneration;
+    if (state_->deviceGeneration == 0U) {
+        state_->deviceGeneration = 1U;
     }
     for (std::uint32_t index = 0U;
-         index < impl_->pages.Size(); ++index) {
-        Impl::Page& page = impl_->pages[index];
+         index < state_->pages.Size(); ++index) {
+        GlyphAtlasState::Page& page = state_->pages[index];
         ++page.generation;
         if (page.generation == 0U) page.generation = 1U;
         page.cursorX = 0U;
@@ -546,19 +541,19 @@ void GlyphAtlas::NotifyDeviceLost() noexcept {
 }
 
 std::uint32_t GlyphAtlas::PageCount() const noexcept {
-    return impl_ != nullptr ? impl_->pages.Size() : 0U;
+    return state_ != nullptr ? state_->pages.Size() : 0U;
 }
 
 std::uint32_t GlyphAtlas::EntryCount() const noexcept {
-    return impl_ != nullptr ? impl_->entries.Size() : 0U;
+    return state_ != nullptr ? state_->entries.Size() : 0U;
 }
 
 std::uint32_t GlyphAtlas::DeviceGeneration() const noexcept {
-    return impl_ != nullptr ? impl_->deviceGeneration : 0U;
+    return state_ != nullptr ? state_->deviceGeneration : 0U;
 }
 
 GlyphAtlasConfig GlyphAtlas::Config() const noexcept {
-    return impl_ != nullptr ? impl_->config : GlyphAtlasConfig{};
+    return state_ != nullptr ? state_->config : GlyphAtlasConfig{};
 }
 
 } // namespace Aero::Text

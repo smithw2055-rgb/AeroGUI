@@ -3,16 +3,16 @@
 // ===== DependencyProperty =====
 
 #include <Aero/Gui/DependencyProperty.hpp>
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Hash.hpp>
@@ -22,7 +22,7 @@
 #include <limits>
 #include <utility>
 
-namespace Aero::GuiPrivate::Detail {
+namespace Aero {
 
 Base::Result<Meta::PropertyValue> NormalizeValueForProperty(
     Meta::Registry* metadata,
@@ -93,7 +93,7 @@ Base::Result<Meta::PropertyValue> NormalizeValueForProperty(
     return value;
 }
 
-} // namespace Aero::GuiPrivate::Detail
+} // namespace Aero
 
 namespace Aero::Meta {
 namespace {
@@ -811,7 +811,7 @@ DependencyObject::DependencyObject(TypeId runtimeType) noexcept
 
 DependencyObject::~DependencyObject() {
     for (EffectiveValueEntry& entry : values_) {
-        Impl::CommitConsumerChange(
+        Access::CommitConsumerChange(
             *this,
             entry.property,
             entry.effectiveValue,
@@ -1385,7 +1385,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
         Base::ErrorCode::OutOfRange, "Dependency property value revision limit reached");
     if (newEffective != oldEffective) {
         Base::Result<void> consumerPrepared =
-            Impl::PrepareConsumerChange(
+            Access::PrepareConsumerChange(
                 *this,
                 propertyHandle,
                 oldEffective,
@@ -1401,7 +1401,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     entry.effectiveValue = newEffective;
     entry.sourceInfo = source;
     if (newEffective != oldEffective) {
-        Impl::CommitConsumerChange(
+        Access::CommitConsumerChange(
             *this,
             propertyHandle,
             oldEffective,

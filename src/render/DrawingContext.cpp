@@ -2,60 +2,60 @@
 
 #include "DisplayList.hpp"
 #include "../media/BrushRendering.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "media/AnimationInternal.hpp"
-#include "media/BrushInternal.hpp"
-#include "media/EffectInternal.hpp"
-#include "media/TransformInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "media/AnimationRuntime.hpp"
+#include "media/BrushRuntime.hpp"
+#include "media/EffectRuntime.hpp"
+#include "media/TransformRuntime.hpp"
 
 namespace Aero::Media {
 
 Base::Result<void> DrawingContext::PushClip(
     Base::Rect clip) noexcept {
-    return ::Aero::Render::Detail::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingPrivate::Builder(*this)
         .PushClip(clip);
 }
 
 Base::Result<void> DrawingContext::PopClip() noexcept {
-    return ::Aero::Render::Detail::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingPrivate::Builder(*this)
         .PopClip();
 }
 
 Base::Result<void> DrawingContext::PushOpacity(
     double opacity) noexcept {
-    return ::Aero::Render::Detail::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingPrivate::Builder(*this)
         .PushOpacity(opacity);
 }
 
 Base::Result<void> DrawingContext::PopOpacity() noexcept {
-    return ::Aero::Render::Detail::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingPrivate::Builder(*this)
         .PopOpacity();
 }
 
 Base::Result<void> DrawingContext::PushTransform(
     Base::Transform2D transform) noexcept {
-    return ::Aero::Render::Detail::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingPrivate::Builder(*this)
         .PushTransform(transform);
 }
 
 Base::Result<void> DrawingContext::PopTransform() noexcept {
-    return ::Aero::Render::Detail::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingPrivate::Builder(*this)
         .PopTransform();
 }
 
 Base::Result<void> DrawingContext::DrawRectangle(
     Base::Rect bounds,
     Base::Color color) noexcept {
-    return ::Aero::Render::Detail::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingPrivate::Builder(*this)
         .FillRect(bounds, color);
 }
 
@@ -63,7 +63,7 @@ Base::Result<void> DrawingContext::DrawRectangle(
     Base::Rect bounds,
     const Base::Ref<Media::Brush>& brush) noexcept {
     return Media::PaintBrushRect(
-        ::Aero::Render::Detail::DrawingPrivate::Builder(*this),
+        ::Aero::Render::DrawingPrivate::Builder(*this),
         brush,
         bounds);
 }
@@ -85,7 +85,7 @@ Base::Result<void> DrawingContext::DrawRoundedRectangle(
     Base::Rect bounds,
     Base::Color color,
     double radius) noexcept {
-    return ::Aero::Render::Detail::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingPrivate::Builder(*this)
         .FillRoundedRect(bounds, color, radius);
 }
 
@@ -94,7 +94,7 @@ Base::Result<void> DrawingContext::DrawRoundedRectangle(
     const Base::Ref<Media::Brush>& brush,
     double radius) noexcept {
     return Media::PaintBrushRect(
-        ::Aero::Render::Detail::DrawingPrivate::Builder(*this),
+        ::Aero::Render::DrawingPrivate::Builder(*this),
         brush,
         bounds,
         radius);
@@ -104,7 +104,7 @@ Base::Result<void> DrawingContext::DrawRectangleOutline(
     Base::Rect bounds,
     Base::Color color,
     double thickness) noexcept {
-    return ::Aero::Render::Detail::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingPrivate::Builder(*this)
         .StrokeRect(bounds, color, thickness);
 }
 
@@ -113,9 +113,9 @@ Base::Result<void> DrawingContext::DrawRectangleOutline(
     const Base::Ref<Media::Brush>& brush,
     double thickness) noexcept {
     const Base::Color color =
-        Media::Detail::SampleBrush(brush);
+        Media::SampleBrush(brush);
     return color.alpha > 0.0F
-        ? ::Aero::Render::Detail::DrawingPrivate::Builder(*this)
+        ? ::Aero::Render::DrawingPrivate::Builder(*this)
               .StrokeRect(bounds, color, thickness)
         : Base::Result<void>();
 }

@@ -4,11 +4,17 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/ViewOptions.hpp>
 
-namespace Aero::Controls::Detail { class TextBlockLayout; }
+#include <cstddef>
+#include <cstdint>
+
+namespace Aero::Controls { class TextBlockLayout; }
 
 namespace Aero { class RenderDevice; }
+namespace Aero::Render { struct TextResources; }
 
-namespace Aero::Text::Detail {
+namespace Aero::Text {
+
+struct TextPipelineState;
 
 class TextPipeline {
 public:
@@ -21,21 +27,24 @@ public:
 
     Base::Result<void> Initialize(
         RenderDevice& device,
+        ::Aero::Render::TextResources* resources,
         const TextOptions& options) noexcept;
     Base::Result<bool> SynchronizeBackend(
         RenderDevice& device,
+        ::Aero::Render::TextResources* resources,
         bool force = false) noexcept;
     Base::Result<std::uint32_t> CollectGarbage() noexcept;
     void Shutdown() noexcept;
 
-    ::Aero::Controls::Detail::TextBlockLayout*
+    ::Aero::Controls::TextBlockLayout*
     Layout() noexcept;
 
 private:
-    struct Impl;
-
     Base::IAllocator* allocator_ = nullptr;
-    Impl* impl_ = nullptr;
+    // The source-private state is constructed directly in this storage. This
+    // preserves local helper types without a heap-allocated Pimpl lifetime.
+    alignas(std::max_align_t) std::uint8_t stateStorage_[16384]{};
+    TextPipelineState* state_ = nullptr;
 };
 
-} // namespace Aero::Text::Detail
+} // namespace Aero::Text

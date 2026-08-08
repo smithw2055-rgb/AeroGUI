@@ -4,7 +4,7 @@
 
 namespace Aero::Controls::Primitives {
 
-class AERO_API ToggleButton : public ButtonBase {
+class AERO_GUI_API ToggleButton : public ButtonBase {
     AERO_DECLARE_TYPE(ToggleButton, ButtonBase)
 public:
     ToggleButton() noexcept : ToggleButton(StaticTypeId()) {}
@@ -36,7 +36,7 @@ protected:
         : ButtonBase(runtimeType) {}
 
 private:
-    friend struct ButtonBase::Impl;
+    friend struct ButtonBase::Access;
     void SetToggleState(std::uint8_t value) noexcept;
 };
 

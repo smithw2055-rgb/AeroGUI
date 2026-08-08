@@ -4,7 +4,7 @@
 
 namespace Aero::Controls {
 
-class AERO_API RadioButton : public Primitives::ToggleButton {
+class AERO_GUI_API RadioButton : public Primitives::ToggleButton {
     AERO_DECLARE_TYPE(RadioButton, Primitives::ToggleButton)
 public:
     RadioButton() noexcept : RadioButton(StaticTypeId()) {}

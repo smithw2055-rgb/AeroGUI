@@ -41,7 +41,7 @@ struct ThumbDragDelta {
     double verticalChange = 0.0;
 };
 namespace Primitives {
-class AERO_API Thumb : public Control {
+class AERO_GUI_API Thumb : public Control {
     AERO_DECLARE_TYPE(Thumb, Control)
 public:
     Thumb() noexcept : Control(StaticTypeId()) {}
@@ -68,7 +68,7 @@ private:
     bool dragging_ = false;
 };
 
-class AERO_API Track : public Control {
+class AERO_GUI_API Track : public Control {
     AERO_DECLARE_TYPE(Track, Control)
 public:
     Track() noexcept : Control(StaticTypeId()) {}
@@ -138,7 +138,7 @@ private:
     Base::Ref<RepeatButton> increaseRepeatButton_;
 };
 
-class AERO_API RangeBase : public Control {
+class AERO_GUI_API RangeBase : public Control {
     AERO_DECLARE_TYPE(RangeBase, Control)
 public:
     double GetMinimum() const noexcept;
@@ -176,7 +176,7 @@ private:
             args) noexcept;
 };
 
-class AERO_API ScrollBar : public RangeBase {
+class AERO_GUI_API ScrollBar : public RangeBase {
     AERO_DECLARE_TYPE(ScrollBar, RangeBase)
 public:
     ScrollBar() noexcept;
@@ -227,7 +227,7 @@ private:
 // WPF-compatible GridSplitter surface. The splitter carries the full
 // resize-policy state even when the hosting grid chooses to apply the delta
 // through a custom interaction adapter.
-class AERO_API GridSplitter : public Control {
+class AERO_GUI_API GridSplitter : public Control {
     AERO_DECLARE_TYPE(GridSplitter, Control)
 public:
     GridSplitter() noexcept : Control(StaticTypeId()) {}
@@ -257,10 +257,10 @@ public:
     inline static constexpr DependencyProperty<Base::Ref<Aero::Style>> PreviewStyleProperty{"PreviewStyle"};
 };
 
-class AERO_API Slider : public Primitives::RangeBase {
+class AERO_GUI_API Slider : public Primitives::RangeBase {
     AERO_DECLARE_TYPE(Slider, Primitives::RangeBase)
 public:
-    struct Impl;
+    struct Access;
 
     Slider() noexcept;
     ~Slider() override;
@@ -329,7 +329,7 @@ private:
     double GetSnapValue(double value) const noexcept;
 };
 
-class AERO_API TickBar : public Control {
+class AERO_GUI_API TickBar : public Control {
     AERO_DECLARE_TYPE(TickBar, Control)
 public:
     TickBar() noexcept : Control(StaticTypeId()) {}
@@ -350,7 +350,7 @@ protected:
         Aero::Media::DrawingContext& context) noexcept override;
 };
 
-class AERO_API ProgressBar : public Primitives::RangeBase {
+class AERO_GUI_API ProgressBar : public Primitives::RangeBase {
     AERO_DECLARE_TYPE(ProgressBar, Primitives::RangeBase)
 public:
     ProgressBar() noexcept : Primitives::RangeBase(StaticTypeId()) {}

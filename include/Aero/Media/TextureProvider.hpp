@@ -24,7 +24,7 @@ struct TextureResourceInfo {
     TextureInfo texture;
 };
 
-class AERO_API TextureProvider {
+class AERO_GUI_API TextureProvider {
 public:
     virtual ~TextureProvider() = default;
 

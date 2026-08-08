@@ -12,7 +12,7 @@ using ::Aero::Media::MatrixTransform;
 
 // WPF-shaped single-child scaling decorator. The child participates in
 // layout at its natural size and is then fitted into the Viewbox slot.
-class AERO_API Viewbox : public Decorator {
+class AERO_GUI_API Viewbox : public Decorator {
     AERO_DECLARE_TYPE(Viewbox, Decorator)
 public:
     Viewbox() noexcept : Decorator(StaticTypeId()) {}
@@ -41,7 +41,7 @@ private:
         double offsetY) noexcept;
 };
 
-class AERO_API Border : public Decorator {
+class AERO_GUI_API Border : public Decorator {
     AERO_DECLARE_TYPE(Border, Decorator)
 public:
     Border() noexcept;

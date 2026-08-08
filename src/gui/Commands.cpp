@@ -1,13 +1,13 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 #include <Aero/Input.hpp>
 
 
@@ -265,8 +265,8 @@ Base::Result<void> KeyBinding::Finalize() noexcept {
 Base::Result<bool> RoutedCommand::CanExecute(
     const Meta::Value& parameter,
     UIElement* target) noexcept {
-    Aero::GuiPrivate::Detail::InputRouter* input = target != nullptr
-        ? Aero::GuiPrivate::Detail::ElementPrivate::InputRouterFor(*target)
+    Aero::InputRouter* input = target != nullptr
+        ? Aero::ElementPrivate::InputRouterFor(*target)
         : nullptr;
     if (input == nullptr) {
         return Base::Status::Failure(
@@ -279,8 +279,8 @@ Base::Result<bool> RoutedCommand::CanExecute(
 void RoutedCommand::Execute(
     const Meta::Value& parameter,
     UIElement* target) noexcept {
-    Aero::GuiPrivate::Detail::InputRouter* input = target != nullptr
-        ? Aero::GuiPrivate::Detail::ElementPrivate::InputRouterFor(*target)
+    Aero::InputRouter* input = target != nullptr
+        ? Aero::ElementPrivate::InputRouterFor(*target)
         : nullptr;
     if (input == nullptr) {
         return;
@@ -290,7 +290,7 @@ void RoutedCommand::Execute(
 
 } // namespace Aero::Input
 
-namespace Aero::GuiPrivate::Detail {
+namespace Aero {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -310,7 +310,7 @@ Base::Result<void> CommandState::VerifyTarget(
     }
     Base::Result<void> access = root->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!target.GetIsLoaded() || Aero::GuiPrivate::Detail::ElementPrivate::Tree(target) != tree_) {
+    if (!target.GetIsLoaded() || Aero::ElementPrivate::Tree(target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Command target must be loaded in the command tree");
     }
@@ -472,7 +472,7 @@ Base::Result<bool> CommandState::CanExecute(
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(element);
+            const VisualHandle ownerHandle = Aero::ElementPrivate::Handle(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -518,7 +518,7 @@ Base::Result<bool> CommandState::Execute(
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(element);
+            const VisualHandle ownerHandle = Aero::ElementPrivate::Handle(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -556,7 +556,7 @@ Base::Result<bool> CommandState::ProcessInput(
                 return true;
             }
             auto& element = static_cast<UIElement&>(current);
-            const VisualHandle owner = Aero::GuiPrivate::Detail::ElementPrivate::Handle(element);
+            const VisualHandle owner = Aero::ElementPrivate::Handle(element);
             for (const InputBindingRecord& record : inputBindings_) {
                 if (record.owner.index != owner.index ||
                     record.owner.generation != owner.generation ||
@@ -606,4 +606,4 @@ void CommandState::InvalidateRequerySuggested() const noexcept {
     if (!requerySuggested_.Empty()) requerySuggested_.Invoke();
 }
 
-} // namespace Aero::GuiPrivate::Detail
+} // namespace Aero

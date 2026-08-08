@@ -1,5 +1,8 @@
 # View access convergence — completed
 
+> Historical milestone record. See `SOURCE_ARCHITECTURE.md` for the current
+> `ViewState`/`ViewRenderer` ownership model.
+
 This migration is complete. `Runtime::Detail::ViewAccess` has been removed.
 
 The final ownership boundary is direct and domain-based:

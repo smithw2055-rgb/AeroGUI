@@ -13,60 +13,32 @@
 
 namespace Aero::Markup {
 
-Base::Result<void> ReloadCoordinator::QueryReloadSource(
-    View& view, const Base::ResourceUri& uri,
-    std::uint64_t& sourceIdentity, std::uint64_t& revision) noexcept {
-    Gui& gui = view.GetGui();
-    if (!gui.IsInitialized() || uri.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "XAML reload source is unavailable");
-    }
-    Gui::Impl& state = static_cast<Gui::Impl&>(*gui.impl_);
-    return state.xaml.QuerySource(
-        state.xamlProviders, uri, sourceIdentity, revision);
-}
-
-bool ReloadCoordinator::TryGetCachedReloadRevision(
-    View& view, const Base::ResourceUri& uri,
-    std::uint64_t sourceIdentity, std::uint64_t& revision) noexcept {
-    Gui& gui = view.GetGui();
-    if (!gui.IsInitialized()) return false;
-    Gui::Impl& state = static_cast<Gui::Impl&>(*gui.impl_);
-    return state.xaml.TryGetCachedRevision(uri, sourceIdentity, revision);
-}
-
-Base::Result<std::uint32_t> ReloadCoordinator::InvalidateReloadDocuments(
-    View& view, const Base::ResourceUri& uri, bool includeDependents) noexcept {
-    Gui& gui = view.GetGui();
-    if (!gui.IsInitialized()) return std::uint32_t{0U};
-    Gui::Impl& state = static_cast<Gui::Impl&>(*gui.impl_);
-    return state.xaml.Invalidate(uri, includeDependents);
-}
-
-struct ReloadCoordinator::Impl  {
+struct ReloadCoordinatorState final {
     struct RevisionRecord  {
         Base::ResourceUri uri;
         std::uint64_t revision = 0U;
     };
 
-    Impl(View& valueView, Base::IAllocator& valueAllocator) noexcept
+    ReloadCoordinatorState(
+        View& valueView,
+        Base::IAllocator& valueAllocator,
+        GuiState* valueGui) noexcept
         : view(&valueView),
           allocator(&valueAllocator),
+          gui(valueGui),
           revisions(&valueAllocator) {}
 
     Base::Result<std::uint64_t> ReadRevision(
         const Base::ResourceUri& uri) noexcept {
-        if (view == nullptr || uri.Empty()) {
+        if (view == nullptr || gui == nullptr || uri.Empty()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "XAML reload source is unavailable");
         }
         std::uint64_t sourceIdentity = 0U;
         std::uint64_t revision = 0U;
-        Base::Result<void> queried =
-            ReloadCoordinator::QueryReloadSource(
-                *view, uri, sourceIdentity, revision);
+        Base::Result<void> queried = gui->xaml.QuerySource(
+            gui->xamlProviders, uri, sourceIdentity, revision);
         return queried
             ? Base::Result<std::uint64_t>(revision)
             : Base::Result<std::uint64_t>(queried.GetStatus());
@@ -85,21 +57,19 @@ struct ReloadCoordinator::Impl  {
         Base::Vector<RevisionRecord>& records,
         const Base::ResourceUri& uri) noexcept {
         if (uri.Empty() || HasTracked(records, uri)) return {};
-        if (view == nullptr) {
+        if (view == nullptr || gui == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "XAML reload View is unavailable");
         }
         std::uint64_t sourceIdentity = 0U;
         std::uint64_t currentRevision = 0U;
-        Base::Result<void> queried =
-            ReloadCoordinator::QueryReloadSource(
-                *view, uri, sourceIdentity, currentRevision);
+        Base::Result<void> queried = gui->xaml.QuerySource(
+            gui->xamlProviders, uri, sourceIdentity, currentRevision);
         if (!queried) return queried.GetStatus();
         std::uint64_t revision = currentRevision;
-        static_cast<void>(
-            ReloadCoordinator::TryGetCachedReloadRevision(
-                *view, uri, sourceIdentity, revision));
+        static_cast<void>(gui->xaml.TryGetCachedRevision(
+            uri, sourceIdentity, revision));
         RevisionRecord record;
         record.uri = uri;
         record.revision = revision;
@@ -141,8 +111,13 @@ struct ReloadCoordinator::Impl  {
                 Base::ErrorCode::InvalidState,
                 "XAML reload coordinator is not active");
         }
+        if (gui == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "XAML reload Gui state is unavailable");
+        }
         Base::Result<std::uint32_t> invalidated =
-            ReloadCoordinator::InvalidateReloadDocuments(*view, changed, true);
+            gui->xaml.Invalidate(changed, true);
         if (!invalidated) return invalidated.GetStatus();
         const std::uint32_t invalidatedCount = invalidated.Value();
 
@@ -172,6 +147,7 @@ struct ReloadCoordinator::Impl  {
 
     View* view = nullptr;
     Base::IAllocator* allocator = nullptr;
+    GuiState* gui = nullptr;
     Base::ResourceUri rootUri;
     Aero::Size availableSize;
     Base::Vector<RevisionRecord> revisions;
@@ -185,41 +161,48 @@ ReloadCoordinator::ReloadCoordinator(
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    void* memory = allocator_->Allocate({
-        sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup});
+    Gui& gui = view.GetGui();
+    GuiState* guiState = gui.state_
+        ? &static_cast<GuiState&>(*gui.state_)
+        : nullptr;
+    void* memory = allocator_->Allocate({sizeof(ReloadCoordinatorState),
+        alignof(ReloadCoordinatorState), Base::MemoryTag::Markup});
     if (memory == nullptr) {
-        Base::ReportOutOfMemory(
-            sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
+        Base::ReportOutOfMemory(sizeof(ReloadCoordinatorState),
+            alignof(ReloadCoordinatorState), Base::MemoryTag::Markup);
     }
-    impl_ = new (memory) Impl(view, *allocator_);
+    state_ = new (memory) ReloadCoordinatorState(
+        view, *allocator_, guiState);
 }
 
 ReloadCoordinator::~ReloadCoordinator() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->~Impl();
-    allocator_->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
+    if (state_ == nullptr) return;
+    auto* state = static_cast<ReloadCoordinatorState*>(state_);
+    state->~ReloadCoordinatorState();
+    allocator_->Deallocate(state, sizeof(ReloadCoordinatorState),
+        alignof(ReloadCoordinatorState), Base::MemoryTag::Markup);
 }
 
 ReloadCoordinator::ReloadCoordinator(
     ReloadCoordinator&& other) noexcept
-    : allocator_(other.allocator_), impl_(other.impl_) {
+    : allocator_(other.allocator_), state_(other.state_) {
     other.allocator_ = nullptr;
-    other.impl_ = nullptr;
+    other.state_ = nullptr;
 }
 
 ReloadCoordinator& ReloadCoordinator::operator=(
     ReloadCoordinator&& other) noexcept {
     if (this == &other) return *this;
-    if (impl_ != nullptr) {
-        impl_->~Impl();
-        allocator_->Deallocate(
-            impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
+    if (state_ != nullptr) {
+        auto* state = static_cast<ReloadCoordinatorState*>(state_);
+        state->~ReloadCoordinatorState();
+        allocator_->Deallocate(state, sizeof(ReloadCoordinatorState),
+            alignof(ReloadCoordinatorState), Base::MemoryTag::Markup);
     }
     allocator_ = other.allocator_;
-    impl_ = other.impl_;
+    state_ = other.state_;
     other.allocator_ = nullptr;
-    other.impl_ = nullptr;
+    other.state_ = nullptr;
     return *this;
 }
 
@@ -227,12 +210,13 @@ Base::Result<void> ReloadCoordinator::Start(
     Base::StringView rootUri,
     Aero::Size availableSize,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    if (impl_ == nullptr || impl_->view == nullptr) {
+    auto* state = static_cast<ReloadCoordinatorState*>(state_);
+    if (state == nullptr || state->view == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "XAML reload requires a View");
     }
-    if (impl_->active || impl_->view->GetContent() != nullptr) {
+    if (state->active || state->view->GetContent() != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "XAML reload requires an unmounted View");
@@ -240,89 +224,98 @@ Base::Result<void> ReloadCoordinator::Start(
     Base::Result<Base::ResourceUri> parsed =
         Base::ResourceUri::Parse(rootUri);
     if (!parsed) return parsed.GetStatus();
-    XamlReader reader(impl_->view->GetGui());
+    XamlReader reader(state->view->GetGui());
     Base::Result<XamlDocument> document =
         reader.Load(rootUri, {}, diagnostics);
     if (!document) return document.GetStatus();
     Base::ResourceUri resolvedRoot = parsed.Value();
-    Base::Vector<Impl::RevisionRecord> revisions(impl_->allocator);
-    Base::Result<void> tracked = impl_->BuildTrackedSources(
+    Base::Vector<ReloadCoordinatorState::RevisionRecord> revisions(
+        state->allocator);
+    Base::Result<void> tracked = state->BuildTrackedSources(
         document.Value(), resolvedRoot, revisions);
     if (!tracked) return tracked.GetStatus();
-    Base::Result<void> mounted = impl_->view->SetContent(
+    Base::Result<void> mounted = state->view->SetContent(
         std::move(document).Value(), availableSize);
     if (!mounted) return mounted.GetStatus();
 
-    impl_->rootUri = resolvedRoot;
-    impl_->revisions = std::move(revisions);
-    impl_->availableSize = availableSize;
-    impl_->active = true;
+    state->rootUri = resolvedRoot;
+    state->revisions = std::move(revisions);
+    state->availableSize = availableSize;
+    state->active = true;
     return {};
 }
 
 void ReloadCoordinator::Stop() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->active = false;
-    impl_->revisions.Clear();
-    impl_->rootUri = {};
+    auto* state = static_cast<ReloadCoordinatorState*>(state_);
+    if (state == nullptr) return;
+    state->active = false;
+    state->revisions.Clear();
+    state->rootUri = {};
 }
 
 Base::Result<ReloadResult> ReloadCoordinator::Poll(
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
     ReloadResult noChange;
-    if (impl_ == nullptr || !impl_->active) {
+    auto* state = static_cast<ReloadCoordinatorState*>(state_);
+    if (state == nullptr || !state->active) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "XAML reload coordinator is not active");
     }
-    noChange.generation = impl_->generation;
-    for (const Impl::RevisionRecord& record : impl_->revisions) {
+    noChange.generation = state->generation;
+    for (const ReloadCoordinatorState::RevisionRecord& record : state->revisions) {
         Base::Result<std::uint64_t> current =
-            impl_->ReadRevision(record.uri);
+            state->ReadRevision(record.uri);
         if (!current) return current.GetStatus();
         if (current.Value() == record.revision) continue;
-        return impl_->ReloadFor(record.uri, diagnostics);
+        return state->ReloadFor(record.uri, diagnostics);
     }
     return noChange;
 }
 
 Base::Result<ReloadResult> ReloadCoordinator::Reload(
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    if (impl_ == nullptr) {
+    auto* state = static_cast<ReloadCoordinatorState*>(state_);
+    if (state == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "XAML reload coordinator is unavailable");
     }
-    return impl_->ReloadFor(impl_->rootUri, diagnostics);
+    return state->ReloadFor(state->rootUri, diagnostics);
 }
 
 Base::Result<ReloadResult>
 ReloadCoordinator::NotifySourceChanged(
     const Base::ResourceUri& changedUri,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    if (impl_ == nullptr || changedUri.Empty()) {
+    auto* state = static_cast<ReloadCoordinatorState*>(state_);
+    if (state == nullptr || changedUri.Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "XAML reload changed URI is invalid");
     }
-    return impl_->ReloadFor(changedUri, diagnostics);
+    return state->ReloadFor(changedUri, diagnostics);
 }
 
 bool ReloadCoordinator::IsActive() const noexcept {
-    return impl_ != nullptr && impl_->active;
+    const auto* state = static_cast<const ReloadCoordinatorState*>(state_);
+    return state != nullptr && state->active;
 }
 
 const Base::ResourceUri& ReloadCoordinator::RootUri() const noexcept {
     static const Base::ResourceUri empty;
-    return impl_ != nullptr ? impl_->rootUri : empty;
+    const auto* state = static_cast<const ReloadCoordinatorState*>(state_);
+    return state != nullptr ? state->rootUri : empty;
 }
 
 std::uint64_t ReloadCoordinator::Generation() const noexcept {
-    return impl_ != nullptr ? impl_->generation : 0U;
+    const auto* state = static_cast<const ReloadCoordinatorState*>(state_);
+    return state != nullptr ? state->generation : 0U;
 }
 
 std::uint32_t ReloadCoordinator::TrackedSourceCount() const noexcept {
-    return impl_ != nullptr ? impl_->revisions.Size() : 0U;
+    const auto* state = static_cast<const ReloadCoordinatorState*>(state_);
+    return state != nullptr ? state->revisions.Size() : 0U;
 }
 
 } // namespace Aero::Markup

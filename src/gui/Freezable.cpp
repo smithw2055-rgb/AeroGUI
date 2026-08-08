@@ -1,15 +1,15 @@
 #include <Aero/Freezable.hpp>
 
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
 #include <new>
 #include <utility>
@@ -83,20 +83,20 @@ Base::Result<void> CheckFreezeNode(
         return FreezeGraphStatus(
             "A Freezable object graph contains a cycle");
     }
-    if (DependencyObject::Impl::HasUnfreezableValueState(value)) {
+    if (DependencyObject::Access::HasUnfreezableValueState(value)) {
         return FreezeGraphStatus(
             "A Freezable with an expression or animation cannot be frozen");
     }
     Base::Result<void> pushed = context.visiting.PushBack(&value);
     if (!pushed) return pushed.GetStatus();
     Base::Result<void> children =
-        DependencyObject::Impl::VisitFreezableChildren(
+        DependencyObject::Access::VisitFreezableChildren(
             value, &context, &CheckFreezeChild);
     if (!children) {
         context.visiting.PopBack();
         return children.GetStatus();
     }
-    if (!Freezable::Impl::CheckCore(value)) {
+    if (!Freezable::Access::CheckCore(value)) {
         context.visiting.PopBack();
         return FreezeGraphStatus(
             "A Freezable child rejected the freeze operation");
@@ -106,7 +106,7 @@ Base::Result<void> CheckFreezeNode(
 }
 
 void RemoveHandlerAt(
-    Base::Vector<Freezable::Impl::HandlerRecord>& handlers,
+    Base::Vector<Freezable::Access::HandlerRecord>& handlers,
     std::uint32_t index) noexcept {
     for (std::uint32_t next = index + 1U;
          next < handlers.Size(); ++next) {
@@ -116,7 +116,7 @@ void RemoveHandlerAt(
 }
 
 void RemoveConsumerAt(
-    Base::Vector<Freezable::Impl::ConsumerRecord>& consumers,
+    Base::Vector<Freezable::Access::ConsumerRecord>& consumers,
     std::uint32_t index) noexcept {
     for (std::uint32_t next = index + 1U;
          next < consumers.Size(); ++next) {
@@ -131,21 +131,21 @@ Freezable::Freezable(Meta::TypeId runtimeType) noexcept
     : DependencyObject(runtimeType),
       implAllocator_(&Base::GetDefaultAllocator()) {
     void* memory = implAllocator_->Allocate({
-        sizeof(Impl), alignof(Impl), Base::MemoryTag::Ui});
+        sizeof(Access), alignof(Access), Base::MemoryTag::Ui});
     if (memory == nullptr) {
         Base::ReportOutOfMemory(
-            sizeof(Impl), alignof(Impl), Base::MemoryTag::Ui);
+            sizeof(Access), alignof(Access), Base::MemoryTag::Ui);
     }
-    impl_ = new (memory) Impl(*implAllocator_);
+    impl_ = new (memory) Access(*implAllocator_);
 }
 
 Freezable::~Freezable() {
     if (impl_ == nullptr) return;
     impl_->consumers.Clear();
     impl_->handlers.Clear();
-    impl_->~Impl();
+    impl_->~Access();
     implAllocator_->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Ui);
+        impl_, sizeof(Access), alignof(Access), Base::MemoryTag::Ui);
     impl_ = nullptr;
 }
 
@@ -225,7 +225,7 @@ Base::Result<void> Freezable::AddChangedHandlerChecked(
             Base::ErrorCode::InvalidArgument,
             "Freezable changed handler is empty");
     }
-    Impl::HandlerRecord record;
+    Access::HandlerRecord record;
     record.handler = handler;
     record.active = true;
     return impl_->handlers.PushBack(std::move(record));
@@ -236,8 +236,8 @@ void Freezable::AddChangedHandler(
     Base::Result<void> added = AddChangedHandlerChecked(handler);
     if (!added && added.GetStatus().code == Base::ErrorCode::OutOfMemory) {
         Base::ReportOutOfMemory(
-            sizeof(Impl::HandlerRecord),
-            alignof(Impl::HandlerRecord),
+            sizeof(Access::HandlerRecord),
+            alignof(Access::HandlerRecord),
             Base::MemoryTag::Ui);
     }
 }
@@ -250,7 +250,7 @@ bool Freezable::RemoveChangedHandler(
     }
     for (std::uint32_t index = 0U;
          index < impl_->handlers.Size(); ++index) {
-        Impl::HandlerRecord& record = impl_->handlers[index];
+        Access::HandlerRecord& record = impl_->handlers[index];
         if (!record.active || record.handler != handler) continue;
         if (impl_->notificationDepth != 0U) {
             record.active = false;
@@ -285,7 +285,7 @@ void Freezable::OnChanged() noexcept {
     const std::uint32_t handlerCount = impl_->handlers.Size();
     for (std::uint32_t index = 0U; index < handlerCount; ++index) {
         if (index >= impl_->handlers.Size()) break;
-        const Impl::HandlerRecord& record = impl_->handlers[index];
+        const Access::HandlerRecord& record = impl_->handlers[index];
         if (!record.active || record.handler.Empty()) continue;
         FreezableChangedHandler handler = record.handler;
         handler(*this);
@@ -305,20 +305,20 @@ void Freezable::OnChanged() noexcept {
     const std::uint32_t consumerCount = impl_->consumers.Size();
     for (std::uint32_t index = 0U; index < consumerCount; ++index) {
         if (index >= impl_->consumers.Size()) break;
-        const Impl::ConsumerRecord& record = impl_->consumers[index];
+        const Access::ConsumerRecord& record = impl_->consumers[index];
         Base::Ref<DependencyObject> retained = record.object.Lock();
         DependencyObject* consumer = retained
             ? retained.Get()
             : record.unmanagedObject;
         const Meta::DependencyPropertyHandle property = record.property;
         if (consumer != nullptr) {
-            DependencyObject::Impl::InvalidateSubProperty(
+            DependencyObject::Access::InvalidateSubProperty(
                 *consumer, property);
         }
     }
     for (std::uint32_t index = 0U;
          index < impl_->consumers.Size();) {
-        const Impl::ConsumerRecord& record = impl_->consumers[index];
+        const Access::ConsumerRecord& record = impl_->consumers[index];
         if (record.unmanagedObject == nullptr && record.object.Expired()) {
             RemoveConsumerAt(impl_->consumers, index);
         } else {
@@ -337,7 +337,7 @@ Base::Result<void> Freezable::VerifyMutationAllowed() const noexcept {
     return WritePreamble();
 }
 
-Base::Result<void> Freezable::Impl::AttachConsumer(
+Base::Result<void> Freezable::Access::AttachConsumer(
     Freezable& value,
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
@@ -361,7 +361,7 @@ Base::Result<void> Freezable::Impl::AttachConsumer(
     return value.impl_->consumers.PushBack(std::move(record));
 }
 
-void Freezable::Impl::DetachConsumer(
+void Freezable::Access::DetachConsumer(
     Freezable& value,
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
@@ -380,12 +380,12 @@ void Freezable::Impl::DetachConsumer(
     }
 }
 
-std::uint64_t Freezable::Impl::Revision(
+std::uint64_t Freezable::Access::Revision(
     const Freezable& value) noexcept {
     return value.impl_ != nullptr ? value.impl_->revision : 0U;
 }
 
-bool DependencyObject::Impl::HasUnfreezableValueState(
+bool DependencyObject::Access::HasUnfreezableValueState(
     const DependencyObject& object) noexcept {
     for (const EffectiveValueEntry& entry : object.values_) {
         if (entry.hasExpression || entry.hasAnimation ||
@@ -396,7 +396,7 @@ bool DependencyObject::Impl::HasUnfreezableValueState(
     return false;
 }
 
-Base::Result<void> DependencyObject::Impl::VisitFreezableChildren(
+Base::Result<void> DependencyObject::Access::VisitFreezableChildren(
     DependencyObject& object,
     void* context,
     FreezableVisitor visitor) noexcept {
@@ -413,7 +413,7 @@ Base::Result<void> DependencyObject::Impl::VisitFreezableChildren(
     return {};
 }
 
-Base::Result<void> DependencyObject::Impl::PrepareConsumerChange(
+Base::Result<void> DependencyObject::Access::PrepareConsumerChange(
     DependencyObject& consumer,
     Meta::DependencyPropertyHandle property,
     const Meta::PropertyValue& oldValue,
@@ -421,11 +421,11 @@ Base::Result<void> DependencyObject::Impl::PrepareConsumerChange(
     Freezable* oldChild = AsFreezable(consumer, oldValue);
     Freezable* newChild = AsFreezable(consumer, newValue);
     if (oldChild == newChild || newChild == nullptr) return {};
-    return Freezable::Impl::AttachConsumer(
+    return Freezable::Access::AttachConsumer(
         *newChild, consumer, property);
 }
 
-void DependencyObject::Impl::CommitConsumerChange(
+void DependencyObject::Access::CommitConsumerChange(
     DependencyObject& consumer,
     Meta::DependencyPropertyHandle property,
     const Meta::PropertyValue& oldValue,
@@ -433,12 +433,12 @@ void DependencyObject::Impl::CommitConsumerChange(
     Freezable* oldChild = AsFreezable(consumer, oldValue);
     Freezable* newChild = AsFreezable(consumer, newValue);
     if (oldChild != nullptr && oldChild != newChild) {
-        Freezable::Impl::DetachConsumer(
+        Freezable::Access::DetachConsumer(
             *oldChild, consumer, property);
     }
 }
 
-void DependencyObject::Impl::InvalidateSubProperty(
+void DependencyObject::Access::InvalidateSubProperty(
     DependencyObject& object,
     Meta::DependencyPropertyHandle propertyHandle) noexcept {
     const Meta::DependencyProperty* property =

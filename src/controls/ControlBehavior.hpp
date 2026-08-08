@@ -1,15 +1,15 @@
 #pragma once
 
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 #include "TemplateInstance.hpp"
 
 // Private control behavior and template implementation for one View.
@@ -37,30 +37,30 @@ enum class ToggleState : std::uint8_t {
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls::Detail {
+namespace Aero::Controls {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 
 using namespace Aero::Controls;
 using namespace Aero::Controls::Primitives;
-using Aero::Controls::Detail::TemplateHandle;
+using Aero::Controls::TemplateHandle;
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Controls
 
 namespace Aero::Controls::Primitives {
 
-using namespace ::Aero::Controls::Detail;
-using namespace ::Aero::GuiPrivate::Detail;
+using namespace ::Aero::Controls;
+using namespace ::Aero;
 
-struct ButtonBase::Impl {
+struct ButtonBase::Access {
 public:
-    Impl(
+    Access(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input,
         VisualStateManager* states = nullptr) noexcept;
-    ~Impl() noexcept;
+    ~Access() noexcept;
 
     Base::Result<void> Initialize() noexcept;
     Base::Result<void> Attach(ButtonBase& button) noexcept;
@@ -154,23 +154,23 @@ private:
 
 } // namespace Aero::Controls::Primitives
 
-namespace Aero::Controls::Detail {
-using ButtonBehavior = ::Aero::Controls::Primitives::ButtonBase::Impl;
+namespace Aero::Controls {
+using ButtonBehavior = ::Aero::Controls::Primitives::ButtonBase::Access;
 }
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Controls::Detail;
-using namespace ::Aero::GuiPrivate::Detail;
+using namespace ::Aero::Controls;
+using namespace ::Aero;
 
-struct TextBox::Impl {
+struct TextBox::Access {
 public:
-    Impl(
+    Access(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input,
         Input::IClipboard& clipboard) noexcept;
-    ~Impl() noexcept;
+    ~Access() noexcept;
 
     Base::Result<void> Attach(
         TextBox& textBox) noexcept;
@@ -242,21 +242,21 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls::Detail {
-using TextEditBehavior = ::Aero::Controls::TextBox::Impl;
+namespace Aero::Controls {
+using TextEditBehavior = ::Aero::Controls::TextBox::Access;
 }
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Controls::Detail;
-using namespace ::Aero::GuiPrivate::Detail;
+using namespace ::Aero::Controls;
+using namespace ::Aero;
 
-struct ScrollViewer::Impl {
+struct ScrollViewer::Access {
 public:
-    Impl(
+    Access(
         ElementTree& tree,
         EventRouter& events) noexcept;
-    ~Impl() noexcept;
+    ~Access() noexcept;
 
     Base::Result<void> Attach(
         ScrollViewer& viewer) noexcept;
@@ -283,22 +283,22 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls::Detail {
-using ScrollBehavior = ::Aero::Controls::ScrollViewer::Impl;
+namespace Aero::Controls {
+using ScrollBehavior = ::Aero::Controls::ScrollViewer::Access;
 }
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Controls::Detail;
-using namespace ::Aero::GuiPrivate::Detail;
+using namespace ::Aero::Controls;
+using namespace ::Aero;
 
-struct Slider::Impl {
+struct Slider::Access {
 public:
-    Impl(
+    Access(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input) noexcept;
-    ~Impl() noexcept;
+    ~Access() noexcept;
 
     Base::Result<void> Attach(
         Slider& slider) noexcept;
@@ -371,24 +371,24 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls::Detail {
-using SliderBehavior = ::Aero::Controls::Slider::Impl;
+namespace Aero::Controls {
+using SliderBehavior = ::Aero::Controls::Slider::Access;
 }
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Controls::Detail;
-using namespace ::Aero::GuiPrivate::Detail;
+using namespace ::Aero::Controls;
+using namespace ::Aero;
 
-struct TreeView::Impl {
+struct TreeView::Access {
 public:
-    Impl(
+    Access(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input,
         VisualStateManager* states = nullptr)
         noexcept;
-    ~Impl() noexcept;
+    ~Access() noexcept;
 
     Base::Result<void> Attach(
         TreeView& treeView) noexcept;
@@ -427,22 +427,22 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls::Detail {
-using TreeBehavior = ::Aero::Controls::TreeView::Impl;
+namespace Aero::Controls {
+using TreeBehavior = ::Aero::Controls::TreeView::Access;
 }
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Controls::Detail;
-using namespace ::Aero::GuiPrivate::Detail;
+using namespace ::Aero::Controls;
+using namespace ::Aero;
 
-struct ComboBox::Impl {
+struct ComboBox::Access {
 public:
-    Impl(
+    Access(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input) noexcept;
-    ~Impl() noexcept;
+    ~Access() noexcept;
 
     Base::Result<void> Attach(
         ComboBox& comboBox) noexcept;
@@ -472,23 +472,23 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls::Detail {
-using ComboBehavior = ::Aero::Controls::ComboBox::Impl;
+namespace Aero::Controls {
+using ComboBehavior = ::Aero::Controls::ComboBox::Access;
 }
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Controls::Detail;
-using namespace ::Aero::GuiPrivate::Detail;
+using namespace ::Aero::Controls;
+using namespace ::Aero;
 
-struct ListBox::Impl {
+struct ListBox::Access {
 public:
-    Impl(
+    Access(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input,
         VisualStateManager* states = nullptr) noexcept;
-    ~Impl() noexcept;
+    ~Access() noexcept;
 
     Base::Result<void> Attach(ListBox& listBox) noexcept;
     Base::Result<bool> Detach(ListBox& listBox) noexcept;
@@ -529,19 +529,19 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls::Detail {
-using ListBehavior = ::Aero::Controls::ListBox::Impl;
+namespace Aero::Controls {
+using ListBehavior = ::Aero::Controls::ListBox::Access;
 
-class AERO_API TemplateEngine {
+class TemplateEngine {
 public:
     TemplateEngine(
         ElementTree& tree,
         EffectiveValueEngine& values,
         DependencyPropertyRegistry& properties,
         LayoutEngine* layout = nullptr,
-        ::Aero::Render::Detail::RenderTree* renderer = nullptr,
+        ::Aero::Render::RenderTree* renderer = nullptr,
         ::Aero::Meta::Registry* metadata = nullptr,
-        Aero::GuiPrivate::Detail::BindingEngine* bindings = nullptr) noexcept
+        Aero::BindingEngine* bindings = nullptr) noexcept
         : tree_(&tree),
           providerSession_(values),
           values_(&providerSession_),
@@ -579,21 +579,21 @@ private:
         const ControlTemplate* plan = nullptr;
         ::Aero::Media::Visual* rootVisual = nullptr;
         UIElement* rootElement = nullptr;
-        Base::Vector<Aero::Controls::Detail::TemplatePart> parts;
-        Base::Vector<Aero::Controls::Detail::TemplateContentProjection> projections;
+        Base::Vector<Aero::Controls::TemplatePart> parts;
+        Base::Vector<Aero::Controls::TemplateContentProjection> projections;
         NameScope names;
         Base::Vector<Data::BindingHandle>
             metadataBindings;
     };
 
     ElementTree* tree_ = nullptr;
-    ::Aero::GuiPrivate::Detail::TemplatedParentProviderSession providerSession_;
-    ::Aero::GuiPrivate::Detail::TemplatedParentProviderSession* values_ = nullptr;
+    ::Aero::TemplatedParentProviderSession providerSession_;
+    ::Aero::TemplatedParentProviderSession* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     LayoutEngine* layout_ = nullptr;
-    ::Aero::Render::Detail::RenderTree* renderer_ = nullptr;
+    ::Aero::Render::RenderTree* renderer_ = nullptr;
     ::Aero::Meta::Registry* metadata_ = nullptr;
-    Aero::GuiPrivate::Detail::BindingEngine* bindings_ = nullptr;
+    Aero::BindingEngine* bindings_ = nullptr;
     Base::Vector<Instance> instances_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     std::uint64_t nextHandle_ = 1U;
@@ -627,20 +627,20 @@ private:
         const DependencyPropertyChangedEventArgs& args) noexcept;
 };
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Controls
 
 namespace Aero::Controls {
 
-using namespace ::Aero::Controls::Detail;
-using namespace ::Aero::GuiPrivate::Detail;
+using namespace ::Aero::Controls;
+using namespace ::Aero;
 
-struct Menu::Impl {
+struct Menu::Access {
 public:
-    Impl(
+    Access(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input) noexcept;
-    ~Impl() noexcept;
+    ~Access() noexcept;
 
     Base::Result<void> Attach(
         Menu& menu) noexcept;
@@ -676,11 +676,11 @@ private:
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls::Detail {
-using MenuBehavior = ::Aero::Controls::Menu::Impl;
+namespace Aero::Controls {
+using MenuBehavior = ::Aero::Controls::Menu::Access;
 }
 
-namespace Aero::Controls::Detail {
+namespace Aero::Controls {
 
 // One compact owner for all built-in control interaction state. The behavior
 // objects are placement-constructed in inline storage, avoiding per-behavior
@@ -691,8 +691,8 @@ public:
         Base::IAllocator& allocator,
         ::Aero::Meta::Registry& metadata,
         Aero::ElementTree& tree,
-        Aero::GuiPrivate::Detail::EventRouter& events,
-        Aero::GuiPrivate::Detail::InputRouter& input,
+        Aero::EventRouter& events,
+        Aero::InputRouter& input,
         VisualStateManager* visualStates,
         ::Aero::Input::IClipboard* clipboard,
         bool controlsEnabled,
@@ -725,21 +725,21 @@ private:
     void Destroy(T*& object) noexcept;
 
     static constexpr std::size_t StorageBytes =
-        sizeof(Aero::Controls::Detail::ButtonBehavior) +
-        sizeof(Aero::Controls::Detail::TextEditBehavior) +
-        sizeof(Aero::Controls::Detail::ScrollBehavior) +
-        sizeof(Aero::Controls::Detail::SliderBehavior) +
-        sizeof(Aero::Controls::Detail::ListBehavior) +
-        sizeof(Aero::Controls::Detail::ComboBehavior) +
-        sizeof(Aero::Controls::Detail::TreeBehavior) +
-        sizeof(Aero::Controls::Detail::MenuBehavior) +
+        sizeof(Aero::Controls::ButtonBehavior) +
+        sizeof(Aero::Controls::TextEditBehavior) +
+        sizeof(Aero::Controls::ScrollBehavior) +
+        sizeof(Aero::Controls::SliderBehavior) +
+        sizeof(Aero::Controls::ListBehavior) +
+        sizeof(Aero::Controls::ComboBehavior) +
+        sizeof(Aero::Controls::TreeBehavior) +
+        sizeof(Aero::Controls::MenuBehavior) +
         9U * alignof(std::max_align_t);
 
     Base::IAllocator* allocator_ = nullptr;
     ::Aero::Meta::Registry* metadata_ = nullptr;
     Aero::ElementTree* tree_ = nullptr;
-    Aero::GuiPrivate::Detail::EventRouter* events_ = nullptr;
-    Aero::GuiPrivate::Detail::InputRouter* input_ = nullptr;
+    Aero::EventRouter* events_ = nullptr;
+    Aero::InputRouter* input_ = nullptr;
     VisualStateManager* visualStates_ = nullptr;
     ::Aero::Input::IClipboard* clipboard_ = nullptr;
     bool controlsEnabled_ = false;
@@ -748,14 +748,14 @@ private:
     std::size_t offset_ = 0U;
     alignas(std::max_align_t) std::byte storage_[StorageBytes]{};
 
-    Aero::Controls::Detail::ButtonBehavior* buttons_ = nullptr;
-    Aero::Controls::Detail::TextEditBehavior* textBoxes_ = nullptr;
-    Aero::Controls::Detail::ScrollBehavior* scrolling_ = nullptr;
-    Aero::Controls::Detail::SliderBehavior* sliders_ = nullptr;
-    Aero::Controls::Detail::ListBehavior* lists_ = nullptr;
-    Aero::Controls::Detail::ComboBehavior* combos_ = nullptr;
-    Aero::Controls::Detail::TreeBehavior* trees_ = nullptr;
-    Aero::Controls::Detail::MenuBehavior* menus_ = nullptr;
+    Aero::Controls::ButtonBehavior* buttons_ = nullptr;
+    Aero::Controls::TextEditBehavior* textBoxes_ = nullptr;
+    Aero::Controls::ScrollBehavior* scrolling_ = nullptr;
+    Aero::Controls::SliderBehavior* sliders_ = nullptr;
+    Aero::Controls::ListBehavior* lists_ = nullptr;
+    Aero::Controls::ComboBehavior* combos_ = nullptr;
+    Aero::Controls::TreeBehavior* trees_ = nullptr;
+    Aero::Controls::MenuBehavior* menus_ = nullptr;
 };
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Controls

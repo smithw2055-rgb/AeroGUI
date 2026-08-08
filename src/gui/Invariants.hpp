@@ -22,7 +22,7 @@ struct MutationRollbackAction  {
 // A small failure-atomic journal. Callers register compensation before
 // publishing each externally visible mutation. Unless Commit() is called, the
 // journal unwinds in reverse order, including on early Result returns.
-class AERO_API MutationJournal  {
+class MutationJournal  {
 public:
     explicit MutationJournal(
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -69,7 +69,7 @@ struct DeferredWorkStatistics  {
 // Deferred runtime work stores WeakRef rather than raw pointers. Destroyed
 // objects are skipped deterministically, while a callback receives a strong
 // reference for the entire invocation.
-class AERO_API SafeDeferredWorkQueue  {
+class SafeDeferredWorkQueue  {
 public:
     explicit SafeDeferredWorkQueue(
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -111,7 +111,7 @@ private:
 
 // Strong route snapshot used when dispatch must tolerate handlers detaching or
 // releasing nodes. Each node remains alive until the snapshot is destroyed.
-class AERO_API EventRouteLifetimeSnapshot  {
+class EventRouteLifetimeSnapshot  {
 public:
     explicit EventRouteLifetimeSnapshot(
         Base::IAllocator* allocator = nullptr) noexcept;

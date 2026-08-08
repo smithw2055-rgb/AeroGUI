@@ -176,7 +176,7 @@ namespace Aero::Input {
 
 using CanExecuteChangedHandler = Base::Delegate<void()>;
 
-class AERO_API ICommand : public Base::Object {
+class AERO_GUI_API ICommand : public Base::Object {
     AERO_DECLARE_TYPE(ICommand, Base::Object)
 public:
     ~ICommand() override = default;
@@ -201,7 +201,7 @@ private:
     CanExecuteChangedHandler canExecuteChanged_;
 };
 
-class AERO_API InputGesture : public Base::Object {
+class AERO_GUI_API InputGesture : public Base::Object {
     AERO_DECLARE_TYPE(InputGesture, Base::Object)
 public:
     ~InputGesture() override = default;
@@ -211,7 +211,7 @@ protected:
     InputGesture() noexcept = default;
 };
 
-class AERO_API KeyGesture : public InputGesture {
+class AERO_GUI_API KeyGesture : public InputGesture {
     AERO_DECLARE_TYPE(KeyGesture, InputGesture)
 public:
     KeyGesture() noexcept = default;
@@ -231,7 +231,7 @@ private:
     std::uint32_t modifiers_ = 0U;
 };
 
-class AERO_API RoutedCommand : public ICommand {
+class AERO_GUI_API RoutedCommand : public ICommand {
     AERO_DECLARE_TYPE(RoutedCommand, ICommand)
 public:
     RoutedCommand() noexcept;
@@ -283,7 +283,7 @@ private:
 // XAML-authored keyboard binding. The WPF command spelling (for example
 // ApplicationCommands.New) is retained while runtime input uses a concrete
 // RoutedCommand and KeyGesture.
-class AERO_API KeyBinding : public Base::Object {
+class AERO_GUI_API KeyBinding : public Base::Object {
     AERO_DECLARE_TYPE(KeyBinding, Base::Object)
 public:
     KeyBinding() noexcept = default;
@@ -306,7 +306,7 @@ private:
     Base::Ref<RoutedCommand> command_;
 };
 
-class AERO_API CommandBinding {
+class AERO_GUI_API CommandBinding {
 public:
     CommandBinding() noexcept = default;
     CommandBinding(
@@ -358,7 +358,7 @@ enum class KeyboardNavigationMode : std::uint8_t {
     Local
 };
 
-class AERO_API KeyboardNavigation
+class AERO_GUI_API KeyboardNavigation
     : public Base::Object {
     AERO_DECLARE_TYPE(
         KeyboardNavigation,
@@ -376,7 +376,7 @@ public:
 };
 
 // Focus scopes are authored as attached properties in WPF.
-class AERO_API FocusManager : public Base::Object {
+class AERO_GUI_API FocusManager : public Base::Object {
     AERO_DECLARE_TYPE(FocusManager, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override {

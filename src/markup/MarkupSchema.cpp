@@ -1,18 +1,18 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "controls/ControlInternal.hpp"
-#include "controls/ItemsInternal.hpp"
-#include "controls/TemplateInternal.hpp"
-#include "markup/MarkupInternal.hpp"
-#include "markup/MarkupWriterInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "controls/ControlRuntime.hpp"
+#include "controls/ItemsRuntime.hpp"
+#include "controls/TemplateRuntime.hpp"
+#include "markup/MarkupRuntime.hpp"
+#include "markup/MarkupWriterRuntime.hpp"
 // Consolidated implementation. Keep sections ordered by dependency.
 
 // ===== CompiledSchema =====
@@ -556,7 +556,7 @@ Base::Result<void> BindCompiledValue(
         return {};
     }
     Base::Result<Meta::Value> converted =
-        Detail::SchemaPrivate::ConvertText(
+        SchemaPrivate::ConvertText(
             schema, valueType, literal);
     if (converted &&
         IsPersistableCompiledValue(converted.Value())) {
@@ -601,7 +601,7 @@ CompiledMemberBinding BuildCompiledMemberBinding(
     const Schema& schema,
     const ResolvedMember& member) noexcept {
     const MemberWritePolicy policy =
-        Detail::SchemaPrivate::ResolveMemberWritePolicy(
+        SchemaPrivate::ResolveMemberWritePolicy(
             schema, member);
     CompiledMemberBinding binding;
     binding.id = member.id;
@@ -1011,7 +1011,7 @@ Base::Result<void> CompiledDocument::BindSchema(
 
 
 
-namespace Aero::Markup::Detail {
+namespace Aero::Markup {
 namespace {
 
 using namespace Aero::Meta;
@@ -1343,7 +1343,7 @@ Base::Result<void> PopulateMarkupMetadata(
     return status;
 }
 
-} // namespace Aero::Markup::Detail
+} // namespace Aero::Markup
 
 // ===== FacetStore =====
 
@@ -1351,7 +1351,7 @@ Base::Result<void> PopulateMarkupMetadata(
 
 #include <cstdint>
 
-namespace Aero::Markup::Detail {
+namespace Aero::Markup {
 namespace {
 
 bool HasTypeFlag(
@@ -1430,7 +1430,7 @@ const T* FindByPolicy(
 std::uint16_t XamlFacets::FacetCountBefore(
     FacetMask mask,
     FacetKind kind) noexcept {
-    return ::Aero::GuiPrivate::Detail::CompactFacetIndex::CountBefore(mask, kind);
+    return ::Aero::CompactFacetIndex::CountBefore(mask, kind);
 }
 
 XamlFacets::DraftType* XamlFacets::FindDraft(
@@ -1976,7 +1976,7 @@ XamlFacets::FindPropertyTargetExact(
         : nullptr;
 }
 
-} // namespace Aero::Markup::Detail
+} // namespace Aero::Markup
 
 
 // ===== SchemaManifest =====
@@ -2203,7 +2203,7 @@ private:
 
 } // namespace
 
-struct SchemaManifest::Impl {
+struct SchemaManifestState {
     struct TypeRecord {
         explicit TypeRecord(Base::IAllocator& allocator) noexcept
             : xamlNamespace(&allocator), name(&allocator) {}
@@ -2229,7 +2229,7 @@ struct SchemaManifest::Impl {
         Base::String name;
     };
 
-    explicit Impl(Base::IAllocator& allocator) noexcept
+    explicit SchemaManifestState(Base::IAllocator& allocator) noexcept
         : types(&allocator),
           members(&allocator),
           typeIndex(&allocator),
@@ -2406,6 +2406,13 @@ struct SchemaManifest::Impl {
     }
 };
 
+static_assert(
+    sizeof(SchemaManifestState) <= 2048,
+    "SchemaManifest inline state storage is too small");
+static_assert(
+    alignof(SchemaManifestState) <= alignof(std::max_align_t),
+    "SchemaManifest inline state alignment is insufficient");
+
 namespace {
 
 template<class T>
@@ -2421,17 +2428,17 @@ Base::Result<T*> AllocateObject(
     return new (memory) T(allocator);
 }
 
-void DestroyImpl(
+void DestroyManifestState(
     Base::IAllocator& allocator,
-    SchemaManifest::Impl*& impl) noexcept {
-    if (impl == nullptr) return;
-    impl->~Impl();
+    SchemaManifestState*& state) noexcept {
+    if (state == nullptr) return;
+    state->~SchemaManifestState();
     allocator.Deallocate(
-        impl,
-        sizeof(SchemaManifest::Impl),
-        alignof(SchemaManifest::Impl),
+        state,
+        sizeof(SchemaManifestState),
+        alignof(SchemaManifestState),
         Base::MemoryTag::Markup);
-    impl = nullptr;
+    state = nullptr;
 }
 
 Base::Result<void> AppendIdentity(
@@ -2484,28 +2491,46 @@ SchemaManifest::SchemaManifest(
 
 SchemaManifest::SchemaManifest(
     Base::IAllocator& allocator,
-    Impl* impl) noexcept
-    : allocator_(&allocator), impl_(impl) {}
+    SchemaManifestState* state) noexcept
+    : allocator_(&allocator) {
+    if (state == nullptr) return;
+    state_ = new (stateStorage_) SchemaManifestState(std::move(*state));
+    DestroyManifestState(allocator, state);
+}
 
 SchemaManifest::~SchemaManifest() noexcept {
-    if (allocator_ != nullptr) DestroyImpl(*allocator_, impl_);
+    if (state_ == nullptr) return;
+    state_->~SchemaManifestState();
+    state_ = nullptr;
 }
 
 SchemaManifest::SchemaManifest(
     SchemaManifest&& other) noexcept
-    : allocator_(other.allocator_), impl_(other.impl_) {
+    : allocator_(other.allocator_) {
+    if (other.state_ != nullptr) {
+        state_ = new (stateStorage_)
+            SchemaManifestState(std::move(*other.state_));
+        other.state_->~SchemaManifestState();
+        other.state_ = nullptr;
+    }
     other.allocator_ = &Base::GetDefaultAllocator();
-    other.impl_ = nullptr;
 }
 
 SchemaManifest& SchemaManifest::operator=(
     SchemaManifest&& other) noexcept {
     if (this == &other) return *this;
-    if (allocator_ != nullptr) DestroyImpl(*allocator_, impl_);
+    if (state_ != nullptr) {
+        state_->~SchemaManifestState();
+        state_ = nullptr;
+    }
     allocator_ = other.allocator_;
-    impl_ = other.impl_;
+    if (other.state_ != nullptr) {
+        state_ = new (stateStorage_)
+            SchemaManifestState(std::move(*other.state_));
+        other.state_->~SchemaManifestState();
+        other.state_ = nullptr;
+    }
     other.allocator_ = &Base::GetDefaultAllocator();
-    other.impl_ = nullptr;
     return *this;
 }
 
@@ -2519,14 +2544,14 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
     }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator : Base::GetDefaultAllocator();
-    Base::Result<Impl*> created = AllocateObject<Impl>(selected);
+    Base::Result<SchemaManifestState*> created = AllocateObject<SchemaManifestState>(selected);
     if (!created) return created.GetStatus();
-    Impl* impl = created.Value();
+    SchemaManifestState* impl = created.Value();
 
     Base::Result<CompiledCacheIdentity> identity =
         BuildCompiledCacheIdentity(schema.Domain());
     if (!identity) {
-        DestroyImpl(selected, impl);
+        DestroyManifestState(selected, impl);
         return identity.GetStatus();
     }
     impl->identity = identity.Value();
@@ -2534,18 +2559,18 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
     const Meta::TypeRegistry& descriptors = schema.Types();
     Base::Result<void> reserved = impl->types.Reserve(descriptors.TypeCount());
     if (!reserved) {
-        DestroyImpl(selected, impl);
+        DestroyManifestState(selected, impl);
         return reserved.GetStatus();
     }
     reserved = impl->members.Reserve(
         descriptors.PropertyCount() + descriptors.EventCount());
     if (!reserved) {
-        DestroyImpl(selected, impl);
+        DestroyManifestState(selected, impl);
         return reserved.GetStatus();
     }
 
     for (const Meta::TypeInfo& type : descriptors.Types()) {
-        Impl::TypeRecord record(selected);
+        SchemaManifestState::TypeRecord record(selected);
         record.id = type.Id();
         record.baseType = type.BaseType();
         record.kind = type.Kind();
@@ -2554,7 +2579,7 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
             type.XamlNamespace());
         if (assigned) assigned = record.name.Assign(type.Name());
         if (!assigned) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return assigned.GetStatus();
         }
         Base::Result<ResolvedMember> content =
@@ -2562,18 +2587,18 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
         if (content) {
             record.contentMember = content.Value().id;
         } else if (content.GetStatus().code != Base::ErrorCode::NotFound) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return content.GetStatus();
         }
         Base::Result<void> appended = impl->types.PushBack(
             std::move(record));
         if (!appended) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return appended.GetStatus();
         }
 
         for (const Meta::PropertyInfo& property : type.Properties()) {
-            Impl::MemberRecord member(selected);
+            SchemaManifestState::MemberRecord member(selected);
             member.id = property.Id();
             member.kind = ManifestMemberKind::Property;
             member.ownerType = property.OwnerType();
@@ -2581,18 +2606,18 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
             member.flags = static_cast<std::uint32_t>(property.Flags());
             assigned = member.name.Assign(property.Name());
             if (!assigned) {
-                DestroyImpl(selected, impl);
+                DestroyManifestState(selected, impl);
                 return assigned.GetStatus();
             }
             appended = impl->members.PushBack(std::move(member));
             if (!appended) {
-                DestroyImpl(selected, impl);
+                DestroyManifestState(selected, impl);
                 return appended.GetStatus();
             }
         }
 
         for (const Meta::EventInfo& event : type.Events()) {
-            Impl::MemberRecord member(selected);
+            SchemaManifestState::MemberRecord member(selected);
             member.id = event.Id();
             member.kind = ManifestMemberKind::Event;
             member.ownerType = event.OwnerType();
@@ -2600,12 +2625,12 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
             member.flags = static_cast<std::uint32_t>(event.Flags());
             assigned = member.name.Assign(event.Name());
             if (!assigned) {
-                DestroyImpl(selected, impl);
+                DestroyManifestState(selected, impl);
                 return assigned.GetStatus();
             }
             appended = impl->members.PushBack(std::move(member));
             if (!appended) {
-                DestroyImpl(selected, impl);
+                DestroyManifestState(selected, impl);
                 return appended.GetStatus();
             }
         }
@@ -2613,7 +2638,7 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
 
     Base::Result<void> indexed = impl->RebuildIndexes();
     if (!indexed) {
-        DestroyImpl(selected, impl);
+        DestroyManifestState(selected, impl);
         return indexed.GetStatus();
     }
     impl->valid = true;
@@ -2648,20 +2673,20 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
             "XAML schema manifest format is not supported");
     }
 
-    Base::Result<Impl*> created = AllocateObject<Impl>(selected);
+    Base::Result<SchemaManifestState*> created = AllocateObject<SchemaManifestState>(selected);
     if (!created) return created.GetStatus();
-    Impl* impl = created.Value();
+    SchemaManifestState* impl = created.Value();
 
     Base::Result<CompiledCacheIdentity> identity = ReadIdentity(decoder);
     if (!identity) {
-        DestroyImpl(selected, impl);
+        DestroyManifestState(selected, impl);
         return identity.GetStatus();
     }
     CompiledCacheIdentity current;
     current.metadataSchemaHash = identity.Value().metadataSchemaHash;
     if (CompareCompiledCacheIdentity(identity.Value(), current) !=
         CompiledCacheCompatibility::Compatible) {
-        DestroyImpl(selected, impl);
+        DestroyManifestState(selected, impl);
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "XAML schema manifest ABI is incompatible with this tool");
@@ -2670,17 +2695,17 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
 
     Base::Result<std::uint32_t> typeCount = decoder.ReadU32();
     if (!typeCount) {
-        DestroyImpl(selected, impl);
+        DestroyManifestState(selected, impl);
         return typeCount.GetStatus();
     }
     Base::Result<std::uint32_t> memberCount = decoder.ReadU32();
     if (!memberCount) {
-        DestroyImpl(selected, impl);
+        DestroyManifestState(selected, impl);
         return memberCount.GetStatus();
     }
     if (typeCount.Value() > limits.maxTypes ||
         memberCount.Value() > limits.maxMembers) {
-        DestroyImpl(selected, impl);
+        DestroyManifestState(selected, impl);
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "XAML schema manifest descriptor count exceeds limits");
@@ -2688,48 +2713,48 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
     Base::Result<void> reserved = impl->types.Reserve(typeCount.Value());
     if (reserved) reserved = impl->members.Reserve(memberCount.Value());
     if (!reserved) {
-        DestroyImpl(selected, impl);
+        DestroyManifestState(selected, impl);
         return reserved.GetStatus();
     }
 
     std::uint32_t totalStringBytes = 0U;
     for (std::uint32_t index = 0U; index < typeCount.Value(); ++index) {
-        Impl::TypeRecord record(selected);
+        SchemaManifestState::TypeRecord record(selected);
         Base::Result<std::uint64_t> id = decoder.ReadU64();
         if (!id) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return id.GetStatus();
         }
         Base::Result<std::uint64_t> baseType = decoder.ReadU64();
         if (!baseType) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return baseType.GetStatus();
         }
         Base::Result<std::uint32_t> kind = decoder.ReadU32();
         if (!kind) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return kind.GetStatus();
         }
         Base::Result<std::uint32_t> flags = decoder.ReadU32();
         if (!flags) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return flags.GetStatus();
         }
         Base::Result<std::uint64_t> content = decoder.ReadU64();
         if (!content) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return content.GetStatus();
         }
         Base::Result<Base::String> xamlNamespace = decoder.ReadString(
             selected, totalStringBytes, limits.maxStringBytes);
         if (!xamlNamespace) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return xamlNamespace.GetStatus();
         }
         Base::Result<Base::String> name = decoder.ReadString(
             selected, totalStringBytes, limits.maxStringBytes);
         if (!name) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return name.GetStatus();
         }
         if (id.Value() == Meta::InvalidTypeId || name.Value().Empty() ||
@@ -2737,7 +2762,7 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
                 xamlNamespace.Value().View(),
                 name.Value().View()) != id.Value() ||
             kind.Value() > static_cast<std::uint32_t>(Meta::MetadataTypeKind::Primitive)) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return InvalidManifest("XAML schema manifest type descriptor is invalid");
         }
         record.id = id.Value();
@@ -2749,47 +2774,47 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
         record.name = std::move(name).Value();
         Base::Result<void> appended = impl->types.PushBack(std::move(record));
         if (!appended) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return appended.GetStatus();
         }
     }
 
     for (std::uint32_t index = 0U; index < memberCount.Value(); ++index) {
-        Impl::MemberRecord record(selected);
+        SchemaManifestState::MemberRecord record(selected);
         Base::Result<std::uint64_t> id = decoder.ReadU64();
         if (!id) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return id.GetStatus();
         }
         Base::Result<std::uint8_t> kind = decoder.ReadU8();
         if (!kind) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return kind.GetStatus();
         }
         Base::Result<std::uint32_t> reservedField = decoder.ReadU32();
         if (!reservedField) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return reservedField.GetStatus();
         }
         Base::Result<std::uint64_t> owner = decoder.ReadU64();
         if (!owner) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return owner.GetStatus();
         }
         Base::Result<std::uint64_t> valueType = decoder.ReadU64();
         if (!valueType) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return valueType.GetStatus();
         }
         Base::Result<std::uint32_t> flags = decoder.ReadU32();
         if (!flags) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return flags.GetStatus();
         }
         Base::Result<Base::String> name = decoder.ReadString(
             selected, totalStringBytes, limits.maxStringBytes);
         if (!name) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return name.GetStatus();
         }
         const bool validKind =
@@ -2806,7 +2831,7 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
             !validKind ||
             Meta::MakeMemberId(
                 owner.Value(), metadataKind, name.Value().View()) != id.Value()) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return InvalidManifest("XAML schema manifest member descriptor is invalid");
         }
         record.id = id.Value();
@@ -2817,52 +2842,52 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
         record.name = std::move(name).Value();
         Base::Result<void> appended = impl->members.PushBack(std::move(record));
         if (!appended) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return appended.GetStatus();
         }
     }
 
     if (!decoder.AtEnd()) {
-        DestroyImpl(selected, impl);
+        DestroyManifestState(selected, impl);
         return InvalidManifest("XAML schema manifest has trailing bytes");
     }
     Base::Result<void> indexed = impl->RebuildIndexes();
     if (!indexed) {
-        DestroyImpl(selected, impl);
+        DestroyManifestState(selected, impl);
         return indexed.GetStatus();
     }
-    for (const Impl::TypeRecord& type : impl->types) {
+    for (const SchemaManifestState::TypeRecord& type : impl->types) {
         if (type.baseType != Meta::InvalidTypeId &&
             impl->FindType(type.baseType) == nullptr) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return InvalidManifest("XAML schema manifest base type is missing");
         }
         Meta::TypeId current = type.id;
         std::uint32_t depth = 0U;
         while (current != Meta::InvalidTypeId && depth <= impl->types.Size()) {
-            const Impl::TypeRecord* currentType = impl->FindType(current);
+            const SchemaManifestState::TypeRecord* currentType = impl->FindType(current);
             if (currentType == nullptr) break;
             current = currentType->baseType;
             ++depth;
         }
         if (current != Meta::InvalidTypeId) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return InvalidManifest("XAML schema manifest type hierarchy contains a cycle");
         }
         if (type.contentMember != Meta::InvalidMemberId) {
-            const Impl::MemberRecord* content = impl->FindMember(type.contentMember);
+            const SchemaManifestState::MemberRecord* content = impl->FindMember(type.contentMember);
             if (content == nullptr ||
                 content->kind != ManifestMemberKind::Property ||
                 !impl->IsDerivedFrom(type.id, content->ownerType)) {
-                DestroyImpl(selected, impl);
+                DestroyManifestState(selected, impl);
                 return InvalidManifest("XAML schema manifest content member is missing or incompatible");
             }
         }
     }
-    for (const Impl::MemberRecord& member : impl->members) {
+    for (const SchemaManifestState::MemberRecord& member : impl->members) {
         if (impl->FindType(member.ownerType) == nullptr ||
             impl->FindType(member.valueType) == nullptr) {
-            DestroyImpl(selected, impl);
+            DestroyManifestState(selected, impl);
             return InvalidManifest("XAML schema manifest member type is missing");
         }
     }
@@ -2877,12 +2902,12 @@ SchemaManifest::Serialize() const noexcept {
     Base::Result<void> result = AppendU32(output, ManifestMagic);
     if (result) result = AppendU32(output, ManifestEncodingVersion);
     if (result) result = AppendU32(output, XamlSchemaManifestFormatVersion);
-    if (result) result = AppendIdentity(output, impl_->identity);
-    if (result) result = AppendU32(output, impl_->types.Size());
-    if (result) result = AppendU32(output, impl_->members.Size());
+    if (result) result = AppendIdentity(output, state_->identity);
+    if (result) result = AppendU32(output, state_->types.Size());
+    if (result) result = AppendU32(output, state_->members.Size());
     if (!result) return result.GetStatus();
 
-    for (const Impl::TypeRecord& type : impl_->types) {
+    for (const SchemaManifestState::TypeRecord& type : state_->types) {
         result = AppendU64(output, type.id);
         if (result) result = AppendU64(output, type.baseType);
         if (result) result = AppendU32(
@@ -2894,7 +2919,7 @@ SchemaManifest::Serialize() const noexcept {
         if (result) result = AppendString(output, type.name.View());
         if (!result) return result.GetStatus();
     }
-    for (const Impl::MemberRecord& member : impl_->members) {
+    for (const SchemaManifestState::MemberRecord& member : state_->members) {
         result = AppendU64(output, member.id);
         if (result) result = AppendU8(
             output, static_cast<std::uint8_t>(member.kind));
@@ -2909,27 +2934,27 @@ SchemaManifest::Serialize() const noexcept {
 }
 
 bool SchemaManifest::IsValid() const noexcept {
-    return impl_ != nullptr && impl_->valid;
+    return state_ != nullptr && state_->valid;
 }
 
 std::uint32_t SchemaManifest::TypeCount() const noexcept {
-    return IsValid() ? impl_->types.Size() : 0U;
+    return IsValid() ? state_->types.Size() : 0U;
 }
 
 std::uint32_t SchemaManifest::MemberCount() const noexcept {
-    return IsValid() ? impl_->members.Size() : 0U;
+    return IsValid() ? state_->members.Size() : 0U;
 }
 
 const CompiledCacheIdentity& SchemaManifest::Identity() const noexcept {
     AERO_ASSERT(IsValid());
-    return impl_->identity;
+    return state_->identity;
 }
 
 Base::Result<SchemaTypeInfo> SchemaManifest::ResolveType(
     Base::StringView xamlNamespace,
     Base::StringView localName) const noexcept {
     if (!IsValid()) return ManifestNotReady();
-    const Impl::TypeRecord* type = impl_->FindType(
+    const SchemaManifestState::TypeRecord* type = state_->FindType(
         IsSystemNamespace(xamlNamespace) &&
             (localName == Base::StringView("String") ||
              localName == Base::StringView("Double"))
@@ -2945,7 +2970,7 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
     const QualifiedName& name,
     MemberSyntax syntax) const noexcept {
     if (!IsValid()) return ManifestNotReady();
-    const Impl::TypeRecord* target = impl_->FindType(targetType);
+    const SchemaManifestState::TypeRecord* target = state_->FindType(targetType);
     if (target == nullptr || name.LocalName().Empty()) return MemberNotFound();
 
     const Base::StringView localName = name.LocalName();
@@ -2966,7 +2991,7 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
                 target->xamlNamespace.View()) {
             return MemberNotFound();
         }
-        return impl_->ResolvePropertyOrEvent(
+        return state_->ResolvePropertyOrEvent(
             targetType, targetType, localName, syntax, false);
     }
     if (dot == 0U || dot + 1U >= localName.SizeBytes()) {
@@ -2988,7 +3013,7 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
         // inherited UIElement BlendMode property.
         if (ownerName == Base::StringView("Element") &&
             memberName == Base::StringView("BlendingMode")) {
-            return impl_->ResolvePropertyOrEvent(
+            return state_->ResolvePropertyOrEvent(
                 targetType,
                 targetType,
                 Base::StringView("BlendMode"),
@@ -2999,21 +3024,21 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
         // properties. Prefer a registered Aero owner (for example
         // aero:Path.TrimEnd) and retain the facade only for extension-only
         // members such as aero:Text.*.
-        const Impl::TypeRecord* aeroOwner = impl_->FindType(
+        const SchemaManifestState::TypeRecord* aeroOwner = state_->FindType(
             Meta::AeroNamespaceUri(),
             CanonicalXamlTypeName(ownerName));
         if (aeroOwner != nullptr) {
-            return impl_->ResolvePropertyOrEvent(
+            return state_->ResolvePropertyOrEvent(
                 targetType, aeroOwner->id, memberName, syntax, true);
         }
-        return impl_->ResolvePropertyOrEvent(
+        return state_->ResolvePropertyOrEvent(
             targetType,
             targetType,
             memberName,
             syntax,
             false);
     }
-    const Impl::TypeRecord* owner = impl_->FindType(
+    const SchemaManifestState::TypeRecord* owner = state_->FindType(
         CanonicalXamlNamespace(ownerNamespace),
         CanonicalXamlTypeName(ownerName));
     if (owner == nullptr) return MemberNotFound();
@@ -3021,28 +3046,28 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
     // syntax (for example Border.ContextMenu) while storage is supplied by
     // the attached ContextMenuService property.
     if (memberName == Base::StringView("ContextMenu")) {
-        const Impl::TypeRecord* service = impl_->FindType(
+        const SchemaManifestState::TypeRecord* service = state_->FindType(
             Meta::AeroNamespaceUri(), "ContextMenuService");
         if (service != nullptr) {
-            return impl_->ResolvePropertyOrEvent(
+            return state_->ResolvePropertyOrEvent(
                 targetType, service->id, memberName, syntax, true);
         }
     }
-    return impl_->ResolvePropertyOrEvent(
+    return state_->ResolvePropertyOrEvent(
         targetType, owner->id, memberName, syntax, true);
 }
 
 Base::Result<ResolvedMember> SchemaManifest::ResolveContentMember(
     Meta::TypeId targetType) const noexcept {
     if (!IsValid()) return ManifestNotReady();
-    const Impl::TypeRecord* type = impl_->FindType(targetType);
+    const SchemaManifestState::TypeRecord* type = state_->FindType(targetType);
     if (type == nullptr) return TypeNotFound();
     if (type->contentMember == Meta::InvalidMemberId) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "XAML schema manifest type has no content member");
     }
-    const Impl::MemberRecord* member = impl_->FindMember(type->contentMember);
+    const SchemaManifestState::MemberRecord* member = state_->FindMember(type->contentMember);
     if (member == nullptr || member->kind != ManifestMemberKind::Property) {
         return InvalidManifest("XAML schema manifest content member is invalid");
     }
@@ -3071,7 +3096,6 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveContentMember(
 // friends and SchemaPrivate.
 
 namespace Aero::Markup {
-using namespace Detail;
 
 namespace {
 
@@ -3175,23 +3199,13 @@ Schema::Schema(
           : &Base::GetDefaultAllocator()),
       domain_(&metadata) {
     AERO_ASSERT(metadata.IsSealed());
-    void* memory = allocator_->Allocate({
-        sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup});
-    if (memory == nullptr) {
-        Base::ReportOutOfMemory(
-            sizeof(Impl), alignof(Impl),
-            Base::MemoryTag::Markup);
-    }
-    impl_ = new (memory) Impl();
+    state_ = new (stateStorage_) SchemaState();
 }
 
 Schema::~Schema() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->~Impl();
-    allocator_->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl),
-        Base::MemoryTag::Markup);
-    impl_ = nullptr;
+    if (state_ == nullptr) return;
+    state_->~SchemaState();
+    state_ = nullptr;
 }
 
 Base::Result<const Meta::TypeInfo*> Schema::ResolveType(
@@ -3520,7 +3534,7 @@ Schema::ResolvePropertyTarget(
         target = static_cast<::Aero::DependencyObject*>(&object);
     } else {
         const XamlPropertyTargetFacet* facet =
-            impl_->facets.FindPropertyTarget(
+            state_->facets.FindPropertyTarget(
                 object.RuntimeType(), domain_->Types());
         if (facet != nullptr && facet->resolve != nullptr) {
             target = facet->resolve(object, facet->context);
@@ -3686,7 +3700,6 @@ MemberWritePolicy Schema::ResolveMemberWritePolicy(
 
 
 namespace Aero::Markup {
-using namespace Detail;
 
 namespace {
 
@@ -3768,7 +3781,7 @@ Base::Result<void> Schema::Freeze() noexcept {
             "Meta::Registry must be complete before XAML schema freeze");
     }
     Base::Result<void> facetsFrozen =
-        impl_->facets.Freeze(domain_->Types());
+        state_->facets.Freeze(domain_->Types());
     if (!facetsFrozen) return facetsFrozen.GetStatus();
     frozen_ = true;
     return {};
@@ -3832,7 +3845,7 @@ Base::Result<ProvidedValue> Schema::ProvideMarkupExtensionValue(
     const Meta::TypeInfo* info =
         domain_->Types().FindType(type);
     const XamlMarkupExtensionFacet* registration =
-        impl_->facets.FindMarkupExtension(type);
+        state_->facets.FindMarkupExtension(type);
     if (info == nullptr ||
         !SchemaHasTypeFlag(info->Flags(), Meta::TypeFlags::MarkupExtension) ||
         registration == nullptr || registration->provideValue == nullptr) {
@@ -3850,10 +3863,10 @@ Base::Result<void> Schema::BeginInit(
     Meta::TypeId type,
     Base::Object& object) const noexcept {
     const Base::Span<const std::uint32_t> lifecycle =
-        impl_->facets.LifecyclePlan(type);
+        state_->facets.LifecyclePlan(type);
     for (std::uint32_t reference : lifecycle) {
         const XamlLifecycleFacet* facet =
-            impl_->facets.LifecycleAt(reference);
+            state_->facets.LifecycleAt(reference);
         if (facet == nullptr || facet->beginInit == nullptr) continue;
         Base::Result<void> initialized =
             facet->beginInit(object, facet->context);
@@ -3867,12 +3880,12 @@ Base::Result<void> Schema::EndInit(
     Base::Object& object,
     const ExtensionServices& services) const noexcept {
     const Base::Span<const std::uint32_t> lifecycle =
-        impl_->facets.LifecyclePlan(type);
+        state_->facets.LifecyclePlan(type);
     for (std::uint32_t index = lifecycle.Size();
          index > 0U;
          --index) {
         const XamlLifecycleFacet* facet =
-            impl_->facets.LifecycleAt(lifecycle[index - 1U]);
+            state_->facets.LifecycleAt(lifecycle[index - 1U]);
         if (facet == nullptr) continue;
         Base::Result<void> initialized;
         if (facet->endInitWithServices != nullptr) {
@@ -3891,12 +3904,12 @@ void Schema::AbortInit(
     Meta::TypeId type,
     Base::Object& object) const noexcept {
     const Base::Span<const std::uint32_t> lifecycle =
-        impl_->facets.LifecyclePlan(type);
+        state_->facets.LifecyclePlan(type);
     for (std::uint32_t index = lifecycle.Size();
          index > 0U;
          --index) {
         const XamlLifecycleFacet* facet =
-            impl_->facets.LifecycleAt(lifecycle[index - 1U]);
+            state_->facets.LifecycleAt(lifecycle[index - 1U]);
         if (facet != nullptr && facet->abortInit != nullptr) {
             facet->abortInit(object, facet->context);
         }
@@ -3904,14 +3917,14 @@ void Schema::AbortInit(
 }
 
 bool Schema::CreatesNameScope(Meta::TypeId type) const noexcept {
-    const XamlNameScopeFacet* facet = impl_->facets.FindNameScope(
+    const XamlNameScopeFacet* facet = state_->facets.FindNameScope(
         type, domain_->Types());
     return facet != nullptr && facet->createsNameScope;
 }
 
 bool Schema::CreatesResourceScope(
     Meta::TypeId type) const noexcept {
-    const XamlResourceScopeFacet* facet = impl_->facets.FindResourceScope(
+    const XamlResourceScopeFacet* facet = state_->facets.FindResourceScope(
         type, domain_->Types());
     return facet != nullptr && facet->createsResourceScope;
 }
@@ -3919,7 +3932,7 @@ bool Schema::CreatesResourceScope(
 bool Schema::DefersVisualContent(
     Meta::TypeId type) const noexcept {
     const XamlDeferredContentFacet* facet =
-        impl_->facets.FindDeferredContent(
+        state_->facets.FindDeferredContent(
         type, domain_->Types());
     return facet != nullptr && facet->defersVisualContent;
 }
@@ -3929,7 +3942,7 @@ Base::Result<void> Schema::RegisterName(
     Base::Object& scopeOwner,
     Base::StringView name,
     Base::Object& object) const noexcept {
-    const XamlNameScopeFacet* facet = impl_->facets.FindNameScope(
+    const XamlNameScopeFacet* facet = state_->facets.FindNameScope(
         scopeType, domain_->Types());
     if (facet == nullptr || facet->registerName == nullptr) return {};
     return facet->registerName(
@@ -3941,7 +3954,7 @@ Base::Result<void> Schema::AddResource(
     Base::Object& scopeOwner,
     const Aero::ResourceKey& key,
     const Meta::Value& value) const noexcept {
-    const XamlResourceScopeFacet* facet = impl_->facets.FindResourceScope(
+    const XamlResourceScopeFacet* facet = state_->facets.FindResourceScope(
         scopeType, domain_->Types());
     if (facet == nullptr) return {};
     if (facet->addResource != nullptr) {
@@ -3962,7 +3975,7 @@ Base::Result<void> Schema::AddResource(
 Aero::ResourceDictionary* Schema::ResolveResourceScope(
     Meta::TypeId scopeType,
     Base::Object& scopeOwner) const noexcept {
-    const XamlResourceScopeFacet* facet = impl_->facets.FindResourceScope(
+    const XamlResourceScopeFacet* facet = state_->facets.FindResourceScope(
         scopeType, domain_->Types());
     return facet != nullptr && facet->resolveResourceScope != nullptr
         ? facet->resolveResourceScope(scopeOwner, facet->context)
@@ -3974,7 +3987,7 @@ Schema::ResolveImplicitResourceKey(
     Meta::TypeId type,
     const Base::Object& object) const noexcept {
     const XamlImplicitResourceKeyFacet* facet =
-        impl_->facets.FindImplicitResourceKey(
+        state_->facets.FindImplicitResourceKey(
             type, domain_->Types());
     if (facet == nullptr || facet->resolve == nullptr) {
         return Base::Status::Failure(

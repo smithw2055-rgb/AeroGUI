@@ -7,14 +7,17 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 
+#include <cstddef>
 #include <cstdint>
 
-namespace Aero::Text::Detail {
+namespace Aero::Text {
+
+struct EditableTextState;
 
 // UTF-8 gap-buffer editor model. Public positions are extended grapheme
 // cluster indices; UTF-8 bytes and code-point counts remain queryable for
 // platform text adapters and diagnostics.
-class AERO_API EditableTextModel {
+class EditableTextModel {
 public:
     explicit EditableTextModel(
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -67,12 +70,11 @@ public:
     void ClearHistory() noexcept;
 
 private:
-    struct Impl;
-
     Base::IAllocator* allocator_ = nullptr;
-    Impl* impl_ = nullptr;
+    alignas(std::max_align_t) std::uint8_t stateStorage_[4096]{};
+    EditableTextState* state_ = nullptr;
 
-    Base::Result<void> EnsureImpl() noexcept;
+    Base::Result<void> EnsureState() noexcept;
 };
 
-} // namespace Aero::Text::Detail
+} // namespace Aero::Text

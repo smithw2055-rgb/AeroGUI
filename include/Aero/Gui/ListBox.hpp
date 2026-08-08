@@ -14,7 +14,7 @@ enum class SelectionMode : std::uint8_t {
     Extended,
 };
 
-class AERO_API ListBoxItem : public ContentControl {
+class AERO_GUI_API ListBoxItem : public ContentControl {
     AERO_DECLARE_TYPE(ListBoxItem, ContentControl)
 public:
     ListBoxItem() noexcept : ContentControl(StaticTypeId()) {}
@@ -30,7 +30,7 @@ protected:
 };
 
 namespace Primitives {
-class AERO_API Selector : public ItemsControl {
+class AERO_GUI_API Selector : public ItemsControl {
     AERO_DECLARE_TYPE(Selector, ItemsControl)
 public:
     Selector() noexcept;
@@ -114,7 +114,7 @@ protected:
     void OnContainersChanged() noexcept override;
 
 private:
-    friend struct ::Aero::Media::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Access;
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;
     std::uint32_t pendingIndex_ = UINT32_MAX;
@@ -142,10 +142,10 @@ private:
 };
 } // namespace Primitives
 
-class AERO_API ListBox : public Primitives::Selector {
+class AERO_GUI_API ListBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ListBox, Primitives::Selector)
 public:
-    struct Impl;
+    struct Access;
 
     ListBox() noexcept : Primitives::Selector(StaticTypeId()) {}
     ~ListBox() override;
@@ -161,7 +161,7 @@ protected:
             const Base::Ref<Base::Object>& item) noexcept override;
 
 private:
-    friend struct Impl;
+    friend struct Access;
 };
 } // namespace Aero::Controls
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::SelectionMode)

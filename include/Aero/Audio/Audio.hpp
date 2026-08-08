@@ -8,7 +8,7 @@ namespace Aero::Audio {
 
 // Public audio boundary. Backends and decoder types deliberately stay private
 // so applications do not acquire a dependency on a particular audio library.
-class AERO_API Engine {
+class AERO_AUDIO_API Engine {
 public:
     Engine() noexcept;
     ~Engine() noexcept;
@@ -29,8 +29,7 @@ public:
         Base::StringView filePath) noexcept;
 
 private:
-    struct Impl;
-    Impl* impl_ = nullptr;
+    void* state_ = nullptr;
 };
 
 } // namespace Aero::Audio

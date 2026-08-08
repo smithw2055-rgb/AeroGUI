@@ -164,6 +164,13 @@ Cross-compiling builds set `AERO_HOST_XAMLC_EXECUTABLE` to a host-native
 AXB2 `.axb` paths preserve source-relative directories so equal basenames do not
 collide.
 
+Shared product builds default `AERO_BUILD_TOOLS` to `OFF`. The offline tools
+consume source-only schema/compiler contracts and are therefore built in a
+separate static host-tools configuration; widening the product DLL export table
+for them is not supported. Supply the resulting executables through
+`AERO_HOST_XAMLC_EXECUTABLE` and `AERO_HOST_SCHEMA_GEN_EXECUTABLE` when a shared
+build should precompile assets.
+
 ## Build and install ownership
 
 The source domains are organized with object components rather than installable
@@ -190,7 +197,7 @@ This model has three consequences:
 
 - Product version: `0.3.0`
 - Public C++ ABI: `2`
-- Module descriptor ABI: `3`
+- Module descriptor ABI: `4`
 - XAML Facet/Schema ABI: `9`
 - Runtime ABI: `4`
 - Compiled XAML cache format: `7`

@@ -86,7 +86,7 @@ struct UnicodeClusterMap  {
 // Deterministic provider-neutral Unicode analysis used by TextBlock/TextBox.
 // The implementation covers the desktop runtime baseline without depending on
 // ICU and keeps the data model compatible with a generated Unicode table.
-class AERO_API UnicodeTextAnalysis  {
+class UnicodeTextAnalysis  {
 public:
     explicit UnicodeTextAnalysis(
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -144,13 +144,13 @@ private:
     Base::Result<void> BuildClusterMap() noexcept;
 };
 
-AERO_API UnicodeScript ClassifyScript(
+UnicodeScript ClassifyScript(
     std::uint32_t scalar) noexcept;
-AERO_API UnicodeBidiClass ClassifyBidi(
+UnicodeBidiClass ClassifyBidi(
     std::uint32_t scalar) noexcept;
-AERO_API UnicodeLineBreakClass ClassifyLineBreak(
+UnicodeLineBreakClass ClassifyLineBreak(
     std::uint32_t scalar) noexcept;
-AERO_API bool IsUnicodeCombiningMark(
+bool IsUnicodeCombiningMark(
     std::uint32_t scalar) noexcept;
 
 } // namespace Aero::Text

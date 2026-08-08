@@ -18,7 +18,7 @@ namespace Aero {
 
 class FrameworkElement;
 
-class AERO_API NameScope {
+class AERO_GUI_API NameScope {
 public:
     NameScope() noexcept;
 
@@ -58,7 +58,7 @@ enum class ResourceKeyKind : std::uint8_t {
     Type
 };
 
-class AERO_API ResourceKey {
+class AERO_GUI_API ResourceKey {
 public:
     ResourceKey() noexcept = default;
 
@@ -84,7 +84,7 @@ private:
     Meta::TypeId type_ = Meta::InvalidTypeId;
 };
 
-AERO_API bool operator==(
+AERO_GUI_API bool operator==(
     const ResourceKey& left,
     const ResourceKey& right) noexcept;
 inline bool operator!=(
@@ -128,13 +128,13 @@ using ResourceChangedCallback = void (*)(
 
 // Move-stable resource table. Its heap-backed state lets dictionaries be moved
 // between load sessions and runtime owners without invalidating subscriptions.
-class AERO_API ResourceDictionary
+class AERO_GUI_API ResourceDictionary
     : public Base::Object {
     AERO_DECLARE_TYPE(
         ResourceDictionary,
         Base::Object)
 public:
-    struct Impl;
+    struct Access;
 
     ResourceDictionary() noexcept;
     ~ResourceDictionary() noexcept;
@@ -260,14 +260,14 @@ private:
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
 
     explicit ResourceDictionary(
-        Impl* impl,
+        Access* impl,
         bool addReference) noexcept;
 
-    Impl* impl_ = nullptr;
+    Access* impl_ = nullptr;
 
-    Base::Result<Impl*> EnsureImpl() noexcept;
-    static void AddImplRef(Impl* impl) noexcept;
-    static void ReleaseImpl(Impl* impl) noexcept;
+    Base::Result<Access*> EnsureImpl() noexcept;
+    static void AddImplRef(Access* impl) noexcept;
+    static void ReleaseImpl(Access* impl) noexcept;
 };
 
 struct ResourceEnvironment {
@@ -276,7 +276,7 @@ struct ResourceEnvironment {
     const ResourceDictionary* system = nullptr;
 };
 
-class AERO_API ResourceResolver {
+class AERO_GUI_API ResourceResolver {
 public:
     static Base::Result<ResourceValue> Lookup(
         const FrameworkElement* element,

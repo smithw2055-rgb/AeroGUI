@@ -15,10 +15,10 @@ namespace Aero::Media {
 
 using Transform2D = Base::Transform2D;
 
-class AERO_API Transform : public ::Aero::Freezable {
+class AERO_GUI_API Transform : public ::Aero::Freezable {
     AERO_DECLARE_TYPE(Transform, ::Aero::Freezable)
 public:
-    struct Impl;
+    struct Access;
 
     virtual Base::Transform2D GetMatrix() const noexcept = 0;
 
@@ -27,10 +27,10 @@ protected:
         : Freezable(runtimeType) {}
 
 private:
-    friend struct Impl;
+    friend struct Access;
 };
 
-class AERO_API TranslateTransform : public Transform {
+class AERO_GUI_API TranslateTransform : public Transform {
     AERO_DECLARE_TYPE(TranslateTransform, Transform)
 public:
     TranslateTransform() noexcept : Transform(StaticTypeId()) {}
@@ -45,7 +45,7 @@ public:
     Base::Transform2D GetMatrix() const noexcept override;
 };
 
-class AERO_API ScaleTransform : public Transform {
+class AERO_GUI_API ScaleTransform : public Transform {
     AERO_DECLARE_TYPE(ScaleTransform, Transform)
 public:
     ScaleTransform() noexcept : Transform(StaticTypeId()) {}
@@ -66,7 +66,7 @@ public:
     Base::Transform2D GetMatrix() const noexcept override;
 };
 
-class AERO_API RotateTransform : public Transform {
+class AERO_GUI_API RotateTransform : public Transform {
     AERO_DECLARE_TYPE(RotateTransform, Transform)
 public:
     RotateTransform() noexcept : Transform(StaticTypeId()) {}
@@ -84,7 +84,7 @@ public:
     Base::Transform2D GetMatrix() const noexcept override;
 };
 
-class AERO_API SkewTransform : public Transform {
+class AERO_GUI_API SkewTransform : public Transform {
     AERO_DECLARE_TYPE(SkewTransform, Transform)
 public:
     SkewTransform() noexcept : Transform(StaticTypeId()) {}
@@ -105,7 +105,7 @@ public:
     Base::Transform2D GetMatrix() const noexcept override;
 };
 
-class AERO_API MatrixTransform : public Transform {
+class AERO_GUI_API MatrixTransform : public Transform {
     AERO_DECLARE_TYPE(MatrixTransform, Transform)
 public:
     MatrixTransform() noexcept : Transform(StaticTypeId()) {}
@@ -122,7 +122,7 @@ public:
 // transform using a fixed perspective distance. RotationZ is exact; X/Y
 // rotations and TranslateZ produce the expected foreshortening used by the
 // Inventory sample without introducing a second 3D scene graph.
-class AERO_API CompositeTransform3D : public ::Aero::DependencyObject {
+class AERO_GUI_API CompositeTransform3D : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(CompositeTransform3D, ::Aero::DependencyObject)
 public:
     CompositeTransform3D() noexcept : DependencyObject(StaticTypeId()) {}
@@ -169,7 +169,7 @@ public:
     inline static constexpr DependencyProperty<double> TranslateZProperty{"TranslateZ"};
 };
 
-class AERO_API TransformGroup : public Transform {
+class AERO_GUI_API TransformGroup : public Transform {
     AERO_DECLARE_TYPE(TransformGroup, Transform)
 public:
     TransformGroup() noexcept : Transform(StaticTypeId()) {}
@@ -190,16 +190,16 @@ private:
     FreezableChangedHandler childChangedHandler_;
 };
 
-AERO_API Base::Transform2D ComposeTransforms(
+AERO_GUI_API Base::Transform2D ComposeTransforms(
     const Base::Transform2D& first,
     const Base::Transform2D& second) noexcept;
-AERO_API Base::Point TransformPoint(
+AERO_GUI_API Base::Point TransformPoint(
     const Base::Transform2D& transform,
     Base::Point point) noexcept;
-AERO_API Base::Rect TransformBounds(
+AERO_GUI_API Base::Rect TransformBounds(
     const Base::Transform2D& transform,
     Base::Rect rect) noexcept;
-AERO_API bool InvertTransform(
+AERO_GUI_API bool InvertTransform(
     const Base::Transform2D& transform,
     Base::Transform2D& inverse) noexcept;
 

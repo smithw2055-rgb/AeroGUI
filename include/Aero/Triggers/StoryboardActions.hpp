@@ -5,7 +5,7 @@
 
 namespace Aero::Media::Animation {
 
-class AERO_API BeginStoryboard : public TriggerAction {
+class AERO_GUI_API BeginStoryboard : public TriggerAction {
     AERO_DECLARE_TYPE(BeginStoryboard, TriggerAction)
 public:
     BeginStoryboard() noexcept : TriggerAction(StaticTypeId()) {}
@@ -20,7 +20,7 @@ private:
     Base::Ref<Storyboard> storyboard_;
 };
 
-class AERO_API ControlStoryboardAction : public TriggerAction {
+class AERO_GUI_API ControlStoryboardAction : public TriggerAction {
     AERO_DECLARE_TYPE(ControlStoryboardAction, TriggerAction)
 public:
     enum class Option : std::uint8_t {
@@ -39,7 +39,7 @@ private:
     Option option_ = Option::Play;
 };
 
-class AERO_API ControllableStoryboardAction : public TriggerAction {
+class AERO_GUI_API ControllableStoryboardAction : public TriggerAction {
     AERO_DECLARE_TYPE(ControllableStoryboardAction, TriggerAction)
 public:
     Base::StringView GetBeginStoryboardName() const noexcept {
@@ -55,31 +55,31 @@ private:
     Base::String beginStoryboardName_;
 };
 
-class AERO_API PauseStoryboard : public ControllableStoryboardAction {
+class AERO_GUI_API PauseStoryboard : public ControllableStoryboardAction {
     AERO_DECLARE_TYPE(PauseStoryboard, ControllableStoryboardAction)
 public:
     PauseStoryboard() noexcept : ControllableStoryboardAction(StaticTypeId()) {}
 };
 
-class AERO_API ResumeStoryboard : public ControllableStoryboardAction {
+class AERO_GUI_API ResumeStoryboard : public ControllableStoryboardAction {
     AERO_DECLARE_TYPE(ResumeStoryboard, ControllableStoryboardAction)
 public:
     ResumeStoryboard() noexcept : ControllableStoryboardAction(StaticTypeId()) {}
 };
 
-class AERO_API StopStoryboard : public ControllableStoryboardAction {
+class AERO_GUI_API StopStoryboard : public ControllableStoryboardAction {
     AERO_DECLARE_TYPE(StopStoryboard, ControllableStoryboardAction)
 public:
     StopStoryboard() noexcept : ControllableStoryboardAction(StaticTypeId()) {}
 };
 
-class AERO_API RemoveStoryboard : public ControllableStoryboardAction {
+class AERO_GUI_API RemoveStoryboard : public ControllableStoryboardAction {
     AERO_DECLARE_TYPE(RemoveStoryboard, ControllableStoryboardAction)
 public:
     RemoveStoryboard() noexcept : ControllableStoryboardAction(StaticTypeId()) {}
 };
 
-class AERO_API SeekStoryboard : public ControllableStoryboardAction {
+class AERO_GUI_API SeekStoryboard : public ControllableStoryboardAction {
     AERO_DECLARE_TYPE(SeekStoryboard, ControllableStoryboardAction)
 public:
     SeekStoryboard() noexcept : ControllableStoryboardAction(StaticTypeId()) {}

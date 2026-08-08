@@ -9,20 +9,20 @@ namespace Aero { class FrameworkElement; }
 
 namespace Aero::Media {
 
-class AERO_API Effect : public ::Aero::Freezable {
+class AERO_GUI_API Effect : public ::Aero::Freezable {
     AERO_DECLARE_TYPE(Effect, ::Aero::Freezable)
 public:
-    struct Impl;
+    struct Access;
 
 protected:
     explicit Effect(Meta::TypeId runtimeType) noexcept
         : Freezable(runtimeType) {}
 
 private:
-    friend struct Impl;
+    friend struct Access;
 };
 
-class AERO_API BlurEffect : public Effect {
+class AERO_GUI_API BlurEffect : public Effect {
     AERO_DECLARE_TYPE(BlurEffect, Effect)
 public:
     BlurEffect() noexcept : Effect(StaticTypeId()) {}
@@ -33,7 +33,7 @@ public:
     inline static constexpr DependencyProperty<double> RadiusProperty{"Radius"};
 };
 
-class AERO_API DropShadowEffect : public Effect {
+class AERO_GUI_API DropShadowEffect : public Effect {
     AERO_DECLARE_TYPE(DropShadowEffect, Effect)
 public:
     DropShadowEffect() noexcept : Effect(StaticTypeId()) {}
@@ -60,7 +60,7 @@ public:
 // Gallery's custom ShaderEffect contract. Rendering backends receive the
 // authored pixel size through the effect snapshot; Size remains a dependency
 // property so bindings can update it at runtime.
-class AERO_API PixelateEffect : public Effect {
+class AERO_GUI_API PixelateEffect : public Effect {
     AERO_DECLARE_TYPE(PixelateEffect, Effect)
 public:
     PixelateEffect() noexcept : Effect(StaticTypeId()) {}

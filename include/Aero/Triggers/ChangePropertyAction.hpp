@@ -4,7 +4,7 @@
 
 namespace Aero::Media::Animation {
 
-class AERO_API ChangePropertyAction : public TriggerAction {
+class AERO_GUI_API ChangePropertyAction : public TriggerAction {
     AERO_DECLARE_TYPE(ChangePropertyAction, TriggerAction)
 public:
     ChangePropertyAction() noexcept : TriggerAction(StaticTypeId()) {}

@@ -2,21 +2,21 @@
 
 // ===== XmlTokenizer =====
 
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "controls/ControlInternal.hpp"
-#include "controls/ItemsInternal.hpp"
-#include "controls/TemplateInternal.hpp"
-#include "markup/MarkupInternal.hpp"
-#include "markup/MarkupWriterInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "controls/ControlRuntime.hpp"
+#include "controls/ItemsRuntime.hpp"
+#include "controls/TemplateRuntime.hpp"
+#include "markup/MarkupRuntime.hpp"
+#include "markup/MarkupWriterRuntime.hpp"
 
 // Canonical XML tokenizer implementation.
 
@@ -2256,15 +2256,25 @@ Base::Result<XmlTokenKind> ExpatXmlTokenizer::ReadStream(
     XmlToken& token) noexcept {
     for (;;) {
         if (readIndex_ < tokens_.Size()) {
-            token = std::move(tokens_[readIndex_]);
-            depth_ = tokenDepths_[readIndex_];
-            ++readIndex_;
-            if (readIndex_ == tokens_.Size()) {
-                tokens_.Clear();
-                tokenDepths_.Clear();
-                readIndex_ = 0U;
+            // Expat may split one XML character-data section at an input
+            // buffer boundary. Keep the trailing text token until the next
+            // parse step establishes a real structural boundary so both
+            // direct and compiled XAML observe one logical value.
+            const bool awaitTextBoundary =
+                !streamEof_ &&
+                readIndex_ + 1U == tokens_.Size() &&
+                tokens_[readIndex_].kind_ == XmlTokenKind::Text;
+            if (!awaitTextBoundary) {
+                token = std::move(tokens_[readIndex_]);
+                depth_ = tokenDepths_[readIndex_];
+                ++readIndex_;
+                if (readIndex_ == tokens_.Size()) {
+                    tokens_.Clear();
+                    tokenDepths_.Clear();
+                    readIndex_ = 0U;
+                }
+                return token.kind_;
             }
-            return token.kind_;
         }
         if (streamEof_) {
             token.Clear();

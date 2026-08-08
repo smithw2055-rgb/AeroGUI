@@ -1,10 +1,12 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Diagnostics.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
+#include <Aero/Gui.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/ViewOptions.hpp>
 #include <Aero/Gui/XamlReader.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Gui/Brush.hpp>
 #include <Aero/Media/Effects.hpp>
@@ -385,18 +387,15 @@ bool VerifyDrag(
     }
     const Base::Transform2D before = panel->GetLocalVisualTransform();
     const Base::Point start = RootCenter(*panel, root);
-    Input::PointerInput pointer;
-    pointer.pointerId = 71U;
-    pointer.changedButton = Input::MouseButton::Left;
-    pointer.position = start;
-    pointer.action = Input::PointerAction::Down;
-    Base::Result<Input::PointerDispatchResult> dispatched =
-        view.DispatchPointer(pointer);
-    pointer.action = Input::PointerAction::Move;
-    pointer.position = {start.x + 45.0, start.y + 28.0};
-    if (dispatched) dispatched = view.DispatchPointer(pointer);
-    pointer.action = Input::PointerAction::Up;
-    if (dispatched) dispatched = view.DispatchPointer(pointer);
+    const int startX = static_cast<int>(start.x);
+    const int startY = static_cast<int>(start.y);
+    const int endX = static_cast<int>(start.x + 45.0);
+    const int endY = static_cast<int>(start.y + 28.0);
+    bool dispatched = view.MouseButtonDown(
+        startX, startY, Input::MouseButton::Left);
+    if (dispatched) dispatched = view.MouseMove(endX, endY);
+    if (dispatched) dispatched = view.MouseButtonUp(
+        endX, endY, Input::MouseButton::Left);
     Base::Result<void> updated = view.Update(16U);
     const Base::Transform2D after = panel->GetLocalVisualTransform();
     if (!dispatched || !updated ||
@@ -451,15 +450,12 @@ bool VerifyStoryboard(
     RoutedEventHandler clickHandler(&probe, &ClickProbe::OnClick);
     button->Click().Add(clickHandler);
     const Base::Point point = RootCenter(*button, root);
-    Input::PointerInput pointer;
-    pointer.pointerId = 72U;
-    pointer.changedButton = Input::MouseButton::Left;
-    pointer.position = point;
-    pointer.action = Input::PointerAction::Down;
-    Base::Result<Input::PointerDispatchResult> dispatched =
-        view.DispatchPointer(pointer);
-    pointer.action = Input::PointerAction::Up;
-    if (dispatched) dispatched = view.DispatchPointer(pointer);
+    const int x = static_cast<int>(point.x);
+    const int y = static_cast<int>(point.y);
+    bool dispatched = view.MouseButtonDown(
+        x, y, Input::MouseButton::Left);
+    if (dispatched) dispatched = view.MouseButtonUp(
+        x, y, Input::MouseButton::Left);
     Base::Result<void> updated = view.Update(350U);
     Base::Ref<Media::Transform> transform = panelGrid->GetRenderTransform();
     if (!dispatched || probe.count != 1U || !updated || !transform ||
@@ -486,8 +482,29 @@ bool VerifyStoryboard(
 }
 
 bool Run(Aero::Gui& gui) {
+    Aero::Markup::XamlReader reader(gui);
+    Aero::Diagnostics::DiagnosticBag diagnostics;
+    Aero::Base::Result<Aero::Markup::XamlDocument> resourceDocument =
+        reader.Load(
+            "pack://application:,,,/BackgroundBlur;component/Resources.xaml",
+            {},
+            &diagnostics);
+    if (!resourceDocument) {
+        std::fprintf(stderr, "RESOURCES FAIL: %s\n",
+            resourceDocument.GetStatus().message);
+        PrintDiagnostics(diagnostics);
+        return false;
+    }
+    Aero::ResourceDictionary* resources =
+        resourceDocument.Value().Root<Aero::ResourceDictionary>();
+    if (resources == nullptr) {
+        std::fprintf(stderr,
+            "RESOURCES FAIL: resource root is not ResourceDictionary\n");
+        return false;
+    }
     ::Aero::ViewOptions options;
     options.automaticAnimationClock = false;
+    options.applicationResources = resources;
     Aero::Base::Result<Aero::Base::Ref<Aero::View>> made =
         gui.CreateView(options);
     if (!made) {
@@ -495,18 +512,6 @@ bool Run(Aero::Gui& gui) {
         return false;
     }
     Aero::Base::Ref<Aero::View> view = std::move(made).Value();
-    Aero::Markup::XamlReader reader(*view);
-    Aero::Diagnostics::DiagnosticBag diagnostics;
-    Aero::Base::Result<void> resources = reader.LoadResources(
-        Aero::ResourceLayer::Application,
-        "pack://application:,,,/BackgroundBlur;component/Resources.xaml",
-        Aero::ResourceLoadMode::Replace,
-        &diagnostics);
-    if (!resources) {
-        std::fprintf(stderr, "RESOURCES FAIL: %s\n", resources.GetStatus().message);
-        PrintDiagnostics(diagnostics);
-        return false;
-    }
     diagnostics.Clear();
     Aero::Base::Result<Aero::Markup::XamlDocument> loaded = reader.Load(
         "pack://application:,,,/BackgroundBlur;component/MainWindow.xaml",

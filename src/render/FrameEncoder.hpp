@@ -4,18 +4,15 @@
 #include "render/RenderTree.hpp"
 #include "render/GraphicsTypes.hpp"
 #include "render/RenderBatch.hpp"
-#include <Aero/Gui/RenderDevice.hpp>
+#include <Aero/Render/RenderDevice.hpp>
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/Vector.hpp>
 
 namespace Aero::Render {
-class Renderer;
-}
 
-namespace Aero::Render::Detail {
-
-class BatchGlyphRunSink;
+class FrameGlyphRunSink;
 
 struct BatchShaderSet {
     Graphics::NativeShaderProgram rectangleVertex;
@@ -64,17 +61,84 @@ struct BatchStatistics {
     bool batchingEnabled = true;
 };
 
+struct ClipState {
+    Aero::Rect rect;
+    Media::Transform2D transform;
+    Aero::Rect bounds;
+};
+
+struct NodeState {
+    RenderNodeId id = InvalidRenderNodeId;
+    Media::Transform2D transform;
+    ClipState clip;
+    bool clipsToBounds = false;
+    double opacity = 1.0;
+    std::uint32_t parentIndex = UINT32_MAX;
+    RenderNodeId containingEffect = InvalidRenderNodeId;
+    std::uint32_t containingEffectCount = 0U;
+};
+
+struct ImageBinding {
+    RenderImageId id = InvalidRenderImageId;
+    Graphics::ResourceHandle texture;
+    Graphics::ResourceHandle sampler;
+};
+
+struct GradientRampBinding {
+    std::uintptr_t key = 0U;
+    std::uint64_t revision = 0U;
+    Graphics::ResourceHandle texture;
+};
+
+struct MeshBinding {
+    RenderMeshId id = InvalidRenderMeshId;
+    Graphics::ResourceHandle vertexBuffer;
+    Graphics::ResourceHandle indexBuffer;
+    std::uint32_t indexCount = 0U;
+    Graphics::IndexType indexType = Graphics::IndexType::UInt16;
+};
+
+struct GlyphBinding {
+    RenderGlyphRunId id = InvalidRenderGlyphRunId;
+    Graphics::ResourceHandle vertexBuffer;
+    Graphics::ResourceHandle indexBuffer;
+    std::uint32_t indexCount = 0U;
+    Graphics::ResourceHandle atlasTexture;
+    Graphics::ResourceHandle sampler;
+    Graphics::IndexType indexType = Graphics::IndexType::UInt16;
+};
+
+struct EffectSurface {
+    RenderNodeId owner = InvalidRenderNodeId;
+    Graphics::ResourceHandle content;
+    Graphics::ResourceHandle scratch;
+    Graphics::ResourceHandle result;
+    std::uint32_t width = 0U;
+    std::uint32_t height = 0U;
+    Aero::Rect logicalBounds;
+    bool empty = false;
+};
+
+struct ViewSurface {
+    Graphics::ResourceHandle target;
+    std::uint32_t width = 0U;
+    std::uint32_t height = 0U;
+    std::uint64_t version = 0U;
+    BatchStatistics statistics;
+    bool prepared = false;
+};
+
 // Renderer-owned composer that turns retained UI frames directly into native
 // device batches; it has no independent renderer or generic command lifetime.
-class BatchComposer {
+class UiFrameEncoder {
 public:
-    BatchComposer(
-        Aero::RenderDevice::Impl& device,
+    UiFrameEncoder(
+        Aero::RenderDevice::Access& device,
         Base::IAllocator* allocator = nullptr) noexcept;
-    ~BatchComposer() noexcept;
+    ~UiFrameEncoder() noexcept;
 
-    BatchComposer(const BatchComposer&) = delete;
-    BatchComposer& operator=(const BatchComposer&) = delete;
+    UiFrameEncoder(const UiFrameEncoder&) = delete;
+    UiFrameEncoder& operator=(const UiFrameEncoder&) = delete;
 
     Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
@@ -93,26 +157,58 @@ public:
         std::uint32_t indexCount,
         Graphics::IndexType indexType = Graphics::IndexType::UInt16) noexcept;
     Base::Result<void> UnregisterMesh(Render::RenderMeshId mesh) noexcept;
-    Base::Result<::Aero::Render::Detail::RenderBatch> Record(
-        const ::Aero::Render::Detail::RenderFrame& plan,
+    Base::Result<Graphics::FenceValue> Record(
+        const ::Aero::Render::RenderFrame& plan,
         const FrameTarget& target) noexcept;
-    Base::Result<::Aero::Render::Detail::RenderBatch> RecordOffscreen(
-        const void* rendererToken,
-        const ::Aero::Render::Detail::RenderFrame& plan) noexcept;
-    Base::Result<::Aero::Render::Detail::RenderBatch> RecordOnscreen(
-        const void* rendererToken,
-        const ::Aero::Render::Detail::RenderFrame& plan,
+    Base::Result<Graphics::FenceValue> RecordOffscreen(
+        const ::Aero::Render::RenderFrame& plan) noexcept;
+    Base::Result<Graphics::FenceValue> RecordOnscreen(
+        const ::Aero::Render::RenderFrame& plan,
         const FrameTarget& target) noexcept;
-    void ReleaseRenderer(const void* rendererToken) noexcept;
     BatchStatistics LastStatistics() const noexcept;
     void SetBatchingEnabled(bool enabled) noexcept;
     bool IsBatchingEnabled() const noexcept;
 
 private:
-    friend class ::Aero::Render::Renderer;
-    friend class BatchGlyphRunSink;
+    friend class FrameGlyphRunSink;
 
-    struct Impl;
+    struct State {
+        explicit State(Base::IAllocator* allocator) noexcept
+            : nodes(allocator),
+              transforms(allocator),
+              clips(allocator),
+              opacities(allocator),
+              nodePath(allocator),
+              images(allocator),
+              gradientRamps(allocator),
+              meshes(allocator),
+              glyphRuns(allocator),
+              effectSurfaces(allocator),
+              viewSurfaces(allocator) {}
+
+        Graphics::ResourceHandle vertexBuffer;
+        Graphics::ResourceHandle uniformBuffer;
+        Graphics::ResourceHandle imageUniformBuffer;
+        Graphics::ResourceHandle maskUniformBuffer;
+        Graphics::ResourceHandle effectUniformBuffer;
+        Graphics::ResourceHandle meshUniformBuffer;
+        Graphics::ResourceHandle glyphUniformBuffer;
+        Base::Vector<NodeState> nodes;
+        Base::Vector<Media::Transform2D> transforms;
+        Base::Vector<ClipState> clips;
+        Base::Vector<double> opacities;
+        Base::Vector<std::uint32_t> nodePath;
+        Base::Vector<ImageBinding> images;
+        Base::Vector<GradientRampBinding> gradientRamps;
+        Base::Vector<MeshBinding> meshes;
+        Base::Vector<GlyphBinding> glyphRuns;
+        Base::Vector<EffectSurface> effectSurfaces;
+        Base::Vector<ViewSurface> viewSurfaces;
+        Graphics::ResourceHandle effectSampler;
+        BatchStatistics lastStatistics;
+        bool batchingEnabled = true;
+        bool initialized = false;
+    };
     Base::Result<void> RegisterGlyphRun(
         Render::RenderGlyphRunId glyphRun,
         Graphics::ResourceHandle vertexBuffer,
@@ -124,17 +220,17 @@ private:
     Base::Result<void> UnregisterGlyphRun(
         Render::RenderGlyphRunId glyphRun) noexcept;
 
-    Aero::RenderDevice::Impl* device_ = nullptr;
+    Aero::RenderDevice::Access* device_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
-    Impl* impl_ = nullptr;
+    State state_;
 };
 
-} // namespace Aero::Render::Detail
+} // namespace Aero::Render
 
 namespace Aero::Render {
 
-using BackendShaderCatalog = Detail::BatchShaderSet;
-using FrameEncoderStatistics = Detail::BatchStatistics;
-using FrameTarget = Detail::FrameTarget;
+using BackendShaderCatalog = BatchShaderSet;
+using FrameEncoderStatistics = BatchStatistics;
+using FrameTarget = FrameTarget;
 
 } // namespace Aero::Render

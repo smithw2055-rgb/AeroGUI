@@ -121,16 +121,16 @@ struct GridLength {
     }
 };
 
-AERO_API bool IsFinite(Point value) noexcept;
-AERO_API bool IsFinite(Size value) noexcept;
-AERO_API bool IsFinite(Rect value) noexcept;
-AERO_API bool IsFinite(Thickness value) noexcept;
-AERO_API bool IsValidLayoutSize(Size value) noexcept;
-AERO_API bool IsValidLayoutRect(Rect value) noexcept;
-AERO_API Size Deflate(Size value, Thickness padding) noexcept;
-AERO_API Size Inflate(Size value, Thickness padding) noexcept;
-AERO_API Rect Intersect(Rect left, Rect right) noexcept;
-AERO_API double RoundLayoutValue(double value, double dpiScale) noexcept;
+AERO_GUI_API bool IsFinite(Point value) noexcept;
+AERO_GUI_API bool IsFinite(Size value) noexcept;
+AERO_GUI_API bool IsFinite(Rect value) noexcept;
+AERO_GUI_API bool IsFinite(Thickness value) noexcept;
+AERO_GUI_API bool IsValidLayoutSize(Size value) noexcept;
+AERO_GUI_API bool IsValidLayoutRect(Rect value) noexcept;
+AERO_GUI_API Size Deflate(Size value, Thickness padding) noexcept;
+AERO_GUI_API Size Inflate(Size value, Thickness padding) noexcept;
+AERO_GUI_API Rect Intersect(Rect left, Rect right) noexcept;
+AERO_GUI_API double RoundLayoutValue(double value, double dpiScale) noexcept;
 
 struct LayoutDiagnostics {
     std::uint64_t passVersion = 0U;

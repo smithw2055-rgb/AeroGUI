@@ -3,7 +3,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Gui/RenderTarget.hpp>
+#include <Aero/Render/RenderTarget.hpp>
 
 #include <cstdint>
 
@@ -42,19 +42,19 @@ using D3D11TargetCallback = Base::Status (*)(
 struct D3D11RenderTargetOptions {
     D3D11TargetCallback acquireTarget = nullptr;
     void* callbackContext = nullptr;
+    // Desktop hosts normally clear a newly acquired swap-chain buffer. Embedded
+    // hosts keep the existing contents unless they opt in explicitly.
+    bool clearBeforeRender = false;
 };
 
-#if !defined(AERO_RENDER_BACKEND_IMPLEMENTATION)
-AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
+AERO_GUI_API Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateD3D11Device(
     const D3D11DeviceOptions& options = {},
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_API Base::Result<Base::Ref<Aero::RenderTarget>>
+AERO_GUI_API Base::Result<Base::Ref<Aero::RenderTarget>>
 CreateD3D11RenderTarget(
     Base::Ref<Aero::RenderDevice> device,
     const D3D11RenderTargetOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
-#endif
-
 } // namespace Aero::Render

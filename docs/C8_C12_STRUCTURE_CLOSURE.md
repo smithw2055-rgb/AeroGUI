@@ -1,5 +1,8 @@
 # C8-C12 structure closure
 
+> Historical milestone record. See `ARCHITECTURE.md` and
+> `REFACTOR_CLOSURE_S18_S24.md` for the current implementation.
+
 This closure finishes the post-S12 simplification pass without adding new framework layers.
 
 ## C8 - device and target lifetime

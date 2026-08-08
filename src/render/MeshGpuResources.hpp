@@ -4,22 +4,22 @@
 
 #include "FrameEncoder.hpp"
 #include "render/RenderResources.hpp"
-#include "render/RenderDeviceInternal.hpp"
+#include "render/RenderDeviceState.hpp"
 
 #include <cmath>
 #include <limits>
 
-namespace Aero::Render::Detail {
+namespace Aero::Render {
 
 class MeshGpuResources {
 public:
     MeshGpuResources(
-        Aero::RenderDevice::Impl& device,
-        BatchComposer& renderer,
+        Aero::RenderDevice::Access& device,
+        UiFrameEncoder& encoder,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
         : device_(&device),
-          renderer_(&renderer),
+          encoder_(&encoder),
           allocator_(&allocator),
           resources_(&allocator) {
         table_.generation = generation;
@@ -45,7 +45,7 @@ public:
         Shutdown();
     }
 
-    Aero::Render::Detail::MeshResources&
+    Aero::Render::MeshResources&
     Table() noexcept {
         return table_;
     }
@@ -259,7 +259,7 @@ private:
         Base::Span<const Aero::Point> points,
         Base::Span<const std::uint32_t> indices) noexcept {
         if (device_ == nullptr ||
-            renderer_ == nullptr ||
+            encoder_ == nullptr ||
             points.Empty() ||
             indices.Empty() ||
             indices.Size() % 3U != 0U) {
@@ -333,7 +333,7 @@ private:
         }
         resource.indexBuffer = index.Value();
 
-        ::Aero::Render::Detail::RenderBatchBuilder encoder(allocator_);
+        ::Aero::Render::UiDrawContext encoder(*device_, allocator_);
         Base::Result<void> uploaded =
             encoder.UploadBuffer(
                 resource.vertexBuffer, 0U,
@@ -352,14 +352,8 @@ private:
             DestroyBuffers(resource);
             return uploaded.GetStatus();
         }
-        Base::Result<::Aero::Render::Detail::RenderBatch> commands =
-            encoder.Finish();
-        if (!commands) {
-            DestroyBuffers(resource);
-            return commands.GetStatus();
-        }
         Base::Result<Graphics::FenceValue> submitted =
-            device_->SubmitBatch(commands.Value());
+            encoder.Finish();
         if (!submitted) {
             DestroyBuffers(resource);
             return submitted.GetStatus();
@@ -375,7 +369,7 @@ private:
         }
         resource.id = nextMesh_++;
         Base::Result<void> registered =
-            renderer_->RegisterMesh(
+            encoder_->RegisterMesh(
                 resource.id,
                 resource.vertexBuffer,
                 resource.indexBuffer,
@@ -390,7 +384,7 @@ private:
             resources_.PushBack(resource);
         if (!stored) {
             static_cast<void>(
-                renderer_->UnregisterMesh(
+                encoder_->UnregisterMesh(
                     resource.id));
             DestroyBuffers(
                 resource, submitted.Value());
@@ -418,11 +412,11 @@ private:
     }
 
     void Destroy(Resource& resource) noexcept {
-        if (renderer_ != nullptr &&
+        if (encoder_ != nullptr &&
             resource.id !=
                 Render::InvalidRenderMeshId) {
             static_cast<void>(
-                renderer_->UnregisterMesh(
+                encoder_->UnregisterMesh(
                     resource.id));
         }
         DestroyBuffers(resource);
@@ -455,13 +449,13 @@ private:
         resource.indexBuffer = {};
     }
 
-    Aero::RenderDevice::Impl* device_ = nullptr;
-    BatchComposer* renderer_ = nullptr;
+    Aero::RenderDevice::Access* device_ = nullptr;
+    UiFrameEncoder* encoder_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Resource> resources_;
     Render::RenderMeshId nextMesh_ =
         UINT64_C(1) << 48U;
-    Aero::Render::Detail::MeshResources table_;
+    Aero::Render::MeshResources table_;
 };
 
-} // namespace Aero::Render::Detail
+} // namespace Aero::Render

@@ -4,7 +4,7 @@
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
-class AERO_API Decorator : public FrameworkElement {
+class AERO_GUI_API Decorator : public FrameworkElement {
     AERO_DECLARE_TYPE(Decorator, FrameworkElement)
 public:
     // Decorator is constructible in the reference XAML surface and is used as
@@ -49,7 +49,7 @@ protected:
         return finalSize;
     }
 private:
-    friend struct ::Aero::Media::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Access;
     void SetOwnedChild(
         const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
         if (!childObject || childObject.Get() != &child) {

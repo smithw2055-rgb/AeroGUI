@@ -4,7 +4,7 @@
 
 namespace Aero::Media::Animation {
 
-class AERO_API TimerTrigger : public EventTrigger {
+class AERO_GUI_API TimerTrigger : public EventTrigger {
     AERO_DECLARE_TYPE(TimerTrigger, EventTrigger)
 public:
     TimerTrigger() noexcept : EventTrigger(StaticTypeId()) {}

@@ -17,7 +17,7 @@ using Size = Base::Size;
 using Rect = Base::Rect;
 using Thickness = Base::Thickness;
 using CornerRadius = Base::CornerRadius;
-class AERO_API Geometry : public Freezable {
+class AERO_GUI_API Geometry : public Freezable {
     AERO_DECLARE_TYPE(Geometry, Freezable)
 public:
     Geometry() noexcept : Freezable(StaticTypeId()) {}
@@ -43,7 +43,7 @@ protected:
 // Streaming geometry is the WPF-shaped geometry value used by path and
 // vector controls. The textual value remains accepted for authored XAML while
 // the type now has a distinct extension point for incremental path commands.
-class AERO_API StreamGeometry : public Geometry {
+class AERO_GUI_API StreamGeometry : public Geometry {
     AERO_DECLARE_TYPE(StreamGeometry, Geometry)
 public:
     StreamGeometry() noexcept : Geometry(StaticTypeId()) {}
@@ -70,7 +70,7 @@ private:
     Rect bounds_{};
 };
 
-class AERO_API PathSegment : public Freezable {
+class AERO_GUI_API PathSegment : public Freezable {
     AERO_DECLARE_TYPE(PathSegment, Freezable)
 protected:
     explicit PathSegment(Meta::TypeId runtimeType) noexcept
@@ -78,7 +78,7 @@ protected:
     ~PathSegment() override = default;
 };
 
-class AERO_API LineSegment : public PathSegment {
+class AERO_GUI_API LineSegment : public PathSegment {
     AERO_DECLARE_TYPE(LineSegment, PathSegment)
 public:
     LineSegment() noexcept : PathSegment(StaticTypeId()) {}
@@ -91,7 +91,7 @@ public:
     inline static constexpr DependencyProperty<Point> PointProperty{"Point"};
 };
 
-class AERO_API PathFigure : public Freezable {
+class AERO_GUI_API PathFigure : public Freezable {
     AERO_DECLARE_TYPE(PathFigure, Freezable)
 public:
     PathFigure() noexcept : Freezable(StaticTypeId()) {}
@@ -122,7 +122,7 @@ private:
     Base::Vector<Base::Ref<PathSegment>> segments_;
 };
 
-class AERO_API PathGeometry : public Geometry {
+class AERO_GUI_API PathGeometry : public Geometry {
     AERO_DECLARE_TYPE(PathGeometry, Geometry)
 public:
     PathGeometry() noexcept : Geometry(StaticTypeId()) {}

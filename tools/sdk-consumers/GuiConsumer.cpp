@@ -27,8 +27,8 @@
 #include <Aero/Gui/ItemsControl.hpp>
 #include <Aero/Gui/ListBox.hpp>
 #include <Aero/Gui/Panel.hpp>
-#include <Aero/Gui/RenderDevice.hpp>
-#include <Aero/Gui/RenderTarget.hpp>
+#include <Aero/Render/RenderDevice.hpp>
+#include <Aero/Render/RenderTarget.hpp>
 #include <Aero/Gui/ResourceDictionary.hpp>
 #include <Aero/Gui/RoutedEvent.hpp>
 #include <Aero/Gui/StackPanel.hpp>

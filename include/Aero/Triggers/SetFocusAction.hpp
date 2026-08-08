@@ -4,7 +4,7 @@
 
 namespace Aero::Media::Animation {
 
-class AERO_API SetFocusAction : public TriggerAction {
+class AERO_GUI_API SetFocusAction : public TriggerAction {
     AERO_DECLARE_TYPE(SetFocusAction, TriggerAction)
 public:
     SetFocusAction() noexcept : TriggerAction(StaticTypeId()) {}

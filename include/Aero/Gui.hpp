@@ -22,7 +22,7 @@ namespace Text { class FontProvider; }
 
 // Process-level WPF/XAML runtime. Gui owns the frozen schema, providers and
 // document cache; Views own presentation-affine layout/input/render state.
-class AERO_API Gui {
+class AERO_GUI_API Gui {
 public:
     explicit Gui(Base::IAllocator* allocator = nullptr) noexcept;
     ~Gui() noexcept;
@@ -58,9 +58,8 @@ private:
     friend class Markup::XamlReader;
     friend class Markup::ReloadCoordinator;
 
-    struct Impl;
     Base::IAllocator* allocator_ = nullptr;
-    Base::Ref<Base::Object> impl_;
+    Base::Ref<Base::Object> state_;
 };
 
 } // namespace Aero

@@ -4,21 +4,21 @@
 
 #include "FrameEncoder.hpp"
 #include "render/RenderResources.hpp"
-#include "render/RenderDeviceInternal.hpp"
+#include "render/RenderDeviceState.hpp"
 
 #include <limits>
 
-namespace Aero::Render::Detail {
+namespace Aero::Render {
 
 class ImageGpuResources {
 public:
     ImageGpuResources(
-        Aero::RenderDevice::Impl& device,
-        BatchComposer& renderer,
+        Aero::RenderDevice::Access& device,
+        UiFrameEncoder& encoder,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
         : device_(&device),
-          renderer_(&renderer),
+          encoder_(&encoder),
           allocator_(&allocator),
           resources_(&allocator) {
         table_.generation = generation;
@@ -49,7 +49,7 @@ public:
         Shutdown();
     }
 
-    Aero::Render::Detail::ImageResources&
+    Aero::Render::ImageResources&
     Table() noexcept {
         return table_;
     }
@@ -99,7 +99,7 @@ private:
         Base::Span<const std::uint8_t>
             pixels) noexcept {
         if (device_ == nullptr ||
-            renderer_ == nullptr ||
+            encoder_ == nullptr ||
             width == 0U || height == 0U ||
             width >
                 std::numeric_limits<
@@ -129,7 +129,7 @@ private:
             device_->CreateTexture(descriptor);
         if (!texture) return texture.GetStatus();
 
-        ::Aero::Render::Detail::RenderBatchBuilder encoder(allocator_);
+        ::Aero::Render::UiDrawContext encoder(*device_, allocator_);
         Graphics::TextureRegion region;
         region.width = width;
         region.height = height;
@@ -143,16 +143,8 @@ private:
                     texture.Value()));
             return uploaded.GetStatus();
         }
-        Base::Result<::Aero::Render::Detail::RenderBatch> commands =
-            encoder.Finish();
-        if (!commands) {
-            static_cast<void>(
-                device_->DestroyResource(
-                    texture.Value()));
-            return commands.GetStatus();
-        }
         Base::Result<Graphics::FenceValue> submitted =
-            device_->SubmitBatch(commands.Value());
+            encoder.Finish();
         if (!submitted) {
             static_cast<void>(
                 device_->DestroyResource(
@@ -174,7 +166,7 @@ private:
         resource.id = nextImage_++;
         resource.texture = texture.Value();
         Base::Result<void> registered =
-            renderer_->RegisterImage(
+            encoder_->RegisterImage(
                 resource.id,
                 resource.texture,
                 sampler_);
@@ -189,7 +181,7 @@ private:
             resources_.PushBack(resource);
         if (!stored) {
             static_cast<void>(
-                renderer_->UnregisterImage(
+                encoder_->UnregisterImage(
                     resource.id));
             static_cast<void>(
                 device_->DestroyResource(
@@ -219,11 +211,11 @@ private:
     }
 
     void Destroy(Resource& resource) noexcept {
-        if (renderer_ != nullptr &&
+        if (encoder_ != nullptr &&
             resource.id !=
                 Render::InvalidRenderImageId) {
             static_cast<void>(
-                renderer_->UnregisterImage(
+                encoder_->UnregisterImage(
                     resource.id));
         }
         if (device_ != nullptr &&
@@ -236,14 +228,14 @@ private:
         resource = {};
     }
 
-    Aero::RenderDevice::Impl* device_ = nullptr;
-    BatchComposer* renderer_ = nullptr;
+    Aero::RenderDevice::Access* device_ = nullptr;
+    UiFrameEncoder* encoder_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Resource> resources_;
     Graphics::ResourceHandle sampler_;
     Render::RenderImageId nextImage_ =
         UINT64_C(1) << 44U;
-    Aero::Render::Detail::ImageResources table_;
+    Aero::Render::ImageResources table_;
 };
 
-} // namespace Aero::Render::Detail
+} // namespace Aero::Render

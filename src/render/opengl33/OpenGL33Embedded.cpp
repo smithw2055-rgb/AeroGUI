@@ -1,15 +1,13 @@
-#include "render/RenderDeviceInternal.hpp"
-#include "render/RenderTargetInternal.hpp"
-#include "render/Renderer.hpp"
-#include "render/opengl33/OpenGL33Backend.hpp"
+#include "render/RenderDeviceState.hpp"
+#include "render/RenderTargetState.hpp"
+#include "gui/ViewRenderer.hpp"
+#include "render/opengl33/OpenGL33RenderDevice.hpp"
 #include "render/opengl33/OpenGL33Shaders.hpp"
 
-#include <functional>
 #include <new>
-#include <thread>
 #include <utility>
 
-namespace Aero::Render::Detail {
+namespace Aero::Render {
 namespace {
 
 Base::Status InvalidArgument(const char* message) noexcept {
@@ -28,142 +26,18 @@ Base::Status OutOfMemory(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::OutOfMemory, message);
 }
 
-Graphics::GlThreadToken CurrentThreadToken(void*) noexcept {
-    Graphics::GlThreadToken value = static_cast<Graphics::GlThreadToken>(
-        std::hash<std::thread::id>{}(std::this_thread::get_id()));
-    return value != 0U ? value : 1U;
-}
-
-class OpenGL33TargetState;
-
-class OpenGL33DeviceState final : public Aero::RenderDevice::Impl {
+class OpenGL33TargetState final : public Aero::RenderTarget::Access {
 public:
-    OpenGL33DeviceState(
-        const ::Aero::Render::OpenGL33DeviceOptions& options,
+    OpenGL33TargetState(
+        Graphics::OpenGL33RenderDevice& device,
+        const OpenGL33EmbeddedTargetOptions& options,
         Base::IAllocator& allocator) noexcept
-        : Aero::RenderDevice::Impl(allocator),
+        : Aero::RenderTarget::Access(RenderTargetKind::Embedded),
+          device_(&device),
           options_(options),
           allocator_(&allocator) {}
 
-    ~OpenGL33DeviceState() noexcept override;
-
-    Base::Result<void> Initialize() noexcept;
-    Base::Result<void> RenderOffscreen(
-        const void* rendererToken,
-        const ::Aero::Render::Detail::RenderFrame& frame) noexcept override;
-    Base::Result<Graphics::FenceValue> DrawBatch(
-        ::Aero::Render::Detail::RenderBatch&& batch) noexcept override;
-    void ReleaseRenderer(const void* rendererToken) noexcept override;
-    void NotifyDeviceLost() noexcept override;
-    Base::Result<void> RestoreDevice() noexcept override;
-    Base::Result<void> WaitIdle(
-        std::uint32_t timeoutMilliseconds) noexcept override;
-    BackendHealth GetDeviceHealth() const noexcept override;
-    ::Aero::RenderFrameStatistics
-        LastFrameStatistics() const noexcept override;
-    Aero::Render::Detail::RenderResources Resources() noexcept override;
-
-    Graphics::DeviceCapabilities QueryNativeDeviceCapabilities() const noexcept override {
-        return graphics_ != nullptr ? graphics_->Capabilities() : Graphics::DeviceCapabilities{};
-    }
-    Graphics::NativeRenderBackendKind NativeBackendKind() const noexcept override {
-        return graphics_ != nullptr ? graphics_->Kind() : Graphics::NativeRenderBackendKind::Invalid;
-    }
-    Graphics::GraphicsCapabilities QueryNativeGraphicsCapabilities() const noexcept override {
-        return graphics_ != nullptr ? graphics_->QueryGraphicsCapabilities() : Graphics::GraphicsCapabilities{};
-    }
-    Base::Result<void> CreateNativeResource(
-        Graphics::ResourceHandle handle,
-        const Graphics::ResourceDescriptor& descriptor) noexcept override {
-        return graphics_->CreateResource(handle, descriptor);
-    }
-    void DestroyNativeResource(Graphics::ResourceHandle handle) noexcept override {
-        if (graphics_ != nullptr) graphics_->DestroyResource(handle);
-    }
-    Base::Result<void> ConfigureNativeTexture(
-        Graphics::ResourceHandle handle,
-        const Graphics::TextureResourceDescriptor& descriptor) noexcept override {
-        return graphics_->ConfigureTexture(handle, descriptor);
-    }
-    Base::Result<void> ConfigureNativeSampler(
-        Graphics::ResourceHandle handle,
-        const Graphics::SamplerDescriptor& descriptor) noexcept override {
-        return graphics_->ConfigureSampler(handle, descriptor);
-    }
-    Base::Result<void> ConfigureNativePipeline(
-        Graphics::ResourceHandle handle,
-        ::Aero::Render::Detail::UiPipelineKey key) noexcept override {
-        return graphics_->ConfigurePipeline(
-            handle, ::Aero::Render::MakeOpenGL33UiPipeline(key));
-    }
-    Base::Result<void> SubmitNativeBatch(
-        const ::Aero::Render::Detail::RenderBatch& batch,
-        Graphics::FenceValue signalFence) noexcept override {
-        return graphics_->Submit(batch, signalFence);
-    }
-    Graphics::FenceValue NativeLastSubmittedFence() const noexcept override {
-        return graphics_ != nullptr ? graphics_->LastSubmittedFence() : 0U;
-    }
-    Graphics::FenceValue NativeCompletedFence() const noexcept override {
-        return graphics_ != nullptr ? graphics_->CompletedFence() : 0U;
-    }
-    bool NativeDeviceLost() const noexcept override {
-        return graphics_ == nullptr || graphics_->IsDeviceLost();
-    }
-
-    RenderBackendKind Backend() const noexcept override {
-        return RenderBackendKind::OpenGL33;
-    }
-    Base::Result<void> MakeCurrent() noexcept;
-    Graphics::OpenGL33CommandQueue* CommandQueue() noexcept {
-        return graphics_;
-    }
-    ::Aero::Render::Renderer* Renderer() noexcept { return renderer_; }
-    Graphics::GlContextGeneration ContextGeneration() const noexcept {
-        return contextGeneration_;
-    }
-    bool IsReady() const noexcept {
-        return initialized_ && !deviceLost_ && graphics_ != nullptr &&
-            AreResourcesReady() && renderer_ != nullptr;
-    }
-
-    void Attach(OpenGL33TargetState& target) noexcept;
-    void Detach(OpenGL33TargetState& target) noexcept;
-
-private:
-    static Graphics::GlProcAddress Resolve(void* context, const char* name) noexcept;
-    static bool IsCurrent(void* context, const void*) noexcept;
-    Base::Result<Graphics::GlContextBinding> ContextBinding() noexcept;
-    void ShutdownDevice(bool notifyTargets) noexcept;
-    void NotifyTargetsDeviceLost() noexcept;
-    void RestoreTargets() noexcept;
-
-    ::Aero::Render::OpenGL33DeviceOptions options_;
-    Base::IAllocator* allocator_ = nullptr;
-    Graphics::OpenGL33CommandQueue* graphics_ = nullptr;
-    ::Aero::Render::Renderer* renderer_ = nullptr;
-    OpenGL33TargetState* targets_ = nullptr;
-    Graphics::GlContextGeneration contextGeneration_ = 0U;
-    bool initialized_ = false;
-    bool deviceLost_ = false;
-};
-
-class OpenGL33TargetState final : public Aero::RenderTarget::Impl {
-public:
-    OpenGL33TargetState(
-        OpenGL33DeviceState& device,
-        const OpenGL33EmbeddedTargetOptions& options,
-        Base::IAllocator& allocator) noexcept
-        : Aero::RenderTarget::Impl(RenderTargetKind::Embedded),
-          device_(&device),
-          options_(options),
-          allocator_(&allocator) {
-        device_->Attach(*this);
-    }
-
-    ~OpenGL33TargetState() noexcept override {
-        if (device_ != nullptr) device_->Detach(*this);
-    }
+    ~OpenGL33TargetState() noexcept override = default;
 
     Base::Result<void> Initialize() noexcept {
         if (device_ == nullptr || !device_->IsReady() ||
@@ -177,8 +51,8 @@ public:
     }
 
     Base::Result<void> Render(
-        const void* rendererToken,
-        const ::Aero::Render::Detail::RenderFrame& frame) noexcept override {
+        ::Aero::ViewRenderer& renderer,
+        const ::Aero::Render::RenderFrame& frame) noexcept override {
         if (!IsReady()) return InvalidState("OpenGL target is not ready");
         Base::Result<void> current = device_->MakeCurrent();
         if (!current) return current.GetStatus();
@@ -209,22 +83,19 @@ public:
         external.defaultFramebuffer = target.defaultFramebuffer;
         Base::Result<Graphics::ResourceHandle> imported =
             Graphics::ImportOpenGL33ExternalRenderTarget(
-                *device_, *device_->CommandQueue(), external);
+                *device_, *device_, external);
         if (!imported) return imported.GetStatus();
 
-        Base::Result<::Aero::Render::Detail::RenderBatch> batch =
-            device_->Renderer()->BuildOnscreenBatch(
-                rendererToken,
-                frame,
-                {imported.Value(), target.width, target.height,
-                 Graphics::LoadOperation::Load});
-        Base::Result<Graphics::FenceValue> submitted = batch
-            ? device_->DrawBatch(std::move(batch).Value())
-            : Base::Result<Graphics::FenceValue>(batch.GetStatus());
+        Base::Result<Graphics::FenceValue> submitted =
+            renderer.RenderOnscreenFrame(frame,
+                 {imported.Value(), target.width, target.height,
+                  options_.clearBeforeRender
+                      ? Graphics::LoadOperation::Clear
+                      : Graphics::LoadOperation::Load});
         const Graphics::FenceValue retireFence =
             device_->LastSubmittedFence();
         Base::Result<void> retired =
-            device_->DestroyResource(
+            static_cast<Aero::RenderDevice::Access&>(*device_).DestroyResource(
                 imported.Value(), retireFence);
         if (!submitted) return submitted.GetStatus();
         return retired;
@@ -254,277 +125,27 @@ public:
         return health_;
     }
 
-    void OnDeviceLost() noexcept {
-        health_ = SurfaceHealth::Lost;
-        deviceGeneration_ = 0U;
-    }
-
-    void OnDeviceRestored() noexcept {
-        if (device_ == nullptr || !device_->IsReady()) return;
-        Base::Result<void> restored = Initialize();
-        if (!restored) health_ = SurfaceHealth::Lost;
-    }
-
-    void OnDeviceDestroyed() noexcept {
-        device_ = nullptr;
-        previous_ = nullptr;
-        next_ = nullptr;
-        deviceGeneration_ = 0U;
-        health_ = SurfaceHealth::Shutdown;
-    }
-
 private:
-    friend class OpenGL33DeviceState;
-
     bool IsReady() const noexcept {
         return GetSurfaceHealth() == SurfaceHealth::Ready &&
-            device_->Renderer() != nullptr;
+            device_->IsReady();
     }
 
-    OpenGL33DeviceState* device_ = nullptr;
+    Graphics::OpenGL33RenderDevice* device_ = nullptr;
     OpenGL33EmbeddedTargetOptions options_;
     Base::IAllocator* allocator_ = nullptr;
-    OpenGL33TargetState* previous_ = nullptr;
-    OpenGL33TargetState* next_ = nullptr;
     std::uint64_t deviceGeneration_ = 0U;
     SurfaceHealth health_ = SurfaceHealth::Shutdown;
 };
 
-Graphics::GlProcAddress OpenGL33DeviceState::Resolve(
-    void* context,
-    const char* name) noexcept {
-    auto* state = static_cast<OpenGL33DeviceState*>(context);
-    return reinterpret_cast<Graphics::GlProcAddress>(
-        state->options_.resolve(state->options_.callbackContext, name));
-}
-
-bool OpenGL33DeviceState::IsCurrent(void* context, const void*) noexcept {
-    auto* state = static_cast<OpenGL33DeviceState*>(context);
-    return state->options_.isCurrent(state->options_.callbackContext);
-}
-
-Base::Result<void> OpenGL33DeviceState::MakeCurrent() noexcept {
-    if (options_.makeCurrent == nullptr) return {};
-    Base::Status status = options_.makeCurrent(options_.callbackContext);
-    return status.IsOk() ? Base::Result<void>() : Base::Result<void>(status);
-}
-
-Base::Result<Graphics::GlContextBinding>
-OpenGL33DeviceState::ContextBinding() noexcept {
-    Graphics::GlContextBinding binding;
-    binding.userData = this;
-    binding.contextHandle = this;
-    binding.resolve = &Resolve;
-    binding.isCurrent = &IsCurrent;
-    binding.currentThreadToken = &CurrentThreadToken;
-    binding.owningThreadToken = CurrentThreadToken(nullptr);
-    binding.generation = options_.contextGeneration(options_.callbackContext);
-    binding.embeddingMode = options_.statePolicy ==
-            ::Aero::Render::OpenGL33StatePreservationPolicy::PreserveRequiredState
-        ? Graphics::GlEmbeddingMode::PreserveAndRestore
-        : Graphics::GlEmbeddingMode::HostReset;
-    return binding;
-}
-
-OpenGL33DeviceState::~OpenGL33DeviceState() noexcept {
-    while (targets_ != nullptr) {
-        OpenGL33TargetState* target = targets_;
-        targets_ = target->next_;
-        target->OnDeviceDestroyed();
-    }
-    ShutdownDevice(false);
-}
-
-Base::Result<void> OpenGL33DeviceState::Initialize() noexcept {
-    if (initialized_) return {};
-    Base::Result<void> current = MakeCurrent();
-    if (!current) return current.GetStatus();
-    Base::Result<Graphics::GlFunctionTable> functions =
-        Graphics::LoadGlFunctionTable(&Resolve, this);
-    if (!functions) return functions.GetStatus();
-    Base::Result<Graphics::GlContextBinding> binding = ContextBinding();
-    if (!binding) return binding.GetStatus();
-    if (binding.Value().generation == 0U) {
-        return InvalidArgument("OpenGL context generation is zero");
-    }
-    contextGeneration_ = binding.Value().generation;
-
-    Graphics::OpenGL33CommandQueueOptions backendOptions;
-    backendOptions.embeddingMode = binding.Value().embeddingMode;
-    backendOptions.checkErrors = options_.checkErrors;
-    graphics_ = new (std::nothrow) Graphics::OpenGL33CommandQueue(
-        functions.Value(), binding.Value(), backendOptions, allocator_);
-    if (graphics_ == nullptr) return OutOfMemory("Unable to allocate OpenGL backend");
-    Base::Result<void> status = graphics_->Initialize();
-    if (!status) {
-        ShutdownDevice(false);
-        return status.GetStatus();
-    }
-    status = InitializeResources();
-    if (!status) {
-        ShutdownDevice(false);
-        return status.GetStatus();
-    }
-    Base::Result<std::uint64_t> generation = AdvanceGeneration();
-    if (!generation) {
-        ShutdownDevice(false);
-        return generation.GetStatus();
-    }
-    renderer_ = new (std::nothrow) ::Aero::Render::Renderer(
-        *this, generation.Value(), allocator_);
-    if (renderer_ == nullptr) {
-        ShutdownDevice(false);
-        return OutOfMemory("Unable to allocate OpenGL renderer");
-    }
-    status = renderer_->Initialize();
-    if (!status) {
-        ShutdownDevice(false);
-        return status.GetStatus();
-    }
-    initialized_ = true;
-    deviceLost_ = false;
-    RestoreTargets();
-    return {};
-}
-
-Base::Result<void> OpenGL33DeviceState::RenderOffscreen(
-    const void* rendererToken,
-    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
-    if (!IsReady()) return NotInitialized("OpenGL device is not initialized");
-    Base::Result<void> current = MakeCurrent();
-    if (!current) return current.GetStatus();
-    Base::Result<::Aero::Render::Detail::RenderBatch> batch =
-        renderer_->BuildOffscreenBatch(rendererToken, frame);
-    if (!batch) return batch.GetStatus();
-    Base::Result<Graphics::FenceValue> submitted =
-        DrawBatch(std::move(batch).Value());
-    return submitted ? Base::Result<void>() : Base::Result<void>(submitted.GetStatus());
-}
-
-Base::Result<Graphics::FenceValue> OpenGL33DeviceState::DrawBatch(
-    ::Aero::Render::Detail::RenderBatch&& batch) noexcept {
-    if (!IsReady()) return NotInitialized("OpenGL device is not initialized");
-    if (batch.Empty()) return Graphics::FenceValue{0U};
-    return SubmitBatch(batch);
-}
-
-void OpenGL33DeviceState::ReleaseRenderer(const void* rendererToken) noexcept {
-    if (renderer_ == nullptr) return;
-    Base::Result<void> current = MakeCurrent();
-    if (current) renderer_->ReleaseRenderer(rendererToken);
-}
-
-void OpenGL33DeviceState::NotifyDeviceLost() noexcept {
-    if (deviceLost_) return;
-    NotifyTargetsDeviceLost();
-    ShutdownDevice(false);
-    deviceLost_ = true;
-}
-
-Base::Result<void> OpenGL33DeviceState::RestoreDevice() noexcept {
-    if (!deviceLost_) return InvalidState("OpenGL device is not lost");
-    deviceLost_ = false;
-    Base::Result<void> restored = Initialize();
-    if (!restored) deviceLost_ = true;
-    return restored;
-}
-
-Base::Result<void> OpenGL33DeviceState::WaitIdle(
-    std::uint32_t timeoutMilliseconds) noexcept {
-    if (graphics_ == nullptr) return {};
-    const Graphics::FenceValue fence = LastSubmittedFence();
-    return fence != 0U
-        ? graphics_->WaitForFence(
-              fence,
-              static_cast<std::uint64_t>(timeoutMilliseconds) * UINT64_C(1000000))
-        : Base::Result<void>();
-}
-
-BackendHealth OpenGL33DeviceState::GetDeviceHealth() const noexcept {
-    if (deviceLost_ || (graphics_ != nullptr && IsNativeDeviceLost())) {
-        return BackendHealth::DeviceLost;
-    }
-    return IsReady() ? BackendHealth::Ready : BackendHealth::Failed;
-}
-
-::Aero::RenderFrameStatistics
-OpenGL33DeviceState::LastFrameStatistics() const noexcept {
-    ::Aero::RenderFrameStatistics result;
-    if (renderer_ == nullptr) return result;
-    const ::Aero::Render::FrameEncoderStatistics source = renderer_->LastStatistics();
-    result.sourceCommandCount = source.sourceCommandCount;
-    result.drawPacketCount = source.drawPacketCount;
-    result.batchCount = source.batchCount;
-    result.mergedPacketCount = source.mergedPacketCount;
-    result.barrierCount = source.barrierCount;
-    result.batchingEnabled = source.batchingEnabled;
-    result.drawCallCount = source.drawCallCount;
-    result.instanceCount = source.rectangleInstanceCount +
-        source.imageInstanceCount + source.meshInstanceCount +
-        source.glyphInstanceCount;
-    result.stateBindingCount = source.pipelineBindingCount +
-        source.vertexBufferBindingCount + source.indexBufferBindingCount +
-        source.uniformBufferBindingCount + source.textureSamplerBindingCount;
-    return result;
-}
-
-Aero::Render::Detail::RenderResources OpenGL33DeviceState::Resources() noexcept {
-    return renderer_ != nullptr
-        ? renderer_->Resources()
-        : Aero::Render::Detail::RenderResources{};
-}
-
-void OpenGL33DeviceState::Attach(OpenGL33TargetState& target) noexcept {
-    target.previous_ = nullptr;
-    target.next_ = targets_;
-    if (targets_ != nullptr) targets_->previous_ = &target;
-    targets_ = &target;
-}
-
-void OpenGL33DeviceState::Detach(OpenGL33TargetState& target) noexcept {
-    if (target.previous_ != nullptr) target.previous_->next_ = target.next_;
-    if (target.next_ != nullptr) target.next_->previous_ = target.previous_;
-    if (targets_ == &target) targets_ = target.next_;
-    target.previous_ = nullptr;
-    target.next_ = nullptr;
-}
-
-void OpenGL33DeviceState::ShutdownDevice(bool notifyTargets) noexcept {
-    if (notifyTargets) NotifyTargetsDeviceLost();
-    initialized_ = false;
-    delete renderer_;
-    renderer_ = nullptr;
-    ShutdownResources();
-    if (graphics_ != nullptr) {
-        graphics_->Shutdown();
-        delete graphics_;
-        graphics_ = nullptr;
-    }
-    contextGeneration_ = 0U;
-}
-
-void OpenGL33DeviceState::NotifyTargetsDeviceLost() noexcept {
-    for (OpenGL33TargetState* target = targets_;
-         target != nullptr; target = target->next_) {
-        target->OnDeviceLost();
-    }
-}
-
-void OpenGL33DeviceState::RestoreTargets() noexcept {
-    for (OpenGL33TargetState* target = targets_;
-         target != nullptr; target = target->next_) {
-        target->OnDeviceRestored();
-    }
-}
-
-OpenGL33DeviceState* DeviceStateFrom(
+Graphics::OpenGL33RenderDevice* DeviceStateFrom(
     const Base::Ref<Aero::RenderDevice>& device) noexcept {
-    if (!device || Aero::RenderDevice::Impl::Backend(*device) !=
+    if (!device || Aero::RenderDevice::Access::Backend(*device) !=
             RenderBackendKind::OpenGL33) {
         return nullptr;
     }
-    return static_cast<OpenGL33DeviceState*>(
-        Aero::RenderDevice::Impl::BackendState(*device));
+    return static_cast<Graphics::OpenGL33RenderDevice*>(
+        Aero::RenderDevice::Access::BackendState(*device));
 }
 
 } // namespace
@@ -539,8 +160,9 @@ Base::Result<Base::Ref<Aero::RenderDevice>> CreateOpenGL33Device(
     }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator : Base::GetDefaultAllocator();
-    auto* state = new (std::nothrow) OpenGL33DeviceState(options, selected);
-    if (state == nullptr) return OutOfMemory("Unable to allocate OpenGL device state");
+    auto* state = new (std::nothrow)
+        Graphics::OpenGL33RenderDevice(options, &selected);
+    if (state == nullptr) return OutOfMemory("Unable to allocate OpenGL render device");
     Base::Result<void> initialized = state->Initialize();
     if (!initialized) {
         delete state;
@@ -553,7 +175,7 @@ Base::Result<Base::Ref<Aero::RenderTarget>> CreateOpenGL33EmbeddedTarget(
     Base::Ref<Aero::RenderDevice> device,
     const OpenGL33EmbeddedTargetOptions& options,
     Base::IAllocator* allocator) noexcept {
-    OpenGL33DeviceState* state = DeviceStateFrom(device);
+    Graphics::OpenGL33RenderDevice* state = DeviceStateFrom(device);
     if (state == nullptr || options.acquireTarget == nullptr) {
         return InvalidArgument(
             "OpenGL embedded target requires a matching device and target callback");
@@ -572,4 +194,4 @@ Base::Result<Base::Ref<Aero::RenderTarget>> CreateOpenGL33EmbeddedTarget(
         std::move(device), target, RenderTargetKind::Embedded, &selected);
 }
 
-} // namespace Aero::Render::Detail
+} // namespace Aero::Render

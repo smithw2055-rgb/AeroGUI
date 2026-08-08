@@ -15,7 +15,10 @@
 
 namespace Aero {
 class Application;
-namespace App { struct RunOptions; }
+namespace App {
+struct RunOptions;
+class DesktopHost;
+}
 
 enum class ShutdownMode : std::uint8_t {
     OnLastWindowClose = 0U,
@@ -23,7 +26,7 @@ enum class ShutdownMode : std::uint8_t {
     OnExplicitShutdown
 };
 
-class AERO_API WindowCollection {
+class AERO_APP_API WindowCollection {
 public:
     std::uint32_t GetCount() const noexcept;
     Window* GetItem(std::uint32_t index) const noexcept;
@@ -35,11 +38,9 @@ private:
     const Application* owner_ = nullptr;
 };
 
-class AERO_API Application : public Base::Object {
+class AERO_APP_API Application : public Base::Object {
     AERO_DECLARE_TYPE(Application, Base::Object)
 public:
-    struct Impl;
-
     Application() noexcept : Application(StaticTypeId()) {}
     ~Application() noexcept override;
 
@@ -78,7 +79,7 @@ protected:
     virtual void OnDeactivated(EventArgs& args) noexcept;
 
 private:
-    friend struct Impl;
+    friend class App::DesktopHost;
     friend class Window;
     friend class WindowCollection;
 
@@ -90,6 +91,9 @@ private:
     void RaiseExit(int exitCode) noexcept;
     void RaiseActivated() noexcept;
     void RaiseDeactivated() noexcept;
+    void AttachMainWindow(Window* value) noexcept;
+    Base::Ref<Window> MainWindowOwner() noexcept;
+    void AdoptResources(ResourceDictionary&& resources) noexcept;
 
     Meta::TypeId runtimeType_ = StaticTypeId();
     Base::String startupUri_;
@@ -97,7 +101,7 @@ private:
     Base::Ref<Base::Object> mainWindowOwner_;
     Window* mainWindow_ = nullptr;
     ShutdownMode shutdownMode_ = ShutdownMode::OnLastWindowClose;
-    Impl* impl_ = nullptr;
+    void* hostState_ = nullptr;
 };
 
 } // namespace Aero

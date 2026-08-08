@@ -1,26 +1,26 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "controls/ControlInternal.hpp"
-#include "controls/ItemsInternal.hpp"
-#include "controls/TemplateInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "controls/ControlRuntime.hpp"
+#include "controls/ItemsRuntime.hpp"
+#include "controls/TemplateRuntime.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Gui/ControlTemplate.hpp>
 
@@ -28,7 +28,7 @@
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Controls::Detail::TreeBehavior;
+using Aero::Controls::TreeBehavior;
 
 using namespace Primitives;
 
@@ -64,7 +64,7 @@ TreeViewItem::TreeViewItem(
 
 TreeViewItem::~TreeViewItem() {
     if (childItems_ != nullptr) {
-        ItemsControl::Impl::SetItemsSourceBorrowed(
+        ItemsControl::Access::SetItemsSourceBorrowed(
             *childItems_, nullptr);
     }
     static_cast<void>(RemoveValueChangedHandler(
@@ -198,14 +198,14 @@ TreeViewItem::OnApplyTemplate() noexcept {
         childItems_ == nullptr) {
         return;
     }
-    ItemsControl::Impl::SetItemsSourceBorrowed(
+    ItemsControl::Access::SetItemsSourceBorrowed(
         *childItems_, this);
     static_cast<void>(SynchronizeTemplate());
 }
 
 void TreeViewItem::OnTemplateDetached() noexcept {
     if (childItems_ != nullptr) {
-        ItemsControl::Impl::SetItemsSourceBorrowed(
+        ItemsControl::Access::SetItemsSourceBorrowed(
             *childItems_, nullptr);
     }
     headerText_ = nullptr;
@@ -277,8 +277,8 @@ void TreeViewItem::OnSelectedChanged(
 }
 
 TreeView::~TreeView() {
-    auto* behaviors = static_cast<Detail::ControlBehavior*>(
-        ::Aero::Media::Visual::Impl::ControlBehaviorRuntime(*this));
+    auto* behaviors = static_cast<ControlBehavior*>(
+        ::Aero::Media::Visual::Access::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -304,7 +304,7 @@ TreeView::CreateContainer(
 bool TreeView::SelectItem(
     TreeViewItem* item) noexcept {
     auto* states = static_cast<Aero::VisualStateManager*>(
-        ::Aero::Media::Visual::Impl::VisualStateRuntime(*this));
+        ::Aero::Media::Visual::Access::VisualStateRuntime(*this));
     Base::Ref<Base::Object> previous =
         GetSelectedItem();
     if (previous.Get() == item) return false;
@@ -315,7 +315,7 @@ bool TreeView::SelectItem(
         static_cast<TreeViewItem*>(previous.Get())->SetIsSelected(false);
         if (states != nullptr) {
             static_cast<void>(
-                Aero::Controls::Detail::TemplatePrivate::GoToState(*states,
+                Aero::Controls::TemplatePrivate::GoToState(*states,
                     *static_cast<TreeViewItem*>(
                         previous.Get()),
                     "SelectionStates",
@@ -327,7 +327,7 @@ bool TreeView::SelectItem(
         item->SetIsSelected(true);
         if (states != nullptr) {
             Base::Result<bool> state =
-                Aero::Controls::Detail::TemplatePrivate::GoToState(*states,
+                Aero::Controls::TemplatePrivate::GoToState(*states,
                     *item,
                     "SelectionStates",
                     "Selected");
@@ -352,11 +352,11 @@ namespace Aero::Controls {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
-using namespace ::Aero::Controls::Detail;
-using namespace ::Aero::GuiPrivate::Detail;
+using namespace ::Aero::Controls;
+using namespace ::Aero;
 
-TreeView::Impl::
-Impl(
+TreeView::Access::
+Access(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input,
@@ -367,15 +367,15 @@ Impl(
       states_(states),
       mouseDownHandler_(
           this,
-          &TreeView::Impl::
+          &TreeView::Access::
               OnMouseDown),
       keyDownHandler_(
           this,
-          &TreeView::Impl::
+          &TreeView::Access::
               OnKeyDown) {}
 
-TreeView::Impl::
-~Impl() noexcept {
+TreeView::Access::
+~Access() noexcept {
     while (!records_.Empty()) {
         TreeView* treeView =
             ResolveTreeView(
@@ -390,7 +390,7 @@ TreeView::Impl::
 }
 
 std::uint32_t
-TreeView::Impl::FindTreeView(
+TreeView::Access::FindTreeView(
     const TreeView& treeView) const noexcept {
     for (std::uint32_t index = 0U;
         index < records_.Size(); ++index) {
@@ -404,7 +404,7 @@ TreeView::Impl::FindTreeView(
 }
 
 TreeView*
-TreeView::Impl::ResolveTreeView(
+TreeView::Access::ResolveTreeView(
     std::uint32_t index) noexcept {
     ::Aero::Media::Visual* visual =
         index < records_.Size()
@@ -417,9 +417,9 @@ TreeView::Impl::ResolveTreeView(
 }
 
 Base::Result<void>
-TreeView::Impl::Attach(
+TreeView::Access::Attach(
     TreeView& treeView) noexcept {
-    if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(treeView) != tree_ ||
+    if (Aero::ElementPrivate::Tree(treeView) != tree_ ||
         FindTreeView(treeView) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -461,7 +461,7 @@ TreeView::Impl::Attach(
 }
 
 Base::Result<bool>
-TreeView::Impl::Detach(
+TreeView::Access::Detach(
     TreeView& treeView) noexcept {
     const std::uint32_t index =
         FindTreeView(treeView);
@@ -483,7 +483,7 @@ TreeView::Impl::Detach(
 }
 
 TreeViewItem*
-TreeView::Impl::FindItem(
+TreeView::Access::FindItem(
     TreeView& treeView,
     Base::Object* source) const noexcept {
     if (source == nullptr ||
@@ -513,12 +513,12 @@ TreeView::Impl::FindItem(
 }
 
 Base::Result<void>
-TreeView::Impl::CollectVisibleItems(
+TreeView::Access::CollectVisibleItems(
     ::Aero::Media::Visual& parent,
     Base::Vector<TreeViewItem*>& items)
     noexcept {
     for (::Aero::Media::Visual* child :
-        Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(parent)) {
+        Aero::ElementPrivate::VisualChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element =
             child->AsUIElement();
@@ -545,7 +545,7 @@ TreeView::Impl::CollectVisibleItems(
     return {};
 }
 
-void TreeView::Impl::OnMouseDown(
+void TreeView::Access::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args)
     noexcept {
@@ -566,7 +566,7 @@ void TreeView::Impl::OnMouseDown(
     args.SetHandled(true);
 }
 
-void TreeView::Impl::OnKeyDown(
+void TreeView::Access::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     if (args.GetKey() != KeyboardKeyUp &&
@@ -597,7 +597,7 @@ void TreeView::Impl::OnKeyDown(
     }
     if (current == nullptr) return;
     if (args.GetKey() == KeyboardKeyRight &&
-        ::Aero::Media::Visual::Impl::TreeViewItemCount(*current) != 0U &&
+        ::Aero::Media::Visual::Access::TreeViewItemCount(*current) != 0U &&
         !current->GetIsExpanded()) {
         static_cast<void>(
             current->SetIsExpanded(true));
@@ -613,7 +613,7 @@ void TreeView::Impl::OnKeyDown(
     }
     if (args.GetKey() == KeyboardKeyEnter ||
         args.GetKey() == KeyboardKeySpace) {
-        if (::Aero::Media::Visual::Impl::TreeViewItemCount(*current) != 0U) {
+        if (::Aero::Media::Visual::Access::TreeViewItemCount(*current) != 0U) {
             static_cast<void>(
                 current->SetIsExpanded(
                     !current->GetIsExpanded()));

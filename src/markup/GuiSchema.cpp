@@ -1,30 +1,30 @@
 #include <Aero/Base/Assert.hpp>
 
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "controls/ControlInternal.hpp"
-#include "controls/ItemsInternal.hpp"
-#include "controls/TemplateInternal.hpp"
-#include "markup/MarkupInternal.hpp"
-#include "markup/MarkupWriterInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "controls/ControlRuntime.hpp"
+#include "controls/ItemsRuntime.hpp"
+#include "controls/TemplateRuntime.hpp"
+#include "markup/MarkupRuntime.hpp"
+#include "markup/MarkupWriterRuntime.hpp"
 
 #include <new>
 #include <utility>
@@ -63,12 +63,13 @@ Base::Status InvalidBundleState(const char* message) noexcept {
 
 } // namespace
 
-struct GuiSchema::Impl {
-    explicit Impl(Base::IAllocator& value) noexcept
+struct GuiSchemaState {
+    explicit GuiSchemaState(Base::IAllocator& value) noexcept
         : allocator(&value) {}
 
     Base::IAllocator* allocator = nullptr;
     ::Aero::Meta::Registry metadata;
+    const ModuleSet* modules = nullptr;
     Markup::Schema* schema = nullptr;
     Markup::DynamicResourceExtension* dynamicResource = nullptr;
     Markup::BindingExtension* binding = nullptr;
@@ -82,7 +83,7 @@ struct GuiSchema::Impl {
     bool frozen = false;
     bool terminal = false;
 
-    ~Impl() noexcept {
+    ~GuiSchemaState() noexcept {
         Destroy(*allocator, Base::MemoryTag::Markup, uiObjectModel);
         Destroy(*allocator, Base::MemoryTag::Markup, binding);
         Destroy(*allocator, Base::MemoryTag::Markup, dynamicResource);
@@ -90,196 +91,199 @@ struct GuiSchema::Impl {
     }
 };
 
+static_assert(
+    sizeof(GuiSchemaState) <= 65536,
+    "GuiSchema inline state storage is too small");
+static_assert(
+    alignof(GuiSchemaState) <= alignof(std::max_align_t),
+    "GuiSchema inline state alignment is insufficient");
+
 GuiSchema::GuiSchema(Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    void* memory = allocator_->Allocate({
-        sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup});
-    if (memory == nullptr) {
-        Base::ReportOutOfMemory(
-            sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
-    }
-    impl_ = new (memory) Impl(*allocator_);
+    state_ = new (stateStorage_) GuiSchemaState(*allocator_);
 }
 
 GuiSchema::~GuiSchema() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->~Impl();
-    allocator_->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
-    impl_ = nullptr;
+    if (state_ == nullptr) return;
+    state_->~GuiSchemaState();
+    state_ = nullptr;
 }
 
 Base::Result<void> GuiSchema::Prepare(
     const ModuleSet& modules) noexcept {
-    if (impl_ == nullptr || impl_->terminal) {
+    if (state_ == nullptr || state_->terminal) {
         return InvalidBundleState("Schema bundle is terminal");
     }
-    if (impl_->prepared) {
+    if (state_->prepared) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "Schema bundle metadata is already prepared");
     }
-    Base::Result<void> status = modules.RegisterMetadata(impl_->metadata);
-    if (status) status = impl_->metadata.Seal();
+    Base::Result<void> status = modules.RegisterMetadata(state_->metadata);
+    if (status) status = state_->metadata.Seal();
     if (!status) {
-        impl_->terminal = true;
+        state_->terminal = true;
         return status.GetStatus();
     }
-    impl_->prepared = true;
+    state_->prepared = true;
+    state_->modules = &modules;
     return {};
 }
 
 Base::Result<void> GuiSchema::Finalize(
     const GuiSchemaOptions& requested) noexcept {
-    if (impl_ == nullptr || impl_->terminal || !impl_->prepared) {
+    if (state_ == nullptr || state_->terminal || !state_->prepared) {
         return InvalidBundleState(
             "Schema bundle metadata must be prepared before XAML finalization");
     }
-    if (impl_->frozen) {
+    if (state_->frozen) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "Schema bundle is already frozen");
     }
     Base::IAllocator& programAllocator = requested.allocator != nullptr
         ? *requested.allocator
-        : *impl_->allocator;
+        : *state_->allocator;
 
     Base::Result<Markup::Schema*> schema =
         Create<Markup::Schema>(
-            *impl_->allocator,
+            *state_->allocator,
             Base::MemoryTag::Markup,
-            impl_->metadata,
-            impl_->allocator);
+            state_->metadata,
+            state_->allocator);
     if (!schema) {
-        impl_->terminal = true;
+        state_->terminal = true;
         return schema.GetStatus();
     }
-    impl_->schema = schema.Value();
+    state_->schema = schema.Value();
 
     Base::Result<Markup::DynamicResourceExtension*> dynamicResource =
         Create<Markup::DynamicResourceExtension>(
-            *impl_->allocator,
+            *state_->allocator,
             Base::MemoryTag::Markup,
             Markup::DynamicResourceExtensionOptions{});
     if (!dynamicResource) {
-        impl_->terminal = true;
+        state_->terminal = true;
         return dynamicResource.GetStatus();
     }
-    impl_->dynamicResource = dynamicResource.Value();
+    state_->dynamicResource = dynamicResource.Value();
 
     Base::Result<Markup::BindingExtension*> binding =
         Create<Markup::BindingExtension>(
-            *impl_->allocator,
+            *state_->allocator,
             Base::MemoryTag::Markup,
             Markup::BindingExtensionOptions{
                 nullptr,
                 Aero::FrameworkElement::DataContextProperty.Handle()});
     if (!binding) {
-        impl_->terminal = true;
+        state_->terminal = true;
         return binding.GetStatus();
     }
-    impl_->binding = binding.Value();
+    state_->binding = binding.Value();
 
     Base::Result<Markup::UiObjectModel*> uiObjectModel =
         Create<Markup::UiObjectModel>(
-            *impl_->allocator,
+            *state_->allocator,
             Base::MemoryTag::Markup,
             Markup::UiObjectModelOptions{
-                &impl_->metadata,
-                &::Aero::GuiPrivate::Detail::MetadataPrivate::
-                    DependencyProperties(impl_->metadata),
+                &state_->metadata,
+                &::Aero::MetadataPrivate::
+                    DependencyProperties(state_->metadata),
                 &programAllocator});
     if (!uiObjectModel) {
-        impl_->terminal = true;
+        state_->terminal = true;
         return uiObjectModel.GetStatus();
     }
-    impl_->uiObjectModel = uiObjectModel.Value();
+    state_->uiObjectModel = uiObjectModel.Value();
 
     Base::Result<void> status =
-        impl_->resourceExtension.Register(*impl_->schema);
+        state_->resourceExtension.Register(*state_->schema);
     if (status) {
-        status = impl_->dynamicResource->Register(
-            *impl_->schema,
+        status = state_->dynamicResource->Register(
+            *state_->schema,
             Meta::MakeTypeId(
                 Base::StringView("urn:aero"),
                 Base::StringView("DynamicResource")));
     }
     if (status) {
-        status = impl_->binding->Register(
-            *impl_->schema,
+        status = state_->binding->Register(
+            *state_->schema,
             Meta::MakeTypeId(
                 Base::StringView("urn:aero"),
                 Base::StringView("Binding")));
     }
     if (status) {
-        status = impl_->staticExtension.Register(
-            *impl_->schema,
+        status = state_->staticExtension.Register(
+            *state_->schema,
             Meta::MakeTypeId(
                 Markup::LanguageNamespaceUri(),
                 Base::StringView("Static")));
     }
     if (status) {
-        status = impl_->typeExtension.Register(
-            *impl_->schema,
+        status = state_->typeExtension.Register(
+            *state_->schema,
             Meta::MakeTypeId(
                 Markup::LanguageNamespaceUri(),
                 Base::StringView("Type")));
     }
     if (status) {
-        status = impl_->locExtension.Register(
-            *impl_->schema,
+        status = state_->locExtension.Register(
+            *state_->schema,
             Meta::MakeTypeId(
                 Meta::AeroNamespaceUri(),
                 Base::StringView("Loc")));
     }
     if (status) {
-        status = impl_->templateBindingExtension.Register(
-            *impl_->schema,
+        status = state_->templateBindingExtension.Register(
+            *state_->schema,
             Meta::MakeTypeId(
                 Meta::AeroNamespaceUri(),
                 Base::StringView("TemplateBinding")));
     }
     if (status) {
-        status = impl_->uiObjectModel->Register(*impl_->schema);
+        status = state_->uiObjectModel->Register(*state_->schema);
     }
-    if (status) status = impl_->metadata.Complete();
-    if (status) status = impl_->schema->Freeze();
+    if (status && state_->modules != nullptr) {
+        status = state_->modules->RegisterResourceScopes(*state_->schema);
+    }
+    if (status) status = state_->metadata.Complete();
+    if (status) status = state_->schema->Freeze();
     if (!status) {
-        impl_->terminal = true;
+        state_->terminal = true;
         return status.GetStatus();
     }
-    impl_->frozen = true;
+    state_->frozen = true;
     return {};
 }
 
 bool GuiSchema::IsPrepared() const noexcept {
-    return impl_ != nullptr && impl_->prepared;
+    return state_ != nullptr && state_->prepared;
 }
 
 bool GuiSchema::IsFrozen() const noexcept {
-    return impl_ != nullptr && impl_->frozen;
+    return state_ != nullptr && state_->frozen;
 }
 
 ::Aero::Meta::Registry& GuiSchema::Metadata() noexcept {
-    AERO_ASSERT(impl_ != nullptr && impl_->prepared);
-    return impl_->metadata;
+    AERO_ASSERT(state_ != nullptr && state_->prepared);
+    return state_->metadata;
 }
 
 const ::Aero::Meta::Registry& GuiSchema::Metadata() const noexcept {
-    AERO_ASSERT(impl_ != nullptr && impl_->prepared);
-    return impl_->metadata;
+    AERO_ASSERT(state_ != nullptr && state_->prepared);
+    return state_->metadata;
 }
 
 Markup::Schema& GuiSchema::Schema() noexcept {
-    AERO_ASSERT(impl_ != nullptr && impl_->schema != nullptr);
-    return *impl_->schema;
+    AERO_ASSERT(state_ != nullptr && state_->schema != nullptr);
+    return *state_->schema;
 }
 
 const Markup::Schema& GuiSchema::Schema() const noexcept {
-    AERO_ASSERT(impl_ != nullptr && impl_->schema != nullptr);
-    return *impl_->schema;
+    AERO_ASSERT(state_ != nullptr && state_->schema != nullptr);
+    return *state_->schema;
 }
 
 } // namespace Aero

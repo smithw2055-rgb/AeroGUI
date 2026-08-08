@@ -28,7 +28,7 @@ Base::Result<void> ValidateVolume(float value) noexcept {
 
 } // namespace
 
-struct Engine::Impl  {
+struct EngineState final {
 #if AERO_AUDIO_MINIAUDIO
     ma_engine engine{};
     ma_sound_group musicGroup{};
@@ -49,8 +49,8 @@ Engine::~Engine() noexcept {
 }
 
 Base::Result<void> Engine::Initialize() noexcept {
-    if (impl_ != nullptr) return {};
-    Impl* created = new (std::nothrow) Impl();
+    if (state_ != nullptr) return {};
+    EngineState* created = new (std::nothrow) EngineState();
     if (created == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -79,7 +79,7 @@ Base::Result<void> Engine::Initialize() noexcept {
         return AudioFailure("Effects sound-group initialization failed");
     }
     created->effectsGroupInitialized = true;
-    impl_ = created;
+    state_ = created;
     return {};
 #else
     delete created;
@@ -90,34 +90,36 @@ Base::Result<void> Engine::Initialize() noexcept {
 }
 
 void Engine::Shutdown() noexcept {
-    if (impl_ == nullptr) return;
+    auto* state = static_cast<EngineState*>(state_);
+    if (state == nullptr) return;
 #if AERO_AUDIO_MINIAUDIO
-    if (impl_->musicInitialized) {
-        ma_sound_uninit(&impl_->music);
+    if (state->musicInitialized) {
+        ma_sound_uninit(&state->music);
     }
-    if (impl_->effectsGroupInitialized) {
-        ma_sound_group_uninit(&impl_->effectsGroup);
+    if (state->effectsGroupInitialized) {
+        ma_sound_group_uninit(&state->effectsGroup);
     }
-    if (impl_->musicGroupInitialized) {
-        ma_sound_group_uninit(&impl_->musicGroup);
+    if (state->musicGroupInitialized) {
+        ma_sound_group_uninit(&state->musicGroup);
     }
-    if (impl_->engineInitialized) {
-        ma_engine_uninit(&impl_->engine);
+    if (state->engineInitialized) {
+        ma_engine_uninit(&state->engine);
     }
 #endif
-    delete impl_;
-    impl_ = nullptr;
+    delete state;
+    state_ = nullptr;
 }
 
 bool Engine::IsInitialized() const noexcept {
-    return impl_ != nullptr;
+    return state_ != nullptr;
 }
 
 void Engine::SetMusicVolume(float value) noexcept {
     Base::Result<void> valid = ValidateVolume(value);
-    if (!valid || impl_ == nullptr) return;
+    auto* state = static_cast<EngineState*>(state_);
+    if (!valid || state == nullptr) return;
 #if AERO_AUDIO_MINIAUDIO
-    ma_sound_group_set_volume(&impl_->musicGroup, value);
+    ma_sound_group_set_volume(&state->musicGroup, value);
 #else
     (void)value;
 #endif
@@ -125,9 +127,10 @@ void Engine::SetMusicVolume(float value) noexcept {
 
 void Engine::SetEffectsVolume(float value) noexcept {
     Base::Result<void> valid = ValidateVolume(value);
-    if (!valid || impl_ == nullptr) return;
+    auto* state = static_cast<EngineState*>(state_);
+    if (!valid || state == nullptr) return;
 #if AERO_AUDIO_MINIAUDIO
-    ma_sound_group_set_volume(&impl_->effectsGroup, value);
+    ma_sound_group_set_volume(&state->effectsGroup, value);
 #else
     (void)value;
 #endif
@@ -141,24 +144,25 @@ Base::Result<void> Engine::PlayMusic(
     }
     Base::Result<void> initialized = Initialize();
     if (!initialized) return initialized.GetStatus();
+    auto& state = *static_cast<EngineState*>(state_);
 #if AERO_AUDIO_MINIAUDIO
-    if (impl_->musicInitialized) {
-        ma_sound_uninit(&impl_->music);
-        impl_->musicInitialized = false;
+    if (state.musicInitialized) {
+        ma_sound_uninit(&state.music);
+        state.musicInitialized = false;
     }
-    Base::Result<void> copied = impl_->musicPath.Assign(filePath);
+    Base::Result<void> copied = state.musicPath.Assign(filePath);
     if (!copied) return copied.GetStatus();
     if (ma_sound_init_from_file(
-            &impl_->engine, impl_->musicPath.CStr(),
+            &state.engine, state.musicPath.CStr(),
             MA_SOUND_FLAG_STREAM | MA_SOUND_FLAG_NO_SPATIALIZATION,
-            &impl_->musicGroup, nullptr, &impl_->music) != MA_SUCCESS) {
+            &state.musicGroup, nullptr, &state.music) != MA_SUCCESS) {
         return AudioFailure("Music file could not be opened or decoded");
     }
-    impl_->musicInitialized = true;
-    ma_sound_set_looping(&impl_->music, MA_TRUE);
-    if (ma_sound_start(&impl_->music) != MA_SUCCESS) {
-        ma_sound_uninit(&impl_->music);
-        impl_->musicInitialized = false;
+    state.musicInitialized = true;
+    ma_sound_set_looping(&state.music, MA_TRUE);
+    if (ma_sound_start(&state.music) != MA_SUCCESS) {
+        ma_sound_uninit(&state.music);
+        state.musicInitialized = false;
         return AudioFailure("Music playback could not be started");
     }
     return {};
@@ -169,12 +173,13 @@ Base::Result<void> Engine::PlayMusic(
 }
 
 Base::Result<void> Engine::StopMusic() noexcept {
-    if (impl_ == nullptr) return {};
+    auto* state = static_cast<EngineState*>(state_);
+    if (state == nullptr) return {};
 #if AERO_AUDIO_MINIAUDIO
-    if (impl_->musicInitialized) {
-        ma_sound_stop(&impl_->music);
-        ma_sound_uninit(&impl_->music);
-        impl_->musicInitialized = false;
+    if (state->musicInitialized) {
+        ma_sound_stop(&state->music);
+        ma_sound_uninit(&state->music);
+        state->musicInitialized = false;
     }
 #endif
     return {};
@@ -188,13 +193,14 @@ Base::Result<void> Engine::PlayEffect(
     }
     Base::Result<void> initialized = Initialize();
     if (!initialized) return initialized.GetStatus();
+    auto& state = *static_cast<EngineState*>(state_);
 #if AERO_AUDIO_MINIAUDIO
     Base::String copiedPath;
     Base::Result<void> copied = copiedPath.Assign(filePath);
     if (!copied) return copied.GetStatus();
     return ma_engine_play_sound(
-        &impl_->engine, copiedPath.CStr(),
-        &impl_->effectsGroup) == MA_SUCCESS
+        &state.engine, copiedPath.CStr(),
+        &state.effectsGroup) == MA_SUCCESS
         ? Base::Result<void>()
         : Base::Result<void>(AudioFailure(
             "Effect file could not be opened or decoded"));

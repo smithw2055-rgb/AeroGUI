@@ -4,7 +4,7 @@
 
 namespace Aero::Media::Animation {
 
-class AERO_API LaunchUriOrFileAction : public TriggerAction {
+class AERO_GUI_API LaunchUriOrFileAction : public TriggerAction {
     AERO_DECLARE_TYPE(LaunchUriOrFileAction, TriggerAction)
 public:
     LaunchUriOrFileAction() noexcept : TriggerAction(StaticTypeId()) {}

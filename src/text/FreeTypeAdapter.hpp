@@ -2,13 +2,17 @@
 
 #include "Providers.hpp"
 
+#include <cstddef>
+
 namespace Aero::Text {
+
+struct FreeTypeAdapterState;
 
 class HarfBuzzAdapter;
 
 // Owns FreeType library/face state. Instances and loaded faces are confined to
 // the thread on which the adapter is used.
-class AERO_API FreeTypeAdapter
+class FreeTypeAdapter
     : public IFontProvider,
       public ITextShaper,
       public IGlyphRasterizer {
@@ -56,12 +60,11 @@ public:
 private:
     friend class HarfBuzzAdapter;
 
-    struct Impl;
-
     void* FindNativeFace(FontFaceHandle face) noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
-    Impl* impl_ = nullptr;
+    alignas(std::max_align_t) std::uint8_t stateStorage_[4096]{};
+    FreeTypeAdapterState* state_ = nullptr;
 };
 
 } // namespace Aero::Text

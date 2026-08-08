@@ -3,9 +3,13 @@
 #include <Aero/Base/Allocator.hpp>
 #include "../Window.hpp"
 
+#include <cstddef>
+
 namespace Aero::Platform {
 
-class AERO_API Win32Window  : public IWindow {
+struct Win32WindowState;
+
+class Win32Window  : public IWindow {
 public:
     explicit Win32Window(
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -30,9 +34,9 @@ public:
     NativeWindowHandle NativeHandle() const noexcept override;
 
 private:
-    struct Impl;
     Base::IAllocator* allocator_ = nullptr;
-    Impl* impl_ = nullptr;
+    alignas(std::max_align_t) std::uint8_t stateStorage_[8192]{};
+    Win32WindowState* state_ = nullptr;
 };
 
 } // namespace Aero::Platform

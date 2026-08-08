@@ -154,7 +154,7 @@ int CubicToCallback(
 
 } // namespace
 
-struct FreeTypeAdapter::Impl  {
+struct FreeTypeAdapterState {
     struct FaceRecord  {
         explicit FaceRecord(
             Base::IAllocator* allocator = nullptr) noexcept
@@ -174,7 +174,7 @@ struct FreeTypeAdapter::Impl  {
         FT_Face freeTypeFace = nullptr;
     };
 
-    explicit Impl(Base::IAllocator* allocator) noexcept
+    explicit FreeTypeAdapterState(Base::IAllocator* allocator) noexcept
         : faces(allocator) {}
 
     FT_Library library = nullptr;
@@ -240,6 +240,11 @@ struct FreeTypeAdapter::Impl  {
     }
 };
 
+static_assert(sizeof(FreeTypeAdapterState) <= 4096U,
+    "FreeTypeAdapter inline state storage is too small");
+static_assert(alignof(FreeTypeAdapterState) <= alignof(std::max_align_t),
+    "FreeTypeAdapter inline state alignment is insufficient");
+
 FreeTypeAdapter::FreeTypeAdapter(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
@@ -251,50 +256,37 @@ FreeTypeAdapter::~FreeTypeAdapter() {
 
 Base::Result<void>
 FreeTypeAdapter::Initialize() noexcept {
-    if (impl_ != nullptr) {
+    if (state_ != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "FreeType adapter is already initialized");
     }
-    void* memory = allocator_->Allocate(
-        {sizeof(Impl), alignof(Impl), Base::MemoryTag::General});
-    if (memory == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "FreeType adapter allocation failed");
-    }
-    impl_ = new (memory) Impl(allocator_);
-    if (FT_Init_FreeType(&impl_->library) != 0) {
-        impl_->~Impl();
-        allocator_->Deallocate(
-            impl_, sizeof(Impl), alignof(Impl),
-            Base::MemoryTag::General);
-        impl_ = nullptr;
+    state_ = new (stateStorage_) FreeTypeAdapterState(allocator_);
+    if (FT_Init_FreeType(&state_->library) != 0) {
+        state_->~FreeTypeAdapterState();
+        state_ = nullptr;
         return FreeTypeFailure("FreeType initialization failed");
     }
     return {};
 }
 
 void FreeTypeAdapter::Shutdown() noexcept {
-    if (impl_ == nullptr) return;
-    for (Impl::FaceRecord& face : impl_->faces) {
+    if (state_ == nullptr) return;
+    for (FreeTypeAdapterState::FaceRecord& face : state_->faces) {
         if (face.freeTypeFace != nullptr) {
             FT_Done_Face(face.freeTypeFace);
         }
     }
-    impl_->faces.Clear();
-    if (impl_->library != nullptr) {
-        FT_Done_FreeType(impl_->library);
+    state_->faces.Clear();
+    if (state_->library != nullptr) {
+        FT_Done_FreeType(state_->library);
     }
-    impl_->~Impl();
-    allocator_->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl),
-        Base::MemoryTag::General);
-    impl_ = nullptr;
+    state_->~FreeTypeAdapterState();
+    state_ = nullptr;
 }
 
 bool FreeTypeAdapter::IsInitialized() const noexcept {
-    return impl_ != nullptr;
+    return state_ != nullptr;
 }
 
 FontProviderIdentity
@@ -306,7 +298,7 @@ Base::Result<void> FreeTypeAdapter::LoadFace(
     const FontSource& source,
     const Typeface& typeface,
     FontFace& output) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "FreeType adapter is not initialized");
@@ -332,21 +324,21 @@ Base::Result<void> FreeTypeAdapter::LoadFace(
             "FreeType font source exceeds signed size limits");
     }
     output = {};
-    for (Impl::FaceRecord& cached : impl_->faces) {
-        if (!Impl::Matches(cached, source, typeface)) continue;
+    for (FreeTypeAdapterState::FaceRecord& cached : state_->faces) {
+        if (!FreeTypeAdapterState::Matches(cached, source, typeface)) continue;
         if (cached.referenceCount == UINT32_MAX) {
             return Base::Status::Failure(
                 Base::ErrorCode::OutOfRange,
                 "FreeType face reference count reached its limit");
         }
         ++cached.referenceCount;
-        Impl::Describe(cached, output);
+        FreeTypeAdapterState::Describe(cached, output);
         return {};
     }
-    Base::Result<Impl::FaceRecord*> appended =
-        impl_->faces.EmplaceBack(allocator_);
+    Base::Result<FreeTypeAdapterState::FaceRecord*> appended =
+        state_->faces.EmplaceBack(allocator_);
     if (!appended) return appended.GetStatus();
-    Impl::FaceRecord& record = *appended.Value();
+    FreeTypeAdapterState::FaceRecord& record = *appended.Value();
     record.faceIndex = source.faceIndex;
     record.sourceKind = source.kind;
     record.weight = typeface.Weight();
@@ -359,44 +351,44 @@ Base::Result<void> FreeTypeAdapter::LoadFace(
         assigned = record.sourceBytes.Append(source.bytes);
     }
     if (!assigned) {
-        impl_->faces.PopBack();
+        state_->faces.PopBack();
         return assigned.GetStatus();
     }
 
     FT_Error error = 0;
     if (source.kind == FontSourceKind::Memory) {
         error = FT_New_Memory_Face(
-            impl_->library,
+            state_->library,
             record.sourceBytes.Data(),
             static_cast<FT_Long>(record.sourceBytes.Size()),
             static_cast<FT_Long>(source.faceIndex),
             &record.freeTypeFace);
     } else {
         error = FT_New_Face(
-            impl_->library,
+            state_->library,
             record.sourceName.CStr(),
             static_cast<FT_Long>(source.faceIndex),
             &record.freeTypeFace);
     }
     if (error != 0) {
-        impl_->faces.PopBack();
+        state_->faces.PopBack();
         return FreeTypeFailure("FreeType could not load the font face");
     }
     (void)FT_Select_Charmap(record.freeTypeFace, FT_ENCODING_UNICODE);
-    record.id = impl_->nextFace++;
-    Impl::Describe(record, output);
+    record.id = state_->nextFace++;
+    FreeTypeAdapterState::Describe(record, output);
     return {};
 }
 
 Base::Result<void> FreeTypeAdapter::ResolveFace(
     const FontQuery& query,
     FontFace& output) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "FreeType adapter is not initialized");
     }
-    for (Impl::FaceRecord& record : impl_->faces) {
+    for (FreeTypeAdapterState::FaceRecord& record : state_->faces) {
         if (query.typeface == nullptr ||
             record.family.View() != query.typeface->Family() ||
             record.weight != query.typeface->Weight() ||
@@ -415,7 +407,7 @@ Base::Result<void> FreeTypeAdapter::ResolveFace(
                 "FreeType face reference count reached its limit");
         }
         ++record.referenceCount;
-        Impl::Describe(record, output);
+        FreeTypeAdapterState::Describe(record, output);
         return {};
     }
     return Base::Status::Failure(
@@ -426,7 +418,7 @@ Base::Result<void> FreeTypeAdapter::ResolveFace(
 Base::Result<bool> FreeTypeAdapter::HasCodePoint(
     FontFaceHandle handle,
     std::uint32_t codePoint) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "FreeType adapter is not initialized");
@@ -451,11 +443,11 @@ Base::Result<bool> FreeTypeAdapter::HasCodePoint(
 
 void FreeTypeAdapter::ReleaseFace(
     FontFaceHandle handle) noexcept {
-    if (impl_ == nullptr) return;
+    if (state_ == nullptr) return;
     for (std::uint32_t index = 0U;
-         index < impl_->faces.Size();
+         index < state_->faces.Size();
          ++index) {
-        Impl::FaceRecord& face = impl_->faces[index];
+        FreeTypeAdapterState::FaceRecord& face = state_->faces[index];
         if (face.id != handle.face ||
             face.generation != handle.generation ||
             handle.provider != AdapterIdentity) {
@@ -466,24 +458,24 @@ void FreeTypeAdapter::ReleaseFace(
             return;
         }
         FT_Done_Face(face.freeTypeFace);
-        if (index + 1U != impl_->faces.Size()) {
-            impl_->faces[index] =
-                std::move(impl_->faces[impl_->faces.Size() - 1U]);
+        if (index + 1U != state_->faces.Size()) {
+            state_->faces[index] =
+                std::move(state_->faces[state_->faces.Size() - 1U]);
         }
-        impl_->faces.PopBack();
+        state_->faces.PopBack();
         return;
     }
 }
 
 bool FreeTypeAdapter::Supports(
     FontProviderIdentity provider) const noexcept {
-    return impl_ != nullptr && provider == AdapterIdentity;
+    return state_ != nullptr && provider == AdapterIdentity;
 }
 
 Base::Result<void> FreeTypeAdapter::Shape(
     const ShapingRequest& request,
     ShapedTextRun& output) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "FreeType adapter is not initialized");
@@ -495,7 +487,7 @@ Base::Result<void> FreeTypeAdapter::Shape(
             Base::ErrorCode::Unsupported,
             "FreeType-only shaping supports simple scripts only");
     }
-    Impl::FaceRecord* face = impl_->Find(request.face);
+    FreeTypeAdapterState::FaceRecord* face = state_->Find(request.face);
     if (face == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -541,12 +533,12 @@ Base::Result<void> FreeTypeAdapter::Shape(
 Base::Result<void> FreeTypeAdapter::GetMetrics(
     const GlyphRequest& request,
     GlyphMetrics& output) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "FreeType adapter is not initialized");
     }
-    Impl::FaceRecord* face = impl_->Find(request.face);
+    FreeTypeAdapterState::FaceRecord* face = state_->Find(request.face);
     if (face == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -575,12 +567,12 @@ Base::Result<void> FreeTypeAdapter::GetMetrics(
 Base::Result<void> FreeTypeAdapter::Rasterize(
     const GlyphRequest& request,
     GlyphBitmap& output) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "FreeType adapter is not initialized");
     }
-    Impl::FaceRecord* face = impl_->Find(request.face);
+    FreeTypeAdapterState::FaceRecord* face = state_->Find(request.face);
     if (face == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -644,12 +636,12 @@ Base::Result<void> FreeTypeAdapter::Rasterize(
 Base::Result<void> FreeTypeAdapter::ExtractOutline(
     const GlyphRequest& request,
     GlyphOutline& output) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "FreeType adapter is not initialized");
     }
-    Impl::FaceRecord* face = impl_->Find(request.face);
+    FreeTypeAdapterState::FaceRecord* face = state_->Find(request.face);
     if (face == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -694,8 +686,8 @@ Base::Result<void> FreeTypeAdapter::ExtractOutline(
 
 void* FreeTypeAdapter::FindNativeFace(
     FontFaceHandle face) noexcept {
-    if (impl_ == nullptr) return nullptr;
-    Impl::FaceRecord* record = impl_->Find(face);
+    if (state_ == nullptr) return nullptr;
+    FreeTypeAdapterState::FaceRecord* record = state_->Find(face);
     return record != nullptr ? record->freeTypeFace : nullptr;
 }
 

@@ -1,25 +1,25 @@
 #pragma once
 
 #include <Aero/Base/Result.hpp>
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
-namespace Aero::Controls::Detail {
+namespace Aero::Controls {
 
 // Module population is an implementation callback; hosts register through the
 // Meta::Registry overload below.
-AERO_API Base::Result<void> PopulateControlsMetadata(
+Base::Result<void> PopulateControlsMetadata(
     ::Aero::Meta::Registration& context) noexcept;
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Controls
 
 namespace Aero::Controls {
 
@@ -35,7 +35,7 @@ inline Base::Result<void> RegisterControlsMetadata(
         Meta::MakeMetadataModuleId(name),
         name,
         SchemaVersion,
-        &::Aero::Controls::Detail::PopulateControlsMetadata,
+        &::Aero::Controls::PopulateControlsMetadata,
         nullptr,
         nullptr});
 }

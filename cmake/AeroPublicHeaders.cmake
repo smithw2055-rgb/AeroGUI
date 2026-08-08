@@ -93,17 +93,20 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Gui/Brush.hpp
     include/Aero/Gui/Geometry.hpp
     include/Aero/Gui/Transform.hpp
+    include/Aero/Gui/XamlDocument.hpp
     include/Aero/Gui/XamlReader.hpp
     include/Aero/Gui/View.hpp
     include/Aero/Gui/IRenderer.hpp
-    include/Aero/Gui/RenderDevice.hpp
-    include/Aero/Gui/RenderTarget.hpp
+    include/Aero/Render/RenderDevice.hpp
+    include/Aero/Render/RenderTarget.hpp
     include/Aero/Input.hpp
     include/Aero/Input/Platform.hpp
     include/Aero/Platform/NativeWindow.hpp
     include/Aero/Render/D3D11.hpp
     include/Aero/Render/OpenGL33.hpp
     include/Aero/Markup/ReloadCoordinator.hpp
+    include/Aero/Markup/ResourceScope.hpp
+    include/Aero/Markup/ServiceProvider.hpp
     include/Aero/Text/FontProvider.hpp
     include/Aero/Media/TextureProvider.hpp
     include/Aero/Markup/XamlProvider.hpp

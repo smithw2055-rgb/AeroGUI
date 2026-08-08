@@ -61,7 +61,7 @@ struct ValueTypeRegistration {
     bool inlineSafe = false;
 };
 
-class AERO_API ValueTypeSemantics : public Base::Object {
+class AERO_GUI_API ValueTypeSemantics : public Base::Object {
 public:
     explicit ValueTypeSemantics(const ValueTypeRegistration& registration) noexcept : registration_(registration) {}
     const ValueTypeRegistration& Registration() const noexcept { return registration_; }
@@ -69,7 +69,7 @@ private:
     ValueTypeRegistration registration_;
 };
 
-class AERO_API Value {
+class AERO_GUI_API Value {
 public:
     static constexpr std::uint32_t InlineCapacity = 32U;
     Value() noexcept = default;
@@ -207,10 +207,10 @@ struct RuntimeTypeInfo {
     MetadataTypeKind kind = MetadataTypeKind::Struct;
 };
 
-AERO_API Base::Status BindRuntimeTypeInfo(
+AERO_GUI_API Base::Status BindRuntimeTypeInfo(
     TypeId token,
     const RuntimeTypeInfo& info) noexcept;
-AERO_API RuntimeTypeInfo ResolveRuntimeTypeInfo(
+AERO_GUI_API RuntimeTypeInfo ResolveRuntimeTypeInfo(
     TypeId token) noexcept;
 
 enum class MemberKind : std::uint8_t {
@@ -441,7 +441,7 @@ constexpr MemberId MakeMemberId(TypeId ownerType, MemberKind kind, Base::StringV
     builder.AddString(name);
     return builder.Finish();
 }
-AERO_API MemberId MakeMethodId(TypeId ownerType, Base::StringView name, Base::Span<const TypeId> parameterTypes) noexcept;
+AERO_GUI_API MemberId MakeMethodId(TypeId ownerType, Base::StringView name, Base::Span<const TypeId> parameterTypes) noexcept;
 
 
 } // namespace Aero::Meta
@@ -541,7 +541,7 @@ struct TypeTraits<Base::ResourceUri> {
     }
 };
 
-AERO_API Base::Result<Value> TryEncodeValue(
+AERO_GUI_API Base::Result<Value> TryEncodeValue(
     TypeId type,
     const void* source) noexcept;
 
@@ -1046,22 +1046,22 @@ namespace Aero::Base::Detail {
 
 namespace ValueConversion {
 
-AERO_API Base::StringView Trim(Base::StringView value) noexcept;
-AERO_API bool EqualsAsciiInsensitive(
+AERO_GUI_API Base::StringView Trim(Base::StringView value) noexcept;
+AERO_GUI_API bool EqualsAsciiInsensitive(
     Base::StringView left,
     Base::StringView right) noexcept;
-AERO_API Base::Result<double> ParseDouble(
+AERO_GUI_API Base::Result<double> ParseDouble(
     Base::StringView text) noexcept;
 
-AERO_API Base::Result<bool> ConvertBoolean(
+AERO_GUI_API Base::Result<bool> ConvertBoolean(
     Base::StringView text) noexcept;
-AERO_API Base::Result<::Aero::Nullable<bool>> ConvertNullableBoolean(
+AERO_GUI_API Base::Result<::Aero::Nullable<bool>> ConvertNullableBoolean(
     Base::StringView text) noexcept;
-AERO_API Base::Result<double> ConvertDouble(
+AERO_GUI_API Base::Result<double> ConvertDouble(
     Base::StringView text) noexcept;
-AERO_API Base::Result<Base::String> ConvertString(
+AERO_GUI_API Base::Result<Base::String> ConvertString(
     Base::StringView text) noexcept;
-AERO_API Base::Result<Base::ResourceUri> ConvertResourceUri(
+AERO_GUI_API Base::Result<Base::ResourceUri> ConvertResourceUri(
     Base::StringView text) noexcept;
 
 template<class T>

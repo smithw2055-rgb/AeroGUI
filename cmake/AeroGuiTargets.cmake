@@ -120,6 +120,7 @@ if(AERO_WITH_EXPAT)
     endif()
 endif()
 target_compile_definitions(AeroGui PRIVATE
+    $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_GUI_EXPORTS>
     AERO_UI_RESOURCE_MODEL=2
     AERO_CONTROLS_TEMPLATE_ABI=10
     AERO_MARKUP_UI_RESOURCES=1
@@ -130,8 +131,11 @@ set_target_properties(AeroGui PROPERTIES
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
     POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+    WINDOWS_EXPORT_ALL_SYMBOLS OFF
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
 aero_apply_compiler_options(AeroGui)
+aero_verify_windows_exports(AeroGui "Gui@Aero@@")
 
 add_library(AeroGuiHeaderConsumer OBJECT tools/sdk-consumers/GuiConsumer.cpp)
 target_link_libraries(AeroGuiHeaderConsumer PRIVATE Aero::Gui)
@@ -194,6 +198,8 @@ endif()
 set(_aero_gui_composition_sources
     src/gui/Gui.cpp
     src/gui/View.cpp
+    src/gui/ViewRenderer.hpp
+    src/gui/ViewState.hpp
     src/markup/ReloadCoordinator.cpp
     src/render/RenderDevice.cpp
     src/gui/Invariants.cpp
@@ -206,7 +212,6 @@ if(_aero_gui_precompiled_themes)
     add_dependencies(AeroGui AeroCompiledThemes)
 endif()
 target_sources(AeroGui PRIVATE ${_aero_gui_composition_sources})
-target_compile_definitions(AeroGui PRIVATE AERO_INTERNAL_GUI_COMPOSITION=1)
 target_include_directories(AeroGui PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb"
     "${_aero_gui_theme_include_dir}"
@@ -238,11 +243,10 @@ unset(_aero_theme_embed_result)
 target_sources(AeroGui PRIVATE
     src/render/RenderBatch.cpp
     src/render/RenderDeviceResources.cpp
-    src/render/WindowRenderContext.cpp
     src/render/FrameEncoder.cpp
-    src/render/Renderer.cpp
+    src/gui/ViewRendererResources.cpp
     src/render/TextRenderer.cpp
-    src/render/opengl33/OpenGL33Backend.cpp
+    src/render/opengl33/OpenGL33RenderDevice.cpp
     src/render/opengl33/OpenGL33Context.cpp
     src/render/opengl33/OpenGL33StateCache.cpp
     src/render/opengl33/OpenGL33Shaders.cpp)
@@ -253,8 +257,6 @@ if(AERO_ENABLE_WGL_SURFACE)
         message(FATAL_ERROR
             "AERO_ENABLE_WGL_SURFACE is only supported on Windows")
     endif()
-    target_sources(AeroGui PRIVATE
-        src/render/platform/win32/OpenGLRenderContext.cpp)
     target_link_libraries(AeroGui PRIVATE
         gdi32 opengl32 user32)
     target_compile_definitions(AeroGui PRIVATE AERO_HAS_WGL_SURFACE=1)
@@ -269,8 +271,6 @@ if(AERO_ENABLE_GLX_SURFACE)
     endif()
     find_package(X11 REQUIRED)
     find_package(OpenGL REQUIRED)
-    target_sources(AeroGui PRIVATE
-        src/render/platform/x11/OpenGLRenderContext.cpp)
     target_link_libraries(AeroGui PRIVATE
         X11::X11 OpenGL::GL Threads::Threads)
     target_compile_definitions(AeroGui PRIVATE AERO_HAS_GLX_SURFACE=1)
@@ -366,21 +366,20 @@ if(AERO_ENABLE_D3D11_BACKEND)
         DEPENDS ${_aero_d3d11_shader_outputs})
 
     set(_aero_d3d11_backend_fragments
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendPrivate.hpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendDevice.inc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendResources.inc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendCommands1.inc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendCommands2.inc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendCommands3.inc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendReadback.inc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderContext.inc")
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceState.hpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceCore.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceResources.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceDraw1.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceDraw2.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceDraw3.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceReadback.inc")
     set_source_files_properties(${_aero_d3d11_backend_fragments}
         PROPERTIES HEADER_FILE_ONLY TRUE)
-    set_property(SOURCE src/render/d3d11/D3D11Backend.cpp APPEND
+    set_property(SOURCE src/render/d3d11/D3D11RenderDevice.cpp APPEND
         PROPERTY OBJECT_DEPENDS "${_aero_d3d11_backend_fragments}")
 
     target_sources(AeroGui PRIVATE
-        src/render/d3d11/D3D11Backend.cpp
+        src/render/d3d11/D3D11RenderDevice.cpp
         src/render/d3d11/D3D11Shaders.cpp
         ${_aero_d3d11_backend_fragments})
     add_dependencies(AeroGui AeroD3D11RenderFrameShaders)
@@ -400,7 +399,6 @@ endif()
 # factories. App adds only the default desktop lifetime and OS window policy.
 set(_aero_gui_runtime_sources
     src/render/RenderTarget.cpp
-    src/render/opengl33/OpenGL33Device.cpp
     src/render/opengl33/OpenGL33Embedded.cpp
     src/render/opengl33/OpenGL33Factories.cpp
     src/markup/XamlProvider.cpp

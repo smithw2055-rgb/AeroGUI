@@ -1,14 +1,14 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
@@ -17,20 +17,20 @@
 #include <Aero/Shapes.hpp>
 #include <Aero/Gui/Transform.hpp>
 #include "../media/BrushRendering.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "media/AnimationInternal.hpp"
-#include "media/BrushInternal.hpp"
-#include "media/EffectInternal.hpp"
-#include "media/TransformInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "media/AnimationRuntime.hpp"
+#include "media/BrushRuntime.hpp"
+#include "media/EffectRuntime.hpp"
+#include "media/TransformRuntime.hpp"
 #include <Aero/Documents.hpp>
 
 #include "TextBlockLayout.hpp"
@@ -65,41 +65,41 @@ void RichText::OnTextChanged(
     static_cast<Controls::TextBlock&>(object).SetText(plain.View());
 }
 
-std::uint32_t Media::Visual::Impl::PanelChildCount(
+std::uint32_t Media::Visual::Access::PanelChildCount(
     const Controls::Panel& panel) noexcept {
     return panel.ChildCountCore();
 }
 
-Base::Ref<Base::Object> Media::Visual::Impl::PanelChildAt(
+Base::Ref<Base::Object> Media::Visual::Access::PanelChildAt(
     const Controls::Panel& panel,
     std::uint32_t index) noexcept {
     return panel.ChildAtCore(index);
 }
 
-Base::Result<void> Media::Visual::Impl::PanelAddChild(
+Base::Result<void> Media::Visual::Access::PanelAddChild(
     Controls::Panel& panel,
     const Base::Ref<Base::Object>& owner,
     UIElement& child) noexcept {
     return panel.AddChildCore(owner, child);
 }
 
-Base::Result<bool> Media::Visual::Impl::PanelRemoveChild(
+Base::Result<bool> Media::Visual::Access::PanelRemoveChild(
     Controls::Panel& panel,
     UIElement& child) noexcept {
     return panel.RemoveChildCore(child);
 }
 
-void Media::Visual::Impl::PanelClearChildren(
+void Media::Visual::Access::PanelClearChildren(
     Controls::Panel& panel) noexcept {
     panel.ClearChildrenCore();
 }
 
-const Base::Ref<Base::Object>& Media::Visual::Impl::DecoratorOwnedChild(
+const Base::Ref<Base::Object>& Media::Visual::Access::DecoratorOwnedChild(
     const Controls::Decorator& decorator) noexcept {
     return decorator.ownedChild_;
 }
 
-Base::Result<void> Media::Visual::Impl::DecoratorSetOwnedChild(
+Base::Result<void> Media::Visual::Access::DecoratorSetOwnedChild(
     Controls::Decorator& decorator,
     const Base::Ref<Base::Object>& owner,
     UIElement& child) noexcept {
@@ -107,12 +107,12 @@ Base::Result<void> Media::Visual::Impl::DecoratorSetOwnedChild(
     return {};
 }
 
-void Media::Visual::Impl::PathInvalidateGeometry(
+void Media::Visual::Access::PathInvalidateGeometry(
     Shapes::Path& path) noexcept {
     path.ResetGeometry();
 }
 
-void Media::Visual::Impl::PathAttachMeshResources(
+void Media::Visual::Access::PathAttachMeshResources(
     Shapes::Path& path,
     void* services,
     bool invalidate) noexcept {
@@ -122,18 +122,18 @@ void Media::Visual::Impl::PathAttachMeshResources(
     }
 }
 
-void Media::Visual::Impl::SetMenuItemHighlighted(
+void Media::Visual::Access::SetMenuItemHighlighted(
     Controls::MenuItem& item,
     bool value) noexcept {
     item.SetHighlightedState(value);
 }
 
-void Media::Visual::Impl::SyncSelectorContainers(
+void Media::Visual::Access::SyncSelectorContainers(
     Controls::Primitives::Selector& selector) noexcept {
     selector.SyncContainers();
 }
 
-std::uint32_t Media::Visual::Impl::TreeViewItemCount(
+std::uint32_t Media::Visual::Access::TreeViewItemCount(
     const Controls::TreeViewItem& item) noexcept {
     return item.GetCount();
 }
@@ -152,10 +152,10 @@ bool IsValidTextSize(Size value) noexcept {
     return IsFinite(value) && value.width >= 0.0 && value.height >= 0.0;
 }
 
-::Aero::Controls::Detail::TextBlockLayout* TextLayoutFor(
+::Aero::Controls::TextBlockLayout* TextLayoutFor(
     const ::Aero::Media::Visual& visual) noexcept {
-    return static_cast<::Aero::Controls::Detail::TextBlockLayout*>(
-        Media::Visual::Impl::TextLayoutRuntime(visual));
+    return static_cast<::Aero::Controls::TextBlockLayout*>(
+        Media::Visual::Access::TextLayoutRuntime(visual));
 }
 
 struct EffectiveGridSpan {
@@ -182,7 +182,7 @@ EffectiveGridSpan CoerceGridSpan(
 
 void Panel::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     static_cast<void>(PaintBrushRect(
         builder,
         GetBackground(),
@@ -194,7 +194,7 @@ void Panel::OnRender(
 
 void Control::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     static_cast<void>(PaintBrushRect(
         builder,
         GetBackground(),
@@ -1517,7 +1517,7 @@ Size Border::ArrangeOverride(Size finalSize) noexcept {
 
 void Border::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     const Rect bounds{0.0, 0.0, GetRenderSize().width, GetRenderSize().height};
     if (bounds.width <= 0.0 ||
         bounds.height <= 0.0) {
@@ -1538,7 +1538,7 @@ void Border::OnRender(
         std::min(
             bounds.width,
             bounds.height) * 0.5);
-    const Color brush = ::Aero::Media::Detail::SampleBrush(GetBorderBrush());
+    const Color brush = ::Aero::Media::SampleBrush(GetBorderBrush());
     const Thickness thickness = GetBorderThickness();
     const bool uniform =
         thickness.left == thickness.top &&
@@ -1573,7 +1573,7 @@ void Border::OnRender(
         } else {
             static_cast<void>(builder.FillRoundedRect(
                 inner,
-                ::Aero::Media::Detail::SampleBrush(background),
+                ::Aero::Media::SampleBrush(background),
                 std::min(
                     std::max(0.0, radius - inset),
                     std::min(
@@ -1586,9 +1586,9 @@ void Border::OnRender(
         ? PaintBrushRect(builder, background, bounds, radius)
         : (radius > 0.0
             ? builder.FillRoundedRect(
-                  bounds, ::Aero::Media::Detail::SampleBrush(background), radius)
+                  bounds, ::Aero::Media::SampleBrush(background), radius)
             : builder.FillRect(
-                  bounds, ::Aero::Media::Detail::SampleBrush(background)));
+                  bounds, ::Aero::Media::SampleBrush(background)));
     if (!fill) return;
     if (uniformThickness > 0.0 &&
         brush.alpha > 0.0F) {
@@ -1847,7 +1847,7 @@ Base::Result<void> TextBlock::AddOwnedInline(
         ownedInlines_.PushBack(inlineObject);
     if (!appended) return appended.GetStatus();
     auto& inlineValue = *static_cast<Documents::Inline*>(inlineObject.Get());
-    Aero::GuiPrivate::Detail::ElementPrivate::Attach(
+    Aero::ElementPrivate::Attach(
         inlineValue, this, this, nullptr);
     pendingInline_ = inlineObject;
     return InvalidateMeasure();
@@ -1858,7 +1858,7 @@ void TextBlock::ClearOwnedInlines() noexcept {
     if (!access) return;
     for (Base::Ref<Base::Object>& item : ownedInlines_) {
         if (item) {
-            Aero::GuiPrivate::Detail::ElementPrivate::Detach(
+            Aero::ElementPrivate::Detach(
                 *static_cast<Documents::Inline*>(item.Get()));
         }
     }
@@ -1937,7 +1937,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
                 if (!invalidated) return Size{};
             }
         } else {
-            ::Aero::Controls::Detail::TextLayoutRequest request;
+            ::Aero::Controls::TextLayoutRequest request;
             request.text = text;
             request.availableSize = availableSize;
             request.dpiScale = GetDpiScale();
@@ -1950,7 +1950,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
             request.direction = GetFlowDirection() == FlowDirection::RightToLeft
                 ? Text::TextDirection::RightToLeft
                 : Text::TextDirection::LeftToRight;
-            ::Aero::Controls::Detail::TextLayoutResult output;
+            ::Aero::Controls::TextLayoutResult output;
             Base::Result<void> prepared =
                 layoutService->ShapeAndPrepare(request, output);
             if (!prepared) return Size{};
@@ -2006,8 +2006,8 @@ Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
 
 void TextBlock::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
-    const Color background = ::Aero::Media::Detail::SampleBrush(GetBackground());
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    const Color background = ::Aero::Media::SampleBrush(GetBackground());
     if (background.alpha > 0.0F) {
         Base::Result<void> filled =
             builder.FillRect(
@@ -2019,7 +2019,7 @@ void TextBlock::OnRender(
     }
     for (RenderGlyphRunId glyphRun : glyphRuns_) {
         Base::Result<void> drawn =
-            builder.DrawGlyphRun(glyphRun, ::Aero::Media::Detail::SampleBrush(GetForeground(), 0.5,
+            builder.DrawGlyphRun(glyphRun, ::Aero::Media::SampleBrush(GetForeground(), 0.5,
                 Color{0.0F, 0.0F, 0.0F, 1.0F}));
         if (!drawn) return;
     }
@@ -2033,7 +2033,7 @@ void TextBlock::OnRender(
             glyphRunSize_.height - thickness * 1.5);
         static_cast<void>(builder.FillRect(
             {0.0, y, glyphRunSize_.width, thickness},
-            ::Aero::Media::Detail::SampleBrush(GetForeground(), 0.5,
+            ::Aero::Media::SampleBrush(GetForeground(), 0.5,
                 Color{0.0F, 0.0F, 0.0F, 1.0F})));
     }
     return;

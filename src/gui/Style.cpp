@@ -1,14 +1,14 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 #include <Aero/Gui/ControlTemplate.hpp>
 #include <Aero/Gui/FrameworkElement.hpp>
 #include <Aero/Value.hpp>
@@ -163,7 +163,7 @@ Base::Result<PropertyValue> NormalizeStyleValue(
 } // namespace
 
 
-Base::Result<void> Style::Impl::Freeze(
+Base::Result<void> Style::Access::Freeze(
     TypeId valueTargetType,
     Base::Vector<StyleSetter>&& valueSetters,
     Base::Vector<TriggerPlan>&& valueTriggers) noexcept {
@@ -184,14 +184,14 @@ Base::Result<void> Style::Impl::Freeze(
     return {};
 }
 
-void Style::Impl::Reset() noexcept {
+void Style::Access::Reset() noexcept {
     targetType = InvalidTypeId;
     setters.Clear();
     triggers.Clear();
     frozen = false;
 }
 
-Base::Result<void> Style::Impl::AddAuthoredSetter(
+Base::Result<void> Style::Access::AddAuthoredSetter(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
     for (const StyleSetter& setter : authoredSetters) {
@@ -204,12 +204,12 @@ Base::Result<void> Style::Impl::AddAuthoredSetter(
     return authoredSetters.PushBack({property, value});
 }
 
-Base::Result<void> Style::Impl::AddAuthoredTrigger(
+Base::Result<void> Style::Access::AddAuthoredTrigger(
     TriggerPlan trigger) noexcept {
     return authoredTriggers.PushBack(std::move(trigger));
 }
 
-void Style::Impl::ClearAuthored() noexcept {
+void Style::Access::ClearAuthored() noexcept {
     authoredSetters.Clear();
     authoredTriggers.Clear();
 }
@@ -420,19 +420,19 @@ Style::Style(
       implAllocator_(&Base::GetDefaultAllocator()),
       resources_() {
     void* memory = implAllocator_->Allocate({
-        sizeof(Impl), alignof(Impl), Base::MemoryTag::Ui});
+        sizeof(Access), alignof(Access), Base::MemoryTag::Ui});
     if (memory == nullptr) {
         Base::ReportOutOfMemory(
-            sizeof(Impl), alignof(Impl), Base::MemoryTag::Ui);
+            sizeof(Access), alignof(Access), Base::MemoryTag::Ui);
     }
-    program_ = new (memory) Impl{};
+    program_ = new (memory) Access{};
 }
 
 Style::~Style() {
     if (program_ == nullptr) return;
-    program_->~Impl();
+    program_->~Access();
     implAllocator_->Deallocate(
-        program_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Ui);
+        program_, sizeof(Access), alignof(Access), Base::MemoryTag::Ui);
     program_ = nullptr;
 }
 
@@ -695,7 +695,7 @@ Base::Result<void> Style::SealRuntime(
     Base::Vector<StyleSetter> next;
     if (basedOn_ != nullptr) {
         Base::Result<void> inherited = next.Append(
-            Impl::RuntimeSetters(*basedOn_));
+            Access::RuntimeSetters(*basedOn_));
         if (!inherited) {
             return inherited.GetStatus();
         }
@@ -739,7 +739,7 @@ Base::Result<void> Style::SealRuntime(
     Base::Vector<TriggerPlan> nextTriggers;
     if (basedOn_ != nullptr) {
         Base::Result<void> inherited =
-            nextTriggers.Append(Impl::RuntimeTriggers(*basedOn_));
+            nextTriggers.Append(Access::RuntimeTriggers(*basedOn_));
         if (!inherited) return inherited.GetStatus();
     }
     for (const TriggerPlan& trigger : program_->authoredTriggers) {
@@ -814,26 +814,26 @@ Base::Result<void> Style::SealRuntime(
 
 void Style::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
-    (void)Aero::GuiPrivate::Detail::AssignResourceDictionary(
+    (void)Aero::AssignResourceDictionary(
         resources_,
         std::move(value),
         "Style Resources is already assigned");
 }
 
-Base::Result<void> Style::Impl::Seal(
+Base::Result<void> Style::Access::Seal(
     Style& style,
     const void* properties) noexcept {
     return style.SealRuntime(properties);
 }
 
-Base::Span<const StyleSetter> Style::Impl::RuntimeSetters(
+Base::Span<const StyleSetter> Style::Access::RuntimeSetters(
     const Style& style) noexcept {
     return style.program_ != nullptr
         ? style.program_->Setters()
         : Base::Span<const StyleSetter>{};
 }
 
-Base::Span<const TriggerPlan> Style::Impl::RuntimeTriggers(
+Base::Span<const TriggerPlan> Style::Access::RuntimeTriggers(
     const Style& style) noexcept {
     return style.program_ != nullptr
         ? style.program_->Triggers()
@@ -842,7 +842,7 @@ Base::Span<const TriggerPlan> Style::Impl::RuntimeTriggers(
 
 } // namespace Aero
 
-namespace Aero::GuiPrivate::Detail {
+namespace Aero {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -1361,4 +1361,4 @@ void StyleEngine::TriggerPhaseHook(
 }
 
 
-} // namespace Aero::GuiPrivate::Detail
+} // namespace Aero

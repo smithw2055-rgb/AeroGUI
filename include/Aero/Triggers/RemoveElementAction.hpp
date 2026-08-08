@@ -4,7 +4,7 @@
 
 namespace Aero::Media::Animation {
 
-class AERO_API RemoveElementAction : public TriggerAction {
+class AERO_GUI_API RemoveElementAction : public TriggerAction {
     AERO_DECLARE_TYPE(RemoveElementAction, TriggerAction)
 public:
     RemoveElementAction() noexcept : TriggerAction(StaticTypeId()) {}

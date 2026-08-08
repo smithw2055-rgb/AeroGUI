@@ -1,20 +1,20 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 #include <Aero/Controls.hpp>
 
 #include <utility>
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Controls::Detail::MenuBehavior;
+using Aero::Controls::MenuBehavior;
 
 using namespace Primitives;
 using namespace Meta;
@@ -238,8 +238,8 @@ void MenuItem::SetRoleState(
 }
 
 Menu::~Menu() {
-    auto* behaviors = static_cast<Detail::ControlBehavior*>(
-        ::Aero::Media::Visual::Impl::ControlBehaviorRuntime(*this));
+    auto* behaviors = static_cast<ControlBehavior*>(
+        ::Aero::Media::Visual::Access::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -346,11 +346,11 @@ namespace Aero::Controls {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
-using namespace ::Aero::Controls::Detail;
-using namespace ::Aero::GuiPrivate::Detail;
+using namespace ::Aero::Controls;
+using namespace ::Aero;
 
-Menu::Impl::
-Impl(
+Menu::Access::
+Access(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input) noexcept
@@ -359,15 +359,15 @@ Impl(
       input_(&input),
       mouseDownHandler_(
           this,
-          &Menu::Impl::
+          &Menu::Access::
               OnMouseDown),
       keyDownHandler_(
           this,
-          &Menu::Impl::
+          &Menu::Access::
               OnKeyDown) {}
 
-Menu::Impl::
-~Impl() noexcept {
+Menu::Access::
+~Access() noexcept {
     while (!records_.Empty()) {
         Menu* menu =
             ResolveMenu(records_.Size() - 1U);
@@ -380,7 +380,7 @@ Menu::Impl::
 }
 
 std::uint32_t
-Menu::Impl::FindMenu(
+Menu::Access::FindMenu(
     const Menu& menu) const noexcept {
     for (std::uint32_t index = 0U;
         index < records_.Size(); ++index) {
@@ -392,7 +392,7 @@ Menu::Impl::FindMenu(
     return UINT32_MAX;
 }
 
-Menu* Menu::Impl::ResolveMenu(
+Menu* Menu::Access::ResolveMenu(
     std::uint32_t index) noexcept {
     ::Aero::Media::Visual* visual =
         index < records_.Size()
@@ -405,9 +405,9 @@ Menu* Menu::Impl::ResolveMenu(
 }
 
 Base::Result<void>
-Menu::Impl::Attach(
+Menu::Access::Attach(
     Menu& menu) noexcept {
-    if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(menu) != tree_ ||
+    if (Aero::ElementPrivate::Tree(menu) != tree_ ||
         FindMenu(menu) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -433,7 +433,7 @@ Menu::Impl::Attach(
 }
 
 Base::Result<bool>
-Menu::Impl::Detach(
+Menu::Access::Detach(
     Menu& menu) noexcept {
     const std::uint32_t index =
         FindMenu(menu);
@@ -454,7 +454,7 @@ Menu::Impl::Detach(
     return true;
 }
 
-MenuItem* Menu::Impl::FindItem(
+MenuItem* Menu::Access::FindItem(
     Menu& menu,
     Base::Object* source) const noexcept {
     if (source == nullptr ||
@@ -484,7 +484,7 @@ MenuItem* Menu::Impl::FindItem(
 }
 
 Base::Result<void>
-    Menu::Impl::Invoke(
+    Menu::Access::Invoke(
     Menu& menu,
     MenuItem& item) noexcept {
     if (item.GetCount() != 0U) {
@@ -519,7 +519,7 @@ Base::Result<void>
     return {};
 }
 
-void Menu::Impl::OnMouseDown(
+void Menu::Access::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args)
     noexcept {
@@ -533,7 +533,7 @@ void Menu::Impl::OnMouseDown(
         FindItem(
             menu, args.GetOriginalSource());
     if (item == nullptr) return;
-    ::Aero::Media::Visual::Impl::SetMenuItemHighlighted(*item, true);
+    ::Aero::Media::Visual::Access::SetMenuItemHighlighted(*item, true);
     Base::Result<void> invoked =
         Invoke(menu, *item);
     if (!invoked) return;
@@ -542,7 +542,7 @@ void Menu::Impl::OnMouseDown(
     args.SetHandled(true);
 }
 
-void Menu::Impl::OnKeyDown(
+void Menu::Access::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     if (args.GetKey() != KeyboardKeyEnter &&

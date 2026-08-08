@@ -3,7 +3,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Gui/RenderTarget.hpp>
+#include <Aero/Render/RenderTarget.hpp>
 
 namespace Aero {
 
@@ -13,7 +13,7 @@ class RenderDevice;
 // UpdateRenderTree(); true means a new immutable frame was published. Hosts may
 // skip GPU work when it returns false unless native exposure/resize requires a
 // re-present. Offscreen and onscreen passes remain explicit for host scheduling.
-class AERO_API IRenderer {
+class AERO_GUI_API IRenderer {
 public:
     virtual ~IRenderer() = default;
 

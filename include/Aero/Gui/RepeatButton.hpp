@@ -4,7 +4,7 @@
 
 namespace Aero::Controls::Primitives {
 
-class AERO_API RepeatButton : public ButtonBase {
+class AERO_GUI_API RepeatButton : public ButtonBase {
     AERO_DECLARE_TYPE(RepeatButton, ButtonBase)
 public:
     RepeatButton() noexcept : RepeatButton(StaticTypeId()) {}

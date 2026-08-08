@@ -1,30 +1,28 @@
 #include <Aero/Gui/XamlReader.hpp>
 #include <Aero/Gui.hpp>
-#include <Aero/Gui/View.hpp>
 
 #include "gui/GuiData.hpp"
-#include "gui/ViewOperations.hpp"
-#include "gui/PropertyInternal.hpp"
+#include "gui/PropertyRuntime.hpp"
 
 #include <utility>
 
 namespace Aero::Markup {
 namespace {
 
-struct GuiLoadScope {
-    GuiLoadScope(
+struct XamlLoadScope {
+    XamlLoadScope(
         Threading::Dispatcher& dispatcher,
         GuiSchema& schema,
         DocumentCache& documents) noexcept
         : factory(
               dispatcher,
-              ::Aero::GuiPrivate::Detail::MetadataPrivate::DependencyProperties(
+              ::Aero::MetadataPrivate::DependencyProperties(
                   schema.Metadata()),
               schema.Metadata()) {
         load.documentCache = &documents;
         load.dispatcher = &dispatcher;
         load.dependencyProperties =
-            &::Aero::GuiPrivate::Detail::MetadataPrivate::DependencyProperties(
+            &::Aero::MetadataPrivate::DependencyProperties(
                 schema.Metadata());
         load.effectCommitMode = EffectCommitMode::Deferred;
     }
@@ -44,8 +42,8 @@ Base::Result<XamlDocument> XamlReader::Load(
             Base::ErrorCode::NotInitialized,
             "Gui must be initialized before XAML loading");
     }
-    Gui::Impl& state = static_cast<Gui::Impl&>(*gui_->impl_);
-    GuiLoadScope scope(state.dispatcher, state.schema, state.documents);
+    GuiState& state = static_cast<GuiState&>(*gui_->state_);
+    XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
     return state.xaml.Load(
         state.xamlProviders, &scope.load, state.allocator,
         uri, settings, diagnostics);
@@ -60,8 +58,8 @@ Base::Result<XamlDocument> XamlReader::Load(
         return Base::Status::Failure(Base::ErrorCode::NotInitialized,
             "Gui must be initialized before XAML loading");
     }
-    Gui::Impl& state = static_cast<Gui::Impl&>(*gui_->impl_);
-    GuiLoadScope scope(state.dispatcher, state.schema, state.documents);
+    GuiState& state = static_cast<GuiState&>(*gui_->state_);
+    XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
     return state.xaml.Parse(
         state.xamlProviders, &scope.load, state.allocator,
         source, baseUri, settings, diagnostics);
@@ -79,7 +77,7 @@ Base::Result<XamlDocument> XamlReader::LoadComponentCore(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "XAML component root is incompatible with the requested type");
     }
-    const Gui::Impl& state = static_cast<const Gui::Impl&>(*gui_->impl_);
+    const GuiState& state = static_cast<const GuiState&>(*gui_->state_);
     if (!state.schema.Metadata().Types().IsDerivedFrom(
             root->RuntimeType(), expectedRoot)) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
@@ -103,8 +101,8 @@ Base::Result<XamlDocument> XamlReader::LoadComponentInto(
             Base::ErrorCode::InvalidArgument,
             "XAML component requires an existing root object");
     }
-    Gui::Impl& state = static_cast<Gui::Impl&>(*gui_->impl_);
-    GuiLoadScope scope(state.dispatcher, state.schema, state.documents);
+    GuiState& state = static_cast<GuiState&>(*gui_->state_);
+    XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
     Base::Result<XamlDocument> loaded = state.xaml.LoadComponentInto(
         state.xamlProviders,
         &scope.load,
@@ -131,8 +129,8 @@ Base::Result<XamlDocument> XamlReader::Parse(
         return Base::Status::Failure(Base::ErrorCode::NotInitialized,
             "Gui must be initialized before XAML parsing");
     }
-    Gui::Impl& state = static_cast<Gui::Impl&>(*gui_->impl_);
-    GuiLoadScope scope(state.dispatcher, state.schema, state.documents);
+    GuiState& state = static_cast<GuiState&>(*gui_->state_);
+    XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
     return state.xaml.Parse(
         state.xamlProviders, &scope.load, state.allocator,
         source, baseUri, settings, diagnostics);
@@ -145,60 +143,11 @@ Base::Result<XamlDocument> XamlReader::LoadCompiled(
         return Base::Status::Failure(Base::ErrorCode::NotInitialized,
             "Gui must be initialized before compiled XAML loading");
     }
-    Gui::Impl& state = static_cast<Gui::Impl&>(*gui_->impl_);
-    GuiLoadScope scope(state.dispatcher, state.schema, state.documents);
+    GuiState& state = static_cast<GuiState&>(*gui_->state_);
+    XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
     return state.xaml.LoadCompiled(
         state.xamlProviders, &scope.load, state.allocator,
         bytes, originUri, XamlReaderSettings{});
-}
-
-Base::Result<void> XamlReader::Mount(
-    Aero::View& view,
-    Controls::ContentControl& host,
-    XamlDocument&& document) noexcept {
-    return View::Operations::MountContent(
-        view, host, std::move(document));
-}
-
-Base::Result<void> XamlReader::Unmount(
-    Aero::View& view,
-    Controls::ContentControl& host) noexcept {
-    return View::Operations::UnmountContent(view, host);
-}
-
-Base::Result<void> XamlReader::LoadResources(
-    Aero::View& view,
-    ResourceLayer layer,
-    Base::StringView uri,
-    ResourceLoadMode mode,
-    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    return View::Operations::LoadResources(
-        view, layer, uri, mode, diagnostics);
-}
-
-Base::Result<void> XamlReader::LoadCompiledResources(
-    Aero::View& view,
-    ResourceLayer layer,
-    Base::Span<const std::uint8_t> bytes,
-    const Base::ResourceUri& originUri,
-    ResourceLoadMode mode) noexcept {
-    return View::Operations::LoadCompiledResources(
-        view, layer, bytes, originUri, mode);
-}
-
-void XamlReader::SetResources(
-    Aero::View& view,
-    ResourceLayer layer,
-    Aero::ResourceDictionary& dictionary,
-    ResourceLoadMode mode) noexcept {
-    View::Operations::SetResourceDictionary(
-        view, layer, dictionary, mode);
-}
-
-Base::Result<void> XamlReader::LoadTheme(
-    Aero::View& view,
-    BuiltInTheme theme) noexcept {
-    return View::Operations::LoadBuiltInTheme(view, theme);
 }
 
 } // namespace Aero::Markup

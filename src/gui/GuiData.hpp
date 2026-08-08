@@ -1,22 +1,22 @@
 #pragma once
 
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "controls/ControlInternal.hpp"
-#include "controls/ItemsInternal.hpp"
-#include "controls/TemplateInternal.hpp"
-#include "markup/MarkupInternal.hpp"
-#include "markup/MarkupWriterInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "controls/ControlRuntime.hpp"
+#include "controls/ItemsRuntime.hpp"
+#include "controls/TemplateRuntime.hpp"
+#include "markup/MarkupRuntime.hpp"
+#include "markup/MarkupWriterRuntime.hpp"
 #include "markup/XamlRuntime.hpp"
-#include "gui/PropertyInternal.hpp"
+#include "gui/PropertyRuntime.hpp"
 #include <Aero/Gui.hpp>
 #include <Aero/Threading.hpp>
 
@@ -24,8 +24,8 @@
 
 namespace Aero {
 
-struct Gui::Impl  : public Base::Object {
-    explicit Impl(Base::IAllocator& value) noexcept
+struct GuiState final : public Base::Object {
+    explicit GuiState(Base::IAllocator& value) noexcept
         : allocator(&value),
           schema(&value),
           documents(&value),
@@ -40,7 +40,7 @@ struct Gui::Impl  : public Base::Object {
     Markup::XamlProviderRegistry xamlProviders;
     Markup::EmbeddedXamlProvider embeddedXaml;
     Markup::FileXamlProvider fileXaml;
-    Markup::Detail::XamlRuntime xaml;
+    Markup::XamlRuntime xaml;
     Media::TextureProvider* textureProvider = nullptr;
     Text::FontProvider* fontProvider = nullptr;
     bool initialized = false;
@@ -57,7 +57,7 @@ inline Base::Result<Meta::PropertyValue> CoerceBindingTargetValue(
     Meta::Registry* metadata,
     const Meta::DependencyProperty& property,
     Meta::PropertyValue value) noexcept {
-    return ::Aero::GuiPrivate::Detail::NormalizeValueForProperty(
+    return ::Aero::NormalizeValueForProperty(
         metadata, property, std::move(value));
 }
 

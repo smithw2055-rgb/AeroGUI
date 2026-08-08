@@ -12,18 +12,18 @@
 #include <cstddef>
 #include <new>
 #include <utility>
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
-namespace Aero::Media::Detail::Animation {
+namespace Aero::Media::Animation::Runtime {
 namespace {
 
 constexpr double Pi = 3.1415926535897932384626433832795;
@@ -131,13 +131,13 @@ bool IsTimingValid(const TimelineTiming& timing) noexcept {
 
 } // namespace
 
-} // namespace Aero::Media::Detail::Animation
+} // namespace Aero::Media::Animation::Runtime
 
-namespace Aero::GuiPrivate::Detail {
+namespace Aero {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
-using namespace Aero::Media::Detail::Animation;
+using namespace Aero::Media::Animation::Runtime;
 using namespace Aero::Media;
 
 struct AnimationEngine::Track {
@@ -1354,4 +1354,4 @@ void AnimationEngine::AnimationFrameHook(void* context) noexcept {
     if (!ticked) manager->lastTickStatus_ = ticked.GetStatus();
 }
 
-} // namespace Aero::Media::Detail
+} // namespace Aero::Media

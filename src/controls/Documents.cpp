@@ -1,13 +1,13 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 #include <Aero/Documents.hpp>
 
 
@@ -17,7 +17,7 @@
 
 namespace Aero::Controls {
 
-struct TextBlock::Impl {
+struct TextBlock::Access {
 public:
     static bool IsTextBlock(const Base::Object& owner) noexcept {
         return owner.RuntimeType() == Controls::TextBlock::StaticTypeId() ||
@@ -406,10 +406,10 @@ public:
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls::Detail {
-using DocumentPrivate = ::Aero::Controls::TextBlock::Impl;
+namespace Aero::Controls {
+using DocumentPrivate = ::Aero::Controls::TextBlock::Access;
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Controls
 
 namespace Aero::Controls {
 
@@ -429,7 +429,7 @@ Documents::TextPointer TextBlock::GetContentStart() noexcept {
 
 Documents::TextPointer TextBlock::GetContentEnd() noexcept {
     Base::Result<std::uint32_t> length =
-        Aero::Controls::Detail::DocumentPrivate::GetLength(*this);
+        Aero::Controls::DocumentPrivate::GetLength(*this);
     return Documents::TextPointer(
         *this,
         length ? length.Value() : 0U,
@@ -442,26 +442,26 @@ namespace Aero::Documents {
 
 std::uint32_t InlineCollectionView::GetCount() const noexcept {
     return owner_ != nullptr
-        ? Aero::Controls::Detail::DocumentPrivate::GetCount(*owner_)
+        ? Aero::Controls::DocumentPrivate::GetCount(*owner_)
         : 0U;
 }
 
 const Inline* InlineCollectionView::GetItem(
     std::uint32_t index) const noexcept {
     return owner_ != nullptr
-        ? Aero::Controls::Detail::DocumentPrivate::At(*owner_, index)
+        ? Aero::Controls::DocumentPrivate::At(*owner_, index)
         : nullptr;
 }
 
 std::uint32_t InlineCollection::GetCount() const noexcept {
     return owner_ != nullptr
-        ? Aero::Controls::Detail::DocumentPrivate::GetCount(*owner_)
+        ? Aero::Controls::DocumentPrivate::GetCount(*owner_)
         : 0U;
 }
 
 Inline* InlineCollection::GetItem(std::uint32_t index) const noexcept {
     return owner_ != nullptr
-        ? Aero::Controls::Detail::DocumentPrivate::At(*owner_, index)
+        ? Aero::Controls::DocumentPrivate::At(*owner_, index)
         : nullptr;
 }
 
@@ -478,7 +478,7 @@ Base::Result<void> InlineCollection::Add(
             Base::ErrorCode::InvalidState,
             "InlineCollection is not bound to an owner");
     }
-    return Aero::Controls::Detail::DocumentPrivate::Add(
+    return Aero::Controls::DocumentPrivate::Add(
         *owner_, std::move(value));
 }
 
@@ -489,14 +489,14 @@ Base::Result<bool> InlineCollection::Remove(
             Base::ErrorCode::InvalidState,
             "InlineCollection is not bound to an owner");
     }
-    return Aero::Controls::Detail::DocumentPrivate::Remove(*owner_, value);
+    return Aero::Controls::DocumentPrivate::Remove(*owner_, value);
 }
 
 void InlineCollection::Clear() noexcept {
     if (owner_ == nullptr) {
         return;
     }
-    (void)Aero::Controls::Detail::DocumentPrivate::Clear(*owner_);
+    (void)Aero::Controls::DocumentPrivate::Clear(*owner_);
 }
 
 Span::~Span() {
@@ -549,16 +549,16 @@ Base::Result<void> Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
     }
     Base::Result<void> appended = inlines_.PushBack(value);
     if (!appended) return appended.GetStatus();
-    Aero::GuiPrivate::Detail::ElementPrivate::Attach(
+    Aero::ElementPrivate::Attach(
         *value, this, GetContentHost(), nullptr);
     pendingInline_ = std::move(value);
-    Controls::TextBlock* host = Aero::Controls::Detail::DocumentPrivate::Host(*this);
+    Controls::TextBlock* host = Aero::Controls::DocumentPrivate::Host(*this);
     return host != nullptr ? host->InvalidateMeasure() : Base::Result<void>{};
 }
 
 void Span::ClearOwnedInlines() noexcept {
     for (Base::Ref<Inline>& value : inlines_) {
-        if (value) Aero::GuiPrivate::Detail::ElementPrivate::Detach(*value);
+        if (value) Aero::ElementPrivate::Detach(*value);
     }
     inlines_.Clear();
     pendingInline_.Reset();
@@ -572,7 +572,7 @@ Base::Result<void> CopyText(
     const Controls::TextBlock& container,
     Base::String& output) noexcept {
     output.Clear();
-    return Aero::Controls::Detail::DocumentPrivate::AppendText(
+    return Aero::Controls::DocumentPrivate::AppendText(
         container, output);
 }
 
@@ -597,7 +597,7 @@ Base::Result<TextPointer> TextPointer::GetPositionAtOffset(
             "TextPointer is not bound to a container");
     }
     Base::Result<std::uint32_t> length =
-        Aero::Controls::Detail::DocumentPrivate::GetLength(*container_);
+        Aero::Controls::DocumentPrivate::GetLength(*container_);
     if (!length) return length.GetStatus();
     const std::int64_t destination =
         static_cast<std::int64_t>(offset_) + delta;
@@ -610,7 +610,7 @@ Base::Result<TextPointer> TextPointer::GetPositionAtOffset(
     const std::uint32_t resolved =
         static_cast<std::uint32_t>(destination);
     Base::Result<bool> boundary =
-        Aero::Controls::Detail::DocumentPrivate::IsUtf8Boundary(
+        Aero::Controls::DocumentPrivate::IsUtf8Boundary(
             *container_, resolved);
     if (!boundary) return boundary.GetStatus();
     if (!boundary.Value()) {
@@ -664,13 +664,13 @@ Base::Result<TextPointer> GetPositionFromPoint(
     Controls::TextBlock& container,
     Aero::Point point,
     bool snapToText) noexcept {
-    return Aero::Controls::Detail::DocumentPrivate::PositionFromPoint(
+    return Aero::Controls::DocumentPrivate::PositionFromPoint(
         container, point, snapToText);
 }
 
 Base::Result<Aero::Rect> GetCharacterRect(
     const TextPointer& position) noexcept {
-    return Aero::Controls::Detail::DocumentPrivate::CharacterRect(position);
+    return Aero::Controls::DocumentPrivate::CharacterRect(position);
 }
 
 Base::StringView Hyperlink::GetNavigateUri() const noexcept {

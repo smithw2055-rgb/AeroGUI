@@ -5,7 +5,7 @@
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
-class AERO_API ContentPresenter : public FrameworkElement {
+class AERO_GUI_API ContentPresenter : public FrameworkElement {
     AERO_DECLARE_TYPE(ContentPresenter, FrameworkElement)
 public:
     ContentPresenter() noexcept;

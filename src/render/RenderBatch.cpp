@@ -1,5 +1,6 @@
 #include "render/GraphicsTypes.hpp"
 #include "render/RenderBatch.hpp"
+#include "render/RenderDeviceState.hpp"
 
 #include <cmath>
 #include <cstring>
@@ -445,163 +446,109 @@ std::uint64_t StableNativePipelineHash(
 
 } // namespace Aero::Graphics
 
-namespace Aero::Render::Detail {
+namespace Aero::Render {
 using namespace ::Aero::Graphics;
 
 std::uint64_t RenderBatch::StableHash() const noexcept {
     std::uint64_t hash = HashOffset;
-    HashValue(hash, steps_.Size());
-    for (const RenderStep& step : steps_) {
-        HashValue(hash, step.kind);
-        HashResource(hash, step.resource);
-        HashRenderPass(hash, step.pass);
-        HashValue(hash, step.textureRegion.x);
-        HashValue(hash, step.textureRegion.y);
-        HashValue(hash, step.textureRegion.width);
-        HashValue(hash, step.textureRegion.height);
-        HashValue(hash, step.textureRegion.mipLevel);
-        HashValue(hash, step.textureRegion.arrayLayer);
-        HashValue(hash, step.textureRegion.bytesPerRow);
-        HashResource(hash, step.drawState.pipeline);
-        for (std::uint32_t slot = 0U; slot < MaxVertexBuffers; ++slot) {
-            HashResource(hash, step.drawState.vertexBuffers[slot]);
-            HashValue(hash, step.drawState.vertexOffsets[slot]);
-        }
-        HashResource(hash, step.drawState.indexBuffer);
-        HashValue(hash, step.drawState.indexOffset);
-        HashValue(hash, step.drawState.indexType);
-        for (std::uint32_t slot = 0U; slot < 4U; ++slot) {
-            HashResource(hash, step.drawState.uniformBuffers[slot]);
-            HashValue(hash, step.drawState.uniformOffsets[slot]);
-            HashValue(hash, step.drawState.uniformSizes[slot]);
-        }
-        for (std::uint32_t slot = 0U; slot < 8U; ++slot) {
-            HashResource(hash, step.drawState.textures[slot]);
-            HashResource(hash, step.drawState.samplers[slot]);
-        }
-        HashRect(hash, step.drawState.scissor);
-        HashValue(hash, step.resourceOffset);
-        HashValue(hash, step.resourceSize);
-        HashValue(hash, step.uploadOffset);
-        HashValue(hash, step.uploadSize);
-        HashValue(hash, step.first);
-        HashValue(hash, step.count);
-        HashValue(hash, step.instanceCount);
-        HashValue(hash, step.firstInstance);
-        HashValue(hash, step.baseVertex);
-        HashValue(hash, step.indexed);
+    HashRenderPass(hash, pass);
+    HashValue(hash, drawState.pipeline.shader);
+    HashValue(hash, drawState.pipeline.blend);
+    HashValue(hash, drawState.pipelineBound);
+    for (std::uint32_t slot = 0U; slot < MaxVertexBuffers; ++slot) {
+        HashResource(hash, drawState.vertexBuffers[slot]);
+        HashValue(hash, drawState.vertexOffsets[slot]);
     }
-    HashValue(hash, uploadBytes_.Size());
-    if (!uploadBytes_.Empty()) {
-        HashBytes(hash, uploadBytes_.Data(), uploadBytes_.Size());
+    HashResource(hash, drawState.indexBuffer);
+    HashValue(hash, drawState.indexOffset);
+    HashValue(hash, drawState.indexType);
+    for (std::uint32_t slot = 0U; slot < 4U; ++slot) {
+        HashResource(hash, drawState.uniformBuffers[slot]);
+        HashValue(hash, drawState.uniformOffsets[slot]);
+        HashValue(hash, drawState.uniformSizes[slot]);
     }
+    for (std::uint32_t slot = 0U; slot < 8U; ++slot) {
+        HashResource(hash, drawState.textures[slot]);
+        HashResource(hash, drawState.samplers[slot]);
+    }
+    HashRect(hash, drawState.scissor);
+    HashValue(hash, first);
+    HashValue(hash, count);
+    HashValue(hash, instanceCount);
+    HashValue(hash, firstInstance);
+    HashValue(hash, baseVertex);
+    HashValue(hash, indexed);
     return hash;
 }
 
-Base::Result<void> RenderBatchBuilder::VerifyRecording() const noexcept {
+Base::Result<void> UiDrawContext::VerifyRecording() const noexcept {
     return finished_
-        ? Base::Result<void>(InvalidState("Render batch builder is finished"))
+        ? Base::Result<void>(InvalidState("UI draw context is finished"))
         : Base::Result<void>();
 }
 
-Base::Result<void> RenderBatchBuilder::Append(
-    const RenderStep& step) noexcept {
-    Base::Result<void> recording = VerifyRecording();
-    if (!recording) return recording;
-    return batch_.steps_.PushBack(step);
-}
-
-Base::Result<void> RenderBatchBuilder::AppendUpload(
-    RenderStep& step,
-    Base::Span<const std::uint8_t> data) noexcept {
-    if (data.Empty()) return InvalidArgument("Upload payload must not be empty");
-    if (batch_.uploadBytes_.Size() > UINT32_MAX - data.Size()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Render batch upload payload exceeds its size limit");
-    }
-    const std::uint32_t originalSize = batch_.uploadBytes_.Size();
-    Base::Result<void> appendedBytes = batch_.uploadBytes_.Append(data);
-    if (!appendedBytes) return appendedBytes;
-    step.uploadOffset = originalSize;
-    step.uploadSize = data.Size();
-    Base::Result<void> appendedStep = Append(step);
-    if (!appendedStep) {
-        while (batch_.uploadBytes_.Size() > originalSize) {
-            batch_.uploadBytes_.PopBack();
-        }
-    }
-    return appendedStep;
-}
-
-Base::Result<void> RenderBatchBuilder::UploadBuffer(
+Base::Result<void> UiDrawContext::UploadBuffer(
     ResourceHandle buffer,
     std::uint64_t destinationOffset,
     Base::Span<const std::uint8_t> data) noexcept {
-    if (!buffer.IsValid() || buffer.type != ResourceType::Buffer) {
+    Base::Result<void> recording = VerifyRecording();
+    if (!recording) return recording;
+    if (device_ == nullptr || data.Empty() ||
+        !buffer.IsValid() || buffer.type != ResourceType::Buffer) {
         return InvalidState("Buffer uploads require a valid buffer");
     }
-    RenderStep step;
-    step.kind = RenderStepKind::UploadBuffer;
-    step.resource = buffer;
-    step.resourceOffset = destinationOffset;
-    step.resourceSize = data.Size();
-    return AppendUpload(step, data);
+    return device_->UpdateBuffer(buffer, destinationOffset, data);
 }
 
-Base::Result<void> RenderBatchBuilder::UploadTexture(
+Base::Result<void> UiDrawContext::UploadTexture(
     ResourceHandle texture,
     TextureRegion region,
     Base::Span<const std::uint8_t> data) noexcept {
-    if (inRenderPass_ || !texture.IsValid() ||
+    Base::Result<void> recording = VerifyRecording();
+    if (!recording) return recording;
+    if (device_ == nullptr || inRenderPass_ || data.Empty() ||
+        !texture.IsValid() ||
         (texture.type != ResourceType::Texture &&
          texture.type != ResourceType::RenderTarget) ||
         region.width == 0U || region.height == 0U ||
         region.bytesPerRow == 0U) {
         return InvalidState("Texture uploads require a valid region outside a render pass");
     }
-    RenderStep step;
-    step.kind = RenderStepKind::UploadTexture;
-    step.resource = texture;
-    step.textureRegion = region;
-    return AppendUpload(step, data);
+    return device_->UpdateTexture(texture, region, data);
 }
 
-Base::Result<void> RenderBatchBuilder::BeginRenderPass(
+Base::Result<void> UiDrawContext::BeginRenderPass(
     const RenderPassDescriptor& descriptor) noexcept {
     if (inRenderPass_) return InvalidState("A render pass is already active");
     Base::Result<void> valid = ValidatePassDescriptorBasic(descriptor);
     if (!valid) return valid;
-    RenderStep step;
-    step.kind = RenderStepKind::BeginPass;
-    step.pass = descriptor;
-    Base::Result<void> appended = Append(step);
-    if (appended) {
-        inRenderPass_ = true;
-        state_ = {};
-    }
-    return appended;
-}
-
-Base::Result<void> RenderBatchBuilder::EndRenderPass() noexcept {
-    if (!inRenderPass_) return InvalidState("No render pass is active");
-    RenderStep step;
-    step.kind = RenderStepKind::EndPass;
-    Base::Result<void> appended = Append(step);
-    if (appended) inRenderPass_ = false;
-    return appended;
-}
-
-Base::Result<void> RenderBatchBuilder::BindPipeline(ResourceHandle pipeline) noexcept {
-    if (!inRenderPass_ || !pipeline.IsValid() ||
-        pipeline.type != ResourceType::Pipeline) {
-        return InvalidState("Pipeline binding requires an active render pass");
-    }
-    state_.pipeline = pipeline;
+    pass_ = descriptor;
+    inRenderPass_ = true;
+    firstDrawInPass_ = true;
+    state_ = {};
     return {};
 }
 
-Base::Result<void> RenderBatchBuilder::BindVertexBuffer(
+Base::Result<void> UiDrawContext::EndRenderPass() noexcept {
+    if (!inRenderPass_) return InvalidState("No render pass is active");
+    inRenderPass_ = false;
+    return {};
+}
+
+Base::Result<void> UiDrawContext::BindPipeline(UiPipelineKey pipeline) noexcept {
+    if (!inRenderPass_ ||
+        static_cast<std::uint8_t>(pipeline.shader) >
+            static_cast<std::uint8_t>(UiShader::Glyph) ||
+        static_cast<std::uint8_t>(pipeline.blend) >
+            static_cast<std::uint8_t>(UiBlendMode::Opaque)) {
+        return InvalidState("Pipeline binding requires an active render pass");
+    }
+    state_.pipeline = pipeline;
+    state_.pipelineBound = true;
+    return {};
+}
+
+Base::Result<void> UiDrawContext::BindVertexBuffer(
     std::uint32_t slot, ResourceHandle buffer, std::uint64_t offset) noexcept {
     if (!inRenderPass_ || slot >= MaxVertexBuffers ||
         !buffer.IsValid() || buffer.type != ResourceType::Buffer) {
@@ -612,7 +559,7 @@ Base::Result<void> RenderBatchBuilder::BindVertexBuffer(
     return {};
 }
 
-Base::Result<void> RenderBatchBuilder::BindIndexBuffer(
+Base::Result<void> UiDrawContext::BindIndexBuffer(
     ResourceHandle buffer, IndexType type, std::uint64_t offset) noexcept {
     if (!inRenderPass_ || !buffer.IsValid() ||
         buffer.type != ResourceType::Buffer) {
@@ -624,7 +571,7 @@ Base::Result<void> RenderBatchBuilder::BindIndexBuffer(
     return {};
 }
 
-Base::Result<void> RenderBatchBuilder::BindUniformBuffer(
+Base::Result<void> UiDrawContext::BindUniformBuffer(
     std::uint32_t slot, ResourceHandle buffer,
     std::uint64_t offset, std::uint32_t size) noexcept {
     if (!inRenderPass_ || slot >= 4U || !buffer.IsValid() ||
@@ -637,7 +584,7 @@ Base::Result<void> RenderBatchBuilder::BindUniformBuffer(
     return {};
 }
 
-Base::Result<void> RenderBatchBuilder::BindTextureSampler(
+Base::Result<void> UiDrawContext::BindTextureSampler(
     std::uint32_t slot, ResourceHandle texture,
     ResourceHandle sampler) noexcept {
     if (!inRenderPass_ || slot >= 8U || !texture.IsValid() ||
@@ -652,7 +599,7 @@ Base::Result<void> RenderBatchBuilder::BindTextureSampler(
     return {};
 }
 
-Base::Result<void> RenderBatchBuilder::SetScissor(Base::Rect rect) noexcept {
+Base::Result<void> UiDrawContext::SetScissor(Base::Rect rect) noexcept {
     if (!inRenderPass_ || !Base::IsValidRect(rect)) {
         return InvalidState("Scissor state requires a valid rectangle in a render pass");
     }
@@ -660,47 +607,75 @@ Base::Result<void> RenderBatchBuilder::SetScissor(Base::Rect rect) noexcept {
     return {};
 }
 
-Base::Result<void> RenderBatchBuilder::Draw(
+Base::Result<void> UiDrawContext::Draw(
     std::uint32_t vertexCount, std::uint32_t instanceCount,
     std::uint32_t firstVertex, std::uint32_t firstInstance) noexcept {
     if (!inRenderPass_ || vertexCount == 0U || instanceCount == 0U) {
         return InvalidState("Draw requires an active render pass and non-zero counts");
     }
-    RenderStep step;
-    step.kind = RenderStepKind::Draw;
-    step.drawState = state_;
-    step.first = firstVertex;
-    step.count = vertexCount;
-    step.instanceCount = instanceCount;
-    step.firstInstance = firstInstance;
-    return Append(step);
+    return SubmitDraw(
+        vertexCount, instanceCount, firstVertex,
+        firstInstance, 0, false);
 }
 
-Base::Result<void> RenderBatchBuilder::DrawIndexed(
+Base::Result<void> UiDrawContext::DrawIndexed(
     std::uint32_t indexCount, std::uint32_t instanceCount,
     std::uint32_t firstIndex, std::int32_t baseVertex,
     std::uint32_t firstInstance) noexcept {
     if (!inRenderPass_ || indexCount == 0U || instanceCount == 0U) {
         return InvalidState("Indexed draw requires an active render pass and non-zero counts");
     }
-    RenderStep step;
-    step.kind = RenderStepKind::Draw;
-    step.drawState = state_;
-    step.first = firstIndex;
-    step.count = indexCount;
-    step.instanceCount = instanceCount;
-    step.firstInstance = firstInstance;
-    step.baseVertex = baseVertex;
-    step.indexed = true;
-    return Append(step);
+    return SubmitDraw(
+        indexCount, instanceCount, firstIndex,
+        firstInstance, baseVertex, true);
 }
 
-Base::Result<RenderBatch> RenderBatchBuilder::Finish() noexcept {
+Base::Result<void> UiDrawContext::SubmitDraw(
+    std::uint32_t count,
+    std::uint32_t instanceCount,
+    std::uint32_t first,
+    std::uint32_t firstInstance,
+    std::int32_t baseVertex,
+    bool indexed) noexcept {
+    if (!state_.pipelineBound) {
+        return InvalidState("Draw requires a UI pipeline key");
+    }
+    RenderBatch batch;
+    batch.pass = pass_;
+    batch.drawState = state_;
+    batch.first = first;
+    batch.count = count;
+    batch.instanceCount = instanceCount;
+    batch.firstInstance = firstInstance;
+    batch.baseVertex = baseVertex;
+    batch.indexed = indexed;
+    Base::Result<FenceValue> submitted =
+        device_->DrawBatch(std::move(batch));
+    if (!submitted) return submitted.GetStatus();
+    lastFence_ = submitted.Value();
+
+    // Later draws in the same logical pass preserve previous attachments.
+    if (firstDrawInPass_) {
+        for (std::uint32_t index = 0U;
+             index < pass_.colorAttachmentCount;
+             ++index) {
+            pass_.colorAttachments[index].load = LoadOperation::Load;
+        }
+        if (pass_.hasDepthStencil) {
+            pass_.depthStencil.depthLoad = LoadOperation::Load;
+            pass_.depthStencil.stencilLoad = LoadOperation::Load;
+        }
+        firstDrawInPass_ = false;
+    }
+    return {};
+}
+
+Base::Result<FenceValue> UiDrawContext::Finish() noexcept {
     Base::Result<void> recording = VerifyRecording();
     if (!recording) return recording.GetStatus();
-    if (inRenderPass_) return InvalidState("Render batch has an unclosed pass");
+    if (inRenderPass_) return InvalidState("UI draw context has an unclosed pass");
     finished_ = true;
-    return std::move(batch_);
+    return lastFence_;
 }
 
-} // namespace Aero::Render::Detail
+} // namespace Aero::Render

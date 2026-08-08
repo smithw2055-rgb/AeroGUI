@@ -4,7 +4,7 @@
 
 namespace Aero::Text {
 
-class AERO_API FontManager  {
+class FontManager  {
 public:
     explicit FontManager(
         Base::IAllocator* allocator = nullptr) noexcept

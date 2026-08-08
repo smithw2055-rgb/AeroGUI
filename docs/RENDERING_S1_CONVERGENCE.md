@@ -1,5 +1,8 @@
 # Rendering S1 convergence (historical)
 
+> Historical milestone record. See `ARCHITECTURE.md` and
+> `WINDOW_HOSTING.md` for the current rendering and presentation model.
+
 S1 removed the former `void* + RenderDeviceFunctions/RenderSurfaceFunctions`
 dispatch system and replaced it with ordinary source-private C++ backend
 contracts. That work is retained in Git history.

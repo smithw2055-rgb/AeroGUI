@@ -13,23 +13,17 @@ std::atomic<Application*> currentApplication{nullptr};
 }
 
 Application::Application(Meta::TypeId runtimeType) noexcept
-    : runtimeType_(runtimeType),
-      impl_(new (std::nothrow) Impl()) {}
+    : runtimeType_(runtimeType) {}
 
 Application::~Application() noexcept {
     Detach();
-    delete impl_;
-    impl_ = nullptr;
 }
 
 Window::Window(Meta::TypeId runtimeType) noexcept
-    : ContentControl(runtimeType),
-      impl_(new (std::nothrow) Impl()) {}
+    : ContentControl(runtimeType) {}
 
 Window::~Window() noexcept {
-    if (impl_ != nullptr) impl_->hostState = nullptr;
-    delete impl_;
-    impl_ = nullptr;
+    hostState_ = nullptr;
 }
 
 Application* Application::Current() noexcept {
@@ -38,10 +32,9 @@ Application* Application::Current() noexcept {
 
 std::uint32_t WindowCollection::GetCount() const noexcept {
     if (owner_ == nullptr) return 0U;
-    const auto* state = owner_->impl_ != nullptr
-        ? static_cast<const ::Aero::App::Detail::ApplicationHostState*>(
-              owner_->impl_->hostState)
-        : nullptr;
+    const auto* state =
+        static_cast<const ::Aero::App::ApplicationHostState*>(
+            owner_->hostState_);
     if (state != nullptr && state->windowCount != nullptr) {
         return state->windowCount(state->context);
     }
@@ -50,10 +43,9 @@ std::uint32_t WindowCollection::GetCount() const noexcept {
 
 Window* WindowCollection::GetItem(std::uint32_t index) const noexcept {
     if (owner_ == nullptr) return nullptr;
-    const auto* state = owner_->impl_ != nullptr
-        ? static_cast<const ::Aero::App::Detail::ApplicationHostState*>(
-              owner_->impl_->hostState)
-        : nullptr;
+    const auto* state =
+        static_cast<const ::Aero::App::ApplicationHostState*>(
+            owner_->hostState_);
     if (state != nullptr && state->windowAt != nullptr) {
         return state->windowAt(state->context, index);
     }
@@ -76,42 +68,33 @@ void Application::SetMainWindow(
     Base::Ref<Window> value) noexcept {
     mainWindow_ = value.Get();
     mainWindowOwner_ = Base::Ref<Base::Object>(std::move(value));
-    auto* state = impl_ != nullptr
-        ? static_cast<::Aero::App::Detail::ApplicationHostState*>(
-              impl_->hostState)
-        : nullptr;
+    auto* state = static_cast<::Aero::App::ApplicationHostState*>(
+        hostState_);
     if (state != nullptr && state->setMainWindow != nullptr) {
         state->setMainWindow(state->context, mainWindow_);
     }
 }
 
-void Application::Impl::SetMainWindowBorrowed(
-    Application& application,
-    Window* value) noexcept {
-    application.mainWindowOwner_.Reset();
-    application.mainWindow_ = value;
-    auto* state = application.impl_ != nullptr
-        ? static_cast<::Aero::App::Detail::ApplicationHostState*>(
-              application.impl_->hostState)
-        : nullptr;
+void Application::AttachMainWindow(Window* value) noexcept {
+    mainWindowOwner_.Reset();
+    mainWindow_ = value;
+    auto* state = static_cast<::Aero::App::ApplicationHostState*>(
+        hostState_);
     if (state != nullptr && state->setMainWindow != nullptr) {
         state->setMainWindow(state->context, value);
     }
 }
 
-Base::Ref<Window> Application::Impl::MainWindowOwner(
-    Application& application) noexcept {
-    return application.mainWindow_ != nullptr
-        ? Base::Ref<Window>::TryFromBorrowed(*application.mainWindow_)
+Base::Ref<Window> Application::MainWindowOwner() noexcept {
+    return mainWindow_ != nullptr
+        ? Base::Ref<Window>::TryFromBorrowed(*mainWindow_)
         : Base::Ref<Window>{};
 }
 
 
 void Application::Shutdown(int exitCode) noexcept {
-    auto* state = impl_ != nullptr
-        ? static_cast<::Aero::App::Detail::ApplicationHostState*>(
-              impl_->hostState)
-        : nullptr;
+    auto* state = static_cast<::Aero::App::ApplicationHostState*>(
+        hostState_);
     if (state != nullptr && state->requestExit != nullptr) state->requestExit(state->context, exitCode);
 }
 
@@ -123,11 +106,6 @@ void Application::OnDeactivated(EventArgs&) noexcept {}
 Base::Result<void> Application::Attach(
     void* hostState,
     Window* mainWindow) noexcept {
-    if (impl_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Application implementation allocation failed");
-    }
     Application* expected = nullptr;
     if (!currentApplication.compare_exchange_strong(
             expected,
@@ -138,9 +116,9 @@ Base::Result<void> Application::Attach(
             Base::ErrorCode::AlreadyExists,
             "A default Application is already active in this process");
     }
-    impl_->hostState = hostState;
+    hostState_ = hostState;
     if (mainWindow_ == nullptr && mainWindow != nullptr) {
-        Impl::SetMainWindowBorrowed(*this, mainWindow);
+        AttachMainWindow(mainWindow);
     }
     return {};
 }
@@ -152,7 +130,7 @@ void Application::Detach() noexcept {
         nullptr,
         std::memory_order_acq_rel,
         std::memory_order_acquire));
-    if (impl_ != nullptr) impl_->hostState = nullptr;
+    hostState_ = nullptr;
     mainWindow_ = nullptr;
     mainWindowOwner_.Reset();
 }

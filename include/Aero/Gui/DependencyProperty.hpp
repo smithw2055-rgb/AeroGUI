@@ -337,7 +337,7 @@ struct FrameworkPropertyMetadata : PropertyMetadata {
     }
 };
 
-class AERO_API DependencyPropertyKey {
+class AERO_GUI_API DependencyPropertyKey {
 public:
     DependencyPropertyKey() noexcept = default;
 
@@ -372,7 +372,7 @@ struct DependencyPropertyRegistrationResult {
     DependencyPropertyKey readOnlyKey;
 };
 
-class AERO_API DependencyProperty {
+class AERO_GUI_API DependencyProperty {
 public:
     DependencyProperty(DependencyProperty&&) noexcept = default;
     DependencyProperty& operator=(DependencyProperty&&) noexcept = default;
@@ -436,7 +436,7 @@ private:
     Base::Vector<MetadataEntry> metadata_;
 };
 
-class AERO_API DependencyPropertyRegistry {
+class AERO_GUI_API DependencyPropertyRegistry {
 public:
     DependencyPropertyRegistry(
         TypeRegistry& typeRegistry,
@@ -563,10 +563,10 @@ using Meta::ValueCodec;
 using ::Aero::Threading::DispatcherObject;
 using ::Aero::Threading::DispatcherReentrancyGuard;
 
-class AERO_API DependencyObject : public DispatcherObject {
+class AERO_GUI_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, Base::Object)
 public:
-    struct Impl;
+    struct Access;
 
     TypeId RuntimeType() const noexcept override {
         return runtimeType_;

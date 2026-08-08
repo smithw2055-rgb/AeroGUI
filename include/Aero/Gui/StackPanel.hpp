@@ -5,7 +5,7 @@
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 
-class AERO_API StackPanel : public Panel {
+class AERO_GUI_API StackPanel : public Panel {
     AERO_DECLARE_TYPE(StackPanel, Panel)
 public:
     StackPanel() noexcept;
@@ -18,7 +18,7 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
 };
 
-class AERO_API DockPanel : public Panel {
+class AERO_GUI_API DockPanel : public Panel {
     AERO_DECLARE_TYPE(DockPanel, Panel)
 public:
     DockPanel() noexcept : Panel(StaticTypeId()) {}
@@ -34,7 +34,7 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
 };
 
-class AERO_API WrapPanel : public Panel {
+class AERO_GUI_API WrapPanel : public Panel {
     AERO_DECLARE_TYPE(WrapPanel, Panel)
 public:
     WrapPanel() noexcept : Panel(StaticTypeId()) {}
@@ -53,7 +53,7 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
 };
 
-class AERO_API UniformGrid : public Panel {
+class AERO_GUI_API UniformGrid : public Panel {
     AERO_DECLARE_TYPE(UniformGrid, Panel)
 public:
     UniformGrid() noexcept : Panel(StaticTypeId()) {}
@@ -77,7 +77,7 @@ private:
         std::uint32_t& columns) const noexcept;
 };
 
-class AERO_API Canvas : public Panel {
+class AERO_GUI_API Canvas : public Panel {
     AERO_DECLARE_TYPE(Canvas, Panel)
 public:
     Canvas() noexcept;

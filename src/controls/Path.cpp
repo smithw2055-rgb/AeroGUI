@@ -2,20 +2,20 @@
 #include <Aero/Shapes.hpp>
 
 #include "render/RenderResources.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "media/AnimationInternal.hpp"
-#include "media/BrushInternal.hpp"
-#include "media/EffectInternal.hpp"
-#include "media/TransformInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "media/AnimationRuntime.hpp"
+#include "media/BrushRuntime.hpp"
+#include "media/EffectRuntime.hpp"
+#include "media/TransformRuntime.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -875,8 +875,8 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
 
 void Path::ReleaseMesh() noexcept {
     auto* services =
-        static_cast<Aero::Render::Detail::MeshResources*>(
-            ::Aero::Media::Visual::Impl::MeshResourcesRuntime(*this));
+        static_cast<Aero::Render::MeshResources*>(
+            ::Aero::Media::Visual::Access::MeshResourcesRuntime(*this));
     if (mesh_ != InvalidRenderMeshId &&
         services != nullptr &&
         services->release != nullptr &&
@@ -901,11 +901,11 @@ void Path::AttachMeshResources(
     void* rawServices,
     bool force) noexcept {
     auto* services =
-        static_cast<Aero::Render::Detail::MeshResources*>(
+        static_cast<Aero::Render::MeshResources*>(
             rawServices);
     auto* currentServices =
-        static_cast<Aero::Render::Detail::MeshResources*>(
-            ::Aero::Media::Visual::Impl::MeshResourcesRuntime(*this));
+        static_cast<Aero::Render::MeshResources*>(
+            ::Aero::Media::Visual::Access::MeshResourcesRuntime(*this));
     if (!force &&
         currentServices == services &&
         (services == nullptr ||
@@ -931,8 +931,8 @@ Base::Result<void> Path::EnsureMesh() noexcept {
         EnsureGeometry();
     if (!geometry) return geometry.GetStatus();
     auto* services =
-        static_cast<Aero::Render::Detail::MeshResources*>(
-            ::Aero::Media::Visual::Impl::MeshResourcesRuntime(*this));
+        static_cast<Aero::Render::MeshResources*>(
+            ::Aero::Media::Visual::Access::MeshResourcesRuntime(*this));
     if (services == nullptr ||
         services->create == nullptr) {
         return {};
@@ -1033,7 +1033,7 @@ Size Path::MeasureOverride(
 
 void Path::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     Base::Ref<Geometry> authoredGeometry = GetData();
     if (authoredGeometry && authoredGeometry->RuntimeType() ==
             PathGeometry::StaticTypeId()) {
@@ -1099,13 +1099,13 @@ void Path::OnRender(
     if (mesh_ != InvalidRenderMeshId) {
         Base::Result<void> drawn =
             builder.DrawMesh(
-                mesh_, ::Aero::Media::Detail::SampleBrush(GetFill()));
+                mesh_, ::Aero::Media::SampleBrush(GetFill()));
         if (!drawn) return;
     }
     if (strokeMesh_ != InvalidRenderMeshId) {
         Base::Result<void> drawn =
             builder.DrawMesh(
-                strokeMesh_, ::Aero::Media::Detail::SampleBrush(GetStroke()));
+                strokeMesh_, ::Aero::Media::SampleBrush(GetStroke()));
         if (!drawn) return;
     }
     static_cast<void>(builder.PopTransform());

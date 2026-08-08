@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-namespace Aero::Render::Detail { class RenderTree; }
+namespace Aero::Render { class RenderTree; }
 
 namespace Aero::Render {
 
@@ -26,9 +26,9 @@ using Color = Base::Color;
 using Transform2D = Base::Transform2D;
 using Rect = Base::Rect;
 
-AERO_API bool IsFinite(Color value) noexcept;
-AERO_API bool IsFinite(Transform2D value) noexcept;
-AERO_API bool IsValidOpacity(double value) noexcept;
+bool IsFinite(Color value) noexcept;
+bool IsFinite(Transform2D value) noexcept;
+bool IsValidOpacity(double value) noexcept;
 
 enum class RenderCommandKind : std::uint8_t {
     PushClip = 0U,
@@ -57,7 +57,7 @@ struct RenderCommand {
     double scalar = 0.0;
 };
 
-class AERO_API DisplayList {
+class DisplayList {
 public:
     DisplayList() noexcept = default;
 
@@ -71,11 +71,11 @@ public:
 
 private:
     friend class DisplayListBuilder;
-    friend class ::Aero::Render::Detail::RenderTree;
+    friend class ::Aero::Render::RenderTree;
     Base::Vector<RenderCommand> commands_;
 };
 
-class AERO_API DisplayListBuilder {
+class DisplayListBuilder {
 public:
     DisplayListBuilder() noexcept = default;
 
@@ -120,7 +120,7 @@ namespace Aero {
 // Source-private bridge used by FrameworkElement::OnRender implementations.
 // Keep it next to DisplayListBuilder instead of recreating a broad render
 // umbrella header.
-struct Media::DrawingContext::Impl {
+struct Media::DrawingContext::Access {
     static ::Aero::Media::DrawingContext Create(
         Render::DisplayListBuilder& builder) noexcept {
         return ::Aero::Media::DrawingContext(&builder);
@@ -135,6 +135,6 @@ struct Media::DrawingContext::Impl {
 
 } // namespace Aero
 
-namespace Aero::Render::Detail {
-using DrawingPrivate = ::Aero::Media::DrawingContext::Impl;
-} // namespace Aero::Render::Detail
+namespace Aero::Render {
+using DrawingPrivate = ::Aero::Media::DrawingContext::Access;
+} // namespace Aero::Render

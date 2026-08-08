@@ -6,7 +6,7 @@
 
 namespace Aero::Controls {
 
-class AERO_API AlternationConverter : public Base::Object {
+class AERO_GUI_API AlternationConverter : public Base::Object {
     AERO_DECLARE_TYPE(AlternationConverter, Base::Object)
 public:
     AlternationConverter() noexcept

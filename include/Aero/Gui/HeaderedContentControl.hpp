@@ -13,7 +13,7 @@ enum class ExpandDirection : std::uint8_t {
     Right,
 };
 
-class AERO_API HeaderedContentControl
+class AERO_GUI_API HeaderedContentControl
     : public ContentControl {
     AERO_DECLARE_TYPE(
         HeaderedContentControl,
@@ -40,7 +40,7 @@ protected:
     ~HeaderedContentControl() override = default;
 };
 
-class AERO_API GroupBox
+class AERO_GUI_API GroupBox
     : public HeaderedContentControl {
     AERO_DECLARE_TYPE(
         GroupBox,
@@ -51,13 +51,13 @@ public:
     ~GroupBox() override = default;
 };
 
-class AERO_API Label : public ContentControl {
+class AERO_GUI_API Label : public ContentControl {
     AERO_DECLARE_TYPE(Label, ContentControl)
 public:
     Label() noexcept : ContentControl(StaticTypeId()) {}
 };
 
-class AERO_API Expander
+class AERO_GUI_API Expander
     : public HeaderedContentControl {
     AERO_DECLARE_TYPE(
         Expander,
@@ -101,7 +101,7 @@ private:
             args) noexcept;
 };
 
-class AERO_API TabItem
+class AERO_GUI_API TabItem
     : public HeaderedContentControl {
     AERO_DECLARE_TYPE(
         TabItem,
@@ -117,7 +117,7 @@ public:
     inline static constexpr DependencyProperty<bool> IsSelectedProperty{"IsSelected"};
 };
 
-class AERO_API TabControl : public Control {
+class AERO_GUI_API TabControl : public Control {
     AERO_DECLARE_TYPE(TabControl, Control)
 public:
     TabControl() noexcept;
@@ -208,7 +208,7 @@ private:
 
 // Wraps tab headers according to the nearest templated TabControl's strip
 // placement, matching the WPF TabPanel layout contract.
-class AERO_API TabPanel : public Panel {
+class AERO_GUI_API TabPanel : public Panel {
     AERO_DECLARE_TYPE(TabPanel, Panel)
 public:
     TabPanel() noexcept : Panel(StaticTypeId()) {}

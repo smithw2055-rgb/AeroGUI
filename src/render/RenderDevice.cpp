@@ -1,5 +1,5 @@
-#include "render/RenderDeviceInternal.hpp"
-#include "render/RenderTargetInternal.hpp"
+#include "render/RenderDeviceState.hpp"
+#include "render/RenderTargetState.hpp"
 
 #include <new>
 
@@ -17,17 +17,17 @@ Base::Status NotInitialized(const char* message) noexcept {
 }
 
 bool ApplyBackendHealth(
-    RenderDevice::Impl& device,
-    ::Aero::Render::Detail::BackendHealth health) noexcept {
+    RenderDevice::Access& device,
+    ::Aero::Render::BackendHealth health) noexcept {
     const RenderDeviceState previous = device.state;
     switch (health) {
-    case ::Aero::Render::Detail::BackendHealth::Ready:
+    case ::Aero::Render::BackendHealth::Ready:
         device.state = RenderDeviceState::Ready;
         break;
-    case ::Aero::Render::Detail::BackendHealth::DeviceLost:
+    case ::Aero::Render::BackendHealth::DeviceLost:
         device.state = RenderDeviceState::DeviceLost;
         break;
-    case ::Aero::Render::Detail::BackendHealth::Failed:
+    case ::Aero::Render::BackendHealth::Failed:
         device.state = RenderDeviceState::Failed;
         break;
     }
@@ -38,7 +38,7 @@ bool ApplyBackendHealth(
 
 RenderDevice::RenderDevice(
     ConstructionToken,
-    Impl* implementation) noexcept
+    Access* implementation) noexcept
     : impl_(implementation) {}
 
 RenderDevice::~RenderDevice() noexcept {
@@ -58,36 +58,14 @@ std::uint64_t RenderDevice::Generation() const noexcept {
 }
 
 Base::Result<RenderFrameStatistics> RenderDevice::Analyze(
-    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
-    Base::Result<void> valid = ::Aero::Render::Detail::ValidateRenderFrame(frame);
+    const ::Aero::Render::RenderFrame& frame) noexcept {
+    Base::Result<void> valid = ::Aero::Render::ValidateRenderFrame(frame);
     if (!valid) return valid.GetStatus();
 
     RenderFrameStatistics result;
     result.sourceCommandCount = frame.Commands().Size();
     result.batchingEnabled = true;
     return result;
-}
-
-void RenderDevice::MergeBackendStatistics(
-    RenderFrameStatistics& result) const noexcept {
-    const RenderFrameStatistics native = impl_ != nullptr
-        ? impl_->LastFrameStatistics()
-        : RenderFrameStatistics{};
-    result.sourceCommandCount = native.sourceCommandCount != 0U
-        ? native.sourceCommandCount
-        : result.sourceCommandCount;
-    result.drawPacketCount = native.drawPacketCount;
-    result.batchCount = native.batchCount;
-    result.mergedPacketCount = native.mergedPacketCount;
-    result.barrierCount = native.barrierCount;
-    result.batchingEnabled = native.batchingEnabled;
-    result.drawCallCount = native.drawCallCount != 0U
-        ? native.drawCallCount
-        : result.batchCount;
-    result.instanceCount = native.instanceCount != 0U
-        ? native.instanceCount
-        : result.drawPacketCount;
-    result.stateBindingCount = native.stateBindingCount;
 }
 
 void RenderDevice::NotifyDeviceLost() noexcept {
@@ -113,7 +91,7 @@ Base::Result<void> RenderDevice::Restore() noexcept {
         }
         return restored.GetStatus();
     }
-    ApplyBackendHealth(*impl_, ::Aero::Render::Detail::BackendHealth::Ready);
+    ApplyBackendHealth(*impl_, ::Aero::Render::BackendHealth::Ready);
     return {};
 }
 
@@ -126,34 +104,25 @@ Base::Result<void> RenderDevice::WaitIdle(
 
 } // namespace Aero
 
-namespace Aero::Render::Detail {
+namespace Aero::Render {
 
-class HeadlessDeviceState final : public Aero::RenderDevice::Impl {
+class HeadlessDeviceState final : public Aero::RenderDevice::Access {
 public:
     explicit HeadlessDeviceState(Base::IAllocator& allocator) noexcept
-        : Aero::RenderDevice::Impl(allocator) {}
+        : Aero::RenderDevice::Access(allocator) {}
 
     RenderBackendKind Backend() const noexcept override {
         return RenderBackendKind::Headless;
     }
-    Base::Result<void> RenderOffscreen(
-        const void*,
-        const ::Aero::Render::Detail::RenderFrame&) noexcept override { return {}; }
     Base::Result<::Aero::Graphics::FenceValue> DrawBatch(
-        ::Aero::Render::Detail::RenderBatch&&) noexcept override {
+        ::Aero::Render::RenderBatch&&) noexcept override {
         return ::Aero::Graphics::FenceValue{0U};
     }
-    void ReleaseRenderer(const void*) noexcept override {}
     void NotifyDeviceLost() noexcept override {}
     Base::Result<void> RestoreDevice() noexcept override { return {}; }
     Base::Result<void> WaitIdle(std::uint32_t) noexcept override { return {}; }
     BackendHealth GetDeviceHealth() const noexcept override {
         return BackendHealth::Ready;
-    }
-    ::Aero::RenderFrameStatistics
-    LastFrameStatistics() const noexcept override { return {}; }
-    ::Aero::Render::Detail::RenderResources Resources() noexcept override {
-        return {};
     }
     ::Aero::Graphics::DeviceCapabilities
     QueryNativeDeviceCapabilities() const noexcept override { return {}; }
@@ -188,17 +157,34 @@ public:
     }
     Base::Result<void> ConfigureNativePipeline(
         ::Aero::Graphics::ResourceHandle,
-        ::Aero::Render::Detail::UiPipelineKey) noexcept override {
+        ::Aero::Render::UiPipelineKey) noexcept override {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "Headless render device has no pipelines");
     }
     Base::Result<void> SubmitNativeBatch(
-        const ::Aero::Render::Detail::RenderBatch&,
+        const ::Aero::Render::RenderBatch&,
+        ::Aero::Graphics::ResourceHandle,
         ::Aero::Graphics::FenceValue) noexcept override {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "Headless render device cannot submit native commands");
+    }
+    Base::Result<void> UpdateNativeBuffer(
+        ::Aero::Graphics::ResourceHandle,
+        std::uint64_t,
+        Base::Span<const std::uint8_t>) noexcept override {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "Headless render device has no buffers");
+    }
+    Base::Result<void> UpdateNativeTexture(
+        ::Aero::Graphics::ResourceHandle,
+        const ::Aero::Graphics::TextureRegion&,
+        Base::Span<const std::uint8_t>) noexcept override {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "Headless render device has no textures");
     }
     ::Aero::Graphics::FenceValue
     NativeLastSubmittedFence() const noexcept override { return 0U; }
@@ -208,9 +194,9 @@ public:
 };
 
 Base::Result<Base::Ref<Aero::RenderDevice>> AdoptRenderDevice(
-    Aero::RenderDevice::Impl* backend,
+    Aero::RenderDevice::Access* backend,
     Base::IAllocator* allocator) noexcept {
-    return ::Aero::RenderDevice::Impl::Create(backend, allocator);
+    return ::Aero::RenderDevice::Access::Create(backend, allocator);
 }
 
 Base::Result<Base::Ref<Aero::RenderDevice>> CreateHeadlessRenderDevice(
@@ -226,33 +212,13 @@ Base::Result<Base::Ref<Aero::RenderDevice>> CreateHeadlessRenderDevice(
     return AdoptRenderDevice(backend, &selected);
 }
 
-} // namespace Aero::Render::Detail
+} // namespace Aero::Render
 
 namespace Aero {
 
-Base::Result<void> RenderDevice::RenderOffscreen(
-    const void* rendererToken,
-    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
-    if (impl_ == nullptr) {
-        return NotInitialized("Render device is not initialized");
-    }
-    if (impl_->state != RenderDeviceState::Ready) {
-        return InvalidState("Render device is not ready");
-    }
-    Base::Result<void> rendered = impl_->RenderOffscreen(rendererToken, frame);
-    if (!rendered) {
-        ++impl_->statistics.failedFrameCount;
-        if (ApplyBackendHealth(*impl_, impl_->GetDeviceHealth())) {
-            ++impl_->statistics.generation;
-        }
-        return rendered.GetStatus();
-    }
-    return {};
-}
-
-Base::Result<RenderFrameStatistics> RenderDevice::Impl::BeginSurfaceFrame(
+Base::Result<RenderFrameStatistics> RenderDevice::Access::BeginSurfaceFrame(
     RenderDevice& device,
-    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
+    const ::Aero::Render::RenderFrame& frame) noexcept {
     Base::Status ready = device.GetFrameStatus();
     if (!ready.IsOk()) return ready;
     Base::Result<RenderFrameStatistics> statistics = device.Analyze(frame);
@@ -262,12 +228,11 @@ Base::Result<RenderFrameStatistics> RenderDevice::Impl::BeginSurfaceFrame(
     return statistics;
 }
 
-void RenderDevice::Impl::CompleteSurfaceFrame(
+void RenderDevice::Access::CompleteSurfaceFrame(
     RenderDevice& device,
-    const ::Aero::Render::Detail::RenderFrame& frame,
+    const ::Aero::Render::RenderFrame& frame,
     RenderFrameStatistics& statistics) noexcept {
     if (device.impl_ == nullptr) return;
-    device.MergeBackendStatistics(statistics);
     device.impl_->lastFrameStatistics = statistics;
     ++device.impl_->statistics.acceptedFrameCount;
     ++device.impl_->statistics.completedFrameCount;
@@ -275,21 +240,17 @@ void RenderDevice::Impl::CompleteSurfaceFrame(
     device.impl_->statistics.lastCompletedVersion = frame.Version();
 }
 
-void RenderDevice::Impl::RefreshHealth(RenderDevice& device) noexcept {
+void RenderDevice::Access::RefreshHealth(RenderDevice& device) noexcept {
     if (device.impl_ == nullptr) return;
     if (ApplyBackendHealth(*device.impl_, device.impl_->GetDeviceHealth())) {
         ++device.impl_->statistics.generation;
     }
 }
 
-void RenderDevice::Impl::RecordSurfaceFailure(RenderDevice& device) noexcept {
+void RenderDevice::Access::RecordSurfaceFailure(RenderDevice& device) noexcept {
     if (device.impl_ == nullptr) return;
     ++device.impl_->statistics.failedFrameCount;
     RefreshHealth(device);
-}
-
-void RenderDevice::ReleaseRenderer(const void* rendererToken) noexcept {
-    if (impl_ != nullptr) impl_->ReleaseRenderer(rendererToken);
 }
 
 Base::Status RenderDevice::GetFrameStatus() noexcept {

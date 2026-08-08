@@ -17,7 +17,7 @@ namespace Aero::Interactivity {
 // object, retained by the target element, and attached exactly once when the
 // element enters a View. Host controls can derive from this class and subscribe
 // to routed input without exposing runtime-specific service objects.
-class AERO_API Behavior : public ::Aero::DependencyObject {
+class AERO_GUI_API Behavior : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Behavior, ::Aero::DependencyObject)
 public:
     struct AuthoredBinding {
@@ -58,7 +58,7 @@ private:
     Base::Vector<AuthoredBinding> authoredBindings_;
 };
 
-class AERO_API StyleBehaviorCollection : public Base::Object {
+class AERO_GUI_API StyleBehaviorCollection : public Base::Object {
     AERO_DECLARE_TYPE(StyleBehaviorCollection, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -71,7 +71,7 @@ private:
     Base::Vector<Base::Ref<Base::Object>> items_;
 };
 
-class AERO_API StyleTriggerCollection : public Base::Object {
+class AERO_GUI_API StyleTriggerCollection : public Base::Object {
     AERO_DECLARE_TYPE(StyleTriggerCollection, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -84,7 +84,7 @@ private:
     Base::Vector<Base::Ref<Base::Object>> items_;
 };
 
-class AERO_API StyleInteraction : public Base::Object {
+class AERO_GUI_API StyleInteraction : public Base::Object {
     AERO_DECLARE_TYPE(StyleInteraction, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }

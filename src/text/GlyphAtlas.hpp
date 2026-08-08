@@ -2,7 +2,11 @@
 
 #include "FontManager.hpp"
 
+#include <cstddef>
+
 namespace Aero::Text {
+
+struct GlyphAtlasState;
 
 using GlyphAtlasFence = std::uint64_t;
 
@@ -35,7 +39,7 @@ constexpr bool operator!=(
     return !(left == right);
 }
 
-AERO_API GlyphAtlasKey MakeGlyphAtlasKey(
+GlyphAtlasKey MakeGlyphAtlasKey(
     const GlyphRequest& request) noexcept;
 
 struct GlyphAtlasPlacement  {
@@ -68,7 +72,7 @@ struct GlyphAtlasUpload  {
     Base::Vector<std::uint8_t> pixels;
 };
 
-class AERO_API GlyphAtlas  {
+class GlyphAtlas  {
 public:
     explicit GlyphAtlas(
         Base::IAllocator* allocator = nullptr) noexcept;
@@ -105,10 +109,9 @@ public:
     GlyphAtlasConfig Config() const noexcept;
 
 private:
-    struct Impl;
-
     Base::IAllocator* allocator_ = nullptr;
-    Impl* impl_ = nullptr;
+    alignas(std::max_align_t) std::uint8_t stateStorage_[4096]{};
+    GlyphAtlasState* state_ = nullptr;
 };
 
 } // namespace Aero::Text

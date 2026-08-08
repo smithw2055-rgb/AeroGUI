@@ -2,7 +2,7 @@
 #include "TextPipeline.hpp"
 #include "render/RenderResources.hpp"
 
-#include "render/RenderDeviceInternal.hpp"
+#include "render/RenderDeviceState.hpp"
 #include <Aero/Gui/FrameworkElement.hpp>
 #include "../text/FontManager.hpp"
 #include "../text/FreeTypeAdapter.hpp"
@@ -18,9 +18,9 @@
 #include <string>
 #include <utility>
 
-namespace Aero::Text::Detail {
-using TextConfig = ::Aero::Render::Detail::TextConfig;
-using TextResources = ::Aero::Render::Detail::TextResources;
+namespace Aero::Text {
+using TextConfig = ::Aero::Render::TextConfig;
+using TextResources = ::Aero::Render::TextResources;
 namespace {
 
 bool FileExists(const char* path) noexcept {
@@ -401,7 +401,7 @@ Base::Result<void> ConfigureTypeface(
 }
 
 class TextBlockLayoutProxy
-    : public ::Aero::Controls::Detail::TextBlockLayout {
+    : public ::Aero::Controls::TextBlockLayout {
 public:
     using FaceResolver =
         Base::Result<Text::FontFace> (*)(
@@ -409,7 +409,7 @@ public:
             Base::StringView family) noexcept;
 
     void Set(
-        ::Aero::Controls::Detail::TextBlockLayout* layout) noexcept {
+        ::Aero::Controls::TextBlockLayout* layout) noexcept {
         layout_ = layout;
     }
 
@@ -421,8 +421,8 @@ public:
     }
 
     Base::Result<void> ShapeAndPrepare(
-        const ::Aero::Controls::Detail::TextLayoutRequest& request,
-        ::Aero::Controls::Detail::TextLayoutResult& output) noexcept override {
+        const ::Aero::Controls::TextLayoutRequest& request,
+        ::Aero::Controls::TextLayoutResult& output) noexcept override {
         if (layout_ == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotInitialized,
@@ -444,7 +444,7 @@ public:
         if (!resolved) {
             return resolved.GetStatus();
         }
-        ::Aero::Controls::Detail::TextLayoutRequest selected =
+        ::Aero::Controls::TextLayoutRequest selected =
             request;
         selected.face = resolved.Value();
         return layout_->ShapeAndPrepare(
@@ -459,13 +459,13 @@ public:
     }
 
 private:
-    ::Aero::Controls::Detail::TextBlockLayout* layout_ = nullptr;
+    ::Aero::Controls::TextBlockLayout* layout_ = nullptr;
     void* resolverContext_ = nullptr;
     FaceResolver resolver_ = nullptr;
 };
 
 class HeadlessTextBlockLayout
-    : public ::Aero::Controls::Detail::TextBlockLayout {
+    : public ::Aero::Controls::TextBlockLayout {
 public:
     HeadlessTextBlockLayout(
         Text::FontManager& fonts,
@@ -489,8 +489,8 @@ public:
     }
 
     Base::Result<void> ShapeAndPrepare(
-        const ::Aero::Controls::Detail::TextLayoutRequest& request,
-        ::Aero::Controls::Detail::TextLayoutResult& output) noexcept override {
+        const ::Aero::Controls::TextLayoutRequest& request,
+        ::Aero::Controls::TextLayoutResult& output) noexcept override {
         if (fonts_ == nullptr ||
             !Aero::IsValidLayoutSize(
                 request.availableSize) ||
@@ -563,7 +563,7 @@ private:
 
 } // namespace
 
-struct TextPipeline::Impl {
+struct TextPipelineState {
     struct LoadedFont {
         explicit LoadedFont(
             Base::IAllocator* allocator = nullptr) noexcept
@@ -575,7 +575,7 @@ struct TextPipeline::Impl {
         Text::FontFace face;
     };
 
-    Impl(
+    TextPipelineState(
         Base::IAllocator& allocator,
         RenderDevice& selectedDevice) noexcept
         : fontProvider(&allocator),
@@ -602,7 +602,7 @@ struct TextPipeline::Impl {
     Text::FontFace primaryFace;
     TextConfig config;
     TextBlockLayoutProxy proxy;
-    ::Aero::Controls::Detail::TextBlockLayout* layout = nullptr;
+    ::Aero::Controls::TextBlockLayout* layout = nullptr;
     alignas(HeadlessTextBlockLayout) std::uint8_t headlessStorage[sizeof(HeadlessTextBlockLayout)]{};
     HeadlessTextBlockLayout* headlessLayout = nullptr;
     RenderDevice* device = nullptr;
@@ -630,6 +630,11 @@ struct TextPipeline::Impl {
     }
 };
 
+static_assert(sizeof(TextPipelineState) <= 16384U,
+    "TextPipeline inline state storage is too small");
+static_assert(alignof(TextPipelineState) <= alignof(std::max_align_t),
+    "TextPipeline inline state alignment is insufficient");
+
 TextPipeline::TextPipeline(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
@@ -642,8 +647,9 @@ TextPipeline::~TextPipeline() noexcept {
 
 Base::Result<void> TextPipeline::Initialize(
     RenderDevice& device,
+    TextResources* resources,
     const TextOptions& options) noexcept {
-    if (impl_ != nullptr) {
+    if (state_ != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "View text pipeline is already initialized");
@@ -655,45 +661,37 @@ Base::Result<void> TextPipeline::Initialize(
             "View text default pixel size must be positive");
     }
 
-    void* memory = allocator_->Allocate({
-        sizeof(Impl),
-        alignof(Impl),
-        Base::MemoryTag::Render});
-    if (memory == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "View text pipeline allocation failed");
-    }
-    impl_ = new (memory) Impl(*allocator_, device);
-    impl_->allocator = allocator_;
-    impl_->device = &device;
-    impl_->proxy.SetFaceResolver(
-        impl_,
+    state_ = new (stateStorage_)
+        TextPipelineState(*allocator_, device);
+    state_->allocator = allocator_;
+    state_->device = &device;
+    state_->proxy.SetFaceResolver(
+        state_,
         [](void* context,
            Base::StringView family) noexcept
             -> Base::Result<Text::FontFace> {
             auto* state =
-                static_cast<Impl*>(context);
+                static_cast<TextPipelineState*>(context);
             if (state == nullptr ||
                 family.Empty()) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "Requested font family is empty");
             }
-            for (const Impl::LoadedFont& loaded :
+            for (const TextPipelineState::LoadedFont& loaded :
                  state->loadedFonts) {
                 if (loaded.request.View() == family) {
                     return loaded.face;
                 }
             }
 
-            Base::Result<Impl::LoadedFont*> added =
+            Base::Result<TextPipelineState::LoadedFont*> added =
                 state->loadedFonts.EmplaceBack(
                     state->allocator);
             if (!added) {
                 return added.GetStatus();
             }
-            Impl::LoadedFont& loaded =
+            TextPipelineState::LoadedFont& loaded =
                 *added.Value();
             Base::Result<void> status =
                 loaded.request.Assign(family);
@@ -734,50 +732,50 @@ Base::Result<void> TextPipeline::Initialize(
         });
 
     Base::Result<void> status =
-        impl_->primaryFamily.Assign(
+        state_->primaryFamily.Assign(
             options.primaryFamily.Empty()
                 ? Base::StringView("Segoe UI")
                 : options.primaryFamily);
     if (status) {
-        status = impl_->language.Assign(
+        status = state_->language.Assign(
             options.language.Empty()
                 ? Base::StringView("en-US")
                 : options.language);
     }
     if (status) {
-        status = impl_->fontSearchRoot.Assign(
+        status = state_->fontSearchRoot.Assign(
             options.fontSearchRoot);
     }
-    if (status) status = impl_->fontProvider.Initialize();
-    if (status) status = impl_->fonts.Initialize();
+    if (status) status = state_->fontProvider.Initialize();
+    if (status) status = state_->fonts.Initialize();
     if (status) {
-        status = impl_->fonts.RegisterProvider({
-            &impl_->fontProvider,
-            &impl_->shaper,
-            &impl_->fontProvider});
+        status = state_->fonts.RegisterProvider({
+            &state_->fontProvider,
+            &state_->shaper,
+            &state_->fontProvider});
     }
     if (status) {
         status = SelectFontPath(
             options.primaryFamily,
             false,
-            impl_->primaryPath);
+            state_->primaryPath);
     }
     if (status) {
         Text::Typeface typeface(allocator_);
         status = ConfigureTypeface(
             typeface,
             options.primaryFamily,
-            impl_->language.View(),
-            impl_->primaryFamily.View());
+            state_->language.View(),
+            state_->primaryFamily.View());
         if (status) {
             Text::FontSource source;
             source.kind = Text::FontSourceKind::File;
-            source.identifier = impl_->primaryPath.View();
-            status = impl_->fonts.LoadFace(
-                impl_->fontProvider.Identity().id,
+            source.identifier = state_->primaryPath.View();
+            status = state_->fonts.LoadFace(
+                state_->fontProvider.Identity().id,
                 source,
                 typeface,
-                impl_->primaryFace);
+                state_->primaryFace);
         }
     }
 
@@ -804,26 +802,26 @@ Base::Result<void> TextPipeline::Initialize(
             status = ConfigureTypeface(
                 typeface,
                 family,
-                impl_->language.View(),
+                state_->language.View(),
                 Base::StringView("Microsoft YaHei"));
             if (!status) break;
             Text::FontSource source;
             source.kind = Text::FontSourceKind::File;
             source.identifier = path.View();
             Text::FontFace face;
-            status = impl_->fonts.LoadFace(
-                impl_->fontProvider.Identity().id,
+            status = state_->fonts.LoadFace(
+                state_->fontProvider.Identity().id,
                 source,
                 typeface,
                 face);
             if (status) {
-                status = impl_->fallbackFaces.PushBack(
+                status = state_->fallbackFaces.PushBack(
                     face);
             }
         }
         if (status &&
             requestedFallbacks != 0U &&
-            impl_->fallbackFaces.Empty()) {
+            state_->fallbackFaces.Empty()) {
             status = Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "No configured fallback font family is available");
@@ -831,42 +829,41 @@ Base::Result<void> TextPipeline::Initialize(
     }
 
     if (status) {
-        impl_->config.face = impl_->primaryFace;
-        impl_->config.fallbackFaces =
-            impl_->fallbackFaces.AsSpan();
-        impl_->config.pixelSize =
+        state_->config.face = state_->primaryFace;
+        state_->config.fallbackFaces =
+            state_->fallbackFaces.AsSpan();
+        state_->config.pixelSize =
             options.defaultPixelSize;
-        impl_->config.atlas.pageWidth = 1024U;
-        impl_->config.atlas.pageHeight = 1024U;
-        impl_->config.atlas.maxPages = 4U;
-        impl_->resources =
-            RenderDevice::Impl::Resources(device).text;
-        if (impl_->resources != nullptr) {
-            impl_->resourceGeneration =
-                impl_->resources->generation;
-            if (impl_->resources->create ==
+        state_->config.atlas.pageWidth = 1024U;
+        state_->config.atlas.pageHeight = 1024U;
+        state_->config.atlas.maxPages = 4U;
+        state_->resources = resources;
+        if (state_->resources != nullptr) {
+            state_->resourceGeneration =
+                state_->resources->generation;
+            if (state_->resources->create ==
                 nullptr) {
                 status = Base::Status::Failure(
                     Base::ErrorCode::NotInitialized,
                     "Render device has no text layout factory");
             } else {
                 Base::Result<
-                    ::Aero::Controls::Detail::TextBlockLayout*>
+                    ::Aero::Controls::TextBlockLayout*>
                     created =
-                        impl_->resources->
+                        state_->resources->
                             create(
-                                impl_->resources->
+                                state_->resources->
                                     context,
-                                impl_->fonts,
-                                impl_->config,
+                                state_->fonts,
+                                state_->config,
                                 *allocator_);
                 if (!created) {
                     status = created.GetStatus();
                 } else {
-                    impl_->layout = created.Value();
+                    state_->layout = created.Value();
                 }
             }
-        } else if (impl_->CreateHeadless() == nullptr) {
+        } else if (state_->CreateHeadless() == nullptr) {
             status = Base::Status::Failure(
                 Base::ErrorCode::OutOfMemory,
                 "Headless text fallback copy failed");
@@ -877,45 +874,45 @@ Base::Result<void> TextPipeline::Initialize(
         Shutdown();
         return failure;
     }
-    impl_->proxy.Set(impl_->layout);
+    state_->proxy.Set(state_->layout);
     return {};
 }
 
 Base::Result<bool>
 TextPipeline::SynchronizeBackend(
     RenderDevice& device,
+    TextResources* resources,
     bool force) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "View text pipeline is not initialized");
     }
-    impl_->device = &device;
-    TextResources* current =
-        RenderDevice::Impl::Resources(device).text;
+    state_->device = &device;
+    TextResources* current = resources;
     const std::uint64_t generation =
         current != nullptr
         ? current->generation
         : 0U;
     if (!force &&
-        current == impl_->resources &&
-        generation == impl_->resourceGeneration) {
+        current == state_->resources &&
+        generation == state_->resourceGeneration) {
         return false;
     }
 
-    impl_->proxy.Set(nullptr);
-    if (impl_->headlessLayout != nullptr) {
-        impl_->DestroyHeadless();
+    state_->proxy.Set(nullptr);
+    if (state_->headlessLayout != nullptr) {
+        state_->DestroyHeadless();
     } else if (
-        impl_->layout != nullptr &&
-        impl_->resources != nullptr &&
-        impl_->resources->destroy != nullptr) {
-        impl_->resources->destroy(
-            impl_->resources->context,
-            impl_->layout);
-        impl_->layout = nullptr;
+        state_->layout != nullptr &&
+        state_->resources != nullptr &&
+        state_->resources->destroy != nullptr) {
+        state_->resources->destroy(
+            state_->resources->context,
+            state_->layout);
+        state_->layout = nullptr;
     }
-    impl_->layout = nullptr;
+    state_->layout = nullptr;
 
     Base::Result<void> status;
     if (current != nullptr) {
@@ -925,92 +922,84 @@ TextPipeline::SynchronizeBackend(
                 "Restored device has no text layout factory");
         } else {
             Base::Result<
-                ::Aero::Controls::Detail::TextBlockLayout*>
+                ::Aero::Controls::TextBlockLayout*>
                 created = current->create(
                     current->context,
-                    impl_->fonts,
-                    impl_->config,
+                    state_->fonts,
+                    state_->config,
                     *allocator_);
             if (!created) {
                 status = created.GetStatus();
             } else {
-                impl_->layout = created.Value();
+                state_->layout = created.Value();
             }
         }
-    } else if (impl_->CreateHeadless() == nullptr) {
+    } else if (state_->CreateHeadless() == nullptr) {
         status = Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Headless text fallback copy failed");
     }
-    impl_->resources = current;
-    impl_->resourceGeneration = generation;
+    state_->resources = current;
+    state_->resourceGeneration = generation;
     if (!status) return status.GetStatus();
-    impl_->proxy.Set(impl_->layout);
+    state_->proxy.Set(state_->layout);
     return true;
 }
 
 Base::Result<std::uint32_t>
 TextPipeline::CollectGarbage() noexcept {
-    if (impl_ == nullptr || impl_->layout == nullptr) {
+    if (state_ == nullptr || state_->layout == nullptr) {
         return 0U;
     }
-    if (impl_->headlessLayout != nullptr ||
-        impl_->resources == nullptr ||
-        impl_->resources->collect ==
+    if (state_->headlessLayout != nullptr ||
+        state_->resources == nullptr ||
+        state_->resources->collect ==
             nullptr) {
         return 0U;
     }
-    return impl_->resources->collect(
-        impl_->resources->context,
-        impl_->layout);
+    return state_->resources->collect(
+        state_->resources->context,
+        state_->layout);
 }
 
 void TextPipeline::Shutdown() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->proxy.Set(nullptr);
-    if (impl_->headlessLayout != nullptr) {
-        impl_->DestroyHeadless();
+    if (state_ == nullptr) return;
+    state_->proxy.Set(nullptr);
+    if (state_->headlessLayout != nullptr) {
+        state_->DestroyHeadless();
     } else if (
-        impl_->layout != nullptr &&
-        impl_->resources != nullptr) {
-        TextResources* current = impl_->device != nullptr
-            ? ::Aero::RenderDevice::Impl::Resources(
-                  *impl_->device).text
-            : nullptr;
-        if (current == impl_->resources &&
+        state_->layout != nullptr &&
+        state_->resources != nullptr) {
+        TextResources* current = state_->resources;
+        if (current == state_->resources &&
             current->generation ==
-                impl_->resourceGeneration &&
+                state_->resourceGeneration &&
             current->destroy != nullptr) {
             current->destroy(
-                current->context, impl_->layout);
+                current->context, state_->layout);
         }
     }
-    impl_->layout = nullptr;
-    for (Impl::LoadedFont& loaded :
-         impl_->loadedFonts) {
+    state_->layout = nullptr;
+    for (TextPipelineState::LoadedFont& loaded :
+         state_->loadedFonts) {
         if (loaded.face.handle.IsValid()) {
             static_cast<void>(
-                impl_->fonts.ReleaseFace(
+                state_->fonts.ReleaseFace(
                     loaded.face.handle));
         }
     }
-    impl_->loadedFonts.Clear();
-    impl_->fonts.Shutdown();
-    impl_->fontProvider.Shutdown();
-    impl_->~Impl();
-    allocator_->Deallocate(
-        impl_,
-        sizeof(Impl),
-        alignof(Impl),
-        Base::MemoryTag::Render);
-    impl_ = nullptr;
+    state_->loadedFonts.Clear();
+    state_->fonts.Shutdown();
+    state_->fontProvider.Shutdown();
+    state_->~TextPipelineState();
+    state_ = nullptr;
 }
 
-::Aero::Controls::Detail::TextBlockLayout*
+::Aero::Controls::TextBlockLayout*
 TextPipeline::Layout() noexcept {
-    return impl_ != nullptr
-        ? &impl_->proxy
+    return state_ != nullptr
+        ? &state_->proxy
         : nullptr;
 }
 
-} // namespace Aero::Text::Detail
+} // namespace Aero::Text

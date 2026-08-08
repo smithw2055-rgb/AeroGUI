@@ -13,10 +13,10 @@ enum class ClickMode : std::uint8_t {
     Hover,
 };
 namespace Primitives {
-class AERO_API ButtonBase : public ContentControl {
+class AERO_GUI_API ButtonBase : public ContentControl {
     AERO_DECLARE_TYPE(ButtonBase, ContentControl)
 public:
-    struct Impl;
+    struct Access;
 
     inline static constexpr RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
     UIElement::Event<RoutedEventArgs> Click() noexcept {
@@ -50,7 +50,7 @@ protected:
     void OnApplyTemplate() noexcept override;
 
 private:
-    friend struct Impl;
+    friend struct Access;
     bool commandEnabled_ = true;
 };
 

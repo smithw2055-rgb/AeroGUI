@@ -14,7 +14,7 @@ using ::Aero::Media::Stretch;
 enum class PenLineJoin : std::uint8_t { Miter = 0U, Bevel, Round };
 enum class PenLineCap : std::uint8_t { Flat = 0U, Square, Round, Triangle };
 
-class AERO_API Shape : public FrameworkElement {
+class AERO_GUI_API Shape : public FrameworkElement {
     AERO_DECLARE_TYPE(Shape, FrameworkElement)
 public:
     Base::Ref<Brush> GetFill() const noexcept;
@@ -40,7 +40,7 @@ protected:
     ~Shape() override = default;
 };
 
-class AERO_API Rectangle : public Shape {
+class AERO_GUI_API Rectangle : public Shape {
     AERO_DECLARE_TYPE(Rectangle, Shape)
 public:
     Rectangle() noexcept : Shape(StaticTypeId()) {}
@@ -61,7 +61,7 @@ protected:
         ::Aero::Media::DrawingContext& context) noexcept override;
 };
 
-class AERO_API Ellipse : public Shape {
+class AERO_GUI_API Ellipse : public Shape {
     AERO_DECLARE_TYPE(Ellipse, Shape)
 public:
     Ellipse() noexcept : Shape(StaticTypeId()) {}
@@ -76,7 +76,7 @@ protected:
 
 // WPF-shaped vector path. The textual Data value accepts the deterministic
 // SVG/WPF subset used by the Gallery vector assets.
-class AERO_API Path : public FrameworkElement {
+class AERO_GUI_API Path : public FrameworkElement {
     AERO_DECLARE_TYPE(Path, FrameworkElement)
 public:
     Path() noexcept;
@@ -121,7 +121,7 @@ protected:
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
-    friend struct ::Aero::Media::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Access;
 
     Base::Result<void> EnsureGeometry() noexcept;
     Base::Result<void> EnsureMesh() noexcept;

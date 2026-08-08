@@ -12,7 +12,7 @@ namespace Aero::Interactivity {
 // values are applied through a dedicated TranslateTransform so an existing
 // RenderTransform remains intact. Pointer capture keeps dragging stable when
 // the pointer leaves the element.
-class AERO_API MouseDragElementBehavior : public Behavior {
+class AERO_GUI_API MouseDragElementBehavior : public Behavior {
     AERO_DECLARE_TYPE(MouseDragElementBehavior, Behavior)
 public:
     MouseDragElementBehavior() noexcept;
@@ -67,7 +67,7 @@ private:
 // the authored Effect. Image backgrounds are cropped to the associated
 // element's location after layout so the blur represents the same backdrop
 // region instead of independently fitting the image into each shape.
-class AERO_API BackgroundEffectBehavior : public Behavior {
+class AERO_GUI_API BackgroundEffectBehavior : public Behavior {
     AERO_DECLARE_TYPE(BackgroundEffectBehavior, Behavior)
 public:
     BackgroundEffectBehavior() noexcept : Behavior(StaticTypeId()) {}

@@ -1,15 +1,15 @@
 #pragma once
 
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
 #include "DisplayList.hpp"
 
@@ -120,9 +120,9 @@ struct RenderNodeSnapshot {
 
 } // namespace Aero::Render
 
-namespace Aero::Render::Detail { class RenderTree; }
+namespace Aero::Render { class RenderTree; }
 
-namespace Aero::Render::Detail {
+namespace Aero::Render {
 
 using namespace ::Aero::Render;
 
@@ -148,7 +148,7 @@ public:
     std::uint64_t StableHash() const noexcept;
 
 private:
-    friend class ::Aero::Render::Detail::RenderTree;
+    friend class ::Aero::Render::RenderTree;
     Base::Vector<RenderNodeSnapshot> nodes_;
     Base::Vector<RenderCommand> commands_;
     Base::Vector<RenderGradientRampSnapshot> gradientRamps_;
@@ -170,9 +170,9 @@ struct RenderDiagnostics {
     std::uint64_t frameHash = 0U;
 };
 
-} // namespace Aero::Render::Detail
+} // namespace Aero::Render
 
-namespace Aero::Render::Detail {
+namespace Aero::Render {
 
 using namespace ::Aero::Render;
 
@@ -206,10 +206,10 @@ public:
         double dpiScale) noexcept;
     Base::Result<std::uint32_t> Commit() noexcept;
 
-    const ::Aero::Render::Detail::RenderFrame& CurrentFrame() const noexcept {
+    const ::Aero::Render::RenderFrame& CurrentFrame() const noexcept {
         return currentFrame_;
     }
-    ::Aero::Render::Detail::RenderDiagnostics Diagnostics() const noexcept;
+    ::Aero::Render::RenderDiagnostics Diagnostics() const noexcept;
     Base::Status LastCommitStatus() const noexcept {
         return lastCommitStatus_;
     }
@@ -223,14 +223,14 @@ private:
 
     ::Aero::Threading::Dispatcher* dispatcher_ = nullptr;
     ::Aero::Media::Visual* root_ = nullptr;
-    Base::Vector<Aero::GuiPrivate::Detail::VisualLease> dirty_;
+    Base::Vector<Aero::VisualLease> dirty_;
     Base::Vector<DrawingRecord> drawings_;
     struct OverlayRecord {
         FrameworkElement* element = nullptr;
         Point origin;
     };
     Base::Vector<OverlayRecord> overlays_;
-    ::Aero::Render::Detail::RenderFrame currentFrame_;
+    ::Aero::Render::RenderFrame currentFrame_;
     ::Aero::Threading::DispatcherFrameHookHandle phaseHook_;
     RenderNodeId nextNodeId_ = 1U;
     std::uint64_t commitVersion_ = 0U;
@@ -255,11 +255,11 @@ private:
     Base::Result<void> BuildSubtree(
         ::Aero::Media::Visual& visual,
         RenderNodeId parentId,
-        ::Aero::Render::Detail::RenderFrame& plan,
+        ::Aero::Render::RenderFrame& plan,
         bool overlayRoot = false) noexcept;
     bool IsOverlay(
         const ::Aero::Media::Visual& visual) const noexcept;
     static void RenderCommitHook(void* context) noexcept;
 };
 
-} // namespace Aero::Render::Detail
+} // namespace Aero::Render

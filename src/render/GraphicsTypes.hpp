@@ -428,16 +428,16 @@ enum class IndexType : std::uint8_t {
     UInt32
 };
 
-AERO_API Base::Result<void> ValidateTextureDescriptor(
+Base::Result<void> ValidateTextureDescriptor(
     const TextureResourceDescriptor& descriptor,
     const GraphicsCapabilities& capabilities) noexcept;
-AERO_API Base::Result<void> ValidateSamplerDescriptor(
+Base::Result<void> ValidateSamplerDescriptor(
     const SamplerDescriptor& descriptor,
     const GraphicsCapabilities& capabilities) noexcept;
-AERO_API Base::Result<void> ValidateNativePipeline(
+Base::Result<void> ValidateNativePipeline(
     const NativePipelineState& descriptor,
     const GraphicsCapabilities& capabilities) noexcept;
-AERO_API std::uint64_t StableNativePipelineHash(
+std::uint64_t StableNativePipelineHash(
     const NativePipelineState& descriptor) noexcept;
 
 } // namespace Aero::Graphics

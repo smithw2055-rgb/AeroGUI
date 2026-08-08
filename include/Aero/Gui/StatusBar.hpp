@@ -6,7 +6,7 @@
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 
-class AERO_API StatusBarItem
+class AERO_GUI_API StatusBarItem
     : public ContentControl {
     AERO_DECLARE_TYPE(StatusBarItem, ContentControl)
 public:
@@ -15,7 +15,7 @@ public:
     ~StatusBarItem() override = default;
 };
 
-class AERO_API StatusBar
+class AERO_GUI_API StatusBar
     : public ItemsControl {
     AERO_DECLARE_TYPE(StatusBar, ItemsControl)
 public:

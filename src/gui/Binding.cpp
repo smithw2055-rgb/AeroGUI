@@ -1,26 +1,26 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "controls/ControlInternal.hpp"
-#include "controls/ItemsInternal.hpp"
-#include "controls/TemplateInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "controls/ControlRuntime.hpp"
+#include "controls/ItemsRuntime.hpp"
+#include "controls/TemplateRuntime.hpp"
 #include <Aero/Gui/BindingBase.hpp>
 #include <Aero/Gui/ResourceDictionary.hpp>
 #include <Aero/Gui/Geometry.hpp>
@@ -603,9 +603,9 @@ Base::Result<PropertyValue> UnboxItemsValue(
     if (current.Kind() == ValueKind::Object &&
         !current.IsNullObject() && current.AsObject() &&
         current.AsObject()->RuntimeType() ==
-            ::Aero::Controls::Detail::BoxedItemValue::StaticTypeId()) {
+            ::Aero::Controls::BoxedItemValue::StaticTypeId()) {
         return static_cast<const
-            ::Aero::Controls::Detail::BoxedItemValue&>(
+            ::Aero::Controls::BoxedItemValue&>(
                 *current.AsObject()).Value();
     }
     return value;
@@ -617,7 +617,7 @@ Base::Result<PropertyValue> UnboxItemsValue(
 
 } // namespace Aero::Data
 
-namespace Aero::GuiPrivate::Detail {
+namespace Aero {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -1941,4 +1941,4 @@ void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
     bindings_.PopBack();
 }
 
-} // namespace Aero::GuiPrivate::Detail
+} // namespace Aero

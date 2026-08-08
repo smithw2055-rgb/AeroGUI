@@ -12,7 +12,7 @@ using ::Aero::Meta::TypeId;
 enum class Orientation : std::uint8_t { Horizontal = 0U, Vertical };
 enum class Dock : std::uint8_t { Left = 0U, Top, Right, Bottom };
 
-class AERO_API UIElementCollection {
+class AERO_GUI_API UIElementCollection {
 public:
     std::uint32_t GetCount() const noexcept;
     bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
@@ -27,7 +27,7 @@ private:
     Panel* owner_ = nullptr;
 };
 
-class AERO_API Panel : public FrameworkElement {
+class AERO_GUI_API Panel : public FrameworkElement {
     AERO_DECLARE_TYPE(Panel, FrameworkElement)
 public:
     Base::Ref<Aero::Media::Brush> GetBackground() const noexcept {
@@ -52,7 +52,7 @@ protected:
         ::Aero::Media::DrawingContext& context) noexcept override;
 private:
     friend class UIElementCollection;
-    friend struct ::Aero::Media::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Access;
     std::uint32_t ChildCountCore() const noexcept { return ownedChildren_.Size(); }
     Base::Ref<Base::Object> ChildAtCore(std::uint32_t index) const noexcept {
         return index < ownedChildren_.Size() ? ownedChildren_[index] : Base::Ref<Base::Object>{};

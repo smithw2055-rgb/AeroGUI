@@ -4,9 +4,9 @@
 
 namespace Aero::Render {
 
-// OpenGL 3.3 GLSL catalog consumed by the backend-neutral Renderer.
+// OpenGL 3.3 GLSL catalog selected from UiFrameEncoder pipeline keys.
 BackendShaderCatalog MakeOpenGL33BackendShaderCatalog() noexcept;
 Graphics::NativePipelineState MakeOpenGL33UiPipeline(
-    Detail::UiPipelineKey key) noexcept;
+    ::Aero::Render::UiPipelineKey key) noexcept;
 
 } // namespace Aero::Render

@@ -6,7 +6,7 @@
 
 namespace Aero::Base {
 
-class String  {
+class AERO_BASE_API String {
 public:
     static constexpr std::uint32_t InlineCapacity = 23U;
 

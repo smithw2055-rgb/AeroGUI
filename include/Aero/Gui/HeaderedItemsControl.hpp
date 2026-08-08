@@ -6,7 +6,7 @@
 
 namespace Aero::Controls {
 
-class AERO_API HeaderedItemsControl : public ItemsControl {
+class AERO_GUI_API HeaderedItemsControl : public ItemsControl {
     AERO_DECLARE_TYPE(HeaderedItemsControl, ItemsControl)
 public:
     HeaderedItemsControl() noexcept : ItemsControl(StaticTypeId()) {}

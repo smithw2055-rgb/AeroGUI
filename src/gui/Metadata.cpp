@@ -3,16 +3,16 @@
 // ===== TypeRegistry =====
 
 #include <Aero/Value.hpp>
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
 #include <Aero/Base/Assert.hpp>
 
@@ -1417,7 +1417,7 @@ MetadataAuthoringSession::RoutedEvent(
     RoutingStrategy strategy) noexcept {
     if (!Ok()) return *this;
     auto* state =
-        static_cast<Aero::GuiPrivate::Detail::RegistrationState*>(
+        static_cast<Aero::RegistrationState*>(
             context_->state_);
     RoutedEventTable* events =
         state != nullptr ? state->events : nullptr;
@@ -1706,7 +1706,7 @@ void MetadataAuthoringSession::Record(
 #include <Aero/Gui/DependencyProperty.hpp>
 
 
-namespace Aero::GuiPrivate::Detail {
+namespace Aero {
 namespace {
 
 Base::Status InvalidState(const char* message) noexcept {
@@ -2406,7 +2406,7 @@ Base::Result<Base::HashCode> MetaTable::ComputeHash() const noexcept {
     return builder.Finish();
 }
 
-} // namespace Aero::GuiPrivate::Detail
+} // namespace Aero
 
 
 // ===== BehaviorTable =====
@@ -2924,7 +2924,7 @@ struct Registry::Storage {
     ValueTable valueRegistrations;
     DependencyPropertyRegistry dependencyProperties;
     RoutedEventTable routedEvents;
-    ::Aero::GuiPrivate::Detail::MetaTable facets;
+    ::Aero::MetaTable facets;
     Base::Vector<ModuleRecord> modules;
     Base::Vector<MetadataPropertyProviderRegistration> providers;
     bool sealed = false;
@@ -3217,7 +3217,7 @@ Base::Result<Registry::Storage*> Registry::BuildCandidate(
     auto applyAndAppend = [candidate](
         const MetadataModuleRegistration& registration) noexcept
         -> Base::Result<void> {
-        ::Aero::GuiPrivate::Detail::RegistrationState contextState{
+        ::Aero::RegistrationState contextState{
             &candidate->types,
             &candidate->behaviorRegistrations,
             &candidate->valueRegistrations,
@@ -3306,7 +3306,7 @@ Base::Result<void> Registry::RegisterModule(
     // directly keeps behavior contexts owned by their registering table and
     // avoids rebuilding the value-semantic store once per module. Seal() then
     // freezes this single registry into the immutable runtime snapshot.
-    ::Aero::GuiPrivate::Detail::RegistrationState contextState{
+    ::Aero::RegistrationState contextState{
         &storage_->types,
         &storage_->behaviorRegistrations,
         &storage_->valueRegistrations,
@@ -3373,7 +3373,7 @@ void* Registry::RoutedEventState() noexcept {
     return &storage_->routedEvents;
 }
 
-const ::Aero::GuiPrivate::Detail::MetaTable& Registry::RuntimeData() const noexcept {
+const ::Aero::MetaTable& Registry::RuntimeData() const noexcept {
     AERO_ASSERT(storage_ != nullptr);
     return storage_->facets;
 }
@@ -3392,7 +3392,7 @@ Base::Result<Base::HashCode> Registry::ComputeSchemaHash() const noexcept {
     Base::Result<Base::HashCode> facetHash = storage_->facets.ComputeHash();
     if (!facetHash) return facetHash.GetStatus();
     Base::Result<Base::HashCode> valueFacetHash =
-        ::Aero::GuiPrivate::Detail::ComputeMetadataValueFacetHash(
+        ::Aero::ComputeMetadataValueFacetHash(
             storage_->facets, storage_->types);
     if (!valueFacetHash) return valueFacetHash.GetStatus();
 
@@ -3461,7 +3461,7 @@ bool Registry::IsReady() const noexcept {
 bool Registry::CanReadProperty(
     MemberId member) const noexcept {
     if (!IsReady()) return false;
-    const ::Aero::GuiPrivate::Detail::PropertyAccessorFacet* accessor =
+    const ::Aero::PropertyAccessorFacet* accessor =
         RuntimeData().FindPropertyAccessor(member);
     return accessor != nullptr &&
         (accessor->access == PropertyAccessKind::Provider ||
@@ -3472,7 +3472,7 @@ bool Registry::CanReadProperty(
 bool Registry::CanWriteProperty(
     MemberId member) const noexcept {
     if (!IsReady()) return false;
-    const ::Aero::GuiPrivate::Detail::PropertyAccessorFacet* accessor =
+    const ::Aero::PropertyAccessorFacet* accessor =
         RuntimeData().FindPropertyAccessor(member);
     return accessor != nullptr &&
         (accessor->access == PropertyAccessKind::Provider ||
@@ -3483,7 +3483,7 @@ bool Registry::CanWriteProperty(
 bool Registry::CanReadValueMember(
     MemberId member) const noexcept {
     if (!IsReady()) return false;
-    const ::Aero::GuiPrivate::Detail::ValueMemberAccessorFacet* accessor =
+    const ::Aero::ValueMemberAccessorFacet* accessor =
         RuntimeData().FindValueMemberAccessor(member);
     return accessor != nullptr && accessor->get != nullptr;
 }
@@ -3491,7 +3491,7 @@ bool Registry::CanReadValueMember(
 bool Registry::CanWriteValueMember(
     MemberId member) const noexcept {
     if (!IsReady()) return false;
-    const ::Aero::GuiPrivate::Detail::ValueMemberAccessorFacet* accessor =
+    const ::Aero::ValueMemberAccessorFacet* accessor =
         RuntimeData().FindValueMemberAccessor(member);
     return accessor != nullptr && accessor->set != nullptr;
 }
@@ -3506,7 +3506,7 @@ MemberId Registry::FindContentMember(
 Base::Result<ContentInfo> Registry::GetContentInfo(
     MemberId member) const noexcept {
     if (!IsReady()) return MetadataNotReady();
-    const ::Aero::GuiPrivate::Detail::ContentFacet* content =
+    const ::Aero::ContentFacet* content =
         RuntimeData().FindContentByMember(member);
     if (content == nullptr) {
         return Base::Status::Failure(
@@ -3527,7 +3527,7 @@ Base::Result<void> Registry::WriteContent(
     MemberId member,
     const Base::Ref<Base::Object>& value) const noexcept {
     if (!IsReady()) return MetadataNotReady();
-    const ::Aero::GuiPrivate::Detail::ContentFacet* content =
+    const ::Aero::ContentFacet* content =
         RuntimeData().FindContentByMember(member);
     if (content == nullptr || content->write == nullptr) {
         return Base::Status::Failure(
@@ -3570,7 +3570,7 @@ Base::Result<void> Registry::ClearContent(
     Base::Object& owner,
     MemberId member) const noexcept {
     if (!IsReady()) return MetadataNotReady();
-    const ::Aero::GuiPrivate::Detail::ContentFacet* content =
+    const ::Aero::ContentFacet* content =
         RuntimeData().FindContentByMember(member);
     if (content == nullptr || content->clear == nullptr) {
         return Base::Status::Failure(
@@ -3601,7 +3601,7 @@ Registry::SubscribePropertyChanged(
     MetadataPropertyChangedCallback callback,
     void* callbackContext) const noexcept {
     if (!IsReady()) return MetadataNotReady();
-    const ::Aero::GuiPrivate::Detail::PropertyChangeNotificationFacet* notification =
+    const ::Aero::PropertyChangeNotificationFacet* notification =
         RuntimeData().FindPropertyChangeNotification(
             object.RuntimeType());
     if (notification == nullptr ||
@@ -3620,7 +3620,7 @@ Base::Result<bool> Registry::UnsubscribePropertyChanged(
     std::uint64_t subscription) const noexcept {
     if (!IsReady()) return MetadataNotReady();
     if (subscription == 0U) return false;
-    const ::Aero::GuiPrivate::Detail::PropertyChangeNotificationFacet* notification =
+    const ::Aero::PropertyChangeNotificationFacet* notification =
         RuntimeData().FindPropertyChangeNotification(
             object.RuntimeType());
     if (notification == nullptr ||
@@ -3637,7 +3637,7 @@ Base::Result<Base::Ref<Base::Object>>
 Registry::CreateObject(TypeId type) const noexcept {
     if (!storage_->ready) return MetadataNotReady();
     const TypeInfo* descriptor = Types().FindType(type);
-    const ::Aero::GuiPrivate::Detail::TypeFactoryFacet* factory =
+    const ::Aero::TypeFactoryFacet* factory =
         RuntimeData().FindTypeFactory(type);
     if (descriptor == nullptr) {
         return Base::Status::Failure(
@@ -3673,7 +3673,7 @@ Base::Result<Value> Registry::TryCreateValue(
     const void* source) const noexcept {
     if (!storage_->ready) return MetadataNotReady();
     const TypeInfo* descriptor = Types().FindType(type);
-    const ::Aero::GuiPrivate::Detail::ValueSemanticsFacet* behavior =
+    const ::Aero::ValueSemanticsFacet* behavior =
         RuntimeData().FindValueSemantics(type);
     if (descriptor == nullptr) {
         return Base::Status::Failure(
@@ -3704,7 +3704,7 @@ Base::Result<Value> Registry::TryConvertText(
     if (descriptor->Kind() == MetadataTypeKind::Enum) {
         return ConvertEnumText(*descriptor, text);
     }
-    const ::Aero::GuiPrivate::Detail::TextConverterFacet* converter =
+    const ::Aero::TextConverterFacet* converter =
         RuntimeData().FindTextConverter(type);
     if (converter == nullptr ||
         converter->convert == nullptr) {
@@ -3729,7 +3729,7 @@ Base::Result<Value> Registry::GetValueMember(
     MemberId member) const noexcept {
     if (!storage_->ready) return MetadataNotReady();
     const FieldInfo* field = Types().FindField(member);
-    const ::Aero::GuiPrivate::Detail::ValueMemberAccessorFacet* accessor =
+    const ::Aero::ValueMemberAccessorFacet* accessor =
         RuntimeData().FindValueMemberAccessor(member);
     if (field == nullptr ||
         accessor == nullptr ||
@@ -3765,7 +3765,7 @@ Base::Result<void> Registry::SetValueMember(
     const Value& value) const noexcept {
     if (!storage_->ready) return MetadataNotReady();
     const FieldInfo* field = Types().FindField(member);
-    const ::Aero::GuiPrivate::Detail::ValueMemberAccessorFacet* accessor =
+    const ::Aero::ValueMemberAccessorFacet* accessor =
         RuntimeData().FindValueMemberAccessor(member);
     if (field == nullptr || accessor == nullptr) {
         return Base::Status::Failure(
@@ -3823,7 +3823,7 @@ Base::Result<Value> Registry::GetProperty(
             Base::ErrorCode::Unsupported,
             "Write-only metadata property cannot be read");
     }
-    const ::Aero::GuiPrivate::Detail::PropertyAccessorFacet* accessor =
+    const ::Aero::PropertyAccessorFacet* accessor =
         RuntimeData().FindPropertyAccessor(member);
     if (accessor == nullptr) return UnsupportedProperty();
 
@@ -3894,7 +3894,7 @@ Base::Result<void> Registry::SetProperty(
             Base::ErrorCode::ReadOnly,
             "Read-only metadata property cannot be written");
     }
-    const ::Aero::GuiPrivate::Detail::PropertyAccessorFacet* accessor =
+    const ::Aero::PropertyAccessorFacet* accessor =
         RuntimeData().FindPropertyAccessor(member);
     if (accessor == nullptr) return UnsupportedProperty();
 
@@ -3958,7 +3958,7 @@ Base::Result<Value> Registry::InvokeMethod(
     Base::Span<const Value> arguments) const noexcept {
     if (!storage_->ready) return MetadataNotReady();
     const MethodInfo* method = Types().FindMethod(member);
-    const ::Aero::GuiPrivate::Detail::MethodInvokerFacet* invoker =
+    const ::Aero::MethodInvokerFacet* invoker =
         RuntimeData().FindMethodInvoker(member);
     if (method == nullptr ||
         invoker == nullptr ||
@@ -4212,14 +4212,14 @@ namespace Aero::Meta {
 
 namespace {
 
-::Aero::GuiPrivate::Detail::RegistrationState& State(void* value) noexcept {
-    return *static_cast<::Aero::GuiPrivate::Detail::RegistrationState*>(value);
+::Aero::RegistrationState& State(void* value) noexcept {
+    return *static_cast<::Aero::RegistrationState*>(value);
 }
 
 } // namespace
 
 RegistrationTypes Registration::Types() noexcept {
-    ::Aero::GuiPrivate::Detail::RegistrationState& state = State(state_);
+    ::Aero::RegistrationState& state = State(state_);
     return RegistrationTypes(
         *state.types, *state.behaviors);
 }
@@ -4253,7 +4253,7 @@ Registration::DependencyProperties() noexcept {
 
 
 
-namespace Aero::GuiPrivate::Detail {
+namespace Aero {
 namespace {
 
 bool IsValueType(const TypeInfo& type) noexcept {
@@ -4397,4 +4397,4 @@ Base::Result<Base::HashCode> ComputeMetadataValueFacetHash(
     return builder.Finish();
 }
 
-} // namespace Aero::GuiPrivate::Detail
+} // namespace Aero

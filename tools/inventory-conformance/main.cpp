@@ -1,10 +1,12 @@
 #include <Aero/Collections.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Diagnostics.hpp>
+#include <Aero/Gui.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/ViewOptions.hpp>
 #include <Aero/Gui/XamlReader.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Module.hpp>
@@ -744,6 +746,34 @@ bool IsObjectValue(
         value.AsObject().Get() == expected;
 }
 
+bool SendHostKey(
+    Aero::View& view,
+    const Aero::Input::KeyboardInput& input) noexcept {
+    const auto key = static_cast<Aero::Input::Key>(input.key);
+    return input.action == Aero::Input::KeyboardAction::Down
+        ? view.KeyDown(key)
+        : view.KeyUp(key);
+}
+
+bool SendHostPointer(
+    Aero::View& view,
+    const Aero::Input::PointerInput& input) noexcept {
+    const int x = static_cast<int>(input.position.x);
+    const int y = static_cast<int>(input.position.y);
+    switch (input.action) {
+    case Aero::Input::PointerAction::Move:
+        return view.MouseMove(x, y);
+    case Aero::Input::PointerAction::Down:
+        return view.MouseButtonDown(x, y, input.changedButton);
+    case Aero::Input::PointerAction::Up:
+        return view.MouseButtonUp(x, y, input.changedButton);
+    case Aero::Input::PointerAction::Wheel:
+        return view.MouseWheel(
+            x, y, static_cast<int>(input.wheelDeltaY));
+    }
+    return false;
+}
+
 bool VerifyMainWindowInteractions(
     Aero::View& view,
     Aero::FrameworkElement& root,
@@ -781,8 +811,7 @@ bool VerifyMainWindowInteractions(
     Input::KeyboardInput key;
     key.action = Input::KeyboardAction::Down;
     key.key = Input::KeyboardKeyEnter;
-    Base::Result<Input::KeyboardDispatchResult> dispatched =
-        view.DispatchKeyboard(key);
+    bool dispatched = SendHostKey(view, key);
     if (!dispatched || fixture.command->GetExecutionCount() != 1U) {
         std::fprintf(stderr, "INTERACTION FAIL: Enter KeyTrigger did not execute command\n");
         return false;
@@ -810,7 +839,7 @@ bool VerifyMainWindowInteractions(
     }
 
     key.key = Input::KeyboardKeyEscape;
-    dispatched = view.DispatchKeyboard(key);
+    dispatched = SendHostKey(view, key);
     if (!dispatched || fixture.command->GetExecutionCount() != 2U ||
         !fixture.command->GetLastParameter().IsNullObject()) {
         std::fprintf(stderr, "INTERACTION FAIL: Escape KeyTrigger parameter is not null\n");
@@ -842,23 +871,20 @@ bool VerifyMainWindowInteractions(
     pointer.changedButton = Input::MouseButton::Left;
     pointer.position = sourcePoint;
     pointer.action = Input::PointerAction::Down;
-    Base::Result<Input::PointerDispatchResult> pointerResult =
-        view.DispatchPointer(pointer);
-    if (!pointerResult || !pointerResult.Value().hit.HasTarget()) {
+    bool pointerResult = SendHostPointer(view, pointer);
+    if (!pointerResult) {
         std::fprintf(stderr, "DRAG FAIL: source pointer down was not routed\n");
         return false;
     }
     pointer.action = Input::PointerAction::Move;
     pointer.position = {sourcePoint.x + 2.0, sourcePoint.y + 2.0};
-    pointerResult = view.DispatchPointer(pointer);
+    pointerResult = SendHostPointer(view, pointer);
     if (!pointerResult || !slotHead->GetIsDragging() ||
         fixture.command->GetExecutionCount() != 3U ||
         !IsObjectValue(
             fixture.command->GetParameter(2U),
             sourceData.AsObject().Get())) {
-        const UIElement* hitTarget = pointerResult &&
-                pointerResult.Value().hit.HasTarget()
-            ? pointerResult.Value().hit.target : nullptr;
+        const UIElement* hitTarget = nullptr;
         std::fprintf(stderr,
             "DRAG FAIL: drag did not start from SlotHead count=%u dragging=%d source=(%.2f,%.2f) hit=%p slot=%p attached=%u\n",
             fixture.command->GetExecutionCount(),
@@ -899,11 +925,9 @@ bool VerifyMainWindowInteractions(
     }
 
     pointer.position = targetPoint;
-    pointerResult = view.DispatchPointer(pointer);
+    pointerResult = SendHostPointer(view, pointer);
     if (!pointerResult) {
-        std::fprintf(stderr, "DRAG FAIL: drag over target failed: %s\n",
-            pointerResult.GetStatus().message != nullptr
-                ? pointerResult.GetStatus().message : "unknown");
+        std::fprintf(stderr, "DRAG FAIL: drag over target was not routed\n");
         return false;
     }
     Base::Result<void> dragUpdated = view.Update(16U);
@@ -917,9 +941,7 @@ bool VerifyMainWindowInteractions(
             slotChest->GetAllowDrop() ? 1 : 0,
             static_cast<void*>(Inventory::DropItemBehavior::lastEntered),
             static_cast<void*>(slotChest),
-            pointerResult && pointerResult.Value().hit.HasTarget()
-                ? static_cast<void*>(pointerResult.Value().hit.target)
-                : nullptr);
+            nullptr);
         if (Inventory::DropItemBehavior::lastEnteredBehavior != nullptr) {
             const auto bindings = Inventory::DropItemBehavior::lastEnteredBehavior->GetAuthoredBindings();
             std::fprintf(stderr,
@@ -951,7 +973,7 @@ bool VerifyMainWindowInteractions(
     }
 
     pointer.action = Input::PointerAction::Up;
-    pointerResult = view.DispatchPointer(pointer);
+    pointerResult = SendHostPointer(view, pointer);
     dragUpdated = view.Update(16U);
     if (!pointerResult || !dragUpdated || slotHead->GetIsDragging() ||
         fixture.command->GetExecutionCount() != 5U ||
@@ -970,10 +992,10 @@ bool VerifyMainWindowInteractions(
     pointer.pointerId = 42U;
     pointer.position = sourcePoint;
     pointer.action = Input::PointerAction::Down;
-    pointerResult = view.DispatchPointer(pointer);
+    pointerResult = SendHostPointer(view, pointer);
     pointer.action = Input::PointerAction::Move;
     pointer.position = {sourcePoint.x + 2.0, sourcePoint.y + 2.0};
-    if (pointerResult) pointerResult = view.DispatchPointer(pointer);
+    if (pointerResult) pointerResult = SendHostPointer(view, pointer);
     if (!pointerResult || !slotHead->GetIsDragging() ||
         fixture.command->GetExecutionCount() != 6U) {
         std::fprintf(stderr, "DRAG FAIL: cancel test did not start a drag\n");
@@ -981,7 +1003,7 @@ bool VerifyMainWindowInteractions(
     }
     key.action = Input::KeyboardAction::Down;
     key.key = Input::KeyboardKeyEscape;
-    dispatched = view.DispatchKeyboard(key);
+    dispatched = SendHostKey(view, key);
     if (!dispatched || slotHead->GetIsDragging() ||
         fixture.command->GetExecutionCount() != 7U ||
         fixture.command->GetParameter(6U).Kind() !=
@@ -1006,24 +1028,33 @@ bool LoadOne(Aero::Gui& gui, const char* relative) {
     Inventory::DragAdornerBehavior::ResetCounters();
     Inventory::DragItemBehavior::ResetCounters();
     Inventory::DropItemBehavior::ResetCounters();
+    Aero::Markup::XamlReader reader(gui);
+    Aero::Diagnostics::DiagnosticBag diagnostics;
+    Aero::Base::Result<Aero::Markup::XamlDocument> resourceDocument =
+        reader.Load(
+            "pack://application:,,,/Inventory;component/Resources.xaml",
+            {},
+            &diagnostics);
+    if (!resourceDocument) {
+        std::fprintf(stderr, "RESOURCES FAIL: %s\n",
+            resourceDocument.GetStatus().message);
+        PrintDiagnostics(diagnostics);
+        return false;
+    }
+    Aero::ResourceDictionary* resources =
+        resourceDocument.Value().Root<Aero::ResourceDictionary>();
+    if (resources == nullptr) {
+        std::fprintf(stderr,
+            "RESOURCES FAIL: resource root is not ResourceDictionary\n");
+        return false;
+    }
     ::Aero::ViewOptions viewOptions;
     viewOptions.automaticAnimationClock = false;
+    viewOptions.applicationResources = resources;
     Aero::Base::Result<Aero::Base::Ref<Aero::View>> made =
         gui.CreateView(viewOptions);
     if (!made) { std::fprintf(stderr, "view failed: %s\n", made.GetStatus().message); return false; }
     Aero::Base::Ref<Aero::View> view = std::move(made).Value();
-    Aero::Markup::XamlReader reader(*view);
-    Aero::Diagnostics::DiagnosticBag diagnostics;
-    Aero::Base::Result<void> resources = reader.LoadResources(
-        Aero::ResourceLayer::Application,
-        "pack://application:,,,/Inventory;component/Resources.xaml",
-        Aero::ResourceLoadMode::Replace,
-        &diagnostics);
-    if (!resources) {
-        std::fprintf(stderr, "RESOURCES FAIL: %s\n", resources.GetStatus().message);
-        PrintDiagnostics(diagnostics);
-        return false;
-    }
     std::string uri = "pack://application:,,,/Inventory;component/";
     uri += relative;
     diagnostics.Clear();

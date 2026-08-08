@@ -1,6 +1,6 @@
 #include "DisplayList.hpp"
 #include "FrameEncoder.hpp"
-#include "render/RenderDeviceInternal.hpp"
+#include "render/RenderDeviceState.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -14,12 +14,10 @@
 #include <new>
 #include <utility>
 
-namespace Aero::Render::Detail {
+namespace Aero::Render {
 using namespace Aero::Graphics;
 
-// The frame encoder uses its canonical source-private names directly.
-// ::Aero::Render::Detail::RenderBatchBuilder is explicitly qualified where command lists
-// are recorded.
+// The frame encoder emits one device draw at a time through UiDrawContext.
 
 namespace {
 
@@ -167,12 +165,6 @@ bool FitsFloat(double value) noexcept {
 constexpr std::uint32_t MaxShaderClips = 32U;
 constexpr std::uint32_t MaxRectangleBatchInstances = 64U;
 
-struct ClipState  {
-    Aero::Rect rect;
-    Media::Transform2D transform;
-    Aero::Rect bounds;
-};
-
 struct ShaderRectConstants  {
     float rects[MaxRectangleBatchInstances][4]{};
     float colors[MaxRectangleBatchInstances][4]{};
@@ -284,21 +276,9 @@ Base::Result<void> PushClipState(
     return clips.PushBack({rect, transform, bounds});
 }
 
-struct NodeState  {
-    Render::RenderNodeId id = Render::InvalidRenderNodeId;
-    Media::Transform2D transform;
-    ClipState clip;
-    bool clipsToBounds = false;
-    double opacity = 1.0;
-    std::uint32_t parentIndex = UINT32_MAX;
-    Render::RenderNodeId containingEffect =
-        Render::InvalidRenderNodeId;
-    std::uint32_t containingEffectCount = 0U;
-};
-
 template <typename Constants>
 Base::Result<void> AppendDraw(
-    ::Aero::Render::Detail::RenderBatchBuilder& encoder,
+    ::Aero::Render::UiDrawContext& encoder,
     ResourceHandle uniformBuffer,
     const Constants& constants,
     Aero::Rect scissor,
@@ -315,62 +295,11 @@ Base::Result<void> AppendDraw(
     return encoded;
 }
 
-struct ImageBinding  {
-    Render::RenderImageId id = Render::InvalidRenderImageId;
-    ResourceHandle texture;
-    ResourceHandle sampler;
-};
-
 struct FrameNodeGeometry {
     Render::RenderNodeId id = Render::InvalidRenderNodeId;
     Render::RenderNodeId parentId = Render::InvalidRenderNodeId;
     Media::Transform2D transform;
     Aero::Rect bounds;
-};
-
-struct GradientRampBinding {
-    std::uintptr_t key = 0U;
-    std::uint64_t revision = 0U;
-    ResourceHandle texture;
-};
-
-struct MeshBinding  {
-    Render::RenderMeshId id = Render::InvalidRenderMeshId;
-    ResourceHandle vertexBuffer;
-    ResourceHandle indexBuffer;
-    std::uint32_t indexCount = 0U;
-    IndexType indexType = IndexType::UInt16;
-};
-
-struct GlyphBinding  {
-    Render::RenderGlyphRunId id = Render::InvalidRenderGlyphRunId;
-    ResourceHandle vertexBuffer;
-    ResourceHandle indexBuffer;
-    std::uint32_t indexCount = 0U;
-    ResourceHandle atlasTexture;
-    ResourceHandle sampler;
-    IndexType indexType = IndexType::UInt16;
-};
-
-struct EffectSurface  {
-    Render::RenderNodeId owner = Render::InvalidRenderNodeId;
-    ResourceHandle content;
-    ResourceHandle scratch;
-    ResourceHandle result;
-    std::uint32_t width = 0U;
-    std::uint32_t height = 0U;
-    Aero::Rect logicalBounds;
-    bool empty = false;
-};
-
-struct ViewSurface {
-    const void* owner = nullptr;
-    ResourceHandle target;
-    std::uint32_t width = 0U;
-    std::uint32_t height = 0U;
-    std::uint64_t version = 0U;
-    BatchStatistics statistics;
-    bool prepared = false;
 };
 
 bool RequiresNodeSurface(
@@ -380,7 +309,7 @@ bool RequiresNodeSurface(
 }
 
 bool RequiresFrameSurface(
-    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
+    const ::Aero::Render::RenderFrame& frame) noexcept {
     for (const Render::RenderNodeSnapshot& node : frame.Nodes()) {
         if (RequiresNodeSurface(node)) return true;
     }
@@ -414,95 +343,35 @@ void AddStatistics(
 
 } // namespace
 
-struct BatchComposer::Impl  {
-    explicit Impl(
-        Aero::RenderDevice::Impl& device,
-        Base::IAllocator* allocator) noexcept
-        : device(&device),
-          nodes(allocator),
-          transforms(allocator),
-          clips(allocator),
-          opacities(allocator),
-          nodePath(allocator),
-          images(allocator),
-          gradientRamps(allocator),
-          meshes(allocator),
-          glyphRuns(allocator),
-          effectSurfaces(allocator),
-          viewSurfaces(allocator) {}
-
-    Aero::RenderDevice::Impl* device = nullptr;
-    ResourceHandle vertexBuffer;
-    ResourceHandle uniformBuffer;
-    std::array<ResourceHandle, 4U>
-        rectanglePipelines;
-    ResourceHandle imageUniformBuffer;
-    std::array<ResourceHandle, 4U>
-        imagePipelines;
-    ResourceHandle maskRectanglePipeline;
-    ResourceHandle maskUniformBuffer;
-    ResourceHandle maskBrushPipeline;
-    ResourceHandle effectUniformBuffer;
-    ResourceHandle effectPipeline;
-    ResourceHandle meshUniformBuffer;
-    std::array<ResourceHandle, 4U>
-        meshPipelines;
-    ResourceHandle glyphUniformBuffer;
-    std::array<ResourceHandle, 4U>
-        glyphPipelines;
-    Base::Vector<NodeState> nodes;
-    Base::Vector<Media::Transform2D> transforms;
-    Base::Vector<ClipState> clips;
-    Base::Vector<double> opacities;
-    Base::Vector<std::uint32_t> nodePath;
-    Base::Vector<ImageBinding> images;
-    Base::Vector<GradientRampBinding> gradientRamps;
-    Base::Vector<MeshBinding> meshes;
-    Base::Vector<GlyphBinding> glyphRuns;
-    Base::Vector<EffectSurface> effectSurfaces;
-    Base::Vector<ViewSurface> viewSurfaces;
-    ResourceHandle effectSampler;
-    BatchStatistics lastStatistics;
-    bool batchingEnabled = true;
-    bool initialized = false;
-};
-
-BatchComposer::BatchComposer(
-    Aero::RenderDevice::Impl& device,
+UiFrameEncoder::UiFrameEncoder(
+    Aero::RenderDevice::Access& device,
     Base::IAllocator* allocator) noexcept
     : device_(&device),
       allocator_(allocator != nullptr
           ? allocator
-          : &Base::GetDefaultAllocator()) {}
+          : &Base::GetDefaultAllocator()),
+      state_(allocator_) {}
 
-BatchComposer::~BatchComposer() noexcept {
+UiFrameEncoder::~UiFrameEncoder() noexcept {
     Shutdown();
 }
 
-Base::Result<void> BatchComposer::Initialize() noexcept {
-    if (impl_ != nullptr && impl_->initialized) {
+Base::Result<void> UiFrameEncoder::Initialize() noexcept {
+    if (state_.initialized) {
         return {};
     }
     if (device_ == nullptr || device_->IsNativeDeviceLost()) {
         return NotInitialized("Renderer requires a ready graphics device");
     }
-    if (impl_ == nullptr) {
-        void* memory = allocator_->Allocate({
-            sizeof(Impl), alignof(Impl), Base::MemoryTag::Render});
-        if (memory == nullptr) {
-            return OutOfMemory("Failed to allocate Renderer backend state");
-        }
-        impl_ = new (memory) Impl(*device_, allocator_);
-    }
-
     BufferDescriptor vertexDescriptor;
     vertexDescriptor.sizeBytes = 32U;
     vertexDescriptor.usage = BufferUsage::Vertex;
     Base::Result<ResourceHandle> vertex = device_->CreateBuffer(vertexDescriptor);
     if (!vertex) {
+        Shutdown();
         return vertex.GetStatus();
     }
-    impl_->vertexBuffer = vertex.Value();
+    state_.vertexBuffer = vertex.Value();
 
     SamplerDescriptor effectSamplerDescriptor;
     effectSamplerDescriptor.minFilter =
@@ -522,7 +391,7 @@ Base::Result<void> BatchComposer::Initialize() noexcept {
         Shutdown();
         return effectSampler.GetStatus();
     }
-    impl_->effectSampler =
+    state_.effectSampler =
         effectSampler.Value();
 
     BufferDescriptor uniformDescriptor;
@@ -533,7 +402,7 @@ Base::Result<void> BatchComposer::Initialize() noexcept {
         Shutdown();
         return uniform.GetStatus();
     }
-    impl_->uniformBuffer = uniform.Value();
+    state_.uniformBuffer = uniform.Value();
 
     BufferDescriptor imageUniformDescriptor;
     imageUniformDescriptor.sizeBytes = sizeof(ShaderImageConstants);
@@ -544,7 +413,7 @@ Base::Result<void> BatchComposer::Initialize() noexcept {
         Shutdown();
         return imageUniform.GetStatus();
     }
-    impl_->imageUniformBuffer = imageUniform.Value();
+    state_.imageUniformBuffer = imageUniform.Value();
 
     BufferDescriptor maskUniformDescriptor;
     maskUniformDescriptor.sizeBytes = sizeof(ShaderMaskConstants);
@@ -555,7 +424,7 @@ Base::Result<void> BatchComposer::Initialize() noexcept {
         Shutdown();
         return maskUniform.GetStatus();
     }
-    impl_->maskUniformBuffer = maskUniform.Value();
+    state_.maskUniformBuffer = maskUniform.Value();
 
     BufferDescriptor effectUniformDescriptor;
     effectUniformDescriptor.sizeBytes = sizeof(ShaderEffectConstants);
@@ -566,7 +435,7 @@ Base::Result<void> BatchComposer::Initialize() noexcept {
         Shutdown();
         return effectUniform.GetStatus();
     }
-    impl_->effectUniformBuffer = effectUniform.Value();
+    state_.effectUniformBuffer = effectUniform.Value();
 
     BufferDescriptor meshUniformDescriptor;
     meshUniformDescriptor.sizeBytes = sizeof(ShaderMeshConstants);
@@ -577,7 +446,7 @@ Base::Result<void> BatchComposer::Initialize() noexcept {
         Shutdown();
         return meshUniform.GetStatus();
     }
-    impl_->meshUniformBuffer = meshUniform.Value();
+    state_.meshUniformBuffer = meshUniform.Value();
 
     BufferDescriptor glyphUniformDescriptor;
     glyphUniformDescriptor.sizeBytes = sizeof(ShaderGlyphConstants);
@@ -588,74 +457,19 @@ Base::Result<void> BatchComposer::Initialize() noexcept {
         Shutdown();
         return glyphUniform.GetStatus();
     }
-    impl_->glyphUniformBuffer = glyphUniform.Value();
+    state_.glyphUniformBuffer = glyphUniform.Value();
 
-    auto createPipeline = [this](
-        UiShader shader,
-        UiBlendMode blend) noexcept -> Base::Result<ResourceHandle> {
-        return device_->CreatePipeline({shader, blend});
-    };
-    for (std::uint32_t mode = 0U; mode < 4U; ++mode) {
-        const UiBlendMode blend = static_cast<UiBlendMode>(mode);
-        Base::Result<ResourceHandle> rectangle =
-            createPipeline(UiShader::Rectangle, blend);
-        Base::Result<ResourceHandle> image = rectangle
-            ? createPipeline(UiShader::Image, blend)
-            : Base::Result<ResourceHandle>(rectangle.GetStatus());
-        Base::Result<ResourceHandle> mesh = image
-            ? createPipeline(UiShader::Mesh, blend)
-            : Base::Result<ResourceHandle>(image.GetStatus());
-        Base::Result<ResourceHandle> glyph = mesh
-            ? createPipeline(UiShader::Glyph, blend)
-            : Base::Result<ResourceHandle>(mesh.GetStatus());
-        if (!rectangle || !image || !mesh || !glyph) {
-            const Base::Status failure = !rectangle
-                ? rectangle.GetStatus()
-                : !image ? image.GetStatus()
-                : !mesh ? mesh.GetStatus()
-                : glyph.GetStatus();
-            Shutdown();
-            return failure;
-        }
-        impl_->rectanglePipelines[mode] = rectangle.Value();
-        impl_->imagePipelines[mode] = image.Value();
-        impl_->meshPipelines[mode] = mesh.Value();
-        impl_->glyphPipelines[mode] = glyph.Value();
-    }
-
-    Base::Result<ResourceHandle> maskRectangle =
-        createPipeline(UiShader::Rectangle, UiBlendMode::Mask);
-    Base::Result<ResourceHandle> maskBrush = maskRectangle
-        ? createPipeline(UiShader::Mask, UiBlendMode::Mask)
-        : Base::Result<ResourceHandle>(maskRectangle.GetStatus());
-    Base::Result<ResourceHandle> effectPipeline = maskBrush
-        ? createPipeline(UiShader::Effect, UiBlendMode::Opaque)
-        : Base::Result<ResourceHandle>(maskBrush.GetStatus());
-    if (!maskRectangle || !maskBrush || !effectPipeline) {
-        const Base::Status failure = !maskRectangle
-            ? maskRectangle.GetStatus()
-            : !maskBrush ? maskBrush.GetStatus()
-            : effectPipeline.GetStatus();
-        Shutdown();
-        return failure;
-    }
-    impl_->maskRectanglePipeline = maskRectangle.Value();
-    impl_->maskBrushPipeline = maskBrush.Value();
-    impl_->effectPipeline = effectPipeline.Value();
-    impl_->initialized = true;
+    state_.initialized = true;
     return {};
 }
 
-void BatchComposer::Shutdown() noexcept {
-    if (impl_ == nullptr) {
-        return;
-    }
+void UiFrameEncoder::Shutdown() noexcept {
     const FenceValue retireFence = device_ != nullptr
         ? device_->LastSubmittedFence()
         : 0U;
     if (device_ != nullptr) {
         for (const ViewSurface& surface :
-             impl_->viewSurfaces) {
+             state_.viewSurfaces) {
             if (surface.target.IsValid()) {
                 static_cast<void>(
                     device_->DestroyResource(
@@ -664,7 +478,7 @@ void BatchComposer::Shutdown() noexcept {
             }
         }
         for (const EffectSurface& surface :
-             impl_->effectSurfaces) {
+             state_.effectSurfaces) {
             const ResourceHandle resources[] = {
                 surface.content,
                 surface.scratch,
@@ -679,7 +493,7 @@ void BatchComposer::Shutdown() noexcept {
             }
         }
         for (const GradientRampBinding& ramp :
-             impl_->gradientRamps) {
+             state_.gradientRamps) {
             if (ramp.texture.IsValid()) {
                 static_cast<void>(
                     device_->DestroyResource(
@@ -687,89 +501,63 @@ void BatchComposer::Shutdown() noexcept {
                         retireFence));
             }
         }
-        if (impl_->effectSampler.IsValid()) {
+        if (state_.effectSampler.IsValid()) {
             static_cast<void>(
                 device_->DestroyResource(
-                    impl_->effectSampler,
+                    state_.effectSampler,
                     retireFence));
         }
-        if (impl_->maskBrushPipeline.IsValid()) {
+        if (state_.effectUniformBuffer.IsValid()) {
             static_cast<void>(device_->DestroyResource(
-                impl_->maskBrushPipeline, retireFence));
+                state_.effectUniformBuffer, retireFence));
         }
-        if (impl_->effectPipeline.IsValid()) {
+        if (state_.maskUniformBuffer.IsValid()) {
             static_cast<void>(device_->DestroyResource(
-                impl_->effectPipeline, retireFence));
+                state_.maskUniformBuffer, retireFence));
         }
-        if (impl_->effectUniformBuffer.IsValid()) {
+        if (state_.glyphUniformBuffer.IsValid()) {
             static_cast<void>(device_->DestroyResource(
-                impl_->effectUniformBuffer, retireFence));
+                state_.glyphUniformBuffer, retireFence));
         }
-        if (impl_->maskUniformBuffer.IsValid()) {
+        if (state_.meshUniformBuffer.IsValid()) {
             static_cast<void>(device_->DestroyResource(
-                impl_->maskUniformBuffer, retireFence));
+                state_.meshUniformBuffer, retireFence));
         }
-        if (impl_->maskRectanglePipeline.IsValid()) {
+        if (state_.imageUniformBuffer.IsValid()) {
             static_cast<void>(device_->DestroyResource(
-                impl_->maskRectanglePipeline, retireFence));
+                state_.imageUniformBuffer, retireFence));
         }
-        for (ResourceHandle pipeline :
-             impl_->glyphPipelines) {
-            if (pipeline.IsValid()) {
-                static_cast<void>(
-                    device_->DestroyResource(
-                        pipeline, retireFence));
-            }
+        if (state_.uniformBuffer.IsValid()) {
+            static_cast<void>(device_->DestroyResource(state_.uniformBuffer, retireFence));
         }
-        if (impl_->glyphUniformBuffer.IsValid()) {
-            static_cast<void>(device_->DestroyResource(
-                impl_->glyphUniformBuffer, retireFence));
-        }
-        for (ResourceHandle pipeline :
-             impl_->meshPipelines) {
-            if (pipeline.IsValid()) {
-                static_cast<void>(
-                    device_->DestroyResource(
-                        pipeline, retireFence));
-            }
-        }
-        if (impl_->meshUniformBuffer.IsValid()) {
-            static_cast<void>(device_->DestroyResource(
-                impl_->meshUniformBuffer, retireFence));
-        }
-        for (ResourceHandle pipeline :
-             impl_->imagePipelines) {
-            if (pipeline.IsValid()) {
-                static_cast<void>(
-                    device_->DestroyResource(
-                        pipeline, retireFence));
-            }
-        }
-        if (impl_->imageUniformBuffer.IsValid()) {
-            static_cast<void>(device_->DestroyResource(
-                impl_->imageUniformBuffer, retireFence));
-        }
-        for (ResourceHandle pipeline :
-             impl_->rectanglePipelines) {
-            if (pipeline.IsValid()) {
-                static_cast<void>(
-                    device_->DestroyResource(
-                        pipeline, retireFence));
-            }
-        }
-        if (impl_->uniformBuffer.IsValid()) {
-            static_cast<void>(device_->DestroyResource(impl_->uniformBuffer, retireFence));
-        }
-        if (impl_->vertexBuffer.IsValid()) {
-            static_cast<void>(device_->DestroyResource(impl_->vertexBuffer, retireFence));
+        if (state_.vertexBuffer.IsValid()) {
+            static_cast<void>(device_->DestroyResource(state_.vertexBuffer, retireFence));
         }
     }
-    impl_->~Impl();
-    allocator_->Deallocate(impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Render);
-    impl_ = nullptr;
+    state_.vertexBuffer = {};
+    state_.uniformBuffer = {};
+    state_.imageUniformBuffer = {};
+    state_.maskUniformBuffer = {};
+    state_.effectUniformBuffer = {};
+    state_.meshUniformBuffer = {};
+    state_.glyphUniformBuffer = {};
+    state_.effectSampler = {};
+    state_.nodes.Clear();
+    state_.transforms.Clear();
+    state_.clips.Clear();
+    state_.opacities.Clear();
+    state_.nodePath.Clear();
+    state_.images.Clear();
+    state_.gradientRamps.Clear();
+    state_.meshes.Clear();
+    state_.glyphRuns.Clear();
+    state_.effectSurfaces.Clear();
+    state_.viewSurfaces.Clear();
+    state_.lastStatistics = {};
+    state_.initialized = false;
 }
 
-Base::Result<void> BatchComposer::RegisterImage(
+Base::Result<void> UiFrameEncoder::RegisterImage(
     Render::RenderImageId image,
     ResourceHandle texture,
     ResourceHandle sampler) noexcept {
@@ -783,26 +571,26 @@ Base::Result<void> BatchComposer::RegisterImage(
         return InvalidArgument(
             "Renderer image registration requires live texture and sampler resources");
     }
-    for (const ImageBinding& binding : impl_->images) {
+    for (const ImageBinding& binding : state_.images) {
         if (binding.id == image) {
             return InvalidState("Renderer image ID is already registered");
         }
     }
-    return impl_->images.PushBack({image, texture, sampler});
+    return state_.images.PushBack({image, texture, sampler});
 }
 
-Base::Result<void> BatchComposer::UnregisterImage(
+Base::Result<void> UiFrameEncoder::UnregisterImage(
     Render::RenderImageId image) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
     }
-    for (std::uint32_t index = 0U; index < impl_->images.Size(); ++index) {
-        if (impl_->images[index].id == image) {
+    for (std::uint32_t index = 0U; index < state_.images.Size(); ++index) {
+        if (state_.images[index].id == image) {
             for (std::uint32_t next = index + 1U;
-                 next < impl_->images.Size(); ++next) {
-                impl_->images[next - 1U] = impl_->images[next];
+                 next < state_.images.Size(); ++next) {
+                state_.images[next - 1U] = state_.images[next];
             }
-            impl_->images.PopBack();
+            state_.images.PopBack();
             return {};
         }
     }
@@ -810,7 +598,7 @@ Base::Result<void> BatchComposer::UnregisterImage(
         "Renderer image ID is not registered");
 }
 
-Base::Result<void> BatchComposer::RegisterMesh(
+Base::Result<void> UiFrameEncoder::RegisterMesh(
     Render::RenderMeshId mesh,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer,
@@ -826,27 +614,27 @@ Base::Result<void> BatchComposer::RegisterMesh(
         return InvalidArgument(
             "Renderer mesh registration requires live vertex and index buffers");
     }
-    for (const MeshBinding& binding : impl_->meshes) {
+    for (const MeshBinding& binding : state_.meshes) {
         if (binding.id == mesh) {
             return InvalidState("Renderer mesh ID is already registered");
         }
     }
-    return impl_->meshes.PushBack(
+    return state_.meshes.PushBack(
         {mesh, vertexBuffer, indexBuffer, indexCount, indexType});
 }
 
-Base::Result<void> BatchComposer::UnregisterMesh(
+Base::Result<void> UiFrameEncoder::UnregisterMesh(
     Render::RenderMeshId mesh) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
     }
-    for (std::uint32_t index = 0U; index < impl_->meshes.Size(); ++index) {
-        if (impl_->meshes[index].id == mesh) {
+    for (std::uint32_t index = 0U; index < state_.meshes.Size(); ++index) {
+        if (state_.meshes[index].id == mesh) {
             for (std::uint32_t next = index + 1U;
-                 next < impl_->meshes.Size(); ++next) {
-                impl_->meshes[next - 1U] = impl_->meshes[next];
+                 next < state_.meshes.Size(); ++next) {
+                state_.meshes[next - 1U] = state_.meshes[next];
             }
-            impl_->meshes.PopBack();
+            state_.meshes.PopBack();
             return {};
         }
     }
@@ -854,7 +642,7 @@ Base::Result<void> BatchComposer::UnregisterMesh(
         "Renderer mesh ID is not registered");
 }
 
-Base::Result<void> BatchComposer::RegisterGlyphRun(
+Base::Result<void> UiFrameEncoder::RegisterGlyphRun(
     Render::RenderGlyphRunId glyphRun,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer,
@@ -875,28 +663,28 @@ Base::Result<void> BatchComposer::RegisterGlyphRun(
         return InvalidArgument(
             "Renderer glyph registration requires live buffers, atlas, and sampler");
     }
-    for (const GlyphBinding& binding : impl_->glyphRuns) {
+    for (const GlyphBinding& binding : state_.glyphRuns) {
         if (binding.id == glyphRun) {
             return InvalidState("Renderer glyph ID is already registered");
         }
     }
-    return impl_->glyphRuns.PushBack(
+    return state_.glyphRuns.PushBack(
         {glyphRun, vertexBuffer, indexBuffer, indexCount, atlasTexture, sampler,
             indexType});
 }
 
-Base::Result<void> BatchComposer::UnregisterGlyphRun(
+Base::Result<void> UiFrameEncoder::UnregisterGlyphRun(
     Render::RenderGlyphRunId glyphRun) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
     }
-    for (std::uint32_t index = 0U; index < impl_->glyphRuns.Size(); ++index) {
-        if (impl_->glyphRuns[index].id == glyphRun) {
+    for (std::uint32_t index = 0U; index < state_.glyphRuns.Size(); ++index) {
+        if (state_.glyphRuns[index].id == glyphRun) {
             for (std::uint32_t next = index + 1U;
-                 next < impl_->glyphRuns.Size(); ++next) {
-                impl_->glyphRuns[next - 1U] = impl_->glyphRuns[next];
+                 next < state_.glyphRuns.Size(); ++next) {
+                state_.glyphRuns[next - 1U] = state_.glyphRuns[next];
             }
-            impl_->glyphRuns.PopBack();
+            state_.glyphRuns.PopBack();
             return {};
         }
     }
@@ -904,49 +692,41 @@ Base::Result<void> BatchComposer::UnregisterGlyphRun(
         "Renderer glyph ID is not registered");
 }
 
-bool BatchComposer::IsInitialized() const noexcept {
-    return impl_ != nullptr && impl_->initialized;
+bool UiFrameEncoder::IsInitialized() const noexcept {
+    return state_.initialized;
 }
 
 BatchStatistics
-BatchComposer::LastStatistics() const noexcept {
-    return impl_ != nullptr ? impl_->lastStatistics
-                            : BatchStatistics{};
+UiFrameEncoder::LastStatistics() const noexcept {
+    return state_.initialized
+        ? state_.lastStatistics
+        : BatchStatistics{};
 }
 
-void BatchComposer::SetBatchingEnabled(
+void UiFrameEncoder::SetBatchingEnabled(
     bool enabled) noexcept {
-    if (impl_ != nullptr) {
-        impl_->batchingEnabled = enabled;
-    }
+    state_.batchingEnabled = enabled;
 }
 
-bool BatchComposer::IsBatchingEnabled() const noexcept {
-    return impl_ == nullptr ||
-        impl_->batchingEnabled;
+bool UiFrameEncoder::IsBatchingEnabled() const noexcept {
+    return state_.batchingEnabled;
 }
 
-Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::RecordOffscreen(
-    const void* rendererToken,
-    const ::Aero::Render::Detail::RenderFrame& plan) noexcept {
-    if (!IsInitialized() || rendererToken == nullptr) {
+Base::Result<FenceValue> UiFrameEncoder::RecordOffscreen(
+    const ::Aero::Render::RenderFrame& plan) noexcept {
+    if (!IsInitialized()) {
         return NotInitialized(
-            "Offscreen rendering requires an initialized Renderer and token");
+            "Offscreen rendering requires an initialized batch composer");
     }
-    ViewSurface* surface = nullptr;
-    for (ViewSurface& candidate : impl_->viewSurfaces) {
-        if (candidate.owner == rendererToken) {
-            surface = &candidate;
-            break;
-        }
-    }
+    ViewSurface* surface = state_.viewSurfaces.Empty()
+        ? nullptr : &state_.viewSurfaces[0U];
     if (!RequiresFrameSurface(plan)) {
         if (surface != nullptr) {
             surface->version = plan.Version();
             surface->prepared = false;
             surface->statistics = {};
         }
-        ::Aero::Render::Detail::RenderBatchBuilder empty(allocator_);
+        ::Aero::Render::UiDrawContext empty(*device_, allocator_);
         return empty.Finish();
     }
 
@@ -958,7 +738,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::RecordOffscreen
             surface->prepared = false;
             surface->statistics = {};
         }
-        ::Aero::Render::Detail::RenderBatchBuilder empty(allocator_);
+        ::Aero::Render::UiDrawContext empty(*device_, allocator_);
         return empty.Finish();
     }
     if (width > device_->Capabilities().maxTextureDimension ||
@@ -968,10 +748,9 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::RecordOffscreen
     }
     if (surface == nullptr) {
         Base::Result<ViewSurface*> added =
-            impl_->viewSurfaces.EmplaceBack();
+            state_.viewSurfaces.EmplaceBack();
         if (!added) return added.GetStatus();
         surface = added.Value();
-        surface->owner = rendererToken;
     }
     if (surface->target.IsValid() &&
         (surface->width != width || surface->height != height ||
@@ -995,31 +774,25 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::RecordOffscreen
         surface->width = width;
         surface->height = height;
     }
-    Base::Result<::Aero::Render::Detail::RenderBatch> recorded =
+    Base::Result<FenceValue> recorded =
         Record(plan, {
             surface->target, width, height,
             LoadOperation::Clear});
     if (!recorded) return recorded.GetStatus();
     surface->version = plan.Version();
-    surface->statistics = impl_->lastStatistics;
+    surface->statistics = state_.lastStatistics;
     surface->prepared = true;
     return std::move(recorded).Value();
 }
 
-Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::RecordOnscreen(
-    const void* rendererToken,
-    const ::Aero::Render::Detail::RenderFrame& plan,
+Base::Result<FenceValue> UiFrameEncoder::RecordOnscreen(
+    const ::Aero::Render::RenderFrame& plan,
     const FrameTarget& target) noexcept {
     if (!RequiresFrameSurface(plan)) {
         return Record(plan, target);
     }
-    ViewSurface* surface = nullptr;
-    for (ViewSurface& candidate : impl_->viewSurfaces) {
-        if (candidate.owner == rendererToken) {
-            surface = &candidate;
-            break;
-        }
-    }
+    ViewSurface* surface = state_.viewSurfaces.Empty()
+        ? nullptr : &state_.viewSurfaces[0U];
     if (surface == nullptr || !surface->prepared ||
         surface->version != plan.Version() ||
         !surface->target.IsValid() ||
@@ -1032,21 +805,21 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::RecordOnscreen(
         return InvalidArgument("Onscreen render target is invalid");
     }
 
-    ::Aero::Render::Detail::RenderBatchBuilder encoder(allocator_);
+    ::Aero::Render::UiDrawContext encoder(*device_, allocator_);
     static constexpr float UnitQuad[] = {
         0.0F, 0.0F, 1.0F, 0.0F,
         0.0F, 1.0F, 1.0F, 1.0F};
     const auto* bytes =
         reinterpret_cast<const std::uint8_t*>(UnitQuad);
     Base::Result<void> encoded = encoder.UploadBuffer(
-        impl_->vertexBuffer, 0U,
+        state_.vertexBuffer, 0U,
         {bytes, static_cast<std::uint32_t>(sizeof(UnitQuad))});
     const std::uint32_t compositeWidth =
         (std::min)(surface->width, target.width);
     const std::uint32_t compositeHeight =
         (std::min)(surface->height, target.height);
     if (compositeWidth == 0U || compositeHeight == 0U) {
-        ::Aero::Render::Detail::RenderBatchBuilder empty(allocator_);
+        ::Aero::Render::UiDrawContext empty(*device_, allocator_);
         return empty.Finish();
     }
     RenderPassDescriptor pass;
@@ -1059,13 +832,14 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::RecordOnscreen(
     pass.colorAttachments[0].store = StoreOperation::Store;
     pass.colorAttachments[0].clearColor = {0.0F, 0.0F, 0.0F, 0.0F};
     if (encoded) encoded = encoder.BeginRenderPass(pass);
-    if (encoded) encoded = encoder.BindPipeline(impl_->imagePipelines[0U]);
-    if (encoded) encoded = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+    if (encoded) encoded = encoder.BindPipeline(
+        {UiShader::Image, UiBlendMode::Normal});
+    if (encoded) encoded = encoder.BindVertexBuffer(0U, state_.vertexBuffer);
     if (encoded) encoded = encoder.BindUniformBuffer(
-        0U, impl_->imageUniformBuffer, 0U,
+        0U, state_.imageUniformBuffer, 0U,
         static_cast<std::uint32_t>(sizeof(ShaderImageConstants)));
     if (encoded) encoded = encoder.BindTextureSampler(
-        0U, surface->target, impl_->effectSampler);
+        0U, surface->target, state_.effectSampler);
     ShaderImageConstants constants;
     constants.rects[0][2] = static_cast<float>(compositeWidth);
     constants.rects[0][3] = static_cast<float>(compositeHeight);
@@ -1089,12 +863,12 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::RecordOnscreen(
     constants.clipInverse[0][0] = 1.0F;
     constants.clipInverse[0][3] = 1.0F;
     if (encoded) encoded = AppendDraw(
-        encoder, impl_->imageUniformBuffer, constants,
+        encoder, state_.imageUniformBuffer, constants,
         pass.renderArea, 1U);
     if (encoded) encoded = encoder.EndRenderPass();
-    Base::Result<::Aero::Render::Detail::RenderBatch> finished = encoded
+    Base::Result<FenceValue> finished = encoded
         ? encoder.Finish()
-        : Base::Result<::Aero::Render::Detail::RenderBatch>(encoded.GetStatus());
+        : Base::Result<FenceValue>(encoded.GetStatus());
     if (!finished) return finished.GetStatus();
 
     BatchStatistics composite;
@@ -1106,34 +880,13 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::RecordOnscreen(
     composite.vertexBufferBindingCount = 1U;
     composite.uniformBufferBindingCount = 1U;
     composite.textureSamplerBindingCount = 1U;
-    impl_->lastStatistics = surface->statistics;
-    AddStatistics(impl_->lastStatistics, composite);
+    state_.lastStatistics = surface->statistics;
+    AddStatistics(state_.lastStatistics, composite);
     return std::move(finished).Value();
 }
 
-void BatchComposer::ReleaseRenderer(
-    const void* rendererToken) noexcept {
-    if (impl_ == nullptr || rendererToken == nullptr) return;
-    for (std::uint32_t index = 0U;
-         index < impl_->viewSurfaces.Size(); ++index) {
-        ViewSurface& surface = impl_->viewSurfaces[index];
-        if (surface.owner != rendererToken) continue;
-        if (device_ != nullptr && surface.target.IsValid()) {
-            static_cast<void>(device_->DestroyResource(
-                surface.target, device_->LastSubmittedFence()));
-        }
-        for (std::uint32_t next = index + 1U;
-             next < impl_->viewSurfaces.Size(); ++next) {
-            impl_->viewSurfaces[next - 1U] =
-                std::move(impl_->viewSurfaces[next]);
-        }
-        impl_->viewSurfaces.PopBack();
-        return;
-    }
-}
-
-Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
-    const ::Aero::Render::Detail::RenderFrame& plan,
+Base::Result<FenceValue> UiFrameEncoder::Record(
+    const ::Aero::Render::RenderFrame& plan,
     const FrameTarget& target) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer is not initialized");
@@ -1220,9 +973,9 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         }
     }
     for (std::uint32_t index = effectCount;
-         index < impl_->effectSurfaces.Size();
+         index < state_.effectSurfaces.Size();
          ++index) {
-        EffectSurface& surface = impl_->effectSurfaces[index];
+        EffectSurface& surface = state_.effectSurfaces[index];
         const ResourceHandle resources[] = {
             surface.content, surface.scratch, surface.result};
         for (ResourceHandle resource : resources) {
@@ -1233,7 +986,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         }
     }
     Base::Result<void> resizedEffects =
-        impl_->effectSurfaces.Resize(
+        state_.effectSurfaces.Resize(
             effectCount);
     if (!resizedEffects) {
         return resizedEffects.GetStatus();
@@ -1241,7 +994,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
     std::uint32_t surfaceOrdinal = 0U;
     for (const Render::RenderNodeSnapshot& node : plan.Nodes()) {
         if (!RequiresNodeSurface(node)) continue;
-        EffectSurface& surface = impl_->effectSurfaces[surfaceOrdinal++];
+        EffectSurface& surface = state_.effectSurfaces[surfaceOrdinal++];
         Aero::Rect subtreeBounds;
         bool hasBounds = false;
         for (const FrameNodeGeometry& candidate : frameGeometry) {
@@ -1388,11 +1141,11 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         surface.empty = emptySurface;
     }
 
-    ::Aero::Render::Detail::RenderBatchBuilder encoder(allocator_);
+    ::Aero::Render::UiDrawContext encoder(*device_, allocator_);
     for (std::uint32_t index = 0U;
-         index < impl_->gradientRamps.Size();) {
+         index < state_.gradientRamps.Size();) {
         const GradientRampBinding& cached =
-            impl_->gradientRamps[index];
+            state_.gradientRamps[index];
         bool used = false;
         for (const Render::RenderGradientRampSnapshot& ramp :
              plan.GradientRamps()) {
@@ -1410,17 +1163,17 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                 cached.texture, device_->LastSubmittedFence()));
         }
         for (std::uint32_t next = index + 1U;
-             next < impl_->gradientRamps.Size(); ++next) {
-            impl_->gradientRamps[next - 1U] =
-                std::move(impl_->gradientRamps[next]);
+             next < state_.gradientRamps.Size(); ++next) {
+            state_.gradientRamps[next - 1U] =
+                std::move(state_.gradientRamps[next]);
         }
-        impl_->gradientRamps.PopBack();
+        state_.gradientRamps.PopBack();
     }
     for (const Render::RenderGradientRampSnapshot& ramp :
          plan.GradientRamps()) {
         GradientRampBinding* binding = nullptr;
         for (GradientRampBinding& candidate :
-             impl_->gradientRamps) {
+             state_.gradientRamps) {
             if (candidate.key == ramp.brushIdentity) {
                 binding = &candidate;
                 break;
@@ -1428,7 +1181,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         }
         if (binding == nullptr) {
             Base::Result<GradientRampBinding*> appended =
-                impl_->gradientRamps.EmplaceBack();
+                state_.gradientRamps.EmplaceBack();
             if (!appended) return appended.GetStatus();
             binding = appended.Value();
             binding->key = ramp.brushIdentity;
@@ -1475,7 +1228,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         0.0F, 1.0F, 1.0F, 1.0F};
     const auto* vertexBytes = reinterpret_cast<const std::uint8_t*>(UnitQuad);
     Base::Result<void> encoded = encoder.UploadBuffer(
-        impl_->vertexBuffer, 0U,
+        state_.vertexBuffer, 0U,
         {vertexBytes, static_cast<std::uint32_t>(sizeof(UnitQuad))});
     if (!encoded) {
         return encoded.GetStatus();
@@ -1507,17 +1260,17 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
             return {};
         }
         Base::Result<void> result =
-            encoder.BindPipeline(
-                impl_->rectanglePipelines[
-                    blendMode]);
+            encoder.BindPipeline({
+                UiShader::Rectangle,
+                static_cast<UiBlendMode>(blendMode)});
         if (result) {
             ++submissionStatistics.pipelineBindingCount;
-            result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+            result = encoder.BindVertexBuffer(0U, state_.vertexBuffer);
         }
         if (result) {
             ++submissionStatistics.vertexBufferBindingCount;
             result = encoder.BindUniformBuffer(
-                0U, impl_->uniformBuffer, 0U,
+                0U, state_.uniformBuffer, 0U,
                 static_cast<std::uint32_t>(sizeof(ShaderRectConstants)));
         }
         if (result) {
@@ -1535,16 +1288,17 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
             return {};
         }
         Base::Result<void> result =
-            encoder.BindPipeline(
-                impl_->imagePipelines[blendMode]);
+            encoder.BindPipeline({
+                UiShader::Image,
+                static_cast<UiBlendMode>(blendMode)});
         if (result) {
             ++submissionStatistics.pipelineBindingCount;
-            result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+            result = encoder.BindVertexBuffer(0U, state_.vertexBuffer);
         }
         if (result) {
             ++submissionStatistics.vertexBufferBindingCount;
             result = encoder.BindUniformBuffer(
-                0U, impl_->imageUniformBuffer, 0U,
+                0U, state_.imageUniformBuffer, 0U,
                 static_cast<std::uint32_t>(sizeof(ShaderImageConstants)));
         }
         if (result) {
@@ -1562,12 +1316,13 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
             return {};
         }
         Base::Result<void> result =
-            encoder.BindPipeline(
-                impl_->meshPipelines[blendMode]);
+            encoder.BindPipeline({
+                UiShader::Mesh,
+                static_cast<UiBlendMode>(blendMode)});
         if (result) {
             ++submissionStatistics.pipelineBindingCount;
             result = encoder.BindUniformBuffer(
-                0U, impl_->meshUniformBuffer, 0U,
+                0U, state_.meshUniformBuffer, 0U,
                 static_cast<std::uint32_t>(sizeof(ShaderMeshConstants)));
         }
         if (result) {
@@ -1585,12 +1340,13 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
             return {};
         }
         Base::Result<void> result =
-            encoder.BindPipeline(
-                impl_->glyphPipelines[blendMode]);
+            encoder.BindPipeline({
+                UiShader::Glyph,
+                static_cast<UiBlendMode>(blendMode)});
         if (result) {
             ++submissionStatistics.pipelineBindingCount;
             result = encoder.BindUniformBuffer(
-                0U, impl_->glyphUniformBuffer, 0U,
+                0U, state_.glyphUniformBuffer, 0U,
                 static_cast<std::uint32_t>(sizeof(ShaderGlyphConstants)));
         }
         if (result) {
@@ -1640,7 +1396,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
     };
     activePipeline = ActivePipeline::None;
     activeBlendMode = UINT32_MAX;
-    impl_->nodes.Clear();
+    state_.nodes.Clear();
     std::uint32_t effectOrdinal = 0U;
     for (const Render::RenderNodeSnapshot& node : plan.Nodes()) {
         const std::uint32_t nodeEffectSurfaceIndex =
@@ -1658,7 +1414,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         }
         bool duplicateId = false;
         for (const NodeState& existing :
-            impl_->nodes) {
+            state_.nodes) {
             duplicateId =
                 duplicateId ||
                 existing.id == node.id;
@@ -1745,8 +1501,8 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         std::uint32_t containingEffectCount = 0U;
         if (node.parentId != Render::InvalidRenderNodeId) {
             const NodeState* parent = nullptr;
-            for (std::uint32_t index = impl_->nodes.Size(); index > 0U; --index) {
-                const NodeState& candidate = impl_->nodes[index - 1U];
+            for (std::uint32_t index = state_.nodes.Size(); index > 0U; --index) {
+                const NodeState& candidate = state_.nodes[index - 1U];
                 if (candidate.id == node.parentId) {
                     parent = &candidate;
                     parentIndex = index - 1U;
@@ -1791,7 +1547,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         }
         const double nodeOpacity =
             parentOpacity * node.opacity;
-        Base::Result<void> appendedNode = impl_->nodes.PushBack(
+        Base::Result<void> appendedNode = state_.nodes.PushBack(
             {node.id, nodeTransform, nodeClip, node.clipsToBounds,
              nodeOpacity,
              parentIndex, containingEffect,
@@ -1801,33 +1557,33 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
             break;
         }
 
-        impl_->transforms.Clear();
-        impl_->clips.Clear();
-        impl_->opacities.Clear();
-        impl_->nodePath.Clear();
+        state_.transforms.Clear();
+        state_.clips.Clear();
+        state_.opacities.Clear();
+        state_.nodePath.Clear();
         // Drawing code always has a current clip. Keep the render target as
         // that root clip, then add only ancestors that explicitly opt into
         // ClipToBounds.
-        Base::Result<void> rootClip = impl_->clips.PushBack(
+        Base::Result<void> rootClip = state_.clips.PushBack(
             {passTargetClip, IdentityTransform(), passTargetClip});
         if (!rootClip) {
             encoded = rootClip;
             break;
         }
-        std::uint32_t nodePathIndex = impl_->nodes.Size() - 1U;
+        std::uint32_t nodePathIndex = state_.nodes.Size() - 1U;
         while (true) {
-            if (impl_->nodePath.Size() >= MaxShaderClips) {
+            if (state_.nodePath.Size() >= MaxShaderClips) {
                 encoded = Unsupported(
                     "Renderer layout clip nesting exceeds shader capacity");
                 break;
             }
-            Base::Result<void> pathAppended = impl_->nodePath.PushBack(nodePathIndex);
+            Base::Result<void> pathAppended = state_.nodePath.PushBack(nodePathIndex);
             if (!pathAppended) {
                 encoded = pathAppended;
                 break;
             }
             const std::uint32_t nextParent =
-                impl_->nodes[nodePathIndex].parentIndex;
+                state_.nodes[nodePathIndex].parentIndex;
             if (nextParent == UINT32_MAX) {
                 break;
             }
@@ -1836,13 +1592,13 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         if (!encoded) {
             break;
         }
-        for (std::uint32_t index = impl_->nodePath.Size(); index > 0U; --index) {
+        for (std::uint32_t index = state_.nodePath.Size(); index > 0U; --index) {
             const NodeState& pathNode =
-                impl_->nodes[impl_->nodePath[index - 1U]];
+                state_.nodes[state_.nodePath[index - 1U]];
             if (!pathNode.clipsToBounds) {
                 continue;
             }
-            Base::Result<void> pushed = impl_->clips.PushBack(pathNode.clip);
+            Base::Result<void> pushed = state_.clips.PushBack(pathNode.clip);
             if (!pushed) {
                 encoded = pushed;
                 break;
@@ -1851,16 +1607,16 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         if (!encoded) {
             break;
         }
-        if (!(impl_->transforms.PushBack(nodeTransform)) ||
-            !(impl_->opacities.PushBack(nodeOpacity))) {
+        if (!(state_.transforms.PushBack(nodeTransform)) ||
+            !(state_.opacities.PushBack(nodeOpacity))) {
             encoded = OutOfMemory("Failed to allocate Renderer state stack");
             break;
         }
-        const std::uint32_t baseClipCount = impl_->clips.Size();
+        const std::uint32_t baseClipCount = state_.clips.Size();
 
         const NodeState& currentNodeState =
-            impl_->nodes[
-                impl_->nodes.Size() - 1U];
+            state_.nodes[
+                state_.nodes.Size() - 1U];
         bool shouldDraw =
             mainPass
             ? currentNodeState.containingEffect ==
@@ -1874,14 +1630,14 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
              : parentContainingEffect == effectRoot);
         if (compositeSurface) {
             if (nodeEffectSurfaceIndex >=
-                    impl_->effectSurfaces.Size() ||
-                impl_->effectSurfaces[nodeEffectSurfaceIndex].owner != node.id) {
+                    state_.effectSurfaces.Size() ||
+                state_.effectSurfaces[nodeEffectSurfaceIndex].owner != node.id) {
                 encoded = InvalidState(
                     "Renderer effect surface is unavailable");
                 break;
             }
             const EffectSurface& effectSurface =
-                impl_->effectSurfaces[nodeEffectSurfaceIndex];
+                state_.effectSurfaces[nodeEffectSurfaceIndex];
             const ResourceHandle source =
                 node.effect.kind == Render::RenderEffectKind::None
                 ? effectSurface.content
@@ -1930,13 +1686,13 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                 encoded = bindImagePipeline(blendMode);
                 if (encoded) {
                     encoded = encoder.BindTextureSampler(
-                        0U, source, impl_->effectSampler);
+                        0U, source, state_.effectSampler);
                 }
                 if (encoded) {
                     ++submissionStatistics.textureSamplerBindingCount;
                     encoded = AppendDraw(
                         encoder,
-                        impl_->imageUniformBuffer,
+                        state_.imageUniformBuffer,
                         constants,
                         passPhysicalScissor(effectBounds),
                         1U);
@@ -1965,16 +1721,16 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     break;
                 }
                 Base::Result<void> pushed = PushClipState(
-                    impl_->clips, command.rect,
-                    impl_->transforms[impl_->transforms.Size() - 1U]);
+                    state_.clips, command.rect,
+                    state_.transforms[state_.transforms.Size() - 1U]);
                 if (!pushed) encoded = pushed;
                 break;
             }
             case Render::RenderCommandKind::PopClip:
-                if (impl_->clips.Size() <= baseClipCount) {
+                if (state_.clips.Size() <= baseClipCount) {
                     encoded = InvalidState("Renderer clip stack underflow");
                 } else {
-                    impl_->clips.PopBack();
+                    state_.clips.PopBack();
                 }
                 break;
             case Render::RenderCommandKind::PushOpacity: {
@@ -1982,16 +1738,16 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     encoded = InvalidArgument("Renderer contains invalid opacity");
                     break;
                 }
-                Base::Result<void> pushed = impl_->opacities.PushBack(
-                    impl_->opacities[impl_->opacities.Size() - 1U] * command.scalar);
+                Base::Result<void> pushed = state_.opacities.PushBack(
+                    state_.opacities[state_.opacities.Size() - 1U] * command.scalar);
                 if (!pushed) encoded = pushed;
                 break;
             }
             case Render::RenderCommandKind::PopOpacity:
-                if (impl_->opacities.Size() <= 1U) {
+                if (state_.opacities.Size() <= 1U) {
                     encoded = InvalidState("Renderer opacity stack underflow");
                 } else {
-                    impl_->opacities.PopBack();
+                    state_.opacities.PopBack();
                 }
                 break;
             case Render::RenderCommandKind::PushTransform: {
@@ -1999,17 +1755,17 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     encoded = InvalidArgument("Renderer contains an invalid transform");
                     break;
                 }
-                Base::Result<void> pushed = impl_->transforms.PushBack(Compose(
+                Base::Result<void> pushed = state_.transforms.PushBack(Compose(
                     command.transform,
-                    impl_->transforms[impl_->transforms.Size() - 1U]));
+                    state_.transforms[state_.transforms.Size() - 1U]));
                 if (!pushed) encoded = pushed;
                 break;
             }
             case Render::RenderCommandKind::PopTransform:
-                if (impl_->transforms.Size() <= 1U) {
+                if (state_.transforms.Size() <= 1U) {
                     encoded = InvalidState("Renderer transform stack underflow");
                 } else {
-                    impl_->transforms.PopBack();
+                    state_.transforms.PopBack();
                 }
                 break;
             case Render::RenderCommandKind::FillRect:
@@ -2036,13 +1792,13 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     break;
                 }
                 const Aero::Rect clip =
-                    impl_->clips[impl_->clips.Size() - 1U].bounds;
+                    state_.clips[state_.clips.Size() - 1U].bounds;
                 if (IsEmpty(clip) || IsEmpty(command.rect)) {
                     break;
                 }
                 const Media::Transform2D& transform =
-                    impl_->transforms[impl_->transforms.Size() - 1U];
-                const double opacity = impl_->opacities[impl_->opacities.Size() - 1U];
+                    state_.transforms[state_.transforms.Size() - 1U];
+                const double opacity = state_.opacities[state_.opacities.Size() - 1U];
                 if (!FitsFloat(command.rect.x) || !FitsFloat(command.rect.y) ||
                     !FitsFloat(command.rect.width) || !FitsFloat(command.rect.height) ||
                     (command.kind == Render::RenderCommandKind::FillRoundedRect &&
@@ -2066,11 +1822,11 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                         static_cast<float>(passLogicalWidth);
                     constants.transform1[3] =
                         static_cast<float>(passLogicalHeight);
-                    constants.clipCount = impl_->clips.Size();
+                    constants.clipCount = state_.clips.Size();
                     for (std::uint32_t clipIndex = 0U;
-                         clipIndex < impl_->clips.Size();
+                         clipIndex < state_.clips.Size();
                          ++clipIndex) {
-                        const ClipState& clipState = impl_->clips[clipIndex];
+                        const ClipState& clipState = state_.clips[clipIndex];
                         const Media::Transform2D& clipTransform =
                             clipState.transform;
                         const double determinant =
@@ -2117,7 +1873,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                 auto appendConstants = [&](const ShaderRectConstants& constants,
                     std::uint32_t instanceCount) noexcept -> Base::Result<void> {
                     Base::Result<void> result = AppendDraw(
-                        encoder, impl_->uniformBuffer, constants,
+                        encoder, state_.uniformBuffer, constants,
                         passPhysicalScissor(clip),
                         instanceCount);
                     if (result) {
@@ -2162,7 +1918,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     for (std::uint32_t batchIndex = commandIndex;
                          batchIndex < node.commandCount &&
                              instanceCount <
-                                 (impl_->batchingEnabled
+                                 (state_.batchingEnabled
                                   ? MaxRectangleBatchInstances
                                   : 1U);
                          ++batchIndex) {
@@ -2247,7 +2003,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     break;
                 }
                 const ImageBinding* imageBinding = nullptr;
-                for (const ImageBinding& candidate : impl_->images) {
+                for (const ImageBinding& candidate : state_.images) {
                     if (candidate.id == command.image) {
                         imageBinding = &candidate;
                         break;
@@ -2265,15 +2021,15 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     break;
                 }
                 const Aero::Rect clip =
-                    impl_->clips[impl_->clips.Size() - 1U].bounds;
+                    state_.clips[state_.clips.Size() - 1U].bounds;
                 if (IsEmpty(clip) || IsEmpty(command.rect) ||
                     IsEmptyImageUv(command.sourceUv)) {
                     break;
                 }
                 const Media::Transform2D& transform =
-                    impl_->transforms[impl_->transforms.Size() - 1U];
+                    state_.transforms[state_.transforms.Size() - 1U];
                 const double opacity =
-                    impl_->opacities[impl_->opacities.Size() - 1U];
+                    state_.opacities[state_.opacities.Size() - 1U];
                 if (!FitsFloat(command.rect.x) || !FitsFloat(command.rect.y) ||
                     !FitsFloat(command.rect.width) || !FitsFloat(command.rect.height) ||
                     !FitsFloat(command.sourceUv.x) || !FitsFloat(command.sourceUv.y) ||
@@ -2298,11 +2054,11 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     static_cast<float>(passLogicalWidth);
                 constants.transform1[3] =
                     static_cast<float>(passLogicalHeight);
-                constants.clipCount = impl_->clips.Size();
+                constants.clipCount = state_.clips.Size();
                 for (std::uint32_t clipIndex = 0U;
-                     clipIndex < impl_->clips.Size();
+                     clipIndex < state_.clips.Size();
                      ++clipIndex) {
-                    const ClipState& clipState = impl_->clips[clipIndex];
+                    const ClipState& clipState = state_.clips[clipIndex];
                     const Media::Transform2D& clipTransform = clipState.transform;
                     const double determinant =
                         clipTransform.m11 * clipTransform.m22 -
@@ -2352,7 +2108,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                 for (std::uint32_t batchIndex = commandIndex;
                      batchIndex < node.commandCount &&
                          instanceCount <
-                             (impl_->batchingEnabled
+                             (state_.batchingEnabled
                               ? MaxRectangleBatchInstances
                               : 1U);
                      ++batchIndex) {
@@ -2423,7 +2179,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     }
                     if (encoded) {
                         ++submissionStatistics.textureSamplerBindingCount;
-                        encoded = AppendDraw(encoder, impl_->imageUniformBuffer,
+                        encoded = AppendDraw(encoder, state_.imageUniformBuffer,
                             constants, passPhysicalScissor(clip), instanceCount);
                     }
                     if (encoded) {
@@ -2441,7 +2197,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     break;
                 }
                 const MeshBinding* meshBinding = nullptr;
-                for (const MeshBinding& candidate : impl_->meshes) {
+                for (const MeshBinding& candidate : state_.meshes) {
                     if (candidate.id == command.mesh) {
                         meshBinding = &candidate;
                         break;
@@ -2454,14 +2210,14 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     break;
                 }
                 const Aero::Rect clip =
-                    impl_->clips[impl_->clips.Size() - 1U].bounds;
+                    state_.clips[state_.clips.Size() - 1U].bounds;
                 if (IsEmpty(clip)) {
                     break;
                 }
                 const Media::Transform2D& transform =
-                    impl_->transforms[impl_->transforms.Size() - 1U];
+                    state_.transforms[state_.transforms.Size() - 1U];
                 const double opacity =
-                    impl_->opacities[impl_->opacities.Size() - 1U];
+                    state_.opacities[state_.opacities.Size() - 1U];
                 if (!FitsFloat(transform.m11) || !FitsFloat(transform.m12) ||
                     !FitsFloat(transform.m21) || !FitsFloat(transform.m22) ||
                     !FitsFloat(transform.dx) || !FitsFloat(transform.dy) ||
@@ -2480,11 +2236,11 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     static_cast<float>(passLogicalWidth);
                 constants.transform1[3] =
                     static_cast<float>(passLogicalHeight);
-                constants.clipCount = impl_->clips.Size();
+                constants.clipCount = state_.clips.Size();
                 for (std::uint32_t clipIndex = 0U;
-                     clipIndex < impl_->clips.Size();
+                     clipIndex < state_.clips.Size();
                      ++clipIndex) {
-                    const ClipState& clipState = impl_->clips[clipIndex];
+                    const ClipState& clipState = state_.clips[clipIndex];
                     const Media::Transform2D& clipTransform = clipState.transform;
                     const double determinant = clipTransform.m11 * clipTransform.m22 -
                         clipTransform.m12 * clipTransform.m21;
@@ -2519,7 +2275,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                 for (std::uint32_t batchIndex = commandIndex;
                      batchIndex < node.commandCount &&
                          instanceCount <
-                             (impl_->batchingEnabled
+                             (state_.batchingEnabled
                               ? MaxRectangleBatchInstances
                               : 1U);
                      ++batchIndex) {
@@ -2560,7 +2316,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                 if (encoded) {
                     ++submissionStatistics.indexBufferBindingCount;
                     const auto* bytes = reinterpret_cast<const std::uint8_t*>(&constants);
-                    encoded = encoder.UploadBuffer(impl_->meshUniformBuffer, 0U,
+                    encoded = encoder.UploadBuffer(state_.meshUniformBuffer, 0U,
                         {bytes, static_cast<std::uint32_t>(sizeof(constants))});
                 }
                 if (encoded) {
@@ -2587,7 +2343,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     break;
                 }
                 const GlyphBinding* glyphBinding = nullptr;
-                for (const GlyphBinding& candidate : impl_->glyphRuns) {
+                for (const GlyphBinding& candidate : state_.glyphRuns) {
                     if (candidate.id == command.glyphRun) {
                         glyphBinding = &candidate;
                         break;
@@ -2603,14 +2359,14 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     break;
                 }
                 const Aero::Rect clip =
-                    impl_->clips[impl_->clips.Size() - 1U].bounds;
+                    state_.clips[state_.clips.Size() - 1U].bounds;
                 if (IsEmpty(clip)) {
                     break;
                 }
                 const Media::Transform2D& transform =
-                    impl_->transforms[impl_->transforms.Size() - 1U];
+                    state_.transforms[state_.transforms.Size() - 1U];
                 const double opacity =
-                    impl_->opacities[impl_->opacities.Size() - 1U];
+                    state_.opacities[state_.opacities.Size() - 1U];
                 if (!FitsFloat(transform.m11) || !FitsFloat(transform.m12) ||
                     !FitsFloat(transform.m21) || !FitsFloat(transform.m22) ||
                     !FitsFloat(transform.dx) || !FitsFloat(transform.dy) ||
@@ -2630,11 +2386,11 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                     static_cast<float>(passLogicalWidth);
                 constants.transform1[3] =
                     static_cast<float>(passLogicalHeight);
-                constants.clipCount = impl_->clips.Size();
+                constants.clipCount = state_.clips.Size();
                 for (std::uint32_t clipIndex = 0U;
-                     clipIndex < impl_->clips.Size();
+                     clipIndex < state_.clips.Size();
                      ++clipIndex) {
-                    const ClipState& clipState = impl_->clips[clipIndex];
+                    const ClipState& clipState = state_.clips[clipIndex];
                     const Media::Transform2D& clipTransform = clipState.transform;
                     const double determinant = clipTransform.m11 * clipTransform.m22 -
                         clipTransform.m12 * clipTransform.m21;
@@ -2676,7 +2432,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                 for (std::uint32_t batchIndex = commandIndex;
                      batchIndex < node.commandCount &&
                          instanceCount <
-                             (impl_->batchingEnabled
+                             (state_.batchingEnabled
                               ? MaxRectangleBatchInstances
                               : 1U);
                      ++batchIndex) {
@@ -2723,7 +2479,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                 if (encoded) {
                     ++submissionStatistics.textureSamplerBindingCount;
                     const auto* bytes = reinterpret_cast<const std::uint8_t*>(&constants);
-                    encoded = encoder.UploadBuffer(impl_->glyphUniformBuffer, 0U,
+                    encoded = encoder.UploadBuffer(state_.glyphUniformBuffer, 0U,
                         {bytes, static_cast<std::uint32_t>(sizeof(constants))});
                 }
                 if (encoded) {
@@ -2747,8 +2503,8 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                 break;
             }
         }
-        if (!encoded || impl_->transforms.Size() != 1U ||
-            impl_->clips.Size() != baseClipCount || impl_->opacities.Size() != 1U) {
+        if (!encoded || state_.transforms.Size() != 1U ||
+            state_.clips.Size() != baseClipCount || state_.opacities.Size() != 1U) {
             if (encoded) {
                 encoded = InvalidState("Renderer node has unbalanced state stacks");
             }
@@ -2776,28 +2532,29 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
             Base::Result<void> result = encoder.BeginRenderPass(pass);
             if (result) {
                 ++submissionStatistics.renderPassCount;
-                result = encoder.BindPipeline(impl_->effectPipeline);
+                result = encoder.BindPipeline(
+                    {UiShader::Effect, UiBlendMode::Opaque});
             }
             if (result) {
                 ++submissionStatistics.pipelineBindingCount;
-                result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+                result = encoder.BindVertexBuffer(0U, state_.vertexBuffer);
             }
             if (result) {
                 ++submissionStatistics.vertexBufferBindingCount;
                 result = encoder.BindUniformBuffer(
-                    0U, impl_->effectUniformBuffer, 0U,
+                    0U, state_.effectUniformBuffer, 0U,
                     static_cast<std::uint32_t>(sizeof(constants)));
             }
             if (result) {
                 ++submissionStatistics.uniformBufferBindingCount;
                 result = encoder.BindTextureSampler(
-                    0U, source, impl_->effectSampler);
+                    0U, source, state_.effectSampler);
             }
             if (result) {
                 ++submissionStatistics.textureSamplerBindingCount;
                 result = AppendDraw(
                     encoder,
-                    impl_->effectUniformBuffer,
+                    state_.effectUniformBuffer,
                     constants,
                     pass.renderArea,
                     1U);
@@ -2865,22 +2622,23 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         result = encoder.BeginRenderPass(pass);
         if (result) {
             ++submissionStatistics.renderPassCount;
-            result = encoder.BindPipeline(impl_->imagePipelines[0U]);
+            result = encoder.BindPipeline(
+                {UiShader::Image, UiBlendMode::Normal});
         }
         if (result) {
             ++submissionStatistics.pipelineBindingCount;
-            result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+            result = encoder.BindVertexBuffer(0U, state_.vertexBuffer);
         }
         if (result) {
             ++submissionStatistics.vertexBufferBindingCount;
             result = encoder.BindUniformBuffer(
-                0U, impl_->imageUniformBuffer, 0U,
+                0U, state_.imageUniformBuffer, 0U,
                 static_cast<std::uint32_t>(sizeof(ShaderImageConstants)));
         }
         if (result) {
             ++submissionStatistics.uniformBufferBindingCount;
             result = encoder.BindTextureSampler(
-                0U, surface.content, impl_->effectSampler);
+                0U, surface.content, state_.effectSampler);
         }
         ShaderImageConstants composite;
         composite.rects[0][2] =
@@ -2903,7 +2661,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
             ++submissionStatistics.textureSamplerBindingCount;
             result = AppendDraw(
                 encoder,
-                impl_->imageUniformBuffer,
+                state_.imageUniformBuffer,
                 composite,
                 pass.renderArea,
                 1U);
@@ -2938,7 +2696,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                 logical.height * maskScaleY};
         };
         const NodeState* state = nullptr;
-        for (const NodeState& candidate : impl_->nodes) {
+        for (const NodeState& candidate : state_.nodes) {
             if (candidate.id == node.id) {
                 state = &candidate;
                 break;
@@ -2979,21 +2737,22 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
             constants.transform1[2] = static_cast<float>(maskLogicalWidth);
             constants.transform1[3] = static_cast<float>(maskLogicalHeight);
             Base::Result<void> result =
-                encoder.BindPipeline(impl_->maskRectanglePipeline);
+                encoder.BindPipeline(
+                    {UiShader::Rectangle, UiBlendMode::Mask});
             if (result) {
                 ++submissionStatistics.pipelineBindingCount;
-                result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+                result = encoder.BindVertexBuffer(0U, state_.vertexBuffer);
             }
             if (result) {
                 ++submissionStatistics.vertexBufferBindingCount;
                 result = encoder.BindUniformBuffer(
-                    0U, impl_->uniformBuffer, 0U,
+                    0U, state_.uniformBuffer, 0U,
                     static_cast<std::uint32_t>(sizeof(constants)));
             }
             if (result) {
                 ++submissionStatistics.uniformBufferBindingCount;
                 result = AppendDraw(
-                    encoder, impl_->uniformBuffer,
+                    encoder, state_.uniformBuffer,
                     constants, maskPhysicalScissor(scissor), 1U);
             }
             if (result) {
@@ -3058,7 +2817,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
 
         if (node.mask.kind == Render::RenderMaskKind::Image) {
             const ImageBinding* binding = nullptr;
-            for (const ImageBinding& candidate : impl_->images) {
+            for (const ImageBinding& candidate : state_.images) {
                 if (candidate.id == node.mask.image) {
                     binding = &candidate;
                     break;
@@ -3115,7 +2874,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
                 plan.GradientRamps()[node.mask.gradientRamp];
             const GradientRampBinding* binding = nullptr;
             for (const GradientRampBinding& candidate :
-                 impl_->gradientRamps) {
+                 state_.gradientRamps) {
                 if (candidate.key == ramp.brushIdentity &&
                     candidate.revision == ramp.revision) {
                     binding = &candidate;
@@ -3124,12 +2883,12 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
             }
             if (binding == nullptr ||
                 !device_->IsAlive(binding->texture) ||
-                !device_->IsAlive(impl_->effectSampler)) {
+                !device_->IsAlive(state_.effectSampler)) {
                 return InvalidState(
                     "Renderer opacity mask gradient texture is unavailable");
             }
             maskTexture = binding->texture;
-            maskSampler = impl_->effectSampler;
+            maskSampler = state_.effectSampler;
             if (node.mask.kind ==
                     Render::RenderMaskKind::LinearGradient) {
                 constants.geometry0[0] =
@@ -3157,15 +2916,16 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         }
 
         Base::Result<void> result =
-            encoder.BindPipeline(impl_->maskBrushPipeline);
+            encoder.BindPipeline(
+                {UiShader::Mask, UiBlendMode::Mask});
         if (result) {
             ++submissionStatistics.pipelineBindingCount;
-            result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+            result = encoder.BindVertexBuffer(0U, state_.vertexBuffer);
         }
         if (result) {
             ++submissionStatistics.vertexBufferBindingCount;
             result = encoder.BindUniformBuffer(
-                0U, impl_->maskUniformBuffer, 0U,
+                0U, state_.maskUniformBuffer, 0U,
                 static_cast<std::uint32_t>(sizeof(constants)));
         }
         if (result) {
@@ -3176,7 +2936,7 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         if (result) {
             ++submissionStatistics.textureSamplerBindingCount;
             result = AppendDraw(
-                encoder, impl_->maskUniformBuffer,
+                encoder, state_.maskUniformBuffer,
                 constants, maskPhysicalScissor(scissor), 1U);
         }
         if (result) {
@@ -3187,9 +2947,9 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         return result;
     };
 
-    for (std::uint32_t ordinal = impl_->effectSurfaces.Size();
+    for (std::uint32_t ordinal = state_.effectSurfaces.Size();
          ordinal > 0U; --ordinal) {
-        EffectSurface& surface = impl_->effectSurfaces[ordinal - 1U];
+        EffectSurface& surface = state_.effectSurfaces[ordinal - 1U];
         const Render::RenderNodeSnapshot* node = nullptr;
         for (const Render::RenderNodeSnapshot& candidate : plan.Nodes()) {
             if (candidate.id == surface.owner) {
@@ -3257,9 +3017,9 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
     if (encoded) {
         encoded = encoder.EndRenderPass();
     }
-    Base::Result<::Aero::Render::Detail::RenderBatch> finished = encoded
+    Base::Result<FenceValue> finished = encoded
         ? encoder.Finish()
-        : Base::Result<::Aero::Render::Detail::RenderBatch>(encoded.GetStatus());
+        : Base::Result<FenceValue>(encoded.GetStatus());
     if (!finished) {
         return finished.GetStatus();
     }
@@ -3278,9 +3038,9 @@ Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
         submissionStatistics.renderPassCount > 0U
         ? submissionStatistics.renderPassCount - 1U
         : 0U;
-    submissionStatistics.batchingEnabled = impl_->batchingEnabled;
-    impl_->lastStatistics = submissionStatistics;
+    submissionStatistics.batchingEnabled = state_.batchingEnabled;
+    state_.lastStatistics = submissionStatistics;
     return std::move(finished).Value();
 }
 
-} // namespace Aero::Render::Detail
+} // namespace Aero::Render

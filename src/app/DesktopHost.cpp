@@ -13,7 +13,6 @@
 #include <Aero/ViewOptions.hpp>
 #include <Aero/Gui/IRenderer.hpp>
 #include <Aero/Gui/View.hpp>
-#include "gui/ViewOperations.hpp"
 
 #if defined(_WIN32)
 #include "app/platform/win32/InputRouters.hpp"
@@ -28,27 +27,7 @@
 #include <new>
 #include <utility>
 
-namespace Aero::App::Detail {
-
-Base::Result<void> DesktopHost::UnmountView(::Aero::View& view) noexcept {
-    return View::Operations::Unmount(view);
-}
-
-Base::Result<void> DesktopHost::ApplyBuiltInTheme(
-    ::Aero::View& view,
-    ::Aero::BuiltInTheme theme) noexcept {
-    return View::Operations::LoadBuiltInTheme(view, theme);
-}
-
-void DesktopHost::ApplyApplicationResources(
-    ::Aero::View& view,
-    ::Aero::ResourceDictionary& resources) noexcept {
-    View::Operations::SetResourceDictionary(
-        view,
-        ResourceLayer::Application,
-        resources,
-        ResourceLoadMode::Replace);
-}
+namespace Aero::App {
 
 using namespace ::Aero::App;
 namespace {
@@ -119,9 +98,9 @@ std::uint32_t DecodeWindowCodePoint(
 
 } // namespace
 
-struct DesktopHost::Impl {
+struct DesktopHostState {
     struct WindowHost {
-        explicit WindowHost(Impl& applicationHost) noexcept
+        explicit WindowHost(DesktopHostState& applicationHost) noexcept
             : owner(&applicationHost),
               runtime{
                   this,
@@ -143,6 +122,11 @@ struct DesktopHost::Impl {
             options.text.fontSearchRoot = owner->assetRoot.View();
             options.automaticAnimationClock =
                 owner->automaticAnimationClock;
+            options.loadBuiltInTheme = owner->loadBuiltInTheme;
+            options.builtInTheme = owner->builtInTheme;
+            options.applicationResources = owner->application != nullptr
+                ? &owner->application->GetResources()
+                : nullptr;
 #if defined(_WIN32)
             options.clipboard = &clipboard;
             options.textInputMethodHost = &inputMethod;
@@ -151,20 +135,6 @@ struct DesktopHost::Impl {
                 owner->environment.CreateView(options, owner->allocator);
             if (!created) return created.GetStatus();
             view = std::move(created).Value();
-            if (owner->loadBuiltInTheme) {
-                Base::Result<void> themed =
-                    DesktopHost::ApplyBuiltInTheme(
-                        *view, owner->builtInTheme);
-                if (!themed) return themed.GetStatus();
-            }
-            ResourceDictionary* resources =
-                owner->application != nullptr
-                ? &owner->application->GetResources()
-                : nullptr;
-            if (resources != nullptr) {
-                DesktopHost::ApplyApplicationResources(
-                    *view, *resources);
-            }
             return {};
         }
 
@@ -198,10 +168,10 @@ struct DesktopHost::Impl {
             }
             Base::Result<void> created = CreateView();
             if (!created) return created.GetStatus();
-            if (Window::Impl::ComponentRequested(*value)) {
+            if (DesktopHost::WindowComponentRequested(*value)) {
                 Base::String componentPath;
                 const Base::StringView authored =
-                    Window::Impl::ComponentUri(*value);
+                    DesktopHost::WindowComponentUri(*value);
                 Base::Result<void> assigned;
                 if (!authored.Empty()) {
                     const bool absolute = authored.SizeBytes() > 2U &&
@@ -319,8 +289,8 @@ struct DesktopHost::Impl {
             } else {
                 view->SetContent(std::move(loadedDocument), size);
             }
-            Window::Impl::Attach(*window, &runtime);
-            Window::Impl::NotifySourceInitialized(*window);
+            DesktopHost::AttachWindow(*window, &runtime);
+            DesktopHost::NotifyWindowSourceInitialized(*window);
             return {};
         }
 
@@ -375,7 +345,7 @@ struct DesktopHost::Impl {
             case Platform::WindowEventType::Closed:
                 closeRequested = true;
                 if (window != nullptr) {
-                    Window::Impl::NotifyClosed(*window);
+                    DesktopHost::NotifyWindowClosed(*window);
                 }
                 return {};
             case Platform::WindowEventType::Resized:
@@ -564,7 +534,7 @@ struct DesktopHost::Impl {
             }
             Base::Result<void> shown = nativeWindow->Show();
             if (shown && window != nullptr) {
-                Window::Impl::NotifyContentRendered(*window);
+                DesktopHost::NotifyWindowContentRendered(*window);
             }
             return shown;
         }
@@ -592,12 +562,9 @@ struct DesktopHost::Impl {
             if (shutdown) return;
             shutdown = true;
             if (renderContext) renderContext->Shutdown();
-            if (view) {
-                static_cast<void>(DesktopHost::UnmountView(*view));
-            }
             if (window != nullptr) {
-                Window::Impl::NotifyClosed(*window);
-                Window::Impl::Detach(*window);
+                DesktopHost::NotifyWindowClosed(*window);
+                DesktopHost::DetachWindow(*window);
             }
 #if defined(_WIN32)
             static_cast<void>(inputMethod.Detach());
@@ -627,7 +594,7 @@ struct DesktopHost::Impl {
             return static_cast<WindowHost*>(context)->HostedView();
         }
 
-        Impl* owner = nullptr;
+        DesktopHostState* owner = nullptr;
         WindowHostState runtime;
         Base::Ref<View> view;
         std::unique_ptr<RenderContext> renderContext;
@@ -652,17 +619,17 @@ struct DesktopHost::Impl {
         double pendingDpiScale = 1.0;
     };
 
-    Impl(
+    DesktopHostState(
         const RunOptions& source,
         Application* providedApplication,
         Base::Ref<Window> providedWindow) noexcept
         : applicationRuntime{
               this,
-              &Impl::RequestExitThunk,
-              &Impl::ShowWindowThunk,
-              &Impl::WindowCountThunk,
-              &Impl::WindowAtThunk,
-              &Impl::SetMainWindowThunk},
+              &DesktopHostState::RequestExitThunk,
+              &DesktopHostState::ShowWindowThunk,
+              &DesktopHostState::WindowCountThunk,
+              &DesktopHostState::WindowAtThunk,
+              &DesktopHostState::SetMainWindowThunk},
           allocator(source.allocator != nullptr
               ? source.allocator
               : &Base::GetDefaultAllocator()),
@@ -696,10 +663,10 @@ struct DesktopHost::Impl {
         }
     }
 
-    ~Impl() noexcept {
+    ~DesktopHostState() noexcept {
         ShutdownWindows();
         if (application != nullptr) {
-            DesktopPrivate::Detach(*application);
+            DesktopHost::DetachApplication(*application);
         }
         application = nullptr;
         applicationOwner.Reset();
@@ -752,9 +719,8 @@ struct DesktopHost::Impl {
             if (!sharedResources) {
                 return sharedResources.GetStatus();
             }
-            DesktopPrivate::AdoptResources(
-                *application,
-                std::move(sharedResources).Value());
+            DesktopHost::AdoptApplicationResources(
+                *application, std::move(sharedResources).Value());
             const Base::StringView startup =
                 application->GetStartupUri().Empty()
                 ? authored.GetStartupUri()
@@ -832,7 +798,7 @@ struct DesktopHost::Impl {
     }
 
     Base::Result<void> StartApplication() noexcept {
-        Base::Result<void> attached = DesktopPrivate::Attach(
+        Base::Result<void> attached = DesktopHost::AttachApplication(
             *application, &applicationRuntime, nullptr);
         if (!attached) return attached.GetStatus();
 
@@ -849,16 +815,15 @@ struct DesktopHost::Impl {
             }
             mainWindow = host->window;
             if (application->GetMainWindow() == nullptr) {
-                DesktopPrivate::SetMainWindowBorrowed(*application, mainWindow);
+                DesktopHost::AttachMainWindow(*application, mainWindow);
             }
         }
 
         // WPF allows Application.Run() without StartupUri. In that form the
         // application creates and shows one or more windows from OnStartup().
-        DesktopPrivate::RaiseStartup(*application);
+        DesktopHost::RaiseApplicationStartup(*application);
         if (application->GetMainWindow() == nullptr && !windows.Empty()) {
-            DesktopPrivate::SetMainWindowBorrowed(
-                *application, windows[0]->window);
+            DesktopHost::AttachMainWindow(*application, windows[0]->window);
         }
         return {};
     }
@@ -881,8 +846,7 @@ struct DesktopHost::Impl {
             return loaded.GetStatus();
         }
         if (application->GetMainWindow() == nullptr) {
-            DesktopPrivate::SetMainWindowBorrowed(
-                *application, host->window);
+            DesktopHost::AttachMainWindow(*application, host->window);
         }
         Base::Result<void> rendered = host->RenderFrame();
         if (!rendered) {
@@ -917,7 +881,7 @@ struct DesktopHost::Impl {
             const bool mainClosed = closingWindow != nullptr &&
                 closingWindow == application->GetMainWindow();
             if (host != nullptr && closingWindow != nullptr) {
-                Window::Impl::NotifyClosed(*closingWindow);
+                DesktopHost::NotifyWindowClosed(*closingWindow);
             }
             RemoveWindowAt(index);
             const ShutdownMode mode = application->GetShutdownMode();
@@ -984,8 +948,8 @@ struct DesktopHost::Impl {
         const int result = exitCode;
         ShutdownWindows();
         if (application != nullptr) {
-            DesktopPrivate::RaiseExit(*application, result);
-            DesktopPrivate::Detach(*application);
+            DesktopHost::RaiseApplicationExit(*application, result);
+            DesktopHost::DetachApplication(*application);
             application = nullptr;
         }
         applicationOwner.Reset();
@@ -1008,23 +972,23 @@ struct DesktopHost::Impl {
 
     static void RequestExitThunk(
         void* context, int exitCode) noexcept {
-        static_cast<Impl*>(context)->RequestExit(exitCode);
+        static_cast<DesktopHostState*>(context)->RequestExit(exitCode);
     }
     static Base::Result<void> ShowWindowThunk(
         void* context, Window& window) noexcept {
-        return static_cast<Impl*>(context)->ShowWindow(window);
+        return static_cast<DesktopHostState*>(context)->ShowWindow(window);
     }
     static std::uint32_t WindowCountThunk(
         const void* context) noexcept {
-        return static_cast<const Impl*>(context)->WindowCount();
+        return static_cast<const DesktopHostState*>(context)->WindowCount();
     }
     static Window* WindowAtThunk(
         const void* context, std::uint32_t index) noexcept {
-        return static_cast<const Impl*>(context)->WindowAt(index);
+        return static_cast<const DesktopHostState*>(context)->WindowAt(index);
     }
     static void SetMainWindowThunk(
         void* context, Window* window) noexcept {
-        static_cast<Impl*>(context)->SetMainWindow(window);
+        static_cast<DesktopHostState*>(context)->SetMainWindow(window);
     }
 
     ApplicationHostState applicationRuntime;
@@ -1055,100 +1019,110 @@ struct DesktopHost::Impl {
     int exitCode = 0;
 };
 
+static_assert(sizeof(DesktopHostState) <= 131072U,
+    "DesktopHost inline state storage is too small");
+static_assert(alignof(DesktopHostState) <= alignof(std::max_align_t),
+    "DesktopHost inline state alignment is insufficient");
+
 DesktopHost::DesktopHost(
     const RunOptions& options) noexcept
-    : impl_(new (std::nothrow) Impl(options, nullptr, {})) {}
+    : state_(new (stateStorage_)
+          DesktopHostState(options, nullptr, {})) {}
 
 DesktopHost::DesktopHost(
     Application& application,
     Base::Ref<Window> window,
     const RunOptions& options) noexcept
-    : impl_(new (std::nothrow) Impl(
+    : state_(new (stateStorage_) DesktopHostState(
           options, &application, std::move(window))) {}
 
 DesktopHost::~DesktopHost() noexcept {
-    delete impl_;
-    impl_ = nullptr;
+    if (state_ != nullptr) state_->~DesktopHostState();
+    state_ = nullptr;
 }
 
 Base::Result<int> DesktopHost::Run() noexcept {
-    if (impl_ == nullptr) {
-        return HostFailure(
-            Base::ErrorCode::OutOfMemory,
-            "Application host allocation failed");
-    }
-    return impl_->Run();
+    return state_->Run();
 }
 
-} // namespace Aero::App::Detail
-
-namespace Aero {
-
-Base::Result<void> Application::Impl::Attach(
+Base::Result<void> DesktopHost::AttachApplication(
     Application& application,
     void* hostState,
     Window* mainWindow) noexcept {
     return application.Attach(hostState, mainWindow);
 }
 
-void Application::Impl::Detach(
-    Application& application) noexcept {
+void DesktopHost::DetachApplication(Application& application) noexcept {
     application.Detach();
 }
 
-void Application::Impl::RaiseStartup(
-    Application& application) noexcept {
+void DesktopHost::RaiseApplicationStartup(Application& application) noexcept {
     application.RaiseStartup();
 }
 
-void Application::Impl::RaiseExit(
+void DesktopHost::RaiseApplicationExit(
     Application& application,
     int exitCode) noexcept {
     application.RaiseExit(exitCode);
 }
 
-void Application::Impl::AdoptResources(
+void DesktopHost::AttachMainWindow(
     Application& application,
-    ResourceDictionary&& resources) noexcept {
-    application.resources_ = std::move(resources);
+    Window* window) noexcept {
+    application.AttachMainWindow(window);
 }
 
-void Window::Impl::Attach(
-    Window& window,
-    void* hostState) noexcept {
+void DesktopHost::AdoptApplicationResources(
+    Application& application,
+    ResourceDictionary&& resources) noexcept {
+    application.AdoptResources(std::move(resources));
+}
+
+void DesktopHost::AttachWindow(Window& window, void* hostState) noexcept {
     window.Attach(hostState);
 }
 
-void Window::Impl::Detach(Window& window) noexcept {
+void DesktopHost::DetachWindow(Window& window) noexcept {
     window.Detach();
 }
 
-void Window::Impl::NotifySourceInitialized(
-    Window& window) noexcept {
+void DesktopHost::NotifyWindowSourceInitialized(Window& window) noexcept {
     window.NotifySourceInitialized();
 }
 
-void Window::Impl::NotifyContentRendered(
-    Window& window) noexcept {
+void DesktopHost::NotifyWindowContentRendered(Window& window) noexcept {
     window.NotifyContentRendered();
 }
 
-void Window::Impl::NotifyClosed(
-    Window& window) noexcept {
+void DesktopHost::NotifyWindowClosed(Window& window) noexcept {
     window.NotifyClosed();
 }
 
-bool Window::Impl::ComponentRequested(
+bool DesktopHost::WindowComponentRequested(
     const Window& window) noexcept {
-    return window.impl_ != nullptr &&
-        window.impl_->componentRequested;
+    return window.ComponentRequested();
 }
 
-Base::StringView Window::Impl::ComponentUri(
+Base::StringView DesktopHost::WindowComponentUri(
     const Window& window) noexcept {
-    return window.impl_ != nullptr
-        ? window.impl_->componentUri.View()
-        : Base::StringView{};
+    return window.ComponentUri();
+}
+
+} // namespace Aero::App
+
+namespace Aero {
+
+void Application::AdoptResources(
+    ResourceDictionary&& resources) noexcept {
+    resources_ = std::move(resources);
+}
+
+bool Window::ComponentRequested() const noexcept {
+    return componentRequested_;
+}
+
+Base::StringView Window::ComponentUri() const noexcept {
+    return componentUri_.View();
 }
 
 } // namespace Aero
@@ -1156,7 +1130,7 @@ Base::StringView Window::Impl::ComponentUri(
 namespace Aero::App {
 
 int Run(const RunOptions& options) noexcept {
-    ::Aero::App::Detail::DesktopHost host(options);
+    ::Aero::App::DesktopHost host(options);
     Base::Result<int> result = host.Run();
     return result ? result.Value() : -1;
 }

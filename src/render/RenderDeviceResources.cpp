@@ -1,4 +1,4 @@
-#include "render/RenderDeviceInternal.hpp"
+#include "render/RenderDeviceState.hpp"
 
 namespace Aero {
 using namespace ::Aero::Graphics;
@@ -33,7 +33,7 @@ TextureFormat ToBaseTextureFormat(
 
 } // namespace
 
-void RenderDevice::Impl::ShutdownResources() noexcept {
+void RenderDevice::Access::ShutdownResources() noexcept {
     if (resourcesInitialized_) {
         for (std::uint32_t index = 0U; index < resourceSlots_.Size(); ++index) {
             const ResourceSlot& slot = resourceSlots_[index];
@@ -48,12 +48,15 @@ void RenderDevice::Impl::ShutdownResources() noexcept {
     }
     resourceSlots_.Clear();
     deferred_.Clear();
+    for (ResourceHandle& pipeline : uiPipelines_) {
+        pipeline = {};
+    }
     capabilities_ = {};
     lastSubmittedFence_ = 0U;
     resourcesInitialized_ = false;
 }
 
-Base::Result<void> RenderDevice::Impl::InitializeResources() noexcept {
+Base::Result<void> RenderDevice::Access::InitializeResources() noexcept {
     if (resourcesInitialized_) return {};
     if (NativeDeviceLost()) {
         return InvalidState("Cannot initialize an unavailable graphics backend");
@@ -74,11 +77,11 @@ Base::Result<void> RenderDevice::Impl::InitializeResources() noexcept {
     return {};
 }
 
-bool RenderDevice::Impl::AreResourcesReady() const noexcept {
+bool RenderDevice::Access::AreResourcesReady() const noexcept {
     return resourcesInitialized_ && !NativeDeviceLost();
 }
 
-Base::Result<void> RenderDevice::Impl::VerifyResourcesReady() const noexcept {
+Base::Result<void> RenderDevice::Access::VerifyResourcesReady() const noexcept {
     if (!resourcesInitialized_) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -90,7 +93,7 @@ Base::Result<void> RenderDevice::Impl::VerifyResourcesReady() const noexcept {
               InvalidState("RenderDevice resources is lost"));
 }
 
-Base::Result<void> RenderDevice::Impl::ValidateResourceDescriptor(
+Base::Result<void> RenderDevice::Access::ValidateResourceDescriptor(
     const ResourceDescriptor& descriptor) const noexcept {
     switch (descriptor.type) {
     case ResourceType::Buffer:
@@ -116,7 +119,7 @@ Base::Result<void> RenderDevice::Impl::ValidateResourceDescriptor(
     return InvalidArgument("Resource type is invalid");
 }
 
-Base::Result<ResourceHandle> RenderDevice::Impl::CreateResource(
+Base::Result<ResourceHandle> RenderDevice::Access::CreateResource(
     const ResourceDescriptor& descriptor) noexcept {
     Base::Result<void> ready = VerifyResourcesReady();
     if (!ready) return ready.GetStatus();
@@ -169,7 +172,7 @@ Base::Result<ResourceHandle> RenderDevice::Impl::CreateResource(
     return handle;
 }
 
-void RenderDevice::Impl::RollbackResource(ResourceHandle handle) noexcept {
+void RenderDevice::Access::RollbackResource(ResourceHandle handle) noexcept {
     if (!handle.IsValid() || handle.index >= resourceSlots_.Size()) return;
     ResourceSlot& slot = resourceSlots_[handle.index];
     if (!slot.alive || slot.generation != handle.generation) return;
@@ -177,7 +180,7 @@ void RenderDevice::Impl::RollbackResource(ResourceHandle handle) noexcept {
     slot.alive = false;
 }
 
-Base::Result<ResourceHandle> RenderDevice::Impl::CreateBuffer(
+Base::Result<ResourceHandle> RenderDevice::Access::CreateBuffer(
     const BufferDescriptor& descriptor) noexcept {
     ResourceDescriptor resource;
     resource.type = ResourceType::Buffer;
@@ -185,7 +188,7 @@ Base::Result<ResourceHandle> RenderDevice::Impl::CreateBuffer(
     return CreateResource(resource);
 }
 
-Base::Result<ResourceHandle> RenderDevice::Impl::CreateTexture(
+Base::Result<ResourceHandle> RenderDevice::Access::CreateTexture(
     const TextureResourceDescriptor& descriptor) noexcept {
     Base::Result<void> valid = ValidateTextureDescriptor(
         descriptor, QueryNativeGraphicsCapabilities());
@@ -207,7 +210,7 @@ Base::Result<ResourceHandle> RenderDevice::Impl::CreateTexture(
     return created.Value();
 }
 
-Base::Result<ResourceHandle> RenderDevice::Impl::CreateExternalTexture(
+Base::Result<ResourceHandle> RenderDevice::Access::CreateExternalTexture(
     const TextureResourceDescriptor& descriptor) noexcept {
     Base::Result<void> valid = ValidateTextureDescriptor(
         descriptor, QueryNativeGraphicsCapabilities());
@@ -225,7 +228,7 @@ Base::Result<ResourceHandle> RenderDevice::Impl::CreateExternalTexture(
     return CreateResource(resource);
 }
 
-Base::Result<ResourceHandle> RenderDevice::Impl::CreateRenderTarget(
+Base::Result<ResourceHandle> RenderDevice::Access::CreateRenderTarget(
     const TextureResourceDescriptor& descriptor) noexcept {
     Base::Result<void> valid = ValidateTextureDescriptor(
         descriptor, QueryNativeGraphicsCapabilities());
@@ -251,7 +254,7 @@ Base::Result<ResourceHandle> RenderDevice::Impl::CreateRenderTarget(
     return created.Value();
 }
 
-Base::Result<ResourceHandle> RenderDevice::Impl::CreateExternalRenderTarget(
+Base::Result<ResourceHandle> RenderDevice::Access::CreateExternalRenderTarget(
     const TextureResourceDescriptor& descriptor) noexcept {
     Base::Result<void> valid = ValidateTextureDescriptor(
         descriptor, QueryNativeGraphicsCapabilities());
@@ -269,7 +272,7 @@ Base::Result<ResourceHandle> RenderDevice::Impl::CreateExternalRenderTarget(
     return CreateResource(resource);
 }
 
-Base::Result<ResourceHandle> RenderDevice::Impl::CreateSampler(
+Base::Result<ResourceHandle> RenderDevice::Access::CreateSampler(
     const SamplerDescriptor& descriptor) noexcept {
     Base::Result<void> valid = ValidateSamplerDescriptor(
         descriptor, QueryNativeGraphicsCapabilities());
@@ -288,8 +291,8 @@ Base::Result<ResourceHandle> RenderDevice::Impl::CreateSampler(
     return created.Value();
 }
 
-Base::Result<ResourceHandle> RenderDevice::Impl::CreatePipeline(
-    ::Aero::Render::Detail::UiPipelineKey key) noexcept {
+Base::Result<ResourceHandle> RenderDevice::Access::CreatePipeline(
+    ::Aero::Render::UiPipelineKey key) noexcept {
     ResourceDescriptor resource;
     resource.type = ResourceType::Pipeline;
     Base::Result<ResourceHandle> created = CreateResource(resource);
@@ -303,7 +306,27 @@ Base::Result<ResourceHandle> RenderDevice::Impl::CreatePipeline(
     return created.Value();
 }
 
-bool RenderDevice::Impl::IsAlive(ResourceHandle handle) const noexcept {
+Base::Result<ResourceHandle> RenderDevice::Access::ResolvePipeline(
+    ::Aero::Render::UiPipelineKey key) noexcept {
+    const std::uint32_t shader =
+        static_cast<std::uint32_t>(key.shader);
+    const std::uint32_t blend =
+        static_cast<std::uint32_t>(key.blend);
+    if (shader >= UiShaderCount || blend >= UiBlendCount) {
+        return InvalidArgument("UI pipeline key is invalid");
+    }
+    ResourceHandle& cached =
+        uiPipelines_[shader * UiBlendCount + blend];
+    if (IsAlive(cached)) {
+        return cached;
+    }
+    Base::Result<ResourceHandle> created = CreatePipeline(key);
+    if (!created) return created.GetStatus();
+    cached = created.Value();
+    return cached;
+}
+
+bool RenderDevice::Access::IsAlive(ResourceHandle handle) const noexcept {
     if (!handle.IsValid() || handle.index >= resourceSlots_.Size()) return false;
     const ResourceSlot& slot = resourceSlots_[handle.index];
     return slot.alive &&
@@ -311,7 +334,7 @@ bool RenderDevice::Impl::IsAlive(ResourceHandle handle) const noexcept {
         slot.descriptor.type == handle.type;
 }
 
-Base::Result<void> RenderDevice::Impl::DestroyResource(
+Base::Result<void> RenderDevice::Access::DestroyResource(
     ResourceHandle handle,
     FenceValue retireAfter) noexcept {
     Base::Result<void> ready = VerifyResourcesReady();
@@ -332,12 +355,18 @@ Base::Result<void> RenderDevice::Impl::DestroyResource(
     return {};
 }
 
-Base::Result<FenceValue> RenderDevice::Impl::SubmitBatch(
-    const ::Aero::Render::Detail::RenderBatch& commands) noexcept {
+Base::Result<FenceValue> RenderDevice::Access::SubmitBatch(
+    const ::Aero::Render::RenderBatch& commands) noexcept {
     Base::Result<void> ready = VerifyResourcesReady();
     if (!ready) return ready.GetStatus();
     Base::Result<std::uint32_t> collected = CollectGarbage();
     if (!collected) return collected.GetStatus();
+    if (!commands.drawState.pipelineBound) {
+        return InvalidArgument("UI draw requires a pipeline key");
+    }
+    Base::Result<ResourceHandle> pipeline =
+        ResolvePipeline(commands.drawState.pipeline);
+    if (!pipeline) return pipeline.GetStatus();
 
     const FenceValue backendFence = NativeLastSubmittedFence();
     if (backendFence == UINT64_MAX) {
@@ -345,13 +374,13 @@ Base::Result<FenceValue> RenderDevice::Impl::SubmitBatch(
     }
     const FenceValue signalFence = backendFence + 1U;
     Base::Result<void> submitted =
-        SubmitNativeBatch(commands, signalFence);
+        SubmitNativeBatch(commands, pipeline.Value(), signalFence);
     if (!submitted) return submitted.GetStatus();
     lastSubmittedFence_ = signalFence;
     return signalFence;
 }
 
-Base::Result<std::uint32_t> RenderDevice::Impl::CollectGarbage() noexcept {
+Base::Result<std::uint32_t> RenderDevice::Access::CollectGarbage() noexcept {
     Base::Result<void> ready = VerifyResourcesReady();
     if (!ready) return ready.GetStatus();
     const FenceValue completed = NativeCompletedFence();
@@ -373,7 +402,7 @@ Base::Result<std::uint32_t> RenderDevice::Impl::CollectGarbage() noexcept {
     return released;
 }
 
-std::uint32_t RenderDevice::Impl::LiveResourceCount() const noexcept {
+std::uint32_t RenderDevice::Access::LiveResourceCount() const noexcept {
     std::uint32_t count = 0U;
     for (const ResourceSlot& slot : resourceSlots_) {
         if (slot.alive) ++count;

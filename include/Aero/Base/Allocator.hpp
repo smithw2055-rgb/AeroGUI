@@ -26,7 +26,7 @@ struct AllocationRequest  {
     MemoryTag tag = MemoryTag::General;
 };
 
-class IAllocator {
+class AERO_BASE_API IAllocator {
 public:
     virtual void* Allocate(const AllocationRequest& request) noexcept = 0;
     virtual void Deallocate(
@@ -39,7 +39,7 @@ protected:
     ~IAllocator() = default;
 };
 
-class MallocAllocator  : public IAllocator {
+class AERO_BASE_API MallocAllocator : public IAllocator {
 public:
     void* Allocate(const AllocationRequest& request) noexcept override;
     void Deallocate(
@@ -54,14 +54,14 @@ using OutOfMemoryHandler = void(*)(
     std::size_t alignment,
     MemoryTag tag) noexcept;
 
-AERO_API IAllocator& GetSystemAllocator() noexcept;
-AERO_API IAllocator& GetDefaultAllocator() noexcept;
-AERO_API IAllocator* SetDefaultAllocator(IAllocator* allocator) noexcept;
+AERO_BASE_API IAllocator& GetSystemAllocator() noexcept;
+AERO_BASE_API IAllocator& GetDefaultAllocator() noexcept;
+AERO_BASE_API IAllocator* SetDefaultAllocator(IAllocator* allocator) noexcept;
 
-AERO_API OutOfMemoryHandler
+AERO_BASE_API OutOfMemoryHandler
 SetOutOfMemoryHandler(OutOfMemoryHandler handler) noexcept;
 
-[[noreturn]] AERO_API void ReportOutOfMemory(
+[[noreturn]] AERO_BASE_API void ReportOutOfMemory(
     std::size_t size,
     std::size_t alignment,
     MemoryTag tag) noexcept;

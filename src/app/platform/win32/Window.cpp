@@ -131,8 +131,8 @@ Base::Result<void> ConvertWindowTitle(
 
 } // namespace
 
-struct Win32Window::Impl  {
-    explicit Impl(Base::IAllocator& allocator) noexcept
+struct Win32WindowState {
+    explicit Win32WindowState(Base::IAllocator& allocator) noexcept
         : events(&allocator) {}
 
     Base::Vector<WindowEvent> events;
@@ -465,13 +465,13 @@ struct Win32Window::Impl  {
         UINT message,
         WPARAM word,
         LPARAM value) noexcept {
-        Impl* self = reinterpret_cast<Impl*>(
+        Win32WindowState* self = reinterpret_cast<Win32WindowState*>(
             GetWindowLongPtrW(nativeWindow, GWLP_USERDATA));
         if (message == WM_NCCREATE) {
             const auto* created =
                 reinterpret_cast<const CREATESTRUCTW*>(value);
             self = created != nullptr
-                ? static_cast<Impl*>(created->lpCreateParams)
+                ? static_cast<Win32WindowState*>(created->lpCreateParams)
                 : nullptr;
             if (self != nullptr) {
                 self->window = nativeWindow;
@@ -488,41 +488,31 @@ struct Win32Window::Impl  {
 #endif
 };
 
+static_assert(sizeof(Win32WindowState) <= 8192U,
+    "Win32Window inline state storage is too small");
+static_assert(alignof(Win32WindowState) <= alignof(std::max_align_t),
+    "Win32Window inline state alignment is insufficient");
+
 Win32Window::Win32Window(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    void* memory = allocator_->Allocate({
-        sizeof(Impl),
-        alignof(Impl),
-        Base::MemoryTag::General});
-    if (memory == nullptr) {
-        Base::ReportOutOfMemory(
-            sizeof(Impl),
-            alignof(Impl),
-            Base::MemoryTag::General);
-    }
-    impl_ = new (memory) Impl(*allocator_);
+    state_ = new (stateStorage_) Win32WindowState(*allocator_);
 }
 
 Win32Window::~Win32Window() {
     Close();
-    if (impl_ != nullptr) {
-        impl_->~Impl();
-        allocator_->Deallocate(
-            impl_,
-            sizeof(Impl),
-            alignof(Impl),
-            Base::MemoryTag::General);
-        impl_ = nullptr;
+    if (state_ != nullptr) {
+        state_->~Win32WindowState();
+        state_ = nullptr;
     }
 }
 
 Base::Result<void> Win32Window::Create(
     const WindowDescriptor& descriptor) noexcept {
 #if defined(_WIN32)
-    if (impl_->window != nullptr || impl_->open) {
+    if (state_->window != nullptr || state_->open) {
         return WindowFailure(
             Base::ErrorCode::AlreadyExists,
             "Win32 window is already created");
@@ -541,14 +531,14 @@ Base::Result<void> Win32Window::Create(
             "Win32 window dimensions are invalid");
     }
 
-    impl_->events.Clear();
-    impl_->width = descriptor.width;
-    impl_->height = descriptor.height;
-    impl_->dpiScale = 1.0;
-    impl_->pendingHighSurrogate = 0U;
+    state_->events.Clear();
+    state_->width = descriptor.width;
+    state_->height = descriptor.height;
+    state_->dpiScale = 1.0;
+    state_->pendingHighSurrogate = 0U;
     EnablePerMonitorDpiAwareness();
-    impl_->instance = GetModuleHandleW(nullptr);
-    if (impl_->instance == nullptr) {
+    state_->instance = GetModuleHandleW(nullptr);
+    if (state_->instance == nullptr) {
         return WindowFailure(
             Base::ErrorCode::InternalError,
             "Win32 module handle is unavailable");
@@ -557,14 +547,14 @@ Base::Result<void> Win32Window::Create(
     WNDCLASSEXW windowClass{};
     windowClass.cbSize = sizeof(windowClass);
     windowClass.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
-    windowClass.lpfnWndProc = &Impl::WindowProcedure;
-    windowClass.hInstance = impl_->instance;
+    windowClass.lpfnWndProc = &Win32WindowState::WindowProcedure;
+    windowClass.hInstance = state_->instance;
     windowClass.hCursor =
         LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
     windowClass.lpszClassName = Win32WindowClassName();
     if (RegisterClassExW(&windowClass) == 0U &&
         GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
-        impl_->instance = nullptr;
+        state_->instance = nullptr;
         return WindowFailure(
             Base::ErrorCode::InternalError,
             "Win32 window class registration failed");
@@ -574,7 +564,7 @@ Base::Result<void> Win32Window::Create(
     Base::Result<void> converted = ConvertWindowTitle(
         descriptor.title, title);
     if (!converted) {
-        impl_->instance = nullptr;
+        state_->instance = nullptr;
         return converted.GetStatus();
     }
 
@@ -592,7 +582,7 @@ Base::Result<void> Win32Window::Create(
             static_cast<LONG>(descriptor.height);
         if (AdjustWindowRectEx(
                 &bounds, style, FALSE, 0U) == FALSE) {
-            impl_->instance = nullptr;
+            state_->instance = nullptr;
             return WindowFailure(
                 Base::ErrorCode::InternalError,
                 "Win32 window bounds adjustment failed");
@@ -601,7 +591,7 @@ Base::Result<void> Win32Window::Create(
         outerHeight = bounds.bottom - bounds.top;
     }
 
-    impl_->window = CreateWindowExW(
+    state_->window = CreateWindowExW(
         0U,
         Win32WindowClassName(),
         title.Data(),
@@ -612,17 +602,17 @@ Base::Result<void> Win32Window::Create(
         outerHeight,
         nullptr,
         nullptr,
-        impl_->instance,
-        impl_);
-    if (impl_->window == nullptr) {
-        impl_->instance = nullptr;
+        state_->instance,
+        state_);
+    if (state_->window == nullptr) {
+        state_->instance = nullptr;
         return WindowFailure(
             Base::ErrorCode::InternalError,
             "Win32 window creation failed");
     }
 
-    impl_->open = true;
-    impl_->UpdateClientMetrics();
+    state_->open = true;
+    state_->UpdateClientMetrics();
     if (descriptor.visible) {
         Base::Result<void> shown = Show();
         if (!shown) {
@@ -639,13 +629,13 @@ Base::Result<void> Win32Window::Create(
 
 Base::Result<void> Win32Window::Show() noexcept {
 #if defined(_WIN32)
-    if (impl_->window == nullptr || !impl_->open) {
+    if (state_->window == nullptr || !state_->open) {
         return WindowFailure(
             Base::ErrorCode::NotInitialized,
             "Win32 window is not created");
     }
-    ShowWindow(impl_->window, SW_SHOW);
-    if (UpdateWindow(impl_->window) == FALSE) {
+    ShowWindow(state_->window, SW_SHOW);
+    if (UpdateWindow(state_->window) == FALSE) {
         return WindowFailure(
             Base::ErrorCode::InternalError,
             "Win32 window update failed");
@@ -659,7 +649,7 @@ Base::Result<void> Win32Window::Show() noexcept {
 Base::Result<bool> Win32Window::PollEvent(
     WindowEvent& event) noexcept {
 #if defined(_WIN32)
-    if (impl_->Dequeue(event)) {
+    if (state_->Dequeue(event)) {
         return true;
     }
     MSG message{};
@@ -667,12 +657,12 @@ Base::Result<bool> Win32Window::PollEvent(
                &message, nullptr, 0U, 0U,
                PM_REMOVE) != FALSE) {
         if (message.message == WM_QUIT) {
-            impl_->open = false;
+            state_->open = false;
         } else {
             TranslateMessage(&message);
             DispatchMessageW(&message);
         }
-        if (impl_->Dequeue(event)) {
+        if (state_->Dequeue(event)) {
             return true;
         }
     }
@@ -686,10 +676,10 @@ Base::Result<bool> Win32Window::PollEvent(
 Base::Result<bool> Win32Window::WaitEvent(
     WindowEvent& event) noexcept {
 #if defined(_WIN32)
-    if (impl_->Dequeue(event)) {
+    if (state_->Dequeue(event)) {
         return true;
     }
-    while (impl_->open) {
+    while (state_->open) {
         MSG message{};
         const BOOL received = GetMessageW(
             &message, nullptr, 0U, 0U);
@@ -699,16 +689,16 @@ Base::Result<bool> Win32Window::WaitEvent(
                 "Win32 message retrieval failed");
         }
         if (received == 0) {
-            impl_->open = false;
-            return impl_->Dequeue(event);
+            state_->open = false;
+            return state_->Dequeue(event);
         }
         TranslateMessage(&message);
         DispatchMessageW(&message);
-        if (impl_->Dequeue(event)) {
+        if (state_->Dequeue(event)) {
             return true;
         }
     }
-    return impl_->Dequeue(event);
+    return state_->Dequeue(event);
 #else
     static_cast<void>(event);
     return UnsupportedWin32Window();
@@ -717,45 +707,45 @@ Base::Result<bool> Win32Window::WaitEvent(
 
 void Win32Window::Close() noexcept {
 #if defined(_WIN32)
-    HWND nativeWindow = impl_ != nullptr
-        ? impl_->window
+    HWND nativeWindow = state_ != nullptr
+        ? state_->window
         : nullptr;
     if (nativeWindow != nullptr &&
         IsWindow(nativeWindow) != FALSE) {
         static_cast<void>(DestroyWindow(nativeWindow));
     }
-    if (impl_ != nullptr) {
-        impl_->window = nullptr;
-        impl_->instance = nullptr;
-        impl_->open = false;
-        impl_->pendingHighSurrogate = 0U;
+    if (state_ != nullptr) {
+        state_->window = nullptr;
+        state_->instance = nullptr;
+        state_->open = false;
+        state_->pendingHighSurrogate = 0U;
     }
 #endif
 }
 
 bool Win32Window::IsOpen() const noexcept {
-    return impl_ != nullptr && impl_->open;
+    return state_ != nullptr && state_->open;
 }
 
 std::uint32_t Win32Window::ClientWidth() const noexcept {
-    return impl_ != nullptr ? impl_->width : 0U;
+    return state_ != nullptr ? state_->width : 0U;
 }
 
 std::uint32_t Win32Window::ClientHeight() const noexcept {
-    return impl_ != nullptr ? impl_->height : 0U;
+    return state_ != nullptr ? state_->height : 0U;
 }
 
 double Win32Window::DpiScale() const noexcept {
-    return impl_ != nullptr ? impl_->dpiScale : 1.0;
+    return state_ != nullptr ? state_->dpiScale : 1.0;
 }
 
 NativeWindowHandle Win32Window::NativeHandle() const noexcept {
     NativeWindowHandle handle;
 #if defined(_WIN32)
-    if (impl_ != nullptr) {
+    if (state_ != nullptr) {
         handle.system = WindowSystem::Win32;
-        handle.window = reinterpret_cast<std::uintptr_t>(impl_->window);
-        handle.instance = reinterpret_cast<std::uintptr_t>(impl_->instance);
+        handle.window = reinterpret_cast<std::uintptr_t>(state_->window);
+        handle.instance = reinterpret_cast<std::uintptr_t>(state_->instance);
     }
 #endif
     return handle;

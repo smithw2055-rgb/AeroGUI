@@ -59,14 +59,14 @@ void AddTemplateTrigger(
     if (!value) {
         return;
     }
-    (void)Detail::TemplatePrivate::AddAuthoredTrigger(
+    (void)::Aero::Controls::TemplatePrivate::AddAuthoredTrigger(
         static_cast<FrameworkTemplate&>(owner), value);
 }
 
 void ClearTemplateTriggers(
     Base::Object& owner,
     void*) noexcept {
-    Detail::TemplatePrivate::ClearAuthoredTriggers(
+    ::Aero::Controls::TemplatePrivate::ClearAuthoredTriggers(
         static_cast<FrameworkTemplate&>(owner));
 }
 
@@ -76,13 +76,13 @@ void SetDeferredTemplateVisualTree(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if constexpr (std::is_same_v<T, ControlTemplate>) {
-        (void)Detail::TemplatePrivate::SetAuthoredVisualTree(
+        (void)::Aero::Controls::TemplatePrivate::SetAuthoredVisualTree(
             static_cast<ControlTemplate&>(object), value);
     } else if constexpr (std::is_same_v<T, DataTemplate>) {
-        (void)Detail::TemplatePrivate::SetAuthoredVisualTree(
+        (void)::Aero::Controls::TemplatePrivate::SetAuthoredVisualTree(
             static_cast<DataTemplate&>(object), value);
     } else {
-        (void)Detail::TemplatePrivate::SetAuthoredVisualTree(
+        (void)::Aero::Controls::TemplatePrivate::SetAuthoredVisualTree(
             static_cast<ItemsPanelTemplate&>(object), value);
     }
 }
@@ -92,13 +92,13 @@ void ClearDeferredTemplateVisualTree(
     Base::Object& object,
     void*) noexcept {
     if constexpr (std::is_same_v<T, ControlTemplate>) {
-        Detail::TemplatePrivate::ClearAuthoredVisualTree(
+        ::Aero::Controls::TemplatePrivate::ClearAuthoredVisualTree(
             static_cast<ControlTemplate&>(object));
     } else if constexpr (std::is_same_v<T, DataTemplate>) {
-        Detail::TemplatePrivate::ClearAuthoredVisualTree(
+        ::Aero::Controls::TemplatePrivate::ClearAuthoredVisualTree(
             static_cast<DataTemplate&>(object));
     } else {
-        Detail::TemplatePrivate::ClearAuthoredVisualTree(
+        ::Aero::Controls::TemplatePrivate::ClearAuthoredVisualTree(
             static_cast<ItemsPanelTemplate&>(object));
     }
 }
@@ -107,14 +107,14 @@ void AddTemplateVisualStateGroup(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    (void)Detail::TemplatePrivate::AddAuthoredVisualStateGroup(
+    (void)::Aero::Controls::TemplatePrivate::AddAuthoredVisualStateGroup(
         static_cast<ControlTemplate&>(object), value);
 }
 
 void ClearTemplateVisualStateGroups(
     Base::Object& object,
     void*) noexcept {
-    Detail::TemplatePrivate::ClearAuthoredVisualStateGroups(
+    ::Aero::Controls::TemplatePrivate::ClearAuthoredVisualStateGroups(
         static_cast<ControlTemplate&>(object));
 }
 
@@ -126,7 +126,7 @@ Meta::TypeReference GetControlTemplateTargetType(
 void SetControlTemplateTargetType(
     ControlTemplate& target,
     Meta::TypeReference value) noexcept {
-    (void)Detail::TemplatePrivate::SetTargetType(target, value.type);
+    (void)::Aero::Controls::TemplatePrivate::SetTargetType(target, value.type);
 }
 
 Meta::TypeReference GetDataTemplateType(
@@ -300,14 +300,14 @@ void AddDataTemplateTrigger(
     if (!retained) {
         return;
     }
-    (void)Detail::TemplatePrivate::AddAuthoredTrigger(
+    (void)::Aero::Controls::TemplatePrivate::AddAuthoredTrigger(
         static_cast<DataTemplate&>(owner), std::move(retained));
 }
 
 void ClearDataTemplateTriggers(
     Base::Object& owner,
     void*) noexcept {
-    Detail::TemplatePrivate::ClearAuthoredTriggers(
+    ::Aero::Controls::TemplatePrivate::ClearAuthoredTriggers(
         static_cast<DataTemplate&>(owner));
 }
 
@@ -409,7 +409,7 @@ void OnGridRowsChanged(
 void OnPathDataChanged(
     ::Aero::DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept {
-    Detail::ControlPrivate::InvalidateGeometry(
+    ::Aero::Controls::ControlPrivate::InvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -417,7 +417,7 @@ void OnPathColorChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<Media::Brush>&,
     const Base::Ref<Media::Brush>&) noexcept {
-    Detail::ControlPrivate::InvalidateGeometry(
+    ::Aero::Controls::ControlPrivate::InvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -427,7 +427,7 @@ void OnPathDoubleChanged(
     const double&) noexcept {
     if (object.PropertyRegistry().Types().IsDerivedFrom(
             object.RuntimeType(), Path::StaticTypeId())) {
-        Detail::ControlPrivate::InvalidateGeometry(
+        ::Aero::Controls::ControlPrivate::InvalidateGeometry(
             static_cast<Path&>(object));
     } else if (object.PropertyRegistry().Types().IsDerivedFrom(
                    object.RuntimeType(), FrameworkElement::StaticTypeId())) {
@@ -440,7 +440,7 @@ void OnPathLineJoinChanged(
     ::Aero::DependencyObject& object,
     const PenLineJoin&,
     const PenLineJoin&) noexcept {
-    Detail::ControlPrivate::InvalidateGeometry(
+    ::Aero::Controls::ControlPrivate::InvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -448,7 +448,7 @@ void OnPathLineCapChanged(
     ::Aero::DependencyObject& object,
     const PenLineCap&,
     const PenLineCap&) noexcept {
-    Detail::ControlPrivate::InvalidateGeometry(
+    ::Aero::Controls::ControlPrivate::InvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -508,7 +508,7 @@ Base::Result<Base::String> CoerceTextBoxText(
     ::Aero::DependencyObject& object,
     const Meta::DependencyProperty&,
     const Base::String& value) noexcept {
-    ::Aero::Text::Detail::EditableTextModel validation;
+    ::Aero::Text::EditableTextModel validation;
     static_cast<void>(object);
     Base::Result<void> limited =
         validation.SetText(value.View());
@@ -522,7 +522,7 @@ Base::Result<Base::String> CoerceTextBoxText(
 
 bool ValidatePasswordChar(
     const Base::String& value) noexcept {
-    ::Aero::Text::Detail::EditableTextModel validation;
+    ::Aero::Text::EditableTextModel validation;
     Base::Result<void> text =
         validation.SetText(value.View());
     return text &&
@@ -566,14 +566,14 @@ void SetPanelContent(
     if (!child) {
         return;
     }
-    (void)Detail::ControlPrivate::Add(
+    (void)::Aero::Controls::ControlPrivate::Add(
         static_cast<Panel&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
 void ClearPanelContent(
     Base::Object& owner,
     void*) noexcept {
-    (void)Detail::ControlPrivate::Clear(static_cast<Panel&>(owner));
+    (void)::Aero::Controls::ControlPrivate::Clear(static_cast<Panel&>(owner));
 }
 
 void SetDecoratorContent(
@@ -583,7 +583,7 @@ void SetDecoratorContent(
     if (!child) {
         return;
     }
-    (void)Detail::ControlPrivate::SetOwnedChild(
+    (void)::Aero::Controls::ControlPrivate::SetOwnedChild(
         static_cast<Decorator&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
@@ -600,14 +600,14 @@ void SetContentControlContent(
     if (!child) {
         return;
     }
-    (void)Detail::ControlPrivate::SetContentValue(
+    (void)::Aero::Controls::ControlPrivate::SetContentValue(
         static_cast<ContentControl&>(owner), child);
 }
 
 void ClearContentControlContent(
     Base::Object& owner,
     void*) noexcept {
-    (void)Detail::ControlPrivate::SetContentValue(
+    (void)::Aero::Controls::ControlPrivate::SetContentValue(
         static_cast<ContentControl&>(owner), Meta::Value::NullObject(Meta::TypeOf<Base::Object>()));
 }
 
@@ -705,7 +705,7 @@ void OnItemsSourceChanged(
                 value.Get());
         }
     }
-    ItemsControl::Impl::SetItemsSource(
+    ItemsControl::Access::SetItemsSource(
         static_cast<ItemsControl&>(object), source);
 }
 
@@ -713,7 +713,7 @@ void OnItemTemplateChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<DataTemplate>&,
     const Base::Ref<DataTemplate>& value) noexcept {
-    ItemsControl::Impl::SetItemTemplate(
+    ItemsControl::Access::SetItemTemplate(
         static_cast<ItemsControl&>(object), value.Get());
 }
 
@@ -721,7 +721,7 @@ void OnItemsPanelChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<ItemsPanelTemplate>&,
     const Base::Ref<ItemsPanelTemplate>& value) noexcept {
-    ItemsControl::Impl::SetItemsPanel(
+    ItemsControl::Access::SetItemsPanel(
         static_cast<ItemsControl&>(object), value.Get());
 }
 
@@ -729,7 +729,7 @@ void OnItemContainerStyleChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<Style>&,
     const Base::Ref<Style>& value) noexcept {
-    ItemsControl::Impl::SetItemContainerStyle(
+    ItemsControl::Access::SetItemContainerStyle(
         static_cast<ItemsControl&>(object), value.Get());
 }
 

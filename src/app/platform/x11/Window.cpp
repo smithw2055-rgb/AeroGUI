@@ -34,8 +34,8 @@ Base::Status WindowFailure(
 
 } // namespace
 
-struct X11Window::Impl  {
-    explicit Impl(Base::IAllocator& allocator) noexcept
+struct X11WindowState {
+    explicit X11WindowState(Base::IAllocator& allocator) noexcept
         : events(&allocator) {}
 
     Base::Vector<WindowEvent> events;
@@ -399,43 +399,33 @@ struct X11Window::Impl  {
 #endif
 };
 
+static_assert(sizeof(X11WindowState) <= 8192U,
+    "X11Window inline state storage is too small");
+static_assert(alignof(X11WindowState) <= alignof(std::max_align_t),
+    "X11Window inline state alignment is insufficient");
+
 X11Window::X11Window(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    void* memory = allocator_->Allocate({
-        sizeof(Impl),
-        alignof(Impl),
-        Base::MemoryTag::General});
-    if (memory == nullptr) {
-        Base::ReportOutOfMemory(
-            sizeof(Impl),
-            alignof(Impl),
-            Base::MemoryTag::General);
-    }
-    impl_ = new (memory) Impl(*allocator_);
+    state_ = new (stateStorage_) X11WindowState(*allocator_);
 }
 
 X11Window::~X11Window() {
     Close();
-    if (impl_ != nullptr) {
-        impl_->~Impl();
-        allocator_->Deallocate(
-            impl_,
-            sizeof(Impl),
-            alignof(Impl),
-            Base::MemoryTag::General);
-        impl_ = nullptr;
+    if (state_ != nullptr) {
+        state_->~X11WindowState();
+        state_ = nullptr;
     }
 }
 
 Base::Result<void> X11Window::Create(
     const WindowDescriptor& descriptor) noexcept {
 #if AERO_PLATFORM_HAS_X11_WINDOW
-    if (impl_->display != nullptr ||
-        impl_->window != 0U ||
-        impl_->open) {
+    if (state_->display != nullptr ||
+        state_->window != 0U ||
+        state_->open) {
         return WindowFailure(
             Base::ErrorCode::AlreadyExists,
             "X11 window is already created");
@@ -459,32 +449,32 @@ Base::Result<void> X11Window::Create(
     const std::uint32_t height =
         platformDefaultSize ? 640U : descriptor.height;
 
-    impl_->display = XOpenDisplay(nullptr);
-    if (impl_->display == nullptr) {
+    state_->display = XOpenDisplay(nullptr);
+    if (state_->display == nullptr) {
         return WindowFailure(
             Base::ErrorCode::Unsupported,
             "X11 display is unavailable");
     }
-    impl_->ownsDisplay = true;
-    impl_->screen = DefaultScreen(impl_->display);
-    impl_->window = XCreateSimpleWindow(
-        impl_->display,
-        RootWindow(impl_->display, impl_->screen),
+    state_->ownsDisplay = true;
+    state_->screen = DefaultScreen(state_->display);
+    state_->window = XCreateSimpleWindow(
+        state_->display,
+        RootWindow(state_->display, state_->screen),
         0,
         0,
         width,
         height,
         0U,
-        BlackPixel(impl_->display, impl_->screen),
-        BlackPixel(impl_->display, impl_->screen));
-    if (impl_->window == 0U) {
+        BlackPixel(state_->display, state_->screen),
+        BlackPixel(state_->display, state_->screen));
+    if (state_->window == 0U) {
         Close();
         return WindowFailure(
             Base::ErrorCode::InternalError,
             "X11 window creation failed");
     }
-    impl_->ownsWindow = true;
-    Base::Result<void> configured = impl_->Configure(
+    state_->ownsWindow = true;
+    Base::Result<void> configured = state_->Configure(
         descriptor.title,
         width,
         height,
@@ -508,9 +498,9 @@ Base::Result<void> X11Window::Attach(
     Base::StringView title,
     bool visible) noexcept {
 #if AERO_PLATFORM_HAS_X11_WINDOW
-    if (impl_->display != nullptr ||
-        impl_->window != 0U ||
-        impl_->open) {
+    if (state_->display != nullptr ||
+        state_->window != 0U ||
+        state_->open) {
         return WindowFailure(
             Base::ErrorCode::AlreadyExists,
             "X11 window is already attached");
@@ -522,16 +512,16 @@ Base::Result<void> X11Window::Attach(
             "X11 attachment requires display, window, and dimensions");
     }
 
-    impl_->display = reinterpret_cast<Display*>(display);
-    impl_->window = static_cast<::Window>(window);
-    impl_->screen = DefaultScreen(impl_->display);
-    impl_->ownsDisplay = false;
-    impl_->ownsWindow = false;
-    Base::Result<void> configured = impl_->Configure(
+    state_->display = reinterpret_cast<Display*>(display);
+    state_->window = static_cast<::Window>(window);
+    state_->screen = DefaultScreen(state_->display);
+    state_->ownsDisplay = false;
+    state_->ownsWindow = false;
+    Base::Result<void> configured = state_->Configure(
         title, width, height, visible);
     if (!configured) {
-        impl_->display = nullptr;
-        impl_->window = 0U;
+        state_->display = nullptr;
+        state_->window = 0U;
         return configured.GetStatus();
     }
     return {};
@@ -548,15 +538,15 @@ Base::Result<void> X11Window::Attach(
 
 Base::Result<void> X11Window::Show() noexcept {
 #if AERO_PLATFORM_HAS_X11_WINDOW
-    if (impl_->display == nullptr ||
-        impl_->window == 0U ||
-        !impl_->open) {
+    if (state_->display == nullptr ||
+        state_->window == 0U ||
+        !state_->open) {
         return WindowFailure(
             Base::ErrorCode::NotInitialized,
             "X11 window is not created");
     }
-    XMapWindow(impl_->display, impl_->window);
-    XFlush(impl_->display);
+    XMapWindow(state_->display, state_->window);
+    XFlush(state_->display);
     return {};
 #else
     return UnsupportedX11Window();
@@ -566,17 +556,17 @@ Base::Result<void> X11Window::Show() noexcept {
 Base::Result<bool> X11Window::PollEvent(
     WindowEvent& event) noexcept {
 #if AERO_PLATFORM_HAS_X11_WINDOW
-    if (impl_->Dequeue(event)) {
+    if (state_->Dequeue(event)) {
         return true;
     }
-    if (impl_->display == nullptr) {
+    if (state_->display == nullptr) {
         return false;
     }
-    while (XPending(impl_->display) > 0) {
+    while (XPending(state_->display) > 0) {
         XEvent native{};
-        XNextEvent(impl_->display, &native);
-        impl_->HandleEvent(native);
-        if (impl_->Dequeue(event)) {
+        XNextEvent(state_->display, &native);
+        state_->HandleEvent(native);
+        if (state_->Dequeue(event)) {
             return true;
         }
     }
@@ -590,18 +580,18 @@ Base::Result<bool> X11Window::PollEvent(
 Base::Result<bool> X11Window::WaitEvent(
     WindowEvent& event) noexcept {
 #if AERO_PLATFORM_HAS_X11_WINDOW
-    if (impl_->Dequeue(event)) {
+    if (state_->Dequeue(event)) {
         return true;
     }
-    while (impl_->open && impl_->display != nullptr) {
+    while (state_->open && state_->display != nullptr) {
         XEvent native{};
-        XNextEvent(impl_->display, &native);
-        impl_->HandleEvent(native);
-        if (impl_->Dequeue(event)) {
+        XNextEvent(state_->display, &native);
+        state_->HandleEvent(native);
+        if (state_->Dequeue(event)) {
             return true;
         }
     }
-    return impl_->Dequeue(event);
+    return state_->Dequeue(event);
 #else
     static_cast<void>(event);
     return UnsupportedX11Window();
@@ -610,56 +600,56 @@ Base::Result<bool> X11Window::WaitEvent(
 
 void X11Window::Close() noexcept {
 #if AERO_PLATFORM_HAS_X11_WINDOW
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return;
     }
-    if (impl_->display != nullptr &&
-        impl_->ownsWindow &&
-        impl_->window != 0U) {
-        XDestroyWindow(impl_->display, impl_->window);
-        XFlush(impl_->display);
+    if (state_->display != nullptr &&
+        state_->ownsWindow &&
+        state_->window != 0U) {
+        XDestroyWindow(state_->display, state_->window);
+        XFlush(state_->display);
     }
-    if (impl_->ownsDisplay && impl_->display != nullptr) {
-        XCloseDisplay(impl_->display);
+    if (state_->ownsDisplay && state_->display != nullptr) {
+        XCloseDisplay(state_->display);
     }
-    impl_->display = nullptr;
-    impl_->window = 0U;
-    impl_->closeAtom = 0U;
-    impl_->screen = 0;
-    impl_->ownsDisplay = false;
-    impl_->ownsWindow = false;
+    state_->display = nullptr;
+    state_->window = 0U;
+    state_->closeAtom = 0U;
+    state_->screen = 0;
+    state_->ownsDisplay = false;
+    state_->ownsWindow = false;
 #endif
-    if (impl_ != nullptr) {
-        impl_->open = false;
-        impl_->width = 0U;
-        impl_->height = 0U;
-        impl_->dpiScale = 1.0;
+    if (state_ != nullptr) {
+        state_->open = false;
+        state_->width = 0U;
+        state_->height = 0U;
+        state_->dpiScale = 1.0;
     }
 }
 
 bool X11Window::IsOpen() const noexcept {
-    return impl_ != nullptr && impl_->open;
+    return state_ != nullptr && state_->open;
 }
 
 std::uint32_t X11Window::ClientWidth() const noexcept {
-    return impl_ != nullptr ? impl_->width : 0U;
+    return state_ != nullptr ? state_->width : 0U;
 }
 
 std::uint32_t X11Window::ClientHeight() const noexcept {
-    return impl_ != nullptr ? impl_->height : 0U;
+    return state_ != nullptr ? state_->height : 0U;
 }
 
 double X11Window::DpiScale() const noexcept {
-    return impl_ != nullptr ? impl_->dpiScale : 1.0;
+    return state_ != nullptr ? state_->dpiScale : 1.0;
 }
 
 NativeWindowHandle X11Window::NativeHandle() const noexcept {
     NativeWindowHandle handle;
 #if AERO_PLATFORM_HAS_X11_WINDOW
-    if (impl_ != nullptr) {
+    if (state_ != nullptr) {
         handle.system = WindowSystem::X11;
-        handle.display = reinterpret_cast<std::uintptr_t>(impl_->display);
-        handle.window = static_cast<std::uintptr_t>(impl_->window);
+        handle.display = reinterpret_cast<std::uintptr_t>(state_->display);
+        handle.window = static_cast<std::uintptr_t>(state_->window);
     }
 #endif
     return handle;

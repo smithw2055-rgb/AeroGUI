@@ -7,7 +7,7 @@
 
 namespace Aero::App {
 
-Base::Result<void> Detail::PopulateAppMetadata(
+Base::Result<void> PopulateAppMetadata(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
     status = Meta::Register<Aero::StartupEventArgs>(context).Result();

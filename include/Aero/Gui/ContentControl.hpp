@@ -6,7 +6,7 @@ namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
-class AERO_API ContentControl : public Control {
+class AERO_GUI_API ContentControl : public Control {
     AERO_DECLARE_TYPE(ContentControl, Control)
 public:
     inline static constexpr DependencyProperty<Value> ContentProperty{"Content"};
@@ -102,7 +102,7 @@ protected:
         return finalSize;
     }
 private:
-    friend struct ::Aero::Controls::Control::Impl;
+    friend struct ::Aero::Controls::Control::Access;
     void SetOwnedContent(
         const Base::Ref<Base::Object>& contentObject, UIElement& content) noexcept {
         if (!contentObject || contentObject.Get() != &content) {

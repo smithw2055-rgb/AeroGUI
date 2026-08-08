@@ -7,7 +7,7 @@
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 
-class AERO_API ColumnDefinition : public Base::Object {
+class AERO_GUI_API ColumnDefinition : public Base::Object {
     AERO_DECLARE_TYPE(ColumnDefinition, Base::Object)
 public:
     ColumnDefinition() noexcept = default;
@@ -29,7 +29,7 @@ private:
     Base::String sharedSizeGroup_;
 };
 
-class AERO_API RowDefinition : public Base::Object {
+class AERO_GUI_API RowDefinition : public Base::Object {
     AERO_DECLARE_TYPE(RowDefinition, Base::Object)
 public:
     RowDefinition() noexcept = default;
@@ -51,7 +51,7 @@ private:
     Base::String sharedSizeGroup_;
 };
 
-class AERO_API Grid : public Panel {
+class AERO_GUI_API Grid : public Panel {
     AERO_DECLARE_TYPE(Grid, Panel)
 public:
     Grid() noexcept;

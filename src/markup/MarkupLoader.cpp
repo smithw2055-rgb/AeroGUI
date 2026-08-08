@@ -1,18 +1,18 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "controls/ControlInternal.hpp"
-#include "controls/ItemsInternal.hpp"
-#include "controls/TemplateInternal.hpp"
-#include "markup/MarkupInternal.hpp"
-#include "markup/MarkupWriterInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "controls/ControlRuntime.hpp"
+#include "controls/ItemsRuntime.hpp"
+#include "controls/TemplateRuntime.hpp"
+#include "markup/MarkupRuntime.hpp"
+#include "markup/MarkupWriterRuntime.hpp"
 // Consolidated implementation. Keep sections ordered by dependency.
 
 // ===== CompiledCache =====
@@ -2204,16 +2204,16 @@ CompiledDocument::Deserialize(
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/HashSet.hpp>
 #include <Aero/Base/String.hpp>
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
 #include <new>
 
@@ -2259,7 +2259,7 @@ void RemoveKey(
 
 } // namespace
 
-struct DependencyGraph::Impl {
+struct DependencyGraphState {
     struct Node {
         explicit Node(Base::IAllocator& allocator) noexcept
             : dependencies(&allocator), dependents(&allocator) {}
@@ -2269,7 +2269,7 @@ struct DependencyGraph::Impl {
         Base::Vector<Base::String> dependents;
     };
 
-    explicit Impl(Base::IAllocator& allocator) noexcept
+    explicit DependencyGraphState(Base::IAllocator& allocator) noexcept
         : allocator(&allocator), nodes(&allocator) {}
 
     Base::Result<Node*> EnsureNode(
@@ -2293,53 +2293,61 @@ struct DependencyGraph::Impl {
     std::uint64_t generation = 0U;
 };
 
+static_assert(
+    sizeof(DependencyGraphState) <= 2048,
+    "DependencyGraph inline state storage is too small");
+static_assert(
+    alignof(DependencyGraphState) <= alignof(std::max_align_t),
+    "DependencyGraph inline state alignment is insufficient");
+
 DependencyGraph::DependencyGraph(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    void* memory = allocator_->Allocate({
-        sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup});
-    if (memory == nullptr) {
-        Base::ReportOutOfMemory(
-            sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
-    }
-    impl_ = new (memory) Impl(*allocator_);
+    state_ = new (stateStorage_) DependencyGraphState(*allocator_);
 }
 
 DependencyGraph::~DependencyGraph() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->~Impl();
-    allocator_->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
+    if (state_ == nullptr) return;
+    state_->~DependencyGraphState();
+    state_ = nullptr;
 }
 
 DependencyGraph::DependencyGraph(
     DependencyGraph&& other) noexcept
-    : allocator_(other.allocator_), impl_(other.impl_) {
+    : allocator_(other.allocator_) {
+    if (other.state_ != nullptr) {
+        state_ = new (stateStorage_)
+            DependencyGraphState(std::move(*other.state_));
+        other.state_->~DependencyGraphState();
+        other.state_ = nullptr;
+    }
     other.allocator_ = nullptr;
-    other.impl_ = nullptr;
 }
 
 DependencyGraph& DependencyGraph::operator=(
     DependencyGraph&& other) noexcept {
     if (this == &other) return *this;
-    if (impl_ != nullptr) {
-        impl_->~Impl();
-        allocator_->Deallocate(
-            impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
+    if (state_ != nullptr) {
+        state_->~DependencyGraphState();
+        state_ = nullptr;
     }
     allocator_ = other.allocator_;
-    impl_ = other.impl_;
+    if (other.state_ != nullptr) {
+        state_ = new (stateStorage_)
+            DependencyGraphState(std::move(*other.state_));
+        other.state_->~DependencyGraphState();
+        other.state_ = nullptr;
+    }
     other.allocator_ = nullptr;
-    other.impl_ = nullptr;
     return *this;
 }
 
 Base::Result<void> DependencyGraph::Update(
     const Base::ResourceUri& document,
     Base::Span<const Base::ResourceUri> dependencies) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "XAML dependency graph is unavailable");
@@ -2347,8 +2355,8 @@ Base::Result<void> DependencyGraph::Update(
     Base::Result<Base::String> documentKey =
         MakeKey(document, *allocator_);
     if (!documentKey) return documentKey.GetStatus();
-    Base::Result<Impl::Node*> documentNode =
-        impl_->EnsureNode(document);
+    Base::Result<DependencyGraphState::Node*> documentNode =
+        state_->EnsureNode(document);
     if (!documentNode) return documentNode.GetStatus();
 
     Base::Vector<Base::String> newDependencies(allocator_);
@@ -2363,8 +2371,8 @@ Base::Result<void> DependencyGraph::Update(
         if (ContainsKey(newDependencies, dependencyKey.Value().View())) {
             continue;
         }
-        Base::Result<Impl::Node*> dependencyNode =
-            impl_->EnsureNode(dependencyUri);
+        Base::Result<DependencyGraphState::Node*> dependencyNode =
+            state_->EnsureNode(dependencyUri);
         if (!dependencyNode) return dependencyNode.GetStatus();
         Base::Result<void> appended = newDependencies.PushBack(
             std::move(dependencyKey).Value());
@@ -2379,7 +2387,7 @@ Base::Result<void> DependencyGraph::Update(
         reverseKeys.Reserve(newDependencies.Size());
     if (!reverseReserved) return reverseReserved.GetStatus();
     for (const Base::String& dependencyKey : newDependencies) {
-        Impl::Node* dependency = impl_->nodes.Find(dependencyKey);
+        DependencyGraphState::Node* dependency = state_->nodes.Find(dependencyKey);
         if (dependency == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -2398,14 +2406,14 @@ Base::Result<void> DependencyGraph::Update(
         if (!stored) return stored.GetStatus();
     }
 
-    Impl::Node* node = impl_->nodes.Find(documentKey.Value());
+    DependencyGraphState::Node* node = state_->nodes.Find(documentKey.Value());
     if (node == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "XAML dependency graph lost the document node");
     }
     for (const Base::String& oldDependency : node->dependencies) {
-        Impl::Node* dependency = impl_->nodes.Find(oldDependency);
+        DependencyGraphState::Node* dependency = state_->nodes.Find(oldDependency);
         if (dependency == nullptr) continue;
         RemoveKey(
             dependency->dependents,
@@ -2413,15 +2421,15 @@ Base::Result<void> DependencyGraph::Update(
         if (!ContainsKey(newDependencies, oldDependency.View()) &&
             dependency->dependencies.Empty() &&
             dependency->dependents.Empty()) {
-            impl_->nodes.Erase(oldDependency);
+            state_->nodes.Erase(oldDependency);
         }
     }
     node->dependencies = std::move(newDependencies);
     for (std::uint32_t index = 0U;
          index < node->dependencies.Size();
          ++index) {
-        Impl::Node* dependency =
-            impl_->nodes.Find(node->dependencies[index]);
+        DependencyGraphState::Node* dependency =
+            state_->nodes.Find(node->dependencies[index]);
         if (dependency == nullptr) continue;
         if (ContainsKey(
                 dependency->dependents,
@@ -2433,17 +2441,17 @@ Base::Result<void> DependencyGraph::Update(
                 std::move(reverseKeys[index]));
         if (!reverse) return reverse.GetStatus();
     }
-    ++impl_->generation;
+    ++state_->generation;
     return {};
 }
 
 bool DependencyGraph::Remove(
     const Base::ResourceUri& document) noexcept {
-    if (impl_ == nullptr || document.Empty()) return false;
+    if (state_ == nullptr || document.Empty()) return false;
     Base::Result<Base::String> key =
         MakeKey(document, *allocator_);
     if (!key) return false;
-    Impl::Node* node = impl_->nodes.Find(key.Value());
+    DependencyGraphState::Node* node = state_->nodes.Find(key.Value());
     if (node == nullptr) return false;
 
     Base::Vector<Base::String> previousDependencies(allocator_);
@@ -2453,42 +2461,42 @@ bool DependencyGraph::Remove(
     }
     node->dependencies.Clear();
     for (const Base::String& dependencyKey : previousDependencies) {
-        Impl::Node* dependency = impl_->nodes.Find(dependencyKey);
+        DependencyGraphState::Node* dependency = state_->nodes.Find(dependencyKey);
         if (dependency == nullptr) continue;
         RemoveKey(dependency->dependents, key.Value().View());
         if (dependency->dependencies.Empty() &&
             dependency->dependents.Empty()) {
-            impl_->nodes.Erase(dependencyKey);
+            state_->nodes.Erase(dependencyKey);
         }
     }
     if (node->dependents.Empty()) {
-        impl_->nodes.Erase(key.Value());
+        state_->nodes.Erase(key.Value());
     }
-    ++impl_->generation;
+    ++state_->generation;
     return true;
 }
 
 void DependencyGraph::Clear() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->nodes.Clear();
-    ++impl_->generation;
+    if (state_ == nullptr) return;
+    state_->nodes.Clear();
+    ++state_->generation;
 }
 
 Base::Result<void> DependencyGraph::CopyDependencies(
     const Base::ResourceUri& document,
     Base::Vector<Base::ResourceUri>& output) const noexcept {
     output.Clear();
-    if (impl_ == nullptr || document.Empty()) return {};
+    if (state_ == nullptr || document.Empty()) return {};
     Base::Result<Base::String> key =
         MakeKey(document, *allocator_);
     if (!key) return key.GetStatus();
-    const Impl::Node* node = impl_->nodes.Find(key.Value());
+    const DependencyGraphState::Node* node = state_->nodes.Find(key.Value());
     if (node == nullptr) return {};
     Base::Result<void> reserved =
         output.Reserve(node->dependencies.Size());
     if (!reserved) return reserved.GetStatus();
     for (const Base::String& dependencyKey : node->dependencies) {
-        const Impl::Node* dependency = impl_->nodes.Find(dependencyKey);
+        const DependencyGraphState::Node* dependency = state_->nodes.Find(dependencyKey);
         if (dependency == nullptr) continue;
         Base::Result<void> pushed = output.PushBack(dependency->uri);
         if (!pushed) return pushed.GetStatus();
@@ -2500,17 +2508,17 @@ Base::Result<void> DependencyGraph::CopyDependents(
     const Base::ResourceUri& dependency,
     Base::Vector<Base::ResourceUri>& output) const noexcept {
     output.Clear();
-    if (impl_ == nullptr || dependency.Empty()) return {};
+    if (state_ == nullptr || dependency.Empty()) return {};
     Base::Result<Base::String> key =
         MakeKey(dependency, *allocator_);
     if (!key) return key.GetStatus();
-    const Impl::Node* node = impl_->nodes.Find(key.Value());
+    const DependencyGraphState::Node* node = state_->nodes.Find(key.Value());
     if (node == nullptr) return {};
     Base::Result<void> reserved =
         output.Reserve(node->dependents.Size());
     if (!reserved) return reserved.GetStatus();
     for (const Base::String& dependentKey : node->dependents) {
-        const Impl::Node* dependent = impl_->nodes.Find(dependentKey);
+        const DependencyGraphState::Node* dependent = state_->nodes.Find(dependentKey);
         if (dependent == nullptr) continue;
         Base::Result<void> pushed = output.PushBack(dependent->uri);
         if (!pushed) return pushed.GetStatus();
@@ -2522,7 +2530,7 @@ Base::Result<void> DependencyGraph::CollectAffected(
     const Base::ResourceUri& changed,
     Base::Vector<Base::ResourceUri>& output) const noexcept {
     output.Clear();
-    if (impl_ == nullptr || changed.Empty()) return {};
+    if (state_ == nullptr || changed.Empty()) return {};
 
     Base::Vector<Base::String> queue(allocator_);
     Base::HashSet<Base::String> visited(allocator_);
@@ -2541,7 +2549,7 @@ Base::Result<void> DependencyGraph::CollectAffected(
         if (!inserted) return inserted.GetStatus();
         if (!inserted.Value().inserted) continue;
 
-        const Impl::Node* node = impl_->nodes.Find(key);
+        const DependencyGraphState::Node* node = state_->nodes.Find(key);
         Base::ResourceUri uri = node != nullptr
             ? node->uri
             : changed;
@@ -2558,14 +2566,14 @@ Base::Result<void> DependencyGraph::CollectAffected(
 }
 
 std::uint32_t DependencyGraph::NodeCount() const noexcept {
-    return impl_ != nullptr ? impl_->nodes.Size() : 0U;
+    return state_ != nullptr ? state_->nodes.Size() : 0U;
 }
 
 std::uint64_t DependencyGraph::Generation() const noexcept {
-    return impl_ != nullptr ? impl_->generation : 0U;
+    return state_ != nullptr ? state_->generation : 0U;
 }
 
-struct DocumentCache::Impl {
+struct DocumentCacheState {
     struct Entry {
         explicit Entry(Base::IAllocator& allocator) noexcept
             : compiledBytes(&allocator) {}
@@ -2577,7 +2585,7 @@ struct DocumentCache::Impl {
         std::uint64_t lastAccess = 0U;
     };
 
-    Impl(
+    DocumentCacheState(
         Base::IAllocator& allocator,
         const DocumentCacheLimits& valueLimits) noexcept
         : allocator(&allocator),
@@ -2635,47 +2643,56 @@ struct DocumentCache::Impl {
     std::uint64_t generation = 0U;
 };
 
+static_assert(
+    sizeof(DocumentCacheState) <= 8192,
+    "DocumentCache inline state storage is too small");
+static_assert(
+    alignof(DocumentCacheState) <= alignof(std::max_align_t),
+    "DocumentCache inline state alignment is insufficient");
+
 DocumentCache::DocumentCache(
     Base::IAllocator* allocator,
     const DocumentCacheLimits& limits) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    void* memory = allocator_->Allocate({
-        sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup});
-    if (memory == nullptr) {
-        Base::ReportOutOfMemory(
-            sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
-    }
-    impl_ = new (memory) Impl(*allocator_, limits);
+    state_ = new (stateStorage_)
+        DocumentCacheState(*allocator_, limits);
 }
 
 DocumentCache::~DocumentCache() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->~Impl();
-    allocator_->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
+    if (state_ == nullptr) return;
+    state_->~DocumentCacheState();
+    state_ = nullptr;
 }
 
 DocumentCache::DocumentCache(
     DocumentCache&& other) noexcept
-    : allocator_(other.allocator_), impl_(other.impl_) {
+    : allocator_(other.allocator_) {
+    if (other.state_ != nullptr) {
+        state_ = new (stateStorage_)
+            DocumentCacheState(std::move(*other.state_));
+        other.state_->~DocumentCacheState();
+        other.state_ = nullptr;
+    }
     other.allocator_ = nullptr;
-    other.impl_ = nullptr;
 }
 
 DocumentCache& DocumentCache::operator=(
     DocumentCache&& other) noexcept {
     if (this == &other) return *this;
-    if (impl_ != nullptr) {
-        impl_->~Impl();
-        allocator_->Deallocate(
-            impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
+    if (state_ != nullptr) {
+        state_->~DocumentCacheState();
+        state_ = nullptr;
     }
     allocator_ = other.allocator_;
-    impl_ = other.impl_;
+    if (other.state_ != nullptr) {
+        state_ = new (stateStorage_)
+            DocumentCacheState(std::move(*other.state_));
+        other.state_->~DocumentCacheState();
+        other.state_ = nullptr;
+    }
     other.allocator_ = nullptr;
-    other.impl_ = nullptr;
     return *this;
 }
 
@@ -2686,17 +2703,17 @@ Base::Result<DocumentCacheLookup> DocumentCache::Lookup(
     const ::Aero::Meta::Registry& domain,
     const CompiledDocumentLimits& limits) noexcept {
     DocumentCacheLookup result;
-    if (impl_ == nullptr || uri.Empty()) return result;
+    if (state_ == nullptr || uri.Empty()) return result;
     Base::Result<Base::String> key = MakeKey(uri, *allocator_);
     if (!key) return key.GetStatus();
-    Impl::Entry* entry = impl_->entries.Find(key.Value());
+    DocumentCacheState::Entry* entry = state_->entries.Find(key.Value());
     if (entry == nullptr) {
-        ++impl_->misses;
+        ++state_->misses;
         return result;
     }
     if (entry->sourceRevision != sourceRevision ||
         entry->sourceIdentity != sourceIdentity) {
-        ++impl_->misses;
+        ++state_->misses;
         Base::Result<std::uint32_t> invalidated =
             Invalidate(uri, true);
         if (!invalidated) return invalidated.GetStatus();
@@ -2707,14 +2724,14 @@ Base::Result<DocumentCacheLookup> DocumentCache::Lookup(
         CompiledDocument::Deserialize(
             entry->compiledBytes.AsSpan(), domain, limits);
     if (!document) {
-        ++impl_->misses;
+        ++state_->misses;
         Base::Result<std::uint32_t> invalidated =
             Invalidate(uri, true);
         if (!invalidated) return invalidated.GetStatus();
         return result;
     }
-    entry->lastAccess = ++impl_->accessSequence;
-    ++impl_->hits;
+    entry->lastAccess = ++state_->accessSequence;
+    ++state_->hits;
     result.hit = true;
     result.sourceRevision = entry->sourceRevision;
     result.document = std::move(document).Value();
@@ -2727,7 +2744,7 @@ Base::Result<void> DocumentCache::Store(
     std::uint64_t sourceIdentity,
     const CompiledDocument& document,
     Base::Span<const Base::ResourceUri> dependencies) noexcept {
-    if (impl_ == nullptr || uri.Empty() || !document.IsValid()) {
+    if (state_ == nullptr || uri.Empty() || !document.IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "XAML document cache entry is invalid");
@@ -2740,51 +2757,51 @@ Base::Result<void> DocumentCache::Store(
 
     Base::Result<Base::String> key = MakeKey(uri, *allocator_);
     if (!key) return key.GetStatus();
-    Impl::Entry* existing = impl_->entries.Find(key.Value());
+    DocumentCacheState::Entry* existing = state_->entries.Find(key.Value());
     if (existing != nullptr) {
-        impl_->compiledBytes -= existing->compiledBytes.Size();
+        state_->compiledBytes -= existing->compiledBytes.Size();
         existing->uri = uri;
         existing->compiledBytes = std::move(serialized).Value();
         existing->sourceRevision = sourceRevision;
         existing->sourceIdentity = sourceIdentity;
-        existing->lastAccess = ++impl_->accessSequence;
-        impl_->compiledBytes += existing->compiledBytes.Size();
+        existing->lastAccess = ++state_->accessSequence;
+        state_->compiledBytes += existing->compiledBytes.Size();
     } else {
-        Impl::Entry entry(*allocator_);
+        DocumentCacheState::Entry entry(*allocator_);
         entry.uri = uri;
         entry.compiledBytes = std::move(serialized).Value();
         entry.sourceRevision = sourceRevision;
         entry.sourceIdentity = sourceIdentity;
-        entry.lastAccess = ++impl_->accessSequence;
-        impl_->compiledBytes += entry.compiledBytes.Size();
-        Base::Result<typename Base::HashMap<Base::String, Impl::Entry>::InsertResult>
-            inserted = impl_->entries.Insert(
+        entry.lastAccess = ++state_->accessSequence;
+        state_->compiledBytes += entry.compiledBytes.Size();
+        Base::Result<typename Base::HashMap<Base::String, DocumentCacheState::Entry>::InsertResult>
+            inserted = state_->entries.Insert(
                 std::move(key).Value(), std::move(entry));
         if (!inserted) {
-            impl_->compiledBytes -= serializedSize;
+            state_->compiledBytes -= serializedSize;
             return inserted.GetStatus();
         }
     }
     Base::Result<void> graph =
-        impl_->graph.Update(uri, dependencies);
+        state_->graph.Update(uri, dependencies);
     if (!graph) {
-        impl_->EraseEntry(uri, false);
+        state_->EraseEntry(uri, false);
         return graph.GetStatus();
     }
-    ++impl_->stores;
-    ++impl_->generation;
-    impl_->EvictToLimits();
+    ++state_->stores;
+    ++state_->generation;
+    state_->EvictToLimits();
     return {};
 }
 
 Base::Result<std::uint32_t> DocumentCache::Invalidate(
     const Base::ResourceUri& uri,
     bool includeDependents) noexcept {
-    if (impl_ == nullptr || uri.Empty()) return 0U;
+    if (state_ == nullptr || uri.Empty()) return 0U;
     Base::Vector<Base::ResourceUri> affected(allocator_);
     if (includeDependents) {
         Base::Result<void> collected =
-            impl_->graph.CollectAffected(uri, affected);
+            state_->graph.CollectAffected(uri, affected);
         if (!collected) return collected.GetStatus();
     } else {
         Base::Result<void> pushed = affected.PushBack(uri);
@@ -2795,28 +2812,28 @@ Base::Result<std::uint32_t> DocumentCache::Invalidate(
          index > 0U;
          --index) {
         const Base::ResourceUri& affectedUri = affected[index - 1U];
-        if (impl_->EraseEntry(affectedUri, false)) {
+        if (state_->EraseEntry(affectedUri, false)) {
             ++count;
         } else {
-            static_cast<void>(impl_->graph.Remove(affectedUri));
+            static_cast<void>(state_->graph.Remove(affectedUri));
         }
     }
     return count;
 }
 
 void DocumentCache::Clear() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->entries.Clear();
-    impl_->graph.Clear();
-    impl_->compiledBytes = 0U;
-    ++impl_->generation;
+    if (state_ == nullptr) return;
+    state_->entries.Clear();
+    state_->graph.Clear();
+    state_->compiledBytes = 0U;
+    ++state_->generation;
 }
 
 bool DocumentCache::Contains(
     const Base::ResourceUri& uri) const noexcept {
-    if (impl_ == nullptr || uri.Empty()) return false;
+    if (state_ == nullptr || uri.Empty()) return false;
     Base::Result<Base::String> key = MakeKey(uri, *allocator_);
-    return key && impl_->entries.Contains(key.Value());
+    return key && state_->entries.Contains(key.Value());
 }
 
 bool DocumentCache::GetSourceRevision(
@@ -2824,10 +2841,10 @@ bool DocumentCache::GetSourceRevision(
     std::uint64_t sourceIdentity,
     std::uint64_t& revision) const noexcept {
     revision = 0U;
-    if (impl_ == nullptr || uri.Empty()) return false;
+    if (state_ == nullptr || uri.Empty()) return false;
     Base::Result<Base::String> key = MakeKey(uri, *allocator_);
     if (!key) return false;
-    const Impl::Entry* entry = impl_->entries.Find(key.Value());
+    const DocumentCacheState::Entry* entry = state_->entries.Find(key.Value());
     if (entry == nullptr || entry->sourceIdentity != sourceIdentity) {
         return false;
     }
@@ -2838,33 +2855,33 @@ bool DocumentCache::GetSourceRevision(
 Base::Result<void> DocumentCache::CollectAffected(
     const Base::ResourceUri& changed,
     Base::Vector<Base::ResourceUri>& output) const noexcept {
-    return impl_ != nullptr
-        ? impl_->graph.CollectAffected(changed, output)
+    return state_ != nullptr
+        ? state_->graph.CollectAffected(changed, output)
         : Base::Result<void>{};
 }
 
 const DependencyGraph& DocumentCache::Dependencies() const noexcept {
     static const DependencyGraph empty;
-    return impl_ != nullptr ? impl_->graph : empty;
+    return state_ != nullptr ? state_->graph : empty;
 }
 
 DocumentCacheStatistics DocumentCache::Statistics() const noexcept {
     DocumentCacheStatistics result;
-    if (impl_ == nullptr) return result;
-    result.entryCount = impl_->entries.Size();
-    result.compiledBytes = impl_->compiledBytes;
-    result.hitCount = impl_->hits;
-    result.missCount = impl_->misses;
-    result.storeCount = impl_->stores;
-    result.invalidationCount = impl_->invalidations;
-    result.evictionCount = impl_->evictions;
-    result.generation = impl_->generation;
+    if (state_ == nullptr) return result;
+    result.entryCount = state_->entries.Size();
+    result.compiledBytes = state_->compiledBytes;
+    result.hitCount = state_->hits;
+    result.missCount = state_->misses;
+    result.storeCount = state_->stores;
+    result.invalidationCount = state_->invalidations;
+    result.evictionCount = state_->evictions;
+    result.generation = state_->generation;
     return result;
 }
 
 const DocumentCacheLimits& DocumentCache::Limits() const noexcept {
     static const DocumentCacheLimits empty{};
-    return impl_ != nullptr ? impl_->limits : empty;
+    return state_ != nullptr ? state_->limits : empty;
 }
 
 } // namespace Aero::Markup
@@ -2978,8 +2995,8 @@ inline constexpr ::Aero::Diagnostics::DiagnosticCode ResourceDependencyFailed =
     ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 307U);
 } // namespace LoaderDiagnosticCodes
 
-struct Loader::Impl {
-    Impl(
+struct LoaderState {
+    LoaderState(
         Schema& schema,
         XamlProviderRegistry& providers,
         Diagnostics::IDiagnosticSink* diagnostics = nullptr,
@@ -3020,6 +3037,13 @@ private:
     Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
     const LoadState* runtime_ = nullptr;
 };
+
+static_assert(
+    sizeof(LoaderState) <= 512,
+    "Loader inline state storage is too small");
+static_assert(
+    alignof(LoaderState) <= alignof(std::max_align_t),
+    "Loader inline state alignment is insufficient");
 
 using Aero::ResourceDictionary;
 
@@ -3554,7 +3578,7 @@ FileXamlProvider::Open(
     return source;
 }
 
-struct Loader::Impl::Operation {
+struct LoaderState::Operation {
     struct FinalizeState {
         Operation* operation = nullptr;
         const XamlReaderSettings* options = nullptr;
@@ -3653,7 +3677,7 @@ struct Loader::Impl::Operation {
     Base::Vector<Base::ResourceUri> loadStack_;
 };
 
-Loader::Impl::Impl(
+LoaderState::LoaderState(
     Schema& schema,
     XamlProviderRegistry& providers,
     Diagnostics::IDiagnosticSink* diagnostics,
@@ -3663,7 +3687,7 @@ Loader::Impl::Impl(
       diagnostics_(diagnostics),
       runtime_(runtime) {}
 
-Base::Result<LoaderResult> Loader::Impl::Load(
+Base::Result<LoaderResult> LoaderState::Load(
     Base::StringView uri,
     const XamlReaderSettings& options) noexcept {
     Operation operation(*schema_, *providers_, diagnostics_, runtime_);
@@ -3679,14 +3703,14 @@ Base::Result<LoaderResult> Loader::Impl::Load(
         resolved.Value(), options, {});
 }
 
-Base::Result<LoaderResult> Loader::Impl::Load(
+Base::Result<LoaderResult> LoaderState::Load(
     const Base::ResourceUri& uri,
     const XamlReaderSettings& options) noexcept {
     Operation operation(*schema_, *providers_, diagnostics_, runtime_);
     return operation.LoadCore(uri, options, {});
 }
 
-Base::Result<LoaderResult> Loader::Impl::Parse(
+Base::Result<LoaderResult> LoaderState::Parse(
     Base::StringView text,
     const Base::ResourceUri& baseUri,
     const XamlReaderSettings& options) noexcept {
@@ -3694,7 +3718,7 @@ Base::Result<LoaderResult> Loader::Impl::Parse(
     return operation.ParseCore(text, baseUri, options, {}, true);
 }
 
-Base::Result<LoaderResult> Loader::Impl::Parse(
+Base::Result<LoaderResult> LoaderState::Parse(
     Base::Stream& stream,
     const Base::ResourceUri& baseUri,
     const XamlReaderSettings& options) noexcept {
@@ -3702,7 +3726,7 @@ Base::Result<LoaderResult> Loader::Impl::Parse(
     return operation.ParseStreamCore(stream, baseUri, options, {}, true);
 }
 
-Base::Result<LoaderResult> Loader::Impl::LoadComponent(
+Base::Result<LoaderResult> LoaderState::LoadComponent(
     Base::Object& existingRoot,
     Base::StringView uri,
     const XamlReaderSettings& options) noexcept {
@@ -3730,7 +3754,7 @@ Base::Result<LoaderResult> Loader::Impl::LoadComponent(
         resolved.Value(), options, retained);
 }
 
-Base::Result<LoaderResult> Loader::Impl::LoadComponent(
+Base::Result<LoaderResult> LoaderState::LoadComponent(
     Base::Object& existingRoot,
     const Base::ResourceUri& uri,
     const XamlReaderSettings& options) noexcept {
@@ -3749,7 +3773,7 @@ Base::Result<LoaderResult> Loader::Impl::LoadComponent(
     return operation.LoadCore(uri, options, retained);
 }
 
-Base::Result<LoaderResult> Loader::Impl::LoadCompiled(
+Base::Result<LoaderResult> LoaderState::LoadCompiled(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
     const XamlReaderSettings& options) noexcept {
@@ -3758,7 +3782,7 @@ Base::Result<LoaderResult> Loader::Impl::LoadCompiled(
 }
 
 Base::Result<LoaderResult>
-Loader::Impl::Operation::LoadCompiled(
+LoaderState::Operation::LoadCompiled(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
     const XamlReaderSettings& options) noexcept {
@@ -3799,7 +3823,7 @@ Loader::Impl::Operation::LoadCompiled(
 }
 
 Base::Result<LoaderResult>
-Loader::Impl::Operation::LoadCompiledDocument(
+LoaderState::Operation::LoadCompiledDocument(
     CompiledDocument& document,
     const Base::ResourceUri& originUri,
     const XamlReaderSettings& options,
@@ -3840,7 +3864,7 @@ Loader::Impl::Operation::LoadCompiledDocument(
     return std::move(loaded).Value();
 }
 
-Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
+Base::Result<LoaderResult> LoaderState::Operation::LoadCore(
     const Base::ResourceUri& uri,
     const XamlReaderSettings& options,
     const Base::Ref<Base::Object>& existingRoot) noexcept {
@@ -3995,7 +4019,7 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
     return loaded;
 }
 
-Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
+Base::Result<LoaderResult> LoaderState::Operation::ParseCore(
     Base::StringView text,
     const Base::ResourceUri& baseUri,
     const XamlReaderSettings& options,
@@ -4031,7 +4055,7 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
         deferUnresolvedStaticResources);
 }
 
-Base::Result<LoaderResult> Loader::Impl::Operation::ParseStreamCore(
+Base::Result<LoaderResult> LoaderState::Operation::ParseStreamCore(
     Base::Stream& stream,
     const Base::ResourceUri& baseUri,
     const XamlReaderSettings& options,
@@ -4093,7 +4117,7 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseStreamCore(
     return std::move(loaded).Value();
 }
 
-Base::Result<void> Loader::Impl::Operation::FinalizeLoad(
+Base::Result<void> LoaderState::Operation::FinalizeLoad(
     LoaderResult& result,
     void* context) noexcept {
     auto* finalize =
@@ -4113,7 +4137,7 @@ Base::Result<void> Loader::Impl::Operation::FinalizeLoad(
         finalize->compiled);
 }
 
-Base::Result<void> Loader::Impl::Operation::FinalizeResult(
+Base::Result<void> LoaderState::Operation::FinalizeResult(
     LoaderResult& result,
     const XamlReaderSettings& options,
     const Base::ResourceUri& origin,
@@ -4143,7 +4167,7 @@ Base::Result<void> Loader::Impl::Operation::FinalizeResult(
 }
 
 Base::Result<void>
-Loader::Impl::Operation::ResolveResourceDependencies(
+LoaderState::Operation::ResolveResourceDependencies(
     LoaderResult& result,
     const XamlReaderSettings& options) noexcept {
     std::uint32_t resourceCount = 0U;
@@ -4192,7 +4216,7 @@ Loader::Impl::Operation::ResolveResourceDependencies(
 }
 
 Base::Result<void>
-Loader::Impl::Operation::ResolveDictionaryDependencies(
+LoaderState::Operation::ResolveDictionaryDependencies(
     ResourceDictionary& dictionary,
     LoaderResult& owner,
     const XamlReaderSettings& options,
@@ -4343,7 +4367,7 @@ Loader::Impl::Operation::ResolveDictionaryDependencies(
 }
 
 Base::Result<void>
-Loader::Impl::Operation::CommitResourceDependencies(
+LoaderState::Operation::CommitResourceDependencies(
     Base::Vector<PendingResourceMerge>& pending) noexcept {
     std::uint32_t committed = 0U;
     Base::Status failure = Base::Status::Failure(
@@ -4381,7 +4405,7 @@ Loader::Impl::Operation::CommitResourceDependencies(
     return failure;
 }
 
-Base::Result<void> Loader::Impl::Operation::AppendDependencies(
+Base::Result<void> LoaderState::Operation::AppendDependencies(
     LoaderResult& destination,
     const LoaderResult& source,
     const XamlReaderSettings& options) noexcept {
@@ -4395,7 +4419,7 @@ Base::Result<void> Loader::Impl::Operation::AppendDependencies(
     return {};
 }
 
-Base::Result<void> Loader::Impl::Operation::AppendDependency(
+Base::Result<void> LoaderState::Operation::AppendDependency(
     LoaderResult& destination,
     const Base::ResourceUri& dependency,
     const XamlReaderSettings& options) noexcept {
@@ -4418,7 +4442,7 @@ Base::Result<void> Loader::Impl::Operation::AppendDependency(
         dependency);
 }
 
-Base::Result<void> Loader::Impl::Operation::ValidateOptions(
+Base::Result<void> LoaderState::Operation::ValidateOptions(
     const XamlReaderSettings& options) const noexcept {
     const LoadState& runtime = Runtime();
     if (schema_ == nullptr || providers_ == nullptr ||
@@ -4448,7 +4472,7 @@ Base::Result<void> Loader::Impl::Operation::ValidateOptions(
     return {};
 }
 
-Base::Result<void> Loader::Impl::Operation::CheckPolicy(
+Base::Result<void> LoaderState::Operation::CheckPolicy(
     const Base::ResourceUri& uri,
     const XamlReaderSettings& options) noexcept {
     if (uri.Empty()) {
@@ -4492,7 +4516,7 @@ Base::Result<void> Loader::Impl::Operation::CheckPolicy(
     return {};
 }
 
-bool Loader::Impl::Operation::IsLoading(
+bool LoaderState::Operation::IsLoading(
     const Base::ResourceUri& uri) const noexcept {
     for (const Base::ResourceUri& active : loadStack_) {
         if (active == uri) {
@@ -4502,7 +4526,7 @@ bool Loader::Impl::Operation::IsLoading(
     return false;
 }
 
-Base::Status Loader::Impl::Operation::Failure(
+Base::Status LoaderState::Operation::Failure(
     Base::Status status,
     ::Aero::Diagnostics::DiagnosticCode code,
     Base::StringView message) noexcept {
@@ -4531,7 +4555,7 @@ Base::Result<XamlDocument> AdoptResult(
     Base::IAllocator& allocator) noexcept {
     if (!loaded) return loaded.GetStatus();
     Base::Result<XamlDocument> document =
-        ::Aero::Markup::Detail::AdoptXamlDocument(
+        ::Aero::Markup::AdoptXamlDocument(
             std::move(loaded).Value(), allocator);
     return document;
 }
@@ -4547,58 +4571,51 @@ Loader::Loader(
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    void* memory = allocator_->Allocate({
-        sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup});
-    if (memory != nullptr) {
-        impl_ = new (memory) Impl(
-            schema, providers, diagnostics, runtime);
-    }
+    state_ = new (stateStorage_) LoaderState(
+        schema, providers, diagnostics, runtime);
 }
 
 Loader::~Loader() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->~Impl();
-    allocator_->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl),
-        Base::MemoryTag::Markup);
-    impl_ = nullptr;
+    if (state_ == nullptr) return;
+    state_->~LoaderState();
+    state_ = nullptr;
 }
 
 Base::Result<XamlDocument> Loader::Load(
     Base::StringView uri,
     const XamlReaderSettings& options) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Markup loader allocation failed");
     }
     return AdoptResult(
-        impl_->Load(uri, options), *allocator_);
+        state_->Load(uri, options), *allocator_);
 }
 
 Base::Result<XamlDocument> Loader::Load(
     const Base::ResourceUri& uri,
     const XamlReaderSettings& options) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Markup loader allocation failed");
     }
     return AdoptResult(
-        impl_->Load(uri, options), *allocator_);
+        state_->Load(uri, options), *allocator_);
 }
 
 Base::Result<XamlDocument> Loader::Parse(
     Base::StringView text,
     const Base::ResourceUri& baseUri,
     const XamlReaderSettings& options) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Markup loader allocation failed");
     }
     return AdoptResult(
-        impl_->Parse(text, baseUri, options),
+        state_->Parse(text, baseUri, options),
         *allocator_);
 }
 
@@ -4606,13 +4623,13 @@ Base::Result<XamlDocument> Loader::Parse(
     Base::Stream& stream,
     const Base::ResourceUri& baseUri,
     const XamlReaderSettings& options) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Markup loader allocation failed");
     }
     return AdoptResult(
-        impl_->Parse(stream, baseUri, options),
+        state_->Parse(stream, baseUri, options),
         *allocator_);
 }
 
@@ -4620,13 +4637,13 @@ Base::Result<XamlDocument> Loader::LoadComponent(
     Base::Object& existingRoot,
     Base::StringView uri,
     const XamlReaderSettings& options) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Markup loader allocation failed");
     }
     return AdoptResult(
-        impl_->LoadComponent(existingRoot, uri, options),
+        state_->LoadComponent(existingRoot, uri, options),
         *allocator_);
 }
 
@@ -4634,13 +4651,13 @@ Base::Result<XamlDocument> Loader::LoadComponent(
     Base::Object& existingRoot,
     const Base::ResourceUri& uri,
     const XamlReaderSettings& options) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Markup loader allocation failed");
     }
     return AdoptResult(
-        impl_->LoadComponent(existingRoot, uri, options),
+        state_->LoadComponent(existingRoot, uri, options),
         *allocator_);
 }
 
@@ -4648,13 +4665,13 @@ Base::Result<XamlDocument> Loader::LoadCompiled(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
     const XamlReaderSettings& options) noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Markup loader allocation failed");
     }
     return AdoptResult(
-        impl_->LoadCompiled(bytes, originUri, options),
+        state_->LoadCompiled(bytes, originUri, options),
         *allocator_);
 }
 
@@ -4666,7 +4683,6 @@ Base::Result<XamlDocument> Loader::LoadCompiled(
 
 
 
-#include <Aero/Gui/Application.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 
 namespace Aero::Markup {
@@ -4712,18 +4728,6 @@ Base::Result<void> AddFrameworkResource(
     return element->GetResources().Add(key, value);
 }
 
-Base::Result<void> AddApplicationResource(
-    Base::Object& scopeOwner,
-    const ResourceKey& key,
-    const Meta::Value& value,
-    void*) noexcept {
-    // This callback is selected through the inherited Application XAML facet,
-    // so derived application types are valid scope owners.
-    return static_cast<Aero::Application&>(scopeOwner)
-        .GetResources()
-        .Add(key, value);
-}
-
 ResourceDictionary* ResolveDictionaryScope(
     Base::Object& scopeOwner,
     void*) noexcept {
@@ -4744,13 +4748,6 @@ ResourceDictionary* ResolveFrameworkScope(
     return element != nullptr
         ? &element->GetResources()
         : nullptr;
-}
-
-ResourceDictionary* ResolveApplicationScope(
-    Base::Object& scopeOwner,
-    void*) noexcept {
-    return &static_cast<Aero::Application&>(scopeOwner)
-        .GetResources();
 }
 
 } // namespace
@@ -4789,7 +4786,7 @@ Base::Result<void> ResourceExtension::Register(
 
     schema_ = &schema;
     Base::Result<void> status =
-        Detail::SchemaPrivate::AddResourceScope(schema, {
+        SchemaPrivate::AddResourceScope(schema, {
             ResourceDictionary::StaticTypeId(),
             true,
             &AddResource,
@@ -4799,21 +4796,11 @@ Base::Result<void> ResourceExtension::Register(
         schema_ = nullptr;
         return status.GetStatus();
     }
-    status = Detail::SchemaPrivate::AddResourceScope(schema, {
+    status = SchemaPrivate::AddResourceScope(schema, {
         FrameworkElement::StaticTypeId(),
         true,
         &AddFrameworkResource,
         &ResolveFrameworkScope,
-        this});
-    if (!status) {
-        schema_ = nullptr;
-        return status.GetStatus();
-    }
-    status = Detail::SchemaPrivate::AddResourceScope(schema, {
-        Aero::Application::StaticTypeId(),
-        true,
-        &AddApplicationResource,
-        &ResolveApplicationScope,
         this});
     if (!status) {
         schema_ = nullptr;
@@ -4836,8 +4823,8 @@ Base::Result<void> ResourceExtension::Register(
 
 namespace Aero::Markup {
 
-struct XamlDocument::Impl {
-    explicit Impl(LoaderResult&& value) noexcept
+struct XamlDocumentState {
+    explicit XamlDocumentState(LoaderResult&& value) noexcept
         : result(std::move(value)) {}
 
     static Base::Result<XamlDocument> Adopt(
@@ -4856,37 +4843,37 @@ XamlDocument::~XamlDocument() noexcept {
 }
 
 XamlDocument::XamlDocument(XamlDocument&& other) noexcept
-    : allocator_(other.allocator_), impl_(other.impl_) {
+    : allocator_(other.allocator_), state_(other.state_) {
     other.allocator_ = nullptr;
-    other.impl_ = nullptr;
+    other.state_ = nullptr;
 }
 
 XamlDocument& XamlDocument::operator=(XamlDocument&& other) noexcept {
     if (this == &other) return *this;
     Reset();
     allocator_ = other.allocator_;
-    impl_ = other.impl_;
+    state_ = other.state_;
     other.allocator_ = nullptr;
-    other.impl_ = nullptr;
+    other.state_ = nullptr;
     return *this;
 }
 
 } // namespace Aero::Markup
 
-namespace Aero::Markup::Detail {
+namespace Aero::Markup {
 
 Base::Result<::Aero::Markup::XamlDocument> AdoptXamlDocument(
     ::Aero::Markup::LoaderResult&& result,
     Base::IAllocator& allocator) noexcept {
-    return ::Aero::Markup::XamlDocument::Impl::Adopt(
+    return ::Aero::Markup::XamlDocumentState::Adopt(
         std::move(result), allocator);
 }
 
-} // namespace Aero::Markup::Detail
+} // namespace Aero::Markup
 
 namespace Aero::Markup {
 
-Base::Result<XamlDocument> XamlDocument::Impl::Adopt(
+Base::Result<XamlDocument> XamlDocumentState::Adopt(
     LoaderResult&& result,
     Base::IAllocator& allocator) noexcept {
     if (!result.root) {
@@ -4895,8 +4882,8 @@ Base::Result<XamlDocument> XamlDocument::Impl::Adopt(
             "UI document requires a loaded root object");
     }
     void* memory = allocator.Allocate({
-        sizeof(XamlDocument::Impl),
-        alignof(XamlDocument::Impl),
+        sizeof(XamlDocumentState),
+        alignof(XamlDocumentState),
         Base::MemoryTag::Markup});
     if (memory == nullptr) {
         return Base::Status::Failure(
@@ -4905,8 +4892,8 @@ Base::Result<XamlDocument> XamlDocument::Impl::Adopt(
     }
     XamlDocument document;
     document.allocator_ = &allocator;
-    document.impl_ =
-        new (memory) XamlDocument::Impl(std::move(result));
+    document.state_ =
+        new (memory) XamlDocumentState(std::move(result));
     return document;
 }
 
@@ -4915,20 +4902,23 @@ Base::Result<XamlDocument> XamlDocument::Impl::Adopt(
 namespace Aero::Markup {
 
 bool XamlDocument::IsValid() const noexcept {
-    return impl_ != nullptr && impl_->result.root;
+    const auto* state = static_cast<const XamlDocumentState*>(state_);
+    return state != nullptr && state->result.root;
 }
 
 const Base::Ref<Base::Object>& XamlDocument::Root() const noexcept {
     static const Base::Ref<Base::Object> empty;
-    return impl_ != nullptr ? impl_->result.root : empty;
+    const auto* state = static_cast<const XamlDocumentState*>(state_);
+    return state != nullptr ? state->result.root : empty;
 }
 
 Base::Object* XamlDocument::RootObject(
     Meta::TypeId expectedType) noexcept {
-    if (impl_ == nullptr || !impl_->result.root) return nullptr;
-    Base::Object* root = impl_->result.root.Get();
+    auto* state = static_cast<XamlDocumentState*>(state_);
+    if (state == nullptr || !state->result.root) return nullptr;
+    Base::Object* root = state->result.root.Get();
     if (expectedType == Meta::InvalidTypeId) return root;
-    const Meta::Registry* metadata = impl_->result.metadata;
+    const Meta::Registry* metadata = state->result.metadata;
     return metadata != nullptr && metadata->Types().IsDerivedFrom(
         root->RuntimeType(), expectedType)
         ? root
@@ -4938,12 +4928,13 @@ Base::Object* XamlDocument::RootObject(
 Base::Object* XamlDocument::FindName(
     Base::StringView name,
     Meta::TypeId expectedType) noexcept {
-    if (impl_ == nullptr || name.Empty()) return nullptr;
-    Base::Object* object = impl_->result.names.Find(name);
+    auto* state = static_cast<XamlDocumentState*>(state_);
+    if (state == nullptr || name.Empty()) return nullptr;
+    Base::Object* object = state->result.names.Find(name);
     if (object == nullptr || expectedType == Meta::InvalidTypeId) {
         return object;
     }
-    const Meta::Registry* metadata = impl_->result.metadata;
+    const Meta::Registry* metadata = state->result.metadata;
     return metadata != nullptr && metadata->Types().IsDerivedFrom(
         object->RuntimeType(), expectedType)
         ? object
@@ -4951,27 +4942,32 @@ Base::Object* XamlDocument::FindName(
 }
 
 std::uint32_t XamlDocument::NamedObjectCount() const noexcept {
-    return impl_ != nullptr ? impl_->result.names.Size() : 0U;
+    const auto* state = static_cast<const XamlDocumentState*>(state_);
+    return state != nullptr ? state->result.names.Size() : 0U;
 }
 
 Aero::ResourceDictionary* XamlDocument::Resources() noexcept {
-    return impl_ != nullptr ? &impl_->result.resources : nullptr;
+    auto* state = static_cast<XamlDocumentState*>(state_);
+    return state != nullptr ? &state->result.resources : nullptr;
 }
 
 const Aero::ResourceDictionary* XamlDocument::Resources() const noexcept {
-    return impl_ != nullptr ? &impl_->result.resources : nullptr;
+    const auto* state = static_cast<const XamlDocumentState*>(state_);
+    return state != nullptr ? &state->result.resources : nullptr;
 }
 
 const Base::ResourceUri& XamlDocument::CanonicalUri() const noexcept {
     static const Base::ResourceUri empty;
-    return impl_ != nullptr ? impl_->result.canonicalUri : empty;
+    const auto* state = static_cast<const XamlDocumentState*>(state_);
+    return state != nullptr ? state->result.canonicalUri : empty;
 }
 
 Base::Span<const Base::ResourceUri> XamlDocument::Dependencies() const noexcept {
-    return impl_ != nullptr
+    const auto* state = static_cast<const XamlDocumentState*>(state_);
+    return state != nullptr
         ? Base::Span<const Base::ResourceUri>{
-              impl_->result.dependencies.Data(),
-              impl_->result.dependencies.Size()}
+              state->result.dependencies.Data(),
+              state->result.dependencies.Size()}
         : Base::Span<const Base::ResourceUri>{};
 }
 
@@ -4980,54 +4976,57 @@ Base::Span<const Base::ResourceUri> XamlDocument::Dependencies() const noexcept 
 namespace Aero::Markup {
 
 const EffectLifetime*
-XamlDocument::Impl::RuntimeLifetime(
+XamlDocumentState::RuntimeLifetime(
     const XamlDocument& document) noexcept {
-    return document.impl_ != nullptr
-        ? document.impl_->result.runtimeLifetime.Get()
+    const auto* state =
+        static_cast<const XamlDocumentState*>(document.state_);
+    return state != nullptr
+        ? state->result.runtimeLifetime.Get()
         : nullptr;
 }
 
-LoaderResult XamlDocument::Impl::Take(
+LoaderResult XamlDocumentState::Take(
     XamlDocument& document) noexcept {
-    if (document.impl_ == nullptr) {
+    auto* state = static_cast<XamlDocumentState*>(document.state_);
+    if (state == nullptr) {
         LoaderResult empty;
         return empty;
     }
-    LoaderResult result =
-        std::move(document.impl_->result);
+    LoaderResult result = std::move(state->result);
     document.Reset();
     return result;
 }
 
 } // namespace Aero::Markup
 
-namespace Aero::Markup::Detail {
+namespace Aero::Markup {
 
 const ::Aero::Markup::EffectLifetime*
 XamlDocumentRuntimeLifetime(
     const ::Aero::Markup::XamlDocument& document) noexcept {
-    return ::Aero::Markup::XamlDocument::Impl::RuntimeLifetime(document);
+    return ::Aero::Markup::XamlDocumentState::RuntimeLifetime(document);
 }
 
 ::Aero::Markup::LoaderResult TakeXamlDocument(
     ::Aero::Markup::XamlDocument& document) noexcept {
-    return ::Aero::Markup::XamlDocument::Impl::Take(document);
+    return ::Aero::Markup::XamlDocumentState::Take(document);
 }
 
-} // namespace Aero::Markup::Detail
+} // namespace Aero::Markup
 
 namespace Aero::Markup {
 
 void XamlDocument::Reset() noexcept {
-    if (impl_ == nullptr) return;
-    impl_->result.Clear();
-    impl_->~Impl();
+    auto* state = static_cast<XamlDocumentState*>(state_);
+    if (state == nullptr) return;
+    state->result.Clear();
+    state->~XamlDocumentState();
     allocator_->Deallocate(
-        impl_,
-        sizeof(XamlDocument::Impl),
-        alignof(XamlDocument::Impl),
+        state,
+        sizeof(XamlDocumentState),
+        alignof(XamlDocumentState),
         Base::MemoryTag::Markup);
-    impl_ = nullptr;
+    state_ = nullptr;
     allocator_ = nullptr;
 }
 

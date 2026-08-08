@@ -17,7 +17,7 @@ namespace Aero::Collections {
 // The collection contract deliberately lives below Controls: authored
 // resources and view-model objects can be an ItemsSource without depending on
 // a particular control or visual host.
-class AERO_API IItemsSource {
+class AERO_GUI_API IItemsSource {
 public:
     virtual ~IItemsSource() = default;
     virtual std::uint32_t GetCount() const noexcept = 0;
@@ -32,7 +32,7 @@ public:
 // Reference-counted observable collection used by view models and bindings.
 // It deliberately lives in Collections rather than Controls so a data source
 // does not acquire a dependency on visual controls or item containers.
-class AERO_API ObservableCollection :
+class AERO_GUI_API ObservableCollection :
     public Base::Object,
     public IItemsSource {
     AERO_DECLARE_TYPE(ObservableCollection, Base::Object)

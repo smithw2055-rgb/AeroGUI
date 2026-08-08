@@ -1,5 +1,8 @@
 # Rendering S10-S12 convergence
 
+> Historical milestone record. See `ARCHITECTURE.md` and
+> `WINDOW_HOSTING.md` for the current rendering and presentation model.
+
 S10 finishes the host-visible Render target vocabulary and moves default desktop
 presentation behind App.
 

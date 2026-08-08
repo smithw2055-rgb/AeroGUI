@@ -13,7 +13,7 @@ class XamlProviderRegistry;
 
 namespace Aero::Media { class Visual; }
 
-namespace Aero::Media::Detail {
+namespace Aero::Media {
 
 class ImageCache {
 public:
@@ -30,12 +30,12 @@ public:
         const Base::ResourceUri& documentUri,
         Markup::XamlProviderRegistry& sources,
         Media::TextureProvider* textureProvider,
-        ::Aero::Render::Detail::ImageResources* backend,
+        ::Aero::Render::ImageResources* backend,
         bool backendGenerationChanged) noexcept;
     void ReleaseBackendResources(
-        ::Aero::Render::Detail::ImageResources* backend) noexcept;
+        ::Aero::Render::ImageResources* backend) noexcept;
     void Shutdown(
-        ::Aero::Render::Detail::ImageResources* backend) noexcept;
+        ::Aero::Render::ImageResources* backend) noexcept;
 
 private:
     struct Record;
@@ -47,4 +47,4 @@ private:
             UINT64_C(1) << 40U;
 };
 
-} // namespace Aero::Media::Detail
+} // namespace Aero::Media

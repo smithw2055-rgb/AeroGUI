@@ -1,13 +1,13 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Gui/StackPanel.hpp>
 
@@ -264,7 +264,7 @@ ToolBar::SynchronizeToolBar() noexcept {
         overflowCount);
     if (host != nullptr) {
         const Base::Span<::Aero::Media::Visual* const> children =
-            Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*host);
+            Aero::ElementPrivate::VisualChildren(*host);
         for (std::uint32_t index = 0U;
              index < children.Size();
              ++index) {

@@ -9,9 +9,9 @@
 
 #include <cstdint>
 
-namespace Aero::GuiPrivate::Detail { class BindingEngine; }
+namespace Aero { class BindingEngine; }
 
-namespace Aero::Controls::Detail {
+namespace Aero::Controls {
 
 struct TemplateHandle {
     std::uint64_t value = 0U;
@@ -45,9 +45,9 @@ struct VisualStateGroupPlan {
     Base::Vector<VisualTransitionPlan> transitions;
 };
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Controls
 
-namespace Aero::Controls::Detail { class TemplateEngine; }
+namespace Aero::Controls { class TemplateEngine; }
 
 namespace Aero::Controls {
 
@@ -69,10 +69,10 @@ public:
     Control& TemplatedParent() const noexcept;
     ::Aero::Media::Visual* RootVisual() const noexcept;
     UIElement* RootElement() const noexcept;
-    Aero::GuiPrivate::Detail::BindingEngine& Bindings() const noexcept;
+    Aero::BindingEngine& Bindings() const noexcept;
 
 private:
-    friend class Aero::Controls::Detail::TemplateEngine;
+    friend class Aero::Controls::TemplateEngine;
     explicit TemplateBuilder(void* state) noexcept : state_(state) {}
     DependencyObject* FindObject(Base::StringView name) const noexcept;
     Base::Result<void> AddOwnedPart(Base::StringView name, Base::Ref<Base::Object> owner, ::Aero::Media::Visual& visual, void* mount) noexcept;
@@ -124,7 +124,7 @@ struct TemplatePropertyTrigger {
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls::Detail {
+namespace Aero::Controls {
 
 struct TemplateProgram {
     TemplateProgram() noexcept = default;
@@ -168,7 +168,7 @@ struct FrameworkTemplateState {
 
 using DeferredObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)(
     const Base::Ref<Base::Object>& item, void* context,
-    Aero::GuiPrivate::Detail::BindingEngine* bindings) noexcept;
+    Aero::BindingEngine* bindings) noexcept;
 
 struct DeferredObjectProgram {
     Base::Result<void> Configure(DeferredObjectFactory factory, void* context = nullptr) noexcept;
@@ -177,7 +177,7 @@ struct DeferredObjectProgram {
     Base::Result<void> Seal() noexcept;
     Base::Result<Base::Ref<Base::Object>> Instantiate(
         const Base::Ref<Base::Object>& payload = {},
-        Aero::GuiPrivate::Detail::BindingEngine* bindings = nullptr) const noexcept;
+        Aero::BindingEngine* bindings = nullptr) const noexcept;
 
     DeferredObjectFactory factory = nullptr;
     void* context = nullptr;
@@ -203,4 +203,4 @@ struct ItemsPanelTemplateState {
     Base::Ref<Base::Object> authoredVisualTree;
 };
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Controls

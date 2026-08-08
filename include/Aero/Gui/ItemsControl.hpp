@@ -18,10 +18,10 @@ using ::Aero::Meta::TypeId;
 class VirtualizingStackPanel;
 class ItemContainerGenerator;
 
-class AERO_API ItemsControl : public Control {
+class AERO_GUI_API ItemsControl : public Control {
     AERO_DECLARE_TYPE(ItemsControl, Control)
 public:
-    struct Impl;
+    struct Access;
 
     ItemsControl() noexcept;
     ~ItemsControl() override;
@@ -151,8 +151,8 @@ protected:
 
 private:
     friend class ItemContainerGenerator;
-    friend struct Impl;
-    friend struct ::Aero::Media::Visual::Impl;
+    friend struct Access;
+    friend struct ::Aero::Media::Visual::Access;
     ItemCollection items_;
     Collections::IItemsSource* source_ = nullptr;
     const DataTemplate* itemTemplate_ = nullptr;

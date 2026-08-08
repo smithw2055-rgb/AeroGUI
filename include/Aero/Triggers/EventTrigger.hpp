@@ -5,7 +5,7 @@
 
 namespace Aero::Media::Animation {
 
-class AERO_API EventTrigger : public ::Aero::TriggerBase {
+class AERO_GUI_API EventTrigger : public ::Aero::TriggerBase {
     AERO_DECLARE_TYPE(EventTrigger, ::Aero::TriggerBase)
 public:
     EventTrigger() noexcept : EventTrigger(StaticTypeId()) {}

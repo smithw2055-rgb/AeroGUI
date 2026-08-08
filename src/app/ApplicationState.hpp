@@ -10,7 +10,7 @@ class View;
 class Window;
 }
 
-namespace Aero::App::Detail {
+namespace Aero::App {
 
 // Private bridge between the WPF-facing Application object and the optional
 // desktop host. The callback table keeps native lifetime out of public class
@@ -44,4 +44,4 @@ struct WindowHostState {
     View* (*hostedView)(void* context) noexcept = nullptr;
 };
 
-} // namespace Aero::App::Detail
+} // namespace Aero::App

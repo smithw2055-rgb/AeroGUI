@@ -4,6 +4,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
+#include <Aero/Markup/ResourceScope.hpp>
 #include <Aero/Version.hpp>
 
 #include <cstdint>
@@ -31,6 +32,7 @@ struct ModuleRegistration  {
     void* context = nullptr;
     std::uint32_t abiVersion = ModuleAbiVersion;
     Base::Span<const ModuleDependency> dependencies;
+    Base::Span<const Markup::ResourceScopeRegistration> resourceScopes;
 };
 
 constexpr ModuleRegistration DefineModule(

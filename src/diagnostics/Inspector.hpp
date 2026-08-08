@@ -1,30 +1,30 @@
 #pragma once
 
-namespace Aero::Controls::Detail { class TemplateEngine; }
+namespace Aero::Controls { class TemplateEngine; }
 
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "controls/ControlInternal.hpp"
-#include "controls/ItemsInternal.hpp"
-#include "controls/TemplateInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "controls/ControlRuntime.hpp"
+#include "controls/ItemsRuntime.hpp"
+#include "controls/TemplateRuntime.hpp"
 
 #include "render/RenderTree.hpp"
 
@@ -84,29 +84,29 @@ struct InspectorSnapshot {
     Value dataContext;
     const Aero::Style*
         appliedStyle = nullptr;
-    ::Aero::Controls::Detail::TemplateHandle
+    ::Aero::Controls::TemplateHandle
         appliedTemplate;
     Base::Rect layoutRect;
     Base::Rect layoutClip;
     Base::Size renderSize;
-    ::Aero::Render::Detail::RenderDiagnostics
+    ::Aero::Render::RenderDiagnostics
         render;
     ::Aero::Threading::DispatcherFrameTimings
         frameTimings;
 };
 
-class AERO_API Inspector {
+class Inspector {
 public:
     Inspector(
         Aero::ElementTree& tree,
         Meta::EffectiveValueEngine& values,
-        Aero::GuiPrivate::Detail::BindingEngine&
+        Aero::BindingEngine&
             bindings,
-        ::Aero::Render::Detail::RenderTree&
+        ::Aero::Render::RenderTree&
             renderer,
-        Aero::GuiPrivate::Detail::StyleEngine*
+        Aero::StyleEngine*
             styles = nullptr,
-        Aero::Controls::Detail::TemplateEngine*
+        Aero::Controls::TemplateEngine*
             templates = nullptr) noexcept
         : tree_(&tree),
           values_(&values),
@@ -121,7 +121,7 @@ public:
         std::uint32_t maxTreeNodes =
             4096U) const noexcept;
 
-    const ::Aero::Render::Detail::RenderFrame&
+    const ::Aero::Render::RenderFrame&
     RenderFrame() const noexcept {
         return renderer_->CurrentFrame();
     }
@@ -131,13 +131,13 @@ private:
         nullptr;
     Meta::EffectiveValueEngine* values_ =
         nullptr;
-    Aero::GuiPrivate::Detail::BindingEngine*
+    Aero::BindingEngine*
         bindings_ = nullptr;
-    ::Aero::Render::Detail::RenderTree*
+    ::Aero::Render::RenderTree*
         renderer_ = nullptr;
-    Aero::GuiPrivate::Detail::StyleEngine* styles_ =
+    Aero::StyleEngine* styles_ =
         nullptr;
-    Aero::Controls::Detail::TemplateEngine*
+    Aero::Controls::TemplateEngine*
         templates_ = nullptr;
 };
 

@@ -1,35 +1,35 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "controls/ControlInternal.hpp"
-#include "controls/ItemsInternal.hpp"
-#include "controls/TemplateInternal.hpp"
-#include "markup/MarkupInternal.hpp"
-#include "markup/MarkupWriterInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "controls/ControlRuntime.hpp"
+#include "controls/ItemsRuntime.hpp"
+#include "controls/TemplateRuntime.hpp"
+#include "markup/MarkupRuntime.hpp"
+#include "markup/MarkupWriterRuntime.hpp"
 #include "../render/DisplayList.hpp"
 #include "ImageCache.hpp"
 
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "media/AnimationInternal.hpp"
-#include "media/BrushInternal.hpp"
-#include "media/EffectInternal.hpp"
-#include "media/TransformInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "media/AnimationRuntime.hpp"
+#include "media/BrushRuntime.hpp"
+#include "media/EffectRuntime.hpp"
+#include "media/TransformRuntime.hpp"
 
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
@@ -37,16 +37,16 @@
 
 #include <Aero/Gui/Brush.hpp>
 #include <Aero/Media/Images.hpp>
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -59,7 +59,7 @@
 
 namespace Aero::Controls {
 
-struct Image::Impl {
+struct Image::Access {
 public:
     static Base::Result<void> SetRuntimeImage(
         Controls::Image& image,
@@ -78,10 +78,10 @@ public:
 
 } // namespace Aero::Controls
 
-namespace Aero::Media::Detail {
-using ImageControlPrivate = ::Aero::Controls::Image::Impl;
-using ImageResources = ::Aero::Render::Detail::ImageResources;
-using BrushPrivate = ::Aero::Media::Detail::BrushPrivate;
+namespace Aero::Media {
+using ImageControlPrivate = ::Aero::Controls::Image::Access;
+using ImageResources = ::Aero::Render::ImageResources;
+using BrushPrivate = ::Aero::Media::BrushPrivate;
 
 namespace {
 
@@ -228,7 +228,7 @@ Base::Result<bool> ImageCache::Synchronize(
         pending.PopBack();
         if (visual == nullptr) continue;
         for (Aero::Media::Visual* child :
-             Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*visual)) {
+             Aero::ElementPrivate::VisualChildren(*visual)) {
             Base::Result<void> queued =
                 pending.PushBack(child);
             if (!queued) return queued.GetStatus();
@@ -570,4 +570,4 @@ void ImageCache::Shutdown(
     records_.Clear();
 }
 
-} // namespace Aero::Media::Detail
+} // namespace Aero::Media

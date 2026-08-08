@@ -467,17 +467,17 @@ struct GlFunctionTable  {
     ReadPixelsProc readPixels = nullptr;
 };
 
-AERO_API Base::Result<GlFunctionTable> LoadGlFunctionTable(
+Base::Result<GlFunctionTable> LoadGlFunctionTable(
     GlProcAddressResolver resolver,
     void* userData) noexcept;
 
-AERO_API Base::Result<void> ValidateGlFunctionTable(
+Base::Result<void> ValidateGlFunctionTable(
     const GlFunctionTable& functions) noexcept;
 
-AERO_API Base::Result<void> ValidateGlContextBinding(
+Base::Result<void> ValidateGlContextBinding(
     const GlContextBinding& contract) noexcept;
 
-AERO_API Base::Result<GlCapabilities> QueryGlCapabilities(
+Base::Result<GlCapabilities> QueryGlCapabilities(
     const GlFunctionTable& functions,
     const GlContextBinding& contract) noexcept;
 

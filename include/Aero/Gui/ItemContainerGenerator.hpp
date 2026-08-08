@@ -6,9 +6,9 @@ namespace Aero::Controls {
 
 class VirtualizingStackPanel;
 
-class AERO_API ItemContainerGenerator {
+class AERO_GUI_API ItemContainerGenerator {
 public:
-    struct Impl;
+    struct Access;
 
     ~ItemContainerGenerator() noexcept;
     ItemContainerGenerator(const ItemContainerGenerator&) = delete;
@@ -39,8 +39,8 @@ public:
     Base::Status LastError() const noexcept;
 
 private:
-    friend struct Control::Impl;
-    friend struct Impl;
+    friend struct Control::Access;
+    friend struct Access;
 
     ItemContainerGenerator() noexcept = default;
     void* impl_ = nullptr;

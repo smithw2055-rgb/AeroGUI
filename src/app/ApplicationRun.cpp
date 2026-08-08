@@ -11,9 +11,9 @@ Base::Result<int> Application::Run() noexcept {
 
 Base::Result<int> Application::Run(
     const App::RunOptions& options) noexcept {
-    ::Aero::App::Detail::DesktopHost host(
+    ::Aero::App::DesktopHost host(
         *this,
-        Application::Impl::MainWindowOwner(*this),
+        MainWindowOwner(),
         options);
     return host.Run();
 }

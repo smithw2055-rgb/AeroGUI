@@ -670,7 +670,7 @@ BackendShaderCatalog MakeOpenGL33BackendShaderCatalog() noexcept {
 
 static Graphics::NativePipelineState MakeUiNativePipelineState(
     const BackendShaderCatalog& shaders,
-    Detail::UiPipelineKey key) noexcept {
+    ::Aero::Render::UiPipelineKey key) noexcept {
     Graphics::NativePipelineState descriptor;
     descriptor.vertexLayout.bufferCount = 1U;
     descriptor.vertexLayout.attributeCount = 1U;
@@ -679,7 +679,7 @@ static Graphics::NativePipelineState MakeUiNativePipelineState(
     descriptor.vertexLayout.attributes[0].bufferSlot = 0U;
     descriptor.vertexLayout.attributes[0].format = Graphics::VertexFormat::Float2;
     descriptor.topology = Graphics::PrimitiveTopology::TriangleStrip;
-    descriptor.blend.enabled = key.blend != Detail::UiBlendMode::Opaque;
+    descriptor.blend.enabled = key.blend != ::Aero::Render::UiBlendMode::Opaque;
     descriptor.blend.color.source = Graphics::BlendFactor::SourceAlpha;
     descriptor.blend.color.destination = Graphics::BlendFactor::OneMinusSourceAlpha;
     descriptor.blend.alpha.source = Graphics::BlendFactor::One;
@@ -688,19 +688,19 @@ static Graphics::NativePipelineState MakeUiNativePipelineState(
     descriptor.raster.scissorEnabled = true;
 
     switch (key.shader) {
-    case Detail::UiShader::Image:
+    case ::Aero::Render::UiShader::Image:
         descriptor.vertexShader = shaders.imageVertex;
         descriptor.fragmentShader = shaders.imageFragment;
         break;
-    case Detail::UiShader::Mask:
+    case ::Aero::Render::UiShader::Mask:
         descriptor.vertexShader = shaders.maskVertex;
         descriptor.fragmentShader = shaders.maskFragment;
         break;
-    case Detail::UiShader::Effect:
+    case ::Aero::Render::UiShader::Effect:
         descriptor.vertexShader = shaders.effectVertex;
         descriptor.fragmentShader = shaders.effectFragment;
         break;
-    case Detail::UiShader::Mesh:
+    case ::Aero::Render::UiShader::Mesh:
         descriptor.vertexShader = shaders.meshVertex;
         descriptor.fragmentShader = shaders.meshFragment;
         descriptor.vertexLayout.buffers[0].stride = 28U;
@@ -709,7 +709,7 @@ static Graphics::NativePipelineState MakeUiNativePipelineState(
         descriptor.vertexLayout.attributes[2] = {2U, 0U, Graphics::VertexFormat::Float, 24U};
         descriptor.topology = Graphics::PrimitiveTopology::TriangleList;
         break;
-    case Detail::UiShader::Glyph:
+    case ::Aero::Render::UiShader::Glyph:
         descriptor.vertexShader = shaders.glyphVertex;
         descriptor.fragmentShader = shaders.glyphFragment;
         descriptor.vertexLayout.buffers[0].stride = 16U;
@@ -717,7 +717,7 @@ static Graphics::NativePipelineState MakeUiNativePipelineState(
         descriptor.vertexLayout.attributes[1] = {1U, 0U, Graphics::VertexFormat::Float2, 8U};
         descriptor.topology = Graphics::PrimitiveTopology::TriangleList;
         break;
-    case Detail::UiShader::Rectangle:
+    case ::Aero::Render::UiShader::Rectangle:
     default:
         descriptor.vertexShader = shaders.rectangleVertex;
         descriptor.fragmentShader = shaders.rectangleFragment;
@@ -725,28 +725,28 @@ static Graphics::NativePipelineState MakeUiNativePipelineState(
     }
 
     switch (key.blend) {
-    case Detail::UiBlendMode::Multiply:
+    case ::Aero::Render::UiBlendMode::Multiply:
         descriptor.blend.color.source = Graphics::BlendFactor::DestinationColor;
         descriptor.blend.color.destination = Graphics::BlendFactor::Zero;
         break;
-    case Detail::UiBlendMode::Screen:
+    case ::Aero::Render::UiBlendMode::Screen:
         descriptor.blend.color.source = Graphics::BlendFactor::One;
         descriptor.blend.color.destination = Graphics::BlendFactor::OneMinusSourceColor;
         break;
-    case Detail::UiBlendMode::Additive:
+    case ::Aero::Render::UiBlendMode::Additive:
         descriptor.blend.color.source = Graphics::BlendFactor::SourceAlpha;
         descriptor.blend.color.destination = Graphics::BlendFactor::One;
         break;
-    case Detail::UiBlendMode::Mask:
+    case ::Aero::Render::UiBlendMode::Mask:
         descriptor.blend.color.source = Graphics::BlendFactor::Zero;
         descriptor.blend.color.destination = Graphics::BlendFactor::SourceAlpha;
         descriptor.blend.alpha.source = Graphics::BlendFactor::Zero;
         descriptor.blend.alpha.destination = Graphics::BlendFactor::SourceAlpha;
         break;
-    case Detail::UiBlendMode::Opaque:
+    case ::Aero::Render::UiBlendMode::Opaque:
         descriptor.blend.enabled = false;
         break;
-    case Detail::UiBlendMode::Normal:
+    case ::Aero::Render::UiBlendMode::Normal:
     default:
         break;
     }
@@ -754,7 +754,7 @@ static Graphics::NativePipelineState MakeUiNativePipelineState(
 }
 
 Graphics::NativePipelineState MakeOpenGL33UiPipeline(
-    Detail::UiPipelineKey key) noexcept {
+    ::Aero::Render::UiPipelineKey key) noexcept {
     return MakeUiNativePipelineState(MakeOpenGL33BackendShaderCatalog(), key);
 }
 

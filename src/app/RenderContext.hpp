@@ -3,16 +3,16 @@
 #include <Aero/App.hpp>
 #include <Aero/Gui/IRenderer.hpp>
 #include <Aero/Platform/NativeWindow.hpp>
-#include <Aero/Gui/RenderTarget.hpp>
+#include <Aero/Render/RenderTarget.hpp>
 
-namespace Aero::App::Detail {
+namespace Aero::App {
 
 // Private desktop presentation owner. Backend-specific contexts create the
 // native device/target pair; this base owns the common frame and Present state.
 class RenderContext {
 public:
     RenderContext() noexcept = default;
-    virtual ~RenderContext() noexcept { Shutdown(); }
+    virtual ~RenderContext() noexcept = default;
 
     RenderContext(const RenderContext&) = delete;
     RenderContext& operator=(const RenderContext&) = delete;
@@ -39,10 +39,20 @@ protected:
     Base::Result<void> AdoptTarget(
         Base::Ref<RenderTarget> target) noexcept;
 
+    virtual Base::Result<void> BeginPresentation() noexcept = 0;
+    virtual Base::Result<void> ResizePresentation(
+        std::uint32_t width,
+        std::uint32_t height) noexcept = 0;
+    virtual Base::Result<void> PresentFrame() noexcept = 0;
+    virtual void CancelFrame() noexcept = 0;
+    virtual void ShutdownPresentation() noexcept = 0;
+
 private:
     Base::Ref<RenderTarget> target_;
     RenderTarget* currentTarget_ = nullptr;
     bool frameOpen_ = false;
+    bool frameRendered_ = false;
+    bool frameEnded_ = false;
 };
 
 // Creates the concrete desktop context selected by RunOptions. Ownership of a
@@ -54,4 +64,15 @@ Base::Result<RenderContext*> CreateRenderContext(
     std::uint32_t height,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-} // namespace Aero::App::Detail
+Base::Result<RenderContext*> CreateD3D11RenderContext(
+    Platform::NativeWindowHandle window,
+    std::uint32_t width,
+    std::uint32_t height,
+    Base::IAllocator* allocator = nullptr) noexcept;
+Base::Result<RenderContext*> CreateOpenGL33RenderContext(
+    Platform::NativeWindowHandle window,
+    std::uint32_t width,
+    std::uint32_t height,
+    Base::IAllocator* allocator = nullptr) noexcept;
+
+} // namespace Aero::App

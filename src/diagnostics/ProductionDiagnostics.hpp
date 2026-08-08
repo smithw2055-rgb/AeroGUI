@@ -12,16 +12,16 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Layout.hpp>
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 #include <Aero/Gui/FrameworkElement.hpp>
 
 #include <cstdint>
@@ -77,7 +77,7 @@ struct AccessibilityNode {
     bool hidden = false;
 };
 
-class AERO_API AccessibilityTree {
+class AccessibilityTree {
 public:
     explicit AccessibilityTree(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -143,10 +143,10 @@ private:
     Base::Result<void> CaptureNode(
         const Aero::Media::Visual& visual) noexcept {
         AccessibilityNode node;
-        node.id = NodeId(Aero::GuiPrivate::Detail::ElementPrivate::Handle(visual));
+        node.id = NodeId(Aero::ElementPrivate::Handle(visual));
         const Aero::Media::Visual* parent = visual.GetLogicalParent();
         if (parent == nullptr) parent = visual.GetVisualParent();
-        node.parent = parent != nullptr ? NodeId(Aero::GuiPrivate::Detail::ElementPrivate::Handle(*parent)) : 0U;
+        node.parent = parent != nullptr ? NodeId(Aero::ElementPrivate::Handle(*parent)) : 0U;
         const Aero::UIElement* element = visual.AsUIElement();
         if (element != nullptr) {
             node.bounds = element->GetLayoutSlot();
@@ -202,13 +202,13 @@ private:
             if (!added) return added.GetStatus();
         }
         const Base::Span<Aero::Media::Visual* const> logical =
-            Aero::GuiPrivate::Detail::ElementPrivate::LogicalChildren(visual);
+            Aero::ElementPrivate::LogicalChildren(visual);
         for (Aero::Media::Visual* child : logical) {
             if (child == nullptr) continue;
             Base::Result<void> captured = CaptureNode(*child);
             if (!captured) return captured.GetStatus();
         }
-        for (Aero::Media::Visual* child : Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(visual)) {
+        for (Aero::Media::Visual* child : Aero::ElementPrivate::VisualChildren(visual)) {
             if (child == nullptr) continue;
             bool alreadyCaptured = false;
             for (Aero::Media::Visual* logicalChild : logical) {
@@ -268,7 +268,7 @@ struct InspectorRenderSummary {
     std::uint32_t commandCount = 0U;
 };
 
-class AERO_API RuntimeInspectorSnapshot {
+class RuntimeInspectorSnapshot {
 public:
     explicit RuntimeInspectorSnapshot(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -276,7 +276,7 @@ public:
 
     Base::Result<void> Capture(
         const Aero::ElementTree& tree,
-        const ::Aero::Render::Detail::RenderFrame* plan = nullptr) noexcept {
+        const ::Aero::Render::RenderFrame* plan = nullptr) noexcept {
         nodes_.Clear();
         const Aero::Media::Visual* root = tree.Root();
         if (root != nullptr) {
@@ -308,14 +308,14 @@ private:
     Base::Result<void> CaptureNode(
         const Aero::Media::Visual& visual) noexcept {
         InspectorTreeNode node;
-        node.handle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(visual);
+        node.handle = Aero::ElementPrivate::Handle(visual);
         node.runtimeType = visual.RuntimeType();
         node.loaded = visual.GetIsLoaded();
         if (visual.GetLogicalParent() != nullptr) {
-            node.logicalParent = Aero::GuiPrivate::Detail::ElementPrivate::Handle(*visual.GetLogicalParent());
+            node.logicalParent = Aero::ElementPrivate::Handle(*visual.GetLogicalParent());
         }
         if (visual.GetVisualParent() != nullptr) {
-            node.visualParent = Aero::GuiPrivate::Detail::ElementPrivate::Handle(*visual.GetVisualParent());
+            node.visualParent = Aero::ElementPrivate::Handle(*visual.GetVisualParent());
         }
         const Aero::UIElement* element = visual.AsUIElement();
         if (element != nullptr) {
@@ -328,12 +328,12 @@ private:
         const Aero::FrameworkElement* framework =
             visual.AsFrameworkElement();
         if (framework != nullptr) {
-            node.renderRevision = Aero::GuiPrivate::Detail::ElementPrivate::RenderRevision(*framework);
-            node.renderValid = Aero::GuiPrivate::Detail::ElementPrivate::IsRenderValid(*framework);
+            node.renderRevision = Aero::ElementPrivate::RenderRevision(*framework);
+            node.renderValid = Aero::ElementPrivate::IsRenderValid(*framework);
         }
         Base::Result<void> appended = nodes_.PushBack(node);
         if (!appended) return appended.GetStatus();
-        for (Aero::Media::Visual* child : Aero::GuiPrivate::Detail::ElementPrivate::LogicalChildren(visual)) {
+        for (Aero::Media::Visual* child : Aero::ElementPrivate::LogicalChildren(visual)) {
             if (child == nullptr) continue;
             Base::Result<void> captured = CaptureNode(*child);
             if (!captured) return captured.GetStatus();
@@ -368,7 +368,7 @@ struct PerformanceGateResult {
     double worstRatio = 0.0;
 };
 
-class AERO_API PerformanceGate {
+class PerformanceGate {
 public:
     explicit PerformanceGate(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -448,7 +448,7 @@ struct FuzzRunResult {
     std::uint32_t failureCount = 0U;
 };
 
-class AERO_API FuzzHarness {
+class FuzzHarness {
 public:
     explicit FuzzHarness(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -515,7 +515,7 @@ struct CapabilityManifest {
     }
 };
 
-class AERO_API StabilityCounter {
+class StabilityCounter {
 public:
     Base::Result<void> RecordFrame(
         std::uint64_t liveObjects,

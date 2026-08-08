@@ -10,13 +10,13 @@ using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
 class PasswordBox;
-class AERO_API TextBox
+class AERO_GUI_API TextBox
     : public Primitives::TextBoxBase,
       private IScrollInfo,
       private Input::ITextCompositionClient {
     AERO_DECLARE_TYPE(TextBox, Primitives::TextBoxBase)
 public:
-    struct Impl;
+    struct Access;
 
     TextBox() noexcept;
     ~TextBox() override;
@@ -149,9 +149,9 @@ protected:
         ::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
-    friend struct Impl;
+    friend struct Access;
     friend class PasswordBox;
-    friend struct ::Aero::Controls::Control::Impl;
+    friend struct ::Aero::Controls::Control::Access;
 
     struct CaretStop {
         double x = 0.0;

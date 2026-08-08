@@ -41,10 +41,10 @@ enum class GradientSpreadMethod : std::uint8_t {
     Repeat
 };
 
-class AERO_API Brush : public Freezable {
+class AERO_GUI_API Brush : public Freezable {
     AERO_DECLARE_TYPE(Brush, Freezable)
 public:
-    struct Impl;
+    struct Access;
 
     double GetOpacity() const noexcept;
     void SetOpacity(double value) noexcept;
@@ -76,7 +76,7 @@ protected:
     ~Brush() override = default;
 
 private:
-    friend struct Impl;
+    friend struct Access;
 };
 
 // Common owner for the WPF-style inheritable Foreground property.
@@ -85,7 +85,7 @@ inline constexpr DependencyPropertyRef<
     Base::Ref<Brush>>
     FrameworkElementForegroundProperty{"Foreground"};
 
-class AERO_API SolidColorBrush : public Brush {
+class AERO_GUI_API SolidColorBrush : public Brush {
     AERO_DECLARE_TYPE(SolidColorBrush, Brush)
 public:
     SolidColorBrush() noexcept
@@ -103,7 +103,7 @@ private:
     Color initialColor_{};
 };
 
-class AERO_API GradientStop : public Freezable {
+class AERO_GUI_API GradientStop : public Freezable {
     AERO_DECLARE_TYPE(GradientStop, Freezable)
 public:
     GradientStop() noexcept
@@ -123,7 +123,7 @@ public:
 // Standalone WPF collection resource. GradientBrush keeps its own optimized
 // stops, while this collection is also consumable as an authored resource
 // (for example, as an ItemsSource in the Gallery samples).
-class AERO_API GradientStopCollection :
+class AERO_GUI_API GradientStopCollection :
     public Freezable,
     public Collections::IItemsSource {
     AERO_DECLARE_TYPE(GradientStopCollection, Freezable)
@@ -166,7 +166,7 @@ private:
     FreezableChangedHandler stopChangedHandler_;
 };
 
-class AERO_API BrushShader : public DependencyObject {
+class AERO_GUI_API BrushShader : public DependencyObject {
     AERO_DECLARE_TYPE(BrushShader, DependencyObject)
 public:
     BrushShader() noexcept : BrushShader(StaticTypeId()) {}
@@ -176,7 +176,7 @@ protected:
         : DependencyObject(runtimeType) {}
 };
 
-class AERO_API MonochromeShader : public BrushShader {
+class AERO_GUI_API MonochromeShader : public BrushShader {
     AERO_DECLARE_TYPE(MonochromeShader, BrushShader)
 public:
     MonochromeShader() noexcept : BrushShader(StaticTypeId()) {}
@@ -189,7 +189,7 @@ public:
     inline static constexpr DependencyProperty<Color> ColorProperty{"Color"};
 };
 
-class AERO_API ConicGradientShader : public BrushShader {
+class AERO_GUI_API ConicGradientShader : public BrushShader {
     AERO_DECLARE_TYPE(ConicGradientShader, BrushShader)
 public:
     ConicGradientShader() noexcept
@@ -208,7 +208,7 @@ private:
     Base::Vector<Base::Ref<GradientStop>> stops_;
 };
 
-class AERO_API WavesShader : public BrushShader {
+class AERO_GUI_API WavesShader : public BrushShader {
     AERO_DECLARE_TYPE(WavesShader, BrushShader)
 public:
     WavesShader() noexcept : BrushShader(StaticTypeId()) {}
@@ -221,7 +221,7 @@ public:
     inline static constexpr DependencyProperty<double> TimeProperty{"Time"};
 };
 
-class AERO_API GradientBrush : public Brush {
+class AERO_GUI_API GradientBrush : public Brush {
     AERO_DECLARE_TYPE(GradientBrush, Brush)
 public:
     Base::Span<const Base::Ref<GradientStop>>
@@ -253,7 +253,7 @@ private:
     FreezableChangedHandler stopChangedHandler_;
 };
 
-class AERO_API LinearGradientBrush
+class AERO_GUI_API LinearGradientBrush
     : public GradientBrush {
     AERO_DECLARE_TYPE(LinearGradientBrush, GradientBrush)
 public:
@@ -270,7 +270,7 @@ public:
     inline static constexpr DependencyProperty<Point> EndPointProperty{"EndPoint"};
 };
 
-class AERO_API RadialGradientBrush
+class AERO_GUI_API RadialGradientBrush
     : public GradientBrush {
     AERO_DECLARE_TYPE(RadialGradientBrush, GradientBrush)
 public:
@@ -294,7 +294,7 @@ public:
     inline static constexpr DependencyProperty<double> RadiusYProperty{"RadiusY"};
 };
 
-class AERO_API ImageBrush : public Brush {
+class AERO_GUI_API ImageBrush : public Brush {
     AERO_DECLARE_TYPE(ImageBrush, Brush)
 public:
     ImageBrush() noexcept
@@ -340,7 +340,7 @@ public:
     inline static constexpr DependencyProperty<VerticalAlignment> AlignmentYProperty{"AlignmentY"};
 
 private:
-    friend struct ::Aero::Media::Brush::Impl;
+    friend struct ::Aero::Media::Brush::Access;
     std::uint64_t renderImage_ = 0U;
     std::uint32_t pixelWidth_ = 0U;
     std::uint32_t pixelHeight_ = 0U;
@@ -349,7 +349,7 @@ private:
 // A visual-backed brush keeps the referenced visual as a dependency property.
 // Rendering it through an offscreen visual target is handled by the renderer;
 // the UI object owns the WPF resource and binding semantics.
-class AERO_API VisualBrush : public Brush {
+class AERO_GUI_API VisualBrush : public Brush {
     AERO_DECLARE_TYPE(VisualBrush, Brush)
 public:
     VisualBrush() noexcept
@@ -392,7 +392,7 @@ public:
     inline static constexpr DependencyProperty<VerticalAlignment> AlignmentYProperty{"AlignmentY"};
 };
 
-AERO_API Base::Result<Base::Ref<Brush>>
+AERO_GUI_API Base::Result<Base::Ref<Brush>>
 MakeSolidColorBrush(Color color) noexcept;
 
 } // namespace Aero::Media

@@ -24,7 +24,7 @@ class UIElement;
 
 // Non-visual WPF content node. ContentElement participates in dependency
 // properties and routed events without becoming a ::Aero::Media::Visual or UIElement.
-class AERO_API ContentElement : public DependencyObject {
+class AERO_GUI_API ContentElement : public DependencyObject {
     AERO_DECLARE_TYPE(ContentElement, DependencyObject)
 public:
     template<class TArgs>
@@ -82,7 +82,7 @@ protected:
         RoutedEventArgs* args = nullptr) noexcept;
 
 private:
-    friend struct ::Aero::Media::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Access;
 
     struct HandlerOperations {
         std::size_t size = 0U;
@@ -145,7 +145,7 @@ private:
 
 // WPF-shaped non-visual content node with resources, DataContext, Style and
 // logical-tree participation. TextElement and other document nodes derive here.
-class AERO_API FrameworkContentElement : public ContentElement {
+class AERO_GUI_API FrameworkContentElement : public ContentElement {
     AERO_DECLARE_TYPE(FrameworkContentElement, ContentElement)
 public:
     explicit FrameworkContentElement(Meta::TypeId runtimeType) noexcept;
@@ -213,7 +213,7 @@ protected:
     virtual DependencyObject* GetLogicalChild(std::uint32_t) const noexcept { return nullptr; }
 
 private:
-    friend struct ::Aero::Media::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Access;
     Base::Result<void> AddAuthoredTrigger(
         Base::Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;

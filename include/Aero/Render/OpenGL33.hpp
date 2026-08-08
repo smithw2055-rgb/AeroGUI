@@ -3,7 +3,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Gui/RenderTarget.hpp>
+#include <Aero/Render/RenderTarget.hpp>
 
 #include <cstdint>
 
@@ -55,19 +55,19 @@ struct OpenGL33RenderTargetOptions {
     OpenGL33TargetCallback acquireTarget = nullptr;
     void* callbackContext = nullptr;
     void* targetContext = nullptr;
+    // Desktop hosts normally clear the default framebuffer. Embedded hosts
+    // preserve the existing contents unless they opt in explicitly.
+    bool clearBeforeRender = false;
 };
 
-#if !defined(AERO_RENDER_BACKEND_IMPLEMENTATION)
-AERO_API Base::Result<Base::Ref<Aero::RenderDevice>>
+AERO_GUI_API Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateOpenGL33Device(
     const OpenGL33DeviceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_API Base::Result<Base::Ref<Aero::RenderTarget>>
+AERO_GUI_API Base::Result<Base::Ref<Aero::RenderTarget>>
 CreateOpenGL33RenderTarget(
     Base::Ref<Aero::RenderDevice> device,
     const OpenGL33RenderTargetOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
-#endif
-
 } // namespace Aero::Render

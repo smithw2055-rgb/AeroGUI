@@ -7,10 +7,10 @@
 
 namespace Aero {
 using Meta::TypeId;
-class AERO_API DataTemplate : public Base::Object {
+class AERO_GUI_API DataTemplate : public Base::Object {
     AERO_DECLARE_TYPE(DataTemplate, Base::Object)
 public:
-    struct Impl;
+    struct Access;
 
     DataTemplate() noexcept;
     ~DataTemplate() noexcept override;
@@ -31,7 +31,7 @@ public:
     bool GetIsSealed() const noexcept;
 
 private:
-    friend struct Impl;
+    friend struct Access;
     void* state_ = nullptr;
 };
 } // namespace Aero

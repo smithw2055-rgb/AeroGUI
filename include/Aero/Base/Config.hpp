@@ -15,14 +15,36 @@
 #define AERO_BASE_ABI_VERSION 2
 
 #if defined(_WIN32) && defined(AERO_BUILD_SHARED)
-// CMake emits per-target export tables for the C++ surface. Avoid applying a
-// single module's dllexport/dllimport state to declarations from dependencies
-// included in the same translation unit.
-#  define AERO_API
+#  if defined(AERO_BASE_EXPORTS)
+#    define AERO_BASE_API __declspec(dllexport)
+#  else
+#    define AERO_BASE_API __declspec(dllimport)
+#  endif
+#  if defined(AERO_AUDIO_EXPORTS)
+#    define AERO_AUDIO_API __declspec(dllexport)
+#  else
+#    define AERO_AUDIO_API __declspec(dllimport)
+#  endif
+#  if defined(AERO_GUI_EXPORTS)
+#    define AERO_GUI_API __declspec(dllexport)
+#  else
+#    define AERO_GUI_API __declspec(dllimport)
+#  endif
+#  if defined(AERO_APP_EXPORTS)
+#    define AERO_APP_API __declspec(dllexport)
+#  else
+#    define AERO_APP_API __declspec(dllimport)
+#  endif
 #elif defined(__GNUC__) && defined(AERO_BUILD_SHARED)
-#  define AERO_API __attribute__((visibility("default")))
+#  define AERO_BASE_API __attribute__((visibility("default")))
+#  define AERO_AUDIO_API __attribute__((visibility("default")))
+#  define AERO_GUI_API __attribute__((visibility("default")))
+#  define AERO_APP_API __attribute__((visibility("default")))
 #else
-#  define AERO_API
+#  define AERO_BASE_API
+#  define AERO_AUDIO_API
+#  define AERO_GUI_API
+#  define AERO_APP_API
 #endif
 
 #if defined(_MSC_VER)

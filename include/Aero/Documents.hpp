@@ -17,7 +17,7 @@ class Hyperlink;
 class TextRange;
 
 // Read-only projection over a TextBlock or Span inline collection.
-class AERO_API InlineCollectionView {
+class AERO_GUI_API InlineCollectionView {
 public:
     InlineCollectionView() noexcept = default;
     std::uint32_t GetCount() const noexcept;
@@ -35,7 +35,7 @@ private:
 
 // Mutable WPF-shaped collection. The collection itself is the logical child
 // store; Inline objects are not Visuals and are rendered by their TextBlock host.
-class AERO_API InlineCollection {
+class AERO_GUI_API InlineCollection {
 public:
     InlineCollection() noexcept = default;
     std::uint32_t GetCount() const noexcept;
@@ -60,7 +60,7 @@ enum class LogicalDirection : std::uint8_t {
 
 // Borrowed text position in a formatted text container. Storage offsets remain
 // private so the public contract is independent of the engine's UTF encoding.
-class AERO_API TextPointer {
+class AERO_GUI_API TextPointer {
 public:
     TextPointer() noexcept = default;
     bool GetIsValid() const noexcept { return container_ != nullptr; }
@@ -88,7 +88,7 @@ public:
     }
 
 private:
-    friend struct ::Aero::Controls::TextBlock::Impl;
+    friend struct ::Aero::Controls::TextBlock::Access;
     friend class Aero::Controls::TextBlock;
     friend class TextRange;
     TextPointer(
@@ -102,7 +102,7 @@ private:
     LogicalDirection direction_ = LogicalDirection::Forward;
 };
 
-class AERO_API TextRange {
+class AERO_GUI_API TextRange {
 public:
     TextRange() noexcept = default;
     static Base::Result<TextRange> Create(
@@ -142,7 +142,7 @@ Base::Result<Aero::Base::Rect> GetCharacterRect(
 
 // Non-visual WPF document content. TextElement values are interpreted by the
 // owning TextBlock during formatting and participate in logical/event routing.
-class AERO_API TextElement : public FrameworkContentElement {
+class AERO_GUI_API TextElement : public FrameworkContentElement {
     AERO_DECLARE_TYPE(TextElement, FrameworkContentElement)
 public:
     ~TextElement() override = default;
@@ -209,7 +209,7 @@ protected:
         : FrameworkContentElement(runtimeType) {}
 };
 
-class AERO_API Inline : public TextElement {
+class AERO_GUI_API Inline : public TextElement {
     AERO_DECLARE_TYPE(Inline, TextElement)
 public:
     ~Inline() override = default;
@@ -219,7 +219,7 @@ protected:
         : TextElement(runtimeType) {}
 };
 
-class AERO_API Run : public Inline {
+class AERO_GUI_API Run : public Inline {
     AERO_DECLARE_TYPE(Run, Inline)
 public:
     Run() noexcept : Inline(StaticTypeId()) {}
@@ -239,7 +239,7 @@ public:
     inline static constexpr DependencyProperty<Base::String> TextProperty{"Text"};
 };
 
-class AERO_API Span : public Inline {
+class AERO_GUI_API Span : public Inline {
     AERO_DECLARE_TYPE(Span, Inline)
 public:
     Span() noexcept : Span(StaticTypeId()) {}
@@ -265,40 +265,40 @@ protected:
     }
 
 private:
-    friend struct ::Aero::Controls::TextBlock::Impl;
+    friend struct ::Aero::Controls::TextBlock::Access;
     Base::Vector<Base::Ref<Inline>> inlines_;
     Base::Ref<Inline> pendingInline_;
 };
 
-class AERO_API Bold : public Span {
+class AERO_GUI_API Bold : public Span {
     AERO_DECLARE_TYPE(Bold, Span)
 public:
     Bold() noexcept : Span(StaticTypeId()) {}
     ~Bold() override = default;
 };
 
-class AERO_API Italic : public Span {
+class AERO_GUI_API Italic : public Span {
     AERO_DECLARE_TYPE(Italic, Span)
 public:
     Italic() noexcept : Span(StaticTypeId()) {}
     ~Italic() override = default;
 };
 
-class AERO_API Underline : public Span {
+class AERO_GUI_API Underline : public Span {
     AERO_DECLARE_TYPE(Underline, Span)
 public:
     Underline() noexcept : Span(StaticTypeId()) {}
     ~Underline() override = default;
 };
 
-class AERO_API LineBreak : public Inline {
+class AERO_GUI_API LineBreak : public Inline {
     AERO_DECLARE_TYPE(LineBreak, Inline)
 public:
     LineBreak() noexcept : Inline(StaticTypeId()) {}
     ~LineBreak() override = default;
 };
 
-class AERO_API Hyperlink : public Span {
+class AERO_GUI_API Hyperlink : public Span {
     AERO_DECLARE_TYPE(Hyperlink, Span)
 public:
     Hyperlink() noexcept : Span(StaticTypeId()) {}
@@ -334,7 +334,7 @@ public:
 using NavigationHandler = Base::Delegate<bool(
     Base::StringView, Hyperlink&)>;
 
-class AERO_API NavigationService {
+class AERO_GUI_API NavigationService {
 public:
     explicit NavigationService(
         NavigationHandler handler = {}) noexcept;

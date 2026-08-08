@@ -7,7 +7,7 @@ namespace Aero::Media::Animation {
 
 // WPF TriggerAction is a DependencyObject so named actions can participate in
 // bindings and ChangePropertyAction targeting.
-class AERO_API TriggerAction : public ::Aero::DependencyObject {
+class AERO_GUI_API TriggerAction : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(TriggerAction, ::Aero::DependencyObject)
 protected:
     explicit TriggerAction(Meta::TypeId runtimeType) noexcept
@@ -18,7 +18,7 @@ protected:
 // Marker object used by the interactivity metadata layer. It remains a
 // concrete public type so behavior XAML can register the same owner type as
 // the original Gallery model.
-class AERO_API Interaction : public Base::Object {
+class AERO_GUI_API Interaction : public Base::Object {
     AERO_DECLARE_TYPE(Interaction, Base::Object)
 private:
     Interaction() noexcept = default;

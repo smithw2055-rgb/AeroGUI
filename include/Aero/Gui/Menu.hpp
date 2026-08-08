@@ -17,7 +17,7 @@ enum class MenuItemRole : std::uint8_t {
     SubmenuHeader
 };
 
-class AERO_API MenuItem
+class AERO_GUI_API MenuItem
     : public HeaderedItemsControl {
     AERO_DECLARE_TYPE(MenuItem, HeaderedItemsControl)
 public:
@@ -70,7 +70,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend struct ::Aero::Media::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Access;
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
     Primitives::Popup* submenuPopup_ = nullptr;
@@ -86,10 +86,10 @@ private:
     void SetRoleState(MenuItemRole value) noexcept;
 };
 
-class AERO_API Menu : public ItemsControl {
+class AERO_GUI_API Menu : public ItemsControl {
     AERO_DECLARE_TYPE(Menu, ItemsControl)
 public:
-    struct Impl;
+    struct Access;
 
     Menu() noexcept
         : Menu(StaticTypeId()) {}
@@ -104,10 +104,10 @@ protected:
             noexcept override;
 
 private:
-    friend struct Impl;
+    friend struct Access;
 };
 
-class AERO_API ContextMenu
+class AERO_GUI_API ContextMenu
     : public Menu {
     AERO_DECLARE_TYPE(ContextMenu, Menu)
 public:
@@ -140,7 +140,7 @@ private:
             args) noexcept;
 };
 
-class AERO_API ContextMenuService
+class AERO_GUI_API ContextMenuService
     : public Base::Object {
     AERO_DECLARE_TYPE(
         ContextMenuService, Base::Object)

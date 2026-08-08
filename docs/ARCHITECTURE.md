@@ -1,95 +1,107 @@
-# AeroGUI-R Architecture
+# AeroGUI-R architecture
 
-This is the normative description of the current repository structure. ADRs
-and documents under `docs/spec` preserve rationale and historical detail; when
-they disagree with this file, this file describes the current implementation.
+This file is the normative description of the current tree. Older milestone
+documents record the path taken; when they disagree with this file, this file
+wins.
 
-## Product boundary
+## Product and SDK boundary
 
-The installed products are `Aero::Base`, `Aero::Gui`, `Aero::App`, and optional
-`Aero::Audio`. `Aero::Meta` remains the metadata authoring namespace within
-`Aero::Gui`; it is not a separate product target. `Aero::Gui` is the embeddable runtime;
-`Aero::App` adds the default desktop lifetime/window policy. Repository object
-targets are build components only and are never exported as SDK products.
+The shipped CMake products are `Aero::Base`, `Aero::Gui`, `Aero::App`, and the
+optional `Aero::Audio`. `Aero::Gui` is the embeddable UI runtime. `Aero::App`
+adds the default desktop window and application lifetime.
 
-`cmake/AeroPublicHeaders.cmake` is the complete installation whitelist. Public
-headers contain no `Aero::Internal`, source-private type, native host adapter,
-or render-backend state. `View`, public `Renderer`, and `RenderDevice` are final
-opaque objects whose implementation state lives under `src`.
+`include/Aero` is the complete installed SDK and `src` is hidden
+implementation. `cmake/AeroPublicHeaders.cmake` is the exact installation
+whitelist. Each binary has its own export macro (`AERO_BASE_API`,
+`AERO_AUDIO_API`, `AERO_GUI_API`, or `AERO_APP_API`), automatic Windows symbol
+export is disabled, and source files may not use an API macro.
 
-The event declaration paths are `<Aero/Events.hpp>` for the event umbrella and
-`<Aero/Gui/RoutedEvent.hpp>` for the WPF-shaped routed-event declaration.
-Legacy root and `Events/RoutedEvent.hpp` forwarding paths are not installed.
+Product-specific XAML capabilities cross this boundary as module data. In
+particular, `AeroApp` contributes the `Application` resource scope through
+`Markup::ResourceScopeRegistration`; `AeroGui` never includes or links back to
+the App object model.
 
-## Source ownership
-
-Private implementation namespaces use `Aero::<Domain>::Detail`. The public
-template-support namespaces `Aero::Base::Detail` and `Aero::Meta::Detail` are
-the only installed Detail surfaces. Class-local `Impl` names are opaque state,
-not a namespace convention.
-
-Cross-translation-unit implementation files include their direct source-only
-dependencies. The former Gui, Controls, Markup, and Media private umbrella
-headers are deleted. Single-translation-unit helpers stay in anonymous
-namespaces; there is no Integration private aggregate.
-
-Every `.cpp` has one compile owner. In particular, `MarkupSchema.cpp` and
-`MarkupLoader.cpp` own the reusable Markup implementation, while
-`GuiSchema.cpp` and `XamlReader.cpp` own product-composition seams. No source is
-recompiled under a macro-selected identity.
-
-## Object and metadata model
-
-`DependencyObject` owns effective values and exposes checked mutation
-companions. `Freezable : DependencyObject` owns instance-level freeze state,
-revision, Changed subscriptions, and weak consumer records. Freeze checks the
-entire object graph before a child-first commit, rejects expressions,
-animations and cycles, and leaves a rejected graph unchanged.
-
-Freeze is deliberately not a Meta facet. Meta and Markup facets are sealed
-type-level programs indexed by `TypeId`; Freezable is mutable per-object state
-with graph traversal and dependency-property write constraints.
-
-The first shareable media families are Brush, Transform, Effect, Geometry,
-GradientStop/GradientStopCollection, and Timeline. Style, Schema, Registry and
-their existing Seal/Freeze operations remain separate type/program lifetimes.
-
-## Runtime and rendering
-
-`Gui` receives default XAML, texture, and font providers before `Initialize`.
-`ViewOptions` may override them per View; routes are copied at View creation,
-while provider object lifetime remains host-owned.
-
-The frame path is:
+WPF-shaped UI headers live under `include/Aero/Gui`. The advanced rendering
+surface is split by responsibility:
 
 ```text
-retained UI -> immutable RenderFrame -> RenderDevice -> Render::Renderer -> backend
+include/Aero/Gui/IRenderer.hpp
+include/Aero/Render/RenderDevice.hpp
+include/Aero/Render/RenderTarget.hpp
+include/Aero/Render/D3D11.hpp
+include/Aero/Render/OpenGL33.hpp
 ```
 
-`View::Viewport` carries logical size, exact pixel size, and DPI. Offscreen
-targets use pixel dimensions. Embedded final targets load host content by
-default; the desktop App explicitly requests a clear. Final composition is a
-top-left 1:1 copy clipped to the target intersection.
+The C++ type names remain `Aero::IRenderer`, `Aero::RenderDevice`, and
+`Aero::RenderTarget`; only their physical SDK ownership is split.
 
-Ordinary frame failures increment failure statistics without poisoning a ready
-device. Only explicit surface loss, device loss, or a fatal backend health
-state changes the device lifecycle state.
+Public headers contain no `Impl` declaration, internal conformance macro, or
+source include. XAML document ownership is declared by
+`<Aero/Gui/XamlDocument.hpp>`; loading is declared by
+`<Aero/Gui/XamlReader.hpp>`; provider and service contracts live under
+`<Aero/Markup>`.
 
-Gradient brushes upload a ramp texture cached by Freezable revision. ImageBrush
-honors Viewbox, Viewport, Stretch, TileMode, Alignment, RelativeTransform and
-MappingMode in the dedicated mask path. Effects allocate local bounded surfaces;
-blur and drop shadow use separable horizontal/vertical passes. Nested groups keep
-the fixed order `child content -> effect -> opacity mask -> parent composite`
-without introducing a RenderGraph layer.
+## Source vocabulary and ownership
+
+Source location expresses visibility. Implementation types use their business
+namespace (`Aero`, `Aero::Controls`, `Aero::Markup`, `Aero::Media`,
+`Aero::Render`, or `Aero::App`) and single-translation-unit helpers use an
+anonymous namespace. There are no `private`/`detail` directories,
+`*Internal*`/`*Private*` filenames, domain `Detail` namespaces, or
+`View::Operations` bridge.
+
+Heavy source-only objects own their state directly. Delayed states use inline
+storage owned by the object, not a second heap allocation or virtual Pimpl
+lifetime.
+
+## View and rendering
+
+Each `View` owns one `ViewState` and one concrete `ViewRenderer`. The device is
+shareable across views and does not own a renderer.
+
+```text
+retained UI
+  -> immutable RenderFrame
+  -> ViewRenderer
+  -> UiFrameEncoder
+  -> one-draw RenderBatch values
+  -> D3D11RenderDevice or OpenGL33RenderDevice
+```
+
+`RenderBatch` represents one UI draw: pipeline key, target/pass values,
+geometry ranges, resources, uniforms, and scissor. Uploads are performed
+directly through device services. It is not a frame command list and has no
+`RenderStep`, builder, begin/end-pass commands, or upload commands.
+
+The concrete backends own GPU device/context, resource and pipeline caches,
+dynamic buffers, and direct draw submission. There is no command-queue object,
+device-owned renderer, renderer token, or release-renderer protocol.
+
+## Window presentation
+
+`Aero::App::RenderContext` is the only desktop frame lifecycle owner. Its base
+implementation owns `BeginFrame`, `EndFrame`, `Present`, resize ordering, and
+the frame flags. Concrete D3D11 and OpenGL contexts own the swap chain or
+WGL/GLX window context and implement the native presentation hooks.
+
+`RenderTarget` remains a drawable target only. Embedded hosts supply a texture,
+view, or framebuffer through the public backend callbacks. A target does not
+own `frameOpen`, `frameEnded`, present, or discard state.
+
+## Markup and code-behind
+
+`LoadComponentInto()` preserves the identity of the existing C++ code-behind
+root. `GuiSchema`, XAML schema facets, compiled documents, provider routing,
+document caching, and object writing are Gui-owned implementation. A desktop
+host interacts with `View` through its public size, scale, content, update,
+input, and renderer API.
 
 ## Verification
 
-`cmake/CheckArchitecture.cmake` enforces the installed whitelist, namespace and
-private-type boundary, product dependency direction, retired paths, unique
-source ownership, and installation model. Formatting and general naming style
-belong to separate lint, not the architecture gate.
-
-`AERO_BUILD_CONFORMANCE=ON` builds the non-installed `aero-conformance`
-executable. It is independent of repository `tests` and `samples` and covers
-the stable runtime contracts used by SDK consumers. On Windows it also compares
-D3D11 WARP and OpenGL 3.3 pixel readback with a defined tolerance.
+`cmake/CheckArchitecture.cmake` enforces the final file, namespace, SDK,
+rendering-ownership, and presentation invariants. SDK consumer object targets
+compile the installed headers without source includes. Static and shared
+builds cover the product libraries; the shared build additionally verifies
+that export-all remains disabled and runs `dumpbin` through
+`cmake/CheckWindowsExports.cmake` for every product DLL. The check requires a
+known public symbol and rejects source-only owners and retired vocabulary.

@@ -1,78 +1,44 @@
 #include "ModuleSet.hpp"
 
-#include <Aero/Base/String.hpp>
-#include <Aero/Base/Vector.hpp>
 #include "BuiltinModules.hpp"
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "markup/MarkupRuntime.hpp"
+#include "markup/MarkupWriterRuntime.hpp"
 
-#include <new>
 #include <utility>
 
 namespace Aero {
 
-struct ModuleSet::Impl {
-    struct Module {
-        struct Dependency {
-            Base::String name;
-            std::uint32_t minimumSchemaVersion = 1U;
-        };
-
-        Base::String name;
-        std::uint32_t schemaVersion = 1U;
-        ModuleRegisterCallback registerModule = nullptr;
-        ModuleRegisterContextCallback registerModuleWithContext = nullptr;
-        void* context = nullptr;
-        std::uint32_t abiVersion = ModuleAbiVersion;
-        Base::Vector<Dependency> dependencies;
-    };
-
-    Base::Vector<Module> modules;
-    bool frozen = false;
-
-    Base::Result<void> ResolveOrder(
-        Base::Vector<std::uint32_t>& order) const noexcept;
-};
-
-namespace {
-
-Base::Status OutOfMemory() noexcept {
-    return Base::Status::Failure(
-        Base::ErrorCode::OutOfMemory,
-        "Aero module catalog allocation failed");
-}
-
-} // namespace
-
-Base::Result<void> ModuleSet::Impl::ResolveOrder(
+Base::Result<void> ModuleSet::ResolveOrder(
     Base::Vector<std::uint32_t>& order) const noexcept {
     order.Clear();
     Base::Result<void> reserved =
-        order.Reserve(modules.Size());
+        order.Reserve(modules_.Size());
     if (!reserved) return reserved.GetStatus();
     Base::Vector<std::uint32_t> indegrees;
     Base::Result<void> sized =
-        indegrees.Resize(modules.Size(), 0U);
+        indegrees.Resize(modules_.Size(), 0U);
     if (!sized) return sized.GetStatus();
     Base::Vector<bool> emitted;
-    sized = emitted.Resize(modules.Size(), false);
+    sized = emitted.Resize(modules_.Size(), false);
     if (!sized) return sized.GetStatus();
 
     for (std::uint32_t index = 0U;
-         index < modules.Size();
+         index < modules_.Size();
          ++index) {
         for (const Module::Dependency& dependency :
-             modules[index].dependencies) {
+             modules_[index].dependencies) {
             bool found = false;
-            for (const Module& candidate : modules) {
+            for (const Module& candidate : modules_) {
                 if (candidate.name.View() !=
                     dependency.name.View()) continue;
                 found = true;
@@ -93,10 +59,10 @@ Base::Result<void> ModuleSet::Impl::ResolveOrder(
         }
     }
 
-    while (order.Size() < modules.Size()) {
+    while (order.Size() < modules_.Size()) {
         std::uint32_t selected = UINT32_MAX;
         for (std::uint32_t index = 0U;
-             index < modules.Size();
+             index < modules_.Size();
              ++index) {
             if (!emitted[index] && indegrees[index] == 0U) {
                 selected = index;
@@ -113,13 +79,13 @@ Base::Result<void> ModuleSet::Impl::ResolveOrder(
             order.PushBack(selected);
         if (!appended) return appended.GetStatus();
         const Base::StringView emittedName =
-            modules[selected].name.View();
+            modules_[selected].name.View();
         for (std::uint32_t index = 0U;
-             index < modules.Size();
+             index < modules_.Size();
              ++index) {
             if (emitted[index] || indegrees[index] == 0U) continue;
             for (const Module::Dependency& dependency :
-                 modules[index].dependencies) {
+                 modules_[index].dependencies) {
                 if (dependency.name.View() == emittedName) {
                     --indegrees[index];
                     break;
@@ -130,17 +96,13 @@ Base::Result<void> ModuleSet::Impl::ResolveOrder(
     return {};
 }
 
-ModuleSet::ModuleSet() noexcept
-    : impl_(new (std::nothrow) Impl()) {}
+ModuleSet::ModuleSet() noexcept = default;
 
-ModuleSet::~ModuleSet() noexcept {
-    delete impl_;
-}
+ModuleSet::~ModuleSet() noexcept = default;
 
 Base::Result<void> ModuleSet::Add(
     const ModuleRegistration& registration) noexcept {
-    if (impl_ == nullptr) return OutOfMemory();
-    if (impl_->frozen) {
+    if (frozen_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Aero module catalog is frozen");
@@ -156,7 +118,7 @@ Base::Result<void> ModuleSet::Add(
             Base::ErrorCode::InvalidArgument,
             "Aero module registration is incomplete");
     }
-    for (const Impl::Module& module : impl_->modules) {
+    for (const Module& module : modules_) {
         if (module.name.View() == registration.name) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
@@ -164,7 +126,7 @@ Base::Result<void> ModuleSet::Add(
         }
     }
 
-    Impl::Module module;
+    Module module;
     Base::Result<void> named =
         module.name.Assign(registration.name);
     if (!named) return named.GetStatus();
@@ -186,7 +148,7 @@ Base::Result<void> ModuleSet::Add(
                 Base::ErrorCode::InvalidArgument,
                 "Aero module dependency is invalid");
         }
-        for (const Impl::Module::Dependency& existing :
+        for (const Module::Dependency& existing :
              module.dependencies) {
             if (existing.name.View() == dependency.name) {
                 return Base::Status::Failure(
@@ -194,7 +156,7 @@ Base::Result<void> ModuleSet::Add(
                     "Aero module dependency is duplicated");
             }
         }
-        Impl::Module::Dependency stored;
+        Module::Dependency stored;
         Base::Result<void> dependencyName =
             stored.name.Assign(dependency.name);
         if (!dependencyName) return dependencyName.GetStatus();
@@ -204,21 +166,45 @@ Base::Result<void> ModuleSet::Add(
             module.dependencies.PushBack(std::move(stored));
         if (!appended) return appended.GetStatus();
     }
-    return impl_->modules.PushBack(std::move(module));
+    Base::Result<void> scopeCapacity = module.resourceScopes.Reserve(
+        registration.resourceScopes.Size());
+    if (!scopeCapacity) return scopeCapacity.GetStatus();
+    for (const Markup::ResourceScopeRegistration& scope :
+         registration.resourceScopes) {
+        if (scope.type == Meta::InvalidTypeId ||
+            scope.addResource == nullptr ||
+            scope.resolve == nullptr ||
+            scope.abiVersion != XamlFacetAbiVersion) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Aero module resource-scope registration is invalid");
+        }
+        for (const Markup::ResourceScopeRegistration& existing :
+             module.resourceScopes) {
+            if (existing.type == scope.type) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::AlreadyExists,
+                    "Aero module resource scope is duplicated");
+            }
+        }
+        Base::Result<void> appended =
+            module.resourceScopes.PushBack(scope);
+        if (!appended) return appended.GetStatus();
+    }
+    return modules_.PushBack(std::move(module));
 }
 
 Base::Result<void> ModuleSet::RegisterMetadata(
     ::Aero::Meta::Registry& domain) const noexcept {
-    if (impl_ == nullptr) return OutOfMemory();
     Base::Result<void> builtIns =
         RegisterBuiltInUiModules(domain);
     if (!builtIns) return builtIns.GetStatus();
     Base::Vector<std::uint32_t> order;
     Base::Result<void> resolved =
-        impl_->ResolveOrder(order);
+        ResolveOrder(order);
     if (!resolved) return resolved.GetStatus();
     for (std::uint32_t index : order) {
-        const Impl::Module& module = impl_->modules[index];
+        const Module& module = modules_[index];
         const Base::StringView name = module.name.View();
         Base::Result<void> registered =
             domain.RegisterModule({
@@ -233,22 +219,43 @@ Base::Result<void> ModuleSet::RegisterMetadata(
     return RegisterBuiltInMarkupModule(domain);
 }
 
+Base::Result<void> ModuleSet::RegisterResourceScopes(
+    ::Aero::Markup::Schema& schema) const noexcept {
+    Base::Vector<std::uint32_t> order;
+    Base::Result<void> resolved = ResolveOrder(order);
+    if (!resolved) return resolved.GetStatus();
+    for (std::uint32_t index : order) {
+        const Module& module = modules_[index];
+        for (const Markup::ResourceScopeRegistration& scope :
+             module.resourceScopes) {
+            Base::Result<void> registered =
+                Markup::SchemaPrivate::AddResourceScope(schema, {
+                    scope.type,
+                    scope.inherited,
+                    scope.addResource,
+                    scope.resolve,
+                    scope.context});
+            if (!registered) return registered.GetStatus();
+        }
+    }
+    return {};
+}
+
 Base::Result<void> ModuleSet::Freeze() noexcept {
-    if (impl_ == nullptr) return OutOfMemory();
     Base::Vector<std::uint32_t> order;
     Base::Result<void> resolved =
-        impl_->ResolveOrder(order);
+        ResolveOrder(order);
     if (!resolved) return resolved.GetStatus();
-    impl_->frozen = true;
+    frozen_ = true;
     return {};
 }
 
 bool ModuleSet::IsFrozen() const noexcept {
-    return impl_ != nullptr && impl_->frozen;
+    return frozen_;
 }
 
 std::uint32_t ModuleSet::ModuleCount() const noexcept {
-    return impl_ != nullptr ? impl_->modules.Size() : 0U;
+    return modules_.Size();
 }
 
 } // namespace Aero

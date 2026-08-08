@@ -4,18 +4,19 @@
 #include <Aero/Events/WindowEventArgs.hpp>
 
 namespace Aero {
-namespace App { class WindowInterop; }
+namespace App {
+class WindowInterop;
+class DesktopHost;
+}
 
 enum class WindowState : std::uint8_t { Normal = 0U, Minimized, Maximized };
 enum class WindowStyle : std::uint8_t { None = 0U, SingleBorderWindow, ThreeDBorderWindow, ToolWindow };
 enum class ResizeMode : std::uint8_t { NoResize = 0U, CanMinimize, CanResize, CanResizeWithGrip };
 enum class SizeToContent : std::uint8_t { Manual = 0U, Width, Height, WidthAndHeight };
 
-class AERO_API Window : public Controls::ContentControl {
+class AERO_APP_API Window : public Controls::ContentControl {
     AERO_DECLARE_TYPE(Window, Controls::ContentControl)
 public:
-    struct Impl;
-
     Window() noexcept : Window(StaticTypeId()) {}
     ~Window() noexcept override;
 
@@ -77,8 +78,8 @@ protected:
     virtual void OnStateChanged(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(StateChangedEvent, &args)); }
 
 private:
-    friend struct Impl;
     friend class App::WindowInterop;
+    friend class App::DesktopHost;
 
     void Attach(void* hostState) noexcept;
     void Detach() noexcept;
@@ -87,8 +88,15 @@ private:
     void NotifyDeactivated() noexcept;
     void NotifyContentRendered() noexcept;
     void NotifyClosed() noexcept;
+    bool ComponentRequested() const noexcept;
+    Base::StringView ComponentUri() const noexcept;
 
-    Impl* impl_ = nullptr;
+    void* hostState_ = nullptr;
+    Base::String componentUri_;
+    bool componentRequested_ = false;
+    bool sourceInitialized_ = false;
+    bool contentRendered_ = false;
+    bool closed_ = false;
 };
 
 } // namespace Aero

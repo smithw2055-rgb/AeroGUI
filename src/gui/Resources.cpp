@@ -170,7 +170,7 @@ bool operator==(
     return false;
 }
 
-struct ResourceDictionary::Impl {
+struct ResourceDictionary::Access {
     struct Entry {
         ResourceKey key;
         ResourceValue value;
@@ -184,7 +184,7 @@ struct ResourceDictionary::Impl {
     };
 
     struct Merged {
-        Impl* dictionary = nullptr;
+        Access* dictionary = nullptr;
         ResourceChangeSubscription subscription;
     };
 
@@ -200,10 +200,10 @@ struct ResourceDictionary::Impl {
 
 namespace {
 
-ResourceDictionary::Impl::Entry* FindLocal(
-    ResourceDictionary::Impl& impl,
+ResourceDictionary::Access::Entry* FindLocal(
+    ResourceDictionary::Access& impl,
     const ResourceKey& key) noexcept {
-    for (ResourceDictionary::Impl::Entry& entry :
+    for (ResourceDictionary::Access::Entry& entry :
          impl.entries) {
         if (entry.key == key) {
             return &entry;
@@ -212,10 +212,10 @@ ResourceDictionary::Impl::Entry* FindLocal(
     return nullptr;
 }
 
-const ResourceDictionary::Impl::Entry* FindLocal(
-    const ResourceDictionary::Impl& impl,
+const ResourceDictionary::Access::Entry* FindLocal(
+    const ResourceDictionary::Access& impl,
     const ResourceKey& key) noexcept {
-    for (const ResourceDictionary::Impl::Entry& entry :
+    for (const ResourceDictionary::Access::Entry& entry :
          impl.entries) {
         if (entry.key == key) {
             return &entry;
@@ -225,7 +225,7 @@ const ResourceDictionary::Impl::Entry* FindLocal(
 }
 
 void Notify(
-    ResourceDictionary::Impl& impl,
+    ResourceDictionary::Access& impl,
     Base::StringView key,
     ResourceChangeKind kind) noexcept {
     if (impl.generation != UINT64_MAX) {
@@ -235,7 +235,7 @@ void Notify(
         impl.nextSubscription - 1U;
     std::uint32_t index = 0U;
     while (index < impl.listeners.Size()) {
-        const ResourceDictionary::Impl::Listener listener =
+        const ResourceDictionary::Access::Listener listener =
             impl.listeners[index];
         ++index;
         if (listener.subscription.value <= boundary &&
@@ -250,10 +250,10 @@ void Notify(
 }
 
 Base::Result<ResourceValue> LookupImpl(
-    const ResourceDictionary::Impl& impl,
+    const ResourceDictionary::Access& impl,
     const ResourceKey& key,
-    Base::Vector<const ResourceDictionary::Impl*>& visited) noexcept {
-    for (const ResourceDictionary::Impl* active : visited) {
+    Base::Vector<const ResourceDictionary::Access*>& visited) noexcept {
+    for (const ResourceDictionary::Access* active : visited) {
         if (active == &impl) {
             return Base::Status::Failure(
                 Base::ErrorCode::CycleDetected,
@@ -265,7 +265,7 @@ Base::Result<ResourceValue> LookupImpl(
     if (!pushed) {
         return pushed.GetStatus();
     }
-    const ResourceDictionary::Impl::Entry* local =
+    const ResourceDictionary::Access::Entry* local =
         FindLocal(impl, key);
     if (local != nullptr) {
         ResourceValue value = local->value;
@@ -275,7 +275,7 @@ Base::Result<ResourceValue> LookupImpl(
     for (std::uint32_t index = impl.merged.Size();
          index > 0U;
          --index) {
-        const ResourceDictionary::Impl* dictionary =
+        const ResourceDictionary::Access* dictionary =
             impl.merged[index - 1U].dictionary;
         if (dictionary == nullptr) {
             continue;
@@ -299,13 +299,13 @@ Base::Result<ResourceValue> LookupImpl(
 }
 
 bool DependsOn(
-    const ResourceDictionary::Impl& root,
-    const ResourceDictionary::Impl& candidate,
-    Base::Vector<const ResourceDictionary::Impl*>& visited) noexcept {
+    const ResourceDictionary::Access& root,
+    const ResourceDictionary::Access& candidate,
+    Base::Vector<const ResourceDictionary::Access*>& visited) noexcept {
     if (&root == &candidate) {
         return true;
     }
-    for (const ResourceDictionary::Impl* active : visited) {
+    for (const ResourceDictionary::Access* active : visited) {
         if (active == &root) {
             return false;
         }
@@ -313,7 +313,7 @@ bool DependsOn(
     if (!visited.PushBack(&root)) {
         return true;
     }
-    for (const ResourceDictionary::Impl::Merged& merged :
+    for (const ResourceDictionary::Access::Merged& merged :
          root.merged) {
         if (merged.dictionary != nullptr &&
             DependsOn(
@@ -329,7 +329,7 @@ bool DependsOn(
 }
 
 Base::Result<ResourceChangeSubscription> SubscribeImpl(
-    ResourceDictionary::Impl& impl,
+    ResourceDictionary::Access& impl,
     ResourceChangedCallback callback,
     void* context) noexcept {
     if (callback == nullptr ||
@@ -350,7 +350,7 @@ Base::Result<ResourceChangeSubscription> SubscribeImpl(
 }
 
 bool UnsubscribeImpl(
-    ResourceDictionary::Impl& impl,
+    ResourceDictionary::Access& impl,
     ResourceChangeSubscription subscription) noexcept {
     if (!subscription.IsValid()) {
         return false;
@@ -378,7 +378,7 @@ void MergedChanged(
     ResourceChangeKind,
     std::uint64_t) noexcept {
     auto* owner =
-        static_cast<ResourceDictionary::Impl*>(context);
+        static_cast<ResourceDictionary::Access*>(context);
     if (owner != nullptr) {
         Notify(
             *owner,
@@ -392,7 +392,7 @@ void MergedChanged(
 ResourceDictionary::ResourceDictionary() noexcept = default;
 
 ResourceDictionary::ResourceDictionary(
-    Impl* impl,
+    Access* impl,
     bool addReference) noexcept
     : impl_(impl) {
     if (addReference) {
@@ -421,7 +421,7 @@ ResourceDictionary& ResourceDictionary::operator=(
     return *this;
 }
 
-Base::Result<ResourceDictionary::Impl*>
+Base::Result<ResourceDictionary::Access*>
 ResourceDictionary::EnsureImpl() noexcept {
     if (impl_ != nullptr) {
         return impl_;
@@ -429,27 +429,27 @@ ResourceDictionary::EnsureImpl() noexcept {
     Base::IAllocator& allocator =
         Base::GetDefaultAllocator();
     void* memory = allocator.Allocate({
-        sizeof(Impl),
-        alignof(Impl),
+        sizeof(Access),
+        alignof(Access),
         Base::MemoryTag::Container});
     if (memory == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "ResourceDictionary allocation failed");
     }
-    impl_ = new (memory) Impl();
+    impl_ = new (memory) Access();
     return impl_;
 }
 
 void ResourceDictionary::AddImplRef(
-    Impl* impl) noexcept {
+    Access* impl) noexcept {
     if (impl != nullptr && impl->references != UINT32_MAX) {
         ++impl->references;
     }
 }
 
 void ResourceDictionary::ReleaseImpl(
-    Impl* impl) noexcept {
+    Access* impl) noexcept {
     if (impl == nullptr || impl->references == UINT32_MAX) {
         return;
     }
@@ -457,7 +457,7 @@ void ResourceDictionary::ReleaseImpl(
         return;
     }
     while (!impl->merged.Empty()) {
-        Impl::Merged merged = impl->merged.Back();
+        Access::Merged merged = impl->merged.Back();
         impl->merged.PopBack();
         if (merged.dictionary != nullptr) {
             UnsubscribeImpl(
@@ -468,11 +468,11 @@ void ResourceDictionary::ReleaseImpl(
     }
     Base::IAllocator& allocator =
         Base::GetDefaultAllocator();
-    impl->~Impl();
+    impl->~Access();
     allocator.Deallocate(
         impl,
-        sizeof(Impl),
-        alignof(Impl),
+        sizeof(Access),
+        alignof(Access),
         Base::MemoryTag::Container);
 }
 
@@ -487,7 +487,7 @@ Base::Result<void> ResourceDictionary::Add(
             Base::ErrorCode::InvalidArgument,
             MessageInvalidResource);
     }
-    Base::Result<Impl*> storage = EnsureImpl();
+    Base::Result<Access*> storage = EnsureImpl();
     if (!storage) {
         return storage.GetStatus();
     }
@@ -501,7 +501,7 @@ Base::Result<void> ResourceDictionary::Add(
             Base::ErrorCode::AlreadyExists,
             MessageDuplicateResource);
     }
-    Impl::Entry entry;
+    Access::Entry entry;
     entry.key = key;
     entry.value = value;
     entry.source = source;
@@ -565,7 +565,7 @@ Base::Result<void> ResourceDictionary::ApplyChecked(
             Base::ErrorCode::InvalidArgument,
             MessageInvalidResource);
     }
-    Base::Result<Impl*> storage = EnsureImpl();
+    Base::Result<Access*> storage = EnsureImpl();
     if (!storage) {
         return storage.GetStatus();
     }
@@ -574,7 +574,7 @@ Base::Result<void> ResourceDictionary::ApplyChecked(
             Base::ErrorCode::ReadOnly,
             MessageReadOnly);
     }
-    Impl::Entry* entry =
+    Access::Entry* entry =
         FindLocal(*storage.Value(), key);
     if (entry == nullptr) {
         return Add(key, value, source);
@@ -715,7 +715,7 @@ Base::Result<ResourceValue> ResourceDictionary::Lookup(
             Base::ErrorCode::NotFound,
             MessageResourceNotFound);
     }
-    Base::Vector<const Impl*> visited;
+    Base::Vector<const Access*> visited;
     return LookupImpl(*impl_, key, visited);
 }
 
@@ -769,7 +769,7 @@ bool ResourceDictionary::Contains(
     if (impl_ == nullptr || !key.IsValid()) {
         return {};
     }
-    const Impl::Entry* entry =
+    const Access::Entry* entry =
         FindLocal(*impl_, key);
     return entry != nullptr
         ? entry->source
@@ -787,11 +787,11 @@ bool ResourceDictionary::Contains(
 
 Base::Result<void> ResourceDictionary::AddMerged(
     ResourceDictionary& dictionary) noexcept {
-    Base::Result<Impl*> owner = EnsureImpl();
+    Base::Result<Access*> owner = EnsureImpl();
     if (!owner) {
         return owner.GetStatus();
     }
-    Base::Result<Impl*> child = dictionary.EnsureImpl();
+    Base::Result<Access*> child = dictionary.EnsureImpl();
     if (!child) {
         return child.GetStatus();
     }
@@ -805,7 +805,7 @@ Base::Result<void> ResourceDictionary::AddMerged(
             Base::ErrorCode::CycleDetected,
             "ResourceDictionary cannot merge itself");
     }
-    for (const Impl::Merged& merged :
+    for (const Access::Merged& merged :
          owner.Value()->merged) {
         if (merged.dictionary == child.Value()) {
             return Base::Status::Failure(
@@ -813,7 +813,7 @@ Base::Result<void> ResourceDictionary::AddMerged(
                 "ResourceDictionary is already merged");
         }
     }
-    Base::Vector<const Impl*> visited;
+    Base::Vector<const Access*> visited;
     if (DependsOn(
             *child.Value(),
             *owner.Value(),
@@ -862,7 +862,7 @@ Base::Result<bool> ResourceDictionary::RemoveMerged(
     for (std::uint32_t index = 0U;
          index < impl_->merged.Size();
          ++index) {
-        Impl::Merged merged = impl_->merged[index];
+        Access::Merged merged = impl_->merged[index];
         if (merged.dictionary != dictionary.impl_) {
             continue;
         }
@@ -892,7 +892,7 @@ ResourceDictionary::ClearMergedDictionaries() noexcept {
     }
     if (impl_->merged.Empty()) return;
     while (!impl_->merged.Empty()) {
-        Impl::Merged merged = impl_->merged.Back();
+        Access::Merged merged = impl_->merged.Back();
         impl_->merged.PopBack();
         if (merged.dictionary != nullptr) {
             UnsubscribeImpl(
@@ -931,7 +931,7 @@ ResourceDictionary::MergedDictionaryAt(
 
 Base::Result<ResourceDictionary>
 ResourceDictionary::Share() const noexcept {
-    Base::Result<Impl*> storage =
+    Base::Result<Access*> storage =
         const_cast<ResourceDictionary*>(this)->EnsureImpl();
     if (!storage) return storage.GetStatus();
     return ResourceDictionary(storage.Value(), true);
@@ -942,7 +942,7 @@ void ResourceDictionary::SetSource(
     if (source.Empty()) {
         return;
     }
-    Base::Result<Impl*> storage = EnsureImpl();
+    Base::Result<Access*> storage = EnsureImpl();
     if (!storage) return;
     if (storage.Value()->sealed) {
         return;
@@ -963,7 +963,7 @@ ResourceDictionary::GetSource() const noexcept {
 }
 
 Base::Result<void> ResourceDictionary::Seal() noexcept {
-    Base::Result<Impl*> storage = EnsureImpl();
+    Base::Result<Access*> storage = EnsureImpl();
     if (!storage) {
         return storage.GetStatus();
     }
@@ -986,7 +986,7 @@ Base::Result<ResourceChangeSubscription>
 ResourceDictionary::SubscribeChanged(
     ResourceChangedCallback callback,
     void* context) noexcept {
-    Base::Result<Impl*> storage = EnsureImpl();
+    Base::Result<Access*> storage = EnsureImpl();
     if (!storage) {
         return storage.GetStatus();
     }
@@ -1014,7 +1014,7 @@ void ResourceDictionary::Clear() noexcept {
     }
     impl_->entries.Clear();
     while (!impl_->merged.Empty()) {
-        Impl::Merged merged = impl_->merged.Back();
+        Access::Merged merged = impl_->merged.Back();
         impl_->merged.PopBack();
         if (merged.dictionary != nullptr) {
             UnsubscribeImpl(
@@ -1045,7 +1045,7 @@ ResourceDictionary::EntryAt(
             Base::ErrorCode::OutOfRange,
             "Resource dictionary entry index is out of range");
     }
-    const Impl::Entry& entry =
+    const Access::Entry& entry =
         impl_->entries[index];
     ResourceEntrySnapshot snapshot;
     snapshot.key = entry.key;

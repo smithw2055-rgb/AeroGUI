@@ -10,7 +10,7 @@
 #include <Aero/Gui/DependencyProperty.hpp>
 #include <cstdint>
 
-namespace Aero::Media::Detail::Animation {
+namespace Aero::Media::Animation::Runtime {
 
 using AnimationTime = ::Aero::Media::Animation::AnimationTime;
 using FillBehavior = ::Aero::Media::Animation::FillBehavior;
@@ -201,4 +201,4 @@ struct AnimationDiagnostics {
 };
 
 
-} // namespace Aero::Media::Detail::Animation
+} // namespace Aero::Media::Animation::Runtime

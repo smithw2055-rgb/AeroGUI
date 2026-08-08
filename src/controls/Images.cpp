@@ -112,7 +112,7 @@ Size Image::MeasureOverride(
 
 void Image::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     if (renderImage_ ==
             InvalidRenderImageId ||
         pixelWidth_ == 0U ||

@@ -9,7 +9,7 @@
 #include <new>
 #include <utility>
 
-namespace Aero::Text::Detail {
+namespace Aero::Text {
 namespace {
 
 constexpr std::uint32_t InitialGapBytes = 64U;
@@ -177,7 +177,7 @@ bool IsNewline(std::uint32_t codePoint) noexcept {
 
 } // namespace
 
-struct EditableTextModel::Impl {
+struct EditableTextState {
     struct EditRecord {
         explicit EditRecord(
             Base::IAllocator* allocator = nullptr) noexcept
@@ -193,7 +193,7 @@ struct EditableTextModel::Impl {
         TextSelection after;
     };
 
-    explicit Impl(Base::IAllocator* allocator) noexcept
+    explicit EditableTextState(Base::IAllocator* allocator) noexcept
         : bytes(allocator),
           graphemeOffsets(allocator),
           lineStarts(allocator),
@@ -585,6 +585,11 @@ struct EditableTextModel::Impl {
     }
 };
 
+static_assert(sizeof(EditableTextState) <= 4096U,
+    "EditableTextModel inline state storage is too small");
+static_assert(alignof(EditableTextState) <= alignof(std::max_align_t),
+    "EditableTextModel inline state alignment is insufficient");
+
 EditableTextModel::EditableTextModel(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
@@ -592,43 +597,26 @@ EditableTextModel::EditableTextModel(
           : &Base::GetDefaultAllocator()) {}
 
 EditableTextModel::~EditableTextModel() noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return;
     }
-    impl_->~Impl();
-    allocator_->Deallocate(
-        impl_,
-        sizeof(Impl),
-        alignof(Impl),
-        Base::MemoryTag::General);
+    state_->~EditableTextState();
+    state_ = nullptr;
 }
 
-Base::Result<void> EditableTextModel::EnsureImpl() noexcept {
-    if (impl_ != nullptr) {
+Base::Result<void> EditableTextModel::EnsureState() noexcept {
+    if (state_ != nullptr) {
         return {};
     }
-    void* memory = allocator_->Allocate({
-        sizeof(Impl),
-        alignof(Impl),
-        Base::MemoryTag::General});
-    if (memory == nullptr) {
-        return OutOfMemory(
-            "Failed to allocate editable text state");
-    }
-    impl_ = new (memory) Impl(allocator_);
+    state_ = new (stateStorage_) EditableTextState(allocator_);
     Base::Result<void> indexes =
-        impl_->EnsureIndexCapacity(0U);
+        state_->EnsureIndexCapacity(0U);
     if (indexes) {
-        indexes = impl_->RebuildIndexes();
+        indexes = state_->RebuildIndexes();
     }
     if (!indexes) {
-        impl_->~Impl();
-        allocator_->Deallocate(
-            impl_,
-            sizeof(Impl),
-            alignof(Impl),
-            Base::MemoryTag::General);
-        impl_ = nullptr;
+        state_->~EditableTextState();
+        state_ = nullptr;
         return indexes;
     }
     return {};
@@ -641,16 +629,16 @@ Base::Result<void> EditableTextModel::SetText(
     if (!graphemes) {
         return graphemes.GetStatus();
     }
-    Base::Result<void> state = EnsureImpl();
+    Base::Result<void> state = EnsureState();
     if (!state) {
         return state;
     }
-    if (graphemes.Value() > impl_->maximumLength) {
+    if (graphemes.Value() > state_->maximumLength) {
         return OutOfRange(
             "Editable text exceeds maximum length");
     }
     Base::Result<void> indexes =
-        impl_->EnsureIndexCapacity(text.SizeBytes());
+        state_->EnsureIndexCapacity(text.SizeBytes());
     if (!indexes) {
         return indexes;
     }
@@ -672,60 +660,60 @@ Base::Result<void> EditableTextModel::SetText(
             text.Data(),
             text.SizeBytes());
     }
-    impl_->bytes = std::move(replacement);
-    impl_->gapBegin = text.SizeBytes();
-    impl_->gapEnd = impl_->bytes.Size();
-    impl_->textBytes = text.SizeBytes();
+    state_->bytes = std::move(replacement);
+    state_->gapBegin = text.SizeBytes();
+    state_->gapEnd = state_->bytes.Size();
+    state_->textBytes = text.SizeBytes();
     Base::Result<void> rebuilt =
-        impl_->RebuildIndexes();
+        state_->RebuildIndexes();
     if (!rebuilt) {
         return rebuilt;
     }
-    impl_->selection = {
+    state_->selection = {
         graphemes.Value(), graphemes.Value()};
-    impl_->undo.Clear();
-    impl_->redo.Clear();
-    ++impl_->revision;
+    state_->undo.Clear();
+    state_->redo.Clear();
+    ++state_->revision;
     return {};
 }
 
 Base::Result<void> EditableTextModel::Snapshot(
     Base::String& output) const noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         output.Clear();
         return {};
     }
-    return impl_->CopyByteRange(
-        0U, impl_->textBytes, output);
+    return state_->CopyByteRange(
+        0U, state_->textBytes, output);
 }
 
 std::uint32_t EditableTextModel::SizeBytes() const noexcept {
-    return impl_ != nullptr ? impl_->textBytes : 0U;
+    return state_ != nullptr ? state_->textBytes : 0U;
 }
 
 std::uint32_t
 EditableTextModel::CodePointCount() const noexcept {
-    return impl_ != nullptr ? impl_->codePoints : 0U;
+    return state_ != nullptr ? state_->codePoints : 0U;
 }
 
 std::uint32_t
 EditableTextModel::GraphemeCount() const noexcept {
-    return impl_ != nullptr ? impl_->GraphemeCount() : 0U;
+    return state_ != nullptr ? state_->GraphemeCount() : 0U;
 }
 
 std::uint32_t EditableTextModel::LineCount() const noexcept {
-    return impl_ != nullptr
-        ? impl_->lineStarts.Size()
+    return state_ != nullptr
+        ? state_->lineStarts.Size()
         : 1U;
 }
 
 std::uint64_t EditableTextModel::Revision() const noexcept {
-    return impl_ != nullptr ? impl_->revision : 0U;
+    return state_ != nullptr ? state_->revision : 0U;
 }
 
 TextSelection EditableTextModel::Selection() const noexcept {
-    return impl_ != nullptr
-        ? impl_->selection
+    return state_ != nullptr
+        ? state_->selection
         : TextSelection{};
 }
 
@@ -736,40 +724,40 @@ std::uint32_t EditableTextModel::Caret() const noexcept {
 Base::Result<void> EditableTextModel::SetSelection(
     std::uint32_t anchor,
     std::uint32_t caret) noexcept {
-    Base::Result<void> state = EnsureImpl();
+    Base::Result<void> state = EnsureState();
     if (!state) {
         return state;
     }
-    if (anchor > impl_->GraphemeCount() ||
-        caret > impl_->GraphemeCount()) {
+    if (anchor > state_->GraphemeCount() ||
+        caret > state_->GraphemeCount()) {
         return OutOfRange(
             "Editable text selection is out of range");
     }
-    impl_->selection = {anchor, caret};
+    state_->selection = {anchor, caret};
     return {};
 }
 
 Base::Result<void> EditableTextModel::SelectAll() noexcept {
-    Base::Result<void> state = EnsureImpl();
+    Base::Result<void> state = EnsureState();
     if (!state) {
         return state;
     }
-    impl_->selection = {0U, impl_->GraphemeCount()};
+    state_->selection = {0U, state_->GraphemeCount()};
     return {};
 }
 
 Base::Result<void> EditableTextModel::ReplaceRange(
     TextRange range,
     Base::StringView replacement) noexcept {
-    Base::Result<void> state = EnsureImpl();
+    Base::Result<void> state = EnsureState();
     if (!state) {
         return state;
     }
-    if (impl_->readOnly) {
+    if (state_->readOnly) {
         return InvalidState(
             "Editable text model is read-only");
     }
-    return impl_->Replace(range, replacement, true);
+    return state_->Replace(range, replacement, true);
 }
 
 Base::Result<void> EditableTextModel::ReplaceSelection(
@@ -811,24 +799,24 @@ Base::Result<void> EditableTextModel::DeleteForward() noexcept {
 Base::Result<std::uint32_t>
 EditableTextModel::ByteOffsetForGrapheme(
     std::uint32_t graphemeIndex) const noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return graphemeIndex == 0U
             ? Base::Result<std::uint32_t>(0U)
             : Base::Result<std::uint32_t>(
                 OutOfRange(
                     "Editable text grapheme index is out of range"));
     }
-    if (graphemeIndex > impl_->GraphemeCount()) {
+    if (graphemeIndex > state_->GraphemeCount()) {
         return OutOfRange(
             "Editable text grapheme index is out of range");
     }
-    return impl_->graphemeOffsets[graphemeIndex];
+    return state_->graphemeOffsets[graphemeIndex];
 }
 
 Base::Result<std::uint32_t>
 EditableTextModel::GraphemeIndexForByteOffset(
     std::uint32_t byteOffset) const noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return byteOffset == 0U
             ? Base::Result<std::uint32_t>(0U)
             : Base::Result<std::uint32_t>(
@@ -836,9 +824,9 @@ EditableTextModel::GraphemeIndexForByteOffset(
                     "Editable text byte offset is out of range"));
     }
     for (std::uint32_t index = 0U;
-         index < impl_->graphemeOffsets.Size();
+         index < state_->graphemeOffsets.Size();
          ++index) {
-        if (impl_->graphemeOffsets[index] == byteOffset) {
+        if (state_->graphemeOffsets[index] == byteOffset) {
             return index;
         }
     }
@@ -848,29 +836,29 @@ EditableTextModel::GraphemeIndexForByteOffset(
 
 Base::Result<TextRange> EditableTextModel::LineRange(
     std::uint32_t lineIndex) const noexcept {
-    if (impl_ == nullptr) {
+    if (state_ == nullptr) {
         return lineIndex == 0U
             ? Base::Result<TextRange>(TextRange{})
             : Base::Result<TextRange>(
                 OutOfRange(
                     "Editable text line index is out of range"));
     }
-    if (lineIndex >= impl_->lineStarts.Size()) {
+    if (lineIndex >= state_->lineStarts.Size()) {
         return OutOfRange(
             "Editable text line index is out of range");
     }
     const std::uint32_t start =
-        impl_->lineStarts[lineIndex];
+        state_->lineStarts[lineIndex];
     std::uint32_t end =
-        lineIndex + 1U < impl_->lineStarts.Size()
-        ? impl_->lineStarts[lineIndex + 1U]
-        : impl_->GraphemeCount();
+        lineIndex + 1U < state_->lineStarts.Size()
+        ? state_->lineStarts[lineIndex + 1U]
+        : state_->GraphemeCount();
     if (end > start) {
         const std::uint32_t byteOffset =
-            impl_->graphemeOffsets[end - 1U];
+            state_->graphemeOffsets[end - 1U];
         const auto byteAt =
             [&](std::uint32_t index) noexcept {
-                return impl_->ByteAt(index);
+                return state_->ByteAt(index);
             };
         if (IsNewline(
                 Decode(byteOffset, byteAt).value)) {
@@ -882,67 +870,67 @@ Base::Result<TextRange> EditableTextModel::LineRange(
 
 Base::Result<void> EditableTextModel::SetMaximumLength(
     std::uint32_t graphemeCount) noexcept {
-    Base::Result<void> state = EnsureImpl();
+    Base::Result<void> state = EnsureState();
     if (!state) {
         return state;
     }
-    if (impl_->GraphemeCount() > graphemeCount) {
+    if (state_->GraphemeCount() > graphemeCount) {
         return OutOfRange(
             "Maximum length is shorter than current text");
     }
-    impl_->maximumLength = graphemeCount;
+    state_->maximumLength = graphemeCount;
     return {};
 }
 
 std::uint32_t
 EditableTextModel::MaximumLength() const noexcept {
-    return impl_ != nullptr
-        ? impl_->maximumLength
+    return state_ != nullptr
+        ? state_->maximumLength
         : UINT32_MAX;
 }
 
 Base::Result<void> EditableTextModel::SetReadOnly(
     bool value) noexcept {
-    Base::Result<void> state = EnsureImpl();
+    Base::Result<void> state = EnsureState();
     if (!state) {
         return state;
     }
-    impl_->readOnly = value;
+    state_->readOnly = value;
     return {};
 }
 
 bool EditableTextModel::IsReadOnly() const noexcept {
-    return impl_ != nullptr && impl_->readOnly;
+    return state_ != nullptr && state_->readOnly;
 }
 
 bool EditableTextModel::CanUndo() const noexcept {
-    return impl_ != nullptr && !impl_->undo.Empty();
+    return state_ != nullptr && !state_->undo.Empty();
 }
 
 bool EditableTextModel::CanRedo() const noexcept {
-    return impl_ != nullptr && !impl_->redo.Empty();
+    return state_ != nullptr && !state_->redo.Empty();
 }
 
 Base::Result<void> EditableTextModel::Undo() noexcept {
-    if (impl_ == nullptr || impl_->undo.Empty()) {
+    if (state_ == nullptr || state_->undo.Empty()) {
         return NotFound(
             "Editable text undo history is empty");
     }
-    if (impl_->readOnly) {
+    if (state_->readOnly) {
         return InvalidState(
             "Editable text model is read-only");
     }
     Base::Result<void> capacity =
-        impl_->redo.Reserve(
+        state_->redo.Reserve(
             std::min(
                 HistoryLimit,
-                impl_->redo.Size() + 1U));
+                state_->redo.Size() + 1U));
     if (!capacity) {
         return capacity;
     }
-    Impl::EditRecord& record = impl_->undo.Back();
+    EditableTextState::EditRecord& record = state_->undo.Back();
     const TextSelection selection = record.before;
-    Base::Result<void> undone = impl_->Replace(
+    Base::Result<void> undone = state_->Replace(
         {record.start, record.insertedGraphemes},
         record.removed.View(),
         false,
@@ -950,32 +938,32 @@ Base::Result<void> EditableTextModel::Undo() noexcept {
     if (!undone) {
         return undone;
     }
-    Impl::EditRecord moved = std::move(record);
-    impl_->undo.PopBack();
-    impl_->TrimHistory(impl_->redo);
-    return impl_->redo.PushBack(std::move(moved));
+    EditableTextState::EditRecord moved = std::move(record);
+    state_->undo.PopBack();
+    state_->TrimHistory(state_->redo);
+    return state_->redo.PushBack(std::move(moved));
 }
 
 Base::Result<void> EditableTextModel::Redo() noexcept {
-    if (impl_ == nullptr || impl_->redo.Empty()) {
+    if (state_ == nullptr || state_->redo.Empty()) {
         return NotFound(
             "Editable text redo history is empty");
     }
-    if (impl_->readOnly) {
+    if (state_->readOnly) {
         return InvalidState(
             "Editable text model is read-only");
     }
     Base::Result<void> capacity =
-        impl_->undo.Reserve(
+        state_->undo.Reserve(
             std::min(
                 HistoryLimit,
-                impl_->undo.Size() + 1U));
+                state_->undo.Size() + 1U));
     if (!capacity) {
         return capacity;
     }
-    Impl::EditRecord& record = impl_->redo.Back();
+    EditableTextState::EditRecord& record = state_->redo.Back();
     const TextSelection selection = record.after;
-    Base::Result<void> redone = impl_->Replace(
+    Base::Result<void> redone = state_->Replace(
         {record.start, record.removedGraphemes},
         record.inserted.View(),
         false,
@@ -983,17 +971,17 @@ Base::Result<void> EditableTextModel::Redo() noexcept {
     if (!redone) {
         return redone;
     }
-    Impl::EditRecord moved = std::move(record);
-    impl_->redo.PopBack();
-    impl_->TrimHistory(impl_->undo);
-    return impl_->undo.PushBack(std::move(moved));
+    EditableTextState::EditRecord moved = std::move(record);
+    state_->redo.PopBack();
+    state_->TrimHistory(state_->undo);
+    return state_->undo.PushBack(std::move(moved));
 }
 
 void EditableTextModel::ClearHistory() noexcept {
-    if (impl_ != nullptr) {
-        impl_->undo.Clear();
-        impl_->redo.Clear();
+    if (state_ != nullptr) {
+        state_->undo.Clear();
+        state_->redo.Clear();
     }
 }
 
-} // namespace Aero::Text::Detail
+} // namespace Aero::Text

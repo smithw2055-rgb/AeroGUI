@@ -27,7 +27,7 @@ class Style;
 
 namespace Aero::Media {
 
-class AERO_API FontFamily : public Base::Object {
+class AERO_GUI_API FontFamily : public Base::Object {
     AERO_DECLARE_TYPE(FontFamily, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -84,10 +84,10 @@ private:
     const ::Aero::Media::Visual* owner_ = nullptr;
 };
 
-class AERO_API FrameworkElement : public UIElement {
+class AERO_GUI_API FrameworkElement : public UIElement {
     AERO_DECLARE_TYPE(FrameworkElement, UIElement)
 public:
-    struct Impl;
+    struct Access;
 
     explicit FrameworkElement(TypeId runtimeType) noexcept;
     ~FrameworkElement() override;
@@ -282,8 +282,8 @@ private:
         Meta::TypeId expectedType) noexcept;
 
     friend class LogicalTreeHelper;
-    friend struct ::Aero::Media::Visual::Impl;
-    friend struct ::Aero::UIElement::Impl;
+    friend struct ::Aero::Media::Visual::Access;
+    friend struct ::Aero::UIElement::Access;
     double dpiScale_ = 1.0;
     DependencyObject* templatedParent_ = nullptr;
     ResourceDictionary resources_;

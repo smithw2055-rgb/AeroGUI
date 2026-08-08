@@ -309,7 +309,7 @@ class Registry;
 // Callback-scoped metadata authoring session. Module authors use Register<T>
 // against this object; mutable tables and registration storage stay private to
 // Registry.
-class AERO_API Registration {
+class AERO_GUI_API Registration {
 private:
     friend class Registry;
     template<class T>
@@ -341,17 +341,17 @@ struct TextValueConverterRegistration;
 struct ValueTypeRegistration;
 
 namespace Detail {
-AERO_API Base::Result<Value> CreateRegistrationValue(
+AERO_GUI_API Base::Result<Value> CreateRegistrationValue(
     void* registrationState,
     TypeId type,
     const void* source) noexcept;
-AERO_API RegistrationValues MakeRegistrationValues(
+AERO_GUI_API RegistrationValues MakeRegistrationValues(
     void* registrationState) noexcept;
 }
 
 // Opaque callback-scoped value registration view used by ValueCodec. The
 // backing registration store remains a Core implementation detail.
-class AERO_API RegistrationValues {
+class AERO_GUI_API RegistrationValues {
 public:
     Base::Result<void> RegisterValueSemantics(
         TypeId type,
@@ -526,7 +526,7 @@ void SetField(
     return;
 }
 
-class AERO_API MetadataAuthoringSession {
+class AERO_GUI_API MetadataAuthoringSession {
 public:
     MetadataAuthoringSession(
         Registration& context,

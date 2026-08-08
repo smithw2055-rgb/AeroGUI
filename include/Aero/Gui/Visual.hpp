@@ -21,7 +21,7 @@ namespace Aero::Media {
 
 class Visual;
 
-class AERO_API VisualTreeHelper {
+class AERO_GUI_API VisualTreeHelper {
 public:
     static Visual* GetParent(const Visual& visual) noexcept;
     static std::uint32_t GetChildrenCount(const Visual& visual) noexcept;
@@ -32,7 +32,7 @@ public:
 
 namespace Aero {
 
-class AERO_API LogicalTreeHelper {
+class AERO_GUI_API LogicalTreeHelper {
 public:
     static DependencyObject* GetParent(const DependencyObject& object) noexcept;
     static std::uint32_t GetChildrenCount(const DependencyObject& object) noexcept;
@@ -46,12 +46,12 @@ public:
 
 namespace Aero::Media {
 
-class AERO_API Visual : public ::Aero::DependencyObject {
+class AERO_GUI_API Visual : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Visual, ::Aero::DependencyObject)
 public:
     // Source-side access and runtime state are intentionally opaque to SDK
     // consumers.  The complete definition lives in the implementation tree.
-    struct Impl;
+    struct Access;
 
     explicit Visual(::Aero::Meta::TypeId runtimeType) noexcept;
     ~Visual() override;

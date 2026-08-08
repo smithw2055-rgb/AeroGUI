@@ -9,9 +9,8 @@
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Stream.hpp>
-#include <Aero/Value.hpp>
-#include <Aero/Gui/ResourceDictionary.hpp>
-#include <Aero/Gui/ControlTemplate.hpp>
+#include <Aero/Gui/XamlDocument.hpp>
+#include <Aero/Markup/ServiceProvider.hpp>
 
 #include <cstdint>
 #include <type_traits>
@@ -61,145 +60,10 @@ struct XamlReaderSettings {
 
 } // namespace Aero::Markup
 
-namespace Aero::Markup {
-
-inline constexpr Base::StringView
-LanguageNamespaceUri() noexcept {
-    return Base::StringView(
-        "http://schemas.microsoft.com/winfx/2006/xaml");
-}
-
-class AERO_API NamespaceScope {
-public:
-    struct Impl;
-
-    using LookupCallback = Base::Result<Base::StringView> (*)(
-        void* context,
-        Base::StringView prefix) noexcept;
-
-    NamespaceScope() noexcept = default;
-
-    Base::Result<Base::StringView> Lookup(
-        Base::StringView prefix) const noexcept;
-    bool IsAvailable() const noexcept {
-        return lookup_ != nullptr;
-    }
-
-private:
-    friend struct Impl;
-
-    NamespaceScope(
-        LookupCallback lookup,
-        void* context) noexcept
-        : lookup_(lookup), context_(context) {}
-
-    LookupCallback lookup_ = nullptr;
-    void* context_ = nullptr;
-};
-
-class AERO_API ResourceResolver {
-public:
-    struct Impl;
-
-    using LookupCallback =
-        Base::Result<Aero::ResourceValue> (*)(
-        void* context,
-        Base::StringView key) noexcept;
-
-    ResourceResolver() noexcept = default;
-
-    Base::Result<Aero::ResourceValue> Lookup(
-        Base::StringView key) const noexcept;
-    bool IsAvailable() const noexcept {
-        return lookup_ != nullptr;
-    }
-
-private:
-    friend struct ::Aero::Markup::NamespaceScope::Impl;
-
-    ResourceResolver(
-        LookupCallback lookup,
-        void* context) noexcept
-        : lookup_(lookup), context_(context) {}
-
-    LookupCallback lookup_ = nullptr;
-    void* context_ = nullptr;
-};
-
-} // namespace Aero::Markup
-
-namespace Aero {
-
-class ResourceDictionary;
-
-// Move-only ownership for one successfully loaded XAML document. The document
-// keeps names, resources, dependency URIs, and the declaration/mount plan alive
-// independently from a View until it is mounted or discarded.
-namespace Markup {
-
-class AERO_API XamlDocument {
-public:
-    struct Impl;
-
-    XamlDocument() noexcept = default;
-    ~XamlDocument() noexcept;
-
-    XamlDocument(XamlDocument&& other) noexcept;
-    XamlDocument& operator=(XamlDocument&& other) noexcept;
-
-    XamlDocument(const XamlDocument&) = delete;
-    XamlDocument& operator=(const XamlDocument&) = delete;
-
-    bool IsValid() const noexcept;
-    const Base::Ref<Base::Object>& Root() const noexcept;
-    template<class T>
-    T* Root() noexcept {
-        static_assert(std::is_base_of_v<Base::Object, T>,
-            "XamlDocument::Root<T> requires an Aero object type");
-        return static_cast<T*>(RootObject(Meta::TypeOf<T>()));
-    }
-    template<class T>
-    const T* Root() const noexcept {
-        return const_cast<XamlDocument*>(this)->Root<T>();
-    }
-    Base::Object* FindName(
-        Base::StringView name,
-        Meta::TypeId expectedType = Meta::InvalidTypeId) noexcept;
-    template<class T>
-    T* FindName(Base::StringView name) noexcept {
-        static_assert(std::is_base_of_v<Base::Object, T>,
-            "XamlDocument::FindName<T> requires an Aero object type");
-        return static_cast<T*>(FindName(name, Meta::TypeOf<T>()));
-    }
-    std::uint32_t NamedObjectCount() const noexcept;
-    Aero::ResourceDictionary* Resources() noexcept;
-    const Aero::ResourceDictionary* Resources() const noexcept;
-    const Base::ResourceUri& CanonicalUri() const noexcept;
-    Base::Span<const Base::ResourceUri> Dependencies() const noexcept;
-
-private:
-    friend struct Impl;
-
-    void Reset() noexcept;
-    Base::Object* RootObject(Meta::TypeId expectedType) noexcept;
-
-    Base::IAllocator* allocator_ = nullptr;
-    Impl* impl_ = nullptr;
-};
-
-} // namespace Markup
-
-} // namespace Aero
-
 namespace Aero {
 class ResourceDictionary;
 class Gui;
-class View;
-enum class BuiltInTheme : std::uint8_t;
-enum class ResourceLayer : std::uint8_t;
-enum class ResourceLoadMode : std::uint8_t;
 namespace Diagnostics { class IDiagnosticSink; }
-namespace Controls { class ContentControl; }
 namespace Markup { class XamlProvider; }
 }
 
@@ -208,7 +72,7 @@ namespace Aero::Markup {
 // XAML object-graph reader bound to the process-level Gui runtime. Loading is
 // independent of any View; presentation-affine effects are bound when a
 // document is mounted into a View.
-class AERO_API XamlReader {
+class AERO_GUI_API XamlReader {
 public:
     explicit XamlReader(Aero::Gui& gui) noexcept : gui_(&gui) {}
 
@@ -249,41 +113,6 @@ public:
 
     Aero::Gui& GetGui() const noexcept { return *gui_; }
 
-    // Mount/resource helpers are retained only for repository conformance and
-    // source-private framework plumbing. Normal SDK code loads a XamlDocument
-    // here and hands it to View::SetContent().
-#if defined(AERO_INTERNAL_CONFORMANCE)
-public:
-#else
-private:
-#endif
-    Base::Result<void> Mount(
-        Aero::View& view,
-        Controls::ContentControl& host,
-        XamlDocument&& document) noexcept;
-    Base::Result<void> Unmount(
-        Aero::View& view,
-        Controls::ContentControl& host) noexcept;
-    Base::Result<void> LoadResources(
-        Aero::View& view,
-        ResourceLayer layer,
-        Base::StringView uri,
-        ResourceLoadMode mode,
-        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<void> LoadCompiledResources(
-        Aero::View& view,
-        ResourceLayer layer,
-        Base::Span<const std::uint8_t> bytes,
-        const Base::ResourceUri& originUri,
-        ResourceLoadMode mode) noexcept;
-    void SetResources(
-        Aero::View& view,
-        ResourceLayer layer,
-        Aero::ResourceDictionary& dictionary,
-        ResourceLoadMode mode) noexcept;
-    Base::Result<void> LoadTheme(
-        Aero::View& view,
-        BuiltInTheme theme) noexcept;
 private:
     Base::Result<XamlDocument> LoadComponentCore(
         Base::StringView uri,

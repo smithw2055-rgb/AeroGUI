@@ -1,15 +1,15 @@
 #include <Aero/Gui/FrameworkContentElement.hpp>
 
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
 #include <Aero/Base/Assert.hpp>
 
@@ -20,7 +20,7 @@ namespace {
 
 struct RoutedHandlerRecord {
     RoutedEventHandle event;
-    Aero::GuiPrivate::Detail::RoutedHandlerStorage handler;
+    Aero::RoutedHandlerStorage handler;
     std::uint64_t sequence = 0U;
     bool handledEventsToo = false;
 };
@@ -86,7 +86,7 @@ Base::Result<void> ContentElement::AddHandlerCore(
 
     RoutedHandlerRecord record;
     record.event = event;
-    record.handler = Aero::GuiPrivate::Detail::RoutedHandlerStorage(
+    record.handler = Aero::RoutedHandlerStorage(
         handler.value,
         handler.operations->size,
         handler.operations->alignment,
@@ -108,7 +108,7 @@ bool ContentElement::RemoveHandlerCore(
         handler.operations == nullptr || routedHandlers_ == nullptr) {
         return false;
     }
-    Aero::GuiPrivate::Detail::RoutedHandlerStorage probe(
+    Aero::RoutedHandlerStorage probe(
         handler.value,
         handler.operations->size,
         handler.operations->alignment,
@@ -166,14 +166,14 @@ void ContentElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
     if (eventRouter_ == nullptr && contentHost_ != nullptr) {
-        eventRouter_ = Aero::GuiPrivate::Detail::ElementPrivate::EventRouterFor(
+        eventRouter_ = Aero::ElementPrivate::EventRouterFor(
             *contentHost_);
     }
     if (eventRouter_ == nullptr) {
         return;
     }
     static_cast<void>(
-        static_cast<Aero::GuiPrivate::Detail::EventRouter*>(eventRouter_)
+        static_cast<Aero::EventRouter*>(eventRouter_)
             ->RaiseEvent(*this, event, args));
 }
 
@@ -199,7 +199,7 @@ void FrameworkContentElement::ClearAuthoredTriggers() noexcept {
 
 void FrameworkContentElement::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
-    (void)Aero::GuiPrivate::Detail::AssignResourceDictionary(
+    (void)Aero::AssignResourceDictionary(
         resources_,
         std::move(value),
         "FrameworkContentElement Resources is already assigned");

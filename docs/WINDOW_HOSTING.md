@@ -1,37 +1,39 @@
 # Native window hosting
 
-AeroGUI separates WPF objects, the operating-system window, and native GPU
-presentation. The public host frame entry is `View::Update(elapsedMs)`; XAML
-loading is performed through `Markup::XamlReader`.
+AeroGUI separates the WPF object model, operating-system windows, and GPU
+presentation. The host owns scheduling; AeroGUI creates no hidden render
+thread or pending frame queue.
 
 ## Default desktop application
 
-`Aero::App` privately owns the native event loop. Every visible `Aero::Window`
-receives one host record containing:
+Every visible `Aero::Window` is managed by `DesktopHost` with one native window,
+one `View`, and one source-only `Aero::App::RenderContext`:
 
 ```text
-Window
-├─ native top-level window
-├─ View
-├─ App::Detail::RenderContext
-│  ├─ RenderDevice
-│  └─ window RenderTarget
-├─ clipboard / IME services
-└─ activation, visibility and close state
+Window host
+  -> native Win32/X11 window
+  -> View + ViewRenderer
+  -> App::RenderContext
+       -> RenderDevice
+       -> current RenderTarget
+       -> BeginFrame / EndFrame / Present
+       -> D3D11 swap chain or WGL/GLX swap
+  -> clipboard and IME services
 ```
 
-`RenderContext` is source-private. It owns backend/window target creation,
-resize, final render handoff and shutdown. `DesktopHost` does not directly own a
-swap chain or surface lifecycle.
+`RenderContext` is the sole desktop presentation owner. The base class stores
+frame-open/rendered/ended state and orders begin, render, end, present, resize,
+cancel, and shutdown. `D3D11RenderContext` owns the D3D device, immediate
+context, swap chain, and current back buffer. `OpenGLRenderContext` owns the
+platform OpenGL window/context and swaps it directly.
 
-`Application::Windows` enumerates all live top-level windows. `MainWindow` is a
-normal entry in that collection, while `ShutdownMode` independently implements
-last-window, main-window and explicit shutdown policies.
+A `RenderTarget` is drawable state only. It never presents and never stores a
+desktop frame protocol.
 
 ## Embedded host sequence
 
-An engine/editor host uses `Aero::Gui` plus an explicit backend device and
-RenderTarget. Window/present policy is not part of the embedded Render API.
+An engine/editor host supplies a device and target through the backend-specific
+public callbacks; window and present policy remain the host's responsibility.
 
 ```cpp
 Aero::Gui gui;
@@ -56,34 +58,16 @@ view->GetRenderer().RenderOffscreen();
 view->GetRenderer().Render(*target);
 ```
 
-The host owns frame scheduling. `UpdateRenderTree()` reports whether a new
-immutable frame was committed, so unchanged frames can skip GPU work. The
-default App blocks on native activity (or a 16 ms native timed wait when an
-animation clock/multiple windows require progress) instead of a 1 ms polling
-loop. AeroGUI creates no hidden render thread or pending frame queue. Mutable UI
-objects remain View-thread bound; `Render::Renderer` enforces its GPU-thread
-affinity and performs the one command submission before surface presentation.
+`UpdateRenderTree()` reports whether a new immutable frame was committed, so
+an unchanged frame can skip GPU work. Mutable UI state remains on the View
+thread; renderer/device calls remain on the host's render thread.
 
-## Platform boundary
+## Loss and recovery
 
-Default App platform adapters use `Aero::Platform::NativeWindowHandle` and the
-input contracts under `Aero::Input`. Win32/X11 windows, clipboard adapters, IME,
-WGL/GLX context carriers and swap-chain details remain source-private.
+`RenderDevice` owns device loss and generation recovery. `RenderTarget` owns
+only target-specific lost/restore state. App coordinates native swap-chain or
+OpenGL context recreation through `RenderContext`; embedded hosts coordinate
+their own callback resources.
 
-Public D3D11/OpenGL embedded headers do not include `NativeWindow` and expose no
-window-surface factory. The App reaches those factories through the private
-backend contract used by `RenderContext`.
-
-## Device and target loss
-
-`RenderDevice` owns device-generation loss/restore. Target-specific recovery is
-coordinated by the backend/App presentation path rather than exposed as a second
-public Surface product.
-
-Optional diagnostics are available separately:
-
-```cpp
-#include <Aero/Diagnostics/Rendering.hpp>
-auto deviceStats = Aero::Diagnostics::GetRenderDeviceStatistics(*device);
-auto frameStats = Aero::Diagnostics::GetLastRenderFrameStatistics(*device);
-```
+Optional statistics are available from
+`<Aero/Diagnostics/Rendering.hpp>`.

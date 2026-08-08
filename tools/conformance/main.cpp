@@ -10,21 +10,20 @@
 #include <Aero/Gui/View.hpp>
 
 #include "render/FrameEncoder.hpp"
-#include "gui/private/Property.hpp"
-#include "render/private/RenderDevice.hpp"
-#include "render/private/RenderTarget.hpp"
-#include "render/opengl33/OpenGL33Shaders.hpp"
-#include "render/opengl33/OpenGL33Backend.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/ViewRenderer.hpp"
+#include "render/RenderDeviceState.hpp"
+#include "render/RenderTargetState.hpp"
+#include "render/opengl33/OpenGL33RenderDevice.hpp"
 
-namespace Aero::ViewDetail {
-const ::Aero::Render::Detail::RenderFrame* CurrentFrameForConformance(
+namespace Aero {
+const ::Aero::Render::RenderFrame* CurrentFrameForConformance(
     const View& view) noexcept;
 }
 
 #if defined(_WIN32)
-#include "render/d3d11/D3D11Backend.hpp"
-#include "render/d3d11/D3D11Shaders.hpp"
-#include "render/platform/win32/OpenGLRenderContext.hpp"
+#include "app/platform/win32/OpenGLWindow.hpp"
+#include "render/d3d11/D3D11RenderDevice.hpp"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -32,6 +31,9 @@ const ::Aero::Render::Detail::RenderFrame* CurrentFrameForConformance(
 #define NOMINMAX
 #endif
 #include <windows.h>
+#ifdef DeviceCapabilities
+#undef DeviceCapabilities
+#endif
 #endif
 
 #include <algorithm>
@@ -251,91 +253,97 @@ void VerifyGradientFreeze() noexcept {
 }
 
 void VerifyViewport(Aero::View& view) noexcept {
-    Aero::View::Viewport requested;
-    requested.logicalSize = {800.0, 450.0};
-    requested.pixelWidth = 1600U;
-    requested.pixelHeight = 900U;
-    requested.dpiScale = 2.0;
-    view.SetViewport(requested);
-    const Aero::View::Viewport actual = view.GetViewport();
-    Check(actual.logicalSize.width == 800.0 &&
-            actual.logicalSize.height == 450.0 &&
-            actual.pixelWidth == 1600U &&
-            actual.pixelHeight == 900U &&
-            actual.dpiScale == 2.0,
+    view.SetSize({800.0, 450.0});
+    view.SetScale(2.0);
+    Check(view.Update().HasValue(), "View size/scale update failed");
+    const ::Aero::Render::RenderFrame* actual =
+        Aero::CurrentFrameForConformance(view);
+    Check(actual != nullptr &&
+            actual->LogicalSize().width == 800.0 &&
+            actual->LogicalSize().height == 450.0 &&
+            actual->PixelWidth() == 1600U &&
+            actual->PixelHeight() == 900U &&
+            actual->DpiScale() == 2.0,
         "View viewport did not preserve logical, pixel, and DPI values");
-}
-
-std::uint32_t CountCommands(
-    const Aero::Graphics::CommandList& commands,
-    Aero::Graphics::CommandKind kind) noexcept {
-    std::uint32_t count = 0U;
-    for (const Aero::Graphics::Command& command : commands.Commands()) {
-        if (command.kind == kind) ++count;
-    }
-    return count;
-}
-
-bool HasTargetLoadOperation(
-    const Aero::Graphics::CommandList& commands,
-    Aero::Graphics::ResourceHandle target,
-    Aero::Graphics::LoadOperation load) noexcept {
-    for (const Aero::Graphics::Command& command : commands.Commands()) {
-        if (command.kind !=
-            Aero::Graphics::CommandKind::BeginRenderPass) {
-            continue;
-        }
-        for (std::uint32_t index = 0U;
-             index < command.renderPass.colorAttachmentCount;
-             ++index) {
-            const auto& attachment =
-                command.renderPass.colorAttachments[index];
-            if (attachment.target == target && attachment.load == load) {
-                return true;
-            }
-        }
-    }
-    return false;
 }
 
 class ProbeRenderTargetState;
 
-class ProbeRenderDeviceState final : public Aero::RenderDevice::Impl {
+class ProbeRenderDeviceState final : public Aero::RenderDevice::Access {
 public:
     explicit ProbeRenderDeviceState(Aero::Base::IAllocator& allocator) noexcept
-        : Aero::RenderDevice::Impl(allocator) {}
+        : Aero::RenderDevice::Access(allocator) {}
 
-    Aero::Render::Detail::RenderBackendKind Backend() const noexcept override {
-        return Aero::Render::Detail::RenderBackendKind::Headless;
-    }
-    Aero::Base::Result<void> RenderOffscreen(
-        const void*,
-        const ::Aero::Render::Detail::RenderFrame&) noexcept override {
-        return RenderFrame();
+    Aero::Render::RenderBackendKind Backend() const noexcept override {
+        return Aero::Render::RenderBackendKind::Headless;
     }
     Aero::Base::Result<Aero::Graphics::FenceValue> DrawBatch(
-        Aero::Render::Detail::RenderBatch&&) noexcept override {
+        Aero::Render::RenderBatch&&) noexcept override {
         return Aero::Graphics::FenceValue{0U};
     }
-    void ReleaseRenderer(const void*) noexcept override {}
     void NotifyDeviceLost() noexcept override;
     Aero::Base::Result<void> RestoreDevice() noexcept override;
     Aero::Base::Result<void> WaitIdle(std::uint32_t) noexcept override {
         return {};
     }
-    Aero::Render::Detail::BackendHealth GetDeviceHealth() const noexcept override {
+    Aero::Render::BackendHealth GetDeviceHealth() const noexcept override {
         return deviceHealth;
     }
-    Aero::RenderFrameStatistics LastFrameStatistics() const noexcept override {
-        Aero::RenderFrameStatistics result;
-        result.drawCallCount = 1U;
-        result.instanceCount = 1U;
-        return result;
+    Aero::Graphics::DeviceCapabilities
+    QueryNativeDeviceCapabilities() const noexcept override { return {}; }
+    Aero::Graphics::NativeRenderBackendKind
+    NativeBackendKind() const noexcept override {
+        return Aero::Graphics::NativeRenderBackendKind::Invalid;
     }
-    Aero::Render::Detail::RenderResources Resources() noexcept override {
+    Aero::Graphics::GraphicsCapabilities
+    QueryNativeGraphicsCapabilities() const noexcept override { return {}; }
+    Aero::Base::Result<void> CreateNativeResource(
+        Aero::Graphics::ResourceHandle,
+        const Aero::Graphics::ResourceDescriptor&) noexcept override {
         return {};
     }
-
+    void DestroyNativeResource(
+        Aero::Graphics::ResourceHandle) noexcept override {}
+    Aero::Base::Result<void> ConfigureNativeTexture(
+        Aero::Graphics::ResourceHandle,
+        const Aero::Graphics::TextureResourceDescriptor&) noexcept override {
+        return {};
+    }
+    Aero::Base::Result<void> ConfigureNativeSampler(
+        Aero::Graphics::ResourceHandle,
+        const Aero::Graphics::SamplerDescriptor&) noexcept override {
+        return {};
+    }
+    Aero::Base::Result<void> ConfigureNativePipeline(
+        Aero::Graphics::ResourceHandle,
+        Aero::Render::UiPipelineKey) noexcept override {
+        return {};
+    }
+    Aero::Base::Result<void> SubmitNativeBatch(
+        const Aero::Render::RenderBatch&,
+        Aero::Graphics::ResourceHandle,
+        Aero::Graphics::FenceValue) noexcept override {
+        return {};
+    }
+    Aero::Base::Result<void> UpdateNativeBuffer(
+        Aero::Graphics::ResourceHandle,
+        std::uint64_t,
+        Aero::Base::Span<const std::uint8_t>) noexcept override {
+        return {};
+    }
+    Aero::Base::Result<void> UpdateNativeTexture(
+        Aero::Graphics::ResourceHandle,
+        const Aero::Graphics::TextureRegion&,
+        Aero::Base::Span<const std::uint8_t>) noexcept override {
+        return {};
+    }
+    Aero::Graphics::FenceValue
+    NativeLastSubmittedFence() const noexcept override { return 0U; }
+    Aero::Graphics::FenceValue
+    NativeCompletedFence() const noexcept override { return 0U; }
+    bool NativeDeviceLost() const noexcept override {
+        return deviceHealth == Aero::Render::BackendHealth::DeviceLost;
+    }
     Aero::Base::Result<void> RenderFrame() noexcept {
         if (!failNext) return {};
         failNext = false;
@@ -346,14 +354,14 @@ public:
 
     ProbeRenderTargetState* target = nullptr;
     bool failNext = false;
-    Aero::Render::Detail::BackendHealth deviceHealth =
-        Aero::Render::Detail::BackendHealth::Ready;
+    Aero::Render::BackendHealth deviceHealth =
+        Aero::Render::BackendHealth::Ready;
 };
 
-class ProbeRenderTargetState final : public Aero::RenderTarget::Impl {
+class ProbeRenderTargetState final : public Aero::RenderTarget::Access {
 public:
     explicit ProbeRenderTargetState(ProbeRenderDeviceState& device) noexcept
-        : Aero::RenderTarget::Impl(Aero::RenderTargetKind::Embedded),
+        : Aero::RenderTarget::Access(Aero::RenderTargetKind::Embedded),
           device_(&device) {
         device.target = this;
     }
@@ -362,8 +370,8 @@ public:
     }
 
     Aero::Base::Result<void> Render(
-        const void*,
-        const ::Aero::Render::Detail::RenderFrame&) noexcept override {
+        Aero::ViewRenderer&,
+        const ::Aero::Render::RenderFrame&) noexcept override {
         return device_ != nullptr
             ? device_->RenderFrame()
             : Aero::Base::Result<void>(Aero::Base::Status::Failure(
@@ -374,44 +382,45 @@ public:
         return {};
     }
     void NotifySurfaceLost() noexcept override {
-        surfaceHealth = Aero::Render::Detail::SurfaceHealth::Lost;
+        surfaceHealth = Aero::Render::SurfaceHealth::Lost;
     }
     Aero::Base::Result<void> RestoreSurface() noexcept override {
-        surfaceHealth = Aero::Render::Detail::SurfaceHealth::Ready;
+        surfaceHealth = Aero::Render::SurfaceHealth::Ready;
         return {};
     }
-    Aero::Render::Detail::SurfaceHealth GetSurfaceHealth() const noexcept override {
+    Aero::Render::SurfaceHealth GetSurfaceHealth() const noexcept override {
         return surfaceHealth;
     }
     void RestoreAfterDeviceLoss() noexcept {
-        surfaceHealth = Aero::Render::Detail::SurfaceHealth::Ready;
+        surfaceHealth = Aero::Render::SurfaceHealth::Ready;
     }
 
-    Aero::Render::Detail::SurfaceHealth surfaceHealth =
-        Aero::Render::Detail::SurfaceHealth::Ready;
+    Aero::Render::SurfaceHealth surfaceHealth =
+        Aero::Render::SurfaceHealth::Ready;
 
 private:
     ProbeRenderDeviceState* device_ = nullptr;
 };
 
 void ProbeRenderDeviceState::NotifyDeviceLost() noexcept {
-    deviceHealth = Aero::Render::Detail::BackendHealth::DeviceLost;
+    deviceHealth = Aero::Render::BackendHealth::DeviceLost;
     if (target != nullptr) target->NotifySurfaceLost();
 }
 
 Aero::Base::Result<void> ProbeRenderDeviceState::RestoreDevice() noexcept {
-    deviceHealth = Aero::Render::Detail::BackendHealth::Ready;
+    deviceHealth = Aero::Render::BackendHealth::Ready;
     if (target != nullptr) target->RestoreAfterDeviceLoss();
     return {};
 }
 
 void VerifyRenderDeviceState(
-    const ::Aero::Render::Detail::RenderFrame& frame) noexcept {
+    Aero::View& view,
+    const ::Aero::Render::RenderFrame& frame) noexcept {
     Aero::Base::IAllocator& allocator = Aero::Base::GetDefaultAllocator();
     auto* state = new (std::nothrow) ProbeRenderDeviceState(allocator);
     Check(state != nullptr, "render device probe allocation failed");
     if (state == nullptr) return;
-    auto made = Aero::Render::Detail::AdoptRenderDevice(state, &allocator);
+    auto made = Aero::Render::AdoptRenderDevice(state, &allocator);
     Check(made.HasValue(), "render device probe adoption failed");
     if (!made) return;
     Aero::Base::Ref<Aero::RenderDevice> device = std::move(made).Value();
@@ -419,27 +428,29 @@ void VerifyRenderDeviceState(
     auto* targetState = new (std::nothrow) ProbeRenderTargetState(*state);
     Check(targetState != nullptr, "render target probe allocation failed");
     if (targetState == nullptr) return;
-    auto targetMade = Aero::Render::Detail::AdoptRenderTarget(
+    auto targetMade = Aero::Render::AdoptRenderTarget(
         device, targetState, Aero::RenderTargetKind::Embedded, &allocator);
     Check(targetMade.HasValue(), "render target probe adoption failed");
     if (!targetMade) return;
     Aero::Base::Ref<Aero::RenderTarget> target = std::move(targetMade).Value();
+    auto& renderer = static_cast<Aero::ViewRenderer&>(view.GetRenderer());
 
     state->failNext = true;
-    Aero::Base::Result<void> unsupported = Aero::RenderTarget::Impl::Render(
-        *target, state, frame);
+    Aero::Base::Result<void> unsupported = Aero::RenderTarget::Access::Render(
+        *target, renderer, frame);
     Check(!unsupported &&
             unsupported.GetStatus().code == Aero::Base::ErrorCode::Unsupported,
         "probe Unsupported frame did not fail as requested");
     Check(device->State() == Aero::RenderDeviceState::Ready &&
             target->State() == Aero::RenderTargetState::Ready &&
-            device->Statistics().failedFrameCount == 1U,
+            state->statistics.failedFrameCount == 1U,
         "ordinary frame failure poisoned a ready render target");
 
-    Check(Aero::RenderTarget::Impl::Render(*target, state, frame).HasValue(),
+    Check(Aero::RenderTarget::Access::Render(
+              *target, renderer, frame).HasValue(),
         "normal frame after Unsupported failure did not render");
-    Check(device->Statistics().acceptedFrameCount == 1U &&
-            device->Statistics().completedFrameCount == 1U,
+    Check(state->statistics.acceptedFrameCount == 1U &&
+            state->statistics.completedFrameCount == 1U,
         "successful recovery frame statistics are incorrect");
 
     target->NotifyLost();
@@ -459,133 +470,26 @@ void VerifyRenderDeviceState(
             target->State() == Aero::RenderTargetState::Ready,
         "device loss restore failed");
 
-    state->deviceHealth = Aero::Render::Detail::BackendHealth::Failed;
+    state->deviceHealth = Aero::Render::BackendHealth::Failed;
     state->failNext = true;
-    Check(!Aero::RenderTarget::Impl::Render(*target, state, frame) &&
+    Check(!Aero::RenderTarget::Access::Render(
+               *target, renderer, frame) &&
             device->State() == Aero::RenderDeviceState::Failed &&
             target->State() == Aero::RenderTargetState::Failed,
         "fatal backend health did not fail the render target");
 }
 
-template<class TCommandQueue>
-class ConformanceRenderDevice final
-    : public Aero::CommandQueueRenderDevice<TCommandQueue> {
-public:
-    explicit ConformanceRenderDevice(TCommandQueue& queue) noexcept
-        : Aero::CommandQueueRenderDevice<TCommandQueue>(
-              Aero::Base::GetDefaultAllocator()) {
-        this->BindCommandQueue(&queue);
-    }
-    ~ConformanceRenderDevice() noexcept override {
-        this->ShutdownResources();
-        this->BindCommandQueue(nullptr);
-    }
-
-    Aero::Render::Detail::RenderBackendKind Backend() const noexcept override {
-        switch (this->NativeBackendKind()) {
-        case Aero::Graphics::NativeRenderBackendKind::D3D11:
-            return Aero::Render::Detail::RenderBackendKind::D3D11;
-        case Aero::Graphics::NativeRenderBackendKind::OpenGL33:
-            return Aero::Render::Detail::RenderBackendKind::OpenGL33;
-        case Aero::Graphics::NativeRenderBackendKind::Invalid:
-            break;
-        }
-        return Aero::Render::Detail::RenderBackendKind::Unknown;
-    }
-    Aero::Base::Result<void> RenderOffscreen(
-        const void*,
-        const Aero::Render::Detail::RenderFrame&) noexcept override {
-        return Aero::Base::Status::Failure(
-            Aero::Base::ErrorCode::Unsupported,
-            "Conformance command device has no View renderer");
-    }
-    Aero::Base::Result<Aero::Graphics::FenceValue> DrawBatch(
-        Aero::Render::Detail::RenderBatch&& batch) noexcept override {
-        return this->SubmitCommands(batch.Commands());
-    }
-    void ReleaseRenderer(const void*) noexcept override {}
-    void NotifyDeviceLost() noexcept override {}
-    Aero::Base::Result<void> RestoreDevice() noexcept override { return {}; }
-    Aero::Base::Result<void> WaitIdle(std::uint32_t) noexcept override {
-        return {};
-    }
-    Aero::Render::Detail::BackendHealth
-    GetDeviceHealth() const noexcept override {
-        return this->IsNativeDeviceLost()
-            ? Aero::Render::Detail::BackendHealth::DeviceLost
-            : Aero::Render::Detail::BackendHealth::Ready;
-    }
-    Aero::RenderFrameStatistics
-    LastFrameStatistics() const noexcept override { return {}; }
-    Aero::Render::Detail::RenderResources Resources() noexcept override {
-        return {};
-    }
-    Aero::Graphics::DeviceCapabilities
-    QueryNativeDeviceCapabilities() const noexcept override { return {}; }
-    Aero::Graphics::NativeRenderBackendKind
-    NativeBackendKind() const noexcept override {
-        return Aero::Graphics::NativeRenderBackendKind::Invalid;
-    }
-    Aero::Graphics::GraphicsCapabilities
-    QueryNativeGraphicsCapabilities() const noexcept override { return {}; }
-    Aero::Base::Result<void> CreateNativeResource(
-        Aero::Graphics::ResourceHandle,
-        const Aero::Graphics::ResourceDescriptor&) noexcept override {
-        return Aero::Base::Status::Failure(
-            Aero::Base::ErrorCode::Unsupported,
-            "probe device has no native resources");
-    }
-    void DestroyNativeResource(
-        Aero::Graphics::ResourceHandle) noexcept override {}
-    Aero::Base::Result<void> ConfigureNativeTexture(
-        Aero::Graphics::ResourceHandle,
-        const Aero::Graphics::TextureResourceDescriptor&) noexcept override {
-        return {};
-    }
-    Aero::Base::Result<void> ConfigureNativeSampler(
-        Aero::Graphics::ResourceHandle,
-        const Aero::Graphics::SamplerDescriptor&) noexcept override {
-        return {};
-    }
-    Aero::Base::Result<void> ConfigureNativePipeline(
-        Aero::Graphics::ResourceHandle,
-        const Aero::Graphics::PipelineDescriptor&) noexcept override {
-        return {};
-    }
-    Aero::Base::Result<void> SubmitNativeCommands(
-        const Aero::Graphics::CommandList&,
-        Aero::Graphics::FenceValue) noexcept override { return {}; }
-    Aero::Graphics::FenceValue
-    NativeLastSubmittedFence() const noexcept override { return 0U; }
-    Aero::Graphics::FenceValue
-    NativeCompletedFence() const noexcept override { return 0U; }
-    bool NativeDeviceLost() const noexcept override {
-        return deviceHealth ==
-            Aero::Render::Detail::BackendHealth::DeviceLost;
-    }
-};
-
 template<class TBackend>
 bool RenderAndReadback(
     TBackend& backend,
-    const Aero::Render::FrameShaderSet& shaders,
-    const ::Aero::Render::Detail::RenderFrame& frame,
+    const ::Aero::Render::RenderFrame& frame,
     std::uint32_t width,
     std::uint32_t height,
     Aero::Base::Vector<std::uint8_t>& pixels,
     const char* failureMessage) noexcept {
-    ConformanceRenderDevice<TBackend> device(backend);
-    Aero::Base::Result<void> initialized = device.InitializeResources();
-    if (!initialized) {
-        std::fprintf(stderr, "%s: device initialize: %u %s\n",
-            failureMessage,
-            static_cast<unsigned>(initialized.GetStatus().code),
-            initialized.GetStatus().message);
-        Check(false, failureMessage);
-        return false;
-    }
-    Aero::Render::Detail::CommandEncoder renderer(device, shaders);
-    initialized = renderer.Initialize();
+    Aero::Render::UiFrameEncoder renderer(
+        backend, &Aero::Base::GetDefaultAllocator());
+    Aero::Base::Result<void> initialized = renderer.Initialize();
     if (!initialized) {
         std::fprintf(stderr, "%s: renderer initialize: %u %s\n",
             failureMessage,
@@ -598,7 +502,7 @@ bool RenderAndReadback(
     Aero::Graphics::TextureResourceDescriptor descriptor;
     descriptor.width = width;
     descriptor.height = height;
-    descriptor.format = shaders.colorFormat;
+    descriptor.format = Aero::Graphics::GraphicsTextureFormat::Bgra8Unorm;
     descriptor.usage =
         Aero::Graphics::TextureUsageBit(
             Aero::Graphics::TextureUsage::Sampled) |
@@ -606,7 +510,7 @@ bool RenderAndReadback(
             Aero::Graphics::TextureUsage::RenderTarget) |
         Aero::Graphics::TextureUsageBit(
             Aero::Graphics::TextureUsage::CopySource);
-    auto target = device.CreateRenderTarget(descriptor);
+    auto target = backend.CreateRenderTarget(descriptor);
     if (!target) {
         std::fprintf(stderr, "%s: target creation: %u %s\n",
             failureMessage,
@@ -616,22 +520,12 @@ bool RenderAndReadback(
         renderer.Shutdown();
         return false;
     }
-    auto commands = renderer.Record(
+    auto submitted = renderer.Record(
         frame,
         {target.Value(), width, height,
          Aero::Graphics::LoadOperation::Clear});
-    if (!commands) {
-        std::fprintf(stderr, "%s: command recording: %u %s\n",
-            failureMessage,
-            static_cast<unsigned>(commands.GetStatus().code),
-            commands.GetStatus().message);
-        Check(false, failureMessage);
-        renderer.Shutdown();
-        return false;
-    }
-    auto submitted = device.SubmitCommands(commands.Value());
     if (!submitted) {
-        std::fprintf(stderr, "%s: submission: %u %s\n",
+        std::fprintf(stderr, "%s: frame encoding: %u %s\n",
             failureMessage,
             static_cast<unsigned>(submitted.GetStatus().code),
             submitted.GetStatus().message);
@@ -669,6 +563,7 @@ bool RenderAndReadback(
         return false;
     }
     renderer.Shutdown();
+    auto& device = static_cast<Aero::RenderDevice::Access&>(backend);
     static_cast<void>(device.DestroyResource(
         target.Value(), device.LastSubmittedFence()));
     static_cast<void>(device.CollectGarbage());
@@ -685,14 +580,14 @@ LRESULT CALLBACK ConformanceWindowProcedure(
 }
 
 bool RenderD3D11Readback(
-    const ::Aero::Render::Detail::RenderFrame& frame,
+    const ::Aero::Render::RenderFrame& frame,
     std::uint32_t width,
     std::uint32_t height,
     Aero::Base::Vector<std::uint8_t>& pixels) noexcept {
-    Aero::Graphics::D3D11CommandQueueOptions options;
+    Aero::Graphics::D3D11RenderDeviceOptions options;
     options.deviceMode = Aero::Graphics::D3D11DeviceMode::Warp;
     options.allowWarpFallback = true;
-    Aero::Graphics::D3D11CommandQueue backend(options);
+    Aero::Graphics::D3D11RenderDevice backend(options);
     Aero::Base::Result<void> initialized = backend.Initialize();
     if (!initialized) {
         std::fprintf(stderr, "D3D11 WARP initialize: %u %s\n",
@@ -703,7 +598,6 @@ bool RenderD3D11Readback(
     }
     const bool rendered = RenderAndReadback(
         backend,
-        Aero::Render::MakeD3D11FrameShaderSet(),
         frame,
         width,
         height,
@@ -714,7 +608,7 @@ bool RenderD3D11Readback(
 }
 
 bool RenderOpenGL33Readback(
-    const ::Aero::Render::Detail::RenderFrame& frame,
+    const ::Aero::Render::RenderFrame& frame,
     std::uint32_t width,
     std::uint32_t height,
     Aero::Base::Vector<std::uint8_t>& pixels) noexcept {
@@ -752,20 +646,12 @@ bool RenderOpenGL33Readback(
         return false;
     }
 
-    Aero::Graphics::WglRenderContext surface;
-    Aero::Graphics::WindowRenderContextDescriptor descriptor;
-    descriptor.kind = Aero::Graphics::WindowRenderContextKind::Wgl;
-    descriptor.ownership =
-        Aero::Graphics::WindowRenderContextOwnership::Owned;
-    descriptor.presentMode = Aero::Graphics::PresentMode::Immediate;
-    descriptor.width = width;
-    descriptor.height = height;
-    descriptor.colorFormat =
-        Aero::Graphics::GraphicsTextureFormat::Bgra8Unorm;
-    descriptor.wgl.window =
-        reinterpret_cast<std::uintptr_t>(window);
-    descriptor.stableId = UINT64_C(0xA330C0F0);
-    Aero::Base::Result<void> created = surface.Create(descriptor);
+    Aero::App::Win32::OpenGLWindow surface;
+    Aero::Platform::NativeWindowHandle nativeWindow;
+    nativeWindow.system = Aero::Platform::WindowSystem::Win32;
+    nativeWindow.window = reinterpret_cast<std::uintptr_t>(window);
+    Aero::Base::Result<void> created = surface.Initialize(
+        nativeWindow, {width, height});
     bool rendered = false;
     if (!created) {
         std::fprintf(stderr, "WGL surface initialize: %u %s\n",
@@ -773,39 +659,33 @@ bool RenderOpenGL33Readback(
             created.GetStatus().message);
         Check(false, "OpenGL conformance surface initialization failed");
     } else {
-        auto functions = surface.LoadFunctions();
-        auto binding = surface.ContextBinding();
-        if (!functions || !binding) {
-            const Aero::Base::Status status = !functions
-                ? functions.GetStatus()
-                : binding.GetStatus();
-            std::fprintf(stderr, "OpenGL context contract: %u %s\n",
-                static_cast<unsigned>(status.code), status.message);
-            Check(false, "OpenGL context contract initialization failed");
+        Aero::Render::OpenGL33DeviceOptions deviceOptions;
+        deviceOptions.resolve =
+            &Aero::App::Win32::OpenGLWindow::ResolveCallback;
+        deviceOptions.makeCurrent =
+            &Aero::App::Win32::OpenGLWindow::MakeCurrentCallback;
+        deviceOptions.isCurrent =
+            &Aero::App::Win32::OpenGLWindow::IsCurrentCallback;
+        deviceOptions.contextGeneration =
+            &Aero::App::Win32::OpenGLWindow::GenerationCallback;
+        deviceOptions.callbackContext = &surface;
+        deviceOptions.checkErrors = true;
+        Aero::Graphics::OpenGL33RenderDevice backend(deviceOptions);
+        Aero::Base::Result<void> initialized = backend.Initialize();
+        if (!initialized) {
+            std::fprintf(stderr, "OpenGL backend initialize: %u %s\n",
+                static_cast<unsigned>(initialized.GetStatus().code),
+                initialized.GetStatus().message);
+            Check(false, "OpenGL pixel backend initialization failed");
         } else {
-            Aero::Graphics::OpenGL33CommandQueueOptions options;
-            options.embeddingMode =
-                Aero::Graphics::GlEmbeddingMode::HostReset;
-            options.checkErrors = true;
-            Aero::Graphics::OpenGL33CommandQueue backend(
-                functions.Value(), binding.Value(), options);
-            Aero::Base::Result<void> initialized = backend.Initialize();
-            if (!initialized) {
-                std::fprintf(stderr, "OpenGL backend initialize: %u %s\n",
-                    static_cast<unsigned>(initialized.GetStatus().code),
-                    initialized.GetStatus().message);
-                Check(false, "OpenGL pixel backend initialization failed");
-            } else {
-                rendered = RenderAndReadback(
-                    backend,
-                    Aero::Render::MakeOpenGL33FrameShaderSet(),
-                    frame,
-                    width,
-                    height,
-                    pixels,
-                    "OpenGL pixel readback failed");
-                backend.Shutdown();
-            }
+            rendered = RenderAndReadback(
+                backend,
+                frame,
+                width,
+                height,
+                pixels,
+                "OpenGL pixel readback failed");
+            backend.Shutdown();
         }
         surface.Shutdown();
     }
@@ -817,7 +697,7 @@ bool RenderOpenGL33Readback(
 }
 
 void VerifyNativePixelReadback(
-    const ::Aero::Render::Detail::RenderFrame& frame,
+    const ::Aero::Render::RenderFrame& frame,
     std::uint32_t width,
     std::uint32_t height) noexcept {
     Aero::Base::Vector<std::uint8_t> d3dPixels;
@@ -1001,16 +881,15 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
     child->SetEffect(
         Aero::Base::Ref<Aero::Media::Effect>(childEffect));
 
-    Aero::View::Viewport viewport;
-    viewport.logicalSize = {128.0, 96.0};
-    viewport.pixelWidth = 256U;
-    viewport.pixelHeight = 192U;
-    viewport.dpiScale = 2.0;
-    view.SetContent(std::move(document).Value(), viewport.logicalSize);
-    view.SetViewport(viewport);
+    const Aero::Size logicalSize{128.0, 96.0};
+    constexpr std::uint32_t pixelWidth = 256U;
+    constexpr std::uint32_t pixelHeight = 192U;
+    view.SetContent(std::move(document).Value(), logicalSize);
+    view.SetSize(logicalSize);
+    view.SetScale(2.0);
     Check(view.Update().HasValue(), "nested effect View update failed");
-    const ::Aero::Render::Detail::RenderFrame* frame =
-        Aero::ViewDetail::CurrentFrameForConformance(view);
+    const ::Aero::Render::RenderFrame* frame =
+        Aero::CurrentFrameForConformance(view);
     if (frame != nullptr && frame->GradientRamps().Empty()) {
         std::fprintf(stderr,
             "render frame diagnostics: version=%llu nodes=%u commands=%u ramps=%u\n",
@@ -1033,11 +912,11 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
         "gradient mask ramp was not captured in RenderFrame");
     if (frame == nullptr) return;
 
-    VerifyRenderDeviceState(*frame);
+    VerifyRenderDeviceState(view, *frame);
 #if defined(_WIN32)
     if (frame != nullptr) {
         VerifyNativePixelReadback(
-            *frame, viewport.pixelWidth, viewport.pixelHeight);
+            *frame, pixelWidth, pixelHeight);
     }
 #endif
 }
@@ -1114,16 +993,13 @@ int main() {
     const Aero::Base::Result<void> initialized = gui.Initialize();
     Check(initialized.HasValue(), "Gui initialization failed");
     if (initialized) {
+        Aero::ViewOptions viewOptions;
+        viewOptions.loadBuiltInTheme = true;
+        viewOptions.builtInTheme = Aero::BuiltInTheme::Light;
         Aero::Base::Result<Aero::Base::Ref<Aero::View>> view =
-            gui.CreateView();
+            gui.CreateView(viewOptions);
         Check(view.HasValue(), "View creation failed");
         if (view) {
-            Aero::Markup::XamlReader themeReader(gui);
-            const Aero::Base::Result<void> themeLoaded =
-                themeReader.LoadTheme(
-                    *view.Value(), Aero::BuiltInTheme::Light);
-            Check(themeLoaded.HasValue(),
-                "AXB2 built-in theme load failed");
             VerifyMaskAndEffectRendering(*view.Value());
             VerifyFreezeGraph();
             VerifyExpressionFreezeRejection();

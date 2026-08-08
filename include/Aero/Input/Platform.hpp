@@ -10,14 +10,14 @@
 
 namespace Aero::Input {
 
-class AERO_API IClipboard {
+class AERO_GUI_API IClipboard {
 public:
     virtual ~IClipboard() = default;
     virtual Base::Result<void> ReadText(Base::String& output) noexcept = 0;
     virtual Base::Result<void> WriteText(Base::StringView text) noexcept = 0;
 };
 
-class AERO_API MemoryClipboard : public IClipboard {
+class AERO_GUI_API MemoryClipboard : public IClipboard {
 public:
     explicit MemoryClipboard(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -41,7 +41,7 @@ struct ImeCandidateWindow {
     double dpiScale = 1.0;
 };
 
-class AERO_API ITextCompositionClient {
+class AERO_GUI_API ITextCompositionClient {
 public:
     virtual ~ITextCompositionClient() = default;
     virtual Base::Result<void> BeginComposition() noexcept = 0;
@@ -52,7 +52,7 @@ public:
     virtual Base::Result<void> CancelComposition() noexcept = 0;
 };
 
-class AERO_API ITextInputMethodHost {
+class AERO_GUI_API ITextInputMethodHost {
 public:
     virtual ~ITextInputMethodHost() = default;
     virtual void SetClient(

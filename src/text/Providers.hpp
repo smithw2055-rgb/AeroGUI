@@ -20,7 +20,7 @@ struct GlyphRequest  {
     float dpiScale = 1.0F;
 };
 
-class AERO_API IFontProvider {
+class IFontProvider {
 public:
     virtual ~IFontProvider() = default;
 
@@ -38,7 +38,7 @@ public:
     virtual void ReleaseFace(FontFaceHandle face) noexcept = 0;
 };
 
-class AERO_API ITextShaper {
+class ITextShaper {
 public:
     virtual ~ITextShaper() = default;
 
@@ -49,7 +49,7 @@ public:
         ShapedTextRun& output) noexcept = 0;
 };
 
-class AERO_API IGlyphRasterizer {
+class IGlyphRasterizer {
 public:
     virtual ~IGlyphRasterizer() = default;
 

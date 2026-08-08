@@ -21,7 +21,7 @@ namespace Aero {
 
 class Style;
 
-class AERO_API SetterBaseCollection {
+class AERO_GUI_API SetterBaseCollection {
 public:
     std::uint32_t GetCount() const noexcept;
     SetterBase* GetItem(std::uint32_t index) const noexcept;
@@ -35,7 +35,7 @@ private:
     Style* owner_ = nullptr;
 };
 
-class AERO_API TriggerCollection {
+class AERO_GUI_API TriggerCollection {
 public:
     std::uint32_t GetCount() const noexcept;
     TriggerBase* GetItem(std::uint32_t index) const noexcept;
@@ -51,10 +51,10 @@ private:
 
 // WPF-shaped Style authoring surface. Runtime plans and provider precedence are
 // compiled privately when the style is sealed.
-class AERO_API Style : public Base::Object {
+class AERO_GUI_API Style : public Base::Object {
     AERO_DECLARE_TYPE(Style, Base::Object)
 public:
-    struct Impl;
+    struct Access;
 
     Style() noexcept;
     explicit Style(
@@ -167,7 +167,7 @@ public:
     void SetResources(Base::Ref<ResourceDictionary> value) noexcept;
 
 private:
-    friend struct Impl;
+    friend struct Access;
 
     Base::Result<void> AddPropertyTrigger(
         DependencyPropertyHandle condition,
@@ -183,7 +183,7 @@ private:
     Base::Vector<Base::Ref<Setter>> authoredSetterObjects_;
     Base::Vector<Base::Ref<TriggerBase>> authoredTriggerObjects_;
     Base::IAllocator* implAllocator_ = nullptr;
-    Impl* program_ = nullptr;
+    Access* program_ = nullptr;
     ResourceDictionary resources_;
     bool sealed_ = false;
 };

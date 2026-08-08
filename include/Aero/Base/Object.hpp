@@ -25,24 +25,24 @@ using DestroyObjectFn = void(*)(
     std::size_t size,
     std::size_t alignment) noexcept;
 
-AERO_API ObjectControlBlock* CreateObjectControlBlock(
+AERO_BASE_API ObjectControlBlock* CreateObjectControlBlock(
     IAllocator& allocator,
     Object* object,
     std::size_t objectSize,
     std::size_t objectAlignment,
     DestroyObjectFn destroy) noexcept;
 
-AERO_API void AddStrong(ObjectControlBlock* control) noexcept;
-AERO_API bool AcquireStrong(ObjectControlBlock* control) noexcept;
-AERO_API void ReleaseStrong(ObjectControlBlock* control) noexcept;
-AERO_API void AddWeak(ObjectControlBlock* control) noexcept;
-AERO_API void ReleaseWeak(ObjectControlBlock* control) noexcept;
-AERO_API Object* GetObject(ObjectControlBlock* control) noexcept;
-AERO_API std::uint32_t GetStrongCount(ObjectControlBlock* control) noexcept;
+AERO_BASE_API void AddStrong(ObjectControlBlock* control) noexcept;
+AERO_BASE_API bool AcquireStrong(ObjectControlBlock* control) noexcept;
+AERO_BASE_API void ReleaseStrong(ObjectControlBlock* control) noexcept;
+AERO_BASE_API void AddWeak(ObjectControlBlock* control) noexcept;
+AERO_BASE_API void ReleaseWeak(ObjectControlBlock* control) noexcept;
+AERO_BASE_API Object* GetObject(ObjectControlBlock* control) noexcept;
+AERO_BASE_API std::uint32_t GetStrongCount(ObjectControlBlock* control) noexcept;
 
 } // namespace Detail
 
-class Object {
+class AERO_BASE_API Object {
 public:
     Object(const Object&) = delete;
     Object& operator=(const Object&) = delete;

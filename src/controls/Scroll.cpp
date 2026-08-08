@@ -1,29 +1,29 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "media/AnimationInternal.hpp"
-#include "media/BrushInternal.hpp"
-#include "media/EffectInternal.hpp"
-#include "media/TransformInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "media/AnimationRuntime.hpp"
+#include "media/BrushRuntime.hpp"
+#include "media/EffectRuntime.hpp"
+#include "media/TransformRuntime.hpp"
 #include <Aero/Value.hpp>
 
 #include <algorithm>
@@ -32,8 +32,8 @@
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Controls::Detail::ScrollBehavior;
-using Aero::Controls::Detail::SliderBehavior;
+using Aero::Controls::ScrollBehavior;
+using Aero::Controls::SliderBehavior;
 
 using namespace Primitives;
 using namespace ::Aero::Render;
@@ -561,8 +561,8 @@ ScrollViewer::ScrollViewer() noexcept
 }
 
 ScrollViewer::~ScrollViewer() {
-    auto* behaviors = static_cast<Detail::ControlBehavior*>(
-        ::Aero::Media::Visual::Impl::ControlBehaviorRuntime(*this));
+    auto* behaviors = static_cast<ControlBehavior*>(
+        ::Aero::Media::Visual::Access::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -876,7 +876,7 @@ void ScrollViewer::OnScrollDataChanged(
             "PART_VerticalScrollBar"),
         false);
 
-    auto* events = ::Aero::Media::Visual::Impl::EventRouterFor(*this);
+    auto* events = ::Aero::Media::Visual::Access::EventRouterFor(*this);
     if (events != nullptr) {
         ScrollChangedEventArgs args(oldData, newData, kind);
         static_cast<void>(
@@ -1812,7 +1812,7 @@ Size Slider::ArrangeOverride(
 
 void Slider::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     const TickPlacement placement =
         GetTickPlacement();
     const Size size = GetRenderSize();
@@ -1837,7 +1837,7 @@ void Slider::OnRender(
     const double travel =
         std::max(0.0,
             primary - thumbLength);
-    const Color color = ::Aero::Media::Detail::SampleBrush(GetForeground());
+    const Color color = ::Aero::Media::SampleBrush(GetForeground());
     Color trackColor = color;
     trackColor.alpha *= 0.35F;
     const double normalized =
@@ -2025,7 +2025,7 @@ void TickBar::SetPlacement(
 
 void TickBar::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     DependencyObject* parent = GetTemplatedParent();
     if (parent == nullptr ||
         !PropertyRegistry().Types().IsDerivedFrom(
@@ -2042,8 +2042,8 @@ void TickBar::OnRender(
     const double range = slider.GetMaximum() - slider.GetMinimum();
     if (primary <= 0.0 || range < 0.0) return;
 
-    const Color color = ::Aero::Media::Detail::SampleBrush(
-        GetFill(), 0.5, ::Aero::Media::Detail::SampleBrush(GetForeground()));
+    const Color color = ::Aero::Media::SampleBrush(
+        GetFill(), 0.5, ::Aero::Media::SampleBrush(GetForeground()));
     constexpr double thumbLength = 14.0;
     const double start = std::min(
         primary * 0.5, thumbLength * 0.5);
@@ -2158,19 +2158,19 @@ namespace Aero::Controls {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
-using namespace ::Aero::Controls::Detail;
-using namespace ::Aero::GuiPrivate::Detail;
+using namespace ::Aero::Controls;
+using namespace ::Aero;
 
-ScrollViewer::Impl::Impl(
+ScrollViewer::Access::Access(
     ElementTree& tree,
     EventRouter& events) noexcept
     : tree_(&tree),
       events_(&events),
       wheelHandler_(
           this,
-          &ScrollViewer::Impl::OnMouseWheel) {}
+          &ScrollViewer::Access::OnMouseWheel) {}
 
-ScrollViewer::Impl::~Impl() noexcept {
+ScrollViewer::Access::~Access() noexcept {
     while (!viewers_.Empty()) {
         ScrollViewer* viewer =
             viewers_.Back().viewer;
@@ -2182,9 +2182,9 @@ ScrollViewer::Impl::~Impl() noexcept {
     }
 }
 
-std::uint32_t ScrollViewer::Impl::FindViewer(
+std::uint32_t ScrollViewer::Access::FindViewer(
     const ScrollViewer& viewer) const noexcept {
-    const VisualHandle handle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(viewer);
+    const VisualHandle handle = Aero::ElementPrivate::Handle(viewer);
     for (std::uint32_t index = 0U;
         index < viewers_.Size(); ++index) {
         if (viewers_[index].viewer == &viewer ||
@@ -2197,15 +2197,15 @@ std::uint32_t ScrollViewer::Impl::FindViewer(
     return UINT32_MAX;
 }
 
-Base::Result<void> ScrollViewer::Impl::Attach(
+Base::Result<void> ScrollViewer::Access::Attach(
     ScrollViewer& viewer) noexcept {
     if (FindViewer(viewer) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "ScrollViewer is already attached");
     }
-    if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(viewer) != tree_ ||
-        !Aero::GuiPrivate::Detail::ElementPrivate::Handle(viewer).IsValid()) {
+    if (Aero::ElementPrivate::Tree(viewer) != tree_ ||
+        !Aero::ElementPrivate::Handle(viewer).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ScrollViewer must be loaded in the interaction tree");
@@ -2217,7 +2217,7 @@ Base::Result<void> ScrollViewer::Impl::Attach(
     if (!handler) return handler.GetStatus();
     Base::Result<void> added =
         viewers_.PushBack(
-            {&viewer, Aero::GuiPrivate::Detail::ElementPrivate::Handle(viewer)});
+            {&viewer, Aero::ElementPrivate::Handle(viewer)});
     if (!added) {
         static_cast<void>(viewer.RemoveHandler(
             UIElement::MouseWheelEvent,
@@ -2227,7 +2227,7 @@ Base::Result<void> ScrollViewer::Impl::Attach(
     return {};
 }
 
-Base::Result<bool> ScrollViewer::Impl::Detach(
+Base::Result<bool> ScrollViewer::Access::Detach(
     ScrollViewer& viewer) noexcept {
     const std::uint32_t index = FindViewer(viewer);
     if (index == UINT32_MAX) return false;
@@ -2241,7 +2241,7 @@ Base::Result<bool> ScrollViewer::Impl::Detach(
     return true;
 }
 
-void ScrollViewer::Impl::OnMouseWheel(
+void ScrollViewer::Access::OnMouseWheel(
     Base::Object* sender,
     MouseWheelEventArgs& args) noexcept {
     auto* viewer = static_cast<ScrollViewer*>(sender);
@@ -2263,7 +2263,7 @@ void ScrollViewer::Impl::OnMouseWheel(
     }
 }
 
-Slider::Impl::Impl(
+Slider::Access::Access(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input) noexcept
@@ -2272,33 +2272,33 @@ Slider::Impl::Impl(
       input_(&input),
       mouseDownHandler_(
           this,
-          &Slider::Impl::OnMouseDown),
+          &Slider::Access::OnMouseDown),
       mouseMoveHandler_(
           this,
-          &Slider::Impl::OnMouseMove),
+          &Slider::Access::OnMouseMove),
       mouseUpHandler_(
           this,
-          &Slider::Impl::OnMouseUp),
+          &Slider::Access::OnMouseUp),
       keyDownHandler_(
           this,
-          &Slider::Impl::OnKeyDown),
+          &Slider::Access::OnKeyDown),
       captureChangedHandler_(
           this,
-          &Slider::Impl::OnCaptureChanged),
+          &Slider::Access::OnCaptureChanged),
       decreaseSmallHandler_(
           this,
-          &Slider::Impl::OnDecreaseSmallCommand),
+          &Slider::Access::OnDecreaseSmallCommand),
       increaseSmallHandler_(
           this,
-          &Slider::Impl::OnIncreaseSmallCommand),
+          &Slider::Access::OnIncreaseSmallCommand),
       decreaseLargeHandler_(
           this,
-          &Slider::Impl::OnDecreaseLargeCommand),
+          &Slider::Access::OnDecreaseLargeCommand),
       increaseLargeHandler_(
           this,
-          &Slider::Impl::OnIncreaseLargeCommand) {}
+          &Slider::Access::OnIncreaseLargeCommand) {}
 
-Slider::Impl::~Impl()
+Slider::Access::~Access()
     noexcept {
     while (!sliders_.Empty()) {
         Slider* slider =
@@ -2314,12 +2314,12 @@ Slider::Impl::~Impl()
             captureChangedHandler_));
 }
 
-std::uint32_t Slider::Impl::Find(
+std::uint32_t Slider::Access::Find(
     const Slider& slider) const noexcept {
     for (std::uint32_t index = 0U;
          index < sliders_.Size(); ++index) {
         const VisualHandle current =
-            Aero::GuiPrivate::Detail::ElementPrivate::Handle(slider);
+            Aero::ElementPrivate::Handle(slider);
         if (sliders_[index].handle.index ==
                 current.index &&
             sliders_[index].handle.generation ==
@@ -2330,7 +2330,7 @@ std::uint32_t Slider::Impl::Find(
     return UINT32_MAX;
 }
 
-Slider* Slider::Impl::Resolve(
+Slider* Slider::Access::Resolve(
     std::uint32_t index) noexcept {
     if (index >= sliders_.Size()) return nullptr;
     ::Aero::Media::Visual* node =
@@ -2346,7 +2346,7 @@ Slider* Slider::Impl::Resolve(
     return static_cast<Slider*>(node);
 }
 
-void Slider::Impl::RemoveAt(
+void Slider::Access::RemoveAt(
     std::uint32_t index) noexcept {
     if (index >= sliders_.Size()) return;
     if (index + 1U != sliders_.Size()) {
@@ -2356,15 +2356,15 @@ void Slider::Impl::RemoveAt(
     sliders_.PopBack();
 }
 
-Base::Result<void> Slider::Impl::Attach(
+Base::Result<void> Slider::Access::Attach(
     Slider& slider) noexcept {
     if (Find(slider) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "Slider is already attached");
     }
-    if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(slider) != tree_ ||
-        !Aero::GuiPrivate::Detail::ElementPrivate::Handle(slider).IsValid()) {
+    if (Aero::ElementPrivate::Tree(slider) != tree_ ||
+        !Aero::ElementPrivate::Handle(slider).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Slider must be loaded in the interaction tree");
@@ -2413,7 +2413,7 @@ Base::Result<void> Slider::Impl::Attach(
     }
     SliderRecord record;
     record.handle =
-        Aero::GuiPrivate::Detail::ElementPrivate::Handle(slider);
+        Aero::ElementPrivate::Handle(slider);
     const auto addCommand =
         [this, &slider](
             Base::StringView name,
@@ -2516,7 +2516,7 @@ Base::Result<void> Slider::Impl::Attach(
     return {};
 }
 
-Base::Result<bool> Slider::Impl::Detach(
+Base::Result<bool> Slider::Access::Detach(
     Slider& slider) noexcept {
     const std::uint32_t index = Find(slider);
     if (index == UINT32_MAX) return false;
@@ -2554,7 +2554,7 @@ Base::Result<bool> Slider::Impl::Detach(
     return true;
 }
 
-void Slider::Impl::OnDecreaseSmallCommand(
+void Slider::Access::OnDecreaseSmallCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* slider = static_cast<Slider*>(sender);
@@ -2564,7 +2564,7 @@ void Slider::Impl::OnDecreaseSmallCommand(
     }
 }
 
-void Slider::Impl::OnIncreaseSmallCommand(
+void Slider::Access::OnIncreaseSmallCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* slider = static_cast<Slider*>(sender);
@@ -2574,7 +2574,7 @@ void Slider::Impl::OnIncreaseSmallCommand(
     }
 }
 
-void Slider::Impl::OnDecreaseLargeCommand(
+void Slider::Access::OnDecreaseLargeCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* slider = static_cast<Slider*>(sender);
@@ -2584,7 +2584,7 @@ void Slider::Impl::OnDecreaseLargeCommand(
     }
 }
 
-void Slider::Impl::OnIncreaseLargeCommand(
+void Slider::Access::OnIncreaseLargeCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* slider = static_cast<Slider*>(sender);
@@ -2595,7 +2595,7 @@ void Slider::Impl::OnIncreaseLargeCommand(
 }
 
 Base::Result<void>
-Slider::Impl::SetFromPoint(
+Slider::Access::SetFromPoint(
     Slider& slider,
     Point point) noexcept {
     const bool horizontal =
@@ -2611,7 +2611,7 @@ Slider::Impl::SetFromPoint(
     return {};
 }
 
-void Slider::Impl::OnMouseDown(
+void Slider::Access::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& slider =
@@ -2678,7 +2678,7 @@ void Slider::Impl::OnMouseDown(
     args.SetHandled(true);
 }
 
-void Slider::Impl::OnMouseMove(
+void Slider::Access::OnMouseMove(
     Base::Object* sender,
     MouseEventArgs& args) noexcept {
     auto& slider =
@@ -2696,7 +2696,7 @@ void Slider::Impl::OnMouseMove(
     args.SetHandled(true);
 }
 
-void Slider::Impl::OnMouseUp(
+void Slider::Access::OnMouseUp(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& slider =
@@ -2720,7 +2720,7 @@ void Slider::Impl::OnMouseUp(
     args.SetHandled(true);
 }
 
-void Slider::Impl::OnKeyDown(
+void Slider::Access::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& slider =
@@ -2769,7 +2769,7 @@ void Slider::Impl::OnKeyDown(
     }
 }
 
-void Slider::Impl::OnCaptureChanged(
+void Slider::Access::OnCaptureChanged(
     std::uint32_t pointerId,
     UIElement* target,
     bool captured) noexcept {

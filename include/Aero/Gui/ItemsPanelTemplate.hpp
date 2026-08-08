@@ -4,10 +4,10 @@
 
 namespace Aero::Controls {
 
-class AERO_API ItemsPanelTemplate : public Base::Object {
+class AERO_GUI_API ItemsPanelTemplate : public Base::Object {
     AERO_DECLARE_TYPE(ItemsPanelTemplate, Base::Object)
 public:
-    struct Impl;
+    struct Access;
 
     ItemsPanelTemplate() noexcept;
     ~ItemsPanelTemplate() noexcept override;
@@ -21,7 +21,7 @@ public:
     bool GetIsSealed() const noexcept;
 
 private:
-    friend struct Impl;
+    friend struct Access;
     void* state_ = nullptr;
 };
 

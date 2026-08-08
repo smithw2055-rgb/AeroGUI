@@ -1,5 +1,8 @@
 # S7 physical source-layout convergence
 
+> Historical milestone record. See `ARCHITECTURE.md` and
+> `REFACTOR_CLOSURE_S18_S24.md` for the current SDK and source layout.
+
 S6 removed the final C++ `Aero::Integration` namespace. S7 removes the remaining
 historical repository layout as well: no active source file lives under
 `src/integration` after this stage.

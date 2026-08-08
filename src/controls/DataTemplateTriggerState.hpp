@@ -8,7 +8,7 @@
 
 #include <cstdint>
 
-namespace Aero::Controls::Detail {
+namespace Aero::Controls {
 
 struct DataTemplateTriggerSetter {
     Base::WeakRef<::Aero::DependencyObject> target;
@@ -80,4 +80,4 @@ public:
     Base::Vector<DataTemplatePropertyTrigger> triggers;
 };
 
-} // namespace Aero::Controls::Detail
+} // namespace Aero::Controls

@@ -5,7 +5,7 @@
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 
-class AERO_API ToolTip
+class AERO_GUI_API ToolTip
     : public Primitives::Popup {
     AERO_DECLARE_TYPE(ToolTip, Primitives::Popup)
 public:
@@ -26,7 +26,7 @@ public:
     inline static constexpr DependencyProperty<std::uint32_t> ShowDurationProperty{"ShowDuration"};
 };
 
-class AERO_API ToolTipService
+class AERO_GUI_API ToolTipService
     : public Base::Object {
     AERO_DECLARE_TYPE(
         ToolTipService, Base::Object)

@@ -59,7 +59,7 @@ struct TextLayoutRequest  {
     TextAlignment alignment = TextAlignment::Left;
 };
 
-class AERO_API TextLayout  {
+class TextLayout  {
 public:
     explicit TextLayout(
         Base::IAllocator* allocator = nullptr) noexcept

@@ -14,7 +14,7 @@ enum class VirtualizationMode : std::uint8_t { Standard = 0U, Recycling };
 // WPF attached-property owner shared by all virtualizing panels. The current
 // panel implementation is pixel-based; exposing this owner preserves the
 // authored contract while item-unit realization is added.
-class AERO_API VirtualizingPanel : public Base::Object {
+class AERO_GUI_API VirtualizingPanel : public Base::Object {
     AERO_DECLARE_TYPE(VirtualizingPanel, Base::Object)
 public:
     TypeId RuntimeType() const noexcept override {
@@ -24,7 +24,7 @@ public:
     inline static constexpr AttachedProperty<VirtualizationMode> VirtualizationModeProperty{"VirtualizationMode"};
 };
 
-class AERO_API VirtualizingStackPanel
+class AERO_GUI_API VirtualizingStackPanel
     : public Panel,
       public IScrollInfo {
     AERO_DECLARE_TYPE(VirtualizingStackPanel, Panel)
@@ -91,7 +91,7 @@ protected:
 
 private:
     friend class ItemContainerGenerator;
-    friend struct ::Aero::Media::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Access;
 
     ItemContainerGenerator* generator_ = nullptr;
     Base::Vector<double> itemExtents_;

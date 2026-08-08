@@ -10,7 +10,7 @@ namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
-class AERO_API ComboBoxItem
+class AERO_GUI_API ComboBoxItem
     : public ListBoxItem {
     AERO_DECLARE_TYPE(ComboBoxItem, ListBoxItem)
 public:
@@ -25,10 +25,10 @@ public:
     inline static constexpr DependencyProperty<bool> IsSelectedProperty{"IsSelected"};
 };
 
-class AERO_API ComboBox : public Primitives::Selector {
+class AERO_GUI_API ComboBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ComboBox, Primitives::Selector)
 public:
-    struct Impl;
+    struct Access;
 
     ComboBox() noexcept;
     ~ComboBox() override;
@@ -100,7 +100,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend struct Impl;
+    friend struct Access;
     TextBlock* selectionBox_ = nullptr;
     ContentPresenter* selectionPresenter_ =
         nullptr;

@@ -20,7 +20,7 @@ enum class PopupAnimation : std::uint8_t {
     Scroll,
 };
 
-class AERO_API Popup : public ContentControl {
+class AERO_GUI_API Popup : public ContentControl {
     AERO_DECLARE_TYPE(Popup, ContentControl)
 public:
     Popup() noexcept;

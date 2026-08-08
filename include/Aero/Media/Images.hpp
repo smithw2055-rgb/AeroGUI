@@ -20,7 +20,7 @@ enum class StretchDirection : std::uint8_t {
     Both
 };
 
-class AERO_API ImageSource : public DependencyObject {
+class AERO_GUI_API ImageSource : public DependencyObject {
     AERO_DECLARE_TYPE(ImageSource, DependencyObject)
 protected:
     explicit ImageSource(TypeId runtimeType) noexcept
@@ -28,7 +28,7 @@ protected:
     ~ImageSource() override = default;
 };
 
-class AERO_API BitmapImage : public ImageSource {
+class AERO_GUI_API BitmapImage : public ImageSource {
     AERO_DECLARE_TYPE(BitmapImage, ImageSource)
 public:
     BitmapImage() noexcept

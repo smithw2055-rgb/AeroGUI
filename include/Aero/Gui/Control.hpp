@@ -15,10 +15,10 @@ using ::Aero::Meta::DependencyPropertyHandle;
 using ::Aero::Meta::TypeId;
 class ControlTemplate;
 class ItemContainerGenerator;
-class AERO_API Control : public FrameworkElement {
+class AERO_GUI_API Control : public FrameworkElement {
     AERO_DECLARE_TYPE(Control, FrameworkElement)
 public:
-    struct Impl;
+    struct Access;
 
     Base::Ref<Aero::Media::Brush> GetBackground() const noexcept {
         return GetValueOr(
@@ -158,7 +158,7 @@ protected:
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 private:
-    friend struct ::Aero::Controls::Control::Impl;
+    friend struct ::Aero::Controls::Control::Access;
     friend class ::Aero::VisualStateManager;
     void SetTemplateChildCore(UIElement* child) noexcept {
         if (child != nullptr && child->LayoutParent() != this) {

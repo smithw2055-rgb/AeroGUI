@@ -1,8 +1,9 @@
 #pragma once
 
+#include <Aero/Render/RenderDevice.hpp>
 #include "render/GraphicsTypes.hpp"
 
-namespace Aero::Render::Detail {
+namespace Aero::Render {
 
 enum class UiShader : std::uint8_t {
     Rectangle = 0U,
@@ -27,19 +28,8 @@ struct UiPipelineKey {
     UiBlendMode blend = UiBlendMode::Normal;
 };
 
-// UI-specific operations consumed by native RenderDevice implementations.
-// Binding state is folded into draw records; there is no public or private
-// generic GPU command-list lifecycle between Renderer and RenderDevice.
-enum class RenderStepKind : std::uint8_t {
-    UploadBuffer = 0U,
-    UploadTexture,
-    BeginPass,
-    EndPass,
-    Draw
-};
-
 struct RenderDrawState {
-    Graphics::ResourceHandle pipeline;
+    UiPipelineKey pipeline;
     Graphics::ResourceHandle vertexBuffers[Graphics::MaxVertexBuffers]{};
     std::uint64_t vertexOffsets[Graphics::MaxVertexBuffers]{};
     Graphics::ResourceHandle indexBuffer;
@@ -51,59 +41,37 @@ struct RenderDrawState {
     Graphics::ResourceHandle textures[8]{};
     Graphics::ResourceHandle samplers[8]{};
     Base::Rect scissor{};
+    bool pipelineBound = false;
 };
 
-struct RenderStep {
-    RenderStepKind kind = RenderStepKind::Draw;
-    Graphics::ResourceHandle resource;
+// One immutable UI draw submitted to RenderDevice. Texture/buffer updates and
+// pass sequencing are separate device operations, so this value can no longer
+// become a disguised frame command list.
+class RenderBatch final {
+public:
     Graphics::RenderPassDescriptor pass;
-    Graphics::TextureRegion textureRegion;
     RenderDrawState drawState;
-    std::uint64_t resourceOffset = 0U;
-    std::uint32_t resourceSize = 0U;
-    std::uint32_t uploadOffset = 0U;
-    std::uint32_t uploadSize = 0U;
     std::uint32_t first = 0U;
     std::uint32_t count = 0U;
-    std::uint32_t instanceCount = 0U;
+    std::uint32_t instanceCount = 1U;
     std::uint32_t firstInstance = 0U;
     std::int32_t baseVertex = 0;
     bool indexed = false;
-};
 
-class RenderBatch final {
-public:
-    explicit RenderBatch(Base::IAllocator* allocator = nullptr) noexcept
-        : steps_(allocator), uploadBytes_(allocator) {}
-
-    RenderBatch(RenderBatch&&) noexcept = default;
-    RenderBatch& operator=(RenderBatch&&) noexcept = default;
-    RenderBatch(const RenderBatch&) = delete;
-    RenderBatch& operator=(const RenderBatch&) = delete;
-
-    Base::Span<const RenderStep> Steps() const noexcept {
-        return {steps_.Data(), steps_.Size()};
-    }
-    Base::Span<const std::uint8_t> UploadBytes() const noexcept {
-        return {uploadBytes_.Data(), uploadBytes_.Size()};
-    }
-    std::uint32_t StepCount() const noexcept { return steps_.Size(); }
-    std::uint32_t UploadByteCount() const noexcept {
-        return uploadBytes_.Size();
-    }
-    bool Empty() const noexcept { return steps_.Empty(); }
+    bool Empty() const noexcept { return count == 0U; }
     std::uint64_t StableHash() const noexcept;
-
-private:
-    friend class RenderBatchBuilder;
-    Base::Vector<RenderStep> steps_;
-    Base::Vector<std::uint8_t> uploadBytes_;
 };
 
-class RenderBatchBuilder final {
+// Renderer-local immediate draw context. It retains only current binding state;
+// every Draw call submits exactly one RenderBatch to the device.
+class UiDrawContext final {
 public:
-    explicit RenderBatchBuilder(Base::IAllocator* allocator = nullptr) noexcept
-        : batch_(allocator) {}
+    explicit UiDrawContext(
+        Aero::RenderDevice::Access& device,
+        Base::IAllocator* allocator = nullptr) noexcept
+        : device_(&device) {
+        static_cast<void>(allocator);
+    }
 
     Base::Result<void> UploadBuffer(
         Graphics::ResourceHandle buffer,
@@ -116,7 +84,7 @@ public:
     Base::Result<void> BeginRenderPass(
         const Graphics::RenderPassDescriptor& descriptor) noexcept;
     Base::Result<void> EndRenderPass() noexcept;
-    Base::Result<void> BindPipeline(Graphics::ResourceHandle pipeline) noexcept;
+    Base::Result<void> BindPipeline(UiPipelineKey pipeline) noexcept;
     Base::Result<void> BindVertexBuffer(
         std::uint32_t slot,
         Graphics::ResourceHandle buffer,
@@ -146,19 +114,25 @@ public:
         std::uint32_t firstIndex = 0U,
         std::int32_t baseVertex = 0,
         std::uint32_t firstInstance = 0U) noexcept;
-    Base::Result<RenderBatch> Finish() noexcept;
+    Base::Result<Graphics::FenceValue> Finish() noexcept;
 
 private:
-    RenderBatch batch_;
+    Aero::RenderDevice::Access* device_ = nullptr;
+    Graphics::RenderPassDescriptor pass_;
     RenderDrawState state_{};
+    Graphics::FenceValue lastFence_ = 0U;
     bool inRenderPass_ = false;
     bool finished_ = false;
+    bool firstDrawInPass_ = true;
 
     Base::Result<void> VerifyRecording() const noexcept;
-    Base::Result<void> Append(const RenderStep& step) noexcept;
-    Base::Result<void> AppendUpload(
-        RenderStep& step,
-        Base::Span<const std::uint8_t> data) noexcept;
+    Base::Result<void> SubmitDraw(
+        std::uint32_t count,
+        std::uint32_t instanceCount,
+        std::uint32_t first,
+        std::uint32_t firstInstance,
+        std::int32_t baseVertex,
+        bool indexed) noexcept;
 };
 
-} // namespace Aero::Render::Detail
+} // namespace Aero::Render

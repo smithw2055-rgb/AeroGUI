@@ -1,38 +1,38 @@
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
-#include "controls/ControlInternal.hpp"
-#include "controls/ItemsInternal.hpp"
-#include "controls/TemplateInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
+#include "controls/ControlRuntime.hpp"
+#include "controls/ItemsRuntime.hpp"
+#include "controls/TemplateRuntime.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Gui/ControlTemplate.hpp>
 #include <Aero/Gui/Text.hpp>
 
-#include "gui/MetadataInternal.hpp"
-#include "gui/PropertyInternal.hpp"
-#include "gui/FreezableInternal.hpp"
-#include "gui/ElementInternal.hpp"
-#include "gui/RoutedEventInternal.hpp"
-#include "gui/InputInternal.hpp"
-#include "gui/LayoutInternal.hpp"
-#include "gui/BindingInternal.hpp"
-#include "gui/AnimationInternal.hpp"
-#include "gui/StyleInternal.hpp"
+#include "gui/MetadataRuntime.hpp"
+#include "gui/PropertyRuntime.hpp"
+#include "gui/FreezableRuntime.hpp"
+#include "gui/ElementRuntime.hpp"
+#include "gui/RoutedEventRuntime.hpp"
+#include "gui/InputRuntime.hpp"
+#include "gui/LayoutRuntime.hpp"
+#include "gui/BindingRuntime.hpp"
+#include "gui/AnimationRuntime.hpp"
+#include "gui/StyleRuntime.hpp"
 
 #include <algorithm>
 #include <utility>
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Controls::Detail::ComboBehavior;
-using Aero::Controls::Detail::ListBehavior;
+using Aero::Controls::ComboBehavior;
+using Aero::Controls::ListBehavior;
 
 using namespace Primitives;
 namespace {
@@ -563,7 +563,7 @@ Base::Result<void> Selector::PublishProperties() noexcept {
 
 void Selector::SyncContainers() noexcept {
     auto* states = static_cast<Aero::VisualStateManager*>(
-        ::Aero::Media::Visual::Impl::VisualStateRuntime(*this));
+        ::Aero::Media::Visual::Access::VisualStateRuntime(*this));
     ItemContainerGenerator* generator =
         AttachedGenerator();
     if (generator == nullptr) return;
@@ -583,7 +583,7 @@ void Selector::SyncContainers() noexcept {
         item.SetIsSelected(selected);
         if (states != nullptr) {
             static_cast<void>(
-                Aero::Controls::Detail::TemplatePrivate::GoToState(*states,
+                Aero::Controls::TemplatePrivate::GoToState(*states,
                     item,
                     "SelectionStates",
                     selected
@@ -840,8 +840,8 @@ void Selector::OnContainersChanged() noexcept {
 }
 
 ListBox::~ListBox() {
-    auto* behaviors = static_cast<Detail::ControlBehavior*>(
-        ::Aero::Media::Visual::Impl::ControlBehaviorRuntime(*this));
+    auto* behaviors = static_cast<ControlBehavior*>(
+        ::Aero::Media::Visual::Access::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -985,8 +985,8 @@ ComboBox::ComboBox() noexcept
 }
 
 ComboBox::~ComboBox() {
-    auto* behaviors = static_cast<Detail::ControlBehavior*>(
-        ::Aero::Media::Visual::Impl::ControlBehaviorRuntime(*this));
+    auto* behaviors = static_cast<ControlBehavior*>(
+        ::Aero::Media::Visual::Access::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -1373,9 +1373,9 @@ ComboBox::UpdateSelectionBox() noexcept {
         GetSelectedItem();
     if (selected &&
         selected->RuntimeType() ==
-            Detail::BoxedItemValue::StaticTypeId()) {
+            BoxedItemValue::StaticTypeId()) {
         const Meta::Value& value =
-            static_cast<const Detail::BoxedItemValue&>(
+            static_cast<const BoxedItemValue&>(
                 *selected).Value();
         if (value.Kind() ==
                 Meta::ValueKind::String) {
@@ -1395,7 +1395,7 @@ ComboBox::UpdateSelectionBox() noexcept {
                 selected->RuntimeType(),
                 ContentControl::StaticTypeId())) {
         UIElement* content =
-            Detail::ControlPrivate::ContentElement(*static_cast<ContentControl*>(
+            ControlPrivate::ContentElement(*static_cast<ContentControl*>(
                 selected.Get()));
         if (content != nullptr &&
             PropertyRegistry().Types().
@@ -1420,7 +1420,7 @@ ComboBox::UpdateSelectionBox() noexcept {
             PropertyRegistry().Types().IsDerivedFrom(
                 container->RuntimeType(),
                 ContentControl::StaticTypeId())) {
-            UIElement* content = Detail::ControlPrivate::ContentElement(
+            UIElement* content = ControlPrivate::ContentElement(
                 *static_cast<ContentControl*>(container));
             if (content != nullptr &&
                 PropertyRegistry().Types().IsDerivedFrom(
@@ -1520,11 +1520,11 @@ namespace Aero::Controls {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
-using namespace ::Aero::Controls::Detail;
-using namespace ::Aero::GuiPrivate::Detail;
+using namespace ::Aero::Controls;
+using namespace ::Aero;
 
-ComboBox::Impl::
-Impl(
+ComboBox::Access::
+Access(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input) noexcept
@@ -1533,15 +1533,15 @@ Impl(
       input_(&input),
       mouseDownHandler_(
           this,
-          &ComboBox::Impl::
+          &ComboBox::Access::
               OnMouseDown),
       keyDownHandler_(
           this,
-          &ComboBox::Impl::
+          &ComboBox::Access::
               OnKeyDown) {}
 
-ComboBox::Impl::
-~Impl() noexcept {
+ComboBox::Access::
+~Access() noexcept {
     while (!records_.Empty()) {
         ComboBox* comboBox =
             ResolveComboBox(
@@ -1556,7 +1556,7 @@ ComboBox::Impl::
 }
 
 std::uint32_t
-ComboBox::Impl::FindComboBox(
+ComboBox::Access::FindComboBox(
     const ComboBox& comboBox) const noexcept {
     for (std::uint32_t index = 0U;
          index < records_.Size(); ++index) {
@@ -1570,7 +1570,7 @@ ComboBox::Impl::FindComboBox(
 }
 
 ComboBox*
-ComboBox::Impl::ResolveComboBox(
+ComboBox::Access::ResolveComboBox(
     std::uint32_t index) noexcept {
     ::Aero::Media::Visual* visual =
         tree_->ResolveHandle(records_[index]);
@@ -1581,9 +1581,9 @@ ComboBox::Impl::ResolveComboBox(
 }
 
 Base::Result<void>
-ComboBox::Impl::Attach(
+ComboBox::Access::Attach(
     ComboBox& comboBox) noexcept {
-    if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(comboBox) != tree_ ||
+    if (Aero::ElementPrivate::Tree(comboBox) != tree_ ||
         FindComboBox(comboBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1626,7 +1626,7 @@ ComboBox::Impl::Attach(
 }
 
 Base::Result<bool>
-ComboBox::Impl::Detach(
+ComboBox::Access::Detach(
     ComboBox& comboBox) noexcept {
     const std::uint32_t index =
         FindComboBox(comboBox);
@@ -1649,7 +1649,7 @@ ComboBox::Impl::Detach(
     return true;
 }
 
-void ComboBox::Impl::OnMouseDown(
+void ComboBox::Access::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     if (args.GetChangedButton() !=
@@ -1673,7 +1673,7 @@ void ComboBox::Impl::OnMouseDown(
     args.SetHandled(true);
 }
 
-void ComboBox::Impl::OnKeyDown(
+void ComboBox::Access::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& comboBox =
@@ -1714,7 +1714,7 @@ void ComboBox::Impl::OnKeyDown(
     args.SetHandled(true);
 }
 
-ListBox::Impl::Impl(
+ListBox::Access::Access(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input,
@@ -1725,12 +1725,12 @@ ListBox::Impl::Impl(
       states_(states),
       mouseDownHandler_(
           this,
-          &ListBox::Impl::OnMouseDown),
+          &ListBox::Access::OnMouseDown),
       keyDownHandler_(
           this,
-          &ListBox::Impl::OnKeyDown) {}
+          &ListBox::Access::OnKeyDown) {}
 
-ListBox::Impl::~Impl() noexcept {
+ListBox::Access::~Access() noexcept {
     while (!records_.Empty()) {
         ListBox* listBox =
             ResolveListBox(records_.Size() - 1U);
@@ -1742,7 +1742,7 @@ ListBox::Impl::~Impl() noexcept {
     }
 }
 
-std::uint32_t ListBox::Impl::FindListBox(
+std::uint32_t ListBox::Access::FindListBox(
     const ListBox& listBox) const noexcept {
     for (std::uint32_t index = 0U;
         index < records_.Size(); ++index) {
@@ -1755,7 +1755,7 @@ std::uint32_t ListBox::Impl::FindListBox(
     return UINT32_MAX;
 }
 
-ListBox* ListBox::Impl::ResolveListBox(
+ListBox* ListBox::Access::ResolveListBox(
     std::uint32_t index) noexcept {
     ::Aero::Media::Visual* visual =
         tree_->ResolveHandle(records_[index].handle);
@@ -1765,9 +1765,9 @@ ListBox* ListBox::Impl::ResolveListBox(
         : nullptr;
 }
 
-Base::Result<void> ListBox::Impl::Attach(
+Base::Result<void> ListBox::Access::Attach(
     ListBox& listBox) noexcept {
-    if (Aero::GuiPrivate::Detail::ElementPrivate::Tree(listBox) != tree_ ||
+    if (Aero::ElementPrivate::Tree(listBox) != tree_ ||
         FindListBox(listBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1804,11 +1804,11 @@ Base::Result<void> ListBox::Impl::Attach(
             mouseDownHandler_));
         return added.GetStatus();
     }
-    ::Aero::Media::Visual::Impl::SyncSelectorContainers(listBox);
+    ::Aero::Media::Visual::Access::SyncSelectorContainers(listBox);
     return {};
 }
 
-Base::Result<bool> ListBox::Impl::Detach(
+Base::Result<bool> ListBox::Access::Detach(
     ListBox& listBox) noexcept {
     const std::uint32_t index =
         FindListBox(listBox);
@@ -1830,7 +1830,7 @@ Base::Result<bool> ListBox::Impl::Detach(
 }
 
 std::uint32_t
-ListBox::Impl::FindContainerIndex(
+ListBox::Access::FindContainerIndex(
     ListBox& listBox,
     Base::Object* source) const noexcept {
     if (source == nullptr ||
@@ -1865,7 +1865,7 @@ ListBox::Impl::FindContainerIndex(
 }
 
 Base::Result<bool>
-ListBox::Impl::ApplyUserSelection(
+ListBox::Access::ApplyUserSelection(
     ListBox& listBox,
     Record& record,
     std::uint32_t index,
@@ -1922,7 +1922,7 @@ ListBox::Impl::ApplyUserSelection(
     return true;
 }
 
-void ListBox::Impl::OnMouseDown(
+void ListBox::Access::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     if (args.GetChangedButton() != MouseButton::Left) {
@@ -1956,7 +1956,7 @@ void ListBox::Impl::OnMouseDown(
     args.SetHandled(true);
 }
 
-void ListBox::Impl::OnKeyDown(
+void ListBox::Access::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     if (args.GetKey() != KeyboardKeyUp &&

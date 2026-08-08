@@ -8,7 +8,7 @@
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 
-class AERO_API Separator
+class AERO_GUI_API Separator
     : public Control {
     AERO_DECLARE_TYPE(Separator, Control)
 public:
@@ -17,7 +17,7 @@ public:
     ~Separator() override = default;
 };
 
-class AERO_API ToolBar
+class AERO_GUI_API ToolBar
     : public ItemsControl {
     AERO_DECLARE_TYPE(ToolBar, ItemsControl)
 public:
@@ -76,7 +76,7 @@ private:
 };
 
 // Template item hosts for the primary and overflow regions of ToolBar.
-class AERO_API ToolBarPanel : public Panel {
+class AERO_GUI_API ToolBarPanel : public Panel {
     AERO_DECLARE_TYPE(ToolBarPanel, Panel)
 public:
     ToolBarPanel() noexcept : Panel(StaticTypeId()) {}
@@ -86,7 +86,7 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
 };
 
-class AERO_API ToolBarOverflowPanel : public Panel {
+class AERO_GUI_API ToolBarOverflowPanel : public Panel {
     AERO_DECLARE_TYPE(ToolBarOverflowPanel, Panel)
 public:
     ToolBarOverflowPanel() noexcept : Panel(StaticTypeId()) {}
@@ -99,7 +99,7 @@ protected:
 // Owner for ToolBarTray attached properties. The current toolbar host does not
 // support interactive band rearrangement yet, but authored IsLocked values
 // must round-trip through the same dependency-property system as WPF.
-class AERO_API ToolBarTray : public Base::Object {
+class AERO_GUI_API ToolBarTray : public Base::Object {
     AERO_DECLARE_TYPE(ToolBarTray, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }

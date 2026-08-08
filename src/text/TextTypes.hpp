@@ -43,7 +43,7 @@ constexpr bool operator!=(
     return !(left == right);
 }
 
-class AERO_API Typeface  {
+class Typeface  {
 public:
     explicit Typeface(Base::IAllocator* allocator = nullptr) noexcept
         : family_(allocator), language_(allocator) {}

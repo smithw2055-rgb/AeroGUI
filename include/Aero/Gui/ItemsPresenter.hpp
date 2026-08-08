@@ -5,7 +5,7 @@
 
 namespace Aero::Controls {
 
-class AERO_API ItemsPresenter : public Decorator {
+class AERO_GUI_API ItemsPresenter : public Decorator {
     AERO_DECLARE_TYPE(ItemsPresenter, Decorator)
 public:
     ItemsPresenter() noexcept : Decorator(StaticTypeId()) {}

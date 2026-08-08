@@ -4,7 +4,7 @@
 
 namespace Aero::Media::Animation {
 
-class AERO_API StoryboardCompletedTrigger : public Base::Object {
+class AERO_GUI_API StoryboardCompletedTrigger : public Base::Object {
     AERO_DECLARE_TYPE(StoryboardCompletedTrigger, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }

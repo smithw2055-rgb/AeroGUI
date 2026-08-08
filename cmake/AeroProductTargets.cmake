@@ -4,16 +4,24 @@ set(_aero_app_sources
     src/app/platform/WindowWait.cpp
     src/app/ApplicationRun.cpp
     src/app/DesktopHost.cpp
+    src/app/OpenGL33RenderContext.cpp
+    src/app/Presentation.cpp
     src/app/RenderContext.cpp
     src/app/Window.cpp)
 if(WIN32)
     list(APPEND _aero_app_sources
+        src/app/D3D11RenderContext.cpp
         src/app/platform/win32/Clipboard.cpp
         src/app/platform/win32/Ime.cpp
+        src/app/platform/win32/OpenGLWindow.cpp
         src/app/platform/win32/Window.cpp)
 else()
     list(APPEND _aero_app_sources
         src/app/platform/x11/Window.cpp)
+    if(AERO_ENABLE_GLX_SURFACE)
+        list(APPEND _aero_app_sources
+            src/app/platform/x11/OpenGLWindow.cpp)
+    endif()
 endif()
 
 add_library(AeroApp ${AERO_LIBRARY_TYPE} ${_aero_app_sources})
@@ -26,15 +34,16 @@ target_include_directories(AeroApp
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroApp PUBLIC Aero::Gui)
 if(WIN32)
-    target_link_libraries(AeroApp PRIVATE user32 imm32)
+    target_link_libraries(AeroApp PRIVATE user32 imm32 d3d11 dxgi gdi32 opengl32)
 elseif(AERO_ENABLE_GLX_SURFACE)
     if(NOT TARGET X11::X11)
         message(FATAL_ERROR
             "X11::X11 is required by the enabled default X11 App host")
     endif()
-    target_link_libraries(AeroApp PRIVATE X11::X11)
+    target_link_libraries(AeroApp PRIVATE X11::X11 OpenGL::GL)
 endif()
 target_compile_definitions(AeroApp PRIVATE
+    $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_APP_EXPORTS>
     AERO_APP_HAS_D3D11=$<BOOL:${AERO_ENABLE_D3D11_BACKEND}>
     "AERO_APP_HAS_OPENGL_WINDOW=$<OR:$<BOOL:${AERO_ENABLE_WGL_SURFACE}>,$<BOOL:${AERO_ENABLE_GLX_SURFACE}>>"
     AERO_PLATFORM_HAS_X11_WINDOW=$<BOOL:${AERO_ENABLE_GLX_SURFACE}>)
@@ -44,8 +53,11 @@ set_target_properties(AeroApp PROPERTIES
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
     POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+    WINDOWS_EXPORT_ALL_SYMBOLS OFF
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
 aero_apply_compiler_options(AeroApp)
+aero_verify_windows_exports(AeroApp "Application@Aero@@")
 
 add_library(AeroProductHeaderConsumer OBJECT
     tools/sdk-consumers/ProductConsumer.cpp)
