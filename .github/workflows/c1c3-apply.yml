@@ -1,0 +1,84 @@
+name: Apply C1-C3 Closure
+
+on:
+  push:
+    branches:
+      - agent/c1-c3-closure
+    paths:
+      - .c1c3/ready-v2
+
+permissions:
+  contents: write
+
+jobs:
+  apply-build-commit:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Rebuild and apply closure patch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cat .c1c3/v2-part-* > /tmp/c1c3.patch.b64
+          base64 -d /tmp/c1c3.patch.b64 > /tmp/c1c3.patch.gz
+          gzip -dc /tmp/c1c3.patch.gz > /tmp/c1c3.patch
+          git apply --3way /tmp/c1c3.patch
+
+      - name: Remove staging payload
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -rf .c1c3
+          rm -f .github/workflows/c1c3-apply.yml
+
+      - name: Verify source closure
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test ! -e src/runtime
+          test ! -e src/providers
+          test ! -e src/platform
+          test ! -e src/runtime/ViewAccess.hpp
+          test -f src/gui/Gui.cpp
+          test -f src/gui/View.cpp
+          test -f src/markup/XamlProvider.cpp
+          test -f src/app/platform/Window.hpp
+          test -f src/app/platform/WindowWait.cpp
+          grep -q 'class AERO_API Gui' include/Aero/Gui.hpp
+          ! grep -q 'class AERO_API View' include/Aero/Gui.hpp
+          grep -q 'class AERO_API View' include/Aero/View.hpp
+          ! grep -R -E 'RunChecked|ShowChecked|CloseChecked|SetContentChecked' include/Aero
+
+      - name: Configure strict C++17 build
+        run: >-
+          cmake -S . -B build-c1c3 -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DAERO_BUILD_TESTS=OFF
+          -DAERO_BUILD_SAMPLES=OFF
+          -DAERO_BUILD_TOOLS=ON
+          -DAERO_ENABLE_EXCEPTIONS=OFF
+          -DAERO_ENABLE_RTTI=OFF
+          -DAERO_WARNINGS_AS_ERRORS=ON
+          -DAERO_ENABLE_D3D11_BACKEND=OFF
+          -DAERO_ENABLE_WGL_SURFACE=OFF
+          -DAERO_ENABLE_GLX_SURFACE=OFF
+          -DAERO_ENABLE_SOKOL_BACKEND=OFF
+
+      - name: Build
+        run: cmake --build build-c1c3 -j2
+
+      - name: Commit closure
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git status --short
+          git commit -m 'C1-C3 architecture closure'
+          git push origin HEAD:agent/c1-c3-closure

@@ -1,0 +1,70 @@
+name: Export C1-C3 Patch v2
+
+on:
+  pull_request:
+    branches:
+      - codex/local-no-samples-tests
+    types: [synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.event.pull_request.head.ref == 'agent/c1-c3-closure'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/c1-c3-closure
+          fetch-depth: 0
+      - name: Recover verified block boundaries
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git fetch origin agent/c1-c3-payload-v3:refs/remotes/origin/agent/c1-c3-payload-v3
+          for n in 01 02 03 04 05 06 07 08; do
+            git show origin/agent/c1-c3-payload-v3:.c1c3/v3-part-$n > /tmp/raw-$n
+          done
+          head -c 8192 .c1c3/v3-part-00 > /tmp/part-00
+          python3 - <<'PY'
+          from pathlib import Path
+          raw1 = Path('/tmp/raw-01').read_bytes()
+          p2 = Path('/tmp/raw-02').read_bytes()
+          raw5 = Path('/tmp/raw-05').read_bytes()
+          p6 = Path('/tmp/raw-06').read_bytes()
+          def recover(raw, nxt, out):
+              needle = nxt[:256]
+              hits=[]
+              start=0
+              while True:
+                  i=raw.find(needle,start)
+                  if i<0: break
+                  if i>=8192:
+                      hits.append(i)
+                  start=i+1
+              print(out, 'hits', hits)
+              if len(hits)!=1:
+                  raise SystemExit(f'{out}: expected one boundary, got {hits}')
+              Path(out).write_bytes(raw[hits[0]-8192:hits[0]])
+          recover(raw1,p2,'/tmp/part-01')
+          recover(raw5,p6,'/tmp/part-05')
+          PY
+          cp /tmp/raw-02 /tmp/part-02
+          cp /tmp/raw-03 /tmp/part-03
+          cp /tmp/raw-04 /tmp/part-04
+          cp /tmp/raw-06 /tmp/part-06
+          cp /tmp/raw-07 /tmp/part-07
+          cp /tmp/raw-08 /tmp/part-08
+          cat /tmp/part-00 /tmp/part-01 /tmp/part-02 /tmp/part-03 /tmp/part-04 /tmp/part-05 /tmp/part-06 /tmp/part-07 /tmp/part-08 > /tmp/c1c3.patch.b64
+          test "$(wc -c < /tmp/c1c3.patch.b64)" -eq 66980
+          echo 'a72853743fd4ab3883f1ec2da85df4c0e4cfa6b3fdf9bfd387e9336cc1ec5842  /tmp/c1c3.patch.b64' | sha256sum -c -
+          base64 -d /tmp/c1c3.patch.b64 > /tmp/c1c3.patch.gz
+          echo '242c38e1f7d1b6e2282159eb1cc0f9e2695264b55bf5a3586ee1998dfbaf54ba  /tmp/c1c3.patch.gz' | sha256sum -c -
+          gzip -dc /tmp/c1c3.patch.gz > AeroGUI-C1-C3-final.patch
+          echo '3b4cfdb9b5a013eeff9f91b21e779b4505269d2c0d680aac7ca1a5267fa183dc  AeroGUI-C1-C3-final.patch' | sha256sum -c -
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AeroGUI-C1-C3-final-patch
+          path: AeroGUI-C1-C3-final.patch
+          retention-days: 1

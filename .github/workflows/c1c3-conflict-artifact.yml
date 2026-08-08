@@ -1,0 +1,57 @@
+name: C1-C3 Conflict Artifact
+
+on:
+  pull_request:
+    branches:
+      - codex/local-no-samples-tests
+    types: [synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.event.pull_request.head.ref == 'agent/c1-c3-closure'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/c1-c3-closure
+          fetch-depth: 0
+          submodules: recursive
+      - name: Rebuild verified patch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git fetch origin agent/c1-c3-payload-v3:refs/remotes/origin/agent/c1-c3-payload-v3
+          cat .c1c3/v3-part-00 > /tmp/c1c3.patch.b64
+          for n in 01 02 03 04 05 06 07 08; do
+            git show origin/agent/c1-c3-payload-v3:.c1c3/v3-part-$n >> /tmp/c1c3.patch.b64
+          done
+          echo 'a72853743fd4ab3883f1ec2da85df4c0e4cfa6b3fdf9bfd387e9336cc1ec5842  /tmp/c1c3.patch.b64' | sha256sum -c -
+          base64 -d /tmp/c1c3.patch.b64 > /tmp/c1c3.patch.gz
+          gzip -dc /tmp/c1c3.patch.gz > /tmp/c1c3.patch
+          echo '3b4cfdb9b5a013eeff9f91b21e779b4505269d2c0d680aac7ca1a5267fa183dc  /tmp/c1c3.patch' | sha256sum -c -
+      - name: Capture conflicts
+        shell: bash
+        run: |
+          set +e
+          git apply --3way /tmp/c1c3.patch > /tmp/apply.log 2>&1
+          rc=$?
+          set -e
+          {
+            echo "APPLY_RC=$rc"
+            echo 'UNMERGED:'
+            git diff --name-only --diff-filter=U
+            echo 'STATUS:'
+            git status --porcelain=v1
+            echo 'APPLY_LOG:'
+            cat /tmp/apply.log
+          } > /tmp/conflicts.txt
+          cat /tmp/conflicts.txt
+      - name: Upload conflict report
+        uses: actions/upload-artifact@v4
+        with:
+          name: c1c3-conflicts
+          path: /tmp/conflicts.txt
+          retention-days: 1

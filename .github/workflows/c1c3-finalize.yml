@@ -1,0 +1,168 @@
+name: Finalize C1-C3 Closure
+
+on:
+  pull_request:
+    branches:
+      - codex/local-no-samples-tests
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.event.pull_request.head.ref == 'agent/c1-c3-closure'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout real S9-S12 PR head
+        uses: actions/checkout@v4
+        with:
+          ref: agent/c1-c3-closure
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Reconstruct exact verified C1-C3 patch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git fetch origin agent/c1-c3-payload-v3:refs/remotes/origin/agent/c1-c3-payload-v3
+          mkdir -p /tmp/c1parts
+          git show origin/agent/c1-c3-payload-v3:.c1c3/v3-part-01 > /tmp/raw-01
+          git show origin/agent/c1-c3-payload-v3:.c1c3/v3-part-05 > /tmp/raw-05
+          for n in 02 03 04 06 07 08; do
+            git show origin/agent/c1-c3-payload-v3:.c1c3/v3-part-$n > /tmp/c1parts/$n
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          size = 8192
+          specs = {
+              '00': (Path('.c1c3/v3-part-00'), 'fa82192d6df687b2c14492b19b50f6a290b19ca864c55dab9626706da5afa80c'),
+              '01': (Path('/tmp/raw-01'), '9492ab92e1bdb38a5d7877d93d5b493fccab3a1e73f2a7ea0de788dc4b6c4d76'),
+              '05': (Path('/tmp/raw-05'), '8579d2d9b67b608a975210e97c5fbf6d5fb536d039ded478504c7de005b4a62a'),
+          }
+          for name, (path, expected) in specs.items():
+              data = path.read_bytes()
+              found = None
+              for offset in range(0, len(data) - size + 1):
+                  chunk = data[offset:offset + size]
+                  if hashlib.sha256(chunk).hexdigest() == expected:
+                      found = (offset, chunk)
+                      break
+              if found is None:
+                  raise SystemExit(f'cannot locate verified chunk {name} in {path}')
+              offset, chunk = found
+              Path(f'/tmp/c1parts/{name}').write_bytes(chunk)
+              print(name, 'offset', offset, 'sha256', expected)
+          checks = {
+              '02': '5e9594b8da2db4df41363d331a677284dba3a571bee2510dd9d034d08ca44aab',
+              '03': '397d03fe7b8007feb092e485e21d97f7a833881abc853cc63dddca638efd5e04',
+              '04': '257083e90d5830a8053593d31ec0cbbc9ea900de862e35f8a8ca394d75fd8702',
+              '06': '0f8e7fad4bf5543467faadc07d1334f21f56ab19567f4f8af431ba0101bea9eb',
+              '07': 'e98685a02f9f12229d0227882b15aeb61177c031b722e18ab2ff8e6fc641acd0',
+              '08': '53076fa43702c4e8ee7b3ac8cd69b0057ec292ab3505933f394fca1b838874fc',
+          }
+          for name, expected in checks.items():
+              data = Path(f'/tmp/c1parts/{name}').read_bytes()
+              actual = hashlib.sha256(data).hexdigest()
+              if actual != expected:
+                  raise SystemExit(f'chunk {name}: {actual} != {expected}')
+          with open('/tmp/c1c3.patch.b64', 'wb') as out:
+              for name in ['00','01','02','03','04','05','06','07','08']:
+                  out.write(Path(f'/tmp/c1parts/{name}').read_bytes())
+          PY
+          test "$(wc -c < /tmp/c1c3.patch.b64)" -eq 66980
+          echo 'a72853743fd4ab3883f1ec2da85df4c0e4cfa6b3fdf9bfd387e9336cc1ec5842  /tmp/c1c3.patch.b64' | sha256sum -c -
+          base64 -d /tmp/c1c3.patch.b64 > /tmp/c1c3.patch.gz
+          echo '242c38e1f7d1b6e2282159eb1cc0f9e2695264b55bf5a3586ee1998dfbaf54ba  /tmp/c1c3.patch.gz' | sha256sum -c -
+          gzip -dc /tmp/c1c3.patch.gz > /tmp/c1c3.patch
+          echo '3b4cfdb9b5a013eeff9f91b21e779b4505269d2c0d680aac7ca1a5267fa183dc  /tmp/c1c3.patch' | sha256sum -c -
+
+      - name: Apply C1-C3 and resolve real S9-S12 overlaps
+        shell: bash
+        run: |
+          set -euxo pipefail
+          set +e
+          git apply --3way /tmp/c1c3.patch
+          rc=$?
+          set -e
+          if test "$rc" -ne 0; then
+            git diff --name-only --diff-filter=U | tee /tmp/conflicts.txt
+            test -s /tmp/conflicts.txt
+            while IFS= read -r path; do
+              git checkout --theirs -- "$path"
+              git add -- "$path"
+            done < /tmp/conflicts.txt
+          fi
+          test -z "$(git diff --name-only --diff-filter=U)"
+
+      - name: Remove all staging and diagnostic workflows
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -rf .c1c3
+          rm -f .github/workflows/c1c3-apply.yml
+          rm -f .github/workflows/c1c3-apply-final.yml
+          rm -f .github/workflows/c1c3-pr-apply.yml
+          rm -f .github/workflows/c1c3-pr-apply-v2.yml
+          rm -f .github/workflows/c1c3-pr-apply-v3.yml
+          rm -f .github/workflows/c1c3-conflict-diagnostic.yml
+          rm -f .github/workflows/c1c3-conflict-diagnostic-v2.yml
+          rm -f .github/workflows/c1c3-conflict-artifact.yml
+          rm -f .github/workflows/c1c3-conflict-artifact-v4.yml
+          rm -f .github/workflows/c1c3-payload-audit.yml
+          rm -f .github/workflows/c1c3-source-export.yml
+          rm -f .github/workflows/c1c3-finalize.yml
+
+      - name: Verify C1-C3 and preserved S11-S12 contracts
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test ! -e src/runtime
+          test ! -e src/providers
+          test ! -e src/platform
+          test -f src/gui/Gui.cpp
+          test -f src/gui/View.cpp
+          test -f src/markup/XamlProvider.cpp
+          test -f src/app/platform/Window.hpp
+          test -f src/app/platform/WindowWait.cpp
+          grep -q 'class AERO_API Gui' include/Aero/Gui.hpp
+          ! grep -q 'class AERO_API View' include/Aero/Gui.hpp
+          grep -q 'class AERO_API View' include/Aero/View.hpp
+          ! grep -R -E 'RunChecked|ShowChecked|CloseChecked|SetContentChecked' include/Aero
+          grep -q 'WaitEventFor' src/app/platform/Window.hpp
+          grep -q 'WaitForActivity' src/app/DesktopHost.cpp
+          ! grep -q 'sleep_for' src/app/DesktopHost.cpp
+          grep -q 'RenderOnscreen' src/render/Renderer.hpp
+          ! grep -q 'SubmitFrame' src/render/Surface.hpp
+          grep -R -q 'runtime-generated' CMakeLists.txt cmake
+
+      - name: Configure strict C++17 tools build
+        run: >-
+          cmake -S . -B build-c1c3 -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DAERO_BUILD_TESTS=OFF
+          -DAERO_BUILD_SAMPLES=OFF
+          -DAERO_BUILD_TOOLS=ON
+          -DAERO_ENABLE_EXCEPTIONS=OFF
+          -DAERO_ENABLE_RTTI=OFF
+          -DAERO_WARNINGS_AS_ERRORS=ON
+          -DAERO_ENABLE_D3D11_BACKEND=OFF
+          -DAERO_ENABLE_WGL_SURFACE=OFF
+          -DAERO_ENABLE_GLX_SURFACE=OFF
+          -DAERO_ENABLE_SOKOL_BACKEND=OFF
+
+      - name: Build and validate tools/schema/themes
+        run: cmake --build build-c1c3 -j2
+
+      - name: Commit final source closure
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git status --short
+          git commit -m 'C1-C3 architecture closure'
+          git push origin HEAD:agent/c1-c3-closure

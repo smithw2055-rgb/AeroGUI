@@ -1,0 +1,34 @@
+name: C1-C3 Source Export
+
+on:
+  pull_request:
+    branches:
+      - codex/local-no-samples-tests
+    types: [synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.event.pull_request.head.ref == 'agent/c1-c3-closure'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/c1-c3-closure
+          fetch-depth: 0
+          submodules: recursive
+      - name: Strip staging-only files
+        shell: bash
+        run: |
+          rm -rf .c1c3
+          rm -f .github/workflows/c1c3-*.yml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: c1c3-remote-baseline
+          path: |
+            .
+            !.git
+          include-hidden-files: true
+          retention-days: 1
