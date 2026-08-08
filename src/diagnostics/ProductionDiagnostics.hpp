@@ -12,8 +12,17 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Layout.hpp>
-#include "gui/GuiPrivate.hpp"
-#include <Aero/FrameworkElement.hpp>
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include <Aero/Gui/FrameworkElement.hpp>
 
 #include <cstdint>
 #include <utility>
@@ -77,7 +86,7 @@ public:
     Base::Result<void> Capture(
         const Aero::ElementTree& tree) noexcept {
         nodes_.Clear();
-        const Aero::Visual* root = tree.Root();
+        const Aero::Media::Visual* root = tree.Root();
         return root != nullptr ? CaptureNode(*root) : Base::Result<void>{};
     }
 
@@ -132,10 +141,10 @@ private:
     }
 
     Base::Result<void> CaptureNode(
-        const Aero::Visual& visual) noexcept {
+        const Aero::Media::Visual& visual) noexcept {
         AccessibilityNode node;
         node.id = NodeId(Aero::GuiPrivate::Detail::ElementPrivate::Handle(visual));
-        const Aero::Visual* parent = visual.GetLogicalParent();
+        const Aero::Media::Visual* parent = visual.GetLogicalParent();
         if (parent == nullptr) parent = visual.GetVisualParent();
         node.parent = parent != nullptr ? NodeId(Aero::GuiPrivate::Detail::ElementPrivate::Handle(*parent)) : 0U;
         const Aero::UIElement* element = visual.AsUIElement();
@@ -192,17 +201,17 @@ private:
             Base::Result<void> added = Add(std::move(node));
             if (!added) return added.GetStatus();
         }
-        const Base::Span<Aero::Visual* const> logical =
+        const Base::Span<Aero::Media::Visual* const> logical =
             Aero::GuiPrivate::Detail::ElementPrivate::LogicalChildren(visual);
-        for (Aero::Visual* child : logical) {
+        for (Aero::Media::Visual* child : logical) {
             if (child == nullptr) continue;
             Base::Result<void> captured = CaptureNode(*child);
             if (!captured) return captured.GetStatus();
         }
-        for (Aero::Visual* child : Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(visual)) {
+        for (Aero::Media::Visual* child : Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(visual)) {
             if (child == nullptr) continue;
             bool alreadyCaptured = false;
-            for (Aero::Visual* logicalChild : logical) {
+            for (Aero::Media::Visual* logicalChild : logical) {
                 if (logicalChild == child) {
                     alreadyCaptured = true;
                     break;
@@ -269,7 +278,7 @@ public:
         const Aero::ElementTree& tree,
         const ::Aero::Render::Detail::RenderFrame* plan = nullptr) noexcept {
         nodes_.Clear();
-        const Aero::Visual* root = tree.Root();
+        const Aero::Media::Visual* root = tree.Root();
         if (root != nullptr) {
             Base::Result<void> captured = CaptureNode(*root);
             if (!captured) return captured.GetStatus();
@@ -297,7 +306,7 @@ private:
     std::uint64_t treeVersion_ = 0U;
 
     Base::Result<void> CaptureNode(
-        const Aero::Visual& visual) noexcept {
+        const Aero::Media::Visual& visual) noexcept {
         InspectorTreeNode node;
         node.handle = Aero::GuiPrivate::Detail::ElementPrivate::Handle(visual);
         node.runtimeType = visual.RuntimeType();
@@ -324,7 +333,7 @@ private:
         }
         Base::Result<void> appended = nodes_.PushBack(node);
         if (!appended) return appended.GetStatus();
-        for (Aero::Visual* child : Aero::GuiPrivate::Detail::ElementPrivate::LogicalChildren(visual)) {
+        for (Aero::Media::Visual* child : Aero::GuiPrivate::Detail::ElementPrivate::LogicalChildren(visual)) {
             if (child == nullptr) continue;
             Base::Result<void> captured = CaptureNode(*child);
             if (!captured) return captured.GetStatus();

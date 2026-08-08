@@ -6,9 +6,9 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/DependencyProperty.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
 #include <Aero/Freezable.hpp>
-#include <Aero/Data.hpp>
+#include <Aero/Gui/BindingBase.hpp>
 #include <cstdint>
 
 namespace Aero::Media::Animation {

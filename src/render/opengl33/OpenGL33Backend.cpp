@@ -1,5 +1,5 @@
 #include "render/opengl33/OpenGL33Backend.hpp"
-#include "render/private/RenderDevice.hpp"
+#include "render/RenderDeviceInternal.hpp"
 
 #include <Aero/Base/Vector.hpp>
 
@@ -1306,11 +1306,11 @@ Base::Result<void> OpenGL33CommandQueue::ConfigureSampler(
 }
 
 Base::Result<void>
-ValidateOpenGL33PipelineDescriptor(
-    const PipelineDescriptor& descriptor) noexcept {
-    const ShaderDescriptor& vertex =
+ValidateOpenGL33NativePipelineState(
+    const NativePipelineState& descriptor) noexcept {
+    const NativeShaderProgram& vertex =
         descriptor.vertexShader;
-    const ShaderDescriptor& fragment =
+    const NativeShaderProgram& fragment =
         descriptor.fragmentShader;
     if (vertex.stage != ShaderStage::Vertex ||
         fragment.stage != ShaderStage::Fragment ||
@@ -1345,7 +1345,7 @@ ValidateOpenGL33PipelineDescriptor(
 
 Base::Result<void> OpenGL33CommandQueue::ConfigurePipeline(
     ResourceHandle handle,
-    const PipelineDescriptor& descriptor) noexcept {
+    const NativePipelineState& descriptor) noexcept {
     if (impl_ == nullptr) {
         return NotInitialized(
             "OpenGL 3.3 backend is not initialized");
@@ -1362,7 +1362,7 @@ Base::Result<void> OpenGL33CommandQueue::ConfigurePipeline(
             "OpenGL pipeline requires unconfigured GLSL 330 shaders");
     }
     Base::Result<void> valid =
-        ValidateOpenGL33PipelineDescriptor(
+        ValidateOpenGL33NativePipelineState(
             descriptor);
     if (!valid) {
         return valid.GetStatus();
@@ -1372,7 +1372,7 @@ Base::Result<void> OpenGL33CommandQueue::ConfigurePipeline(
     if (!scope) {
         return scope;
     }
-    const auto compile = [&](const ShaderDescriptor& shader)
+    const auto compile = [&](const NativeShaderProgram& shader)
         noexcept -> Base::Result<GlUInt> {
         const GlEnum stage = shader.stage == ShaderStage::Vertex
             ? GlVertexShader
@@ -1571,7 +1571,7 @@ OpenGL33CommandQueue::ImportExternalTexture(
 }
 
 Base::Result<void> OpenGL33CommandQueue::Submit(
-    const CommandList& commands,
+    const ::Aero::Render::Detail::RenderBatch& batch,
     FenceValue signalFence) noexcept {
     if (impl_ == nullptr) {
         return NotInitialized(
@@ -1587,6 +1587,137 @@ Base::Result<void> OpenGL33CommandQueue::Submit(
             "OpenGL submission fence must increase monotonically");
     }
 
+    enum class SubmissionStepKind : std::uint8_t {
+        UploadBuffer = 0U,
+        UploadTexture,
+        BeginRenderPass,
+        EndRenderPass,
+        BindPipeline,
+        BindVertexBuffer,
+        BindIndexBuffer,
+        BindUniformBuffer,
+        BindTextureSampler,
+        SetScissor,
+        Draw,
+        DrawIndexed
+    };
+    struct SubmissionStep {
+        SubmissionStepKind kind = SubmissionStepKind::Draw;
+        ResourceHandle resource0;
+        ResourceHandle resource1;
+        RenderPassDescriptor renderPass;
+        TextureRegion textureRegion;
+        Base::Rect rect;
+        std::uint64_t resourceOffset = 0U;
+        std::uint32_t resourceSize = 0U;
+        std::uint32_t uploadOffset = 0U;
+        std::uint32_t uploadSize = 0U;
+        std::uint32_t slot = 0U;
+        std::uint32_t first = 0U;
+        std::uint32_t count = 0U;
+        std::uint32_t instanceCount = 0U;
+        std::uint32_t firstInstance = 0U;
+        std::int32_t baseVertex = 0;
+        IndexType indexType = IndexType::UInt16;
+    };
+    Base::Vector<SubmissionStep> submissionSteps(allocator_);
+    auto appendStep = [&](SubmissionStep step) noexcept -> Base::Result<void> {
+        return submissionSteps.PushBack(std::move(step));
+    };
+    for (const ::Aero::Render::Detail::RenderStep& source : batch.Steps()) {
+        SubmissionStep step;
+        switch (source.kind) {
+        case ::Aero::Render::Detail::RenderStepKind::UploadBuffer:
+            step.kind = SubmissionStepKind::UploadBuffer;
+            step.resource0 = source.resource;
+            step.resourceOffset = source.resourceOffset;
+            step.resourceSize = source.resourceSize;
+            step.uploadOffset = source.uploadOffset;
+            step.uploadSize = source.uploadSize;
+            break;
+        case ::Aero::Render::Detail::RenderStepKind::UploadTexture:
+            step.kind = SubmissionStepKind::UploadTexture;
+            step.resource0 = source.resource;
+            step.textureRegion = source.textureRegion;
+            step.uploadOffset = source.uploadOffset;
+            step.uploadSize = source.uploadSize;
+            break;
+        case ::Aero::Render::Detail::RenderStepKind::BeginPass:
+            step.kind = SubmissionStepKind::BeginRenderPass;
+            step.renderPass = source.pass;
+            break;
+        case ::Aero::Render::Detail::RenderStepKind::EndPass:
+            step.kind = SubmissionStepKind::EndRenderPass;
+            break;
+        case ::Aero::Render::Detail::RenderStepKind::Draw: {
+            step.kind = SubmissionStepKind::BindPipeline;
+            step.resource0 = source.drawState.pipeline;
+            Base::Result<void> appended = appendStep(step);
+            if (!appended) return appended;
+            for (std::uint32_t slot = 0U; slot < MaxVertexBuffers; ++slot) {
+                if (!source.drawState.vertexBuffers[slot].IsValid()) continue;
+                step = {};
+                step.kind = SubmissionStepKind::BindVertexBuffer;
+                step.slot = slot;
+                step.resource0 = source.drawState.vertexBuffers[slot];
+                step.resourceOffset = source.drawState.vertexOffsets[slot];
+                appended = appendStep(step);
+                if (!appended) return appended;
+            }
+            if (source.indexed && source.drawState.indexBuffer.IsValid()) {
+                step = {};
+                step.kind = SubmissionStepKind::BindIndexBuffer;
+                step.resource0 = source.drawState.indexBuffer;
+                step.resourceOffset = source.drawState.indexOffset;
+                step.indexType = source.drawState.indexType;
+                appended = appendStep(step);
+                if (!appended) return appended;
+            }
+            for (std::uint32_t slot = 0U; slot < 4U; ++slot) {
+                if (!source.drawState.uniformBuffers[slot].IsValid()) continue;
+                step = {};
+                step.kind = SubmissionStepKind::BindUniformBuffer;
+                step.slot = slot;
+                step.resource0 = source.drawState.uniformBuffers[slot];
+                step.resourceOffset = source.drawState.uniformOffsets[slot];
+                step.resourceSize = source.drawState.uniformSizes[slot];
+                appended = appendStep(step);
+                if (!appended) return appended;
+            }
+            for (std::uint32_t slot = 0U; slot < 8U; ++slot) {
+                if (!source.drawState.textures[slot].IsValid() ||
+                    !source.drawState.samplers[slot].IsValid()) continue;
+                step = {};
+                step.kind = SubmissionStepKind::BindTextureSampler;
+                step.slot = slot;
+                step.resource0 = source.drawState.textures[slot];
+                step.resource1 = source.drawState.samplers[slot];
+                appended = appendStep(step);
+                if (!appended) return appended;
+            }
+            step = {};
+            step.kind = SubmissionStepKind::SetScissor;
+            step.rect = source.drawState.scissor;
+            appended = appendStep(step);
+            if (!appended) return appended;
+            step = {};
+            step.kind = source.indexed
+                ? SubmissionStepKind::DrawIndexed
+                : SubmissionStepKind::Draw;
+            step.first = source.first;
+            step.count = source.count;
+            step.instanceCount = source.instanceCount;
+            step.firstInstance = source.firstInstance;
+            step.baseVertex = source.baseVertex;
+            break;
+        }
+        default:
+            return InvalidArgument("OpenGL render batch step is invalid");
+        }
+        Base::Result<void> appended = appendStep(step);
+        if (!appended) return appended;
+    }
+
     Base::Result<void> scope = impl_->BeginStateScope();
     if (!scope) {
         return scope;
@@ -1599,15 +1730,16 @@ Base::Result<void> OpenGL33CommandQueue::Submit(
         return status;
     };
 
-    const Base::Span<const Command> encoded = commands.Commands();
+    const Base::Span<const SubmissionStep> encoded{
+        submissionSteps.Data(), submissionSteps.Size()};
     const Base::Span<const std::uint8_t> uploadBytes =
-        commands.UploadBytes();
+        batch.UploadBytes();
     for (std::uint32_t commandIndex = 0U;
          commandIndex < encoded.Size();
          ++commandIndex) {
-        const Command& command = encoded[commandIndex];
+        const SubmissionStep& command = encoded[commandIndex];
         switch (command.kind) {
-        case CommandKind::UploadBuffer: {
+        case SubmissionStepKind::UploadBuffer: {
             Impl::ResourceRecord* record =
                 impl_->Find(command.resource0);
             if (record == nullptr || record->buffer == 0U ||
@@ -1639,7 +1771,7 @@ Base::Result<void> OpenGL33CommandQueue::Submit(
                 uploadBytes.Data() + command.uploadOffset);
             break;
         }
-        case CommandKind::UploadTexture: {
+        case SubmissionStepKind::UploadTexture: {
             Impl::ResourceRecord* record =
                 impl_->Find(command.resource0);
             if (impl_->inRenderPass ||
@@ -1763,7 +1895,7 @@ Base::Result<void> OpenGL33CommandQueue::Submit(
             }
             break;
         }
-        case CommandKind::BeginRenderPass: {
+        case SubmissionStepKind::BeginRenderPass: {
             if (impl_->inRenderPass) {
                 return fail(InvalidState(
                     "OpenGL render passes cannot be nested"));
@@ -1977,7 +2109,7 @@ Base::Result<void> OpenGL33CommandQueue::Submit(
             impl_->inRenderPass = true;
             break;
         }
-        case CommandKind::EndRenderPass:
+        case SubmissionStepKind::EndRenderPass:
             if (!impl_->inRenderPass) {
                 return fail(InvalidState(
                     "OpenGL render pass is not active"));
@@ -1988,7 +2120,7 @@ Base::Result<void> OpenGL33CommandQueue::Submit(
                 attachment = 0U;
             }
             break;
-        case CommandKind::BindPipeline: {
+        case SubmissionStepKind::BindPipeline: {
             if (!impl_->inRenderPass) {
                 return fail(InvalidState(
                     "OpenGL pipeline binding requires a render pass"));
@@ -2027,7 +2159,7 @@ Base::Result<void> OpenGL33CommandQueue::Submit(
             impl_->vertexStateDirty = true;
             break;
         }
-        case CommandKind::BindVertexBuffer:
+        case SubmissionStepKind::BindVertexBuffer:
             {
             const Impl::ResourceRecord* pipeline =
                 impl_->Find(impl_->currentPipeline);
@@ -2049,7 +2181,7 @@ Base::Result<void> OpenGL33CommandQueue::Submit(
             impl_->vertexStateDirty = true;
             break;
             }
-        case CommandKind::BindIndexBuffer:
+        case SubmissionStepKind::BindIndexBuffer:
             {
             const Impl::ResourceRecord* buffer =
                 impl_->Find(command.resource0);
@@ -2068,7 +2200,7 @@ Base::Result<void> OpenGL33CommandQueue::Submit(
             impl_->vertexStateDirty = true;
             break;
             }
-        case CommandKind::BindUniformBuffer: {
+        case SubmissionStepKind::BindUniformBuffer: {
             if (!impl_->inRenderPass ||
                 command.slot >=
                     impl_->glCapabilities.limits.
@@ -2116,7 +2248,7 @@ Base::Result<void> OpenGL33CommandQueue::Submit(
                 size);
             break;
         }
-        case CommandKind::BindTextureSampler: {
+        case SubmissionStepKind::BindTextureSampler: {
             if (!impl_->inRenderPass ||
                 command.slot >=
                     QueryGraphicsCapabilities().
@@ -2151,7 +2283,7 @@ Base::Result<void> OpenGL33CommandQueue::Submit(
             }
             break;
         }
-        case CommandKind::SetScissor: {
+        case SubmissionStepKind::SetScissor: {
             if (!impl_->inRenderPass) {
                 return fail(InvalidState(
                     "OpenGL scissor requires a render pass"));
@@ -2175,7 +2307,7 @@ Base::Result<void> OpenGL33CommandQueue::Submit(
             }
             break;
         }
-        case CommandKind::Draw: {
+        case SubmissionStepKind::Draw: {
             if (!impl_->inRenderPass ||
                 !impl_->currentPipeline.IsValid() ||
                 command.count == 0U ||
@@ -2222,7 +2354,7 @@ Base::Result<void> OpenGL33CommandQueue::Submit(
             }
             break;
         }
-        case CommandKind::DrawIndexed: {
+        case SubmissionStepKind::DrawIndexed: {
             if (!impl_->inRenderPass ||
                 !impl_->currentPipeline.IsValid() ||
                 command.count == 0U ||

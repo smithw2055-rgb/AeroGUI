@@ -1,8 +1,29 @@
-#include "gui/GuiPrivate.hpp"
-#include "controls/ControlsPrivate.hpp"
-#include <Aero/Data.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Media/Geometry.hpp>
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
+#include <Aero/Gui/BindingBase.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
+#include <Aero/Gui/Geometry.hpp>
 
 #include <cmath>
 #include <cstdio>
@@ -733,7 +754,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
             FrameworkElement::StaticTypeId())) {
         auto& targetElement =
             *static_cast<FrameworkElement*>(descriptor.target);
-        Visual* parent = targetElement.GetLogicalParent();
+        ::Aero::Media::Visual* parent = targetElement.GetLogicalParent();
         if (parent == nullptr) parent = targetElement.GetVisualParent();
         if (parent != nullptr && parent->AsFrameworkElement() != nullptr) {
             record.dataContextOwner = parent->AsFrameworkElement();

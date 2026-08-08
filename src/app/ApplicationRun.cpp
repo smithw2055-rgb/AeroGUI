@@ -1,4 +1,4 @@
-#include <Aero/Application.hpp>
+#include <Aero/Gui/Application.hpp>
 #include <Aero/App.hpp>
 
 #include "DesktopHost.hpp"
@@ -11,7 +11,10 @@ Base::Result<int> Application::Run() noexcept {
 
 Base::Result<int> Application::Run(
     const App::RunOptions& options) noexcept {
-    ::Aero::App::Detail::DesktopHost host(*this, {}, options);
+    ::Aero::App::Detail::DesktopHost host(
+        *this,
+        Application::Impl::MainWindowOwner(*this),
+        options);
     return host.Run();
 }
 

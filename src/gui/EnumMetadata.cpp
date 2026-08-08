@@ -1,19 +1,28 @@
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 
-#include <Aero/Animation.hpp>
-#include <Aero/Application.hpp>
+#include <Aero/Gui/Storyboard.hpp>
+#include <Aero/Gui/Application.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Gui/Brush.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Triggers/Conditions.hpp>
 #include <Aero/Triggers/StoryboardActions.hpp>
-#include <Aero/Window.hpp>
+#include <Aero/Gui/Window.hpp>
 
 namespace Aero::GuiPrivate::Detail {
 namespace {

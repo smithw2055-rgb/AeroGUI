@@ -1,8 +1,22 @@
 #pragma once
 
-#include "markup/MarkupPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
+#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupWriterInternal.hpp"
 
-#include <Aero/View.hpp>
+#include <Aero/Gui/View.hpp>
 
 namespace Aero::Markup::Detail {
 
@@ -42,6 +56,19 @@ public:
         Loader loader(
             schema_->Schema(), providers, diagnostics, allocator, state);
         return loader.Load(uri, settings);
+    }
+
+    Base::Result<XamlDocument> LoadComponentInto(
+        XamlProviderRegistry& providers,
+        const LoadState* state,
+        Base::IAllocator* allocator,
+        Base::Object& existingRoot,
+        Base::StringView uri,
+        const XamlReaderSettings& settings,
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept {
+        Loader loader(
+            schema_->Schema(), providers, diagnostics, allocator, state);
+        return loader.LoadComponent(existingRoot, uri, settings);
     }
 
     Base::Result<XamlDocument> Parse(

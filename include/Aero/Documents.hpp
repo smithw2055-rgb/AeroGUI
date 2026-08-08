@@ -1,9 +1,9 @@
 #pragma once
 
-#include <Aero/ContentElement.hpp>
+#include <Aero/Gui/FrameworkContentElement.hpp>
 #include <Aero/Gui/TextBlock.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Gui/Brush.hpp>
 #include <Aero/Events/NavigationEventArgs.hpp>
 
 #include <cstdint>

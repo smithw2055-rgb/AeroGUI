@@ -1,9 +1,9 @@
 #include "Metadata.hpp"
 
-#include <Aero/Application.hpp>
+#include <Aero/Gui/Application.hpp>
 #include <Aero/Meta.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Window.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
+#include <Aero/Gui/Window.hpp>
 
 namespace Aero::App {
 

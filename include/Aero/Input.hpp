@@ -10,7 +10,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/DependencyProperty.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
 #include <Aero/Events/CommandEventArgs.hpp>
 #include <Aero/Value.hpp>
 
@@ -170,7 +170,7 @@ struct TextInputDispatchResult {
 AERO_DECLARE_TYPE_ENUM(Aero::Input::InputScope)
 AERO_DECLARE_TYPE_ENUM(Aero::Input::DragDropEffects)
 
-#include <Aero/Events/RoutedEvent.hpp>
+#include <Aero/Gui/RoutedEvent.hpp>
 
 namespace Aero::Input {
 

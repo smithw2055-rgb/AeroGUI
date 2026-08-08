@@ -1,5 +1,5 @@
 Base::Result<void> D3D11CommandQueue::Submit(
-    const CommandList& commands,
+    const ::Aero::Render::Detail::RenderBatch& batch,
     FenceValue signalFence) noexcept {
     if (impl_ == nullptr) {
         return NotInitialized("D3D11 backend is not initialized");
@@ -10,6 +10,138 @@ Base::Result<void> D3D11CommandQueue::Submit(
     }
     if (signalFence == 0U || signalFence <= impl_->lastSubmittedFence) {
         return InvalidArgument("D3D11 submission fence must increase monotonically");
+    }
+
+    enum class SubmissionStepKind : std::uint8_t {
+        UploadBuffer = 0U,
+        UploadTexture,
+        BeginRenderPass,
+        EndRenderPass,
+        BindPipeline,
+        BindVertexBuffer,
+        BindIndexBuffer,
+        BindUniformBuffer,
+        BindTextureSampler,
+        SetScissor,
+        Draw,
+        DrawIndexed
+    };
+    struct SubmissionStep {
+        SubmissionStepKind kind = SubmissionStepKind::Draw;
+        ResourceHandle resource0;
+        ResourceHandle resource1;
+        RenderPassDescriptor renderPass;
+        TextureRegion textureRegion;
+        Base::Rect rect;
+        std::uint64_t resourceOffset = 0U;
+        std::uint32_t resourceSize = 0U;
+        std::uint32_t uploadOffset = 0U;
+        std::uint32_t uploadSize = 0U;
+        std::uint32_t slot = 0U;
+        std::uint32_t first = 0U;
+        std::uint32_t count = 0U;
+        std::uint32_t instanceCount = 0U;
+        std::uint32_t firstInstance = 0U;
+        std::int32_t baseVertex = 0;
+        IndexType indexType = IndexType::UInt16;
+    };
+
+    Base::Vector<SubmissionStep> submissionSteps(allocator_);
+    auto appendStep = [&](SubmissionStep step) noexcept -> Base::Result<void> {
+        return submissionSteps.PushBack(std::move(step));
+    };
+    for (const ::Aero::Render::Detail::RenderStep& source : batch.Steps()) {
+        SubmissionStep step;
+        switch (source.kind) {
+        case ::Aero::Render::Detail::RenderStepKind::UploadBuffer:
+            step.kind = SubmissionStepKind::UploadBuffer;
+            step.resource0 = source.resource;
+            step.resourceOffset = source.resourceOffset;
+            step.resourceSize = source.resourceSize;
+            step.uploadOffset = source.uploadOffset;
+            step.uploadSize = source.uploadSize;
+            break;
+        case ::Aero::Render::Detail::RenderStepKind::UploadTexture:
+            step.kind = SubmissionStepKind::UploadTexture;
+            step.resource0 = source.resource;
+            step.textureRegion = source.textureRegion;
+            step.uploadOffset = source.uploadOffset;
+            step.uploadSize = source.uploadSize;
+            break;
+        case ::Aero::Render::Detail::RenderStepKind::BeginPass:
+            step.kind = SubmissionStepKind::BeginRenderPass;
+            step.renderPass = source.pass;
+            break;
+        case ::Aero::Render::Detail::RenderStepKind::EndPass:
+            step.kind = SubmissionStepKind::EndRenderPass;
+            break;
+        case ::Aero::Render::Detail::RenderStepKind::Draw: {
+            step.kind = SubmissionStepKind::BindPipeline;
+            step.resource0 = source.drawState.pipeline;
+            Base::Result<void> appended = appendStep(step);
+            if (!appended) return appended;
+            for (std::uint32_t slot = 0U; slot < MaxVertexBuffers; ++slot) {
+                if (!source.drawState.vertexBuffers[slot].IsValid()) continue;
+                step = {};
+                step.kind = SubmissionStepKind::BindVertexBuffer;
+                step.slot = slot;
+                step.resource0 = source.drawState.vertexBuffers[slot];
+                step.resourceOffset = source.drawState.vertexOffsets[slot];
+                appended = appendStep(step);
+                if (!appended) return appended;
+            }
+            if (source.indexed && source.drawState.indexBuffer.IsValid()) {
+                step = {};
+                step.kind = SubmissionStepKind::BindIndexBuffer;
+                step.resource0 = source.drawState.indexBuffer;
+                step.resourceOffset = source.drawState.indexOffset;
+                step.indexType = source.drawState.indexType;
+                appended = appendStep(step);
+                if (!appended) return appended;
+            }
+            for (std::uint32_t slot = 0U; slot < 4U; ++slot) {
+                if (!source.drawState.uniformBuffers[slot].IsValid()) continue;
+                step = {};
+                step.kind = SubmissionStepKind::BindUniformBuffer;
+                step.slot = slot;
+                step.resource0 = source.drawState.uniformBuffers[slot];
+                step.resourceOffset = source.drawState.uniformOffsets[slot];
+                step.resourceSize = source.drawState.uniformSizes[slot];
+                appended = appendStep(step);
+                if (!appended) return appended;
+            }
+            for (std::uint32_t slot = 0U; slot < 8U; ++slot) {
+                if (!source.drawState.textures[slot].IsValid() ||
+                    !source.drawState.samplers[slot].IsValid()) continue;
+                step = {};
+                step.kind = SubmissionStepKind::BindTextureSampler;
+                step.slot = slot;
+                step.resource0 = source.drawState.textures[slot];
+                step.resource1 = source.drawState.samplers[slot];
+                appended = appendStep(step);
+                if (!appended) return appended;
+            }
+            step = {};
+            step.kind = SubmissionStepKind::SetScissor;
+            step.rect = source.drawState.scissor;
+            appended = appendStep(step);
+            if (!appended) return appended;
+            step = {};
+            step.kind = source.indexed
+                ? SubmissionStepKind::DrawIndexed
+                : SubmissionStepKind::Draw;
+            step.first = source.first;
+            step.count = source.count;
+            step.instanceCount = source.instanceCount;
+            step.firstInstance = source.firstInstance;
+            step.baseVertex = source.baseVertex;
+            break;
+        }
+        default:
+            return InvalidArgument("D3D11 render batch step is invalid");
+        }
+        Base::Result<void> appended = appendStep(step);
+        if (!appended) return appended;
     }
 
     Base::Result<void> reserve = impl_->pendingFences.Reserve(
@@ -35,8 +167,9 @@ Base::Result<void> D3D11CommandQueue::Submit(
     impl_->currentPipeline = {};
     impl_->inRenderPass = false;
     impl_->submissionState.Reset();
-    const Base::Span<const Command> commandSpan = commands.Commands();
-    const Base::Span<const std::uint8_t> uploadSpan = commands.UploadBytes();
+    const Base::Span<const SubmissionStep> commandSpan{
+        submissionSteps.Data(), submissionSteps.Size()};
+    const Base::Span<const std::uint8_t> uploadSpan = batch.UploadBytes();
     Impl::RequiredStateSnapshot preservedState;
     if (options_.statePolicy == D3D11StatePolicy::PreserveRequiredState) {
         preservedState.Capture(impl_->context);
@@ -60,9 +193,9 @@ Base::Result<void> D3D11CommandQueue::Submit(
         return status;
     };
 
-    for (const Command& command : commandSpan) {
+    for (const SubmissionStep& command : commandSpan) {
         switch (command.kind) {
-        case CommandKind::UploadBuffer: {
+        case SubmissionStepKind::UploadBuffer: {
             if (command.uploadOffset > uploadSpan.Size()) {
                 return failSubmission(
                     InvalidState("D3D11 buffer upload offset is invalid"));
@@ -151,7 +284,7 @@ Base::Result<void> D3D11CommandQueue::Submit(
             }
             break;
         }
-        case CommandKind::UploadTexture: {
+        case SubmissionStepKind::UploadTexture: {
             if (impl_->inRenderPass ||
                 command.uploadOffset > uploadSpan.Size() ||
                 command.uploadSize > uploadSpan.Size() - command.uploadOffset) {

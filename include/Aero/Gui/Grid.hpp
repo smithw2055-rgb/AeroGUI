@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Controls/Panel.hpp>
+#include <Aero/Gui/Panel.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Input.hpp>
 

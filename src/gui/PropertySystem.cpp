@@ -2,8 +2,17 @@
 
 // ===== DependencyProperty =====
 
-#include <Aero/DependencyProperty.hpp>
-#include "gui/GuiPrivate.hpp"
+#include <Aero/Gui/DependencyProperty.hpp>
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Hash.hpp>

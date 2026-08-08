@@ -1,8 +1,8 @@
 #include <Aero/Gui.hpp>
-#include <Aero/View.hpp>
-#include <Aero/Controls/Button.hpp>
+#include <Aero/Gui/View.hpp>
+#include <Aero/Gui/Button.hpp>
 #include <Aero/Documents.hpp>
-#include <Aero/FrameworkElement.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 #include <Aero/Events.hpp>
 #include <Aero/Triggers/Triggers.hpp>
 

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Aero/Controls/Control.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Gui/Control.hpp>
+#include <Aero/Gui/Brush.hpp>
 
 namespace Aero::Controls::Primitives {
 using ::Aero::Meta::TypeId;

@@ -154,7 +154,7 @@ DXGI_FORMAT ToDxgiVertexFormat(VertexFormat format) noexcept {
 }
 
 Base::Result<void> ValidateDxbcReflection(
-    const ShaderDescriptor& shader,
+    const NativeShaderProgram& shader,
     D3D11_SHADER_VERSION_TYPE expectedType,
     const VertexLayoutDescriptor* vertexLayout) noexcept {
     ID3D11ShaderReflection* reflection = nullptr;
@@ -232,7 +232,7 @@ Base::Result<void> ValidateDxbcReflection(
 }
 
 Base::Result<void> CollectDxbcConstantBufferRequirements(
-    const ShaderDescriptor& shader,
+    const NativeShaderProgram& shader,
     std::uint32_t (&minimumSizes)[
         D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT]) noexcept {
     ID3D11ShaderReflection* reflection = nullptr;
@@ -301,7 +301,7 @@ Base::Result<void> CollectDxbcConstantBufferRequirements(
 }
 
 Base::Result<void> CollectDxbcTextureSamplerRequirements(
-    const ShaderDescriptor& shader,
+    const NativeShaderProgram& shader,
     bool allowTextureSamplers,
     bool (&textureSlots)[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT],
     D3D_SRV_DIMENSION (&textureDimensions)[

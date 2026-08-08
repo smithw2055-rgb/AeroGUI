@@ -1,5 +1,14 @@
 #include "Inspector.hpp"
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 
 #include <Aero/Controls.hpp>
 
@@ -20,7 +29,7 @@ enum class TreeKind : std::uint8_t {
 };
 
 Result<void> AppendTree(
-    Visual& node,
+    ::Aero::Media::Visual& node,
     VisualHandle parent,
     std::uint32_t depth,
     TreeKind kind,
@@ -45,11 +54,11 @@ Result<void> AppendTree(
     if (!appended) {
         return appended.GetStatus();
     }
-    const Base::Span<Visual* const> children =
+    const Base::Span<::Aero::Media::Visual* const> children =
         kind == TreeKind::Logical
         ? Aero::GuiPrivate::Detail::ElementPrivate::LogicalChildren(node)
         : Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(node);
-    for (Visual* child : children) {
+    for (::Aero::Media::Visual* child : children) {
         if (child == nullptr) {
             return Status::Failure(
                 ErrorCode::InvalidState,
@@ -75,7 +84,7 @@ Result<void> AppendTree(
 
 Base::Result<void>
 Inspector::Capture(
-    Aero::Visual& target,
+    Aero::Media::Visual& target,
     InspectorSnapshot& output,
     std::uint32_t maxTreeNodes)
     const noexcept {
@@ -99,7 +108,7 @@ using namespace Aero::Threading;
 
     output = InspectorSnapshot{};
     output.target = &target;
-    Visual* root = tree_->Root();
+    ::Aero::Media::Visual* root = tree_->Root();
     if (root == nullptr) {
         return Status::Failure(
             ErrorCode::InvalidState,

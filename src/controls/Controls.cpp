@@ -1,14 +1,36 @@
-#include "gui/GuiPrivate.hpp"
-#include "gui/private/Style.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "gui/StyleInternal.hpp"
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
-#include <Aero/Controls/ListBox.hpp>
-#include <Aero/Controls/TreeView.hpp>
+#include <Aero/Gui/ListBox.hpp>
+#include <Aero/Gui/TreeView.hpp>
 #include <Aero/Shapes.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Gui/Transform.hpp>
 #include "../media/BrushRendering.hpp"
-#include "../media/MediaPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "media/AnimationInternal.hpp"
+#include "media/BrushInternal.hpp"
+#include "media/EffectInternal.hpp"
+#include "media/TransformInternal.hpp"
 #include <Aero/Documents.hpp>
 
 #include "TextBlockLayout.hpp"
@@ -43,41 +65,41 @@ void RichText::OnTextChanged(
     static_cast<Controls::TextBlock&>(object).SetText(plain.View());
 }
 
-std::uint32_t Visual::Impl::PanelChildCount(
+std::uint32_t Media::Visual::Impl::PanelChildCount(
     const Controls::Panel& panel) noexcept {
     return panel.ChildCountCore();
 }
 
-Base::Ref<Base::Object> Visual::Impl::PanelChildAt(
+Base::Ref<Base::Object> Media::Visual::Impl::PanelChildAt(
     const Controls::Panel& panel,
     std::uint32_t index) noexcept {
     return panel.ChildAtCore(index);
 }
 
-Base::Result<void> Visual::Impl::PanelAddChild(
+Base::Result<void> Media::Visual::Impl::PanelAddChild(
     Controls::Panel& panel,
     const Base::Ref<Base::Object>& owner,
     UIElement& child) noexcept {
     return panel.AddChildCore(owner, child);
 }
 
-Base::Result<bool> Visual::Impl::PanelRemoveChild(
+Base::Result<bool> Media::Visual::Impl::PanelRemoveChild(
     Controls::Panel& panel,
     UIElement& child) noexcept {
     return panel.RemoveChildCore(child);
 }
 
-void Visual::Impl::PanelClearChildren(
+void Media::Visual::Impl::PanelClearChildren(
     Controls::Panel& panel) noexcept {
     panel.ClearChildrenCore();
 }
 
-const Base::Ref<Base::Object>& Visual::Impl::DecoratorOwnedChild(
+const Base::Ref<Base::Object>& Media::Visual::Impl::DecoratorOwnedChild(
     const Controls::Decorator& decorator) noexcept {
     return decorator.ownedChild_;
 }
 
-Base::Result<void> Visual::Impl::DecoratorSetOwnedChild(
+Base::Result<void> Media::Visual::Impl::DecoratorSetOwnedChild(
     Controls::Decorator& decorator,
     const Base::Ref<Base::Object>& owner,
     UIElement& child) noexcept {
@@ -85,12 +107,12 @@ Base::Result<void> Visual::Impl::DecoratorSetOwnedChild(
     return {};
 }
 
-void Visual::Impl::PathInvalidateGeometry(
+void Media::Visual::Impl::PathInvalidateGeometry(
     Shapes::Path& path) noexcept {
     path.ResetGeometry();
 }
 
-void Visual::Impl::PathAttachMeshResources(
+void Media::Visual::Impl::PathAttachMeshResources(
     Shapes::Path& path,
     void* services,
     bool invalidate) noexcept {
@@ -100,18 +122,18 @@ void Visual::Impl::PathAttachMeshResources(
     }
 }
 
-void Visual::Impl::SetMenuItemHighlighted(
+void Media::Visual::Impl::SetMenuItemHighlighted(
     Controls::MenuItem& item,
     bool value) noexcept {
     item.SetHighlightedState(value);
 }
 
-void Visual::Impl::SyncSelectorContainers(
+void Media::Visual::Impl::SyncSelectorContainers(
     Controls::Primitives::Selector& selector) noexcept {
     selector.SyncContainers();
 }
 
-std::uint32_t Visual::Impl::TreeViewItemCount(
+std::uint32_t Media::Visual::Impl::TreeViewItemCount(
     const Controls::TreeViewItem& item) noexcept {
     return item.GetCount();
 }
@@ -131,9 +153,9 @@ bool IsValidTextSize(Size value) noexcept {
 }
 
 ::Aero::Controls::Detail::TextBlockLayout* TextLayoutFor(
-    const Visual& visual) noexcept {
+    const ::Aero::Media::Visual& visual) noexcept {
     return static_cast<::Aero::Controls::Detail::TextBlockLayout*>(
-        ::Aero::Visual::Impl::TextLayoutRuntime(visual));
+        Media::Visual::Impl::TextLayoutRuntime(visual));
 }
 
 struct EffectiveGridSpan {
@@ -159,7 +181,7 @@ EffectiveGridSpan CoerceGridSpan(
 } // namespace
 
 void Panel::OnRender(
-    DrawingContext& context) noexcept {
+    ::Aero::Media::DrawingContext& context) noexcept {
     auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     static_cast<void>(PaintBrushRect(
         builder,
@@ -171,7 +193,7 @@ void Panel::OnRender(
 }
 
 void Control::OnRender(
-    DrawingContext& context) noexcept {
+    ::Aero::Media::DrawingContext& context) noexcept {
     auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     static_cast<void>(PaintBrushRect(
         builder,
@@ -1494,7 +1516,7 @@ Size Border::ArrangeOverride(Size finalSize) noexcept {
 }
 
 void Border::OnRender(
-    DrawingContext& context) noexcept {
+    ::Aero::Media::DrawingContext& context) noexcept {
     auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     const Rect bounds{0.0, 0.0, GetRenderSize().width, GetRenderSize().height};
     if (bounds.width <= 0.0 ||
@@ -1983,7 +2005,7 @@ Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
 }
 
 void TextBlock::OnRender(
-    DrawingContext& context) noexcept {
+    ::Aero::Media::DrawingContext& context) noexcept {
     auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     const Color background = ::Aero::Media::Detail::SampleBrush(GetBackground());
     if (background.alpha > 0.0F) {

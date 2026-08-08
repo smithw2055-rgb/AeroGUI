@@ -1,5 +1,5 @@
-#include "render/private/RenderDevice.hpp"
-#include "render/private/RenderTarget.hpp"
+#include "render/RenderDeviceInternal.hpp"
+#include "render/RenderTargetInternal.hpp"
 #include "render/Renderer.hpp"
 #include "render/d3d11/D3D11Backend.hpp"
 #include "render/d3d11/D3D11Shaders.hpp"
@@ -37,13 +37,12 @@ Graphics::PresentMode ToRhiPresentMode(Graphics::PresentMode value) noexcept {
 
 class D3D11TargetState;
 
-class D3D11DeviceState final
-    : public Aero::CommandQueueRenderDevice<Graphics::D3D11CommandQueue> {
+class D3D11DeviceState final : public Aero::RenderDevice::Impl {
 public:
     D3D11DeviceState(
         const ::Aero::Render::D3D11DeviceOptions& options,
         Base::IAllocator& allocator) noexcept
-        : Aero::CommandQueueRenderDevice<Graphics::D3D11CommandQueue>(allocator),
+        : Aero::RenderDevice::Impl(allocator),
           options_(options),
           allocator_(&allocator) {}
 
@@ -64,6 +63,54 @@ public:
     ::Aero::RenderFrameStatistics
         LastFrameStatistics() const noexcept override;
     Aero::Render::Detail::RenderResources Resources() noexcept override;
+
+    Graphics::DeviceCapabilities QueryNativeDeviceCapabilities() const noexcept override {
+        return graphics_ != nullptr ? graphics_->Capabilities() : Graphics::DeviceCapabilities{};
+    }
+    Graphics::NativeRenderBackendKind NativeBackendKind() const noexcept override {
+        return graphics_ != nullptr ? graphics_->Kind() : Graphics::NativeRenderBackendKind::Invalid;
+    }
+    Graphics::GraphicsCapabilities QueryNativeGraphicsCapabilities() const noexcept override {
+        return graphics_ != nullptr ? graphics_->QueryGraphicsCapabilities() : Graphics::GraphicsCapabilities{};
+    }
+    Base::Result<void> CreateNativeResource(
+        Graphics::ResourceHandle handle,
+        const Graphics::ResourceDescriptor& descriptor) noexcept override {
+        return graphics_->CreateResource(handle, descriptor);
+    }
+    void DestroyNativeResource(Graphics::ResourceHandle handle) noexcept override {
+        if (graphics_ != nullptr) graphics_->DestroyResource(handle);
+    }
+    Base::Result<void> ConfigureNativeTexture(
+        Graphics::ResourceHandle handle,
+        const Graphics::TextureResourceDescriptor& descriptor) noexcept override {
+        return graphics_->ConfigureTexture(handle, descriptor);
+    }
+    Base::Result<void> ConfigureNativeSampler(
+        Graphics::ResourceHandle handle,
+        const Graphics::SamplerDescriptor& descriptor) noexcept override {
+        return graphics_->ConfigureSampler(handle, descriptor);
+    }
+    Base::Result<void> ConfigureNativePipeline(
+        Graphics::ResourceHandle handle,
+        ::Aero::Render::Detail::UiPipelineKey key) noexcept override {
+        return graphics_->ConfigurePipeline(
+            handle, ::Aero::Render::MakeD3D11UiPipeline(key));
+    }
+    Base::Result<void> SubmitNativeBatch(
+        const ::Aero::Render::Detail::RenderBatch& batch,
+        Graphics::FenceValue signalFence) noexcept override {
+        return graphics_->Submit(batch, signalFence);
+    }
+    Graphics::FenceValue NativeLastSubmittedFence() const noexcept override {
+        return graphics_ != nullptr ? graphics_->LastSubmittedFence() : 0U;
+    }
+    Graphics::FenceValue NativeCompletedFence() const noexcept override {
+        return graphics_ != nullptr ? graphics_->CompletedFence() : 0U;
+    }
+    bool NativeDeviceLost() const noexcept override {
+        return graphics_ == nullptr || graphics_->IsDeviceLost();
+    }
 
     RenderBackendKind Backend() const noexcept override {
         return RenderBackendKind::D3D11;
@@ -471,7 +518,6 @@ Base::Result<void> D3D11DeviceState::Initialize() noexcept {
         ShutdownDevice(false);
         return status.GetStatus();
     }
-    BindCommandQueue(graphics_);
     status = InitializeResources();
     if (!status) {
         ShutdownDevice(false);
@@ -483,8 +529,7 @@ Base::Result<void> D3D11DeviceState::Initialize() noexcept {
         return generation.GetStatus();
     }
     renderer_ = new (std::nothrow) ::Aero::Render::Renderer(
-        *this, ::Aero::Render::MakeD3D11FrameShaderSet(),
-        generation.Value(), allocator_);
+        *this, generation.Value(), allocator_);
     if (renderer_ == nullptr) {
         ShutdownDevice(false);
         return OutOfMemory("Unable to allocate D3D11 renderer");
@@ -516,7 +561,7 @@ Base::Result<Graphics::FenceValue> D3D11DeviceState::DrawBatch(
     ::Aero::Render::Detail::RenderBatch&& batch) noexcept {
     if (!IsReady()) return NotInitialized("D3D11 device is not initialized");
     if (batch.Empty()) return Graphics::FenceValue{0U};
-    return SubmitCommands(batch.Commands());
+    return SubmitBatch(batch);
 }
 
 void D3D11DeviceState::ReleaseRenderer(const void* rendererToken) noexcept {
@@ -603,7 +648,6 @@ void D3D11DeviceState::ShutdownDevice(bool notifyTargets) noexcept {
     delete renderer_;
     renderer_ = nullptr;
     ShutdownResources();
-    BindCommandQueue(nullptr);
     if (graphics_ != nullptr) {
         graphics_->Shutdown();
         delete graphics_;

@@ -2,8 +2,8 @@
 
 #include "../render/DisplayList.hpp"
 
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/FrameworkElement.hpp>
+#include <Aero/Gui/Brush.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 
 namespace Aero::Media {
 

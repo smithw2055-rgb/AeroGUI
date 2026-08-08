@@ -22,7 +22,7 @@ host bridge's underlying capability family without advertising another installed
 SDK backend or product layer.
 
 The final FrameEncoder migration aliases are removed from the implementation;
-`CommandEncoder` and `FrameTarget` are the real low-level names.
+`BatchComposer`, `RenderBatch`, and `FrameTarget` are the real low-level names.
 
 ## C15 - OpenGL window target lifetime
 
@@ -73,6 +73,5 @@ AeroGui, not a separate binary. This is intentionally simpler than creating an
 `AeroRender` wrapper around a renderer whose immutable RenderFrame is produced
 by the UI tree.
 
-The implementation CMake module is renamed from `AeroGuiRuntimeTargets.cmake`
-to `AeroGuiCompositionTargets.cmake`; "Runtime" is no longer a pseudo-product
-name.
+All AeroGui source ownership now lives in `AeroGuiTargets.cmake`; composition
+and rendering are no longer spread across target-extension files.

@@ -1,4 +1,4 @@
-#include <Aero/Media/Geometry.hpp>
+#include <Aero/Gui/Geometry.hpp>
 
 #include <cstdio>
 #include <utility>

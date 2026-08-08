@@ -1,10 +1,23 @@
-#include <Aero/DrawingContext.hpp>
+#include <Aero/Gui/DrawingContext.hpp>
 
 #include "DisplayList.hpp"
 #include "../media/BrushRendering.hpp"
-#include "../media/MediaPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "media/AnimationInternal.hpp"
+#include "media/BrushInternal.hpp"
+#include "media/EffectInternal.hpp"
+#include "media/TransformInternal.hpp"
 
-namespace Aero {
+namespace Aero::Media {
 
 Base::Result<void> DrawingContext::PushClip(
     Base::Rect clip) noexcept {
@@ -107,4 +120,4 @@ Base::Result<void> DrawingContext::DrawRectangleOutline(
         : Base::Result<void>();
 }
 
-} // namespace Aero
+} // namespace Aero::Media

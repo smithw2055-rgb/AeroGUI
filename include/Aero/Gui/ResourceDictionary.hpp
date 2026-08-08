@@ -9,7 +9,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Diagnostics.hpp>
-#include <Aero/DependencyProperty.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
 #include <Aero/Value.hpp>
 
 #include <cstdint>

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Aero/Animation.hpp>
-#include <Aero/DependencyObject.hpp>
+#include <Aero/Gui/Storyboard.hpp>
+#include <Aero/Gui/DependencyObject.hpp>
 
 namespace Aero::Media::Animation {
 

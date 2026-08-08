@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/DependencyObject.hpp>
+#include <Aero/Gui/DependencyObject.hpp>
 #include <Aero/Diagnostics/PropertyValueSource.hpp>
 
 namespace Aero::Diagnostics {

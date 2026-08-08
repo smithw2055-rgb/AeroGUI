@@ -10,8 +10,8 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Stream.hpp>
 #include <Aero/Value.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Styling.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
+#include <Aero/Gui/ControlTemplate.hpp>
 
 #include <cstdint>
 #include <type_traits>
@@ -226,6 +226,13 @@ public:
         return LoadComponentCore(
             uri, Meta::TypeOf<T>(), settings, diagnostics);
     }
+    // Populates an already constructed code-behind root. The returned
+    // document retains exactly this object; the root factory is not invoked.
+    Base::Result<XamlDocument> LoadComponentInto(
+        Base::Ref<Base::Object> existingRoot,
+        Base::StringView uri,
+        const XamlReaderSettings& settings = {},
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
     Base::Result<XamlDocument> Parse(
         Base::StringView source,
         const Base::ResourceUri& baseUri = {},

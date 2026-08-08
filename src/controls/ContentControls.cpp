@@ -1,6 +1,27 @@
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 #include <Aero/Controls.hpp>
-#include "controls/ControlsPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
 
 #include <algorithm>
 
@@ -214,7 +235,7 @@ Size Popup::ArrangeOverride(
         targetSize = placementTarget->GetRenderSize();
         auto absoluteOrigin = [](UIElement& element) noexcept {
             Point result{};
-            Visual* current = &element;
+            ::Aero::Media::Visual* current = &element;
             while (current != nullptr) {
                 UIElement* currentElement =
                     current->AsUIElement();

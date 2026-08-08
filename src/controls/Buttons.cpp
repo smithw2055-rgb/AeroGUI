@@ -1,8 +1,29 @@
-#include "controls/ControlsPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
 #include <Aero/Controls.hpp>
 
 #include <utility>
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
@@ -12,7 +33,7 @@ using namespace Primitives;
 
 ButtonBase::~ButtonBase() {
     auto* behaviors = static_cast<Detail::ControlBehavior*>(
-        Visual::Impl::ControlBehaviorRuntime(*this));
+        ::Aero::Media::Visual::Impl::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -131,7 +152,7 @@ void RadioButton::SetGroupName(
 void ButtonBase::OnApplyTemplate() noexcept {
     ContentControl::OnApplyTemplate();
     auto* behaviors = static_cast<Detail::ControlBehavior*>(
-        Visual::Impl::ControlBehaviorRuntime(*this));
+        ::Aero::Media::Visual::Impl::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->RefreshButtonVisualState(
             *this, false));
@@ -265,7 +286,7 @@ std::uint32_t ButtonBase::Impl::FindButton(
     const ButtonBase& button) const noexcept {
     for (std::uint32_t index = 0U;
         index < buttons_.Size(); ++index) {
-        Visual* visual =
+        ::Aero::Media::Visual* visual =
             tree_->ResolveHandle(buttons_[index].handle);
         if (visual == &button) return index;
     }
@@ -274,7 +295,7 @@ std::uint32_t ButtonBase::Impl::FindButton(
 
 ButtonBase* ButtonBase::Impl::ResolveButton(
     std::uint32_t index) noexcept {
-    Visual* visual = tree_->ResolveHandle(buttons_[index].handle);
+    ::Aero::Media::Visual* visual = tree_->ResolveHandle(buttons_[index].handle);
     return visual != nullptr
         ? static_cast<ButtonBase*>(visual->AsUIElement())
         : nullptr;
@@ -621,7 +642,7 @@ void ButtonBase::Impl::PublishToggleState(
 
 void ButtonBase::Impl::UncheckRadioPeers(
     RadioButton& button) noexcept {
-    Visual* parent = button.GetLogicalParent();
+    ::Aero::Media::Visual* parent = button.GetLogicalParent();
     const Base::StringView group = button.GetGroupName();
     for (std::uint32_t index = 0U;
         index < buttons_.Size(); ++index) {
@@ -760,7 +781,7 @@ void ButtonBase::Impl::OnKeyDown(
         record.keyboardDown = true;
         record.repeatElapsed = 0U;
         record.nextRepeat = 0U;
-        static_cast<void>(::Aero::Visual::Impl::SetPressed(button, true));
+        static_cast<void>(::Aero::Media::Visual::Impl::SetPressed(button, true));
         if (button.GetClickMode() == ClickMode::Press) {
             static_cast<void>(InvokeClick(button));
         }
@@ -782,7 +803,7 @@ void ButtonBase::Impl::OnKeyUp(
     buttons_[index].keyboardDown = false;
     buttons_[index].repeatElapsed = 0U;
     buttons_[index].nextRepeat = 0U;
-    static_cast<void>(::Aero::Visual::Impl::SetPressed(button, false));
+    static_cast<void>(::Aero::Media::Visual::Impl::SetPressed(button, false));
     args.SetHandled(true);
     if (button.GetIsEnabled() &&
         button.GetClickMode() == ClickMode::Release) {
@@ -803,7 +824,7 @@ void ButtonBase::Impl::OnFocusChanged(
         buttons_[index].keyboardDown = false;
         buttons_[index].repeatElapsed = 0U;
         buttons_[index].nextRepeat = 0U;
-        static_cast<void>(::Aero::Visual::Impl::SetPressed(button, false));
+        static_cast<void>(::Aero::Media::Visual::Impl::SetPressed(button, false));
     }
     static_cast<void>(
         SyncVisualState(button));

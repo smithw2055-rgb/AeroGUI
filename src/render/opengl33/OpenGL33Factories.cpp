@@ -1,5 +1,5 @@
 #include <Aero/Render/OpenGL33.hpp>
-#include "render/private/RenderDevice.hpp"
+#include "render/RenderDeviceInternal.hpp"
 
 #include <utility>
 

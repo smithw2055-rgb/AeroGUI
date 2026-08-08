@@ -1,4 +1,4 @@
-#include <Aero/Application.hpp>
+#include <Aero/Gui/Application.hpp>
 
 #include "ApplicationState.hpp"
 #include "DesktopHost.hpp"
@@ -85,23 +85,25 @@ void Application::SetMainWindow(
     }
 }
 
-void Application::SetMainWindowBorrowed(
+void Application::Impl::SetMainWindowBorrowed(
+    Application& application,
     Window* value) noexcept {
-    mainWindowOwner_.Reset();
-    mainWindow_ = value;
-    auto* state = impl_ != nullptr
+    application.mainWindowOwner_.Reset();
+    application.mainWindow_ = value;
+    auto* state = application.impl_ != nullptr
         ? static_cast<::Aero::App::Detail::ApplicationHostState*>(
-              impl_->hostState)
+              application.impl_->hostState)
         : nullptr;
     if (state != nullptr && state->setMainWindow != nullptr) {
         state->setMainWindow(state->context, value);
     }
 }
 
-void Application::Impl::SetMainWindowBorrowed(
-    Application& application,
-    Window* value) noexcept {
-    application.SetMainWindowBorrowed(value);
+Base::Ref<Window> Application::Impl::MainWindowOwner(
+    Application& application) noexcept {
+    return application.mainWindow_ != nullptr
+        ? Base::Ref<Window>::TryFromBorrowed(*application.mainWindow_)
+        : Base::Ref<Window>{};
 }
 
 
@@ -138,7 +140,7 @@ Base::Result<void> Application::Attach(
     }
     impl_->hostState = hostState;
     if (mainWindow_ == nullptr && mainWindow != nullptr) {
-        SetMainWindowBorrowed(mainWindow);
+        Impl::SetMainWindowBorrowed(*this, mainWindow);
     }
     return {};
 }

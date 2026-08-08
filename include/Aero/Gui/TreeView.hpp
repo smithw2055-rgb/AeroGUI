@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Aero/Controls/ItemsControl.hpp>
-#include <Aero/Controls/TextBlock.hpp>
+#include <Aero/Gui/HeaderedItemsControl.hpp>
+#include <Aero/Gui/TextBlock.hpp>
 
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -62,7 +62,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend struct ::Aero::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Impl;
     // The collection protocol is an implementation detail used by the
     // generated child ItemsControl; it is intentionally not part of the
     // TreeViewItem SDK surface.

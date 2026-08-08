@@ -4,8 +4,8 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/View.hpp>
-#include <Aero/Media/Geometry.hpp>
+#include <Aero/Gui/View.hpp>
+#include <Aero/Gui/Geometry.hpp>
 
 #include <cstdint>
 

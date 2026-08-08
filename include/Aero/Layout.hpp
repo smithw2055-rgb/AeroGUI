@@ -7,7 +7,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Threading.hpp>
-#include <Aero/Media/Geometry.hpp>
+#include <Aero/Gui/Geometry.hpp>
 
 #include <cstdint>
 

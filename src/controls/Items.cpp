@@ -1,10 +1,31 @@
 #include <Aero/Controls.hpp>
-#include "controls/ControlsPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
 
 #include "render/RenderTree.hpp"
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 
-#include <Aero/FrameworkElement.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <cstdio>
@@ -853,7 +874,7 @@ ContentControl::CreateTemplatedContent() const noexcept {
         DataTemplate::Impl::Instantiate(
             *static_cast<DataTemplate*>(contentTemplate.Get()),
             contentValue_,
-            Aero::Visual::Impl::BindingEngineFor(*this));
+            Aero::Media::Visual::Impl::BindingEngineFor(*this));
     if (!created) return created.GetStatus();
     if (!created.Value() ||
         !PropertyRegistry().Types().IsDerivedFrom(
@@ -914,13 +935,13 @@ void ItemsControl::OnApplyTemplate() noexcept {
         // builder and is therefore not necessarily present in the outer
         // template part table. Discover the direct IsItemsHost declaration
         // from the complete applied visual subtree.
-        Base::Vector<Visual*> pending;
+        Base::Vector<::Aero::Media::Visual*> pending;
         UIElement* root = GetTemplateRoot();
         if (root != nullptr) {
             static_cast<void>(pending.PushBack(root));
         }
         while (!pending.Empty() && part == nullptr) {
-            Visual* current = pending.Back();
+            ::Aero::Media::Visual* current = pending.Back();
             pending.PopBack();
             if (current == nullptr) continue;
             if (PropertyRegistry().Types().IsDerivedFrom(
@@ -939,7 +960,7 @@ void ItemsControl::OnApplyTemplate() noexcept {
                     static_cast<void>(pending.PushBack(content));
                 }
             }
-            for (Visual* child : Aero::GuiPrivate::Detail::
+            for (::Aero::Media::Visual* child : Aero::GuiPrivate::Detail::
                      ElementPrivate::VisualChildren(*current)) {
                 if (child != nullptr) {
                     static_cast<void>(pending.PushBack(child));
@@ -1004,17 +1025,6 @@ Base::Ref<Base::Object> ItemsControl::GetItem(
     return source_ != nullptr
         ? source_->GetItem(index)
         : items_.GetItem(index);
-}
-
-void ItemsControl::SetItemsSourceBorrowed(
-    Collections::IItemsSource* source) noexcept {
-    // A borrowed source cannot be represented by the object-valued DP.
-    // Publish an explicit null local value so bindings and diagnostics never
-    // report an object owner that is no longer the active source.
-    SetValue(
-        ItemsSourceProperty,
-        Base::Ref<Base::Object>{});
-    SetItemsSourceCore(source);
 }
 
 void ItemsControl::SetItemsSourceCore(
@@ -1208,7 +1218,7 @@ private:
     void OnItemsChanged(const ItemsChangedEvent& event) noexcept;
     Base::Result<Record> CreateRecord(std::uint32_t index) noexcept;
     Base::Result<void> AttachRecord(Record& record, std::uint32_t index) noexcept;
-    Base::Result<void> AttachOwnedSubtree(Record& record, Aero::Visual& root) noexcept;
+    Base::Result<void> AttachOwnedSubtree(Record& record, Aero::Media::Visual& root) noexcept;
     Base::Result<void> DetachOwnedSubtree(Record& record) noexcept;
     Base::Result<void> DetachRecord(
         Record& record,
@@ -1401,7 +1411,7 @@ ItemContainerGenerator::Impl::CreateRecord(
             content =
                 DataTemplate::Impl::Instantiate(
                     *itemTemplate, record.item,
-                    Aero::Visual::Impl::BindingEngineFor(*owner_));
+                    Aero::Media::Visual::Impl::BindingEngineFor(*owner_));
         if (!content) return content.GetStatus();
         record.content =
             std::move(content).Value();
@@ -1530,15 +1540,15 @@ ItemContainerGenerator::Impl::CreateRecord(
 Base::Result<void>
 ItemContainerGenerator::Impl::AttachOwnedSubtree(
     Record& record,
-    Aero::Visual& root) noexcept {
-    Base::Vector<Aero::Visual*> pending;
+    Aero::Media::Visual& root) noexcept {
+    Base::Vector<Aero::Media::Visual*> pending;
     Base::Result<void> pushed =
         pending.PushBack(&root);
     if (!pushed) return pushed.GetStatus();
 
     const auto attachChild =
         [this, &record, &pending](
-            Aero::Visual& parent,
+            Aero::Media::Visual& parent,
             const Base::Ref<Base::Object>& owned)
             noexcept -> Base::Result<void> {
         if (!owned ||
@@ -1549,7 +1559,7 @@ ItemContainerGenerator::Impl::AttachOwnedSubtree(
             return {};
         }
         auto& child =
-            *static_cast<Aero::Visual*>(
+            *static_cast<Aero::Media::Visual*>(
                 owned.Get());
         if (child.GetVisualParent() == &parent &&
             Aero::GuiPrivate::Detail::ElementPrivate::Tree(child) == tree_) {
@@ -1587,7 +1597,7 @@ ItemContainerGenerator::Impl::AttachOwnedSubtree(
     };
 
     while (!pending.Empty()) {
-        Aero::Visual* current =
+        Aero::Media::Visual* current =
             pending.Back();
         pending.PopBack();
         if (current == nullptr) continue;
@@ -1751,8 +1761,8 @@ ItemContainerGenerator::Impl::AttachRecord(
     // required for implicit container styles and control templates (for
     // example ComboBoxItem), while traversal still reaches DataTemplate
     // content mounted beneath it.
-    Aero::Visual& subtree =
-        static_cast<Aero::Visual&>(container);
+    Aero::Media::Visual& subtree =
+        static_cast<Aero::Media::Visual&>(container);
     Base::Result<void> subtreeAttached =
         AttachOwnedSubtree(record, subtree);
     if (!subtreeAttached) {
@@ -1806,8 +1816,8 @@ ItemContainerGenerator::Impl::DetachRecord(
     };
     if (record.subtreeMounted &&
         subtreeCallback_ != nullptr) {
-        Aero::Visual& subtree =
-            static_cast<Aero::Visual&>(
+        Aero::Media::Visual& subtree =
+            static_cast<Aero::Media::Visual&>(
                 container);
         capture(subtreeCallback_(
             subtree,

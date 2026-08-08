@@ -8,7 +8,7 @@ D3D11 and OpenGL now use the same ownership rule: a `RenderDevice` owns exactly 
 
 ## C9 - one semantic renderer
 
-`Aero::Render::Renderer` is the only semantic backend renderer. The former source-private peer renderer is now `CommandEncoder` and only records command lists. Its lightweight attachment value is named `FrameTarget`, so it cannot be confused with the installed `Aero::RenderTarget`.
+`Aero::Render::Renderer` is the only semantic backend renderer. Its source-private `BatchComposer` produces a UI-specific `RenderBatch`; no generic command-list layer remains. Its lightweight attachment value is named `FrameTarget`, so it cannot be confused with the installed `Aero::RenderTarget`.
 
 ## C10 - rendering scope
 
@@ -31,8 +31,8 @@ UI objects
   -> per-View IRenderer
   -> RenderDevice
        -> Render::Renderer
-            -> CommandEncoder
-            -> one GraphicsDevice submission
+            -> BatchComposer
+            -> one RenderBatch submission
   -> RenderTarget
        -> concrete embedded/window target
 ```

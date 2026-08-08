@@ -4,7 +4,7 @@
 
 #include "FrameEncoder.hpp"
 #include "TextRenderer.hpp"
-#include "render/private/RenderDevice.hpp"
+#include "render/RenderDeviceInternal.hpp"
 
 #include <Aero/Base/Vector.hpp>
 
@@ -12,11 +12,11 @@
 
 namespace Aero::Render::Detail {
 
-class CommandEncoderGlyphRunSink
+class BatchGlyphRunSink
     : public GlyphRunResourceSink {
 public:
-    explicit CommandEncoderGlyphRunSink(
-        CommandEncoder& renderer) noexcept
+    explicit BatchGlyphRunSink(
+        BatchComposer& renderer) noexcept
         : renderer_(&renderer) {}
 
     Base::Result<void> RegisterGlyphRun(
@@ -43,14 +43,14 @@ public:
     }
 
 private:
-    CommandEncoder* renderer_ = nullptr;
+    BatchComposer* renderer_ = nullptr;
 };
 
 class TextGpuResources {
 public:
     TextGpuResources(
         Aero::RenderDevice::Impl& device,
-        CommandEncoder& renderer,
+        BatchComposer& renderer,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
         : device_(&device),
@@ -205,7 +205,7 @@ private:
     }
 
     Aero::RenderDevice::Impl* device_ = nullptr;
-    CommandEncoderGlyphRunSink sink_;
+    BatchGlyphRunSink sink_;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<TextRenderer*> renderers_;
     std::uint64_t nextGlyphRunBase_ =

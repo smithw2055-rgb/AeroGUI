@@ -1,4 +1,13 @@
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 #include <Aero/Input.hpp>
 
 
@@ -294,7 +303,7 @@ CommandState::CommandState(ElementTree& tree, EventRouter& events) noexcept
 
 Base::Result<void> CommandState::VerifyTarget(
     UIElement& target) const noexcept {
-    Visual* root = tree_->Root();
+    ::Aero::Media::Visual* root = tree_->Root();
     if (root == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Command routing requires an ElementTree root");
@@ -362,7 +371,7 @@ Base::Result<CommandBindingHandle> CommandState::AddBinding(
 
 Base::Result<bool> CommandState::RemoveBinding(
     CommandBindingHandle handle) noexcept {
-    Visual* root = tree_->Root();
+    ::Aero::Media::Visual* root = tree_->Root();
     if (root == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Command binding removal requires an ElementTree root");

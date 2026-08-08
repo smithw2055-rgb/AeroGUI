@@ -20,7 +20,7 @@
             }
             break;
         }
-        case CommandKind::BindUniformBuffer: {
+        case SubmissionStepKind::BindUniformBuffer: {
             if (!impl_->inRenderPass) {
                 return failSubmission(Unsupported(
                     "D3D11 uniform-buffer binding requires a render pass"));
@@ -98,7 +98,7 @@
                 command.resourceSize;
             break;
         }
-        case CommandKind::BindTextureSampler: {
+        case SubmissionStepKind::BindTextureSampler: {
             if (!impl_->inRenderPass ||
                 command.slot >= D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT ||
                 command.slot >= D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT) {
@@ -138,7 +138,7 @@
             }
             break;
         }
-        case CommandKind::SetScissor: {
+        case SubmissionStepKind::SetScissor: {
             if (!impl_->inRenderPass) {
                 return failSubmission(
                     InvalidState("D3D11 scissor requires a render pass"));
@@ -160,7 +160,7 @@
             }
             break;
         }
-        case CommandKind::Draw: {
+        case SubmissionStepKind::Draw: {
             if (!impl_->inRenderPass || !impl_->currentPipeline.IsValid() ||
                 command.count == 0U || command.instanceCount == 0U) {
                 return failSubmission(
@@ -216,7 +216,7 @@
             }
             break;
         }
-        case CommandKind::DrawIndexed: {
+        case SubmissionStepKind::DrawIndexed: {
             if (!impl_->inRenderPass || !impl_->currentPipeline.IsValid() ||
                 command.count == 0U || command.instanceCount == 0U) {
                 return failSubmission(

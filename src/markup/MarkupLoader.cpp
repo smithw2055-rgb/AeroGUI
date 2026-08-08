@@ -1,4 +1,18 @@
-#include "markup/MarkupPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
+#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupWriterInternal.hpp"
 // Consolidated implementation. Keep sections ordered by dependency.
 
 // ===== CompiledCache =====
@@ -2190,7 +2204,16 @@ CompiledDocument::Deserialize(
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/HashSet.hpp>
 #include <Aero/Base/String.hpp>
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 
 #include <new>
 
@@ -2865,8 +2888,8 @@ Base::Result<void> VisualContentPlan::Reserve(
 }
 
 Base::Result<void> VisualContentPlan::AddNode(
-    Aero::Visual& node) noexcept {
-    for (Aero::Visual* existing : nodes) {
+    Aero::Media::Visual& node) noexcept {
+    for (Aero::Media::Visual* existing : nodes) {
         if (existing == &node) return {};
     }
     return nodes.PushBack(&node);
@@ -2927,8 +2950,8 @@ void VisualContentPlan::Clear() noexcept {
 
 #include <Aero/Base/Hash.hpp>
 
-#include <Aero/FrameworkElement.hpp>
-#include <Aero/Resources.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
 
 #include <algorithm>
 #include <cstdio>
@@ -4154,7 +4177,7 @@ Loader::Impl::Operation::ResolveResourceDependencies(
         }
     }
 
-    for (Aero::Visual* visual : result.visualContent.nodes) {
+    for (Aero::Media::Visual* visual : result.visualContent.nodes) {
         if (visual == nullptr ||
             (result.root && visual == result.root.Get())) {
             continue;
@@ -4643,7 +4666,7 @@ Base::Result<XamlDocument> Loader::LoadCompiled(
 
 
 
-#include <Aero/Application.hpp>
+#include <Aero/Gui/Application.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 
 namespace Aero::Markup {
@@ -4680,7 +4703,7 @@ Base::Result<void> AddFrameworkResource(
     void*) noexcept {
     auto* element =
         static_cast<FrameworkElement*>(
-            static_cast<Visual&>(scopeOwner)
+            static_cast<::Aero::Media::Visual&>(scopeOwner)
                 .AsFrameworkElement());
     if (element == nullptr) {
         return InvalidResource(
@@ -4714,8 +4737,8 @@ ResourceDictionary* ResolveDictionaryScope(
 ResourceDictionary* ResolveFrameworkScope(
     Base::Object& scopeOwner,
     void*) noexcept {
-    Visual& visual =
-        static_cast<Visual&>(scopeOwner);
+    ::Aero::Media::Visual& visual =
+        static_cast<::Aero::Media::Visual&>(scopeOwner);
     FrameworkElement* element =
         visual.AsFrameworkElement();
     return element != nullptr
@@ -4804,7 +4827,7 @@ Base::Result<void> ResourceExtension::Register(
 
 // ===== XamlDocument =====
 
-#include <Aero/Markup.hpp>
+#include <Aero/Gui/XamlReader.hpp>
 
 #include <Aero/Base/Result.hpp>
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/FrameworkElement.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 
 namespace Aero {
 

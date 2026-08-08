@@ -5,7 +5,7 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
-#include <Aero/Controls/Text.hpp>
+#include <Aero/Gui/Text.hpp>
 
 namespace Aero::Controls::Detail {
 
@@ -128,7 +128,7 @@ Base::Result<void> ControlBehavior::Initialize() noexcept {
 }
 
 Base::Result<void> ControlBehavior::Attach(
-    Visual& visual,
+    ::Aero::Media::Visual& visual,
     ::Aero::Input::ITextInputMethodHost* inputMethodHost) noexcept {
     if (!initialized_ || metadata_ == nullptr) {
         return Base::Status::Failure(
@@ -207,7 +207,7 @@ Base::Result<void> ControlBehavior::Attach(
 }
 
 Base::Result<bool> ControlBehavior::Detach(
-    Visual& visual) noexcept {
+    ::Aero::Media::Visual& visual) noexcept {
     if (metadata_ == nullptr) return false;
     const Meta::TypeId type = visual.RuntimeType();
     auto& types = metadata_->Types();

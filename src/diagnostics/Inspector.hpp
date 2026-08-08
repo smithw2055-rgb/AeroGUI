@@ -2,8 +2,29 @@
 
 namespace Aero::Controls::Detail { class TemplateEngine; }
 
-#include "gui/GuiPrivate.hpp"
-#include "../controls/ControlsPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
 
 #include "render/RenderTree.hpp"
 
@@ -11,10 +32,10 @@ namespace Aero::Controls::Detail { class TemplateEngine; }
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Styling.hpp>
-#include <Aero/Data.hpp>
+#include <Aero/Gui/ControlTemplate.hpp>
+#include <Aero/Gui/BindingBase.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/FrameworkElement.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 
 #include <cstdint>
 
@@ -25,7 +46,7 @@ namespace Aero::Controls {
 namespace Aero::Diagnostics {
 
 struct InspectorTreeNode {
-    Aero::Visual* node = nullptr;
+    Aero::Media::Visual* node = nullptr;
     Aero::VisualHandle handle;
     Aero::VisualHandle parent;
     Meta::TypeId runtimeType =
@@ -50,7 +71,7 @@ struct InspectorSnapshot {
           effectiveProperties(),
           activeBindings() {}
 
-    Aero::Visual* target = nullptr;
+    Aero::Media::Visual* target = nullptr;
     Base::Vector<InspectorTreeNode>
         logicalTree;
     Base::Vector<InspectorTreeNode>
@@ -95,7 +116,7 @@ public:
           templates_(templates) {}
 
     Base::Result<void> Capture(
-        Aero::Visual& target,
+        Aero::Media::Visual& target,
         InspectorSnapshot& output,
         std::uint32_t maxTreeNodes =
             4096U) const noexcept;

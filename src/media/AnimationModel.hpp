@@ -1,13 +1,13 @@
 #pragma once
 
-#include <Aero/Animation.hpp>
+#include <Aero/Gui/Storyboard.hpp>
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Threading.hpp>
-#include <Aero/DependencyProperty.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
 #include <cstdint>
 
 namespace Aero::Media::Detail::Animation {

@@ -1,5 +1,5 @@
-#include "render/private/RenderDevice.hpp"
-#include "render/private/RenderTarget.hpp"
+#include "render/RenderDeviceInternal.hpp"
+#include "render/RenderTargetInternal.hpp"
 
 #include <new>
 
@@ -188,13 +188,13 @@ public:
     }
     Base::Result<void> ConfigureNativePipeline(
         ::Aero::Graphics::ResourceHandle,
-        const ::Aero::Graphics::PipelineDescriptor&) noexcept override {
+        ::Aero::Render::Detail::UiPipelineKey) noexcept override {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "Headless render device has no pipelines");
     }
-    Base::Result<void> SubmitNativeCommands(
-        const ::Aero::Graphics::CommandList&,
+    Base::Result<void> SubmitNativeBatch(
+        const ::Aero::Render::Detail::RenderBatch&,
         ::Aero::Graphics::FenceValue) noexcept override {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,

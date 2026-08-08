@@ -6,8 +6,9 @@ they disagree with this file, this file describes the current implementation.
 
 ## Product boundary
 
-The installed products are `Aero::Base`, `Aero::Gui`, `Aero::Meta`,
-`Aero::App`, and optional `Aero::Audio`. `Aero::Gui` is the embeddable runtime;
+The installed products are `Aero::Base`, `Aero::Gui`, `Aero::App`, and optional
+`Aero::Audio`. `Aero::Meta` remains the metadata authoring namespace within
+`Aero::Gui`; it is not a separate product target. `Aero::Gui` is the embeddable runtime;
 `Aero::App` adds the default desktop lifetime/window policy. Repository object
 targets are build components only and are never exported as SDK products.
 
@@ -16,13 +17,9 @@ headers contain no `Aero::Internal`, source-private type, native host adapter,
 or render-backend state. `View`, public `Renderer`, and `RenderDevice` are final
 opaque objects whose implementation state lives under `src`.
 
-The event declaration paths are exactly:
-
-- `<Aero/Events.hpp>` for the event umbrella;
-- `<Aero/Events/RoutedEvent.hpp>` for routed-event declarations.
-
-`<Aero/RoutedEvent.hpp>` and `<Aero/Events/Events.hpp>` are retired and are not
-forwarded or installed.
+The event declaration paths are `<Aero/Events.hpp>` for the event umbrella and
+`<Aero/Gui/RoutedEvent.hpp>` for the WPF-shaped routed-event declaration.
+Legacy root and `Events/RoutedEvent.hpp` forwarding paths are not installed.
 
 ## Source ownership
 
@@ -31,10 +28,10 @@ template-support namespaces `Aero::Base::Detail` and `Aero::Meta::Detail` are
 the only installed Detail surfaces. Class-local `Impl` names are opaque state,
 not a namespace convention.
 
-Cross-translation-unit private declarations enter through the domain headers
-`GuiPrivate.hpp`, `ControlsPrivate.hpp`, `MarkupPrivate.hpp`, and domain-private
-render/platform headers under `src`. Single-translation-unit helpers stay in
-anonymous namespaces; there is no Integration private aggregate.
+Cross-translation-unit implementation files include their direct source-only
+dependencies. The former Gui, Controls, Markup, and Media private umbrella
+headers are deleted. Single-translation-unit helpers stay in anonymous
+namespaces; there is no Integration private aggregate.
 
 Every `.cpp` has one compile owner. In particular, `MarkupSchema.cpp` and
 `MarkupLoader.cpp` own the reusable Markup implementation, while

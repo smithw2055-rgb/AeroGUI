@@ -2,7 +2,20 @@
 #include <Aero/Shapes.hpp>
 
 #include "render/RenderResources.hpp"
-#include "../media/MediaPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "media/AnimationInternal.hpp"
+#include "media/BrushInternal.hpp"
+#include "media/EffectInternal.hpp"
+#include "media/TransformInternal.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -863,7 +876,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
 void Path::ReleaseMesh() noexcept {
     auto* services =
         static_cast<Aero::Render::Detail::MeshResources*>(
-            Visual::Impl::MeshResourcesRuntime(*this));
+            ::Aero::Media::Visual::Impl::MeshResourcesRuntime(*this));
     if (mesh_ != InvalidRenderMeshId &&
         services != nullptr &&
         services->release != nullptr &&
@@ -892,7 +905,7 @@ void Path::AttachMeshResources(
             rawServices);
     auto* currentServices =
         static_cast<Aero::Render::Detail::MeshResources*>(
-            Visual::Impl::MeshResourcesRuntime(*this));
+            ::Aero::Media::Visual::Impl::MeshResourcesRuntime(*this));
     if (!force &&
         currentServices == services &&
         (services == nullptr ||
@@ -919,7 +932,7 @@ Base::Result<void> Path::EnsureMesh() noexcept {
     if (!geometry) return geometry.GetStatus();
     auto* services =
         static_cast<Aero::Render::Detail::MeshResources*>(
-            Visual::Impl::MeshResourcesRuntime(*this));
+            ::Aero::Media::Visual::Impl::MeshResourcesRuntime(*this));
     if (services == nullptr ||
         services->create == nullptr) {
         return {};
@@ -1019,7 +1032,7 @@ Size Path::MeasureOverride(
 }
 
 void Path::OnRender(
-    DrawingContext& context) noexcept {
+    ::Aero::Media::DrawingContext& context) noexcept {
     auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     Base::Ref<Geometry> authoredGeometry = GetData();
     if (authoredGeometry && authoredGeometry->RuntimeType() ==

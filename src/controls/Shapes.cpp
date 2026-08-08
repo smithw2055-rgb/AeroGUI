@@ -1,7 +1,20 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Shapes.hpp>
 
-#include "media/MediaPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "media/AnimationInternal.hpp"
+#include "media/BrushInternal.hpp"
+#include "media/EffectInternal.hpp"
+#include "media/TransformInternal.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -119,7 +132,7 @@ ImageBrushGeometry FitImageBrush(
 }
 
 Base::Result<void> PaintImageBrush(
-    DrawingContext& context,
+    ::Aero::Media::DrawingContext& context,
     const ImageBrush& brush,
     Rect bounds) noexcept {
     auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
@@ -334,7 +347,7 @@ Size Rectangle::MeasureOverride(
 }
 
 void Rectangle::OnRender(
-    DrawingContext& context) noexcept {
+    ::Aero::Media::DrawingContext& context) noexcept {
     auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||
@@ -479,7 +492,7 @@ Size Ellipse::MeasureOverride(
 }
 
 void Ellipse::OnRender(
-    DrawingContext& context) noexcept {
+    ::Aero::Media::DrawingContext& context) noexcept {
     auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||

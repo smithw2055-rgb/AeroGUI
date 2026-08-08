@@ -60,8 +60,8 @@ Dependency-property and routed-event identifiers are declared on one physical
 line:
 
 ```cpp
-inline static constexpr Members::Property<double> RatingProperty{"Rating"};
-inline static constexpr Members::RoutedEvent<Aero::RoutedEventArgs> RatingChangedEvent{"RatingChanged"};
+inline static constexpr Aero::DependencyProperty<double> RatingProperty{"Rating"};
+inline static constexpr Aero::RoutedEvent<Aero::RoutedEventArgs> RatingChangedEvent{"RatingChanged"};
 ```
 
 ## Events
@@ -128,14 +128,14 @@ does not expose a second loader API.
 
 ## Custom controls
 
-Custom controls include their WPF base type plus `Aero/Meta.hpp` (for example `Aero/Controls/Control.hpp`):
+Custom controls include their WPF base type plus `Aero/Meta.hpp` (for example `Aero/Gui/Control.hpp`):
 
 ```cpp
 class Rating : public Aero::Controls::Control {
     AERO_DECLARE_TYPE_NAMED(Rating, Aero::Controls::Control, "urn:demo", "Rating")
 
 public:
-    inline static constexpr Members::Property<double> ValueProperty{"Value"};
+    inline static constexpr Aero::DependencyProperty<double> ValueProperty{"Value"};
 
     double GetValue() const noexcept { return GetValueOr(ValueProperty, 0.0); }
     void SetValue(double value) noexcept { static_cast<void>(Aero::DependencyObject::SetValue(ValueProperty, value)); }

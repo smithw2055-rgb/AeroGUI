@@ -5,7 +5,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/DependencyObject.hpp>
+#include <Aero/Gui/DependencyObject.hpp>
 
 #include <cstdint>
 
@@ -14,6 +14,11 @@ namespace Aero {
 class FrameworkElement;
 class ElementTree;
 class UIElement;
+
+} // namespace Aero
+
+namespace Aero::Media {
+
 class Visual;
 
 class AERO_API VisualTreeHelper {
@@ -23,46 +28,54 @@ public:
     static Visual* GetChild(const Visual& visual, std::uint32_t index) noexcept;
 };
 
+} // namespace Aero::Media
+
+namespace Aero {
+
 class AERO_API LogicalTreeHelper {
 public:
     static DependencyObject* GetParent(const DependencyObject& object) noexcept;
     static std::uint32_t GetChildrenCount(const DependencyObject& object) noexcept;
     static DependencyObject* GetChild(const DependencyObject& object, std::uint32_t index) noexcept;
-    static Visual* GetParent(const Visual& visual) noexcept;
-    static std::uint32_t GetChildrenCount(const Visual& visual) noexcept;
-    static Visual* GetChild(const Visual& visual, std::uint32_t index) noexcept;
+    static Media::Visual* GetParent(const Media::Visual& visual) noexcept;
+    static std::uint32_t GetChildrenCount(const Media::Visual& visual) noexcept;
+    static Media::Visual* GetChild(const Media::Visual& visual, std::uint32_t index) noexcept;
 };
 
-class AERO_API Visual : public DependencyObject {
-    AERO_DECLARE_TYPE(Visual, DependencyObject)
+} // namespace Aero
+
+namespace Aero::Media {
+
+class AERO_API Visual : public ::Aero::DependencyObject {
+    AERO_DECLARE_TYPE(Visual, ::Aero::DependencyObject)
 public:
     // Source-side access and runtime state are intentionally opaque to SDK
     // consumers.  The complete definition lives in the implementation tree.
     struct Impl;
 
-    explicit Visual(Meta::TypeId runtimeType) noexcept;
+    explicit Visual(::Aero::Meta::TypeId runtimeType) noexcept;
     ~Visual() override;
 
     Visual* GetVisualParent() const noexcept { return visualParent_; }
     Visual* GetLogicalParent() const noexcept { return logicalParent_; }
     bool GetIsLoaded() const noexcept { return loaded_; }
 
-    virtual UIElement* AsUIElement() noexcept { return nullptr; }
-    virtual const UIElement* AsUIElement() const noexcept { return nullptr; }
-    virtual FrameworkElement* AsFrameworkElement() noexcept { return nullptr; }
-    virtual const FrameworkElement* AsFrameworkElement() const noexcept { return nullptr; }
+    virtual ::Aero::UIElement* AsUIElement() noexcept { return nullptr; }
+    virtual const ::Aero::UIElement* AsUIElement() const noexcept { return nullptr; }
+    virtual ::Aero::FrameworkElement* AsFrameworkElement() noexcept { return nullptr; }
+    virtual const ::Aero::FrameworkElement* AsFrameworkElement() const noexcept { return nullptr; }
 
 protected:
     virtual std::uint32_t GetVisualChildrenCountCore() const noexcept { return visualChildren_.Size(); }
     virtual Visual* GetVisualChildCore(std::uint32_t index) const noexcept { return index < visualChildren_.Size() ? visualChildren_[index] : nullptr; }
 
 private:
-    friend class LogicalTreeHelper;
-    friend class ElementTree;
+    friend class ::Aero::LogicalTreeHelper;
+    friend class ::Aero::ElementTree;
     friend class VisualTreeHelper;
     Base::Result<Base::Ref<Base::Object>> AcquireLifetime() noexcept;
 
-    ElementTree* tree_ = nullptr;
+    ::Aero::ElementTree* tree_ = nullptr;
     Visual* logicalParent_ = nullptr;
     Visual* visualParent_ = nullptr;
     Base::Vector<Visual*> logicalChildren_;
@@ -81,4 +94,4 @@ private:
     bool loaded_ = false;
 };
 
-} // namespace Aero
+} // namespace Aero::Media

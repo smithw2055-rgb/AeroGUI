@@ -1,11 +1,20 @@
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 #include <Aero/Layout.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Gui/Brush.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Gui/Transform.hpp>
 
 #include <Aero/Base/Assert.hpp>
-#include <Aero/FrameworkElement.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -77,15 +86,15 @@ Size NaturalConstraintForTransform(
 } // namespace
 
 UIElement* UIElementChildRange::Iterator::operator*() const noexcept {
-    Visual* child = owner_ != nullptr ? VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
+    ::Aero::Media::Visual* child = owner_ != nullptr ? ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
     return child != nullptr ? child->AsUIElement() : nullptr;
 }
 
 void UIElementChildRange::Iterator::Advance() noexcept {
     if (owner_ == nullptr) return;
-    const std::uint32_t count = VisualTreeHelper::GetChildrenCount(*owner_);
+    const std::uint32_t count = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*owner_);
     while (index_ < count) {
-        Visual* child = VisualTreeHelper::GetChild(*owner_, index_);
+        ::Aero::Media::Visual* child = ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_);
         if (child != nullptr && child->AsUIElement() != nullptr) return;
         ++index_;
     }
@@ -109,15 +118,15 @@ UIElement* UIElementChildRange::operator[](std::uint32_t index) const noexcept {
 }
 
 FrameworkElement* FrameworkElementChildRange::Iterator::operator*() const noexcept {
-    Visual* child = owner_ != nullptr ? VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
+    ::Aero::Media::Visual* child = owner_ != nullptr ? ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
     return child != nullptr ? child->AsFrameworkElement() : nullptr;
 }
 
 void FrameworkElementChildRange::Iterator::Advance() noexcept {
     if (owner_ == nullptr) return;
-    const std::uint32_t count = VisualTreeHelper::GetChildrenCount(*owner_);
+    const std::uint32_t count = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*owner_);
     while (index_ < count) {
-        Visual* child = VisualTreeHelper::GetChild(*owner_, index_);
+        ::Aero::Media::Visual* child = ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_);
         if (child != nullptr && child->AsFrameworkElement() != nullptr) return;
         ++index_;
     }
@@ -154,7 +163,7 @@ bool IsValidLayoutSize(Size value) noexcept {
     return IsFinite(value) && value.width >= 0.0 && value.height >= 0.0;
 }
 
-UIElement* FindInvalidVisibleLayout(Visual& visual) noexcept {
+UIElement* FindInvalidVisibleLayout(::Aero::Media::Visual& visual) noexcept {
     UIElement* element = visual.AsUIElement();
     if (element != nullptr &&
         element->GetIsVisible() &&
@@ -163,9 +172,9 @@ UIElement* FindInvalidVisibleLayout(Visual& visual) noexcept {
         return element;
     }
     const std::uint32_t childCount =
-        VisualTreeHelper::GetChildrenCount(visual);
+        ::Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
     for (std::uint32_t index = 0U; index < childCount; ++index) {
-        Visual* child = VisualTreeHelper::GetChild(visual, index);
+        ::Aero::Media::Visual* child = ::Aero::Media::VisualTreeHelper::GetChild(visual, index);
         if (child != nullptr) {
             UIElement* invalid = FindInvalidVisibleLayout(*child);
             if (invalid != nullptr) return invalid;
@@ -174,7 +183,7 @@ UIElement* FindInvalidVisibleLayout(Visual& visual) noexcept {
     return nullptr;
 }
 
-bool HasInvalidVisibleLayout(Visual& visual) noexcept {
+bool HasInvalidVisibleLayout(::Aero::Media::Visual& visual) noexcept {
     return FindInvalidVisibleLayout(visual) != nullptr;
 }
 
@@ -211,7 +220,7 @@ double RoundLayoutValue(double value, double dpiScale) noexcept {
 }
 
 UIElement::UIElement(TypeId runtimeType) noexcept
-    : Visual(runtimeType) {}
+    : ::Aero::Media::Visual(runtimeType) {}
 
 UIElement::~UIElement() {
     AERO_ASSERT(Aero::UIElement::Impl::LayoutManager(*this) == nullptr);
@@ -398,7 +407,7 @@ Visibility UIElement::GetVisibility() const noexcept {
         VisibilityProperty, Visibility::Visible);
 }
 bool UIElement::GetIsVisible() const noexcept {
-    const Visual* current = this;
+    const ::Aero::Media::Visual* current = this;
     while (current != nullptr) {
         const UIElement* element = current->AsUIElement();
         if (element != nullptr &&
@@ -413,7 +422,7 @@ bool UIElement::GetIsVisible() const noexcept {
 }
 bool UIElement::GetIsEnabled() const noexcept {
     if (!GetValueOr(IsEnabledProperty, true)) return false;
-    Visual* parent = GetLogicalParent() != nullptr
+    ::Aero::Media::Visual* parent = GetLogicalParent() != nullptr
         ? GetLogicalParent() : GetVisualParent();
     const UIElement* parentElement =
         parent != nullptr ? parent->AsUIElement() : nullptr;
@@ -439,7 +448,7 @@ bool UIElement::GetFocusable() const noexcept {
 }
 Base::Result<bool> UIElement::Focus() noexcept {
     Aero::GuiPrivate::Detail::InputRouter* input =
-        Visual::Impl::InputRouterFor(*this);
+        ::Aero::Media::Visual::Impl::InputRouterFor(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -1388,13 +1397,13 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         std::move(measureQueue_);
     measureQueue_ = Base::Vector<Aero::GuiPrivate::Detail::VisualLease>();
     for (const Aero::GuiPrivate::Detail::VisualLease& lease : measure) {
-        Visual* visual = lease.Resolve();
+        ::Aero::Media::Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element != nullptr) UIElement::Impl::MeasureQueued(*element) = false;
     }
     for (const Aero::GuiPrivate::Detail::VisualLease& lease : measure) {
-        Visual* visual = lease.Resolve();
+        ::Aero::Media::Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element == nullptr || element == root_ ||
@@ -1418,13 +1427,13 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         std::move(arrangeQueue_);
     arrangeQueue_ = Base::Vector<Aero::GuiPrivate::Detail::VisualLease>();
     for (const Aero::GuiPrivate::Detail::VisualLease& lease : arrange) {
-        Visual* visual = lease.Resolve();
+        ::Aero::Media::Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element != nullptr) UIElement::Impl::ArrangeQueued(*element) = false;
     }
     for (const Aero::GuiPrivate::Detail::VisualLease& lease : arrange) {
-        Visual* visual = lease.Resolve();
+        ::Aero::Media::Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element == nullptr || element == root_ ||
@@ -1509,13 +1518,13 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     // descendant. Remove stale queue leases created during template
     // application so the next frame starts from a clean layout state.
     for (const Aero::GuiPrivate::Detail::VisualLease& lease : measureQueue_) {
-        Visual* visual = lease.Resolve();
+        ::Aero::Media::Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element != nullptr) UIElement::Impl::MeasureQueued(*element) = false;
     }
     for (const Aero::GuiPrivate::Detail::VisualLease& lease : arrangeQueue_) {
-        Visual* visual = lease.Resolve();
+        ::Aero::Media::Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element != nullptr) UIElement::Impl::ArrangeQueued(*element) = false;

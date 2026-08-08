@@ -4,8 +4,8 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/DependencyProperty.hpp>
-#include <Aero/Events/RoutedEvent.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/Gui/RoutedEvent.hpp>
 #include <Aero/Value.hpp>
 
 #include <cstdint>

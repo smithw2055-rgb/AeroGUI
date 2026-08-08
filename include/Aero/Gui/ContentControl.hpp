@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Controls/Control.hpp>
+#include <Aero/Gui/Control.hpp>
 
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;

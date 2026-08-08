@@ -1,15 +1,24 @@
 #pragma once
 
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 #include "TemplateInstance.hpp"
 
 // Private control behavior and template implementation for one View.
 // Public controls expose WPF semantics; these classes only retain interaction state.
 #include <Aero/Controls.hpp>
 #include <Aero/Documents.hpp>
-#include <Aero/Controls/Text.hpp>
+#include <Aero/Gui/Text.hpp>
 #include <Aero/Controls.hpp>
-#include <Aero/Styling.hpp>
+#include <Aero/Gui/ControlTemplate.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Input/Platform.hpp>
 #include <cstddef>
@@ -404,7 +413,7 @@ private:
         TreeView& treeView,
         Base::Object* source) const noexcept;
     Base::Result<void> CollectVisibleItems(
-        Visual& parent,
+        ::Aero::Media::Visual& parent,
         Base::Vector<TreeViewItem*>& items)
         noexcept;
     void OnMouseDown(
@@ -568,7 +577,7 @@ private:
         TemplateHandle handle;
         Control* parent = nullptr;
         const ControlTemplate* plan = nullptr;
-        Visual* rootVisual = nullptr;
+        ::Aero::Media::Visual* rootVisual = nullptr;
         UIElement* rootElement = nullptr;
         Base::Vector<Aero::Controls::Detail::TemplatePart> parts;
         Base::Vector<Aero::Controls::Detail::TemplateContentProjection> projections;
@@ -695,9 +704,9 @@ public:
 
     Base::Result<void> Initialize() noexcept;
     Base::Result<void> Attach(
-        Visual& visual,
+        ::Aero::Media::Visual& visual,
         ::Aero::Input::ITextInputMethodHost* inputMethodHost) noexcept;
-    Base::Result<bool> Detach(Visual& visual) noexcept;
+    Base::Result<bool> Detach(::Aero::Media::Visual& visual) noexcept;
     Base::Result<void> RefreshButtonVisualState(
         Primitives::ButtonBase& button,
         bool useTransitions = true) noexcept;

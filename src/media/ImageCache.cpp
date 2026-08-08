@@ -1,16 +1,52 @@
-#include "markup/MarkupPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
+#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupWriterInternal.hpp"
 #include "../render/DisplayList.hpp"
 #include "ImageCache.hpp"
 
-#include "media/MediaPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "media/AnimationInternal.hpp"
+#include "media/BrushInternal.hpp"
+#include "media/EffectInternal.hpp"
+#include "media/TransformInternal.hpp"
 
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Shapes.hpp>
 
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Gui/Brush.hpp>
 #include <Aero/Media/Images.hpp>
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -161,7 +197,7 @@ ImageCache::~ImageCache() noexcept {
 }
 
 Base::Result<bool> ImageCache::Synchronize(
-    Aero::Visual* root,
+    Aero::Media::Visual* root,
     const Base::ResourceUri& documentUri,
     Markup::XamlProviderRegistry& sources,
     Media::TextureProvider* textureProvider,
@@ -179,7 +215,7 @@ Base::Result<bool> ImageCache::Synchronize(
         }
     }
 
-    Base::Vector<Aero::Visual*> pending(
+    Base::Vector<Aero::Media::Visual*> pending(
         allocator_);
     if (root != nullptr) {
         Base::Result<void> queued =
@@ -187,11 +223,11 @@ Base::Result<bool> ImageCache::Synchronize(
         if (!queued) return queued.GetStatus();
     }
     while (!pending.Empty()) {
-        Aero::Visual* visual =
+        Aero::Media::Visual* visual =
             pending[pending.Size() - 1U];
         pending.PopBack();
         if (visual == nullptr) continue;
-        for (Aero::Visual* child :
+        for (Aero::Media::Visual* child :
              Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*visual)) {
             Base::Result<void> queued =
                 pending.PushBack(child);

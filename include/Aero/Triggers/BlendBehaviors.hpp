@@ -3,8 +3,8 @@
 #include <Aero/Triggers/Behavior.hpp>
 #include <Aero/Events/EventArgs.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Gui/Brush.hpp>
+#include <Aero/Gui/Transform.hpp>
 
 namespace Aero::Interactivity {
 

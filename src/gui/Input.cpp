@@ -1,11 +1,20 @@
 #include <Aero/Input.hpp>
 
 #include <Aero/Base/Utf8.hpp>
-#include <Aero/FrameworkElement.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/Gui/Transform.hpp>
 
 #include <cmath>
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 
 namespace Aero::Input {
 
@@ -42,8 +51,8 @@ bool HasSelfHitSurface(UIElement& element) noexcept {
 }
 
 bool IsVisualDescendantOrSelf(
-    const Visual& root, const Visual& target) noexcept {
-    const Visual* current = &target;
+    const ::Aero::Media::Visual& root, const ::Aero::Media::Visual& target) noexcept {
+    const ::Aero::Media::Visual* current = &target;
     while (current != &root) {
         current = current->GetVisualParent();
         if (current == nullptr) return false;
@@ -82,22 +91,22 @@ bool ParentToLocal(
 
 namespace Aero {
 
-Base::Result<void> Visual::Impl::SetMouseOver(UIElement& element, bool value) noexcept {
+Base::Result<void> Media::Visual::Impl::SetMouseOver(UIElement& element, bool value) noexcept {
     element.SetMouseOverState(value);
     return {};
 }
 
-Base::Result<void> Visual::Impl::SetPressed(UIElement& element, bool value) noexcept {
+Base::Result<void> Media::Visual::Impl::SetPressed(UIElement& element, bool value) noexcept {
     element.SetPressedState(value);
     return {};
 }
 
-Base::Result<void> Visual::Impl::SetKeyboardFocused(UIElement& element, bool value) noexcept {
+Base::Result<void> Media::Visual::Impl::SetKeyboardFocused(UIElement& element, bool value) noexcept {
     element.SetKeyboardFocusedState(value);
     return {};
 }
 
-Base::Result<void> Visual::Impl::SetKeyboardFocusWithin(UIElement& element, bool value) noexcept {
+Base::Result<void> Media::Visual::Impl::SetKeyboardFocusWithin(UIElement& element, bool value) noexcept {
     element.SetKeyboardFocusWithinState(value);
     return {};
 }
@@ -106,7 +115,7 @@ Base::Point DragEventArgs::GetPosition(
     const UIElement& relativeTo) const noexcept {
     if (root_ == nullptr) return MouseEventArgs::GetPosition();
     GuiPrivate::Detail::InputRouter* input =
-        Visual::Impl::InputRouterFor(relativeTo);
+        Media::Visual::Impl::InputRouterFor(relativeTo);
     if (input == nullptr) return MouseEventArgs::GetPosition();
     Base::Result<Input::HitTestResult> mapped =
         input->RootToLocal(
@@ -119,7 +128,7 @@ Base::Point DragEventArgs::GetPosition(
 
 bool UIElement::GetIsDragging() const noexcept {
     GuiPrivate::Detail::InputRouter* input =
-        Visual::Impl::InputRouterFor(*this);
+        Media::Visual::Impl::InputRouterFor(*this);
     return input != nullptr && input->IsDragSource(*this);
 }
 
@@ -128,7 +137,7 @@ Base::Result<void> UIElement::BeginDrag(
     const Value& data,
     Input::DragDropEffects allowedEffects) noexcept {
     GuiPrivate::Detail::InputRouter* input =
-        Visual::Impl::InputRouterFor(*this);
+        Media::Visual::Impl::InputRouterFor(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -140,7 +149,7 @@ Base::Result<void> UIElement::BeginDrag(
 
 Base::Result<bool> UIElement::CancelDrag() noexcept {
     GuiPrivate::Detail::InputRouter* input =
-        Visual::Impl::InputRouterFor(*this);
+        Media::Visual::Impl::InputRouterFor(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -200,7 +209,7 @@ Base::Result<void> HitTestState::SetOverlays(
 }
 
 Base::Result<HitTestResult> HitTestState::HitTest(
-    Visual& root, Point position) const noexcept {
+    ::Aero::Media::Visual& root, Point position) const noexcept {
     if (!IsFinite(position)) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Hit-test position must be finite");
@@ -257,7 +266,7 @@ Base::Result<HitTestResult> HitTestState::HitTest(
 }
 
 Base::Result<HitTestResult> HitTestState::RootToLocal(
-    Visual& root, Visual& target, Point position) const noexcept {
+    ::Aero::Media::Visual& root, ::Aero::Media::Visual& target, Point position) const noexcept {
     if (!IsFinite(position)) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Pointer position must be finite");
@@ -274,14 +283,14 @@ Base::Result<HitTestResult> HitTestState::RootToLocal(
     }
 
     Base::Vector<UIElement*> path;
-    Visual* current = &target;
+    ::Aero::Media::Visual* current = &target;
     while (current != &root) {
         UIElement* currentElement = AsUIElement(*current);
         if (currentElement == nullptr || !currentElement->GetIsArrangeValid()) {
             return Base::Status::Failure(Base::ErrorCode::InvalidState,
                 "Pointer capture route contains an unarranged element");
         }
-        Visual* parent = current->GetVisualParent();
+        ::Aero::Media::Visual* parent = current->GetVisualParent();
         if (parent == nullptr) {
             return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
                 "Pointer capture target is not below the input root");
@@ -342,9 +351,9 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
         return HitTestResult{};
     }
 
-    const Base::Span<Visual* const> children = Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(element);
+    const Base::Span<::Aero::Media::Visual* const> children = Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(element);
     for (std::uint32_t index = children.Size(); index > 0U; --index) {
-        Visual* childNode = children[index - 1U];
+        ::Aero::Media::Visual* childNode = children[index - 1U];
         if (childNode == nullptr) continue;
         UIElement* child = AsUIElement(*childNode);
         if (child == nullptr) continue;
@@ -408,14 +417,14 @@ bool PointerStateMachine::HasHover(
     ElementTree* tree = root_ != nullptr
         ? Aero::GuiPrivate::Detail::ElementPrivate::Tree(*root_)
         : nullptr;
-    Visual* targetVisual =
+    ::Aero::Media::Visual* targetVisual =
         tree != nullptr
         ? tree->ResolveHandle(target)
         : nullptr;
     if (targetVisual == nullptr) return false;
     for (std::uint32_t index = 0U; index < states_.Size(); ++index) {
         if (index == ignoredIndex) continue;
-        Visual* current =
+        ::Aero::Media::Visual* current =
             tree->ResolveHandle(states_[index].hover);
         while (current != nullptr) {
             if (current == targetVisual) return true;
@@ -465,7 +474,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
         previous.index == next.index &&
         previous.generation == next.generation;
     if (sameTarget) {
-        Visual* current =
+        ::Aero::Media::Visual* current =
             next.IsValid()
             ? tree->ResolveHandle(next)
             : nullptr;
@@ -484,18 +493,18 @@ Base::Result<void> PointerStateMachine::UpdateHover(
         if (stateIsCurrent) return {};
     }
 
-    Visual* previousVisual =
+    ::Aero::Media::Visual* previousVisual =
         previous.IsValid()
         ? tree->ResolveHandle(previous)
         : nullptr;
-    Visual* nextVisual =
+    ::Aero::Media::Visual* nextVisual =
         next.IsValid()
         ? tree->ResolveHandle(next)
         : nullptr;
     const auto isAncestorOrSelf = [](
-        Visual* ancestor,
-        Visual* descendant) noexcept {
-        Visual* current = descendant;
+        ::Aero::Media::Visual* ancestor,
+        ::Aero::Media::Visual* descendant) noexcept {
+        ::Aero::Media::Visual* current = descendant;
         while (current != nullptr) {
             if (current == ancestor) return true;
             current = current->GetVisualParent() != nullptr
@@ -505,7 +514,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
         return false;
     };
 
-    Visual* current = nextVisual;
+    ::Aero::Media::Visual* current = nextVisual;
     while (current != nullptr) {
         UIElement* element = current->AsUIElement();
         if (element != nullptr &&
@@ -604,7 +613,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
 
     UIElement* nextElement = nullptr;
     if (next.IsValid() && !HasPressed(next, index)) {
-        Visual* visual = tree->ResolveHandle(next);
+        ::Aero::Media::Visual* visual = tree->ResolveHandle(next);
         nextElement = visual != nullptr ? visual->AsUIElement() : nullptr;
         if (nextElement != nullptr) {
             Base::Result<void> set = ElementPrivate::SetPressed(*nextElement, true);
@@ -615,7 +624,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
         }
     }
     if (previous.IsValid() && !HasPressed(previous, index)) {
-        Visual* visual = tree->ResolveHandle(previous);
+        ::Aero::Media::Visual* visual = tree->ResolveHandle(previous);
         UIElement* previousElement =
             visual != nullptr ? visual->AsUIElement() : nullptr;
         if (previousElement != nullptr) {
@@ -641,7 +650,7 @@ UIElement* PointerStateMachine::CapturedNode(std::uint32_t pointerId) noexcept {
     const std::uint32_t index = FindCapture(pointerId);
     if (index == UINT32_MAX) return nullptr;
     ElementTree* tree = Aero::GuiPrivate::Detail::ElementPrivate::Tree(*root_);
-    Visual* target = tree != nullptr
+    ::Aero::Media::Visual* target = tree != nullptr
         ? tree->ResolveHandle(captures_[index].target) : nullptr;
     UIElement* element = target != nullptr ? target->AsUIElement() : nullptr;
     if (element == nullptr || !element->GetIsLoaded() ||
@@ -673,7 +682,7 @@ Base::Result<void> PointerStateMachine::CapturePointer(
     if (!local) return local.GetStatus();
     const std::uint32_t index = FindCapture(pointerId);
     if (index != UINT32_MAX) {
-        Visual* previousVisual =
+        ::Aero::Media::Visual* previousVisual =
             tree->ResolveHandle(captures_[index].target);
         UIElement* previous = previousVisual != nullptr
             ? previousVisual->AsUIElement() : nullptr;
@@ -701,7 +710,7 @@ Base::Result<bool> PointerStateMachine::ReleasePointer(
     if (index == UINT32_MAX) return false;
     Base::Result<void> state = UpdatePressed(pointerId, nullptr);
     if (!state) return state.GetStatus();
-    Visual* visual = Aero::GuiPrivate::Detail::ElementPrivate::Tree(*root_)->ResolveHandle(
+    ::Aero::Media::Visual* visual = Aero::GuiPrivate::Detail::ElementPrivate::Tree(*root_)->ResolveHandle(
         captures_[index].target);
     UIElement* target =
         visual != nullptr ? visual->AsUIElement() : nullptr;
@@ -819,7 +828,7 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
     if (input.action == PointerAction::Up) {
         const std::uint32_t index = FindCapture(input.pointerId);
         if (index != UINT32_MAX) {
-            Visual* visual = Aero::GuiPrivate::Detail::ElementPrivate::Tree(*root_)->ResolveHandle(
+            ::Aero::Media::Visual* visual = Aero::GuiPrivate::Detail::ElementPrivate::Tree(*root_)->ResolveHandle(
                 captures_[index].target);
             UIElement* target =
                 visual != nullptr ? visual->AsUIElement() : nullptr;
@@ -839,7 +848,7 @@ DragDropState::DragDropState(
     HitTestState& hitTests) noexcept
     : tree_(&tree), events_(&events), hitTests_(&hitTests) {}
 
-void DragDropState::SetRoot(Visual* root) noexcept {
+void DragDropState::SetRoot(::Aero::Media::Visual* root) noexcept {
     if (root_ == root) return;
     if (active_) {
         static_cast<void>(Cancel());
@@ -849,7 +858,7 @@ void DragDropState::SetRoot(Visual* root) noexcept {
 
 UIElement* DragDropState::Resolve(
     VisualHandle handle) const noexcept {
-    Visual* visual = tree_ != nullptr
+    ::Aero::Media::Visual* visual = tree_ != nullptr
         ? tree_->ResolveHandle(handle)
         : nullptr;
     UIElement* element = visual != nullptr
@@ -869,7 +878,7 @@ bool DragDropState::IsSource(
 
 UIElement* DragDropState::FindDropTarget(
     UIElement* hit) const noexcept {
-    Visual* current = hit;
+    ::Aero::Media::Visual* current = hit;
     while (current != nullptr) {
         UIElement* element = current->AsUIElement();
         if (element != nullptr &&
@@ -1116,14 +1125,14 @@ FocusState::FocusState(
       scopeFocus_(&Base::GetDefaultAllocator()) {}
 
 UIElement* FocusState::FocusedNode() noexcept {
-    Visual* visual = tree_->ResolveHandle(focused_);
+    ::Aero::Media::Visual* visual = tree_->ResolveHandle(focused_);
     UIElement* node = visual != nullptr ? visual->AsUIElement() : nullptr;
     if (node == nullptr) focused_ = {};
     return node;
 }
 
 UIElement* FocusState::FindNavigationScope(UIElement* node) noexcept {
-    Visual* current = node != nullptr
+    ::Aero::Media::Visual* current = node != nullptr
         ? (node->GetLogicalParent() != nullptr
             ? node->GetLogicalParent() : node->GetVisualParent())
         : nullptr;
@@ -1133,14 +1142,14 @@ UIElement* FocusState::FindNavigationScope(UIElement* node) noexcept {
         current = current->GetLogicalParent() != nullptr
             ? current->GetLogicalParent() : current->GetVisualParent();
     }
-    Visual* root = tree_->Root();
+    ::Aero::Media::Visual* root = tree_->Root();
     return root != nullptr ? root->AsUIElement() : nullptr;
 }
 
 Base::Result<void> FocusState::RememberFocus(
     UIElement& node) noexcept {
-    Visual* current = &node;
-    Visual* root = tree_->Root();
+    ::Aero::Media::Visual* current = &node;
+    ::Aero::Media::Visual* root = tree_->Root();
     while (current != nullptr) {
         UIElement* element = current->AsUIElement();
         const bool isScope = current == root ||
@@ -1185,7 +1194,7 @@ UIElement* FocusState::FocusedElement(UIElement& scope) noexcept {
             record.scope.generation != handle.Value().generation) {
             continue;
         }
-        Visual* visual = tree_->ResolveHandle(record.focused);
+        ::Aero::Media::Visual* visual = tree_->ResolveHandle(record.focused);
         UIElement* element =
             visual != nullptr ? visual->AsUIElement() : nullptr;
         if (element == nullptr || !element->GetIsLoaded()) {
@@ -1198,10 +1207,10 @@ UIElement* FocusState::FocusedElement(UIElement& scope) noexcept {
 }
 
 Base::Result<void> FocusState::CollectCandidates(
-    Visual& parent,
+    ::Aero::Media::Visual& parent,
     Base::Vector<FocusCandidate>& candidates,
     std::uint32_t& order) noexcept {
-    for (Visual* child : Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(parent)) {
+    for (::Aero::Media::Visual* child : Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element = child->AsUIElement();
         const std::uint32_t candidateOrder = order++;
@@ -1247,7 +1256,7 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
             "Keyboard focus target must be loaded and enabled");
     }
     std::uint32_t ancestorCount = 1U;
-    Visual* ancestor = node;
+    ::Aero::Media::Visual* ancestor = node;
     while (ancestor != tree_->Root()) {
         ancestor = ancestor->GetLogicalParent() != nullptr
             ? ancestor->GetLogicalParent() : ancestor->GetVisualParent();
@@ -1259,7 +1268,7 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
     if (!reserved) return reserved.GetStatus();
     auto setFocusWithin = [](UIElement& element, bool value)
         -> Base::Result<void> {
-        Visual* current = &element;
+        ::Aero::Media::Visual* current = &element;
         while (current != nullptr) {
             if (UIElement* ancestor = current->AsUIElement()) {
                 Base::Result<void> updated =
@@ -1343,7 +1352,7 @@ Base::Result<bool> FocusState::ClearFocus() noexcept {
     if (!state) return state.GetStatus();
     auto setFocusWithin = [](UIElement& element, bool value)
         -> Base::Result<void> {
-        Visual* current = &element;
+        ::Aero::Media::Visual* current = &element;
         while (current != nullptr) {
             if (UIElement* ancestor = current->AsUIElement()) {
                 Base::Result<void> updated =
@@ -1437,7 +1446,7 @@ KeyboardState::KeyboardState(FocusState& focus,
 
 Base::Result<KeyboardDispatchResult> KeyboardState::Dispatch(
     const KeyboardInput& input) noexcept {
-    Visual* root = tree_->Root();
+    ::Aero::Media::Visual* root = tree_->Root();
     if (root == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Keyboard input requires an ElementTree root");
@@ -1523,7 +1532,7 @@ TextInputState::TextInputState(FocusState& focus,
 
 Base::Result<TextInputDispatchResult> TextInputState::Dispatch(
     const TextInput& input) noexcept {
-    Visual* root = tree_->Root();
+    ::Aero::Media::Visual* root = tree_->Root();
     if (root == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Text input requires an ElementTree root");

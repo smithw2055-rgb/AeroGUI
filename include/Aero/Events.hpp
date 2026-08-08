@@ -8,4 +8,4 @@
 #include <Aero/Events/NavigationEventArgs.hpp>
 #include <Aero/Events/PropertyEventArgs.hpp>
 #include <Aero/Events/WindowEventArgs.hpp>
-#include <Aero/Events/RoutedEvent.hpp>
+#include <Aero/Gui/RoutedEvent.hpp>

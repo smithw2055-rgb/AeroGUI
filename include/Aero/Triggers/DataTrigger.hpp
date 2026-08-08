@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Data.hpp>
+#include <Aero/Gui/BindingBase.hpp>
 #include <Aero/Triggers/TriggerBase.hpp>
 
 namespace Aero {

@@ -1,9 +1,9 @@
 #pragma once
 
 #include <Aero/App.hpp>
-#include <Aero/IRenderer.hpp>
+#include <Aero/Gui/IRenderer.hpp>
 #include <Aero/Platform/NativeWindow.hpp>
-#include <Aero/RenderTarget.hpp>
+#include <Aero/Gui/RenderTarget.hpp>
 
 namespace Aero::App::Detail {
 

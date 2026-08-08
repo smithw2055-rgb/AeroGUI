@@ -7,7 +7,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/DependencyProperty.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
 
 namespace Aero {
 

@@ -1,7 +1,16 @@
-#include "gui/GuiPrivate.hpp"
-#include "gui/private/Style.hpp"
-#include <Aero/Styling.hpp>
-#include <Aero/FrameworkElement.hpp>
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include <Aero/Gui/ControlTemplate.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 #include <Aero/Value.hpp>
 
 #include <new>

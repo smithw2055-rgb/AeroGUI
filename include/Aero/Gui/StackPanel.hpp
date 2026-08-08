@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Controls/Panel.hpp>
+#include <Aero/Gui/Panel.hpp>
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;

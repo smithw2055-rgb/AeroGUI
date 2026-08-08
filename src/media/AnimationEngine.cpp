@@ -1,18 +1,27 @@
 #include "../media/AnimationModel.hpp"
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Gui/Brush.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Gui/Transform.hpp>
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Value.hpp>
-#include <Aero/FrameworkElement.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <new>
 #include <utility>
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 
 namespace Aero::Media::Detail::Animation {
 namespace {

@@ -6,9 +6,9 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/DependencyProperty.hpp>
-#include <Aero/Data.hpp>
-#include <Aero/Resources.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/Gui/BindingBase.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
 #include <Aero/Triggers/TriggerBase.hpp>
 #include <Aero/Triggers/Trigger.hpp>
 #include <Aero/Triggers/DataTrigger.hpp>

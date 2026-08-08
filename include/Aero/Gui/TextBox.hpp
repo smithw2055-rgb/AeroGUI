@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Aero/Input/Platform.hpp>
-#include <Aero/Controls/TextBoxBase.hpp>
-#include <Aero/Controls/ScrollViewer.hpp>
+#include <Aero/Gui/TextBoxBase.hpp>
+#include <Aero/Gui/ScrollViewer.hpp>
 #include <Aero/TextFormatting.hpp>
 
 namespace Aero::Controls {
@@ -146,7 +146,7 @@ protected:
     Size ArrangeOverride(
         Size finalSize) noexcept override;
     void OnRender(
-        DrawingContext& context) noexcept override;
+        ::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
     friend struct Impl;
@@ -222,7 +222,7 @@ private:
     Base::Result<void>
     CancelCompositionForFocusLoss() noexcept;
     Base::Result<void> RenderEditor(
-        DrawingContext& context,
+        ::Aero::Media::DrawingContext& context,
         Size viewport,
         bool drawCaret) noexcept;
     void OnTextPropertyChanged(

@@ -28,7 +28,7 @@
                 region.bytesPerRow * region.height);
             break;
         }
-        case CommandKind::BeginRenderPass: {
+        case SubmissionStepKind::BeginRenderPass: {
             if (impl_->inRenderPass ||
                 !Base::IsValidRect(command.renderPass.renderArea) ||
                 command.renderPass.colorAttachmentCount > MaxColorAttachments) {
@@ -137,7 +137,7 @@
             impl_->inRenderPass = true;
             break;
         }
-        case CommandKind::EndRenderPass: {
+        case SubmissionStepKind::EndRenderPass: {
             if (!impl_->inRenderPass) {
                 return failSubmission(
                     InvalidState("D3D11 render-pass stack underflow"));
@@ -149,7 +149,7 @@
             impl_->inRenderPass = false;
             break;
         }
-        case CommandKind::BindPipeline: {
+        case SubmissionStepKind::BindPipeline: {
             if (!impl_->inRenderPass) {
                 return failSubmission(
                     InvalidState("D3D11 pipeline binding requires a render pass"));
@@ -176,7 +176,7 @@
             impl_->currentPipeline = record->handle;
             break;
         }
-        case CommandKind::BindVertexBuffer: {
+        case SubmissionStepKind::BindVertexBuffer: {
             if (!impl_->inRenderPass || !impl_->currentPipeline.IsValid()) {
                 return failSubmission(
                     InvalidState("D3D11 vertex-buffer binding requires a pipeline"));
@@ -207,7 +207,7 @@
             }
             break;
         }
-        case CommandKind::BindIndexBuffer: {
+        case SubmissionStepKind::BindIndexBuffer: {
             if (!impl_->inRenderPass) {
                 return failSubmission(
                     InvalidState("D3D11 index-buffer binding requires a render pass"));

@@ -1,4 +1,4 @@
-#include "render/private/RenderTarget.hpp"
+#include "render/RenderTargetInternal.hpp"
 
 #include <utility>
 

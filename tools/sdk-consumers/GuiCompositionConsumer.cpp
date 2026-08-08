@@ -1,12 +1,12 @@
 #include <Aero/Gui.hpp>
-#include <Aero/View.hpp>
+#include <Aero/Gui/View.hpp>
 #include <Aero/ViewOptions.hpp>
-#include <Aero/RenderTarget.hpp>
-#include <Aero/IRenderer.hpp>
+#include <Aero/Gui/RenderTarget.hpp>
+#include <Aero/Gui/IRenderer.hpp>
 #include <Aero/Text/FontProvider.hpp>
 #include <Aero/Media/TextureProvider.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
-#include <Aero/Markup.hpp>
+#include <Aero/Gui/XamlReader.hpp>
 
 #include <type_traits>
 #include <utility>

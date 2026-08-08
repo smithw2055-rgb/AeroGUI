@@ -2,11 +2,11 @@
 
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Collections.hpp>
-#include <Aero/DependencyProperty.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
 #include <Aero/Freezable.hpp>
 #include <Aero/Media/Images.hpp>
-#include <Aero/FrameworkElement.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/Gui/Transform.hpp>
 
 namespace Aero::Media {
 

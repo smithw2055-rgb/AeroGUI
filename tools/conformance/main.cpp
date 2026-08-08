@@ -2,12 +2,12 @@
 #include <Aero/Freezable.hpp>
 #include <Aero/Gui.hpp>
 #include <Aero/ViewOptions.hpp>
-#include <Aero/Markup.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Gui/XamlReader.hpp>
+#include <Aero/Gui/Brush.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Geometry.hpp>
-#include <Aero/Media/Transforms.hpp>
-#include <Aero/View.hpp>
+#include <Aero/Gui/Geometry.hpp>
+#include <Aero/Gui/Transform.hpp>
+#include <Aero/Gui/View.hpp>
 
 #include "render/FrameEncoder.hpp"
 #include "gui/private/Property.hpp"

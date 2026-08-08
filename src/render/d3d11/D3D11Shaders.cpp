@@ -28,13 +28,13 @@ namespace Aero::Render {
 namespace {
 
 
-Graphics::ShaderDescriptor Shader(
+Graphics::NativeShaderProgram Shader(
     Graphics::ShaderStage stage,
     const std::uint8_t* bytecode,
     std::uint32_t bytecodeSize,
     std::uint64_t stableId,
     Base::StringView entryPoint) noexcept {
-    Graphics::ShaderDescriptor descriptor;
+    Graphics::NativeShaderProgram descriptor;
     descriptor.stage = stage;
     descriptor.language = Graphics::ShaderLanguage::Dxbc;
     descriptor.bytecode = bytecode;
@@ -46,8 +46,8 @@ Graphics::ShaderDescriptor Shader(
 
 } // namespace
 
-FrameShaderSet MakeD3D11FrameShaderSet() noexcept {
-    FrameShaderSet shaders;
+BackendShaderCatalog MakeD3D11BackendShaderCatalog() noexcept {
+    BackendShaderCatalog shaders;
     shaders.rectangleVertex = Shader(
         Graphics::ShaderStage::Vertex,
         AeroD3D11RenderFrameVertexShader,
@@ -110,6 +110,96 @@ FrameShaderSet MakeD3D11FrameShaderSet() noexcept {
         UINT64_C(0xD3111032), Base::StringView("ps_main"));
     shaders.colorFormat = Graphics::GraphicsTextureFormat::Bgra8Unorm;
     return shaders;
+}
+
+static Graphics::NativePipelineState MakeUiNativePipelineState(
+    const BackendShaderCatalog& shaders,
+    Detail::UiPipelineKey key) noexcept {
+    Graphics::NativePipelineState descriptor;
+    descriptor.vertexLayout.bufferCount = 1U;
+    descriptor.vertexLayout.attributeCount = 1U;
+    descriptor.vertexLayout.buffers[0].stride = 8U;
+    descriptor.vertexLayout.attributes[0].location = 0U;
+    descriptor.vertexLayout.attributes[0].bufferSlot = 0U;
+    descriptor.vertexLayout.attributes[0].format = Graphics::VertexFormat::Float2;
+    descriptor.topology = Graphics::PrimitiveTopology::TriangleStrip;
+    descriptor.blend.enabled = key.blend != Detail::UiBlendMode::Opaque;
+    descriptor.blend.color.source = Graphics::BlendFactor::SourceAlpha;
+    descriptor.blend.color.destination = Graphics::BlendFactor::OneMinusSourceAlpha;
+    descriptor.blend.alpha.source = Graphics::BlendFactor::One;
+    descriptor.blend.alpha.destination = Graphics::BlendFactor::OneMinusSourceAlpha;
+    descriptor.colorFormat = shaders.colorFormat;
+    descriptor.raster.scissorEnabled = true;
+
+    switch (key.shader) {
+    case Detail::UiShader::Image:
+        descriptor.vertexShader = shaders.imageVertex;
+        descriptor.fragmentShader = shaders.imageFragment;
+        break;
+    case Detail::UiShader::Mask:
+        descriptor.vertexShader = shaders.maskVertex;
+        descriptor.fragmentShader = shaders.maskFragment;
+        break;
+    case Detail::UiShader::Effect:
+        descriptor.vertexShader = shaders.effectVertex;
+        descriptor.fragmentShader = shaders.effectFragment;
+        break;
+    case Detail::UiShader::Mesh:
+        descriptor.vertexShader = shaders.meshVertex;
+        descriptor.fragmentShader = shaders.meshFragment;
+        descriptor.vertexLayout.buffers[0].stride = 28U;
+        descriptor.vertexLayout.attributeCount = 3U;
+        descriptor.vertexLayout.attributes[1] = {1U, 0U, Graphics::VertexFormat::Float4, 8U};
+        descriptor.vertexLayout.attributes[2] = {2U, 0U, Graphics::VertexFormat::Float, 24U};
+        descriptor.topology = Graphics::PrimitiveTopology::TriangleList;
+        break;
+    case Detail::UiShader::Glyph:
+        descriptor.vertexShader = shaders.glyphVertex;
+        descriptor.fragmentShader = shaders.glyphFragment;
+        descriptor.vertexLayout.buffers[0].stride = 16U;
+        descriptor.vertexLayout.attributeCount = 2U;
+        descriptor.vertexLayout.attributes[1] = {1U, 0U, Graphics::VertexFormat::Float2, 8U};
+        descriptor.topology = Graphics::PrimitiveTopology::TriangleList;
+        break;
+    case Detail::UiShader::Rectangle:
+    default:
+        descriptor.vertexShader = shaders.rectangleVertex;
+        descriptor.fragmentShader = shaders.rectangleFragment;
+        break;
+    }
+
+    switch (key.blend) {
+    case Detail::UiBlendMode::Multiply:
+        descriptor.blend.color.source = Graphics::BlendFactor::DestinationColor;
+        descriptor.blend.color.destination = Graphics::BlendFactor::Zero;
+        break;
+    case Detail::UiBlendMode::Screen:
+        descriptor.blend.color.source = Graphics::BlendFactor::One;
+        descriptor.blend.color.destination = Graphics::BlendFactor::OneMinusSourceColor;
+        break;
+    case Detail::UiBlendMode::Additive:
+        descriptor.blend.color.source = Graphics::BlendFactor::SourceAlpha;
+        descriptor.blend.color.destination = Graphics::BlendFactor::One;
+        break;
+    case Detail::UiBlendMode::Mask:
+        descriptor.blend.color.source = Graphics::BlendFactor::Zero;
+        descriptor.blend.color.destination = Graphics::BlendFactor::SourceAlpha;
+        descriptor.blend.alpha.source = Graphics::BlendFactor::Zero;
+        descriptor.blend.alpha.destination = Graphics::BlendFactor::SourceAlpha;
+        break;
+    case Detail::UiBlendMode::Opaque:
+        descriptor.blend.enabled = false;
+        break;
+    case Detail::UiBlendMode::Normal:
+    default:
+        break;
+    }
+    return descriptor;
+}
+
+Graphics::NativePipelineState MakeD3D11UiPipeline(
+    Detail::UiPipelineKey key) noexcept {
+    return MakeUiNativePipelineState(MakeD3D11BackendShaderCatalog(), key);
 }
 
 

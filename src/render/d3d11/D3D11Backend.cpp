@@ -3,7 +3,7 @@
 #include <climits>
 
 #include "D3D11BackendPrivate.hpp"
-#include "render/private/RenderDevice.hpp"
+#include "render/RenderDeviceInternal.hpp"
 
 namespace Aero::Graphics {
 

@@ -1,4 +1,4 @@
-#include "render/private/RenderDevice.hpp"
+#include "render/RenderDeviceInternal.hpp"
 
 namespace Aero {
 using namespace ::Aero::Graphics;
@@ -289,17 +289,13 @@ Base::Result<ResourceHandle> RenderDevice::Impl::CreateSampler(
 }
 
 Base::Result<ResourceHandle> RenderDevice::Impl::CreatePipeline(
-    const PipelineDescriptor& descriptor) noexcept {
-    Base::Result<void> valid = ValidatePipelineDescriptor(
-        descriptor, QueryNativeGraphicsCapabilities());
-    if (!valid) return valid.GetStatus();
-
+    ::Aero::Render::Detail::UiPipelineKey key) noexcept {
     ResourceDescriptor resource;
     resource.type = ResourceType::Pipeline;
     Base::Result<ResourceHandle> created = CreateResource(resource);
     if (!created) return created.GetStatus();
     Base::Result<void> configured =
-        ConfigureNativePipeline(created.Value(), descriptor);
+        ConfigureNativePipeline(created.Value(), key);
     if (!configured) {
         RollbackResource(created.Value());
         return configured.GetStatus();
@@ -336,8 +332,8 @@ Base::Result<void> RenderDevice::Impl::DestroyResource(
     return {};
 }
 
-Base::Result<FenceValue> RenderDevice::Impl::SubmitCommands(
-    const CommandList& commands) noexcept {
+Base::Result<FenceValue> RenderDevice::Impl::SubmitBatch(
+    const ::Aero::Render::Detail::RenderBatch& commands) noexcept {
     Base::Result<void> ready = VerifyResourcesReady();
     if (!ready) return ready.GetStatus();
     Base::Result<std::uint32_t> collected = CollectGarbage();
@@ -349,7 +345,7 @@ Base::Result<FenceValue> RenderDevice::Impl::SubmitCommands(
     }
     const FenceValue signalFence = backendFence + 1U;
     Base::Result<void> submitted =
-        SubmitNativeCommands(commands, signalFence);
+        SubmitNativeBatch(commands, signalFence);
     if (!submitted) return submitted.GetStatus();
     lastSubmittedFence_ = signalFence;
     return signalFence;

@@ -4,13 +4,13 @@
 #include <Aero/Input.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/ViewOptions.hpp>
-#include <Aero/Markup.hpp>
+#include <Aero/Gui/XamlReader.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Module.hpp>
 #include <Aero/Triggers/Behavior.hpp>
-#include <Aero/View.hpp>
-#include <Aero/Window.hpp>
+#include <Aero/Gui/View.hpp>
+#include <Aero/Gui/Window.hpp>
 
 #include <climits>
 #include <cstdio>
@@ -710,11 +710,11 @@ Aero::Base::Result<ViewModelFixture> CreateViewModel() noexcept {
 
 Aero::Base::Point RootCenter(
     const Aero::UIElement& element,
-    const Aero::Visual& root) noexcept {
+    const Aero::Media::Visual& root) noexcept {
     Aero::Base::Point point{
         element.GetRenderSize().width * 0.5,
         element.GetRenderSize().height * 0.5};
-    const Aero::Visual* current = &element;
+    const Aero::Media::Visual* current = &element;
     while (current != nullptr) {
         const Aero::FrameworkElement* framework =
             current->AsFrameworkElement();
@@ -867,7 +867,7 @@ bool VerifyMainWindowInteractions(
             static_cast<const void*>(hitTarget),
             static_cast<const void*>(slotHead),
             Inventory::DragItemBehavior::attachedCount);
-        const Visual* trace = hitTarget;
+        const ::Aero::Media::Visual* trace = hitTarget;
         while (trace != nullptr) {
             std::fprintf(stderr, "  hit route node=%p type=%llu\n",
                 static_cast<const void*>(trace),

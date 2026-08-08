@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Aero/Value.hpp>
-#include <Aero/DependencyProperty.hpp>
-#include <Aero/Events/RoutedEvent.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/Gui/RoutedEvent.hpp>
 #include <Aero/Module.hpp>
 
 #include <functional>

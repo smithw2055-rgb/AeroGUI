@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Base/ResourceUri.hpp>
-#include <Aero/DependencyProperty.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
 
 namespace Aero::Media {
 

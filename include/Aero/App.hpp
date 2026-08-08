@@ -4,9 +4,9 @@
 // construct an Aero::Application and call Application::Run(). App::Run() is
 // retained only as the generated/XAML bootstrap that loads App.xaml.
 #include <Aero/Gui.hpp>
-#include <Aero/Application.hpp>
-#include <Aero/Window.hpp>
-#include <Aero/View.hpp>
+#include <Aero/Gui/Application.hpp>
+#include <Aero/Gui/Window.hpp>
+#include <Aero/Gui/View.hpp>
 #include <Aero/Module.hpp>
 
 #include <Aero/Base/Allocator.hpp>

@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Object.hpp>
-#include <Aero/Events/RoutedEvent.hpp>
+#include <Aero/Gui/RoutedEvent.hpp>
 
 namespace Aero {
 

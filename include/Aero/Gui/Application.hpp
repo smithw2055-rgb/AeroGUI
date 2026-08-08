@@ -7,9 +7,9 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Events/ApplicationEventArgs.hpp>
 #include <Aero/Value.hpp>
-#include <Aero/Events/RoutedEvent.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Window.hpp>
+#include <Aero/Gui/RoutedEvent.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
+#include <Aero/Gui/Window.hpp>
 
 #include <cstdint>
 
@@ -82,7 +82,6 @@ private:
     friend class Window;
     friend class WindowCollection;
 
-    void SetMainWindowBorrowed(Window* value) noexcept;
     Base::Result<void> Attach(
         void* hostState,
         Window* mainWindow) noexcept;

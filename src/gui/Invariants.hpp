@@ -6,7 +6,7 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Visual.hpp>
+#include <Aero/Gui/Visual.hpp>
 
 #include <cstdint>
 
@@ -117,17 +117,17 @@ public:
         Base::IAllocator* allocator = nullptr) noexcept;
 
     Base::Result<void> Add(
-        Aero::Visual& visual) noexcept;
+        Aero::Media::Visual& visual) noexcept;
     void Clear() noexcept { nodes_.Clear(); }
 
     std::uint32_t Size() const noexcept { return nodes_.Size(); }
-    Aero::Visual* operator[](
+    Aero::Media::Visual* operator[](
         std::uint32_t index) const noexcept {
         return index < nodes_.Size() ? nodes_[index].Get() : nullptr;
     }
 
 private:
-    Base::Vector<Base::Ref<Aero::Visual>> nodes_;
+    Base::Vector<Base::Ref<Aero::Media::Visual>> nodes_;
 };
 
 } // namespace Aero

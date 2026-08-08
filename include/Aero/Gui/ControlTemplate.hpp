@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Animation.hpp>
+#include <Aero/Gui/Storyboard.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -9,8 +9,8 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Gui/Control.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Style.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
+#include <Aero/Gui/Style.hpp>
 
 namespace Aero {
 

@@ -15,7 +15,6 @@ class Renderer {
 public:
     Renderer(
         Aero::RenderDevice::Impl& device,
-        const FrameShaderSet& shaders,
         std::uint64_t generation,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~Renderer() noexcept;
@@ -69,7 +68,6 @@ private:
     Base::Result<void> VerifyReady() const noexcept;
 
     Aero::RenderDevice::Impl* device_ = nullptr;
-    FrameShaderSet shaders_;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
     std::uint64_t generation_ = 0U;

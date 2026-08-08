@@ -1,5 +1,28 @@
-#include "gui/GuiPrivate.hpp"
-#include "markup/MarkupPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
+#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupWriterInternal.hpp"
 // Consolidated implementation. Keep sections ordered by dependency.
 
 // ===== StyleSupport =====
@@ -11,8 +34,8 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/FrameworkElement.hpp>
+#include <Aero/Gui/Brush.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 
 #include <cstdio>
 #include <new>
@@ -655,8 +678,20 @@ Base::Result<void> UiObjectModel::Register(
 
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
-#include "../controls/ControlsPrivate.hpp"
-#include <Aero/Styling.hpp>
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
+#include <Aero/Gui/ControlTemplate.hpp>
 
 
 
@@ -1214,7 +1249,20 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
 
 
 #include "../controls/DataTemplateTriggerState.hpp"
-#include "../media/MediaPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "media/AnimationInternal.hpp"
+#include "media/BrushInternal.hpp"
+#include "media/EffectInternal.hpp"
+#include "media/TransformInternal.hpp"
 
 #include <Aero/Controls.hpp>
 
@@ -1346,7 +1394,7 @@ CompileBlueprint(
         Base::Object* target = names->Find(binding.targetName.View());
         if (target == nullptr ||
             runtime.Types().IsDerivedFrom(
-                target->RuntimeType(), Visual::StaticTypeId())) {
+                target->RuntimeType(), ::Aero::Media::Visual::StaticTypeId())) {
             continue;
         }
         if (!runtime.Types().IsDerivedFrom(
@@ -1375,7 +1423,7 @@ CompileBlueprint(
                 "Template graph contains a non-dependency object");
         }
         const bool visual = runtime.Types().IsDerivedFrom(
-            object->RuntimeType(), Visual::StaticTypeId());
+            object->RuntimeType(), ::Aero::Media::Visual::StaticTypeId());
         if (index == 0U && !visual) {
             return InvalidTemplateCompiler(
                 "Template VisualTree root must be a Visual object");
@@ -2614,7 +2662,7 @@ Base::Result<void> BuildCompiledTemplate(
     Base::Result<void> reserved =
         objects.Reserve(blueprint->nodes.Size());
     if (!reserved) return reserved.GetStatus();
-    Base::Vector<Visual*> visuals;
+    Base::Vector<::Aero::Media::Visual*> visuals;
     reserved = visuals.Reserve(blueprint->nodes.Size());
     if (!reserved) return reserved.GetStatus();
     for (std::uint32_t index = 0U;
@@ -2634,9 +2682,9 @@ Base::Result<void> BuildCompiledTemplate(
             return InvalidTemplateCompiler(
                 "Compiled template factory created an incompatible object");
         }
-        Visual* visual = blueprint->runtime->Types().IsDerivedFrom(
-            node.type, Visual::StaticTypeId())
-            ? static_cast<Visual*>(owner.Get()) : nullptr;
+        ::Aero::Media::Visual* visual = blueprint->runtime->Types().IsDerivedFrom(
+            node.type, ::Aero::Media::Visual::StaticTypeId())
+            ? static_cast<::Aero::Media::Visual*>(owner.Get()) : nullptr;
         Base::Result<void> added = objects.PushBack(std::move(owner));
         if (!added) return added.GetStatus();
         added = visuals.PushBack(visual);
@@ -2702,7 +2750,7 @@ Base::Result<void> BuildCompiledTemplate(
         if (node.parent != UINT32_MAX &&
             visuals[node.parent] == nullptr) {
             return InvalidTemplateCompiler(
-                "Visual template child has a non-Visual parent");
+                "::Aero::Media::Visual template child has a non-Visual parent");
         }
         Base::Result<void> added = node.parent == UINT32_MAX
             ? context.SetRoot(node.name.View(),
@@ -2723,7 +2771,7 @@ Base::Result<void> BuildCompiledTemplate(
                     context.TemplatedParent()
                         .RuntimeType(),
                     ContentControl::StaticTypeId())) {
-            Visual& contentHost =
+            ::Aero::Media::Visual& contentHost =
                 *visuals[
                     blueprint->contentPresenter];
             Base::Result<bool> projected =
@@ -2884,7 +2932,7 @@ Base::Result<void> BuildCompiledTemplate(
                     }
                 }
                 std::uint32_t matchedLevel = 0U;
-                Visual* current =
+                ::Aero::Media::Visual* current =
                     context.TemplatedParent().GetLogicalParent();
                 if (current == nullptr) {
                     current = context.TemplatedParent().GetVisualParent();
@@ -2898,7 +2946,7 @@ Base::Result<void> BuildCompiledTemplate(
                             relative->GetAncestorLevel()) {
                         return static_cast<Base::Object*>(current);
                     }
-                    Visual* next = current->GetLogicalParent();
+                    ::Aero::Media::Visual* next = current->GetLogicalParent();
                     if (next == nullptr) next = current->GetVisualParent();
                     current = next;
                 }

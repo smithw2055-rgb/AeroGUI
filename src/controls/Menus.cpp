@@ -1,4 +1,13 @@
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 #include <Aero/Controls.hpp>
 
 #include <utility>
@@ -230,7 +239,7 @@ void MenuItem::SetRoleState(
 
 Menu::~Menu() {
     auto* behaviors = static_cast<Detail::ControlBehavior*>(
-        Visual::Impl::ControlBehaviorRuntime(*this));
+        ::Aero::Media::Visual::Impl::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -385,7 +394,7 @@ Menu::Impl::FindMenu(
 
 Menu* Menu::Impl::ResolveMenu(
     std::uint32_t index) noexcept {
-    Visual* visual =
+    ::Aero::Media::Visual* visual =
         index < records_.Size()
         ? tree_->ResolveHandle(records_[index])
         : nullptr;
@@ -455,7 +464,7 @@ MenuItem* Menu::Impl::FindItem(
                 UIElement::StaticTypeId())) {
         return nullptr;
     }
-    Visual* visual =
+    ::Aero::Media::Visual* visual =
         static_cast<UIElement*>(source);
     while (visual != nullptr &&
         visual != &menu) {
@@ -524,7 +533,7 @@ void Menu::Impl::OnMouseDown(
         FindItem(
             menu, args.GetOriginalSource());
     if (item == nullptr) return;
-    ::Aero::Visual::Impl::SetMenuItemHighlighted(*item, true);
+    ::Aero::Media::Visual::Impl::SetMenuItemHighlighted(*item, true);
     Base::Result<void> invoked =
         Invoke(menu, *item);
     if (!invoked) return;

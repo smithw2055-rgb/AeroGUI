@@ -1,9 +1,10 @@
-#include <Aero/Markup.hpp>
+#include <Aero/Gui/XamlReader.hpp>
 #include <Aero/Gui.hpp>
-#include <Aero/View.hpp>
+#include <Aero/Gui/View.hpp>
 
 #include "gui/GuiData.hpp"
-#include "gui/private/Property.hpp"
+#include "gui/ViewOperations.hpp"
+#include "gui/PropertyInternal.hpp"
 
 #include <utility>
 
@@ -87,6 +88,40 @@ Base::Result<XamlDocument> XamlReader::LoadComponentCore(
     return std::move(loaded).Value();
 }
 
+Base::Result<XamlDocument> XamlReader::LoadComponentInto(
+    Base::Ref<Base::Object> existingRoot,
+    Base::StringView uri,
+    const XamlReaderSettings& settings,
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    if (gui_ == nullptr || !gui_->IsInitialized()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "Gui must be initialized before XAML component loading");
+    }
+    if (!existingRoot) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML component requires an existing root object");
+    }
+    Gui::Impl& state = static_cast<Gui::Impl&>(*gui_->impl_);
+    GuiLoadScope scope(state.dispatcher, state.schema, state.documents);
+    Base::Result<XamlDocument> loaded = state.xaml.LoadComponentInto(
+        state.xamlProviders,
+        &scope.load,
+        state.allocator,
+        *existingRoot,
+        uri,
+        settings,
+        diagnostics);
+    if (!loaded) return loaded.GetStatus();
+    if (loaded.Value().Root().Get() != existingRoot.Get()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "XAML component replaced its existing root object");
+    }
+    return std::move(loaded).Value();
+}
+
 Base::Result<XamlDocument> XamlReader::Parse(
     Base::StringView source,
     const Base::ResourceUri& baseUri,
@@ -121,13 +156,14 @@ Base::Result<void> XamlReader::Mount(
     Aero::View& view,
     Controls::ContentControl& host,
     XamlDocument&& document) noexcept {
-    return view.MountContent(host, std::move(document));
+    return View::Operations::MountContent(
+        view, host, std::move(document));
 }
 
 Base::Result<void> XamlReader::Unmount(
     Aero::View& view,
     Controls::ContentControl& host) noexcept {
-    return view.UnmountContent(host);
+    return View::Operations::UnmountContent(view, host);
 }
 
 Base::Result<void> XamlReader::LoadResources(
@@ -136,7 +172,8 @@ Base::Result<void> XamlReader::LoadResources(
     Base::StringView uri,
     ResourceLoadMode mode,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    return view.LoadResources(layer, uri, mode, diagnostics);
+    return View::Operations::LoadResources(
+        view, layer, uri, mode, diagnostics);
 }
 
 Base::Result<void> XamlReader::LoadCompiledResources(
@@ -145,7 +182,8 @@ Base::Result<void> XamlReader::LoadCompiledResources(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
     ResourceLoadMode mode) noexcept {
-    return view.LoadCompiledResources(layer, bytes, originUri, mode);
+    return View::Operations::LoadCompiledResources(
+        view, layer, bytes, originUri, mode);
 }
 
 void XamlReader::SetResources(
@@ -153,13 +191,14 @@ void XamlReader::SetResources(
     ResourceLayer layer,
     Aero::ResourceDictionary& dictionary,
     ResourceLoadMode mode) noexcept {
-    view.SetResourceDictionary(layer, dictionary, mode);
+    View::Operations::SetResourceDictionary(
+        view, layer, dictionary, mode);
 }
 
 Base::Result<void> XamlReader::LoadTheme(
     Aero::View& view,
     BuiltInTheme theme) noexcept {
-    return view.LoadBuiltInTheme(theme);
+    return View::Operations::LoadBuiltInTheme(view, theme);
 }
 
 } // namespace Aero::Markup

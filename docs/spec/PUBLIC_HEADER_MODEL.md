@@ -99,7 +99,7 @@ Aero/Gui/Panel.hpp
 Aero/Gui/ButtonBase.hpp
 Aero/Gui/ItemsControl.hpp
 Aero/Gui/ContentControl.hpp
-Aero/Controls/Text.hpp
+Aero/Gui/Text.hpp
 ```
 
 `Aero/Controls.hpp` is the broad umbrella. High-traffic WPF leaf types may own

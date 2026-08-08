@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Aero/Layout.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/FrameworkElement.hpp>
+#include <Aero/Gui/Brush.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 
 namespace Aero::Shapes {
 
@@ -58,7 +58,7 @@ protected:
     Size MeasureOverride(
         Size availableSize) noexcept override;
     void OnRender(
-        DrawingContext& context) noexcept override;
+        ::Aero::Media::DrawingContext& context) noexcept override;
 };
 
 class AERO_API Ellipse : public Shape {
@@ -71,7 +71,7 @@ protected:
     Size MeasureOverride(
         Size availableSize) noexcept override;
     void OnRender(
-        DrawingContext& context) noexcept override;
+        ::Aero::Media::DrawingContext& context) noexcept override;
 };
 
 // WPF-shaped vector path. The textual Data value accepts the deterministic
@@ -118,10 +118,10 @@ public:
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
-    void OnRender(DrawingContext& context) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
-    friend struct ::Aero::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Impl;
 
     Base::Result<void> EnsureGeometry() noexcept;
     Base::Result<void> EnsureMesh() noexcept;

@@ -1,7 +1,16 @@
 #pragma once
 
 #include "TemplateProgram.hpp"
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 
 namespace Aero::Controls::Detail {
 
@@ -13,7 +22,7 @@ using namespace ::Aero::Controls;
 struct TemplatePart {
     Base::String name;
     Base::Ref<Base::Object> owner;
-    Visual* visual = nullptr;
+    ::Aero::Media::Visual* visual = nullptr;
     DependencyObject* object = nullptr;
     FrameworkElement* frameworkElement = nullptr;
     Aero::GuiPrivate::Detail::ElementAttachment mount;
@@ -24,7 +33,7 @@ struct TemplateContentProjection {
     ContentPresenter* presenter = nullptr;
     ContentControl* contentHost = nullptr;
     UIElement* content = nullptr;
-    Visual* originalVisualParent = nullptr;
+    ::Aero::Media::Visual* originalVisualParent = nullptr;
     Aero::GuiPrivate::Detail::VisualAttachment projectedMount;
     bool attachedLogical = false;
     bool detachedOriginalVisual = false;
@@ -43,7 +52,7 @@ struct TemplateBuildState {
     Aero::Render::Detail::RenderTree* renderer = nullptr;
     Aero::GuiPrivate::Detail::BindingEngine* bindings = nullptr;
     Control* parent = nullptr;
-    Visual* rootVisual = nullptr;
+    ::Aero::Media::Visual* rootVisual = nullptr;
     UIElement* rootElement = nullptr;
     Base::Vector<TemplatePart> parts;
     Base::Vector<TemplateContentProjection> projections;

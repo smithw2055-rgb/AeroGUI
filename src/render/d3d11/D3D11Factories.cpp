@@ -1,5 +1,5 @@
 #include <Aero/Render/D3D11.hpp>
-#include "render/private/RenderDevice.hpp"
+#include "render/RenderDeviceInternal.hpp"
 
 #include <utility>
 

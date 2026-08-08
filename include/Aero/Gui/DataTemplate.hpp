@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
-#include <Aero/Resources.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
 #include <Aero/Value.hpp>
 
 namespace Aero {

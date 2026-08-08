@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Controls/ItemsControl.hpp>
+#include <Aero/Gui/ItemsControl.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 
 namespace Aero::Controls {
@@ -114,7 +114,7 @@ protected:
     void OnContainersChanged() noexcept override;
 
 private:
-    friend struct ::Aero::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Impl;
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;
     std::uint32_t pendingIndex_ = UINT32_MAX;

@@ -1,19 +1,6 @@
 # WPF/XAML class library. Product implementation sources compile directly into
-# AeroGui; only source sets reused by offline tools remain object components.
-function(aero_configure_internal_objects target)
-    target_include_directories(${target}
-        PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        PRIVATE
-            "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_compile_features(${target} PUBLIC cxx_std_17)
-    set_target_properties(${target} PROPERTIES
-        CXX_STANDARD 17
-        CXX_STANDARD_REQUIRED YES
-        CXX_EXTENSIONS NO
-        POSITION_INDEPENDENT_CODE ON)
-    aero_apply_compiler_options(${target})
-endfunction()
+# AeroGui; offline tools link the product targets instead of recompiling object
+# wrappers.
 
 set(_aero_vendored_expat_target "")
 set(_aero_expat_target "")
@@ -146,25 +133,6 @@ set_target_properties(AeroGui PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroGui)
 
-# Application/Window descriptors and the module bootstrap are also reused by
-# schema tools. They remain source-only object components, never SDK targets.
-add_library(AeroAppModelObjects OBJECT
-    src/app/Application.cpp
-    src/app/Metadata.cpp)
-aero_configure_internal_objects(AeroAppModelObjects)
-target_link_libraries(AeroAppModelObjects PUBLIC Aero::Gui)
-
-add_library(AeroModuleSetObjects OBJECT
-    src/gui/modules/Module.cpp
-    src/gui/modules/BuiltinModules.cpp
-    src/markup/GuiSchema.cpp)
-aero_configure_internal_objects(AeroModuleSetObjects)
-target_link_libraries(AeroModuleSetObjects PUBLIC Aero::Gui)
-
-add_library(AeroMeta INTERFACE)
-add_library(Aero::Meta ALIAS AeroMeta)
-target_link_libraries(AeroMeta INTERFACE Aero::Gui)
-
 add_library(AeroGuiHeaderConsumer OBJECT tools/sdk-consumers/GuiConsumer.cpp)
 target_link_libraries(AeroGuiHeaderConsumer PRIVATE Aero::Gui)
 aero_apply_compiler_options(AeroGuiHeaderConsumer)
@@ -173,7 +141,330 @@ add_library(AeroEventsTriggersHeaderConsumer OBJECT
 target_link_libraries(AeroEventsTriggersHeaderConsumer PRIVATE Aero::Gui)
 aero_apply_compiler_options(AeroEventsTriggersHeaderConsumer)
 add_library(AeroMetaHeaderConsumer OBJECT tools/sdk-consumers/MetaConsumer.cpp)
-target_link_libraries(AeroMetaHeaderConsumer PRIVATE Aero::Meta)
+target_link_libraries(AeroMetaHeaderConsumer PRIVATE Aero::Gui)
 aero_apply_compiler_options(AeroMetaHeaderConsumer)
 
 unset(_aero_gui_sources)
+
+function(aero_complete_gui_target)
+# View/Gui composition is folded directly into AeroGui as a source group.
+# It is not a separate object library or SDK binary.
+#
+# In-tree aero-xamlc/aero-schema-gen link Aero::Gui, so they can never be build
+# prerequisites of AeroGui itself. Gui composition uses compiled built-in themes only
+# when an independent host tool chain is supplied. Otherwise a source-fallback
+# header is generated synchronously at configure time; the in-tree tools remain
+# ordinary post-Gui tools and AeroCompiledThemes stays an explicit asset target.
+set(_aero_gui_precompiled_themes OFF)
+if(AERO_PRECOMPILE_BUILTIN_THEMES AND
+   NOT "${AERO_HOST_XAMLC_EXECUTABLE}" STREQUAL "")
+    if(CMAKE_CROSSCOMPILING OR
+       NOT "${AERO_BUILTIN_SCHEMA_MANIFEST}" STREQUAL "" OR
+       NOT "${AERO_HOST_SCHEMA_GEN_EXECUTABLE}" STREQUAL "")
+        set(_aero_gui_precompiled_themes ON)
+    endif()
+endif()
+
+set(_aero_gui_theme_include_dir
+    "${CMAKE_CURRENT_BINARY_DIR}/generated")
+if(NOT _aero_gui_precompiled_themes)
+    # Gui fallback must not share an output with AeroCompiledThemes. Ninja
+    # otherwise binds View.cpp's generated-header dependency to aero-xamlc and
+    # recreates the AeroGui -> aero-xamlc -> AeroGui bootstrap cycle.
+    set(_aero_gui_theme_include_dir
+        "${CMAKE_CURRENT_BINARY_DIR}/gui-generated")
+    set(_aero_gui_theme_header
+        "${_aero_gui_theme_include_dir}/Aero/BuiltinThemes.generated.hpp")
+    file(MAKE_DIRECTORY
+        "${_aero_gui_theme_include_dir}/Aero")
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}"
+            "-DOUTPUT=${_aero_gui_theme_header}"
+            "-DLIGHT_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
+            "-DDARK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml"
+            "-DGENERIC_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedXamlThemes.cmake"
+        RESULT_VARIABLE _aero_theme_embed_result)
+    if(NOT _aero_theme_embed_result EQUAL 0)
+        message(FATAL_ERROR
+            "Unable to generate the built-in theme source fallback header")
+    endif()
+endif()
+
+set(_aero_gui_composition_sources
+    src/gui/Gui.cpp
+    src/gui/View.cpp
+    src/markup/ReloadCoordinator.cpp
+    src/render/RenderDevice.cpp
+    src/gui/Invariants.cpp
+    src/media/ImageCache.cpp
+    src/media/StbImageImplementation.cpp
+    src/text/TextPipeline.cpp
+    src/markup/XamlReader.cpp)
+if(_aero_gui_precompiled_themes)
+    list(APPEND _aero_gui_composition_sources "${_aero_generated_theme_header}")
+    add_dependencies(AeroGui AeroCompiledThemes)
+endif()
+target_sources(AeroGui PRIVATE ${_aero_gui_composition_sources})
+target_compile_definitions(AeroGui PRIVATE AERO_INTERNAL_GUI_COMPOSITION=1)
+target_include_directories(AeroGui PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb"
+    "${_aero_gui_theme_include_dir}"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated")
+unset(_aero_gui_composition_sources)
+
+set(AERO_DEFAULT_THEME_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml")
+# TARGET_FILE_DIR creates the required AeroDefaultThemes -> AeroGui ordering.
+# Do not add the reverse AeroGui -> AeroDefaultThemes dependency.
+add_custom_target(AeroDefaultThemes ALL
+    COMMAND "${CMAKE_COMMAND}" -E make_directory
+        "$<TARGET_FILE_DIR:AeroGui>/themes"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        ${AERO_DEFAULT_THEME_FILES}
+        "$<TARGET_FILE_DIR:AeroGui>/themes"
+    DEPENDS ${AERO_DEFAULT_THEME_FILES}
+    VERBATIM)
+
+unset(_aero_gui_precompiled_themes)
+unset(_aero_gui_theme_include_dir)
+unset(_aero_gui_theme_header)
+unset(_aero_theme_embed_result)
+
+# Private retained renderer, render device, native backends and shader catalogs.
+# Renderer is the single semantic command/submission owner.
+target_sources(AeroGui PRIVATE
+    src/render/RenderBatch.cpp
+    src/render/RenderDeviceResources.cpp
+    src/render/WindowRenderContext.cpp
+    src/render/FrameEncoder.cpp
+    src/render/Renderer.cpp
+    src/render/TextRenderer.cpp
+    src/render/opengl33/OpenGL33Backend.cpp
+    src/render/opengl33/OpenGL33Context.cpp
+    src/render/opengl33/OpenGL33StateCache.cpp
+    src/render/opengl33/OpenGL33Shaders.cpp)
+target_compile_definitions(AeroGui PRIVATE AERO_HAS_OPENGL33_BACKEND=1)
+
+if(AERO_ENABLE_WGL_SURFACE)
+    if(NOT WIN32)
+        message(FATAL_ERROR
+            "AERO_ENABLE_WGL_SURFACE is only supported on Windows")
+    endif()
+    target_sources(AeroGui PRIVATE
+        src/render/platform/win32/OpenGLRenderContext.cpp)
+    target_link_libraries(AeroGui PRIVATE
+        gdi32 opengl32 user32)
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_WGL_SURFACE=1)
+else()
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_WGL_SURFACE=0)
+endif()
+
+if(AERO_ENABLE_GLX_SURFACE)
+    if(NOT UNIX OR APPLE)
+        message(FATAL_ERROR
+            "AERO_ENABLE_GLX_SURFACE is only supported on Unix/X11")
+    endif()
+    find_package(X11 REQUIRED)
+    find_package(OpenGL REQUIRED)
+    target_sources(AeroGui PRIVATE
+        src/render/platform/x11/OpenGLRenderContext.cpp)
+    target_link_libraries(AeroGui PRIVATE
+        X11::X11 OpenGL::GL Threads::Threads)
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_GLX_SURFACE=1)
+else()
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_GLX_SURFACE=0)
+endif()
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # GCC diagnoses a reference obtained through a temporary Span view even
+    # though the view points into the longer-lived immutable RenderFrame.
+    target_compile_options(AeroGui PRIVATE -Wno-dangling-reference)
+endif()
+
+if(AERO_ENABLE_D3D11_BACKEND)
+    if(NOT WIN32)
+        message(FATAL_ERROR
+            "AERO_ENABLE_D3D11_BACKEND is only supported on Windows")
+    endif()
+
+    set(_aero_d3d11_shader_directory
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/d3d11-shaders")
+    set(_aero_d3d11_render_frame_max_rectangle_instances 64)
+    set(_aero_d3d11_fxc_hints
+        "$ENV{WindowsSdkDir}bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/x64")
+    file(GLOB _aero_d3d11_fxc_sdk_directories
+        LIST_DIRECTORIES true
+        "C:/Program Files (x86)/Windows Kits/10/bin/*/x64")
+    list(APPEND _aero_d3d11_fxc_hints ${_aero_d3d11_fxc_sdk_directories})
+    find_program(AERO_D3D11_FXC_EXECUTABLE
+        NAMES fxc.exe
+        HINTS ${_aero_d3d11_fxc_hints}
+        DOC "Windows SDK fxc executable used to compile Aero D3D11 shaders")
+    if(NOT AERO_D3D11_FXC_EXECUTABLE)
+        message(FATAL_ERROR
+            "AERO_ENABLE_D3D11_BACKEND requires the Windows SDK x64 fxc.exe")
+    endif()
+
+    # Keep shader declarations data-driven. Each pair follows the same naming
+    # convention consumed by D3D11Shaders.cpp; only the source and instance-limit
+    # requirement vary.
+    set_property(GLOBAL PROPERTY AERO_D3D11_SHADER_OUTPUTS "")
+    function(aero_compile_d3d11_shader_pair stem source use_instance_limit)
+        foreach(stage IN ITEMS Vertex Pixel)
+            if(stage STREQUAL "Vertex")
+                set(profile vs_4_0)
+                set(entry vs_main)
+            else()
+                set(profile ps_4_0)
+                set(entry ps_main)
+            endif()
+            set(output
+                "${_aero_d3d11_shader_directory}/AeroD3D11${stem}${stage}Shader.hpp")
+            set(symbol "AeroD3D11${stem}${stage}Shader")
+            set(defines)
+            if(use_instance_limit)
+                list(APPEND defines
+                    /D "AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_frame_max_rectangle_instances}")
+            endif()
+            add_custom_command(
+                OUTPUT "${output}"
+                COMMAND "${CMAKE_COMMAND}" -E make_directory
+                    "${_aero_d3d11_shader_directory}"
+                COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+                    /T ${profile} /E ${entry}
+                    ${defines}
+                    /Vn ${symbol}
+                    /Fh "${output}"
+                    "${source}"
+                DEPENDS "${source}"
+                VERBATIM)
+            set_property(GLOBAL APPEND PROPERTY
+                AERO_D3D11_SHADER_OUTPUTS "${output}")
+        endforeach()
+    endfunction()
+
+    set(_aero_d3d11_shader_root
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders")
+    aero_compile_d3d11_shader_pair(
+        RenderFrame "${_aero_d3d11_shader_root}/RenderFrameRect.hlsl" TRUE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameImage "${_aero_d3d11_shader_root}/RenderFrameImage.hlsl" TRUE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameMask "${_aero_d3d11_shader_root}/RenderFrameMask.hlsl" FALSE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameEffect "${_aero_d3d11_shader_root}/RenderFrameEffect.hlsl" FALSE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameMesh "${_aero_d3d11_shader_root}/RenderFrameMesh.hlsl" TRUE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameGlyph "${_aero_d3d11_shader_root}/RenderFrameGlyph.hlsl" TRUE)
+    get_property(_aero_d3d11_shader_outputs GLOBAL PROPERTY
+        AERO_D3D11_SHADER_OUTPUTS)
+    add_custom_target(AeroD3D11RenderFrameShaders
+        DEPENDS ${_aero_d3d11_shader_outputs})
+
+    set(_aero_d3d11_backend_fragments
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendPrivate.hpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendDevice.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendResources.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendCommands1.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendCommands2.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendCommands3.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11BackendReadback.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderContext.inc")
+    set_source_files_properties(${_aero_d3d11_backend_fragments}
+        PROPERTIES HEADER_FILE_ONLY TRUE)
+    set_property(SOURCE src/render/d3d11/D3D11Backend.cpp APPEND
+        PROPERTY OBJECT_DEPENDS "${_aero_d3d11_backend_fragments}")
+
+    target_sources(AeroGui PRIVATE
+        src/render/d3d11/D3D11Backend.cpp
+        src/render/d3d11/D3D11Shaders.cpp
+        ${_aero_d3d11_backend_fragments})
+    add_dependencies(AeroGui AeroD3D11RenderFrameShaders)
+    target_include_directories(AeroGui PRIVATE "${_aero_d3d11_shader_directory}")
+    target_link_libraries(AeroGui PRIVATE d3d11 dxgi d3dcompiler)
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_D3D11_BACKEND=1)
+
+    unset(_aero_d3d11_shader_outputs)
+    unset(_aero_d3d11_shader_root)
+    unset(_aero_d3d11_backend_fragments)
+else()
+    target_compile_definitions(AeroGui PRIVATE AERO_HAS_D3D11_BACKEND=0)
+endif()
+
+# AeroGui is the single embeddable product binary. It owns the WPF/XAML object
+# model together with View runtime, providers, native rendering and backend
+# factories. App adds only the default desktop lifetime and OS window policy.
+set(_aero_gui_runtime_sources
+    src/render/RenderTarget.cpp
+    src/render/opengl33/OpenGL33Device.cpp
+    src/render/opengl33/OpenGL33Embedded.cpp
+    src/render/opengl33/OpenGL33Factories.cpp
+    src/markup/XamlProvider.cpp
+    src/input/Clipboard.cpp)
+if(WIN32)
+    list(APPEND _aero_gui_runtime_sources
+        src/render/d3d11/D3D11Device.cpp
+        src/render/d3d11/D3D11Factories.cpp)
+endif()
+
+target_sources(AeroGui PRIVATE
+    ${_aero_gui_runtime_sources}
+    src/text/EditableText.cpp
+    src/text/FontManager.cpp
+    src/text/GlyphAtlas.cpp
+    src/text/TextLayout.cpp
+    src/text/TextTypes.cpp
+    src/text/UnicodeAnalysis.cpp
+    src/text/freetype/FreeTypeAdapter.cpp
+    src/text/harfbuzz/HarfBuzzAdapter.cpp
+)
+target_include_directories(AeroGui PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_link_libraries(AeroGui PRIVATE
+    Aero::Audio freetype harfbuzz)
+if(AERO_ENABLE_WGL_SURFACE)
+    target_link_libraries(AeroGui PRIVATE
+        gdi32 opengl32 user32)
+endif()
+if(AERO_ENABLE_GLX_SURFACE)
+    target_link_libraries(AeroGui PRIVATE
+        X11::X11 OpenGL::GL Threads::Threads)
+endif()
+if(AERO_ENABLE_D3D11_BACKEND)
+    target_link_libraries(AeroGui PRIVATE
+        d3d11 dxgi d3dcompiler)
+endif()
+target_compile_definitions(AeroGui PRIVATE
+    AERO_HAS_WGL_SURFACE=$<BOOL:${AERO_ENABLE_WGL_SURFACE}>
+    AERO_HAS_GLX_SURFACE=$<BOOL:${AERO_ENABLE_GLX_SURFACE}>)
+
+add_library(AeroGuiCompositionHeaderConsumer OBJECT
+    tools/sdk-consumers/GuiCompositionConsumer.cpp)
+target_link_libraries(
+    AeroGuiCompositionHeaderConsumer PRIVATE Aero::Gui)
+aero_apply_compiler_options(AeroGuiCompositionHeaderConsumer)
+
+add_library(AeroProvidersHeaderConsumer OBJECT
+    tools/sdk-consumers/ProvidersConsumer.cpp)
+target_link_libraries(
+    AeroProvidersHeaderConsumer PRIVATE Aero::Gui)
+aero_apply_compiler_options(AeroProvidersHeaderConsumer)
+
+add_library(AeroD3D11HeaderConsumer OBJECT
+    tools/sdk-consumers/D3D11Consumer.cpp)
+target_link_libraries(
+    AeroD3D11HeaderConsumer PRIVATE Aero::Gui)
+aero_apply_compiler_options(AeroD3D11HeaderConsumer)
+
+add_library(AeroOpenGL33HeaderConsumer OBJECT
+    tools/sdk-consumers/OpenGL33Consumer.cpp)
+target_link_libraries(
+    AeroOpenGL33HeaderConsumer PRIVATE Aero::Gui)
+aero_apply_compiler_options(AeroOpenGL33HeaderConsumer)
+
+endfunction()

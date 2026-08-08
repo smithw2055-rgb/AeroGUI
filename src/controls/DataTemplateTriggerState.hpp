@@ -3,8 +3,8 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/DependencyProperty.hpp>
-#include <Aero/Styling.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/Gui/ControlTemplate.hpp>
 
 #include <cstdint>
 

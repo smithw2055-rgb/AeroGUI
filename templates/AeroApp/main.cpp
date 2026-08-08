@@ -1,5 +1,5 @@
 #include <Aero/App.hpp>
-#include <Aero/Controls/Button.hpp>
+#include <Aero/Gui/Button.hpp>
 #include <Aero/Meta.hpp>
 
 namespace Sample {

@@ -1,10 +1,19 @@
 #pragma once
 
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 
 #include "DisplayList.hpp"
 
-#include <Aero/FrameworkElement.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 
 #include <array>
 
@@ -176,15 +185,15 @@ public:
     RenderTree& operator=(const RenderTree&) = delete;
 
     Base::Result<void> Initialize() noexcept;
-    Base::Result<void> SetRoot(Visual* root) noexcept;
+    Base::Result<void> SetRoot(::Aero::Media::Visual* root) noexcept;
     Base::Result<void> Attach(
-        Visual& parent,
-        Visual& child) noexcept;
+        ::Aero::Media::Visual& parent,
+        ::Aero::Media::Visual& child) noexcept;
     Base::Result<void> Detach(
-        Visual& parent,
-        Visual& child) noexcept;
+        ::Aero::Media::Visual& parent,
+        ::Aero::Media::Visual& child) noexcept;
     Base::Result<void> Invalidate(
-        Visual& visual,
+        ::Aero::Media::Visual& visual,
         RenderInvalidation invalidation =
             RenderInvalidation::Drawing) noexcept;
     Base::Result<void> SetOverlays(
@@ -207,13 +216,13 @@ public:
 
 private:
     struct DrawingRecord {
-        Visual* visual = nullptr;
+        ::Aero::Media::Visual* visual = nullptr;
         DisplayList drawing;
         bool valid = false;
     };
 
     ::Aero::Threading::Dispatcher* dispatcher_ = nullptr;
-    Visual* root_ = nullptr;
+    ::Aero::Media::Visual* root_ = nullptr;
     Base::Vector<Aero::GuiPrivate::Detail::VisualLease> dirty_;
     Base::Vector<DrawingRecord> drawings_;
     struct OverlayRecord {
@@ -234,22 +243,22 @@ private:
     bool committing_ = false;
 
     Base::Result<void> VerifyElement(
-        const Visual& visual) const noexcept;
+        const ::Aero::Media::Visual& visual) const noexcept;
     Base::Result<void> QueueDirty(
-        Visual& visual) noexcept;
-    void RemoveQueued(Visual& visual) noexcept;
+        ::Aero::Media::Visual& visual) noexcept;
+    void RemoveQueued(::Aero::Media::Visual& visual) noexcept;
     void MarkCommittedSubtree(
-        Visual& visual,
+        ::Aero::Media::Visual& visual,
         bool ancestorVisible = true) noexcept;
-    DrawingRecord* FindDrawing(Visual& visual) noexcept;
-    void RemoveDrawing(Visual& visual) noexcept;
+    DrawingRecord* FindDrawing(::Aero::Media::Visual& visual) noexcept;
+    void RemoveDrawing(::Aero::Media::Visual& visual) noexcept;
     Base::Result<void> BuildSubtree(
-        Visual& visual,
+        ::Aero::Media::Visual& visual,
         RenderNodeId parentId,
         ::Aero::Render::Detail::RenderFrame& plan,
         bool overlayRoot = false) noexcept;
     bool IsOverlay(
-        const Visual& visual) const noexcept;
+        const ::Aero::Media::Visual& visual) const noexcept;
     static void RenderCommitHook(void* context) noexcept;
 };
 

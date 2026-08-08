@@ -1,10 +1,10 @@
 #pragma once
 
 #include <Aero/TextFormatting.hpp>
-#include <Aero/Controls/TextFormatting.hpp>
-#include <Aero/FrameworkElement.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/Style.hpp>
+#include <Aero/Gui/TextFormatting.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/Gui/Brush.hpp>
+#include <Aero/Gui/Style.hpp>
 #include <utility>
 
 namespace Aero { class VisualStateManager; }
@@ -156,7 +156,7 @@ protected:
         return finalSize;
     }
     void OnRender(
-        DrawingContext& context) noexcept override;
+        ::Aero::Media::DrawingContext& context) noexcept override;
 private:
     friend struct ::Aero::Controls::Control::Impl;
     friend class ::Aero::VisualStateManager;

@@ -2,10 +2,32 @@
 
 // ===== CoreMetadata =====
 
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 #include <Aero/Triggers/Behavior.hpp>
 #include <Aero/Triggers/BlendBehaviors.hpp>
-#include "../media/MediaPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "media/AnimationInternal.hpp"
+#include "media/BrushInternal.hpp"
+#include "media/EffectInternal.hpp"
+#include "media/TransformInternal.hpp"
 
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
@@ -111,18 +133,31 @@ Base::Result<void> Detail::PopulateCoreMetadata(
 
 
 #include <Aero/Input.hpp>
-#include <Aero/Animation.hpp>
-#include <Aero/Data.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Gui/Storyboard.hpp>
+#include <Aero/Gui/BindingBase.hpp>
+#include <Aero/Gui/Brush.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/FrameworkElement.hpp>
-#include <Aero/ContentElement.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Styling.hpp>
-#include <Aero/Media/Transforms.hpp>
-#include "media/MediaPrivate.hpp"
+#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/Gui/FrameworkContentElement.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
+#include <Aero/Gui/ControlTemplate.hpp>
+#include <Aero/Gui/Transform.hpp>
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "media/AnimationInternal.hpp"
+#include "media/BrushInternal.hpp"
+#include "media/EffectInternal.hpp"
+#include "media/TransformInternal.hpp"
 
 #include <cctype>
 #include <cmath>

@@ -2,7 +2,20 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Shapes.hpp>
-#include "media/MediaPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "media/AnimationInternal.hpp"
+#include "media/BrushInternal.hpp"
+#include "media/EffectInternal.hpp"
+#include "media/TransformInternal.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -17,9 +30,9 @@ Base::Transform2D Translation(double x, double y) noexcept {
     return result;
 }
 
-Base::Transform2D ToRootTransform(const Visual& visual) noexcept {
+Base::Transform2D ToRootTransform(const ::Aero::Media::Visual& visual) noexcept {
     Base::Transform2D result;
-    const Visual* current = &visual;
+    const ::Aero::Media::Visual* current = &visual;
     while (current != nullptr) {
         const UIElement* element = current->AsUIElement();
         const FrameworkElement* framework =

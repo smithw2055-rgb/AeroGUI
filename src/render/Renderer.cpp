@@ -1,5 +1,5 @@
 #include "Renderer.hpp"
-#include "render/private/RenderDevice.hpp"
+#include "render/RenderDeviceInternal.hpp"
 
 #include "ImageGpuResources.hpp"
 #include "MeshGpuResources.hpp"
@@ -36,15 +36,14 @@ Base::Status DeviceUnavailable(const char* message) noexcept {
 struct Renderer::Impl {
     Impl(
         Aero::RenderDevice::Impl& device,
-        const FrameShaderSet& shaders,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
-        : encoder(device, shaders, &allocator),
+        : encoder(device, &allocator),
           textResources(device, encoder, generation, allocator),
           meshResources(device, encoder, generation, allocator),
           imageResources(device, encoder, generation, allocator) {}
 
-    Detail::CommandEncoder encoder;
+    Detail::BatchComposer encoder;
     Detail::TextGpuResources textResources;
     Detail::MeshGpuResources meshResources;
     Detail::ImageGpuResources imageResources;
@@ -54,11 +53,9 @@ struct Renderer::Impl {
 
 Renderer::Renderer(
     Aero::RenderDevice::Impl& device,
-    const FrameShaderSet& shaders,
     std::uint64_t generation,
     Base::IAllocator* allocator) noexcept
     : device_(&device),
-      shaders_(shaders),
       allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()),
@@ -87,7 +84,7 @@ Base::Result<void> Renderer::Initialize() noexcept {
             return OutOfMemory("Failed to allocate renderer state");
         }
         impl_ = new (memory) Impl(
-            *device_, shaders_, generation_, *allocator_);
+            *device_, generation_, *allocator_);
     }
     Base::Result<void> initialized = impl_->encoder.Initialize();
     if (!initialized) {
@@ -195,10 +192,10 @@ Base::Result<Detail::RenderBatch> Renderer::BuildOffscreenBatch(
     if (!ready) return ready.GetStatus();
     Base::Result<std::uint32_t> collected = device_->CollectGarbage();
     if (!collected) return collected.GetStatus();
-    Base::Result<Graphics::CommandList> recorded =
+    Base::Result<::Aero::Render::Detail::RenderBatch> recorded =
         impl_->encoder.RecordOffscreen(rendererToken, frame);
     if (!recorded) return recorded.GetStatus();
-    return Detail::RenderBatch(std::move(recorded).Value());
+    return std::move(recorded).Value();
 }
 
 Base::Result<Detail::RenderBatch> Renderer::BuildOnscreenBatch(
@@ -209,10 +206,10 @@ Base::Result<Detail::RenderBatch> Renderer::BuildOnscreenBatch(
     if (!ready) return ready.GetStatus();
     Base::Result<std::uint32_t> collected = device_->CollectGarbage();
     if (!collected) return collected.GetStatus();
-    Base::Result<Graphics::CommandList> recorded =
+    Base::Result<::Aero::Render::Detail::RenderBatch> recorded =
         impl_->encoder.RecordOnscreen(rendererToken, frame, target);
     if (!recorded) return recorded.GetStatus();
-    return Detail::RenderBatch(std::move(recorded).Value());
+    return std::move(recorded).Value();
 }
 
 void Renderer::ReleaseRenderer(

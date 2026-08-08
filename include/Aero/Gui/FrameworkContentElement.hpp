@@ -7,13 +7,13 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/DependencyObject.hpp>
+#include <Aero/Gui/DependencyObject.hpp>
 #include <Aero/Events/Event.hpp>
 #include <Aero/Events/EventArgs.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Events/RoutedEvent.hpp>
-#include <Aero/Style.hpp>
-#include <Aero/Visual.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
+#include <Aero/Gui/RoutedEvent.hpp>
+#include <Aero/Gui/Style.hpp>
+#include <Aero/Gui/Visual.hpp>
 
 #include <cstddef>
 #include <new>
@@ -23,7 +23,7 @@ namespace Aero {
 class UIElement;
 
 // Non-visual WPF content node. ContentElement participates in dependency
-// properties and routed events without becoming a Visual or UIElement.
+// properties and routed events without becoming a ::Aero::Media::Visual or UIElement.
 class AERO_API ContentElement : public DependencyObject {
     AERO_DECLARE_TYPE(ContentElement, DependencyObject)
 public:
@@ -82,7 +82,7 @@ protected:
         RoutedEventArgs* args = nullptr) noexcept;
 
 private:
-    friend struct ::Aero::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Impl;
 
     struct HandlerOperations {
         std::size_t size = 0U;
@@ -213,7 +213,7 @@ protected:
     virtual DependencyObject* GetLogicalChild(std::uint32_t) const noexcept { return nullptr; }
 
 private:
-    friend struct ::Aero::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Impl;
     Base::Result<void> AddAuthoredTrigger(
         Base::Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;

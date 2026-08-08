@@ -1,11 +1,33 @@
 #include "../render/DisplayList.hpp"
-#include <Aero/Controls/Text.hpp>
+#include <Aero/Gui/Text.hpp>
 #include "../text/EditableText.hpp"
-#include "../media/MediaPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "media/AnimationInternal.hpp"
+#include "media/BrushInternal.hpp"
+#include "media/EffectInternal.hpp"
+#include "media/TransformInternal.hpp"
 
 #include "TextBlockLayout.hpp"
 
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -190,9 +212,9 @@ const ::Aero::Text::Detail::EditableTextModel& Model(
 }
 
 ::Aero::Controls::Detail::TextBlockLayout* LayoutService(
-    const Visual& visual) noexcept {
+    const ::Aero::Media::Visual& visual) noexcept {
     return static_cast<::Aero::Controls::Detail::TextBlockLayout*>(
-        ::Aero::Visual::Impl::TextLayoutRuntime(visual));
+        ::Aero::Media::Visual::Impl::TextLayoutRuntime(visual));
 }
 
 Base::Ref<Media::Brush>
@@ -445,7 +467,7 @@ Size PasswordBox::ArrangeOverride(
 }
 
 void PasswordBox::OnRender(
-    DrawingContext& context) noexcept {
+    ::Aero::Media::DrawingContext& context) noexcept {
     static_cast<void>(editor_.RenderEditor(
         context,
         GetRenderSize(),
@@ -1850,7 +1872,7 @@ Size TextBox::ArrangeOverride(
 }
 
 void TextBox::OnRender(
-    DrawingContext& context) noexcept {
+    ::Aero::Media::DrawingContext& context) noexcept {
     auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     const Rect bounds{
         0.0, 0.0,
@@ -1904,7 +1926,7 @@ void TextBox::OnRender(
 
 Base::Result<void>
 TextBox::RenderEditor(
-    DrawingContext& context,
+    ::Aero::Media::DrawingContext& context,
     Size viewport,
     bool drawCaret) noexcept {
     auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
@@ -2286,7 +2308,7 @@ TextBox::Impl::ResolveOwner(
     if (index >= records_.Size()) {
         return nullptr;
     }
-    Visual* visual =
+    ::Aero::Media::Visual* visual =
         tree_->ResolveHandle(
             records_[index].handle);
     if (visual == nullptr) {

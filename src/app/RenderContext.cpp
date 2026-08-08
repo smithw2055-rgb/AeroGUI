@@ -1,6 +1,6 @@
 #include "RenderContext.hpp"
-#include "render/private/RenderDevice.hpp"
-#include "render/private/RenderTarget.hpp"
+#include "render/RenderDeviceInternal.hpp"
+#include "render/RenderTargetInternal.hpp"
 
 #include <new>
 #include <utility>

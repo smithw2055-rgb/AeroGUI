@@ -2,8 +2,8 @@
 
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Diagnostics.hpp>
-#include <Aero/View.hpp>
-#include <Aero/Markup.hpp>
+#include <Aero/Gui/View.hpp>
+#include <Aero/Gui/XamlReader.hpp>
 
 
 #include <new>

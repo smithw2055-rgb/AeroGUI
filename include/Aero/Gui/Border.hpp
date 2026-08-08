@@ -1,9 +1,9 @@
 #pragma once
 
-#include <Aero/Controls/Decorator.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Gui/Decorator.hpp>
+#include <Aero/Gui/Brush.hpp>
 #include <Aero/Media/Images.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Gui/Transform.hpp>
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
@@ -72,7 +72,7 @@ protected:
     explicit Border(TypeId runtimeType) noexcept : Decorator(runtimeType) {}
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
-    void OnRender(DrawingContext& context) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 };
 
 } // namespace Aero::Controls

@@ -1,6 +1,15 @@
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 #include <Aero/Controls.hpp>
-#include <Aero/Controls/StackPanel.hpp>
+#include <Aero/Gui/StackPanel.hpp>
 
 #include <algorithm>
 #include <utility>
@@ -254,7 +263,7 @@ ToolBar::SynchronizeToolBar() noexcept {
         OverflowItemCountProperty,
         overflowCount);
     if (host != nullptr) {
-        const Base::Span<Visual* const> children =
+        const Base::Span<::Aero::Media::Visual* const> children =
             Aero::GuiPrivate::Detail::ElementPrivate::VisualChildren(*host);
         for (std::uint32_t index = 0U;
              index < children.Size();

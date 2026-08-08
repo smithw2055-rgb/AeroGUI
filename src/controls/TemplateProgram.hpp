@@ -2,10 +2,10 @@
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Controls.hpp>
-#include <Aero/Data.hpp>
-#include <Aero/DependencyProperty.hpp>
-#include <Aero/Styling.hpp>
-#include <Aero/Visual.hpp>
+#include <Aero/Gui/BindingBase.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/Gui/ControlTemplate.hpp>
+#include <Aero/Gui/Visual.hpp>
 
 #include <cstdint>
 
@@ -57,9 +57,9 @@ class ItemsPresenter;
 
 class TemplateBuilder {
 public:
-    Base::Result<void> SetRoot(Base::Ref<Base::Object> owner, Visual& root) noexcept;
-    Base::Result<void> SetRoot(Base::StringView name, Base::Ref<Base::Object> owner, Visual& root) noexcept;
-    Base::Result<void> AddPart(Base::StringView name, Visual& parent, Base::Ref<Base::Object> owner, Visual& part) noexcept;
+    Base::Result<void> SetRoot(Base::Ref<Base::Object> owner, ::Aero::Media::Visual& root) noexcept;
+    Base::Result<void> SetRoot(Base::StringView name, Base::Ref<Base::Object> owner, ::Aero::Media::Visual& root) noexcept;
+    Base::Result<void> AddPart(Base::StringView name, ::Aero::Media::Visual& parent, Base::Ref<Base::Object> owner, ::Aero::Media::Visual& part) noexcept;
     Base::Result<void> AddObjectPart(
         Base::StringView name,
         Base::Ref<Base::Object> owner,
@@ -67,7 +67,7 @@ public:
     Base::Result<bool> ProjectContent(ContentControl& owner, ContentPresenter& presenter) noexcept;
     Base::Result<bool> ProjectContent(ContentControl& owner, ContentControl& presenter) noexcept;
     Control& TemplatedParent() const noexcept;
-    Visual* RootVisual() const noexcept;
+    ::Aero::Media::Visual* RootVisual() const noexcept;
     UIElement* RootElement() const noexcept;
     Aero::GuiPrivate::Detail::BindingEngine& Bindings() const noexcept;
 
@@ -75,10 +75,10 @@ private:
     friend class Aero::Controls::Detail::TemplateEngine;
     explicit TemplateBuilder(void* state) noexcept : state_(state) {}
     DependencyObject* FindObject(Base::StringView name) const noexcept;
-    Base::Result<void> AddOwnedPart(Base::StringView name, Base::Ref<Base::Object> owner, Visual& visual, void* mount) noexcept;
+    Base::Result<void> AddOwnedPart(Base::StringView name, Base::Ref<Base::Object> owner, ::Aero::Media::Visual& visual, void* mount) noexcept;
     Base::Result<void> PopulateItemsPresenter(ItemsPresenter& presenter, const ItemsPanelTemplate* itemsPanel) noexcept;
     Base::Result<void> PopulateContentPresenter(ContentPresenter& presenter) noexcept;
-    Base::Result<bool> ProjectContentCore(ContentControl& owner, Visual& presenterVisual, ContentPresenter* presenter, ContentControl* contentHost) noexcept;
+    Base::Result<bool> ProjectContentCore(ContentControl& owner, ::Aero::Media::Visual& presenterVisual, ContentPresenter* presenter, ContentControl* contentHost) noexcept;
     void Rollback() noexcept;
     void* state_ = nullptr;
 };

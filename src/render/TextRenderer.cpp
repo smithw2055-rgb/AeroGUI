@@ -1,5 +1,5 @@
 #include "TextRenderer.hpp"
-#include "render/private/RenderDevice.hpp"
+#include "render/RenderDeviceInternal.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -634,7 +634,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
         impl_->pages[page].texture = texture.Value();
     }
 
-    Graphics::CommandEncoder encoder(allocator_);
+    ::Aero::Render::Detail::RenderBatchBuilder encoder(allocator_);
     for (const Text::GlyphAtlasUpload& upload :
          impl_->atlas.PendingUploads()) {
         if (upload.page >= impl_->pages.Size()) {
@@ -733,7 +733,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
         }
     }
 
-    Base::Result<Graphics::CommandList> commands =
+    Base::Result<::Aero::Render::Detail::RenderBatch> commands =
         encoder.Finish();
     if (!commands) {
         destroyBatchResources(
@@ -741,7 +741,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
         return commands.GetStatus();
     }
     Base::Result<Graphics::FenceValue> submitted =
-        device_->SubmitCommands(commands.Value());
+        device_->SubmitBatch(commands.Value());
     if (!submitted) {
         destroyBatchResources(
             device_->LastSubmittedFence());

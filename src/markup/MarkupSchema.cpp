@@ -1,4 +1,18 @@
-#include "markup/MarkupPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
+#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupWriterInternal.hpp"
 // Consolidated implementation. Keep sections ordered by dependency.
 
 // ===== CompiledSchema =====
@@ -6,7 +20,7 @@
 
 // Canonical compiled-schema bridge used by Loader.
 
-#include <Aero/Markup.hpp>
+#include <Aero/Gui/XamlReader.hpp>
 
 #include <cerrno>
 #include <cctype>
@@ -992,7 +1006,7 @@ Base::Result<void> CompiledDocument::BindSchema(
 // Markup-specific metadata declarations.
 
 #include <Aero/Meta.hpp>
-#include <Aero/Styling.hpp>
+#include <Aero/Gui/ControlTemplate.hpp>
 
 
 
@@ -3051,7 +3065,7 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveContentMember(
 
 
 
-#include <Aero/FrameworkElement.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 
 // Query surface is public; execution operations are reached by source-side
 // friends and SchemaPrivate.

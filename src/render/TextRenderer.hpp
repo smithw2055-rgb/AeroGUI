@@ -5,8 +5,8 @@
 #include "../controls/TextBlockLayout.hpp"
 #include "RenderResources.hpp"
 
-#include "render/RenderCommands.hpp"
-#include <Aero/RenderDevice.hpp>
+#include "render/GraphicsTypes.hpp"
+#include <Aero/Gui/RenderDevice.hpp>
 
 #include <cstdint>
 

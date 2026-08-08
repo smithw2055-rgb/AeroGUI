@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Aero/FrameworkElement.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/Gui/Brush.hpp>
 #include <Aero/Layout.hpp>
 #include <utility>
 
@@ -49,10 +49,10 @@ protected:
         : FrameworkElement(runtimeType), children_(*this), ownedChildren_() {}
     ~Panel() override = default;
     void OnRender(
-        DrawingContext& context) noexcept override;
+        ::Aero::Media::DrawingContext& context) noexcept override;
 private:
     friend class UIElementCollection;
-    friend struct ::Aero::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Impl;
     std::uint32_t ChildCountCore() const noexcept { return ownedChildren_.Size(); }
     Base::Ref<Base::Object> ChildAtCore(std::uint32_t index) const noexcept {
         return index < ownedChildren_.Size() ? ownedChildren_[index] : Base::Ref<Base::Object>{};

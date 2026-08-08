@@ -1,5 +1,28 @@
-#include "gui/GuiPrivate.hpp"
-#include "markup/MarkupPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
+#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupWriterInternal.hpp"
 // Consolidated implementation. Keep sections ordered by dependency.
 
 // ===== BindingExtension =====
@@ -12,15 +35,28 @@
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
-#include "../controls/ControlsPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
 
-#include <Aero/Styling.hpp>
+#include <Aero/Gui/ControlTemplate.hpp>
 #include <Aero/Controls.hpp>
-#include <Aero/Controls/ButtonBase.hpp>
-#include <Aero/ContentElement.hpp>
-#include <Aero/UIElement.hpp>
-#include <Aero/Animation.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Gui/ButtonBase.hpp>
+#include <Aero/Gui/ToggleButton.hpp>
+#include <Aero/Gui/FrameworkContentElement.hpp>
+#include <Aero/Gui/UIElement.hpp>
+#include <Aero/Gui/Storyboard.hpp>
+#include <Aero/Gui/Brush.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Triggers/Behavior.hpp>
 
@@ -2590,7 +2626,7 @@ Base::Result<ProvidedValue> StaticExtension::ProvideValue(
 
 // ===== Scopes =====
 
-#include <Aero/Markup.hpp>
+#include <Aero/Gui/XamlReader.hpp>
 
 // Name and resource scope implementation.
 
@@ -3378,6 +3414,21 @@ Base::Result<void> ObjectBuilder::StartObject(
     CreatedObjectRecord record;
     record.object = std::move(createResult).Value();
     record.type = typeId;
+    if (loadContext_ != nullptr && loadContext_->existingRoot &&
+        rootObjectIndex_ == InvalidIndex && frames_.Empty() &&
+        record.object.Get() == loadContext_->existingRoot.Get()) {
+        const Meta::TypeId runtimeType = record.object->RuntimeType();
+        if (runtimeType == Meta::InvalidTypeId) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Existing XAML root has no runtime type"),
+                XamlObjectWriterDiagnosticCodes::TypeMismatch,
+                MessageTypeMismatch,
+                node.Source());
+        }
+        record.type = runtimeType;
+    }
     if (compiledType != nullptr &&
         compiledType->HasContentMember()) {
         record.contentMember =
@@ -4456,6 +4507,13 @@ Base::Result<void> ObjectBuilder::WriteDirectiveText(
         Base::Result<const Meta::TypeInfo*> classType =
             schema_->ResolveType(xamlNamespace.View(), localName);
         if (!classType) {
+            if (loadContext_ != nullptr && loadContext_->existingRoot) {
+                return Failure(
+                    classType.GetStatus(),
+                    XamlObjectWriterDiagnosticCodes::UnknownType,
+                    MessageUnknownType,
+                    node.Source());
+            }
             if (classType.GetStatus().code ==
                 Base::ErrorCode::NotFound) {
                 // A pure-XAML host may intentionally omit the code-behind
@@ -4472,6 +4530,18 @@ Base::Result<void> ObjectBuilder::WriteDirectiveText(
                 Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "x:Class type does not derive from the authored root type"),
+                XamlObjectWriterDiagnosticCodes::TypeMismatch,
+                MessageTypeMismatch,
+                node.Source());
+        }
+        if (loadContext_ != nullptr && loadContext_->existingRoot &&
+            frame.targetObjectIndex == rootObjectIndex_ &&
+            classType.Value()->Id() !=
+                loadContext_->existingRoot->RuntimeType()) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "x:Class does not match the existing root runtime type"),
                 XamlObjectWriterDiagnosticCodes::TypeMismatch,
                 MessageTypeMismatch,
                 node.Source());
@@ -6830,24 +6900,24 @@ Base::Result<LoaderResult> ObjectWriter::LoadDocument(
     return state.Load(document);
 }
 
-Base::Result<Aero::Visual*> ObjectWriter::ResolveVisual(
+Base::Result<Aero::Media::Visual*> ObjectWriter::ResolveVisual(
     ::Aero::Markup::Schema& schema,
     Base::Object& object,
     Meta::TypeId type) noexcept {
     if (object.RuntimeType() != type ||
         !schema.Types().IsDerivedFrom(
-            type, Aero::Visual::StaticTypeId())) {
+            type, Aero::Media::Visual::StaticTypeId())) {
         return InvalidContent(
             "XAML object metadata is not compatible with Visual");
     }
-    return static_cast<Aero::Visual*>(&object);
+    return static_cast<Aero::Media::Visual*>(&object);
 }
 
 Base::Result<Aero::UIElement*> ObjectWriter::ResolveUIElement(
     ::Aero::Markup::Schema& schema,
     Base::Object& object,
     Meta::TypeId type) noexcept {
-    Base::Result<Aero::Visual*> visual =
+    Base::Result<Aero::Media::Visual*> visual =
         ResolveVisual(schema, object, type);
     if (!visual) return visual.GetStatus();
     Aero::UIElement* element =
@@ -6921,13 +6991,13 @@ Base::Result<void> ObjectWriter::StageContent(
             childObject->RuntimeType(),
             Aero::DependencyObject::StaticTypeId());
 
-    // A deferred template owns a visual root without itself being a Visual.
+    // A deferred template owns a visual root without itself being a ::Aero::Media::Visual.
     // Commit that root through the template's content accessor; descendant
     // visual edges are staged below once their actual visual parent exists.
     if (services.deferredContentOwner == &object &&
         !schema.Types().IsDerivedFrom(
             services.targetObjectType,
-            Aero::Visual::StaticTypeId())) {
+            Aero::Media::Visual::StaticTypeId())) {
         if (structuralProperty) {
             return InvalidContent(
                 "A non-visual template root cannot use a visual structural property");
@@ -6978,11 +7048,11 @@ Base::Result<void> ObjectWriter::StageContent(
         plan->nodes.Size() + 2U);
     if (!reserved) return reserved.GetStatus();
 
-    Base::Result<Aero::Visual*> parentNode =
+    Base::Result<Aero::Media::Visual*> parentNode =
         ResolveVisual(
             schema, object, services.targetObjectType);
     if (!parentNode) return parentNode.GetStatus();
-    Base::Result<Aero::Visual*> childNode =
+    Base::Result<Aero::Media::Visual*> childNode =
         ResolveVisual(schema, *childObject, value.Type());
     if (!childNode) return childNode.GetStatus();
 

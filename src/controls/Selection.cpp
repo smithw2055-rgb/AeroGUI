@@ -1,9 +1,30 @@
-#include "controls/ControlsPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
 #include <Aero/Controls.hpp>
-#include <Aero/Styling.hpp>
-#include <Aero/Controls/Text.hpp>
+#include <Aero/Gui/ControlTemplate.hpp>
+#include <Aero/Gui/Text.hpp>
 
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -542,7 +563,7 @@ Base::Result<void> Selector::PublishProperties() noexcept {
 
 void Selector::SyncContainers() noexcept {
     auto* states = static_cast<Aero::VisualStateManager*>(
-        Visual::Impl::VisualStateRuntime(*this));
+        ::Aero::Media::Visual::Impl::VisualStateRuntime(*this));
     ItemContainerGenerator* generator =
         AttachedGenerator();
     if (generator == nullptr) return;
@@ -820,7 +841,7 @@ void Selector::OnContainersChanged() noexcept {
 
 ListBox::~ListBox() {
     auto* behaviors = static_cast<Detail::ControlBehavior*>(
-        Visual::Impl::ControlBehaviorRuntime(*this));
+        ::Aero::Media::Visual::Impl::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -855,7 +876,7 @@ Base::Result<bool> ListBox::BringIntoView(
         const Rect slot = node->GetLayoutSlot();
         x += slot.x;
         y += slot.y;
-        Visual* parent = node->GetVisualParent();
+        ::Aero::Media::Visual* parent = node->GetVisualParent();
         if (parent == nullptr) break;
         UIElement* parentElement =
             parent->AsUIElement();
@@ -965,7 +986,7 @@ ComboBox::ComboBox() noexcept
 
 ComboBox::~ComboBox() {
     auto* behaviors = static_cast<Detail::ControlBehavior*>(
-        Visual::Impl::ControlBehaviorRuntime(*this));
+        ::Aero::Media::Visual::Impl::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -1468,7 +1489,7 @@ std::uint32_t ComboBox::FindContainerIndex(
                 UIElement::StaticTypeId())) {
         return UINT32_MAX;
     }
-    Visual* visual =
+    ::Aero::Media::Visual* visual =
         static_cast<UIElement*>(source);
     while (visual != nullptr &&
         visual != this) {
@@ -1551,7 +1572,7 @@ ComboBox::Impl::FindComboBox(
 ComboBox*
 ComboBox::Impl::ResolveComboBox(
     std::uint32_t index) noexcept {
-    Visual* visual =
+    ::Aero::Media::Visual* visual =
         tree_->ResolveHandle(records_[index]);
     return visual != nullptr
         ? static_cast<ComboBox*>(
@@ -1736,7 +1757,7 @@ std::uint32_t ListBox::Impl::FindListBox(
 
 ListBox* ListBox::Impl::ResolveListBox(
     std::uint32_t index) noexcept {
-    Visual* visual =
+    ::Aero::Media::Visual* visual =
         tree_->ResolveHandle(records_[index].handle);
     return visual != nullptr
         ? static_cast<ListBox*>(
@@ -1783,7 +1804,7 @@ Base::Result<void> ListBox::Impl::Attach(
             mouseDownHandler_));
         return added.GetStatus();
     }
-    ::Aero::Visual::Impl::SyncSelectorContainers(listBox);
+    ::Aero::Media::Visual::Impl::SyncSelectorContainers(listBox);
     return {};
 }
 
@@ -1819,7 +1840,7 @@ ListBox::Impl::FindContainerIndex(
                 UIElement::StaticTypeId())) {
         return UINT32_MAX;
     }
-    Visual* visual =
+    ::Aero::Media::Visual* visual =
         static_cast<UIElement*>(source);
     while (visual != nullptr &&
         visual != &listBox) {

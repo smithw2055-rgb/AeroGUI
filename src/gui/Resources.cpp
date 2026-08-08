@@ -1,8 +1,8 @@
-#include <Aero/Resources.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/FrameworkElement.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 
 #include <cstdio>
 #include <new>
@@ -1077,7 +1077,7 @@ Base::Result<ResourceValue> ResourceResolver::Lookup(
             Base::ErrorCode::NotFound) {
             return local.GetStatus();
         }
-        const Visual* logical = current->GetLogicalParent();
+        const ::Aero::Media::Visual* logical = current->GetLogicalParent();
         current = logical != nullptr
             ? logical->AsFrameworkElement()
             : nullptr;

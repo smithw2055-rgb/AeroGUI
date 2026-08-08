@@ -4,15 +4,15 @@
 #include <Aero/Input.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/ViewOptions.hpp>
-#include <Aero/Markup.hpp>
+#include <Aero/Gui/XamlReader.hpp>
 #include <Aero/Meta.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Gui/Brush.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Gui/Transform.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Triggers/BlendBehaviors.hpp>
-#include <Aero/View.hpp>
-#include <Aero/Window.hpp>
+#include <Aero/Gui/View.hpp>
+#include <Aero/Gui/Window.hpp>
 
 #include <climits>
 #include <cmath>
@@ -172,11 +172,11 @@ void PrintDiagnostics(const Aero::Diagnostics::DiagnosticBag& diagnostics) {
 
 Aero::Base::Point RootCenter(
     const Aero::UIElement& element,
-    const Aero::Visual& root) noexcept {
+    const Aero::Media::Visual& root) noexcept {
     Aero::Base::Point point{
         element.GetRenderSize().width * 0.5,
         element.GetRenderSize().height * 0.5};
-    const Aero::Visual* current = &element;
+    const Aero::Media::Visual* current = &element;
     while (current != nullptr) {
         const Aero::FrameworkElement* framework =
             current->AsFrameworkElement();
@@ -196,14 +196,14 @@ Aero::Base::Point RootCenter(
     return point;
 }
 
-Aero::Controls::Button* FindButton(Aero::Visual& root) noexcept {
+Aero::Controls::Button* FindButton(Aero::Media::Visual& root) noexcept {
     if (root.RuntimeType() == Aero::Controls::Button::StaticTypeId()) {
         return static_cast<Aero::Controls::Button*>(&root);
     }
     const std::uint32_t count =
-        Aero::VisualTreeHelper::GetChildrenCount(root);
+        Aero::Media::VisualTreeHelper::GetChildrenCount(root);
     for (std::uint32_t index = 0U; index < count; ++index) {
-        Aero::Visual* child = Aero::VisualTreeHelper::GetChild(root, index);
+        Aero::Media::Visual* child = Aero::Media::VisualTreeHelper::GetChild(root, index);
         if (child == nullptr) continue;
         Aero::Controls::Button* found = FindButton(*child);
         if (found != nullptr) return found;
@@ -212,7 +212,7 @@ Aero::Controls::Button* FindButton(Aero::Visual& root) noexcept {
 }
 
 void CollectRepeatButtons(
-    Aero::Visual& root,
+    Aero::Media::Visual& root,
     Aero::Controls::Primitives::RepeatButton** output,
     std::uint32_t capacity,
     std::uint32_t& count) noexcept {
@@ -222,12 +222,12 @@ void CollectRepeatButtons(
         if (count >= capacity) return;
     }
     const std::uint32_t childCount =
-        Aero::VisualTreeHelper::GetChildrenCount(root);
+        Aero::Media::VisualTreeHelper::GetChildrenCount(root);
     for (std::uint32_t index = 0U;
          index < childCount && count < capacity;
          ++index) {
-        Aero::Visual* child =
-            Aero::VisualTreeHelper::GetChild(root, index);
+        Aero::Media::Visual* child =
+            Aero::Media::VisualTreeHelper::GetChild(root, index);
         if (child != nullptr) {
             CollectRepeatButtons(*child, output, capacity, count);
         }

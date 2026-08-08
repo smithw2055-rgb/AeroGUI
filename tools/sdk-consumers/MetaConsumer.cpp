@@ -1,10 +1,10 @@
 #include <Aero/Gui.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Module.hpp>
-#include <Aero/Controls/Control.hpp>
-#include <Aero/Controls/Button.hpp>
+#include <Aero/Gui/Control.hpp>
+#include <Aero/Gui/Button.hpp>
 #include <Aero/Shapes.hpp>
-#include <Aero/Animation.hpp>
+#include <Aero/Gui/Storyboard.hpp>
 
 #include <cstdint>
 #include <type_traits>
@@ -63,7 +63,7 @@ public:
 
 protected:
     void OnRender(
-        Aero::DrawingContext& context) noexcept override {
+        Aero::Media::DrawingContext& context) noexcept override {
         static_cast<void>(context.DrawRectangle(
             {0.0, 0.0, GetRenderSize().width, GetRenderSize().height},
             {0.0F, 0.0F, 0.0F, 0.0F}));

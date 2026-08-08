@@ -1,6 +1,27 @@
-#include "gui/GuiPrivate.hpp"
-#include <Aero/Styling.hpp>
-#include "controls/ControlsPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include <Aero/Gui/ControlTemplate.hpp>
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "controls/ControlInternal.hpp"
+#include "controls/ItemsInternal.hpp"
+#include "controls/TemplateInternal.hpp"
 
 #include "render/RenderTree.hpp"
 
@@ -8,7 +29,7 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/FrameworkElement.hpp>
+#include <Aero/Gui/FrameworkElement.hpp>
 
 #include <cstdio>
 #include <new>
@@ -98,14 +119,14 @@ Base::Result<PropertyValue> ConvertTemplateBindingValue(
 
 Base::Result<void> TemplateBuilder::SetRoot(
     Base::Ref<Base::Object> owner,
-    Visual& root) noexcept {
+    ::Aero::Media::Visual& root) noexcept {
     return SetRoot({}, std::move(owner), root);
 }
 
 Base::Result<void> TemplateBuilder::SetRoot(
     Base::StringView name,
     Base::Ref<Base::Object> owner,
-    Visual& root) noexcept {
+    ::Aero::Media::Visual& root) noexcept {
     auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     if (state.tree == nullptr || state.parent == nullptr ||
         state.rootVisual != nullptr || !owner ||
@@ -154,9 +175,9 @@ Base::Result<void> TemplateBuilder::SetRoot(
 
 Base::Result<void> TemplateBuilder::AddPart(
     Base::StringView name,
-    Visual& parent,
+    ::Aero::Media::Visual& parent,
     Base::Ref<Base::Object> owner,
-    Visual& part) noexcept {
+    ::Aero::Media::Visual& part) noexcept {
     auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     if (state.tree == nullptr || state.parent == nullptr ||
         state.rootVisual == nullptr ||
@@ -213,7 +234,7 @@ Control& TemplateBuilder::TemplatedParent() const noexcept {
     return *state.parent;
 }
 
-Visual* TemplateBuilder::RootVisual() const noexcept {
+::Aero::Media::Visual* TemplateBuilder::RootVisual() const noexcept {
     auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     return state.rootVisual;
 }
@@ -233,7 +254,7 @@ TemplateBuilder::Bindings() const noexcept {
 Base::Result<bool>
 TemplateBuilder::ProjectContentCore(
     ContentControl& owner,
-    Visual& presenterVisual,
+    ::Aero::Media::Visual& presenterVisual,
     ContentPresenter* presenter,
     ContentControl* contentHost) noexcept {
     auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
@@ -431,7 +452,7 @@ Base::Result<void> TemplateBuilder::AddObjectPart(
 Base::Result<void> TemplateBuilder::AddOwnedPart(
     Base::StringView name,
     Base::Ref<Base::Object> owner,
-    Visual& visual,
+    ::Aero::Media::Visual& visual,
     void* mountState) noexcept {
     auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     const auto& mount = *static_cast<const Aero::GuiPrivate::Detail::ElementAttachment*>(mountState);
@@ -1179,7 +1200,7 @@ bool Control::ApplyTemplate() noexcept {
     if (!access) return false;
     if (Detail::ControlPrivate::IsTemplateApplied(*this)) return false;
     auto* templateRuntime = static_cast<TemplateEngine*>(
-        ::Aero::Visual::Impl::TemplateRuntime(*this));
+        ::Aero::Media::Visual::Impl::TemplateRuntime(*this));
     if (templateRuntime == nullptr) {
         return false;
     }
@@ -1199,7 +1220,7 @@ bool Control::ApplyTemplate() noexcept {
 DependencyObject* Control::GetTemplateChild(
     Base::StringView name) const noexcept {
     auto* templateRuntime = static_cast<TemplateEngine*>(
-        ::Aero::Visual::Impl::TemplateRuntime(*this));
+        ::Aero::Media::Visual::Impl::TemplateRuntime(*this));
     if (templateRuntime == nullptr ||
         templateHandleValue_ == 0U ||
         name.Empty()) {
@@ -1212,7 +1233,7 @@ DependencyObject* Control::GetTemplateChild(
 DependencyObject* Control::GetTemplateChild(
     TypeId type) const noexcept {
     auto* templateRuntime = static_cast<TemplateEngine*>(
-        ::Aero::Visual::Impl::TemplateRuntime(*this));
+        ::Aero::Media::Visual::Impl::TemplateRuntime(*this));
     if (templateRuntime == nullptr ||
         templateHandleValue_ == 0U ||
         type == InvalidTypeId) {

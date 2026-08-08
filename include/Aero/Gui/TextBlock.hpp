@@ -1,9 +1,9 @@
 #pragma once
 
-#include <Aero/Controls/Control.hpp>
-#include <Aero/Controls/TextFormatting.hpp>
+#include <Aero/Gui/Control.hpp>
+#include <Aero/Gui/TextFormatting.hpp>
 #include <Aero/Base/String.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Gui/Brush.hpp>
 
 namespace Aero::Documents {
 class InlineCollection;
@@ -90,7 +90,7 @@ protected:
     explicit TextBlock(TypeId runtimeType) noexcept;
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
-    void OnRender(DrawingContext& context) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 private:
     friend struct ::Aero::Controls::Control::Impl;
     friend struct Impl;

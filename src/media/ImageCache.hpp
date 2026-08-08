@@ -11,7 +11,7 @@ namespace Aero::Markup {
 class XamlProviderRegistry;
 }
 
-namespace Aero { class Visual; }
+namespace Aero::Media { class Visual; }
 
 namespace Aero::Media::Detail {
 
@@ -26,7 +26,7 @@ public:
         const ImageCache&) = delete;
 
     Base::Result<bool> Synchronize(
-        Aero::Visual* root,
+        Aero::Media::Visual* root,
         const Base::ResourceUri& documentUri,
         Markup::XamlProviderRegistry& sources,
         Media::TextureProvider* textureProvider,

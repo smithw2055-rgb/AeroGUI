@@ -4,7 +4,7 @@
 
 #include "FrameEncoder.hpp"
 #include "render/RenderResources.hpp"
-#include "render/private/RenderDevice.hpp"
+#include "render/RenderDeviceInternal.hpp"
 
 #include <limits>
 
@@ -14,7 +14,7 @@ class ImageGpuResources {
 public:
     ImageGpuResources(
         Aero::RenderDevice::Impl& device,
-        CommandEncoder& renderer,
+        BatchComposer& renderer,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
         : device_(&device),
@@ -129,7 +129,7 @@ private:
             device_->CreateTexture(descriptor);
         if (!texture) return texture.GetStatus();
 
-        Graphics::CommandEncoder encoder(allocator_);
+        ::Aero::Render::Detail::RenderBatchBuilder encoder(allocator_);
         Graphics::TextureRegion region;
         region.width = width;
         region.height = height;
@@ -143,7 +143,7 @@ private:
                     texture.Value()));
             return uploaded.GetStatus();
         }
-        Base::Result<Graphics::CommandList> commands =
+        Base::Result<::Aero::Render::Detail::RenderBatch> commands =
             encoder.Finish();
         if (!commands) {
             static_cast<void>(
@@ -152,7 +152,7 @@ private:
             return commands.GetStatus();
         }
         Base::Result<Graphics::FenceValue> submitted =
-            device_->SubmitCommands(commands.Value());
+            device_->SubmitBatch(commands.Value());
         if (!submitted) {
             static_cast<void>(
                 device_->DestroyResource(
@@ -237,7 +237,7 @@ private:
     }
 
     Aero::RenderDevice::Impl* device_ = nullptr;
-    CommandEncoder* renderer_ = nullptr;
+    BatchComposer* renderer_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Resource> resources_;
     Graphics::ResourceHandle sampler_;

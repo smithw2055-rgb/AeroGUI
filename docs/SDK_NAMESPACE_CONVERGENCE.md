@@ -7,17 +7,14 @@ historical repository layout as well: no active source file lives under
 The physical ownership model is now direct and intentionally shallow:
 
 - `src/render/RenderDevice.cpp` implements the host-facing `Aero::RenderDevice`;
-- `src/render/RenderSurface.cpp` implements `Aero::RenderSurface`;
-- `src/render/private` owns native render-device/surface and backend factory
-  contracts used only inside the product;
+- `src/render/RenderTarget.cpp` implements `Aero::RenderTarget`;
+- source-only render-device/target contracts are flat files under `src/render`;
 - `src/render/d3d11` owns D3D11 device/surface/factory implementation;
 - `src/render/opengl33` owns OpenGL 3.3 device/surface/factory implementation;
 - `src/markup/ReloadCoordinator.cpp` owns markup reload implementation.
 
-The former low-level `src/render/RenderDevice.cpp/.hpp` pair and
-`RenderDeviceResources.cpp` actually implement `Aero::Graphics::Device`. They
-are renamed to `GraphicsDevice.cpp/.hpp` and `GraphicsDeviceResources.cpp` so
-the source tree no longer contains two unrelated RenderDevice concepts.
+The UI render path terminates at `RenderDevice::Impl` and backend-local native
+submission. No second generic GraphicsDevice product or source layer remains.
 
 `IntegrationPrivate.hpp` is deleted instead of being renamed. Its only job was
 to aggregate the backend API and private RenderSurface contract; consumers now

@@ -4,8 +4,9 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include "render/RenderCommands.hpp"
-#include <Aero/RenderDevice.hpp>
+#include "render/GraphicsTypes.hpp"
+#include "render/RenderBatch.hpp"
+#include <Aero/Gui/RenderDevice.hpp>
 #include "render/WindowRenderContext.hpp"
 
 #include <cstdint>
@@ -97,9 +98,9 @@ public:
         const SamplerDescriptor& descriptor) noexcept;
     Base::Result<void> ConfigurePipeline(
         ResourceHandle handle,
-        const PipelineDescriptor& descriptor) noexcept;
+        const NativePipelineState& descriptor) noexcept;
     Base::Result<void> Submit(
-        const CommandList& commands,
+        const ::Aero::Render::Detail::RenderBatch& commands,
         FenceValue signalFence) noexcept;
     FenceValue CompletedFence() const noexcept;
     bool IsDeviceLost() const noexcept;

@@ -3,7 +3,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/RenderTarget.hpp>
+#include <Aero/Gui/RenderTarget.hpp>
 
 #include <cstdint>
 

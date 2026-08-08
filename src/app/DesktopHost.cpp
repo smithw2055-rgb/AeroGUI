@@ -2,17 +2,18 @@
 #include "Metadata.hpp"
 #include "RenderContext.hpp"
 
-#include <Aero/Application.hpp>
-#include <Aero/Window.hpp>
+#include <Aero/Gui/Application.hpp>
+#include <Aero/Gui/Window.hpp>
 #include "ApplicationState.hpp"
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Markup.hpp>
+#include <Aero/Gui/XamlReader.hpp>
 #include <Aero/ViewOptions.hpp>
-#include <Aero/IRenderer.hpp>
-#include <Aero/View.hpp>
+#include <Aero/Gui/IRenderer.hpp>
+#include <Aero/Gui/View.hpp>
+#include "gui/ViewOperations.hpp"
 
 #if defined(_WIN32)
 #include "app/platform/win32/InputRouters.hpp"
@@ -30,7 +31,23 @@
 namespace Aero::App::Detail {
 
 Base::Result<void> DesktopHost::UnmountView(::Aero::View& view) noexcept {
-    return view.Unmount();
+    return View::Operations::Unmount(view);
+}
+
+Base::Result<void> DesktopHost::ApplyBuiltInTheme(
+    ::Aero::View& view,
+    ::Aero::BuiltInTheme theme) noexcept {
+    return View::Operations::LoadBuiltInTheme(view, theme);
+}
+
+void DesktopHost::ApplyApplicationResources(
+    ::Aero::View& view,
+    ::Aero::ResourceDictionary& resources) noexcept {
+    View::Operations::SetResourceDictionary(
+        view,
+        ResourceLayer::Application,
+        resources,
+        ResourceLoadMode::Replace);
 }
 
 using namespace ::Aero::App;
@@ -72,6 +89,34 @@ std::uint32_t WindowExtent(
     return static_cast<std::uint32_t>(value);
 }
 
+std::uint32_t DecodeWindowCodePoint(
+    Base::StringView text) noexcept {
+    if (text.Empty()) return 0U;
+    const auto lead = static_cast<std::uint8_t>(text[0]);
+    std::uint32_t value = 0U;
+    std::uint32_t count = 1U;
+    if (lead < 0x80U) return lead;
+    if ((lead & 0xE0U) == 0xC0U) {
+        value = lead & 0x1FU;
+        count = 2U;
+    } else if ((lead & 0xF0U) == 0xE0U) {
+        value = lead & 0x0FU;
+        count = 3U;
+    } else if ((lead & 0xF8U) == 0xF0U) {
+        value = lead & 0x07U;
+        count = 4U;
+    } else {
+        return 0xFFFDU;
+    }
+    if (text.SizeBytes() < count) return 0xFFFDU;
+    for (std::uint32_t index = 1U; index < count; ++index) {
+        const auto byte = static_cast<std::uint8_t>(text[index]);
+        if ((byte & 0xC0U) != 0x80U) return 0xFFFDU;
+        value = (value << 6U) | (byte & 0x3FU);
+    }
+    return value;
+}
+
 } // namespace
 
 struct DesktopHost::Impl {
@@ -108,7 +153,8 @@ struct DesktopHost::Impl {
             view = std::move(created).Value();
             if (owner->loadBuiltInTheme) {
                 Base::Result<void> themed =
-                    view->LoadBuiltInTheme(owner->builtInTheme);
+                    DesktopHost::ApplyBuiltInTheme(
+                        *view, owner->builtInTheme);
                 if (!themed) return themed.GetStatus();
             }
             ResourceDictionary* resources =
@@ -116,10 +162,8 @@ struct DesktopHost::Impl {
                 ? &owner->application->GetResources()
                 : nullptr;
             if (resources != nullptr) {
-                view->SetResourceDictionary(
-                    ResourceLayer::Application,
-                    *resources,
-                    ResourceLoadMode::Replace);
+                DesktopHost::ApplyApplicationResources(
+                    *view, *resources);
             }
             return {};
         }
@@ -197,18 +241,22 @@ struct DesktopHost::Impl {
                 }
                 if (!assigned) return assigned.GetStatus();
                 Markup::XamlReader reader(owner->environment);
+                Base::Ref<Base::Object> existingRoot(value);
                 Base::Result<Markup::XamlDocument> loaded =
-                    reader.LoadComponent<Window>(
-                        componentPath.View(), {}, owner->diagnostics);
+                    reader.LoadComponentInto(
+                        existingRoot,
+                        componentPath.View(),
+                        {},
+                        owner->diagnostics);
                 if (!loaded) return loaded.GetStatus();
                 const Base::Ref<Base::Object>& root = loaded.Value().Root();
-                if (!root) {
+                if (!root || root.Get() != value.Get()) {
                     return HostFailure(
                         Base::ErrorCode::InvalidArgument,
-                        "InitializeComponent XAML root must be Window");
+                        "InitializeComponent must populate the existing Window");
                 }
-                windowOwner = root;
-                window = static_cast<Window*>(windowOwner.Get());
+                windowOwner = std::move(existingRoot);
+                window = value.Get();
                 loadedDocument = std::move(loaded).Value();
                 return FinishInitialization(false);
             }
@@ -262,7 +310,8 @@ struct DesktopHost::Impl {
             const Size size{
                 static_cast<double>(width) / dpiScale,
                 static_cast<double>(height) / dpiScale};
-            view->SetViewport({size, width, height, dpiScale});
+            view->SetScale(dpiScale);
+            view->SetSize(size);
             if (programmaticRoot) {
                 view->SetContent(
                     Base::Ref<FrameworkElement>::FromBorrowed(*window),
@@ -346,55 +395,44 @@ struct DesktopHost::Impl {
             case Platform::WindowEventType::PointerWheel: {
                 Base::Result<void> resized = ApplyPendingResize();
                 if (!resized) return resized.GetStatus();
-                Input::PointerInput input;
-                input.pointerId = 1U;
-                input.position = {
-                    event.x / dpiScale,
-                    event.y / dpiScale};
-                input.changedButton = MapButton(event.button);
-                input.wheelDeltaX = event.wheelDeltaX / 120.0;
-                input.wheelDeltaY = event.wheelDeltaY / 120.0;
+                const int x = static_cast<int>(event.x / dpiScale);
+                const int y = static_cast<int>(event.y / dpiScale);
+                bool handled = false;
                 if (event.type == Platform::WindowEventType::PointerDown) {
-                    input.action = Input::PointerAction::Down;
+                    handled = view->MouseButtonDown(
+                        x, y, MapButton(event.button));
                 } else if (event.type == Platform::WindowEventType::PointerUp) {
-                    input.action = Input::PointerAction::Up;
+                    handled = view->MouseButtonUp(
+                        x, y, MapButton(event.button));
                 } else if (event.type == Platform::WindowEventType::PointerWheel) {
-                    input.action = Input::PointerAction::Wheel;
+                    handled = view->MouseWheel(
+                        x, y, static_cast<int>(event.wheelDeltaY / 120.0));
                 } else {
-                    input.action = Input::PointerAction::Move;
+                    handled = view->MouseMove(x, y);
                 }
-                Base::Result<Input::PointerDispatchResult> dispatched =
-                    view->DispatchPointer(input);
+                (void)handled;
                 frameRequested = true;
-                return dispatched
-                    ? Base::Result<void>()
-                    : Base::Result<void>(dispatched.GetStatus());
+                return {};
             }
             case Platform::WindowEventType::KeyDown:
             case Platform::WindowEventType::KeyUp: {
                 if (event.key == 0U) return {};
-                Input::KeyboardInput input;
-                input.action = event.type == Platform::WindowEventType::KeyDown
-                    ? Input::KeyboardAction::Down
-                    : Input::KeyboardAction::Up;
-                input.key = event.key;
-                input.modifiers = event.modifiers;
-                input.isRepeat = event.repeat;
-                Base::Result<Input::KeyboardDispatchResult> dispatched =
-                    view->DispatchKeyboard(input);
+                const Input::Key key = static_cast<Input::Key>(event.key);
+                const bool handled =
+                    event.type == Platform::WindowEventType::KeyDown
+                    ? view->KeyDown(key)
+                    : view->KeyUp(key);
+                (void)handled;
                 frameRequested = true;
-                return dispatched
-                    ? Base::Result<void>()
-                    : Base::Result<void>(dispatched.GetStatus());
+                return {};
             }
             case Platform::WindowEventType::TextInput: {
                 if (event.textSize == 0U) return {};
-                Base::Result<Input::TextInputDispatchResult> dispatched =
-                    view->DispatchText({event.Text()});
+                const bool handled = view->Char(
+                    DecodeWindowCodePoint(event.Text()));
+                (void)handled;
                 frameRequested = true;
-                return dispatched
-                    ? Base::Result<void>()
-                    : Base::Result<void>(dispatched.GetStatus());
+                return {};
             }
             case Platform::WindowEventType::Exposed:
                 frameRequested = true;
@@ -419,8 +457,8 @@ struct DesktopHost::Impl {
             const Size logicalSize{
                 static_cast<double>(width) / nextDpiScale,
                 static_cast<double>(height) / nextDpiScale};
-            view->SetViewport({
-                logicalSize, width, height, nextDpiScale});
+            view->SetScale(nextDpiScale);
+            view->SetSize(logicalSize);
             dpiScale = nextDpiScale;
             frameRequested = true;
             return {};

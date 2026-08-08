@@ -5,11 +5,11 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Threading.hpp>
-#include <Aero/DrawingContext.hpp>
+#include <Aero/Gui/DrawingContext.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/UIElement.hpp>
-#include <Aero/Media/Transforms.hpp>
-#include <Aero/Resources.hpp>
+#include <Aero/Gui/UIElement.hpp>
+#include <Aero/Gui/Transform.hpp>
+#include <Aero/Gui/ResourceDictionary.hpp>
 
 #include <cstdint>
 
@@ -62,26 +62,26 @@ class FrameworkElementChildRange {
 public:
     class Iterator {
     public:
-        Iterator(const Visual* owner, std::uint32_t index) noexcept : owner_(owner), index_(index) { Advance(); }
+        Iterator(const ::Aero::Media::Visual* owner, std::uint32_t index) noexcept : owner_(owner), index_(index) { Advance(); }
         FrameworkElement* operator*() const noexcept;
         Iterator& operator++() noexcept { ++index_; Advance(); return *this; }
         bool operator!=(const Iterator& other) const noexcept { return owner_ != other.owner_ || index_ != other.index_; }
         bool operator==(const Iterator& other) const noexcept { return !(*this != other); }
 
     private:
-        const Visual* owner_ = nullptr;
+        const ::Aero::Media::Visual* owner_ = nullptr;
         std::uint32_t index_ = 0U;
         void Advance() noexcept;
     };
 
-    explicit FrameworkElementChildRange(const Visual& owner) noexcept : owner_(&owner) {}
+    explicit FrameworkElementChildRange(const ::Aero::Media::Visual& owner) noexcept : owner_(&owner) {}
     Iterator begin() const noexcept { return Iterator(owner_, 0U); }
-    Iterator end() const noexcept { return Iterator(owner_, VisualTreeHelper::GetChildrenCount(*owner_)); }
+    Iterator end() const noexcept { return Iterator(owner_, ::Aero::Media::VisualTreeHelper::GetChildrenCount(*owner_)); }
     bool Empty() const noexcept { return begin() == end(); }
     std::uint32_t Size() const noexcept;
 
 private:
-    const Visual* owner_ = nullptr;
+    const ::Aero::Media::Visual* owner_ = nullptr;
 };
 
 class AERO_API FrameworkElement : public UIElement {
@@ -224,16 +224,16 @@ public:
     Base::Result<void> InvalidateVisual() noexcept;
 
 protected:
-    virtual std::uint32_t GetLogicalChildrenCountCore() const noexcept { return VisualTreeHelper::GetChildrenCount(*this); }
-    virtual DependencyObject* GetLogicalChildCore(std::uint32_t index) const noexcept { return LogicalTreeHelper::GetChild(static_cast<const Visual&>(*this), index); }
+    virtual std::uint32_t GetLogicalChildrenCountCore() const noexcept { return ::Aero::Media::VisualTreeHelper::GetChildrenCount(*this); }
+    virtual DependencyObject* GetLogicalChildCore(std::uint32_t index) const noexcept { return LogicalTreeHelper::GetChild(static_cast<const ::Aero::Media::Visual&>(*this), index); }
     void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
     virtual void OnRender(
-        DrawingContext& context) noexcept;
+        ::Aero::Media::DrawingContext& context) noexcept;
 
 private:
     FrameworkElement* GetRenderParent() const noexcept {
-        Visual* parent = GetVisualParent();
+        ::Aero::Media::Visual* parent = GetVisualParent();
         return parent != nullptr ? parent->AsFrameworkElement() : nullptr;
     }
     FrameworkElementChildRange GetRenderChildren() const noexcept {
@@ -282,7 +282,7 @@ private:
         Meta::TypeId expectedType) noexcept;
 
     friend class LogicalTreeHelper;
-    friend struct ::Aero::Visual::Impl;
+    friend struct ::Aero::Media::Visual::Impl;
     friend struct ::Aero::UIElement::Impl;
     double dpiScale_ = 1.0;
     DependencyObject* templatedParent_ = nullptr;

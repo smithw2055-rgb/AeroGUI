@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Result.hpp>
-#include "render/RenderCommands.hpp"
+#include "render/GraphicsTypes.hpp"
 
 #include <cstdint>
 

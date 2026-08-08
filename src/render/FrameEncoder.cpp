@@ -1,6 +1,6 @@
 #include "DisplayList.hpp"
 #include "FrameEncoder.hpp"
-#include "render/private/RenderDevice.hpp"
+#include "render/RenderDeviceInternal.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -18,7 +18,7 @@ namespace Aero::Render::Detail {
 using namespace Aero::Graphics;
 
 // The frame encoder uses its canonical source-private names directly.
-// Graphics::CommandEncoder is explicitly qualified where command lists
+// ::Aero::Render::Detail::RenderBatchBuilder is explicitly qualified where command lists
 // are recorded.
 
 namespace {
@@ -298,7 +298,7 @@ struct NodeState  {
 
 template <typename Constants>
 Base::Result<void> AppendDraw(
-    Graphics::CommandEncoder& encoder,
+    ::Aero::Render::Detail::RenderBatchBuilder& encoder,
     ResourceHandle uniformBuffer,
     const Constants& constants,
     Aero::Rect scissor,
@@ -369,7 +369,7 @@ struct ViewSurface {
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
     std::uint64_t version = 0U;
-    CommandEncoderStatistics statistics;
+    BatchStatistics statistics;
     bool prepared = false;
 };
 
@@ -388,8 +388,8 @@ bool RequiresFrameSurface(
 }
 
 void AddStatistics(
-    CommandEncoderStatistics& target,
-    const CommandEncoderStatistics& source) noexcept {
+    BatchStatistics& target,
+    const BatchStatistics& source) noexcept {
     target.renderPassCount += source.renderPassCount;
     target.drawCallCount += source.drawCallCount;
     target.rectangleInstanceCount += source.rectangleInstanceCount;
@@ -414,7 +414,7 @@ void AddStatistics(
 
 } // namespace
 
-struct CommandEncoder::Impl  {
+struct BatchComposer::Impl  {
     explicit Impl(
         Aero::RenderDevice::Impl& device,
         Base::IAllocator* allocator) noexcept
@@ -462,26 +462,24 @@ struct CommandEncoder::Impl  {
     Base::Vector<EffectSurface> effectSurfaces;
     Base::Vector<ViewSurface> viewSurfaces;
     ResourceHandle effectSampler;
-    CommandEncoderStatistics lastStatistics;
+    BatchStatistics lastStatistics;
     bool batchingEnabled = true;
     bool initialized = false;
 };
 
-CommandEncoder::CommandEncoder(
+BatchComposer::BatchComposer(
     Aero::RenderDevice::Impl& device,
-    const CommandEncoderShaderSet& shaders,
     Base::IAllocator* allocator) noexcept
     : device_(&device),
-      shaders_(shaders),
       allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {}
 
-CommandEncoder::~CommandEncoder() noexcept {
+BatchComposer::~BatchComposer() noexcept {
     Shutdown();
 }
 
-Base::Result<void> CommandEncoder::Initialize() noexcept {
+Base::Result<void> BatchComposer::Initialize() noexcept {
     if (impl_ != nullptr && impl_->initialized) {
         return {};
     }
@@ -592,175 +590,51 @@ Base::Result<void> CommandEncoder::Initialize() noexcept {
     }
     impl_->glyphUniformBuffer = glyphUniform.Value();
 
-    PipelineDescriptor pipelineDescriptor;
-    pipelineDescriptor.vertexShader = shaders_.rectangleVertex;
-    pipelineDescriptor.fragmentShader = shaders_.rectangleFragment;
-    pipelineDescriptor.vertexLayout.bufferCount = 1U;
-    pipelineDescriptor.vertexLayout.attributeCount = 1U;
-    pipelineDescriptor.vertexLayout.buffers[0].stride = 8U;
-    pipelineDescriptor.vertexLayout.attributes[0].location = 0U;
-    pipelineDescriptor.vertexLayout.attributes[0].bufferSlot = 0U;
-    pipelineDescriptor.vertexLayout.attributes[0].format = VertexFormat::Float2;
-    pipelineDescriptor.vertexLayout.attributes[0].offset = 0U;
-    pipelineDescriptor.topology = PrimitiveTopology::TriangleStrip;
-    pipelineDescriptor.blend.enabled = true;
-    pipelineDescriptor.blend.color.source = BlendFactor::SourceAlpha;
-    pipelineDescriptor.blend.color.destination = BlendFactor::OneMinusSourceAlpha;
-    pipelineDescriptor.blend.alpha.source = BlendFactor::One;
-    pipelineDescriptor.blend.alpha.destination = BlendFactor::OneMinusSourceAlpha;
-    pipelineDescriptor.colorFormat = shaders_.colorFormat;
-    pipelineDescriptor.raster.scissorEnabled = true;
-    PipelineDescriptor imagePipelineDescriptor = pipelineDescriptor;
-    imagePipelineDescriptor.vertexShader = shaders_.imageVertex;
-    imagePipelineDescriptor.fragmentShader = shaders_.imageFragment;
-    PipelineDescriptor meshPipelineDescriptor = pipelineDescriptor;
-    meshPipelineDescriptor.vertexShader = shaders_.meshVertex;
-    meshPipelineDescriptor.fragmentShader = shaders_.meshFragment;
-    meshPipelineDescriptor.vertexLayout.buffers[0].stride = 28U;
-    meshPipelineDescriptor.vertexLayout.attributeCount = 3U;
-    meshPipelineDescriptor.vertexLayout.attributes[1].location = 1U;
-    meshPipelineDescriptor.vertexLayout.attributes[1].bufferSlot = 0U;
-    meshPipelineDescriptor.vertexLayout.attributes[1].format = VertexFormat::Float4;
-    meshPipelineDescriptor.vertexLayout.attributes[1].offset = 8U;
-    meshPipelineDescriptor.vertexLayout.attributes[2].location = 2U;
-    meshPipelineDescriptor.vertexLayout.attributes[2].bufferSlot = 0U;
-    meshPipelineDescriptor.vertexLayout.attributes[2].format = VertexFormat::Float;
-    meshPipelineDescriptor.vertexLayout.attributes[2].offset = 24U;
-    meshPipelineDescriptor.topology = PrimitiveTopology::TriangleList;
-    PipelineDescriptor glyphPipelineDescriptor = pipelineDescriptor;
-    glyphPipelineDescriptor.vertexShader = shaders_.glyphVertex;
-    glyphPipelineDescriptor.fragmentShader = shaders_.glyphFragment;
-    glyphPipelineDescriptor.vertexLayout.buffers[0].stride = 16U;
-    glyphPipelineDescriptor.vertexLayout.attributeCount = 2U;
-    glyphPipelineDescriptor.vertexLayout.attributes[1].location = 1U;
-    glyphPipelineDescriptor.vertexLayout.attributes[1].bufferSlot = 0U;
-    glyphPipelineDescriptor.vertexLayout.attributes[1].format = VertexFormat::Float2;
-    glyphPipelineDescriptor.vertexLayout.attributes[1].offset = 8U;
-    glyphPipelineDescriptor.topology = PrimitiveTopology::TriangleList;
-    auto configureBlend = [](
-        PipelineDescriptor& descriptor,
-        std::uint32_t mode) noexcept {
-        descriptor.blend.color.operation =
-            BlendOperation::Add;
-        descriptor.blend.alpha.operation =
-            BlendOperation::Add;
-        descriptor.blend.alpha.source =
-            BlendFactor::One;
-        descriptor.blend.alpha.destination =
-            BlendFactor::OneMinusSourceAlpha;
-        switch (mode) {
-        case 1U:
-            descriptor.blend.color.source =
-                BlendFactor::DestinationColor;
-            descriptor.blend.color.destination =
-                BlendFactor::Zero;
-            break;
-        case 2U:
-            descriptor.blend.color.source =
-                BlendFactor::One;
-            descriptor.blend.color.destination =
-                BlendFactor::OneMinusSourceColor;
-            break;
-        case 3U:
-            descriptor.blend.color.source =
-                BlendFactor::SourceAlpha;
-            descriptor.blend.color.destination =
-                BlendFactor::One;
-            break;
-        default:
-            descriptor.blend.color.source =
-                BlendFactor::SourceAlpha;
-            descriptor.blend.color.destination =
-                BlendFactor::OneMinusSourceAlpha;
-            break;
-        }
+    auto createPipeline = [this](
+        UiShader shader,
+        UiBlendMode blend) noexcept -> Base::Result<ResourceHandle> {
+        return device_->CreatePipeline({shader, blend});
     };
-    for (std::uint32_t mode = 0U;
-         mode < 4U; ++mode) {
-        configureBlend(pipelineDescriptor, mode);
-        configureBlend(
-            imagePipelineDescriptor, mode);
-        configureBlend(
-            meshPipelineDescriptor, mode);
-        configureBlend(
-            glyphPipelineDescriptor, mode);
+    for (std::uint32_t mode = 0U; mode < 4U; ++mode) {
+        const UiBlendMode blend = static_cast<UiBlendMode>(mode);
         Base::Result<ResourceHandle> rectangle =
-            device_->CreatePipeline(
-                pipelineDescriptor);
-        Base::Result<ResourceHandle> image =
-            rectangle
-            ? device_->CreatePipeline(
-                imagePipelineDescriptor)
-            : Base::Result<ResourceHandle>(
-                rectangle.GetStatus());
-        Base::Result<ResourceHandle> mesh =
-            image
-            ? device_->CreatePipeline(
-                meshPipelineDescriptor)
-            : Base::Result<ResourceHandle>(
-                image.GetStatus());
-        Base::Result<ResourceHandle> glyph =
-            mesh
-            ? device_->CreatePipeline(
-                glyphPipelineDescriptor)
-            : Base::Result<ResourceHandle>(
-                mesh.GetStatus());
-        if (!rectangle || !image ||
-            !mesh || !glyph) {
-            const Base::Status failure =
-                !rectangle
+            createPipeline(UiShader::Rectangle, blend);
+        Base::Result<ResourceHandle> image = rectangle
+            ? createPipeline(UiShader::Image, blend)
+            : Base::Result<ResourceHandle>(rectangle.GetStatus());
+        Base::Result<ResourceHandle> mesh = image
+            ? createPipeline(UiShader::Mesh, blend)
+            : Base::Result<ResourceHandle>(image.GetStatus());
+        Base::Result<ResourceHandle> glyph = mesh
+            ? createPipeline(UiShader::Glyph, blend)
+            : Base::Result<ResourceHandle>(mesh.GetStatus());
+        if (!rectangle || !image || !mesh || !glyph) {
+            const Base::Status failure = !rectangle
                 ? rectangle.GetStatus()
-                : !image
-                ? image.GetStatus()
-                : !mesh
-                ? mesh.GetStatus()
+                : !image ? image.GetStatus()
+                : !mesh ? mesh.GetStatus()
                 : glyph.GetStatus();
             Shutdown();
             return failure;
         }
-        impl_->rectanglePipelines[mode] =
-            rectangle.Value();
-        impl_->imagePipelines[mode] =
-            image.Value();
-        impl_->meshPipelines[mode] =
-            mesh.Value();
-        impl_->glyphPipelines[mode] =
-            glyph.Value();
+        impl_->rectanglePipelines[mode] = rectangle.Value();
+        impl_->imagePipelines[mode] = image.Value();
+        impl_->meshPipelines[mode] = mesh.Value();
+        impl_->glyphPipelines[mode] = glyph.Value();
     }
 
-    PipelineDescriptor maskRectangleDescriptor =
-        pipelineDescriptor;
-    maskRectangleDescriptor.blend.color.source = BlendFactor::Zero;
-    maskRectangleDescriptor.blend.color.destination =
-        BlendFactor::SourceAlpha;
-    maskRectangleDescriptor.blend.alpha.source = BlendFactor::Zero;
-    maskRectangleDescriptor.blend.alpha.destination =
-        BlendFactor::SourceAlpha;
-    PipelineDescriptor maskBrushDescriptor =
-        pipelineDescriptor;
-    maskBrushDescriptor.vertexShader = shaders_.maskVertex;
-    maskBrushDescriptor.fragmentShader = shaders_.maskFragment;
-    maskBrushDescriptor.blend = maskRectangleDescriptor.blend;
-    PipelineDescriptor effectDescriptor = pipelineDescriptor;
-    effectDescriptor.vertexShader = shaders_.effectVertex;
-    effectDescriptor.fragmentShader = shaders_.effectFragment;
-    effectDescriptor.blend.enabled = false;
     Base::Result<ResourceHandle> maskRectangle =
-        device_->CreatePipeline(maskRectangleDescriptor);
-    Base::Result<ResourceHandle> maskBrush =
-        maskRectangle
-        ? device_->CreatePipeline(maskBrushDescriptor)
+        createPipeline(UiShader::Rectangle, UiBlendMode::Mask);
+    Base::Result<ResourceHandle> maskBrush = maskRectangle
+        ? createPipeline(UiShader::Mask, UiBlendMode::Mask)
         : Base::Result<ResourceHandle>(maskRectangle.GetStatus());
-    Base::Result<ResourceHandle> effectPipeline =
-        maskBrush
-        ? device_->CreatePipeline(effectDescriptor)
+    Base::Result<ResourceHandle> effectPipeline = maskBrush
+        ? createPipeline(UiShader::Effect, UiBlendMode::Opaque)
         : Base::Result<ResourceHandle>(maskBrush.GetStatus());
     if (!maskRectangle || !maskBrush || !effectPipeline) {
-        const Base::Status failure =
-            !maskRectangle
+        const Base::Status failure = !maskRectangle
             ? maskRectangle.GetStatus()
-            : !maskBrush
-            ? maskBrush.GetStatus()
+            : !maskBrush ? maskBrush.GetStatus()
             : effectPipeline.GetStatus();
         Shutdown();
         return failure;
@@ -772,7 +646,7 @@ Base::Result<void> CommandEncoder::Initialize() noexcept {
     return {};
 }
 
-void CommandEncoder::Shutdown() noexcept {
+void BatchComposer::Shutdown() noexcept {
     if (impl_ == nullptr) {
         return;
     }
@@ -895,7 +769,7 @@ void CommandEncoder::Shutdown() noexcept {
     impl_ = nullptr;
 }
 
-Base::Result<void> CommandEncoder::RegisterImage(
+Base::Result<void> BatchComposer::RegisterImage(
     Render::RenderImageId image,
     ResourceHandle texture,
     ResourceHandle sampler) noexcept {
@@ -917,7 +791,7 @@ Base::Result<void> CommandEncoder::RegisterImage(
     return impl_->images.PushBack({image, texture, sampler});
 }
 
-Base::Result<void> CommandEncoder::UnregisterImage(
+Base::Result<void> BatchComposer::UnregisterImage(
     Render::RenderImageId image) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
@@ -936,7 +810,7 @@ Base::Result<void> CommandEncoder::UnregisterImage(
         "Renderer image ID is not registered");
 }
 
-Base::Result<void> CommandEncoder::RegisterMesh(
+Base::Result<void> BatchComposer::RegisterMesh(
     Render::RenderMeshId mesh,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer,
@@ -961,7 +835,7 @@ Base::Result<void> CommandEncoder::RegisterMesh(
         {mesh, vertexBuffer, indexBuffer, indexCount, indexType});
 }
 
-Base::Result<void> CommandEncoder::UnregisterMesh(
+Base::Result<void> BatchComposer::UnregisterMesh(
     Render::RenderMeshId mesh) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
@@ -980,7 +854,7 @@ Base::Result<void> CommandEncoder::UnregisterMesh(
         "Renderer mesh ID is not registered");
 }
 
-Base::Result<void> CommandEncoder::RegisterGlyphRun(
+Base::Result<void> BatchComposer::RegisterGlyphRun(
     Render::RenderGlyphRunId glyphRun,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer,
@@ -1011,7 +885,7 @@ Base::Result<void> CommandEncoder::RegisterGlyphRun(
             indexType});
 }
 
-Base::Result<void> CommandEncoder::UnregisterGlyphRun(
+Base::Result<void> BatchComposer::UnregisterGlyphRun(
     Render::RenderGlyphRunId glyphRun) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
@@ -1030,29 +904,29 @@ Base::Result<void> CommandEncoder::UnregisterGlyphRun(
         "Renderer glyph ID is not registered");
 }
 
-bool CommandEncoder::IsInitialized() const noexcept {
+bool BatchComposer::IsInitialized() const noexcept {
     return impl_ != nullptr && impl_->initialized;
 }
 
-CommandEncoderStatistics
-CommandEncoder::LastStatistics() const noexcept {
+BatchStatistics
+BatchComposer::LastStatistics() const noexcept {
     return impl_ != nullptr ? impl_->lastStatistics
-                            : CommandEncoderStatistics{};
+                            : BatchStatistics{};
 }
 
-void CommandEncoder::SetBatchingEnabled(
+void BatchComposer::SetBatchingEnabled(
     bool enabled) noexcept {
     if (impl_ != nullptr) {
         impl_->batchingEnabled = enabled;
     }
 }
 
-bool CommandEncoder::IsBatchingEnabled() const noexcept {
+bool BatchComposer::IsBatchingEnabled() const noexcept {
     return impl_ == nullptr ||
         impl_->batchingEnabled;
 }
 
-Base::Result<CommandList> CommandEncoder::RecordOffscreen(
+Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::RecordOffscreen(
     const void* rendererToken,
     const ::Aero::Render::Detail::RenderFrame& plan) noexcept {
     if (!IsInitialized() || rendererToken == nullptr) {
@@ -1072,7 +946,7 @@ Base::Result<CommandList> CommandEncoder::RecordOffscreen(
             surface->prepared = false;
             surface->statistics = {};
         }
-        Graphics::CommandEncoder empty(allocator_);
+        ::Aero::Render::Detail::RenderBatchBuilder empty(allocator_);
         return empty.Finish();
     }
 
@@ -1084,7 +958,7 @@ Base::Result<CommandList> CommandEncoder::RecordOffscreen(
             surface->prepared = false;
             surface->statistics = {};
         }
-        Graphics::CommandEncoder empty(allocator_);
+        ::Aero::Render::Detail::RenderBatchBuilder empty(allocator_);
         return empty.Finish();
     }
     if (width > device_->Capabilities().maxTextureDimension ||
@@ -1110,7 +984,7 @@ Base::Result<CommandList> CommandEncoder::RecordOffscreen(
         TextureResourceDescriptor descriptor;
         descriptor.width = width;
         descriptor.height = height;
-        descriptor.format = shaders_.colorFormat;
+        descriptor.format = GraphicsTextureFormat::Bgra8Unorm;
         descriptor.usage =
             TextureUsageBit(TextureUsage::Sampled) |
             TextureUsageBit(TextureUsage::RenderTarget);
@@ -1121,7 +995,7 @@ Base::Result<CommandList> CommandEncoder::RecordOffscreen(
         surface->width = width;
         surface->height = height;
     }
-    Base::Result<CommandList> recorded =
+    Base::Result<::Aero::Render::Detail::RenderBatch> recorded =
         Record(plan, {
             surface->target, width, height,
             LoadOperation::Clear});
@@ -1132,7 +1006,7 @@ Base::Result<CommandList> CommandEncoder::RecordOffscreen(
     return std::move(recorded).Value();
 }
 
-Base::Result<CommandList> CommandEncoder::RecordOnscreen(
+Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::RecordOnscreen(
     const void* rendererToken,
     const ::Aero::Render::Detail::RenderFrame& plan,
     const FrameTarget& target) noexcept {
@@ -1158,7 +1032,7 @@ Base::Result<CommandList> CommandEncoder::RecordOnscreen(
         return InvalidArgument("Onscreen render target is invalid");
     }
 
-    Graphics::CommandEncoder encoder(allocator_);
+    ::Aero::Render::Detail::RenderBatchBuilder encoder(allocator_);
     static constexpr float UnitQuad[] = {
         0.0F, 0.0F, 1.0F, 0.0F,
         0.0F, 1.0F, 1.0F, 1.0F};
@@ -1172,7 +1046,7 @@ Base::Result<CommandList> CommandEncoder::RecordOnscreen(
     const std::uint32_t compositeHeight =
         (std::min)(surface->height, target.height);
     if (compositeWidth == 0U || compositeHeight == 0U) {
-        Graphics::CommandEncoder empty(allocator_);
+        ::Aero::Render::Detail::RenderBatchBuilder empty(allocator_);
         return empty.Finish();
     }
     RenderPassDescriptor pass;
@@ -1218,12 +1092,12 @@ Base::Result<CommandList> CommandEncoder::RecordOnscreen(
         encoder, impl_->imageUniformBuffer, constants,
         pass.renderArea, 1U);
     if (encoded) encoded = encoder.EndRenderPass();
-    Base::Result<CommandList> finished = encoded
+    Base::Result<::Aero::Render::Detail::RenderBatch> finished = encoded
         ? encoder.Finish()
-        : Base::Result<CommandList>(encoded.GetStatus());
+        : Base::Result<::Aero::Render::Detail::RenderBatch>(encoded.GetStatus());
     if (!finished) return finished.GetStatus();
 
-    CommandEncoderStatistics composite;
+    BatchStatistics composite;
     composite.renderPassCount = 1U;
     composite.drawCallCount = 1U;
     composite.imageInstanceCount = 1U;
@@ -1237,7 +1111,7 @@ Base::Result<CommandList> CommandEncoder::RecordOnscreen(
     return std::move(finished).Value();
 }
 
-void CommandEncoder::ReleaseRenderer(
+void BatchComposer::ReleaseRenderer(
     const void* rendererToken) noexcept {
     if (impl_ == nullptr || rendererToken == nullptr) return;
     for (std::uint32_t index = 0U;
@@ -1258,7 +1132,7 @@ void CommandEncoder::ReleaseRenderer(
     }
 }
 
-Base::Result<CommandList> CommandEncoder::Record(
+Base::Result<::Aero::Render::Detail::RenderBatch> BatchComposer::Record(
     const ::Aero::Render::Detail::RenderFrame& plan,
     const FrameTarget& target) noexcept {
     if (!IsInitialized()) {
@@ -1478,7 +1352,7 @@ Base::Result<CommandList> CommandEncoder::Record(
             descriptor.width = surfaceWidth;
             descriptor.height = surfaceHeight;
             descriptor.format =
-                shaders_.colorFormat;
+                GraphicsTextureFormat::Bgra8Unorm;
             descriptor.usage =
                 TextureUsageBit(
                     TextureUsage::Sampled) |
@@ -1514,7 +1388,7 @@ Base::Result<CommandList> CommandEncoder::Record(
         surface.empty = emptySurface;
     }
 
-    Graphics::CommandEncoder encoder(allocator_);
+    ::Aero::Render::Detail::RenderBatchBuilder encoder(allocator_);
     for (std::uint32_t index = 0U;
          index < impl_->gradientRamps.Size();) {
         const GradientRampBinding& cached =
@@ -1614,7 +1488,7 @@ Base::Result<CommandList> CommandEncoder::Record(
     pass.colorAttachments[0].load = target.load;
     pass.colorAttachments[0].store = StoreOperation::Store;
     pass.colorAttachments[0].clearColor = {0.0F, 0.0F, 0.0F, 0.0F};
-    CommandEncoderStatistics submissionStatistics;
+    BatchStatistics submissionStatistics;
     submissionStatistics.renderPassCount = 0U;
     enum class ActivePipeline : std::uint8_t {
         None = 0U,
@@ -3383,9 +3257,9 @@ Base::Result<CommandList> CommandEncoder::Record(
     if (encoded) {
         encoded = encoder.EndRenderPass();
     }
-    Base::Result<CommandList> finished = encoded
+    Base::Result<::Aero::Render::Detail::RenderBatch> finished = encoded
         ? encoder.Finish()
-        : Base::Result<CommandList>(encoded.GetStatus());
+        : Base::Result<::Aero::Render::Detail::RenderBatch>(encoded.GetStatus());
     if (!finished) {
         return finished.GetStatus();
     }

@@ -1,5 +1,5 @@
-#include "render/private/RenderDevice.hpp"
-#include "render/private/RenderTarget.hpp"
+#include "render/RenderDeviceInternal.hpp"
+#include "render/RenderTargetInternal.hpp"
 #include "render/Renderer.hpp"
 #include "render/opengl33/OpenGL33Backend.hpp"
 #include "render/opengl33/OpenGL33Shaders.hpp"
@@ -36,13 +36,12 @@ Graphics::GlThreadToken CurrentThreadToken(void*) noexcept {
 
 class OpenGL33TargetState;
 
-class OpenGL33DeviceState final
-    : public Aero::CommandQueueRenderDevice<Graphics::OpenGL33CommandQueue> {
+class OpenGL33DeviceState final : public Aero::RenderDevice::Impl {
 public:
     OpenGL33DeviceState(
         const ::Aero::Render::OpenGL33DeviceOptions& options,
         Base::IAllocator& allocator) noexcept
-        : Aero::CommandQueueRenderDevice<Graphics::OpenGL33CommandQueue>(allocator),
+        : Aero::RenderDevice::Impl(allocator),
           options_(options),
           allocator_(&allocator) {}
 
@@ -63,6 +62,54 @@ public:
     ::Aero::RenderFrameStatistics
         LastFrameStatistics() const noexcept override;
     Aero::Render::Detail::RenderResources Resources() noexcept override;
+
+    Graphics::DeviceCapabilities QueryNativeDeviceCapabilities() const noexcept override {
+        return graphics_ != nullptr ? graphics_->Capabilities() : Graphics::DeviceCapabilities{};
+    }
+    Graphics::NativeRenderBackendKind NativeBackendKind() const noexcept override {
+        return graphics_ != nullptr ? graphics_->Kind() : Graphics::NativeRenderBackendKind::Invalid;
+    }
+    Graphics::GraphicsCapabilities QueryNativeGraphicsCapabilities() const noexcept override {
+        return graphics_ != nullptr ? graphics_->QueryGraphicsCapabilities() : Graphics::GraphicsCapabilities{};
+    }
+    Base::Result<void> CreateNativeResource(
+        Graphics::ResourceHandle handle,
+        const Graphics::ResourceDescriptor& descriptor) noexcept override {
+        return graphics_->CreateResource(handle, descriptor);
+    }
+    void DestroyNativeResource(Graphics::ResourceHandle handle) noexcept override {
+        if (graphics_ != nullptr) graphics_->DestroyResource(handle);
+    }
+    Base::Result<void> ConfigureNativeTexture(
+        Graphics::ResourceHandle handle,
+        const Graphics::TextureResourceDescriptor& descriptor) noexcept override {
+        return graphics_->ConfigureTexture(handle, descriptor);
+    }
+    Base::Result<void> ConfigureNativeSampler(
+        Graphics::ResourceHandle handle,
+        const Graphics::SamplerDescriptor& descriptor) noexcept override {
+        return graphics_->ConfigureSampler(handle, descriptor);
+    }
+    Base::Result<void> ConfigureNativePipeline(
+        Graphics::ResourceHandle handle,
+        ::Aero::Render::Detail::UiPipelineKey key) noexcept override {
+        return graphics_->ConfigurePipeline(
+            handle, ::Aero::Render::MakeOpenGL33UiPipeline(key));
+    }
+    Base::Result<void> SubmitNativeBatch(
+        const ::Aero::Render::Detail::RenderBatch& batch,
+        Graphics::FenceValue signalFence) noexcept override {
+        return graphics_->Submit(batch, signalFence);
+    }
+    Graphics::FenceValue NativeLastSubmittedFence() const noexcept override {
+        return graphics_ != nullptr ? graphics_->LastSubmittedFence() : 0U;
+    }
+    Graphics::FenceValue NativeCompletedFence() const noexcept override {
+        return graphics_ != nullptr ? graphics_->CompletedFence() : 0U;
+    }
+    bool NativeDeviceLost() const noexcept override {
+        return graphics_ == nullptr || graphics_->IsDeviceLost();
+    }
 
     RenderBackendKind Backend() const noexcept override {
         return RenderBackendKind::OpenGL33;
@@ -313,7 +360,6 @@ Base::Result<void> OpenGL33DeviceState::Initialize() noexcept {
         ShutdownDevice(false);
         return status.GetStatus();
     }
-    BindCommandQueue(graphics_);
     status = InitializeResources();
     if (!status) {
         ShutdownDevice(false);
@@ -325,8 +371,7 @@ Base::Result<void> OpenGL33DeviceState::Initialize() noexcept {
         return generation.GetStatus();
     }
     renderer_ = new (std::nothrow) ::Aero::Render::Renderer(
-        *this, ::Aero::Render::MakeOpenGL33FrameShaderSet(),
-        generation.Value(), allocator_);
+        *this, generation.Value(), allocator_);
     if (renderer_ == nullptr) {
         ShutdownDevice(false);
         return OutOfMemory("Unable to allocate OpenGL renderer");
@@ -360,7 +405,7 @@ Base::Result<Graphics::FenceValue> OpenGL33DeviceState::DrawBatch(
     ::Aero::Render::Detail::RenderBatch&& batch) noexcept {
     if (!IsReady()) return NotInitialized("OpenGL device is not initialized");
     if (batch.Empty()) return Graphics::FenceValue{0U};
-    return SubmitCommands(batch.Commands());
+    return SubmitBatch(batch);
 }
 
 void OpenGL33DeviceState::ReleaseRenderer(const void* rendererToken) noexcept {
@@ -450,7 +495,6 @@ void OpenGL33DeviceState::ShutdownDevice(bool notifyTargets) noexcept {
     delete renderer_;
     renderer_ = nullptr;
     ShutdownResources();
-    BindCommandQueue(nullptr);
     if (graphics_ != nullptr) {
         graphics_->Shutdown();
         delete graphics_;

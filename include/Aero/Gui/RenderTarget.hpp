@@ -5,7 +5,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/RenderDevice.hpp>
+#include <Aero/Gui/RenderDevice.hpp>
 
 #include <cstdint>
 

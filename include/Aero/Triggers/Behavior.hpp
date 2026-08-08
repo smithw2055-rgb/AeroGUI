@@ -5,9 +5,9 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/DependencyObject.hpp>
-#include <Aero/DependencyProperty.hpp>
-#include <Aero/Data.hpp>
+#include <Aero/Gui/DependencyObject.hpp>
+#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/Gui/BindingBase.hpp>
 
 namespace Aero { class FrameworkElement; }
 

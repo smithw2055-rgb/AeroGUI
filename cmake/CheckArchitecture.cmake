@@ -76,18 +76,11 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Gui/IRenderer.hpp"
         "include/Aero/Gui/RenderDevice.hpp"
         "include/Aero/Gui/RenderTarget.hpp"
-        "include/Aero/View.hpp"
-        "include/Aero/IRenderer.hpp"
-        "include/Aero/RenderDevice.hpp"
-        "include/Aero/RenderTarget.hpp"
         "include/Aero/Render/D3D11.hpp"
         "include/Aero/Render/OpenGL33.hpp"
         "include/Aero/Diagnostics/Rendering.hpp"
-        "include/Aero/Markup.hpp"
         "include/Aero/Meta.hpp"
-        "include/Aero/App.hpp"
-        "include/Aero/Application.hpp"
-        "include/Aero/Window.hpp")
+        "include/Aero/App.hpp")
     aero_require_file("${required_public_entry}")
 endforeach()
 
@@ -97,7 +90,14 @@ foreach(retired_public_entry IN ITEMS
         "include/Aero/RenderSurface.hpp"
         "include/Aero/Runtime.hpp"
         "include/Aero/RuntimeEnvironment.hpp"
-        "include/Aero/RuntimeTypes.hpp")
+        "include/Aero/RuntimeTypes.hpp"
+        "include/Aero/View.hpp"
+        "include/Aero/IRenderer.hpp"
+        "include/Aero/RenderDevice.hpp"
+        "include/Aero/RenderTarget.hpp"
+        "include/Aero/Markup.hpp"
+        "include/Aero/Application.hpp"
+        "include/Aero/Window.hpp")
     aero_forbid_file("${retired_public_entry}")
 endforeach()
 
@@ -151,6 +151,18 @@ foreach(public_header IN LISTS AERO_PUBLIC_HEADERS)
     endif()
 endforeach()
 
+file(GLOB_RECURSE aero_physical_public_headers
+    RELATIVE "${AERO_SOURCE_DIR}"
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/*.h")
+list(SORT aero_physical_public_headers)
+set(aero_declared_public_headers ${AERO_PUBLIC_HEADERS})
+list(SORT aero_declared_public_headers)
+if(NOT aero_physical_public_headers STREQUAL aero_declared_public_headers)
+    message(FATAL_ERROR
+        "Physical public headers must exactly match AERO_PUBLIC_HEADERS")
+endif()
+
 # ---------------------------------------------------------------------------
 # Source ownership
 # ---------------------------------------------------------------------------
@@ -159,6 +171,11 @@ foreach(retired_source_entry IN ITEMS
         "src/runtime"
         "src/providers"
         "src/platform"
+        "src/gui/private"
+        "src/controls/private"
+        "src/markup/private"
+        "src/media/private"
+        "src/render/private"
         "src/render/DeviceRenderer.cpp"
         "src/render/DeviceRenderer.hpp"
         "src/render/GraphicsDevice.cpp"
@@ -178,12 +195,12 @@ foreach(required_source_entry IN ITEMS
         "src/input/Clipboard.cpp"
         "src/render/RenderDevice.cpp"
         "src/render/RenderDeviceResources.cpp"
-        "src/render/RenderCommands.cpp"
-        "src/render/RenderCommands.hpp"
+        "src/render/RenderBatch.cpp"
+        "src/render/GraphicsTypes.hpp"
         "src/render/RenderTarget.cpp"
         "src/render/Renderer.cpp"
-        "src/render/private/RenderDevice.hpp"
-        "src/render/private/RenderTarget.hpp"
+        "src/render/RenderDeviceInternal.hpp"
+        "src/render/RenderTargetInternal.hpp"
         "src/app/RenderContext.cpp")
     aero_require_file("${required_source_entry}")
 endforeach()
@@ -253,32 +270,32 @@ aero_forbid_text(
     "WindowSurfaceBackend"
     "Window contexts must be concrete backend objects")
 aero_forbid_text(
-    "src/render/private/RenderTarget.hpp"
+    "src/render/RenderTargetInternal.hpp"
     "class NativeRenderTarget"
     "RenderTarget::Impl is the only native target object")
 aero_forbid_text(
-    "src/render/private/RenderTarget.hpp"
+    "src/render/RenderTargetInternal.hpp"
     "struct NativeRenderTarget"
     "RenderTarget::Impl is the only native target object")
 aero_forbid_text(
-    "src/render/private/RenderDevice.hpp"
+    "src/render/RenderDeviceInternal.hpp"
     "NativeRenderDevice"
     "RenderDevice::Impl is the only native device object")
 aero_forbid_file("src/render/private/BackendApi.hpp")
 aero_forbid_text(
-    "src/render/RenderCommands.hpp"
+    "src/render/GraphicsTypes.hpp"
     "class AERO_API GraphicsDevice"
     "Command declarations must not recreate the retired generic device")
 aero_forbid_text(
-    "src/render/RenderCommands.hpp"
+    "src/render/GraphicsTypes.hpp"
     "class AERO_API GraphicsBackend"
     "Native command queues must not share an abstract backend lifetime")
-aero_require_text(
-    "src/render/private/RenderDevice.hpp"
-    "struct CommandQueueRenderDevice : RenderDevice::Impl"
+aero_forbid_text(
+    "src/render/RenderDeviceInternal.hpp"
+    "CommandQueueRenderDevice"
     "Native command services must terminate directly at RenderDevice::Impl")
 aero_forbid_text(
-    "cmake/AeroRenderingTargets.cmake"
+    "cmake/AeroGuiTargets.cmake"
     "GraphicsDevice"
     "The retired generic graphics device must not be built")
 aero_forbid_text(
@@ -287,8 +304,8 @@ aero_forbid_text(
     "The low-level command encoder must not be exposed through a migration alias")
 aero_require_text(
     "src/render/FrameEncoder.hpp"
-    "class CommandEncoder"
-    "The low-level recorder must be named CommandEncoder")
+    "class BatchComposer"
+    "The low-level recorder must be named BatchComposer")
 aero_forbid_text(
     "src/render/FrameEncoder.hpp"
     "class Renderer {"
@@ -298,11 +315,11 @@ aero_forbid_text(
     "using RenderTarget ="
     "The frame attachment value must not shadow the SDK RenderTarget")
 aero_forbid_text(
-    "src/render/private/RenderDevice.hpp"
+    "src/render/RenderDeviceInternal.hpp"
     "DefaultTarget("
     "RenderDevice must not own an implicit target lifetime")
 aero_forbid_text(
-    "src/render/private/RenderTarget.hpp"
+    "src/render/RenderTargetInternal.hpp"
     "CreateBorrowed("
     "Every RenderTarget must own exactly one target implementation")
 aero_forbid_text(
@@ -320,11 +337,11 @@ aero_require_text(
 aero_forbid_text(
     "src/render/FrameEncoder.cpp"
     "using Renderer ="
-    "CommandEncoder must not retain a local Renderer migration alias")
+    "BatchComposer must not retain a local Renderer migration alias")
 aero_forbid_text(
     "src/render/FrameEncoder.cpp"
     "using RenderTarget ="
-    "CommandEncoder must use FrameTarget directly")
+    "BatchComposer must use FrameTarget directly")
 aero_forbid_text(
     "src/render/opengl33/OpenGL33Device.cpp"
     "Graphics::ISurfaceBackend"
@@ -359,8 +376,18 @@ aero_forbid_text(
     "class RenderContext final"
     "RenderContext must remain the shared presentation lifecycle base")
 aero_require_file("src/render/RenderBatch.hpp")
+aero_forbid_file("src/render/RenderCommands.hpp")
+aero_forbid_file("src/render/RenderCommands.cpp")
+aero_forbid_text(
+    "src/render/GraphicsTypes.hpp"
+    "PipelineDescriptor"
+    "Backend pipeline state must not recreate a configurable generic RHI descriptor")
+aero_forbid_text(
+    "src/render/GraphicsTypes.hpp"
+    "ShaderDescriptor"
+    "Backend shader programs must not recreate a configurable generic RHI descriptor")
 aero_require_text(
-    "src/render/private/RenderDevice.hpp"
+    "src/render/RenderDeviceInternal.hpp"
     "DrawBatch("
     "Backend RenderDevice implementations must submit RenderBatch values")
 aero_require_text(
@@ -423,6 +450,33 @@ aero_forbid_text(
     "include/Aero/Gui/View.hpp"
     "QueryReloadSource("
     "Reload source/cache ownership belongs to Gui/Markup")
+aero_forbid_text(
+    "include/Aero/Gui/View.hpp"
+    "SetViewport("
+    "Installed View must expose SetSize and SetScale rather than a generic viewport protocol")
+aero_forbid_text(
+    "include/Aero/Gui/View.hpp"
+    "DispatchPointer("
+    "Installed View must expose host-friendly pointer methods")
+aero_forbid_text(
+    "include/Aero/Gui/View.hpp"
+    "DispatchKeyboard("
+    "Installed View must expose host-friendly keyboard methods")
+aero_forbid_text(
+    "include/Aero/Gui/View.hpp"
+    "DispatchText("
+    "Installed View must expose Char rather than a generic text dispatch protocol")
+foreach(view_private_operation IN ITEMS
+        "MountContent(" "UnmountContent(" "LoadResources("
+        "LoadCompiledResources(" "SetResourceDictionary("
+        "LoadBuiltInTheme(" "ExecuteFrame(" "AdvanceClocks("
+        "AdvanceAnimations(" "FindNamedObject(" "NamedObjectCount("
+        "IsInstanceOf(")
+    aero_forbid_text(
+        "include/Aero/Gui/View.hpp"
+        "${view_private_operation}"
+        "View implementation operations must remain source-only")
+endforeach()
 aero_require_text(
     "src/markup/ReloadCoordinator.cpp"
     "state.xaml.QuerySource"
@@ -430,7 +484,8 @@ aero_require_text(
 aero_forbid_file("src/render/ViewRenderer.hpp")
 aero_forbid_file("cmake/AeroRuntimeTargets.cmake")
 aero_forbid_file("cmake/AeroGuiRuntimeTargets.cmake")
-aero_require_file("cmake/AeroGuiCompositionTargets.cmake")
+aero_forbid_file("cmake/AeroGuiCompositionTargets.cmake")
+aero_forbid_file("cmake/AeroRenderingTargets.cmake")
 aero_forbid_text(
     "include/Aero/Gui/View.hpp"
     "Runtime::Detail"
@@ -448,11 +503,11 @@ aero_forbid_text(
     "RenderSurface.hpp"
     "TextPipeline must not depend on the retired RenderSurface contract")
 aero_forbid_text(
-    "cmake/AeroGuiCompositionTargets.cmake"
+    "cmake/AeroGuiTargets.cmake"
     "AERO_INTERNAL_RUNTIME"
     "Gui composition must not recreate the generic Runtime product spelling")
 aero_forbid_text(
-    "cmake/AeroGuiCompositionTargets.cmake"
+    "cmake/AeroGuiTargets.cmake"
     "AERO_INTERNAL_GUI_RUNTIME"
     "Gui composition must use composition rather than Runtime build vocabulary")
 aero_forbid_file("tools/sdk-consumers/GuiRuntimeConsumer.cpp")
@@ -477,14 +532,15 @@ aero_forbid_text(
     "src/gui/View.cpp"
     "media/MediaPrivate.hpp"
     "View must not import the whole private Media domain")
-# Compatibility private aggregators remain source-only while audited high-fan-out
-# headers use explicit narrow contracts. Do not break unrelated translation units
-# merely to enforce include topology by string matching.
+aero_forbid_file("src/gui/GuiPrivate.hpp")
+aero_forbid_file("src/controls/ControlsPrivate.hpp")
+aero_forbid_file("src/markup/MarkupPrivate.hpp")
+aero_forbid_file("src/media/MediaPrivate.hpp")
 aero_require_text(
     "include/Aero/Gui/Button.hpp"
     "class AERO_API Button"
     "Button.hpp must own the Button declaration")
-aero_forbid_file("include/Aero/Controls/Primitives.hpp")
+aero_forbid_file("include/Aero/Gui/Primitives.hpp")
 
 # S14: public headers are organized by WPF-visible type ownership. The old
 # implementation-category family headers remain include-only compatibility
@@ -495,8 +551,8 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Gui/Panel.hpp|class AERO_API Panel"
         "include/Aero/Gui/Grid.hpp|class AERO_API Grid"
         "include/Aero/Gui/ListBox.hpp|class AERO_API ListBox"
-        "include/Aero/Controls/ComboBox.hpp|class AERO_API ComboBox"
-        "include/Aero/Controls/ListView.hpp|class AERO_API ListView"
+        "include/Aero/Gui/ComboBox.hpp|class AERO_API ComboBox"
+        "include/Aero/Gui/ListView.hpp|class AERO_API ListView"
         "include/Aero/Gui/TreeView.hpp|class AERO_API TreeView"
         "include/Aero/Gui/TextBox.hpp|class AERO_API TextBox")
     string(REPLACE "|" ";" s14_owner_parts "${s14_owner}")
@@ -508,15 +564,15 @@ foreach(s14_owner IN ITEMS
         "S14 leaf header must own its public declaration")
 endforeach()
 foreach(s14_retired_umbrella IN ITEMS
-        "include/Aero/Controls/Core.hpp"
-        "include/Aero/Controls/Common.hpp"
-        "include/Aero/Controls/Panels.hpp"
-        "include/Aero/Controls/Items.hpp"
-        "include/Aero/Controls/Primitives.hpp")
+        "include/Aero/Gui/Core.hpp"
+        "include/Aero/Gui/Common.hpp"
+        "include/Aero/Gui/Panels.hpp"
+        "include/Aero/Gui/Items.hpp"
+        "include/Aero/Gui/Primitives.hpp")
     aero_forbid_file("${s14_retired_umbrella}")
 endforeach()
 foreach(s14_umbrella IN ITEMS
-        "include/Aero/Controls/Text.hpp")
+        "include/Aero/Gui/Text.hpp")
     aero_forbid_text(
         "${s14_umbrella}"
         "class AERO_API"
@@ -542,6 +598,14 @@ aero_forbid_text(
     "Run(Base::Ref<Window>"
     "Explicit windows must be supplied through SetMainWindow")
 aero_forbid_text(
+    "include/Aero/Gui/Application.hpp"
+    "SetMainWindowBorrowed"
+    "Application ownership adapters must remain source-only")
+aero_forbid_text(
+    "include/Aero/Gui/ItemsControl.hpp"
+    "SetItemsSourceBorrowed"
+    "ItemsControl ownership adapters must remain source-only")
+aero_forbid_text(
     "include/Aero/Gui/Window.hpp"
     "ShowChecked"
     "Window must expose one Result-returning Show API")
@@ -551,7 +615,7 @@ aero_forbid_text(
     "Window must expose one Result-returning Close API")
 
 aero_require_text(
-    "cmake/AeroRenderingTargets.cmake"
+    "cmake/AeroGuiTargets.cmake"
     "function(aero_compile_d3d11_shader_pair"
     "D3D11 shader compilation must use the shared helper")
 
@@ -582,7 +646,7 @@ if(product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*AeroRender[ \t\r\n)]"
         "Render remains a specialist namespace in the single AeroGui product; do not add a thin AeroRender product layer")
 endif()
 aero_require_text(
-    "cmake/AeroRenderingTargets.cmake"
+    "cmake/AeroGuiTargets.cmake"
     "target_sources(AeroGui PRIVATE"
     "Rendering implementation must remain inside the single embeddable AeroGui product")
 foreach(retired_object_layer IN ITEMS

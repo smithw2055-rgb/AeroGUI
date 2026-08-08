@@ -2,8 +2,9 @@
 
 #include "DisplayList.hpp"
 #include "render/RenderTree.hpp"
-#include "render/RenderCommands.hpp"
-#include <Aero/RenderDevice.hpp>
+#include "render/GraphicsTypes.hpp"
+#include "render/RenderBatch.hpp"
+#include <Aero/Gui/RenderDevice.hpp>
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
@@ -14,21 +15,21 @@ class Renderer;
 
 namespace Aero::Render::Detail {
 
-class CommandEncoderGlyphRunSink;
+class BatchGlyphRunSink;
 
-struct CommandEncoderShaderSet {
-    Graphics::ShaderDescriptor rectangleVertex;
-    Graphics::ShaderDescriptor rectangleFragment;
-    Graphics::ShaderDescriptor imageVertex;
-    Graphics::ShaderDescriptor imageFragment;
-    Graphics::ShaderDescriptor maskVertex;
-    Graphics::ShaderDescriptor maskFragment;
-    Graphics::ShaderDescriptor effectVertex;
-    Graphics::ShaderDescriptor effectFragment;
-    Graphics::ShaderDescriptor meshVertex;
-    Graphics::ShaderDescriptor meshFragment;
-    Graphics::ShaderDescriptor glyphVertex;
-    Graphics::ShaderDescriptor glyphFragment;
+struct BatchShaderSet {
+    Graphics::NativeShaderProgram rectangleVertex;
+    Graphics::NativeShaderProgram rectangleFragment;
+    Graphics::NativeShaderProgram imageVertex;
+    Graphics::NativeShaderProgram imageFragment;
+    Graphics::NativeShaderProgram maskVertex;
+    Graphics::NativeShaderProgram maskFragment;
+    Graphics::NativeShaderProgram effectVertex;
+    Graphics::NativeShaderProgram effectFragment;
+    Graphics::NativeShaderProgram meshVertex;
+    Graphics::NativeShaderProgram meshFragment;
+    Graphics::NativeShaderProgram glyphVertex;
+    Graphics::NativeShaderProgram glyphFragment;
     Graphics::GraphicsTextureFormat colorFormat =
         Graphics::GraphicsTextureFormat::Bgra8Unorm;
 };
@@ -40,7 +41,7 @@ struct FrameTarget {
     Graphics::LoadOperation load = Graphics::LoadOperation::Load;
 };
 
-struct CommandEncoderStatistics {
+struct BatchStatistics {
     std::uint32_t sourceCommandCount = 0U;
     std::uint32_t drawPacketCount = 0U;
     std::uint32_t batchCount = 0U;
@@ -63,18 +64,17 @@ struct CommandEncoderStatistics {
     bool batchingEnabled = true;
 };
 
-// Low-level command encoder. It is an implementation detail owned by the one
-// semantic Render::Renderer and does not form a peer renderer lifecycle.
-class CommandEncoder {
+// Renderer-owned composer that turns retained UI frames directly into native
+// device batches; it has no independent renderer or generic command lifetime.
+class BatchComposer {
 public:
-    CommandEncoder(
+    BatchComposer(
         Aero::RenderDevice::Impl& device,
-        const CommandEncoderShaderSet& shaders,
         Base::IAllocator* allocator = nullptr) noexcept;
-    ~CommandEncoder() noexcept;
+    ~BatchComposer() noexcept;
 
-    CommandEncoder(const CommandEncoder&) = delete;
-    CommandEncoder& operator=(const CommandEncoder&) = delete;
+    BatchComposer(const BatchComposer&) = delete;
+    BatchComposer& operator=(const BatchComposer&) = delete;
 
     Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
@@ -93,24 +93,24 @@ public:
         std::uint32_t indexCount,
         Graphics::IndexType indexType = Graphics::IndexType::UInt16) noexcept;
     Base::Result<void> UnregisterMesh(Render::RenderMeshId mesh) noexcept;
-    Base::Result<Graphics::CommandList> Record(
+    Base::Result<::Aero::Render::Detail::RenderBatch> Record(
         const ::Aero::Render::Detail::RenderFrame& plan,
         const FrameTarget& target) noexcept;
-    Base::Result<Graphics::CommandList> RecordOffscreen(
+    Base::Result<::Aero::Render::Detail::RenderBatch> RecordOffscreen(
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& plan) noexcept;
-    Base::Result<Graphics::CommandList> RecordOnscreen(
+    Base::Result<::Aero::Render::Detail::RenderBatch> RecordOnscreen(
         const void* rendererToken,
         const ::Aero::Render::Detail::RenderFrame& plan,
         const FrameTarget& target) noexcept;
     void ReleaseRenderer(const void* rendererToken) noexcept;
-    CommandEncoderStatistics LastStatistics() const noexcept;
+    BatchStatistics LastStatistics() const noexcept;
     void SetBatchingEnabled(bool enabled) noexcept;
     bool IsBatchingEnabled() const noexcept;
 
 private:
     friend class ::Aero::Render::Renderer;
-    friend class CommandEncoderGlyphRunSink;
+    friend class BatchGlyphRunSink;
 
     struct Impl;
     Base::Result<void> RegisterGlyphRun(
@@ -125,7 +125,6 @@ private:
         Render::RenderGlyphRunId glyphRun) noexcept;
 
     Aero::RenderDevice::Impl* device_ = nullptr;
-    CommandEncoderShaderSet shaders_;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
 };
@@ -134,8 +133,8 @@ private:
 
 namespace Aero::Render {
 
-using FrameShaderSet = Detail::CommandEncoderShaderSet;
-using FrameEncoderStatistics = Detail::CommandEncoderStatistics;
+using BackendShaderCatalog = Detail::BatchShaderSet;
+using FrameEncoderStatistics = Detail::BatchStatistics;
 using FrameTarget = Detail::FrameTarget;
 
 } // namespace Aero::Render

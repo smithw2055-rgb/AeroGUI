@@ -99,13 +99,12 @@ acquire/present mechanics remain source-private in concrete swap-chain/context
 adapters.
 
 `Render::Renderer` is the one semantic backend renderer. `FrameEncoder.cpp`
-implements the source-private `CommandEncoder`; it records command lists but has
-no peer renderer lifetime. Its target value is `FrameTarget`, avoiding collision
-with the installed `Aero::RenderTarget` object. Resource lifetime and command
-submission terminate directly at `RenderDevice::Impl`. D3D11 and OpenGL 3.3
-provide concrete source-private command queues; there is no generic graphics
-device, abstract graphics backend, or optional Sokol adapter between the UI
-renderer and native API.
+uses `BatchComposer` to produce the UI-specific `RenderBatch` directly; there
+is no generic command list or command encoder. Its target value is
+`FrameTarget`, avoiding collision with the installed `Aero::RenderTarget`
+object. Resource lifetime and batch submission terminate directly at
+`RenderDevice::Impl`, whose D3D11 and OpenGL implementations expand the batch
+into backend-local submission steps.
 
 For OpenGL desktop hosting, WGL/GLX context creation remains physically coupled
 to the device, but presentation state (lost flag and frame serial) belongs to the

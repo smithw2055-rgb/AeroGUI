@@ -1,7 +1,29 @@
-#include "gui/GuiPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
-#include "../media/MediaPrivate.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/FreezableInternal.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "media/AnimationInternal.hpp"
+#include "media/BrushInternal.hpp"
+#include "media/EffectInternal.hpp"
+#include "media/TransformInternal.hpp"
 #include <Aero/Value.hpp>
 
 #include <algorithm>
@@ -540,7 +562,7 @@ ScrollViewer::ScrollViewer() noexcept
 
 ScrollViewer::~ScrollViewer() {
     auto* behaviors = static_cast<Detail::ControlBehavior*>(
-        Visual::Impl::ControlBehaviorRuntime(*this));
+        ::Aero::Media::Visual::Impl::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -854,7 +876,7 @@ void ScrollViewer::OnScrollDataChanged(
             "PART_VerticalScrollBar"),
         false);
 
-    auto* events = Visual::Impl::EventRouterFor(*this);
+    auto* events = ::Aero::Media::Visual::Impl::EventRouterFor(*this);
     if (events != nullptr) {
         ScrollChangedEventArgs args(oldData, newData, kind);
         static_cast<void>(
@@ -1789,7 +1811,7 @@ Size Slider::ArrangeOverride(
 }
 
 void Slider::OnRender(
-    DrawingContext& context) noexcept {
+    ::Aero::Media::DrawingContext& context) noexcept {
     auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     const TickPlacement placement =
         GetTickPlacement();
@@ -2002,7 +2024,7 @@ void TickBar::SetPlacement(
 }
 
 void TickBar::OnRender(
-    DrawingContext& context) noexcept {
+    ::Aero::Media::DrawingContext& context) noexcept {
     auto& builder = Aero::Render::Detail::DrawingPrivate::Builder(context);
     DependencyObject* parent = GetTemplatedParent();
     if (parent == nullptr ||
@@ -2311,7 +2333,7 @@ std::uint32_t Slider::Impl::Find(
 Slider* Slider::Impl::Resolve(
     std::uint32_t index) noexcept {
     if (index >= sliders_.Size()) return nullptr;
-    Visual* node =
+    ::Aero::Media::Visual* node =
         tree_->ResolveHandle(
             sliders_[index].handle);
     if (node == nullptr ||

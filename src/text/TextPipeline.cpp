@@ -2,8 +2,8 @@
 #include "TextPipeline.hpp"
 #include "render/RenderResources.hpp"
 
-#include "render/private/RenderDevice.hpp"
-#include <Aero/FrameworkElement.hpp>
+#include "render/RenderDeviceInternal.hpp"
+#include <Aero/Gui/FrameworkElement.hpp>
 #include "../text/FontManager.hpp"
 #include "../text/FreeTypeAdapter.hpp"
 #include "../text/HarfBuzzAdapter.hpp"

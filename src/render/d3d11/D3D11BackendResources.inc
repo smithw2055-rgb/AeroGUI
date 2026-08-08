@@ -169,7 +169,7 @@ Base::Result<void> D3D11CommandQueue::ConfigureSampler(
 
 Base::Result<void> D3D11CommandQueue::ConfigurePipeline(
     ResourceHandle handle,
-    const PipelineDescriptor& descriptor) noexcept {
+    const NativePipelineState& descriptor) noexcept {
     if (impl_ == nullptr) {
         return NotInitialized("D3D11 backend is not initialized");
     }
@@ -177,7 +177,7 @@ Base::Result<void> D3D11CommandQueue::ConfigurePipeline(
     if (!ready) {
         return ready;
     }
-    Base::Result<void> valid = ValidatePipelineDescriptor(
+    Base::Result<void> valid = ValidateNativePipeline(
         descriptor, QueryGraphicsCapabilities());
     if (!valid) {
         return valid;

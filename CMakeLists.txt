@@ -26,16 +26,20 @@ option(AERO_BUILD_SHARED "Build AeroGUI as shared libraries" OFF)
 option(AERO_BUILD_TOOLS "Build AeroGUI offline tools" ON)
 option(AERO_BUILD_CONFORMANCE
     "Build the non-installed Aero runtime conformance executable" OFF)
-add_custom_target(AeroArchitectureCheck ALL
-    COMMAND "${CMAKE_COMMAND}"
-        "-DAERO_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
-        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckArchitecture.cmake"
-    VERBATIM)
-add_custom_target(AeroConventionsCheck ALL
-    COMMAND "${CMAKE_COMMAND}"
-        "-DAERO_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
-        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckConventions.cmake"
-    VERBATIM)
+option(AERO_ENABLE_DEVELOPMENT_CHECKS
+    "Enable repository architecture and convention checks" OFF)
+if(AERO_ENABLE_DEVELOPMENT_CHECKS)
+    add_custom_target(AeroArchitectureCheck ALL
+        COMMAND "${CMAKE_COMMAND}"
+            "-DAERO_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckArchitecture.cmake"
+        VERBATIM)
+    add_custom_target(AeroConventionsCheck ALL
+        COMMAND "${CMAKE_COMMAND}"
+            "-DAERO_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckConventions.cmake"
+        VERBATIM)
+endif()
 option(AERO_PRECOMPILE_BUILTIN_THEMES
     "Precompile built-in XAML themes with a host aero-xamlc" ON)
 set(AERO_HOST_XAMLC_EXECUTABLE "" CACHE FILEPATH
@@ -166,26 +170,6 @@ set_target_properties(AeroAudio PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroAudio)
 
-add_library(AeroTextObjects OBJECT
-    src/text/EditableText.cpp
-    src/text/FontManager.cpp
-    src/text/GlyphAtlas.cpp
-    src/text/TextLayout.cpp
-    src/text/TextTypes.cpp
-    src/text/UnicodeAnalysis.cpp)
-target_include_directories(AeroTextObjects
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroTextObjects PUBLIC Aero::Base)
-target_compile_features(AeroTextObjects PUBLIC cxx_std_17)
-set_target_properties(AeroTextObjects PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON)
-aero_apply_compiler_options(AeroTextObjects)
-
 if(NOT AERO_WITH_FREETYPE OR NOT AERO_WITH_HARFBUZZ)
     message(FATAL_ERROR
         "AeroGui requires the built-in FreeType and HarfBuzz text pipeline")
@@ -256,22 +240,6 @@ if(AERO_WITH_FREETYPE)
     set_target_properties(freetype PROPERTIES
         POSITION_INDEPENDENT_CODE ON)
 
-    add_library(AeroTextFreeTypeObjects OBJECT
-        src/text/freetype/FreeTypeAdapter.cpp)
-    target_include_directories(AeroTextFreeTypeObjects
-        PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<INSTALL_INTERFACE:include>)
-    target_link_libraries(AeroTextFreeTypeObjects
-        PUBLIC AeroTextObjects
-        PRIVATE freetype)
-    target_compile_features(AeroTextFreeTypeObjects PUBLIC cxx_std_17)
-    set_target_properties(AeroTextFreeTypeObjects PROPERTIES
-        CXX_STANDARD 17
-        CXX_STANDARD_REQUIRED YES
-        CXX_EXTENSIONS NO
-        POSITION_INDEPENDENT_CODE ON)
-    aero_apply_compiler_options(AeroTextFreeTypeObjects)
 endif()
 
 function(aero_add_vendored_harfbuzz source_directory binary_directory)
@@ -324,22 +292,6 @@ if(AERO_WITH_HARFBUZZ)
         "${_aero_harfbuzz_source}"
         "${CMAKE_CURRENT_BINARY_DIR}/third_party/harfbuzz")
 
-    add_library(AeroTextHarfBuzzObjects OBJECT
-        src/text/harfbuzz/HarfBuzzAdapter.cpp)
-    target_include_directories(AeroTextHarfBuzzObjects
-        PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<INSTALL_INTERFACE:include>)
-    target_link_libraries(AeroTextHarfBuzzObjects
-        PUBLIC AeroTextFreeTypeObjects
-        PRIVATE freetype harfbuzz)
-    target_compile_features(AeroTextHarfBuzzObjects PUBLIC cxx_std_17)
-    set_target_properties(AeroTextHarfBuzzObjects PROPERTIES
-        CXX_STANDARD 17
-        CXX_STANDARD_REQUIRED YES
-        CXX_EXTENSIONS NO
-        POSITION_INDEPENDENT_CODE ON)
-    aero_apply_compiler_options(AeroTextHarfBuzzObjects)
 endif()
 
 include(cmake/AeroGuiTargets.cmake)
@@ -511,8 +463,7 @@ else()
         DEPENDS "${_aero_generated_theme_header}")
 endif()
 
-include(cmake/AeroGuiCompositionTargets.cmake)
-include(cmake/AeroRenderingTargets.cmake)
+aero_complete_gui_target()
 include(cmake/AeroProductTargets.cmake)
 include(cmake/AeroConformanceTargets.cmake)
 include(cmake/AeroInstall.cmake)

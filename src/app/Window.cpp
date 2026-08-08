@@ -1,5 +1,5 @@
-#include <Aero/Window.hpp>
-#include <Aero/Application.hpp>
+#include <Aero/Gui/Window.hpp>
+#include <Aero/Gui/Application.hpp>
 
 #include <Aero/App/WindowInterop.hpp>
 #include "ApplicationState.hpp"

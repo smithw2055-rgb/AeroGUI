@@ -1,11 +1,12 @@
 #include <Aero/Gui.hpp>
-#include <Aero/View.hpp>
+#include <Aero/Gui/View.hpp>
 
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/Media/TextureProvider.hpp>
 #include <Aero/Text/FontProvider.hpp>
 #include <Aero/ViewOptions.hpp>
 #include "gui/GuiData.hpp"
+#include "gui/ViewOperations.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>
 
 #include <new>
@@ -191,7 +192,7 @@ Base::Result<Base::Ref<View>> Gui::CreateView(
             &selected);
     if (!made) return made.GetStatus();
     Base::Result<void> initialized =
-        made.Value()->Initialize(options);
+        View::Operations::Initialize(*made.Value(), options);
     if (!initialized) return initialized.GetStatus();
     return std::move(made).Value();
 }

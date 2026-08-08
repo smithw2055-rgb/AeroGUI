@@ -1,12 +1,12 @@
 # AeroGUI SDK packaging and boundary
 
-The installed package exposes five product targets and no Aero implementation
+The installed package exposes four product targets and no Aero implementation
 archives:
 
 ```cmake
 find_package(Aero 0.3 CONFIG REQUIRED)
 
-target_link_libraries(MyControls PRIVATE Aero::Gui Aero::Meta)
+target_link_libraries(MyControls PRIVATE Aero::Gui)
 target_link_libraries(EngineHost PRIVATE Aero::Gui)
 target_link_libraries(DesktopApp PRIVATE Aero::App)
 target_link_libraries(AudioFeature PRIVATE Aero::Audio)
@@ -15,7 +15,7 @@ target_link_libraries(AudioFeature PRIVATE Aero::Audio)
 - `Aero::Base` — allocator, strings, containers, ownership and ABI foundation.
 - `Aero::Gui` — the complete embeddable WPF/XAML runtime: object model,
   controls, markup, View, providers and native GPU rendering.
-- `Aero::Meta` — typed metadata and module authoring layered over Gui.
+- `Aero::Meta` is the metadata authoring namespace shipped by `Aero::Gui`, not a separate link target.
 - `Aero::App` — optional default native desktop lifetime layered over Gui.
 - `Aero::Audio` — optional audio product independent from Application lifetime.
 
@@ -25,14 +25,14 @@ never appear in `AeroTargets.cmake`. Static packages additionally carry only
 the vendored archives required to resolve private third-party symbols. Their
 imported names are `_PrivateFreeType`, `_PrivateHarfBuzz` and, when applicable,
 `_PrivateExpat`; they are not Aero SDK layers and carry no source-compatibility
-promise. Shared packages export only the five product targets.
+promise. Shared packages export only the four product targets.
 
 The installed header set is declared explicitly in
 `cmake/AeroPublicHeaders.cmake`; the build does not recursively install the
 source include directory. The physical public tree and this whitelist must
 match exactly. There is no installed `Aero/Detail` directory, and standard
-controls are published through six canonical family headers beneath
-`Aero/Controls`. See `docs/spec/PUBLIC_HEADER_MODEL.md` for declaration and
+controls are published through type-named headers beneath `Aero/Gui`. See
+`docs/spec/PUBLIC_HEADER_MODEL.md` for declaration and
 header-growth rules.
 
 ## Gui and custom controls
@@ -81,8 +81,8 @@ View, render target and input-services record per top-level Window, so
 multi-window semantics.
 
 `Application::GetResources()` always returns a dictionary reference.
-`SetMainWindow(Ref<Window>)` is the owning API, while
-`SetMainWindowBorrowed(Window*)` makes non-ownership explicit. The WPF-shaped
+`SetMainWindow(Ref<Window>)` is the only public assignment API. The default
+desktop host uses a source-private non-owning adapter when required. The WPF-shaped
 `Run()`, `Window::Show()` and `Window::Close()` methods remain simple; code that
 needs diagnostics uses the Result-returning `Run()`, `Show()` and `Close()` APIs.
 Only one default `Application` may be active process-wide; multiple independent

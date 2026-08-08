@@ -15,6 +15,8 @@ public:
     static void SetMainWindowBorrowed(
         ::Aero::Application& application,
         ::Aero::Window* mainWindow) noexcept;
+    static Base::Ref<::Aero::Window> MainWindowOwner(
+        ::Aero::Application& application) noexcept;
     static void Detach(::Aero::Application& application) noexcept;
     static void RaiseStartup(::Aero::Application& application) noexcept;
     static void RaiseExit(
@@ -76,6 +78,12 @@ public:
 
 private:
     static Base::Result<void> UnmountView(::Aero::View& view) noexcept;
+    static Base::Result<void> ApplyBuiltInTheme(
+        ::Aero::View& view,
+        ::Aero::BuiltInTheme theme) noexcept;
+    static void ApplyApplicationResources(
+        ::Aero::View& view,
+        ::Aero::ResourceDictionary& resources) noexcept;
     struct Impl;
     Impl* impl_ = nullptr;
 };
