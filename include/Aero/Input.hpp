@@ -76,6 +76,7 @@ struct PointerInput {
     PointerAction action = PointerAction::Move;
     Base::Point position;
     MouseButton changedButton = MouseButton::Left;
+    std::uint32_t clickCount = 1U;
     double wheelDeltaX = 0.0;
     double wheelDeltaY = 0.0;
 };

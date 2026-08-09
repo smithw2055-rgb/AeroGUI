@@ -1,29 +1,29 @@
 #include <Aero/Controls.hpp>
-#include "gui/MetadataRuntime.hpp"
-#include "gui/PropertyRuntime.hpp"
-#include "gui/FreezableRuntime.hpp"
-#include "gui/ElementRuntime.hpp"
-#include "gui/RoutedEventRuntime.hpp"
-#include "gui/InputRuntime.hpp"
-#include "gui/LayoutRuntime.hpp"
-#include "gui/BindingRuntime.hpp"
-#include "gui/AnimationRuntime.hpp"
-#include "gui/StyleRuntime.hpp"
+#include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/property/PropertyRuntime.hpp"
+#include "gui/base/FreezableRuntime.hpp"
+#include "gui/base/ElementRuntime.hpp"
+#include "gui/base/RoutedEventRuntime.hpp"
+#include "gui/input/InputRuntime.hpp"
+#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/resources/StyleRuntime.hpp"
 #include "gui/controls/ControlRuntime.hpp"
 #include "gui/controls/ItemsRuntime.hpp"
 #include "gui/controls/TemplateRuntime.hpp"
 
 #include "render/RenderTree.hpp"
-#include "gui/MetadataRuntime.hpp"
-#include "gui/PropertyRuntime.hpp"
-#include "gui/FreezableRuntime.hpp"
-#include "gui/ElementRuntime.hpp"
-#include "gui/RoutedEventRuntime.hpp"
-#include "gui/InputRuntime.hpp"
-#include "gui/LayoutRuntime.hpp"
-#include "gui/BindingRuntime.hpp"
-#include "gui/AnimationRuntime.hpp"
-#include "gui/StyleRuntime.hpp"
+#include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/property/PropertyRuntime.hpp"
+#include "gui/base/FreezableRuntime.hpp"
+#include "gui/base/ElementRuntime.hpp"
+#include "gui/base/RoutedEventRuntime.hpp"
+#include "gui/input/InputRuntime.hpp"
+#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/resources/StyleRuntime.hpp"
 
 #include <Aero/FrameworkElement.hpp>
 
@@ -35,6 +35,62 @@
 
 namespace Aero::Controls {
 using Aero::Controls::TemplateEngine;
+
+Base::Result<Value> AlternationConverter::Convert(
+    const Value& value,
+    const Value&) noexcept {
+    if (values_.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "AlternationConverter has no values");
+    }
+
+    std::uint64_t index = 0U;
+    if (value.Kind() == Meta::ValueKind::UnsignedInteger) {
+        index = value.AsUnsignedInteger();
+    } else if (value.Kind() == Meta::ValueKind::SignedInteger &&
+               value.AsSignedInteger() >= 0) {
+        index = static_cast<std::uint64_t>(
+            value.AsSignedInteger());
+    } else {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "AlternationConverter requires a non-negative integer index");
+    }
+
+    const Base::Ref<Base::Object>& selected =
+        values_[static_cast<std::uint32_t>(
+            index % values_.Size())];
+    if (!selected) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "AlternationConverter contains a null value");
+    }
+    return Value::FromObject(
+        selected->RuntimeType(),
+        selected);
+}
+
+Base::Result<Value> AlternationConverter::ConvertBack(
+    const Value& value,
+    const Value&) noexcept {
+    if (value.Kind() != Meta::ValueKind::Object ||
+        value.IsNullObject() || !value.AsObject()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "AlternationConverter ConvertBack requires an object value");
+    }
+    for (std::uint32_t index = 0U;
+         index < values_.Size();
+         ++index) {
+        if (values_[index].Get() == value.AsObject().Get()) {
+            return Meta::ValueCodec<std::uint32_t>::Encode(index);
+        }
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::NotFound,
+        "AlternationConverter value was not found");
+}
 
 Panel* ItemsPresenter::GetItemsHost() const noexcept {
     UIElement* child = GetChild();
@@ -1213,9 +1269,14 @@ private:
     std::uint32_t createdContainerCount_ = 0U;
     std::uint32_t recycledContainerUseCount_ = 0U;
     ItemsChangedHandler changedHandler_;
+    DependencyPropertyChangedEventHandler generatedHeaderChangedHandler_;
     Base::Status lastError_;
 
     void OnItemsChanged(const ItemsChangedEvent& event) noexcept;
+    void OnGeneratedHeaderChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& event) noexcept;
+    Base::Result<void> UpdateGeneratedHeader(Record& record) noexcept;
     Base::Result<Record> CreateRecord(std::uint32_t index) noexcept;
     Base::Result<void> AttachRecord(Record& record, std::uint32_t index) noexcept;
     Base::Result<void> AttachOwnedSubtree(Record& record, Aero::Media::Visual& root) noexcept;
@@ -1255,7 +1316,10 @@ ItemContainerGenerator::Access::Access(
       subtreeContext_(subtreeContext),
       changedHandler_(
           this,
-          &ItemContainerGenerator::Access::OnItemsChanged) {}
+          &ItemContainerGenerator::Access::OnItemsChanged),
+      generatedHeaderChangedHandler_(
+          this,
+          &ItemContainerGenerator::Access::OnGeneratedHeaderChanged) {}
 
 ItemContainerGenerator::Access::~Access() noexcept {
     static_cast<void>(Detach());
@@ -1714,21 +1778,27 @@ ItemContainerGenerator::Access::AttachRecord(
         record.content.Get() != nullptr &&
         owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId())) {
-        const auto& text = *static_cast<const TextBlock*>(record.content.Get());
-        const auto assignHeader = [&]() noexcept -> Base::Result<void> {
-            if (owner_->PropertyRegistry().Types().IsDerivedFrom(
-                    container.RuntimeType(), TreeViewItem::StaticTypeId())) {
-                return static_cast<TreeViewItem&>(container).SetHeader(
-                    text.GetText());
-            }
-            return headeredItemsControl->SetHeader(text.GetText());
-        };
-        Base::Result<void> assigned = assignHeader();
+        Base::Result<void> subscribed =
+            static_cast<TextBlock*>(record.content.Get())
+                ->AddValueChangedHandlerChecked(
+                    TextBlock::TextProperty,
+                    generatedHeaderChangedHandler_);
+        if (!subscribed) {
+            (void)tree_->DetachElement(record.containerMount);
+            return subscribed.GetStatus();
+        }
+        record.generatedHeader = true;
+        Base::Result<void> assigned = UpdateGeneratedHeader(record);
         if (!assigned) {
+            static_cast<void>(
+                static_cast<TextBlock*>(record.content.Get())
+                    ->RemoveValueChangedHandler(
+                        TextBlock::TextProperty,
+                        generatedHeaderChangedHandler_));
+            record.generatedHeader = false;
             (void)tree_->DetachElement(record.containerMount);
             return assigned.GetStatus();
         }
-        record.generatedHeader = true;
     } else if (!record.itemIsOwnContainer && contentControl != nullptr) {
         auto& content =
             *static_cast<UIElement*>(
@@ -1789,7 +1859,49 @@ ItemContainerGenerator::Access::AttachRecord(
         }
         record.subtreeMounted = true;
     }
+    if (record.generatedHeader) {
+        Base::Result<void> synchronized = UpdateGeneratedHeader(record);
+        if (!synchronized) {
+            (void)DetachRecord(record);
+            return synchronized.GetStatus();
+        }
+    }
     return {};
+}
+
+Base::Result<void>
+ItemContainerGenerator::Access::UpdateGeneratedHeader(
+    Record& record) noexcept {
+    if (!record.generatedHeader || !record.content || !record.container ||
+        !owner_->PropertyRegistry().Types().IsDerivedFrom(
+            record.content->RuntimeType(), TextBlock::StaticTypeId()) ||
+        !owner_->PropertyRegistry().Types().IsDerivedFrom(
+            record.container->RuntimeType(),
+            HeaderedItemsControl::StaticTypeId())) {
+        return {};
+    }
+    const Base::StringView text =
+        static_cast<TextBlock*>(record.content.Get())->GetText();
+    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+            record.container->RuntimeType(),
+            TreeViewItem::StaticTypeId())) {
+        return static_cast<TreeViewItem*>(record.container.Get())
+            ->SetHeader(text);
+    }
+    return static_cast<HeaderedItemsControl*>(record.container.Get())
+        ->SetHeader(text);
+}
+
+void ItemContainerGenerator::Access::OnGeneratedHeaderChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+    for (Record& record : records_) {
+        if (record.generatedHeader && record.content.Get() == &object) {
+            Base::Result<void> synchronized = UpdateGeneratedHeader(record);
+            if (!synchronized) lastError_ = synchronized.GetStatus();
+            return;
+        }
+    }
 }
 
 Base::Result<void>
@@ -1825,9 +1937,30 @@ ItemContainerGenerator::Access::DetachRecord(
             subtreeContext_));
         record.subtreeMounted = false;
     }
+    // Headered item containers consume a DataTemplate TextBlock as a string
+    // header instead of mounting it below the container. Its bindings are
+    // nevertheless activated when the template is instantiated, so it needs
+    // an explicit teardown because the container subtree walk cannot reach it.
+    if (record.generatedHeader && record.content &&
+        subtreeCallback_ != nullptr &&
+        owner_->PropertyRegistry().Types().IsDerivedFrom(
+            record.content->RuntimeType(), UIElement::StaticTypeId())) {
+        capture(subtreeCallback_(
+            *static_cast<Aero::Media::Visual*>(record.content.Get()),
+            ItemSubtreeChange::Unmounting,
+            subtreeContext_));
+    }
     capture(DetachOwnedSubtree(record));
     owner_->ClearContainer(container);
     if (record.generatedHeader && headeredItemsControl != nullptr) {
+        if (record.content && owner_->PropertyRegistry().Types().IsDerivedFrom(
+                record.content->RuntimeType(), TextBlock::StaticTypeId())) {
+            static_cast<void>(
+                static_cast<TextBlock*>(record.content.Get())
+                    ->RemoveValueChangedHandler(
+                        TextBlock::TextProperty,
+                        generatedHeaderChangedHandler_));
+        }
         const auto clearHeader = [&]() noexcept {
             if (owner_->PropertyRegistry().Types().IsDerivedFrom(
                     container.RuntimeType(), TreeViewItem::StaticTypeId())) {

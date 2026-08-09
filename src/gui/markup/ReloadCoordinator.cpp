@@ -151,6 +151,7 @@ struct ReloadCoordinatorState final {
     Base::ResourceUri rootUri;
     Aero::Size availableSize;
     Base::Vector<RevisionRecord> revisions;
+    std::uint64_t consumedXamlChangeGeneration = 0U;
     std::uint64_t generation = 0U;
     bool active = false;
 };
@@ -241,6 +242,8 @@ Base::Result<void> ReloadCoordinator::Start(
     state->rootUri = resolvedRoot;
     state->revisions = std::move(revisions);
     state->availableSize = availableSize;
+    state->consumedXamlChangeGeneration = state->gui != nullptr
+        ? state->gui->xamlChangeGeneration : 0U;
     state->active = true;
     return {};
 }
@@ -263,6 +266,33 @@ Base::Result<ReloadResult> ReloadCoordinator::Poll(
             "XAML reload coordinator is not active");
     }
     noChange.generation = state->generation;
+    if (state->gui != nullptr &&
+        state->gui->xamlChangeGeneration >
+            state->consumedXamlChangeGeneration) {
+        const std::uint64_t latest = state->gui->xamlChangeGeneration;
+        if (state->gui->xamlChangesLost) {
+            state->consumedXamlChangeGeneration = latest;
+            return state->ReloadFor(state->rootUri, diagnostics);
+        }
+        for (const XamlProviderChangeRecord& change :
+             state->gui->xamlChanges) {
+            if (change.generation <=
+                    state->consumedXamlChangeGeneration) {
+                continue;
+            }
+            state->consumedXamlChangeGeneration = change.generation;
+            if (change.uri.Empty()) {
+                return state->ReloadFor(state->rootUri, diagnostics);
+            }
+            for (const ReloadCoordinatorState::RevisionRecord& record :
+                 state->revisions) {
+                if (record.uri == change.uri) {
+                    return state->ReloadFor(change.uri, diagnostics);
+                }
+            }
+        }
+        state->consumedXamlChangeGeneration = latest;
+    }
     for (const ReloadCoordinatorState::RevisionRecord& record : state->revisions) {
         Base::Result<std::uint64_t> current =
             state->ReadRevision(record.uri);

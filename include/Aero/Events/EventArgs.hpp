@@ -120,10 +120,17 @@ public:
     constexpr void SetButtonState(Input::MouseButtonState value) noexcept {
         buttonState_ = value;
     }
+    constexpr std::uint32_t GetClickCount() const noexcept {
+        return clickCount_;
+    }
+    constexpr void SetClickCount(std::uint32_t value) noexcept {
+        clickCount_ = value;
+    }
 
 private:
     Input::MouseButton changedButton_{};
     Input::MouseButtonState buttonState_{};
+    std::uint32_t clickCount_ = 1U;
 };
 
 struct MouseWheelEventArgs : MouseEventArgs {

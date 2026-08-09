@@ -166,7 +166,6 @@ Concrete backend factories remain opt-in:
 - `AeroRender/OpenGL33.hpp`.
 - `Aero::RenderD3D11` or `Aero::RenderOpenGL33` at link time.
 
-The installed CMake package intentionally does not export `Aero::Integration`.
 Domain-owned host headers do not expose
 immutable RenderFrame storage, command streams, caches or native backend
 resource handles. Submission is synchronous on the caller-selected thread;
@@ -212,20 +211,19 @@ build should precompile assets.
 
 ## Build and install ownership
 
-The source domains are organized with object components rather than installable
-support libraries:
+The source domains are explicit CMake lists compiled directly into the product
+targets rather than intermediate object or installable support libraries:
 
 ```text
-AeroGuiKernelObjects + AeroTextObjects + AeroControlsObjects
-+ AeroMarkupKernelObjects + AeroMarkupObjects + AeroInspectorObjects
-+ AeroModuleSetObjects + AeroRuntimeObjects + backend-neutral rendering
-+ built-in text-provider objects
+base + metadata + property + binding + resources + layout + input
++ interactivity + controls + markup + media + text + diagnostics + modules
++ Gui/View composition + backend-neutral rendering
     -> Aero::Gui
 
 native D3D11 backend + factories -> Aero::RenderD3D11
 native OpenGL33 backend + factories -> Aero::RenderOpenGL33
 
-AeroAppModelObjects + private desktop host + OS window/input adapters
+Application/Window + private desktop host + OS window/input adapters
     -> Aero::App
 ```
 

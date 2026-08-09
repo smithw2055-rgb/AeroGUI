@@ -20,8 +20,7 @@ class XamlProvider;
 class XamlReader;
 class ReloadCoordinator;
 }
-namespace Media { class TextureProvider; }
-namespace Text { class FontProvider; }
+namespace Media { class TextureProvider; class FontProvider; }
 
 // Process-level WPF/XAML runtime. Gui owns the frozen schema, providers and
 // document cache; Views own presentation-affine layout/input/render state.
@@ -35,14 +34,14 @@ public:
 
     Result<void> AddModule(
         const ModuleRegistration& registration) noexcept;
-    Result<void> AddXamlProvider(
-        Markup::XamlProvider& provider,
+    Result<void> SetXamlProvider(
+        Ref<Markup::XamlProvider> provider,
         StringView scheme = {},
         StringView assembly = {}) noexcept;
-    Result<void> AddTextureProvider(
-        Media::TextureProvider& provider) noexcept;
-    Result<void> AddFontProvider(
-        Text::FontProvider& provider) noexcept;
+    Result<void> SetTextureProvider(
+        Ref<Media::TextureProvider> provider) noexcept;
+    Result<void> SetFontProvider(
+        Ref<Media::FontProvider> provider) noexcept;
     Result<void> Initialize() noexcept;
     template<class T = FrameworkElement>
     Result<Ref<T>> LoadXaml(

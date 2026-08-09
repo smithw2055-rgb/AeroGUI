@@ -104,7 +104,7 @@ src/gui/media/StbImageImplementation.cpp
 
 ```text
 FreeType/HarfBuzz objects + private archives
-    → folded into Aero::Integration
+    → folded into Aero::Gui
 
 Expat-backed markup objects
     → folded into Aero::Gui
@@ -113,7 +113,7 @@ miniaudio
     → Aero::Audio
 
 optional sokol bridge
-    → folded into Aero::Integration
+    → folded into Aero::Gui
 ```
 
 Gui kernel、Controls、Markup、Runtime 和 Rendering 都是 build-only Object

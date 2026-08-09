@@ -16,13 +16,13 @@ namespace {
 
 static_assert(
     std::is_abstract<Aero::Markup::XamlProvider>::value,
-    "XamlProvider must remain a host-owned contract");
+    "XamlProvider must remain a Gui-owned abstract contract");
 static_assert(
-    std::is_abstract<Aero::Text::FontProvider>::value,
-    "FontProvider must remain a host-owned contract");
+    std::is_abstract<Aero::Media::FontProvider>::value,
+    "FontProvider must remain a Gui-owned abstract contract");
 static_assert(
     std::is_abstract<Aero::Media::TextureProvider>::value,
-    "TextureProvider must remain a host-owned contract");
+    "TextureProvider must remain a Gui-owned abstract contract");
 
 [[maybe_unused]]
 Aero::Result<Aero::Ref<Aero::View>>

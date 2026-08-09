@@ -37,37 +37,63 @@ if(AERO_WITH_EXPAT)
     endif()
 endif()
 
-set(_aero_gui_sources
-    src/gui/BindingPath.cpp
-    src/gui/PropertySystem.cpp
-    src/gui/Freezable.cpp
-    src/gui/diagnostics/Diagnostics.cpp
-    src/gui/Dispatcher.cpp
-    src/gui/RoutedEvents.cpp
-    src/gui/Metadata.cpp
-    src/gui/EnumMetadata.cpp
-    src/gui/BuiltinMetadata.cpp
-    src/gui/ObjectFactory.cpp
-    src/gui/Value.cpp
+set(_aero_gui_base_sources
+    src/gui/base/Freezable.cpp
+    src/gui/base/Dispatcher.cpp
+    src/gui/base/RoutedEvents.cpp
+    src/gui/base/ObjectFactory.cpp
+    src/gui/base/ContentElement.cpp
+    src/gui/base/ElementTree.cpp
+    src/gui/base/Invariants.cpp)
+
+set(_aero_gui_metadata_sources
+    src/gui/metadata/Metadata.cpp
+    src/gui/metadata/EnumMetadata.cpp
+    src/gui/metadata/BuiltinMetadata.cpp
+    src/gui/metadata/Value.cpp
+    src/gui/metadata/Animation.inl
+    src/gui/metadata/Elements.inl
+    src/gui/metadata/Input.inl
+    src/gui/metadata/Media.inl
+    src/gui/metadata/Resources.inl
+    src/gui/metadata/Styling.inl
+    src/gui/metadata/Support.inl)
+
+set(_aero_gui_property_sources
+    src/gui/property/PropertySystem.cpp)
+
+set(_aero_gui_binding_sources
+    src/gui/binding/BindingPath.cpp
+    src/gui/binding/Binding.cpp
+    src/gui/binding/BindingObjects.cpp)
+
+set(_aero_gui_resources_sources
+    src/gui/resources/Resources.cpp
+    src/gui/resources/Style.cpp)
+
+set(_aero_gui_layout_sources
+    src/gui/layout/Layout.cpp)
+
+set(_aero_gui_input_sources
+    src/gui/input/Commands.cpp
+    src/gui/input/Input.cpp
+    src/gui/input/Clipboard.cpp)
+
+set(_aero_gui_interactivity_sources
+    src/gui/interactivity/Interactivity.cpp)
+
+set(_aero_gui_media_sources
     src/gui/media/AnimationEngine.cpp
     src/gui/media/Animation.cpp
-    src/render/DrawingContext.cpp
-    src/gui/Binding.cpp
-    src/gui/BindingObjects.cpp
     src/gui/media/Brushes.cpp
-    src/gui/Commands.cpp
     src/gui/media/Effects.cpp
     src/gui/media/Geometry.cpp
-    src/gui/Input.cpp
-    src/gui/Interactivity.cpp
+    src/gui/media/ImageCache.cpp
     src/gui/media/Images.cpp
-    src/gui/Layout.cpp
-    src/gui/ContentElement.cpp
-    src/gui/ElementTree.cpp
-    src/gui/Resources.cpp
-    src/render/RenderTree.cpp
-    src/gui/media/Transforms.cpp
-    src/gui/Style.cpp
+    src/gui/media/StbImageImplementation.cpp
+    src/gui/media/Transforms.cpp)
+
+set(_aero_gui_controls_sources
     src/gui/controls/Bars.cpp
     src/gui/controls/BlendBehaviors.cpp
     src/gui/controls/Buttons.cpp
@@ -88,16 +114,74 @@ set(_aero_gui_sources
     src/gui/controls/Templates.cpp
     src/gui/controls/Trees.cpp
     src/gui/controls/Virtualization.cpp
-    src/gui/controls/VisualStates.cpp
-    src/gui/diagnostics/Inspector.cpp
+    src/gui/controls/VisualStates.cpp)
+
+set(_aero_gui_markup_sources
     src/gui/markup/MarkupParser.cpp
     src/gui/markup/MarkupSchema.cpp
     src/gui/markup/MarkupWriter.cpp
     src/gui/markup/MarkupTemplates.cpp
     src/gui/markup/MarkupLoader.cpp
+    src/gui/markup/GuiSchema.cpp
+    src/gui/markup/ReloadCoordinator.cpp
+    src/gui/markup/XamlProvider.cpp
+    src/gui/markup/XamlReader.cpp)
+
+set(_aero_gui_text_sources
+    src/gui/text/EditableText.cpp
+    src/gui/text/FontManager.cpp
+    src/gui/text/GlyphAtlas.cpp
+    src/gui/text/TextLayout.cpp
+    src/gui/text/TextPipeline.cpp
+    src/gui/text/TextTypes.cpp
+    src/gui/text/UnicodeAnalysis.cpp
+    src/gui/text/freetype/FreeTypeAdapter.cpp
+    src/gui/text/harfbuzz/HarfBuzzAdapter.cpp)
+
+set(_aero_gui_diagnostics_sources
+    src/gui/diagnostics/Diagnostics.cpp
+    src/gui/diagnostics/Inspector.cpp
+)
+
+set(_aero_gui_module_sources
     src/gui/modules/Module.cpp
-    src/gui/modules/BuiltinModules.cpp
-    src/gui/markup/GuiSchema.cpp)
+    src/gui/modules/BuiltinModules.cpp)
+
+set(_aero_gui_render_contract_sources
+    src/render/DrawingContext.cpp
+    src/render/RenderTree.cpp
+    src/render/RenderBatch.cpp
+    src/render/RenderDevice.cpp
+    src/render/RenderDeviceResources.cpp
+    src/render/RenderTarget.cpp
+    src/render/FrameEncoder.cpp
+    src/render/TextRenderer.cpp)
+
+set(_aero_gui_composition_sources
+    src/gui/Gui.cpp
+    src/gui/View.cpp
+    src/gui/ViewRenderer.hpp
+    src/gui/ViewRendererResources.cpp
+    src/gui/ViewRendererResources.hpp
+    src/gui/ViewState.hpp)
+
+set(_aero_gui_sources
+    ${_aero_gui_base_sources}
+    ${_aero_gui_metadata_sources}
+    ${_aero_gui_property_sources}
+    ${_aero_gui_binding_sources}
+    ${_aero_gui_resources_sources}
+    ${_aero_gui_layout_sources}
+    ${_aero_gui_input_sources}
+    ${_aero_gui_interactivity_sources}
+    ${_aero_gui_controls_sources}
+    ${_aero_gui_markup_sources}
+    ${_aero_gui_media_sources}
+    ${_aero_gui_text_sources}
+    ${_aero_gui_diagnostics_sources}
+    ${_aero_gui_module_sources}
+    ${_aero_gui_render_contract_sources}
+    ${_aero_gui_composition_sources})
 
 add_library(AeroGui ${AERO_LIBRARY_TYPE} ${_aero_gui_sources})
 add_library(Aero::Gui ALIAS AeroGui)
@@ -162,6 +246,22 @@ target_link_libraries(AeroMetaHeaderConsumer PRIVATE Aero::Gui)
 aero_apply_compiler_options(AeroMetaHeaderConsumer)
 
 unset(_aero_gui_sources)
+unset(_aero_gui_base_sources)
+unset(_aero_gui_metadata_sources)
+unset(_aero_gui_property_sources)
+unset(_aero_gui_binding_sources)
+unset(_aero_gui_resources_sources)
+unset(_aero_gui_layout_sources)
+unset(_aero_gui_input_sources)
+unset(_aero_gui_interactivity_sources)
+unset(_aero_gui_controls_sources)
+unset(_aero_gui_markup_sources)
+unset(_aero_gui_media_sources)
+unset(_aero_gui_text_sources)
+unset(_aero_gui_diagnostics_sources)
+unset(_aero_gui_module_sources)
+unset(_aero_gui_render_contract_sources)
+unset(_aero_gui_composition_sources)
 
 function(aero_complete_gui_target)
 # View/Gui composition is folded directly into AeroGui as a source group.
@@ -208,28 +308,14 @@ if(NOT _aero_gui_precompiled_themes)
     endif()
 endif()
 
-set(_aero_gui_composition_sources
-    src/gui/Gui.cpp
-    src/gui/View.cpp
-    src/gui/ViewRenderer.hpp
-    src/gui/ViewState.hpp
-    src/gui/markup/ReloadCoordinator.cpp
-    src/render/RenderDevice.cpp
-    src/gui/Invariants.cpp
-    src/gui/media/ImageCache.cpp
-    src/gui/media/StbImageImplementation.cpp
-    src/gui/text/TextPipeline.cpp
-    src/gui/markup/XamlReader.cpp)
 if(_aero_gui_precompiled_themes)
-    list(APPEND _aero_gui_composition_sources "${_aero_generated_theme_header}")
+    target_sources(AeroGui PRIVATE "${_aero_generated_theme_header}")
     add_dependencies(AeroGui AeroCompiledThemes)
 endif()
-target_sources(AeroGui PRIVATE ${_aero_gui_composition_sources})
 target_include_directories(AeroGui PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb"
     "${_aero_gui_theme_include_dir}"
     "${CMAKE_CURRENT_BINARY_DIR}/generated")
-unset(_aero_gui_composition_sources)
 
 set(AERO_DEFAULT_THEME_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
@@ -251,14 +337,8 @@ unset(_aero_gui_theme_include_dir)
 unset(_aero_gui_theme_header)
 unset(_aero_theme_embed_result)
 
-# Private retained renderer and backend-neutral render-device machinery.
-# Renderer is the single semantic command/submission owner.
-target_sources(AeroGui PRIVATE
-    src/render/RenderBatch.cpp
-    src/render/RenderDeviceResources.cpp
-    src/render/FrameEncoder.cpp
-    src/gui/ViewRendererResources.cpp
-    src/render/TextRenderer.cpp)
+# Private retained renderer and backend-neutral render-device machinery remain
+# part of the explicit render-contract and composition lists above.
 
 # OpenGL 3.3 is a separately linkable backend product. AeroGui contains no GL
 # implementation or factory symbols.
@@ -472,22 +552,6 @@ endif()
 
 # AeroGui owns the backend-neutral WPF/XAML object model, View runtime and
 # providers. Native backend factories live only in the Render* products.
-set(_aero_gui_runtime_sources
-    src/render/RenderTarget.cpp
-    src/gui/markup/XamlProvider.cpp
-    src/gui/input/Clipboard.cpp)
-
-target_sources(AeroGui PRIVATE
-    ${_aero_gui_runtime_sources}
-    src/gui/text/EditableText.cpp
-    src/gui/text/FontManager.cpp
-    src/gui/text/GlyphAtlas.cpp
-    src/gui/text/TextLayout.cpp
-    src/gui/text/TextTypes.cpp
-    src/gui/text/UnicodeAnalysis.cpp
-    src/gui/text/freetype/FreeTypeAdapter.cpp
-    src/gui/text/harfbuzz/HarfBuzzAdapter.cpp
-)
 target_include_directories(AeroGui PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${CMAKE_CURRENT_BINARY_DIR}/generated")

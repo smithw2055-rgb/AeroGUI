@@ -56,4 +56,20 @@ Base::Result<void> PopulateAppMetadata(
     return window.Result();
 }
 
+ModuleRegistration AppMetadataModule() noexcept {
+    static const Markup::ResourceScopeRegistration resourceScopes[] = {{
+        Meta::MakeTypeId(Meta::AeroNamespaceUri(), "Application"),
+        &AddApplicationResource,
+        &ResolveApplicationResources,
+        nullptr,
+        true,
+        XamlFacetAbiVersion}};
+    ModuleRegistration module = DefineModule(
+        AppMetadataModuleName(),
+        &PopulateAppMetadata);
+    module.schemaVersion = 2U;
+    module.resourceScopes = resourceScopes;
+    return module;
+}
+
 } // namespace Aero::App

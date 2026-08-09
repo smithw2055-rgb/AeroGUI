@@ -85,6 +85,7 @@ public:
     Gui& GetGui() noexcept;
     const Gui& GetGui() const noexcept;
 
+    Result<void> SetViewport(const ViewViewport& viewport) noexcept;
     void SetSize(Aero::Size availableSize) noexcept;
     void SetSize(
         std::uint32_t width,
@@ -93,7 +94,7 @@ public:
     // Advances this View to an absolute, monotonically increasing host time.
     // Frame failures are reported through ViewOptions::diagnostics; render
     // device failures are additionally exposed by RenderDevice::State().
-    void Update(double timeInSeconds) noexcept;
+    bool Update(double timeInSeconds) noexcept;
     void Activate() noexcept;
     void Deactivate() noexcept;
 
@@ -106,7 +107,15 @@ public:
         int x,
         int y,
         Input::MouseButton button) noexcept;
+    bool MouseDoubleClick(
+        int x,
+        int y,
+        Input::MouseButton button) noexcept;
     bool MouseWheel(
+        int x,
+        int y,
+        int delta) noexcept;
+    bool MouseHWheel(
         int x,
         int y,
         int delta) noexcept;

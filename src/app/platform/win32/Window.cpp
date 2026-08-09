@@ -183,15 +183,19 @@ struct Win32WindowState {
         WPARAM word) noexcept {
         switch (message) {
         case WM_LBUTTONDOWN:
+        case WM_LBUTTONDBLCLK:
         case WM_LBUTTONUP:
             return WindowPointerButton::Left;
         case WM_RBUTTONDOWN:
+        case WM_RBUTTONDBLCLK:
         case WM_RBUTTONUP:
             return WindowPointerButton::Right;
         case WM_MBUTTONDOWN:
+        case WM_MBUTTONDBLCLK:
         case WM_MBUTTONUP:
             return WindowPointerButton::Middle;
         case WM_XBUTTONDOWN:
+        case WM_XBUTTONDBLCLK:
         case WM_XBUTTONUP:
             return GET_XBUTTON_WPARAM(word) == XBUTTON1
                 ? WindowPointerButton::XButton1
@@ -396,6 +400,17 @@ struct Win32WindowState {
                 static_cast<double>(GET_Y_LPARAM(value)),
                 ButtonFromMessage(message, word));
             return message == WM_XBUTTONDOWN ? TRUE : 0;
+        case WM_LBUTTONDBLCLK:
+        case WM_RBUTTONDBLCLK:
+        case WM_MBUTTONDBLCLK:
+        case WM_XBUTTONDBLCLK:
+            static_cast<void>(SetCapture(nativeWindow));
+            QueuePointer(
+                WindowEventType::PointerDoubleClick,
+                static_cast<double>(GET_X_LPARAM(value)),
+                static_cast<double>(GET_Y_LPARAM(value)),
+                ButtonFromMessage(message, word));
+            return message == WM_XBUTTONDBLCLK ? TRUE : 0;
         case WM_LBUTTONUP:
         case WM_RBUTTONUP:
         case WM_MBUTTONUP:
@@ -546,7 +561,7 @@ Base::Result<void> Win32Window::Create(
 
     WNDCLASSEXW windowClass{};
     windowClass.cbSize = sizeof(windowClass);
-    windowClass.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
+    windowClass.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
     windowClass.lpfnWndProc = &Win32WindowState::WindowProcedure;
     windowClass.hInstance = state_->instance;
     windowClass.hCursor =

@@ -1,23 +1,23 @@
-#include "gui/MetadataRuntime.hpp"
-#include "gui/PropertyRuntime.hpp"
-#include "gui/FreezableRuntime.hpp"
-#include "gui/ElementRuntime.hpp"
-#include "gui/RoutedEventRuntime.hpp"
-#include "gui/InputRuntime.hpp"
-#include "gui/LayoutRuntime.hpp"
-#include "gui/BindingRuntime.hpp"
-#include "gui/AnimationRuntime.hpp"
-#include "gui/StyleRuntime.hpp"
-#include "gui/MetadataRuntime.hpp"
-#include "gui/PropertyRuntime.hpp"
-#include "gui/FreezableRuntime.hpp"
-#include "gui/ElementRuntime.hpp"
-#include "gui/RoutedEventRuntime.hpp"
-#include "gui/InputRuntime.hpp"
-#include "gui/LayoutRuntime.hpp"
-#include "gui/BindingRuntime.hpp"
-#include "gui/AnimationRuntime.hpp"
-#include "gui/StyleRuntime.hpp"
+#include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/property/PropertyRuntime.hpp"
+#include "gui/base/FreezableRuntime.hpp"
+#include "gui/base/ElementRuntime.hpp"
+#include "gui/base/RoutedEventRuntime.hpp"
+#include "gui/input/InputRuntime.hpp"
+#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/resources/StyleRuntime.hpp"
+#include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/property/PropertyRuntime.hpp"
+#include "gui/base/FreezableRuntime.hpp"
+#include "gui/base/ElementRuntime.hpp"
+#include "gui/base/RoutedEventRuntime.hpp"
+#include "gui/input/InputRuntime.hpp"
+#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/resources/StyleRuntime.hpp"
 #include "gui/controls/ControlRuntime.hpp"
 #include "gui/controls/ItemsRuntime.hpp"
 #include "gui/controls/TemplateRuntime.hpp"
@@ -399,10 +399,29 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
     for (const Base::Ref<Aero::Setter>& entry :
          style.GetAuthoredSetters()) {
         Aero::Setter* setter = entry.Get();
-        if (setter == nullptr || !setter->GetIsAuthored()) {
+        if (setter == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Style Setter requires Property and Value");
+        }
+        if (setter->GetPropertyName().Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Style Setter requires Property");
+        }
+        if (setter->GetAuthoredValue().IsUnset()) {
+            thread_local char message[256]{};
+            const Base::StringView propertyName =
+                setter->GetPropertyName();
+            std::snprintf(
+                message,
+                sizeof(message),
+                "Style Setter for '%.*s' requires Value",
+                static_cast<int>(propertyName.SizeBytes()),
+                propertyName.Data());
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                message);
         }
         const Meta::DependencyProperty* property =
             ResolveStyleProperty(
@@ -674,16 +693,16 @@ Base::Result<void> UiObjectModel::Register(
 
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
-#include "gui/MetadataRuntime.hpp"
-#include "gui/PropertyRuntime.hpp"
-#include "gui/FreezableRuntime.hpp"
-#include "gui/ElementRuntime.hpp"
-#include "gui/RoutedEventRuntime.hpp"
-#include "gui/InputRuntime.hpp"
-#include "gui/LayoutRuntime.hpp"
-#include "gui/BindingRuntime.hpp"
-#include "gui/AnimationRuntime.hpp"
-#include "gui/StyleRuntime.hpp"
+#include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/property/PropertyRuntime.hpp"
+#include "gui/base/FreezableRuntime.hpp"
+#include "gui/base/ElementRuntime.hpp"
+#include "gui/base/RoutedEventRuntime.hpp"
+#include "gui/input/InputRuntime.hpp"
+#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/resources/StyleRuntime.hpp"
 #include "gui/controls/ControlRuntime.hpp"
 #include "gui/controls/ItemsRuntime.hpp"
 #include "gui/controls/TemplateRuntime.hpp"
@@ -1241,16 +1260,16 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
 
 
 #include "gui/controls/DataTemplateTriggerState.hpp"
-#include "gui/MetadataRuntime.hpp"
-#include "gui/PropertyRuntime.hpp"
-#include "gui/FreezableRuntime.hpp"
-#include "gui/ElementRuntime.hpp"
-#include "gui/RoutedEventRuntime.hpp"
-#include "gui/InputRuntime.hpp"
-#include "gui/LayoutRuntime.hpp"
-#include "gui/BindingRuntime.hpp"
-#include "gui/AnimationRuntime.hpp"
-#include "gui/StyleRuntime.hpp"
+#include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/property/PropertyRuntime.hpp"
+#include "gui/base/FreezableRuntime.hpp"
+#include "gui/base/ElementRuntime.hpp"
+#include "gui/base/RoutedEventRuntime.hpp"
+#include "gui/input/InputRuntime.hpp"
+#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/resources/StyleRuntime.hpp"
 #include "gui/media/AnimationRuntime.hpp"
 #include "gui/media/BrushRuntime.hpp"
 #include "gui/media/EffectRuntime.hpp"
@@ -1679,6 +1698,13 @@ Base::Result<Value> ConvertSetterValue(
         }
         value = std::move(converted).Value();
     } else if (value.IsNullObject() &&
+        property.ValueType() == TypeOf<Nullable<bool>>()) {
+        Base::Result<Value> nullable =
+            ValueCodec<Nullable<bool>>::Encode(
+                Nullable<bool>{});
+        if (!nullable) return nullable.GetStatus();
+        value = std::move(nullable).Value();
+    } else if (value.IsNullObject() &&
         value.Type() != property.ValueType()) {
         value = Value::NullObject(
             property.ValueType());
@@ -1811,6 +1837,13 @@ Base::Result<Value> ConvertTriggerValue(
         }
         value = std::move(converted).Value();
     } else if (value.IsNullObject() &&
+        property.ValueType() == TypeOf<Nullable<bool>>()) {
+        Base::Result<Value> nullable =
+            ValueCodec<Nullable<bool>>::Encode(
+                Nullable<bool>{});
+        if (!nullable) return nullable.GetStatus();
+        value = std::move(nullable).Value();
+    } else if (value.IsNullObject() &&
         value.Type() != property.ValueType()) {
         value = Value::NullObject(
             property.ValueType());
@@ -1868,30 +1901,6 @@ CompilePropertyTriggers(
                     "ControlTemplate Trigger source was not found");
             }
             targetType = target->type;
-        }
-        // The runtime represents ToggleButton's nullable WPF IsChecked value
-        // as a bool plus the read-only IsIndeterminate state. Preserve the
-        // observable template condition `IsChecked == {x:Null}` by compiling
-        // it to that state property instead of attempting to assign an object
-        // null to a Boolean dependency property.
-        if (authoredValue.IsNullObject() &&
-            propertyName == Base::StringView("IsChecked") &&
-            runtime.Types().IsDerivedFrom(
-                targetType, Controls::Primitives::ToggleButton::StaticTypeId())) {
-            const DependencyProperty* indeterminate = properties.Find(
-                targetType, "IsIndeterminate");
-            if (indeterminate == nullptr) {
-                return InvalidTemplateCompiler(
-                    "ToggleButton IsIndeterminate property was not found");
-            }
-            TemplateTriggerCondition condition;
-            Base::Result<void> assigned =
-                condition.sourceName.Assign(sourceName);
-            if (!assigned) return assigned.GetStatus();
-            condition.property = indeterminate->Handle();
-            condition.value = Value::FromBoolean(
-                TypeOf<bool>(), true);
-            return trigger.conditions.PushBack(std::move(condition));
         }
         const DependencyProperty* property =
             (propertyName == Base::StringView(
@@ -3220,8 +3229,8 @@ BuildCompiledDeferredTemplate(
         if (payload &&
             binding.source == UINT32_MAX &&
             descriptor.target == root.Get()) {
-            Base::Result<std::uint32_t> activated =
-                bindings->ActivateDeferred(*descriptor.target);
+            Base::Result<void> activated =
+                bindings->ActivateDeferredWhenReady(*descriptor.target);
             if (!activated) return activated.GetStatus();
         }
     }

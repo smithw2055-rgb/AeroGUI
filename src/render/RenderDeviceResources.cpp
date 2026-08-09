@@ -1,6 +1,12 @@
 #include "render/RenderDeviceState.hpp"
+#include "render/RenderDeviceMaintenance.hpp"
 
 namespace Aero::Render {
+
+Base::Result<std::uint32_t> CollectDeviceGarbage(
+    Aero::RenderDevice& device) noexcept {
+    return RenderDeviceBase::From(device)->CollectGarbage();
+}
 using namespace ::Aero::Graphics;
 namespace {
 

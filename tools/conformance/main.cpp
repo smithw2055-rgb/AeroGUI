@@ -11,7 +11,7 @@
 #include <Aero/View.hpp>
 
 #include "render/FrameEncoder.hpp"
-#include "gui/PropertyRuntime.hpp"
+#include "gui/property/PropertyRuntime.hpp"
 #include "gui/ViewRenderer.hpp"
 #include "render/RenderDeviceState.hpp"
 #include "render/RenderTargetState.hpp"
@@ -255,8 +255,14 @@ void VerifyGradientFreeze() noexcept {
 }
 
 void VerifyViewport(Aero::View& view) noexcept {
-    view.SetSize({800.0, 450.0});
-    view.SetScale(2.0);
+    const Aero::ViewViewport expected{
+        {800.0, 450.0}, 1600U, 900U, 2.0};
+    Check(view.SetViewport(expected).HasValue(),
+        "View rejected a valid atomic viewport");
+    const Aero::ViewViewport invalid{
+        {0.0, 450.0}, 1U, 900U, 2.0};
+    Check(!view.SetViewport(invalid),
+        "View accepted a partially inconsistent viewport");
     view.Update(0.0);
     const ::Aero::Render::RenderFrame* actual =
         Aero::CurrentFrameForConformance(view);
@@ -1022,10 +1028,19 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
     const Aero::Size logicalSize{128.0, 96.0};
     constexpr std::uint32_t pixelWidth = 256U;
     constexpr std::uint32_t pixelHeight = 192U;
-    view.SetContent(std::move(document).Value(), logicalSize);
+    Aero::Base::Result<void> mounted =
+        view.SetContent(std::move(document).Value(), logicalSize);
+    if (!mounted) {
+        std::fprintf(stderr, "View mount failed: %u %s\n",
+            static_cast<unsigned>(mounted.GetStatus().code),
+            mounted.GetStatus().message);
+    }
+    Check(mounted.HasValue(), "nested effect View mount failed");
+    if (!mounted) return;
     view.SetSize(logicalSize);
     view.SetScale(2.0);
-    view.Update(0.0);
+    const bool updated = view.Update(0.0);
+    Check(updated, "first mounted View update did not commit a frame");
     const ::Aero::Render::RenderFrame* frame =
         Aero::CurrentFrameForConformance(view);
     if (frame != nullptr && frame->GradientRamps().Empty()) {
@@ -1128,10 +1143,15 @@ int main() {
         Aero::Media::Geometry>::value, "Geometry must derive from Freezable");
 
     Aero::Gui gui;
-    Aero::Markup::XamlProviderAdapter facadeProvider(
-        &OpenGuiFacadeXaml, nullptr, nullptr, 0xAE0025U);
-    const Aero::Base::Result<void> providerAdded =
-        gui.AddXamlProvider(facadeProvider, "memory");
+    Aero::Base::Result<Aero::Base::Ref<Aero::Markup::XamlProviderAdapter>>
+        facadeProvider =
+            Aero::Base::MakeRef<Aero::Markup::XamlProviderAdapter>(
+                &OpenGuiFacadeXaml, nullptr, nullptr);
+    Check(facadeProvider.HasValue(), "Gui facade provider allocation failed");
+    const Aero::Base::Result<void> providerAdded = facadeProvider
+        ? gui.SetXamlProvider(
+            std::move(facadeProvider).Value(), "memory")
+        : Aero::Base::Result<void>(facadeProvider.GetStatus());
     Check(providerAdded.HasValue(), "Gui facade provider registration failed");
     const Aero::Base::Result<void> initialized = gui.Initialize();
     Check(initialized.HasValue(), "Gui initialization failed");

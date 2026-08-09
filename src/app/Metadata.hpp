@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Module.hpp>
-#include <AeroApp/Application.hpp>
+#include <AeroApp/App.hpp>
 
 namespace Aero::App {
 
@@ -28,22 +28,6 @@ namespace Aero::App {
 
 inline constexpr Base::StringView AppMetadataModuleName() noexcept {
     return "Aero.App";
-}
-
-inline ModuleRegistration AppMetadataModule() noexcept {
-    static const Markup::ResourceScopeRegistration resourceScopes[] = {{
-        Meta::MakeTypeId(Meta::AeroNamespaceUri(), "Application"),
-        &AddApplicationResource,
-        &ResolveApplicationResources,
-        nullptr,
-        true,
-        XamlFacetAbiVersion}};
-    ModuleRegistration module = DefineModule(
-        AppMetadataModuleName(),
-        &::Aero::App::PopulateAppMetadata);
-    module.schemaVersion = 2U;
-    module.resourceScopes = resourceScopes;
-    return module;
 }
 
 } // namespace Aero::App

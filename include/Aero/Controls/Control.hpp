@@ -25,6 +25,17 @@ private:
 
 public:
 
+    inline static constexpr RoutedEvent<MouseButtonEventArgs>
+        PreviewMouseDoubleClickEvent{"PreviewMouseDoubleClick"};
+    Event<MouseButtonEventArgs> PreviewMouseDoubleClick() noexcept {
+        return GetEvent(PreviewMouseDoubleClickEvent);
+    }
+    inline static constexpr RoutedEvent<MouseButtonEventArgs>
+        MouseDoubleClickEvent{"MouseDoubleClick"};
+    Event<MouseButtonEventArgs> MouseDoubleClick() noexcept {
+        return GetEvent(MouseDoubleClickEvent);
+    }
+
     Ref<Aero::Media::Brush> GetBackground() const noexcept {
         return GetValueOr(
             BackgroundProperty,

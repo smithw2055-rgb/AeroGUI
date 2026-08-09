@@ -37,11 +37,11 @@ Aero::Base
 Aero::Gui
     WPF/XAML object model, controls, markup, layout and drawing
 
-Aero::Meta
-    typed metadata and custom-type authoring over Aero::Gui
+Aero::Render
+    backend-neutral rendering contracts implemented by Aero::Gui
 
-Aero::Integration
-    Gui, View, source providers and backend factories
+Aero::RenderD3D11 / Aero::RenderOpenGL33
+    opt-in native backend factories
 
 Aero::App
     optional Application/Window desktop host
@@ -260,7 +260,7 @@ Provider implementation、warning suppression 和单头库 implementation macro 
 
 ```text
 GuiKernel/Text/Controls/Markup objects → Aero::Gui
-AppModel/ModuleSet/Runtime/Rendering objects → Aero::Integration
+AppModel/ModuleSet/Runtime/Rendering objects → Aero::Gui
 DesktopHost/OS adapters → Aero::App
 ```
 
@@ -269,8 +269,9 @@ DesktopHost/OS adapters → Aero::App
 ```text
 Aero::Base
 Aero::Gui
-Aero::Meta
-Aero::Integration
+Aero::Render
+Aero::RenderD3D11
+Aero::RenderOpenGL33
 Aero::App
 Aero::Audio
 ```

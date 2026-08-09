@@ -16,9 +16,14 @@ private semantic units, but their order is part of the schema contract.
 The supported installed targets are:
 
 - `Aero::Gui`: retained WPF/XAML UI, controls and markup.
-- `Aero::App`: default Application/Window lifetime above Gui and Integration.
-- `Aero::Integration`: View, endpoint and native/backend integration.
-- `Aero::Meta`: Gui plus typed metadata/module authoring.
+- `Aero::Render`: backend-neutral contracts implemented by Gui, with no
+  additional DLL.
+- `Aero::RenderD3D11` and `Aero::RenderOpenGL33`: native backend products.
+- `Aero::App`: default Application/Window and presentation lifetime above Gui.
+- `Aero::Audio`: optional audio product.
+
+`Aero::Meta` is Gui's typed metadata/module authoring namespace, not an
+independent linker target. There is no Integration product.
 
 There is no second public runtime framework. Internal composition targets may
 be exported only as transitive implementation dependencies for static linking.
@@ -28,8 +33,6 @@ They are not documented or consumed directly by application code.
 
 - One XAML type identity is registered by exactly one built-in metadata module.
 - Application and Window metadata do not reside in Controls.
-- Integration may consume App metadata through the private AppModel target
-  without linking the native App lifetime back into Gui.
 - Build-tree and installed-package consumers see the same product target names.
-- Dependencies point from App/Integration/Meta toward Gui and lower layers,
+- Dependencies point from App and Render backends toward Gui and lower layers,
   never from Gui toward application lifetime or native backends.

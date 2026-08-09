@@ -1,4 +1,5 @@
 #include "RenderContext.hpp"
+#include "render/RenderDeviceMaintenance.hpp"
 
 #include <utility>
 
@@ -71,6 +72,9 @@ Base::Result<void> RenderContext::Resize(
     if (device) {
         Base::Result<void> idle = device->WaitIdle();
         if (!idle) return idle.GetStatus();
+        Base::Result<std::uint32_t> collected =
+            Render::CollectDeviceGarbage(*device);
+        if (!collected) return collected.GetStatus();
     }
     return ResizePresentation(width, height);
 }

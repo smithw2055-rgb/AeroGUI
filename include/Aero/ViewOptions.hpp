@@ -15,6 +15,15 @@ enum class BuiltInTheme : std::uint8_t { Light = 0U, Dark };
 enum class ResourceLayer : std::uint8_t { Application = 0U, Theme, System };
 enum class ResourceLoadMode : std::uint8_t { Replace = 0U, Merge };
 
+// One atomic host viewport description. logicalSize is expressed in DIPs;
+// pixel dimensions describe the current render target.
+struct ViewViewport {
+    Base::Size logicalSize{};
+    std::uint32_t pixelWidth = 0U;
+    std::uint32_t pixelHeight = 0U;
+    double dpiScale = 1.0;
+};
+
 struct TextOptions {
     StringView primaryFamily;
     Span<const StringView> fallbackFamilies;

@@ -1,13 +1,13 @@
-#include "gui/MetadataRuntime.hpp"
-#include "gui/PropertyRuntime.hpp"
-#include "gui/FreezableRuntime.hpp"
-#include "gui/ElementRuntime.hpp"
-#include "gui/RoutedEventRuntime.hpp"
-#include "gui/InputRuntime.hpp"
-#include "gui/LayoutRuntime.hpp"
-#include "gui/BindingRuntime.hpp"
-#include "gui/AnimationRuntime.hpp"
-#include "gui/StyleRuntime.hpp"
+#include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/property/PropertyRuntime.hpp"
+#include "gui/base/FreezableRuntime.hpp"
+#include "gui/base/ElementRuntime.hpp"
+#include "gui/base/RoutedEventRuntime.hpp"
+#include "gui/input/InputRuntime.hpp"
+#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/resources/StyleRuntime.hpp"
 #include "gui/controls/ControlRuntime.hpp"
 #include "gui/controls/ItemsRuntime.hpp"
 #include "gui/controls/TemplateRuntime.hpp"
@@ -21,6 +21,7 @@
 // Canonical compiled-schema bridge used by Loader.
 
 #include <Aero/Markup/XamlReader.hpp>
+#include <Aero/Media/Fonts.hpp>
 
 #include <cerrno>
 #include <cctype>
@@ -3817,6 +3818,42 @@ Base::Result<Meta::Value> Schema::ConvertText(
         return Meta::Value::TryFromString(
             Meta::TypeOf<Base::String>(), text);
     }
+    const bool fontFamilyValue =
+        type == Meta::TypeOf<Media::FontFamily>();
+    const bool fontFamilySource =
+        type == Meta::TypeOf<Base::String>() &&
+        services != nullptr &&
+        services->targetObjectType ==
+            Media::FontFamily::StaticTypeId() &&
+        services->targetMember == Meta::MakeMemberId(
+            Media::FontFamily::StaticTypeId(),
+            Meta::MemberKind::Property,
+            "Source");
+    if ((fontFamilyValue || fontFamilySource) &&
+        services != nullptr &&
+        services->baseUri != nullptr &&
+        !services->baseUri->Empty()) {
+        std::uint32_t familySeparator = UINT32_MAX;
+        for (std::uint32_t index = 0U;
+             index < text.SizeBytes(); ++index) {
+            if (text[index] == '#') {
+                familySeparator = index;
+                break;
+            }
+        }
+        if (familySeparator != UINT32_MAX && familySeparator != 0U) {
+            Base::Result<Base::ResourceUri> uri =
+                Base::ResourceUri::Resolve(
+                    *services->baseUri,
+                    text);
+            if (!uri) return uri.GetStatus();
+            const Base::StringView resolved =
+                uri.Value().Scheme() == Base::StringView("file")
+                ? uri.Value().Path()
+                : uri.Value().Canonical();
+            return domain_->TryConvertText(type, resolved);
+        }
+    }
     if (type == Meta::TypeOf<Base::ResourceUri>() &&
         services != nullptr &&
         services->baseUri != nullptr &&
@@ -3830,7 +3867,30 @@ Base::Result<Meta::Value> Schema::ConvertText(
             type,
             &uri.Value());
     }
-    return domain_->TryConvertText(type, text);
+    Base::Result<Meta::Value> converted =
+        domain_->TryConvertText(type, text);
+    if (!converted || services == nullptr ||
+        services->baseUri == nullptr || services->baseUri->Empty() ||
+        converted.Value().Kind() != Meta::ValueKind::Object ||
+        converted.Value().IsNullObject()) {
+        return converted;
+    }
+    const Base::Ref<Base::Object> object =
+        converted.Value().AsObject();
+    if (!object || object->RuntimeType() !=
+            Media::BitmapImage::StaticTypeId()) {
+        return converted;
+    }
+    auto& bitmap = static_cast<Media::BitmapImage&>(*object);
+    const Base::ResourceUri authored = bitmap.GetUriSource();
+    if (authored.Empty() || authored.IsAbsolute()) {
+        return converted;
+    }
+    Base::Result<Base::ResourceUri> resolved =
+        Base::ResourceUri::Resolve(*services->baseUri, authored.Canonical());
+    if (!resolved) return resolved.GetStatus();
+    bitmap.SetUriSource(std::move(resolved).Value());
+    return converted;
 }
 
 Base::Result<ProvidedValue> Schema::ProvideMarkupExtensionValue(

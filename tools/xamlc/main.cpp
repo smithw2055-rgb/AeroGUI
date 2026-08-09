@@ -1,6 +1,6 @@
 #include <Aero/Gui.hpp>
 #include "gui/markup/XamlRuntime.hpp"
-#include "app/Metadata.hpp"
+#include <AeroApp/App.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Module.hpp>
 #include "gui/modules/ModuleSet.hpp"

@@ -1,19 +1,21 @@
-#include "gui/MetadataRuntime.hpp"
-#include "gui/PropertyRuntime.hpp"
-#include "gui/FreezableRuntime.hpp"
-#include "gui/ElementRuntime.hpp"
-#include "gui/RoutedEventRuntime.hpp"
-#include "gui/InputRuntime.hpp"
-#include "gui/LayoutRuntime.hpp"
-#include "gui/BindingRuntime.hpp"
-#include "gui/AnimationRuntime.hpp"
-#include "gui/StyleRuntime.hpp"
+#include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/property/PropertyRuntime.hpp"
+#include "gui/base/FreezableRuntime.hpp"
+#include "gui/base/ElementRuntime.hpp"
+#include "gui/base/RoutedEventRuntime.hpp"
+#include "gui/input/InputRuntime.hpp"
+#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/resources/StyleRuntime.hpp"
 #include "gui/controls/ControlRuntime.hpp"
 #include "gui/controls/ItemsRuntime.hpp"
 #include "gui/controls/TemplateRuntime.hpp"
 #include "gui/markup/MarkupRuntime.hpp"
 #include "gui/markup/MarkupWriterRuntime.hpp"
 // Consolidated implementation. Keep sections ordered by dependency.
+
+#include <atomic>
 
 // ===== CompiledCache =====
 
@@ -2204,16 +2206,16 @@ CompiledDocument::Deserialize(
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/HashSet.hpp>
 #include <Aero/Base/String.hpp>
-#include "gui/MetadataRuntime.hpp"
-#include "gui/PropertyRuntime.hpp"
-#include "gui/FreezableRuntime.hpp"
-#include "gui/ElementRuntime.hpp"
-#include "gui/RoutedEventRuntime.hpp"
-#include "gui/InputRuntime.hpp"
-#include "gui/LayoutRuntime.hpp"
-#include "gui/BindingRuntime.hpp"
-#include "gui/AnimationRuntime.hpp"
-#include "gui/StyleRuntime.hpp"
+#include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/property/PropertyRuntime.hpp"
+#include "gui/base/FreezableRuntime.hpp"
+#include "gui/base/ElementRuntime.hpp"
+#include "gui/base/RoutedEventRuntime.hpp"
+#include "gui/input/InputRuntime.hpp"
+#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/resources/StyleRuntime.hpp"
 
 #include <new>
 
@@ -3288,10 +3290,16 @@ Base::Result<Base::ResourceUri> ResolveRequestedUri(
 
 } // namespace
 
-Base::Result<void> XamlProviderRegistry::Register(
-    XamlProvider& provider,
+Base::Result<void> XamlProviderRegistry::Set(
+    Base::Ref<XamlProvider> provider,
     Base::StringView scheme,
-    Base::StringView assembly) noexcept {
+    Base::StringView assembly,
+    Base::Ref<XamlProvider>* replaced) noexcept {
+    if (!provider) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Markup XAML provider is required");
+    }
     XamlProviderRegistration registration;
     Base::Result<void> schemeResult =
         AssignLowerAscii(registration.scheme, scheme);
@@ -3303,16 +3311,32 @@ Base::Result<void> XamlProviderRegistry::Register(
     if (!assemblyResult) {
         return assemblyResult.GetStatus();
     }
-    registration.provider = &provider;
+    registration.provider = std::move(provider);
+    for (const XamlProviderRegistration& existing : registrations_) {
+        if (existing.provider.Get() == registration.provider.Get()) {
+            registration.identity = existing.identity;
+            break;
+        }
+    }
+    static std::atomic<std::uint64_t> nextIdentity{1U};
+    if (registration.identity == 0U) {
+        registration.identity =
+            nextIdentity.fetch_add(1U, std::memory_order_relaxed);
+        if (registration.identity == 0U) {
+            registration.identity =
+                nextIdentity.fetch_add(1U, std::memory_order_relaxed);
+        }
+    }
 
-    for (const XamlProviderRegistration& existing :
-         registrations_) {
+    for (XamlProviderRegistration& existing : registrations_) {
         if (existing.scheme.View() == registration.scheme.View() &&
             existing.assembly.View() ==
                 registration.assembly.View()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "A XAML source provider is already registered for this route");
+            if (replaced != nullptr) {
+                *replaced = std::move(existing.provider);
+            }
+            existing = std::move(registration);
+            return {};
         }
     }
     return registrations_.PushBack(
@@ -3324,6 +3348,21 @@ XamlProviderRegistry::ResolveRoute(
     const Base::ResourceUri& uri,
     bool requireScheme,
     bool requireAssembly) const noexcept {
+    for (const XamlProviderRegistration& registration : registrations_) {
+        if (!RegistrationMatches(
+                registration, uri, requireScheme, requireAssembly)) {
+            continue;
+        }
+        XamlProviderResolution result;
+        result.provider = registration.provider.Get();
+        result.cacheIdentity = Base::MixHash64(
+            registration.identity ^
+            Base::DefaultHash<Base::StringView>{}(
+                registration.scheme.View()) ^
+            Base::DefaultHash<Base::StringView>{}(
+                registration.assembly.View(), UINT64_C(0xA3E0)));
+        return result;
+    }
     if (parent_ != nullptr) {
         Base::Result<XamlProviderResolution> inherited =
             parent_->ResolveRoute(uri, requireScheme, requireAssembly);
@@ -3331,21 +3370,6 @@ XamlProviderRegistry::ResolveRoute(
         if (inherited.GetStatus().code != Base::ErrorCode::NotFound) {
             return inherited.GetStatus();
         }
-    }
-    for (const XamlProviderRegistration& registration : registrations_) {
-        if (!RegistrationMatches(
-                registration, uri, requireScheme, requireAssembly)) {
-            continue;
-        }
-        XamlProviderResolution result;
-        result.provider = registration.provider;
-        result.cacheIdentity = Base::MixHash64(
-            registration.provider->CacheIdentity() ^
-            Base::DefaultHash<Base::StringView>{}(
-                registration.scheme.View()) ^
-            Base::DefaultHash<Base::StringView>{}(
-                registration.assembly.View(), UINT64_C(0xA3E0)));
-        return result;
     }
     return Base::Status::Failure(
         Base::ErrorCode::NotFound,
@@ -3391,6 +3415,14 @@ XamlProviderRegistry::Resolve(
         : Base::Result<XamlProvider*>(resolved.GetStatus());
 }
 
+bool XamlProviderRegistry::Contains(
+    const XamlProvider& provider) const noexcept {
+    for (const XamlProviderRegistration& registration : registrations_) {
+        if (registration.provider.Get() == &provider) return true;
+    }
+    return false;
+}
+
 Base::Result<void> EmbeddedXamlProvider::Add(
     const Base::ResourceUri& uri,
     Base::Span<const std::uint8_t> bytes,
@@ -3423,12 +3455,6 @@ Base::Result<void> EmbeddedXamlProvider::Add(
     entry.revision = revision;
     Base::Result<void> stored = entries_.PushBack(std::move(entry));
     if (!stored) return stored.GetStatus();
-    cacheIdentity_ = Base::HashBytes(
-        uri.Canonical().Data(),
-        uri.Canonical().SizeBytes(),
-        cacheIdentity_ ^ revision);
-    cacheIdentity_ = Base::HashBytes(
-        bytes.Data(), bytes.Size(), cacheIdentity_);
     return {};
 }
 
@@ -3840,6 +3866,11 @@ LoaderState::Operation::LoadCompiledDocument(
     context.effectLifetime = runtime.effectLifetime;
     context.effectCommitMode = runtime.effectCommitMode;
     context.maxObjects = options.limits.maxObjects;
+    // Source-backed compiled documents need the same two-phase resource
+    // resolution as streamed documents. Merged ResourceDictionary sources
+    // are committed by the load finalizer before queued StaticResource
+    // references are written.
+    context.deferUnresolvedStaticResources = true;
     FinalizeState finalize{
         this, &options, &originUri, &document};
     context.finalize = &FinalizeLoad;

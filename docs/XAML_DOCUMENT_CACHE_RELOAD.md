@@ -91,7 +91,7 @@ shutdown 会先使该 lifetime 失效，从而避免晚释放 document 访问悬
 ## Reload coordinator
 
 ```cpp
-Aero::Integration::ReloadCoordinator reload(view.Host());
+Aero::Markup::ReloadCoordinator reload(view);
 reload.Start("Views/Main.xaml", {1280.0f, 720.0f});
 
 // 由宿主开发循环显式调用。

@@ -146,7 +146,9 @@ struct DesktopHostState {
             Markup::XamlReader reader(owner->environment);
             Base::Result<Markup::XamlDocument> loaded =
                 reader.LoadComponent<Window>(
-                    uri.Canonical(), {}, owner->diagnostics);
+                    uri.Canonical(),
+                    owner->application->GetResources(),
+                    {}, owner->diagnostics);
             if (!loaded) return loaded.GetStatus();
             const Base::Ref<Base::Object>& root = loaded.Value().Root();
             if (!root) {
@@ -281,15 +283,19 @@ struct DesktopHostState {
             const Size size{
                 static_cast<double>(width) / dpiScale,
                 static_cast<double>(height) / dpiScale};
-            view->SetScale(dpiScale);
-            view->SetSize(size);
+            Base::Result<void> viewport = view->SetViewport(
+                {size, width, height, dpiScale});
+            if (!viewport) return viewport.GetStatus();
+            Base::Result<void> mounted;
             if (programmaticRoot) {
-                view->SetContent(
+                mounted = view->SetContent(
                     Base::Ref<FrameworkElement>::FromBorrowed(*window),
                     size);
             } else {
-                view->SetContent(std::move(loadedDocument), size);
+                mounted = view->SetContent(
+                    std::move(loadedDocument), size);
             }
+            if (!mounted) return mounted.GetStatus();
             DesktopHost::AttachWindow(*window, &runtime);
             DesktopHost::NotifyWindowSourceInitialized(*window);
             return {};
@@ -362,6 +368,7 @@ struct DesktopHostState {
                 return {};
             case Platform::WindowEventType::PointerMove:
             case Platform::WindowEventType::PointerDown:
+            case Platform::WindowEventType::PointerDoubleClick:
             case Platform::WindowEventType::PointerUp:
             case Platform::WindowEventType::PointerWheel: {
                 Base::Result<void> resized = ApplyPendingResize();
@@ -372,12 +379,21 @@ struct DesktopHostState {
                 if (event.type == Platform::WindowEventType::PointerDown) {
                     handled = view->MouseButtonDown(
                         x, y, MapButton(event.button));
+                } else if (event.type ==
+                           Platform::WindowEventType::PointerDoubleClick) {
+                    handled = view->MouseDoubleClick(
+                        x, y, MapButton(event.button));
                 } else if (event.type == Platform::WindowEventType::PointerUp) {
                     handled = view->MouseButtonUp(
                         x, y, MapButton(event.button));
                 } else if (event.type == Platform::WindowEventType::PointerWheel) {
-                    handled = view->MouseWheel(
-                        x, y, static_cast<int>(event.wheelDeltaY / 120.0));
+                    handled = event.wheelDeltaX != 0.0
+                        ? view->MouseHWheel(
+                            x, y,
+                            static_cast<int>(event.wheelDeltaX / 120.0))
+                        : view->MouseWheel(
+                            x, y,
+                            static_cast<int>(event.wheelDeltaY / 120.0));
                 } else {
                     handled = view->MouseMove(x, y);
                 }
@@ -428,8 +444,9 @@ struct DesktopHostState {
             const Size logicalSize{
                 static_cast<double>(width) / nextDpiScale,
                 static_cast<double>(height) / nextDpiScale};
-            view->SetScale(nextDpiScale);
-            view->SetSize(logicalSize);
+            Base::Result<void> viewport = view->SetViewport(
+                {logicalSize, width, height, nextDpiScale});
+            if (!viewport) return viewport.GetStatus();
             dpiScale = nextDpiScale;
             frameRequested = true;
             return {};
@@ -495,7 +512,7 @@ struct DesktopHostState {
             updateClockInitialized = true;
             updateTimeSeconds +=
                 static_cast<double>(elapsedMilliseconds) / 1000.0;
-            view->Update(updateTimeSeconds);
+            const bool committed = view->Update(updateTimeSeconds);
 
             if (!renderContext || !renderContext->IsReady()) {
                 return HostFailure(
@@ -512,7 +529,7 @@ struct DesktopHostState {
                     "Application render device is unavailable");
             }
             const bool needsRender = force || frameRequested ||
-                synchronized || !firstFrameRendered;
+                committed || synchronized || !firstFrameRendered;
             if (!needsRender) return {};
 
             if (!renderer.RenderOffscreen()) {
@@ -673,6 +690,7 @@ struct DesktopHostState {
     ~DesktopHostState() noexcept {
         ShutdownWindows();
         if (application != nullptr) {
+            ReleaseAdoptedApplicationResources();
             DesktopHost::DetachApplication(*application);
         }
         application = nullptr;
@@ -729,6 +747,7 @@ struct DesktopHostState {
             }
             DesktopHost::AdoptApplicationResources(
                 *application, std::move(sharedResources).Value());
+            applicationResourcesAdopted = true;
             const Base::StringView startup =
                 application->GetStartupUri().Empty()
                 ? authored.GetStartupUri()
@@ -957,6 +976,7 @@ struct DesktopHostState {
         ShutdownWindows();
         if (application != nullptr) {
             DesktopHost::RaiseApplicationExit(*application, result);
+            ReleaseAdoptedApplicationResources();
             DesktopHost::DetachApplication(*application);
             application = nullptr;
         }
@@ -968,6 +988,18 @@ struct DesktopHostState {
         while (!windows.Empty()) {
             RemoveWindowAt(windows.Size() - 1U);
         }
+    }
+
+    void ReleaseAdoptedApplicationResources() noexcept {
+        if (!applicationResourcesAdopted || application == nullptr) return;
+        // App.xaml resources may contain DependencyObjects whose property
+        // registry belongs to this host's Gui. Release the shared application
+        // layer before the Gui schema is destroyed; a caller-owned
+        // Application otherwise outlives the registry that its templates and
+        // Freezables require during destruction.
+        DesktopHost::AdoptApplicationResources(
+            *application, ResourceDictionary{});
+        applicationResourcesAdopted = false;
     }
 
     void RequestExit(int requestedExitCode) noexcept {
@@ -1024,6 +1056,7 @@ struct DesktopHostState {
     Application* application = nullptr;
     Window* mainWindow = nullptr;
     bool exitRequested = false;
+    bool applicationResourcesAdopted = false;
     int exitCode = 0;
 };
 

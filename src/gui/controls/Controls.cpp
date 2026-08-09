@@ -1,14 +1,14 @@
-#include "gui/MetadataRuntime.hpp"
-#include "gui/PropertyRuntime.hpp"
-#include "gui/FreezableRuntime.hpp"
-#include "gui/ElementRuntime.hpp"
-#include "gui/RoutedEventRuntime.hpp"
-#include "gui/InputRuntime.hpp"
-#include "gui/LayoutRuntime.hpp"
-#include "gui/BindingRuntime.hpp"
-#include "gui/AnimationRuntime.hpp"
-#include "gui/StyleRuntime.hpp"
-#include "gui/StyleRuntime.hpp"
+#include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/property/PropertyRuntime.hpp"
+#include "gui/base/FreezableRuntime.hpp"
+#include "gui/base/ElementRuntime.hpp"
+#include "gui/base/RoutedEventRuntime.hpp"
+#include "gui/input/InputRuntime.hpp"
+#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/resources/StyleRuntime.hpp"
+#include "gui/resources/StyleRuntime.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
@@ -17,16 +17,16 @@
 #include <Aero/Shapes.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include "gui/media/BrushRendering.hpp"
-#include "gui/MetadataRuntime.hpp"
-#include "gui/PropertyRuntime.hpp"
-#include "gui/FreezableRuntime.hpp"
-#include "gui/ElementRuntime.hpp"
-#include "gui/RoutedEventRuntime.hpp"
-#include "gui/InputRuntime.hpp"
-#include "gui/LayoutRuntime.hpp"
-#include "gui/BindingRuntime.hpp"
-#include "gui/AnimationRuntime.hpp"
-#include "gui/StyleRuntime.hpp"
+#include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/property/PropertyRuntime.hpp"
+#include "gui/base/FreezableRuntime.hpp"
+#include "gui/base/ElementRuntime.hpp"
+#include "gui/base/RoutedEventRuntime.hpp"
+#include "gui/input/InputRuntime.hpp"
+#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/resources/StyleRuntime.hpp"
 #include "gui/media/AnimationRuntime.hpp"
 #include "gui/media/BrushRuntime.hpp"
 #include "gui/media/EffectRuntime.hpp"
@@ -50,17 +50,27 @@ void RichText::OnTextChanged(
         TextProperty, Base::StringView{});
     Base::String plain;
     bool tag = false;
+    std::uint32_t textBegin = 0U;
     for (std::uint32_t index = 0U; index < source.SizeBytes(); ++index) {
         const char character = source[index];
-        if (character == '[') {
+        if (!tag && character == '[') {
+            if (index > textBegin &&
+                !plain.Append(source.Substr(textBegin, index - textBegin))) {
+                return;
+            }
             tag = true;
             continue;
         }
         if (tag) {
-            if (character == ']') tag = false;
-            continue;
+            if (character == ']') {
+                tag = false;
+                textBegin = index + 1U;
+            }
         }
-        if (!plain.Append(Base::StringView(&character, 1U))) return;
+    }
+    if (!tag && textBegin < source.SizeBytes() &&
+        !plain.Append(source.Substr(textBegin))) {
+        return;
     }
     static_cast<Controls::TextBlock&>(object).SetText(plain.View());
 }

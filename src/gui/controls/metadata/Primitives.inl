@@ -50,6 +50,10 @@ Base::Result<void> PopulateControlsPrimitives(
 
     auto control = Meta::Register<Control>(context);
     control
+        .Event(
+            Control::PreviewMouseDoubleClickEvent,
+            RoutingStrategy::Tunnel)
+        .Event(Control::MouseDoubleClickEvent)
         .Override(
             UIElement::FocusableProperty,
             FrameworkPropertyMetadata(true))

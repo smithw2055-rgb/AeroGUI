@@ -23,6 +23,8 @@
 #include <string>
 #include <utility>
 
+#include <AeroApp/App.hpp>
+
 namespace {
 
 class FileStream final : public Aero::Base::Stream {
@@ -152,9 +154,6 @@ public:
         return info;
     }
 
-    std::uint64_t CacheIdentity() const noexcept override {
-        return UINT64_C(0x4241434B424C5552);
-    }
 private:
     std::string root_;
 };
@@ -530,7 +529,9 @@ bool Run(Aero::Gui& gui) {
     diagnostics.Clear();
     Aero::Base::Result<Aero::Markup::XamlDocument> loaded = reader.Load(
         "pack://application:,,,/BackgroundBlur;component/MainWindow.xaml",
-        {}, &diagnostics);
+        *resources,
+        {},
+        &diagnostics);
     if (!loaded) {
         std::fprintf(stderr, "LOAD FAIL: %s\n", loaded.GetStatus().message);
         PrintDiagnostics(diagnostics);
@@ -570,10 +571,15 @@ int main(int argc, char** argv) {
             "usage: aero-background-blur-conformance <background-blur-root>\n");
         return 2;
     }
-    BackgroundBlurXamlProvider provider(argv[1]);
+    Aero::Base::Result<Aero::Base::Ref<BackgroundBlurXamlProvider>> provider =
+        Aero::Base::MakeRef<BackgroundBlurXamlProvider>(std::string(argv[1]));
     Aero::Gui gui;
     Aero::Base::Result<void> initialized =
-        gui.AddXamlProvider(provider, "pack", "BackgroundBlur");
+        gui.AddModule(Aero::App::AppMetadataModule());
+    if (initialized) initialized = provider
+        ? gui.SetXamlProvider(
+            std::move(provider).Value(), "pack", "BackgroundBlur")
+        : Aero::Base::Result<void>(provider.GetStatus());
     if (initialized) initialized = gui.Initialize();
     if (!initialized) {
         std::fprintf(stderr, "INITIALIZATION FAIL: %s\n",

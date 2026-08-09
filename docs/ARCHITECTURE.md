@@ -1,8 +1,7 @@
 # AeroGUI-R architecture
 
-This file is the normative description of the current tree. Older milestone
-documents record the path taken; when they disagree with this file, this file
-wins.
+This file is the normative description of the current tree. The migration path
+is retained in Git history rather than as parallel milestone documents.
 
 ## Product and SDK boundary
 
@@ -68,10 +67,24 @@ Heavy source-only objects own their state directly. Delayed states use inline
 storage owned by the object, not a second heap allocation or virtual Pimpl
 lifetime.
 
+`src/gui` is divided into the stable implementation domains `base`,
+`metadata`, `property`, `binding`, `resources`, `layout`, `input`,
+`interactivity`, `controls`, `markup`, `media`, `text`, `diagnostics`, and
+`modules`. Its root is reserved for the `Gui`, `View`, `ViewState`, and
+`ViewRenderer` composition files. The concrete View implementation remains in
+one `View.cpp`, matching the Noesis-style concrete View boundary.
+
 ## View and rendering
 
 Each `View` owns one `ViewState` and one concrete `ViewRenderer`. The device is
 shareable across views and does not own a renderer.
+
+Hosts may submit a complete logical/pixel/DPI viewport transaction through
+`View::SetViewport()`, while `SetSize()` and `SetScale()` remain the familiar
+Noesis-shaped conveniences. `View::Update()` returns true only when the update
+commits a new immutable `RenderFrame`. Double-click input preserves the normal
+mouse-down route with `ClickCount == 2` and then raises WPF-shaped Control
+double-click events; horizontal wheel input uses `MouseWheelEventArgs::DeltaX`.
 
 ```text
 retained UI
@@ -110,6 +123,15 @@ the complete pending document until `CreateView(root)` or `View::SetContent(root
 mounts it; NameScope, resources, visual edges, and deferred effects are not
 discarded. `GuiSchema`, XAML schema facets, compiled documents, provider
 routing, document caching, and object writing remain Gui-owned implementation.
+
+Gui strongly owns XAML, texture, and font providers through `Ref<>` values.
+`SetXamlProvider()` replaces an existing route before initialization, and
+resolution order is `scheme+assembly`, `scheme`, `assembly`, then default;
+built-in XAML providers form only the fallback registry. Provider identities
+are registry-private. Provider change notifications are raised on the Gui
+dispatcher thread: XAML notifications invalidate dependent documents for
+`ReloadCoordinator::Poll()`, while texture and font notifications are consumed
+by each View on its next update.
 
 ## Verification
 

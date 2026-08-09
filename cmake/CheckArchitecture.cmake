@@ -194,7 +194,11 @@ aero_forbid_text(
     "Aero::Application"
     "AeroGui Markup must not link back to AeroApp symbols")
 aero_require_text(
-    "src/app/Metadata.hpp"
+    "include/AeroApp/App.hpp"
+    "AppMetadataModule()"
+    "Custom App hosts must be able to register Application and Window metadata")
+aero_require_text(
+    "src/app/Metadata.cpp"
     "module.resourceScopes = resourceScopes;"
     "The App module must provide its Application resource-scope capability")
 
@@ -241,8 +245,8 @@ aero_forbid_text(
 
 aero_require_text(
     "include/Aero/View.hpp"
-    "void Update(double timeInSeconds) noexcept;"
-    "View must expose one absolute-time, Result-free frame update")
+    "bool Update(double timeInSeconds) noexcept;"
+    "View must report whether an immutable frame was committed")
 aero_forbid_text(
     "include/Aero/View.hpp"
     "Result<void> Update("
@@ -301,8 +305,7 @@ aero_forbid_text(
 foreach(required_architecture_document IN ITEMS
         "docs/ARCHITECTURE.md"
         "docs/SOURCE_ARCHITECTURE.md"
-        "docs/WINDOW_HOSTING.md"
-        "docs/REFACTOR_CLOSURE_S18_S24.md")
+        "docs/WINDOW_HOSTING.md")
     aero_require_file("${required_architecture_document}")
 endforeach()
 aero_require_file("cmake/CheckWindowsExports.cmake")
@@ -374,12 +377,20 @@ foreach(required_source_entry IN ITEMS
         "src/gui/View.cpp"
         "src/gui/ViewRenderer.hpp"
         "src/gui/ViewState.hpp"
+        "src/gui/base"
+        "src/gui/metadata"
+        "src/gui/property"
+        "src/gui/binding"
+        "src/gui/resources"
+        "src/gui/layout"
         "src/gui/controls"
         "src/gui/diagnostics"
         "src/gui/input"
+        "src/gui/interactivity"
         "src/gui/markup"
         "src/gui/media"
         "src/gui/text"
+        "src/gui/modules"
         "src/gui/markup/XamlProvider.cpp"
         "src/gui/markup/XamlReader.cpp"
         "src/gui/input/Clipboard.cpp"
@@ -469,6 +480,98 @@ foreach(source_contract_file IN LISTS aero_source_contract_files)
         endif()
     endforeach()
 endforeach()
+
+file(GLOB aero_gui_root_files
+    RELATIVE "${AERO_SOURCE_DIR}"
+    "${AERO_SOURCE_DIR}/src/gui/*.cpp"
+    "${AERO_SOURCE_DIR}/src/gui/*.hpp")
+set(aero_allowed_gui_root_files
+    "src/gui/Gui.cpp"
+    "src/gui/GuiData.hpp"
+    "src/gui/View.cpp"
+    "src/gui/ViewState.hpp"
+    "src/gui/ViewRenderer.hpp"
+    "src/gui/ViewRendererResources.cpp"
+    "src/gui/ViewRendererResources.hpp")
+foreach(aero_gui_root_file IN LISTS aero_gui_root_files)
+    if(NOT aero_gui_root_file IN_LIST aero_allowed_gui_root_files)
+        message(FATAL_ERROR
+            "src/gui root is reserved for Gui/View composition files: ${aero_gui_root_file}")
+    endif()
+endforeach()
+
+file(READ "${AERO_SOURCE_DIR}/cmake/AeroGuiTargets.cmake"
+    aero_gui_target_source_text)
+file(GLOB_RECURSE aero_gui_cpp_sources
+    RELATIVE "${AERO_SOURCE_DIR}"
+    "${AERO_SOURCE_DIR}/src/gui/*.cpp")
+foreach(aero_gui_cpp_source IN LISTS aero_gui_cpp_sources)
+    string(REGEX MATCHALL "${aero_gui_cpp_source}"
+        aero_gui_source_owners "${aero_gui_target_source_text}")
+    list(LENGTH aero_gui_source_owners aero_gui_source_owner_count)
+    if(NOT aero_gui_source_owner_count EQUAL 1)
+        message(FATAL_ERROR
+            "Gui source must have exactly one explicit AeroGui compile owner: ${aero_gui_cpp_source} (${aero_gui_source_owner_count})")
+    endif()
+endforeach()
+
+aero_forbid_text(
+    "include/Aero/Gui.hpp" "AddXamlProvider"
+    "The retired host-owned XAML provider API must not return")
+aero_forbid_text(
+    "include/Aero/Gui.hpp" "AddTextureProvider"
+    "The retired host-owned texture provider API must not return")
+aero_forbid_text(
+    "include/Aero/Gui.hpp" "AddFontProvider"
+    "The retired host-owned font provider API must not return")
+aero_require_text(
+    "include/Aero/Gui.hpp" "Ref<Markup::XamlProvider> provider"
+    "Gui must strongly own configured XAML providers")
+aero_require_text(
+    "include/Aero/Gui.hpp" "Ref<Media::TextureProvider> provider"
+    "Gui must strongly own the texture provider")
+aero_require_text(
+    "include/Aero/Gui.hpp" "Ref<Media::FontProvider> provider"
+    "Gui must strongly own the font provider")
+aero_forbid_text(
+    "include/Aero/Markup/XamlProvider.hpp" "CacheIdentity"
+    "Provider cache identity must remain registry-private")
+aero_forbid_text(
+    "include/Aero/Media/TextureProvider.hpp" "CacheIdentity"
+    "Provider cache identity must remain registry-private")
+aero_forbid_text(
+    "src/gui/GuiData.hpp" "XamlProvider*"
+    "Gui provider ownership must not use raw XAML pointers")
+aero_forbid_text(
+    "src/gui/GuiData.hpp" "TextureProvider*"
+    "Gui provider ownership must not use raw texture pointers")
+aero_forbid_text(
+    "src/gui/GuiData.hpp" "FontProvider*"
+    "Gui provider ownership must not use raw font pointers")
+file(GLOB_RECURSE aero_provider_api_consumers
+    RELATIVE "${AERO_SOURCE_DIR}"
+    "${AERO_SOURCE_DIR}/include/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/samples/*.hpp"
+    "${AERO_SOURCE_DIR}/samples/*.cpp"
+    "${AERO_SOURCE_DIR}/tools/*.hpp"
+    "${AERO_SOURCE_DIR}/tools/*.cpp"
+    "${AERO_SOURCE_DIR}/tests/*.hpp"
+    "${AERO_SOURCE_DIR}/tests/*.cpp")
+foreach(aero_provider_api_consumer IN LISTS aero_provider_api_consumers)
+    file(READ
+        "${AERO_SOURCE_DIR}/${aero_provider_api_consumer}"
+        aero_provider_api_content)
+    if(aero_provider_api_content MATCHES
+            "Add(Xaml|Texture|Font)Provider[ \\t\\r\\n]*[(]")
+        message(FATAL_ERROR
+            "Retired Provider API remains: ${aero_provider_api_consumer}")
+    endif()
+endforeach()
+unset(aero_provider_api_consumers)
+unset(aero_provider_api_consumer)
+unset(aero_provider_api_content)
 unset(aero_source_contract_files)
 unset(source_contract_content)
 unset(source_contract_relative)
@@ -848,10 +951,18 @@ aero_forbid_text(
     "include/Aero/View.hpp"
     "QueryReloadSource("
     "Reload source/cache ownership belongs to Gui/Markup")
-aero_forbid_text(
+aero_require_text(
     "include/Aero/View.hpp"
-    "SetViewport("
-    "Installed View must expose SetSize and SetScale rather than a generic viewport protocol")
+    "Result<void> SetViewport(const ViewViewport& viewport) noexcept;"
+    "Installed View must support atomic logical/pixel/DPI viewport updates")
+aero_require_text(
+    "include/Aero/View.hpp"
+    "void SetSize("
+    "Installed View must retain the Noesis-friendly SetSize facade")
+aero_require_text(
+    "include/Aero/View.hpp"
+    "void SetScale(double scale) noexcept;"
+    "Installed View must retain the Noesis-friendly SetScale facade")
 aero_forbid_text(
     "include/Aero/View.hpp"
     "DispatchPointer("
@@ -1051,6 +1162,23 @@ foreach(retired_object_layer IN ITEMS
         message(FATAL_ERROR
             "Product implementation object layer was recreated: ${retired_object_layer}")
     endif()
+endforeach()
+
+foreach(aero_authoritative_document IN ITEMS
+        "docs/ARCHITECTURE.md"
+        "docs/SDK_PACKAGING.md"
+        "docs/WINDOW_HOSTING.md"
+        "docs/WPF_CPP_PORT_SPEC.md"
+        "docs/spec/FINAL_SDK_SURFACE.md"
+        "docs/spec/METADATA_PRODUCT_MODEL.md"
+        "docs/spec/PUBLIC_HEADER_MODEL.md"
+        "docs/spec/PUBLIC_NAMESPACE_MODEL.md")
+    aero_forbid_text(
+        "${aero_authoritative_document}" "Aero::Integration"
+        "Authoritative documentation must not reference the retired Integration product")
+    aero_forbid_text(
+        "${aero_authoritative_document}" "src/text"
+        "Authoritative documentation must use the current Gui text domain")
 endforeach()
 
 message(STATUS "Aero final architecture dependency checks passed")

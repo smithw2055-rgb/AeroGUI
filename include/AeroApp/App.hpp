@@ -41,6 +41,10 @@ struct RunOptions  {
     Base::IAllocator* allocator = nullptr;
 };
 
+// Registers the Application and Window XAML types for custom hosts and
+// tooling that initialize Gui directly instead of using Application::Run().
+AERO_APP_API ModuleRegistration AppMetadataModule() noexcept;
+
 // Generated/XAML-only bootstrap. Ordinary C++ applications should call
 // Application::Run() on their application instance.
 AERO_APP_API int Run(const RunOptions& options = {}) noexcept;

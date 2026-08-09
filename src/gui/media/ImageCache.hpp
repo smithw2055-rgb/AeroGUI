@@ -32,6 +32,9 @@ public:
         Media::TextureProvider* textureProvider,
         ::Aero::Render::ImageResources* backend,
         bool backendGenerationChanged) noexcept;
+    bool Invalidate(
+        const Base::ResourceUri& uri,
+        ::Aero::Render::ImageResources* backend) noexcept;
     void ReleaseBackendResources(
         ::Aero::Render::ImageResources* backend) noexcept;
     void Shutdown(

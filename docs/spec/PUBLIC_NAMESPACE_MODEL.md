@@ -23,22 +23,22 @@ name as their stable identity.
 
 ## Product headers
 
-The public API is organized around three product surfaces and one authoring
-extension:
+The public API is organized around Gui, Render backend, App, Audio, and Meta
+authoring surfaces:
 
 - `<Aero/Gui.hpp>` is the retained-mode WPF/XAML class library. It contains the
   dependency-object spine, routed events, layout values, styles, resources,
   controls, data binding, input, media and shapes.
 - `<AeroApp/App.hpp>` adds the optional default desktop lifetime to
   `Application` and `Window`; `App::RunOptions` configures optional host details.
-- `<Aero/Integration.hpp>` exposes renderer, host and native-window integration
-  for engines and existing application frameworks.
+- `<AeroRender/Render.hpp>` exposes backend-neutral renderer/device/target
+  contracts; D3D11 and OpenGL factories are opt-in backend products.
 - `<Aero/Meta.hpp>` and `<Aero/Module.hpp>` layer typed metadata and module
   authoring over the normal Gui class library for custom-control authors.
 
-The matching CMake targets are `Aero::Gui`, `Aero::App`, `Aero::Integration`
-and `Aero::Meta`. Compatibility product targets do not form a second supported
-SDK.
+The matching CMake targets are `Aero::Base`, `Aero::Gui`, `Aero::Render`,
+`Aero::RenderD3D11`, `Aero::RenderOpenGL33`, `Aero::App`, and optional
+`Aero::Audio`. `Aero::Meta` is an authoring namespace within Gui, not a target.
 
 ## Public namespaces
 
@@ -57,7 +57,7 @@ SDK.
 | `System.Windows.Threading` | `Aero::Threading` | `Dispatcher`, `DispatcherObject` |
 | Stable value and ID contracts | `Aero::Base` | `TypeId`, `MemberId`, `Value`, `Result`, `Stream` |
 | Aero metadata authoring | `Aero::Meta` | `TypeTraits`, `TypeBuilder`, `Registration`, `Registry` |
-| Host and renderer integration | `Aero::Integration` | `ViewOptions`, opaque render attachment and native integration APIs |
+| Host and renderer integration | `Aero`, `Aero::Render` | `ViewOptions`, `View`, `IRenderer`, `RenderDevice`, `RenderTarget` |
 | Default application framework | `Aero::App` | `RunOptions`, generated `App::Run()` bootstrap |
 | Transitional ABI implementation | `Aero::Base::Detail` | header-only helpers and private ABI seams; never user-facing |
 
@@ -95,7 +95,7 @@ permanent alternatives.
 `cmake/AeroPublicNamespaces.cmake` is the canonical manifest for installed
 namespace prefixes. It contains the WPF semantic families (`Aero`,
 `Controls`, `Media`, `Data`, `Input`, `Documents`, `Shapes`, `Markup`,
-`Threading`, and `Collections`) plus the explicit Base, Integration, App,
+`Threading`, and `Collections`) plus the explicit Base, Render, App,
 Audio and Meta specialist surfaces. `Aero::Base::Detail` is a transitional
 ABI-only prefix; it may be used for
 forward declarations required by object layout, but may not acquire ordinary
@@ -103,7 +103,7 @@ authoring types.
 
 Installed headers contain no `using namespace` directives. `Aero::Render` and
 product-layer `Detail` namespaces (`Aero::Detail`, `Controls::Detail`,
-`Media::Detail`, `Markup::Detail`, `Integration::Detail` and `App::Detail`)
+`Media::Detail`, `Markup::Detail` and `App::Detail`)
 are source-only implementation spaces and are rejected by the architecture
 check. Render trees, GPU state, text providers, XAML tokenizers and template
 programs therefore remain under `src/` rather than becoming SDK namespaces.
@@ -151,7 +151,7 @@ locator, or duplicate `Aero::App::Application` / `Window` type.
 
 `Aero::Application` owns application resources and startup/shutdown policy only.
 It does not become a graphics or platform service locator. Embedded engines may
-consume the Gui and Integration products without using the default App product.
+consume Gui plus one Render backend without using the default App product.
 
 Application and Window metadata are owned by the App module. Controls does not
 include or register App types, preserving the dependency direction
@@ -161,7 +161,7 @@ include or register App types, preserving the dependency direction
 
 1. Application and Window namespace boundary.
 2. `Application::Run()` with a private desktop host and no public launcher.
-3. Gui, App, Integration and Meta product targets.
+3. Gui, Render backend, App, Audio, and Meta authoring boundaries.
 4. App-owned Application/Window metadata.
 5. Controls primitives and WPF-aligned public control domains.
 6. Data, Media, Animation, Input, Documents and Shapes.

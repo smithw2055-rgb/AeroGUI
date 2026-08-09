@@ -20,6 +20,8 @@
 #include <string>
 #include <utility>
 
+#include <AeroApp/App.hpp>
+
 namespace Inventory {
 
 inline constexpr Aero::Base::StringView XamlNamespace(
@@ -635,7 +637,6 @@ public:
         info.revision = 1U;
         return info;
     }
-    std::uint64_t CacheIdentity() const noexcept override { return UINT64_C(0x494E56454E544F52); }
 private:
     std::string root_;
 };
@@ -1067,8 +1068,14 @@ bool LoadOne(Aero::Gui& gui, const char* relative) {
     std::string uri = "pack://application:,,,/Inventory;component/";
     uri += relative;
     diagnostics.Clear();
-    Aero::Base::Result<Aero::Markup::XamlDocument> loaded = reader.Load(
-        Aero::Base::StringView(uri.data(), static_cast<std::uint32_t>(uri.size())), {}, &diagnostics);
+    Aero::Base::Result<Aero::Markup::XamlDocument> loaded =
+        reader.Load(
+            Aero::Base::StringView(
+                uri.data(),
+                static_cast<std::uint32_t>(uri.size())),
+            *resources,
+            {},
+            &diagnostics);
     if (!loaded) {
         std::fprintf(stderr, "LOAD FAIL %s: %s\n", relative, loaded.GetStatus().message);
         PrintDiagnostics(diagnostics);
@@ -1129,10 +1136,15 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "usage: aero-inventory-conformance <inventory-root> [xaml]\n");
         return 2;
     }
-    InventoryXamlProvider provider(argv[1]);
+    Aero::Base::Result<Aero::Base::Ref<InventoryXamlProvider>> provider =
+        Aero::Base::MakeRef<InventoryXamlProvider>(std::string(argv[1]));
     Aero::Gui gui;
-    Aero::Base::Result<void> result = gui.AddModule(InventoryModule);
-    if (result) result = gui.AddXamlProvider(provider, "pack", "Inventory");
+    Aero::Base::Result<void> result =
+        gui.AddModule(Aero::App::AppMetadataModule());
+    if (result) result = gui.AddModule(InventoryModule);
+    if (result && !provider) result = provider.GetStatus();
+    if (result) result = gui.SetXamlProvider(
+        std::move(provider).Value(), "pack", "Inventory");
     if (result) result = gui.Initialize();
     if (!result) { std::fprintf(stderr, "initialization failed: %s\n", result.GetStatus().message); return 1; }
     if (argc >= 3) return LoadOne(gui, argv[2]) ? 0 : 1;

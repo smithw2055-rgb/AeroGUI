@@ -1583,6 +1583,7 @@ public:
         builder_.TextConverter(converter);
         return *this;
     }
+#endif
 
     TypeBuilder& PropertyChangeNotifications(
         PropertyChangeSubscribeCallback subscribe,
@@ -1601,7 +1602,6 @@ public:
             subscribe, unsubscribe, callbackContext);
         return *this;
     }
-#endif
 
     TypeBuilder& Value(
         StringView name,

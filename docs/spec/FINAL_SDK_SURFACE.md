@@ -19,8 +19,8 @@ presentation adapters are not SDK products.
 The installed CMake package exports `Aero::Base`, `Aero::Gui`, the
 `Aero::Render` interface target, both Render backend products, `Aero::App` and
 optional modules. `Aero::Meta` is an authoring namespace within Gui, not a
-linker target. `Aero::Integration`
-is retired. Internal object components, metadata stores, XAML builders,
+linker target. There is no Integration product or independent Meta linker
+target. Internal object components, metadata stores, XAML builders,
 Renderer internals and native window/surface adapters are not exported products.
 
 ## Desktop model
@@ -38,7 +38,7 @@ Aero::Controls::*
 
 `Application::Run()` owns the optional native desktop loop. Each top-level
 Window owns one View while source-private App hosting owns its native window and
-`App::Detail::RenderContext`.
+source-private `App::RenderContext`.
 
 ## Embedded model
 

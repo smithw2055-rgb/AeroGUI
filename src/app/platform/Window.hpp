@@ -18,6 +18,7 @@ enum class WindowEventType : std::uint8_t {
     Exposed,
     PointerMove,
     PointerDown,
+    PointerDoubleClick,
     PointerUp,
     PointerWheel,
     KeyDown,

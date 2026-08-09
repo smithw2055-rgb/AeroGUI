@@ -233,7 +233,7 @@ if(AERO_WITH_FREETYPE)
     endif()
     if(AERO_THIRD_PARTY_ROOT STREQUAL "")
         message(FATAL_ERROR
-            "AeroRuntime requires FreeType and HarfBuzz sources. "
+            "AeroGui requires FreeType and HarfBuzz sources. "
             "Set AERO_THIRD_PARTY_ROOT to a directory containing "
             "freetype/ and harfbuzz/, or initialize the repository "
             "submodules.")

@@ -1095,7 +1095,8 @@ struct XamlProviderResolution {
 struct XamlProviderRegistration {
     Base::String scheme;
     Base::String assembly;
-    XamlProvider* provider = nullptr;
+    Base::Ref<XamlProvider> provider;
+    std::uint64_t identity = 0U;
 };
 
 class XamlProviderRegistry {
@@ -1108,28 +1109,16 @@ public:
         Base::IAllocator* allocator) noexcept
         : registrations_(allocator), parent_(parent) {}
 
-    Base::Result<void> Register(
-        XamlProvider& provider,
+    Base::Result<void> Set(
+        Base::Ref<XamlProvider> provider,
         Base::StringView scheme = {},
-        Base::StringView assembly = {}) noexcept;
-    Base::Result<void> Register(
-        XamlProviderAdapter& provider,
-        Base::StringView scheme = {},
-        Base::StringView assembly = {}) noexcept {
-        if (!provider.IsValid()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Markup XAML provider is invalid");
-        }
-        return Register(
-            static_cast<XamlProvider&>(provider),
-            scheme,
-            assembly);
-    }
+        Base::StringView assembly = {},
+        Base::Ref<XamlProvider>* replaced = nullptr) noexcept;
     Base::Result<XamlProviderResolution> ResolveDetailed(
         const Base::ResourceUri& uri) const noexcept;
     Base::Result<XamlProvider*> Resolve(
         const Base::ResourceUri& uri) const noexcept;
+    bool Contains(const XamlProvider& provider) const noexcept;
 
     std::uint32_t ProviderCount() const noexcept {
         return registrations_.Size() +
@@ -1163,9 +1152,6 @@ public:
         const Base::ResourceUri& uri) const noexcept override;
     Base::Result<std::uint64_t> Revision(
         const Base::ResourceUri& uri) const noexcept override;
-    std::uint64_t CacheIdentity() const noexcept override {
-        return cacheIdentity_;
-    }
 
     bool IsFrozen() const noexcept { return frozen_; }
     std::uint32_t SourceCount() const noexcept {
@@ -1180,7 +1166,6 @@ private:
     };
 
     Base::Vector<Entry> entries_;
-    std::uint64_t cacheIdentity_ = UINT64_C(0xA3E0E4BEDDED0001);
     bool frozen_ = false;
 };
 
@@ -1196,11 +1181,6 @@ public:
         const Base::ResourceUri& uri) const noexcept override;
     Base::Result<std::uint64_t> Revision(
         const Base::ResourceUri& uri) const noexcept override;
-    std::uint64_t CacheIdentity() const noexcept override {
-        return Base::MixHash64(
-            UINT64_C(0xA3E0F11E00000001) ^ maxFileBytes_);
-    }
-
 private:
     std::uint64_t maxFileBytes_ = 0U;
 };

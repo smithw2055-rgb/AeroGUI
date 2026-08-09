@@ -228,6 +228,8 @@ protected:
             activeBackBuffer_ != nullptr) {
             return InvalidArgument("D3D11 presentation resize is invalid");
         }
+        immediateContext_->ClearState();
+        immediateContext_->Flush();
         const HRESULT result = swapChain_->ResizeBuffers(
             0U, width, height, DXGI_FORMAT_UNKNOWN, 0U);
         if (FAILED(result)) {

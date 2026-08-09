@@ -37,7 +37,7 @@ public callbacks; window and present policy remain the host's responsibility.
 
 ```cpp
 Aero::Gui gui;
-gui.AddXamlProvider(sourceProvider, "app");
+gui.SetXamlProvider(sourceProvider, "app");
 gui.Initialize();
 
 auto device = Aero::Render::D3D11::CreateDevice(deviceOptions).Value();

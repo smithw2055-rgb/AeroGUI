@@ -28,46 +28,49 @@ Base::Result<Base::ResourceUri> BuiltInThemeUri(
 
 Base::Result<void> RegisterDefaultXamlProviders(
     Markup::XamlProviderRegistry& providers,
-    Markup::EmbeddedXamlProvider& embedded,
-    Markup::FileXamlProvider& file) noexcept {
+    const Ref<Markup::EmbeddedXamlProvider>& embedded,
+    const Ref<Markup::FileXamlProvider>& file) noexcept {
+    if (!embedded || !file) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Built-in XAML providers are unavailable");
+    }
     Base::Result<Base::ResourceUri> light = BuiltInThemeUri("Light.xaml");
     if (!light) return light.GetStatus();
-    Base::Result<void> status = embedded.Add(
+    Base::Result<void> status = embedded->Add(
         light.Value(), {::Aero::AeroThemeLightSource,
             static_cast<std::uint32_t>(sizeof(::Aero::AeroThemeLightSource))});
     if (!status) return status.GetStatus();
     Base::Result<Base::ResourceUri> dark = BuiltInThemeUri("Dark.xaml");
     if (!dark) return dark.GetStatus();
-    status = embedded.Add(
+    status = embedded->Add(
         dark.Value(), {::Aero::AeroThemeDarkSource,
             static_cast<std::uint32_t>(sizeof(::Aero::AeroThemeDarkSource))});
     if (!status) return status.GetStatus();
     Base::Result<Base::ResourceUri> generic = BuiltInThemeUri("Generic.xaml");
     if (!generic) return generic.GetStatus();
-    status = embedded.Add(
+    status = embedded->Add(
         generic.Value(), {::Aero::AeroThemeGenericSource,
             static_cast<std::uint32_t>(sizeof(::Aero::AeroThemeGenericSource))});
     if (!status) return status.GetStatus();
     Base::Result<Base::ResourceUri> lightBlue = Base::ResourceUri::Parse(
         "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.LightBlue.xaml");
     if (!lightBlue) return lightBlue.GetStatus();
-    status = embedded.Add(
+    status = embedded->Add(
         lightBlue.Value(), {::Aero::AeroThemeLightSource,
             static_cast<std::uint32_t>(sizeof(::Aero::AeroThemeLightSource))});
     if (!status) return status.GetStatus();
     Base::Result<Base::ResourceUri> darkBlue = Base::ResourceUri::Parse(
         "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.DarkBlue.xaml");
     if (!darkBlue) return darkBlue.GetStatus();
-    status = embedded.Add(
+    status = embedded->Add(
         darkBlue.Value(), {::Aero::AeroThemeDarkSource,
             static_cast<std::uint32_t>(sizeof(::Aero::AeroThemeDarkSource))});
     if (!status) return status.GetStatus();
 
-    auto registerProvider = [&](Markup::XamlProvider& provider,
+    auto registerProvider = [&](Ref<Markup::XamlProvider> provider,
                                 Base::StringView scheme) noexcept -> Base::Result<void> {
-        Base::Result<void> registered = providers.Register(provider, scheme);
-        return !registered && registered.GetStatus().code != Base::ErrorCode::AlreadyExists
-            ? Base::Result<void>(registered.GetStatus()) : Base::Result<void>();
+        return providers.Set(std::move(provider), scheme);
     };
     status = registerProvider(embedded, "pack");
     if (!status) return status.GetStatus();
@@ -173,8 +176,8 @@ Base::Result<void> Gui::AddModule(
     return state.modules.Add(registration);
 }
 
-Base::Result<void> Gui::AddXamlProvider(
-    Markup::XamlProvider& provider,
+Base::Result<void> Gui::SetXamlProvider(
+    Ref<Markup::XamlProvider> provider,
     Base::StringView scheme,
     Base::StringView assembly) noexcept {
     GuiState& state = static_cast<GuiState&>(*state_);
@@ -183,30 +186,103 @@ Base::Result<void> Gui::AddXamlProvider(
             Base::ErrorCode::InvalidState,
             "Gui providers are frozen after Initialize");
     }
-    return state.xamlProviders.Register(provider, scheme, assembly);
-}
-
-Base::Result<void> Gui::AddTextureProvider(
-    Media::TextureProvider& provider) noexcept {
-    GuiState& state = static_cast<GuiState&>(*state_);
-    if (state.initialized) {
+    if (!provider) {
         return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Gui providers are frozen after Initialize");
+            Base::ErrorCode::InvalidArgument,
+            "Gui XAML provider is required");
     }
-    state.textureProvider = &provider;
+    bool newlySubscribed = true;
+    for (const Ref<Markup::XamlProvider>& subscribed :
+         state.subscribedXamlProviders) {
+        if (subscribed.Get() == provider.Get()) {
+            newlySubscribed = false;
+            break;
+        }
+    }
+    if (newlySubscribed) {
+        provider->AddChangedHandler(state.xamlChanged);
+        Base::Result<void> retained =
+            state.subscribedXamlProviders.PushBack(provider);
+        if (!retained) {
+            static_cast<void>(provider->RemoveChangedHandler(
+                state.xamlChanged));
+            return retained.GetStatus();
+        }
+    }
+    Ref<Markup::XamlProvider> replaced;
+    Base::Result<void> configured = state.xamlProviders.Set(
+        std::move(provider), scheme, assembly, &replaced);
+    if (!configured) {
+        if (newlySubscribed) {
+            Ref<Markup::XamlProvider> added =
+                std::move(state.subscribedXamlProviders.Back());
+            state.subscribedXamlProviders.PopBack();
+            if (added) {
+                static_cast<void>(added->RemoveChangedHandler(
+                    state.xamlChanged));
+            }
+        }
+        return configured.GetStatus();
+    }
+    if (replaced && !state.xamlProviders.Contains(*replaced)) {
+        static_cast<void>(replaced->RemoveChangedHandler(state.xamlChanged));
+        for (std::uint32_t index = 0U;
+             index < state.subscribedXamlProviders.Size(); ++index) {
+            if (state.subscribedXamlProviders[index].Get() != replaced.Get()) {
+                continue;
+            }
+            if (index + 1U < state.subscribedXamlProviders.Size()) {
+                state.subscribedXamlProviders[index] =
+                    std::move(state.subscribedXamlProviders.Back());
+            }
+            state.subscribedXamlProviders.PopBack();
+            break;
+        }
+    }
     return {};
 }
 
-Base::Result<void> Gui::AddFontProvider(
-    Text::FontProvider& provider) noexcept {
+Base::Result<void> Gui::SetTextureProvider(
+    Ref<Media::TextureProvider> provider) noexcept {
     GuiState& state = static_cast<GuiState&>(*state_);
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Gui providers are frozen after Initialize");
     }
-    state.fontProvider = &provider;
+    if (!provider) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Gui texture provider is required");
+    }
+    if (state.textureProvider) {
+        static_cast<void>(state.textureProvider->RemoveChangedHandler(
+            state.textureChanged));
+    }
+    provider->AddChangedHandler(state.textureChanged);
+    state.textureProvider = std::move(provider);
+    return {};
+}
+
+Base::Result<void> Gui::SetFontProvider(
+    Ref<Media::FontProvider> provider) noexcept {
+    GuiState& state = static_cast<GuiState&>(*state_);
+    if (state.initialized) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Gui providers are frozen after Initialize");
+    }
+    if (!provider) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Gui font provider is required");
+    }
+    if (state.fontProvider) {
+        static_cast<void>(state.fontProvider->RemoveChangedHandler(
+            state.fontChanged));
+    }
+    provider->AddChangedHandler(state.fontChanged);
+    state.fontProvider = std::move(provider);
     return {};
 }
 
@@ -218,9 +294,21 @@ Base::Result<void> Gui::Initialize() noexcept {
     Base::Result<void> finalized = state.schema.Finalize(
         GuiSchemaOptions{state.allocator});
     if (!finalized) return finalized.GetStatus();
+    Base::Result<Ref<Markup::EmbeddedXamlProvider>> embedded =
+        Base::MakeRefWithAllocator<Markup::EmbeddedXamlProvider>(
+            *state.allocator);
+    if (!embedded) return embedded.GetStatus();
+    Base::Result<Ref<Markup::FileXamlProvider>> file =
+        Base::MakeRefWithAllocator<Markup::FileXamlProvider>(
+            *state.allocator);
+    if (!file) return file.GetStatus();
+    state.embeddedXaml = std::move(embedded).Value();
+    state.fileXaml = std::move(file).Value();
     Base::Result<void> providers =
         Aero::RegisterDefaultXamlProviders(
-            state.xamlProviders, state.embeddedXaml, state.fileXaml);
+            state.builtinXamlProviders,
+            state.embeddedXaml,
+            state.fileXaml);
     if (!providers) return providers.GetStatus();
     Base::Result<void> frozen = state.modules.Freeze();
     if (!frozen) return frozen.GetStatus();

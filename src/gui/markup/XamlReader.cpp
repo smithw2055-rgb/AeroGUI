@@ -2,7 +2,7 @@
 #include <Aero/Gui.hpp>
 
 #include "gui/GuiData.hpp"
-#include "gui/PropertyRuntime.hpp"
+#include "gui/property/PropertyRuntime.hpp"
 
 #include <utility>
 
@@ -50,6 +50,25 @@ Base::Result<XamlDocument> XamlReader::Load(
 }
 
 Base::Result<XamlDocument> XamlReader::Load(
+    Base::StringView uri,
+    Aero::ResourceDictionary& resources,
+    const XamlReaderSettings& settings,
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    if (gui_ == nullptr || !gui_->IsInitialized()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "Gui must be initialized before XAML loading");
+    }
+    GuiState& state = static_cast<GuiState&>(*gui_->state_);
+    XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
+    scope.load.resources = &resources;
+    scope.load.fallbackResources = &resources;
+    return state.xaml.Load(
+        state.xamlProviders, &scope.load, state.allocator,
+        uri, settings, diagnostics);
+}
+
+Base::Result<XamlDocument> XamlReader::Load(
     Base::Stream& source,
     const Base::ResourceUri& baseUri,
     const XamlReaderSettings& settings,
@@ -68,9 +87,12 @@ Base::Result<XamlDocument> XamlReader::Load(
 Base::Result<XamlDocument> XamlReader::LoadComponentCore(
     Base::StringView uri,
     Meta::TypeId expectedRoot,
+    ResourceDictionary* resources,
     const XamlReaderSettings& settings,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    Base::Result<XamlDocument> loaded = Load(uri, settings, diagnostics);
+    Base::Result<XamlDocument> loaded = resources != nullptr
+        ? Load(uri, *resources, settings, diagnostics)
+        : Load(uri, settings, diagnostics);
     if (!loaded) return loaded.GetStatus();
     const Base::Ref<Base::Object>& root = loaded.Value().Root();
     if (!root || gui_ == nullptr || expectedRoot == Meta::InvalidTypeId) {

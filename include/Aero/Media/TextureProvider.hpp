@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Delegate.hpp>
+#include <Aero/Base/Object.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -24,7 +26,10 @@ struct TextureResourceInfo {
     TextureInfo texture;
 };
 
-class AERO_GUI_API TextureProvider {
+using TextureProviderChangedHandler =
+    Base::Delegate<void(const Base::ResourceUri&)>;
+
+class AERO_GUI_API TextureProvider : public Base::Object {
 public:
     virtual ~TextureProvider() = default;
 
@@ -36,9 +41,24 @@ public:
             Base::ErrorCode::Unsupported,
             "Texture provider does not expose revision probes");
     }
-    virtual std::uint64_t CacheIdentity() const noexcept {
-        return Base::DefaultHash<const TextureProvider*>{}(this);
+    void AddChangedHandler(
+        const TextureProviderChangedHandler& handler) noexcept {
+        changed_.Add(handler);
     }
+    bool RemoveChangedHandler(
+        const TextureProviderChangedHandler& handler) noexcept {
+        return changed_.Remove(handler);
+    }
+
+protected:
+    // Must be raised on the owning Gui's dispatcher thread. An empty URI
+    // invalidates every texture supplied by this provider.
+    void RaiseChanged(const Base::ResourceUri& uri = {}) noexcept {
+        if (changed_) changed_(uri);
+    }
+
+private:
+    TextureProviderChangedHandler changed_;
 };
 
 } // namespace Aero::Media

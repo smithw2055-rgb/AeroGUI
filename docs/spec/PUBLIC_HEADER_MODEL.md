@@ -18,8 +18,8 @@ The supported product umbrellas are:
 
 Embedding uses the installed `RenderDevice`/`RenderTarget` contracts plus the
 opt-in `<AeroRender/D3D11.hpp>` and `<AeroRender/OpenGL33.hpp>` factories.
-`Aero::Integration` is retired. Advanced headers under `Aero/Markup`, provider
-contracts under their owning domains, and `Input/Platform.hpp` are specialist surfaces. Native
+Advanced headers under `Aero/Markup`, provider contracts under their owning
+domains, and `Input/Platform.hpp` are specialist surfaces. Native
 Win32/X11 adapters remain private. These specialist headers are not transitively
 included by ordinary WPF-style application code.
 
@@ -85,7 +85,7 @@ Media is a specialist surface made up of concrete headers such as
 `Media/Brushes.hpp`, `Media/Fonts.hpp`, `Media/Geometry.hpp`,
 `Media/Images.hpp`, and `Media/Transforms.hpp`. WPF-visible formatting values
 are owned by `<Aero/TextFormatting.hpp>`; the text provider, shaping and
-editing implementation remains private under `src/text`.
+editing implementation remains private under `src/gui/text`.
 Generic `Media.hpp` and `Text/Text.hpp` aggregation headers are not part of
 the installed SDK.
 

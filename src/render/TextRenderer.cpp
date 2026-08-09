@@ -734,16 +734,18 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     }
     state_->lastUploadFence = submitted.Value();
     state_->atlas.ClearPendingUploads();
-    for (const BatchBuild& batch : batches) {
-        for (const Text::GlyphAtlasPlacement& placement :
-             batch.placements) {
-            Base::Result<void> marked =
-                state_->atlas.MarkSubmitted(
-                    placement, submitted.Value());
-            if (!marked) {
-                destroyBatchResources(
-                    submitted.Value());
-                return marked.GetStatus();
+    if (submitted.Value() > 0U) {
+        for (const BatchBuild& batch : batches) {
+            for (const Text::GlyphAtlasPlacement& placement :
+                 batch.placements) {
+                Base::Result<void> marked =
+                    state_->atlas.MarkSubmitted(
+                        placement, submitted.Value());
+                if (!marked) {
+                    destroyBatchResources(
+                        submitted.Value());
+                    return marked.GetStatus();
+                }
             }
         }
     }

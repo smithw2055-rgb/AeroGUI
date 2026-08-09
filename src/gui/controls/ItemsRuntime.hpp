@@ -8,6 +8,10 @@ namespace Aero::Controls {
 // DependencyProperty ownership remains canonical; these methods only mirror
 // committed effective values into the hot runtime pointers.
 struct ItemsControl::Access {
+    static bool HasAttachedGenerator(
+        const ItemsControl& control) noexcept {
+        return control.generator_ != nullptr;
+    }
     static void SetItemsSource(
         ItemsControl& control,
         Collections::IItemsSource* source) noexcept {

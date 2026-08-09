@@ -1,7 +1,8 @@
 #pragma once
 
 #include <Aero/Base/Config.hpp>
-#include <Aero/Base/Hash.hpp>
+#include <Aero/Base/Delegate.hpp>
+#include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
@@ -18,7 +19,10 @@ struct StreamResourceInfo {
     std::uint64_t revision = 0U;
 };
 
-class AERO_GUI_API XamlProvider {
+using XamlProviderChangedHandler =
+    Base::Delegate<void(const Base::ResourceUri&)>;
+
+class AERO_GUI_API XamlProvider : public Base::Object {
 public:
     virtual ~XamlProvider() = default;
 
@@ -30,9 +34,20 @@ public:
             Base::ErrorCode::Unsupported,
             "XAML provider does not expose revision probes");
     }
-    virtual std::uint64_t CacheIdentity() const noexcept {
-        return Base::DefaultHash<const XamlProvider*>{}(this);
-    }
+
+    void AddChangedHandler(
+        const XamlProviderChangedHandler& handler) noexcept;
+    bool RemoveChangedHandler(
+        const XamlProviderChangedHandler& handler) noexcept;
+
+protected:
+    // Providers configured on a Gui must raise notifications on that Gui's
+    // dispatcher thread. An empty URI invalidates every source from this
+    // provider.
+    void RaiseChanged(const Base::ResourceUri& uri = {}) noexcept;
+
+private:
+    XamlProviderChangedHandler changed_;
 };
 
 using XamlOpenCallback = Result<StreamResourceInfo> (*)(
@@ -48,10 +63,8 @@ public:
     XamlProviderAdapter(
         XamlOpenCallback open,
         void* context = nullptr,
-        XamlRevisionCallback revision = nullptr,
-        std::uint64_t cacheIdentity = 0U) noexcept
-        : open_(open), revision_(revision), context_(context),
-          cacheIdentity_(cacheIdentity) {}
+        XamlRevisionCallback revision = nullptr) noexcept
+        : open_(open), revision_(revision), context_(context) {}
 
     bool IsValid() const noexcept { return open_ != nullptr; }
 
@@ -59,13 +72,11 @@ public:
         const Base::ResourceUri& uri) const noexcept override;
     Result<std::uint64_t> Revision(
         const Base::ResourceUri& uri) const noexcept override;
-    std::uint64_t CacheIdentity() const noexcept override;
 
 private:
     XamlOpenCallback open_ = nullptr;
     XamlRevisionCallback revision_ = nullptr;
     void* context_ = nullptr;
-    std::uint64_t cacheIdentity_ = 0U;
 };
 
 } // namespace Aero::Markup
