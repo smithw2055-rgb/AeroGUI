@@ -1,6 +1,6 @@
 #include "BuiltinModules.hpp"
 
-#include "controls/Metadata.hpp"
+#include "gui/controls/Metadata.hpp"
 #include "gui/MetadataRuntime.hpp"
 #include "gui/PropertyRuntime.hpp"
 #include "gui/FreezableRuntime.hpp"
@@ -21,11 +21,11 @@
 #include "gui/BindingRuntime.hpp"
 #include "gui/AnimationRuntime.hpp"
 #include "gui/StyleRuntime.hpp"
-#include "controls/ControlRuntime.hpp"
-#include "controls/ItemsRuntime.hpp"
-#include "controls/TemplateRuntime.hpp"
-#include "markup/MarkupRuntime.hpp"
-#include "markup/MarkupWriterRuntime.hpp"
+#include "gui/controls/ControlRuntime.hpp"
+#include "gui/controls/ItemsRuntime.hpp"
+#include "gui/controls/TemplateRuntime.hpp"
+#include "gui/markup/MarkupRuntime.hpp"
+#include "gui/markup/MarkupWriterRuntime.hpp"
 
 namespace Aero {
 

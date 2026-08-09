@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 
 namespace Aero {
 
@@ -13,14 +13,20 @@ using FreezableChangedHandler = Base::Delegate<void(Freezable&)>;
 // invalidation. Freezing does not remove the object's dispatcher affinity.
 class AERO_GUI_API Freezable : public DependencyObject {
     AERO_DECLARE_TYPE(Freezable, DependencyObject)
+#if defined(AERO_GUI_IMPLEMENTATION)
 public:
+#else
+private:
+#endif
     struct Access;
+
+public:
 
     bool IsFrozen() const noexcept;
     bool CanFreeze() const noexcept;
-    Base::Result<void> Freeze() noexcept;
+    Result<void> Freeze() noexcept;
 
-    Base::Result<void> AddChangedHandlerChecked(
+    Result<void> AddChangedHandlerChecked(
         const FreezableChangedHandler& handler) noexcept;
     void AddChangedHandler(
         const FreezableChangedHandler& handler) noexcept;
@@ -31,14 +37,14 @@ protected:
     explicit Freezable(Meta::TypeId runtimeType) noexcept;
     ~Freezable() override;
 
-    Base::Result<void> WritePreamble() const noexcept;
+    Result<void> WritePreamble() const noexcept;
     void WritePostscript() noexcept;
     virtual bool FreezeCore(bool isChecking) noexcept;
     virtual void OnChanged() noexcept;
 
     void OnPropertyInvalidated(
         Meta::PropertyInvalidationFlags flags) noexcept override;
-    Base::Result<void> VerifyMutationAllowed() const noexcept override;
+    Result<void> VerifyMutationAllowed() const noexcept override;
 
 private:
     Base::IAllocator* implAllocator_ = nullptr;

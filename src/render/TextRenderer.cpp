@@ -128,7 +128,7 @@ static_assert(alignof(TextRendererState) <= alignof(std::max_align_t),
 
 TextRenderer::TextRenderer(
     Text::FontManager& fonts,
-    Aero::RenderDevice::Access& device,
+    Aero::Render::RenderDeviceBase& device,
     GlyphRunResourceSink& sink,
     Base::IAllocator* allocator) noexcept
     : fonts_(&fonts),
@@ -197,7 +197,7 @@ Base::Result<void> TextRenderer::Initialize(
 
 Base::Result<void>
 TextRenderer::RecoverDeviceResources(
-    Aero::RenderDevice::Access& device,
+    Aero::Render::RenderDeviceBase& device,
     GlyphRunResourceSink& sink) noexcept {
     if (!IsInitialized()) {
         return Base::Status::Failure(

@@ -21,27 +21,27 @@ Base::Result<void> PopulateUiElements(
                 PropertyFlags::Structural)
         .Property(
             FrameworkContentElement::DataContextProperty,
-            PropertyOptions(Value::NullObject(
+            FrameworkPropertyMetadata(Value::NullObject(
                 TypeOf<Base::Object>())).Inherits())
         .Property(
             FrameworkContentElement::StyleProperty,
-            PropertyOptions(Base::Ref<Style>{}))
+            FrameworkPropertyMetadata(Base::Ref<Style>{}))
         .Property(
             FrameworkContentElement::TagProperty,
-            PropertyOptions(Meta::Value::NullObject(
+            FrameworkPropertyMetadata(Meta::Value::NullObject(
                 Meta::TypeOf<Base::Object>())))
         .Property(
             FrameworkContentElement::IsEnabledProperty,
-            PropertyOptions(true).Inherits())
+            FrameworkPropertyMetadata(true).Inherits())
         .Property(
             FrameworkContentElement::IsMouseOverProperty,
-            PropertyOptions(false))
+            FrameworkPropertyMetadata(false))
         .Property(
             FrameworkContentElement::CursorProperty,
-            PropertyOptions(Base::String{}).Inherits())
+            FrameworkPropertyMetadata(Base::String{}).Inherits())
         .Property(
             FrameworkContentElement::OverridesDefaultStyleProperty,
-            PropertyOptions(false));
+            FrameworkPropertyMetadata(false));
     status = frameworkContentElement.Result();
     if (!status) return status.GetStatus();
 
@@ -82,76 +82,76 @@ Base::Result<void> PopulateUiElements(
         .Event(UIElement::TextInputEvent)
         .Property(
             UIElement::ClipToBoundsProperty,
-            PropertyOptions(false)
+            FrameworkPropertyMetadata(false)
                 .AffectsArrange()
                 .Changed(&OnRenderStateChanged))
         .Property(
             UIElement::BlendModeProperty,
-            PropertyOptions(BlendMode::Normal)
+            FrameworkPropertyMetadata(BlendMode::Normal)
                 .Changed(&OnRenderStateChanged))
         .Property(
             UIElement::EffectProperty,
-            PropertyOptions(Base::Ref<Effect>{})
+            FrameworkPropertyMetadata(Base::Ref<Effect>{})
                 .AffectsRender()
                 .Changed(&OnEffectChanged))
         .Property(
             UIElement::OpacityMaskProperty,
-            PropertyOptions(Base::Ref<Brush>{})
+            FrameworkPropertyMetadata(Base::Ref<Brush>{})
                 .AffectsRender()
                 .Changed(&OnOpacityMaskChanged))
         .Property(
             UIElement::IsHitTestVisibleProperty,
-            PropertyOptions(true))
+            FrameworkPropertyMetadata(true))
         .Property(
             UIElement::VisibilityProperty,
-            PropertyOptions(Visibility::Visible)
+            FrameworkPropertyMetadata(Visibility::Visible)
                 .AffectsMeasure()
                 .Changed(&OnRenderStateChanged))
         .Property(
             UIElement::IsEnabledProperty,
-            PropertyOptions(true)
+            FrameworkPropertyMetadata(true)
                 .Inherits()
                 .AffectsRender())
         .Property(
             UIElement::AllowDropProperty,
-            PropertyOptions(false))
+            FrameworkPropertyMetadata(false))
         .Property(
             UIElement::IsMouseOverProperty,
-            PropertyOptions(false).AffectsRender())
+            FrameworkPropertyMetadata(false).AffectsRender())
         .Property(
             UIElement::IsPressedProperty,
-            PropertyOptions(false).AffectsRender())
+            FrameworkPropertyMetadata(false).AffectsRender())
         .Property(
             UIElement::IsKeyboardFocusedProperty,
-            PropertyOptions(false).AffectsRender())
+            FrameworkPropertyMetadata(false).AffectsRender())
         .Property(
             UIElement::IsKeyboardFocusWithinProperty,
-            PropertyOptions(false).AffectsRender())
+            FrameworkPropertyMetadata(false).AffectsRender())
         .Property(
             UIElement::FocusableProperty,
-            PropertyOptions(false))
+            FrameworkPropertyMetadata(false))
         .Property(
             UIElement::IsTabStopProperty,
-            PropertyOptions(false))
+            FrameworkPropertyMetadata(false))
         .Property(
             UIElement::TabIndexProperty,
-            PropertyOptions(std::uint32_t{0}))
+            FrameworkPropertyMetadata(std::uint32_t{0}))
         .Property(
             UIElement::IsFocusScopeProperty,
-            PropertyOptions(false))
+            FrameworkPropertyMetadata(false))
         .Property(
             UIElement::OpacityProperty,
-            PropertyOptions(1.0)
+            FrameworkPropertyMetadata(1.0)
                 .Changed(&OnRenderStateChanged)
                 .Validate(&ValidateUnitDouble))
         .Property(
             UIElement::RenderTransformProperty,
-            PropertyOptions(Base::Ref<Transform>{})
+            FrameworkPropertyMetadata(Base::Ref<Transform>{})
                 .AffectsRender()
                 .Changed(&OnRenderTransformChanged))
         .Property(
             UIElement::RenderTransformOriginProperty,
-            PropertyOptions(Point{})
+            FrameworkPropertyMetadata(Point{})
                 .Changed(&OnRenderStateChanged));
     status = uiElement.Result();
     if (!status) return status.GetStatus();
@@ -165,102 +165,102 @@ Base::Result<void> PopulateUiElements(
                 PropertyFlags::Structural)
         .Property(
             FrameworkElement::DataContextProperty,
-            PropertyOptions(Value::NullObject(
+            FrameworkPropertyMetadata(Value::NullObject(
                 TypeOf<Base::Object>()))
                 .Inherits())
         .Property(
             FrameworkElement::FontFamilyProperty,
-            PropertyOptions(Base::Ref<Media::FontFamily>{})
+            FrameworkPropertyMetadata(Base::Ref<Media::FontFamily>{})
                 .Inherits()
                 .AffectsMeasure())
         .Property(
             FrameworkElement::FlowDirectionProperty,
-            PropertyOptions(FlowDirection::LeftToRight)
+            FrameworkPropertyMetadata(FlowDirection::LeftToRight)
                 .Inherits()
                 .AffectsMeasure())
         .Property(
             FrameworkElement::CursorProperty,
-            PropertyOptions(Base::String{}).Inherits())
+            FrameworkPropertyMetadata(Base::String{}).Inherits())
         .Property(
             FrameworkElement::ForceCursorProperty,
-            PropertyOptions(false))
+            FrameworkPropertyMetadata(false))
         .Property(
             FrameworkElement::InputScopeProperty,
-            PropertyOptions(InputScope::Default))
+            FrameworkPropertyMetadata(InputScope::Default))
         .Property(
             FrameworkElementForegroundProperty,
-            PropertyOptions(Base::Ref<Brush>{})
+            FrameworkPropertyMetadata(Base::Ref<Brush>{})
                 .Inherits()
                 .AffectsRender())
         .Property(
             FrameworkElement::StyleProperty,
-            PropertyOptions(Base::Ref<Style>{}))
+            FrameworkPropertyMetadata(Base::Ref<Style>{}))
         .Property(
             FrameworkElement::TagProperty,
-            PropertyOptions(Meta::Value::NullObject(
+            FrameworkPropertyMetadata(Meta::Value::NullObject(
                 Meta::TypeOf<Base::Object>())) )
         .Property(
             FrameworkElement::ToolTipProperty,
-            PropertyOptions(Meta::Value::NullObject(
+            FrameworkPropertyMetadata(Meta::Value::NullObject(
                 Meta::TypeOf<Base::Object>())))
         .Property(
             FrameworkElement::WidthProperty,
-            PropertyOptions(Length::Auto())
+            FrameworkPropertyMetadata(Length::Auto())
                 .AffectsMeasure()
                 .Validate(&ValidateLength))
         .Property(
             FrameworkElement::HeightProperty,
-            PropertyOptions(Length::Auto())
+            FrameworkPropertyMetadata(Length::Auto())
                 .AffectsMeasure()
                 .Validate(&ValidateLength))
         .Property(
             FrameworkElement::ActualWidthProperty,
-            PropertyOptions(0.0))
+            FrameworkPropertyMetadata(0.0))
         .Property(
             FrameworkElement::ActualHeightProperty,
-            PropertyOptions(0.0))
+            FrameworkPropertyMetadata(0.0))
         .Property(
             FrameworkElement::MinWidthProperty,
-            PropertyOptions(0.0)
+            FrameworkPropertyMetadata(0.0)
                 .AffectsMeasure()
                 .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MaxWidthProperty,
-            PropertyOptions(DefaultMaximum)
+            FrameworkPropertyMetadata(DefaultMaximum)
                 .AffectsMeasure()
                 .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MinHeightProperty,
-            PropertyOptions(0.0)
+            FrameworkPropertyMetadata(0.0)
                 .AffectsMeasure()
                 .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MaxHeightProperty,
-            PropertyOptions(DefaultMaximum)
+            FrameworkPropertyMetadata(DefaultMaximum)
                 .AffectsMeasure()
                 .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MarginProperty,
-            PropertyOptions(Thickness{})
+            FrameworkPropertyMetadata(Thickness{})
                 .AffectsMeasure()
                 .Validate(&ValidateMarginValue))
         .Property(
             FrameworkElement::HorizontalAlignmentProperty,
-            PropertyOptions(HorizontalAlignment::Stretch)
+            FrameworkPropertyMetadata(HorizontalAlignment::Stretch)
                 .AffectsArrange())
         .Property(
             FrameworkElement::VerticalAlignmentProperty,
-            PropertyOptions(VerticalAlignment::Stretch)
+            FrameworkPropertyMetadata(VerticalAlignment::Stretch)
                 .AffectsArrange())
         .Property(
             FrameworkElement::UseLayoutRoundingProperty,
-            PropertyOptions(false).AffectsMeasure())
+            FrameworkPropertyMetadata(false).AffectsMeasure())
         .Property(
             FrameworkElement::SnapsToDevicePixelsProperty,
-            PropertyOptions(false).Inherits().AffectsArrange().AffectsRender())
+            FrameworkPropertyMetadata(false).Inherits().AffectsArrange().AffectsRender())
         .Property(
             FrameworkElement::LayoutTransformProperty,
-            PropertyOptions(Base::Ref<Transform>{})
+            FrameworkPropertyMetadata(Base::Ref<Transform>{})
                 .AffectsMeasure()
                 .Changed(&OnLayoutTransformChanged))
         .Collection<Media::Animation::EventTrigger>(

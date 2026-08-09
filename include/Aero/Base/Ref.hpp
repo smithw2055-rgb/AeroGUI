@@ -296,3 +296,10 @@ Result<Ref<T>> MakeRef(Args&&... args) noexcept {
 }
 
 } // namespace Aero::Base
+
+namespace Aero {
+
+template<class T>
+using Ref = Base::Ref<T>;
+
+} // namespace Aero

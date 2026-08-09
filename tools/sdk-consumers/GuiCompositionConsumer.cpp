@@ -1,12 +1,13 @@
 #include <Aero/Gui.hpp>
-#include <Aero/Gui/View.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/View.hpp>
 #include <Aero/ViewOptions.hpp>
-#include <Aero/Render/RenderTarget.hpp>
-#include <Aero/Gui/IRenderer.hpp>
-#include <Aero/Text/FontProvider.hpp>
+#include <AeroRender/RenderTarget.hpp>
+#include <Aero/IRenderer.hpp>
+#include <Aero/Media/FontProvider.hpp>
 #include <Aero/Media/TextureProvider.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
-#include <Aero/Gui/XamlReader.hpp>
+#include <Aero/Markup/XamlReader.hpp>
 
 #include <type_traits>
 #include <utility>
@@ -24,23 +25,32 @@ static_assert(
     "TextureProvider must remain a host-owned contract");
 
 [[maybe_unused]]
-Aero::Base::Result<Aero::Base::Ref<Aero::View>>
+Aero::Result<Aero::Ref<Aero::View>>
 CreateIntegratedView(
     Aero::Gui& environment,
-    Aero::Base::Ref<Aero::RenderTarget> target) noexcept {
+    Aero::Ref<Aero::RenderTarget> target) noexcept {
     if (!target) {
         return Aero::Base::Status::Failure(
             Aero::Base::ErrorCode::InvalidArgument,
             "Integrated View requires a RenderTarget");
     }
     Aero::ViewOptions options;
-    Aero::Base::Result<Aero::Base::Ref<Aero::View>> created =
+    Aero::Result<Aero::Ref<Aero::View>> created =
         environment.CreateView(options);
     if (!created) return created.GetStatus();
-    Aero::Base::Result<void> initialized =
+    Aero::Result<void> initialized =
         created.Value()->GetRenderer().Init(target->GetDevice());
     if (!initialized) return initialized.GetStatus();
     return std::move(created).Value();
+}
+
+[[maybe_unused]]
+Aero::Result<Aero::Ref<Aero::View>>
+LoadIntegratedView(Aero::Gui& gui) noexcept {
+    Aero::Result<Aero::Ref<Aero::FrameworkElement>> root =
+        gui.LoadXaml<Aero::FrameworkElement>("HUD.xaml");
+    if (!root) return root.GetStatus();
+    return gui.CreateView(std::move(root).Value());
 }
 
 [[maybe_unused]]
@@ -49,10 +59,11 @@ void ConsumeViewTarget(
     Aero::RenderTarget& target) noexcept {
     Aero::Markup::XamlReader reader(view.GetGui());
     static_cast<void>(reader.GetGui());
-    static_cast<void>(view.Update(16U));
-    static_cast<void>(view.GetRenderer().UpdateRenderTree());
-    static_cast<void>(view.GetRenderer().RenderOffscreen());
-    static_cast<void>(view.GetRenderer().Render(target));
+    view.Update(0.0);
+    Aero::IRenderer& renderer = view.GetRenderer();
+    if (renderer.UpdateRenderTree() && renderer.RenderOffscreen()) {
+        renderer.Render(target);
+    }
 }
 
 } // namespace

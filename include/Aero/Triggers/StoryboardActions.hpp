@@ -10,14 +10,14 @@ class AERO_GUI_API BeginStoryboard : public TriggerAction {
 public:
     BeginStoryboard() noexcept : TriggerAction(StaticTypeId()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Base::StringView GetName() const noexcept { return name_.View(); }
-    Base::Ref<Storyboard> GetStoryboard() const noexcept { return storyboard_; }
-    void SetName(Base::StringView value) noexcept;
-    void SetStoryboard(Base::Ref<Storyboard> value) noexcept;
+    StringView GetName() const noexcept { return name_.View(); }
+    Ref<Storyboard> GetStoryboard() const noexcept { return storyboard_; }
+    void SetName(StringView value) noexcept;
+    void SetStoryboard(Ref<Storyboard> value) noexcept;
 
 private:
-    Base::String name_;
-    Base::Ref<Storyboard> storyboard_;
+    String name_;
+    Ref<Storyboard> storyboard_;
 };
 
 class AERO_GUI_API ControlStoryboardAction : public TriggerAction {
@@ -27,32 +27,32 @@ public:
         Play = 0U, Stop, TogglePlayPause, Pause, Resume, SkipToFill
     };
     ControlStoryboardAction() noexcept : TriggerAction(StaticTypeId()) {}
-    Base::Ref<Storyboard> GetStoryboard() const noexcept { return storyboard_; }
-    void SetStoryboard(Base::Ref<Storyboard> value) noexcept {
+    Ref<Storyboard> GetStoryboard() const noexcept { return storyboard_; }
+    void SetStoryboard(Ref<Storyboard> value) noexcept {
         storyboard_ = std::move(value);
     }
     Option GetControlOption() const noexcept { return option_; }
     void SetControlOption(Option value) noexcept { option_ = value; }
 
 private:
-    Base::Ref<Storyboard> storyboard_;
+    Ref<Storyboard> storyboard_;
     Option option_ = Option::Play;
 };
 
 class AERO_GUI_API ControllableStoryboardAction : public TriggerAction {
     AERO_DECLARE_TYPE(ControllableStoryboardAction, TriggerAction)
 public:
-    Base::StringView GetBeginStoryboardName() const noexcept {
+    StringView GetBeginStoryboardName() const noexcept {
         return beginStoryboardName_.View();
     }
-    void SetBeginStoryboardName(Base::StringView value) noexcept;
+    void SetBeginStoryboardName(StringView value) noexcept;
 
 protected:
     explicit ControllableStoryboardAction(Meta::TypeId runtimeType) noexcept
         : TriggerAction(runtimeType) {}
 
 private:
-    Base::String beginStoryboardName_;
+    String beginStoryboardName_;
 };
 
 class AERO_GUI_API PauseStoryboard : public ControllableStoryboardAction {
@@ -83,12 +83,12 @@ class AERO_GUI_API SeekStoryboard : public ControllableStoryboardAction {
     AERO_DECLARE_TYPE(SeekStoryboard, ControllableStoryboardAction)
 public:
     SeekStoryboard() noexcept : ControllableStoryboardAction(StaticTypeId()) {}
-    Base::StringView GetOffset() const noexcept { return offsetText_.View(); }
+    StringView GetOffset() const noexcept { return offsetText_.View(); }
     AnimationTime GetOffsetMicroseconds() const noexcept { return offsetMicroseconds_; }
-    void SetOffset(Base::StringView value) noexcept;
+    void SetOffset(StringView value) noexcept;
 
 private:
-    Base::String offsetText_;
+    String offsetText_;
     AnimationTime offsetMicroseconds_ = 0U;
 };
 

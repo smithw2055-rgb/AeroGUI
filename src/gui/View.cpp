@@ -1,21 +1,22 @@
-#include <Aero/Gui/View.hpp>
+#include <Aero/View.hpp>
 #include <Aero/Gui.hpp>
-#include <Aero/Audio/Audio.hpp>
-#include <Aero/Gui/Geometry.hpp>
+#include <AeroAudio/Audio.hpp>
+#include <Aero/Diagnostics.hpp>
+#include <Aero/Media/Geometry.hpp>
 #include <Aero/Triggers/Behavior.hpp>
 #include <Aero/Base/Hash.hpp>
 #include "gui/GuiData.hpp"
 #include "gui/ViewRenderer.hpp"
 #include "gui/ViewState.hpp"
-#include <Aero/Gui/FrameworkElement.hpp>
-#include "media/ImageCache.hpp"
-#include "text/TextPipeline.hpp"
+#include <Aero/FrameworkElement.hpp>
+#include "gui/media/ImageCache.hpp"
+#include "gui/text/TextPipeline.hpp"
 #include "render/RenderTargetState.hpp"
 
-#include "controls/ControlRuntime.hpp"
-#include "controls/ItemsRuntime.hpp"
-#include "controls/TemplateRuntime.hpp"
-#include "controls/ControlBehavior.hpp"
+#include "gui/controls/ControlRuntime.hpp"
+#include "gui/controls/ItemsRuntime.hpp"
+#include "gui/controls/TemplateRuntime.hpp"
+#include "gui/controls/ControlBehavior.hpp"
 #include "gui/MetadataRuntime.hpp"
 #include "gui/PropertyRuntime.hpp"
 #include "gui/FreezableRuntime.hpp"
@@ -26,10 +27,10 @@
 #include "gui/BindingRuntime.hpp"
 #include "gui/AnimationRuntime.hpp"
 #include "gui/StyleRuntime.hpp"
-#include "media/AnimationRuntime.hpp"
-#include "media/BrushRuntime.hpp"
-#include "media/EffectRuntime.hpp"
-#include "media/TransformRuntime.hpp"
+#include "gui/media/AnimationRuntime.hpp"
+#include "gui/media/BrushRuntime.hpp"
+#include "gui/media/EffectRuntime.hpp"
+#include "gui/media/TransformRuntime.hpp"
 
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
@@ -37,30 +38,33 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Documents.hpp>
-#include "controls/Metadata.hpp"
-#include <Aero/Gui/ControlTemplate.hpp>
-#include <Aero/Gui/Text.hpp>
+#include "gui/controls/Metadata.hpp"
+#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/TextBoxBase.hpp>
+#include <Aero/Controls/TextBox.hpp>
+#include <Aero/Controls/PasswordBox.hpp>
 
 
 
 
-#include <Aero/Input/Platform.hpp>
-#include <Aero/Gui/BindingBase.hpp>
-#include "media/AnimationModel.hpp"
-#include <Aero/Gui/Storyboard.hpp>
+#include <Aero/InputInterop.hpp>
+#include <Aero/Data/Binding.hpp>
+#include "gui/media/AnimationModel.hpp"
+#include <Aero/Media/Animation.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/Gui/Brush.hpp>
-#include <Aero/Gui/ResourceDictionary.hpp>
-#include <Aero/Gui/Transform.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/Media/Transforms.hpp>
 #include <Aero/BuiltinThemes.generated.hpp>
 
-#include "controls/DataTemplateTriggerState.hpp"
+#include "gui/controls/DataTemplateTriggerState.hpp"
 #include "render/RenderDeviceState.hpp"
 #include "render/RenderTree.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <limits>
 #include <new>
 #include <utility>
@@ -286,6 +290,8 @@ struct ViewState {
     Markup::DocumentCache* documentCache = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     ViewOptions options;
+    Base::Status updateStatus;
+    Base::Status rendererStatus;
     Base::Ref<RenderDevice> device;
     std::uint64_t deviceGeneration = 0U;
     ViewViewport viewport;
@@ -320,6 +326,43 @@ struct ViewState {
     Aero::ResourceDictionary dynamicResourceEnvironment;
 
     ::Aero::Controls::ControlBehavior* controlBehaviors = nullptr;
+
+    void ReportFrameFailure(
+        Base::Status& slot,
+        Base::Status status,
+        std::uint16_t diagnosticNumber) noexcept {
+        const bool repeated = slot.code == status.code &&
+            slot.message == status.message;
+        slot = status;
+        if (repeated || status.IsOk() || options.diagnostics == nullptr) {
+            return;
+        }
+        Base::Result<Diagnostics::Diagnostic> diagnostic =
+            Diagnostics::Diagnostic::Create(
+                Diagnostics::MakeDiagnosticCode(
+                    Diagnostics::DiagnosticDomain::Render,
+                    diagnosticNumber),
+                Diagnostics::DiagnosticSeverity::Error,
+                Base::StringView(
+                    status.message,
+                    static_cast<std::uint32_t>(
+                        std::strlen(status.message))));
+        if (!diagnostic) return;
+        static_cast<void>(options.diagnostics->Report(
+            std::move(diagnostic).Value()));
+    }
+
+    void ReportUpdateFailure(Base::Status status) noexcept {
+        ReportFrameFailure(updateStatus, status, 101U);
+    }
+
+    void ReportRendererFailure(Base::Status status) noexcept {
+        ReportFrameFailure(rendererStatus, status, 102U);
+    }
+
+    void ClearUpdateFailure() noexcept { updateStatus = {}; }
+    void ClearRendererFailure() noexcept { rendererStatus = {}; }
+
     struct StoryboardSession {
         explicit StoryboardSession(
             Base::IAllocator* allocator) noexcept
@@ -7640,6 +7683,15 @@ Base::Result<void> View::SetContent(
             Base::ErrorCode::NotInitialized,
             "View must be initialized before SetContent");
     }
+    if (root) {
+        Markup::XamlDocument document;
+        Base::Result<bool> pending =
+            GetGui().TakeLoadedDocument(*root, document);
+        if (!pending) return pending.GetStatus();
+        if (pending.Value()) {
+            return SetContent(std::move(document), availableSize);
+        }
+    }
     if (state_->mounted) {
         Base::Result<void> unmounted = state_->UnmountRoot();
         if (!unmounted) return unmounted.GetStatus();
@@ -7959,38 +8011,17 @@ void View::SetScale(double scale) noexcept {
     static_cast<void>(state_->ApplyViewport(viewport.Value()));
 }
 
-Base::Result<void> View::Update(
-    std::uint32_t elapsedMilliseconds) noexcept {
-    std::uint32_t timedCallbacks = 0U;
-    if (elapsedMilliseconds != 0U) {
-        Base::Result<std::uint32_t> advanced =
-            state_ != nullptr
-            ? AdvanceViewClocks(*state_, elapsedMilliseconds)
-            : Base::Result<std::uint32_t>(ViewNotInitialized(
-                  "View has no implementation"));
-        if (!advanced) return advanced.GetStatus();
-        timedCallbacks = advanced.Value();
-    }
-    Base::Result<std::uint32_t> frame = state_ != nullptr
-        ? state_->ExecuteFrame(*this)
-        : Base::Result<std::uint32_t>(ViewNotInitialized(
-              "View has no implementation"));
-    if (!frame) return frame.GetStatus();
-    if (frame.Value() > UINT32_MAX - timedCallbacks) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "View callback count overflow");
-    }
-    return {};
-}
-
-bool View::Update(double timeInSeconds) noexcept {
-    if (!active_ || !std::isfinite(timeInSeconds) ||
-        timeInSeconds < 0.0) {
-        return false;
+void View::Update(double timeInSeconds) noexcept {
+    if (!active_ || state_ == nullptr) return;
+    if (!std::isfinite(timeInSeconds) || timeInSeconds < 0.0 ||
+        (hasUpdateTime_ && timeInSeconds < updateTimeSeconds_)) {
+        state_->ReportUpdateFailure(Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "View update time must be finite, nonnegative and monotonic"));
+        return;
     }
     double elapsedSeconds = 0.0;
-    if (hasUpdateTime_ && timeInSeconds >= updateTimeSeconds_) {
+    if (hasUpdateTime_) {
         elapsedSeconds = timeInSeconds - updateTimeSeconds_;
     }
     updateTimeSeconds_ = timeInSeconds;
@@ -7998,8 +8029,22 @@ bool View::Update(double timeInSeconds) noexcept {
     const double elapsedMilliseconds = std::min(
         elapsedSeconds * 1000.0,
         static_cast<double>(UINT32_MAX));
-    return static_cast<bool>(Update(
-        static_cast<std::uint32_t>(elapsedMilliseconds)));
+    const std::uint32_t elapsed =
+        static_cast<std::uint32_t>(elapsedMilliseconds);
+    if (elapsed != 0U) {
+        Base::Result<std::uint32_t> advanced =
+            AdvanceViewClocks(*state_, elapsed);
+        if (!advanced) {
+            state_->ReportUpdateFailure(advanced.GetStatus());
+            return;
+        }
+    }
+    Base::Result<std::uint32_t> frame = state_->ExecuteFrame(*this);
+    if (!frame) {
+        state_->ReportUpdateFailure(frame.GetStatus());
+        return;
+    }
+    state_->ClearUpdateFailure();
 }
 
 void View::Activate() noexcept {
@@ -8029,7 +8074,7 @@ Base::Result<std::uint32_t> ViewState::ExecuteFrame(
     bool deviceGenerationChanged = false;
     if (state_->device) {
         const Base::Status deviceStatus =
-            ::Aero::RenderDevice::Access::FrameStatus(
+            ::Aero::Render::RenderDeviceBase::FrameStatus(
                 *state_->device);
         if (!deviceStatus.IsOk()) {
             return deviceStatus;
@@ -8671,7 +8716,7 @@ Base::Result<void> ViewRenderer::Init(
     }
 
     Base::Status deviceStatus =
-        RenderDevice::Access::FrameStatus(*device);
+        Render::RenderDeviceBase::FrameStatus(*device);
     if (!deviceStatus.IsOk()) {
         return deviceStatus;
     }
@@ -8707,15 +8752,15 @@ Base::Result<void> ViewRenderer::Init(
     }
 
     if (!frameEncoder_.has_value()) {
-        RenderDevice::Access* backend =
-            RenderDevice::Access::BackendState(*device);
+        Render::RenderDeviceBase* backend =
+            Render::RenderDeviceBase::From(*device);
         if (backend == nullptr) {
             return ViewNotInitialized(
                 "Renderer requires a native RenderDevice state");
         }
         Base::Result<void> prepared = InitializeRenderResources(
             *backend,
-            RenderDevice::Access::BackendGeneration(*device));
+            Render::RenderDeviceBase::BackendGeneration(*device));
         if (!prepared) {
             ShutdownRenderResources();
             return prepared.GetStatus();
@@ -8814,34 +8859,42 @@ bool ViewRenderer::IsInitialized() const noexcept {
     return initialized_;
 }
 
-Base::Result<bool>
-ViewRenderer::UpdateRenderTree() noexcept {
+bool ViewRenderer::UpdateRenderTree() noexcept {
     if (!initialized_ || !device_ ||
         view_ == nullptr || view_->state_ == nullptr ||
         !view_->state_->initialized) {
-        return ViewNotInitialized(
-            "Renderer must be initialized before UpdateRenderTree");
+        if (view_ != nullptr && view_->state_ != nullptr) {
+            view_->state_->ReportRendererFailure(ViewNotInitialized(
+                "Renderer must be initialized before UpdateRenderTree"));
+        }
+        return false;
     }
 
     Base::Status deviceStatus =
-        RenderDevice::Access::FrameStatus(*device_);
+        Render::RenderDeviceBase::FrameStatus(*device_);
     if (!deviceStatus.IsOk()) {
-        return deviceStatus;
+        view_->state_->ReportRendererFailure(deviceStatus);
+        return false;
     }
 
     auto& data = *view_->state_;
     if (data.renderer == nullptr) {
-        return ViewNotInitialized(
-            "View render tree is unavailable");
+        data.ReportRendererFailure(ViewNotInitialized(
+            "View render tree is unavailable"));
+        return false;
     }
     const ::Aero::Render::RenderFrame& frame =
         data.renderer->CurrentFrame();
     if (frame.Version() == 0U) {
+        data.ClearRendererFailure();
         return false;
     }
     Base::Result<void> valid =
         ::Aero::Render::ValidateRenderFrame(frame);
-    if (!valid) return valid.GetStatus();
+    if (!valid) {
+        data.ReportRendererFailure(valid.GetStatus());
+        return false;
+    }
 
     const bool changed =
         frame.Version() != updatedVersion_;
@@ -8849,80 +8902,102 @@ ViewRenderer::UpdateRenderTree() noexcept {
         updatedVersion_ = frame.Version();
         offscreenReady_ = false;
     }
+    data.ClearRendererFailure();
     return changed;
 }
 
-Base::Result<void>
-ViewRenderer::RenderOffscreen() noexcept {
+bool ViewRenderer::RenderOffscreen() noexcept {
     if (!initialized_ || !device_ || !frameEncoder_.has_value() ||
         view_ == nullptr || view_->state_ == nullptr) {
-        return ViewNotInitialized(
-            "Renderer must be initialized before RenderOffscreen");
+        if (view_ != nullptr && view_->state_ != nullptr) {
+            view_->state_->ReportRendererFailure(ViewNotInitialized(
+                "Renderer must be initialized before RenderOffscreen"));
+        }
+        return false;
     }
 
     const ::Aero::Render::RenderFrame& frame =
         view_->state_->renderer->CurrentFrame();
     if (frame.Version() == 0U) {
         offscreenReady_ = true;
-        return {};
+        view_->state_->ClearRendererFailure();
+        return true;
     }
     if (frame.PixelWidth() == 0U || frame.PixelHeight() == 0U) {
         offscreenReady_ = true;
-        return {};
+        view_->state_->ClearRendererFailure();
+        return true;
     }
     if (frame.Version() != updatedVersion_) {
-        return ViewApiInvalidState(
-            "UpdateRenderTree must run before RenderOffscreen");
+        view_->state_->ReportRendererFailure(ViewApiInvalidState(
+            "UpdateRenderTree must run before RenderOffscreen"));
+        return false;
     }
 
     Base::Result<::Aero::Graphics::FenceValue> submitted =
         RenderOffscreenFrame(frame);
-    if (!submitted) return submitted.GetStatus();
+    if (!submitted) {
+        Render::RenderDeviceBase::RefreshHealth(*device_);
+        view_->state_->ReportRendererFailure(submitted.GetStatus());
+        return false;
+    }
     offscreenReady_ = true;
-    return {};
+    view_->state_->ClearRendererFailure();
+    return true;
 }
 
-Base::Result<void> ViewRenderer::Render(
+void ViewRenderer::Render(
     RenderTarget& target) noexcept {
     if (!initialized_ || !device_ || !frameEncoder_.has_value() ||
         view_ == nullptr || view_->state_ == nullptr) {
-        return ViewNotInitialized(
-            "Renderer must be initialized before Render");
+        if (view_ != nullptr && view_->state_ != nullptr) {
+            view_->state_->ReportRendererFailure(ViewNotInitialized(
+                "Renderer must be initialized before Render"));
+        }
+        return;
     }
 
     Base::Ref<RenderDevice> surfaceDevice = target.GetDevice();
     if (!surfaceDevice || surfaceDevice.Get() != device_.Get()) {
-        return ViewApiInvalidState(
-            "RenderTarget must belong to the renderer RenderDevice");
+        view_->state_->ReportRendererFailure(ViewApiInvalidState(
+            "RenderTarget must belong to the renderer RenderDevice"));
+        return;
     }
 
     const ::Aero::Render::RenderFrame& frame =
         view_->state_->renderer->CurrentFrame();
     if (frame.Version() == 0U) {
-        return {};
+        view_->state_->ClearRendererFailure();
+        return;
     }
     if (frame.Version() != updatedVersion_) {
-        return ViewApiInvalidState(
-            "UpdateRenderTree must run before Render");
+        view_->state_->ReportRendererFailure(ViewApiInvalidState(
+            "UpdateRenderTree must run before Render"));
+        return;
     }
     if (!offscreenReady_) {
-        return ViewApiInvalidState(
-            "RenderOffscreen must run before Render");
+        view_->state_->ReportRendererFailure(ViewApiInvalidState(
+            "RenderOffscreen must run before Render"));
+        return;
     }
     if (frame.PixelWidth() == 0U || frame.PixelHeight() == 0U) {
         renderedVersion_ = frame.Version();
         offscreenReady_ = false;
-        return {};
+        view_->state_->ClearRendererFailure();
+        return;
     }
 
     Base::Result<void> submitted =
-        RenderTarget::Access::Render(
+        Render::RenderTargetServices::Render(
             target, *this, frame);
-    if (!submitted) return submitted.GetStatus();
+    if (!submitted) {
+        view_->state_->ReportRendererFailure(submitted.GetStatus());
+        return;
+    }
 
     renderedVersion_ = frame.Version();
     offscreenReady_ = false;
-    return {};
+    view_->state_->ClearRendererFailure();
 }
 
 IRenderer& View::GetRenderer() noexcept {

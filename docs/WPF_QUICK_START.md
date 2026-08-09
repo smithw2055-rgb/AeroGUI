@@ -3,12 +3,13 @@
 AeroGUI keeps WPF/XAML names and semantics while using ordinary C++17 methods.
 Code-first desktop applications call `Application::Run()`; generated XAML
 bootstrap code may call `App::Run()` to load `App.xaml`. Engine and custom
-native hosts use `Aero::Gui` with an explicit RenderDevice/RenderTarget.
+native hosts link `Aero::Gui` plus one Render backend and use an explicit
+RenderDevice/RenderTarget.
 
 ## Application and Window
 
 ```cpp
-#include <Aero/App.hpp>
+#include <AeroApp/App.hpp>
 
 class App : public Aero::Application {
     AERO_DECLARE_TYPE_NAMED(App, Aero::Application, "urn:demo", "App")
@@ -108,27 +109,30 @@ binding records and schedulers are private.
 
 ## Embedded View and XAML
 
-Engine hosts load XAML explicitly and keep `View` focused on content, input and
+Engine hosts use the `Gui` façade and keep `View` focused on content, input and
 frame updates:
 
 ```cpp
 Aero::Gui environment;
 environment.Initialize();
 
-auto view = environment.CreateView(options).Value();
-Aero::Markup::XamlReader reader(environment);
-auto document = reader.Load("app:///MainView.xaml").Value();
-view->SetContent(std::move(document), {1280.0, 720.0});
-view->Update(elapsedMilliseconds);
+auto root = environment
+    .LoadXaml<Aero::FrameworkElement>("app:///MainView.xaml")
+    .Value();
+auto view = environment.CreateView(root, options).Value();
+view->SetSize({1280.0, 720.0});
+view->Update(totalTimeSeconds);
 ```
 
-`FrameworkElement::FindName()` performs WPF-style namescope lookup. XAML
-providers, compiled-document loading and parsing remain on `XamlReader`; View
-does not expose a second loader API.
+`FrameworkElement::FindName()` performs WPF-style namescope lookup. Gui keeps
+the complete XAML document alive until the returned root is mounted, so the
+façade does not discard resources or deferred effects. Direct parsing,
+compiled-document loading, hot reload, and schema/tooling work remain on the
+advanced `Markup::XamlReader` surface.
 
 ## Custom controls
 
-Custom controls include their WPF base type plus `Aero/Meta.hpp` (for example `Aero/Gui/Control.hpp`):
+Custom controls include their WPF base type plus `Aero/Meta.hpp` (for example `Aero/Controls/Control.hpp`):
 
 ```cpp
 class Rating : public Aero::Controls::Control {
@@ -143,17 +147,17 @@ public:
 ```
 
 Metadata authoring uses the canonical `Meta::Registration` callback and
-`Meta::Describe<T>()` fluent entry:
+`Meta::Register<T>()` fluent entry:
 
 ```cpp
-Aero::Base::Result<void> RegisterDemoTypes(
+Aero::Result<void> RegisterDemoTypes(
     Aero::Meta::Registration& registration) noexcept {
-    return Aero::Meta::Describe<Rating>(registration)
+    return Aero::Meta::Register<Rating>(registration)
         .Property(
             Rating::ValueProperty,
             Aero::Meta::FrameworkPropertyMetadata(
                 0.0,
-                Aero::Meta::FrameworkPropertyMetadataOptions::AffectsRender))
+                Aero::Meta::AffectsRender))
         .Factory()
         .Result();
 }

@@ -9,12 +9,12 @@
 #include "gui/AnimationRuntime.hpp"
 #include "gui/StyleRuntime.hpp"
 #include <Aero/Layout.hpp>
-#include <Aero/Gui/Brush.hpp>
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Gui/Transform.hpp>
+#include <Aero/Media/Transforms.hpp>
 
 #include <Aero/Base/Assert.hpp>
-#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <cmath>

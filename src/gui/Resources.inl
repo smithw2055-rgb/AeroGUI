@@ -55,7 +55,7 @@ Base::Result<void> PopulateUiResources(
     lineSegment
         .Property(
             Media::LineSegment::PointProperty,
-            PropertyOptions(Point{}).AffectsRender())
+            FrameworkPropertyMetadata(Point{}).AffectsRender())
         .Factory();
     status = lineSegment.Result();
     if (!status) return status.GetStatus();
@@ -64,10 +64,10 @@ Base::Result<void> PopulateUiResources(
     pathFigure
         .Property(
             Media::PathFigure::StartPointProperty,
-            PropertyOptions(Point{}).AffectsRender())
+            FrameworkPropertyMetadata(Point{}).AffectsRender())
         .Property(
             Media::PathFigure::IsClosedProperty,
-            PropertyOptions(false).AffectsRender())
+            FrameworkPropertyMetadata(false).AffectsRender())
         .Content<Media::PathSegment>(
             "Segments", ContentKind::Collection,
             &AddPathFigureSegment, &ClearPathFigureSegments)

@@ -2,12 +2,13 @@
 #include <Aero/Freezable.hpp>
 #include <Aero/Gui.hpp>
 #include <Aero/ViewOptions.hpp>
-#include <Aero/Gui/XamlReader.hpp>
-#include <Aero/Gui/Brush.hpp>
+#include <Aero/Markup/XamlReader.hpp>
+#include <Aero/Markup/XamlProvider.hpp>
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Gui/Geometry.hpp>
-#include <Aero/Gui/Transform.hpp>
-#include <Aero/Gui/View.hpp>
+#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/Transforms.hpp>
+#include <Aero/View.hpp>
 
 #include "render/FrameEncoder.hpp"
 #include "gui/PropertyRuntime.hpp"
@@ -39,6 +40,7 @@ const ::Aero::Render::RenderFrame* CurrentFrameForConformance(
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <cstdint>
 #include <new>
 #include <type_traits>
@@ -255,7 +257,7 @@ void VerifyGradientFreeze() noexcept {
 void VerifyViewport(Aero::View& view) noexcept {
     view.SetSize({800.0, 450.0});
     view.SetScale(2.0);
-    Check(view.Update().HasValue(), "View size/scale update failed");
+    view.Update(0.0);
     const ::Aero::Render::RenderFrame* actual =
         Aero::CurrentFrameForConformance(view);
     Check(actual != nullptr &&
@@ -267,26 +269,124 @@ void VerifyViewport(Aero::View& view) noexcept {
         "View viewport did not preserve logical, pixel, and DPI values");
 }
 
+constexpr char GuiFacadeXaml[] = R"XAML(
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      x:Name="FacadeRoot">
+  <Border x:Name="FacadeChild"/>
+</Grid>
+)XAML";
+
+class StaticXamlStream final : public Aero::Base::Stream {
+public:
+    StaticXamlStream() noexcept = default;
+
+    bool CanRead() const noexcept override { return true; }
+    Aero::Base::Result<std::uint32_t> Read(
+        Aero::Base::Span<std::uint8_t> destination) noexcept override {
+        const std::uint32_t length =
+            static_cast<std::uint32_t>(sizeof(GuiFacadeXaml) - 1U);
+        const std::uint32_t remaining = length - position_;
+        const std::uint32_t count =
+            destination.Size() < remaining
+            ? destination.Size() : remaining;
+        if (count != 0U) {
+            std::memcpy(
+                destination.Data(), GuiFacadeXaml + position_, count);
+            position_ += count;
+        }
+        return count;
+    }
+
+private:
+    std::uint32_t position_ = 0U;
+};
+
+Aero::Base::Result<Aero::Markup::StreamResourceInfo> OpenGuiFacadeXaml(
+    const Aero::Base::ResourceUri& uri,
+    void*) noexcept {
+    Aero::Base::Result<Aero::Base::Ref<StaticXamlStream>> made =
+        Aero::Base::MakeRef<StaticXamlStream>();
+    if (!made) return made.GetStatus();
+    Aero::Markup::StreamResourceInfo resource;
+    resource.uri = uri;
+    resource.stream = Aero::Base::Ref<Aero::Base::Stream>(
+        std::move(made).Value());
+    resource.revision = 1U;
+    return resource;
+}
+
+void VerifyGuiLoadFacade(Aero::Gui& gui) noexcept {
+    Aero::Base::Result<Aero::Base::Ref<Aero::Controls::Grid>> abandoned =
+        gui.LoadXaml<Aero::Controls::Grid>("memory:///Abandoned.xaml");
+    Check(abandoned.HasValue(), "Gui abandoned-document load failed");
+    if (!abandoned) return;
+    Aero::Base::WeakRef<Aero::Controls::Grid> abandonedRoot(
+        abandoned.Value());
+    abandoned.Value().Reset();
+
+    Aero::Base::Result<Aero::Base::Ref<Aero::Controls::Grid>> loaded =
+        gui.LoadXaml<Aero::Controls::Grid>("memory:///Facade.xaml");
+    Check(abandonedRoot.Expired(),
+        "Gui retained an unclaimed XAML document after its root was released");
+    Check(loaded.HasValue(), "Gui::LoadXaml facade failed");
+    if (!loaded) return;
+    Aero::Controls::Grid* root = loaded.Value().Get();
+    Aero::Base::Result<Aero::Base::Ref<Aero::View>> view =
+        gui.CreateView(std::move(loaded).Value());
+    Check(view.HasValue(), "Gui::CreateView(root) facade failed");
+    if (!view) return;
+    Check(view.Value()->GetContent() == root,
+        "Gui facade did not preserve the loaded root identity");
+    Check(root->FindName("FacadeChild") != nullptr,
+        "Gui facade discarded the XAML NameScope during View creation");
+
+    Aero::Base::Result<Aero::Base::Ref<Aero::Controls::Grid>> component =
+        Aero::Base::MakeRef<Aero::Controls::Grid>();
+    Check(component.HasValue(), "Gui component root allocation failed");
+    if (!component) return;
+    Aero::Base::Result<void> populated = gui.LoadComponent(
+        *component.Value(), "memory:///Component.xaml");
+    Check(populated.HasValue(), "Gui::LoadComponent facade failed");
+    if (!populated) return;
+    Aero::Base::Result<Aero::Base::Ref<Aero::Controls::Grid>> interleaved =
+        gui.LoadXaml<Aero::Controls::Grid>("memory:///Interleaved.xaml");
+    Check(interleaved.HasValue(), "Gui interleaved document load failed");
+    if (!interleaved) return;
+    Aero::Base::Result<Aero::Base::Ref<Aero::View>> componentView =
+        gui.CreateView(std::move(component).Value());
+    Check(componentView.HasValue(),
+        "Gui::CreateView(component) facade failed");
+    if (!componentView) return;
+    Check(componentView.Value()->GetContent()->FindName(
+              "FacadeChild") != nullptr,
+        "Gui::LoadComponent discarded the XAML NameScope");
+    Aero::Base::Result<Aero::Base::Ref<Aero::View>> interleavedView =
+        gui.CreateView(std::move(interleaved).Value());
+    Check(interleavedView.HasValue(),
+        "Gui discarded a pending interleaved XAML document");
+}
+
 class ProbeRenderTargetState;
 
-class ProbeRenderDeviceState final : public Aero::RenderDevice::Access {
+class ProbeRenderDeviceState final : public Aero::Render::RenderDeviceBase {
 public:
     explicit ProbeRenderDeviceState(Aero::Base::IAllocator& allocator) noexcept
-        : Aero::RenderDevice::Access(allocator) {}
+        : Aero::Render::RenderDeviceBase(allocator) {}
 
-    Aero::Render::RenderBackendKind Backend() const noexcept override {
-        return Aero::Render::RenderBackendKind::Headless;
+    Aero::RenderBackendKind BackendKind() const noexcept override {
+        return Aero::RenderBackendKind::Headless;
     }
     Aero::Base::Result<Aero::Graphics::FenceValue> DrawBatch(
         Aero::Render::RenderBatch&&) noexcept override {
         return Aero::Graphics::FenceValue{0U};
     }
-    void NotifyDeviceLost() noexcept override;
-    Aero::Base::Result<void> RestoreDevice() noexcept override;
-    Aero::Base::Result<void> WaitIdle(std::uint32_t) noexcept override {
+    void NotifyBackendDeviceLost() noexcept override;
+    Aero::Base::Result<void> RestoreBackendDevice() noexcept override;
+    Aero::Base::Result<void> WaitBackendIdle(std::uint32_t) noexcept override {
         return {};
     }
-    Aero::Render::BackendHealth GetDeviceHealth() const noexcept override {
+    Aero::RenderBackendHealth BackendHealth() const noexcept override {
         return deviceHealth;
     }
     Aero::Graphics::DeviceCapabilities
@@ -342,7 +442,7 @@ public:
     Aero::Graphics::FenceValue
     NativeCompletedFence() const noexcept override { return 0U; }
     bool NativeDeviceLost() const noexcept override {
-        return deviceHealth == Aero::Render::BackendHealth::DeviceLost;
+        return deviceHealth == Aero::RenderBackendHealth::DeviceLost;
     }
     Aero::Base::Result<void> RenderFrame() noexcept {
         if (!failNext) return {};
@@ -354,61 +454,92 @@ public:
 
     ProbeRenderTargetState* target = nullptr;
     bool failNext = false;
-    Aero::Render::BackendHealth deviceHealth =
-        Aero::Render::BackendHealth::Ready;
+    Aero::RenderBackendHealth deviceHealth =
+        Aero::RenderBackendHealth::Ready;
 };
 
-class ProbeRenderTargetState final : public Aero::RenderTarget::Access {
+class ProbeRenderTargetState final : public Aero::Render::RenderTargetBase {
 public:
-    explicit ProbeRenderTargetState(ProbeRenderDeviceState& device) noexcept
-        : Aero::RenderTarget::Access(Aero::RenderTargetKind::Embedded),
-          device_(&device) {
+    ProbeRenderTargetState(
+        Aero::Base::Ref<Aero::RenderDevice> owner,
+        ProbeRenderDeviceState& device,
+        std::uint32_t width,
+        std::uint32_t height) noexcept
+        : Aero::Render::RenderTargetBase(
+              std::move(owner), Aero::RenderTargetKind::Embedded),
+          device_(&device), width_(width), height_(height) {
         device.target = this;
     }
     ~ProbeRenderTargetState() noexcept override {
         if (device_ != nullptr && device_->target == this) device_->target = nullptr;
     }
 
-    Aero::Base::Result<void> Render(
-        Aero::ViewRenderer&,
-        const ::Aero::Render::RenderFrame&) noexcept override {
+    Aero::Base::Result<Aero::Render::FrameTarget>
+    AcquireFrameTarget() noexcept override {
+        if (device_ == nullptr) {
+            return Aero::Base::Status::Failure(
+                Aero::Base::ErrorCode::InvalidState,
+                "probe target has no device");
+        }
+        Aero::Base::Result<void> frame = device_->RenderFrame();
+        if (!frame) return frame.GetStatus();
+
+        Aero::Graphics::TextureResourceDescriptor descriptor;
+        descriptor.width = width_;
+        descriptor.height = height_;
+        descriptor.format =
+            Aero::Graphics::GraphicsTextureFormat::Bgra8Unorm;
+        descriptor.usage = Aero::Graphics::TextureUsageBit(
+            Aero::Graphics::TextureUsage::RenderTarget);
+        Aero::Base::Result<Aero::Graphics::ResourceHandle> target =
+            device_->CreateExternalRenderTarget(descriptor);
+        if (!target) return target.GetStatus();
+        return Aero::Render::FrameTarget{
+            target.Value(), width_, height_,
+            Aero::Graphics::LoadOperation::Clear};
+    }
+    Aero::Base::Result<void> RetireFrameTarget(
+        const Aero::Render::FrameTarget& target) noexcept override {
         return device_ != nullptr
-            ? device_->RenderFrame()
+            ? device_->DestroyResource(target.color)
             : Aero::Base::Result<void>(Aero::Base::Status::Failure(
                   Aero::Base::ErrorCode::InvalidState,
                   "probe target has no device"));
     }
-    Aero::Base::Result<void> Resize(std::uint32_t, std::uint32_t) noexcept override {
+    Aero::Base::Result<void> ResizeBackend(
+        std::uint32_t, std::uint32_t) noexcept override {
         return {};
     }
-    void NotifySurfaceLost() noexcept override {
-        surfaceHealth = Aero::Render::SurfaceHealth::Lost;
+    void NotifyBackendLost() noexcept override {
+        surfaceHealth = Aero::RenderTargetState::Lost;
     }
-    Aero::Base::Result<void> RestoreSurface() noexcept override {
-        surfaceHealth = Aero::Render::SurfaceHealth::Ready;
+    Aero::Base::Result<void> RestoreBackend() noexcept override {
+        surfaceHealth = Aero::RenderTargetState::Ready;
         return {};
     }
-    Aero::Render::SurfaceHealth GetSurfaceHealth() const noexcept override {
+    Aero::RenderTargetState BackendState() const noexcept override {
         return surfaceHealth;
     }
     void RestoreAfterDeviceLoss() noexcept {
-        surfaceHealth = Aero::Render::SurfaceHealth::Ready;
+        surfaceHealth = Aero::RenderTargetState::Ready;
     }
 
-    Aero::Render::SurfaceHealth surfaceHealth =
-        Aero::Render::SurfaceHealth::Ready;
+    Aero::RenderTargetState surfaceHealth = Aero::RenderTargetState::Ready;
 
 private:
     ProbeRenderDeviceState* device_ = nullptr;
+    std::uint32_t width_ = 0U;
+    std::uint32_t height_ = 0U;
 };
 
-void ProbeRenderDeviceState::NotifyDeviceLost() noexcept {
-    deviceHealth = Aero::Render::BackendHealth::DeviceLost;
-    if (target != nullptr) target->NotifySurfaceLost();
+void ProbeRenderDeviceState::NotifyBackendDeviceLost() noexcept {
+    deviceHealth = Aero::RenderBackendHealth::DeviceLost;
+    if (target != nullptr) target->NotifyBackendLost();
 }
 
-Aero::Base::Result<void> ProbeRenderDeviceState::RestoreDevice() noexcept {
-    deviceHealth = Aero::Render::BackendHealth::Ready;
+Aero::Base::Result<void>
+ProbeRenderDeviceState::RestoreBackendDevice() noexcept {
+    deviceHealth = Aero::RenderBackendHealth::Ready;
     if (target != nullptr) target->RestoreAfterDeviceLoss();
     return {};
 }
@@ -417,26 +548,27 @@ void VerifyRenderDeviceState(
     Aero::View& view,
     const ::Aero::Render::RenderFrame& frame) noexcept {
     Aero::Base::IAllocator& allocator = Aero::Base::GetDefaultAllocator();
-    auto* state = new (std::nothrow) ProbeRenderDeviceState(allocator);
-    Check(state != nullptr, "render device probe allocation failed");
-    if (state == nullptr) return;
-    auto made = Aero::Render::AdoptRenderDevice(state, &allocator);
-    Check(made.HasValue(), "render device probe adoption failed");
+    auto made = Aero::Base::MakeRefWithAllocator<ProbeRenderDeviceState>(
+        allocator, allocator);
+    Check(made.HasValue(), "render device probe allocation failed");
     if (!made) return;
-    Aero::Base::Ref<Aero::RenderDevice> device = std::move(made).Value();
+    Aero::Base::Ref<ProbeRenderDeviceState> stateRef =
+        std::move(made).Value();
+    ProbeRenderDeviceState* state = stateRef.Get();
+    Aero::Base::Ref<Aero::RenderDevice> device(std::move(stateRef));
 
-    auto* targetState = new (std::nothrow) ProbeRenderTargetState(*state);
-    Check(targetState != nullptr, "render target probe allocation failed");
-    if (targetState == nullptr) return;
-    auto targetMade = Aero::Render::AdoptRenderTarget(
-        device, targetState, Aero::RenderTargetKind::Embedded, &allocator);
-    Check(targetMade.HasValue(), "render target probe adoption failed");
+    auto targetMade = Aero::Base::MakeRefWithAllocator<ProbeRenderTargetState>(
+        allocator, device, *state, frame.PixelWidth(), frame.PixelHeight());
+    Check(targetMade.HasValue(), "render target probe allocation failed");
     if (!targetMade) return;
-    Aero::Base::Ref<Aero::RenderTarget> target = std::move(targetMade).Value();
+    Aero::Base::Ref<ProbeRenderTargetState> targetState =
+        std::move(targetMade).Value();
+    Aero::Base::Ref<Aero::RenderTarget> target(std::move(targetState));
     auto& renderer = static_cast<Aero::ViewRenderer&>(view.GetRenderer());
 
     state->failNext = true;
-    Aero::Base::Result<void> unsupported = Aero::RenderTarget::Access::Render(
+    Aero::Base::Result<void> unsupported =
+        Aero::Render::RenderTargetServices::Render(
         *target, renderer, frame);
     Check(!unsupported &&
             unsupported.GetStatus().code == Aero::Base::ErrorCode::Unsupported,
@@ -446,9 +578,14 @@ void VerifyRenderDeviceState(
             state->statistics.failedFrameCount == 1U,
         "ordinary frame failure poisoned a ready render target");
 
-    Check(Aero::RenderTarget::Access::Render(
-              *target, renderer, frame).HasValue(),
-        "normal frame after Unsupported failure did not render");
+    Aero::Base::Result<Aero::RenderFrameStatistics> statistics =
+        Aero::Render::RenderDeviceBase::BeginSurfaceFrame(*device, frame);
+    Check(statistics.HasValue(),
+        "normal frame after Unsupported failure was not accepted");
+    if (statistics) {
+        Aero::Render::RenderDeviceBase::CompleteSurfaceFrame(
+            *device, frame, statistics.Value());
+    }
     Check(state->statistics.acceptedFrameCount == 1U &&
             state->statistics.completedFrameCount == 1U,
         "successful recovery frame statistics are incorrect");
@@ -470,9 +607,9 @@ void VerifyRenderDeviceState(
             target->State() == Aero::RenderTargetState::Ready,
         "device loss restore failed");
 
-    state->deviceHealth = Aero::Render::BackendHealth::Failed;
+    state->deviceHealth = Aero::RenderBackendHealth::Failed;
     state->failNext = true;
-    Check(!Aero::RenderTarget::Access::Render(
+    Check(!Aero::Render::RenderTargetServices::Render(
                *target, renderer, frame) &&
             device->State() == Aero::RenderDeviceState::Failed &&
             target->State() == Aero::RenderTargetState::Failed,
@@ -563,7 +700,8 @@ bool RenderAndReadback(
         return false;
     }
     renderer.Shutdown();
-    auto& device = static_cast<Aero::RenderDevice::Access&>(backend);
+    auto& device =
+        static_cast<Aero::Render::RenderDeviceBase&>(backend);
     static_cast<void>(device.DestroyResource(
         target.Value(), device.LastSubmittedFence()));
     static_cast<void>(device.CollectGarbage());
@@ -659,7 +797,7 @@ bool RenderOpenGL33Readback(
             created.GetStatus().message);
         Check(false, "OpenGL conformance surface initialization failed");
     } else {
-        Aero::Render::OpenGL33DeviceOptions deviceOptions;
+        Aero::Render::OpenGL33::DeviceOptions deviceOptions;
         deviceOptions.resolve =
             &Aero::App::Win32::OpenGLWindow::ResolveCallback;
         deviceOptions.makeCurrent =
@@ -887,7 +1025,7 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
     view.SetContent(std::move(document).Value(), logicalSize);
     view.SetSize(logicalSize);
     view.SetScale(2.0);
-    Check(view.Update().HasValue(), "nested effect View update failed");
+    view.Update(0.0);
     const ::Aero::Render::RenderFrame* frame =
         Aero::CurrentFrameForConformance(view);
     if (frame != nullptr && frame->GradientRamps().Empty()) {
@@ -990,9 +1128,15 @@ int main() {
         Aero::Media::Geometry>::value, "Geometry must derive from Freezable");
 
     Aero::Gui gui;
+    Aero::Markup::XamlProviderAdapter facadeProvider(
+        &OpenGuiFacadeXaml, nullptr, nullptr, 0xAE0025U);
+    const Aero::Base::Result<void> providerAdded =
+        gui.AddXamlProvider(facadeProvider, "memory");
+    Check(providerAdded.HasValue(), "Gui facade provider registration failed");
     const Aero::Base::Result<void> initialized = gui.Initialize();
     Check(initialized.HasValue(), "Gui initialization failed");
     if (initialized) {
+        VerifyGuiLoadFacade(gui);
         Aero::ViewOptions viewOptions;
         viewOptions.loadBuiltInTheme = true;
         viewOptions.builtInTheme = Aero::BuiltInTheme::Light;

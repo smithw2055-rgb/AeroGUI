@@ -1,9 +1,9 @@
 #pragma once
 
-#include <Aero/Gui/FrameworkContentElement.hpp>
-#include <Aero/Gui/TextBlock.hpp>
+#include <Aero/FrameworkContentElement.hpp>
+#include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/Gui/Brush.hpp>
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Events/NavigationEventArgs.hpp>
 
 #include <cstdint>
@@ -42,8 +42,8 @@ public:
     bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
     Inline* GetItem(std::uint32_t index) const noexcept;
     InlineCollectionView GetView() const noexcept;
-    Base::Result<void> Add(Base::Ref<Inline> value) noexcept;
-    Base::Result<bool> Remove(Inline& value) noexcept;
+    Result<void> Add(Ref<Inline> value) noexcept;
+    Result<bool> Remove(Inline& value) noexcept;
     void Clear() noexcept;
 
 private:
@@ -68,9 +68,9 @@ public:
     LogicalDirection GetLogicalDirection() const noexcept { return direction_; }
     bool GetIsAtInsertionPosition() const noexcept { return GetIsValid(); }
 
-    Base::Result<std::int32_t> CompareTo(
+    Result<std::int32_t> CompareTo(
         const TextPointer& other) const noexcept;
-    Base::Result<TextPointer> GetPositionAtOffset(
+    Result<TextPointer> GetPositionAtOffset(
         std::int32_t delta,
         LogicalDirection direction = LogicalDirection::Forward) const noexcept;
 
@@ -88,7 +88,9 @@ public:
     }
 
 private:
+#if defined(AERO_GUI_IMPLEMENTATION)
     friend struct ::Aero::Controls::TextBlock::Access;
+#endif
     friend class Aero::Controls::TextBlock;
     friend class TextRange;
     TextPointer(
@@ -105,7 +107,7 @@ private:
 class AERO_GUI_API TextRange {
 public:
     TextRange() noexcept = default;
-    static Base::Result<TextRange> Create(
+    static Result<TextRange> Create(
         TextPointer start,
         TextPointer end) noexcept;
 
@@ -120,8 +122,8 @@ public:
     }
     const TextPointer& GetStart() const noexcept { return start_; }
     const TextPointer& GetEnd() const noexcept { return end_; }
-    Base::Result<Base::String> GetText() const noexcept;
-    Base::Result<void> CopyText(Base::String& output) const noexcept;
+    Result<String> GetText() const noexcept;
+    Result<void> CopyText(String& output) const noexcept;
 
 private:
     TextRange(TextPointer start, TextPointer end) noexcept
@@ -130,14 +132,14 @@ private:
     TextPointer end_;
 };
 
-Base::Result<void> CopyText(
+Result<void> CopyText(
     const Controls::TextBlock& container,
-    Base::String& output) noexcept;
-Base::Result<TextPointer> GetPositionFromPoint(
+    String& output) noexcept;
+Result<TextPointer> GetPositionFromPoint(
     Controls::TextBlock& container,
     Aero::Base::Point point,
     bool snapToText = true) noexcept;
-Base::Result<Aero::Base::Rect> GetCharacterRect(
+Result<Aero::Base::Rect> GetCharacterRect(
     const TextPointer& position) noexcept;
 
 // Non-visual WPF document content. TextElement values are interpreted by the
@@ -147,9 +149,9 @@ class AERO_GUI_API TextElement : public FrameworkContentElement {
 public:
     ~TextElement() override = default;
 
-    Base::Ref<Media::FontFamily> GetFontFamily() const noexcept {
+    Ref<Media::FontFamily> GetFontFamily() const noexcept {
         return GetValueOr(
-            FontFamilyProperty, Base::Ref<Media::FontFamily>{});
+            FontFamilyProperty, Ref<Media::FontFamily>{});
     }
     double GetFontSize() const noexcept {
         return GetValueOr(FontSizeProperty, 16.0);
@@ -160,8 +162,8 @@ public:
     FontStyle GetFontStyle() const noexcept {
         return GetValueOr(FontStyleProperty, FontStyle::Normal);
     }
-    Base::Ref<Media::Brush> GetForeground() const noexcept {
-        return GetValueOr(ForegroundProperty, Base::Ref<Media::Brush>{});
+    Ref<Media::Brush> GetForeground() const noexcept {
+        return GetValueOr(ForegroundProperty, Ref<Media::Brush>{});
     }
     Controls::TextDecorations GetTextDecorations() const noexcept {
         return GetValueOr(
@@ -169,11 +171,11 @@ public:
             Controls::TextDecorations::None);
     }
 
-    void SetFontFamily(Base::Ref<Media::FontFamily> value) noexcept {
+    void SetFontFamily(Ref<Media::FontFamily> value) noexcept {
         SetValue(FontFamilyProperty, std::move(value));
     }
-    Base::Result<void> SetFontFamily(Base::StringView value) noexcept {
-        Base::Result<Base::Ref<Media::FontFamily>> family =
+    Result<void> SetFontFamily(StringView value) noexcept {
+        Result<Ref<Media::FontFamily>> family =
             Base::MakeRef<Media::FontFamily>();
         if (!family) return family.GetStatus();
         family.Value()->SetSource(value);
@@ -189,7 +191,7 @@ public:
     void SetFontStyle(FontStyle value) noexcept {
         SetValue(FontStyleProperty, value);
     }
-    void SetForeground(Base::Ref<Media::Brush> value) noexcept {
+    void SetForeground(Ref<Media::Brush> value) noexcept {
         SetValue(ForegroundProperty, std::move(value));
     }
     void SetTextDecorations(
@@ -197,11 +199,11 @@ public:
         SetValue(TextDecorationsProperty, value);
     }
 
-    inline static constexpr AttachedProperty<Base::Ref<Media::FontFamily>> FontFamilyProperty{"FontFamily"};
+    inline static constexpr AttachedProperty<Ref<Media::FontFamily>> FontFamilyProperty{"FontFamily"};
     inline static constexpr AttachedProperty<double> FontSizeProperty{"FontSize"};
     inline static constexpr AttachedProperty<FontWeight> FontWeightProperty{"FontWeight"};
     inline static constexpr AttachedProperty<FontStyle> FontStyleProperty{"FontStyle"};
-    inline static constexpr AttachedProperty<Base::Ref<Media::Brush>> ForegroundProperty{"Foreground"};
+    inline static constexpr AttachedProperty<Ref<Media::Brush>> ForegroundProperty{"Foreground"};
     inline static constexpr AttachedProperty<Controls::TextDecorations> TextDecorationsProperty{"TextDecorations"};
 
 protected:
@@ -225,18 +227,18 @@ public:
     Run() noexcept : Inline(StaticTypeId()) {}
     ~Run() override = default;
 
-    Base::StringView GetText() const noexcept {
-        return GetValueOr(TextProperty, Base::StringView{});
+    StringView GetText() const noexcept {
+        return GetValueOr(TextProperty, StringView{});
     }
-    Base::StringView GetContent() const noexcept { return GetText(); }
-    void SetText(Base::StringView value) noexcept {
+    StringView GetContent() const noexcept { return GetText(); }
+    void SetText(StringView value) noexcept {
         SetValue(TextProperty, value);
     }
-    void SetContent(Base::StringView value) noexcept {
+    void SetContent(StringView value) noexcept {
         SetText(value);
     }
 
-    inline static constexpr DependencyProperty<Base::String> TextProperty{"Text"};
+    inline static constexpr DependencyProperty<String> TextProperty{"Text"};
 };
 
 class AERO_GUI_API Span : public Inline {
@@ -251,7 +253,7 @@ public:
     }
     Value GetMetadataInlines() const noexcept;
     void SetInlineValue(Value value) noexcept;
-    Base::Result<void> AddOwnedInline(Base::Ref<Inline> value) noexcept;
+    Result<void> AddOwnedInline(Ref<Inline> value) noexcept;
     void ClearOwnedInlines() noexcept;
 
 protected:
@@ -265,9 +267,11 @@ protected:
     }
 
 private:
+#if defined(AERO_GUI_IMPLEMENTATION)
     friend struct ::Aero::Controls::TextBlock::Access;
-    Base::Vector<Base::Ref<Inline>> inlines_;
-    Base::Ref<Inline> pendingInline_;
+#endif
+    Base::Vector<Ref<Inline>> inlines_;
+    Ref<Inline> pendingInline_;
 };
 
 class AERO_GUI_API Bold : public Span {
@@ -313,26 +317,26 @@ public:
         return GetEvent(RequestNavigateEvent);
     }
 
-    Base::StringView GetNavigateUri() const noexcept;
+    StringView GetNavigateUri() const noexcept;
     Aero::Input::ICommand* GetCommand() const noexcept;
     Value GetCommandParameter() const noexcept;
     Aero::UIElement* GetCommandTarget() const noexcept;
 
-    void SetNavigateUri(Base::StringView value) noexcept;
+    void SetNavigateUri(StringView value) noexcept;
     void SetCommand(
-        Base::Ref<Aero::Input::ICommand> command) noexcept;
+        Ref<Aero::Input::ICommand> command) noexcept;
     void SetCommandParameter(Value parameter) noexcept;
     void SetCommandTarget(
-        Base::Ref<Aero::UIElement> target) noexcept;
+        Ref<Aero::UIElement> target) noexcept;
 
-    inline static constexpr DependencyProperty<Base::String> NavigateUriProperty{"NavigateUri"};
-    inline static constexpr DependencyProperty<Base::Ref<Aero::Input::ICommand>> CommandProperty{"Command"};
+    inline static constexpr DependencyProperty<String> NavigateUriProperty{"NavigateUri"};
+    inline static constexpr DependencyProperty<Ref<Aero::Input::ICommand>> CommandProperty{"Command"};
     inline static constexpr DependencyProperty<Value> CommandParameterProperty{"CommandParameter"};
-    inline static constexpr DependencyProperty<Base::Ref<Aero::UIElement>> CommandTargetProperty{"CommandTarget"};
+    inline static constexpr DependencyProperty<Ref<Aero::UIElement>> CommandTargetProperty{"CommandTarget"};
 };
 
 using NavigationHandler = Base::Delegate<bool(
-    Base::StringView, Hyperlink&)>;
+    StringView, Hyperlink&)>;
 
 class AERO_GUI_API NavigationService {
 public:
@@ -345,7 +349,7 @@ public:
     void SetHandler(NavigationHandler handler) noexcept {
         handler_ = std::move(handler);
     }
-    Base::Result<void> Attach(Aero::UIElement& root) noexcept;
+    Result<void> Attach(Aero::UIElement& root) noexcept;
     bool Detach() noexcept;
     bool GetIsAttached() const noexcept { return root_ != nullptr; }
 

@@ -1,8 +1,16 @@
 #pragma once
 
-#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/Value.hpp>
+
+#include <cstdint>
 
 namespace Aero {
+
+enum class FontWeight : std::uint8_t {
+    Normal = 0U,
+    SemiBold,
+    Bold
+};
 
 enum class FontStyle : std::uint8_t {
     Normal = 0U,
@@ -74,8 +82,20 @@ struct TextHitRegion {
 
 } // namespace Aero
 
+namespace Aero::Controls {
+
+// Inline formatting value shared by retained text controls and the
+// Aero::Documents inline hierarchy.
+enum class TextDecorations : std::uint8_t {
+    None = 0U,
+    Underline
+};
+
+} // namespace Aero::Controls
+
 AERO_DECLARE_TYPE_ENUM(Aero::FontWeight)
 AERO_DECLARE_TYPE_ENUM(Aero::FontStyle)
 AERO_DECLARE_TYPE_ENUM(Aero::TextWrapping)
 AERO_DECLARE_TYPE_ENUM(Aero::TextTrimming)
 AERO_DECLARE_TYPE_ENUM(Aero::TextAlignment)
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::TextDecorations)

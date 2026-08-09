@@ -74,3 +74,9 @@ inline bool operator!=(StringView left, StringView right) noexcept {
 }
 
 } // namespace Aero::Base
+
+namespace Aero {
+
+using StringView = Base::StringView;
+
+} // namespace Aero

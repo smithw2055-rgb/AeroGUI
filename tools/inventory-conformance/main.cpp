@@ -5,14 +5,14 @@
 #include <Aero/Input.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/ViewOptions.hpp>
-#include <Aero/Gui/XamlReader.hpp>
-#include <Aero/Gui/ResourceDictionary.hpp>
+#include <Aero/Markup/XamlReader.hpp>
+#include <Aero/Resources.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Module.hpp>
 #include <Aero/Triggers/Behavior.hpp>
-#include <Aero/Gui/View.hpp>
-#include <Aero/Gui/Window.hpp>
+#include <Aero/View.hpp>
+#include <AeroApp/Window.hpp>
 
 #include <climits>
 #include <cstdio>
@@ -476,91 +476,91 @@ Aero::Base::Result<void> RegisterInventoryModule(
 
     auto item = Register<Inventory::Item>(context);
     item
-        .Property(Inventory::Item::NameProperty, PropertyOptions(Base::String{}))
-        .Property(Inventory::Item::DescriptionProperty, PropertyOptions(Base::String{}))
-        .Property(Inventory::Item::CategoryProperty, PropertyOptions(Inventory::ItemCategory::All))
-        .Property(Inventory::Item::LifeProperty, PropertyOptions(std::int32_t{0}))
-        .Property(Inventory::Item::ManaProperty, PropertyOptions(std::int32_t{0}))
-        .Property(Inventory::Item::DpsProperty, PropertyOptions(std::int32_t{0}))
-        .Property(Inventory::Item::ArmorProperty, PropertyOptions(std::int32_t{0}))
-        .Property(Inventory::Item::IconProperty, PropertyOptions(Base::Ref<Media::ImageSource>{}))
+        .Property(Inventory::Item::NameProperty, FrameworkPropertyMetadata(Base::String{}))
+        .Property(Inventory::Item::DescriptionProperty, FrameworkPropertyMetadata(Base::String{}))
+        .Property(Inventory::Item::CategoryProperty, FrameworkPropertyMetadata(Inventory::ItemCategory::All))
+        .Property(Inventory::Item::LifeProperty, FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(Inventory::Item::ManaProperty, FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(Inventory::Item::DpsProperty, FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(Inventory::Item::ArmorProperty, FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(Inventory::Item::IconProperty, FrameworkPropertyMetadata(Base::Ref<Media::ImageSource>{}))
         .Factory();
     status = item.Result();
     if (!status) return status.GetStatus();
 
     auto slot = Register<Inventory::Slot>(context);
     slot
-        .Property(Inventory::Slot::NameProperty, PropertyOptions(Base::String{}))
-        .Property(Inventory::Slot::AllowedCategoryProperty, PropertyOptions(Inventory::ItemCategory::All))
-        .Property(Inventory::Slot::ItemProperty, PropertyOptions(Base::Ref<Inventory::Item>{}))
-        .Property(Inventory::Slot::IsDragOverProperty, PropertyOptions(false).BindsTwoWayByDefault())
-        .Property(Inventory::Slot::IsDropAllowedProperty, PropertyOptions(false))
-        .Property(Inventory::Slot::IsSelectedProperty, PropertyOptions(false))
-        .Property(Inventory::Slot::MoveFocusProperty, PropertyOptions(false))
+        .Property(Inventory::Slot::NameProperty, FrameworkPropertyMetadata(Base::String{}))
+        .Property(Inventory::Slot::AllowedCategoryProperty, FrameworkPropertyMetadata(Inventory::ItemCategory::All))
+        .Property(Inventory::Slot::ItemProperty, FrameworkPropertyMetadata(Base::Ref<Inventory::Item>{}))
+        .Property(Inventory::Slot::IsDragOverProperty, FrameworkPropertyMetadata(false).BindsTwoWayByDefault())
+        .Property(Inventory::Slot::IsDropAllowedProperty, FrameworkPropertyMetadata(false))
+        .Property(Inventory::Slot::IsSelectedProperty, FrameworkPropertyMetadata(false))
+        .Property(Inventory::Slot::MoveFocusProperty, FrameworkPropertyMetadata(false))
         .Factory();
     status = slot.Result();
     if (!status) return status.GetStatus();
 
     auto player = Register<Inventory::Player>(context);
     player
-        .Property(Inventory::Player::NameProperty, PropertyOptions(Base::String{}))
-        .Property(Inventory::Player::LifeProperty, PropertyOptions(std::int32_t{0}))
-        .Property(Inventory::Player::ManaProperty, PropertyOptions(std::int32_t{0}))
-        .Property(Inventory::Player::DpsProperty, PropertyOptions(std::int32_t{0}))
-        .Property(Inventory::Player::ArmorProperty, PropertyOptions(std::int32_t{0}))
-        .Property(Inventory::Player::SlotsProperty, PropertyOptions(Base::Ref<Base::Object>{}))
+        .Property(Inventory::Player::NameProperty, FrameworkPropertyMetadata(Base::String{}))
+        .Property(Inventory::Player::LifeProperty, FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(Inventory::Player::ManaProperty, FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(Inventory::Player::DpsProperty, FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(Inventory::Player::ArmorProperty, FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(Inventory::Player::SlotsProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
         .Factory();
     status = player.Result();
     if (!status) return status.GetStatus();
 
     auto viewModel = Register<Inventory::ViewModel>(context);
     viewModel
-        .Property(Inventory::ViewModel::PlatformProperty, PropertyOptions(Base::String{}))
-        .Property(Inventory::ViewModel::PlayerProperty, PropertyOptions(Base::Ref<Inventory::Player>{}))
-        .Property(Inventory::ViewModel::InventoryProperty, PropertyOptions(Base::Ref<Base::Object>{}))
-        .Property(Inventory::ViewModel::ItemsProperty, PropertyOptions(Base::Ref<Base::Object>{}))
-        .Property(Inventory::ViewModel::StartDragItemProperty, PropertyOptions(Base::Ref<Input::ICommand>{}))
-        .Property(Inventory::ViewModel::EndDragItemProperty, PropertyOptions(Base::Ref<Input::ICommand>{}))
-        .Property(Inventory::ViewModel::DropItemProperty, PropertyOptions(Base::Ref<Input::ICommand>{}))
-        .Property(Inventory::ViewModel::SelectSlotProperty, PropertyOptions(Base::Ref<Input::ICommand>{}))
-        .Property(Inventory::ViewModel::DragSourceProperty, PropertyOptions(Base::Ref<Inventory::Slot>{}))
-        .Property(Inventory::ViewModel::DraggedItemProperty, PropertyOptions(Base::Ref<Inventory::Item>{}))
-        .Property(Inventory::ViewModel::SelectedSlotProperty, PropertyOptions(Base::Ref<Inventory::Slot>{}))
+        .Property(Inventory::ViewModel::PlatformProperty, FrameworkPropertyMetadata(Base::String{}))
+        .Property(Inventory::ViewModel::PlayerProperty, FrameworkPropertyMetadata(Base::Ref<Inventory::Player>{}))
+        .Property(Inventory::ViewModel::InventoryProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
+        .Property(Inventory::ViewModel::ItemsProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
+        .Property(Inventory::ViewModel::StartDragItemProperty, FrameworkPropertyMetadata(Base::Ref<Input::ICommand>{}))
+        .Property(Inventory::ViewModel::EndDragItemProperty, FrameworkPropertyMetadata(Base::Ref<Input::ICommand>{}))
+        .Property(Inventory::ViewModel::DropItemProperty, FrameworkPropertyMetadata(Base::Ref<Input::ICommand>{}))
+        .Property(Inventory::ViewModel::SelectSlotProperty, FrameworkPropertyMetadata(Base::Ref<Input::ICommand>{}))
+        .Property(Inventory::ViewModel::DragSourceProperty, FrameworkPropertyMetadata(Base::Ref<Inventory::Slot>{}))
+        .Property(Inventory::ViewModel::DraggedItemProperty, FrameworkPropertyMetadata(Base::Ref<Inventory::Item>{}))
+        .Property(Inventory::ViewModel::SelectedSlotProperty, FrameworkPropertyMetadata(Base::Ref<Inventory::Slot>{}))
         .Factory();
     status = viewModel.Result();
     if (!status) return status.GetStatus();
 
     auto animated = Register<Inventory::AnimatedNumber>(context);
     animated
-        .Property(Inventory::AnimatedNumber::NumberProperty, PropertyOptions(std::int32_t{0}))
-        .Property(Inventory::AnimatedNumber::AnimatedNumberProperty, PropertyOptions(std::int32_t{0}))
-        .Property(Inventory::AnimatedNumber::AnimationDurationProperty, PropertyOptions(Base::String{}))
+        .Property(Inventory::AnimatedNumber::NumberProperty, FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(Inventory::AnimatedNumber::AnimatedNumberProperty, FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(Inventory::AnimatedNumber::AnimationDurationProperty, FrameworkPropertyMetadata(Base::String{}))
         .Factory();
     status = animated.Result();
     if (!status) return status.GetStatus();
 
     auto adorner = Register<Inventory::DragAdornerBehavior>(context);
     adorner
-        .Property(Inventory::DragAdornerBehavior::DragStartOffsetProperty, PropertyOptions(Base::Point{}))
-        .Property(Inventory::DragAdornerBehavior::DraggedItemXProperty, PropertyOptions(0.0))
-        .Property(Inventory::DragAdornerBehavior::DraggedItemYProperty, PropertyOptions(0.0))
+        .Property(Inventory::DragAdornerBehavior::DragStartOffsetProperty, FrameworkPropertyMetadata(Base::Point{}))
+        .Property(Inventory::DragAdornerBehavior::DraggedItemXProperty, FrameworkPropertyMetadata(0.0))
+        .Property(Inventory::DragAdornerBehavior::DraggedItemYProperty, FrameworkPropertyMetadata(0.0))
         .Factory();
     status = adorner.Result();
     if (!status) return status.GetStatus();
 
     auto drag = Register<Inventory::DragItemBehavior>(context);
     drag
-        .Property(Inventory::DragItemBehavior::DragStartOffsetProperty, PropertyOptions(Base::Point{}))
-        .Property(Inventory::DragItemBehavior::StartDragCommandProperty, PropertyOptions(Base::Ref<Input::ICommand>{}))
-        .Property(Inventory::DragItemBehavior::EndDragCommandProperty, PropertyOptions(Base::Ref<Input::ICommand>{}))
+        .Property(Inventory::DragItemBehavior::DragStartOffsetProperty, FrameworkPropertyMetadata(Base::Point{}))
+        .Property(Inventory::DragItemBehavior::StartDragCommandProperty, FrameworkPropertyMetadata(Base::Ref<Input::ICommand>{}))
+        .Property(Inventory::DragItemBehavior::EndDragCommandProperty, FrameworkPropertyMetadata(Base::Ref<Input::ICommand>{}))
         .Factory();
     status = drag.Result();
     if (!status) return status.GetStatus();
 
     auto drop = Register<Inventory::DropItemBehavior>(context);
     drop
-        .Property(Inventory::DropItemBehavior::IsDragOverProperty, PropertyOptions(false).BindsTwoWayByDefault())
-        .Property(Inventory::DropItemBehavior::DropCommandProperty, PropertyOptions(Base::Ref<Input::ICommand>{}))
+        .Property(Inventory::DropItemBehavior::IsDragOverProperty, FrameworkPropertyMetadata(false).BindsTwoWayByDefault())
+        .Property(Inventory::DropItemBehavior::DropCommandProperty, FrameworkPropertyMetadata(Base::Ref<Input::ICommand>{}))
         .Factory();
     return drop.Result();
 }
@@ -774,8 +774,17 @@ bool SendHostPointer(
     return false;
 }
 
+void AdvanceView(
+    Aero::View& view,
+    double& timeInSeconds,
+    std::uint32_t elapsedMilliseconds) noexcept {
+    timeInSeconds += static_cast<double>(elapsedMilliseconds) / 1000.0;
+    view.Update(timeInSeconds);
+}
+
 bool VerifyMainWindowInteractions(
     Aero::View& view,
+    double& timeInSeconds,
     Aero::FrameworkElement& root,
     ViewModelFixture& fixture) {
     using namespace Aero;
@@ -930,9 +939,8 @@ bool VerifyMainWindowInteractions(
         std::fprintf(stderr, "DRAG FAIL: drag over target was not routed\n");
         return false;
     }
-    Base::Result<void> dragUpdated = view.Update(16U);
-    if (!dragUpdated ||
-        !targetSlot->GetValueOr(
+    AdvanceView(view, timeInSeconds, 16U);
+    if (!targetSlot->GetValueOr(
             Inventory::Slot::IsDragOverProperty, false)) {
         std::fprintf(stderr,
             "DRAG FAIL: DragEnter did not update target state enter=%u leave=%u allow=%d last=%p chest=%p hit=%p\n",
@@ -974,8 +982,8 @@ bool VerifyMainWindowInteractions(
 
     pointer.action = Input::PointerAction::Up;
     pointerResult = SendHostPointer(view, pointer);
-    dragUpdated = view.Update(16U);
-    if (!pointerResult || !dragUpdated || slotHead->GetIsDragging() ||
+    AdvanceView(view, timeInSeconds, 16U);
+    if (!pointerResult || slotHead->GetIsDragging() ||
         fixture.command->GetExecutionCount() != 5U ||
         !IsObjectValue(
             fixture.command->GetParameter(3U),
@@ -1051,6 +1059,7 @@ bool LoadOne(Aero::Gui& gui, const char* relative) {
     ::Aero::ViewOptions viewOptions;
     viewOptions.automaticAnimationClock = false;
     viewOptions.applicationResources = resources;
+    viewOptions.diagnostics = &diagnostics;
     Aero::Base::Result<Aero::Base::Ref<Aero::View>> made =
         gui.CreateView(viewOptions);
     if (!made) { std::fprintf(stderr, "view failed: %s\n", made.GetStatus().message); return false; }
@@ -1079,19 +1088,14 @@ bool LoadOne(Aero::Gui& gui, const char* relative) {
     }
     Aero::Base::Result<void> mounted = view->SetContent(std::move(loaded).Value(), {1000.0, 600.0});
     if (!mounted) { std::fprintf(stderr, "MOUNT FAIL %s: %s\n", relative, mounted.GetStatus().message); return false; }
-    Aero::Base::Result<void> updated = view->Update(16U);
-    if (!updated) { std::fprintf(stderr, "UPDATE FAIL %s: %s\n", relative, updated.GetStatus().message); return false; }
+    double timeInSeconds = 0.0;
+    view->Update(timeInSeconds);
+    AdvanceView(*view, timeInSeconds, 16U);
     if (std::strcmp(relative, "MainWindow.xaml") == 0) {
-        updated = view->Update(3200U);
-        if (!updated) {
-            std::fprintf(stderr, "INTERACTION FAIL: intro animation update failed: %s\n",
-                updated.GetStatus().message != nullptr
-                    ? updated.GetStatus().message : "unknown");
-            return false;
-        }
+        AdvanceView(*view, timeInSeconds, 3200U);
         if (root == nullptr ||
             !VerifyMainWindowInteractions(
-                *view, *root, vm.Value())) {
+                *view, timeInSeconds, *root, vm.Value())) {
             return false;
         }
         const std::uint32_t adornerAttached =

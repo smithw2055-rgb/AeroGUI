@@ -227,7 +227,7 @@ D3D11RenderDevice::ReadbackTextureChecksum(
 }
 
 Base::Result<ResourceHandle> ImportD3D11ExternalRenderTarget(
-    Aero::RenderDevice::Access& device,
+    Aero::Render::RenderDeviceBase& device,
     D3D11RenderDevice& backend,
     const D3D11RenderTargetBinding& descriptor) noexcept {
     if (descriptor.texture.format == GraphicsTextureFormat::Depth24Stencil8) {

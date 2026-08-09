@@ -3,7 +3,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Platform/NativeWindow.hpp>
+#include <AeroApp/WindowInterop.hpp>
 
 #include <cstdint>
 

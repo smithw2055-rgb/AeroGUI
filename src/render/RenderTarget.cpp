@@ -1,4 +1,5 @@
 #include "render/RenderTargetState.hpp"
+#include "gui/ViewRenderer.hpp"
 
 #include <utility>
 
@@ -17,28 +18,17 @@ Base::Status NotInitialized(const char* message) noexcept {
 
 } // namespace
 
-RenderTarget::RenderTarget(
-    ConstructionToken,
-    Base::Ref<Aero::RenderDevice> device,
-    Access* implementation) noexcept
-    : device_(std::move(device)),
-      impl_(implementation) {}
-
-RenderTarget::~RenderTarget() noexcept {
-    delete impl_;
-    impl_ = nullptr;
-    device_.Reset();
-}
+RenderTarget::~RenderTarget() noexcept = default;
 
 RenderTargetKind RenderTarget::Kind() const noexcept {
-    return impl_ != nullptr ? impl_->kind : RenderTargetKind::Embedded;
+    return BackendKind();
 }
 
 RenderTargetState RenderTarget::State() const noexcept {
-    if (impl_ == nullptr || !device_) {
-        return RenderTargetState::Shutdown;
-    }
-    switch (device_->State()) {
+    const Render::RenderTargetBase& implementation =
+        *Render::RenderTargetBase::From(*this);
+    if (!implementation.device) return RenderTargetState::Shutdown;
+    switch (implementation.device->State()) {
     case Aero::RenderDeviceState::Ready:
         break;
     case Aero::RenderDeviceState::DeviceLost:
@@ -48,116 +38,100 @@ RenderTargetState RenderTarget::State() const noexcept {
     case Aero::RenderDeviceState::Shutdown:
         return RenderTargetState::Shutdown;
     }
-    switch (impl_->GetSurfaceHealth()) {
-    case ::Aero::Render::SurfaceHealth::Ready:
-        return RenderTargetState::Ready;
-    case ::Aero::Render::SurfaceHealth::Lost:
-        return RenderTargetState::Lost;
-    case ::Aero::Render::SurfaceHealth::Failed:
-        return RenderTargetState::Failed;
-    case ::Aero::Render::SurfaceHealth::Shutdown:
-        return RenderTargetState::Shutdown;
-    }
-    return RenderTargetState::Failed;
+    return BackendState();
 }
 
 Base::Ref<Aero::RenderDevice> RenderTarget::GetDevice() const noexcept {
-    return device_;
+    return Render::RenderTargetBase::From(*this)->device;
 }
 
 Base::Result<void> RenderTarget::Resize(
     std::uint32_t width,
     std::uint32_t height) noexcept {
-    if (impl_ == nullptr || !device_) {
-        return NotInitialized("Render target is not initialized");
-    }
+    Render::RenderTargetBase& implementation =
+        *Render::RenderTargetBase::From(*this);
+    if (!implementation.device) return NotInitialized("Render target is not initialized");
     if (width == 0U || height == 0U) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Render target dimensions must be nonzero");
     }
-    if (device_->State() != Aero::RenderDeviceState::Ready ||
-        impl_->GetSurfaceHealth() !=
-            ::Aero::Render::SurfaceHealth::Ready) {
+    if (implementation.device->State() != Aero::RenderDeviceState::Ready ||
+        BackendState() != RenderTargetState::Ready) {
         return InvalidState("Render target cannot resize in its current state");
     }
-    Base::Result<void> idle = device_->WaitIdle();
+    Base::Result<void> idle = implementation.device->WaitIdle();
     if (!idle) return idle.GetStatus();
-    return impl_->Resize(width, height);
+    return ResizeBackend(width, height);
 }
 
 void RenderTarget::NotifyLost() noexcept {
-    if (impl_ == nullptr || !device_ ||
-        device_->State() != Aero::RenderDeviceState::Ready ||
-        impl_->GetSurfaceHealth() !=
-            ::Aero::Render::SurfaceHealth::Ready) {
+    Render::RenderTargetBase& implementation =
+        *Render::RenderTargetBase::From(*this);
+    if (!implementation.device ||
+        implementation.device->State() != Aero::RenderDeviceState::Ready ||
+        BackendState() != RenderTargetState::Ready) {
         return;
     }
-    impl_->NotifySurfaceLost();
-    Aero::RenderDevice::Access::RefreshHealth(*device_);
+    NotifyBackendLost();
+    Render::RenderDeviceBase::RefreshHealth(*implementation.device);
 }
 
 Base::Result<void> RenderTarget::Restore() noexcept {
-    if (impl_ == nullptr || !device_) {
-        return NotInitialized("Render target is not initialized");
-    }
-    if (device_->State() != Aero::RenderDeviceState::Ready ||
-        impl_->GetSurfaceHealth() !=
-            ::Aero::Render::SurfaceHealth::Lost) {
+    Render::RenderTargetBase& implementation =
+        *Render::RenderTargetBase::From(*this);
+    if (!implementation.device) return NotInitialized("Render target is not initialized");
+    if (implementation.device->State() != Aero::RenderDeviceState::Ready ||
+        BackendState() != RenderTargetState::Lost) {
         return InvalidState("Only a lost render target can be restored");
     }
-    Base::Result<void> restored = impl_->RestoreSurface();
-    Aero::RenderDevice::Access::RefreshHealth(*device_);
+    Base::Result<void> restored = RestoreBackend();
+    Render::RenderDeviceBase::RefreshHealth(*implementation.device);
     return restored;
 }
 
-Base::Result<Base::Ref<RenderTarget>> RenderTarget::Access::Create(
-    Base::Ref<Aero::RenderDevice> device,
-    Access* implementation,
-    Base::IAllocator* allocator) noexcept {
-    if (!device || implementation == nullptr) {
-        delete implementation;
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Render target requires a device and implementation");
-    }
-    Base::IAllocator& selected = allocator != nullptr
-        ? *allocator
-        : Base::GetDefaultAllocator();
-    Base::Result<Base::Ref<RenderTarget>> made =
-        Base::MakeRefWithAllocator<RenderTarget>(
-            selected,
-            RenderTarget::ConstructionToken{},
-            std::move(device),
-            implementation);
-    if (!made) delete implementation;
-    return made;
-}
+} // namespace Aero
 
-Base::Result<void> RenderTarget::Access::Render(
-    RenderTarget& target,
+namespace Aero::Render {
+
+Base::Result<void> RenderTargetServices::Render(
+    Aero::RenderTarget& target,
     ::Aero::ViewRenderer& renderer,
     const ::Aero::Render::RenderFrame& frame) noexcept {
-    if (target.impl_ == nullptr || !target.device_) {
+    RenderTargetBase& implementation = *RenderTargetBase::From(target);
+    if (!implementation.device) {
         return NotInitialized("Render target is not initialized");
     }
     Base::Status deviceReady =
-        Aero::RenderDevice::Access::FrameStatus(*target.device_);
+        RenderDeviceBase::FrameStatus(*implementation.device);
     if (!deviceReady.IsOk()) return deviceReady;
-    if (target.impl_->GetSurfaceHealth() !=
-            ::Aero::Render::SurfaceHealth::Ready) {
+    if (target.BackendState() != Aero::RenderTargetState::Ready) {
         return InvalidState("Render target is not ready");
     }
 
     Base::Result<Aero::RenderFrameStatistics> statistics =
-        Aero::RenderDevice::Access::BeginSurfaceFrame(*target.device_, frame);
+        RenderDeviceBase::BeginSurfaceFrame(*implementation.device, frame);
     if (!statistics) return statistics.GetStatus();
 
-    Base::Result<void> rendered =
-        target.impl_->Render(renderer, frame);
+    Base::Result<FrameTarget> acquired =
+        implementation.AcquireFrameTarget();
+    if (!acquired) {
+        RenderDeviceBase::RecordSurfaceFailure(*implementation.device);
+        return acquired.GetStatus();
+    }
+
+    Base::Result<::Aero::Graphics::FenceValue> rendered =
+        renderer.RenderOnscreenFrame(
+        frame, acquired.Value());
+    Base::Result<void> retired =
+        implementation.RetireFrameTarget(acquired.Value());
     if (!rendered) {
-        Aero::RenderDevice::Access::RecordSurfaceFailure(*target.device_);
+        RenderDeviceBase::RecordSurfaceFailure(*implementation.device);
         return rendered.GetStatus();
+    }
+    if (!retired) {
+        RenderDeviceBase::RecordSurfaceFailure(*implementation.device);
+        return retired.GetStatus();
     }
 
     const ::Aero::Render::FrameEncoderStatistics source =
@@ -177,23 +151,9 @@ Base::Result<void> RenderTarget::Access::Render(
         source.uniformBufferBindingCount +
         source.textureSamplerBindingCount;
 
-    Aero::RenderDevice::Access::CompleteSurfaceFrame(
-        *target.device_, frame, statistics.Value());
+    RenderDeviceBase::CompleteSurfaceFrame(
+        *implementation.device, frame, statistics.Value());
     return {};
-}
-
-} // namespace Aero
-
-namespace Aero::Render {
-
-Base::Result<Base::Ref<Aero::RenderTarget>> AdoptRenderTarget(
-    Base::Ref<Aero::RenderDevice> device,
-    Aero::RenderTarget::Access* target,
-    Aero::RenderTargetKind kind,
-    Base::IAllocator* allocator) noexcept {
-    if (target != nullptr) target->kind = kind;
-    return Aero::RenderTarget::Access::Create(
-        std::move(device), target, allocator);
 }
 
 } // namespace Aero::Render

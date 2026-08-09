@@ -120,8 +120,9 @@ Runtime 与 `aero-xamlc` 使用同一 Schema/Facet 语义。未知类型、未�
 资源循环、无效 Binding path、线程违规和缺失 capability 必须返回稳定诊断，
 不得静默忽略。
 
-公开加载入口为 `Markup::XamlReader`；View 不充当 XAML parser、schema registry
-或 source-provider service locator。
+普通公开加载入口为 `Gui::LoadXaml<T>()` 与 `Gui::LoadComponent()`；
+`Markup::XamlReader` 保留给 Parse、compiled XAML、热重载和工具链。View 不充当
+XAML parser、schema registry 或 source-provider service locator。
 
 ## 5. 树与路由
 
@@ -165,11 +166,11 @@ View 负责一个 UI 实例的：
 
 ```text
 Gui.Initialize()
-→ XamlReader.Load()/Parse()
-→ Gui.CreateView(options)
-→ View.SetContent(document, size)
+→ Gui.LoadXaml<T>()
+→ Gui.CreateView(root, options)
+→ View.SetSize(size)
 → host dispatches input
-→ View.Update(elapsedMilliseconds)
+→ View.Update(totalTimeSeconds)
 ```
 
 宿主拥有 event loop、线程、GPU context/device、queue、surface 和 frame

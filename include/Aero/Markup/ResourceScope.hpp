@@ -15,7 +15,7 @@ class ResourceKey;
 
 namespace Markup {
 
-using AddResourceCallback = Base::Result<void> (*)(
+using AddResourceCallback = Result<void> (*)(
     Base::Object& scopeOwner,
     const ResourceKey& key,
     const Meta::Value& value,

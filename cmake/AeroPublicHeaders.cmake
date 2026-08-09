@@ -1,8 +1,8 @@
 # Explicit installed SDK header whitelist.
 # Adding a public header is an API decision and must update this file.
 set(AERO_PUBLIC_HEADERS
-    include/Aero/App.hpp
-    include/Aero/Audio/Audio.hpp
+    include/AeroApp/App.hpp
+    include/AeroAudio/Audio.hpp
     include/Aero/Base/Allocator.hpp
     include/Aero/Base/Assert.hpp
     include/Aero/Base/Config.hpp
@@ -24,13 +24,12 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Base/Vector.hpp
     include/Aero/CAPI.h
     include/Aero/Controls.hpp
-    include/Aero/Gui/UserControl.hpp
-    include/Aero/Gui/CheckBox.hpp
-    include/Aero/Gui/RadioButton.hpp
-    include/Aero/Gui/ComboBox.hpp
-    include/Aero/Gui/ListView.hpp
-    include/Aero/Gui/ScrollViewer.hpp
-    include/Aero/Gui/Text.hpp
+    include/Aero/Controls/UserControl.hpp
+    include/Aero/Controls/CheckBox.hpp
+    include/Aero/Controls/RadioButton.hpp
+    include/Aero/Controls/ComboBox.hpp
+    include/Aero/Controls/ListView.hpp
+    include/Aero/Controls/ScrollViewer.hpp
     include/Aero/Collections.hpp
     include/Aero/Diagnostics.hpp
     include/Aero/Diagnostics/DependencyProperty.hpp
@@ -40,7 +39,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Meta.hpp
     include/Aero/Value.hpp
     include/Aero/Documents.hpp
-    include/Aero/Gui/DrawingContext.hpp
+    include/Aero/Media/DrawingContext.hpp
     include/Aero/Events/ApplicationEventArgs.hpp
     include/Aero/Events/CommandEventArgs.hpp
     include/Aero/Events/ControlEventArgs.hpp
@@ -52,68 +51,68 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Events/WindowEventArgs.hpp
     include/Aero/Freezable.hpp
     include/Aero/Gui.hpp
-    include/Aero/Gui/Application.hpp
-    include/Aero/Gui/Window.hpp
-    include/Aero/Gui/DependencyObject.hpp
-    include/Aero/Gui/DependencyProperty.hpp
-    include/Aero/Gui/RoutedEvent.hpp
-    include/Aero/Gui/Visual.hpp
-    include/Aero/Gui/UIElement.hpp
-    include/Aero/Gui/FrameworkElement.hpp
-    include/Aero/Gui/FrameworkContentElement.hpp
-    include/Aero/Gui/Control.hpp
-    include/Aero/Gui/ContentControl.hpp
-    include/Aero/Gui/Panel.hpp
-    include/Aero/Gui/ButtonBase.hpp
-    include/Aero/Gui/RepeatButton.hpp
-    include/Aero/Gui/Button.hpp
-    include/Aero/Gui/ToggleButton.hpp
-    include/Aero/Gui/Grid.hpp
-    include/Aero/Gui/StackPanel.hpp
-    include/Aero/Gui/Border.hpp
-    include/Aero/Gui/ItemsControl.hpp
-    include/Aero/Gui/ItemCollection.hpp
-    include/Aero/Gui/AlternationConverter.hpp
-    include/Aero/Gui/ItemsPanelTemplate.hpp
-    include/Aero/Gui/ItemsPresenter.hpp
-    include/Aero/Gui/HeaderedItemsControl.hpp
-    include/Aero/Gui/ItemContainerGenerator.hpp
-    include/Aero/Gui/ListBox.hpp
-    include/Aero/Gui/TreeView.hpp
-    include/Aero/Gui/TextBlock.hpp
-    include/Aero/Gui/TextBoxBase.hpp
-    include/Aero/Gui/TextBox.hpp
-    include/Aero/Gui/BindingBase.hpp
-    include/Aero/Gui/Binding.hpp
-    include/Aero/Gui/ResourceDictionary.hpp
-    include/Aero/Gui/Style.hpp
-    include/Aero/Gui/ControlTemplate.hpp
-    include/Aero/Gui/DataTemplate.hpp
-    include/Aero/Gui/Storyboard.hpp
-    include/Aero/Gui/Brush.hpp
-    include/Aero/Gui/Geometry.hpp
-    include/Aero/Gui/Transform.hpp
-    include/Aero/Gui/XamlDocument.hpp
-    include/Aero/Gui/XamlReader.hpp
-    include/Aero/Gui/View.hpp
-    include/Aero/Gui/IRenderer.hpp
-    include/Aero/Render/RenderDevice.hpp
-    include/Aero/Render/RenderTarget.hpp
+    include/AeroApp/Application.hpp
+    include/AeroApp/Window.hpp
+    include/Aero/DependencyObject.hpp
+    include/Aero/DependencyProperty.hpp
+    include/Aero/RoutedEvent.hpp
+    include/Aero/Visual.hpp
+    include/Aero/UIElement.hpp
+    include/Aero/FrameworkElement.hpp
+    include/Aero/FrameworkContentElement.hpp
+    include/Aero/Controls/Control.hpp
+    include/Aero/Controls/ContentControl.hpp
+    include/Aero/Controls/Panel.hpp
+    include/Aero/Controls/ButtonBase.hpp
+    include/Aero/Controls/RepeatButton.hpp
+    include/Aero/Controls/Button.hpp
+    include/Aero/Controls/ToggleButton.hpp
+    include/Aero/Controls/Grid.hpp
+    include/Aero/Controls/StackPanel.hpp
+    include/Aero/Controls/Border.hpp
+    include/Aero/Controls/ItemsControl.hpp
+    include/Aero/Controls/ItemCollection.hpp
+    include/Aero/Controls/AlternationConverter.hpp
+    include/Aero/Controls/ItemsPanelTemplate.hpp
+    include/Aero/Controls/ItemsPresenter.hpp
+    include/Aero/Controls/HeaderedItemsControl.hpp
+    include/Aero/Controls/ItemContainerGenerator.hpp
+    include/Aero/Controls/ListBox.hpp
+    include/Aero/Controls/TreeView.hpp
+    include/Aero/Controls/TextBlock.hpp
+    include/Aero/Controls/TextBoxBase.hpp
+    include/Aero/Controls/TextBox.hpp
+    include/Aero/Data/Binding.hpp
+    include/Aero/Resources.hpp
+    include/Aero/Style.hpp
+    include/Aero/Controls/ControlTemplate.hpp
+    include/Aero/DataTemplate.hpp
+    include/Aero/Media/Animation.hpp
+    include/Aero/Media/Brushes.hpp
+    include/Aero/Media/Geometry.hpp
+    include/Aero/Media/Transforms.hpp
+    include/Aero/Markup/XamlDocument.hpp
+    include/Aero/Markup/XamlReader.hpp
+    include/Aero/View.hpp
+    include/Aero/IRenderer.hpp
+    include/AeroRender/Render.hpp
+    include/AeroRender/RenderDevice.hpp
+    include/AeroRender/RenderTarget.hpp
     include/Aero/Input.hpp
-    include/Aero/Input/Platform.hpp
-    include/Aero/Platform/NativeWindow.hpp
-    include/Aero/Render/D3D11.hpp
-    include/Aero/Render/OpenGL33.hpp
+    include/Aero/InputInterop.hpp
+    include/AeroApp/WindowInterop.hpp
+    include/AeroRender/D3D11.hpp
+    include/AeroRender/OpenGL33.hpp
     include/Aero/Markup/ReloadCoordinator.hpp
     include/Aero/Markup/ResourceScope.hpp
     include/Aero/Markup/ServiceProvider.hpp
-    include/Aero/Text/FontProvider.hpp
+    include/Aero/Media/FontProvider.hpp
     include/Aero/Media/TextureProvider.hpp
     include/Aero/Markup/XamlProvider.hpp
     include/Aero/ViewOptions.hpp
-    include/Aero/App/WindowInterop.hpp
     include/Aero/Layout.hpp
     include/Aero/Media/Effects.hpp
+    include/Aero/Media/Fonts.hpp
     include/Aero/Media/Images.hpp
     include/Aero/Module.hpp
     include/Aero/Shapes.hpp
@@ -137,17 +136,16 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Triggers/SetFocusAction.hpp
     include/Aero/Triggers/StoryboardActions.hpp
     include/Aero/TextFormatting.hpp
-    include/Aero/Gui/TextFormatting.hpp
-    include/Aero/Gui/Decorator.hpp
-    include/Aero/Gui/ContentPresenter.hpp
-    include/Aero/Gui/RangeBase.hpp
-    include/Aero/Gui/Popup.hpp
-    include/Aero/Gui/HeaderedContentControl.hpp
-    include/Aero/Gui/VirtualizingStackPanel.hpp
-    include/Aero/Gui/Menu.hpp
-    include/Aero/Gui/ToolBar.hpp
-    include/Aero/Gui/StatusBar.hpp
-    include/Aero/Gui/ToolTip.hpp
-    include/Aero/Gui/Image.hpp
-    include/Aero/Gui/PasswordBox.hpp
+    include/Aero/Controls/Decorator.hpp
+    include/Aero/Controls/ContentPresenter.hpp
+    include/Aero/Controls/RangeBase.hpp
+    include/Aero/Controls/Popup.hpp
+    include/Aero/Controls/HeaderedContentControl.hpp
+    include/Aero/Controls/VirtualizingStackPanel.hpp
+    include/Aero/Controls/Menu.hpp
+    include/Aero/Controls/ToolBar.hpp
+    include/Aero/Controls/StatusBar.hpp
+    include/Aero/Controls/ToolTip.hpp
+    include/Aero/Controls/Image.hpp
+    include/Aero/Controls/PasswordBox.hpp
 )

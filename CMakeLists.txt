@@ -38,6 +38,14 @@ if(AERO_BUILD_SHARED AND AERO_BUILD_TOOLS)
 endif()
 option(AERO_BUILD_CONFORMANCE
     "Build the non-installed Aero runtime conformance executable" OFF)
+if(AERO_BUILD_SHARED AND AERO_BUILD_CONFORMANCE)
+    message(FATAL_ERROR
+        "AERO_BUILD_SHARED and AERO_BUILD_CONFORMANCE cannot be enabled "
+        "together: the white-box conformance executables consume source-only "
+        "renderer and backend APIs. Run them from a static configuration; "
+        "shared builds validate the installed ABI with public link consumers "
+        "and DLL export-table checks.")
+endif()
 option(AERO_ENABLE_DEVELOPMENT_CHECKS
     "Enable repository architecture and convention checks" OFF)
 if(AERO_ENABLE_DEVELOPMENT_CHECKS)
@@ -190,6 +198,11 @@ set_target_properties(AeroAudio PROPERTIES
 aero_apply_compiler_options(AeroAudio)
 aero_verify_windows_exports(AeroAudio "Engine@Audio@Aero@@")
 
+add_library(AeroAudioHeaderConsumer OBJECT
+    tools/sdk-consumers/AudioConsumer.cpp)
+target_link_libraries(AeroAudioHeaderConsumer PRIVATE Aero::Audio)
+aero_apply_compiler_options(AeroAudioHeaderConsumer)
+
 if(NOT AERO_WITH_FREETYPE OR NOT AERO_WITH_HARFBUZZ)
     message(FATAL_ERROR
         "AeroGui requires the built-in FreeType and HarfBuzz text pipeline")
@@ -232,7 +245,7 @@ if(AERO_WITH_FREETYPE)
     endif()
 
     set(_aero_freetype_source
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/text/freetype/FreeTypeSingleObject.c")
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/text/freetype/FreeTypeSingleObject.c")
     set(_aero_freetype_root
         "${AERO_THIRD_PARTY_ROOT}/freetype")
     set(_aero_freetype_include
@@ -254,7 +267,7 @@ if(AERO_WITH_FREETYPE)
         PRIVATE
             "${_aero_freetype_root}"
             "${_aero_freetype_include}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/text/freetype"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/text/freetype"
         INTERFACE
             "$<BUILD_INTERFACE:${_aero_freetype_include}>")
     set_target_properties(freetype PROPERTIES

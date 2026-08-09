@@ -1,5 +1,5 @@
 #include <Aero/Gui.hpp>
-#include "markup/XamlRuntime.hpp"
+#include "gui/markup/XamlRuntime.hpp"
 #include "app/Metadata.hpp"
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Module.hpp>

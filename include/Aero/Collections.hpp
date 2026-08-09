@@ -6,7 +6,7 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 #include <Aero/Value.hpp>
 
@@ -21,7 +21,7 @@ class AERO_GUI_API IItemsSource {
 public:
     virtual ~IItemsSource() = default;
     virtual std::uint32_t GetCount() const noexcept = 0;
-    virtual Base::Ref<Base::Object> GetItem(
+    virtual Ref<Base::Object> GetItem(
         std::uint32_t index) const noexcept = 0;
     virtual void AddItemsChanged(
         const ItemsChangedHandler& handler) noexcept = 0;
@@ -45,27 +45,27 @@ public:
     std::uint32_t GetCount() const noexcept override {
         return items_.Size();
     }
-    Base::Ref<Base::Object> GetItem(
+    Ref<Base::Object> GetItem(
         std::uint32_t index) const noexcept override {
-        return index < items_.Size() ? items_[index] : Base::Ref<Base::Object>{};
+        return index < items_.Size() ? items_[index] : Ref<Base::Object>{};
     }
-    Base::Result<void> Add(
-        Base::Ref<Base::Object> item) noexcept {
+    Result<void> Add(
+        Ref<Base::Object> item) noexcept {
         return Insert(items_.Size(), std::move(item));
     }
-    Base::Result<void> Insert(
+    Result<void> Insert(
         std::uint32_t index,
-        Base::Ref<Base::Object> item) noexcept {
+        Ref<Base::Object> item) noexcept {
         if (!item || index > items_.Size()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "ObservableCollection insert is invalid");
         }
-        Base::Result<void> reserved =
+        Result<void> reserved =
             items_.Reserve(items_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
-        Base::Ref<Base::Object> placeholder;
-        Base::Result<void> pushed = items_.PushBack(std::move(placeholder));
+        Ref<Base::Object> placeholder;
+        Result<void> pushed = items_.PushBack(std::move(placeholder));
         if (!pushed) return pushed.GetStatus();
         for (std::uint32_t current = items_.Size() - 1U;
              current > index; --current) {
@@ -80,9 +80,9 @@ public:
             1U});
         return {};
     }
-    Base::Result<void> Replace(
+    Result<void> Replace(
         std::uint32_t index,
-        Base::Ref<Base::Object> item) noexcept {
+        Ref<Base::Object> item) noexcept {
         if (!item || index >= items_.Size()) {
             return Base::Status::Failure(
                 index >= items_.Size()
@@ -100,14 +100,14 @@ public:
         return {};
     }
 
-    Base::Result<Base::Ref<Base::Object>> RemoveAt(
+    Result<Ref<Base::Object>> RemoveAt(
         std::uint32_t index) noexcept {
         if (index >= items_.Size()) {
             return Base::Status::Failure(
                 Base::ErrorCode::OutOfRange,
                 "ObservableCollection remove index is out of range");
         }
-        Base::Ref<Base::Object> removed = std::move(items_[index]);
+        Ref<Base::Object> removed = std::move(items_[index]);
         for (std::uint32_t current = index + 1U;
              current < items_.Size(); ++current) {
             items_[current - 1U] = std::move(items_[current]);
@@ -141,7 +141,7 @@ public:
     }
 
 private:
-    Base::Vector<Base::Ref<Base::Object>> items_;
+    Base::Vector<Ref<Base::Object>> items_;
     ItemsChangedHandler changed_;
 };
 

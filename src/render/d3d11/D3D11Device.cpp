@@ -1,6 +1,5 @@
 #include "render/RenderDeviceState.hpp"
 #include "render/RenderTargetState.hpp"
-#include "gui/ViewRenderer.hpp"
 #include "render/d3d11/D3D11RenderDevice.hpp"
 #include "render/d3d11/D3D11Shaders.hpp"
 
@@ -26,32 +25,31 @@ Base::Status OutOfMemory(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::OutOfMemory, message);
 }
 
-class D3D11RenderTargetState final : public Aero::RenderTarget::Access {
+class D3D11RenderTargetState final : public RenderTargetBase {
 public:
     D3D11RenderTargetState(
+        Base::Ref<Aero::RenderDevice> owner,
         Graphics::D3D11RenderDevice& device,
         const D3D11EmbeddedTargetOptions& options) noexcept
-        : Aero::RenderTarget::Access(RenderTargetKind::Embedded),
+        : RenderTargetBase(std::move(owner), RenderTargetKind::Embedded),
           device_(&device),
           options_(options) {}
 
     Base::Result<void> Initialize() noexcept {
         if (device_ == nullptr || !device_->IsReady() ||
             options_.acquireTarget == nullptr) {
-            health_ = SurfaceHealth::Lost;
+            health_ = RenderTargetState::Lost;
             return NotInitialized("D3D11 target requires a ready render device and acquisition callback");
         }
-        deviceGeneration_ = device_->BackendGeneration();
-        health_ = SurfaceHealth::Ready;
+        deviceGeneration_ = RenderDeviceBase::BackendGeneration(*device_);
+        health_ = RenderTargetState::Ready;
         return {};
     }
 
-    Base::Result<void> Render(
-        ::Aero::ViewRenderer& renderer,
-        const ::Aero::Render::RenderFrame& frame) noexcept override {
+    Base::Result<FrameTarget> AcquireFrameTarget() noexcept override {
         if (!IsReady()) return InvalidState("D3D11 target is not ready");
 
-        ::Aero::Render::D3D11EmbeddedTarget target;
+        ::Aero::Render::D3D11::EmbeddedTarget target;
         Base::Status acquired = options_.acquireTarget(
             options_.callbackContext, &target);
         if (!acquired.IsOk()) return acquired;
@@ -77,72 +75,71 @@ public:
                 *device_, *device_, external);
         if (!imported) return imported.GetStatus();
 
-        Base::Result<Graphics::FenceValue> submitted =
-            renderer.RenderOnscreenFrame(
-                frame,
-                {imported.Value(), target.width, target.height,
-                 options_.clearBeforeRender
-                     ? Graphics::LoadOperation::Clear
-                     : Graphics::LoadOperation::Load});
-        const Graphics::FenceValue retireFence =
-            device_->LastSubmittedFence();
-        Base::Result<void> retired =
-            static_cast<Aero::RenderDevice::Access&>(*device_).DestroyResource(
-                imported.Value(), retireFence);
-        if (!submitted) return submitted.GetStatus();
-        return retired;
+        return FrameTarget{
+            imported.Value(), target.width, target.height,
+            options_.clearBeforeRender
+                ? Graphics::LoadOperation::Clear
+                : Graphics::LoadOperation::Load};
     }
 
-    Base::Result<void> Resize(std::uint32_t, std::uint32_t) noexcept override {
+    Base::Result<void> RetireFrameTarget(
+        const FrameTarget& target) noexcept override {
+        const Graphics::FenceValue retireFence =
+            device_->LastSubmittedFence();
+        return static_cast<RenderDeviceBase&>(*device_).DestroyResource(
+            target.color, retireFence);
+    }
+
+    Base::Result<void> ResizeBackend(
+        std::uint32_t, std::uint32_t) noexcept override {
         return {};
     }
 
-    void NotifySurfaceLost() noexcept override {
-        health_ = SurfaceHealth::Lost;
+    void NotifyBackendLost() noexcept override {
+        health_ = RenderTargetState::Lost;
     }
 
-    Base::Result<void> RestoreSurface() noexcept override {
-        if (health_ != SurfaceHealth::Lost) {
+    Base::Result<void> RestoreBackend() noexcept override {
+        if (health_ != RenderTargetState::Lost) {
             return InvalidState("Only a lost D3D11 target can be restored");
         }
         return Initialize();
     }
 
-    SurfaceHealth GetSurfaceHealth() const noexcept override {
-        if (device_ == nullptr) return SurfaceHealth::Shutdown;
+    RenderTargetState BackendState() const noexcept override {
+        if (device_ == nullptr) return RenderTargetState::Shutdown;
         if (!device_->IsReady() ||
-            deviceGeneration_ != device_->BackendGeneration()) {
-            return SurfaceHealth::Lost;
+            deviceGeneration_ != RenderDeviceBase::BackendGeneration(*device_)) {
+            return RenderTargetState::Lost;
         }
         return health_;
     }
 
 private:
     bool IsReady() const noexcept {
-        return GetSurfaceHealth() == SurfaceHealth::Ready &&
+        return BackendState() == RenderTargetState::Ready &&
             device_->IsReady();
     }
 
     Graphics::D3D11RenderDevice* device_ = nullptr;
     D3D11EmbeddedTargetOptions options_;
     std::uint64_t deviceGeneration_ = 0U;
-    SurfaceHealth health_ = SurfaceHealth::Shutdown;
+    RenderTargetState health_ = RenderTargetState::Shutdown;
 };
 
 Graphics::D3D11RenderDevice* DeviceFrom(
     const Base::Ref<Aero::RenderDevice>& device) noexcept {
-    if (!device || Aero::RenderDevice::Access::Backend(*device) !=
-            RenderBackendKind::D3D11) {
+    if (!device || RenderDeviceBase::Backend(*device) !=
+            Aero::RenderBackendKind::D3D11) {
         return nullptr;
     }
-    return static_cast<Graphics::D3D11RenderDevice*>(
-        Aero::RenderDevice::Access::BackendState(*device));
+    return static_cast<Graphics::D3D11RenderDevice*>(device.Get());
 }
 
 } // namespace
 
-Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11Device(
-    const ::Aero::Render::D3D11DeviceOptions& options,
+Base::Result<Base::Ref<Aero::RenderDevice>> D3D11::CreateDevice(
+    const ::Aero::Render::D3D11::DeviceOptions& options,
     Base::IAllocator* allocator) noexcept {
     if ((options.device == 0U) != (options.immediateContext == 0U)) {
         return InvalidArgument(
@@ -159,24 +156,24 @@ Base::Result<Base::Ref<Aero::RenderDevice>> CreateD3D11Device(
             : Graphics::D3D11DeviceMode::Hardware);
     nativeOptions.statePolicy =
         options.statePolicy ==
-            D3D11StatePreservationPolicy::PreserveRequiredState
+            D3D11::StatePreservationPolicy::PreserveRequiredState
         ? Graphics::D3D11StatePolicy::PreserveRequiredState
         : Graphics::D3D11StatePolicy::HostResetsState;
     nativeOptions.enableDebugLayer = options.enableDebugLayer;
     nativeOptions.allowWarpFallback = options.allowWarpFallback;
     nativeOptions.borrowedDevice = options.device;
     nativeOptions.borrowedImmediateContext = options.immediateContext;
-    auto* state = new (std::nothrow)
-        Graphics::D3D11RenderDevice(nativeOptions, &selected);
-    if (state == nullptr) {
-        return OutOfMemory("Unable to allocate the D3D11 render device");
-    }
+    Base::Result<Base::Ref<Graphics::D3D11RenderDevice>> made =
+        Base::MakeRefWithAllocator<Graphics::D3D11RenderDevice>(
+            selected, nativeOptions, &selected);
+    if (!made) return made.GetStatus();
+    Base::Ref<Graphics::D3D11RenderDevice> state =
+        std::move(made).Value();
     Base::Result<void> initialized = state->Initialize();
     if (!initialized) {
-        delete state;
         return initialized.GetStatus();
     }
-    return AdoptRenderDevice(state, &selected);
+    return Base::Ref<Aero::RenderDevice>(std::move(state));
 }
 
 Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11EmbeddedTarget(
@@ -190,18 +187,17 @@ Base::Result<Base::Ref<Aero::RenderTarget>> CreateD3D11EmbeddedTarget(
     }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator : Base::GetDefaultAllocator();
-    auto* target = new (std::nothrow)
-        D3D11RenderTargetState(*backend, options);
-    if (target == nullptr) {
-        return OutOfMemory("Unable to allocate the D3D11 render target");
-    }
+    Base::Result<Base::Ref<D3D11RenderTargetState>> made =
+        Base::MakeRefWithAllocator<D3D11RenderTargetState>(
+            selected, device, *backend, options);
+    if (!made) return made.GetStatus();
+    Base::Ref<D3D11RenderTargetState> target =
+        std::move(made).Value();
     Base::Result<void> initialized = target->Initialize();
     if (!initialized) {
-        delete target;
         return initialized.GetStatus();
     }
-    return AdoptRenderTarget(
-        std::move(device), target, RenderTargetKind::Embedded, &selected);
+    return Base::Ref<Aero::RenderTarget>(std::move(target));
 }
 
 } // namespace Aero::Render

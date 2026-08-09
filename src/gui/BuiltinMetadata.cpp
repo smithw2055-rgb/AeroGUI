@@ -24,10 +24,10 @@
 #include "gui/BindingRuntime.hpp"
 #include "gui/AnimationRuntime.hpp"
 #include "gui/StyleRuntime.hpp"
-#include "media/AnimationRuntime.hpp"
-#include "media/BrushRuntime.hpp"
-#include "media/EffectRuntime.hpp"
-#include "media/TransformRuntime.hpp"
+#include "gui/media/AnimationRuntime.hpp"
+#include "gui/media/BrushRuntime.hpp"
+#include "gui/media/EffectRuntime.hpp"
+#include "gui/media/TransformRuntime.hpp"
 
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
@@ -133,17 +133,17 @@ Base::Result<void> Detail::PopulateCoreMetadata(
 
 
 #include <Aero/Input.hpp>
-#include <Aero/Gui/Storyboard.hpp>
-#include <Aero/Gui/BindingBase.hpp>
-#include <Aero/Gui/Brush.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Data/Binding.hpp>
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/Gui/FrameworkElement.hpp>
-#include <Aero/Gui/FrameworkContentElement.hpp>
-#include <Aero/Gui/ResourceDictionary.hpp>
-#include <Aero/Gui/ControlTemplate.hpp>
-#include <Aero/Gui/Transform.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/FrameworkContentElement.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Media/Transforms.hpp>
 #include "gui/MetadataRuntime.hpp"
 #include "gui/PropertyRuntime.hpp"
 #include "gui/FreezableRuntime.hpp"
@@ -154,10 +154,10 @@ Base::Result<void> Detail::PopulateCoreMetadata(
 #include "gui/BindingRuntime.hpp"
 #include "gui/AnimationRuntime.hpp"
 #include "gui/StyleRuntime.hpp"
-#include "media/AnimationRuntime.hpp"
-#include "media/BrushRuntime.hpp"
-#include "media/EffectRuntime.hpp"
-#include "media/TransformRuntime.hpp"
+#include "gui/media/AnimationRuntime.hpp"
+#include "gui/media/BrushRuntime.hpp"
+#include "gui/media/EffectRuntime.hpp"
+#include "gui/media/TransformRuntime.hpp"
 
 #include <cctype>
 #include <cmath>

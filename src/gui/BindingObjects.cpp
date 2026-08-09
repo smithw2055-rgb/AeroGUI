@@ -1,4 +1,4 @@
-#include <Aero/Gui/BindingBase.hpp>
+#include <Aero/Data/Binding.hpp>
 #include <Aero/Layout.hpp>
 
 namespace Aero::Data {

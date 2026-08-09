@@ -7,7 +7,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Threading.hpp>
-#include <Aero/Gui/Geometry.hpp>
+#include <Aero/Media/Geometry.hpp>
 
 #include <cstdint>
 
@@ -47,10 +47,10 @@ namespace Aero::Meta {
 template<>
 struct TypeTraits<Base::Thickness> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("Thickness"); }
-    static constexpr Base::StringView Namespace() noexcept {
+    static constexpr StringView Namespace() noexcept {
         return AeroNamespaceUri();
     }
-    static constexpr Base::StringView Name() noexcept { return "Thickness"; }
+    static constexpr StringView Name() noexcept { return "Thickness"; }
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 
@@ -59,10 +59,10 @@ struct TypeTraits<Base::CornerRadius> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("CornerRadius");
     }
-    static constexpr Base::StringView Namespace() noexcept {
+    static constexpr StringView Namespace() noexcept {
         return AeroNamespaceUri();
     }
-    static constexpr Base::StringView Name() noexcept {
+    static constexpr StringView Name() noexcept {
         return "CornerRadius";
     }
     static constexpr TypeId BaseType() noexcept {
@@ -149,10 +149,10 @@ struct TypeTraits<::Aero::GridLength> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("GridLength");
     }
-    static constexpr Base::StringView Namespace() noexcept {
+    static constexpr StringView Namespace() noexcept {
         return AeroNamespaceUri();
     }
-    static constexpr Base::StringView Name() noexcept {
+    static constexpr StringView Name() noexcept {
         return "GridLength";
     }
     static constexpr TypeId BaseType() noexcept {

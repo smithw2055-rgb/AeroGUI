@@ -1,7 +1,7 @@
 #include "RenderContext.hpp"
 #include "Presentation.hpp"
 
-#include <Aero/Render/D3D11.hpp>
+#include <AeroRender/D3D11.hpp>
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -160,25 +160,25 @@ public:
         ReleaseCom(adapter);
         ReleaseCom(dxgiDevice);
 
-        Render::D3D11DeviceOptions deviceOptions;
+        Render::D3D11::DeviceOptions deviceOptions;
         deviceOptions.device = reinterpret_cast<std::uintptr_t>(device_);
         deviceOptions.immediateContext =
             reinterpret_cast<std::uintptr_t>(immediateContext_);
         deviceOptions.statePolicy =
-            Render::D3D11StatePreservationPolicy::HostResetsState;
+            Render::D3D11::StatePreservationPolicy::HostResetsState;
         Base::Result<Base::Ref<RenderDevice>> createdDevice =
-            Render::CreateD3D11Device(deviceOptions, allocator);
+            Render::D3D11::CreateDevice(deviceOptions, allocator);
         if (!createdDevice) {
             ReleaseNative();
             return createdDevice.GetStatus();
         }
 
-        Render::D3D11RenderTargetOptions targetOptions;
+        Render::D3D11::TargetOptions targetOptions;
         targetOptions.acquireTarget = &AcquireTarget;
         targetOptions.callbackContext = this;
         targetOptions.clearBeforeRender = true;
         Base::Result<Base::Ref<RenderTarget>> createdTarget =
-            Render::CreateD3D11RenderTarget(
+            Render::D3D11::CreateTarget(
                 std::move(createdDevice).Value(), targetOptions, allocator);
         if (!createdTarget) {
             ReleaseNative();
@@ -264,7 +264,7 @@ protected:
 private:
     static Base::Status AcquireTarget(
         void* context,
-        Render::D3D11EmbeddedTarget* target) noexcept {
+        Render::D3D11::EmbeddedTarget* target) noexcept {
         auto* owner = static_cast<D3D11RenderContext*>(context);
         if (owner == nullptr || target == nullptr ||
             owner->activeBackBuffer_ == nullptr) {

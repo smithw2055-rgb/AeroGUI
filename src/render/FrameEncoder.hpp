@@ -4,7 +4,7 @@
 #include "render/RenderTree.hpp"
 #include "render/GraphicsTypes.hpp"
 #include "render/RenderBatch.hpp"
-#include <Aero/Render/RenderDevice.hpp>
+#include <AeroRender/RenderDevice.hpp>
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
@@ -133,7 +133,7 @@ struct ViewSurface {
 class UiFrameEncoder {
 public:
     UiFrameEncoder(
-        Aero::RenderDevice::Access& device,
+        Aero::Render::RenderDeviceBase& device,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~UiFrameEncoder() noexcept;
 
@@ -220,7 +220,7 @@ private:
     Base::Result<void> UnregisterGlyphRun(
         Render::RenderGlyphRunId glyphRun) noexcept;
 
-    Aero::RenderDevice::Access* device_ = nullptr;
+    Aero::Render::RenderDeviceBase* device_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     State state_;
 };

@@ -13,7 +13,7 @@ The current implementation keeps complete UI and control runtime declarations
 behind the source-only domain aggregates:
 
 - `src/gui/GuiPrivate.hpp`
-- `src/controls/ControlsPrivate.hpp`
+- `src/gui/controls/ControlsPrivate.hpp`
 
 GUI implementation seams use `Aero::GuiPrivate::Detail`; controls use
 `Aero::Controls::Detail`. Public objects that require an attachment retain

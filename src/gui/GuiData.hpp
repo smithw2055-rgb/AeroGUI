@@ -10,19 +10,27 @@
 #include "gui/BindingRuntime.hpp"
 #include "gui/AnimationRuntime.hpp"
 #include "gui/StyleRuntime.hpp"
-#include "controls/ControlRuntime.hpp"
-#include "controls/ItemsRuntime.hpp"
-#include "controls/TemplateRuntime.hpp"
-#include "markup/MarkupRuntime.hpp"
-#include "markup/MarkupWriterRuntime.hpp"
-#include "markup/XamlRuntime.hpp"
+#include "gui/controls/ControlRuntime.hpp"
+#include "gui/controls/ItemsRuntime.hpp"
+#include "gui/controls/TemplateRuntime.hpp"
+#include "gui/markup/MarkupRuntime.hpp"
+#include "gui/markup/MarkupWriterRuntime.hpp"
+#include "gui/markup/XamlRuntime.hpp"
 #include "gui/PropertyRuntime.hpp"
 #include <Aero/Gui.hpp>
 #include <Aero/Threading.hpp>
 
+#include <cstdint>
 #include <utility>
 
 namespace Aero {
+
+struct PendingXamlDocument {
+    Markup::LoaderResult document;
+    // LoaderResult can own the root through more than its root field. This
+    // baseline separates those internal references from caller-held Refs.
+    std::uint32_t internalRootReferences = 0U;
+};
 
 struct GuiState final : public Base::Object {
     explicit GuiState(Base::IAllocator& value) noexcept
@@ -30,6 +38,7 @@ struct GuiState final : public Base::Object {
           schema(&value),
           documents(&value),
           xamlProviders(&value),
+          pendingDocuments(&value),
           xaml(schema, documents, xamlProviders) {}
 
     Base::IAllocator* allocator = nullptr;
@@ -40,6 +49,7 @@ struct GuiState final : public Base::Object {
     Markup::XamlProviderRegistry xamlProviders;
     Markup::EmbeddedXamlProvider embeddedXaml;
     Markup::FileXamlProvider fileXaml;
+    Base::Vector<PendingXamlDocument> pendingDocuments;
     Markup::XamlRuntime xaml;
     Media::TextureProvider* textureProvider = nullptr;
     Text::FontProvider* fontProvider = nullptr;

@@ -1,11 +1,11 @@
 #pragma once
 
 #include <Aero/Diagnostics/Rendering.hpp>
-#include <Aero/Platform/NativeWindow.hpp>
-#include <Aero/Render/RenderDevice.hpp>
-#include <Aero/Render/RenderTarget.hpp>
-#include <Aero/Render/D3D11.hpp>
-#include <Aero/Render/OpenGL33.hpp>
+#include <AeroApp/WindowInterop.hpp>
+#include <AeroRender/RenderDevice.hpp>
+#include <AeroRender/RenderTarget.hpp>
+#include <AeroRender/D3D11.hpp>
+#include <AeroRender/OpenGL33.hpp>
 #include "render/RenderResources.hpp"
 #include "render/RenderBatch.hpp"
 #include "render/RenderTree.hpp"
@@ -19,48 +19,19 @@ using RenderFrameStatistics = Diagnostics::RenderFrameStatistics;
 
 namespace Aero::Render {
 
-enum class RenderBackendKind : std::uint8_t {
-    Unknown = 0U,
-    Headless,
-    D3D11,
-    OpenGL33
-};
-
-enum class BackendHealth : std::uint8_t {
-    Ready = 0U,
-    DeviceLost,
-    Failed
-};
-
-enum class SurfaceHealth : std::uint8_t {
-    Ready = 0U,
-    Lost,
-    Failed,
-    Shutdown
-};
-
-} // namespace Aero::Render
-
-namespace Aero {
-
-// Source-private backend base. RenderDevice owns exactly one Access; native
-// backends derive from this type directly instead of sitting behind a second
-// extra native-device lifetime/factory layer.
-struct RenderDevice::Access {
-    explicit Access(Base::IAllocator& selectedAllocator) noexcept
+// Source-private implementation half of the installed RenderDevice contract.
+// Native products derive from this base directly, so factories return the
+// concrete device without an Access/pimpl wrapper object.
+class AERO_GUI_INTERNAL_API RenderDeviceBase : public Aero::RenderDevice {
+public:
+    explicit RenderDeviceBase(Base::IAllocator& selectedAllocator) noexcept
         : allocator(&selectedAllocator) {}
-    virtual ~Access() noexcept = default;
+    ~RenderDeviceBase() noexcept override {
+        state = Aero::RenderDeviceState::Shutdown;
+    }
 
-    virtual ::Aero::Render::RenderBackendKind
-        Backend() const noexcept = 0;
     virtual Base::Result<::Aero::Graphics::FenceValue> DrawBatch(
         ::Aero::Render::RenderBatch&& batch) noexcept = 0;
-    virtual void NotifyDeviceLost() noexcept = 0;
-    virtual Base::Result<void> RestoreDevice() noexcept = 0;
-    virtual Base::Result<void> WaitIdle(
-        std::uint32_t timeoutMilliseconds) noexcept = 0;
-    virtual ::Aero::Render::BackendHealth
-        GetDeviceHealth() const noexcept = 0;
 
     // UI resource and command services consumed by Renderer. These live on
     // the real RenderDevice implementation instead of a second generic device
@@ -121,7 +92,7 @@ struct RenderDevice::Access {
     }
 
     Base::IAllocator* allocator = nullptr;
-    RenderDeviceState state = RenderDeviceState::Ready;
+    Aero::RenderDeviceState state = Aero::RenderDeviceState::Ready;
     RenderDeviceStatistics statistics;
     RenderFrameStatistics lastFrameStatistics;
 
@@ -163,74 +134,43 @@ struct RenderDevice::Access {
         NativeCompletedFence() const noexcept = 0;
     virtual bool NativeDeviceLost() const noexcept = 0;
 
-    static Access* BackendState(RenderDevice& device) noexcept {
-        return device.impl_;
+    static RenderDeviceBase* From(Aero::RenderDevice& device) noexcept {
+        return static_cast<RenderDeviceBase*>(&device);
     }
-    static const Access* BackendState(const RenderDevice& device) noexcept {
-        return device.impl_;
-    }
-
-    static ::Aero::Render::RenderBackendKind Backend(
-        const RenderDevice& device) noexcept {
-        return device.impl_ != nullptr
-            ? device.impl_->Backend()
-            : ::Aero::Render::RenderBackendKind::Unknown;
+    static const RenderDeviceBase* From(
+        const Aero::RenderDevice& device) noexcept {
+        return static_cast<const RenderDeviceBase*>(&device);
     }
 
-    static Base::Result<Base::Ref<RenderDevice>> Create(
-        Access* backend,
-        Base::IAllocator* allocator) noexcept {
-        if (backend == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Render device implementation is required");
-        }
-        Base::IAllocator& selected = allocator != nullptr
-            ? *allocator
-            : Base::GetDefaultAllocator();
-        Base::Result<Base::Ref<RenderDevice>> made =
-            Base::MakeRefWithAllocator<RenderDevice>(
-                selected,
-                RenderDevice::ConstructionToken{},
-                backend);
-        if (!made) {
-            delete backend;
-            return made.GetStatus();
-        }
-        return std::move(made).Value();
+    static ::Aero::RenderBackendKind Backend(
+        const Aero::RenderDevice& device) noexcept {
+        return device.BackendKind();
     }
 
     static std::uint64_t BackendGeneration(
-        const RenderDevice& device) noexcept {
-        return device.impl_ != nullptr
-            ? device.impl_->BackendGeneration()
-            : 0U;
+        const Aero::RenderDevice& device) noexcept {
+        return From(device)->BackendGeneration();
     }
 
     static Base::Result<::Aero::Graphics::FenceValue> DrawBatch(
-        RenderDevice& device,
+        Aero::RenderDevice& device,
         ::Aero::Render::RenderBatch&& batch) noexcept {
-        if (device.impl_ == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotInitialized,
-                "Render device is not initialized");
-        }
-        return device.impl_->DrawBatch(std::move(batch));
+        return From(device)->DrawBatch(std::move(batch));
     }
 
-    static Base::Status FrameStatus(RenderDevice& device) noexcept {
+    static Base::Status FrameStatus(Aero::RenderDevice& device) noexcept {
         return device.GetFrameStatus();
     }
 
     static Base::Result<RenderFrameStatistics> BeginSurfaceFrame(
-        RenderDevice& device,
+        Aero::RenderDevice& device,
         const ::Aero::Render::RenderFrame& frame) noexcept;
     static void CompleteSurfaceFrame(
-        RenderDevice& device,
+        Aero::RenderDevice& device,
         const ::Aero::Render::RenderFrame& frame,
         RenderFrameStatistics& statistics) noexcept;
-    static void RecordSurfaceFailure(RenderDevice& device) noexcept;
-    static void RefreshHealth(RenderDevice& device) noexcept;
+    static void RecordSurfaceFailure(Aero::RenderDevice& device) noexcept;
+    static void RefreshHealth(Aero::RenderDevice& device) noexcept;
 
 protected:
     Base::Result<std::uint64_t> AdvanceGeneration() noexcept {
@@ -277,26 +217,18 @@ private:
     std::uint64_t backendGeneration_ = 0U;
 };
 
-} // namespace Aero
-
-namespace Aero::Render {
-
-Base::Result<Base::Ref<Aero::RenderDevice>> AdoptRenderDevice(
-    Aero::RenderDevice::Access* backend,
-    Base::IAllocator* allocator = nullptr) noexcept;
-
 Base::Result<Base::Ref<Aero::RenderDevice>>
 CreateHeadlessRenderDevice(
     Base::IAllocator* allocator = nullptr) noexcept;
 
 struct D3D11EmbeddedTargetOptions {
-    ::Aero::Render::D3D11TargetCallback acquireTarget = nullptr;
+    ::Aero::Render::D3D11::TargetCallback acquireTarget = nullptr;
     void* callbackContext = nullptr;
     bool clearBeforeRender = false;
 };
 
 struct OpenGL33EmbeddedTargetOptions {
-    ::Aero::Render::OpenGL33TargetCallback acquireTarget = nullptr;
+    ::Aero::Render::OpenGL33::TargetCallback acquireTarget = nullptr;
     void* callbackContext = nullptr;
     void* targetContext = nullptr;
     bool clearBeforeRender = false;

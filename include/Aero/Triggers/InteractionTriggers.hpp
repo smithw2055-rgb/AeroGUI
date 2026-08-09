@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Gui/BindingBase.hpp>
+#include <Aero/Data/Binding.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Triggers/TriggerBase.hpp>
 #include <Aero/Triggers/TriggerAction.hpp>
@@ -15,27 +15,27 @@ class AERO_GUI_API PropertyChangedTrigger : public ::Aero::TriggerBase {
 public:
     PropertyChangedTrigger() noexcept : TriggerBase(StaticTypeId()) {}
 
-    Base::Ref<Aero::Data::Binding> GetBinding() const noexcept {
+    Ref<Aero::Data::Binding> GetBinding() const noexcept {
         return binding_;
     }
-    void SetBinding(Base::Ref<Aero::Data::Binding> value) noexcept {
+    void SetBinding(Ref<Aero::Data::Binding> value) noexcept {
         binding_ = std::move(value);
     }
-    Base::Result<void> AddAction(Base::Ref<TriggerAction> value) noexcept {
+    Result<void> AddAction(Ref<TriggerAction> value) noexcept {
         return value
             ? actions_.PushBack(std::move(value))
-            : Base::Result<void>(Base::Status::Failure(
+            : Result<void>(Base::Status::Failure(
                   Base::ErrorCode::InvalidArgument,
                   "PropertyChangedTrigger action cannot be null"));
     }
     void ClearActions() noexcept { actions_.Clear(); }
-    Base::Span<const Base::Ref<TriggerAction>> GetActions() const noexcept {
+    Span<const Ref<TriggerAction>> GetActions() const noexcept {
         return actions_.AsSpan();
     }
 
 private:
-    Base::Ref<Aero::Data::Binding> binding_;
-    Base::Vector<Base::Ref<TriggerAction>> actions_;
+    Ref<Aero::Data::Binding> binding_;
+    Base::Vector<Ref<TriggerAction>> actions_;
 };
 
 // Executes actions for a matching KeyDown routed event. Key remains a string
@@ -46,28 +46,28 @@ class AERO_GUI_API KeyTrigger : public ::Aero::TriggerBase {
 public:
     KeyTrigger() noexcept : TriggerBase(StaticTypeId()) {}
 
-    Base::StringView GetKey() const noexcept { return key_.View(); }
-    void SetKey(Base::StringView value) noexcept {
+    StringView GetKey() const noexcept { return key_.View(); }
+    void SetKey(StringView value) noexcept {
         static_cast<void>(key_.Assign(value));
     }
     bool GetActiveOnFocus() const noexcept { return activeOnFocus_; }
     void SetActiveOnFocus(bool value) noexcept { activeOnFocus_ = value; }
-    Base::Result<void> AddAction(Base::Ref<TriggerAction> value) noexcept {
+    Result<void> AddAction(Ref<TriggerAction> value) noexcept {
         return value
             ? actions_.PushBack(std::move(value))
-            : Base::Result<void>(Base::Status::Failure(
+            : Result<void>(Base::Status::Failure(
                   Base::ErrorCode::InvalidArgument,
                   "KeyTrigger action cannot be null"));
     }
     void ClearActions() noexcept { actions_.Clear(); }
-    Base::Span<const Base::Ref<TriggerAction>> GetActions() const noexcept {
+    Span<const Ref<TriggerAction>> GetActions() const noexcept {
         return actions_.AsSpan();
     }
 
 private:
-    Base::String key_;
+    String key_;
     bool activeOnFocus_ = false;
-    Base::Vector<Base::Ref<TriggerAction>> actions_;
+    Base::Vector<Ref<TriggerAction>> actions_;
 };
 
 // Blend-compatible command action. Bindings are authoring plans because an
@@ -78,10 +78,10 @@ class AERO_GUI_API InvokeCommandAction : public TriggerAction {
 public:
     InvokeCommandAction() noexcept : TriggerAction(StaticTypeId()) {}
 
-    Base::Ref<Aero::Input::ICommand> GetCommand() const noexcept {
+    Ref<Aero::Input::ICommand> GetCommand() const noexcept {
         return command_;
     }
-    void SetCommand(Base::Ref<Aero::Input::ICommand> value) noexcept {
+    void SetCommand(Ref<Aero::Input::ICommand> value) noexcept {
         command_ = std::move(value);
     }
     const Meta::PropertyValue& GetCommandParameter() const noexcept {
@@ -90,25 +90,25 @@ public:
     void SetCommandParameter(const Meta::PropertyValue& value) noexcept {
         commandParameter_ = value;
     }
-    Base::Ref<Aero::Data::Binding> GetCommandBinding() const noexcept {
+    Ref<Aero::Data::Binding> GetCommandBinding() const noexcept {
         return commandBinding_;
     }
-    void SetCommandBinding(Base::Ref<Aero::Data::Binding> value) noexcept {
+    void SetCommandBinding(Ref<Aero::Data::Binding> value) noexcept {
         commandBinding_ = std::move(value);
     }
-    Base::Ref<Aero::Data::Binding> GetCommandParameterBinding() const noexcept {
+    Ref<Aero::Data::Binding> GetCommandParameterBinding() const noexcept {
         return commandParameterBinding_;
     }
     void SetCommandParameterBinding(
-        Base::Ref<Aero::Data::Binding> value) noexcept {
+        Ref<Aero::Data::Binding> value) noexcept {
         commandParameterBinding_ = std::move(value);
     }
 
 private:
-    Base::Ref<Aero::Input::ICommand> command_;
+    Ref<Aero::Input::ICommand> command_;
     Meta::PropertyValue commandParameter_;
-    Base::Ref<Aero::Data::Binding> commandBinding_;
-    Base::Ref<Aero::Data::Binding> commandParameterBinding_;
+    Ref<Aero::Data::Binding> commandBinding_;
+    Ref<Aero::Data::Binding> commandParameterBinding_;
 };
 
 // Selects the associated item container. The runtime maps this to the native
@@ -133,10 +133,10 @@ class AERO_GUI_API PlaySoundAction : public TriggerAction {
 public:
     PlaySoundAction() noexcept : TriggerAction(StaticTypeId()) {}
 
-    Base::StringView GetSource() const noexcept {
+    StringView GetSource() const noexcept {
         return source_.View();
     }
-    void SetSource(Base::StringView value) noexcept {
+    void SetSource(StringView value) noexcept {
         static_cast<void>(source_.Assign(value));
     }
     double GetVolume() const noexcept { return volume_; }
@@ -151,7 +151,7 @@ public:
     inline static constexpr DependencyProperty<bool> IsEnabledProperty{"IsEnabled"};
 
 private:
-    Base::String source_;
+    String source_;
     double volume_ = 1.0;
 };
 

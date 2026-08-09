@@ -122,7 +122,7 @@ private:
 
 // Binding descriptors, expressions and the view binding service.
 
-#include <Aero/Gui/BindingBase.hpp>
+#include <Aero/Data/Binding.hpp>
 
 namespace Aero::Data {
 

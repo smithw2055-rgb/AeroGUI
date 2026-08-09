@@ -1,8 +1,8 @@
 #include <Aero/Input.hpp>
 
 #include <Aero/Base/Utf8.hpp>
-#include <Aero/Gui/FrameworkElement.hpp>
-#include <Aero/Gui/Transform.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/Media/Transforms.hpp>
 
 #include <cmath>
 #include "gui/MetadataRuntime.hpp"

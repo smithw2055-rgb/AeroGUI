@@ -4,13 +4,23 @@
 set_target_properties(AeroBase PROPERTIES EXPORT_NAME Base)
 set_target_properties(AeroAudio PROPERTIES EXPORT_NAME Audio)
 set_target_properties(AeroGui PROPERTIES EXPORT_NAME Gui)
+set_target_properties(AeroRender PROPERTIES EXPORT_NAME Render)
+set_target_properties(AeroRenderOpenGL33 PROPERTIES EXPORT_NAME RenderOpenGL33)
 set_target_properties(AeroApp PROPERTIES EXPORT_NAME App)
+if(TARGET AeroRenderD3D11)
+    set_target_properties(AeroRenderD3D11 PROPERTIES EXPORT_NAME RenderD3D11)
+endif()
 
 set(_aero_sdk_targets
     AeroBase
     AeroAudio
     AeroGui
+    AeroRender
+    AeroRenderOpenGL33
     AeroApp)
+if(TARGET AeroRenderD3D11)
+    list(APPEND _aero_sdk_targets AeroRenderD3D11)
+endif()
 
 if(NOT AERO_BUILD_SHARED)
     set_target_properties(freetype PROPERTIES

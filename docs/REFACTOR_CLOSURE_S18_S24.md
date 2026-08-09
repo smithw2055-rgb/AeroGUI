@@ -19,7 +19,8 @@ refactor. The executable source of truth remains
 - XAML document, reader, provider, and service-provider responsibilities have
   separate headers.
 - `RenderDevice` and `RenderTarget` are physically owned by
-  `include/Aero/Render`; `IRenderer` remains under `include/Aero/Gui`.
+  `include/AeroRender`; `IRenderer` remains under `include/Aero` because View
+  owns the only concrete renderer.
 
 ## S20: source vocabulary closure
 

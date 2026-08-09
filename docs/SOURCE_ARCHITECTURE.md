@@ -1,21 +1,22 @@
 # AeroGUI source ownership
 
 This document maps implementation responsibilities inside `src`. It does not
-define another SDK layer; the installed contract is under `include/Aero`.
+define another SDK layer; installed product contracts are under `include/Aero`,
+`include/AeroRender`, `include/AeroApp`, and `include/AeroAudio`.
 
 ## Directory owners
 
 ```text
 src/base/       allocation, strings, object lifetime, streams and C ABI
 src/gui/        WPF semantic kernel, Gui/View composition and ViewRenderer
-src/controls/   controls, templates, item generation and default behavior
-src/markup/     XAML schema, parser, writer, compiled documents and cache
-src/input/      platform-neutral input services
-src/text/       shaping, glyph atlas, editing and font adapters
-src/media/      brushes, images, transforms, effects and animation
+src/gui/controls/   controls, templates, item generation and default behavior
+src/gui/markup/     XAML schema, parser, writer, compiled documents and cache
+src/gui/input/      platform-neutral input services
+src/gui/text/       shaping, glyph atlas, editing and font adapters
+src/gui/media/      brushes, images, transforms, effects and animation
+src/gui/diagnostics/ opt-in inspection and rendering diagnostics
 src/render/     immutable-frame encoding, GPU resources and native backends
 src/app/        Application, Window, DesktopHost and desktop presentation
-src/diagnostics opt-in inspection and rendering diagnostics
 src/audio/      optional audio product
 ```
 
@@ -81,10 +82,13 @@ an opaque state pointer.
 
 ## CMake ownership
 
-Gui, Controls, Markup, View composition, and rendering sources compile directly
-into `AeroGui`; App sources compile into `AeroApp`. Object targets exist only
-for build reuse and header-consumer checks and are never installed products.
-Every `.cpp` has one compile owner.
+Gui, Controls, Markup, View composition, and backend-neutral rendering sources
+compile directly into `AeroGui`; App sources compile into `AeroApp`; Audio
+sources compile into `AeroAudio`; native backend sources compile into their
+matching render backend DLLs. `Aero::Render` is an installed interface target
+over contracts exported by `AeroGui`, not another DLL. Object targets exist
+only for header-consumer checks and are never installed products. Every `.cpp`
+has one compile owner.
 
 The permanent gate is `cmake/CheckArchitecture.cmake`. It checks final
 invariants rather than migration stage names.

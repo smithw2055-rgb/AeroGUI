@@ -2,7 +2,7 @@
 
 ## Decision
 
-`Aero::Gui` is the single embeddable AeroGUI product target.
+`Aero::Gui` is the single backend-neutral WPF/XAML runtime target.
 
 It owns:
 
@@ -10,8 +10,7 @@ It owns:
 - controls, markup and metadata execution;
 - `Gui`, `View` and `IRenderer`;
 - XAML, texture and font provider contracts;
-- RenderDevice and RenderSurface implementations;
-- D3D11 and OpenGL backend factories;
+- backend-neutral RenderDevice and RenderTarget contracts;
 - the built-in FreeType and HarfBuzz runtime pipeline.
 
 `Aero::App` remains optional and adds only the default `Application`/`Window`
@@ -30,10 +29,10 @@ Aero::Integration
 migration. Header layout is not a reason to create a second binary or imported
 CMake target.
 
-Embedded hosts now link:
+Embedded hosts now link Gui plus one explicit backend:
 
 ```cmake
-target_link_libraries(MyHost PRIVATE Aero::Gui)
+target_link_libraries(MyHost PRIVATE Aero::RenderD3D11)
 ```
 
 Desktop applications continue to link:
@@ -51,8 +50,11 @@ The build-only object components remain useful for compile ownership and
 parallelism:
 
 ```text
-Gui kernel + Controls + Markup + Runtime + Rendering + providers
+Gui kernel + Controls + Markup + backend-neutral rendering + providers
     -> Aero::Gui
+
+D3D11 implementation + factories -> Aero::RenderD3D11
+OpenGL33 implementation + factories -> Aero::RenderOpenGL33
 
 Application/Window model + desktop host + native window/input
     -> Aero::App

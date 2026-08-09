@@ -1,13 +1,14 @@
 #include <Aero/Gui.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Module.hpp>
-#include <Aero/Gui/Control.hpp>
-#include <Aero/Gui/Button.hpp>
+#include <Aero/Controls/Control.hpp>
+#include <Aero/Controls/Button.hpp>
 #include <Aero/Shapes.hpp>
-#include <Aero/Gui/Storyboard.hpp>
+#include <Aero/Media/Animation.hpp>
 
 #include <cstdint>
 #include <type_traits>
+#include <utility>
 
 namespace SdkConsumer {
 
@@ -32,10 +33,10 @@ struct TypeTraits<SdkConsumer::ViewModel> {
         return Meta::MakeTypeId(
             "urn:aero-sdk-consumer", "ViewModel");
     }
-    static constexpr Base::StringView Namespace() noexcept {
+    static constexpr StringView Namespace() noexcept {
         return "urn:aero-sdk-consumer";
     }
-    static constexpr Base::StringView Name() noexcept {
+    static constexpr StringView Name() noexcept {
         return "ViewModel";
     }
     static constexpr Meta::TypeId BaseType() noexcept {
@@ -46,6 +47,33 @@ struct TypeTraits<SdkConsumer::ViewModel> {
 } // namespace Aero::Meta
 
 namespace {
+
+template<class T, class = void>
+struct IsComplete : std::false_type {};
+
+template<class T>
+struct IsComplete<T, std::void_t<decltype(sizeof(T))>>
+    : std::true_type {};
+
+template<class T, class = void>
+struct HasPropertyRegistry : std::false_type {};
+
+template<class T>
+struct HasPropertyRegistry<T, std::void_t<decltype(
+    std::declval<T&>().PropertyRegistry())>>
+    : std::true_type {};
+
+using RawFactory = Aero::Result<
+    Aero::Ref<Aero::Object>> (*)() noexcept;
+
+template<class T, class = void>
+struct HasRawFactoryOverload : std::false_type {};
+
+template<class T>
+struct HasRawFactoryOverload<T, std::void_t<decltype(
+    std::declval<Aero::Meta::TypeBuilder<T>&>().Factory(
+        static_cast<RawFactory>(nullptr)))>>
+    : std::true_type {};
 
 class ConsumerControl : public Aero::Controls::Control {
     AERO_DECLARE_TYPE_NAMED(
@@ -82,24 +110,24 @@ public:
         : Button(StaticTypeId()) {}
 };
 
-Aero::Base::Result<void> RegisterConsumerModule(
+Aero::Result<void> RegisterConsumerModule(
     Aero::Meta::Registration& context) noexcept {
-    Aero::Meta::TypeDescription<SdkConsumer::Theme> theme =
+    Aero::Meta::TypeBuilder<SdkConsumer::Theme> theme =
         Aero::Meta::Register<SdkConsumer::Theme>(
             context, "urn:aero-sdk-consumer", "Theme");
     theme
         .Value("Light", SdkConsumer::Theme::Light)
         .Value("Dark", SdkConsumer::Theme::Dark);
-    Aero::Base::Result<void> status =
+    Aero::Result<void> status =
         theme.Result();
     if (!status) return status.GetStatus();
     if (Aero::Meta::TypeOf<SdkConsumer::Theme>() !=
             Aero::Meta::MakeTypeId(
                 "urn:aero-sdk-consumer", "Theme") ||
         Aero::Meta::TypeTraits<SdkConsumer::Theme>::Namespace() !=
-            Aero::Base::StringView("urn:aero-sdk-consumer") ||
+            Aero::StringView("urn:aero-sdk-consumer") ||
         Aero::Meta::TypeTraits<SdkConsumer::Theme>::Name() !=
-            Aero::Base::StringView("Theme") ||
+            Aero::StringView("Theme") ||
         Aero::Meta::ValueCodec<SdkConsumer::Theme>::Type() !=
             Aero::Meta::TypeOf<SdkConsumer::Theme>()) {
         return Aero::Base::Status::Failure(
@@ -113,8 +141,9 @@ Aero::Base::Result<void> RegisterConsumerModule(
         Aero::Meta::Register<ConsumerControl>(context)
             .Property(
                 ConsumerControl::ActiveProperty,
-                Aero::Meta::PropertyOptions<bool>(false)
-                    .Apply(Aero::Meta::FrameworkPropertyMetadataOptions::AffectsRender))
+                Aero::Meta::FrameworkPropertyMetadata(
+                    false,
+                    Aero::Meta::AffectsRender))
             .Event(
                 ConsumerControl::ActivatedEvent,
                 Aero::RoutingStrategy::Bubble)
@@ -141,6 +170,26 @@ static_assert(
 static_assert(
     std::is_class<Aero::Meta::Registration>::value,
     "Meta::Registration must be a real public authoring type");
+
+static_assert(
+    !IsComplete<Aero::Meta::DependencyPropertyRegistry>::value,
+    "Mutable dependency-property registry storage must remain SDK-opaque");
+
+static_assert(
+    !HasPropertyRegistry<Aero::DependencyObject>::value,
+    "DependencyObject must not expose its runtime registry to SDK consumers");
+
+static_assert(
+    !std::is_constructible<
+        Aero::Meta::Detail::MetadataAuthoringSession,
+        Aero::Meta::Registration&,
+        const Aero::Meta::Detail::TypeRegistration&,
+        Aero::Meta::TypeId>::value,
+    "The builder core must not be directly constructible by SDK consumers");
+
+static_assert(
+    !HasRawFactoryOverload<ConsumerControl>::value,
+    "Custom controls must use the typed Factory() authoring operation");
 
 static_assert(
     std::is_same<

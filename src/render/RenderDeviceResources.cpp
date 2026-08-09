@@ -1,6 +1,6 @@
 #include "render/RenderDeviceState.hpp"
 
-namespace Aero {
+namespace Aero::Render {
 using namespace ::Aero::Graphics;
 namespace {
 
@@ -33,7 +33,7 @@ TextureFormat ToBaseTextureFormat(
 
 } // namespace
 
-void RenderDevice::Access::ShutdownResources() noexcept {
+void RenderDeviceBase::ShutdownResources() noexcept {
     if (resourcesInitialized_) {
         for (std::uint32_t index = 0U; index < resourceSlots_.Size(); ++index) {
             const ResourceSlot& slot = resourceSlots_[index];
@@ -56,7 +56,7 @@ void RenderDevice::Access::ShutdownResources() noexcept {
     resourcesInitialized_ = false;
 }
 
-Base::Result<void> RenderDevice::Access::InitializeResources() noexcept {
+Base::Result<void> RenderDeviceBase::InitializeResources() noexcept {
     if (resourcesInitialized_) return {};
     if (NativeDeviceLost()) {
         return InvalidState("Cannot initialize an unavailable graphics backend");
@@ -77,11 +77,11 @@ Base::Result<void> RenderDevice::Access::InitializeResources() noexcept {
     return {};
 }
 
-bool RenderDevice::Access::AreResourcesReady() const noexcept {
+bool RenderDeviceBase::AreResourcesReady() const noexcept {
     return resourcesInitialized_ && !NativeDeviceLost();
 }
 
-Base::Result<void> RenderDevice::Access::VerifyResourcesReady() const noexcept {
+Base::Result<void> RenderDeviceBase::VerifyResourcesReady() const noexcept {
     if (!resourcesInitialized_) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -93,7 +93,7 @@ Base::Result<void> RenderDevice::Access::VerifyResourcesReady() const noexcept {
               InvalidState("RenderDevice resources is lost"));
 }
 
-Base::Result<void> RenderDevice::Access::ValidateResourceDescriptor(
+Base::Result<void> RenderDeviceBase::ValidateResourceDescriptor(
     const ResourceDescriptor& descriptor) const noexcept {
     switch (descriptor.type) {
     case ResourceType::Buffer:
@@ -119,7 +119,7 @@ Base::Result<void> RenderDevice::Access::ValidateResourceDescriptor(
     return InvalidArgument("Resource type is invalid");
 }
 
-Base::Result<ResourceHandle> RenderDevice::Access::CreateResource(
+Base::Result<ResourceHandle> RenderDeviceBase::CreateResource(
     const ResourceDescriptor& descriptor) noexcept {
     Base::Result<void> ready = VerifyResourcesReady();
     if (!ready) return ready.GetStatus();
@@ -172,7 +172,7 @@ Base::Result<ResourceHandle> RenderDevice::Access::CreateResource(
     return handle;
 }
 
-void RenderDevice::Access::RollbackResource(ResourceHandle handle) noexcept {
+void RenderDeviceBase::RollbackResource(ResourceHandle handle) noexcept {
     if (!handle.IsValid() || handle.index >= resourceSlots_.Size()) return;
     ResourceSlot& slot = resourceSlots_[handle.index];
     if (!slot.alive || slot.generation != handle.generation) return;
@@ -180,7 +180,7 @@ void RenderDevice::Access::RollbackResource(ResourceHandle handle) noexcept {
     slot.alive = false;
 }
 
-Base::Result<ResourceHandle> RenderDevice::Access::CreateBuffer(
+Base::Result<ResourceHandle> RenderDeviceBase::CreateBuffer(
     const BufferDescriptor& descriptor) noexcept {
     ResourceDescriptor resource;
     resource.type = ResourceType::Buffer;
@@ -188,7 +188,7 @@ Base::Result<ResourceHandle> RenderDevice::Access::CreateBuffer(
     return CreateResource(resource);
 }
 
-Base::Result<ResourceHandle> RenderDevice::Access::CreateTexture(
+Base::Result<ResourceHandle> RenderDeviceBase::CreateTexture(
     const TextureResourceDescriptor& descriptor) noexcept {
     Base::Result<void> valid = ValidateTextureDescriptor(
         descriptor, QueryNativeGraphicsCapabilities());
@@ -210,7 +210,7 @@ Base::Result<ResourceHandle> RenderDevice::Access::CreateTexture(
     return created.Value();
 }
 
-Base::Result<ResourceHandle> RenderDevice::Access::CreateExternalTexture(
+Base::Result<ResourceHandle> RenderDeviceBase::CreateExternalTexture(
     const TextureResourceDescriptor& descriptor) noexcept {
     Base::Result<void> valid = ValidateTextureDescriptor(
         descriptor, QueryNativeGraphicsCapabilities());
@@ -228,7 +228,7 @@ Base::Result<ResourceHandle> RenderDevice::Access::CreateExternalTexture(
     return CreateResource(resource);
 }
 
-Base::Result<ResourceHandle> RenderDevice::Access::CreateRenderTarget(
+Base::Result<ResourceHandle> RenderDeviceBase::CreateRenderTarget(
     const TextureResourceDescriptor& descriptor) noexcept {
     Base::Result<void> valid = ValidateTextureDescriptor(
         descriptor, QueryNativeGraphicsCapabilities());
@@ -254,7 +254,7 @@ Base::Result<ResourceHandle> RenderDevice::Access::CreateRenderTarget(
     return created.Value();
 }
 
-Base::Result<ResourceHandle> RenderDevice::Access::CreateExternalRenderTarget(
+Base::Result<ResourceHandle> RenderDeviceBase::CreateExternalRenderTarget(
     const TextureResourceDescriptor& descriptor) noexcept {
     Base::Result<void> valid = ValidateTextureDescriptor(
         descriptor, QueryNativeGraphicsCapabilities());
@@ -272,7 +272,7 @@ Base::Result<ResourceHandle> RenderDevice::Access::CreateExternalRenderTarget(
     return CreateResource(resource);
 }
 
-Base::Result<ResourceHandle> RenderDevice::Access::CreateSampler(
+Base::Result<ResourceHandle> RenderDeviceBase::CreateSampler(
     const SamplerDescriptor& descriptor) noexcept {
     Base::Result<void> valid = ValidateSamplerDescriptor(
         descriptor, QueryNativeGraphicsCapabilities());
@@ -291,7 +291,7 @@ Base::Result<ResourceHandle> RenderDevice::Access::CreateSampler(
     return created.Value();
 }
 
-Base::Result<ResourceHandle> RenderDevice::Access::CreatePipeline(
+Base::Result<ResourceHandle> RenderDeviceBase::CreatePipeline(
     ::Aero::Render::UiPipelineKey key) noexcept {
     ResourceDescriptor resource;
     resource.type = ResourceType::Pipeline;
@@ -306,7 +306,7 @@ Base::Result<ResourceHandle> RenderDevice::Access::CreatePipeline(
     return created.Value();
 }
 
-Base::Result<ResourceHandle> RenderDevice::Access::ResolvePipeline(
+Base::Result<ResourceHandle> RenderDeviceBase::ResolvePipeline(
     ::Aero::Render::UiPipelineKey key) noexcept {
     const std::uint32_t shader =
         static_cast<std::uint32_t>(key.shader);
@@ -326,7 +326,7 @@ Base::Result<ResourceHandle> RenderDevice::Access::ResolvePipeline(
     return cached;
 }
 
-bool RenderDevice::Access::IsAlive(ResourceHandle handle) const noexcept {
+bool RenderDeviceBase::IsAlive(ResourceHandle handle) const noexcept {
     if (!handle.IsValid() || handle.index >= resourceSlots_.Size()) return false;
     const ResourceSlot& slot = resourceSlots_[handle.index];
     return slot.alive &&
@@ -334,7 +334,7 @@ bool RenderDevice::Access::IsAlive(ResourceHandle handle) const noexcept {
         slot.descriptor.type == handle.type;
 }
 
-Base::Result<void> RenderDevice::Access::DestroyResource(
+Base::Result<void> RenderDeviceBase::DestroyResource(
     ResourceHandle handle,
     FenceValue retireAfter) noexcept {
     Base::Result<void> ready = VerifyResourcesReady();
@@ -355,7 +355,7 @@ Base::Result<void> RenderDevice::Access::DestroyResource(
     return {};
 }
 
-Base::Result<FenceValue> RenderDevice::Access::SubmitBatch(
+Base::Result<FenceValue> RenderDeviceBase::SubmitBatch(
     const ::Aero::Render::RenderBatch& commands) noexcept {
     Base::Result<void> ready = VerifyResourcesReady();
     if (!ready) return ready.GetStatus();
@@ -380,7 +380,7 @@ Base::Result<FenceValue> RenderDevice::Access::SubmitBatch(
     return signalFence;
 }
 
-Base::Result<std::uint32_t> RenderDevice::Access::CollectGarbage() noexcept {
+Base::Result<std::uint32_t> RenderDeviceBase::CollectGarbage() noexcept {
     Base::Result<void> ready = VerifyResourcesReady();
     if (!ready) return ready.GetStatus();
     const FenceValue completed = NativeCompletedFence();
@@ -402,7 +402,7 @@ Base::Result<std::uint32_t> RenderDevice::Access::CollectGarbage() noexcept {
     return released;
 }
 
-std::uint32_t RenderDevice::Access::LiveResourceCount() const noexcept {
+std::uint32_t RenderDeviceBase::LiveResourceCount() const noexcept {
     std::uint32_t count = 0U;
     for (const ResourceSlot& slot : resourceSlots_) {
         if (slot.alive) ++count;
@@ -410,4 +410,4 @@ std::uint32_t RenderDevice::Access::LiveResourceCount() const noexcept {
     return count;
 }
 
-} // namespace Aero
+} // namespace Aero::Render

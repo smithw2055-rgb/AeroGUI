@@ -6,29 +6,29 @@ Base::Result<void> PopulateUiStyling(
     auto transform3D = Meta::Register<Media::CompositeTransform3D>(context);
     transform3D
         .Property(Media::CompositeTransform3D::CenterXProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(Media::CompositeTransform3D::CenterYProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(Media::CompositeTransform3D::CenterZProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(Media::CompositeTransform3D::RotationXProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(Media::CompositeTransform3D::RotationYProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(Media::CompositeTransform3D::RotationZProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(Media::CompositeTransform3D::ScaleXProperty,
-            PropertyOptions(1.0).AffectsRender())
+            FrameworkPropertyMetadata(1.0).AffectsRender())
         .Property(Media::CompositeTransform3D::ScaleYProperty,
-            PropertyOptions(1.0).AffectsRender())
+            FrameworkPropertyMetadata(1.0).AffectsRender())
         .Property(Media::CompositeTransform3D::ScaleZProperty,
-            PropertyOptions(1.0).AffectsRender())
+            FrameworkPropertyMetadata(1.0).AffectsRender())
         .Property(Media::CompositeTransform3D::TranslateXProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(Media::CompositeTransform3D::TranslateYProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(Media::CompositeTransform3D::TranslateZProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
     status = transform3D.Result();
     if (!status) return status.GetStatus();
@@ -37,24 +37,24 @@ Base::Result<void> PopulateUiStyling(
     element
         .Property(
             Element::PPAAInProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(
             Element::PPAAOutProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(
             Element::PPAAModeProperty,
-            PropertyOptions(Base::String{}).AffectsRender())
+            FrameworkPropertyMetadata(Base::String{}).AffectsRender())
         .Property(
             Element::IsFocusEngagedProperty,
-            PropertyOptions(false).AffectsRender())
+            FrameworkPropertyMetadata(false).AffectsRender())
         .Property(
             Element::BlendingModeProperty,
-            PropertyOptions(BlendMode::Normal)
+            FrameworkPropertyMetadata(BlendMode::Normal)
                 .AffectsRender()
                 .Changed(&Element::OnBlendingModeChanged))
         .Property(
             Element::Transform3DProperty,
-            PropertyOptions(Base::Ref<Media::CompositeTransform3D>{})
+            FrameworkPropertyMetadata(Base::Ref<Media::CompositeTransform3D>{})
                 .AffectsRender());
     status = element.Result();
     if (!status) return status.GetStatus();
@@ -63,20 +63,20 @@ Base::Result<void> PopulateUiStyling(
     text
         .Property(
             TextProperties::PasswordLengthProperty,
-            PropertyOptions(std::uint32_t{0}).AffectsRender())
+            FrameworkPropertyMetadata(std::uint32_t{0}).AffectsRender())
         .Property(
             TextProperties::PlaceholderProperty,
-            PropertyOptions(Base::String{})
+            FrameworkPropertyMetadata(Base::String{})
                 .AffectsRender()
                 .Changed(&TextProperties::OnCompatibilityPropertyChanged))
         .Property(
             TextProperties::StrokeProperty,
-            PropertyOptions(Value::NullObject(TypeOf<Base::Object>()))
+            FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>()))
                 .AffectsRender()
                 .Changed(&TextProperties::OnCompatibilityPropertyChanged))
         .Property(
             TextProperties::StrokeThicknessProperty,
-            PropertyOptions(0.0)
+            FrameworkPropertyMetadata(0.0)
                 .AffectsRender()
                 .Changed(&TextProperties::OnCompatibilityPropertyChanged));
     status = text.Result();
@@ -85,7 +85,7 @@ Base::Result<void> PopulateUiStyling(
     auto richText = Meta::Register<RichText>(context, TypeFlags::Abstract);
     richText.Property(
         RichText::TextProperty,
-        PropertyOptions(Base::String{}).AffectsMeasure().Changed(
+        FrameworkPropertyMetadata(Base::String{}).AffectsMeasure().Changed(
             &RichText::OnTextChanged));
     status = richText.Result();
     if (!status) return status.GetStatus();
@@ -198,7 +198,7 @@ Base::Result<void> PopulateUiStyling(
     multiBindingProxy
         .Property(
             Data::MultiBindingProxy::ValueProperty,
-            PropertyOptions(
+            FrameworkPropertyMetadata(
                 Value::NullObject(
                     TypeOf<Base::Object>())))
         .Factory();

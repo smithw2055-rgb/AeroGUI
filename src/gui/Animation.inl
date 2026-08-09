@@ -40,7 +40,7 @@ Base::Result<void> PopulateUiAnimation(
         context, TypeFlags::Abstract);
     easingBase.Property(
         Media::Animation::EasingFunctionBase::EasingModeProperty,
-        PropertyOptions(EasingMode::EaseOut));
+        FrameworkPropertyMetadata(EasingMode::EaseOut));
     status = easingBase.Result();
     if (!status) return status.GetStatus();
 
@@ -61,7 +61,7 @@ Base::Result<void> PopulateUiAnimation(
     exponentialEase
         .Property(
             Media::Animation::ExponentialEase::ExponentProperty,
-            PropertyOptions(2.0))
+            FrameworkPropertyMetadata(2.0))
         .Factory();
     status = exponentialEase.Result();
     if (!status) return status.GetStatus();
@@ -70,7 +70,7 @@ Base::Result<void> PopulateUiAnimation(
     powerEase
         .Property(
             Media::Animation::PowerEase::PowerProperty,
-            PropertyOptions(2.0))
+            FrameworkPropertyMetadata(2.0))
         .Factory();
     status = powerEase.Result();
     if (!status) return status.GetStatus();
@@ -79,7 +79,7 @@ Base::Result<void> PopulateUiAnimation(
     backEase
         .Property(
             Media::Animation::BackEase::AmplitudeProperty,
-            PropertyOptions(1.0))
+            FrameworkPropertyMetadata(1.0))
         .Factory();
     status = backEase.Result();
     if (!status) return status.GetStatus();
@@ -88,10 +88,10 @@ Base::Result<void> PopulateUiAnimation(
     bounceEase
         .Property(
             Media::Animation::BounceEase::BouncesProperty,
-            PropertyOptions(3.0))
+            FrameworkPropertyMetadata(3.0))
         .Property(
             Media::Animation::BounceEase::BouncinessProperty,
-            PropertyOptions(3.0))
+            FrameworkPropertyMetadata(3.0))
         .Factory();
     status = bounceEase.Result();
     if (!status) return status.GetStatus();
@@ -100,10 +100,10 @@ Base::Result<void> PopulateUiAnimation(
     elasticEase
         .Property(
             Media::Animation::ElasticEase::OscillationsProperty,
-            PropertyOptions(3.0))
+            FrameworkPropertyMetadata(3.0))
         .Property(
             Media::Animation::ElasticEase::SpringinessProperty,
-            PropertyOptions(3.0))
+            FrameworkPropertyMetadata(3.0))
         .Factory();
     status = elasticEase.Result();
     if (!status) return status.GetStatus();
@@ -271,7 +271,7 @@ Base::Result<void> PopulateUiAnimation(
     easingFrame
         .Property(
             Media::Animation::EasingDoubleKeyFrame::EasingFunctionProperty,
-            PropertyOptions(
+            FrameworkPropertyMetadata(
                 Base::Ref<Media::Animation::EasingFunctionBase>{})
                 .AffectsRender())
         .Factory();
@@ -517,10 +517,10 @@ Base::Result<void> PopulateUiAnimation(
     storyboard
         .Property(
             Media::Animation::Storyboard::TargetNameProperty,
-            PropertyOptions(Base::String{}))
+            FrameworkPropertyMetadata(Base::String{}))
         .Property(
             Media::Animation::Storyboard::TargetPropertyProperty,
-            PropertyOptions(Base::String{}))
+            FrameworkPropertyMetadata(Base::String{}))
         .Content<Media::Animation::Timeline>(
             "Children",
             ContentKind::Collection,
@@ -792,7 +792,7 @@ Base::Result<void> PopulateUiAnimation(
             &Media::Animation::PlaySoundAction::SetVolume)
         .Property(
             Media::Animation::PlaySoundAction::IsEnabledProperty,
-            PropertyOptions(true))
+            FrameworkPropertyMetadata(true))
         .Factory();
     status = playSound.Result();
     if (!status) return status.GetStatus();
@@ -867,15 +867,15 @@ Base::Result<void> PopulateUiAnimation(
     mouseDragBehavior
         .Property(
             Interactivity::MouseDragElementBehavior::XProperty,
-            PropertyOptions(0.0)
+            FrameworkPropertyMetadata(0.0)
                 .Changed(&Interactivity::MouseDragElementBehavior::OnPositionChanged))
         .Property(
             Interactivity::MouseDragElementBehavior::YProperty,
-            PropertyOptions(0.0)
+            FrameworkPropertyMetadata(0.0)
                 .Changed(&Interactivity::MouseDragElementBehavior::OnPositionChanged))
         .Property(
             Interactivity::MouseDragElementBehavior::ConstrainToParentBoundsProperty,
-            PropertyOptions(false))
+            FrameworkPropertyMetadata(false))
         .Factory();
     status = mouseDragBehavior.Result();
     if (!status) return status.GetStatus();
@@ -885,11 +885,11 @@ Base::Result<void> PopulateUiAnimation(
     backgroundEffectBehavior
         .Property(
             Interactivity::BackgroundEffectBehavior::SourceProperty,
-            PropertyOptions(Base::Ref<Base::Object>{})
+            FrameworkPropertyMetadata(Base::Ref<Base::Object>{})
                 .Changed(&Interactivity::BackgroundEffectBehavior::OnBehaviorPropertyChanged))
         .Property(
             Interactivity::BackgroundEffectBehavior::EffectProperty,
-            PropertyOptions(Base::Ref<Media::Effect>{})
+            FrameworkPropertyMetadata(Base::Ref<Media::Effect>{})
                 .Changed(&Interactivity::BackgroundEffectBehavior::OnBehaviorPropertyChanged))
         .Content<Media::Effect>(
             "Content", ContentKind::Single,
@@ -926,11 +926,11 @@ Base::Result<void> PopulateUiAnimation(
     styleInteraction
         .Property(
             Interactivity::StyleInteraction::BehaviorsProperty,
-            PropertyOptions(Base::Ref<Interactivity::StyleBehaviorCollection>{})
+            FrameworkPropertyMetadata(Base::Ref<Interactivity::StyleBehaviorCollection>{})
                 .Changed(&Interactivity::StyleInteraction::OnBehaviorsChanged))
         .Property(
             Interactivity::StyleInteraction::TriggersProperty,
-            PropertyOptions(Base::Ref<Interactivity::StyleTriggerCollection>{})
+            FrameworkPropertyMetadata(Base::Ref<Interactivity::StyleTriggerCollection>{})
                 .Changed(&Interactivity::StyleInteraction::OnTriggersChanged));
     status = styleInteraction.Result();
     if (!status) return status.GetStatus();

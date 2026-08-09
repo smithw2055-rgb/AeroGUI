@@ -22,8 +22,8 @@ from the public header tree.
 Embedded D3D11/OpenGL hosts use explicit device + target construction:
 
 ```cpp
-auto device = Aero::Render::CreateD3D11Device(options);
-auto target = Aero::Render::CreateD3D11RenderTarget(
+auto device = Aero::Render::D3D11::CreateDevice(options);
+auto target = Aero::Render::D3D11::CreateTarget(
     device.Value(), targetOptions);
 
 view->GetRenderer().Init(device.Value());

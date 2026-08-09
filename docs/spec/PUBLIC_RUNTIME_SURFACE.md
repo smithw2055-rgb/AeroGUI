@@ -16,8 +16,8 @@ Controls runtime services include template application and concrete interaction
 state for buttons, scrolling, selection, menus, trees, and text editing.
 
 The remaining coordination declarations live in private source headers, chiefly
-`src/gui/GuiPrivate.hpp`, `src/controls/ControlsPrivate.hpp`, and
-`src/controls/ControlBehavior.hpp`. They are implementation aggregation points,
+`src/gui/GuiPrivate.hpp`, `src/gui/controls/ControlsPrivate.hpp`, and
+`src/gui/controls/ControlBehavior.hpp`. They are implementation aggregation points,
 not product modules, and may be merged further without changing the SDK.
 
 Public classes retain only opaque attachment state where the current object

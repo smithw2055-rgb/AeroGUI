@@ -1703,7 +1703,7 @@ void MetadataAuthoringSession::Record(
 
 // Executable metadata behavior is private to Meta::Registry.
 
-#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 
 
 namespace Aero {
@@ -4218,20 +4218,20 @@ namespace {
 
 } // namespace
 
-RegistrationTypes Registration::Types() noexcept {
+Detail::RegistrationTypes Registration::Types() noexcept {
     ::Aero::RegistrationState& state = State(state_);
-    return RegistrationTypes(
+    return Detail::RegistrationTypes(
         *state.types, *state.behaviors);
 }
 
-RegistrationValues Registration::Values() noexcept {
-    return RegistrationValues(
+Detail::RegistrationValues Registration::Values() noexcept {
+    return Detail::RegistrationValues(
         State(state_).values,
         State(state_).values);
 }
 
-RegistrationValues Registration::Values() const noexcept {
-    return RegistrationValues(
+Detail::RegistrationValues Registration::Values() const noexcept {
+    return Detail::RegistrationValues(
         State(state_).values,
         nullptr);
 }

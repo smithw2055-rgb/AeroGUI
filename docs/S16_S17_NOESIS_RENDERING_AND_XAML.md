@@ -46,7 +46,7 @@ is open. Embedded targets retain the explicit one-call
 `x:Class` activates a registered derived root. A component type is registered
 with `DefineComponentModule<T...>()`; default construction and optional
 `DescribeComponent()` metadata are supplied without Registry or XAML facet
-callbacks. `TypeDescription::EventHandler()` describes code-behind handlers,
+callbacks. `TypeBuilder::EventHandler()` describes code-behind handlers,
 and the object writer connects attributes such as
 `Click="OnHelloClick"` through the existing routed-event system.
 

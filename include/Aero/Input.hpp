@@ -10,7 +10,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include <Aero/Events/CommandEventArgs.hpp>
 #include <Aero/Value.hpp>
 
@@ -157,7 +157,7 @@ struct KeyboardDispatchResult {
 };
 
 struct TextInput {
-    Base::StringView text;
+    StringView text;
 };
 
 struct TextInputDispatchResult {
@@ -170,7 +170,7 @@ struct TextInputDispatchResult {
 AERO_DECLARE_TYPE_ENUM(Aero::Input::InputScope)
 AERO_DECLARE_TYPE_ENUM(Aero::Input::DragDropEffects)
 
-#include <Aero/Gui/RoutedEvent.hpp>
+#include <Aero/RoutedEvent.hpp>
 
 namespace Aero::Input {
 
@@ -181,7 +181,7 @@ class AERO_GUI_API ICommand : public Base::Object {
 public:
     ~ICommand() override = default;
 
-    virtual Base::Result<bool> CanExecute(
+    virtual Result<bool> CanExecute(
         const Value& parameter,
         UIElement* target = nullptr) noexcept = 0;
     virtual void Execute(
@@ -235,20 +235,20 @@ class AERO_GUI_API RoutedCommand : public ICommand {
     AERO_DECLARE_TYPE(RoutedCommand, ICommand)
 public:
     RoutedCommand() noexcept;
-    explicit RoutedCommand(Base::StringView name) noexcept;
+    explicit RoutedCommand(StringView name) noexcept;
 
     Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    Base::StringView GetName() const noexcept { return name_.View(); }
-    void SetName(Base::StringView name) noexcept;
-    void AddInputGesture(Base::Ref<InputGesture> gesture) noexcept;
-    Base::Span<const Base::Ref<InputGesture>> GetInputGestures() const noexcept {
+    StringView GetName() const noexcept { return name_.View(); }
+    void SetName(StringView name) noexcept;
+    void AddInputGesture(Ref<InputGesture> gesture) noexcept;
+    Span<const Ref<InputGesture>> GetInputGestures() const noexcept {
         return {gestures_.Data(), gestures_.Size()};
     }
     bool MatchesInput(const KeyboardInput& input) const noexcept;
 
-    Base::Result<bool> CanExecute(
+    Result<bool> CanExecute(
         const Value& parameter,
         UIElement* target = nullptr) noexcept override;
     void Execute(
@@ -262,22 +262,22 @@ public:
     // Registers and resolves process-stable WPF-style static command members.
     // Module metadata registers the supported names once; XAML and control
     // bindings then resolve the same command object identity.
-    static Base::Result<void> RegisterStatic(
+    static Result<void> RegisterStatic(
         Meta::TypeId ownerType,
-        Base::StringView memberName) noexcept;
-    static Base::Result<Base::Ref<RoutedCommand>> ResolveStatic(
+        StringView memberName) noexcept;
+    static Result<Ref<RoutedCommand>> ResolveStatic(
         Meta::TypeId ownerType,
-        Base::StringView memberName) noexcept;
+        StringView memberName) noexcept;
 
 private:
     friend class KeyBinding;
 
-    Base::Result<void> AssignNameChecked(Base::StringView name) noexcept;
-    Base::Result<void> AddInputGestureChecked(
-        Base::Ref<InputGesture> gesture) noexcept;
+    Result<void> AssignNameChecked(StringView name) noexcept;
+    Result<void> AddInputGestureChecked(
+        Ref<InputGesture> gesture) noexcept;
 
-    Base::String name_;
-    Base::Vector<Base::Ref<InputGesture>> gestures_;
+    String name_;
+    Base::Vector<Ref<InputGesture>> gestures_;
 };
 
 // XAML-authored keyboard binding. The WPF command spelling (for example
@@ -290,27 +290,27 @@ public:
     Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    Base::StringView GetCommandName() const noexcept { return commandName_.View(); }
-    Base::StringView GetKeyName() const noexcept { return keyName_.View(); }
-    Base::StringView GetModifiersName() const noexcept { return modifiersName_.View(); }
-    Base::Ref<RoutedCommand> GetCommand() const noexcept { return command_; }
-    void SetCommandName(Base::StringView value) noexcept;
-    void SetKeyName(Base::StringView value) noexcept;
-    void SetModifiersName(Base::StringView value) noexcept;
-    Base::Result<void> Finalize() noexcept;
+    StringView GetCommandName() const noexcept { return commandName_.View(); }
+    StringView GetKeyName() const noexcept { return keyName_.View(); }
+    StringView GetModifiersName() const noexcept { return modifiersName_.View(); }
+    Ref<RoutedCommand> GetCommand() const noexcept { return command_; }
+    void SetCommandName(StringView value) noexcept;
+    void SetKeyName(StringView value) noexcept;
+    void SetModifiersName(StringView value) noexcept;
+    Result<void> Finalize() noexcept;
 
 private:
-    Base::String commandName_;
-    Base::String keyName_;
-    Base::String modifiersName_;
-    Base::Ref<RoutedCommand> command_;
+    String commandName_;
+    String keyName_;
+    String modifiersName_;
+    Ref<RoutedCommand> command_;
 };
 
 class AERO_GUI_API CommandBinding {
 public:
     CommandBinding() noexcept = default;
     CommandBinding(
-        Base::Ref<RoutedCommand> command,
+        Ref<RoutedCommand> command,
         const ExecutedRoutedEventHandler& executed,
         const CanExecuteRoutedEventHandler& canExecute = {}) noexcept
         : command_(std::move(command)),
@@ -329,7 +329,7 @@ public:
     }
 
 private:
-    Base::Ref<RoutedCommand> command_;
+    Ref<RoutedCommand> command_;
     CanExecuteRoutedEventHandler canExecute_;
     ExecutedRoutedEventHandler executed_;
 };
@@ -384,7 +384,7 @@ public:
     }
 
     inline static constexpr AttachedProperty<bool> IsFocusScopeProperty{"IsFocusScope"};
-    inline static constexpr AttachedProperty<Base::Ref<Base::Object>> FocusedElementProperty{"FocusedElement"};
+    inline static constexpr AttachedProperty<Ref<Base::Object>> FocusedElementProperty{"FocusedElement"};
 };
 
 

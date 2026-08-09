@@ -63,3 +63,9 @@ inline bool operator!=(const String& left, StringView right) noexcept {
 }
 
 } // namespace Aero::Base
+
+namespace Aero {
+
+using String = Base::String;
+
+} // namespace Aero

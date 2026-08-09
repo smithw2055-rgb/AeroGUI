@@ -28,9 +28,9 @@ class AERO_GUI_API TextureProvider {
 public:
     virtual ~TextureProvider() = default;
 
-    virtual Base::Result<TextureResourceInfo> Open(
+    virtual Result<TextureResourceInfo> Open(
         const Base::ResourceUri& uri) const noexcept = 0;
-    virtual Base::Result<std::uint64_t> Revision(
+    virtual Result<std::uint64_t> Revision(
         const Base::ResourceUri&) const noexcept {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,

@@ -1,4 +1,4 @@
-#include <Aero/Gui/Application.hpp>
+#include <AeroApp/Application.hpp>
 
 #include "ApplicationState.hpp"
 #include "DesktopHost.hpp"

@@ -25,6 +25,9 @@
 
 namespace Aero::Base {
 
+struct Color;
+struct Rect;
+
 using TypeId = Base::MetaTypeId;
 using MemberId = Base::MetaMemberId;
 
@@ -47,7 +50,7 @@ enum class ValueKind : std::uint8_t {
     Custom
 };
 
-using ValueCopyCallback = Base::Result<void> (*)(void* destination, const void* source, void* context) noexcept;
+using ValueCopyCallback = Result<void> (*)(void* destination, const void* source, void* context) noexcept;
 using ValueDestroyCallback = void (*)(void* value, void* context) noexcept;
 using ValueEqualsCallback = bool (*)(const void* left, const void* right, void* context) noexcept;
 
@@ -83,10 +86,10 @@ public:
     static Value FromSignedInteger(TypeId type, std::int64_t value) noexcept;
     static Value FromUnsignedInteger(TypeId type, std::uint64_t value) noexcept;
     static Value FromDouble(TypeId type, double value) noexcept;
-    static Base::Result<Value> TryFromString(TypeId type, Base::StringView value) noexcept;
-    static Value FromObject(TypeId type, Base::Ref<Base::Object> value) noexcept;
+    static Result<Value> TryFromString(TypeId type, StringView value) noexcept;
+    static Value FromObject(TypeId type, Ref<Base::Object> value) noexcept;
     static Value NullObject(TypeId type) noexcept;
-    static Base::Result<Value> TryFromCustom(TypeId type, const void* source, const Base::Ref<ValueTypeSemantics>& semantics) noexcept;
+    static Result<Value> TryFromCustom(TypeId type, const void* source, const Ref<ValueTypeSemantics>& semantics) noexcept;
     TypeId Type() const noexcept { return type_; }
     ValueKind Kind() const noexcept { return kind_; }
     bool IsUnset() const noexcept { return kind_ == ValueKind::Unset; }
@@ -96,8 +99,8 @@ public:
     std::int64_t AsSignedInteger() const noexcept;
     std::uint64_t AsUnsignedInteger() const noexcept;
     double AsDouble() const noexcept;
-    Base::StringView AsString() const noexcept;
-    const Base::Ref<Base::Object>& AsObject() const noexcept;
+    StringView AsString() const noexcept;
+    const Ref<Base::Object>& AsObject() const noexcept;
     const void* AsCustom() const noexcept;
     void* MutableCustom() noexcept;
     bool Equals(const Value& other) const noexcept;
@@ -106,14 +109,14 @@ private:
     TypeId type_ = InvalidTypeId;
     ValueKind kind_ = ValueKind::Unset;
     bool inlineCustom_ = false;
-    Base::Ref<Base::Object> storage_;
-    Base::Ref<ValueTypeSemantics> semantics_;
+    Ref<Base::Object> storage_;
+    Ref<ValueTypeSemantics> semantics_;
 };
 
 inline bool operator==(const Value& left, const Value& right) noexcept { return left.Equals(right); }
 inline bool operator!=(const Value& left, const Value& right) noexcept { return !(left == right); }
 
-using TextValueConverterCallback = Base::Result<Value> (*)(TypeId targetType, Base::StringView text, void* context) noexcept;
+using TextValueConverterCallback = Result<Value> (*)(TypeId targetType, StringView text, void* context) noexcept;
 struct TextValueConverterRegistration {
     TypeId type = InvalidTypeId;
     TextValueConverterCallback convert = nullptr;
@@ -178,7 +181,6 @@ using Base::TextValueConverterCallback;
 using Base::TextValueConverterRegistration;
 
 class BehaviorTable;
-class RegistrationTypes;
 class TypeRegistry;
 template<class TOwner, class TValue> class DependencyPropertyRef;
 template<class TOwner, class TValue> class AttachedPropertyRef;
@@ -201,8 +203,8 @@ enum class MetadataTypeKind : std::uint8_t {
 // below expose only that token and query this catalog at runtime.
 struct RuntimeTypeInfo {
     TypeId id = InvalidTypeId;
-    Base::StringView xamlNamespace;
-    Base::StringView name;
+    StringView xamlNamespace;
+    StringView name;
     TypeId baseType = InvalidTypeId;
     MetadataTypeKind kind = MetadataTypeKind::Struct;
 };
@@ -335,19 +337,19 @@ struct FieldFlagPredicate {
 inline constexpr FieldFlagPredicate HasFieldFlag{};
 
 
-constexpr TypeId MakeTypeId(Base::StringView xamlNamespace, Base::StringView name) noexcept { return Base::MakeMetaTypeId(xamlNamespace, name); }
-constexpr Base::StringView AeroNamespaceUri() noexcept { return Base::DefaultMetadataNamespaceUri(); }
-constexpr TypeId MakeTypeId(Base::StringView name) noexcept { return Base::MakeMetaTypeId(name); }
+constexpr TypeId MakeTypeId(StringView xamlNamespace, StringView name) noexcept { return Base::MakeMetaTypeId(xamlNamespace, name); }
+constexpr StringView AeroNamespaceUri() noexcept { return Base::DefaultMetadataNamespaceUri(); }
+constexpr TypeId MakeTypeId(StringView name) noexcept { return Base::MakeMetaTypeId(name); }
 
 struct NoMetadataBase {};
 
 template<class T>
 struct TypeTraits {
     static constexpr TypeId Id() noexcept { return T::StaticTypeId(); }
-    static constexpr Base::StringView Namespace() noexcept {
+    static constexpr StringView Namespace() noexcept {
         return T::StaticMetadataNamespace();
     }
-    static constexpr Base::StringView Name() noexcept {
+    static constexpr StringView Name() noexcept {
         return T::StaticMetadataName();
     }
     static constexpr TypeId BaseType() noexcept {
@@ -365,10 +367,10 @@ struct TypeTraits<Base::Object> {
     static constexpr TypeId Id() noexcept {
         return Base::Object::StaticTypeId();
     }
-    static constexpr Base::StringView Namespace() noexcept {
+    static constexpr StringView Namespace() noexcept {
         return AeroNamespaceUri();
     }
-    static constexpr Base::StringView Name() noexcept { return "Object"; }
+    static constexpr StringView Name() noexcept { return "Object"; }
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 
@@ -385,16 +387,16 @@ namespace Aero::Meta { \
 template<> struct TypeTraits<typeName> { \
     static constexpr TypeId Token() noexcept { \
         return Base::MakeMetaTypeId( \
-            Base::StringView("AERO.CPP.ENUM"), \
-            Base::StringView(#typeName)); \
+            StringView("AERO.CPP.ENUM"), \
+            StringView(#typeName)); \
     } \
     static TypeId Id() noexcept { \
         return ResolveRuntimeTypeInfo(Token()).id; \
     } \
-    static Base::StringView Namespace() noexcept { \
+    static StringView Namespace() noexcept { \
         return ResolveRuntimeTypeInfo(Token()).xamlNamespace; \
     } \
-    static Base::StringView Name() noexcept { \
+    static StringView Name() noexcept { \
         return ResolveRuntimeTypeInfo(Token()).name; \
     } \
     static TypeId BaseType() noexcept { \
@@ -411,16 +413,16 @@ namespace Aero::Meta { \
 template<> struct TypeTraits<typeName> { \
     static constexpr TypeId Token() noexcept { \
         return Base::MakeMetaTypeId( \
-            Base::StringView("AERO.CPP.VALUE"), \
-            Base::StringView(#typeName)); \
+            StringView("AERO.CPP.VALUE"), \
+            StringView(#typeName)); \
     } \
     static TypeId Id() noexcept { \
         return ResolveRuntimeTypeInfo(Token()).id; \
     } \
-    static Base::StringView Namespace() noexcept { \
+    static StringView Namespace() noexcept { \
         return ResolveRuntimeTypeInfo(Token()).xamlNamespace; \
     } \
-    static Base::StringView Name() noexcept { \
+    static StringView Name() noexcept { \
         return ResolveRuntimeTypeInfo(Token()).name; \
     } \
     static TypeId BaseType() noexcept { \
@@ -432,7 +434,7 @@ template<> struct TypeTraits<typeName> { \
 }; \
 }
 
-constexpr MemberId MakeMemberId(TypeId ownerType, MemberKind kind, Base::StringView name) noexcept {
+constexpr MemberId MakeMemberId(TypeId ownerType, MemberKind kind, StringView name) noexcept {
     constexpr char domain[] = "AERO.MEMBER.V1";
     Base::Detail::StableMetadataIdBuilder builder;
     builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
@@ -441,7 +443,7 @@ constexpr MemberId MakeMemberId(TypeId ownerType, MemberKind kind, Base::StringV
     builder.AddString(name);
     return builder.Finish();
 }
-AERO_GUI_API MemberId MakeMethodId(TypeId ownerType, Base::StringView name, Base::Span<const TypeId> parameterTypes) noexcept;
+AERO_GUI_API MemberId MakeMethodId(TypeId ownerType, StringView name, Span<const TypeId> parameterTypes) noexcept;
 
 
 } // namespace Aero::Meta
@@ -459,18 +461,18 @@ public: \
     using ReadOnlyDependencyProperty = Aero::ReadOnlyPropertyRef<Self, TValue>; \
     template<class TArgs> \
     using RoutedEvent = Aero::RoutedEventRef<Self, TArgs>; \
-    static constexpr Aero::Base::StringView \
+    static constexpr Aero::StringView \
     StaticMetadataNamespace() noexcept { \
-        return Aero::Base::StringView(metadataNamespace); \
+        return Aero::StringView(metadataNamespace); \
     } \
-    static constexpr Aero::Base::StringView \
+    static constexpr Aero::StringView \
     StaticMetadataName() noexcept { \
-        return Aero::Base::StringView(metadataName); \
+        return Aero::StringView(metadataName); \
     } \
     inline static constexpr Aero::Base::TypeId StaticTypeIdValue_ = \
         Aero::Meta::MakeTypeId( \
-            Aero::Base::StringView(metadataNamespace), \
-            Aero::Base::StringView(metadataName)); \
+            Aero::StringView(metadataNamespace), \
+            Aero::StringView(metadataName)); \
     static constexpr Aero::Base::TypeId StaticTypeId() noexcept { \
         return StaticTypeIdValue_; \
     }
@@ -498,10 +500,10 @@ struct TypeTraits<Value> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("Any");
     }
-    static constexpr Base::StringView Namespace() noexcept {
+    static constexpr StringView Namespace() noexcept {
         return AeroNamespaceUri();
     }
-    static constexpr Base::StringView Name() noexcept {
+    static constexpr StringView Name() noexcept {
         return "Any";
     }
     static constexpr TypeId BaseType() noexcept {
@@ -514,10 +516,10 @@ struct TypeTraits<TypeReference> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("TypeReference");
     }
-    static constexpr Base::StringView Namespace() noexcept {
+    static constexpr StringView Namespace() noexcept {
         return AeroNamespaceUri();
     }
-    static constexpr Base::StringView Name() noexcept {
+    static constexpr StringView Name() noexcept {
         return "TypeReference";
     }
     static constexpr TypeId BaseType() noexcept {
@@ -530,10 +532,10 @@ struct TypeTraits<Base::ResourceUri> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("ResourceUri");
     }
-    static constexpr Base::StringView Namespace() noexcept {
+    static constexpr StringView Namespace() noexcept {
         return AeroNamespaceUri();
     }
-    static constexpr Base::StringView Name() noexcept {
+    static constexpr StringView Name() noexcept {
         return "ResourceUri";
     }
     static constexpr TypeId BaseType() noexcept {
@@ -541,17 +543,37 @@ struct TypeTraits<Base::ResourceUri> {
     }
 };
 
-AERO_GUI_API Base::Result<Value> TryEncodeValue(
+AERO_GUI_API Result<Value> TryEncodeValue(
     TypeId type,
     const void* source) noexcept;
 
 template<>
 struct TypeTraits<bool> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("Boolean"); }
-    static constexpr Base::StringView Namespace() noexcept {
+    static constexpr StringView Namespace() noexcept {
         return AeroNamespaceUri();
     }
-    static constexpr Base::StringView Name() noexcept { return "Boolean"; }
+    static constexpr StringView Name() noexcept { return "Boolean"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct TypeTraits<Base::Color> {
+    static constexpr TypeId Id() noexcept { return MakeTypeId("Color"); }
+    static constexpr StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr StringView Name() noexcept { return "Color"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct TypeTraits<Base::Rect> {
+    static constexpr TypeId Id() noexcept { return MakeTypeId("Rect"); }
+    static constexpr StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr StringView Name() noexcept { return "Rect"; }
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 
@@ -560,10 +582,10 @@ struct TypeTraits<::Aero::Nullable<bool>> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("NullableBoolean");
     }
-    static constexpr Base::StringView Namespace() noexcept {
+    static constexpr StringView Namespace() noexcept {
         return AeroNamespaceUri();
     }
-    static constexpr Base::StringView Name() noexcept {
+    static constexpr StringView Name() noexcept {
         return "NullableBoolean";
     }
     static constexpr TypeId BaseType() noexcept {
@@ -577,10 +599,10 @@ struct TypeTraits<::Aero::Nullable<bool>> {
         static constexpr TypeId Id() noexcept { \
             return MakeTypeId(metadataName); \
         } \
-        static constexpr Base::StringView Namespace() noexcept { \
+        static constexpr StringView Namespace() noexcept { \
             return AeroNamespaceUri(); \
         } \
-        static constexpr Base::StringView Name() noexcept { \
+        static constexpr StringView Name() noexcept { \
             return metadataName; \
         } \
         static constexpr TypeId BaseType() noexcept { \
@@ -602,20 +624,20 @@ AERO_DEFINE_INTEGER_META_TYPE(std::uint64_t, "UInt64");
 template<>
 struct TypeTraits<double> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("Double"); }
-    static constexpr Base::StringView Namespace() noexcept {
+    static constexpr StringView Namespace() noexcept {
         return AeroNamespaceUri();
     }
-    static constexpr Base::StringView Name() noexcept { return "Double"; }
+    static constexpr StringView Name() noexcept { return "Double"; }
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 
 template<>
-struct TypeTraits<Base::String> {
+struct TypeTraits<String> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("String"); }
-    static constexpr Base::StringView Namespace() noexcept {
+    static constexpr StringView Namespace() noexcept {
         return AeroNamespaceUri();
     }
-    static constexpr Base::StringView Name() noexcept { return "String"; }
+    static constexpr StringView Name() noexcept { return "String"; }
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 
@@ -624,24 +646,24 @@ struct ValueCodec {
     static TypeId Type() noexcept { return TypeOf<T>(); }
 
     template<class TMetadata>
-    static Base::Result<Value> Encode(
+    static Result<Value> Encode(
         TMetadata& runtime,
         const T& value) noexcept {
         return runtime.TryCreateValue(Type(), &value);
     }
 
-    static Base::Result<Value> Encode(const T& value) noexcept {
+    static Result<Value> Encode(const T& value) noexcept {
         return TryEncodeValue(Type(), &value);
     }
 
     template<class TMetadata>
-    static Base::Result<T> Decode(
+    static Result<T> Decode(
         TMetadata&,
         const Value& value) noexcept {
         return Decode(value);
     }
 
-    static Base::Result<T> Decode(const Value& value) noexcept {
+    static Result<T> Decode(const Value& value) noexcept {
         if (value.Type() != Type() ||
             value.Kind() != ValueKind::Custom ||
             value.AsCustom() == nullptr) {
@@ -659,22 +681,22 @@ struct ValueCodec<Value, void> {
         return TypeOf<Value>();
     }
     template<class TMetadata>
-    static Base::Result<Value> Encode(
+    static Result<Value> Encode(
         TMetadata&,
         const Value& value) noexcept {
         return Encode(value);
     }
-    static Base::Result<Value> Encode(
+    static Result<Value> Encode(
         const Value& value) noexcept {
         return value;
     }
     template<class TMetadata>
-    static Base::Result<Value> Decode(
+    static Result<Value> Decode(
         TMetadata&,
         const Value& value) noexcept {
         return Decode(value);
     }
-    static Base::Result<Value> Decode(
+    static Result<Value> Decode(
         const Value& value) noexcept {
         return value;
     }
@@ -686,12 +708,12 @@ struct ValueCodec<TypeReference, void> {
         return TypeOf<TypeReference>();
     }
     template<class TMetadata>
-    static Base::Result<Value> Encode(
+    static Result<Value> Encode(
         TMetadata&,
         TypeReference value) noexcept {
         return Encode(value);
     }
-    static Base::Result<Value> Encode(
+    static Result<Value> Encode(
         TypeReference value) noexcept {
         if (!value.IsValid()) {
             return Base::Status::Failure(
@@ -702,12 +724,12 @@ struct ValueCodec<TypeReference, void> {
             Type(), value.type);
     }
     template<class TMetadata>
-    static Base::Result<TypeReference> Decode(
+    static Result<TypeReference> Decode(
         TMetadata&,
         const Value& value) noexcept {
         return Decode(value);
     }
-    static Base::Result<TypeReference> Decode(
+    static Result<TypeReference> Decode(
         const Value& value) noexcept {
         if (value.Type() != Type() ||
             value.Kind() != ValueKind::UnsignedInteger ||
@@ -734,18 +756,18 @@ template<>
 struct ValueCodec<bool, void> {
     static TypeId Type() noexcept { return TypeOf<bool>(); }
     template<class TMetadata>
-    static Base::Result<Value> Encode(TMetadata&, bool value) noexcept {
+    static Result<Value> Encode(TMetadata&, bool value) noexcept {
         return Encode(value);
     }
-    static Base::Result<Value> Encode(bool value) noexcept {
+    static Result<Value> Encode(bool value) noexcept {
         return Value::FromBoolean(Type(), value);
     }
     template<class TMetadata>
-    static Base::Result<bool> Decode(
+    static Result<bool> Decode(
         TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
-    static Base::Result<bool> Decode(const Value& value) noexcept {
+    static Result<bool> Decode(const Value& value) noexcept {
         if (value.Type() != Type() ||
             value.Kind() != ValueKind::Boolean) {
             return Base::Status::Failure(
@@ -764,12 +786,12 @@ struct ValueCodec<::Aero::Nullable<bool>, void> {
         return TypeOf<NullableBoolean>();
     }
     template<class TMetadata>
-    static Base::Result<Value> Encode(
+    static Result<Value> Encode(
         TMetadata&,
         NullableBoolean value) noexcept {
         return Encode(value);
     }
-    static Base::Result<Value> Encode(
+    static Result<Value> Encode(
         NullableBoolean value) noexcept {
         const std::int64_t encoded = !value.GetHasValue()
             ? -1
@@ -777,12 +799,12 @@ struct ValueCodec<::Aero::Nullable<bool>, void> {
         return Value::FromSignedInteger(Type(), encoded);
     }
     template<class TMetadata>
-    static Base::Result<NullableBoolean> Decode(
+    static Result<NullableBoolean> Decode(
         TMetadata&,
         const Value& value) noexcept {
         return Decode(value);
     }
-    static Base::Result<NullableBoolean> Decode(
+    static Result<NullableBoolean> Decode(
         const Value& value) noexcept {
         if (value.Type() != Type() ||
             value.Kind() != ValueKind::SignedInteger ||
@@ -803,19 +825,19 @@ struct ValueCodec<T, std::enable_if_t<
     !std::is_same_v<T, bool>>> {
     static TypeId Type() noexcept { return TypeOf<T>(); }
     template<class TMetadata>
-    static Base::Result<Value> Encode(TMetadata&, T value) noexcept {
+    static Result<Value> Encode(TMetadata&, T value) noexcept {
         return Encode(value);
     }
-    static Base::Result<Value> Encode(T value) noexcept {
+    static Result<Value> Encode(T value) noexcept {
         return Value::FromSignedInteger(
             Type(), static_cast<std::int64_t>(value));
     }
     template<class TMetadata>
-    static Base::Result<T> Decode(
+    static Result<T> Decode(
         TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
-    static Base::Result<T> Decode(const Value& value) noexcept {
+    static Result<T> Decode(const Value& value) noexcept {
         if (value.Type() != Type() ||
             value.Kind() != ValueKind::SignedInteger ||
             value.AsSignedInteger() <
@@ -838,19 +860,19 @@ struct ValueCodec<T, std::enable_if_t<
     !std::is_same_v<T, bool>>> {
     static TypeId Type() noexcept { return TypeOf<T>(); }
     template<class TMetadata>
-    static Base::Result<Value> Encode(TMetadata&, T value) noexcept {
+    static Result<Value> Encode(TMetadata&, T value) noexcept {
         return Encode(value);
     }
-    static Base::Result<Value> Encode(T value) noexcept {
+    static Result<Value> Encode(T value) noexcept {
         return Value::FromUnsignedInteger(
             Type(), static_cast<std::uint64_t>(value));
     }
     template<class TMetadata>
-    static Base::Result<T> Decode(
+    static Result<T> Decode(
         TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
-    static Base::Result<T> Decode(const Value& value) noexcept {
+    static Result<T> Decode(const Value& value) noexcept {
         if (value.Type() != Type() ||
             value.Kind() != ValueKind::UnsignedInteger ||
             value.AsUnsignedInteger() >
@@ -868,18 +890,18 @@ template<>
 struct ValueCodec<double, void> {
     static TypeId Type() noexcept { return TypeOf<double>(); }
     template<class TMetadata>
-    static Base::Result<Value> Encode(TMetadata&, double value) noexcept {
+    static Result<Value> Encode(TMetadata&, double value) noexcept {
         return Encode(value);
     }
-    static Base::Result<Value> Encode(double value) noexcept {
+    static Result<Value> Encode(double value) noexcept {
         return Value::FromDouble(Type(), value);
     }
     template<class TMetadata>
-    static Base::Result<double> Decode(
+    static Result<double> Decode(
         TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
-    static Base::Result<double> Decode(const Value& value) noexcept {
+    static Result<double> Decode(const Value& value) noexcept {
         if (value.Type() != Type() ||
             value.Kind() != ValueKind::Double) {
             return Base::Status::Failure(
@@ -894,19 +916,19 @@ template<>
 struct ValueCodec<float, void> {
     static TypeId Type() noexcept { return TypeOf<double>(); }
     template<class TMetadata>
-    static Base::Result<Value> Encode(TMetadata&, float value) noexcept {
+    static Result<Value> Encode(TMetadata&, float value) noexcept {
         return Encode(value);
     }
-    static Base::Result<Value> Encode(float value) noexcept {
+    static Result<Value> Encode(float value) noexcept {
         return Value::FromDouble(
             Type(), static_cast<double>(value));
     }
     template<class TMetadata>
-    static Base::Result<float> Decode(
+    static Result<float> Decode(
         TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
-    static Base::Result<float> Decode(const Value& value) noexcept {
+    static Result<float> Decode(const Value& value) noexcept {
         if (value.Type() != Type() ||
             value.Kind() != ValueKind::Double) {
             return Base::Status::Failure(
@@ -918,25 +940,25 @@ struct ValueCodec<float, void> {
 };
 
 template<>
-struct ValueCodec<Base::String, void> {
+struct ValueCodec<String, void> {
     static TypeId Type() noexcept {
-        return TypeOf<Base::String>();
+        return TypeOf<String>();
     }
     template<class TMetadata>
-    static Base::Result<Value> Encode(
-        TMetadata&, const Base::String& value) noexcept {
+    static Result<Value> Encode(
+        TMetadata&, const String& value) noexcept {
         return Encode(value);
     }
-    static Base::Result<Value> Encode(
-        const Base::String& value) noexcept {
+    static Result<Value> Encode(
+        const String& value) noexcept {
         return Value::TryFromString(Type(), value.View());
     }
     template<class TMetadata>
-    static Base::Result<Base::String> Decode(
+    static Result<String> Decode(
         TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
-    static Base::Result<Base::String> Decode(
+    static Result<String> Decode(
         const Value& value) noexcept {
         if (value.Type() != Type() ||
             value.Kind() != ValueKind::String) {
@@ -944,8 +966,8 @@ struct ValueCodec<Base::String, void> {
                 Base::ErrorCode::InvalidArgument,
                 "String metadata value is incompatible");
         }
-        Base::String decoded;
-        Base::Result<void> assigned =
+        String decoded;
+        Result<void> assigned =
             decoded.Assign(value.AsString());
         if (!assigned) return assigned.GetStatus();
         return decoded;
@@ -957,10 +979,10 @@ struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
     using Underlying = std::underlying_type_t<T>;
     static TypeId Type() noexcept { return TypeOf<T>(); }
     template<class TMetadata>
-    static Base::Result<Value> Encode(TMetadata&, T value) noexcept {
+    static Result<Value> Encode(TMetadata&, T value) noexcept {
         return Encode(value);
     }
-    static Base::Result<Value> Encode(T value) noexcept {
+    static Result<Value> Encode(T value) noexcept {
         if constexpr (std::is_signed_v<Underlying>) {
             return Value::FromSignedInteger(
                 Type(),
@@ -974,11 +996,11 @@ struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
         }
     }
     template<class TMetadata>
-    static Base::Result<T> Decode(
+    static Result<T> Decode(
         TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
-    static Base::Result<T> Decode(const Value& value) noexcept {
+    static Result<T> Decode(const Value& value) noexcept {
         if (value.Type() != Type()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -1007,25 +1029,25 @@ struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
 };
 
 template<class T>
-struct ValueCodec<Base::Ref<T>, void> {
+struct ValueCodec<Ref<T>, void> {
     static TypeId Type() noexcept { return TypeOf<T>(); }
     template<class TMetadata>
-    static Base::Result<Value> Encode(
-        TMetadata&, const Base::Ref<T>& value) noexcept {
+    static Result<Value> Encode(
+        TMetadata&, const Ref<T>& value) noexcept {
         return Encode(value);
     }
-    static Base::Result<Value> Encode(
-        const Base::Ref<T>& value) noexcept {
+    static Result<Value> Encode(
+        const Ref<T>& value) noexcept {
         if (!value) return Value::NullObject(Type());
         return Value::FromObject(
-            Type(), Base::Ref<Base::Object>(value));
+            Type(), Ref<Base::Object>(value));
     }
     template<class TMetadata>
-    static Base::Result<Base::Ref<T>> Decode(
+    static Result<Ref<T>> Decode(
         TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
-    static Base::Result<Base::Ref<T>> Decode(
+    static Result<Ref<T>> Decode(
         const Value& value) noexcept {
         if (value.Kind() != ValueKind::Object) {
             return Base::Status::Failure(
@@ -1033,9 +1055,9 @@ struct ValueCodec<Base::Ref<T>, void> {
                 "Object metadata value is incompatible");
         }
         if (value.IsNullObject() || !value.AsObject()) {
-            return Base::Ref<T>{};
+            return Ref<T>{};
         }
-        return Base::Ref<T>::FromBorrowed(
+        return Ref<T>::FromBorrowed(
             *static_cast<T*>(value.AsObject().Get()));
     }
 };
@@ -1046,32 +1068,32 @@ namespace Aero::Base::Detail {
 
 namespace ValueConversion {
 
-AERO_GUI_API Base::StringView Trim(Base::StringView value) noexcept;
+AERO_GUI_API StringView Trim(StringView value) noexcept;
 AERO_GUI_API bool EqualsAsciiInsensitive(
-    Base::StringView left,
-    Base::StringView right) noexcept;
-AERO_GUI_API Base::Result<double> ParseDouble(
-    Base::StringView text) noexcept;
+    StringView left,
+    StringView right) noexcept;
+AERO_GUI_API Result<double> ParseDouble(
+    StringView text) noexcept;
 
-AERO_GUI_API Base::Result<bool> ConvertBoolean(
-    Base::StringView text) noexcept;
-AERO_GUI_API Base::Result<::Aero::Nullable<bool>> ConvertNullableBoolean(
-    Base::StringView text) noexcept;
-AERO_GUI_API Base::Result<double> ConvertDouble(
-    Base::StringView text) noexcept;
-AERO_GUI_API Base::Result<Base::String> ConvertString(
-    Base::StringView text) noexcept;
-AERO_GUI_API Base::Result<Base::ResourceUri> ConvertResourceUri(
-    Base::StringView text) noexcept;
+AERO_GUI_API Result<bool> ConvertBoolean(
+    StringView text) noexcept;
+AERO_GUI_API Result<::Aero::Nullable<bool>> ConvertNullableBoolean(
+    StringView text) noexcept;
+AERO_GUI_API Result<double> ConvertDouble(
+    StringView text) noexcept;
+AERO_GUI_API Result<String> ConvertString(
+    StringView text) noexcept;
+AERO_GUI_API Result<Base::ResourceUri> ConvertResourceUri(
+    StringView text) noexcept;
 
 template<class T>
-Base::Result<T> ConvertInteger(
-    Base::StringView text) noexcept {
+Result<T> ConvertInteger(
+    StringView text) noexcept {
     static_assert(
         std::is_integral_v<T> &&
         !std::is_same_v<T, bool>);
-    Base::String buffer;
-    Base::Result<void> assigned =
+    String buffer;
+    Result<void> assigned =
         buffer.Assign(Trim(text));
     if (!assigned) return assigned.GetStatus();
     char* end = nullptr;

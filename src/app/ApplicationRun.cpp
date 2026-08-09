@@ -1,5 +1,5 @@
-#include <Aero/Gui/Application.hpp>
-#include <Aero/App.hpp>
+#include <AeroApp/Application.hpp>
+#include <AeroApp/App.hpp>
 
 #include "DesktopHost.hpp"
 

@@ -11,8 +11,8 @@
 #include "gui/BindingRuntime.hpp"
 #include "gui/AnimationRuntime.hpp"
 #include "gui/StyleRuntime.hpp"
-#include "markup/MarkupRuntime.hpp"
-#include "markup/MarkupWriterRuntime.hpp"
+#include "gui/markup/MarkupRuntime.hpp"
+#include "gui/markup/MarkupWriterRuntime.hpp"
 
 #include <utility>
 

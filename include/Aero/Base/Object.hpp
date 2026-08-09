@@ -80,3 +80,9 @@ private:
 };
 
 } // namespace Aero::Base
+
+namespace Aero {
+
+using Object = Base::Object;
+
+} // namespace Aero

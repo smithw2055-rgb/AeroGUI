@@ -5,16 +5,16 @@
 #include <Aero/Input.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/ViewOptions.hpp>
-#include <Aero/Gui/XamlReader.hpp>
-#include <Aero/Gui/ResourceDictionary.hpp>
+#include <Aero/Markup/XamlReader.hpp>
+#include <Aero/Resources.hpp>
 #include <Aero/Meta.hpp>
-#include <Aero/Gui/Brush.hpp>
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Gui/Transform.hpp>
+#include <Aero/Media/Transforms.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Triggers/BlendBehaviors.hpp>
-#include <Aero/Gui/View.hpp>
-#include <Aero/Gui/Window.hpp>
+#include <Aero/View.hpp>
+#include <AeroApp/Window.hpp>
 
 #include <climits>
 #include <cmath>
@@ -240,6 +240,14 @@ bool Near(double left, double right, double epsilon = 0.05) noexcept {
     return std::fabs(left - right) <= epsilon;
 }
 
+void AdvanceView(
+    Aero::View& view,
+    double& timeInSeconds,
+    std::uint32_t elapsedMilliseconds) noexcept {
+    timeInSeconds += static_cast<double>(elapsedMilliseconds) / 1000.0;
+    view.Update(timeInSeconds);
+}
+
 bool VerifyBackgroundProjection(Aero::FrameworkElement& root) {
     using namespace Aero;
     auto* source = root.FindName<Controls::Border>("source");
@@ -299,15 +307,16 @@ bool VerifyBackgroundProjection(Aero::FrameworkElement& root) {
 
 bool VerifySliderBinding(
     Aero::View& view,
+    double& timeInSeconds,
     Aero::FrameworkElement& root) {
     using namespace Aero;
     auto* top = root.FindName<Shapes::Path>("TopPanelBlur");
     auto* slider = root.FindName<Controls::Slider>("TopBlurRadius");
     if (top == nullptr || slider == nullptr) return false;
     slider->SetValue(37.0);
-    Base::Result<void> updated = view.Update(16U);
+    AdvanceView(view, timeInSeconds, 16U);
     Base::Ref<Media::Effect> effect = top->GetEffect();
-    if (!updated || !effect ||
+    if (!effect ||
         effect->RuntimeType() != Media::BlurEffect::StaticTypeId() ||
         !Near(static_cast<Media::BlurEffect&>(*effect).GetRadius(), 37.0)) {
         std::fprintf(stderr, "BINDING FAIL: Slider did not update BlurEffect.Radius\n");
@@ -318,6 +327,7 @@ bool VerifySliderBinding(
 
 bool VerifySliderCommands(
     Aero::View& view,
+    double& timeInSeconds,
     Aero::FrameworkElement& root) {
     using namespace Aero;
     auto* slider = root.FindName<Controls::Slider>("TopBlurRadius");
@@ -335,7 +345,7 @@ bool VerifySliderCommands(
     const double initialValue =
         (slider->GetMinimum() + slider->GetMaximum()) * 0.5;
     slider->SetValue(initialValue);
-    if (!view.Update(16U)) return false;
+    AdvanceView(view, timeInSeconds, 16U);
     const double initial = slider->GetValue();
     const Value parameter = Value::NullObject(Meta::TypeOf<Base::Object>());
     auto execute = [&](Controls::Primitives::RepeatButton& button) noexcept {
@@ -347,7 +357,8 @@ bool VerifySliderCommands(
         Base::Result<bool> canExecute = command->CanExecute(parameter, slider);
         if (!canExecute || !canExecute.Value()) return false;
         command->Execute(parameter, slider);
-        return view.Update(16U).HasValue();
+        AdvanceView(view, timeInSeconds, 16U);
+        return true;
     };
     if (!execute(*buttons[0])) {
         std::fprintf(stderr, "COMMAND FAIL: first Slider routed command failed\n");
@@ -355,7 +366,8 @@ bool VerifySliderCommands(
     }
     const double first = slider->GetValue();
     slider->SetValue(initial);
-    if (!view.Update(16U) || !execute(*buttons[1])) {
+    AdvanceView(view, timeInSeconds, 16U);
+    if (!execute(*buttons[1])) {
         std::fprintf(stderr, "COMMAND FAIL: second Slider routed command failed\n");
         return false;
     }
@@ -373,11 +385,13 @@ bool VerifySliderCommands(
         return false;
     }
     slider->SetValue(37.0);
-    return view.Update(16U).HasValue();
+    AdvanceView(view, timeInSeconds, 16U);
+    return true;
 }
 
 bool VerifyDrag(
     Aero::View& view,
+    double& timeInSeconds,
     Aero::FrameworkElement& root) {
     using namespace Aero;
     auto* panel = root.FindName<Controls::Viewbox>("Panel");
@@ -396,9 +410,9 @@ bool VerifyDrag(
     if (dispatched) dispatched = view.MouseMove(endX, endY);
     if (dispatched) dispatched = view.MouseButtonUp(
         endX, endY, Input::MouseButton::Left);
-    Base::Result<void> updated = view.Update(16U);
+    AdvanceView(view, timeInSeconds, 16U);
     const Base::Transform2D after = panel->GetLocalVisualTransform();
-    if (!dispatched || !updated ||
+    if (!dispatched ||
         (Near(before.dx, after.dx, 0.5) && Near(before.dy, after.dy, 0.5))) {
         std::fprintf(stderr,
             "DRAG FAIL: panel transform did not move before=(%.2f %.2f) after=(%.2f %.2f)\n",
@@ -433,6 +447,7 @@ struct ClickProbe {
 
 bool VerifyStoryboard(
     Aero::View& view,
+    double& timeInSeconds,
     Aero::FrameworkElement& root) {
     using namespace Aero;
     auto* buttonsGrid = root.FindName<Controls::Grid>("ButtonsGrid");
@@ -456,9 +471,9 @@ bool VerifyStoryboard(
         x, y, Input::MouseButton::Left);
     if (dispatched) dispatched = view.MouseButtonUp(
         x, y, Input::MouseButton::Left);
-    Base::Result<void> updated = view.Update(350U);
+    AdvanceView(view, timeInSeconds, 350U);
     Base::Ref<Media::Transform> transform = panelGrid->GetRenderTransform();
-    if (!dispatched || probe.count != 1U || !updated || !transform ||
+    if (!dispatched || probe.count != 1U || !transform ||
         transform->RuntimeType() != Media::ScaleTransform::StaticTypeId()) {
         std::fprintf(stderr, "STORYBOARD FAIL: click did not start AnimClose\n");
         return false;
@@ -470,8 +485,8 @@ bool VerifyStoryboard(
             scale.GetScaleX(), scale.GetScaleY(), probe.count);
         return false;
     }
-    updated = view.Update(1100U);
-    if (!updated || !Near(scale.GetScaleX(), 1.0, 0.1) ||
+    AdvanceView(view, timeInSeconds, 1100U);
+    if (!Near(scale.GetScaleX(), 1.0, 0.1) ||
         !Near(scale.GetScaleY(), 1.0, 0.1)) {
         std::fprintf(stderr,
             "STORYBOARD FAIL: close animation did not return to one (%.3f %.3f)\n",
@@ -533,16 +548,14 @@ bool Run(Aero::Gui& gui) {
         std::fprintf(stderr, "MOUNT FAIL: %s\n", mounted.GetStatus().message);
         return false;
     }
-    Aero::Base::Result<void> updated = view->Update(16U);
-    if (!updated) {
-        std::fprintf(stderr, "UPDATE FAIL: %s\n", updated.GetStatus().message);
-        return false;
-    }
+    double timeInSeconds = 0.0;
+    view->Update(timeInSeconds);
+    AdvanceView(*view, timeInSeconds, 16U);
     if (!VerifyBackgroundProjection(*root) ||
-        !VerifySliderBinding(*view, *root) ||
-        !VerifySliderCommands(*view, *root) ||
-        !VerifyStoryboard(*view, *root) ||
-        !VerifyDrag(*view, *root)) {
+        !VerifySliderBinding(*view, timeInSeconds, *root) ||
+        !VerifySliderCommands(*view, timeInSeconds, *root) ||
+        !VerifyStoryboard(*view, timeInSeconds, *root) ||
+        !VerifyDrag(*view, timeInSeconds, *root)) {
         return false;
     }
     std::printf("LOAD OK MainWindow.xaml\n");

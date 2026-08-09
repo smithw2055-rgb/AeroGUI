@@ -13,13 +13,13 @@ public type names and observable behavior; it does not require AeroGUI to copy
 The supported product umbrellas are:
 
 - `<Aero/Gui.hpp>` — retained WPF/XAML authoring surface;
-- `<Aero/App.hpp>` — `Application::Run()` and optional default desktop lifetime;
+- `<AeroApp/App.hpp>` — `Application::Run()` and optional default desktop lifetime;
 - `<Aero/Meta.hpp>` — typed metadata and custom-module authoring.
 
 Embedding uses the installed `RenderDevice`/`RenderTarget` contracts plus the
-opt-in `<Aero/Render/D3D11.hpp>` and `<Aero/Render/OpenGL33.hpp>` factories.
-`Aero::Integration` is retired. `Markup.hpp`, provider contracts under their
-owning domains, and `Input/Platform.hpp` are specialist surfaces. Native
+opt-in `<AeroRender/D3D11.hpp>` and `<AeroRender/OpenGL33.hpp>` factories.
+`Aero::Integration` is retired. Advanced headers under `Aero/Markup`, provider
+contracts under their owning domains, and `Input/Platform.hpp` are specialist surfaces. Native
 Win32/X11 adapters remain private. These specialist headers are not transitively
 included by ordinary WPF-style application code.
 
@@ -37,8 +37,8 @@ Aero/DependencyObject.hpp
 Aero/Visual.hpp
 Aero/UIElement.hpp
 Aero/FrameworkElement.hpp
-Aero/Application.hpp
-Aero/Window.hpp
+AeroApp/Application.hpp
+AeroApp/Window.hpp
 Aero/View.hpp
 ```
 
@@ -56,59 +56,47 @@ subsystems:
 Aero/Layout.hpp
 Aero/Resources.hpp
 Aero/Style.hpp
-Aero/Styling.hpp
-Aero/Data.hpp
+Aero/DataTemplate.hpp
+Aero/Data/Binding.hpp
 Aero/Input.hpp
-Aero/Animation.hpp
 Aero/Documents.hpp
 Aero/Shapes.hpp
+Aero/TextFormatting.hpp
+Aero/Media/Animation.hpp
+Aero/Media/Brushes.hpp
+Aero/Media/Fonts.hpp
+Aero/Media/Geometry.hpp
+Aero/Media/Transforms.hpp
 ```
 
-`Style.hpp` and `Styling.hpp` are deliberately separate real declaration
-owners. The first contains Style, Setter and Trigger authoring; the second
-contains FrameworkTemplate, ControlTemplate, DataTemplate and visual-state
-authoring. Combining them would recreate a Control/Style/Template include
-cycle.
+Controls and templates use their WPF namespaces as their physical domains;
+`ControlTemplate` is owned by `Controls/ControlTemplate.hpp`, while the root
+`DataTemplate` and `Style` types have root declaration owners. This keeps the
+existing include graph explicit without recreating compatibility umbrellas.
 
 `Input.hpp` owns both the input value types and the command/navigation object
 model. It forward-declares `UIElement` and owns the input value declarations
-before including `Aero/Events/RoutedEvent.hpp`, so the routed-event header does
-not need a second input-values header or a cyclic include. The event umbrella
-is `<Aero/Events.hpp>`. That header owns the public event umbrella, including
-the event-argument families and the routed-event declaration. The granular
-`<Aero/Events/RoutedEvent.hpp>` header is the sole declaration owner for
-`RoutedEvent`, `RoutedEventHandle` and the routed-event metadata helpers; it is
-not duplicated or forwarded at the SDK root. Retired compatibility facades are
-not part of the SDK tree.
+before including `Aero/RoutedEvent.hpp`, so the routed-event header does not
+need a second input-values header or a cyclic include. The event umbrella is
+`<Aero/Events.hpp>`; `<Aero/RoutedEvent.hpp>` is the sole declaration owner for
+`RoutedEvent`, `RoutedEventHandle`, and routed-event metadata helpers.
 
 Media is a specialist surface made up of concrete headers such as
-`Media/Brushes.hpp`, `Media/Geometry.hpp`, `Media/Images.hpp` and
-`Media/Transforms.hpp`. WPF-visible text values are owned by
-`Controls/Core.hpp` and consumed through `Controls/Text.hpp`; the text
-provider, shaping and editing implementation remains private under `src/text`.
+`Media/Brushes.hpp`, `Media/Fonts.hpp`, `Media/Geometry.hpp`,
+`Media/Images.hpp`, and `Media/Transforms.hpp`. WPF-visible formatting values
+are owned by `<Aero/TextFormatting.hpp>`; the text provider, shaping and
+editing implementation remains private under `src/text`.
 Generic `Media.hpp` and `Text/Text.hpp` aggregation headers are not part of
 the installed SDK.
 
 ## Controls headers
 
-The six family headers remain convenient aggregation points:
-
-```text
-Aero/Gui/Control.hpp
-Aero/Gui/Panel.hpp
-Aero/Gui/ButtonBase.hpp
-Aero/Gui/ItemsControl.hpp
-Aero/Gui/ContentControl.hpp
-Aero/Gui/Text.hpp
-```
-
-`Aero/Controls.hpp` is the broad umbrella. High-traffic WPF leaf types may own
-their declaration in a type-named header (`Button.hpp`, `CheckBox.hpp`,
-`RadioButton.hpp`, and progressively other stable leaves) while family headers
-remain source-compatible aggregators. A type-named header must not be a fake
-three-line forwarding facade once it becomes the canonical declaration owner.
-File count is not an architecture invariant; declaration ownership and include
-cost are.
+`Aero/Controls.hpp` is the broad umbrella. Type-named headers such as
+`Controls/Button.hpp`, `Controls/Grid.hpp`, `Controls/ListBox.hpp`, and
+`Controls/TextBox.hpp` physically own their declarations. Foundational family
+types such as `Control`, `Panel`, `ContentControl`, `ButtonBase`, and
+`ItemsControl` follow the same rule. The SDK contains no parallel `Aero/Gui/*`
+paths and no include-only `Text.hpp` compatibility facade.
 
 ## Private implementation placement
 

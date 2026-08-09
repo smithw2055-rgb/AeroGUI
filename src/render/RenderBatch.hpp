@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Render/RenderDevice.hpp>
+#include <AeroRender/RenderDevice.hpp>
 #include "render/GraphicsTypes.hpp"
 
 namespace Aero::Render {
@@ -67,7 +67,7 @@ public:
 class UiDrawContext final {
 public:
     explicit UiDrawContext(
-        Aero::RenderDevice::Access& device,
+        Aero::Render::RenderDeviceBase& device,
         Base::IAllocator* allocator = nullptr) noexcept
         : device_(&device) {
         static_cast<void>(allocator);
@@ -117,7 +117,7 @@ public:
     Base::Result<Graphics::FenceValue> Finish() noexcept;
 
 private:
-    Aero::RenderDevice::Access* device_ = nullptr;
+    Aero::Render::RenderDeviceBase* device_ = nullptr;
     Graphics::RenderPassDescriptor pass_;
     RenderDrawState state_{};
     Graphics::FenceValue lastFence_ = 0U;

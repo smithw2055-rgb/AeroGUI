@@ -1,12 +1,13 @@
 D3D11RenderDevice::D3D11RenderDevice(
     const D3D11RenderDeviceOptions& options,
     Base::IAllocator* allocator) noexcept
-    : Aero::RenderDevice::Access(
+    : Aero::Render::RenderDeviceBase(
           allocator != nullptr ? *allocator : Base::GetDefaultAllocator()),
       options_(options),
       allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()) {}
 
 D3D11RenderDevice::~D3D11RenderDevice() noexcept {
+    static_cast<void>(WaitIdle());
     Shutdown();
 }
 
@@ -180,20 +181,20 @@ Base::Result<FenceValue> D3D11RenderDevice::DrawBatch(
     return SubmitBatch(batch);
 }
 
-void D3D11RenderDevice::NotifyDeviceLost() noexcept {
+void D3D11RenderDevice::NotifyBackendDeviceLost() noexcept {
     if (deviceLost_) return;
     deviceLost_ = true;
     Shutdown();
 }
 
-Base::Result<void> D3D11RenderDevice::RestoreDevice() noexcept {
+Base::Result<void> D3D11RenderDevice::RestoreBackendDevice() noexcept {
     if (!deviceLost_) {
         return InvalidState("D3D11 device is not lost");
     }
     return Initialize();
 }
 
-Base::Result<void> D3D11RenderDevice::WaitIdle(
+Base::Result<void> D3D11RenderDevice::WaitBackendIdle(
     std::uint32_t timeoutMilliseconds) noexcept {
     const FenceValue fence = LastSubmittedFence();
     return fence != 0U
@@ -201,14 +202,14 @@ Base::Result<void> D3D11RenderDevice::WaitIdle(
         : Base::Result<void>();
 }
 
-::Aero::Render::BackendHealth
-D3D11RenderDevice::GetDeviceHealth() const noexcept {
+::Aero::RenderBackendHealth
+D3D11RenderDevice::BackendHealth() const noexcept {
     if (deviceLost_ || IsDeviceLost()) {
-        return ::Aero::Render::BackendHealth::DeviceLost;
+        return ::Aero::RenderBackendHealth::DeviceLost;
     }
     return IsInitialized() && AreResourcesReady()
-        ? ::Aero::Render::BackendHealth::Ready
-        : ::Aero::Render::BackendHealth::Failed;
+        ? ::Aero::RenderBackendHealth::Ready
+        : ::Aero::RenderBackendHealth::Failed;
 }
 
 Base::Result<void> D3D11RenderDevice::ConfigureNativePipeline(

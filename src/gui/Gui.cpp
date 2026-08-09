@@ -1,9 +1,10 @@
 #include <Aero/Gui.hpp>
-#include <Aero/Gui/View.hpp>
+#include <Aero/View.hpp>
 
+#include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/Media/TextureProvider.hpp>
-#include <Aero/Text/FontProvider.hpp>
+#include <Aero/Media/FontProvider.hpp>
 #include <Aero/ViewOptions.hpp>
 #include "gui/GuiData.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>
@@ -79,6 +80,65 @@ Base::Result<void> RegisterDefaultXamlProviders(
 
 
 namespace Aero {
+
+namespace {
+
+void RemovePendingDocument(
+    GuiState& state,
+    std::uint32_t index) noexcept {
+    if (index + 1U < state.pendingDocuments.Size()) {
+        state.pendingDocuments[index] =
+            std::move(state.pendingDocuments.Back());
+    }
+    state.pendingDocuments.PopBack();
+}
+
+void CollectUnclaimedDocuments(GuiState& state) noexcept {
+    std::uint32_t index = 0U;
+    while (index < state.pendingDocuments.Size()) {
+        const PendingXamlDocument& pending =
+            state.pendingDocuments[index];
+        const Base::Ref<Base::Object>& root =
+            pending.document.root;
+        if (!root ||
+            root->UseCount() <= pending.internalRootReferences) {
+            RemovePendingDocument(state, index);
+            continue;
+        }
+        ++index;
+    }
+}
+
+Base::Result<Base::Ref<Base::Object>> RetainLoadedDocument(
+    GuiState& state,
+    Markup::XamlDocument&& document,
+    std::uint32_t externalRootReferences = 0U) noexcept {
+    Base::Ref<Base::Object> root = document.Root();
+    if (!root) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Loaded XAML document has no root object");
+    }
+    Markup::LoaderResult pending =
+        Markup::TakeXamlDocument(document);
+    const std::uint32_t rootReferences = root->UseCount();
+    if (rootReferences <= externalRootReferences ||
+        rootReferences - externalRootReferences <= 1U) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Loaded XAML document lost its internal root ownership");
+    }
+    PendingXamlDocument retainedDocument{
+        std::move(pending),
+        rootReferences - externalRootReferences - 1U};
+    Base::Result<PendingXamlDocument*> retained =
+        state.pendingDocuments.EmplaceBack(
+            std::move(retainedDocument));
+    if (!retained) return retained.GetStatus();
+    return root;
+}
+
+} // namespace
 
 
 Gui::Gui(
@@ -166,6 +226,83 @@ Base::Result<void> Gui::Initialize() noexcept {
     if (!frozen) return frozen.GetStatus();
     state.initialized = true;
     return {};
+}
+
+Base::Result<Base::Ref<Base::Object>> Gui::LoadXamlRoot(
+    Base::StringView uri,
+    Base::MetaTypeId expectedRoot) noexcept {
+    if (!IsInitialized()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "Gui must be initialized before XAML loading");
+    }
+    GuiState& state = static_cast<GuiState&>(*state_);
+    CollectUnclaimedDocuments(state);
+    Markup::XamlReader reader(*this);
+    Base::Result<Markup::XamlDocument> loaded = reader.Load(uri);
+    if (!loaded) return loaded.GetStatus();
+    const Base::Ref<Base::Object>& root = loaded.Value().Root();
+    if (!root || expectedRoot == Base::InvalidMetaTypeId ||
+        !state.schema.Metadata().Types().IsDerivedFrom(
+            root->RuntimeType(), expectedRoot)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML root is incompatible with the requested type");
+    }
+    return RetainLoadedDocument(
+        state, std::move(loaded).Value());
+}
+
+Base::Result<void> Gui::LoadComponent(
+    Base::Object& component,
+    Base::StringView uri) noexcept {
+    if (!IsInitialized()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "Gui must be initialized before XAML component loading");
+    }
+    const std::uint32_t externalRootReferences =
+        component.UseCount();
+    Base::Ref<Base::Object> root =
+        Base::Ref<Base::Object>::TryFromBorrowed(component);
+    if (!root) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML component requires a managed root object");
+    }
+    GuiState& state = static_cast<GuiState&>(*state_);
+    CollectUnclaimedDocuments(state);
+    Markup::XamlReader reader(*this);
+    Base::Result<Markup::XamlDocument> loaded =
+        reader.LoadComponentInto(std::move(root), uri);
+    if (!loaded) return loaded.GetStatus();
+    Base::Result<Base::Ref<Base::Object>> retained =
+        RetainLoadedDocument(
+            state,
+            std::move(loaded).Value(),
+            externalRootReferences);
+    if (!retained) return retained.GetStatus();
+    return {};
+}
+
+Base::Result<bool> Gui::TakeLoadedDocument(
+    Base::Object& root,
+    Markup::XamlDocument& document) noexcept {
+    GuiState& state = static_cast<GuiState&>(*state_);
+    for (std::uint32_t index = 0U;
+         index < state.pendingDocuments.Size(); ++index) {
+        Markup::LoaderResult& pending =
+            state.pendingDocuments[index].document;
+        if (pending.root.Get() != &root) continue;
+        Base::Result<Markup::XamlDocument> adopted =
+            Markup::AdoptXamlDocument(
+                std::move(pending), *state.allocator);
+        if (!adopted) return adopted.GetStatus();
+        document = std::move(adopted).Value();
+        RemovePendingDocument(state, index);
+        return true;
+    }
+    return false;
 }
 
 Base::Result<Base::Ref<View>> Gui::CreateView(

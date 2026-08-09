@@ -1,5 +1,5 @@
 #include <Aero/Triggers/Behavior.hpp>
-#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include "gui/MetadataRuntime.hpp"
 #include "gui/PropertyRuntime.hpp"
 #include "gui/FreezableRuntime.hpp"

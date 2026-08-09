@@ -1,5 +1,4 @@
 #include "RenderContext.hpp"
-#include "render/RenderDeviceState.hpp"
 
 #include <utility>
 
@@ -118,14 +117,15 @@ Base::Result<void> RenderContext::Render(IRenderer& renderer) noexcept {
     Base::Result<void> begun = BeginFrame();
     if (!begun) return begun.GetStatus();
 
-    Base::Result<void> rendered = renderer.Render(*currentTarget_);
-    if (!rendered) {
+    renderer.Render(*currentTarget_);
+    if (currentTarget_->State() != RenderTargetState::Ready) {
         CancelFrame();
         currentTarget_ = nullptr;
         frameOpen_ = false;
         frameRendered_ = false;
         frameEnded_ = false;
-        return rendered.GetStatus();
+        return InvalidState(
+            "Renderer left the application render target unavailable");
     }
     frameRendered_ = true;
 

@@ -1,15 +1,15 @@
-#include <Aero/Render/OpenGL33.hpp>
+#include <AeroRender/OpenGL33.hpp>
 
 #include <utility>
 
 namespace {
 
 [[maybe_unused]]
-Aero::Base::Result<Aero::Base::Ref<Aero::RenderTarget>>
+Aero::Result<Aero::Ref<Aero::RenderTarget>>
 CreateOpenGL33Target(
-    Aero::Base::Ref<Aero::RenderDevice> device) noexcept {
-    Aero::Render::OpenGL33RenderTargetOptions options;
-    return Aero::Render::CreateOpenGL33RenderTarget(
+    Aero::Ref<Aero::RenderDevice> device) noexcept {
+    Aero::Render::OpenGL33::TargetOptions options;
+    return Aero::Render::OpenGL33::CreateTarget(
         std::move(device), options);
 }
 

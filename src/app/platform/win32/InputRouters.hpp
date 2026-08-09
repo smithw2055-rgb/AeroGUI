@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Input/Platform.hpp>
+#include <Aero/InputInterop.hpp>
 
 #include <cstdint>
 

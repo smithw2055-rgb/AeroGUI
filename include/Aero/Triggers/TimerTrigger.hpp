@@ -16,18 +16,18 @@ public:
     void SetMillisecondsPerTick(const Meta::PropertyValue& value) noexcept {
         millisecondsPerTick_ = value;
     }
-    Base::Ref<Aero::Data::Binding> GetMillisecondsPerTickBinding() const noexcept {
+    Ref<Aero::Data::Binding> GetMillisecondsPerTickBinding() const noexcept {
         return millisecondsPerTickBinding_;
     }
     void SetMillisecondsPerTickBinding(
-        Base::Ref<Aero::Data::Binding> value) noexcept {
+        Ref<Aero::Data::Binding> value) noexcept {
         millisecondsPerTickBinding_ = std::move(value);
     }
 
 private:
     std::uint32_t totalTicks_ = 1U;
     Meta::PropertyValue millisecondsPerTick_;
-    Base::Ref<Aero::Data::Binding> millisecondsPerTickBinding_;
+    Ref<Aero::Data::Binding> millisecondsPerTickBinding_;
 };
 
 } // namespace Aero::Media::Animation

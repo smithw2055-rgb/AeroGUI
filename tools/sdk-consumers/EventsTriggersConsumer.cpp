@@ -6,7 +6,7 @@
 #include <Aero/Events.hpp>
 #include <Aero/Events/NavigationEventArgs.hpp>
 #include <Aero/Events/PropertyEventArgs.hpp>
-#include <Aero/Gui/RoutedEvent.hpp>
+#include <Aero/RoutedEvent.hpp>
 #include <Aero/Events/WindowEventArgs.hpp>
 
 #include <Aero/Triggers/ChangePropertyAction.hpp>

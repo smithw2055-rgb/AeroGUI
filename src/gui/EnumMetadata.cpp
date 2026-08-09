@@ -9,20 +9,20 @@
 #include "gui/AnimationRuntime.hpp"
 #include "gui/StyleRuntime.hpp"
 
-#include <Aero/Gui/Storyboard.hpp>
-#include <Aero/Gui/Application.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <AeroApp/Application.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/Gui/Brush.hpp>
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Triggers/Conditions.hpp>
 #include <Aero/Triggers/StoryboardActions.hpp>
-#include <Aero/Gui/Window.hpp>
+#include <AeroApp/Window.hpp>
 
 namespace Aero {
 namespace {

@@ -9,13 +9,13 @@ struct StartupEventArgs : EventArgs {
     AERO_DECLARE_TYPE(StartupEventArgs, EventArgs)
 public:
     StartupEventArgs() noexcept : EventArgs(StaticTypeId()) {}
-    explicit StartupEventArgs(Base::StringView startupUri) noexcept
+    explicit StartupEventArgs(StringView startupUri) noexcept
         : EventArgs(StaticTypeId()), startupUri_(startupUri) {}
 
-    Base::StringView GetStartupUri() const noexcept { return startupUri_; }
+    StringView GetStartupUri() const noexcept { return startupUri_; }
 
 private:
-    Base::StringView startupUri_;
+    StringView startupUri_;
 };
 
 struct ExitEventArgs : EventArgs {
@@ -35,4 +35,3 @@ private:
 };
 
 } // namespace Aero
-

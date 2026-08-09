@@ -8,6 +8,39 @@ class MetaTable;
 }
 
 namespace Aero::Meta {
+using Detail::CollectionChangeNotificationRegistration;
+using Detail::CollectionChangeSubscribeCallback;
+using Detail::CollectionChangeUnsubscribeCallback;
+using Detail::ContentAccessorRegistration;
+using Detail::ContentClearCallback;
+using Detail::ContentWriteCallback;
+using Detail::EnumValueRegistration;
+using Detail::EventRegistration;
+using Detail::FieldRegistration;
+using Detail::MetadataCollectionChangeAction;
+using Detail::MetadataCollectionChangedCallback;
+using Detail::MetadataCollectionChangedEvent;
+using Detail::MetadataPropertyChangedCallback;
+using Detail::MethodInvokeCallback;
+using Detail::MethodInvokerRegistration;
+using Detail::MethodParameterRegistration;
+using Detail::MethodRegistration;
+using Detail::ObjectFactory;
+using Detail::PropertyAccessorRegistration;
+using Detail::PropertyChangeNotificationRegistration;
+using Detail::PropertyChangeSubscribeCallback;
+using Detail::PropertyChangeUnsubscribeCallback;
+using Detail::PropertyGetCallback;
+using Detail::PropertyRegistration;
+using Detail::PropertySetCallback;
+using Detail::RegistrationValues;
+using Detail::RegistrationTypes;
+using Detail::TypeFactoryRegistration;
+using Detail::TypeRegistration;
+using Detail::ValueMemberAccessorRegistration;
+using Detail::ValueMemberGetCallback;
+using Detail::ValueMemberSetCallback;
+
 class PropertyInfo {
 public:
     PropertyInfo(PropertyInfo&&) noexcept = default;
@@ -241,7 +274,7 @@ public:
     bool IsAssignableFrom(TypeId targetType, TypeId sourceType) const noexcept;
 private:
     friend class ::Aero::Meta::Registry;
-    friend class RegistrationTypes;
+    friend class Detail::RegistrationTypes;
     Base::Result<TypeId> RegisterType(BehaviorTable& behaviors, const TypeRegistration& registration) noexcept;
     Base::Result<void> RegisterInterface(TypeId ownerType, TypeId interfaceType) noexcept;
     Base::Result<MemberId> RegisterProperty(BehaviorTable& behaviors, TypeId ownerType, const PropertyRegistration& registration) noexcept;
@@ -710,9 +743,8 @@ class MetadataAuthoringSession;
 } // namespace Aero::Meta::Detail
 
 namespace Aero::Meta {
-class RegistrationTypes;
 template<class T>
-class TypeDescription;
+class TypeBuilder;
 
 // Mutable registration storage for executable type/member behavior.
 //
@@ -744,7 +776,7 @@ private:
     friend class ::Aero::MetaTable;
     friend class Detail::MetaTable;
     friend class Detail::MetadataAuthoringSession;
-    friend class RegistrationTypes;
+    friend class Detail::RegistrationTypes;
     friend class TypeRegistry;
 
     struct OwnedBehaviorData {
@@ -817,6 +849,8 @@ private:
 
 // Explicit mutable view for structural and executable type registration.
 // Read-only consumers continue to use TypeRegistry directly.
+namespace Detail {
+
 class RegistrationTypes {
 public:
     RegistrationTypes(
@@ -866,8 +900,8 @@ public:
 
 private:
     template<class>
-    friend class TypeDescription;
-    friend class Detail::MetadataAuthoringSession;
+    friend class ::Aero::Meta::TypeBuilder;
+    friend class MetadataAuthoringSession;
 
     template<class TContext>
     Base::Result<std::decay_t<TContext>*> OwnBehaviorContext(
@@ -885,6 +919,8 @@ private:
     BehaviorTable* behaviors_ = nullptr;
 };
 
+} // namespace Detail
+
 } // namespace Aero::Meta
 
 // ===== Value facets =====
@@ -900,7 +936,6 @@ class MetaTable;
 } // namespace Aero::Meta::Detail
 
 namespace Aero::Meta {
-class RegistrationValues;
 
 // Mutable registration storage for custom value semantics and text converters.
 //
@@ -928,7 +963,7 @@ private:
     friend class ::Aero::Meta::Registry;
     friend class ::Aero::MetaTable;
     friend class Detail::MetaTable;
-    friend class RegistrationValues;
+    friend class Detail::RegistrationValues;
 
     struct ValueSemanticsEntry {
         TypeId type = InvalidTypeId;
@@ -953,7 +988,7 @@ private:
 
 } // namespace Aero::Meta
 
-#include <Aero/Gui/RoutedEvent.hpp>
+#include <Aero/RoutedEvent.hpp>
 
 namespace Aero::Meta {
 
@@ -1002,7 +1037,7 @@ private:
 } // namespace Aero::Meta
 
 
-#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 
 namespace Aero {
 

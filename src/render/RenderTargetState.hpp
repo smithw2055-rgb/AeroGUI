@@ -1,53 +1,54 @@
 #pragma once
 
-#include <Aero/Render/RenderTarget.hpp>
-#include "gui/ViewRenderer.hpp"
+#include <AeroRender/RenderTarget.hpp>
+#include "render/FrameEncoder.hpp"
 #include "render/RenderDeviceState.hpp"
 
-namespace Aero {
-
-// Backend target state derives directly from the public target's source-private
-// Access. This removes the former Access -> NativeRenderTarget delegation object.
-struct RenderTarget::Access {
-    explicit Access(
-        RenderTargetKind selectedKind = RenderTargetKind::Embedded) noexcept
-        : kind(selectedKind) {}
-    virtual ~Access() noexcept = default;
-
-    Access(const Access&) = delete;
-    Access& operator=(const Access&) = delete;
-
-    virtual Base::Result<void> Render(
-        ::Aero::ViewRenderer& renderer,
-        const ::Aero::Render::RenderFrame& frame) noexcept = 0;
-    virtual Base::Result<void> Resize(
-        std::uint32_t width,
-        std::uint32_t height) noexcept = 0;
-    virtual void NotifySurfaceLost() noexcept = 0;
-    virtual Base::Result<void> RestoreSurface() noexcept = 0;
-    virtual ::Aero::Render::SurfaceHealth
-        GetSurfaceHealth() const noexcept = 0;
-
-    RenderTargetKind kind = RenderTargetKind::Embedded;
-
-    static Base::Result<Base::Ref<RenderTarget>> Create(
-        Base::Ref<Aero::RenderDevice> device,
-        Access* implementation,
-        Base::IAllocator* allocator = nullptr) noexcept;
-    static Base::Result<void> Render(
-        RenderTarget& target,
-        ::Aero::ViewRenderer& renderer,
-        const ::Aero::Render::RenderFrame& frame) noexcept;
-};
-
-} // namespace Aero
+#include <utility>
 
 namespace Aero::Render {
 
-Base::Result<Base::Ref<Aero::RenderTarget>> AdoptRenderTarget(
-    Base::Ref<Aero::RenderDevice> device,
-    Aero::RenderTarget::Access* target,
-    Aero::RenderTargetKind kind,
-    Base::IAllocator* allocator = nullptr) noexcept;
+// Source-private implementation half of the installed RenderTarget contract.
+// Backend products derive their concrete target directly from this base.
+class AERO_GUI_INTERNAL_API RenderTargetBase : public Aero::RenderTarget {
+public:
+    explicit RenderTargetBase(
+        Base::Ref<Aero::RenderDevice> selectedDevice,
+        Aero::RenderTargetKind selectedKind =
+            Aero::RenderTargetKind::Embedded) noexcept
+        : device(std::move(selectedDevice)), kind(selectedKind) {}
+    ~RenderTargetBase() noexcept override = default;
+
+    RenderTargetBase(const RenderTargetBase&) = delete;
+    RenderTargetBase& operator=(const RenderTargetBase&) = delete;
+
+    // Backend modules only acquire and retire a native frame target. The GUI
+    // module owns ViewRenderer and performs the actual UI frame submission.
+    virtual Base::Result<FrameTarget> AcquireFrameTarget() noexcept = 0;
+    virtual Base::Result<void> RetireFrameTarget(
+        const FrameTarget& target) noexcept = 0;
+    Base::Ref<Aero::RenderDevice> device;
+    Aero::RenderTargetKind kind = Aero::RenderTargetKind::Embedded;
+
+    static RenderTargetBase* From(Aero::RenderTarget& target) noexcept {
+        return static_cast<RenderTargetBase*>(&target);
+    }
+    static const RenderTargetBase* From(
+        const Aero::RenderTarget& target) noexcept {
+        return static_cast<const RenderTargetBase*>(&target);
+    }
+
+private:
+    Aero::RenderTargetKind BackendKind() const noexcept override {
+        return kind;
+    }
+};
+
+struct RenderTargetServices {
+    static Base::Result<void> Render(
+        Aero::RenderTarget& target,
+        ::Aero::ViewRenderer& renderer,
+        const ::Aero::Render::RenderFrame& frame) noexcept;
+};
 
 } // namespace Aero::Render

@@ -13,7 +13,7 @@ namespace Aero::Render {
 class ImageGpuResources {
 public:
     ImageGpuResources(
-        Aero::RenderDevice::Access& device,
+        Aero::Render::RenderDeviceBase& device,
         UiFrameEncoder& encoder,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
@@ -228,7 +228,7 @@ private:
         resource = {};
     }
 
-    Aero::RenderDevice::Access* device_ = nullptr;
+    Aero::Render::RenderDeviceBase* device_ = nullptr;
     UiFrameEncoder* encoder_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Resource> resources_;

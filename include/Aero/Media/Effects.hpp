@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include <Aero/Freezable.hpp>
 
 namespace Aero { class FrameworkElement; }
@@ -11,8 +11,14 @@ namespace Aero::Media {
 
 class AERO_GUI_API Effect : public ::Aero::Freezable {
     AERO_DECLARE_TYPE(Effect, ::Aero::Freezable)
+#if defined(AERO_GUI_IMPLEMENTATION)
 public:
+#else
+private:
+#endif
     struct Access;
+
+public:
 
 protected:
     explicit Effect(Meta::TypeId runtimeType) noexcept

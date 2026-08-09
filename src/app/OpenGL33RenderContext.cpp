@@ -1,7 +1,7 @@
 #include "RenderContext.hpp"
 #include "Presentation.hpp"
 
-#include <Aero/Render/OpenGL33.hpp>
+#include <AeroRender/OpenGL33.hpp>
 
 #if defined(_WIN32)
 #include "platform/win32/OpenGLWindow.hpp"
@@ -45,7 +45,7 @@ public:
             window_.Initialize(window, {width, height});
         if (!native) return native.GetStatus();
 
-        Render::OpenGL33DeviceOptions deviceOptions;
+        Render::OpenGL33::DeviceOptions deviceOptions;
         deviceOptions.resolve = &PlatformOpenGLWindow::ResolveCallback;
         deviceOptions.makeCurrent =
             &PlatformOpenGLWindow::MakeCurrentCallback;
@@ -55,21 +55,21 @@ public:
             &PlatformOpenGLWindow::GenerationCallback;
         deviceOptions.callbackContext = &window_;
         deviceOptions.statePolicy =
-            Render::OpenGL33StatePreservationPolicy::HostResetsState;
+            Render::OpenGL33::StatePreservationPolicy::HostResetsState;
         Base::Result<Base::Ref<RenderDevice>> createdDevice =
-            Render::CreateOpenGL33Device(deviceOptions, allocator);
+            Render::OpenGL33::CreateDevice(deviceOptions, allocator);
         if (!createdDevice) {
             window_.Shutdown();
             return createdDevice.GetStatus();
         }
 
-        Render::OpenGL33RenderTargetOptions targetOptions;
+        Render::OpenGL33::TargetOptions targetOptions;
         targetOptions.acquireTarget = &AcquireTarget;
         targetOptions.callbackContext = this;
         targetOptions.targetContext = this;
         targetOptions.clearBeforeRender = true;
         Base::Result<Base::Ref<RenderTarget>> createdTarget =
-            Render::CreateOpenGL33RenderTarget(
+            Render::OpenGL33::CreateTarget(
                 std::move(createdDevice).Value(), targetOptions, allocator);
         if (!createdTarget) {
             window_.Shutdown();
@@ -111,7 +111,7 @@ protected:
 private:
     static Base::Status AcquireTarget(
         void* context,
-        Render::OpenGL33EmbeddedTarget* target) noexcept {
+        Render::OpenGL33::EmbeddedTarget* target) noexcept {
         auto* owner = static_cast<OpenGLRenderContext*>(context);
         if (owner == nullptr || target == nullptr ||
             owner->window_.Generation() == 0U ||

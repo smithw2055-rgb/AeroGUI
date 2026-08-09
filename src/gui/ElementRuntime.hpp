@@ -4,11 +4,11 @@
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include <Aero/Gui/RoutedEvent.hpp>
-#include <Aero/Gui/Visual.hpp>
-#include <Aero/Gui/FrameworkContentElement.hpp>
-#include <Aero/Gui/UIElement.hpp>
-#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/RoutedEvent.hpp>
+#include <Aero/Visual.hpp>
+#include <Aero/FrameworkContentElement.hpp>
+#include <Aero/UIElement.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 #include <cstdint>
 #include <utility>

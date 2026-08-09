@@ -11,10 +11,10 @@
 #include "gui/BindingRuntime.hpp"
 #include "gui/AnimationRuntime.hpp"
 #include "gui/StyleRuntime.hpp"
-#include "media/AnimationRuntime.hpp"
-#include "media/BrushRuntime.hpp"
-#include "media/EffectRuntime.hpp"
-#include "media/TransformRuntime.hpp"
+#include "gui/media/AnimationRuntime.hpp"
+#include "gui/media/BrushRuntime.hpp"
+#include "gui/media/EffectRuntime.hpp"
+#include "gui/media/TransformRuntime.hpp"
 
 #include "gui/MetadataRuntime.hpp"
 #include "gui/PropertyRuntime.hpp"
@@ -29,7 +29,7 @@
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Gui/Transform.hpp>
+#include <Aero/Media/Transforms.hpp>
 
 #include <algorithm>
 #include <cmath>

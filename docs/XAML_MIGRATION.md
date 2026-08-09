@@ -115,10 +115,10 @@ Runtime；应用代码不再自行读取或编译这些主题。
 以下旧实现已获得单独授权并从仓库删除：
 
 - `include/Aero/Markup/XamlTheme.hpp`
-- `src/markup/XamlTheme.cpp`
-- `src/markup/XamlThemeObjectModel.cpp`
-- `src/markup/XamlThemeObjectModel.hpp`
-- `src/markup/XamlNamesResources.cpp`
+- `src/gui/markup/XamlTheme.cpp`
+- `src/gui/markup/XamlThemeObjectModel.cpp`
+- `src/gui/markup/XamlThemeObjectModel.hpp`
+- `src/gui/markup/XamlNamesResources.cpp`
 - `tests/markup/XamlThemeTests.cpp`
 
 普通 XAML、主题和资源加载路径不再依赖这些专用实现。

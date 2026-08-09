@@ -57,3 +57,10 @@ private:
 };
 
 } // namespace Aero::Base
+
+namespace Aero {
+
+template<class T>
+using Span = Base::Span<T>;
+
+} // namespace Aero

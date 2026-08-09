@@ -24,6 +24,34 @@ if(expected_position EQUAL -1)
         "Expected public API export '${AERO_EXPECTED_EXPORT}' is missing from ${AERO_DLL}")
 endif()
 
+if(DEFINED AERO_ADDITIONAL_EXPECTED_EXPORT AND
+   NOT AERO_ADDITIONAL_EXPECTED_EXPORT STREQUAL "")
+    string(FIND "${dump_output}"
+        "${AERO_ADDITIONAL_EXPECTED_EXPORT}" additional_expected_position)
+    if(additional_expected_position EQUAL -1)
+        message(FATAL_ERROR
+            "Expected public API export '${AERO_ADDITIONAL_EXPECTED_EXPORT}' is missing from ${AERO_DLL}")
+    endif()
+endif()
+
+if(DEFINED AERO_EXPECTED_EXPORT_COUNT AND
+   NOT AERO_EXPECTED_EXPORT_COUNT STREQUAL "")
+    string(REGEX MATCH
+        "[0-9]+ number of functions"
+        export_count_line "${dump_output}")
+    if(export_count_line STREQUAL "")
+        message(FATAL_ERROR
+            "Could not read the export count from ${AERO_DLL}")
+    endif()
+    string(REGEX REPLACE
+        "^([0-9]+) number of functions$" "\\1"
+        actual_export_count "${export_count_line}")
+    if(NOT actual_export_count STREQUAL AERO_EXPECTED_EXPORT_COUNT)
+        message(FATAL_ERROR
+            "Expected exactly ${AERO_EXPECTED_EXPORT_COUNT} exports from ${AERO_DLL}, found ${actual_export_count}")
+    endif()
+endif()
+
 # API macros are permitted only in installed headers and all Windows targets
 # disable auto-export. This symbol-table guard closes the other half of that
 # contract: no source-only owner or migration vocabulary may escape a DLL.

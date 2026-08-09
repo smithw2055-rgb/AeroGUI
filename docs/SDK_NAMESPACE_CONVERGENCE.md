@@ -14,7 +14,7 @@ The physical ownership model is now direct and intentionally shallow:
 - source-only render-device/target contracts are flat files under `src/render`;
 - `src/render/d3d11` owns D3D11 device/surface/factory implementation;
 - `src/render/opengl33` owns OpenGL 3.3 device/surface/factory implementation;
-- `src/markup/ReloadCoordinator.cpp` owns markup reload implementation.
+- `src/gui/markup/ReloadCoordinator.cpp` owns markup reload implementation.
 
 The UI render path terminates at `RenderDevice::Impl` and backend-local native
 submission. No second generic GraphicsDevice product or source layer remains.

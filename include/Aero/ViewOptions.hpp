@@ -2,24 +2,25 @@
 
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Input/Platform.hpp>
+#include <Aero/InputInterop.hpp>
 
 #include <cstdint>
 
 namespace Aero {
 
 class ResourceDictionary;
+namespace Diagnostics { class IDiagnosticSink; }
 
 enum class BuiltInTheme : std::uint8_t { Light = 0U, Dark };
 enum class ResourceLayer : std::uint8_t { Application = 0U, Theme, System };
 enum class ResourceLoadMode : std::uint8_t { Replace = 0U, Merge };
 
 struct TextOptions {
-    Base::StringView primaryFamily;
-    Base::Span<const Base::StringView> fallbackFamilies;
-    Base::StringView language;
+    StringView primaryFamily;
+    Span<const StringView> fallbackFamilies;
+    StringView language;
     // Relative FontFamily file values are resolved beneath this root.
-    Base::StringView fontSearchRoot;
+    StringView fontSearchRoot;
     float defaultPixelSize = 16.0F;
 };
 
@@ -31,6 +32,10 @@ struct ViewOptions {
     Input::ITextInputMethodHost* textInputMethodHost = nullptr;
     TextOptions text;
     ResourceDictionary* applicationResources = nullptr;
+    // Per-frame failures are reported here because the hot frame API is
+    // intentionally Result-free. GPU availability remains observable through
+    // RenderDevice::State() and RenderTarget::State().
+    Diagnostics::IDiagnosticSink* diagnostics = nullptr;
     BuiltInTheme builtInTheme = BuiltInTheme::Light;
     bool attachControlInteractions = true;
     bool attachTextEditing = true;

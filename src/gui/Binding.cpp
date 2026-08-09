@@ -18,12 +18,12 @@
 #include "gui/BindingRuntime.hpp"
 #include "gui/AnimationRuntime.hpp"
 #include "gui/StyleRuntime.hpp"
-#include "controls/ControlRuntime.hpp"
-#include "controls/ItemsRuntime.hpp"
-#include "controls/TemplateRuntime.hpp"
-#include <Aero/Gui/BindingBase.hpp>
-#include <Aero/Gui/ResourceDictionary.hpp>
-#include <Aero/Gui/Geometry.hpp>
+#include "gui/controls/ControlRuntime.hpp"
+#include "gui/controls/ItemsRuntime.hpp"
+#include "gui/controls/TemplateRuntime.hpp"
+#include <Aero/Data/Binding.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/Media/Geometry.hpp>
 
 #include <cmath>
 #include <cstdio>

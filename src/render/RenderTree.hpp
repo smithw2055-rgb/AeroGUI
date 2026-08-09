@@ -13,7 +13,7 @@
 
 #include "DisplayList.hpp"
 
-#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 #include <array>
 

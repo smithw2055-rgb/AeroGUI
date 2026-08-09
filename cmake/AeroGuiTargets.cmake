@@ -41,7 +41,7 @@ set(_aero_gui_sources
     src/gui/BindingPath.cpp
     src/gui/PropertySystem.cpp
     src/gui/Freezable.cpp
-    src/diagnostics/Diagnostics.cpp
+    src/gui/diagnostics/Diagnostics.cpp
     src/gui/Dispatcher.cpp
     src/gui/RoutedEvents.cpp
     src/gui/Metadata.cpp
@@ -49,55 +49,55 @@ set(_aero_gui_sources
     src/gui/BuiltinMetadata.cpp
     src/gui/ObjectFactory.cpp
     src/gui/Value.cpp
-    src/media/AnimationEngine.cpp
-    src/media/Animation.cpp
+    src/gui/media/AnimationEngine.cpp
+    src/gui/media/Animation.cpp
     src/render/DrawingContext.cpp
     src/gui/Binding.cpp
     src/gui/BindingObjects.cpp
-    src/media/Brushes.cpp
+    src/gui/media/Brushes.cpp
     src/gui/Commands.cpp
-    src/media/Effects.cpp
-    src/media/Geometry.cpp
+    src/gui/media/Effects.cpp
+    src/gui/media/Geometry.cpp
     src/gui/Input.cpp
     src/gui/Interactivity.cpp
-    src/media/Images.cpp
+    src/gui/media/Images.cpp
     src/gui/Layout.cpp
     src/gui/ContentElement.cpp
     src/gui/ElementTree.cpp
     src/gui/Resources.cpp
     src/render/RenderTree.cpp
-    src/media/Transforms.cpp
+    src/gui/media/Transforms.cpp
     src/gui/Style.cpp
-    src/controls/Bars.cpp
-    src/controls/BlendBehaviors.cpp
-    src/controls/Buttons.cpp
-    src/controls/ContentControls.cpp
-    src/controls/ControlBehavior.cpp
-    src/controls/Controls.cpp
-    src/controls/Documents.cpp
-    src/controls/Images.cpp
-    src/controls/Items.cpp
-    src/controls/ListView.cpp
-    src/controls/Menus.cpp
-    src/controls/Metadata.cpp
-    src/controls/Path.cpp
-    src/controls/Scroll.cpp
-    src/controls/Selection.cpp
-    src/controls/Shapes.cpp
-    src/controls/TextBox.cpp
-    src/controls/Templates.cpp
-    src/controls/Trees.cpp
-    src/controls/Virtualization.cpp
-    src/controls/VisualStates.cpp
-    src/diagnostics/Inspector.cpp
-    src/markup/MarkupParser.cpp
-    src/markup/MarkupSchema.cpp
-    src/markup/MarkupWriter.cpp
-    src/markup/MarkupTemplates.cpp
-    src/markup/MarkupLoader.cpp
+    src/gui/controls/Bars.cpp
+    src/gui/controls/BlendBehaviors.cpp
+    src/gui/controls/Buttons.cpp
+    src/gui/controls/ContentControls.cpp
+    src/gui/controls/ControlBehavior.cpp
+    src/gui/controls/Controls.cpp
+    src/gui/controls/Documents.cpp
+    src/gui/controls/Images.cpp
+    src/gui/controls/Items.cpp
+    src/gui/controls/ListView.cpp
+    src/gui/controls/Menus.cpp
+    src/gui/controls/Metadata.cpp
+    src/gui/controls/Path.cpp
+    src/gui/controls/Scroll.cpp
+    src/gui/controls/Selection.cpp
+    src/gui/controls/Shapes.cpp
+    src/gui/controls/TextBox.cpp
+    src/gui/controls/Templates.cpp
+    src/gui/controls/Trees.cpp
+    src/gui/controls/Virtualization.cpp
+    src/gui/controls/VisualStates.cpp
+    src/gui/diagnostics/Inspector.cpp
+    src/gui/markup/MarkupParser.cpp
+    src/gui/markup/MarkupSchema.cpp
+    src/gui/markup/MarkupWriter.cpp
+    src/gui/markup/MarkupTemplates.cpp
+    src/gui/markup/MarkupLoader.cpp
     src/gui/modules/Module.cpp
     src/gui/modules/BuiltinModules.cpp
-    src/markup/GuiSchema.cpp)
+    src/gui/markup/GuiSchema.cpp)
 
 add_library(AeroGui ${AERO_LIBRARY_TYPE} ${_aero_gui_sources})
 add_library(Aero::Gui ALIAS AeroGui)
@@ -120,6 +120,7 @@ if(AERO_WITH_EXPAT)
     endif()
 endif()
 target_compile_definitions(AeroGui PRIVATE
+    AERO_GUI_IMPLEMENTATION=1
     $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_GUI_EXPORTS>
     AERO_UI_RESOURCE_MODEL=2
     AERO_CONTROLS_TEMPLATE_ABI=10
@@ -137,9 +138,21 @@ set_target_properties(AeroGui PROPERTIES
 aero_apply_compiler_options(AeroGui)
 aero_verify_windows_exports(AeroGui "Gui@Aero@@")
 
+# Backend-neutral render contracts are implemented and exported by AeroGui,
+# but have their own installed include prefix and CMake consumption boundary.
+# AeroRender deliberately creates no additional DLL.
+add_library(AeroRender INTERFACE)
+add_library(Aero::Render ALIAS AeroRender)
+target_link_libraries(AeroRender INTERFACE Aero::Gui)
+target_compile_features(AeroRender INTERFACE cxx_std_17)
+
 add_library(AeroGuiHeaderConsumer OBJECT tools/sdk-consumers/GuiConsumer.cpp)
 target_link_libraries(AeroGuiHeaderConsumer PRIVATE Aero::Gui)
 aero_apply_compiler_options(AeroGuiHeaderConsumer)
+add_library(AeroRenderHeaderConsumer OBJECT
+    tools/sdk-consumers/RenderConsumer.cpp)
+target_link_libraries(AeroRenderHeaderConsumer PRIVATE Aero::Render)
+aero_apply_compiler_options(AeroRenderHeaderConsumer)
 add_library(AeroEventsTriggersHeaderConsumer OBJECT
     tools/sdk-consumers/EventsTriggersConsumer.cpp)
 target_link_libraries(AeroEventsTriggersHeaderConsumer PRIVATE Aero::Gui)
@@ -200,13 +213,13 @@ set(_aero_gui_composition_sources
     src/gui/View.cpp
     src/gui/ViewRenderer.hpp
     src/gui/ViewState.hpp
-    src/markup/ReloadCoordinator.cpp
+    src/gui/markup/ReloadCoordinator.cpp
     src/render/RenderDevice.cpp
     src/gui/Invariants.cpp
-    src/media/ImageCache.cpp
-    src/media/StbImageImplementation.cpp
-    src/text/TextPipeline.cpp
-    src/markup/XamlReader.cpp)
+    src/gui/media/ImageCache.cpp
+    src/gui/media/StbImageImplementation.cpp
+    src/gui/text/TextPipeline.cpp
+    src/gui/markup/XamlReader.cpp)
 if(_aero_gui_precompiled_themes)
     list(APPEND _aero_gui_composition_sources "${_aero_generated_theme_header}")
     add_dependencies(AeroGui AeroCompiledThemes)
@@ -238,30 +251,64 @@ unset(_aero_gui_theme_include_dir)
 unset(_aero_gui_theme_header)
 unset(_aero_theme_embed_result)
 
-# Private retained renderer, render device, native backends and shader catalogs.
+# Private retained renderer and backend-neutral render-device machinery.
 # Renderer is the single semantic command/submission owner.
 target_sources(AeroGui PRIVATE
     src/render/RenderBatch.cpp
     src/render/RenderDeviceResources.cpp
     src/render/FrameEncoder.cpp
     src/gui/ViewRendererResources.cpp
-    src/render/TextRenderer.cpp
+    src/render/TextRenderer.cpp)
+
+# OpenGL 3.3 is a separately linkable backend product. AeroGui contains no GL
+# implementation or factory symbols.
+add_library(AeroRenderOpenGL33 ${AERO_LIBRARY_TYPE}
     src/render/opengl33/OpenGL33RenderDevice.cpp
     src/render/opengl33/OpenGL33Context.cpp
     src/render/opengl33/OpenGL33StateCache.cpp
-    src/render/opengl33/OpenGL33Shaders.cpp)
-target_compile_definitions(AeroGui PRIVATE AERO_HAS_OPENGL33_BACKEND=1)
+    src/render/opengl33/OpenGL33Shaders.cpp
+    src/render/opengl33/OpenGL33Embedded.cpp
+    src/render/opengl33/OpenGL33Factories.cpp)
+add_library(Aero::RenderOpenGL33 ALIAS AeroRenderOpenGL33)
+target_include_directories(AeroRenderOpenGL33
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_link_libraries(AeroRenderOpenGL33 PUBLIC Aero::Render)
+target_compile_definitions(AeroRenderOpenGL33 PRIVATE
+    AERO_GUI_IMPLEMENTATION=1
+    $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_RENDER_OPENGL33_EXPORTS>)
+target_compile_features(AeroRenderOpenGL33 PUBLIC cxx_std_17)
+set_target_properties(AeroRenderOpenGL33 PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS OFF
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
+aero_apply_compiler_options(AeroRenderOpenGL33)
+aero_verify_windows_exports(
+    AeroRenderOpenGL33
+    "CreateDevice@OpenGL33@Render@Aero@@"
+    "CreateTarget@OpenGL33@Render@Aero@@"
+    2)
 
 if(AERO_ENABLE_WGL_SURFACE)
     if(NOT WIN32)
         message(FATAL_ERROR
             "AERO_ENABLE_WGL_SURFACE is only supported on Windows")
     endif()
-    target_link_libraries(AeroGui PRIVATE
+    target_link_libraries(AeroRenderOpenGL33 PRIVATE
         gdi32 opengl32 user32)
-    target_compile_definitions(AeroGui PRIVATE AERO_HAS_WGL_SURFACE=1)
+    target_compile_definitions(
+        AeroRenderOpenGL33 PRIVATE AERO_HAS_WGL_SURFACE=1)
 else()
-    target_compile_definitions(AeroGui PRIVATE AERO_HAS_WGL_SURFACE=0)
+    target_compile_definitions(
+        AeroRenderOpenGL33 PRIVATE AERO_HAS_WGL_SURFACE=0)
 endif()
 
 if(AERO_ENABLE_GLX_SURFACE)
@@ -271,11 +318,13 @@ if(AERO_ENABLE_GLX_SURFACE)
     endif()
     find_package(X11 REQUIRED)
     find_package(OpenGL REQUIRED)
-    target_link_libraries(AeroGui PRIVATE
+    target_link_libraries(AeroRenderOpenGL33 PRIVATE
         X11::X11 OpenGL::GL Threads::Threads)
-    target_compile_definitions(AeroGui PRIVATE AERO_HAS_GLX_SURFACE=1)
+    target_compile_definitions(
+        AeroRenderOpenGL33 PRIVATE AERO_HAS_GLX_SURFACE=1)
 else()
-    target_compile_definitions(AeroGui PRIVATE AERO_HAS_GLX_SURFACE=0)
+    target_compile_definitions(
+        AeroRenderOpenGL33 PRIVATE AERO_HAS_GLX_SURFACE=0)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -378,68 +427,72 @@ if(AERO_ENABLE_D3D11_BACKEND)
     set_property(SOURCE src/render/d3d11/D3D11RenderDevice.cpp APPEND
         PROPERTY OBJECT_DEPENDS "${_aero_d3d11_backend_fragments}")
 
-    target_sources(AeroGui PRIVATE
+    add_library(AeroRenderD3D11 ${AERO_LIBRARY_TYPE}
         src/render/d3d11/D3D11RenderDevice.cpp
         src/render/d3d11/D3D11Shaders.cpp
+        src/render/d3d11/D3D11Device.cpp
+        src/render/d3d11/D3D11Factories.cpp
         ${_aero_d3d11_backend_fragments})
-    add_dependencies(AeroGui AeroD3D11RenderFrameShaders)
-    target_include_directories(AeroGui PRIVATE "${_aero_d3d11_shader_directory}")
-    target_link_libraries(AeroGui PRIVATE d3d11 dxgi d3dcompiler)
-    target_compile_definitions(AeroGui PRIVATE AERO_HAS_D3D11_BACKEND=1)
+    add_library(Aero::RenderD3D11 ALIAS AeroRenderD3D11)
+    add_dependencies(AeroRenderD3D11 AeroD3D11RenderFrameShaders)
+    target_include_directories(AeroRenderD3D11
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>
+        PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/src"
+            "${CMAKE_CURRENT_BINARY_DIR}/generated"
+            "${_aero_d3d11_shader_directory}")
+    target_link_libraries(AeroRenderD3D11
+        PUBLIC Aero::Render
+        PRIVATE d3d11 dxgi d3dcompiler)
+    target_compile_definitions(AeroRenderD3D11 PRIVATE
+        AERO_GUI_IMPLEMENTATION=1
+        $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_RENDER_D3D11_EXPORTS>)
+    target_compile_features(AeroRenderD3D11 PUBLIC cxx_std_17)
+    set_target_properties(AeroRenderD3D11 PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO
+        POSITION_INDEPENDENT_CODE ON
+        WINDOWS_EXPORT_ALL_SYMBOLS OFF
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES)
+    aero_apply_compiler_options(AeroRenderD3D11)
+    aero_verify_windows_exports(
+        AeroRenderD3D11
+        "CreateDevice@D3D11@Render@Aero@@"
+        "CreateTarget@D3D11@Render@Aero@@"
+        2)
 
     unset(_aero_d3d11_shader_outputs)
     unset(_aero_d3d11_shader_root)
     unset(_aero_d3d11_backend_fragments)
-else()
-    target_compile_definitions(AeroGui PRIVATE AERO_HAS_D3D11_BACKEND=0)
 endif()
 
-# AeroGui is the single embeddable product binary. It owns the WPF/XAML object
-# model together with View runtime, providers, native rendering and backend
-# factories. App adds only the default desktop lifetime and OS window policy.
+# AeroGui owns the backend-neutral WPF/XAML object model, View runtime and
+# providers. Native backend factories live only in the Render* products.
 set(_aero_gui_runtime_sources
     src/render/RenderTarget.cpp
-    src/render/opengl33/OpenGL33Embedded.cpp
-    src/render/opengl33/OpenGL33Factories.cpp
-    src/markup/XamlProvider.cpp
-    src/input/Clipboard.cpp)
-if(WIN32)
-    list(APPEND _aero_gui_runtime_sources
-        src/render/d3d11/D3D11Device.cpp
-        src/render/d3d11/D3D11Factories.cpp)
-endif()
+    src/gui/markup/XamlProvider.cpp
+    src/gui/input/Clipboard.cpp)
 
 target_sources(AeroGui PRIVATE
     ${_aero_gui_runtime_sources}
-    src/text/EditableText.cpp
-    src/text/FontManager.cpp
-    src/text/GlyphAtlas.cpp
-    src/text/TextLayout.cpp
-    src/text/TextTypes.cpp
-    src/text/UnicodeAnalysis.cpp
-    src/text/freetype/FreeTypeAdapter.cpp
-    src/text/harfbuzz/HarfBuzzAdapter.cpp
+    src/gui/text/EditableText.cpp
+    src/gui/text/FontManager.cpp
+    src/gui/text/GlyphAtlas.cpp
+    src/gui/text/TextLayout.cpp
+    src/gui/text/TextTypes.cpp
+    src/gui/text/UnicodeAnalysis.cpp
+    src/gui/text/freetype/FreeTypeAdapter.cpp
+    src/gui/text/harfbuzz/HarfBuzzAdapter.cpp
 )
 target_include_directories(AeroGui PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(AeroGui PRIVATE
     Aero::Audio freetype harfbuzz)
-if(AERO_ENABLE_WGL_SURFACE)
-    target_link_libraries(AeroGui PRIVATE
-        gdi32 opengl32 user32)
-endif()
-if(AERO_ENABLE_GLX_SURFACE)
-    target_link_libraries(AeroGui PRIVATE
-        X11::X11 OpenGL::GL Threads::Threads)
-endif()
-if(AERO_ENABLE_D3D11_BACKEND)
-    target_link_libraries(AeroGui PRIVATE
-        d3d11 dxgi d3dcompiler)
-endif()
-target_compile_definitions(AeroGui PRIVATE
-    AERO_HAS_WGL_SURFACE=$<BOOL:${AERO_ENABLE_WGL_SURFACE}>
-    AERO_HAS_GLX_SURFACE=$<BOOL:${AERO_ENABLE_GLX_SURFACE}>)
 
 add_library(AeroGuiCompositionHeaderConsumer OBJECT
     tools/sdk-consumers/GuiCompositionConsumer.cpp)
@@ -453,16 +506,34 @@ target_link_libraries(
     AeroProvidersHeaderConsumer PRIVATE Aero::Gui)
 aero_apply_compiler_options(AeroProvidersHeaderConsumer)
 
-add_library(AeroD3D11HeaderConsumer OBJECT
-    tools/sdk-consumers/D3D11Consumer.cpp)
-target_link_libraries(
-    AeroD3D11HeaderConsumer PRIVATE Aero::Gui)
-aero_apply_compiler_options(AeroD3D11HeaderConsumer)
+if(TARGET AeroRenderD3D11)
+    add_library(AeroD3D11HeaderConsumer OBJECT
+        tools/sdk-consumers/D3D11Consumer.cpp)
+    target_link_libraries(
+        AeroD3D11HeaderConsumer PRIVATE Aero::RenderD3D11)
+    aero_apply_compiler_options(AeroD3D11HeaderConsumer)
+
+    add_executable(AeroD3D11LinkConsumer
+        tools/sdk-consumers/BackendLinkConsumer.cpp)
+    target_compile_definitions(
+        AeroD3D11LinkConsumer PRIVATE AERO_LINK_D3D11=1)
+    target_link_libraries(
+        AeroD3D11LinkConsumer PRIVATE Aero::RenderD3D11)
+    aero_apply_compiler_options(AeroD3D11LinkConsumer)
+endif()
 
 add_library(AeroOpenGL33HeaderConsumer OBJECT
     tools/sdk-consumers/OpenGL33Consumer.cpp)
 target_link_libraries(
-    AeroOpenGL33HeaderConsumer PRIVATE Aero::Gui)
+    AeroOpenGL33HeaderConsumer PRIVATE Aero::RenderOpenGL33)
 aero_apply_compiler_options(AeroOpenGL33HeaderConsumer)
+
+add_executable(AeroOpenGL33LinkConsumer
+    tools/sdk-consumers/BackendLinkConsumer.cpp)
+target_compile_definitions(
+    AeroOpenGL33LinkConsumer PRIVATE AERO_LINK_OPENGL33=1)
+target_link_libraries(
+    AeroOpenGL33LinkConsumer PRIVATE Aero::RenderOpenGL33)
+aero_apply_compiler_options(AeroOpenGL33LinkConsumer)
 
 endfunction()

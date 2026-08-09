@@ -13,6 +13,8 @@ if(WIN32)
 endif()
 target_include_directories(aero-conformance PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_definitions(aero-conformance PRIVATE
+    AERO_GUI_IMPLEMENTATION=1)
 target_compile_features(aero-conformance PRIVATE cxx_std_17)
 set_target_properties(aero-conformance PROPERTIES
     CXX_STANDARD 17

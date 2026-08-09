@@ -344,7 +344,7 @@ void AddStatistics(
 } // namespace
 
 UiFrameEncoder::UiFrameEncoder(
-    Aero::RenderDevice::Access& device,
+    Aero::Render::RenderDeviceBase& device,
     Base::IAllocator* allocator) noexcept
     : device_(&device),
       allocator_(allocator != nullptr

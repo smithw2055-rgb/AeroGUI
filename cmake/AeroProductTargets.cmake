@@ -33,6 +33,13 @@ target_include_directories(AeroApp
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroApp PUBLIC Aero::Gui)
+if(TARGET Aero::RenderD3D11)
+    target_link_libraries(AeroApp PRIVATE Aero::RenderD3D11)
+endif()
+if(TARGET Aero::RenderOpenGL33 AND
+   (AERO_ENABLE_WGL_SURFACE OR AERO_ENABLE_GLX_SURFACE))
+    target_link_libraries(AeroApp PRIVATE Aero::RenderOpenGL33)
+endif()
 if(WIN32)
     target_link_libraries(AeroApp PRIVATE user32 imm32 d3d11 dxgi gdi32 opengl32)
 elseif(AERO_ENABLE_GLX_SURFACE)
@@ -64,9 +71,9 @@ add_library(AeroProductHeaderConsumer OBJECT
 target_link_libraries(AeroProductHeaderConsumer PRIVATE Aero::App)
 aero_apply_compiler_options(AeroProductHeaderConsumer)
 
-# Product dependency direction is intentionally short and public. AeroGui owns
-# the complete embeddable runtime; App owns only Application/Window and desktop
-# host policy.
+# Product dependency direction is intentionally short. AeroGui is backend
+# neutral, RenderD3D11/RenderOpenGL33 provide opt-in native factories, and App
+# composes the enabled desktop defaults behind Application/Window.
 if(TARGET AeroIntegration OR TARGET Aero::Integration)
     message(FATAL_ERROR
         "The retired Integration product target must not be recreated")
@@ -74,6 +81,17 @@ endif()
 get_target_property(_aero_gui_sources_property AeroGui SOURCES)
 if("${_aero_gui_sources_property}" MATCHES "Aero(AppModel|Runtime|Rendering|GuiKernel|Controls|Markup).*Objects")
     message(FATAL_ERROR "Gui product sources must not reintroduce implementation object-library layers")
+endif()
+if("${_aero_gui_sources_property}" MATCHES "src/render/(d3d11|opengl33)/")
+    message(FATAL_ERROR
+        "AeroGui must remain backend neutral; native sources belong to RenderD3D11 or RenderOpenGL33")
+endif()
+if(NOT TARGET AeroRenderOpenGL33 OR NOT TARGET Aero::RenderOpenGL33)
+    message(FATAL_ERROR "The OpenGL33 backend product target is missing")
+endif()
+if(AERO_ENABLE_D3D11_BACKEND AND
+   (NOT TARGET AeroRenderD3D11 OR NOT TARGET Aero::RenderD3D11))
+    message(FATAL_ERROR "The enabled D3D11 backend product target is missing")
 endif()
 get_target_property(_aero_app_sources_property AeroApp SOURCES)
 if(NOT "${_aero_app_sources_property}" MATCHES "src/app/Application.cpp")

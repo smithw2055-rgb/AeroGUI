@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/App.hpp>
+#include <AeroApp/App.hpp>
 
 #include <cstddef>
 #include <cstdint>

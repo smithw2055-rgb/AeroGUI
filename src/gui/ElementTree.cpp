@@ -9,8 +9,8 @@
 #include "gui/AnimationRuntime.hpp"
 #include "gui/StyleRuntime.hpp"
 #include <Aero/Layout.hpp>
-#include <Aero/Gui/FrameworkElement.hpp>
-#include <Aero/Gui/FrameworkContentElement.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/FrameworkContentElement.hpp>
 
 
 #include <Aero/Base/Assert.hpp>

@@ -1,15 +1,15 @@
-#include <Aero/Render/D3D11.hpp>
+#include <AeroRender/D3D11.hpp>
 
 #include <utility>
 
 namespace {
 
 [[maybe_unused]]
-Aero::Base::Result<Aero::Base::Ref<Aero::RenderTarget>>
+Aero::Result<Aero::Ref<Aero::RenderTarget>>
 CreateD3D11Target(
-    Aero::Base::Ref<Aero::RenderDevice> device) noexcept {
-    Aero::Render::D3D11RenderTargetOptions options;
-    return Aero::Render::CreateD3D11RenderTarget(
+    Aero::Ref<Aero::RenderDevice> device) noexcept {
+    Aero::Render::D3D11::TargetOptions options;
+    return Aero::Render::D3D11::CreateTarget(
         std::move(device), options);
 }
 

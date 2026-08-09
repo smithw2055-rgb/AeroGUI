@@ -1,5 +1,6 @@
-#include <Aero/App.hpp>
+#include <AeroApp/App.hpp>
 #include <Aero/Meta.hpp>
+#include <AeroApp/WindowInterop.hpp>
 
 #include <type_traits>
 #include <utility>
@@ -41,7 +42,7 @@ public:
     }
 
     static void DescribeComponent(
-        Aero::Meta::TypeDescription<ConsumerWindow>& type) noexcept {
+        Aero::Meta::TypeBuilder<ConsumerWindow>& type) noexcept {
         type.EventHandler<
             Aero::RoutedEventArgs,
             &ConsumerWindow::OnHelloClick>("OnHelloClick");
@@ -65,8 +66,8 @@ inline constexpr Aero::ModuleRegistration ConsumerComponents =
 [[maybe_unused]] void ConsumeApplicationSdk(
     Aero::Application& application,
     Aero::Window& window) noexcept {
-    Aero::Base::Ref<Aero::Window> retained =
-        Aero::Base::Ref<Aero::Window>::TryFromBorrowed(window);
+    Aero::Ref<Aero::Window> retained =
+        Aero::Ref<Aero::Window>::TryFromBorrowed(window);
     if (retained) {
         application.SetMainWindow(std::move(retained));
     }
@@ -89,7 +90,7 @@ inline constexpr Aero::ModuleRegistration ConsumerComponents =
     static_cast<void>(application.RuntimeType());
     static_cast<void>(window.RuntimeType());
     static_cast<void>(
-        static_cast<Aero::Base::Result<int> (Aero::Application::*)() noexcept>(
+        static_cast<Aero::Result<int> (Aero::Application::*)() noexcept>(
             &Aero::Application::Run));
     static_cast<void>(
         static_cast<int (*)(const Aero::App::RunOptions&) noexcept>(
@@ -117,13 +118,20 @@ static_assert(
 static_assert(
     std::is_same<
         decltype(std::declval<Aero::Application&>().Run()),
-        Aero::Base::Result<int>>::value,
+        Aero::Result<int>>::value,
     "Application must expose a Result-returning Run boundary");
 
 static_assert(
     std::is_same<
         decltype(std::declval<Aero::Window&>().Show()),
-        Aero::Base::Result<void>>::value,
+        Aero::Result<void>>::value,
     "Window must expose one Result-returning Show boundary");
+
+static_assert(
+    std::is_same<
+        decltype(Aero::App::WindowInterop::NativeHandle(
+            std::declval<const Aero::Window&>())),
+        Aero::Platform::NativeWindowHandle>::value,
+    "WindowInterop must own the canonical native-window handle");
 
 } // namespace

@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Aero/Value.hpp>
-#include <Aero/Gui/DependencyProperty.hpp>
-#include <Aero/Gui/RoutedEvent.hpp>
+#include <Aero/DependencyProperty.hpp>
+#include <Aero/RoutedEvent.hpp>
 #include <Aero/Module.hpp>
 
 #include <functional>
@@ -11,10 +11,13 @@
 #include <utility>
 
 namespace Aero::Meta {
+namespace Detail {
 using Base::ValueCopyCallback;
 using Base::ValueDestroyCallback;
 using Base::ValueEqualsCallback;
 using ObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)() noexcept;
+} // namespace Detail
+
 enum class ContentKind : std::uint8_t {
     Single = 0U,
     Collection
@@ -40,6 +43,7 @@ constexpr bool HasContentFlag(
         static_cast<std::uint8_t>(flag)) != 0U;
 }
 
+namespace Detail {
 using ContentWriteCallback = void (*)(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
@@ -284,21 +288,21 @@ struct CollectionChangeNotificationRegistration {
     void* context = nullptr;
 };
 
-
+} // namespace Detail
 } // namespace Aero::Meta
 
 namespace Aero::Meta::Detail {
 class MetadataAuthoringSession;
+class RegistrationValues;
+class RegistrationTypes;
 }
 
 namespace Aero::Meta {
 
 class DependencyPropertyRegistry;
-class RegistrationTypes;
-class RegistrationValues;
 class ValueTable;
 template<class T>
-class TypeDescription;
+class TypeBuilder;
 
 } // namespace Aero::Meta
 
@@ -313,15 +317,15 @@ class AERO_GUI_API Registration {
 private:
     friend class Registry;
     template<class T>
-    friend class TypeDescription;
+    friend class TypeBuilder;
     friend class Detail::MetadataAuthoringSession;
 
     explicit Registration(void* state) noexcept
         : state_(state) {}
 
-    RegistrationValues Values() noexcept;
-    RegistrationValues Values() const noexcept;
-    RegistrationTypes Types() noexcept;
+    Detail::RegistrationValues Values() noexcept;
+    Detail::RegistrationValues Values() const noexcept;
+    Detail::RegistrationTypes Types() noexcept;
     ValueTable& ValueRegistrations() noexcept;
     DependencyPropertyRegistry& DependencyProperties() noexcept;
 
@@ -334,7 +338,6 @@ namespace Aero::Meta { class Registry; class Registration; }
 
 namespace Aero::Meta {
 
-class RegistrationValues;
 class TypeRegistry;
 class ValueTypeSemantics;
 struct TextValueConverterRegistration;
@@ -347,7 +350,6 @@ AERO_GUI_API Base::Result<Value> CreateRegistrationValue(
     const void* source) noexcept;
 AERO_GUI_API RegistrationValues MakeRegistrationValues(
     void* registrationState) noexcept;
-}
 
 // Opaque callback-scoped value registration view used by ValueCodec. The
 // backing registration store remains a Core implementation detail.
@@ -391,6 +393,8 @@ private:
     const void* registrations_ = nullptr;
     void* mutableRegistrations_ = nullptr;
 };
+
+} // namespace Detail
 
 } // namespace Aero::Meta
 
@@ -526,8 +530,33 @@ void SetField(
     return;
 }
 
+template<class T>
+MetadataAuthoringSession CreateDescriptionSession(
+    Registration& context,
+    TypeFlags flags) noexcept;
+
+template<class T>
+MetadataAuthoringSession CreateNamedDescriptionSession(
+    Registration& context,
+    Base::StringView metadataNamespace,
+    Base::StringView metadataName,
+    TypeFlags flags) noexcept;
+
 class AERO_GUI_API MetadataAuthoringSession {
-public:
+private:
+    template<class>
+    friend class ::Aero::Meta::TypeBuilder;
+    template<class T>
+    friend MetadataAuthoringSession CreateDescriptionSession(
+        Registration& context,
+        TypeFlags flags) noexcept;
+    template<class T>
+    friend MetadataAuthoringSession CreateNamedDescriptionSession(
+        Registration& context,
+        Base::StringView metadataNamespace,
+        Base::StringView metadataName,
+        TypeFlags flags) noexcept;
+
     MetadataAuthoringSession(
         Registration& context,
         const TypeRegistration& registration,
@@ -1000,60 +1029,64 @@ Base::Result<Value> InvokeEventHandler(
 } // namespace Detail
 
 template<class TValue>
-class PropertyOptions {
+class FrameworkPropertyMetadata {
 public:
-    explicit PropertyOptions(TValue defaultValue) noexcept
-        : defaultValue_(std::move(defaultValue)) {}
+    explicit FrameworkPropertyMetadata(
+        TValue defaultValue,
+        FrameworkPropertyMetadataOptions options =
+            FrameworkPropertyMetadataOptions::None) noexcept
+        : defaultValue_(std::move(defaultValue)),
+          flags_(ToPropertyMetadataFlags(options)) {}
 
-    PropertyOptions& Inherits() noexcept {
+    FrameworkPropertyMetadata& Inherits() noexcept {
         flags_ = flags_ | PropertyMetadataFlags::Inherits;
         return *this;
     }
-    PropertyOptions& AffectsMeasure() noexcept {
+    FrameworkPropertyMetadata& AffectsMeasure() noexcept {
         flags_ = flags_ | PropertyMetadataFlags::AffectsMeasure;
         return *this;
     }
-    PropertyOptions& AffectsArrange() noexcept {
+    FrameworkPropertyMetadata& AffectsArrange() noexcept {
         flags_ = flags_ | PropertyMetadataFlags::AffectsArrange;
         return *this;
     }
-    PropertyOptions& AffectsRender() noexcept {
+    FrameworkPropertyMetadata& AffectsRender() noexcept {
         flags_ = flags_ | PropertyMetadataFlags::AffectsRender;
         return *this;
     }
-    PropertyOptions& AffectsParentMeasure() noexcept {
+    FrameworkPropertyMetadata& AffectsParentMeasure() noexcept {
         flags_ = flags_ | PropertyMetadataFlags::AffectsParentMeasure;
         return *this;
     }
-    PropertyOptions& AffectsParentArrange() noexcept {
+    FrameworkPropertyMetadata& AffectsParentArrange() noexcept {
         flags_ = flags_ | PropertyMetadataFlags::AffectsParentArrange;
         return *this;
     }
-    PropertyOptions& Structural() noexcept {
+    FrameworkPropertyMetadata& Structural() noexcept {
         structural_ = true;
         return *this;
     }
-    PropertyOptions& BindsTwoWayByDefault() noexcept {
+    FrameworkPropertyMetadata& BindsTwoWayByDefault() noexcept {
         flags_ = flags_ |
             PropertyMetadataFlags::BindsTwoWayByDefault;
         return *this;
     }
-    PropertyOptions& Apply(
+    FrameworkPropertyMetadata& Apply(
         FrameworkPropertyMetadataOptions options) noexcept {
         flags_ = flags_ | ToPropertyMetadataFlags(options);
         return *this;
     }
-    PropertyOptions& UpdateSource(
+    FrameworkPropertyMetadata& UpdateSource(
         UpdateSourceTrigger trigger) noexcept {
         updateSourceTrigger_ = trigger;
         return *this;
     }
-    PropertyOptions& Validate(
+    FrameworkPropertyMetadata& Validate(
         ValidateValueCallback validate) noexcept {
         validate_ = validate;
         return *this;
     }
-    PropertyOptions& Validate(
+    FrameworkPropertyMetadata& Validate(
         bool (*validate)(const TValue&) noexcept) noexcept {
         validate_ = [validate](
             const Value& stored) noexcept {
@@ -1064,12 +1097,12 @@ public:
         };
         return *this;
     }
-    PropertyOptions& Coerce(
+    FrameworkPropertyMetadata& Coerce(
         CoerceValueCallback coerce) noexcept {
         coerce_ = coerce;
         return *this;
     }
-    PropertyOptions& Coerce(
+    FrameworkPropertyMetadata& Coerce(
         Base::Result<TValue> (*coerce)(
             DependencyObject&,
             const DependencyProperty&,
@@ -1090,12 +1123,12 @@ public:
         };
         return *this;
     }
-    PropertyOptions& Changed(
+    FrameworkPropertyMetadata& Changed(
         PropertyChangedCallback changed) noexcept {
         changed_ = changed;
         return *this;
     }
-    PropertyOptions& Changed(
+    FrameworkPropertyMetadata& Changed(
         void (*changed)(
             DependencyObject&,
             const TValue&,
@@ -1152,64 +1185,86 @@ private:
 };
 
 template<class T>
-class TypeDescription {
+class TypeBuilder {
+    using ObjectFactory = Detail::ObjectFactory;
+    using ContentWriteCallback = Detail::ContentWriteCallback;
+    using ContentClearCallback = Detail::ContentClearCallback;
+    using PropertyRegistration = Detail::PropertyRegistration;
+    using MethodParameterRegistration =
+        Detail::MethodParameterRegistration;
+    using MethodRegistration = Detail::MethodRegistration;
+    using MetadataPropertyChangedCallback =
+        Detail::MetadataPropertyChangedCallback;
+    using PropertyChangeSubscribeCallback =
+        Detail::PropertyChangeSubscribeCallback;
+    using PropertyChangeUnsubscribeCallback =
+        Detail::PropertyChangeUnsubscribeCallback;
+    using MetadataCollectionChangedCallback =
+        Detail::MetadataCollectionChangedCallback;
+    using CollectionChangeSubscribeCallback =
+        Detail::CollectionChangeSubscribeCallback;
+    using CollectionChangeUnsubscribeCallback =
+        Detail::CollectionChangeUnsubscribeCallback;
+
 public:
-    explicit TypeDescription(
+    explicit TypeBuilder(
         Registration& context,
         TypeFlags flags = TypeFlags::None) noexcept
         : builder_(Detail::CreateDescriptionSession<T>(
               context, flags)) {}
 
-    TypeDescription(
+    TypeBuilder(
         Registration& context,
-        Base::StringView metadataNamespace,
-        Base::StringView metadataName,
+        StringView metadataNamespace,
+        StringView metadataName,
         TypeFlags flags = TypeFlags::None) noexcept
         : builder_(Detail::CreateNamedDescriptionSession<T>(
               context, metadataNamespace, metadataName, flags)) {}
 
-    TypeDescription(const TypeDescription&) = delete;
-    TypeDescription& operator=(const TypeDescription&) = delete;
-    TypeDescription(TypeDescription&&) noexcept = default;
-    TypeDescription& operator=(TypeDescription&&) noexcept = default;
+    TypeBuilder(const TypeBuilder&) = delete;
+    TypeBuilder& operator=(const TypeBuilder&) = delete;
+    TypeBuilder(TypeBuilder&&) noexcept = default;
+    TypeBuilder& operator=(TypeBuilder&&) noexcept = default;
 
-    TypeDescription& Factory() noexcept {
+    TypeBuilder& Factory() noexcept {
         builder_.Factory(
             &Detail::CreateDefaultObject<T>);
         return *this;
     }
-    TypeDescription& Factory(ObjectFactory factory) noexcept {
+#if defined(AERO_GUI_IMPLEMENTATION)
+    TypeBuilder& Factory(ObjectFactory factory) noexcept {
         builder_.Factory(factory);
         return *this;
     }
+#endif
     template<class TInterface>
-    TypeDescription& Implements() noexcept {
+    TypeBuilder& Implements() noexcept {
         builder_.Implements(TypeOf<TInterface>());
         return *this;
     }
 
     template<class TOwner, class TValue>
-    TypeDescription& Property(
+    TypeBuilder& Property(
         const DependencyPropertyRef<TOwner, TValue>& property,
-        const PropertyOptions<TValue>& options) noexcept {
+        const FrameworkPropertyMetadata<TValue>& options) noexcept {
         return RegisterProperty(
             property.Handle(), property.Name(),
             DependencyPropertyFlags::None, options);
     }
 
     template<class TOwner, class TValue>
-    TypeDescription& Property(
+    TypeBuilder& Property(
         const AttachedPropertyRef<TOwner, TValue>& property,
-        const PropertyOptions<TValue>& options) noexcept {
+        const FrameworkPropertyMetadata<TValue>& options) noexcept {
         return RegisterProperty(
             property.Handle(), property.Name(),
             DependencyPropertyFlags::Attached, options);
     }
 
     template<class TOwner, class TValue>
-    TypeDescription& Property(
+    TypeBuilder& Property(
         const ReadOnlyPropertyRef<TOwner, TValue>& property,
-        const PropertyOptions<TValue>& options) noexcept {
+        const FrameworkPropertyMetadata<TValue>& options) noexcept {
         return RegisterProperty(
             property.Handle(), property.Name(),
             DependencyPropertyFlags::ReadOnly, options);
@@ -1219,8 +1274,8 @@ public:
         class TValue,
         auto Getter,
         auto Setter>
-    TypeDescription& Property(
-        Base::StringView name,
+    TypeBuilder& Property(
+        StringView name,
         PropertyFlags flags = PropertyFlags::None) noexcept {
         static_assert(
             std::is_invocable_v<
@@ -1244,8 +1299,8 @@ public:
     }
 
     template<class TValue, auto Setter>
-    TypeDescription& Property(
-        Base::StringView name,
+    TypeBuilder& Property(
+        StringView name,
         PropertyFlags flags = PropertyFlags::None) noexcept {
         static_assert(
             std::is_invocable_v<
@@ -1266,8 +1321,8 @@ public:
     }
 
     template<auto Getter, auto Setter>
-    TypeDescription& Property(
-        Base::StringView name,
+    TypeBuilder& Property(
+        StringView name,
         PropertyFlags flags = PropertyFlags::None) noexcept {
         using GetterResult = std::invoke_result_t<
             decltype(Getter), const T&>;
@@ -1278,8 +1333,8 @@ public:
     }
 
     template<class TGetter, class TSetter>
-    TypeDescription& Property(
-        Base::StringView name,
+    TypeBuilder& Property(
+        StringView name,
         TGetter getter,
         TSetter setter,
         PropertyFlags flags = PropertyFlags::None) noexcept {
@@ -1295,20 +1350,20 @@ public:
         using GetterValue = std::remove_cv_t<
             std::remove_reference_t<GetterResult>>;
         using TValue = std::conditional_t<
-            std::is_same_v<GetterValue, Base::StringView>,
-            Base::String,
+            std::is_same_v<GetterValue, StringView>,
+            String,
             GetterValue>;
         static_assert(
             std::is_invocable_v<TSetter, T&, TValue> ||
-            (std::is_same_v<TValue, Base::String> &&
+            (std::is_same_v<TValue, String> &&
              std::is_invocable_v<
-                 TSetter, T&, Base::StringView>),
+                 TSetter, T&, StringView>),
             "Ordinary metadata property setter is incompatible with getter");
 
         if (!builder_.Ok()) return *this;
         using Adapter = Detail::OrdinaryPropertyAdapter<
             T, TValue, TGetter, TSetter>;
-        Base::Result<Adapter*> adapter =
+        ::Aero::Result<Adapter*> adapter =
             builder_.OwnBehaviorContext(
                 Adapter{getter, setter});
         if (!adapter) {
@@ -1332,8 +1387,8 @@ public:
     }
 
     template<auto Member>
-    TypeDescription& Field(
-        Base::StringView name,
+    TypeBuilder& Field(
+        StringView name,
         FieldFlags flags = FieldFlags::None) noexcept {
         using Traits = Detail::MemberPointerTraits<Member>;
         using Owner = typename Traits::OwnerType;
@@ -1351,7 +1406,7 @@ public:
     }
 
     template<class TOwner, class TArgs>
-    TypeDescription& Event(
+    TypeBuilder& Event(
         const ::Aero::RoutedEventRef<TOwner, TArgs>& event,
         RoutingStrategy strategy = RoutingStrategy::Bubble) noexcept {
         static_assert(std::is_same_v<TOwner, T>,
@@ -1366,13 +1421,13 @@ public:
     // such as Click="OnHelloClick". The runtime connects the named method to
     // the routed event; users do not author Registry or facet callbacks.
     template<class TArgs, auto Handler>
-    TypeDescription& EventHandler(
-        Base::StringView name) noexcept {
+    TypeBuilder& EventHandler(
+        StringView name) noexcept {
         static_assert(std::is_invocable_v<
-            decltype(Handler), T&, Base::Object*, TArgs&>,
+            decltype(Handler), T&, Object*, TArgs&>,
             "XAML event handler must accept (Object*, EventArgs& or const EventArgs&)");
         const MethodParameterRegistration parameters[] = {
-            {"sender", TypeOf<Base::Object>()},
+            {"sender", TypeOf<Object>()},
             {"args", TypeOf<TArgs>()}};
         builder_.Method({
             name,
@@ -1385,11 +1440,11 @@ public:
     }
 
     template<class TOwner, class TValue>
-    TypeDescription& Override(
+    TypeBuilder& Override(
         const DependencyPropertyRef<TOwner, TValue>& property,
-        const PropertyOptions<TValue>& options) noexcept {
+        const FrameworkPropertyMetadata<TValue>& options) noexcept {
         if (!builder_.Ok()) return *this;
-        Base::Result<::Aero::Meta::Value> encoded =
+        ::Aero::Result<::Aero::Meta::Value> encoded =
             builder_.Encode(options.DefaultValue());
         if (!encoded) {
             builder_.Fail(encoded.GetStatus());
@@ -1409,8 +1464,9 @@ public:
         return *this;
     }
 
-    TypeDescription& Content(
-        Base::StringView name,
+#if defined(AERO_GUI_IMPLEMENTATION)
+    TypeBuilder& Content(
+        StringView name,
         TypeId valueType,
         ContentKind kind,
         ContentWriteCallback write = nullptr,
@@ -1424,8 +1480,8 @@ public:
     }
 
     template<class TValue>
-    TypeDescription& Content(
-        Base::StringView name,
+    TypeBuilder& Content(
+        StringView name,
         ContentKind kind,
         ContentWriteCallback write = nullptr,
         ContentClearCallback clear = nullptr,
@@ -1437,8 +1493,8 @@ public:
     }
 
     template<class TValue>
-    TypeDescription& Collection(
-        Base::StringView name,
+    TypeBuilder& Collection(
+        StringView name,
         ContentWriteCallback write,
         ContentClearCallback clear,
         PropertyFlags propertyFlags =
@@ -1456,17 +1512,18 @@ public:
         return *this;
     }
 
-    TypeDescription& Content(MemberId member) noexcept {
+    TypeBuilder& Content(MemberId member) noexcept {
         builder_.Content(member);
         return *this;
     }
+#endif
 
     template<class TOwner, class TValue>
-    TypeDescription& AddOwner(
+    TypeBuilder& AddOwner(
         const DependencyPropertyRef<TOwner, TValue>& property,
-        const PropertyOptions<TValue>& options) noexcept {
+        const FrameworkPropertyMetadata<TValue>& options) noexcept {
         if (!builder_.Ok()) return *this;
-        Base::Result<::Aero::Meta::Value> encoded =
+        ::Aero::Result<::Aero::Meta::Value> encoded =
             builder_.Encode(options.DefaultValue());
         if (!encoded) {
             builder_.Fail(encoded.GetStatus());
@@ -1486,7 +1543,8 @@ public:
         return *this;
     }
 
-    TypeDescription& ContentAccessor(
+#if defined(AERO_GUI_IMPLEMENTATION)
+    TypeBuilder& ContentAccessor(
         MemberId member,
         ContentKind kind,
         ContentWriteCallback write,
@@ -1499,32 +1557,34 @@ public:
         return *this;
     }
 
-    TypeDescription& ValueSemantics(
+    TypeBuilder& ValueSemantics(
         const ValueTypeRegistration& registration) noexcept {
         builder_.ValueSemantics(registration);
         return *this;
     }
+#endif
 
-    TypeDescription& ValueSemantics() noexcept {
+    TypeBuilder& ValueSemantics() noexcept {
         builder_.ValueSemantics(
             Detail::MakeValueTypeRegistration<T>());
         return *this;
     }
 
     template<auto Converter>
-    TypeDescription& TextConverter() noexcept {
+    TypeBuilder& TextConverter() noexcept {
         builder_.TextConverter(
             &Detail::ConvertTypedText<T, Converter>);
         return *this;
     }
 
-    TypeDescription& TextConverter(
+#if defined(AERO_GUI_IMPLEMENTATION)
+    TypeBuilder& TextConverter(
         TextValueConverterCallback converter) noexcept {
         builder_.TextConverter(converter);
         return *this;
     }
 
-    TypeDescription& PropertyChangeNotifications(
+    TypeBuilder& PropertyChangeNotifications(
         PropertyChangeSubscribeCallback subscribe,
         PropertyChangeUnsubscribeCallback unsubscribe,
         void* callbackContext = nullptr) noexcept {
@@ -1533,7 +1593,7 @@ public:
         return *this;
     }
 
-    TypeDescription& CollectionChangeNotifications(
+    TypeBuilder& CollectionChangeNotifications(
         CollectionChangeSubscribeCallback subscribe,
         CollectionChangeUnsubscribeCallback unsubscribe,
         void* callbackContext = nullptr) noexcept {
@@ -1541,9 +1601,10 @@ public:
             subscribe, unsubscribe, callbackContext);
         return *this;
     }
+#endif
 
-    TypeDescription& Value(
-        Base::StringView name,
+    TypeBuilder& Value(
+        StringView name,
         T value) noexcept {
         static_assert(
             std::is_enum_v<T>,
@@ -1558,18 +1619,18 @@ public:
         return *this;
     }
 
-    Base::Result<void> Result() const noexcept {
+    ::Aero::Result<void> Result() const noexcept {
         return builder_.Finish();
     }
     bool Ok() const noexcept { return builder_.Ok(); }
 
 private:
     template<class TValue>
-    TypeDescription& RegisterProperty(
+    TypeBuilder& RegisterProperty(
         DependencyPropertyHandle handle,
-        Base::StringView name,
+        StringView name,
         DependencyPropertyFlags propertyFlags,
-        const PropertyOptions<TValue>& options) noexcept {
+        const FrameworkPropertyMetadata<TValue>& options) noexcept {
         if (!builder_.Ok()) return *this;
         if constexpr (
             std::is_same_v<
@@ -1584,7 +1645,7 @@ private:
                 propertyFlags |
                 DependencyPropertyFlags::Structural;
         }
-        Base::Result<::Aero::Meta::Value> encoded =
+        ::Aero::Result<::Aero::Meta::Value> encoded =
             builder_.Encode(options.DefaultValue());
         if (!encoded) {
             builder_.Fail(encoded.GetStatus());
@@ -1611,28 +1672,28 @@ namespace Aero::Meta {
 // implementation type, while module code only names Register and
 // Registration.
 template<class T>
-TypeDescription<T> Register(
+TypeBuilder<T> Register(
     Registration& registration,
     TypeFlags flags = TypeFlags::None) noexcept {
-    return TypeDescription<T>(registration, flags);
+    return TypeBuilder<T>(registration, flags);
 }
 
 template<class T>
-TypeDescription<T> Register(
+TypeBuilder<T> Register(
     Registration& registration,
-    Base::StringView name,
+    StringView name,
     TypeFlags flags = TypeFlags::None) noexcept {
-    return TypeDescription<T>(
+    return TypeBuilder<T>(
         registration, AeroNamespaceUri(), name, flags);
 }
 
 template<class T>
-TypeDescription<T> Register(
+TypeBuilder<T> Register(
     Registration& registration,
-    Base::StringView metadataNamespace,
-    Base::StringView name,
+    StringView metadataNamespace,
+    StringView name,
     TypeFlags flags = TypeFlags::None) noexcept {
-    return TypeDescription<T>(
+    return TypeBuilder<T>(
         registration, metadataNamespace, name, flags);
 }
 
@@ -1646,11 +1707,11 @@ struct HasComponentDescription : std::false_type {};
 template<class T>
 struct HasComponentDescription<T, std::void_t<decltype(
     T::DescribeComponent(
-        std::declval<TypeDescription<T>&>()))>>
+        std::declval<TypeBuilder<T>&>()))>>
     : std::true_type {};
 
 template<class T>
-Base::Result<void> RegisterComponentType(
+Result<void> RegisterComponentType(
     Registration& registration) noexcept {
     auto type = Register<T>(registration);
     type.Factory();
@@ -1661,9 +1722,9 @@ Base::Result<void> RegisterComponentType(
 }
 
 template<class... TComponents>
-Base::Result<void> RegisterComponentTypes(
+Result<void> RegisterComponentTypes(
     Registration& registration) noexcept {
-    Base::Result<void> status;
+    Result<void> status;
     const bool registered = ((status
         ? static_cast<bool>(
               status = RegisterComponentType<TComponents>(registration))
@@ -1681,7 +1742,7 @@ namespace Aero {
 // longer author Registry or XAML facet callbacks for these types.
 template<class... TComponents>
 constexpr ModuleRegistration DefineComponentModule(
-    Base::StringView name) noexcept {
+    StringView name) noexcept {
     return DefineModule(
         name,
         &Meta::Detail::RegisterComponentTypes<TComponents...>);

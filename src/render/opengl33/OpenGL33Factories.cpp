@@ -1,13 +1,13 @@
-#include <Aero/Render/OpenGL33.hpp>
+#include <AeroRender/OpenGL33.hpp>
 #include "render/RenderDeviceState.hpp"
 
 #include <utility>
 
 namespace Aero::Render {
 
-Base::Result<Base::Ref<Aero::RenderTarget>> CreateOpenGL33RenderTarget(
+Base::Result<Base::Ref<Aero::RenderTarget>> OpenGL33::CreateTarget(
     Base::Ref<Aero::RenderDevice> device,
-    const OpenGL33RenderTargetOptions& options,
+    const OpenGL33::TargetOptions& options,
     Base::IAllocator* allocator) noexcept {
     ::Aero::Render::OpenGL33EmbeddedTargetOptions native;
     native.acquireTarget = options.acquireTarget;

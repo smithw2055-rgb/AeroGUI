@@ -27,24 +27,42 @@
 #  endif
 #  if defined(AERO_GUI_EXPORTS)
 #    define AERO_GUI_API __declspec(dllexport)
+#    define AERO_GUI_INTERNAL_API __declspec(dllexport)
 #  else
 #    define AERO_GUI_API __declspec(dllimport)
+#    define AERO_GUI_INTERNAL_API __declspec(dllimport)
 #  endif
 #  if defined(AERO_APP_EXPORTS)
 #    define AERO_APP_API __declspec(dllexport)
 #  else
 #    define AERO_APP_API __declspec(dllimport)
 #  endif
+#  if defined(AERO_RENDER_D3D11_EXPORTS)
+#    define AERO_RENDER_D3D11_API __declspec(dllexport)
+#  else
+#    define AERO_RENDER_D3D11_API __declspec(dllimport)
+#  endif
+#  if defined(AERO_RENDER_OPENGL33_EXPORTS)
+#    define AERO_RENDER_OPENGL33_API __declspec(dllexport)
+#  else
+#    define AERO_RENDER_OPENGL33_API __declspec(dllimport)
+#  endif
 #elif defined(__GNUC__) && defined(AERO_BUILD_SHARED)
 #  define AERO_BASE_API __attribute__((visibility("default")))
 #  define AERO_AUDIO_API __attribute__((visibility("default")))
 #  define AERO_GUI_API __attribute__((visibility("default")))
+#  define AERO_GUI_INTERNAL_API __attribute__((visibility("default")))
 #  define AERO_APP_API __attribute__((visibility("default")))
+#  define AERO_RENDER_D3D11_API __attribute__((visibility("default")))
+#  define AERO_RENDER_OPENGL33_API __attribute__((visibility("default")))
 #else
 #  define AERO_BASE_API
 #  define AERO_AUDIO_API
 #  define AERO_GUI_API
+#  define AERO_GUI_INTERNAL_API
 #  define AERO_APP_API
+#  define AERO_RENDER_D3D11_API
+#  define AERO_RENDER_OPENGL33_API
 #endif
 
 #if defined(_MSC_VER)

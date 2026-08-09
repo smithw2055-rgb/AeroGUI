@@ -851,7 +851,7 @@ OpenGL33RenderDevice::OpenGL33RenderDevice(
     const GlContextBinding& context,
     const OpenGL33RenderDeviceOptions& options,
     Base::IAllocator* allocator) noexcept
-    : Aero::RenderDevice::Access(
+    : Aero::Render::RenderDeviceBase(
           allocator != nullptr ? *allocator : Base::GetDefaultAllocator()),
       functions_(functions),
       context_(context),
@@ -861,9 +861,9 @@ OpenGL33RenderDevice::OpenGL33RenderDevice(
           : &Base::GetDefaultAllocator()) {}
 
 OpenGL33RenderDevice::OpenGL33RenderDevice(
-    const ::Aero::Render::OpenGL33DeviceOptions& options,
+    const ::Aero::Render::OpenGL33::DeviceOptions& options,
     Base::IAllocator* allocator) noexcept
-    : Aero::RenderDevice::Access(
+    : Aero::Render::RenderDeviceBase(
           allocator != nullptr ? *allocator : Base::GetDefaultAllocator()),
       hostOptions_(options),
       allocator_(allocator != nullptr
@@ -872,7 +872,7 @@ OpenGL33RenderDevice::OpenGL33RenderDevice(
       hostManaged_(true) {
     options_.embeddingMode =
         options.statePolicy ==
-            ::Aero::Render::OpenGL33StatePreservationPolicy::PreserveRequiredState
+            ::Aero::Render::OpenGL33::StatePreservationPolicy::PreserveRequiredState
         ? GlEmbeddingMode::PreserveAndRestore
         : GlEmbeddingMode::HostReset;
     options_.checkErrors = options.checkErrors;
@@ -880,7 +880,7 @@ OpenGL33RenderDevice::OpenGL33RenderDevice(
 
 OpenGL33RenderDevice::OpenGL33RenderDevice(
     Base::IAllocator* allocator) noexcept
-    : Aero::RenderDevice::Access(
+    : Aero::Render::RenderDeviceBase(
           allocator != nullptr ? *allocator : Base::GetDefaultAllocator()),
       allocator_(allocator != nullptr
           ? allocator
@@ -898,6 +898,7 @@ void OpenGL33RenderDevice::ConfigureContext(
 }
 
 OpenGL33RenderDevice::~OpenGL33RenderDevice() noexcept {
+    static_cast<void>(WaitIdle());
     Shutdown();
 }
 
@@ -1075,20 +1076,20 @@ Base::Result<FenceValue> OpenGL33RenderDevice::DrawBatch(
     return SubmitBatch(batch);
 }
 
-void OpenGL33RenderDevice::NotifyDeviceLost() noexcept {
+void OpenGL33RenderDevice::NotifyBackendDeviceLost() noexcept {
     if (deviceLost_) return;
     NotifyContextLost();
     Shutdown();
 }
 
-Base::Result<void> OpenGL33RenderDevice::RestoreDevice() noexcept {
+Base::Result<void> OpenGL33RenderDevice::RestoreBackendDevice() noexcept {
     if (!deviceLost_) {
         return InvalidState("OpenGL device is not lost");
     }
     return Initialize();
 }
 
-Base::Result<void> OpenGL33RenderDevice::WaitIdle(
+Base::Result<void> OpenGL33RenderDevice::WaitBackendIdle(
     std::uint32_t timeoutMilliseconds) noexcept {
     const FenceValue fence = LastSubmittedFence();
     return fence != 0U
@@ -1098,14 +1099,14 @@ Base::Result<void> OpenGL33RenderDevice::WaitIdle(
         : Base::Result<void>();
 }
 
-::Aero::Render::BackendHealth
-OpenGL33RenderDevice::GetDeviceHealth() const noexcept {
+::Aero::RenderBackendHealth
+OpenGL33RenderDevice::BackendHealth() const noexcept {
     if (deviceLost_ || IsDeviceLost()) {
-        return ::Aero::Render::BackendHealth::DeviceLost;
+        return ::Aero::RenderBackendHealth::DeviceLost;
     }
     return IsInitialized() && AreResourcesReady()
-        ? ::Aero::Render::BackendHealth::Ready
-        : ::Aero::Render::BackendHealth::Failed;
+        ? ::Aero::RenderBackendHealth::Ready
+        : ::Aero::RenderBackendHealth::Failed;
 }
 
 Base::Result<void> OpenGL33RenderDevice::ConfigureNativePipeline(
@@ -2806,7 +2807,7 @@ OpenGL33RenderDevice::ReadbackTextureChecksum(
 
 Base::Result<ResourceHandle>
 ImportOpenGL33ExternalRenderTarget(
-    Aero::RenderDevice::Access& device,
+    Aero::Render::RenderDeviceBase& device,
     OpenGL33RenderDevice& backend,
     const OpenGL33RenderTargetBinding& descriptor) noexcept {
     if (descriptor.texture.format ==
@@ -2832,7 +2833,7 @@ ImportOpenGL33ExternalRenderTarget(
 
 Base::Result<ResourceHandle>
 ImportOpenGL33ExternalTexture(
-    Aero::RenderDevice::Access& device,
+    Aero::Render::RenderDeviceBase& device,
     OpenGL33RenderDevice& backend,
     const OpenGL33ExternalTextureDescriptor& descriptor) noexcept {
     Base::Result<ResourceHandle> created =

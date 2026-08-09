@@ -195,3 +195,10 @@ private:
 };
 
 } // namespace Aero::Base
+
+namespace Aero {
+
+template<class T>
+using Result = Base::Result<T>;
+
+} // namespace Aero

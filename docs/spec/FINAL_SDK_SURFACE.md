@@ -8,13 +8,18 @@ presentation adapters are not SDK products.
 
 | Product | Header | Purpose |
 | --- | --- | --- |
-| `Aero::Gui` | `<Aero/Gui.hpp>` | WPF/XAML object model, controls, View and embeddable runtime |
+| `Aero::Gui` | `<Aero/Gui.hpp>` | backend-neutral WPF/XAML object model, controls, View and runtime |
+| `Aero::Render` | `<AeroRender/Render.hpp>` | backend-neutral renderer, device and target contracts; no separate DLL |
+| `Aero::RenderD3D11` | `<AeroRender/D3D11.hpp>` | opt-in D3D11 device/target factories |
+| `Aero::RenderOpenGL33` | `<AeroRender/OpenGL33.hpp>` | opt-in OpenGL 3.3 device/target factories |
 | `Aero::Meta` | `<Aero/Meta.hpp>` | custom type/member authoring facade over Gui |
-| `Aero::App` | `<Aero/App.hpp>` | optional default desktop Application/Window host |
-| `Aero::Audio` | `<Aero/Audio/Audio.hpp>` | optional audio module |
+| `Aero::App` | `<AeroApp/App.hpp>` | optional default desktop Application/Window host |
+| `Aero::Audio` | `<AeroAudio/Audio.hpp>` | optional audio module |
 
-The installed CMake package exports product targets such as `Aero::Base`,
-`Aero::Gui`, `Aero::Meta`, `Aero::App` and optional modules. `Aero::Integration`
+The installed CMake package exports `Aero::Base`, `Aero::Gui`, the
+`Aero::Render` interface target, both Render backend products, `Aero::App` and
+optional modules. `Aero::Meta` is an authoring namespace within Gui, not a
+linker target. `Aero::Integration`
 is retired. Internal object components, metadata stores, XAML builders,
 Renderer internals and native window/surface adapters are not exported products.
 
@@ -37,26 +42,27 @@ Window owns one View while source-private App hosting owns its native window and
 
 ## Embedded model
 
-Embedded hosts create one process-level `Aero::Gui`, one or more Views, and an
-explicit RenderDevice/RenderTarget pair for the selected backend:
+Embedded hosts link `Aero::Gui` plus one Render backend, create one process-level
+Gui and one or more Views, and own the RenderDevice/RenderTarget pair:
 
 ```cpp
 Aero::Gui gui;
 gui.Initialize();
-auto view = gui.CreateView(options).Value();
+auto root = gui.LoadXaml<Aero::FrameworkElement>(
+    "app:///MainView.xaml").Value();
+auto view = gui.CreateView(root, options).Value();
 
-auto device = Aero::Render::CreateD3D11Device(deviceOptions).Value();
-auto target = Aero::Render::CreateD3D11RenderTarget(
+auto device = Aero::Render::D3D11::CreateDevice(deviceOptions).Value();
+auto target = Aero::Render::D3D11::CreateTarget(
     device, targetOptions).Value();
 view->GetRenderer().Init(device);
 
-Aero::Markup::XamlReader xaml(gui);
-auto document = xaml.Load("app:///MainView.xaml").Value();
-view->SetContent(std::move(document), size);
-view->Update(elapsedMilliseconds);
-view->GetRenderer().UpdateRenderTree();
-view->GetRenderer().RenderOffscreen();
-view->GetRenderer().Render(*target);
+view->SetSize(size);
+view->Update(totalTimeSeconds);
+auto& renderer = view->GetRenderer();
+if (renderer.UpdateRenderTree() && renderer.RenderOffscreen()) {
+    renderer.Render(*target);
+}
 ```
 
 Public D3D11/OpenGL embedded headers expose no native-window factory or present
@@ -70,7 +76,7 @@ Custom modules receive `Aero::Meta::Registration` and author types through
 mutable tables and executable metadata remain implementation details.
 
 ```cpp
-Aero::Base::Result<void> RegisterTypes(
+Aero::Result<void> RegisterTypes(
     Aero::Meta::Registration& registration) noexcept {
     return Aero::Meta::Register<MyControl>(registration)
         .Factory()

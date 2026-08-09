@@ -1,7 +1,7 @@
-#include <Aero/Gui/Window.hpp>
-#include <Aero/Gui/Application.hpp>
+#include <AeroApp/Window.hpp>
+#include <AeroApp/Application.hpp>
 
-#include <Aero/App/WindowInterop.hpp>
+#include <AeroApp/WindowInterop.hpp>
 #include "ApplicationState.hpp"
 #include "DesktopHost.hpp"
 

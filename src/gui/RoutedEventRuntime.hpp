@@ -5,7 +5,7 @@
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Events/EventArgs.hpp>
-#include <Aero/Gui/RoutedEvent.hpp>
+#include <Aero/RoutedEvent.hpp>
 
 #include <cstddef>
 #include <new>
@@ -139,9 +139,9 @@ private:
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Gui/FrameworkContentElement.hpp>
-#include <Aero/Gui/Visual.hpp>
-#include <Aero/Gui/UIElement.hpp>
+#include <Aero/FrameworkContentElement.hpp>
+#include <Aero/Visual.hpp>
+#include <Aero/UIElement.hpp>
 
 #include <utility>
 

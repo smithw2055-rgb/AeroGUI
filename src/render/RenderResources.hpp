@@ -1,14 +1,14 @@
 #pragma once
 
 #include "DisplayList.hpp"
-#include "controls/TextBlockLayout.hpp"
-#include "text/GlyphAtlas.hpp"
-#include "text/TextLayout.hpp"
+#include "gui/controls/TextBlockLayout.hpp"
+#include "gui/text/GlyphAtlas.hpp"
+#include "gui/text/TextLayout.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 #include <cstdint>
 

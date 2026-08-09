@@ -40,22 +40,23 @@ Aero::Gui gui;
 gui.AddXamlProvider(sourceProvider, "app");
 gui.Initialize();
 
-auto device = Aero::Render::CreateD3D11Device(deviceOptions).Value();
-auto target = Aero::Render::CreateD3D11RenderTarget(
+auto device = Aero::Render::D3D11::CreateDevice(deviceOptions).Value();
+auto target = Aero::Render::D3D11::CreateTarget(
     device, targetOptions).Value();
 
-auto view = gui.CreateView().Value();
+auto root = gui.LoadXaml<Aero::FrameworkElement>(
+    "app:///MainView.xaml").Value();
+auto view = gui.CreateView(root).Value();
 view->GetRenderer().Init(device);
 
-Aero::Markup::XamlReader reader(gui);
-auto document = reader.Load("app:///MainView.xaml").Value();
-view->SetContent(std::move(document), logicalSize);
+view->SetSize(logicalSize);
 view->SetViewport({logicalSize, pixelWidth, pixelHeight, dpiScale});
 
-view->Update(elapsedMilliseconds);
-view->GetRenderer().UpdateRenderTree();
-view->GetRenderer().RenderOffscreen();
-view->GetRenderer().Render(*target);
+view->Update(totalTimeSeconds);
+auto& renderer = view->GetRenderer();
+if (renderer.UpdateRenderTree() && renderer.RenderOffscreen()) {
+    renderer.Render(*target);
+}
 ```
 
 `UpdateRenderTree()` reports whether a new immutable frame was committed, so

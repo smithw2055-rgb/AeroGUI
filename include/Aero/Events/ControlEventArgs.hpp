@@ -98,12 +98,12 @@ using RangeValueChangedEventHandler = Base::Delegate<void(
 namespace Primitives { class Selector; }
 
 struct SelectionChangedEvent {
-    Base::Span<const std::uint32_t> removedIndices;
-    Base::Span<const std::uint32_t> addedIndices;
+    Span<const std::uint32_t> removedIndices;
+    Span<const std::uint32_t> addedIndices;
     std::uint32_t oldPrimaryIndex = UINT32_MAX;
     std::uint32_t newPrimaryIndex = UINT32_MAX;
-    Base::Ref<Base::Object> oldPrimaryItem;
-    Base::Ref<Base::Object> newPrimaryItem;
+    Ref<Base::Object> oldPrimaryItem;
+    Ref<Base::Object> newPrimaryItem;
 };
 
 using SelectionChangedHandler = Base::Delegate<void(

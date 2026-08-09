@@ -5,9 +5,9 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Gui/DependencyObject.hpp>
-#include <Aero/Gui/DependencyProperty.hpp>
-#include <Aero/Gui/BindingBase.hpp>
+#include <Aero/DependencyObject.hpp>
+#include <Aero/DependencyProperty.hpp>
+#include <Aero/Data/Binding.hpp>
 
 namespace Aero { class FrameworkElement; }
 
@@ -22,7 +22,7 @@ class AERO_GUI_API Behavior : public ::Aero::DependencyObject {
 public:
     struct AuthoredBinding {
         Meta::DependencyPropertyHandle property;
-        Base::Ref<Aero::Data::Binding> binding;
+        Ref<Aero::Data::Binding> binding;
     };
 
     FrameworkElement* GetAssociatedObject() const noexcept {
@@ -31,15 +31,15 @@ public:
     bool GetIsAttached() const noexcept {
         return associatedObject_ != nullptr;
     }
-    Base::Result<void> Attach(FrameworkElement& object) noexcept;
+    Result<void> Attach(FrameworkElement& object) noexcept;
     void Detach() noexcept;
-    Base::Result<void> AddAuthoredBinding(
+    Result<void> AddAuthoredBinding(
         Meta::DependencyPropertyHandle property,
-        Base::Ref<Aero::Data::Binding> binding) noexcept;
-    Base::Span<const AuthoredBinding> GetAuthoredBindings() const noexcept {
+        Ref<Aero::Data::Binding> binding) noexcept;
+    Span<const AuthoredBinding> GetAuthoredBindings() const noexcept {
         return authoredBindings_.AsSpan();
     }
-    Base::Result<void> CopyAuthoredBindingsTo(
+    Result<void> CopyAuthoredBindingsTo(
         Behavior& destination) const noexcept;
     void NotifyLayoutUpdated() noexcept {
         if (associatedObject_ != nullptr) OnLayoutUpdated();
@@ -49,7 +49,7 @@ protected:
     explicit Behavior(Meta::TypeId runtimeType) noexcept
         : DependencyObject(runtimeType) {}
     ~Behavior() override;
-    virtual Base::Result<void> OnAttached() noexcept { return {}; }
+    virtual Result<void> OnAttached() noexcept { return {}; }
     virtual void OnDetaching() noexcept {}
     virtual void OnLayoutUpdated() noexcept {}
 
@@ -62,34 +62,34 @@ class AERO_GUI_API StyleBehaviorCollection : public Base::Object {
     AERO_DECLARE_TYPE(StyleBehaviorCollection, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Base::Result<void> Add(Base::Ref<Base::Object> value) noexcept;
+    Result<void> Add(Ref<Base::Object> value) noexcept;
     void Clear() noexcept { items_.Clear(); }
-    Base::Span<const Base::Ref<Base::Object>> GetItems() const noexcept {
+    Span<const Ref<Base::Object>> GetItems() const noexcept {
         return items_.AsSpan();
     }
 private:
-    Base::Vector<Base::Ref<Base::Object>> items_;
+    Base::Vector<Ref<Base::Object>> items_;
 };
 
 class AERO_GUI_API StyleTriggerCollection : public Base::Object {
     AERO_DECLARE_TYPE(StyleTriggerCollection, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Base::Result<void> Add(Base::Ref<Base::Object> value) noexcept;
+    Result<void> Add(Ref<Base::Object> value) noexcept;
     void Clear() noexcept { items_.Clear(); }
-    Base::Span<const Base::Ref<Base::Object>> GetItems() const noexcept {
+    Span<const Ref<Base::Object>> GetItems() const noexcept {
         return items_.AsSpan();
     }
 private:
-    Base::Vector<Base::Ref<Base::Object>> items_;
+    Base::Vector<Ref<Base::Object>> items_;
 };
 
 class AERO_GUI_API StyleInteraction : public Base::Object {
     AERO_DECLARE_TYPE(StyleInteraction, Base::Object)
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    inline static constexpr AttachedProperty<Base::Ref<StyleBehaviorCollection>> BehaviorsProperty{"Behaviors"};
-    inline static constexpr AttachedProperty<Base::Ref<StyleTriggerCollection>> TriggersProperty{"Triggers"};
+    inline static constexpr AttachedProperty<Ref<StyleBehaviorCollection>> BehaviorsProperty{"Behaviors"};
+    inline static constexpr AttachedProperty<Ref<StyleTriggerCollection>> TriggersProperty{"Triggers"};
 
     static void OnBehaviorsChanged(
         DependencyObject& object,

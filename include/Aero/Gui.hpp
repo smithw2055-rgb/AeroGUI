@@ -8,11 +8,14 @@
 #include <Aero/Module.hpp>
 #include <Aero/ViewOptions.hpp>
 
+#include <type_traits>
+
 namespace Aero {
 
 class View;
 class FrameworkElement;
 namespace Markup {
+class XamlDocument;
 class XamlProvider;
 class XamlReader;
 class ReloadCoordinator;
@@ -30,24 +33,38 @@ public:
     Gui(const Gui&) = delete;
     Gui& operator=(const Gui&) = delete;
 
-    Base::Result<void> AddModule(
+    Result<void> AddModule(
         const ModuleRegistration& registration) noexcept;
-    Base::Result<void> AddXamlProvider(
+    Result<void> AddXamlProvider(
         Markup::XamlProvider& provider,
-        Base::StringView scheme = {},
-        Base::StringView assembly = {}) noexcept;
-    Base::Result<void> AddTextureProvider(
+        StringView scheme = {},
+        StringView assembly = {}) noexcept;
+    Result<void> AddTextureProvider(
         Media::TextureProvider& provider) noexcept;
-    Base::Result<void> AddFontProvider(
+    Result<void> AddFontProvider(
         Text::FontProvider& provider) noexcept;
-    Base::Result<void> Initialize() noexcept;
-    Base::Result<Base::Ref<View>> CreateView(
+    Result<void> Initialize() noexcept;
+    template<class T = FrameworkElement>
+    Result<Ref<T>> LoadXaml(
+        StringView uri) noexcept {
+        static_assert(std::is_base_of<Base::Object, T>::value,
+            "Gui::LoadXaml<T> requires an Aero object type");
+        Result<Ref<Object>> loaded =
+            LoadXamlRoot(uri, T::StaticTypeId());
+        if (!loaded) return loaded.GetStatus();
+        T* root = static_cast<T*>(loaded.Value().Get());
+        return Ref<T>::FromBorrowed(*root);
+    }
+    Result<void> LoadComponent(
+        Base::Object& component,
+        StringView uri) noexcept;
+    Result<Ref<View>> CreateView(
         Base::IAllocator* allocator = nullptr) noexcept;
-    Base::Result<Base::Ref<View>> CreateView(
+    Result<Ref<View>> CreateView(
         const ViewOptions& options,
         Base::IAllocator* allocator = nullptr) noexcept;
-    Base::Result<Base::Ref<View>> CreateView(
-        Base::Ref<FrameworkElement> content,
+    Result<Ref<View>> CreateView(
+        Ref<FrameworkElement> content,
         const ViewOptions& options = {},
         Base::IAllocator* allocator = nullptr) noexcept;
 
@@ -58,8 +75,15 @@ private:
     friend class Markup::XamlReader;
     friend class Markup::ReloadCoordinator;
 
+    Result<Ref<Object>> LoadXamlRoot(
+        StringView uri,
+        Base::MetaTypeId expectedRoot) noexcept;
+    Result<bool> TakeLoadedDocument(
+        Base::Object& root,
+        Markup::XamlDocument& document) noexcept;
+
     Base::IAllocator* allocator_ = nullptr;
-    Base::Ref<Base::Object> state_;
+    Ref<Object> state_;
 };
 
 } // namespace Aero

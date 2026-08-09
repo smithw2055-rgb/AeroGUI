@@ -37,52 +37,102 @@ endfunction()
 # ---------------------------------------------------------------------------
 foreach(required_public_entry IN ITEMS
         "include/Aero/Gui.hpp"
-        "include/Aero/Gui/Application.hpp"
-        "include/Aero/Gui/Window.hpp"
-        "include/Aero/Gui/DependencyObject.hpp"
-        "include/Aero/Gui/DependencyProperty.hpp"
-        "include/Aero/Gui/RoutedEvent.hpp"
-        "include/Aero/Gui/Visual.hpp"
-        "include/Aero/Gui/UIElement.hpp"
-        "include/Aero/Gui/FrameworkElement.hpp"
-        "include/Aero/Gui/FrameworkContentElement.hpp"
-        "include/Aero/Gui/Control.hpp"
-        "include/Aero/Gui/ContentControl.hpp"
-        "include/Aero/Gui/Panel.hpp"
-        "include/Aero/Gui/ButtonBase.hpp"
-        "include/Aero/Gui/Button.hpp"
-        "include/Aero/Gui/ToggleButton.hpp"
-        "include/Aero/Gui/Grid.hpp"
-        "include/Aero/Gui/StackPanel.hpp"
-        "include/Aero/Gui/Border.hpp"
-        "include/Aero/Gui/ItemsControl.hpp"
-        "include/Aero/Gui/ListBox.hpp"
-        "include/Aero/Gui/TreeView.hpp"
-        "include/Aero/Gui/TextBlock.hpp"
-        "include/Aero/Gui/TextBoxBase.hpp"
-        "include/Aero/Gui/TextBox.hpp"
-        "include/Aero/Gui/BindingBase.hpp"
-        "include/Aero/Gui/Binding.hpp"
-        "include/Aero/Gui/ResourceDictionary.hpp"
-        "include/Aero/Gui/Style.hpp"
-        "include/Aero/Gui/ControlTemplate.hpp"
-        "include/Aero/Gui/DataTemplate.hpp"
-        "include/Aero/Gui/Storyboard.hpp"
-        "include/Aero/Gui/Brush.hpp"
-        "include/Aero/Gui/Geometry.hpp"
-        "include/Aero/Gui/Transform.hpp"
-        "include/Aero/Gui/XamlReader.hpp"
-        "include/Aero/Gui/View.hpp"
-        "include/Aero/Gui/IRenderer.hpp"
-        "include/Aero/Render/RenderDevice.hpp"
-        "include/Aero/Render/RenderTarget.hpp"
-        "include/Aero/Render/D3D11.hpp"
-        "include/Aero/Render/OpenGL33.hpp"
+        "include/AeroAudio/Audio.hpp"
+        "include/AeroApp/Application.hpp"
+        "include/AeroApp/Window.hpp"
+        "include/AeroApp/WindowInterop.hpp"
+        "include/Aero/InputInterop.hpp"
+        "include/Aero/DependencyObject.hpp"
+        "include/Aero/DependencyProperty.hpp"
+        "include/Aero/RoutedEvent.hpp"
+        "include/Aero/Visual.hpp"
+        "include/Aero/UIElement.hpp"
+        "include/Aero/FrameworkElement.hpp"
+        "include/Aero/FrameworkContentElement.hpp"
+        "include/Aero/Controls/Control.hpp"
+        "include/Aero/Controls/ContentControl.hpp"
+        "include/Aero/Controls/Panel.hpp"
+        "include/Aero/Controls/ButtonBase.hpp"
+        "include/Aero/Controls/Button.hpp"
+        "include/Aero/Controls/ToggleButton.hpp"
+        "include/Aero/Controls/Grid.hpp"
+        "include/Aero/Controls/StackPanel.hpp"
+        "include/Aero/Controls/Border.hpp"
+        "include/Aero/Controls/ItemsControl.hpp"
+        "include/Aero/Controls/ListBox.hpp"
+        "include/Aero/Controls/TreeView.hpp"
+        "include/Aero/Controls/TextBlock.hpp"
+        "include/Aero/Controls/TextBoxBase.hpp"
+        "include/Aero/Controls/TextBox.hpp"
+        "include/Aero/Data/Binding.hpp"
+        "include/Aero/Resources.hpp"
+        "include/Aero/Style.hpp"
+        "include/Aero/Controls/ControlTemplate.hpp"
+        "include/Aero/DataTemplate.hpp"
+        "include/Aero/Media/Animation.hpp"
+        "include/Aero/Media/Brushes.hpp"
+        "include/Aero/Media/FontProvider.hpp"
+        "include/Aero/Media/Fonts.hpp"
+        "include/Aero/Media/Geometry.hpp"
+        "include/Aero/Media/Transforms.hpp"
+        "include/Aero/Markup/XamlReader.hpp"
+        "include/Aero/View.hpp"
+        "include/Aero/IRenderer.hpp"
+        "include/AeroRender/Render.hpp"
+        "include/AeroRender/RenderDevice.hpp"
+        "include/AeroRender/RenderTarget.hpp"
+        "include/AeroRender/D3D11.hpp"
+        "include/AeroRender/OpenGL33.hpp"
         "include/Aero/Markup/ResourceScope.hpp"
         "include/Aero/Diagnostics/Rendering.hpp"
         "include/Aero/Meta.hpp"
-        "include/Aero/App.hpp")
+        "include/AeroApp/App.hpp")
     aero_require_file("${required_public_entry}")
+endforeach()
+
+foreach(aero_root_value_alias IN ITEMS
+        "include/Aero/Base/Ref.hpp|using Ref = Base::Ref<T>;"
+        "include/Aero/Base/Result.hpp|using Result = Base::Result<T>;"
+        "include/Aero/Base/String.hpp|using String = Base::String;"
+        "include/Aero/Base/StringView.hpp|using StringView = Base::StringView;"
+        "include/Aero/Base/Span.hpp|using Span = Base::Span<T>;"
+        "include/Aero/Base/Object.hpp|using Object = Base::Object;")
+    string(REPLACE "|" ";" aero_root_value_alias_parts
+        "${aero_root_value_alias}")
+    list(GET aero_root_value_alias_parts 0 aero_root_value_alias_header)
+    list(GET aero_root_value_alias_parts 1 aero_root_value_alias_text)
+    aero_require_text(
+        "${aero_root_value_alias_header}"
+        "${aero_root_value_alias_text}"
+        "Ordinary SDK value spellings must be available directly under Aero")
+endforeach()
+
+foreach(aero_primary_sdk_header IN ITEMS
+        "include/AeroApp/App.hpp"
+        "include/AeroApp/Application.hpp"
+        "include/AeroApp/Window.hpp"
+        "include/Aero/Gui.hpp"
+        "include/Aero/View.hpp"
+        "include/Aero/IRenderer.hpp"
+        "include/AeroAudio/Audio.hpp"
+        "include/Aero/InputInterop.hpp"
+        "include/Aero/Module.hpp"
+        "include/AeroRender/Render.hpp"
+        "include/AeroRender/RenderDevice.hpp"
+        "include/AeroRender/RenderTarget.hpp"
+        "include/AeroRender/D3D11.hpp"
+        "include/AeroRender/OpenGL33.hpp")
+    foreach(aero_low_level_spelling IN ITEMS
+            "Base::Ref"
+            "Base::Result"
+            "Base::String"
+            "Base::StringView"
+            "Base::Span")
+        aero_forbid_text(
+            "${aero_primary_sdk_header}"
+            "${aero_low_level_spelling}"
+            "Primary SDK entry signatures must use the root Aero spelling")
+    endforeach()
 endforeach()
 
 foreach(retired_public_entry IN ITEMS
@@ -92,44 +142,55 @@ foreach(retired_public_entry IN ITEMS
         "include/Aero/Runtime.hpp"
         "include/Aero/RuntimeEnvironment.hpp"
         "include/Aero/RuntimeTypes.hpp"
-        "include/Aero/View.hpp"
-        "include/Aero/IRenderer.hpp"
         "include/Aero/RenderDevice.hpp"
         "include/Aero/RenderTarget.hpp"
         "include/Aero/Gui/RenderDevice.hpp"
         "include/Aero/Gui/RenderTarget.hpp"
-        "include/Aero/Markup.hpp"
+        "include/Aero/App.hpp"
         "include/Aero/Application.hpp"
-        "include/Aero/Window.hpp")
+        "include/Aero/Window.hpp"
+        "include/Aero/WindowInterop.hpp"
+        "include/Aero/App/WindowInterop.hpp"
+        "include/Aero/App"
+        "include/Aero/Audio.hpp"
+        "include/Aero/Audio/Audio.hpp"
+        "include/Aero/Audio"
+        "include/Aero/Render"
+        "include/Aero/Input/Platform.hpp"
+        "include/Aero/Input"
+        "include/Aero/Platform"
+        "include/Aero/Text/FontProvider.hpp"
+        "include/Aero/Text"
+        "include/Aero/Markup.hpp")
     aero_forbid_file("${retired_public_entry}")
 endforeach()
 
 aero_require_text(
-    "include/Aero/Gui/IRenderer.hpp"
+    "include/Aero/IRenderer.hpp"
     "RenderTarget& target"
     "IRenderer must render to the canonical RenderTarget")
 aero_forbid_text(
-    "include/Aero/Gui/IRenderer.hpp"
+    "include/Aero/IRenderer.hpp"
     "RenderSurface"
     "IRenderer must not expose the retired RenderSurface spelling")
 aero_require_text(
-    "include/Aero/Render/RenderTarget.hpp"
-    "class AERO_GUI_API RenderTarget final"
+    "include/AeroRender/RenderTarget.hpp"
+    "class AERO_GUI_API RenderTarget : public Base::Object"
     "RenderTarget must be the installed target object")
 aero_forbid_text(
-    "include/Aero/Render/RenderTarget.hpp"
+    "include/AeroRender/RenderTarget.hpp"
     "PresentMode"
     "Presentation policy must remain source-private")
 aero_require_text(
     "include/Aero/Module.hpp"
-    "Base::Span<const Markup::ResourceScopeRegistration> resourceScopes;"
+    "Span<const Markup::ResourceScopeRegistration> resourceScopes;"
     "Product resource scopes must cross the Gui boundary through module data")
 aero_forbid_text(
-    "src/markup/MarkupLoader.cpp"
-    "Aero/Gui/Application.hpp"
+    "src/gui/markup/MarkupLoader.cpp"
+    "AeroApp/Application.hpp"
     "AeroGui Markup must not include the AeroApp Application contract")
 aero_forbid_text(
-    "src/markup/MarkupLoader.cpp"
+    "src/gui/markup/MarkupLoader.cpp"
     "Aero::Application"
     "AeroGui Markup must not link back to AeroApp symbols")
 aero_require_text(
@@ -138,8 +199,8 @@ aero_require_text(
     "The App module must provide its Application resource-scope capability")
 
 foreach(backend_header IN ITEMS
-        "include/Aero/Render/D3D11.hpp"
-        "include/Aero/Render/OpenGL33.hpp")
+        "include/AeroRender/D3D11.hpp"
+        "include/AeroRender/OpenGL33.hpp")
     aero_forbid_text(
         "${backend_header}"
         "WindowSurface"
@@ -150,13 +211,54 @@ foreach(backend_header IN ITEMS
         "Render backend SDK must not own native window hosting")
 endforeach()
 aero_require_text(
-    "include/Aero/Render/D3D11.hpp"
-    "CreateD3D11RenderTarget"
-    "D3D11 embedding must use RenderTarget vocabulary")
+    "include/AeroRender/D3D11.hpp"
+    "namespace Aero::Render::D3D11"
+    "D3D11 backend declarations must use a dedicated namespace")
 aero_require_text(
-    "include/Aero/Render/OpenGL33.hpp"
-    "CreateOpenGL33RenderTarget"
-    "OpenGL embedding must use RenderTarget vocabulary")
+    "include/AeroRender/OpenGL33.hpp"
+    "namespace Aero::Render::OpenGL33"
+    "OpenGL backend declarations must use a dedicated namespace")
+foreach(backend_header IN ITEMS
+        "include/AeroRender/D3D11.hpp"
+        "include/AeroRender/OpenGL33.hpp")
+    aero_require_text(
+        "${backend_header}"
+        "CreateDevice("
+        "Render backends must expose a uniform CreateDevice factory")
+    aero_require_text(
+        "${backend_header}"
+        "CreateTarget("
+        "Render backends must expose a uniform CreateTarget factory")
+endforeach()
+aero_forbid_text(
+    "include/AeroRender/D3D11.hpp"
+    "CreateD3D11"
+    "D3D11 backend factories must not repeat the namespace name")
+aero_forbid_text(
+    "include/AeroRender/OpenGL33.hpp"
+    "CreateOpenGL33"
+    "OpenGL backend factories must not repeat the namespace name")
+
+aero_require_text(
+    "include/Aero/View.hpp"
+    "void Update(double timeInSeconds) noexcept;"
+    "View must expose one absolute-time, Result-free frame update")
+aero_forbid_text(
+    "include/Aero/View.hpp"
+    "Result<void> Update("
+    "View must not expose a Result-returning per-frame update")
+aero_require_text(
+    "include/Aero/IRenderer.hpp"
+    "virtual bool UpdateRenderTree() noexcept = 0;"
+    "Renderer tree synchronization must be Result-free")
+aero_require_text(
+    "include/Aero/IRenderer.hpp"
+    "virtual bool RenderOffscreen() noexcept = 0;"
+    "Renderer offscreen execution must be Result-free")
+aero_require_text(
+    "include/Aero/IRenderer.hpp"
+    "virtual void Render(RenderTarget& target) noexcept = 0;"
+    "Renderer onscreen execution must be Result-free")
 
 include("${AERO_SOURCE_DIR}/cmake/AeroPublicHeaders.cmake")
 foreach(public_header IN LISTS AERO_PUBLIC_HEADERS)
@@ -178,6 +280,23 @@ foreach(public_header IN LISTS AERO_PUBLIC_HEADERS)
             "Installed header exposes an internal build contract: ${public_header}")
     endif()
 endforeach()
+
+aero_forbid_text(
+    "include/Aero/FrameworkElement.hpp"
+    "enum class FontWeight"
+    "FrameworkElement must not own text-formatting declarations")
+aero_forbid_text(
+    "include/Aero/FrameworkElement.hpp"
+    "class AERO_GUI_API FontFamily"
+    "FrameworkElement must not own media font declarations")
+aero_forbid_text(
+    "include/Aero/FrameworkElement.hpp"
+    "TypeTraits<Base::Color>"
+    "FrameworkElement must not own built-in value metadata")
+aero_forbid_text(
+    "include/Aero/Media/Brushes.hpp"
+    "TypeTraits<Base::Rect>"
+    "Brushes must not own built-in value metadata")
 
 foreach(required_architecture_document IN ITEMS
         "docs/ARCHITECTURE.md"
@@ -203,7 +322,13 @@ aero_forbid_text(
 file(GLOB_RECURSE aero_physical_public_headers
     RELATIVE "${AERO_SOURCE_DIR}"
     "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/*.h")
+    "${AERO_SOURCE_DIR}/include/Aero/*.h"
+    "${AERO_SOURCE_DIR}/include/AeroApp/*.hpp"
+    "${AERO_SOURCE_DIR}/include/AeroApp/*.h"
+    "${AERO_SOURCE_DIR}/include/AeroAudio/*.hpp"
+    "${AERO_SOURCE_DIR}/include/AeroAudio/*.h"
+    "${AERO_SOURCE_DIR}/include/AeroRender/*.hpp"
+    "${AERO_SOURCE_DIR}/include/AeroRender/*.h")
 list(SORT aero_physical_public_headers)
 set(aero_declared_public_headers ${AERO_PUBLIC_HEADERS})
 list(SORT aero_declared_public_headers)
@@ -220,10 +345,16 @@ foreach(retired_source_entry IN ITEMS
         "src/runtime"
         "src/providers"
         "src/platform"
+        "src/controls"
+        "src/diagnostics"
+        "src/input"
+        "src/markup"
+        "src/media"
+        "src/text"
         "src/gui/private"
-        "src/controls/private"
-        "src/markup/private"
-        "src/media/private"
+        "src/gui/controls/private"
+        "src/gui/markup/private"
+        "src/gui/media/private"
         "src/render/private"
         "src/render/DeviceRenderer.cpp"
         "src/render/DeviceRenderer.hpp"
@@ -243,9 +374,15 @@ foreach(required_source_entry IN ITEMS
         "src/gui/View.cpp"
         "src/gui/ViewRenderer.hpp"
         "src/gui/ViewState.hpp"
-        "src/markup/XamlProvider.cpp"
-        "src/markup/XamlReader.cpp"
-        "src/input/Clipboard.cpp"
+        "src/gui/controls"
+        "src/gui/diagnostics"
+        "src/gui/input"
+        "src/gui/markup"
+        "src/gui/media"
+        "src/gui/text"
+        "src/gui/markup/XamlProvider.cpp"
+        "src/gui/markup/XamlReader.cpp"
+        "src/gui/input/Clipboard.cpp"
         "src/render/RenderDevice.cpp"
         "src/render/RenderDeviceResources.cpp"
         "src/render/RenderBatch.cpp"
@@ -380,15 +517,32 @@ aero_forbid_text(
 aero_forbid_text(
     "src/render/RenderTargetState.hpp"
     "class NativeRenderTarget"
-    "RenderTarget::Access is the only native target object")
+    "RenderTargetBase is the only native target base")
+aero_require_text(
+    "src/render/RenderTargetState.hpp"
+    "AcquireFrameTarget()"
+    "RenderTargetBase must expose only native frame acquisition to backend modules")
+foreach(backend_target_source IN ITEMS
+        "src/render/d3d11/D3D11Device.cpp"
+        "src/render/opengl33/OpenGL33Embedded.cpp")
+    aero_forbid_text(
+        "${backend_target_source}"
+        "ViewRenderer"
+        "Backend target implementations must not depend on the private GUI renderer")
+    aero_forbid_text(
+        "${backend_target_source}"
+        "RenderOnscreenFrame"
+        "AeroGui must own onscreen frame submission")
+endforeach()
+unset(backend_target_source)
 aero_forbid_text(
     "src/render/RenderTargetState.hpp"
     "struct NativeRenderTarget"
-    "RenderTarget::Access is the only native target object")
+    "RenderTargetBase is the only native target base")
 aero_forbid_text(
     "src/render/RenderDeviceState.hpp"
     "NativeRenderDevice"
-    "RenderDevice::Access is the only native device object")
+    "RenderDeviceBase is the only native device base")
 aero_forbid_file("src/render/private/BackendApi.hpp")
 aero_forbid_text(
     "src/render/GraphicsTypes.hpp"
@@ -427,7 +581,7 @@ aero_forbid_text(
     "CreateBorrowed("
     "Every RenderTarget must own exactly one target implementation")
 aero_forbid_text(
-    "include/Aero/Render/RenderTarget.hpp"
+    "include/AeroRender/RenderTarget.hpp"
     "ownsImpl_"
     "RenderTarget ownership must not be conditional")
 aero_require_text(
@@ -543,19 +697,133 @@ aero_forbid_text(
 # WPF code-behind experience
 # ---------------------------------------------------------------------------
 aero_require_text(
-    "include/Aero/Gui/Window.hpp"
+    "include/AeroApp/Window.hpp"
     "void InitializeComponent() noexcept;"
     "Window code-behind must expose the conventional InitializeComponent entry")
 aero_require_text(
     "include/Aero/Meta.hpp"
-    "TypeDescription& EventHandler("
+    "TypeBuilder& EventHandler("
     "Component metadata must expose a direct XAML event-handler description")
 aero_require_text(
     "include/Aero/Meta.hpp"
     "DefineComponentModule("
     "Custom components must not require handwritten Registry or facet adapters")
 aero_require_text(
-    "src/markup/MarkupWriter.cpp"
+    "include/Aero/Meta.hpp"
+    "class TypeBuilder"
+    "Public metadata authoring must use the compact TypeBuilder spelling")
+aero_require_text(
+    "include/Aero/Meta.hpp"
+    "class FrameworkPropertyMetadata"
+    "Dependency-property authoring must expose typed framework metadata")
+aero_forbid_text(
+    "include/Aero/Meta.hpp"
+    "TypeDescription"
+    "The legacy metadata description surface must remain retired")
+aero_forbid_text(
+    "include/Aero/Meta.hpp"
+    "PropertyOptions"
+    "The legacy property-options surface must remain retired")
+aero_require_text(
+    "tools/sdk-consumers/MetaConsumer.cpp"
+    "Aero::Meta::FrameworkPropertyMetadata("
+    "The SDK consumer must compile the concise framework metadata form")
+aero_require_text(
+    "tools/sdk-consumers/MetaConsumer.cpp"
+    "Aero::Meta::AffectsRender"
+    "The SDK consumer must compile concise metadata option constants")
+aero_require_text(
+    "include/Aero/DependencyProperty.hpp"
+    "#if defined(AERO_GUI_IMPLEMENTATION)\nclass AERO_GUI_API DependencyPropertyRegistry"
+    "Mutable dependency-property registry storage must remain implementation-only")
+aero_require_text(
+    "tools/sdk-consumers/MetaConsumer.cpp"
+    "!HasPropertyRegistry<Aero::DependencyObject>::value"
+    "SDK consumers must prove DependencyObject does not expose its runtime registry")
+aero_require_text(
+    "tools/sdk-consumers/MetaConsumer.cpp"
+    "!HasRawFactoryOverload<ConsumerControl>::value"
+    "SDK consumers must prove metadata callback ABI is absent from the typed facade")
+file(READ
+    "${AERO_SOURCE_DIR}/include/Aero/Meta.hpp"
+    aero_meta_header_text)
+string(FIND
+    "${aero_meta_header_text}"
+    "template<class T>\nclass TypeBuilder {"
+    aero_meta_facade_offset)
+if(aero_meta_facade_offset EQUAL -1)
+    message(FATAL_ERROR "Meta.hpp: TypeBuilder facade marker is missing")
+endif()
+string(SUBSTRING
+    "${aero_meta_header_text}"
+    ${aero_meta_facade_offset}
+    -1
+    aero_meta_facade_text)
+foreach(aero_low_level_spelling IN ITEMS
+        "Base::Ref"
+        "Base::Result"
+        "Base::String"
+        "Base::StringView"
+        "Base::Span"
+        "Base::Object")
+    string(FIND
+        "${aero_meta_facade_text}"
+        "${aero_low_level_spelling}"
+        aero_meta_low_level_spelling_offset)
+    if(NOT aero_meta_low_level_spelling_offset EQUAL -1)
+        message(FATAL_ERROR
+            "Meta.hpp: typed authoring facade exposes ${aero_low_level_spelling}")
+    endif()
+endforeach()
+foreach(aero_private_access_header IN ITEMS
+        "include/Aero/Controls/Control.hpp"
+        "include/Aero/Media/Brushes.hpp")
+    aero_require_text(
+        "${aero_private_access_header}"
+        "#if defined(AERO_GUI_IMPLEMENTATION)"
+        "Access implementation seams must be private to SDK consumers")
+endforeach()
+file(GLOB_RECURSE aero_public_headers_with_access
+    RELATIVE "${AERO_SOURCE_DIR}"
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
+    "${AERO_SOURCE_DIR}/include/AeroApp/*.hpp"
+    "${AERO_SOURCE_DIR}/include/AeroAudio/*.hpp"
+    "${AERO_SOURCE_DIR}/include/AeroRender/*.hpp")
+foreach(aero_public_header IN LISTS aero_public_headers_with_access)
+    file(READ
+        "${AERO_SOURCE_DIR}/${aero_public_header}"
+        aero_public_header_text)
+    string(REGEX MATCH
+        "public:[ \t\r\n]+struct Access;"
+        aero_public_access_match
+        "${aero_public_header_text}")
+    if(NOT aero_public_access_match STREQUAL "")
+        message(FATAL_ERROR
+            "${aero_public_header}: Access implementation seam is public to SDK consumers")
+    endif()
+endforeach()
+foreach(aero_render_contract_header IN ITEMS
+        "include/AeroRender/RenderDevice.hpp"
+        "include/AeroRender/RenderTarget.hpp")
+    aero_forbid_text(
+        "${aero_render_contract_header}"
+        "struct Access"
+        "Render contracts must not expose the retired Access seam")
+endforeach()
+aero_require_text(
+    "src/render/d3d11/D3D11RenderDevice.hpp"
+    "public Aero::Render::RenderDeviceBase"
+    "D3D11 must implement the core RenderDevice contract directly")
+aero_require_text(
+    "src/render/opengl33/OpenGL33RenderDevice.hpp"
+    "public Aero::Render::RenderDeviceBase"
+    "OpenGL33 must implement the core RenderDevice contract directly")
+aero_forbid_text(
+    "include/Aero/FrameworkElement.hpp"
+    "struct Access;"
+    "FrameworkElement must not expose an unused Access seam")
+aero_require_text(
+    "src/gui/markup/MarkupWriter.cpp"
     "ObjectBuilder::ConnectEvent("
     "XAML event attributes must connect through the object-writer pipeline")
 aero_require_file("templates/AeroApp/App.xaml")
@@ -565,35 +833,35 @@ aero_require_file("templates/AeroApp/MainWindow.xaml")
 # Gui / XAML / View ownership
 # ---------------------------------------------------------------------------
 aero_require_text(
-    "include/Aero/Gui/XamlReader.hpp"
+    "include/Aero/Markup/XamlReader.hpp"
     "explicit XamlReader(Aero::Gui& gui)"
     "XamlReader must be Gui-owned rather than View-owned")
 aero_forbid_text(
-    "include/Aero/Gui/XamlReader.hpp"
+    "include/Aero/Markup/XamlReader.hpp"
     "XamlReader(Aero::View&"
     "XamlReader must not recreate View-owned loading")
 aero_forbid_text(
-    "include/Aero/Gui/View.hpp"
+    "include/Aero/View.hpp"
     "friend class Markup::ReloadCoordinator"
     "ReloadCoordinator must not require View private access")
 aero_forbid_text(
-    "include/Aero/Gui/View.hpp"
+    "include/Aero/View.hpp"
     "QueryReloadSource("
     "Reload source/cache ownership belongs to Gui/Markup")
 aero_forbid_text(
-    "include/Aero/Gui/View.hpp"
+    "include/Aero/View.hpp"
     "SetViewport("
     "Installed View must expose SetSize and SetScale rather than a generic viewport protocol")
 aero_forbid_text(
-    "include/Aero/Gui/View.hpp"
+    "include/Aero/View.hpp"
     "DispatchPointer("
     "Installed View must expose host-friendly pointer methods")
 aero_forbid_text(
-    "include/Aero/Gui/View.hpp"
+    "include/Aero/View.hpp"
     "DispatchKeyboard("
     "Installed View must expose host-friendly keyboard methods")
 aero_forbid_text(
-    "include/Aero/Gui/View.hpp"
+    "include/Aero/View.hpp"
     "DispatchText("
     "Installed View must expose Char rather than a generic text dispatch protocol")
 foreach(view_private_operation IN ITEMS
@@ -603,12 +871,12 @@ foreach(view_private_operation IN ITEMS
         "AdvanceAnimations(" "FindNamedObject(" "NamedObjectCount("
         "IsInstanceOf(")
     aero_forbid_text(
-        "include/Aero/Gui/View.hpp"
+        "include/Aero/View.hpp"
         "${view_private_operation}"
         "View implementation operations must remain source-only")
 endforeach()
 aero_require_text(
-    "src/markup/ReloadCoordinator.cpp"
+    "src/gui/markup/ReloadCoordinator.cpp"
     "gui->xaml.QuerySource"
     "ReloadCoordinator must query the Gui-owned XAML runtime directly")
 aero_require_file("src/gui/ViewRenderer.hpp")
@@ -617,19 +885,19 @@ aero_forbid_file("cmake/AeroGuiRuntimeTargets.cmake")
 aero_forbid_file("cmake/AeroGuiCompositionTargets.cmake")
 aero_forbid_file("cmake/AeroRenderingTargets.cmake")
 aero_forbid_text(
-    "include/Aero/Gui/View.hpp"
+    "include/Aero/View.hpp"
     "Runtime::Detail"
     "View must not expose a generic Runtime implementation namespace")
 aero_forbid_text(
-    "src/media/ImageCache.hpp"
+    "src/gui/media/ImageCache.hpp"
     "Runtime::Detail"
     "ImageCache belongs to Media rather than a generic Runtime namespace")
 aero_forbid_text(
-    "src/text/TextPipeline.hpp"
+    "src/gui/text/TextPipeline.hpp"
     "Runtime::Detail"
     "TextPipeline belongs to Text rather than a generic Runtime namespace")
 aero_forbid_text(
-    "src/text/TextPipeline.cpp"
+    "src/gui/text/TextPipeline.cpp"
     "RenderSurface.hpp"
     "TextPipeline must not depend on the retired RenderSurface contract")
 aero_forbid_text(
@@ -647,7 +915,7 @@ aero_forbid_text(
     "Aero::Runtime::Detail"
     "View must not depend on the retired generic Runtime namespace")
 aero_forbid_text(
-    "src/controls/DataTemplateTriggerState.hpp"
+    "src/gui/controls/DataTemplateTriggerState.hpp"
     "Aero::Runtime::Detail"
     "DataTemplate trigger state belongs to Controls")
 aero_forbid_text(
@@ -663,28 +931,27 @@ aero_forbid_text(
     "media/MediaPrivate.hpp"
     "View must not import the whole private Media domain")
 aero_forbid_file("src/gui/GuiPrivate.hpp")
-aero_forbid_file("src/controls/ControlsPrivate.hpp")
-aero_forbid_file("src/markup/MarkupPrivate.hpp")
-aero_forbid_file("src/media/MediaPrivate.hpp")
+aero_forbid_file("src/gui/controls/ControlsPrivate.hpp")
+aero_forbid_file("src/gui/markup/MarkupPrivate.hpp")
+aero_forbid_file("src/gui/media/MediaPrivate.hpp")
 aero_require_text(
-    "include/Aero/Gui/Button.hpp"
+    "include/Aero/Controls/Button.hpp"
     "class AERO_GUI_API Button"
     "Button.hpp must own the Button declaration")
 aero_forbid_file("include/Aero/Gui/Primitives.hpp")
 
-# S14: public headers are organized by WPF-visible type ownership. The old
-# implementation-category family headers remain include-only compatibility
-# umbrellas and must never regain declarations.
+# S25: public headers are organized by WPF-visible type ownership. Retired
+# Gui-path compatibility umbrellas are absent rather than forwarded.
 foreach(s14_owner IN ITEMS
-        "include/Aero/Gui/Control.hpp|class AERO_GUI_API Control"
-        "include/Aero/Gui/ContentControl.hpp|class AERO_GUI_API ContentControl"
-        "include/Aero/Gui/Panel.hpp|class AERO_GUI_API Panel"
-        "include/Aero/Gui/Grid.hpp|class AERO_GUI_API Grid"
-        "include/Aero/Gui/ListBox.hpp|class AERO_GUI_API ListBox"
-        "include/Aero/Gui/ComboBox.hpp|class AERO_GUI_API ComboBox"
-        "include/Aero/Gui/ListView.hpp|class AERO_GUI_API ListView"
-        "include/Aero/Gui/TreeView.hpp|class AERO_GUI_API TreeView"
-        "include/Aero/Gui/TextBox.hpp|class AERO_GUI_API TextBox")
+        "include/Aero/Controls/Control.hpp|class AERO_GUI_API Control"
+        "include/Aero/Controls/ContentControl.hpp|class AERO_GUI_API ContentControl"
+        "include/Aero/Controls/Panel.hpp|class AERO_GUI_API Panel"
+        "include/Aero/Controls/Grid.hpp|class AERO_GUI_API Grid"
+        "include/Aero/Controls/ListBox.hpp|class AERO_GUI_API ListBox"
+        "include/Aero/Controls/ComboBox.hpp|class AERO_GUI_API ComboBox"
+        "include/Aero/Controls/ListView.hpp|class AERO_GUI_API ListView"
+        "include/Aero/Controls/TreeView.hpp|class AERO_GUI_API TreeView"
+        "include/Aero/Controls/TextBox.hpp|class AERO_GUI_API TextBox")
     string(REPLACE "|" ";" s14_owner_parts "${s14_owner}")
     list(GET s14_owner_parts 0 s14_owner_header)
     list(GET s14_owner_parts 1 s14_owner_declaration)
@@ -701,17 +968,7 @@ foreach(s14_retired_umbrella IN ITEMS
         "include/Aero/Gui/Primitives.hpp")
     aero_forbid_file("${s14_retired_umbrella}")
 endforeach()
-foreach(s14_umbrella IN ITEMS
-        "include/Aero/Gui/Text.hpp")
-    aero_forbid_text(
-        "${s14_umbrella}"
-        "class AERO_GUI_API"
-        "S14 family compatibility headers must be include-only")
-    aero_forbid_text(
-        "${s14_umbrella}"
-        "enum class"
-        "S14 family compatibility headers must not own enums")
-endforeach()
+aero_forbid_file("include/Aero/Gui/Text.hpp")
 aero_forbid_text(
     "include/Aero/Value.hpp"
     "struct Members"
@@ -720,27 +977,27 @@ aero_forbid_text(
 # Public API and build model
 # ---------------------------------------------------------------------------
 aero_forbid_text(
-    "include/Aero/Gui/Application.hpp"
+    "include/AeroApp/Application.hpp"
     "RunChecked"
     "Application must expose one Result-returning Run family")
 aero_forbid_text(
-    "include/Aero/Gui/Application.hpp"
+    "include/AeroApp/Application.hpp"
     "Run(Base::Ref<Window>"
     "Explicit windows must be supplied through SetMainWindow")
 aero_forbid_text(
-    "include/Aero/Gui/Application.hpp"
+    "include/AeroApp/Application.hpp"
     "SetMainWindowBorrowed"
     "Application ownership adapters must remain source-only")
 aero_forbid_text(
-    "include/Aero/Gui/ItemsControl.hpp"
+    "include/Aero/Controls/ItemsControl.hpp"
     "SetItemsSourceBorrowed"
     "ItemsControl ownership adapters must remain source-only")
 aero_forbid_text(
-    "include/Aero/Gui/Window.hpp"
+    "include/AeroApp/Window.hpp"
     "ShowChecked"
     "Window must expose one Result-returning Show API")
 aero_forbid_text(
-    "include/Aero/Gui/Window.hpp"
+    "include/AeroApp/Window.hpp"
     "CloseChecked"
     "Window must expose one Result-returning Close API")
 
@@ -759,7 +1016,11 @@ foreach(target_module IN LISTS aero_target_modules)
 endforeach()
 foreach(required_product IN ITEMS
         "add_library(Aero::Base ALIAS AeroBase)"
+        "add_library(Aero::Audio ALIAS AeroAudio)"
         "add_library(Aero::Gui ALIAS AeroGui)"
+        "add_library(Aero::Render ALIAS AeroRender)"
+        "add_library(Aero::RenderD3D11 ALIAS AeroRenderD3D11)"
+        "add_library(Aero::RenderOpenGL33 ALIAS AeroRenderOpenGL33)"
         "add_library(Aero::App ALIAS AeroApp)")
     string(FIND "${product_text}" "${required_product}" product_position)
     if(product_position EQUAL -1)
@@ -770,15 +1031,18 @@ if(product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*AeroIntegration" OR
    product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*Aero::Integration")
     message(FATAL_ERROR "The retired Integration product must not be recreated")
 endif()
-if(product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*AeroRender[ \t\r\n)]" OR
-   product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*Aero::Render[ \t\r\n]")
-    message(FATAL_ERROR
-        "Render remains a specialist namespace in the single AeroGui product; do not add a thin AeroRender product layer")
-endif()
 aero_require_text(
-    "cmake/AeroGuiTargets.cmake"
-    "target_sources(AeroGui PRIVATE"
-    "Rendering implementation must remain inside the single embeddable AeroGui product")
+    "cmake/AeroProductTargets.cmake"
+    "AeroGui must remain backend neutral"
+    "AeroGui target validation must reject native backend sources")
+aero_require_text(
+    "cmake/AeroProductTargets.cmake"
+    "Aero::RenderD3D11"
+    "App must compose the enabled D3D11 backend product")
+aero_require_text(
+    "cmake/AeroProductTargets.cmake"
+    "Aero::RenderOpenGL33"
+    "App must compose the enabled OpenGL33 backend product")
 foreach(retired_object_layer IN ITEMS
         AeroGuiKernelObjects AeroControlsObjects AeroMarkupKernelObjects
         AeroMarkupObjects AeroInspectorObjects AeroRuntimeObjects

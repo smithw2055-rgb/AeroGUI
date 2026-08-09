@@ -7,7 +7,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 
 namespace Aero {
 
@@ -45,10 +45,10 @@ public:
         value_ = value;
     }
     template<class TOwner, class TValue>
-    Base::Result<void> Set(
+    Result<void> Set(
         const Meta::DependencyPropertyRef<TOwner, TValue>& property,
         const TValue& value) noexcept {
-        Base::Result<PropertyValue> encoded = Meta::ValueCodec<TValue>::Encode(value);
+        Result<PropertyValue> encoded = Meta::ValueCodec<TValue>::Encode(value);
         if (!encoded) return encoded.GetStatus();
         if (!property.Handle().IsValid()) {
             return Base::Status::Failure(
@@ -59,23 +59,23 @@ public:
         SetValue(encoded.Value());
         return {};
     }
-    void SetPropertyName(Base::StringView value) noexcept;
-    void SetTargetName(Base::StringView value) noexcept;
+    void SetPropertyName(StringView value) noexcept;
+    void SetTargetName(StringView value) noexcept;
     void SetAuthoredValue(const PropertyValue& value) noexcept;
-    Base::StringView GetPropertyName() const noexcept { return propertyName_.View(); }
-    Base::StringView GetTargetName() const noexcept { return targetName_.View(); }
+    StringView GetPropertyName() const noexcept { return propertyName_.View(); }
+    StringView GetTargetName() const noexcept { return targetName_.View(); }
     const PropertyValue& GetAuthoredValue() const noexcept { return authoredValue_; }
     bool GetIsAuthored() const noexcept {
         return !propertyName_.Empty() && !authoredValue_.IsUnset();
     }
-    Base::Result<void> Resolve(DependencyPropertyHandle property,
+    Result<void> Resolve(DependencyPropertyHandle property,
                                const PropertyValue& value) noexcept;
 
 private:
     DependencyPropertyHandle property_;
     PropertyValue value_;
-    Base::String propertyName_;
-    Base::String targetName_;
+    String propertyName_;
+    String targetName_;
     PropertyValue authoredValue_;
 };
 
@@ -83,24 +83,24 @@ class AERO_GUI_API TriggerBase : public Base::Object {
     AERO_DECLARE_TYPE(TriggerBase, Base::Object)
 public:
     TypeId RuntimeType() const noexcept override { return runtimeType_; }
-    Base::Result<void> AddEnterAction(Base::Ref<Base::Object> action) noexcept;
-    Base::Result<void> AddExitAction(Base::Ref<Base::Object> action) noexcept;
+    Result<void> AddEnterAction(Ref<Base::Object> action) noexcept;
+    Result<void> AddExitAction(Ref<Base::Object> action) noexcept;
     void ClearEnterActions() noexcept { enterActions_.Clear(); }
     void ClearExitActions() noexcept { exitActions_.Clear(); }
-    Base::Span<const Base::Ref<Base::Object>> GetEnterActions() const noexcept {
+    Span<const Ref<Base::Object>> GetEnterActions() const noexcept {
         return {enterActions_.Data(), enterActions_.Size()};
     }
-    Base::Span<const Base::Ref<Base::Object>> GetExitActions() const noexcept {
+    Span<const Ref<Base::Object>> GetExitActions() const noexcept {
         return {exitActions_.Data(), exitActions_.Size()};
     }
-    Base::Result<void> AddBehavior(Base::Ref<Base::Object> behavior) noexcept {
+    Result<void> AddBehavior(Ref<Base::Object> behavior) noexcept {
         return behavior ? behaviors_.PushBack(std::move(behavior))
-                        : Base::Result<void>(Base::Status::Failure(
+                        : Result<void>(Base::Status::Failure(
                               Base::ErrorCode::InvalidArgument,
                               "Trigger behavior cannot be null"));
     }
     void ClearBehaviors() noexcept { behaviors_.Clear(); }
-    Base::Span<const Base::Ref<Base::Object>> GetBehaviors() const noexcept {
+    Span<const Ref<Base::Object>> GetBehaviors() const noexcept {
         return {behaviors_.Data(), behaviors_.Size()};
     }
 
@@ -110,9 +110,9 @@ protected:
 
 private:
     TypeId runtimeType_ = StaticTypeId();
-    Base::Vector<Base::Ref<Base::Object>> enterActions_;
-    Base::Vector<Base::Ref<Base::Object>> exitActions_;
-    Base::Vector<Base::Ref<Base::Object>> behaviors_;
+    Base::Vector<Ref<Base::Object>> enterActions_;
+    Base::Vector<Ref<Base::Object>> exitActions_;
+    Base::Vector<Ref<Base::Object>> behaviors_;
 };
 
 } // namespace Aero

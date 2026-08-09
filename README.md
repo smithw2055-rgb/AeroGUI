@@ -4,21 +4,33 @@
 
 AeroGUI exposes a small product surface organized by WPF semantics:
 
-- `Aero/Gui.hpp` + `Aero::Gui` provide the complete embeddable WPF/XAML
-  runtime, including View, providers and native GPU rendering.
-- `Aero/App.hpp` + `Aero::App` add the optional default desktop lifetime;
+- `Aero/Gui.hpp` + `Aero::Gui` provide the complete backend-neutral WPF/XAML
+  runtime. Ordinary engine code uses `Gui::LoadXaml<T>()`,
+  `Gui::CreateView(root)`, and the explicit render contracts.
+- `AeroRender/Render.hpp` + `Aero::Render` provide the backend-neutral render
+  contract boundary without introducing another DLL.
+- `Aero::RenderD3D11` and `Aero::RenderOpenGL33` are opt-in backend products;
+  an embedded engine links exactly the backend it owns, which brings in the
+  render and Gui contracts transitively.
+- `AeroApp/App.hpp` + `Aero::App` add the optional default desktop lifetime;
   ordinary C++ applications call `Aero::Application::Run()`, while
   `Aero::App::Run()` is reserved for generated `App.xaml` bootstrap code.
-- Host contracts are grouped by their real domains under `Aero/Input`,
-  `Aero/Markup`, `Aero/Media`, `Aero/Text`, `Aero/Platform` and `Aero/Render`.
+- Host interop entry headers are rooted at `Aero/InputInterop.hpp` and
+  `AeroApp/WindowInterop.hpp`; XAML, media, font-provider, and rendering contracts
+  remain grouped under `Aero/Markup`, `Aero/Media`, and `AeroRender`.
+- `AeroAudio/Audio.hpp` + `Aero::Audio` expose the independent optional audio
+  product.
 - `Aero/Meta.hpp` / `Aero/Module.hpp` + `Aero::Meta` provide typed custom-type
   and module authoring.
 
 Legacy host facades, service locators, graphics support targets and runtime
 manager classes are implementation details. The installed tree is an explicit
-whitelist, has no `Aero/Detail` directory, and groups standard controls into stable family headers while also providing WPF-type thin headers such as `Button.hpp`, `Grid.hpp`, `ListBox.hpp` and `TextBox.hpp`. D3D11 and OpenGL factories remain opt-in headers
-under `Aero/Render`; private backends consume the same Renderer and RenderDevice
-contracts. See [`docs/WINDOW_HOSTING.md`](docs/WINDOW_HOSTING.md),
+whitelist, has no `Aero/Detail` directory, and gives each WPF-visible type one
+real declaration owner under the root, `Aero/Controls`, `Aero/Data`,
+`Aero/Media`, or `Aero/Markup`; retired `Aero/Gui/*` forwarding paths are not
+  installed. D3D11 and OpenGL factories remain opt-in headers under
+  `AeroRender` and are implemented by their matching CMake products; both
+  consume the same Renderer and RenderDevice contracts. See [`docs/WINDOW_HOSTING.md`](docs/WINDOW_HOSTING.md),
 [`docs/SDK_PACKAGING.md`](docs/SDK_PACKAGING.md), and
 [`docs/spec/PUBLIC_HEADER_MODEL.md`](docs/spec/PUBLIC_HEADER_MODEL.md).
 
@@ -40,7 +52,7 @@ WPF/NoesisGUI 开发者可先阅读 [`docs/WPF_QUICK_START.md`](docs/WPF_QUICK_S
 ## 项目状态
 
 - 主线基线：M0/M1 完成，M2 的 runtime XAML → layout → D3D11 垂直切片可构建并有自动化测试。
-- 已完成的 M3 基础：Binding/DataContext、通知驱动更新、Style/ControlTemplate/TemplateBinding/property trigger、compiled XAML document、typed metadata/module authoring、`aero-schema-gen`、manifest-driven `aero-xamlc`、共享 XAML document cache、URI 依赖图和完整文档热重载协调器；0.3 SDK 只导出 `Aero::Base`、`Aero::Gui`、`Aero::Meta`、`Aero::App` 与可选 `Aero::Audio` 五个产品目标。
+- 已完成的 M3 基础：Binding/DataContext、通知驱动更新、Style/ControlTemplate/TemplateBinding/property trigger、compiled XAML document、typed metadata/module authoring、`aero-schema-gen`、manifest-driven `aero-xamlc`、共享 XAML document cache、URI 依赖图和完整文档热重载协调器；0.3 SDK 导出 `Aero::Base`、`Aero::Gui`、`Aero::Render`、两个原生 Render backend、`Aero::App` 与 `Aero::Audio` 产品目标；`Aero::Meta` 是 Gui 内的 authoring namespace。
 - 当前阶段：**M3.5 — Interactive Controls, Text and OpenGL Vertical Slice**。
 - compiled document encoding 固定为 v8，compiled cache format 固定为 v13；AXB2 已携带稳定 TypeId/MemberId、基础与高频结构 typed values，并使用按需 VarUInt instruction operands 和 VarUInt SourceMap。加载时每个唯一 MemberId 只从冻结 Registry 展开一次 replay binding，ObjectBuilder 不再为每个 StartMember/属性元素重复执行 Schema 成员解析和写策略查询。发布资产仍可完全裁剪 SourceMap，内置主题默认采用紧凑模式。当前精简源码分支不携带旧 tests/samples，严格静态、shared、安装包和外部消费者构建作为结构收口门禁。
 - 已建立 `AeroText` 的 provider-neutral 合同层，并完成可独立裁剪的 FreeType provider、HarfBuzz shaper、code-point coverage 查询与显式 fallback face 链分段、provider-neutral glyph atlas、`TextLayout::ShapeAndMeasure` 基础排版、TextBlock 自动布局服务 seam，以及 atlas-backed graphics layer 上传/注册和 fence 延迟回收；固定字体测试覆盖 Latin、数字、中文、Arabic、跨字体 fallback、稳定测量、word/character wrapping、ellipsis trimming、水平对齐、行高、glyph metrics、Gray8 raster、outline、DPI、face cache/lifetime、atlas page/shelf、fence-safe reuse 和 device-loss generation，TextBlock 测试覆盖多 atlas batch、文本变更、DPI 重排，并由真实 Roboto/Mplus + FreeType/HarfBuzz 字体通过 D3D11/WARP 像素门禁。
@@ -346,16 +358,21 @@ C++17 Runtime
 
 ```text
 AeroGUI/
-├── include/Aero/           # explicit product SDK headers
+├── include/Aero/           # backend-neutral WPF/XAML GUI product
+├── include/AeroRender/     # render contracts and opt-in backend factories
+├── include/AeroApp/        # desktop Application/Window product
+├── include/AeroAudio/      # independent optional audio product
 ├── src/base/               # foundation implementation
 ├── src/gui/                # WPF semantic kernel, Gui and View composition
-├── src/controls/           # standard controls and control behavior
-├── src/markup/             # XAML schema, providers, object writer and XamlDocument
-├── src/text/               # shaping, fonts and glyph runtime
-├── src/media/              # brushes, images, transforms, effects and image cache
-├── src/input/              # platform-neutral input services such as clipboard
-├── src/render/             # RenderTree, Renderer, RenderDevice, GPU and surface adapters
+│   ├── controls/           # standard controls and control behavior
+│   ├── diagnostics/        # GUI inspection and rendering diagnostics
+│   ├── input/              # platform-neutral input services such as clipboard
+│   ├── markup/             # XAML schema, providers, object writer and XamlDocument
+│   ├── media/              # brushes, images, transforms, effects and image cache
+│   └── text/               # shaping, fonts and glyph runtime
+├── src/render/             # render contracts, GPU resources and native backends
 ├── src/app/                # Application, Window and private OS window/IME adapters
+├── src/audio/              # optional audio product implementation
 ├── third_party/
 ├── tools/{xamlc,schema-gen}/
 ├── themes/

@@ -5,7 +5,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include "gui/MetadataRuntime.hpp"
 #include "gui/PropertyRuntime.hpp"
 #include "gui/ElementRuntime.hpp"
@@ -85,8 +85,8 @@ public:
 
 } // namespace Aero
 
-#include <Aero/Gui/ControlTemplate.hpp>
-#include <Aero/Gui/Style.hpp>
+#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Style.hpp>
 
 namespace Aero {
 
@@ -278,7 +278,7 @@ private:
 
 // Resource-assignment helpers used by style and markup application.
 
-#include <Aero/Gui/ResourceDictionary.hpp>
+#include <Aero/Resources.hpp>
 
 #include <utility>
 

@@ -6,7 +6,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include <Aero/Diagnostics/PropertyValueSource.hpp>
 #include <Aero/Threading.hpp>
 

@@ -1,9 +1,9 @@
 #include "Metadata.hpp"
 
-#include <Aero/Gui/Application.hpp>
+#include <AeroApp/Application.hpp>
 #include <Aero/Meta.hpp>
-#include <Aero/Gui/ResourceDictionary.hpp>
-#include <Aero/Gui/Window.hpp>
+#include <Aero/Resources.hpp>
+#include <AeroApp/Window.hpp>
 
 namespace Aero::App {
 
@@ -38,13 +38,13 @@ Base::Result<void> PopulateAppMetadata(
 
     auto window = Meta::Register<Aero::Window>(context);
     window
-        .Property(Aero::Window::TitleProperty, Meta::PropertyOptions(Base::String{}).AffectsMeasure())
-        .Property(Aero::Window::WindowStateProperty, Meta::PropertyOptions(Aero::WindowState::Normal).AffectsRender())
-        .Property(Aero::Window::WindowStyleProperty, Meta::PropertyOptions(Aero::WindowStyle::SingleBorderWindow).AffectsMeasure())
-        .Property(Aero::Window::ResizeModeProperty, Meta::PropertyOptions(Aero::ResizeMode::CanResize))
-        .Property(Aero::Window::SizeToContentProperty, Meta::PropertyOptions(Aero::SizeToContent::Manual).AffectsMeasure())
-        .Property(Aero::Window::ShowInTaskbarProperty, Meta::PropertyOptions(true))
-        .Property(Aero::Window::TopmostProperty, Meta::PropertyOptions(false))
+        .Property(Aero::Window::TitleProperty, Meta::FrameworkPropertyMetadata(Base::String{}).AffectsMeasure())
+        .Property(Aero::Window::WindowStateProperty, Meta::FrameworkPropertyMetadata(Aero::WindowState::Normal).AffectsRender())
+        .Property(Aero::Window::WindowStyleProperty, Meta::FrameworkPropertyMetadata(Aero::WindowStyle::SingleBorderWindow).AffectsMeasure())
+        .Property(Aero::Window::ResizeModeProperty, Meta::FrameworkPropertyMetadata(Aero::ResizeMode::CanResize))
+        .Property(Aero::Window::SizeToContentProperty, Meta::FrameworkPropertyMetadata(Aero::SizeToContent::Manual).AffectsMeasure())
+        .Property(Aero::Window::ShowInTaskbarProperty, Meta::FrameworkPropertyMetadata(true))
+        .Property(Aero::Window::TopmostProperty, Meta::FrameworkPropertyMetadata(false))
         .Event(Aero::Window::ClosingEvent, Aero::RoutingStrategy::Direct)
         .Event(Aero::Window::ClosedEvent, Aero::RoutingStrategy::Direct)
         .Event(Aero::Window::ActivatedEvent, Aero::RoutingStrategy::Direct)

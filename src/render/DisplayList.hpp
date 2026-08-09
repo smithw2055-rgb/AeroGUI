@@ -5,7 +5,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Gui/DrawingContext.hpp>
+#include <Aero/Media/DrawingContext.hpp>
 
 #include <cstdint>
 

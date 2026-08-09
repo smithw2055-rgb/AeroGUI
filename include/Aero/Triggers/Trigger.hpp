@@ -15,16 +15,16 @@ public:
     const PropertyValue& GetValue() const noexcept { return value_; }
     void SetProperty(DependencyPropertyHandle value) noexcept;
     void SetValue(const PropertyValue& value) noexcept;
-    Base::Result<void> AddSetter(const Setter& setter) noexcept;
-    void SetPropertyName(Base::StringView value) noexcept;
-    Base::StringView GetSourceName() const noexcept { return sourceName_.View(); }
-    void SetSourceName(Base::StringView value) noexcept;
+    Result<void> AddSetter(const Setter& setter) noexcept;
+    void SetPropertyName(StringView value) noexcept;
+    StringView GetSourceName() const noexcept { return sourceName_.View(); }
+    void SetSourceName(StringView value) noexcept;
     void SetAuthoredValue(const PropertyValue& value) noexcept;
-    Base::Result<void> AddAuthoredSetter(Base::Ref<Setter> setter) noexcept;
+    Result<void> AddAuthoredSetter(Ref<Setter> setter) noexcept;
     void ClearAuthoredSetters() noexcept;
-    Base::StringView GetPropertyName() const noexcept { return propertyName_.View(); }
+    StringView GetPropertyName() const noexcept { return propertyName_.View(); }
     const PropertyValue& GetAuthoredValue() const noexcept { return authoredValue_; }
-    Base::Span<const Base::Ref<Setter>> GetAuthoredSetters() const noexcept {
+    Span<const Ref<Setter>> GetAuthoredSetters() const noexcept {
         return {authoredSetters_.Data(), authoredSetters_.Size()};
     }
     bool GetIsAuthored() const noexcept {
@@ -38,10 +38,10 @@ private:
     PropertyValue value_;
     Base::Vector<DependencyPropertyHandle> setterProperties_;
     Base::Vector<PropertyValue> setterValues_;
-    Base::String propertyName_;
-    Base::String sourceName_;
+    String propertyName_;
+    String sourceName_;
     PropertyValue authoredValue_;
-    Base::Vector<Base::Ref<Setter>> authoredSetters_;
+    Base::Vector<Ref<Setter>> authoredSetters_;
 };
 
 } // namespace Aero

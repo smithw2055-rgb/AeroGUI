@@ -107,11 +107,11 @@ inline constexpr DiagnosticObjectId InvalidDiagnosticObjectId = 0U;
 AERO_GUI_API bool IsValidSourcePosition(
     SourcePosition position) noexcept;
 AERO_GUI_API bool IsValidSourceSpan(SourceSpan span) noexcept;
-AERO_GUI_API Base::StringView DiagnosticPrefix(
+AERO_GUI_API StringView DiagnosticPrefix(
     DiagnosticDomain domain) noexcept;
-AERO_GUI_API Base::Result<void> FormatDiagnosticCode(
+AERO_GUI_API Result<void> FormatDiagnosticCode(
     DiagnosticCode code,
-    Base::String& output) noexcept;
+    String& output) noexcept;
 
 class AERO_GUI_API DiagnosticNote  {
 public:
@@ -122,7 +122,7 @@ public:
     DiagnosticNote& operator=(const DiagnosticNote&) = delete;
 
     SourceSpan Source() const noexcept { return source_; }
-    Base::StringView Message() const noexcept {
+    StringView Message() const noexcept {
         return message_.View();
     }
 
@@ -133,7 +133,7 @@ private:
         : message_(&Base::GetDefaultAllocator()) {}
 
     SourceSpan source_;
-    Base::String message_;
+    String message_;
 };
 
 class AERO_GUI_API Diagnostic  {
@@ -144,29 +144,29 @@ public:
     Diagnostic(const Diagnostic&) = delete;
     Diagnostic& operator=(const Diagnostic&) = delete;
 
-    static Base::Result<Diagnostic> Create(
+    static Result<Diagnostic> Create(
         DiagnosticCode code,
         DiagnosticSeverity severity,
-        Base::StringView message,
+        StringView message,
         SourceSpan source = {},
         DiagnosticObjectId object = InvalidDiagnosticObjectId,
         MemberId member = InvalidMemberId) noexcept;
 
-    Base::Result<void> AddNote(
-        Base::StringView message,
+    Result<void> AddNote(
+        StringView message,
         SourceSpan source = {}) noexcept;
 
     DiagnosticCode Code() const noexcept { return code_; }
     DiagnosticSeverity Severity() const noexcept {
         return severity_;
     }
-    Base::StringView Message() const noexcept {
+    StringView Message() const noexcept {
         return message_.View();
     }
     SourceSpan Source() const noexcept { return source_; }
     DiagnosticObjectId Object() const noexcept { return object_; }
     MemberId Member() const noexcept { return member_; }
-    Base::Span<const DiagnosticNote> Notes() const noexcept {
+    Span<const DiagnosticNote> Notes() const noexcept {
         return {notes_.Data(), notes_.Size()};
     }
     bool IsError() const noexcept {
@@ -182,7 +182,7 @@ private:
     SourceSpan source_;
     DiagnosticObjectId object_ = InvalidDiagnosticObjectId;
     MemberId member_ = InvalidMemberId;
-    Base::String message_;
+    String message_;
     Base::Vector<DiagnosticNote> notes_;
 };
 
@@ -190,7 +190,7 @@ class AERO_GUI_API IDiagnosticSink {
 public:
     virtual ~IDiagnosticSink() = default;
 
-    virtual Base::Result<void> Report(
+    virtual Result<void> Report(
         Diagnostic&& diagnostic) noexcept = 0;
 };
 
@@ -202,20 +202,20 @@ public:
     DiagnosticBag(const DiagnosticBag&) = delete;
     DiagnosticBag& operator=(const DiagnosticBag&) = delete;
 
-    Base::Result<void> Report(
+    Result<void> Report(
         Diagnostic&& diagnostic) noexcept override;
 
-    Base::Result<void> Report(
+    Result<void> Report(
         DiagnosticCode code,
         DiagnosticSeverity severity,
-        Base::StringView message,
+        StringView message,
         SourceSpan source = {},
         DiagnosticObjectId object = InvalidDiagnosticObjectId,
         MemberId member = InvalidMemberId) noexcept;
 
     void Clear() noexcept;
 
-    Base::Span<const Diagnostic> Items() const noexcept {
+    Span<const Diagnostic> Items() const noexcept {
         return {items_.Data(), items_.Size()};
     }
     std::uint32_t Size() const noexcept { return items_.Size(); }

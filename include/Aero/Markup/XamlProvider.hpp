@@ -14,7 +14,7 @@ namespace Aero::Markup {
 
 struct StreamResourceInfo {
     Base::ResourceUri uri;
-    Base::Ref<Base::Stream> stream;
+    Ref<Base::Stream> stream;
     std::uint64_t revision = 0U;
 };
 
@@ -22,9 +22,9 @@ class AERO_GUI_API XamlProvider {
 public:
     virtual ~XamlProvider() = default;
 
-    virtual Base::Result<StreamResourceInfo> Open(
+    virtual Result<StreamResourceInfo> Open(
         const Base::ResourceUri& uri) const noexcept = 0;
-    virtual Base::Result<std::uint64_t> Revision(
+    virtual Result<std::uint64_t> Revision(
         const Base::ResourceUri&) const noexcept {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
@@ -35,10 +35,10 @@ public:
     }
 };
 
-using XamlOpenCallback = Base::Result<StreamResourceInfo> (*)(
+using XamlOpenCallback = Result<StreamResourceInfo> (*)(
     const Base::ResourceUri& uri,
     void* context) noexcept;
-using XamlRevisionCallback = Base::Result<std::uint64_t> (*)(
+using XamlRevisionCallback = Result<std::uint64_t> (*)(
     const Base::ResourceUri& uri,
     void* context) noexcept;
 
@@ -55,9 +55,9 @@ public:
 
     bool IsValid() const noexcept { return open_ != nullptr; }
 
-    Base::Result<StreamResourceInfo> Open(
+    Result<StreamResourceInfo> Open(
         const Base::ResourceUri& uri) const noexcept override;
-    Base::Result<std::uint64_t> Revision(
+    Result<std::uint64_t> Revision(
         const Base::ResourceUri& uri) const noexcept override;
     std::uint64_t CacheIdentity() const noexcept override;
 

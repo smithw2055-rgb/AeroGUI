@@ -34,20 +34,20 @@ Base::Result<void> PopulateUiInput(
     keyboardNavigation.Property(
         KeyboardNavigation::
             DirectionalNavigationProperty,
-        PropertyOptions(
+        FrameworkPropertyMetadata(
             KeyboardNavigationMode::Continue));
     keyboardNavigation.Property(
         KeyboardNavigation::TabNavigationProperty,
-        PropertyOptions(
+        FrameworkPropertyMetadata(
             KeyboardNavigationMode::Continue));
     keyboardNavigation.Property(
         KeyboardNavigation::
             ControlTabNavigationProperty,
-        PropertyOptions(
+        FrameworkPropertyMetadata(
             KeyboardNavigationMode::Continue));
     keyboardNavigation.Property(
         KeyboardNavigation::TabIndexProperty,
-        PropertyOptions(std::uint32_t{0}));
+        FrameworkPropertyMetadata(std::uint32_t{0}));
     status = keyboardNavigation.Result();
     if (!status) return status.GetStatus();
 
@@ -57,10 +57,10 @@ Base::Result<void> PopulateUiInput(
     focusManager
         .Property(
             FocusManager::IsFocusScopeProperty,
-            PropertyOptions(false))
+            FrameworkPropertyMetadata(false))
         .Property(
             FocusManager::FocusedElementProperty,
-            PropertyOptions(
+            FrameworkPropertyMetadata(
                 Base::Ref<Base::Object>{}));
     status = focusManager.Result();
     if (!status) return status.GetStatus();

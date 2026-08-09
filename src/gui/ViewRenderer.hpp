@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Allocator.hpp>
-#include <Aero/Gui/IRenderer.hpp>
+#include <Aero/IRenderer.hpp>
 #include "render/FrameEncoder.hpp"
 #include "render/ImageGpuResources.hpp"
 #include "render/MeshGpuResources.hpp"
@@ -29,9 +29,9 @@ public:
     Base::Result<void> Init(Base::Ref<RenderDevice> device) noexcept override;
     void Shutdown() noexcept override;
     bool IsInitialized() const noexcept override;
-    Base::Result<bool> UpdateRenderTree() noexcept override;
-    Base::Result<void> RenderOffscreen() noexcept override;
-    Base::Result<void> Render(RenderTarget& target) noexcept override;
+    bool UpdateRenderTree() noexcept override;
+    bool RenderOffscreen() noexcept override;
+    void Render(RenderTarget& target) noexcept override;
 
     ::Aero::Render::RenderResources Resources() noexcept;
     Base::Result<::Aero::Graphics::FenceValue> RenderOnscreenFrame(
@@ -41,7 +41,7 @@ public:
 
 private:
     Base::Result<void> InitializeRenderResources(
-        RenderDevice::Access& device,
+        Render::RenderDeviceBase& device,
         std::uint64_t generation) noexcept;
     void ShutdownRenderResources() noexcept;
     Base::Result<void> VerifyRenderResources() const noexcept;

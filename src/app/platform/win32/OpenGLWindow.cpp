@@ -177,7 +177,7 @@ std::uint64_t OpenGLWindow::StableId() const noexcept {
         reinterpret_cast<std::uintptr_t>(renderContext_));
 }
 
-Render::OpenGL33ProcAddress OpenGLWindow::ResolveCallback(
+Render::OpenGL33::ProcAddress OpenGLWindow::ResolveCallback(
     void*,
     const char* name) noexcept {
     if (name == nullptr) return nullptr;
@@ -188,7 +188,7 @@ Render::OpenGL33ProcAddress OpenGLWindow::ResolveCallback(
         HMODULE module = GetModuleHandleW(L"opengl32.dll");
         address = module != nullptr ? GetProcAddress(module, name) : nullptr;
     }
-    return reinterpret_cast<Render::OpenGL33ProcAddress>(address);
+    return reinterpret_cast<Render::OpenGL33::ProcAddress>(address);
 }
 
 Base::Status OpenGLWindow::MakeCurrentCallback(void* context) noexcept {

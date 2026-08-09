@@ -8,16 +8,17 @@ ownership:
 
 | Contract | Public header |
 | --- | --- |
+| Optional audio module | `AeroAudio/Audio.hpp` |
 | View creation behavior | `Aero/ViewOptions.hpp` |
-| Clipboard and IME host seams | `Aero/Input/Platform.hpp` |
-| Native window handle | `Aero/Platform/NativeWindow.hpp` |
-| Onscreen/embedded target | `Aero/RenderTarget.hpp` |
-| D3D11 factory | `Aero/Render/D3D11.hpp` |
-| OpenGL 3.3 factory | `Aero/Render/OpenGL33.hpp` |
+| Clipboard and IME host seams | `Aero/InputInterop.hpp` |
+| Native window handle | `AeroApp/WindowInterop.hpp` |
+| Onscreen/embedded target | `AeroRender/RenderTarget.hpp` |
+| D3D11 factory | `AeroRender/D3D11.hpp` |
+| OpenGL 3.3 factory | `AeroRender/OpenGL33.hpp` |
 | XAML provider | `Aero/Markup/XamlProvider.hpp` |
 | XAML reload | `Aero/Markup/ReloadCoordinator.hpp` |
 | Texture provider | `Aero/Media/TextureProvider.hpp` |
-| Font provider | `Aero/Text/FontProvider.hpp` |
+| Font provider | `Aero/Media/FontProvider.hpp` |
 
 `Aero/Gui.hpp` is the small embeddable runtime entry header rather than a
 catch-all umbrella. WPF types are included explicitly (or through

@@ -2,11 +2,11 @@
 
 #include "DisplayList.hpp"
 
-#include "../controls/TextBlockLayout.hpp"
+#include "gui/controls/TextBlockLayout.hpp"
 #include "RenderResources.hpp"
 
 #include "render/GraphicsTypes.hpp"
-#include <Aero/Render/RenderDevice.hpp>
+#include <AeroRender/RenderDevice.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -38,7 +38,7 @@ class TextRenderer
 public:
     TextRenderer(
         Text::FontManager& fonts,
-        Aero::RenderDevice::Access& device,
+        Aero::Render::RenderDeviceBase& device,
         GlyphRunResourceSink& sink,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~TextRenderer() override;
@@ -51,7 +51,7 @@ public:
     Base::Result<void> Initialize(
         const TextConfig& config) noexcept;
     Base::Result<void> RecoverDeviceResources(
-        Aero::RenderDevice::Access& device,
+        Aero::Render::RenderDeviceBase& device,
         GlyphRunResourceSink& sink) noexcept;
     void Shutdown() noexcept;
     bool IsInitialized() const noexcept;
@@ -66,7 +66,7 @@ public:
 
 private:
     Text::FontManager* fonts_ = nullptr;
-    Aero::RenderDevice::Access* device_ = nullptr;
+    Aero::Render::RenderDeviceBase* device_ = nullptr;
     GlyphRunResourceSink* sink_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     alignas(std::max_align_t) std::uint8_t stateStorage_[16384]{};

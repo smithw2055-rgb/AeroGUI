@@ -1,4 +1,4 @@
-#include <Aero/Text/FontProvider.hpp>
+#include <Aero/Media/FontProvider.hpp>
 #include <Aero/Media/TextureProvider.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
 

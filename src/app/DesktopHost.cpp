@@ -2,17 +2,17 @@
 #include "Metadata.hpp"
 #include "RenderContext.hpp"
 
-#include <Aero/Gui/Application.hpp>
-#include <Aero/Gui/Window.hpp>
+#include <AeroApp/Application.hpp>
+#include <AeroApp/Window.hpp>
 #include "ApplicationState.hpp"
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Gui/XamlReader.hpp>
+#include <Aero/Markup/XamlReader.hpp>
 #include <Aero/ViewOptions.hpp>
-#include <Aero/Gui/IRenderer.hpp>
-#include <Aero/Gui/View.hpp>
+#include <Aero/IRenderer.hpp>
+#include <Aero/View.hpp>
 
 #if defined(_WIN32)
 #include "app/platform/win32/InputRouters.hpp"
@@ -127,6 +127,7 @@ struct DesktopHostState {
             options.applicationResources = owner->application != nullptr
                 ? &owner->application->GetResources()
                 : nullptr;
+            options.diagnostics = owner->diagnostics;
 #if defined(_WIN32)
             options.clipboard = &clipboard;
             options.textInputMethodHost = &inputMethod;
@@ -492,9 +493,9 @@ struct DesktopHostState {
             }
             lastUpdate = now;
             updateClockInitialized = true;
-            Base::Result<void> frame =
-                view->Update(elapsedMilliseconds);
-            if (!frame) return frame.GetStatus();
+            updateTimeSeconds +=
+                static_cast<double>(elapsedMilliseconds) / 1000.0;
+            view->Update(updateTimeSeconds);
 
             if (!renderContext || !renderContext->IsReady()) {
                 return HostFailure(
@@ -502,18 +503,23 @@ struct DesktopHostState {
                     "Application render context is unavailable");
             }
             IRenderer& renderer = view->GetRenderer();
-            Base::Result<bool> synchronized =
-                renderer.UpdateRenderTree();
-            if (!synchronized) {
-                return synchronized.GetStatus();
+            const bool synchronized = renderer.UpdateRenderTree();
+            Base::Ref<RenderDevice> renderDevice = renderContext->Device();
+            if (!renderDevice ||
+                renderDevice->State() != RenderDeviceState::Ready) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidState,
+                    "Application render device is unavailable");
             }
             const bool needsRender = force || frameRequested ||
-                synchronized.Value() || !firstFrameRendered;
+                synchronized || !firstFrameRendered;
             if (!needsRender) return {};
 
-            Base::Result<void> offscreen =
-                renderer.RenderOffscreen();
-            if (!offscreen) return offscreen.GetStatus();
+            if (!renderer.RenderOffscreen()) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidState,
+                    "Application offscreen rendering failed");
+            }
             Base::Result<void> rendered = renderContext->Render(renderer);
             if (!rendered) return rendered.GetStatus();
 
@@ -612,6 +618,7 @@ struct DesktopHostState {
         bool frameRequested = true;
         bool updateClockInitialized = false;
         std::chrono::steady_clock::time_point lastUpdate;
+        double updateTimeSeconds = 0.0;
         bool shutdown = false;
         std::uint32_t pendingResizeWidth = 0U;
         std::uint32_t pendingResizeHeight = 0U;
@@ -688,6 +695,7 @@ struct DesktopHostState {
     Base::Result<Base::Ref<View>> CreateLoaderView() noexcept {
         ViewOptions options;
         options.text.fontSearchRoot = assetRoot.View();
+        options.diagnostics = diagnostics;
         return environment.CreateView(options, allocator);
     }
 

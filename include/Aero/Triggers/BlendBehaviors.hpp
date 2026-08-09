@@ -3,8 +3,8 @@
 #include <Aero/Triggers/Behavior.hpp>
 #include <Aero/Events/EventArgs.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Gui/Brush.hpp>
-#include <Aero/Gui/Transform.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Transforms.hpp>
 
 namespace Aero::Interactivity {
 
@@ -38,16 +38,16 @@ public:
         const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
 
 protected:
-    Base::Result<void> OnAttached() noexcept override;
+    Result<void> OnAttached() noexcept override;
     void OnDetaching() noexcept override;
 
 private:
     MouseButtonEventHandler mouseDownHandler_;
     MouseEventHandler mouseMoveHandler_;
     MouseButtonEventHandler mouseUpHandler_;
-    Base::Ref<Media::Transform> originalTransform_;
-    Base::Ref<Media::TransformGroup> transformGroup_;
-    Base::Ref<Media::TranslateTransform> translation_;
+    Ref<Media::Transform> originalTransform_;
+    Ref<Media::TransformGroup> transformGroup_;
+    Ref<Media::TranslateTransform> translation_;
     Base::Point dragStartRoot_;
     double dragStartX_ = 0.0;
     double dragStartY_ = 0.0;
@@ -73,38 +73,38 @@ public:
     BackgroundEffectBehavior() noexcept : Behavior(StaticTypeId()) {}
     ~BackgroundEffectBehavior() override = default;
 
-    Base::Ref<FrameworkElement> GetSource() const noexcept;
-    void SetSource(Base::Ref<FrameworkElement> value) noexcept {
+    Ref<FrameworkElement> GetSource() const noexcept;
+    void SetSource(Ref<FrameworkElement> value) noexcept {
         SetValue(
             SourceProperty,
-            Base::Ref<Base::Object>(std::move(value)));
+            Ref<Base::Object>(std::move(value)));
     }
-    Base::Ref<Media::Effect> GetEffect() const noexcept {
-        return GetValueOr(EffectProperty, Base::Ref<Media::Effect>{});
+    Ref<Media::Effect> GetEffect() const noexcept {
+        return GetValueOr(EffectProperty, Ref<Media::Effect>{});
     }
-    void SetEffect(Base::Ref<Media::Effect> value) noexcept {
+    void SetEffect(Ref<Media::Effect> value) noexcept {
         SetValue(EffectProperty, std::move(value));
     }
 
-    inline static constexpr DependencyProperty<Base::Ref<Base::Object>> SourceProperty{"Source"};
-    inline static constexpr DependencyProperty<Base::Ref<Media::Effect>> EffectProperty{"Effect"};
+    inline static constexpr DependencyProperty<Ref<Base::Object>> SourceProperty{"Source"};
+    inline static constexpr DependencyProperty<Ref<Media::Effect>> EffectProperty{"Effect"};
 
     static void OnBehaviorPropertyChanged(
         DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
 
 protected:
-    Base::Result<void> OnAttached() noexcept override;
+    Result<void> OnAttached() noexcept override;
     void OnDetaching() noexcept override;
     void OnLayoutUpdated() noexcept override;
 
 private:
-    Base::Ref<Media::Brush> originalFill_;
-    Base::Ref<Media::Effect> originalEffect_;
-    Base::Ref<Media::ImageBrush> projectedImage_;
+    Ref<Media::Brush> originalFill_;
+    Ref<Media::Effect> originalEffect_;
+    Ref<Media::ImageBrush> projectedImage_;
     bool updating_ = false;
 
-    Base::Result<void> Refresh() noexcept;
+    Result<void> Refresh() noexcept;
 };
 
 } // namespace Aero::Interactivity

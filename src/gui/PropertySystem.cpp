@@ -2,7 +2,7 @@
 
 // ===== DependencyProperty =====
 
-#include <Aero/Gui/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include "gui/MetadataRuntime.hpp"
 #include "gui/PropertyRuntime.hpp"
 #include "gui/FreezableRuntime.hpp"

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "gui/PropertyRuntime.hpp"
-#include "media/AnimationModel.hpp"
+#include "gui/media/AnimationModel.hpp"
 
 namespace Aero {
 

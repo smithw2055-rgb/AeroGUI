@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Module.hpp>
-#include <Aero/Gui/Application.hpp>
+#include <AeroApp/Application.hpp>
 
 namespace Aero::App {
 

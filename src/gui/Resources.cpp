@@ -1,8 +1,8 @@
-#include <Aero/Gui/ResourceDictionary.hpp>
+#include <Aero/Resources.hpp>
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 #include <cstdio>
 #include <new>

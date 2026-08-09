@@ -6,40 +6,54 @@ wins.
 
 ## Product and SDK boundary
 
-The shipped CMake products are `Aero::Base`, `Aero::Gui`, `Aero::App`, and the
-optional `Aero::Audio`. `Aero::Gui` is the embeddable UI runtime. `Aero::App`
-adds the default desktop window and application lifetime.
+The shipped CMake products are `Aero::Base`, backend-neutral `Aero::Gui`, the
+backend-neutral `Aero::Render` contract target, `Aero::RenderD3D11`,
+`Aero::RenderOpenGL33`, `Aero::App`, and optional `Aero::Audio`. `Aero::Render`
+is an interface target over contracts implemented by `AeroGui`, not another
+DLL. Embedded hosts link one backend; `Aero::App` composes the enabled desktop
+defaults behind the window and application lifetime.
 
-`include/Aero` is the complete installed SDK and `src` is hidden
-implementation. `cmake/AeroPublicHeaders.cmake` is the exact installation
-whitelist. Each binary has its own export macro (`AERO_BASE_API`,
-`AERO_AUDIO_API`, `AERO_GUI_API`, or `AERO_APP_API`), automatic Windows symbol
-export is disabled, and source files may not use an API macro.
+The installed SDK is split across `include/Aero`, `include/AeroRender`,
+`include/AeroApp`, and `include/AeroAudio`; `src` is hidden implementation.
+`cmake/AeroPublicHeaders.cmake` is the exact installation whitelist. Each
+binary has its own export macro (`AERO_BASE_API`,
+`AERO_AUDIO_API`, `AERO_GUI_API`, `AERO_RENDER_D3D11_API`,
+`AERO_RENDER_OPENGL33_API`, or `AERO_APP_API`), automatic Windows symbol export
+is disabled, and source files may not use an API macro.
 
 Product-specific XAML capabilities cross this boundary as module data. In
 particular, `AeroApp` contributes the `Application` resource scope through
 `Markup::ResourceScopeRegistration`; `AeroGui` never includes or links back to
 the App object model.
 
-WPF-shaped UI headers live under `include/Aero/Gui`. The advanced rendering
-surface is split by responsibility:
+WPF-shaped UI headers follow their public semantics: the object-model spine is
+owned directly under `include/Aero`, controls live under `include/Aero/Controls`,
+bindings under `include/Aero/Data`, media under `include/Aero/Media`, and
+advanced XAML types under `include/Aero/Markup`. There are no installed
+`include/Aero/Gui/*` forwarding headers. Audio and App contracts enter through
+`AeroAudio/Audio.hpp` and `AeroApp`; GUI input interop remains
+`Aero/InputInterop.hpp`. Native-window handle declarations are part of
+`AeroApp/WindowInterop.hpp`, while the host font provider lives beside the
+other media contracts in `Aero/Media/FontProvider.hpp`.
+The advanced rendering surface is split by responsibility:
 
 ```text
-include/Aero/Gui/IRenderer.hpp
-include/Aero/Render/RenderDevice.hpp
-include/Aero/Render/RenderTarget.hpp
-include/Aero/Render/D3D11.hpp
-include/Aero/Render/OpenGL33.hpp
+include/Aero/IRenderer.hpp
+include/AeroRender/Render.hpp
+include/AeroRender/RenderDevice.hpp
+include/AeroRender/RenderTarget.hpp
+include/AeroRender/D3D11.hpp
+include/AeroRender/OpenGL33.hpp
 ```
 
 The C++ type names remain `Aero::IRenderer`, `Aero::RenderDevice`, and
-`Aero::RenderTarget`; only their physical SDK ownership is split.
+`Aero::RenderTarget`; the backend factories live in separate linker products.
 
 Public headers contain no `Impl` declaration, internal conformance macro, or
-source include. XAML document ownership is declared by
-`<Aero/Gui/XamlDocument.hpp>`; loading is declared by
-`<Aero/Gui/XamlReader.hpp>`; provider and service contracts live under
-`<Aero/Markup>`.
+source include. Ordinary embedding loads object trees through
+`Gui::LoadXaml<T>()` and `Gui::LoadComponent()`. `XamlDocument` and
+`XamlReader` remain advanced parsing, compiled-XAML, reload, and tooling APIs
+under `<Aero/Markup>`.
 
 ## Source vocabulary and ownership
 
@@ -90,11 +104,12 @@ own `frameOpen`, `frameEnded`, present, or discard state.
 
 ## Markup and code-behind
 
-`LoadComponentInto()` preserves the identity of the existing C++ code-behind
-root. `GuiSchema`, XAML schema facets, compiled documents, provider routing,
-document caching, and object writing are Gui-owned implementation. A desktop
-host interacts with `View` through its public size, scale, content, update,
-input, and renderer API.
+`Gui::LoadComponent()` preserves the identity of the existing managed C++
+code-behind root. `Gui::LoadXaml<T>()` returns the typed root while Gui retains
+the complete pending document until `CreateView(root)` or `View::SetContent(root)`
+mounts it; NameScope, resources, visual edges, and deferred effects are not
+discarded. `GuiSchema`, XAML schema facets, compiled documents, provider
+routing, document caching, and object writing remain Gui-owned implementation.
 
 ## Verification
 

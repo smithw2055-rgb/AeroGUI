@@ -70,6 +70,8 @@ function(aero_verify_windows_exports target expected_export)
             "-DAERO_DUMPBIN=${aero_dumpbin}"
             "-DAERO_DLL=$<TARGET_FILE:${target}>"
             "-DAERO_EXPECTED_EXPORT=${expected_export}"
+            "-DAERO_ADDITIONAL_EXPECTED_EXPORT=${ARGV2}"
+            "-DAERO_EXPECTED_EXPORT_COUNT=${ARGV3}"
             "-DAERO_EXPORT_LOG=$<TARGET_FILE:${target}>.exports.txt"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckWindowsExports.cmake"
         VERBATIM)

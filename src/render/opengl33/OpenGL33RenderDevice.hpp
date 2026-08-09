@@ -7,8 +7,8 @@
 #include "render/GraphicsTypes.hpp"
 #include "render/RenderBatch.hpp"
 #include "render/RenderDeviceState.hpp"
-#include <Aero/Render/RenderDevice.hpp>
-#include <Aero/Render/OpenGL33.hpp>
+#include <AeroRender/RenderDevice.hpp>
+#include <AeroRender/OpenGL33.hpp>
 #include "OpenGL33.hpp"
 #include "OpenGL33State.hpp"
 
@@ -45,7 +45,7 @@ Base::Result<void>
 ValidateOpenGL33NativePipelineState(
     const NativePipelineState& descriptor) noexcept;
 
-class OpenGL33RenderDevice : public Aero::RenderDevice::Access {
+class OpenGL33RenderDevice : public Aero::Render::RenderDeviceBase {
 public:
     OpenGL33RenderDevice(
         const GlFunctionTable& functions,
@@ -53,7 +53,7 @@ public:
         const OpenGL33RenderDeviceOptions& options = {},
         Base::IAllocator* allocator = nullptr) noexcept;
     OpenGL33RenderDevice(
-        const ::Aero::Render::OpenGL33DeviceOptions& options,
+        const ::Aero::Render::OpenGL33::DeviceOptions& options,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~OpenGL33RenderDevice() noexcept override;
 
@@ -66,16 +66,16 @@ public:
     void Shutdown() noexcept;
     void NotifyContextLost() noexcept;
 
-    ::Aero::Render::RenderBackendKind Backend() const noexcept override {
-        return ::Aero::Render::RenderBackendKind::OpenGL33;
+    ::Aero::RenderBackendKind BackendKind() const noexcept override {
+        return ::Aero::RenderBackendKind::OpenGL33;
     }
     Base::Result<FenceValue> DrawBatch(
         ::Aero::Render::RenderBatch&& batch) noexcept override;
-    void NotifyDeviceLost() noexcept override;
-    Base::Result<void> RestoreDevice() noexcept override;
-    Base::Result<void> WaitIdle(
+    void NotifyBackendDeviceLost() noexcept override;
+    Base::Result<void> RestoreBackendDevice() noexcept override;
+    Base::Result<void> WaitBackendIdle(
         std::uint32_t timeoutMilliseconds) noexcept override;
-    ::Aero::Render::BackendHealth GetDeviceHealth() const noexcept override;
+    ::Aero::RenderBackendHealth BackendHealth() const noexcept override;
 
     bool IsInitialized() const noexcept;
     bool IsReady() const noexcept {
@@ -206,7 +206,7 @@ private:
     GlFunctionTable functions_;
     GlContextBinding context_;
     OpenGL33RenderDeviceOptions options_;
-    ::Aero::Render::OpenGL33DeviceOptions hostOptions_;
+    ::Aero::Render::OpenGL33::DeviceOptions hostOptions_;
     Base::IAllocator* allocator_ = nullptr;
     // Own the backend state in-place while keeping OpenGL implementation
     // types out of this source-only declaration.
@@ -218,13 +218,13 @@ private:
 
 Base::Result<ResourceHandle>
 ImportOpenGL33ExternalRenderTarget(
-    Aero::RenderDevice::Access& device,
+    Aero::Render::RenderDeviceBase& device,
     OpenGL33RenderDevice& backend,
     const OpenGL33RenderTargetBinding& descriptor) noexcept;
 
 Base::Result<ResourceHandle>
 ImportOpenGL33ExternalTexture(
-    Aero::RenderDevice::Access& device,
+    Aero::Render::RenderDeviceBase& device,
     OpenGL33RenderDevice& backend,
     const OpenGL33ExternalTextureDescriptor& descriptor) noexcept;
 

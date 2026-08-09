@@ -2,8 +2,8 @@
 
 #include "app/Presentation.hpp"
 
-#include <Aero/Platform/NativeWindow.hpp>
-#include <Aero/Render/OpenGL33.hpp>
+#include <AeroApp/WindowInterop.hpp>
+#include <AeroRender/OpenGL33.hpp>
 
 #include <cstdint>
 
@@ -33,7 +33,7 @@ public:
     std::uint32_t Height() const noexcept { return size_.height; }
     std::uint64_t StableId() const noexcept;
 
-    static Render::OpenGL33ProcAddress ResolveCallback(
+    static Render::OpenGL33::ProcAddress ResolveCallback(
         void* context,
         const char* name) noexcept;
     static Base::Status MakeCurrentCallback(void* context) noexcept;

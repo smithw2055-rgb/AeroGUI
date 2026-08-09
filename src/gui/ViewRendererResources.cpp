@@ -24,7 +24,7 @@ Base::Status DeviceUnavailable(const char* message) noexcept {
 } // namespace
 
 Base::Result<void> ViewRenderer::InitializeRenderResources(
-    RenderDevice::Access& device,
+    Render::RenderDeviceBase& device,
     std::uint64_t generation) noexcept {
     if (frameEncoder_.has_value() && frameEncoder_->IsInitialized()) {
         return renderThread_ == std::this_thread::get_id()
@@ -88,8 +88,8 @@ Base::Result<void> ViewRenderer::VerifyRenderResources() const noexcept {
         return WrongThread(
             "ViewRenderer must render from its owning render thread");
     }
-    RenderDevice::Access* backend = device_
-        ? RenderDevice::Access::BackendState(*device_)
+    Render::RenderDeviceBase* backend = device_
+        ? Render::RenderDeviceBase::From(*device_)
         : nullptr;
     if (backend == nullptr || !backend->AreResourcesReady() ||
         backend->BackendGeneration() != deviceGeneration_) {
@@ -103,8 +103,8 @@ Base::Result<Graphics::FenceValue> ViewRenderer::RenderOffscreenFrame(
     const ::Aero::Render::RenderFrame& frame) noexcept {
     Base::Result<void> ready = VerifyRenderResources();
     if (!ready) return ready.GetStatus();
-    RenderDevice::Access* backend =
-        RenderDevice::Access::BackendState(*device_);
+    Render::RenderDeviceBase* backend =
+        Render::RenderDeviceBase::From(*device_);
     Base::Result<std::uint32_t> collected = backend->CollectGarbage();
     if (!collected) return collected.GetStatus();
     Base::Result<Graphics::FenceValue> recorded =
@@ -118,8 +118,8 @@ Base::Result<Graphics::FenceValue> ViewRenderer::RenderOnscreenFrame(
     const ::Aero::Render::FrameTarget& target) noexcept {
     Base::Result<void> ready = VerifyRenderResources();
     if (!ready) return ready.GetStatus();
-    RenderDevice::Access* backend =
-        RenderDevice::Access::BackendState(*device_);
+    Render::RenderDeviceBase* backend =
+        Render::RenderDeviceBase::From(*device_);
     Base::Result<std::uint32_t> collected = backend->CollectGarbage();
     if (!collected) return collected.GetStatus();
     Base::Result<Graphics::FenceValue> recorded =

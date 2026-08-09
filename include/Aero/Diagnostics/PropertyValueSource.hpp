@@ -55,7 +55,7 @@ enum class PropertyExpressionKind : std::uint8_t {
     DynamicResource
 };
 
-using PropertyExpressionEvaluateCallback = Base::Result<PropertyValue> (*)(
+using PropertyExpressionEvaluateCallback = Result<PropertyValue> (*)(
     void* context,
     DependencyObject& object,
     DependencyPropertyHandle property) noexcept;
@@ -102,7 +102,7 @@ public:
         std::uint32_t first = FirstCanonicalProviderOrigin) noexcept
         : next_(first) {}
 
-    Base::Result<std::uint32_t> Allocate() noexcept {
+    Result<std::uint32_t> Allocate() noexcept {
         if (next_ < FirstCanonicalProviderOrigin || next_ == UINT32_MAX) {
             return Base::Status::Failure(
                 Base::ErrorCode::OutOfRange,
@@ -155,7 +155,7 @@ public:
             contributions_[existing].value = value;
             return true;
         }
-        Base::Result<void> added = contributions_.PushBack({token, value});
+        Result<void> added = contributions_.PushBack({token, value});
         if (!added) {
             Base::ReportOutOfMemory(
                 sizeof(PropertyProviderContribution),
@@ -179,7 +179,7 @@ public:
         PropertyProviderContribution contribution;
         contribution.token = token;
         contribution.value = std::move(value);
-        Base::Result<void> added =
+        Result<void> added =
             contributions_.PushBack(std::move(contribution));
         if (!added) {
             Base::ReportOutOfMemory(
@@ -270,7 +270,7 @@ public:
             : nullptr;
     }
 
-    Base::Span<const PropertyProviderContribution>
+    Span<const PropertyProviderContribution>
     Contributions() const noexcept {
         return contributions_.AsSpan();
     }

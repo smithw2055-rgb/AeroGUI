@@ -152,26 +152,26 @@ public:
     Dispatcher& operator=(Dispatcher&&) = delete;
 
     bool CheckAccess() const noexcept;
-    Base::Result<void> VerifyAccess() const noexcept;
+    Result<void> VerifyAccess() const noexcept;
     DispatcherThreadToken OwnerThreadToken() const noexcept {
         return ownerThread_;
     }
 
     DispatcherTime NowMicroseconds() const noexcept;
-    Base::Result<DispatcherTaskHandle> Post(
+    Result<DispatcherTaskHandle> Post(
         DispatcherPriority priority,
         DispatcherCallback callback,
         void* context = nullptr,
         DispatcherCleanupCallback cleanup = nullptr) noexcept;
 
-    Base::Result<DispatcherTaskHandle> PostDelayed(
+    Result<DispatcherTaskHandle> PostDelayed(
         DispatcherTime delayMicroseconds,
         DispatcherPriority priority,
         DispatcherCallback callback,
         void* context = nullptr,
         DispatcherCleanupCallback cleanup = nullptr) noexcept;
 
-    Base::Result<DispatcherTaskHandle> PostAt(
+    Result<DispatcherTaskHandle> PostAt(
         DispatcherTime dueTimeMicroseconds,
         DispatcherPriority priority,
         DispatcherCallback callback,
@@ -185,29 +185,29 @@ public:
 
     // Processes ready callbacks from Send through throughPriority. The host
     // controls when this is called; Dispatcher never creates a worker thread.
-    Base::Result<std::uint32_t> ProcessPending(
+    Result<std::uint32_t> ProcessPending(
         DispatcherPriority throughPriority = DispatcherPriority::Idle,
         std::uint32_t maxCallbacks =
             UnlimitedDispatcherCallbacks) noexcept;
 
-    Base::Result<DispatcherFrameHookHandle>
+    Result<DispatcherFrameHookHandle>
     RegisterFrameHook(
         DispatcherFramePhase phase,
         DispatcherCallback callback,
         void* context = nullptr,
         DispatcherCleanupCallback cleanup = nullptr) noexcept;
 
-    Base::Result<bool> RemoveFrameHook(
+    Result<bool> RemoveFrameHook(
         DispatcherFrameHookHandle handle) noexcept;
 
     // Hooks run in registration order. Hooks added while a phase is running
     // are deferred until the next invocation of that phase.
-    Base::Result<std::uint32_t> RunFramePhase(
+    Result<std::uint32_t> RunFramePhase(
         DispatcherFramePhase phase) noexcept;
     DispatcherFrameTimings
     FrameTimings() const noexcept;
 
-    Base::Result<DispatcherReentrancyGuard>
+    Result<DispatcherReentrancyGuard>
     EnterReentrancyGuard() noexcept;
 
     std::uint32_t PendingTaskCount() const noexcept;
@@ -268,7 +268,7 @@ private:
     bool phaseActive_ = false;
     bool shuttingDown_ = false;
 
-    Base::Result<DispatcherTaskHandle> Enqueue(
+    Result<DispatcherTaskHandle> Enqueue(
         DispatcherTime dueTimeMicroseconds,
         bool delayed,
         DispatcherPriority priority,
@@ -276,11 +276,11 @@ private:
         void* context,
         DispatcherCleanupCallback cleanup) noexcept;
 
-    Base::Result<void> InsertReadyLocked(
+    Result<void> InsertReadyLocked(
         const TaskRecord& record) noexcept;
-    Base::Result<void> InsertDelayedLocked(
+    Result<void> InsertDelayedLocked(
         const TaskRecord& record) noexcept;
-    Base::Result<void> PromoteDueLocked(
+    Result<void> PromoteDueLocked(
         DispatcherTime nowMicroseconds) noexcept;
 
     void CompactReadyLocked(bool force) noexcept;
@@ -306,7 +306,7 @@ private:
 class AERO_GUI_API DispatcherObject : public Base::Object {
 public:
     bool CheckAccess() const noexcept;
-    Base::Result<void> VerifyAccess() const noexcept;
+    Result<void> VerifyAccess() const noexcept;
     Dispatcher& GetDispatcher() const noexcept;
 
 protected:

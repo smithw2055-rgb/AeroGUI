@@ -1,5 +1,5 @@
-#include <Aero/App.hpp>
-#include <Aero/Gui/Button.hpp>
+#include <AeroApp/App.hpp>
+#include <Aero/Controls/Button.hpp>
 #include <Aero/Meta.hpp>
 
 namespace Sample {
@@ -18,7 +18,7 @@ public:
     }
 
     static void DescribeComponent(
-        Aero::Meta::TypeDescription<MainWindow>& type) noexcept {
+        Aero::Meta::TypeBuilder<MainWindow>& type) noexcept {
         type.EventHandler<
             Aero::RoutedEventArgs,
             &MainWindow::OnHelloClick>("OnHelloClick");
@@ -30,7 +30,7 @@ private:
         const Aero::RoutedEventArgs&) noexcept {
         if (auto* button = FindName<Aero::Controls::Button>("HelloButton")) {
             auto text = Aero::Meta::Value::TryFromString(
-                Aero::Meta::TypeOf<Aero::Base::String>(),
+                Aero::Meta::TypeOf<Aero::String>(),
                 "Hello from AeroGUI");
             if (text) {
                 button->SetContent(std::move(text).Value());
@@ -61,6 +61,6 @@ int main() {
     Aero::App::RunOptions options;
     options.modules = modules;
     Sample::App app;
-    Aero::Base::Result<int> result = app.Run(options);
+    Aero::Result<int> result = app.Run(options);
     return result ? result.Value() : -1;
 }

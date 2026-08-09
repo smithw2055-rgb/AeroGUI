@@ -29,7 +29,7 @@ extension:
 - `<Aero/Gui.hpp>` is the retained-mode WPF/XAML class library. It contains the
   dependency-object spine, routed events, layout values, styles, resources,
   controls, data binding, input, media and shapes.
-- `<Aero/App.hpp>` adds the optional default desktop lifetime to
+- `<AeroApp/App.hpp>` adds the optional default desktop lifetime to
   `Application` and `Window`; `App::RunOptions` configures optional host details.
 - `<Aero/Integration.hpp>` exposes renderer, host and native-window integration
   for engines and existing application frameworks.
@@ -56,7 +56,7 @@ SDK.
 | `System.Windows.Markup` | `Aero::Markup` | `MarkupExtension`, `XamlReader` |
 | `System.Windows.Threading` | `Aero::Threading` | `Dispatcher`, `DispatcherObject` |
 | Stable value and ID contracts | `Aero::Base` | `TypeId`, `MemberId`, `Value`, `Result`, `Stream` |
-| Aero metadata authoring | `Aero::Meta` | `TypeTraits`, `TypeDescription`, `Registration`, `Registry` |
+| Aero metadata authoring | `Aero::Meta` | `TypeTraits`, `TypeBuilder`, `Registration`, `Registry` |
 | Host and renderer integration | `Aero::Integration` | `ViewOptions`, opaque render attachment and native integration APIs |
 | Default application framework | `Aero::App` | `RunOptions`, generated `App::Run()` bootstrap |
 | Transitional ABI implementation | `Aero::Base::Detail` | header-only helpers and private ABI seams; never user-facing |

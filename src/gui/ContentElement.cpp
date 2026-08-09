@@ -1,4 +1,4 @@
-#include <Aero/Gui/FrameworkContentElement.hpp>
+#include <Aero/FrameworkContentElement.hpp>
 
 #include "gui/MetadataRuntime.hpp"
 #include "gui/PropertyRuntime.hpp"

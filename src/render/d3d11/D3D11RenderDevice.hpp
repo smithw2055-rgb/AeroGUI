@@ -7,7 +7,7 @@
 #include "render/GraphicsTypes.hpp"
 #include "render/RenderBatch.hpp"
 #include "render/RenderDeviceState.hpp"
-#include <Aero/Render/RenderDevice.hpp>
+#include <AeroRender/RenderDevice.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -48,7 +48,7 @@ struct D3D11RenderTargetBinding  {
     std::uint64_t stableId = 0U;
 };
 
-class D3D11RenderDevice final : public Aero::RenderDevice::Access {
+class D3D11RenderDevice final : public Aero::Render::RenderDeviceBase {
 public:
     explicit D3D11RenderDevice(
         const D3D11RenderDeviceOptions& options = {},
@@ -61,16 +61,16 @@ public:
     Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
 
-    ::Aero::Render::RenderBackendKind Backend() const noexcept override {
-        return ::Aero::Render::RenderBackendKind::D3D11;
+    ::Aero::RenderBackendKind BackendKind() const noexcept override {
+        return ::Aero::RenderBackendKind::D3D11;
     }
     Base::Result<FenceValue> DrawBatch(
         ::Aero::Render::RenderBatch&& batch) noexcept override;
-    void NotifyDeviceLost() noexcept override;
-    Base::Result<void> RestoreDevice() noexcept override;
-    Base::Result<void> WaitIdle(
+    void NotifyBackendDeviceLost() noexcept override;
+    Base::Result<void> RestoreBackendDevice() noexcept override;
+    Base::Result<void> WaitBackendIdle(
         std::uint32_t timeoutMilliseconds) noexcept override;
-    ::Aero::Render::BackendHealth GetDeviceHealth() const noexcept override;
+    ::Aero::RenderBackendHealth BackendHealth() const noexcept override;
 
     bool IsInitialized() const noexcept;
     bool IsReady() const noexcept {
@@ -195,7 +195,7 @@ private:
 
 Base::Result<ResourceHandle>
 ImportD3D11ExternalRenderTarget(
-    Aero::RenderDevice::Access& device,
+    Aero::Render::RenderDeviceBase& device,
     D3D11RenderDevice& backend,
     const D3D11RenderTargetBinding& descriptor) noexcept;
 

@@ -1,7 +1,7 @@
-#include <Aero/Gui/DrawingContext.hpp>
+#include <Aero/Media/DrawingContext.hpp>
 
 #include "DisplayList.hpp"
-#include "../media/BrushRendering.hpp"
+#include "gui/media/BrushRendering.hpp"
 #include "gui/MetadataRuntime.hpp"
 #include "gui/PropertyRuntime.hpp"
 #include "gui/FreezableRuntime.hpp"
@@ -12,10 +12,10 @@
 #include "gui/BindingRuntime.hpp"
 #include "gui/AnimationRuntime.hpp"
 #include "gui/StyleRuntime.hpp"
-#include "media/AnimationRuntime.hpp"
-#include "media/BrushRuntime.hpp"
-#include "media/EffectRuntime.hpp"
-#include "media/TransformRuntime.hpp"
+#include "gui/media/AnimationRuntime.hpp"
+#include "gui/media/BrushRuntime.hpp"
+#include "gui/media/EffectRuntime.hpp"
+#include "gui/media/TransformRuntime.hpp"
 
 namespace Aero::Media {
 

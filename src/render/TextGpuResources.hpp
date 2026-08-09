@@ -49,7 +49,7 @@ private:
 class TextGpuResources {
 public:
     TextGpuResources(
-        Aero::RenderDevice::Access& device,
+        Aero::Render::RenderDeviceBase& device,
         UiFrameEncoder& encoder,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
@@ -204,7 +204,7 @@ private:
             "Render-device text layout is stale");
     }
 
-    Aero::RenderDevice::Access* device_ = nullptr;
+    Aero::Render::RenderDeviceBase* device_ = nullptr;
     FrameGlyphRunSink sink_;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<TextRenderer*> renderers_;

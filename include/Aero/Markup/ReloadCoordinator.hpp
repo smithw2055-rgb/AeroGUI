@@ -4,8 +4,8 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Gui/View.hpp>
-#include <Aero/Gui/Geometry.hpp>
+#include <Aero/View.hpp>
+#include <Aero/Media/Geometry.hpp>
 
 #include <cstdint>
 
@@ -43,17 +43,17 @@ public:
     ReloadCoordinator& operator=(
         const ReloadCoordinator&) = delete;
 
-    Base::Result<void> Start(
-        Base::StringView rootUri,
+    Result<void> Start(
+        StringView rootUri,
         Aero::Base::Size availableSize,
         Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
     void Stop() noexcept;
 
-    Base::Result<ReloadResult> Poll(
+    Result<ReloadResult> Poll(
         Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<ReloadResult> Reload(
+    Result<ReloadResult> Reload(
         Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<ReloadResult> NotifySourceChanged(
+    Result<ReloadResult> NotifySourceChanged(
         const Base::ResourceUri& changedUri,
         Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
 

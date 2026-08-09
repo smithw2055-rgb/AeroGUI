@@ -14,29 +14,29 @@ namespace Aero {
 namespace Meta { class Registration; }
 
 
-using ModuleRegisterCallback = Base::Result<void> (*)(
+using ModuleRegisterCallback = Result<void> (*)(
     Meta::Registration& registration) noexcept;
-using ModuleRegisterContextCallback = Base::Result<void> (*)(
+using ModuleRegisterContextCallback = Result<void> (*)(
     Meta::Registration& registration,
     void* userContext) noexcept;
 struct ModuleDependency  {
-    Base::StringView name;
+    StringView name;
     std::uint32_t minimumSchemaVersion = 1U;
 };
 
 struct ModuleRegistration  {
-    Base::StringView name;
+    StringView name;
     std::uint32_t schemaVersion = 1U;
     ModuleRegisterCallback registerModule = nullptr;
     ModuleRegisterContextCallback registerModuleWithContext = nullptr;
     void* context = nullptr;
     std::uint32_t abiVersion = ModuleAbiVersion;
-    Base::Span<const ModuleDependency> dependencies;
-    Base::Span<const Markup::ResourceScopeRegistration> resourceScopes;
+    Span<const ModuleDependency> dependencies;
+    Span<const Markup::ResourceScopeRegistration> resourceScopes;
 };
 
 constexpr ModuleRegistration DefineModule(
-    Base::StringView name,
+    StringView name,
     ModuleRegisterCallback registerModule) noexcept {
     ModuleRegistration registration;
     registration.name = name;

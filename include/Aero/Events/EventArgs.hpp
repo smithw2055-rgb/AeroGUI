@@ -4,8 +4,8 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Gui/DependencyProperty.hpp>
-#include <Aero/Gui/RoutedEvent.hpp>
+#include <Aero/DependencyProperty.hpp>
+#include <Aero/RoutedEvent.hpp>
 #include <Aero/Value.hpp>
 
 #include <cstdint>
@@ -253,11 +253,11 @@ public:
     constexpr TextCompositionEventArgs() noexcept
         : InputEventArgs(StaticTypeId()) {}
 
-    constexpr Base::StringView GetText() const noexcept { return text_; }
-    constexpr void SetText(Base::StringView value) noexcept { text_ = value; }
+    constexpr StringView GetText() const noexcept { return text_; }
+    constexpr void SetText(StringView value) noexcept { text_ = value; }
 
 private:
-    Base::StringView text_;
+    StringView text_;
 };
 
 struct KeyboardFocusChangedEventArgs : RoutedEventArgs {

@@ -84,16 +84,16 @@ Base::Result<void> PopulateUiMedia(
     brush
         .Property(
             Brush::OpacityProperty,
-            PropertyOptions(1.0)
+            FrameworkPropertyMetadata(1.0)
                 .Validate(&ValidateUnitDouble)
                 .AffectsRender())
         .Property(
             Brush::ShaderProperty,
-            PropertyOptions(Base::Ref<Base::Object>{})
+            FrameworkPropertyMetadata(Base::Ref<Base::Object>{})
                 .AffectsRender())
         .Property(
             Brush::RelativeTransformProperty,
-            PropertyOptions(Base::Ref<Transform>{})
+            FrameworkPropertyMetadata(Base::Ref<Transform>{})
                 .AffectsRender())
         .TextConverter(&ConvertBrushText);
     status = brush.Result();
@@ -104,7 +104,7 @@ Base::Result<void> PopulateUiMedia(
     solidBrush
         .Property(
             SolidColorBrush::ColorProperty,
-            PropertyOptions(Color{}))
+            FrameworkPropertyMetadata(Color{}))
         .Factory();
     status = solidBrush.Result();
     if (!status) return status.GetStatus();
@@ -114,11 +114,11 @@ Base::Result<void> PopulateUiMedia(
     gradientStop
         .Property(
             GradientStop::OffsetProperty,
-            PropertyOptions(0.0)
+            FrameworkPropertyMetadata(0.0)
                 .Validate(&ValidateUnitDouble))
         .Property(
             GradientStop::ColorProperty,
-            PropertyOptions(Color{}))
+            FrameworkPropertyMetadata(Color{}))
         .Factory();
     status = gradientStop.Result();
     if (!status) return status.GetStatus();
@@ -144,7 +144,7 @@ Base::Result<void> PopulateUiMedia(
     monochromeBrush
         .Property(
             MonochromeShader::ColorProperty,
-            PropertyOptions(Color{}).AffectsRender())
+            FrameworkPropertyMetadata(Color{}).AffectsRender())
         .Factory();
     status = monochromeBrush.Result();
     if (!status) return status.GetStatus();
@@ -169,7 +169,7 @@ Base::Result<void> PopulateUiMedia(
     wavesBrush
         .Property(
             WavesShader::TimeProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
     status = wavesBrush.Result();
     if (!status) return status.GetStatus();
@@ -179,11 +179,11 @@ Base::Result<void> PopulateUiMedia(
     gradientBrush
         .Property(
             GradientBrush::MappingModeProperty,
-            PropertyOptions(
+            FrameworkPropertyMetadata(
                 BrushMappingMode::RelativeToBoundingBox))
         .Property(
             GradientBrush::SpreadMethodProperty,
-            PropertyOptions(GradientSpreadMethod::Pad)
+            FrameworkPropertyMetadata(GradientSpreadMethod::Pad)
                 .AffectsRender())
         .Content<GradientStop>(
             "GradientStops",
@@ -198,10 +198,10 @@ Base::Result<void> PopulateUiMedia(
     linearBrush
         .Property(
             LinearGradientBrush::StartPointProperty,
-            PropertyOptions(Point{0.0, 0.0}))
+            FrameworkPropertyMetadata(Point{0.0, 0.0}))
         .Property(
             LinearGradientBrush::EndPointProperty,
-            PropertyOptions(Point{1.0, 1.0}))
+            FrameworkPropertyMetadata(Point{1.0, 1.0}))
         .Factory();
     status = linearBrush.Result();
     if (!status) return status.GetStatus();
@@ -211,17 +211,17 @@ Base::Result<void> PopulateUiMedia(
     radialBrush
         .Property(
             RadialGradientBrush::CenterProperty,
-            PropertyOptions(Point{0.5, 0.5}))
+            FrameworkPropertyMetadata(Point{0.5, 0.5}))
         .Property(
             RadialGradientBrush::GradientOriginProperty,
-            PropertyOptions(Point{0.5, 0.5}))
+            FrameworkPropertyMetadata(Point{0.5, 0.5}))
         .Property(
             RadialGradientBrush::RadiusXProperty,
-            PropertyOptions(0.5)
+            FrameworkPropertyMetadata(0.5)
                 .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Property(
             RadialGradientBrush::RadiusYProperty,
-            PropertyOptions(0.5)
+            FrameworkPropertyMetadata(0.5)
                 .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Factory();
     status = radialBrush.Result();
@@ -239,7 +239,7 @@ Base::Result<void> PopulateUiMedia(
     bitmapImage
         .Property(
             BitmapImage::UriSourceProperty,
-            PropertyOptions(
+            FrameworkPropertyMetadata(
                 Base::ResourceUri{}))
         .Factory();
     status = bitmapImage.Result();
@@ -250,36 +250,36 @@ Base::Result<void> PopulateUiMedia(
     imageBrush
         .Property(
             ImageBrush::ImageSourceProperty,
-            PropertyOptions(
+            FrameworkPropertyMetadata(
                 Base::Ref<ImageSource>{}))
         .Property(
             ImageBrush::StretchProperty,
-            PropertyOptions(Stretch::Fill))
+            FrameworkPropertyMetadata(Stretch::Fill))
         .Property(
             ImageBrush::ViewboxProperty,
-            PropertyOptions(
+            FrameworkPropertyMetadata(
                 Rect{0.0, 0.0, 1.0, 1.0}))
         .Property(
             ImageBrush::ViewportProperty,
-            PropertyOptions(
+            FrameworkPropertyMetadata(
                 Rect{0.0, 0.0, 1.0, 1.0}))
         .Property(
             ImageBrush::ViewboxUnitsProperty,
-            PropertyOptions(
+            FrameworkPropertyMetadata(
                 BrushMappingMode::RelativeToBoundingBox))
         .Property(
             ImageBrush::ViewportUnitsProperty,
-            PropertyOptions(
+            FrameworkPropertyMetadata(
                 BrushMappingMode::RelativeToBoundingBox))
         .Property(
             ImageBrush::TileModeProperty,
-            PropertyOptions(TileMode::None))
+            FrameworkPropertyMetadata(TileMode::None))
         .Property(
             ImageBrush::AlignmentXProperty,
-            PropertyOptions(HorizontalAlignment::Center))
+            FrameworkPropertyMetadata(HorizontalAlignment::Center))
         .Property(
             ImageBrush::AlignmentYProperty,
-            PropertyOptions(VerticalAlignment::Center))
+            FrameworkPropertyMetadata(VerticalAlignment::Center))
         .Factory();
     status = imageBrush.Result();
     if (!status) return status.GetStatus();
@@ -301,10 +301,10 @@ Base::Result<void> PopulateUiMedia(
     translate
         .Property(
             TranslateTransform::XProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(
             TranslateTransform::YProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
     status = translate.Result();
     if (!status) return status.GetStatus();
@@ -313,16 +313,16 @@ Base::Result<void> PopulateUiMedia(
     scale
         .Property(
             ScaleTransform::ScaleXProperty,
-            PropertyOptions(1.0).AffectsRender())
+            FrameworkPropertyMetadata(1.0).AffectsRender())
         .Property(
             ScaleTransform::ScaleYProperty,
-            PropertyOptions(1.0).AffectsRender())
+            FrameworkPropertyMetadata(1.0).AffectsRender())
         .Property(
             ScaleTransform::CenterXProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(
             ScaleTransform::CenterYProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
     status = scale.Result();
     if (!status) return status.GetStatus();
@@ -331,13 +331,13 @@ Base::Result<void> PopulateUiMedia(
     rotate
         .Property(
             RotateTransform::AngleProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(
             RotateTransform::CenterXProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(
             RotateTransform::CenterYProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
     status = rotate.Result();
     if (!status) return status.GetStatus();
@@ -346,16 +346,16 @@ Base::Result<void> PopulateUiMedia(
     skew
         .Property(
             SkewTransform::AngleXProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(
             SkewTransform::AngleYProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(
             SkewTransform::CenterXProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Property(
             SkewTransform::CenterYProperty,
-            PropertyOptions(0.0).AffectsRender())
+            FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
     status = skew.Result();
     if (!status) return status.GetStatus();
@@ -364,7 +364,7 @@ Base::Result<void> PopulateUiMedia(
     matrixTransform
         .Property(
             MatrixTransform::MatrixProperty,
-            PropertyOptions(Base::Transform2D{}).AffectsRender())
+            FrameworkPropertyMetadata(Base::Transform2D{}).AffectsRender())
         .Factory();
     status = matrixTransform.Result();
     if (!status) return status.GetStatus();
@@ -388,7 +388,7 @@ Base::Result<void> PopulateUiMedia(
     blurEffect
         .Property(
             BlurEffect::RadiusProperty,
-            PropertyOptions(5.0)
+            FrameworkPropertyMetadata(5.0)
                 .AffectsRender()
                 .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Factory();
@@ -400,26 +400,26 @@ Base::Result<void> PopulateUiMedia(
     dropShadowEffect
         .Property(
             DropShadowEffect::BlurRadiusProperty,
-            PropertyOptions(5.0)
+            FrameworkPropertyMetadata(5.0)
                 .AffectsRender()
                 .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             DropShadowEffect::DirectionProperty,
-            PropertyOptions(315.0)
+            FrameworkPropertyMetadata(315.0)
                 .AffectsRender())
         .Property(
             DropShadowEffect::ShadowDepthProperty,
-            PropertyOptions(5.0)
+            FrameworkPropertyMetadata(5.0)
                 .AffectsRender()
                 .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
         .Property(
             DropShadowEffect::OpacityProperty,
-            PropertyOptions(1.0)
+            FrameworkPropertyMetadata(1.0)
                 .AffectsRender()
                 .Validate(&ValidateUnitDouble))
         .Property(
             DropShadowEffect::ColorProperty,
-            PropertyOptions(
+            FrameworkPropertyMetadata(
                 Base::Color{
                     0.0F, 0.0F, 0.0F, 1.0F})
                 .AffectsRender())
@@ -431,7 +431,7 @@ Base::Result<void> PopulateUiMedia(
     pixelateEffect
         .Property(
             PixelateEffect::SizeProperty,
-            PropertyOptions(1.0)
+            FrameworkPropertyMetadata(1.0)
                 .AffectsRender()
                 .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Factory();
@@ -442,16 +442,16 @@ Base::Result<void> PopulateUiMedia(
     visualBrush
         .Property(
             VisualBrush::VisualProperty,
-            PropertyOptions(Base::Ref<Base::Object>{}))
+            FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
         .Property(
             VisualBrush::StretchProperty,
-            PropertyOptions(Stretch::Fill))
+            FrameworkPropertyMetadata(Stretch::Fill))
         .Property(
             VisualBrush::ViewboxProperty,
-            PropertyOptions(Rect{0.0, 0.0, 1.0, 1.0}))
+            FrameworkPropertyMetadata(Rect{0.0, 0.0, 1.0, 1.0}))
         .Property(
             VisualBrush::AlignmentYProperty,
-            PropertyOptions(VerticalAlignment::Center))
+            FrameworkPropertyMetadata(VerticalAlignment::Center))
         .Factory();
     status = visualBrush.Result();
     if (!status) return status.GetStatus();

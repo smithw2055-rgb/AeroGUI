@@ -166,13 +166,13 @@ std::uint64_t OpenGLWindow::StableId() const noexcept {
         reinterpret_cast<std::uintptr_t>(renderContext_));
 }
 
-Render::OpenGL33ProcAddress OpenGLWindow::ResolveCallback(
+Render::OpenGL33::ProcAddress OpenGLWindow::ResolveCallback(
     void*,
     const char* name) noexcept {
     if (name == nullptr) return nullptr;
     const __GLXextFuncPtr address = glXGetProcAddressARB(
         reinterpret_cast<const GLubyte*>(name));
-    return reinterpret_cast<Render::OpenGL33ProcAddress>(address);
+    return reinterpret_cast<Render::OpenGL33::ProcAddress>(address);
 }
 
 Base::Status OpenGLWindow::MakeCurrentCallback(void* context) noexcept {

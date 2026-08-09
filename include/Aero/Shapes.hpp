@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Aero/Layout.hpp>
-#include <Aero/Gui/Brush.hpp>
-#include <Aero/Gui/FrameworkElement.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 namespace Aero::Shapes {
 
@@ -17,20 +17,20 @@ enum class PenLineCap : std::uint8_t { Flat = 0U, Square, Round, Triangle };
 class AERO_GUI_API Shape : public FrameworkElement {
     AERO_DECLARE_TYPE(Shape, FrameworkElement)
 public:
-    Base::Ref<Brush> GetFill() const noexcept;
-    Base::Ref<Brush> GetStroke() const noexcept;
+    Ref<Brush> GetFill() const noexcept;
+    Ref<Brush> GetStroke() const noexcept;
     double GetStrokeThickness() const noexcept;
     Stretch GetStretch() const noexcept;
 
     void SetFill(
-        Base::Ref<Brush> value) noexcept;
+        Ref<Brush> value) noexcept;
     void SetStroke(
-        Base::Ref<Brush> value) noexcept;
+        Ref<Brush> value) noexcept;
     void SetStrokeThickness(double value) noexcept;
     void SetStretch(Stretch value) noexcept;
 
-    inline static constexpr DependencyProperty<Base::Ref<Brush>> FillProperty{"Fill"};
-    inline static constexpr DependencyProperty<Base::Ref<Brush>> StrokeProperty{"Stroke"};
+    inline static constexpr DependencyProperty<Ref<Brush>> FillProperty{"Fill"};
+    inline static constexpr DependencyProperty<Ref<Brush>> StrokeProperty{"Stroke"};
     inline static constexpr DependencyProperty<double> StrokeThicknessProperty{"StrokeThickness"};
     inline static constexpr DependencyProperty<Stretch> StretchProperty{"Stretch"};
 
@@ -82,9 +82,9 @@ public:
     Path() noexcept;
     ~Path() override;
 
-    Base::Ref<Geometry> GetData() const noexcept;
-    Base::Ref<Brush> GetFill() const noexcept;
-    Base::Ref<Brush> GetStroke() const noexcept;
+    Ref<Geometry> GetData() const noexcept;
+    Ref<Brush> GetFill() const noexcept;
+    Ref<Brush> GetStroke() const noexcept;
     double GetStrokeThickness() const noexcept;
     PenLineJoin GetStrokeLineJoin() const noexcept;
     PenLineCap GetStrokeStartLineCap() const noexcept;
@@ -94,9 +94,9 @@ public:
     Stretch GetStretch() const noexcept;
     Rect GetGeometryBounds() const noexcept { return geometryBounds_; }
 
-    void SetData(Base::Ref<Geometry> value) noexcept;
-    void SetFill(Base::Ref<Brush> value) noexcept;
-    void SetStroke(Base::Ref<Brush> value) noexcept;
+    void SetData(Ref<Geometry> value) noexcept;
+    void SetFill(Ref<Brush> value) noexcept;
+    void SetStroke(Ref<Brush> value) noexcept;
     void SetStrokeThickness(double value) noexcept;
     void SetStrokeLineJoin(PenLineJoin value) noexcept;
     void SetStrokeStartLineCap(PenLineCap value) noexcept;
@@ -105,9 +105,9 @@ public:
     void SetTrimEnd(double value) noexcept;
     void SetStretch(Stretch value) noexcept;
 
-    inline static constexpr DependencyProperty<Base::Ref<Geometry>> DataProperty{"Data"};
-    inline static constexpr DependencyProperty<Base::Ref<Brush>> FillProperty{"Fill"};
-    inline static constexpr DependencyProperty<Base::Ref<Brush>> StrokeProperty{"Stroke"};
+    inline static constexpr DependencyProperty<Ref<Geometry>> DataProperty{"Data"};
+    inline static constexpr DependencyProperty<Ref<Brush>> FillProperty{"Fill"};
+    inline static constexpr DependencyProperty<Ref<Brush>> StrokeProperty{"Stroke"};
     inline static constexpr DependencyProperty<double> StrokeThicknessProperty{"StrokeThickness"};
     inline static constexpr DependencyProperty<PenLineJoin> StrokeLineJoinProperty{"StrokeLineJoin"};
     inline static constexpr DependencyProperty<PenLineCap> StrokeStartLineCapProperty{"StrokeStartLineCap"};
@@ -121,10 +121,12 @@ protected:
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
+#if defined(AERO_GUI_IMPLEMENTATION)
     friend struct ::Aero::Media::Visual::Access;
+#endif
 
-    Base::Result<void> EnsureGeometry() noexcept;
-    Base::Result<void> EnsureMesh() noexcept;
+    Result<void> EnsureGeometry() noexcept;
+    Result<void> EnsureMesh() noexcept;
     void ResetGeometry() noexcept;
     void AttachMeshResources(void* services, bool force = false) noexcept;
     void ReleaseMesh() noexcept;

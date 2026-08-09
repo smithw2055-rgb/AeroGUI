@@ -11,12 +11,12 @@ the WPF type headers it uses (or `Aero/Controls.hpp`); custom types additionally
 include `Aero/Meta.hpp` and `Aero/Module.hpp`:
 
 ```cpp
-Aero::Base::Result<void> RegisterModule(
+Aero::Result<void> RegisterModule(
     Aero::Meta::Registration& context) noexcept {
-    auto type = Aero::Meta::Describe<MyControl>(context);
+    auto type = Aero::Meta::Register<MyControl>(context);
     type.Property(
             MyControl::EnabledProperty,
-            Aero::Meta::PropertyOptions(true))
+            Aero::Meta::FrameworkPropertyMetadata(true))
         .Factory();
     return type.Result();
 }
@@ -34,7 +34,7 @@ A standalone desktop program links `Aero::App` and runs its WPF-facing
 `Application` object directly:
 
 ```cpp
-#include <Aero/App.hpp>
+#include <AeroApp/App.hpp>
 
 Aero::Application application;
 static_cast<void>(application.SetStartupUri("MainWindow.xaml"));
@@ -81,27 +81,30 @@ contain authoring state rather than scheduler descriptors.
 
 ## Embedded hosting
 
-Embedded engine/editor hosts link `Aero::Gui`, choose an explicit backend
-`RenderDevice` and `RenderTarget`, then drive the View from their own frame loop:
+Embedded engine/editor hosts link `Aero::Gui` plus `Aero::RenderD3D11` or
+`Aero::RenderOpenGL33`, choose an explicit RenderDevice and RenderTarget, then
+drive the View from their own frame loop:
 
 ```cpp
 #include <Aero/Gui.hpp>
-#include <Aero/Render/D3D11.hpp>
+#include <AeroRender/D3D11.hpp>
 
 Aero::Gui environment;
 environment.AddModule(module);
 environment.Initialize();
 
-auto device = Aero::Render::CreateD3D11Device(deviceOptions).Value();
-auto target = Aero::Render::CreateD3D11RenderTarget(
+auto device = Aero::Render::D3D11::CreateDevice(deviceOptions).Value();
+auto target = Aero::Render::D3D11::CreateTarget(
     device, targetOptions).Value();
-auto view = environment.CreateView().Value();
+auto root = environment.LoadXaml<Aero::FrameworkElement>(
+    "app:///MainView.xaml").Value();
+auto view = environment.CreateView(root).Value();
 view->GetRenderer().Init(device);
 
-view->Update(elapsedMilliseconds);
-if (view->GetRenderer().UpdateRenderTree().Value()) {
-    view->GetRenderer().RenderOffscreen();
-    view->GetRenderer().Render(*target);
+view->Update(totalTimeSeconds);
+auto& renderer = view->GetRenderer();
+if (renderer.UpdateRenderTree() && renderer.RenderOffscreen()) {
+    renderer.Render(*target);
 }
 ```
 
@@ -112,11 +115,13 @@ native-window/present policy.
 
 ## XAML load transaction
 
-`Markup::XamlDocument` is a move-only load result. `Markup::XamlReader` is
-Gui-owned and creates an unmounted object graph without requiring a View;
-`View::SetContent` binds the current View services and commits binding,
-dynamic-resource and mount side effects. Failure leaves no partially mounted
-document.
+Ordinary hosts use `Gui::LoadXaml<T>()` or `Gui::LoadComponent()` and receive a
+typed object-tree root. Gui retains the complete pending load transaction until
+that root is passed to `CreateView(root)` or `View::SetContent(root)`; mounting
+then binds View services and commits binding, dynamic-resource, NameScope, and
+visual-edge effects. `Markup::XamlDocument` and `Markup::XamlReader` remain the
+move-only document path for Parse, compiled XAML, hot reload, and tooling.
+Failure leaves no partially mounted document.
 
 The public schema surface resolves types and members. Object construction,
 member writes, initialization, NameScope/resource scopes, deferred content and
