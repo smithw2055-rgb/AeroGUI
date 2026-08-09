@@ -1,0 +1,43 @@
+name: C1-C3 Payload Audit
+
+on:
+  pull_request:
+    branches:
+      - codex/local-no-samples-tests
+    types: [synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.event.pull_request.head.ref == 'agent/c1-c3-closure'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/c1-c3-closure
+          fetch-depth: 0
+      - name: Audit chunks
+        shell: bash
+        run: |
+          set -u
+          git fetch origin agent/c1-c3-payload-v3:refs/remotes/origin/agent/c1-c3-payload-v3
+          : > /tmp/audit.txt
+          cp .c1c3/v3-part-00 /tmp/part-00
+          for n in 01 02 03 04 05 06 07 08; do
+            git show origin/agent/c1-c3-payload-v3:.c1c3/v3-part-$n > /tmp/part-$n
+          done
+          for n in 00 01 02 03 04 05 06 07 08; do
+            bytes=$(wc -c < /tmp/part-$n)
+            hash=$(sha256sum /tmp/part-$n | awk '{print $1}')
+            echo "$n $bytes $hash" >> /tmp/audit.txt
+          done
+          cat /tmp/part-* > /tmp/all.b64
+          echo "TOTAL $(wc -c < /tmp/all.b64) $(sha256sum /tmp/all.b64 | awk '{print $1}')" >> /tmp/audit.txt
+          cat /tmp/audit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: c1c3-payload-audit
+          path: /tmp/audit.txt
+          retention-days: 1

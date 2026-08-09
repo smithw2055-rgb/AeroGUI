@@ -1,0 +1,94 @@
+name: Apply C1-C3 Closure via PR v2
+
+on:
+  pull_request:
+    branches:
+      - codex/local-no-samples-tests
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-build-commit:
+    if: github.event.pull_request.head.ref == 'agent/c1-c3-closure'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: agent/c1-c3-closure
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Rebuild closure patch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test -f .c1c3/ready-final
+          cat .c1c3/v2-part-* | tr -cd 'A-Za-z0-9+/=' > /tmp/c1c3.patch.b64
+          python3 - <<'PY'
+          import base64, gzip, pathlib
+          encoded = pathlib.Path('/tmp/c1c3.patch.b64').read_bytes()
+          packed = base64.b64decode(encoded, validate=False)
+          pathlib.Path('/tmp/c1c3.patch').write_bytes(gzip.decompress(packed))
+          print('encoded', len(encoded), 'packed', len(packed), 'patch', pathlib.Path('/tmp/c1c3.patch').stat().st_size)
+          PY
+          git apply --check --3way /tmp/c1c3.patch
+          git apply --3way /tmp/c1c3.patch
+
+      - name: Remove staging payload and one-shot workflows
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -rf .c1c3
+          rm -f .github/workflows/c1c3-apply.yml
+          rm -f .github/workflows/c1c3-apply-final.yml
+          rm -f .github/workflows/c1c3-pr-apply.yml
+          rm -f .github/workflows/c1c3-pr-apply-v2.yml
+
+      - name: Verify source closure
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test ! -e src/runtime
+          test ! -e src/providers
+          test ! -e src/platform
+          test -f src/gui/Gui.cpp
+          test -f src/gui/View.cpp
+          test -f src/markup/XamlProvider.cpp
+          test -f src/app/platform/Window.hpp
+          test -f src/app/platform/WindowWait.cpp
+          grep -q 'class AERO_API Gui' include/Aero/Gui.hpp
+          ! grep -q 'class AERO_API View' include/Aero/Gui.hpp
+          grep -q 'class AERO_API View' include/Aero/View.hpp
+          ! grep -R -E 'RunChecked|ShowChecked|CloseChecked|SetContentChecked' include/Aero
+
+      - name: Configure strict C++17 build
+        run: >-
+          cmake -S . -B build-c1c3 -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DAERO_BUILD_TESTS=OFF
+          -DAERO_BUILD_SAMPLES=OFF
+          -DAERO_BUILD_TOOLS=ON
+          -DAERO_ENABLE_EXCEPTIONS=OFF
+          -DAERO_ENABLE_RTTI=OFF
+          -DAERO_WARNINGS_AS_ERRORS=ON
+          -DAERO_ENABLE_D3D11_BACKEND=OFF
+          -DAERO_ENABLE_WGL_SURFACE=OFF
+          -DAERO_ENABLE_GLX_SURFACE=OFF
+          -DAERO_ENABLE_SOKOL_BACKEND=OFF
+
+      - name: Build
+        run: cmake --build build-c1c3 -j2
+
+      - name: Commit closure
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git status --short
+          git commit -m 'C1-C3 architecture closure'
+          git push origin HEAD:agent/c1-c3-closure

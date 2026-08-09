@@ -1,0 +1,77 @@
+name: Export C1-C3 Patch v5
+
+on:
+  pull_request:
+    branches:
+      - codex/local-no-samples-tests
+    types: [synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.event.pull_request.head.ref == 'agent/c1-c3-closure'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/c1-c3-closure
+          fetch-depth: 0
+      - name: Reconstruct exact verified C1-C3 patch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git fetch origin agent/c1-c3-payload-v3:refs/remotes/origin/agent/c1-c3-payload-v3
+          mkdir -p /tmp/c1parts
+          git show origin/agent/c1-c3-payload-v3:.c1c3/v3-part-01 > /tmp/raw-01
+          git show origin/agent/c1-c3-payload-v3:.c1c3/v3-part-05 > /tmp/raw-05
+          for n in 02 03 04 06 07 08; do
+            git show origin/agent/c1-c3-payload-v3:.c1c3/v3-part-$n > /tmp/c1parts/$n
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          size=8192
+          specs={
+            '00':(Path('.c1c3/v3-part-00'),'fa82192d6df687b2c14492b19b50f6a290b19ca864c55dab9626706da5afa80c'),
+            '01':(Path('/tmp/raw-01'),'9492ab92e1bdb38a5d7877d93d5b493fccab3a1e73f2a7ea0de788dc4b6c4d76'),
+            '05':(Path('/tmp/raw-05'),'8579d2d9b67b608a975210e97c5fbf6d5fb536d039ded478504c7de005b4a62a'),
+          }
+          for name,(path,expected) in specs.items():
+            data=path.read_bytes(); found=[]
+            for offset in range(len(data)-size+1):
+              chunk=data[offset:offset+size]
+              if hashlib.sha256(chunk).hexdigest()==expected:
+                found.append((offset,chunk))
+            if len(found)!=1: raise SystemExit(f'{name}: matches={len(found)} offsets={[x[0] for x in found]}')
+            off,chunk=found[0]
+            Path(f'/tmp/c1parts/{name}').write_bytes(chunk)
+            print(name,off,expected)
+          checks={
+            '02':'5e9594b8da2db4df41363d331a677284dba3a571bee2510dd9d034d08ca44aab',
+            '03':'397d03fe7b8007feb092e485e21d97f7a833881abc853cc63dddca638efd5e04',
+            '04':'257083e90d5830a8053593d31ec0cbbc9ea900de862e35f8a8ca394d75fd8702',
+            '06':'0f8e7fad4bf5543467faadc07d1334f21f56ab19567f4f8af431ba0101bea9eb',
+            '07':'e98685a02f9f12229d0227882b15aeb61177c031b722e18ab2ff8e6fc641acd0',
+            '08':'53076fa43702c4e8ee7b3ac8cd69b0057ec292ab3505933f394fca1b838874fc',
+          }
+          for name,expected in checks.items():
+            data=Path(f'/tmp/c1parts/{name}').read_bytes()
+            actual=hashlib.sha256(data).hexdigest()
+            if actual!=expected: raise SystemExit(f'{name}: {actual} != {expected}')
+          with open('/tmp/c1c3.patch.b64','wb') as out:
+            for name in ['00','01','02','03','04','05','06','07','08']:
+              out.write(Path(f'/tmp/c1parts/{name}').read_bytes())
+          PY
+          test "$(wc -c < /tmp/c1c3.patch.b64)" -eq 66980
+          echo 'a72853743fd4ab3883f1ec2da85df4c0e4cfa6b3fdf9bfd387e9336cc1ec5842  /tmp/c1c3.patch.b64' | sha256sum -c -
+          base64 -d /tmp/c1c3.patch.b64 > /tmp/c1c3.patch.gz
+          echo '242c38e1f7d1b6e2282159eb1cc0f9e2695264b55bf5a3586ee1998dfbaf54ba  /tmp/c1c3.patch.gz' | sha256sum -c -
+          gzip -dc /tmp/c1c3.patch.gz > AeroGUI-C1-C3-final.patch
+          echo '3b4cfdb9b5a013eeff9f91b21e779b4505269d2c0d680aac7ca1a5267fa183dc  AeroGUI-C1-C3-final.patch' | sha256sum -c -
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AeroGUI-C1-C3-final-patch
+          path: AeroGUI-C1-C3-final.patch
+          retention-days: 1

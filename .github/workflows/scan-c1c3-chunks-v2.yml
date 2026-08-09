@@ -1,0 +1,47 @@
+name: Scan C1-C3 Chunks v2
+
+on:
+  pull_request:
+    branches: [codex/local-no-samples-tests]
+    types: [synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    if: github.event.pull_request.head.ref == 'agent/c1-c3-closure'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/c1-c3-closure
+          fetch-depth: 0
+      - name: Scan staging branch history
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git fetch origin agent/c1-c3-closure agent/c1-c3-closure-monitor agent/c1-c3-closure-pr-sentinel agent/c1-c3-payload-v3
+          python3 - <<'PY'
+          import hashlib, subprocess
+          specs={'01':'9492ab92e1bdb38a5d7877d93d5b493fccab3a1e73f2a7ea0de788dc4b6c4d76','05':'8579d2d9b67b608a975210e97c5fbf6d5fb536d039ded478504c7de005b4a62a'}
+          refs=subprocess.check_output(['git','for-each-ref','--format=%(refname)','refs/remotes/origin/agent/c1-c3']).decode().splitlines()
+          commits=[]
+          for ref in refs: commits += subprocess.check_output(['git','rev-list',ref]).decode().splitlines()
+          commits=list(dict.fromkeys(commits)); print('refs',refs,'commits',len(commits))
+          found={k:[] for k in specs}; seen=set()
+          for commit in commits:
+            for ent in subprocess.check_output(['git','ls-tree','-r',commit,'.c1c3']).decode(errors='replace').splitlines():
+              if not ent: continue
+              meta,path=ent.split('\t',1); blob=meta.split()[2]
+              if blob in seen: continue
+              seen.add(blob); data=subprocess.check_output(['git','cat-file','blob',blob])
+              if len(data)<8192: continue
+              for name,h in specs.items():
+                for off in range(len(data)-8192+1):
+                  if hashlib.sha256(data[off:off+8192]).hexdigest()==h:
+                    print('FOUND',name,commit,path,blob,off)
+                    found[name].append((commit,path,blob,off)); break
+          print('RESULT',found)
+          if not all(found.values()): raise SystemExit('missing verified chunks')
+          PY

@@ -1,0 +1,57 @@
+name: C1-C3 Conflict Diagnostic
+
+on:
+  pull_request:
+    branches:
+      - codex/local-no-samples-tests
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.event.pull_request.head.ref == 'agent/c1-c3-closure'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/c1-c3-closure
+          fetch-depth: 0
+          submodules: recursive
+      - name: Diagnose three-way conflicts
+        shell: bash
+        run: |
+          set -euxo pipefail
+          if test -f .c1c3/conflicts.txt; then
+            exit 0
+          fi
+          git fetch origin agent/c1-c3-payload-v3:refs/remotes/origin/agent/c1-c3-payload-v3
+          cat .c1c3/v3-part-00 > /tmp/c1c3.patch.b64
+          for n in 01 02 03 04 05 06 07 08; do
+            git show origin/agent/c1-c3-payload-v3:.c1c3/v3-part-$n >> /tmp/c1c3.patch.b64
+          done
+          echo 'a72853743fd4ab3883f1ec2da85df4c0e4cfa6b3fdf9bfd387e9336cc1ec5842  /tmp/c1c3.patch.b64' | sha256sum -c -
+          base64 -d /tmp/c1c3.patch.b64 > /tmp/c1c3.patch.gz
+          gzip -dc /tmp/c1c3.patch.gz > /tmp/c1c3.patch
+          set +e
+          git apply --3way /tmp/c1c3.patch
+          rc=$?
+          set -e
+          if test "$rc" -eq 0; then
+            printf 'NO_CONFLICTS\n' > .c1c3/conflicts.txt
+          else
+            {
+              echo 'UNMERGED:'
+              git diff --name-only --diff-filter=U
+              echo 'STATUS:'
+              git status --porcelain=v1
+            } > .c1c3/conflicts.txt
+          fi
+          git reset --hard HEAD
+          git clean -fd
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .c1c3/conflicts.txt
+          git commit -m 'record C1-C3 apply conflicts'
+          git push origin HEAD:agent/c1-c3-closure
