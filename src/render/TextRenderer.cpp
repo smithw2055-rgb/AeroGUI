@@ -401,6 +401,11 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     Base::Result<void> laidOut =
         layout.ShapeAndMeasure(*fonts_, layoutRequest);
     if (!laidOut) return laidOut.GetStatus();
+    if (request.arrangeToAvailableWidth) {
+        laidOut = layout.Arrange(
+            static_cast<float>(request.availableSize.width));
+        if (!laidOut) return laidOut.GetStatus();
+    }
 
     output.glyphRuns.Clear();
     output.desiredSize = {

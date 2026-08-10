@@ -22,6 +22,7 @@
 #include "gui/controls/ControlRuntime.hpp"
 #include "gui/controls/ItemsRuntime.hpp"
 #include "gui/controls/TemplateRuntime.hpp"
+#include "gui/markup/MarkupWriterRuntime.hpp"
 
 #include "render/RenderTree.hpp"
 
@@ -584,6 +585,8 @@ Base::Result<void> TemplateProgram::FreezeRuntimePlan(
     Base::Vector<TemplateBindingPlan>&& valueBindings,
     Base::Vector<TemplateMetadataBindingPlan>&&
         valueMetadataBindings,
+    Base::Vector<TemplateDynamicResourcePlan>&&
+        valueDynamicResources,
     Base::Vector<TemplatePropertyTrigger>&& valueTriggers,
     Base::Vector<VisualStateGroupPlan>&& valueVisualStateGroups) noexcept {
     if (sealed) {
@@ -599,6 +602,8 @@ Base::Result<void> TemplateProgram::FreezeRuntimePlan(
     bindings = std::move(valueBindings);
     metadataBindings =
         std::move(valueMetadataBindings);
+    dynamicResources =
+        std::move(valueDynamicResources);
     triggers = std::move(valueTriggers);
     visualStateGroups = std::move(valueVisualStateGroups);
     sealed = true;
@@ -736,6 +741,34 @@ Base::Result<void> TemplatePrivate::AddTemplatedParentBinding(
     binding.mode = mode;
     binding.updateSourceTrigger = updateSourceTrigger;
     return state->metadataBindings.PushBack(std::move(binding));
+}
+
+Base::Result<void> TemplatePrivate::AddDynamicResource(
+    FrameworkTemplate& templateValue,
+    Base::StringView targetName,
+    Base::StringView key,
+    DependencyPropertyHandle targetProperty) noexcept {
+    FrameworkTemplateState* state = State(templateValue);
+    if (state == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "FrameworkTemplate state allocation failed");
+    }
+    if (state->sealed) {
+        return InvalidTemplate(
+            "Cannot modify a sealed FrameworkTemplate");
+    }
+    if (targetName.Empty() || key.Empty() || !targetProperty.IsValid()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Template DynamicResource declaration is incomplete");
+    }
+    TemplateDynamicResourcePlan resource;
+    Base::Result<void> assigned = resource.targetName.Assign(targetName);
+    if (assigned) assigned = resource.key.Assign(key);
+    if (!assigned) return assigned.GetStatus();
+    resource.targetProperty = targetProperty;
+    return state->dynamicResources.PushBack(std::move(resource));
 }
 
 Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(
@@ -1049,6 +1082,15 @@ Base::Span<const TemplateMetadataBindingPlan> TemplatePrivate::MetadataBindings(
     return {values.Data(), values.Size()};
 }
 
+Base::Span<const TemplateDynamicResourcePlan> TemplatePrivate::DynamicResources(const FrameworkTemplate& value) noexcept {
+    const FrameworkTemplateState* state = State(value);
+    if (state == nullptr) return {};
+    const auto& values = state->sealed
+        ? state->program.dynamicResources
+        : state->dynamicResources;
+    return {values.Data(), values.Size()};
+}
+
 Base::Span<const TemplatePropertyTrigger> TemplatePrivate::Triggers(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     if (state == nullptr) return {};
@@ -1095,6 +1137,15 @@ Base::Result<void> TemplatePrivate::Seal(
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "TemplatedParent Binding target property was not found");
+        }
+    }
+    for (const TemplateDynamicResourcePlan& resource :
+         templateState->dynamicResources) {
+        if (resource.targetName.Empty() || resource.key.Empty() ||
+            properties.Find(resource.targetProperty) == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Template DynamicResource target property was not found");
         }
     }
     for (const TemplatePropertyTrigger& trigger : templateState->triggers) {
@@ -1171,6 +1222,7 @@ Base::Result<void> TemplatePrivate::Seal(
             templateState->targetType,
             std::move(templateState->bindings),
             std::move(templateState->metadataBindings),
+            std::move(templateState->dynamicResources),
             std::move(templateState->triggers),
             std::move(templateState->visualStateGroups));
     if (!programSealed) {
@@ -1424,6 +1476,12 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
         return status;
     }
     bindings = AttachMetadataBindings(stored);
+    if (!bindings) {
+        const Base::Status status = bindings.GetStatus();
+        (void)ClearAt(instances_.Size() - 1U);
+        return status;
+    }
+    bindings = AttachDynamicResources(stored);
     if (!bindings) {
         const Base::Status status = bindings.GetStatus();
         (void)ClearAt(instances_.Size() - 1U);
@@ -1772,6 +1830,66 @@ void TemplateEngine::DetachMetadataBindings(
     instance.metadataBindings.Clear();
 }
 
+Base::Result<void> TemplateEngine::AttachDynamicResources(
+    Instance& instance) noexcept {
+    const auto declarations =
+        Aero::Controls::TemplatePrivate::DynamicResources(*instance.plan);
+    if (declarations.Empty()) return {};
+    if (effectiveValues_ == nullptr || resources_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "Template DynamicResource services are unavailable");
+    }
+    Base::Result<void> reserved =
+        instance.dynamicResourceTargets.Reserve(declarations.Size());
+    if (!reserved) return reserved.GetStatus();
+    const Aero::ResourceDictionary* templateResources[] = {
+        &instance.plan->GetResources()};
+    for (const TemplateDynamicResourcePlan& declaration : declarations) {
+        DependencyObject* target =
+            FindTarget(instance, declaration.targetName.View());
+        if (target == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Template DynamicResource target name was not found");
+        }
+        bool tracked = false;
+        for (DependencyObject* existing :
+             instance.dynamicResourceTargets) {
+            if (existing == target) {
+                tracked = true;
+                break;
+            }
+        }
+        if (!tracked) {
+            reserved = instance.dynamicResourceTargets.PushBack(target);
+            if (!reserved) return reserved.GetStatus();
+        }
+        Base::Result<void> attached = Markup::DynamicResource::Attach(
+            *effectiveValues_,
+            {templateResources, 1U},
+            resources_,
+            *target,
+            declaration.targetProperty,
+            declaration.key.View());
+        if (!attached) return attached.GetStatus();
+    }
+    return {};
+}
+
+void TemplateEngine::DetachDynamicResources(
+    Instance& instance) noexcept {
+    if (effectiveValues_ != nullptr) {
+        for (DependencyObject* target :
+             instance.dynamicResourceTargets) {
+            if (target != nullptr) {
+                static_cast<void>(effectiveValues_->DetachObject(*target));
+            }
+        }
+    }
+    instance.dynamicResourceTargets.Clear();
+}
+
 Base::Result<void> TemplateEngine::EvaluateTriggers(
     Instance& instance) noexcept {
     for (const TemplatePropertyTrigger& trigger :
@@ -1873,6 +1991,7 @@ Base::Result<void> TemplateEngine::ClearAt(
     ::Aero::Controls::Control::Access::NotifyTemplateDetached(
         *instance.parent);
     DetachMetadataBindings(instance);
+    DetachDynamicResources(instance);
     Unsubscribe(instance);
     Base::Result<void> providers = ClearProviders(instance);
     if (!providers) return providers.GetStatus();

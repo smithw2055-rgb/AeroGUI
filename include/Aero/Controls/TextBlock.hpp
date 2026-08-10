@@ -25,6 +25,18 @@ private:
 
 public:
 
+    // Source-retained formatting produced by RichText markup. Text layout
+    // keeps byte offsets for hit testing, so the same ranges can tint shaped
+    // glyphs without replacing the public Documents inline model.
+    struct RichTextStyleRange {
+        std::uint32_t start = 0U;
+        std::uint32_t length = 0U;
+        Base::Color foreground{};
+        bool hasForeground = false;
+        bool bold = false;
+        bool italic = false;
+    };
+
     TextBlock() noexcept;
     ~TextBlock() override;
     StringView GetText() const noexcept;
@@ -70,6 +82,8 @@ public:
     void SetLineHeight(double value) noexcept;
     void SetInlineValue(
         Value value) noexcept;
+    void SetRichTextStyleRanges(
+        Base::Span<const RichTextStyleRange> ranges) noexcept;
     Result<void> AddOwnedInline(
         const Ref<Base::Object>& inlineObject) noexcept;
     void ClearOwnedInlines() noexcept;
@@ -113,8 +127,10 @@ private:
     Base::Vector<std::uint64_t> glyphRuns_;
     Base::Vector<TextHitRegion> textHitRegions_;
     Base::Vector<Ref<Base::Object>> ownedInlines_;
+    Base::Vector<RichTextStyleRange> richTextStyleRanges_;
     Ref<Base::Object> pendingInline_;
     Size glyphRunSize_;
     bool serviceOwnsGlyphRun_ = false;
+    bool arrangingText_ = false;
 };
 } // namespace Aero::Controls

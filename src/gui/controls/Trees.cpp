@@ -45,9 +45,7 @@ TreeViewItem::TreeViewItem(
       expandedChangedHandler_(
           this, &TreeViewItem::OnExpandedChanged),
       selectedChangedHandler_(
-          this, &TreeViewItem::OnSelectedChanged),
-      itemsChangedHandler_(
-          this, &TreeViewItem::OnItemsChanged) {
+          this, &TreeViewItem::OnSelectedChanged) {
     static_cast<void>(AddValueChangedHandlerChecked(
         HeaderProperty, headerChangedHandler_));
     static_cast<void>(AddValueChangedHandlerChecked(
@@ -58,8 +56,6 @@ TreeViewItem::TreeViewItem(
     static_cast<void>(AddValueChangedHandlerChecked(
         IsSelectedProperty,
         selectedChangedHandler_));
-    static_cast<void>(items_.AddItemsChanged(
-        itemsChangedHandler_));
 }
 
 TreeViewItem::~TreeViewItem() {
@@ -77,8 +73,6 @@ TreeViewItem::~TreeViewItem() {
     static_cast<void>(RemoveValueChangedHandler(
         IsSelectedProperty,
         selectedChangedHandler_));
-    static_cast<void>(items_.RemoveItemsChanged(
-        itemsChangedHandler_));
 }
 
 Value
@@ -147,10 +141,106 @@ TreeViewItem::SetIsSelected(
     SetCurrentValue(IsSelectedProperty, value);
 }
 
-void TreeViewItem::OnItemsChanged(
-    const ItemsChangedEvent&) noexcept {
+Base::Result<Base::Ref<FrameworkElement>>
+TreeViewItem::CreateContainer(
+    const Base::Ref<Base::Object>&) noexcept {
+    Base::Result<Base::Ref<TreeViewItem>> made =
+        Base::MakeRef<TreeViewItem>();
+    if (!made) return made.GetStatus();
+    return Base::Ref<FrameworkElement>(
+        std::move(made).Value());
+}
+
+void TreeViewItem::SetHierarchicalContent(
+    Base::Ref<Base::Object> source,
+    Base::Ref<DataTemplate> itemTemplate) noexcept {
+    hierarchicalItemsSource_ = std::move(source);
+    hierarchicalItemsBinding_.Reset();
+    hierarchicalBindingSource_.Reset();
+    hierarchicalItemTemplate_ = std::move(itemTemplate);
+    auto* items = hierarchicalItemsSource_
+        ? dynamic_cast<Collections::IItemsSource*>(
+            hierarchicalItemsSource_.Get())
+        : nullptr;
     static_cast<void>(SetReadOnlyCurrentValue(
-        HasItemsProperty, GetCount() != 0U));
+        ItemsControl::HasItemsProperty,
+        items != nullptr && items->GetCount() != 0U));
+    if (GetIsExpanded()) ActivateHierarchicalContent();
+}
+
+void TreeViewItem::SetHierarchicalBinding(
+    Base::Ref<Data::Binding> binding,
+    Base::Ref<Base::Object> source,
+    Base::Ref<DataTemplate> itemTemplate) noexcept {
+    hierarchicalItemsSource_.Reset();
+    hierarchicalItemsBinding_ = std::move(binding);
+    hierarchicalBindingSource_ = std::move(source);
+    hierarchicalItemTemplate_ = std::move(itemTemplate);
+    // A hierarchical declaration represents a potentially expandable node.
+    // Resolve the collection lazily on expansion so collapsed trees do not
+    // realize and attach every descendant during their parent's binding wave.
+    static_cast<void>(SetReadOnlyCurrentValue(
+        ItemsControl::HasItemsProperty,
+        hierarchicalItemsBinding_ && hierarchicalBindingSource_));
+    if (GetIsExpanded()) ActivateHierarchicalContent();
+}
+
+void TreeViewItem::ClearHierarchicalContent() noexcept {
+    hierarchicalItemsSource_.Reset();
+    hierarchicalItemsBinding_.Reset();
+    hierarchicalBindingSource_.Reset();
+    hierarchicalItemTemplate_.Reset();
+}
+
+void TreeViewItem::ActivateHierarchicalContent() noexcept {
+    SetItemTemplate(hierarchicalItemTemplate_);
+    if (hierarchicalItemsSource_) {
+        SetItemsSource(hierarchicalItemsSource_);
+    } else if (hierarchicalItemsBinding_ && hierarchicalBindingSource_) {
+        auto* bindings = ::Aero::Media::Visual::Access::BindingEngineFor(
+            *this);
+        if (bindings == nullptr || bindings->Metadata() == nullptr) return;
+        Data::MetadataBindingDescriptor descriptor;
+        descriptor.metadata = bindings->Metadata();
+        descriptor.source = hierarchicalBindingSource_.Get();
+        descriptor.target = this;
+        descriptor.targetProperty = ItemsControl::ItemsSourceProperty.Handle();
+        descriptor.path = hierarchicalItemsBinding_->GetPathText();
+        descriptor.stringFormat =
+            hierarchicalItemsBinding_->GetStringFormat();
+        descriptor.mode = Data::BindingMode::OneWay;
+        descriptor.updateSourceTrigger =
+            Meta::UpdateSourceTrigger::PropertyChanged;
+        descriptor.converterResource =
+            hierarchicalItemsBinding_->GetConverter();
+        descriptor.converterParameter =
+            hierarchicalItemsBinding_->GetConverterParameter();
+        descriptor.fallbackValue =
+            hierarchicalItemsBinding_->GetFallbackValue();
+        descriptor.targetNullValue =
+            hierarchicalItemsBinding_->GetTargetNullValue();
+        Base::Result<void> queued = bindings->QueueDeferred(descriptor);
+        if (!queued) {
+            bindings->RecordError(queued.GetStatus());
+            return;
+        }
+        Base::Result<void> activated =
+            bindings->ActivateDeferredWhenReady(*this);
+        if (!activated) {
+            bindings->RecordError(activated.GetStatus());
+            return;
+        }
+    } else {
+        return;
+    }
+    if (childItems_ != nullptr) {
+        const Base::Ref<Base::Object> current = GetItemsSource();
+        auto* items = current
+            ? dynamic_cast<Collections::IItemsSource*>(current.Get())
+            : nullptr;
+        ItemsControl::Access::SetItemsSourceBorrowed(
+            *childItems_, items);
+    }
 }
 
 void
@@ -198,8 +288,12 @@ TreeViewItem::OnApplyTemplate() noexcept {
         childItems_ == nullptr) {
         return;
     }
+    Base::Ref<Base::Object> source = GetItemsSource();
+    Collections::IItemsSource* childSource = source
+        ? dynamic_cast<Collections::IItemsSource*>(source.Get())
+        : static_cast<Collections::IItemsSource*>(&ItemsControl::GetItems());
     ItemsControl::Access::SetItemsSourceBorrowed(
-        *childItems_, this);
+        *childItems_, childSource);
     static_cast<void>(SynchronizeTemplate());
 }
 
@@ -229,7 +323,7 @@ TreeViewItem::SynchronizeTemplate() noexcept {
     }
     if (expanderGlyph_ != nullptr) {
         expanderGlyph_->SetText(
-                GetCount() == 0U
+                !GetHasItems()
                 ? Base::StringView("")
                 : GetIsExpanded()
                     ? Base::StringView("v")
@@ -255,6 +349,9 @@ void TreeViewItem::OnExpandedChanged(
     DependencyObject&,
     const DependencyPropertyChangedEventArgs&
         args) noexcept {
+    if (args.GetNewValue().AsBoolean()) {
+        ActivateHierarchicalContent();
+    }
     static_cast<void>(SynchronizeTemplate());
     RoutedEventArgs event;
     static_cast<void>(RaiseEvent(

@@ -28,6 +28,8 @@
 #include "gui/resources/StyleRuntime.hpp"
 
 #include <Aero/Base/Assert.hpp>
+#include <Aero/Controls/Menu.hpp>
+#include <Aero/Controls/Popup.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
 
@@ -1681,7 +1683,21 @@ Base::Result<void> RenderTree::BuildSubtree(
          Aero::ElementPrivate::
              RenderChildren(visual)) {
         if (child == nullptr) continue;
-        if (IsOverlay(*child)) continue;
+        const Meta::TypeId childType = child->RuntimeType();
+        const Meta::TypeRegistry& childTypes =
+            child->PropertyRegistry().Types();
+        // Popup-style visuals remain logical/template children so bindings,
+        // layout and routed events keep their WPF shape. They must never be
+        // emitted inline, though: an open popup is committed exactly once via
+        // the overlay list, and a closed popup is omitted altogether.
+        const bool overlayHost =
+            childTypes.IsDerivedFrom(
+                childType,
+                Controls::Primitives::Popup::StaticTypeId()) ||
+            childTypes.IsDerivedFrom(
+                childType,
+                Controls::ContextMenu::StaticTypeId());
+        if (IsOverlay(*child) || overlayHost) continue;
         Base::Result<void> childResult =
             BuildSubtree(
                 *child,

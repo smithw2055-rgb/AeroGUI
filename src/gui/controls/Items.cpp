@@ -1177,11 +1177,107 @@ Base::Result<void> ItemsControl::PrepareContainer(
             Value::FromObject(
                 item->RuntimeType(), item));
     }
-    return {};
+    if (!item || itemTemplate_ == nullptr ||
+        !PropertyRegistry().Types().IsDerivedFrom(
+            container.RuntimeType(), ItemsControl::StaticTypeId())) {
+        return {};
+    }
+
+    const Base::Ref<Base::Object> hierarchicalSource =
+        itemTemplate_->GetHierarchicalItemsSource();
+    const Base::Ref<Base::Object> hierarchicalTemplate =
+        itemTemplate_->GetHierarchicalItemTemplate();
+    if (!hierarchicalSource && !hierarchicalTemplate) return {};
+
+    auto& childItems = static_cast<ItemsControl&>(container);
+    Base::Ref<DataTemplate> childItemTemplate;
+    if (hierarchicalTemplate &&
+        PropertyRegistry().Types().IsDerivedFrom(
+            hierarchicalTemplate->RuntimeType(),
+            DataTemplate::StaticTypeId())) {
+        childItemTemplate = Base::Ref<DataTemplate>::FromBorrowed(
+            static_cast<DataTemplate&>(*hierarchicalTemplate));
+    }
+    if (!hierarchicalSource) {
+        childItems.SetItemTemplate(std::move(childItemTemplate));
+        return {};
+    }
+    if (!PropertyRegistry().Types().IsDerivedFrom(
+            hierarchicalSource->RuntimeType(),
+            Data::Binding::StaticTypeId())) {
+        if (PropertyRegistry().Types().IsDerivedFrom(
+                container.RuntimeType(),
+                TreeViewItem::StaticTypeId())) {
+            static_cast<TreeViewItem&>(container).SetHierarchicalContent(
+                hierarchicalSource,
+                std::move(childItemTemplate));
+            return {};
+        }
+        childItems.SetItemTemplate(std::move(childItemTemplate));
+        childItems.SetItemsSource(hierarchicalSource);
+        return {};
+    }
+
+    auto* bindings = ::Aero::Media::Visual::Access::BindingEngineFor(
+        childItems);
+    if (bindings == nullptr || bindings->Metadata() == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "HierarchicalDataTemplate Binding services are unavailable");
+    }
+    const auto& binding =
+        static_cast<const Data::Binding&>(*hierarchicalSource);
+    if (PropertyRegistry().Types().IsDerivedFrom(
+            container.RuntimeType(),
+            TreeViewItem::StaticTypeId())) {
+        static_cast<TreeViewItem&>(container).SetHierarchicalBinding(
+            Base::Ref<Data::Binding>::FromBorrowed(
+                const_cast<Data::Binding&>(binding)),
+            item,
+            std::move(childItemTemplate));
+        return {};
+    }
+    childItems.SetItemTemplate(std::move(childItemTemplate));
+    Data::MetadataBindingDescriptor descriptor;
+    descriptor.metadata = bindings->Metadata();
+    descriptor.source = item.Get();
+    descriptor.target = &childItems;
+    descriptor.targetProperty = ItemsSourceProperty.Handle();
+    descriptor.path = binding.GetPathText();
+    descriptor.stringFormat = binding.GetStringFormat();
+    descriptor.mode = binding.GetMode() == Data::BindingMode::Default
+        ? Data::BindingMode::OneWay
+        : binding.GetMode();
+    descriptor.updateSourceTrigger = binding.GetUpdateSourceTrigger() ==
+            Meta::UpdateSourceTrigger::Default
+        ? Meta::UpdateSourceTrigger::PropertyChanged
+        : binding.GetUpdateSourceTrigger();
+    descriptor.converterResource = binding.GetConverter();
+    descriptor.converterParameter = binding.GetConverterParameter();
+    descriptor.fallbackValue = binding.GetFallbackValue();
+    descriptor.targetNullValue = binding.GetTargetNullValue();
+    Base::Result<void> queued = bindings->QueueDeferred(descriptor);
+    if (!queued) return queued.GetStatus();
+    return bindings->ActivateDeferredWhenReady(childItems);
 }
 
 void ItemsControl::ClearContainer(
     FrameworkElement& container) noexcept {
+    if (itemTemplate_ != nullptr &&
+        (itemTemplate_->GetHierarchicalItemsSource() ||
+         itemTemplate_->GetHierarchicalItemTemplate()) &&
+        PropertyRegistry().Types().IsDerivedFrom(
+            container.RuntimeType(), ItemsControl::StaticTypeId())) {
+        auto& childItems = static_cast<ItemsControl&>(container);
+        if (PropertyRegistry().Types().IsDerivedFrom(
+                container.RuntimeType(),
+                TreeViewItem::StaticTypeId())) {
+            static_cast<TreeViewItem&>(container)
+                .ClearHierarchicalContent();
+        }
+        childItems.SetItemsSource(Base::Ref<Base::Object>{});
+        childItems.SetItemTemplate(Base::Ref<DataTemplate>{});
+    }
     container.ClearValue(
         FrameworkElement::DataContextProperty);
 }
@@ -1598,6 +1694,7 @@ ItemContainerGenerator::Access::CreateRecord(
             std::move(made).Value();
         ++createdContainerCount_;
     }
+
     return record;
 }
 
@@ -1762,6 +1859,28 @@ ItemContainerGenerator::Access::AttachRecord(
     if (!containerMounted) return containerMounted.GetStatus();
     record.containerMount = std::move(containerMounted).Value();
 
+    // ItemContainerStyle must be present before activating the generated
+    // subtree. Activation resolves implicit styles and materializes the
+    // control template; applying the explicit container style afterwards
+    // leaves the already-instantiated implicit template in place.
+    const Style* style = owner_->GetItemContainerStyle();
+    if (style != nullptr && styles_ != nullptr) {
+        Base::Result<Base::Ref<Style>> retained =
+            owner_->GetValue(ItemsControl::ItemContainerStyleProperty);
+        if (!retained || !retained.Value()) {
+            (void)tree_->DetachElement(record.containerMount);
+            return retained
+                ? Base::Status::Failure(
+                      Base::ErrorCode::InvalidState,
+                      "ItemContainerStyle is not retained")
+                : retained.GetStatus();
+        }
+        container.SetValue(
+            FrameworkElement::StyleProperty,
+            std::move(retained).Value());
+        record.appliedStyle = style;
+    }
+
     ContentControl* contentControl = nullptr;
     HeaderedItemsControl* headeredItemsControl = nullptr;
     if (owner_->PropertyRegistry().Types().IsDerivedFrom(
@@ -1838,12 +1957,6 @@ ItemContainerGenerator::Access::AttachRecord(
     if (!subtreeAttached) {
         (void)DetachRecord(record);
         return subtreeAttached.GetStatus();
-    }
-    const Style* style = owner_->GetItemContainerStyle();
-    if (style != nullptr && styles_ != nullptr) {
-        Base::Result<void> styled = styles_->Apply(container, *style);
-        if (!styled) { (void)DetachRecord(record); return styled.GetStatus(); }
-        record.appliedStyle = style;
     }
     Base::Result<void> prepared = owner_->PrepareContainer(container, record.item, index);
     if (!prepared) { (void)DetachRecord(record); return prepared.GetStatus(); }
@@ -1976,6 +2089,7 @@ ItemContainerGenerator::Access::DetachRecord(
     }
     if (record.appliedStyle != nullptr && styles_ != nullptr) {
         capture(styles_->Clear(container, *record.appliedStyle));
+        container.ClearValue(FrameworkElement::StyleProperty);
         record.appliedStyle = nullptr;
     }
     if (!record.itemIsOwnContainer &&

@@ -105,6 +105,12 @@ struct TemplateMetadataBindingPlan {
     UpdateSourceTrigger updateSourceTrigger = UpdateSourceTrigger::PropertyChanged;
 };
 
+struct TemplateDynamicResourcePlan {
+    Base::String targetName;
+    Base::String key;
+    DependencyPropertyHandle targetProperty;
+};
+
 struct TemplateTriggerSetter {
     Base::String targetName;
     DependencyPropertyHandle property;
@@ -135,7 +141,7 @@ struct TemplateProgram {
     Base::Result<void> SetBaseUri(const Base::ResourceUri& value) noexcept;
     Base::Result<void> AddNamespace(Base::StringView prefix, Base::StringView uri) noexcept;
     Base::Result<void> Seal() noexcept;
-    Base::Result<void> FreezeRuntimePlan(Meta::TypeId valueTargetType, Base::Vector<TemplateBindingPlan>&& valueBindings, Base::Vector<TemplateMetadataBindingPlan>&& valueMetadataBindings, Base::Vector<TemplatePropertyTrigger>&& valueTriggers, Base::Vector<VisualStateGroupPlan>&& valueVisualStateGroups) noexcept;
+    Base::Result<void> FreezeRuntimePlan(Meta::TypeId valueTargetType, Base::Vector<TemplateBindingPlan>&& valueBindings, Base::Vector<TemplateMetadataBindingPlan>&& valueMetadataBindings, Base::Vector<TemplateDynamicResourcePlan>&& valueDynamicResources, Base::Vector<TemplatePropertyTrigger>&& valueTriggers, Base::Vector<VisualStateGroupPlan>&& valueVisualStateGroups) noexcept;
 
     TemplateFactoryCallback factory = nullptr;
     void* factoryContext = nullptr;
@@ -145,6 +151,7 @@ struct TemplateProgram {
     Meta::TypeId targetType = Meta::InvalidTypeId;
     Base::Vector<TemplateBindingPlan> bindings;
     Base::Vector<TemplateMetadataBindingPlan> metadataBindings;
+    Base::Vector<TemplateDynamicResourcePlan> dynamicResources;
     Base::Vector<TemplatePropertyTrigger> triggers;
     Base::Vector<VisualStateGroupPlan> visualStateGroups;
     bool sealed = false;
@@ -156,6 +163,7 @@ struct FrameworkTemplateState {
     ResourceDictionary resources;
     Base::Vector<TemplateBindingPlan> bindings;
     Base::Vector<TemplateMetadataBindingPlan> metadataBindings;
+    Base::Vector<TemplateDynamicResourcePlan> dynamicResources;
     Base::Vector<TemplatePropertyTrigger> triggers;
     Base::Vector<VisualStateGroupPlan> visualStateGroups;
     Base::Vector<Base::Ref<Base::Object>> authoredTriggers;

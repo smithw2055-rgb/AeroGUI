@@ -495,6 +495,130 @@ struct ViewState {
         }
         return {};
     }
+    Base::Result<bool> ConditionBehaviorsAllowExecution(
+        Base::Span<const Base::Ref<Base::Object>> behaviors,
+        Aero::FrameworkElement& owner,
+        const Aero::NameScope* names) noexcept {
+        const auto numeric = [](const Meta::PropertyValue& value,
+                                long double& output) noexcept {
+            switch (value.Kind()) {
+            case Meta::ValueKind::SignedInteger:
+                output = static_cast<long double>(value.AsSignedInteger());
+                return true;
+            case Meta::ValueKind::UnsignedInteger:
+                output = static_cast<long double>(value.AsUnsignedInteger());
+                return true;
+            case Meta::ValueKind::Double:
+                output = static_cast<long double>(value.AsDouble());
+                return true;
+            default:
+                return false;
+            }
+        };
+        const auto evaluate = [&](const MediaAnimation::ComparisonCondition& condition)
+            noexcept -> Base::Result<bool> {
+            const Base::Ref<Data::Binding> binding = condition.GetLeftOperand();
+            if (!binding) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "ConditionBehavior requires a bound left operand");
+            }
+            Base::Result<Meta::PropertyValue> current =
+                EvaluateAuthoredBinding(
+                    *binding, owner, nullptr, names, nullptr);
+            if (!current) return current.GetStatus();
+            Meta::PropertyValue expected = condition.GetRightOperand();
+            if (expected.IsNullObject()) {
+                return current.Value().IsNullObject();
+            }
+            if (expected.Kind() == Meta::ValueKind::String &&
+                expected.Type() != current.Value().Type()) {
+                Base::Result<Meta::PropertyValue> converted =
+                    Meta::PropertyValue::TryFromString(
+                        current.Value().Type(), expected.AsString());
+                if (!converted) return false;
+                expected = std::move(converted).Value();
+            }
+            const auto comparison = condition.GetComparisonOperator();
+            if (comparison ==
+                MediaAnimation::ComparisonCondition::Operator::Equal) {
+                return current.Value().Equals(expected);
+            }
+            if (comparison ==
+                MediaAnimation::ComparisonCondition::Operator::NotEqual) {
+                return !current.Value().Equals(expected);
+            }
+            long double left = 0.0L;
+            long double right = 0.0L;
+            if (numeric(current.Value(), left) && numeric(expected, right)) {
+                switch (comparison) {
+                case MediaAnimation::ComparisonCondition::Operator::LessThan:
+                    return left < right;
+                case MediaAnimation::ComparisonCondition::Operator::LessThanOrEqual:
+                    return left <= right;
+                case MediaAnimation::ComparisonCondition::Operator::GreaterThan:
+                    return left > right;
+                case MediaAnimation::ComparisonCondition::Operator::GreaterThanOrEqual:
+                    return left >= right;
+                default:
+                    return false;
+                }
+            }
+            if (current.Value().Kind() == Meta::ValueKind::String &&
+                expected.Kind() == Meta::ValueKind::String) {
+                const int order = current.Value().AsString().Compare(
+                    expected.AsString());
+                switch (comparison) {
+                case MediaAnimation::ComparisonCondition::Operator::LessThan:
+                    return order < 0;
+                case MediaAnimation::ComparisonCondition::Operator::LessThanOrEqual:
+                    return order <= 0;
+                case MediaAnimation::ComparisonCondition::Operator::GreaterThan:
+                    return order > 0;
+                case MediaAnimation::ComparisonCondition::Operator::GreaterThanOrEqual:
+                    return order >= 0;
+                default:
+                    return false;
+                }
+            }
+            return false;
+        };
+
+        for (const Base::Ref<Base::Object>& behavior : behaviors) {
+            if (!behavior) continue;
+            if (behavior->RuntimeType() !=
+                MediaAnimation::ConditionBehavior::StaticTypeId()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Interaction trigger contains an unsupported behavior");
+            }
+            const Base::Ref<MediaAnimation::ConditionalExpression> expression =
+                static_cast<MediaAnimation::ConditionBehavior&>(
+                    *behavior).GetExpression();
+            if (!expression) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "ConditionBehavior has no expression");
+            }
+            const bool conjunction = expression->GetChaining() ==
+                MediaAnimation::ConditionalExpression::ForwardChaining::And;
+            bool expressionResult = conjunction;
+            bool hasCondition = false;
+            for (const Base::Ref<MediaAnimation::ComparisonCondition>& condition :
+                 expression->GetConditions()) {
+                if (!condition) continue;
+                hasCondition = true;
+                Base::Result<bool> matches = evaluate(*condition);
+                if (!matches) return matches.GetStatus();
+                expressionResult = matches.Value();
+                if (conjunction && !expressionResult) return false;
+                if (!conjunction && expressionResult) break;
+            }
+            if (!hasCondition || !expressionResult) return false;
+        }
+        return true;
+    }
+
     struct AnimationEventState {
         ViewState* runtime = nullptr;
         MediaAnimation::EventTrigger* trigger = nullptr;
@@ -2082,7 +2206,8 @@ struct ViewState {
         Base::Result<void> status = AllocateObject(*allocator, Base::MemoryTag::Ui, templates, *tree, *values,
             ::Aero::MetadataPrivate::
                 DependencyProperties(*metadata),
-            layout, renderer, metadata, bindings);
+            layout, renderer, metadata, bindings,
+            &dynamicResourceEnvironment);
         if (!status) return status.GetStatus();
         Base::Result<VisualStateManager*> createdStates =
             ::Aero::Controls::TemplatePrivate::Create(
@@ -5014,13 +5139,18 @@ struct ViewState {
         if (!matches) return matches.GetStatus();
         const bool active = matches.Value();
         if (active == state.active) return false;
-        Base::Result<void> executed = ExecuteTriggerActions(
-            active
-                ? state.trigger->GetEnterActions()
-                : state.trigger->GetExitActions(),
-            *state.owner,
-            state.names);
-        if (!executed) return executed.GetStatus();
+        Base::Result<bool> allowed = ConditionBehaviorsAllowExecution(
+            state.trigger->GetBehaviors(), *state.owner, state.names);
+        if (!allowed) return allowed.GetStatus();
+        if (allowed.Value()) {
+            Base::Result<void> executed = ExecuteTriggerActions(
+                active
+                    ? state.trigger->GetEnterActions()
+                    : state.trigger->GetExitActions(),
+                *state.owner,
+                state.names);
+            if (!executed) return executed.GetStatus();
+        }
         state.active = active;
         return true;
     }
@@ -6208,7 +6338,12 @@ struct ViewState {
                 &TextLifecycleHook, this);
         }
         if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, bindings, *dispatcher);
+            status = AllocateObject(
+                *allocator,
+                Base::MemoryTag::Ui,
+                bindings,
+                *dispatcher,
+                metadata);
         }
         if (status) status = bindings->Initialize();
         if (status) {
@@ -7266,7 +7401,8 @@ ViewState::ExecuteAnimationAction(
         if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Play) {
             MediaAnimation::BeginStoryboard begin;
             begin.SetStoryboard(control.GetStoryboard());
-            return ExecuteAnimationAction(begin, owner);
+            return ExecuteAnimationAction(
+                begin, owner, dataTemplateContext, names);
         }
         bool found = false;
         for (StoryboardCompletionSession& session : storyboardCompletionSessions) {
@@ -7450,6 +7586,12 @@ ViewState::ProcessStoryboardCompletions() noexcept {
                     storyboard.Get()) {
                 continue;
             }
+            Base::Result<bool> allowed = ConditionBehaviorsAllowExecution(
+                subscription.trigger->GetBehaviors(),
+                *subscription.owner,
+                subscription.names);
+            if (!allowed) return allowed.GetStatus();
+            if (!allowed.Value()) continue;
             for (const Base::Ref<
                      MediaAnimation::TriggerAction>& action :
                  subscription.trigger->GetActions()) {

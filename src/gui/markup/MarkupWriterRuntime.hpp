@@ -366,6 +366,8 @@ struct DeferredBindingEdge {
     Base::Object* owner = nullptr;
     Base::Object* source = nullptr;
     Base::String sourceName;
+    Base::String relativeAncestorType;
+    std::uint32_t relativeAncestorLevel = 0U;
     ::Aero::DependencyObject* target = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     Meta::DependencyPropertyHandle targetProperty;
@@ -400,6 +402,8 @@ public:
         Base::Object& owner,
         Base::Object* source,
         Base::StringView sourceName,
+        Base::StringView relativeAncestorType,
+        std::uint32_t relativeAncestorLevel,
         ::Aero::DependencyObject& target,
         ::Aero::Meta::Registry& metadata,
         Meta::DependencyPropertyHandle targetProperty,
@@ -1414,6 +1418,11 @@ struct TemplatePrototypeBinding {
     // resolved from the templated parent's document NameScope for each
     // ControlTemplate instance. Internal names continue to use source above.
     Base::String sourceName;
+    // FindAncestor sources are instance-relative and cannot be captured from
+    // the authored prototype graph. Resolve them after the cloned visual tree
+    // has been connected.
+    Base::String relativeAncestorType;
+    std::uint32_t relativeAncestorLevel = 0U;
     ::Aero::Meta::Registry* metadata = nullptr;
     Meta::DependencyPropertyHandle targetProperty;
     Meta::DependencyPropertyHandle dataContextProperty;

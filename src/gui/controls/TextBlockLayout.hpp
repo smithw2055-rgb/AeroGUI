@@ -18,6 +18,8 @@ struct TextLayoutRequest {
     float pixelSize = 16.0F;
     float lineHeight = 0.0F;
     Base::StringView fontFamily;
+    FontWeight fontWeight = FontWeight::Normal;
+    FontStyle fontStyle = FontStyle::Normal;
     Text::FontFace face;
     TextWrapping wrapping =
         TextWrapping::NoWrap;
@@ -25,6 +27,7 @@ struct TextLayoutRequest {
         TextTrimming::None;
     TextAlignment alignment =
         TextAlignment::Left;
+    bool arrangeToAvailableWidth = false;
     Text::TextDirection direction =
         Text::TextDirection::Auto;
 };

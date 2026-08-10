@@ -110,6 +110,7 @@ Base::Result<Graphics::FenceValue> ViewRenderer::RenderOffscreenFrame(
     Base::Result<Graphics::FenceValue> recorded =
         frameEncoder_->RecordOffscreen(frame);
     if (!recorded) return recorded.GetStatus();
+    meshResources_->CollectRetired(frame.Commands());
     return std::move(recorded).Value();
 }
 
@@ -125,6 +126,7 @@ Base::Result<Graphics::FenceValue> ViewRenderer::RenderOnscreenFrame(
     Base::Result<Graphics::FenceValue> recorded =
         frameEncoder_->RecordOnscreen(frame, target);
     if (!recorded) return recorded.GetStatus();
+    meshResources_->CollectRetired(frame.Commands());
     return std::move(recorded).Value();
 }
 

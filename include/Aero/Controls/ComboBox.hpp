@@ -126,7 +126,10 @@ private:
         foregroundChangedHandler_;
     DependencyPropertyChangedEventHandler
         selectedValueChangedHandler_;
+    DependencyPropertyChangedEventHandler
+        selectedProjectionChangedHandler_;
     RoutedEventHandler editableTextChangedHandler_;
+    TextBlock* selectedProjection_ = nullptr;
     bool synchronizingEditableText_ = false;
 
     void OnSelectionChanged(
@@ -157,6 +160,10 @@ private:
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs&
             args) noexcept;
+    void OnSelectedProjectionChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs&
+            args) noexcept;
     void OnEditableTextChanged(
         Base::Object* sender,
         RoutedEventArgs& args) noexcept;
@@ -164,6 +171,8 @@ private:
         UpdateSelectionBox() noexcept;
     Result<void>
         UpdateEditableVisualState() noexcept;
+    void ObserveSelectedProjection(
+        TextBlock* projection) noexcept;
     void SynchronizeContainers() noexcept;
     std::uint32_t FindContainerIndex(
         Base::Object* source) const noexcept;

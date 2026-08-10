@@ -182,6 +182,7 @@ Base::Result<void> ParseArguments(
     Base::StringView& converterResource,
     Base::StringView& converterParameter,
     Base::StringView& ancestorType,
+    std::uint32_t& ancestorLevel,
     RelativeSourceKind& relativeSource,
     Data::BindingMode& mode,
     Meta::UpdateSourceTrigger& updateSourceTrigger) noexcept {
@@ -193,6 +194,7 @@ Base::Result<void> ParseArguments(
     converterResource = {};
     converterParameter = {};
     ancestorType = {};
+    ancestorLevel = 1U;
     relativeSource = RelativeSourceKind::None;
     mode = Data::BindingMode::OneWay;
     updateSourceTrigger = Meta::UpdateSourceTrigger::PropertyChanged;
@@ -324,6 +326,78 @@ Base::Result<void> ParseArguments(
                         RelativeSourcePrefix.SizeBytes(),
                         relative.SizeBytes() -
                             RelativeSourcePrefix.SizeBytes() - 1U));
+                // RelativeSource is itself a markup extension, so its
+                // arguments are separated by commas outside nested x:Type
+                // braces. Preserve the primary mode/AncestorType token and
+                // parse AncestorLevel independently.
+                std::uint32_t relativeEnd = 0U;
+                std::uint32_t relativeDepth = 0U;
+                while (relativeEnd < relativeMode.SizeBytes()) {
+                    const char character = relativeMode[relativeEnd];
+                    if (character == '{') {
+                        ++relativeDepth;
+                    } else if (character == '}') {
+                        if (relativeDepth > 0U) --relativeDepth;
+                    } else if (character == ',' && relativeDepth == 0U) {
+                        break;
+                    }
+                    ++relativeEnd;
+                }
+                Base::StringView relativeTail;
+                if (relativeEnd < relativeMode.SizeBytes()) {
+                    relativeTail = TrimAscii(relativeMode.Substr(
+                        relativeEnd + 1U,
+                        relativeMode.SizeBytes() - relativeEnd - 1U));
+                    relativeMode = TrimAscii(relativeMode.Substr(
+                        0U, relativeEnd));
+                }
+                constexpr Base::StringView AncestorLevelPrefix(
+                    "AncestorLevel=");
+                if (!relativeTail.Empty()) {
+                    if (relativeTail.SizeBytes() <=
+                            AncestorLevelPrefix.SizeBytes() ||
+                        relativeTail.Substr(
+                            0U, AncestorLevelPrefix.SizeBytes()) !=
+                            AncestorLevelPrefix) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::Unsupported,
+                            "Binding RelativeSource argument is not supported");
+                    }
+                    const Base::StringView levelText = TrimAscii(
+                        relativeTail.Substr(
+                            AncestorLevelPrefix.SizeBytes(),
+                            relativeTail.SizeBytes() -
+                                AncestorLevelPrefix.SizeBytes()));
+                    std::uint64_t parsedLevel = 0U;
+                    if (levelText.Empty()) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::ValidationFailed,
+                            "Binding RelativeSource AncestorLevel is empty");
+                    }
+                    for (std::uint32_t index = 0U;
+                         index < levelText.SizeBytes(); ++index) {
+                        const char digit = levelText[index];
+                        if (digit < '0' || digit > '9') {
+                            return Base::Status::Failure(
+                                Base::ErrorCode::ValidationFailed,
+                                "Binding RelativeSource AncestorLevel must be an unsigned integer");
+                        }
+                        parsedLevel = parsedLevel * 10U +
+                            static_cast<std::uint64_t>(digit - '0');
+                        if (parsedLevel > UINT32_MAX) {
+                            return Base::Status::Failure(
+                                Base::ErrorCode::OutOfRange,
+                                "Binding RelativeSource AncestorLevel is out of range");
+                        }
+                    }
+                    if (parsedLevel == 0U) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::OutOfRange,
+                            "Binding RelativeSource AncestorLevel must be at least one");
+                    }
+                    ancestorLevel =
+                        static_cast<std::uint32_t>(parsedLevel);
+                }
                 constexpr Base::StringView ModePrefix("Mode=");
                 if (relativeMode.SizeBytes() >= ModePrefix.SizeBytes() &&
                     relativeMode.Substr(0U, ModePrefix.SizeBytes()) ==
@@ -1031,6 +1105,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     Base::StringView converterResource;
     Base::StringView converterParameter;
     Base::StringView ancestorType;
+    std::uint32_t ancestorLevel = 1U;
     RelativeSourceKind relativeSource =
         RelativeSourceKind::None;
     Data::BindingMode mode = Data::BindingMode::OneWay;
@@ -1046,6 +1121,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         converterResource,
         converterParameter,
         ancestorType,
+        ancestorLevel,
         relativeSource,
         mode,
         updateSourceTrigger);
@@ -1214,6 +1290,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             if (!source) return source.GetStatus();
             if (sourceMode == Data::RelativeSourceMode::FindAncestor) {
                 source.Value()->SetAncestorType(ancestorType);
+                source.Value()->SetAncestorLevel(ancestorLevel);
             }
             binding.Value()->SetRelativeSource(std::move(source).Value());
         }
@@ -1377,6 +1454,12 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 *services.deferredContentOwner,
                 source,
                 elementName,
+                relativeSource == RelativeSourceKind::Ancestor
+                    ? ancestorType
+                    : Base::StringView{},
+                relativeSource == RelativeSourceKind::Ancestor
+                    ? ancestorLevel
+                    : 0U,
                 *target,
                 *SchemaPrivate::Metadata(
                     *services.schema),
@@ -1504,7 +1587,11 @@ struct DynamicResourceState {
           property(dependencyProperty),
           key(),
           sources(),
-          allocator(&Base::GetDefaultAllocator()) {}
+          allocator(&Base::GetDefaultAllocator()) {
+        const Meta::DependencyProperty* descriptor =
+            dependencyObject.PropertyRegistry().Find(dependencyProperty);
+        if (descriptor != nullptr) property = descriptor->Handle();
+    }
 
     struct Source {
         const ResourceDictionary* identity = nullptr;
@@ -1536,11 +1623,53 @@ Base::StringView TrimDynamicResourceText(Base::StringView value) noexcept {
     return value.Substr(first, last - first);
 }
 
+Base::Result<Meta::PropertyValue> ConvertDynamicResourceValue(
+    const Meta::PropertyValue& value,
+    const Meta::DependencyProperty& property) noexcept {
+    if (property.AcceptsAnyValue() ||
+        value.Type() == property.ValueType() ||
+        value.IsNullObject()) {
+        return value;
+    }
+    if (property.ValueType() == Meta::TypeOf<Aero::Length>()) {
+        Base::Result<long double> number = ReadConstantBindingNumber(value);
+        if (number) {
+            return Meta::ValueCodec<Aero::Length>::Encode(
+                Aero::Length::Pixels(
+                    static_cast<double>(number.Value())));
+        }
+    }
+    if (property.ValueType() == Meta::TypeOf<Aero::GridLength>()) {
+        Base::Result<long double> number = ReadConstantBindingNumber(value);
+        if (number) {
+            return Meta::ValueCodec<Aero::GridLength>::Encode(
+                Aero::GridLength::Pixel(
+                    static_cast<double>(number.Value())));
+        }
+    }
+    if (property.ValueType() == Meta::TypeOf<Base::Thickness>()) {
+        Base::Result<long double> number = ReadConstantBindingNumber(value);
+        if (number) {
+            const double size = static_cast<double>(number.Value());
+            return Meta::ValueCodec<Base::Thickness>::Encode(
+                Base::Thickness{size, size, size, size});
+        }
+    }
+    if (value.Kind() == Meta::ValueKind::String) {
+        return Meta::PropertyValue::TryFromString(
+            property.ValueType(), value.AsString());
+    }
+    return value;
+}
+
 Base::Result<Meta::PropertyValue> EvaluateDynamicResource(
     void* context,
     ::Aero::DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
     DynamicResourceState* state = static_cast<DynamicResourceState*>(context);
+    const Meta::DependencyProperty* descriptor =
+        object.PropertyRegistry().Find(property);
+    if (descriptor != nullptr) property = descriptor->Handle();
     if (state == nullptr || state->sources.Empty() ||
         state->target != &object || state->property != property) {
         return Base::Status::Failure(
@@ -1555,7 +1684,10 @@ Base::Result<Meta::PropertyValue> EvaluateDynamicResource(
         Base::Result<Aero::ResourceValue> resource =
             source.resources.Lookup(state->key.View());
         if (resource) {
-            return resource.Value();
+            return descriptor != nullptr
+                ? ConvertDynamicResourceValue(
+                      resource.Value(), *descriptor)
+                : Base::Result<Meta::PropertyValue>(resource.Value());
         }
         if (resource.GetStatus().code !=
             Base::ErrorCode::NotFound) {
@@ -1934,6 +2066,35 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
     }
     ::Aero::DependencyObject* target = targetResult.Value();
     const Meta::DependencyPropertyHandle property{services.targetMember};
+    if (services.deferredContentOwner != nullptr &&
+        services.deferredContentOwner->RuntimeType() ==
+            Controls::ControlTemplate::StaticTypeId()) {
+        auto& controlTemplate =
+            static_cast<Controls::ControlTemplate&>(
+                *services.deferredContentOwner);
+        Base::String targetName;
+        Base::StringView authoredName =
+            services.nameScope != nullptr
+            ? services.nameScope->NameOf(*target)
+            : Base::StringView{};
+        if (authoredName.Empty()) {
+            Base::Result<Base::String> generated =
+                ::Aero::Controls::TemplatePrivate::EnsureAuthoredName(
+                    controlTemplate, *target);
+            if (!generated) return generated.GetStatus();
+            targetName = std::move(generated).Value();
+            authoredName = targetName.View();
+        }
+        Base::Result<void> retained =
+            ::Aero::Controls::TemplatePrivate::AddDynamicResource(
+                controlTemplate,
+                authoredName,
+                key,
+                property);
+        return retained
+            ? Base::Result<ProvidedValue>(ProvidedValue::Handled())
+            : Base::Result<ProvidedValue>(retained.GetStatus());
+    }
     Meta::EffectiveValueEngine* effectiveValues =
         services.effectiveValues != nullptr
         ? services.effectiveValues
@@ -1963,7 +2124,11 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
             "DynamicResource target is not reference-counted");
     }
     state->target = state->targetOwner.Get();
-    state->property = property;
+    const Meta::DependencyProperty* descriptor =
+        target->PropertyRegistry().Find(property);
+    state->property = descriptor != nullptr
+        ? descriptor->Handle()
+        : property;
     state->allocator = &allocator;
     Base::Result<void> reserved = state->resources.Reserve(
         services.ambientResourceChain.Size());
@@ -6727,6 +6892,8 @@ Base::Result<void> DeferredContentPlan::StageBinding(
     Base::Object& owner,
     Base::Object* source,
     Base::StringView sourceName,
+    Base::StringView relativeAncestorType,
+    std::uint32_t relativeAncestorLevel,
     ::Aero::DependencyObject& target,
     ::Aero::Meta::Registry& metadata,
     Meta::DependencyPropertyHandle targetProperty,
@@ -6748,6 +6915,10 @@ Base::Result<void> DeferredContentPlan::StageBinding(
     Base::Result<void> sourceAssigned =
         edge.sourceName.Assign(sourceName);
     if (!sourceAssigned) return sourceAssigned.GetStatus();
+    sourceAssigned = edge.relativeAncestorType.Assign(
+        relativeAncestorType);
+    if (!sourceAssigned) return sourceAssigned.GetStatus();
+    edge.relativeAncestorLevel = relativeAncestorLevel;
     edge.target = &target;
     edge.metadata = &metadata;
     edge.targetProperty = targetProperty;

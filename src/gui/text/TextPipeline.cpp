@@ -55,6 +55,21 @@ Base::Result<void> Assign(
     return destination.Assign(source);
 }
 
+Base::StringView TrimFontFamilyCandidate(
+    Base::StringView value) noexcept {
+    std::uint32_t begin = 0U;
+    std::uint32_t end = value.SizeBytes();
+    while (begin < end &&
+        std::isspace(static_cast<unsigned char>(value[begin])) != 0) {
+        ++begin;
+    }
+    while (end > begin &&
+        std::isspace(static_cast<unsigned char>(value[end - 1U])) != 0) {
+        --end;
+    }
+    return value.Substr(begin, end - begin);
+}
+
 std::string NormalizedFontName(
     const std::string& value) {
     std::string normalized;
@@ -89,7 +104,9 @@ bool IsSupportedFontFile(
 Base::Result<bool> SelectPackFontPath(
     Base::StringView family,
     Base::StringView searchRoot,
-    Base::String& output) noexcept {
+    Base::String& output,
+    bool bold = false,
+    bool italic = false) noexcept {
     std::uint32_t hash = UINT32_MAX;
     for (std::uint32_t index = 0U;
          index < family.SizeBytes();
@@ -161,9 +178,14 @@ Base::Result<bool> SelectPackFontPath(
         // face. Pick its Regular face deterministically before using the
         // legacy closest-file fallback; otherwise PTSans-Bold happens to win
         // merely because its filename is shorter than PTSans-Regular.
+        std::string preferred = normalizedRequest;
+        if (bold && italic) preferred += "bolditalic";
+        else if (bold) preferred += "bold";
+        else if (italic) preferred += "italic";
+        else preferred += "regular";
         const bool candidateIsRegular =
-            candidate == normalizedRequest + "regular" ||
-            candidate == normalizedRequest;
+            candidate == preferred ||
+            (!bold && !italic && candidate == normalizedRequest);
         std::size_t prefix = 0U;
         while (prefix < candidate.size() &&
             prefix < normalizedRequest.size() &&
@@ -212,11 +234,14 @@ Base::Result<void> SelectFontPath(
     Base::StringView family,
     bool fallback,
     Base::String& output,
-    Base::StringView searchRoot = {}) noexcept {
+    Base::StringView searchRoot = {},
+    bool bold = false,
+    bool italic = false) noexcept {
     if (!family.Empty() && LooksLikeFontPath(family)) {
         Base::Result<bool> packed =
             SelectPackFontPath(
-                family, searchRoot, output);
+                family, searchRoot, output,
+                bold, italic);
         if (!packed) return packed.GetStatus();
         if (packed.Value()) return {};
 
@@ -406,7 +431,9 @@ public:
     using FaceResolver =
         Base::Result<Text::FontFace> (*)(
             void* context,
-            Base::StringView family) noexcept;
+            Base::StringView family,
+            FontWeight weight,
+            FontStyle style) noexcept;
 
     void Set(
         ::Aero::Controls::TextBlockLayout* layout) noexcept {
@@ -440,7 +467,9 @@ public:
         Base::Result<Text::FontFace> resolved =
             resolver_(
                 resolverContext_,
-                request.fontFamily);
+                request.fontFamily,
+                request.fontWeight,
+                request.fontStyle);
         if (!resolved) {
             return resolved.GetStatus();
         }
@@ -527,6 +556,11 @@ public:
             layout.ShapeAndMeasure(
                 *fonts_, layoutRequest);
         if (!shaped) return shaped.GetStatus();
+        if (request.arrangeToAvailableWidth) {
+            shaped = layout.Arrange(
+                static_cast<float>(request.availableSize.width));
+            if (!shaped) return shaped.GetStatus();
+        }
         output.glyphRuns.Clear();
         output.desiredSize = {
             static_cast<double>(
@@ -573,6 +607,8 @@ struct TextPipelineState {
         Base::String request;
         Base::String path;
         Text::FontFace face;
+        FontWeight weight = FontWeight::Normal;
+        FontStyle style = FontStyle::Normal;
     };
 
     TextPipelineState(
@@ -668,7 +704,9 @@ Base::Result<void> TextPipeline::Initialize(
     state_->proxy.SetFaceResolver(
         state_,
         [](void* context,
-           Base::StringView family) noexcept
+           Base::StringView family,
+           FontWeight weight,
+           FontStyle style) noexcept
             -> Base::Result<Text::FontFace> {
             auto* state =
                 static_cast<TextPipelineState*>(context);
@@ -680,7 +718,9 @@ Base::Result<void> TextPipeline::Initialize(
             }
             for (const TextPipelineState::LoadedFont& loaded :
                  state->loadedFonts) {
-                if (loaded.request.View() == family) {
+                if (loaded.request.View() == family &&
+                    loaded.weight == weight &&
+                    loaded.style == style) {
                     return loaded.face;
                 }
             }
@@ -693,19 +733,50 @@ Base::Result<void> TextPipeline::Initialize(
             }
             TextPipelineState::LoadedFont& loaded =
                 *added.Value();
+            loaded.weight = weight;
+            loaded.style = style;
             Base::Result<void> status =
                 loaded.request.Assign(family);
+            Base::StringView selectedFamily;
+            Base::Status selectionFailure = Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "No configured font family candidate is available");
             if (status) {
-                status = SelectFontPath(
-                    family, false, loaded.path,
-                    state->fontSearchRoot.View());
+                std::uint32_t begin = 0U;
+                while (begin <= family.SizeBytes()) {
+                    std::uint32_t end = begin;
+                    while (end < family.SizeBytes() && family[end] != ',') {
+                        ++end;
+                    }
+                    const Base::StringView candidate =
+                        TrimFontFamilyCandidate(
+                            family.Substr(begin, end - begin));
+                    if (!candidate.Empty()) {
+                        Base::Result<void> selected = SelectFontPath(
+                            candidate, false, loaded.path,
+                            state->fontSearchRoot.View(),
+                            weight == FontWeight::Bold ||
+                                weight == FontWeight::SemiBold,
+                            style != FontStyle::Normal);
+                        if (selected) {
+                            selectedFamily = candidate;
+                            break;
+                        }
+                        selectionFailure = selected.GetStatus();
+                    }
+                    if (end == family.SizeBytes()) break;
+                    begin = end + 1U;
+                }
+                if (selectedFamily.Empty()) {
+                    status = selectionFailure;
+                }
             }
             Text::Typeface typeface(
                 state->allocator);
             if (status) {
                 status = ConfigureTypeface(
                     typeface,
-                    family,
+                    selectedFamily,
                     state->language.View(),
                     state->primaryFamily.View());
             }

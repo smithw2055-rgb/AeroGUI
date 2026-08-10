@@ -313,14 +313,6 @@ Base::Result<void> PopulateControlsItems(
             FrameworkPropertyMetadata(false)
                 .AffectsRender()
                 .BindsTwoWayByDefault())
-        .Property(
-            TreeViewItem::HasItemsProperty,
-            FrameworkPropertyMetadata(false))
-        .Property(
-            TreeViewItem::ItemsPanelProperty,
-            FrameworkPropertyMetadata(
-                Base::Ref<ItemsPanelTemplate>{})
-                .AffectsMeasure())
         .Override(
             Aero::UIElement::
                 IsTabStopProperty,

@@ -516,6 +516,30 @@ Win32Window::Win32Window(
     state_ = new (stateStorage_) Win32WindowState(*allocator_);
 }
 
+void ApplyDarkWindowChrome(HWND window) noexcept {
+    if (window == nullptr) return;
+    const HMODULE dwm = LoadLibraryW(L"dwmapi.dll");
+    if (dwm == nullptr) return;
+    using DwmSetWindowAttributeFunction = HRESULT (WINAPI*)(
+        HWND, DWORD, LPCVOID, DWORD);
+    const auto setAttribute =
+        reinterpret_cast<DwmSetWindowAttributeFunction>(
+            GetProcAddress(dwm, "DwmSetWindowAttribute"));
+    if (setAttribute != nullptr) {
+        const BOOL enabled = TRUE;
+        // DWMWA_USE_IMMERSIVE_DARK_MODE is 20 on supported Windows 10/11
+        // builds; 19 is retained as the compatibility value used by older
+        // Windows 10 releases.
+        HRESULT applied = setAttribute(
+            window, 20U, &enabled, sizeof(enabled));
+        if (FAILED(applied)) {
+            static_cast<void>(setAttribute(
+                window, 19U, &enabled, sizeof(enabled)));
+        }
+    }
+    FreeLibrary(dwm);
+}
+
 Win32Window::~Win32Window() {
     Close();
     if (state_ != nullptr) {
@@ -625,6 +649,8 @@ Base::Result<void> Win32Window::Create(
             Base::ErrorCode::InternalError,
             "Win32 window creation failed");
     }
+
+    ApplyDarkWindowChrome(state_->window);
 
     state_->open = true;
     state_->UpdateClientMetrics();

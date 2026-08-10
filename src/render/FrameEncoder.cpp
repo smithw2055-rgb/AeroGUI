@@ -264,7 +264,11 @@ Base::Result<void> PushClipState(
     const double determinant = transform.m11 * transform.m22 -
         transform.m12 * transform.m21;
     if (!std::isfinite(determinant) || std::fabs(determinant) < 1.0e-12) {
-        return Unsupported("Renderer cannot clip through a singular transform");
+        // A singular transform collapses the clip to zero raster area. Keep
+        // stack balance with an empty, invertible clip state so scale-to-zero
+        // intro storyboards can be encoded without attempting an inverse.
+        Media::Transform2D identity;
+        return clips.PushBack({rect, identity, Aero::Rect{}});
     }
     Aero::Rect bounds = TransformBounds(transform, rect);
     if (!Aero::IsValidLayoutRect(bounds)) {

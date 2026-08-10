@@ -500,36 +500,78 @@ void Ellipse::OnRender(
         return;
     }
 
-    const Color fill = ::Aero::Media::SampleBrush(GetFill());
-    if (fill.alpha > 0.0F) {
-        Transform2D scale;
-        scale.m11 = renderSize.width;
-        scale.m22 = renderSize.height;
+    auto paintEllipse = [&](Rect bounds, Color color) noexcept
+        -> Base::Result<void> {
+        if (bounds.width <= 0.0 || bounds.height <= 0.0 ||
+            color.alpha <= 0.0F) {
+            return {};
+        }
+        Transform2D transform;
+        transform.m11 = bounds.width;
+        transform.m22 = bounds.height;
+        transform.dx = bounds.x;
+        transform.dy = bounds.y;
         Base::Result<void> pushed =
-            builder.PushTransform(scale);
-        if (!pushed) return;
-        Base::Result<void> painted =
-            builder.FillRoundedRect(
-                Rect{0.0, 0.0, 1.0, 1.0},
-                fill, 0.5);
-        Base::Result<void> popped =
-            builder.PopTransform();
-        if (!painted) return;
-        if (!popped) return;
-    }
+            builder.PushTransform(transform);
+        if (!pushed) return pushed.GetStatus();
+        Base::Result<void> painted = builder.FillRoundedRect(
+            Rect{0.0, 0.0, 1.0, 1.0}, color, 0.5);
+        Base::Result<void> popped = builder.PopTransform();
+        if (!painted) return painted.GetStatus();
+        return popped;
+    };
 
-    // The retained command model does not yet expose a rounded-stroke
-    // primitive. Preserve a deterministic visible outline until ellipse
-    // stroke tessellation is added.
+    const Color fill = ::Aero::Media::SampleBrush(GetFill());
     const Color stroke = ::Aero::Media::SampleBrush(GetStroke());
-    const double thickness = GetStrokeThickness();
+    const double thickness = std::max(0.0, GetStrokeThickness());
     if (stroke.alpha > 0.0F && thickness > 0.0) {
-        static_cast<void>(builder.StrokeRect(
-            Rect{0.0, 0.0, renderSize.width, renderSize.height},
-            stroke, thickness));
+        if (fill.alpha > 0.0F) {
+            Base::Result<void> painted = paintEllipse(
+                {0.0, 0.0, renderSize.width, renderSize.height}, stroke);
+            if (!painted) return;
+            const double inset = std::min(
+                thickness,
+                std::min(renderSize.width, renderSize.height) * 0.5);
+            painted = paintEllipse(
+                {inset, inset,
+                 renderSize.width - inset * 2.0,
+                 renderSize.height - inset * 2.0},
+                fill);
+            if (!painted) return;
+        } else {
+            // A short chain of antialiased circular dabs forms a transparent
+            // ellipse ring without falling back to a rectangular outline.
+            constexpr double Pi = 3.14159265358979323846;
+            const double diameter = std::max(0.5, thickness);
+            const double perimeter = Pi *
+                (renderSize.width + renderSize.height) * 0.5;
+            const std::uint32_t segments = static_cast<std::uint32_t>(
+                std::clamp(
+                    std::ceil(perimeter / std::max(0.5, diameter * 0.65)),
+                    24.0, 192.0));
+            const double radiusX = std::max(
+                0.0, (renderSize.width - diameter) * 0.5);
+            const double radiusY = std::max(
+                0.0, (renderSize.height - diameter) * 0.5);
+            for (std::uint32_t index = 0U; index < segments; ++index) {
+                const double angle = 2.0 * Pi *
+                    static_cast<double>(index) /
+                    static_cast<double>(segments);
+                const Rect dab{
+                    renderSize.width * 0.5 + std::cos(angle) * radiusX -
+                        diameter * 0.5,
+                    renderSize.height * 0.5 + std::sin(angle) * radiusY -
+                        diameter * 0.5,
+                    diameter, diameter};
+                Base::Result<void> painted = builder.FillRoundedRect(
+                    dab, stroke, diameter * 0.5);
+                if (!painted) return;
+            }
+        }
         return;
     }
-    return;
+    static_cast<void>(paintEllipse(
+        {0.0, 0.0, renderSize.width, renderSize.height}, fill));
 }
 
 } // namespace Aero::Shapes

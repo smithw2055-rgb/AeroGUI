@@ -623,8 +623,11 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Data;
 
-BindingEngine::BindingEngine(Dispatcher& dispatcher) noexcept
+BindingEngine::BindingEngine(
+    Dispatcher& dispatcher,
+    Meta::Registry* metadata) noexcept
     : dispatcher_(&dispatcher),
+      metadata_(metadata),
       bindings_(),
       propertyChangedHandler_(this, &BindingEngine::OnPropertyChanged) {}
 

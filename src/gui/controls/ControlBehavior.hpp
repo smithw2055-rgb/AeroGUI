@@ -543,8 +543,10 @@ public:
         LayoutEngine* layout = nullptr,
         ::Aero::Render::RenderTree* renderer = nullptr,
         ::Aero::Meta::Registry* metadata = nullptr,
-        Aero::BindingEngine* bindings = nullptr) noexcept
+        Aero::BindingEngine* bindings = nullptr,
+        Aero::ResourceDictionary* resources = nullptr) noexcept
         : tree_(&tree),
+          effectiveValues_(&values),
           providerSession_(values),
           values_(&providerSession_),
           properties_(&properties),
@@ -552,6 +554,7 @@ public:
           renderer_(renderer),
           metadata_(metadata),
           bindings_(bindings),
+          resources_(resources),
           propertyChangedHandler_(
               this, &TemplateEngine::OnPropertyChanged) {}
     ~TemplateEngine() noexcept;
@@ -586,9 +589,11 @@ private:
         NameScope names;
         Base::Vector<Data::BindingHandle>
             metadataBindings;
+        Base::Vector<DependencyObject*> dynamicResourceTargets;
     };
 
     ElementTree* tree_ = nullptr;
+    EffectiveValueEngine* effectiveValues_ = nullptr;
     ::Aero::TemplatedParentProviderSession providerSession_;
     ::Aero::TemplatedParentProviderSession* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
@@ -596,6 +601,7 @@ private:
     ::Aero::Render::RenderTree* renderer_ = nullptr;
     ::Aero::Meta::Registry* metadata_ = nullptr;
     Aero::BindingEngine* bindings_ = nullptr;
+    Aero::ResourceDictionary* resources_ = nullptr;
     Base::Vector<Instance> instances_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     std::uint64_t nextHandle_ = 1U;
@@ -617,6 +623,10 @@ private:
     Base::Result<void> AttachMetadataBindings(
         Instance& instance) noexcept;
     void DetachMetadataBindings(
+        Instance& instance) noexcept;
+    Base::Result<void> AttachDynamicResources(
+        Instance& instance) noexcept;
+    void DetachDynamicResources(
         Instance& instance) noexcept;
     Base::Result<void> EvaluateTriggers(
         Instance& instance) noexcept;

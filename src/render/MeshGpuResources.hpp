@@ -50,6 +50,36 @@ public:
         return table_;
     }
 
+    void CollectRetired(
+        Base::Span<const Render::RenderCommand> liveCommands) noexcept {
+        for (std::uint32_t index = 0U;
+             index < resources_.Size();) {
+            Resource& resource = resources_[index];
+            if (!resource.retired) {
+                ++index;
+                continue;
+            }
+            bool referenced = false;
+            for (const Render::RenderCommand& command : liveCommands) {
+                if (command.kind == Render::RenderCommandKind::DrawMesh &&
+                    command.mesh == resource.id) {
+                    referenced = true;
+                    break;
+                }
+            }
+            if (referenced) {
+                ++index;
+                continue;
+            }
+            Destroy(resource);
+            for (std::uint32_t next = index + 1U;
+                 next < resources_.Size(); ++next) {
+                resources_[next - 1U] = resources_[next];
+            }
+            resources_.PopBack();
+        }
+    }
+
     void Shutdown() noexcept {
         for (Resource& resource : resources_) {
             Destroy(resource);
@@ -90,6 +120,7 @@ private:
             Render::InvalidRenderMeshId;
         Graphics::ResourceHandle vertexBuffer;
         Graphics::ResourceHandle indexBuffer;
+        bool retired = false;
     };
 
     template<class T>
@@ -395,19 +426,11 @@ private:
 
     void Release(
         Render::RenderMeshId mesh) noexcept {
-        for (std::uint32_t index = 0U;
-             index < resources_.Size(); ++index) {
-            if (resources_[index].id != mesh) {
-                continue;
+        for (Resource& resource : resources_) {
+            if (resource.id == mesh) {
+                resource.retired = true;
+                return;
             }
-            Destroy(resources_[index]);
-            for (std::uint32_t next = index + 1U;
-                 next < resources_.Size(); ++next) {
-                resources_[next - 1U] =
-                    resources_[next];
-            }
-            resources_.PopBack();
-            return;
         }
     }
 

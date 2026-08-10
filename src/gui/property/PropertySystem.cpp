@@ -846,8 +846,23 @@ Base::Result<void> DependencyObject::VerifyReady() const noexcept {
 
 std::uint32_t DependencyObject::FindEntryIndex(
     DependencyPropertyHandle property) const noexcept {
+    if (registry_ != nullptr) {
+        const Meta::DependencyProperty* descriptor =
+            registry_->Find(property);
+        if (descriptor != nullptr) {
+            property = descriptor->Handle();
+        }
+    }
     for (std::uint32_t index = 0U; index < values_.Size(); ++index) {
-        if (values_[index].property == property) {
+        DependencyPropertyHandle stored = values_[index].property;
+        if (registry_ != nullptr) {
+            const Meta::DependencyProperty* descriptor =
+                registry_->Find(stored);
+            if (descriptor != nullptr) {
+                stored = descriptor->Handle();
+            }
+        }
+        if (stored == property) {
             return index;
         }
     }
@@ -1022,12 +1037,15 @@ Base::Result<void> DependencyObject::AddValueChangedHandlerChecked(
     if (!ready) {
         return ready.GetStatus();
     }
+    const Meta::DependencyProperty* descriptor =
+        registry_->Find(property);
     if (!property.IsValid() || handler.Empty() ||
-        registry_->Find(property) == nullptr) {
+        descriptor == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Dependency property change handler registration is invalid");
     }
+    property = descriptor->Handle();
     ChangeHandlerRecord record;
     record.property = property;
     record.handler = handler;
@@ -1057,6 +1075,11 @@ bool DependencyObject::RemoveValueChangedHandler(
     }
     if (!property.IsValid() || handler.Empty()) {
         return false;
+    }
+    const Meta::DependencyProperty* descriptor =
+        registry_ != nullptr ? registry_->Find(property) : nullptr;
+    if (descriptor != nullptr) {
+        property = descriptor->Handle();
     }
     for (std::uint32_t count = changeHandlers_.Size(); count > 0U; --count) {
         const std::uint32_t index = count - 1U;
@@ -1133,6 +1156,7 @@ Base::Result<std::uint32_t> DependencyObject::EnsureEffectiveEntry(
         return Base::Status::Failure(Base::ErrorCode::NotFound,
             "Dependency property does not apply to this object type");
     }
+    propertyHandle = property->Handle();
     if (values_.Size() == UINT32_MAX) {
         return Base::Status::Failure(Base::ErrorCode::OutOfRange,
             "DependencyObject sparse value table limit reached");
@@ -1443,6 +1467,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueInternal(
         ? property->MetadataFor(runtimeType_) : nullptr;
     if (property == nullptr || metadata == nullptr) return Base::Status::Failure(
         Base::ErrorCode::NotFound, "Dependency property does not apply to this object type");
+    propertyHandle = property->Handle();
     Base::Result<MutationScope> mutationResult = BeginMutation(propertyHandle);
     if (!mutationResult) return mutationResult.GetStatus();
     MutationScope mutation = std::move(mutationResult).Value();
@@ -1485,6 +1510,7 @@ Base::Result<void> DependencyObject::ApplyChange(
         registry_->Find(propertyHandle);
     if (property == nullptr) return Base::Status::Failure(
         Base::ErrorCode::NotFound, "Dependency property was not found");
+    propertyHandle = property->Handle();
     const PropertyMetadata* metadata = property->MetadataFor(runtimeType_);
     if (metadata == nullptr) return Base::Status::Failure(
         Base::ErrorCode::NotFound, "Dependency property does not apply to this object type");

@@ -1296,6 +1296,45 @@ Base::Status InvalidTemplateCompiler(
         message);
 }
 
+Base::Object* ResolveTemplateBindingAncestor(
+    const TemplatePrototypeBinding& binding,
+    Base::Object& target,
+    Meta::Registry& runtime) noexcept {
+    if (binding.relativeAncestorType.Empty() ||
+        binding.relativeAncestorLevel == 0U ||
+        !runtime.Types().IsDerivedFrom(
+            target.RuntimeType(), ::Aero::Media::Visual::StaticTypeId())) {
+        return nullptr;
+    }
+    Base::StringView ancestorName =
+        binding.relativeAncestorType.View();
+    for (std::uint32_t index = 0U;
+         index < ancestorName.SizeBytes(); ++index) {
+        if (ancestorName[index] != ':') continue;
+        ancestorName = ancestorName.Substr(
+            index + 1U,
+            ancestorName.SizeBytes() - index - 1U);
+        break;
+    }
+    std::uint32_t matched = 0U;
+    auto* targetVisual = static_cast<::Aero::Media::Visual*>(&target);
+    ::Aero::Media::Visual* current = targetVisual->GetVisualParent();
+    if (current == nullptr) current = targetVisual->GetLogicalParent();
+    while (current != nullptr) {
+        const TypeInfo* type =
+            runtime.Types().FindType(current->RuntimeType());
+        if ((ancestorName.Empty() ||
+             (type != nullptr && type->Name() == ancestorName)) &&
+            ++matched == binding.relativeAncestorLevel) {
+            return current;
+        }
+        ::Aero::Media::Visual* next = current->GetVisualParent();
+        if (next == nullptr) next = current->GetLogicalParent();
+        current = next;
+    }
+    return nullptr;
+}
+
 struct PendingPrototypeNode {
     Base::Ref<Base::Object> object;
     std::uint32_t parent = UINT32_MAX;
@@ -1375,6 +1414,8 @@ CompileBlueprint(
     Base::Span<const DeferredBindingEdge> bindings,
     Base::Span<const Controls::TemplateMetadataBindingPlan>
         metadataBindings,
+    Base::Span<const Controls::TemplateDynamicResourcePlan>
+        dynamicResources,
     Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     if (!visualTree) {
@@ -1412,6 +1453,26 @@ CompileBlueprint(
                 target->RuntimeType(), DependencyObject::StaticTypeId())) {
             return InvalidTemplateCompiler(
                 "TemplatedParent Binding target is not a DependencyObject");
+        }
+        if (FindPrototypeObject(pending, target) != UINT32_MAX) continue;
+        appended = pending.PushBack({
+            Base::Ref<Base::Object>::FromBorrowed(*target),
+            UINT32_MAX,
+            InvalidMemberId});
+        if (!appended) return appended.GetStatus();
+    }
+    for (const Controls::TemplateDynamicResourcePlan& resource :
+         dynamicResources) {
+        if (resource.targetName.Empty() || names == nullptr) continue;
+        Base::Object* target = names->Find(resource.targetName.View());
+        if (target == nullptr || runtime.Types().IsDerivedFrom(
+                target->RuntimeType(), ::Aero::Media::Visual::StaticTypeId())) {
+            continue;
+        }
+        if (!runtime.Types().IsDerivedFrom(
+                target->RuntimeType(), DependencyObject::StaticTypeId())) {
+            return InvalidTemplateCompiler(
+                "DynamicResource target is not a DependencyObject");
         }
         if (FindPrototypeObject(pending, target) != UINT32_MAX) continue;
         appended = pending.PushBack({
@@ -1471,14 +1532,15 @@ CompileBlueprint(
                 local.Value().AsObject() &&
                 runtime.Types().IsDerivedFrom(
                     local.Value().AsObject()->RuntimeType(),
-                    DependencyObject::StaticTypeId()) &&
-                RequiresPrototypeObject(
-                    bindings, local.Value().AsObject().Get())) {
-                prototypeProperty.objectNode =
-                    FindPrototypeObject(
-                        pending,
-                        local.Value().AsObject().Get());
-                if (prototypeProperty.objectNode == UINT32_MAX) {
+                    DependencyObject::StaticTypeId())) {
+                prototypeProperty.objectNode = FindPrototypeObject(
+                    pending, local.Value().AsObject().Get());
+                const bool requiresClone =
+                    prototypeProperty.objectNode != UINT32_MAX ||
+                    RequiresPrototypeObject(
+                        bindings, local.Value().AsObject().Get());
+                if (requiresClone &&
+                    prototypeProperty.objectNode == UINT32_MAX) {
                     prototypeProperty.objectNode = pending.Size();
                     appended = pending.PushBack({
                         local.Value().AsObject(),
@@ -1635,7 +1697,12 @@ CompileBlueprint(
             if (!sourceName) return sourceName.GetStatus();
         }
         Base::Result<void> assigned =
-            binding.path.Assign(
+            binding.relativeAncestorType.Assign(
+            source.relativeAncestorType.View());
+        if (!assigned) return assigned.GetStatus();
+        binding.relativeAncestorLevel =
+            source.relativeAncestorLevel;
+        assigned = binding.path.Assign(
                 source.path.View());
         if (!assigned) {
             return assigned.GetStatus();
@@ -2261,6 +2328,8 @@ CompileControlTemplateDefinition(
         bindings,
         ::Aero::Controls::TemplatePrivate::MetadataBindings(
             controlTemplate),
+        ::Aero::Controls::TemplatePrivate::DynamicResources(
+            controlTemplate),
         runtime,
         properties);
     if (!blueprint) {
@@ -2423,6 +2492,7 @@ CompileDeferredTemplateBlueprint(
         names,
         edges,
         bindings,
+        {},
         {},
         runtime,
         properties);
@@ -2823,6 +2893,18 @@ Base::Result<void> BuildCompiledTemplate(
                     "ControlTemplate Binding ElementName was not found in the outer NameScope");
             }
         }
+        if (descriptor.source == nullptr &&
+            !binding.relativeAncestorType.Empty()) {
+            descriptor.source = ResolveTemplateBindingAncestor(
+                binding,
+                *objects[binding.target],
+                *blueprint->runtime);
+            if (descriptor.source == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "ControlTemplate Binding ancestor was not found");
+            }
+        }
         descriptor.target =
             static_cast<DependencyObject*>(
                 objects[binding.target].Get());
@@ -3196,6 +3278,18 @@ BuildCompiledDeferredTemplate(
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "DataTemplate Binding cannot resolve an ElementName outside its template NameScope");
+        }
+        if (descriptor.source == nullptr &&
+            !binding.relativeAncestorType.Empty()) {
+            descriptor.source = ResolveTemplateBindingAncestor(
+                binding,
+                *objects[binding.target],
+                *blueprint->runtime);
+            if (descriptor.source == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "DataTemplate Binding ancestor was not found");
+            }
         }
         descriptor.target =
             static_cast<DependencyObject*>(

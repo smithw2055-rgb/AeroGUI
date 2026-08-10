@@ -958,6 +958,9 @@ ComboBox::ComboBox() noexcept
       selectedValueChangedHandler_(
           this,
           &ComboBox::OnSelectedValuePropertyChanged),
+      selectedProjectionChangedHandler_(
+          this,
+          &ComboBox::OnSelectedProjectionChanged),
       editableTextChangedHandler_(
           this,
           &ComboBox::OnEditableTextChanged) {
@@ -987,6 +990,7 @@ ComboBox::ComboBox() noexcept
 }
 
 ComboBox::~ComboBox() {
+    ObserveSelectedProjection(nullptr);
     auto* behaviors = static_cast<ControlBehavior*>(
         ::Aero::Media::Visual::Access::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
@@ -1248,6 +1252,7 @@ void ComboBox::OnApplyTemplate()
 }
 
 void ComboBox::OnTemplateDetached() noexcept {
+    ObserveSelectedProjection(nullptr);
     if (editableTextBox_ != nullptr) {
         static_cast<void>(
             editableTextBox_->RemoveHandler(
@@ -1291,6 +1296,32 @@ void ComboBox::OnSelectedValuePropertyChanged(
     // presenter must refresh, even when the SelectedItem reference itself
     // did not change.
     static_cast<void>(UpdateSelectionBox());
+}
+
+void ComboBox::OnSelectedProjectionChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+    if (&object == selectedProjection_) {
+        static_cast<void>(UpdateSelectionBox());
+    }
+}
+
+void ComboBox::ObserveSelectedProjection(
+    TextBlock* projection) noexcept {
+    if (selectedProjection_ == projection) return;
+    if (selectedProjection_ != nullptr) {
+        static_cast<void>(selectedProjection_->RemoveValueChangedHandler(
+            TextBlock::TextProperty,
+            selectedProjectionChangedHandler_));
+    }
+    selectedProjection_ = projection;
+    if (selectedProjection_ != nullptr) {
+        Base::Result<void> observed =
+            selectedProjection_->AddValueChangedHandlerChecked(
+                TextBlock::TextProperty,
+                selectedProjectionChangedHandler_);
+        if (!observed) selectedProjection_ = nullptr;
+    }
 }
 
 void ComboBox::OnEditablePropertyChanged(
@@ -1371,6 +1402,7 @@ OnMaxDropDownHeightPropertyChanged(
 Base::Result<void>
 ComboBox::UpdateSelectionBox() noexcept {
     Base::StringView text;
+    TextBlock* selectedProjection = nullptr;
     Base::Ref<Base::Object> selected =
         GetSelectedItem();
     if (selected &&
@@ -1427,7 +1459,28 @@ ComboBox::UpdateSelectionBox() noexcept {
             if (content != nullptr &&
                 PropertyRegistry().Types().IsDerivedFrom(
                     content->RuntimeType(), TextBlock::StaticTypeId())) {
-                text = static_cast<TextBlock*>(content)->GetText();
+                selectedProjection = static_cast<TextBlock*>(content);
+                text = selectedProjection->GetText();
+            }
+        }
+    }
+    ObserveSelectedProjection(selectedProjection);
+    if (text.Empty() && selected) {
+        // When an ItemTemplate is realized after the initial selection, use
+        // its conventional display property as a generic closed-state
+        // fallback. This keeps model objects out of ComboBox while matching
+        // WPF's selected-item presentation timing.
+        Meta::ObjectFactoryState services = Meta::CurrentObjectFactory();
+        const Meta::PropertyInfo* name = services.metadata != nullptr
+            ? services.metadata->Types().FindProperty(
+                selected->RuntimeType(), Base::StringView("Name"), true)
+            : nullptr;
+        if (name != nullptr) {
+            Base::Result<Meta::Value> displayed =
+                services.metadata->GetProperty(*selected, name->Id());
+            if (displayed &&
+                displayed.Value().Kind() == Meta::ValueKind::String) {
+                text = displayed.Value().AsString();
             }
         }
     }

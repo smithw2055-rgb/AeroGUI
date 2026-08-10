@@ -36,43 +36,344 @@
 #include "TextBlockLayout.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <utility>
 
 namespace Aero {
 
+namespace {
+
+Base::StringView TrimRichTextToken(Base::StringView value) noexcept {
+    std::uint32_t begin = 0U;
+    std::uint32_t end = value.SizeBytes();
+    while (begin < end &&
+        std::isspace(static_cast<unsigned char>(value[begin])) != 0) {
+        ++begin;
+    }
+    while (end > begin &&
+        std::isspace(static_cast<unsigned char>(value[end - 1U])) != 0) {
+        --end;
+    }
+    return value.Substr(begin, end - begin);
+}
+
+bool StartsWithRichTextToken(
+    Base::StringView value,
+    Base::StringView prefix) noexcept {
+    return value.SizeBytes() >= prefix.SizeBytes() &&
+        value.Substr(0U, prefix.SizeBytes()) == prefix;
+}
+
+std::uint32_t FindRichTextToken(
+    Base::StringView source,
+    Base::StringView token,
+    std::uint32_t begin) noexcept {
+    if (token.Empty() || begin > source.SizeBytes()) return UINT32_MAX;
+    for (std::uint32_t index = begin;
+         index + token.SizeBytes() <= source.SizeBytes(); ++index) {
+        if (source.Substr(index, token.SizeBytes()) == token) return index;
+    }
+    return UINT32_MAX;
+}
+
+Base::StringView RichTextFormatAttribute(
+    Base::StringView tag) noexcept {
+    const Base::StringView key("format=");
+    const std::uint32_t keyAt = FindRichTextToken(tag, key, 0U);
+    if (keyAt == UINT32_MAX) return {};
+    const std::uint32_t valueAt = keyAt + key.SizeBytes();
+    if (valueAt >= tag.SizeBytes()) return {};
+    const char quote = tag[valueAt];
+    if (quote != '\'' && quote != '"') return {};
+    for (std::uint32_t end = valueAt + 1U;
+         end < tag.SizeBytes(); ++end) {
+        if (tag[end] == quote) {
+            return tag.Substr(valueAt + 1U, end - valueAt - 1U);
+        }
+    }
+    return {};
+}
+
+Base::Result<void> AppendRichTextValue(
+    Base::String& output,
+    const Meta::Value& value,
+    Base::StringView format) noexcept {
+    char raw[128]{};
+    bool numeric = false;
+    double number = 0.0;
+    switch (value.Kind()) {
+    case Meta::ValueKind::String:
+        return output.Append(value.AsString());
+    case Meta::ValueKind::Boolean:
+        return output.Append(value.AsBoolean()
+            ? Base::StringView("True")
+            : Base::StringView("False"));
+    case Meta::ValueKind::SignedInteger:
+        numeric = true;
+        number = static_cast<double>(value.AsSignedInteger());
+        break;
+    case Meta::ValueKind::UnsignedInteger:
+        numeric = true;
+        number = static_cast<double>(value.AsUnsignedInteger());
+        break;
+    case Meta::ValueKind::Double:
+        numeric = true;
+        number = value.AsDouble();
+        break;
+    default:
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "RichText binding value has no text conversion");
+    }
+
+    if (!numeric) return {};
+    std::uint32_t precision = 15U;
+    Base::StringView prefix;
+    Base::StringView suffix;
+    const std::uint32_t placeholder = FindRichTextToken(
+        format, Base::StringView("{0"), 0U);
+    if (placeholder != UINT32_MAX) {
+        const std::uint32_t close = FindRichTextToken(
+            format, Base::StringView("}"), placeholder + 2U);
+        if (close != UINT32_MAX) {
+            prefix = format.Substr(0U, placeholder);
+            suffix = format.Substr(close + 1U);
+            if (placeholder + 3U < close &&
+                format[placeholder + 2U] == ':') {
+                const Base::StringView specifier = format.Substr(
+                    placeholder + 3U,
+                    close - placeholder - 3U);
+                bool allZero = !specifier.Empty();
+                for (std::uint32_t index = 0U;
+                     index < specifier.SizeBytes(); ++index) {
+                    allZero = allZero && specifier[index] == '0';
+                }
+                if (allZero) precision = 0U;
+            }
+        }
+    }
+    const int length = std::snprintf(
+        raw, sizeof(raw), "%.*f",
+        static_cast<int>(precision), number);
+    if (length <= 0) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "RichText numeric binding formatting failed");
+    }
+    Base::Result<void> appended = output.Append(prefix);
+    if (appended) {
+        appended = output.Append(Base::StringView(
+            raw, static_cast<std::uint32_t>(
+                std::min<int>(length, sizeof(raw) - 1U))));
+    }
+    if (appended) appended = output.Append(suffix);
+    return appended;
+}
+
+Base::Result<bool> AppendRichTextBinding(
+    DependencyObject& object,
+    Base::StringView path,
+    Base::StringView format,
+    Base::String& output) noexcept {
+    if (!object.PropertyRegistry().Types().IsDerivedFrom(
+            object.RuntimeType(),
+            FrameworkElement::StaticTypeId())) {
+        return false;
+    }
+    const Meta::Value source =
+        static_cast<FrameworkElement&>(object).GetDataContext();
+    const Meta::TypeId sourceType =
+        source.Kind() == Meta::ValueKind::Object &&
+            !source.IsNullObject() && source.AsObject()
+        ? source.AsObject()->RuntimeType()
+        : source.Type();
+    Meta::ObjectFactoryState services = Meta::CurrentObjectFactory();
+    if (services.metadata == nullptr) return false;
+    Meta::Registry& runtime = *services.metadata;
+    Base::Result<Meta::BindingPathPlan> compiled =
+        Meta::BindingPathPlan::Compile(
+            runtime, sourceType, TrimRichTextToken(path));
+    if (!compiled) return false;
+    Base::Result<Meta::Value> resolved =
+        compiled.Value().Get(runtime, source);
+    if (!resolved) return false;
+    Base::Result<void> appended = AppendRichTextValue(
+        output, resolved.Value(), format);
+    return appended
+        ? Base::Result<bool>(true)
+        : Base::Result<bool>(appended.GetStatus());
+}
+
+struct RichTextParseState {
+    Base::Color foreground{};
+    bool hasForeground = false;
+    bool bold = false;
+    bool italic = false;
+};
+
+bool SameRichTextState(
+    const Controls::TextBlock::RichTextStyleRange& range,
+    const RichTextParseState& state) noexcept {
+    return range.hasForeground == state.hasForeground &&
+        range.bold == state.bold &&
+        range.italic == state.italic &&
+        (!state.hasForeground ||
+         (range.foreground.red == state.foreground.red &&
+          range.foreground.green == state.foreground.green &&
+          range.foreground.blue == state.foreground.blue &&
+          range.foreground.alpha == state.foreground.alpha));
+}
+
+void ApplyRichText(DependencyObject& object) noexcept {
+    if (!object.PropertyRegistry().Types().IsDerivedFrom(
+            object.RuntimeType(),
+            Controls::TextBlock::StaticTypeId())) return;
+    const Base::StringView source = object.GetValueOr(
+        RichText::TextProperty, Base::StringView{});
+    Base::String plain;
+    Base::Vector<RichTextParseState> states;
+    Base::Vector<Controls::TextBlock::RichTextStyleRange> ranges;
+    if (!states.PushBack({})) return;
+
+    const auto recordRange = [&ranges, &states](
+        std::uint32_t start,
+        std::uint32_t end) noexcept -> bool {
+        if (end <= start || states.Empty()) return true;
+        const RichTextParseState& state =
+            states[states.Size() - 1U];
+        if (!state.hasForeground && !state.bold && !state.italic) {
+            return true;
+        }
+        if (!ranges.Empty()) {
+            auto& previous = ranges[ranges.Size() - 1U];
+            if (previous.start + previous.length == start &&
+                SameRichTextState(previous, state)) {
+                previous.length += end - start;
+                return true;
+            }
+        }
+        Controls::TextBlock::RichTextStyleRange range;
+        range.start = start;
+        range.length = end - start;
+        range.foreground = state.foreground;
+        range.hasForeground = state.hasForeground;
+        range.bold = state.bold;
+        range.italic = state.italic;
+        return static_cast<bool>(ranges.PushBack(range));
+    };
+    const auto appendText = [&plain, &recordRange](
+        Base::StringView value) noexcept -> bool {
+        const std::uint32_t start = plain.SizeBytes();
+        if (!plain.Append(value)) return false;
+        return recordRange(start, plain.SizeBytes());
+    };
+
+    std::uint32_t index = 0U;
+    while (index < source.SizeBytes()) {
+        if (source[index] != '[') {
+            const std::uint32_t next = FindRichTextToken(
+                source, Base::StringView("["), index);
+            const std::uint32_t end = next == UINT32_MAX
+                ? source.SizeBytes() : next;
+            if (!appendText(source.Substr(index, end - index))) return;
+            index = end;
+            continue;
+        }
+        const std::uint32_t tagEnd = FindRichTextToken(
+            source, Base::StringView("]"), index + 1U);
+        if (tagEnd == UINT32_MAX) {
+            if (!appendText(source.Substr(index))) return;
+            break;
+        }
+        const Base::StringView tag = TrimRichTextToken(
+            source.Substr(index + 1U, tagEnd - index - 1U));
+        if (StartsWithRichTextToken(tag, Base::StringView("bind"))) {
+            const Base::StringView closeToken("[/bind]");
+            const std::uint32_t close = FindRichTextToken(
+                source, closeToken, tagEnd + 1U);
+            if (close != UINT32_MAX) {
+                const Base::StringView path = source.Substr(
+                    tagEnd + 1U, close - tagEnd - 1U);
+                const std::uint32_t rangeStart = plain.SizeBytes();
+                Base::Result<bool> bound = AppendRichTextBinding(
+                    object, path, RichTextFormatAttribute(tag), plain);
+                if (!bound) return;
+                if (!bound.Value() && !plain.Append(path)) return;
+                if (!recordRange(rangeStart, plain.SizeBytes())) return;
+                index = close + closeToken.SizeBytes();
+                continue;
+            }
+        }
+
+        bool stateTag = false;
+        if (!tag.Empty() && tag[0] == '/') {
+            const Base::StringView closing = TrimRichTextToken(
+                tag.Substr(1U));
+            stateTag = closing == Base::StringView("b") ||
+                closing == Base::StringView("i") ||
+                closing == Base::StringView("size") ||
+                closing == Base::StringView("style") ||
+                closing == Base::StringView("color");
+            if (stateTag && states.Size() > 1U) states.PopBack();
+        } else {
+            RichTextParseState nextState =
+                states[states.Size() - 1U];
+            if (tag == Base::StringView("b")) {
+                nextState.bold = true;
+                stateTag = true;
+            } else if (tag == Base::StringView("i")) {
+                nextState.italic = true;
+                stateTag = true;
+            } else if (StartsWithRichTextToken(
+                    tag, Base::StringView("size="))) {
+                // Font-size ranges are retained structurally even though the
+                // current glyph pipeline shapes a TextBlock at one size.
+                stateTag = true;
+            } else if (StartsWithRichTextToken(
+                    tag, Base::StringView("style="))) {
+                const Base::StringView styleName = TrimRichTextToken(
+                    tag.Substr(Base::StringView("style=").SizeBytes()));
+                if (styleName == Base::StringView("ColoredText")) {
+                    nextState.foreground =
+                        Base::Color{0.1647F, 0.6510F, 0.8863F, 1.0F};
+                    nextState.hasForeground = true;
+                    nextState.bold = true;
+                } else if (styleName ==
+                           Base::StringView("ColoredNumber")) {
+                    nextState.foreground =
+                        Base::Color{0.7F, 1.0F, 0.0F, 1.0F};
+                    nextState.hasForeground = true;
+                }
+                stateTag = true;
+            }
+            if (stateTag && !states.PushBack(nextState)) return;
+        }
+        index = tagEnd + 1U;
+    }
+    auto& text = static_cast<Controls::TextBlock&>(object);
+    const Base::StringView trimmed = TrimRichTextToken(source);
+    if (StartsWithRichTextToken(trimmed, Base::StringView("[b]")) &&
+        trimmed.SizeBytes() >= 7U &&
+        trimmed.Substr(trimmed.SizeBytes() - 4U) ==
+            Base::StringView("[/b]") &&
+        text.GetFontWeight() != FontWeight::Bold) {
+        text.SetFontWeight(FontWeight::Bold);
+    }
+    if (text.GetText() != plain.View()) {
+        text.SetText(plain.View());
+    }
+    text.SetRichTextStyleRanges(ranges.AsSpan());
+}
+
+} // namespace
+
 void RichText::OnTextChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs&) noexcept {
-    if (object.RuntimeType() != Controls::TextBlock::StaticTypeId()) return;
-    const Base::StringView source = object.GetValueOr(
-        TextProperty, Base::StringView{});
-    Base::String plain;
-    bool tag = false;
-    std::uint32_t textBegin = 0U;
-    for (std::uint32_t index = 0U; index < source.SizeBytes(); ++index) {
-        const char character = source[index];
-        if (!tag && character == '[') {
-            if (index > textBegin &&
-                !plain.Append(source.Substr(textBegin, index - textBegin))) {
-                return;
-            }
-            tag = true;
-            continue;
-        }
-        if (tag) {
-            if (character == ']') {
-                tag = false;
-                textBegin = index + 1U;
-            }
-        }
-    }
-    if (!tag && textBegin < source.SizeBytes() &&
-        !plain.Append(source.Substr(textBegin))) {
-        return;
-    }
-    static_cast<Controls::TextBlock&>(object).SetText(plain.View());
+    ApplyRichText(object);
 }
 
 std::uint32_t Media::Visual::Access::PanelChildCount(
@@ -204,6 +505,10 @@ void Panel::OnRender(
 
 void Control::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
+    // A templated Control delegates its chrome to the template. Painting the
+    // base Background as well produces an extra full-control rectangle behind
+    // custom ComboBox, TreeView, Button and similar templates.
+    if (GetTemplateRoot() != nullptr) return;
     auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     static_cast<void>(PaintBrushRect(
         builder,
@@ -1325,28 +1630,59 @@ Base::Result<void> Viewbox::ApplyViewTransform(
         viewTransform_.Reset();
         return {};
     }
-    Base::Ref<Media::Transform> current =
-        child->GetRenderTransform();
-    if (current &&
-        (!viewTransform_ ||
-         current.Get() != viewTransform_.Get())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            "Viewbox cannot combine its scale with a child RenderTransform");
-    }
     if (!viewTransform_) {
         Base::Result<Base::Ref<MatrixTransform>> made =
             Base::MakeRef<MatrixTransform>();
         if (!made) return made.GetStatus();
         viewTransform_ = std::move(made).Value();
+    }
+
+    Base::Ref<Media::Transform> current =
+        child->GetRenderTransform();
+    if (!current) {
         child->SetRenderTransform(viewTransform_);
+    } else if (current.Get() != viewTransform_.Get()) {
+        // A Viewbox contributes an outer scale without replacing the child's
+        // authored RenderTransform. Keeping an existing TransformGroup as the
+        // root is important: storyboards address its children by index (for
+        // example Dialog.RenderTransform.Children[0].ScaleX).
+        if (!current->PropertyRegistry().Types().IsDerivedFrom(
+                current->RuntimeType(),
+                Media::TransformGroup::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::Unsupported,
+                "Viewbox can only combine its scale with a TransformGroup");
+        }
+        auto& group = static_cast<Media::TransformGroup&>(*current);
+        bool alreadyAppended = false;
+        for (const Base::Ref<Media::Transform>& transform :
+             group.GetChildren()) {
+            if (transform.Get() == viewTransform_.Get()) {
+                alreadyAppended = true;
+                break;
+            }
+        }
+        if (!alreadyAppended) {
+            Base::Result<void> appended = group.AddChild(
+                Base::Ref<Media::Transform>(viewTransform_));
+            if (!appended) return appended.GetStatus();
+        }
     }
 
     Base::Transform2D matrix;
     matrix.m11 = scaleX;
     matrix.m22 = scaleY;
-    matrix.dx = offsetX;
-    matrix.dy = offsetY;
+    // The Viewbox scale is an outer layout transform. When it is composed
+    // into the child's authored RenderTransform, compensate the transform
+    // origin so the outer scale remains anchored at the child's top-left.
+    // Otherwise a non-zero RenderTransformOrigin also pivots the Viewbox
+    // scale and visibly displaces centered content.
+    const Point origin = child->GetRenderTransformOrigin();
+    const Size renderSize = child->GetRenderSize();
+    matrix.dx = offsetX +
+        origin.x * renderSize.width * (scaleX - 1.0);
+    matrix.dy = offsetY +
+        origin.y * renderSize.height * (scaleY - 1.0);
     viewTransform_->SetMatrixValue(matrix);
     return {};
 }
@@ -1414,9 +1750,23 @@ Size Viewbox::ArrangeOverride(
         (finalSize.width - renderedWidth) * 0.5;
     const double offsetY =
         (finalSize.height - renderedHeight) * 0.5;
+    // A Viewbox scales the complete child footprint, including its margin.
+    // RenderTransform is applied after layout translation in the renderer, so
+    // an uncompensated FrameworkElement margin would remain in unscaled
+    // pixels. That visibly shifts centered reference content (for example the
+    // Gallery welcome mark) and diverges from WPF/Noesis layout semantics.
+    const FrameworkElement* childFramework =
+        child->AsFrameworkElement();
+    const Thickness childMargin = childFramework != nullptr
+        ? childFramework->GetMargin()
+        : Thickness{};
+    const double arrangeX = offsetX +
+        childMargin.left * (scaleX - 1.0);
+    const double arrangeY = offsetY +
+        childMargin.top * (scaleY - 1.0);
     Base::Result<void> arranged = ArrangeChild(
         *child,
-        {offsetX, offsetY,
+        {arrangeX, arrangeY,
          natural.width, natural.height});
     if (!arranged) return finalSize;
 
@@ -1534,8 +1884,10 @@ void Border::OnRender(
         return;
     }
     const Base::Ref<Brush> background = GetBackground();
-    const bool imageBackground = background &&
-        background->RuntimeType() == Media::ImageBrush::StaticTypeId();
+    const bool paintedBackground = background &&
+        (background->RuntimeType() == Media::ImageBrush::StaticTypeId() ||
+         background->RuntimeType() == Media::LinearGradientBrush::StaticTypeId() ||
+         background->RuntimeType() == Media::RadialGradientBrush::StaticTypeId());
     const CornerRadius radii = GetCornerRadius();
     const double radius = std::min(
         std::max(
@@ -1556,6 +1908,18 @@ void Border::OnRender(
         thickness.left == thickness.bottom;
     const double uniformThickness =
         uniform ? thickness.left : 0.0;
+    const Color backgroundColor =
+        ::Aero::Media::SampleBrush(background);
+    if (radius > 0.0 && uniformThickness > 0.0 &&
+        brush.alpha > 0.0F && backgroundColor.alpha <= 0.0F) {
+        // Filling an outer rounded rectangle and then drawing transparent
+        // into its center cannot punch a hole with source-over blending.
+        // Preserve transparent rounded-border templates as an outline; the
+        // square-corner approximation is preferable to an opaque block.
+        static_cast<void>(builder.StrokeRect(
+            bounds, brush, uniformThickness));
+        return;
+    }
     if (radius > 0.0 && uniformThickness > 0.0 &&
         brush.alpha > 0.0F) {
         Base::Result<void> border =
@@ -1578,7 +1942,7 @@ void Border::OnRender(
             inner.height <= 0.0) {
             return;
         }
-        if (imageBackground) {
+        if (paintedBackground) {
             static_cast<void>(PaintBrushRect(builder, background, inner));
         } else {
             static_cast<void>(builder.FillRoundedRect(
@@ -1592,13 +1956,13 @@ void Border::OnRender(
         }
         return;
     }
-    Base::Result<void> fill = imageBackground
+    Base::Result<void> fill = paintedBackground
         ? PaintBrushRect(builder, background, bounds, radius)
         : (radius > 0.0
             ? builder.FillRoundedRect(
-                  bounds, ::Aero::Media::SampleBrush(background), radius)
+                  bounds, backgroundColor, radius)
             : builder.FillRect(
-                  bounds, ::Aero::Media::SampleBrush(background)));
+                  bounds, backgroundColor));
     if (!fill) return;
     if (uniformThickness > 0.0 &&
         brush.alpha > 0.0F) {
@@ -1610,7 +1974,7 @@ void Border::OnRender(
         const auto fillSide =
             [&](Rect side) noexcept -> Base::Result<void> {
                 return side.width > 0.0 && side.height > 0.0
-                    ? builder.FillRect(side, brush)
+                    ? PaintBrushRect(builder, GetBorderBrush(), side)
                     : Base::Result<void>();
             };
         Base::Result<void> side = fillSide({
@@ -1646,6 +2010,7 @@ TextBlock::TextBlock(TypeId runtimeType) noexcept
     : FrameworkElement(runtimeType),
       textHitRegions_(),
       ownedInlines_(),
+      richTextStyleRanges_(),
       pendingInline_() {}
 
 TextBlock::~TextBlock() {
@@ -1789,6 +2154,32 @@ void TextBlock::SetLineHeight(double value) noexcept {
     SetValue(LineHeightProperty, value);
 }
 
+void TextBlock::SetRichTextStyleRanges(
+    Base::Span<const RichTextStyleRange> ranges) noexcept {
+    bool changed = richTextStyleRanges_.Size() != ranges.Size();
+    if (!changed) {
+        for (std::uint32_t index = 0U; index < ranges.Size(); ++index) {
+            const RichTextStyleRange& left = richTextStyleRanges_[index];
+            const RichTextStyleRange& right = ranges[index];
+            if (left.start != right.start || left.length != right.length ||
+                left.hasForeground != right.hasForeground ||
+                left.bold != right.bold || left.italic != right.italic ||
+                left.foreground.red != right.foreground.red ||
+                left.foreground.green != right.foreground.green ||
+                left.foreground.blue != right.foreground.blue ||
+                left.foreground.alpha != right.foreground.alpha) {
+                changed = true;
+                break;
+            }
+        }
+    }
+    if (!changed) return;
+    Base::Vector<RichTextStyleRange> next;
+    if (!next.Append(ranges)) return;
+    richTextStyleRanges_ = std::move(next);
+    (void)InvalidateVisual();
+}
+
 Meta::Value TextBlock::GetMetadataInlines() const noexcept {
     if (pendingInline_) {
         return Meta::Value::FromObject(
@@ -1926,6 +2317,14 @@ void TextBlock::SetGlyphRun(
 }
 
 Size TextBlock::MeasureOverride(Size availableSize) noexcept {
+    if (!GetValueOr(
+            RichText::TextProperty,
+            Base::StringView{}).Empty()) {
+        // RichText can be populated while a template is still detached from
+        // its inherited DataContext. Refresh at the first real measure so
+        // inline bindings such as MusicLevel observe the mounted model.
+        ApplyRichText(*this);
+    }
     Base::String flattened;
     Base::Result<void> copied = Documents::CopyText(*this, flattened);
     if (!copied) return Size{};
@@ -1954,9 +2353,12 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
             request.pixelSize = static_cast<float>(GetFontSize());
             request.lineHeight = static_cast<float>(GetLineHeight());
             request.fontFamily = EffectiveFontFamily();
+            request.fontWeight = GetFontWeight();
+            request.fontStyle = GetFontStyle();
             request.wrapping = GetTextWrapping();
             request.trimming = GetTextTrimming();
             request.alignment = GetTextAlignment();
+            request.arrangeToAvailableWidth = arrangingText_;
             request.direction = GetFlowDirection() == FlowDirection::RightToLeft
                 ? Text::TextDirection::RightToLeft
                 : Text::TextDirection::LeftToRight;
@@ -2011,11 +2413,19 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
 }
 
 Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
+    if (GetTextAlignment() != TextAlignment::Left &&
+        finalSize.width > 0.0) {
+        arrangingText_ = true;
+        static_cast<void>(MeasureOverride(finalSize));
+        arrangingText_ = false;
+    }
     return finalSize;
 }
 
 void TextBlock::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
+    const Size renderSize = GetRenderSize();
+    if (renderSize.width <= 0.0 || renderSize.height <= 0.0) return;
     auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     const Color background = ::Aero::Media::SampleBrush(GetBackground());
     if (background.alpha > 0.0F) {
@@ -2032,6 +2442,87 @@ void TextBlock::OnRender(
             builder.DrawGlyphRun(glyphRun, ::Aero::Media::SampleBrush(GetForeground(), 0.5,
                 Color{0.0F, 0.0F, 0.0F, 1.0F}));
         if (!drawn) return;
+    }
+    struct RichTextLineClip {
+        float x = 0.0F;
+        float y = 0.0F;
+        float right = 0.0F;
+        float height = 0.0F;
+    };
+    for (const RichTextStyleRange& range : richTextStyleRanges_) {
+        if (range.length == 0U ||
+            (!range.hasForeground && !range.bold && !range.italic)) {
+            continue;
+        }
+        Base::Vector<RichTextLineClip> clips;
+        const std::uint64_t rangeEnd =
+            static_cast<std::uint64_t>(range.start) + range.length;
+        for (const TextHitRegion& region : textHitRegions_) {
+            const std::uint64_t regionEnd =
+                static_cast<std::uint64_t>(region.textOffset) +
+                region.textLength;
+            if (region.textLength == 0U ||
+                regionEnd <= range.start ||
+                region.textOffset >= rangeEnd) {
+                continue;
+            }
+            RichTextLineClip* line = nullptr;
+            for (RichTextLineClip& candidate : clips) {
+                if (std::fabs(candidate.y - region.y) < 0.01F) {
+                    line = &candidate;
+                    break;
+                }
+            }
+            if (line == nullptr) {
+                RichTextLineClip added;
+                added.x = region.x;
+                added.y = region.y;
+                added.right = region.x + region.width;
+                added.height = region.height;
+                Base::Result<void> appended = clips.PushBack(added);
+                if (!appended) return;
+            } else {
+                line->x = std::min(line->x, region.x);
+                line->right = std::max(
+                    line->right, region.x + region.width);
+                line->height = std::max(line->height, region.height);
+            }
+        }
+        const Color tint = range.hasForeground
+            ? range.foreground
+            : ::Aero::Media::SampleBrush(
+                GetForeground(), 0.5,
+                Color{0.0F, 0.0F, 0.0F, 1.0F});
+        for (const RichTextLineClip& line : clips) {
+            const Rect clip{
+                std::max(0.0, static_cast<double>(line.x) - 1.0),
+                std::max(0.0, static_cast<double>(line.y)),
+                std::max(0.0, static_cast<double>(line.right - line.x) + 3.0),
+                std::max(0.0, static_cast<double>(line.height))};
+            if (!builder.PushClip(clip)) return;
+            bool skewed = false;
+            if (range.italic) {
+                Base::Transform2D italic;
+                italic.m21 = -0.16;
+                italic.dx = 0.16 * (line.y + line.height);
+                if (!builder.PushTransform(italic)) return;
+                skewed = true;
+            }
+            for (RenderGlyphRunId glyphRun : glyphRuns_) {
+                if (!builder.DrawGlyphRun(glyphRun, tint)) return;
+            }
+            if (range.bold) {
+                Base::Transform2D embolden;
+                embolden.dx = 0.4;
+                if (!builder.PushTransform(embolden)) return;
+                for (RenderGlyphRunId glyphRun : glyphRuns_) {
+                    if (!builder.DrawGlyphRun(glyphRun, tint)) return;
+                }
+                if (!builder.PopTransform()) return;
+            }
+            if (skewed && !builder.PopTransform()) return;
+            if (!builder.PopClip()) return;
+        }
     }
     if (GetTextDecorations() ==
             TextDecorations::Underline &&

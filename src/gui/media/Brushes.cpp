@@ -416,6 +416,13 @@ Base::Result<void> PaintBrushRect(
         bounds.height <= 0.0) {
         return {};
     }
+    // Do not emit transparent gradient/image tessellation. Apart from being
+    // unnecessary work, zero-alpha FillRect commands can overwrite earlier
+    // layers on backends that use opaque UI batches. This is especially
+    // visible for hover overlays authored with Brush.Opacity="0".
+    if (brush->GetOpacity() <= 0.0) {
+        return {};
+    }
     if (brush->RuntimeType() == ImageBrush::StaticTypeId()) {
         const auto& imageBrush =
             *static_cast<ImageBrush*>(brush.Get());
@@ -537,6 +544,9 @@ Base::Result<void> PaintBrushRect(
             axisX * axisX + axisY * axisY, 1.0e-12);
         const bool horizontal =
             std::fabs(axisX) >= std::fabs(axisY);
+        // Match the smooth reference gradients. Twenty-four bands are visible
+        // on large panels and score columns; the renderer now safely splits
+        // long instance uploads, so the finer tessellation remains complete.
         constexpr std::uint32_t bandCount = 96U;
         for (std::uint32_t index = 0U;
              index < bandCount; ++index) {

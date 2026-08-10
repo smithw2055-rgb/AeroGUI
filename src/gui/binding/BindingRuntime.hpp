@@ -276,7 +276,9 @@ using namespace Aero::Data;
 
 class BindingEngine {
 public:
-    explicit BindingEngine(Dispatcher& dispatcher) noexcept;
+    explicit BindingEngine(
+        Dispatcher& dispatcher,
+        Meta::Registry* metadata = nullptr) noexcept;
     ~BindingEngine() noexcept;
 
     BindingEngine(const BindingEngine&) = delete;
@@ -369,6 +371,9 @@ public:
     bool IsFlushing() const noexcept {
         return flushing_;
     }
+    Meta::Registry* Metadata() const noexcept {
+        return metadata_;
+    }
     std::uint32_t BindingCount() const noexcept {
         return bindings_.Size();
     }
@@ -438,6 +443,7 @@ private:
     };
 
     Dispatcher* dispatcher_ = nullptr;
+    Meta::Registry* metadata_ = nullptr;
     Base::Vector<BindingRecord> bindings_;
     Base::Vector<DeferredBindingRecord> deferredBindings_;
     Base::Vector<DependencyObject*> pendingDeferredActivations_;
