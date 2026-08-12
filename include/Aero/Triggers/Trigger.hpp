@@ -28,8 +28,7 @@ public:
         return {authoredSetters_.Data(), authoredSetters_.Size()};
     }
     bool GetIsAuthored() const noexcept {
-        return !propertyName_.Empty() && !authoredValue_.IsUnset() &&
-               !authoredSetters_.Empty();
+        return !propertyName_.Empty() && !authoredValue_.IsUnset();
     }
 private:
     friend class Style;

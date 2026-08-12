@@ -105,6 +105,9 @@ class AERO_GUI_API BooleanToVisibilityConverter final
 public:
     BooleanToVisibilityConverter() noexcept = default;
 
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
     Result<Value> Convert(
         const Value& value,
         const Value& parameter) noexcept override;

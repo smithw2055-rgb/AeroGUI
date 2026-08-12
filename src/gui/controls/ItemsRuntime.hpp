@@ -40,6 +40,10 @@ struct ItemsControl::Access {
         const Style* value) noexcept {
         control.SetItemContainerStyleCore(value);
     }
+    static void RefreshDisplayMemberPath(
+        ItemsControl& control) noexcept {
+        control.PublishReset();
+    }
 };
 
 } // namespace Aero::Controls

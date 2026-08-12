@@ -460,7 +460,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             if (!trigger->GetIsAuthored()) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidState,
-                    "Style Trigger requires Property, Value, and Setters");
+                    "Style Trigger requires Property and Value");
             }
             const Meta::DependencyProperty* condition =
                 ResolveStyleProperty(
@@ -1371,6 +1371,15 @@ const DependencyProperty* ResolveTemplateProperty(
     const DependencyPropertyRegistry& properties,
     TypeId targetType,
     Base::StringView name) noexcept {
+    // WPF exposes IsFocused as a UIElement focus-state property. Aero stores
+    // the corresponding state as IsKeyboardFocused, so accept the WPF name at
+    // the template boundary without changing the authored trigger.
+    if (name == Base::StringView("IsFocused") &&
+        properties.Types().IsDerivedFrom(
+            targetType, UIElement::StaticTypeId())) {
+        return properties.Find(
+            UIElement::IsKeyboardFocusedProperty.Handle());
+    }
     const DependencyProperty* property = properties.Find(targetType, name);
     if (property != nullptr) return property;
     std::uint32_t separator = UINT32_MAX;
@@ -1977,8 +1986,10 @@ CompilePropertyTriggers(
             ? properties.Find(
                 Aero::Element::
                     IsFocusEngagedProperty.Handle())
-            : propertyName == Base::StringView(
-                "local:Text.PasswordLength")
+            : (propertyName == Base::StringView(
+                   "local:Text.PasswordLength") ||
+               propertyName == Base::StringView(
+                   "aero:Text.PasswordLength"))
             ? properties.Find(
                 Aero::TextProperties::
                     PasswordLengthProperty.Handle())
@@ -3059,13 +3070,10 @@ Base::Result<void> BuildCompiledTemplate(
                 }
                 const TypeId sourceType = source->RuntimeType();
                 const DependencyProperty* sourceProperty =
-                    property.GetPropertyName() == Base::StringView(
-                        "local:Element.IsFocusEngaged")
-                    ? blueprint->properties->Find(
-                        Aero::Element::
-                            IsFocusEngagedProperty.Handle())
-                    : blueprint->properties->Find(
-                        sourceType, property.GetPropertyName());
+                    ResolveTemplateProperty(
+                        *blueprint->properties,
+                        sourceType,
+                        property.GetPropertyName());
                 if (sourceProperty == nullptr) {
                     return MissingTemplateProperty(
                         "ControlTemplate action trigger property",

@@ -34,6 +34,24 @@ Base::Result<void> PopulateControlsPrimitives(
     status = decorator.Result();
     if (!status) return status.GetStatus();
 
+    auto bulletDecorator = Meta::Register<BulletDecorator>(context);
+    // Bullet is the explicit WPF property-element name. Treating the same
+    // visual collection as implicit content lets the following child element
+    // populate the regular content slot while retaining both tree edges.
+    bulletDecorator
+        .Property(
+            BulletDecorator::BackgroundProperty,
+            FrameworkPropertyMetadata(Base::Ref<Aero::Media::Brush>{})
+                .AffectsRender())
+        .Content<Aero::UIElement>(
+            "Bullet", ContentKind::Collection,
+            &AddBulletDecoratorContent,
+            &ClearBulletDecoratorContent,
+            ContentFlags::Visual)
+        .Factory();
+    status = bulletDecorator.Result();
+    if (!status) return status.GetStatus();
+
     auto viewbox = Meta::Register<Viewbox>(context);
     viewbox
         .Property(

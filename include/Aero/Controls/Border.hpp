@@ -34,6 +34,7 @@ protected:
 
 private:
     Ref<MatrixTransform> viewTransform_;
+    Ref<FrameworkElement> projectedChild_;
     Result<void> ApplyViewTransform(
         double scaleX,
         double scaleY,

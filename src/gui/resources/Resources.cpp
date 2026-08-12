@@ -947,7 +947,24 @@ void ResourceDictionary::SetSource(
     if (storage.Value()->sealed) {
         return;
     }
-    storage.Value()->source = source;
+    if (source.Scheme().Empty() && !source.Assembly().Empty()) {
+        Base::String pack;
+        Base::Result<void> assigned = pack.Assign(
+            "pack://application:,,,/");
+        Base::StringView path = source.Path();
+        if (!path.Empty() && path[0] == '/') {
+            path = path.Substr(1U, path.SizeBytes() - 1U);
+        }
+        if (assigned) assigned = pack.Append(path);
+        Base::Result<Base::ResourceUri> normalized = assigned
+            ? Base::ResourceUri::Parse(pack.View())
+            : Base::Result<Base::ResourceUri>(assigned.GetStatus());
+        storage.Value()->source = normalized
+            ? std::move(normalized).Value()
+            : source;
+    } else {
+        storage.Value()->source = source;
+    }
     Notify(
         *storage.Value(),
         {},

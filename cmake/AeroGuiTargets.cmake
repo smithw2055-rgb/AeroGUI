@@ -300,6 +300,14 @@ if(NOT _aero_gui_precompiled_themes)
             "-DLIGHT_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
             "-DDARK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml"
             "-DGENERIC_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
+            "-DEXT_LIGHT_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/AeroGUIExtensions/AeroTheme.LightBlue.xaml"
+            "-DEXT_DARK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/AeroGUIExtensions/AeroTheme.DarkBlue.xaml"
+            "-DEXT_LIGHT_BRUSHES_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/AeroGUIExtensions/AeroTheme.Brushes.LightBlue.xaml"
+            "-DEXT_DARK_BRUSHES_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/AeroGUIExtensions/AeroTheme.Brushes.DarkBlue.xaml"
+            "-DEXT_LIGHT_COLORS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/AeroGUIExtensions/AeroTheme.Colors.Light.xaml"
+            "-DEXT_DARK_COLORS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/AeroGUIExtensions/AeroTheme.Colors.Dark.xaml"
+            "-DEXT_FONTS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/AeroGUIExtensions/AeroTheme.Fonts.xaml"
+            "-DEXT_STYLES_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/AeroGUIExtensions/AeroTheme.Styles.xaml"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedXamlThemes.cmake"
         RESULT_VARIABLE _aero_theme_embed_result)
     if(NOT _aero_theme_embed_result EQUAL 0)

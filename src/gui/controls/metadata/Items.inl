@@ -50,6 +50,11 @@ Base::Result<void> PopulateControlsItems(
             FrameworkPropertyMetadata(std::uint32_t{0})
                 .AffectsMeasure())
         .Property(
+            ItemsControl::DisplayMemberPathProperty,
+            FrameworkPropertyMetadata(Base::String{})
+                .AffectsMeasure()
+                .Changed(&OnDisplayMemberPathChanged))
+        .Property(
             ItemsControl::ItemTemplateProperty,
             FrameworkPropertyMetadata(
                 Base::Ref<DataTemplate>{})

@@ -1626,8 +1626,41 @@ Base::Result<void> Viewbox::ApplyViewTransform(
     double offsetX,
     double offsetY) noexcept {
     UIElement* child = GetChild();
+    FrameworkElement* framework = child != nullptr
+        ? child->AsFrameworkElement()
+        : nullptr;
+    if (projectedChild_ && projectedChild_.Get() != framework) {
+        projectedChild_->hasViewboxTransform_ = false;
+        projectedChild_->viewboxTransform_ = {};
+        static_cast<void>(
+            ElementPrivate::InvalidateRenderState(*projectedChild_));
+        projectedChild_.Reset();
+    }
     if (child == nullptr) {
         viewTransform_.Reset();
+        return {};
+    }
+    if (framework != nullptr) {
+        Base::Transform2D matrix;
+        matrix.m11 = scaleX;
+        matrix.m22 = scaleY;
+        matrix.dx = offsetX;
+        matrix.dy = offsetY;
+        const Base::Transform2D& previous = framework->viewboxTransform_;
+        const bool changed = !framework->hasViewboxTransform_ ||
+            previous.m11 != matrix.m11 || previous.m12 != matrix.m12 ||
+            previous.m21 != matrix.m21 || previous.m22 != matrix.m22 ||
+            previous.dx != matrix.dx || previous.dy != matrix.dy;
+        framework->viewboxTransform_ = matrix;
+        framework->hasViewboxTransform_ = true;
+        if (!projectedChild_) {
+            projectedChild_ =
+                Base::Ref<FrameworkElement>::FromBorrowed(*framework);
+        }
+        if (changed) {
+            static_cast<void>(
+                ElementPrivate::InvalidateRenderState(*framework));
+        }
         return {};
     }
     if (!viewTransform_) {

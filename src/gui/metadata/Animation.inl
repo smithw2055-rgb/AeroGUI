@@ -583,6 +583,10 @@ Base::Result<void> PopulateUiAnimation(
     auto setFocus = Meta::Register<Media::Animation::SetFocusAction>(context);
     setFocus
         .Property(
+            "TargetName",
+            &Media::Animation::SetFocusAction::GetTargetName,
+            &Media::Animation::SetFocusAction::SetTargetName)
+        .Property(
             "Engage",
             &Media::Animation::SetFocusAction::GetEngage,
             &Media::Animation::SetFocusAction::SetEngage)

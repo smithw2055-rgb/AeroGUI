@@ -53,19 +53,62 @@ Base::Result<void> RegisterDefaultXamlProviders(
         generic.Value(), {::Aero::AeroThemeGenericSource,
             static_cast<std::uint32_t>(sizeof(::Aero::AeroThemeGenericSource))});
     if (!status) return status.GetStatus();
-    Base::Result<Base::ResourceUri> lightBlue = Base::ResourceUri::Parse(
-        "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.LightBlue.xaml");
-    if (!lightBlue) return lightBlue.GetStatus();
-    status = embedded->Add(
-        lightBlue.Value(), {::Aero::AeroThemeLightSource,
-            static_cast<std::uint32_t>(sizeof(::Aero::AeroThemeLightSource))});
+    auto addEmbedded = [&](Base::StringView uri,
+                           const std::uint8_t* bytes,
+                           std::uint32_t size) noexcept -> Base::Result<void> {
+        Base::Result<Base::ResourceUri> parsed =
+            Base::ResourceUri::Parse(uri);
+        if (!parsed) return parsed.GetStatus();
+        return embedded->Add(parsed.Value(), {bytes, size});
+    };
+    struct ExtensionSource {
+        Base::StringView name;
+        const std::uint8_t* bytes;
+        std::uint32_t size;
+    };
+    const ExtensionSource extensionSources[] = {
+        {"AeroTheme.LightBlue.xaml", ::Aero::AeroExtensionsLightSource,
+            ::Aero::AeroExtensionsLightSourceSize},
+        {"AeroTheme.DarkBlue.xaml", ::Aero::AeroExtensionsDarkSource,
+            ::Aero::AeroExtensionsDarkSourceSize},
+        {"AeroTheme.Brushes.LightBlue.xaml",
+            ::Aero::AeroExtensionsLightBrushesSource,
+            ::Aero::AeroExtensionsLightBrushesSourceSize},
+        {"AeroTheme.Brushes.DarkBlue.xaml",
+            ::Aero::AeroExtensionsDarkBrushesSource,
+            ::Aero::AeroExtensionsDarkBrushesSourceSize},
+        {"AeroTheme.Colors.Light.xaml",
+            ::Aero::AeroExtensionsLightColorsSource,
+            ::Aero::AeroExtensionsLightColorsSourceSize},
+        {"AeroTheme.Colors.Dark.xaml",
+            ::Aero::AeroExtensionsDarkColorsSource,
+            ::Aero::AeroExtensionsDarkColorsSourceSize},
+        {"AeroTheme.Fonts.xaml", ::Aero::AeroExtensionsFontsSource,
+            ::Aero::AeroExtensionsFontsSourceSize},
+        {"AeroTheme.Styles.xaml", ::Aero::AeroExtensionsStylesSource,
+            ::Aero::AeroExtensionsStylesSourceSize}};
+    for (const ExtensionSource& source : extensionSources) {
+        Base::String uri;
+        status = uri.Assign(
+            "pack://application:,,,/Aero.GUI.Extensions;component/Theme/");
+        if (!status) return status.GetStatus();
+        status = uri.Append(source.name);
+        if (!status) return status.GetStatus();
+        status = addEmbedded(
+            uri.View(), source.bytes, source.size);
+        if (!status) return status.GetStatus();
+    }
+    // WPF also accepts a leading-slash component URI without an explicit
+    // pack scheme. Keep both root dictionaries available under that spelling.
+    status = addEmbedded(
+        "/Aero.GUI.Extensions;component/Theme/AeroTheme.LightBlue.xaml",
+        ::Aero::AeroExtensionsLightSource,
+        ::Aero::AeroExtensionsLightSourceSize);
     if (!status) return status.GetStatus();
-    Base::Result<Base::ResourceUri> darkBlue = Base::ResourceUri::Parse(
-        "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.DarkBlue.xaml");
-    if (!darkBlue) return darkBlue.GetStatus();
-    status = embedded->Add(
-        darkBlue.Value(), {::Aero::AeroThemeDarkSource,
-            static_cast<std::uint32_t>(sizeof(::Aero::AeroThemeDarkSource))});
+    status = addEmbedded(
+        "/Aero.GUI.Extensions;component/Theme/AeroTheme.DarkBlue.xaml",
+        ::Aero::AeroExtensionsDarkSource,
+        ::Aero::AeroExtensionsDarkSourceSize);
     if (!status) return status.GetStatus();
 
     auto registerProvider = [&](Ref<Markup::XamlProvider> provider,
@@ -73,6 +116,9 @@ Base::Result<void> RegisterDefaultXamlProviders(
         return providers.Set(std::move(provider), scheme);
     };
     status = registerProvider(embedded, "pack");
+    if (!status) return status.GetStatus();
+    status = providers.Set(
+        embedded, {}, "Aero.GUI.Extensions");
     if (!status) return status.GetStatus();
     status = registerProvider(file, "file");
     if (!status) return status.GetStatus();

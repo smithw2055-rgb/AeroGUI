@@ -9,7 +9,8 @@ namespace Aero {
 enum class FontWeight : std::uint8_t {
     Normal = 0U,
     SemiBold,
-    Bold
+    Bold,
+    Regular
 };
 
 enum class FontStyle : std::uint8_t {

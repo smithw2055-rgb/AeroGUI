@@ -104,7 +104,11 @@ Base::Result<void> PopulateUiMedia(
     solidBrush
         .Property(
             SolidColorBrush::ColorProperty,
-            FrameworkPropertyMetadata(Color{}))
+            FrameworkPropertyMetadata(Color{}).Structural())
+        .Content(MakeMemberId(
+            SolidColorBrush::StaticTypeId(),
+            MemberKind::Property,
+            "Color"))
         .Factory();
     status = solidBrush.Result();
     if (!status) return status.GetStatus();

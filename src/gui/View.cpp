@@ -847,15 +847,22 @@ struct ViewState {
         MediaAnimation::PropertyChangedTrigger* trigger = nullptr;
         Aero::FrameworkElement* owner = nullptr;
         const Aero::NameScope* names = nullptr;
+        Meta::MemberId metadataProperty = Meta::InvalidMemberId;
 
         void Invoke(
             ::Aero::DependencyObject&,
             const Meta::DependencyPropertyChangedEventArgs&) noexcept;
+        static void MetadataInvoke(
+            Base::Object&,
+            Meta::MemberId property,
+            void* context) noexcept;
     };
     struct PropertyChangedTriggerSubscription {
         Aero::FrameworkElement* owner = nullptr;
         ::Aero::DependencyObject* source = nullptr;
+        Base::Object* metadataSource = nullptr;
         Meta::DependencyPropertyHandle property;
+        std::uint64_t metadataSubscription = 0U;
         Meta::DependencyPropertyChangedEventHandler handler;
         PropertyChangedTriggerState* context = nullptr;
     };
@@ -867,16 +874,23 @@ struct ViewState {
         Aero::DataTrigger* trigger = nullptr;
         Aero::FrameworkElement* owner = nullptr;
         const Aero::NameScope* names = nullptr;
+        Meta::MemberId metadataProperty = Meta::InvalidMemberId;
         bool active = false;
 
         void Invoke(
             ::Aero::DependencyObject&,
             const Meta::DependencyPropertyChangedEventArgs&) noexcept;
+        static void MetadataInvoke(
+            Base::Object&,
+            Meta::MemberId property,
+            void* context) noexcept;
     };
     struct InteractionDataTriggerSubscription {
         Aero::FrameworkElement* owner = nullptr;
         ::Aero::DependencyObject* source = nullptr;
+        Base::Object* metadataSource = nullptr;
         Meta::DependencyPropertyHandle property;
+        std::uint64_t metadataSubscription = 0U;
         Meta::DependencyPropertyChangedEventHandler handler;
         InteractionDataTriggerState* context = nullptr;
     };
@@ -4615,7 +4629,12 @@ struct ViewState {
                 Base::ErrorCode::NotFound,
                 "EventTrigger SourceName was not found");
         }
-        Base::StringView eventName = routedEvent;
+        // Microsoft.Xaml.Behaviors EventTrigger defaults EventName to
+        // Loaded. Several reference samples intentionally omit EventName
+        // to request that startup behavior.
+        Base::StringView eventName = routedEvent.Empty()
+            ? Base::StringView("Loaded")
+            : routedEvent;
         std::uint32_t dot = UINT32_MAX;
         for (std::uint32_t index = 0U;
              index < eventName.SizeBytes(); ++index) {
@@ -4638,6 +4657,12 @@ struct ViewState {
                 if (!executed) return executed.GetStatus();
             }
             return true;
+        }
+        // WPF's GotFocus is the logical-focus counterpart of Aero's
+        // keyboard-focus event. Preserve the authored behavior trigger while
+        // routing it through the focus event exposed by the runtime.
+        if (eventName == Base::StringView("GotFocus")) {
+            eventName = Base::StringView("GotKeyboardFocus");
         }
 
         const bool uiSource = metadata->Types().IsDerivedFrom(
@@ -5084,38 +5109,68 @@ struct ViewState {
         return {};
     }
 
-    Base::Result<Meta::DependencyPropertyHandle>
+    struct InteractionTriggerProperty {
+        Base::Object* source = nullptr;
+        ::Aero::DependencyObject* dependencySource = nullptr;
+        Meta::DependencyPropertyHandle dependencyProperty;
+        Meta::MemberId metadataProperty = Meta::InvalidMemberId;
+    };
+
+    Base::Result<InteractionTriggerProperty>
     ResolveInteractionTriggerProperty(
         const Data::Binding& binding,
         Aero::FrameworkElement& owner,
-        const Aero::NameScope* names,
-        ::Aero::DependencyObject*& source) noexcept {
+        const Aero::NameScope* names) noexcept {
         Base::Object* sourceObject = ResolveAuthoredBindingSource(
             binding, owner, nullptr, names, nullptr);
-        if (sourceObject == nullptr || metadata == nullptr ||
-            !metadata->Types().IsDerivedFrom(
-                sourceObject->RuntimeType(),
-                ::Aero::DependencyObject::StaticTypeId())) {
+        if (sourceObject == nullptr || metadata == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
-                "Interaction Trigger Binding source is not a DependencyObject");
+                "Interaction Trigger Binding source was not found");
         }
-        source = static_cast<::Aero::DependencyObject*>(sourceObject);
         const Base::StringView path = binding.GetPath().GetPath();
         if (path.Empty()) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "Interaction Trigger Binding requires a property path");
         }
-        const Meta::DependencyProperty* property =
-            Aero::MetadataPrivate::DependencyProperties(
-                *metadata).Find(source->RuntimeType(), path);
-        if (property == nullptr) {
+
+        InteractionTriggerProperty resolved;
+        resolved.source = sourceObject;
+        if (metadata->Types().IsDerivedFrom(
+                sourceObject->RuntimeType(),
+                ::Aero::DependencyObject::StaticTypeId())) {
+            resolved.dependencySource =
+                static_cast<::Aero::DependencyObject*>(sourceObject);
+            const Meta::DependencyProperty* property =
+                Aero::MetadataPrivate::DependencyProperties(
+                    *metadata).Find(sourceObject->RuntimeType(), path);
+            if (property == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "Interaction Trigger Binding property was not found");
+            }
+            resolved.dependencyProperty = property->Handle();
+            return resolved;
+        }
+
+        Base::StringView rootPath = path;
+        for (std::uint32_t index = 0U; index < path.SizeBytes(); ++index) {
+            if (path[index] == '.') {
+                rootPath = path.Substr(0U, index);
+                break;
+            }
+        }
+        const Meta::PropertyInfo* property = metadata->Types().FindProperty(
+            sourceObject->RuntimeType(), rootPath, true);
+        if (property == nullptr ||
+            !metadata->CanReadProperty(property->Id())) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "Interaction Trigger Binding property was not found");
         }
-        return property->Handle();
+        resolved.metadataProperty = property->Id();
+        return resolved;
     }
 
     Base::Result<bool> EvaluateInteractionDataTrigger(
@@ -5167,10 +5222,9 @@ struct ViewState {
                 return false;
             }
         }
-        ::Aero::DependencyObject* source = nullptr;
-        Base::Result<Meta::DependencyPropertyHandle> property =
+        Base::Result<InteractionTriggerProperty> property =
             ResolveInteractionTriggerProperty(
-                *trigger.GetBinding(), owner, names, source);
+                *trigger.GetBinding(), owner, names);
         if (!property) return property.GetStatus();
         PropertyChangedTriggerState* context = nullptr;
         Base::Result<void> allocated = AllocateObject(
@@ -5180,26 +5234,57 @@ struct ViewState {
         context->trigger = &trigger;
         context->owner = &owner;
         context->names = names;
+        context->metadataProperty = property.Value().metadataProperty;
         Meta::DependencyPropertyChangedEventHandler handler(
             [context](
                 ::Aero::DependencyObject& object,
                 const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
                     context->Invoke(object, args);
                 });
-        Base::Result<void> subscribed =
-            source->AddValueChangedHandlerChecked(
-                property.Value(), handler);
+        std::uint64_t metadataSubscription = 0U;
+        Base::Result<void> subscribed;
+        if (property.Value().dependencySource != nullptr) {
+            subscribed = property.Value().dependencySource
+                ->AddValueChangedHandlerChecked(
+                    property.Value().dependencyProperty, handler);
+        } else {
+            Base::Result<std::uint64_t> notification =
+                metadata->SubscribePropertyChanged(
+                    *property.Value().source,
+                    &PropertyChangedTriggerState::MetadataInvoke,
+                    context);
+            if (notification) {
+                metadataSubscription = notification.Value();
+            } else {
+                subscribed = notification.GetStatus();
+            }
+        }
         if (!subscribed) {
             FreeObject(
                 *allocator, Base::MemoryTag::Ui, context);
             return subscribed.GetStatus();
         }
+        PropertyChangedTriggerSubscription subscription;
+        subscription.owner = &owner;
+        subscription.source = property.Value().dependencySource;
+        subscription.metadataSource = property.Value().dependencySource == nullptr
+            ? property.Value().source : nullptr;
+        subscription.property = property.Value().dependencyProperty;
+        subscription.metadataSubscription = metadataSubscription;
+        subscription.handler = handler;
+        subscription.context = context;
         Base::Result<void> retained =
-            propertyChangedTriggerSubscriptions.PushBack({
-                &owner, source, property.Value(), handler, context});
+            propertyChangedTriggerSubscriptions.PushBack(
+                std::move(subscription));
         if (!retained) {
-            static_cast<void>(source->RemoveValueChangedHandler(
-                property.Value(), handler));
+            if (property.Value().dependencySource != nullptr) {
+                static_cast<void>(property.Value().dependencySource
+                    ->RemoveValueChangedHandler(
+                        property.Value().dependencyProperty, handler));
+            } else if (metadataSubscription != 0U) {
+                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                    *property.Value().source, metadataSubscription));
+            }
             FreeObject(
                 *allocator, Base::MemoryTag::Ui, context);
             return retained.GetStatus();
@@ -5219,10 +5304,9 @@ struct ViewState {
                 return false;
             }
         }
-        ::Aero::DependencyObject* source = nullptr;
-        Base::Result<Meta::DependencyPropertyHandle> property =
+        Base::Result<InteractionTriggerProperty> property =
             ResolveInteractionTriggerProperty(
-                *trigger.GetBinding(), owner, names, source);
+                *trigger.GetBinding(), owner, names);
         if (!property) return property.GetStatus();
         InteractionDataTriggerState* context = nullptr;
         Base::Result<void> allocated = AllocateObject(
@@ -5232,26 +5316,57 @@ struct ViewState {
         context->trigger = &trigger;
         context->owner = &owner;
         context->names = names;
+        context->metadataProperty = property.Value().metadataProperty;
         Meta::DependencyPropertyChangedEventHandler handler(
             [context](
                 ::Aero::DependencyObject& object,
                 const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
                     context->Invoke(object, args);
                 });
-        Base::Result<void> subscribed =
-            source->AddValueChangedHandlerChecked(
-                property.Value(), handler);
+        std::uint64_t metadataSubscription = 0U;
+        Base::Result<void> subscribed;
+        if (property.Value().dependencySource != nullptr) {
+            subscribed = property.Value().dependencySource
+                ->AddValueChangedHandlerChecked(
+                    property.Value().dependencyProperty, handler);
+        } else {
+            Base::Result<std::uint64_t> notification =
+                metadata->SubscribePropertyChanged(
+                    *property.Value().source,
+                    &InteractionDataTriggerState::MetadataInvoke,
+                    context);
+            if (notification) {
+                metadataSubscription = notification.Value();
+            } else {
+                subscribed = notification.GetStatus();
+            }
+        }
         if (!subscribed) {
             FreeObject(
                 *allocator, Base::MemoryTag::Ui, context);
             return subscribed.GetStatus();
         }
+        InteractionDataTriggerSubscription subscription;
+        subscription.owner = &owner;
+        subscription.source = property.Value().dependencySource;
+        subscription.metadataSource = property.Value().dependencySource == nullptr
+            ? property.Value().source : nullptr;
+        subscription.property = property.Value().dependencyProperty;
+        subscription.metadataSubscription = metadataSubscription;
+        subscription.handler = handler;
+        subscription.context = context;
         Base::Result<void> retained =
-            interactionDataTriggerSubscriptions.PushBack({
-                &owner, source, property.Value(), handler, context});
+            interactionDataTriggerSubscriptions.PushBack(
+                std::move(subscription));
         if (!retained) {
-            static_cast<void>(source->RemoveValueChangedHandler(
-                property.Value(), handler));
+            if (property.Value().dependencySource != nullptr) {
+                static_cast<void>(property.Value().dependencySource
+                    ->RemoveValueChangedHandler(
+                        property.Value().dependencyProperty, handler));
+            } else if (metadataSubscription != 0U) {
+                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                    *property.Value().source, metadataSubscription));
+            }
             FreeObject(
                 *allocator, Base::MemoryTag::Ui, context);
             return retained.GetStatus();
@@ -5265,7 +5380,9 @@ struct ViewState {
     static std::uint32_t KeyCodeFromName(
         Base::StringView key) noexcept {
         if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
-                key, "Enter")) {
+                key, "Enter") ||
+            Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+                key, "Return")) {
             return Input::KeyboardKeyEnter;
         }
         if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
@@ -5859,6 +5976,12 @@ struct ViewState {
                     subscription.source->RemoveValueChangedHandler(
                         subscription.property,
                         subscription.handler));
+            } else if (subscription.metadataSource != nullptr &&
+                       subscription.metadataSubscription != 0U &&
+                       metadata != nullptr) {
+                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                    *subscription.metadataSource,
+                    subscription.metadataSubscription));
             }
             FreeObject(
                 *allocator, Base::MemoryTag::Ui,
@@ -5885,6 +6008,12 @@ struct ViewState {
                     subscription.source->RemoveValueChangedHandler(
                         subscription.property,
                         subscription.handler));
+            } else if (subscription.metadataSource != nullptr &&
+                       subscription.metadataSubscription != 0U &&
+                       metadata != nullptr) {
+                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                    *subscription.metadataSource,
+                    subscription.metadataSubscription));
             }
             FreeObject(
                 *allocator, Base::MemoryTag::Ui,
@@ -6041,6 +6170,12 @@ struct ViewState {
                     subscription.source->RemoveValueChangedHandler(
                         subscription.property,
                         subscription.handler));
+            } else if (subscription.metadataSource != nullptr &&
+                       subscription.metadataSubscription != 0U &&
+                       metadata != nullptr) {
+                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                    *subscription.metadataSource,
+                    subscription.metadataSubscription));
             }
             FreeObject(
                 *allocator, Base::MemoryTag::Ui,
@@ -6054,6 +6189,12 @@ struct ViewState {
                     subscription.source->RemoveValueChangedHandler(
                         subscription.property,
                         subscription.handler));
+            } else if (subscription.metadataSource != nullptr &&
+                       subscription.metadataSubscription != 0U &&
+                       metadata != nullptr) {
+                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                    *subscription.metadataSource,
+                    subscription.metadataSubscription));
             }
             FreeObject(
                 *allocator, Base::MemoryTag::Ui,
@@ -6919,6 +7060,27 @@ void ViewState::PropertyChangedTriggerState::Invoke(
     }
 }
 
+void ViewState::PropertyChangedTriggerState::MetadataInvoke(
+    Base::Object&,
+    Meta::MemberId property,
+    void* context) noexcept {
+    auto* state = static_cast<PropertyChangedTriggerState*>(context);
+    if (state == nullptr || (state->metadataProperty != Meta::InvalidMemberId &&
+        property != state->metadataProperty)) {
+        return;
+    }
+    if (state->runtime == nullptr || state->trigger == nullptr ||
+        state->owner == nullptr ||
+        !state->runtime->animationEventStatus.IsOk()) {
+        return;
+    }
+    Base::Result<void> executed = state->runtime->ExecuteTriggerActions(
+        state->trigger->GetActions(), *state->owner, state->names);
+    if (!executed) {
+        state->runtime->animationEventStatus = executed.GetStatus();
+    }
+}
+
 void ViewState::InteractionDataTriggerState::Invoke(
     ::Aero::DependencyObject&,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept {
@@ -6930,6 +7092,27 @@ void ViewState::InteractionDataTriggerState::Invoke(
         runtime->EvaluateInteractionDataTrigger(*this);
     if (!evaluated) {
         runtime->animationEventStatus = evaluated.GetStatus();
+    }
+}
+
+void ViewState::InteractionDataTriggerState::MetadataInvoke(
+    Base::Object&,
+    Meta::MemberId property,
+    void* context) noexcept {
+    auto* state = static_cast<InteractionDataTriggerState*>(context);
+    if (state == nullptr || (state->metadataProperty != Meta::InvalidMemberId &&
+        property != state->metadataProperty)) {
+        return;
+    }
+    if (state->runtime == nullptr || state->trigger == nullptr ||
+        state->owner == nullptr ||
+        !state->runtime->animationEventStatus.IsOk()) {
+        return;
+    }
+    Base::Result<bool> evaluated =
+        state->runtime->EvaluateInteractionDataTrigger(*state);
+    if (!evaluated) {
+        state->runtime->animationEventStatus = evaluated.GetStatus();
     }
 }
 
@@ -7123,11 +7306,22 @@ ViewState::ExecuteAnimationAction(
     if (type == MediaAnimation::SetFocusAction::StaticTypeId()) {
         auto& setFocus = static_cast<MediaAnimation::SetFocusAction&>(action);
         if (!setFocus.GetEngage() || input == nullptr) return {};
-        Aero::UIElement* target = owner.AsUIElement();
+        Base::Object* targetObject = setFocus.GetTargetName().Empty()
+            ? static_cast<Base::Object*>(&owner)
+            : dataTemplateContext != nullptr
+                ? dataTemplateContext->FindName(setFocus.GetTargetName())
+                : names != nullptr
+                    ? names->Find(setFocus.GetTargetName())
+                    : loadedDocument.names.Find(setFocus.GetTargetName());
+        Aero::UIElement* target =
+            targetObject != nullptr && metadata->Types().IsDerivedFrom(
+                targetObject->RuntimeType(), Aero::UIElement::StaticTypeId())
+            ? static_cast<Aero::UIElement*>(targetObject)
+            : nullptr;
         if (target == nullptr) {
             return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "SetFocusAction owner is not a UIElement");
+                Base::ErrorCode::NotFound,
+                "SetFocusAction target is unavailable");
         }
         if (!target->GetIsLoaded()) {
             return QueueFocus(*target);

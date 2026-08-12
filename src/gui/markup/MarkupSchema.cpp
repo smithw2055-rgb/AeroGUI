@@ -838,6 +838,13 @@ Base::Result<void> ValidateSchemaCore(
                         "Compiled XAML value-type member was not found");
                 }
                 memberValueType = frames.Back().type;
+            } else if (
+                node.IsFromAttribute() &&
+                node.Name().LocalName() == Base::StringView("Name")) {
+                // WPF treats the ordinary Name attribute as the x:Name
+                // directive. The object writer performs the name-scope
+                // registration and also initializes a real Name property
+                // when the target type exposes one.
             } else if (node.Name().NamespaceUri() !=
                        LanguageNamespaceUri()) {
                 Base::Result<ResolvedMember> member = schema.ResolveMember(
@@ -1304,6 +1311,12 @@ Base::Result<void> PopulateMarkupMetadata(
             "Name",
             &VisualState::GetName,
             &VisualState::SetName)
+        .Property<
+            Base::Ref<Media::Animation::Storyboard>,
+            &VisualState::GetStoryboard,
+            &VisualState::SetStoryboard>(
+            "Storyboard",
+            PropertyFlags::Structural)
         .Content<Base::Object>(
             "Content",
             ContentKind::Collection,
@@ -2349,7 +2362,8 @@ struct SchemaManifestState {
             const bool attached = HasPropertyFlag(
                 flags, Meta::PropertyFlags::Attached);
             if (ownerWasExplicit &&
-                syntax == MemberSyntax::Attribute && !attached) {
+                syntax == MemberSyntax::Attribute && !attached &&
+                !IsDerivedFrom(targetType, property->ownerType)) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "Explicit XAML attribute owner requires an attached property");
@@ -2381,8 +2395,11 @@ struct SchemaManifestState {
                 static_cast<Meta::EventFlags>(event->flags);
             const bool attached = HasEventFlag(
                 flags, Meta::EventFlags::Attached);
+            const bool routed = HasEventFlag(
+                flags, Meta::EventFlags::Routed);
             if (ownerWasExplicit &&
-                syntax == MemberSyntax::Attribute && !attached) {
+                syntax == MemberSyntax::Attribute &&
+                !attached && !routed) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "Explicit XAML attribute owner requires an attached event");
@@ -2400,7 +2417,9 @@ struct SchemaManifestState {
             resolved.ownerType = event->ownerType;
             resolved.valueType = event->valueType;
             resolved.eventFlags = flags;
-            resolved.attached = attached;
+            resolved.attached = attached ||
+                (ownerWasExplicit &&
+                 syntax == MemberSyntax::Attribute && routed);
             return resolved;
         }
         return MemberNotFound();
@@ -2956,9 +2975,7 @@ Base::Result<SchemaTypeInfo> SchemaManifest::ResolveType(
     Base::StringView localName) const noexcept {
     if (!IsValid()) return ManifestNotReady();
     const SchemaManifestState::TypeRecord* type = state_->FindType(
-        IsSystemNamespace(xamlNamespace) &&
-            (localName == Base::StringView("String") ||
-             localName == Base::StringView("Double"))
+        IsSystemNamespace(xamlNamespace)
             ? Meta::AeroNamespaceUri()
             : CanonicalXamlNamespace(xamlNamespace),
         CanonicalXamlTypeName(localName));
@@ -3042,6 +3059,11 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
     const SchemaManifestState::TypeRecord* owner = state_->FindType(
         CanonicalXamlNamespace(ownerNamespace),
         CanonicalXamlTypeName(ownerName));
+    if (owner == nullptr && name.NamespaceUri().Empty()) {
+        owner = state_->FindType(
+            Meta::AeroNamespaceUri(),
+            CanonicalXamlTypeName(ownerName));
+    }
     if (owner == nullptr) return MemberNotFound();
     // WPF exposes ContextMenu through FrameworkElement property-element
     // syntax (for example Border.ContextMenu) while storage is supplied by
@@ -3218,9 +3240,7 @@ Base::Result<const Meta::TypeInfo*> Schema::ResolveType(
 
     const Meta::TypeInfo* descriptor =
         domain_->Types().FindType(
-            SchemaIsSystemNamespace(xamlNamespace) &&
-                (localName == Base::StringView("String") ||
-                 localName == Base::StringView("Double"))
+            SchemaIsSystemNamespace(xamlNamespace)
                 ? Meta::AeroNamespaceUri()
                 : SchemaCanonicalXamlNamespace(xamlNamespace),
             SchemaCanonicalXamlTypeName(localName));
@@ -3321,6 +3341,11 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
         domain_->Types().FindType(
             SchemaCanonicalXamlNamespace(ownerNamespace),
             SchemaCanonicalXamlTypeName(ownerName));
+    if (owner == nullptr && name.NamespaceUri().Empty()) {
+        owner = domain_->Types().FindType(
+            Meta::AeroNamespaceUri(),
+            SchemaCanonicalXamlTypeName(ownerName));
+    }
     if (owner == nullptr) return RuntimeMemberNotFound();
     if (memberName == Base::StringView("ContextMenu")) {
         const Meta::TypeInfo* service = domain_->Types().FindType(
@@ -3427,7 +3452,8 @@ Schema::ResolvePropertyOrEvent(
         const bool attached = SchemaHasPropertyFlag(
             property->Flags(), Meta::PropertyFlags::Attached);
         if (ownerWasExplicit && syntax == MemberSyntax::Attribute &&
-            !attached) {
+            !attached &&
+            !descriptors.IsDerivedFrom(targetType, property->OwnerType())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Explicit XAML attribute owner requires an attached property");
@@ -3455,8 +3481,10 @@ Schema::ResolvePropertyOrEvent(
     if (event != nullptr) {
         const bool attached = SchemaHasEventFlag(
             event->Flags(), Meta::EventFlags::Attached);
+        const bool routed = SchemaHasEventFlag(
+            event->Flags(), Meta::EventFlags::Routed);
         if (ownerWasExplicit && syntax == MemberSyntax::Attribute &&
-            !attached) {
+            !attached && !routed) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Explicit XAML attribute owner requires an attached event");
@@ -3475,7 +3503,9 @@ Schema::ResolvePropertyOrEvent(
         resolved.ownerType = event->OwnerType();
         resolved.valueType = event->EventArgsType();
         resolved.eventFlags = event->Flags();
-        resolved.attached = attached;
+        resolved.attached = attached ||
+            (ownerWasExplicit &&
+             syntax == MemberSyntax::Attribute && routed);
         return resolved;
     }
 
@@ -3858,10 +3888,24 @@ Base::Result<Meta::Value> Schema::ConvertText(
         services != nullptr &&
         services->baseUri != nullptr &&
         !services->baseUri->Empty()) {
-        Base::Result<Base::ResourceUri> uri =
-            Base::ResourceUri::Resolve(
-                *services->baseUri,
-                text);
+        // A leading-slash WPF component URI names an assembly resource; it
+        // must not inherit the file scheme of the containing XAML document.
+        bool componentUri = false;
+        if (!text.Empty() && text[0] == '/') {
+            for (std::uint32_t index = 1U;
+                 index + 11U <= text.SizeBytes(); ++index) {
+                if (text.Substr(index, 11U) ==
+                        Base::StringView(";component/")) {
+                    componentUri = true;
+                    break;
+                }
+            }
+        }
+        Base::Result<Base::ResourceUri> uri = componentUri
+            ? Base::ResourceUri::Parse(text)
+            : Base::ResourceUri::Resolve(
+                  *services->baseUri,
+                  text);
         if (!uri) return uri.GetStatus();
         return domain_->TryCreateValue(
             type,

@@ -3873,6 +3873,14 @@ Base::Result<void> ObjectBuilder::StartMember(
         return {};
     }
 
+    if (node.IsFromAttribute() &&
+        node.Name().LocalName() == DirectiveName) {
+        return StartDirective(
+            node,
+            DirectiveKind::Name,
+            objectFrame.objectIndex);
+    }
+
     if (node.Name().NamespaceUri() == LanguageNamespaceUri()) {
         if (IsXamlDirective(node.Name(), DirectiveName)) {
             return StartDirective(
@@ -6543,6 +6551,15 @@ ObjectBuilder::MarkupValueKind ObjectBuilder::ParseMarkupValue(
     if (extensionName == StaticResourceMarkup) {
         if (argument.Empty()) {
             return MarkupValueKind::Invalid;
+        }
+        constexpr Base::StringView resourceKeyPrefix("ResourceKey=");
+        if (argument.SizeBytes() > resourceKeyPrefix.SizeBytes() &&
+            argument.Substr(0U, resourceKeyPrefix.SizeBytes()) ==
+                resourceKeyPrefix) {
+            argument = TrimBuilderText(argument.Substr(
+                resourceKeyPrefix.SizeBytes(),
+                argument.SizeBytes() - resourceKeyPrefix.SizeBytes()));
+            if (argument.Empty()) return MarkupValueKind::Invalid;
         }
         return MarkupValueKind::StaticResource;
     }

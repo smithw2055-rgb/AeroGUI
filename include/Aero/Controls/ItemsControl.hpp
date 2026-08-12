@@ -60,6 +60,14 @@ public:
         std::uint32_t value) noexcept {
         SetValue(AlternationCountProperty, value);
     }
+    StringView GetDisplayMemberPath() const noexcept {
+        return GetValueOr(
+            DisplayMemberPathProperty,
+            StringView{});
+    }
+    void SetDisplayMemberPath(StringView value) noexcept {
+        SetValue(DisplayMemberPathProperty, value);
+    }
 
     const DataTemplate* GetItemTemplate() const noexcept {
         return itemTemplate_;
@@ -132,6 +140,7 @@ public:
     inline static constexpr ReadOnlyDependencyProperty<bool> HasItemsProperty{"HasItems"};
     inline static constexpr DependencyProperty<Ref<Base::Object>> ItemsSourceProperty{"ItemsSource"};
     inline static constexpr DependencyProperty<std::uint32_t> AlternationCountProperty{"AlternationCount"};
+    inline static constexpr DependencyProperty<String> DisplayMemberPathProperty{"DisplayMemberPath"};
     inline static constexpr DependencyProperty<Ref<DataTemplate>> ItemTemplateProperty{"ItemTemplate"};
     inline static constexpr DependencyProperty<Ref<ItemsPanelTemplate>> ItemsPanelProperty{"ItemsPanel"};
     inline static constexpr DependencyProperty<Ref<Style>> ItemContainerStyleProperty{"ItemContainerStyle"};

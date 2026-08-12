@@ -3281,6 +3281,18 @@ Base::Result<::Aero::Markup::StreamResourceInfo> CreateMemoryResource(
 Base::Result<Base::ResourceUri> ResolveRequestedUri(
     Base::StringView uri,
     const Base::ResourceUri& baseUri) noexcept {
+    // WPF component URIs beginning with '/' are assembly resources, not
+    // filesystem-rooted paths. Resolving them against a file-backed App.xaml
+    // would otherwise incorrectly manufacture a file: URI.
+    if (uri.SizeBytes() > 0U && uri[0] == '/') {
+        for (std::uint32_t index = 1U;
+             index + 10U <= uri.SizeBytes(); ++index) {
+            if (uri.Substr(index, 10U) ==
+                Base::StringView(";component")) {
+                return Base::ResourceUri::Parse(uri);
+            }
+        }
+    }
     if (!baseUri.Empty()) {
         return Base::ResourceUri::Resolve(
             baseUri, uri);

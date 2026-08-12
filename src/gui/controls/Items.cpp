@@ -1575,6 +1575,94 @@ ItemContainerGenerator::Access::CreateRecord(
         if (!content) return content.GetStatus();
         record.content =
             std::move(content).Value();
+    } else if (!owner_->GetDisplayMemberPath().Empty()) {
+        Aero::BindingEngine* bindings =
+            Aero::Media::Visual::Access::BindingEngineFor(*owner_);
+        Meta::Registry* metadata =
+            bindings != nullptr ? bindings->Metadata() : nullptr;
+        if (metadata == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "DisplayMemberPath metadata services are unavailable");
+        }
+        const Meta::PropertyInfo* property =
+            metadata->Types().FindProperty(
+                record.item->RuntimeType(),
+                owner_->GetDisplayMemberPath(),
+                true);
+        if (property == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "DisplayMemberPath property was not found on the item type");
+        }
+        Base::Result<Meta::Value> value =
+            metadata->GetProperty(
+                *record.item, property->Id());
+        if (!value) return value.GetStatus();
+        Base::String display;
+        Base::Result<void> formatted;
+        switch (value.Value().Kind()) {
+        case Meta::ValueKind::String:
+            formatted = display.Assign(value.Value().AsString());
+            break;
+        case Meta::ValueKind::Boolean:
+            formatted = display.Assign(
+                value.Value().AsBoolean()
+                    ? Base::StringView("True")
+                    : Base::StringView("False"));
+            break;
+        case Meta::ValueKind::SignedInteger: {
+            char buffer[48]{};
+            const int length = std::snprintf(
+                buffer, sizeof(buffer), "%lld",
+                static_cast<long long>(value.Value().AsSignedInteger()));
+            formatted = length > 0
+                ? display.Assign(Base::StringView(
+                      buffer, static_cast<std::uint32_t>(length)))
+                : Base::Result<void>(Base::Status::Failure(
+                      Base::ErrorCode::ValidationFailed,
+                      "DisplayMemberPath integer formatting failed"));
+            break;
+        }
+        case Meta::ValueKind::UnsignedInteger: {
+            char buffer[48]{};
+            const int length = std::snprintf(
+                buffer, sizeof(buffer), "%llu",
+                static_cast<unsigned long long>(
+                    value.Value().AsUnsignedInteger()));
+            formatted = length > 0
+                ? display.Assign(Base::StringView(
+                      buffer, static_cast<std::uint32_t>(length)))
+                : Base::Result<void>(Base::Status::Failure(
+                      Base::ErrorCode::ValidationFailed,
+                      "DisplayMemberPath unsigned formatting failed"));
+            break;
+        }
+        case Meta::ValueKind::Double: {
+            char buffer[64]{};
+            const int length = std::snprintf(
+                buffer, sizeof(buffer), "%.15g", value.Value().AsDouble());
+            formatted = length > 0
+                ? display.Assign(Base::StringView(
+                      buffer, static_cast<std::uint32_t>(length)))
+                : Base::Result<void>(Base::Status::Failure(
+                      Base::ErrorCode::ValidationFailed,
+                      "DisplayMemberPath numeric formatting failed"));
+            break;
+        }
+        default:
+            return Base::Status::Failure(
+                Base::ErrorCode::Unsupported,
+                "DisplayMemberPath value has no text representation");
+        }
+        if (!formatted) return formatted.GetStatus();
+        Base::Result<Base::Ref<TextBlock>> text =
+            Base::MakeRef<TextBlock>();
+        if (!text) return text.GetStatus();
+        text.Value()->SetText(display.View());
+        record.content = Base::Ref<Base::Object>(
+            std::move(text).Value());
+        record.generatedTextContent = true;
     } else if (
         record.item->RuntimeType() ==
             ::Aero::Controls::BoxedItemValue::StaticTypeId()) {

@@ -1,7 +1,15 @@
 if(NOT DEFINED OUTPUT OR
    NOT DEFINED LIGHT_SOURCE OR
    NOT DEFINED DARK_SOURCE OR
-   NOT DEFINED GENERIC_SOURCE)
+   NOT DEFINED GENERIC_SOURCE OR
+   NOT DEFINED EXT_LIGHT_SOURCE OR
+   NOT DEFINED EXT_DARK_SOURCE OR
+   NOT DEFINED EXT_LIGHT_BRUSHES_SOURCE OR
+   NOT DEFINED EXT_DARK_BRUSHES_SOURCE OR
+   NOT DEFINED EXT_LIGHT_COLORS_SOURCE OR
+   NOT DEFINED EXT_DARK_COLORS_SOURCE OR
+   NOT DEFINED EXT_FONTS_SOURCE OR
+   NOT DEFINED EXT_STYLES_SOURCE)
     message(FATAL_ERROR
         "EmbedXamlThemes.cmake requires output and source paths")
 endif()
@@ -52,4 +60,12 @@ aero_append_byte_array(AeroThemeGenericCompiled "${GENERIC_COMPILED}")
 aero_append_byte_array(AeroThemeLightSource "${LIGHT_SOURCE}")
 aero_append_byte_array(AeroThemeDarkSource "${DARK_SOURCE}")
 aero_append_byte_array(AeroThemeGenericSource "${GENERIC_SOURCE}")
+aero_append_byte_array(AeroExtensionsLightSource "${EXT_LIGHT_SOURCE}")
+aero_append_byte_array(AeroExtensionsDarkSource "${EXT_DARK_SOURCE}")
+aero_append_byte_array(AeroExtensionsLightBrushesSource "${EXT_LIGHT_BRUSHES_SOURCE}")
+aero_append_byte_array(AeroExtensionsDarkBrushesSource "${EXT_DARK_BRUSHES_SOURCE}")
+aero_append_byte_array(AeroExtensionsLightColorsSource "${EXT_LIGHT_COLORS_SOURCE}")
+aero_append_byte_array(AeroExtensionsDarkColorsSource "${EXT_DARK_COLORS_SOURCE}")
+aero_append_byte_array(AeroExtensionsFontsSource "${EXT_FONTS_SOURCE}")
+aero_append_byte_array(AeroExtensionsStylesSource "${EXT_STYLES_SOURCE}")
 file(APPEND "${OUTPUT}" "} // namespace Aero\n")

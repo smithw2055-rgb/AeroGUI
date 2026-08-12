@@ -448,6 +448,9 @@ FrameworkElement::GetLocalVisualTransform() const noexcept {
             result,
             render);
     }
+    if (hasViewboxTransform_) {
+        result = ComposeTransforms(result, viewboxTransform_);
+    }
     return result;
 }
 

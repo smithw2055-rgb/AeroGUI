@@ -22,6 +22,7 @@ using Meta::PropertyInvalidationFlags;
 using Meta::TypeId;
 
 class Style;
+namespace Controls { class Viewbox; }
 
 } // namespace Aero
 
@@ -252,11 +253,14 @@ private:
         Meta::TypeId expectedType) noexcept;
 
     friend class LogicalTreeHelper;
+    friend class Controls::Viewbox;
 #if defined(AERO_GUI_IMPLEMENTATION)
     friend struct ::Aero::Media::Visual::Access;
     friend struct ::Aero::UIElement::Access;
 #endif
     double dpiScale_ = 1.0;
+    Base::Transform2D viewboxTransform_{};
+    bool hasViewboxTransform_ = false;
     DependencyObject* templatedParent_ = nullptr;
     ResourceDictionary resources_;
     Base::Vector<Ref<Base::Object>> authoredTriggers_;

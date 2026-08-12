@@ -283,7 +283,8 @@ Base::Result<void> PopulateEnumMetadata(
         description
             .Value("Normal", ::Aero::FontWeight::Normal)
             .Value("SemiBold", ::Aero::FontWeight::SemiBold)
-            .Value("Bold", ::Aero::FontWeight::Bold););
+            .Value("Bold", ::Aero::FontWeight::Bold)
+            .Value("Regular", ::Aero::FontWeight::Regular););
     AERO_REGISTER_ENUM(
         ::Aero::Controls::TextDecorations,
         "TextDecorations",

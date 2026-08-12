@@ -593,6 +593,31 @@ void ClearDecoratorContent(
     static_cast<Decorator&>(owner).SetChild(nullptr);
 }
 
+void AddBulletDecoratorContent(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) return;
+    auto& decorator = static_cast<BulletDecorator&>(owner);
+    Base::Ref<UIElement> retained =
+        Base::Ref<UIElement>::TryFromBorrowed(
+            *static_cast<UIElement*>(child.Get()));
+    if (!retained) return;
+    if (decorator.GetBullet() == nullptr) {
+        decorator.SetBullet(std::move(retained));
+    } else {
+        decorator.SetChild(std::move(retained));
+    }
+}
+
+void ClearBulletDecoratorContent(
+    Base::Object& owner,
+    void*) noexcept {
+    auto& decorator = static_cast<BulletDecorator&>(owner);
+    decorator.SetBullet({});
+    decorator.SetChild({});
+}
+
 void SetContentControlContent(
     Base::Object& owner,
     const Base::Ref<Base::Object>& child,
@@ -715,6 +740,14 @@ void OnItemTemplateChanged(
     const Base::Ref<DataTemplate>& value) noexcept {
     ItemsControl::Access::SetItemTemplate(
         static_cast<ItemsControl&>(object), value.Get());
+}
+
+void OnDisplayMemberPathChanged(
+    ::Aero::DependencyObject& object,
+    const Base::String&,
+    const Base::String&) noexcept {
+    ItemsControl::Access::RefreshDisplayMemberPath(
+        static_cast<ItemsControl&>(object));
 }
 
 void OnItemsPanelChanged(

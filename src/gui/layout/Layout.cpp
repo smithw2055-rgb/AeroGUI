@@ -1321,10 +1321,12 @@ Base::Result<void> LayoutEngine::ArrangeElement(
         layoutFootprint.width,
         layoutFootprint.height};
     contentSlot.x += AlignmentOffset(contentAvailable.width, layoutFootprint.width,
-        horizontal == HorizontalAlignment::Center,
+        horizontal == HorizontalAlignment::Center ||
+            horizontal == HorizontalAlignment::Stretch,
         horizontal == HorizontalAlignment::Right);
     contentSlot.y += AlignmentOffset(contentAvailable.height, layoutFootprint.height,
-        vertical == VerticalAlignment::Center,
+        vertical == VerticalAlignment::Center ||
+            vertical == VerticalAlignment::Stretch,
         vertical == VerticalAlignment::Bottom);
 
     UIElement::Access::Arranging(element) = true;
