@@ -1,13 +1,13 @@
 #pragma once
 
-#include "app/Presentation.hpp"
+#include "render/Presentation.hpp"
 
-#include <AeroApp/WindowInterop.hpp>
+#include <AeroRender/WindowInterop.hpp>
 #include <AeroRender/OpenGL33.hpp>
 
 #include <cstdint>
 
-namespace Aero::App::X11 {
+namespace Aero::Render::X11 {
 
 // Direct owner of the GLX context attached to the App-owned X11 window.
 // Display and drawable remain borrowed from the platform window object.
@@ -48,4 +48,4 @@ private:
     std::uint64_t generation_ = 0U;
 };
 
-} // namespace Aero::App::X11
+} // namespace Aero::Render::X11

@@ -77,4 +77,45 @@ public:
     inline static constexpr DependencyProperty<double> SizeProperty{"Size"};
 };
 
+// AeroGUIExtensions-compatible color multiply effect. The GPU channel that
+// applies the tint is implemented by the rendering backends.
+class AERO_GUI_API TintEffect : public Effect {
+    AERO_DECLARE_TYPE(TintEffect, Effect)
+public:
+    TintEffect() noexcept : Effect(StaticTypeId()) {}
+
+    Base::Color GetColor() const noexcept {
+        return GetValueOr(ColorProperty, Base::Color{0.0F, 0.0F, 1.0F, 1.0F});
+    }
+    void SetColor(Base::Color value) noexcept {
+        SetValue(ColorProperty, value);
+    }
+
+    inline static constexpr DependencyProperty<Base::Color> ColorProperty{"Color"};
+};
+
+// AeroGUIExtensions-compatible angled blur effect. The GPU channel is
+// implemented by the rendering backends.
+class AERO_GUI_API DirectionalBlurEffect : public Effect {
+    AERO_DECLARE_TYPE(DirectionalBlurEffect, Effect)
+public:
+    DirectionalBlurEffect() noexcept : Effect(StaticTypeId()) {}
+
+    double GetRadius() const noexcept {
+        return GetValueOr(RadiusProperty, 0.0);
+    }
+    void SetRadius(double value) noexcept {
+        SetValue(RadiusProperty, value);
+    }
+    double GetAngle() const noexcept {
+        return GetValueOr(AngleProperty, 0.0);
+    }
+    void SetAngle(double value) noexcept {
+        SetValue(AngleProperty, value);
+    }
+
+    inline static constexpr DependencyProperty<double> RadiusProperty{"Radius"};
+    inline static constexpr DependencyProperty<double> AngleProperty{"Angle"};
+};
+
 } // namespace Aero::Media

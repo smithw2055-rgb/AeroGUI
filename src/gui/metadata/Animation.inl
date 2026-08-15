@@ -801,6 +801,36 @@ Base::Result<void> PopulateUiAnimation(
     status = playSound.Result();
     if (!status) return status.GetStatus();
 
+    auto playMedia = Meta::Register<Media::Animation::PlayMediaAction>(context);
+    playMedia
+        .Property(
+            "TargetName",
+            &Media::Animation::PlayMediaAction::GetTargetName,
+            &Media::Animation::PlayMediaAction::SetTargetName)
+        .Factory();
+    status = playMedia.Result();
+    if (!status) return status.GetStatus();
+
+    auto pauseMedia = Meta::Register<Media::Animation::PauseMediaAction>(context);
+    pauseMedia
+        .Property(
+            "TargetName",
+            &Media::Animation::PauseMediaAction::GetTargetName,
+            &Media::Animation::PauseMediaAction::SetTargetName)
+        .Factory();
+    status = pauseMedia.Result();
+    if (!status) return status.GetStatus();
+
+    auto stopMedia = Meta::Register<Media::Animation::StopMediaAction>(context);
+    stopMedia
+        .Property(
+            "TargetName",
+            &Media::Animation::StopMediaAction::GetTargetName,
+            &Media::Animation::StopMediaAction::SetTargetName)
+        .Factory();
+    status = stopMedia.Result();
+    if (!status) return status.GetStatus();
+
     auto comparisonCondition = Meta::Register<Media::Animation::ComparisonCondition>(context);
     comparisonCondition
         .Property<

@@ -1,15 +1,15 @@
 #pragma once
 
-#include "app/Presentation.hpp"
+#include "render/Presentation.hpp"
 
-#include <AeroApp/WindowInterop.hpp>
+#include <AeroRender/WindowInterop.hpp>
 #include <AeroRender/OpenGL33.hpp>
 
 #include <cstdint>
 
-namespace Aero::App::Win32 {
+namespace Aero::Render::Win32 {
 
-// Direct owner of the three WGL handles used by App::OpenGLRenderContext.
+// Direct owner of the three WGL handles used by Render::OpenGLRenderContext.
 // This class has no frame state and no opaque implementation allocation.
 class OpenGLWindow final {
 public:
@@ -48,4 +48,4 @@ private:
     std::uint64_t generation_ = 0U;
 };
 
-} // namespace Aero::App::Win32
+} // namespace Aero::Render::Win32

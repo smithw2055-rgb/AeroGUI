@@ -4,24 +4,16 @@ set(_aero_app_sources
     src/app/platform/WindowWait.cpp
     src/app/ApplicationRun.cpp
     src/app/DesktopHost.cpp
-    src/app/OpenGL33RenderContext.cpp
-    src/app/Presentation.cpp
-    src/app/RenderContext.cpp
+    src/app/RenderContextFactory.cpp
     src/app/Window.cpp)
 if(WIN32)
     list(APPEND _aero_app_sources
-        src/app/D3D11RenderContext.cpp
         src/app/platform/win32/Clipboard.cpp
         src/app/platform/win32/Ime.cpp
-        src/app/platform/win32/OpenGLWindow.cpp
         src/app/platform/win32/Window.cpp)
 else()
     list(APPEND _aero_app_sources
         src/app/platform/x11/Window.cpp)
-    if(AERO_ENABLE_GLX_SURFACE)
-        list(APPEND _aero_app_sources
-            src/app/platform/x11/OpenGLWindow.cpp)
-    endif()
 endif()
 
 add_library(AeroApp ${AERO_LIBRARY_TYPE} ${_aero_app_sources})

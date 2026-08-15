@@ -5,6 +5,7 @@
 #include <windows.h>
 #elif AERO_PLATFORM_HAS_X11_WINDOW
 #include <X11/Xlib.h>
+#undef Status
 #include <cerrno>
 #include <poll.h>
 #endif

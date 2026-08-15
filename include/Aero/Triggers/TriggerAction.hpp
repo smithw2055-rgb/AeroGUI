@@ -38,3 +38,4 @@ private:
 #include <Aero/Triggers/Conditions.hpp>
 #include <Aero/Triggers/StoryboardCompletedTrigger.hpp>
 #include <Aero/Triggers/InteractionTriggers.hpp>
+#include <Aero/Triggers/MediaActions.hpp>

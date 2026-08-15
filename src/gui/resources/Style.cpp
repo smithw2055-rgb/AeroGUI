@@ -566,7 +566,6 @@ Base::Result<void> Style::AddTrigger(
         return InvalidStyle("Cannot modify a sealed Style");
     }
     if (!trigger.property_.IsValid() || trigger.value_.IsUnset() ||
-        trigger.setterProperties_.Empty() ||
         trigger.setterProperties_.Size() != trigger.setterValues_.Size()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,

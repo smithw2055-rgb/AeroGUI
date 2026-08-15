@@ -60,7 +60,6 @@ foreach(forbidden_export IN ITEMS
         "ViewState"
         "GuiState"
         "UiFrameEncoder"
-        "RenderContext"
         "DesktopHost"
         "ApplicationHostState"
         "D3D11RenderDevice"

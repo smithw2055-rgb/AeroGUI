@@ -90,6 +90,7 @@ set(_aero_gui_media_sources
     src/gui/media/Geometry.cpp
     src/gui/media/ImageCache.cpp
     src/gui/media/Images.cpp
+    src/gui/media/MediaElement.cpp
     src/gui/media/StbImageImplementation.cpp
     src/gui/media/Transforms.cpp)
 
@@ -356,7 +357,8 @@ add_library(AeroRenderOpenGL33 ${AERO_LIBRARY_TYPE}
     src/render/opengl33/OpenGL33StateCache.cpp
     src/render/opengl33/OpenGL33Shaders.cpp
     src/render/opengl33/OpenGL33Embedded.cpp
-    src/render/opengl33/OpenGL33Factories.cpp)
+    src/render/opengl33/OpenGL33Factories.cpp
+    src/render/opengl33/OpenGL33RenderContext.cpp)
 add_library(Aero::RenderOpenGL33 ALIAS AeroRenderOpenGL33)
 target_include_directories(AeroRenderOpenGL33
     PUBLIC
@@ -383,7 +385,16 @@ aero_verify_windows_exports(
     AeroRenderOpenGL33
     "CreateDevice@OpenGL33@Render@Aero@@"
     "CreateTarget@OpenGL33@Render@Aero@@"
-    2)
+    3)
+
+if(AERO_ENABLE_WGL_SURFACE)
+    target_sources(AeroRenderOpenGL33 PRIVATE
+        src/render/platform/win32/OpenGLWindow.cpp)
+endif()
+if(AERO_ENABLE_GLX_SURFACE)
+    target_sources(AeroRenderOpenGL33 PRIVATE
+        src/render/platform/x11/OpenGLWindow.cpp)
+endif()
 
 if(AERO_ENABLE_WGL_SURFACE)
     if(NOT WIN32)
@@ -520,6 +531,7 @@ if(AERO_ENABLE_D3D11_BACKEND)
         src/render/d3d11/D3D11Shaders.cpp
         src/render/d3d11/D3D11Device.cpp
         src/render/d3d11/D3D11Factories.cpp
+        src/render/d3d11/D3D11RenderContext.cpp
         ${_aero_d3d11_backend_fragments})
     add_library(Aero::RenderD3D11 ALIAS AeroRenderD3D11)
     add_dependencies(AeroRenderD3D11 AeroD3D11RenderFrameShaders)
@@ -547,11 +559,11 @@ if(AERO_ENABLE_D3D11_BACKEND)
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN YES)
     aero_apply_compiler_options(AeroRenderD3D11)
-    aero_verify_windows_exports(
+aero_verify_windows_exports(
         AeroRenderD3D11
         "CreateDevice@D3D11@Render@Aero@@"
         "CreateTarget@D3D11@Render@Aero@@"
-        2)
+        3)
 
     unset(_aero_d3d11_shader_outputs)
     unset(_aero_d3d11_shader_root)

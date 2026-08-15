@@ -249,6 +249,20 @@ Base::Result<void> PopulateUiMedia(
     status = bitmapImage.Result();
     if (!status) return status.GetStatus();
 
+    auto croppedBitmap =
+        Meta::Register<CroppedBitmap>(context);
+    croppedBitmap
+        .Property(
+            CroppedBitmap::SourceProperty,
+            FrameworkPropertyMetadata(
+                Base::Ref<ImageSource>{}))
+        .Property(
+            CroppedBitmap::SourceRectProperty,
+            FrameworkPropertyMetadata(Base::Rect{}))
+        .Factory();
+    status = croppedBitmap.Result();
+    if (!status) return status.GetStatus();
+
     auto imageBrush =
         Meta::Register<ImageBrush>(context);
     imageBrush
@@ -440,6 +454,74 @@ Base::Result<void> PopulateUiMedia(
                 .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
         .Factory();
     status = pixelateEffect.Result();
+    if (!status) return status.GetStatus();
+
+    auto tintEffect = Meta::Register<TintEffect>(context);
+    tintEffect
+        .Property(
+            TintEffect::ColorProperty,
+            FrameworkPropertyMetadata(
+                Base::Color{0.0F, 0.0F, 1.0F, 1.0F})
+                .AffectsRender())
+        .Factory();
+    status = tintEffect.Result();
+    if (!status) return status.GetStatus();
+
+    auto directionalBlurEffect =
+        Meta::Register<DirectionalBlurEffect>(context);
+    directionalBlurEffect
+        .Property(
+            DirectionalBlurEffect::RadiusProperty,
+            FrameworkPropertyMetadata(0.0)
+                .AffectsRender()
+                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+        .Property(
+            DirectionalBlurEffect::AngleProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Factory();
+    status = directionalBlurEffect.Result();
+    if (!status) return status.GetStatus();
+
+    auto mediaElement = Meta::Register<MediaElement>(context);
+    mediaElement
+        .Event(MediaElement::BufferingEndedEvent, RoutingStrategy::Direct)
+        .Event(MediaElement::BufferingStartedEvent, RoutingStrategy::Direct)
+        .Event(MediaElement::MediaEndedEvent, RoutingStrategy::Direct)
+        .Event(MediaElement::MediaFailedEvent, RoutingStrategy::Direct)
+        .Event(MediaElement::MediaOpenedEvent, RoutingStrategy::Direct)
+        .Property(
+            MediaElement::SourceProperty,
+            FrameworkPropertyMetadata(Base::String{}))
+        .Property(
+            MediaElement::StretchProperty,
+            FrameworkPropertyMetadata(Stretch::Uniform)
+                .AffectsMeasure()
+                .AffectsRender())
+        .Property(
+            MediaElement::StretchDirectionProperty,
+            FrameworkPropertyMetadata(StretchDirection::Both)
+                .AffectsMeasure()
+                .AffectsRender())
+        .Property(
+            MediaElement::LoadedBehaviorProperty,
+            FrameworkPropertyMetadata(MediaState::Play))
+        .Property(
+            MediaElement::UnloadedBehaviorProperty,
+            FrameworkPropertyMetadata(MediaState::Close))
+        .Property(
+            MediaElement::IsMutedProperty,
+            FrameworkPropertyMetadata(false))
+        .Property(
+            MediaElement::VolumeProperty,
+            FrameworkPropertyMetadata(0.5))
+        .Property(
+            MediaElement::BalanceProperty,
+            FrameworkPropertyMetadata(0.0))
+        .Property(
+            MediaElement::ScrubbingEnabledProperty,
+            FrameworkPropertyMetadata(false))
+        .Factory();
+    status = mediaElement.Result();
     if (!status) return status.GetStatus();
 
     auto visualBrush = Meta::Register<VisualBrush>(context);

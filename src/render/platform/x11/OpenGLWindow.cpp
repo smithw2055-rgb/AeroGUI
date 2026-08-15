@@ -12,7 +12,7 @@
 #undef Status
 #endif
 
-namespace Aero::App::X11 {
+namespace Aero::Render::X11 {
 namespace {
 
 using SwapInterval = void (*)(Display*, GLXDrawable, int);
@@ -192,4 +192,4 @@ std::uint64_t OpenGLWindow::GenerationCallback(void* context) noexcept {
     return window != nullptr ? window->Generation() : 0U;
 }
 
-} // namespace Aero::App::X11
+} // namespace Aero::Render::X11

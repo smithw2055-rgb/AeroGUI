@@ -23,7 +23,7 @@ const ::Aero::Render::RenderFrame* CurrentFrameForConformance(
 }
 
 #if defined(_WIN32)
-#include "app/platform/win32/OpenGLWindow.hpp"
+#include "render/platform/win32/OpenGLWindow.hpp"
 #include "render/d3d11/D3D11RenderDevice.hpp"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -790,7 +790,7 @@ bool RenderOpenGL33Readback(
         return false;
     }
 
-    Aero::App::Win32::OpenGLWindow surface;
+    Aero::Render::Win32::OpenGLWindow surface;
     Aero::Platform::NativeWindowHandle nativeWindow;
     nativeWindow.system = Aero::Platform::WindowSystem::Win32;
     nativeWindow.window = reinterpret_cast<std::uintptr_t>(window);
@@ -805,13 +805,13 @@ bool RenderOpenGL33Readback(
     } else {
         Aero::Render::OpenGL33::DeviceOptions deviceOptions;
         deviceOptions.resolve =
-            &Aero::App::Win32::OpenGLWindow::ResolveCallback;
+            &Aero::Render::Win32::OpenGLWindow::ResolveCallback;
         deviceOptions.makeCurrent =
-            &Aero::App::Win32::OpenGLWindow::MakeCurrentCallback;
+            &Aero::Render::Win32::OpenGLWindow::MakeCurrentCallback;
         deviceOptions.isCurrent =
-            &Aero::App::Win32::OpenGLWindow::IsCurrentCallback;
+            &Aero::Render::Win32::OpenGLWindow::IsCurrentCallback;
         deviceOptions.contextGeneration =
-            &Aero::App::Win32::OpenGLWindow::GenerationCallback;
+            &Aero::Render::Win32::OpenGLWindow::GenerationCallback;
         deviceOptions.callbackContext = &surface;
         deviceOptions.checkErrors = true;
         Aero::Graphics::OpenGL33RenderDevice backend(deviceOptions);

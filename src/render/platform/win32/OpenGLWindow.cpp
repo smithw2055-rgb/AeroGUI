@@ -9,7 +9,7 @@
 #include <windows.h>
 #include <GL/gl.h>
 
-namespace Aero::App::Win32 {
+namespace Aero::Render::Win32 {
 namespace {
 
 constexpr int WglContextMajorVersion = 0x2091;
@@ -208,4 +208,4 @@ std::uint64_t OpenGLWindow::GenerationCallback(void* context) noexcept {
     return window != nullptr ? window->Generation() : 0U;
 }
 
-} // namespace Aero::App::Win32
+} // namespace Aero::Render::Win32

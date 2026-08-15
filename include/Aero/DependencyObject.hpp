@@ -12,9 +12,6 @@ using DependencyPropertyChangedEventArgs =
 using DependencyPropertyChangedEventHandler =
     Meta::DependencyPropertyChangedEventHandler;
 using PropertyMetadata = Meta::PropertyMetadata;
-using FrameworkPropertyMetadata = Meta::FrameworkPropertyMetadata;
-using FrameworkPropertyMetadataOptions = Meta::FrameworkPropertyMetadataOptions;
 using PropertyMetadataFlags = Meta::PropertyMetadataFlags;
-using UpdateSourceTrigger = Meta::UpdateSourceTrigger;
 
 } // namespace Aero

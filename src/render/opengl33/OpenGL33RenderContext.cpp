@@ -1,18 +1,18 @@
-#include "RenderContext.hpp"
-#include "Presentation.hpp"
+#include "../RenderContext.hpp"
+#include "../Presentation.hpp"
 
 #include <AeroRender/OpenGL33.hpp>
 
 #if defined(_WIN32)
-#include "platform/win32/OpenGLWindow.hpp"
+#include "render/platform/win32/OpenGLWindow.hpp"
 #elif defined(__linux__) || defined(__unix__)
-#include "platform/x11/OpenGLWindow.hpp"
+#include "render/platform/x11/OpenGLWindow.hpp"
 #endif
 
 #include <new>
 #include <utility>
 
-namespace Aero::App {
+namespace Aero::Render {
 namespace {
 
 Base::Status InvalidState(const char* message) noexcept {
@@ -23,8 +23,7 @@ Base::Status Unsupported(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::Unsupported, message);
 }
 
-#if AERO_APP_HAS_OPENGL_WINDOW && \
-    (defined(_WIN32) || defined(__linux__) || defined(__unix__))
+#if AERO_HAS_WGL_SURFACE || AERO_HAS_GLX_SURFACE
 
 #if defined(_WIN32)
 using PlatformOpenGLWindow = Win32::OpenGLWindow;
@@ -136,13 +135,12 @@ private:
 
 } // namespace
 
-Base::Result<RenderContext*> CreateOpenGL33RenderContext(
+AERO_RENDER_OPENGL33_API Base::Result<RenderContext*> CreateOpenGL33RenderContext(
     Platform::NativeWindowHandle window,
     std::uint32_t width,
     std::uint32_t height,
     Base::IAllocator* allocator) noexcept {
-#if AERO_APP_HAS_OPENGL_WINDOW && \
-    (defined(_WIN32) || defined(__linux__) || defined(__unix__))
+#if AERO_HAS_WGL_SURFACE || AERO_HAS_GLX_SURFACE
     auto* context = new (std::nothrow) OpenGLRenderContext();
     if (context == nullptr) {
         return Base::Status::Failure(
@@ -165,4 +163,4 @@ Base::Result<RenderContext*> CreateOpenGL33RenderContext(
 #endif
 }
 
-} // namespace Aero::App
+} // namespace Aero::Render

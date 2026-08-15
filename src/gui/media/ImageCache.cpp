@@ -178,6 +178,7 @@ struct ImageCache::Record {
     std::uint64_t seenEpoch = 0U;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
+    Base::Rect sourceRect;
 
     explicit Record(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -341,17 +342,49 @@ Base::Result<bool> ImageCache::Synchronize(
             }
             continue;
         }
-        if (source->RuntimeType() !=
-            Media::BitmapImage::
-                StaticTypeId()) {
+        if (source->RuntimeType() ==
+                Media::BitmapImage::
+                    StaticTypeId() ||
+            source->RuntimeType() ==
+                Media::CroppedBitmap::
+                    StaticTypeId()) {
+            // CroppedBitmap sources resolve through the wrapped bitmap and
+            // produce a cropped sub-region of the decoded atlas.
+        } else {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
-                "Image and ImageBrush currently require BitmapImage sources");
+                "Image and ImageBrush currently require BitmapImage or CroppedBitmap sources");
         }
-        auto* bitmap =
-            static_cast<
+        Media::BitmapImage* bitmap =
+            nullptr;
+        Base::Rect sourceRect;
+        if (source->RuntimeType() ==
+            Media::CroppedBitmap::
+                StaticTypeId()) {
+            auto* cropped =
+                static_cast<
+                    Media::CroppedBitmap*>(
+                        source.Get());
+            Base::Ref<Media::ImageSource>
+                inner = cropped->GetSource();
+            if (!inner ||
+                inner->RuntimeType() !=
+                    Media::BitmapImage::
+                        StaticTypeId()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "CroppedBitmap source requires a BitmapImage source");
+            }
+            bitmap = static_cast<
+                Media::BitmapImage*>(
+                    inner.Get());
+            sourceRect =
+                cropped->GetSourceRect();
+        } else {
+            bitmap = static_cast<
                 Media::BitmapImage*>(
                     source.Get());
+        }
         Base::Result<Base::ResourceUri> resolved =
             ResolveImageUri(
                 documentUri,
@@ -361,7 +394,15 @@ Base::Result<bool> ImageCache::Synchronize(
         Record* record = nullptr;
         for (Record& candidate : records_) {
             if (candidate.resolvedUri ==
-                    resolved.Value()) {
+                    resolved.Value() &&
+                candidate.sourceRect.x ==
+                    sourceRect.x &&
+                candidate.sourceRect.y ==
+                    sourceRect.y &&
+                candidate.sourceRect.width ==
+                    sourceRect.width &&
+                candidate.sourceRect.height ==
+                    sourceRect.height) {
                 record = &candidate;
                 break;
             }
@@ -370,6 +411,8 @@ Base::Result<bool> ImageCache::Synchronize(
             Record created(allocator_);
             created.resolvedUri =
                 resolved.Value();
+            created.sourceRect =
+                sourceRect;
             Base::Result<void> stored =
                 records_.PushBack(
                     std::move(created));
@@ -483,6 +526,58 @@ Base::Result<bool> ImageCache::Synchronize(
                 static_cast<std::uint32_t>(height);
             record->resolvedUri =
                 resolved.Value();
+
+            if (sourceRect.width > 0.0 &&
+                sourceRect.height > 0.0) {
+                const std::uint32_t cropX =
+                    static_cast<std::uint32_t>(
+                        std::max(0.0, sourceRect.x));
+                const std::uint32_t cropY =
+                    static_cast<std::uint32_t>(
+                        std::max(0.0, sourceRect.y));
+                const std::uint32_t cropWidth =
+                    static_cast<std::uint32_t>(
+                        std::max(0.0, sourceRect.width));
+                const std::uint32_t cropHeight =
+                    static_cast<std::uint32_t>(
+                        std::max(0.0, sourceRect.height));
+                if (cropWidth == 0U ||
+                    cropHeight == 0U ||
+                    cropX >= record->width ||
+                    cropY >= record->height ||
+                    cropWidth >
+                        record->width - cropX ||
+                    cropHeight >
+                        record->height - cropY) {
+                    return InvalidImage(
+                        "CroppedBitmap source rect is outside the decoded image");
+                }
+                const std::uint32_t cropBytes =
+                    cropWidth * cropHeight * 4U;
+                Base::Vector<std::uint8_t> cropped(
+                    allocator_);
+                Base::Result<void> reserved =
+                    cropped.Resize(cropBytes);
+                if (!reserved) return reserved.GetStatus();
+                for (std::uint32_t row = 0U;
+                     row < cropHeight; ++row) {
+                    const std::uint32_t sourceOffset =
+                        ((cropY + row) * record->width +
+                            cropX) * 4U;
+                    const std::uint32_t targetOffset =
+                        row * cropWidth * 4U;
+                    for (std::uint32_t pixel = 0U;
+                         pixel < cropWidth * 4U;
+                         ++pixel) {
+                        cropped[targetOffset + pixel] =
+                            record->pixels[
+                                sourceOffset + pixel];
+                    }
+                }
+                record->pixels = std::move(cropped);
+                record->width = cropWidth;
+                record->height = cropHeight;
+            }
             changed = true;
         }
 

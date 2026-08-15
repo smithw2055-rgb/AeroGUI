@@ -19,6 +19,7 @@
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
+#include <Aero/Media/MediaElement.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Triggers/Conditions.hpp>
 #include <Aero/Triggers/StoryboardActions.hpp>
@@ -204,6 +205,15 @@ Base::Result<void> PopulateEnumMetadata(
             .Value("UpOnly", ::Aero::Media::StretchDirection::UpOnly)
             .Value("DownOnly", ::Aero::Media::StretchDirection::DownOnly)
             .Value("Both", ::Aero::Media::StretchDirection::Both););
+    AERO_REGISTER_ENUM(
+        ::Aero::Media::MediaState,
+        "MediaState",
+        description
+            .Value("Manual", ::Aero::Media::MediaState::Manual)
+            .Value("Play", ::Aero::Media::MediaState::Play)
+            .Value("Close", ::Aero::Media::MediaState::Close)
+            .Value("Pause", ::Aero::Media::MediaState::Pause)
+            .Value("Stop", ::Aero::Media::MediaState::Stop););
     AERO_REGISTER_ENUM(
         ::Aero::Media::TileMode,
         "TileMode",

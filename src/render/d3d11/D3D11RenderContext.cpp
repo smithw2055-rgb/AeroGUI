@@ -1,5 +1,5 @@
-#include "RenderContext.hpp"
-#include "Presentation.hpp"
+#include "../RenderContext.hpp"
+#include "../Presentation.hpp"
 
 #include <AeroRender/D3D11.hpp>
 
@@ -18,7 +18,7 @@
 #include <new>
 #include <utility>
 
-namespace Aero::App {
+namespace Aero::Render {
 namespace {
 
 Base::Status InvalidArgument(const char* message) noexcept {
@@ -37,7 +37,7 @@ Base::Status NativeFailure(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::InternalError, message);
 }
 
-#if defined(_WIN32) && AERO_APP_HAS_D3D11
+#if defined(_WIN32)
 
 template<class T>
 void ReleaseCom(T*& value) noexcept {
@@ -319,12 +319,12 @@ private:
 
 } // namespace
 
-Base::Result<RenderContext*> CreateD3D11RenderContext(
+AERO_RENDER_D3D11_API Base::Result<RenderContext*> CreateD3D11RenderContext(
     Platform::NativeWindowHandle window,
     std::uint32_t width,
     std::uint32_t height,
     Base::IAllocator* allocator) noexcept {
-#if defined(_WIN32) && AERO_APP_HAS_D3D11
+#if defined(_WIN32)
     auto* context = new (std::nothrow) D3D11RenderContext();
     if (context == nullptr) {
         return Base::Status::Failure(
@@ -347,4 +347,4 @@ Base::Result<RenderContext*> CreateD3D11RenderContext(
 #endif
 }
 
-} // namespace Aero::App
+} // namespace Aero::Render

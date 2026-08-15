@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Diagnostics/Rendering.hpp>
-#include <AeroApp/WindowInterop.hpp>
+#include <AeroRender/WindowInterop.hpp>
 #include <AeroRender/RenderDevice.hpp>
 #include <AeroRender/RenderTarget.hpp>
 #include <AeroRender/D3D11.hpp>

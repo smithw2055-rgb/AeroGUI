@@ -80,6 +80,13 @@ public:
         Aero::Size availableSize) noexcept;
     Result<void> SetContent(
         Ref<FrameworkElement> root) noexcept;
+    // Mounts a loaded UI document under a host root (for example a Window
+    // wrapping a UserControl StartupUri root). The document's root is
+    // attached as a visual child of the host.
+    Result<void> SetContent(
+        Ref<FrameworkElement> root,
+        Markup::XamlDocument&& document,
+        Aero::Size availableSize) noexcept;
     FrameworkElement* GetContent() noexcept;
     const FrameworkElement* GetContent() const noexcept;
     Gui& GetGui() noexcept;

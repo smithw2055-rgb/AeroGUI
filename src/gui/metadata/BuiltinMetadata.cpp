@@ -138,6 +138,7 @@ Base::Result<void> Detail::PopulateCoreMetadata(
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Images.hpp>
+#include <Aero/Media/MediaElement.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/FrameworkContentElement.hpp>

@@ -53,6 +53,7 @@
 #include <Aero/Media/Animation.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/MediaElement.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/BuiltinThemes.generated.hpp>
@@ -3253,9 +3254,42 @@ struct ViewState {
                                 AsObject().Get());
                 path = nestedProperty;
             } else {
-                // Owner-qualified direct properties such as
+                // Object-property chains such as Effect.Radius descend into
+                // the DependencyObject value before resolving the nested
+                // property. Owner-qualified direct properties such as
                 // FrameworkElement.MinWidth resolve on the original target.
-                path = nestedProperty;
+                const Meta::DependencyProperty* ownerDependency =
+                    ::Aero::MetadataPrivate::
+                            DependencyProperties(
+                                *metadata)
+                            .Find(
+                                target.RuntimeType(),
+                                ownerProperty);
+                if (ownerDependency != nullptr) {
+                    Base::Result<Meta::PropertyValue> ownerValue =
+                        target.GetValue(
+                            ownerDependency->Handle());
+                    if (ownerValue &&
+                        ownerValue.Value().Kind() ==
+                            Meta::ValueKind::Object &&
+                        ownerValue.Value().AsObject() &&
+                        metadata->Types().IsDerivedFrom(
+                            ownerValue.Value().
+                                AsObject()->RuntimeType(),
+                            ::Aero::DependencyObject::
+                                StaticTypeId())) {
+                        propertyTarget =
+                            static_cast<
+                                ::Aero::DependencyObject*>(
+                                    ownerValue.Value().
+                                        AsObject().Get());
+                        path = nestedProperty;
+                    } else {
+                        path = nestedProperty;
+                    }
+                } else {
+                    path = nestedProperty;
+                }
             }
         }
         // Resolve ordinary and parenthesized object-property chains such as
@@ -5222,9 +5256,12 @@ struct ViewState {
                 return false;
             }
         }
-        Base::Result<InteractionTriggerProperty> property =
+Base::Result<InteractionTriggerProperty> property =
             ResolveInteractionTriggerProperty(
                 *trigger.GetBinding(), owner, names);
+        if (property.GetStatus().code == Base::ErrorCode::NotFound) {
+            return false;
+        }
         if (!property) return property.GetStatus();
         PropertyChangedTriggerState* context = nullptr;
         Base::Result<void> allocated = AllocateObject(
@@ -5307,6 +5344,9 @@ struct ViewState {
         Base::Result<InteractionTriggerProperty> property =
             ResolveInteractionTriggerProperty(
                 *trigger.GetBinding(), owner, names);
+        if (property.GetStatus().code == Base::ErrorCode::NotFound) {
+            return false;
+        }
         if (!property) return property.GetStatus();
         InteractionDataTriggerState* context = nullptr;
         Base::Result<void> allocated = AllocateObject(
@@ -7615,6 +7655,44 @@ ViewState::ExecuteAnimationAction(
             Base::ErrorCode::NotFound, "ControlStoryboardAction storyboard was not started");
     }
 
+    if (type == MediaAnimation::PlayMediaAction::StaticTypeId() ||
+        type == MediaAnimation::PauseMediaAction::StaticTypeId() ||
+        type == MediaAnimation::StopMediaAction::StaticTypeId()) {
+        Base::StringView targetName = type ==
+                MediaAnimation::PlayMediaAction::StaticTypeId()
+            ? static_cast<MediaAnimation::PlayMediaAction&>(action)
+                  .GetTargetName()
+            : type == MediaAnimation::PauseMediaAction::StaticTypeId()
+                ? static_cast<MediaAnimation::PauseMediaAction&>(action)
+                      .GetTargetName()
+                : static_cast<MediaAnimation::StopMediaAction&>(action)
+                      .GetTargetName();
+        Base::Object* targetObject = targetName.Empty()
+            ? static_cast<Base::Object*>(&owner)
+            : names != nullptr
+                ? names->Find(targetName)
+                : loadedDocument.names.Find(targetName);
+        if (targetObject == nullptr ||
+            !metadata->Types().IsDerivedFrom(
+                targetObject->RuntimeType(),
+                Aero::Media::MediaElement::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "MediaAction TargetName did not resolve to a MediaElement");
+        }
+        auto& media = static_cast<Aero::Media::MediaElement&>(
+            *targetObject);
+        if (type == MediaAnimation::PlayMediaAction::StaticTypeId()) {
+            media.Play();
+        } else if (type ==
+            MediaAnimation::PauseMediaAction::StaticTypeId()) {
+            media.Pause();
+        } else {
+            media.Stop();
+        }
+        return {};
+    }
+
     if (!metadata->Types().IsDerivedFrom(
             type,
             MediaAnimation::
@@ -8134,6 +8212,80 @@ Base::Result<void> View::SetContent(
         ? state_->viewport.logicalSize
         : Aero::Size{};
     return SetContent(std::move(root), availableSize);
+}
+
+Base::Result<void> View::SetContent(
+    Base::Ref<FrameworkElement> root,
+    Markup::XamlDocument&& document,
+    Aero::Size availableSize) noexcept {
+    if (state_ == nullptr || !state_->initialized) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "View must be initialized before SetContent");
+    }
+    if (!root) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "View host root must not be null");
+    }
+    if (!document.IsValid()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "View cannot mount an empty UI document");
+    }
+    if (state_->mounted) {
+        Base::Result<void> unmounted = state_->UnmountRoot();
+        if (!unmounted) return unmounted.GetStatus();
+    }
+
+    Markup::LoaderResult next = Aero::Markup::TakeXamlDocument(document);
+    if (!next.root) {
+        next.Clear();
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "View host document has no root object");
+    }
+    Base::Result<Aero::UIElement*> documentRoot =
+        state_->ResolveUIElement(
+            *next.root, next.root->RuntimeType());
+    if (!documentRoot) {
+        next.Clear();
+        return Base::Result<void>(documentRoot.GetStatus());
+    }
+    Base::Result<Aero::UIElement*> hostRoot =
+        state_->ResolveUIElement(*root, root->RuntimeType());
+    if (!hostRoot) {
+        next.Clear();
+        return Base::Result<void>(hostRoot.GetStatus());
+    }
+
+    // Attach the loaded document root (for example a UserControl) as a visual
+    // child of the host root (for example the wrapping Window). The host is
+    // kept as the view root so the app-facing Window remains the mounted root.
+    Aero::Markup::VisualEdge edge;
+    edge.parent = hostRoot.Value();
+    edge.child = documentRoot.Value();
+    Base::Result<void> pushed =
+        next.visualContent.mountEdges.PushBack(std::move(edge));
+    if (!pushed) {
+        next.Clear();
+        return pushed.GetStatus();
+    }
+
+    Base::Result<void> assigned =
+        ::Aero::Controls::ControlPrivate::SetOwnedContent(
+            *static_cast<Controls::ContentControl*>(hostRoot.Value()),
+            next.root,
+            *documentRoot.Value());
+    if (!assigned) {
+        next.Clear();
+        return assigned.GetStatus();
+    }
+
+    next.root = std::move(root);
+    state_->loadedDocument = std::move(next);
+    return state_->MountRoot(
+        state_->loadedDocument.root, availableSize);
 }
 
 namespace {

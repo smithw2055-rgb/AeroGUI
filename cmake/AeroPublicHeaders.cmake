@@ -98,6 +98,7 @@ set(AERO_PUBLIC_HEADERS
     include/AeroRender/Render.hpp
     include/AeroRender/RenderDevice.hpp
     include/AeroRender/RenderTarget.hpp
+    include/AeroRender/WindowInterop.hpp
     include/Aero/Input.hpp
     include/Aero/InputInterop.hpp
     include/AeroApp/WindowInterop.hpp

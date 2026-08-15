@@ -402,7 +402,7 @@ foreach(required_source_entry IN ITEMS
         "src/gui/ViewRendererResources.cpp"
         "src/render/RenderDeviceState.hpp"
         "src/render/RenderTargetState.hpp"
-        "src/app/RenderContext.cpp")
+        "src/render/RenderContext.hpp")
     aero_require_file("${required_source_entry}")
 endforeach()
 
@@ -612,11 +612,11 @@ aero_forbid_text(
 aero_forbid_file("src/render/Surface.hpp")
 aero_forbid_file("src/render/Surface.cpp")
 aero_forbid_file("src/render/WindowRenderContext.hpp")
-aero_require_file("src/app/Presentation.hpp")
+aero_require_file("src/render/Presentation.hpp")
 aero_forbid_text(
-    "src/app/Presentation.hpp"
+    "src/render/Presentation.hpp"
     "Descriptor"
-    "App presentation values must not recreate a generic native-context protocol")
+    "Render presentation values must not recreate a generic native-context protocol")
 aero_forbid_text(
     "src/render/RenderTargetState.hpp"
     "class NativeRenderTarget"
@@ -688,9 +688,9 @@ aero_forbid_text(
     "ownsImpl_"
     "RenderTarget ownership must not be conditional")
 aero_require_text(
-    "src/app/OpenGL33RenderContext.cpp"
+    "src/render/opengl33/OpenGL33RenderContext.cpp"
     "class OpenGLRenderContext final : public RenderContext"
-    "OpenGL window presentation must belong to App::RenderContext")
+    "OpenGL window presentation must belong to a concrete render backend context")
 aero_forbid_text(
     "src/render/d3d11/D3D11Device.cpp"
     "ViewRenderData*"
@@ -726,11 +726,11 @@ aero_forbid_text(
     "RenderTree must not own GPU submission")
 
 aero_require_text(
-    "src/app/RenderContext.cpp"
+    "src/render/RenderContext.hpp"
     "Base::Result<void> presented = PresentFrame();"
     "RenderContext must own the final desktop Present boundary")
 aero_require_text(
-    "src/app/RenderContext.hpp"
+    "src/render/RenderContext.hpp"
     "bool frameOpen_ = false;"
     "RenderContext must own desktop frame state")
 foreach(retired_target_frame_state IN ITEMS
@@ -743,15 +743,15 @@ foreach(retired_target_frame_state IN ITEMS
         "RenderTarget must remain a drawable target without frame state")
 endforeach()
 aero_require_text(
-    "src/app/D3D11RenderContext.cpp"
+    "src/render/d3d11/D3D11RenderContext.cpp"
     "class D3D11RenderContext final : public RenderContext"
     "D3D11 window/device creation must belong to a concrete RenderContext")
 aero_require_text(
-    "src/app/OpenGL33RenderContext.cpp"
+    "src/render/opengl33/OpenGL33RenderContext.cpp"
     "class OpenGLRenderContext final : public RenderContext"
     "OpenGL window/device creation must belong to a concrete RenderContext")
 aero_forbid_text(
-    "src/app/RenderContext.hpp"
+    "src/render/RenderContext.hpp"
     "class RenderContext final"
     "RenderContext must remain the shared presentation lifecycle base")
 aero_require_file("src/render/RenderBatch.hpp")
@@ -788,11 +788,11 @@ aero_forbid_text(
     "BatchPlanner"
     "The duplicate diagnostic batching pipeline must not be part of AeroGui")
 aero_forbid_text(
-    "src/app/D3D11RenderContext.cpp"
+    "src/render/d3d11/D3D11RenderContext.cpp"
     "CreateD3D11WindowSurface"
     "Desktop D3D11 hosting must explicitly compose device and target")
 aero_forbid_text(
-    "src/app/OpenGL33RenderContext.cpp"
+    "src/render/opengl33/OpenGL33RenderContext.cpp"
     "CreateOpenGL33WindowSurface"
     "Desktop OpenGL hosting must explicitly compose device and target")
 

@@ -9,6 +9,8 @@ namespace Aero::Controls {
 
 using ::Aero::Meta::TypeId;
 
+class AERO_GUI_API Panel;
+
 enum class Orientation : std::uint8_t { Horizontal = 0U, Vertical };
 enum class Dock : std::uint8_t { Left = 0U, Top, Right, Bottom };
 

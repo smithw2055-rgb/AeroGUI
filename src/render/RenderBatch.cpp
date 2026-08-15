@@ -525,7 +525,7 @@ Base::Result<void> UiDrawContext::BeginRenderPass(
     pass_ = descriptor;
     inRenderPass_ = true;
     firstDrawInPass_ = true;
-    state_ = {};
+    state_ = RenderDrawState{};
     return {};
 }
 

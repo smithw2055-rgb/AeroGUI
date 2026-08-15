@@ -1,6 +1,6 @@
 #include "DesktopHost.hpp"
 #include "Metadata.hpp"
-#include "RenderContext.hpp"
+#include "RenderContextFactory.hpp"
 
 #include <AeroApp/Application.hpp>
 #include <AeroApp/Window.hpp>
@@ -66,6 +66,15 @@ std::uint32_t WindowExtent(
         return UINT32_MAX;
     }
     return static_cast<std::uint32_t>(value);
+}
+
+bool IsWindowType(Meta::TypeId type) noexcept {
+    for (Meta::TypeId current = type;
+         current != Meta::InvalidTypeId;) {
+        if (current == Aero::Window::StaticTypeId()) return true;
+        current = Meta::ResolveRuntimeTypeInfo(current).baseType;
+    }
+    return false;
 }
 
 std::uint32_t DecodeWindowCodePoint(
@@ -139,13 +148,13 @@ struct DesktopHostState {
             return {};
         }
 
-        Base::Result<void> LoadFromUri(
+Base::Result<void> LoadFromUri(
             const Base::ResourceUri& uri) noexcept {
             Base::Result<void> created = CreateView();
             if (!created) return created.GetStatus();
             Markup::XamlReader reader(owner->environment);
             Base::Result<Markup::XamlDocument> loaded =
-                reader.LoadComponent<Window>(
+                reader.LoadComponent<Aero::FrameworkElement>(
                     uri.Canonical(),
                     owner->application->GetResources(),
                     {}, owner->diagnostics);
@@ -154,7 +163,24 @@ struct DesktopHostState {
             if (!root) {
                 return HostFailure(
                     Base::ErrorCode::InvalidArgument,
-                    "StartupUri XAML root must be Window");
+                    "StartupUri XAML root must be a Window or FrameworkElement");
+            }
+            if (!IsWindowType(root->RuntimeType())) {
+                // WPF/Noesis host a non-Window StartupUri root (for example a
+                // UserControl) inside an automatically created default Window.
+                Base::Ref<Aero::Window> hosted;
+                auto made = Base::MakeRef<Aero::Window>();
+                if (!made) {
+                    return HostFailure(
+                        Base::ErrorCode::OutOfMemory,
+                        "Unable to allocate a host Window for StartupUri");
+                }
+                hosted = std::move(made).Value();
+                hosted->SetContent(root);
+                windowOwner = Base::Ref<Base::Object>(hosted);
+                window = static_cast<Aero::Window*>(windowOwner.Get());
+                loadedDocument = std::move(loaded).Value();
+                return FinishInitialization(true);
             }
             windowOwner = root;
             window = static_cast<Window*>(windowOwner.Get());
@@ -258,7 +284,7 @@ struct DesktopHostState {
                     Base::ErrorCode::InvalidState,
                     "Application native window has an empty client area");
             }
-            Base::Result<RenderContext*> graphics = CreateRenderContext(
+            Base::Result<Render::RenderContext*> graphics = CreateRenderContext(
                 owner->backend,
                 nativeWindow->NativeHandle(),
                 width,
@@ -288,9 +314,16 @@ struct DesktopHostState {
             if (!viewport) return viewport.GetStatus();
             Base::Result<void> mounted;
             if (programmaticRoot) {
-                mounted = view->SetContent(
-                    Base::Ref<FrameworkElement>::FromBorrowed(*window),
-                    size);
+                if (loadedDocument.IsValid()) {
+                    mounted = view->SetContent(
+                        Base::Ref<FrameworkElement>::FromBorrowed(*window),
+                        std::move(loadedDocument),
+                        size);
+                } else {
+                    mounted = view->SetContent(
+                        Base::Ref<FrameworkElement>::FromBorrowed(*window),
+                        size);
+                }
             } else {
                 mounted = view->SetContent(
                     std::move(loadedDocument), size);
@@ -564,6 +597,11 @@ struct DesktopHostState {
 
         void Close() noexcept {
             closeRequested = true;
+            // Tear down the graphics context while the native surface (and its
+            // X11 display) is still alive. The GLX context must be destroyed
+            // before the display connection closes; Shutdown() later repeats
+            // the teardown idempotently.
+            if (renderContext) renderContext->Shutdown();
             if (nativeWindow != nullptr && nativeWindow->IsOpen()) {
                 nativeWindow->Close();
             }
@@ -620,7 +658,7 @@ struct DesktopHostState {
         DesktopHostState* owner = nullptr;
         WindowHostState runtime;
         Base::Ref<View> view;
-        std::unique_ptr<RenderContext> renderContext;
+        std::unique_ptr<Render::RenderContext> renderContext;
         Base::Ref<Base::Object> windowOwner;
         Markup::XamlDocument loadedDocument;
         Window* window = nullptr;
