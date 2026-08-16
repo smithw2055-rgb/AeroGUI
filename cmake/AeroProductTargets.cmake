@@ -2,9 +2,7 @@ set(_aero_app_sources
     src/app/Application.cpp
     src/app/Metadata.cpp
     src/app/platform/WindowWait.cpp
-    src/app/ApplicationRun.cpp
     src/app/DesktopHost.cpp
-    src/app/RenderContextFactory.cpp
     src/app/Window.cpp)
 if(WIN32)
     list(APPEND _aero_app_sources

@@ -1,6 +1,6 @@
 #include "DesktopHost.hpp"
 #include "Metadata.hpp"
-#include "RenderContextFactory.hpp"
+#include "render/RenderContext.hpp"
 
 #include <AeroApp/Application.hpp>
 #include <AeroApp/Window.hpp>
@@ -28,14 +28,60 @@
 #include <utility>
 
 namespace Aero::App {
-
-using namespace ::Aero::App;
 namespace {
 
 Base::Status HostFailure(
     Base::ErrorCode code,
     const char* message) noexcept {
     return Base::Status::Failure(code, message);
+}
+
+Base::Result<Render::RenderContext*> CreateRenderContext(
+    GraphicsBackend backend,
+    Platform::NativeWindowHandle window,
+    std::uint32_t width,
+    std::uint32_t height,
+    Base::IAllocator* allocator) noexcept {
+    if (width == 0U || height == 0U) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Render context dimensions must be nonzero");
+    }
+
+    GraphicsBackend selected = backend;
+    if (selected == GraphicsBackend::Automatic) {
+#if defined(_WIN32)
+        selected = GraphicsBackend::D3D11;
+#else
+        selected = GraphicsBackend::OpenGL33;
+#endif
+    }
+
+    if (selected == GraphicsBackend::D3D11) {
+#if defined(_WIN32) && AERO_APP_HAS_D3D11
+        return Render::CreateD3D11RenderContext(
+            window, width, height, allocator);
+#else
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "D3D11 application graphics backend is unavailable");
+#endif
+    }
+
+    if (selected == GraphicsBackend::OpenGL33) {
+#if AERO_APP_HAS_OPENGL_WINDOW
+        return Render::CreateOpenGL33RenderContext(
+            window, width, height, allocator);
+#else
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "OpenGL application graphics backend is unavailable");
+#endif
+    }
+
+    return Base::Status::Failure(
+        Base::ErrorCode::Unsupported,
+        "Requested application graphics backend is unavailable");
 }
 
 Input::MouseButton MapButton(
@@ -1098,29 +1144,29 @@ Base::Result<void> LoadFromUri(
     int exitCode = 0;
 };
 
-static_assert(sizeof(DesktopHostState) <= 131072U,
-    "DesktopHost inline state storage is too small");
-static_assert(alignof(DesktopHostState) <= alignof(std::max_align_t),
-    "DesktopHost inline state alignment is insufficient");
-
 DesktopHost::DesktopHost(
     const RunOptions& options) noexcept
-    : state_(new (stateStorage_)
+    : state_(new (std::nothrow)
           DesktopHostState(options, nullptr, {})) {}
 
 DesktopHost::DesktopHost(
     Application& application,
     Base::Ref<Window> window,
     const RunOptions& options) noexcept
-    : state_(new (stateStorage_) DesktopHostState(
+    : state_(new (std::nothrow) DesktopHostState(
           options, &application, std::move(window))) {}
 
 DesktopHost::~DesktopHost() noexcept {
-    if (state_ != nullptr) state_->~DesktopHostState();
+    delete state_;
     state_ = nullptr;
 }
 
 Base::Result<int> DesktopHost::Run() noexcept {
+    if (state_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "DesktopHost allocation failed");
+    }
     return state_->Run();
 }
 

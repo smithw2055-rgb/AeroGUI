@@ -2,7 +2,7 @@
 #include "TextPipeline.hpp"
 #include "render/RenderResources.hpp"
 
-#include "render/RenderDeviceState.hpp"
+#include <AeroRender/RenderDevice.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include "gui/text/FontManager.hpp"
 #include "gui/text/FreeTypeAdapter.hpp"

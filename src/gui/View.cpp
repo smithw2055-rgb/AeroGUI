@@ -2,6 +2,7 @@
 #include <Aero/Gui.hpp>
 #include <AeroAudio/Audio.hpp>
 #include <Aero/Diagnostics.hpp>
+#include <Aero/Diagnostics/Rendering.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Triggers/Behavior.hpp>
 #include <Aero/Base/Hash.hpp>
@@ -11,7 +12,7 @@
 #include <Aero/FrameworkElement.hpp>
 #include "gui/media/ImageCache.hpp"
 #include "gui/text/TextPipeline.hpp"
-#include "render/RenderTargetState.hpp"
+#include <AeroRender/RenderTarget.hpp>
 
 #include "gui/controls/ControlRuntime.hpp"
 #include "gui/controls/ItemsRuntime.hpp"
@@ -59,7 +60,7 @@
 #include <Aero/BuiltinThemes.generated.hpp>
 
 #include "gui/controls/DataTemplateTriggerState.hpp"
-#include "render/RenderDeviceState.hpp"
+#include <AeroRender/RenderDevice.hpp>
 #include "render/RenderTree.hpp"
 
 #include <algorithm>
@@ -8733,11 +8734,10 @@ Base::Result<std::uint32_t> ViewState::ExecuteFrame(
             guiState.textureChangeGeneration;
     }
     if (state_->device) {
-        const Base::Status deviceStatus =
-            ::Aero::Render::RenderDeviceBase::FrameStatus(
-                *state_->device);
-        if (!deviceStatus.IsOk()) {
-            return deviceStatus;
+        if (state_->device->State() != RenderDeviceState::Ready) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Device is not ready");
         }
         const std::uint64_t generation =
             state_->device->Generation();
@@ -9416,10 +9416,10 @@ Base::Result<void> ViewRenderer::Init(
                   "Renderer is already initialized"));
     }
 
-    Base::Status deviceStatus =
-        Render::RenderDeviceBase::FrameStatus(*device);
-    if (!deviceStatus.IsOk()) {
-        return deviceStatus;
+    if (device->State() != RenderDeviceState::Ready) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Device is not ready");
     }
 
     auto& data = *view_->state_;
@@ -9453,15 +9453,9 @@ Base::Result<void> ViewRenderer::Init(
     }
 
     if (!frameEncoder_.has_value()) {
-        Render::RenderDeviceBase* backend =
-            Render::RenderDeviceBase::From(*device);
-        if (backend == nullptr) {
-            return ViewNotInitialized(
-                "Renderer requires a native RenderDevice state");
-        }
         Base::Result<void> prepared = InitializeRenderResources(
-            *backend,
-            Render::RenderDeviceBase::BackendGeneration(*device));
+            *device,
+            device->Generation());
         if (!prepared) {
             ShutdownRenderResources();
             return prepared.GetStatus();
@@ -9469,54 +9463,16 @@ Base::Result<void> ViewRenderer::Init(
     }
 
     Base::Result<void> status;
-    if (data.text != nullptr) {
-        Base::Result<bool> synchronized =
-            data.text->SynchronizeBackend(
-                *device,
-                Resources().text,
-                true);
-        if (!synchronized) {
-            status = synchronized.GetStatus();
-        }
-    }
     data.device = device;
     data.deviceGeneration =
         device->Generation();
 
-    if (data.text != nullptr) {
-        data.VisitTextElements(
-            data.RootVisual(),
-            data.text->Layout(),
-            true);
-    }
-    if (status && data.images != nullptr) {
-        Base::Result<bool> synchronized =
-            data.images->Synchronize(
-                data.RootVisual(),
-                data.loadedDocument.canonicalUri,
-                data.xamlRuntime->Providers(),
-                static_cast<GuiState&>(*data.gui).
-                    textureProvider.Get(),
-                data.GetImageResources(),
-                true);
-        if (!synchronized) {
-            status = synchronized.GetStatus();
-        }
-    }
-    if (status) {
-        data.VisitPaths(
-            data.RootVisual(),
-            data.GetMeshResources(),
-            true);
-        data.elementHost.meshResources =
-            data.GetMeshResources();
-        Aero::Media::Visual* rootVisual =
-            data.RootVisual();
-        if (rootVisual != nullptr) {
-            status = data.renderer->Invalidate(
-                *rootVisual,
-                Aero::Render::RenderInvalidation::All);
-        }
+    Aero::Media::Visual* rootVisual =
+        data.RootVisual();
+    if (rootVisual != nullptr) {
+        status = data.renderer->Invalidate(
+            *rootVisual,
+            Aero::Render::RenderInvalidation::All);
     }
     if (!status) {
         return status.GetStatus();
@@ -9533,21 +9489,6 @@ Base::Result<void> ViewRenderer::Init(
 void ViewRenderer::Shutdown() noexcept {
     if (device_) {
         static_cast<void>(device_->WaitIdle());
-    }
-    if (frameEncoder_.has_value() && view_ != nullptr &&
-        view_->state_ != nullptr) {
-        ViewState& data = *view_->state_;
-        if (data.images != nullptr) {
-            data.images->ReleaseBackendResources(
-                Resources().images);
-        }
-        if (data.text != nullptr && device_) {
-            static_cast<void>(data.text->SynchronizeBackend(
-                *device_, nullptr, true));
-        }
-        data.VisitTextElements(data.RootVisual(), nullptr);
-        data.VisitPaths(data.RootVisual(), nullptr);
-        data.elementHost.meshResources = nullptr;
     }
     ShutdownRenderResources();
     device_.Reset();
@@ -9572,10 +9513,9 @@ bool ViewRenderer::UpdateRenderTree() noexcept {
         return false;
     }
 
-    Base::Status deviceStatus =
-        Render::RenderDeviceBase::FrameStatus(*device_);
-    if (!deviceStatus.IsOk()) {
-        view_->state_->ReportRendererFailure(deviceStatus);
+    if (device_->State() != RenderDeviceState::Ready) {
+        view_->state_->ReportRendererFailure(ViewApiInvalidState(
+            "Render device is not ready"));
         return false;
     }
 
@@ -9636,10 +9576,9 @@ bool ViewRenderer::RenderOffscreen() noexcept {
         return false;
     }
 
-    Base::Result<::Aero::Graphics::FenceValue> submitted =
+    Base::Result<void> submitted =
         RenderOffscreenFrame(frame);
     if (!submitted) {
-        Render::RenderDeviceBase::RefreshHealth(*device_);
         view_->state_->ReportRendererFailure(submitted.GetStatus());
         return false;
     }
@@ -9690,8 +9629,7 @@ void ViewRenderer::Render(
     }
 
     Base::Result<void> submitted =
-        Render::RenderTargetServices::Render(
-            target, *this, frame);
+        RenderOnscreenFrame(frame, target);
     if (!submitted) {
         view_->state_->ReportRendererFailure(submitted.GetStatus());
         return;

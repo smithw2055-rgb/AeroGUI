@@ -64,7 +64,6 @@ public:
         const ::Aero::Window& window) noexcept;
 
 private:
-    alignas(std::max_align_t) std::uint8_t stateStorage_[131072]{};
     DesktopHostState* state_ = nullptr;
 };
 

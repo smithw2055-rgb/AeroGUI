@@ -13,8 +13,6 @@
 #include "render/FrameEncoder.hpp"
 #include "gui/property/PropertyRuntime.hpp"
 #include "gui/ViewRenderer.hpp"
-#include "render/RenderDeviceState.hpp"
-#include "render/RenderTargetState.hpp"
 #include "render/opengl33/OpenGL33RenderDevice.hpp"
 
 namespace Aero {

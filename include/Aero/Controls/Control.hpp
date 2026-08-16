@@ -25,13 +25,11 @@ private:
 
 public:
 
-    inline static constexpr RoutedEvent<MouseButtonEventArgs>
-        PreviewMouseDoubleClickEvent{"PreviewMouseDoubleClick"};
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> PreviewMouseDoubleClickEvent{"PreviewMouseDoubleClick"};
     Event<MouseButtonEventArgs> PreviewMouseDoubleClick() noexcept {
         return GetEvent(PreviewMouseDoubleClickEvent);
     }
-    inline static constexpr RoutedEvent<MouseButtonEventArgs>
-        MouseDoubleClickEvent{"MouseDoubleClick"};
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> MouseDoubleClickEvent{"MouseDoubleClick"};
     Event<MouseButtonEventArgs> MouseDoubleClick() noexcept {
         return GetEvent(MouseDoubleClickEvent);
     }

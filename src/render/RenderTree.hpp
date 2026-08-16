@@ -14,6 +14,7 @@
 #include "DisplayList.hpp"
 
 #include <Aero/FrameworkElement.hpp>
+#include <Aero/Layout.hpp>
 
 #include <array>
 
@@ -109,7 +110,7 @@ struct RenderNodeSnapshot {
     bool clipsToBounds = false;
     Size renderSize;
     Transform2D renderTransform;
-    BlendMode blendMode = BlendMode::Normal;
+    ::Aero::BlendMode blendMode = ::Aero::BlendMode::Normal;
     double opacity = 1.0;
     RenderMaskSnapshot mask;
     RenderEffectSnapshot effect;

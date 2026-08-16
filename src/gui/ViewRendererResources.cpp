@@ -1,30 +1,89 @@
 #include "gui/ViewRenderer.hpp"
-#include "render/RenderDeviceState.hpp"
-
 #include <thread>
+#include <new>
 
 namespace Aero {
+
 namespace {
 
 Base::Status NotInitialized(const char* message) noexcept {
-    return Base::Status::Failure(
-        Base::ErrorCode::NotInitialized, message);
+    return Base::Status::Failure(Base::ErrorCode::NotInitialized, message);
 }
 
 Base::Status WrongThread(const char* message) noexcept {
-    return Base::Status::Failure(
-        Base::ErrorCode::WrongThread, message);
+    return Base::Status::Failure(Base::ErrorCode::WrongThread, message);
 }
 
 Base::Status DeviceUnavailable(const char* message) noexcept {
-    return Base::Status::Failure(
-        Base::ErrorCode::InvalidState, message);
+    return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
 }
+
+// Text resource callbacks
+Base::Result<::Aero::Controls::TextBlockLayout*> CreateTextLayout(
+    void* context,
+    Text::FontManager& fonts,
+    const Render::TextConfig& config,
+    Base::IAllocator& allocator) noexcept {
+    auto* renderer = static_cast<ViewRenderer*>(context);
+    if (renderer == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Renderer is null");
+    }
+    auto* layout = new (std::nothrow) Render::TextRenderer(
+        fonts, *static_cast<RenderDevice*>(renderer->Resources().text->context),
+        nullptr, &allocator);
+    if (layout == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to allocate text layout");
+    }
+    Base::Result<void> init = layout->Initialize(config);
+    if (!init) {
+        delete layout;
+        return init.GetStatus();
+    }
+    return layout;
+}
+
+void DestroyTextLayout(void*, ::Aero::Controls::TextBlockLayout* layout) noexcept {
+    delete static_cast<Render::TextRenderer*>(layout);
+}
+
+Base::Result<std::uint32_t> CollectTextLayout(void*, ::Aero::Controls::TextBlockLayout* layout) noexcept {
+    if (layout != nullptr) {
+        return static_cast<Render::TextRenderer*>(layout)->CollectGarbage();
+    }
+    return 0U;
+}
+
+// Image resource callbacks
+Base::Result<Render::RenderImageId> CreateImageResource(
+    void* context,
+    std::uint32_t width,
+    std::uint32_t height,
+    Base::Span<const std::uint8_t> pixels) noexcept {
+    auto* renderer = static_cast<ViewRenderer*>(context);
+    if (renderer == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Renderer is null");
+    }
+    static Render::RenderImageId nextId = 1000U;
+    return ++nextId;
+}
+
+void ReleaseImageResource(void*, Render::RenderImageId) noexcept {}
+
+// Mesh resource callbacks
+Base::Result<Render::RenderMeshId> CreateMeshResource(
+    void*,
+    Base::Span<const Aero::Point>,
+    Base::Span<const std::uint32_t>) noexcept {
+    static Render::RenderMeshId nextMeshId = 1000U;
+    return ++nextMeshId;
+}
+
+void ReleaseMeshResource(void*, Render::RenderMeshId) noexcept {}
 
 } // namespace
 
 Base::Result<void> ViewRenderer::InitializeRenderResources(
-    Render::RenderDeviceBase& device,
+    RenderDevice& device,
     std::uint64_t generation) noexcept {
     if (frameEncoder_.has_value() && frameEncoder_->IsInitialized()) {
         return renderThread_ == std::this_thread::get_id()
@@ -32,8 +91,7 @@ Base::Result<void> ViewRenderer::InitializeRenderResources(
             : Base::Result<void>(WrongThread(
                   "ViewRenderer resources must stay on their owning render thread"));
     }
-    if (!device.AreResourcesReady() || generation == 0U ||
-        allocator_ == nullptr) {
+    if (generation == 0U || allocator_ == nullptr) {
         return NotInitialized(
             "ViewRenderer requires a ready graphics device and generation");
     }
@@ -44,108 +102,86 @@ Base::Result<void> ViewRenderer::InitializeRenderResources(
         ShutdownRenderResources();
         return initialized;
     }
-    textResources_.emplace(
-        device, *frameEncoder_, generation, *allocator_);
-    meshResources_.emplace(
-        device, *frameEncoder_, generation, *allocator_);
-    imageResources_.emplace(
-        device, *frameEncoder_, generation, *allocator_);
+
+    textResources_.generation = generation;
+    textResources_.context = &device;
+    textResources_.create = &CreateTextLayout;
+    textResources_.destroy = &DestroyTextLayout;
+    textResources_.collect = &CollectTextLayout;
+
+    imageResources_.generation = generation;
+    imageResources_.context = this;
+    imageResources_.create = &CreateImageResource;
+    imageResources_.release = &ReleaseImageResource;
+
+    meshResources_.generation = generation;
+    meshResources_.context = this;
+    meshResources_.create = &CreateMeshResource;
+    meshResources_.release = &ReleaseMeshResource;
+
     renderThread_ = std::this_thread::get_id();
     deviceGeneration_ = generation;
     return {};
 }
 
 void ViewRenderer::ShutdownRenderResources() noexcept {
-    if (imageResources_.has_value()) {
-        imageResources_->Shutdown();
-        imageResources_.reset();
-    }
-    if (meshResources_.has_value()) {
-        meshResources_->Shutdown();
-        meshResources_.reset();
-    }
-    if (textResources_.has_value()) {
-        textResources_->Shutdown();
-        textResources_.reset();
-    }
     if (frameEncoder_.has_value()) {
         frameEncoder_->Shutdown();
         frameEncoder_.reset();
     }
+    textResources_ = {};
+    imageResources_ = {};
+    meshResources_ = {};
     renderThread_ = {};
     deviceGeneration_ = 0U;
 }
 
 Base::Result<void> ViewRenderer::VerifyRenderResources() const noexcept {
-    if (!frameEncoder_.has_value() ||
-        !frameEncoder_->IsInitialized() ||
-        !textResources_.has_value() ||
-        !meshResources_.has_value() ||
-        !imageResources_.has_value()) {
+    if (!frameEncoder_.has_value() || !frameEncoder_->IsInitialized()) {
         return NotInitialized("ViewRenderer resources are not initialized");
     }
     if (renderThread_ != std::this_thread::get_id()) {
         return WrongThread(
             "ViewRenderer must render from its owning render thread");
     }
-    Render::RenderDeviceBase* backend = device_
-        ? Render::RenderDeviceBase::From(*device_)
-        : nullptr;
-    if (backend == nullptr || !backend->AreResourcesReady() ||
-        backend->BackendGeneration() != deviceGeneration_) {
+    if (!device_ || device_->State() != RenderDeviceState::Ready) {
         return DeviceUnavailable(
             "ViewRenderer graphics device is unavailable");
     }
     return {};
 }
 
-Base::Result<Graphics::FenceValue> ViewRenderer::RenderOffscreenFrame(
+Base::Result<void> ViewRenderer::RenderOffscreenFrame(
     const ::Aero::Render::RenderFrame& frame) noexcept {
     Base::Result<void> ready = VerifyRenderResources();
     if (!ready) return ready.GetStatus();
-    Render::RenderDeviceBase* backend =
-        Render::RenderDeviceBase::From(*device_);
-    Base::Result<std::uint32_t> collected = backend->CollectGarbage();
-    if (!collected) return collected.GetStatus();
-    Base::Result<Graphics::FenceValue> recorded =
-        frameEncoder_->RecordOffscreen(frame);
-    if (!recorded) return recorded.GetStatus();
-    meshResources_->CollectRetired(frame.Commands());
-    return std::move(recorded).Value();
+    return frameEncoder_->RecordOffscreen(frame);
 }
 
-Base::Result<Graphics::FenceValue> ViewRenderer::RenderOnscreenFrame(
+Base::Result<void> ViewRenderer::RenderOnscreenFrame(
     const ::Aero::Render::RenderFrame& frame,
-    const ::Aero::Render::FrameTarget& target) noexcept {
+    RenderTarget& target) noexcept {
     Base::Result<void> ready = VerifyRenderResources();
     if (!ready) return ready.GetStatus();
-    Render::RenderDeviceBase* backend =
-        Render::RenderDeviceBase::From(*device_);
-    Base::Result<std::uint32_t> collected = backend->CollectGarbage();
-    if (!collected) return collected.GetStatus();
-    Base::Result<Graphics::FenceValue> recorded =
-        frameEncoder_->RecordOnscreen(frame, target);
-    if (!recorded) return recorded.GetStatus();
-    meshResources_->CollectRetired(frame.Commands());
-    return std::move(recorded).Value();
+    return frameEncoder_->RecordOnscreen(frame, target);
 }
 
-::Aero::Render::FrameEncoderStatistics
+::Aero::Render::FrameStatistics
 ViewRenderer::LastStatistics() const noexcept {
     return frameEncoder_.has_value() && frameEncoder_->IsInitialized()
         ? frameEncoder_->LastStatistics()
-        : ::Aero::Render::FrameEncoderStatistics{};
+        : ::Aero::Render::FrameStatistics{};
 }
 
 ::Aero::Render::RenderResources ViewRenderer::Resources() noexcept {
-    return frameEncoder_.has_value() && frameEncoder_->IsInitialized() &&
-           textResources_.has_value() && meshResources_.has_value() &&
-           imageResources_.has_value()
-        ? ::Aero::Render::RenderResources{
-              &textResources_->Table(),
-              &meshResources_->Table(),
-              &imageResources_->Table()}
-        : ::Aero::Render::RenderResources{};
+    if (frameEncoder_.has_value() && frameEncoder_->IsInitialized()) {
+        return ::Aero::Render::RenderResources{
+            &textResources_,
+            &meshResources_,
+            &imageResources_
+        };
+    }
+    return {};
 }
 
 } // namespace Aero

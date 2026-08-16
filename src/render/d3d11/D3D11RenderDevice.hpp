@@ -2,50 +2,89 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Base/Span.hpp>
-#include "render/GraphicsTypes.hpp"
-#include "render/RenderBatch.hpp"
-#include "render/RenderDeviceState.hpp"
 #include <AeroRender/RenderDevice.hpp>
+#include <AeroRender/RenderTarget.hpp>
+#include <AeroRender/Texture.hpp>
+#include <AeroRender/D3D11.hpp>
 
-#include <cstddef>
-#include <cstdint>
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <d3d11.h>
+#include <dxgi.h>
+#endif
 
-namespace Aero::Graphics {
+namespace Aero::Render {
 
-struct D3D11RenderDeviceState;
+class D3D11Texture final : public Texture {
+public:
+    D3D11Texture(
+        ID3D11Texture2D* texture,
+        ID3D11ShaderResourceView* srv,
+        uint32_t width,
+        uint32_t height,
+        bool hasMipMaps,
+        bool hasAlpha) noexcept;
+    ~D3D11Texture() noexcept override;
 
-enum class D3D11DeviceMode : std::uint8_t {
-    Hardware = 0U,
-    Warp,
-    Borrowed
+    uint32_t GetWidth() const noexcept override { return width_; }
+    uint32_t GetHeight() const noexcept override { return height_; }
+    bool HasMipMaps() const noexcept override { return hasMipMaps_; }
+    bool IsInverted() const noexcept override { return false; }
+    bool HasAlpha() const noexcept override { return hasAlpha_; }
+
+    ID3D11Texture2D* GetNativeTexture() const noexcept { return texture_; }
+    ID3D11ShaderResourceView* GetNativeSRV() const noexcept { return srv_; }
+
+private:
+    ID3D11Texture2D* texture_ = nullptr;
+    ID3D11ShaderResourceView* srv_ = nullptr;
+    uint32_t width_ = 0U;
+    uint32_t height_ = 0U;
+    bool hasMipMaps_ = false;
+    bool hasAlpha_ = true;
 };
 
-// Defines ownership of an immediate context after an AeroGUI submission.
-// PreserveRequiredState captures the state that this backend changes and
-// restores it before returning. HostResetsState avoids that query/restore cost;
-// the host must then establish its own pipeline state before rendering again.
-enum class D3D11StatePolicy : std::uint8_t {
-    HostResetsState = 0U,
-    PreserveRequiredState
+class D3D11RenderTarget final : public RenderTarget {
+public:
+    D3D11RenderTarget(
+        Ref<RenderDevice> device,
+        Ref<D3D11Texture> texture,
+        ID3D11RenderTargetView* rtv,
+        ID3D11DepthStencilView* dsv,
+        uint32_t width,
+        uint32_t height) noexcept;
+    ~D3D11RenderTarget() noexcept override;
+
+    Texture* GetTexture() noexcept override { return texture_.Get(); }
+    ID3D11RenderTargetView* GetRTV() const noexcept { return rtv_; }
+    ID3D11DepthStencilView* GetDSV() const noexcept { return dsv_; }
+    uint32_t GetWidth() const noexcept { return width_; }
+    uint32_t GetHeight() const noexcept { return height_; }
+
+    void SetRTV(ID3D11RenderTargetView* rtv) noexcept;
+
+private:
+    Ref<D3D11Texture> texture_;
+    ID3D11RenderTargetView* rtv_ = nullptr;
+    ID3D11DepthStencilView* dsv_ = nullptr;
+    uint32_t width_ = 0U;
+    uint32_t height_ = 0U;
 };
 
-struct D3D11RenderDeviceOptions  {
-    D3D11DeviceMode deviceMode = D3D11DeviceMode::Hardware;
-    D3D11StatePolicy statePolicy = D3D11StatePolicy::HostResetsState;
+struct D3D11RenderDeviceOptions {
+    ID3D11Device* borrowedDevice = nullptr;
+    ID3D11DeviceContext* borrowedContext = nullptr;
     bool enableDebugLayer = false;
+    bool useWarp = false;
     bool allowWarpFallback = true;
-    std::uintptr_t borrowedDevice = 0U;
-    std::uintptr_t borrowedImmediateContext = 0U;
-};
-
-struct D3D11RenderTargetBinding  {
-    std::uintptr_t texture2D = 0U;
-    std::uintptr_t renderTargetView = 0U;
-    std::uintptr_t depthStencilView = 0U;
-    TextureResourceDescriptor texture;
-    std::uint64_t stableId = 0U;
 };
 
 class D3D11RenderDevice final : public Aero::Render::RenderDeviceBase {
@@ -55,148 +94,87 @@ public:
         Base::IAllocator* allocator = nullptr) noexcept;
     ~D3D11RenderDevice() noexcept override;
 
-    D3D11RenderDevice(const D3D11RenderDevice&) = delete;
-    D3D11RenderDevice& operator=(const D3D11RenderDevice&) = delete;
-
     Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
 
-    ::Aero::RenderBackendKind BackendKind() const noexcept override {
-        return ::Aero::RenderBackendKind::D3D11;
+    const DeviceCaps& GetCaps() const noexcept override { return caps_; }
+
+    Ref<RenderTarget> CreateRenderTarget(
+        const char* label, uint32_t width, uint32_t height,
+        uint32_t sampleCount, bool needsStencil) noexcept override;
+
+    Ref<RenderTarget> CloneRenderTarget(
+        const char* label, RenderTarget* surface) noexcept override;
+
+    Ref<Texture> CreateTexture(
+        const char* label, uint32_t width, uint32_t height,
+        uint32_t numLevels, TextureFormat::Enum format, const void** data) noexcept override;
+
+    void BeginUpdatingTextures() noexcept override;
+    void UpdateTexture(
+        Texture* texture, uint32_t level, uint32_t x, uint32_t y,
+        uint32_t width, uint32_t height, const void* data) noexcept override;
+    void EndUpdatingTextures(
+        Texture** textures, uint32_t count) noexcept override;
+
+    void BeginOffscreenRender() noexcept override;
+    void EndOffscreenRender() noexcept override;
+    void BeginOnscreenRender() noexcept override;
+    void EndOnscreenRender() noexcept override;
+
+    void SetRenderTarget(RenderTarget* surface) noexcept override;
+    void BeginTile(RenderTarget* surface, const Tile& tile) noexcept override;
+    void EndTile(RenderTarget* surface) noexcept override;
+    void ResolveRenderTarget(
+        RenderTarget* surface, const Tile* tiles, uint32_t numTiles) noexcept override;
+
+    void* MapVertices(uint32_t bytes) noexcept override;
+    void UnmapVertices() noexcept override;
+    void* MapIndices(uint32_t bytes) noexcept override;
+    void UnmapIndices() noexcept override;
+
+    void DrawBatch(const Batch& batch) noexcept override;
+
+    ID3D11Device* NativeDevice() const noexcept { return device_; }
+    ID3D11DeviceContext* NativeContext() const noexcept { return context_; }
+
+protected:
+    RenderBackendKind BackendKind() const noexcept override {
+        return RenderBackendKind::D3D11;
     }
-    Base::Result<FenceValue> DrawBatch(
-        ::Aero::Render::RenderBatch&& batch) noexcept override;
     void NotifyBackendDeviceLost() noexcept override;
-    Base::Result<void> RestoreBackendDevice() noexcept override;
-    Base::Result<void> WaitBackendIdle(
-        std::uint32_t timeoutMilliseconds) noexcept override;
-    ::Aero::RenderBackendHealth BackendHealth() const noexcept override;
-
-    bool IsInitialized() const noexcept;
-    bool IsReady() const noexcept {
-        return IsInitialized() && !deviceLost_ && AreResourcesReady();
-    }
-    std::uintptr_t NativeDevice() const noexcept;
-    std::uintptr_t NativeImmediateContext() const noexcept;
-    std::uint32_t NativeFeatureLevel() const noexcept;
-    std::uint32_t LiveResourceCount() const noexcept;
-    FenceValue LastSubmittedFence() const noexcept;
-
-    Base::Result<void> ImportExternalRenderTarget(
-        ResourceHandle handle,
-        const D3D11RenderTargetBinding& descriptor) noexcept;
-
-    Base::Result<void> ReadbackTexture(
-        ResourceHandle handle,
-        Base::Span<std::uint8_t> destination,
-        std::uint32_t destinationRowPitch) noexcept;
-    Base::Result<std::uint64_t> ReadbackTextureChecksum(
-        ResourceHandle handle) noexcept;
-    Base::Result<void> WaitForFence(
-        FenceValue fence,
-        std::uint32_t timeoutMilliseconds = 5000U) noexcept;
-
-    DeviceCapabilities Capabilities() const noexcept;
-    NativeRenderBackendKind Kind() const noexcept {
-        return NativeRenderBackendKind::D3D11;
-    }
-    ::Aero::Graphics::GraphicsCapabilities
-    QueryGraphicsCapabilities() const noexcept;
-
-    Base::Result<void> CreateResource(
-        ResourceHandle handle,
-        const ResourceDescriptor& descriptor) noexcept;
-    void DestroyResource(ResourceHandle handle) noexcept;
-    Base::Result<void> ConfigureTexture(
-        ResourceHandle handle,
-        const TextureResourceDescriptor& descriptor) noexcept;
-    Base::Result<void> ConfigureSampler(
-        ResourceHandle handle,
-        const SamplerDescriptor& descriptor) noexcept;
-    Base::Result<void> ConfigurePipeline(
-        ResourceHandle handle,
-        const NativePipelineState& descriptor) noexcept;
-    Base::Result<void> Submit(
-        const ::Aero::Render::RenderBatch& commands,
-        ResourceHandle pipeline,
-        FenceValue signalFence) noexcept;
-    FenceValue CompletedFence() const noexcept;
-    bool IsDeviceLost() const noexcept;
+    Result<void> RestoreBackendDevice() noexcept override;
+    Result<void> WaitBackendIdle(uint32_t timeoutMilliseconds) noexcept override;
 
 private:
-    // The swap-chain adapter reports DXGI device-removal results through this
-    // shared terminal backend state so later resource and queue calls stop.
-    void MarkDeviceLost() noexcept;
-
-    DeviceCapabilities QueryNativeDeviceCapabilities() const noexcept override {
-        return Capabilities();
-    }
-    NativeRenderBackendKind NativeBackendKind() const noexcept override {
-        return Kind();
-    }
-    ::Aero::Graphics::GraphicsCapabilities
-    QueryNativeGraphicsCapabilities() const noexcept override {
-        return QueryGraphicsCapabilities();
-    }
-    Base::Result<void> CreateNativeResource(
-        ResourceHandle handle,
-        const ResourceDescriptor& descriptor) noexcept override {
-        return CreateResource(handle, descriptor);
-    }
-    void DestroyNativeResource(ResourceHandle handle) noexcept override {
-        D3D11RenderDevice::DestroyResource(handle);
-    }
-    Base::Result<void> ConfigureNativeTexture(
-        ResourceHandle handle,
-        const TextureResourceDescriptor& descriptor) noexcept override {
-        return ConfigureTexture(handle, descriptor);
-    }
-    Base::Result<void> ConfigureNativeSampler(
-        ResourceHandle handle,
-        const SamplerDescriptor& descriptor) noexcept override {
-        return ConfigureSampler(handle, descriptor);
-    }
-    Base::Result<void> ConfigureNativePipeline(
-        ResourceHandle handle,
-        ::Aero::Render::UiPipelineKey key) noexcept override;
-    Base::Result<void> SubmitNativeBatch(
-        const ::Aero::Render::RenderBatch& batch,
-        ResourceHandle pipeline,
-        FenceValue signalFence) noexcept override {
-        return Submit(batch, pipeline, signalFence);
-    }
-    Base::Result<void> UpdateNativeBuffer(
-        ResourceHandle buffer,
-        std::uint64_t destinationOffset,
-        Base::Span<const std::uint8_t> data) noexcept override;
-    Base::Result<void> UpdateNativeTexture(
-        ResourceHandle texture,
-        const TextureRegion& region,
-        Base::Span<const std::uint8_t> data) noexcept override;
-    FenceValue NativeLastSubmittedFence() const noexcept override {
-        return LastSubmittedFence();
-    }
-    FenceValue NativeCompletedFence() const noexcept override {
-        return CompletedFence();
-    }
-    bool NativeDeviceLost() const noexcept override {
-        return IsDeviceLost();
-    }
+    Base::Result<void> InitD3D11() noexcept;
+    Base::Result<void> InitPipelines() noexcept;
+    void ReleasePipelines() noexcept;
 
     D3D11RenderDeviceOptions options_;
     Base::IAllocator* allocator_ = nullptr;
-    // The backend owns its implementation storage directly. Keeping the
-    // platform-heavy state out of this header avoids leaking D3D declarations
-    // without paying for a second heap allocation or a source-only Pimpl.
-    alignas(std::max_align_t) std::uint8_t stateStorage_[16384]{};
-    D3D11RenderDeviceState* state_ = nullptr;
-    bool deviceLost_ = false;
+
+    ID3D11Device* device_ = nullptr;
+    ID3D11DeviceContext* context_ = nullptr;
+    bool ownsDevice_ = false;
+
+    ID3D11Buffer* dynamicVB_ = nullptr;
+    ID3D11Buffer* dynamicIB_ = nullptr;
+    ID3D11Buffer* vertexCB_[2] = {};
+    ID3D11Buffer* pixelCB_[2] = {};
+
+    ID3D11BlendState* blendStates_[BlendMode::Count * 2] = {};
+    ID3D11DepthStencilState* stencilStates_[StencilMode::Count] = {};
+    ID3D11RasterizerState* rasterizerSolid_ = nullptr;
+    ID3D11RasterizerState* rasterizerScissor_ = nullptr;
+    ID3D11SamplerState* samplers_[64] = {};
+
+    ID3D11VertexShader* vertexShaders_[Shader::Vertex::Count] = {};
+    ID3D11PixelShader* pixelShaders_[Shader::Count] = {};
+    ID3D11InputLayout* inputLayouts_[Shader::Vertex::Format::Count] = {};
+
+    DeviceCaps caps_{};
+    D3D11RenderTarget* currentTarget_ = nullptr;
 };
 
-Base::Result<ResourceHandle>
-ImportD3D11ExternalRenderTarget(
-    Aero::Render::RenderDeviceBase& device,
-    D3D11RenderDevice& backend,
-    const D3D11RenderTargetBinding& descriptor) noexcept;
-
-} // namespace Aero::Graphics
+} // namespace Aero::Render

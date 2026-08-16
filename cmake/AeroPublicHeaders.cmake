@@ -97,6 +97,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/IRenderer.hpp
     include/AeroRender/Render.hpp
     include/AeroRender/RenderDevice.hpp
+    include/AeroRender/Texture.hpp
     include/AeroRender/RenderTarget.hpp
     include/AeroRender/WindowInterop.hpp
     include/Aero/Input.hpp
@@ -136,6 +137,8 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Triggers/RemoveElementAction.hpp
     include/Aero/Triggers/SetFocusAction.hpp
     include/Aero/Triggers/StoryboardActions.hpp
+    include/Aero/Media/MediaElement.hpp
+    include/Aero/Triggers/MediaActions.hpp
     include/Aero/TextFormatting.hpp
     include/Aero/Controls/Decorator.hpp
     include/Aero/Controls/ContentPresenter.hpp

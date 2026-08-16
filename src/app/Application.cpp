@@ -1,4 +1,5 @@
 #include <AeroApp/Application.hpp>
+#include <AeroApp/App.hpp>
 
 #include "ApplicationState.hpp"
 #include "DesktopHost.hpp"
@@ -91,7 +92,6 @@ Base::Ref<Window> Application::MainWindowOwner() noexcept {
         : Base::Ref<Window>{};
 }
 
-
 void Application::Shutdown(int exitCode) noexcept {
     auto* state = static_cast<::Aero::App::ApplicationHostState*>(
         hostState_);
@@ -153,6 +153,19 @@ void Application::RaiseActivated() noexcept {
 void Application::RaiseDeactivated() noexcept {
     EventArgs args;
     OnDeactivated(args);
+}
+
+Base::Result<int> Application::Run() noexcept {
+    return Run(App::RunOptions{});
+}
+
+Base::Result<int> Application::Run(
+    const App::RunOptions& options) noexcept {
+    ::Aero::App::DesktopHost host(
+        *this,
+        MainWindowOwner(),
+        options);
+    return host.Run();
 }
 
 } // namespace Aero

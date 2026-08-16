@@ -6,17 +6,13 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <AeroRender/RenderDevice.hpp>
+#include <AeroRender/Texture.hpp>
 
 #include <cstdint>
 
 namespace Aero {
 
-class ViewRenderer;
-namespace Render {
-class RenderFrame;
-class RenderTargetBase;
-struct RenderTargetServices;
-}
+class RenderDevice;
 
 enum class RenderTargetKind : std::uint8_t {
     Embedded = 0U,
@@ -31,9 +27,9 @@ enum class RenderTargetState : std::uint8_t {
     Shutdown
 };
 
-// Host-owned onscreen target. Native backend state is the source-private backend
-// itself, avoiding a second NativeRenderTarget wrapper. Native acquire/present
-// remains an implementation concern under src/render.
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/// Base class for 2D textures that can be used as render target (reference: NoesisGUI NsRender/RenderTarget.h)
+////////////////////////////////////////////////////////////////////////////////////////////////////
 class AERO_GUI_API RenderTarget : public Base::Object {
 public:
     ~RenderTarget() noexcept override;
@@ -41,11 +37,14 @@ public:
     RenderTarget(const RenderTarget&) = delete;
     RenderTarget& operator=(const RenderTarget&) = delete;
 
-    RenderTargetKind Kind() const noexcept;
-    RenderTargetState State() const noexcept;
-    Ref<Aero::RenderDevice> GetDevice() const noexcept;
+    /// Returns the resolve texture
+    virtual Texture* GetTexture() noexcept = 0;
 
-    Result<void> Resize(
+    RenderTargetKind Kind() const noexcept { return kind_; }
+    RenderTargetState State() const noexcept { return state_; }
+    Ref<RenderDevice> GetDevice() const noexcept { return device_; }
+
+    virtual Result<void> Resize(
         std::uint32_t width,
         std::uint32_t height) noexcept;
     void NotifyLost() noexcept;
@@ -54,17 +53,21 @@ public:
 protected:
     RenderTarget() noexcept = default;
 
-private:
-    virtual RenderTargetKind BackendKind() const noexcept = 0;
-    virtual RenderTargetState BackendState() const noexcept = 0;
+    virtual RenderTargetKind BackendKind() const noexcept { return kind_; }
+    virtual RenderTargetState BackendState() const noexcept { return state_; }
     virtual Result<void> ResizeBackend(
         std::uint32_t width,
-        std::uint32_t height) noexcept = 0;
-    virtual void NotifyBackendLost() noexcept = 0;
-    virtual Result<void> RestoreBackend() noexcept = 0;
+        std::uint32_t height) noexcept {
+        static_cast<void>(width);
+        static_cast<void>(height);
+        return {};
+    }
+    virtual void NotifyBackendLost() noexcept {}
+    virtual Result<void> RestoreBackend() noexcept { return {}; }
 
-    friend class Render::RenderTargetBase;
-    friend struct Render::RenderTargetServices;
+    RenderTargetKind kind_ = RenderTargetKind::Embedded;
+    RenderTargetState state_ = RenderTargetState::Ready;
+    Ref<RenderDevice> device_;
 };
 
 } // namespace Aero

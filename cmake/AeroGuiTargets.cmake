@@ -151,9 +151,7 @@ set(_aero_gui_module_sources
 set(_aero_gui_render_contract_sources
     src/render/DrawingContext.cpp
     src/render/RenderTree.cpp
-    src/render/RenderBatch.cpp
     src/render/RenderDevice.cpp
-    src/render/RenderDeviceResources.cpp
     src/render/RenderTarget.cpp
     src/render/FrameEncoder.cpp
     src/render/TextRenderer.cpp)
@@ -353,11 +351,7 @@ unset(_aero_theme_embed_result)
 # implementation or factory symbols.
 add_library(AeroRenderOpenGL33 ${AERO_LIBRARY_TYPE}
     src/render/opengl33/OpenGL33RenderDevice.cpp
-    src/render/opengl33/OpenGL33Context.cpp
-    src/render/opengl33/OpenGL33StateCache.cpp
-    src/render/opengl33/OpenGL33Shaders.cpp
-    src/render/opengl33/OpenGL33Embedded.cpp
-    src/render/opengl33/OpenGL33Factories.cpp
+            src/render/opengl33/OpenGL33Factories.cpp
     src/render/opengl33/OpenGL33RenderContext.cpp)
 add_library(Aero::RenderOpenGL33 ALIAS AeroRenderOpenGL33)
 target_include_directories(AeroRenderOpenGL33
@@ -513,26 +507,10 @@ if(AERO_ENABLE_D3D11_BACKEND)
     add_custom_target(AeroD3D11RenderFrameShaders
         DEPENDS ${_aero_d3d11_shader_outputs})
 
-    set(_aero_d3d11_backend_fragments
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceState.hpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceCore.inc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceResources.inc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceDraw1.inc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceDraw2.inc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceDraw3.inc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/D3D11RenderDeviceReadback.inc")
-    set_source_files_properties(${_aero_d3d11_backend_fragments}
-        PROPERTIES HEADER_FILE_ONLY TRUE)
-    set_property(SOURCE src/render/d3d11/D3D11RenderDevice.cpp APPEND
-        PROPERTY OBJECT_DEPENDS "${_aero_d3d11_backend_fragments}")
-
     add_library(AeroRenderD3D11 ${AERO_LIBRARY_TYPE}
         src/render/d3d11/D3D11RenderDevice.cpp
-        src/render/d3d11/D3D11Shaders.cpp
-        src/render/d3d11/D3D11Device.cpp
-        src/render/d3d11/D3D11Factories.cpp
-        src/render/d3d11/D3D11RenderContext.cpp
-        ${_aero_d3d11_backend_fragments})
+                src/render/d3d11/D3D11Device.cpp
+                src/render/d3d11/D3D11RenderContext.cpp)
     add_library(Aero::RenderD3D11 ALIAS AeroRenderD3D11)
     add_dependencies(AeroRenderD3D11 AeroD3D11RenderFrameShaders)
     target_include_directories(AeroRenderD3D11

@@ -46,6 +46,7 @@ if(AERO_BUILD_SHARED AND AERO_BUILD_CONFORMANCE)
         "shared builds validate the installed ABI with public link consumers "
         "and DLL export-table checks.")
 endif()
+option(AERO_BUILD_TESTS "Build the framework tests" ON)
 option(AERO_ENABLE_DEVELOPMENT_CHECKS
     "Enable repository architecture and convention checks" OFF)
 if(AERO_ENABLE_DEVELOPMENT_CHECKS)

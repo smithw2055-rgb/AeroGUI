@@ -2,11 +2,11 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/IRenderer.hpp>
+#include <AeroRender/RenderDevice.hpp>
+#include <AeroRender/RenderTarget.hpp>
 #include "render/FrameEncoder.hpp"
-#include "render/ImageGpuResources.hpp"
-#include "render/MeshGpuResources.hpp"
-#include "render/TextGpuResources.hpp"
 #include "render/RenderResources.hpp"
+#include "render/TextRenderer.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -34,27 +34,28 @@ public:
     void Render(RenderTarget& target) noexcept override;
 
     ::Aero::Render::RenderResources Resources() noexcept;
-    Base::Result<::Aero::Graphics::FenceValue> RenderOnscreenFrame(
+
+    Base::Result<void> RenderOnscreenFrame(
         const ::Aero::Render::RenderFrame& frame,
-        const ::Aero::Render::FrameTarget& target) noexcept;
-    ::Aero::Render::FrameEncoderStatistics LastStatistics() const noexcept;
+        RenderTarget& target) noexcept;
+    ::Aero::Render::FrameStatistics LastStatistics() const noexcept;
 
 private:
     Base::Result<void> InitializeRenderResources(
-        Render::RenderDeviceBase& device,
+        RenderDevice& device,
         std::uint64_t generation) noexcept;
     void ShutdownRenderResources() noexcept;
     Base::Result<void> VerifyRenderResources() const noexcept;
-    Base::Result<::Aero::Graphics::FenceValue> RenderOffscreenFrame(
+    Base::Result<void> RenderOffscreenFrame(
         const ::Aero::Render::RenderFrame& frame) noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
     View* view_ = nullptr;
     Base::Ref<RenderDevice> device_;
     std::optional<::Aero::Render::UiFrameEncoder> frameEncoder_;
-    std::optional<::Aero::Render::TextGpuResources> textResources_;
-    std::optional<::Aero::Render::MeshGpuResources> meshResources_;
-    std::optional<::Aero::Render::ImageGpuResources> imageResources_;
+    ::Aero::Render::TextResources textResources_{};
+    ::Aero::Render::MeshResources meshResources_{};
+    ::Aero::Render::ImageResources imageResources_{};
     std::thread::id renderThread_;
     std::uint64_t deviceGeneration_ = 0U;
     std::uint64_t updatedVersion_ = 0U;

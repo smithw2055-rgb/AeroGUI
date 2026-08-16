@@ -111,8 +111,7 @@ public:
         child_ = std::move(value);
     }
 
-    inline static constexpr DependencyProperty<Ref<Media::Brush>>
-        BackgroundProperty{"Background"};
+    inline static constexpr DependencyProperty<Ref<Media::Brush>> BackgroundProperty{"Background"};
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override {

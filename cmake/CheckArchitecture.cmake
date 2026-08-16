@@ -80,6 +80,7 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/IRenderer.hpp"
         "include/AeroRender/Render.hpp"
         "include/AeroRender/RenderDevice.hpp"
+        "include/AeroRender/Texture.hpp"
         "include/AeroRender/RenderTarget.hpp"
         "include/AeroRender/D3D11.hpp"
         "include/AeroRender/OpenGL33.hpp"
@@ -395,17 +396,14 @@ foreach(required_source_entry IN ITEMS
         "src/gui/markup/XamlReader.cpp"
         "src/gui/input/Clipboard.cpp"
         "src/render/RenderDevice.cpp"
-        "src/render/RenderDeviceResources.cpp"
-        "src/render/RenderBatch.cpp"
-        "src/render/GraphicsTypes.hpp"
         "src/render/RenderTarget.cpp"
+        "src/render/FrameEncoder.cpp"
+        "src/render/TextRenderer.cpp"
+        "src/render/RenderTree.cpp"
         "src/gui/ViewRendererResources.cpp"
-        "src/render/RenderDeviceState.hpp"
-        "src/render/RenderTargetState.hpp"
         "src/render/RenderContext.hpp")
     aero_require_file("${required_source_entry}")
 endforeach()
-
 file(GLOB aero_root_source_files
     "${AERO_SOURCE_DIR}/src/*.cpp"
     "${AERO_SOURCE_DIR}/src/*.hpp")
@@ -618,43 +616,19 @@ aero_forbid_text(
     "Descriptor"
     "Render presentation values must not recreate a generic native-context protocol")
 aero_forbid_text(
-    "src/render/RenderTargetState.hpp"
-    "class NativeRenderTarget"
-    "RenderTargetBase is the only native target base")
-aero_require_text(
-    "src/render/RenderTargetState.hpp"
-    "AcquireFrameTarget()"
-    "RenderTargetBase must expose only native frame acquisition to backend modules")
-foreach(backend_target_source IN ITEMS
-        "src/render/d3d11/D3D11Device.cpp"
-        "src/render/opengl33/OpenGL33Embedded.cpp")
-    aero_forbid_text(
-        "${backend_target_source}"
-        "ViewRenderer"
-        "Backend target implementations must not depend on the private GUI renderer")
-    aero_forbid_text(
-        "${backend_target_source}"
-        "RenderOnscreenFrame"
-        "AeroGui must own onscreen frame submission")
-endforeach()
-unset(backend_target_source)
+    "src/render/d3d11/D3D11Device.cpp"
+    "ViewRenderer"
+    "Backend target implementations must not depend on the private GUI renderer")
 aero_forbid_text(
-    "src/render/RenderTargetState.hpp"
-    "struct NativeRenderTarget"
-    "RenderTargetBase is the only native target base")
-aero_forbid_text(
-    "src/render/RenderDeviceState.hpp"
-    "NativeRenderDevice"
-    "RenderDeviceBase is the only native device base")
+    "src/render/d3d11/D3D11Device.cpp"
+    "RenderOnscreenFrame"
+    "AeroGui must own onscreen frame submission")
 aero_forbid_file("src/render/private/BackendApi.hpp")
-aero_forbid_text(
-    "src/render/GraphicsTypes.hpp"
-    "class AERO_GUI_API GraphicsDevice"
-    "Command declarations must not recreate the retired generic device")
-aero_forbid_text(
-    "src/render/GraphicsTypes.hpp"
-    "class AERO_GUI_API GraphicsBackend"
-    "Native command queues must not share an abstract backend lifetime")
+aero_forbid_file("src/render/RenderTargetState.hpp")
+aero_forbid_file("src/render/RenderDeviceState.hpp")
+aero_forbid_file("src/render/GraphicsTypes.hpp")
+aero_forbid_file("src/render/RenderBatch.hpp")
+aero_forbid_file("src/render/RenderBatch.cpp")
 aero_forbid_text(
     "cmake/AeroGuiTargets.cmake"
     "GraphicsDevice"
@@ -675,18 +649,7 @@ aero_forbid_text(
     "src/render/FrameEncoder.hpp"
     "using RenderTarget ="
     "The frame attachment value must not shadow the SDK RenderTarget")
-aero_forbid_text(
-    "src/render/RenderDeviceState.hpp"
-    "DefaultTarget("
-    "RenderDevice must not own an implicit target lifetime")
-aero_forbid_text(
-    "src/render/RenderTargetState.hpp"
-    "CreateBorrowed("
-    "Every RenderTarget must own exactly one target implementation")
-aero_forbid_text(
-    "include/AeroRender/RenderTarget.hpp"
-    "ownsImpl_"
-    "RenderTarget ownership must not be conditional")
+
 aero_require_text(
     "src/render/opengl33/OpenGL33RenderContext.cpp"
     "class OpenGLRenderContext final : public RenderContext"
@@ -699,10 +662,7 @@ aero_forbid_text(
     "src/render/opengl33/OpenGL33RenderDevice.hpp"
     "ViewRenderData*"
     "OpenGL RenderDevice must not own per-View renderer data")
-aero_forbid_text(
-    "src/render/opengl33/OpenGL33Embedded.cpp"
-    "ViewRenderData*"
-    "Embedded OpenGL RenderDevice must not own per-View renderer data")
+aero_forbid_file("src/render/opengl33/OpenGL33Embedded.cpp")
 aero_forbid_text(
     "src/render/FrameEncoder.cpp"
     "using Renderer ="
@@ -733,15 +693,6 @@ aero_require_text(
     "src/render/RenderContext.hpp"
     "bool frameOpen_ = false;"
     "RenderContext must own desktop frame state")
-foreach(retired_target_frame_state IN ITEMS
-        "frameOpen" "frameRendered" "frameEnded"
-        "CompletePresentation" "CancelPresentation"
-        "PresentFrame" "DiscardFrame" "BeginFrame(" "EndFrame(")
-    aero_forbid_text(
-        "src/render/RenderTargetState.hpp"
-        "${retired_target_frame_state}"
-        "RenderTarget must remain a drawable target without frame state")
-endforeach()
 aero_require_text(
     "src/render/d3d11/D3D11RenderContext.cpp"
     "class D3D11RenderContext final : public RenderContext"
@@ -754,29 +705,16 @@ aero_forbid_text(
     "src/render/RenderContext.hpp"
     "class RenderContext final"
     "RenderContext must remain the shared presentation lifecycle base")
-aero_require_file("src/render/RenderBatch.hpp")
 aero_forbid_file("src/render/RenderCommands.hpp")
 aero_forbid_file("src/render/RenderCommands.cpp")
 aero_forbid_text(
-    "src/render/GraphicsTypes.hpp"
-    "PipelineDescriptor"
-    "Backend pipeline state must not recreate a configurable generic RHI descriptor")
-aero_forbid_text(
-    "src/render/GraphicsTypes.hpp"
-    "ShaderDescriptor"
-    "Backend shader programs must not recreate a configurable generic RHI descriptor")
-aero_require_text(
-    "src/render/RenderDeviceState.hpp"
-    "DrawBatch("
-    "Backend RenderDevice implementations must submit RenderBatch values")
-aero_forbid_text(
-    "src/render/d3d11/D3D11RenderDeviceDraw1.inc"
+    "src/render/d3d11/D3D11RenderDevice.cpp"
     "DrawPhase"
-    "D3D11 must execute one RenderBatch directly without an internal command model")
+    "D3D11 must execute one Batch directly without an internal command model")
 aero_forbid_text(
     "src/render/opengl33/OpenGL33RenderDevice.cpp"
     "DrawPhase"
-    "OpenGL must execute one RenderBatch directly without an internal command model")
+    "OpenGL must execute one Batch directly without an internal command model")
 aero_require_text(
     "src/gui/ViewRenderer.hpp"
     "RenderOnscreenFrame("
@@ -803,6 +741,9 @@ aero_require_text(
     "include/AeroApp/Window.hpp"
     "void InitializeComponent() noexcept;"
     "Window code-behind must expose the conventional InitializeComponent entry")
+aero_forbid_file("src/app/ApplicationRun.cpp")
+aero_forbid_file("src/app/RenderContextFactory.hpp")
+aero_forbid_file("src/app/RenderContextFactory.cpp")
 aero_require_text(
     "include/Aero/Meta.hpp"
     "TypeBuilder& EventHandler("
