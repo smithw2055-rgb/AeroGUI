@@ -83,7 +83,9 @@ Base::Result<void> UiFrameEncoder::RegisterImage(
 void UiFrameEncoder::UnregisterImage(RenderImageId imageId) noexcept {
     for (std::uint32_t i = 0; i < images_.Size(); ++i) {
         if (images_[i].id == imageId) {
-            images_[i] = std::move(images_[images_.Size() - 1]);
+            if (i != images_.Size() - 1) {
+                images_[i] = std::move(images_[images_.Size() - 1]);
+            }
             static_cast<void>(images_.Resize(images_.Size() - 1));
             return;
         }
@@ -170,12 +172,31 @@ void UiFrameEncoder::ResetFrame() noexcept {
 
 void UiFrameEncoder::FlushBatch() noexcept {
     if (currentBatch_.numIndices > 0U && device_ != nullptr) {
+        // Unmap the dynamic buffers before issuing the draw. D3D11 does not
+        // permit drawing while a vertex/index buffer is mapped.
+        if (mappedVertices_ != nullptr) {
+            device_->UnmapVertices();
+            mappedVertices_ = nullptr;
+        }
+        if (mappedIndices_ != nullptr) {
+            device_->UnmapIndices();
+            mappedIndices_ = nullptr;
+        }
+
         device_->DrawBatch(currentBatch_);
         ++stats_.drawCallCount;
         ++stats_.batchCount;
-        currentBatch_.startIndex = currentIndexCount_;
+
+        // Remap with WRITE_DISCARD to get a fresh buffer; recording restarts
+        // from offset zero for the next batch.
+        mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
+        mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
+        currentVertexOffset_ = 0U;
+        currentVertexCount_ = 0U;
+        currentIndexCount_ = 0U;
+        currentBatch_.startIndex = 0U;
+        currentBatch_.vertexOffset = 0U;
         currentBatch_.numIndices = 0U;
-        currentBatch_.vertexOffset = currentVertexOffset_;
         currentBatch_.numVertices = 0U;
     }
 }
@@ -188,7 +209,20 @@ void UiFrameEncoder::EmitQuad(
 
     if (currentVertexCount_ + 4U > (DYNAMIC_VB_SIZE / sizeof(Vertex2D)) ||
         currentIndexCount_ + 6U > (DYNAMIC_IB_SIZE / sizeof(uint16_t))) {
+        // FlushBatch remaps the buffers (WRITE_DISCARD) and resets the offsets,
+        // so recording can continue from a fresh buffer.
         FlushBatch();
+        if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
+            if (device_ != nullptr) {
+                mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
+                mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
+            }
+        }
+        currentVertexOffset_ = 0U;
+        currentVertexCount_ = 0U;
+        currentIndexCount_ = 0U;
+        currentBatch_.startIndex = 0U;
+        currentBatch_.vertexOffset = 0U;
     }
 
     auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
@@ -379,10 +413,14 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
 
     FlushBatch();
 
-    device_->UnmapIndices();
-    device_->UnmapVertices();
-    mappedVertices_ = nullptr;
-    mappedIndices_ = nullptr;
+    if (mappedIndices_ != nullptr) {
+        device_->UnmapIndices();
+        mappedIndices_ = nullptr;
+    }
+    if (mappedVertices_ != nullptr) {
+        device_->UnmapVertices();
+        mappedVertices_ = nullptr;
+    }
 
     device_->EndTile(&target);
     device_->EndOnscreenRender();

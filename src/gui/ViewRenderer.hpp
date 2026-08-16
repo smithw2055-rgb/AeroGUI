@@ -35,6 +35,11 @@ public:
 
     ::Aero::Render::RenderResources Resources() noexcept;
 
+    Base::Ref<RenderDevice> Device() noexcept { return device_; }
+    ::Aero::Render::UiFrameEncoder* FrameEncoder() noexcept {
+        return frameEncoder_.has_value() ? &*frameEncoder_ : nullptr;
+    }
+
     Base::Result<void> RenderOnscreenFrame(
         const ::Aero::Render::RenderFrame& frame,
         RenderTarget& target) noexcept;

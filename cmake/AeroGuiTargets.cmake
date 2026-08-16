@@ -491,17 +491,11 @@ if(AERO_ENABLE_D3D11_BACKEND)
     set(_aero_d3d11_shader_root
         "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders")
     aero_compile_d3d11_shader_pair(
-        RenderFrame "${_aero_d3d11_shader_root}/RenderFrameRect.hlsl" TRUE)
+        RenderFrameSolid "${_aero_d3d11_shader_root}/RenderFrameSolid.hlsl" FALSE)
     aero_compile_d3d11_shader_pair(
-        RenderFrameImage "${_aero_d3d11_shader_root}/RenderFrameImage.hlsl" TRUE)
+        RenderFramePattern "${_aero_d3d11_shader_root}/RenderFramePattern.hlsl" FALSE)
     aero_compile_d3d11_shader_pair(
-        RenderFrameMask "${_aero_d3d11_shader_root}/RenderFrameMask.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFrameEffect "${_aero_d3d11_shader_root}/RenderFrameEffect.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFrameMesh "${_aero_d3d11_shader_root}/RenderFrameMesh.hlsl" TRUE)
-    aero_compile_d3d11_shader_pair(
-        RenderFrameGlyph "${_aero_d3d11_shader_root}/RenderFrameGlyph.hlsl" TRUE)
+        RenderFrameSDF "${_aero_d3d11_shader_root}/RenderFrameSDF.hlsl" FALSE)
     get_property(_aero_d3d11_shader_outputs GLOBAL PROPERTY
         AERO_D3D11_SHADER_OUTPUTS)
     add_custom_target(AeroD3D11RenderFrameShaders

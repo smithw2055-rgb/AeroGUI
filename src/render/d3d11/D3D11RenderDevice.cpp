@@ -2,6 +2,13 @@
 #include <cstring>
 #include <algorithm>
 
+#include "AeroD3D11RenderFrameSolidVertexShader.hpp"
+#include "AeroD3D11RenderFrameSolidPixelShader.hpp"
+#include "AeroD3D11RenderFramePatternVertexShader.hpp"
+#include "AeroD3D11RenderFramePatternPixelShader.hpp"
+#include "AeroD3D11RenderFrameSDFVertexShader.hpp"
+#include "AeroD3D11RenderFrameSDFPixelShader.hpp"
+
 namespace Aero::Render {
 
 namespace {
@@ -56,6 +63,11 @@ void D3D11RenderTarget::SetRTV(ID3D11RenderTargetView* rtv) noexcept {
         rtv_ = rtv;
         if (rtv_ != nullptr) rtv_->AddRef();
     }
+}
+
+void D3D11RenderTarget::SetSize(uint32_t width, uint32_t height) noexcept {
+    width_ = width;
+    height_ = height;
 }
 
 D3D11RenderDevice::D3D11RenderDevice(
@@ -161,6 +173,98 @@ Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
     rsDesc.ScissorEnable = TRUE;
     device_->CreateRasterizerState(&rsDesc, &rasterizerScissor_);
 
+    // Create shaders and the input layout matching UiFrameEncoder::Vertex2D
+    // (24 bytes: float2 position @0, uint32 RGBA8 @8, float2 uv0 @12, float coverage @20)
+    hr = device_->CreateVertexShader(
+        AeroD3D11RenderFrameSolidVertexShader,
+        sizeof(AeroD3D11RenderFrameSolidVertexShader),
+        nullptr, &solidVertexShader_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create vertex shader");
+
+    hr = device_->CreatePixelShader(
+        AeroD3D11RenderFrameSolidPixelShader,
+        sizeof(AeroD3D11RenderFrameSolidPixelShader),
+        nullptr, &solidPixelShader_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create solid pixel shader");
+
+    hr = device_->CreatePixelShader(
+        AeroD3D11RenderFramePatternPixelShader,
+        sizeof(AeroD3D11RenderFramePatternPixelShader),
+        nullptr, &patternPixelShader_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create pattern pixel shader");
+
+    hr = device_->CreatePixelShader(
+        AeroD3D11RenderFrameSDFPixelShader,
+        sizeof(AeroD3D11RenderFrameSDFPixelShader),
+        nullptr, &sdfPixelShader_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create SDF pixel shader");
+
+    const D3D11_INPUT_ELEMENT_DESC vertexLayout[] = {
+        {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"COVERAGE", 0, DXGI_FORMAT_R32_FLOAT, 0, 20, D3D11_INPUT_PER_VERTEX_DATA, 0}
+    };
+    hr = device_->CreateInputLayout(
+        vertexLayout,
+        static_cast<UINT>(sizeof(vertexLayout) / sizeof(vertexLayout[0])),
+        AeroD3D11RenderFrameSolidVertexShader,
+        sizeof(AeroD3D11RenderFrameSolidVertexShader),
+        &vertex2DInputLayout_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create vertex input layout");
+
+    // Create sampler states indexed by SamplerState.v
+    // (wrapMode:3 bits | minmagFilter:1 << 3 | mipFilter:2 << 4)
+    for (uint8_t v = 0; v < 64; ++v) {
+        const uint8_t wrapMode = v & 0x7;
+        const uint8_t minmag = (v >> 3) & 0x1;
+        const uint8_t mip = (v >> 4) & 0x3;
+
+        D3D11_SAMPLER_DESC samplerDesc{};
+        samplerDesc.Filter = (minmag == MinMagFilter::Linear)
+            ? D3D11_FILTER_MIN_MAG_MIP_LINEAR
+            : D3D11_FILTER_MIN_MAG_MIP_POINT;
+        switch (wrapMode) {
+        case WrapMode::ClampToZero:
+            samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+            samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+            samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+            samplerDesc.BorderColor[0] = 0.0f;
+            samplerDesc.BorderColor[1] = 0.0f;
+            samplerDesc.BorderColor[2] = 0.0f;
+            samplerDesc.BorderColor[3] = 0.0f;
+            break;
+        case WrapMode::Repeat:
+            samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+            samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+            samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+            break;
+        case WrapMode::MirrorU:
+            samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_MIRROR;
+            samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+            samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+            break;
+        case WrapMode::MirrorV:
+            samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+            samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_MIRROR;
+            samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+            break;
+        case WrapMode::Mirror:
+            samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_MIRROR;
+            samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_MIRROR;
+            samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_MIRROR;
+            break;
+        case WrapMode::ClampToEdge:
+        default:
+            samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+            samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+            samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+            break;
+        }
+        samplerDesc.MaxLOD = (mip == MipFilter::Linear) ? D3D11_FLOAT32_MAX : 0.0f;
+        device_->CreateSamplerState(&samplerDesc, &samplers_[v]);
+    }
+
     // Create blend states
     for (int colorEnable = 0; colorEnable < 2; ++colorEnable) {
         for (int b = 0; b < BlendMode::Count; ++b) {
@@ -220,6 +324,11 @@ void D3D11RenderDevice::ReleasePipelines() noexcept {
     for (int i = 0; i < Shader::Vertex::Format::Count; ++i) {
         ReleaseCom(inputLayouts_[i]);
     }
+    ReleaseCom(vertex2DInputLayout_);
+    ReleaseCom(solidVertexShader_);
+    ReleaseCom(solidPixelShader_);
+    ReleaseCom(patternPixelShader_);
+    ReleaseCom(sdfPixelShader_);
 }
 
 void D3D11RenderDevice::Shutdown() noexcept {
@@ -396,6 +505,20 @@ void D3D11RenderDevice::SetRenderTarget(RenderTarget* surface) noexcept {
         vp.MinDepth = 0.0f;
         vp.MaxDepth = 1.0f;
         context_->RSSetViewports(1, &vp);
+
+        // Update the viewport constant buffer consumed by the vertex shaders
+        if (vertexCB_[0] != nullptr) {
+            D3D11_MAPPED_SUBRESOURCE mapped{};
+            if (SUCCEEDED(context_->Map(
+                    vertexCB_[0], 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
+                float* viewport = static_cast<float*>(mapped.pData);
+                viewport[0] = vp.Width;
+                viewport[1] = vp.Height;
+                viewport[2] = 0.0f;
+                viewport[3] = 0.0f;
+                context_->Unmap(vertexCB_[0], 0);
+            }
+        }
     }
 }
 
@@ -446,12 +569,51 @@ void D3D11RenderDevice::UnmapIndices() noexcept {
 void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
     if (context_ == nullptr || batch.numIndices == 0U) return;
 
-    // Set vertex / index buffers
-    const UINT stride = 28; // sizeof(Vertex2D)
-    const UINT offset = batch.vertexOffset;
+    ID3D11PixelShader* pixelShader = nullptr;
+    ID3D11SamplerState* sampler = nullptr;
+    ID3D11ShaderResourceView* srv = nullptr;
+    switch (batch.shader.v) {
+    case Shader::Path_Solid:
+    case Shader::Path_AA_Solid:
+        pixelShader = solidPixelShader_;
+        break;
+    case Shader::Path_Pattern:
+        pixelShader = patternPixelShader_;
+        sampler = samplers_[batch.imageSampler.v & 0x3F];
+        if (batch.image != nullptr) {
+            srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
+        }
+        break;
+    case Shader::SDF_Solid:
+        pixelShader = sdfPixelShader_;
+        sampler = samplers_[batch.glyphsSampler.v & 0x3F];
+        if (batch.glyphs != nullptr) {
+            srv = static_cast<D3D11Texture*>(batch.glyphs)->GetNativeSRV();
+        }
+        break;
+    default:
+        pixelShader = solidPixelShader_;
+        break;
+    }
+
+    if (solidVertexShader_ == nullptr || pixelShader == nullptr ||
+        vertex2DInputLayout_ == nullptr) {
+        return;
+    }
+
+    context_->IASetInputLayout(vertex2DInputLayout_);
+    context_->VSSetShader(solidVertexShader_, nullptr, 0);
+    context_->PSSetShader(pixelShader, nullptr, 0);
+
+    // UiFrameEncoder::Vertex2D is 24 bytes: float2 pos, uint32 color, float2 uv, float coverage
+    const UINT stride = 24;
+    const UINT offset = 0;
     context_->IASetVertexBuffers(0, 1, &dynamicVB_, &stride, &offset);
     context_->IASetIndexBuffer(dynamicIB_, DXGI_FORMAT_R16_UINT, 0);
     context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    ID3D11Buffer* vsConstants[] = { vertexCB_[0] };
+    context_->VSSetConstantBuffers(0, 1, vsConstants);
 
     // Set blend state
     const uint8_t colorEnable = batch.renderState.f.colorEnable;
@@ -466,19 +628,12 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
     // Set rasterizer
     context_->RSSetState(rasterizerSolid_);
 
-    // Bind texture if present
-    if (batch.image != nullptr) {
-        auto* tex = static_cast<D3D11Texture*>(batch.image);
-        ID3D11ShaderResourceView* srv = tex->GetNativeSRV();
+    // Bind texture and sampler if present
+    if (srv != nullptr) {
         context_->PSSetShaderResources(0, 1, &srv);
-    } else if (batch.glyphs != nullptr) {
-        auto* tex = static_cast<D3D11Texture*>(batch.glyphs);
-        ID3D11ShaderResourceView* srv = tex->GetNativeSRV();
-        context_->PSSetShaderResources(0, 1, &srv);
-    } else if (batch.ramps != nullptr) {
-        auto* tex = static_cast<D3D11Texture*>(batch.ramps);
-        ID3D11ShaderResourceView* srv = tex->GetNativeSRV();
-        context_->PSSetShaderResources(0, 1, &srv);
+        if (sampler != nullptr) {
+            context_->PSSetSamplers(0, 1, &sampler);
+        }
     }
 
     context_->DrawIndexed(batch.numIndices, batch.startIndex, 0);

@@ -3,6 +3,8 @@
 
 #include <AeroRender/OpenGL33.hpp>
 
+#include "OpenGL33RenderDevice.hpp"
+
 #if defined(_WIN32)
 #include "render/platform/win32/OpenGLWindow.hpp"
 #elif defined(__linux__) || defined(__unix__)
@@ -19,7 +21,7 @@ Base::Status InvalidState(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
 }
 
-Base::Status Unsupported(const char* message) noexcept {
+[[maybe_unused]] Base::Status Unsupported(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::Unsupported, message);
 }
 
@@ -92,7 +94,13 @@ protected:
         std::uint32_t width,
         std::uint32_t height) noexcept override {
         Base::Result<void> resized = window_.Resize({width, height});
-        if (resized) ++surfaceGeneration_;
+        if (resized) {
+            ++surfaceGeneration_;
+            if (Target() != nullptr) {
+                static_cast<OpenGL33RenderTarget*>(Target())
+                    ->SetSize(width, height);
+            }
+        }
         return resized;
     }
 

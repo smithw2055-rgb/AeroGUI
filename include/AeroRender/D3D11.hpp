@@ -45,6 +45,10 @@ struct TargetOptions {
     // Desktop hosts normally clear a newly acquired swap-chain buffer. Embedded
     // hosts keep the existing contents unless they opt in explicitly.
     bool clearBeforeRender = false;
+    // Size of the host-owned target used to size the fallback surface when the
+    // acquire callback cannot provide a swap-chain buffer during initialization.
+    std::uint32_t width = 0U;
+    std::uint32_t height = 0U;
 };
 
 AERO_RENDER_D3D11_API Result<Ref<Aero::RenderDevice>>

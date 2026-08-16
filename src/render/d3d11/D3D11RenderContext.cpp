@@ -1,5 +1,6 @@
 #include "../RenderContext.hpp"
 #include "../Presentation.hpp"
+#include "D3D11RenderDevice.hpp"
 
 #include <AeroRender/D3D11.hpp>
 
@@ -177,6 +178,8 @@ public:
         targetOptions.acquireTarget = &AcquireTarget;
         targetOptions.callbackContext = this;
         targetOptions.clearBeforeRender = true;
+        targetOptions.width = width;
+        targetOptions.height = height;
         Base::Result<Base::Ref<RenderTarget>> createdTarget =
             Render::D3D11::CreateTarget(
                 std::move(createdDevice).Value(), targetOptions, allocator);
@@ -216,6 +219,16 @@ protected:
             return InvalidState("D3D11 swap-chain back buffer does not match the application context");
         }
         activeBackBuffer_ = backBuffer;
+        ID3D11RenderTargetView* rtv = nullptr;
+        if (device_ != nullptr) {
+            device_->CreateRenderTargetView(activeBackBuffer_, nullptr, &rtv);
+        }
+        if (Target() != nullptr) {
+            auto* target = static_cast<D3D11RenderTarget*>(Target());
+            target->SetRTV(rtv);
+            target->SetSize(descriptor.Width, descriptor.Height);
+        }
+        ReleaseCom(rtv);
         return {};
     }
 
@@ -246,6 +259,9 @@ protected:
         if (swapChain_ == nullptr || activeBackBuffer_ == nullptr) {
             return InvalidState("D3D11 presentation has no acquired frame");
         }
+        if (Target() != nullptr) {
+            static_cast<D3D11RenderTarget*>(Target())->SetRTV(nullptr);
+        }
         const HRESULT result = swapChain_->Present(1U, 0U);
         ReleaseCom(activeBackBuffer_);
         if (FAILED(result)) {
@@ -256,6 +272,9 @@ protected:
     }
 
     void CancelFrame() noexcept override {
+        if (Target() != nullptr) {
+            static_cast<D3D11RenderTarget*>(Target())->SetRTV(nullptr);
+        }
         ReleaseCom(activeBackBuffer_);
     }
 

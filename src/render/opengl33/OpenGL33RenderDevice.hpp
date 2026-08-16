@@ -20,16 +20,18 @@ public:
         uint32_t width,
         uint32_t height,
         bool hasMipMaps,
-        bool hasAlpha) noexcept;
+        bool hasAlpha,
+        uint32_t glFormat = 0x1908U /* GL_RGBA */) noexcept;
     ~OpenGL33Texture() noexcept override;
 
     uint32_t GetWidth() const noexcept override { return width_; }
     uint32_t GetHeight() const noexcept override { return height_; }
     bool HasMipMaps() const noexcept override { return hasMipMaps_; }
-    bool IsInverted() const noexcept override { return true; }
+    bool IsInverted() const noexcept override { return false; }
     bool HasAlpha() const noexcept override { return hasAlpha_; }
 
     unsigned int GetNativeTexture() const noexcept { return textureId_; }
+    uint32_t GetGLFormat() const noexcept { return glFormat_; }
 
 private:
     unsigned int textureId_ = 0;
@@ -37,6 +39,7 @@ private:
     uint32_t height_ = 0U;
     bool hasMipMaps_ = false;
     bool hasAlpha_ = true;
+    uint32_t glFormat_ = 0x1908U;
 };
 
 class OpenGL33RenderTarget final : public RenderTarget {
@@ -53,9 +56,15 @@ public:
 
     Texture* GetTexture() noexcept override { return texture_.Get(); }
     unsigned int GetFBO() const noexcept { return fboId_; }
+    unsigned int GetRBO() const noexcept { return rboId_; }
     uint32_t GetWidth() const noexcept { return width_; }
     uint32_t GetHeight() const noexcept { return height_; }
     bool IsDefaultFBO() const noexcept { return defaultFbo_; }
+
+    void SetSize(uint32_t width, uint32_t height) noexcept {
+        width_ = width;
+        height_ = height;
+    }
 
 private:
     Ref<OpenGL33Texture> texture_;
@@ -129,6 +138,19 @@ private:
 
     uint8_t mappedVBMemory_[DYNAMIC_VB_SIZE]{};
     uint8_t mappedIBMemory_[DYNAMIC_IB_SIZE]{};
+
+    // Program handles: [Shader::Path_Solid, Shader::Path_AA_Solid] -> solid,
+    // [Shader::Path_Pattern] -> pattern, [Shader::SDF_Solid] -> sdf.
+    unsigned int solidProgram_ = 0;
+    unsigned int patternProgram_ = 0;
+    unsigned int sdfProgram_ = 0;
+    unsigned int currentProgram_ = 0;
+
+    // Sampler objects indexed by SamplerState.v (same encoding as D3D11).
+    unsigned int samplers_[64] = {};
+
+    uint32_t viewportWidth_ = 0U;
+    uint32_t viewportHeight_ = 0U;
 
     DeviceCaps caps_{};
     OpenGL33RenderTarget* currentTarget_ = nullptr;

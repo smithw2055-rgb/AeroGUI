@@ -25,12 +25,13 @@ Base::Result<::Aero::Controls::TextBlockLayout*> CreateTextLayout(
     const Render::TextConfig& config,
     Base::IAllocator& allocator) noexcept {
     auto* renderer = static_cast<ViewRenderer*>(context);
-    if (renderer == nullptr) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Renderer is null");
+    if (renderer == nullptr || !renderer->Device()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Renderer or device is null");
     }
     auto* layout = new (std::nothrow) Render::TextRenderer(
-        fonts, *static_cast<RenderDevice*>(renderer->Resources().text->context),
-        nullptr, &allocator);
+        fonts, *renderer->Device(),
+        renderer->FrameEncoder(),
+        &allocator);
     if (layout == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to allocate text layout");
     }
@@ -60,14 +61,29 @@ Base::Result<Render::RenderImageId> CreateImageResource(
     std::uint32_t height,
     Base::Span<const std::uint8_t> pixels) noexcept {
     auto* renderer = static_cast<ViewRenderer*>(context);
-    if (renderer == nullptr) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Renderer is null");
+    if (renderer == nullptr || !renderer->Device() || renderer->FrameEncoder() == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Renderer is null or uninitialized");
     }
     static Render::RenderImageId nextId = 1000U;
-    return ++nextId;
+    const Render::RenderImageId id = ++nextId;
+    const void* data = pixels.Data();
+    Ref<Texture> tex = renderer->Device()->CreateTexture(
+        "ImageResource", width, height, 1, TextureFormat::RGBA8, pixels.Empty() ? nullptr : &data);
+    if (!tex) {
+        return Base::Status::Failure(Base::ErrorCode::InternalError, "Failed to create texture for image");
+    }
+    Base::Result<void> reg = renderer->FrameEncoder()->RegisterImage(id, std::move(tex));
+    if (!reg) return reg.GetStatus();
+    return id;
 }
 
-void ReleaseImageResource(void*, Render::RenderImageId) noexcept {}
+void ReleaseImageResource(void* context, Render::RenderImageId id) noexcept {
+    auto* renderer = static_cast<ViewRenderer*>(context);
+    ::Aero::Render::UiFrameEncoder* encoder = renderer != nullptr ? renderer->FrameEncoder() : nullptr;
+    if (encoder != nullptr) {
+        encoder->UnregisterImage(id);
+    }
+}
 
 // Mesh resource callbacks
 Base::Result<Render::RenderMeshId> CreateMeshResource(
@@ -104,7 +120,7 @@ Base::Result<void> ViewRenderer::InitializeRenderResources(
     }
 
     textResources_.generation = generation;
-    textResources_.context = &device;
+    textResources_.context = this;
     textResources_.create = &CreateTextLayout;
     textResources_.destroy = &DestroyTextLayout;
     textResources_.collect = &CollectTextLayout;

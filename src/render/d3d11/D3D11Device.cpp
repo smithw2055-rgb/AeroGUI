@@ -57,7 +57,9 @@ Base::Result<Base::Ref<Aero::RenderTarget>> D3D11::CreateTarget(
         }
     }
 
-    return device->CreateRenderTarget("DefaultTarget", 800, 600, 1, false);
+    const uint32_t fallbackWidth = options.width > 0 ? options.width : 800U;
+    const uint32_t fallbackHeight = options.height > 0 ? options.height : 600U;
+    return device->CreateRenderTarget("DefaultTarget", fallbackWidth, fallbackHeight, 1, false);
 }
 
 } // namespace Aero::Render
