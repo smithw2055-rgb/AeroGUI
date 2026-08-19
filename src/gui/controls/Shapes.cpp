@@ -1,20 +1,10 @@
 #include "render/DisplayList.hpp"
 #include <Aero/Shapes.hpp>
 
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/media/AnimationRuntime.hpp"
-#include "gui/media/BrushRuntime.hpp"
-#include "gui/media/EffectRuntime.hpp"
-#include "gui/media/TransformRuntime.hpp"
+#include "gui/media/MediaRuntime.hpp"
+#include "gui/media/BrushRendering.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -360,128 +350,17 @@ void Rectangle::OnRender(
     const double radius = std::max(
         0.0, std::min(GetRadiusX(), GetRadiusY()));
     Base::Ref<Brush> fillBrush = GetFill();
-    if (fillBrush &&
-        fillBrush->RuntimeType() ==
-            LinearGradientBrush::StaticTypeId()) {
-        auto& gradient =
-            *static_cast<LinearGradientBrush*>(
-                fillBrush.Get());
-        Point start = gradient.GetStartPoint();
-        Point end = gradient.GetEndPoint();
-        if (gradient.GetMappingMode() ==
-            BrushMappingMode::RelativeToBoundingBox) {
-            start = {
-                bounds.x + start.x * bounds.width,
-                bounds.y + start.y * bounds.height};
-            end = {
-                bounds.x + end.x * bounds.width,
-                bounds.y + end.y * bounds.height};
-        }
-        const double axisX = end.x - start.x;
-        const double axisY = end.y - start.y;
-        const double axisLengthSquared = std::max(
-            axisX * axisX + axisY * axisY, 1.0e-12);
-        const bool horizontal =
-            std::fabs(axisX) >= std::fabs(axisY);
-        constexpr std::uint32_t bandCount = 96U;
-        for (std::uint32_t index = 0U;
-             index < bandCount; ++index) {
-            const double begin =
-                static_cast<double>(index) /
-                bandCount;
-            const double finish =
-                static_cast<double>(index + 1U) /
-                bandCount;
-            const Rect band = horizontal
-                ? Rect{
-                    begin * bounds.width, 0.0,
-                    (finish - begin) *
-                        bounds.width + 0.5,
-                    bounds.height}
-                : Rect{
-                    0.0, begin * bounds.height,
-                    bounds.width,
-                    (finish - begin) *
-                        bounds.height + 0.5};
-            const double centerX = band.x + band.width * 0.5;
-            const double centerY = band.y + band.height * 0.5;
-            const Color color = ::Aero::Media::SampleGradient(
-                gradient,
-                ((centerX - start.x) * axisX +
-                 (centerY - start.y) * axisY) /
-                axisLengthSquared);
-            Base::Result<void> painted =
-                builder.FillRect(band, color);
-            if (!painted) {
-                return;
-            }
-        }
-    } else if (fillBrush &&
-        fillBrush->RuntimeType() ==
-            RadialGradientBrush::StaticTypeId()) {
-        auto& gradient =
-            *static_cast<RadialGradientBrush*>(
-                fillBrush.Get());
-        constexpr std::uint32_t bandCount = 64U;
-        Base::Result<void> painted =
-            builder.FillRect(
-                bounds, ::Aero::Media::SampleGradient(
-                    gradient, 1.0));
-        if (!painted) return;
-        for (std::uint32_t index = bandCount;
-             index > 0U; --index) {
-            const double outer =
-                static_cast<double>(index) /
-                bandCount;
-            const double insetX =
-                bounds.width * (1.0 - outer) *
-                0.5;
-            const double insetY =
-                bounds.height * (1.0 - outer) *
-                0.5;
-            painted = builder.FillRoundedRect(
-                {insetX, insetY,
-                 bounds.width - insetX * 2.0,
-                 bounds.height - insetY * 2.0},
-                ::Aero::Media::SampleGradient(
-                    gradient, outer),
-                std::min(
-                    bounds.width - insetX * 2.0,
-                    bounds.height - insetY * 2.0) *
-                    0.5);
-            if (!painted) {
-                return;
-            }
-        }
-    } else if (fillBrush &&
-        fillBrush->RuntimeType() ==
-            ImageBrush::StaticTypeId()) {
-        Base::Result<void> painted =
-            PaintImageBrush(
-                context,
-                *static_cast<ImageBrush*>(
-                    fillBrush.Get()),
-                bounds);
-        if (!painted) {
-            return;
-        }
-    } else {
-        const Color fill = ::Aero::Media::SampleBrush(fillBrush);
-        if (fill.alpha > 0.0F) {
-        Base::Result<void> painted = radius > 0.0
-            ? builder.FillRoundedRect(bounds, fill, radius)
-            : builder.FillRect(bounds, fill);
-        if (!painted) return;
-        }
+    if (fillBrush) {
+        static_cast<void>(::Aero::Media::PaintBrushRect(
+            builder, fillBrush, bounds, radius));
     }
 
     const Color stroke = ::Aero::Media::SampleBrush(GetStroke());
     const double thickness = GetStrokeThickness();
     if (stroke.alpha > 0.0F && thickness > 0.0) {
-        static_cast<void>(builder.StrokeRect(bounds, stroke, thickness));
-        return;
+        static_cast<void>(builder.StrokeRect(
+            bounds, stroke, thickness, radius));
     }
-    return;
 }
 
 Size Ellipse::MeasureOverride(

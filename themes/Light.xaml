@@ -3,20 +3,20 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=mscorlib">
   <sys:Double x:Key="Size.ScrollBar">17</sys:Double>
-  <Color x:Key="Transparent" Value="#00000000"/>
-  <Color x:Key="ControlBackground" Value="#FFF7F7F7"/>
-  <Color x:Key="ControlForeground" Value="#FF111111"/>
-  <Color x:Key="ControlHoverBackground" Value="#FFE8F1FB"/>
-  <Color x:Key="ControlPressedBackground" Value="#FFD4E7FA"/>
-  <Color x:Key="DisabledBackground" Value="#FFE6E6E6"/>
-  <Color x:Key="ControlBorder" Value="#FF707070"/>
-  <Color x:Key="AccentBorder" Value="#FF0067C0"/>
-  <Color x:Key="AccentFill" Value="#FF0067C0"/>
-  <Color x:Key="IndeterminateFill" Value="#FF5A9BD5"/>
-  <Color x:Key="TextBoxBackground" Value="#FFEDEFF0"/>
-  <Color x:Key="TextBoxForeground" Value="#FF20282F"/>
-  <Color x:Key="TextBoxPlaceholder" Value="#FF7B8085"/>
-  <Color x:Key="TextBoxBorder" Value="#FF93979B"/>
-  <Color x:Key="TextBoxSelection" Value="#FF2EAEEB"/>
-  <Color x:Key="CheckBoxBackground" Value="#FFBBBEC1"/>
+  <SolidColorBrush x:Key="Transparent" Color="#00000000"/>
+  <SolidColorBrush x:Key="ControlBackground" Color="#FFF7F7F7"/>
+  <SolidColorBrush x:Key="ControlForeground" Color="#FF111111"/>
+  <SolidColorBrush x:Key="ControlHoverBackground" Color="#FFE8F1FB"/>
+  <SolidColorBrush x:Key="ControlPressedBackground" Color="#FFD4E7FA"/>
+  <SolidColorBrush x:Key="DisabledBackground" Color="#FFE6E6E6"/>
+  <SolidColorBrush x:Key="ControlBorder" Color="#FF707070"/>
+  <SolidColorBrush x:Key="AccentBorder" Color="#FF0067C0"/>
+  <SolidColorBrush x:Key="AccentFill" Color="#FF0067C0"/>
+  <SolidColorBrush x:Key="IndeterminateFill" Color="#FF5A9BD5"/>
+  <SolidColorBrush x:Key="TextBoxBackground" Color="#FFEDEFF0"/>
+  <SolidColorBrush x:Key="TextBoxForeground" Color="#FF20282F"/>
+  <SolidColorBrush x:Key="TextBoxPlaceholder" Color="#FF7B8085"/>
+  <SolidColorBrush x:Key="TextBoxBorder" Color="#FF93979B"/>
+  <SolidColorBrush x:Key="TextBoxSelection" Color="#FF2EAEEB"/>
+  <SolidColorBrush x:Key="CheckBoxBackground" Color="#FFBBBEC1"/>
 </ResourceDictionary>

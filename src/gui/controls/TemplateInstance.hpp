@@ -14,7 +14,7 @@
 
 namespace Aero::Controls {
 
-// The implementation objects live in Base::Detail, while their public model
+// The implementation objects live in Aero::Base, while their public model
 // types are owned by Controls.  Keep that dependency explicit in this
 // source-only header instead of leaking a Controls namespace.
 using namespace ::Aero::Controls;

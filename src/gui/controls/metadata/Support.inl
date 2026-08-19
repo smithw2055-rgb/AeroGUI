@@ -195,7 +195,7 @@ bool ValidateSliderTicks(
             ++end;
         }
         Base::Result<double> parsed =
-            ::Aero::Base::Detail::ValueConversion::ParseDouble(
+            ::Aero::Base::ValueConversion::ParseDouble(
                 text.Substr(start, end - start));
         if (!parsed ||
             !std::isfinite(parsed.Value())) {
@@ -209,8 +209,8 @@ bool ValidateSliderTicks(
 Base::Result<GridLength> ConvertGridLength(
     Base::StringView text) noexcept {
     const Base::StringView value =
-        ::Aero::Base::Detail::ValueConversion::Trim(text);
-    if (::Aero::Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+        ::Aero::Base::ValueConversion::Trim(text);
+    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
             value, "auto")) {
         return GridLength::Auto();
     }
@@ -221,7 +221,7 @@ Base::Result<GridLength> ConvertGridLength(
         double weight = 1.0;
         if (!weightText.Empty()) {
             Base::Result<double> parsed =
-                ::Aero::Base::Detail::ValueConversion::ParseDouble(weightText);
+                ::Aero::Base::ValueConversion::ParseDouble(weightText);
             if (!parsed) return parsed.GetStatus();
             weight = parsed.Value();
         }
@@ -233,7 +233,7 @@ Base::Result<GridLength> ConvertGridLength(
         return GridLength::Star(weight);
     }
     Base::Result<double> pixels =
-        ::Aero::Base::Detail::ValueConversion::ParseDouble(value);
+        ::Aero::Base::ValueConversion::ParseDouble(value);
     if (!pixels || pixels.Value() < 0.0) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
@@ -258,7 +258,7 @@ Base::Result<void> ParseGridDefinitions(
     Base::Vector<GridLength>& output) noexcept {
     output.Clear();
     const Base::StringView value =
-        ::Aero::Base::Detail::ValueConversion::Trim(text);
+        ::Aero::Base::ValueConversion::Trim(text);
     if (value.Empty()) return {};
     std::uint32_t start = 0U;
     while (start <= value.SizeBytes()) {
@@ -268,7 +268,7 @@ Base::Result<void> ParseGridDefinitions(
             ++end;
         }
         const Base::StringView token =
-            ::Aero::Base::Detail::ValueConversion::Trim(
+            ::Aero::Base::ValueConversion::Trim(
                 value.Substr(start, end - start));
         if (token.Empty()) {
             return Base::Status::Failure(

@@ -16,14 +16,9 @@
 #include "gui/property/PropertyRuntime.hpp"
 #include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
 
-namespace Aero::Media::Animation::Runtime {
+namespace Aero::Media::Animation::Model {
 namespace {
 
 constexpr double Pi = 3.1415926535897932384626433832795;
@@ -131,13 +126,13 @@ bool IsTimingValid(const TimelineTiming& timing) noexcept {
 
 } // namespace
 
-} // namespace Aero::Media::Animation::Runtime
+} // namespace Aero::Media::Animation::Model
 
 namespace Aero {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
-using namespace Aero::Media::Animation::Runtime;
+using namespace Aero::Media::Animation::Model;
 using namespace Aero::Media;
 
 struct AnimationEngine::Track {

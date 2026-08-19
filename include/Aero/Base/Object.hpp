@@ -16,31 +16,16 @@ class Ref;
 template<class T>
 class WeakRef;
 
-namespace Detail {
+class WeakRefBase;
 
-struct ObjectControlBlock;
 using DestroyObjectFn = void(*)(
     Object* object,
     IAllocator* allocator,
     std::size_t size,
     std::size_t alignment) noexcept;
 
-AERO_BASE_API ObjectControlBlock* CreateObjectControlBlock(
-    IAllocator& allocator,
-    Object* object,
-    std::size_t objectSize,
-    std::size_t objectAlignment,
-    DestroyObjectFn destroy) noexcept;
-
-AERO_BASE_API void AddStrong(ObjectControlBlock* control) noexcept;
-AERO_BASE_API bool AcquireStrong(ObjectControlBlock* control) noexcept;
-AERO_BASE_API void ReleaseStrong(ObjectControlBlock* control) noexcept;
-AERO_BASE_API void AddWeak(ObjectControlBlock* control) noexcept;
-AERO_BASE_API void ReleaseWeak(ObjectControlBlock* control) noexcept;
-AERO_BASE_API Object* GetObject(ObjectControlBlock* control) noexcept;
-AERO_BASE_API std::uint32_t GetStrongCount(ObjectControlBlock* control) noexcept;
-
-} // namespace Detail
+struct AdoptRefTag {};
+inline constexpr AdoptRefTag AdoptRef{};
 
 class AERO_BASE_API Object {
 public:
@@ -64,10 +49,14 @@ protected:
     virtual ~Object() = default;
 
 private:
-    Detail::ObjectControlBlock* control_ = nullptr;
+    void* control_ = nullptr;
 
-    void AttachControlBlock(Detail::ObjectControlBlock* control) noexcept;
-    Detail::ObjectControlBlock* ControlBlock() const noexcept;
+    bool TryAddStrongReference() noexcept;
+    bool AttachManagedLifetime(
+        IAllocator& allocator,
+        DestroyObjectFn destroy,
+        std::size_t objectSize,
+        std::size_t objectAlignment) noexcept;
 
     template<class T>
     friend class Ref;
@@ -77,6 +66,32 @@ private:
 
     template<class T, class... Args>
     friend Result<Ref<T>> MakeRefWithAllocator(IAllocator&, Args&&...) noexcept;
+
+    friend class WeakRefBase;
+};
+
+// Non-template shared state for WeakRef<T>. All control-block interactions are
+// implemented in the Aero.Base translation unit so the public headers only
+// carry an opaque handle.
+class AERO_BASE_API WeakRefBase {
+public:
+    constexpr WeakRefBase() noexcept = default;
+
+    WeakRefBase(const WeakRefBase& other) noexcept;
+    WeakRefBase(WeakRefBase&& other) noexcept;
+    ~WeakRefBase() noexcept;
+    WeakRefBase& operator=(const WeakRefBase& other) noexcept;
+    WeakRefBase& operator=(WeakRefBase&& other) noexcept;
+
+    void Reset() noexcept;
+    void Swap(WeakRefBase& other) noexcept;
+    bool Expired() const noexcept;
+    Object* LockObject() const noexcept;
+
+protected:
+    void Attach(Object& object) noexcept;
+
+    void* control_ = nullptr;
 };
 
 } // namespace Aero::Base

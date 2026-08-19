@@ -260,6 +260,14 @@ private:
         bool overlayRoot = false) noexcept;
     bool IsOverlay(
         const ::Aero::Media::Visual& visual) const noexcept;
+    static ::Aero::Render::RenderEffectSnapshot BuildEffectSnapshot(
+        const ::Aero::Media::Effect* effect) noexcept;
+    static ::Aero::Render::RenderMaskSnapshot BuildMaskSnapshot(
+        const ::Aero::UIElement& element,
+        ::Aero::Render::RenderFrame& plan) noexcept;
+    static std::uint32_t AppendGradientRamp(
+        ::Aero::Render::RenderFrame& plan,
+        const ::Aero::Media::GradientBrush& brush) noexcept;
     static void RenderCommitHook(void* context) noexcept;
 };
 

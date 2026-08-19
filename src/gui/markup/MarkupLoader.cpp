@@ -1,16 +1,8 @@
 #include "gui/metadata/MetadataRuntime.hpp"
 #include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
-#include "gui/controls/ControlRuntime.hpp"
-#include "gui/controls/ItemsRuntime.hpp"
-#include "gui/controls/TemplateRuntime.hpp"
 #include "gui/markup/MarkupRuntime.hpp"
 #include "gui/markup/MarkupWriterRuntime.hpp"
 // Consolidated implementation. Keep sections ordered by dependency.
@@ -254,7 +246,7 @@ Base::Result<Meta::Value> MakeStoredCustomValue(
     const T& value) noexcept {
     Base::Result<Base::Ref<Meta::ValueTypeSemantics>> semantics =
         Base::MakeRef<Meta::ValueTypeSemantics>(
-            Meta::Detail::MakeValueTypeRegistration<T>());
+            Meta::MakeValueTypeRegistration<T>());
     if (!semantics) return semantics.GetStatus();
     return Meta::Value::TryFromCustom(
         type, &value, semantics.Value());
@@ -2206,16 +2198,6 @@ CompiledDocument::Deserialize(
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/HashSet.hpp>
 #include <Aero/Base/String.hpp>
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
 
 #include <new>
 
@@ -2974,7 +2956,6 @@ void VisualContentPlan::Clear() noexcept {
 
 #include <algorithm>
 #include <cstdio>
-#include <cstring>
 #include <filesystem>
 #include <limits>
 

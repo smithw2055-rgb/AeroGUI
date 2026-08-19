@@ -1,11 +1,18 @@
 #pragma once
 
+#include "gui/metadata/MetadataRuntime.hpp"
 #include "render/DisplayList.hpp"
 
+#include <Aero/Media/Animation.hpp>
 #include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Effects.hpp>
+#include <Aero/Media/Transforms.hpp>
+
+#include "gui/media/AnimationModel.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace Aero::Media {
 
@@ -161,9 +168,6 @@ inline Base::Color ApplyShader(
         return {source.red * wave, source.green * wave,
             source.blue * wave, source.alpha};
     }
-    // Aero.GUI.Extensions custom BrushShader compatibility. The NoiseBrush
-    // sample exposes these conventional properties; reading them through DP
-    // metadata keeps the engine independent from the application type.
     const double scaleX = ShaderDouble(shader, "ScaleX", 64.0);
     const double scaleY = ShaderDouble(shader, "ScaleY", 64.0);
     const double seed = ShaderDouble(shader, "Seed", 0.0);
@@ -177,9 +181,6 @@ inline Base::Color ApplyShader(
         color.blue * amount, source.alpha * color.alpha};
 }
 
-// Brush-to-color sampling is a renderer concern, not part of the WPF Brush
-// authoring surface. Keep the fallback sampler private to implementation
-// units that need to rasterize a brush into a display list.
 inline Base::Color SampleBrush(
     const Base::Ref<Media::Brush>& brush,
     double position = 0.5,
@@ -211,10 +212,6 @@ inline Base::Color SampleBrush(
     }
     return sampled;
 }
-
-} // namespace Aero::Media
-
-namespace Aero::Media {
 
 struct Brush::Access {
 public:
@@ -257,5 +254,193 @@ public:
 namespace Aero::Media {
 
 using BrushPrivate = ::Aero::Media::Brush::Access;
+
+} // namespace Aero::Media
+
+namespace Aero::Media::Animation {
+
+struct Timeline::Access {
+public:
+    static Model::TimelineTiming Timing(
+        const Timeline& timeline) noexcept {
+        Model::TimelineTiming result;
+        result.beginTimeMicroseconds = timeline.beginTimeMicroseconds_;
+        result.durationMicroseconds = timeline.durationMicroseconds_;
+        result.repeat = timeline.repeatForever_
+            ? Model::RepeatBehavior::Forever()
+            : Model::RepeatBehavior::Count(timeline.repeatCount_);
+        result.speedRatio = timeline.speedRatio_;
+        result.autoReverse = timeline.autoReverse_;
+        result.fillBehavior = timeline.fillBehavior_;
+        return result;
+    }
+
+    static Model::EasingFunction Easing(
+        const EasingFunctionBase& easing) noexcept {
+        Model::EasingFunction result;
+        result.kind = static_cast<Model::EasingFunctionKind>(
+            static_cast<std::uint8_t>(easing.kind_));
+        result.mode = easing.GetEasingMode();
+        if (easing.RuntimeType() == PowerEase::StaticTypeId()) {
+            result.power = static_cast<const PowerEase&>(easing).GetPower();
+        } else if (easing.RuntimeType() == ExponentialEase::StaticTypeId()) {
+            result.power = static_cast<const ExponentialEase&>(easing).GetExponent();
+        } else if (easing.RuntimeType() == BackEase::StaticTypeId()) {
+            result.amplitude = static_cast<const BackEase&>(easing).GetAmplitude();
+        } else if (easing.RuntimeType() == BounceEase::StaticTypeId()) {
+            const auto& bounce = static_cast<const BounceEase&>(easing);
+            result.oscillations = bounce.GetBounces();
+            result.springiness = bounce.GetBounciness();
+        } else if (easing.RuntimeType() == ElasticEase::StaticTypeId()) {
+            const auto& elastic = static_cast<const ElasticEase&>(easing);
+            result.oscillations = elastic.GetOscillations();
+            result.springiness = elastic.GetSpringiness();
+        }
+        return result;
+    }
+
+    static Model::DoubleAnimation Double(
+        const DoubleAnimation& animation) noexcept {
+        Model::DoubleAnimation result;
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
+        result.accelerationRatio = animation.GetAccelerationRatio();
+        result.decelerationRatio = animation.GetDecelerationRatio();
+        result.timing = Timing(animation);
+        Base::Ref<EasingFunctionBase> easing =
+            animation.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::ColorAnimation Color(
+        const ColorAnimation& animation) noexcept {
+        Model::ColorAnimation result;
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
+        result.timing = Timing(animation);
+        Base::Ref<EasingFunctionBase> easing =
+            animation.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::PointAnimation Point(
+        const PointAnimation& animation) noexcept {
+        Model::PointAnimation result;
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
+        result.timing = Timing(animation);
+        Base::Ref<EasingFunctionBase> easing =
+            animation.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::RectAnimation Rect(
+        const RectAnimation& animation) noexcept {
+        Model::RectAnimation result;
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
+        result.timing = Timing(animation);
+        Base::Ref<EasingFunctionBase> easing =
+            animation.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::ThicknessAnimation Thickness(
+        const ThicknessAnimation& animation) noexcept {
+        Model::ThicknessAnimation result;
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
+        result.timing = Timing(animation);
+        Base::Ref<EasingFunctionBase> easing =
+            animation.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::DoubleKeyFrame DoubleFrame(
+        const DoubleKeyFrame& frame) noexcept {
+        Model::DoubleKeyFrame result;
+        result.keyTimeMicroseconds = frame.keyTimeMicroseconds_;
+        result.value = frame.value_;
+        result.interpolation =
+            static_cast<Model::DoubleKeyFrameInterpolation>(
+                static_cast<std::uint8_t>(frame.interpolation_));
+        result.controlPoint1X = frame.controlPoint1X_;
+        result.controlPoint1Y = frame.controlPoint1Y_;
+        result.controlPoint2X = frame.controlPoint2X_;
+        result.controlPoint2Y = frame.controlPoint2Y_;
+        if (frame.RuntimeType() == EasingDoubleKeyFrame::StaticTypeId()) {
+            const auto& typed = static_cast<
+                const EasingDoubleKeyFrame&>(frame);
+            Base::Ref<EasingFunctionBase> easing =
+                typed.GetEasingFunction();
+            if (easing) result.easing = Easing(*easing);
+        }
+        return result;
+    }
+
+    static Model::ColorKeyFrame ColorFrame(
+        const ColorKeyFrame& frame) noexcept {
+        Model::ColorKeyFrame result;
+        result.keyTimeMicroseconds = frame.keyTimeMicroseconds_;
+        result.value = frame.value_;
+        result.interpolation =
+            static_cast<Model::DoubleKeyFrameInterpolation>(
+                static_cast<std::uint8_t>(frame.interpolation_));
+        result.controlPoint1X = frame.controlPoint1X_;
+        result.controlPoint1Y = frame.controlPoint1Y_;
+        result.controlPoint2X = frame.controlPoint2X_;
+        result.controlPoint2Y = frame.controlPoint2Y_;
+        if (frame.RuntimeType() == EasingColorKeyFrame::StaticTypeId()) {
+            const auto& typed = static_cast<
+                const EasingColorKeyFrame&>(frame);
+            Base::Ref<EasingFunctionBase> easing =
+                typed.GetEasingFunction();
+            if (easing) result.easing = Easing(*easing);
+        }
+        return result;
+    }
+};
+
+} // namespace Aero::Media::Animation
+
+namespace Aero::Media {
+using AnimationPrivate = ::Aero::Media::Animation::Timeline::Access;
+}
+
+namespace Aero::Media {
+
+struct Transform::Access {
+public:
+    static std::uint64_t Revision(
+        const Aero::Media::Transform& transform) noexcept;
+};
+
+} // namespace Aero::Media
+
+namespace Aero::Media {
+using TransformPrivate = ::Aero::Media::Transform::Access;
+
+} // namespace Aero::Media
+
+namespace Aero::Media {
+
+// Effect ownership is a runtime attachment detail.  Keep it out of the SDK
+// surface while allowing the metadata bridge to update it when an Effect
+// property is assigned to a FrameworkElement.
+struct Effect::Access {
+public:
+    static std::uint64_t Revision(
+        const Aero::Media::Effect& effect) noexcept;
+};
+
+} // namespace Aero::Media
+
+namespace Aero::Media {
+using EffectPrivate = ::Aero::Media::Effect::Access;
 
 } // namespace Aero::Media

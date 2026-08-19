@@ -1,19 +1,6 @@
 #include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
 #include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
 #include "gui/layout/LayoutRuntime.hpp"
 #include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
@@ -32,9 +19,9 @@
 #include <Aero/Base/String.hpp>
 
 #include <Aero/Controls.hpp>
-#include <Aero/Controls.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Geometry.hpp>
 #include <Aero/FrameworkElement.hpp>
 
 #include <cstdio>
@@ -691,21 +678,6 @@ Base::Result<void> UiObjectModel::Register(
 
 
 
-#include <Aero/Controls.hpp>
-#include <Aero/Controls.hpp>
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/controls/ControlRuntime.hpp"
-#include "gui/controls/ItemsRuntime.hpp"
-#include "gui/controls/TemplateRuntime.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>
 
 
@@ -1260,22 +1232,8 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
 
 
 #include "gui/controls/DataTemplateTriggerState.hpp"
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/media/AnimationRuntime.hpp"
-#include "gui/media/BrushRuntime.hpp"
-#include "gui/media/EffectRuntime.hpp"
-#include "gui/media/TransformRuntime.hpp"
+#include "gui/media/MediaRuntime.hpp"
 
-#include <Aero/Controls.hpp>
 
 #include "gui/controls/ControlBehavior.hpp"
 
@@ -1347,6 +1305,17 @@ bool RequiresPrototypeObject(
     for (const DeferredBindingEdge& binding : bindings) {
         if (binding.target == object ||
             binding.source == object) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool HasContentEdges(
+    Base::Span<const DeferredContentEdge> edges,
+    const Base::Object* object) noexcept {
+    for (const DeferredContentEdge& edge : edges) {
+        if (edge.parent == object) {
             return true;
         }
     }
@@ -1544,10 +1513,17 @@ CompileBlueprint(
                     DependencyObject::StaticTypeId())) {
                 prototypeProperty.objectNode = FindPrototypeObject(
                     pending, local.Value().AsObject().Get());
+                const bool hasEdges = HasContentEdges(
+                    edges, local.Value().AsObject().Get());
+                const bool isFreezable = runtime.Types().IsDerivedFrom(
+                    local.Value().AsObject()->RuntimeType(),
+                    Freezable::StaticTypeId());
                 const bool requiresClone =
                     prototypeProperty.objectNode != UINT32_MAX ||
                     RequiresPrototypeObject(
-                        bindings, local.Value().AsObject().Get());
+                        bindings, local.Value().AsObject().Get()) ||
+                    hasEdges ||
+                    isFreezable;
                 if (requiresClone &&
                     prototypeProperty.objectNode == UINT32_MAX) {
                     prototypeProperty.objectNode = pending.Size();
@@ -1579,6 +1555,34 @@ CompileBlueprint(
                 grid.GetRowDefinitions());
             if (!appended) {
                 return appended.GetStatus();
+            }
+        }
+
+        if (runtime.Types().IsDerivedFrom(
+                node.type,
+                ::Aero::Media::StreamGeometry::StaticTypeId())) {
+            const auto& geom =
+                static_cast<const ::Aero::Media::StreamGeometry&>(*object);
+            appended = node.streamGeometryData.Assign(
+                geom.GetData());
+            if (!appended) {
+                return appended.GetStatus();
+            }
+        }
+
+        if (runtime.Types().IsDerivedFrom(
+                node.type,
+                ::Aero::Media::GradientBrush::StaticTypeId())) {
+            const auto& gradient =
+                static_cast<const ::Aero::Media::GradientBrush&>(*object);
+            for (const Base::Ref<::Aero::Media::GradientStop>& stop : gradient.GetGradientStops()) {
+                if (!stop) continue;
+                appended = node.gradientStops.PushBack({
+                    stop->GetOffset(),
+                    stop->GetColor()});
+                if (!appended) {
+                    return appended.GetStatus();
+                }
             }
         }
 
@@ -2787,12 +2791,32 @@ Base::Result<void> BuildCompiledTemplate(
                 value = Value::FromObject(
                     property.value.Type(), objects[property.objectNode]);
             }
-            dependencyObject.SetValue(property.property, std::move(value));
+            dependencyObject.SetTemplateValue(property.property, std::move(value));
         }
         if (node.type == Grid::StaticTypeId()) {
             auto& grid = static_cast<Grid&>(*objects[index]);
             grid.SetColumnDefinitions(node.gridColumns.AsSpan());
             grid.SetRowDefinitions(node.gridRows.AsSpan());
+        }
+        if (blueprint->runtime->Types().IsDerivedFrom(
+                node.type, ::Aero::Media::StreamGeometry::StaticTypeId())) {
+            auto& geom = static_cast<::Aero::Media::StreamGeometry&>(*objects[index]);
+            geom.SetData(node.streamGeometryData.View());
+        }
+        if (blueprint->runtime->Types().IsDerivedFrom(
+                node.type, ::Aero::Media::GradientBrush::StaticTypeId())) {
+            auto& gradient = static_cast<::Aero::Media::GradientBrush&>(*objects[index]);
+            gradient.ClearGradientStops();
+            for (const TemplatePrototypeGradientStop& stopRecord : node.gradientStops) {
+                Base::Result<Base::Ref<::Aero::Media::GradientStop>> made =
+                    Base::MakeRef<::Aero::Media::GradientStop>();
+                if (made) {
+                    Base::Ref<::Aero::Media::GradientStop> stop = std::move(made).Value();
+                    stop->SetOffset(stopRecord.offset);
+                    stop->SetColor(stopRecord.color);
+                    static_cast<void>(gradient.AddGradientStop(std::move(stop)));
+                }
+            }
         }
     }
     for (std::uint32_t index = 0U;
@@ -2810,6 +2834,8 @@ Base::Result<void> BuildCompiledTemplate(
             const bool propertyEdge = structuralProperty != nullptr &&
                 (static_cast<std::uint32_t>(structuralProperty->Flags()) &
                  static_cast<std::uint32_t>(PropertyFlags::Structural)) != 0U &&
+                (static_cast<std::uint32_t>(structuralProperty->Flags()) &
+                 static_cast<std::uint32_t>(PropertyFlags::Collection)) == 0U &&
                 blueprint->runtime->CanWriteProperty(node.contentMember);
             Base::Result<void> content = propertyEdge
                 ? blueprint->runtime->SetProperty(
@@ -3226,12 +3252,32 @@ BuildCompiledDeferredTemplate(
                 value = Value::FromObject(
                     property.value.Type(), objects[property.objectNode]);
             }
-            dependencyObject.SetValue(property.property, std::move(value));
+            dependencyObject.SetTemplateValue(property.property, std::move(value));
         }
         if (node.type == Grid::StaticTypeId()) {
             auto& grid = static_cast<Grid&>(*objects[index]);
             grid.SetColumnDefinitions(node.gridColumns.AsSpan());
             grid.SetRowDefinitions(node.gridRows.AsSpan());
+        }
+        if (blueprint->runtime->Types().IsDerivedFrom(
+                node.type, ::Aero::Media::StreamGeometry::StaticTypeId())) {
+            auto& geom = static_cast<::Aero::Media::StreamGeometry&>(*objects[index]);
+            geom.SetData(node.streamGeometryData.View());
+        }
+        if (blueprint->runtime->Types().IsDerivedFrom(
+                node.type, ::Aero::Media::GradientBrush::StaticTypeId())) {
+            auto& gradient = static_cast<::Aero::Media::GradientBrush&>(*objects[index]);
+            gradient.ClearGradientStops();
+            for (const TemplatePrototypeGradientStop& stopRecord : node.gradientStops) {
+                Base::Result<Base::Ref<::Aero::Media::GradientStop>> made =
+                    Base::MakeRef<::Aero::Media::GradientStop>();
+                if (made) {
+                    Base::Ref<::Aero::Media::GradientStop> stop = std::move(made).Value();
+                    stop->SetOffset(stopRecord.offset);
+                    stop->SetColor(stopRecord.color);
+                    static_cast<void>(gradient.AddGradientStop(std::move(stop)));
+                }
+            }
         }
     }
     for (std::uint32_t index = 0U;
@@ -3249,6 +3295,8 @@ BuildCompiledDeferredTemplate(
         const bool propertyEdge = structuralProperty != nullptr &&
             (static_cast<std::uint32_t>(structuralProperty->Flags()) &
              static_cast<std::uint32_t>(PropertyFlags::Structural)) != 0U &&
+            (static_cast<std::uint32_t>(structuralProperty->Flags()) &
+             static_cast<std::uint32_t>(PropertyFlags::Collection)) == 0U &&
             blueprint->runtime->CanWriteProperty(node.contentMember);
         Base::Result<void> written = propertyEdge
             ? blueprint->runtime->SetProperty(

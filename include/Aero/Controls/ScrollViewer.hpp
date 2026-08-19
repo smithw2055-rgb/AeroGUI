@@ -4,6 +4,10 @@
 #include <Aero/Input.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 
+namespace Aero::Controls::Primitives {
+class ScrollBar;
+}
+
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 enum class ScrollBarVisibility : std::uint8_t {
@@ -244,6 +248,16 @@ private:
         ScrollInputKind kind) noexcept;
     void UpdateComputedScrollBarVisibility(
         const ScrollData& data) noexcept;
+    void AttachScrollBars() noexcept;
+    void DetachScrollBars() noexcept;
+    void OnScrollBarValueChanged(
+        DependencyObject& sender,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
+
+    Primitives::ScrollBar* verticalScrollBar_ = nullptr;
+    Primitives::ScrollBar* horizontalScrollBar_ = nullptr;
+    bool synchronizingScrollBars_ = false;
+    DependencyPropertyChangedEventHandler scrollBarValueChangedHandler_;
 };
 } // namespace Aero::Controls
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::ScrollBarVisibility)

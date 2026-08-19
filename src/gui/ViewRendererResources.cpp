@@ -87,14 +87,27 @@ void ReleaseImageResource(void* context, Render::RenderImageId id) noexcept {
 
 // Mesh resource callbacks
 Base::Result<Render::RenderMeshId> CreateMeshResource(
-    void*,
-    Base::Span<const Aero::Point>,
-    Base::Span<const std::uint32_t>) noexcept {
+    void* context,
+    Base::Span<const Aero::Point> vertices,
+    Base::Span<const std::uint32_t> indices) noexcept {
+    auto* renderer = static_cast<ViewRenderer*>(context);
+    if (renderer == nullptr || renderer->FrameEncoder() == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Renderer is null or uninitialized");
+    }
     static Render::RenderMeshId nextMeshId = 1000U;
-    return ++nextMeshId;
+    const Render::RenderMeshId meshId = ++nextMeshId;
+    Base::Result<void> reg = renderer->FrameEncoder()->RegisterMesh(meshId, vertices, indices);
+    if (!reg) return reg.GetStatus();
+    return meshId;
 }
 
-void ReleaseMeshResource(void*, Render::RenderMeshId) noexcept {}
+void ReleaseMeshResource(void* context, Render::RenderMeshId meshId) noexcept {
+    auto* renderer = static_cast<ViewRenderer*>(context);
+    ::Aero::Render::UiFrameEncoder* encoder = renderer != nullptr ? renderer->FrameEncoder() : nullptr;
+    if (encoder != nullptr) {
+        encoder->UnregisterMesh(meshId);
+    }
+}
 
 } // namespace
 

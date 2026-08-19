@@ -175,8 +175,7 @@ struct DesktopHostState {
         Base::Result<void> CreateView() noexcept {
             ViewOptions options;
             options.text.fontSearchRoot = owner->assetRoot.View();
-            options.automaticAnimationClock =
-                owner->automaticAnimationClock;
+            options.automaticAnimationClock = false;
             options.loadBuiltInTheme = owner->loadBuiltInTheme;
             options.builtInTheme = owner->builtInTheme;
             options.applicationResources = owner->application != nullptr
@@ -592,6 +591,7 @@ Base::Result<void> LoadFromUri(
             updateTimeSeconds +=
                 static_cast<double>(elapsedMilliseconds) / 1000.0;
             const bool committed = view->Update(updateTimeSeconds);
+            if (closeRequested || shutdown) return {};
 
             if (!renderContext || !renderContext->IsReady()) {
                 return HostFailure(
@@ -801,13 +801,37 @@ Base::Result<void> LoadFromUri(
         return environment.CreateView(options, allocator);
     }
 
+    void LoadDictionarySourcesRecursively(
+        ResourceDictionary& dict,
+        const Base::ResourceUri& baseUri) noexcept {
+        if (!dict.GetSource().Empty()) {
+            Base::Result<Base::ResourceUri> resolved =
+                Base::ResourceUri::Resolve(baseUri, dict.GetSource().Canonical());
+            if (resolved) {
+                Markup::XamlReader dictReader(environment);
+                Base::Result<Markup::XamlDocument> dictDoc =
+                    dictReader.Load(resolved.Value().Canonical(), dict, {}, diagnostics);
+                if (dictDoc && dictDoc.Value().Root()) {
+                    if (dictDoc.Value().Root()->RuntimeType() == ResourceDictionary::StaticTypeId()) {
+                        auto* resDict = static_cast<ResourceDictionary*>(dictDoc.Value().Root().Get());
+                        if (resDict != &dict) {
+                            static_cast<void>(dict.AddMerged(*resDict));
+                        }
+                    }
+                }
+            }
+        }
+        for (std::uint32_t i = 0; i < dict.MergedDictionaryCount(); ++i) {
+            auto merged = dict.MergedDictionaryAt(i);
+            if (merged) {
+                LoadDictionarySourcesRecursively(merged.Value(), baseUri);
+            }
+        }
+    }
+
     Base::Result<void> LoadApplication() noexcept {
         if (suppliedApplication != nullptr) {
             application = suppliedApplication;
-            // A C++ Application supplies lifecycle callbacks, but App.xaml is
-            // still its authored resource and StartupUri contract. Loading it
-            // here keeps source XAML resources in their Application layer
-            // instead of forcing samples to duplicate their theme in code.
             Base::Result<Base::Ref<View>> created = CreateLoaderView();
             if (!created) return created.GetStatus();
             loaderView = std::move(created).Value();
@@ -824,6 +848,9 @@ Base::Result<void> LoadFromUri(
             }
             applicationOwner = root;
             Application& authored = static_cast<Application&>(*root);
+
+            LoadDictionarySourcesRecursively(authored.GetResources(), loaded.Value().CanonicalUri());
+
             Base::Result<ResourceDictionary> sharedResources =
                 authored.GetResources().Share();
             if (!sharedResources) {
@@ -870,9 +897,6 @@ Base::Result<void> LoadFromUri(
             if (!resolved) return resolved.GetStatus();
             startupUri = std::move(resolved).Value();
         }
-        // Retain the loader View for the Application object's XAML lifetime.
-        // Resource dictionaries, deferred content and markup effects may still
-        // refer to the loader-owned runtime state until application shutdown.
         return {};
     }
 
@@ -1047,8 +1071,7 @@ Base::Result<void> LoadFromUri(
                     // events. Animation or multi-window hosting uses a 16 ms
                     // timed native wait so other windows and the animation
                     // clock remain responsive without a 1 ms polling loop.
-                    const bool blockUntilEvent =
-                        !automaticAnimationClock && windows.Size() == 1U;
+                    const bool blockUntilEvent = false;
                     Base::Result<bool> waited = waiter->WaitForActivity(
                         16U, blockUntilEvent);
                     if (!waited) return waited.GetStatus();

@@ -496,6 +496,12 @@ if(AERO_ENABLE_D3D11_BACKEND)
         RenderFramePattern "${_aero_d3d11_shader_root}/RenderFramePattern.hlsl" FALSE)
     aero_compile_d3d11_shader_pair(
         RenderFrameSDF "${_aero_d3d11_shader_root}/RenderFrameSDF.hlsl" FALSE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameBlur "${_aero_d3d11_shader_root}/RenderFrameBlur.hlsl" FALSE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameShadow "${_aero_d3d11_shader_root}/RenderFrameShadow.hlsl" FALSE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameMask "${_aero_d3d11_shader_root}/RenderFrameMask.hlsl" FALSE)
     get_property(_aero_d3d11_shader_outputs GLOBAL PROPERTY
         AERO_D3D11_SHADER_OUTPUTS)
     add_custom_target(AeroD3D11RenderFrameShaders

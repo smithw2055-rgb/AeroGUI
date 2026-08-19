@@ -13,7 +13,6 @@
 #include <utility>
 
 namespace Aero::Base {
-namespace Detail {
 
 template<class T, std::uint32_t Count>
 class InlineBuffer {
@@ -455,12 +454,10 @@ private:
     }
 };
 
-} // namespace Detail
-
 template<class T>
-using Vector = Detail::BasicVector<T, 0U>;
+using Vector = BasicVector<T, 0U>;
 
 template<class T, std::uint32_t InlineCount>
-using SmallVector = Detail::BasicVector<T, InlineCount>;
+using SmallVector = BasicVector<T, InlineCount>;
 
 } // namespace Aero::Base

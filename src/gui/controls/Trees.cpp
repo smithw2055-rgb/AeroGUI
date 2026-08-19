@@ -1,15 +1,3 @@
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
 #include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
 #include "gui/base/RoutedEventRuntime.hpp"
@@ -31,6 +19,27 @@ namespace Aero::Controls {
 using Aero::Controls::TreeBehavior;
 
 using namespace Primitives;
+
+namespace {
+
+// RTTI is disabled, so an ItemsSource arrives as a Base::Object and must be
+// down-cast by its runtime type. The collection contract is implemented by the
+// two observable collections known to the framework (mirrors
+// metadata/Support.inl OnItemsSourceChanged).
+Collections::IItemsSource* AsItemsSource(
+    Base::Object* source) noexcept {
+    if (source == nullptr) return nullptr;
+    const Meta::TypeId type = source->RuntimeType();
+    if (type == Collections::ObservableCollection::StaticTypeId()) {
+        return static_cast<Collections::ObservableCollection*>(source);
+    }
+    if (type == Media::GradientStopCollection::StaticTypeId()) {
+        return static_cast<Media::GradientStopCollection*>(source);
+    }
+    return nullptr;
+}
+
+} // namespace
 
 TreeViewItem::TreeViewItem() noexcept
     : TreeViewItem(StaticTypeId()) {}
@@ -158,10 +167,8 @@ void TreeViewItem::SetHierarchicalContent(
     hierarchicalItemsBinding_.Reset();
     hierarchicalBindingSource_.Reset();
     hierarchicalItemTemplate_ = std::move(itemTemplate);
-    auto* items = hierarchicalItemsSource_
-        ? dynamic_cast<Collections::IItemsSource*>(
-            hierarchicalItemsSource_.Get())
-        : nullptr;
+auto* items =
+        AsItemsSource(hierarchicalItemsSource_.Get());
     static_cast<void>(SetReadOnlyCurrentValue(
         ItemsControl::HasItemsProperty,
         items != nullptr && items->GetCount() != 0U));
@@ -235,9 +242,7 @@ void TreeViewItem::ActivateHierarchicalContent() noexcept {
     }
     if (childItems_ != nullptr) {
         const Base::Ref<Base::Object> current = GetItemsSource();
-        auto* items = current
-            ? dynamic_cast<Collections::IItemsSource*>(current.Get())
-            : nullptr;
+auto* items = AsItemsSource(current.Get());
         ItemsControl::Access::SetItemsSourceBorrowed(
             *childItems_, items);
     }
@@ -288,10 +293,12 @@ TreeViewItem::OnApplyTemplate() noexcept {
         childItems_ == nullptr) {
         return;
     }
-    Base::Ref<Base::Object> source = GetItemsSource();
-    Collections::IItemsSource* childSource = source
-        ? dynamic_cast<Collections::IItemsSource*>(source.Get())
-        : static_cast<Collections::IItemsSource*>(&ItemsControl::GetItems());
+Base::Ref<Base::Object> source = GetItemsSource();
+    Collections::IItemsSource* childSource = AsItemsSource(source.Get());
+    if (childSource == nullptr) {
+        childSource =
+            static_cast<Collections::IItemsSource*>(&ItemsControl::GetItems());
+    }
     ItemsControl::Access::SetItemsSourceBorrowed(
         *childItems_, childSource);
     static_cast<void>(SynchronizeTemplate());

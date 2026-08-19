@@ -217,7 +217,7 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             RepeatButton::IntervalProperty,
             FrameworkPropertyMetadata(std::uint32_t{100})
-                .Validate(&::Aero::Base::Detail::Validate::Positive<std::uint32_t>))
+                .Validate(&::Aero::Base::Validate::Positive<std::uint32_t>))
         .Override(
             ButtonBase::ClickModeProperty,
             FrameworkPropertyMetadata(ClickMode::Press))
@@ -273,35 +273,35 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             ScrollViewer::HorizontalOffsetProperty,
             FrameworkPropertyMetadata(0.0)
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::VerticalOffsetProperty,
             FrameworkPropertyMetadata(0.0)
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::ExtentWidthProperty,
             FrameworkPropertyMetadata(0.0)
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::ExtentHeightProperty,
             FrameworkPropertyMetadata(0.0)
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::ViewportWidthProperty,
             FrameworkPropertyMetadata(0.0)
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::ViewportHeightProperty,
             FrameworkPropertyMetadata(0.0)
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::ScrollableWidthProperty,
             FrameworkPropertyMetadata(0.0)
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::ScrollableHeightProperty,
             FrameworkPropertyMetadata(0.0)
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             ScrollViewer::
                 ComputedHorizontalScrollBarVisibilityProperty,
@@ -370,23 +370,23 @@ Base::Result<void> PopulateControlsPrimitives(
             Track::MinimumProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsArrange()
-                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
+                .Validate(&::Aero::Base::Validate::Finite<double>))
         .Property(
             Track::MaximumProperty,
             FrameworkPropertyMetadata(1.0)
                 .AffectsArrange()
-                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
+                .Validate(&::Aero::Base::Validate::Finite<double>))
         .Property(
             Track::ValueProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsArrange()
                 .BindsTwoWayByDefault()
-                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
+                .Validate(&::Aero::Base::Validate::Finite<double>))
         .Property(
             Track::ViewportSizeProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsArrange()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             Track::IsDirectionReversedProperty,
             FrameworkPropertyMetadata(false)
@@ -415,11 +415,11 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             GridSplitter::DragIncrementProperty,
             FrameworkPropertyMetadata(1.0)
-                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
+                .Validate(&::Aero::Base::Validate::Positive<double>))
         .Property(
             GridSplitter::KeyboardIncrementProperty,
             FrameworkPropertyMetadata(10.0)
-                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
+                .Validate(&::Aero::Base::Validate::Positive<double>))
         .Property(
             GridSplitter::ResizeDirectionProperty,
             FrameworkPropertyMetadata(GridResizeDirection::Auto))
@@ -444,7 +444,7 @@ Base::Result<void> PopulateControlsPrimitives(
             RangeBase::MinimumProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsArrange()
-                .Validate(&::Aero::Base::Detail::Validate::Finite<double>)
+                .Validate(&::Aero::Base::Validate::Finite<double>)
                 .Coerce(&CoerceRangeMinimum))
         .Property(
             RangeBase::MaximumProperty,
@@ -452,14 +452,14 @@ Base::Result<void> PopulateControlsPrimitives(
             // that operate in normalized coordinates set their own maximum.
             FrameworkPropertyMetadata(100.0)
                 .AffectsArrange()
-                .Validate(&::Aero::Base::Detail::Validate::Finite<double>)
+                .Validate(&::Aero::Base::Validate::Finite<double>)
                 .Coerce(&CoerceRangeMaximum))
         .Property(
             RangeBase::ValueProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsArrange()
                 .BindsTwoWayByDefault()
-                .Validate(&::Aero::Base::Detail::Validate::Finite<double>)
+                .Validate(&::Aero::Base::Validate::Finite<double>)
                 .Coerce(&CoerceRangeValue));
     status = rangeBase.Result();
     if (!status) return status.GetStatus();
@@ -474,18 +474,56 @@ Base::Result<void> PopulateControlsPrimitives(
             ScrollBar::ViewportSizeProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsArrange()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             ScrollBar::SmallChangeProperty,
             FrameworkPropertyMetadata(16.0)
-                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
+                .Validate(&::Aero::Base::Validate::Positive<double>))
         .Property(
             ScrollBar::LargeChangeProperty,
             FrameworkPropertyMetadata(0.0)
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Factory();
     status = scrollBar.Result();
     if (!status) return status.GetStatus();
+
+    for (Base::StringView commandName : {
+             Base::StringView("LineUpCommand"),
+             Base::StringView("LineUp"),
+             Base::StringView("LineDownCommand"),
+             Base::StringView("LineDown"),
+             Base::StringView("LineLeftCommand"),
+             Base::StringView("LineLeft"),
+             Base::StringView("LineRightCommand"),
+             Base::StringView("LineRight"),
+             Base::StringView("PageUpCommand"),
+             Base::StringView("PageUp"),
+             Base::StringView("PageDownCommand"),
+             Base::StringView("PageDown"),
+             Base::StringView("PageLeftCommand"),
+             Base::StringView("PageLeft"),
+             Base::StringView("PageRightCommand"),
+             Base::StringView("PageRight"),
+             Base::StringView("ScrollToTopCommand"),
+             Base::StringView("ScrollToTop"),
+             Base::StringView("ScrollToBottomCommand"),
+             Base::StringView("ScrollToBottom"),
+             Base::StringView("ScrollToLeftEndCommand"),
+             Base::StringView("ScrollToLeftEnd"),
+             Base::StringView("ScrollToRightEndCommand"),
+             Base::StringView("ScrollToRightEnd"),
+             Base::StringView("ScrollToHorizontalOffsetCommand"),
+             Base::StringView("ScrollToHorizontalOffset"),
+             Base::StringView("ScrollToVerticalOffsetCommand"),
+             Base::StringView("ScrollToVerticalOffset"),
+             Base::StringView("DeferScrollToHorizontalOffsetCommand"),
+             Base::StringView("DeferScrollToHorizontalOffset"),
+             Base::StringView("DeferScrollToVerticalOffsetCommand"),
+             Base::StringView("DeferScrollToVerticalOffset")}) {
+        status = Input::RoutedCommand::RegisterStatic(
+            ScrollBar::StaticTypeId(), commandName);
+        if (!status) return status.GetStatus();
+    }
 
     for (Base::StringView commandName : {
              Base::StringView("DecreaseSmall"),
@@ -506,11 +544,11 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             Slider::SmallChangeProperty,
             FrameworkPropertyMetadata(1.0)
-                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
+                .Validate(&::Aero::Base::Validate::Positive<double>))
         .Property(
             Slider::LargeChangeProperty,
             FrameworkPropertyMetadata(10.0)
-                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
+                .Validate(&::Aero::Base::Validate::Positive<double>))
         .Property(
             Slider::TickPlacementProperty,
             FrameworkPropertyMetadata(TickPlacement::None)
@@ -519,7 +557,7 @@ Base::Result<void> PopulateControlsPrimitives(
             Slider::TickFrequencyProperty,
             FrameworkPropertyMetadata(1.0)
                 .AffectsRender()
-                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
+                .Validate(&::Aero::Base::Validate::Positive<double>))
         .Property(
             Slider::TicksProperty,
             FrameworkPropertyMetadata(Base::String{})

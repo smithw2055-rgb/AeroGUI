@@ -5,7 +5,7 @@
 
 namespace Aero {
 
-using namespace Aero::Media::Animation::Runtime;
+using namespace Aero::Media::Animation::Model;
 
 class AnimationEngine {
 public:

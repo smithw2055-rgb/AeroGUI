@@ -284,6 +284,16 @@ foreach(public_header IN LISTS AERO_PUBLIC_HEADERS)
         message(FATAL_ERROR
             "Installed header exposes an internal build contract: ${public_header}")
     endif()
+    if(public_content MATCHES
+            "namespace[ \t]+[A-Za-z0-9_:]*Detail([^A-Za-z0-9_]|$)")
+        message(FATAL_ERROR
+            "Installed header exposes a retired Detail namespace: ${public_header}")
+    endif()
+    if(public_content MATCHES
+            "namespace[ \t]+[A-Za-z0-9_:]*Runtime([^A-Za-z0-9_]|$)")
+        message(FATAL_ERROR
+            "Installed header exposes a retired Runtime namespace: ${public_header}")
+    endif()
 endforeach()
 
 aero_forbid_text(
@@ -439,6 +449,15 @@ foreach(source_contract_file IN LISTS aero_source_contract_files)
             "${AERO_SOURCE_DIR}" "${source_contract_file}")
         message(FATAL_ERROR
             "Retired Runtime namespace remains: ${source_contract_relative}")
+    endif()
+    if(source_contract_content MATCHES
+            "namespace[ \t]+[A-Za-z0-9_:]*Detail([^A-Za-z0-9_]|$)" OR
+       source_contract_content MATCHES
+            "namespace[ \t]+[A-Za-z0-9_:]*Runtime([^A-Za-z0-9_]|$)")
+        file(RELATIVE_PATH source_contract_relative
+            "${AERO_SOURCE_DIR}" "${source_contract_file}")
+        message(FATAL_ERROR
+            "Retired Detail/Runtime namespace remains: ${source_contract_relative}")
     endif()
     if(source_contract_content MATCHES
             "#[ \t]*include[ \t]*[<\"][^>\"]*RenderPrivate[.]hpp[>\"]")

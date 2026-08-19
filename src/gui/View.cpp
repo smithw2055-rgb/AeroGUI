@@ -19,6 +19,7 @@
 #include "gui/controls/TemplateRuntime.hpp"
 #include "gui/controls/ControlBehavior.hpp"
 #include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/metadata/ValueConversion.hpp"
 #include "gui/property/PropertyRuntime.hpp"
 #include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
@@ -28,15 +29,8 @@
 #include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
-#include "gui/media/AnimationRuntime.hpp"
-#include "gui/media/BrushRuntime.hpp"
-#include "gui/media/EffectRuntime.hpp"
-#include "gui/media/TransformRuntime.hpp"
+#include "gui/media/MediaRuntime.hpp"
 
-#include <Aero/Controls.hpp>
-#include <Aero/Controls.hpp>
-#include <Aero/Controls.hpp>
-#include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Documents.hpp>
 #include "gui/controls/Metadata.hpp"
@@ -382,7 +376,7 @@ struct ViewState {
         Aero::FrameworkElement* owner = nullptr;
         Base::String name;
         Base::Vector<
-            Aero::Media::Animation::Runtime::AnimationHandle>
+            Aero::Media::Animation::Model::AnimationHandle>
             handles;
     };
     Base::Vector<StoryboardSession>
@@ -395,7 +389,7 @@ struct ViewState {
         Base::Ref<MediaAnimation::Storyboard> storyboard;
         Aero::FrameworkElement* owner = nullptr;
         Base::Vector<
-            Aero::Media::Animation::Runtime::AnimationHandle>
+            Aero::Media::Animation::Model::AnimationHandle>
             handles;
     };
     struct StoryboardCompletedSubscription {
@@ -455,7 +449,7 @@ struct ViewState {
             dataTemplateContext = nullptr,
         const Aero::NameScope* names = nullptr) noexcept;
     void CancelStoryboardCompletionSessions(
-        Base::Span<const Aero::Media::Animation::Runtime::AnimationHandle>
+        Base::Span<const Aero::Media::Animation::Model::AnimationHandle>
             handles) noexcept;
     Base::Result<std::uint32_t>
     ProcessStoryboardCompletions() noexcept;
@@ -3388,7 +3382,7 @@ struct ViewState {
     struct StoryboardTimingState {
         Aero::Media::Animation::AnimationTime beginTimeMicroseconds = 0U;
         Aero::Media::Animation::AnimationTime durationMicroseconds = 0U;
-        Aero::Media::Animation::Runtime::RepeatBehavior repeat;
+        Aero::Media::Animation::Model::RepeatBehavior repeat;
         double speedRatio = 1.0;
         bool hasDuration = false;
         bool hasRepeat = false;
@@ -3404,7 +3398,7 @@ struct ViewState {
             inherited != nullptr
             ? *inherited
             : StoryboardTimingState{};
-        const Aero::Media::Animation::Runtime::TimelineTiming authored =
+        const Aero::Media::Animation::Model::TimelineTiming authored =
             Aero::Media::AnimationPrivate::Timing(storyboard);
         if (UINT64_MAX - result.beginTimeMicroseconds <
             authored.beginTimeMicroseconds) {
@@ -3430,10 +3424,10 @@ struct ViewState {
         return result;
     }
 
-    Aero::Media::Animation::Runtime::TimelineTiming EffectiveTimelineTiming(
+    Aero::Media::Animation::Model::TimelineTiming EffectiveTimelineTiming(
         const MediaAnimation::Timeline& timeline,
         const StoryboardTimingState* inherited) noexcept {
-        Aero::Media::Animation::Runtime::TimelineTiming result =
+        Aero::Media::Animation::Model::TimelineTiming result =
             Aero::Media::AnimationPrivate::Timing(timeline);
         if (inherited == nullptr) return result;
         if (UINT64_MAX - inherited->beginTimeMicroseconds <
@@ -3459,7 +3453,7 @@ struct ViewState {
             if (result.durationMicroseconds == 0U) {
                 result.durationMicroseconds = available;
                 result.repeat =
-                    Aero::Media::Animation::Runtime::
+                    Aero::Media::Animation::Model::
                         RepeatBehavior::Once();
             } else {
                 const long double cycle =
@@ -3475,13 +3469,13 @@ struct ViewState {
                 if (available == 0U) {
                     result.durationMicroseconds = 0U;
                     result.repeat =
-                        Aero::Media::Animation::Runtime::
+                        Aero::Media::Animation::Model::
                             RepeatBehavior::Once();
                 } else if (result.repeat.forever ||
                            result.repeat.count >
                                maximumCount) {
                     result.repeat =
-                        Aero::Media::Animation::Runtime::
+                        Aero::Media::Animation::Model::
                             RepeatBehavior::Count(
                                 std::max(
                                     maximumCount,
@@ -3501,10 +3495,10 @@ struct ViewState {
     Base::Result<std::uint32_t>
     RetainStartedAnimation(
         Base::Result<
-            Aero::Media::Animation::Runtime::AnimationHandle>
+            Aero::Media::Animation::Model::AnimationHandle>
             started,
         Base::Vector<
-            Aero::Media::Animation::Runtime::AnimationHandle>*
+            Aero::Media::Animation::Model::AnimationHandle>*
             retainedHandles) noexcept {
         if (!started) {
             return started.GetStatus();
@@ -3529,7 +3523,7 @@ struct ViewState {
         const Aero::NameScope* names = nullptr,
         const StoryboardTimingState* inherited = nullptr,
         Base::Vector<
-            Aero::Media::Animation::Runtime::AnimationHandle>*
+            Aero::Media::Animation::Model::AnimationHandle>*
             retainedHandles = nullptr,
         Aero::Controls::DataTemplateTriggerState*
             dataTemplateContext = nullptr) noexcept {
@@ -3618,12 +3612,12 @@ struct ViewState {
         if (type == MediaAnimation::DoubleAnimation::StaticTypeId()) {
             auto& animation =
                 static_cast<MediaAnimation::DoubleAnimation&>(timeline);
-            Aero::Media::Animation::Runtime::DoubleAnimation runtime =
+            Aero::Media::Animation::Model::DoubleAnimation runtime =
                 Aero::Media::AnimationPrivate::Double(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
-            Base::Result<Aero::Media::Animation::Runtime::AnimationHandle> started =
+            Base::Result<Aero::Media::Animation::Model::AnimationHandle> started =
                 animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -3644,7 +3638,7 @@ struct ViewState {
                 Meta::ValueCodec<double>::Decode(current.Value());
             if (!origin) return origin.GetStatus();
 
-            Aero::Media::Animation::Runtime::CustomDoubleAnimation runtime;
+            Aero::Media::Animation::Model::CustomDoubleAnimation runtime;
             runtime.animation =
                 Base::Ref<MediaAnimation::DoubleAnimationBase>::
                     TryFromBorrowed(animation);
@@ -3660,7 +3654,7 @@ struct ViewState {
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Aero::Media::Animation::Runtime::AnimationHandle>
+                Aero::Media::Animation::Model::AnimationHandle>
                 started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -3672,12 +3666,12 @@ struct ViewState {
         if (type == MediaAnimation::ColorAnimation::StaticTypeId()) {
             auto& animation =
                 static_cast<MediaAnimation::ColorAnimation&>(timeline);
-            Aero::Media::Animation::Runtime::ColorAnimation runtime =
+            Aero::Media::Animation::Model::ColorAnimation runtime =
                 Aero::Media::AnimationPrivate::Color(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
-            Base::Result<Aero::Media::Animation::Runtime::AnimationHandle> started =
+            Base::Result<Aero::Media::Animation::Model::AnimationHandle> started =
                 animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -3693,13 +3687,13 @@ struct ViewState {
                 static_cast<
                     MediaAnimation::PointAnimation&>(
                         timeline);
-            Aero::Media::Animation::Runtime::PointAnimation runtime =
+            Aero::Media::Animation::Model::PointAnimation runtime =
                 Aero::Media::AnimationPrivate::Point(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Aero::Media::Animation::Runtime::AnimationHandle>
+                Aero::Media::Animation::Model::AnimationHandle>
                 started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -3715,13 +3709,13 @@ struct ViewState {
                 static_cast<
                     MediaAnimation::RectAnimation&>(
                         timeline);
-            Aero::Media::Animation::Runtime::RectAnimation runtime =
+            Aero::Media::Animation::Model::RectAnimation runtime =
                 Aero::Media::AnimationPrivate::Rect(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Aero::Media::Animation::Runtime::AnimationHandle>
+                Aero::Media::Animation::Model::AnimationHandle>
                 started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -3737,13 +3731,13 @@ struct ViewState {
                 static_cast<
                     MediaAnimation::ThicknessAnimation&>(
                         timeline);
-            Aero::Media::Animation::Runtime::ThicknessAnimation runtime =
+            Aero::Media::Animation::Model::ThicknessAnimation runtime =
                 Aero::Media::AnimationPrivate::Thickness(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Aero::Media::Animation::Runtime::AnimationHandle>
+                Aero::Media::Animation::Model::AnimationHandle>
                 started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -3756,7 +3750,7 @@ struct ViewState {
             MediaAnimation::DoubleAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
                 MediaAnimation::DoubleAnimationUsingKeyFrames&>(timeline);
-            Base::Vector<Aero::Media::Animation::Runtime::DoubleKeyFrame> frames(allocator);
+            Base::Vector<Aero::Media::Animation::Model::DoubleKeyFrame> frames(allocator);
             for (const Base::Ref<MediaAnimation::DoubleKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
@@ -3766,7 +3760,7 @@ struct ViewState {
             }
             for (std::uint32_t index = 1U;
                  index < frames.Size(); ++index) {
-                Aero::Media::Animation::Runtime::DoubleKeyFrame current =
+                Aero::Media::Animation::Model::DoubleKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -3784,7 +3778,7 @@ struct ViewState {
             if (!base) return base.GetStatus();
             Base::Result<double> baseDouble =
                 Meta::ValueCodec<double>::Decode(base.Value());
-            Aero::Media::Animation::Runtime::DoubleKeyFrameAnimation runtime;
+            Aero::Media::Animation::Model::DoubleKeyFrameAnimation runtime;
             if (baseDouble) {
                 runtime.baseValue = baseDouble.Value();
             } else if (!frames.Empty() &&
@@ -3807,7 +3801,7 @@ struct ViewState {
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Aero::Media::Animation::Runtime::AnimationHandle> started =
+            Base::Result<Aero::Media::Animation::Model::AnimationHandle> started =
                 animations->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -3820,7 +3814,7 @@ struct ViewState {
             auto& animation = static_cast<
                 MediaAnimation::ColorAnimationUsingKeyFrames&>(
                     timeline);
-            Base::Vector<Aero::Media::Animation::Runtime::ColorKeyFrame>
+            Base::Vector<Aero::Media::Animation::Model::ColorKeyFrame>
                 frames(allocator);
             for (const Base::Ref<
                      MediaAnimation::ColorKeyFrame>& frame :
@@ -3836,7 +3830,7 @@ struct ViewState {
             for (std::uint32_t index = 1U;
                  index < frames.Size();
                  ++index) {
-                Aero::Media::Animation::Runtime::ColorKeyFrame current =
+                Aero::Media::Animation::Model::ColorKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -3859,7 +3853,7 @@ struct ViewState {
             if (!baseColor) {
                 return baseColor.GetStatus();
             }
-            Aero::Media::Animation::Runtime::ColorKeyFrameAnimation
+            Aero::Media::Animation::Model::ColorKeyFrameAnimation
                 runtime;
             runtime.baseValue = baseColor.Value();
             runtime.timing =
@@ -3874,7 +3868,7 @@ struct ViewState {
             }
             runtime.keyFrames = frames.AsSpan();
             Base::Result<
-                Aero::Media::Animation::Runtime::AnimationHandle>
+                Aero::Media::Animation::Model::AnimationHandle>
                 started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -3884,7 +3878,7 @@ struct ViewState {
                 retainedHandles);
         }
 
-        Base::Vector<Aero::Media::Animation::Runtime::DiscreteAnimationKeyFrame>
+        Base::Vector<Aero::Media::Animation::Model::DiscreteAnimationKeyFrame>
             frames(allocator);
         if (type ==
             MediaAnimation::PointAnimationUsingKeyFrames::StaticTypeId()) {
@@ -3893,7 +3887,7 @@ struct ViewState {
             for (const Base::Ref<MediaAnimation::PointKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Aero::Media::Animation::Runtime::DiscreteAnimationKeyFrame runtime;
+                Aero::Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds = frame->GetKeyTimeMicroseconds();
                 Base::Result<Meta::PropertyValue> encoded =
                     Meta::ValueCodec<Base::Point>::Encode(frame->GetValue());
@@ -3913,7 +3907,7 @@ struct ViewState {
                      MediaAnimation::ThicknessKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Aero::Media::Animation::Runtime::DiscreteAnimationKeyFrame runtime;
+                Aero::Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
                     frame->GetKeyTimeMicroseconds();
                 Base::Result<Meta::PropertyValue> encoded =
@@ -3938,7 +3932,7 @@ struct ViewState {
                      MediaAnimation::DiscreteBooleanKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Aero::Media::Animation::Runtime::DiscreteAnimationKeyFrame runtime;
+                Aero::Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
                     frame->GetKeyTimeMicroseconds();
                 Base::Result<Meta::PropertyValue> encoded =
@@ -3957,7 +3951,7 @@ struct ViewState {
                      MediaAnimation::DiscreteObjectKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Aero::Media::Animation::Runtime::DiscreteAnimationKeyFrame runtime;
+                Aero::Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
                     frame->GetKeyTimeMicroseconds();
                 runtime.value = frame->GetValue();
@@ -3983,7 +3977,7 @@ struct ViewState {
         }
         for (std::uint32_t index = 1U;
              index < frames.Size(); ++index) {
-            Aero::Media::Animation::Runtime::DiscreteAnimationKeyFrame current =
+            Aero::Media::Animation::Model::DiscreteAnimationKeyFrame current =
                 std::move(frames[index]);
             std::uint32_t position = index;
             while (position > 0U &&
@@ -3999,7 +3993,7 @@ struct ViewState {
         Base::Result<Meta::PropertyValue> base =
             propertyTarget.GetValue(propertyHandle);
         if (!base) return base.GetStatus();
-        Aero::Media::Animation::Runtime::DiscreteAnimation runtime;
+        Aero::Media::Animation::Model::DiscreteAnimation runtime;
         runtime.baseValue = base.Value();
         runtime.timing =
             EffectiveTimelineTiming(
@@ -4010,7 +4004,7 @@ struct ViewState {
                 frames.Back().keyTimeMicroseconds;
         }
         runtime.keyFrames = frames.AsSpan();
-        Base::Result<Aero::Media::Animation::Runtime::AnimationHandle> started =
+        Base::Result<Aero::Media::Animation::Model::AnimationHandle> started =
             animations->Begin(
                 propertyTarget, propertyHandle, runtime);
         return RetainStartedAnimation(
@@ -5420,37 +5414,37 @@ Base::Result<InteractionTriggerProperty> property =
 
     static std::uint32_t KeyCodeFromName(
         Base::StringView key) noexcept {
-        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+        if (Base::ValueConversion::EqualsAsciiInsensitive(
                 key, "Enter") ||
-            Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+            Base::ValueConversion::EqualsAsciiInsensitive(
                 key, "Return")) {
             return Input::KeyboardKeyEnter;
         }
-        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+        if (Base::ValueConversion::EqualsAsciiInsensitive(
                 key, "Space")) {
             return Input::KeyboardKeySpace;
         }
-        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+        if (Base::ValueConversion::EqualsAsciiInsensitive(
                 key, "Escape")) {
             return Input::KeyboardKeyEscape;
         }
-        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+        if (Base::ValueConversion::EqualsAsciiInsensitive(
                 key, "Tab")) {
             return Input::KeyboardKeyTab;
         }
-        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+        if (Base::ValueConversion::EqualsAsciiInsensitive(
                 key, "Left")) {
             return Input::KeyboardKeyLeft;
         }
-        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+        if (Base::ValueConversion::EqualsAsciiInsensitive(
                 key, "Right")) {
             return Input::KeyboardKeyRight;
         }
-        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+        if (Base::ValueConversion::EqualsAsciiInsensitive(
                 key, "Up")) {
             return Input::KeyboardKeyUp;
         }
-        if (Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+        if (Base::ValueConversion::EqualsAsciiInsensitive(
                 key, "Down")) {
             return Input::KeyboardKeyDown;
         }
@@ -6135,7 +6129,7 @@ Base::Result<InteractionTriggerProperty> property =
             }
             CancelStoryboardCompletionSessions(session.handles.AsSpan());
             if (animations != nullptr) {
-                for (Aero::Media::Animation::Runtime::AnimationHandle handle : session.handles) {
+                for (Aero::Media::Animation::Model::AnimationHandle handle : session.handles) {
                     static_cast<void>(animations->Remove(handle));
                 }
             }
@@ -6156,7 +6150,7 @@ Base::Result<InteractionTriggerProperty> property =
                 continue;
             }
             if (animations != nullptr) {
-                for (Aero::Media::Animation::Runtime::AnimationHandle handle :
+                for (Aero::Media::Animation::Model::AnimationHandle handle :
                      session.handles) {
                     static_cast<void>(animations->Remove(handle));
                 }
@@ -7551,7 +7545,7 @@ ViewState::ExecuteAnimationAction(
                 }
                 CancelStoryboardCompletionSessions(
                     existing.handles.AsSpan());
-                for (Aero::Media::Animation::Runtime::AnimationHandle handle :
+                for (Aero::Media::Animation::Model::AnimationHandle handle :
                      existing.handles) {
                     static_cast<void>(
                         animations->Remove(handle));
@@ -7577,7 +7571,7 @@ ViewState::ExecuteAnimationAction(
                 &completion.handles,
                 dataTemplateContext);
         if (!started) {
-            for (Aero::Media::Animation::Runtime::AnimationHandle handle :
+            for (Aero::Media::Animation::Model::AnimationHandle handle :
                  completion.handles) {
                 static_cast<void>(
                     animations->Remove(handle));
@@ -7594,7 +7588,7 @@ ViewState::ExecuteAnimationAction(
                     completion.handles.AsSpan());
             }
             if (!named) {
-                for (Aero::Media::Animation::Runtime::AnimationHandle handle :
+                for (Aero::Media::Animation::Model::AnimationHandle handle :
                      completion.handles) {
                     static_cast<void>(
                         animations->Remove(handle));
@@ -7606,7 +7600,7 @@ ViewState::ExecuteAnimationAction(
             storyboardCompletionSessions.PushBack(
                 std::move(completion));
         if (!retained) {
-            for (Aero::Media::Animation::Runtime::AnimationHandle handle :
+            for (Aero::Media::Animation::Model::AnimationHandle handle :
                  completion.handles) {
                 static_cast<void>(
                     animations->Remove(handle));
@@ -7617,7 +7611,7 @@ ViewState::ExecuteAnimationAction(
             retained = storyboardSessions.PushBack(
                 std::move(namedSession));
             if (!retained) {
-                for (Aero::Media::Animation::Runtime::AnimationHandle handle :
+                for (Aero::Media::Animation::Model::AnimationHandle handle :
                      storyboardCompletionSessions.Back().
                          handles) {
                     static_cast<void>(
@@ -7643,7 +7637,7 @@ ViewState::ExecuteAnimationAction(
         for (StoryboardCompletionSession& session : storyboardCompletionSessions) {
             if (session.owner != &owner || session.storyboard.Get() != control.GetStoryboard().Get()) continue;
             found = true;
-            for (Aero::Media::Animation::Runtime::AnimationHandle handle : session.handles) {
+            for (Aero::Media::Animation::Model::AnimationHandle handle : session.handles) {
                 Base::Result<void> result;
                 if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Stop) result = animations->Stop(handle);
                 else if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Pause) result = animations->Pause(handle);
@@ -7724,7 +7718,7 @@ ViewState::ExecuteAnimationAction(
     }
     StoryboardSession& session =
         storyboardSessions[sessionIndex];
-    for (Aero::Media::Animation::Runtime::AnimationHandle handle :
+    for (Aero::Media::Animation::Model::AnimationHandle handle :
          session.handles) {
         Base::Result<void> result;
         if (type ==
@@ -7783,14 +7777,14 @@ ViewState::ExecuteAnimationAction(
 
 void ViewState::
 CancelStoryboardCompletionSessions(
-    Base::Span<const Aero::Media::Animation::Runtime::AnimationHandle>
+    Base::Span<const Aero::Media::Animation::Model::AnimationHandle>
         handles) noexcept {
     for (std::uint32_t index = 0U;
          index < storyboardCompletionSessions.Size();) {
         bool matches = false;
-        for (Aero::Media::Animation::Runtime::AnimationHandle sessionHandle :
+        for (Aero::Media::Animation::Model::AnimationHandle sessionHandle :
              storyboardCompletionSessions[index].handles) {
-            for (Aero::Media::Animation::Runtime::AnimationHandle handle :
+            for (Aero::Media::Animation::Model::AnimationHandle handle :
                  handles) {
                 if (sessionHandle == handle) {
                     matches = true;
@@ -7822,14 +7816,14 @@ ViewState::ProcessStoryboardCompletions() noexcept {
         StoryboardCompletionSession& session =
             storyboardCompletionSessions[index];
         bool completed = true;
-        for (Aero::Media::Animation::Runtime::AnimationHandle handle :
+        for (Aero::Media::Animation::Model::AnimationHandle handle :
              session.handles) {
-            const Aero::Media::Animation::Runtime::AnimationState state =
+            const Aero::Media::Animation::Model::AnimationState state =
                 animations->State(handle);
             if (state ==
-                    Aero::Media::Animation::Runtime::AnimationState::Active ||
+                    Aero::Media::Animation::Model::AnimationState::Active ||
                 state ==
-                    Aero::Media::Animation::Runtime::AnimationState::Paused) {
+                    Aero::Media::Animation::Model::AnimationState::Paused) {
                 completed = false;
                 break;
             }
@@ -9466,6 +9460,19 @@ Base::Result<void> ViewRenderer::Init(
     data.device = device;
     data.deviceGeneration =
         device->Generation();
+    data.elementHost.meshResources =
+        data.GetMeshResources();
+    data.VisitPaths(
+        data.RootVisual(),
+        data.GetMeshResources(),
+        true);
+    data.elementHost.textLayout = data.text != nullptr
+        ? static_cast<void*>(data.text->Layout())
+        : nullptr;
+    data.VisitTextElements(
+        data.RootVisual(),
+        data.text != nullptr ? data.text->Layout() : nullptr,
+        true);
 
     Aero::Media::Visual* rootVisual =
         data.RootVisual();

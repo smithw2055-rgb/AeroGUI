@@ -37,12 +37,12 @@ Base::Result<void> PopulateControlsPanels(
             WrapPanel::ItemWidthProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             WrapPanel::ItemHeightProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Factory();
     status = wrapPanel.Result();
     if (!status) return status.GetStatus();
@@ -95,7 +95,7 @@ Base::Result<void> PopulateControlsPanels(
                 EstimatedItemExtentProperty,
             FrameworkPropertyMetadata(24.0)
                 .AffectsMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
+                .Validate(&::Aero::Base::Validate::Positive<double>))
         .Factory();
     status = virtualizingStackPanel.Result();
     if (!status) return status.GetStatus();
@@ -106,22 +106,22 @@ Base::Result<void> PopulateControlsPanels(
             Canvas::LeftProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsParentMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
+                .Validate(&::Aero::Base::Validate::Finite<double>))
         .Property(
             Canvas::TopProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsParentMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
+                .Validate(&::Aero::Base::Validate::Finite<double>))
         .Property(
             Canvas::RightProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsParentArrange()
-                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
+                .Validate(&::Aero::Base::Validate::Finite<double>))
         .Property(
             Canvas::BottomProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsParentArrange()
-                .Validate(&::Aero::Base::Detail::Validate::Finite<double>))
+                .Validate(&::Aero::Base::Validate::Finite<double>))
         .Factory();
     status = canvas.Result();
     if (!status) return status.GetStatus();
@@ -221,12 +221,12 @@ Base::Result<void> PopulateControlsPanels(
             Grid::RowSpanProperty,
             FrameworkPropertyMetadata(std::uint32_t{1})
                 .AffectsParentMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::Positive<std::uint32_t>))
+                .Validate(&::Aero::Base::Validate::Positive<std::uint32_t>))
         .Property(
             Grid::ColumnSpanProperty,
             FrameworkPropertyMetadata(std::uint32_t{1})
                 .AffectsParentMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::Positive<std::uint32_t>))
+                .Validate(&::Aero::Base::Validate::Positive<std::uint32_t>))
         .Factory();
     status = grid.Result();
     if (!status) return status.GetStatus();

@@ -6,11 +6,6 @@
 #include "gui/metadata/MetadataRuntime.hpp"
 #include "gui/property/PropertyRuntime.hpp"
 #include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
 
@@ -977,6 +972,38 @@ Base::Result<void> DependencyObject::SetCurrentValueChecked(
     const DependencyPropertyKey& key,
     const PropertyValue& value) noexcept {
     return ApplyChange(key.Property(), &key, ChangeKind::SetCurrent, &value);
+}
+
+void DependencyObject::SetTemplateValue(
+    DependencyPropertyHandle property,
+    const PropertyValue& value) noexcept {
+    static_cast<void>(SetTemplateValueChecked(property, value));
+}
+
+Base::Result<void> DependencyObject::SetTemplateValueChecked(
+    DependencyPropertyHandle property,
+    const PropertyValue& value) noexcept {
+    Base::Result<void> ready = VerifyReady();
+    if (!ready) return ready.GetStatus();
+    Base::Result<void> writable = VerifyMutationAllowed();
+    if (!writable) return writable.GetStatus();
+    const Meta::DependencyProperty* registered = registry_->Find(property);
+    if (registered == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound, "Dependency property is not registered");
+    const PropertyMetadata* metadata = registered->MetadataFor(runtimeType_);
+    if (metadata == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound, "Dependency property metadata is not registered for type");
+
+    const std::uint32_t oldIndex = FindEntryIndex(property);
+    const PropertyValue oldEffective = oldIndex != InvalidIndex ? values_[oldIndex].effectiveValue : metadata->defaultValue;
+    const PropertyValueSourceInfo oldSourceInfo = oldIndex != InvalidIndex ? values_[oldIndex].sourceInfo : PropertyValueSourceInfo{};
+
+    Base::Result<void> contribution = ApplyProviderContributionInternal(
+        property,
+        PropertyProviderToken{PropertyValueRank::TemplatedParentSetter, FirstCanonicalProviderOrigin, 0U},
+        value);
+    if (!contribution) return contribution.GetStatus();
+
+    return RecomputeEffectiveValueCore(
+        property, *registered, *metadata, oldEffective, oldSourceInfo);
 }
 
 void DependencyObject::SetReadOnlyCurrentValue(

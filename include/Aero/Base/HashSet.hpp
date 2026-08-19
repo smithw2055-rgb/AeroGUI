@@ -6,14 +6,12 @@
 #include <utility>
 
 namespace Aero::Base {
-namespace Detail {
 struct HashSetMarker  {};
-} // namespace Detail
 
 template<class T, class Hash = DefaultHash<T>, class Equal = DefaultEqual<T>>
 class HashSet  {
 private:
-    using Map = HashMap<T, Detail::HashSetMarker, Hash, Equal>;
+    using Map = HashMap<T, HashSetMarker, Hash, Equal>;
 
 public:
     using SizeType = std::uint32_t;
@@ -108,7 +106,7 @@ public:
 
     Result<InsertResult> Insert(const T& value) noexcept {
         Result<typename Map::InsertResult> result = map_.Insert(
-            value, Detail::HashSetMarker{});
+            value, HashSetMarker{});
         if (!result) {
             return result.GetStatus();
         }
@@ -117,7 +115,7 @@ public:
 
     Result<InsertResult> Insert(T&& value) noexcept {
         Result<typename Map::InsertResult> result = map_.Insert(
-            std::move(value), Detail::HashSetMarker{});
+            std::move(value), HashSetMarker{});
         if (!result) {
             return result.GetStatus();
         }

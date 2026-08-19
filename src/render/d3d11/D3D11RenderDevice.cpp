@@ -1,6 +1,7 @@
 #include "D3D11RenderDevice.hpp"
 #include <cstring>
 #include <algorithm>
+#include <vector>
 
 #include "AeroD3D11RenderFrameSolidVertexShader.hpp"
 #include "AeroD3D11RenderFrameSolidPixelShader.hpp"
@@ -8,6 +9,12 @@
 #include "AeroD3D11RenderFramePatternPixelShader.hpp"
 #include "AeroD3D11RenderFrameSDFVertexShader.hpp"
 #include "AeroD3D11RenderFrameSDFPixelShader.hpp"
+#include "AeroD3D11RenderFrameBlurVertexShader.hpp"
+#include "AeroD3D11RenderFrameBlurPixelShader.hpp"
+#include "AeroD3D11RenderFrameShadowVertexShader.hpp"
+#include "AeroD3D11RenderFrameShadowPixelShader.hpp"
+#include "AeroD3D11RenderFrameMaskVertexShader.hpp"
+#include "AeroD3D11RenderFrameMaskPixelShader.hpp"
 
 namespace Aero::Render {
 
@@ -62,6 +69,14 @@ void D3D11RenderTarget::SetRTV(ID3D11RenderTargetView* rtv) noexcept {
         ReleaseCom(rtv_);
         rtv_ = rtv;
         if (rtv_ != nullptr) rtv_->AddRef();
+    }
+}
+
+void D3D11RenderTarget::SetDSV(ID3D11DepthStencilView* dsv) noexcept {
+    if (dsv_ != dsv) {
+        ReleaseCom(dsv_);
+        dsv_ = dsv;
+        if (dsv_ != nullptr) dsv_->AddRef();
     }
 }
 
@@ -199,6 +214,24 @@ Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
         nullptr, &sdfPixelShader_);
     if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create SDF pixel shader");
 
+    hr = device_->CreatePixelShader(
+        AeroD3D11RenderFrameBlurPixelShader,
+        sizeof(AeroD3D11RenderFrameBlurPixelShader),
+        nullptr, &blurPixelShader_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create blur pixel shader");
+
+    hr = device_->CreatePixelShader(
+        AeroD3D11RenderFrameShadowPixelShader,
+        sizeof(AeroD3D11RenderFrameShadowPixelShader),
+        nullptr, &shadowPixelShader_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create shadow pixel shader");
+
+    hr = device_->CreatePixelShader(
+        AeroD3D11RenderFrameMaskPixelShader,
+        sizeof(AeroD3D11RenderFrameMaskPixelShader),
+        nullptr, &maskPixelShader_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create mask pixel shader");
+
     const D3D11_INPUT_ELEMENT_DESC vertexLayout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -289,9 +322,94 @@ Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
                 blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
                 blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
                 break;
+            case BlendMode::SrcOver_Multiply:
+                // out = Cs*Cd + Cd*(1-As)
+                blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_DEST_COLOR;
+                blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+                blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+                blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+                blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+                blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+                break;
+            case BlendMode::SrcOver_Screen:
+                // out = Cs + Cd*(1-Cs)
+                blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+                blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_COLOR;
+                blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+                blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+                blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+                blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+                break;
+            case BlendMode::SrcOver_Additive:
+                // out = Cs + Cd
+                blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+                blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
+                blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+                blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+                blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+                blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+                break;
+            case BlendMode::SrcOver_Dual:
+                // Dual-source blending requires a second shader output that the
+                // current pixel shaders do not provide; keep SrcOver semantics.
+                blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+                blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+                blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+                blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+                blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+                blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+                break;
             }
             device_->CreateBlendState(&blendDesc, &blendStates_[colorEnable * BlendMode::Count + b]);
         }
+    }
+
+    // Create depth-stencil states for stencil-based clipping.
+    for (int sm = 0; sm < StencilMode::Count; ++sm) {
+        D3D11_DEPTH_STENCIL_DESC dsDesc{};
+        dsDesc.DepthEnable = FALSE;
+        dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+        dsDesc.StencilReadMask = 0xFF;
+        dsDesc.StencilWriteMask = 0xFF;
+        dsDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+        dsDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+        dsDesc.FrontFace.StencilFunc = D3D11_COMPARISON_EQUAL;
+        dsDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+        dsDesc.BackFace = dsDesc.FrontFace;
+
+        switch (sm) {
+        case StencilMode::Disabled:
+        default:
+            dsDesc.StencilEnable = FALSE;
+            break;
+        case StencilMode::Equal_Keep:
+        case StencilMode::Equal_Keep_ZTest:
+            dsDesc.StencilEnable = TRUE;
+            break;
+        case StencilMode::Equal_Incr:
+            dsDesc.StencilEnable = TRUE;
+            dsDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_INCR;
+            dsDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_INCR;
+            break;
+        case StencilMode::Equal_Decr:
+            dsDesc.StencilEnable = TRUE;
+            dsDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_DECR;
+            dsDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_DECR;
+            break;
+        case StencilMode::Clear:
+            dsDesc.StencilEnable = TRUE;
+            dsDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+            dsDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_ZERO;
+            dsDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+            dsDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_ZERO;
+            break;
+        case StencilMode::Disabled_ZTest:
+            dsDesc.DepthEnable = TRUE;
+            dsDesc.DepthFunc = D3D11_COMPARISON_GREATER_EQUAL;
+            dsDesc.StencilEnable = FALSE;
+            break;
+        }
+        device_->CreateDepthStencilState(&dsDesc, &stencilStates_[sm]);
     }
 
     return {};
@@ -315,20 +433,14 @@ void D3D11RenderDevice::ReleasePipelines() noexcept {
     for (int i = 0; i < 64; ++i) {
         ReleaseCom(samplers_[i]);
     }
-    for (int i = 0; i < Shader::Vertex::Count; ++i) {
-        ReleaseCom(vertexShaders_[i]);
-    }
-    for (int i = 0; i < Shader::Count; ++i) {
-        ReleaseCom(pixelShaders_[i]);
-    }
-    for (int i = 0; i < Shader::Vertex::Format::Count; ++i) {
-        ReleaseCom(inputLayouts_[i]);
-    }
     ReleaseCom(vertex2DInputLayout_);
     ReleaseCom(solidVertexShader_);
     ReleaseCom(solidPixelShader_);
     ReleaseCom(patternPixelShader_);
     ReleaseCom(sdfPixelShader_);
+    ReleaseCom(blurPixelShader_);
+    ReleaseCom(shadowPixelShader_);
+    ReleaseCom(maskPixelShader_);
 }
 
 void D3D11RenderDevice::Shutdown() noexcept {
@@ -432,19 +544,25 @@ Ref<Texture> D3D11RenderDevice::CreateTexture(
     desc.Format = (format == TextureFormat::R8) ? DXGI_FORMAT_R8_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
     desc.SampleDesc.Count = 1;
     desc.SampleDesc.Quality = 0;
-    desc.Usage = (data == nullptr) ? D3D11_USAGE_DYNAMIC : D3D11_USAGE_DEFAULT;
+    desc.Usage = (data != nullptr) ? D3D11_USAGE_IMMUTABLE : D3D11_USAGE_DEFAULT;
     desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    desc.CPUAccessFlags = (data == nullptr) ? D3D11_CPU_ACCESS_WRITE : 0;
+    desc.CPUAccessFlags = 0;
 
     ID3D11Texture2D* tex = nullptr;
     HRESULT hr = S_OK;
+    std::vector<uint8_t> zeroBuffer;
     if (data != nullptr && data[0] != nullptr) {
         D3D11_SUBRESOURCE_DATA subData{};
         subData.pSysMem = data[0];
         subData.SysMemPitch = width * (format == TextureFormat::R8 ? 1 : 4);
         hr = device_->CreateTexture2D(&desc, &subData, &tex);
     } else {
-        hr = device_->CreateTexture2D(&desc, nullptr, &tex);
+        const uint32_t bpp = (format == TextureFormat::R8 ? 1U : 4U);
+        zeroBuffer.resize(width * height * bpp, 0);
+        D3D11_SUBRESOURCE_DATA subData{};
+        subData.pSysMem = zeroBuffer.data();
+        subData.SysMemPitch = width * bpp;
+        hr = device_->CreateTexture2D(&desc, &subData, &tex);
     }
     if (FAILED(hr)) return {};
 
@@ -475,7 +593,10 @@ void D3D11RenderDevice::UpdateTexture(
     box.bottom = y + height;
     box.back = 1;
 
-    const uint32_t pitch = width * 4;
+    D3D11_TEXTURE2D_DESC texDesc{};
+    d3dTex->GetNativeTexture()->GetDesc(&texDesc);
+    const uint32_t bpp = (texDesc.Format == DXGI_FORMAT_R8_UNORM) ? 1U : 4U;
+    const uint32_t pitch = width * bpp;
     context_->UpdateSubresource(d3dTex->GetNativeTexture(), level, &box, data, pitch, 0);
 }
 
@@ -523,12 +644,32 @@ void D3D11RenderDevice::SetRenderTarget(RenderTarget* surface) noexcept {
 }
 
 void D3D11RenderDevice::BeginTile(RenderTarget* surface, const Tile& tile) noexcept {
-    static_cast<void>(surface);
-    static_cast<void>(tile);
+    if (context_ == nullptr || surface == nullptr) return;
+    auto* target = static_cast<D3D11RenderTarget*>(surface);
+
+    // Clear the stencil buffer at the start of each frame/tile when present.
+    if (target->GetDSV() != nullptr) {
+        context_->ClearDepthStencilView(
+            target->GetDSV(), D3D11_CLEAR_STENCIL, 0.0f, 0);
+    }
+
+    // Scissor the tile for the rest of the frame.
+    D3D11_RECT scissor{};
+    scissor.left = static_cast<LONG>(tile.x);
+    scissor.top = static_cast<LONG>(tile.y);
+    scissor.right = static_cast<LONG>(tile.x + tile.width);
+    scissor.bottom = static_cast<LONG>(tile.y + tile.height);
+    context_->RSSetScissorRects(1, &scissor);
+    currentRasterizer_ = rasterizerScissor_;
+    context_->RSSetState(currentRasterizer_);
 }
 
 void D3D11RenderDevice::EndTile(RenderTarget* surface) noexcept {
     static_cast<void>(surface);
+    if (context_ != nullptr) {
+        currentRasterizer_ = rasterizerSolid_;
+        context_->RSSetState(currentRasterizer_);
+    }
 }
 
 void D3D11RenderDevice::ResolveRenderTarget(
@@ -572,6 +713,9 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
     ID3D11PixelShader* pixelShader = nullptr;
     ID3D11SamplerState* sampler = nullptr;
     ID3D11ShaderResourceView* srv = nullptr;
+    ID3D11SamplerState* maskSampler = nullptr;
+    ID3D11ShaderResourceView* maskSrv = nullptr;
+    bool setTextureSize = false;
     switch (batch.shader.v) {
     case Shader::Path_Solid:
     case Shader::Path_AA_Solid:
@@ -589,6 +733,33 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         sampler = samplers_[batch.glyphsSampler.v & 0x3F];
         if (batch.glyphs != nullptr) {
             srv = static_cast<D3D11Texture*>(batch.glyphs)->GetNativeSRV();
+        }
+        break;
+    case Shader::Blur:
+        pixelShader = blurPixelShader_;
+        sampler = samplers_[batch.imageSampler.v & 0x3F];
+        if (batch.image != nullptr) {
+            srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
+        }
+        setTextureSize = true;
+        break;
+    case Shader::Shadow:
+        pixelShader = shadowPixelShader_;
+        sampler = samplers_[batch.imageSampler.v & 0x3F];
+        if (batch.image != nullptr) {
+            srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
+        }
+        setTextureSize = true;
+        break;
+    case Shader::Mask:
+        pixelShader = maskPixelShader_;
+        sampler = samplers_[batch.imageSampler.v & 0x3F];
+        if (batch.image != nullptr) {
+            srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
+        }
+        maskSampler = samplers_[batch.shadowSampler.v & 0x3F];
+        if (batch.shadow != nullptr) {
+            maskSrv = static_cast<D3D11Texture*>(batch.shadow)->GetNativeSRV();
         }
         break;
     default:
@@ -625,8 +796,21 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         }
     }
 
+    // Set depth-stencil state
+    const uint8_t stencilMode = batch.renderState.f.stencilMode;
+    if (stencilMode < StencilMode::Count) {
+        ID3D11DepthStencilState* ds = stencilStates_[stencilMode];
+        if (ds != nullptr) {
+            context_->OMSetDepthStencilState(ds, batch.stencilRef);
+        }
+    }
+
     // Set rasterizer
-    context_->RSSetState(rasterizerSolid_);
+    if (currentRasterizer_ != nullptr) {
+        context_->RSSetState(currentRasterizer_);
+    } else {
+        context_->RSSetState(rasterizerSolid_);
+    }
 
     // Bind texture and sampler if present
     if (srv != nullptr) {
@@ -634,6 +818,28 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         if (sampler != nullptr) {
             context_->PSSetSamplers(0, 1, &sampler);
         }
+    }
+    if (maskSrv != nullptr) {
+        context_->PSSetShaderResources(1, 1, &maskSrv);
+        if (maskSampler != nullptr) {
+            context_->PSSetSamplers(1, 1, &maskSampler);
+        }
+    }
+
+    if (setTextureSize && batch.pixelUniforms[0].values != nullptr &&
+        batch.pixelUniforms[0].numDwords >= 2U) {
+        D3D11_MAPPED_SUBRESOURCE mapped{};
+        if (SUCCEEDED(context_->Map(
+                pixelCB_[0], 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
+            float* data = static_cast<float*>(mapped.pData);
+            data[0] = static_cast<const float*>(
+                batch.pixelUniforms[0].values)[0];
+            data[1] = static_cast<const float*>(
+                batch.pixelUniforms[0].values)[1];
+            context_->Unmap(pixelCB_[0], 0);
+        }
+        ID3D11Buffer* psConstants[] = { pixelCB_[0] };
+        context_->PSSetConstantBuffers(1, 1, psConstants);
     }
 
     context_->DrawIndexed(batch.numIndices, batch.startIndex, 0);

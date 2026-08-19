@@ -16,6 +16,9 @@
 #include <dxgi.h>
 #endif
 
+#include <cstdio>
+#include <vector>
+#include <cstdint>
 #include <new>
 #include <utility>
 
@@ -161,6 +164,21 @@ public:
         ReleaseCom(adapter);
         ReleaseCom(dxgiDevice);
 
+        D3D11_TEXTURE2D_DESC stencilDesc{};
+        stencilDesc.Width = width;
+        stencilDesc.Height = height;
+        stencilDesc.MipLevels = 1U;
+        stencilDesc.ArraySize = 1U;
+        stencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        stencilDesc.SampleDesc.Count = 1U;
+        stencilDesc.SampleDesc.Quality = 0U;
+        stencilDesc.Usage = D3D11_USAGE_DEFAULT;
+        stencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+        device_->CreateTexture2D(&stencilDesc, nullptr, &depthStencil_);
+        if (depthStencil_ != nullptr) {
+            device_->CreateDepthStencilView(depthStencil_, nullptr, &depthStencilView_);
+        }
+
         Render::D3D11::DeviceOptions deviceOptions;
         deviceOptions.device = reinterpret_cast<std::uintptr_t>(device_);
         deviceOptions.immediateContext =
@@ -226,6 +244,7 @@ protected:
         if (Target() != nullptr) {
             auto* target = static_cast<D3D11RenderTarget*>(Target());
             target->SetRTV(rtv);
+            target->SetDSV(depthStencilView_);
             target->SetSize(descriptor.Width, descriptor.Height);
         }
         ReleaseCom(rtv);
@@ -243,11 +262,27 @@ protected:
         }
         immediateContext_->ClearState();
         immediateContext_->Flush();
+        ReleaseCom(depthStencilView_);
+        ReleaseCom(depthStencil_);
         const HRESULT result = swapChain_->ResizeBuffers(
             0U, width, height, DXGI_FORMAT_UNKNOWN, 0U);
         if (FAILED(result)) {
             if (IsDeviceRemoval(result)) NotifyDeviceLost();
             return NativeFailure("Unable to resize the D3D11 swap chain");
+        }
+        D3D11_TEXTURE2D_DESC stencilDesc{};
+        stencilDesc.Width = width;
+        stencilDesc.Height = height;
+        stencilDesc.MipLevels = 1U;
+        stencilDesc.ArraySize = 1U;
+        stencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        stencilDesc.SampleDesc.Count = 1U;
+        stencilDesc.SampleDesc.Quality = 0U;
+        stencilDesc.Usage = D3D11_USAGE_DEFAULT;
+        stencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+        device_->CreateTexture2D(&stencilDesc, nullptr, &depthStencil_);
+        if (depthStencil_ != nullptr) {
+            device_->CreateDepthStencilView(depthStencil_, nullptr, &depthStencilView_);
         }
         width_ = width;
         height_ = height;
@@ -262,6 +297,72 @@ protected:
         if (Target() != nullptr) {
             static_cast<D3D11RenderTarget*>(Target())->SetRTV(nullptr);
         }
+
+        static int frameCount = 0;
+        ++frameCount;
+        if (frameCount <= 5) {
+            D3D11_TEXTURE2D_DESC desc;
+            activeBackBuffer_->GetDesc(&desc);
+            desc.BindFlags = 0;
+            desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+            desc.Usage = D3D11_USAGE_STAGING;
+            desc.MiscFlags = 0;
+            ID3D11Device* dev = nullptr;
+            immediateContext_->GetDevice(&dev);
+            ID3D11Texture2D* staging = nullptr;
+            HRESULT hr = dev ? dev->CreateTexture2D(&desc, nullptr, &staging) : E_FAIL;
+            if (SUCCEEDED(hr) && staging) {
+                immediateContext_->CopyResource(staging, activeBackBuffer_);
+                D3D11_MAPPED_SUBRESOURCE mapped;
+                hr = immediateContext_->Map(staging, 0, D3D11_MAP_READ, 0, &mapped);
+                if (SUCCEEDED(hr)) {
+                    FILE* f = fopen("c:\\Projects\\AeroGUI-R\\build\\rendered_login.bmp", "wb");
+                    if (f) {
+                        uint32_t width = desc.Width;
+                        uint32_t height = desc.Height;
+                        uint32_t rowSize = ((width * 3 + 3) / 4) * 4;
+                        uint32_t imageSize = rowSize * height;
+                        uint8_t fileHeader[14] = {
+                            'B', 'M',
+                            (uint8_t)(54 + imageSize), (uint8_t)((54 + imageSize) >> 8), (uint8_t)((54 + imageSize) >> 16), (uint8_t)((54 + imageSize) >> 24),
+                            0, 0, 0, 0,
+                            54, 0, 0, 0
+                        };
+                        uint8_t infoHeader[40] = {
+                            40, 0, 0, 0,
+                            (uint8_t)width, (uint8_t)(width >> 8), (uint8_t)(width >> 16), (uint8_t)(width >> 24),
+                            (uint8_t)height, (uint8_t)(height >> 8), (uint8_t)(height >> 16), (uint8_t)(height >> 24),
+                            1, 0, 24, 0,
+                            0, 0, 0, 0,
+                            (uint8_t)imageSize, (uint8_t)(imageSize >> 8), (uint8_t)(imageSize >> 16), (uint8_t)(imageSize >> 24),
+                            0, 0, 0, 0,
+                            0, 0, 0, 0,
+                            0, 0, 0, 0,
+                            0, 0, 0, 0
+                        };
+                        fwrite(fileHeader, 1, 14, f);
+                        fwrite(infoHeader, 1, 40, f);
+                        std::vector<uint8_t> rowBuf(rowSize, 0);
+                        const uint8_t* srcPixels = (const uint8_t*)mapped.pData;
+                        for (int y = (int)height - 1; y >= 0; --y) {
+                            const uint32_t* srcRow = (const uint32_t*)(srcPixels + y * mapped.RowPitch);
+                            for (uint32_t x = 0; x < width; ++x) {
+                                uint32_t pixel = srcRow[x];
+                                rowBuf[x * 3 + 0] = (uint8_t)(pixel);
+                                rowBuf[x * 3 + 1] = (uint8_t)(pixel >> 8);
+                                rowBuf[x * 3 + 2] = (uint8_t)(pixel >> 16);
+                            }
+                            fwrite(rowBuf.data(), 1, rowSize, f);
+                        }
+                        fclose(f);
+                    }
+                    immediateContext_->Unmap(staging, 0);
+                }
+                staging->Release();
+            }
+            if (dev) dev->Release();
+        }
+
         const HRESULT result = swapChain_->Present(1U, 0U);
         ReleaseCom(activeBackBuffer_);
         if (FAILED(result)) {
@@ -309,6 +410,8 @@ private:
 
     void ReleaseNative() noexcept {
         ReleaseCom(activeBackBuffer_);
+        ReleaseCom(depthStencilView_);
+        ReleaseCom(depthStencil_);
         if (immediateContext_ != nullptr) {
             immediateContext_->ClearState();
             immediateContext_->Flush();
@@ -328,6 +431,8 @@ private:
     ID3D11DeviceContext* immediateContext_ = nullptr;
     IDXGISwapChain* swapChain_ = nullptr;
     ID3D11Texture2D* activeBackBuffer_ = nullptr;
+    ID3D11Texture2D* depthStencil_ = nullptr;
+    ID3D11DepthStencilView* depthStencilView_ = nullptr;
     D3D_FEATURE_LEVEL featureLevel_ = D3D_FEATURE_LEVEL_10_0;
     std::uint32_t width_ = 0U;
     std::uint32_t height_ = 0U;

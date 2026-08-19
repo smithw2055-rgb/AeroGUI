@@ -181,9 +181,9 @@ static_assert(
 
 static_assert(
     !std::is_constructible<
-        Aero::Meta::Detail::MetadataAuthoringSession,
+        Aero::Meta::MetadataAuthoringSession,
         Aero::Meta::Registration&,
-        const Aero::Meta::Detail::TypeRegistration&,
+        const Aero::Meta::TypeRegistration&,
         Aero::Meta::TypeId>::value,
     "The builder core must not be directly constructible by SDK consumers");
 

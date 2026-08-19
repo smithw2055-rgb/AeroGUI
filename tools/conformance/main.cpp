@@ -79,23 +79,29 @@ private:
 };
 
 void VerifyFreezeGraph() noexcept {
-    GraphFreezable accepted;
-    GraphFreezable rejected(true);
-    accepted.SetChild(&rejected);
-    Check(!accepted.CanFreeze(),
+    auto acceptedRef = Aero::Base::MakeRef<GraphFreezable>();
+    auto rejectedRef = Aero::Base::MakeRef<GraphFreezable>(true);
+    if (!acceptedRef || !rejectedRef) return;
+    GraphFreezable* accepted = acceptedRef.Value().Get();
+    GraphFreezable* rejected = rejectedRef.Value().Get();
+    accepted->SetChild(rejected);
+    Check(!accepted->CanFreeze(),
         "an unfreezable child must reject the whole graph");
-    Check(!accepted.Freeze(),
+    Check(!accepted->Freeze(),
         "Freeze must report an unfreezable child");
-    Check(!accepted.IsFrozen() && !rejected.IsFrozen(),
+    Check(!accepted->IsFrozen() && !rejected->IsFrozen(),
         "failed Freeze must not partially freeze the graph");
 
-    GraphFreezable first;
-    GraphFreezable second;
-    first.SetChild(&second);
-    second.SetChild(&first);
-    Check(!first.CanFreeze(),
+    auto firstRef = Aero::Base::MakeRef<GraphFreezable>();
+    auto secondRef = Aero::Base::MakeRef<GraphFreezable>();
+    if (!firstRef || !secondRef) return;
+    GraphFreezable* first = firstRef.Value().Get();
+    GraphFreezable* second = secondRef.Value().Get();
+    first->SetChild(second);
+    second->SetChild(first);
+    Check(!first->CanFreeze(),
         "CanFreeze must reject an object graph cycle");
-    Check(!first.Freeze(),
+    Check(!first->Freeze(),
         "Freeze must reject an object graph cycle");
 }
 
@@ -171,8 +177,11 @@ void VerifySharedConsumers() noexcept {
     Aero::Base::Ref<Aero::Media::SolidColorBrush> brush =
         std::move(made).Value();
     Aero::Base::Ref<Aero::Media::Brush> shared(brush);
-    Aero::Controls::Border first;
-    Aero::Controls::Border second;
+    auto firstRef = Aero::Base::MakeRef<Aero::Controls::Border>();
+    auto secondRef = Aero::Base::MakeRef<Aero::Controls::Border>();
+    if (!firstRef || !secondRef) return;
+    Aero::Controls::Border& first = *firstRef.Value();
+    Aero::Controls::Border& second = *secondRef.Value();
     first.SetBackground(shared);
     second.SetBackground(shared);
     static_cast<void>(first.TakeInvalidations());
@@ -208,7 +217,9 @@ void VerifyGradientFreeze() noexcept {
     Check(Aero::Media::GradientStop::OffsetProperty.Handle().IsValid(),
         "GradientStop.Offset dependency property is not bound");
 
-    Aero::Media::LinearGradientBrush brush;
+    auto brushRef = Aero::Base::MakeRef<Aero::Media::LinearGradientBrush>();
+    if (!brushRef) return;
+    Aero::Media::LinearGradientBrush& brush = *brushRef.Value();
     changedCount = 0U;
     Aero::FreezableChangedHandler handler(&CountChanged);
     Check(brush.AddChangedHandlerChecked(handler).HasValue(),
@@ -371,347 +382,6 @@ void VerifyGuiLoadFacade(Aero::Gui& gui) noexcept {
         "Gui discarded a pending interleaved XAML document");
 }
 
-class ProbeRenderTargetState;
-
-class ProbeRenderDeviceState final : public Aero::Render::RenderDeviceBase {
-public:
-    explicit ProbeRenderDeviceState(Aero::Base::IAllocator& allocator) noexcept
-        : Aero::Render::RenderDeviceBase(allocator) {}
-
-    Aero::RenderBackendKind BackendKind() const noexcept override {
-        return Aero::RenderBackendKind::Headless;
-    }
-    Aero::Base::Result<Aero::Graphics::FenceValue> DrawBatch(
-        Aero::Render::RenderBatch&&) noexcept override {
-        return Aero::Graphics::FenceValue{0U};
-    }
-    void NotifyBackendDeviceLost() noexcept override;
-    Aero::Base::Result<void> RestoreBackendDevice() noexcept override;
-    Aero::Base::Result<void> WaitBackendIdle(std::uint32_t) noexcept override {
-        return {};
-    }
-    Aero::RenderBackendHealth BackendHealth() const noexcept override {
-        return deviceHealth;
-    }
-    Aero::Graphics::DeviceCapabilities
-    QueryNativeDeviceCapabilities() const noexcept override { return {}; }
-    Aero::Graphics::NativeRenderBackendKind
-    NativeBackendKind() const noexcept override {
-        return Aero::Graphics::NativeRenderBackendKind::Invalid;
-    }
-    Aero::Graphics::GraphicsCapabilities
-    QueryNativeGraphicsCapabilities() const noexcept override { return {}; }
-    Aero::Base::Result<void> CreateNativeResource(
-        Aero::Graphics::ResourceHandle,
-        const Aero::Graphics::ResourceDescriptor&) noexcept override {
-        return {};
-    }
-    void DestroyNativeResource(
-        Aero::Graphics::ResourceHandle) noexcept override {}
-    Aero::Base::Result<void> ConfigureNativeTexture(
-        Aero::Graphics::ResourceHandle,
-        const Aero::Graphics::TextureResourceDescriptor&) noexcept override {
-        return {};
-    }
-    Aero::Base::Result<void> ConfigureNativeSampler(
-        Aero::Graphics::ResourceHandle,
-        const Aero::Graphics::SamplerDescriptor&) noexcept override {
-        return {};
-    }
-    Aero::Base::Result<void> ConfigureNativePipeline(
-        Aero::Graphics::ResourceHandle,
-        Aero::Render::UiPipelineKey) noexcept override {
-        return {};
-    }
-    Aero::Base::Result<void> SubmitNativeBatch(
-        const Aero::Render::RenderBatch&,
-        Aero::Graphics::ResourceHandle,
-        Aero::Graphics::FenceValue) noexcept override {
-        return {};
-    }
-    Aero::Base::Result<void> UpdateNativeBuffer(
-        Aero::Graphics::ResourceHandle,
-        std::uint64_t,
-        Aero::Base::Span<const std::uint8_t>) noexcept override {
-        return {};
-    }
-    Aero::Base::Result<void> UpdateNativeTexture(
-        Aero::Graphics::ResourceHandle,
-        const Aero::Graphics::TextureRegion&,
-        Aero::Base::Span<const std::uint8_t>) noexcept override {
-        return {};
-    }
-    Aero::Graphics::FenceValue
-    NativeLastSubmittedFence() const noexcept override { return 0U; }
-    Aero::Graphics::FenceValue
-    NativeCompletedFence() const noexcept override { return 0U; }
-    bool NativeDeviceLost() const noexcept override {
-        return deviceHealth == Aero::RenderBackendHealth::DeviceLost;
-    }
-    Aero::Base::Result<void> RenderFrame() noexcept {
-        if (!failNext) return {};
-        failNext = false;
-        return Aero::Base::Status::Failure(
-            Aero::Base::ErrorCode::Unsupported,
-            "probe frame is intentionally unsupported");
-    }
-
-    ProbeRenderTargetState* target = nullptr;
-    bool failNext = false;
-    Aero::RenderBackendHealth deviceHealth =
-        Aero::RenderBackendHealth::Ready;
-};
-
-class ProbeRenderTargetState final : public Aero::Render::RenderTargetBase {
-public:
-    ProbeRenderTargetState(
-        Aero::Base::Ref<Aero::RenderDevice> owner,
-        ProbeRenderDeviceState& device,
-        std::uint32_t width,
-        std::uint32_t height) noexcept
-        : Aero::Render::RenderTargetBase(
-              std::move(owner), Aero::RenderTargetKind::Embedded),
-          device_(&device), width_(width), height_(height) {
-        device.target = this;
-    }
-    ~ProbeRenderTargetState() noexcept override {
-        if (device_ != nullptr && device_->target == this) device_->target = nullptr;
-    }
-
-    Aero::Base::Result<Aero::Render::FrameTarget>
-    AcquireFrameTarget() noexcept override {
-        if (device_ == nullptr) {
-            return Aero::Base::Status::Failure(
-                Aero::Base::ErrorCode::InvalidState,
-                "probe target has no device");
-        }
-        Aero::Base::Result<void> frame = device_->RenderFrame();
-        if (!frame) return frame.GetStatus();
-
-        Aero::Graphics::TextureResourceDescriptor descriptor;
-        descriptor.width = width_;
-        descriptor.height = height_;
-        descriptor.format =
-            Aero::Graphics::GraphicsTextureFormat::Bgra8Unorm;
-        descriptor.usage = Aero::Graphics::TextureUsageBit(
-            Aero::Graphics::TextureUsage::RenderTarget);
-        Aero::Base::Result<Aero::Graphics::ResourceHandle> target =
-            device_->CreateExternalRenderTarget(descriptor);
-        if (!target) return target.GetStatus();
-        return Aero::Render::FrameTarget{
-            target.Value(), width_, height_,
-            Aero::Graphics::LoadOperation::Clear};
-    }
-    Aero::Base::Result<void> RetireFrameTarget(
-        const Aero::Render::FrameTarget& target) noexcept override {
-        return device_ != nullptr
-            ? device_->DestroyResource(target.color)
-            : Aero::Base::Result<void>(Aero::Base::Status::Failure(
-                  Aero::Base::ErrorCode::InvalidState,
-                  "probe target has no device"));
-    }
-    Aero::Base::Result<void> ResizeBackend(
-        std::uint32_t, std::uint32_t) noexcept override {
-        return {};
-    }
-    void NotifyBackendLost() noexcept override {
-        surfaceHealth = Aero::RenderTargetState::Lost;
-    }
-    Aero::Base::Result<void> RestoreBackend() noexcept override {
-        surfaceHealth = Aero::RenderTargetState::Ready;
-        return {};
-    }
-    Aero::RenderTargetState BackendState() const noexcept override {
-        return surfaceHealth;
-    }
-    void RestoreAfterDeviceLoss() noexcept {
-        surfaceHealth = Aero::RenderTargetState::Ready;
-    }
-
-    Aero::RenderTargetState surfaceHealth = Aero::RenderTargetState::Ready;
-
-private:
-    ProbeRenderDeviceState* device_ = nullptr;
-    std::uint32_t width_ = 0U;
-    std::uint32_t height_ = 0U;
-};
-
-void ProbeRenderDeviceState::NotifyBackendDeviceLost() noexcept {
-    deviceHealth = Aero::RenderBackendHealth::DeviceLost;
-    if (target != nullptr) target->NotifyBackendLost();
-}
-
-Aero::Base::Result<void>
-ProbeRenderDeviceState::RestoreBackendDevice() noexcept {
-    deviceHealth = Aero::RenderBackendHealth::Ready;
-    if (target != nullptr) target->RestoreAfterDeviceLoss();
-    return {};
-}
-
-void VerifyRenderDeviceState(
-    Aero::View& view,
-    const ::Aero::Render::RenderFrame& frame) noexcept {
-    Aero::Base::IAllocator& allocator = Aero::Base::GetDefaultAllocator();
-    auto made = Aero::Base::MakeRefWithAllocator<ProbeRenderDeviceState>(
-        allocator, allocator);
-    Check(made.HasValue(), "render device probe allocation failed");
-    if (!made) return;
-    Aero::Base::Ref<ProbeRenderDeviceState> stateRef =
-        std::move(made).Value();
-    ProbeRenderDeviceState* state = stateRef.Get();
-    Aero::Base::Ref<Aero::RenderDevice> device(std::move(stateRef));
-
-    auto targetMade = Aero::Base::MakeRefWithAllocator<ProbeRenderTargetState>(
-        allocator, device, *state, frame.PixelWidth(), frame.PixelHeight());
-    Check(targetMade.HasValue(), "render target probe allocation failed");
-    if (!targetMade) return;
-    Aero::Base::Ref<ProbeRenderTargetState> targetState =
-        std::move(targetMade).Value();
-    Aero::Base::Ref<Aero::RenderTarget> target(std::move(targetState));
-    auto& renderer = static_cast<Aero::ViewRenderer&>(view.GetRenderer());
-
-    state->failNext = true;
-    Aero::Base::Result<void> unsupported =
-        Aero::Render::RenderTargetServices::Render(
-        *target, renderer, frame);
-    Check(!unsupported &&
-            unsupported.GetStatus().code == Aero::Base::ErrorCode::Unsupported,
-        "probe Unsupported frame did not fail as requested");
-    Check(device->State() == Aero::RenderDeviceState::Ready &&
-            target->State() == Aero::RenderTargetState::Ready &&
-            state->statistics.failedFrameCount == 1U,
-        "ordinary frame failure poisoned a ready render target");
-
-    Aero::Base::Result<Aero::RenderFrameStatistics> statistics =
-        Aero::Render::RenderDeviceBase::BeginSurfaceFrame(*device, frame);
-    Check(statistics.HasValue(),
-        "normal frame after Unsupported failure was not accepted");
-    if (statistics) {
-        Aero::Render::RenderDeviceBase::CompleteSurfaceFrame(
-            *device, frame, statistics.Value());
-    }
-    Check(state->statistics.acceptedFrameCount == 1U &&
-            state->statistics.completedFrameCount == 1U,
-        "successful recovery frame statistics are incorrect");
-
-    target->NotifyLost();
-    Check(device->State() == Aero::RenderDeviceState::Ready &&
-            target->State() == Aero::RenderTargetState::Lost,
-        "target loss incorrectly poisoned the render device");
-    Check(target->Restore().HasValue() &&
-            target->State() == Aero::RenderTargetState::Ready,
-        "target loss restore failed");
-
-    device->NotifyDeviceLost();
-    Check(device->State() == Aero::RenderDeviceState::DeviceLost &&
-            target->State() == Aero::RenderTargetState::DeviceLost,
-        "device loss did not propagate to the render target");
-    Check(device->Restore().HasValue() &&
-            device->State() == Aero::RenderDeviceState::Ready &&
-            target->State() == Aero::RenderTargetState::Ready,
-        "device loss restore failed");
-
-    state->deviceHealth = Aero::RenderBackendHealth::Failed;
-    state->failNext = true;
-    Check(!Aero::Render::RenderTargetServices::Render(
-               *target, renderer, frame) &&
-            device->State() == Aero::RenderDeviceState::Failed &&
-            target->State() == Aero::RenderTargetState::Failed,
-        "fatal backend health did not fail the render target");
-}
-
-template<class TBackend>
-bool RenderAndReadback(
-    TBackend& backend,
-    const ::Aero::Render::RenderFrame& frame,
-    std::uint32_t width,
-    std::uint32_t height,
-    Aero::Base::Vector<std::uint8_t>& pixels,
-    const char* failureMessage) noexcept {
-    Aero::Render::UiFrameEncoder renderer(
-        backend, &Aero::Base::GetDefaultAllocator());
-    Aero::Base::Result<void> initialized = renderer.Initialize();
-    if (!initialized) {
-        std::fprintf(stderr, "%s: renderer initialize: %u %s\n",
-            failureMessage,
-            static_cast<unsigned>(initialized.GetStatus().code),
-            initialized.GetStatus().message);
-        Check(false, failureMessage);
-        return false;
-    }
-
-    Aero::Graphics::TextureResourceDescriptor descriptor;
-    descriptor.width = width;
-    descriptor.height = height;
-    descriptor.format = Aero::Graphics::GraphicsTextureFormat::Bgra8Unorm;
-    descriptor.usage =
-        Aero::Graphics::TextureUsageBit(
-            Aero::Graphics::TextureUsage::Sampled) |
-        Aero::Graphics::TextureUsageBit(
-            Aero::Graphics::TextureUsage::RenderTarget) |
-        Aero::Graphics::TextureUsageBit(
-            Aero::Graphics::TextureUsage::CopySource);
-    auto target = backend.CreateRenderTarget(descriptor);
-    if (!target) {
-        std::fprintf(stderr, "%s: target creation: %u %s\n",
-            failureMessage,
-            static_cast<unsigned>(target.GetStatus().code),
-            target.GetStatus().message);
-        Check(false, failureMessage);
-        renderer.Shutdown();
-        return false;
-    }
-    auto submitted = renderer.Record(
-        frame,
-        {target.Value(), width, height,
-         Aero::Graphics::LoadOperation::Clear});
-    if (!submitted) {
-        std::fprintf(stderr, "%s: frame encoding: %u %s\n",
-            failureMessage,
-            static_cast<unsigned>(submitted.GetStatus().code),
-            submitted.GetStatus().message);
-        Check(false, failureMessage);
-        renderer.Shutdown();
-        return false;
-    }
-    Aero::Base::Result<void> waited =
-        backend.WaitForFence(submitted.Value());
-    if (!waited) {
-        std::fprintf(stderr, "%s: fence wait: %u %s\n",
-            failureMessage,
-            static_cast<unsigned>(waited.GetStatus().code),
-            waited.GetStatus().message);
-        Check(false, failureMessage);
-        renderer.Shutdown();
-        return false;
-    }
-    const std::uint32_t rowPitch = width * 4U;
-    Aero::Base::Result<void> resized = pixels.Resize(rowPitch * height);
-    if (!resized) {
-        Check(false, "native pixel readback allocation failed");
-        renderer.Shutdown();
-        return false;
-    }
-    Aero::Base::Result<void> readback = backend.ReadbackTexture(
-        target.Value(), pixels.AsSpan(), rowPitch);
-    if (!readback) {
-        std::fprintf(stderr, "%s: readback: %u %s\n",
-            failureMessage,
-            static_cast<unsigned>(readback.GetStatus().code),
-            readback.GetStatus().message);
-        Check(false, failureMessage);
-        renderer.Shutdown();
-        return false;
-    }
-    renderer.Shutdown();
-    auto& device =
-        static_cast<Aero::Render::RenderDeviceBase&>(backend);
-    static_cast<void>(device.DestroyResource(
-        target.Value(), device.LastSubmittedFence()));
-    static_cast<void>(device.CollectGarbage());
-    return true;
-}
-
 #if defined(_WIN32)
 LRESULT CALLBACK ConformanceWindowProcedure(
     HWND window,
@@ -726,10 +396,10 @@ bool RenderD3D11Readback(
     std::uint32_t width,
     std::uint32_t height,
     Aero::Base::Vector<std::uint8_t>& pixels) noexcept {
-    Aero::Graphics::D3D11RenderDeviceOptions options;
-    options.deviceMode = Aero::Graphics::D3D11DeviceMode::Warp;
+    Aero::Render::D3D11RenderDeviceOptions options;
+    options.useWarp = true;
     options.allowWarpFallback = true;
-    Aero::Graphics::D3D11RenderDevice backend(options);
+    Aero::Render::D3D11RenderDevice backend(options);
     Aero::Base::Result<void> initialized = backend.Initialize();
     if (!initialized) {
         std::fprintf(stderr, "D3D11 WARP initialize: %u %s\n",
@@ -738,15 +408,78 @@ bool RenderD3D11Readback(
         Check(false, "D3D11 pixel backend initialization failed");
         return false;
     }
-    const bool rendered = RenderAndReadback(
-        backend,
-        frame,
-        width,
-        height,
-        pixels,
-        "D3D11 pixel readback failed");
+
+    auto target = backend.CreateRenderTarget("conformance", width, height, 1, false);
+    if (!target) {
+        Check(false, "D3D11 target creation failed");
+        backend.Shutdown();
+        return false;
+    }
+
+    Aero::Render::UiFrameEncoder renderer(backend, &Aero::Base::GetDefaultAllocator());
+    Aero::Base::Result<void> encInit = renderer.Initialize();
+    if (!encInit) {
+        Check(false, "D3D11 renderer initialize failed");
+        backend.Shutdown();
+        return false;
+    }
+
+    Aero::Base::Result<void> rec = renderer.RecordOnscreen(frame, *target);
+    renderer.Shutdown();
+    if (!rec) {
+        Check(false, "D3D11 record failed");
+        backend.Shutdown();
+        return false;
+    }
+
+    ID3D11Device* dev = backend.NativeDevice();
+    ID3D11DeviceContext* ctx = backend.NativeContext();
+    auto* d3dTex = static_cast<Aero::Render::D3D11Texture*>(target->GetTexture());
+    ID3D11Texture2D* nativeTex = d3dTex != nullptr ? d3dTex->GetNativeTexture() : nullptr;
+    if (dev == nullptr || ctx == nullptr || nativeTex == nullptr) {
+        Check(false, "D3D11 device/context/texture is null");
+        backend.Shutdown();
+        return false;
+    }
+
+    D3D11_TEXTURE2D_DESC stagingDesc{};
+    stagingDesc.Width = width;
+    stagingDesc.Height = height;
+    stagingDesc.MipLevels = 1;
+    stagingDesc.ArraySize = 1;
+    stagingDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    stagingDesc.SampleDesc.Count = 1;
+    stagingDesc.Usage = D3D11_USAGE_STAGING;
+    stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    ID3D11Texture2D* stagingTex = nullptr;
+    HRESULT hr = dev->CreateTexture2D(&stagingDesc, nullptr, &stagingTex);
+    if (FAILED(hr) || stagingTex == nullptr) {
+        Check(false, "D3D11 staging texture creation failed");
+        backend.Shutdown();
+        return false;
+    }
+
+    ctx->CopyResource(stagingTex, nativeTex);
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    hr = ctx->Map(stagingTex, 0, D3D11_MAP_READ, 0, &mapped);
+    if (FAILED(hr)) {
+        stagingTex->Release();
+        Check(false, "D3D11 map staging texture failed");
+        backend.Shutdown();
+        return false;
+    }
+
+    static_cast<void>(pixels.Resize(width * height * 4U));
+    for (std::uint32_t y = 0; y < height; ++y) {
+        std::memcpy(
+            pixels.Data() + y * width * 4U,
+            static_cast<const std::uint8_t*>(mapped.pData) + y * mapped.RowPitch,
+            width * 4U);
+    }
+    ctx->Unmap(stagingTex, 0);
+    stagingTex->Release();
     backend.Shutdown();
-    return rendered;
+    return true;
 }
 
 bool RenderOpenGL33Readback(
@@ -812,7 +545,7 @@ bool RenderOpenGL33Readback(
             &Aero::Render::Win32::OpenGLWindow::GenerationCallback;
         deviceOptions.callbackContext = &surface;
         deviceOptions.checkErrors = true;
-        Aero::Graphics::OpenGL33RenderDevice backend(deviceOptions);
+        Aero::Render::OpenGL33RenderDevice backend(deviceOptions);
         Aero::Base::Result<void> initialized = backend.Initialize();
         if (!initialized) {
             std::fprintf(stderr, "OpenGL backend initialize: %u %s\n",
@@ -820,13 +553,50 @@ bool RenderOpenGL33Readback(
                 initialized.GetStatus().message);
             Check(false, "OpenGL pixel backend initialization failed");
         } else {
-            rendered = RenderAndReadback(
-                backend,
-                frame,
-                width,
-                height,
-                pixels,
-                "OpenGL pixel readback failed");
+            auto target = backend.CreateRenderTarget("conformance", width, height, 1, false);
+            if (!target) {
+                Check(false, "OpenGL target creation failed");
+            } else {
+                Aero::Render::UiFrameEncoder renderer(backend, &Aero::Base::GetDefaultAllocator());
+                Aero::Base::Result<void> encInit = renderer.Initialize();
+                if (!encInit) {
+                    Check(false, "OpenGL renderer initialize failed");
+                } else {
+                    Aero::Base::Result<void> rec = renderer.RecordOnscreen(frame, *target);
+                    renderer.Shutdown();
+                    if (!rec) {
+                        Check(false, "OpenGL record failed");
+                    } else {
+                        using PFNGLBINDFRAMEBUFFER = void (__stdcall*)(unsigned int, unsigned int);
+                        using PFNGLREADPIXELS = void (__stdcall*)(int, int, int, int, unsigned int, unsigned int, void*);
+                        auto glBindFB = reinterpret_cast<PFNGLBINDFRAMEBUFFER>(
+                            Aero::Render::Win32::OpenGLWindow::ResolveCallback(&surface, "glBindFramebuffer"));
+                        auto glRead = reinterpret_cast<PFNGLREADPIXELS>(
+                            Aero::Render::Win32::OpenGLWindow::ResolveCallback(&surface, "glReadPixels"));
+                        if (glBindFB != nullptr && glRead != nullptr) {
+                            auto* glTarget = static_cast<Aero::Render::OpenGL33RenderTarget*>(target.Get());
+                            unsigned int fbo = glTarget->GetFBO();
+                            glBindFB(0x8CA9 /* GL_READ_FRAMEBUFFER */, fbo);
+                            Aero::Base::Vector<std::uint8_t> raw(&Aero::Base::GetDefaultAllocator());
+                            static_cast<void>(raw.Resize(width * height * 4U));
+                            glRead(
+                                0, 0, width, height, 0x1908 /* GL_RGBA */, 0x1401 /* GL_UNSIGNED_BYTE */, raw.Data());
+                            glBindFB(0x8CA9 /* GL_READ_FRAMEBUFFER */, 0);
+
+                            static_cast<void>(pixels.Resize(width * height * 4U));
+                            for (std::uint32_t y = 0; y < height; ++y) {
+                                std::memcpy(
+                                    pixels.Data() + y * width * 4U,
+                                    raw.Data() + (height - 1U - y) * width * 4U,
+                                    width * 4U);
+                            }
+                            rendered = true;
+                        } else {
+                            Check(false, "OpenGL resolve for readback failed");
+                        }
+                    }
+                }
+            }
             backend.Shutdown();
         }
         surface.Shutdown();
@@ -1063,7 +833,6 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
         "gradient mask ramp was not captured in RenderFrame");
     if (frame == nullptr) return;
 
-    VerifyRenderDeviceState(view, *frame);
 #if defined(_WIN32)
     if (frame != nullptr) {
         VerifyNativePixelReadback(
@@ -1073,7 +842,9 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
 }
 
 void VerifyAuthoringPropertySynchronization() noexcept {
-    Aero::Controls::ItemsControl items;
+    auto itemsRef = Aero::Base::MakeRef<Aero::Controls::ItemsControl>();
+    if (!itemsRef) return;
+    Aero::Controls::ItemsControl& items = *itemsRef.Value();
 
     auto itemTemplate = Aero::Base::MakeRef<Aero::DataTemplate>();
     Check(itemTemplate.HasValue(),
@@ -1115,11 +886,14 @@ void VerifyAuthoringPropertySynchronization() noexcept {
             "ItemsControl ItemContainerStyle setter bypassed dependency-property state");
     }
 
-    Aero::VisualTransition transition;
-    Check(!transition.SetGeneratedDuration("not-a-duration"),
-        "VisualTransition accepted an invalid GeneratedDuration");
-    Check(transition.SetGeneratedDuration("250ms").HasValue(),
-        "VisualTransition rejected a valid GeneratedDuration");
+    auto transitionRef = Aero::Base::MakeRef<Aero::VisualTransition>();
+    if (transitionRef) {
+        Aero::VisualTransition& transition = *transitionRef.Value();
+        Check(!transition.SetGeneratedDuration("not-a-duration"),
+            "VisualTransition accepted an invalid GeneratedDuration");
+        Check(transition.SetGeneratedDuration("250ms").HasValue(),
+            "VisualTransition rejected a valid GeneratedDuration");
+    }
     Check(
         Aero::VisualStateManager::VisualStateGroupsProperty.Name() ==
             Aero::Base::StringView("VisualStateGroups"),

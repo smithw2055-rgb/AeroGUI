@@ -5,7 +5,6 @@
 #include "gui/base/RoutedEventRuntime.hpp"
 #include "gui/input/InputRuntime.hpp"
 #include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
 #include "gui/controls/ControlRuntime.hpp"
@@ -17,16 +16,6 @@
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
 
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -1783,9 +1772,17 @@ ListBox::Access::Access(
           &ListBox::Access::OnMouseDown),
       keyDownHandler_(
           this,
-          &ListBox::Access::OnKeyDown) {}
+          &ListBox::Access::OnKeyDown),
+      pointerStateChangedHandler_(
+          this,
+          &ListBox::Access::OnPointerStateChanged) {}
 
 ListBox::Access::~Access() noexcept {
+    if (input_ != nullptr) {
+        static_cast<void>(
+            input_->RemovePointerStateChanged(
+                pointerStateChangedHandler_));
+    }
     while (!records_.Empty()) {
         ListBox* listBox =
             ResolveListBox(records_.Size() - 1U);
@@ -1831,6 +1828,9 @@ Base::Result<void> ListBox::Access::Attach(
     Base::Result<VisualHandle> handle =
         tree_->GetHandle(listBox);
     if (!handle) return handle.GetStatus();
+    if (records_.Empty()) {
+        input_->AddPointerStateChanged(pointerStateChangedHandler_);
+    }
     Base::Result<void> mouse =
         listBox.AddHandlerChecked(
             UIElement::MouseDownEvent,
@@ -2077,6 +2077,56 @@ void ListBox::Access::OnKeyDown(
     static_cast<void>(
         listBox.BringIntoView(target));
     args.SetHandled(true);
+}
+
+void ListBox::Access::OnPointerStateChanged(
+    UIElement& element) noexcept {
+    if (states_ == nullptr) return;
+    for (std::uint32_t i = 0U; i < records_.Size(); ++i) {
+        ListBox* listBox = ResolveListBox(i);
+        if (listBox == nullptr) continue;
+        const std::uint32_t index =
+            FindContainerIndex(*listBox, &element);
+        if (index != UINT32_MAX) {
+            ItemContainerGenerator* generator =
+                listBox->AttachedGenerator();
+            if (generator != nullptr) {
+                FrameworkElement* container =
+                    generator->ContainerFromIndex(index);
+                if (container != nullptr &&
+                    listBox->PropertyRegistry().Types().IsDerivedFrom(
+                        container->RuntimeType(),
+                        ListBoxItem::StaticTypeId())) {
+                    auto& item =
+                        *static_cast<ListBoxItem*>(container);
+                    Base::StringView common = "Normal";
+                    if (!item.GetIsEnabled()) {
+                        common = "Disabled";
+                    } else if (item.GetIsMouseOver()) {
+                        common = "MouseOver";
+                    }
+                    static_cast<void>(
+                        Aero::Controls::TemplatePrivate::GoToState(
+                            *states_,
+                            item,
+                            "CommonStates",
+                            common,
+                            true));
+                    const bool selected = item.GetIsSelected();
+                    static_cast<void>(
+                        Aero::Controls::TemplatePrivate::GoToState(
+                            *states_,
+                            item,
+                            "SelectionStates",
+                            selected
+                                ? Base::StringView("Selected")
+                                : Base::StringView("Unselected"),
+                            true));
+                }
+            }
+            return;
+        }
+    }
 }
 
 } // namespace Aero::Controls

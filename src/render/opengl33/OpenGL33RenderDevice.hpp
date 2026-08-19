@@ -144,6 +144,9 @@ private:
     unsigned int solidProgram_ = 0;
     unsigned int patternProgram_ = 0;
     unsigned int sdfProgram_ = 0;
+    unsigned int blurProgram_ = 0;
+    unsigned int shadowProgram_ = 0;
+    unsigned int maskProgram_ = 0;
     unsigned int currentProgram_ = 0;
 
     // Sampler objects indexed by SamplerState.v (same encoding as D3D11).

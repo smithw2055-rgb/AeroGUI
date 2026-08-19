@@ -17,8 +17,6 @@ inline constexpr StringView DefaultMetadataNamespaceUri() noexcept {
     return StringView("urn:aero");
 }
 
-namespace Detail {
-
 inline constexpr HashCode StableMetadataIdOffsetBasis =
     UINT64_C(14695981039346656037);
 inline constexpr HashCode StableMetadataIdPrime = UINT64_C(1099511628211);
@@ -65,13 +63,11 @@ private:
     HashCode value_ = StableMetadataIdOffsetBasis;
 };
 
-} // namespace Detail
-
 constexpr MetaTypeId MakeMetaTypeId(
     StringView xamlNamespace,
     StringView name) noexcept {
     constexpr char domain[] = "AERO.TYPE.V1";
-    Detail::StableMetadataIdBuilder builder;
+    StableMetadataIdBuilder builder;
     builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
     builder.AddString(xamlNamespace);
     builder.AddString(name);

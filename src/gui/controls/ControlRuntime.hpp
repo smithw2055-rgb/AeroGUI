@@ -2,10 +2,9 @@
 
 #include <Aero/Controls.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Controls.hpp>
+#include "gui/base/ElementRuntime.hpp"
 #include "render/RenderResources.hpp"
 #include "gui/controls/TextBlockLayout.hpp"
-#include <Aero/Controls.hpp>
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>

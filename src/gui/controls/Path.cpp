@@ -2,20 +2,10 @@
 #include <Aero/Shapes.hpp>
 
 #include "render/RenderResources.hpp"
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
-#include "gui/media/AnimationRuntime.hpp"
-#include "gui/media/BrushRuntime.hpp"
-#include "gui/media/EffectRuntime.hpp"
-#include "gui/media/TransformRuntime.hpp"
+#include "gui/media/MediaRuntime.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -81,9 +71,8 @@ Base::Result<void> StoreContour(
         }
         contour.PopBack();
     }
-    if (contour.Size() < 3U) {
-        return InvalidPath(
-            "Path contour must contain at least three distinct points");
+    if (contour.Size() < 2U) {
+        return {};
     }
     if (points.Size() >
         UINT32_MAX - contour.Size()) {
@@ -166,6 +155,7 @@ Base::Result<void> TessellateEvenOdd(
         intersections.Clear();
         for (const ContourRecord contour :
              contours) {
+            if (contour.count < 3U) continue;
             for (std::uint32_t edge = 0U;
                  edge < contour.count; ++edge) {
                 const Point start =
@@ -202,12 +192,9 @@ Base::Result<void> TessellateEvenOdd(
                const ScanIntersection& right) noexcept {
                 return left.middle < right.middle;
             });
-        if (intersections.Size() % 2U != 0U) {
-            return InvalidPath(
-                "Path even-odd scan conversion found an unmatched edge");
-        }
+        const std::uint32_t pairCount = (intersections.Size() / 2U) * 2U;
         for (std::uint32_t pair = 0U;
-             pair < intersections.Size();
+             pair < pairCount;
              pair += 2U) {
             const ScanIntersection left =
                 intersections[pair];
@@ -240,10 +227,6 @@ Base::Result<void> TessellateEvenOdd(
                 triangles, 6U});
             if (!added) return added.GetStatus();
         }
-    }
-    if (vertices.Empty() || indices.Empty()) {
-        return InvalidPath(
-            "Path tessellation produced no filled area");
     }
     return {};
 }
@@ -382,6 +365,8 @@ public:
         Base::Vector<ContourRecord> contours;
         Point current;
         Point first;
+        Point lastControl;
+        char lastCommand = '\0';
         char command = '\0';
         bool hasCurrent = false;
         bool hasBounds = false;
@@ -437,6 +422,7 @@ public:
                     }
                     hasCurrent = false;
                     command = '\0';
+                    lastCommand = 'Z';
                     continue;
                 }
             } else if (command == '\0') {
@@ -449,6 +435,7 @@ public:
             const char absolute = relative
                 ? static_cast<char>(command - 'a' + 'A')
                 : command;
+
             if (absolute == 'M' || absolute == 'L') {
                 double x = 0.0;
                 double y = 0.0;
@@ -477,9 +464,12 @@ public:
                 if (!added) return added.GetStatus();
                 current = point;
                 hasCurrent = true;
+                lastControl = point;
+                lastCommand = absolute;
                 include(point);
                 continue;
             }
+
             if (absolute == 'H' || absolute == 'V') {
                 if (!hasCurrent) {
                     return InvalidPath(
@@ -501,42 +491,62 @@ public:
                     contour.PushBack(point);
                 if (!added) return added.GetStatus();
                 current = point;
+                lastControl = point;
+                lastCommand = absolute;
                 include(point);
                 continue;
             }
-            if (absolute == 'C') {
+
+            if (absolute == 'C' || absolute == 'S') {
                 if (!hasCurrent) {
                     return InvalidPath(
                         "Path cubic command requires an active contour");
                 }
-                double x1 = 0.0;
-                double y1 = 0.0;
-                double x2 = 0.0;
-                double y2 = 0.0;
-                double x = 0.0;
-                double y = 0.0;
-                Base::Result<void> parsed =
-                    ParsePair(x1, y1);
-                if (parsed) {
-                    parsed = ParsePair(x2, y2);
+                Point control1 = current;
+                Point control2;
+                Point endPoint;
+
+                if (absolute == 'C') {
+                    double x1 = 0.0, y1 = 0.0, x2 = 0.0, y2 = 0.0, x = 0.0, y = 0.0;
+                    Base::Result<void> parsed = ParsePair(x1, y1);
+                    if (parsed) parsed = ParsePair(x2, y2);
+                    if (parsed) parsed = ParsePair(x, y);
+                    if (!parsed) return parsed.GetStatus();
+                    control1 = {x1, y1};
+                    control2 = {x2, y2};
+                    endPoint = {x, y};
+                } else {
+                    // 'S' / 's' - Smooth cubic bezier
+                    if (lastCommand == 'C' || lastCommand == 'S') {
+                        control1 = {
+                            2.0 * current.x - lastControl.x,
+                            2.0 * current.y - lastControl.y
+                        };
+                    } else {
+                        control1 = current;
+                    }
+                    double x2 = 0.0, y2 = 0.0, x = 0.0, y = 0.0;
+                    Base::Result<void> parsed = ParsePair(x2, y2);
+                    if (parsed) parsed = ParsePair(x, y);
+                    if (!parsed) return parsed.GetStatus();
+                    control2 = {x2, y2};
+                    endPoint = {x, y};
                 }
-                if (parsed) {
-                    parsed = ParsePair(x, y);
-                }
-                if (!parsed) {
-                    return parsed.GetStatus();
-                }
-                Point control1{x1, y1};
-                Point control2{x2, y2};
-                Point end{x, y};
+
                 if (relative) {
-                    control1.x += current.x;
-                    control1.y += current.y;
+                    if (absolute == 'C') {
+                        control1.x += current.x;
+                        control1.y += current.y;
+                    }
                     control2.x += current.x;
                     control2.y += current.y;
-                    end.x += current.x;
-                    end.y += current.y;
+                    endPoint.x += current.x;
+                    endPoint.y += current.y;
                 }
+
+                lastControl = control2;
+                lastCommand = absolute;
+
                 const double controlLength =
                     std::hypot(
                         control1.x - current.x,
@@ -545,8 +555,8 @@ public:
                         control2.x - control1.x,
                         control2.y - control1.y) +
                     std::hypot(
-                        end.x - control2.x,
-                        end.y - control2.y);
+                        endPoint.x - control2.x,
+                        endPoint.y - control2.y);
                 const std::uint32_t segments =
                     static_cast<std::uint32_t>(
                         std::clamp(
@@ -568,14 +578,14 @@ public:
                                 control1.x +
                             3.0 * inverse * t * t *
                                 control2.x +
-                            t * t * t * end.x,
+                            t * t * t * endPoint.x,
                         inverse * inverse * inverse *
                                 start.y +
                             3.0 * inverse * inverse * t *
                                 control1.y +
                             3.0 * inverse * t * t *
                                 control2.y +
-                            t * t * t * end.y};
+                            t * t * t * endPoint.y};
                     Base::Result<void> added =
                         contour.PushBack(point);
                     if (!added) {
@@ -583,11 +593,93 @@ public:
                     }
                     include(point);
                 }
-                current = end;
+                current = endPoint;
                 continue;
             }
+
+            if (absolute == 'Q' || absolute == 'T') {
+                if (!hasCurrent) {
+                    return InvalidPath(
+                        "Path quadratic command requires an active contour");
+                }
+                Point control = current;
+                Point endPoint;
+
+                if (absolute == 'Q') {
+                    double x1 = 0.0, y1 = 0.0, x = 0.0, y = 0.0;
+                    Base::Result<void> parsed = ParsePair(x1, y1);
+                    if (parsed) parsed = ParsePair(x, y);
+                    if (!parsed) return parsed.GetStatus();
+                    control = {x1, y1};
+                    endPoint = {x, y};
+                } else {
+                    if (lastCommand == 'Q' || lastCommand == 'T') {
+                        control = {
+                            2.0 * current.x - lastControl.x,
+                            2.0 * current.y - lastControl.y
+                        };
+                    } else {
+                        control = current;
+                    }
+                    double x = 0.0, y = 0.0;
+                    Base::Result<void> parsed = ParsePair(x, y);
+                    if (!parsed) return parsed.GetStatus();
+                    endPoint = {x, y};
+                }
+
+                if (relative) {
+                    if (absolute == 'Q') {
+                        control.x += current.x;
+                        control.y += current.y;
+                    }
+                    endPoint.x += current.x;
+                    endPoint.y += current.y;
+                }
+
+                lastControl = control;
+                lastCommand = absolute;
+
+                const double controlLength =
+                    std::hypot(
+                        control.x - current.x,
+                        control.y - current.y) +
+                    std::hypot(
+                        endPoint.x - control.x,
+                        endPoint.y - control.y);
+                const std::uint32_t segments =
+                    static_cast<std::uint32_t>(
+                        std::clamp(
+                            std::ceil(
+                                controlLength / 8.0),
+                            4.0, 48.0));
+                const Point start = current;
+                for (std::uint32_t segment = 1U;
+                     segment <= segments;
+                     ++segment) {
+                    const double t =
+                        static_cast<double>(segment) /
+                        static_cast<double>(segments);
+                    const double inverse = 1.0 - t;
+                    const Point point{
+                        inverse * inverse * start.x +
+                            2.0 * inverse * t * control.x +
+                            t * t * endPoint.x,
+                        inverse * inverse * start.y +
+                            2.0 * inverse * t * control.y +
+                            t * t * endPoint.y};
+                    Base::Result<void> added =
+                        contour.PushBack(point);
+                    if (!added) {
+                        return added.GetStatus();
+                    }
+                    include(point);
+                }
+                current = endPoint;
+                continue;
+            }
+
             return InvalidPath(
-                "Path supports commands M, L, H, V, C, and Z");
+                "Path supports commands M, L, H, V, C, S, Q, T, and Z");
         }
 
         Base::Result<void> finished =
@@ -614,8 +706,21 @@ public:
 
 private:
     static bool IsCommand(char value) noexcept {
-        return (value >= 'A' && value <= 'Z') ||
-            (value >= 'a' && value <= 'z');
+        switch (value) {
+        case 'M': case 'm':
+        case 'L': case 'l':
+        case 'H': case 'h':
+        case 'V': case 'v':
+        case 'C': case 'c':
+        case 'S': case 's':
+        case 'Q': case 'q':
+        case 'T': case 't':
+        case 'A': case 'a':
+        case 'Z': case 'z':
+            return true;
+        default:
+            return false;
+        }
     }
 
     void SkipSeparators() noexcept {
@@ -929,10 +1034,13 @@ void Path::AttachMeshResources(
 Base::Result<void> Path::EnsureMesh() noexcept {
     Base::Result<void> geometry =
         EnsureGeometry();
-    if (!geometry) return geometry.GetStatus();
-    auto* services =
-        static_cast<Aero::Render::MeshResources*>(
-            ::Aero::Media::Visual::Access::MeshResourcesRuntime(*this));
+    if (!geometry) {
+        return geometry.GetStatus();
+    }
+    auto* tree = ::Aero::ElementPrivate::Tree(*this);
+    auto* host = tree != nullptr ? tree->Host() : nullptr;
+    auto* meshRes = host != nullptr ? host->meshResources : nullptr;
+    auto* services = static_cast<Aero::Render::MeshResources*>(meshRes);
     if (services == nullptr ||
         services->create == nullptr) {
         return {};
@@ -944,7 +1052,9 @@ Base::Result<void> Path::EnsureMesh() noexcept {
                 services->context,
                 geometryVertices_.AsSpan(),
                 geometryIndices_.AsSpan());
-        if (!created) return created.GetStatus();
+        if (!created) {
+            return created.GetStatus();
+        }
         mesh_ = created.Value();
     }
     if (strokeMesh_ == InvalidRenderMeshId &&
@@ -1045,37 +1155,36 @@ void Path::OnRender(
     Base::Result<void> mesh =
         EnsureMesh();
     if (!mesh) return;
+    const Size target = GetRenderSize();
     if ((mesh_ == InvalidRenderMeshId &&
          strokeMesh_ == InvalidRenderMeshId) ||
-        geometryBounds_.width <= 0.0 ||
-        geometryBounds_.height <= 0.0) {
+        (geometryBounds_.width <= 0.0 &&
+         geometryBounds_.height <= 0.0)) {
         return;
     }
-
-    const Size target = GetRenderSize();
+    const double geomW = std::max(geometryBounds_.width, 1.0e-6);
+    const double geomH = std::max(geometryBounds_.height, 1.0e-6);
     double scaleX = 1.0;
     double scaleY = 1.0;
     switch (GetStretch()) {
     case Stretch::None:
         break;
     case Stretch::Fill:
-        scaleX =
-            target.width / geometryBounds_.width;
-        scaleY =
-            target.height / geometryBounds_.height;
+        scaleX = geometryBounds_.width > 0.0 ? target.width / geomW : 1.0;
+        scaleY = geometryBounds_.height > 0.0 ? target.height / geomH : 1.0;
         break;
     case Stretch::Uniform: {
-        const double scale = std::min(
-            target.width / geometryBounds_.width,
-            target.height / geometryBounds_.height);
+        const double scale = (geometryBounds_.width > 0.0 && geometryBounds_.height > 0.0)
+            ? std::min(target.width / geomW, target.height / geomH)
+            : (geometryBounds_.width > 0.0 ? target.width / geomW : (geometryBounds_.height > 0.0 ? target.height / geomH : 1.0));
         scaleX = scale;
         scaleY = scale;
         break;
     }
     case Stretch::UniformToFill: {
-        const double scale = std::max(
-            target.width / geometryBounds_.width,
-            target.height / geometryBounds_.height);
+        const double scale = (geometryBounds_.width > 0.0 && geometryBounds_.height > 0.0)
+            ? std::max(target.width / geomW, target.height / geomH)
+            : (geometryBounds_.width > 0.0 ? target.width / geomW : (geometryBounds_.height > 0.0 ? target.height / geomH : 1.0));
         scaleX = scale;
         scaleY = scale;
         break;
@@ -1097,16 +1206,26 @@ void Path::OnRender(
             offsetX, offsetY});
     if (!transform) return;
     if (mesh_ != InvalidRenderMeshId) {
-        Base::Result<void> drawn =
-            builder.DrawMesh(
-                mesh_, ::Aero::Media::SampleBrush(GetFill()));
-        if (!drawn) return;
+        Base::Ref<Brush> fill = GetFill();
+        if (fill) {
+            Color fillColor = ::Aero::Media::SampleBrush(fill);
+            if (fillColor.alpha > 0.0F) {
+                Base::Result<void> drawn =
+                    builder.DrawMesh(mesh_, fillColor);
+                if (!drawn) return;
+            }
+        }
     }
     if (strokeMesh_ != InvalidRenderMeshId) {
-        Base::Result<void> drawn =
-            builder.DrawMesh(
-                strokeMesh_, ::Aero::Media::SampleBrush(GetStroke()));
-        if (!drawn) return;
+        Base::Ref<Brush> stroke = GetStroke();
+        if (stroke) {
+            Color strokeColor = ::Aero::Media::SampleBrush(stroke);
+            if (strokeColor.alpha > 0.0F) {
+                Base::Result<void> drawn =
+                    builder.DrawMesh(strokeMesh_, strokeColor);
+                if (!drawn) return;
+            }
+        }
     }
     static_cast<void>(builder.PopTransform());
 }

@@ -32,7 +32,5 @@ VSOutput vs_main(VSInput input) {
 }
 
 float4 ps_main(VSOutput input) : SV_Target {
-    float4 color = input.color;
-    color.a *= input.coverage;
-    return color;
+    return input.color * input.coverage;
 }

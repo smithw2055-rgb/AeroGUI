@@ -5,8 +5,10 @@ cbuffer ViewportBuffer : register(b0) {
     float2 viewportPad;
 };
 
-Texture2D glyphTexture : register(t0);
-SamplerState glyphSampler : register(s0);
+Texture2D sourceTexture : register(t0);
+Texture2D maskTexture : register(t1);
+SamplerState sourceSampler : register(s0);
+SamplerState maskSampler : register(s1);
 
 struct VSInput {
     float2 position : POSITION;
@@ -35,8 +37,7 @@ VSOutput vs_main(VSInput input) {
 }
 
 float4 ps_main(VSOutput input) : SV_Target {
-    const float distance = glyphTexture.Sample(glyphSampler, input.uv0).r;
-    const float smoothing = max(fwidth(distance), 1.0 / 512.0);
-    const float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance);
-    return input.color * (alpha * input.coverage);
+    const float maskAlpha = maskTexture.Sample(maskSampler, input.uv0).a;
+    return sourceTexture.Sample(sourceSampler, input.uv0) *
+        (maskAlpha * input.color * input.coverage);
 }

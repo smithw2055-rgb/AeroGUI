@@ -222,11 +222,11 @@ Base::Result<void> PopulateUiMedia(
         .Property(
             RadialGradientBrush::RadiusXProperty,
             FrameworkPropertyMetadata(0.5)
-                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
+                .Validate(&::Aero::Base::Validate::Positive<double>))
         .Property(
             RadialGradientBrush::RadiusYProperty,
             FrameworkPropertyMetadata(0.5)
-                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
+                .Validate(&::Aero::Base::Validate::Positive<double>))
         .Factory();
     status = radialBrush.Result();
     if (!status) return status.GetStatus();
@@ -408,7 +408,7 @@ Base::Result<void> PopulateUiMedia(
             BlurEffect::RadiusProperty,
             FrameworkPropertyMetadata(5.0)
                 .AffectsRender()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Factory();
     status = blurEffect.Result();
     if (!status) return status.GetStatus();
@@ -420,7 +420,7 @@ Base::Result<void> PopulateUiMedia(
             DropShadowEffect::BlurRadiusProperty,
             FrameworkPropertyMetadata(5.0)
                 .AffectsRender()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             DropShadowEffect::DirectionProperty,
             FrameworkPropertyMetadata(315.0)
@@ -429,7 +429,7 @@ Base::Result<void> PopulateUiMedia(
             DropShadowEffect::ShadowDepthProperty,
             FrameworkPropertyMetadata(5.0)
                 .AffectsRender()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             DropShadowEffect::OpacityProperty,
             FrameworkPropertyMetadata(1.0)
@@ -451,7 +451,7 @@ Base::Result<void> PopulateUiMedia(
             PixelateEffect::SizeProperty,
             FrameworkPropertyMetadata(1.0)
                 .AffectsRender()
-                .Validate(&::Aero::Base::Detail::Validate::Positive<double>))
+                .Validate(&::Aero::Base::Validate::Positive<double>))
         .Factory();
     status = pixelateEffect.Result();
     if (!status) return status.GetStatus();
@@ -474,7 +474,7 @@ Base::Result<void> PopulateUiMedia(
             DirectionalBlurEffect::RadiusProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsRender()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             DirectionalBlurEffect::AngleProperty,
             FrameworkPropertyMetadata(0.0).AffectsRender())

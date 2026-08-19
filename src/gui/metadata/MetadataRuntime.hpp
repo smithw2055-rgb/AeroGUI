@@ -8,38 +8,6 @@ class MetaTable;
 }
 
 namespace Aero::Meta {
-using Detail::CollectionChangeNotificationRegistration;
-using Detail::CollectionChangeSubscribeCallback;
-using Detail::CollectionChangeUnsubscribeCallback;
-using Detail::ContentAccessorRegistration;
-using Detail::ContentClearCallback;
-using Detail::ContentWriteCallback;
-using Detail::EnumValueRegistration;
-using Detail::EventRegistration;
-using Detail::FieldRegistration;
-using Detail::MetadataCollectionChangeAction;
-using Detail::MetadataCollectionChangedCallback;
-using Detail::MetadataCollectionChangedEvent;
-using Detail::MetadataPropertyChangedCallback;
-using Detail::MethodInvokeCallback;
-using Detail::MethodInvokerRegistration;
-using Detail::MethodParameterRegistration;
-using Detail::MethodRegistration;
-using Detail::ObjectFactory;
-using Detail::PropertyAccessorRegistration;
-using Detail::PropertyChangeNotificationRegistration;
-using Detail::PropertyChangeSubscribeCallback;
-using Detail::PropertyChangeUnsubscribeCallback;
-using Detail::PropertyGetCallback;
-using Detail::PropertyRegistration;
-using Detail::PropertySetCallback;
-using Detail::RegistrationValues;
-using Detail::RegistrationTypes;
-using Detail::TypeFactoryRegistration;
-using Detail::TypeRegistration;
-using Detail::ValueMemberAccessorRegistration;
-using Detail::ValueMemberGetCallback;
-using Detail::ValueMemberSetCallback;
 
 class PropertyInfo {
 public:
@@ -274,7 +242,7 @@ public:
     bool IsAssignableFrom(TypeId targetType, TypeId sourceType) const noexcept;
 private:
     friend class ::Aero::Meta::Registry;
-    friend class Detail::RegistrationTypes;
+    friend class RegistrationTypes;
     Base::Result<TypeId> RegisterType(BehaviorTable& behaviors, const TypeRegistration& registration) noexcept;
     Base::Result<void> RegisterInterface(TypeId ownerType, TypeId interfaceType) noexcept;
     Base::Result<MemberId> RegisterProperty(BehaviorTable& behaviors, TypeId ownerType, const PropertyRegistration& registration) noexcept;
@@ -308,10 +276,6 @@ namespace Aero::Meta {
 
 } // namespace Aero::Meta
 
-namespace Aero::Meta::Detail {
-class MetaTable;
-class MetadataPrivate;
-} // namespace Aero::Meta::Detail
 
 namespace Aero::Meta {
 
@@ -356,7 +320,7 @@ inline constexpr MetadataModuleId InvalidMetadataModuleId = 0U;
 constexpr MetadataModuleId MakeMetadataModuleId(
     Base::StringView name) noexcept {
     constexpr char domain[] = "AERO.METADATA.MODULE.V1";
-    Base::Detail::StableMetadataIdBuilder builder;
+    Base::StableMetadataIdBuilder builder;
     builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
     builder.AddString(name);
     return builder.Finish();
@@ -639,14 +603,12 @@ namespace Aero::Meta {
 
 } // namespace Aero::Meta
 
-namespace Aero::Meta::Detail {
-
+namespace Aero::Meta {
 // Module population is an implementation callback; hosts register through the
 // Meta::Registry overload below.
 Base::Result<void> PopulateCoreMetadata(
     Meta::Registration& context) noexcept;
-
-} // namespace Aero::Meta::Detail
+} // namespace Aero::Meta
 
 namespace Aero::Meta {
 
@@ -662,7 +624,7 @@ inline Base::Result<void> RegisterCoreMetadata(
         MakeMetadataModuleId(name),
         name,
         SchemaVersion,
-        &Detail::PopulateCoreMetadata,
+        &PopulateCoreMetadata,
         nullptr,
         nullptr});
 }
@@ -737,10 +699,9 @@ namespace Aero::Meta {
 
 } // namespace Aero::Meta
 
-namespace Aero::Meta::Detail {
-class MetaTable;
+namespace Aero::Meta {
 class MetadataAuthoringSession;
-} // namespace Aero::Meta::Detail
+} // namespace Aero::Meta
 
 namespace Aero::Meta {
 template<class T>
@@ -774,9 +735,8 @@ public:
 private:
     friend class ::Aero::Meta::Registry;
     friend class ::Aero::MetaTable;
-    friend class Detail::MetaTable;
-    friend class Detail::MetadataAuthoringSession;
-    friend class Detail::RegistrationTypes;
+    friend class MetadataAuthoringSession;
+    friend class RegistrationTypes;
     friend class TypeRegistry;
 
     struct OwnedBehaviorData {
@@ -849,7 +809,6 @@ private:
 
 // Explicit mutable view for structural and executable type registration.
 // Read-only consumers continue to use TypeRegistry directly.
-namespace Detail {
 
 class RegistrationTypes {
 public:
@@ -919,7 +878,6 @@ private:
     BehaviorTable* behaviors_ = nullptr;
 };
 
-} // namespace Detail
 
 } // namespace Aero::Meta
 
@@ -931,9 +889,6 @@ namespace Aero::Meta {
 
 } // namespace Aero::Meta
 
-namespace Aero::Meta::Detail {
-class MetaTable;
-} // namespace Aero::Meta::Detail
 
 namespace Aero::Meta {
 
@@ -962,8 +917,7 @@ public:
 private:
     friend class ::Aero::Meta::Registry;
     friend class ::Aero::MetaTable;
-    friend class Detail::MetaTable;
-    friend class Detail::RegistrationValues;
+    friend class RegistrationValues;
 
     struct ValueSemanticsEntry {
         TypeId type = InvalidTypeId;

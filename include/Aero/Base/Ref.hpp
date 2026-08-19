@@ -10,11 +10,6 @@
 
 namespace Aero::Base {
 
-namespace Detail {
-struct AdoptRefTag  {};
-inline constexpr AdoptRefTag AdoptRef{};
-} // namespace Detail
-
 template<class T>
 class Ref  {
 
@@ -81,19 +76,18 @@ public:
     // ownership until the transaction is committed or discarded.
     static Ref FromBorrowed(T& value) noexcept {
         reinterpret_cast<Object*>(&value)->AddRef();
-        return Ref(&value, Detail::AdoptRef);
+        return Ref(&value, AdoptRef);
     }
 
     // Returns an empty reference for stack/embedded Objects that do not have an
     // intrusive control block. This lets snapshot code strongly retain managed
     // objects while remaining source-compatible with stack-based test hosts.
     static Ref TryFromBorrowed(T& value) noexcept {
-        Detail::ObjectControlBlock* control =
-            reinterpret_cast<Object*>(&value)->ControlBlock();
-        if (control == nullptr || !Detail::AcquireStrong(control)) {
+        Object* base = reinterpret_cast<Object*>(&value);
+        if (!base->TryAddStrongReference()) {
             return {};
         }
-        return Ref(&value, Detail::AdoptRef);
+        return Ref(&value, AdoptRef);
     }
 
     void Reset() noexcept {
@@ -117,7 +111,7 @@ public:
     }
 
 private:
-    explicit Ref(T* value, Detail::AdoptRefTag) noexcept
+    explicit Ref(T* value, AdoptRefTag) noexcept
         : value_(value) {}
 
     void AddReference() noexcept {
@@ -139,7 +133,7 @@ private:
 };
 
 template<class T>
-class WeakRef  {
+class WeakRef : private WeakRefBase {
     static_assert(std::is_base_of<Object, T>::value,
         "WeakRef<T> requires T to derive from Aero::Base::Object");
 
@@ -147,35 +141,27 @@ public:
     constexpr WeakRef() noexcept = default;
 
     WeakRef(const Ref<T>& strong) noexcept {
-        Attach(strong.Get());
+        AttachStrong(strong.Get());
     }
 
     template<class U,
         class = std::enable_if_t<std::is_convertible<U*, T*>::value>>
     WeakRef(const Ref<U>& strong) noexcept {
-        Attach(strong.Get());
+        AttachStrong(strong.Get());
     }
 
     WeakRef(const WeakRef& other) noexcept
-        : control_(other.control_) {
-        AddWeakReference();
-    }
+        : WeakRefBase(static_cast<const WeakRefBase&>(other)) {}
 
     template<class U,
         class = std::enable_if_t<std::is_convertible<U*, T*>::value>>
     WeakRef(const WeakRef<U>& other) noexcept
-        : control_(other.control_) {
-        AddWeakReference();
-    }
+        : WeakRefBase(static_cast<const WeakRefBase&>(other)) {}
 
     WeakRef(WeakRef&& other) noexcept
-        : control_(other.control_) {
-        other.control_ = nullptr;
-    }
+        : WeakRefBase(static_cast<WeakRefBase&&>(other)) {}
 
-    ~WeakRef() {
-        Reset();
-    }
+    ~WeakRef() noexcept = default;
 
     WeakRef& operator=(const WeakRef& other) noexcept {
         if (this != &other) {
@@ -187,60 +173,35 @@ public:
 
     WeakRef& operator=(WeakRef&& other) noexcept {
         if (this != &other) {
-            Reset();
-            control_ = other.control_;
-            other.control_ = nullptr;
+            WeakRef temporary(std::move(other));
+            Swap(temporary);
         }
         return *this;
     }
 
-    void Reset() noexcept {
-        Detail::ObjectControlBlock* control = control_;
-        control_ = nullptr;
-        if (control != nullptr) {
-            Detail::ReleaseWeak(control);
-        }
-    }
+    void Reset() noexcept { WeakRefBase::Reset(); }
 
-    void Swap(WeakRef& other) noexcept {
-        Detail::ObjectControlBlock* temporary = control_;
-        control_ = other.control_;
-        other.control_ = temporary;
-    }
+    void Swap(WeakRef& other) noexcept { WeakRefBase::Swap(other); }
 
-    bool Expired() const noexcept {
-        return control_ == nullptr || Detail::GetStrongCount(control_) == 0U;
-    }
+    bool Expired() const noexcept { return WeakRefBase::Expired(); }
 
     Ref<T> Lock() const noexcept {
-        if (control_ == nullptr || !Detail::AcquireStrong(control_)) {
+        Object* object = WeakRefBase::LockObject();
+        if (object == nullptr) {
             return {};
         }
-
-        Object* object = Detail::GetObject(control_);
-        AERO_ASSERT(object != nullptr);
-        return Ref<T>(static_cast<T*>(object), Detail::AdoptRef);
+        return Ref<T>(static_cast<T*>(object), AdoptRef);
     }
-
-private:
-    void Attach(Object* object) noexcept {
-        if (object != nullptr) {
-            control_ = object->ControlBlock();
-            AERO_ASSERT(control_ != nullptr);
-            Detail::AddWeak(control_);
-        }
-    }
-
-    void AddWeakReference() noexcept {
-        if (control_ != nullptr) {
-            Detail::AddWeak(control_);
-        }
-    }
-
-    Detail::ObjectControlBlock* control_ = nullptr;
 
     template<class U>
     friend class WeakRef;
+
+private:
+    void AttachStrong(T* value) noexcept {
+        if (value != nullptr) {
+            Attach(*value);
+        }
+    }
 };
 
 template<class T, class... Args>
@@ -275,9 +236,8 @@ Result<Ref<T>> MakeRefWithAllocator(
             typed, size, alignment, MemoryTag::Object);
     };
 
-    Detail::ObjectControlBlock* control = Detail::CreateObjectControlBlock(
-        allocator, object, objectSize, objectAlignment, destroy);
-    if (control == nullptr) {
+    if (!object->AttachManagedLifetime(
+            allocator, destroy, objectSize, objectAlignment)) {
         object->~T();
         allocator.Deallocate(
             object, objectSize, objectAlignment, MemoryTag::Object);
@@ -285,8 +245,7 @@ Result<Ref<T>> MakeRefWithAllocator(
             "Unable to allocate Aero object control block");
     }
 
-    object->AttachControlBlock(control);
-    return Ref<T>(object, Detail::AdoptRef);
+    return Ref<T>(object, AdoptRef);
 }
 
 template<class T, class... Args>

@@ -690,6 +690,13 @@ public:
         const DependencyPropertyKey& key,
         const PropertyValue& value) noexcept;
 
+    void SetTemplateValue(
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept;
+    Result<void> SetTemplateValueChecked(
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept;
+
     void ClearValue(
         DependencyPropertyHandle property) noexcept;
     Result<void> ClearValueChecked(

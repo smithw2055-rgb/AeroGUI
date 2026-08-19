@@ -2,35 +2,18 @@
 #include "gui/property/PropertyRuntime.hpp"
 #include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
 #include "gui/layout/LayoutRuntime.hpp"
 #include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
-#include "gui/resources/StyleRuntime.hpp"
 #include "render/DisplayList.hpp"
-#include <Aero/Controls.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ListBox.hpp>
 #include <Aero/Controls/TreeView.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include "gui/media/BrushRendering.hpp"
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/media/AnimationRuntime.hpp"
-#include "gui/media/BrushRuntime.hpp"
-#include "gui/media/EffectRuntime.hpp"
-#include "gui/media/TransformRuntime.hpp"
+#include "gui/media/MediaRuntime.hpp"
 #include <Aero/Documents.hpp>
 
 #include "TextBlockLayout.hpp"
@@ -1218,6 +1201,19 @@ void Grid::SetRowDefinitionsText(
 
 Size Grid::MeasureOverride(
     Size availableSize) noexcept {
+    if (!columnDefinitionObjects_.Empty()) {
+        columns_.Clear();
+        for (const auto& colDef : columnDefinitionObjects_) {
+            if (colDef) (void)columns_.PushBack(colDef->GetWidth());
+        }
+    }
+    if (!rowDefinitionObjects_.Empty()) {
+        rows_.Clear();
+        for (const auto& rowDef : rowDefinitionObjects_) {
+            if (rowDef) (void)rows_.PushBack(rowDef->GetHeight());
+        }
+    }
+
     const std::uint32_t columns = GetColumnCount();
     const std::uint32_t rows = GetRowCount();
     Base::Vector<double> desiredColumns;
@@ -1392,6 +1388,19 @@ Size Grid::MeasureOverride(
 }
 
 Size Grid::ArrangeOverride(Size finalSize) noexcept {
+    if (!columnDefinitionObjects_.Empty()) {
+        columns_.Clear();
+        for (const auto& colDef : columnDefinitionObjects_) {
+            if (colDef) (void)columns_.PushBack(colDef->GetWidth());
+        }
+    }
+    if (!rowDefinitionObjects_.Empty()) {
+        rows_.Clear();
+        for (const auto& rowDef : rowDefinitionObjects_) {
+            if (rowDef) (void)rows_.PushBack(rowDef->GetHeight());
+        }
+    }
+
     Base::Vector<double> columns;
     Base::Vector<double> rows;
     Base::Result<void> resolved = ResolveTracks(
@@ -1447,19 +1456,31 @@ Size Grid::ArrangeOverride(Size finalSize) noexcept {
 }
 
 std::uint32_t Grid::GetColumnCount() const noexcept {
+    if (!columnDefinitionObjects_.Empty()) {
+        return columnDefinitionObjects_.Size();
+    }
     return columns_.Empty() ? 1U : columns_.Size();
 }
 
 std::uint32_t Grid::GetRowCount() const noexcept {
+    if (!rowDefinitionObjects_.Empty()) {
+        return rowDefinitionObjects_.Size();
+    }
     return rows_.Empty() ? 1U : rows_.Size();
 }
 
 GridLength Grid::ColumnAt(std::uint32_t index) const noexcept {
-    return columns_.Empty() ? GridLength::Star() : columns_[index];
+    if (index < columnDefinitionObjects_.Size() && columnDefinitionObjects_[index]) {
+        return columnDefinitionObjects_[index]->GetWidth();
+    }
+    return columns_.Empty() ? GridLength::Star() : (index < columns_.Size() ? columns_[index] : GridLength::Star());
 }
 
 GridLength Grid::RowAt(std::uint32_t index) const noexcept {
-    return rows_.Empty() ? GridLength::Star() : rows_[index];
+    if (index < rowDefinitionObjects_.Size() && rowDefinitionObjects_[index]) {
+        return rowDefinitionObjects_[index]->GetHeight();
+    }
+    return rows_.Empty() ? GridLength::Star() : (index < rows_.Size() ? rows_[index] : GridLength::Star());
 }
 
 Base::Result<void> Grid::ValidateDefinitions(
@@ -1950,7 +1971,7 @@ void Border::OnRender(
         // Preserve transparent rounded-border templates as an outline; the
         // square-corner approximation is preferable to an opaque block.
         static_cast<void>(builder.StrokeRect(
-            bounds, brush, uniformThickness));
+            bounds, brush, uniformThickness, radius));
         return;
     }
     if (radius > 0.0 && uniformThickness > 0.0 &&
@@ -2000,7 +2021,7 @@ void Border::OnRender(
     if (uniformThickness > 0.0 &&
         brush.alpha > 0.0F) {
         static_cast<void>(builder.StrokeRect(
-            bounds, brush, uniformThickness));
+            bounds, brush, uniformThickness, radius));
         return;
     }
     if (!uniform && brush.alpha > 0.0F) {
@@ -2670,7 +2691,9 @@ ContentPresenter::UpdatePresentedText() noexcept {
     default:
         return {};
     }
-    static_cast<TextBlock*>(content_)->SetText(text.View());
+    auto* textBlock = static_cast<TextBlock*>(content_);
+    textBlock->SetValue(RichText::TextProperty, text.View());
+    textBlock->SetText(text.View());
     return {};
 }
 

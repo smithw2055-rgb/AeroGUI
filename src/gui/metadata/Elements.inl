@@ -223,22 +223,22 @@ Base::Result<void> PopulateUiElements(
             FrameworkElement::MinWidthProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MaxWidthProperty,
             FrameworkPropertyMetadata(DefaultMaximum)
                 .AffectsMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MinHeightProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MaxHeightProperty,
             FrameworkPropertyMetadata(DefaultMaximum)
                 .AffectsMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MarginProperty,
             FrameworkPropertyMetadata(Thickness{})

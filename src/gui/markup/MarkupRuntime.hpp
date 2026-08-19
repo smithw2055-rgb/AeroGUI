@@ -2,8 +2,12 @@
 
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Diagnostics.hpp>
+#include <Aero/Resources.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Version.hpp>
+
+#include "gui/base/ElementRuntime.hpp"
+#include "gui/metadata/MetadataRuntime.hpp"
 
 #include <cstddef>
 #include <cstdint>

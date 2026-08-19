@@ -3,8 +3,6 @@
 #include "gui/property/PropertyRuntime.hpp"
 #include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
 #include "gui/layout/LayoutRuntime.hpp"
 #include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
@@ -14,16 +12,6 @@
 #include "gui/controls/TemplateRuntime.hpp"
 
 #include "render/RenderTree.hpp"
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
 
 #include <Aero/FrameworkElement.hpp>
 
@@ -891,9 +879,25 @@ void ContentControl::SetContentValue(
         return;
     }
 
+    if (literalTextContent_ && content_ != nullptr &&
+        PropertyRegistry().Types().IsDerivedFrom(
+            content_->RuntimeType(), TextBlock::StaticTypeId())) {
+        auto* textBlock = static_cast<TextBlock*>(content_);
+        textBlock->SetValue(RichText::TextProperty, value.AsString());
+        textBlock->SetText(value.AsString());
+        textBlock->SetForeground(GetForeground());
+        (void)StoreContentProperty(value);
+        authoredContent_ = std::move(value);
+        contentValue_.Reset();
+        (void)InvalidateMeasure();
+        (void)InvalidateVisual();
+        return;
+    }
+
     Base::Result<Base::Ref<TextBlock>> created =
         Base::MakeRef<TextBlock>();
     if (!created) return;
+    created.Value()->SetValue(RichText::TextProperty, value.AsString());
     created.Value()->SetText(value.AsString());
     created.Value()->SetForeground(GetForeground());
     Base::Ref<Base::Object> retained(created.Value());

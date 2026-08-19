@@ -5,24 +5,10 @@
 #include <Aero/Value.hpp>
 
 #include <Aero/Base/String.hpp>
+#include "gui/metadata/ValueConversion.hpp"
 
 #include <cstring>
 #include <utility>
-
-namespace Aero::Base::Detail::ValueConversion {
-
-Base::Result<::Aero::Nullable<bool>> ConvertNullableBoolean(
-    Base::StringView text) noexcept {
-    const Base::StringView value = Trim(text);
-    if (value.Empty() || EqualsAsciiInsensitive(value, "null")) {
-        return ::Aero::Nullable<bool>{};
-    }
-    Base::Result<bool> converted = ConvertBoolean(value);
-    if (!converted) return converted.GetStatus();
-    return ::Aero::Nullable<bool>{converted.Value()};
-}
-
-} // namespace Aero::Base::Detail::ValueConversion
 
 namespace Aero::Base {
 namespace {
@@ -114,6 +100,9 @@ const void* Value::AsCustom() const noexcept { AERO_ASSERT(kind_ == ValueKind::C
 void* Value::MutableCustom() noexcept { AERO_ASSERT(kind_ == ValueKind::Custom); return inlineCustom_ ? static_cast<void*>(inlineData_) : static_cast<CustomValueStorage*>(storage_.Get())->MutableData(); }
 
 bool Value::Equals(const Value& other) const noexcept {
+    if (kind_ == ValueKind::String && other.kind_ == ValueKind::String) {
+        return AsString() == other.AsString();
+    }
     if (type_ != other.type_ || kind_ != other.kind_) return false;
     switch (kind_) {
     case ValueKind::Unset: return true;
@@ -138,13 +127,11 @@ bool Value::Equals(const Value& other) const noexcept {
 
 } // namespace Aero::Base
 
-
 // ===== ValueConversion =====
-
 
 #include <cctype>
 
-namespace Aero::Base::Detail::ValueConversion {
+namespace Aero::Base::ValueConversion {
 
 Base::StringView Trim(Base::StringView value) noexcept {
     std::uint32_t begin = 0U;
@@ -206,6 +193,17 @@ Base::Result<bool> ConvertBoolean(
         "Boolean text must be true or false");
 }
 
+Base::Result<::Aero::Nullable<bool>> ConvertNullableBoolean(
+    Base::StringView text) noexcept {
+    const Base::StringView value = Trim(text);
+    if (value.Empty() || EqualsAsciiInsensitive(value, "null")) {
+        return ::Aero::Nullable<bool>{};
+    }
+    Base::Result<bool> converted = ConvertBoolean(value);
+    if (!converted) return converted.GetStatus();
+    return ::Aero::Nullable<bool>{converted.Value()};
+}
+
 Base::Result<double> ConvertDouble(
     Base::StringView text) noexcept {
     return ParseDouble(text);
@@ -225,23 +223,14 @@ Base::Result<Base::ResourceUri> ConvertResourceUri(
     return Base::ResourceUri::Parse(Trim(text));
 }
 
-} // namespace Aero::Base::Detail::ValueConversion
-
+} // namespace Aero::Base::ValueConversion
 
 // ===== RegistrationValues =====
 
 #include <Aero/Meta.hpp>
 
 #include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
 
 namespace Aero::Meta {
 namespace {
@@ -259,7 +248,7 @@ ValueTable* MutableStore(
 
 } // namespace
 
-Base::Result<Value> Detail::CreateRegistrationValue(
+Base::Result<Value> CreateRegistrationValue(
     void* registrationState,
     TypeId type,
     const void* source) noexcept {
@@ -275,7 +264,7 @@ Base::Result<Value> Detail::CreateRegistrationValue(
     return values.TryCreateValue(type, source);
 }
 
-RegistrationValues Detail::MakeRegistrationValues(
+RegistrationValues MakeRegistrationValues(
     void* registrationState) noexcept {
     return RegistrationValues(
         registrationState, registrationState);
@@ -371,9 +360,7 @@ const TypeRegistry& RegistrationValues::Types() const noexcept {
 
 } // namespace Aero::Meta
 
-
 // ===== ValueTable =====
-
 
 #include <Aero/Base/Allocator.hpp>
 

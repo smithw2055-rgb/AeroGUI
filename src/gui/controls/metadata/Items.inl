@@ -165,7 +165,7 @@ Base::Result<void> PopulateControlsItems(
             FrameworkPropertyMetadata(240.0)
                 .AffectsMeasure()
                 .Validate(
-                    &::Aero::Base::Detail::Validate::Positive<double>))
+                    &::Aero::Base::Validate::Positive<double>))
         .Property(
             ComboBox::IsEditableProperty,
             FrameworkPropertyMetadata(false)
@@ -242,13 +242,13 @@ Base::Result<void> PopulateControlsItems(
             FrameworkPropertyMetadata(0.0)
                 .AffectsArrange()
                 .Validate(
-                    &::Aero::Base::Detail::Validate::Finite<double>))
+                    &::Aero::Base::Validate::Finite<double>))
         .Property(
             Popup::VerticalOffsetProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsArrange()
                 .Validate(
-                    &::Aero::Base::Detail::Validate::Finite<double>))
+                    &::Aero::Base::Validate::Finite<double>))
         .Property(
             Popup::StaysOpenProperty,
             FrameworkPropertyMetadata(true))
@@ -434,7 +434,7 @@ Base::Result<void> PopulateControlsItems(
             GridViewColumn::WidthProperty,
             FrameworkPropertyMetadata(100.0)
                 .Validate(
-                    &::Aero::Base::Detail::Validate::NonNegative<double>))
+                    &::Aero::Base::Validate::NonNegative<double>))
         .Property(
             GridViewColumn::CellTemplateProperty,
             FrameworkPropertyMetadata(

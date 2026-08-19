@@ -178,6 +178,13 @@ private:
 
 class AERO_GUI_API ScrollBar : public RangeBase {
     AERO_DECLARE_TYPE(ScrollBar, RangeBase)
+#if defined(AERO_GUI_IMPLEMENTATION)
+public:
+#else
+private:
+#endif
+    struct Access;
+
 public:
     ScrollBar() noexcept;
     ~ScrollBar() override;

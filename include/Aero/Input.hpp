@@ -108,6 +108,8 @@ enum class Key : std::uint32_t {
     Up = 0x26U,
     Right = 0x27U,
     Down = 0x28U,
+    PageUp = 0x21U,
+    PageDown = 0x22U,
     Delete = 0x2EU,
     A = 0x41U,
     C = 0x43U,
@@ -124,6 +126,8 @@ inline constexpr std::uint32_t KeyboardKeyEscape = 27U;
 inline constexpr std::uint32_t KeyboardKeySpace = 32U;
 inline constexpr std::uint32_t KeyboardKeyHome = 0x24U;
 inline constexpr std::uint32_t KeyboardKeyEnd = 0x23U;
+inline constexpr std::uint32_t KeyboardKeyPageUp = 0x21U;
+inline constexpr std::uint32_t KeyboardKeyPageDown = 0x22U;
 inline constexpr std::uint32_t KeyboardKeyLeft = 0x25U;
 inline constexpr std::uint32_t KeyboardKeyUp = 0x26U;
 inline constexpr std::uint32_t KeyboardKeyRight = 0x27U;

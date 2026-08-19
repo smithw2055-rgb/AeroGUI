@@ -53,11 +53,14 @@ constexpr GLenum GL_CLAMP_TO_BORDER = 0x812D;
 constexpr GLenum GL_REPEAT = 0x2901;
 constexpr GLenum GL_MIRRORED_REPEAT = 0x8370;
 constexpr GLenum GL_TEXTURE0 = 0x84C0;
+constexpr GLenum GL_TEXTURE1 = 0x84C1;
 constexpr GLenum GL_BLEND = 0x0BE2;
 constexpr GLenum GL_ONE = 1;
 constexpr GLenum GL_ZERO = 0;
 constexpr GLenum GL_SRC_ALPHA = 0x0302;
 constexpr GLenum GL_ONE_MINUS_SRC_ALPHA = 0x0303;
+constexpr GLenum GL_DEST_COLOR = 0x0306;
+constexpr GLenum GL_ONE_MINUS_SRC_COLOR = 0x0301;
 constexpr GLenum GL_DST_ALPHA = 0x0304;
 constexpr GLenum GL_ONE_MINUS_DST_ALPHA = 0x0305;
 constexpr GLenum GL_SCISSOR_TEST = 0x0C11;
@@ -71,6 +74,15 @@ constexpr GLenum GL_DEPTH24_STENCIL8 = 0x88F0;
 constexpr GLenum GL_DEPTH_STENCIL = 0x84F9;
 constexpr GLenum GL_FRAMEBUFFER_COMPLETE = 0x8CD5;
 constexpr GLenum GL_COLOR_BUFFER_BIT = 0x00004000;
+constexpr GLenum GL_STENCIL_BUFFER_BIT = 0x00000400;
+constexpr GLenum GL_STENCIL_TEST = 0x0B90;
+constexpr GLenum GL_KEEP = 0x1E00;
+constexpr GLenum GL_INCR = 0x1E02;
+constexpr GLenum GL_DECR = 0x1E03;
+constexpr GLenum GL_INCR_WRAP = 0x8507;
+constexpr GLenum GL_DECR_WRAP = 0x8508;
+constexpr GLenum GL_EQUAL = 0x0202;
+constexpr GLenum GL_ALWAYS = 0x0207;
 constexpr GLenum GL_UNPACK_ALIGNMENT = 0x0CF5;
 constexpr GLenum GL_VENDOR = 0x1F00;
 constexpr GLenum GL_VERSION = 0x1F02;
@@ -148,7 +160,14 @@ struct GLCallbacks {
     void (*glScissor)(GLint x, GLint y, GLsizei width, GLsizei height);
     void (*glClearColor)(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
     void (*glClear)(GLbitfield mask);
+    void (*glClearStencil)(GLint s);
+    void (*glStencilFunc)(GLenum func, GLint ref, GLuint mask);
+    void (*glStencilOp)(GLenum sfail, GLenum dpfail, GLenum dppass);
+    void (*glStencilMask)(GLuint mask);
     void (*glColorMask)(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha);
+    void (*glStencilFuncSeparate)(GLenum face, GLenum func, GLint ref, GLuint mask);
+    void (*glStencilOpSeparate)(GLenum face, GLenum sfail, GLenum dpfail, GLenum dppass);
+    void (*glStencilMaskSeparate)(GLenum face, GLuint mask);
     void (*glDrawElements)(GLenum mode, GLsizei count, GLenum type, const void* indices);
 };
 
@@ -223,6 +242,10 @@ bool ResolveCallbacks(
         load(gl.glScissor, "glScissor") &&
         load(gl.glClearColor, "glClearColor") &&
         load(gl.glClear, "glClear") &&
+        load(gl.glClearStencil, "glClearStencil") &&
+        load(gl.glStencilFunc, "glStencilFunc") &&
+        load(gl.glStencilOp, "glStencilOp") &&
+        load(gl.glStencilMask, "glStencilMask") &&
         load(gl.glColorMask, "glColorMask") &&
         load(gl.glDrawElements, "glDrawElements");
 }
@@ -295,9 +318,7 @@ constexpr const char* SolidPixelShaderSource =
     "in float vCoverage;\n"
     "out vec4 fragColor;\n"
     "void main() {\n"
-    "    vec4 color = vColor;\n"
-    "    color.a *= vCoverage;\n"
-    "    fragColor = color;\n"
+    "    fragColor = vColor * vCoverage;\n"
     "}\n";
 
 constexpr const char* PatternPixelShaderSource =
@@ -308,9 +329,7 @@ constexpr const char* PatternPixelShaderSource =
     "in float vCoverage;\n"
     "out vec4 fragColor;\n"
     "void main() {\n"
-    "    vec4 color = texture(uTexture, vUV) * vColor;\n"
-    "    color.a *= vCoverage;\n"
-    "    fragColor = color;\n"
+    "    fragColor = texture(uTexture, vUV) * (vColor * vCoverage);\n"
     "}\n";
 
 constexpr const char* SDFPixelShaderSource =
@@ -324,9 +343,65 @@ constexpr const char* SDFPixelShaderSource =
     "    float distance = texture(uTexture, vUV).r;\n"
     "    float smoothing = max(fwidth(distance), 1.0 / 512.0);\n"
     "    float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance);\n"
-    "    vec4 color = vColor;\n"
-    "    color.a *= alpha * vCoverage;\n"
-    "    fragColor = color;\n"
+    "    fragColor = vColor * (alpha * vCoverage);\n"
+    "}\n";
+
+constexpr const char* BlurPixelShaderSource =
+    "#version 330 core\n"
+    "uniform sampler2D uTexture;\n"
+    "uniform vec2 uTextureSize;\n"
+    "in vec4 vColor;\n"
+    "in vec2 vUV;\n"
+    "in float vCoverage;\n"
+    "out vec4 fragColor;\n"
+    "void main() {\n"
+    "    vec2 texel = 1.0 / uTextureSize;\n"
+    "    vec4 sum = texture(uTexture, vUV) * 4.0;\n"
+    "    sum += texture(uTexture, vUV + vec2(-texel.x, 0.0)) * 2.0;\n"
+    "    sum += texture(uTexture, vUV + vec2(texel.x, 0.0)) * 2.0;\n"
+    "    sum += texture(uTexture, vUV + vec2(0.0, -texel.y)) * 2.0;\n"
+    "    sum += texture(uTexture, vUV + vec2(0.0, texel.y)) * 2.0;\n"
+    "    sum += texture(uTexture, vUV + vec2(-texel.x, -texel.y));\n"
+    "    sum += texture(uTexture, vUV + vec2(texel.x, -texel.y));\n"
+    "    sum += texture(uTexture, vUV + vec2(-texel.x, texel.y));\n"
+    "    sum += texture(uTexture, vUV + vec2(texel.x, texel.y));\n"
+    "    fragColor = (sum / 16.0) * (vColor * vCoverage);\n"
+    "}\n";
+
+constexpr const char* ShadowPixelShaderSource =
+    "#version 330 core\n"
+    "uniform sampler2D uTexture;\n"
+    "uniform vec2 uTextureSize;\n"
+    "in vec4 vColor;\n"
+    "in vec2 vUV;\n"
+    "in float vCoverage;\n"
+    "out vec4 fragColor;\n"
+    "void main() {\n"
+    "    vec2 texel = 1.0 / uTextureSize;\n"
+    "    vec4 sum = texture(uTexture, vUV) * 4.0;\n"
+    "    sum += texture(uTexture, vUV + vec2(-texel.x, 0.0)) * 2.0;\n"
+    "    sum += texture(uTexture, vUV + vec2(texel.x, 0.0)) * 2.0;\n"
+    "    sum += texture(uTexture, vUV + vec2(0.0, -texel.y)) * 2.0;\n"
+    "    sum += texture(uTexture, vUV + vec2(0.0, texel.y)) * 2.0;\n"
+    "    sum += texture(uTexture, vUV + vec2(-texel.x, -texel.y));\n"
+    "    sum += texture(uTexture, vUV + vec2(texel.x, -texel.y));\n"
+    "    sum += texture(uTexture, vUV + vec2(-texel.x, texel.y));\n"
+    "    sum += texture(uTexture, vUV + vec2(texel.x, texel.y));\n"
+    "    float a = (sum / 16.0).a;\n"
+    "    fragColor = vColor * (a * vCoverage);\n"
+    "}\n";
+
+constexpr const char* MaskPixelShaderSource =
+    "#version 330 core\n"
+    "uniform sampler2D uTexture;\n"
+    "uniform sampler2D uMask;\n"
+    "in vec4 vColor;\n"
+    "in vec2 vUV;\n"
+    "in float vCoverage;\n"
+    "out vec4 fragColor;\n"
+    "void main() {\n"
+    "    float maskAlpha = texture(uMask, vUV).a;\n"
+    "    fragColor = texture(uTexture, vUV) * (maskAlpha * vColor * vCoverage);\n"
     "}\n";
 
 } // namespace
@@ -413,10 +488,17 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     GLuint solidFS = CompileShader(gl, GL_FRAGMENT_SHADER, SolidPixelShaderSource);
     GLuint patternFS = CompileShader(gl, GL_FRAGMENT_SHADER, PatternPixelShaderSource);
     GLuint sdfFS = CompileShader(gl, GL_FRAGMENT_SHADER, SDFPixelShaderSource);
-    if (solidFS == 0 || patternFS == 0 || sdfFS == 0) {
+    GLuint blurFS = CompileShader(gl, GL_FRAGMENT_SHADER, BlurPixelShaderSource);
+    GLuint shadowFS = CompileShader(gl, GL_FRAGMENT_SHADER, ShadowPixelShaderSource);
+    GLuint maskFS = CompileShader(gl, GL_FRAGMENT_SHADER, MaskPixelShaderSource);
+    if (solidFS == 0 || patternFS == 0 || sdfFS == 0 ||
+        blurFS == 0 || shadowFS == 0 || maskFS == 0) {
         if (solidFS != 0) gl.glDeleteShader(solidFS);
         if (patternFS != 0) gl.glDeleteShader(patternFS);
         if (sdfFS != 0) gl.glDeleteShader(sdfFS);
+        if (blurFS != 0) gl.glDeleteShader(blurFS);
+        if (shadowFS != 0) gl.glDeleteShader(shadowFS);
+        if (maskFS != 0) gl.glDeleteShader(maskFS);
         gl.glDeleteShader(vertexShader);
         return Base::Status::Failure(Base::ErrorCode::InternalError, "Failed to compile a GL fragment shader");
     }
@@ -424,11 +506,18 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     solidProgram_ = LinkProgram(gl, vertexShader, solidFS);
     patternProgram_ = LinkProgram(gl, vertexShader, patternFS);
     sdfProgram_ = LinkProgram(gl, vertexShader, sdfFS);
+    blurProgram_ = LinkProgram(gl, vertexShader, blurFS);
+    shadowProgram_ = LinkProgram(gl, vertexShader, shadowFS);
+    maskProgram_ = LinkProgram(gl, vertexShader, maskFS);
     gl.glDeleteShader(solidFS);
     gl.glDeleteShader(patternFS);
     gl.glDeleteShader(sdfFS);
+    gl.glDeleteShader(blurFS);
+    gl.glDeleteShader(shadowFS);
+    gl.glDeleteShader(maskFS);
     gl.glDeleteShader(vertexShader);
-    if (solidProgram_ == 0 || patternProgram_ == 0 || sdfProgram_ == 0) {
+    if (solidProgram_ == 0 || patternProgram_ == 0 || sdfProgram_ == 0 ||
+        blurProgram_ == 0 || shadowProgram_ == 0 || maskProgram_ == 0) {
         Shutdown();
         return Base::Status::Failure(Base::ErrorCode::InternalError, "Failed to link a GL program");
     }
@@ -523,9 +612,15 @@ void OpenGL33RenderDevice::Shutdown() noexcept {
         if (solidProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(solidProgram_);
         if (patternProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(patternProgram_);
         if (sdfProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(sdfProgram_);
+        if (blurProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(blurProgram_);
+        if (shadowProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(shadowProgram_);
+        if (maskProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(maskProgram_);
         solidProgram_ = 0;
         patternProgram_ = 0;
         sdfProgram_ = 0;
+        blurProgram_ = 0;
+        shadowProgram_ = 0;
+        maskProgram_ = 0;
         currentProgram_ = 0;
         if (dynamicVB_ != 0 && gl.glDeleteBuffers != nullptr) gl.glDeleteBuffers(1, &dynamicVB_);
         if (dynamicIB_ != 0 && gl.glDeleteBuffers != nullptr) gl.glDeleteBuffers(1, &dynamicIB_);
@@ -633,6 +728,7 @@ void OpenGL33RenderDevice::UpdateTexture(
     if (vao_ == 0 || texture == nullptr || data == nullptr) return;
     auto* glTex = static_cast<OpenGL33Texture*>(texture);
 
+    g_gl.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     g_gl.glBindTexture(GL_TEXTURE_2D, glTex->GetNativeTexture());
     g_gl.glTexSubImage2D(GL_TEXTURE_2D, static_cast<GLint>(level),
         static_cast<GLint>(x), static_cast<GLint>(y),
@@ -671,6 +767,12 @@ void OpenGL33RenderDevice::SetRenderTarget(RenderTarget* surface) noexcept {
 void OpenGL33RenderDevice::BeginTile(RenderTarget* surface, const Tile& tile) noexcept {
     static_cast<void>(surface);
     if (vao_ == 0) return;
+
+    if (g_gl.glClearStencil != nullptr && g_gl.glClear != nullptr) {
+        g_gl.glClearStencil(0);
+        g_gl.glClear(GL_STENCIL_BUFFER_BIT);
+    }
+
     // Scissor origin is bottom-left; the encoder issues top-left coordinates.
     const GLint y = static_cast<GLint>(viewportHeight_) -
         static_cast<GLint>(tile.y + tile.height);
@@ -712,6 +814,9 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
     unsigned int program = solidProgram_;
     GLuint texture = 0;
     GLuint sampler = 0;
+    GLuint maskTexture = 0;
+    GLuint maskSampler = 0;
+    bool needsTextureSize = false;
     switch (batch.shader.v) {
     case Shader::Path_Pattern:
         program = patternProgram_;
@@ -725,6 +830,33 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         if (batch.glyphs != nullptr) {
             texture = static_cast<OpenGL33Texture*>(batch.glyphs)->GetNativeTexture();
             sampler = samplers_[batch.glyphsSampler.v & 0x3F];
+        }
+        break;
+    case Shader::Blur:
+        program = blurProgram_;
+        needsTextureSize = true;
+        if (batch.image != nullptr) {
+            texture = static_cast<OpenGL33Texture*>(batch.image)->GetNativeTexture();
+            sampler = samplers_[batch.imageSampler.v & 0x3F];
+        }
+        break;
+    case Shader::Shadow:
+        program = shadowProgram_;
+        needsTextureSize = true;
+        if (batch.image != nullptr) {
+            texture = static_cast<OpenGL33Texture*>(batch.image)->GetNativeTexture();
+            sampler = samplers_[batch.imageSampler.v & 0x3F];
+        }
+        break;
+    case Shader::Mask:
+        program = maskProgram_;
+        if (batch.image != nullptr) {
+            texture = static_cast<OpenGL33Texture*>(batch.image)->GetNativeTexture();
+            sampler = samplers_[batch.imageSampler.v & 0x3F];
+        }
+        if (batch.shadow != nullptr) {
+            maskTexture = static_cast<OpenGL33Texture*>(batch.shadow)->GetNativeTexture();
+            maskSampler = samplers_[batch.shadowSampler.v & 0x3F];
         }
         break;
     case Shader::Path_Solid:
@@ -747,6 +879,18 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
             static_cast<GLfloat>(viewportHeight_));
     }
 
+    if (needsTextureSize && batch.pixelUniforms[0].values != nullptr &&
+        batch.pixelUniforms[0].numDwords >= 2U) {
+        const GLint textureSizeLocation =
+            g_gl.glGetUniformLocation(program, "uTextureSize");
+        if (textureSizeLocation != -1) {
+            const float* size =
+                static_cast<const float*>(batch.pixelUniforms[0].values);
+            g_gl.glUniform2f(
+                textureSizeLocation, size[0], size[1]);
+        }
+    }
+
     g_gl.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
     g_gl.glBufferSubData(GL_ARRAY_BUFFER, 0,
         static_cast<GLsizeiptr>(batch.numVertices) * VertexStride,
@@ -762,12 +906,69 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         g_gl.glDisable(GL_BLEND);
     } else {
         g_gl.glEnable(GL_BLEND);
-        if (blendMode == BlendMode::SrcOver_Additive) {
-            g_gl.glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ONE);
-        } else {
+        switch (blendMode) {
+        case BlendMode::SrcOver_Multiply:
+            // out = Cs*Cd + Cd*(1-As)
+            g_gl.glBlendFuncSeparate(
+                GL_DEST_COLOR, GL_ONE_MINUS_SRC_ALPHA,
+                GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+        case BlendMode::SrcOver_Screen:
+            // out = Cs + Cd*(1-Cs)
+            g_gl.glBlendFuncSeparate(
+                GL_ONE, GL_ONE_MINUS_SRC_COLOR,
+                GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+        case BlendMode::SrcOver_Additive:
+            // out = Cs + Cd
+            g_gl.glBlendFuncSeparate(
+                GL_ONE, GL_ONE, GL_ONE, GL_ONE);
+            break;
+        case BlendMode::SrcOver_Dual:
+            // No dual-source output from the current shaders; SrcOver semantics.
             g_gl.glBlendFuncSeparate(
                 GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
                 GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+        case BlendMode::SrcOver:
+        default:
+            g_gl.glBlendFuncSeparate(
+                GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
+                GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+        }
+    }
+
+    // Stencil state.
+    const uint8_t stencilMode = batch.renderState.f.stencilMode;
+    if (g_gl.glStencilFunc != nullptr && g_gl.glStencilOp != nullptr) {
+        switch (stencilMode) {
+        case StencilMode::Equal_Keep:
+        case StencilMode::Equal_Keep_ZTest:
+            g_gl.glEnable(GL_STENCIL_TEST);
+            g_gl.glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+            g_gl.glStencilFunc(GL_EQUAL, static_cast<GLint>(batch.stencilRef), 0xFF);
+            break;
+        case StencilMode::Equal_Incr:
+            g_gl.glEnable(GL_STENCIL_TEST);
+            g_gl.glStencilOp(GL_KEEP, GL_KEEP, GL_INCR_WRAP);
+            g_gl.glStencilFunc(GL_EQUAL, static_cast<GLint>(batch.stencilRef), 0xFF);
+            break;
+        case StencilMode::Equal_Decr:
+            g_gl.glEnable(GL_STENCIL_TEST);
+            g_gl.glStencilOp(GL_KEEP, GL_KEEP, GL_DECR_WRAP);
+            g_gl.glStencilFunc(GL_EQUAL, static_cast<GLint>(batch.stencilRef), 0xFF);
+            break;
+        case StencilMode::Clear:
+            g_gl.glEnable(GL_STENCIL_TEST);
+            g_gl.glStencilOp(GL_ZERO, GL_ZERO, GL_ZERO);
+            g_gl.glStencilFunc(GL_ALWAYS, 0, 0xFF);
+            break;
+        case StencilMode::Disabled:
+        case StencilMode::Disabled_ZTest:
+        default:
+            g_gl.glDisable(GL_STENCIL_TEST);
+            break;
         }
     }
 
@@ -779,11 +980,20 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         g_gl.glBindTexture(GL_TEXTURE_2D, texture);
         g_gl.glBindSampler(0, sampler);
     }
+    if (maskTexture != 0) {
+        g_gl.glActiveTexture(GL_TEXTURE1);
+        g_gl.glBindTexture(GL_TEXTURE_2D, maskTexture);
+        g_gl.glBindSampler(1, maskSampler);
+    }
 
     g_gl.glBindVertexArray(vao_);
     g_gl.glDrawElements(GL_TRIANGLES,
         static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT, nullptr);
 
+    if (maskTexture != 0) {
+        g_gl.glBindSampler(1, 0);
+        g_gl.glBindTexture(GL_TEXTURE_2D, 0);
+    }
     if (texture != 0) {
         g_gl.glBindSampler(0, 0);
         g_gl.glBindTexture(GL_TEXTURE_2D, 0);

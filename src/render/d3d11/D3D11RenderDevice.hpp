@@ -70,6 +70,7 @@ public:
     uint32_t GetHeight() const noexcept { return height_; }
 
     void SetRTV(ID3D11RenderTargetView* rtv) noexcept;
+    void SetDSV(ID3D11DepthStencilView* dsv) noexcept;
     void SetSize(uint32_t width, uint32_t height) noexcept;
 
 private:
@@ -170,18 +171,18 @@ private:
     ID3D11RasterizerState* rasterizerScissor_ = nullptr;
     ID3D11SamplerState* samplers_[64] = {};
 
-    ID3D11VertexShader* vertexShaders_[Shader::Vertex::Count] = {};
-    ID3D11PixelShader* pixelShaders_[Shader::Count] = {};
-    ID3D11InputLayout* inputLayouts_[Shader::Vertex::Format::Count] = {};
-
     ID3D11VertexShader* solidVertexShader_ = nullptr;
     ID3D11PixelShader* solidPixelShader_ = nullptr;
     ID3D11PixelShader* patternPixelShader_ = nullptr;
     ID3D11PixelShader* sdfPixelShader_ = nullptr;
+    ID3D11PixelShader* blurPixelShader_ = nullptr;
+    ID3D11PixelShader* shadowPixelShader_ = nullptr;
+    ID3D11PixelShader* maskPixelShader_ = nullptr;
     ID3D11InputLayout* vertex2DInputLayout_ = nullptr;
 
     DeviceCaps caps_{};
     D3D11RenderTarget* currentTarget_ = nullptr;
+    ID3D11RasterizerState* currentRasterizer_ = nullptr;
 };
 
 } // namespace Aero::Render

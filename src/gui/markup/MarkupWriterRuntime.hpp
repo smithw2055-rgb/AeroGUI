@@ -1388,6 +1388,7 @@ public:
 
 
 
+
 namespace Aero::Markup {
 
 using namespace ::Aero::Markup;
@@ -1401,6 +1402,11 @@ struct TemplatePrototypeProperty {
     std::uint32_t objectNode = UINT32_MAX;
 };
 
+struct TemplatePrototypeGradientStop {
+    double offset = 0.0;
+    ::Aero::Base::Color color{};
+};
+
 struct TemplatePrototypeNode {
     Meta::TypeId type = Meta::InvalidTypeId;
     Base::String name;
@@ -1409,12 +1415,13 @@ struct TemplatePrototypeNode {
     Base::Vector<TemplatePrototypeProperty> properties;
     Base::Vector<::Aero::GridLength> gridColumns;
     Base::Vector<::Aero::GridLength> gridRows;
+    Base::String streamGeometryData;
+    Base::Vector<TemplatePrototypeGradientStop> gradientStops;
 };
 
 struct TemplatePrototypeBinding {
     std::uint32_t target = UINT32_MAX;
     std::uint32_t source = UINT32_MAX;
-    // An ElementName that is outside the authored template NameScope is
     // resolved from the templated parent's document NameScope for each
     // ControlTemplate instance. Internal names continue to use source above.
     Base::String sourceName;
@@ -1494,7 +1501,7 @@ CompileControlTemplateDefinition(
 
 // Markup implementation sources historically referred to the template
 // compiler contracts through Markup. Keep that source-only bridge
-// while the canonical declarations live in Base::Detail; no aliases are
+// while the canonical declarations live in Aero::Base; no aliases are
 // exposed by installed headers.
 namespace Aero::Markup {
 using ::Aero::Markup::CompiledTemplateBlueprint;

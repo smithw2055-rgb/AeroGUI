@@ -1,29 +1,15 @@
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
 #include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
 #include "gui/base/RoutedEventRuntime.hpp"
 #include "gui/input/InputRuntime.hpp"
 #include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
 #include "gui/controls/ControlRuntime.hpp"
-#include "gui/controls/ItemsRuntime.hpp"
 #include "gui/controls/TemplateRuntime.hpp"
 #include <Aero/Controls.hpp>
 
 #include <utility>
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
@@ -687,7 +673,7 @@ ButtonBase::Access::SyncVisualState(
     Base::StringView common = "Normal";
     if (!button.GetIsEnabled()) common = "Disabled";
     else if (button.GetIsPressed()) common = "Pressed";
-    else if (button.GetIsMouseOver()) common = "PointerOver";
+    else if (button.GetIsMouseOver()) common = "MouseOver";
     Base::Result<void> synchronized =
         apply("CommonStates", common);
     if (!synchronized) {
@@ -839,7 +825,10 @@ void ButtonBase::Access::OnPropertyChanged(
     if (args.GetProperty() == ButtonBase::CommandProperty) {
         if (!SubscribeCommand(button, buttons_[index])) return;
         static_cast<void>(RefreshCanExecute(button));
-    } else if (args.GetProperty() == UIElement::IsEnabledProperty) {
+    } else if (args.GetProperty() == UIElement::IsEnabledProperty ||
+               args.GetProperty() == UIElement::IsMouseOverProperty ||
+               args.GetProperty() == UIElement::IsPressedProperty ||
+               args.GetProperty() == UIElement::IsKeyboardFocusedProperty) {
         static_cast<void>(
             SyncVisualState(button));
     } else {

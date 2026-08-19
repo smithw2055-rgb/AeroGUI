@@ -45,6 +45,7 @@ struct TextRendererState {
     TextConfig config;
     Text::GlyphAtlas atlas;
     Base::Vector<Ref<Texture>> pageTextures;
+    Base::Vector<RenderGlyphRunId> glyphRuns;
     std::uint64_t nextRunId = 1U;
     std::uint64_t useStamp = 1U;
 
@@ -53,7 +54,8 @@ struct TextRendererState {
         Base::IAllocator* allocator) noexcept
         : config(cfg),
           atlas(allocator),
-          pageTextures(allocator) {}
+          pageTextures(allocator),
+          glyphRuns(allocator) {}
 };
 
 TextRenderer::TextRenderer(
@@ -79,6 +81,7 @@ Base::Result<void> TextRenderer::Initialize(const TextConfig& config) noexcept {
     }
 
     state_ = new (stateStorage_) TextRendererState(config, allocator_);
+    state_->nextRunId = config.firstGlyphRunId;
     Base::Result<void> atlasInit = state_->atlas.Initialize(config.atlas);
     if (!atlasInit) {
         state_->~TextRendererState();
@@ -90,6 +93,11 @@ Base::Result<void> TextRenderer::Initialize(const TextConfig& config) noexcept {
 
 void TextRenderer::Shutdown() noexcept {
     if (state_ != nullptr) {
+        if (encoder_ != nullptr) {
+            for (RenderGlyphRunId glyphRun : state_->glyphRuns) {
+                encoder_->UnregisterGlyphRun(glyphRun);
+            }
+        }
         state_->~TextRendererState();
         state_ = nullptr;
     }
@@ -138,7 +146,10 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     const float dpi = static_cast<float>(request.dpiScale);
     const float glyphRasterDpi = std::max(1.0F, dpi * GlyphRasterScale);
     const auto& atlasConfig = state_->config.atlas;
+    const float pageWidth = static_cast<float>(atlasConfig.pageWidth);
+    const float pageHeight = static_cast<float>(atlasConfig.pageHeight);
 
+    Base::Vector<RenderGlyphQuad> quads(allocator_);
     for (const Text::GlyphRun& run : layout.Runs()) {
         for (const Text::PositionedGlyph& glyph : run.glyphs) {
             Text::GlyphRequest glyphRequest;
@@ -155,8 +166,27 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
             Base::Result<void> ensured = state_->atlas.EnsureGlyph(
                 *fonts_, glyphRequest, state_->useStamp++, 0U, placement);
             if (!ensured) return ensured.GetStatus();
+
+            RenderGlyphQuad quad;
+            quad.x0 = static_cast<float>(glyph.x) +
+                static_cast<float>(placement.bearingX) / glyphRasterDpi;
+            quad.y0 = static_cast<float>(glyph.y) -
+                static_cast<float>(placement.bearingY) / glyphRasterDpi;
+            quad.x1 = quad.x0 +
+                static_cast<float>(placement.width) / glyphRasterDpi;
+            quad.y1 = quad.y0 +
+                static_cast<float>(placement.height) / glyphRasterDpi;
+            quad.u0 = static_cast<float>(placement.x) / pageWidth;
+            quad.v0 = static_cast<float>(placement.y) / pageHeight;
+            quad.u1 = static_cast<float>(placement.x + placement.width) / pageWidth;
+            quad.v1 = static_cast<float>(placement.y + placement.height) / pageHeight;
+            quad.page = placement.page;
+            Base::Result<void> appended = quads.PushBack(quad);
+            if (!appended) return appended.GetStatus();
         }
     }
+
+    if (quads.Empty()) return {};
 
     const std::uint32_t pageCount = state_->atlas.PageCount();
     while (state_->pageTextures.Size() < pageCount) {
@@ -180,11 +210,42 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     }
     state_->atlas.ClearPendingUploads();
 
+    if (state_->nextRunId == Render::InvalidRenderGlyphRunId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "Text renderer glyph-run ID space is exhausted");
+    }
+    const RenderGlyphRunId glyphRun = state_->nextRunId++;
+    if (encoder_ != nullptr) {
+        Base::Result<void> registered =
+            encoder_->RegisterGlyphRun(glyphRun, quads.AsSpan());
+        if (!registered) return registered.GetStatus();
+    }
+    Base::Result<void> tracked = state_->glyphRuns.PushBack(glyphRun);
+    if (!tracked) return tracked.GetStatus();
+    Base::Result<void> emitted = output.glyphRuns.PushBack(glyphRun);
+    if (!emitted) return emitted.GetStatus();
+
     return {};
 }
 
 void TextRenderer::ReleaseGlyphRun(Render::RenderGlyphRunId glyphRun) noexcept {
-    static_cast<void>(glyphRun);
+    if (encoder_ != nullptr) {
+        encoder_->UnregisterGlyphRun(glyphRun);
+    }
+    if (state_ != nullptr) {
+        for (std::uint32_t index = 0U; index < state_->glyphRuns.Size(); ++index) {
+            if (state_->glyphRuns[index] == glyphRun) {
+                if (index != state_->glyphRuns.Size() - 1U) {
+                    state_->glyphRuns[index] =
+                        state_->glyphRuns[state_->glyphRuns.Size() - 1U];
+                }
+                static_cast<void>(
+                    state_->glyphRuns.Resize(state_->glyphRuns.Size() - 1U));
+                break;
+            }
+        }
+    }
 }
 
 Base::Result<std::uint32_t> TextRenderer::CollectGarbage() noexcept {

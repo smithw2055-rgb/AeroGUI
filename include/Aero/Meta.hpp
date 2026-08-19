@@ -11,12 +11,10 @@
 #include <utility>
 
 namespace Aero::Meta {
-namespace Detail {
 using Base::ValueCopyCallback;
 using Base::ValueDestroyCallback;
 using Base::ValueEqualsCallback;
 using ObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)() noexcept;
-} // namespace Detail
 
 enum class ContentKind : std::uint8_t {
     Single = 0U,
@@ -43,7 +41,6 @@ constexpr bool HasContentFlag(
         static_cast<std::uint8_t>(flag)) != 0U;
 }
 
-namespace Detail {
 using ContentWriteCallback = void (*)(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
@@ -288,14 +285,13 @@ struct CollectionChangeNotificationRegistration {
     void* context = nullptr;
 };
 
-} // namespace Detail
 } // namespace Aero::Meta
 
-namespace Aero::Meta::Detail {
+namespace Aero::Meta {
 class MetadataAuthoringSession;
 class RegistrationValues;
 class RegistrationTypes;
-}
+} // namespace Aero::Meta
 
 namespace Aero::Meta {
 
@@ -318,14 +314,14 @@ private:
     friend class Registry;
     template<class T>
     friend class TypeBuilder;
-    friend class Detail::MetadataAuthoringSession;
+    friend class MetadataAuthoringSession;
 
     explicit Registration(void* state) noexcept
         : state_(state) {}
 
-    Detail::RegistrationValues Values() noexcept;
-    Detail::RegistrationValues Values() const noexcept;
-    Detail::RegistrationTypes Types() noexcept;
+    RegistrationValues Values() noexcept;
+    RegistrationValues Values() const noexcept;
+    RegistrationTypes Types() noexcept;
     ValueTable& ValueRegistrations() noexcept;
     DependencyPropertyRegistry& DependencyProperties() noexcept;
 
@@ -343,7 +339,6 @@ class ValueTypeSemantics;
 struct TextValueConverterRegistration;
 struct ValueTypeRegistration;
 
-namespace Detail {
 AERO_GUI_API Base::Result<Value> CreateRegistrationValue(
     void* registrationState,
     TypeId type,
@@ -376,12 +371,12 @@ public:
 
 private:
     friend class ::Aero::Meta::Registration;
-    friend Base::Result<Value> Detail::CreateRegistrationValue(
+    friend Base::Result<Value> CreateRegistrationValue(
         void* registrationState,
         TypeId type,
         const void* source) noexcept;
     friend RegistrationValues
-    Detail::MakeRegistrationValues(
+    MakeRegistrationValues(
         void* registrationState) noexcept;
 
     RegistrationValues(
@@ -394,11 +389,10 @@ private:
     void* mutableRegistrations_ = nullptr;
 };
 
-} // namespace Detail
 
 } // namespace Aero::Meta
 
-namespace Aero::Meta::Detail {
+namespace Aero::Meta {
 
 template<class T, class = void>
 struct HasEquality : std::false_type {};
@@ -826,14 +820,13 @@ MetadataAuthoringSession CreateNamedDescriptionSession(
     return session;
 }
 
-} // namespace Aero::Meta::Detail
+} // namespace Aero::Meta
 
 
 
 
 namespace Aero::Meta {
 
-namespace Detail {
 
 template<class T>
 struct IsResultVoid : std::false_type {};
@@ -1026,7 +1019,6 @@ Base::Result<Value> InvokeEventHandler(
     return Value{};
 }
 
-} // namespace Detail
 
 template<class TValue>
 class FrameworkPropertyMetadata {
@@ -1186,31 +1178,11 @@ private:
 
 template<class T>
 class TypeBuilder {
-    using ObjectFactory = Detail::ObjectFactory;
-    using ContentWriteCallback = Detail::ContentWriteCallback;
-    using ContentClearCallback = Detail::ContentClearCallback;
-    using PropertyRegistration = Detail::PropertyRegistration;
-    using MethodParameterRegistration =
-        Detail::MethodParameterRegistration;
-    using MethodRegistration = Detail::MethodRegistration;
-    using MetadataPropertyChangedCallback =
-        Detail::MetadataPropertyChangedCallback;
-    using PropertyChangeSubscribeCallback =
-        Detail::PropertyChangeSubscribeCallback;
-    using PropertyChangeUnsubscribeCallback =
-        Detail::PropertyChangeUnsubscribeCallback;
-    using MetadataCollectionChangedCallback =
-        Detail::MetadataCollectionChangedCallback;
-    using CollectionChangeSubscribeCallback =
-        Detail::CollectionChangeSubscribeCallback;
-    using CollectionChangeUnsubscribeCallback =
-        Detail::CollectionChangeUnsubscribeCallback;
-
 public:
     explicit TypeBuilder(
         Registration& context,
         TypeFlags flags = TypeFlags::None) noexcept
-        : builder_(Detail::CreateDescriptionSession<T>(
+        : builder_(CreateDescriptionSession<T>(
               context, flags)) {}
 
     TypeBuilder(
@@ -1218,7 +1190,7 @@ public:
         StringView metadataNamespace,
         StringView metadataName,
         TypeFlags flags = TypeFlags::None) noexcept
-        : builder_(Detail::CreateNamedDescriptionSession<T>(
+        : builder_(CreateNamedDescriptionSession<T>(
               context, metadataNamespace, metadataName, flags)) {}
 
     TypeBuilder(const TypeBuilder&) = delete;
@@ -1228,7 +1200,7 @@ public:
 
     TypeBuilder& Factory() noexcept {
         builder_.Factory(
-            &Detail::CreateDefaultObject<T>);
+            &CreateDefaultObject<T>);
         return *this;
     }
 #if defined(AERO_GUI_IMPLEMENTATION)
@@ -1289,10 +1261,10 @@ public:
         registration.access =
             PropertyAccessKind::Ordinary;
         registration.get =
-            &Detail::GetOrdinaryProperty<
+            &GetOrdinaryProperty<
                 T, TValue, Getter>;
         registration.set =
-            &Detail::SetOrdinaryProperty<
+            &SetOrdinaryProperty<
                 T, TValue, Setter>;
         builder_.Property(registration);
         return *this;
@@ -1314,7 +1286,7 @@ public:
         registration.access =
             PropertyAccessKind::Ordinary;
         registration.set =
-            &Detail::SetOrdinaryProperty<
+            &SetOrdinaryProperty<
                 T, TValue, Setter>;
         builder_.Property(registration);
         return *this;
@@ -1361,7 +1333,7 @@ public:
             "Ordinary metadata property setter is incompatible with getter");
 
         if (!builder_.Ok()) return *this;
-        using Adapter = Detail::OrdinaryPropertyAdapter<
+        using Adapter = OrdinaryPropertyAdapter<
             T, TValue, TGetter, TSetter>;
         ::Aero::Result<Adapter*> adapter =
             builder_.OwnBehaviorContext(
@@ -1390,7 +1362,7 @@ public:
     TypeBuilder& Field(
         StringView name,
         FieldFlags flags = FieldFlags::None) noexcept {
-        using Traits = Detail::MemberPointerTraits<Member>;
+        using Traits = MemberPointerTraits<Member>;
         using Owner = typename Traits::OwnerType;
         using FieldType = typename Traits::FieldType;
         static_assert(std::is_same_v<Owner, T>,
@@ -1399,8 +1371,8 @@ public:
             name,
             ValueCodec<FieldType>::Type(),
             flags,
-            &Detail::GetField<Owner, FieldType, Member>,
-            &Detail::SetField<Owner, FieldType, Member>,
+            &GetField<Owner, FieldType, Member>,
+            &SetField<Owner, FieldType, Member>,
             nullptr});
         return *this;
     }
@@ -1434,7 +1406,7 @@ public:
             InvalidTypeId,
             {parameters, 2U},
             MethodFlags::None,
-            &Detail::InvokeEventHandler<T, TArgs, Handler>,
+            &InvokeEventHandler<T, TArgs, Handler>,
             nullptr});
         return *this;
     }
@@ -1566,14 +1538,14 @@ public:
 
     TypeBuilder& ValueSemantics() noexcept {
         builder_.ValueSemantics(
-            Detail::MakeValueTypeRegistration<T>());
+            MakeValueTypeRegistration<T>());
         return *this;
     }
 
     template<auto Converter>
     TypeBuilder& TextConverter() noexcept {
         builder_.TextConverter(
-            &Detail::ConvertTypedText<T, Converter>);
+            &ConvertTypedText<T, Converter>);
         return *this;
     }
 
@@ -1661,7 +1633,7 @@ private:
         return *this;
     }
 
-    Detail::MetadataAuthoringSession builder_;
+    MetadataAuthoringSession builder_;
 };
 
 } // namespace Aero::Meta
@@ -1699,7 +1671,7 @@ TypeBuilder<T> Register(
 
 } // namespace Aero::Meta
 
-namespace Aero::Meta::Detail {
+namespace Aero::Meta {
 
 template<class T, class = void>
 struct HasComponentDescription : std::false_type {};
@@ -1733,7 +1705,7 @@ Result<void> RegisterComponentTypes(
     return status;
 }
 
-} // namespace Aero::Meta::Detail
+} // namespace Aero::Meta
 
 namespace Aero {
 
@@ -1745,7 +1717,7 @@ constexpr ModuleRegistration DefineComponentModule(
     StringView name) noexcept {
     return DefineModule(
         name,
-        &Meta::Detail::RegisterComponentTypes<TComponents...>);
+        &Meta::RegisterComponentTypes<TComponents...>);
 }
 
 } // namespace Aero

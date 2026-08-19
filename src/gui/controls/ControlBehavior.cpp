@@ -92,6 +92,12 @@ Base::Result<void> ControlBehavior::Initialize() noexcept {
         if (!sliders) return sliders.GetStatus();
         sliders_ = sliders.Value();
 
+        Base::Result<Aero::Controls::ScrollBarBehavior*> scrollBars =
+            Construct<Aero::Controls::ScrollBarBehavior>(
+                *tree_, *events_, *input_);
+        if (!scrollBars) return scrollBars.GetStatus();
+        scrollBars_ = scrollBars.Value();
+
         Base::Result<Aero::Controls::ListBehavior*> lists =
             Construct<Aero::Controls::ListBehavior>(
                 *tree_, *events_, *input_, visualStates_);
@@ -181,6 +187,12 @@ Base::Result<void> ControlBehavior::Attach(
             *static_cast<Slider*>(&visual));
         if (!result) return result.GetStatus();
     }
+    if (scrollBars_ != nullptr &&
+        types.IsDerivedFrom(type, Primitives::ScrollBar::StaticTypeId())) {
+        Base::Result<void> result = scrollBars_->Attach(
+            *static_cast<Primitives::ScrollBar*>(&visual));
+        if (!result) return result.GetStatus();
+    }
     if (lists_ != nullptr &&
         types.IsDerivedFrom(type, ListBox::StaticTypeId())) {
         Base::Result<void> result = lists_->Attach(
@@ -235,6 +247,10 @@ Base::Result<bool> ControlBehavior::Detach(
                types.IsDerivedFrom(type, Slider::StaticTypeId())) {
         detached = sliders_->Detach(
             *static_cast<Slider*>(&visual));
+    } else if (scrollBars_ != nullptr &&
+               types.IsDerivedFrom(type, Primitives::ScrollBar::StaticTypeId())) {
+        detached = scrollBars_->Detach(
+            *static_cast<Primitives::ScrollBar*>(&visual));
     } else if (lists_ != nullptr &&
                types.IsDerivedFrom(type, ListBox::StaticTypeId())) {
         detached = lists_->Detach(
@@ -285,6 +301,7 @@ void ControlBehavior::Shutdown() noexcept {
     Destroy(trees_);
     Destroy(combos_);
     Destroy(lists_);
+    Destroy(scrollBars_);
     Destroy(sliders_);
     Destroy(scrolling_);
     Destroy(textBoxes_);

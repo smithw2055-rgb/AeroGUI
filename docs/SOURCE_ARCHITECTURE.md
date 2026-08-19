@@ -31,6 +31,18 @@ Files use responsibility names; `*Internal*` and `*Private*` filenames are
 forbidden. Helpers needed by one translation unit stay in an anonymous
 namespace.
 
+## Namespace policy
+
+`Detail` and `Runtime` namespaces are retired everywhere, in installed headers
+and in source. Symbol classes that previously lived behind `Detail` now belong
+directly to their owning product namespace (`Aero::Base`, `Aero::Meta`,
+`Aero::Media::Animation::Model`, and so on). Implementation state that only
+one translation unit needs stays in an anonymous namespace (for example the
+object lifetime/control-block machinery in `src/base/Object.cpp`); opaque
+handles (`void*`) keep such state out of the installed headers. The
+`cmake/CheckArchitecture.cmake` gate fails any installed header or source file
+that still declares a `Detail` or `Runtime` namespace.
+
 ## View composition
 
 `ViewState` owns the view-affine object factory, effective values, animation,

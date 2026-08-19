@@ -3,47 +3,20 @@
 #include "gui/property/PropertyRuntime.hpp"
 #include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
 #include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
 #include "gui/controls/ControlRuntime.hpp"
-#include "gui/controls/ItemsRuntime.hpp"
 #include "gui/controls/TemplateRuntime.hpp"
 
 #include <Aero/Value.hpp>
 #include <Aero/Media/Transforms.hpp>
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/media/AnimationRuntime.hpp"
-#include "gui/media/BrushRuntime.hpp"
-#include "gui/media/EffectRuntime.hpp"
-#include "gui/media/TransformRuntime.hpp"
+#include "gui/media/MediaRuntime.hpp"
 
 #include <algorithm>
 #include <new>
 #include <utility>
 #include "ControlBehavior.hpp"
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
 
 namespace Aero::Controls {
 
@@ -59,7 +32,7 @@ void ControlBehavior::SetVisualStateManager(
 namespace Aero {
 using Aero::Controls::TemplateEngine;
 using Aero::Controls::TemplateHandle;
-using namespace Aero::Media::Animation::Runtime;
+using namespace Aero::Media::Animation::Model;
 using namespace ::Aero::Meta;
 using namespace ::Aero::Media;
 using namespace ::Aero::Controls;
@@ -421,10 +394,10 @@ Base::Result<AnimationTarget> ResolveAnimationTarget(
     return AnimationTarget{target, property->Handle()};
 }
 
-Aero::Media::Animation::Runtime::TimelineTiming ComposeTiming(
+Aero::Media::Animation::Model::TimelineTiming ComposeTiming(
     const Media::Animation::Timeline& timeline,
-    const Aero::Media::Animation::Runtime::TimelineTiming& parent) noexcept {
-    Aero::Media::Animation::Runtime::TimelineTiming timing =
+    const Aero::Media::Animation::Model::TimelineTiming& parent) noexcept {
+    Aero::Media::Animation::Model::TimelineTiming timing =
         Aero::Media::AnimationPrivate::Timing(timeline);
     if (UINT64_MAX - timing.beginTimeMicroseconds <
         parent.beginTimeMicroseconds) {
@@ -482,7 +455,7 @@ private:
         std::uint64_t templateValue = 0U;
         Base::String groupName;
         Base::String stateName;
-        Base::Vector<Aero::Media::Animation::Runtime::AnimationHandle> animations;
+        Base::Vector<Aero::Media::Animation::Model::AnimationHandle> animations;
     };
 
     struct TransitionValue {
@@ -522,13 +495,13 @@ private:
         TemplateHandle handle,
         const VisualStatePlan& state,
         ActiveGroup& active,
-        const Aero::Media::Animation::Runtime::TimelineTiming& parent = {}) noexcept;
+        const Aero::Media::Animation::Model::TimelineTiming& parent = {}) noexcept;
     Base::Result<void> StartStoryboardAnimations(
         Control& control,
         TemplateHandle handle,
         Media::Animation::Storyboard& storyboard,
         ActiveGroup& active,
-        const Aero::Media::Animation::Runtime::TimelineTiming& parent = {}) noexcept;
+        const Aero::Media::Animation::Model::TimelineTiming& parent = {}) noexcept;
     Base::Result<void> CaptureTransitionValues(
         TemplateHandle handle,
         const VisualStatePlan& next,
@@ -549,7 +522,7 @@ private:
 namespace Aero {
 using Aero::Controls::TemplateEngine;
 using Aero::Controls::TemplateHandle;
-using namespace Aero::Media::Animation::Runtime;
+using namespace Aero::Media::Animation::Model;
 using namespace ::Aero::Meta;
 using namespace ::Aero::Media;
 using namespace ::Aero::Controls;
@@ -583,7 +556,7 @@ VisualStateManager::Access::Create(
 namespace Aero::Controls {
 using Aero::Controls::TemplateEngine;
 using Aero::Controls::TemplateHandle;
-using namespace Aero::Media::Animation::Runtime;
+using namespace Aero::Media::Animation::Model;
 using namespace ::Aero::Meta;
 using namespace ::Aero::Media;
 using namespace ::Aero::Controls;
@@ -727,7 +700,7 @@ void VisualStateManagerImpl::PruneStale() noexcept {
 Base::Result<void> VisualStateManagerImpl::ClearStateAnimations(
     ActiveGroup& active) noexcept {
     Base::Status first;
-    for (Aero::Media::Animation::Runtime::AnimationHandle animation :
+    for (Aero::Media::Animation::Model::AnimationHandle animation :
          active.animations) {
         Base::Result<void> removed =
             animations_->Remove(animation);
@@ -746,7 +719,7 @@ Base::Result<void> VisualStateManagerImpl::StartStateAnimations(
     TemplateHandle handle,
     const VisualStatePlan& state,
     ActiveGroup& active,
-    const Aero::Media::Animation::Runtime::TimelineTiming& parent) noexcept {
+    const Aero::Media::Animation::Model::TimelineTiming& parent) noexcept {
     if (!state.storyboard) return {};
     return StartStoryboardAnimations(
         control,
@@ -761,17 +734,17 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
     TemplateHandle handle,
     Media::Animation::Storyboard& root,
     ActiveGroup& active,
-    const Aero::Media::Animation::Runtime::TimelineTiming& parent) noexcept {
+    const Aero::Media::Animation::Model::TimelineTiming& parent) noexcept {
     const auto startTimeline =
         [&](const auto& self,
             Media::Animation::Timeline& timeline,
-            const Aero::Media::Animation::Runtime::TimelineTiming& parent)
+            const Aero::Media::Animation::Model::TimelineTiming& parent)
             -> Base::Result<void> {
         if (timeline.RuntimeType() ==
             Media::Animation::Storyboard::StaticTypeId()) {
             auto& storyboard =
                 static_cast<Media::Animation::Storyboard&>(timeline);
-            const Aero::Media::Animation::Runtime::TimelineTiming timing =
+            const Aero::Media::Animation::Model::TimelineTiming timing =
                 ComposeTiming(storyboard, parent);
             for (const Base::Ref<Media::Animation::Timeline>& child :
                  storyboard.GetTimelines()) {
@@ -789,7 +762,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                 *templates_, *properties_);
         if (!resolved) return resolved.GetStatus();
 
-        Base::Result<Aero::Media::Animation::Runtime::AnimationHandle> started =
+        Base::Result<Aero::Media::Animation::Model::AnimationHandle> started =
             Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "VisualState Storyboard contains an unsupported Timeline");
@@ -797,7 +770,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
             Media::Animation::DoubleAnimation::StaticTypeId()) {
             auto& authored =
                 static_cast<Media::Animation::DoubleAnimation&>(timeline);
-            Aero::Media::Animation::Runtime::DoubleAnimation runtime =
+            Aero::Media::Animation::Model::DoubleAnimation runtime =
                 Aero::Media::AnimationPrivate::Double(authored);
             runtime.timing = ComposeTiming(authored, parent);
             started = animations_->Begin(
@@ -808,7 +781,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                    Media::Animation::ColorAnimation::StaticTypeId()) {
             auto& authored =
                 static_cast<Media::Animation::ColorAnimation&>(timeline);
-            Aero::Media::Animation::Runtime::ColorAnimation runtime =
+            Aero::Media::Animation::Model::ColorAnimation runtime =
                 Aero::Media::AnimationPrivate::Color(authored);
             runtime.timing = ComposeTiming(authored, parent);
             started = animations_->Begin(
@@ -821,7 +794,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
             auto& authored = static_cast<
                 Media::Animation::DoubleAnimationUsingKeyFrames&>(
                     timeline);
-            Base::Vector<Aero::Media::Animation::Runtime::DoubleKeyFrame>
+            Base::Vector<Aero::Media::Animation::Model::DoubleKeyFrame>
                 frames;
             for (const Base::Ref<Media::Animation::DoubleKeyFrame>&
                      frame : authored.GetKeyFrames()) {
@@ -835,7 +808,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
             }
             for (std::uint32_t index = 1U;
                  index < frames.Size(); ++index) {
-                Aero::Media::Animation::Runtime::DoubleKeyFrame current =
+                Aero::Media::Animation::Model::DoubleKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -861,7 +834,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                 ValueCodec<double>::Decode(
                     base.Value());
             if (!decoded) return decoded.GetStatus();
-            Aero::Media::Animation::Runtime::DoubleKeyFrameAnimation runtime;
+            Aero::Media::Animation::Model::DoubleKeyFrameAnimation runtime;
             runtime.baseValue = decoded.Value();
             runtime.timing =
                 ComposeTiming(authored, parent);
@@ -882,7 +855,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                 Media::Animation::BooleanAnimationUsingKeyFrames::
                     StaticTypeId()) {
             Base::Vector<
-                Aero::Media::Animation::Runtime::DiscreteAnimationKeyFrame>
+                Aero::Media::Animation::Model::DiscreteAnimationKeyFrame>
                 frames;
             if (timeline.RuntimeType() ==
                 Media::Animation::ObjectAnimationUsingKeyFrames::
@@ -894,7 +867,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                          Media::Animation::DiscreteObjectKeyFrame>&
                      frame : authored.GetKeyFrames()) {
                     if (!frame) continue;
-                    Aero::Media::Animation::Runtime::DiscreteAnimationKeyFrame
+                    Aero::Media::Animation::Model::DiscreteAnimationKeyFrame
                         runtime;
                     runtime.keyTimeMicroseconds =
                         frame->GetKeyTimeMicroseconds();
@@ -920,7 +893,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                     if (!encoded) {
                         return encoded.GetStatus();
                     }
-                    Aero::Media::Animation::Runtime::DiscreteAnimationKeyFrame
+                    Aero::Media::Animation::Model::DiscreteAnimationKeyFrame
                         runtime;
                     runtime.keyTimeMicroseconds =
                         frame->GetKeyTimeMicroseconds();
@@ -936,7 +909,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
             }
             for (std::uint32_t index = 1U;
                  index < frames.Size(); ++index) {
-                Aero::Media::Animation::Runtime::DiscreteAnimationKeyFrame
+                Aero::Media::Animation::Model::DiscreteAnimationKeyFrame
                     current =
                         std::move(frames[index]);
                 std::uint32_t position = index;
@@ -961,7 +934,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                 resolved.Value().object->GetValue(
                     resolved.Value().property);
             if (!base) return base.GetStatus();
-            Aero::Media::Animation::Runtime::DiscreteAnimation runtime;
+            Aero::Media::Animation::Model::DiscreteAnimation runtime;
             runtime.baseValue = base.Value();
             runtime.timing =
                 ComposeTiming(timeline, parent);
@@ -980,7 +953,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
             started.Value());
     };
 
-    Aero::Media::Animation::Runtime::TimelineTiming rootTiming;
+    Aero::Media::Animation::Model::TimelineTiming rootTiming;
     rootTiming = parent;
     Base::Result<void> started =
         startTimeline(
@@ -1143,6 +1116,33 @@ Base::Result<bool> VisualStateManagerImpl::GoToState(
     }
     const VisualStatePlan* next = group != nullptr ? FindState(*group, stateName) : nullptr;
     if (next == nullptr) {
+        // Support WPF / Silverlight / Aero naming aliases
+        Base::StringView fallbackName;
+        if (stateName == "PointerOver") fallbackName = "MouseOver";
+        else if (stateName == "MouseOver") fallbackName = "PointerOver";
+        else if (stateName == "Selected") fallbackName = "SelectedUnfocused";
+        else if (stateName == "SelectedUnfocused") fallbackName = "Selected";
+
+        if (!fallbackName.Empty()) {
+            if (group != nullptr) {
+                next = FindState(*group, fallbackName);
+            }
+            if (next == nullptr && groupName.Empty()) {
+                for (const VisualStateGroupPlan& candidate : TemplatePrivate::VisualStateGroups(*plan)) {
+                    if (FindState(candidate, fallbackName) != nullptr) {
+                        group = &candidate;
+                        groupName = candidate.name.View();
+                        next = FindState(candidate, fallbackName);
+                        break;
+                    }
+                }
+            }
+            if (next != nullptr) {
+                stateName = fallbackName;
+            }
+        }
+    }
+    if (next == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Visual state was not found");
@@ -1236,7 +1236,7 @@ Base::Result<bool> VisualStateManagerImpl::GoToState(
             transitionValues.AsSpan(),
             active_[activeIndex]);
     }
-    Aero::Media::Animation::Runtime::TimelineTiming stateTiming;
+    Aero::Media::Animation::Model::TimelineTiming stateTiming;
     if (animated && transition != nullptr) {
         stateTiming.beginTimeMicroseconds =
             transition->generatedDurationMicroseconds;

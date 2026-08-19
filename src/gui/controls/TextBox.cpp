@@ -3,33 +3,17 @@
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
 #include "gui/text/EditableText.hpp"
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
 #include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
 #include "gui/base/RoutedEventRuntime.hpp"
 #include "gui/input/InputRuntime.hpp"
 #include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
-#include "gui/media/AnimationRuntime.hpp"
-#include "gui/media/BrushRuntime.hpp"
-#include "gui/media/EffectRuntime.hpp"
-#include "gui/media/TransformRuntime.hpp"
+#include "gui/media/MediaRuntime.hpp"
 
 #include "TextBlockLayout.hpp"
 
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -459,6 +443,17 @@ Size PasswordBox::MeasureOverride(
         std::max(templateSize.height, editorSize.height)};
 }
 
+void PasswordBox::OnApplyTemplate() noexcept {
+    Control::OnApplyTemplate();
+    DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
+    if (part != nullptr && PropertyRegistry().Types().IsDerivedFrom(
+            part->RuntimeType(), ScrollViewer::StaticTypeId())) {
+        static_cast<void>(editor_.AttachScrollViewer(static_cast<ScrollViewer*>(part)));
+    } else {
+        static_cast<void>(editor_.AttachScrollViewer(nullptr));
+    }
+}
+
 Size PasswordBox::ArrangeOverride(
     Size finalSize) noexcept {
     if (GetTemplateRoot() != nullptr) {
@@ -470,6 +465,7 @@ Size PasswordBox::ArrangeOverride(
 
 void PasswordBox::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
+    if (GetTemplateRoot() != nullptr) return;
     static_cast<void>(editor_.RenderEditor(
         context,
         GetRenderSize(),
@@ -1852,11 +1848,21 @@ Size TextBox::MeasureOverride(
                 GetFontSize() * 1.6) *
                 static_cast<double>(
                     minimumLines)));
-    return Inflate(desired, padding);
+    const Size textInflated = Inflate(desired, padding);
+    Size templateSize{};
+    if (GetTemplateRoot() != nullptr) {
+        templateSize = Control::MeasureOverride(availableSize);
+    }
+    return Size{
+        std::max(templateSize.width, textInflated.width),
+        std::max(templateSize.height, textInflated.height)};
 }
 
 Size TextBox::ArrangeOverride(
     Size finalSize) noexcept {
+    if (GetTemplateRoot() != nullptr) {
+        Control::ArrangeOverride(finalSize);
+    }
     const Size contentViewport =
         Deflate(finalSize, GetPadding());
     SetViewport(contentViewport);
@@ -1873,8 +1879,20 @@ Size TextBox::ArrangeOverride(
     return finalSize;
 }
 
+void TextBox::OnApplyTemplate() noexcept {
+    Control::OnApplyTemplate();
+    DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
+    if (part != nullptr && PropertyRegistry().Types().IsDerivedFrom(
+            part->RuntimeType(), ScrollViewer::StaticTypeId())) {
+        static_cast<void>(AttachScrollViewer(static_cast<ScrollViewer*>(part)));
+    } else {
+        static_cast<void>(AttachScrollViewer(nullptr));
+    }
+}
+
 void TextBox::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
+    if (GetTemplateRoot() != nullptr) return;
     auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     const Rect bounds{
         0.0, 0.0,
@@ -1932,7 +1950,12 @@ TextBox::RenderEditor(
     Size viewport,
     bool drawCaret) noexcept {
     auto& builder = Aero::Render::DrawingPrivate::Builder(context);
-    const Thickness padding = GetPadding();
+    Thickness padding = GetPadding();
+    if (scrollViewer_ != nullptr) {
+        const Rect svSlot = scrollViewer_->GetLayoutSlot();
+        padding.left += svSlot.x;
+        padding.top += svSlot.y;
+    }
     const Rect contentBounds{
         padding.left,
         padding.top,

@@ -17,7 +17,7 @@ namespace Aero::Base {
 template<class T>
 class Delegate;
 
-namespace Detail {
+
 
 template<class T>
 struct DelegateMulticast;
@@ -37,13 +37,13 @@ struct IsDelegate  : std::false_type {};
 template<class T>
 struct IsDelegate<Delegate<T>>  : std::true_type {};
 
-} // namespace Detail
+
 
 template<class Ret, class... Args>
 class Delegate<Ret(Args...)>  {
 public:
     using Signature = Ret(Args...);
-    using Operations = Detail::DelegateOperations<Ret, Args...>;
+    using Operations = DelegateOperations<Ret, Args...>;
     static constexpr std::size_t StorageSize = 3U * sizeof(void*);
 
     Delegate() noexcept = default;
@@ -55,7 +55,7 @@ public:
 
     template<class F,
         class = std::enable_if_t<
-            !Detail::IsDelegate<std::decay_t<F>>::value &&
+            !IsDelegate<std::decay_t<F>>::value &&
             !std::is_pointer<std::decay_t<F>>::value &&
             std::is_invocable_r<Ret, const F&, Args...>::value>>
     Delegate(const F& function) noexcept {
@@ -270,17 +270,17 @@ private:
     }
 
     static const Operations& MulticastOperations() noexcept;
-    Detail::DelegateMulticast<Signature>* Multicast() noexcept;
-    const Detail::DelegateMulticast<Signature>* Multicast() const noexcept;
+    DelegateMulticast<Signature>* Multicast() noexcept;
+    const DelegateMulticast<Signature>* Multicast() const noexcept;
     Result<void> EnsureUniqueMulticast(IAllocator& allocator) noexcept;
 
     alignas(void*) unsigned char storage_[StorageSize]{};
     const Operations* operations_ = nullptr;
 
-    friend struct Detail::DelegateMulticast<Signature>;
+    friend struct DelegateMulticast<Signature>;
 };
 
-namespace Detail {
+
 
 template<class Ret, class... Args>
 struct DelegateMulticast<Ret(Args...)>  {
@@ -292,12 +292,12 @@ struct DelegateMulticast<Ret(Args...)>  {
         : allocator(&source), delegates(&source) {}
 };
 
-} // namespace Detail
+
 
 template<class Ret, class... Args>
 const typename Delegate<Ret(Args...)>::Operations&
 Delegate<Ret(Args...)>::MulticastOperations() noexcept {
-    using State = Detail::DelegateMulticast<Signature>;
+    using State = DelegateMulticast<Signature>;
     static const Operations operations{
         [](const void* storage, Args... args) -> Ret {
             State* state = *static_cast<State* const*>(storage);
@@ -354,25 +354,25 @@ Delegate<Ret(Args...)>::MulticastOperations() noexcept {
 }
 
 template<class Ret, class... Args>
-Detail::DelegateMulticast<Ret(Args...)>*
+DelegateMulticast<Ret(Args...)>*
 Delegate<Ret(Args...)>::Multicast() noexcept {
     return operations_ != nullptr && operations_->multicast
-        ? *reinterpret_cast<Detail::DelegateMulticast<Signature>**>(storage_)
+        ? *reinterpret_cast<DelegateMulticast<Signature>**>(storage_)
         : nullptr;
 }
 
 template<class Ret, class... Args>
-const Detail::DelegateMulticast<Ret(Args...)>*
+const DelegateMulticast<Ret(Args...)>*
 Delegate<Ret(Args...)>::Multicast() const noexcept {
     return operations_ != nullptr && operations_->multicast
-        ? *reinterpret_cast<Detail::DelegateMulticast<Signature>* const*>(storage_)
+        ? *reinterpret_cast<DelegateMulticast<Signature>* const*>(storage_)
         : nullptr;
 }
 
 template<class Ret, class... Args>
 Result<void> Delegate<Ret(Args...)>::EnsureUniqueMulticast(
     IAllocator& allocator) noexcept {
-    using State = Detail::DelegateMulticast<Signature>;
+    using State = DelegateMulticast<Signature>;
     State* current = Multicast();
     if (current == nullptr ||
         current->references.load(std::memory_order_acquire) == 1U) {
@@ -410,7 +410,7 @@ Result<void> Delegate<Ret(Args...)>::AddChecked(
         return {};
     }
     IAllocator& selected = allocator != nullptr ? *allocator : GetDefaultAllocator();
-    using State = Detail::DelegateMulticast<Signature>;
+    using State = DelegateMulticast<Signature>;
     if (Multicast() == nullptr) {
         void* memory = selected.Allocate(
             {sizeof(State), alignof(State), MemoryTag::General});
@@ -445,8 +445,8 @@ void Delegate<Ret(Args...)>::Add(
     IAllocator* allocator) noexcept {
     Result<void> result = AddChecked(delegate, allocator);
     if (!result) {
-        ReportOutOfMemory(sizeof(Detail::DelegateMulticast<Signature>),
-            alignof(Detail::DelegateMulticast<Signature>), MemoryTag::General);
+        ReportOutOfMemory(sizeof(DelegateMulticast<Signature>),
+            alignof(DelegateMulticast<Signature>), MemoryTag::General);
     }
 }
 
@@ -462,8 +462,8 @@ bool Delegate<Ret(Args...)>::Remove(const Delegate& delegate) noexcept {
     Result<void> unique = EnsureUniqueMulticast(*state->allocator);
     if (!unique) {
         ReportOutOfMemory(
-            sizeof(Detail::DelegateMulticast<Signature>),
-            alignof(Detail::DelegateMulticast<Signature>),
+            sizeof(DelegateMulticast<Signature>),
+            alignof(DelegateMulticast<Signature>),
             MemoryTag::General);
     }
     state = Multicast();

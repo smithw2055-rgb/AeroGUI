@@ -1,15 +1,9 @@
 #include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
+#include "gui/metadata/ValueConversion.hpp"
 #include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
-#include "gui/controls/ControlRuntime.hpp"
-#include "gui/controls/ItemsRuntime.hpp"
 #include "gui/controls/TemplateRuntime.hpp"
 #include "gui/markup/MarkupRuntime.hpp"
 #include "gui/markup/MarkupWriterRuntime.hpp"
@@ -168,7 +162,7 @@ Base::Result<Meta::Value> MakeManifestCustomValue(
     const T& value) noexcept {
     Base::Result<Base::Ref<Meta::ValueTypeSemantics>> semantics =
         Base::MakeRef<Meta::ValueTypeSemantics>(
-            Meta::Detail::MakeValueTypeRegistration<T>());
+            Meta::MakeValueTypeRegistration<T>());
     if (!semantics) return semantics.GetStatus();
     return Meta::Value::TryFromCustom(
         type, &value, semantics.Value());
@@ -412,7 +406,7 @@ ConvertManifestPrimitive(
                 type, ::Aero::Length::Auto());
         }
         Base::Result<double> parsed =
-            ::Aero::Base::Detail::ValueConversion::
+            ::Aero::Base::ValueConversion::
                 ParseDouble(text);
         if (!parsed || parsed.Value() < 0.0) {
             return Base::Status::Failure(
@@ -514,7 +508,7 @@ ConvertManifestPrimitive(
             double weight = 1.0;
             if (!weightText.Empty()) {
                 Base::Result<double> parsed =
-                    ::Aero::Base::Detail::
+                    ::Aero::Base::
                         ValueConversion::ParseDouble(
                             weightText);
                 if (!parsed || parsed.Value() < 0.0) {
@@ -529,7 +523,7 @@ ConvertManifestPrimitive(
         }
 
         Base::Result<double> pixels =
-            ::Aero::Base::Detail::ValueConversion::
+            ::Aero::Base::ValueConversion::
                 ParseDouble(text);
         if (!pixels || pixels.Value() < 0.0) {
             return Base::Status::Failure(

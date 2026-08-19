@@ -73,7 +73,7 @@ constexpr RoutedEventHandle MakeRoutedEventHandle(
     Meta::TypeId ownerType,
     StringView name) noexcept {
     constexpr char domain[] = "AERO.MEMBER.V1";
-    Base::Detail::StableMetadataIdBuilder builder;
+    Base::StableMetadataIdBuilder builder;
     builder.AddText(
         domain,
         static_cast<std::uint32_t>(sizeof(domain) - 1U));

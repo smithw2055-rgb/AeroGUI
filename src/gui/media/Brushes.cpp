@@ -1,29 +1,10 @@
 #include <Aero/Media/Brushes.hpp>
 #include "BrushRendering.hpp"
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
 #include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
-#include "gui/media/AnimationRuntime.hpp"
-#include "gui/media/BrushRuntime.hpp"
-#include "gui/media/EffectRuntime.hpp"
-#include "gui/media/TransformRuntime.hpp"
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
+#include "gui/media/MediaRuntime.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -503,8 +484,19 @@ Base::Result<void> PaintBrushRect(
                 const double relativeY =
                     (tile.y - (viewport.y + row * viewport.height)) /
                     viewport.height;
-                uv.x += uv.width * relativeX;
-                uv.y += uv.height * relativeY;
+                const TileMode tileMode = imageBrush.GetTileMode();
+                const bool flipX =
+                    (tileMode == TileMode::FlipX ||
+                     tileMode == TileMode::FlipXY) &&
+                    (column & 1) != 0;
+                const bool flipY =
+                    (tileMode == TileMode::FlipY ||
+                     tileMode == TileMode::FlipXY) &&
+                    (row & 1) != 0;
+                const double sampleX = flipX ? 1.0 - relativeX : relativeX;
+                const double sampleY = flipY ? 1.0 - relativeY : relativeY;
+                uv.x += uv.width * sampleX;
+                uv.y += uv.height * sampleY;
                 uv.width *= tile.width / viewport.width;
                 uv.height *= tile.height / viewport.height;
                 const Point center{
@@ -542,137 +534,210 @@ Base::Result<void> PaintBrushRect(
         const double axisY = end.y - start.y;
         const double axisLengthSquared = std::max(
             axisX * axisX + axisY * axisY, 1.0e-12);
-        const bool horizontal =
-            std::fabs(axisX) >= std::fabs(axisY);
-        // Match the smooth reference gradients. Twenty-four bands are visible
-        // on large panels and score columns; the renderer now safely splits
-        // long instance uploads, so the finer tessellation remains complete.
-        constexpr std::uint32_t bandCount = 96U;
-        for (std::uint32_t index = 0U;
-             index < bandCount; ++index) {
-            const double begin =
-                static_cast<double>(index) /
-                bandCount;
-            const double finish =
-                static_cast<double>(index + 1U) /
-                bandCount;
-            const Rect band = horizontal
-                ? Rect{
-                    bounds.x + begin * bounds.width,
-                    bounds.y,
-                    (finish - begin) *
-                        bounds.width + 0.5,
-                    bounds.height}
-                : Rect{
-                    bounds.x,
-                    bounds.y + begin * bounds.height,
-                    bounds.width,
-                    (finish - begin) *
-                        bounds.height + 0.5};
-            const double centerX = band.x + band.width * 0.5;
-            const double centerY = band.y + band.height * 0.5;
-            Point samplePoint{centerX, centerY};
-            Base::Transform2D inverse;
-            if (gradient.GetRelativeTransform() &&
-                InvertTransform(
-                    gradient.GetRelativeTransform()->GetMatrix(), inverse)) {
+
+        Base::Transform2D inverse;
+        const bool hasInverse = gradient.GetRelativeTransform() &&
+            InvertTransform(
+                gradient.GetRelativeTransform()->GetMatrix(), inverse);
+
+        const Point quadPoints[4] = {
+            {bounds.x, bounds.y},
+            {bounds.x + bounds.width, bounds.y},
+            {bounds.x + bounds.width, bounds.y + bounds.height},
+            {bounds.x, bounds.y + bounds.height}
+        };
+
+        // With a relative transform the geometry is warped, so fall back to
+        // the single-quad approximation. Without one, an axis-aligned axis
+        // can be split into exact per-stop Gouraud bands.
+        const bool axisAligned =
+            (std::fabs(axisX) < 1.0e-9 && std::fabs(axisY) > 1.0e-9) ||
+            (std::fabs(axisY) < 1.0e-9 && std::fabs(axisX) > 1.0e-9);
+        if (!hasInverse && axisAligned) {
+            const bool horizontal = std::fabs(axisY) < 1.0e-9;
+            const double axis = horizontal ? axisX : axisY;
+            const double t0 = horizontal ? bounds.x : bounds.y;
+            const double t1 = horizontal
+                ? bounds.x + bounds.width
+                : bounds.y + bounds.height;
+            const double tMin = std::min(
+                (t0 - (horizontal ? start.x : start.y)) / axis,
+                (t1 - (horizontal ? start.x : start.y)) / axis);
+            const double tMax = std::max(
+                (t0 - (horizontal ? start.x : start.y)) / axis,
+                (t1 - (horizontal ? start.x : start.y)) / axis);
+
+            // Collect breakpoints where the color function may change slope.
+            Base::Vector<double> boundaries;
+            const GradientSpreadMethod spread = gradient.GetSpreadMethod();
+            const auto stops = gradient.GetGradientStops();
+            const int periodStart = static_cast<int>(std::floor(tMin)) - 1;
+            const int periodEnd = static_cast<int>(std::ceil(tMax)) + 1;
+            for (int period = periodStart; period <= periodEnd; ++period) {
+                for (const Base::Ref<GradientStop>& stop : stops) {
+                    if (!stop) continue;
+                    if (spread == GradientSpreadMethod::Reflect) {
+                        boundaries.PushBack(static_cast<double>(period) +
+                            stop->GetOffset());
+                        boundaries.PushBack(static_cast<double>(period) +
+                            1.0 - stop->GetOffset());
+                    } else if (spread == GradientSpreadMethod::Repeat) {
+                        boundaries.PushBack(static_cast<double>(period) +
+                            stop->GetOffset());
+                    } else {
+                        boundaries.PushBack(stop->GetOffset());
+                    }
+                }
+            }
+            boundaries.PushBack(tMin);
+            boundaries.PushBack(tMax);
+            std::sort(
+                boundaries.Data(),
+                boundaries.Data() + static_cast<std::size_t>(boundaries.Size()));
+            const auto uniqueEnd = std::unique(
+                boundaries.Data(),
+                boundaries.Data() + static_cast<std::size_t>(boundaries.Size()),
+                [](double a, double b) {
+                    return std::fabs(a - b) < 1.0e-9;
+                });
+            const std::size_t boundaryCount =
+                static_cast<std::size_t>(uniqueEnd - boundaries.Data());
+            const std::size_t bandLimit = 512U;
+            if (boundaryCount > 2U && boundaryCount <= bandLimit) {
+                for (std::uint32_t i = 0U; i + 1U < boundaryCount; ++i) {
+                    const double a = std::clamp(
+                        boundaries[i], tMin, tMax);
+                    const double b = std::clamp(
+                        boundaries[i + 1U], tMin, tMax);
+                    if (b - a < 1.0e-9) continue;
+                    const Color ca = ::Aero::Media::SampleBrush(brush, a);
+                    const Color cb = ::Aero::Media::SampleBrush(brush, b);
+                    const double pos0 = (horizontal ? start.x : start.y) + a * axis;
+                    const double pos1 = (horizontal ? start.x : start.y) + b * axis;
+                    Point bandPoints[4];
+                    if (horizontal) {
+                        bandPoints[0] = {pos0, bounds.y};
+                        bandPoints[1] = {pos1, bounds.y};
+                        bandPoints[2] = {pos1, bounds.y + bounds.height};
+                        bandPoints[3] = {pos0, bounds.y + bounds.height};
+                    } else {
+                        bandPoints[0] = {bounds.x, pos0};
+                        bandPoints[1] = {bounds.x + bounds.width, pos0};
+                        bandPoints[2] = {bounds.x + bounds.width, pos1};
+                        bandPoints[3] = {bounds.x, pos1};
+                    }
+                    Color bandColors[4];
+                    if (horizontal) {
+                        bandColors[0] = ca;
+                        bandColors[1] = cb;
+                        bandColors[2] = cb;
+                        bandColors[3] = ca;
+                    } else {
+                        bandColors[0] = ca;
+                        bandColors[1] = ca;
+                        bandColors[2] = cb;
+                        bandColors[3] = cb;
+                    }
+                    Base::Result<void> painted =
+                        builder.FillGradientQuad(
+                            bandPoints, bandColors);
+                    if (!painted) return painted.GetStatus();
+                }
+                return {};
+            }
+        }
+
+        Color quadColors[4];
+        for (int i = 0; i < 4; ++i) {
+            Point samplePoint = quadPoints[i];
+            if (hasInverse) {
                 samplePoint = TransformPoint(inverse, samplePoint);
             }
             const double position =
                 ((samplePoint.x - start.x) * axisX +
                  (samplePoint.y - start.y) * axisY) /
                 axisLengthSquared;
-            Base::Result<void> painted =
-                builder.FillRect(
-                    band,
-                    ::Aero::Media::SampleBrush(
-                        brush, position, {},
-                        {(centerX - bounds.x) / bounds.width,
-                         (centerY - bounds.y) / bounds.height},
-                        Base::Size{bounds.width, bounds.height}));
-            if (!painted) {
-                return painted.GetStatus();
-            }
+            quadColors[i] = ::Aero::Media::SampleBrush(
+                brush, position, {},
+                {(quadPoints[i].x - bounds.x) / bounds.width,
+                 (quadPoints[i].y - bounds.y) / bounds.height},
+                Base::Size{bounds.width, bounds.height});
         }
-        return {};
+        return builder.FillGradientQuad(quadPoints, quadColors);
     }
     if (brush->RuntimeType() ==
         RadialGradientBrush::StaticTypeId()) {
         const auto& gradient =
             *static_cast<RadialGradientBrush*>(
                 brush.Get());
-        const Point center = gradient.GetCenter();
-        const Point origin = gradient.GetGradientOrigin();
-        const double radiusX =
-            std::max(std::fabs(gradient.GetRadiusX()),
-                     1.0e-6);
-        const double radiusY =
-            std::max(std::fabs(gradient.GetRadiusY()),
-                     1.0e-6);
-        constexpr std::uint32_t columns = 20U;
-        constexpr std::uint32_t rows = 10U;
-        for (std::uint32_t row = 0U;
-             row < rows; ++row) {
-            const double beginY =
-                static_cast<double>(row) / rows;
-            const double endY =
-                static_cast<double>(row + 1U) / rows;
-            for (std::uint32_t column = 0U;
-                 column < columns; ++column) {
-                const double beginX =
-                    static_cast<double>(column) /
-                    columns;
-                const double endX =
-                    static_cast<double>(column + 1U) /
-                    columns;
-                const double x =
-                    (beginX + endX) * 0.5;
-                const double y =
-                    (beginY + endY) * 0.5;
-                Point sample{x, y};
-                Base::Transform2D inverse;
-                if (gradient.GetRelativeTransform() &&
-                    InvertTransform(
-                        gradient.GetRelativeTransform()->GetMatrix(), inverse)) {
-                    sample = TransformPoint(inverse, sample);
-                }
+        Point center = gradient.GetCenter();
+        Point origin = gradient.GetGradientOrigin();
+        double radiusX = std::max(std::fabs(gradient.GetRadiusX()), 1.0e-6);
+        double radiusY = std::max(std::fabs(gradient.GetRadiusY()), 1.0e-6);
+        if (gradient.GetMappingMode() ==
+            BrushMappingMode::RelativeToBoundingBox) {
+            center = {
+                bounds.x + center.x * bounds.width,
+                bounds.y + center.y * bounds.height};
+            origin = {
+                bounds.x + origin.x * bounds.width,
+                bounds.y + origin.y * bounds.height};
+            radiusX *= bounds.width;
+            radiusY *= bounds.height;
+        }
 
-                // WPF's common centered radial gradient maps
-                // normalized ellipse distance directly to the
-                // gradient stops. Preserve a displaced gradient
-                // origin by shifting the sampling ray by the same
-                // normalized amount; this keeps the focal highlight
-                // useful without flattening it to one midpoint color.
-                const double focalX =
-                    (origin.x - center.x) / radiusX;
-                const double focalY =
-                    (origin.y - center.y) / radiusY;
-                const double normalizedX =
-                    (sample.x - center.x) / radiusX -
-                    focalX;
-                const double normalizedY =
-                    (sample.y - center.y) / radiusY -
-                    focalY;
-                const double position =
-                    std::hypot(normalizedX, normalizedY);
-                Base::Result<void> painted =
-                    builder.FillRect(
-                        Rect{
-                            bounds.x +
-                                beginX * bounds.width,
-                            bounds.y +
-                                beginY * bounds.height,
-                            (endX - beginX) *
-                                bounds.width + 0.25,
-                            (endY - beginY) *
-                                bounds.height + 0.25},
-                        ::Aero::Media::SampleBrush(
-                            brush, position, {},
-                            {x, y},
-                            Base::Size{bounds.width, bounds.height}));
-                if (!painted) {
-                    return painted.GetStatus();
+        const double fx = (origin.x - center.x) / radiusX;
+        const double fy = (origin.y - center.y) / radiusY;
+        const bool hasFocal = (fx * fx + fy * fy) > 1.0e-6;
+
+        auto sampleRadialAt = [&](double px, double py) noexcept -> Color {
+            const double u = (px - center.x) / radiusX;
+            const double v = (py - center.y) / radiusY;
+            double t = 0.0;
+            if (hasFocal) {
+                const double dx = u - fx;
+                const double dy = v - fy;
+                const double a = dx * dx + dy * dy;
+                const double b = 2.0 * (fx * dx + fy * dy);
+                const double c = fx * fx + fy * fy - 1.0;
+                const double disc = b * b - 4.0 * a * c;
+                if (disc >= 0.0 && a > 1.0e-9) {
+                    const double root = (-b + std::sqrt(disc)) / (2.0 * a);
+                    t = root > 0.0 ? 1.0 / root : 0.0;
+                } else {
+                    t = std::sqrt(u * u + v * v);
                 }
+            } else {
+                t = std::sqrt(u * u + v * v);
+            }
+            return ::Aero::Media::SampleBrush(
+                brush, t, {},
+                {(px - bounds.x) / bounds.width, (py - bounds.y) / bounds.height},
+                Base::Size{bounds.width, bounds.height});
+        };
+
+        constexpr int gridCols = 16;
+        constexpr int gridRows = 16;
+        for (int r = 0; r < gridRows; ++r) {
+            const double y0 = bounds.y + bounds.height * (static_cast<double>(r) / gridRows);
+            const double y1 = bounds.y + bounds.height * (static_cast<double>(r + 1) / gridRows);
+            for (int c = 0; c < gridCols; ++c) {
+                const double x0 = bounds.x + bounds.width * (static_cast<double>(c) / gridCols);
+                const double x1 = bounds.x + bounds.width * (static_cast<double>(c + 1) / gridCols);
+                const Point quadPoints[4] = {
+                    {x0, y0},
+                    {x1, y0},
+                    {x1, y1},
+                    {x0, y1}
+                };
+                const Color quadColors[4] = {
+                    sampleRadialAt(x0, y0),
+                    sampleRadialAt(x1, y0),
+                    sampleRadialAt(x1, y1),
+                    sampleRadialAt(x0, y1)
+                };
+                Base::Result<void> drawn = builder.FillGradientQuad(quadPoints, quadColors);
+                if (!drawn) return drawn.GetStatus();
             }
         }
         return {};

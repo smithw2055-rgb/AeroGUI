@@ -58,6 +58,7 @@ public:
     inline static constexpr auto ForegroundProperty = Control::ForegroundProperty;
 
 protected:
+    void OnApplyTemplate() noexcept override;
     Size MeasureOverride(
         Size availableSize) noexcept override;
     Size ArrangeOverride(

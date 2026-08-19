@@ -1,6 +1,7 @@
 #include <Aero/Media/Animation.hpp>
 
 #include <Aero/Value.hpp>
+#include "gui/metadata/ValueConversion.hpp"
 
 #include <cmath>
 #include <cstdlib>
@@ -11,7 +12,7 @@ namespace {
 Base::Result<AnimationTime> ParseClockTime(
     Base::StringView input) noexcept {
     const Base::StringView text =
-        ::Aero::Base::Detail::ValueConversion::Trim(input);
+        ::Aero::Base::ValueConversion::Trim(input);
     if (text.Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
@@ -70,10 +71,10 @@ Base::Result<AnimationTime> ParseClockTime(
                 end,
                 static_cast<std::uint32_t>(
                     owned.CStr() + owned.SizeBytes() - end));
-            if (::Aero::Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+            if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
                     suffix, "ms")) {
                 multiplier = 0.001;
-            } else if (!::Aero::Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+            } else if (!::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
                            suffix, "s")) {
                 return Base::Status::Failure(
                     Base::ErrorCode::ValidationFailed,
@@ -154,15 +155,15 @@ void Timeline::SetRepeatBehavior(
     Base::StringView value) noexcept {
     if (!WritePreamble()) return;
     const Base::StringView trimmed =
-        ::Aero::Base::Detail::ValueConversion::Trim(value);
+        ::Aero::Base::ValueConversion::Trim(value);
     double repeatCount = 1.0;
     bool repeatForever = false;
-    if (::Aero::Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
             trimmed, "Forever")) {
         repeatForever = true;
     } else {
         Base::Result<double> count =
-            ::Aero::Base::Detail::ValueConversion::ParseDouble(trimmed);
+            ::Aero::Base::ValueConversion::ParseDouble(trimmed);
         if (!count || count.Value() <= 0.0) {
             return;
         }
@@ -849,7 +850,7 @@ void ChangePropertyAction::SetTargetName(
 void ChangePropertyAction::SetPropertyName(
     Base::StringView value) noexcept {
     const Base::StringView trimmed =
-        ::Aero::Base::Detail::ValueConversion::Trim(value);
+        ::Aero::Base::ValueConversion::Trim(value);
     if (trimmed.Empty()) {
         return;
     }
@@ -879,7 +880,7 @@ void
 ControllableStoryboardAction::SetBeginStoryboardName(
     Base::StringView value) noexcept {
     const Base::StringView trimmed =
-        ::Aero::Base::Detail::ValueConversion::Trim(value);
+        ::Aero::Base::ValueConversion::Trim(value);
     if (trimmed.Empty()) {
         return;
     }
@@ -889,7 +890,7 @@ ControllableStoryboardAction::SetBeginStoryboardName(
 void SeekStoryboard::SetOffset(
     Base::StringView value) noexcept {
     const Base::StringView trimmed =
-        ::Aero::Base::Detail::ValueConversion::Trim(value);
+        ::Aero::Base::ValueConversion::Trim(value);
     Base::Result<AnimationTime> parsed =
         ParseClockTime(trimmed);
     if (!parsed) return;
@@ -903,7 +904,7 @@ void SeekStoryboard::SetOffset(
 void EventTrigger::SetRoutedEvent(
     Base::StringView value) noexcept {
     const Base::StringView trimmed =
-        ::Aero::Base::Detail::ValueConversion::Trim(value);
+        ::Aero::Base::ValueConversion::Trim(value);
     if (trimmed.Empty()) {
         return;
     }

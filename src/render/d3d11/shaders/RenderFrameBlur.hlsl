@@ -5,6 +5,11 @@ cbuffer ViewportBuffer : register(b0) {
     float2 viewportPad;
 };
 
+cbuffer TextureSizeBuffer : register(b1) {
+    float2 textureSize;
+    float2 texturePad;
+};
+
 Texture2D sourceTexture : register(t0);
 SamplerState sourceSampler : register(s0);
 
@@ -35,5 +40,15 @@ VSOutput vs_main(VSInput input) {
 }
 
 float4 ps_main(VSOutput input) : SV_Target {
-    return sourceTexture.Sample(sourceSampler, input.uv0) * (input.color * input.coverage);
+    const float2 texel = 1.0 / textureSize;
+    float4 sum = sourceTexture.Sample(sourceSampler, input.uv0) * 4.0;
+    sum += sourceTexture.Sample(sourceSampler, input.uv0 + float2(-texel.x, 0.0)) * 2.0;
+    sum += sourceTexture.Sample(sourceSampler, input.uv0 + float2(texel.x, 0.0)) * 2.0;
+    sum += sourceTexture.Sample(sourceSampler, input.uv0 + float2(0.0, -texel.y)) * 2.0;
+    sum += sourceTexture.Sample(sourceSampler, input.uv0 + float2(0.0, texel.y)) * 2.0;
+    sum += sourceTexture.Sample(sourceSampler, input.uv0 + float2(-texel.x, -texel.y));
+    sum += sourceTexture.Sample(sourceSampler, input.uv0 + float2(texel.x, -texel.y));
+    sum += sourceTexture.Sample(sourceSampler, input.uv0 + float2(-texel.x, texel.y));
+    sum += sourceTexture.Sample(sourceSampler, input.uv0 + float2(texel.x, texel.y));
+    return (sum / 16.0) * (input.color * input.coverage);
 }

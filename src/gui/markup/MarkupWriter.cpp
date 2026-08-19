@@ -1,24 +1,12 @@
 #include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/metadata/ValueConversion.hpp"
 #include "gui/property/PropertyRuntime.hpp"
 #include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
 #include "gui/layout/LayoutRuntime.hpp"
 #include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/controls/ControlRuntime.hpp"
 #include "gui/controls/ItemsRuntime.hpp"
 #include "gui/controls/TemplateRuntime.hpp"
 #include "gui/markup/MarkupRuntime.hpp"
@@ -35,19 +23,6 @@
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/controls/ControlRuntime.hpp"
-#include "gui/controls/ItemsRuntime.hpp"
-#include "gui/controls/TemplateRuntime.hpp"
 
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls.hpp>
@@ -2430,7 +2405,7 @@ namespace {
 
 Base::StringView PropertyLocalName(
     Base::StringView value) noexcept {
-    value = ::Aero::Base::Detail::ValueConversion::Trim(value);
+    value = ::Aero::Base::ValueConversion::Trim(value);
     std::uint32_t separator = UINT32_MAX;
     for (std::uint32_t index = 0U;
          index < value.SizeBytes();

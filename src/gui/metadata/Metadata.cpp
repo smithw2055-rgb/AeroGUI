@@ -4,13 +4,8 @@
 
 #include <Aero/Value.hpp>
 #include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
+#include "gui/metadata/ValueConversion.hpp"
 #include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
 
@@ -240,7 +235,7 @@ MemberId MakeMethodId(
     Base::StringView name,
     Base::Span<const TypeId> parameterTypes) noexcept {
     static constexpr char Domain[] = "AERO.METHOD.V1";
-    Base::Detail::StableMetadataIdBuilder builder;
+    Base::StableMetadataIdBuilder builder;
     builder.AddText(
         Domain, static_cast<std::uint32_t>(sizeof(Domain) - 1U));
     builder.AddU64(ownerType);
@@ -857,7 +852,7 @@ Base::Result<Base::HashCode> TypeRegistry::ComputeHash() const noexcept {
             "TypeRegistry hash requires a frozen registry");
     }
 
-    Base::Detail::StableMetadataIdBuilder builder;
+    Base::StableMetadataIdBuilder builder;
     constexpr char domain[] = "AERO.DESCRIPTORS.V2";
     builder.AddText(
         domain,
@@ -1256,7 +1251,7 @@ const MethodInfo* TypeRegistry::MethodAt(
 #include <Aero/Meta.hpp>
 
 
-namespace Aero::Meta::Detail {
+namespace Aero::Meta {
 
 MetadataAuthoringSession::MetadataAuthoringSession(
     Meta::Registration& context,
@@ -1695,7 +1690,7 @@ void MetadataAuthoringSession::Record(
     }
 }
 
-} // namespace Aero::Meta::Detail
+} // namespace Aero::Meta
 
 
 // ===== MetaTable =====
@@ -2266,7 +2261,7 @@ MetaTable::FindCollectionChangeNotification(
 
 Base::Result<Base::HashCode> MetaTable::ComputeHash() const noexcept {
     if (!sealed_) return InvalidState("Facet hash requires a sealed store");
-    Base::Detail::StableMetadataIdBuilder builder;
+    Base::StableMetadataIdBuilder builder;
     constexpr char domain[] = "AERO.FACETS.V4";
     builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
     builder.AddU32(MetadataFacetFormatVersion);
@@ -4051,7 +4046,7 @@ Base::Result<Value> Registry::ConvertEnumText(
     const TypeInfo& type,
     Base::StringView input) const noexcept {
     Base::StringView remaining =
-        ::Aero::Base::Detail::ValueConversion::Trim(input);
+        ::Aero::Base::ValueConversion::Trim(input);
     if (remaining.Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
@@ -4071,7 +4066,7 @@ Base::Result<Value> Registry::ConvertEnumText(
             }
         }
         const Base::StringView token =
-            ::Aero::Base::Detail::ValueConversion::Trim(
+            ::Aero::Base::ValueConversion::Trim(
                 remaining.Substr(0U, split));
         if (token.Empty()) {
             return Base::Status::Failure(
@@ -4081,7 +4076,7 @@ Base::Result<Value> Registry::ConvertEnumText(
         const EnumValueInfo* match = nullptr;
         for (const EnumValueInfo& candidate :
              type.EnumValues()) {
-            if (::Aero::Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+            if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
                     token, candidate.Name())) {
                 match = &candidate;
                 break;
@@ -4103,7 +4098,7 @@ Base::Result<Value> Registry::ConvertEnumText(
             ? (raw | match->RawValue())
             : match->RawValue();
         if (split == remaining.SizeBytes()) break;
-        remaining = ::Aero::Base::Detail::ValueConversion::Trim(
+        remaining = ::Aero::Base::ValueConversion::Trim(
             remaining.Substr(split + 1U));
     }
     return HasTypeFlag(
@@ -4154,12 +4149,6 @@ Base::Result<Value> Registry::GetDependencyProperty(
     }
     const auto& dependencyObject =
         static_cast<const DependencyObject&>(object);
-    if (&dependencyObject.PropertyRegistry() !=
-        &registry) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Dependency property registry does not match metadata domain");
-    }
     return dependencyObject.GetValue(handle);
 }
 
@@ -4180,12 +4169,6 @@ Base::Result<void> Registry::SetDependencyProperty(
     }
     auto& dependencyObject =
         static_cast<DependencyObject&>(object);
-    if (&dependencyObject.PropertyRegistry() !=
-        &registry) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Dependency property registry does not match metadata domain");
-    }
     dependencyObject.SetValue(handle, value);
     return {};
 }
@@ -4200,13 +4183,9 @@ Registry::FindProvider(
     return nullptr;
 }
 
-
 } // namespace Aero::Meta
 
-
 // ===== Registration =====
-
-
 
 namespace Aero::Meta {
 
@@ -4218,20 +4197,20 @@ namespace {
 
 } // namespace
 
-Detail::RegistrationTypes Registration::Types() noexcept {
+RegistrationTypes Registration::Types() noexcept {
     ::Aero::RegistrationState& state = State(state_);
-    return Detail::RegistrationTypes(
+    return RegistrationTypes(
         *state.types, *state.behaviors);
 }
 
-Detail::RegistrationValues Registration::Values() noexcept {
-    return Detail::RegistrationValues(
+RegistrationValues Registration::Values() noexcept {
+    return RegistrationValues(
         State(state_).values,
         State(state_).values);
 }
 
-Detail::RegistrationValues Registration::Values() const noexcept {
-    return Detail::RegistrationValues(
+RegistrationValues Registration::Values() const noexcept {
+    return RegistrationValues(
         State(state_).values,
         nullptr);
 }
@@ -4359,7 +4338,7 @@ Base::Result<Base::HashCode> ComputeMetadataValueFacetHash(
             "Value facet hash requires sealed descriptors and facets");
     }
 
-    Base::Detail::StableMetadataIdBuilder builder;
+    Base::StableMetadataIdBuilder builder;
     constexpr char domain[] = "AERO.VALUE.FACETS.V1";
     builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
     builder.AddU32(MetadataFacetFormatVersion);

@@ -1,29 +1,14 @@
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
 #include "gui/base/FreezableRuntime.hpp"
 #include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
 #include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/resources/StyleRuntime.hpp"
 #include <Aero/Controls.hpp>
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
 #include "gui/controls/ControlRuntime.hpp"
-#include "gui/controls/ItemsRuntime.hpp"
 #include "gui/controls/TemplateRuntime.hpp"
 
 #include <algorithm>
+#include <limits>
 
 namespace Aero::Controls {
 
@@ -185,7 +170,9 @@ Size Popup::MeasureOverride(
         return Size{};
     }
     Base::Result<void> measured =
-        MeasureChild(*popupChild, availableSize);
+        MeasureChild(*popupChild, Size{
+            std::numeric_limits<double>::infinity(),
+            std::numeric_limits<double>::infinity()});
     if (!measured) return Size{};
     popupDesiredSize_ =
         popupChild->GetDesiredSize();
@@ -230,16 +217,50 @@ Size Popup::ArrangeOverride(
     }
     Size targetSize = finalSize;
     Point targetOrigin{};
+    Point targetAbsolute{};
+    double rootHeight = 0.0;
+    double targetScaleX = 1.0;
+    double targetScaleY = 1.0;
+    double popupScaleX = 1.0;
+    double popupScaleY = 1.0;
     if (placementTarget != nullptr &&
         placementTarget->GetIsArrangeValid()) {
         targetSize = placementTarget->GetRenderSize();
-        auto absoluteOrigin = [](UIElement& element) noexcept {
+        // The overlay renderer positions Popups in screen space: it accumulates
+        // every ancestor's local visual transform (for example a Viewbox
+        // scale) plus layout slot, and the arranged child slot is added on top
+        // of that origin. Placement must therefore use the same transform-aware
+        // origin, otherwise a scaled ancestor displaces the popup and makes the
+        // up/down flip decision against the window height wrong.
+        auto absoluteOrigin = [](
+            UIElement& element,
+            UIElement** outRoot,
+            double* outScaleX,
+            double* outScaleY) noexcept {
             Point result{};
+            double scaleX = 1.0;
+            double scaleY = 1.0;
             ::Aero::Media::Visual* current = &element;
+            UIElement* lastElement = nullptr;
             while (current != nullptr) {
                 UIElement* currentElement =
                     current->AsUIElement();
                 if (currentElement != nullptr) {
+                    lastElement = currentElement;
+                    FrameworkElement* currentFramework =
+                        currentElement->AsFrameworkElement();
+                    if (currentFramework != nullptr) {
+                        const Base::Transform2D transform =
+                            currentFramework->GetLocalVisualTransform();
+                        result = ::Aero::Media::TransformPoint(
+                            transform, result);
+                        if (::Aero::Base::IsFiniteTransform(transform) &&
+                            transform.m11 > 0.0 &&
+                            transform.m22 > 0.0) {
+                            scaleX *= transform.m11;
+                            scaleY *= transform.m22;
+                        }
+                    }
                     const Rect slot =
                         currentElement->GetLayoutSlot();
                     result.x += slot.x;
@@ -247,27 +268,44 @@ Size Popup::ArrangeOverride(
                 }
                 current = current->GetVisualParent();
             }
+            if (outRoot != nullptr) *outRoot = lastElement;
+            if (outScaleX != nullptr) *outScaleX = scaleX;
+            if (outScaleY != nullptr) *outScaleY = scaleY;
             return result;
         };
-        const Point targetAbsolute =
-            absoluteOrigin(*placementTarget);
-        const Point popupAbsolute =
-            absoluteOrigin(*this);
+        UIElement* rootElement = nullptr;
+        targetAbsolute = absoluteOrigin(
+            *placementTarget, &rootElement,
+            &targetScaleX, &targetScaleY);
+        const Point popupAbsolute = absoluteOrigin(
+            *this, nullptr, &popupScaleX, &popupScaleY);
         targetOrigin = {
             targetAbsolute.x - popupAbsolute.x,
             targetAbsolute.y - popupAbsolute.y};
+        if (rootElement != nullptr) {
+            rootHeight = rootElement->GetRenderSize().height;
+            if (rootHeight <= 0.0) {
+                rootHeight = rootElement->GetLayoutSlot().height;
+            }
+        }
     }
+    const Point targetOriginLocal{
+        popupScaleX != 0.0 ? targetOrigin.x / popupScaleX : targetOrigin.x,
+        popupScaleY != 0.0 ? targetOrigin.y / popupScaleY : targetOrigin.y};
     if (GetMatchPlacementTargetWidth()) {
         contentSize.width =
             std::max(
                 contentSize.width,
                 targetSize.width);
     }
-    double x = targetOrigin.x + GetHorizontalOffset();
-    double y = targetOrigin.y + GetVerticalOffset();
-    switch (GetPlacement()) {
+    const double targetWidth = targetSize.width;
+    const double targetHeight = targetSize.height;
+    double x = targetOriginLocal.x + GetHorizontalOffset();
+    double y = targetOriginLocal.y + GetVerticalOffset();
+    const PlacementMode placement = GetPlacement();
+    switch (placement) {
     case PlacementMode::Bottom:
-        y += targetSize.height;
+        y += targetHeight;
         break;
     case PlacementMode::Top:
         y -= contentSize.height;
@@ -276,19 +314,36 @@ Size Popup::ArrangeOverride(
         x -= contentSize.width;
         break;
     case PlacementMode::Right:
-        x += targetSize.width;
+        x += targetWidth;
         break;
     case PlacementMode::Center:
-        x += (targetSize.width -
-            contentSize.width) * 0.5;
-        y += (targetSize.height -
-            contentSize.height) * 0.5;
+        x += (targetWidth - contentSize.width) * 0.5;
+        y += (targetHeight - contentSize.height) * 0.5;
         break;
     case PlacementMode::Mouse:
         // The popup service supplies a pointer origin when available; the
         // placement target origin remains the deterministic fallback.
         break;
     }
+
+    if (rootHeight > 0.0 && placementTarget != nullptr) {
+        const double bottomAbsolute =
+            targetAbsolute.y + (y - targetOriginLocal.y + contentSize.height) * targetScaleY;
+        const double topAbsolute =
+            targetAbsolute.y + (y - targetOriginLocal.y) * targetScaleY;
+        if (placement == PlacementMode::Bottom &&
+            bottomAbsolute > rootHeight) {
+            y = targetOriginLocal.y -
+                contentSize.height -
+                GetVerticalOffset();
+        } else if (placement == PlacementMode::Top &&
+                   topAbsolute < 0.0) {
+            y = targetOriginLocal.y +
+                targetHeight +
+                GetVerticalOffset();
+        }
+    }
+
     Base::Result<void> arranged =
         ArrangeChild(
             *popupChild,

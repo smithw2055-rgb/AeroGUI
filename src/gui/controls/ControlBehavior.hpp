@@ -373,8 +373,129 @@ private:
 
 } // namespace Aero::Controls
 
+namespace Aero::Controls::Primitives {
+
+struct ScrollBar::Access {
+public:
+    Access(
+        ElementTree& tree,
+        EventRouter& events,
+        InputRouter& input) noexcept;
+    ~Access() noexcept;
+
+    Base::Result<void> Attach(
+        ScrollBar& scrollBar) noexcept;
+    Base::Result<bool> Detach(
+        ScrollBar& scrollBar) noexcept;
+
+private:
+    struct ScrollBarRecord {
+        VisualHandle handle;
+        Base::Vector<Input::CommandBindingHandle> commands;
+        std::uint32_t pointerId = 0U;
+        bool dragging = false;
+        Point dragOrigin{};
+        double dragStartValue = 0.0;
+    };
+
+    ElementTree* tree_ = nullptr;
+    EventRouter* events_ = nullptr;
+    InputRouter* input_ = nullptr;
+    Base::Vector<ScrollBarRecord> scrollBars_;
+    MouseButtonEventHandler mouseDownHandler_;
+    MouseEventHandler mouseMoveHandler_;
+    MouseButtonEventHandler mouseUpHandler_;
+    KeyEventHandler keyDownHandler_;
+    PointerCaptureChangedHandler captureChangedHandler_;
+
+    ExecutedRoutedEventHandler lineUpHandler_;
+    ExecutedRoutedEventHandler lineDownHandler_;
+    ExecutedRoutedEventHandler lineLeftHandler_;
+    ExecutedRoutedEventHandler lineRightHandler_;
+    ExecutedRoutedEventHandler pageUpHandler_;
+    ExecutedRoutedEventHandler pageDownHandler_;
+    ExecutedRoutedEventHandler pageLeftHandler_;
+    ExecutedRoutedEventHandler pageRightHandler_;
+    ExecutedRoutedEventHandler scrollToTopHandler_;
+    ExecutedRoutedEventHandler scrollToBottomHandler_;
+    ExecutedRoutedEventHandler scrollToLeftEndHandler_;
+    ExecutedRoutedEventHandler scrollToRightEndHandler_;
+    ExecutedRoutedEventHandler scrollToHorizontalOffsetHandler_;
+    ExecutedRoutedEventHandler scrollToVerticalOffsetHandler_;
+
+    std::uint32_t Find(
+        const ScrollBar& scrollBar) const noexcept;
+    ScrollBar* Resolve(
+        std::uint32_t index) noexcept;
+    void RemoveAt(
+        std::uint32_t index) noexcept;
+
+    void OnMouseDown(
+        Base::Object* sender,
+        MouseButtonEventArgs& args) noexcept;
+    void OnMouseMove(
+        Base::Object* sender,
+        MouseEventArgs& args) noexcept;
+    void OnMouseUp(
+        Base::Object* sender,
+        MouseButtonEventArgs& args) noexcept;
+    void OnKeyDown(
+        Base::Object* sender,
+        KeyEventArgs& args) noexcept;
+    void OnCaptureChanged(
+        std::uint32_t pointerId,
+        UIElement* target,
+        bool captured) noexcept;
+
+    static void OnLineUpCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    static void OnLineDownCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    static void OnLineLeftCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    static void OnLineRightCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    static void OnPageUpCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    static void OnPageDownCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    static void OnPageLeftCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    static void OnPageRightCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    static void OnScrollToTopCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    static void OnScrollToBottomCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    static void OnScrollToLeftEndCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    static void OnScrollToRightEndCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    static void OnScrollToHorizontalOffsetCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+    static void OnScrollToVerticalOffsetCommand(
+        Base::Object* sender,
+        ExecutedRoutedEventArgs& args) noexcept;
+};
+
+} // namespace Aero::Controls::Primitives
+
 namespace Aero::Controls {
 using SliderBehavior = ::Aero::Controls::Slider::Access;
+using ScrollBarBehavior = ::Aero::Controls::Primitives::ScrollBar::Access;
 }
 
 namespace Aero::Controls {
@@ -508,6 +629,7 @@ private:
     Base::Vector<Record> records_;
     MouseButtonEventHandler mouseDownHandler_;
     KeyEventHandler keyDownHandler_;
+    PointerStateChangedHandler pointerStateChangedHandler_;
 
     std::uint32_t FindListBox(
         const ListBox& listBox) const noexcept;
@@ -527,6 +649,8 @@ private:
     void OnKeyDown(
         Base::Object* sender,
         KeyEventArgs& args) noexcept;
+    void OnPointerStateChanged(
+        UIElement& element) noexcept;
 };
 
 } // namespace Aero::Controls
@@ -741,11 +865,12 @@ private:
         sizeof(Aero::Controls::TextEditBehavior) +
         sizeof(Aero::Controls::ScrollBehavior) +
         sizeof(Aero::Controls::SliderBehavior) +
+        sizeof(Aero::Controls::ScrollBarBehavior) +
         sizeof(Aero::Controls::ListBehavior) +
         sizeof(Aero::Controls::ComboBehavior) +
         sizeof(Aero::Controls::TreeBehavior) +
         sizeof(Aero::Controls::MenuBehavior) +
-        9U * alignof(std::max_align_t);
+        10U * alignof(std::max_align_t);
 
     Base::IAllocator* allocator_ = nullptr;
     ::Aero::Meta::Registry* metadata_ = nullptr;
@@ -764,6 +889,7 @@ private:
     Aero::Controls::TextEditBehavior* textBoxes_ = nullptr;
     Aero::Controls::ScrollBehavior* scrolling_ = nullptr;
     Aero::Controls::SliderBehavior* sliders_ = nullptr;
+    Aero::Controls::ScrollBarBehavior* scrollBars_ = nullptr;
     Aero::Controls::ListBehavior* lists_ = nullptr;
     Aero::Controls::ComboBehavior* combos_ = nullptr;
     Aero::Controls::TreeBehavior* trees_ = nullptr;

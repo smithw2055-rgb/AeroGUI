@@ -25,6 +25,7 @@ inline constexpr RenderGlyphRunId InvalidRenderGlyphRunId = 0U;
 using Color = Base::Color;
 using Transform2D = Base::Transform2D;
 using Rect = Base::Rect;
+using Point = Base::Point;
 
 bool IsFinite(Color value) noexcept;
 bool IsFinite(Transform2D value) noexcept;
@@ -42,7 +43,8 @@ enum class RenderCommandKind : std::uint8_t {
     StrokeRect,
     DrawImage,
     DrawMesh,
-    DrawGlyphRun
+    DrawGlyphRun,
+    FillGradientQuad
 };
 
 struct RenderCommand {
@@ -50,11 +52,14 @@ struct RenderCommand {
     Rect rect;
     Transform2D transform;
     Color color;
+    Point points[4]{};
+    Color colors[4]{};
     Rect sourceUv;
     RenderImageId image = InvalidRenderImageId;
     RenderMeshId mesh = InvalidRenderMeshId;
     RenderGlyphRunId glyphRun = InvalidRenderGlyphRunId;
     double scalar = 0.0;
+    double cornerRadius = 0.0;
 };
 
 class DisplayList {
@@ -88,8 +93,11 @@ public:
     Base::Result<void> FillRect(Rect rect, Color color) noexcept;
     Base::Result<void> FillRoundedRect(
         Rect rect, Color color, double cornerRadius) noexcept;
+    Base::Result<void> FillGradientQuad(
+        const Point points[4], const Color colors[4]) noexcept;
     Base::Result<void> StrokeRect(
-        Rect rect, Color color, double thickness) noexcept;
+        Rect rect, Color color, double thickness,
+        double cornerRadius = 0.0) noexcept;
     Base::Result<void> DrawImage(
         RenderImageId image,
         Rect destination,

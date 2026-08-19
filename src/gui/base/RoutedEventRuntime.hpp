@@ -7,6 +7,8 @@
 #include <Aero/Events/EventArgs.hpp>
 #include <Aero/RoutedEvent.hpp>
 
+#include "gui/metadata/MetadataRuntime.hpp"
+
 #include <cstddef>
 #include <new>
 #include <type_traits>

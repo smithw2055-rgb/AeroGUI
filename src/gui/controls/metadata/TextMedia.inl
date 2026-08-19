@@ -52,7 +52,7 @@ Base::Result<void> PopulateControlsTextMedia(
             FrameworkPropertyMetadata(0.0)
                 .AffectsMeasure()
                 .AffectsRender()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             TextBlock::TextWrappingProperty,
             FrameworkPropertyMetadata(
@@ -72,7 +72,7 @@ Base::Result<void> PopulateControlsTextMedia(
             TextBlock::LineHeightProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsMeasure()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             TextBlock::PaddingProperty,
             FrameworkPropertyMetadata(Aero::Thickness{})
@@ -267,7 +267,7 @@ Base::Result<void> PopulateControlsTextMedia(
             FrameworkPropertyMetadata(1.0)
                 .AffectsMeasure()
                 .AffectsRender()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             Shape::StretchProperty,
             FrameworkPropertyMetadata(Stretch::Fill)
@@ -282,12 +282,12 @@ Base::Result<void> PopulateControlsTextMedia(
             Rectangle::RadiusXProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsRender()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             Rectangle::RadiusYProperty,
             FrameworkPropertyMetadata(0.0)
                 .AffectsRender()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>))
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Factory();
     status = rectangle.Result();
     if (!status) return status.GetStatus();
@@ -324,7 +324,7 @@ Base::Result<void> PopulateControlsTextMedia(
             FrameworkPropertyMetadata(1.0)
                 .AffectsMeasure()
                 .AffectsRender()
-                .Validate(&::Aero::Base::Detail::Validate::NonNegative<double>)
+                .Validate(&::Aero::Base::Validate::NonNegative<double>)
                 .Changed(&OnPathDoubleChanged))
         .Property(
             Path::StrokeLineJoinProperty,
@@ -460,7 +460,7 @@ Base::Result<void> PopulateControlsTextMedia(
                 .AffectsMeasure()
                 .AffectsRender()
                 .Validate(
-                    &::Aero::Base::Detail::Validate::Positive<
+                    &::Aero::Base::Validate::Positive<
                         std::uint32_t>))
         .Factory();
     status = textBox.Result();

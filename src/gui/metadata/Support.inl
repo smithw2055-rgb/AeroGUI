@@ -19,7 +19,7 @@ Base::Result<Value> ConvertRoutedCommandReference(
     Base::StringView text,
     void*) noexcept {
     const Base::StringView name =
-        ::Aero::Base::Detail::ValueConversion::Trim(text);
+        ::Aero::Base::ValueConversion::Trim(text);
     if (targetType != ICommand::StaticTypeId() ||
         name.Empty()) {
         return Base::Status::Failure(
@@ -43,11 +43,11 @@ bool ValidateUnitDouble(
 
 Base::Result<Length> ConvertLength(
     Base::StringView text) noexcept {
-    const Base::StringView value = ::Aero::Base::Detail::ValueConversion::Trim(text);
+    const Base::StringView value = ::Aero::Base::ValueConversion::Trim(text);
     Length length = Length::Auto();
-    if (!::Aero::Base::Detail::ValueConversion::EqualsAsciiInsensitive(value, "auto")) {
+    if (!::Aero::Base::ValueConversion::EqualsAsciiInsensitive(value, "auto")) {
         Base::Result<double> parsed =
-            ::Aero::Base::Detail::ValueConversion::ParseDouble(value);
+            ::Aero::Base::ValueConversion::ParseDouble(value);
         if (!parsed || parsed.Value() < 0.0) {
             return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
                 "Length must be Auto or a nonnegative number");
@@ -234,7 +234,7 @@ int Hex(char value) noexcept {
 
 Base::Result<Color> ConvertColor(
     Base::StringView text) noexcept {
-    const Base::StringView value = ::Aero::Base::Detail::ValueConversion::Trim(text);
+    const Base::StringView value = ::Aero::Base::ValueConversion::Trim(text);
     struct NamedColor {
         Base::StringView name;
         std::uint8_t red;
@@ -291,7 +291,7 @@ Base::Result<Color> ConvertColor(
         {"Yellow", 255, 255, 0, 255},
         {"YellowGreen", 154, 205, 50, 255}};
     for (const NamedColor& candidate : named) {
-        if (!::Aero::Base::Detail::ValueConversion::EqualsAsciiInsensitive(
+        if (!::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
                 value, candidate.name)) {
             continue;
         }
@@ -699,7 +699,7 @@ void AddGradientStop(
         return;
     }
     Base::Ref<GradientStop> retained =
-        Base::Ref<GradientStop>::TryFromBorrowed(
+        Base::Ref<GradientStop>::FromBorrowed(
             static_cast<GradientStop&>(*value));
     if (!retained) {
         return;
@@ -791,7 +791,7 @@ Base::Result<Value> ConvertBrushText(
             "Brush text conversion received invalid metadata");
     }
     RegistrationValues values =
-        ::Aero::Meta::Detail::MakeRegistrationValues(context);
+        ::Aero::Meta::MakeRegistrationValues(context);
     Base::Result<Value> converted =
         values.TryConvertText(
             Meta::TypeOf<Color>(), text);
