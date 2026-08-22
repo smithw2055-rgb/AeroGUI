@@ -19,7 +19,7 @@ src/gui/input/       platform-neutral input services
 src/gui/text/        shaping, glyph atlas, editing and font adapters
 src/gui/media/       brushes, images, transforms, effects and animation (incl. the EventTrigger/StoryboardActions/TimerTrigger engine)
 src/gui/interactivity/  Aero::Interactivity: Blend behaviors, trigger actions and the interactivity engine
-src/gui/triggers/    Aero::Triggers: core WPF style triggers (Trigger/DataTrigger/MultiTrigger/MultiDataTrigger and Condition)
+src/gui/triggers/    Aero: core WPF style triggers (Trigger/DataTrigger/MultiTrigger/MultiDataTrigger and Condition)
 src/gui/meta/        Aero::Meta / Aero::Module type, value, metadata and modules
 src/gui/diagnostics/ opt-in inspection and rendering diagnostics
 src/render/     immutable-frame encoding, GPU resources and native backends
@@ -29,7 +29,7 @@ src/audio/      optional audio product
 
 The `src/gui` tree intentionally mirrors the installed WPF-semantic namespaces
 (`Aero`, `Aero::Controls`, `Aero::Data`, `Aero::Markup`, `Aero::Media`,
-`Aero::Triggers`, `Aero::Meta`) so that a WPF developer can locate the
+`Aero::Meta`) so that a WPF developer can locate the
 implementation of a public type by its namespace. Private implementation
 access headers use the `*State.hpp` / `*Access.hpp` spelling (for example
 `ElementState.hpp`, `MetadataState.hpp`) rather than the retired `*Runtime.hpp`

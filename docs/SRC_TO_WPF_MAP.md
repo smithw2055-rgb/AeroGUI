@@ -15,7 +15,7 @@ its WPF namespace rather than by an implementation-mechanism folder.
 | `Aero::Media` | `Media/*.hpp` | `media/` |
 | `Aero::Text` (private) | — | `text/` |
 | `Aero::Input` | `Input.hpp`, `InputInterop.hpp` | `input/` |
-| `Aero::Triggers` | `Triggers/*.hpp` | `triggers/` |
+| `Aero` (style triggers) | `Triggers/*.hpp` | `triggers/` |
 | `Aero::Diagnostics` | `Diagnostics.hpp`, `Diagnostics/*` | `diagnostics/` |
 | `Aero::Events` | `Events/*.hpp` | `core/` (RoutedEvent/EventRouter) |
 

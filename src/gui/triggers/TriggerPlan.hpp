@@ -3,7 +3,7 @@
 // Compiled trigger plan produced when a Style/ControlTemplate/DataTemplate is
 // sealed. Mirrors the trigger-type organization under triggers/ (see
 // C:\Projects\AeroGUI NsGui/Resources/). Internal engine type, not a public
-// Aero::Triggers authoring type.
+// Aero authoring type.
 
 #include <Aero/Base/Object.hpp>
 #include <Aero/Value.hpp>
