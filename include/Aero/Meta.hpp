@@ -698,64 +698,84 @@ private:
     Base::Status status_;
 };
 
-template<class T>
-MetadataAuthoringSession CreateDescriptionSession(
-    Registration& context,
-    TypeFlags flags) noexcept {
-    if constexpr (std::is_enum_v<T>) {
-        if constexpr (
-            std::is_signed_v<std::underlying_type_t<T>>) {
-            flags = flags | TypeFlags::SignedEnum;
-        }
-        return MetadataAuthoringSession(
-            context,
-            TypeRegistration::Enum(
-                TypeTraits<T>::Namespace(),
-                TypeTraits<T>::Name(),
-                TypeOf<std::uint32_t>(),
-                flags),
-            TypeTraits<T>::Id());
-    } else if constexpr (
-        std::is_arithmetic_v<T> ||
-        std::is_same_v<T, Base::String>) {
-        return MetadataAuthoringSession(
-            context,
-            TypeRegistration::Primitive(
-                TypeTraits<T>::Namespace(),
-                TypeTraits<T>::Name(),
-                flags),
-            TypeTraits<T>::Id());
-    } else if constexpr (
-        std::is_base_of_v<Base::Object, T>) {
-        return MetadataAuthoringSession(
-            context,
-            TypeRegistration::Object(
-                TypeTraits<T>::Namespace(),
-                TypeTraits<T>::Name(),
-                TypeTraits<T>::BaseType(),
-                flags),
-            TypeTraits<T>::Id());
-    } else {
-        if constexpr (std::is_trivially_copyable_v<T>) {
-            flags = flags | TypeFlags::TriviallyCopyable;
-        }
-        return MetadataAuthoringSession(
-            context,
-            TypeRegistration::Struct(
-                TypeTraits<T>::Namespace(),
-                TypeTraits<T>::Name(),
-                TypeTraits<T>::BaseType(),
-                flags),
-            TypeTraits<T>::Id());
-    }
-}
-
 template<class T, class = void>
 struct HasRuntimeTypeToken : std::false_type {};
 
 template<class T>
 struct HasRuntimeTypeToken<T, std::void_t<decltype(
     TypeTraits<T>::Token())>> : std::true_type {};
+
+template<class T>
+MetadataAuthoringSession CreateDescriptionSession(
+    Registration& context,
+    TypeFlags flags) noexcept {
+    const TypeId typeId = TypeTraits<T>::Id();
+    const Base::StringView metadataNamespace = TypeTraits<T>::Namespace();
+    const Base::StringView metadataName = TypeTraits<T>::Name();
+    TypeId baseType = InvalidTypeId;
+    MetadataTypeKind kind = MetadataTypeKind::Struct;
+    TypeRegistration registration = TypeRegistration::Struct(
+        metadataNamespace, metadataName, baseType, flags);
+
+    if constexpr (std::is_enum_v<T>) {
+        if constexpr (
+            std::is_signed_v<std::underlying_type_t<T>>) {
+            flags = flags | TypeFlags::SignedEnum;
+        }
+        kind = MetadataTypeKind::Enum;
+        registration = TypeRegistration::Enum(
+            metadataNamespace, metadataName,
+            TypeOf<std::uint32_t>(), flags);
+    } else if constexpr (
+        std::is_arithmetic_v<T> ||
+        std::is_same_v<T, Base::String>) {
+        kind = MetadataTypeKind::Primitive;
+        registration = TypeRegistration::Primitive(
+            metadataNamespace, metadataName, flags);
+    } else if constexpr (
+        std::is_base_of_v<Base::Object, T>) {
+        kind = MetadataTypeKind::Object;
+        baseType = TypeTraits<T>::BaseType();
+        registration = TypeRegistration::Object(
+            metadataNamespace, metadataName, baseType, flags);
+    } else {
+        if constexpr (std::is_trivially_copyable_v<T>) {
+            flags = flags | TypeFlags::TriviallyCopyable;
+        }
+        kind = MetadataTypeKind::Struct;
+        baseType = TypeTraits<T>::BaseType();
+        registration = TypeRegistration::Struct(
+            metadataNamespace, metadataName, baseType, flags);
+    }
+
+    Base::Status bindingStatus = BindRuntimeTypeInfo(
+        typeId,
+        RuntimeTypeInfo{
+            typeId,
+            metadataNamespace,
+            metadataName,
+            baseType,
+            kind});
+    if constexpr (HasRuntimeTypeToken<T>::value) {
+        if (bindingStatus.IsOk()) {
+            bindingStatus = BindRuntimeTypeInfo(
+                TypeTraits<T>::Token(),
+                RuntimeTypeInfo{
+                    typeId,
+                    metadataNamespace,
+                    metadataName,
+                    baseType,
+                    kind});
+        }
+    }
+
+    MetadataAuthoringSession session(
+        context, registration, typeId);
+    if (!bindingStatus.IsOk()) {
+        session.Fail(bindingStatus);
+    }
+    return session;
+}
 
 template<class T>
 MetadataAuthoringSession CreateNamedDescriptionSession(
@@ -800,16 +820,25 @@ MetadataAuthoringSession CreateNamedDescriptionSession(
             metadataNamespace, metadataName, baseType, flags);
     }
 
-    Base::Status bindingStatus = Base::Status::Ok();
+    Base::Status bindingStatus = BindRuntimeTypeInfo(
+        typeId,
+        RuntimeTypeInfo{
+            typeId,
+            metadataNamespace,
+            metadataName,
+            baseType,
+            kind});
     if constexpr (HasRuntimeTypeToken<T>::value) {
-        bindingStatus = BindRuntimeTypeInfo(
-            TypeTraits<T>::Token(),
-            RuntimeTypeInfo{
-                typeId,
-                metadataNamespace,
-                metadataName,
-                baseType,
-                kind});
+        if (bindingStatus.IsOk()) {
+            bindingStatus = BindRuntimeTypeInfo(
+                TypeTraits<T>::Token(),
+                RuntimeTypeInfo{
+                    typeId,
+                    metadataNamespace,
+                    metadataName,
+                    baseType,
+                    kind});
+        }
     }
 
     MetadataAuthoringSession session(

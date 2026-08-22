@@ -12,7 +12,7 @@
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Shapes.hpp>
-#include <Aero/Triggers/BlendBehaviors.hpp>
+#include <Aero/Interactivity/BlendBehaviors.hpp>
 #include <Aero/View.hpp>
 #include <AeroApp/Window.hpp>
 

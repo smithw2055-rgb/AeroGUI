@@ -1,7 +1,7 @@
 #include <Aero/Media/Animation.hpp>
 
 #include <Aero/Value.hpp>
-#include "gui/metadata/ValueConversion.hpp"
+#include "gui/meta/ValueConversion.hpp"
 
 #include <cmath>
 #include <cstdlib>
@@ -842,12 +842,14 @@ void BeginStoryboard::SetName(
     static_cast<void>(name_.Assign(value));
 }
 
-void ChangePropertyAction::SetTargetName(
+} // namespace Aero::Media::Animation
+
+void Aero::Interactivity::ChangePropertyAction::SetTargetName(
     Base::StringView value) noexcept {
     static_cast<void>(targetName_.Assign(value));
 }
 
-void ChangePropertyAction::SetPropertyName(
+void Aero::Interactivity::ChangePropertyAction::SetPropertyName(
     Base::StringView value) noexcept {
     const Base::StringView trimmed =
         ::Aero::Base::ValueConversion::Trim(value);
@@ -857,7 +859,7 @@ void ChangePropertyAction::SetPropertyName(
     static_cast<void>(propertyName_.Assign(trimmed));
 }
 
-void ChangePropertyAction::SetValue(
+void Aero::Interactivity::ChangePropertyAction::SetValue(
     const Meta::PropertyValue& value) noexcept {
     if (value.IsUnset()) {
         return;
@@ -866,15 +868,17 @@ void ChangePropertyAction::SetValue(
     return;
 }
 
-void ChangePropertyAction::SetValueBinding(
+void Aero::Interactivity::ChangePropertyAction::SetValueBinding(
     Base::Ref<Aero::Data::Binding> value) noexcept {
     valueBinding_ = std::move(value);
 }
 
-void LaunchUriOrFileAction::SetPath(
+void Aero::Interactivity::LaunchUriOrFileAction::SetPath(
     Base::StringView value) noexcept {
     static_cast<void>(path_.Assign(value));
 }
+
+namespace Aero::Media::Animation {
 
 void
 ControllableStoryboardAction::SetBeginStoryboardName(

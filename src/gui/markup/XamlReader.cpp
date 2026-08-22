@@ -2,7 +2,7 @@
 #include <Aero/Gui.hpp>
 
 #include "gui/GuiData.hpp"
-#include "gui/property/PropertyRuntime.hpp"
+#include "gui/core/State.hpp"
 
 #include <utility>
 

@@ -929,4 +929,9 @@ AERO_DECLARE_TYPE_ENUM(Aero::Media::Animation::EasingMode)
 // Trigger actions are exposed through concept-specific headers. They include
 // this animation core and therefore do not introduce a second declaration
 // owner or a dependency cycle.
-#include <Aero/Triggers/TriggerAction.hpp>
+#include <Aero/Interactivity/TriggerAction.hpp>
+#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+#include <Aero/Media/Animation/TimerTrigger.hpp>
+#include <Aero/Media/Animation/MediaActions.hpp>

@@ -1,16 +1,16 @@
 #pragma once
 
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
+#include "gui/meta/MetadataState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/input/InputState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "TemplateInstance.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/templates/TemplateInstance.hpp"
 
 // Private control behavior and template implementation for one View.
 // Public controls expose WPF semantics; these classes only retain interaction state.

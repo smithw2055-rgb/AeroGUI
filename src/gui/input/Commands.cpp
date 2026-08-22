@@ -1,10 +1,10 @@
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/input/InputState.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
 #include <Aero/Input.hpp>
 
 
@@ -263,7 +263,7 @@ Base::Result<bool> RoutedCommand::CanExecute(
     const Meta::Value& parameter,
     UIElement* target) noexcept {
     Aero::InputRouter* input = target != nullptr
-        ? Aero::ElementPrivate::InputRouterFor(*target)
+        ? Aero::Media::Visual::Access::InputRouterFor(*target)
         : nullptr;
     if (input == nullptr) {
         return Base::Status::Failure(
@@ -277,7 +277,7 @@ void RoutedCommand::Execute(
     const Meta::Value& parameter,
     UIElement* target) noexcept {
     Aero::InputRouter* input = target != nullptr
-        ? Aero::ElementPrivate::InputRouterFor(*target)
+        ? Aero::Media::Visual::Access::InputRouterFor(*target)
         : nullptr;
     if (input == nullptr) {
         return;
@@ -307,7 +307,7 @@ Base::Result<void> CommandState::VerifyTarget(
     }
     Base::Result<void> access = root->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!target.GetIsLoaded() || Aero::ElementPrivate::Tree(target) != tree_) {
+    if (!target.GetIsLoaded() || Aero::Media::Visual::Access::Tree(target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Command target must be loaded in the command tree");
     }
@@ -469,7 +469,7 @@ Base::Result<bool> CommandState::CanExecute(
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::ElementPrivate::Handle(element);
+            const VisualHandle ownerHandle = Aero::Media::Visual::Access::Handle(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -515,7 +515,7 @@ Base::Result<bool> CommandState::Execute(
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::ElementPrivate::Handle(element);
+            const VisualHandle ownerHandle = Aero::Media::Visual::Access::Handle(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -553,7 +553,7 @@ Base::Result<bool> CommandState::ProcessInput(
                 return true;
             }
             auto& element = static_cast<UIElement&>(current);
-            const VisualHandle owner = Aero::ElementPrivate::Handle(element);
+            const VisualHandle owner = Aero::Media::Visual::Access::Handle(element);
             for (const InputBindingRecord& record : inputBindings_) {
                 if (record.owner.index != owner.index ||
                     record.owner.generation != owner.generation ||

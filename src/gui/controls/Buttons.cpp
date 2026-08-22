@@ -1,12 +1,12 @@
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/input/InputState.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/controls/ControlRuntime.hpp"
-#include "gui/controls/TemplateRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/controls/State.hpp"
+#include "gui/templates/TemplateState.hpp"
 #include <Aero/Controls.hpp>
 
 #include <utility>
@@ -318,7 +318,7 @@ Base::Result<void> ButtonBase::Access::Attach(
             Base::ErrorCode::AlreadyExists,
             "Button is already attached to interaction services");
     }
-    if (!button.GetIsLoaded() || Aero::ElementPrivate::Tree(button) != tree_) {
+    if (!button.GetIsLoaded() || Aero::Media::Visual::Access::Tree(button) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Button must be loaded in the interaction tree");

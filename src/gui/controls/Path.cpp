@@ -2,10 +2,10 @@
 #include <Aero/Shapes.hpp>
 
 #include "render/RenderResources.hpp"
-#include "gui/base/ElementRuntime.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/media/MediaRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/media/MediaState.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -1037,7 +1037,7 @@ Base::Result<void> Path::EnsureMesh() noexcept {
     if (!geometry) {
         return geometry.GetStatus();
     }
-    auto* tree = ::Aero::ElementPrivate::Tree(*this);
+    auto* tree = ::Aero::Media::Visual::Access::Tree(*this);
     auto* host = tree != nullptr ? tree->Host() : nullptr;
     auto* meshRes = host != nullptr ? host->meshResources : nullptr;
     auto* services = static_cast<Aero::Render::MeshResources*>(meshRes);

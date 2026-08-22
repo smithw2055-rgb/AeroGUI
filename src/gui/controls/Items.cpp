@@ -1,15 +1,15 @@
 #include <Aero/Controls.hpp>
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
+#include "gui/meta/MetadataState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/controls/ControlRuntime.hpp"
-#include "gui/controls/ItemsRuntime.hpp"
-#include "gui/controls/TemplateRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/controls/State.hpp"
+#include "gui/controls/State.hpp"
+#include "gui/templates/TemplateState.hpp"
 
 #include "render/RenderTree.hpp"
 
@@ -93,7 +93,7 @@ void ItemsPresenter::SetItemsHost(
     const Base::Ref<Base::Object>& owner,
     Panel& panel) noexcept {
     Base::Result<void> assigned =
-        ::Aero::Controls::ControlPrivate::SetOwnedChild(
+        ::Aero::Controls::Control::Access::SetOwnedChild(
             *this, owner, panel);
     if (assigned) {
         static_cast<void>(InvalidateMeasure());
@@ -146,16 +146,6 @@ void ContentControl::OnForegroundChanged(
     DependencyObject&,
     const DependencyPropertyChangedEventArgs&)
         noexcept {
-    if (!literalTextContent_ ||
-        content_ == nullptr ||
-        !PropertyRegistry().Types().IsDerivedFrom(
-            content_->RuntimeType(),
-            TextBlock::StaticTypeId())) {
-        return;
-    }
-    static_cast<void>(
-        static_cast<TextBlock*>(content_)->
-            SetForeground(GetForeground()));
 }
 
 void ContentControl::SetGeneratedTextContent(
@@ -168,7 +158,6 @@ void ContentControl::SetGeneratedTextContent(
     }
     SetOwnedContent(contentObject, content);
     literalTextContent_ = true;
-    static_cast<TextBlock&>(content).SetForeground(GetForeground());
 }
 
 Base::Ref<Base::Object> ItemCollection::GetItem(
@@ -826,7 +815,7 @@ void ContentControl::OnContentPropertyChanged(
     if (control.synchronizingContentProperty_) return;
     control.synchronizingContentProperty_ = true;
     static_cast<void>(
-        ::Aero::Controls::ControlPrivate::SetContentValue(control, change.GetNewValue()));
+        ::Aero::Controls::Control::Access::SetContentValue(control, change.GetNewValue()));
     control.synchronizingContentProperty_ = false;
 }
 
@@ -885,7 +874,6 @@ void ContentControl::SetContentValue(
         auto* textBlock = static_cast<TextBlock*>(content_);
         textBlock->SetValue(RichText::TextProperty, value.AsString());
         textBlock->SetText(value.AsString());
-        textBlock->SetForeground(GetForeground());
         (void)StoreContentProperty(value);
         authoredContent_ = std::move(value);
         contentValue_.Reset();
@@ -899,7 +887,6 @@ void ContentControl::SetContentValue(
     if (!created) return;
     created.Value()->SetValue(RichText::TextProperty, value.AsString());
     created.Value()->SetText(value.AsString());
-    created.Value()->SetForeground(GetForeground());
     Base::Ref<Base::Object> retained(created.Value());
     SetOwnedContent(retained, *created.Value());
     (void)StoreContentProperty(value);
@@ -1014,14 +1001,14 @@ void ItemsControl::OnApplyTemplate() noexcept {
             }
             if (PropertyRegistry().Types().IsDerivedFrom(
                     current->RuntimeType(), ContentControl::StaticTypeId())) {
-                UIElement* content = ControlPrivate::ContentElement(
+                UIElement* content = Control::Access::ContentElement(
                     *static_cast<ContentControl*>(current));
                 if (content != nullptr) {
                     static_cast<void>(pending.PushBack(content));
                 }
             }
             for (::Aero::Media::Visual* child : Aero::
-                     ElementPrivate::VisualChildren(*current)) {
+                     Media::Visual::Access::VisualChildren(*current)) {
                 if (child != nullptr) {
                     static_cast<void>(pending.PushBack(child));
                 }
@@ -1099,6 +1086,8 @@ void ItemsControl::SetItemsSourceCore(
                 sourceHandler_));
     }
     source_ = source;
+    fprintf(stderr, "[SRC] SetItemsSourceCore source=%p count=%u\n",
+        (void*)source, source ? source->GetCount() : 0U);
     PublishItemCount();
     PublishReset();
 }
@@ -1430,8 +1419,8 @@ Base::Result<void> ItemContainerGenerator::Access::Attach(
     Panel& itemsHost) noexcept {
     if (owner_ != nullptr ||
         owner.generator_ != nullptr ||
-        Aero::ElementPrivate::Tree(owner) != tree_ ||
-        Aero::ElementPrivate::Tree(itemsHost) != tree_) {
+        Aero::Media::Visual::Access::Tree(owner) != tree_ ||
+        Aero::Media::Visual::Access::Tree(itemsHost) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ItemContainerGenerator attach state is invalid");
@@ -1467,8 +1456,8 @@ ItemContainerGenerator::Access::AttachVirtualized(
     VirtualizingStackPanel& itemsHost) noexcept {
     if (owner_ != nullptr ||
         owner.generator_ != nullptr ||
-        Aero::ElementPrivate::Tree(owner) != tree_ ||
-        Aero::ElementPrivate::Tree(itemsHost) != tree_) {
+        Aero::Media::Visual::Access::Tree(owner) != tree_ ||
+        Aero::Media::Visual::Access::Tree(itemsHost) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Virtualized item generator attach state is invalid");
@@ -1815,12 +1804,12 @@ ItemContainerGenerator::Access::AttachOwnedSubtree(
             *static_cast<Aero::Media::Visual*>(
                 owned.Get());
         if (child.GetVisualParent() == &parent &&
-            Aero::ElementPrivate::Tree(child) == tree_) {
+            Aero::Media::Visual::Access::Tree(child) == tree_) {
             return pending.PushBack(&child);
         }
         if (child.GetVisualParent() != nullptr ||
             child.GetLogicalParent() != nullptr ||
-            Aero::ElementPrivate::Tree(child) != nullptr) {
+            Aero::Media::Visual::Access::Tree(child) != nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Owned item-template child is already mounted elsewhere");
@@ -1862,12 +1851,12 @@ ItemContainerGenerator::Access::AttachOwnedSubtree(
             auto& panel =
                 *static_cast<Panel*>(current);
             for (std::uint32_t index = 0U;
-                 index < ::Aero::Controls::ControlPrivate::Count(panel);
+                 index < ::Aero::Controls::Control::Access::Count(panel);
                  ++index) {
                 Base::Result<void> attached =
                     attachChild(
                         panel,
-                        ::Aero::Controls::ControlPrivate::At(panel, index));
+                        ::Aero::Controls::Control::Access::At(panel, index));
                 if (!attached) {
                     (void)DetachOwnedSubtree(record);
                     return attached.GetStatus();
@@ -1882,7 +1871,7 @@ ItemContainerGenerator::Access::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     decorator,
-                    ::Aero::Controls::ControlPrivate::OwnedChild(decorator));
+                    ::Aero::Controls::Control::Access::OwnedChild(decorator));
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
@@ -1896,7 +1885,7 @@ ItemContainerGenerator::Access::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     content,
-                    ::Aero::Controls::ControlPrivate::OwnedContent(content));
+                    ::Aero::Controls::Control::Access::OwnedContent(content));
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
@@ -2025,10 +2014,10 @@ ItemContainerGenerator::Access::AttachRecord(
 
         Base::Result<void> selected =
             record.generatedTextContent
-            ? ::Aero::Controls::ControlPrivate::
+            ? ::Aero::Controls::Control::Access::
                       SetGeneratedTextContent(
                       *contentControl, record.content, content)
-            : ::Aero::Controls::ControlPrivate::SetOwnedContent(*contentControl,
+            : ::Aero::Controls::Control::Access::SetOwnedContent(*contentControl,
                   record.content, content);
         if (!selected) {
             (void)tree_->DetachElement(
@@ -2188,7 +2177,7 @@ ItemContainerGenerator::Access::DetachRecord(
         templates_ != nullptr &&
         owner_->PropertyRegistry().Types().IsDerivedFrom(
             container.RuntimeType(), Control::StaticTypeId()) &&
-        ::Aero::Controls::ControlPrivate::IsTemplateApplied(
+        ::Aero::Controls::Control::Access::IsTemplateApplied(
             static_cast<Control&>(container))) {
         Base::Result<bool> cleared =
             templates_->Clear(static_cast<Control&>(container));
@@ -2199,7 +2188,7 @@ ItemContainerGenerator::Access::DetachRecord(
     }
     UIElement* content = nullptr;
     if (!record.itemIsOwnContainer && contentControl != nullptr) {
-        content = ::Aero::Controls::ControlPrivate::ContentElement(
+        content = ::Aero::Controls::Control::Access::ContentElement(
             *contentControl);
     }
     if (content != nullptr) {
@@ -2322,6 +2311,9 @@ ItemContainerGenerator::Access::SetRealizationRangeInternal(
         owner_->GetCount();
     firstIndex = std::min(firstIndex, itemCount);
     count = std::min(count, itemCount - firstIndex);
+    fprintf(stderr,
+        "[REALIZE] first=%u count=%u itemCount=%u force=%d\n",
+        firstIndex, count, itemCount, (int)force);
     if (!force &&
         firstGeneratedIndex_ == firstIndex &&
         records_.Size() == count) {
@@ -2472,6 +2464,11 @@ Base::Result<void> ItemContainerGenerator::Access::Refresh() noexcept {
             return error;
         }
     }
+    fprintf(stderr,
+        "[REFRESH] non-virt records=%u hostChildren=%u host=%p\n",
+        records_.Size(),
+        host_ ? Media::Visual::Access::PanelChildCount(*host_) : 0U,
+        (void*)host_);
     return {};
 }
 
@@ -2585,6 +2582,10 @@ Base::Result<void> ItemContainerGenerator::Access::ApplyChange(
 void ItemContainerGenerator::Access::OnItemsChanged(
     const ItemsChangedEvent& event) noexcept {
     Base::Result<void> applied;
+    fprintf(stderr,
+        "[GEN] OnItemsChanged action=%d vhost=%p ownerCount=%u\n",
+        (int)event.action, (void*)virtualizingHost_,
+        owner_ ? owner_->GetCount() : 0U);
     if (virtualizingHost_ != nullptr &&
         owner_ != nullptr) {
         applied =

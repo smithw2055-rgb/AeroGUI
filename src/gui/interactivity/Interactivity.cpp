@@ -1,9 +1,9 @@
-#include <Aero/Triggers/Behavior.hpp>
+#include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/FrameworkElement.hpp>
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
 
 namespace Aero::Interactivity {
 
@@ -83,7 +83,7 @@ void StyleInteraction::OnBehaviorsChanged(
     }
     auto& element = static_cast<FrameworkElement&>(object);
     static_cast<void>(
-        Aero::ElementPrivate::ClearStyleBehaviorPrototypes(element));
+        Aero::Media::Visual::Access::ClearStyleBehaviorPrototypes(element));
     const Meta::Value& value = args.GetNewValue();
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
@@ -94,7 +94,7 @@ void StyleInteraction::OnBehaviorsChanged(
     for (const Base::Ref<Base::Object>& behavior :
          static_cast<StyleBehaviorCollection&>(*value.AsObject()).GetItems()) {
         static_cast<void>(
-            Aero::ElementPrivate::AddStyleBehaviorPrototype(
+            Aero::Media::Visual::Access::AddStyleBehaviorPrototype(
                 element, behavior));
     }
 }
@@ -108,7 +108,7 @@ void StyleInteraction::OnTriggersChanged(
     }
     auto& element = static_cast<FrameworkElement&>(object);
     static_cast<void>(
-        Aero::ElementPrivate::ClearStyleTriggerPrototypes(element));
+        Aero::Media::Visual::Access::ClearStyleTriggerPrototypes(element));
     const Meta::Value& value = args.GetNewValue();
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
@@ -119,7 +119,7 @@ void StyleInteraction::OnTriggersChanged(
     for (const Base::Ref<Base::Object>& trigger :
          static_cast<StyleTriggerCollection&>(*value.AsObject()).GetItems()) {
         static_cast<void>(
-            Aero::ElementPrivate::AddStyleTriggerPrototype(
+            Aero::Media::Visual::Access::AddStyleTriggerPrototype(
                 element, trigger));
     }
 }

@@ -409,7 +409,7 @@ void OnGridRowsChanged(
 void OnPathDataChanged(
     ::Aero::DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept {
-    ::Aero::Controls::ControlPrivate::InvalidateGeometry(
+    ::Aero::Controls::Control::Access::InvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -417,7 +417,7 @@ void OnPathColorChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<Media::Brush>&,
     const Base::Ref<Media::Brush>&) noexcept {
-    ::Aero::Controls::ControlPrivate::InvalidateGeometry(
+    ::Aero::Controls::Control::Access::InvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -427,7 +427,7 @@ void OnPathDoubleChanged(
     const double&) noexcept {
     if (object.PropertyRegistry().Types().IsDerivedFrom(
             object.RuntimeType(), Path::StaticTypeId())) {
-        ::Aero::Controls::ControlPrivate::InvalidateGeometry(
+        ::Aero::Controls::Control::Access::InvalidateGeometry(
             static_cast<Path&>(object));
     } else if (object.PropertyRegistry().Types().IsDerivedFrom(
                    object.RuntimeType(), FrameworkElement::StaticTypeId())) {
@@ -440,7 +440,7 @@ void OnPathLineJoinChanged(
     ::Aero::DependencyObject& object,
     const PenLineJoin&,
     const PenLineJoin&) noexcept {
-    ::Aero::Controls::ControlPrivate::InvalidateGeometry(
+    ::Aero::Controls::Control::Access::InvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -448,7 +448,7 @@ void OnPathLineCapChanged(
     ::Aero::DependencyObject& object,
     const PenLineCap&,
     const PenLineCap&) noexcept {
-    ::Aero::Controls::ControlPrivate::InvalidateGeometry(
+    ::Aero::Controls::Control::Access::InvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -566,14 +566,14 @@ void SetPanelContent(
     if (!child) {
         return;
     }
-    (void)::Aero::Controls::ControlPrivate::Add(
+    (void)::Aero::Controls::Control::Access::Add(
         static_cast<Panel&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
 void ClearPanelContent(
     Base::Object& owner,
     void*) noexcept {
-    (void)::Aero::Controls::ControlPrivate::Clear(static_cast<Panel&>(owner));
+    (void)::Aero::Controls::Control::Access::Clear(static_cast<Panel&>(owner));
 }
 
 void SetDecoratorContent(
@@ -583,7 +583,7 @@ void SetDecoratorContent(
     if (!child) {
         return;
     }
-    (void)::Aero::Controls::ControlPrivate::SetOwnedChild(
+    (void)::Aero::Controls::Control::Access::SetOwnedChild(
         static_cast<Decorator&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
@@ -625,14 +625,14 @@ void SetContentControlContent(
     if (!child) {
         return;
     }
-    (void)::Aero::Controls::ControlPrivate::SetContentValue(
+    (void)::Aero::Controls::Control::Access::SetContentValue(
         static_cast<ContentControl&>(owner), child);
 }
 
 void ClearContentControlContent(
     Base::Object& owner,
     void*) noexcept {
-    (void)::Aero::Controls::ControlPrivate::SetContentValue(
+    (void)::Aero::Controls::Control::Access::SetContentValue(
         static_cast<ContentControl&>(owner), Meta::Value::NullObject(Meta::TypeOf<Base::Object>()));
 }
 

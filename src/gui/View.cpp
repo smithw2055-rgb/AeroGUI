@@ -1,10 +1,12 @@
 #include <Aero/View.hpp>
 #include <Aero/Gui.hpp>
+#include <cstdio>
 #include <AeroAudio/Audio.hpp>
 #include <Aero/Diagnostics.hpp>
 #include <Aero/Diagnostics/Rendering.hpp>
 #include <Aero/Media/Geometry.hpp>
-#include <Aero/Triggers/Behavior.hpp>
+#include <Aero/Interactivity/Behavior.hpp>
+#include <Aero/Interactivity/Conditions.hpp>
 #include <Aero/Base/Hash.hpp>
 #include "gui/GuiData.hpp"
 #include "gui/ViewRenderer.hpp"
@@ -14,22 +16,22 @@
 #include "gui/text/TextPipeline.hpp"
 #include <AeroRender/RenderTarget.hpp>
 
-#include "gui/controls/ControlRuntime.hpp"
-#include "gui/controls/ItemsRuntime.hpp"
-#include "gui/controls/TemplateRuntime.hpp"
+#include "gui/controls/State.hpp"
+#include "gui/controls/State.hpp"
+#include "gui/templates/TemplateState.hpp"
 #include "gui/controls/ControlBehavior.hpp"
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/metadata/ValueConversion.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
+#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/input/InputState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/media/MediaRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/media/MediaState.hpp"
 
 #include <Aero/Controls.hpp>
 #include <Aero/Documents.hpp>
@@ -53,7 +55,7 @@
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/BuiltinThemes.generated.hpp>
 
-#include "gui/controls/DataTemplateTriggerState.hpp"
+#include "gui/templates/DataTemplateTriggerState.hpp"
 #include <AeroRender/RenderDevice.hpp>
 #include "render/RenderTree.hpp"
 
@@ -443,7 +445,7 @@ struct ViewState {
         return focusedCount;
     }
     Base::Result<void> ExecuteAnimationAction(
-        MediaAnimation::TriggerAction& action,
+        Aero::Interactivity::TriggerAction& action,
         Aero::FrameworkElement& owner,
         Aero::Controls::DataTemplateTriggerState*
             dataTemplateContext = nullptr,
@@ -476,7 +478,7 @@ struct ViewState {
             if (!authored ||
                 !runtime->metadata->Types().IsDerivedFrom(
                     authored->RuntimeType(),
-                    MediaAnimation::TriggerAction::
+                    Aero::Interactivity::TriggerAction::
                         StaticTypeId())) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
@@ -484,7 +486,7 @@ struct ViewState {
             }
             Base::Result<void> executed =
                 runtime->ExecuteAnimationAction(
-                    static_cast<MediaAnimation::TriggerAction&>(
+                    static_cast<Aero::Interactivity::TriggerAction&>(
                         *authored),
                     element);
             if (!executed) return executed.GetStatus();
@@ -511,7 +513,7 @@ struct ViewState {
                 return false;
             }
         };
-        const auto evaluate = [&](const MediaAnimation::ComparisonCondition& condition)
+        const auto evaluate = [&](const Aero::Interactivity::ComparisonCondition& condition)
             noexcept -> Base::Result<bool> {
             const Base::Ref<Data::Binding> binding = condition.GetLeftOperand();
             if (!binding) {
@@ -537,24 +539,24 @@ struct ViewState {
             }
             const auto comparison = condition.GetComparisonOperator();
             if (comparison ==
-                MediaAnimation::ComparisonCondition::Operator::Equal) {
+                Aero::Interactivity::ComparisonCondition::Operator::Equal) {
                 return current.Value().Equals(expected);
             }
             if (comparison ==
-                MediaAnimation::ComparisonCondition::Operator::NotEqual) {
+                Aero::Interactivity::ComparisonCondition::Operator::NotEqual) {
                 return !current.Value().Equals(expected);
             }
             long double left = 0.0L;
             long double right = 0.0L;
             if (numeric(current.Value(), left) && numeric(expected, right)) {
                 switch (comparison) {
-                case MediaAnimation::ComparisonCondition::Operator::LessThan:
+                case Aero::Interactivity::ComparisonCondition::Operator::LessThan:
                     return left < right;
-                case MediaAnimation::ComparisonCondition::Operator::LessThanOrEqual:
+                case Aero::Interactivity::ComparisonCondition::Operator::LessThanOrEqual:
                     return left <= right;
-                case MediaAnimation::ComparisonCondition::Operator::GreaterThan:
+                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThan:
                     return left > right;
-                case MediaAnimation::ComparisonCondition::Operator::GreaterThanOrEqual:
+                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThanOrEqual:
                     return left >= right;
                 default:
                     return false;
@@ -565,13 +567,13 @@ struct ViewState {
                 const int order = current.Value().AsString().Compare(
                     expected.AsString());
                 switch (comparison) {
-                case MediaAnimation::ComparisonCondition::Operator::LessThan:
+                case Aero::Interactivity::ComparisonCondition::Operator::LessThan:
                     return order < 0;
-                case MediaAnimation::ComparisonCondition::Operator::LessThanOrEqual:
+                case Aero::Interactivity::ComparisonCondition::Operator::LessThanOrEqual:
                     return order <= 0;
-                case MediaAnimation::ComparisonCondition::Operator::GreaterThan:
+                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThan:
                     return order > 0;
-                case MediaAnimation::ComparisonCondition::Operator::GreaterThanOrEqual:
+                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThanOrEqual:
                     return order >= 0;
                 default:
                     return false;
@@ -583,13 +585,13 @@ struct ViewState {
         for (const Base::Ref<Base::Object>& behavior : behaviors) {
             if (!behavior) continue;
             if (behavior->RuntimeType() !=
-                MediaAnimation::ConditionBehavior::StaticTypeId()) {
+                Aero::Interactivity::ConditionBehavior::StaticTypeId()) {
                 return Base::Status::Failure(
                     Base::ErrorCode::Unsupported,
                     "Interaction trigger contains an unsupported behavior");
             }
-            const Base::Ref<MediaAnimation::ConditionalExpression> expression =
-                static_cast<MediaAnimation::ConditionBehavior&>(
+            const Base::Ref<Aero::Interactivity::ConditionalExpression> expression =
+                static_cast<Aero::Interactivity::ConditionBehavior&>(
                     *behavior).GetExpression();
             if (!expression) {
                 return Base::Status::Failure(
@@ -597,10 +599,10 @@ struct ViewState {
                     "ConditionBehavior has no expression");
             }
             const bool conjunction = expression->GetChaining() ==
-                MediaAnimation::ConditionalExpression::ForwardChaining::And;
+                Aero::Interactivity::ConditionalExpression::ForwardChaining::And;
             bool expressionResult = conjunction;
             bool hasCondition = false;
-            for (const Base::Ref<MediaAnimation::ComparisonCondition>& condition :
+            for (const Base::Ref<Aero::Interactivity::ComparisonCondition>& condition :
                  expression->GetConditions()) {
                 if (!condition) continue;
                 hasCondition = true;
@@ -622,7 +624,7 @@ struct ViewState {
         const Aero::NameScope* names = nullptr;
 
         Base::Result<bool> EvaluateComparison(
-            const MediaAnimation::ComparisonCondition& condition) noexcept {
+            const Aero::Interactivity::ComparisonCondition& condition) noexcept {
             const Base::Ref<Data::Binding> binding =
                 condition.GetLeftOperand();
             if (!binding || runtime == nullptr ||
@@ -669,11 +671,11 @@ struct ViewState {
             }
             const auto comparison = condition.GetComparisonOperator();
             if (comparison ==
-                MediaAnimation::ComparisonCondition::Operator::Equal) {
+                Aero::Interactivity::ComparisonCondition::Operator::Equal) {
                 return current.Value().Equals(expected);
             }
             if (comparison ==
-                MediaAnimation::ComparisonCondition::Operator::NotEqual) {
+                Aero::Interactivity::ComparisonCondition::Operator::NotEqual) {
                 return !current.Value().Equals(expected);
             }
 
@@ -698,13 +700,13 @@ struct ViewState {
                 const long double left = numericValue(current.Value());
                 const long double right = numericValue(expected);
                 switch (comparison) {
-                case MediaAnimation::ComparisonCondition::Operator::LessThan:
+                case Aero::Interactivity::ComparisonCondition::Operator::LessThan:
                     return left < right;
-                case MediaAnimation::ComparisonCondition::Operator::LessThanOrEqual:
+                case Aero::Interactivity::ComparisonCondition::Operator::LessThanOrEqual:
                     return left <= right;
-                case MediaAnimation::ComparisonCondition::Operator::GreaterThan:
+                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThan:
                     return left > right;
-                case MediaAnimation::ComparisonCondition::Operator::GreaterThanOrEqual:
+                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThanOrEqual:
                     return left >= right;
                 default:
                     break;
@@ -715,13 +717,13 @@ struct ViewState {
                 const int result = current.Value().AsString().Compare(
                     expected.AsString());
                 switch (comparison) {
-                case MediaAnimation::ComparisonCondition::Operator::LessThan:
+                case Aero::Interactivity::ComparisonCondition::Operator::LessThan:
                     return result < 0;
-                case MediaAnimation::ComparisonCondition::Operator::LessThanOrEqual:
+                case Aero::Interactivity::ComparisonCondition::Operator::LessThanOrEqual:
                     return result <= 0;
-                case MediaAnimation::ComparisonCondition::Operator::GreaterThan:
+                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThan:
                     return result > 0;
-                case MediaAnimation::ComparisonCondition::Operator::GreaterThanOrEqual:
+                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThanOrEqual:
                     return result >= 0;
                 default:
                     break;
@@ -735,31 +737,31 @@ struct ViewState {
                  trigger->GetBehaviors()) {
                 if (!behavior) continue;
                 if (behavior->RuntimeType() !=
-                    MediaAnimation::ConditionBehavior::StaticTypeId()) {
+                    Aero::Interactivity::ConditionBehavior::StaticTypeId()) {
                     return Base::Status::Failure(
                         Base::ErrorCode::Unsupported,
                         "EventTrigger contains an unsupported behavior");
                 }
-                const Base::Ref<MediaAnimation::ConditionalExpression> expression =
-                    static_cast<MediaAnimation::ConditionBehavior&>(*behavior).GetExpression();
+                const Base::Ref<Aero::Interactivity::ConditionalExpression> expression =
+                    static_cast<Aero::Interactivity::ConditionBehavior&>(*behavior).GetExpression();
                 if (!expression) {
                     return Base::Status::Failure(
                         Base::ErrorCode::InvalidState,
                         "ConditionBehavior has no expression");
                 }
                 bool expressionResult = false;
-                for (const Base::Ref<MediaAnimation::ComparisonCondition>& condition :
+                for (const Base::Ref<Aero::Interactivity::ComparisonCondition>& condition :
                      expression->GetConditions()) {
                     if (!condition) continue;
                     Base::Result<bool> matches = EvaluateComparison(*condition);
                     if (!matches) return matches.GetStatus();
                     expressionResult = matches.Value();
                     if (!expressionResult && expression->GetChaining() ==
-                        MediaAnimation::ConditionalExpression::ForwardChaining::And) {
+                        Aero::Interactivity::ConditionalExpression::ForwardChaining::And) {
                         return false;
                     }
                     if (expressionResult && expression->GetChaining() ==
-                        MediaAnimation::ConditionalExpression::ForwardChaining::Or) {
+                        Aero::Interactivity::ConditionalExpression::ForwardChaining::Or) {
                         break;
                     }
                 }
@@ -782,7 +784,7 @@ struct ViewState {
                 return;
             }
             if (!allowed.Value()) return;
-            for (const Base::Ref<MediaAnimation::TriggerAction>& action :
+            for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
                  trigger->GetActions()) {
                 if (!action) continue;
                 Base::Result<void> executed =
@@ -840,7 +842,7 @@ struct ViewState {
 
     struct PropertyChangedTriggerState {
         ViewState* runtime = nullptr;
-        MediaAnimation::PropertyChangedTrigger* trigger = nullptr;
+        Aero::Interactivity::PropertyChangedTrigger* trigger = nullptr;
         Aero::FrameworkElement* owner = nullptr;
         const Aero::NameScope* names = nullptr;
         Meta::MemberId metadataProperty = Meta::InvalidMemberId;
@@ -895,7 +897,7 @@ struct ViewState {
 
     struct KeyTriggerState {
         ViewState* runtime = nullptr;
-        MediaAnimation::KeyTrigger* trigger = nullptr;
+        Aero::Interactivity::KeyTrigger* trigger = nullptr;
         Aero::FrameworkElement* owner = nullptr;
         const Aero::NameScope* names = nullptr;
 
@@ -993,7 +995,7 @@ struct ViewState {
             for (Aero::Markup::VisualEdge& edge : edges) {
                 if (edge.state.logicalAttached || edge.parent == nullptr ||
                     edge.child == nullptr ||
-                    Aero::ElementPrivate::Tree(*edge.parent) != tree) {
+                    Aero::Media::Visual::Access::Tree(*edge.parent) != tree) {
                     continue;
                 }
                 Base::Result<Aero::ElementAttachment> edgeAttached =
@@ -1026,9 +1028,9 @@ struct ViewState {
             for (Aero::Markup::VisualEdge& edge : edges) {
                 if (edge.state.logicalAttached ||
                     (edge.child != nullptr &&
-                     Aero::ElementPrivate::Tree(*edge.child) == tree) ||
+                     Aero::Media::Visual::Access::Tree(*edge.child) == tree) ||
                     edge.parent == nullptr || edge.child == nullptr ||
-                    Aero::ElementPrivate::Tree(*edge.parent) != tree) {
+                    Aero::Media::Visual::Access::Tree(*edge.parent) != tree) {
                     continue;
                 }
                 Base::Result<Aero::ElementAttachment> edgeAttached =
@@ -1141,28 +1143,28 @@ struct ViewState {
                     Aero::UIElement::Access::LayoutManager(*childElement) == layout &&
                     childElement->LayoutParent() == parentElement;
 
-                if (Aero::ElementPrivate::RenderAttached(
+                if (Aero::Media::Visual::Access::RenderAttached(
                         *state.child) &&
-                    Aero::ElementPrivate::RenderRuntime(
+                    Aero::Media::Visual::Access::RenderRuntime(
                         *state.child) == nullptr) {
-                    Aero::ElementPrivate::RenderAttached(
+                    Aero::Media::Visual::Access::RenderAttached(
                         *state.child) = false;
-                    Aero::ElementPrivate::RenderQueued(
+                    Aero::Media::Visual::Access::RenderQueued(
                         *state.child) = false;
-                    Aero::ElementPrivate::Rendering(
+                    Aero::Media::Visual::Access::Rendering(
                         *state.child) = false;
-                    Aero::ElementPrivate::NodeId(
+                    Aero::Media::Visual::Access::NodeId(
                         *state.child) = Base::InvalidRenderNodeId;
-                    Aero::ElementPrivate::RenderValid(
+                    Aero::Media::Visual::Access::RenderValid(
                         *state.child) = false;
                 }
                 state.renderAttached =
                     renderer != nullptr &&
-                    Aero::ElementPrivate::RenderAttached(
+                    Aero::Media::Visual::Access::RenderAttached(
                         *state.child) &&
-                    Aero::ElementPrivate::RenderRuntime(
+                    Aero::Media::Visual::Access::RenderRuntime(
                         *state.child) == renderer &&
-                    Aero::ElementPrivate::RenderParent(
+                    Aero::Media::Visual::Access::RenderParent(
                         *state.child) == state.visualParent;
             };
 
@@ -1258,7 +1260,7 @@ struct ViewState {
         if (metadata->Types().IsDerivedFrom(
                 type,
                 Controls::TextBlock::StaticTypeId())) {
-            ::Aero::Controls::ControlPrivate::Attach(
+            ::Aero::Controls::Control::Access::Attach(
                 *static_cast<Controls::TextBlock*>(&node),
                 service,
                 invalidate);
@@ -1266,7 +1268,7 @@ struct ViewState {
         if (metadata->Types().IsDerivedFrom(
                 type,
                 Controls::TextBox::StaticTypeId())) {
-            ::Aero::Controls::ControlPrivate::Attach(
+            ::Aero::Controls::Control::Access::Attach(
                 *static_cast<Controls::TextBox*>(&node),
                 service,
                 invalidate);
@@ -1275,7 +1277,7 @@ struct ViewState {
                 type,
                 Controls::PasswordBox::
                     StaticTypeId())) {
-            ::Aero::Controls::ControlPrivate::Attach(
+            ::Aero::Controls::Control::Access::Attach(
                 *static_cast<Controls::PasswordBox*>(
                     &node),
                 service,
@@ -1302,7 +1304,7 @@ struct ViewState {
         if (metadata->Types().IsDerivedFrom(
                 type,
                 Shapes::Path::StaticTypeId())) {
-            ::Aero::Controls::ControlPrivate::Attach(
+            ::Aero::Controls::Control::Access::Attach(
                 *static_cast<Shapes::Path*>(&node),
                 service,
                 invalidate);
@@ -1329,7 +1331,7 @@ struct ViewState {
             service,
             invalidate && effectivelyVisible);
         for (Aero::Media::Visual* child :
-             Aero::ElementPrivate::VisualChildren(*rootVisual)) {
+             Aero::Media::Visual::Access::VisualChildren(*rootVisual)) {
             VisitTextElements(
                 child,
                 service,
@@ -1358,7 +1360,7 @@ struct ViewState {
             service,
             invalidate && effectivelyVisible);
         for (Aero::Media::Visual* child :
-             Aero::ElementPrivate::VisualChildren(*rootVisual)) {
+             Aero::Media::Visual::Access::VisualChildren(*rootVisual)) {
             VisitPaths(
                 child,
                 service,
@@ -1601,7 +1603,7 @@ struct ViewState {
             const Base::Span<
                 Aero::Media::Visual* const>
                 children =
-                    Aero::ElementPrivate::VisualChildren(*node);
+                    Aero::Media::Visual::Access::VisualChildren(*node);
             for (std::uint32_t index =
                      children.Size();
                  index > 0U;
@@ -2082,7 +2084,7 @@ struct ViewState {
             stack.PopBack();
             if (node == nullptr) continue;
             if (Aero::UIElement* ui = node->AsUIElement()) {
-                ElementPrivate::SetViewServices(*ui, &elementHost);
+                Media::Visual::Access::SetViewServices(*ui, &elementHost);
             }
 
             Base::Result<std::uint32_t> activated =
@@ -2122,7 +2124,7 @@ struct ViewState {
             if (metadata->Types().IsDerivedFrom(
                     node->RuntimeType(), Controls::Control::StaticTypeId())) {
                 auto& control = *static_cast<Controls::Control*>(node);
-                ::Aero::Controls::ControlPrivate::AttachTemplateEngine(
+                ::Aero::Controls::Control::Access::AttachTemplateEngine(
                     control, templates);
                 Base::Result<const Controls::ControlTemplate*> resolved =
                     ResolveUiValue<Controls::ControlTemplate>(
@@ -2144,14 +2146,14 @@ struct ViewState {
                         // only after Apply has returned so PART_* lookups and
                         // ItemsHost realization cannot re-enter that
                         // transaction.
-                        ::Aero::Controls::ControlPrivate::
+                        ::Aero::Controls::Control::Access::
                             InvokeTemplateApplied(control);
                     }
                 }
             }
 
             for (Aero::Media::Visual* child :
-                 Aero::ElementPrivate::VisualChildren(*node)) {
+                 Aero::Media::Visual::Access::VisualChildren(*node)) {
                 pushed = stack.PushBack(child);
                 if (!pushed) return pushed.GetStatus();
             }
@@ -2173,7 +2175,7 @@ struct ViewState {
                 Aero::Media::Visual* node = reachable[index];
                 if (node == nullptr) continue;
                 for (Aero::Media::Visual* child :
-                     Aero::ElementPrivate::VisualChildren(*node)) {
+                     Aero::Media::Visual::Access::VisualChildren(*node)) {
                     if (child != nullptr) (void)reachable.PushBack(child);
                 }
             }
@@ -2182,7 +2184,7 @@ struct ViewState {
         for (Aero::Media::Visual* node : reachable) {
             if (node == nullptr) continue;
             if (Aero::UIElement* ui = node->AsUIElement()) {
-                ElementPrivate::SetViewServices(*ui, nullptr);
+                Media::Visual::Access::SetViewServices(*ui, nullptr);
             }
             if (bindings != nullptr) (void)bindings->DetachObject(*node);
             Aero::FrameworkElement* element = node->AsFrameworkElement();
@@ -2398,10 +2400,13 @@ struct ViewState {
             return {};
         }
         Controls::Panel* host = itemsControl.GetItemsHost();
+        fprintf(stderr, "[ATTACHGEN] type=%u hasItemsHost=%d\n",
+            static_cast<unsigned>(itemsControl.RuntimeType()),
+            host != nullptr);
         if (host == nullptr) return {};
 
         Base::Result<Controls::ItemContainerGenerator*> created =
-            ::Aero::Controls::ControlPrivate::Create(
+            ::Aero::Controls::Control::Access::Create(
                 *tree,
                 *layout,
                 *values,
@@ -2440,6 +2445,9 @@ struct ViewState {
             delete generator;
             return tracked.GetStatus();
         }
+        fprintf(stderr, "[ATTACHGEN] attached ok type=%u itemCount=%u\n",
+            static_cast<unsigned>(itemsControl.RuntimeType()),
+            itemsControl.GetCount());
         return {};
     }
 
@@ -2460,7 +2468,7 @@ struct ViewState {
                 if (!attached) return attached.GetStatus();
             }
             for (Aero::Media::Visual* child :
-                 Aero::ElementPrivate::VisualChildren(*node)) {
+                 Aero::Media::Visual::Access::VisualChildren(*node)) {
                 pushed = stack.PushBack(child);
                 if (!pushed) return pushed.GetStatus();
             }
@@ -2507,7 +2515,7 @@ struct ViewState {
                 if (!attached) return attached.GetStatus();
             }
             const Base::Span<Aero::Media::Visual* const>
-                children = Aero::ElementPrivate::VisualChildren(*node);
+                children = Aero::Media::Visual::Access::VisualChildren(*node);
             for (std::uint32_t index = 0U;
                  index < children.Size(); ++index) {
                 pushed = stack.PushBack(children[index]);
@@ -2537,7 +2545,7 @@ struct ViewState {
                     SetInputMethodHost(nullptr));
         }
         for (Aero::Media::Visual* child :
-             Aero::ElementPrivate::VisualChildren(*node)) {
+             Aero::Media::Visual::Access::VisualChildren(*node)) {
             ClearTextInputHosts(child);
         }
     }
@@ -4247,7 +4255,7 @@ struct ViewState {
             if (!authored ||
                 !metadata->Types().IsDerivedFrom(
                     authored->RuntimeType(),
-                    MediaAnimation::TriggerAction::
+                    Aero::Interactivity::TriggerAction::
                         StaticTypeId())) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
@@ -4256,7 +4264,7 @@ struct ViewState {
             Base::Result<void> executed =
                 ExecuteAnimationAction(
                     static_cast<
-                        MediaAnimation::TriggerAction&>(
+                        Aero::Interactivity::TriggerAction&>(
                             *authored),
                     *context.root,
                     &context);
@@ -4677,7 +4685,7 @@ struct ViewState {
                 eventName.SizeBytes() - dot - 1U);
         }
         if (eventName == Base::StringView("Loaded")) {
-            for (const Base::Ref<MediaAnimation::TriggerAction>& action :
+            for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
                  trigger.GetActions()) {
                 if (!action) continue;
                 Base::Result<void> executed =
@@ -4788,7 +4796,7 @@ struct ViewState {
         const Aero::NameScope* names) noexcept {
         std::uint32_t count = 0U;
         for (const Base::Ref<Base::Object>& authored :
-             Aero::ElementPrivate::AuthoredTriggers(
+             Aero::Media::Visual::Access::AuthoredTriggers(
                  content)) {
             if (!authored || authored->RuntimeType() !=
                     MediaAnimation::EventTrigger::StaticTypeId()) {
@@ -5109,13 +5117,13 @@ struct ViewState {
             if (!authored || metadata == nullptr ||
                 !metadata->Types().IsDerivedFrom(
                     authored->RuntimeType(),
-                    MediaAnimation::TriggerAction::StaticTypeId())) {
+                    Aero::Interactivity::TriggerAction::StaticTypeId())) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "Interaction Trigger contains an invalid action");
             }
             Base::Result<void> executed = ExecuteAnimationAction(
-                static_cast<MediaAnimation::TriggerAction&>(*authored),
+                static_cast<Aero::Interactivity::TriggerAction&>(*authored),
                 owner,
                 nullptr,
                 names);
@@ -5125,10 +5133,10 @@ struct ViewState {
     }
 
     Base::Result<void> ExecuteTriggerActions(
-        Base::Span<const Base::Ref<MediaAnimation::TriggerAction>> actions,
+        Base::Span<const Base::Ref<Aero::Interactivity::TriggerAction>> actions,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
-        for (const Base::Ref<MediaAnimation::TriggerAction>& action :
+        for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
              actions) {
             if (!action) continue;
             Base::Result<void> executed = ExecuteAnimationAction(
@@ -5240,7 +5248,7 @@ struct ViewState {
     }
 
     Base::Result<bool> StartPropertyChangedTrigger(
-        MediaAnimation::PropertyChangedTrigger& trigger,
+        Aero::Interactivity::PropertyChangedTrigger& trigger,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
         if (!trigger.GetBinding()) return false;
@@ -5452,7 +5460,7 @@ Base::Result<InteractionTriggerProperty> property =
     }
 
     Base::Result<bool> StartKeyTrigger(
-        MediaAnimation::KeyTrigger& trigger,
+        Aero::Interactivity::KeyTrigger& trigger,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
         Aero::UIElement* source = owner.AsUIElement();
@@ -5616,7 +5624,7 @@ Base::Result<InteractionTriggerProperty> property =
             visual->AsFrameworkElement();
         if (element != nullptr) {
             for (const Base::Ref<Base::Object>& authoredBehavior :
-                 Aero::ElementPrivate::AuthoredBehaviors(
+                 Aero::Media::Visual::Access::AuthoredBehaviors(
                      *element)) {
                 if (!authoredBehavior ||
                     !metadata->Types().IsDerivedFrom(
@@ -5633,7 +5641,7 @@ Base::Result<InteractionTriggerProperty> property =
                 if (!attached) return attached.GetStatus();
             }
             for (const Base::Ref<Base::Object>& behaviorPrototype :
-                 Aero::ElementPrivate::StyleBehaviorPrototypes(
+                 Aero::Media::Visual::Access::StyleBehaviorPrototypes(
                      *element)) {
                 if (!behaviorPrototype ||
                     !metadata->Types().IsDerivedFrom(
@@ -5663,7 +5671,7 @@ Base::Result<InteractionTriggerProperty> property =
                 }
             }
             for (const Base::Ref<Base::Object>& authored :
-                 Aero::ElementPrivate::AuthoredTriggers(*element)) {
+                 Aero::Media::Visual::Access::AuthoredTriggers(*element)) {
                 if (!authored) {
                     continue;
                 }
@@ -5705,12 +5713,12 @@ Base::Result<InteractionTriggerProperty> property =
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    MediaAnimation::PropertyChangedTrigger::
+                    Aero::Interactivity::PropertyChangedTrigger::
                         StaticTypeId()) {
                     Base::Result<bool> started =
                         StartPropertyChangedTrigger(
                             static_cast<
-                                MediaAnimation::PropertyChangedTrigger&>(
+                                Aero::Interactivity::PropertyChangedTrigger&>(
                                     *authored),
                             *element,
                             names);
@@ -5719,9 +5727,9 @@ Base::Result<InteractionTriggerProperty> property =
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    MediaAnimation::KeyTrigger::StaticTypeId()) {
+                    Aero::Interactivity::KeyTrigger::StaticTypeId()) {
                     Base::Result<bool> started = StartKeyTrigger(
-                        static_cast<MediaAnimation::KeyTrigger&>(
+                        static_cast<Aero::Interactivity::KeyTrigger&>(
                             *authored),
                         *element,
                         names);
@@ -5753,7 +5761,7 @@ Base::Result<InteractionTriggerProperty> property =
                 if (started.Value()) ++count;
             }
             for (const Base::Ref<Base::Object>& authored :
-                 Aero::ElementPrivate::StyleTriggerPrototypes(
+                 Aero::Media::Visual::Access::StyleTriggerPrototypes(
                      *element)) {
                 if (!authored) continue;
                 if (authored->RuntimeType() ==
@@ -5768,9 +5776,9 @@ Base::Result<InteractionTriggerProperty> property =
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    MediaAnimation::PropertyChangedTrigger::StaticTypeId()) {
+                    Aero::Interactivity::PropertyChangedTrigger::StaticTypeId()) {
                     Base::Result<bool> started = StartPropertyChangedTrigger(
-                        static_cast<MediaAnimation::PropertyChangedTrigger&>(
+                        static_cast<Aero::Interactivity::PropertyChangedTrigger&>(
                             *authored),
                         *element,
                         names);
@@ -5779,9 +5787,9 @@ Base::Result<InteractionTriggerProperty> property =
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    MediaAnimation::KeyTrigger::StaticTypeId()) {
+                    Aero::Interactivity::KeyTrigger::StaticTypeId()) {
                     Base::Result<bool> started = StartKeyTrigger(
-                        static_cast<MediaAnimation::KeyTrigger&>(*authored),
+                        static_cast<Aero::Interactivity::KeyTrigger&>(*authored),
                         *element,
                         names);
                     if (!started) return started.GetStatus();
@@ -5859,7 +5867,7 @@ Base::Result<InteractionTriggerProperty> property =
             }
         }
         for (Aero::Media::Visual* child :
-             Aero::ElementPrivate::VisualChildren(*visual)) {
+             Aero::Media::Visual::Access::VisualChildren(*visual)) {
             Base::Result<std::uint32_t> started =
                 StartLoadedAnimations(child, names);
             if (!started) return started.GetStatus();
@@ -5914,7 +5922,7 @@ Base::Result<InteractionTriggerProperty> property =
             visual.AsFrameworkElement();
         if (element != nullptr) {
             for (const Base::Ref<Base::Object>& authored :
-                 Aero::ElementPrivate::AuthoredTriggers(*element)) {
+                 Aero::Media::Visual::Access::AuthoredTriggers(*element)) {
                 if (authored && authored->RuntimeType() ==
                     Aero::Controls::DataTemplateTriggerState::StaticTypeId()) {
                     ClearDataTemplateTriggerProviders(
@@ -5923,7 +5931,7 @@ Base::Result<InteractionTriggerProperty> property =
                 }
             }
         }
-        for (Aero::Media::Visual* child : Aero::ElementPrivate::VisualChildren(visual)) {
+        for (Aero::Media::Visual* child : Aero::Media::Visual::Access::VisualChildren(visual)) {
             if (child != nullptr) {
                 ClearDataTemplateTriggerProvidersInSubtree(*child);
             }
@@ -6285,7 +6293,7 @@ Base::Result<InteractionTriggerProperty> property =
             ::Aero::Controls::ControlBehavior::SetVisualStateManager(*static_cast<Controls::Control*>(node), nullptr);
         }
         for (Aero::Media::Visual* child :
-             Aero::ElementPrivate::VisualChildren(*node)) {
+             Aero::Media::Visual::Access::VisualChildren(*node)) {
             ClearElementEvents(child);
         }
     }
@@ -7176,7 +7184,7 @@ void ViewState::KeyTriggerState::Invoke(
 
 Base::Result<void>
 ViewState::ExecuteAnimationAction(
-    MediaAnimation::TriggerAction& action,
+    Aero::Interactivity::TriggerAction& action,
     Aero::FrameworkElement& owner,
     Aero::Controls::DataTemplateTriggerState*
         dataTemplateContext,
@@ -7184,9 +7192,9 @@ ViewState::ExecuteAnimationAction(
     const Meta::TypeId type =
         action.RuntimeType();
     if (type ==
-        MediaAnimation::ChangePropertyAction::StaticTypeId()) {
+        Aero::Interactivity::ChangePropertyAction::StaticTypeId()) {
         auto& change =
-            static_cast<MediaAnimation::ChangePropertyAction&>(
+            static_cast<Aero::Interactivity::ChangePropertyAction&>(
                 action);
         Base::Object* targetObject =
             change.GetTargetName().Empty()
@@ -7267,9 +7275,9 @@ ViewState::ExecuteAnimationAction(
     }
 
     if (type ==
-        MediaAnimation::InvokeCommandAction::StaticTypeId()) {
+        Aero::Interactivity::InvokeCommandAction::StaticTypeId()) {
         auto& invoke =
-            static_cast<MediaAnimation::InvokeCommandAction&>(action);
+            static_cast<Aero::Interactivity::InvokeCommandAction&>(action);
         Base::Ref<Input::ICommand> command = invoke.GetCommand();
         if (!command && invoke.GetCommandBinding()) {
             Base::Result<Meta::PropertyValue> evaluated =
@@ -7338,8 +7346,8 @@ ViewState::ExecuteAnimationAction(
         return {};
     }
 
-    if (type == MediaAnimation::SetFocusAction::StaticTypeId()) {
-        auto& setFocus = static_cast<MediaAnimation::SetFocusAction&>(action);
+    if (type == Aero::Interactivity::SetFocusAction::StaticTypeId()) {
+        auto& setFocus = static_cast<Aero::Interactivity::SetFocusAction&>(action);
         if (!setFocus.GetEngage() || input == nullptr) return {};
         Base::Object* targetObject = setFocus.GetTargetName().Empty()
             ? static_cast<Base::Object*>(&owner)
@@ -7368,7 +7376,7 @@ ViewState::ExecuteAnimationAction(
             : Base::Result<void>(focused.GetStatus());
     }
 
-    if (type == MediaAnimation::SelectAction::StaticTypeId()) {
+    if (type == Aero::Interactivity::SelectAction::StaticTypeId()) {
         if (metadata->Types().IsDerivedFrom(
                 owner.RuntimeType(),
                 Controls::ListBoxItem::StaticTypeId())) {
@@ -7388,7 +7396,7 @@ ViewState::ExecuteAnimationAction(
             "SelectAction owner is not a selectable item container");
     }
 
-    if (type == MediaAnimation::SelectAllAction::StaticTypeId()) {
+    if (type == Aero::Interactivity::SelectAllAction::StaticTypeId()) {
         if (metadata->Types().IsDerivedFrom(
                 owner.RuntimeType(),
                 Controls::TextBox::StaticTypeId())) {
@@ -7406,9 +7414,9 @@ ViewState::ExecuteAnimationAction(
             "SelectAllAction owner is not a text editor");
     }
 
-    if (type == MediaAnimation::PlaySoundAction::StaticTypeId()) {
+    if (type == Aero::Interactivity::PlaySoundAction::StaticTypeId()) {
         auto& playSound =
-            static_cast<MediaAnimation::PlaySoundAction&>(action);
+            static_cast<Aero::Interactivity::PlaySoundAction&>(action);
         if (!playSound.GetIsEnabled() ||
             playSound.GetSource().Empty()) {
             return {};
@@ -7446,8 +7454,8 @@ ViewState::ExecuteAnimationAction(
         return played;
     }
 
-    if (type == MediaAnimation::RemoveElementAction::StaticTypeId()) {
-        auto& remove = static_cast<MediaAnimation::RemoveElementAction&>(action);
+    if (type == Aero::Interactivity::RemoveElementAction::StaticTypeId()) {
+        auto& remove = static_cast<Aero::Interactivity::RemoveElementAction&>(action);
         Base::Object* targetObject = static_cast<Base::Object*>(&owner);
         Base::Ref<Data::Binding> targetBinding =
             remove.GetTargetObject();
@@ -7860,7 +7868,7 @@ ViewState::ProcessStoryboardCompletions() noexcept {
             if (!allowed) return allowed.GetStatus();
             if (!allowed.Value()) continue;
             for (const Base::Ref<
-                     MediaAnimation::TriggerAction>& action :
+                     Aero::Interactivity::TriggerAction>& action :
                  subscription.trigger->GetActions()) {
                 if (!action) continue;
                 Base::Result<void> executed =
@@ -8268,7 +8276,7 @@ Base::Result<void> View::SetContent(
     }
 
     Base::Result<void> assigned =
-        ::Aero::Controls::ControlPrivate::SetOwnedContent(
+        ::Aero::Controls::Control::Access::SetOwnedContent(
             *static_cast<Controls::ContentControl*>(hostRoot.Value()),
             next.root,
             *documentRoot.Value());
@@ -8381,7 +8389,7 @@ Base::Result<void> MountViewFragment(
             Base::ErrorCode::InvalidArgument,
             "content fragment document must not be empty");
     }
-    if (Aero::ElementPrivate::Tree(host) != state_->tree) {
+    if (Aero::Media::Visual::Access::Tree(host) != state_->tree) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "content fragment host does not belong to this View");
@@ -8398,7 +8406,7 @@ Base::Result<void> MountViewFragment(
     if (existing != UINT32_MAX) {
         Base::Result<void> unmounted = state_->UnmountFragmentAt(existing);
         if (!unmounted) return unmounted.GetStatus();
-    } else if (::Aero::Controls::ControlPrivate::ContentElement(host) != nullptr) {
+    } else if (::Aero::Controls::Control::Access::ContentElement(host) != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
               "content fragment host already owns non-fragment content");
@@ -8438,7 +8446,7 @@ Base::Result<void> MountViewFragment(
         fragment.document.Clear();
         return tracked.GetStatus();
     }
-    Base::Result<void> assigned = ::Aero::Controls::ControlPrivate::SetOwnedContent(host,
+    Base::Result<void> assigned = ::Aero::Controls::Control::Access::SetOwnedContent(host,
         fragment.document.root, *rootElement.Value());
     if (!assigned) {
         restoreActiveNames();
@@ -8474,8 +8482,8 @@ Base::Result<void> MountViewFragment(
                  fragment.document.visualContent.mountEdges) {
                 if (edge.state.logicalAttached || edge.parent == nullptr ||
                     edge.child == nullptr ||
-                    Aero::ElementPrivate::Tree(*edge.parent) != state_->tree ||
-                    (deferred && Aero::ElementPrivate::Tree(*edge.child) == state_->tree)) {
+                    Aero::Media::Visual::Access::Tree(*edge.parent) != state_->tree ||
+                    (deferred && Aero::Media::Visual::Access::Tree(*edge.child) == state_->tree)) {
                     continue;
                 }
                 Base::Result<Aero::ElementAttachment> mounted =
@@ -8557,7 +8565,7 @@ Base::Result<void> UnmountViewFragment(
             return state_->UnmountFragmentAt(index);
         }
     }
-    return ::Aero::Controls::ControlPrivate::ContentElement(host) == nullptr
+    return ::Aero::Controls::Control::Access::ContentElement(host) == nullptr
         ? Base::Result<void>()
         : Base::Result<void>(Base::Status::Failure(
               Base::ErrorCode::InvalidState,

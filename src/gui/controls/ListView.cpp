@@ -1,6 +1,6 @@
-#include "gui/base/FreezableRuntime.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
 #include <Aero/Controls.hpp>
 
 #include <cmath>

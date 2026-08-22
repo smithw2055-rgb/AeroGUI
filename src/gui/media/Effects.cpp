@@ -1,9 +1,9 @@
 #include <Aero/Media/Effects.hpp>
 
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/media/MediaRuntime.hpp"
+#include "gui/media/MediaState.hpp"
 
 namespace Aero::Media {
 

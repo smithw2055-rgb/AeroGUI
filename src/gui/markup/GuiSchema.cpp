@@ -1,9 +1,9 @@
 #include <Aero/Base/Assert.hpp>
 
-#include "gui/metadata/MetadataRuntime.hpp"
+#include "gui/meta/MetadataState.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/markup/MarkupRuntime.hpp"
-#include "gui/markup/MarkupWriterRuntime.hpp"
+#include "gui/markup/MarkupState.hpp"
+#include "gui/markup/MarkupWriterState.hpp"
 
 #include <new>
 #include <utility>

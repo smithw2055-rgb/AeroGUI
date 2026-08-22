@@ -1,17 +1,17 @@
 #include <Aero/Controls/ControlTemplate.hpp>
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/meta/MetadataState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/controls/ControlRuntime.hpp"
-#include "gui/controls/TemplateRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/controls/State.hpp"
+#include "gui/templates/TemplateState.hpp"
 
 #include <Aero/Value.hpp>
 #include <Aero/Media/Transforms.hpp>
-#include "gui/media/MediaRuntime.hpp"
+#include "gui/media/MediaState.hpp"
 
 #include <algorithm>
 #include <new>

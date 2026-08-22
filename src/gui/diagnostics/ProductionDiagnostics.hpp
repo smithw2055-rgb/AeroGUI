@@ -12,16 +12,16 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Layout.hpp>
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
+#include "gui/meta/MetadataState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/input/InputState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <cstdint>
@@ -143,10 +143,10 @@ private:
     Base::Result<void> CaptureNode(
         const Aero::Media::Visual& visual) noexcept {
         AccessibilityNode node;
-        node.id = NodeId(Aero::ElementPrivate::Handle(visual));
+        node.id = NodeId(Aero::Media::Visual::Access::Handle(visual));
         const Aero::Media::Visual* parent = visual.GetLogicalParent();
         if (parent == nullptr) parent = visual.GetVisualParent();
-        node.parent = parent != nullptr ? NodeId(Aero::ElementPrivate::Handle(*parent)) : 0U;
+        node.parent = parent != nullptr ? NodeId(Aero::Media::Visual::Access::Handle(*parent)) : 0U;
         const Aero::UIElement* element = visual.AsUIElement();
         if (element != nullptr) {
             node.bounds = element->GetLayoutSlot();
@@ -202,13 +202,13 @@ private:
             if (!added) return added.GetStatus();
         }
         const Base::Span<Aero::Media::Visual* const> logical =
-            Aero::ElementPrivate::LogicalChildren(visual);
+            Aero::Media::Visual::Access::LogicalChildren(visual);
         for (Aero::Media::Visual* child : logical) {
             if (child == nullptr) continue;
             Base::Result<void> captured = CaptureNode(*child);
             if (!captured) return captured.GetStatus();
         }
-        for (Aero::Media::Visual* child : Aero::ElementPrivate::VisualChildren(visual)) {
+        for (Aero::Media::Visual* child : Aero::Media::Visual::Access::VisualChildren(visual)) {
             if (child == nullptr) continue;
             bool alreadyCaptured = false;
             for (Aero::Media::Visual* logicalChild : logical) {
@@ -308,14 +308,14 @@ private:
     Base::Result<void> CaptureNode(
         const Aero::Media::Visual& visual) noexcept {
         InspectorTreeNode node;
-        node.handle = Aero::ElementPrivate::Handle(visual);
+        node.handle = Aero::Media::Visual::Access::Handle(visual);
         node.runtimeType = visual.RuntimeType();
         node.loaded = visual.GetIsLoaded();
         if (visual.GetLogicalParent() != nullptr) {
-            node.logicalParent = Aero::ElementPrivate::Handle(*visual.GetLogicalParent());
+            node.logicalParent = Aero::Media::Visual::Access::Handle(*visual.GetLogicalParent());
         }
         if (visual.GetVisualParent() != nullptr) {
-            node.visualParent = Aero::ElementPrivate::Handle(*visual.GetVisualParent());
+            node.visualParent = Aero::Media::Visual::Access::Handle(*visual.GetVisualParent());
         }
         const Aero::UIElement* element = visual.AsUIElement();
         if (element != nullptr) {
@@ -328,12 +328,12 @@ private:
         const Aero::FrameworkElement* framework =
             visual.AsFrameworkElement();
         if (framework != nullptr) {
-            node.renderRevision = Aero::ElementPrivate::RenderRevision(*framework);
-            node.renderValid = Aero::ElementPrivate::IsRenderValid(*framework);
+            node.renderRevision = Aero::Media::Visual::Access::RenderRevision(*framework);
+            node.renderValid = Aero::Media::Visual::Access::IsRenderValid(*framework);
         }
         Base::Result<void> appended = nodes_.PushBack(node);
         if (!appended) return appended.GetStatus();
-        for (Aero::Media::Visual* child : Aero::ElementPrivate::LogicalChildren(visual)) {
+        for (Aero::Media::Visual* child : Aero::Media::Visual::Access::LogicalChildren(visual)) {
             if (child == nullptr) continue;
             Base::Result<void> captured = CaptureNode(*child);
             if (!captured) return captured.GetStatus();

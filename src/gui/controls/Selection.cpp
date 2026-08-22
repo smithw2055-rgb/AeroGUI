@@ -1,15 +1,15 @@
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/meta/MetadataState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/input/InputState.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/controls/ControlRuntime.hpp"
-#include "gui/controls/ItemsRuntime.hpp"
-#include "gui/controls/TemplateRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/controls/State.hpp"
+#include "gui/controls/State.hpp"
+#include "gui/templates/TemplateState.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls/TextBoxBase.hpp>
@@ -1418,7 +1418,7 @@ ComboBox::UpdateSelectionBox() noexcept {
                 selected->RuntimeType(),
                 ContentControl::StaticTypeId())) {
         UIElement* content =
-            ControlPrivate::ContentElement(*static_cast<ContentControl*>(
+            Control::Access::ContentElement(*static_cast<ContentControl*>(
                 selected.Get()));
         if (content != nullptr &&
             PropertyRegistry().Types().
@@ -1443,7 +1443,7 @@ ComboBox::UpdateSelectionBox() noexcept {
             PropertyRegistry().Types().IsDerivedFrom(
                 container->RuntimeType(),
                 ContentControl::StaticTypeId())) {
-            UIElement* content = ControlPrivate::ContentElement(
+            UIElement* content = Control::Access::ContentElement(
                 *static_cast<ContentControl*>(container));
             if (content != nullptr &&
                 PropertyRegistry().Types().IsDerivedFrom(
@@ -1627,7 +1627,7 @@ ComboBox::Access::ResolveComboBox(
 Base::Result<void>
 ComboBox::Access::Attach(
     ComboBox& comboBox) noexcept {
-    if (Aero::ElementPrivate::Tree(comboBox) != tree_ ||
+    if (Aero::Media::Visual::Access::Tree(comboBox) != tree_ ||
         FindComboBox(comboBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1819,7 +1819,7 @@ ListBox* ListBox::Access::ResolveListBox(
 
 Base::Result<void> ListBox::Access::Attach(
     ListBox& listBox) noexcept {
-    if (Aero::ElementPrivate::Tree(listBox) != tree_ ||
+    if (Aero::Media::Visual::Access::Tree(listBox) != tree_ ||
         FindListBox(listBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,

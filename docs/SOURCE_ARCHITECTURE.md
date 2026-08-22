@@ -9,16 +9,31 @@ define another SDK layer; installed product contracts are under `include/Aero`,
 ```text
 src/base/       allocation, strings, object lifetime, streams and C ABI
 src/gui/        WPF semantic kernel, Gui/View composition and ViewRenderer
-src/gui/controls/   controls, templates, item generation and default behavior
-src/gui/markup/     XAML schema, parser, writer, compiled documents and cache
-src/gui/input/      platform-neutral input services
-src/gui/text/       shaping, glyph atlas, editing and font adapters
-src/gui/media/      brushes, images, transforms, effects and animation
+src/gui/core/        root Aero: elements, DependencyProperty, Freezable, events, Dispatcher
+src/gui/controls/    controls implementations + the Measure/Arrange layout engine (no templates/styles)
+src/gui/templates/   ControlTemplate, DataTemplate and the template engine
+src/gui/styles/      Style and ResourceDictionary
+src/gui/data/        Aero::Data Binding engine
+src/gui/markup/      XAML schema, parser, writer, compiled documents and cache
+src/gui/input/       platform-neutral input services
+src/gui/text/        shaping, glyph atlas, editing and font adapters
+src/gui/media/       brushes, images, transforms, effects and animation (incl. the EventTrigger/StoryboardActions/TimerTrigger engine)
+src/gui/interactivity/  Aero::Interactivity: Blend behaviors, trigger actions and the interactivity engine
+src/gui/triggers/    Aero::Triggers: core WPF style triggers (Trigger/DataTrigger/MultiTrigger/MultiDataTrigger and Condition)
+src/gui/meta/        Aero::Meta / Aero::Module type, value, metadata and modules
 src/gui/diagnostics/ opt-in inspection and rendering diagnostics
 src/render/     immutable-frame encoding, GPU resources and native backends
 src/app/        Application, Window, DesktopHost and desktop presentation
 src/audio/      optional audio product
 ```
+
+The `src/gui` tree intentionally mirrors the installed WPF-semantic namespaces
+(`Aero`, `Aero::Controls`, `Aero::Data`, `Aero::Markup`, `Aero::Media`,
+`Aero::Triggers`, `Aero::Meta`) so that a WPF developer can locate the
+implementation of a public type by its namespace. Private implementation
+access headers use the `*State.hpp` / `*Access.hpp` spelling (for example
+`ElementState.hpp`, `MetadataState.hpp`) rather than the retired `*Runtime.hpp`
+pattern.
 
 App-owned XAML behavior is supplied to the Gui schema through copied module
 descriptors (`Markup::ResourceScopeRegistration`). This keeps callbacks close
@@ -43,6 +58,52 @@ handles (`void*`) keep such state out of the installed headers. The
 `cmake/CheckArchitecture.cmake` gate fails any installed header or source file
 that still declares a `Detail` or `Runtime` namespace.
 
+## Trigger and behavior headers
+
+The old `include/Aero/Triggers/` bucket mixed three WPF concepts with three
+different namespaces. It is now split into a WPF-faithful three-way layout so a
+WPF developer can find a type by its .NET namespace:
+
+```text
+include/Aero/Triggers/          Aero::*            core WPF style triggers
+    TriggerBase.hpp  Trigger.hpp  DataTrigger.hpp
+    MultiTrigger.hpp  MultiDataTrigger.hpp  Conditions.hpp (Aero::Condition)
+    Triggers.hpp                      umbrella aggregator
+
+include/Aero/Interactivity/      Aero::Interactivity   System.Windows.Interactivity (Blend)
+    Behavior.hpp  BlendBehaviors.hpp  TriggerAction.hpp
+    ChangePropertyAction.hpp  SetFocusAction.hpp
+    RemoveElementAction.hpp  LaunchUriOrFileAction.hpp
+    InteractionTriggers.hpp  (PropertyChangedTrigger, KeyTrigger,
+                              InvokeCommandAction, SelectAction,
+                              SelectAllAction, PlaySoundAction)
+    Conditions.hpp       (ComparisonCondition, ConditionalExpression,
+                          ConditionBehavior, the Blend condition primitives)
+
+include/Aero/Media/Animation/    Aero::Media::Animation   System.Windows.Media.Animation
+    EventTrigger.hpp  StoryboardActions.hpp (BeginStoryboard, etc.)
+    StoryboardCompletedTrigger.hpp  TimerTrigger.hpp  MediaActions.hpp
+```
+
+Rules:
+
+* Core style triggers (`Trigger`, `DataTrigger`, `MultiTrigger`,
+  `MultiDataTrigger`) stay in the `Aero` namespace (no sub-namespace), matching
+  WPF `System.Windows.TriggerBase` and friends.
+* Blend interactivity (`Behavior`, `TriggerAction` and the concrete actions,
+  `InteractionTriggers`) lives in `Aero::Interactivity`, matching
+  `System.Windows.Interactivity`.
+* Animation triggers (`EventTrigger`, `StoryboardActions`, `TimerTrigger`,
+  `MediaActions`, `StoryboardCompletedTrigger`) live in `Aero::Media::Animation`,
+  matching `System.Windows.Media.Animation`.
+
+`TriggerAction` is an `Aero::Interactivity` type; the animation trigger headers
+reference it through `using Aero::Interactivity::TriggerAction;`. The Blend
+condition primitives (`ComparisonCondition`, `ConditionalExpression`,
+`ConditionBehavior`) were relocated from `Aero::Media::Animation` to
+`Aero::Interactivity` because they are authored through interactivity XAML and
+are not part of the timeline model. `Triggers.hpp` re-exports all three groups.
+
 ## View composition
 
 `ViewState` owns the view-affine object factory, effective values, animation,
@@ -57,6 +118,16 @@ No source-only object uses a heap-allocated `Impl`/`Access` Pimpl. Where a
 large implementation type must remain out of a source header, the owner keeps
 fixed aligned storage and constructs the data state in place. There is no
 second ownership or forwarding object.
+
+## Render source boundary
+
+`src/render/` holds the backend-neutral render contracts (`DrawingContext`,
+`RenderTree`, `RenderDevice`, `RenderTarget`, `FrameEncoder`, `TextRenderer`).
+These compile directly into `AeroGui`; `AeroRender` is an installed *interface*
+CMake target over those contracts, not a separate DLL or binary. The
+`d3d11/`, `opengl33/`, and `platform/` subdirectories are the opt-in native
+backend products (`AeroRenderD3D11`, `AeroRenderOpenGL33`) and their surface
+adapters, and link into those backend products only.
 
 ## Rendering ownership
 

@@ -1,8 +1,8 @@
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/StackPanel.hpp>
 
@@ -259,7 +259,7 @@ ToolBar::SynchronizeToolBar() noexcept {
         overflowCount);
     if (host != nullptr) {
         const Base::Span<::Aero::Media::Visual* const> children =
-            Aero::ElementPrivate::VisualChildren(*host);
+            Aero::Media::Visual::Access::VisualChildren(*host);
         for (std::uint32_t index = 0U;
              index < children.Size();
              ++index) {

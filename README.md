@@ -363,14 +363,21 @@ AeroGUI/
 ├── include/AeroApp/        # desktop Application/Window product
 ├── include/AeroAudio/      # independent optional audio product
 ├── src/base/               # foundation implementation
-├── src/gui/                # WPF semantic kernel, Gui and View composition
-│   ├── controls/           # standard controls and control behavior
+├── src/gui/                # WPF semantic kernel, organized by WPF namespace
+│   ├── core/               # root Aero: elements, DependencyProperty, Freezable, events, Dispatcher
+│   ├── controls/           # Aero::Controls implementations only
+│   ├── templates/          # ControlTemplate / DataTemplate / template engine
+│   ├── styles/             # Style / ResourceDictionary
+│   ├── data/               # Aero::Data: Binding engine
+│   ├── markup/             # Aero::Markup: XAML schema, writer, loader, reader
+│   ├── media/              # Aero::Media: brushes, images, transforms, effects, animation
+│   ├── text/               # Aero::Text: shaping, glyph atlas, editing
+│   ├── input/              # Aero::Input: commands, clipboard, focus
+│   ├── triggers/           # Aero::Triggers: interactivity behaviors
+│   ├── meta/               # Aero::Meta / Aero::Module: type, value, metadata, modules
 │   ├── diagnostics/        # GUI inspection and rendering diagnostics
-│   ├── input/              # platform-neutral input services such as clipboard
-│   ├── markup/             # XAML schema, providers, object writer and XamlDocument
-│   ├── media/              # brushes, images, transforms, effects and image cache
-│   └── text/               # shaping, fonts and glyph runtime
-├── src/render/             # render contracts, GPU resources and native backends
+│   └── (root)              # Gui/View composition: Gui.cpp, View.cpp, ViewRenderer*
+├── src/render/             # backend-neutral render contracts + native backends
 ├── src/app/                # Application, Window and private OS window/IME adapters
 ├── src/audio/              # optional audio product implementation
 ├── third_party/

@@ -1,9 +1,9 @@
 #include "Inspector.hpp"
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/property/PropertyRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
+#include "gui/meta/MetadataState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
 
 #include <Aero/Controls.hpp>
 
@@ -39,7 +39,7 @@ Base::Result<void> AppendTree(
     }
     InspectorTreeNode record;
     record.node = &node;
-    record.handle = Aero::ElementPrivate::Handle(node);
+    record.handle = Aero::Media::Visual::Access::Handle(node);
     record.parent = parent;
     record.runtimeType =
         node.RuntimeType();
@@ -51,8 +51,8 @@ Base::Result<void> AppendTree(
     }
     const Base::Span<::Aero::Media::Visual* const> children =
         kind == TreeKind::Logical
-        ? Aero::ElementPrivate::LogicalChildren(node)
-        : Aero::ElementPrivate::VisualChildren(node);
+        ? Aero::Media::Visual::Access::LogicalChildren(node)
+        : Aero::Media::Visual::Access::VisualChildren(node);
     for (::Aero::Media::Visual* child : children) {
         if (child == nullptr) {
             return Status::Failure(
@@ -94,7 +94,7 @@ using namespace Aero::Threading;
         bindings_ == nullptr ||
         renderer_ == nullptr ||
         maxTreeNodes == 0U ||
-        Aero::ElementPrivate::Tree(target) != tree_) {
+        Aero::Media::Visual::Access::Tree(target) != tree_) {
         return Status::Failure(
             ErrorCode::InvalidArgument,
             "Inspector render target "

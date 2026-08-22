@@ -3,14 +3,14 @@
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
 #include "gui/text/EditableText.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/input/InputState.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/media/MediaRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/media/MediaState.hpp"
 
 #include "TextBlockLayout.hpp"
 
@@ -2378,7 +2378,7 @@ TextBox::Access::Attach(
             "TextBox is already attached");
     }
     if (!textBox.GetIsLoaded() ||
-        Aero::ElementPrivate::Tree(textBox) != tree_) {
+        Aero::Media::Visual::Access::Tree(textBox) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "TextBox must be loaded in the interaction tree");
@@ -2389,7 +2389,7 @@ TextBox::Access::Attach(
         return synced;
     }
     Record record;
-    record.handle = Aero::ElementPrivate::Handle(textBox);
+    record.handle = Aero::Media::Visual::Access::Handle(textBox);
     Base::Result<void> appended =
         records_.PushBack(record);
     if (!appended) {
@@ -2470,7 +2470,7 @@ TextBox::Access::Attach(
             "PasswordBox is already attached");
     }
     if (!passwordBox.GetIsLoaded() ||
-        Aero::ElementPrivate::Tree(passwordBox) != tree_) {
+        Aero::Media::Visual::Access::Tree(passwordBox) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "PasswordBox must be loaded in the interaction tree");
@@ -2492,7 +2492,7 @@ TextBox::Access::Attach(
     if (!synced) return synced.GetStatus();
 
     Record record;
-    record.handle = Aero::ElementPrivate::Handle(passwordBox);
+    record.handle = Aero::Media::Visual::Access::Handle(passwordBox);
     record.password = true;
     Base::Result<void> appended =
         records_.PushBack(record);

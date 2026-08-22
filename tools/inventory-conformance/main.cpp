@@ -10,7 +10,7 @@
 #include <Aero/Media/Images.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Module.hpp>
-#include <Aero/Triggers/Behavior.hpp>
+#include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/View.hpp>
 #include <AeroApp/Window.hpp>
 

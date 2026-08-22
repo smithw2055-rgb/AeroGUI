@@ -1,9 +1,9 @@
-#include "gui/metadata/MetadataRuntime.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/meta/MetadataState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
 #include <Aero/Documents.hpp>
 
 
@@ -111,7 +111,7 @@ public:
         Documents::Inline& inlineValue,
         ::Aero::DependencyObject& parent,
         Controls::TextBlock* host) noexcept {
-        ElementPrivate::Attach(
+        Media::Visual::Access::Attach(
             inlineValue,
             &parent,
             host,
@@ -136,7 +136,7 @@ public:
                 if (child) ClearHost(*child);
             }
         }
-        ElementPrivate::Detach(inlineValue);
+        Media::Visual::Access::Detach(inlineValue);
     }
 
     static Base::Result<void> Add(
@@ -403,7 +403,6 @@ public:
 } // namespace Aero::Controls
 
 namespace Aero::Controls {
-using DocumentPrivate = ::Aero::Controls::TextBlock::Access;
 
 } // namespace Aero::Controls
 
@@ -425,7 +424,7 @@ Documents::TextPointer TextBlock::GetContentStart() noexcept {
 
 Documents::TextPointer TextBlock::GetContentEnd() noexcept {
     Base::Result<std::uint32_t> length =
-        Aero::Controls::DocumentPrivate::GetLength(*this);
+        Aero::Controls::TextBlock::Access::GetLength(*this);
     return Documents::TextPointer(
         *this,
         length ? length.Value() : 0U,
@@ -438,26 +437,26 @@ namespace Aero::Documents {
 
 std::uint32_t InlineCollectionView::GetCount() const noexcept {
     return owner_ != nullptr
-        ? Aero::Controls::DocumentPrivate::GetCount(*owner_)
+        ? Aero::Controls::TextBlock::Access::GetCount(*owner_)
         : 0U;
 }
 
 const Inline* InlineCollectionView::GetItem(
     std::uint32_t index) const noexcept {
     return owner_ != nullptr
-        ? Aero::Controls::DocumentPrivate::At(*owner_, index)
+        ? Aero::Controls::TextBlock::Access::At(*owner_, index)
         : nullptr;
 }
 
 std::uint32_t InlineCollection::GetCount() const noexcept {
     return owner_ != nullptr
-        ? Aero::Controls::DocumentPrivate::GetCount(*owner_)
+        ? Aero::Controls::TextBlock::Access::GetCount(*owner_)
         : 0U;
 }
 
 Inline* InlineCollection::GetItem(std::uint32_t index) const noexcept {
     return owner_ != nullptr
-        ? Aero::Controls::DocumentPrivate::At(*owner_, index)
+        ? Aero::Controls::TextBlock::Access::At(*owner_, index)
         : nullptr;
 }
 
@@ -474,7 +473,7 @@ Base::Result<void> InlineCollection::Add(
             Base::ErrorCode::InvalidState,
             "InlineCollection is not bound to an owner");
     }
-    return Aero::Controls::DocumentPrivate::Add(
+    return Aero::Controls::TextBlock::Access::Add(
         *owner_, std::move(value));
 }
 
@@ -485,14 +484,14 @@ Base::Result<bool> InlineCollection::Remove(
             Base::ErrorCode::InvalidState,
             "InlineCollection is not bound to an owner");
     }
-    return Aero::Controls::DocumentPrivate::Remove(*owner_, value);
+    return Aero::Controls::TextBlock::Access::Remove(*owner_, value);
 }
 
 void InlineCollection::Clear() noexcept {
     if (owner_ == nullptr) {
         return;
     }
-    (void)Aero::Controls::DocumentPrivate::Clear(*owner_);
+    (void)Aero::Controls::TextBlock::Access::Clear(*owner_);
 }
 
 Span::~Span() {
@@ -545,16 +544,16 @@ Base::Result<void> Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
     }
     Base::Result<void> appended = inlines_.PushBack(value);
     if (!appended) return appended.GetStatus();
-    Aero::ElementPrivate::Attach(
+    Aero::Media::Visual::Access::Attach(
         *value, this, GetContentHost(), nullptr);
     pendingInline_ = std::move(value);
-    Controls::TextBlock* host = Aero::Controls::DocumentPrivate::Host(*this);
+    Controls::TextBlock* host = Aero::Controls::TextBlock::Access::Host(*this);
     return host != nullptr ? host->InvalidateMeasure() : Base::Result<void>{};
 }
 
 void Span::ClearOwnedInlines() noexcept {
     for (Base::Ref<Inline>& value : inlines_) {
-        if (value) Aero::ElementPrivate::Detach(*value);
+        if (value) Aero::Media::Visual::Access::Detach(*value);
     }
     inlines_.Clear();
     pendingInline_.Reset();
@@ -568,7 +567,7 @@ Base::Result<void> CopyText(
     const Controls::TextBlock& container,
     Base::String& output) noexcept {
     output.Clear();
-    return Aero::Controls::DocumentPrivate::AppendText(
+    return Aero::Controls::TextBlock::Access::AppendText(
         container, output);
 }
 
@@ -593,7 +592,7 @@ Base::Result<TextPointer> TextPointer::GetPositionAtOffset(
             "TextPointer is not bound to a container");
     }
     Base::Result<std::uint32_t> length =
-        Aero::Controls::DocumentPrivate::GetLength(*container_);
+        Aero::Controls::TextBlock::Access::GetLength(*container_);
     if (!length) return length.GetStatus();
     const std::int64_t destination =
         static_cast<std::int64_t>(offset_) + delta;
@@ -606,7 +605,7 @@ Base::Result<TextPointer> TextPointer::GetPositionAtOffset(
     const std::uint32_t resolved =
         static_cast<std::uint32_t>(destination);
     Base::Result<bool> boundary =
-        Aero::Controls::DocumentPrivate::IsUtf8Boundary(
+        Aero::Controls::TextBlock::Access::IsUtf8Boundary(
             *container_, resolved);
     if (!boundary) return boundary.GetStatus();
     if (!boundary.Value()) {
@@ -660,13 +659,13 @@ Base::Result<TextPointer> GetPositionFromPoint(
     Controls::TextBlock& container,
     Aero::Point point,
     bool snapToText) noexcept {
-    return Aero::Controls::DocumentPrivate::PositionFromPoint(
+    return Aero::Controls::TextBlock::Access::PositionFromPoint(
         container, point, snapToText);
 }
 
 Base::Result<Aero::Rect> GetCharacterRect(
     const TextPointer& position) noexcept {
-    return Aero::Controls::DocumentPrivate::CharacterRect(position);
+    return Aero::Controls::TextBlock::Access::CharacterRect(position);
 }
 
 Base::StringView Hyperlink::GetNavigateUri() const noexcept {
@@ -759,3 +758,562 @@ void NavigationService::OnRequestNavigate(
 }
 
 } // namespace Aero::Documents
+#include "gui/meta/MetadataState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/data/BindingState.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "render/DisplayList.hpp"
+#include <Aero/Controls.hpp>
+#include <Aero/Controls/ListBox.hpp>
+#include <Aero/Controls/TreeView.hpp>
+#include <Aero/Shapes.hpp>
+#include <Aero/Media/Transforms.hpp>
+#include "gui/media/BrushRendering.hpp"
+#include "gui/media/MediaState.hpp"
+#include <Aero/Documents.hpp>
+#include "RichText.hpp"
+
+#include "TextBlockLayout.hpp"
+
+#include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <utility>
+
+
+namespace Aero::Controls {
+using namespace Aero::Meta;
+using namespace Aero::Threading;
+using namespace Aero::Render;
+
+namespace {
+
+bool IsValidTextSize(Size value) noexcept {
+    return IsFinite(value) && value.width >= 0.0 && value.height >= 0.0;
+}
+::Aero::Controls::TextBlockLayout* TextLayoutFor(
+    const ::Aero::Media::Visual& visual) noexcept {
+    return static_cast<::Aero::Controls::TextBlockLayout*>(
+        Media::Visual::Access::TextLayoutRuntime(visual));
+}
+
+} // namespace
+
+TextBlock::TextBlock() noexcept
+    : TextBlock(StaticTypeId()) {}
+
+TextBlock::TextBlock(TypeId runtimeType) noexcept
+    : FrameworkElement(runtimeType),
+      textHitRegions_(),
+      ownedInlines_(),
+      richTextStyleRanges_(),
+      pendingInline_() {}
+
+TextBlock::~TextBlock() {
+    ClearOwnedInlines();
+    ReleaseServiceGlyphRun();
+}
+Base::StringView TextBlock::GetText() const noexcept {
+    return GetValueOr(TextProperty, Base::StringView());
+}
+Base::Ref<Brush> TextBlock::GetForeground() const noexcept {
+    return GetValueOr(
+        ForegroundProperty, Base::Ref<Brush>{});
+}
+Base::Ref<Brush> TextBlock::GetBackground() const noexcept {
+    return GetValueOr(
+        BackgroundProperty, Base::Ref<Brush>{});
+}
+double TextBlock::GetFontSize() const noexcept {
+    return GetValueOr(FontSizeProperty, 16.0);
+}
+Base::Ref<Media::FontFamily> TextBlock::GetFontFamily() const noexcept {
+    return FrameworkElement::GetFontFamily();
+}
+FontWeight TextBlock::GetFontWeight() const noexcept {
+    if (RuntimeType() == Documents::Bold::StaticTypeId()) {
+        return FontWeight::Bold;
+    }
+    return GetValueOr(
+        FontWeightProperty,
+        FontWeight::Normal);
+}
+FontStyle TextBlock::GetFontStyle() const noexcept {
+    if (RuntimeType() == Documents::Italic::StaticTypeId()) {
+        return FontStyle::Italic;
+    }
+    return GetValueOr(
+        FontStyleProperty,
+        FontStyle::Normal);
+}
+TextDecorations TextBlock::GetTextDecorations() const noexcept {
+    if (RuntimeType() == Documents::Underline::StaticTypeId()) {
+        return TextDecorations::Underline;
+    }
+    return GetValueOr(
+        TextDecorationsProperty,
+        TextDecorations::None);
+}
+TextWrapping TextBlock::GetTextWrapping() const noexcept {
+    return GetValueOr(
+        TextWrappingProperty,
+        TextWrapping::NoWrap);
+}
+TextTrimming TextBlock::GetTextTrimming() const noexcept {
+    return GetValueOr(
+        TextTrimmingProperty,
+        TextTrimming::None);
+}
+TextAlignment TextBlock::GetTextAlignment() const noexcept {
+    return GetValueOr(
+        TextAlignmentProperty,
+        TextAlignment::Left);
+}
+double TextBlock::GetLineHeight() const noexcept {
+    return GetValueOr(LineHeightProperty, 0.0);
+}
+void TextBlock::SetText(Base::StringView value) noexcept {
+    SetValue(TextProperty, value);
+    textHitRegions_.Clear();
+}
+void TextBlock::SetForeground(
+    Base::Ref<Brush> value) noexcept {
+    SetValue(
+        ForegroundProperty, std::move(value));
+}
+void TextBlock::SetBackground(
+    Base::Ref<Brush> value) noexcept {
+    SetValue(
+        BackgroundProperty, std::move(value));
+}
+void TextBlock::SetFontSize(double value) noexcept {
+    SetValue(FontSizeProperty, value);
+}
+void TextBlock::SetFontFamily(
+    Base::Ref<Media::FontFamily> value) noexcept {
+    FrameworkElement::SetFontFamily(std::move(value));
+}
+Base::Result<void> TextBlock::SetFontFamily(
+    Base::StringView value) noexcept {
+    return FrameworkElement::SetFontFamily(value);
+}
+void TextBlock::SetFontWeight(
+    FontWeight value) noexcept {
+    SetValue(FontWeightProperty, value);
+}
+void TextBlock::SetFontStyle(
+    FontStyle value) noexcept {
+    SetValue(FontStyleProperty, value);
+}
+void TextBlock::SetTextDecorations(
+    TextDecorations value) noexcept {
+    SetValue(TextDecorationsProperty, value);
+}
+void TextBlock::SetTextWrapping(
+    TextWrapping value) noexcept {
+    SetValue(TextWrappingProperty, value);
+}
+void TextBlock::SetTextTrimming(
+    TextTrimming value) noexcept {
+    SetValue(TextTrimmingProperty, value);
+}
+void TextBlock::SetTextAlignment(
+    TextAlignment value) noexcept {
+    SetValue(TextAlignmentProperty, value);
+}
+void TextBlock::SetLineHeight(double value) noexcept {
+    SetValue(LineHeightProperty, value);
+}
+void TextBlock::SetRichTextStyleRanges(
+    Base::Span<const RichTextStyleRange> ranges) noexcept {
+    bool changed = richTextStyleRanges_.Size() != ranges.Size();
+    if (!changed) {
+        for (std::uint32_t index = 0U; index < ranges.Size(); ++index) {
+            const RichTextStyleRange& left = richTextStyleRanges_[index];
+            const RichTextStyleRange& right = ranges[index];
+            if (left.start != right.start || left.length != right.length ||
+                left.hasForeground != right.hasForeground ||
+                left.bold != right.bold || left.italic != right.italic ||
+                left.foreground.red != right.foreground.red ||
+                left.foreground.green != right.foreground.green ||
+                left.foreground.blue != right.foreground.blue ||
+                left.foreground.alpha != right.foreground.alpha) {
+                changed = true;
+                break;
+            }
+        }
+    }
+    if (!changed) return;
+    Base::Vector<RichTextStyleRange> next;
+    if (!next.Append(ranges)) return;
+    richTextStyleRanges_ = std::move(next);
+    (void)InvalidateVisual();
+}
+Meta::Value TextBlock::GetMetadataInlines() const noexcept {
+    if (pendingInline_) {
+        return Meta::Value::FromObject(
+            pendingInline_->RuntimeType(),
+            pendingInline_);
+    }
+    return Meta::Value::NullObject(
+        Meta::TypeOf<Base::Object>());
+}
+void TextBlock::SetInlineValue(
+    Meta::Value value) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return;
+    if (value.Kind() == Meta::ValueKind::Object &&
+        !value.IsNullObject() &&
+        value.AsObject()) {
+        Base::Ref<Base::Object> inlineObject = value.AsObject();
+        if (!PropertyRegistry().Types().IsDerivedFrom(
+                inlineObject->RuntimeType(),
+                Documents::Inline::StaticTypeId())) {
+            return;
+        }
+        (void)AddOwnedInline(inlineObject);
+        return;
+    }
+    if (value.Kind() != Meta::ValueKind::String) {
+        return;
+    }
+    Base::Result<Base::Ref<Documents::Run>> created =
+        Base::MakeRef<Documents::Run>();
+    if (!created) return;
+    created.Value()->SetText(value.AsString());
+    pendingInline_ = Base::Ref<Base::Object>(
+        created.Value());
+    return;
+}
+Base::Result<void> TextBlock::AddOwnedInline(
+    const Base::Ref<Base::Object>& inlineObject) noexcept {
+    if (!inlineObject) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "TextBlock inline cannot be null");
+    }
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    const TypeRegistry& types = PropertyRegistry().Types();
+    const TypeId type = inlineObject->RuntimeType();
+    const bool supported = types.IsDerivedFrom(
+        type, Documents::Inline::StaticTypeId());
+    if (!supported) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "TextBlock content must derive from Documents::Inline");
+    }
+    for (const Base::Ref<Base::Object>& owned :
+         ownedInlines_) {
+        if (owned.Get() == inlineObject.Get()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "TextBlock already owns the inline");
+        }
+    }
+    Base::Result<void> appended =
+        ownedInlines_.PushBack(inlineObject);
+    if (!appended) return appended.GetStatus();
+    auto& inlineValue = *static_cast<Documents::Inline*>(inlineObject.Get());
+    Aero::Media::Visual::Access::Attach(
+        inlineValue, this, this, nullptr);
+    pendingInline_ = inlineObject;
+    return InvalidateMeasure();
+}
+void TextBlock::ClearOwnedInlines() noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return;
+    for (Base::Ref<Base::Object>& item : ownedInlines_) {
+        if (item) {
+            Aero::Media::Visual::Access::Detach(
+                *static_cast<Documents::Inline*>(item.Get()));
+        }
+    }
+    ownedInlines_.Clear();
+    pendingInline_.Reset();
+    (void)InvalidateMeasure();
+}
+Base::StringView TextBlock::EffectiveFontFamily() const noexcept {
+    const Base::Ref<Media::FontFamily> family = GetFontFamily();
+    const Base::StringView configured = family
+        ? family->GetSource()
+        : Base::StringView{};
+    const bool defaultFamily =
+        configured.Empty() ||
+        configured == Base::StringView("Segoe UI");
+    if (!defaultFamily) return configured;
+    const bool bold =
+        GetFontWeight() == FontWeight::Bold ||
+        GetFontWeight() == FontWeight::SemiBold;
+    const bool italic =
+        GetFontStyle() != FontStyle::Normal;
+    if (bold && italic) {
+        return Base::StringView("Segoe UI Bold Italic");
+    }
+    if (bold) return Base::StringView("Segoe UI Bold");
+    if (italic) return Base::StringView("Segoe UI Italic");
+    return configured;
+}
+void TextBlock::SetGlyphRun(
+    RenderGlyphRunId glyphRun, Size size) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return;
+    if (!IsValidTextSize(size) ||
+        (glyphRun == InvalidRenderGlyphRunId &&
+            (size.width != 0.0 || size.height != 0.0))) {
+        return;
+    }
+    if (glyphRuns_.Size() == 1U && glyphRuns_[0] == glyphRun &&
+        glyphRunSize_.width == size.width &&
+        glyphRunSize_.height == size.height &&
+        !serviceOwnsGlyphRun_) return;
+    ReleaseServiceGlyphRun();
+    glyphRuns_.Clear();
+    textHitRegions_.Clear();
+    if (glyphRun != InvalidRenderGlyphRunId) {
+        Base::Result<void> appended =
+            glyphRuns_.PushBack(glyphRun);
+        if (!appended) return;
+    }
+    glyphRunSize_ = size;
+    (void)InvalidateMeasure();
+    (void)InvalidateVisual();
+}
+Size TextBlock::MeasureOverride(Size availableSize) noexcept {
+    if (!GetValueOr(
+            RichText::TextProperty,
+            Base::StringView{}).Empty()) {
+        // RichText can be populated while a template is still detached from
+        // its inherited DataContext. Refresh at the first real measure so
+        // inline bindings such as MusicLevel observe the mounted model.
+        ApplyRichText(*this);
+    }
+    Base::String flattened;
+    Base::Result<void> copied = Documents::CopyText(*this, flattened);
+    if (!copied) return Size{};
+
+    auto* layoutService = TextLayoutFor(*this);
+    if (layoutService != nullptr) {
+        const Base::StringView text = flattened.View();
+        if (text.Empty()) {
+            const bool changed =
+                !glyphRuns_.Empty() ||
+                glyphRunSize_.width != 0.0 ||
+                glyphRunSize_.height != 0.0;
+            ReleaseServiceGlyphRun();
+            glyphRuns_.Clear();
+            glyphRunSize_ = {};
+            textHitRegions_.Clear();
+            if (changed) {
+                Base::Result<void> invalidated = InvalidateVisual();
+                if (!invalidated) return Size{};
+            }
+        } else {
+            ::Aero::Controls::TextLayoutRequest request;
+            request.text = text;
+            request.availableSize = availableSize;
+            request.dpiScale = GetDpiScale();
+            request.pixelSize = static_cast<float>(GetFontSize());
+            request.lineHeight = static_cast<float>(GetLineHeight());
+            request.fontFamily = EffectiveFontFamily();
+            request.fontWeight = GetFontWeight();
+            request.fontStyle = GetFontStyle();
+            request.wrapping = GetTextWrapping();
+            request.trimming = GetTextTrimming();
+            request.alignment = GetTextAlignment();
+            request.arrangeToAvailableWidth = arrangingText_;
+            request.direction = GetFlowDirection() == FlowDirection::RightToLeft
+                ? Text::TextDirection::RightToLeft
+                : Text::TextDirection::LeftToRight;
+            ::Aero::Controls::TextLayoutResult output;
+            Base::Result<void> prepared =
+                layoutService->ShapeAndPrepare(request, output);
+            if (!prepared) return Size{};
+            bool validGlyphRuns = true;
+            for (RenderGlyphRunId glyphRun : output.glyphRuns) {
+                if (glyphRun == InvalidRenderGlyphRunId) {
+                    validGlyphRuns = false;
+                    break;
+                }
+            }
+            if (!IsValidTextSize(output.desiredSize) || !validGlyphRuns) {
+                for (RenderGlyphRunId glyphRun : output.glyphRuns) {
+                    if (glyphRun != InvalidRenderGlyphRunId) {
+                        layoutService->ReleaseGlyphRun(glyphRun);
+                    }
+                }
+                return Size{};
+            }
+
+            bool changed =
+                glyphRuns_.Size() != output.glyphRuns.Size() ||
+                glyphRunSize_.width != output.desiredSize.width ||
+                glyphRunSize_.height != output.desiredSize.height ||
+                !serviceOwnsGlyphRun_;
+            if (!changed) {
+                for (std::uint32_t index = 0U;
+                     index < glyphRuns_.Size(); ++index) {
+                    if (glyphRuns_[index] != output.glyphRuns[index]) {
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+            ReleaseServiceGlyphRun();
+            glyphRuns_ = std::move(output.glyphRuns);
+            textHitRegions_ = std::move(output.hitRegions);
+            glyphRunSize_ = output.desiredSize;
+            serviceOwnsGlyphRun_ = !glyphRuns_.Empty();
+            if (changed) {
+                Base::Result<void> invalidated = InvalidateVisual();
+                if (!invalidated) return Size{};
+            }
+        }
+    }
+    return Size{
+        std::min(glyphRunSize_.width, availableSize.width),
+        std::min(glyphRunSize_.height, availableSize.height)};
+}
+Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
+    if (GetTextAlignment() != TextAlignment::Left &&
+        finalSize.width > 0.0) {
+        arrangingText_ = true;
+        static_cast<void>(MeasureOverride(finalSize));
+        arrangingText_ = false;
+    }
+    return finalSize;
+}
+void TextBlock::OnRender(
+    ::Aero::Media::DrawingContext& context) noexcept {
+    const Size renderSize = GetRenderSize();
+    if (renderSize.width <= 0.0 || renderSize.height <= 0.0) return;
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    const Color background = ::Aero::Media::SampleBrush(GetBackground());
+    if (background.alpha > 0.0F) {
+        Base::Result<void> filled =
+            builder.FillRect(
+                {0.0, 0.0,
+                 GetRenderSize().width,
+                 GetRenderSize().height},
+                background);
+        if (!filled) return;
+    }
+    for (RenderGlyphRunId glyphRun : glyphRuns_) {
+        Base::Result<void> drawn =
+            builder.DrawGlyphRun(glyphRun, ::Aero::Media::SampleBrush(GetForeground(), 0.5,
+                Color{0.0F, 0.0F, 0.0F, 1.0F}));
+        if (!drawn) return;
+    }
+    struct RichTextLineClip {
+        float x = 0.0F;
+        float y = 0.0F;
+        float right = 0.0F;
+        float height = 0.0F;
+    };
+    for (const RichTextStyleRange& range : richTextStyleRanges_) {
+        if (range.length == 0U ||
+            (!range.hasForeground && !range.bold && !range.italic)) {
+            continue;
+        }
+        Base::Vector<RichTextLineClip> clips;
+        const std::uint64_t rangeEnd =
+            static_cast<std::uint64_t>(range.start) + range.length;
+        for (const TextHitRegion& region : textHitRegions_) {
+            const std::uint64_t regionEnd =
+                static_cast<std::uint64_t>(region.textOffset) +
+                region.textLength;
+            if (region.textLength == 0U ||
+                regionEnd <= range.start ||
+                region.textOffset >= rangeEnd) {
+                continue;
+            }
+            RichTextLineClip* line = nullptr;
+            for (RichTextLineClip& candidate : clips) {
+                if (std::fabs(candidate.y - region.y) < 0.01F) {
+                    line = &candidate;
+                    break;
+                }
+            }
+            if (line == nullptr) {
+                RichTextLineClip added;
+                added.x = region.x;
+                added.y = region.y;
+                added.right = region.x + region.width;
+                added.height = region.height;
+                Base::Result<void> appended = clips.PushBack(added);
+                if (!appended) return;
+            } else {
+                line->x = std::min(line->x, region.x);
+                line->right = std::max(
+                    line->right, region.x + region.width);
+                line->height = std::max(line->height, region.height);
+            }
+        }
+        const Color tint = range.hasForeground
+            ? range.foreground
+            : ::Aero::Media::SampleBrush(
+                GetForeground(), 0.5,
+                Color{0.0F, 0.0F, 0.0F, 1.0F});
+        for (const RichTextLineClip& line : clips) {
+            const Rect clip{
+                std::max(0.0, static_cast<double>(line.x) - 1.0),
+                std::max(0.0, static_cast<double>(line.y)),
+                std::max(0.0, static_cast<double>(line.right - line.x) + 3.0),
+                std::max(0.0, static_cast<double>(line.height))};
+            if (!builder.PushClip(clip)) return;
+            bool skewed = false;
+            if (range.italic) {
+                Base::Transform2D italic;
+                italic.m21 = -0.16;
+                italic.dx = 0.16 * (line.y + line.height);
+                if (!builder.PushTransform(italic)) return;
+                skewed = true;
+            }
+            for (RenderGlyphRunId glyphRun : glyphRuns_) {
+                if (!builder.DrawGlyphRun(glyphRun, tint)) return;
+            }
+            if (range.bold) {
+                Base::Transform2D embolden;
+                embolden.dx = 0.4;
+                if (!builder.PushTransform(embolden)) return;
+                for (RenderGlyphRunId glyphRun : glyphRuns_) {
+                    if (!builder.DrawGlyphRun(glyphRun, tint)) return;
+                }
+                if (!builder.PopTransform()) return;
+            }
+            if (skewed && !builder.PopTransform()) return;
+            if (!builder.PopClip()) return;
+        }
+    }
+    if (GetTextDecorations() ==
+            TextDecorations::Underline &&
+        glyphRunSize_.width > 0.0) {
+        const double thickness =
+            std::max(1.0, GetFontSize() * 0.06);
+        const double y = std::max(
+            0.0,
+            glyphRunSize_.height - thickness * 1.5);
+        static_cast<void>(builder.FillRect(
+            {0.0, y, glyphRunSize_.width, thickness},
+            ::Aero::Media::SampleBrush(GetForeground(), 0.5,
+                Color{0.0F, 0.0F, 0.0F, 1.0F})));
+    }
+    return;
+}
+void TextBlock::ReleaseServiceGlyphRun() noexcept {
+    auto* layoutService = TextLayoutFor(*this);
+    if (serviceOwnsGlyphRun_ && layoutService != nullptr) {
+        for (RenderGlyphRunId glyphRun : glyphRuns_) {
+            layoutService->ReleaseGlyphRun(glyphRun);
+        }
+    }
+    serviceOwnsGlyphRun_ = false;
+}
+
+} // namespace Aero

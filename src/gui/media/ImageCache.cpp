@@ -1,13 +1,13 @@
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/markup/MarkupRuntime.hpp"
-#include "gui/markup/MarkupWriterRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/markup/MarkupState.hpp"
+#include "gui/markup/MarkupWriterState.hpp"
 #include "render/DisplayList.hpp"
 #include "ImageCache.hpp"
 
-#include "gui/media/MediaRuntime.hpp"
+#include "gui/media/MediaState.hpp"
 
 #include <Aero/Controls.hpp>
 #include <Aero/Shapes.hpp>
@@ -218,7 +218,7 @@ Base::Result<bool> ImageCache::Synchronize(
         pending.PopBack();
         if (visual == nullptr) continue;
         for (Aero::Media::Visual* child :
-             Aero::ElementPrivate::VisualChildren(*visual)) {
+             Aero::Media::Visual::Access::VisualChildren(*visual)) {
             Base::Result<void> queued =
                 pending.PushBack(child);
             if (!queued) return queued.GetStatus();
@@ -240,30 +240,22 @@ Base::Result<bool> ImageCache::Synchronize(
                     visual);
             source = imageControl->GetSource();
         } else if (targetIndex == 0U) {
-            Shapes::Shape* shape = nullptr;
-            if (visual->RuntimeType() ==
-                Shapes::Rectangle::StaticTypeId()) {
-                shape =
-                    static_cast<
-                        Shapes::Rectangle*>(
-                            visual);
-            } else if (
-                visual->RuntimeType() ==
-                Shapes::Ellipse::StaticTypeId()) {
-                shape =
-                    static_cast<
-                        Shapes::Ellipse*>(
-                            visual);
-            }
             Base::Ref<Media::Brush> fill;
-            if (shape != nullptr) {
-                fill = shape->GetFill();
+            if (visual->PropertyRegistry().Types().IsDerivedFrom(
+                    visual->RuntimeType(),
+                    Shapes::Shape::StaticTypeId())) {
+                fill = static_cast<Shapes::Shape*>(visual)->GetFill();
             } else if (visual->RuntimeType() ==
                        Controls::Border::StaticTypeId()) {
-                // ImageBrush is a normal background brush. Keep it in the
-                // same image cache as Image controls and Shape.Fill so a
-                // localized brush can be used directly on Border.Background.
                 fill = static_cast<Controls::Border*>(visual)->GetBackground();
+            } else if (visual->PropertyRegistry().Types().IsDerivedFrom(
+                           visual->RuntimeType(),
+                           Controls::Panel::StaticTypeId())) {
+                fill = static_cast<Controls::Panel*>(visual)->GetBackground();
+            } else if (visual->PropertyRegistry().Types().IsDerivedFrom(
+                           visual->RuntimeType(),
+                           Controls::Control::StaticTypeId())) {
+                fill = static_cast<Controls::Control*>(visual)->GetBackground();
             } else {
                 continue;
             }

@@ -1,14 +1,14 @@
-#include "gui/metadata/ValueConversion.hpp"
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/input/InputState.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
-#include "gui/media/MediaRuntime.hpp"
+#include "gui/media/MediaState.hpp"
 #include <Aero/Value.hpp>
 
 #include <algorithm>
@@ -2219,7 +2219,7 @@ ScrollViewer::Access::~Access() noexcept {
 
 std::uint32_t ScrollViewer::Access::FindViewer(
     const ScrollViewer& viewer) const noexcept {
-    const VisualHandle handle = Aero::ElementPrivate::Handle(viewer);
+    const VisualHandle handle = Aero::Media::Visual::Access::Handle(viewer);
     for (std::uint32_t index = 0U;
         index < viewers_.Size(); ++index) {
         if (viewers_[index].viewer == &viewer ||
@@ -2239,8 +2239,8 @@ Base::Result<void> ScrollViewer::Access::Attach(
             Base::ErrorCode::AlreadyExists,
             "ScrollViewer is already attached");
     }
-    if (Aero::ElementPrivate::Tree(viewer) != tree_ ||
-        !Aero::ElementPrivate::Handle(viewer).IsValid()) {
+    if (Aero::Media::Visual::Access::Tree(viewer) != tree_ ||
+        !Aero::Media::Visual::Access::Handle(viewer).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ScrollViewer must be loaded in the interaction tree");
@@ -2252,7 +2252,7 @@ Base::Result<void> ScrollViewer::Access::Attach(
     if (!handler) return handler.GetStatus();
     Base::Result<void> added =
         viewers_.PushBack(
-            {&viewer, Aero::ElementPrivate::Handle(viewer)});
+            {&viewer, Aero::Media::Visual::Access::Handle(viewer)});
     if (!added) {
         static_cast<void>(viewer.RemoveHandler(
             UIElement::MouseWheelEvent,
@@ -2354,7 +2354,7 @@ std::uint32_t Slider::Access::Find(
     for (std::uint32_t index = 0U;
          index < sliders_.Size(); ++index) {
         const VisualHandle current =
-            Aero::ElementPrivate::Handle(slider);
+            Aero::Media::Visual::Access::Handle(slider);
         if (sliders_[index].handle.index ==
                 current.index &&
             sliders_[index].handle.generation ==
@@ -2398,8 +2398,8 @@ Base::Result<void> Slider::Access::Attach(
             Base::ErrorCode::AlreadyExists,
             "Slider is already attached");
     }
-    if (Aero::ElementPrivate::Tree(slider) != tree_ ||
-        !Aero::ElementPrivate::Handle(slider).IsValid()) {
+    if (Aero::Media::Visual::Access::Tree(slider) != tree_ ||
+        !Aero::Media::Visual::Access::Handle(slider).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Slider must be loaded in the interaction tree");
@@ -2448,7 +2448,7 @@ Base::Result<void> Slider::Access::Attach(
     }
     SliderRecord record;
     record.handle =
-        Aero::ElementPrivate::Handle(slider);
+        Aero::Media::Visual::Access::Handle(slider);
     const auto addCommand =
         [this, &slider](
             Base::StringView name,
@@ -2871,7 +2871,7 @@ ScrollBar::Access::~Access() {
 std::uint32_t ScrollBar::Access::Find(
     const ScrollBar& scrollBar) const noexcept {
     const VisualHandle target =
-        Aero::ElementPrivate::Handle(scrollBar);
+        Aero::Media::Visual::Access::Handle(scrollBar);
     for (std::uint32_t index = 0U;
          index < scrollBars_.Size(); ++index) {
         if (scrollBars_[index].handle.index == target.index &&
@@ -2906,8 +2906,8 @@ Base::Result<void> ScrollBar::Access::Attach(
             Base::ErrorCode::AlreadyExists,
             "ScrollBar is already attached");
     }
-    if (Aero::ElementPrivate::Tree(scrollBar) != tree_ ||
-        !Aero::ElementPrivate::Handle(scrollBar).IsValid()) {
+    if (Aero::Media::Visual::Access::Tree(scrollBar) != tree_ ||
+        !Aero::Media::Visual::Access::Handle(scrollBar).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ScrollBar must be loaded in the interaction tree");
@@ -2956,7 +2956,7 @@ Base::Result<void> ScrollBar::Access::Attach(
     }
     ScrollBarRecord record;
     record.handle =
-        Aero::ElementPrivate::Handle(scrollBar);
+        Aero::Media::Visual::Access::Handle(scrollBar);
 
     const auto addCommand =
         [this, &scrollBar, &record](

@@ -1,14 +1,14 @@
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingRuntime.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/input/InputState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/controls/ControlRuntime.hpp"
-#include "gui/controls/ItemsRuntime.hpp"
-#include "gui/controls/TemplateRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/controls/State.hpp"
+#include "gui/controls/State.hpp"
+#include "gui/templates/TemplateState.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 
@@ -523,7 +523,7 @@ TreeView::Access::ResolveTreeView(
 Base::Result<void>
 TreeView::Access::Attach(
     TreeView& treeView) noexcept {
-    if (Aero::ElementPrivate::Tree(treeView) != tree_ ||
+    if (Aero::Media::Visual::Access::Tree(treeView) != tree_ ||
         FindTreeView(treeView) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -622,7 +622,7 @@ TreeView::Access::CollectVisibleItems(
     Base::Vector<TreeViewItem*>& items)
     noexcept {
     for (::Aero::Media::Visual* child :
-        Aero::ElementPrivate::VisualChildren(parent)) {
+        Aero::Media::Visual::Access::VisualChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element =
             child->AsUIElement();

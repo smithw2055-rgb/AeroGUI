@@ -11,7 +11,7 @@
 #include <Aero/View.hpp>
 
 #include "render/FrameEncoder.hpp"
-#include "gui/property/PropertyRuntime.hpp"
+#include "gui/core/PropertyState.hpp"
 #include "gui/ViewRenderer.hpp"
 #include "render/opengl33/OpenGL33RenderDevice.hpp"
 

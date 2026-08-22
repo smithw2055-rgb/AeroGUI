@@ -1,10 +1,10 @@
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
-#include "gui/base/RoutedEventRuntime.hpp"
-#include "gui/input/InputRuntime.hpp"
-#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
+#include "gui/input/InputState.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
 #include <Aero/Controls.hpp>
 
 #include <utility>
@@ -404,7 +404,7 @@ Menu* Menu::Access::ResolveMenu(
 Base::Result<void>
 Menu::Access::Attach(
     Menu& menu) noexcept {
-    if (Aero::ElementPrivate::Tree(menu) != tree_ ||
+    if (Aero::Media::Visual::Access::Tree(menu) != tree_ ||
         FindMenu(menu) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,

@@ -142,7 +142,7 @@ Base::Result<void> PopulateControlsPrimitives(
                 .AffectsMeasure()
                 .Structural()
                 .Changed(
-                    &::Aero::Controls::ControlPrivate::
+                    &::Aero::Controls::Control::Access::
                         OnContentPropertyChanged))
         .Property(
             ContentControl::ContentTemplateProperty,

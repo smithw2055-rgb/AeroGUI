@@ -1,9 +1,9 @@
 #include "render/DisplayList.hpp"
 #include <Aero/Shapes.hpp>
 
-#include "gui/base/ElementRuntime.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/media/MediaRuntime.hpp"
+#include "gui/media/MediaState.hpp"
 #include "gui/media/BrushRendering.hpp"
 
 #include <algorithm>

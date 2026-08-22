@@ -1,9 +1,9 @@
 #include <Aero/Media/Transforms.hpp>
-#include "gui/base/FreezableRuntime.hpp"
-#include "gui/base/ElementRuntime.hpp"
+#include "gui/core/State.hpp"
+#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/resources/StyleRuntime.hpp"
-#include "gui/media/MediaRuntime.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/media/MediaState.hpp"
 
 #include <Aero/FrameworkElement.hpp>
 

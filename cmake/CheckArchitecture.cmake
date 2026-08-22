@@ -187,11 +187,11 @@ aero_require_text(
     "Span<const Markup::ResourceScopeRegistration> resourceScopes;"
     "Product resource scopes must cross the Gui boundary through module data")
 aero_forbid_text(
-    "src/gui/markup/MarkupLoader.cpp"
+    "src/gui/markup/XamlLoader.cpp"
     "AeroApp/Application.hpp"
     "AeroGui Markup must not include the AeroApp Application contract")
 aero_forbid_text(
-    "src/gui/markup/MarkupLoader.cpp"
+    "src/gui/markup/XamlLoader.cpp"
     "Aero::Application"
     "AeroGui Markup must not link back to AeroApp symbols")
 aero_require_text(
@@ -388,20 +388,18 @@ foreach(required_source_entry IN ITEMS
         "src/gui/View.cpp"
         "src/gui/ViewRenderer.hpp"
         "src/gui/ViewState.hpp"
-        "src/gui/base"
-        "src/gui/metadata"
-        "src/gui/property"
-        "src/gui/binding"
-        "src/gui/resources"
-        "src/gui/layout"
+        "src/gui/core"
+        "src/gui/meta"
+        "src/gui/data"
+        "src/gui/styles"
         "src/gui/controls"
         "src/gui/diagnostics"
         "src/gui/input"
-        "src/gui/interactivity"
+        "src/gui/triggers"
         "src/gui/markup"
         "src/gui/media"
         "src/gui/text"
-        "src/gui/modules"
+        "src/gui/templates"
         "src/gui/markup/XamlProvider.cpp"
         "src/gui/markup/XamlReader.cpp"
         "src/gui/input/Clipboard.cpp"
@@ -886,7 +884,7 @@ aero_forbid_text(
     "struct Access;"
     "FrameworkElement must not expose an unused Access seam")
 aero_require_text(
-    "src/gui/markup/MarkupWriter.cpp"
+    "src/gui/markup/XamlObjectWriter.cpp"
     "ObjectBuilder::ConnectEvent("
     "XAML event attributes must connect through the object-writer pipeline")
 aero_require_file("templates/AeroApp/App.xaml")
@@ -986,9 +984,9 @@ aero_forbid_text(
     "Aero::Runtime::Detail"
     "View must not depend on the retired generic Runtime namespace")
 aero_forbid_text(
-    "src/gui/controls/DataTemplateTriggerState.hpp"
+    "src/gui/templates/DataTemplateTriggerState.hpp"
     "Aero::Runtime::Detail"
-    "DataTemplate trigger state belongs to Controls")
+    "DataTemplate trigger state belongs to Templates")
 aero_forbid_text(
     "src/gui/View.cpp"
     "controls/ControlsPrivate.hpp"

@@ -37,6 +37,26 @@ if(aero_duplicate_public_includes)
         "${aero_duplicate_public_includes}")
 endif()
 
+# Source files must also avoid duplicate direct includes. They are scanned
+# recursively under src/ so copy-paste artifacts like repeated product headers
+# are caught at configure time.
+file(GLOB_RECURSE aero_source_files
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp")
+set(aero_source_relatives)
+foreach(aero_source_file IN LISTS aero_source_files)
+    file(RELATIVE_PATH aero_source_relative
+        "${AERO_SOURCE_DIR}" "${aero_source_file}")
+    list(APPEND aero_source_relatives "${aero_source_relative}")
+endforeach()
+aero_collect_duplicate_includes(aero_duplicate_source_includes
+    ${aero_source_relatives})
+if(aero_duplicate_source_includes)
+    message(FATAL_ERROR
+        "Source files must contain no duplicate direct includes: "
+        "${aero_duplicate_source_includes}")
+endif()
+
 # DependencyProperty and RoutedEvent descriptors are intentionally concise in
 # the C++ authoring surface. Keep each inline static declaration on one physical
 # line without constraining private implementation layout.
