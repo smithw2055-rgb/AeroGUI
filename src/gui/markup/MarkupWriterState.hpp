@@ -1,6 +1,5 @@
 #pragma once
-#include "gui/controls/State.hpp"
-#include "gui/controls/State.hpp"
+#include "gui/controls/State.hpp" 
 #include "gui/templates/TemplateState.hpp"
 #include "gui/markup/MarkupState.hpp"
 // Consolidated private Markup writing, facet and template contract.

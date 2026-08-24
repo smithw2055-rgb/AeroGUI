@@ -168,18 +168,14 @@ private:
     Base::Vector<Ref<VisualStateGroup>> items_;
 };
 
+struct FrameworkTemplateRuntime;
+struct VisualStateManagerRuntime;
+
 // WPF-shaped template object. XAML compilation, factory callbacks, bindings,
 // triggers, namescopes and the immutable runtime program are implementation
 // details owned by the markup and controls runtime.
 class AERO_GUI_API FrameworkTemplate : public Base::Object {
     AERO_DECLARE_TYPE(FrameworkTemplate, Base::Object)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     FrameworkTemplate() noexcept;
@@ -196,7 +192,7 @@ public:
     void SetResources(Ref<ResourceDictionary> value) noexcept;
 
 private:
-    friend struct Access;
+    friend struct FrameworkTemplateRuntime;
     void* state_ = nullptr;
 };
 
@@ -221,13 +217,6 @@ namespace Aero {
 class AERO_GUI_API VisualStateManager : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         VisualStateManager, Base::Object, "urn:aero", "VisualStateManager")
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     Meta::TypeId RuntimeType() const noexcept override {
@@ -245,7 +234,7 @@ public:
     VisualStateManager& operator=(const VisualStateManager&) = delete;
 
 private:
-    friend struct Access;
+    friend struct VisualStateManagerRuntime;
     VisualStateManager() noexcept = default;
     void* impl_ = nullptr;
 };

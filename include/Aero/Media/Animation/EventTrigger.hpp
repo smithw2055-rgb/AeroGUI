@@ -2,9 +2,10 @@
 
 #include <Aero/Triggers/TriggerBase.hpp>
 #include <Aero/Interactivity/TriggerAction.hpp>
-using Aero::Interactivity::TriggerAction;
 
 namespace Aero::Media::Animation {
+
+using ::Aero::Interactivity::TriggerAction;
 
 class AERO_GUI_API EventTrigger : public ::Aero::TriggerBase {
     AERO_DECLARE_TYPE(EventTrigger, ::Aero::TriggerBase)

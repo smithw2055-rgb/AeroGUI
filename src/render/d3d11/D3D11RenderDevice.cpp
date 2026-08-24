@@ -541,7 +541,7 @@ Ref<Texture> D3D11RenderDevice::CreateTexture(
     desc.Height = height;
     desc.MipLevels = numLevels > 0 ? numLevels : 1;
     desc.ArraySize = 1;
-    desc.Format = (format == TextureFormat::R8) ? DXGI_FORMAT_R8_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
+    desc.Format = (format == TextureFormat::R8) ? DXGI_FORMAT_R8_UNORM : DXGI_FORMAT_R8G8B8A8_UNORM;
     desc.SampleDesc.Count = 1;
     desc.SampleDesc.Quality = 0;
     desc.Usage = (data != nullptr) ? D3D11_USAGE_IMMUTABLE : D3D11_USAGE_DEFAULT;

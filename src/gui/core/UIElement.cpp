@@ -11,16 +11,12 @@
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
 #include <cstdio>
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/Impl.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/input/InputState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/meta/MetadataState.hpp"
+#include "gui/core/facets/RenderFacet.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -28,6 +24,33 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 
 namespace Aero {
+namespace {
+
+struct RoutedHandlerRecord {
+    RoutedEventHandle event;
+    Aero::RoutedHandlerStorage handler;
+    std::uint64_t sequence = 0U;
+    bool handledEventsToo = false;
+};
+
+struct UIElementHandlerState {
+    Base::Vector<RoutedHandlerRecord> handlers;
+    std::uint64_t nextSequence = 1U;
+};
+
+Base::Status InvalidArgument(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::InvalidArgument, message);
+}
+
+Base::Status InvalidState(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
+}
+
+Base::Status NotFound(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::NotFound, message);
+}
+
+} // namespace
 
 // from src/gui/controls/Layout.cpp
 
@@ -35,8 +58,8 @@ Base::Result<void> UIElement::ArrangeChild(
     UIElement& child,
     Rect finalRect) noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
-        UIElement::Access::LayoutManager(*this));
-    if (layout == nullptr || !child.layoutAttached_ ||
+        Core::GetFacet<::Aero::LayoutEngine>(*this));
+    if (layout == nullptr || !child.ElementFacet<Aero::Core::LayoutFacet>()->IsLayoutAttached() ||
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
@@ -75,7 +98,7 @@ Base::Result<void> UIElement::ArrangeChild(
                 parentName.SizeBytes()),
             parentName.Data(),
             static_cast<void*>(this),
-            child.layoutAttached_ ? 1U : 0U,
+            child.ElementFacet<Aero::Core::LayoutFacet>()->IsLayoutAttached() ? 1U : 0U,
             static_cast<int>(
                 actualParentName.SizeBytes()),
             actualParentName.Data(),
@@ -88,14 +111,72 @@ Base::Result<void> UIElement::ArrangeChild(
     return layout->ArrangeElement(child, finalRect);
 }
 
+// Layout state now lives in the per-element LayoutFacet; getters forward there.
+Size UIElement::GetDesiredSize() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return f ? f->GetDesiredSize() : Size{};
+}
+Size UIElement::GetRenderSize() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return f ? f->GetRenderSize() : Size{};
+}
+Rect UIElement::GetLayoutSlot() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return f ? f->GetLayoutSlot() : Rect{};
+}
+Rect UIElement::GetLayoutClip() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return f ? f->GetLayoutClip() : Rect{};
+}
+bool UIElement::GetIsMeasureValid() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return f ? f->IsMeasureValid() : false;
+}
+bool UIElement::GetIsArrangeValid() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return f ? f->IsArrangeValid() : false;
+}
+bool UIElement::GetIsMeasureQueued() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return f ? f->IsMeasureQueued() : false;
+}
+bool UIElement::GetIsArrangeQueued() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return f ? f->IsArrangeQueued() : false;
+}
+bool UIElement::GetIsMeasuring() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return f ? f->IsMeasuring() : false;
+}
+bool UIElement::GetIsArranging() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return f ? f->IsArranging() : false;
+}
+bool UIElement::GetIsLayoutAttached() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return (f && f->IsLayoutAttached());
+}
+Size UIElement::GetUntransformedDesiredSize() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return f ? f->GetUntransformedDesiredSize() : Size{};
+}
+Size UIElement::GetPreviousMeasureConstraint() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return f ? f->GetPreviousMeasureConstraint() : Size{};
+}
+std::uint64_t UIElement::GetLayoutRevision() const noexcept {
+    auto* f = ElementFacet<Core::LayoutFacet>();
+    return f ? f->GetLayoutRevision() : 0U;
+}
+
 // from src/gui/controls/Layout.cpp
 
 Base::Result<void> UIElement::MeasureChild(
     UIElement& child,
     Size availableSize) noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
-        UIElement::Access::LayoutManager(*this));
-    if (layout == nullptr || !child.layoutAttached_ ||
+        Core::GetFacet<::Aero::LayoutEngine>(*this));
+    if (layout == nullptr || !child.ElementFacet<Aero::Core::LayoutFacet>()->IsLayoutAttached() ||
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
@@ -134,7 +215,7 @@ Base::Result<void> UIElement::MeasureChild(
                 parentName.SizeBytes()),
             parentName.Data(),
             static_cast<void*>(this),
-            child.layoutAttached_ ? 1U : 0U,
+            child.ElementFacet<Aero::Core::LayoutFacet>()->IsLayoutAttached() ? 1U : 0U,
             static_cast<int>(
                 actualParentName.SizeBytes()),
             actualParentName.Data(),
@@ -280,7 +361,7 @@ void UIElement::OnPropertyInvalidated(
     } else if (HasFlag(flags, PropertyInvalidationFlags::Arrange)) {
         (void)InvalidateArrange();
     }
-    UIElement* parent = layoutAttached_ ? LayoutParent() : nullptr;
+    UIElement* parent = this->ElementFacet<Aero::Core::LayoutFacet>()->IsLayoutAttached() ? LayoutParent() : nullptr;
     if (parent != nullptr &&
         HasFlag(flags, PropertyInvalidationFlags::ParentMeasure)) {
         (void)parent->InvalidateMeasure();
@@ -290,8 +371,7 @@ void UIElement::OnPropertyInvalidated(
     }
     if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
         static_cast<void>(
-            Aero::Media::Visual::Access::
-                InvalidateRenderState(*this));
+            Aero::Core::RenderFacet::InvalidateRenderState(*this));
     }
     DependencyObject::OnPropertyInvalidated(flags);
 }
@@ -314,7 +394,7 @@ bool UIElement::GetIsTabStop() const noexcept {
 // from src/gui/controls/Layout.cpp
 Base::Result<bool> UIElement::Focus() noexcept {
     Aero::InputRouter* input =
-        ::Aero::Media::Visual::Access::InputRouterFor(*this);
+        ::Aero::Core::GetFacet<::Aero::InputRouter>(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -419,9 +499,9 @@ bool UIElement::GetClipToBounds() const noexcept {
 
 Base::Result<void> UIElement::InvalidateArrange() noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
-        UIElement::Access::LayoutManager(*this));
+        Core::GetFacet<::Aero::LayoutEngine>(*this));
     if (layout == nullptr) {
-        arrangeValid_ = false;
+        this->ElementFacet<Aero::Core::LayoutFacet>()->SetArrangeValid(false);
         return {};
     }
     return layout->InvalidateArrange(*this);
@@ -431,10 +511,10 @@ Base::Result<void> UIElement::InvalidateArrange() noexcept {
 
 Base::Result<void> UIElement::InvalidateMeasure() noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
-        UIElement::Access::LayoutManager(*this));
+        Core::GetFacet<::Aero::LayoutEngine>(*this));
     if (layout == nullptr) {
-        measureValid_ = false;
-        arrangeValid_ = false;
+        this->ElementFacet<Aero::Core::LayoutFacet>()->SetMeasureValid(false);
+        this->ElementFacet<Aero::Core::LayoutFacet>()->SetArrangeValid(false);
         return {};
     }
     return layout->InvalidateMeasure(*this);
@@ -446,7 +526,7 @@ void UIElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
     Aero::EventRouter* eventRouter =
-        Aero::Media::Visual::Access::EventRouterFor(*this);
+        Aero::Core::GetFacet<::Aero::EventRouter>(*this);
     if (eventRouter == nullptr) {
         return;
     }
@@ -580,7 +660,7 @@ void UIElement::SetAllowDrop(bool value) noexcept {
 
 Base::Result<bool> UIElement::CancelDrag() noexcept {
     Aero::InputRouter* input =
-        Media::Visual::Access::InputRouterFor(*this);
+        Aero::Core::GetFacet<::Aero::InputRouter>(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -596,7 +676,7 @@ Base::Result<void> UIElement::BeginDrag(
     const Value& data,
     Input::DragDropEffects allowedEffects) noexcept {
     Aero::InputRouter* input =
-        Media::Visual::Access::InputRouterFor(*this);
+        Aero::Core::GetFacet<::Aero::InputRouter>(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -610,7 +690,7 @@ Base::Result<void> UIElement::BeginDrag(
 
 bool UIElement::GetIsDragging() const noexcept {
     Aero::InputRouter* input =
-        Media::Visual::Access::InputRouterFor(*this);
+        Aero::Core::GetFacet<::Aero::InputRouter>(*this);
     return input != nullptr && input->IsDragSource(*this);
 }
 } // namespace Aero {

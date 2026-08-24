@@ -5,6 +5,9 @@
 namespace Aero {
 
 class Freezable;
+struct FreezableState;
+
+namespace Core { class DependencyPropertyFacet; }
 
 using FreezableChangedHandler = Base::Delegate<void(Freezable&)>;
 
@@ -13,13 +16,6 @@ using FreezableChangedHandler = Base::Delegate<void(Freezable&)>;
 // invalidation. Freezing does not remove the object's dispatcher affinity.
 class AERO_GUI_API Freezable : public DependencyObject {
     AERO_DECLARE_TYPE(Freezable, DependencyObject)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     bool IsFrozen() const noexcept;
@@ -47,8 +43,11 @@ protected:
     Result<void> VerifyMutationAllowed() const noexcept override;
 
 private:
+    friend struct FreezableState;
+    friend class Core::DependencyPropertyFacet;
+
     Base::IAllocator* implAllocator_ = nullptr;
-    Access* impl_ = nullptr;
+    FreezableState* impl_ = nullptr;
 };
 
 } // namespace Aero

@@ -2,8 +2,15 @@
 
 #include <Aero/Controls/HeaderedItemsControl.hpp>
 #include <Aero/Controls/TextBlock.hpp>
+#include <Aero/DependencyProperty.hpp>
+#include <Aero/RoutedEvent.hpp>
+
+namespace Aero::Core { class InteractionStateFacet; }
 
 namespace Aero::Controls {
+using ::Aero::DependencyProperty;
+using ::Aero::RoutedEvent;
+using ::Aero::RoutedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
@@ -55,7 +62,7 @@ protected:
 
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Visual::Access;
+    friend class ::Aero::Core::InteractionStateFacet;
 #endif
     friend class ItemsControl;
     TextBlock* headerText_ = nullptr;
@@ -103,13 +110,6 @@ private:
 class AERO_GUI_API TreeView
     : public ItemsControl {
     AERO_DECLARE_TYPE(TreeView, ItemsControl)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     TreeView() noexcept
@@ -128,8 +128,5 @@ protected:
         CreateContainer(
             const Ref<Base::Object>& item)
             noexcept override;
-
-private:
-    friend struct Access;
 };
 } // namespace Aero::Controls

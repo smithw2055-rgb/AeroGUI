@@ -1,13 +1,10 @@
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>
-#include "gui/controls/State.hpp"
-#include "gui/controls/State.hpp"
+#include "gui/controls/State.hpp" 
 #include "gui/templates/TemplateState.hpp"
 #include "gui/markup/MarkupWriterState.hpp"
 
@@ -129,17 +126,17 @@ Base::Result<void> TemplateBuilder::SetRoot(
     Aero::ElementAttachment mount = std::move(mounted).Value();
 
     Base::Result<void> selected =
-        Control::Access::SetTemplateRoot(*state.parent, root.AsUIElement());
+        Aero::Core::InteractionStateFacet::SetTemplateRoot(*state.parent, root.AsUIElement());
     if (!selected) {
         (void)state.tree->DetachElement(mount);
         return selected.GetStatus();
     }
     if (root.AsFrameworkElement() != nullptr) {
         Base::Result<void> templated =
-            Aero::Media::Visual::Access::SetTemplatedParent(
+            Aero::Core::InteractionStateFacet::SetTemplatedParent(
                 *root.AsFrameworkElement(), state.parent);
         if (!templated) {
-            (void)Control::Access::SetTemplateRoot(*state.parent, nullptr);
+            (void)Aero::Core::InteractionStateFacet::SetTemplateRoot(*state.parent, nullptr);
             (void)state.tree->DetachElement(mount);
             return templated.GetStatus();
         }
@@ -148,10 +145,10 @@ Base::Result<void> TemplateBuilder::SetRoot(
         name, std::move(owner), root, &mount);
     if (!added) {
         if (root.AsFrameworkElement() != nullptr) {
-            (void)Aero::Media::Visual::Access::SetTemplatedParent(
+            (void)Aero::Core::InteractionStateFacet::SetTemplatedParent(
                 *root.AsFrameworkElement(), nullptr);
         }
-        (void)Control::Access::SetTemplateRoot(*state.parent, nullptr);
+        (void)Aero::Core::InteractionStateFacet::SetTemplateRoot(*state.parent, nullptr);
         (void)state.tree->DetachElement(mount);
         return added.GetStatus();
     }
@@ -182,7 +179,7 @@ Base::Result<void> TemplateBuilder::AddPart(
 
     if (part.AsFrameworkElement() != nullptr) {
         Base::Result<void> templated =
-            Aero::Media::Visual::Access::SetTemplatedParent(
+            Aero::Core::InteractionStateFacet::SetTemplatedParent(
                 *part.AsFrameworkElement(), state.parent);
         if (!templated) {
             (void)state.tree->DetachElement(mount);
@@ -193,7 +190,7 @@ Base::Result<void> TemplateBuilder::AddPart(
         name, std::move(owner), part, &mount);
     if (!added) {
         if (part.AsFrameworkElement() != nullptr) {
-            (void)Aero::Media::Visual::Access::SetTemplatedParent(
+            (void)Aero::Core::InteractionStateFacet::SetTemplatedParent(
                 *part.AsFrameworkElement(), nullptr);
         }
         (void)state.tree->DetachElement(mount);
@@ -253,7 +250,7 @@ TemplateBuilder::ProjectContentCore(
             Base::ErrorCode::InvalidArgument,
             "Template content projection owner is invalid");
     }
-    UIElement* content = Control::Access::ContentElement(owner);
+    UIElement* content = Aero::Core::InteractionStateFacet::ContentElement(owner);
     if (content == nullptr) return false;
 
     bool presenterIsPart = false;
@@ -353,7 +350,7 @@ Base::Result<void> TemplateBuilder::PopulateItemsPresenter(
     Base::Ref<Base::Object> owner;
     if (itemsPanel != nullptr) {
         Base::Result<Base::Ref<Base::Object>> created =
-            ItemsPanelTemplate::Access::Instantiate(*itemsPanel);
+            ItemsPanelTemplateRuntime::Instantiate(*itemsPanel);
         if (!created) return created.GetStatus();
         owner = std::move(created).Value();
     } else {
@@ -486,13 +483,13 @@ void TemplateBuilder::Rollback() noexcept {
     for (std::uint32_t index = state.parts.Size(); index > 0U; --index) {
         Aero::Controls::TemplatePart& part = state.parts[index - 1U];
         if (part.frameworkElement != nullptr) {
-            (void)Aero::Media::Visual::Access::SetTemplatedParent(*part.frameworkElement, nullptr);
+            (void)Aero::Core::InteractionStateFacet::SetTemplatedParent(*part.frameworkElement, nullptr);
         }
         if (part.mount.IsAttached()) {
             (void)state.tree->DetachElement(part.mount);
         }
     }
-    if (state.parent != nullptr) (void)Control::Access::SetTemplateRoot(*state.parent, nullptr);
+    if (state.parent != nullptr) (void)Aero::Core::InteractionStateFacet::SetTemplateRoot(*state.parent, nullptr);
     state.parts.Clear();
     state.rootVisual = nullptr;
     state.rootElement = nullptr;
@@ -638,12 +635,12 @@ const ResourceDictionary& FrameworkTemplate::GetResources() const noexcept {
     return fallback;
 }
 
-Controls::FrameworkTemplateState* FrameworkTemplate::Access::State(
+Controls::FrameworkTemplateState* FrameworkTemplateRuntime::State(
     FrameworkTemplate& value) noexcept {
     return static_cast<Controls::FrameworkTemplateState*>(value.state_);
 }
 
-const Controls::FrameworkTemplateState* FrameworkTemplate::Access::State(
+const Controls::FrameworkTemplateState* FrameworkTemplateRuntime::State(
     const FrameworkTemplate& value) noexcept {
     return static_cast<const Controls::FrameworkTemplateState*>(value.state_);
 }
@@ -658,11 +655,11 @@ using namespace ::Aero::Controls;
 using namespace ::Aero::Controls;
 
 ::Aero::Controls::FrameworkTemplateState* TemplatePrivate::State(FrameworkTemplate& value) noexcept {
-    return ::Aero::FrameworkTemplate::Access::State(value);
+    return ::Aero::FrameworkTemplateRuntime::State(value);
 }
 
 const ::Aero::Controls::FrameworkTemplateState* TemplatePrivate::State(const FrameworkTemplate& value) noexcept {
-    return ::Aero::FrameworkTemplate::Access::State(value);
+    return ::Aero::FrameworkTemplateRuntime::State(value);
 }
 
 Base::Result<void> TemplatePrivate::SetTargetType(
@@ -1231,9 +1228,9 @@ namespace Aero::Controls {
 bool Control::ApplyTemplate() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return false;
-    if (Control::Access::IsTemplateApplied(*this)) return false;
+    if (::Aero::Core::InteractionStateFacet::IsTemplateApplied(*this)) return false;
     auto* templateRuntime = static_cast<TemplateEngine*>(
-        ::Aero::Media::Visual::Access::TemplateRuntime(*this));
+        ::Aero::Core::DependencyPropertyFacet::TemplateRuntime(*this));
     if (templateRuntime == nullptr) {
         return false;
     }
@@ -1253,7 +1250,7 @@ bool Control::ApplyTemplate() noexcept {
 DependencyObject* Control::GetTemplateChild(
     Base::StringView name) const noexcept {
     auto* templateRuntime = static_cast<TemplateEngine*>(
-        ::Aero::Media::Visual::Access::TemplateRuntime(*this));
+        ::Aero::Core::DependencyPropertyFacet::TemplateRuntime(*this));
     if (templateRuntime == nullptr ||
         templateHandleValue_ == 0U ||
         name.Empty()) {
@@ -1266,7 +1263,7 @@ DependencyObject* Control::GetTemplateChild(
 DependencyObject* Control::GetTemplateChild(
     TypeId type) const noexcept {
     auto* templateRuntime = static_cast<TemplateEngine*>(
-        ::Aero::Media::Visual::Access::TemplateRuntime(*this));
+        ::Aero::Core::DependencyPropertyFacet::TemplateRuntime(*this));
     if (templateRuntime == nullptr ||
         templateHandleValue_ == 0U ||
         type == InvalidTypeId) {
@@ -1312,7 +1309,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
     const ControlTemplate& plan) noexcept {
     if (tree_ == nullptr || values_ == nullptr ||
         properties_ == nullptr || !plan.GetIsSealed() ||
-        Aero::Media::Visual::Access::Tree(control) != tree_ ||
+        control.GetTree() != tree_ ||
         !IsTargetCompatible(
             properties_->Types(),
             control.RuntimeType(),
@@ -1321,7 +1318,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
             Base::ErrorCode::InvalidArgument,
             "ControlTemplate cannot be applied to this control");
     }
-    ::Aero::Controls::Control::Access::AttachTemplateEngine(
+    ::Aero::Core::InteractionStateFacet::AttachTemplateEngine(
         control, this);
     const std::uint32_t existing = FindInstance(control);
     if (existing != UINT32_MAX) {
@@ -1479,7 +1476,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
         (void)ClearAt(instances_.Size() - 1U);
         return status;
     }
-    ::Aero::Controls::Control::Access::NotifyTemplateApplied(
+    ::Aero::Core::InteractionStateFacet::NotifyTemplateApplied(
         control, stored.handle.value);
     return stored.handle;
 }
@@ -1974,7 +1971,7 @@ Base::Result<void> TemplateEngine::ClearProviders(
 Base::Result<void> TemplateEngine::ClearAt(
     std::uint32_t index) noexcept {
     Instance& instance = instances_[index];
-    ::Aero::Controls::Control::Access::NotifyTemplateDetached(
+    ::Aero::Core::InteractionStateFacet::NotifyTemplateDetached(
         *instance.parent);
     DetachMetadataBindings(instance);
     DetachDynamicResources(instance);
@@ -1985,11 +1982,11 @@ Base::Result<void> TemplateEngine::ClearAt(
     for (Aero::Controls::TemplatePart& part : instance.parts) {
         if (part.frameworkElement != nullptr) {
             Base::Result<void> cleared =
-                Aero::Media::Visual::Access::SetTemplatedParent(*part.frameworkElement, nullptr);
+                Aero::Core::InteractionStateFacet::SetTemplatedParent(*part.frameworkElement, nullptr);
             if (!cleared) return cleared.GetStatus();
         }
     }
-    Base::Result<void> child = Aero::Controls::Control::Access::SetTemplateRoot(*instance.parent, nullptr);
+    Base::Result<void> child = Aero::Core::InteractionStateFacet::SetTemplateRoot(*instance.parent, nullptr);
     if (!child) return child.GetStatus();
 
     for (std::uint32_t projectionIndex = instance.projections.Size();

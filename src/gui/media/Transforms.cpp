@@ -1,6 +1,6 @@
 #include <Aero/Media/Transforms.hpp>
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
+#include "gui/core/facets/DependencyPropertyFacet.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/media/MediaState.hpp"
@@ -50,9 +50,9 @@ bool ContainsTransform(
 
 namespace Aero::Media {
 
-std::uint64_t Transform::Access::Revision(
+std::uint64_t TransformRuntime::Revision(
     const Transform& transform) noexcept {
-    return Freezable::Access::Revision(transform);
+    return ::Aero::Core::DependencyPropertyFacet::FreezableRevision(transform);
 }
 
 } // namespace Aero::Media

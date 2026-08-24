@@ -11,6 +11,7 @@
 #include <Aero/Resources.hpp>
 #include <Aero/Triggers/TriggerBase.hpp>
 #include <Aero/Triggers/Trigger.hpp>
+
 #include <Aero/Triggers/DataTrigger.hpp>
 #include <Aero/Triggers/Conditions.hpp>
 #include <Aero/Triggers/MultiTrigger.hpp>
@@ -18,6 +19,11 @@
 #include <utility>
 
 namespace Aero {
+
+using Meta::DependencyPropertyHandle;
+using Meta::InvalidTypeId;
+using Meta::PropertyValue;
+using Meta::TypeId;
 
 class Style;
 
@@ -53,15 +59,7 @@ private:
 // compiled privately when the style is sealed.
 class AERO_GUI_API Style : public Base::Object {
     AERO_DECLARE_TYPE(Style, Base::Object)
-#if defined(AERO_GUI_IMPLEMENTATION)
 public:
-#else
-private:
-#endif
-    struct Access;
-
-public:
-
     Style() noexcept;
     explicit Style(
         TypeId targetType,
@@ -173,14 +171,14 @@ public:
     void SetResources(Ref<ResourceDictionary> value) noexcept;
 
 private:
-    friend struct Access;
-
     Result<void> AddPropertyTrigger(
         DependencyPropertyHandle condition,
         const PropertyValue& conditionValue,
         DependencyPropertyHandle property,
         PropertyValue value) noexcept;
     Result<void> SealRuntime(const void* properties) noexcept;
+
+    friend struct StyleState;
 
     TypeId runtimeType_ = StaticTypeId();
     TypeId targetType_ = InvalidTypeId;
@@ -189,7 +187,7 @@ private:
     Base::Vector<Ref<Setter>> authoredSetterObjects_;
     Base::Vector<Ref<TriggerBase>> authoredTriggerObjects_;
     Base::IAllocator* implAllocator_ = nullptr;
-    Access* program_ = nullptr;
+    StyleState* program_ = nullptr;
     ResourceDictionary resources_;
     bool sealed_ = false;
 };

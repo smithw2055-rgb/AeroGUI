@@ -1,11 +1,8 @@
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/input/InputState.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
+#include "gui/input/InputState.hpp" 
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
 #include <Aero/Controls.hpp>
+#include "gui/core/facets/InteractionStateFacet.hpp"
 
 #include <utility>
 #include "ControlBehavior.hpp"
@@ -236,7 +233,7 @@ void MenuItem::SetRoleState(
 
 Menu::~Menu() {
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Media::Visual::Access::ControlBehaviorRuntime(*this));
+        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -346,8 +343,8 @@ using namespace Aero::Controls;
 using namespace ::Aero::Controls;
 using namespace ::Aero;
 
-Menu::Access::
-Access(
+MenuBehavior::
+MenuBehavior(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input) noexcept
@@ -356,15 +353,15 @@ Access(
       input_(&input),
       mouseDownHandler_(
           this,
-          &Menu::Access::
+          &MenuBehavior::
               OnMouseDown),
       keyDownHandler_(
           this,
-          &Menu::Access::
+          &MenuBehavior::
               OnKeyDown) {}
 
-Menu::Access::
-~Access() noexcept {
+MenuBehavior::
+~MenuBehavior() noexcept {
     while (!records_.Empty()) {
         Menu* menu =
             ResolveMenu(records_.Size() - 1U);
@@ -377,7 +374,7 @@ Menu::Access::
 }
 
 std::uint32_t
-Menu::Access::FindMenu(
+MenuBehavior::FindMenu(
     const Menu& menu) const noexcept {
     for (std::uint32_t index = 0U;
         index < records_.Size(); ++index) {
@@ -389,7 +386,7 @@ Menu::Access::FindMenu(
     return UINT32_MAX;
 }
 
-Menu* Menu::Access::ResolveMenu(
+Menu* MenuBehavior::ResolveMenu(
     std::uint32_t index) noexcept {
     ::Aero::Media::Visual* visual =
         index < records_.Size()
@@ -402,9 +399,9 @@ Menu* Menu::Access::ResolveMenu(
 }
 
 Base::Result<void>
-Menu::Access::Attach(
+MenuBehavior::Attach(
     Menu& menu) noexcept {
-    if (Aero::Media::Visual::Access::Tree(menu) != tree_ ||
+    if (menu.GetTree() != tree_ ||
         FindMenu(menu) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -430,7 +427,7 @@ Menu::Access::Attach(
 }
 
 Base::Result<bool>
-Menu::Access::Detach(
+MenuBehavior::Detach(
     Menu& menu) noexcept {
     const std::uint32_t index =
         FindMenu(menu);
@@ -451,7 +448,7 @@ Menu::Access::Detach(
     return true;
 }
 
-MenuItem* Menu::Access::FindItem(
+MenuItem* MenuBehavior::FindItem(
     Menu& menu,
     Base::Object* source) const noexcept {
     if (source == nullptr ||
@@ -481,7 +478,7 @@ MenuItem* Menu::Access::FindItem(
 }
 
 Base::Result<void>
-    Menu::Access::Invoke(
+    MenuBehavior::Invoke(
     Menu& menu,
     MenuItem& item) noexcept {
     if (item.GetCount() != 0U) {
@@ -516,7 +513,7 @@ Base::Result<void>
     return {};
 }
 
-void Menu::Access::OnMouseDown(
+void MenuBehavior::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args)
     noexcept {
@@ -530,7 +527,7 @@ void Menu::Access::OnMouseDown(
         FindItem(
             menu, args.GetOriginalSource());
     if (item == nullptr) return;
-    ::Aero::Media::Visual::Access::SetMenuItemHighlighted(*item, true);
+    ::Aero::Core::InteractionStateFacet::SetMenuItemHighlighted(*item, true);
     Base::Result<void> invoked =
         Invoke(menu, *item);
     if (!invoked) return;
@@ -539,7 +536,7 @@ void Menu::Access::OnMouseDown(
     args.SetHandled(true);
 }
 
-void Menu::Access::OnKeyDown(
+void MenuBehavior::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     if (args.GetKey() != KeyboardKeyEnter &&

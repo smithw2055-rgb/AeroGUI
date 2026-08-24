@@ -1,7 +1,5 @@
 #include "gui/meta/ValueConversion.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/input/InputState.hpp"
 #include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
@@ -9,6 +7,8 @@
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include "gui/media/MediaState.hpp"
+#include "gui/core/facets/VisualFacet.hpp"
+#include "gui/core/facets/InteractionStateFacet.hpp"
 #include <Aero/Value.hpp>
 
 #include <algorithm>
@@ -551,7 +551,7 @@ ScrollViewer::ScrollViewer() noexcept
 ScrollViewer::~ScrollViewer() {
     DetachScrollBars();
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Media::Visual::Access::ControlBehaviorRuntime(*this));
+        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -911,7 +911,7 @@ void ScrollViewer::OnScrollDataChanged(
         false);
     synchronizingScrollBars_ = false;
 
-    auto* events = ::Aero::Media::Visual::Access::EventRouterFor(*this);
+    auto* events = ::Aero::Core::GetFacet<::Aero::EventRouter>(*this);
     if (events != nullptr) {
         ScrollChangedEventArgs args(oldData, newData, kind);
         static_cast<void>(
@@ -2196,16 +2196,16 @@ using namespace Aero::Controls;
 using namespace ::Aero::Controls;
 using namespace ::Aero;
 
-ScrollViewer::Access::Access(
+ScrollBehavior::ScrollBehavior(
     ElementTree& tree,
     EventRouter& events) noexcept
     : tree_(&tree),
       events_(&events),
       wheelHandler_(
           this,
-          &ScrollViewer::Access::OnMouseWheel) {}
+          &ScrollBehavior::OnMouseWheel) {}
 
-ScrollViewer::Access::~Access() noexcept {
+ScrollBehavior::~ScrollBehavior() noexcept {
     while (!viewers_.Empty()) {
         ScrollViewer* viewer =
             viewers_.Back().viewer;
@@ -2217,9 +2217,9 @@ ScrollViewer::Access::~Access() noexcept {
     }
 }
 
-std::uint32_t ScrollViewer::Access::FindViewer(
+std::uint32_t ScrollBehavior::FindViewer(
     const ScrollViewer& viewer) const noexcept {
-    const VisualHandle handle = Aero::Media::Visual::Access::Handle(viewer);
+    const VisualHandle handle = Aero::Core::VisualFacet::Handle(viewer);
     for (std::uint32_t index = 0U;
         index < viewers_.Size(); ++index) {
         if (viewers_[index].viewer == &viewer ||
@@ -2232,15 +2232,15 @@ std::uint32_t ScrollViewer::Access::FindViewer(
     return UINT32_MAX;
 }
 
-Base::Result<void> ScrollViewer::Access::Attach(
+Base::Result<void> ScrollBehavior::Attach(
     ScrollViewer& viewer) noexcept {
     if (FindViewer(viewer) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "ScrollViewer is already attached");
     }
-    if (Aero::Media::Visual::Access::Tree(viewer) != tree_ ||
-        !Aero::Media::Visual::Access::Handle(viewer).IsValid()) {
+    if (viewer.GetTree() != tree_ ||
+        !Aero::Core::VisualFacet::Handle(viewer).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ScrollViewer must be loaded in the interaction tree");
@@ -2252,7 +2252,7 @@ Base::Result<void> ScrollViewer::Access::Attach(
     if (!handler) return handler.GetStatus();
     Base::Result<void> added =
         viewers_.PushBack(
-            {&viewer, Aero::Media::Visual::Access::Handle(viewer)});
+            {&viewer, Aero::Core::VisualFacet::Handle(viewer)});
     if (!added) {
         static_cast<void>(viewer.RemoveHandler(
             UIElement::MouseWheelEvent,
@@ -2262,7 +2262,7 @@ Base::Result<void> ScrollViewer::Access::Attach(
     return {};
 }
 
-Base::Result<bool> ScrollViewer::Access::Detach(
+Base::Result<bool> ScrollBehavior::Detach(
     ScrollViewer& viewer) noexcept {
     const std::uint32_t index = FindViewer(viewer);
     if (index == UINT32_MAX) return false;
@@ -2276,7 +2276,7 @@ Base::Result<bool> ScrollViewer::Access::Detach(
     return true;
 }
 
-void ScrollViewer::Access::OnMouseWheel(
+void ScrollBehavior::OnMouseWheel(
     Base::Object* sender,
     MouseWheelEventArgs& args) noexcept {
     auto* viewer = static_cast<ScrollViewer*>(sender);
@@ -2298,7 +2298,7 @@ void ScrollViewer::Access::OnMouseWheel(
     }
 }
 
-Slider::Access::Access(
+SliderBehavior::SliderBehavior(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input) noexcept
@@ -2307,33 +2307,33 @@ Slider::Access::Access(
       input_(&input),
       mouseDownHandler_(
           this,
-          &Slider::Access::OnMouseDown),
+          &SliderBehavior::OnMouseDown),
       mouseMoveHandler_(
           this,
-          &Slider::Access::OnMouseMove),
+          &SliderBehavior::OnMouseMove),
       mouseUpHandler_(
           this,
-          &Slider::Access::OnMouseUp),
+          &SliderBehavior::OnMouseUp),
       keyDownHandler_(
           this,
-          &Slider::Access::OnKeyDown),
+          &SliderBehavior::OnKeyDown),
       captureChangedHandler_(
           this,
-          &Slider::Access::OnCaptureChanged),
+          &SliderBehavior::OnCaptureChanged),
       decreaseSmallHandler_(
           this,
-          &Slider::Access::OnDecreaseSmallCommand),
+          &SliderBehavior::OnDecreaseSmallCommand),
       increaseSmallHandler_(
           this,
-          &Slider::Access::OnIncreaseSmallCommand),
+          &SliderBehavior::OnIncreaseSmallCommand),
       decreaseLargeHandler_(
           this,
-          &Slider::Access::OnDecreaseLargeCommand),
+          &SliderBehavior::OnDecreaseLargeCommand),
       increaseLargeHandler_(
           this,
-          &Slider::Access::OnIncreaseLargeCommand) {}
+          &SliderBehavior::OnIncreaseLargeCommand) {}
 
-Slider::Access::~Access()
+SliderBehavior::~SliderBehavior()
     noexcept {
     while (!sliders_.Empty()) {
         Slider* slider =
@@ -2349,12 +2349,12 @@ Slider::Access::~Access()
             captureChangedHandler_));
 }
 
-std::uint32_t Slider::Access::Find(
+std::uint32_t SliderBehavior::Find(
     const Slider& slider) const noexcept {
     for (std::uint32_t index = 0U;
          index < sliders_.Size(); ++index) {
         const VisualHandle current =
-            Aero::Media::Visual::Access::Handle(slider);
+            Aero::Core::VisualFacet::Handle(slider);
         if (sliders_[index].handle.index ==
                 current.index &&
             sliders_[index].handle.generation ==
@@ -2365,7 +2365,7 @@ std::uint32_t Slider::Access::Find(
     return UINT32_MAX;
 }
 
-Slider* Slider::Access::Resolve(
+Slider* SliderBehavior::Resolve(
     std::uint32_t index) noexcept {
     if (index >= sliders_.Size()) return nullptr;
     ::Aero::Media::Visual* node =
@@ -2381,7 +2381,7 @@ Slider* Slider::Access::Resolve(
     return static_cast<Slider*>(node);
 }
 
-void Slider::Access::RemoveAt(
+void SliderBehavior::RemoveAt(
     std::uint32_t index) noexcept {
     if (index >= sliders_.Size()) return;
     if (index + 1U != sliders_.Size()) {
@@ -2391,15 +2391,15 @@ void Slider::Access::RemoveAt(
     sliders_.PopBack();
 }
 
-Base::Result<void> Slider::Access::Attach(
+Base::Result<void> SliderBehavior::Attach(
     Slider& slider) noexcept {
     if (Find(slider) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "Slider is already attached");
     }
-    if (Aero::Media::Visual::Access::Tree(slider) != tree_ ||
-        !Aero::Media::Visual::Access::Handle(slider).IsValid()) {
+    if (slider.GetTree() != tree_ ||
+        !Aero::Core::VisualFacet::Handle(slider).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Slider must be loaded in the interaction tree");
@@ -2448,7 +2448,7 @@ Base::Result<void> Slider::Access::Attach(
     }
     SliderRecord record;
     record.handle =
-        Aero::Media::Visual::Access::Handle(slider);
+        Aero::Core::VisualFacet::Handle(slider);
     const auto addCommand =
         [this, &slider](
             Base::StringView name,
@@ -2551,7 +2551,7 @@ Base::Result<void> Slider::Access::Attach(
     return {};
 }
 
-Base::Result<bool> Slider::Access::Detach(
+Base::Result<bool> SliderBehavior::Detach(
     Slider& slider) noexcept {
     const std::uint32_t index = Find(slider);
     if (index == UINT32_MAX) return false;
@@ -2589,7 +2589,7 @@ Base::Result<bool> Slider::Access::Detach(
     return true;
 }
 
-void Slider::Access::OnDecreaseSmallCommand(
+void SliderBehavior::OnDecreaseSmallCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* slider = static_cast<Slider*>(sender);
@@ -2599,7 +2599,7 @@ void Slider::Access::OnDecreaseSmallCommand(
     }
 }
 
-void Slider::Access::OnIncreaseSmallCommand(
+void SliderBehavior::OnIncreaseSmallCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* slider = static_cast<Slider*>(sender);
@@ -2609,7 +2609,7 @@ void Slider::Access::OnIncreaseSmallCommand(
     }
 }
 
-void Slider::Access::OnDecreaseLargeCommand(
+void SliderBehavior::OnDecreaseLargeCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* slider = static_cast<Slider*>(sender);
@@ -2619,7 +2619,7 @@ void Slider::Access::OnDecreaseLargeCommand(
     }
 }
 
-void Slider::Access::OnIncreaseLargeCommand(
+void SliderBehavior::OnIncreaseLargeCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* slider = static_cast<Slider*>(sender);
@@ -2630,7 +2630,7 @@ void Slider::Access::OnIncreaseLargeCommand(
 }
 
 Base::Result<void>
-Slider::Access::SetFromPoint(
+SliderBehavior::SetFromPoint(
     Slider& slider,
     Point point) noexcept {
     const bool horizontal =
@@ -2646,7 +2646,7 @@ Slider::Access::SetFromPoint(
     return {};
 }
 
-void Slider::Access::OnMouseDown(
+void SliderBehavior::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& slider =
@@ -2713,7 +2713,7 @@ void Slider::Access::OnMouseDown(
     args.SetHandled(true);
 }
 
-void Slider::Access::OnMouseMove(
+void SliderBehavior::OnMouseMove(
     Base::Object* sender,
     MouseEventArgs& args) noexcept {
     auto& slider =
@@ -2731,7 +2731,7 @@ void Slider::Access::OnMouseMove(
     args.SetHandled(true);
 }
 
-void Slider::Access::OnMouseUp(
+void SliderBehavior::OnMouseUp(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& slider =
@@ -2755,7 +2755,7 @@ void Slider::Access::OnMouseUp(
     args.SetHandled(true);
 }
 
-void Slider::Access::OnKeyDown(
+void SliderBehavior::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& slider =
@@ -2804,7 +2804,7 @@ void Slider::Access::OnKeyDown(
     }
 }
 
-void Slider::Access::OnCaptureChanged(
+void SliderBehavior::OnCaptureChanged(
     std::uint32_t pointerId,
     UIElement* target,
     bool captured) noexcept {
@@ -2827,9 +2827,9 @@ void Slider::Access::OnCaptureChanged(
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls::Primitives {
+namespace Aero::Controls {
 
-ScrollBar::Access::Access(
+ScrollBarBehavior::ScrollBarBehavior(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input) noexcept
@@ -2837,27 +2837,27 @@ ScrollBar::Access::Access(
       events_(&events),
       input_(&input),
       scrollBars_(&Base::GetDefaultAllocator()),
-      mouseDownHandler_(this, &ScrollBar::Access::OnMouseDown),
-      mouseMoveHandler_(this, &ScrollBar::Access::OnMouseMove),
-      mouseUpHandler_(this, &ScrollBar::Access::OnMouseUp),
-      keyDownHandler_(this, &ScrollBar::Access::OnKeyDown),
-      captureChangedHandler_(this, &ScrollBar::Access::OnCaptureChanged),
-      lineUpHandler_(&ScrollBar::Access::OnLineUpCommand),
-      lineDownHandler_(&ScrollBar::Access::OnLineDownCommand),
-      lineLeftHandler_(&ScrollBar::Access::OnLineLeftCommand),
-      lineRightHandler_(&ScrollBar::Access::OnLineRightCommand),
-      pageUpHandler_(&ScrollBar::Access::OnPageUpCommand),
-      pageDownHandler_(&ScrollBar::Access::OnPageDownCommand),
-      pageLeftHandler_(&ScrollBar::Access::OnPageLeftCommand),
-      pageRightHandler_(&ScrollBar::Access::OnPageRightCommand),
-      scrollToTopHandler_(&ScrollBar::Access::OnScrollToTopCommand),
-      scrollToBottomHandler_(&ScrollBar::Access::OnScrollToBottomCommand),
-      scrollToLeftEndHandler_(&ScrollBar::Access::OnScrollToLeftEndCommand),
-      scrollToRightEndHandler_(&ScrollBar::Access::OnScrollToRightEndCommand),
-      scrollToHorizontalOffsetHandler_(&ScrollBar::Access::OnScrollToHorizontalOffsetCommand),
-      scrollToVerticalOffsetHandler_(&ScrollBar::Access::OnScrollToVerticalOffsetCommand) {}
+      mouseDownHandler_(this, &ScrollBarBehavior::OnMouseDown),
+      mouseMoveHandler_(this, &ScrollBarBehavior::OnMouseMove),
+      mouseUpHandler_(this, &ScrollBarBehavior::OnMouseUp),
+      keyDownHandler_(this, &ScrollBarBehavior::OnKeyDown),
+      captureChangedHandler_(this, &ScrollBarBehavior::OnCaptureChanged),
+      lineUpHandler_(&ScrollBarBehavior::OnLineUpCommand),
+      lineDownHandler_(&ScrollBarBehavior::OnLineDownCommand),
+      lineLeftHandler_(&ScrollBarBehavior::OnLineLeftCommand),
+      lineRightHandler_(&ScrollBarBehavior::OnLineRightCommand),
+      pageUpHandler_(&ScrollBarBehavior::OnPageUpCommand),
+      pageDownHandler_(&ScrollBarBehavior::OnPageDownCommand),
+      pageLeftHandler_(&ScrollBarBehavior::OnPageLeftCommand),
+      pageRightHandler_(&ScrollBarBehavior::OnPageRightCommand),
+      scrollToTopHandler_(&ScrollBarBehavior::OnScrollToTopCommand),
+      scrollToBottomHandler_(&ScrollBarBehavior::OnScrollToBottomCommand),
+      scrollToLeftEndHandler_(&ScrollBarBehavior::OnScrollToLeftEndCommand),
+      scrollToRightEndHandler_(&ScrollBarBehavior::OnScrollToRightEndCommand),
+      scrollToHorizontalOffsetHandler_(&ScrollBarBehavior::OnScrollToHorizontalOffsetCommand),
+      scrollToVerticalOffsetHandler_(&ScrollBarBehavior::OnScrollToVerticalOffsetCommand) {}
 
-ScrollBar::Access::~Access() {
+ScrollBarBehavior::~ScrollBarBehavior() {
     while (!scrollBars_.Empty()) {
         ScrollBar* scrollBar = Resolve(scrollBars_.Size() - 1U);
         if (scrollBar != nullptr) {
@@ -2868,10 +2868,10 @@ ScrollBar::Access::~Access() {
     }
 }
 
-std::uint32_t ScrollBar::Access::Find(
+std::uint32_t ScrollBarBehavior::Find(
     const ScrollBar& scrollBar) const noexcept {
     const VisualHandle target =
-        Aero::Media::Visual::Access::Handle(scrollBar);
+        Aero::Core::VisualFacet::Handle(scrollBar);
     for (std::uint32_t index = 0U;
          index < scrollBars_.Size(); ++index) {
         if (scrollBars_[index].handle.index == target.index &&
@@ -2882,14 +2882,14 @@ std::uint32_t ScrollBar::Access::Find(
     return UINT32_MAX;
 }
 
-ScrollBar* ScrollBar::Access::Resolve(
+ScrollBar* ScrollBarBehavior::Resolve(
     std::uint32_t index) noexcept {
     if (index >= scrollBars_.Size()) return nullptr;
     return static_cast<ScrollBar*>(
         tree_->ResolveHandle(scrollBars_[index].handle));
 }
 
-void ScrollBar::Access::RemoveAt(
+void ScrollBarBehavior::RemoveAt(
     std::uint32_t index) noexcept {
     if (index >= scrollBars_.Size()) return;
     if (index + 1U != scrollBars_.Size()) {
@@ -2899,15 +2899,15 @@ void ScrollBar::Access::RemoveAt(
     scrollBars_.PopBack();
 }
 
-Base::Result<void> ScrollBar::Access::Attach(
+Base::Result<void> ScrollBarBehavior::Attach(
     ScrollBar& scrollBar) noexcept {
     if (Find(scrollBar) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "ScrollBar is already attached");
     }
-    if (Aero::Media::Visual::Access::Tree(scrollBar) != tree_ ||
-        !Aero::Media::Visual::Access::Handle(scrollBar).IsValid()) {
+    if (scrollBar.GetTree() != tree_ ||
+        !Aero::Core::VisualFacet::Handle(scrollBar).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ScrollBar must be loaded in the interaction tree");
@@ -2956,7 +2956,7 @@ Base::Result<void> ScrollBar::Access::Attach(
     }
     ScrollBarRecord record;
     record.handle =
-        Aero::Media::Visual::Access::Handle(scrollBar);
+        Aero::Core::VisualFacet::Handle(scrollBar);
 
     const auto addCommand =
         [this, &scrollBar, &record](
@@ -3008,7 +3008,7 @@ Base::Result<void> ScrollBar::Access::Attach(
     return scrollBars_.PushBack(std::move(record));
 }
 
-Base::Result<bool> ScrollBar::Access::Detach(
+Base::Result<bool> ScrollBarBehavior::Detach(
     ScrollBar& scrollBar) noexcept {
     const std::uint32_t index = Find(scrollBar);
     if (index == UINT32_MAX) return false;
@@ -3041,7 +3041,7 @@ Base::Result<bool> ScrollBar::Access::Detach(
     return true;
 }
 
-void ScrollBar::Access::OnLineUpCommand(
+void ScrollBarBehavior::OnLineUpCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3051,7 +3051,7 @@ void ScrollBar::Access::OnLineUpCommand(
     }
 }
 
-void ScrollBar::Access::OnLineDownCommand(
+void ScrollBarBehavior::OnLineDownCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3061,7 +3061,7 @@ void ScrollBar::Access::OnLineDownCommand(
     }
 }
 
-void ScrollBar::Access::OnLineLeftCommand(
+void ScrollBarBehavior::OnLineLeftCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3071,7 +3071,7 @@ void ScrollBar::Access::OnLineLeftCommand(
     }
 }
 
-void ScrollBar::Access::OnLineRightCommand(
+void ScrollBarBehavior::OnLineRightCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3081,7 +3081,7 @@ void ScrollBar::Access::OnLineRightCommand(
     }
 }
 
-void ScrollBar::Access::OnPageUpCommand(
+void ScrollBarBehavior::OnPageUpCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3091,7 +3091,7 @@ void ScrollBar::Access::OnPageUpCommand(
     }
 }
 
-void ScrollBar::Access::OnPageDownCommand(
+void ScrollBarBehavior::OnPageDownCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3101,7 +3101,7 @@ void ScrollBar::Access::OnPageDownCommand(
     }
 }
 
-void ScrollBar::Access::OnPageLeftCommand(
+void ScrollBarBehavior::OnPageLeftCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3111,7 +3111,7 @@ void ScrollBar::Access::OnPageLeftCommand(
     }
 }
 
-void ScrollBar::Access::OnPageRightCommand(
+void ScrollBarBehavior::OnPageRightCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3121,7 +3121,7 @@ void ScrollBar::Access::OnPageRightCommand(
     }
 }
 
-void ScrollBar::Access::OnScrollToTopCommand(
+void ScrollBarBehavior::OnScrollToTopCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3131,7 +3131,7 @@ void ScrollBar::Access::OnScrollToTopCommand(
     }
 }
 
-void ScrollBar::Access::OnScrollToBottomCommand(
+void ScrollBarBehavior::OnScrollToBottomCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3141,7 +3141,7 @@ void ScrollBar::Access::OnScrollToBottomCommand(
     }
 }
 
-void ScrollBar::Access::OnScrollToLeftEndCommand(
+void ScrollBarBehavior::OnScrollToLeftEndCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3151,7 +3151,7 @@ void ScrollBar::Access::OnScrollToLeftEndCommand(
     }
 }
 
-void ScrollBar::Access::OnScrollToRightEndCommand(
+void ScrollBarBehavior::OnScrollToRightEndCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3161,7 +3161,7 @@ void ScrollBar::Access::OnScrollToRightEndCommand(
     }
 }
 
-void ScrollBar::Access::OnScrollToHorizontalOffsetCommand(
+void ScrollBarBehavior::OnScrollToHorizontalOffsetCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3179,7 +3179,7 @@ void ScrollBar::Access::OnScrollToHorizontalOffsetCommand(
     }
 }
 
-void ScrollBar::Access::OnScrollToVerticalOffsetCommand(
+void ScrollBarBehavior::OnScrollToVerticalOffsetCommand(
     Base::Object* sender,
     ExecutedRoutedEventArgs& args) noexcept {
     auto* bar = static_cast<ScrollBar*>(sender);
@@ -3197,7 +3197,7 @@ void ScrollBar::Access::OnScrollToVerticalOffsetCommand(
     }
 }
 
-void ScrollBar::Access::OnMouseDown(
+void ScrollBarBehavior::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& bar = *static_cast<ScrollBar*>(sender);
@@ -3244,7 +3244,7 @@ void ScrollBar::Access::OnMouseDown(
     }
 }
 
-void ScrollBar::Access::OnMouseMove(
+void ScrollBarBehavior::OnMouseMove(
     Base::Object* sender,
     MouseEventArgs& args) noexcept {
     auto& bar = *static_cast<ScrollBar*>(sender);
@@ -3284,7 +3284,7 @@ void ScrollBar::Access::OnMouseMove(
     }
 }
 
-void ScrollBar::Access::OnMouseUp(
+void ScrollBarBehavior::OnMouseUp(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& bar = *static_cast<ScrollBar*>(sender);
@@ -3301,7 +3301,7 @@ void ScrollBar::Access::OnMouseUp(
     args.SetHandled(true);
 }
 
-void ScrollBar::Access::OnKeyDown(
+void ScrollBarBehavior::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& bar = *static_cast<ScrollBar*>(sender);
@@ -3333,7 +3333,7 @@ void ScrollBar::Access::OnKeyDown(
     }
 }
 
-void ScrollBar::Access::OnCaptureChanged(
+void ScrollBarBehavior::OnCaptureChanged(
     std::uint32_t pointerId,
     UIElement* target,
     bool captured) noexcept {

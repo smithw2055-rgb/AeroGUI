@@ -213,53 +213,11 @@ inline Base::Color SampleBrush(
     return sampled;
 }
 
-struct Brush::Access {
-public:
-    static Render::RenderImageId RuntimeImage(
-        const ImageBrush& brush) noexcept {
-        return brush.renderImage_;
-    }
-
-    static std::uint32_t PixelWidth(
-        const ImageBrush& brush) noexcept {
-        return brush.pixelWidth_;
-    }
-
-    static std::uint32_t PixelHeight(
-        const ImageBrush& brush) noexcept {
-        return brush.pixelHeight_;
-    }
-
-    static Base::Result<void> SetRuntimeImage(
-        ImageBrush& brush,
-        Render::RenderImageId image,
-        std::uint32_t width,
-        std::uint32_t height) noexcept {
-        const bool changed =
-            brush.renderImage_ != image ||
-            brush.pixelWidth_ != width ||
-            brush.pixelHeight_ != height;
-        brush.renderImage_ = image;
-        brush.pixelWidth_ = width;
-        brush.pixelHeight_ = height;
-        if (changed) brush.WritePostscript();
-        return {};
-    }
-
-    static std::uint64_t Revision(const Brush& brush) noexcept;
-};
-
-} // namespace Aero::Media
-
-namespace Aero::Media {
-
-using BrushPrivate = ::Aero::Media::Brush::Access;
-
 } // namespace Aero::Media
 
 namespace Aero::Media::Animation {
 
-struct Timeline::Access {
+struct TimelineRuntime {
 public:
     static Model::TimelineTiming Timing(
         const Timeline& timeline) noexcept {
@@ -409,12 +367,12 @@ public:
 } // namespace Aero::Media::Animation
 
 namespace Aero::Media {
-using AnimationPrivate = ::Aero::Media::Animation::Timeline::Access;
+using AnimationPrivate = ::Aero::Media::Animation::TimelineRuntime;
 }
 
 namespace Aero::Media {
 
-struct Transform::Access {
+struct TransformRuntime {
 public:
     static std::uint64_t Revision(
         const Aero::Media::Transform& transform) noexcept;
@@ -423,7 +381,7 @@ public:
 } // namespace Aero::Media
 
 namespace Aero::Media {
-using TransformPrivate = ::Aero::Media::Transform::Access;
+using TransformPrivate = ::Aero::Media::TransformRuntime;
 
 } // namespace Aero::Media
 
@@ -432,7 +390,7 @@ namespace Aero::Media {
 // Effect ownership is a runtime attachment detail.  Keep it out of the SDK
 // surface while allowing the metadata bridge to update it when an Effect
 // property is assigned to a FrameworkElement.
-struct Effect::Access {
+struct EffectRuntime {
 public:
     static std::uint64_t Revision(
         const Aero::Media::Effect& effect) noexcept;
@@ -441,6 +399,6 @@ public:
 } // namespace Aero::Media
 
 namespace Aero::Media {
-using EffectPrivate = ::Aero::Media::Effect::Access;
+using EffectPrivate = ::Aero::Media::EffectRuntime;
 
 } // namespace Aero::Media

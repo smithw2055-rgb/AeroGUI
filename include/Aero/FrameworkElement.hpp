@@ -23,12 +23,10 @@ using Meta::TypeId;
 
 class Style;
 namespace Controls { class Viewbox; }
-
-} // namespace Aero
-
-namespace Aero {
-
-
+namespace Core {
+class RenderFacet;
+class InteractionStateFacet;
+}
 class FrameworkElement;
 
 class FrameworkElementChildRange {
@@ -195,8 +193,8 @@ public:
     Result<void> InvalidateVisual() noexcept;
 
 protected:
-    virtual std::uint32_t GetLogicalChildrenCountCore() const noexcept { return ::Aero::Media::VisualTreeHelper::GetChildrenCount(*this); }
-    virtual DependencyObject* GetLogicalChildCore(std::uint32_t index) const noexcept { return LogicalTreeHelper::GetChild(static_cast<const ::Aero::Media::Visual&>(*this), index); }
+    virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return ::Aero::Media::VisualTreeHelper::GetChildrenCount(*this); }
+    virtual DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept { return LogicalTreeHelper::GetChild(static_cast<const ::Aero::Media::Visual&>(*this), index); }
     void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
     virtual void OnRender(
@@ -255,8 +253,10 @@ private:
     friend class LogicalTreeHelper;
     friend class Controls::Viewbox;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Visual::Access;
-    friend struct ::Aero::UIElement::Access;
+    friend class ::Aero::Core::VisualFacet;
+    friend class ::Aero::Core::LayoutFacet;
+    friend class ::Aero::Core::RenderFacet;
+    friend class ::Aero::Core::InteractionStateFacet;
 #endif
     double dpiScale_ = 1.0;
     Base::Transform2D viewboxTransform_{};

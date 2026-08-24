@@ -119,6 +119,45 @@ large implementation type must remain out of a source header, the owner keeps
 fixed aligned storage and constructs the data state in place. There is no
 second ownership or forwarding object.
 
+## Element implementation facade
+
+Public WPF types (`Visual`, `UIElement`, `FrameworkElement`, `Control`, …) keep
+a small, WPF-shaped overridable surface. Everything else the engine must read or
+mutate on an element travels through one internal-access facade instead of
+through per-type `Access` friends scattered across installed headers:
+
+- `Media::Visual::Access` — visual tree, event/input/binding routers
+  (`EventRouterFor`/`InputRouterFor`/`BindingEngineFor`), and panel/decorator/
+  path/tree helpers. This is the engine's central internal-access facade (used
+  across `src/gui`); it is the single private entry point described by the
+  comment at the top of `src/gui/core/State.hpp`.
+- `UIElement::Access` — layout state and the `LayoutEngine` handle.
+- `Control::Access` — template/content state and the same panel/decorator
+  helpers re-exposed for controls.
+
+The runtime engines are reached through one uniform entry point,
+`Core::Facet` + `Core::GetFacet<T>(UIElement&)` (declared in
+`src/gui/core/Facet.hpp`, specialized at the end of `src/gui/core/State.hpp`),
+so engine objects (`EventRouter`, `InputRouter`, `BindingEngine`,
+`LayoutEngine`) are retrieved by type rather than by a different static method
+per facade.
+
+The element state that previously lived in a single `State.hpp` is now split
+into per-domain headers under `src/gui/core/state/`
+(`ElementTree.hpp`, `FreezableState.hpp`, `LayoutEngine.hpp`,
+`PropertyEngine.hpp`, `RoutedEvents.hpp`, `EventRouter.hpp`). `State.hpp`
+remains the umbrella that includes them; no public surface changed.
+
+WPF-bridge virtuals for developers who subclass Aero types:
+- `DependencyObject::OnPropertyChanged(const DependencyPropertyChangedEventArgs&)`
+  — override to react to any effective-value change, in addition to the
+  `PropertyMetadata`-driven `PropertyChangedCallback`.
+- `Visual::OnVisualParentChanged(Visual* oldParent)` — override to react when
+  the visual parent changes (mirrors WPF `OnVisualParentChanged`).
+
+Both are thin hooks that fire alongside the existing metadata callbacks and
+element-tree changed notifications; they do not change engine behavior.
+
 ## Render source boundary
 
 `src/render/` holds the backend-neutral render contracts (`DrawingContext`,

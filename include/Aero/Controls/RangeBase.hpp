@@ -178,13 +178,6 @@ private:
 
 class AERO_GUI_API ScrollBar : public RangeBase {
     AERO_DECLARE_TYPE(ScrollBar, RangeBase)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
     ScrollBar() noexcept;
     ~ScrollBar() override;
@@ -266,13 +259,6 @@ public:
 
 class AERO_GUI_API Slider : public Primitives::RangeBase {
     AERO_DECLARE_TYPE(Slider, Primitives::RangeBase)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     Slider() noexcept;

@@ -11,12 +11,7 @@
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
 #include <cstdio>
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/Impl.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/input/InputState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -28,6 +23,15 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 
 namespace Aero {
+namespace {
+
+constexpr Base::Status ReadOnlyStatus() noexcept {
+    return Base::Status::Failure(
+        Base::ErrorCode::ReadOnly,
+        "Dependency property is read-only");
+}
+
+} // namespace
 
 // from src/gui/core/PropertySystem.cpp
 
@@ -120,6 +124,10 @@ Base::Result<void> DependencyObject::VerifyMutationAllowed() const noexcept {
 
 void DependencyObject::OnPropertyInvalidated(
     PropertyInvalidationFlags) noexcept {
+}
+
+void DependencyObject::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs&) noexcept {
 }
 
 // from src/gui/core/PropertySystem.cpp
@@ -332,7 +340,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
         Base::ErrorCode::OutOfRange, "Dependency property value revision limit reached");
     if (newEffective != oldEffective) {
         Base::Result<void> consumerPrepared =
-            Access::PrepareConsumerChange(
+            Core::DependencyPropertyFacet::PrepareConsumerChange(
                 *this,
                 propertyHandle,
                 oldEffective,
@@ -348,7 +356,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     entry.effectiveValue = newEffective;
     entry.sourceInfo = source;
     if (newEffective != oldEffective) {
-        Access::CommitConsumerChange(
+        Core::DependencyPropertyFacet::CommitConsumerChange(
             *this,
             propertyHandle,
             oldEffective,
@@ -366,6 +374,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
             newSource};
         if (!metadata.changed.Empty()) metadata.changed(*this, args);
         NotifyValueChanged(args);
+        OnPropertyChanged(args);
         OnPropertyInvalidated(flags);
     }
     index = FindEntryIndex(propertyHandle);

@@ -3,15 +3,12 @@
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
 #include "gui/text/EditableText.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/input/InputState.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
+#include "gui/input/InputState.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/media/MediaState.hpp"
-
+#include "gui/core/facets/VisualFacet.hpp"
 #include "TextBlockLayout.hpp"
 
 
@@ -199,8 +196,7 @@ const ::Aero::Text::EditableTextModel& Model(
 
 ::Aero::Controls::TextBlockLayout* LayoutService(
     const ::Aero::Media::Visual& visual) noexcept {
-    return static_cast<::Aero::Controls::TextBlockLayout*>(
-        ::Aero::Media::Visual::Access::TextLayoutRuntime(visual));
+    return ::Aero::Core::TextLayoutFacet::TypedTextLayoutRuntime<::Aero::Controls::TextBlockLayout>(visual);
 }
 
 Base::Ref<Media::Brush>
@@ -2251,8 +2247,8 @@ using namespace Aero::Controls;
 using namespace ::Aero::Controls;
 using namespace ::Aero;
 
-TextBox::Access::
-Access(
+TextEditBehavior::
+TextEditBehavior(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input,
@@ -2263,39 +2259,39 @@ Access(
       clipboard_(&clipboard),
       mouseDownHandler_(
           this,
-          &TextBox::Access::
+          &TextEditBehavior::
               OnMouseDown),
       mouseMoveHandler_(
           this,
-          &TextBox::Access::
+          &TextEditBehavior::
               OnMouseMove),
       mouseUpHandler_(
           this,
-          &TextBox::Access::
+          &TextEditBehavior::
               OnMouseUp),
       keyDownHandler_(
           this,
-          &TextBox::Access::
+          &TextEditBehavior::
               OnKeyDown),
       textInputHandler_(
           this,
-          &TextBox::Access::
+          &TextEditBehavior::
               OnTextInput),
       focusChangedHandler_(
           this,
-          &TextBox::Access::
+          &TextEditBehavior::
               OnFocusChanged),
       propertyChangedHandler_(
           this,
-          &TextBox::Access::
+          &TextEditBehavior::
               OnPropertyChanged),
       captureChangedHandler_(
           this,
-          &TextBox::Access::
+          &TextEditBehavior::
               OnCaptureChanged) {}
 
-TextBox::Access::
-~Access() noexcept {
+TextEditBehavior::
+~TextEditBehavior() noexcept {
     while (!records_.Empty()) {
         UIElement* owner =
             ResolveOwner(records_.Size() - 1U);
@@ -2314,7 +2310,7 @@ TextBox::Access::
     }
 }
 
-std::uint32_t TextBox::Access::Find(
+std::uint32_t TextEditBehavior::Find(
     const UIElement& owner) const noexcept {
     for (std::uint32_t index = 0U;
          index < records_.Size(); ++index) {
@@ -2328,7 +2324,7 @@ std::uint32_t TextBox::Access::Find(
 }
 
 UIElement*
-TextBox::Access::ResolveOwner(
+TextEditBehavior::ResolveOwner(
     std::uint32_t index) noexcept {
     if (index >= records_.Size()) {
         return nullptr;
@@ -2350,7 +2346,7 @@ TextBox::Access::ResolveOwner(
 }
 
 TextBox*
-TextBox::Access::ResolveEditor(
+TextEditBehavior::ResolveEditor(
     std::uint32_t index) noexcept {
     UIElement* owner = ResolveOwner(index);
     if (owner == nullptr) return nullptr;
@@ -2360,7 +2356,7 @@ TextBox::Access::ResolveEditor(
         : static_cast<TextBox*>(owner);
 }
 
-void TextBox::Access::RemoveAt(
+void TextEditBehavior::RemoveAt(
     std::uint32_t index) noexcept {
     if (index + 1U != records_.Size()) {
         records_[index] = std::move(
@@ -2370,7 +2366,7 @@ void TextBox::Access::RemoveAt(
 }
 
 Base::Result<void>
-TextBox::Access::Attach(
+TextEditBehavior::Attach(
     TextBox& textBox) noexcept {
     if (Find(textBox) != UINT32_MAX) {
         return Base::Status::Failure(
@@ -2378,7 +2374,7 @@ TextBox::Access::Attach(
             "TextBox is already attached");
     }
     if (!textBox.GetIsLoaded() ||
-        Aero::Media::Visual::Access::Tree(textBox) != tree_) {
+        textBox.GetTree() != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "TextBox must be loaded in the interaction tree");
@@ -2389,7 +2385,7 @@ TextBox::Access::Attach(
         return synced;
     }
     Record record;
-    record.handle = Aero::Media::Visual::Access::Handle(textBox);
+    record.handle = Aero::Core::VisualFacet::Handle(textBox);
     Base::Result<void> appended =
         records_.PushBack(record);
     if (!appended) {
@@ -2462,7 +2458,7 @@ TextBox::Access::Attach(
 }
 
 Base::Result<void>
-TextBox::Access::Attach(
+TextEditBehavior::Attach(
     PasswordBox& passwordBox) noexcept {
     if (Find(passwordBox) != UINT32_MAX) {
         return Base::Status::Failure(
@@ -2470,7 +2466,7 @@ TextBox::Access::Attach(
             "PasswordBox is already attached");
     }
     if (!passwordBox.GetIsLoaded() ||
-        Aero::Media::Visual::Access::Tree(passwordBox) != tree_) {
+        passwordBox.GetTree() != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "PasswordBox must be loaded in the interaction tree");
@@ -2492,7 +2488,7 @@ TextBox::Access::Attach(
     if (!synced) return synced.GetStatus();
 
     Record record;
-    record.handle = Aero::Media::Visual::Access::Handle(passwordBox);
+    record.handle = Aero::Core::VisualFacet::Handle(passwordBox);
     record.password = true;
     Base::Result<void> appended =
         records_.PushBack(record);
@@ -2590,7 +2586,7 @@ TextBox::Access::Attach(
 }
 
 Base::Result<bool>
-TextBox::Access::Detach(
+TextEditBehavior::Detach(
     TextBox& textBox) noexcept {
     const std::uint32_t index = Find(textBox);
     if (index == UINT32_MAX) {
@@ -2651,7 +2647,7 @@ TextBox::Access::Detach(
 }
 
 Base::Result<bool>
-TextBox::Access::Detach(
+TextEditBehavior::Detach(
     PasswordBox& passwordBox) noexcept {
     const std::uint32_t index =
         Find(passwordBox);
@@ -2739,7 +2735,7 @@ TextBox::Access::Detach(
     return true;
 }
 
-void TextBox::Access::OnMouseDown(
+void TextEditBehavior::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& owner =
@@ -2779,7 +2775,7 @@ void TextBox::Access::OnMouseDown(
     args.SetHandled(true);
 }
 
-void TextBox::Access::OnMouseMove(
+void TextEditBehavior::OnMouseMove(
     Base::Object* sender,
     MouseEventArgs& args) noexcept {
     auto& owner =
@@ -2805,7 +2801,7 @@ void TextBox::Access::OnMouseMove(
     args.SetHandled(true);
 }
 
-void TextBox::Access::OnMouseUp(
+void TextEditBehavior::OnMouseUp(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& owner =
@@ -2837,7 +2833,7 @@ void TextBox::Access::OnMouseUp(
     args.SetHandled(true);
 }
 
-void TextBox::Access::OnKeyDown(
+void TextEditBehavior::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& owner =
@@ -2933,7 +2929,7 @@ void TextBox::Access::OnKeyDown(
     }
 }
 
-void TextBox::Access::OnTextInput(
+void TextEditBehavior::OnTextInput(
     Base::Object* sender,
     TextCompositionEventArgs& args) noexcept {
     auto& owner =
@@ -2964,7 +2960,7 @@ void TextBox::Access::OnTextInput(
     }
 }
 
-void TextBox::Access::OnFocusChanged(
+void TextEditBehavior::OnFocusChanged(
     Base::Object* sender,
     KeyboardFocusChangedEventArgs& args) noexcept {
     auto& owner =
@@ -2991,7 +2987,7 @@ void TextBox::Access::OnFocusChanged(
             records_[index].pointerId));
 }
 
-void TextBox::Access::OnPropertyChanged(
+void TextEditBehavior::OnPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
     if (object.RuntimeType() ==
@@ -3102,7 +3098,7 @@ void TextBox::Access::OnPropertyChanged(
     }
 }
 
-void TextBox::Access::OnCaptureChanged(
+void TextEditBehavior::OnCaptureChanged(
     std::uint32_t pointerId,
     UIElement* target,
     bool captured) noexcept {

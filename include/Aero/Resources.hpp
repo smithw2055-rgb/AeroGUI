@@ -133,13 +133,6 @@ class AERO_GUI_API ResourceDictionary
     AERO_DECLARE_TYPE(
         ResourceDictionary,
         Base::Object)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     ResourceDictionary() noexcept;
@@ -265,15 +258,17 @@ private:
         const Ref<Base::Object>& object,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
 
+    friend struct ResourceDictionaryImpl;
+
     explicit ResourceDictionary(
-        Access* impl,
+        ResourceDictionaryImpl* impl,
         bool addReference) noexcept;
 
-    Access* impl_ = nullptr;
+    ResourceDictionaryImpl* impl_ = nullptr;
 
-    Result<Access*> EnsureImpl() noexcept;
-    static void AddImplRef(Access* impl) noexcept;
-    static void ReleaseImpl(Access* impl) noexcept;
+    Result<ResourceDictionaryImpl*> EnsureImpl() noexcept;
+    static void AddImplRef(ResourceDictionaryImpl* impl) noexcept;
+    static void ReleaseImpl(ResourceDictionaryImpl* impl) noexcept;
 };
 
 struct ResourceEnvironment {

@@ -14,7 +14,6 @@
 #include <new>
 #include <type_traits>
 
-
 namespace Aero {
 
 using Meta::PropertyInvalidationFlags;
@@ -22,6 +21,15 @@ using Meta::TypeId;
 
 class UIElement;
 namespace Media { class Transform; class Effect; class Brush; }
+
+namespace Core {
+class Facet;
+class LayoutFacet;
+class InputEventFacet;
+class VisualFacet;
+class InteractionStateFacet;
+class TextLayoutFacet;
+}
 
 class UIElementChildRange {
 public:
@@ -52,14 +60,9 @@ private:
 
 class AERO_GUI_API UIElement : public ::Aero::Media::Visual {
     AERO_DECLARE_TYPE(UIElement, ::Aero::Media::Visual)
-#if defined(AERO_GUI_IMPLEMENTATION)
 public:
-#else
-private:
-#endif
-    struct Access;
-
-public:
+    template<class TFacet>
+    TFacet* GetFacet() const noexcept;
 
     template<class TArgs>
     using Event = ::Aero::Event<UIElement, TArgs>;
@@ -225,12 +228,19 @@ public:
 
     Result<void> InvalidateMeasure() noexcept;
     Result<void> InvalidateArrange() noexcept;
-    Size GetDesiredSize() const noexcept { return desiredSize_; }
-    Size GetRenderSize() const noexcept { return renderSize_; }
-    Rect GetLayoutSlot() const noexcept { return layoutSlot_; }
-    Rect GetLayoutClip() const noexcept { return layoutClip_; }
-    bool GetIsMeasureValid() const noexcept { return measureValid_; }
-    bool GetIsArrangeValid() const noexcept { return arrangeValid_; }
+    Size GetDesiredSize() const noexcept;
+    Size GetRenderSize() const noexcept;
+    Rect GetLayoutSlot() const noexcept;
+    Rect GetLayoutClip() const noexcept;
+    bool GetIsMeasureValid() const noexcept;
+    bool GetIsArrangeValid() const noexcept;
+    bool GetIsMeasureQueued() const noexcept;
+    bool GetIsArrangeQueued() const noexcept;
+    bool GetIsMeasuring() const noexcept;
+    bool GetIsArranging() const noexcept;
+    bool GetIsLayoutAttached() const noexcept;
+    Size GetUntransformedDesiredSize() const noexcept;
+    Size GetPreviousMeasureConstraint() const noexcept;
     bool GetClipToBounds() const noexcept;
     BlendMode GetBlendMode() const noexcept;
     Ref<Media::Effect> GetEffect() const noexcept;
@@ -259,7 +269,7 @@ public:
     bool GetIsFocusScope() const noexcept;
     Ref<Media::Transform> GetRenderTransform() const noexcept;
     Point GetRenderTransformOrigin() const noexcept;
-    std::uint64_t GetLayoutRevision() const noexcept { return layoutRevision_; }
+    std::uint64_t GetLayoutRevision() const noexcept;
 
     // Dependency properties
     inline static constexpr DependencyProperty<bool> ClipToBoundsProperty{"ClipToBounds"};
@@ -317,9 +327,12 @@ protected:
     }
 
 private:
-    friend struct Access;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Visual::Access;
+    friend class ::Aero::Core::LayoutFacet;
+    friend class ::Aero::Core::InputEventFacet;
+    friend class ::Aero::Core::VisualFacet;
+    friend class ::Aero::Core::InteractionStateFacet;
+    friend class ::Aero::Core::TextLayoutFacet;
 #endif
     friend class Aero::Input::RoutedCommand;
 
@@ -368,26 +381,34 @@ private:
     void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
 
     void* routedHandlers_ = nullptr;
-    Size desiredSize_;
-    Size untransformedDesiredSize_;
-    Size renderSize_;
-    Size previousMeasureConstraint_;
-    Rect layoutSlot_;
-    Rect layoutClip_;
-    std::uint64_t layoutRevision_ = 0U;
-    bool layoutAttached_ = false;
-    bool measureValid_ = false;
-    bool arrangeValid_ = false;
-    bool measureQueued_ = false;
-    bool arrangeQueued_ = false;
-    bool measuring_ = false;
-    bool arranging_ = false;
 
     void SetMouseOverState(bool value) noexcept;
     void SetPressedState(bool value) noexcept;
     void SetKeyboardFocusedState(bool value) noexcept;
     void SetKeyboardFocusWithinState(bool value) noexcept;
     void CleanupHandlers() noexcept;
+
+    // Element-affine facet bag. View-affine facets are resolved through
+    // Core::GetFacet<T>(element) from the ElementHost matrix; per-element
+    // facets (layout / render / interaction state) are resolved through
+    // ElementFacet<T>() from this bag. Lifecycle (OnAttached/OnDetached) is
+    // driven by ElementTree::AttachElement / DetachNode.
+    static constexpr std::size_t ElementFacetCount = 16U;
+    Core::Facet* elementFacets_[ElementFacetCount] = {};
+
+ public:
+    // Read a per-element facet. Registration is restricted to this class and
+    // its subclasses via SetElementFacet (protected).
+    template<class T>
+    T* ElementFacet() const noexcept;
+
+    // Drive per-element facet lifecycle from ElementTree attach/detach.
+    void AttachElementFacets() noexcept;
+    void DetachElementFacets() noexcept;
+
+ protected:
+    template<class T>
+    void SetElementFacet(T* facet) noexcept;
 };
 
 } // namespace Aero

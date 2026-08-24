@@ -1,18 +1,13 @@
 #include <Aero/Controls.hpp>
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/controls/State.hpp"
-#include "gui/controls/State.hpp"
+#include "gui/controls/State.hpp" 
 #include "gui/templates/TemplateState.hpp"
 
-#include "render/RenderTree.hpp"
-
+#include "gui/core/facets/VisualFacet.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
@@ -93,7 +88,7 @@ void ItemsPresenter::SetItemsHost(
     const Base::Ref<Base::Object>& owner,
     Panel& panel) noexcept {
     Base::Result<void> assigned =
-        ::Aero::Controls::Control::Access::SetOwnedChild(
+        ::Aero::Core::VisualFacet::DecoratorSetOwnedChild(
             *this, owner, panel);
     if (assigned) {
         static_cast<void>(InvalidateMeasure());
@@ -497,59 +492,59 @@ using namespace ::Aero;
 using namespace ::Aero::Controls;
 using namespace ::Aero::Controls;
 
-::Aero::Controls::DataTemplateState* DataTemplate::Access::State(DataTemplate& value) noexcept {
+::Aero::Controls::DataTemplateState* DataTemplateRuntime::State(DataTemplate& value) noexcept {
     return static_cast<DataTemplateState*>(value.state_);
 }
 
-const ::Aero::Controls::DataTemplateState* DataTemplate::Access::State(const DataTemplate& value) noexcept {
+const ::Aero::Controls::DataTemplateState* DataTemplateRuntime::State(const DataTemplate& value) noexcept {
     return static_cast<const DataTemplateState*>(value.state_);
 }
 
-::Aero::Controls::ItemsPanelTemplateState* ItemsPanelTemplate::Access::State(ItemsPanelTemplate& value) noexcept {
+::Aero::Controls::ItemsPanelTemplateState* ItemsPanelTemplateRuntime::State(ItemsPanelTemplate& value) noexcept {
     return static_cast<ItemsPanelTemplateState*>(value.state_);
 }
 
-const ::Aero::Controls::ItemsPanelTemplateState* ItemsPanelTemplate::Access::State(const ItemsPanelTemplate& value) noexcept {
+const ::Aero::Controls::ItemsPanelTemplateState* ItemsPanelTemplateRuntime::State(const ItemsPanelTemplate& value) noexcept {
     return static_cast<const ItemsPanelTemplateState*>(value.state_);
 }
 
-Base::Result<void> DataTemplate::Access::Configure(DataTemplate& value, DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
+Base::Result<void> DataTemplateRuntime::Configure(DataTemplate& value, DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
     DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     return state->program.Configure(factory, context, std::move(owner));
 }
 
-Base::Result<void> ItemsPanelTemplate::Access::Configure(ItemsPanelTemplate& value, DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
+Base::Result<void> ItemsPanelTemplateRuntime::Configure(ItemsPanelTemplate& value, DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
     ItemsPanelTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
     return state->program.Configure(factory, context, std::move(owner));
 }
 
-Base::Result<void> DataTemplate::Access::SetBaseUri(DataTemplate& value, const Base::ResourceUri& uri) noexcept {
+Base::Result<void> DataTemplateRuntime::SetBaseUri(DataTemplate& value, const Base::ResourceUri& uri) noexcept {
     DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     return state->program.SetBaseUri(uri);
 }
 
-Base::Result<void> ItemsPanelTemplate::Access::SetBaseUri(ItemsPanelTemplate& value, const Base::ResourceUri& uri) noexcept {
+Base::Result<void> ItemsPanelTemplateRuntime::SetBaseUri(ItemsPanelTemplate& value, const Base::ResourceUri& uri) noexcept {
     ItemsPanelTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
     return state->program.SetBaseUri(uri);
 }
 
-const Base::ResourceUri& DataTemplate::Access::BaseUri(const DataTemplate& value) noexcept {
+const Base::ResourceUri& DataTemplateRuntime::BaseUri(const DataTemplate& value) noexcept {
     static Base::ResourceUri empty;
     const DataTemplateState* state = State(value);
     return state != nullptr ? state->program.baseUri : empty;
 }
 
-const Base::ResourceUri& ItemsPanelTemplate::Access::BaseUri(const ItemsPanelTemplate& value) noexcept {
+const Base::ResourceUri& ItemsPanelTemplateRuntime::BaseUri(const ItemsPanelTemplate& value) noexcept {
     static Base::ResourceUri empty;
     const ItemsPanelTemplateState* state = State(value);
     return state != nullptr ? state->program.baseUri : empty;
 }
 
-Base::Result<void> DataTemplate::Access::SetAuthoredVisualTree(DataTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
+Base::Result<void> DataTemplateRuntime::SetAuthoredVisualTree(DataTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
     DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     if (state->program.sealed || !tree) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate VisualTree assignment is invalid");
@@ -557,7 +552,7 @@ Base::Result<void> DataTemplate::Access::SetAuthoredVisualTree(DataTemplate& val
     return {};
 }
 
-Base::Result<void> ItemsPanelTemplate::Access::SetAuthoredVisualTree(ItemsPanelTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
+Base::Result<void> ItemsPanelTemplateRuntime::SetAuthoredVisualTree(ItemsPanelTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
     ItemsPanelTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
     if (state->program.sealed || !tree) return Base::Status::Failure(Base::ErrorCode::InvalidState, "ItemsPanelTemplate VisualTree assignment is invalid");
@@ -565,50 +560,50 @@ Base::Result<void> ItemsPanelTemplate::Access::SetAuthoredVisualTree(ItemsPanelT
     return {};
 }
 
-void DataTemplate::Access::ClearAuthoredVisualTree(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredVisualTree.Reset(); }
-void ItemsPanelTemplate::Access::ClearAuthoredVisualTree(ItemsPanelTemplate& value) noexcept { ItemsPanelTemplateState* state = State(value); if (state != nullptr) state->authoredVisualTree.Reset(); }
+void DataTemplateRuntime::ClearAuthoredVisualTree(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredVisualTree.Reset(); }
+void ItemsPanelTemplateRuntime::ClearAuthoredVisualTree(ItemsPanelTemplate& value) noexcept { ItemsPanelTemplateState* state = State(value); if (state != nullptr) state->authoredVisualTree.Reset(); }
 
-Base::Result<void> DataTemplate::Access::AddAuthoredTrigger(DataTemplate& value, Base::Ref<Aero::TriggerBase> trigger) noexcept {
+Base::Result<void> DataTemplateRuntime::AddAuthoredTrigger(DataTemplate& value, Base::Ref<Aero::TriggerBase> trigger) noexcept {
     DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     if (!trigger || state->program.factory != nullptr) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate Trigger cannot be added after sealing");
     return state->authoredTriggers.PushBack(std::move(trigger));
 }
 
-void DataTemplate::Access::ClearAuthoredTriggers(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredTriggers.Clear(); }
+void DataTemplateRuntime::ClearAuthoredTriggers(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredTriggers.Clear(); }
 
-Base::Span<const Base::Ref<Aero::TriggerBase>> DataTemplate::Access::AuthoredTriggers(const DataTemplate& value) noexcept {
+Base::Span<const Base::Ref<Aero::TriggerBase>> DataTemplateRuntime::AuthoredTriggers(const DataTemplate& value) noexcept {
     const DataTemplateState* state = State(value);
     return state != nullptr ? Base::Span<const Base::Ref<Aero::TriggerBase>>(state->authoredTriggers.Data(), state->authoredTriggers.Size()) : Base::Span<const Base::Ref<Aero::TriggerBase>>{};
 }
 
-Base::Result<void> DataTemplate::Access::RegisterAuthoredName(DataTemplate& value, Base::StringView name, Base::Object& object) noexcept {
+Base::Result<void> DataTemplateRuntime::RegisterAuthoredName(DataTemplate& value, Base::StringView name, Base::Object& object) noexcept {
     DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     return state->authoredNames.Register(name, object);
 }
 
-void DataTemplate::Access::ClearAuthoredNames(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredNames.Clear(); }
+void DataTemplateRuntime::ClearAuthoredNames(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredNames.Clear(); }
 
-const Aero::NameScope& DataTemplate::Access::AuthoredNames(const DataTemplate& value) noexcept {
+const Aero::NameScope& DataTemplateRuntime::AuthoredNames(const DataTemplate& value) noexcept {
     static Aero::NameScope empty;
     const DataTemplateState* state = State(value);
     return state != nullptr ? state->authoredNames : empty;
 }
 
-const Base::Ref<Base::Object>& DataTemplate::Access::AuthoredVisualTree(const DataTemplate& value) noexcept {
+const Base::Ref<Base::Object>& DataTemplateRuntime::AuthoredVisualTree(const DataTemplate& value) noexcept {
     static Base::Ref<Base::Object> empty;
     const DataTemplateState* state = State(value);
     return state != nullptr ? state->authoredVisualTree : empty;
 }
 
-const Base::Ref<Base::Object>& ItemsPanelTemplate::Access::AuthoredVisualTree(const ItemsPanelTemplate& value) noexcept {
+const Base::Ref<Base::Object>& ItemsPanelTemplateRuntime::AuthoredVisualTree(const ItemsPanelTemplate& value) noexcept {
     static Base::Ref<Base::Object> empty;
     const ItemsPanelTemplateState* state = State(value);
     return state != nullptr ? state->authoredVisualTree : empty;
 }
 
-Base::Result<void> DataTemplate::Access::Seal(DataTemplate& value) noexcept {
+Base::Result<void> DataTemplateRuntime::Seal(DataTemplate& value) noexcept {
     DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     Base::Result<void> program = state->program.Seal();
@@ -616,7 +611,7 @@ Base::Result<void> DataTemplate::Access::Seal(DataTemplate& value) noexcept {
     return state->resources.Seal();
 }
 
-Base::Result<void> ItemsPanelTemplate::Access::Seal(ItemsPanelTemplate& value) noexcept {
+Base::Result<void> ItemsPanelTemplateRuntime::Seal(ItemsPanelTemplate& value) noexcept {
     ItemsPanelTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
     Base::Result<void> program = state->program.Seal();
@@ -624,7 +619,7 @@ Base::Result<void> ItemsPanelTemplate::Access::Seal(ItemsPanelTemplate& value) n
     return state->resources.Seal();
 }
 
-Base::Result<Base::Ref<Base::Object>> DataTemplate::Access::Instantiate(
+Base::Result<Base::Ref<Base::Object>> DataTemplateRuntime::Instantiate(
     const DataTemplate& value, const Base::Ref<Base::Object>& item,
     Aero::BindingEngine* bindings) noexcept {
     const DataTemplateState* state = State(value);
@@ -632,7 +627,7 @@ Base::Result<Base::Ref<Base::Object>> DataTemplate::Access::Instantiate(
     return state->program.Instantiate(item, bindings);
 }
 
-Base::Result<Base::Ref<Base::Object>> ItemsPanelTemplate::Access::Instantiate(const ItemsPanelTemplate& value) noexcept {
+Base::Result<Base::Ref<Base::Object>> ItemsPanelTemplateRuntime::Instantiate(const ItemsPanelTemplate& value) noexcept {
     const ItemsPanelTemplateState* state = State(value);
     if (state == nullptr || state->program.factory == nullptr) return Base::Status::Failure(Base::ErrorCode::InvalidState, "ItemsPanelTemplate is not ready");
     return state->program.Instantiate();
@@ -646,22 +641,22 @@ using namespace ::Aero::Controls;
 using namespace ::Aero::Controls;
 
 DataTemplateState* TemplatePrivate::State(DataTemplate& value) noexcept {
-    return DataTemplate::Access::State(value);
+    return DataTemplateRuntime::State(value);
 }
 
 const DataTemplateState* TemplatePrivate::State(
     const DataTemplate& value) noexcept {
-    return DataTemplate::Access::State(value);
+    return DataTemplateRuntime::State(value);
 }
 
 ItemsPanelTemplateState* TemplatePrivate::State(
     ItemsPanelTemplate& value) noexcept {
-    return ItemsPanelTemplate::Access::State(value);
+    return ItemsPanelTemplateRuntime::State(value);
 }
 
 const ItemsPanelTemplateState* TemplatePrivate::State(
     const ItemsPanelTemplate& value) noexcept {
-    return ItemsPanelTemplate::Access::State(value);
+    return ItemsPanelTemplateRuntime::State(value);
 }
 
 Base::Result<void> TemplatePrivate::Configure(
@@ -669,7 +664,7 @@ Base::Result<void> TemplatePrivate::Configure(
     DeferredObjectFactory factory,
     void* context,
     Base::Ref<Base::Object> owner) noexcept {
-    return DataTemplate::Access::Configure(
+    return DataTemplateRuntime::Configure(
         value, factory, context, std::move(owner));
 }
 
@@ -678,120 +673,120 @@ Base::Result<void> TemplatePrivate::Configure(
     DeferredObjectFactory factory,
     void* context,
     Base::Ref<Base::Object> owner) noexcept {
-    return ItemsPanelTemplate::Access::Configure(
+    return ItemsPanelTemplateRuntime::Configure(
         value, factory, context, std::move(owner));
 }
 
 Base::Result<void> TemplatePrivate::SetBaseUri(
     DataTemplate& value,
     const Base::ResourceUri& uri) noexcept {
-    return DataTemplate::Access::SetBaseUri(value, uri);
+    return DataTemplateRuntime::SetBaseUri(value, uri);
 }
 
 Base::Result<void> TemplatePrivate::SetBaseUri(
     ItemsPanelTemplate& value,
     const Base::ResourceUri& uri) noexcept {
-    return ItemsPanelTemplate::Access::SetBaseUri(value, uri);
+    return ItemsPanelTemplateRuntime::SetBaseUri(value, uri);
 }
 
 const Base::ResourceUri& TemplatePrivate::BaseUri(
     const DataTemplate& value) noexcept {
-    return DataTemplate::Access::BaseUri(value);
+    return DataTemplateRuntime::BaseUri(value);
 }
 
 const Base::ResourceUri& TemplatePrivate::BaseUri(
     const ItemsPanelTemplate& value) noexcept {
-    return ItemsPanelTemplate::Access::BaseUri(value);
+    return ItemsPanelTemplateRuntime::BaseUri(value);
 }
 
 Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(
     DataTemplate& value,
     const Base::Ref<Base::Object>& tree) noexcept {
-    return DataTemplate::Access::SetAuthoredVisualTree(value, tree);
+    return DataTemplateRuntime::SetAuthoredVisualTree(value, tree);
 }
 
 Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(
     ItemsPanelTemplate& value,
     const Base::Ref<Base::Object>& tree) noexcept {
-    return ItemsPanelTemplate::Access::SetAuthoredVisualTree(value, tree);
+    return ItemsPanelTemplateRuntime::SetAuthoredVisualTree(value, tree);
 }
 
 void TemplatePrivate::ClearAuthoredVisualTree(
     DataTemplate& value) noexcept {
-    DataTemplate::Access::ClearAuthoredVisualTree(value);
+    DataTemplateRuntime::ClearAuthoredVisualTree(value);
 }
 
 void TemplatePrivate::ClearAuthoredVisualTree(
     ItemsPanelTemplate& value) noexcept {
-    ItemsPanelTemplate::Access::ClearAuthoredVisualTree(value);
+    ItemsPanelTemplateRuntime::ClearAuthoredVisualTree(value);
 }
 
 Base::Result<void> TemplatePrivate::AddAuthoredTrigger(
     DataTemplate& value,
     Base::Ref<Aero::TriggerBase> trigger) noexcept {
-    return DataTemplate::Access::AddAuthoredTrigger(
+    return DataTemplateRuntime::AddAuthoredTrigger(
         value, std::move(trigger));
 }
 
 void TemplatePrivate::ClearAuthoredTriggers(
     DataTemplate& value) noexcept {
-    DataTemplate::Access::ClearAuthoredTriggers(value);
+    DataTemplateRuntime::ClearAuthoredTriggers(value);
 }
 
 Base::Span<const Base::Ref<Aero::TriggerBase>>
 TemplatePrivate::AuthoredTriggers(
     const DataTemplate& value) noexcept {
-    return DataTemplate::Access::AuthoredTriggers(value);
+    return DataTemplateRuntime::AuthoredTriggers(value);
 }
 
 Base::Result<void> TemplatePrivate::RegisterAuthoredName(
     DataTemplate& value,
     Base::StringView name,
     Base::Object& object) noexcept {
-    return DataTemplate::Access::RegisterAuthoredName(
+    return DataTemplateRuntime::RegisterAuthoredName(
         value, name, object);
 }
 
 void TemplatePrivate::ClearAuthoredNames(
     DataTemplate& value) noexcept {
-    DataTemplate::Access::ClearAuthoredNames(value);
+    DataTemplateRuntime::ClearAuthoredNames(value);
 }
 
 const Aero::NameScope& TemplatePrivate::AuthoredNames(
     const DataTemplate& value) noexcept {
-    return DataTemplate::Access::AuthoredNames(value);
+    return DataTemplateRuntime::AuthoredNames(value);
 }
 
 const Base::Ref<Base::Object>& TemplatePrivate::AuthoredVisualTree(
     const DataTemplate& value) noexcept {
-    return DataTemplate::Access::AuthoredVisualTree(value);
+    return DataTemplateRuntime::AuthoredVisualTree(value);
 }
 
 const Base::Ref<Base::Object>& TemplatePrivate::AuthoredVisualTree(
     const ItemsPanelTemplate& value) noexcept {
-    return ItemsPanelTemplate::Access::AuthoredVisualTree(value);
+    return ItemsPanelTemplateRuntime::AuthoredVisualTree(value);
 }
 
 Base::Result<void> TemplatePrivate::Seal(
     DataTemplate& value) noexcept {
-    return DataTemplate::Access::Seal(value);
+    return DataTemplateRuntime::Seal(value);
 }
 
 Base::Result<void> TemplatePrivate::Seal(
     ItemsPanelTemplate& value) noexcept {
-    return ItemsPanelTemplate::Access::Seal(value);
+    return ItemsPanelTemplateRuntime::Seal(value);
 }
 
 Base::Result<Base::Ref<Base::Object>> TemplatePrivate::Instantiate(
     const DataTemplate& value,
     const Base::Ref<Base::Object>& item,
     Aero::BindingEngine* bindings) noexcept {
-    return DataTemplate::Access::Instantiate(value, item, bindings);
+    return DataTemplateRuntime::Instantiate(value, item, bindings);
 }
 
 Base::Result<Base::Ref<Base::Object>> TemplatePrivate::Instantiate(
     const ItemsPanelTemplate& value) noexcept {
-    return ItemsPanelTemplate::Access::Instantiate(value);
+    return ItemsPanelTemplateRuntime::Instantiate(value);
 }
 
 } // namespace Aero::Controls
@@ -815,7 +810,7 @@ void ContentControl::OnContentPropertyChanged(
     if (control.synchronizingContentProperty_) return;
     control.synchronizingContentProperty_ = true;
     static_cast<void>(
-        ::Aero::Controls::Control::Access::SetContentValue(control, change.GetNewValue()));
+        ::Aero::Core::InteractionStateFacet::SetContentValue(control, change.GetNewValue()));
     control.synchronizingContentProperty_ = false;
 }
 
@@ -918,10 +913,10 @@ ContentControl::CreateTemplatedContent() const noexcept {
             "ContentControl ContentTemplate is not a DataTemplate");
     }
     Base::Result<Base::Ref<Base::Object>> created =
-        DataTemplate::Access::Instantiate(
+        DataTemplateRuntime::Instantiate(
             *static_cast<DataTemplate*>(contentTemplate.Get()),
             contentValue_,
-            Aero::Media::Visual::Access::BindingEngineFor(*this));
+            Aero::Core::GetFacet<::Aero::BindingEngine>(*this));
     if (!created) return created.GetStatus();
     if (!created.Value() ||
         !PropertyRegistry().Types().IsDerivedFrom(
@@ -1001,14 +996,14 @@ void ItemsControl::OnApplyTemplate() noexcept {
             }
             if (PropertyRegistry().Types().IsDerivedFrom(
                     current->RuntimeType(), ContentControl::StaticTypeId())) {
-                UIElement* content = Control::Access::ContentElement(
+                UIElement* content = ::Aero::Core::InteractionStateFacet::ContentElement(
                     *static_cast<ContentControl*>(current));
                 if (content != nullptr) {
                     static_cast<void>(pending.PushBack(content));
                 }
             }
-            for (::Aero::Media::Visual* child : Aero::
-                     Media::Visual::Access::VisualChildren(*current)) {
+            for (::Aero::Media::Visual* child :
+                     current->GetVisualChildren()) {
                 if (child != nullptr) {
                     static_cast<void>(pending.PushBack(child));
                 }
@@ -1211,7 +1206,7 @@ Base::Result<void> ItemsControl::PrepareContainer(
         return {};
     }
 
-    auto* bindings = ::Aero::Media::Visual::Access::BindingEngineFor(
+    auto* bindings = ::Aero::Core::GetFacet<::Aero::BindingEngine>(
         childItems);
     if (bindings == nullptr || bindings->Metadata() == nullptr) {
         return Base::Status::Failure(
@@ -1284,9 +1279,9 @@ using namespace ::Aero::Controls;
 using namespace ::Aero::Controls;
 using namespace ::Aero;
 
-struct ItemContainerGenerator::Access {
+struct ItemContainerGeneratorRuntime {
 public:
-    Access(
+    ItemContainerGeneratorRuntime(
         ItemContainerGenerator& facade,
         ElementTree& tree,
         LayoutEngine& layout,
@@ -1296,7 +1291,7 @@ public:
         TemplateEngine* templates,
         ItemSubtreeCallback subtreeCallback,
         void* subtreeContext) noexcept;
-    ~Access() noexcept;
+    ~ItemContainerGeneratorRuntime() noexcept;
 
     Base::Result<void> Attach(ItemsControl& owner, Panel& itemsHost) noexcept;
     Base::Result<void> AttachVirtualized(
@@ -1354,37 +1349,53 @@ private:
     VirtualizingStackPanel* virtualizingHost_ = nullptr;
     Base::Vector<Record> records_;
     Base::Vector<Base::Ref<FrameworkElement>> recycledContainers_;
+    ItemsChangedHandler changedHandler_;
+    DependencyPropertyChangedEventHandler
+        generatedHeaderChangedHandler_;
     std::uint32_t firstGeneratedIndex_ = 0U;
+    std::uint32_t targetRealizationCount_ = 0U;
     std::uint32_t createdContainerCount_ = 0U;
     std::uint32_t recycledContainerUseCount_ = 0U;
-    ItemsChangedHandler changedHandler_;
-    DependencyPropertyChangedEventHandler generatedHeaderChangedHandler_;
     Base::Status lastError_;
+    bool inRealizationRange_ = false;
+    bool virtualized_ = false;
 
-    void OnItemsChanged(const ItemsChangedEvent& event) noexcept;
-    void OnGeneratedHeaderChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& event) noexcept;
-    Base::Result<void> UpdateGeneratedHeader(Record& record) noexcept;
-    Base::Result<Record> CreateRecord(std::uint32_t index) noexcept;
-    Base::Result<void> AttachRecord(Record& record, std::uint32_t index) noexcept;
-    Base::Result<void> AttachOwnedSubtree(Record& record, Aero::Media::Visual& root) noexcept;
-    Base::Result<void> DetachOwnedSubtree(Record& record) noexcept;
+    Base::Result<Record> CreateRecord(
+        std::uint32_t index) noexcept;
+    Base::Result<void> AttachRecord(
+        Record& record,
+        std::uint32_t index) noexcept;
     Base::Result<void> DetachRecord(
         Record& record,
         bool recycleContainer = false) noexcept;
-    Base::Result<void> InsertRecord(std::uint32_t index, Record record) noexcept;
-    void RemoveRecordAt(std::uint32_t index) noexcept;
+    Base::Result<void> AttachOwnedSubtree(
+        Record& record,
+        Aero::Media::Visual& root) noexcept;
+    Base::Result<void> DetachOwnedSubtree(
+        Record& record) noexcept;
+    Base::Result<void> UpdateGeneratedHeader(
+        Record& record) noexcept;
+    void OnGeneratedHeaderChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
+    void OnItemsChanged(
+        const ItemsChangedEvent& event) noexcept;
+    Base::Result<void> ApplyChange(
+        const ItemsChangedEvent& event) noexcept;
+    Base::Result<void> InsertRecord(
+        std::uint32_t index,
+        Record record) noexcept;
+    void RemoveRecordAt(
+        std::uint32_t index) noexcept;
     Base::Result<void> ReorderVisuals() noexcept;
-    Base::Result<void> ApplyChange(const ItemsChangedEvent& event) noexcept;
     Base::Result<bool> SetRealizationRangeInternal(
         std::uint32_t firstIndex,
         std::uint32_t count,
-        bool force) noexcept;
+        bool pruneRecycled) noexcept;
     Base::Result<void> ReleaseRecycledContainers() noexcept;
 };
 
-ItemContainerGenerator::Access::Access(
+ItemContainerGeneratorRuntime::ItemContainerGeneratorRuntime(
     ItemContainerGenerator& facade,
     ElementTree& tree,
     LayoutEngine& layout,
@@ -1405,22 +1416,22 @@ ItemContainerGenerator::Access::Access(
       subtreeContext_(subtreeContext),
       changedHandler_(
           this,
-          &ItemContainerGenerator::Access::OnItemsChanged),
+          &ItemContainerGeneratorRuntime::OnItemsChanged),
       generatedHeaderChangedHandler_(
           this,
-          &ItemContainerGenerator::Access::OnGeneratedHeaderChanged) {}
+          &ItemContainerGeneratorRuntime::OnGeneratedHeaderChanged) {}
 
-ItemContainerGenerator::Access::~Access() noexcept {
+ItemContainerGeneratorRuntime::~ItemContainerGeneratorRuntime() noexcept {
     static_cast<void>(Detach());
 }
 
-Base::Result<void> ItemContainerGenerator::Access::Attach(
+Base::Result<void> ItemContainerGeneratorRuntime::Attach(
     ItemsControl& owner,
     Panel& itemsHost) noexcept {
     if (owner_ != nullptr ||
         owner.generator_ != nullptr ||
-        Aero::Media::Visual::Access::Tree(owner) != tree_ ||
-        Aero::Media::Visual::Access::Tree(itemsHost) != tree_) {
+        owner.GetTree() != tree_ ||
+        itemsHost.GetTree() != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ItemContainerGenerator attach state is invalid");
@@ -1451,13 +1462,13 @@ Base::Result<void> ItemContainerGenerator::Access::Attach(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Access::AttachVirtualized(
+ItemContainerGeneratorRuntime::AttachVirtualized(
     ItemsControl& owner,
     VirtualizingStackPanel& itemsHost) noexcept {
     if (owner_ != nullptr ||
         owner.generator_ != nullptr ||
-        Aero::Media::Visual::Access::Tree(owner) != tree_ ||
-        Aero::Media::Visual::Access::Tree(itemsHost) != tree_) {
+        owner.GetTree() != tree_ ||
+        itemsHost.GetTree() != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Virtualized item generator attach state is invalid");
@@ -1498,7 +1509,7 @@ ItemContainerGenerator::Access::AttachVirtualized(
     return {};
 }
 
-Base::Result<bool> ItemContainerGenerator::Access::Detach() noexcept {
+Base::Result<bool> ItemContainerGeneratorRuntime::Detach() noexcept {
     if (owner_ == nullptr) return false;
     static_cast<void>(
         owner_->RemoveItemsChanged(
@@ -1531,8 +1542,8 @@ Base::Result<bool> ItemContainerGenerator::Access::Detach() noexcept {
         : Base::Result<bool>(firstError);
 }
 
-Base::Result<ItemContainerGenerator::Access::Record>
-ItemContainerGenerator::Access::CreateRecord(
+Base::Result<ItemContainerGeneratorRuntime::Record>
+ItemContainerGeneratorRuntime::CreateRecord(
     std::uint32_t index) noexcept {
     if (owner_ == nullptr ||
         index >= owner_->GetCount()) {
@@ -1562,15 +1573,15 @@ ItemContainerGenerator::Access::CreateRecord(
     if (itemTemplate != nullptr) {
         Base::Result<Base::Ref<Base::Object>>
             content =
-                DataTemplate::Access::Instantiate(
+                DataTemplateRuntime::Instantiate(
                     *itemTemplate, record.item,
-                    Aero::Media::Visual::Access::BindingEngineFor(*owner_));
+                    Aero::Core::GetFacet<::Aero::BindingEngine>(*owner_));
         if (!content) return content.GetStatus();
         record.content =
             std::move(content).Value();
     } else if (!owner_->GetDisplayMemberPath().Empty()) {
         Aero::BindingEngine* bindings =
-            Aero::Media::Visual::Access::BindingEngineFor(*owner_);
+            Aero::Core::GetFacet<::Aero::BindingEngine>(*owner_);
         Meta::Registry* metadata =
             bindings != nullptr ? bindings->Metadata() : nullptr;
         if (metadata == nullptr) {
@@ -1780,7 +1791,7 @@ ItemContainerGenerator::Access::CreateRecord(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Access::AttachOwnedSubtree(
+ItemContainerGeneratorRuntime::AttachOwnedSubtree(
     Record& record,
     Aero::Media::Visual& root) noexcept {
     Base::Vector<Aero::Media::Visual*> pending;
@@ -1804,12 +1815,12 @@ ItemContainerGenerator::Access::AttachOwnedSubtree(
             *static_cast<Aero::Media::Visual*>(
                 owned.Get());
         if (child.GetVisualParent() == &parent &&
-            Aero::Media::Visual::Access::Tree(child) == tree_) {
+            child.GetTree() == tree_) {
             return pending.PushBack(&child);
         }
         if (child.GetVisualParent() != nullptr ||
             child.GetLogicalParent() != nullptr ||
-            Aero::Media::Visual::Access::Tree(child) != nullptr) {
+            child.GetTree() != nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Owned item-template child is already mounted elsewhere");
@@ -1851,12 +1862,12 @@ ItemContainerGenerator::Access::AttachOwnedSubtree(
             auto& panel =
                 *static_cast<Panel*>(current);
             for (std::uint32_t index = 0U;
-                 index < ::Aero::Controls::Control::Access::Count(panel);
+                 index < ::Aero::Core::VisualFacet::PanelChildCount(panel);
                  ++index) {
                 Base::Result<void> attached =
                     attachChild(
                         panel,
-                        ::Aero::Controls::Control::Access::At(panel, index));
+                        ::Aero::Core::VisualFacet::PanelChildAt(panel, index));
                 if (!attached) {
                     (void)DetachOwnedSubtree(record);
                     return attached.GetStatus();
@@ -1871,7 +1882,7 @@ ItemContainerGenerator::Access::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     decorator,
-                    ::Aero::Controls::Control::Access::OwnedChild(decorator));
+                    ::Aero::Core::VisualFacet::DecoratorOwnedChild(decorator));
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
@@ -1885,7 +1896,7 @@ ItemContainerGenerator::Access::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     content,
-                    ::Aero::Controls::Control::Access::OwnedContent(content));
+                    ::Aero::Core::InteractionStateFacet::OwnedContent(content));
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
@@ -1910,7 +1921,7 @@ ItemContainerGenerator::Access::AttachOwnedSubtree(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Access::DetachOwnedSubtree(
+ItemContainerGeneratorRuntime::DetachOwnedSubtree(
     Record& record) noexcept {
     Base::Status firstError;
     for (std::uint32_t index =
@@ -1930,7 +1941,7 @@ ItemContainerGenerator::Access::DetachOwnedSubtree(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Access::AttachRecord(
+ItemContainerGeneratorRuntime::AttachRecord(
     Record& record,
     std::uint32_t index) noexcept {
     FrameworkElement& container = *record.container;
@@ -2014,10 +2025,10 @@ ItemContainerGenerator::Access::AttachRecord(
 
         Base::Result<void> selected =
             record.generatedTextContent
-            ? ::Aero::Controls::Control::Access::
+            ? ::Aero::Core::InteractionStateFacet::
                       SetGeneratedTextContent(
                       *contentControl, record.content, content)
-            : ::Aero::Controls::Control::Access::SetOwnedContent(*contentControl,
+            : ::Aero::Core::InteractionStateFacet::SetOwnedContent(*contentControl,
                   record.content, content);
         if (!selected) {
             (void)tree_->DetachElement(
@@ -2064,7 +2075,7 @@ ItemContainerGenerator::Access::AttachRecord(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Access::UpdateGeneratedHeader(
+ItemContainerGeneratorRuntime::UpdateGeneratedHeader(
     Record& record) noexcept {
     if (!record.generatedHeader || !record.content || !record.container ||
         !owner_->PropertyRegistry().Types().IsDerivedFrom(
@@ -2086,7 +2097,7 @@ ItemContainerGenerator::Access::UpdateGeneratedHeader(
         ->SetHeader(text);
 }
 
-void ItemContainerGenerator::Access::OnGeneratedHeaderChanged(
+void ItemContainerGeneratorRuntime::OnGeneratedHeaderChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs&) noexcept {
     for (Record& record : records_) {
@@ -2099,7 +2110,7 @@ void ItemContainerGenerator::Access::OnGeneratedHeaderChanged(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Access::DetachRecord(
+ItemContainerGeneratorRuntime::DetachRecord(
     Record& record,
     bool recycleContainer) noexcept {
     if (!record.container) return {};
@@ -2177,7 +2188,7 @@ ItemContainerGenerator::Access::DetachRecord(
         templates_ != nullptr &&
         owner_->PropertyRegistry().Types().IsDerivedFrom(
             container.RuntimeType(), Control::StaticTypeId()) &&
-        ::Aero::Controls::Control::Access::IsTemplateApplied(
+        ::Aero::Core::InteractionStateFacet::IsTemplateApplied(
             static_cast<Control&>(container))) {
         Base::Result<bool> cleared =
             templates_->Clear(static_cast<Control&>(container));
@@ -2188,7 +2199,7 @@ ItemContainerGenerator::Access::DetachRecord(
     }
     UIElement* content = nullptr;
     if (!record.itemIsOwnContainer && contentControl != nullptr) {
-        content = ::Aero::Controls::Control::Access::ContentElement(
+        content = ::Aero::Core::InteractionStateFacet::ContentElement(
             *contentControl);
     }
     if (content != nullptr) {
@@ -2219,7 +2230,7 @@ ItemContainerGenerator::Access::DetachRecord(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Access::ReleaseRecycledContainers() noexcept {
+ItemContainerGeneratorRuntime::ReleaseRecycledContainers() noexcept {
     Base::Status firstError;
     for (Base::Ref<FrameworkElement>& container :
         recycledContainers_) {
@@ -2237,7 +2248,7 @@ ItemContainerGenerator::Access::ReleaseRecycledContainers() noexcept {
 }
 
 Base::Result<void>
-ItemContainerGenerator::Access::InsertRecord(
+ItemContainerGeneratorRuntime::InsertRecord(
     std::uint32_t index,
     Record record) noexcept {
     if (index > records_.Size()) {
@@ -2272,7 +2283,7 @@ ItemContainerGenerator::Access::InsertRecord(
     return {};
 }
 
-void ItemContainerGenerator::Access::RemoveRecordAt(
+void ItemContainerGeneratorRuntime::RemoveRecordAt(
     std::uint32_t index) noexcept {
     for (std::uint32_t current = index;
         current + 1U < records_.Size(); ++current) {
@@ -2283,7 +2294,7 @@ void ItemContainerGenerator::Access::RemoveRecordAt(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Access::ReorderVisuals() noexcept {
+ItemContainerGeneratorRuntime::ReorderVisuals() noexcept {
     for (Record& record : records_) {
         Base::Result<void> detached = tree_->DetachVisual(record.containerMount);
         if (!detached) return detached.GetStatus();
@@ -2296,7 +2307,7 @@ ItemContainerGenerator::Access::ReorderVisuals() noexcept {
 }
 
 Base::Result<bool>
-ItemContainerGenerator::Access::SetRealizationRangeInternal(
+ItemContainerGeneratorRuntime::SetRealizationRangeInternal(
     std::uint32_t firstIndex,
     std::uint32_t count,
     bool force) noexcept {
@@ -2378,7 +2389,7 @@ ItemContainerGenerator::Access::SetRealizationRangeInternal(
 }
 
 Base::Result<bool>
-ItemContainerGenerator::Access::SetRealizationRange(
+ItemContainerGeneratorRuntime::SetRealizationRange(
     std::uint32_t firstIndex,
     std::uint32_t count) noexcept {
     Base::Result<bool> changed =
@@ -2394,7 +2405,7 @@ ItemContainerGenerator::Access::SetRealizationRange(
     return changed;
 }
 
-Base::Result<void> ItemContainerGenerator::Access::Refresh() noexcept {
+Base::Result<void> ItemContainerGeneratorRuntime::Refresh() noexcept {
     if (owner_ == nullptr || host_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -2467,12 +2478,12 @@ Base::Result<void> ItemContainerGenerator::Access::Refresh() noexcept {
     fprintf(stderr,
         "[REFRESH] non-virt records=%u hostChildren=%u host=%p\n",
         records_.Size(),
-        host_ ? Media::Visual::Access::PanelChildCount(*host_) : 0U,
+        host_ ? Core::VisualFacet::PanelChildCount(*host_) : 0U,
         (void*)host_);
     return {};
 }
 
-Base::Result<void> ItemContainerGenerator::Access::ApplyChange(
+Base::Result<void> ItemContainerGeneratorRuntime::ApplyChange(
     const ItemsChangedEvent& event) noexcept {
     if (event.action == ItemsChangeAction::Reset) {
         return Refresh();
@@ -2579,7 +2590,7 @@ Base::Result<void> ItemContainerGenerator::Access::ApplyChange(
     return Refresh();
 }
 
-void ItemContainerGenerator::Access::OnItemsChanged(
+void ItemContainerGeneratorRuntime::OnItemsChanged(
     const ItemsChangedEvent& event) noexcept {
     Base::Result<void> applied;
     fprintf(stderr,
@@ -2615,7 +2626,7 @@ void ItemContainerGenerator::Access::OnItemsChanged(
 }
 
 FrameworkElement*
-ItemContainerGenerator::Access::ContainerFromIndex(
+ItemContainerGeneratorRuntime::ContainerFromIndex(
     std::uint32_t index) const noexcept {
     return index >= firstGeneratedIndex_ &&
         index - firstGeneratedIndex_ <
@@ -2627,7 +2638,7 @@ ItemContainerGenerator::Access::ContainerFromIndex(
 }
 
 std::uint32_t
-ItemContainerGenerator::Access::IndexFromContainer(
+ItemContainerGeneratorRuntime::IndexFromContainer(
     const FrameworkElement& container) const noexcept {
     for (std::uint32_t index = 0U;
         index < records_.Size(); ++index) {
@@ -2640,7 +2651,7 @@ ItemContainerGenerator::Access::IndexFromContainer(
 }
 
 Base::Ref<Base::Object>
-ItemContainerGenerator::Access::ItemFromContainer(
+ItemContainerGeneratorRuntime::ItemFromContainer(
     const FrameworkElement& container) const noexcept {
     const std::uint32_t index =
         IndexFromContainer(container);
@@ -2753,29 +2764,25 @@ Base::Status ItemContainerGenerator::LastError() const noexcept {
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls {
+namespace Aero::Core {
 
-using namespace ::Aero;
-using namespace ::Aero::Controls;
-using namespace ::Aero;
-
-Base::Result<ItemContainerGenerator*>
-Control::Access::Create(
+Base::Result<Controls::ItemContainerGenerator*>
+InteractionStateFacet::CreateItemContainerGenerator(
     ElementTree& tree,
     Aero::LayoutEngine& layout,
     Meta::EffectiveValueEngine& values,
     Aero::StyleEngine* styles,
     ::Aero::Render::RenderTree* renderer,
-    TemplateEngine* templates,
-    ItemSubtreeCallback subtreeCallback,
+    Controls::TemplateEngine* templates,
+    Controls::ItemSubtreeCallback subtreeCallback,
     void* subtreeContext) noexcept {
-    auto* generator = new (std::nothrow) ItemContainerGenerator();
+    auto* generator = new (std::nothrow) Controls::ItemContainerGenerator();
     if (generator == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "ItemContainerGenerator allocation failed");
     }
-    generator->impl_ = new (std::nothrow) ItemContainerGeneratorImpl(
+    generator->impl_ = new (std::nothrow) Controls::ItemContainerGeneratorImpl(
         *generator,
         tree,
         layout,
@@ -2794,7 +2801,9 @@ Control::Access::Create(
     return generator;
 }
 
-} // namespace Aero::Controls
+} // namespace Aero::Core
+
+
 
 namespace Aero {
 

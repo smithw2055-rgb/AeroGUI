@@ -5,6 +5,7 @@
 #include <Aero/Events/ControlEventArgs.hpp>
 
 namespace Aero::Controls {
+class ButtonBehavior;
 using ::Aero::Meta::TypeId;
 using ::Aero::Input::ICommand;
 enum class ClickMode : std::uint8_t {
@@ -15,13 +16,6 @@ enum class ClickMode : std::uint8_t {
 namespace Primitives {
 class AERO_GUI_API ButtonBase : public ContentControl {
     AERO_DECLARE_TYPE(ButtonBase, ContentControl)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     inline static constexpr RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
@@ -56,7 +50,7 @@ protected:
     void OnApplyTemplate() noexcept override;
 
 private:
-    friend struct Access;
+    friend class ::Aero::Controls::ButtonBehavior;
     bool commandEnabled_ = true;
 };
 

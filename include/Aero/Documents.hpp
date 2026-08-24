@@ -72,8 +72,7 @@ public:
         const TextPointer& other) const noexcept;
     Result<TextPointer> GetPositionAtOffset(
         std::int32_t delta,
-        LogicalDirection direction = LogicalDirection::Forward) const noexcept;
-
+        LogicalDirection direction) const noexcept;
     friend bool operator==(
         const TextPointer& left,
         const TextPointer& right) noexcept {
@@ -88,11 +87,11 @@ public:
     }
 
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Controls::TextBlock::Access;
-#endif
     friend class Aero::Controls::TextBlock;
     friend class TextRange;
+#if defined(AERO_GUI_IMPLEMENTATION)
+    friend struct Aero::Controls::TextBlockDocumentHelper;
+#endif
     TextPointer(
         Controls::TextBlock& container,
         std::uint32_t offset,
@@ -267,8 +266,10 @@ protected:
     }
 
 private:
+    friend class Aero::Controls::TextBlock;
+    friend class ::Aero::Core::TextLayoutFacet;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Controls::TextBlock::Access;
+    friend struct Aero::Controls::TextBlockDocumentHelper;
 #endif
     Base::Vector<Ref<Inline>> inlines_;
     Ref<Inline> pendingInline_;

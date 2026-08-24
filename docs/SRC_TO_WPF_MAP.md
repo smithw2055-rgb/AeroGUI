@@ -66,7 +66,24 @@ Internal state/access headers use `*State.hpp` (formerly `*Runtime.hpp`):
 `templates/TemplateState.hpp`, `input/InputState.hpp`, `layout/LayoutState.hpp`,
 `markup/MarkupState.hpp`, `markup/XamlState.hpp`, `media/MediaState.hpp`,
 `styles/StyleState.hpp`, `core/LayoutState.hpp`, `data/BindingState.hpp`, `triggers/TriggerEngine.hpp`, `triggers/TriggerPlan.hpp`,
-`triggers/TriggerDiagnostics.hpp`, `triggers/TriggerValueCompare.hpp`.
+`triggers/TriggerDiagnostics.hpp`, `triggers/TriggerValueCompare.hpp`,
+`core/state/*.hpp` (per-domain split of the former single `State.hpp` into the facet/engine headers).
+
+## WPF virtual override surface
+
+Aero types expose WPF-shaped virtuals you can override when subclassing:
+
+| WPF member | Aero declaration | Notes |
+| --- | --- | --- |
+| `Visual.GetVisualChildrenCount` | `Visual::GetVisualChildrenCount()` | renamed from `GetVisualChildrenCountCore` |
+| `Visual.GetVisualChild` | `Visual::GetVisualChild(int)` | renamed from `GetVisualChildCore` |
+| `FrameworkElement.GetLogicalChildrenCount` | `FrameworkElement::GetLogicalChildrenCount()` | renamed from `GetLogicalChildrenCountCore` |
+| `FrameworkElement.GetLogicalChild` | `FrameworkElement::GetLogicalChild(int)` | renamed from `GetLogicalChildCore` |
+| `DependencyObject.OnPropertyChanged` | `DependencyObject::OnPropertyChanged(const DependencyPropertyChangedEventArgs&)` | new WPF-bridge hook; fires with `PropertyMetadata::PropertyChangedCallback` |
+| `Visual.OnVisualParentChanged` | `Visual::OnVisualParentChanged(Visual* oldParent)` | new WPF-bridge hook |
+
+Runtime engines are reached through `Core::GetFacet<T>(element)`
+(`src/gui/core/Facet.hpp`) instead of per-facade static methods.
 
 ## Platform code (two trees, by design)
 

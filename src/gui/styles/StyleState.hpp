@@ -1,4 +1,5 @@
 #pragma once
+#include "gui/core/Facet.hpp"
 
 // Style authoring bridge, compiled state and theme-style lookup.
 
@@ -7,8 +8,7 @@
 #include <Aero/Layout.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/data/BindingState.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
 
@@ -96,7 +96,7 @@ struct StyleSetter {
     PropertyValue value;
 };
 
-struct Style::Access {
+struct StyleState {
     static Base::Result<void> Seal(
         Style& style,
         const void* properties) noexcept;
@@ -105,15 +105,15 @@ struct Style::Access {
     static Base::Span<const TriggerPlan> RuntimeTriggers(
         const Style& style) noexcept;
 
-    Access() noexcept
+    StyleState() noexcept
         : authoredSetters(&Base::GetDefaultAllocator()),
           authoredTriggers(&Base::GetDefaultAllocator()),
           setters(&Base::GetDefaultAllocator()),
           triggers(&Base::GetDefaultAllocator()) {}
-    Access(Access&&) noexcept = default;
-    Access& operator=(Access&&) noexcept = default;
-    Access(const Access&) = delete;
-    Access& operator=(const Access&) = delete;
+    StyleState(StyleState&&) noexcept = default;
+    StyleState& operator=(StyleState&&) noexcept = default;
+    StyleState(const StyleState&) = delete;
+    StyleState& operator=(const StyleState&) = delete;
 
     TypeId TargetType() const noexcept { return targetType; }
     Base::Span<const StyleSetter> Setters() const noexcept {
@@ -145,7 +145,7 @@ struct Style::Access {
 } // namespace Aero
 
 namespace Aero {
-using StylePrivate = ::Aero::Style::Access;
+using StylePrivate = ::Aero::StyleState;
 }
 
 
@@ -167,7 +167,7 @@ struct StyleApplication {
     Base::Vector<std::uint8_t> bindingTriggerKnown;
 };
 
-class StyleEngine {
+class StyleEngine : public Core::Facet {
 public:
     using TriggerActionHandler = Base::Result<void>(*)(
         DependencyObject& owner,

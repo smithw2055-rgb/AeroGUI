@@ -1,5 +1,4 @@
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/markup/MarkupState.hpp"
@@ -24,31 +23,10 @@
 #define STBI_ONLY_JPEG
 #include "stb_image.h"
 
-namespace Aero::Controls {
-
-struct Image::Access {
-public:
-    static Base::Result<void> SetRuntimeImage(
-        Controls::Image& image,
-        Render::RenderImageId renderImage,
-        std::uint32_t pixelWidth,
-        std::uint32_t pixelHeight) noexcept {
-        const bool measureChanged = image.pixelWidth_ != pixelWidth || image.pixelHeight_ != pixelHeight;
-        const bool renderChanged = image.renderImage_ != renderImage;
-        image.renderImage_ = renderImage;
-        image.pixelWidth_ = pixelWidth;
-        image.pixelHeight_ = pixelHeight;
-        if (measureChanged) return image.InvalidateMeasure();
-        return renderChanged ? image.InvalidateVisual() : Base::Result<void>();
-    }
-};
-
-} // namespace Aero::Controls
+#include "gui/core/facets/RenderFacet.hpp"
 
 namespace Aero::Media {
-using ImageControlPrivate = ::Aero::Controls::Image::Access;
 using ImageResources = ::Aero::Render::ImageResources;
-using BrushPrivate = ::Aero::Media::BrushPrivate;
 
 namespace {
 
@@ -218,7 +196,7 @@ Base::Result<bool> ImageCache::Synchronize(
         pending.PopBack();
         if (visual == nullptr) continue;
         for (Aero::Media::Visual* child :
-             Aero::Media::Visual::Access::VisualChildren(*visual)) {
+             visual->GetVisualChildren()) {
             Base::Result<void> queued =
                 pending.PushBack(child);
             if (!queued) return queued.GetStatus();
@@ -286,14 +264,11 @@ Base::Result<bool> ImageCache::Synchronize(
         if (!source) {
             Base::Result<void> cleared =
                 imageControl != nullptr
-                ? ImageControlPrivate::
-                    SetRuntimeImage(
+                ? Core::RenderFacet::SetImageRuntimeData(
                     *imageControl,
                     Render::InvalidRenderImageId,
                     0U, 0U)
-                : BrushPrivate::
-                    SetRuntimeImage(
-                    *imageBrush,
+                : imageBrush->SetRuntimeImage(
                     Render::InvalidRenderImageId,
                     0U, 0U);
             if (!cleared) {
@@ -581,13 +556,12 @@ Base::Result<bool> ImageCache::Synchronize(
         }
         Base::Result<void> assigned =
             imageControl != nullptr
-            ? ImageControlPrivate::SetRuntimeImage(
+            ? Core::RenderFacet::SetImageRuntimeData(
                 *imageControl,
                 record->renderImage,
                 record->width,
                 record->height)
-            : BrushPrivate::SetRuntimeImage(
-                *imageBrush,
+            : imageBrush->SetRuntimeImage(
                 record->renderImage,
                 record->width,
                 record->height);

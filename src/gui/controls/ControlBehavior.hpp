@@ -1,12 +1,8 @@
 #pragma once
 
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/input/InputState.hpp"
-#include "gui/core/State.hpp"
 #include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -19,9 +15,7 @@
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
-#include <Aero/Controls.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
-#include <Aero/Controls.hpp>
 #include <Aero/InputInterop.hpp>
 #include <cstddef>
 #include <new>
@@ -37,32 +31,19 @@ enum class ToggleState : std::uint8_t {
     Indeterminate,
 };
 
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-
 using namespace Aero::Meta;
 using namespace Aero::Threading;
-
-using namespace Aero::Controls;
 using namespace Aero::Controls::Primitives;
 using Aero::Controls::TemplateHandle;
 
-} // namespace Aero::Controls
-
-namespace Aero::Controls::Primitives {
-
-using namespace ::Aero::Controls;
-using namespace ::Aero;
-
-struct ButtonBase::Access {
+class ButtonBehavior {
 public:
-    Access(
+    ButtonBehavior(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input,
         VisualStateManager* states = nullptr) noexcept;
-    ~Access() noexcept;
+    ~ButtonBehavior() noexcept;
 
     Base::Result<void> Initialize() noexcept;
     Base::Result<void> Attach(ButtonBase& button) noexcept;
@@ -154,25 +135,14 @@ private:
     void OnRequerySuggested() noexcept;
 };
 
-} // namespace Aero::Controls::Primitives
-
-namespace Aero::Controls {
-using ButtonBehavior = ::Aero::Controls::Primitives::ButtonBase::Access;
-}
-
-namespace Aero::Controls {
-
-using namespace ::Aero::Controls;
-using namespace ::Aero;
-
-struct TextBox::Access {
+class TextEditBehavior {
 public:
-    Access(
+    TextEditBehavior(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input,
         Input::IClipboard& clipboard) noexcept;
-    ~Access() noexcept;
+    ~TextEditBehavior() noexcept;
 
     Base::Result<void> Attach(
         TextBox& textBox) noexcept;
@@ -242,23 +212,12 @@ private:
         bool captured) noexcept;
 };
 
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-using TextEditBehavior = ::Aero::Controls::TextBox::Access;
-}
-
-namespace Aero::Controls {
-
-using namespace ::Aero::Controls;
-using namespace ::Aero;
-
-struct ScrollViewer::Access {
+class ScrollBehavior {
 public:
-    Access(
+    ScrollBehavior(
         ElementTree& tree,
         EventRouter& events) noexcept;
-    ~Access() noexcept;
+    ~ScrollBehavior() noexcept;
 
     Base::Result<void> Attach(
         ScrollViewer& viewer) noexcept;
@@ -283,24 +242,13 @@ private:
         const ScrollViewer& viewer) const noexcept;
 };
 
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-using ScrollBehavior = ::Aero::Controls::ScrollViewer::Access;
-}
-
-namespace Aero::Controls {
-
-using namespace ::Aero::Controls;
-using namespace ::Aero;
-
-struct Slider::Access {
+class SliderBehavior {
 public:
-    Access(
+    SliderBehavior(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input) noexcept;
-    ~Access() noexcept;
+    ~SliderBehavior() noexcept;
 
     Base::Result<void> Attach(
         Slider& slider) noexcept;
@@ -371,17 +319,13 @@ private:
         ExecutedRoutedEventArgs& args) noexcept;
 };
 
-} // namespace Aero::Controls
-
-namespace Aero::Controls::Primitives {
-
-struct ScrollBar::Access {
+class ScrollBarBehavior {
 public:
-    Access(
+    ScrollBarBehavior(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input) noexcept;
-    ~Access() noexcept;
+    ~ScrollBarBehavior() noexcept;
 
     Base::Result<void> Attach(
         ScrollBar& scrollBar) noexcept;
@@ -491,27 +435,15 @@ private:
         ExecutedRoutedEventArgs& args) noexcept;
 };
 
-} // namespace Aero::Controls::Primitives
-
-namespace Aero::Controls {
-using SliderBehavior = ::Aero::Controls::Slider::Access;
-using ScrollBarBehavior = ::Aero::Controls::Primitives::ScrollBar::Access;
-}
-
-namespace Aero::Controls {
-
-using namespace ::Aero::Controls;
-using namespace ::Aero;
-
-struct TreeView::Access {
+class TreeBehavior {
 public:
-    Access(
+    TreeBehavior(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input,
         VisualStateManager* states = nullptr)
         noexcept;
-    ~Access() noexcept;
+    ~TreeBehavior() noexcept;
 
     Base::Result<void> Attach(
         TreeView& treeView) noexcept;
@@ -548,24 +480,13 @@ private:
         KeyEventArgs& args) noexcept;
 };
 
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-using TreeBehavior = ::Aero::Controls::TreeView::Access;
-}
-
-namespace Aero::Controls {
-
-using namespace ::Aero::Controls;
-using namespace ::Aero;
-
-struct ComboBox::Access {
+class ComboBehavior {
 public:
-    Access(
+    ComboBehavior(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input) noexcept;
-    ~Access() noexcept;
+    ~ComboBehavior() noexcept;
 
     Base::Result<void> Attach(
         ComboBox& comboBox) noexcept;
@@ -593,25 +514,14 @@ private:
         KeyEventArgs& args) noexcept;
 };
 
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-using ComboBehavior = ::Aero::Controls::ComboBox::Access;
-}
-
-namespace Aero::Controls {
-
-using namespace ::Aero::Controls;
-using namespace ::Aero;
-
-struct ListBox::Access {
+class ListBehavior {
 public:
-    Access(
+    ListBehavior(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input,
         VisualStateManager* states = nullptr) noexcept;
-    ~Access() noexcept;
+    ~ListBehavior() noexcept;
 
     Base::Result<void> Attach(ListBox& listBox) noexcept;
     Base::Result<bool> Detach(ListBox& listBox) noexcept;
@@ -652,11 +562,6 @@ private:
     void OnPointerStateChanged(
         UIElement& element) noexcept;
 };
-
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-using ListBehavior = ::Aero::Controls::ListBox::Access;
 
 class TemplateEngine {
 public:
@@ -763,20 +668,13 @@ private:
         const DependencyPropertyChangedEventArgs& args) noexcept;
 };
 
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-
-using namespace ::Aero::Controls;
-using namespace ::Aero;
-
-struct Menu::Access {
+class MenuBehavior {
 public:
-    Access(
+    MenuBehavior(
         ElementTree& tree,
         EventRouter& events,
         InputRouter& input) noexcept;
-    ~Access() noexcept;
+    ~MenuBehavior() noexcept;
 
     Base::Result<void> Attach(
         Menu& menu) noexcept;
@@ -809,14 +707,6 @@ private:
         Base::Object* sender,
         KeyEventArgs& args) noexcept;
 };
-
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-using MenuBehavior = ::Aero::Controls::Menu::Access;
-}
-
-namespace Aero::Controls {
 
 // One compact owner for all built-in control interaction state. The behavior
 // objects are placement-constructed in inline storage, avoiding per-behavior

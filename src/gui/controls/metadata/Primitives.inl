@@ -142,8 +142,8 @@ Base::Result<void> PopulateControlsPrimitives(
                 .AffectsMeasure()
                 .Structural()
                 .Changed(
-                    &::Aero::Controls::Control::Access::
-                        OnContentPropertyChanged))
+                    &::Aero::Core::InteractionStateFacet::
+                        OnContentControlPropertyChanged))
         .Property(
             ContentControl::ContentTemplateProperty,
             FrameworkPropertyMetadata(Base::Ref<Base::Object>{})

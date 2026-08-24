@@ -3,18 +3,16 @@
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Images.hpp>
 
+namespace Aero::Core { class RenderFacet; }
+
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 using ::Aero::Media::ImageSource;
 class AERO_GUI_API Image : public FrameworkElement {
     AERO_DECLARE_TYPE(Image, FrameworkElement)
 #if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
+    friend class ::Aero::Core::RenderFacet;
 #endif
-    struct Access;
-
 public:
 
     Image() noexcept
@@ -42,7 +40,6 @@ protected:
         ::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
-    friend struct Access;
     std::uint64_t renderImage_ = 0U;
     std::uint32_t pixelWidth_ = 0U;
     std::uint32_t pixelHeight_ = 0U;

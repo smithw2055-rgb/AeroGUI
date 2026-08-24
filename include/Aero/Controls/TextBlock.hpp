@@ -10,19 +10,13 @@ class InlineCollection;
 class InlineCollectionView;
 class TextPointer;
 }
+namespace Aero::Core { class TextLayoutFacet; }
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 using ::Aero::Media::Brush;
 using ::Aero::Media::FrameworkElementForegroundProperty;
 class AERO_GUI_API TextBlock : public FrameworkElement {
     AERO_DECLARE_TYPE(TextBlock, FrameworkElement)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     // Source-retained formatting produced by RichText markup. Text layout
@@ -113,11 +107,9 @@ protected:
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Controls::Control::Access;
+    friend class ::Aero::Core::TextLayoutFacet;
+    friend struct TextBlockDocumentHelper;
 #endif
-#endif
-    friend struct Access;
 
     StringView EffectiveFontFamily() const noexcept;
     void ReleaseServiceGlyphRun() noexcept;

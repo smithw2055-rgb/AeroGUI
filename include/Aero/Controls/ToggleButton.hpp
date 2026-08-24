@@ -36,9 +36,7 @@ protected:
         : ButtonBase(runtimeType) {}
 
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ButtonBase::Access;
-#endif
+    friend class ::Aero::Controls::ButtonBehavior;
     void SetToggleState(std::uint8_t value) noexcept;
 };
 

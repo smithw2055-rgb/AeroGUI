@@ -1,9 +1,8 @@
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
+#include "gui/core/facets/VisualFacet.hpp"
 #include <Aero/Documents.hpp>
 
 
@@ -13,7 +12,7 @@
 
 namespace Aero::Controls {
 
-struct TextBlock::Access {
+struct TextBlockDocumentHelper {
 public:
     static bool IsTextBlock(const Base::Object& owner) noexcept {
         return owner.RuntimeType() == Controls::TextBlock::StaticTypeId() ||
@@ -111,7 +110,7 @@ public:
         Documents::Inline& inlineValue,
         ::Aero::DependencyObject& parent,
         Controls::TextBlock* host) noexcept {
-        Media::Visual::Access::Attach(
+        Core::VisualFacet::Attach(
             inlineValue,
             &parent,
             host,
@@ -136,7 +135,7 @@ public:
                 if (child) ClearHost(*child);
             }
         }
-        Media::Visual::Access::Detach(inlineValue);
+        Core::VisualFacet::Detach(inlineValue);
     }
 
     static Base::Result<void> Add(
@@ -424,7 +423,7 @@ Documents::TextPointer TextBlock::GetContentStart() noexcept {
 
 Documents::TextPointer TextBlock::GetContentEnd() noexcept {
     Base::Result<std::uint32_t> length =
-        Aero::Controls::TextBlock::Access::GetLength(*this);
+        Aero::Controls::TextBlockDocumentHelper::GetLength(*this);
     return Documents::TextPointer(
         *this,
         length ? length.Value() : 0U,
@@ -437,26 +436,26 @@ namespace Aero::Documents {
 
 std::uint32_t InlineCollectionView::GetCount() const noexcept {
     return owner_ != nullptr
-        ? Aero::Controls::TextBlock::Access::GetCount(*owner_)
+        ? Aero::Controls::TextBlockDocumentHelper::GetCount(*owner_)
         : 0U;
 }
 
 const Inline* InlineCollectionView::GetItem(
     std::uint32_t index) const noexcept {
     return owner_ != nullptr
-        ? Aero::Controls::TextBlock::Access::At(*owner_, index)
+        ? Aero::Controls::TextBlockDocumentHelper::At(*owner_, index)
         : nullptr;
 }
 
 std::uint32_t InlineCollection::GetCount() const noexcept {
     return owner_ != nullptr
-        ? Aero::Controls::TextBlock::Access::GetCount(*owner_)
+        ? Aero::Controls::TextBlockDocumentHelper::GetCount(*owner_)
         : 0U;
 }
 
 Inline* InlineCollection::GetItem(std::uint32_t index) const noexcept {
     return owner_ != nullptr
-        ? Aero::Controls::TextBlock::Access::At(*owner_, index)
+        ? Aero::Controls::TextBlockDocumentHelper::At(*owner_, index)
         : nullptr;
 }
 
@@ -473,7 +472,7 @@ Base::Result<void> InlineCollection::Add(
             Base::ErrorCode::InvalidState,
             "InlineCollection is not bound to an owner");
     }
-    return Aero::Controls::TextBlock::Access::Add(
+    return Aero::Controls::TextBlockDocumentHelper::Add(
         *owner_, std::move(value));
 }
 
@@ -484,14 +483,14 @@ Base::Result<bool> InlineCollection::Remove(
             Base::ErrorCode::InvalidState,
             "InlineCollection is not bound to an owner");
     }
-    return Aero::Controls::TextBlock::Access::Remove(*owner_, value);
+    return Aero::Controls::TextBlockDocumentHelper::Remove(*owner_, value);
 }
 
 void InlineCollection::Clear() noexcept {
     if (owner_ == nullptr) {
         return;
     }
-    (void)Aero::Controls::TextBlock::Access::Clear(*owner_);
+    (void)Aero::Controls::TextBlockDocumentHelper::Clear(*owner_);
 }
 
 Span::~Span() {
@@ -544,16 +543,16 @@ Base::Result<void> Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
     }
     Base::Result<void> appended = inlines_.PushBack(value);
     if (!appended) return appended.GetStatus();
-    Aero::Media::Visual::Access::Attach(
+    Aero::Core::VisualFacet::Attach(
         *value, this, GetContentHost(), nullptr);
     pendingInline_ = std::move(value);
-    Controls::TextBlock* host = Aero::Controls::TextBlock::Access::Host(*this);
+    Controls::TextBlock* host = Aero::Controls::TextBlockDocumentHelper::Host(*this);
     return host != nullptr ? host->InvalidateMeasure() : Base::Result<void>{};
 }
 
 void Span::ClearOwnedInlines() noexcept {
     for (Base::Ref<Inline>& value : inlines_) {
-        if (value) Aero::Media::Visual::Access::Detach(*value);
+        if (value) Aero::Core::VisualFacet::Detach(*value);
     }
     inlines_.Clear();
     pendingInline_.Reset();
@@ -567,7 +566,7 @@ Base::Result<void> CopyText(
     const Controls::TextBlock& container,
     Base::String& output) noexcept {
     output.Clear();
-    return Aero::Controls::TextBlock::Access::AppendText(
+    return Aero::Controls::TextBlockDocumentHelper::AppendText(
         container, output);
 }
 
@@ -592,7 +591,7 @@ Base::Result<TextPointer> TextPointer::GetPositionAtOffset(
             "TextPointer is not bound to a container");
     }
     Base::Result<std::uint32_t> length =
-        Aero::Controls::TextBlock::Access::GetLength(*container_);
+        Aero::Controls::TextBlockDocumentHelper::GetLength(*container_);
     if (!length) return length.GetStatus();
     const std::int64_t destination =
         static_cast<std::int64_t>(offset_) + delta;
@@ -605,7 +604,7 @@ Base::Result<TextPointer> TextPointer::GetPositionAtOffset(
     const std::uint32_t resolved =
         static_cast<std::uint32_t>(destination);
     Base::Result<bool> boundary =
-        Aero::Controls::TextBlock::Access::IsUtf8Boundary(
+        Aero::Controls::TextBlockDocumentHelper::IsUtf8Boundary(
             *container_, resolved);
     if (!boundary) return boundary.GetStatus();
     if (!boundary.Value()) {
@@ -659,13 +658,13 @@ Base::Result<TextPointer> GetPositionFromPoint(
     Controls::TextBlock& container,
     Aero::Point point,
     bool snapToText) noexcept {
-    return Aero::Controls::TextBlock::Access::PositionFromPoint(
+    return Aero::Controls::TextBlockDocumentHelper::PositionFromPoint(
         container, point, snapToText);
 }
 
 Base::Result<Aero::Rect> GetCharacterRect(
     const TextPointer& position) noexcept {
-    return Aero::Controls::TextBlock::Access::CharacterRect(position);
+    return Aero::Controls::TextBlockDocumentHelper::CharacterRect(position);
 }
 
 Base::StringView Hyperlink::GetNavigateUri() const noexcept {
@@ -799,8 +798,7 @@ bool IsValidTextSize(Size value) noexcept {
 }
 ::Aero::Controls::TextBlockLayout* TextLayoutFor(
     const ::Aero::Media::Visual& visual) noexcept {
-    return static_cast<::Aero::Controls::TextBlockLayout*>(
-        Media::Visual::Access::TextLayoutRuntime(visual));
+    return ::Aero::Core::TextLayoutFacet::TypedTextLayoutRuntime<::Aero::Controls::TextBlockLayout>(visual);
 }
 
 } // namespace
@@ -1021,7 +1019,7 @@ Base::Result<void> TextBlock::AddOwnedInline(
         ownedInlines_.PushBack(inlineObject);
     if (!appended) return appended.GetStatus();
     auto& inlineValue = *static_cast<Documents::Inline*>(inlineObject.Get());
-    Aero::Media::Visual::Access::Attach(
+    Aero::Core::VisualFacet::Attach(
         inlineValue, this, this, nullptr);
     pendingInline_ = inlineObject;
     return InvalidateMeasure();
@@ -1031,7 +1029,7 @@ void TextBlock::ClearOwnedInlines() noexcept {
     if (!access) return;
     for (Base::Ref<Base::Object>& item : ownedInlines_) {
         if (item) {
-            Aero::Media::Visual::Access::Detach(
+            Aero::Core::VisualFacet::Detach(
                 *static_cast<Documents::Inline*>(item.Get()));
         }
     }

@@ -1,7 +1,7 @@
 #include <Aero/Media/Brushes.hpp>
 #include "BrushRendering.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
+#include "gui/core/facets/DependencyPropertyFacet.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/media/MediaState.hpp"
@@ -200,8 +200,19 @@ bool GradientStopCollection::FreezeCore(bool isChecking) noexcept {
     return Freezable::FreezeCore(isChecking);
 }
 
-std::uint64_t Brush::Access::Revision(const Brush& brush) noexcept {
-    return Freezable::Access::Revision(brush);
+std::uint64_t Brush::GetRevision() const noexcept {
+    return ::Aero::Core::DependencyPropertyFacet::FreezableRevision(*this);
+}
+
+Base::Result<void> ImageBrush::SetRuntimeImage(
+    std::uint64_t image, std::uint32_t width, std::uint32_t height) noexcept {
+    const bool changed =
+        renderImage_ != image || pixelWidth_ != width || pixelHeight_ != height;
+    renderImage_ = image;
+    pixelWidth_ = width;
+    pixelHeight_ = height;
+    if (changed) WritePostscript();
+    return {};
 }
 
 BrushMappingMode GradientBrush::GetMappingMode() const noexcept {
@@ -408,11 +419,11 @@ Base::Result<void> PaintBrushRect(
         const auto& imageBrush =
             *static_cast<ImageBrush*>(brush.Get());
         const Render::RenderImageId image =
-            BrushPrivate::RuntimeImage(imageBrush);
+            imageBrush.GetRenderImageId();
         const std::uint32_t pixelWidth =
-            BrushPrivate::PixelWidth(imageBrush);
+            imageBrush.GetPixelWidth();
         const std::uint32_t pixelHeight =
-            BrushPrivate::PixelHeight(imageBrush);
+            imageBrush.GetPixelHeight();
         if (image == Render::InvalidRenderImageId ||
             pixelWidth == 0U || pixelHeight == 0U) {
             return {};

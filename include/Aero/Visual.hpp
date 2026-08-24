@@ -5,6 +5,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Base/Span.hpp>
 #include <Aero/DependencyObject.hpp>
 
 #include <cstdint>
@@ -44,19 +45,17 @@ public:
 
 } // namespace Aero
 
+namespace Aero::Core {
+class RenderFacet;
+class VisualFacet;
+template<class TFacet>
+TFacet* GetFacet(const ::Aero::Media::Visual& visual) noexcept;
+} // namespace Aero::Core
+
 namespace Aero::Media {
 
 class AERO_GUI_API Visual : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Visual, ::Aero::DependencyObject)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    // Source-side access and runtime state are intentionally opaque to SDK
-    // consumers.  The complete definition lives in the implementation tree.
-    struct Access;
-
 public:
 
     explicit Visual(::Aero::Meta::TypeId runtimeType) noexcept;
@@ -66,19 +65,39 @@ public:
     Visual* GetLogicalParent() const noexcept { return logicalParent_; }
     bool GetIsLoaded() const noexcept { return loaded_; }
 
+    ::Aero::ElementTree* GetTree() const noexcept { return tree_; }
+
+    virtual Base::Span<Visual* const> GetVisualChildren() const noexcept {
+        return { visualChildren_.Data(), visualChildren_.Size() };
+    }
+    Base::Span<Visual* const> GetLogicalChildren() const noexcept {
+        return { logicalChildren_.Data(), logicalChildren_.Size() };
+    }
+
     virtual ::Aero::UIElement* AsUIElement() noexcept { return nullptr; }
     virtual const ::Aero::UIElement* AsUIElement() const noexcept { return nullptr; }
     virtual ::Aero::FrameworkElement* AsFrameworkElement() noexcept { return nullptr; }
     virtual const ::Aero::FrameworkElement* AsFrameworkElement() const noexcept { return nullptr; }
 
+    template<class TFacet>
+    TFacet* GetFacet() const noexcept {
+        return ::Aero::Core::GetFacet<TFacet>(*this);
+    }
+
 protected:
-    virtual std::uint32_t GetVisualChildrenCountCore() const noexcept { return visualChildren_.Size(); }
-    virtual Visual* GetVisualChildCore(std::uint32_t index) const noexcept { return index < visualChildren_.Size() ? visualChildren_[index] : nullptr; }
+    virtual std::uint32_t GetVisualChildrenCount() const noexcept { return visualChildren_.Size(); }
+    virtual Visual* GetVisualChild(std::uint32_t index) const noexcept { return index < visualChildren_.Size() ? visualChildren_[index] : nullptr; }
+
+    virtual void OnVisualParentChanged(Visual* oldParent) noexcept {
+        static_cast<void>(oldParent);
+    }
 
 private:
     friend class ::Aero::LogicalTreeHelper;
     friend class ::Aero::ElementTree;
     friend class VisualTreeHelper;
+    friend class ::Aero::Core::RenderFacet;
+    friend class ::Aero::Core::VisualFacet;
     Result<Ref<Base::Object>> AcquireLifetime() noexcept;
 
     ::Aero::ElementTree* tree_ = nullptr;

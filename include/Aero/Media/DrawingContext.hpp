@@ -7,18 +7,12 @@
 
 namespace Aero::Media {
 class Brush;
+struct DrawingContextRuntime;
 
 // WPF-facing retained drawing surface used by FrameworkElement::OnRender().
 // The context records semantic drawing operations; render plans, resource IDs
 // and backend command streams remain private runtime implementation.
 class AERO_GUI_API DrawingContext {
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     DrawingContext(const DrawingContext&) = delete;
@@ -61,7 +55,7 @@ public:
         double thickness) noexcept;
 
 private:
-    friend struct Access;
+    friend struct DrawingContextRuntime;
 
     explicit DrawingContext(void* implementation) noexcept
         : implementation_(implementation) {}

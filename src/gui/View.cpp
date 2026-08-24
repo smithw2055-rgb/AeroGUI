@@ -16,18 +16,14 @@
 #include "gui/text/TextPipeline.hpp"
 #include <AeroRender/RenderTarget.hpp>
 
-#include "gui/controls/State.hpp"
-#include "gui/controls/State.hpp"
+#include "gui/controls/State.hpp" 
 #include "gui/templates/TemplateState.hpp"
 #include "gui/controls/ControlBehavior.hpp"
 #include "gui/meta/MetadataState.hpp"
 #include "gui/meta/ValueConversion.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/input/InputState.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
+#include "gui/core/facets/ServiceFacets.hpp"
+#include "gui/input/InputState.hpp" 
 #include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -316,6 +312,15 @@ struct ViewState {
     VisualStateManager* visualStates = nullptr;
     Aero::StyleEngine* styles = nullptr;
     Aero::ElementHost elementHost;
+
+    // Typed view-affine service facets (replace the former void* ElementHost
+    // fields). Owned here; registered (non-owning) in elementHost's matrix.
+    Core::TemplateEngineFacet templateFacet_;
+    Core::VisualStateServiceFacet visualStateFacet_;
+    Core::TextLayoutServiceFacet textLayoutFacet_;
+    Core::ControlBehaviorFacet controlBehaviorFacet_;
+    Core::MeshResourceFacet meshResourceFacet_;
+    Core::NameScopeFacet nameScopeFacet_;
 
     // Mount, provider-generation, and resource-layer state.
     Markup::Schema* schema = nullptr;
@@ -995,7 +1000,7 @@ struct ViewState {
             for (Aero::Markup::VisualEdge& edge : edges) {
                 if (edge.state.logicalAttached || edge.parent == nullptr ||
                     edge.child == nullptr ||
-                    Aero::Media::Visual::Access::Tree(*edge.parent) != tree) {
+                    edge.parent->GetTree() != tree) {
                     continue;
                 }
                 Base::Result<Aero::ElementAttachment> edgeAttached =
@@ -1028,9 +1033,9 @@ struct ViewState {
             for (Aero::Markup::VisualEdge& edge : edges) {
                 if (edge.state.logicalAttached ||
                     (edge.child != nullptr &&
-                     Aero::Media::Visual::Access::Tree(*edge.child) == tree) ||
+                     edge.child->GetTree() == tree) ||
                     edge.parent == nullptr || edge.child == nullptr ||
-                    Aero::Media::Visual::Access::Tree(*edge.parent) != tree) {
+                    edge.parent->GetTree() != tree) {
                     continue;
                 }
                 Base::Result<Aero::ElementAttachment> edgeAttached =
@@ -1128,43 +1133,43 @@ struct ViewState {
                     ? state.visualParent->AsUIElement()
                     : nullptr;
                 if (childElement != nullptr &&
-                    Aero::UIElement::Access::LayoutAttached(*childElement) &&
-                    Aero::UIElement::Access::LayoutManager(*childElement) == nullptr) {
+                    childElement->GetIsLayoutAttached() &&
+                    Aero::Core::GetFacet<::Aero::LayoutEngine>(*childElement) == nullptr) {
                     // The logical subtree has already left its ElementTree, so
                     // no LayoutEngine remains to consume this stale edge bit.
-                    Aero::UIElement::Access::LayoutAttached(*childElement) = false;
-                    Aero::UIElement::Access::MeasureQueued(*childElement) = false;
-                    Aero::UIElement::Access::ArrangeQueued(*childElement) = false;
+                    (*childElement).ElementFacet<Aero::Core::LayoutFacet>()->SetLayoutAttached(false);
+                    (*childElement).ElementFacet<Aero::Core::LayoutFacet>()->SetMeasureQueued(false);
+                    (*childElement).ElementFacet<Aero::Core::LayoutFacet>()->SetArrangeQueued(false);
                 }
                 state.layoutAttached =
                     layout != nullptr && childElement != nullptr &&
                     parentElement != nullptr &&
-                    Aero::UIElement::Access::LayoutAttached(*childElement) &&
-                    Aero::UIElement::Access::LayoutManager(*childElement) == layout &&
+                    childElement->GetIsLayoutAttached() &&
+                    Aero::Core::GetFacet<::Aero::LayoutEngine>(*childElement) == layout &&
                     childElement->LayoutParent() == parentElement;
 
-                if (Aero::Media::Visual::Access::RenderAttached(
+                if (Aero::Core::RenderFacet::RenderAttached(
                         *state.child) &&
-                    Aero::Media::Visual::Access::RenderRuntime(
+                    Aero::Core::RenderFacet::RenderRuntime(
                         *state.child) == nullptr) {
-                    Aero::Media::Visual::Access::RenderAttached(
+                    Aero::Core::RenderFacet::RenderAttached(
                         *state.child) = false;
-                    Aero::Media::Visual::Access::RenderQueued(
+                    Aero::Core::RenderFacet::RenderQueued(
                         *state.child) = false;
-                    Aero::Media::Visual::Access::Rendering(
+                    Aero::Core::RenderFacet::Rendering(
                         *state.child) = false;
-                    Aero::Media::Visual::Access::NodeId(
+                    Aero::Core::RenderFacet::NodeId(
                         *state.child) = Base::InvalidRenderNodeId;
-                    Aero::Media::Visual::Access::RenderValid(
+                    Aero::Core::RenderFacet::RenderValid(
                         *state.child) = false;
                 }
                 state.renderAttached =
                     renderer != nullptr &&
-                    Aero::Media::Visual::Access::RenderAttached(
+                    Aero::Core::RenderFacet::RenderAttached(
                         *state.child) &&
-                    Aero::Media::Visual::Access::RenderRuntime(
+                    Aero::Core::RenderFacet::RenderRuntime(
                         *state.child) == renderer &&
-                    Aero::Media::Visual::Access::RenderParent(
+                    Aero::Core::RenderFacet::RenderParent(
                         *state.child) == state.visualParent;
             };
 
@@ -1260,7 +1265,7 @@ struct ViewState {
         if (metadata->Types().IsDerivedFrom(
                 type,
                 Controls::TextBlock::StaticTypeId())) {
-            ::Aero::Controls::Control::Access::Attach(
+            ::Aero::Core::TextLayoutFacet::AttachTextLayout(
                 *static_cast<Controls::TextBlock*>(&node),
                 service,
                 invalidate);
@@ -1268,7 +1273,7 @@ struct ViewState {
         if (metadata->Types().IsDerivedFrom(
                 type,
                 Controls::TextBox::StaticTypeId())) {
-            ::Aero::Controls::Control::Access::Attach(
+            ::Aero::Core::TextLayoutFacet::AttachTextLayout(
                 *static_cast<Controls::TextBox*>(&node),
                 service,
                 invalidate);
@@ -1277,7 +1282,7 @@ struct ViewState {
                 type,
                 Controls::PasswordBox::
                     StaticTypeId())) {
-            ::Aero::Controls::Control::Access::Attach(
+            ::Aero::Core::TextLayoutFacet::AttachTextLayout(
                 *static_cast<Controls::PasswordBox*>(
                     &node),
                 service,
@@ -1304,7 +1309,7 @@ struct ViewState {
         if (metadata->Types().IsDerivedFrom(
                 type,
                 Shapes::Path::StaticTypeId())) {
-            ::Aero::Controls::Control::Access::Attach(
+            ::Aero::Core::DependencyPropertyFacet::PathAttachMeshResources(
                 *static_cast<Shapes::Path*>(&node),
                 service,
                 invalidate);
@@ -1331,7 +1336,7 @@ struct ViewState {
             service,
             invalidate && effectivelyVisible);
         for (Aero::Media::Visual* child :
-             Aero::Media::Visual::Access::VisualChildren(*rootVisual)) {
+             rootVisual->GetVisualChildren()) {
             VisitTextElements(
                 child,
                 service,
@@ -1360,7 +1365,7 @@ struct ViewState {
             service,
             invalidate && effectivelyVisible);
         for (Aero::Media::Visual* child :
-             Aero::Media::Visual::Access::VisualChildren(*rootVisual)) {
+             rootVisual->GetVisualChildren()) {
             VisitPaths(
                 child,
                 service,
@@ -1603,7 +1608,7 @@ struct ViewState {
             const Base::Span<
                 Aero::Media::Visual* const>
                 children =
-                    Aero::Media::Visual::Access::VisualChildren(*node);
+                    node->GetVisualChildren();
             for (std::uint32_t index =
                      children.Size();
                  index > 0U;
@@ -2083,9 +2088,6 @@ struct ViewState {
             Aero::Media::Visual* node = stack.Back();
             stack.PopBack();
             if (node == nullptr) continue;
-            if (Aero::UIElement* ui = node->AsUIElement()) {
-                Media::Visual::Access::SetViewServices(*ui, &elementHost);
-            }
 
             Base::Result<std::uint32_t> activated =
                 bindings->ActivateDeferred(
@@ -2124,7 +2126,7 @@ struct ViewState {
             if (metadata->Types().IsDerivedFrom(
                     node->RuntimeType(), Controls::Control::StaticTypeId())) {
                 auto& control = *static_cast<Controls::Control*>(node);
-                ::Aero::Controls::Control::Access::AttachTemplateEngine(
+                ::Aero::Core::InteractionStateFacet::AttachTemplateEngine(
                     control, templates);
                 Base::Result<const Controls::ControlTemplate*> resolved =
                     ResolveUiValue<Controls::ControlTemplate>(
@@ -2146,14 +2148,14 @@ struct ViewState {
                         // only after Apply has returned so PART_* lookups and
                         // ItemsHost realization cannot re-enter that
                         // transaction.
-                        ::Aero::Controls::Control::Access::
+                        ::Aero::Core::InteractionStateFacet::
                             InvokeTemplateApplied(control);
                     }
                 }
             }
 
             for (Aero::Media::Visual* child :
-                 Aero::Media::Visual::Access::VisualChildren(*node)) {
+                 node->GetVisualChildren()) {
                 pushed = stack.PushBack(child);
                 if (!pushed) return pushed.GetStatus();
             }
@@ -2175,7 +2177,7 @@ struct ViewState {
                 Aero::Media::Visual* node = reachable[index];
                 if (node == nullptr) continue;
                 for (Aero::Media::Visual* child :
-                     Aero::Media::Visual::Access::VisualChildren(*node)) {
+                     node->GetVisualChildren()) {
                     if (child != nullptr) (void)reachable.PushBack(child);
                 }
             }
@@ -2183,9 +2185,6 @@ struct ViewState {
 
         for (Aero::Media::Visual* node : reachable) {
             if (node == nullptr) continue;
-            if (Aero::UIElement* ui = node->AsUIElement()) {
-                Media::Visual::Access::SetViewServices(*ui, nullptr);
-            }
             if (bindings != nullptr) (void)bindings->DetachObject(*node);
             Aero::FrameworkElement* element = node->AsFrameworkElement();
             if (element != nullptr && styles != nullptr) {
@@ -2236,17 +2235,24 @@ struct ViewState {
         if (!status) return status.GetStatus();
         styles->SetTriggerActionHandler(
             &ViewState::ExecuteStyleTriggerActions, this);
-        elementHost.events = events;
-        elementHost.input = input;
-        elementHost.bindings = bindings;
-        elementHost.templates = templates;
-        elementHost.visualStates = visualStates;
-        elementHost.textLayout = text != nullptr
-            ? static_cast<void*>(text->Layout())
-            : nullptr;
-        elementHost.meshResources = GetMeshResources();
-        elementHost.nameScopeContext = this;
-        elementHost.findName = &ViewState::FindNameForElement;
+        elementHost.SetFacet(events);
+        elementHost.SetFacet(input);
+        elementHost.SetFacet(bindings);
+        elementHost.SetFacet(styles);
+        elementHost.SetFacet(animations);
+        elementHost.SetFacet(layout);
+
+        templateFacet_.SetEngine(templates);
+        visualStateFacet_.SetManager(visualStates);
+        textLayoutFacet_.SetLayout(
+            text != nullptr ? text->Layout() : nullptr);
+        meshResourceFacet_.SetResources(GetMeshResources());
+        nameScopeFacet_.Set(this, &ViewState::FindNameForElement);
+        elementHost.SetFacet(&templateFacet_);
+        elementHost.SetFacet(&visualStateFacet_);
+        elementHost.SetFacet(&textLayoutFacet_);
+        elementHost.SetFacet(&meshResourceFacet_);
+        elementHost.SetFacet(&nameScopeFacet_);
         tree->SetHost(&elementHost);
         return {};
     }
@@ -2395,7 +2401,7 @@ struct ViewState {
 
     Base::Result<void> AttachItemGenerator(
         Controls::ItemsControl& itemsControl) noexcept {
-        if (::Aero::Controls::ItemsControl::Access::
+        if (::Aero::Core::InteractionStateFacet::
                 HasAttachedGenerator(itemsControl)) {
             return {};
         }
@@ -2406,7 +2412,7 @@ struct ViewState {
         if (host == nullptr) return {};
 
         Base::Result<Controls::ItemContainerGenerator*> created =
-            ::Aero::Controls::Control::Access::Create(
+            ::Aero::Core::InteractionStateFacet::CreateItemContainerGenerator(
                 *tree,
                 *layout,
                 *values,
@@ -2468,7 +2474,7 @@ struct ViewState {
                 if (!attached) return attached.GetStatus();
             }
             for (Aero::Media::Visual* child :
-                 Aero::Media::Visual::Access::VisualChildren(*node)) {
+                 node->GetVisualChildren()) {
                 pushed = stack.PushBack(child);
                 if (!pushed) return pushed.GetStatus();
             }
@@ -2515,7 +2521,7 @@ struct ViewState {
                 if (!attached) return attached.GetStatus();
             }
             const Base::Span<Aero::Media::Visual* const>
-                children = Aero::Media::Visual::Access::VisualChildren(*node);
+                children = node->GetVisualChildren();
             for (std::uint32_t index = 0U;
                  index < children.Size(); ++index) {
                 pushed = stack.PushBack(children[index]);
@@ -2545,7 +2551,7 @@ struct ViewState {
                     SetInputMethodHost(nullptr));
         }
         for (Aero::Media::Visual* child :
-             Aero::Media::Visual::Access::VisualChildren(*node)) {
+             node->GetVisualChildren()) {
             ClearTextInputHosts(child);
         }
     }
@@ -4796,7 +4802,7 @@ struct ViewState {
         const Aero::NameScope* names) noexcept {
         std::uint32_t count = 0U;
         for (const Base::Ref<Base::Object>& authored :
-             Aero::Media::Visual::Access::AuthoredTriggers(
+             Aero::Core::InteractionStateFacet::AuthoredTriggers(
                  content)) {
             if (!authored || authored->RuntimeType() !=
                     MediaAnimation::EventTrigger::StaticTypeId()) {
@@ -5624,7 +5630,7 @@ Base::Result<InteractionTriggerProperty> property =
             visual->AsFrameworkElement();
         if (element != nullptr) {
             for (const Base::Ref<Base::Object>& authoredBehavior :
-                 Aero::Media::Visual::Access::AuthoredBehaviors(
+                 Aero::Core::InteractionStateFacet::AuthoredBehaviors(
                      *element)) {
                 if (!authoredBehavior ||
                     !metadata->Types().IsDerivedFrom(
@@ -5641,7 +5647,7 @@ Base::Result<InteractionTriggerProperty> property =
                 if (!attached) return attached.GetStatus();
             }
             for (const Base::Ref<Base::Object>& behaviorPrototype :
-                 Aero::Media::Visual::Access::StyleBehaviorPrototypes(
+                 Aero::Core::InteractionStateFacet::StyleBehaviorPrototypes(
                      *element)) {
                 if (!behaviorPrototype ||
                     !metadata->Types().IsDerivedFrom(
@@ -5671,7 +5677,7 @@ Base::Result<InteractionTriggerProperty> property =
                 }
             }
             for (const Base::Ref<Base::Object>& authored :
-                 Aero::Media::Visual::Access::AuthoredTriggers(*element)) {
+                 Aero::Core::InteractionStateFacet::AuthoredTriggers(*element)) {
                 if (!authored) {
                     continue;
                 }
@@ -5761,7 +5767,7 @@ Base::Result<InteractionTriggerProperty> property =
                 if (started.Value()) ++count;
             }
             for (const Base::Ref<Base::Object>& authored :
-                 Aero::Media::Visual::Access::StyleTriggerPrototypes(
+                 Aero::Core::InteractionStateFacet::StyleTriggerPrototypes(
                      *element)) {
                 if (!authored) continue;
                 if (authored->RuntimeType() ==
@@ -5867,7 +5873,7 @@ Base::Result<InteractionTriggerProperty> property =
             }
         }
         for (Aero::Media::Visual* child :
-             Aero::Media::Visual::Access::VisualChildren(*visual)) {
+             visual->GetVisualChildren()) {
             Base::Result<std::uint32_t> started =
                 StartLoadedAnimations(child, names);
             if (!started) return started.GetStatus();
@@ -5922,7 +5928,7 @@ Base::Result<InteractionTriggerProperty> property =
             visual.AsFrameworkElement();
         if (element != nullptr) {
             for (const Base::Ref<Base::Object>& authored :
-                 Aero::Media::Visual::Access::AuthoredTriggers(*element)) {
+                 Aero::Core::InteractionStateFacet::AuthoredTriggers(*element)) {
                 if (authored && authored->RuntimeType() ==
                     Aero::Controls::DataTemplateTriggerState::StaticTypeId()) {
                     ClearDataTemplateTriggerProviders(
@@ -5931,7 +5937,7 @@ Base::Result<InteractionTriggerProperty> property =
                 }
             }
         }
-        for (Aero::Media::Visual* child : Aero::Media::Visual::Access::VisualChildren(visual)) {
+        for (Aero::Media::Visual* child : visual.GetVisualChildren()) {
             if (child != nullptr) {
                 ClearDataTemplateTriggerProvidersInSubtree(*child);
             }
@@ -6293,7 +6299,7 @@ Base::Result<InteractionTriggerProperty> property =
             ::Aero::Controls::ControlBehavior::SetVisualStateManager(*static_cast<Controls::Control*>(node), nullptr);
         }
         for (Aero::Media::Visual* child :
-             Aero::Media::Visual::Access::VisualChildren(*node)) {
+             node->GetVisualChildren()) {
             ClearElementEvents(child);
         }
     }
@@ -6315,7 +6321,7 @@ Base::Result<InteractionTriggerProperty> property =
         ClearTextInputHosts(RootVisual());
         ClearElementEvents(RootVisual());
         FreeObject(*allocator, Base::MemoryTag::Ui, controlBehaviors);
-        elementHost.controlBehaviors = nullptr;
+        controlBehaviorFacet_.SetBehaviors(nullptr);
     }
 
     void FinishDestroyInteractions() noexcept {
@@ -6364,7 +6370,8 @@ Base::Result<InteractionTriggerProperty> property =
             if (!status) return status.GetStatus();
             status = controlBehaviors->Initialize();
             if (!status) return status.GetStatus();
-            elementHost.controlBehaviors = controlBehaviors;
+            controlBehaviorFacet_.SetBehaviors(controlBehaviors);
+            elementHost.SetFacet(&controlBehaviorFacet_);
         }
         status = VisitAndAttach(*rootVisual);
         if (!status) {
@@ -6381,8 +6388,8 @@ Base::Result<InteractionTriggerProperty> property =
         static_cast<void>(UnmountAllFragments());
         VisitTextElements(RootVisual(), nullptr);
         VisitPaths(RootVisual(), nullptr);
-        elementHost.textLayout = nullptr;
-        elementHost.meshResources = nullptr;
+        textLayoutFacet_.SetLayout(nullptr);
+        meshResourceFacet_.SetResources(nullptr);
         DestroyUiEngines();
         if (images != nullptr) {
             images->Shutdown(GetImageResources());
@@ -8276,7 +8283,7 @@ Base::Result<void> View::SetContent(
     }
 
     Base::Result<void> assigned =
-        ::Aero::Controls::Control::Access::SetOwnedContent(
+        ::Aero::Core::InteractionStateFacet::SetOwnedContent(
             *static_cast<Controls::ContentControl*>(hostRoot.Value()),
             next.root,
             *documentRoot.Value());
@@ -8389,7 +8396,7 @@ Base::Result<void> MountViewFragment(
             Base::ErrorCode::InvalidArgument,
             "content fragment document must not be empty");
     }
-    if (Aero::Media::Visual::Access::Tree(host) != state_->tree) {
+    if (host.GetTree() != state_->tree) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "content fragment host does not belong to this View");
@@ -8406,7 +8413,7 @@ Base::Result<void> MountViewFragment(
     if (existing != UINT32_MAX) {
         Base::Result<void> unmounted = state_->UnmountFragmentAt(existing);
         if (!unmounted) return unmounted.GetStatus();
-    } else if (::Aero::Controls::Control::Access::ContentElement(host) != nullptr) {
+    } else if (::Aero::Core::InteractionStateFacet::ContentElement(host) != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
               "content fragment host already owns non-fragment content");
@@ -8446,7 +8453,7 @@ Base::Result<void> MountViewFragment(
         fragment.document.Clear();
         return tracked.GetStatus();
     }
-    Base::Result<void> assigned = ::Aero::Controls::Control::Access::SetOwnedContent(host,
+    Base::Result<void> assigned = ::Aero::Core::InteractionStateFacet::SetOwnedContent(host,
         fragment.document.root, *rootElement.Value());
     if (!assigned) {
         restoreActiveNames();
@@ -8482,8 +8489,8 @@ Base::Result<void> MountViewFragment(
                  fragment.document.visualContent.mountEdges) {
                 if (edge.state.logicalAttached || edge.parent == nullptr ||
                     edge.child == nullptr ||
-                    Aero::Media::Visual::Access::Tree(*edge.parent) != state_->tree ||
-                    (deferred && Aero::Media::Visual::Access::Tree(*edge.child) == state_->tree)) {
+                    edge.parent->GetTree() != state_->tree ||
+                    (deferred && edge.child->GetTree() == state_->tree)) {
                     continue;
                 }
                 Base::Result<Aero::ElementAttachment> mounted =
@@ -8565,7 +8572,7 @@ Base::Result<void> UnmountViewFragment(
             return state_->UnmountFragmentAt(index);
         }
     }
-    return ::Aero::Controls::Control::Access::ContentElement(host) == nullptr
+    return ::Aero::Core::InteractionStateFacet::ContentElement(host) == nullptr
         ? Base::Result<void>()
         : Base::Result<void>(Base::Status::Failure(
               Base::ErrorCode::InvalidState,
@@ -8761,8 +8768,8 @@ Base::Result<std::uint32_t> ViewState::ExecuteFrame(
                 rootVisual,
                 state_->GetMeshResources(),
                 true);
-            state_->elementHost.meshResources =
-                state_->GetMeshResources();
+            state_->meshResourceFacet_.SetResources(state_->GetMeshResources());
+            state_->elementHost.SetFacet(&state_->meshResourceFacet_);
             state_->deviceGeneration = generation;
         }
     }
@@ -9450,7 +9457,7 @@ Base::Result<void> ViewRenderer::Init(
         }
         data.VisitPaths(
             data.RootVisual(), nullptr);
-        data.elementHost.meshResources = nullptr;
+        data.meshResourceFacet_.SetResources(nullptr);
         ShutdownRenderResources();
     }
 
@@ -9468,15 +9475,16 @@ Base::Result<void> ViewRenderer::Init(
     data.device = device;
     data.deviceGeneration =
         device->Generation();
-    data.elementHost.meshResources =
-        data.GetMeshResources();
+    data.meshResourceFacet_.SetResources(data.GetMeshResources());
+    data.elementHost.SetFacet(&data.meshResourceFacet_);
     data.VisitPaths(
         data.RootVisual(),
         data.GetMeshResources(),
         true);
-    data.elementHost.textLayout = data.text != nullptr
-        ? static_cast<void*>(data.text->Layout())
-        : nullptr;
+    data.textLayoutFacet_.SetLayout(data.text != nullptr
+        ? data.text->Layout()
+        : nullptr);
+    data.elementHost.SetFacet(&data.textLayoutFacet_);
     data.VisitTextElements(
         data.RootVisual(),
         data.text != nullptr ? data.text->Layout() : nullptr,

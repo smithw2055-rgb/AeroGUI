@@ -4,8 +4,7 @@
 
 #include <Aero/DependencyProperty.hpp>
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 
@@ -806,7 +805,7 @@ DependencyObject::DependencyObject(TypeId runtimeType) noexcept
 
 DependencyObject::~DependencyObject() {
     for (EffectiveValueEntry& entry : values_) {
-        Access::CommitConsumerChange(
+        Core::DependencyPropertyFacet::CommitConsumerChange(
             *this,
             entry.property,
             entry.effectiveValue,

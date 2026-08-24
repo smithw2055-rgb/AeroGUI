@@ -1139,4 +1139,15 @@ foreach(aero_authoritative_document IN ITEMS
         "Authoritative documentation must use the current Gui text domain")
 endforeach()
 
+# ---------------------------------------------------------------------------
+# Facet architecture: the ElementHost facet matrix must stay typed
+# ---------------------------------------------------------------------------
+# The old design stored facets as a raw void* bag. The current contract is a
+# typed Core::Facet* matrix resolved through Core::GetFacet<T>. Forbid the
+# untyped regression signature so it cannot silently return.
+aero_forbid_text(
+    "src/gui/core/State.hpp"
+    "void* facets_"
+    "ElementHost facet matrix must remain typed (Core::Facet*), not a void* bag")
+
 message(STATUS "Aero final architecture dependency checks passed")

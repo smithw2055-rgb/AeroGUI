@@ -1,15 +1,15 @@
 #include <Aero/Media/Effects.hpp>
 
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
+#include "gui/core/facets/DependencyPropertyFacet.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/media/MediaState.hpp"
 
 namespace Aero::Media {
 
-std::uint64_t Effect::Access::Revision(
+std::uint64_t EffectRuntime::Revision(
     const Effect& effect) noexcept {
-    return Freezable::Access::Revision(effect);
+    return ::Aero::Core::DependencyPropertyFacet::FreezableRevision(effect);
 }
 
 double BlurEffect::GetRadius() const noexcept {

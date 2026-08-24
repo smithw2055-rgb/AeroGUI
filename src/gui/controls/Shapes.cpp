@@ -50,13 +50,13 @@ ImageBrushGeometry FitImageBrush(
     Rect sourceUv) noexcept {
     const double sourceWidth =
         static_cast<double>(
-            Aero::Media::BrushPrivate::
-                PixelWidth(brush)) *
+            brush.
+                GetPixelWidth()) *
         std::fabs(sourceUv.width);
     const double sourceHeight =
         static_cast<double>(
-            Aero::Media::BrushPrivate::
-                PixelHeight(brush)) *
+            brush.
+                GetPixelHeight()) *
         std::fabs(sourceUv.height);
     if (sourceWidth <= 0.0 ||
         sourceHeight <= 0.0 ||
@@ -127,19 +127,19 @@ Base::Result<void> PaintImageBrush(
     Rect bounds) noexcept {
     auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     const RenderImageId image =
-        Aero::Media::BrushPrivate::
-            RuntimeImage(brush);
+        brush.
+            GetRenderImageId();
     if (image == InvalidRenderImageId ||
-        Aero::Media::BrushPrivate::
-            PixelWidth(brush) == 0U ||
-        Aero::Media::BrushPrivate::
-            PixelHeight(brush) == 0U) {
+        brush.
+            GetPixelWidth() == 0U ||
+        brush.
+            GetPixelHeight() == 0U) {
         return {};
     }
     const double pixelWidth = static_cast<double>(
-        Aero::Media::BrushPrivate::PixelWidth(brush));
+        brush.GetPixelWidth());
     const double pixelHeight = static_cast<double>(
-        Aero::Media::BrushPrivate::PixelHeight(brush));
+        brush.GetPixelHeight());
     const Rect authoredViewbox = brush.GetViewbox();
     Rect sourceUv = brush.GetViewboxUnits() ==
             BrushMappingMode::Absolute

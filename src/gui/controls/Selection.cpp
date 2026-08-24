@@ -1,15 +1,11 @@
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/input/InputState.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
+#include "gui/input/InputState.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/controls/State.hpp"
-#include "gui/controls/State.hpp"
 #include "gui/templates/TemplateState.hpp"
+#include "gui/core/facets/InteractionStateFacet.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls/TextBoxBase.hpp>
@@ -554,7 +550,7 @@ Base::Result<void> Selector::PublishProperties() noexcept {
 
 void Selector::SyncContainers() noexcept {
     auto* states = static_cast<Aero::VisualStateManager*>(
-        ::Aero::Media::Visual::Access::VisualStateRuntime(*this));
+        ::Aero::Core::InteractionStateFacet::VisualStateRuntime(*this));
     ItemContainerGenerator* generator =
         AttachedGenerator();
     if (generator == nullptr) return;
@@ -832,7 +828,7 @@ void Selector::OnContainersChanged() noexcept {
 
 ListBox::~ListBox() {
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Media::Visual::Access::ControlBehaviorRuntime(*this));
+        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -981,7 +977,7 @@ ComboBox::ComboBox() noexcept
 ComboBox::~ComboBox() {
     ObserveSelectedProjection(nullptr);
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Media::Visual::Access::ControlBehaviorRuntime(*this));
+        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -1418,7 +1414,7 @@ ComboBox::UpdateSelectionBox() noexcept {
                 selected->RuntimeType(),
                 ContentControl::StaticTypeId())) {
         UIElement* content =
-            Control::Access::ContentElement(*static_cast<ContentControl*>(
+            ::Aero::Core::InteractionStateFacet::ContentElement(*static_cast<ContentControl*>(
                 selected.Get()));
         if (content != nullptr &&
             PropertyRegistry().Types().
@@ -1443,7 +1439,7 @@ ComboBox::UpdateSelectionBox() noexcept {
             PropertyRegistry().Types().IsDerivedFrom(
                 container->RuntimeType(),
                 ContentControl::StaticTypeId())) {
-            UIElement* content = Control::Access::ContentElement(
+            UIElement* content = ::Aero::Core::InteractionStateFacet::ContentElement(
                 *static_cast<ContentControl*>(container));
             if (content != nullptr &&
                 PropertyRegistry().Types().IsDerivedFrom(
@@ -1567,8 +1563,8 @@ using namespace Aero::Controls;
 using namespace ::Aero::Controls;
 using namespace ::Aero;
 
-ComboBox::Access::
-Access(
+ComboBehavior::
+ComboBehavior(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input) noexcept
@@ -1577,15 +1573,15 @@ Access(
       input_(&input),
       mouseDownHandler_(
           this,
-          &ComboBox::Access::
+          &ComboBehavior::
               OnMouseDown),
       keyDownHandler_(
           this,
-          &ComboBox::Access::
+          &ComboBehavior::
               OnKeyDown) {}
 
-ComboBox::Access::
-~Access() noexcept {
+ComboBehavior::
+~ComboBehavior() noexcept {
     while (!records_.Empty()) {
         ComboBox* comboBox =
             ResolveComboBox(
@@ -1600,7 +1596,7 @@ ComboBox::Access::
 }
 
 std::uint32_t
-ComboBox::Access::FindComboBox(
+ComboBehavior::FindComboBox(
     const ComboBox& comboBox) const noexcept {
     for (std::uint32_t index = 0U;
          index < records_.Size(); ++index) {
@@ -1614,7 +1610,7 @@ ComboBox::Access::FindComboBox(
 }
 
 ComboBox*
-ComboBox::Access::ResolveComboBox(
+ComboBehavior::ResolveComboBox(
     std::uint32_t index) noexcept {
     ::Aero::Media::Visual* visual =
         tree_->ResolveHandle(records_[index]);
@@ -1625,9 +1621,9 @@ ComboBox::Access::ResolveComboBox(
 }
 
 Base::Result<void>
-ComboBox::Access::Attach(
+ComboBehavior::Attach(
     ComboBox& comboBox) noexcept {
-    if (Aero::Media::Visual::Access::Tree(comboBox) != tree_ ||
+    if (comboBox.GetTree() != tree_ ||
         FindComboBox(comboBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1670,7 +1666,7 @@ ComboBox::Access::Attach(
 }
 
 Base::Result<bool>
-ComboBox::Access::Detach(
+ComboBehavior::Detach(
     ComboBox& comboBox) noexcept {
     const std::uint32_t index =
         FindComboBox(comboBox);
@@ -1693,7 +1689,7 @@ ComboBox::Access::Detach(
     return true;
 }
 
-void ComboBox::Access::OnMouseDown(
+void ComboBehavior::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     if (args.GetChangedButton() !=
@@ -1717,7 +1713,7 @@ void ComboBox::Access::OnMouseDown(
     args.SetHandled(true);
 }
 
-void ComboBox::Access::OnKeyDown(
+void ComboBehavior::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& comboBox =
@@ -1758,7 +1754,7 @@ void ComboBox::Access::OnKeyDown(
     args.SetHandled(true);
 }
 
-ListBox::Access::Access(
+ListBehavior::ListBehavior(
     ElementTree& tree,
     EventRouter& events,
     InputRouter& input,
@@ -1769,15 +1765,15 @@ ListBox::Access::Access(
       states_(states),
       mouseDownHandler_(
           this,
-          &ListBox::Access::OnMouseDown),
+          &ListBehavior::OnMouseDown),
       keyDownHandler_(
           this,
-          &ListBox::Access::OnKeyDown),
+          &ListBehavior::OnKeyDown),
       pointerStateChangedHandler_(
           this,
-          &ListBox::Access::OnPointerStateChanged) {}
+          &ListBehavior::OnPointerStateChanged) {}
 
-ListBox::Access::~Access() noexcept {
+ListBehavior::~ListBehavior() noexcept {
     if (input_ != nullptr) {
         static_cast<void>(
             input_->RemovePointerStateChanged(
@@ -1794,7 +1790,7 @@ ListBox::Access::~Access() noexcept {
     }
 }
 
-std::uint32_t ListBox::Access::FindListBox(
+std::uint32_t ListBehavior::FindListBox(
     const ListBox& listBox) const noexcept {
     for (std::uint32_t index = 0U;
         index < records_.Size(); ++index) {
@@ -1807,7 +1803,7 @@ std::uint32_t ListBox::Access::FindListBox(
     return UINT32_MAX;
 }
 
-ListBox* ListBox::Access::ResolveListBox(
+ListBox* ListBehavior::ResolveListBox(
     std::uint32_t index) noexcept {
     ::Aero::Media::Visual* visual =
         tree_->ResolveHandle(records_[index].handle);
@@ -1817,9 +1813,9 @@ ListBox* ListBox::Access::ResolveListBox(
         : nullptr;
 }
 
-Base::Result<void> ListBox::Access::Attach(
+Base::Result<void> ListBehavior::Attach(
     ListBox& listBox) noexcept {
-    if (Aero::Media::Visual::Access::Tree(listBox) != tree_ ||
+    if (listBox.GetTree() != tree_ ||
         FindListBox(listBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1859,11 +1855,11 @@ Base::Result<void> ListBox::Access::Attach(
             mouseDownHandler_));
         return added.GetStatus();
     }
-    ::Aero::Media::Visual::Access::SyncSelectorContainers(listBox);
+    ::Aero::Core::InteractionStateFacet::SyncSelectorContainers(listBox);
     return {};
 }
 
-Base::Result<bool> ListBox::Access::Detach(
+Base::Result<bool> ListBehavior::Detach(
     ListBox& listBox) noexcept {
     const std::uint32_t index =
         FindListBox(listBox);
@@ -1885,7 +1881,7 @@ Base::Result<bool> ListBox::Access::Detach(
 }
 
 std::uint32_t
-ListBox::Access::FindContainerIndex(
+ListBehavior::FindContainerIndex(
     ListBox& listBox,
     Base::Object* source) const noexcept {
     if (source == nullptr ||
@@ -1907,7 +1903,7 @@ ListBox::Access::FindContainerIndex(
                     element->RuntimeType(),
                     ListBoxItem::StaticTypeId())) {
             ItemContainerGenerator* generator =
-                listBox.AttachedGenerator();
+                listBox.GetItemContainerGenerator();
             return generator != nullptr
                 ? generator->IndexFromContainer(
                     static_cast<ListBoxItem&>(
@@ -1920,7 +1916,7 @@ ListBox::Access::FindContainerIndex(
 }
 
 Base::Result<bool>
-ListBox::Access::ApplyUserSelection(
+ListBehavior::ApplyUserSelection(
     ListBox& listBox,
     Record& record,
     std::uint32_t index,
@@ -1977,7 +1973,7 @@ ListBox::Access::ApplyUserSelection(
     return true;
 }
 
-void ListBox::Access::OnMouseDown(
+void ListBehavior::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     if (args.GetChangedButton() != MouseButton::Left) {
@@ -2001,7 +1997,7 @@ void ListBox::Access::OnMouseDown(
             args.GetModifiers());
     if (!selected) return;
     ItemContainerGenerator* generator =
-        listBox.AttachedGenerator();
+        listBox.GetItemContainerGenerator();
     if (generator != nullptr) {
         static_cast<void>(input_->SetFocus(
             generator->ContainerFromIndex(index)));
@@ -2011,7 +2007,7 @@ void ListBox::Access::OnMouseDown(
     args.SetHandled(true);
 }
 
-void ListBox::Access::OnKeyDown(
+void ListBehavior::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     if (args.GetKey() != KeyboardKeyUp &&
@@ -2069,7 +2065,7 @@ void ListBox::Access::OnKeyDown(
         if (!selected) return;
     }
     ItemContainerGenerator* generator =
-        listBox.AttachedGenerator();
+        listBox.GetItemContainerGenerator();
     if (generator != nullptr) {
         static_cast<void>(input_->SetFocus(
             generator->ContainerFromIndex(target)));
@@ -2079,7 +2075,7 @@ void ListBox::Access::OnKeyDown(
     args.SetHandled(true);
 }
 
-void ListBox::Access::OnPointerStateChanged(
+void ListBehavior::OnPointerStateChanged(
     UIElement& element) noexcept {
     if (states_ == nullptr) return;
     for (std::uint32_t i = 0U; i < records_.Size(); ++i) {
@@ -2089,7 +2085,7 @@ void ListBox::Access::OnPointerStateChanged(
             FindContainerIndex(*listBox, &element);
         if (index != UINT32_MAX) {
             ItemContainerGenerator* generator =
-                listBox->AttachedGenerator();
+                listBox->GetItemContainerGenerator();
             if (generator != nullptr) {
                 FrameworkElement* container =
                     generator->ContainerFromIndex(index);

@@ -43,13 +43,6 @@ enum class GradientSpreadMethod : std::uint8_t {
 
 class AERO_GUI_API Brush : public Freezable {
     AERO_DECLARE_TYPE(Brush, Freezable)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     double GetOpacity() const noexcept;
@@ -72,6 +65,8 @@ public:
         SetValue(RelativeTransformProperty, std::move(value));
     }
 
+    std::uint64_t GetRevision() const noexcept;
+
     inline static constexpr DependencyProperty<double> OpacityProperty{"Opacity"};
     inline static constexpr DependencyProperty<Ref<Base::Object>> ShaderProperty{"Shader"};
     inline static constexpr DependencyProperty<Ref<Transform>> RelativeTransformProperty{"RelativeTransform"};
@@ -82,7 +77,9 @@ protected:
     ~Brush() override = default;
 
 private:
-    friend struct Access;
+#if defined(AERO_GUI_IMPLEMENTATION)
+    friend class ::Aero::Core::RenderFacet;
+#endif
 };
 
 // Common owner for the WPF-style inheritable Foreground property.
@@ -345,12 +342,13 @@ public:
     inline static constexpr DependencyProperty<HorizontalAlignment> AlignmentXProperty{"AlignmentX"};
     inline static constexpr DependencyProperty<VerticalAlignment> AlignmentYProperty{"AlignmentY"};
 
+    std::uint64_t GetRenderImageId() const noexcept { return renderImage_; }
+    std::uint32_t GetPixelWidth() const noexcept { return pixelWidth_; }
+    std::uint32_t GetPixelHeight() const noexcept { return pixelHeight_; }
+    Result<void> SetRuntimeImage(
+        std::uint64_t image, std::uint32_t width, std::uint32_t height) noexcept;
+
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Brush::Access;
-#endif
-#endif
     std::uint64_t renderImage_ = 0U;
     std::uint32_t pixelWidth_ = 0U;
     std::uint32_t pixelHeight_ = 0U;

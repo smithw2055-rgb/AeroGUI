@@ -1,12 +1,11 @@
 #pragma once
+#include "gui/core/Facet.hpp"
 
 // View-owned input, focus, capture and routed-command state.
 
 #include <Aero/Base/Delegate.hpp>
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include <cstdint>
 
 namespace Aero { class UIElement; }
@@ -296,8 +295,8 @@ public:
         commands_ = commands;
     }
 
-    Base::Result<KeyboardDispatchResult> Dispatch(
-        const KeyboardInput& input) noexcept;
+    Base::Result<Input::KeyboardDispatchResult> Dispatch(
+        const Input::KeyboardInput& input) noexcept;
 
 private:
     FocusState* focus_ = nullptr;
@@ -310,8 +309,8 @@ public:
     TextInputState(FocusState& focus, EventRouter& events,
         ElementTree& tree) noexcept;
 
-    Base::Result<TextInputDispatchResult> Dispatch(
-        const TextInput& input) noexcept;
+    Base::Result<Input::TextInputDispatchResult> Dispatch(
+        const Input::TextInput& input) noexcept;
 
 private:
     FocusState* focus_ = nullptr;
@@ -319,14 +318,10 @@ private:
     ElementTree* tree_ = nullptr;
 };
 
-} // namespace Aero
-
-namespace Aero {
-
 // View-owned input coordinator. Consumers see one service; focus, hit testing,
 // pointer capture, keyboard/text dispatch and routed commands remain private
 // implementation components behind this facade.
-class InputRouter {
+class InputRouter : public Core::Facet {
 public:
     InputRouter(ElementTree& tree, EventRouter& events) noexcept
         : commands_(tree, events),
@@ -341,39 +336,39 @@ public:
         dragDrop_.SetRoot(root);
     }
 
-    Base::Result<PointerDispatchResult> DispatchPointer(
-        const PointerInput& input) noexcept {
-        Base::Result<PointerDispatchResult> routed =
+    Base::Result<Input::PointerDispatchResult> DispatchPointer(
+        const Input::PointerInput& input) noexcept {
+        Base::Result<Input::PointerDispatchResult> routed =
             pointer_.Dispatch(input);
         if (!routed) return routed.GetStatus();
         Base::Result<void> dragged =
             dragDrop_.DispatchPointer(input);
         return dragged
             ? routed
-            : Base::Result<PointerDispatchResult>(
+            : Base::Result<Input::PointerDispatchResult>(
                   dragged.GetStatus());
     }
-    Base::Result<KeyboardDispatchResult> DispatchKeyboard(
-        const KeyboardInput& input) noexcept {
+    Base::Result<Input::KeyboardDispatchResult> DispatchKeyboard(
+        const Input::KeyboardInput& input) noexcept {
         if (dragDrop_.IsDragging() &&
-            input.action == KeyboardAction::Down &&
-            input.key == KeyboardKeyEscape) {
+            input.action == Input::KeyboardAction::Down &&
+            input.key == Input::KeyboardKeyEscape) {
             Base::Result<bool> canceled = dragDrop_.Cancel();
             if (!canceled) return canceled.GetStatus();
             if (canceled.Value()) {
-                KeyboardDispatchResult result;
+                Input::KeyboardDispatchResult result;
                 result.routed = true;
                 return result;
             }
         }
         return keyboard_.Dispatch(input);
     }
-    Base::Result<TextInputDispatchResult> DispatchText(const TextInput& input) noexcept { return text_.Dispatch(input); }
+    Base::Result<Input::TextInputDispatchResult> DispatchText(const Input::TextInput& input) noexcept { return text_.Dispatch(input); }
 
-    Base::Result<void> SetOverlays(Base::Span<UIElement* const> overlays, Base::Span<const Point> origins) noexcept { return hitTests_.SetOverlays(overlays, origins); }
+    Base::Result<void> SetOverlays(Base::Span<UIElement* const> overlays, Base::Span<const Base::Point> origins) noexcept { return hitTests_.SetOverlays(overlays, origins); }
     void ClearOverlays() noexcept { hitTests_.ClearOverlays(); }
-    Base::Result<HitTestResult> HitTest(::Aero::Media::Visual& root, Point position) const noexcept { return hitTests_.HitTest(root, position); }
-    Base::Result<HitTestResult> RootToLocal(::Aero::Media::Visual& root, ::Aero::Media::Visual& target, Point position) const noexcept { return hitTests_.RootToLocal(root, target, position); }
+    Base::Result<Input::HitTestResult> HitTest(::Aero::Media::Visual& root, Base::Point position) const noexcept { return hitTests_.HitTest(root, position); }
+    Base::Result<Input::HitTestResult> RootToLocal(::Aero::Media::Visual& root, ::Aero::Media::Visual& target, Base::Point position) const noexcept { return hitTests_.RootToLocal(root, target, position); }
 
     Base::Result<void> CapturePointer(std::uint32_t pointerId, UIElement& target) noexcept { return pointer_.CapturePointer(pointerId, target); }
     Base::Result<bool> ReleasePointer(std::uint32_t pointerId) noexcept { return pointer_.ReleasePointer(pointerId); }
@@ -381,7 +376,7 @@ public:
         UIElement& source,
         std::uint32_t pointerId,
         const Meta::Value& data,
-        DragDropEffects allowedEffects) noexcept {
+        Input::DragDropEffects allowedEffects) noexcept {
         return dragDrop_.Begin(
             source, pointerId, data, allowedEffects);
     }

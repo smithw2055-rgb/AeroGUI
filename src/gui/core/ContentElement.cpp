@@ -1,8 +1,6 @@
 #include <Aero/FrameworkContentElement.hpp>
 
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 
@@ -161,7 +159,7 @@ void ContentElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
     if (eventRouter_ == nullptr && contentHost_ != nullptr) {
-        eventRouter_ = Aero::Media::Visual::Access::EventRouterFor(
+        eventRouter_ = Aero::Core::GetFacet<::Aero::EventRouter>(
             *contentHost_);
     }
     if (eventRouter_ == nullptr) {
@@ -178,7 +176,52 @@ FrameworkContentElement::FrameworkContentElement(
 
 FrameworkContentElement::~FrameworkContentElement() = default;
 
-
-
-
 } // namespace Aero
+
+namespace Aero::Core {
+
+void VisualFacet::Attach(
+    ContentElement& element,
+    DependencyObject* logicalParent,
+    UIElement* contentHost,
+    EventRouter* eventRouter) noexcept {
+    element.logicalParent_ = logicalParent;
+    element.contentHost_ = contentHost;
+    element.eventRouter_ = eventRouter;
+}
+
+void VisualFacet::Detach(ContentElement& element) noexcept {
+    element.logicalParent_ = nullptr;
+    element.contentHost_ = nullptr;
+    element.eventRouter_ = nullptr;
+}
+
+DependencyObject* VisualFacet::Parent(
+    const ContentElement& element) noexcept {
+    return element.logicalParent_;
+}
+
+UIElement* VisualFacet::ContentHost(
+    const ContentElement& element) noexcept {
+    return element.contentHost_;
+}
+
+std::uint32_t VisualFacet::LogicalChildrenCount(
+    const FrameworkContentElement& element) noexcept {
+    return element.GetLogicalChildrenCount();
+}
+
+DependencyObject* VisualFacet::LogicalChild(
+    const FrameworkContentElement& element,
+    std::uint32_t index) noexcept {
+    return element.GetLogicalChild(index);
+}
+
+void InputEventFacet::InvokeContentHandlers(
+    Aero::ContentElement& element,
+    RoutedEventHandle event,
+    RoutedEventArgs& args) noexcept {
+    element.InvokeHandlers(event, args);
+}
+
+} // namespace Aero::Core

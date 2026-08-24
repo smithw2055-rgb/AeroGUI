@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include <Aero/Controls/ListBox.hpp>
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Controls/TextBlock.hpp>
@@ -10,6 +11,9 @@ namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
+
+class ComboBehavior;
+
 class AERO_GUI_API ComboBoxItem
     : public ListBoxItem {
     AERO_DECLARE_TYPE(ComboBoxItem, ListBoxItem)
@@ -27,13 +31,6 @@ public:
 
 class AERO_GUI_API ComboBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ComboBox, Primitives::Selector)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     ComboBox() noexcept;
@@ -106,7 +103,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend struct Access;
+    friend class ComboBehavior;
     TextBlock* selectionBox_ = nullptr;
     ContentPresenter* selectionPresenter_ =
         nullptr;

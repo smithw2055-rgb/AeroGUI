@@ -5,23 +5,19 @@
 #include <Aero/Controls/ScrollViewer.hpp>
 #include <Aero/TextFormatting.hpp>
 
+namespace Aero::Core { class TextLayoutFacet; }
+
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
 class PasswordBox;
+class TextEditBehavior;
 class AERO_GUI_API TextBox
     : public Primitives::TextBoxBase,
       private IScrollInfo,
       private Input::ITextCompositionClient {
     AERO_DECLARE_TYPE(TextBox, Primitives::TextBoxBase)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     TextBox() noexcept;
@@ -156,12 +152,10 @@ protected:
         ::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
-    friend struct Access;
+    friend class TextEditBehavior;
     friend class PasswordBox;
 #if defined(AERO_GUI_IMPLEMENTATION)
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Controls::Control::Access;
-#endif
+    friend class ::Aero::Core::TextLayoutFacet;
 #endif
 
     struct CaretStop {

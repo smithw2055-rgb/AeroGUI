@@ -1,7 +1,6 @@
 #include "gui/meta/MetadataState.hpp"
 #include "gui/meta/ValueConversion.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/templates/TemplateState.hpp"

@@ -2,17 +2,15 @@
 
 #include <Aero/Controls/TextBox.hpp>
 
+namespace Aero::Core { class TextLayoutFacet; }
+
 namespace Aero::Controls {
+
+class TextEditBehavior;
+
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API PasswordBox : public Primitives::TextBoxBase {
     AERO_DECLARE_TYPE(PasswordBox, Primitives::TextBoxBase)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     PasswordBox() noexcept;
@@ -68,14 +66,11 @@ protected:
 
 private:
     friend class TextBox;
+    friend class TextEditBehavior;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Controls::TextBox::Access;
+    friend class ::Aero::Core::TextLayoutFacet;
 #endif
-#if defined(AERO_GUI_IMPLEMENTATION)
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Controls::Control::Access;
-#endif
-#endif
+
     String password_;
     void* validation_ = nullptr;
     void* passwordPolicy_ = nullptr;

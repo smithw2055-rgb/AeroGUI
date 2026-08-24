@@ -10,7 +10,7 @@ namespace Aero { class AnimationEngine; }
 
 namespace Aero {
 
-struct DataTemplate::Access {
+struct DataTemplateRuntime {
     static Controls::DataTemplateState* State(
         DataTemplate& value) noexcept;
     static const Controls::DataTemplateState* State(
@@ -59,7 +59,7 @@ struct DataTemplate::Access {
 
 namespace Aero::Controls {
 
-struct ItemsPanelTemplate::Access {
+struct ItemsPanelTemplateRuntime {
     static ItemsPanelTemplateState* State(
         ItemsPanelTemplate& value) noexcept;
     static const ItemsPanelTemplateState* State(
@@ -91,14 +91,14 @@ struct ItemsPanelTemplate::Access {
 
 namespace Aero {
 
-struct FrameworkTemplate::Access {
+struct FrameworkTemplateRuntime {
     static Controls::FrameworkTemplateState* State(
         FrameworkTemplate& value) noexcept;
     static const Controls::FrameworkTemplateState* State(
         const FrameworkTemplate& value) noexcept;
 };
 
-struct VisualStateManager::Access {
+struct VisualStateManagerRuntime {
     static Base::Result<VisualStateManager*> Create(
         Meta::EffectiveValueEngine& values,
         ::Aero::Controls::TemplateEngine& templates,

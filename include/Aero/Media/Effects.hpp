@@ -11,21 +11,11 @@ namespace Aero::Media {
 
 class AERO_GUI_API Effect : public ::Aero::Freezable {
     AERO_DECLARE_TYPE(Effect, ::Aero::Freezable)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
 protected:
     explicit Effect(Meta::TypeId runtimeType) noexcept
         : Freezable(runtimeType) {}
-
-private:
-    friend struct Access;
 };
 
 class AERO_GUI_API BlurEffect : public Effect {

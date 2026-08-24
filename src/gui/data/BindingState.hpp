@@ -1,4 +1,5 @@
 #pragma once
+#include "gui/core/Facet.hpp"
 
 // Property-path parsing and access used by binding expressions.
 #include <Aero/Base/Config.hpp>
@@ -9,8 +10,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 
 #include <cstdint>
 
@@ -274,7 +274,7 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Data;
 
-class BindingEngine {
+class BindingEngine : public Core::Facet {
 public:
     explicit BindingEngine(
         Dispatcher& dispatcher,

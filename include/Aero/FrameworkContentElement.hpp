@@ -13,14 +13,15 @@
 #include <Aero/Resources.hpp>
 #include <Aero/RoutedEvent.hpp>
 #include <Aero/Style.hpp>
-#include <Aero/Visual.hpp>
-
-#include <cstddef>
-#include <new>
 
 namespace Aero {
 
 class UIElement;
+namespace Core {
+class VisualFacet;
+class InputEventFacet;
+class InteractionStateFacet;
+}
 
 // Non-visual WPF content node. ContentElement participates in dependency
 // properties and routed events without becoming a ::Aero::Media::Visual or UIElement.
@@ -83,7 +84,9 @@ protected:
 
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Visual::Access;
+    friend class ::Aero::Core::VisualFacet;
+    friend class ::Aero::Core::InputEventFacet;
+    friend class ::Aero::Core::InteractionStateFacet;
 #endif
 
     struct HandlerOperations {
@@ -216,7 +219,9 @@ protected:
 
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Visual::Access;
+    friend class ::Aero::Core::VisualFacet;
+    friend class ::Aero::Core::InputEventFacet;
+    friend class ::Aero::Core::InteractionStateFacet;
 #endif
     Result<void> AddAuthoredTrigger(
         Ref<Base::Object> trigger) noexcept;

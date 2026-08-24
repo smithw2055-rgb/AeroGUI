@@ -134,13 +134,6 @@ private:
 class AERO_GUI_API ScrollViewer
     : public ScrollContentPresenter {
     AERO_DECLARE_TYPE(ScrollViewer, ScrollContentPresenter)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     ScrollViewer() noexcept;
@@ -240,7 +233,7 @@ protected:
 
 private:
     friend class ScrollContentPresenter;
-    friend struct Access;
+    friend class ScrollBehavior;
     ScrollContentPresenter* contentPresenter_ = nullptr;
     void AdoptPresenterData(
         ScrollContentPresenter& presenter,

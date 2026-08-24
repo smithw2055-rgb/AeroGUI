@@ -13,6 +13,8 @@
 
 namespace Aero::Media::Animation {
 
+struct TimelineRuntime;
+
 using AnimationTime = std::uint64_t;
 
 enum class FillBehavior : std::uint8_t {
@@ -28,13 +30,6 @@ enum class EasingMode : std::uint8_t {
 
 class AERO_GUI_API Timeline : public ::Aero::Freezable {
     AERO_DECLARE_TYPE(Timeline, ::Aero::Freezable)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     StringView GetBeginTime() const noexcept {
@@ -67,6 +62,8 @@ protected:
         : Freezable(runtimeType) {}
 
 private:
+    friend struct TimelineRuntime;
+
     String beginTimeText_;
     String durationText_;
     String repeatBehaviorText_;
@@ -112,9 +109,7 @@ protected:
         : DependencyObject(runtimeType), kind_(kind) {}
 
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Animation::Timeline::Access;
-#endif
+    friend struct ::Aero::Media::Animation::TimelineRuntime;
     Kind kind_ = Kind::Linear;
 };
 
@@ -423,9 +418,7 @@ protected:
     }
 
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Animation::Timeline::Access;
-#endif
+    friend struct ::Aero::Media::Animation::TimelineRuntime;
 
     double value_ = 0.0;
     String keyTimeText_;
@@ -717,9 +710,7 @@ protected:
     }
 
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Animation::Timeline::Access;
-#endif
+    friend struct ::Aero::Media::Animation::TimelineRuntime;
 
     Meta::TypeId runtimeType_ = StaticTypeId();
     Base::Color value_;

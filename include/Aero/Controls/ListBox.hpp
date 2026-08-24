@@ -3,6 +3,8 @@
 #include <Aero/Controls/ItemsControl.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 
+namespace Aero::Core { class InteractionStateFacet; }
+
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -115,7 +117,7 @@ protected:
 
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Visual::Access;
+    friend class ::Aero::Core::InteractionStateFacet;
 #endif
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;
@@ -146,13 +148,6 @@ private:
 
 class AERO_GUI_API ListBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ListBox, Primitives::Selector)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     ListBox() noexcept : Primitives::Selector(StaticTypeId()) {}
@@ -167,9 +162,6 @@ protected:
     Result<Ref<FrameworkElement>>
         CreateContainer(
             const Ref<Base::Object>& item) noexcept override;
-
-private:
-    friend struct Access;
 };
 } // namespace Aero::Controls
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::SelectionMode)

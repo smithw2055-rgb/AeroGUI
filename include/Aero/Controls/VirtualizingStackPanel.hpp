@@ -92,7 +92,7 @@ protected:
 private:
     friend class ItemContainerGenerator;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Visual::Access;
+    friend struct ItemContainerGeneratorRuntime;
 #endif
 
     ItemContainerGenerator* generator_ = nullptr;

@@ -20,7 +20,6 @@ configure_file(
     @ONLY)
 include_directories(BEFORE "${AERO_GENERATED_INCLUDE_DIR}")
 
-option(AERO_BUILD_TESTS "Build AeroGUI unit tests when the test tree is present" OFF)
 option(AERO_BUILD_SAMPLES "Build AeroGUI samples when the sample tree is present" OFF)
 option(AERO_BUILD_SHARED "Build AeroGUI as shared libraries" OFF)
 set(_aero_build_tools_default ON)

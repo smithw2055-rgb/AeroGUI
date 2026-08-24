@@ -13,9 +13,7 @@
 #include <new>
 #include <utility>
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 
 namespace Aero::Media::Animation::Model {

@@ -11,16 +11,11 @@
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
 #include <cstdio>
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/Impl.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/input/InputState.hpp"
-#include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/meta/MetadataState.hpp"
+#include "gui/core/facets/DependencyPropertyFacet.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -239,7 +234,7 @@ void FrameworkElement::SetUseLayoutRounding(
 Base::Object* FrameworkElement::FindNameObject(
     Base::StringView name,
     Meta::TypeId expectedType) noexcept {
-    return Aero::Media::Visual::Access::FindName(
+    return Aero::Core::DependencyPropertyFacet::FindName(
         *this, name, expectedType);
 }
 

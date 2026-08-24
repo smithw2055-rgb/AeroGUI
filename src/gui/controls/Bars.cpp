@@ -1,6 +1,4 @@
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include <Aero/Controls.hpp>
@@ -259,7 +257,7 @@ ToolBar::SynchronizeToolBar() noexcept {
         overflowCount);
     if (host != nullptr) {
         const Base::Span<::Aero::Media::Visual* const> children =
-            Aero::Media::Visual::Access::VisualChildren(*host);
+            host->GetVisualChildren();
         for (std::uint32_t index = 0U;
              index < children.Size();
              ++index) {

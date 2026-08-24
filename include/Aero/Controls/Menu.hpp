@@ -5,6 +5,8 @@
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 
+namespace Aero::Core { class InteractionStateFacet; }
+
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -71,7 +73,7 @@ protected:
 
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Visual::Access;
+    friend class ::Aero::Core::InteractionStateFacet;
 #endif
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
@@ -90,13 +92,6 @@ private:
 
 class AERO_GUI_API Menu : public ItemsControl {
     AERO_DECLARE_TYPE(Menu, ItemsControl)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     Menu() noexcept
@@ -110,9 +105,6 @@ protected:
         CreateContainer(
             const Ref<Base::Object>& item)
             noexcept override;
-
-private:
-    friend struct Access;
 };
 
 class AERO_GUI_API ContextMenu

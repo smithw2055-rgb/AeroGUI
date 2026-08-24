@@ -1,7 +1,6 @@
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/FrameworkElement.hpp>
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 
@@ -83,7 +82,7 @@ void StyleInteraction::OnBehaviorsChanged(
     }
     auto& element = static_cast<FrameworkElement&>(object);
     static_cast<void>(
-        Aero::Media::Visual::Access::ClearStyleBehaviorPrototypes(element));
+        Aero::Core::InteractionStateFacet::ClearStyleBehaviorPrototypes(element));
     const Meta::Value& value = args.GetNewValue();
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
@@ -94,7 +93,7 @@ void StyleInteraction::OnBehaviorsChanged(
     for (const Base::Ref<Base::Object>& behavior :
          static_cast<StyleBehaviorCollection&>(*value.AsObject()).GetItems()) {
         static_cast<void>(
-            Aero::Media::Visual::Access::AddStyleBehaviorPrototype(
+            Aero::Core::InteractionStateFacet::AddStyleBehaviorPrototype(
                 element, behavior));
     }
 }
@@ -108,7 +107,7 @@ void StyleInteraction::OnTriggersChanged(
     }
     auto& element = static_cast<FrameworkElement&>(object);
     static_cast<void>(
-        Aero::Media::Visual::Access::ClearStyleTriggerPrototypes(element));
+        Aero::Core::InteractionStateFacet::ClearStyleTriggerPrototypes(element));
     const Meta::Value& value = args.GetNewValue();
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
@@ -119,7 +118,7 @@ void StyleInteraction::OnTriggersChanged(
     for (const Base::Ref<Base::Object>& trigger :
          static_cast<StyleTriggerCollection&>(*value.AsObject()).GetItems()) {
         static_cast<void>(
-            Aero::Media::Visual::Access::AddStyleTriggerPrototype(
+            Aero::Core::InteractionStateFacet::AddStyleTriggerPrototype(
                 element, trigger));
     }
 }

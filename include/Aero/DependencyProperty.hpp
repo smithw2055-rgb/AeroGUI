@@ -574,15 +574,13 @@ using Meta::ValueCodec;
 using ::Aero::Threading::DispatcherObject;
 using ::Aero::Threading::DispatcherReentrancyGuard;
 
+namespace Core { class DependencyPropertyFacet; }
+
 class AERO_GUI_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, Base::Object)
 #if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
+    friend class ::Aero::Core::DependencyPropertyFacet;
 #endif
-    struct Access;
-
 public:
 
     TypeId RuntimeType() const noexcept override {
@@ -786,6 +784,8 @@ protected:
         PropertyAccess<TValue> value) noexcept;
     virtual void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept;
+    virtual void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept;
     virtual Result<void> VerifyMutationAllowed() const noexcept;
 
 private:

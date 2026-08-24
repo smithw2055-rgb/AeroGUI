@@ -7,15 +7,10 @@
 
 namespace Aero {
 using Meta::TypeId;
+struct DataTemplateRuntime;
+
 class AERO_GUI_API DataTemplate : public Base::Object {
     AERO_DECLARE_TYPE(DataTemplate, Base::Object)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     DataTemplate() noexcept;
@@ -37,7 +32,7 @@ public:
     bool GetIsSealed() const noexcept;
 
 private:
-    friend struct Access;
+    friend struct DataTemplateRuntime;
     void* state_ = nullptr;
 };
 } // namespace Aero

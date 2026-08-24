@@ -2,12 +2,17 @@
 
 #include <Aero/Controls/Control.hpp>
 
+namespace Aero::Core { class InteractionStateFacet; }
+
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API ContentControl : public Control {
     AERO_DECLARE_TYPE(ContentControl, Control)
+#if defined(AERO_GUI_IMPLEMENTATION)
+    friend class ::Aero::Core::InteractionStateFacet;
+#endif
 public:
     inline static constexpr DependencyProperty<Value> ContentProperty{"Content"};
     inline static constexpr DependencyProperty<Ref<Base::Object>> ContentTemplateProperty{"ContentTemplate"};
@@ -102,11 +107,6 @@ protected:
         return finalSize;
     }
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Controls::Control::Access;
-#endif
-#endif
     void SetOwnedContent(
         const Ref<Base::Object>& contentObject, UIElement& content) noexcept {
         if (!contentObject || contentObject.Get() != &content) {

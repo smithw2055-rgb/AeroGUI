@@ -5,6 +5,8 @@
 
 #include <algorithm>
 
+namespace Aero::Core { class VisualFacet; }
+
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API Decorator : public FrameworkElement {
@@ -53,7 +55,7 @@ protected:
     }
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Visual::Access;
+    friend class ::Aero::Core::VisualFacet;
 #endif
     void SetOwnedChild(
         const Ref<Base::Object>& childObject, UIElement& child) noexcept {

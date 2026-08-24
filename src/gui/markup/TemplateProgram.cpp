@@ -1,12 +1,9 @@
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/controls/State.hpp"
-#include "gui/controls/State.hpp"
+#include "gui/controls/State.hpp" 
 #include "gui/templates/TemplateState.hpp"
 #include "gui/markup/MarkupState.hpp"
 #include "gui/markup/MarkupWriterState.hpp"
@@ -3196,7 +3193,7 @@ Base::Result<void> BuildCompiledTemplate(
         FrameworkElement* const triggerRoot = triggerContext->root;
         Base::Ref<Base::Object> triggerOwner(triggerContext);
         Base::Result<void> attached =
-            Aero::Media::Visual::Access::AddAuthoredTrigger(
+            Aero::Core::InteractionStateFacet::AddAuthoredTrigger(
                 *triggerRoot, std::move(triggerOwner));
         if (!attached) return attached.GetStatus();
     }
@@ -3613,7 +3610,7 @@ BuildCompiledDeferredTemplate(
     }
     if (triggerContext) {
         Base::Result<void> attached =
-            Aero::Media::Visual::Access::AddAuthoredTrigger(
+            Aero::Core::InteractionStateFacet::AddAuthoredTrigger(
                 static_cast<FrameworkElement&>(*root),
                 Base::Ref<Base::Object>(triggerContext));
         if (!attached) return attached.GetStatus();

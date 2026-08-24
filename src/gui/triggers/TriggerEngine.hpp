@@ -12,8 +12,7 @@
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Threading.hpp>
 
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/data/BindingState.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/triggers/TriggerPlan.hpp"

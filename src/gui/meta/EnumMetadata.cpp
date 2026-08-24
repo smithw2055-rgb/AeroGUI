@@ -4,10 +4,7 @@
 
 #include <Aero/Media/Animation.hpp>
 #include <AeroApp/Application.hpp>
-#include <Aero/Controls.hpp>
-#include <Aero/Controls.hpp>
-#include <Aero/Controls.hpp>
-#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp> 
 #include <Aero/Input.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>

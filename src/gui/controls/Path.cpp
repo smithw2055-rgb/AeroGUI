@@ -6,6 +6,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/media/MediaState.hpp"
+#include "gui/core/facets/DependencyPropertyFacet.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -981,7 +982,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
 void Path::ReleaseMesh() noexcept {
     auto* services =
         static_cast<Aero::Render::MeshResources*>(
-            ::Aero::Media::Visual::Access::MeshResourcesRuntime(*this));
+            ::Aero::Core::DependencyPropertyFacet::MeshResourcesRuntime(*this));
     if (mesh_ != InvalidRenderMeshId &&
         services != nullptr &&
         services->release != nullptr &&
@@ -1010,7 +1011,7 @@ void Path::AttachMeshResources(
             rawServices);
     auto* currentServices =
         static_cast<Aero::Render::MeshResources*>(
-            ::Aero::Media::Visual::Access::MeshResourcesRuntime(*this));
+            ::Aero::Core::DependencyPropertyFacet::MeshResourcesRuntime(*this));
     if (!force &&
         currentServices == services &&
         (services == nullptr ||
@@ -1037,17 +1038,17 @@ Base::Result<void> Path::EnsureMesh() noexcept {
     if (!geometry) {
         return geometry.GetStatus();
     }
-    auto* tree = ::Aero::Media::Visual::Access::Tree(*this);
+    auto* tree = this->GetTree();
     auto* host = tree != nullptr ? tree->Host() : nullptr;
-    auto* meshRes = host != nullptr ? host->meshResources : nullptr;
-    auto* services = static_cast<Aero::Render::MeshResources*>(meshRes);
+    auto* meshRes = host != nullptr ? host->GetFacet<Core::MeshResourceFacet>() : nullptr;
+    auto* services = meshRes != nullptr ? meshRes->Resources() : nullptr;
     if (services == nullptr ||
         services->create == nullptr) {
         return {};
     }
     if (mesh_ == InvalidRenderMeshId &&
         !geometryVertices_.Empty()) {
-        Base::Result<RenderMeshId> created =
+        auto created =
             services->create(
                 services->context,
                 geometryVertices_.AsSpan(),
@@ -1059,7 +1060,7 @@ Base::Result<void> Path::EnsureMesh() noexcept {
     }
     if (strokeMesh_ == InvalidRenderMeshId &&
         !strokeVertices_.Empty()) {
-        Base::Result<RenderMeshId> created =
+        auto created =
             services->create(
                 services->context,
                 strokeVertices_.AsSpan(),

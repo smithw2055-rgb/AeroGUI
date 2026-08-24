@@ -128,7 +128,7 @@ namespace Aero {
 // Source-private bridge used by FrameworkElement::OnRender implementations.
 // Keep it next to DisplayListBuilder instead of recreating a broad render
 // umbrella header.
-struct Media::DrawingContext::Access {
+struct Media::DrawingContextRuntime {
     static ::Aero::Media::DrawingContext Create(
         Render::DisplayListBuilder& builder) noexcept {
         return ::Aero::Media::DrawingContext(&builder);
@@ -144,5 +144,5 @@ struct Media::DrawingContext::Access {
 } // namespace Aero
 
 namespace Aero::Render {
-using DrawingPrivate = ::Aero::Media::DrawingContext::Access;
+using DrawingPrivate = ::Aero::Media::DrawingContextRuntime;
 } // namespace Aero::Render

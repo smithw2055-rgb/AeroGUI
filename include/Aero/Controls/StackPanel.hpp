@@ -55,6 +55,7 @@ protected:
 
 class AERO_GUI_API UniformGrid : public Panel {
     AERO_DECLARE_TYPE(UniformGrid, Panel)
+    friend class ::Aero::Core::GridLayoutFacet;
 public:
     UniformGrid() noexcept : Panel(StaticTypeId()) {}
     std::uint32_t GetRows() const noexcept;

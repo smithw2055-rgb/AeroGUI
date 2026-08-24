@@ -17,13 +17,6 @@ using Transform2D = Base::Transform2D;
 
 class AERO_GUI_API Transform : public ::Aero::Freezable {
     AERO_DECLARE_TYPE(Transform, ::Aero::Freezable)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     virtual Base::Transform2D GetMatrix() const noexcept = 0;
@@ -31,9 +24,6 @@ public:
 protected:
     explicit Transform(Meta::TypeId runtimeType) noexcept
         : Freezable(runtimeType) {}
-
-private:
-    friend struct Access;
 };
 
 class AERO_GUI_API TranslateTransform : public Transform {

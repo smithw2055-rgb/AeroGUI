@@ -2,18 +2,14 @@
 
 #include <Aero/Controls/ItemsControl.hpp>
 
+namespace Aero::Core { class InteractionStateFacet; }
+
 namespace Aero::Controls {
 
 class VirtualizingStackPanel;
+struct ItemContainerGeneratorRuntime;
 
 class AERO_GUI_API ItemContainerGenerator {
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     ~ItemContainerGenerator() noexcept;
@@ -45,12 +41,10 @@ public:
     Base::Status LastError() const noexcept;
 
 private:
+    friend struct ItemContainerGeneratorRuntime;
 #if defined(AERO_GUI_IMPLEMENTATION)
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct Control::Access;
+    friend class ::Aero::Core::InteractionStateFacet;
 #endif
-#endif
-    friend struct Access;
 
     ItemContainerGenerator() noexcept = default;
     void* impl_ = nullptr;

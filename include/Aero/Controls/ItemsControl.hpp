@@ -10,6 +10,8 @@
 #include <Aero/Events/ControlEventArgs.hpp>
 #include <utility>
 
+namespace Aero::Core { class InteractionStateFacet; }
+
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -17,16 +19,10 @@ using ::Aero::Meta::DependencyPropertyHandle;
 using ::Aero::Meta::TypeId;
 class VirtualizingStackPanel;
 class ItemContainerGenerator;
+struct ItemContainerGeneratorRuntime;
 
 class AERO_GUI_API ItemsControl : public Control {
     AERO_DECLARE_TYPE(ItemsControl, Control)
-#if defined(AERO_GUI_IMPLEMENTATION)
-public:
-#else
-private:
-#endif
-    struct Access;
-
 public:
 
     ItemsControl() noexcept;
@@ -135,6 +131,9 @@ public:
     std::uint32_t GetRealizedItemCount() const noexcept;
     std::uint32_t GetCreatedContainerCount() const noexcept;
     std::uint32_t GetRecycledContainerUseCount() const noexcept;
+    ItemContainerGenerator* GetItemContainerGenerator() const noexcept {
+        return generator_;
+    }
 
     inline static constexpr ReadOnlyDependencyProperty<std::uint32_t> ItemCountProperty{"ItemCount"};
     inline static constexpr ReadOnlyDependencyProperty<bool> HasItemsProperty{"HasItems"};
@@ -166,10 +165,11 @@ protected:
 
 private:
     friend class ItemContainerGenerator;
-    friend struct Access;
+    friend struct ItemContainerGeneratorRuntime;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend struct ::Aero::Media::Visual::Access;
+    friend class ::Aero::Core::InteractionStateFacet;
 #endif
+
     ItemCollection items_;
     Collections::IItemsSource* source_ = nullptr;
     const DataTemplate* itemTemplate_ = nullptr;

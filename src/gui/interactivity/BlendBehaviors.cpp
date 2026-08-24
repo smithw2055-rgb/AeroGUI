@@ -1,12 +1,9 @@
 #include <Aero/Interactivity/BlendBehaviors.hpp>
-#include <Aero/Controls.hpp>
-#include <Aero/Controls.hpp>
+#include <Aero/Controls.hpp> 
 #include <Aero/Shapes.hpp>
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/input/InputState.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
+#include "gui/input/InputState.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/media/MediaState.hpp"
@@ -111,9 +108,9 @@ Rect NormalizeImageViewbox(
     if (brush.GetViewboxUnits() ==
         Media::BrushMappingMode::Absolute) {
         const double width = static_cast<double>(
-            Media::BrushPrivate::PixelWidth(brush));
+            brush.GetPixelWidth());
         const double height = static_cast<double>(
-            Media::BrushPrivate::PixelHeight(brush));
+            brush.GetPixelHeight());
         if (width > 0.0 && height > 0.0) {
             viewbox = {
                 viewbox.x / width,
@@ -130,9 +127,9 @@ Rect DisplayedImageViewbox(
     Size destination) noexcept {
     Rect uv = NormalizeImageViewbox(brush);
     const double pixelWidth = static_cast<double>(
-        Media::BrushPrivate::PixelWidth(brush));
+        brush.GetPixelWidth());
     const double pixelHeight = static_cast<double>(
-        Media::BrushPrivate::PixelHeight(brush));
+        brush.GetPixelHeight());
     const double sourceWidth = pixelWidth * std::fabs(uv.width);
     const double sourceHeight = pixelHeight * std::fabs(uv.height);
     if (sourceWidth <= 0.0 || sourceHeight <= 0.0 ||
@@ -269,7 +266,7 @@ void MouseDragElementBehavior::OnDetaching() noexcept {
                 mouseUpHandler_));
         if (dragging_ && pointerId_ != UINT32_MAX) {
             Aero::InputRouter* input =
-                Aero::Media::Visual::Access::InputRouterFor(
+                Aero::Core::GetFacet<::Aero::InputRouter>(
                     *associated);
             if (input != nullptr) {
                 static_cast<void>(input->ReleasePointer(pointerId_));
@@ -340,7 +337,7 @@ void MouseDragElementBehavior::OnMouseMove(
             return;
         }
         Aero::InputRouter* input =
-            Aero::Media::Visual::Access::InputRouterFor(*associated);
+            Aero::Core::GetFacet<::Aero::InputRouter>(*associated);
         if (input == nullptr ||
             !input->CapturePointer(pointerId_, *associated)) {
             pointerId_ = UINT32_MAX;
@@ -389,7 +386,7 @@ void MouseDragElementBehavior::OnMouseUp(
     FrameworkElement* associated = GetAssociatedObject();
     if (dragging_ && associated != nullptr) {
         Aero::InputRouter* input =
-            Aero::Media::Visual::Access::InputRouterFor(*associated);
+            Aero::Core::GetFacet<::Aero::InputRouter>(*associated);
         if (input != nullptr) {
             static_cast<void>(input->ReleasePointer(pointerId_));
         }

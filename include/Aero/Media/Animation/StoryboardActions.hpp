@@ -1,11 +1,12 @@
 #pragma once
 
-#include <Aero/Interactivity/TriggerAction.hpp>
-using Aero::Interactivity::TriggerAction;
 #include <Aero/Media/Animation.hpp>
+#include <Aero/Interactivity/TriggerAction.hpp>
 #include <utility>
 
 namespace Aero::Media::Animation {
+
+using ::Aero::Interactivity::TriggerAction;
 
 class AERO_GUI_API BeginStoryboard : public TriggerAction {
     AERO_DECLARE_TYPE(BeginStoryboard, TriggerAction)

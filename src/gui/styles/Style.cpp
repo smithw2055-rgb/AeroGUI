@@ -1,14 +1,14 @@
 #include "gui/meta/MetadataState.hpp"
 #include "gui/meta/ValueConversion.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/triggers/TriggerDiagnostics.hpp"
 #include "gui/triggers/TriggerEngine.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/FrameworkElement.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Triggers/Triggers.hpp>
 #include <Aero/Value.hpp>
 
 #include <new>
@@ -151,7 +151,7 @@ Base::Result<PropertyValue> NormalizeStyleValue(
 } // namespace
 
 
-Base::Result<void> Style::Access::Freeze(
+Base::Result<void> StyleState::Freeze(
     TypeId valueTargetType,
     Base::Vector<StyleSetter>&& valueSetters,
     Base::Vector<TriggerPlan>&& valueTriggers) noexcept {
@@ -172,14 +172,14 @@ Base::Result<void> Style::Access::Freeze(
     return {};
 }
 
-void Style::Access::Reset() noexcept {
+void StyleState::Reset() noexcept {
     targetType = InvalidTypeId;
     setters.Clear();
     triggers.Clear();
     frozen = false;
 }
 
-Base::Result<void> Style::Access::AddAuthoredSetter(
+Base::Result<void> StyleState::AddAuthoredSetter(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
     for (const StyleSetter& setter : authoredSetters) {
@@ -192,12 +192,12 @@ Base::Result<void> Style::Access::AddAuthoredSetter(
     return authoredSetters.PushBack({property, value});
 }
 
-Base::Result<void> Style::Access::AddAuthoredTrigger(
+Base::Result<void> StyleState::AddAuthoredTrigger(
     TriggerPlan trigger) noexcept {
     return authoredTriggers.PushBack(std::move(trigger));
 }
 
-void Style::Access::ClearAuthored() noexcept {
+void StyleState::ClearAuthored() noexcept {
     authoredSetters.Clear();
     authoredTriggers.Clear();
 }
@@ -260,19 +260,19 @@ Style::Style(
       implAllocator_(&Base::GetDefaultAllocator()),
       resources_() {
     void* memory = implAllocator_->Allocate({
-        sizeof(Access), alignof(Access), Base::MemoryTag::Ui});
+        sizeof(StyleState), alignof(StyleState), Base::MemoryTag::Ui});
     if (memory == nullptr) {
         Base::ReportOutOfMemory(
-            sizeof(Access), alignof(Access), Base::MemoryTag::Ui);
+            sizeof(StyleState), alignof(StyleState), Base::MemoryTag::Ui);
     }
-    program_ = new (memory) Access{};
+    program_ = new (memory) StyleState{};
 }
 
 Style::~Style() {
     if (program_ == nullptr) return;
-    program_->~Access();
+    program_->~StyleState();
     implAllocator_->Deallocate(
-        program_, sizeof(Access), alignof(Access), Base::MemoryTag::Ui);
+        program_, sizeof(StyleState), alignof(StyleState), Base::MemoryTag::Ui);
     program_ = nullptr;
 }
 
@@ -534,7 +534,7 @@ Base::Result<void> Style::SealRuntime(
     Base::Vector<StyleSetter> next;
     if (basedOn_ != nullptr) {
         Base::Result<void> inherited = next.Append(
-            Access::RuntimeSetters(*basedOn_));
+            StyleState::RuntimeSetters(*basedOn_));
         if (!inherited) {
             return inherited.GetStatus();
         }
@@ -578,7 +578,7 @@ Base::Result<void> Style::SealRuntime(
     Base::Vector<TriggerPlan> nextTriggers;
     if (basedOn_ != nullptr) {
         Base::Result<void> inherited =
-            nextTriggers.Append(Access::RuntimeTriggers(*basedOn_));
+            nextTriggers.Append(StyleState::RuntimeTriggers(*basedOn_));
         if (!inherited) return inherited.GetStatus();
     }
     for (const TriggerPlan& trigger : program_->authoredTriggers) {
@@ -659,20 +659,20 @@ void Style::SetResources(
         "Style Resources is already assigned");
 }
 
-Base::Result<void> Style::Access::Seal(
+Base::Result<void> StyleState::Seal(
     Style& style,
     const void* properties) noexcept {
     return style.SealRuntime(properties);
 }
 
-Base::Span<const StyleSetter> Style::Access::RuntimeSetters(
+Base::Span<const StyleSetter> StyleState::RuntimeSetters(
     const Style& style) noexcept {
     return style.program_ != nullptr
         ? style.program_->Setters()
         : Base::Span<const StyleSetter>{};
 }
 
-Base::Span<const TriggerPlan> Style::Access::RuntimeTriggers(
+Base::Span<const TriggerPlan> StyleState::RuntimeTriggers(
     const Style& style) noexcept {
     return style.program_ != nullptr
         ? style.program_->Triggers()
