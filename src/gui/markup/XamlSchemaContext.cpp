@@ -1135,8 +1135,7 @@ void AddElementVisualStateGroup(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    if (!value || value->RuntimeType() !=
-            VisualStateGroup::StaticTypeId()) {
+    if (!value || value->RuntimeType() != VisualStateGroup::StaticTypeId()) {
         return;
     }
     auto& target = static_cast<::Aero::DependencyObject&>(object);
@@ -1218,6 +1217,23 @@ void ClearTransitionStoryboard(
     static_cast<VisualTransition&>(object).SetStoryboard({});
 }
 
+void AddVisualStateGroupToCollection(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value || value->RuntimeType() != VisualStateGroup::StaticTypeId()) return;
+    auto& collection = static_cast<VisualStateGroupCollection&>(owner);
+    (void)collection.Add(
+        Base::Ref<VisualStateGroup>::FromBorrowed(
+            *static_cast<VisualStateGroup*>(value.Get())));
+}
+
+void ClearVisualStateGroupCollection(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<VisualStateGroupCollection&>(owner).Clear();
+}
+
 } // namespace
 
 Base::Result<void> PopulateMarkupMetadata(
@@ -1268,13 +1284,11 @@ Base::Result<void> PopulateMarkupMetadata(
         Meta::Register<VisualStateManager>(
             context, TypeFlags::Abstract);
     visualStateManager
-        .Collection<Base::Object>(
-            "VisualStateGroups",
-            &AddElementVisualStateGroup,
-            &ClearElementVisualStateGroups,
-            PropertyFlags::Structural |
-                PropertyFlags::Collection |
-                PropertyFlags::Attached);
+        .Property(
+            VisualStateManager::VisualStateGroupsProperty,
+            FrameworkPropertyMetadata(
+                Base::Ref<VisualStateGroupCollection>{})
+                .Structural());
     status = visualStateManager.Result();
     if (!status) return status.GetStatus();
 
@@ -3630,6 +3644,28 @@ Base::Result<void> Schema::SetMember(
     const bool acceptsAnyValue = metadataAcceptsAnyValue ||
         member.valueType == Meta::TypeOf<Meta::Value>();
     if (!acceptsAnyValue) {
+        if (member.id == VisualStateManager::VisualStateGroupsProperty.Handle().value &&
+            convertedValue.Type() == VisualStateGroup::StaticTypeId() &&
+            convertedValue.AsObject()) {
+            auto& target = static_cast<::Aero::DependencyObject&>(object);
+            Base::Ref<VisualStateGroupCollection> valueStore = target.GetValueOr(
+                VisualStateManager::VisualStateGroupsProperty,
+                Base::Ref<VisualStateGroupCollection>{});
+            if (!valueStore) {
+                Base::Result<Base::Ref<VisualStateGroupCollection>> created =
+                    Base::MakeRef<VisualStateGroupCollection>();
+                if (!created) return created.GetStatus();
+                valueStore = std::move(created).Value();
+                target.SetValue(
+                    VisualStateManager::VisualStateGroupsProperty,
+                    valueStore);
+            }
+            (void)valueStore->Add(
+                Base::Ref<VisualStateGroup>::FromBorrowed(
+                    *static_cast<VisualStateGroup*>(convertedValue.AsObject().Get())));
+            return {};
+        }
+
         bool compatible = convertedValue.Type() == member.valueType;
         if (convertedValue.Kind() == Meta::ValueKind::Object &&
             convertedValue.AsObject()) {

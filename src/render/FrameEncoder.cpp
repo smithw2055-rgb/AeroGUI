@@ -261,11 +261,12 @@ Texture* UiFrameEncoder::GetOrCreateGradientRamp(
 RenderTarget* UiFrameEncoder::GetOrCreateOffscreenTarget(
     RenderNodeId nodeId, std::uint32_t width, std::uint32_t height,
     bool isMask) noexcept {
+    const bool needsStencil = !isMask;
     for (auto& entry : offscreenTargets_) {
         if (entry.nodeId == nodeId && entry.isMask == isMask) {
             if (entry.width != width || entry.height != height) {
                 entry.target = device_->CreateRenderTarget(
-                    "Offscreen", width, height, 1, false);
+                    "Offscreen", width, height, 1, needsStencil);
                 entry.width = width;
                 entry.height = height;
             }
@@ -273,7 +274,7 @@ RenderTarget* UiFrameEncoder::GetOrCreateOffscreenTarget(
         }
     }
     Ref<RenderTarget> target = device_->CreateRenderTarget(
-        "Offscreen", width, height, 1, false);
+        "Offscreen", width, height, 1, needsStencil);
     if (!target) return nullptr;
     RenderTarget* result = target.Get();
     static_cast<void>(offscreenTargets_.PushBack(
@@ -890,13 +891,13 @@ void UiFrameEncoder::ProcessCommand(
                  currentBatch_.renderState.f.colorEnable != 1U ||
                  currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_))) {
                 FlushBatch();
-                currentBatch_.shader = Shader::Path_Pattern;
-                currentBatch_.image = tex;
-                currentBatch_.imageSampler.f.wrapMode = WrapMode::ClampToEdge;
-                currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
-                currentBatch_.renderState.f.blendMode = currentBlendMode_;
-                currentBatch_.renderState.f.colorEnable = 1;
             }
+            currentBatch_.shader = Shader::Path_Pattern;
+            currentBatch_.image = tex;
+            currentBatch_.imageSampler.f.wrapMode = WrapMode::ClampToEdge;
+            currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
+            currentBatch_.renderState.f.blendMode = currentBlendMode_;
+            currentBatch_.renderState.f.colorEnable = 1;
             SetContentStencil();
 
             const Point p0 = TransformPoint(currentTransform, cmd.rect.x, cmd.rect.y);
@@ -927,19 +928,25 @@ void UiFrameEncoder::ProcessCommand(
         for (const RenderGlyphQuad& quad : *quads) {
             Texture* atlas = FindAtlas(quad.page);
             if (atlas == nullptr) continue;
+            const std::uint8_t targetStencilMode =
+                clipDepth_ > 0U ? StencilMode::Equal_Keep : StencilMode::Disabled;
+            const std::uint8_t targetStencilRef =
+                static_cast<std::uint8_t>(clipDepth_);
             if (currentBatch_.numIndices > 0U &&
                 (currentBatch_.shader != Shader::SDF_Solid ||
                  currentBatch_.glyphs != atlas ||
                  currentBatch_.renderState.f.colorEnable != 1U ||
-                 currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_))) {
+                 currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_) ||
+                 currentBatch_.renderState.f.stencilMode != targetStencilMode ||
+                 currentBatch_.stencilRef != targetStencilRef)) {
                 FlushBatch();
-                currentBatch_.shader = Shader::SDF_Solid;
-                currentBatch_.glyphs = atlas;
-                currentBatch_.glyphsSampler.f.wrapMode = WrapMode::ClampToEdge;
-                currentBatch_.glyphsSampler.f.minmagFilter = MinMagFilter::Linear;
-                currentBatch_.renderState.f.blendMode = currentBlendMode_;
-                currentBatch_.renderState.f.colorEnable = 1;
             }
+            currentBatch_.shader = Shader::SDF_Solid;
+            currentBatch_.glyphs = atlas;
+            currentBatch_.glyphsSampler.f.wrapMode = WrapMode::ClampToEdge;
+            currentBatch_.glyphsSampler.f.minmagFilter = MinMagFilter::Linear;
+            currentBatch_.renderState.f.blendMode = currentBlendMode_;
+            currentBatch_.renderState.f.colorEnable = 1;
             SetContentStencil();
 
             const Point p0 = TransformPoint(currentTransform, quad.x0, quad.y0);
@@ -1302,8 +1309,11 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             continue;
         }
 
-        device_->BeginOffscreenRender();
+        const std::uint8_t savedClipDepth = clipDepth_;
+        clipDepth_ = 0U;
+
         device_->SetRenderTarget(offscreen);
+        device_->BeginOffscreenRender();
         Tile offTile{0U, 0U, offWidth, offHeight};
         device_->BeginTile(offscreen, offTile);
 
@@ -1347,6 +1357,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         device_->EndTile(offscreen);
         device_->EndOffscreenRender();
         device_->SetRenderTarget(&target);
+        clipDepth_ = savedClipDepth;
 
         // Opacity mask: render the mask brush into a second offscreen target.
         RenderTarget* maskTarget = nullptr;
@@ -1354,8 +1365,8 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             maskTarget = GetOrCreateOffscreenTarget(
                 node.id, offWidth, offHeight, true);
             if (maskTarget != nullptr) {
-                device_->BeginOffscreenRender();
                 device_->SetRenderTarget(maskTarget);
+                device_->BeginOffscreenRender();
                 Tile maskTile{0U, 0U, offWidth, offHeight};
                 device_->BeginTile(maskTarget, maskTile);
                 EmitMaskBrush(

@@ -1165,10 +1165,11 @@ double Track::GetThumbOffset(
         (std::clamp(GetValue(), GetMinimum(), GetMaximum()) -
             GetMinimum()) /
         range;
+    const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
     const bool invert =
         GetOrientation() == Orientation::Vertical
         ? !GetIsDirectionReversed()
-        : GetIsDirectionReversed();
+        : (isRtl ? !GetIsDirectionReversed() : GetIsDirectionReversed());
     return invert
         ? travel - offset
         : offset;
@@ -1195,10 +1196,11 @@ Base::Result<double> Track::ValueFromThumbOffset(
     }
     double normalized =
         std::clamp(offset, 0.0, travel) / travel;
+    const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
     const bool invert =
         GetOrientation() == Orientation::Vertical
         ? !GetIsDirectionReversed()
-        : GetIsDirectionReversed();
+        : (isRtl ? !GetIsDirectionReversed() : GetIsDirectionReversed());
     if (invert) {
         normalized = 1.0 - normalized;
     }
@@ -1246,9 +1248,10 @@ Size Track::ArrangeOverride(
     const double before = thumbOffset;
     const double after = std::max(
         0.0, length - thumbOffset - thumbLength);
+    const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
     const bool invert = vertical
         ? !GetIsDirectionReversed()
-        : GetIsDirectionReversed();
+        : (isRtl ? !GetIsDirectionReversed() : GetIsDirectionReversed());
     RepeatButton* first = invert
         ? increaseRepeatButton_.Get()
         : decreaseRepeatButton_.Get();
@@ -1873,59 +1876,61 @@ void Slider::OnRender(
         std::max(0.0,
             primary - thumbLength);
     const Color color = ::Aero::Media::SampleBrush(GetForeground());
-    Color trackColor = color;
-    trackColor.alpha *= 0.35F;
-    const double normalized =
-        GetNormalizedValueForLayout();
-    Base::Result<void> chrome;
-    if (horizontal) {
-        chrome = builder.FillRoundedRect(
-            {
-                startPixel,
-                std::max(0.0,
-                    (size.height - 4.0) * 0.5),
-                travel,
-                std::min(4.0, size.height)},
-            trackColor,
-            2.0);
-        if (chrome) {
+    if (GetVisualChildren().Empty()) {
+        Color trackColor = color;
+        trackColor.alpha *= 0.35F;
+        const double normalized =
+            GetNormalizedValueForLayout();
+        Base::Result<void> chrome;
+        if (horizontal) {
             chrome = builder.FillRoundedRect(
                 {
-                    std::clamp(normalized, 0.0, 1.0) *
-                        travel,
+                    startPixel,
                     std::max(0.0,
-                        (size.height -
-                            thumbLength) * 0.5),
-                    std::min(thumbLength, size.width),
-                    std::min(thumbLength, size.height)},
-                color,
-                thumbLength * 0.5);
-        }
-    } else {
-        chrome = builder.FillRoundedRect(
-            {
-                std::max(0.0,
-                    (size.width - 4.0) * 0.5),
-                startPixel,
-                std::min(4.0, size.width),
-                travel},
-            trackColor,
-            2.0);
-        if (chrome) {
+                        (size.height - 4.0) * 0.5),
+                    travel,
+                    std::min(4.0, size.height)},
+                trackColor,
+                2.0);
+            if (chrome) {
+                chrome = builder.FillRoundedRect(
+                    {
+                        std::clamp(normalized, 0.0, 1.0) *
+                            travel,
+                        std::max(0.0,
+                            (size.height -
+                                thumbLength) * 0.5),
+                        std::min(thumbLength, size.width),
+                        std::min(thumbLength, size.height)},
+                    color,
+                    thumbLength * 0.5);
+            }
+        } else {
             chrome = builder.FillRoundedRect(
                 {
                     std::max(0.0,
-                        (size.width -
-                            thumbLength) * 0.5),
-                    std::clamp(normalized, 0.0, 1.0) *
-                        travel,
-                    std::min(thumbLength, size.width),
-                    std::min(thumbLength, size.height)},
-                color,
-                thumbLength * 0.5);
+                        (size.width - 4.0) * 0.5),
+                    startPixel,
+                    std::min(4.0, size.width),
+                    travel},
+                trackColor,
+                2.0);
+            if (chrome) {
+                chrome = builder.FillRoundedRect(
+                    {
+                        std::max(0.0,
+                            (size.width -
+                                thumbLength) * 0.5),
+                        std::clamp(normalized, 0.0, 1.0) *
+                            travel,
+                        std::min(thumbLength, size.width),
+                        std::min(thumbLength, size.height)},
+                    color,
+                    thumbLength * 0.5);
+            }
         }
+        if (!chrome) return;
     }
-    if (!chrome) return;
     if (placement == TickPlacement::None) {
         return;
     }

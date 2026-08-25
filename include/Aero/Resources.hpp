@@ -119,6 +119,8 @@ struct ResourceChangeSubscription {
     }
 };
 
+struct ResourceDictionaryImpl;
+
 // StringView is empty for type-keyed and dictionary-wide notifications.
 using ResourceChangedCallback = void (*)(
     void* context,

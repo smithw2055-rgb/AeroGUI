@@ -953,8 +953,8 @@ struct ViewState {
         renderOverlays;
     Base::Vector<Aero::UIElement*>
         inputOverlays;
-    Base::Vector<Aero::Point>
-        overlayOrigins;
+    Base::Vector<Aero::Base::Transform2D>
+        overlayTransforms;
     Base::Ref<Controls::ToolTip>
         pendingToolTip;
     Base::Ref<Controls::ToolTip>
@@ -1458,7 +1458,7 @@ struct ViewState {
     Base::Result<void> SynchronizeOverlays() noexcept {
         renderOverlays.Clear();
         inputOverlays.Clear();
-        overlayOrigins.Clear();
+        overlayTransforms.Clear();
         Aero::Media::Visual* rootVisual =
             RootVisual();
         if (rootVisual == nullptr ||
@@ -1498,13 +1498,14 @@ struct ViewState {
             }
             if (open) {
                 Aero::Media::Visual* ancestor =
-                    node;
+                    node->GetVisualParent();
                 while (ancestor != nullptr) {
                     Aero::UIElement*
                         element =
                             ancestor->AsUIElement();
                     if (element != nullptr &&
-                        !element->GetIsVisible()) {
+                        element->GetVisibility() !=
+                            Aero::Visibility::Visible) {
                         open = false;
                         break;
                     }
@@ -1516,14 +1517,20 @@ struct ViewState {
                 Aero::FrameworkElement*
                     framework =
                         node->AsFrameworkElement();
-                Aero::UIElement* input =
+                Aero::UIElement* inputElement =
                     node->AsUIElement();
                 if (framework != nullptr &&
-                    input != nullptr) {
-                    auto rootOrigin = [](
+                    inputElement != nullptr) {
+                    auto makeTranslate = [](double dx, double dy) noexcept -> Base::Transform2D {
+                        Base::Transform2D t{};
+                        t.dx = dx;
+                        t.dy = dy;
+                        return t;
+                    };
+                    auto rootTransform = [&makeTranslate](
                         Aero::UIElement&
-                            element) noexcept {
-                        Aero::Point
+                            element) noexcept -> Base::Transform2D {
+                        Base::Transform2D
                             result{};
                         Aero::Media::Visual*
                             current = &element;
@@ -1540,17 +1547,23 @@ struct ViewState {
                                             AsFrameworkElement();
                                 if (currentFramework !=
                                     nullptr) {
-                                    result =
-                                        Aero::Media::TransformPoint(
-                                                currentFramework->
-                                                    GetLocalVisualTransform(),
-                                                result);
+                                    const Base::Transform2D localT =
+                                        currentFramework->
+                                            GetLocalVisualTransform();
+                                    if (Base::IsFiniteTransform(localT)) {
+                                        result =
+                                            Aero::Media::ComposeTransforms(
+                                                result, localT);
+                                    }
                                 }
                                 const Aero::Rect slot =
                                         currentElement->
                                             GetLayoutSlot();
-                                result.x += slot.x;
-                                result.y += slot.y;
+                                result =
+                                    Aero::Media::ComposeTransforms(
+                                        result,
+                                        makeTranslate(
+                                            slot.x, slot.y));
                             }
                             current =
                                 current->
@@ -1558,8 +1571,8 @@ struct ViewState {
                         }
                         return result;
                     };
-                    Aero::Point origin =
-                        rootOrigin(*input);
+                    Base::Transform2D transform =
+                        rootTransform(*inputElement);
                     if (metadata->Types().
                             IsDerivedFrom(
                                 type,
@@ -1577,12 +1590,16 @@ struct ViewState {
                         if (target &&
                             target->
                                 GetIsArrangeValid()) {
-                            origin =
-                                rootOrigin(*target);
-                            origin.y +=
-                                target->
-                                    GetRenderSize().
-                                        height;
+                            transform =
+                                rootTransform(*target);
+                            transform =
+                                Aero::Media::ComposeTransforms(
+                                    makeTranslate(
+                                        0.0,
+                                        target->
+                                            GetRenderSize().
+                                                height),
+                                    transform);
                         }
                     }
                     appended =
@@ -1592,14 +1609,14 @@ struct ViewState {
                         return appended.GetStatus();
                     }
                     appended =
-                        overlayOrigins.PushBack(
-                            origin);
+                        overlayTransforms.PushBack(
+                            transform);
                     if (!appended) {
                         return appended.GetStatus();
                     }
                     appended =
                         inputOverlays.PushBack(
-                            input);
+                            inputElement);
                     if (!appended) {
                         return appended.GetStatus();
                     }
@@ -1624,12 +1641,12 @@ struct ViewState {
         Base::Result<void> render =
             renderer->SetOverlays(
                 renderOverlays.AsSpan(),
-                overlayOrigins.AsSpan());
+                overlayTransforms.AsSpan());
         if (!render) return render.GetStatus();
         return input != nullptr
             ? input->SetOverlays(
                   inputOverlays.AsSpan(),
-                  overlayOrigins.AsSpan())
+                  overlayTransforms.AsSpan())
             : Base::Result<void>();
     }
 
@@ -1637,11 +1654,12 @@ struct ViewState {
         if (input != nullptr) input->ClearOverlays();
         renderOverlays.Clear();
         inputOverlays.Clear();
-        overlayOrigins.Clear();
+        overlayTransforms.Clear();
         if (renderer != nullptr) {
             static_cast<void>(
                 renderer->SetOverlays(
-                    {}, {}));
+                    renderOverlays.AsSpan(),
+                    overlayTransforms.AsSpan()));
         }
     }
 
@@ -1719,8 +1737,11 @@ struct ViewState {
         Aero::UIElement* target)
         noexcept {
         if (input.action !=
-                Input::PointerAction::Down ||
-            inputOverlays.Empty()) {
+                Input::PointerAction::Down) {
+            return {};
+        }
+        static_cast<void>(SynchronizeOverlays());
+        if (inputOverlays.Empty()) {
             return {};
         }
         bool closedFocusedOverlay = false;
@@ -1745,11 +1766,26 @@ struct ViewState {
                 auto* popup =
                     static_cast<Controls::Primitives::Popup*>(
                         overlay);
+                if (target != nullptr) {
+                    UIElement* placement = popup->GetPlacementTarget().Get();
+                    if (placement == nullptr) {
+                        DependencyObject* templated = popup->GetTemplatedParent();
+                        if (templated != nullptr &&
+                            metadata->Types().IsDerivedFrom(
+                                templated->RuntimeType(),
+                                UIElement::StaticTypeId())) {
+                            placement = static_cast<UIElement*>(templated);
+                        } else if (popup->GetVisualParent() != nullptr) {
+                            placement = popup->GetVisualParent()->AsUIElement();
+                        }
+                    }
+                    if (placement != nullptr &&
+                        IsVisualDescendantOrSelf(*placement, *target)) {
+                        return {};
+                    }
+                }
                 if (!popup->GetStaysOpen()) {
                     popup->SetIsOpen(false);
-                    static_cast<void>(
-                        popup->SetPlacementTarget(
-                            {}));
                 }
             } else if (
                 metadata->Types().IsDerivedFrom(

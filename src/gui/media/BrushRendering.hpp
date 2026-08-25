@@ -11,6 +11,7 @@ Base::Result<void> PaintBrushRect(
     Render::DisplayListBuilder& builder,
     const Base::Ref<Brush>& brush,
     Rect bounds,
-    double cornerRadius = 0.0) noexcept;
+    double cornerRadius = 0.0,
+    bool isRtl = false) noexcept;
 
 } // namespace Aero::Media

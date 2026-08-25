@@ -485,7 +485,8 @@ public:
     ComboBehavior(
         ElementTree& tree,
         EventRouter& events,
-        InputRouter& input) noexcept;
+        InputRouter& input,
+        VisualStateManager* states = nullptr) noexcept;
     ~ComboBehavior() noexcept;
 
     Base::Result<void> Attach(
@@ -498,9 +499,11 @@ private:
     [[maybe_unused]]
     EventRouter* events_ = nullptr;
     InputRouter* input_ = nullptr;
+    VisualStateManager* states_ = nullptr;
     Base::Vector<VisualHandle> records_;
     MouseButtonEventHandler mouseDownHandler_;
     KeyEventHandler keyDownHandler_;
+    PointerStateChangedHandler pointerStateChangedHandler_;
 
     std::uint32_t FindComboBox(
         const ComboBox& comboBox) const noexcept;
@@ -512,6 +515,8 @@ private:
     void OnKeyDown(
         Base::Object* sender,
         KeyEventArgs& args) noexcept;
+    void OnPointerStateChanged(
+        UIElement& element) noexcept;
 };
 
 class ListBehavior {

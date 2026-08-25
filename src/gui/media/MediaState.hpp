@@ -199,6 +199,7 @@ inline Base::Color SampleBrush(
                    Media::RadialGradientBrush::StaticTypeId()) {
         sampled = SampleGradient(
             *static_cast<Media::GradientBrush*>(brush.Get()), position);
+        sampled.alpha *= static_cast<float>(brush->GetOpacity());
     } else if (brush->RuntimeType() == Media::ImageBrush::StaticTypeId()) {
         sampled = {1.0F, 1.0F, 1.0F,
             static_cast<float>(brush->GetOpacity())};

@@ -1284,6 +1284,27 @@ bool RenderTree::IsOverlay(
 Base::Result<void> RenderTree::SetOverlays(
     Base::Span<FrameworkElement* const> overlays,
     Base::Span<const Point> origins) noexcept {
+    if (overlays.Size() != origins.Size()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Render overlay elements and origins must have equal lengths");
+    }
+    Base::Vector<Base::Transform2D> transforms;
+    Base::Result<void> reserved = transforms.Reserve(origins.Size());
+    if (!reserved) return reserved.GetStatus();
+    for (std::uint32_t index = 0U; index < origins.Size(); ++index) {
+        Base::Transform2D t{};
+        t.dx = origins[index].x;
+        t.dy = origins[index].y;
+        Base::Result<void> appended = transforms.PushBack(t);
+        if (!appended) return appended.GetStatus();
+    }
+    return SetOverlays(overlays, transforms.AsSpan());
+}
+
+Base::Result<void> RenderTree::SetOverlays(
+    Base::Span<FrameworkElement* const> overlays,
+    Base::Span<const Base::Transform2D> transforms) noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
     if (committing_) {
@@ -1291,10 +1312,10 @@ Base::Result<void> RenderTree::SetOverlays(
             "Render overlays cannot change during commit");
     }
 
-    if (overlays.Size() != origins.Size()) {
+    if (overlays.Size() != transforms.Size()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "Render overlay elements and origins must have equal lengths");
+            "Render overlay elements and transforms must have equal lengths");
     }
     Base::Vector<OverlayRecord> next;
     Base::Result<void> reserved =
@@ -1310,10 +1331,10 @@ Base::Result<void> RenderTree::SetOverlays(
             return InvalidState(
                 "Render overlay must belong to this render tree");
         }
-        if (!Aero::IsFinite(origins[index])) {
+        if (!Aero::Base::IsFiniteTransform(transforms[index])) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
-                "Render overlay origin must be finite");
+                "Render overlay transform must be finite");
         }
         bool duplicate = false;
         for (const OverlayRecord& current :
@@ -1325,7 +1346,7 @@ Base::Result<void> RenderTree::SetOverlays(
         if (duplicate) continue;
         Base::Result<void> appended =
             next.PushBack(
-                {overlay, origins[index]});
+                {overlay, transforms[index]});
         if (!appended) return appended.GetStatus();
     }
 
@@ -1334,12 +1355,13 @@ Base::Result<void> RenderTree::SetOverlays(
         for (std::uint32_t index = 0U;
              index < next.Size();
              ++index) {
+            const auto& a = next[index].transform;
+            const auto& b = overlays_[index].transform;
             if (next[index].element !=
                     overlays_[index].element ||
-                next[index].origin.x !=
-                    overlays_[index].origin.x ||
-                next[index].origin.y !=
-                    overlays_[index].origin.y) {
+                a.m11 != b.m11 || a.m12 != b.m12 ||
+                a.m21 != b.m21 || a.m22 != b.m22 ||
+                a.dx != b.dx || a.dy != b.dy) {
                 changed = true;
                 break;
             }
@@ -1617,13 +1639,17 @@ Base::Result<void> RenderTree::BuildSubtree(
         for (const OverlayRecord& overlay :
              overlays_) {
             if (overlay.element == framework) {
-                snapshot.layoutSlot.x =
-                    overlay.origin.x;
-                snapshot.layoutSlot.y =
-                    overlay.origin.y;
+                snapshot.renderTransform =
+                    overlay.transform;
+                snapshot.layoutSlot.x = 0.0;
+                snapshot.layoutSlot.y = 0.0;
                 break;
             }
         }
+    } else {
+        snapshot.renderTransform = framework != nullptr
+            ? framework->GetLocalVisualTransform()
+            : Transform2D{};
     }
     snapshot.clip = element != nullptr
         ? element->GetLayoutClip()
@@ -1634,9 +1660,6 @@ Base::Result<void> RenderTree::BuildSubtree(
     snapshot.renderSize = element != nullptr
         ? element->GetRenderSize()
         : Size{};
-    snapshot.renderTransform = framework != nullptr
-        ? framework->GetLocalVisualTransform()
-        : Transform2D{};
     snapshot.blendMode = element != nullptr
         ? element->GetBlendMode()
         : BlendMode::Normal;

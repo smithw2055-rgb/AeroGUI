@@ -4,6 +4,7 @@
 #include "gui/meta/ValueConversion.hpp"
 
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 
 namespace Aero::Media::Animation {

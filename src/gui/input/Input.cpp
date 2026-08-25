@@ -121,6 +121,27 @@ Base::Result<void> HitTestState::SetOverlays(
             Base::ErrorCode::InvalidArgument,
             "Input overlay elements and origins must have equal lengths");
     }
+    Base::Vector<Base::Transform2D> transforms;
+    Base::Result<void> reserved = transforms.Reserve(origins.Size());
+    if (!reserved) return reserved.GetStatus();
+    for (std::uint32_t index = 0U; index < origins.Size(); ++index) {
+        Base::Transform2D t{};
+        t.dx = origins[index].x;
+        t.dy = origins[index].y;
+        Base::Result<void> appended = transforms.PushBack(t);
+        if (!appended) return appended.GetStatus();
+    }
+    return SetOverlays(overlays, transforms.AsSpan());
+}
+
+Base::Result<void> HitTestState::SetOverlays(
+    Base::Span<UIElement* const> overlays,
+    Base::Span<const Base::Transform2D> transforms) noexcept {
+    if (overlays.Size() != transforms.Size()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Input overlay elements and transforms must have equal lengths");
+    }
     Base::Vector<OverlayRecord> next;
     Base::Result<void> reserved =
         next.Reserve(overlays.Size());
@@ -130,10 +151,10 @@ Base::Result<void> HitTestState::SetOverlays(
          ++index) {
         UIElement* overlay = overlays[index];
         if (overlay == nullptr) continue;
-        if (!IsFinite(origins[index])) {
+        if (!Base::IsFiniteTransform(transforms[index])) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
-                "Input overlay origin must be finite");
+                "Input overlay transform must be finite");
         }
         bool duplicate = false;
         for (const OverlayRecord& current : next) {
@@ -144,7 +165,7 @@ Base::Result<void> HitTestState::SetOverlays(
         if (duplicate) continue;
         Base::Result<void> appended =
             next.PushBack(
-                {overlay, origins[index]});
+                {overlay, transforms[index]});
         if (!appended) return appended.GetStatus();
     }
     overlays_ = std::move(next);
@@ -174,23 +195,11 @@ Base::Result<HitTestResult> HitTestState::HitTest(
             !overlay->GetIsVisible()) {
             continue;
         }
-        Point local{
-            position.x - record.origin.x,
-            position.y - record.origin.y};
-        FrameworkElement* overlayFramework =
-            overlay->AsFrameworkElement();
-        if (overlayFramework != nullptr) {
-            Base::Transform2D inverse;
-            if (!Media::InvertTransform(
-                    overlayFramework->
-                        GetLocalVisualTransform(),
-                    inverse)) {
-                continue;
-            }
-            local = Media::TransformPoint(
-                inverse,
-                local);
+        Base::Transform2D inverse;
+        if (!Media::InvertTransform(record.transform, inverse)) {
+            continue;
         }
+        Point local = Media::TransformPoint(inverse, position);
         Base::Result<HitTestResult> hit =
             HitTestElement(*overlay, local);
         if (!hit) return hit.GetStatus();

@@ -339,12 +339,42 @@ void ApplyRichText(DependencyObject& object) noexcept {
     }
     auto& text = static_cast<Controls::TextBlock&>(object);
     const Base::StringView trimmed = TrimRichTextToken(source);
-    if (StartsWithRichTextToken(trimmed, Base::StringView("[b]")) &&
+    bool hasSize = false;
+    if (StartsWithRichTextToken(trimmed, Base::StringView("[size="))) {
+        const std::uint32_t sizeEnd = FindRichTextToken(
+            trimmed, Base::StringView("]"), 6U);
+        if (sizeEnd != UINT32_MAX) {
+            const Base::StringView sizeStr = trimmed.Substr(6U, sizeEnd - 6U);
+            double fontSize = 0.0;
+            for (std::uint32_t i = 0U; i < sizeStr.SizeBytes(); ++i) {
+                const char c = sizeStr[i];
+                if (c >= '0' && c <= '9') {
+                    fontSize = fontSize * 10.0 + (c - '0');
+                }
+            }
+            if (fontSize > 0.0) {
+                hasSize = true;
+                if (text.GetFontSize() != fontSize) {
+                    text.SetFontSize(fontSize);
+                }
+            }
+        }
+    }
+    if (!hasSize) {
+        text.ClearValue(Controls::TextBlock::FontSizeProperty);
+    }
+    const bool isEnclosedBold = (StartsWithRichTextToken(trimmed, Base::StringView("[b]")) &&
         trimmed.SizeBytes() >= 7U &&
-        trimmed.Substr(trimmed.SizeBytes() - 4U) ==
-            Base::StringView("[/b]") &&
-        text.GetFontWeight() != FontWeight::Bold) {
-        text.SetFontWeight(FontWeight::Bold);
+        trimmed.Substr(trimmed.SizeBytes() - 4U) == Base::StringView("[/b]")) ||
+        (StartsWithRichTextToken(trimmed, Base::StringView("[size=")) &&
+         FindRichTextToken(trimmed, Base::StringView("[b]"), 0U) != UINT32_MAX &&
+         FindRichTextToken(trimmed, Base::StringView("[/b]"), 0U) != UINT32_MAX);
+    if (isEnclosedBold) {
+        if (text.GetFontWeight() != FontWeight::Bold) {
+            text.SetFontWeight(FontWeight::Bold);
+        }
+    } else {
+        text.ClearValue(Controls::TextBlock::FontWeightProperty);
     }
     if (text.GetText() != plain.View()) {
         text.SetText(plain.View());

@@ -1,12 +1,8 @@
 #pragma once
 
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/input/InputState.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/State.hpp" 
+#include "gui/input/InputState.hpp" 
 #include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -200,6 +196,9 @@ public:
     Base::Result<void> SetOverlays(
         Base::Span<FrameworkElement* const> overlays,
         Base::Span<const Point> origins) noexcept;
+    Base::Result<void> SetOverlays(
+        Base::Span<FrameworkElement* const> overlays,
+        Base::Span<const Base::Transform2D> transforms) noexcept;
     Base::Result<void> SetViewport(
         Aero::Size logicalSize,
         std::uint32_t pixelWidth,
@@ -228,7 +227,7 @@ private:
     Base::Vector<DrawingRecord> drawings_;
     struct OverlayRecord {
         FrameworkElement* element = nullptr;
-        Point origin;
+        Base::Transform2D transform;
     };
     Base::Vector<OverlayRecord> overlays_;
     ::Aero::Render::RenderFrame currentFrame_;

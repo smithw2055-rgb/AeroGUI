@@ -168,10 +168,9 @@ Size Popup::MeasureOverride(
     if (!GetIsOpen() || popupChild == nullptr) {
         return Size{};
     }
+    constexpr double Unconstrained = 1.0e12;
     Base::Result<void> measured =
-        MeasureChild(*popupChild, Size{
-            std::numeric_limits<double>::infinity(),
-            std::numeric_limits<double>::infinity()});
+        MeasureChild(*popupChild, Size{Unconstrained, Unconstrained});
     if (!measured) return Size{};
     popupDesiredSize_ =
         popupChild->GetDesiredSize();
@@ -1231,8 +1230,9 @@ void Border::OnRender(
             inner.height <= 0.0) {
             return;
         }
+        const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
         if (paintedBackground) {
-            static_cast<void>(PaintBrushRect(builder, background, inner));
+            static_cast<void>(PaintBrushRect(builder, background, inner, 0.0, isRtl));
         } else {
             static_cast<void>(builder.FillRoundedRect(
                 inner,
@@ -1245,8 +1245,9 @@ void Border::OnRender(
         }
         return;
     }
+    const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
     Base::Result<void> fill = paintedBackground
-        ? PaintBrushRect(builder, background, bounds, radius)
+        ? PaintBrushRect(builder, background, bounds, radius, isRtl)
         : (radius > 0.0
             ? builder.FillRoundedRect(
                   bounds, backgroundColor, radius)

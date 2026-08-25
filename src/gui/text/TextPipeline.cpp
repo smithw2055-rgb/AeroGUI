@@ -429,11 +429,13 @@ class TextBlockLayoutProxy
     : public ::Aero::Controls::TextBlockLayout {
 public:
     using FaceResolver =
-        Base::Result<Text::FontFace> (*)(
+        Base::Result<void> (*)(
             void* context,
             Base::StringView family,
             FontWeight weight,
-            FontStyle style) noexcept;
+            FontStyle style,
+            Text::FontFace& primary,
+            Base::Vector<Text::FontFace>& fallbacks) noexcept;
 
     void Set(
         ::Aero::Controls::TextBlockLayout* layout) noexcept {
@@ -464,18 +466,20 @@ public:
                 Base::ErrorCode::NotInitialized,
                 "View text font resolver is unavailable");
         }
-        Base::Result<Text::FontFace> resolved =
+        ::Aero::Controls::TextLayoutRequest selected = request;
+        Base::Vector<Text::FontFace> fallbacks;
+        Base::Result<void> resolved =
             resolver_(
                 resolverContext_,
                 request.fontFamily,
                 request.fontWeight,
-                request.fontStyle);
+                request.fontStyle,
+                selected.face,
+                fallbacks);
         if (!resolved) {
             return resolved.GetStatus();
         }
-        ::Aero::Controls::TextLayoutRequest selected =
-            request;
-        selected.face = resolved.Value();
+        selected.fallbackFaces = fallbacks.AsSpan();
         return layout_->ShapeAndPrepare(
             selected, output);
     }
@@ -535,8 +539,9 @@ public:
         layoutRequest.face = request.face.handle.IsValid()
             ? request.face
             : config_.face;
-        layoutRequest.fallbackFaces =
-            config_.fallbackFaces;
+        layoutRequest.fallbackFaces = !request.fallbackFaces.Empty()
+            ? request.fallbackFaces
+            : config_.fallbackFaces;
         layoutRequest.text = request.text;
         layoutRequest.pixelSize =
             request.pixelSize;
@@ -578,6 +583,28 @@ public:
                 output.glyphRuns.PushBack(
                     nextGlyphRun_++);
             if (!appended) return appended.GetStatus();
+        }
+        output.hitRegions.Clear();
+        for (const Text::TextLine& line : layout.Lines()) {
+            const float lineHeight = (line.ascent + line.descent > 0.0F)
+                ? (line.ascent + line.descent)
+                : (request.pixelSize > 0.0F ? request.pixelSize : 16.0F);
+            for (std::uint32_t r = 0U; r < line.runCount; ++r) {
+                const Text::GlyphRun& run = layout.Runs()[line.firstRun + r];
+                for (std::size_t g = 0; g < run.glyphs.Size(); ++g) {
+                    const Text::PositionedGlyph& glyph = run.glyphs[g];
+                    TextHitRegion region;
+                    region.textOffset = glyph.cluster;
+                    region.textLength = (g + 1 < run.glyphs.Size() && run.glyphs[g + 1].cluster > glyph.cluster)
+                        ? run.glyphs[g + 1].cluster - glyph.cluster
+                        : 1U;
+                    region.x = glyph.x;
+                    region.y = line.y;
+                    region.width = glyph.advanceX;
+                    region.height = lineHeight;
+                    (void)output.hitRegions.PushBack(region);
+                }
+            }
         }
         return {};
     }
@@ -706,8 +733,10 @@ Base::Result<void> TextPipeline::Initialize(
         [](void* context,
            Base::StringView family,
            FontWeight weight,
-           FontStyle style) noexcept
-            -> Base::Result<Text::FontFace> {
+           FontStyle style,
+           Text::FontFace& primary,
+           Base::Vector<Text::FontFace>& fallbacks) noexcept
+            -> Base::Result<void> {
             auto* state =
                 static_cast<TextPipelineState*>(context);
             if (state == nullptr ||
@@ -716,90 +745,91 @@ Base::Result<void> TextPipeline::Initialize(
                     Base::ErrorCode::InvalidArgument,
                     "Requested font family is empty");
             }
-            for (const TextPipelineState::LoadedFont& loaded :
-                 state->loadedFonts) {
-                if (loaded.request.View() == family &&
-                    loaded.weight == weight &&
-                    loaded.style == style) {
-                    return loaded.face;
-                }
-            }
 
-            Base::Result<TextPipelineState::LoadedFont*> added =
-                state->loadedFonts.EmplaceBack(
-                    state->allocator);
-            if (!added) {
-                return added.GetStatus();
-            }
-            TextPipelineState::LoadedFont& loaded =
-                *added.Value();
-            loaded.weight = weight;
-            loaded.style = style;
-            Base::Result<void> status =
-                loaded.request.Assign(family);
-            Base::StringView selectedFamily;
-            Base::Status selectionFailure = Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "No configured font family candidate is available");
-            if (status) {
-                std::uint32_t begin = 0U;
-                while (begin <= family.SizeBytes()) {
-                    std::uint32_t end = begin;
-                    while (end < family.SizeBytes() && family[end] != ',') {
-                        ++end;
+            auto loadFace = [&](Base::StringView candidate,
+                                Text::FontFace& outFace) noexcept -> bool {
+                for (const TextPipelineState::LoadedFont& loaded :
+                     state->loadedFonts) {
+                    if (loaded.request.View() == candidate &&
+                        loaded.weight == weight &&
+                        loaded.style == style) {
+                        outFace = loaded.face;
+                        return true;
                     }
-                    const Base::StringView candidate =
-                        TrimFontFamilyCandidate(
-                            family.Substr(begin, end - begin));
-                    if (!candidate.Empty()) {
-                        Base::Result<void> selected = SelectFontPath(
-                            candidate, false, loaded.path,
-                            state->fontSearchRoot.View(),
-                            weight == FontWeight::Bold ||
-                                weight == FontWeight::SemiBold,
-                            style != FontStyle::Normal);
-                        if (selected) {
-                            selectedFamily = candidate;
-                            break;
-                        }
-                        selectionFailure = selected.GetStatus();
-                    }
-                    if (end == family.SizeBytes()) break;
-                    begin = end + 1U;
                 }
-                if (selectedFamily.Empty()) {
-                    status = selectionFailure;
-                }
-            }
-            Text::Typeface typeface(
-                state->allocator);
-            if (status) {
-                status = ConfigureTypeface(
+                Base::String path(state->allocator);
+                Base::Result<void> selected = SelectFontPath(
+                    candidate, false, path,
+                    state->fontSearchRoot.View(),
+                    weight == FontWeight::Bold ||
+                        weight == FontWeight::SemiBold,
+                    style != FontStyle::Normal);
+                if (!selected) return false;
+
+                Text::Typeface typeface(state->allocator);
+                Base::Result<void> status = ConfigureTypeface(
                     typeface,
-                    selectedFamily,
+                    candidate,
                     state->language.View(),
                     state->primaryFamily.View());
-            }
-            if (status) {
+                if (!status) return false;
+
                 Text::FontSource source;
-                source.kind =
-                    Text::FontSourceKind::File;
-                source.identifier =
-                    loaded.path.View();
+                source.kind = Text::FontSourceKind::File;
+                source.identifier = path.View();
+                Text::FontFace face;
                 status = state->fonts.LoadFace(
-                    state->fontProvider.
-                        Identity().id,
+                    state->fontProvider.Identity().id,
                     source,
                     typeface,
-                    loaded.face);
+                    face);
+                if (!status) return false;
+
+                Base::Result<TextPipelineState::LoadedFont*> added =
+                    state->loadedFonts.EmplaceBack(state->allocator);
+                if (added) {
+                    TextPipelineState::LoadedFont& loaded = *added.Value();
+                    loaded.weight = weight;
+                    loaded.style = style;
+                    (void)loaded.request.Assign(candidate);
+                    (void)loaded.path.Assign(path.View());
+                    loaded.face = face;
+                }
+                outFace = face;
+                return true;
+            };
+
+            std::uint32_t begin = 0U;
+            while (begin <= family.SizeBytes()) {
+                std::uint32_t end = begin;
+                while (end < family.SizeBytes() && family[end] != ',') {
+                    ++end;
+                }
+                const Base::StringView candidate =
+                    TrimFontFamilyCandidate(
+                        family.Substr(begin, end - begin));
+                if (!candidate.Empty()) {
+                    Text::FontFace loadedFace{};
+                    if (loadFace(candidate, loadedFace) &&
+                        loadedFace.handle.IsValid()) {
+                        if (!primary.handle.IsValid()) {
+                            primary = loadedFace;
+                        } else {
+                            (void)fallbacks.PushBack(loadedFace);
+                        }
+                    }
+                }
+                if (end == family.SizeBytes()) break;
+                begin = end + 1U;
             }
-            if (!status) {
-                const Base::Status failure =
-                    status.GetStatus();
-                state->loadedFonts.PopBack();
-                return failure;
+
+            for (const Text::FontFace& globalFallback : state->fallbackFaces) {
+                (void)fallbacks.PushBack(globalFallback);
             }
-            return loaded.face;
+            if (!primary.handle.IsValid()) {
+                primary = state->primaryFace;
+            }
+            return {};
         });
 
     Base::Result<void> status =

@@ -226,10 +226,37 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
     Base::Result<void> valid = ValidateRequest(request);
     if (!valid) return valid.GetStatus();
 
+    bool hasRtlCharacters = false;
+    bool hasLtrCharacters = false;
+    std::uint32_t checkOffset = 0U;
+    while (checkOffset < request.text.SizeBytes()) {
+        const std::uint32_t cp = DecodeCodePoint(request.text, checkOffset);
+        if ((cp >= 0x0590U && cp <= 0x08FFU) ||
+            (cp >= 0xFB50U && cp <= 0xFDFFU) ||
+            (cp >= 0xFE70U && cp <= 0xFEFFU)) {
+            hasRtlCharacters = true;
+        } else if ((cp >= 0x0041U && cp <= 0x005AU) ||
+                   (cp >= 0x0061U && cp <= 0x007AU) ||
+                   (cp >= 0x00C0U && cp <= 0x024FU) ||
+                   (cp >= 0x2E80U && cp <= 0x9FFFU) ||
+                   (cp >= 0x3040U && cp <= 0x30FFU)) {
+            hasLtrCharacters = true;
+        }
+    }
+
+    TextDirection effectiveDirection = request.direction;
+    if (!hasRtlCharacters && hasLtrCharacters) {
+        effectiveDirection = TextDirection::LeftToRight;
+    } else if (hasRtlCharacters && effectiveDirection == TextDirection::Auto) {
+        effectiveDirection = TextDirection::RightToLeft;
+    } else if (effectiveDirection == TextDirection::Auto) {
+        effectiveDirection = TextDirection::LeftToRight;
+    }
+
     Base::IAllocator* const allocator = &runs_.Allocator();
     TextLayout pending(allocator);
     pending.alignment_ = request.alignment;
-    pending.direction_ = request.direction;
+    pending.direction_ = effectiveDirection;
     if (request.text.Empty()) {
         *this = std::move(pending);
         return {};
@@ -310,18 +337,31 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
         width = 0.0F;
         if (text.Empty()) return {};
 
+        auto getDirection = [&](std::uint32_t cp) noexcept -> TextDirection {
+            if ((cp >= 0x0590U && cp <= 0x08FFU) ||
+                (cp >= 0xFB50U && cp <= 0xFDFFU) ||
+                (cp >= 0xFE70U && cp <= 0xFEFFU)) {
+                return TextDirection::RightToLeft;
+            }
+            return TextDirection::LeftToRight;
+        };
+
         auto appendSpan = [&](
             FontFaceHandle face,
+            TextDirection spanDirection,
             std::uint32_t spanStart,
             std::uint32_t spanEnd) noexcept
                 -> Base::Result<void> {
+            if (spanStart >= spanEnd) return {};
             ShapingRequest shaping;
             shaping.face = face;
             shaping.text =
                 text.Substr(spanStart, spanEnd - spanStart);
             shaping.pixelSize = request.pixelSize;
-            shaping.direction = request.direction;
-            shaping.script = request.script;
+            shaping.direction = spanDirection;
+            shaping.script = (spanDirection == TextDirection::RightToLeft)
+                ? Script::Arabic
+                : Script::Common;
             shaping.language = request.language;
             ShapedTextRun shaped(allocator);
             Base::Result<void> shapedResult =
@@ -376,6 +416,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
         std::uint32_t offset = 0U;
         std::uint32_t spanStart = 0U;
         FontFaceHandle spanFace;
+        TextDirection spanDirection = effectiveDirection;
         while (offset < text.SizeBytes()) {
             const std::uint32_t characterStart = offset;
             const std::uint32_t codePoint =
@@ -383,21 +424,26 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
             Base::Result<FontFaceHandle> selected =
                 selectFace(codePoint);
             if (!selected) return selected.GetStatus();
+            const TextDirection charDir = (effectiveDirection == TextDirection::RightToLeft)
+                ? getDirection(codePoint)
+                : TextDirection::LeftToRight;
             if (!spanFace.IsValid()) {
                 spanFace = selected.Value();
+                spanDirection = charDir;
                 spanStart = characterStart;
                 continue;
             }
-            if (selected.Value() == spanFace) continue;
+            if (selected.Value() == spanFace && charDir == spanDirection) continue;
             Base::Result<void> appended =
                 appendSpan(
-                    spanFace, spanStart, characterStart);
+                    spanFace, spanDirection, spanStart, characterStart);
             if (!appended) return appended.GetStatus();
             spanFace = selected.Value();
+            spanDirection = charDir;
             spanStart = characterStart;
         }
         return appendSpan(
-            spanFace, spanStart, text.SizeBytes());
+            spanFace, spanDirection, spanStart, text.SizeBytes());
     };
 
     auto shapeSegment = [&](
@@ -550,6 +596,26 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
             Base::Result<void> trimmed =
                 trimLine(line, boundaries.AsSpan());
             if (!trimmed) return trimmed.GetStatus();
+
+            if (effectiveDirection == TextDirection::RightToLeft && line.runCount > 0U) {
+                for (std::uint32_t r = 0U; r < line.runCount; ++r) {
+                    GlyphRun& run = pending.runs_[line.firstRun + r];
+                    if (run.glyphs.Empty()) continue;
+                    float runMinX = run.glyphs[0].x;
+                    float runWidth = 0.0F;
+                    for (const PositionedGlyph& g : run.glyphs) {
+                        runMinX = std::min(runMinX, g.x);
+                        runWidth += g.advanceX;
+                    }
+                    const float runStart = runMinX;
+                    const float runEnd = runStart + runWidth;
+                    const float shift = line.width - runStart - runEnd;
+                    for (PositionedGlyph& g : run.glyphs) {
+                        g.x += shift;
+                    }
+                }
+            }
+
             maximumWidth = std::max(maximumWidth, line.width);
             Base::Result<void> appended =
                 pending.AddLine(line);
@@ -725,7 +791,8 @@ Base::Result<void> TextLayout::Arrange(
         float targetX = 0.0F;
         if (alignment_ == TextAlignment::Center) {
             targetX = available * 0.5F;
-        } else if (alignment_ == TextAlignment::Right) {
+        } else if (alignment_ == TextAlignment::Right ||
+                   (alignment_ == TextAlignment::Left && direction_ == TextDirection::RightToLeft)) {
             targetX = available;
         }
         const float delta = targetX - line.x;

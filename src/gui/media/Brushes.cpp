@@ -403,7 +403,8 @@ Base::Result<void> PaintBrushRect(
     Render::DisplayListBuilder& builder,
     const Base::Ref<Brush>& brush,
     Rect bounds,
-    double cornerRadius) noexcept {
+    double cornerRadius,
+    bool isRtl) noexcept {
     if (!brush || bounds.width <= 0.0 ||
         bounds.height <= 0.0) {
         return {};
@@ -504,12 +505,20 @@ Base::Result<void> PaintBrushRect(
                     (tileMode == TileMode::FlipY ||
                      tileMode == TileMode::FlipXY) &&
                     (row & 1) != 0;
-                const double sampleX = flipX ? 1.0 - relativeX : relativeX;
-                const double sampleY = flipY ? 1.0 - relativeY : relativeY;
-                uv.x += uv.width * sampleX;
-                uv.y += uv.height * sampleY;
-                uv.width *= tile.width / viewport.width;
-                uv.height *= tile.height / viewport.height;
+                if (flipX ^ isRtl) {
+                    uv.x += uv.width * (1.0 - relativeX);
+                    uv.width = -uv.width * (tile.width / viewport.width);
+                } else {
+                    uv.x += uv.width * relativeX;
+                    uv.width *= tile.width / viewport.width;
+                }
+                if (flipY) {
+                    uv.y += uv.height * (1.0 - relativeY);
+                    uv.height = -uv.height * (tile.height / viewport.height);
+                } else {
+                    uv.y += uv.height * relativeY;
+                    uv.height *= tile.height / viewport.height;
+                }
                 const Point center{
                     (tile.x - bounds.x + tile.width * 0.5) / bounds.width,
                     (tile.y - bounds.y + tile.height * 0.5) / bounds.height};
@@ -532,6 +541,11 @@ Base::Result<void> PaintBrushRect(
                 brush.Get());
         Point start = gradient.GetStartPoint();
         Point end = gradient.GetEndPoint();
+        if (isRtl && gradient.GetMappingMode() ==
+            BrushMappingMode::RelativeToBoundingBox) {
+            start.x = 1.0 - start.x;
+            end.x = 1.0 - end.x;
+        }
         if (gradient.GetMappingMode() ==
             BrushMappingMode::RelativeToBoundingBox) {
             start = {
@@ -683,6 +697,11 @@ Base::Result<void> PaintBrushRect(
                 brush.Get());
         Point center = gradient.GetCenter();
         Point origin = gradient.GetGradientOrigin();
+        if (isRtl && gradient.GetMappingMode() ==
+            BrushMappingMode::RelativeToBoundingBox) {
+            center.x = 1.0 - center.x;
+            origin.x = 1.0 - origin.x;
+        }
         double radiusX = std::max(std::fabs(gradient.GetRadiusX()), 1.0e-6);
         double radiusY = std::max(std::fabs(gradient.GetRadiusY()), 1.0e-6);
         if (gradient.GetMappingMode() ==

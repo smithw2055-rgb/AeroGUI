@@ -107,6 +107,9 @@ public:
     Base::Result<void> SetOverlays(
         Base::Span<UIElement* const> overlays,
         Base::Span<const Point> origins) noexcept;
+    Base::Result<void> SetOverlays(
+        Base::Span<UIElement* const> overlays,
+        Base::Span<const Base::Transform2D> transforms) noexcept;
     void ClearOverlays() noexcept {
         overlays_.Clear();
     }
@@ -121,7 +124,7 @@ public:
 private:
     struct OverlayRecord {
         UIElement* element = nullptr;
-        Point origin;
+        Base::Transform2D transform;
     };
     Base::Vector<OverlayRecord> overlays_;
     static UIElement* AsUIElement(::Aero::Media::Visual& node) noexcept {
@@ -366,6 +369,7 @@ public:
     Base::Result<Input::TextInputDispatchResult> DispatchText(const Input::TextInput& input) noexcept { return text_.Dispatch(input); }
 
     Base::Result<void> SetOverlays(Base::Span<UIElement* const> overlays, Base::Span<const Base::Point> origins) noexcept { return hitTests_.SetOverlays(overlays, origins); }
+    Base::Result<void> SetOverlays(Base::Span<UIElement* const> overlays, Base::Span<const Base::Transform2D> transforms) noexcept { return hitTests_.SetOverlays(overlays, transforms); }
     void ClearOverlays() noexcept { hitTests_.ClearOverlays(); }
     Base::Result<Input::HitTestResult> HitTest(::Aero::Media::Visual& root, Base::Point position) const noexcept { return hitTests_.HitTest(root, position); }
     Base::Result<Input::HitTestResult> RootToLocal(::Aero::Media::Visual& root, ::Aero::Media::Visual& target, Base::Point position) const noexcept { return hitTests_.RootToLocal(root, target, position); }

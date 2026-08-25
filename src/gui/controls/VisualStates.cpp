@@ -12,6 +12,7 @@
 #include "gui/media/MediaState.hpp"
 
 #include <algorithm>
+#include <cstdio>
 #include <new>
 #include <utility>
 #include "ControlBehavior.hpp"
@@ -185,77 +186,145 @@ Base::Result<AnimationTarget> ResolveAnimationTarget(
             beforeIndex ==
                 Base::StringView(
                     "(TransformGroup.Children)");
-        if (!transformChildren) {
+
+        const bool gradientStops =
+            beforeIndex == Base::StringView("(Panel.Background).(GradientBrush.GradientStops)") ||
+            beforeIndex == Base::StringView("(Border.Background).(GradientBrush.GradientStops)") ||
+            beforeIndex == Base::StringView("(Control.Background).(GradientBrush.GradientStops)") ||
+            beforeIndex == Base::StringView("(Control.Foreground).(GradientBrush.GradientStops)") ||
+            beforeIndex == Base::StringView("(Control.BorderBrush).(GradientBrush.GradientStops)") ||
+            beforeIndex == Base::StringView("(Border.BorderBrush).(GradientBrush.GradientStops)") ||
+            beforeIndex == Base::StringView("(GradientBrush.GradientStops)") ||
+            beforeIndex == Base::StringView("Background.GradientStops") ||
+            beforeIndex == Base::StringView("Foreground.GradientStops") ||
+            beforeIndex == Base::StringView("BorderBrush.GradientStops") ||
+            beforeIndex == Base::StringView("GradientStops");
+
+        if (!transformChildren && !gradientStops) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "VisualState indexed Storyboard collection is not supported");
         }
 
-        Base::Ref<Transform> transform;
-        if (beforeIndex ==
-                Base::StringView(
-                    "(TransformGroup.Children)") &&
-            properties.Types().IsDerivedFrom(
-                target->RuntimeType(),
-                TransformGroup::StaticTypeId())) {
-            transform =
-                Base::Ref<Transform>::TryFromBorrowed(
-                    *static_cast<Transform*>(target));
-        } else {
-            const bool layoutPath =
-                beforeIndex ==
-                    Base::StringView(
-                        "(FrameworkElement.LayoutTransform).(TransformGroup.Children)") ||
-                beforeIndex ==
-                    Base::StringView(
-                        "LayoutTransform.Children");
-            if (layoutPath) {
-                if (!properties.Types().IsDerivedFrom(
-                        target->RuntimeType(),
-                        FrameworkElement::StaticTypeId())) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::InvalidArgument,
-                        "VisualState LayoutTransform target is not a FrameworkElement");
-                }
-                transform =
-                    static_cast<FrameworkElement*>(
-                        target)->GetLayoutTransform();
+        if (gradientStops) {
+            Base::Ref<GradientBrush> gradient;
+            if (properties.Types().IsDerivedFrom(
+                    target->RuntimeType(),
+                    GradientBrush::StaticTypeId())) {
+                gradient = Base::Ref<GradientBrush>::TryFromBorrowed(
+                    *static_cast<GradientBrush*>(target));
             } else {
-                if (!properties.Types().IsDerivedFrom(
-                        target->RuntimeType(),
-                        UIElement::StaticTypeId())) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::InvalidArgument,
-                        "VisualState RenderTransform target is not a UIElement");
+                Base::StringView propName = "Background";
+                for (std::uint32_t bi = 0U; bi < beforeIndex.SizeBytes(); ++bi) {
+                    if (bi + 10U <= beforeIndex.SizeBytes() &&
+                        beforeIndex.Substr(bi, 10U) == Base::StringView("Foreground")) {
+                        propName = "Foreground";
+                        break;
+                    }
+                    if (bi + 11U <= beforeIndex.SizeBytes() &&
+                        beforeIndex.Substr(bi, 11U) == Base::StringView("BorderBrush")) {
+                        propName = "BorderBrush";
+                        break;
+                    }
                 }
-                transform =
-                    static_cast<UIElement*>(
-                        target)->GetRenderTransform();
+                const DependencyProperty* prop =
+                    properties.Find(target->RuntimeType(), propName);
+                if (prop != nullptr) {
+                    Base::Result<PropertyValue> brushVal =
+                        target->GetValue(prop->Handle());
+                    if (brushVal &&
+                        brushVal.Value().Kind() == ValueKind::Object &&
+                        brushVal.Value().AsObject() &&
+                        properties.Types().IsDerivedFrom(
+                            brushVal.Value().AsObject()->RuntimeType(),
+                            GradientBrush::StaticTypeId())) {
+                        gradient = Base::Ref<GradientBrush>::TryFromBorrowed(
+                            *static_cast<GradientBrush*>(
+                                brushVal.Value().AsObject().Get()));
+                    }
+                }
             }
+            if (!gradient) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "VisualState GradientBrush target was not found");
+            }
+            const auto stops = gradient->GetGradientStops();
+            if (parsedIndex >= stops.Size() || !stops[static_cast<std::uint32_t>(parsedIndex)]) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::OutOfRange,
+                    "VisualState GradientStop index is out of range");
+            }
+            target = stops[static_cast<std::uint32_t>(parsedIndex)].Get();
+            path = terminalPath;
+            nestedTargetResolved = true;
+        } else if (transformChildren) {
+            Base::Ref<Transform> transform;
+            if (beforeIndex ==
+                    Base::StringView(
+                        "(TransformGroup.Children)") &&
+                properties.Types().IsDerivedFrom(
+                    target->RuntimeType(),
+                    TransformGroup::StaticTypeId())) {
+                transform =
+                    Base::Ref<Transform>::TryFromBorrowed(
+                        *static_cast<Transform*>(target));
+            } else {
+                const bool layoutPath =
+                    beforeIndex ==
+                        Base::StringView(
+                            "(FrameworkElement.LayoutTransform).(TransformGroup.Children)") ||
+                    beforeIndex ==
+                        Base::StringView(
+                            "LayoutTransform.Children");
+                if (layoutPath) {
+                    if (!properties.Types().IsDerivedFrom(
+                            target->RuntimeType(),
+                            FrameworkElement::StaticTypeId())) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::InvalidArgument,
+                            "VisualState LayoutTransform target is not a FrameworkElement");
+                    }
+                    transform =
+                        static_cast<FrameworkElement*>(
+                            target)->GetLayoutTransform();
+                } else {
+                    if (!properties.Types().IsDerivedFrom(
+                            target->RuntimeType(),
+                            UIElement::StaticTypeId())) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::InvalidArgument,
+                            "VisualState RenderTransform target is not a UIElement");
+                    }
+                    transform =
+                        static_cast<UIElement*>(
+                            target)->GetRenderTransform();
+                }
+            }
+            if (!transform ||
+                !properties.Types().IsDerivedFrom(
+                    transform->RuntimeType(),
+                    TransformGroup::StaticTypeId())) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "VisualState transform path has no TransformGroup");
+            }
+            auto& group =
+                static_cast<TransformGroup&>(*transform);
+            const auto children = group.GetChildren();
+            if (parsedIndex >= children.Size() ||
+                !children[static_cast<std::uint32_t>(
+                    parsedIndex)]) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::OutOfRange,
+                    "VisualState TransformGroup index is out of range");
+            }
+            target =
+                children[static_cast<std::uint32_t>(
+                    parsedIndex)].Get();
+            path = terminalPath;
+            nestedTargetResolved = true;
         }
-        if (!transform ||
-            !properties.Types().IsDerivedFrom(
-                transform->RuntimeType(),
-                TransformGroup::StaticTypeId())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "VisualState transform path has no TransformGroup");
-        }
-        auto& group =
-            static_cast<TransformGroup&>(*transform);
-        const auto children = group.GetChildren();
-        if (parsedIndex >= children.Size() ||
-            !children[static_cast<std::uint32_t>(
-                parsedIndex)]) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "VisualState TransformGroup index is out of range");
-        }
-        target =
-            children[static_cast<std::uint32_t>(
-                parsedIndex)].Get();
-        path = terminalPath;
-        nestedTargetResolved = true;
     }
 
     constexpr Base::StringView TransformPrefix(
@@ -503,6 +572,18 @@ private:
     Base::Result<void> CaptureTransitionValues(
         TemplateHandle handle,
         const VisualStatePlan& next,
+        Base::Vector<TransitionValue>& values) noexcept;
+    Base::Result<void> CaptureStoryboardTransitionValues(
+        Control& control,
+        TemplateHandle handle,
+        const VisualStatePlan& next,
+        Base::Vector<TransitionValue>& values) noexcept;
+    static Base::Result<void> CaptureStoryboardTimeline(
+        Control& control,
+        TemplateHandle handle,
+        TemplateEngine& templates,
+        DependencyPropertyRegistry& properties,
+        Media::Animation::Timeline& timeline,
         Base::Vector<TransitionValue>& values) noexcept;
     Base::Result<void> StartTransitionAnimations(
         Control& control,
@@ -758,7 +839,9 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
             ResolveAnimationTarget(
                 control, handle, timeline,
                 *templates_, *properties_);
-        if (!resolved) return resolved.GetStatus();
+        if (!resolved) {
+            return resolved.GetStatus();
+        }
 
         Base::Result<Aero::Media::Animation::Model::AnimationHandle> started =
             Base::Status::Failure(
@@ -827,12 +910,72 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
             Base::Result<PropertyValue> base =
                 resolved.Value().object->GetValue(
                     resolved.Value().property);
-            if (!base) return base.GetStatus();
             Base::Result<double> decoded =
                 ValueCodec<double>::Decode(
                     base.Value());
-            if (!decoded) return decoded.GetStatus();
             Aero::Media::Animation::Model::DoubleKeyFrameAnimation runtime;
+            runtime.baseValue = decoded.Value();
+            runtime.timing =
+                ComposeTiming(authored, parent);
+            if (runtime.timing.durationMicroseconds == 0U) {
+                runtime.timing.durationMicroseconds =
+                    frames.Back().keyTimeMicroseconds;
+            }
+            runtime.keyFrames = frames.AsSpan();
+            started = animations_->Begin(
+                *resolved.Value().object,
+                resolved.Value().property,
+                runtime);
+        } else if (
+            timeline.RuntimeType() ==
+                Media::Animation::ColorAnimationUsingKeyFrames::
+                    StaticTypeId()) {
+            auto& authored = static_cast<
+                Media::Animation::ColorAnimationUsingKeyFrames&>(
+                timeline);
+            Base::Vector<Aero::Media::Animation::Model::ColorKeyFrame>
+                frames;
+            for (const Base::Ref<Media::Animation::ColorKeyFrame>&
+                     frame : authored.GetKeyFrames()) {
+                if (!frame) continue;
+                Base::Result<void> appended =
+                    frames.PushBack(
+                        Aero::Media::AnimationPrivate::ColorFrame(
+                            *frame));
+                if (!appended) {
+                    return appended.GetStatus();
+                }
+            }
+            for (std::uint32_t index = 1U;
+                 index < frames.Size(); ++index) {
+                Aero::Media::Animation::Model::ColorKeyFrame current =
+                    frames[index];
+                std::uint32_t position = index;
+                while (position > 0U &&
+                       frames[position - 1U]
+                               .keyTimeMicroseconds >
+                           current.keyTimeMicroseconds) {
+                    frames[position] =
+                        frames[position - 1U];
+                    --position;
+                }
+                frames[position] = current;
+            }
+            if (frames.Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "VisualState color key-frame animation has no frames");
+            }
+            Base::Result<PropertyValue> base =
+                resolved.Value().object->GetValue(
+                    resolved.Value().property);
+            if (!base) return base.GetStatus();
+            Base::Result<Base::Color> decoded =
+                ValueCodec<Base::Color>::Decode(
+                    base.Value());
+            if (!decoded) return decoded.GetStatus();
+            Aero::Media::Animation::Model::ColorKeyFrameAnimation
+                runtime;
             runtime.baseValue = decoded.Value();
             runtime.timing =
                 ComposeTiming(authored, parent);
@@ -992,6 +1135,154 @@ Base::Result<void> VisualStateManagerImpl::CaptureTransitionValues(
         Base::Result<void> appended =
             output.PushBack(std::move(value));
         if (!appended) return appended.GetStatus();
+    }
+    return {};
+}
+
+// Walks a storyboard (recursively) and, for every animatable leaf timeline,
+// resolves its real target and captures the current value (from) plus the
+// value the animation drives toward (to). This lets a generated
+// VisualTransition (GeneratedDuration with no explicit Storyboard) fade
+// between the current and destination values even when the destination
+// VisualState expresses its effect through a Storyboard rather than Setters.
+Base::Result<void> VisualStateManagerImpl::CaptureStoryboardTimeline(
+    Control& control,
+    TemplateHandle handle,
+    TemplateEngine& templates,
+    DependencyPropertyRegistry& properties,
+    Media::Animation::Timeline& timeline,
+    Base::Vector<TransitionValue>& values) noexcept {
+    if (timeline.RuntimeType() ==
+        Media::Animation::Storyboard::StaticTypeId()) {
+        auto& storyboard =
+            static_cast<Media::Animation::Storyboard&>(timeline);
+        for (const Base::Ref<Media::Animation::Timeline>& child :
+             storyboard.GetTimelines()) {
+            if (!child) continue;
+            Base::Result<void> captured =
+                CaptureStoryboardTimeline(
+                    control, handle, templates, properties,
+                    *child, values);
+            if (!captured) return captured.GetStatus();
+        }
+        return {};
+    }
+
+    Base::Result<AnimationTarget> resolved =
+        ResolveAnimationTarget(
+            control, handle, timeline, templates, properties);
+    if (!resolved) return resolved.GetStatus();
+
+    DependencyObject* target = resolved.Value().object;
+    const DependencyPropertyHandle property =
+        resolved.Value().property;
+    Base::Result<PropertyValue> from =
+        target->GetValue(property);
+    if (!from) return from.GetStatus();
+
+    if (timeline.RuntimeType() ==
+            Media::Animation::DoubleAnimationUsingKeyFrames::
+                StaticTypeId()) {
+        auto& authored = static_cast<
+            Media::Animation::DoubleAnimationUsingKeyFrames&>(timeline);
+        const auto frames = authored.GetKeyFrames();
+        if (frames.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "VisualState double key-frame transition has no frames");
+        }
+        Base::Result<PropertyValue> to =
+            ValueCodec<double>::Encode(
+                Aero::Media::AnimationPrivate::DoubleFrame(
+                    *frames[frames.Size() - 1U]).value);
+        if (!to) return to.GetStatus();
+        Base::Result<void> appended = values.PushBack(
+            TransitionValue{
+                target,
+                property,
+                from.Value(),
+                std::move(to).Value()});
+        if (!appended) return appended.GetStatus();
+        return {};
+    }
+    if (timeline.RuntimeType() ==
+            Media::Animation::ColorAnimationUsingKeyFrames::
+                StaticTypeId()) {
+        auto& authored = static_cast<
+            Media::Animation::ColorAnimationUsingKeyFrames&>(timeline);
+        const auto frames = authored.GetKeyFrames();
+        if (frames.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "VisualState color key-frame transition has no frames");
+        }
+        Base::Result<PropertyValue> to =
+            ValueCodec<Base::Color>::Encode(
+                Aero::Media::AnimationPrivate::ColorFrame(
+                    *frames[frames.Size() - 1U]).value);
+        if (!to) return to.GetStatus();
+        Base::Result<void> appended = values.PushBack(
+            TransitionValue{
+                target,
+                property,
+                from.Value(),
+                std::move(to).Value()});
+        if (!appended) return appended.GetStatus();
+        return {};
+    }
+    if (timeline.RuntimeType() ==
+            Media::Animation::DoubleAnimation::StaticTypeId()) {
+        auto& authored =
+            static_cast<Media::Animation::DoubleAnimation&>(timeline);
+        Base::Result<PropertyValue> to =
+            ValueCodec<double>::Encode(authored.GetTo());
+        if (!to) return to.GetStatus();
+        Base::Result<void> appended = values.PushBack(
+            TransitionValue{
+                target,
+                property,
+                from.Value(),
+                std::move(to).Value()});
+        if (!appended) return appended.GetStatus();
+        return {};
+    }
+    if (timeline.RuntimeType() ==
+            Media::Animation::ColorAnimation::StaticTypeId()) {
+        auto& authored =
+            static_cast<Media::Animation::ColorAnimation&>(timeline);
+        Base::Result<PropertyValue> to =
+            ValueCodec<Base::Color>::Encode(authored.GetTo());
+        if (!to) return to.GetStatus();
+        Base::Result<void> appended = values.PushBack(
+            TransitionValue{
+                target,
+                property,
+                from.Value(),
+                std::move(to).Value()});
+        if (!appended) return appended.GetStatus();
+        return {};
+    }
+    // Unsupported timeline kind for a generated transition: leave it to the
+    // state's own Storyboard (no fade for this property).
+    return {};
+}
+
+Base::Result<void>
+VisualStateManagerImpl::CaptureStoryboardTransitionValues(
+    Control& control,
+    TemplateHandle handle,
+    const VisualStatePlan& next,
+    Base::Vector<TransitionValue>& values) noexcept {
+    if (!next.storyboard) return {};
+    const auto& storyboard = *next.storyboard;
+    for (const Base::Ref<Media::Animation::Timeline>& child :
+         storyboard.GetTimelines()) {
+        if (!child) continue;
+        Base::Result<void> captured =
+            CaptureStoryboardTimeline(
+                control, handle, *templates_, *properties_,
+                *child, values);
+        if (!captured) return captured.GetStatus();
     }
     return {};
 }
@@ -1201,6 +1492,17 @@ Base::Result<bool> VisualStateManagerImpl::GoToState(
             }
             return captured.GetStatus();
         }
+        captured = CaptureStoryboardTransitionValues(
+            control,
+            handle,
+            *next,
+            transitionValues);
+        if (!captured) {
+            if (addedRecord) {
+                RemoveActiveAt(activeIndex);
+            }
+            return captured.GetStatus();
+        }
     }
     if (previous != nullptr) {
         Base::Result<void> animationsCleared =
@@ -1246,7 +1548,21 @@ Base::Result<bool> VisualStateManagerImpl::GoToState(
                         *transition->storyboard).durationMicroseconds);
         }
     }
-    if (animated) {
+    const bool useGeneratedTransition =
+        transition != nullptr &&
+        transition->generatedDurationMicroseconds != 0U &&
+        !transition->storyboard;
+    if (animated && !useGeneratedTransition) {
+        animated = StartStateAnimations(
+            control, handle, *next,
+            active_[activeIndex],
+            stateTiming);
+    } else if (animated && useGeneratedTransition &&
+               active_[activeIndex].animations.Empty()) {
+        // The generated transition produced no interpolation (for example
+        // the target storyboard exposed nothing capturable). Fall back to
+        // the state's own storyboard so the visual still changes instead of
+        // silently doing nothing.
         animated = StartStateAnimations(
             control, handle, *next,
             active_[activeIndex],

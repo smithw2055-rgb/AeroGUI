@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <utility>
 
+namespace Aero::Controls { struct TextBlockDocumentHelper; }
+
 namespace Aero::Documents {
 
 class Inline;

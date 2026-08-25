@@ -105,12 +105,15 @@ Size StackPanel::MeasureOverride(Size availableSize) noexcept {
 Size StackPanel::ArrangeOverride(Size finalSize) noexcept {
     double offset = 0.0;
     const Orientation orientation = GetOrientation();
+    const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const Size desired = child->GetDesiredSize();
         const Rect slot = orientation == Orientation::Vertical
             ? Rect{0.0, offset, finalSize.width, desired.height}
-            : Rect{offset, 0.0, desired.width, finalSize.height};
+            : (isRtl
+                ? Rect{finalSize.width - offset - desired.width, 0.0, desired.width, finalSize.height}
+                : Rect{offset, 0.0, desired.width, finalSize.height});
         Base::Result<void> arranged = ArrangeChild(*child, slot);
         if (!arranged) return finalSize;
         offset += orientation == Orientation::Vertical
@@ -182,6 +185,7 @@ Size DockPanel::ArrangeOverride(
     double top = 0.0;
     double right = finalSize.width;
     double bottom = finalSize.height;
+    const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
     const UIElementChildRange children = LayoutChildren();
     for (std::uint32_t index = 0U;
          index < children.Size();
@@ -198,7 +202,12 @@ Size DockPanel::ArrangeOverride(
             index + 1U == children.Size();
         if (!fill) {
             const Size desired = child->GetDesiredSize();
-            switch (GetChildDock(*child)) {
+            Dock dock = GetChildDock(*child);
+            if (isRtl) {
+                if (dock == Dock::Left) dock = Dock::Right;
+                else if (dock == Dock::Right) dock = Dock::Left;
+            }
+            switch (dock) {
             case Dock::Left:
                 slot.width = std::min(
                     slot.width, desired.width);
@@ -314,6 +323,7 @@ Size WrapPanel::ArrangeOverride(
     Size finalSize) noexcept {
     const bool horizontal =
         GetOrientation() == Orientation::Horizontal;
+    const bool isRtl = horizontal && GetFlowDirection() == FlowDirection::RightToLeft;
     const double primaryLimit = horizontal
         ? finalSize.width : finalSize.height;
     double primary = 0.0;
@@ -339,7 +349,9 @@ Size WrapPanel::ArrangeOverride(
             lineCross = 0.0;
         }
         const Rect slot = horizontal
-            ? Rect{primary, cross, childPrimary, childCross}
+            ? (isRtl
+                ? Rect{finalSize.width - primary - childPrimary, cross, childPrimary, childCross}
+                : Rect{primary, cross, childPrimary, childCross})
             : Rect{cross, primary, childCross, childPrimary};
         Base::Result<void> arranged =
             ArrangeChild(*child, slot);
@@ -434,15 +446,19 @@ Size UniformGrid::ArrangeOverride(
         finalSize.width / static_cast<double>(columns);
     const double height =
         finalSize.height / static_cast<double>(rows);
+    const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
     std::uint32_t index = std::min(
         GetFirstColumn(), columns - 1U);
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const std::uint32_t row = index / columns;
         const std::uint32_t column = index % columns;
+        const double x = isRtl
+            ? finalSize.width - (column + 1U) * width
+            : column * width;
         Base::Result<void> arranged = ArrangeChild(
             *child,
-            {column * width, row * height, width, height});
+            {x, row * height, width, height});
         if (!arranged) return finalSize;
         ++index;
     }
@@ -926,6 +942,7 @@ Size Grid::ArrangeOverride(Size finalSize) noexcept {
         finalSize.height, rows);
     if (!resolved) return finalSize;
 
+    const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const EffectiveGridSpan rowPlacement =
@@ -959,6 +976,9 @@ Size Grid::ArrangeOverride(Size finalSize) noexcept {
         for (std::uint32_t offset = 0U;
              offset < rowSpan; ++offset) {
             height += rows[row + offset];
+        }
+        if (isRtl) {
+            x = finalSize.width - x - width;
         }
         Base::Result<void> arranged = ArrangeChild(*child,
             {x, y, width, height});

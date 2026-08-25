@@ -114,6 +114,8 @@ private:
     DependencyPropertyChangedEventHandler
         dropDownChangedHandler_;
     DependencyPropertyChangedEventHandler
+        popupIsOpenChangedHandler_;
+    DependencyPropertyChangedEventHandler
         maxDropDownHeightChangedHandler_;
     DependencyPropertyChangedEventHandler
         editableChangedHandler_;
@@ -134,6 +136,10 @@ private:
         const SelectionChangedEvent& event)
         noexcept;
     void OnDropDownPropertyChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs&
+            args) noexcept;
+    void OnPopupIsOpenChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs&
             args) noexcept;

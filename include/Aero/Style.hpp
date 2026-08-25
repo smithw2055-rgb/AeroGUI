@@ -25,6 +25,7 @@ using Meta::InvalidTypeId;
 using Meta::PropertyValue;
 using Meta::TypeId;
 
+struct StyleState;
 class Style;
 
 class AERO_GUI_API SetterBaseCollection {

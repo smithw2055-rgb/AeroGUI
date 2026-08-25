@@ -394,6 +394,8 @@ private:
         }
         target->texture2D = reinterpret_cast<std::uintptr_t>(
             owner->activeBackBuffer_);
+        target->depthStencilView = reinterpret_cast<std::uintptr_t>(
+            owner->depthStencilView_);
         target->width = owner->width_;
         target->height = owner->height_;
         target->stableId =

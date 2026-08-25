@@ -7,6 +7,7 @@
 #include "gui/templates/TemplateState.hpp"
 #include "gui/markup/MarkupState.hpp"
 #include "gui/markup/MarkupWriterState.hpp"
+#include <cstdio>
 // Consolidated implementation. Keep sections ordered by dependency.
 
 // ===== StyleSupport =====
@@ -2150,8 +2151,60 @@ CompileVisualStates(
             if (!assigned) {
                 return assigned.GetStatus();
             }
-            state.storyboard =
-                sourceState.GetStoryboard();
+            if (auto srcStoryboard = sourceState.GetStoryboard()) {
+                auto storyboardCopy =
+                    Aero::Base::MakeRef<Aero::Media::Animation::Storyboard>();
+                if (!storyboardCopy) return storyboardCopy.GetStatus();
+                for (const auto& tl : srcStoryboard->GetTimelines()) {
+                    if (!tl) continue;
+                    Base::Ref<Aero::Media::Animation::Timeline> cloned;
+                    if (tl->RuntimeType() == Aero::Media::Animation::DoubleAnimationUsingKeyFrames::StaticTypeId()) {
+                        auto* srcDouble = static_cast<Aero::Media::Animation::DoubleAnimationUsingKeyFrames*>(tl.Get());
+                        auto dst = Aero::Base::MakeRef<Aero::Media::Animation::DoubleAnimationUsingKeyFrames>();
+                        if (!dst) return dst.GetStatus();
+                        Base::Result<PropertyValue> nameVal = srcDouble->GetValue(Aero::Media::Animation::Storyboard::TargetNameProperty.Handle());
+                        if (nameVal && nameVal.Value().Kind() == Aero::Meta::ValueKind::String) {
+                            (void)dst.Value()->SetValue(Aero::Media::Animation::Storyboard::TargetNameProperty.Handle(), nameVal.Value());
+                        }
+                        Base::Result<PropertyValue> propVal = srcDouble->GetValue(Aero::Media::Animation::Storyboard::TargetPropertyProperty.Handle());
+                        if (propVal && propVal.Value().Kind() == Aero::Meta::ValueKind::String) {
+                            (void)dst.Value()->SetValue(Aero::Media::Animation::Storyboard::TargetPropertyProperty.Handle(), propVal.Value());
+                        }
+                        for (auto& kf : srcDouble->GetKeyFrames()) {
+                            if (!kf) continue;
+                            auto a = dst.Value()->AddKeyFrame(kf);
+                            if (!a) return a.GetStatus();
+                        }
+                        cloned = dst.Value();
+                    } else if (tl->RuntimeType() == Aero::Media::Animation::ColorAnimationUsingKeyFrames::StaticTypeId()) {
+                        auto* srcColor = static_cast<Aero::Media::Animation::ColorAnimationUsingKeyFrames*>(tl.Get());
+                        auto dst = Aero::Base::MakeRef<Aero::Media::Animation::ColorAnimationUsingKeyFrames>();
+                        if (!dst) return dst.GetStatus();
+                        Base::Result<PropertyValue> nameVal = srcColor->GetValue(Aero::Media::Animation::Storyboard::TargetNameProperty.Handle());
+                        if (nameVal && nameVal.Value().Kind() == Aero::Meta::ValueKind::String) {
+                            (void)dst.Value()->SetValue(Aero::Media::Animation::Storyboard::TargetNameProperty.Handle(), nameVal.Value());
+                        }
+                        Base::Result<PropertyValue> propVal = srcColor->GetValue(Aero::Media::Animation::Storyboard::TargetPropertyProperty.Handle());
+                        if (propVal && propVal.Value().Kind() == Aero::Meta::ValueKind::String) {
+                            (void)dst.Value()->SetValue(Aero::Media::Animation::Storyboard::TargetPropertyProperty.Handle(), propVal.Value());
+                        }
+                        for (auto& kf : srcColor->GetKeyFrames()) {
+                            if (!kf) continue;
+                            auto a = dst.Value()->AddKeyFrame(kf);
+                            if (!a) return a.GetStatus();
+                        }
+                        cloned = dst.Value();
+                    } else {
+                        cloned = tl;
+                    }
+                    Base::Result<void> added =
+                        storyboardCopy.Value()->AddTimeline(cloned);
+                    if (!added) return added.GetStatus();
+                }
+                state.storyboard = std::move(storyboardCopy.Value());
+            } else {
+                state.storyboard.Reset();
+            }
 
             for (const Base::Ref<Base::Object>&
                      setterObject :
@@ -2285,8 +2338,20 @@ CompileVisualStates(
             }
             transition.generatedEasingFunction =
                 sourceTransition.GetGeneratedEasingFunction();
-            transition.storyboard =
-                sourceTransition.GetStoryboard();
+            if (auto srcStoryboard = sourceTransition.GetStoryboard()) {
+                auto storyboardCopy =
+                    Aero::Base::MakeRef<Aero::Media::Animation::Storyboard>();
+                if (!storyboardCopy) return storyboardCopy.GetStatus();
+                for (const auto& tl : srcStoryboard->GetTimelines()) {
+                    if (!tl) continue;
+                    Base::Result<void> added =
+                        storyboardCopy.Value()->AddTimeline(tl);
+                    if (!added) return added.GetStatus();
+                }
+                transition.storyboard = std::move(storyboardCopy.Value());
+            } else {
+                transition.storyboard.Reset();
+            }
             assigned = group.transitions.PushBack(
                 std::move(transition));
             if (!assigned) return assigned.GetStatus();

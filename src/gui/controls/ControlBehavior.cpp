@@ -103,7 +103,7 @@ Base::Result<void> ControlBehavior::Initialize() noexcept {
 
         Base::Result<Aero::Controls::ComboBehavior*> combos =
             Construct<Aero::Controls::ComboBehavior>(
-                *tree_, *events_, *input_);
+                *tree_, *events_, *input_, visualStates_);
         if (!combos) return combos.GetStatus();
         combos_ = combos.Value();
 

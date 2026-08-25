@@ -21,6 +21,7 @@ struct TextLayoutRequest {
     FontWeight fontWeight = FontWeight::Normal;
     FontStyle fontStyle = FontStyle::Normal;
     Text::FontFace face;
+    Base::Span<const Text::FontFace> fallbackFaces;
     TextWrapping wrapping =
         TextWrapping::NoWrap;
     TextTrimming trimming =

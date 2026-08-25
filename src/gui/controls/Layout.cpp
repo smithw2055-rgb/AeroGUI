@@ -790,15 +790,27 @@ Base::Result<void> LayoutEngine::ArrangeElement(
             transformed.width,
             transformed.height};
     }
+    const bool isRtl = framework != nullptr && framework->GetFlowDirection() == FlowDirection::RightToLeft;
+    Thickness effectiveMargin = margin;
+    HorizontalAlignment effectiveHorizontal = horizontal;
+    if (isRtl) {
+        effectiveMargin.left = margin.right;
+        effectiveMargin.right = margin.left;
+        if (horizontal == HorizontalAlignment::Left) {
+            effectiveHorizontal = HorizontalAlignment::Right;
+        } else if (horizontal == HorizontalAlignment::Right) {
+            effectiveHorizontal = HorizontalAlignment::Left;
+        }
+    }
     Rect contentSlot{
-        slot.x + margin.left,
-        slot.y + margin.top,
+        slot.x + effectiveMargin.left,
+        slot.y + effectiveMargin.top,
         layoutFootprint.width,
         layoutFootprint.height};
     contentSlot.x += AlignmentOffset(contentAvailable.width, layoutFootprint.width,
-        horizontal == HorizontalAlignment::Center ||
-            horizontal == HorizontalAlignment::Stretch,
-        horizontal == HorizontalAlignment::Right);
+        effectiveHorizontal == HorizontalAlignment::Center ||
+            effectiveHorizontal == HorizontalAlignment::Stretch,
+        effectiveHorizontal == HorizontalAlignment::Right);
     contentSlot.y += AlignmentOffset(contentAvailable.height, layoutFootprint.height,
         vertical == VerticalAlignment::Center ||
             vertical == VerticalAlignment::Stretch,

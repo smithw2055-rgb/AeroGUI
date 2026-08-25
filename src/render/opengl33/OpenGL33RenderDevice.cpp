@@ -742,7 +742,14 @@ void OpenGL33RenderDevice::EndUpdatingTextures(Texture** textures, uint32_t coun
     static_cast<void>(count);
 }
 
-void OpenGL33RenderDevice::BeginOffscreenRender() noexcept {}
+void OpenGL33RenderDevice::BeginOffscreenRender() noexcept {
+    if (vao_ == 0 || currentTarget_ == nullptr) return;
+    if (currentTarget_->IsDefaultFBO()) return;
+    g_gl.glDisable(GL_SCISSOR_TEST);
+    g_gl.glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    g_gl.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    g_gl.glClear(GL_COLOR_BUFFER_BIT);
+}
 void OpenGL33RenderDevice::EndOffscreenRender() noexcept {}
 void OpenGL33RenderDevice::BeginOnscreenRender() noexcept {}
 void OpenGL33RenderDevice::EndOnscreenRender() noexcept {}

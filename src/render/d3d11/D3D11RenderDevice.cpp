@@ -605,9 +605,23 @@ void D3D11RenderDevice::EndUpdatingTextures(Texture** textures, uint32_t count) 
     static_cast<void>(count);
 }
 
-void D3D11RenderDevice::BeginOffscreenRender() noexcept {}
+void D3D11RenderDevice::BeginOffscreenRender() noexcept {
+    if (context_ == nullptr || currentTarget_ == nullptr) return;
+    const float clearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    context_->ClearRenderTargetView(currentTarget_->GetRTV(), clearColor);
+    ID3D11DepthStencilView* dsv = currentTarget_->GetDSV();
+    if (dsv != nullptr) {
+        context_->ClearDepthStencilView(dsv, D3D11_CLEAR_STENCIL, 1.0f, 0);
+    }
+}
 void D3D11RenderDevice::EndOffscreenRender() noexcept {}
-void D3D11RenderDevice::BeginOnscreenRender() noexcept {}
+void D3D11RenderDevice::BeginOnscreenRender() noexcept {
+    if (context_ == nullptr || currentTarget_ == nullptr) return;
+    ID3D11DepthStencilView* dsv = currentTarget_->GetDSV();
+    if (dsv != nullptr) {
+        context_->ClearDepthStencilView(dsv, D3D11_CLEAR_STENCIL, 1.0f, 0);
+    }
+}
 void D3D11RenderDevice::EndOnscreenRender() noexcept {}
 
 void D3D11RenderDevice::SetRenderTarget(RenderTarget* surface) noexcept {

@@ -118,7 +118,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
 
     Text::TextLayoutRequest layoutRequest;
     layoutRequest.face = request.face.handle.IsValid() ? request.face : state_->config.face;
-    layoutRequest.fallbackFaces = state_->config.fallbackFaces;
+    layoutRequest.fallbackFaces = !request.fallbackFaces.Empty() ? request.fallbackFaces : state_->config.fallbackFaces;
     layoutRequest.text = request.text;
     layoutRequest.pixelSize = request.pixelSize > 0.0F ? request.pixelSize : state_->config.pixelSize;
     layoutRequest.maxWidth = request.availableSize.width > 0.0
@@ -225,6 +225,29 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     if (!tracked) return tracked.GetStatus();
     Base::Result<void> emitted = output.glyphRuns.PushBack(glyphRun);
     if (!emitted) return emitted.GetStatus();
+
+    output.hitRegions.Clear();
+    for (const Text::TextLine& line : layout.Lines()) {
+        const float lineHeight = (line.ascent + line.descent > 0.0F)
+            ? (line.ascent + line.descent)
+            : (request.pixelSize > 0.0F ? request.pixelSize : 16.0F);
+        for (std::uint32_t r = 0U; r < line.runCount; ++r) {
+            const Text::GlyphRun& run = layout.Runs()[line.firstRun + r];
+            for (std::size_t g = 0; g < run.glyphs.Size(); ++g) {
+                const Text::PositionedGlyph& glyph = run.glyphs[g];
+                TextHitRegion region;
+                region.textOffset = glyph.cluster;
+                region.textLength = (g + 1 < run.glyphs.Size() && run.glyphs[g + 1].cluster > glyph.cluster)
+                    ? run.glyphs[g + 1].cluster - glyph.cluster
+                    : 1U;
+                region.x = glyph.x;
+                region.y = line.y;
+                region.width = glyph.advanceX;
+                region.height = lineHeight;
+                (void)output.hitRegions.PushBack(region);
+            }
+        }
+    }
 
     return {};
 }

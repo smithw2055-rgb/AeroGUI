@@ -927,6 +927,9 @@ ComboBox::ComboBox() noexcept
       dropDownChangedHandler_(
           this,
           &ComboBox::OnDropDownPropertyChanged),
+      popupIsOpenChangedHandler_(
+          this,
+          &ComboBox::OnPopupIsOpenChanged),
       maxDropDownHeightChangedHandler_(
           this,
           &ComboBox::
@@ -1208,13 +1211,6 @@ void ComboBox::OnApplyTemplate()
                 Popup::StaticTypeId())
         ? static_cast<Popup*>(popup)
         : nullptr;
-    if ((selectionBox_ == nullptr &&
-         selectionPresenter_ == nullptr) ||
-        (GetIsEditable() &&
-         editableTextBox_ == nullptr) ||
-        popup_ == nullptr) {
-        return;
-    }
     if (editableTextBox_ != nullptr) {
         Base::Result<void> editableHandler =
             editableTextBox_->AddHandlerChecked(
@@ -1224,7 +1220,16 @@ void ComboBox::OnApplyTemplate()
             return;
         }
     }
-    popup_->SetIsOpen(GetIsDropDownOpen());
+    if (popup_ != nullptr) {
+        static_cast<void>(popup_->AddValueChangedHandlerChecked(
+            Popup::IsOpenProperty,
+            popupIsOpenChangedHandler_));
+        popup_->SetPlacementTarget(
+            Base::Ref<UIElement>::TryFromBorrowed(*this));
+        popup_->SetStaysOpen(false);
+        popup_->SetIsOpen(GetIsDropDownOpen());
+        popup_->SetMatchPlacementTargetWidth(true);
+    }
     if (dropDownBorder_ != nullptr) {
         dropDownBorder_->SetMaxSize({1.0e12, GetMaxDropDownHeight()});
     }
@@ -1243,6 +1248,12 @@ void ComboBox::OnTemplateDetached() noexcept {
             editableTextBox_->RemoveHandler(
                 TextBox::TextChangedEvent,
                 editableTextChangedHandler_));
+    }
+    if (popup_ != nullptr) {
+        static_cast<void>(popup_->RemoveValueChangedHandler(
+            Popup::IsOpenProperty,
+            popupIsOpenChangedHandler_));
+        popup_->SetPlacementTarget({});
     }
     selectionBox_ = nullptr;
     selectionPresenter_ = nullptr;
@@ -1358,7 +1369,7 @@ void ComboBox::OnDropDownPropertyChanged(
     DependencyObject&,
     const DependencyPropertyChangedEventArgs&
         args) noexcept {
-    if (popup_ != nullptr) {
+    if (popup_ != nullptr && popup_->GetIsOpen() != args.GetNewValue().AsBoolean()) {
         static_cast<void>(
             popup_->SetIsOpen(
                 args.GetNewValue().AsBoolean()));
@@ -1369,6 +1380,16 @@ void ComboBox::OnDropDownPropertyChanged(
             ? DropDownOpenedEvent
             : DropDownClosedEvent,
         &eventArgs);
+}
+
+void ComboBox::OnPopupIsOpenChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&
+        args) noexcept {
+    const bool open = args.GetNewValue().AsBoolean();
+    if (open != GetIsDropDownOpen()) {
+        SetIsDropDownOpen(open);
+    }
 }
 
 void ComboBox::
@@ -1567,10 +1588,12 @@ ComboBehavior::
 ComboBehavior(
     ElementTree& tree,
     EventRouter& events,
-    InputRouter& input) noexcept
+    InputRouter& input,
+    VisualStateManager* states) noexcept
     : tree_(&tree),
       events_(&events),
       input_(&input),
+      states_(states),
       mouseDownHandler_(
           this,
           &ComboBehavior::
@@ -1578,10 +1601,19 @@ ComboBehavior(
       keyDownHandler_(
           this,
           &ComboBehavior::
-              OnKeyDown) {}
+              OnKeyDown),
+      pointerStateChangedHandler_(
+          this,
+          &ComboBehavior::
+              OnPointerStateChanged) {}
 
 ComboBehavior::
 ~ComboBehavior() noexcept {
+    if (input_ != nullptr) {
+        static_cast<void>(
+            input_->RemovePointerStateChanged(
+                pointerStateChangedHandler_));
+    }
     while (!records_.Empty()) {
         ComboBox* comboBox =
             ResolveComboBox(
@@ -1649,9 +1681,19 @@ ComboBehavior::Attach(
                 mouseDownHandler_));
         return key.GetStatus();
     }
+    if (records_.Empty() && input_ != nullptr) {
+        static_cast<void>(
+            input_->AddPointerStateChanged(
+                pointerStateChangedHandler_));
+    }
     Base::Result<void> stored =
         records_.PushBack(handle.Value());
     if (!stored) {
+        if (records_.Empty() && input_ != nullptr) {
+            static_cast<void>(
+                input_->RemovePointerStateChanged(
+                    pointerStateChangedHandler_));
+        }
         static_cast<void>(
             comboBox.RemoveHandler(
                 UIElement::KeyDownEvent,
@@ -1686,6 +1728,11 @@ ComboBehavior::Detach(
             records_[current + 1U];
     }
     records_.PopBack();
+    if (records_.Empty() && input_ != nullptr) {
+        static_cast<void>(
+            input_->RemovePointerStateChanged(
+                pointerStateChangedHandler_));
+    }
     return true;
 }
 
@@ -1752,6 +1799,70 @@ void ComboBehavior::OnKeyDown(
     }
     comboBox.SetSelectedIndex(selected);
     args.SetHandled(true);
+}
+
+void ComboBehavior::OnPointerStateChanged(
+    UIElement& element) noexcept {
+    if (states_ == nullptr) return;
+    for (std::uint32_t i = 0U; i < records_.Size(); ++i) {
+        ComboBox* comboBox = ResolveComboBox(i);
+        if (comboBox == nullptr) continue;
+
+        Base::StringView comboCommon = "Normal";
+        if (!comboBox->GetIsEnabled()) {
+            comboCommon = "Disabled";
+        } else if (comboBox->GetIsMouseOver()) {
+            comboCommon = "MouseOver";
+        }
+        static_cast<void>(
+            Aero::Controls::TemplatePrivate::GoToState(
+                *states_,
+                *comboBox,
+                "CommonStates",
+                comboCommon,
+                true));
+
+        const std::uint32_t index =
+            comboBox->FindContainerIndex(&element);
+        if (index != UINT32_MAX) {
+            ItemContainerGenerator* generator =
+                comboBox->GetItemContainerGenerator();
+            if (generator != nullptr) {
+                FrameworkElement* container =
+                    generator->ContainerFromIndex(index);
+                if (container != nullptr &&
+                    comboBox->PropertyRegistry().Types().IsDerivedFrom(
+                        container->RuntimeType(),
+                        ComboBoxItem::StaticTypeId())) {
+                    auto& item =
+                        *static_cast<ComboBoxItem*>(container);
+                    Base::StringView common = "Normal";
+                    if (!item.GetIsEnabled()) {
+                        common = "Disabled";
+                    } else if (item.GetIsMouseOver()) {
+                        common = "MouseOver";
+                    }
+                    static_cast<void>(
+                        Aero::Controls::TemplatePrivate::GoToState(
+                            *states_,
+                            item,
+                            "CommonStates",
+                            common,
+                            true));
+                    const bool selected = item.GetIsSelected();
+                    static_cast<void>(
+                        Aero::Controls::TemplatePrivate::GoToState(
+                            *states_,
+                            item,
+                            "SelectionStates",
+                            selected
+                                ? Base::StringView("Selected")
+                                : Base::StringView("Unselected"),
+                            true));
+                }
+            }
+        }
+    }
 }
 
 ListBehavior::ListBehavior(

@@ -1179,8 +1179,9 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
         std::min(glyphRunSize_.height, availableSize.height)};
 }
 Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
-    if (GetTextAlignment() != TextAlignment::Left &&
-        finalSize.width > 0.0) {
+    const bool needsAlignment = GetTextAlignment() != TextAlignment::Left ||
+        GetFlowDirection() == FlowDirection::RightToLeft;
+    if (needsAlignment && finalSize.width > 0.0) {
         arrangingText_ = true;
         static_cast<void>(MeasureOverride(finalSize));
         arrangingText_ = false;
@@ -1202,91 +1203,164 @@ void TextBlock::OnRender(
                 background);
         if (!filled) return;
     }
-    for (RenderGlyphRunId glyphRun : glyphRuns_) {
-        Base::Result<void> drawn =
-            builder.DrawGlyphRun(glyphRun, ::Aero::Media::SampleBrush(GetForeground(), 0.5,
-                Color{0.0F, 0.0F, 0.0F, 1.0F}));
-        if (!drawn) return;
-    }
     struct RichTextLineClip {
         float x = 0.0F;
         float y = 0.0F;
         float right = 0.0F;
         float height = 0.0F;
     };
+
+    bool hasStyledRanges = false;
     for (const RichTextStyleRange& range : richTextStyleRanges_) {
-        if (range.length == 0U ||
-            (!range.hasForeground && !range.bold && !range.italic)) {
-            continue;
+        if (range.length > 0U &&
+            (range.hasForeground || range.italic ||
+             (range.bold && GetFontWeight() != FontWeight::Bold))) {
+            hasStyledRanges = true;
+            break;
         }
-        Base::Vector<RichTextLineClip> clips;
-        const std::uint64_t rangeEnd =
-            static_cast<std::uint64_t>(range.start) + range.length;
+    }
+
+    if (!hasStyledRanges || textHitRegions_.Empty()) {
+        for (RenderGlyphRunId glyphRun : glyphRuns_) {
+            Base::Result<void> drawn =
+                builder.DrawGlyphRun(glyphRun, ::Aero::Media::SampleBrush(GetForeground(), 0.5,
+                    Color{0.0F, 0.0F, 0.0F, 1.0F}));
+            if (!drawn) return;
+        }
+    } else {
+        struct StyleSpan {
+            std::uint32_t start = 0U;
+            std::uint32_t length = 0U;
+            Color foreground{};
+            bool hasForeground = false;
+            bool bold = false;
+            bool italic = false;
+        };
+
+        std::uint32_t maxTextEnd = 0U;
         for (const TextHitRegion& region : textHitRegions_) {
-            const std::uint64_t regionEnd =
-                static_cast<std::uint64_t>(region.textOffset) +
-                region.textLength;
-            if (region.textLength == 0U ||
-                regionEnd <= range.start ||
-                region.textOffset >= rangeEnd) {
-                continue;
+            maxTextEnd = std::max(
+                maxTextEnd,
+                static_cast<std::uint32_t>(region.textOffset + region.textLength));
+        }
+        for (const RichTextStyleRange& range : richTextStyleRanges_) {
+            maxTextEnd = std::max(maxTextEnd, range.start + range.length);
+        }
+
+        Base::Vector<StyleSpan> spans;
+        std::uint32_t currentOffset = 0U;
+        for (const RichTextStyleRange& range : richTextStyleRanges_) {
+            if (range.length == 0U) continue;
+            if (range.start > currentOffset) {
+                StyleSpan unstyled;
+                unstyled.start = currentOffset;
+                unstyled.length = range.start - currentOffset;
+                if (!spans.PushBack(unstyled)) return;
             }
-            RichTextLineClip* line = nullptr;
-            for (RichTextLineClip& candidate : clips) {
-                if (std::fabs(candidate.y - region.y) < 0.01F) {
-                    line = &candidate;
-                    break;
+            const bool isStyled = range.hasForeground || range.italic ||
+                (range.bold && GetFontWeight() != FontWeight::Bold);
+            if (isStyled) {
+                StyleSpan styled;
+                styled.start = range.start;
+                styled.length = range.length;
+                styled.foreground = range.foreground;
+                styled.hasForeground = range.hasForeground;
+                styled.bold = range.bold && GetFontWeight() != FontWeight::Bold;
+                styled.italic = range.italic;
+                if (!spans.PushBack(styled)) return;
+            } else {
+                StyleSpan unstyled;
+                unstyled.start = range.start;
+                unstyled.length = range.length;
+                if (!spans.PushBack(unstyled)) return;
+            }
+            currentOffset = std::max(currentOffset, range.start + range.length);
+        }
+        if (currentOffset < maxTextEnd) {
+            StyleSpan unstyled;
+            unstyled.start = currentOffset;
+            unstyled.length = maxTextEnd - currentOffset;
+            if (!spans.PushBack(unstyled)) return;
+        }
+
+        for (const StyleSpan& span : spans) {
+            if (span.length == 0U) continue;
+            Base::Vector<RichTextLineClip> clips;
+            const std::uint64_t spanEnd =
+                static_cast<std::uint64_t>(span.start) + span.length;
+            for (const TextHitRegion& region : textHitRegions_) {
+                const std::uint64_t regionEnd =
+                    static_cast<std::uint64_t>(region.textOffset) +
+                    region.textLength;
+                if (region.textLength == 0U ||
+                    regionEnd <= span.start ||
+                    region.textOffset >= spanEnd) {
+                    continue;
+                }
+                RichTextLineClip* line = nullptr;
+                for (RichTextLineClip& candidate : clips) {
+                    if (std::fabs(candidate.y - region.y) < 0.01F) {
+                        line = &candidate;
+                        break;
+                    }
+                }
+                if (line == nullptr) {
+                    RichTextLineClip added;
+                    added.x = region.x;
+                    added.y = region.y;
+                    added.right = region.x + region.width;
+                    added.height = region.height;
+                    Base::Result<void> appended = clips.PushBack(added);
+                    if (!appended) return;
+                } else {
+                    line->x = std::min(line->x, region.x);
+                    line->right = std::max(
+                        line->right, region.x + region.width);
+                    line->height = std::max(line->height, region.height);
                 }
             }
-            if (line == nullptr) {
-                RichTextLineClip added;
-                added.x = region.x;
-                added.y = region.y;
-                added.right = region.x + region.width;
-                added.height = region.height;
-                Base::Result<void> appended = clips.PushBack(added);
-                if (!appended) return;
-            } else {
-                line->x = std::min(line->x, region.x);
-                line->right = std::max(
-                    line->right, region.x + region.width);
-                line->height = std::max(line->height, region.height);
-            }
-        }
-        const Color tint = range.hasForeground
-            ? range.foreground
-            : ::Aero::Media::SampleBrush(
-                GetForeground(), 0.5,
-                Color{0.0F, 0.0F, 0.0F, 1.0F});
-        for (const RichTextLineClip& line : clips) {
-            const Rect clip{
-                std::max(0.0, static_cast<double>(line.x) - 1.0),
-                std::max(0.0, static_cast<double>(line.y)),
-                std::max(0.0, static_cast<double>(line.right - line.x) + 3.0),
-                std::max(0.0, static_cast<double>(line.height))};
-            if (!builder.PushClip(clip)) return;
-            bool skewed = false;
-            if (range.italic) {
-                Base::Transform2D italic;
-                italic.m21 = -0.16;
-                italic.dx = 0.16 * (line.y + line.height);
-                if (!builder.PushTransform(italic)) return;
-                skewed = true;
-            }
-            for (RenderGlyphRunId glyphRun : glyphRuns_) {
-                if (!builder.DrawGlyphRun(glyphRun, tint)) return;
-            }
-            if (range.bold) {
-                Base::Transform2D embolden;
-                embolden.dx = 0.4;
-                if (!builder.PushTransform(embolden)) return;
+            if (clips.Empty()) continue;
+
+            const Color tint = span.hasForeground
+                ? span.foreground
+                : ::Aero::Media::SampleBrush(
+                    GetForeground(), 0.5,
+                    Color{0.0F, 0.0F, 0.0F, 1.0F});
+
+            for (const RichTextLineClip& line : clips) {
+                const double extraRight = span.italic
+                    ? std::max(3.0, 0.25 * line.height + 2.0)
+                    : (span.bold ? 1.0 : 0.5);
+                const double extraLeft = span.italic ? 1.0 : 0.0;
+                const Rect clip{
+                    std::max(0.0, static_cast<double>(line.x) - extraLeft),
+                    std::max(0.0, static_cast<double>(line.y)),
+                    std::max(0.0, static_cast<double>(line.right - line.x) + extraLeft + extraRight),
+                    std::max(0.0, static_cast<double>(line.height))};
+                if (!builder.PushClip(clip)) return;
+                bool skewed = false;
+                if (span.italic) {
+                    Base::Transform2D italic;
+                    italic.m21 = -0.16;
+                    italic.dx = 0.16 * (line.y + line.height);
+                    if (!builder.PushTransform(italic)) return;
+                    skewed = true;
+                }
                 for (RenderGlyphRunId glyphRun : glyphRuns_) {
                     if (!builder.DrawGlyphRun(glyphRun, tint)) return;
                 }
-                if (!builder.PopTransform()) return;
+                if (span.bold) {
+                    Base::Transform2D embolden;
+                    embolden.dx = 0.4;
+                    if (!builder.PushTransform(embolden)) return;
+                    for (RenderGlyphRunId glyphRun : glyphRuns_) {
+                        if (!builder.DrawGlyphRun(glyphRun, tint)) return;
+                    }
+                    if (!builder.PopTransform()) return;
+                }
+                if (skewed && !builder.PopTransform()) return;
+                if (!builder.PopClip()) return;
             }
-            if (skewed && !builder.PopTransform()) return;
-            if (!builder.PopClip()) return;
         }
     }
     if (GetTextDecorations() ==
