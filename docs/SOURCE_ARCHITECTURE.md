@@ -109,9 +109,15 @@ are not part of the timeline model. `Triggers.hpp` re-exports all three groups.
 
 ## View composition
 
-`ViewState` owns the view-affine object factory, effective values, animation,
-element tree, layout, render tree, image cache, text pipeline, binding, events,
-input, control behavior, templates, styles, and the one `ViewRenderer`.
+`ViewState` is source-only data (`src/gui/ViewState.hpp`, not installed).
+It owns named engine pointers (tree, layout, bindings, styles, events, input,
+animations, visualStates, templates, renderer, text, images), root attachment,
+resource dictionaries, storyboard session vectors, pending focus, and fragment
+mounts. Domain methods are defined out of line next to their engine:
+`ViewFrame.cpp` ticks the frame, `media/ViewStoryboardSessions.cpp` runs
+storyboard sessions, `interactivity/ViewTriggers.cpp` evaluates
+ConditionBehavior / EventTrigger / KeyTrigger / DataTrigger, and
+`markup/ViewDocuments.cpp` mounts XamlReader fragments.
 
 The public `View` surface stays small and WPF/Noesis shaped. `Gui` and
 `XamlReader` are the only trusted construction/loading peers. `DesktopHost`

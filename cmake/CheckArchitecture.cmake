@@ -397,6 +397,10 @@ endforeach()
 foreach(required_source_entry IN ITEMS
         "src/gui/Gui.cpp"
         "src/gui/View.cpp"
+        "src/gui/ViewFrame.cpp"
+        "src/gui/ViewInput.cpp"
+        "src/gui/ViewFocus.cpp"
+        "src/gui/ViewRender.cpp"
         "src/gui/ViewRenderer.hpp"
         "src/gui/ViewState.hpp"
         "src/gui/core"
@@ -420,6 +424,9 @@ foreach(required_source_entry IN ITEMS
         "src/render/TextRenderer.cpp"
         "src/render/RenderTree.cpp"
         "src/gui/ViewRendererResources.cpp"
+        "src/gui/media/ViewStoryboardSessions.cpp"
+        "src/gui/interactivity/ViewTriggers.cpp"
+        "src/gui/markup/ViewDocuments.cpp"
         "src/render/RenderContext.hpp")
     aero_require_file("${required_source_entry}")
 endforeach()
@@ -516,6 +523,10 @@ set(aero_allowed_gui_root_files
     "src/gui/Gui.cpp"
     "src/gui/GuiData.hpp"
     "src/gui/View.cpp"
+    "src/gui/ViewFrame.cpp"
+    "src/gui/ViewInput.cpp"
+    "src/gui/ViewFocus.cpp"
+    "src/gui/ViewRender.cpp"
     "src/gui/ViewState.hpp"
     "src/gui/ViewRenderer.hpp"
     "src/gui/ViewRendererResources.cpp"

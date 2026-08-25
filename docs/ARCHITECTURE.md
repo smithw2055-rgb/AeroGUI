@@ -72,8 +72,12 @@ lifetime.
 `metadata`, `property`, `binding`, `resources`, `layout`, `input`,
 `interactivity`, `controls`, `markup`, `media`, `text`, `diagnostics`, and
 `modules`. Its root is reserved for the `Gui`, `View`, `ViewState`, and
-`ViewRenderer` composition files. The concrete View implementation remains in
-one `View.cpp`, matching the Noesis-style concrete View boundary.
+`ViewRenderer` composition files. `View.cpp` is the composition root
+(construct, mount, viewport, `Update`). Clock slices live beside it
+(`ViewFrame.cpp`, `ViewInput.cpp`, `ViewFocus.cpp`, `ViewRender.cpp`).
+Storyboard sessions live next to `AnimationEngine`, trigger evaluation in
+`interactivity/`, and XamlReader fragment mounts in `markup/`. View remains
+the host; layout, input, and media stay separate collaborators.
 
 ## View and rendering
 

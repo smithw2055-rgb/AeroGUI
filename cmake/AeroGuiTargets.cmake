@@ -82,7 +82,8 @@ set(_aero_gui_input_sources
     src/gui/input/Clipboard.cpp)
 
 set(_aero_gui_triggers_sources
-    src/gui/interactivity/Interactivity.cpp)
+    src/gui/interactivity/Interactivity.cpp
+    src/gui/interactivity/ViewTriggers.cpp)
 
 set(_aero_gui_media_sources
     src/gui/media/AnimationEngine.cpp
@@ -94,7 +95,8 @@ set(_aero_gui_media_sources
     src/gui/media/Images.cpp
     src/gui/media/MediaElement.cpp
     src/gui/media/StbImageImplementation.cpp
-    src/gui/media/Transforms.cpp)
+    src/gui/media/Transforms.cpp
+    src/gui/media/ViewStoryboardSessions.cpp)
 
 set(_aero_gui_controls_sources
     src/gui/controls/RichText.cpp
@@ -137,7 +139,8 @@ set(_aero_gui_markup_sources
     src/gui/markup/GuiSchema.cpp
     src/gui/markup/ReloadCoordinator.cpp
     src/gui/markup/XamlProvider.cpp
-    src/gui/markup/XamlReader.cpp)
+    src/gui/markup/XamlReader.cpp
+    src/gui/markup/ViewDocuments.cpp)
 
 set(_aero_gui_text_sources
     src/gui/text/EditableText.cpp
@@ -169,6 +172,10 @@ set(_aero_gui_render_contract_sources
 set(_aero_gui_composition_sources
     src/gui/Gui.cpp
     src/gui/View.cpp
+    src/gui/ViewFrame.cpp
+    src/gui/ViewInput.cpp
+    src/gui/ViewFocus.cpp
+    src/gui/ViewRender.cpp
     src/gui/ViewRenderer.hpp
     src/gui/ViewRendererResources.cpp
     src/gui/ViewRendererResources.hpp
