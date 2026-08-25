@@ -82,7 +82,7 @@ void StyleInteraction::OnBehaviorsChanged(
     }
     auto& element = static_cast<FrameworkElement&>(object);
     static_cast<void>(
-        Aero::Core::InteractionStateFacet::ClearStyleBehaviorPrototypes(element));
+        AeroGuiInternal::ClearStyleBehaviorPrototypes(element));
     const Meta::Value& value = args.GetNewValue();
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
@@ -93,7 +93,7 @@ void StyleInteraction::OnBehaviorsChanged(
     for (const Base::Ref<Base::Object>& behavior :
          static_cast<StyleBehaviorCollection&>(*value.AsObject()).GetItems()) {
         static_cast<void>(
-            Aero::Core::InteractionStateFacet::AddStyleBehaviorPrototype(
+            AeroGuiInternal::AddStyleBehaviorPrototype(
                 element, behavior));
     }
 }
@@ -107,7 +107,7 @@ void StyleInteraction::OnTriggersChanged(
     }
     auto& element = static_cast<FrameworkElement&>(object);
     static_cast<void>(
-        Aero::Core::InteractionStateFacet::ClearStyleTriggerPrototypes(element));
+        AeroGuiInternal::ClearStyleTriggerPrototypes(element));
     const Meta::Value& value = args.GetNewValue();
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
@@ -118,7 +118,7 @@ void StyleInteraction::OnTriggersChanged(
     for (const Base::Ref<Base::Object>& trigger :
          static_cast<StyleTriggerCollection&>(*value.AsObject()).GetItems()) {
         static_cast<void>(
-            Aero::Core::InteractionStateFacet::AddStyleTriggerPrototype(
+            AeroGuiInternal::AddStyleTriggerPrototype(
                 element, trigger));
     }
 }

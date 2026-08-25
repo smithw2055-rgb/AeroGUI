@@ -45,12 +45,9 @@ public:
 
 } // namespace Aero
 
-namespace Aero::Core {
-class RenderFacet;
-class VisualFacet;
-template<class TFacet>
-TFacet* GetFacet(const ::Aero::Media::Visual& visual) noexcept;
-} // namespace Aero::Core
+namespace Aero {
+class AeroGuiInternal;
+}
 
 namespace Aero::Media {
 
@@ -79,11 +76,6 @@ public:
     virtual ::Aero::FrameworkElement* AsFrameworkElement() noexcept { return nullptr; }
     virtual const ::Aero::FrameworkElement* AsFrameworkElement() const noexcept { return nullptr; }
 
-    template<class TFacet>
-    TFacet* GetFacet() const noexcept {
-        return ::Aero::Core::GetFacet<TFacet>(*this);
-    }
-
 protected:
     virtual std::uint32_t GetVisualChildrenCount() const noexcept { return visualChildren_.Size(); }
     virtual Visual* GetVisualChild(std::uint32_t index) const noexcept { return index < visualChildren_.Size() ? visualChildren_[index] : nullptr; }
@@ -96,8 +88,9 @@ private:
     friend class ::Aero::LogicalTreeHelper;
     friend class ::Aero::ElementTree;
     friend class VisualTreeHelper;
-    friend class ::Aero::Core::RenderFacet;
-    friend class ::Aero::Core::VisualFacet;
+#if defined(AERO_GUI_IMPLEMENTATION)
+    friend class ::Aero::AeroGuiInternal;
+#endif
     Result<Ref<Base::Object>> AcquireLifetime() noexcept;
 
     ::Aero::ElementTree* tree_ = nullptr;

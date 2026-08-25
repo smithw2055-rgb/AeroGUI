@@ -58,16 +58,13 @@ its types below.
 - `interactivity/BlendBehaviors.cpp` — `Interaction::*` Blend behaviors (moved from `controls/`)
 - `interactivity/Interactivity.cpp` — `Interaction` attached properties
 
-## Private implementation access headers
+## Private implementation headers
 
-Internal state/access headers use `*State.hpp` (formerly `*Runtime.hpp`):
-`core/ElementState.hpp`, `core/PropertyState.hpp`, `core/MetadataState.hpp`,
-`binding/BindingState.hpp`, `controls/ControlState.hpp`, `controls/ItemsState.hpp`,
-`templates/TemplateState.hpp`, `input/InputState.hpp`, `layout/LayoutState.hpp`,
-`markup/MarkupState.hpp`, `markup/XamlState.hpp`, `media/MediaState.hpp`,
-`styles/StyleState.hpp`, `core/LayoutState.hpp`, `data/BindingState.hpp`, `triggers/TriggerEngine.hpp`, `triggers/TriggerPlan.hpp`,
-`triggers/TriggerDiagnostics.hpp`, `triggers/TriggerValueCompare.hpp`,
-`core/state/*.hpp` (per-domain split of the former single `State.hpp` into the facet/engine headers).
+Domain state headers use `*State.hpp`. Kernel-private operations live in
+`src/gui/internal/AeroGuiInternal.hpp` (not installed) plus
+`src/gui/core/state/*.hpp`. View/`ElementTree` is the named service hub
+(`tree->Layout()`, `tree->Bindings()`, …). There is no `Core::Facet` matrix
+and no per-type `Access` facade.
 
 ## WPF virtual override surface
 
@@ -82,8 +79,9 @@ Aero types expose WPF-shaped virtuals you can override when subclassing:
 | `DependencyObject.OnPropertyChanged` | `DependencyObject::OnPropertyChanged(const DependencyPropertyChangedEventArgs&)` | new WPF-bridge hook; fires with `PropertyMetadata::PropertyChangedCallback` |
 | `Visual.OnVisualParentChanged` | `Visual::OnVisualParentChanged(Visual* oldParent)` | new WPF-bridge hook |
 
-Runtime engines are reached through `Core::GetFacet<T>(element)`
-(`src/gui/core/Facet.hpp`) instead of per-facade static methods.
+Runtime engines are reached through `Visual::GetTree()` / `ElementTree`
+named accessors (`Layout()`, `Events()`, `Bindings()`, …) and the single
+kernel friend `AeroGuiInternal`. There is no `Core::GetFacet` matrix.
 
 ## Platform code (two trees, by design)
 

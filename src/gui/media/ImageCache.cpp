@@ -23,7 +23,6 @@
 #define STBI_ONLY_JPEG
 #include "stb_image.h"
 
-#include "gui/core/facets/RenderFacet.hpp"
 
 namespace Aero::Media {
 using ImageResources = ::Aero::Render::ImageResources;
@@ -264,7 +263,7 @@ Base::Result<bool> ImageCache::Synchronize(
         if (!source) {
             Base::Result<void> cleared =
                 imageControl != nullptr
-                ? Core::RenderFacet::SetImageRuntimeData(
+                ? AeroGuiInternal::SetImageRuntimeData(
                     *imageControl,
                     Render::InvalidRenderImageId,
                     0U, 0U)
@@ -556,7 +555,7 @@ Base::Result<bool> ImageCache::Synchronize(
         }
         Base::Result<void> assigned =
             imageControl != nullptr
-            ? Core::RenderFacet::SetImageRuntimeData(
+            ? AeroGuiInternal::SetImageRuntimeData(
                 *imageControl,
                 record->renderImage,
                 record->width,

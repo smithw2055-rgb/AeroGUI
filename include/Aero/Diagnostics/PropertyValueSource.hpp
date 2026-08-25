@@ -37,6 +37,7 @@ enum class PropertyValueRank : std::uint8_t {
     TemplatedParentTrigger = 90U,
     Local = 100U,
     LocalExpression = Local,
+    VisualState = 105U,
     Animation = 110U,
     Coercion = 120U
 };
@@ -47,6 +48,7 @@ using EffectiveValueProvider = PropertyValueRank;
 // Style, ThemeStyle and Template providers allocate from the canonical range.
 inline constexpr std::uint32_t LocalValueProviderOrigin = 1U;
 inline constexpr std::uint32_t AnimationValueProviderOrigin = 2U;
+inline constexpr std::uint32_t VisualStateProviderOrigin = 3U;
 inline constexpr std::uint32_t FirstCanonicalProviderOrigin = 16U;
 
 enum class PropertyExpressionKind : std::uint8_t {

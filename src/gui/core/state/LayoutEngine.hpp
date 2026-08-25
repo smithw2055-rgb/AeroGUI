@@ -1,6 +1,5 @@
 #pragma once
 
-#include "gui/core/Facet.hpp"
 #include <Aero/Layout.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/Threading.hpp>
@@ -9,7 +8,7 @@ namespace Aero {
 
 using namespace Aero::Threading;
 
-class LayoutEngine : public Core::Facet {
+class LayoutEngine {
 public:
     explicit LayoutEngine(Dispatcher& dispatcher) noexcept;
     ~LayoutEngine() noexcept;

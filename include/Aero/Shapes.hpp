@@ -4,7 +4,6 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/FrameworkElement.hpp>
 
-namespace Aero::Core { class DependencyPropertyFacet; }
 
 namespace Aero::Shapes {
 
@@ -124,7 +123,7 @@ protected:
 
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::DependencyPropertyFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
 
     Result<void> EnsureGeometry() noexcept;

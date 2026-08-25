@@ -1,5 +1,12 @@
 # 基于 Facet 模式重构现代 C++ (C++17) WPF / NoesisGUI 架构设计规范与工程白皮书
 
+> **Historical / not the current contract.**
+> This whitepaper describes a Facet/ECS experiment that was **not** adopted.
+> AeroGUI's kernel is a WPF public surface plus a View/`ElementTree` service
+> hub, hot fields on the object, a lazy rare pointer, and an opaque DP store.
+> Panel layout is still `MeasureOverride`/`ArrangeOverride` on the type; panel
+> layout facets did not ship. See `docs/SOURCE_ARCHITECTURE.md`.
+
 > **版本**：v1.1.0 Architecture Whitepaper (C++17 Edition)  
 > **语言标准**：ISO/IEC C++17 (Strictly NO C++20 concepts/ranges/span dependencies)  
 > **目标对标**：NoesisGUI 3.x / Microsoft WPF (.NET Core)  

@@ -1,10 +1,10 @@
 #pragma once
-#include "gui/core/Facet.hpp"
 
 // Dependency-property evaluation, ambient services and provider sessions.
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyProperty.hpp>
@@ -24,7 +24,7 @@ using ::Aero::Threading::CurrentDispatcherThreadToken;
 
 using EffectiveValueDiagnostics = PropertyValueSourceInfo;
 
-class EffectiveValueEngine : public Core::Facet {
+class EffectiveValueEngine {
 public:
     EffectiveValueEngine(
         Dispatcher& dispatcher,
@@ -106,7 +106,7 @@ public:
         DependencyObject& object) noexcept;
 
     std::uint32_t TrackedPropertyCount() const noexcept {
-        return entries_.Size();
+        return pending_.Size();
     }
     std::uint32_t PendingPropertyCount() const noexcept;
     bool IsFlushing() const noexcept {
@@ -114,22 +114,16 @@ public:
     }
 
 private:
-    struct Entry {
+    struct Pending {
         DependencyObject* object = nullptr;
         DependencyPropertyHandle property;
         std::uint64_t queueSequence = 0U;
-        bool queued = false;
-    };
-
-    struct ParentLink {
-        DependencyObject* child = nullptr;
-        DependencyObject* parent = nullptr;
     };
 
     Dispatcher* dispatcher_ = nullptr;
     DependencyPropertyRegistry* registry_ = nullptr;
-    Base::Vector<Entry> entries_;
-    Base::Vector<ParentLink> parents_;
+    Base::Vector<Pending> pending_;
+    Base::HashMap<DependencyObject*, DependencyObject*> parents_;
     Base::Vector<DependencyObject*> inheritanceSubscriptions_;
     DependencyPropertyChangedEventHandler
         inheritanceChangedHandler_;
@@ -139,17 +133,9 @@ private:
     bool flushing_ = false;
 
     Base::Result<void> VerifyMutable() const noexcept;
-    std::uint32_t FindEntryIndex(
-        const DependencyObject& object,
-        DependencyPropertyHandle property) const noexcept;
-    Base::Result<std::uint32_t> EnsureEntry(
+    Base::Result<void> QueueObjectProperty(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept;
-    std::uint32_t FindParentIndex(
-        const DependencyObject& child) const noexcept;
-
-    Base::Result<void> QueueEntry(
-        std::uint32_t index) noexcept;
     Base::Result<void> QueueDescendants(
         DependencyObject& parent,
         DependencyPropertyHandle property) noexcept;
@@ -162,10 +148,7 @@ private:
         const DependencyPropertyChangedEventArgs&
             args) noexcept;
     Base::Result<void> Apply(
-        Entry& entry) noexcept;
-
-    void RemoveEntry(std::uint32_t index) noexcept;
-    void RemoveParent(std::uint32_t index) noexcept;
+        Pending& entry) noexcept;
 
     static bool IsMutableBaseRank(PropertyValueRank rank) noexcept;
     static void PropertyChangesHook(void* context) noexcept;

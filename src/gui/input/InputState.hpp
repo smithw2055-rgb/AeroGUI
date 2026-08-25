@@ -1,5 +1,4 @@
 #pragma once
-#include "gui/core/Facet.hpp"
 
 // View-owned input, focus, capture and routed-command state.
 
@@ -324,7 +323,7 @@ private:
 // View-owned input coordinator. Consumers see one service; focus, hit testing,
 // pointer capture, keyboard/text dispatch and routed commands remain private
 // implementation components behind this facade.
-class InputRouter : public Core::Facet {
+class InputRouter {
 public:
     InputRouter(ElementTree& tree, EventRouter& events) noexcept
         : commands_(tree, events),

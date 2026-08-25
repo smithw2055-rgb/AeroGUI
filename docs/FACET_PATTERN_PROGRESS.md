@@ -1,6 +1,13 @@
 # Facet Pattern — Implementation Progress
 
-Status: **Phases A–D + E complete (wiring + deep layout migration + layout state relocation + `LayoutEngine` host-matrix facet via `GetFacet<LayoutEngine>` + static `LayoutFacet` state forwarders retired); code-only, pending Windows/MSVC build verification.**
+> **Historical / not the current contract.**
+> Phases A–E below record a Facet/Access migration that has been **reverted**.
+> The kernel no longer has `Core::Facet`, `GetFacet`, `ElementFacet`,
+> `ElementHost`, or panel layout facets. Current architecture:
+> `docs/SOURCE_ARCHITECTURE.md`.
+
+Status: **Superseded.** The Facet bags and Access facades were removed in favor
+of a WPF + View-hub kernel.
 
 ## Objective
 Realize the WPF Facet Pattern per `docs/WPF_Facet_Pattern_Architecture_Whitepaper.md` in AeroGUI-R:

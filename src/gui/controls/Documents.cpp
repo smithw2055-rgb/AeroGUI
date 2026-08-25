@@ -2,7 +2,6 @@
 #include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/core/facets/VisualFacet.hpp"
 #include <Aero/Documents.hpp>
 
 
@@ -110,7 +109,7 @@ public:
         Documents::Inline& inlineValue,
         ::Aero::DependencyObject& parent,
         Controls::TextBlock* host) noexcept {
-        Core::VisualFacet::Attach(
+        AeroGuiInternal::Attach(
             inlineValue,
             &parent,
             host,
@@ -135,7 +134,7 @@ public:
                 if (child) ClearHost(*child);
             }
         }
-        Core::VisualFacet::Detach(inlineValue);
+        AeroGuiInternal::Detach(inlineValue);
     }
 
     static Base::Result<void> Add(
@@ -543,7 +542,7 @@ Base::Result<void> Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
     }
     Base::Result<void> appended = inlines_.PushBack(value);
     if (!appended) return appended.GetStatus();
-    Aero::Core::VisualFacet::Attach(
+    AeroGuiInternal::Attach(
         *value, this, GetContentHost(), nullptr);
     pendingInline_ = std::move(value);
     Controls::TextBlock* host = Aero::Controls::TextBlockDocumentHelper::Host(*this);
@@ -552,7 +551,7 @@ Base::Result<void> Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
 
 void Span::ClearOwnedInlines() noexcept {
     for (Base::Ref<Inline>& value : inlines_) {
-        if (value) Aero::Core::VisualFacet::Detach(*value);
+        if (value) AeroGuiInternal::Detach(*value);
     }
     inlines_.Clear();
     pendingInline_.Reset();
@@ -759,9 +758,6 @@ void NavigationService::OnRequestNavigate(
 } // namespace Aero::Documents
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
 #include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -798,7 +794,7 @@ bool IsValidTextSize(Size value) noexcept {
 }
 ::Aero::Controls::TextBlockLayout* TextLayoutFor(
     const ::Aero::Media::Visual& visual) noexcept {
-    return ::Aero::Core::TextLayoutFacet::TypedTextLayoutRuntime<::Aero::Controls::TextBlockLayout>(visual);
+    return AeroGuiInternal::TypedTextLayoutRuntime<::Aero::Controls::TextBlockLayout>(visual);
 }
 
 } // namespace
@@ -1019,7 +1015,7 @@ Base::Result<void> TextBlock::AddOwnedInline(
         ownedInlines_.PushBack(inlineObject);
     if (!appended) return appended.GetStatus();
     auto& inlineValue = *static_cast<Documents::Inline*>(inlineObject.Get());
-    Aero::Core::VisualFacet::Attach(
+    AeroGuiInternal::Attach(
         inlineValue, this, this, nullptr);
     pendingInline_ = inlineObject;
     return InvalidateMeasure();
@@ -1029,7 +1025,7 @@ void TextBlock::ClearOwnedInlines() noexcept {
     if (!access) return;
     for (Base::Ref<Base::Object>& item : ownedInlines_) {
         if (item) {
-            Aero::Core::VisualFacet::Detach(
+            AeroGuiInternal::Detach(
                 *static_cast<Documents::Inline*>(item.Get()));
         }
     }

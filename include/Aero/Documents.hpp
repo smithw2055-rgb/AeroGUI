@@ -269,7 +269,9 @@ protected:
 
 private:
     friend class Aero::Controls::TextBlock;
-    friend class ::Aero::Core::TextLayoutFacet;
+    #if defined(AERO_GUI_IMPLEMENTATION)
+    friend class ::Aero::AeroGuiInternal;
+    #endif
 #if defined(AERO_GUI_IMPLEMENTATION)
     friend struct Aero::Controls::TextBlockDocumentHelper;
 #endif

@@ -5,7 +5,6 @@
 #include "gui/styles/StyleState.hpp"
 #include "gui/controls/State.hpp"
 #include "gui/templates/TemplateState.hpp"
-#include "gui/core/facets/InteractionStateFacet.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 
@@ -66,7 +65,7 @@ TreeViewItem::TreeViewItem(
 
 TreeViewItem::~TreeViewItem() {
     if (childItems_ != nullptr) {
-        ::Aero::Core::InteractionStateFacet::SetItemsSourceBorrowed(
+        AeroGuiInternal::SetItemsSourceBorrowed(
             *childItems_, nullptr);
     }
     static_cast<void>(RemoveValueChangedHandler(
@@ -201,8 +200,7 @@ void TreeViewItem::ActivateHierarchicalContent() noexcept {
     if (hierarchicalItemsSource_) {
         SetItemsSource(hierarchicalItemsSource_);
     } else if (hierarchicalItemsBinding_ && hierarchicalBindingSource_) {
-        auto* bindings = ::Aero::Core::GetFacet<::Aero::BindingEngine>(
-            *this);
+        auto* bindings = AeroGuiInternal::BindingEngineOf(*this);
         if (bindings == nullptr || bindings->Metadata() == nullptr) return;
         Data::MetadataBindingDescriptor descriptor;
         descriptor.metadata = bindings->Metadata();
@@ -240,7 +238,7 @@ void TreeViewItem::ActivateHierarchicalContent() noexcept {
     if (childItems_ != nullptr) {
         const Base::Ref<Base::Object> current = GetItemsSource();
 auto* items = AsItemsSource(current.Get());
-        ::Aero::Core::InteractionStateFacet::SetItemsSourceBorrowed(
+        AeroGuiInternal::SetItemsSourceBorrowed(
             *childItems_, items);
     }
 }
@@ -296,14 +294,14 @@ Base::Ref<Base::Object> source = GetItemsSource();
         childSource =
             static_cast<Collections::IItemsSource*>(&ItemsControl::GetItems());
     }
-    ::Aero::Core::InteractionStateFacet::SetItemsSourceBorrowed(
+    AeroGuiInternal::SetItemsSourceBorrowed(
         *childItems_, childSource);
     static_cast<void>(SynchronizeTemplate());
 }
 
 void TreeViewItem::OnTemplateDetached() noexcept {
     if (childItems_ != nullptr) {
-        ::Aero::Core::InteractionStateFacet::SetItemsSourceBorrowed(
+        AeroGuiInternal::SetItemsSourceBorrowed(
             *childItems_, nullptr);
     }
     headerText_ = nullptr;
@@ -379,7 +377,7 @@ void TreeViewItem::OnSelectedChanged(
 
 TreeView::~TreeView() {
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
+        AeroGuiInternal::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -405,7 +403,7 @@ TreeView::CreateContainer(
 bool TreeView::SelectItem(
     TreeViewItem* item) noexcept {
     auto* states = static_cast<Aero::VisualStateManager*>(
-        ::Aero::Core::InteractionStateFacet::VisualStateRuntime(*this));
+        AeroGuiInternal::VisualStateRuntime(*this));
     Base::Ref<Base::Object> previous =
         GetSelectedItem();
     if (previous.Get() == item) return false;
@@ -698,7 +696,7 @@ void TreeBehavior::OnKeyDown(
     }
     if (current == nullptr) return;
     if (args.GetKey() == KeyboardKeyRight &&
-        ::Aero::Core::InteractionStateFacet::TreeViewItemCount(*current) != 0U &&
+        AeroGuiInternal::TreeViewItemCount(*current) != 0U &&
         !current->GetIsExpanded()) {
         static_cast<void>(
             current->SetIsExpanded(true));
@@ -714,7 +712,7 @@ void TreeBehavior::OnKeyDown(
     }
     if (args.GetKey() == KeyboardKeyEnter ||
         args.GetKey() == KeyboardKeySpace) {
-        if (::Aero::Core::InteractionStateFacet::TreeViewItemCount(*current) != 0U) {
+        if (AeroGuiInternal::TreeViewItemCount(*current) != 0U) {
             static_cast<void>(
                 current->SetIsExpanded(
                     !current->GetIsExpanded()));

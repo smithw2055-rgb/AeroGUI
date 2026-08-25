@@ -2,7 +2,6 @@
 
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp"
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
 #include "gui/core/state/FreezableState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -79,20 +78,20 @@ Base::Result<void> CheckFreezeNode(
         return FreezeGraphStatus(
             "A Freezable object graph contains a cycle");
     }
-    if (Core::DependencyPropertyFacet::HasUnfreezableValueState(value)) {
+    if (AeroGuiInternal::HasUnfreezableValueState(value)) {
         return FreezeGraphStatus(
             "A Freezable with an expression or animation cannot be frozen");
     }
     Base::Result<void> pushed = context.visiting.PushBack(&value);
     if (!pushed) return pushed.GetStatus();
     Base::Result<void> children =
-        Core::DependencyPropertyFacet::VisitFreezableChildren(
+        AeroGuiInternal::VisitFreezableChildren(
             value, &context, &CheckFreezeChild);
     if (!children) {
         context.visiting.PopBack();
         return children.GetStatus();
     }
-    if (!Core::DependencyPropertyFacet::FreezableCheckCore(value)) {
+    if (!AeroGuiInternal::FreezableCheckCore(value)) {
         context.visiting.PopBack();
         return FreezeGraphStatus(
             "A Freezable child rejected the freeze operation");
@@ -308,7 +307,7 @@ void Freezable::OnChanged() noexcept {
             : record.unmanagedObject;
         const Meta::DependencyPropertyHandle property = record.property;
         if (consumer != nullptr) {
-            Core::DependencyPropertyFacet::InvalidateSubProperty(
+            AeroGuiInternal::InvalidateSubProperty(
                 *consumer, property);
         }
     }
@@ -335,9 +334,9 @@ Base::Result<void> Freezable::VerifyMutationAllowed() const noexcept {
 
 } // namespace Aero
 
-namespace Aero::Core {
+namespace Aero {
 
-Base::Result<void> DependencyPropertyFacet::AttachFreezableConsumer(
+Base::Result<void> AeroGuiInternal::AttachFreezableConsumer(
     Freezable& value,
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
@@ -361,7 +360,7 @@ Base::Result<void> DependencyPropertyFacet::AttachFreezableConsumer(
     return value.impl_->consumers.PushBack(std::move(record));
 }
 
-void DependencyPropertyFacet::DetachFreezableConsumer(
+void AeroGuiInternal::DetachFreezableConsumer(
     Freezable& value,
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
@@ -380,19 +379,24 @@ void DependencyPropertyFacet::DetachFreezableConsumer(
     }
 }
 
-std::uint64_t DependencyPropertyFacet::FreezableRevision(
+std::uint64_t AeroGuiInternal::FreezableRevision(
     const Freezable& value) noexcept {
     return value.impl_ != nullptr ? value.impl_->revision : 0U;
 }
 
-bool DependencyPropertyFacet::FreezableCheckCore(
+bool AeroGuiInternal::FreezableCheckCore(
     Freezable& value) noexcept {
     return value.FreezeCore(true);
 }
 
-bool DependencyPropertyFacet::HasUnfreezableValueState(
+bool AeroGuiInternal::HasUnfreezableValueState(
     const DependencyObject& object) noexcept {
-    for (const auto& entry : object.values_) {
+    const PropertyStore* store = AeroGuiInternal::Store(object);
+    if (store == nullptr) {
+        return false;
+    }
+    for (const auto& record : store->entries) {
+        const StoredValueEntry& entry = record.Value();
         if (entry.hasExpression || entry.hasAnimation ||
             entry.sourceInfo.hasExpression || entry.sourceInfo.isAnimated) {
             return true;
@@ -401,7 +405,7 @@ bool DependencyPropertyFacet::HasUnfreezableValueState(
     return false;
 }
 
-Base::Result<void> DependencyPropertyFacet::VisitFreezableChildren(
+Base::Result<void> AeroGuiInternal::VisitFreezableChildren(
     DependencyObject& object,
     void* context,
     FreezableVisitor visitor) noexcept {
@@ -418,7 +422,7 @@ Base::Result<void> DependencyPropertyFacet::VisitFreezableChildren(
     return {};
 }
 
-Base::Result<void> DependencyPropertyFacet::PrepareConsumerChange(
+Base::Result<void> AeroGuiInternal::PrepareConsumerChange(
     DependencyObject& consumer,
     Meta::DependencyPropertyHandle property,
     const Meta::PropertyValue& oldValue,
@@ -430,7 +434,7 @@ Base::Result<void> DependencyPropertyFacet::PrepareConsumerChange(
         *newChild, consumer, property);
 }
 
-void DependencyPropertyFacet::CommitConsumerChange(
+void AeroGuiInternal::CommitConsumerChange(
     DependencyObject& consumer,
     Meta::DependencyPropertyHandle property,
     const Meta::PropertyValue& oldValue,
@@ -443,7 +447,7 @@ void DependencyPropertyFacet::CommitConsumerChange(
     }
 }
 
-void DependencyPropertyFacet::InvalidateSubProperty(
+void AeroGuiInternal::InvalidateSubProperty(
     DependencyObject& object,
     Meta::DependencyPropertyHandle propertyHandle) noexcept {
     const Meta::DependencyProperty* property =
@@ -457,4 +461,4 @@ void DependencyPropertyFacet::InvalidateSubProperty(
     object.OnPropertyInvalidated(flags);
 }
 
-} // namespace Aero::Core
+} // namespace Aero

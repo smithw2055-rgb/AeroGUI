@@ -18,8 +18,6 @@
 #include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/core/facets/VisualFacet.hpp"
-#include "gui/core/facets/RenderFacet.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <cstdint>
@@ -141,10 +139,10 @@ private:
     Base::Result<void> CaptureNode(
         const Aero::Media::Visual& visual) noexcept {
         AccessibilityNode node;
-        node.id = NodeId(Aero::Core::VisualFacet::Handle(visual));
+        node.id = NodeId(AeroGuiInternal::Handle(visual));
         const Aero::Media::Visual* parent = visual.GetLogicalParent();
         if (parent == nullptr) parent = visual.GetVisualParent();
-        node.parent = parent != nullptr ? NodeId(Aero::Core::VisualFacet::Handle(*parent)) : 0U;
+        node.parent = parent != nullptr ? NodeId(AeroGuiInternal::Handle(*parent)) : 0U;
         const Aero::UIElement* element = visual.AsUIElement();
         if (element != nullptr) {
             node.bounds = element->GetLayoutSlot();
@@ -306,14 +304,14 @@ private:
     Base::Result<void> CaptureNode(
         const Aero::Media::Visual& visual) noexcept {
         InspectorTreeNode node;
-        node.handle = Aero::Core::VisualFacet::Handle(visual);
+        node.handle = AeroGuiInternal::Handle(visual);
         node.runtimeType = visual.RuntimeType();
         node.loaded = visual.GetIsLoaded();
         if (visual.GetLogicalParent() != nullptr) {
-            node.logicalParent = Aero::Core::VisualFacet::Handle(*visual.GetLogicalParent());
+            node.logicalParent = AeroGuiInternal::Handle(*visual.GetLogicalParent());
         }
         if (visual.GetVisualParent() != nullptr) {
-            node.visualParent = Aero::Core::VisualFacet::Handle(*visual.GetVisualParent());
+            node.visualParent = AeroGuiInternal::Handle(*visual.GetVisualParent());
         }
         const Aero::UIElement* element = visual.AsUIElement();
         if (element != nullptr) {
@@ -326,8 +324,8 @@ private:
         const Aero::FrameworkElement* framework =
             visual.AsFrameworkElement();
         if (framework != nullptr) {
-            node.renderRevision = Aero::Core::RenderFacet::RenderRevision(const_cast<Aero::FrameworkElement&>(*framework));
-            node.renderValid = Aero::Core::RenderFacet::RenderValid(const_cast<Aero::FrameworkElement&>(*framework));
+            node.renderRevision = AeroGuiInternal::RenderRevision(const_cast<Aero::FrameworkElement&>(*framework));
+            node.renderValid = AeroGuiInternal::RenderValid(const_cast<Aero::FrameworkElement&>(*framework));
         }
         Base::Result<void> appended = nodes_.PushBack(node);
         if (!appended) return appended.GetStatus();

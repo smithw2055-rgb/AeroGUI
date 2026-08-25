@@ -5,16 +5,6 @@
 #include <Aero/Layout.hpp>
 #include <utility>
 
-namespace Aero::Core {
-class VisualFacet;
-class LayoutFacet;
-class StackLayoutFacet;
-class GridLayoutFacet;
-class DockLayoutFacet;
-class CanvasLayoutFacet;
-class WrapLayoutFacet;
-}
-
 namespace Aero::Controls {
 
 using ::Aero::Meta::TypeId;
@@ -65,7 +55,7 @@ protected:
 private:
     friend class UIElementCollection;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::VisualFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
     std::uint32_t ChildCountCore() const noexcept { return ownedChildren_.Size(); }
     Ref<Base::Object> ChildAtCore(std::uint32_t index) const noexcept {

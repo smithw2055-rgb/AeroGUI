@@ -7,8 +7,6 @@ namespace Aero {
 class Freezable;
 struct FreezableState;
 
-namespace Core { class DependencyPropertyFacet; }
-
 using FreezableChangedHandler = Base::Delegate<void(Freezable&)>;
 
 // Instance-level shareable dependency object. A frozen object rejects every
@@ -44,7 +42,9 @@ protected:
 
 private:
     friend struct FreezableState;
-    friend class Core::DependencyPropertyFacet;
+    #if defined(AERO_GUI_IMPLEMENTATION)
+    friend class ::Aero::AeroGuiInternal;
+    #endif
 
     Base::IAllocator* implAllocator_ = nullptr;
     FreezableState* impl_ = nullptr;

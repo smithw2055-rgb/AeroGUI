@@ -78,7 +78,7 @@ protected:
 
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::RenderFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
 };
 

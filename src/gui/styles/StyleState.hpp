@@ -1,5 +1,4 @@
 #pragma once
-#include "gui/core/Facet.hpp"
 
 // Style authoring bridge, compiled state and theme-style lookup.
 
@@ -167,7 +166,7 @@ struct StyleApplication {
     Base::Vector<std::uint8_t> bindingTriggerKnown;
 };
 
-class StyleEngine : public Core::Facet {
+class StyleEngine {
 public:
     using TriggerActionHandler = Base::Result<void>(*)(
         DependencyObject& owner,

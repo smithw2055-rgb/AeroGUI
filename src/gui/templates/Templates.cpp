@@ -126,17 +126,17 @@ Base::Result<void> TemplateBuilder::SetRoot(
     Aero::ElementAttachment mount = std::move(mounted).Value();
 
     Base::Result<void> selected =
-        Aero::Core::InteractionStateFacet::SetTemplateRoot(*state.parent, root.AsUIElement());
+        AeroGuiInternal::SetTemplateRoot(*state.parent, root.AsUIElement());
     if (!selected) {
         (void)state.tree->DetachElement(mount);
         return selected.GetStatus();
     }
     if (root.AsFrameworkElement() != nullptr) {
         Base::Result<void> templated =
-            Aero::Core::InteractionStateFacet::SetTemplatedParent(
+            AeroGuiInternal::SetTemplatedParent(
                 *root.AsFrameworkElement(), state.parent);
         if (!templated) {
-            (void)Aero::Core::InteractionStateFacet::SetTemplateRoot(*state.parent, nullptr);
+            (void)AeroGuiInternal::SetTemplateRoot(*state.parent, nullptr);
             (void)state.tree->DetachElement(mount);
             return templated.GetStatus();
         }
@@ -145,10 +145,10 @@ Base::Result<void> TemplateBuilder::SetRoot(
         name, std::move(owner), root, &mount);
     if (!added) {
         if (root.AsFrameworkElement() != nullptr) {
-            (void)Aero::Core::InteractionStateFacet::SetTemplatedParent(
+            (void)AeroGuiInternal::SetTemplatedParent(
                 *root.AsFrameworkElement(), nullptr);
         }
-        (void)Aero::Core::InteractionStateFacet::SetTemplateRoot(*state.parent, nullptr);
+        (void)AeroGuiInternal::SetTemplateRoot(*state.parent, nullptr);
         (void)state.tree->DetachElement(mount);
         return added.GetStatus();
     }
@@ -179,7 +179,7 @@ Base::Result<void> TemplateBuilder::AddPart(
 
     if (part.AsFrameworkElement() != nullptr) {
         Base::Result<void> templated =
-            Aero::Core::InteractionStateFacet::SetTemplatedParent(
+            AeroGuiInternal::SetTemplatedParent(
                 *part.AsFrameworkElement(), state.parent);
         if (!templated) {
             (void)state.tree->DetachElement(mount);
@@ -190,7 +190,7 @@ Base::Result<void> TemplateBuilder::AddPart(
         name, std::move(owner), part, &mount);
     if (!added) {
         if (part.AsFrameworkElement() != nullptr) {
-            (void)Aero::Core::InteractionStateFacet::SetTemplatedParent(
+            (void)AeroGuiInternal::SetTemplatedParent(
                 *part.AsFrameworkElement(), nullptr);
         }
         (void)state.tree->DetachElement(mount);
@@ -250,7 +250,7 @@ TemplateBuilder::ProjectContentCore(
             Base::ErrorCode::InvalidArgument,
             "Template content projection owner is invalid");
     }
-    UIElement* content = Aero::Core::InteractionStateFacet::ContentElement(owner);
+    UIElement* content = AeroGuiInternal::ContentControlContent(owner);
     if (content == nullptr) return false;
 
     bool presenterIsPart = false;
@@ -483,13 +483,13 @@ void TemplateBuilder::Rollback() noexcept {
     for (std::uint32_t index = state.parts.Size(); index > 0U; --index) {
         Aero::Controls::TemplatePart& part = state.parts[index - 1U];
         if (part.frameworkElement != nullptr) {
-            (void)Aero::Core::InteractionStateFacet::SetTemplatedParent(*part.frameworkElement, nullptr);
+            (void)AeroGuiInternal::SetTemplatedParent(*part.frameworkElement, nullptr);
         }
         if (part.mount.IsAttached()) {
             (void)state.tree->DetachElement(part.mount);
         }
     }
-    if (state.parent != nullptr) (void)Aero::Core::InteractionStateFacet::SetTemplateRoot(*state.parent, nullptr);
+    if (state.parent != nullptr) (void)AeroGuiInternal::SetTemplateRoot(*state.parent, nullptr);
     state.parts.Clear();
     state.rootVisual = nullptr;
     state.rootElement = nullptr;
@@ -1228,9 +1228,9 @@ namespace Aero::Controls {
 bool Control::ApplyTemplate() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return false;
-    if (::Aero::Core::InteractionStateFacet::IsTemplateApplied(*this)) return false;
+    if (AeroGuiInternal::IsTemplateApplied(*this)) return false;
     auto* templateRuntime = static_cast<TemplateEngine*>(
-        ::Aero::Core::DependencyPropertyFacet::TemplateRuntime(*this));
+        AeroGuiInternal::TemplateRuntime(*this));
     if (templateRuntime == nullptr) {
         return false;
     }
@@ -1250,7 +1250,7 @@ bool Control::ApplyTemplate() noexcept {
 DependencyObject* Control::GetTemplateChild(
     Base::StringView name) const noexcept {
     auto* templateRuntime = static_cast<TemplateEngine*>(
-        ::Aero::Core::DependencyPropertyFacet::TemplateRuntime(*this));
+        AeroGuiInternal::TemplateRuntime(*this));
     if (templateRuntime == nullptr ||
         templateHandleValue_ == 0U ||
         name.Empty()) {
@@ -1263,7 +1263,7 @@ DependencyObject* Control::GetTemplateChild(
 DependencyObject* Control::GetTemplateChild(
     TypeId type) const noexcept {
     auto* templateRuntime = static_cast<TemplateEngine*>(
-        ::Aero::Core::DependencyPropertyFacet::TemplateRuntime(*this));
+        AeroGuiInternal::TemplateRuntime(*this));
     if (templateRuntime == nullptr ||
         templateHandleValue_ == 0U ||
         type == InvalidTypeId) {
@@ -1318,7 +1318,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
             Base::ErrorCode::InvalidArgument,
             "ControlTemplate cannot be applied to this control");
     }
-    ::Aero::Core::InteractionStateFacet::AttachTemplateEngine(
+    AeroGuiInternal::AttachTemplateEngine(
         control, this);
     const std::uint32_t existing = FindInstance(control);
     if (existing != UINT32_MAX) {
@@ -1476,7 +1476,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
         (void)ClearAt(instances_.Size() - 1U);
         return status;
     }
-    ::Aero::Core::InteractionStateFacet::NotifyTemplateApplied(
+    AeroGuiInternal::NotifyTemplateApplied(
         control, stored.handle.value);
     return stored.handle;
 }
@@ -1971,7 +1971,7 @@ Base::Result<void> TemplateEngine::ClearProviders(
 Base::Result<void> TemplateEngine::ClearAt(
     std::uint32_t index) noexcept {
     Instance& instance = instances_[index];
-    ::Aero::Core::InteractionStateFacet::NotifyTemplateDetached(
+    AeroGuiInternal::NotifyTemplateDetached(
         *instance.parent);
     DetachMetadataBindings(instance);
     DetachDynamicResources(instance);
@@ -1982,11 +1982,11 @@ Base::Result<void> TemplateEngine::ClearAt(
     for (Aero::Controls::TemplatePart& part : instance.parts) {
         if (part.frameworkElement != nullptr) {
             Base::Result<void> cleared =
-                Aero::Core::InteractionStateFacet::SetTemplatedParent(*part.frameworkElement, nullptr);
+                AeroGuiInternal::SetTemplatedParent(*part.frameworkElement, nullptr);
             if (!cleared) return cleared.GetStatus();
         }
     }
-    Base::Result<void> child = Aero::Core::InteractionStateFacet::SetTemplateRoot(*instance.parent, nullptr);
+    Base::Result<void> child = AeroGuiInternal::SetTemplateRoot(*instance.parent, nullptr);
     if (!child) return child.GetStatus();
 
     for (std::uint32_t projectionIndex = instance.projections.Size();

@@ -799,18 +799,23 @@ DependencyObject::DependencyObject(TypeId runtimeType) noexcept
       registry_(CurrentObjectFactory().dependencyProperties),
       runtimeType_(runtimeType),
       objectServicesAvailable_(HasObjectFactory()),
-      values_(),
+      valueStore_(nullptr),
       updateStack_(),
       changeHandlers_() {}
 
 DependencyObject::~DependencyObject() {
-    for (EffectiveValueEntry& entry : values_) {
-        Core::DependencyPropertyFacet::CommitConsumerChange(
-            *this,
-            entry.property,
-            entry.effectiveValue,
-            PropertyValue::Unset());
-        ReleaseExpression(entry);
+    PropertyStore* store = static_cast<PropertyStore*>(valueStore_);
+    if (store != nullptr) {
+        for (auto& record : store->entries) {
+            AeroGuiInternal::CommitConsumerChange(
+                *this,
+                DependencyPropertyHandle{record.Key()},
+                record.Value().effectiveValue,
+                PropertyValue::Unset());
+            ReleaseExpression(record.Value());
+        }
+        delete store;
+        valueStore_ = nullptr;
     }
 }
 
@@ -908,7 +913,7 @@ EffectiveValueEngine::EffectiveValueEngine(
     DependencyPropertyRegistry& registry) noexcept
     : dispatcher_(&dispatcher),
       registry_(&registry),
-      entries_(),
+      pending_(),
       parents_(),
       inheritanceSubscriptions_(),
       inheritanceChangedHandler_(
@@ -976,21 +981,8 @@ Base::Result<void> EffectiveValueEngine::VerifyMutable() const noexcept {
     return {};
 }
 
-std::uint32_t EffectiveValueEngine::FindEntryIndex(
-    const DependencyObject& object,
-    DependencyPropertyHandle property) const noexcept {
-    for (std::uint32_t index = 0U;
-         index < entries_.Size();
-         ++index) {
-        if (entries_[index].object == &object &&
-            entries_[index].property == property) {
-            return index;
-        }
-    }
-    return EffectiveInvalidIndex;
-}
 
-Base::Result<std::uint32_t> EffectiveValueEngine::EnsureEntry(
+Base::Result<void> EffectiveValueEngine::QueueObjectProperty(
     DependencyObject& object,
     DependencyPropertyHandle property) noexcept {
     if (&object.GetDispatcher() != dispatcher_) {
@@ -998,63 +990,38 @@ Base::Result<std::uint32_t> EffectiveValueEngine::EnsureEntry(
             Base::ErrorCode::InvalidArgument,
             "DependencyObject belongs to another Dispatcher");
     }
-
     const DependencyProperty* registered = registry_->Find(property);
     if (registered == nullptr ||
         registered->MetadataFor(object.RuntimeType()) == nullptr) {
-        thread_local char message[384];
-        const TypeInfo* objectType =
-            registry_->Types().FindType(object.RuntimeType());
-        const Base::StringView propertyName = registered != nullptr
-            ? registered->Name()
-            : Base::StringView("<unknown>");
-        const Base::StringView typeName = objectType != nullptr
-            ? objectType->Name()
-            : Base::StringView("<unknown>");
-        std::snprintf(
-            message,
-            sizeof(message),
-            "Dependency property '%.*s' does not apply to object type '%.*s'",
-            static_cast<int>(propertyName.SizeBytes()),
-            propertyName.Data(),
-            static_cast<int>(typeName.SizeBytes()),
-            typeName.Data());
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
-            message);
+            "Dependency property does not apply to this object type");
     }
-
-    const std::uint32_t existing = FindEntryIndex(object, property);
-    if (existing != EffectiveInvalidIndex) return existing;
-    if (entries_.Size() == UINT32_MAX) {
+    property = registered->Handle();
+    Base::Result<StoredValueEntry*> ensured =
+        AeroGuiInternal::EnsureEntry(object, property);
+    if (!ensured) return ensured.GetStatus();
+    StoredValueEntry* stored = ensured.Value();
+    if (stored->queued) return {};
+    if (nextQueueSequence_ == UINT64_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
-            "Effective value entry limit reached");
+            "Effective value queue sequence limit reached");
     }
-
-    Entry entry;
-    entry.object = &object;
-    entry.property = property;
-    Base::Result<void> appended =
-        entries_.PushBack(std::move(entry));
-    if (!appended) return appended.GetStatus();
-    return entries_.Size() - 1U;
-}
-
-std::uint32_t EffectiveValueEngine::FindParentIndex(
-    const DependencyObject& child) const noexcept {
-    for (std::uint32_t index = 0U;
-         index < parents_.Size();
-         ++index) {
-        if (parents_[index].child == &child) return index;
-    }
-    return EffectiveInvalidIndex;
+    stored->queued = true;
+    stored->queueSequence = nextQueueSequence_++;
+    Pending pending;
+    pending.object = &object;
+    pending.property = property;
+    pending.queueSequence = stored->queueSequence;
+    return pending_.PushBack(pending);
 }
 
 DependencyObject* EffectiveValueEngine::InheritanceParent(
     const DependencyObject& child) const noexcept {
-    const std::uint32_t index = FindParentIndex(child);
-    return index != EffectiveInvalidIndex ? parents_[index].parent : nullptr;
+    DependencyObject* key = const_cast<DependencyObject*>(&child);
+    DependencyObject* const* parent = parents_.Find(key);
+    return parent != nullptr ? *parent : nullptr;
 }
 
 Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
@@ -1085,35 +1052,22 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
         cursor = InheritanceParent(*cursor);
     }
 
-    const std::uint32_t existing = FindParentIndex(child);
-    DependencyObject* previousParent = existing != EffectiveInvalidIndex
-        ? parents_[existing].parent
-        : nullptr;
-
+    DependencyObject* previousParent = InheritanceParent(child);
     if (parent != nullptr) {
-        Base::Result<void> subscribed =
-            EnsureInheritanceSubscription(child);
+        Base::Result<void> subscribed = EnsureInheritanceSubscription(child);
         if (!subscribed) return subscribed.GetStatus();
         subscribed = EnsureInheritanceSubscription(*parent);
         if (!subscribed) return subscribed.GetStatus();
-    }
-
-    if (parent == nullptr) {
-        if (existing != EffectiveInvalidIndex) RemoveParent(existing);
-    } else if (existing != EffectiveInvalidIndex) {
-        parents_[existing].parent = parent;
+        auto stored = parents_.Set(&child, parent);
+        if (!stored) return stored.GetStatus();
     } else {
-        Base::Result<void> appended =
-            parents_.PushBack(ParentLink{&child, parent});
-        if (!appended) return appended.GetStatus();
+        parents_.Erase(&child);
     }
 
-    const auto participates = [this](
-        const DependencyObject& object) noexcept {
-        for (const ParentLink& link : parents_) {
-            if (link.child == &object || link.parent == &object) {
-                return true;
-            }
+    const auto participates = [this](DependencyObject& object) noexcept {
+        if (parents_.Find(&object) != nullptr) return true;
+        for (auto& link : parents_) {
+            if (link.Value() == &object) return true;
         }
         return false;
     };
@@ -1127,150 +1081,18 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
         RemoveInheritanceSubscription(*previousParent);
     }
 
-    for (std::uint32_t index = 0U;
-         index < entries_.Size();
-         ++index) {
-        if (entries_[index].object == &child) {
-            Base::Result<void> queued = QueueEntry(index);
-            if (!queued) return queued.GetStatus();
-        }
-    }
-    return {};
-}
-
-bool EffectiveValueEngine::IsMutableBaseRank(
-    PropertyValueRank rank) noexcept {
-    switch (rank) {
-    case PropertyValueRank::ThemeStyleSetter:
-    case PropertyValueRank::ThemeStyleTrigger:
-    case PropertyValueRank::StyleSetter:
-    case PropertyValueRank::TemplateTrigger:
-    case PropertyValueRank::StyleTrigger:
-    case PropertyValueRank::ImplicitStyle:
-    case PropertyValueRank::TemplatedParentSetter:
-    case PropertyValueRank::TemplatedParentTrigger:
-        return true;
-    default:
-        return false;
-    }
-}
-
-
-Base::Result<void> EffectiveValueEngine::SetProviderContribution(
-    DependencyObject& object, DependencyPropertyHandle property,
-    PropertyProviderToken token, const PropertyValue& value) noexcept {
-    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    if (!token.IsValid() || !IsMutableBaseRank(token.rank)) return InvalidProviderStatus();
-    Base::Result<std::uint32_t> ensured = EnsureEntry(object, property);
-    if (!ensured) return ensured.GetStatus();
-    Base::Result<void> queued = QueueEntry(ensured.Value());
-    if (!queued) return queued.GetStatus();
-    return object.ApplyProviderContributionInternal(property, token, value);
-}
-
-Base::Result<bool> EffectiveValueEngine::ClearProviderContribution(
-    DependencyObject& object, DependencyPropertyHandle property,
-    PropertyProviderToken token) noexcept {
-    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    if (!token.IsValid() || !IsMutableBaseRank(token.rank)) return InvalidProviderStatus();
-    const std::uint32_t index = FindEntryIndex(object, property);
-    if (index == EffectiveInvalidIndex) return false;
-    Base::Result<bool> cleared = object.ClearProviderContributionInternal(property, token);
-    if (!cleared || !cleared.Value()) return cleared;
-    Base::Result<void> queued = QueueEntry(index); if (!queued) return queued.GetStatus();
-    return true;
-}
-
-Base::Result<std::uint32_t> EffectiveValueEngine::ClearProviderOrigin(
-    DependencyObject& object, std::uint32_t origin) noexcept {
-    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    if (origin == 0U) return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-        "A property provider origin must be nonzero");
-    std::uint32_t removed = 0U;
-    for (std::uint32_t index = 0U; index < entries_.Size(); ++index) {
-        Entry& entry = entries_[index]; if (entry.object != &object) continue;
-        Base::Result<bool> cleared =
-            object.ClearProviderOriginInternal(entry.property, origin);
-        if (!cleared) return cleared.GetStatus();
-        if (!cleared.Value()) continue;
-        ++removed;
-        Base::Result<void> queued = QueueEntry(index);
+    Base::Vector<MemberId> keys;
+    AeroGuiInternal::ForEachStoredKey(
+        child,
+        [](void* context, MemberId key) noexcept {
+            static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
+        },
+        &keys);
+    for (MemberId key : keys) {
+        Base::Result<void> queued =
+            QueueObjectProperty(child, DependencyPropertyHandle{key});
         if (!queued) return queued.GetStatus();
     }
-    return removed;
-}
-
-Base::Result<void> EffectiveValueEngine::SetLocalExpression(
-    DependencyObject& object, DependencyPropertyHandle property,
-    const PropertyExpression& expression) noexcept {
-    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    Base::Result<std::uint32_t> ensured = EnsureEntry(object, property);
-    if (!ensured) return ensured.GetStatus();
-    Base::Result<void> queued = QueueEntry(ensured.Value()); if (!queued) return queued.GetStatus();
-    return object.ApplyLocalExpressionInternal(property, expression);
-}
-
-Base::Result<void> EffectiveValueEngine::ClearLocalExpression(
-    DependencyObject& object, DependencyPropertyHandle property) noexcept {
-    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    const std::uint32_t index = FindEntryIndex(object, property);
-    if (index == EffectiveInvalidIndex) return {};
-    Base::Result<bool> cleared =
-        object.ClearLocalExpressionInternal(property);
-    if (!cleared) return cleared.GetStatus();
-    if (!cleared.Value()) return {};
-    return QueueEntry(index);
-}
-
-Base::Result<void> EffectiveValueEngine::SetAnimationValue(
-    DependencyObject& object, DependencyPropertyHandle property,
-    const PropertyValue& value) noexcept {
-    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    Base::Result<std::uint32_t> ensured = EnsureEntry(object, property);
-    if (!ensured) return ensured.GetStatus();
-    Base::Result<void> queued = QueueEntry(ensured.Value()); if (!queued) return queued.GetStatus();
-    return object.ApplyAnimationValueInternal(property, value);
-}
-
-Base::Result<void> EffectiveValueEngine::ClearAnimationValue(
-    DependencyObject& object, DependencyPropertyHandle property) noexcept {
-    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    const std::uint32_t index = FindEntryIndex(object, property);
-    if (index == EffectiveInvalidIndex) return {};
-    Base::Result<bool> cleared =
-        object.ClearAnimationValueInternal(property);
-    if (!cleared) return cleared.GetStatus();
-    if (!cleared.Value()) return {};
-    return QueueEntry(index);
-}
-
-Base::Result<void> EffectiveValueEngine::Invalidate(
-    DependencyObject& object,
-    DependencyPropertyHandle property) noexcept {
-    Base::Result<void> ready = VerifyMutable();
-    if (!ready) return ready.GetStatus();
-    Base::Result<std::uint32_t> ensured =
-        EnsureEntry(object, property);
-    if (!ensured) return ensured.GetStatus();
-    Base::Result<bool> invalidated = object.InvalidateBaseValueInternal(property);
-    if (!invalidated) return invalidated.GetStatus();
-    Base::Result<void> queued = QueueEntry(ensured.Value());
-    if (!queued) return queued.GetStatus();
-    return QueueDescendants(object, property);
-}
-
-Base::Result<void> EffectiveValueEngine::QueueEntry(
-    std::uint32_t index) noexcept {
-    AERO_ASSERT(index < entries_.Size());
-    Entry& entry = entries_[index];
-    if (entry.queued) return {};
-    if (nextQueueSequence_ == UINT64_MAX) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Effective value queue sequence limit reached");
-    }
-    entry.queued = true;
-    entry.queueSequence = nextQueueSequence_++;
     return {};
 }
 
@@ -1280,20 +1102,17 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
     Base::Vector<DependencyObject*> frontier;
     Base::Result<void> root = frontier.PushBack(&parent);
     if (!root) return root.GetStatus();
-
     std::uint32_t cursor = 0U;
     while (cursor < frontier.Size()) {
         DependencyObject* current = frontier[cursor++];
-        for (const ParentLink& link : parents_) {
-            if (link.parent != current || link.child == nullptr) continue;
-            const std::uint32_t entryIndex =
-                FindEntryIndex(*link.child, property);
-            if (entryIndex != EffectiveInvalidIndex) {
-                Base::Result<void> queued = QueueEntry(entryIndex);
+        for (auto& link : parents_) {
+            if (link.Value() != current || link.Key() == nullptr) continue;
+            DependencyObject* child = link.Key();
+            if (AeroGuiInternal::FindEntry(*child, property) != nullptr) {
+                Base::Result<void> queued = QueueObjectProperty(*child, property);
                 if (!queued) return queued.GetStatus();
             }
-            Base::Result<void> pushed =
-                frontier.PushBack(link.child);
+            Base::Result<void> pushed = frontier.PushBack(child);
             if (!pushed) return pushed.GetStatus();
         }
     }
@@ -1340,15 +1159,8 @@ EffectiveValueEngine::EnsureInheritanceSubscription(
             return added.GetStatus();
         }
 
-        Base::Result<std::uint32_t> entry =
-            EnsureEntry(object, property.Handle());
-        if (!entry) {
-            static_cast<void>(object.RemoveValueChangedHandler(
-                property.Handle(),
-                inheritanceChangedHandler_));
-            return entry.GetStatus();
-        }
-        Base::Result<void> queued = QueueEntry(entry.Value());
+        Base::Result<void> queued =
+            QueueObjectProperty(object, property.Handle());
         if (!queued) {
             static_cast<void>(object.RemoveValueChangedHandler(
                 property.Handle(),
@@ -1425,7 +1237,7 @@ void EffectiveValueEngine::OnInheritancePropertyChanged(
 }
 
 
-Base::Result<void> EffectiveValueEngine::Apply(Entry& entry) noexcept {
+Base::Result<void> EffectiveValueEngine::Apply(Pending& entry) noexcept {
     const DependencyProperty* property = registry_->Find(entry.property);
     if (property == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound,
         "Dependency property is no longer registered");
@@ -1439,14 +1251,14 @@ Base::Result<void> EffectiveValueEngine::Apply(Entry& entry) noexcept {
         while (parent != nullptr && property->MetadataFor(parent->RuntimeType()) == nullptr)
             parent = InheritanceParent(*parent);
         if (parent != nullptr) {
-            Base::Result<PropertyValue> value = parent->GetValue(entry.property);
-            if (!value) return value.GetStatus();
-            inheritedValue = std::move(value).Value(); inherited = &inheritedValue;
+            PropertyValue value = parent->GetValue(entry.property);
+            inheritedValue = std::move(value);
+            inherited = &inheritedValue;
         }
     }
-    Base::Result<void> stored = entry.object->ApplyInheritedValueInternal(entry.property, inherited);
+    Base::Result<void> stored = AeroGuiInternal::ApplyInheritedValue(*entry.object, entry.property, inherited);
     if (!stored) return stored.GetStatus();
-    return entry.object->RecomputeEffectiveValueInternal(entry.property);
+    return AeroGuiInternal::RecomputeEffectiveValue(*entry.object, entry.property);
 }
 
 Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
@@ -1470,11 +1282,12 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
     while (true) {
         std::uint32_t selected = EffectiveInvalidIndex;
         std::uint64_t selectedSequence = UINT64_MAX;
-        for (std::uint32_t index = 0U;
-             index < entries_.Size();
-             ++index) {
-            const Entry& entry = entries_[index];
-            if (entry.queued &&
+        for (std::uint32_t index = 0U; index < pending_.Size(); ++index) {
+            const Pending& entry = pending_[index];
+            StoredValueEntry* stored = entry.object != nullptr
+                ? AeroGuiInternal::FindEntry(*entry.object, entry.property)
+                : nullptr;
+            if (stored != nullptr && stored->queued &&
                 entry.queueSequence <= boundary &&
                 entry.queueSequence < selectedSequence) {
                 selected = index;
@@ -1483,13 +1296,21 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
         }
         if (selected == EffectiveInvalidIndex) break;
 
-        Entry& entry = entries_[selected];
-        entry.queued = false;
+        Pending entry = pending_[selected];
+        StoredValueEntry* stored =
+            AeroGuiInternal::FindEntry(*entry.object, entry.property);
+        if (stored != nullptr) {
+            stored->queued = false;
+        }
         Base::Result<void> applied = Apply(entry);
         if (!applied) {
-            entry.queued = true;
+            if (stored != nullptr) stored->queued = true;
             return applied.GetStatus();
         }
+        for (std::uint32_t current = selected + 1U; current < pending_.Size(); ++current) {
+            pending_[current - 1U] = std::move(pending_[current]);
+        }
+        pending_.PopBack();
         ++processed;
     }
     return processed;
@@ -1502,20 +1323,166 @@ Base::Result<EffectiveValueDiagnostics> EffectiveValueEngine::Diagnostics(
     return object.GetValueSourceInfo(property);
 }
 
+bool EffectiveValueEngine::IsMutableBaseRank(
+    PropertyValueRank rank) noexcept {
+    switch (rank) {
+    case PropertyValueRank::ThemeStyleSetter:
+    case PropertyValueRank::ThemeStyleTrigger:
+    case PropertyValueRank::StyleSetter:
+    case PropertyValueRank::TemplateTrigger:
+    case PropertyValueRank::StyleTrigger:
+    case PropertyValueRank::ImplicitStyle:
+    case PropertyValueRank::TemplatedParentSetter:
+    case PropertyValueRank::TemplatedParentTrigger:
+    case PropertyValueRank::VisualState:
+        return true;
+    default:
+        return false;
+    }
+}
+
+Base::Result<void> EffectiveValueEngine::SetProviderContribution(
+    DependencyObject& object, DependencyPropertyHandle property,
+    PropertyProviderToken token, const PropertyValue& value) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    if (!token.IsValid() || !IsMutableBaseRank(token.rank)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Property provider contribution is invalid");
+    }
+    Base::Result<void> queued = QueueObjectProperty(object, property);
+    if (!queued) return queued.GetStatus();
+    return AeroGuiInternal::ApplyProviderContribution(object, property, token, value);
+}
+
+Base::Result<bool> EffectiveValueEngine::ClearProviderContribution(
+    DependencyObject& object, DependencyPropertyHandle property,
+    PropertyProviderToken token) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    if (!token.IsValid() || !IsMutableBaseRank(token.rank)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Property provider contribution is invalid");
+    }
+    if (AeroGuiInternal::FindEntry(object, property) == nullptr) return false;
+    Base::Result<bool> cleared = AeroGuiInternal::ClearProviderContribution(object, property, token);
+    if (!cleared || !cleared.Value()) return cleared;
+    Base::Result<void> queued = QueueObjectProperty(object, property);
+    if (!queued) return queued.GetStatus();
+    return true;
+}
+
+Base::Result<std::uint32_t> EffectiveValueEngine::ClearProviderOrigin(
+    DependencyObject& object, std::uint32_t origin) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    if (origin == 0U) return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+        "A property provider origin must be nonzero");
+    std::uint32_t removed = 0U;
+    Base::Vector<MemberId> keys;
+    AeroGuiInternal::ForEachStoredKey(
+        object,
+        [](void* context, MemberId key) noexcept {
+            static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
+        },
+        &keys);
+    for (MemberId key : keys) {
+        DependencyPropertyHandle property{key};
+        Base::Result<bool> cleared =
+            AeroGuiInternal::ClearProviderOrigin(object, property, origin);
+        if (!cleared) return cleared.GetStatus();
+        if (!cleared.Value()) continue;
+        ++removed;
+        Base::Result<void> queued = QueueObjectProperty(object, property);
+        if (!queued) return queued.GetStatus();
+    }
+    return removed;
+}
+
+Base::Result<void> EffectiveValueEngine::SetLocalExpression(
+    DependencyObject& object, DependencyPropertyHandle property,
+    const PropertyExpression& expression) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    Base::Result<void> queued = QueueObjectProperty(object, property);
+    if (!queued) return queued.GetStatus();
+    return AeroGuiInternal::ApplyLocalExpression(object, property, expression);
+}
+
+Base::Result<void> EffectiveValueEngine::ClearLocalExpression(
+    DependencyObject& object, DependencyPropertyHandle property) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    if (AeroGuiInternal::FindEntry(object, property) == nullptr) return {};
+    Base::Result<bool> cleared = AeroGuiInternal::ClearLocalExpression(object, property);
+    if (!cleared) return cleared.GetStatus();
+    if (!cleared.Value()) return {};
+    return QueueObjectProperty(object, property);
+}
+
+Base::Result<void> EffectiveValueEngine::SetAnimationValue(
+    DependencyObject& object, DependencyPropertyHandle property,
+    const PropertyValue& value) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    Base::Result<void> queued = QueueObjectProperty(object, property);
+    if (!queued) return queued.GetStatus();
+    return AeroGuiInternal::ApplyAnimationValue(object, property, value);
+}
+
+Base::Result<void> EffectiveValueEngine::ClearAnimationValue(
+    DependencyObject& object, DependencyPropertyHandle property) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    if (AeroGuiInternal::FindEntry(object, property) == nullptr) return {};
+    Base::Result<bool> cleared = AeroGuiInternal::ClearAnimationValue(object, property);
+    if (!cleared) return cleared.GetStatus();
+    if (!cleared.Value()) return {};
+    return QueueObjectProperty(object, property);
+}
+
+Base::Result<void> EffectiveValueEngine::Invalidate(
+    DependencyObject& object,
+    DependencyPropertyHandle property) noexcept {
+    Base::Result<void> ready = VerifyMutable();
+    if (!ready) return ready.GetStatus();
+    Base::Result<bool> invalidated = AeroGuiInternal::InvalidateBaseValue(object, property);
+    if (!invalidated) return invalidated.GetStatus();
+    Base::Result<void> queued = QueueObjectProperty(object, property);
+    if (!queued) return queued.GetStatus();
+    return QueueDescendants(object, property);
+}
+
 Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) noexcept {
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    std::uint32_t entry = 0U;
-    while (entry < entries_.Size()) {
-        if (entries_[entry].object == &object) {
-            Base::Result<void> cleared = object.DropEngineValueStateInternal(entries_[entry].property);
-            if (!cleared) return cleared.GetStatus();
-            RemoveEntry(entry);
-        } else ++entry;
+    Base::Vector<MemberId> keys;
+    AeroGuiInternal::ForEachStoredKey(
+        object,
+        [](void* context, MemberId key) noexcept {
+            static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
+        },
+        &keys);
+    for (MemberId key : keys) {
+        Base::Result<void> cleared =
+            AeroGuiInternal::DropEngineValueState(object, DependencyPropertyHandle{key});
+        if (!cleared) return cleared.GetStatus();
     }
-    std::uint32_t parent = 0U;
-    while (parent < parents_.Size()) {
-        if (parents_[parent].child == &object || parents_[parent].parent == &object)
-            RemoveParent(parent); else ++parent;
+    std::uint32_t pendingIndex = 0U;
+    while (pendingIndex < pending_.Size()) {
+        if (pending_[pendingIndex].object == &object) {
+            for (std::uint32_t current = pendingIndex + 1U;
+                 current < pending_.Size(); ++current) {
+                pending_[current - 1U] = std::move(pending_[current]);
+            }
+            pending_.PopBack();
+        } else {
+            ++pendingIndex;
+        }
+    }
+    parents_.Erase(&object);
+    Base::Vector<DependencyObject*> children;
+    for (auto& link : parents_) {
+        if (link.Value() == &object) {
+            children.PushBack(link.Key());
+        }
+    }
+    for (DependencyObject* child : children) {
+        parents_.Erase(child);
     }
     RemoveInheritanceSubscription(object);
     return {};
@@ -1523,33 +1490,13 @@ Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) 
 
 std::uint32_t EffectiveValueEngine::PendingPropertyCount() const noexcept {
     std::uint32_t count = 0U;
-    for (const Entry& entry : entries_) {
-        if (entry.queued) ++count;
+    for (const Pending& entry : pending_) {
+        const StoredValueEntry* stored = entry.object != nullptr
+            ? AeroGuiInternal::FindEntry(*entry.object, entry.property)
+            : nullptr;
+        if (stored != nullptr && stored->queued) ++count;
     }
     return count;
-}
-
-
-void EffectiveValueEngine::RemoveEntry(
-    std::uint32_t index) noexcept {
-    AERO_ASSERT(index < entries_.Size());
-    for (std::uint32_t current = index + 1U;
-         current < entries_.Size();
-         ++current) {
-        entries_[current - 1U] = std::move(entries_[current]);
-    }
-    entries_.PopBack();
-}
-
-void EffectiveValueEngine::RemoveParent(
-    std::uint32_t index) noexcept {
-    AERO_ASSERT(index < parents_.Size());
-    for (std::uint32_t current = index + 1U;
-         current < parents_.Size();
-         ++current) {
-        parents_[current - 1U] = parents_[current];
-    }
-    parents_.PopBack();
 }
 
 void EffectiveValueEngine::PropertyChangesHook(

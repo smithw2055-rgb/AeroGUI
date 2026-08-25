@@ -11,12 +11,12 @@
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
 #include <cstdio>
+#include <new>
 #include "gui/core/State.hpp" 
 #include "gui/input/InputState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/facets/RenderFacet.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -58,8 +58,8 @@ Base::Result<void> UIElement::ArrangeChild(
     UIElement& child,
     Rect finalRect) noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
-        Core::GetFacet<::Aero::LayoutEngine>(*this));
-    if (layout == nullptr || !child.ElementFacet<Aero::Core::LayoutFacet>()->IsLayoutAttached() ||
+        AeroGuiInternal::LayoutEngineOf(*this));
+    if (layout == nullptr || !AeroGuiInternal::Layout(child).layoutAttached ||
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
@@ -98,7 +98,7 @@ Base::Result<void> UIElement::ArrangeChild(
                 parentName.SizeBytes()),
             parentName.Data(),
             static_cast<void*>(this),
-            child.ElementFacet<Aero::Core::LayoutFacet>()->IsLayoutAttached() ? 1U : 0U,
+            AeroGuiInternal::Layout(child).layoutAttached ? 1U : 0U,
             static_cast<int>(
                 actualParentName.SizeBytes()),
             actualParentName.Data(),
@@ -111,62 +111,48 @@ Base::Result<void> UIElement::ArrangeChild(
     return layout->ArrangeElement(child, finalRect);
 }
 
-// Layout state now lives in the per-element LayoutFacet; getters forward there.
+// Layout hot state lives on UIElement.
 Size UIElement::GetDesiredSize() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return f ? f->GetDesiredSize() : Size{};
+    return layout_.desiredSize;
 }
 Size UIElement::GetRenderSize() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return f ? f->GetRenderSize() : Size{};
+    return layout_.renderSize;
 }
 Rect UIElement::GetLayoutSlot() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return f ? f->GetLayoutSlot() : Rect{};
+    return layout_.layoutSlot;
 }
 Rect UIElement::GetLayoutClip() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return f ? f->GetLayoutClip() : Rect{};
+    return layout_.layoutClip;
 }
 bool UIElement::GetIsMeasureValid() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return f ? f->IsMeasureValid() : false;
+    return layout_.measureValid;
 }
 bool UIElement::GetIsArrangeValid() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return f ? f->IsArrangeValid() : false;
+    return layout_.arrangeValid;
 }
 bool UIElement::GetIsMeasureQueued() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return f ? f->IsMeasureQueued() : false;
+    return layout_.measureQueued;
 }
 bool UIElement::GetIsArrangeQueued() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return f ? f->IsArrangeQueued() : false;
+    return layout_.arrangeQueued;
 }
 bool UIElement::GetIsMeasuring() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return f ? f->IsMeasuring() : false;
+    return layout_.measuring;
 }
 bool UIElement::GetIsArranging() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return f ? f->IsArranging() : false;
+    return layout_.arranging;
 }
 bool UIElement::GetIsLayoutAttached() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return (f && f->IsLayoutAttached());
+    return layout_.layoutAttached;
 }
 Size UIElement::GetUntransformedDesiredSize() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return f ? f->GetUntransformedDesiredSize() : Size{};
+    return layout_.untransformedDesiredSize;
 }
 Size UIElement::GetPreviousMeasureConstraint() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return f ? f->GetPreviousMeasureConstraint() : Size{};
+    return layout_.previousMeasureConstraint;
 }
 std::uint64_t UIElement::GetLayoutRevision() const noexcept {
-    auto* f = ElementFacet<Core::LayoutFacet>();
-    return f ? f->GetLayoutRevision() : 0U;
+    return layout_.layoutRevision;
 }
 
 // from src/gui/controls/Layout.cpp
@@ -175,8 +161,8 @@ Base::Result<void> UIElement::MeasureChild(
     UIElement& child,
     Size availableSize) noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
-        Core::GetFacet<::Aero::LayoutEngine>(*this));
-    if (layout == nullptr || !child.ElementFacet<Aero::Core::LayoutFacet>()->IsLayoutAttached() ||
+        AeroGuiInternal::LayoutEngineOf(*this));
+    if (layout == nullptr || !AeroGuiInternal::Layout(child).layoutAttached ||
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
@@ -215,7 +201,7 @@ Base::Result<void> UIElement::MeasureChild(
                 parentName.SizeBytes()),
             parentName.Data(),
             static_cast<void*>(this),
-            child.ElementFacet<Aero::Core::LayoutFacet>()->IsLayoutAttached() ? 1U : 0U,
+            AeroGuiInternal::Layout(child).layoutAttached ? 1U : 0U,
             static_cast<int>(
                 actualParentName.SizeBytes()),
             actualParentName.Data(),
@@ -361,7 +347,7 @@ void UIElement::OnPropertyInvalidated(
     } else if (HasFlag(flags, PropertyInvalidationFlags::Arrange)) {
         (void)InvalidateArrange();
     }
-    UIElement* parent = this->ElementFacet<Aero::Core::LayoutFacet>()->IsLayoutAttached() ? LayoutParent() : nullptr;
+    UIElement* parent = AeroGuiInternal::Layout(*this).layoutAttached ? LayoutParent() : nullptr;
     if (parent != nullptr &&
         HasFlag(flags, PropertyInvalidationFlags::ParentMeasure)) {
         (void)parent->InvalidateMeasure();
@@ -371,7 +357,7 @@ void UIElement::OnPropertyInvalidated(
     }
     if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
         static_cast<void>(
-            Aero::Core::RenderFacet::InvalidateRenderState(*this));
+            AeroGuiInternal::InvalidateRenderState(*this));
     }
     DependencyObject::OnPropertyInvalidated(flags);
 }
@@ -394,7 +380,7 @@ bool UIElement::GetIsTabStop() const noexcept {
 // from src/gui/controls/Layout.cpp
 Base::Result<bool> UIElement::Focus() noexcept {
     Aero::InputRouter* input =
-        ::Aero::Core::GetFacet<::Aero::InputRouter>(*this);
+        AeroGuiInternal::InputRouterOf(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -499,9 +485,9 @@ bool UIElement::GetClipToBounds() const noexcept {
 
 Base::Result<void> UIElement::InvalidateArrange() noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
-        Core::GetFacet<::Aero::LayoutEngine>(*this));
+        AeroGuiInternal::LayoutEngineOf(*this));
     if (layout == nullptr) {
-        this->ElementFacet<Aero::Core::LayoutFacet>()->SetArrangeValid(false);
+        AeroGuiInternal::Layout(*this).arrangeValid = false;
         return {};
     }
     return layout->InvalidateArrange(*this);
@@ -511,10 +497,10 @@ Base::Result<void> UIElement::InvalidateArrange() noexcept {
 
 Base::Result<void> UIElement::InvalidateMeasure() noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
-        Core::GetFacet<::Aero::LayoutEngine>(*this));
+        AeroGuiInternal::LayoutEngineOf(*this));
     if (layout == nullptr) {
-        this->ElementFacet<Aero::Core::LayoutFacet>()->SetMeasureValid(false);
-        this->ElementFacet<Aero::Core::LayoutFacet>()->SetArrangeValid(false);
+        AeroGuiInternal::Layout(*this).measureValid = false;
+        AeroGuiInternal::Layout(*this).arrangeValid = false;
         return {};
     }
     return layout->InvalidateMeasure(*this);
@@ -526,7 +512,7 @@ void UIElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
     Aero::EventRouter* eventRouter =
-        Aero::Core::GetFacet<::Aero::EventRouter>(*this);
+        AeroGuiInternal::EventRouterOf(*this);
     if (eventRouter == nullptr) {
         return;
     }
@@ -536,7 +522,7 @@ void UIElement::RaiseEvent(
 // from src/gui/controls/Layout.cpp
 
 void UIElement::CleanupHandlers() noexcept {
-    auto* state = static_cast<UIElementHandlerState*>(routedHandlers_);
+    auto* state = static_cast<UIElementHandlerState*>((rare_ != nullptr ? rare_->routedHandlers : nullptr));
     if (state == nullptr) return;
     state->~UIElementHandlerState();
     Base::GetDefaultAllocator().Deallocate(
@@ -544,7 +530,7 @@ void UIElement::CleanupHandlers() noexcept {
         sizeof(UIElementHandlerState),
         alignof(UIElementHandlerState),
         Base::MemoryTag::Ui);
-    routedHandlers_ = nullptr;
+    if (rare_ != nullptr) rare_->routedHandlers = nullptr;
 }
 
 // from src/gui/controls/Layout.cpp
@@ -552,7 +538,7 @@ void UIElement::CleanupHandlers() noexcept {
 void UIElement::InvokeHandlers(
     RoutedEventHandle event,
     RoutedEventArgs& args) noexcept {
-    auto* state = static_cast<UIElementHandlerState*>(routedHandlers_);
+    auto* state = static_cast<UIElementHandlerState*>((rare_ != nullptr ? rare_->routedHandlers : nullptr));
     if (state == nullptr) return;
     const std::uint32_t count = state->handlers.Size();
     for (std::uint32_t index = 0U;
@@ -572,7 +558,7 @@ bool UIElement::RemoveHandlerCore(
     const HandlerDescriptor& handler) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access || !event.IsValid() || handler.value == nullptr ||
-        handler.operations == nullptr || routedHandlers_ == nullptr) {
+        handler.operations == nullptr || (rare_ != nullptr ? rare_->routedHandlers : nullptr) == nullptr) {
         return false;
     }
     Aero::RoutedHandlerStorage probe(
@@ -584,7 +570,7 @@ bool UIElement::RemoveHandlerCore(
         handler.operations->destroy,
         handler.operations->equals,
         handler.operations->invoke);
-    auto& handlers = static_cast<UIElementHandlerState*>(routedHandlers_)->handlers;
+    auto& handlers = static_cast<UIElementHandlerState*>((rare_ != nullptr ? rare_->routedHandlers : nullptr))->handlers;
     for (std::uint32_t index = 0U; index < handlers.Size(); ++index) {
         if (handlers[index].event == event && handlers[index].handler.Equals(probe)) {
             for (std::uint32_t current = index + 1U; current < handlers.Size(); ++current) {
@@ -613,7 +599,7 @@ Base::Result<void> UIElement::AddHandlerCore(
         return InvalidArgument("Routed event handler requires a valid event and callback");
     }
 
-    auto* state = static_cast<UIElementHandlerState*>(routedHandlers_);
+    auto* state = static_cast<UIElementHandlerState*>((rare_ != nullptr ? rare_->routedHandlers : nullptr));
     if (state == nullptr) {
         Base::IAllocator& allocator = Base::GetDefaultAllocator();
         void* memory = allocator.Allocate({
@@ -626,7 +612,7 @@ Base::Result<void> UIElement::AddHandlerCore(
                 "Routed event handler state allocation failed");
         }
         state = new (memory) UIElementHandlerState();
-        routedHandlers_ = state;
+        EnsureRare().routedHandlers = state;
     }
     if (state->nextSequence == 0U) {
         return Base::Status::Failure(
@@ -660,7 +646,7 @@ void UIElement::SetAllowDrop(bool value) noexcept {
 
 Base::Result<bool> UIElement::CancelDrag() noexcept {
     Aero::InputRouter* input =
-        Aero::Core::GetFacet<::Aero::InputRouter>(*this);
+        AeroGuiInternal::InputRouterOf(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -676,7 +662,7 @@ Base::Result<void> UIElement::BeginDrag(
     const Value& data,
     Input::DragDropEffects allowedEffects) noexcept {
     Aero::InputRouter* input =
-        Aero::Core::GetFacet<::Aero::InputRouter>(*this);
+        AeroGuiInternal::InputRouterOf(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -690,7 +676,16 @@ Base::Result<void> UIElement::BeginDrag(
 
 bool UIElement::GetIsDragging() const noexcept {
     Aero::InputRouter* input =
-        Aero::Core::GetFacet<::Aero::InputRouter>(*this);
+        AeroGuiInternal::InputRouterOf(*this);
     return input != nullptr && input->IsDragSource(*this);
 }
-} // namespace Aero {
+
+UIElement::Rare& UIElement::EnsureRare() noexcept {
+    if (rare_ == nullptr) {
+        rare_ = new (std::nothrow) Rare();
+        AERO_ASSERT(rare_ != nullptr);
+    }
+    return *rare_;
+}
+
+} // namespace Aero

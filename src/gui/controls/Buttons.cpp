@@ -1,12 +1,9 @@
 #include "gui/core/State.hpp" 
 #include "gui/input/InputState.hpp"
-#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/controls/State.hpp"
 #include "gui/templates/TemplateState.hpp"
-#include "gui/core/facets/InteractionStateFacet.hpp"
-#include "gui/core/facets/InputEventFacet.hpp"
 #include <Aero/Controls.hpp>
 
 #include <utility>
@@ -19,7 +16,7 @@ using namespace Primitives;
 
 ButtonBase::~ButtonBase() {
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
+        AeroGuiInternal::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -138,7 +135,7 @@ void RadioButton::SetGroupName(
 void ButtonBase::OnApplyTemplate() noexcept {
     ContentControl::OnApplyTemplate();
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
+        AeroGuiInternal::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->RefreshButtonVisualState(
             *this, false));
@@ -766,7 +763,7 @@ void ButtonBehavior::OnKeyDown(
         record.keyboardDown = true;
         record.repeatElapsed = 0U;
         record.nextRepeat = 0U;
-        static_cast<void>(::Aero::Core::InputEventFacet::SetPressed(button, true));
+        static_cast<void>(AeroGuiInternal::SetPressed(button, true));
         if (button.GetClickMode() == ClickMode::Press) {
             static_cast<void>(InvokeClick(button));
         }
@@ -788,7 +785,7 @@ void ButtonBehavior::OnKeyUp(
     buttons_[index].keyboardDown = false;
     buttons_[index].repeatElapsed = 0U;
     buttons_[index].nextRepeat = 0U;
-    static_cast<void>(::Aero::Core::InputEventFacet::SetPressed(button, false));
+    static_cast<void>(AeroGuiInternal::SetPressed(button, false));
     args.SetHandled(true);
     if (button.GetIsEnabled() &&
         button.GetClickMode() == ClickMode::Release) {
@@ -809,7 +806,7 @@ void ButtonBehavior::OnFocusChanged(
         buttons_[index].keyboardDown = false;
         buttons_[index].repeatElapsed = 0U;
         buttons_[index].nextRepeat = 0U;
-        static_cast<void>(::Aero::Core::InputEventFacet::SetPressed(button, false));
+        static_cast<void>(AeroGuiInternal::SetPressed(button, false));
     }
     static_cast<void>(
         SyncVisualState(button));

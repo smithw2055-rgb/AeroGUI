@@ -142,7 +142,7 @@ Base::Result<void> PopulateControlsPrimitives(
                 .AffectsMeasure()
                 .Structural()
                 .Changed(
-                    &::Aero::Core::InteractionStateFacet::
+                    &AeroGuiInternal::
                         OnContentControlPropertyChanged))
         .Property(
             ContentControl::ContentTemplateProperty,

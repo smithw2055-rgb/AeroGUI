@@ -1,14 +1,11 @@
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/State.hpp" 
 #include "gui/input/InputState.hpp"
-#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include "gui/media/MediaState.hpp"
-#include "gui/core/facets/VisualFacet.hpp"
-#include "gui/core/facets/InteractionStateFacet.hpp"
 #include <Aero/Value.hpp>
 
 #include <algorithm>
@@ -551,7 +548,7 @@ ScrollViewer::ScrollViewer() noexcept
 ScrollViewer::~ScrollViewer() {
     DetachScrollBars();
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
+        AeroGuiInternal::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -911,7 +908,7 @@ void ScrollViewer::OnScrollDataChanged(
         false);
     synchronizingScrollBars_ = false;
 
-    auto* events = ::Aero::Core::GetFacet<::Aero::EventRouter>(*this);
+    auto* events = AeroGuiInternal::EventRouterOf(*this);
     if (events != nullptr) {
         ScrollChangedEventArgs args(oldData, newData, kind);
         static_cast<void>(
@@ -2224,7 +2221,7 @@ ScrollBehavior::~ScrollBehavior() noexcept {
 
 std::uint32_t ScrollBehavior::FindViewer(
     const ScrollViewer& viewer) const noexcept {
-    const VisualHandle handle = Aero::Core::VisualFacet::Handle(viewer);
+    const VisualHandle handle = AeroGuiInternal::Handle(viewer);
     for (std::uint32_t index = 0U;
         index < viewers_.Size(); ++index) {
         if (viewers_[index].viewer == &viewer ||
@@ -2245,7 +2242,7 @@ Base::Result<void> ScrollBehavior::Attach(
             "ScrollViewer is already attached");
     }
     if (viewer.GetTree() != tree_ ||
-        !Aero::Core::VisualFacet::Handle(viewer).IsValid()) {
+        !AeroGuiInternal::Handle(viewer).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ScrollViewer must be loaded in the interaction tree");
@@ -2257,7 +2254,7 @@ Base::Result<void> ScrollBehavior::Attach(
     if (!handler) return handler.GetStatus();
     Base::Result<void> added =
         viewers_.PushBack(
-            {&viewer, Aero::Core::VisualFacet::Handle(viewer)});
+            {&viewer, AeroGuiInternal::Handle(viewer)});
     if (!added) {
         static_cast<void>(viewer.RemoveHandler(
             UIElement::MouseWheelEvent,
@@ -2359,7 +2356,7 @@ std::uint32_t SliderBehavior::Find(
     for (std::uint32_t index = 0U;
          index < sliders_.Size(); ++index) {
         const VisualHandle current =
-            Aero::Core::VisualFacet::Handle(slider);
+            AeroGuiInternal::Handle(slider);
         if (sliders_[index].handle.index ==
                 current.index &&
             sliders_[index].handle.generation ==
@@ -2404,7 +2401,7 @@ Base::Result<void> SliderBehavior::Attach(
             "Slider is already attached");
     }
     if (slider.GetTree() != tree_ ||
-        !Aero::Core::VisualFacet::Handle(slider).IsValid()) {
+        !AeroGuiInternal::Handle(slider).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Slider must be loaded in the interaction tree");
@@ -2453,7 +2450,7 @@ Base::Result<void> SliderBehavior::Attach(
     }
     SliderRecord record;
     record.handle =
-        Aero::Core::VisualFacet::Handle(slider);
+        AeroGuiInternal::Handle(slider);
     const auto addCommand =
         [this, &slider](
             Base::StringView name,
@@ -2876,7 +2873,7 @@ ScrollBarBehavior::~ScrollBarBehavior() {
 std::uint32_t ScrollBarBehavior::Find(
     const ScrollBar& scrollBar) const noexcept {
     const VisualHandle target =
-        Aero::Core::VisualFacet::Handle(scrollBar);
+        AeroGuiInternal::Handle(scrollBar);
     for (std::uint32_t index = 0U;
          index < scrollBars_.Size(); ++index) {
         if (scrollBars_[index].handle.index == target.index &&
@@ -2912,7 +2909,7 @@ Base::Result<void> ScrollBarBehavior::Attach(
             "ScrollBar is already attached");
     }
     if (scrollBar.GetTree() != tree_ ||
-        !Aero::Core::VisualFacet::Handle(scrollBar).IsValid()) {
+        !AeroGuiInternal::Handle(scrollBar).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ScrollBar must be loaded in the interaction tree");
@@ -2961,7 +2958,7 @@ Base::Result<void> ScrollBarBehavior::Attach(
     }
     ScrollBarRecord record;
     record.handle =
-        Aero::Core::VisualFacet::Handle(scrollBar);
+        AeroGuiInternal::Handle(scrollBar);
 
     const auto addCommand =
         [this, &scrollBar, &record](

@@ -1,6 +1,5 @@
 #include <Aero/Media/Transforms.hpp>
 #include "gui/core/State.hpp" 
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/media/MediaState.hpp"
@@ -52,7 +51,7 @@ namespace Aero::Media {
 
 std::uint64_t TransformRuntime::Revision(
     const Transform& transform) noexcept {
-    return ::Aero::Core::DependencyPropertyFacet::FreezableRevision(transform);
+    return AeroGuiInternal::FreezableRevision(transform);
 }
 
 } // namespace Aero::Media

@@ -7,7 +7,6 @@
 #include <utility>
 
 namespace Aero { class VisualStateManager; }
-namespace Aero::Core { class VisualFacet; class LayoutFacet; class InteractionStateFacet; }
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -167,9 +166,7 @@ protected:
         ::Aero::Media::DrawingContext& context) noexcept override;
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::VisualFacet;
-    friend class ::Aero::Core::LayoutFacet;
-    friend class ::Aero::Core::InteractionStateFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
     friend class ::Aero::VisualStateManager;
     void SetTemplateChildCore(UIElement* child) noexcept {

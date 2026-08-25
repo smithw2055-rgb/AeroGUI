@@ -1,7 +1,6 @@
 #include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/core/facets/RenderFacet.hpp"
 #include <Aero/Controls.hpp>
 #include "gui/controls/State.hpp"
 #include "gui/templates/TemplateState.hpp"
@@ -782,9 +781,6 @@ Size TabPanel::ArrangeOverride(
 } // namespace Aero::Controls
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
 #include "gui/data/BindingState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -904,7 +900,7 @@ Base::Result<void> Viewbox::ApplyViewTransform(
         projectedChild_->hasViewboxTransform_ = false;
         projectedChild_->viewboxTransform_ = {};
         static_cast<void>(
-            Aero::Core::RenderFacet::InvalidateRenderState(*projectedChild_));
+            AeroGuiInternal::InvalidateRenderState(*projectedChild_));
         projectedChild_.Reset();
     }
     if (child == nullptr) {
@@ -930,7 +926,7 @@ Base::Result<void> Viewbox::ApplyViewTransform(
         }
         if (changed) {
             static_cast<void>(
-                Aero::Core::RenderFacet::InvalidateRenderState(*framework));
+                AeroGuiInternal::InvalidateRenderState(*framework));
         }
         return {};
     }

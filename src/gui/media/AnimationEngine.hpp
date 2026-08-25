@@ -1,5 +1,4 @@
 #pragma once
-#include "gui/core/Facet.hpp"
 
 #include "gui/core/State.hpp"
 #include "gui/media/AnimationModel.hpp"
@@ -8,7 +7,7 @@ namespace Aero {
 
 using namespace Aero::Media::Animation::Model;
 
-class AnimationEngine : public Core::Facet {
+class AnimationEngine {
 public:
     AnimationEngine(
         ::Aero::Threading::Dispatcher& dispatcher,

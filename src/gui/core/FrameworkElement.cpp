@@ -15,7 +15,6 @@
 #include "gui/input/InputState.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -234,7 +233,7 @@ void FrameworkElement::SetUseLayoutRounding(
 Base::Object* FrameworkElement::FindNameObject(
     Base::StringView name,
     Meta::TypeId expectedType) noexcept {
-    return Aero::Core::DependencyPropertyFacet::FindName(
+    return AeroGuiInternal::FindName(
         *this, name, expectedType);
 }
 

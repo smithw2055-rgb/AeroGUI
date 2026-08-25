@@ -1,6 +1,4 @@
 #include <Aero/Interactivity/Conditions.hpp>
-#include "gui/core/facets/InteractionStateFacet.hpp"
-#include "gui/core/facets/RenderFacet.hpp"
 // Shared implementation helpers for the semantic metadata units.
 constexpr double DefaultMaximum = 1.0e12;
 
@@ -657,7 +655,7 @@ void AddFrameworkEventTrigger(
         return;
     }
     static_cast<void>(
-        ::Aero::Core::InteractionStateFacet::AddAuthoredTrigger(
+        AeroGuiInternal::AddAuthoredTrigger(
             static_cast<FrameworkElement&>(owner),
             Base::Ref<Base::Object>(std::move(retained))));
 }
@@ -666,7 +664,7 @@ void ClearFrameworkEventTriggers(
     Base::Object& owner,
     void*) noexcept {
     static_cast<void>(
-        ::Aero::Core::InteractionStateFacet::ClearAuthoredTriggers(
+        AeroGuiInternal::ClearAuthoredTriggers(
             static_cast<FrameworkElement&>(owner)));
 }
 
@@ -1101,7 +1099,7 @@ void AddInteractionBehavior(
         static_cast<void>(static_cast<Media::Animation::EventTrigger&>(owner)
             .AddConditionBehavior(value));
     } else {
-        static_cast<void>(::Aero::Core::InteractionStateFacet::AddAuthoredBehavior(
+        static_cast<void>(AeroGuiInternal::AddAuthoredBehavior(
             static_cast<FrameworkElement&>(owner), value));
     }
 }
@@ -1117,7 +1115,7 @@ void ClearInteractionBehaviors(Base::Object& owner, void*) noexcept {
         static_cast<Media::Animation::EventTrigger&>(owner)
             .ClearConditionBehaviors();
     } else {
-        static_cast<void>(::Aero::Core::InteractionStateFacet::ClearAuthoredBehaviors(
+        static_cast<void>(AeroGuiInternal::ClearAuthoredBehaviors(
             static_cast<FrameworkElement&>(owner)));
     }
 }
@@ -1226,13 +1224,13 @@ void AddInteractionTrigger(
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(
-            ::Aero::Core::InteractionStateFacet::AddAuthoredTrigger(
+            AeroGuiInternal::AddAuthoredTrigger(
                 static_cast<FrameworkElement&>(owner), value));
     } else if (types.IsDerivedFrom(
                    owner.RuntimeType(),
                    FrameworkContentElement::StaticTypeId())) {
         static_cast<void>(
-            ::Aero::Core::InteractionStateFacet::AddAuthoredTrigger(
+            AeroGuiInternal::AddAuthoredTrigger(
                 static_cast<FrameworkContentElement&>(owner), value));
     }
 }
@@ -1247,13 +1245,13 @@ void ClearInteractionTriggers(
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(
-            ::Aero::Core::InteractionStateFacet::ClearAuthoredTriggers(
+            AeroGuiInternal::ClearAuthoredTriggers(
                 static_cast<FrameworkElement&>(owner)));
     } else if (types.IsDerivedFrom(
                    owner.RuntimeType(),
                    FrameworkContentElement::StaticTypeId())) {
         static_cast<void>(
-            ::Aero::Core::InteractionStateFacet::ClearAuthoredTriggers(
+            AeroGuiInternal::ClearAuthoredTriggers(
                 static_cast<FrameworkContentElement&>(owner)));
     }
 }
@@ -1310,7 +1308,7 @@ void OnRenderStateChanged(
     auto& visual =
         static_cast<UIElement&>(object);
     static_cast<void>(
-        Aero::Core::RenderFacet::
+        AeroGuiInternal::
             InvalidateRenderState(visual));
 }
 
@@ -1321,7 +1319,7 @@ void OnOpacityMaskChanged(
         static_cast<UIElement&>(object).AsFrameworkElement();
     if (owner == nullptr) return;
     static_cast<void>(
-        Aero::Core::RenderFacet::
+        AeroGuiInternal::
             InvalidateRenderState(*owner));
 }
 
@@ -1332,7 +1330,7 @@ void OnRenderTransformChanged(
         static_cast<UIElement&>(object).AsFrameworkElement();
     if (owner == nullptr) return;
     static_cast<void>(
-        Aero::Core::RenderFacet::
+        AeroGuiInternal::
             InvalidateRenderState(*owner));
 }
 
@@ -1348,6 +1346,6 @@ void OnEffectChanged(
         static_cast<UIElement&>(object).AsFrameworkElement();
     if (owner == nullptr) return;
     static_cast<void>(
-        Aero::Core::RenderFacet::
+        AeroGuiInternal::
             InvalidateRenderState(*owner));
 }

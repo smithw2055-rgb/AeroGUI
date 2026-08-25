@@ -5,7 +5,6 @@
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/RoutedEvent.hpp>
 
-namespace Aero::Core { class InteractionStateFacet; }
 
 namespace Aero::Controls {
 using ::Aero::DependencyProperty;
@@ -62,7 +61,7 @@ protected:
 
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::InteractionStateFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
     friend class ItemsControl;
     TextBlock* headerText_ = nullptr;

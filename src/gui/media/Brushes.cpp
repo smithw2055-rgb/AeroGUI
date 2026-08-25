@@ -1,7 +1,6 @@
 #include <Aero/Media/Brushes.hpp>
 #include "BrushRendering.hpp"
 #include "gui/core/State.hpp" 
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/media/MediaState.hpp"
@@ -201,7 +200,7 @@ bool GradientStopCollection::FreezeCore(bool isChecking) noexcept {
 }
 
 std::uint64_t Brush::GetRevision() const noexcept {
-    return ::Aero::Core::DependencyPropertyFacet::FreezableRevision(*this);
+    return AeroGuiInternal::FreezableRevision(*this);
 }
 
 Base::Result<void> ImageBrush::SetRuntimeImage(

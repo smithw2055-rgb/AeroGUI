@@ -335,9 +335,6 @@ namespace Aero::Meta { class Registry; class Registration; }
 namespace Aero::Meta {
 
 class TypeRegistry;
-class ValueTypeSemantics;
-struct TextValueConverterRegistration;
-struct ValueTypeRegistration;
 
 AERO_GUI_API Base::Result<Value> CreateRegistrationValue(
     void* registrationState,

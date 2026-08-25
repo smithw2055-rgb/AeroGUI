@@ -8,7 +8,6 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/media/MediaState.hpp"
-#include "gui/core/facets/VisualFacet.hpp"
 #include "TextBlockLayout.hpp"
 
 
@@ -196,7 +195,7 @@ const ::Aero::Text::EditableTextModel& Model(
 
 ::Aero::Controls::TextBlockLayout* LayoutService(
     const ::Aero::Media::Visual& visual) noexcept {
-    return ::Aero::Core::TextLayoutFacet::TypedTextLayoutRuntime<::Aero::Controls::TextBlockLayout>(visual);
+    return AeroGuiInternal::TypedTextLayoutRuntime<::Aero::Controls::TextBlockLayout>(visual);
 }
 
 Base::Ref<Media::Brush>
@@ -2385,7 +2384,7 @@ TextEditBehavior::Attach(
         return synced;
     }
     Record record;
-    record.handle = Aero::Core::VisualFacet::Handle(textBox);
+    record.handle = AeroGuiInternal::Handle(textBox);
     Base::Result<void> appended =
         records_.PushBack(record);
     if (!appended) {
@@ -2488,7 +2487,7 @@ TextEditBehavior::Attach(
     if (!synced) return synced.GetStatus();
 
     Record record;
-    record.handle = Aero::Core::VisualFacet::Handle(passwordBox);
+    record.handle = AeroGuiInternal::Handle(passwordBox);
     record.password = true;
     Base::Result<void> appended =
         records_.PushBack(record);

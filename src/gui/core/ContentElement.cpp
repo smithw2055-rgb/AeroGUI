@@ -159,8 +159,7 @@ void ContentElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
     if (eventRouter_ == nullptr && contentHost_ != nullptr) {
-        eventRouter_ = Aero::Core::GetFacet<::Aero::EventRouter>(
-            *contentHost_);
+        eventRouter_ = AeroGuiInternal::EventRouterOf(*contentHost_);
     }
     if (eventRouter_ == nullptr) {
         return;
@@ -178,9 +177,9 @@ FrameworkContentElement::~FrameworkContentElement() = default;
 
 } // namespace Aero
 
-namespace Aero::Core {
+namespace Aero {
 
-void VisualFacet::Attach(
+void AeroGuiInternal::Attach(
     ContentElement& element,
     DependencyObject* logicalParent,
     UIElement* contentHost,
@@ -190,38 +189,38 @@ void VisualFacet::Attach(
     element.eventRouter_ = eventRouter;
 }
 
-void VisualFacet::Detach(ContentElement& element) noexcept {
+void AeroGuiInternal::Detach(ContentElement& element) noexcept {
     element.logicalParent_ = nullptr;
     element.contentHost_ = nullptr;
     element.eventRouter_ = nullptr;
 }
 
-DependencyObject* VisualFacet::Parent(
+DependencyObject* AeroGuiInternal::Parent(
     const ContentElement& element) noexcept {
     return element.logicalParent_;
 }
 
-UIElement* VisualFacet::ContentHost(
+UIElement* AeroGuiInternal::ContentHost(
     const ContentElement& element) noexcept {
     return element.contentHost_;
 }
 
-std::uint32_t VisualFacet::LogicalChildrenCount(
+std::uint32_t AeroGuiInternal::LogicalChildrenCount(
     const FrameworkContentElement& element) noexcept {
     return element.GetLogicalChildrenCount();
 }
 
-DependencyObject* VisualFacet::LogicalChild(
+DependencyObject* AeroGuiInternal::LogicalChild(
     const FrameworkContentElement& element,
     std::uint32_t index) noexcept {
     return element.GetLogicalChild(index);
 }
 
-void InputEventFacet::InvokeContentHandlers(
+void AeroGuiInternal::InvokeContentHandlers(
     Aero::ContentElement& element,
     RoutedEventHandle event,
     RoutedEventArgs& args) noexcept {
     element.InvokeHandlers(event, args);
 }
 
-} // namespace Aero::Core
+} // namespace Aero

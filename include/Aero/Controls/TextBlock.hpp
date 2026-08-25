@@ -10,7 +10,6 @@ class InlineCollection;
 class InlineCollectionView;
 class TextPointer;
 }
-namespace Aero::Core { class TextLayoutFacet; }
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 using ::Aero::Media::Brush;
@@ -107,7 +106,7 @@ protected:
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::TextLayoutFacet;
+    friend class ::Aero::AeroGuiInternal;
     friend struct TextBlockDocumentHelper;
 #endif
 

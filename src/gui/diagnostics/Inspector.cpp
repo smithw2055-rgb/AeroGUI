@@ -5,7 +5,6 @@
 #include "gui/styles/StyleState.hpp"
 
 #include <Aero/Controls.hpp>
-#include "gui/core/facets/VisualFacet.hpp"
 
 #include "gui/controls/ControlBehavior.hpp"
 
@@ -39,7 +38,7 @@ Base::Result<void> AppendTree(
     }
     InspectorTreeNode record;
     record.node = &node;
-    record.handle = Aero::Core::VisualFacet::Handle(node);
+    record.handle = AeroGuiInternal::Handle(node);
     record.parent = parent;
     record.runtimeType =
         node.RuntimeType();

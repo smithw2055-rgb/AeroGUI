@@ -7,7 +7,6 @@
 #include "gui/controls/State.hpp" 
 #include "gui/templates/TemplateState.hpp"
 
-#include "gui/core/facets/VisualFacet.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
@@ -88,7 +87,7 @@ void ItemsPresenter::SetItemsHost(
     const Base::Ref<Base::Object>& owner,
     Panel& panel) noexcept {
     Base::Result<void> assigned =
-        ::Aero::Core::VisualFacet::DecoratorSetOwnedChild(
+        AeroGuiInternal::DecoratorSetOwnedChild(
             *this, owner, panel);
     if (assigned) {
         static_cast<void>(InvalidateMeasure());
@@ -810,7 +809,7 @@ void ContentControl::OnContentPropertyChanged(
     if (control.synchronizingContentProperty_) return;
     control.synchronizingContentProperty_ = true;
     static_cast<void>(
-        ::Aero::Core::InteractionStateFacet::SetContentValue(control, change.GetNewValue()));
+        AeroGuiInternal::SetContentValue(control, change.GetNewValue()));
     control.synchronizingContentProperty_ = false;
 }
 
@@ -916,7 +915,7 @@ ContentControl::CreateTemplatedContent() const noexcept {
         DataTemplateRuntime::Instantiate(
             *static_cast<DataTemplate*>(contentTemplate.Get()),
             contentValue_,
-            Aero::Core::GetFacet<::Aero::BindingEngine>(*this));
+            AeroGuiInternal::BindingEngineOf(*this));
     if (!created) return created.GetStatus();
     if (!created.Value() ||
         !PropertyRegistry().Types().IsDerivedFrom(
@@ -996,7 +995,7 @@ void ItemsControl::OnApplyTemplate() noexcept {
             }
             if (PropertyRegistry().Types().IsDerivedFrom(
                     current->RuntimeType(), ContentControl::StaticTypeId())) {
-                UIElement* content = ::Aero::Core::InteractionStateFacet::ContentElement(
+                UIElement* content = AeroGuiInternal::ContentControlContent(
                     *static_cast<ContentControl*>(current));
                 if (content != nullptr) {
                     static_cast<void>(pending.PushBack(content));
@@ -1206,8 +1205,7 @@ Base::Result<void> ItemsControl::PrepareContainer(
         return {};
     }
 
-    auto* bindings = ::Aero::Core::GetFacet<::Aero::BindingEngine>(
-        childItems);
+    auto* bindings = AeroGuiInternal::BindingEngineOf(childItems);
     if (bindings == nullptr || bindings->Metadata() == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -1575,13 +1573,13 @@ ItemContainerGeneratorRuntime::CreateRecord(
             content =
                 DataTemplateRuntime::Instantiate(
                     *itemTemplate, record.item,
-                    Aero::Core::GetFacet<::Aero::BindingEngine>(*owner_));
+                    AeroGuiInternal::BindingEngineOf(*owner_));
         if (!content) return content.GetStatus();
         record.content =
             std::move(content).Value();
     } else if (!owner_->GetDisplayMemberPath().Empty()) {
         Aero::BindingEngine* bindings =
-            Aero::Core::GetFacet<::Aero::BindingEngine>(*owner_);
+            AeroGuiInternal::BindingEngineOf(*owner_);
         Meta::Registry* metadata =
             bindings != nullptr ? bindings->Metadata() : nullptr;
         if (metadata == nullptr) {
@@ -1862,12 +1860,12 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
             auto& panel =
                 *static_cast<Panel*>(current);
             for (std::uint32_t index = 0U;
-                 index < ::Aero::Core::VisualFacet::PanelChildCount(panel);
+                 index < AeroGuiInternal::PanelChildCount(panel);
                  ++index) {
                 Base::Result<void> attached =
                     attachChild(
                         panel,
-                        ::Aero::Core::VisualFacet::PanelChildAt(panel, index));
+                        AeroGuiInternal::PanelChildAt(panel, index));
                 if (!attached) {
                     (void)DetachOwnedSubtree(record);
                     return attached.GetStatus();
@@ -1882,7 +1880,7 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     decorator,
-                    ::Aero::Core::VisualFacet::DecoratorOwnedChild(decorator));
+                    AeroGuiInternal::DecoratorOwnedChild(decorator));
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
@@ -1896,7 +1894,7 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     content,
-                    ::Aero::Core::InteractionStateFacet::OwnedContent(content));
+                    AeroGuiInternal::OwnedContent(content));
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
@@ -2025,10 +2023,10 @@ ItemContainerGeneratorRuntime::AttachRecord(
 
         Base::Result<void> selected =
             record.generatedTextContent
-            ? ::Aero::Core::InteractionStateFacet::
+            ? AeroGuiInternal::
                       SetGeneratedTextContent(
                       *contentControl, record.content, content)
-            : ::Aero::Core::InteractionStateFacet::SetOwnedContent(*contentControl,
+            : AeroGuiInternal::SetOwnedContent(*contentControl,
                   record.content, content);
         if (!selected) {
             (void)tree_->DetachElement(
@@ -2188,7 +2186,7 @@ ItemContainerGeneratorRuntime::DetachRecord(
         templates_ != nullptr &&
         owner_->PropertyRegistry().Types().IsDerivedFrom(
             container.RuntimeType(), Control::StaticTypeId()) &&
-        ::Aero::Core::InteractionStateFacet::IsTemplateApplied(
+        AeroGuiInternal::IsTemplateApplied(
             static_cast<Control&>(container))) {
         Base::Result<bool> cleared =
             templates_->Clear(static_cast<Control&>(container));
@@ -2199,7 +2197,7 @@ ItemContainerGeneratorRuntime::DetachRecord(
     }
     UIElement* content = nullptr;
     if (!record.itemIsOwnContainer && contentControl != nullptr) {
-        content = ::Aero::Core::InteractionStateFacet::ContentElement(
+        content = AeroGuiInternal::ContentControlContent(
             *contentControl);
     }
     if (content != nullptr) {
@@ -2478,7 +2476,7 @@ Base::Result<void> ItemContainerGeneratorRuntime::Refresh() noexcept {
     fprintf(stderr,
         "[REFRESH] non-virt records=%u hostChildren=%u host=%p\n",
         records_.Size(),
-        host_ ? Core::VisualFacet::PanelChildCount(*host_) : 0U,
+        host_ ? AeroGuiInternal::PanelChildCount(*host_) : 0U,
         (void*)host_);
     return {};
 }
@@ -2764,10 +2762,10 @@ Base::Status ItemContainerGenerator::LastError() const noexcept {
 
 } // namespace Aero::Controls
 
-namespace Aero::Core {
+namespace Aero {
 
 Base::Result<Controls::ItemContainerGenerator*>
-InteractionStateFacet::CreateItemContainerGenerator(
+AeroGuiInternal::CreateItemContainerGenerator(
     ElementTree& tree,
     Aero::LayoutEngine& layout,
     Meta::EffectiveValueEngine& values,
@@ -2801,7 +2799,7 @@ InteractionStateFacet::CreateItemContainerGenerator(
     return generator;
 }
 
-} // namespace Aero::Core
+} // namespace Aero
 
 
 

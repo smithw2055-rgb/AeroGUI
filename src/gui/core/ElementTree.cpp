@@ -7,12 +7,6 @@
 #include <Aero/FrameworkContentElement.hpp>
 
 
-#include "gui/core/facets/VisualFacet.hpp"
-#include "gui/core/facets/RenderFacet.hpp"
-#include "gui/core/facets/InputEventFacet.hpp"
-#include "gui/core/facets/InteractionStateFacet.hpp"
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
-#include "gui/core/facets/TextLayoutFacet.hpp"
 #include "render/RenderTree.hpp"
 
 namespace Aero {
@@ -79,7 +73,7 @@ std::uint32_t LogicalTreeHelper::GetChildrenCount(
     const TypeRegistry& types = object.PropertyRegistry().Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
-        return Aero::Core::VisualFacet::LogicalChildrenCount(
+        return AeroGuiInternal::LogicalChildrenCount(
             static_cast<const FrameworkContentElement&>(object));
     }
     if (types.IsDerivedFrom(
@@ -99,7 +93,7 @@ DependencyObject* LogicalTreeHelper::GetChild(
     const TypeRegistry& types = object.PropertyRegistry().Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
-        return Aero::Core::VisualFacet::LogicalChild(
+        return AeroGuiInternal::LogicalChild(
             static_cast<const FrameworkContentElement&>(object), index);
     }
     if (types.IsDerivedFrom(
@@ -148,7 +142,7 @@ Base::Result<Aero::VisualLease> Aero::VisualLease::Acquire(
     if (lease.strong) return lease;
 
     Base::Result<Base::Ref<Base::Object>> lifetime =
-        Aero::Core::VisualFacet::AcquireLifetime(node);
+        AeroGuiInternal::AcquireLifetime(node);
     if (!lifetime) return lifetime.GetStatus();
     lease.lifetime = Base::Ref<VisualLifetime>::FromBorrowed(
         *static_cast<VisualLifetime*>(lifetime.Value().Get()));
@@ -686,9 +680,6 @@ Base::Result<void> ElementTree::DetachNode(::Aero::Media::Visual& node) noexcept
     if (!verified) {
         return verified;
     }
-    if (auto* ue = node.AsUIElement()) {
-        ue->DetachElementFacets();
-    }
     while (!node.visualChildren_.Empty()) {
         Base::Result<void> detached = DetachVisual(
             node, *node.visualChildren_[node.visualChildren_.Size() - 1U]);
@@ -842,9 +833,6 @@ Base::Result<Aero::ElementAttachment> ElementTree::AttachElement(
         return handle.GetStatus();
     }
     state.childHandle = handle.Value();
-    if (auto* ue = child.AsUIElement()) {
-        ue->AttachElementFacets();
-    }
     return state;
 }
 
@@ -952,7 +940,7 @@ Base::Result<Aero::VisualAttachment> ElementTree::AttachVisualChild(
         auto attachDescendants = [&](auto&& self, ::Aero::Media::Visual& parent) noexcept
             -> Base::Result<void> {
             for (::Aero::Media::Visual* descendant :
-                 Aero::Core::RenderFacet::RenderChildren(parent)) {
+                 AeroGuiInternal::RenderChildren(parent)) {
                 if (descendant == nullptr) continue;
                 Base::Result<void> attached = renderer_->Attach(parent, *descendant);
                 if (!attached) return attached.GetStatus();
@@ -1160,13 +1148,13 @@ void EventRouter::InvokeNode(
 
     if (catalog.Types().IsDerivedFrom(
             node.RuntimeType(), UIElement::StaticTypeId())) {
-        Aero::Core::InputEventFacet::InvokeHandlers(
+        AeroGuiInternal::InvokeHandlers(
             static_cast<UIElement&>(node), args.GetRoutedEvent(), args);
         return;
     }
     if (catalog.Types().IsDerivedFrom(
             node.RuntimeType(), ContentElement::StaticTypeId())) {
-        Aero::Core::InputEventFacet::InvokeContentHandlers(
+        AeroGuiInternal::InvokeContentHandlers(
             static_cast<ContentElement&>(node), args.GetRoutedEvent(), args);
     }
 }
@@ -1220,84 +1208,3 @@ void EventRouter::CleanupClassHandlers() noexcept {
 }
 
 } // namespace Aero
-
-namespace Aero::Core {
-
-BindingEngine* DependencyPropertyFacet::BindingEngineFor(const Aero::UIElement& element) noexcept {
-    ElementTree* tree = element.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    return host != nullptr ? host->GetFacet<BindingEngine>() : nullptr;
-}
-
-StyleEngine* DependencyPropertyFacet::StyleEngineFor(const Aero::UIElement& element) noexcept {
-    ElementTree* tree = element.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    return host != nullptr ? host->GetFacet<StyleEngine>() : nullptr;
-}
-
-AnimationEngine* DependencyPropertyFacet::AnimationEngineFor(const Aero::UIElement& element) noexcept {
-    ElementTree* tree = element.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    return host != nullptr ? host->GetFacet<AnimationEngine>() : nullptr;
-}
-
-void* DependencyPropertyFacet::TemplateRuntime(const ::Aero::Media::Visual& visual) noexcept {
-    ElementTree* tree = visual.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    auto* facet = host != nullptr ? host->GetFacet<TemplateEngineFacet>() : nullptr;
-    return facet != nullptr ? static_cast<void*>(facet->Engine()) : nullptr;
-}
-
-void* DependencyPropertyFacet::MeshResourcesRuntime(const ::Aero::Media::Visual& visual) noexcept {
-    ElementTree* tree = visual.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    auto* facet = host != nullptr ? host->GetFacet<MeshResourceFacet>() : nullptr;
-    return facet != nullptr ? static_cast<void*>(facet->Resources()) : nullptr;
-}
-
-Base::Object* DependencyPropertyFacet::FindName(
-    const Aero::UIElement& element,
-    Base::StringView name,
-    Meta::TypeId expectedType) noexcept {
-    ElementTree* tree = element.GetTree();
-    ElementHost* services = tree != nullptr ? tree->Host() : nullptr;
-    auto* scope = services != nullptr
-        ? services->GetFacet<NameScopeFacet>()
-        : nullptr;
-    return scope != nullptr ? scope->FindName(name, expectedType) : nullptr;
-}
-
-void* TextLayoutFacet::TextLayoutRuntime(const ::Aero::Media::Visual& visual) noexcept {
-    ElementTree* tree = visual.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    auto* facet = host != nullptr ? host->GetFacet<TextLayoutServiceFacet>() : nullptr;
-    return facet != nullptr ? static_cast<void*>(facet->Layout()) : nullptr;
-}
-
-EventRouter* InputEventFacet::EventRouterFor(const Aero::UIElement& element) noexcept {
-    ElementTree* tree = element.GetTree();
-    ElementHost* services = tree != nullptr ? tree->Host() : nullptr;
-    return services != nullptr ? services->GetFacet<EventRouter>() : nullptr;
-}
-
-InputRouter* InputEventFacet::InputRouterFor(const Aero::UIElement& element) noexcept {
-    ElementTree* tree = element.GetTree();
-    ElementHost* services = tree != nullptr ? tree->Host() : nullptr;
-    return services != nullptr ? services->GetFacet<InputRouter>() : nullptr;
-}
-
-void* InteractionStateFacet::VisualStateRuntime(const ::Aero::Media::Visual& visual) noexcept {
-    ElementTree* tree = visual.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    auto* facet = host != nullptr ? host->GetFacet<VisualStateServiceFacet>() : nullptr;
-    return facet != nullptr ? static_cast<void*>(facet->Manager()) : nullptr;
-}
-
-void* InteractionStateFacet::ControlBehaviorRuntime(const ::Aero::Media::Visual& visual) noexcept {
-    ElementTree* tree = visual.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    auto* facet = host != nullptr ? host->GetFacet<ControlBehaviorFacet>() : nullptr;
-    return facet != nullptr ? static_cast<void*>(facet->Behaviors()) : nullptr;
-}
-
-} // namespace Aero::Core

@@ -20,16 +20,8 @@ using Meta::PropertyInvalidationFlags;
 using Meta::TypeId;
 
 class UIElement;
+class AeroGuiInternal;
 namespace Media { class Transform; class Effect; class Brush; }
-
-namespace Core {
-class Facet;
-class LayoutFacet;
-class InputEventFacet;
-class VisualFacet;
-class InteractionStateFacet;
-class TextLayoutFacet;
-}
 
 class UIElementChildRange {
 public:
@@ -61,9 +53,6 @@ private:
 class AERO_GUI_API UIElement : public ::Aero::Media::Visual {
     AERO_DECLARE_TYPE(UIElement, ::Aero::Media::Visual)
 public:
-    template<class TFacet>
-    TFacet* GetFacet() const noexcept;
-
     template<class TArgs>
     using Event = ::Aero::Event<UIElement, TArgs>;
 
@@ -328,11 +317,7 @@ protected:
 
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::LayoutFacet;
-    friend class ::Aero::Core::InputEventFacet;
-    friend class ::Aero::Core::VisualFacet;
-    friend class ::Aero::Core::InteractionStateFacet;
-    friend class ::Aero::Core::TextLayoutFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
     friend class Aero::Input::RoutedCommand;
 
@@ -380,35 +365,54 @@ private:
         const HandlerDescriptor& handler) noexcept;
     void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
 
-    void* routedHandlers_ = nullptr;
-
     void SetMouseOverState(bool value) noexcept;
     void SetPressedState(bool value) noexcept;
     void SetKeyboardFocusedState(bool value) noexcept;
     void SetKeyboardFocusWithinState(bool value) noexcept;
     void CleanupHandlers() noexcept;
+    Result<void> EnsureRoutedHandlers() noexcept;
 
-    // Element-affine facet bag. View-affine facets are resolved through
-    // Core::GetFacet<T>(element) from the ElementHost matrix; per-element
-    // facets (layout / render / interaction state) are resolved through
-    // ElementFacet<T>() from this bag. Lifecycle (OnAttached/OnDetached) is
-    // driven by ElementTree::AttachElement / DetachNode.
-    static constexpr std::size_t ElementFacetCount = 16U;
-    Core::Facet* elementFacets_[ElementFacetCount] = {};
+    struct LayoutHot {
+        Size desiredSize{};
+        Size untransformedDesiredSize{};
+        Size renderSize{};
+        Size previousMeasureConstraint{};
+        Rect layoutSlot{};
+        Rect layoutClip{};
+        Rect visualRect{};
+        std::uint64_t layoutRevision = 0U;
+        bool layoutAttached = false;
+        bool measureValid = false;
+        bool arrangeValid = false;
+        bool measureQueued = false;
+        bool arrangeQueued = false;
+        bool measuring = false;
+        bool arranging = false;
+    };
 
- public:
-    // Read a per-element facet. Registration is restricted to this class and
-    // its subclasses via SetElementFacet (protected).
-    template<class T>
-    T* ElementFacet() const noexcept;
+    struct Rare {
+        void* routedHandlers = nullptr;
+    };
 
-    // Drive per-element facet lifecycle from ElementTree attach/detach.
-    void AttachElementFacets() noexcept;
-    void DetachElementFacets() noexcept;
+    Rare& EnsureRare() noexcept;
 
- protected:
-    template<class T>
-    void SetElementFacet(T* facet) noexcept;
+    LayoutHot layout_{};
+    Rare* rare_ = nullptr;
+    bool mouseCaptured_ = false;
+    bool mouseCaptureQueued_ = false;
+    bool mouseCaptureReleased_ = false;
+    bool isHitTestVisible_ = true;
+    bool isEnabled_ = true;
+    bool isTabStop_ = true;
+    bool isFocusScope_ = false;
+    bool isMouseOver_ = false;
+    bool isPressed_ = false;
+    bool isKeyboardFocused_ = false;
+    bool isKeyboardFocusWithin_ = false;
+    bool focusable_ = false;
+    bool clipToBounds_ = false;
+    std::uint32_t tabIndex_ = 0U;
+    Visibility visibility_ = Visibility::Visible;
 };
 
 } // namespace Aero

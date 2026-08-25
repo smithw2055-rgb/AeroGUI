@@ -6,7 +6,6 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/media/MediaState.hpp"
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -982,7 +981,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
 void Path::ReleaseMesh() noexcept {
     auto* services =
         static_cast<Aero::Render::MeshResources*>(
-            ::Aero::Core::DependencyPropertyFacet::MeshResourcesRuntime(*this));
+            AeroGuiInternal::MeshResourcesRuntime(*this));
     if (mesh_ != InvalidRenderMeshId &&
         services != nullptr &&
         services->release != nullptr &&
@@ -1011,7 +1010,7 @@ void Path::AttachMeshResources(
             rawServices);
     auto* currentServices =
         static_cast<Aero::Render::MeshResources*>(
-            ::Aero::Core::DependencyPropertyFacet::MeshResourcesRuntime(*this));
+            AeroGuiInternal::MeshResourcesRuntime(*this));
     if (!force &&
         currentServices == services &&
         (services == nullptr ||
@@ -1039,9 +1038,7 @@ Base::Result<void> Path::EnsureMesh() noexcept {
         return geometry.GetStatus();
     }
     auto* tree = this->GetTree();
-    auto* host = tree != nullptr ? tree->Host() : nullptr;
-    auto* meshRes = host != nullptr ? host->GetFacet<Core::MeshResourceFacet>() : nullptr;
-    auto* services = meshRes != nullptr ? meshRes->Resources() : nullptr;
+    auto* services = tree != nullptr ? tree->MeshResources() : nullptr;
     if (services == nullptr ||
         services->create == nullptr) {
         return {};

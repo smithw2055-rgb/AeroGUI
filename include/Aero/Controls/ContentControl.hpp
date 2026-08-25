@@ -2,7 +2,6 @@
 
 #include <Aero/Controls/Control.hpp>
 
-namespace Aero::Core { class InteractionStateFacet; }
 
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -11,7 +10,7 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API ContentControl : public Control {
     AERO_DECLARE_TYPE(ContentControl, Control)
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::InteractionStateFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
 public:
     inline static constexpr DependencyProperty<Value> ContentProperty{"Content"};

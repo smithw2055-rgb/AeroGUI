@@ -266,8 +266,7 @@ void MouseDragElementBehavior::OnDetaching() noexcept {
                 mouseUpHandler_));
         if (dragging_ && pointerId_ != UINT32_MAX) {
             Aero::InputRouter* input =
-                Aero::Core::GetFacet<::Aero::InputRouter>(
-                    *associated);
+                AeroGuiInternal::InputRouterOf(*associated);
             if (input != nullptr) {
                 static_cast<void>(input->ReleasePointer(pointerId_));
             }
@@ -337,7 +336,7 @@ void MouseDragElementBehavior::OnMouseMove(
             return;
         }
         Aero::InputRouter* input =
-            Aero::Core::GetFacet<::Aero::InputRouter>(*associated);
+            AeroGuiInternal::InputRouterOf(*associated);
         if (input == nullptr ||
             !input->CapturePointer(pointerId_, *associated)) {
             pointerId_ = UINT32_MAX;
@@ -386,7 +385,7 @@ void MouseDragElementBehavior::OnMouseUp(
     FrameworkElement* associated = GetAssociatedObject();
     if (dragging_ && associated != nullptr) {
         Aero::InputRouter* input =
-            Aero::Core::GetFacet<::Aero::InputRouter>(*associated);
+            AeroGuiInternal::InputRouterOf(*associated);
         if (input != nullptr) {
             static_cast<void>(input->ReleasePointer(pointerId_));
         }

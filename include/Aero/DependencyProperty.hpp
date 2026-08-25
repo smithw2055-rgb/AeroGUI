@@ -574,12 +574,15 @@ using Meta::ValueCodec;
 using ::Aero::Threading::DispatcherObject;
 using ::Aero::Threading::DispatcherReentrancyGuard;
 
-namespace Core { class DependencyPropertyFacet; }
+class AeroGuiInternal;
+#if defined(AERO_GUI_IMPLEMENTATION)
+struct StoredValueEntry;
+#endif
 
 class AERO_GUI_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, Base::Object)
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::DependencyPropertyFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
 public:
 
@@ -766,9 +769,7 @@ public:
         return invalidations_;
     }
     PropertyInvalidationFlags TakeInvalidations() noexcept;
-    std::uint32_t StoredValueCount() const noexcept {
-        return values_.Size();
-    }
+    std::uint32_t StoredValueCount() const noexcept;
 
 protected:
     explicit DependencyObject(TypeId runtimeType) noexcept;
@@ -789,31 +790,11 @@ protected:
     virtual Result<void> VerifyMutationAllowed() const noexcept;
 
 private:
-    friend class Meta::EffectiveValueEngine;
-
     enum class ChangeKind : std::uint8_t {
         SetLocal,
         SetCurrent,
         Clear,
         ReCoerce
-    };
-
-    struct EffectiveValueEntry {
-        DependencyPropertyHandle property;
-        PropertyProviderSet baseProviders;
-        PropertyExpression localExpression;
-        PropertyValue localValue;
-        PropertyValue currentValue;
-        PropertyValue inheritedValue;
-        PropertyValue animationValue;
-        PropertyValue baseValue;
-        PropertyValue effectiveValue;
-        PropertyValueSourceInfo sourceInfo;
-        bool hasLocal = false;
-        bool hasCurrent = false;
-        bool hasExpression = false;
-        bool hasInherited = false;
-        bool hasAnimation = false;
     };
 
     struct ChangeHandlerRecord {
@@ -848,7 +829,7 @@ private:
     Meta::DependencyPropertyRegistry* registry_ = nullptr;
     TypeId runtimeType_ = InvalidTypeId;
     bool objectServicesAvailable_ = false;
-    Base::Vector<EffectiveValueEntry> values_;
+    void* valueStore_ = nullptr;
     Base::Vector<MemberId> updateStack_;
     Base::Vector<ChangeHandlerRecord> changeHandlers_;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
@@ -856,14 +837,20 @@ private:
     std::uint64_t nextValueRevision_ = 1U;
 
     Result<void> VerifyReady() const noexcept;
-    std::uint32_t FindEntryIndex(
-        DependencyPropertyHandle property) const noexcept;
     Result<MutationScope> BeginMutation(
         DependencyPropertyHandle property) noexcept;
     void LeaveMutation() noexcept;
 
-    Result<std::uint32_t> EnsureEffectiveEntry(
+#if defined(AERO_GUI_IMPLEMENTATION)
+    StoredValueEntry* FindStoredEntry(
         DependencyPropertyHandle property) noexcept;
+    const StoredValueEntry* FindStoredEntry(
+        DependencyPropertyHandle property) const noexcept;
+    Result<StoredValueEntry*> EnsureStoredEntry(
+        DependencyPropertyHandle property) noexcept;
+    MemberId CanonicalPropertyKey(
+        DependencyPropertyHandle property) const noexcept;
+#endif
     Result<void> ApplyProviderContributionInternal(
         DependencyPropertyHandle property,
         PropertyProviderToken token,
@@ -899,7 +886,10 @@ private:
         const PropertyMetadata& metadata,
         const PropertyValue& oldEffective,
         const PropertyValueSourceInfo& oldSourceInfo) noexcept;
-    void ReleaseExpression(EffectiveValueEntry& entry) noexcept;
+#if defined(AERO_GUI_IMPLEMENTATION)
+    void ReleaseExpression(StoredValueEntry& entry) noexcept;
+    void RemoveStoredEntry(MemberId key) noexcept;
+#endif
     static EffectiveValueSource ToLegacySource(
         const PropertyValueSourceInfo& source) noexcept;
 
@@ -908,8 +898,6 @@ private:
         const DependencyPropertyKey* key,
         ChangeKind kind,
         const PropertyValue* value) noexcept;
-
-    void RemoveEntry(std::uint32_t index) noexcept;
     void RemoveChangeHandler(std::uint32_t index) noexcept;
     void NotifyValueChanged(
         const DependencyPropertyChangedEventArgs& args) noexcept;

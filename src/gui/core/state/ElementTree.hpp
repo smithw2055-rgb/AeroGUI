@@ -1,5 +1,13 @@
 #pragma once
 
+#include "gui/core/VisualHandle.hpp"
+
+#include <Aero/Base/Object.hpp>
+#include <Aero/Base/Ref.hpp>
+#include <Aero/Base/Result.hpp>
+#include <Aero/Base/StringView.hpp>
+#include <Aero/Base/Vector.hpp>
+
 namespace Aero {
 
 
@@ -34,10 +42,37 @@ struct VisualLease {
 
 #include <Aero/Threading.hpp>
 #include <Aero/Layout.hpp>
+#include <Aero/Visual.hpp>
 
-namespace Aero::Render { class RenderTree; }
+namespace Aero::Render { class RenderTree; struct MeshResources; }
+namespace Aero::Meta { class EffectiveValueEngine; }
 
 namespace Aero {
+
+class LayoutEngine;
+class BindingEngine;
+class StyleEngine;
+class EventRouter;
+class InputRouter;
+class AnimationEngine;
+class VisualStateManager;
+namespace Controls {
+class TemplateEngine;
+class TextBlockLayout;
+class ControlBehavior;
+} // namespace Controls
+
+struct ElementTreeLifecycleEvent {
+    ::Aero::Media::Visual* node = nullptr;
+    bool loaded = false;
+    std::uint64_t treeVersion = 0U;
+};
+
+using ElementTreeLifecycleHandler = void (*)(
+    const ElementTreeLifecycleEvent& event,
+    void* context) noexcept;
+
+constexpr std::uint32_t InvalidIndex = UINT32_MAX;
 
 struct ElementAttachment {
     ::Aero::Media::Visual* logicalParent = nullptr;
@@ -77,10 +112,6 @@ struct RootAttachment {
         return contextAttached || layoutAttached || renderAttached;
     }
 };
-
-} // namespace Aero
-
-namespace Aero {
 
 class ElementTree {
 public:
@@ -141,11 +172,64 @@ public:
 
     Aero::LayoutEngine* Layout() const noexcept { return layout_; }
     ::Aero::Render::RenderTree* Renderer() const noexcept { return renderer_; }
-    void SetHost(Aero::ElementHost* host) noexcept {
-        host_ = host;
+    Aero::BindingEngine* Bindings() const noexcept { return bindings_; }
+    Aero::StyleEngine* Styles() const noexcept { return styles_; }
+    Aero::EventRouter* Events() const noexcept { return events_; }
+    Aero::InputRouter* Input() const noexcept { return input_; }
+    Aero::AnimationEngine* Animations() const noexcept { return animations_; }
+    VisualStateManager* VisualStates() const noexcept { return visualStates_; }
+    Controls::TemplateEngine* Templates() const noexcept { return templates_; }
+    Controls::TextBlockLayout* TextLayout() const noexcept { return textLayout_; }
+    Controls::ControlBehavior* ControlBehaviors() const noexcept {
+        return controlBehaviors_;
     }
-    Aero::ElementHost* Host() const noexcept {
-        return host_;
+    Render::MeshResources* MeshResources() const noexcept {
+        return meshResources_;
+    }
+
+    void SetLayout(Aero::LayoutEngine* layout) noexcept { layout_ = layout; }
+    void SetRenderer(::Aero::Render::RenderTree* renderer) noexcept {
+        renderer_ = renderer;
+    }
+    void SetBindings(Aero::BindingEngine* bindings) noexcept {
+        bindings_ = bindings;
+    }
+    void SetStyles(Aero::StyleEngine* styles) noexcept { styles_ = styles; }
+    void SetEvents(Aero::EventRouter* events) noexcept { events_ = events; }
+    void SetInput(Aero::InputRouter* input) noexcept { input_ = input; }
+    void SetAnimations(Aero::AnimationEngine* animations) noexcept {
+        animations_ = animations;
+    }
+    void SetVisualStates(VisualStateManager* visualStates) noexcept {
+        visualStates_ = visualStates;
+    }
+    void SetTemplates(Controls::TemplateEngine* templates) noexcept {
+        templates_ = templates;
+    }
+    void SetTextLayout(Controls::TextBlockLayout* textLayout) noexcept {
+        textLayout_ = textLayout;
+    }
+    void SetControlBehaviors(Controls::ControlBehavior* behaviors) noexcept {
+        controlBehaviors_ = behaviors;
+    }
+    void SetMeshResources(Render::MeshResources* resources) noexcept {
+        meshResources_ = resources;
+    }
+
+    using FindNameFn = Base::Object* (*)(
+        void* context,
+        Base::StringView name,
+        Meta::TypeId expectedType) noexcept;
+    void SetNameScope(void* context, FindNameFn findName) noexcept {
+        nameScopeContext_ = context;
+        findName_ = findName;
+    }
+    Base::Object* FindName(
+        Base::StringView name,
+        Meta::TypeId expectedType = Meta::InvalidTypeId) const noexcept {
+        return findName_ != nullptr
+            ? findName_(nameScopeContext_, name, expectedType)
+            : nullptr;
     }
 
     void SetLifecycleHandler(
@@ -177,7 +261,18 @@ private:
     Meta::EffectiveValueEngine* values_ = nullptr;
     Aero::LayoutEngine* layout_ = nullptr;
     ::Aero::Render::RenderTree* renderer_ = nullptr;
-    Aero::ElementHost* host_ = nullptr;
+    Aero::BindingEngine* bindings_ = nullptr;
+    Aero::StyleEngine* styles_ = nullptr;
+    Aero::EventRouter* events_ = nullptr;
+    Aero::InputRouter* input_ = nullptr;
+    Aero::AnimationEngine* animations_ = nullptr;
+    VisualStateManager* visualStates_ = nullptr;
+    Controls::TemplateEngine* templates_ = nullptr;
+    Controls::TextBlockLayout* textLayout_ = nullptr;
+    Controls::ControlBehavior* controlBehaviors_ = nullptr;
+    Render::MeshResources* meshResources_ = nullptr;
+    void* nameScopeContext_ = nullptr;
+    FindNameFn findName_ = nullptr;
     ::Aero::Media::Visual* root_ = nullptr;
     Base::Vector<LifecycleRecord> lifecycleQueue_;
     Base::Vector<HandleEntry> handles_;

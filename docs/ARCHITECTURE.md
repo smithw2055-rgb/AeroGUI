@@ -60,8 +60,9 @@ Source location expresses visibility. Implementation types use their business
 namespace (`Aero`, `Aero::Controls`, `Aero::Markup`, `Aero::Media`,
 `Aero::Render`, or `Aero::App`) and single-translation-unit helpers use an
 anonymous namespace. There are no `private`/`detail` directories,
-`*Internal*`/`*Private*` filenames, domain `Detail` namespaces, or
-`View::Operations` bridge.
+`*Private*` filenames, domain `Detail` namespaces, or `View::Operations`
+bridge. Kernel-private operations that are not installed live in
+`src/gui/internal/` and are reached through one friend, `AeroGuiInternal`.
 
 Heavy source-only objects own their state directly. Delayed states use inline
 storage owned by the object, not a second heap allocation or virtual Pimpl

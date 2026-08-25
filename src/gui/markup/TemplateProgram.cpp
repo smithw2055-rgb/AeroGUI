@@ -3258,7 +3258,7 @@ Base::Result<void> BuildCompiledTemplate(
         FrameworkElement* const triggerRoot = triggerContext->root;
         Base::Ref<Base::Object> triggerOwner(triggerContext);
         Base::Result<void> attached =
-            Aero::Core::InteractionStateFacet::AddAuthoredTrigger(
+            AeroGuiInternal::AddAuthoredTrigger(
                 *triggerRoot, std::move(triggerOwner));
         if (!attached) return attached.GetStatus();
     }
@@ -3675,7 +3675,7 @@ BuildCompiledDeferredTemplate(
     }
     if (triggerContext) {
         Base::Result<void> attached =
-            Aero::Core::InteractionStateFacet::AddAuthoredTrigger(
+            AeroGuiInternal::AddAuthoredTrigger(
                 static_cast<FrameworkElement&>(*root),
                 Base::Ref<Base::Object>(triggerContext));
         if (!attached) return attached.GetStatus();

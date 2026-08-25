@@ -23,10 +23,6 @@ using Meta::TypeId;
 
 class Style;
 namespace Controls { class Viewbox; }
-namespace Core {
-class RenderFacet;
-class InteractionStateFacet;
-}
 class FrameworkElement;
 
 class FrameworkElementChildRange {
@@ -253,10 +249,7 @@ private:
     friend class LogicalTreeHelper;
     friend class Controls::Viewbox;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::VisualFacet;
-    friend class ::Aero::Core::LayoutFacet;
-    friend class ::Aero::Core::RenderFacet;
-    friend class ::Aero::Core::InteractionStateFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
     double dpiScale_ = 1.0;
     Base::Transform2D viewboxTransform_{};

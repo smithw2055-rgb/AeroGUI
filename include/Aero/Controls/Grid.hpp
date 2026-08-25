@@ -53,7 +53,9 @@ private:
 
 class AERO_GUI_API Grid : public Panel {
     AERO_DECLARE_TYPE(Grid, Panel)
-    friend class ::Aero::Core::GridLayoutFacet;
+    #if defined(AERO_GUI_IMPLEMENTATION)
+    friend class ::Aero::AeroGuiInternal;
+    #endif
 public:
     Grid() noexcept;
     void SetColumnDefinitions(Span<const GridLength> definitions) noexcept;

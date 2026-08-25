@@ -1,0 +1,16 @@
+#pragma once
+
+#include <cstdint>
+
+namespace Aero {
+
+struct VisualHandle {
+    std::uint32_t index = UINT32_MAX;
+    std::uint32_t generation = 0U;
+
+    constexpr bool IsValid() const noexcept {
+        return index != UINT32_MAX && generation != 0U;
+    }
+};
+
+} // namespace Aero

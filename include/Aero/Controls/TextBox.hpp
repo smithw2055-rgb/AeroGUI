@@ -5,7 +5,6 @@
 #include <Aero/Controls/ScrollViewer.hpp>
 #include <Aero/TextFormatting.hpp>
 
-namespace Aero::Core { class TextLayoutFacet; }
 
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -155,7 +154,7 @@ private:
     friend class TextEditBehavior;
     friend class PasswordBox;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::TextLayoutFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
 
     struct CaretStop {

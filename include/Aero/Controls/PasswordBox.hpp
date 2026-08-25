@@ -2,7 +2,6 @@
 
 #include <Aero/Controls/TextBox.hpp>
 
-namespace Aero::Core { class TextLayoutFacet; }
 
 namespace Aero::Controls {
 
@@ -68,7 +67,7 @@ private:
     friend class TextBox;
     friend class TextEditBehavior;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::TextLayoutFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
 
     String password_;

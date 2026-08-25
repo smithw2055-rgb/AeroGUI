@@ -409,7 +409,7 @@ void OnGridRowsChanged(
 void OnPathDataChanged(
     ::Aero::DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept {
-    ::Aero::Core::DependencyPropertyFacet::PathInvalidateGeometry(
+    AeroGuiInternal::PathInvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -417,7 +417,7 @@ void OnPathColorChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<Media::Brush>&,
     const Base::Ref<Media::Brush>&) noexcept {
-    ::Aero::Core::DependencyPropertyFacet::PathInvalidateGeometry(
+    AeroGuiInternal::PathInvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -427,7 +427,7 @@ void OnPathDoubleChanged(
     const double&) noexcept {
     if (object.PropertyRegistry().Types().IsDerivedFrom(
             object.RuntimeType(), Path::StaticTypeId())) {
-        ::Aero::Core::DependencyPropertyFacet::PathInvalidateGeometry(
+        AeroGuiInternal::PathInvalidateGeometry(
             static_cast<Path&>(object));
     } else if (object.PropertyRegistry().Types().IsDerivedFrom(
                    object.RuntimeType(), FrameworkElement::StaticTypeId())) {
@@ -440,7 +440,7 @@ void OnPathLineJoinChanged(
     ::Aero::DependencyObject& object,
     const PenLineJoin&,
     const PenLineJoin&) noexcept {
-    ::Aero::Core::DependencyPropertyFacet::PathInvalidateGeometry(
+    AeroGuiInternal::PathInvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -448,7 +448,7 @@ void OnPathLineCapChanged(
     ::Aero::DependencyObject& object,
     const PenLineCap&,
     const PenLineCap&) noexcept {
-    ::Aero::Core::DependencyPropertyFacet::PathInvalidateGeometry(
+    AeroGuiInternal::PathInvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -566,14 +566,14 @@ void SetPanelContent(
     if (!child) {
         return;
     }
-    (void)::Aero::Core::VisualFacet::PanelAddChild(
+    (void)AeroGuiInternal::PanelAddChild(
         static_cast<Panel&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
 void ClearPanelContent(
     Base::Object& owner,
     void*) noexcept {
-    ::Aero::Core::VisualFacet::PanelClearChildren(static_cast<Panel&>(owner));
+    AeroGuiInternal::PanelClearChildren(static_cast<Panel&>(owner));
 }
 
 void SetDecoratorContent(
@@ -583,7 +583,7 @@ void SetDecoratorContent(
     if (!child) {
         return;
     }
-    (void)::Aero::Core::VisualFacet::DecoratorSetOwnedChild(
+    (void)AeroGuiInternal::DecoratorSetOwnedChild(
         static_cast<Decorator&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
@@ -625,14 +625,14 @@ void SetContentControlContent(
     if (!child) {
         return;
     }
-    (void)::Aero::Core::InteractionStateFacet::SetContentValue(
+    (void)AeroGuiInternal::SetContentValue(
         static_cast<ContentControl&>(owner), child);
 }
 
 void ClearContentControlContent(
     Base::Object& owner,
     void*) noexcept {
-    (void)::Aero::Core::InteractionStateFacet::SetContentValue(
+    (void)AeroGuiInternal::SetContentValue(
         static_cast<ContentControl&>(owner), Meta::Value::NullObject(Meta::TypeOf<Base::Object>()));
 }
 
@@ -730,7 +730,7 @@ void OnItemsSourceChanged(
                 value.Get());
         }
     }
-    ::Aero::Core::InteractionStateFacet::SetItemsSource(
+    AeroGuiInternal::SetItemsSource(
         static_cast<ItemsControl&>(object), source);
 }
 
@@ -738,7 +738,7 @@ void OnItemTemplateChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<DataTemplate>&,
     const Base::Ref<DataTemplate>& value) noexcept {
-    ::Aero::Core::InteractionStateFacet::SetItemTemplate(
+    AeroGuiInternal::SetItemTemplate(
         static_cast<ItemsControl&>(object), value.Get());
 }
 
@@ -746,7 +746,7 @@ void OnDisplayMemberPathChanged(
     ::Aero::DependencyObject& object,
     const Base::String&,
     const Base::String&) noexcept {
-    ::Aero::Core::InteractionStateFacet::RefreshDisplayMemberPath(
+    AeroGuiInternal::RefreshDisplayMemberPath(
         static_cast<ItemsControl&>(object));
 }
 
@@ -754,7 +754,7 @@ void OnItemsPanelChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<ItemsPanelTemplate>&,
     const Base::Ref<ItemsPanelTemplate>& value) noexcept {
-    ::Aero::Core::InteractionStateFacet::SetItemsPanel(
+    AeroGuiInternal::SetItemsPanel(
         static_cast<ItemsControl&>(object), value.Get());
 }
 
@@ -762,7 +762,7 @@ void OnItemContainerStyleChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<Style>&,
     const Base::Ref<Style>& value) noexcept {
-    ::Aero::Core::InteractionStateFacet::SetItemContainerStyle(
+    AeroGuiInternal::SetItemContainerStyle(
         static_cast<ItemsControl&>(object), value.Get());
 }
 

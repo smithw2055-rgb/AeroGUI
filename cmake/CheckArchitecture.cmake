@@ -2,6 +2,13 @@ if(NOT DEFINED AERO_SOURCE_DIR OR AERO_SOURCE_DIR STREQUAL "")
     message(FATAL_ERROR "AERO_SOURCE_DIR is required")
 endif()
 
+if(POLICY CMP0057)
+    cmake_policy(SET CMP0057 NEW)
+endif()
+if(POLICY CMP0007)
+    cmake_policy(SET CMP0007 NEW)
+endif()
+
 # Final product invariants only. Migration spellings and temporary implementation
 # layers belong in Git history, not in the permanent build contract.
 function(aero_require_file relative_path)
@@ -324,14 +331,18 @@ aero_require_text(
     "cmake/AeroCompilerOptions.cmake"
     "function(aero_verify_windows_exports target expected_export)"
     "Shared Windows builds must validate their real DLL export tables")
-aero_forbid_text(
-    "tests/CMakeLists.txt"
-    "Aero::Integration"
-    "Framework tests must link the final Gui product rather than retired Integration")
-aero_forbid_text(
-    "tests/FrameworkConformanceTests.cpp"
-    "Aero/Integration"
-    "Framework tests must consume the current installed SDK")
+if(EXISTS "${AERO_SOURCE_DIR}/tests/CMakeLists.txt")
+    aero_forbid_text(
+        "tests/CMakeLists.txt"
+        "Aero::Integration"
+        "Framework tests must link the final Gui product rather than retired Integration")
+endif()
+if(EXISTS "${AERO_SOURCE_DIR}/tests/FrameworkConformanceTests.cpp")
+    aero_forbid_text(
+        "tests/FrameworkConformanceTests.cpp"
+        "Aero/Integration"
+        "Framework tests must consume the current installed SDK")
+endif()
 
 file(GLOB_RECURSE aero_physical_public_headers
     RELATIVE "${AERO_SOURCE_DIR}"
@@ -430,9 +441,10 @@ file(GLOB_RECURSE aero_source_contract_files
 foreach(source_contract_file IN LISTS aero_source_contract_files)
     get_filename_component(source_contract_name
         "${source_contract_file}" NAME)
-    if(source_contract_name MATCHES "(Internal|Private)")
-        file(RELATIVE_PATH source_contract_relative
-            "${AERO_SOURCE_DIR}" "${source_contract_file}")
+    file(RELATIVE_PATH source_contract_relative
+        "${AERO_SOURCE_DIR}" "${source_contract_file}")
+    if(source_contract_name MATCHES "(Internal|Private)"
+       AND NOT source_contract_relative MATCHES "^src/gui/internal/")
         message(FATAL_ERROR
             "Retired Internal/Private source filename remains: ${source_contract_relative}")
     endif()
@@ -1003,6 +1015,16 @@ aero_forbid_file("src/gui/GuiPrivate.hpp")
 aero_forbid_file("src/gui/controls/ControlsPrivate.hpp")
 aero_forbid_file("src/gui/markup/MarkupPrivate.hpp")
 aero_forbid_file("src/gui/media/MediaPrivate.hpp")
+aero_forbid_file("src/gui/core/Facet.hpp")
+aero_forbid_file("src/gui/core/facets/VisualFacet.hpp")
+aero_forbid_file("src/gui/core/facets/RenderFacet.hpp")
+aero_forbid_file("src/gui/core/facets/LayoutFacet.hpp")
+aero_forbid_file("src/gui/core/facets/LayoutFacets.hpp")
+aero_forbid_file("src/gui/core/facets/ServiceFacets.hpp")
+aero_forbid_file("src/gui/core/facets/InteractionStateFacet.hpp")
+aero_forbid_file("src/gui/core/facets/DependencyPropertyFacet.hpp")
+aero_forbid_file("src/gui/core/facets/InputEventFacet.hpp")
+aero_forbid_file("src/gui/core/facets/TextLayoutFacet.hpp")
 aero_require_text(
     "include/Aero/Controls/Button.hpp"
     "class AERO_GUI_API Button"
@@ -1140,14 +1162,52 @@ foreach(aero_authoritative_document IN ITEMS
 endforeach()
 
 # ---------------------------------------------------------------------------
-# Facet architecture: the ElementHost facet matrix must stay typed
+# WPF kernel: no Core::Facet / Access bags. View/ElementTree is the service hub.
+# XAML metadata capabilities (XamlFacets) are a different system and may remain.
 # ---------------------------------------------------------------------------
-# The old design stored facets as a raw void* bag. The current contract is a
-# typed Core::Facet* matrix resolved through Core::GetFacet<T>. Forbid the
-# untyped regression signature so it cannot silently return.
+aero_require_text(
+    "src/gui/internal/AeroGuiInternal.hpp"
+    "class AeroGuiInternal"
+    "Kernel-private operations must live in src/gui/internal/AeroGuiInternal.hpp")
+aero_require_text(
+    "include/Aero/UIElement.hpp"
+    "struct LayoutHot"
+    "Layout hot state must live on UIElement, not a facet bag")
 aero_forbid_text(
-    "src/gui/core/State.hpp"
-    "void* facets_"
-    "ElementHost facet matrix must remain typed (Core::Facet*), not a void* bag")
+    "include/Aero/UIElement.hpp"
+    "ElementFacet"
+    "Installed UIElement.hpp must not advertise element facet APIs")
+aero_forbid_text(
+    "include/Aero/UIElement.hpp"
+    "GetFacet"
+    "Installed UIElement.hpp must not advertise GetFacet")
+
+file(GLOB_RECURSE aero_gui_kernel_files
+    "${AERO_SOURCE_DIR}/src/gui/*.cpp"
+    "${AERO_SOURCE_DIR}/src/gui/*.hpp"
+    "${AERO_SOURCE_DIR}/src/gui/*.h"
+    "${AERO_SOURCE_DIR}/src/gui/*.inl")
+foreach(gui_kernel_file IN LISTS aero_gui_kernel_files)
+    file(RELATIVE_PATH gui_kernel_relative
+        "${AERO_SOURCE_DIR}" "${gui_kernel_file}")
+    file(READ "${gui_kernel_file}" gui_kernel_content)
+    foreach(retired_facet_token IN ITEMS
+            "Core::Facet"
+            "Core::GetFacet"
+            "ElementFacet<"
+            "ServiceFacets"
+            "LayoutFacets"
+            "ElementHost"
+            "FacetTrait"
+            "AttachElementFacets"
+            "DetachElementFacets")
+        string(FIND "${gui_kernel_content}"
+            "${retired_facet_token}" retired_facet_position)
+        if(NOT retired_facet_position EQUAL -1)
+            message(FATAL_ERROR
+                "Retired Facet/Access kernel token '${retired_facet_token}' remains in ${gui_kernel_relative}")
+        endif()
+    endforeach()
+endforeach()
 
 message(STATUS "Aero final architecture dependency checks passed")

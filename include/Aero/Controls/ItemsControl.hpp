@@ -10,7 +10,6 @@
 #include <Aero/Events/ControlEventArgs.hpp>
 #include <utility>
 
-namespace Aero::Core { class InteractionStateFacet; }
 
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -167,7 +166,7 @@ private:
     friend class ItemContainerGenerator;
     friend struct ItemContainerGeneratorRuntime;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::InteractionStateFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
 
     ItemCollection items_;

@@ -2,7 +2,6 @@
 #include "gui/input/InputState.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include <Aero/Controls.hpp>
-#include "gui/core/facets/InteractionStateFacet.hpp"
 
 #include <utility>
 #include "ControlBehavior.hpp"
@@ -233,7 +232,7 @@ void MenuItem::SetRoleState(
 
 Menu::~Menu() {
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
+        AeroGuiInternal::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -527,7 +526,7 @@ void MenuBehavior::OnMouseDown(
         FindItem(
             menu, args.GetOriginalSource());
     if (item == nullptr) return;
-    ::Aero::Core::InteractionStateFacet::SetMenuItemHighlighted(*item, true);
+    AeroGuiInternal::SetMenuItemHighlighted(*item, true);
     Base::Result<void> invoked =
         Invoke(menu, *item);
     if (!invoked) return;

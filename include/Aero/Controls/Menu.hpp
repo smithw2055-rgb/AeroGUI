@@ -5,7 +5,6 @@
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 
-namespace Aero::Core { class InteractionStateFacet; }
 
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -73,7 +72,7 @@ protected:
 
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::InteractionStateFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;

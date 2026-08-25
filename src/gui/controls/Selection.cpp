@@ -5,7 +5,6 @@
 #include "gui/styles/StyleState.hpp"
 #include "gui/controls/State.hpp"
 #include "gui/templates/TemplateState.hpp"
-#include "gui/core/facets/InteractionStateFacet.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls/TextBoxBase.hpp>
@@ -550,7 +549,7 @@ Base::Result<void> Selector::PublishProperties() noexcept {
 
 void Selector::SyncContainers() noexcept {
     auto* states = static_cast<Aero::VisualStateManager*>(
-        ::Aero::Core::InteractionStateFacet::VisualStateRuntime(*this));
+        AeroGuiInternal::VisualStateRuntime(*this));
     ItemContainerGenerator* generator =
         AttachedGenerator();
     if (generator == nullptr) return;
@@ -828,7 +827,7 @@ void Selector::OnContainersChanged() noexcept {
 
 ListBox::~ListBox() {
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
+        AeroGuiInternal::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -980,7 +979,7 @@ ComboBox::ComboBox() noexcept
 ComboBox::~ComboBox() {
     ObserveSelectedProjection(nullptr);
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
+        AeroGuiInternal::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -1435,7 +1434,7 @@ ComboBox::UpdateSelectionBox() noexcept {
                 selected->RuntimeType(),
                 ContentControl::StaticTypeId())) {
         UIElement* content =
-            ::Aero::Core::InteractionStateFacet::ContentElement(*static_cast<ContentControl*>(
+            AeroGuiInternal::ContentControlContent(*static_cast<ContentControl*>(
                 selected.Get()));
         if (content != nullptr &&
             PropertyRegistry().Types().
@@ -1460,7 +1459,7 @@ ComboBox::UpdateSelectionBox() noexcept {
             PropertyRegistry().Types().IsDerivedFrom(
                 container->RuntimeType(),
                 ContentControl::StaticTypeId())) {
-            UIElement* content = ::Aero::Core::InteractionStateFacet::ContentElement(
+            UIElement* content = AeroGuiInternal::ContentControlContent(
                 *static_cast<ContentControl*>(container));
             if (content != nullptr &&
                 PropertyRegistry().Types().IsDerivedFrom(
@@ -1966,7 +1965,7 @@ Base::Result<void> ListBehavior::Attach(
             mouseDownHandler_));
         return added.GetStatus();
     }
-    ::Aero::Core::InteractionStateFacet::SyncSelectorContainers(listBox);
+    AeroGuiInternal::SyncSelectorContainers(listBox);
     return {};
 }
 

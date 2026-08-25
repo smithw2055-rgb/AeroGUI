@@ -5,7 +5,6 @@
 #include "gui/styles/StyleState.hpp"
 #include "gui/controls/State.hpp"
 #include "gui/templates/TemplateState.hpp"
-#include "gui/core/facets/InteractionStateFacet.hpp"
 
 #include <Aero/Value.hpp>
 #include <Aero/Media/Transforms.hpp>
@@ -22,7 +21,7 @@ namespace Aero::Controls {
 void ControlBehavior::SetVisualStateManager(
     Control& control,
     VisualStateManager* visualStates) noexcept {
-    ::Aero::Core::InteractionStateFacet::SetVisualStateManager(
+    AeroGuiInternal::SetVisualStateManager(
         control, visualStates);
 }
 
@@ -523,6 +522,8 @@ private:
         Base::String groupName;
         Base::String stateName;
         Base::Vector<Aero::Media::Animation::Model::AnimationHandle> animations;
+        std::uint32_t providerOrigin = 0U;
+        std::uint32_t nextOrdinal = 0U;
     };
 
     struct TransitionValue {
@@ -553,10 +554,12 @@ private:
         Base::StringView toState) noexcept;
     Base::Result<void> ApplyState(
         TemplateHandle handle,
-        const VisualStatePlan& state) noexcept;
+        const VisualStatePlan& state,
+        ActiveGroup& active) noexcept;
     Base::Result<void> ClearStateValues(
         TemplateHandle handle,
-        const VisualStatePlan& state) noexcept;
+        const VisualStatePlan& state,
+        ActiveGroup& active) noexcept;
     Base::Result<void> StartStateAnimations(
         Control& control,
         TemplateHandle handle,
@@ -702,7 +705,8 @@ const VisualTransitionPlan* VisualStateManagerImpl::FindTransition(
 
 Base::Result<void> VisualStateManagerImpl::ApplyState(
     TemplateHandle handle,
-    const VisualStatePlan& state) noexcept {
+    const VisualStatePlan& state,
+    ActiveGroup& active) noexcept {
     for (const VisualStateSetterPlan& setter : state.setters) {
         DependencyObject* target =
             templates_->FindName(handle, setter.targetName.View());
@@ -712,45 +716,47 @@ Base::Result<void> VisualStateManagerImpl::ApplyState(
                 "Visual state target name was not found");
         }
     }
-    std::uint32_t appliedCount = 0U;
+    if (active.providerOrigin == 0U) {
+        Base::Result<std::uint32_t> origin =
+            values_->AllocateProviderOrigin();
+        if (!origin) return origin.GetStatus();
+        active.providerOrigin = origin.Value();
+        active.nextOrdinal = 0U;
+    }
     for (const VisualStateSetterPlan& setter : state.setters) {
         DependencyObject* target =
             templates_->FindName(handle, setter.targetName.View());
-        Base::Result<void> applied = values_->SetAnimationValue(
-            *target, setter.property, setter.value);
+        const PropertyProviderToken token{
+            PropertyValueRank::VisualState,
+            active.providerOrigin,
+            active.nextOrdinal++};
+        Base::Result<void> applied = values_->SetProviderContribution(
+            *target, setter.property, token, setter.value);
         if (!applied) {
-            for (std::uint32_t index = 0U;
-                index < appliedCount; ++index) {
-                const VisualStateSetterPlan& rollback =
-                    state.setters[index];
-                DependencyObject* rollbackTarget =
-                    templates_->FindName(
-                        handle, rollback.targetName.View());
-                if (rollbackTarget != nullptr) {
-                    static_cast<void>(
-                        values_->ClearAnimationValue(
-                            *rollbackTarget, rollback.property));
-                }
-            }
+            static_cast<void>(ClearStateValues(handle, state, active));
             return applied.GetStatus();
         }
-        ++appliedCount;
     }
     return {};
 }
 
 Base::Result<void> VisualStateManagerImpl::ClearStateValues(
     TemplateHandle handle,
-    const VisualStatePlan& state) noexcept {
+    const VisualStatePlan& state,
+    ActiveGroup& active) noexcept {
+    if (active.providerOrigin == 0U) {
+        return {};
+    }
     for (const VisualStateSetterPlan& setter : state.setters) {
         DependencyObject* target =
             templates_->FindName(handle, setter.targetName.View());
         if (target == nullptr) continue;
-        Base::Result<void> cleared =
-            values_->ClearAnimationValue(
-                *target, setter.property);
+        Base::Result<std::uint32_t> cleared =
+            values_->ClearProviderOrigin(
+                *target, active.providerOrigin);
         if (!cleared) return cleared.GetStatus();
     }
+    active.nextOrdinal = 0U;
     return {};
 }
 
@@ -1512,16 +1518,16 @@ Base::Result<bool> VisualStateManagerImpl::GoToState(
             return animationsCleared.GetStatus();
         }
         Base::Result<void> cleared =
-            ClearStateValues(handle, *previous);
+            ClearStateValues(handle, *previous, active_[activeIndex]);
         if (!cleared) {
             if (addedRecord) RemoveActiveAt(activeIndex);
             return cleared.GetStatus();
         }
     }
-    Base::Result<void> applied = ApplyState(handle, *next);
+    Base::Result<void> applied = ApplyState(handle, *next, active_[activeIndex]);
     if (!applied) {
         if (previous != nullptr) {
-            static_cast<void>(ApplyState(handle, *previous));
+            static_cast<void>(ApplyState(handle, *previous, active_[activeIndex]));
         }
         if (addedRecord) RemoveActiveAt(activeIndex);
         return applied.GetStatus();
@@ -1573,10 +1579,10 @@ Base::Result<bool> VisualStateManagerImpl::GoToState(
             ClearStateAnimations(
                 active_[activeIndex]));
         static_cast<void>(
-            ClearStateValues(handle, *next));
+            ClearStateValues(handle, *next, active_[activeIndex]));
         if (previous != nullptr) {
             static_cast<void>(
-                ApplyState(handle, *previous));
+                ApplyState(handle, *previous, active_[activeIndex]));
             static_cast<void>(
                 StartStateAnimations(
                     control, handle, *previous,
@@ -1613,7 +1619,7 @@ Base::Result<bool> VisualStateManagerImpl::ClearState(
             return animationsCleared.GetStatus();
         }
         Base::Result<void> cleared =
-            ClearStateValues(handle, *state);
+            ClearStateValues(handle, *state, active_[activeIndex]);
         if (!cleared) return cleared.GetStatus();
     }
     RemoveActiveAt(activeIndex);
@@ -1662,7 +1668,7 @@ bool VisualStateManager::GoToState(
     Base::StringView stateName,
     bool useTransitions) noexcept {
     auto* manager = static_cast<VisualStateManager*>(
-        ::Aero::Core::InteractionStateFacet::VisualStateRuntime(control));
+        AeroGuiInternal::VisualStateRuntime(control));
     if (manager == nullptr) return false;
     Base::Result<bool> changed = Controls::TemplatePrivate::GoToState(
         *manager, control, {}, stateName, useTransitions);

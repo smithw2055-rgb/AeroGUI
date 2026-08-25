@@ -260,7 +260,7 @@ Base::Result<bool> RoutedCommand::CanExecute(
     const Meta::Value& parameter,
     UIElement* target) noexcept {
     Aero::InputRouter* input = target != nullptr
-        ? Aero::Core::GetFacet<::Aero::InputRouter>(*target)
+        ? AeroGuiInternal::InputRouterOf(*target)
         : nullptr;
     if (input == nullptr) {
         return Base::Status::Failure(
@@ -274,7 +274,7 @@ void RoutedCommand::Execute(
     const Meta::Value& parameter,
     UIElement* target) noexcept {
     Aero::InputRouter* input = target != nullptr
-        ? Aero::Core::GetFacet<::Aero::InputRouter>(*target)
+        ? AeroGuiInternal::InputRouterOf(*target)
         : nullptr;
     if (input == nullptr) {
         return;
@@ -466,7 +466,7 @@ Base::Result<bool> CommandState::CanExecute(
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::Core::VisualFacet::Handle(element);
+            const VisualHandle ownerHandle = AeroGuiInternal::Handle(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -512,7 +512,7 @@ Base::Result<bool> CommandState::Execute(
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::Core::VisualFacet::Handle(element);
+            const VisualHandle ownerHandle = AeroGuiInternal::Handle(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -550,7 +550,7 @@ Base::Result<bool> CommandState::ProcessInput(
                 return true;
             }
             auto& element = static_cast<UIElement&>(current);
-            const VisualHandle owner = Aero::Core::VisualFacet::Handle(element);
+            const VisualHandle owner = AeroGuiInternal::Handle(element);
             for (const InputBindingRecord& record : inputBindings_) {
                 if (record.owner.index != owner.index ||
                     record.owner.generation != owner.generation ||
