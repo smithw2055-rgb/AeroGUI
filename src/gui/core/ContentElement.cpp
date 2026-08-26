@@ -3,6 +3,7 @@
 #include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
+#include "gui/internal/ErasedRoutedHandler.hpp"
 
 #include <Aero/Base/Assert.hpp>
 
@@ -39,20 +40,18 @@ ContentElement::~ContentElement() {
     CleanupHandlers();
 }
 
-Base::Result<void> ContentElement::AddHandlerCore(
+Base::Result<void> ContentElement::AddHandlerErased(
     RoutedEventHandle event,
-    const HandlerDescriptor& handler,
+    const void* handler,
+    std::size_t size,
+    std::size_t alignment,
+    Meta::TypeId argsType,
     bool handledEventsToo) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!event.IsValid() || handler.value == nullptr ||
-        handler.operations == nullptr ||
-        handler.operations->copy == nullptr ||
-        handler.operations->destroy == nullptr ||
-        handler.operations->equals == nullptr ||
-        handler.operations->invoke == nullptr ||
-        handler.operations->size > 4U * sizeof(void*) ||
-        handler.operations->alignment > alignof(void*)) {
+    if (!event.IsValid() || handler == nullptr ||
+        size > 4U * sizeof(void*) ||
+        alignment > alignof(void*)) {
         return InvalidArgument(
             "Routed event handler requires a valid event and callback");
     }
@@ -81,36 +80,39 @@ Base::Result<void> ContentElement::AddHandlerCore(
     RoutedHandlerRecord record;
     record.event = event;
     record.handler = Aero::RoutedHandlerStorage(
-        handler.value,
-        handler.operations->size,
-        handler.operations->alignment,
-        handler.argsType,
-        handler.operations->copy,
-        handler.operations->destroy,
-        handler.operations->equals,
-        handler.operations->invoke);
+        handler,
+        size,
+        alignment,
+        argsType,
+        &CopyErasedDelegate,
+        &DestroyErasedDelegate,
+        &EqualsErasedDelegate,
+        &InvokeErasedDelegate);
     record.sequence = state->nextSequence++;
     record.handledEventsToo = handledEventsToo;
     return state->handlers.PushBack(std::move(record));
 }
 
-bool ContentElement::RemoveHandlerCore(
+bool ContentElement::RemoveHandlerErased(
     RoutedEventHandle event,
-    const HandlerDescriptor& handler) noexcept {
+    const void* handler,
+    std::size_t size,
+    std::size_t alignment,
+    Meta::TypeId argsType) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access || !event.IsValid() || handler.value == nullptr ||
-        handler.operations == nullptr || routedHandlers_ == nullptr) {
+    if (!access || !event.IsValid() || handler == nullptr ||
+        routedHandlers_ == nullptr) {
         return false;
     }
     Aero::RoutedHandlerStorage probe(
-        handler.value,
-        handler.operations->size,
-        handler.operations->alignment,
-        handler.argsType,
-        handler.operations->copy,
-        handler.operations->destroy,
-        handler.operations->equals,
-        handler.operations->invoke);
+        handler,
+        size,
+        alignment,
+        argsType,
+        &CopyErasedDelegate,
+        &DestroyErasedDelegate,
+        &EqualsErasedDelegate,
+        &InvokeErasedDelegate);
     auto& handlers =
         static_cast<ContentElementHandlerState*>(routedHandlers_)->handlers;
     for (std::uint32_t index = 0U; index < handlers.Size(); ++index) {

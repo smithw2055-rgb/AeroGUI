@@ -12,7 +12,7 @@
 #include <Aero/Events/EventArgs.hpp>
 #include <Aero/RoutedEvent.hpp>
 
-#include <new>
+#include <cstddef>
 
 namespace Aero {
 
@@ -47,7 +47,13 @@ public:
                 Base::ErrorCode::InvalidArgument,
                 "Routed event handler must not be empty");
         }
-        return AddHandlerCore(event, DescribeHandler(handler), handledEventsToo);
+        return AddHandlerErased(
+            event,
+            &handler,
+            sizeof(handler),
+            alignof(decltype(handler)),
+            TArgs::StaticTypeId(),
+            handledEventsToo);
     }
 
     template<class TArgs>
@@ -68,7 +74,12 @@ public:
     bool RemoveHandler(
         RoutedEventHandle event,
         const Base::Delegate<void(Base::Object*, TArgs&)>& handler) noexcept {
-        return RemoveHandlerCore(event, DescribeHandler(handler));
+        return RemoveHandlerErased(
+            event,
+            &handler,
+            sizeof(handler),
+            alignof(decltype(handler)),
+            TArgs::StaticTypeId());
     }
 
 protected:
@@ -81,54 +92,19 @@ private:
     friend class ::Aero::AeroGuiInternal;
 #endif
 
-    struct HandlerOperations {
-        std::size_t size = 0U;
-        std::size_t alignment = 0U;
-        void (*copy)(void*, const void*) noexcept = nullptr;
-        void (*destroy)(void*) noexcept = nullptr;
-        bool (*equals)(const void*, const void*) noexcept = nullptr;
-        void (*invoke)(const void*, Base::Object*, RoutedEventArgs&) noexcept = nullptr;
-    };
-
-    struct HandlerDescriptor {
-        const void* value = nullptr;
-        const HandlerOperations* operations = nullptr;
-        Meta::TypeId argsType = Meta::InvalidTypeId;
-    };
-
-    template<class TArgs>
-    static HandlerDescriptor DescribeHandler(
-        const Base::Delegate<void(Base::Object*, TArgs&)>& handler) noexcept {
-        using Handler = Base::Delegate<void(Base::Object*, TArgs&)>;
-        static const HandlerOperations operations{
-            sizeof(Handler),
-            alignof(Handler),
-            [](void* destination, const void* source) noexcept {
-                new (destination) Handler(*static_cast<const Handler*>(source));
-            },
-            [](void* value) noexcept {
-                static_cast<Handler*>(value)->~Handler();
-            },
-            [](const void* left, const void* right) noexcept {
-                return *static_cast<const Handler*>(left) ==
-                    *static_cast<const Handler*>(right);
-            },
-            [](const void* value,
-               Base::Object* sender,
-               RoutedEventArgs& args) noexcept {
-                static_cast<const Handler*>(value)->Invoke(
-                    sender, static_cast<TArgs&>(args));
-            }};
-        return {&handler, &operations, TArgs::StaticTypeId()};
-    }
-
-    Result<void> AddHandlerCore(
+    Result<void> AddHandlerErased(
         RoutedEventHandle event,
-        const HandlerDescriptor& handler,
+        const void* handler,
+        std::size_t size,
+        std::size_t alignment,
+        Meta::TypeId argsType,
         bool handledEventsToo) noexcept;
-    bool RemoveHandlerCore(
+    bool RemoveHandlerErased(
         RoutedEventHandle event,
-        const HandlerDescriptor& handler) noexcept;
+        const void* handler,
+        std::size_t size,
+        std::size_t alignment,
+        Meta::TypeId argsType) noexcept;
     void InvokeHandlers(
         RoutedEventHandle event,
         RoutedEventArgs& args) noexcept;
