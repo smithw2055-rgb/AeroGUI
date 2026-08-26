@@ -74,7 +74,9 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Data/Binding.hpp"
         "include/Aero/Resources.hpp"
         "include/Aero/Style.hpp"
+        "include/Aero/FrameworkTemplate.hpp"
         "include/Aero/Controls/ControlTemplate.hpp"
+        "include/Aero/VisualStateManager.hpp"
         "include/Aero/DataTemplate.hpp"
         "include/Aero/Media/Animation.hpp"
         "include/Aero/Media/Brushes.hpp"
@@ -83,6 +85,7 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Media/Geometry.hpp"
         "include/Aero/Media/Transforms.hpp"
         "include/Aero/Markup/XamlReader.hpp"
+        "include/Aero/Media/CompositionTarget.hpp"
         "include/Aero/View.hpp"
         "include/Aero/IRenderer.hpp"
         "include/AeroRender/Render.hpp"
@@ -1042,6 +1045,30 @@ aero_require_text(
     "class AERO_GUI_API Button"
     "Button.hpp must own the Button declaration")
 aero_forbid_file("include/Aero/Gui/Primitives.hpp")
+aero_forbid_text(
+    "include/Aero/Controls/ControlTemplate.hpp"
+    "class AERO_GUI_API VisualState"
+    "VisualState public types must live in VisualStateManager.hpp")
+aero_forbid_text(
+    "include/Aero/Controls/ControlTemplate.hpp"
+    "class AERO_GUI_API VisualStateManager"
+    "VisualStateManager must not be declared in ControlTemplate.hpp")
+aero_require_text(
+    "include/Aero/VisualStateManager.hpp"
+    "static bool GoToState("
+    "VisualStateManager must keep the public WPF GoToState entry")
+aero_forbid_text(
+    "include/Aero/Triggers/Triggers.hpp"
+    "Interactivity/"
+    "Triggers.hpp must not include Blend Interactivity headers")
+aero_forbid_text(
+    "include/Aero/Triggers/Triggers.hpp"
+    "Media/Animation/"
+    "Triggers.hpp must not include Media.Animation trigger headers")
+aero_forbid_text(
+    "include/Aero/View.hpp"
+    "class AERO_GUI_API CompositionTarget"
+    "CompositionTarget must not be declared in View.hpp")
 
 # S25: public headers are organized by WPF-visible type ownership. Retired
 # Gui-path compatibility umbrellas are absent rather than forwarded.
@@ -1054,7 +1081,10 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Controls/ComboBox.hpp|class AERO_GUI_API ComboBox"
         "include/Aero/Controls/ListView.hpp|class AERO_GUI_API ListView"
         "include/Aero/Controls/TreeView.hpp|class AERO_GUI_API TreeView"
-        "include/Aero/Controls/TextBox.hpp|class AERO_GUI_API TextBox")
+        "include/Aero/Controls/TextBox.hpp|class AERO_GUI_API TextBox"
+        "include/Aero/VisualStateManager.hpp|class AERO_GUI_API VisualStateManager"
+        "include/Aero/FrameworkTemplate.hpp|class AERO_GUI_API FrameworkTemplate"
+        "include/Aero/Media/CompositionTarget.hpp|class AERO_GUI_API CompositionTarget")
     string(REPLACE "|" ";" s14_owner_parts "${s14_owner}")
     list(GET s14_owner_parts 0 s14_owner_header)
     list(GET s14_owner_parts 1 s14_owner_declaration)

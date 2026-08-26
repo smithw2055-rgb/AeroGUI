@@ -9,6 +9,7 @@
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/View.hpp>
+#include <Aero/VisualStateManager.hpp>
 
 #include "render/FrameEncoder.hpp"
 #include "gui/core/state/PropertyEngine.hpp"

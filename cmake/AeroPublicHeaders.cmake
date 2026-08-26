@@ -85,7 +85,9 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Data/Binding.hpp
     include/Aero/Resources.hpp
     include/Aero/Style.hpp
+    include/Aero/FrameworkTemplate.hpp
     include/Aero/Controls/ControlTemplate.hpp
+    include/Aero/VisualStateManager.hpp
     include/Aero/DataTemplate.hpp
     include/Aero/Media/Animation.hpp
     include/Aero/Media/Brushes.hpp
@@ -93,6 +95,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Transforms.hpp
     include/Aero/Markup/XamlDocument.hpp
     include/Aero/Markup/XamlReader.hpp
+    include/Aero/Media/CompositionTarget.hpp
     include/Aero/View.hpp
     include/Aero/IRenderer.hpp
     include/AeroRender/Render.hpp

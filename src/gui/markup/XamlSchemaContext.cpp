@@ -1008,6 +1008,7 @@ Base::Result<void> CompiledDocument::BindSchema(
 
 #include <Aero/Meta.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/VisualStateManager.hpp>
 
 
 

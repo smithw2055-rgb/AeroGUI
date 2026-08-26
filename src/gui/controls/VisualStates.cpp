@@ -1,4 +1,5 @@
 #include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/VisualStateManager.hpp>
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"

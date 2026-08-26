@@ -71,7 +71,7 @@ WPF developer can find a type by its .NET namespace:
 include/Aero/Triggers/          Aero::*            core WPF style triggers
     TriggerBase.hpp  Trigger.hpp  DataTrigger.hpp
     MultiTrigger.hpp  MultiDataTrigger.hpp  Conditions.hpp (Aero::Condition)
-    Triggers.hpp                      umbrella aggregator
+    Triggers.hpp                      Style/template trigger umbrella
 
 include/Aero/Interactivity/      Aero::Interactivity   System.Windows.Interactivity (Blend)
     Behavior.hpp  BlendBehaviors.hpp  TriggerAction.hpp
@@ -105,7 +105,10 @@ reference it through `using Aero::Interactivity::TriggerAction;`. The Blend
 condition primitives (`ComparisonCondition`, `ConditionalExpression`,
 `ConditionBehavior`) were relocated from `Aero::Media::Animation` to
 `Aero::Interactivity` because they are authored through interactivity XAML and
-are not part of the timeline model. `Triggers.hpp` re-exports all three groups.
+are not part of the timeline model. `Triggers.hpp` includes only Style/template
+triggers (`TriggerBase`, `Trigger`, `DataTrigger`, `MultiTrigger`,
+`MultiDataTrigger`, `Conditions`). Blend and Media.Animation types keep their
+own headers.
 
 ## View composition
 
@@ -114,8 +117,8 @@ It owns named engine pointers (tree, layout, bindings, styles, events, input,
 animations, visualStates, templates, renderer, text, images), root attachment,
 resource dictionaries, storyboard session vectors, pending focus, and fragment
 mounts. Domain methods are defined out of line next to their engine:
-`ViewFrame.cpp` ticks the frame, `media/ViewStoryboardSessions.cpp` runs
-storyboard sessions, `interactivity/ViewTriggers.cpp` evaluates
+`ViewFrame.cpp` ticks the frame, `media/StoryboardHost.cpp` runs
+storyboard sessions, `interactivity/InteractivityEngine.cpp` evaluates
 ConditionBehavior / EventTrigger / KeyTrigger / DataTrigger, and
 `markup/ViewDocuments.cpp` mounts XamlReader fragments.
 

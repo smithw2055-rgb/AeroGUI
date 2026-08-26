@@ -677,6 +677,7 @@ Base::Result<void> UiObjectModel::Register(
 
 
 #include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/VisualStateManager.hpp>
 
 
 
