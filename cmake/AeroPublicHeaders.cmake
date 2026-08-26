@@ -33,6 +33,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Collections.hpp
     include/Aero/Diagnostics.hpp
     include/Aero/Diagnostics/DependencyProperty.hpp
+    include/Aero/Diagnostics/Layout.hpp
     include/Aero/Diagnostics/PropertyValueSource.hpp
     include/Aero/Diagnostics/Rendering.hpp
     include/Aero/Threading.hpp
@@ -57,6 +58,8 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/DependencyProperty.hpp
     include/Aero/RoutedEvent.hpp
     include/Aero/Visual.hpp
+    include/Aero/Visibility.hpp
+    include/Aero/HorizontalAlignment.hpp
     include/Aero/UIElement.hpp
     include/Aero/FrameworkElement.hpp
     include/Aero/FrameworkContentElement.hpp
@@ -68,6 +71,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/Button.hpp
     include/Aero/Controls/ToggleButton.hpp
     include/Aero/Controls/Grid.hpp
+    include/Aero/Controls/GridLength.hpp
     include/Aero/Controls/StackPanel.hpp
     include/Aero/Controls/Border.hpp
     include/Aero/Controls/ItemsControl.hpp
@@ -90,6 +94,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/VisualStateManager.hpp
     include/Aero/DataTemplate.hpp
     include/Aero/Media/Animation.hpp
+    include/Aero/Media/BlendMode.hpp
     include/Aero/Media/Brushes.hpp
     include/Aero/Media/Geometry.hpp
     include/Aero/Media/Transforms.hpp

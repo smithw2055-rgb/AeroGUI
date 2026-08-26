@@ -62,7 +62,9 @@ public:
     Visual* GetLogicalParent() const noexcept { return logicalParent_; }
     bool GetIsLoaded() const noexcept { return loaded_; }
 
+#if defined(AERO_GUI_IMPLEMENTATION)
     ::Aero::ElementTree* GetTree() const noexcept { return tree_; }
+#endif
 
     virtual Base::Span<Visual* const> GetVisualChildren() const noexcept {
         return { visualChildren_.Data(), visualChildren_.Size() };

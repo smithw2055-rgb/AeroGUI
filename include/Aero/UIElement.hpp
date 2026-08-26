@@ -1,6 +1,8 @@
 #pragma once
 
-#include <Aero/Layout.hpp>
+#include <Aero/Base/Geometry.hpp>
+#include <Aero/Media/BlendMode.hpp>
+#include <Aero/Visibility.hpp>
 #include <Aero/Visual.hpp>
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -15,6 +17,10 @@
 #include <type_traits>
 
 namespace Aero {
+
+using Point = Base::Point;
+using Size = Base::Size;
+using Rect = Base::Rect;
 
 using Meta::PropertyInvalidationFlags;
 using Meta::TypeId;

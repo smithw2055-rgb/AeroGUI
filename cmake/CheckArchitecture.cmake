@@ -98,6 +98,11 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Media/CompositionTarget.hpp"
         "include/Aero/View.hpp"
         "include/Aero/IRenderer.hpp"
+        "include/Aero/Visibility.hpp"
+        "include/Aero/HorizontalAlignment.hpp"
+        "include/Aero/Controls/GridLength.hpp"
+        "include/Aero/Media/BlendMode.hpp"
+        "include/Aero/Diagnostics/Layout.hpp"
         "include/AeroRender/Render.hpp"
         "include/AeroRender/RenderDevice.hpp"
         "include/AeroRender/Texture.hpp"
@@ -1366,6 +1371,98 @@ aero_forbid_text(
     "src/gui/internal/AeroGuiInternal.hpp"
     "SetVisualStateManager"
     "No-op SetVisualStateManager must not return on AeroGuiInternal")
+aero_require_text(
+    "include/Aero/Visual.hpp"
+    "class AERO_GUI_API VisualTreeHelper"
+    "VisualTreeHelper must remain the public WPF visual-tree API")
+aero_require_text(
+    "include/Aero/Visual.hpp"
+    "#if defined(AERO_GUI_IMPLEMENTATION)\n    ::Aero::ElementTree* GetTree() const noexcept { return tree_; }\n#endif"
+    "Visual.GetTree must not be declared on the installed SDK class")
+aero_require_text(
+    "include/Aero/Visual.hpp"
+    "std::uint8_t renderDirtyFlags_"
+    "Visual render dirty flags must remain private hot fields on Visual")
+aero_require_text(
+    "include/Aero/Visual.hpp"
+    "std::uint32_t handleIndex_"
+    "Visual handle index must remain a private hot field on Visual")
+aero_require_text(
+    "include/Aero/Visual.hpp"
+    "Base::RenderNodeId renderNodeId_"
+    "Visual render node id must remain a private hot field on Visual")
+aero_require_text(
+    "tools/sdk-consumers/GuiConsumer.cpp"
+    "!HasVisualGetTree<Aero::Media::Visual>::value"
+    "SDK consumers must prove Visual.GetTree is not part of the installed API")
+aero_forbid_text(
+    "include/Aero/UIElement.hpp"
+    "#include <Aero/Layout.hpp>"
+    "UIElement must not pull the Layout.hpp umbrella")
+aero_require_text(
+    "include/Aero/UIElement.hpp"
+    "#include <Aero/Visibility.hpp>"
+    "Visibility must live next to UIElement")
+aero_require_text(
+    "include/Aero/UIElement.hpp"
+    "#include <Aero/Media/BlendMode.hpp>"
+    "BlendMode must live in Media, not Layout.hpp")
+aero_require_text(
+    "include/Aero/FrameworkElement.hpp"
+    "#include <Aero/HorizontalAlignment.hpp>"
+    "HorizontalAlignment/VerticalAlignment/FlowDirection must live next to FrameworkElement")
+aero_require_text(
+    "include/Aero/Controls/Grid.hpp"
+    "#include <Aero/Controls/GridLength.hpp>"
+    "GridLength must be owned by the Grid header family")
+aero_require_text(
+    "include/Aero/Layout.hpp"
+    "#include <Aero/Visibility.hpp>"
+    "Layout.hpp must remain a compatibility umbrella for Visibility")
+aero_require_text(
+    "include/Aero/Layout.hpp"
+    "#include <Aero/HorizontalAlignment.hpp>"
+    "Layout.hpp must remain a compatibility umbrella for alignment enums")
+aero_require_text(
+    "include/Aero/Layout.hpp"
+    "#include <Aero/Controls/GridLength.hpp>"
+    "Layout.hpp must remain a compatibility umbrella for GridLength")
+aero_require_text(
+    "include/Aero/Layout.hpp"
+    "#include <Aero/Media/BlendMode.hpp>"
+    "Layout.hpp must remain a compatibility umbrella for BlendMode")
+aero_require_text(
+    "include/Aero/Layout.hpp"
+    "#include <Aero/Diagnostics/Layout.hpp>"
+    "Layout.hpp must remain a compatibility umbrella for LayoutDiagnostics")
+aero_forbid_text(
+    "include/Aero/Layout.hpp"
+    "enum class Visibility"
+    "Layout.hpp must not own Visibility")
+aero_forbid_text(
+    "include/Aero/Layout.hpp"
+    "enum class HorizontalAlignment"
+    "Layout.hpp must not own HorizontalAlignment")
+aero_forbid_text(
+    "include/Aero/Layout.hpp"
+    "enum class BlendMode"
+    "Layout.hpp must not own BlendMode")
+aero_forbid_text(
+    "include/Aero/Layout.hpp"
+    "struct GridLength"
+    "Layout.hpp must not own GridLength")
+aero_forbid_text(
+    "include/Aero/Layout.hpp"
+    "struct LayoutDiagnostics"
+    "Layout.hpp must not own LayoutDiagnostics")
+aero_forbid_text(
+    "include/Aero/Layout.hpp"
+    "Threading.hpp"
+    "Layout.hpp must not pull Threading.hpp")
+aero_forbid_text(
+    "include/Aero/Layout.hpp"
+    "Media/Geometry.hpp"
+    "Layout.hpp must not pull Media/Geometry.hpp")
 aero_require_text(
     "include/Aero/UIElement.hpp"
     "struct LayoutHot"

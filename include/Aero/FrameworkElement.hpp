@@ -11,6 +11,8 @@
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/TextFormatting.hpp>
+#include <Aero/HorizontalAlignment.hpp>
+#include <Aero/Layout.hpp>
 #include <Aero/UIElement.hpp>
 
 #include <cstdint>

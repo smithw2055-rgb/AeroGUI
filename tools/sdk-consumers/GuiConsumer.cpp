@@ -78,6 +78,19 @@ static_assert(
         Aero::Documents::Hyperlink>::value,
     "Documents Hyperlink must not use the temporary Button hierarchy");
 
+template<class T, class = void>
+struct HasVisualGetTree : std::false_type {};
+
+template<class T>
+struct HasVisualGetTree<
+    T,
+    std::void_t<decltype(std::declval<const T&>().GetTree())>>
+    : std::true_type {};
+
+static_assert(
+    !HasVisualGetTree<Aero::Media::Visual>::value,
+    "Visual.GetTree must not be part of the installed SDK");
+
 [[maybe_unused]] void ConsumeGui(
     Aero::Controls::Button& button,
     Aero::FrameworkElement& root) noexcept {
