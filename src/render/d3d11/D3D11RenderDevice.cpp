@@ -441,6 +441,7 @@ void D3D11RenderDevice::ReleasePipelines() noexcept {
     ReleaseCom(blurPixelShader_);
     ReleaseCom(shadowPixelShader_);
     ReleaseCom(maskPixelShader_);
+    ReleaseCom(customEffectPixelShader_);
 }
 
 void D3D11RenderDevice::Shutdown() noexcept {
@@ -774,6 +775,27 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         maskSampler = samplers_[batch.shadowSampler.v & 0x3F];
         if (batch.shadow != nullptr) {
             maskSrv = static_cast<D3D11Texture*>(batch.shadow)->GetNativeSRV();
+        }
+        break;
+    case Shader::Custom_Effect:
+        pixelShader = customEffectPixelShader_ != nullptr
+            ? customEffectPixelShader_ : patternPixelShader_;
+        sampler = samplers_[batch.imageSampler.v & 0x3F];
+        if (batch.image != nullptr) {
+            srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
+        }
+        if (batch.pixelShader != nullptr) {
+            ID3D11PixelShader* loaded = nullptr;
+            if (SUCCEEDED(device_->CreatePixelShader(
+                    batch.pixelShader,
+                    batch.vertexUniforms[1].numDwords,
+                    nullptr,
+                    &loaded)) &&
+                loaded != nullptr) {
+                ReleaseCom(customEffectPixelShader_);
+                customEffectPixelShader_ = loaded;
+                pixelShader = customEffectPixelShader_;
+            }
         }
         break;
     default:

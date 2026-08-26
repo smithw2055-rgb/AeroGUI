@@ -7,7 +7,11 @@
 #include <Aero/InputGesture.hpp>
 #include <Aero/KeyGesture.hpp>
 #include <Aero/RoutedCommand.hpp>
+#include <Aero/TryCast.hpp>
 #include <Aero/KeyBinding.hpp>
+#include <Aero/MouseBinding.hpp>
+#include <Aero/RoutedUICommand.hpp>
+#include <Aero/InputBinding.hpp>
 #include <Aero/CommandBinding.hpp>
 #include <Aero/KeyboardNavigation.hpp>
 #include <Aero/FocusManager.hpp>
@@ -156,6 +160,14 @@ bool RoutedCommand::MatchesInput(
     return false;
 }
 
+bool RoutedCommand::MatchesPointer(
+    const PointerInput& input) const noexcept {
+    for (const Base::Ref<InputGesture>& gesture : gestures_) {
+        if (gesture && gesture->MatchesPointer(input)) return true;
+    }
+    return false;
+}
+
 namespace {
 
 Base::StringView TrimAscii(Base::StringView value) noexcept {
@@ -262,6 +274,34 @@ Base::Result<void> KeyBinding::Finalize() noexcept {
     if (!added) return added.GetStatus();
     command_ = std::move(command).Value();
     return {};
+}
+
+void MouseBinding::SetCommandName(Base::StringView value) noexcept {
+    Base::String candidate;
+    if (!candidate.Assign(TrimAscii(value))) return;
+    commandName_ = std::move(candidate);
+    command_.Reset();
+}
+
+bool MouseBinding::Matches(const PointerInput& input) const noexcept {
+    return input.changedButton == button_ && input.action == action_;
+}
+
+Base::Result<void> MouseBinding::Finalize() noexcept {
+    if (command_) return {};
+    if (commandName_.Empty()) {
+        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
+            "MouseBinding requires Command");
+    }
+    Base::Result<Base::Ref<RoutedCommand>> command =
+        Base::MakeRef<RoutedCommand>(commandName_.View());
+    if (!command) return command.GetStatus();
+    command_ = std::move(command).Value();
+    return {};
+}
+
+void RoutedUICommand::SetText(Base::StringView value) noexcept {
+    static_cast<void>(text_.Assign(value));
 }
 
 Base::Result<bool> RoutedCommand::CanExecute(
@@ -398,7 +438,7 @@ Base::Result<bool> CommandState::RemoveBinding(
 
 Base::Result<InputBindingHandle> CommandState::AddInputBinding(
     UIElement& owner,
-    Base::Ref<KeyBinding> binding) noexcept {
+    Base::Ref<InputBinding> binding) noexcept {
     Base::Result<void> verified = VerifyTarget(owner);
     if (!verified) return verified.GetStatus();
     if (!binding) {
@@ -585,6 +625,52 @@ Base::Result<bool> CommandState::ProcessInput(
                 }
                 if (allowed.Value()) {
                     result = Execute(*command, Meta::Value::Unset(), target);
+                    return false;
+                }
+            }
+            return true;
+        });
+    if (!routed) return routed.GetStatus();
+    return result;
+}
+
+Base::Result<bool> CommandState::ProcessInput(
+    UIElement& target,
+    const PointerInput& input) noexcept {
+    if (!target.GetIsEnabled()) return false;
+    Base::Result<void> verified = VerifyTarget(target);
+    if (!verified) return verified.GetStatus();
+
+    PruneStaleBindings();
+    PruneStaleInputBindings();
+    Base::Result<bool> result(false);
+    Base::Result<void> routed = events_->VisitRoute(
+        target, RoutingStrategy::Bubble,
+        [&](DependencyObject& current) noexcept {
+            if (!current.PropertyRegistry().Types().IsDerivedFrom(
+                    current.RuntimeType(), UIElement::StaticTypeId())) {
+                return true;
+            }
+            auto& element = static_cast<UIElement&>(current);
+            const VisualHandle owner = AeroGuiInternal::Handle(element);
+            for (const InputBindingRecord& record : inputBindings_) {
+                if (record.owner.index != owner.index ||
+                    record.owner.generation != owner.generation ||
+                    !record.binding || !record.binding->GetCommand()) {
+                    continue;
+                }
+                bool matches = false;
+                if (MouseBinding* mouse =
+                        ::Aero::TryCast<MouseBinding>(record.binding.Get())) {
+                    matches = mouse->Matches(input);
+                } else {
+                    matches = record.binding->GetCommand()->MatchesPointer(input);
+                }
+                if (matches) {
+                    result = Execute(
+                        *record.binding->GetCommand(),
+                        Meta::Value::Unset(),
+                        target);
                     return false;
                 }
             }

@@ -33,6 +33,7 @@ using PointerCaptureChangedHandler = Base::Delegate<void(std::uint32_t, UIElemen
 #include <Aero/ICommand.hpp>
 #include <Aero/RoutedCommand.hpp>
 #include <Aero/CommandBinding.hpp>
+#include <Aero/InputBinding.hpp>
 #include <Aero/KeyBinding.hpp>
 #include <Aero/KeyboardNavigation.hpp>
 #include <Aero/FocusManager.hpp>
@@ -55,7 +56,7 @@ public:
         CommandBindingHandle handle) noexcept;
     Base::Result<InputBindingHandle> AddInputBinding(
         UIElement& owner,
-        Base::Ref<KeyBinding> binding) noexcept;
+        Base::Ref<InputBinding> binding) noexcept;
 
     Base::Result<bool> CanExecute(
         ICommand& command,
@@ -76,6 +77,9 @@ public:
     Base::Result<bool> ProcessInput(
         UIElement& target,
         const KeyboardInput& input) noexcept;
+    Base::Result<bool> ProcessInput(
+        UIElement& target,
+        const PointerInput& input) noexcept;
 
     void AddRequerySuggested(
         const RequerySuggestedHandler& handler) noexcept;
@@ -92,7 +96,7 @@ private:
     struct InputBindingRecord {
         InputBindingHandle handle;
         VisualHandle owner;
-        Base::Ref<KeyBinding> binding;
+        Base::Ref<InputBinding> binding;
     };
 
     ElementTree* tree_ = nullptr;
@@ -143,6 +147,9 @@ private:
 class PointerStateMachine {
 public:
     PointerStateMachine(HitTestState& hitTests, EventRouter& events) noexcept;
+    void SetCommandState(CommandState* commands) noexcept {
+        commands_ = commands;
+    }
 
     void SetRoot(::Aero::Media::Visual* root) noexcept {
         if (root_ == root) return;
@@ -189,6 +196,7 @@ private:
 
     HitTestState* hitTests_ = nullptr;
     EventRouter* events_ = nullptr;
+    CommandState* commands_ = nullptr;
     ::Aero::Media::Visual* root_ = nullptr;
     Base::Vector<PointerCapture> captures_;
     Base::Vector<PointerState> states_;
@@ -337,7 +345,9 @@ public:
           pointer_(hitTests_, events),
           dragDrop_(tree, events, hitTests_),
           keyboard_(focus_, events, tree, &commands_),
-          text_(focus_, events, tree) {}
+          text_(focus_, events, tree) {
+        pointer_.SetCommandState(&commands_);
+    }
 
     void SetRoot(::Aero::Media::Visual* root) noexcept {
         pointer_.SetRoot(root);
@@ -412,7 +422,7 @@ public:
 
     Base::Result<CommandBindingHandle> AddCommandBinding(UIElement& owner, const CommandBinding& binding) noexcept { return commands_.AddBinding(owner, binding); }
     Base::Result<bool> RemoveCommandBinding(CommandBindingHandle handle) noexcept { return commands_.RemoveBinding(handle); }
-    Base::Result<InputBindingHandle> AddInputBinding(UIElement& owner, Base::Ref<KeyBinding> binding) noexcept { return commands_.AddInputBinding(owner, std::move(binding)); }
+    Base::Result<InputBindingHandle> AddInputBinding(UIElement& owner, Base::Ref<InputBinding> binding) noexcept { return commands_.AddInputBinding(owner, std::move(binding)); }
     void AddRequerySuggested(const RequerySuggestedHandler& handler) noexcept { commands_.AddRequerySuggested(handler); }
     bool RemoveRequerySuggested(const RequerySuggestedHandler& handler) noexcept { return commands_.RemoveRequerySuggested(handler); }
     void InvalidateRequerySuggested() const noexcept { commands_.InvalidateRequerySuggested(); }

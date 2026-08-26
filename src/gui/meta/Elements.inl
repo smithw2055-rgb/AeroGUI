@@ -86,6 +86,11 @@ Base::Result<void> PopulateUiElements(
                 .AffectsArrange()
                 .Changed(&OnRenderStateChanged))
         .Property(
+            UIElement::ClipProperty,
+            FrameworkPropertyMetadata(Base::Ref<Geometry>{})
+                .AffectsRender()
+                .Changed(&OnRenderStateChanged))
+        .Property(
             UIElement::BlendModeProperty,
             FrameworkPropertyMetadata(BlendMode::Normal)
                 .Changed(&OnRenderStateChanged))

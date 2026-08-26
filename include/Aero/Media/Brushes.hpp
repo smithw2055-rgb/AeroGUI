@@ -12,5 +12,6 @@
 #include <Aero/Media/GradientBrush.hpp>
 #include <Aero/Media/LinearGradientBrush.hpp>
 #include <Aero/Media/RadialGradientBrush.hpp>
+#include <Aero/Media/TileBrush.hpp>
 #include <Aero/Media/ImageBrush.hpp>
 #include <Aero/Media/VisualBrush.hpp>

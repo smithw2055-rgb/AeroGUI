@@ -1160,6 +1160,25 @@ void ClearSizeKeyFrames(Base::Object& owner, void*) noexcept {
         .ClearKeyFrames();
 }
 
+void AddMatrixKeyFrame(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::Animation::MatrixKeyFrame> retained =
+        Base::Ref<Media::Animation::MatrixKeyFrame>::TryFromBorrowed(
+            static_cast<Media::Animation::MatrixKeyFrame&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<Media::Animation::MatrixAnimationUsingKeyFrames&>(owner)
+            .AddKeyFrame(std::move(retained)));
+}
+
+void ClearMatrixKeyFrames(Base::Object& owner, void*) noexcept {
+    static_cast<Media::Animation::MatrixAnimationUsingKeyFrames&>(owner)
+        .ClearKeyFrames();
+}
+
 void AddStringKeyFrame(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,

@@ -11,3 +11,4 @@
 #include <Aero/Media/MatrixTransform3D.hpp>
 #include <Aero/Media/CompositeTransform3D.hpp>
 #include <Aero/Media/TransformGroup.hpp>
+#include <Aero/Media/CompositeTransform.hpp>

@@ -248,6 +248,38 @@ Base::Result<void> PopulateUiMedia(
     status = imageSource.Result();
     if (!status) return status.GetStatus();
 
+    auto tileBrush = Meta::Register<TileBrush>(
+        context, TypeFlags::Abstract);
+    tileBrush
+        .Property(
+            TileBrush::StretchProperty,
+            FrameworkPropertyMetadata(Stretch::Fill))
+        .Property(
+            TileBrush::ViewboxProperty,
+            FrameworkPropertyMetadata(Rect{0.0, 0.0, 1.0, 1.0}))
+        .Property(
+            TileBrush::ViewportProperty,
+            FrameworkPropertyMetadata(Rect{0.0, 0.0, 1.0, 1.0}))
+        .Property(
+            TileBrush::ViewboxUnitsProperty,
+            FrameworkPropertyMetadata(
+                BrushMappingMode::RelativeToBoundingBox))
+        .Property(
+            TileBrush::ViewportUnitsProperty,
+            FrameworkPropertyMetadata(
+                BrushMappingMode::RelativeToBoundingBox))
+        .Property(
+            TileBrush::TileModeProperty,
+            FrameworkPropertyMetadata(TileMode::None))
+        .Property(
+            TileBrush::AlignmentXProperty,
+            FrameworkPropertyMetadata(HorizontalAlignment::Center))
+        .Property(
+            TileBrush::AlignmentYProperty,
+            FrameworkPropertyMetadata(VerticalAlignment::Center));
+    status = tileBrush.Result();
+    if (!status) return status.GetStatus();
+
     auto bitmapImage =
         Meta::Register<BitmapImage>(context);
     bitmapImage
@@ -280,34 +312,6 @@ Base::Result<void> PopulateUiMedia(
             ImageBrush::ImageSourceProperty,
             FrameworkPropertyMetadata(
                 Base::Ref<ImageSource>{}))
-        .Property(
-            ImageBrush::StretchProperty,
-            FrameworkPropertyMetadata(Stretch::Fill))
-        .Property(
-            ImageBrush::ViewboxProperty,
-            FrameworkPropertyMetadata(
-                Rect{0.0, 0.0, 1.0, 1.0}))
-        .Property(
-            ImageBrush::ViewportProperty,
-            FrameworkPropertyMetadata(
-                Rect{0.0, 0.0, 1.0, 1.0}))
-        .Property(
-            ImageBrush::ViewboxUnitsProperty,
-            FrameworkPropertyMetadata(
-                BrushMappingMode::RelativeToBoundingBox))
-        .Property(
-            ImageBrush::ViewportUnitsProperty,
-            FrameworkPropertyMetadata(
-                BrushMappingMode::RelativeToBoundingBox))
-        .Property(
-            ImageBrush::TileModeProperty,
-            FrameworkPropertyMetadata(TileMode::None))
-        .Property(
-            ImageBrush::AlignmentXProperty,
-            FrameworkPropertyMetadata(HorizontalAlignment::Center))
-        .Property(
-            ImageBrush::AlignmentYProperty,
-            FrameworkPropertyMetadata(VerticalAlignment::Center))
         .Factory();
     status = imageBrush.Result();
     if (!status) return status.GetStatus();
@@ -414,6 +418,30 @@ Base::Result<void> PopulateUiMedia(
             FrameworkPropertyMetadata(Base::Transform2D{}).AffectsRender())
         .Factory();
     status = matrixTransform.Result();
+    if (!status) return status.GetStatus();
+
+    auto compositeTransform = Meta::Register<CompositeTransform>(context);
+    compositeTransform
+        .Property(CompositeTransform::CenterXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::CenterYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::ScaleXProperty,
+            FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform::ScaleYProperty,
+            FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform::SkewXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::SkewYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::RotationProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::TranslateXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::TranslateYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Factory();
+    status = compositeTransform.Result();
     if (!status) return status.GetStatus();
 
     auto transformGroup = Meta::Register<TransformGroup>(context);
@@ -573,6 +601,11 @@ Base::Result<void> PopulateUiMedia(
     status = directionalBlurEffect.Result();
     if (!status) return status.GetStatus();
 
+    auto shaderEffect = Meta::Register<ShaderEffect>(context);
+    shaderEffect.Factory();
+    status = shaderEffect.Result();
+    if (!status) return status.GetStatus();
+
     auto mediaElement = Meta::Register<MediaElement>(context);
     mediaElement
         .Event(MediaElement::BufferingEndedEvent, RoutingStrategy::Direct)
@@ -620,15 +653,6 @@ Base::Result<void> PopulateUiMedia(
         .Property(
             VisualBrush::VisualProperty,
             FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
-        .Property(
-            VisualBrush::StretchProperty,
-            FrameworkPropertyMetadata(Stretch::Fill))
-        .Property(
-            VisualBrush::ViewboxProperty,
-            FrameworkPropertyMetadata(Rect{0.0, 0.0, 1.0, 1.0}))
-        .Property(
-            VisualBrush::AlignmentYProperty,
-            FrameworkPropertyMetadata(VerticalAlignment::Center))
         .Factory();
     status = visualBrush.Result();
     if (!status) return status.GetStatus();
@@ -645,6 +669,11 @@ Base::Result<void> PopulateUiMedia(
     status = Meta::Register<KeyGesture>(context).Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<RoutedCommand>(context).Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<RoutedUICommand>(context).Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<InputBinding>(
+        context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
     return {};
 }

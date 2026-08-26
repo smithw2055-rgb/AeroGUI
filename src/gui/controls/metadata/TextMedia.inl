@@ -227,6 +227,30 @@ Base::Result<void> PopulateControlsTextMedia(
     status = hyperlink.Result();
     if (!status) return status.GetStatus();
 
+    auto inlineUi = Meta::Register<Documents::InlineUIContainer>(context);
+    inlineUi
+        .Property(
+            Documents::InlineUIContainer::ChildProperty,
+            FrameworkPropertyMetadata(Base::Ref<UIElement>{}))
+        .Factory();
+    status = inlineUi.Result();
+    if (!status) return status.GetStatus();
+
+    auto adorner = Meta::Register<Documents::Adorner>(context);
+    adorner.Factory();
+    status = adorner.Result();
+    if (!status) return status.GetStatus();
+
+    auto adornerLayer = Meta::Register<Documents::AdornerLayer>(context);
+    adornerLayer.Factory();
+    status = adornerLayer.Result();
+    if (!status) return status.GetStatus();
+
+    auto adornerDecorator = Meta::Register<Documents::AdornerDecorator>(context);
+    adornerDecorator.Factory();
+    status = adornerDecorator.Result();
+    if (!status) return status.GetStatus();
+
     auto image = Meta::Register<Image>(context);
     image
         .Property(
@@ -358,6 +382,21 @@ Base::Result<void> PopulateControlsTextMedia(
                 .AffectsRender()
                 .Validate(&ValidateNormalizedDouble)
                 .Changed(&OnPathDoubleChanged))
+        .Property(
+            Path::StrokeDashArrayProperty,
+            FrameworkPropertyMetadata(Base::String{})
+                .AffectsRender()
+                .Changed(&OnPathStringChanged))
+        .Property(
+            Path::StrokeDashOffsetProperty,
+            FrameworkPropertyMetadata(0.0)
+                .AffectsRender()
+                .Changed(&OnPathDoubleChanged))
+        .Property(
+            Path::DashStyleProperty,
+            FrameworkPropertyMetadata(Base::Ref<Media::DashStyle>{})
+                .AffectsRender()
+                .Changed(&OnPathDashStyleChanged))
         .Override(
             Shape::StretchProperty,
             FrameworkPropertyMetadata(Stretch::Uniform)

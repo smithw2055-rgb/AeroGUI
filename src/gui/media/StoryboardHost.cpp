@@ -1303,6 +1303,20 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 std::move(started), retainedHandles);
         }
         if (type ==
+            MediaAnimation::MatrixAnimation::StaticTypeId()) {
+            auto& animation =
+                static_cast<MediaAnimation::MatrixAnimation&>(timeline);
+            Aero::Media::Animation::Model::MatrixAnimation runtime =
+                Aero::Media::AnimationPrivate::Matrix(animation);
+            runtime.timing =
+                EffectiveTimelineTiming(animation, inherited);
+            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+                started = animations->Begin(
+                    propertyTarget, propertyHandle, runtime);
+            return RetainStartedAnimation(
+                std::move(started), retainedHandles);
+        }
+        if (type ==
             MediaAnimation::DoubleAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
                 MediaAnimation::DoubleAnimationUsingKeyFrames&>(timeline);
@@ -1788,6 +1802,66 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             return RetainStartedAnimation(
                 std::move(started), retainedHandles);
         }
+        if (type ==
+            MediaAnimation::MatrixAnimationUsingKeyFrames::StaticTypeId()) {
+            auto& animation = static_cast<
+                MediaAnimation::MatrixAnimationUsingKeyFrames&>(timeline);
+            Base::Vector<Aero::Media::Animation::Model::MatrixKeyFrame>
+                frames(allocator);
+            const auto schedule = MakeKeyframeSchedule(
+                animation,
+                EffectiveTimelineTiming(animation, inherited).durationMicroseconds);
+            std::uint32_t keyIndex = 0U;
+            for (const Base::Ref<MediaAnimation::MatrixKeyFrame>& frame :
+                 animation.GetKeyFrames()) {
+                if (!frame) continue;
+                Base::Result<void> appended = frames.PushBack(
+                    Aero::Media::AnimationPrivate::MatrixFrame(
+                        *frame,
+                        schedule.duration,
+                        keyIndex,
+                        schedule.count));
+                ++keyIndex;
+                if (!appended) return appended.GetStatus();
+            }
+            for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
+                Aero::Media::Animation::Model::MatrixKeyFrame current =
+                    frames[index];
+                std::uint32_t position = index;
+                while (position > 0U &&
+                       frames[position - 1U].keyTimeMicroseconds >
+                           current.keyTimeMicroseconds) {
+                    frames[position] = frames[position - 1U];
+                    --position;
+                }
+                frames[position] = current;
+            }
+            Base::Result<Meta::PropertyValue> base =
+                propertyTarget.GetValue(propertyHandle);
+            if (!base) return base.GetStatus();
+            Base::Result<Base::Transform2D> baseMatrix =
+                Meta::ValueCodec<Base::Transform2D>::Decode(base.Value());
+            Aero::Media::Animation::Model::MatrixKeyFrameAnimation runtime;
+            if (baseMatrix) {
+                runtime.baseValue = baseMatrix.Value();
+            } else if (!frames.Empty() &&
+                       frames.Front().keyTimeMicroseconds == 0U) {
+                runtime.baseValue = frames.Front().value;
+            } else {
+                return baseMatrix.GetStatus();
+            }
+            runtime.timing = EffectiveTimelineTiming(animation, inherited);
+            if (runtime.timing.durationMicroseconds == 0U && !frames.Empty()) {
+                runtime.timing.durationMicroseconds =
+                    frames.Back().keyTimeMicroseconds;
+            }
+            runtime.keyFrames = frames.AsSpan();
+            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+                started = animations->Begin(
+                    propertyTarget, propertyHandle, runtime);
+            return RetainStartedAnimation(
+                std::move(started), retainedHandles);
+        }
 
         Base::Vector<Aero::Media::Animation::Model::DiscreteAnimationKeyFrame>
             frames(allocator);
@@ -2013,13 +2087,9 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     true);
                 if (!attached) return attached.GetStatus();
             }
-            if (input != nullptr &&
-                metadata->Types().IsDerivedFrom(
-                    element->RuntimeType(),
-                    Controls::Grid::StaticTypeId())) {
-                auto& grid = static_cast<Controls::Grid&>(*element);
-                for (const Base::Ref<Input::KeyBinding>& binding :
-                     grid.GetInputBindings()) {
+            if (input != nullptr) {
+                for (const Base::Ref<Input::InputBinding>& binding :
+                     element->GetInputBindings()) {
                     if (!binding) continue;
                     Base::Result<Input::InputBindingHandle> added =
                         input->AddInputBinding(*element, binding);

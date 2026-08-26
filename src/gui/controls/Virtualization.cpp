@@ -28,7 +28,10 @@ bool ValidViewport(Size value) noexcept {
 } // namespace
 
 VirtualizingStackPanel::VirtualizingStackPanel() noexcept
-    : VirtualizingPanel(StaticTypeId()) {
+    : VirtualizingStackPanel(StaticTypeId()) {}
+
+VirtualizingStackPanel::VirtualizingStackPanel(TypeId runtimeType) noexcept
+    : VirtualizingPanel(runtimeType) {
     static_cast<void>(SetClipToBounds(true));
 }
 
@@ -90,6 +93,29 @@ void VirtualizingStackPanel::SetEstimatedItemExtent(
     SetMainOffset(
         GetItemOffset(anchor) + intraItem);
     ClampOffsets();
+    (void)UpdateRealization(true);
+}
+
+VirtualizationCacheLength
+VirtualizingStackPanel::GetCacheLength() const noexcept {
+    return GetValueOr(CacheLengthProperty, VirtualizationCacheLength{});
+}
+
+void VirtualizingStackPanel::SetCacheLength(
+    VirtualizationCacheLength value) noexcept {
+    SetValue(CacheLengthProperty, value);
+    (void)UpdateRealization(true);
+}
+
+VirtualizationCacheLengthUnit
+VirtualizingStackPanel::GetCacheLengthUnit() const noexcept {
+    return GetValueOr(
+        CacheLengthUnitProperty, VirtualizationCacheLengthUnit::Item);
+}
+
+void VirtualizingStackPanel::SetCacheLengthUnit(
+    VirtualizationCacheLengthUnit value) noexcept {
+    SetValue(CacheLengthUnitProperty, value);
     (void)UpdateRealization(true);
 }
 
@@ -282,18 +308,47 @@ VirtualizingStackPanel::CalculateRealizationRange() noexcept {
     }
     visibleCount_ =
         visibleEnd - visibleFirstIndex_;
-    const std::uint32_t overscan =
-        GetOverscanCount();
+    const VirtualizationCacheLength cache = GetCacheLength();
+    const VirtualizationCacheLengthUnit unit = GetCacheLengthUnit();
+    std::uint32_t before = 0U;
+    std::uint32_t after = 0U;
+    if (cache.cacheBeforeViewport > 0.0 ||
+        cache.cacheAfterViewport > 0.0) {
+        const double beforeValue = std::max(0.0, cache.cacheBeforeViewport);
+        const double afterValue = std::max(0.0, cache.cacheAfterViewport);
+        if (unit == VirtualizationCacheLengthUnit::Pixel) {
+            const double firstOffset = GetItemOffset(visibleFirstIndex_);
+            const double lastOffset = visibleEnd < itemCount
+                ? GetItemOffset(visibleEnd) : MainExtent();
+            before = visibleFirstIndex_ -
+                ItemIndexAtOffset(std::max(0.0, firstOffset - beforeValue));
+            const std::uint32_t afterIndex = ItemIndexAtOffset(
+                lastOffset + afterValue);
+            after = afterIndex >= visibleEnd
+                ? afterIndex - visibleEnd + (afterIndex + 1U < itemCount ? 1U : 0U)
+                : 0U;
+        } else if (unit == VirtualizationCacheLengthUnit::Page) {
+            const std::uint32_t page = std::max(1U, visibleCount_);
+            before = static_cast<std::uint32_t>(beforeValue * page);
+            after = static_cast<std::uint32_t>(afterValue * page);
+        } else {
+            before = static_cast<std::uint32_t>(beforeValue);
+            after = static_cast<std::uint32_t>(afterValue);
+        }
+    } else {
+        before = GetOverscanCount();
+        after = GetOverscanCount();
+    }
     desiredFirstIndex_ =
-        visibleFirstIndex_ > overscan
-        ? visibleFirstIndex_ - overscan
+        visibleFirstIndex_ > before
+        ? visibleFirstIndex_ - before
         : 0U;
     const std::uint32_t desiredEnd =
         std::min(
             itemCount,
             visibleEnd +
                 std::min(
-                    overscan,
+                    after,
                     itemCount - visibleEnd));
     desiredCount_ =
         desiredEnd - desiredFirstIndex_;
@@ -800,6 +855,207 @@ VirtualizingStackPanel::ArrangeOverride(
             ArrangeChild(*child, slot);
         if (!arranged) return finalSize;
         ++localIndex;
+    }
+    return finalSize;
+}
+
+namespace {
+
+constexpr double WrapItemFallback = 24.0;
+
+double WrapSlotWidth(const VirtualizingWrapPanel& panel, Size available) noexcept {
+    const double configured = panel.GetItemWidth();
+    if (configured > 0.0) return configured;
+    if (std::isfinite(available.width) && available.width > 0.0 &&
+        available.width < 1.0e11) {
+        return available.width;
+    }
+    return WrapItemFallback;
+}
+
+double WrapSlotHeight(const VirtualizingWrapPanel& panel, Size available) noexcept {
+    const double configured = panel.GetItemHeight();
+    if (configured > 0.0) return configured;
+    if (panel.GetEstimatedItemExtent() > 0.0) {
+        return panel.GetEstimatedItemExtent();
+    }
+    if (std::isfinite(available.height) && available.height > 0.0 &&
+        available.height < 1.0e11) {
+        return available.height;
+    }
+    return WrapItemFallback;
+}
+
+} // namespace
+
+VirtualizingWrapPanel::VirtualizingWrapPanel() noexcept
+    : VirtualizingStackPanel(StaticTypeId()) {}
+
+double VirtualizingWrapPanel::GetItemWidth() const noexcept {
+    return GetValueOr(ItemWidthProperty, 0.0);
+}
+
+double VirtualizingWrapPanel::GetItemHeight() const noexcept {
+    return GetValueOr(ItemHeightProperty, 0.0);
+}
+
+void VirtualizingWrapPanel::SetItemWidth(double value) noexcept {
+    if (!std::isfinite(value) || value < 0.0) return;
+    SetValue(ItemWidthProperty, value);
+}
+
+void VirtualizingWrapPanel::SetItemHeight(double value) noexcept {
+    if (!std::isfinite(value) || value < 0.0) return;
+    SetValue(ItemHeightProperty, value);
+}
+
+void VirtualizingWrapPanel::CalculateRealizationRange() noexcept {
+    const std::uint32_t itemCount = itemExtents_.Size();
+    if (itemCount == 0U) {
+        visibleFirstIndex_ = 0U;
+        visibleCount_ = 0U;
+        desiredFirstIndex_ = 0U;
+        desiredCount_ = 0U;
+        return;
+    }
+    const Size viewport{
+        data_.viewportWidth, data_.viewportHeight};
+    const double slotWidth = WrapSlotWidth(*this, viewport);
+    const double slotHeight = WrapSlotHeight(*this, viewport);
+    const std::uint32_t columns = std::max(
+        1U,
+        slotWidth > 0.0 && std::isfinite(viewport.width) && viewport.width > 0.0
+            ? static_cast<std::uint32_t>(std::max(1.0, viewport.width / slotWidth))
+            : 1U);
+    const double offset = std::max(0.0, data_.verticalOffset);
+    const std::uint32_t firstRow =
+        slotHeight > 0.0 ? static_cast<std::uint32_t>(offset / slotHeight) : 0U;
+    const std::uint32_t visibleRows = std::max(
+        1U,
+        slotHeight > 0.0 && std::isfinite(viewport.height) && viewport.height > 0.0
+            ? static_cast<std::uint32_t>(
+                  std::ceil(viewport.height / slotHeight))
+            : 1U);
+    visibleFirstIndex_ = std::min(itemCount, firstRow * columns);
+    const std::uint32_t visibleEnd = std::min(
+        itemCount, visibleFirstIndex_ + visibleRows * columns);
+    visibleCount_ = visibleEnd - visibleFirstIndex_;
+    const VirtualizationCacheLength cache = GetCacheLength();
+    std::uint32_t before = 0U;
+    std::uint32_t after = 0U;
+    if (cache.cacheBeforeViewport > 0.0 || cache.cacheAfterViewport > 0.0) {
+        if (GetCacheLengthUnit() == VirtualizationCacheLengthUnit::Pixel) {
+            before = static_cast<std::uint32_t>(
+                std::ceil(cache.cacheBeforeViewport / std::max(slotHeight, 1.0))) *
+                columns;
+            after = static_cast<std::uint32_t>(
+                std::ceil(cache.cacheAfterViewport / std::max(slotHeight, 1.0))) *
+                columns;
+        } else if (GetCacheLengthUnit() == VirtualizationCacheLengthUnit::Page) {
+            before = static_cast<std::uint32_t>(
+                cache.cacheBeforeViewport * visibleCount_);
+            after = static_cast<std::uint32_t>(
+                cache.cacheAfterViewport * visibleCount_);
+        } else {
+            before = static_cast<std::uint32_t>(cache.cacheBeforeViewport);
+            after = static_cast<std::uint32_t>(cache.cacheAfterViewport);
+        }
+    } else {
+        before = GetOverscanCount() * columns;
+        after = GetOverscanCount() * columns;
+    }
+    desiredFirstIndex_ = visibleFirstIndex_ > before
+        ? visibleFirstIndex_ - before : 0U;
+    const std::uint32_t desiredEnd = std::min(
+        itemCount, visibleEnd + after);
+    desiredCount_ = desiredEnd - desiredFirstIndex_;
+    const std::uint32_t rows =
+        (itemCount + columns - 1U) / columns;
+    SetMainExtent(static_cast<double>(rows) * slotHeight);
+}
+
+Size VirtualizingWrapPanel::MeasureOverride(Size availableSize) noexcept {
+    CalculateRealizationRange();
+    if (generator_ != nullptr) {
+        generator_->SetRealizationRange(desiredFirstIndex_, desiredCount_);
+    }
+    const bool horizontal = GetOrientation() == Orientation::Horizontal;
+    const double primaryLimit = horizontal
+        ? availableSize.width : availableSize.height;
+    const bool constrained =
+        std::isfinite(primaryLimit) && primaryLimit < 1.0e11;
+    double linePrimary = 0.0;
+    double lineCross = 0.0;
+    double desiredPrimary = 0.0;
+    double desiredCross = 0.0;
+    const Size childAvailable{
+        GetItemWidth() > 0.0 ? GetItemWidth() : availableSize.width,
+        GetItemHeight() > 0.0 ? GetItemHeight() : availableSize.height};
+    for (UIElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        Base::Result<void> measured = MeasureChild(*child, childAvailable);
+        if (!measured) return Size{};
+        const Size desired = child->GetDesiredSize();
+        const double childPrimary = horizontal
+            ? (GetItemWidth() > 0.0 ? GetItemWidth() : desired.width)
+            : (GetItemHeight() > 0.0 ? GetItemHeight() : desired.height);
+        const double childCross = horizontal
+            ? (GetItemHeight() > 0.0 ? GetItemHeight() : desired.height)
+            : (GetItemWidth() > 0.0 ? GetItemWidth() : desired.width);
+        if (constrained && linePrimary > 0.0 &&
+            linePrimary + childPrimary > primaryLimit) {
+            desiredPrimary = std::max(desiredPrimary, linePrimary);
+            desiredCross += lineCross;
+            linePrimary = 0.0;
+            lineCross = 0.0;
+        }
+        linePrimary += childPrimary;
+        lineCross = std::max(lineCross, childCross);
+    }
+    desiredPrimary = std::max(desiredPrimary, linePrimary);
+    desiredCross += lineCross;
+    const Size content = horizontal
+        ? Size{desiredPrimary, desiredCross}
+        : Size{desiredCross, desiredPrimary};
+    data_.extentWidth = std::max(content.width, availableSize.width);
+    data_.extentHeight = std::max(content.height, MainExtent());
+    data_.viewportWidth = availableSize.width;
+    data_.viewportHeight = availableSize.height;
+    return Size{
+        std::min(content.width, availableSize.width),
+        std::min(content.height, availableSize.height)};
+}
+
+Size VirtualizingWrapPanel::ArrangeOverride(Size finalSize) noexcept {
+    const bool horizontal = GetOrientation() == Orientation::Horizontal;
+    const double primaryLimit = horizontal
+        ? finalSize.width : finalSize.height;
+    double primary = 0.0;
+    double cross = 0.0;
+    double lineCross = 0.0;
+    const double originCross = horizontal
+        ? -data_.verticalOffset : -data_.horizontalOffset;
+    for (UIElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        const Size desired = child->GetDesiredSize();
+        const double childPrimary = horizontal
+            ? (GetItemWidth() > 0.0 ? GetItemWidth() : desired.width)
+            : (GetItemHeight() > 0.0 ? GetItemHeight() : desired.height);
+        const double childCross = horizontal
+            ? (GetItemHeight() > 0.0 ? GetItemHeight() : desired.height)
+            : (GetItemWidth() > 0.0 ? GetItemWidth() : desired.width);
+        if (primary > 0.0 && primary + childPrimary > primaryLimit) {
+            primary = 0.0;
+            cross += lineCross;
+            lineCross = 0.0;
+        }
+        const Rect slot = horizontal
+            ? Rect{primary, cross + originCross, childPrimary, childCross}
+            : Rect{cross + originCross, primary, childCross, childPrimary};
+        Base::Result<void> arranged = ArrangeChild(*child, slot);
+        if (!arranged) return finalSize;
+        primary += childPrimary;
+        lineCross = std::max(lineCross, childCross);
     }
     return finalSize;
 }

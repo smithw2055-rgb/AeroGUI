@@ -25,6 +25,7 @@ public:
         return {gestures_.Data(), gestures_.Size()};
     }
     bool MatchesInput(const KeyboardInput& input) const noexcept;
+    bool MatchesPointer(const PointerInput& input) const noexcept;
 
     Result<bool> CanExecute(
         const Value& parameter,

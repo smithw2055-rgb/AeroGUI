@@ -1,6 +1,7 @@
 #include <Aero/Data/CollectionView.hpp>
 #include <Aero/Data/CollectionViewSource.hpp>
 #include <Aero/DependencyObject.hpp>
+#include <Aero/Layout.hpp>
 #include <Aero/TryCast.hpp>
 
 #include <algorithm>
@@ -67,6 +68,21 @@ int ComparePropertyValues(
         rightValue.Kind() == Meta::ValueKind::Double) {
         if (leftValue.AsDouble() < rightValue.AsDouble()) return -1;
         if (leftValue.AsDouble() > rightValue.AsDouble()) return 1;
+        return 0;
+    }
+    if (leftValue.Type() == ::Aero::Meta::TypeOf<Length>() &&
+        rightValue.Type() == ::Aero::Meta::TypeOf<Length>()) {
+        const Length* leftLength =
+            static_cast<const Length*>(leftValue.AsCustom());
+        const Length* rightLength =
+            static_cast<const Length*>(rightValue.AsCustom());
+        if (leftLength == nullptr || rightLength == nullptr) {
+            return left < right ? -1 : (left > right ? 1 : 0);
+        }
+        const double leftPixels = leftLength->isAuto ? 0.0 : leftLength->value;
+        const double rightPixels = rightLength->isAuto ? 0.0 : rightLength->value;
+        if (leftPixels < rightPixels) return -1;
+        if (leftPixels > rightPixels) return 1;
         return 0;
     }
     if (leftValue.Kind() == Meta::ValueKind::String &&

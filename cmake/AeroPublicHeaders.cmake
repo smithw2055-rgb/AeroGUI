@@ -58,6 +58,10 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Documents/TextPointer.hpp
     include/Aero/Documents/TextRange.hpp
     include/Aero/Documents/Underline.hpp
+    include/Aero/Documents/InlineUIContainer.hpp
+    include/Aero/Documents/Adorner.hpp
+    include/Aero/Documents/AdornerLayer.hpp
+    include/Aero/Documents/AdornerDecorator.hpp
     include/Aero/Media/DrawingContext.hpp
     include/Aero/Events/ApplicationEventArgs.hpp
     include/Aero/Events/CommandEventArgs.hpp
@@ -114,6 +118,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Data/CollectionViewSource.hpp
     include/Aero/Resources.hpp
     include/Aero/Style.hpp
+    include/Aero/EventSetter.hpp
     include/Aero/FrameworkTemplate.hpp
     include/Aero/Controls/ControlTemplate.hpp
     include/Aero/VisualStateManager.hpp
@@ -142,6 +147,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/DiscreteObjectKeyFrame.hpp
     include/Aero/Media/Animation/DiscretePointKeyFrame.hpp
     include/Aero/Media/Animation/DiscreteSizeKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteMatrixKeyFrame.hpp
     include/Aero/Media/Animation/DiscreteStringKeyFrame.hpp
     include/Aero/Media/Animation/DiscreteThicknessKeyFrame.hpp
     include/Aero/Media/Animation/Duration.hpp
@@ -157,6 +163,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/EasingInt64KeyFrame.hpp
     include/Aero/Media/Animation/EasingPointKeyFrame.hpp
     include/Aero/Media/Animation/EasingSizeKeyFrame.hpp
+    include/Aero/Media/Animation/EasingMatrixKeyFrame.hpp
     include/Aero/Media/Animation/EasingThicknessKeyFrame.hpp
     include/Aero/Media/Animation/ElasticEase.hpp
     include/Aero/Media/Animation/ExponentialEase.hpp
@@ -175,6 +182,10 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/KeyFrame.hpp
     include/Aero/Media/Animation/KeyFrameBase.hpp
     include/Aero/Media/Animation/KeyTime.hpp
+    include/Aero/Media/Animation/MatrixAnimation.hpp
+    include/Aero/Media/Animation/MatrixAnimationBase.hpp
+    include/Aero/Media/Animation/MatrixAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/MatrixKeyFrame.hpp
     include/Aero/Media/Animation/LinearColorKeyFrame.hpp
     include/Aero/Media/Animation/LinearDoubleKeyFrame.hpp
     include/Aero/Media/Animation/LinearInt16KeyFrame.hpp
@@ -182,6 +193,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/LinearInt64KeyFrame.hpp
     include/Aero/Media/Animation/LinearPointKeyFrame.hpp
     include/Aero/Media/Animation/LinearSizeKeyFrame.hpp
+    include/Aero/Media/Animation/LinearMatrixKeyFrame.hpp
     include/Aero/Media/Animation/LinearThicknessKeyFrame.hpp
     include/Aero/Media/Animation/ObjectAnimationUsingKeyFrames.hpp
     include/Aero/Media/Animation/ObjectKeyFrame.hpp
@@ -209,6 +221,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/SplineInt64KeyFrame.hpp
     include/Aero/Media/Animation/SplinePointKeyFrame.hpp
     include/Aero/Media/Animation/SplineSizeKeyFrame.hpp
+    include/Aero/Media/Animation/SplineMatrixKeyFrame.hpp
     include/Aero/Media/Animation/SplineThicknessKeyFrame.hpp
     include/Aero/Media/Animation/Storyboard.hpp
     include/Aero/Media/Animation/StringAnimationUsingKeyFrames.hpp
@@ -300,6 +313,8 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/HeaderedContentControl.hpp
     include/Aero/Controls/VirtualizingPanel.hpp
     include/Aero/Controls/VirtualizingStackPanel.hpp
+    include/Aero/Controls/VirtualizationCacheLength.hpp
+    include/Aero/Controls/VirtualizingWrapPanel.hpp
     include/Aero/Controls/Menu.hpp
     include/Aero/Controls/ToolBar.hpp
     include/Aero/Controls/StatusBar.hpp
@@ -336,8 +351,10 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/GradientBrush.hpp
     include/Aero/Media/LinearGradientBrush.hpp
     include/Aero/Media/RadialGradientBrush.hpp
+    include/Aero/Media/TileBrush.hpp
     include/Aero/Media/ImageBrush.hpp
     include/Aero/Media/VisualBrush.hpp
+    include/Aero/Media/DashStyle.hpp
     include/Aero/Media/Transform.hpp
     include/Aero/Media/TranslateTransform.hpp
     include/Aero/Media/ScaleTransform.hpp
@@ -348,6 +365,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/PerspectiveTransform3D.hpp
     include/Aero/Media/MatrixTransform3D.hpp
     include/Aero/Media/CompositeTransform3D.hpp
+    include/Aero/Media/CompositeTransform.hpp
     include/Aero/Media/TransformGroup.hpp
     include/Aero/Media/Effect.hpp
     include/Aero/Media/BlurEffect.hpp
@@ -355,6 +373,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/PixelateEffect.hpp
     include/Aero/Media/TintEffect.hpp
     include/Aero/Media/DirectionalBlurEffect.hpp
+    include/Aero/Media/ShaderEffect.hpp
     include/Aero/Media/StreamGeometry.hpp
     include/Aero/Media/PathSegment.hpp
     include/Aero/Media/LineSegment.hpp
@@ -377,7 +396,10 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/InputGesture.hpp
     include/Aero/KeyGesture.hpp
     include/Aero/RoutedCommand.hpp
+    include/Aero/RoutedUICommand.hpp
+    include/Aero/InputBinding.hpp
     include/Aero/KeyBinding.hpp
+    include/Aero/MouseBinding.hpp
     include/Aero/CommandBinding.hpp
     include/Aero/KeyboardNavigation.hpp
     include/Aero/FocusManager.hpp

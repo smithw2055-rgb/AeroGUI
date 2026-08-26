@@ -49,6 +49,7 @@
 #include <Aero/Controls/TreeView.hpp>
 #include <Aero/Controls/VirtualizingPanel.hpp>
 #include <Aero/Controls/VirtualizingStackPanel.hpp>
+#include <Aero/Controls/VirtualizingWrapPanel.hpp>
 #include <Aero/Controls/MenuItem.hpp>
 #include <Aero/Controls/ContextMenu.hpp>
 #include <Aero/Controls/ContextMenuService.hpp>

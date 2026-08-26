@@ -451,6 +451,13 @@ Base::Result<void> PopulateEnumMetadata(
         description
             .Value("Standard", ::Aero::Controls::VirtualizationMode::Standard)
             .Value("Recycling", ::Aero::Controls::VirtualizationMode::Recycling););
+    AERO_REGISTER_ENUM(
+        ::Aero::Controls::VirtualizationCacheLengthUnit,
+        "VirtualizationCacheLengthUnit",
+        description
+            .Value("Pixel", ::Aero::Controls::VirtualizationCacheLengthUnit::Pixel)
+            .Value("Item", ::Aero::Controls::VirtualizationCacheLengthUnit::Item)
+            .Value("Page", ::Aero::Controls::VirtualizationCacheLengthUnit::Page););
 
 #undef AERO_REGISTER_ENUM
     return {};

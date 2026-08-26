@@ -300,6 +300,30 @@ Base::Transform2D SkewTransform::GetMatrix() const noexcept {
     return AroundCenter(value, GetCenterX(), GetCenterY());
 }
 
+Base::Transform2D CompositeTransform::GetMatrix() const noexcept {
+    Base::Transform2D scale;
+    scale.m11 = GetScaleX();
+    scale.m22 = GetScaleY();
+    Base::Transform2D skew;
+    skew.m21 = std::tan(GetSkewX() * Pi / 180.0);
+    skew.m12 = std::tan(GetSkewY() * Pi / 180.0);
+    const double radians = GetRotation() * Pi / 180.0;
+    const double cosine = std::cos(radians);
+    const double sine = std::sin(radians);
+    Base::Transform2D rotate;
+    rotate.m11 = cosine;
+    rotate.m12 = sine;
+    rotate.m21 = -sine;
+    rotate.m22 = cosine;
+    Base::Transform2D translate;
+    translate.dx = GetTranslateX();
+    translate.dy = GetTranslateY();
+    Base::Transform2D composed = ComposeTransforms(scale, skew);
+    composed = ComposeTransforms(composed, rotate);
+    composed = AroundCenter(composed, GetCenterX(), GetCenterY());
+    return ComposeTransforms(composed, translate);
+}
+
 Base::Transform2D MatrixTransform::GetMatrixValue() const noexcept {
     return GetValueOr(MatrixProperty, Base::Transform2D{});
 }

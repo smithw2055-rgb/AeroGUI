@@ -171,7 +171,8 @@ set(_aero_gui_templates_sources
     src/gui/templates/Templates.cpp)
 
 set(_aero_gui_documents_sources
-    src/gui/documents/Documents.cpp)
+    src/gui/documents/Documents.cpp
+    src/gui/documents/Adorners.cpp)
 
 set(_aero_gui_shapes_sources
     src/gui/shapes/Path.cpp

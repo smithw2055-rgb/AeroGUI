@@ -368,6 +368,19 @@ constexpr const char* BlurPixelShaderSource =
     "    fragColor = (sum / 16.0) * (vColor * vCoverage);\n"
     "}\n";
 
+constexpr const char* CustomEffectPixelShaderSource =
+    "#version 330 core\n"
+    "uniform sampler2D uTexture;\n"
+    "uniform vec4 uEffectColor;\n"
+    "in vec4 vColor;\n"
+    "in vec2 vUV;\n"
+    "in float vCoverage;\n"
+    "out vec4 fragColor;\n"
+    "void main() {\n"
+    "    vec4 src = texture(uTexture, vUV);\n"
+    "    fragColor = src * uEffectColor * (vColor * vCoverage);\n"
+    "}\n";
+
 constexpr const char* ShadowPixelShaderSource =
     "#version 330 core\n"
     "uniform sampler2D uTexture;\n"
@@ -491,14 +504,16 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     GLuint blurFS = CompileShader(gl, GL_FRAGMENT_SHADER, BlurPixelShaderSource);
     GLuint shadowFS = CompileShader(gl, GL_FRAGMENT_SHADER, ShadowPixelShaderSource);
     GLuint maskFS = CompileShader(gl, GL_FRAGMENT_SHADER, MaskPixelShaderSource);
+    GLuint customFS = CompileShader(gl, GL_FRAGMENT_SHADER, CustomEffectPixelShaderSource);
     if (solidFS == 0 || patternFS == 0 || sdfFS == 0 ||
-        blurFS == 0 || shadowFS == 0 || maskFS == 0) {
+        blurFS == 0 || shadowFS == 0 || maskFS == 0 || customFS == 0) {
         if (solidFS != 0) gl.glDeleteShader(solidFS);
         if (patternFS != 0) gl.glDeleteShader(patternFS);
         if (sdfFS != 0) gl.glDeleteShader(sdfFS);
         if (blurFS != 0) gl.glDeleteShader(blurFS);
         if (shadowFS != 0) gl.glDeleteShader(shadowFS);
         if (maskFS != 0) gl.glDeleteShader(maskFS);
+        if (customFS != 0) gl.glDeleteShader(customFS);
         gl.glDeleteShader(vertexShader);
         return Base::Status::Failure(Base::ErrorCode::InternalError, "Failed to compile a GL fragment shader");
     }
@@ -509,15 +524,18 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     blurProgram_ = LinkProgram(gl, vertexShader, blurFS);
     shadowProgram_ = LinkProgram(gl, vertexShader, shadowFS);
     maskProgram_ = LinkProgram(gl, vertexShader, maskFS);
+    customEffectProgram_ = LinkProgram(gl, vertexShader, customFS);
     gl.glDeleteShader(solidFS);
     gl.glDeleteShader(patternFS);
     gl.glDeleteShader(sdfFS);
     gl.glDeleteShader(blurFS);
     gl.glDeleteShader(shadowFS);
     gl.glDeleteShader(maskFS);
+    gl.glDeleteShader(customFS);
     gl.glDeleteShader(vertexShader);
     if (solidProgram_ == 0 || patternProgram_ == 0 || sdfProgram_ == 0 ||
-        blurProgram_ == 0 || shadowProgram_ == 0 || maskProgram_ == 0) {
+        blurProgram_ == 0 || shadowProgram_ == 0 || maskProgram_ == 0 ||
+        customEffectProgram_ == 0) {
         Shutdown();
         return Base::Status::Failure(Base::ErrorCode::InternalError, "Failed to link a GL program");
     }
@@ -615,12 +633,14 @@ void OpenGL33RenderDevice::Shutdown() noexcept {
         if (blurProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(blurProgram_);
         if (shadowProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(shadowProgram_);
         if (maskProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(maskProgram_);
+        if (customEffectProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(customEffectProgram_);
         solidProgram_ = 0;
         patternProgram_ = 0;
         sdfProgram_ = 0;
         blurProgram_ = 0;
         shadowProgram_ = 0;
         maskProgram_ = 0;
+        customEffectProgram_ = 0;
         currentProgram_ = 0;
         if (dynamicVB_ != 0 && gl.glDeleteBuffers != nullptr) gl.glDeleteBuffers(1, &dynamicVB_);
         if (dynamicIB_ != 0 && gl.glDeleteBuffers != nullptr) gl.glDeleteBuffers(1, &dynamicIB_);
@@ -847,6 +867,13 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
             sampler = samplers_[batch.imageSampler.v & 0x3F];
         }
         break;
+    case Shader::Custom_Effect:
+        program = customEffectProgram_;
+        if (batch.image != nullptr) {
+            texture = static_cast<OpenGL33Texture*>(batch.image)->GetNativeTexture();
+            sampler = samplers_[batch.imageSampler.v & 0x3F];
+        }
+        break;
     case Shader::Shadow:
         program = shadowProgram_;
         needsTextureSize = true;
@@ -895,6 +922,25 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
                 static_cast<const float*>(batch.pixelUniforms[0].values);
             g_gl.glUniform2f(
                 textureSizeLocation, size[0], size[1]);
+        }
+    }
+
+    if (batch.shader.v == Shader::Custom_Effect &&
+        batch.pixelUniforms[1].values != nullptr &&
+        batch.pixelUniforms[1].numDwords >= 4U) {
+        const GLint colorLocation =
+            g_gl.glGetUniformLocation(program, "uEffectColor");
+        if (colorLocation != -1) {
+            const float* color =
+                static_cast<const float*>(batch.pixelUniforms[1].values);
+            g_gl.glUniform4f(
+                colorLocation, color[0], color[1], color[2], color[3]);
+        }
+    } else if (batch.shader.v == Shader::Custom_Effect) {
+        const GLint colorLocation =
+            g_gl.glGetUniformLocation(program, "uEffectColor");
+        if (colorLocation != -1) {
+            g_gl.glUniform4f(colorLocation, 1.0F, 1.0F, 1.0F, 1.0F);
         }
     }
 

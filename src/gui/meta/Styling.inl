@@ -84,6 +84,16 @@ Base::Result<void> PopulateUiStyling(
     status = setter.Result();
     if (!status) return status.GetStatus();
 
+    auto eventSetter = Meta::Register<EventSetter>(context);
+    eventSetter
+        .Property(
+            "Handler",
+            &EventSetter::GetHandlerName,
+            &EventSetter::SetHandlerName)
+        .Factory();
+    status = eventSetter.Result();
+    if (!status) return status.GetStatus();
+
     status = Meta::Register<Data::IValueConverter>(context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<Data::IMultiValueConverter>(

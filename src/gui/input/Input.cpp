@@ -3,6 +3,8 @@
 #include <Aero/Base/Utf8.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Geometry.hpp>
+#include "gui/media/GeometryFlatten.hpp"
 #include "gui/media/Transform3DMath.hpp"
 
 #include <cmath>
@@ -330,6 +332,11 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
         Contains(element.GetRenderSize(), position);
     if (!contains && element.GetClipToBounds()) {
         return HitTestResult{};
+    }
+    if (Base::Ref<Media::Geometry> clip = element.GetClip()) {
+        if (!Media::GeometryContainsLocalPoint(*clip, position)) {
+            return HitTestResult{};
+        }
     }
 
     const auto children = AeroGuiInternal::RenderChildren(element);
@@ -827,6 +834,13 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
     }
     if (!raised) return raised.GetStatus();
     result.routed = true;
+    if (commands_ != nullptr &&
+        (input.action == PointerAction::Down ||
+         input.action == PointerAction::Up)) {
+        Base::Result<bool> command =
+            commands_->ProcessInput(*result.hit.target, input);
+        if (!command) return command.GetStatus();
+    }
     if (input.action == PointerAction::Up) {
         const std::uint32_t index = FindCapture(input.pointerId);
         if (index != UINT32_MAX) {

@@ -178,6 +178,7 @@ private:
     ID3D11PixelShader* blurPixelShader_ = nullptr;
     ID3D11PixelShader* shadowPixelShader_ = nullptr;
     ID3D11PixelShader* maskPixelShader_ = nullptr;
+    ID3D11PixelShader* customEffectPixelShader_ = nullptr;
     ID3D11InputLayout* vertex2DInputLayout_ = nullptr;
 
     DeviceCaps caps_{};

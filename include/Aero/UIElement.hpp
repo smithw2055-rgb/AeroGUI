@@ -26,8 +26,8 @@ using Meta::TypeId;
 
 class UIElement;
 class AeroGuiInternal;
-namespace Media { class Transform; class Transform3D; class Effect; class Brush; }
-namespace Input { class RoutedCommand; }
+namespace Media { class Transform; class Transform3D; class Effect; class Brush; class Geometry; }
+namespace Input { class RoutedCommand; class InputBinding; }
 
 class UIElementChildRange {
 public:
@@ -243,6 +243,7 @@ public:
     Size GetUntransformedDesiredSize() const noexcept;
     Size GetPreviousMeasureConstraint() const noexcept;
     bool GetClipToBounds() const noexcept;
+    Ref<Media::Geometry> GetClip() const noexcept;
     BlendMode GetBlendMode() const noexcept;
     Ref<Media::Effect> GetEffect() const noexcept;
     Ref<Media::Brush> GetOpacityMask() const noexcept;
@@ -275,6 +276,7 @@ public:
 
     // Dependency properties
     inline static constexpr DependencyProperty<bool> ClipToBoundsProperty{"ClipToBounds"};
+    inline static constexpr DependencyProperty<Ref<Media::Geometry>> ClipProperty{"Clip"};
     inline static constexpr DependencyProperty<BlendMode> BlendModeProperty{"BlendMode"};
     inline static constexpr DependencyProperty<Ref<Media::Effect>> EffectProperty{"Effect"};
     inline static constexpr DependencyProperty<Ref<Media::Brush>> OpacityMaskProperty{"OpacityMask"};
@@ -297,6 +299,7 @@ public:
 
     // Property operations
     void SetClipToBounds(bool value) noexcept;
+    void SetClip(Ref<Media::Geometry> value) noexcept;
     void SetBlendMode(
         BlendMode value) noexcept;
     void SetEffect(
@@ -310,6 +313,9 @@ public:
     void SetIsTabStop(bool value) noexcept;
     void SetTabIndex(std::uint32_t value) noexcept;
     void SetIsFocusScope(bool value) noexcept;
+    Result<void> AddInputBinding(Ref<Input::InputBinding> binding) noexcept;
+    void ClearInputBindings() noexcept;
+    Base::Span<const Ref<Input::InputBinding>> GetInputBindings() const noexcept;
     void SetRenderTransform(
         Ref<Media::Transform> value) noexcept;
     void SetTransform3D(
@@ -382,6 +388,7 @@ private:
 
     struct Rare {
         void* routedHandlers = nullptr;
+        void* inputBindings = nullptr;
     };
 
     Rare& EnsureRare() noexcept;

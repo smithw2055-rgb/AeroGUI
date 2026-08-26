@@ -8,8 +8,10 @@
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Style.hpp>
+#include <Aero/EventSetter.hpp>
 #include <Aero/Triggers/Triggers.hpp>
 #include <Aero/Value.hpp>
+#include <Aero/UIElement.hpp>
 
 #include <new>
 
@@ -84,13 +86,18 @@ SetterBase* SetterBaseCollection::GetItem(std::uint32_t index) const noexcept {
 }
 
 Base::Result<void> SetterBaseCollection::Add(
-    Base::Ref<Setter> setter) noexcept {
+    Base::Ref<SetterBase> setter) noexcept {
     if (owner_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Setter collection is detached");
     }
     return owner_->AddAuthoredSetter(std::move(setter));
+}
+
+Base::Result<void> SetterBaseCollection::Add(
+    Base::Ref<Setter> setter) noexcept {
+    return Add(Base::Ref<SetterBase>(std::move(setter)));
 }
 
 void SetterBaseCollection::Clear() noexcept {
@@ -341,7 +348,7 @@ bool Style::SetBasedOn(
 }
 
 Base::Result<void> Style::AddAuthoredSetter(
-    Base::Ref<Setter> setter) noexcept {
+    Base::Ref<SetterBase> setter) noexcept {
     if (sealed_) {
         return InvalidStyle(
             "Cannot modify a sealed Style");
@@ -352,6 +359,11 @@ Base::Result<void> Style::AddAuthoredSetter(
     }
     return authoredSetterObjects_.PushBack(
         std::move(setter));
+}
+
+Base::Result<void> Style::AddAuthoredSetter(
+    Base::Ref<Setter> setter) noexcept {
+    return AddAuthoredSetter(Base::Ref<SetterBase>(std::move(setter)));
 }
 
 Base::Result<void> Style::AddAuthoredTrigger(
@@ -373,6 +385,10 @@ void Style::ClearAuthoredSetters() noexcept {
         return;
     }
     authoredSetterObjects_.Clear();
+}
+
+void EventSetter::SetHandlerName(Base::StringView value) noexcept {
+    static_cast<void>(handlerName_.Assign(value));
 }
 
 void Style::ClearAuthoredTriggers() noexcept {
@@ -487,9 +503,10 @@ Base::Result<void> Style::SealRuntime(
     // setters use owner-qualified properties. Infer the owner for declarations
     // such as Property="local:DateTime.Template".
     if (targetType_ == InvalidTypeId) {
-        for (const Base::Ref<Setter>& authored : authoredSetterObjects_) {
-            if (!authored) continue;
-            Base::StringView name = authored->GetPropertyName();
+        for (const Base::Ref<SetterBase>& authored : authoredSetterObjects_) {
+            Setter* setter = ::Aero::TryCast<Setter>(authored.Get());
+            if (setter == nullptr) continue;
+            Base::StringView name = setter->GetPropertyName();
             std::uint32_t dot = UINT32_MAX;
             for (std::uint32_t index = 0U;
                  index < name.SizeBytes(); ++index) {
@@ -751,6 +768,22 @@ Base::Result<void> StyleEngine::Apply(
             return applied.GetStatus();
         }
     }
+    UIElement* element = ::Aero::TryCast<UIElement>(&object);
+    if (element != nullptr) {
+        for (const Base::Ref<SetterBase>& authored : style.GetAuthoredSetters()) {
+            EventSetter* eventSetter =
+                ::Aero::TryCast<EventSetter>(authored.Get());
+            if (eventSetter == nullptr ||
+                !eventSetter->GetEvent().IsValid() ||
+                eventSetter->GetHandler().Empty()) {
+                continue;
+            }
+            Base::Result<void> added = element->AddHandlerChecked(
+                eventSetter->GetEvent(),
+                eventSetter->GetHandler());
+            if (!added) return added.GetStatus();
+        }
+    }
     if (existing == UINT32_MAX) {
         StyleApplication application;
         application.object = &object;
@@ -876,6 +909,21 @@ Base::Result<void> StyleEngine::ClearSetters(
         Base::Result<void> cleared = values_->ClearStyleValue(object, setter.property);
         if (!cleared) {
             return cleared.GetStatus();
+        }
+    }
+    UIElement* element = ::Aero::TryCast<UIElement>(&object);
+    if (element != nullptr) {
+        for (const Base::Ref<SetterBase>& authored : style.GetAuthoredSetters()) {
+            EventSetter* eventSetter =
+                ::Aero::TryCast<EventSetter>(authored.Get());
+            if (eventSetter == nullptr ||
+                !eventSetter->GetEvent().IsValid() ||
+                eventSetter->GetHandler().Empty()) {
+                continue;
+            }
+            static_cast<void>(element->RemoveHandler(
+                eventSetter->GetEvent(),
+                eventSetter->GetHandler()));
         }
     }
     return {};

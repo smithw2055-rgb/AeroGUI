@@ -291,6 +291,72 @@ void RadialGradientBrush::SetRadiusY(
     SetValue(RadiusYProperty, value);
 }
 
+Stretch TileBrush::GetStretch() const noexcept {
+    return GetValueOr(StretchProperty, Stretch::Fill);
+}
+
+Rect TileBrush::GetViewbox() const noexcept {
+    return GetValueOr(ViewboxProperty, Rect{0.0, 0.0, 1.0, 1.0});
+}
+
+Rect TileBrush::GetViewport() const noexcept {
+    return GetValueOr(ViewportProperty, Rect{0.0, 0.0, 1.0, 1.0});
+}
+
+BrushMappingMode TileBrush::GetViewboxUnits() const noexcept {
+    return GetValueOr(
+        ViewboxUnitsProperty, BrushMappingMode::RelativeToBoundingBox);
+}
+
+BrushMappingMode TileBrush::GetViewportUnits() const noexcept {
+    return GetValueOr(
+        ViewportUnitsProperty, BrushMappingMode::RelativeToBoundingBox);
+}
+
+TileMode TileBrush::GetTileMode() const noexcept {
+    return GetValueOr(TileModeProperty, TileMode::None);
+}
+
+HorizontalAlignment TileBrush::GetAlignmentX() const noexcept {
+    return GetValueOr(AlignmentXProperty, HorizontalAlignment::Center);
+}
+
+VerticalAlignment TileBrush::GetAlignmentY() const noexcept {
+    return GetValueOr(AlignmentYProperty, VerticalAlignment::Center);
+}
+
+void TileBrush::SetStretch(Stretch value) noexcept {
+    SetValue(StretchProperty, value);
+}
+
+void TileBrush::SetViewbox(Rect value) noexcept {
+    SetValue(ViewboxProperty, value);
+}
+
+void TileBrush::SetViewport(Rect value) noexcept {
+    SetValue(ViewportProperty, value);
+}
+
+void TileBrush::SetViewboxUnits(BrushMappingMode value) noexcept {
+    SetValue(ViewboxUnitsProperty, value);
+}
+
+void TileBrush::SetViewportUnits(BrushMappingMode value) noexcept {
+    SetValue(ViewportUnitsProperty, value);
+}
+
+void TileBrush::SetTileMode(TileMode value) noexcept {
+    SetValue(TileModeProperty, value);
+}
+
+void TileBrush::SetAlignmentX(HorizontalAlignment value) noexcept {
+    SetValue(AlignmentXProperty, value);
+}
+
+void TileBrush::SetAlignmentY(VerticalAlignment value) noexcept {
+    SetValue(AlignmentYProperty, value);
+}
+
 Base::Ref<ImageSource>
 ImageBrush::GetSource() const noexcept {
     return GetValueOr(
@@ -298,94 +364,10 @@ ImageBrush::GetSource() const noexcept {
         Base::Ref<ImageSource>{});
 }
 
-Stretch ImageBrush::GetStretch() const noexcept {
-    return GetValueOr(
-        StretchProperty, Stretch::Fill);
-}
-
-Rect ImageBrush::GetViewbox() const noexcept {
-    return GetValueOr(
-        ViewboxProperty,
-        Rect{0.0, 0.0, 1.0, 1.0});
-}
-
-Rect ImageBrush::GetViewport() const noexcept {
-    return GetValueOr(
-        ViewportProperty,
-        Rect{0.0, 0.0, 1.0, 1.0});
-}
-
-BrushMappingMode ImageBrush::GetViewboxUnits() const noexcept {
-    return GetValueOr(
-        ViewboxUnitsProperty,
-        BrushMappingMode::RelativeToBoundingBox);
-}
-
-BrushMappingMode ImageBrush::GetViewportUnits() const noexcept {
-    return GetValueOr(
-        ViewportUnitsProperty,
-        BrushMappingMode::RelativeToBoundingBox);
-}
-
-TileMode ImageBrush::GetTileMode() const noexcept {
-    return GetValueOr(
-        TileModeProperty, TileMode::None);
-}
-
-HorizontalAlignment ImageBrush::GetAlignmentX() const noexcept {
-    return GetValueOr(
-        AlignmentXProperty, HorizontalAlignment::Center);
-}
-
-VerticalAlignment ImageBrush::GetAlignmentY() const noexcept {
-    return GetValueOr(
-        AlignmentYProperty, VerticalAlignment::Center);
-}
-
 void ImageBrush::SetSource(
     Base::Ref<ImageSource> value) noexcept {
     SetValue(
         ImageSourceProperty, std::move(value));
-}
-
-void ImageBrush::SetStretch(
-    Stretch value) noexcept {
-    SetValue(StretchProperty, value);
-}
-
-void ImageBrush::SetViewbox(
-    Rect value) noexcept {
-    SetValue(ViewboxProperty, value);
-}
-
-void ImageBrush::SetViewport(
-    Rect value) noexcept {
-    SetValue(ViewportProperty, value);
-}
-
-void ImageBrush::SetViewboxUnits(
-    BrushMappingMode value) noexcept {
-    SetValue(ViewboxUnitsProperty, value);
-}
-
-void ImageBrush::SetViewportUnits(
-    BrushMappingMode value) noexcept {
-    SetValue(ViewportUnitsProperty, value);
-}
-
-void ImageBrush::SetTileMode(
-    TileMode value) noexcept {
-    SetValue(TileModeProperty, value);
-}
-
-void ImageBrush::SetAlignmentX(
-    HorizontalAlignment value) noexcept {
-    SetValue(AlignmentXProperty, value);
-}
-
-void ImageBrush::SetAlignmentY(
-    VerticalAlignment value) noexcept {
-    SetValue(AlignmentYProperty, value);
 }
 
 Base::Result<Base::Ref<Brush>>

@@ -104,6 +104,8 @@ protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
+    std::uint32_t GetVisualChildrenCount() const noexcept override;
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
     friend class ::Aero::AeroGuiInternal;

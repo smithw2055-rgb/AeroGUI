@@ -123,6 +123,10 @@ Base::Result<void> PopulateCoreMetadata(
 #include <Aero/Input.hpp>
 #include <Aero/ICommand.hpp>
 #include <Aero/RoutedCommand.hpp>
+#include <Aero/RoutedUICommand.hpp>
+#include <Aero/InputBinding.hpp>
+#include <Aero/MouseBinding.hpp>
+#include <Aero/EventSetter.hpp>
 #include <Aero/KeyboardNavigation.hpp>
 #include <Aero/FocusManager.hpp>
 #include <Aero/KeyBinding.hpp>
@@ -149,6 +153,7 @@ Base::Result<void> PopulateCoreMetadata(
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/DashStyle.hpp>
 #include <Aero/Media/StreamGeometry.hpp>
 #include <Aero/Media/PathSegment.hpp>
 #include <Aero/Media/LineSegment.hpp>

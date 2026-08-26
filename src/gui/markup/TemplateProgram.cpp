@@ -384,13 +384,12 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             Base::ErrorCode::ValidationFailed,
             "Style TargetType must identify an object type");
     }
-    for (const Base::Ref<Aero::Setter>& entry :
+    for (const Base::Ref<Aero::SetterBase>& entry :
          style.GetAuthoredSetters()) {
-        Aero::Setter* setter = entry.Get();
+        Aero::Setter* setter =
+            ::Aero::TryCast<Aero::Setter>(entry.Get());
         if (setter == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Style Setter requires Property and Value");
+            continue;
         }
         if (setter->GetPropertyName().Empty()) {
             return Base::Status::Failure(

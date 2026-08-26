@@ -2,6 +2,7 @@
 
 #include <Aero/Controls/ItemContainerGenerator.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
+#include <Aero/Controls/VirtualizationCacheLength.hpp>
 #include <Aero/Controls/VirtualizingPanel.hpp>
 
 namespace Aero::Controls {
@@ -13,6 +14,11 @@ class AERO_GUI_API VirtualizingStackPanel
 public:
     VirtualizingStackPanel() noexcept;
     ~VirtualizingStackPanel() override;
+
+    VirtualizationCacheLength GetCacheLength() const noexcept;
+    void SetCacheLength(VirtualizationCacheLength value) noexcept;
+    VirtualizationCacheLengthUnit GetCacheLengthUnit() const noexcept;
+    void SetCacheLengthUnit(VirtualizationCacheLengthUnit value) noexcept;
 
     Orientation GetOrientation() const noexcept;
     void SetOrientation(
@@ -62,14 +68,37 @@ public:
     inline static constexpr DependencyProperty<Orientation> OrientationProperty{"Orientation"};
     inline static constexpr DependencyProperty<std::uint32_t> OverscanCountProperty{"OverscanCount"};
     inline static constexpr DependencyProperty<double> EstimatedItemExtentProperty{"EstimatedItemExtent"};
+    inline static constexpr DependencyProperty<VirtualizationCacheLength> CacheLengthProperty{"CacheLength"};
+    inline static constexpr DependencyProperty<VirtualizationCacheLengthUnit> CacheLengthUnitProperty{"CacheLengthUnit"};
 
 protected:
+    explicit VirtualizingStackPanel(TypeId runtimeType) noexcept;
     void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
     Size MeasureOverride(
         Size availableSize) noexcept override;
     Size ArrangeOverride(
         Size finalSize) noexcept override;
+    virtual void CalculateRealizationRange() noexcept;
+
+    Result<void> UpdateRealization(
+        bool notifyGenerator) noexcept;
+    double MainOffset() const noexcept;
+    double MainViewport() const noexcept;
+    double MainExtent() const noexcept;
+    void SetMainExtent(double value) noexcept;
+    std::uint32_t ItemIndexAtOffset(
+        double offset) const noexcept;
+
+    ItemContainerGenerator* generator_ = nullptr;
+    Base::Vector<double> itemExtents_;
+    ScrollData data_{};
+    std::uint32_t visibleFirstIndex_ = 0U;
+    std::uint32_t visibleCount_ = 0U;
+    std::uint32_t desiredFirstIndex_ = 0U;
+    std::uint32_t desiredCount_ = 0U;
+    double estimatedItemExtent_ = 24.0;
+    Orientation orientation_ = Orientation::Vertical;
 
 private:
     friend class ItemContainerGenerator;
@@ -77,18 +106,9 @@ private:
     friend struct ItemContainerGeneratorRuntime;
 #endif
 
-    ItemContainerGenerator* generator_ = nullptr;
-    Base::Vector<double> itemExtents_;
     Base::Vector<double> extentTree_;
-    ScrollData data_;
     double crossExtent_ = 0.0;
-    double estimatedItemExtent_ = 24.0;
     std::uint32_t overscanCount_ = 2U;
-    Orientation orientation_ = Orientation::Vertical;
-    std::uint32_t visibleFirstIndex_ = 0U;
-    std::uint32_t visibleCount_ = 0U;
-    std::uint32_t desiredFirstIndex_ = 0U;
-    std::uint32_t desiredCount_ = 0U;
 
     Result<void> AttachGenerator(
         ItemContainerGenerator& generator,
@@ -103,16 +123,7 @@ private:
     Result<void> ApplyExtentDelta(
         const ItemsChangedEvent& event,
         std::uint32_t itemCount) noexcept;
-    Result<void> UpdateRealization(
-        bool notifyGenerator) noexcept;
-    void CalculateRealizationRange() noexcept;
-    std::uint32_t ItemIndexAtOffset(
-        double offset) const noexcept;
-    double MainOffset() const noexcept;
-    double MainViewport() const noexcept;
-    double MainExtent() const noexcept;
     void SetMainOffset(double value) noexcept;
-    void SetMainExtent(double value) noexcept;
     void ClampOffsets() noexcept;
     double ExtentForIndex(
         std::uint32_t index) const noexcept;

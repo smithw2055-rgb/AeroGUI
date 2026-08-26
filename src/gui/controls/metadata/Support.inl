@@ -355,9 +355,11 @@ void AddGridInputBinding(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    Base::Ref<Input::KeyBinding> retained =
-        Base::Ref<Input::KeyBinding>::TryFromBorrowed(
-            static_cast<Input::KeyBinding&>(*value));
+    Input::InputBinding* binding =
+        ::Aero::TryCast<Input::InputBinding>(value.Get());
+    if (binding == nullptr) return;
+    Base::Ref<Input::InputBinding> retained =
+        Base::Ref<Input::InputBinding>::TryFromBorrowed(*binding);
     if (retained) {
         (void)static_cast<Grid&>(owner).AddInputBinding(std::move(retained));
     }
@@ -448,6 +450,25 @@ void OnPathLineCapChanged(
     ::Aero::DependencyObject& object,
     const PenLineCap&,
     const PenLineCap&) noexcept {
+    AeroGuiInternal::PathInvalidateGeometry(
+        static_cast<Path&>(object));
+}
+
+void OnPathStringChanged(
+    ::Aero::DependencyObject& object,
+    const Base::String&,
+    const Base::String&) noexcept {
+    if (object.PropertyRegistry().Types().IsDerivedFrom(
+            object.RuntimeType(), Path::StaticTypeId())) {
+        AeroGuiInternal::PathInvalidateGeometry(
+            static_cast<Path&>(object));
+    }
+}
+
+void OnPathDashStyleChanged(
+    ::Aero::DependencyObject& object,
+    const Base::Ref<Media::DashStyle>&,
+    const Base::Ref<Media::DashStyle>&) noexcept {
     AeroGuiInternal::PathInvalidateGeometry(
         static_cast<Path&>(object));
 }

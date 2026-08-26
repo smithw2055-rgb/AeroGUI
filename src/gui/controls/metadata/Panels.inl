@@ -79,6 +79,14 @@ Base::Result<void> PopulateControlsPanels(
     status = virtualizingPanel.Result();
     if (!status) return status.GetStatus();
 
+    auto cacheLength = Meta::Register<VirtualizationCacheLength>(context);
+    cacheLength
+        .Field<&VirtualizationCacheLength::cacheBeforeViewport>("CacheBeforeViewport")
+        .Field<&VirtualizationCacheLength::cacheAfterViewport>("CacheAfterViewport")
+        .ValueSemantics();
+    status = cacheLength.Result();
+    if (!status) return status.GetStatus();
+
     auto virtualizingStackPanel =
         Meta::Register<VirtualizingStackPanel>(context);
     virtualizingStackPanel
@@ -96,8 +104,33 @@ Base::Result<void> PopulateControlsPanels(
             FrameworkPropertyMetadata(24.0)
                 .AffectsMeasure()
                 .Validate(&::Aero::Base::Validate::Positive<double>))
+        .Property(
+            VirtualizingStackPanel::CacheLengthProperty,
+            FrameworkPropertyMetadata(VirtualizationCacheLength{})
+                .AffectsMeasure())
+        .Property(
+            VirtualizingStackPanel::CacheLengthUnitProperty,
+            FrameworkPropertyMetadata(VirtualizationCacheLengthUnit::Item)
+                .AffectsMeasure())
         .Factory();
     status = virtualizingStackPanel.Result();
+    if (!status) return status.GetStatus();
+
+    auto virtualizingWrapPanel =
+        Meta::Register<VirtualizingWrapPanel>(context);
+    virtualizingWrapPanel
+        .Property(
+            VirtualizingWrapPanel::ItemWidthProperty,
+            FrameworkPropertyMetadata(0.0)
+                .AffectsMeasure()
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+        .Property(
+            VirtualizingWrapPanel::ItemHeightProperty,
+            FrameworkPropertyMetadata(0.0)
+                .AffectsMeasure()
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+        .Factory();
+    status = virtualizingWrapPanel.Result();
     if (!status) return status.GetStatus();
 
     auto canvas = Meta::Register<Canvas>(context);
@@ -205,7 +238,7 @@ Base::Result<void> PopulateControlsPanels(
             "RowDefinitions",
             &AddGridRowDefinition,
             &ClearGridRowDefinitions)
-        .Collection<Input::KeyBinding>(
+        .Collection<Input::InputBinding>(
             "InputBindings",
             &AddGridInputBinding,
             &ClearGridInputBindings)

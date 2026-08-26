@@ -1,5 +1,6 @@
 #include "gui/ViewState.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include <Aero/Documents.hpp>
 
 #include <cstdint>
 #include <utility>
@@ -192,6 +193,63 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                     if (!appended) {
                         return appended.GetStatus();
                     }
+                }
+            }
+            if (metadata->Types().IsDerivedFrom(
+                    type,
+                    Documents::AdornerLayer::StaticTypeId())) {
+                auto* layer = static_cast<Documents::AdornerLayer*>(node);
+                auto makeTranslate = [](double dx, double dy) noexcept -> Base::Transform2D {
+                    Base::Transform2D t{};
+                    t.dx = dx;
+                    t.dy = dy;
+                    return t;
+                };
+                auto rootTransform = [&makeTranslate](
+                    Aero::UIElement& element) noexcept -> Base::Transform2D {
+                    Base::ProjectiveTransform2D result = Base::IdentityProjective();
+                    Aero::Media::Visual* current = &element;
+                    while (current != nullptr) {
+                        Aero::UIElement* currentElement =
+                            ::Aero::TryCast<::Aero::UIElement>(current);
+                        if (currentElement != nullptr) {
+                            Aero::FrameworkElement* currentFramework =
+                                ::Aero::TryCast<::Aero::FrameworkElement>(
+                                    currentElement);
+                            if (currentFramework != nullptr) {
+                                const Base::ProjectiveTransform2D localT =
+                                    currentFramework->GetLocalVisualTransform();
+                                if (Base::IsFiniteTransform(localT)) {
+                                    result = Base::Compose(result, localT);
+                                }
+                            }
+                            const Aero::Rect slot = currentElement->GetLayoutSlot();
+                            result = Base::Compose(
+                                result,
+                                Base::ToProjective(makeTranslate(slot.x, slot.y)));
+                        }
+                        current = current->GetVisualParent();
+                    }
+                    Base::Transform2D affine{};
+                    if (!Base::TryToTransform2D(result, affine)) {
+                        return {};
+                    }
+                    return affine;
+                };
+                for (const Base::Ref<Documents::Adorner>& adorner :
+                     layer->GetAdorners()) {
+                    if (!adorner) continue;
+                    Aero::UIElement* target = adorner->GetAdornedElement();
+                    if (target == nullptr) {
+                        target = adorner.Get();
+                    }
+                    Base::Transform2D transform = rootTransform(*target);
+                    appended = renderOverlays.PushBack(adorner.Get());
+                    if (!appended) return appended.GetStatus();
+                    appended = overlayTransforms.PushBack(transform);
+                    if (!appended) return appended.GetStatus();
+                    appended = inputOverlays.PushBack(adorner.Get());
+                    if (!appended) return appended.GetStatus();
                 }
             }
             const auto children =

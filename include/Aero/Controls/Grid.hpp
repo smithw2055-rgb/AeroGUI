@@ -4,7 +4,7 @@
 #include <Aero/Controls/Panel.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/KeyBinding.hpp>
+#include <Aero/InputBinding.hpp>
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
@@ -76,11 +76,15 @@ public:
     void ClearColumnDefinitionObjects() noexcept;
     void ClearRowDefinitionObjects() noexcept;
     Result<void> AddInputBinding(
-        Ref<Aero::Input::KeyBinding> binding) noexcept;
-    void ClearInputBindings() noexcept { inputBindings_.Clear(); }
-    Span<const Ref<Aero::Input::KeyBinding>>
+        Ref<Aero::Input::InputBinding> binding) noexcept {
+        return UIElement::AddInputBinding(std::move(binding));
+    }
+    void ClearInputBindings() noexcept {
+        UIElement::ClearInputBindings();
+    }
+    Span<const Ref<Aero::Input::InputBinding>>
     GetInputBindings() const noexcept {
-        return {inputBindings_.Data(), inputBindings_.Size()};
+        return UIElement::GetInputBindings();
     }
     StringView GetColumnDefinitionsText() const noexcept;
     StringView GetRowDefinitionsText() const noexcept;
@@ -109,8 +113,6 @@ private:
         columnDefinitionObjects_;
     Base::Vector<Ref<RowDefinition>>
         rowDefinitionObjects_;
-    Base::Vector<Ref<Aero::Input::KeyBinding>>
-        inputBindings_;
     Base::Vector<double> desiredColumns_;
     Base::Vector<double> desiredRows_;
     std::uint32_t GetColumnCount() const noexcept;

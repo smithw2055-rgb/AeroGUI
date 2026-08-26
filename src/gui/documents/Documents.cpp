@@ -3,6 +3,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include <Aero/Documents.hpp>
+#include <Aero/TryCast.hpp>
 
 
 #include <algorithm>
@@ -268,6 +269,16 @@ public:
                     AppendInline(*child, output, depth + 1U);
                 if (!appended) return appended.GetStatus();
             }
+            return {};
+        }
+        if (types.IsDerivedFrom(
+                value.RuntimeType(),
+                Documents::InlineUIContainer::StaticTypeId())) {
+            // U+FFFC object replacement; do not flatten the hosted UI to text.
+            static constexpr char kObjectReplacement[] = {
+                '\xEF', '\xBF', '\xBC'};
+            return output.Append(Base::StringView(
+                kObjectReplacement, 3U));
         }
         return {};
     }
@@ -1017,6 +1028,12 @@ Base::Result<void> TextBlock::AddOwnedInline(
     auto& inlineValue = *static_cast<Documents::Inline*>(inlineObject.Get());
     AeroGuiInternal::Attach(
         inlineValue, this, this, nullptr);
+    if (Documents::InlineUIContainer* container =
+            ::Aero::TryCast<Documents::InlineUIContainer>(&inlineValue)) {
+        if (UIElement* child = container->GetChild()) {
+            AddVisualChild(child);
+        }
+    }
     pendingInline_ = inlineObject;
     return InvalidateMeasure();
 }
@@ -1025,6 +1042,12 @@ void TextBlock::ClearOwnedInlines() noexcept {
     if (!access) return;
     for (Base::Ref<Base::Object>& item : ownedInlines_) {
         if (item) {
+            if (Documents::InlineUIContainer* container =
+                    ::Aero::TryCast<Documents::InlineUIContainer>(item.Get())) {
+                if (UIElement* child = container->GetChild()) {
+                    RemoveVisualChild(child);
+                }
+            }
             AeroGuiInternal::Detach(
                 *static_cast<Documents::Inline*>(item.Get()));
         }
@@ -1033,6 +1056,73 @@ void TextBlock::ClearOwnedInlines() noexcept {
     pendingInline_.Reset();
     (void)InvalidateMeasure();
 }
+
+namespace {
+
+void CollectInlineUiChildren(
+    const Documents::Inline& value,
+    Base::Vector<UIElement*>& children,
+    std::uint32_t depth = 0U) noexcept {
+    if (depth >= 1024U) return;
+    const Meta::TypeRegistry& types = value.PropertyRegistry().Types();
+    if (types.IsDerivedFrom(
+            value.RuntimeType(),
+            Documents::InlineUIContainer::StaticTypeId())) {
+        UIElement* child =
+            static_cast<const Documents::InlineUIContainer&>(value).GetChild();
+        if (child != nullptr) {
+            static_cast<void>(children.PushBack(child));
+        }
+        return;
+    }
+    if (types.IsDerivedFrom(
+            value.RuntimeType(), Documents::Span::StaticTypeId())) {
+        const auto& span = static_cast<const Documents::Span&>(value);
+        const Documents::InlineCollectionView inlines = span.GetInlines();
+        for (std::uint32_t index = 0U; index < inlines.GetCount(); ++index) {
+            const Documents::Inline* nested = inlines.GetItem(index);
+            if (nested != nullptr) {
+                CollectInlineUiChildren(*nested, children, depth + 1U);
+            }
+        }
+    }
+}
+
+} // namespace
+
+std::uint32_t TextBlock::GetVisualChildrenCount() const noexcept {
+    Base::Vector<UIElement*> children;
+    for (const Base::Ref<Base::Object>& item : ownedInlines_) {
+        if (!item) continue;
+        CollectInlineUiChildren(
+            *static_cast<const Documents::Inline*>(item.Get()), children);
+    }
+    std::uint32_t count = 0U;
+    for (UIElement* child : children) {
+        if (child != nullptr && child->GetVisualParent() == this) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+::Aero::Media::Visual* TextBlock::GetVisualChild(
+    std::uint32_t index) const noexcept {
+    Base::Vector<UIElement*> children;
+    for (const Base::Ref<Base::Object>& item : ownedInlines_) {
+        if (!item) continue;
+        CollectInlineUiChildren(
+            *static_cast<const Documents::Inline*>(item.Get()), children);
+    }
+    std::uint32_t current = 0U;
+    for (UIElement* child : children) {
+        if (child == nullptr || child->GetVisualParent() != this) continue;
+        if (current == index) return child;
+        ++current;
+    }
+    return nullptr;
+}
+
 Base::StringView TextBlock::EffectiveFontFamily() const noexcept {
     const Base::Ref<Media::FontFamily> family = GetFontFamily();
     const Base::StringView configured = family
@@ -1170,9 +1260,20 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
             }
         }
     }
-    return Size{
+    Size desired{
         std::min(glyphRunSize_.width, availableSize.width),
         std::min(glyphRunSize_.height, availableSize.height)};
+    const std::uint32_t uiCount = GetVisualChildrenCount();
+    for (std::uint32_t index = 0U; index < uiCount; ++index) {
+        auto* child = static_cast<UIElement*>(GetVisualChild(index));
+        if (child == nullptr) continue;
+        Base::Result<void> measured = MeasureChild(*child, availableSize);
+        if (!measured) return Size{};
+        const Size childSize = child->GetDesiredSize();
+        desired.width = std::max(desired.width, childSize.width);
+        desired.height = std::max(desired.height, childSize.height);
+    }
+    return desired;
 }
 Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
     const bool needsAlignment = GetTextAlignment() != TextAlignment::Left ||
@@ -1181,6 +1282,29 @@ Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
         arrangingText_ = true;
         static_cast<void>(MeasureOverride(finalSize));
         arrangingText_ = false;
+    }
+    const std::uint32_t uiCount = GetVisualChildrenCount();
+    std::uint32_t placeholder = 0U;
+    for (std::uint32_t index = 0U; index < uiCount; ++index) {
+        auto* child = static_cast<UIElement*>(GetVisualChild(index));
+        if (child == nullptr) continue;
+        Rect slot{0.0, 0.0, child->GetDesiredSize().width,
+            child->GetDesiredSize().height};
+        while (placeholder < textHitRegions_.Size()) {
+            const TextHitRegion& region = textHitRegions_[placeholder];
+            ++placeholder;
+            if (region.textLength == 3U) {
+                slot = Rect{
+                    static_cast<double>(region.x),
+                    static_cast<double>(region.y),
+                    std::max(static_cast<double>(region.width),
+                        child->GetDesiredSize().width),
+                    std::max(static_cast<double>(region.height),
+                        child->GetDesiredSize().height)};
+                break;
+            }
+        }
+        static_cast<void>(ArrangeChild(*child, slot));
     }
     return finalSize;
 }

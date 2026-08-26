@@ -15,6 +15,10 @@
 #include <Aero/Documents/TextPointer.hpp>
 #include <Aero/Documents/TextRange.hpp>
 #include <Aero/Documents/Underline.hpp>
+#include <Aero/Documents/InlineUIContainer.hpp>
+#include <Aero/Documents/Adorner.hpp>
+#include <Aero/Documents/AdornerLayer.hpp>
+#include <Aero/Documents/AdornerDecorator.hpp>
 
 namespace Aero::Documents {
 

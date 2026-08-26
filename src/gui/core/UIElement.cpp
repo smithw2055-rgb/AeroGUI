@@ -1,5 +1,6 @@
 // Auto-relocated base-class method definitions (WPF semantic kernel).
 #include <Aero/UIElement.hpp>
+#include <Aero/InputBinding.hpp>
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Allocator.hpp>
@@ -8,6 +9,7 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Media/Effects.hpp>
+#include <Aero/Media/Geometry.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
 #include <cstdio>
@@ -350,6 +352,51 @@ void UIElement::SetBlendMode(
 
 void UIElement::SetClipToBounds(bool value) noexcept {
     SetValue(ClipToBoundsProperty, value);
+}
+
+void UIElement::SetClip(Base::Ref<Geometry> value) noexcept {
+    SetValue(ClipProperty, std::move(value));
+}
+
+Base::Ref<Geometry> UIElement::GetClip() const noexcept {
+    return GetValueOr(ClipProperty, Base::Ref<Geometry>{});
+}
+
+Base::Result<void> UIElement::AddInputBinding(
+    Base::Ref<Input::InputBinding> binding) noexcept {
+    if (!binding) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "InputBinding cannot be null");
+    }
+    Base::Result<void> finalized = binding->Finalize();
+    if (!finalized) return finalized.GetStatus();
+    Rare& rare = EnsureRare();
+    auto*& storage = reinterpret_cast<Base::Vector<Base::Ref<Input::InputBinding>>*&>(
+        rare.inputBindings);
+    if (storage == nullptr) {
+        storage = new (std::nothrow) Base::Vector<Base::Ref<Input::InputBinding>>();
+        if (storage == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory, "InputBindings allocation failed");
+        }
+    }
+    return storage->PushBack(std::move(binding));
+}
+
+void UIElement::ClearInputBindings() noexcept {
+    if (rare_ == nullptr || rare_->inputBindings == nullptr) return;
+    static_cast<Base::Vector<Base::Ref<Input::InputBinding>>*>(
+        rare_->inputBindings)->Clear();
+}
+
+Base::Span<const Base::Ref<Input::InputBinding>>
+UIElement::GetInputBindings() const noexcept {
+    if (rare_ == nullptr || rare_->inputBindings == nullptr) {
+        return {};
+    }
+    const auto* storage = static_cast<
+        const Base::Vector<Base::Ref<Input::InputBinding>>*>(rare_->inputBindings);
+    return {storage->Data(), storage->Size()};
 }
 
 // from src/gui/controls/Layout.cpp
@@ -754,6 +801,11 @@ UIElement::~UIElement() {
     AERO_ASSERT(AeroGuiInternal::LayoutEngineOf(*this) == nullptr);
     AERO_ASSERT(!layout_.layoutAttached);
     CleanupHandlers();
+    if (rare_ != nullptr && rare_->inputBindings != nullptr) {
+        delete static_cast<Base::Vector<Base::Ref<Input::InputBinding>>*>(
+            rare_->inputBindings);
+        rare_->inputBindings = nullptr;
+    }
     delete rare_;
     rare_ = nullptr;
 }
