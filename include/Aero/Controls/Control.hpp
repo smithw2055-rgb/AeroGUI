@@ -145,6 +145,17 @@ protected:
         return;
     }
     virtual void OnTemplateDetached() noexcept {}
+    std::uint32_t GetVisualChildrenCount() const noexcept override {
+        return templateChild_ != nullptr && templateChild_->GetVisualParent() == this
+            ? 1U : 0U;
+    }
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override {
+        if (index != 0U || templateChild_ == nullptr ||
+            templateChild_->GetVisualParent() != this) {
+            return nullptr;
+        }
+        return templateChild_;
+    }
     Size MeasureOverride(
         Size availableSize) noexcept override {
         if (templateChild_ == nullptr) return Size{};

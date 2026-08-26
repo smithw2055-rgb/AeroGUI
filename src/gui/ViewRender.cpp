@@ -117,7 +117,7 @@ void ViewState::VisitTextElements(
             service,
             invalidate && effectivelyVisible);
         for (Aero::Media::Visual* child :
-             rootVisual->GetVisualChildren()) {
+             AeroGuiInternal::RenderChildren(*rootVisual)) {
             VisitTextElements(
                 child,
                 service,
@@ -146,7 +146,7 @@ void ViewState::VisitPaths(
             service,
             invalidate && effectivelyVisible);
         for (Aero::Media::Visual* child :
-             rootVisual->GetVisualChildren()) {
+             AeroGuiInternal::RenderChildren(*rootVisual)) {
             VisitPaths(
                 child,
                 service,

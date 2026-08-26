@@ -339,7 +339,6 @@ private:
     void OnDataContextChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
-    void RemoveChild(Base::Vector<::Aero::Media::Visual*>& children, ::Aero::Media::Visual& child) noexcept;
     Base::Result<void> AttachLayout(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
     Base::Result<void> AttachRender(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
     Base::Result<void> DetachLayout(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;

@@ -317,9 +317,7 @@ StoryboardHost::ExecuteAnimationAction(
                         current);
                     break;
                 }
-                current = current->GetLogicalParent() != nullptr
-                    ? current->GetLogicalParent()
-                    : current->GetVisualParent();
+                current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
             }
             if (contextMenu == nullptr ||
                 !contextMenu->GetPlacementTarget()) {
@@ -362,8 +360,7 @@ StoryboardHost::ExecuteAnimationAction(
                         : Base::Result<void>(removed.GetStatus());
                 }
             }
-            current = current->GetLogicalParent() != nullptr
-                ? current->GetLogicalParent() : current->GetVisualParent();
+            current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
         }
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,

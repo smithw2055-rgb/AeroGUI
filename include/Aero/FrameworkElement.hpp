@@ -196,8 +196,8 @@ public:
     Result<void> InvalidateVisual() noexcept;
 
 protected:
-    virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return ::Aero::Media::VisualTreeHelper::GetChildrenCount(*this); }
-    virtual DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept { return LogicalTreeHelper::GetChild(static_cast<const ::Aero::Media::Visual&>(*this), index); }
+    virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return GetVisualChildrenCount(); }
+    virtual DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept { return GetVisualChild(index); }
     void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
     virtual void OnRender(

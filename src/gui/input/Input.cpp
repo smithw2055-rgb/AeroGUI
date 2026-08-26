@@ -303,7 +303,7 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
         return HitTestResult{};
     }
 
-    const Base::Span<::Aero::Media::Visual* const> children = element.GetVisualChildren();
+    const auto children = AeroGuiInternal::RenderChildren(element);
     for (std::uint32_t index = children.Size(); index > 0U; --index) {
         ::Aero::Media::Visual* childNode = children[index - 1U];
         if (childNode == nullptr) continue;
@@ -380,9 +380,7 @@ bool PointerStateMachine::HasHover(
             tree->ResolveHandle(states_[index].hover);
         while (current != nullptr) {
             if (current == targetVisual) return true;
-            current = current->GetVisualParent() != nullptr
-                ? current->GetVisualParent()
-                : current->GetLogicalParent();
+            current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::Media::Visual::Of(current->GetLogicalParent());
         }
     }
     return false;
@@ -438,9 +436,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
                 stateIsCurrent = false;
                 break;
             }
-            current = current->GetVisualParent() != nullptr
-                ? current->GetVisualParent()
-                : current->GetLogicalParent();
+            current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::Media::Visual::Of(current->GetLogicalParent());
         }
         if (stateIsCurrent) return {};
     }
@@ -459,9 +455,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
         ::Aero::Media::Visual* current = descendant;
         while (current != nullptr) {
             if (current == ancestor) return true;
-            current = current->GetVisualParent() != nullptr
-                ? current->GetVisualParent()
-                : current->GetLogicalParent();
+            current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::Media::Visual::Of(current->GetLogicalParent());
         }
         return false;
     };
@@ -496,9 +490,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
                 }
             }
         }
-        current = current->GetVisualParent() != nullptr
-            ? current->GetVisualParent()
-            : current->GetLogicalParent();
+        current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::Media::Visual::Of(current->GetLogicalParent());
     }
 
     current = previousVisual;
@@ -531,9 +523,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
                 }
             }
         }
-        current = current->GetVisualParent() != nullptr
-            ? current->GetVisualParent()
-            : current->GetLogicalParent();
+        current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::Media::Visual::Of(current->GetLogicalParent());
     }
     states_[index].hover = next;
     return {};
@@ -868,9 +858,7 @@ UIElement* DragDropState::FindDropTarget(
             return element;
         }
         if (current == root_) break;
-        current = current->GetLogicalParent() != nullptr
-            ? current->GetLogicalParent()
-            : current->GetVisualParent();
+        current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
     }
     return nullptr;
 }
@@ -1112,14 +1100,12 @@ UIElement* FocusState::FocusedNode() noexcept {
 
 UIElement* FocusState::FindNavigationScope(UIElement* node) noexcept {
     ::Aero::Media::Visual* current = node != nullptr
-        ? (node->GetLogicalParent() != nullptr
-            ? node->GetLogicalParent() : node->GetVisualParent())
+        ? (::Aero::Media::Visual::Of(node->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(node->GetLogicalParent()) : node->GetVisualParent())
         : nullptr;
     while (current != nullptr) {
         UIElement* element = current->AsUIElement();
         if (element != nullptr && element->GetIsFocusScope()) return element;
-        current = current->GetLogicalParent() != nullptr
-            ? current->GetLogicalParent() : current->GetVisualParent();
+        current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
     }
     ::Aero::Media::Visual* root = tree_->Root();
     return root != nullptr ? root->AsUIElement() : nullptr;
@@ -1157,8 +1143,7 @@ Base::Result<void> FocusState::RememberFocus(
             }
         }
         if (current == root) break;
-        current = current->GetLogicalParent() != nullptr
-            ? current->GetLogicalParent() : current->GetVisualParent();
+        current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
     }
     return {};
 }
@@ -1189,7 +1174,7 @@ Base::Result<void> FocusState::CollectCandidates(
     ::Aero::Media::Visual& parent,
     Base::Vector<FocusCandidate>& candidates,
     std::uint32_t& order) noexcept {
-    for (::Aero::Media::Visual* child : parent.GetVisualChildren()) {
+    for (::Aero::Media::Visual* child : AeroGuiInternal::RenderChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element = child->AsUIElement();
         const std::uint32_t candidateOrder = order++;
@@ -1237,8 +1222,7 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
     std::uint32_t ancestorCount = 1U;
     ::Aero::Media::Visual* ancestor = node;
     while (ancestor != tree_->Root()) {
-        ancestor = ancestor->GetLogicalParent() != nullptr
-            ? ancestor->GetLogicalParent() : ancestor->GetVisualParent();
+        ancestor = ::Aero::Media::Visual::Of(ancestor->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(ancestor->GetLogicalParent()) : ancestor->GetVisualParent();
         if (ancestor == nullptr) break;
         ++ancestorCount;
     }
@@ -1254,8 +1238,7 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
                     AeroGuiInternal::SetKeyboardFocusWithin(*ancestor, value);
                 if (!updated) return updated.GetStatus();
             }
-            current = current->GetLogicalParent() != nullptr
-                ? current->GetLogicalParent() : current->GetVisualParent();
+            current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
         }
         return {};
     };
@@ -1338,8 +1321,7 @@ Base::Result<bool> FocusState::ClearFocus() noexcept {
                     AeroGuiInternal::SetKeyboardFocusWithin(*ancestor, value);
                 if (!updated) return updated.GetStatus();
             }
-            current = current->GetLogicalParent() != nullptr
-                ? current->GetLogicalParent() : current->GetVisualParent();
+            current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
         }
         return {};
     };

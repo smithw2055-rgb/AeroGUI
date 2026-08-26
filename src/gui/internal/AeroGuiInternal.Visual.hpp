@@ -38,9 +38,50 @@
         const ::Aero::Media::Visual& visual) noexcept {
         return visual.visualParent_;
     }
-    static Base::Span<::Aero::Media::Visual* const> RenderChildren(
+    class RenderChildRange {
+    public:
+        class Iterator {
+        public:
+            Iterator(const ::Aero::Media::Visual* owner, std::uint32_t index) noexcept
+                : owner_(owner), index_(index) {}
+            ::Aero::Media::Visual* operator*() const noexcept {
+                return owner_ != nullptr ? owner_->GetVisualChild(index_) : nullptr;
+            }
+            Iterator& operator++() noexcept {
+                ++index_;
+                return *this;
+            }
+            bool operator!=(const Iterator& other) const noexcept {
+                return owner_ != other.owner_ || index_ != other.index_;
+            }
+        private:
+            const ::Aero::Media::Visual* owner_ = nullptr;
+            std::uint32_t index_ = 0U;
+        };
+
+        explicit RenderChildRange(const ::Aero::Media::Visual& visual) noexcept
+            : owner_(&visual), count_(visual.GetVisualChildrenCount()) {}
+        Iterator begin() const noexcept { return Iterator(owner_, 0U); }
+        Iterator end() const noexcept { return Iterator(owner_, count_); }
+        std::uint32_t Size() const noexcept { return count_; }
+        bool Empty() const noexcept { return count_ == 0U; }
+        ::Aero::Media::Visual* operator[](std::uint32_t index) const noexcept {
+            return owner_ != nullptr ? owner_->GetVisualChild(index) : nullptr;
+        }
+    private:
+        const ::Aero::Media::Visual* owner_ = nullptr;
+        std::uint32_t count_ = 0U;
+    };
+    static RenderChildRange RenderChildren(
         const ::Aero::Media::Visual& visual) noexcept {
-        return {visual.visualChildren_.Data(), visual.visualChildren_.Size()};
+        return RenderChildRange(visual);
+    }
+    static ::Aero::Media::Visual* AsVisual(::Aero::DependencyObject* object) noexcept {
+        return ::Aero::Media::Visual::Of(object);
+    }
+    static const ::Aero::Media::Visual* AsVisual(
+        const ::Aero::DependencyObject* object) noexcept {
+        return ::Aero::Media::Visual::Of(object);
     }
     static void* RenderRuntime(const ::Aero::Media::Visual& visual) noexcept {
         return visual.tree_ != nullptr &&

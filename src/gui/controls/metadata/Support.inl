@@ -806,22 +806,3 @@ void ClearGridViewColumns(
     static_cast<GridView&>(
         owner).ClearColumns();
 }
-
-void AddTabControlItem(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& item,
-    void*) noexcept {
-    if (!item) {
-        return;
-    }
-    (void)static_cast<TabControl&>(owner).
-        AddOwnedTab(
-            Base::Ref<TabItem>::FromBorrowed(
-                static_cast<TabItem&>(*item)));
-}
-
-void ClearTabControlItems(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<TabControl&>(owner).ClearOwnedTabs();
-}

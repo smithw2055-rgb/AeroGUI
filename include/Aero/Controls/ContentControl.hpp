@@ -75,6 +75,30 @@ protected:
     UIElement* ContentElement() const noexcept { return content_; }
     explicit ContentControl(TypeId runtimeType) noexcept;
     ~ContentControl() override;
+    std::uint32_t GetVisualChildrenCount() const noexcept override {
+        if (GetTemplateRoot() != nullptr) {
+            return Control::GetVisualChildrenCount();
+        }
+        return content_ != nullptr && content_->GetVisualParent() == this ? 1U : 0U;
+    }
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override {
+        if (GetTemplateRoot() != nullptr) {
+            return Control::GetVisualChild(index);
+        }
+        if (index != 0U || content_ == nullptr || content_->GetVisualParent() != this) {
+            return nullptr;
+        }
+        return content_;
+    }
+    std::uint32_t GetLogicalChildrenCount() const noexcept override {
+        return content_ != nullptr ? 1U : Control::GetLogicalChildrenCount();
+    }
+    DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept override {
+        if (content_ != nullptr) {
+            return index == 0U ? content_ : nullptr;
+        }
+        return Control::GetLogicalChild(index);
+    }
     Size MeasureOverride(Size availableSize) noexcept override {
         if (GetTemplateRoot() != nullptr) {
             return Control::MeasureOverride(availableSize);

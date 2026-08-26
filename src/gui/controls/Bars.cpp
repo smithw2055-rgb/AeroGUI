@@ -256,8 +256,7 @@ ToolBar::SynchronizeToolBar() noexcept {
         OverflowItemCountProperty,
         overflowCount);
     if (host != nullptr) {
-        const Base::Span<::Aero::Media::Visual* const> children =
-            host->GetVisualChildren();
+        const auto children = AeroGuiInternal::RenderChildren(*host);
         for (std::uint32_t index = 0U;
              index < children.Size();
              ++index) {

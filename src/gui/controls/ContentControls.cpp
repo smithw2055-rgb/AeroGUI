@@ -2,6 +2,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include <Aero/Controls.hpp>
+#include <Aero/Controls/ItemContainerGenerator.hpp>
 #include "gui/controls/State.hpp"
 #include "gui/templates/TemplateState.hpp"
 
@@ -522,7 +523,7 @@ void TabItem::SetIsSelected(
 }
 
 TabControl::TabControl() noexcept
-    : Control(StaticTypeId()),
+    : Selector(StaticTypeId()),
       selectionChangedHandler_(
           this,
           &TabControl::OnSelectionPropertyChanged) {
@@ -537,92 +538,65 @@ TabControl::~TabControl() {
         selectionChangedHandler_));
 }
 
-std::uint32_t TabControl::GetSelectedIndex() const noexcept {
-    return GetValueOr(
-        SelectedIndexProperty,
-        UINT32_MAX);
-}
-
 TabItem* TabControl::GetSelectedTab() const noexcept {
-    const std::uint32_t selected =
-        GetSelectedIndex();
-    return selected < tabs_.Size()
-        ? tabs_[selected].Get()
-        : nullptr;
+    const std::uint32_t selected = GetSelectedIndex();
+    if (selected == UINT32_MAX) return nullptr;
+    const Ref<Base::Object> item = GetItem(selected);
+    if (item &&
+        PropertyRegistry().Types().IsDerivedFrom(
+            item->RuntimeType(), TabItem::StaticTypeId())) {
+        return static_cast<TabItem*>(item.Get());
+    }
+    ItemContainerGenerator* generator = AttachedGenerator();
+    if (generator == nullptr) return nullptr;
+    FrameworkElement* container = generator->ContainerFromIndex(selected);
+    if (container != nullptr &&
+        PropertyRegistry().Types().IsDerivedFrom(
+            container->RuntimeType(), TabItem::StaticTypeId())) {
+        return static_cast<TabItem*>(container);
+    }
+    return nullptr;
 }
 
-Base::Result<void> TabControl::AddOwnedTab(
-    Base::Ref<TabItem> tab) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!tab) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TabControl tab is null");
-    }
-    for (const Base::Ref<TabItem>& current : tabs_) {
-        if (current.Get() == tab.Get()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "TabControl already owns this tab");
-        }
-    }
-    Base::Result<void> added =
-        tabs_.PushBack(std::move(tab));
-    if (!added) return added.GetStatus();
-    if (tabs_.Size() == 1U &&
-        GetSelectedIndex() == UINT32_MAX) {
-        SetSelectedIndex(0U);
-    } else {
-        Base::Result<void> synchronized =
-            SynchronizeSelection();
-        if (!synchronized) {
-            return synchronized.GetStatus();
-        }
-    }
-    return InvalidateMeasure();
-}
-
-void TabControl::ClearOwnedTabs() noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    if (!LayoutChildren().Empty()) {
-        return;
-    }
-    tabs_.Clear();
-    SetValue(SelectedIndexProperty, UINT32_MAX);
-    (void)InvalidateMeasure();
-}
-
-void TabControl::SetSelectedIndex(
-    std::uint32_t value) noexcept {
-    if (value != UINT32_MAX &&
-        value >= tabs_.Size()) {
-        return;
-    }
-    const std::uint32_t old =
-        GetSelectedIndex();
-    if (old == value) return;
-    SetValue(SelectedIndexProperty, value);
+Base::Result<Ref<FrameworkElement>> TabControl::CreateContainer(
+    const Ref<Base::Object>&) noexcept {
+    Base::Result<Ref<TabItem>> made = Base::MakeRef<TabItem>();
+    if (!made) return made.GetStatus();
+    return Ref<FrameworkElement>(std::move(made).Value());
 }
 
 Base::Result<void>
 TabControl::SynchronizeSelection() noexcept {
-    const std::uint32_t value =
-        GetSelectedIndex();
-    for (std::uint32_t index = 0U;
-         index < tabs_.Size();
-         ++index) {
-        tabs_[index]->SetIsSelected(index == value);
+    const std::uint32_t value = GetSelectedIndex();
+    const std::uint32_t count = GetCount();
+    ItemContainerGenerator* generator = AttachedGenerator();
+    for (std::uint32_t index = 0U; index < count; ++index) {
+        TabItem* tab = nullptr;
+        const Ref<Base::Object> item = GetItem(index);
+        if (item &&
+            PropertyRegistry().Types().IsDerivedFrom(
+                item->RuntimeType(), TabItem::StaticTypeId())) {
+            tab = static_cast<TabItem*>(item.Get());
+        } else if (generator != nullptr) {
+            FrameworkElement* container = generator->ContainerFromIndex(index);
+            if (container != nullptr &&
+                PropertyRegistry().Types().IsDerivedFrom(
+                    container->RuntimeType(), TabItem::StaticTypeId())) {
+                tab = static_cast<TabItem*>(container);
+            }
+        }
+        if (tab != nullptr) {
+            tab->SetIsSelected(index == value);
+        }
     }
+    TabItem* selected = GetSelectedTab();
     const Meta::Value selectedContent =
-        value < tabs_.Size()
-        ? tabs_[value]->GetContent()
+        selected != nullptr
+        ? selected->GetContent()
         : Meta::Value::NullObject(
               Meta::TypeOf<Base::Object>());
     SetReadOnlyCurrentValue(SelectedContentProperty, selectedContent);
-    Base::Result<void> measure =
-        InvalidateMeasure();
+    Base::Result<void> measure = InvalidateMeasure();
     if (!measure) return measure.GetStatus();
     return {};
 }
@@ -635,11 +609,14 @@ void TabControl::OnSelectionPropertyChanged(
         SynchronizeSelection();
     if (!synchronized) return;
     RoutedEventArgs args;
-    RaiseEvent(SelectionChangedEvent, &args);
+    RaiseEvent(SelectionChangedRoutedEvent, &args);
 }
 
 Size TabControl::MeasureOverride(
     Size availableSize) noexcept {
+    if (GetTemplateRoot() != nullptr) {
+        return Control::MeasureOverride(availableSize);
+    }
     constexpr double HeaderExtent = 28.0;
     const bool verticalStrip =
         GetTabStripPlacement() == Dock::Left ||
@@ -667,15 +644,26 @@ Size TabControl::MeasureOverride(
 
 Size TabControl::ArrangeOverride(
     Size finalSize) noexcept {
+    if (GetTemplateRoot() != nullptr) {
+        return Control::ArrangeOverride(finalSize);
+    }
     constexpr double HeaderExtent = 28.0;
     const Dock placement = GetTabStripPlacement();
     const bool verticalStrip =
         placement == Dock::Left || placement == Dock::Right;
     TabItem* selected = GetSelectedTab();
-    for (const Base::Ref<TabItem>& tab : tabs_) {
-        if (!tab) continue;
+    const std::uint32_t count = GetCount();
+    for (std::uint32_t index = 0U; index < count; ++index) {
+        TabItem* tab = nullptr;
+        const Ref<Base::Object> item = GetItem(index);
+        if (item &&
+            PropertyRegistry().Types().IsDerivedFrom(
+                item->RuntimeType(), TabItem::StaticTypeId())) {
+            tab = static_cast<TabItem*>(item.Get());
+        }
+        if (tab == nullptr) continue;
         Rect slot{};
-        if (tab.Get() == selected) {
+        if (tab == selected) {
             if (verticalStrip) {
                 slot = {placement == Dock::Left ? HeaderExtent : 0.0,
                     0.0, std::max(0.0, finalSize.width - HeaderExtent),

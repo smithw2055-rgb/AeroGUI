@@ -195,7 +195,7 @@ Base::Result<bool> ImageCache::Synchronize(
         pending.PopBack();
         if (visual == nullptr) continue;
         for (Aero::Media::Visual* child :
-             visual->GetVisualChildren()) {
+             AeroGuiInternal::RenderChildren(*visual)) {
             Base::Result<void> queued =
                 pending.PushBack(child);
             if (!queued) return queued.GetStatus();

@@ -107,7 +107,7 @@ Base::Object* InteractivityEngine::ResolveBehaviorBindingSource(
             }
         }
         std::uint32_t matched = 0U;
-        Aero::Media::Visual* current = owner.GetLogicalParent();
+        Aero::Media::Visual* current = Aero::Media::Visual::Of(owner.GetLogicalParent());
         if (current == nullptr) current = owner.GetVisualParent();
         while (current != nullptr) {
             const Meta::TypeInfo* type =
@@ -117,7 +117,7 @@ Base::Object* InteractivityEngine::ResolveBehaviorBindingSource(
             if (matches && ++matched == relative->GetAncestorLevel()) {
                 return current;
             }
-            Aero::Media::Visual* next = current->GetLogicalParent();
+            Aero::Media::Visual* next = Aero::Media::Visual::Of(current->GetLogicalParent());
             if (next == nullptr) next = current->GetVisualParent();
             current = next;
         }

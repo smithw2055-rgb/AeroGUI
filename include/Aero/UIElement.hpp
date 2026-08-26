@@ -310,6 +310,9 @@ public:
 
 protected:
     void RaiseEvent(RoutedEventHandle event, RoutedEventArgs* args = nullptr) noexcept;
+    void OnVisualChildrenChanged(
+        ::Aero::Media::Visual* visualAdded,
+        ::Aero::Media::Visual* visualRemoved) noexcept override;
     void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
     virtual Size MeasureOverride(Size availableSize) noexcept;

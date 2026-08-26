@@ -340,9 +340,7 @@ bool EventTriggerOwnerInSubtree(
         const Aero::Media::Visual& fragmentRoot) noexcept {
     while (node != nullptr) {
         if (node == &fragmentRoot) return true;
-        node = node->GetLogicalParent() != nullptr
-            ? node->GetLogicalParent()
-            : node->GetVisualParent();
+        node = ::Aero::Media::Visual::Of(node->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(node->GetLogicalParent()) : node->GetVisualParent();
     }
     return false;
 }

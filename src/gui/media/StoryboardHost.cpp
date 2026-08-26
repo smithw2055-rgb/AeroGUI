@@ -1792,7 +1792,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
             }
         }
         for (Aero::Media::Visual* child :
-             visual->GetVisualChildren()) {
+             AeroGuiInternal::RenderChildren(*visual)) {
             Base::Result<std::uint32_t> started =
                 StartLoadedAnimations(child, names);
             if (!started) return started.GetStatus();

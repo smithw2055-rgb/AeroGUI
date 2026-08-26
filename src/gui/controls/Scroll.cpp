@@ -1873,7 +1873,7 @@ void Slider::OnRender(
         std::max(0.0,
             primary - thumbLength);
     const Color color = ::Aero::Media::SampleBrush(GetForeground());
-    if (GetVisualChildren().Empty()) {
+    if (AeroGuiInternal::RenderChildren(*this).Empty()) {
         Color trackColor = color;
         trackColor.alpha *= 0.35F;
         const double normalized =

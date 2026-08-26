@@ -330,7 +330,7 @@ Base::Result<void> ApplyViewUi(ViewState& state, Aero::Media::Visual& root) noex
             }
 
             for (Aero::Media::Visual* child :
-                 node->GetVisualChildren()) {
+                 AeroGuiInternal::RenderChildren(*node)) {
                 pushed = stack.PushBack(child);
                 if (!pushed) return pushed.GetStatus();
             }
@@ -353,7 +353,7 @@ void DetachViewUi(
                 Aero::Media::Visual* node = reachable[index];
                 if (node == nullptr) continue;
                 for (Aero::Media::Visual* child :
-                     node->GetVisualChildren()) {
+                     AeroGuiInternal::RenderChildren(*node)) {
                     if (child != nullptr) (void)reachable.PushBack(child);
                 }
             }
@@ -662,7 +662,7 @@ Base::Result<void> ViewState::AttachPendingItemGenerators(
                 if (!attached) return attached.GetStatus();
             }
             for (Aero::Media::Visual* child :
-                 node->GetVisualChildren()) {
+                 AeroGuiInternal::RenderChildren(*node)) {
                 pushed = stack.PushBack(child);
                 if (!pushed) return pushed.GetStatus();
             }
@@ -724,8 +724,7 @@ Base::Result<void> ViewState::VisitAndAttach(
                     *static_cast<Controls::ItemsControl*>(node));
                 if (!attached) return attached.GetStatus();
             }
-            const Base::Span<Aero::Media::Visual* const>
-                children = node->GetVisualChildren();
+            const auto children = AeroGuiInternal::RenderChildren(*node);
             for (std::uint32_t index = 0U;
                  index < children.Size(); ++index) {
                 pushed = stack.PushBack(children[index]);
@@ -755,7 +754,7 @@ void ViewState::ClearTextInputHosts(
                     SetInputMethodHost(nullptr));
         }
         for (Aero::Media::Visual* child :
-             node->GetVisualChildren()) {
+             AeroGuiInternal::RenderChildren(*node)) {
             ClearTextInputHosts(child);
         }
     }
@@ -1107,7 +1106,7 @@ void ViewState::ClearElementEvents(
         Aero::Media::Visual* node) noexcept {
         if (node == nullptr) return;
         for (Aero::Media::Visual* child :
-             node->GetVisualChildren()) {
+             AeroGuiInternal::RenderChildren(*node)) {
             ClearElementEvents(child);
         }
     }

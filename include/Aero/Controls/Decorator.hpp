@@ -33,6 +33,15 @@ public:
     }
 protected:
     explicit Decorator(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
+    std::uint32_t GetVisualChildrenCount() const noexcept override {
+        return child_ != nullptr && child_->GetVisualParent() == this ? 1U : 0U;
+    }
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override {
+        if (index != 0U || child_ == nullptr || child_->GetVisualParent() != this) {
+            return nullptr;
+        }
+        return child_;
+    }
     Size MeasureOverride(Size availableSize) noexcept override {
         UIElement* child = GetChild();
         if (child == nullptr) {
@@ -107,15 +116,45 @@ public:
         SetValue(BackgroundProperty, std::move(value));
     }
     void SetBullet(Ref<UIElement> value) noexcept {
+        UIElement* previous = bullet_.Get();
+        if (previous == value.Get()) {
+            bullet_ = std::move(value);
+            return;
+        }
+        if (previous != nullptr) RemoveVisualChild(previous);
         bullet_ = std::move(value);
+        if (bullet_) AddVisualChild(bullet_.Get());
     }
     void SetChild(Ref<UIElement> value) noexcept {
+        UIElement* previous = child_.Get();
+        if (previous == value.Get()) {
+            child_ = std::move(value);
+            return;
+        }
+        if (previous != nullptr) RemoveVisualChild(previous);
         child_ = std::move(value);
+        if (child_) AddVisualChild(child_.Get());
     }
 
     inline static constexpr DependencyProperty<Ref<Media::Brush>> BackgroundProperty{"Background"};
 
 protected:
+    std::uint32_t GetVisualChildrenCount() const noexcept override {
+        std::uint32_t count = 0U;
+        if (bullet_ && bullet_->GetVisualParent() == this) ++count;
+        if (child_ && child_->GetVisualParent() == this) ++count;
+        return count;
+    }
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override {
+        if (bullet_ && bullet_->GetVisualParent() == this) {
+            if (index == 0U) return bullet_.Get();
+            --index;
+        }
+        if (child_ && child_->GetVisualParent() == this && index == 0U) {
+            return child_.Get();
+        }
+        return nullptr;
+    }
     Size MeasureOverride(Size availableSize) noexcept override {
         Size bulletSize{};
         if (bullet_) {

@@ -739,25 +739,11 @@ Base::Result<void> PopulateControlsItems(
 
     auto tabControl = Meta::Register<TabControl>(context);
     tabControl
-        .Event(TabControl::SelectionChangedEvent)
-        .Property(
-            TabControl::SelectedIndexProperty,
-            FrameworkPropertyMetadata(UINT32_MAX)
-                .AffectsMeasure()
-                .BindsTwoWayByDefault())
         .Property(
             TabControl::SelectedContentProperty,
             FrameworkPropertyMetadata(
                 Meta::Value::NullObject(
                     Meta::TypeOf<Base::Object>())))
-        .Property(
-            TabControl::ItemsSourceProperty,
-            FrameworkPropertyMetadata(Base::Ref<Base::Object>{})
-                .AffectsMeasure())
-        .Property(
-            TabControl::ItemTemplateProperty,
-            FrameworkPropertyMetadata(Base::Ref<DataTemplate>{})
-                .AffectsMeasure())
         .Property(
             TabControl::ContentTemplateProperty,
             FrameworkPropertyMetadata(Base::Ref<DataTemplate>{})
@@ -766,12 +752,6 @@ Base::Result<void> PopulateControlsItems(
             TabControl::TabStripPlacementProperty,
             FrameworkPropertyMetadata(Dock::Top)
                 .AffectsMeasure())
-        .Content<TabItem>(
-            "Items",
-            ContentKind::Collection,
-            &AddTabControlItem,
-            &ClearTabControlItems,
-            ContentFlags::Visual)
         .Factory();
     status = tabControl.Result();
     if (!status) return status.GetStatus();

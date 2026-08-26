@@ -5,6 +5,8 @@
 #include "gui/styles/StyleEngine.hpp"
 
 #include <Aero/Controls.hpp>
+#include <Aero/LogicalTreeHelper.hpp>
+#include <Aero/VisualTreeHelper.hpp>
 
 #include "gui/controls/ControlBehavior.hpp"
 
@@ -48,12 +50,16 @@ Base::Result<void> AppendTree(
     if (!appended) {
         return appended.GetStatus();
     }
-    const Base::Span<::Aero::Media::Visual* const> children =
+    const std::uint32_t childCount =
         kind == TreeKind::Logical
-        ? node.GetLogicalChildren()
-        : node.GetVisualChildren();
-    for (::Aero::Media::Visual* child : children) {
+        ? LogicalTreeHelper::GetChildrenCount(node)
+        : Media::VisualTreeHelper::GetChildrenCount(node);
+    for (std::uint32_t index = 0U; index < childCount; ++index) {
+        ::Aero::Media::Visual* child = kind == TreeKind::Logical
+            ? Media::Visual::Of(LogicalTreeHelper::GetChild(node, index))
+            : Media::VisualTreeHelper::GetChild(node, index);
         if (child == nullptr) {
+            if (kind == TreeKind::Logical) continue;
             return Status::Failure(
                 ErrorCode::InvalidState,
                 "Inspector tree contains "

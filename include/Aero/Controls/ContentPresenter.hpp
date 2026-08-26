@@ -53,6 +53,15 @@ public:
         const Meta::DependencyPropertyChangedEventArgs&
             change) noexcept;
 protected:
+    std::uint32_t GetVisualChildrenCount() const noexcept override {
+        return content_ != nullptr && content_->GetVisualParent() == this ? 1U : 0U;
+    }
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override {
+        if (index != 0U || content_ == nullptr || content_->GetVisualParent() != this) {
+            return nullptr;
+        }
+        return content_;
+    }
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
 private:

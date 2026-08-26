@@ -1,4 +1,5 @@
 #include "gui/ViewState.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 
 #include <cstdint>
 #include <utility>
@@ -188,10 +189,8 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                     }
                 }
             }
-            const Base::Span<
-                Aero::Media::Visual* const>
-                children =
-                    node->GetVisualChildren();
+            const auto children =
+                    AeroGuiInternal::RenderChildren(*node);
             for (std::uint32_t index =
                      children.Size();
                  index > 0U;

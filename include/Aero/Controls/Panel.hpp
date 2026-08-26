@@ -50,6 +50,8 @@ protected:
     explicit Panel(TypeId runtimeType) noexcept
         : FrameworkElement(runtimeType), children_(*this), ownedChildren_() {}
     ~Panel() override = default;
+    std::uint32_t GetVisualChildrenCount() const noexcept override;
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 private:

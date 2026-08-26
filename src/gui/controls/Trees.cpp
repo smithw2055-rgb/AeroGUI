@@ -617,7 +617,7 @@ TreeBehavior::CollectVisibleItems(
     Base::Vector<TreeViewItem*>& items)
     noexcept {
     for (::Aero::Media::Visual* child :
-        parent.GetVisualChildren()) {
+        AeroGuiInternal::RenderChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element =
             child->AsUIElement();

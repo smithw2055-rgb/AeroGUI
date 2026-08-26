@@ -1002,7 +1002,7 @@ void ItemsControl::OnApplyTemplate() noexcept {
                 }
             }
             for (::Aero::Media::Visual* child :
-                     current->GetVisualChildren()) {
+                     AeroGuiInternal::RenderChildren(*current)) {
                 if (child != nullptr) {
                     static_cast<void>(pending.PushBack(child));
                 }

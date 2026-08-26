@@ -1108,6 +1108,30 @@ void UIElementCollection::Clear() noexcept {
     }
     owner_->ClearChildrenCore();
 }
+std::uint32_t Panel::GetVisualChildrenCount() const noexcept {
+    std::uint32_t count = 0U;
+    for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
+        UIElement* child = ownedChildren_[index]
+            ? static_cast<UIElement*>(ownedChildren_[index].Get())
+            : nullptr;
+        if (child != nullptr && child->GetVisualParent() == this) {
+            ++count;
+        }
+    }
+    return count;
+}
+::Aero::Media::Visual* Panel::GetVisualChild(std::uint32_t index) const noexcept {
+    std::uint32_t current = 0U;
+    for (std::uint32_t childIndex = 0U; childIndex < ownedChildren_.Size(); ++childIndex) {
+        UIElement* child = ownedChildren_[childIndex]
+            ? static_cast<UIElement*>(ownedChildren_[childIndex].Get())
+            : nullptr;
+        if (child == nullptr || child->GetVisualParent() != this) continue;
+        if (current == index) return child;
+        ++current;
+    }
+    return nullptr;
+}
 Base::Result<void> Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
     if (!childObject || childObject.Get() != &child) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Panel child ownership does not match its UIElement");

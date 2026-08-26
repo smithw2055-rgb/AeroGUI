@@ -422,11 +422,17 @@ bool UIElement::GetAllowDrop() const noexcept {
 // from src/gui/controls/Layout.cpp
 bool UIElement::GetIsEnabled() const noexcept {
     if (!GetValueOr(IsEnabledProperty, true)) return false;
-    ::Aero::Media::Visual* parent = GetLogicalParent() != nullptr
-        ? GetLogicalParent() : GetVisualParent();
+    ::Aero::Media::Visual* parent = ::Aero::Media::Visual::Of(GetLogicalParent());
+    if (parent == nullptr) parent = GetVisualParent();
     const UIElement* parentElement =
         parent != nullptr ? parent->AsUIElement() : nullptr;
     return parentElement == nullptr || parentElement->GetIsEnabled();
+}
+
+void UIElement::OnVisualChildrenChanged(
+    ::Aero::Media::Visual*,
+    ::Aero::Media::Visual*) noexcept {
+    (void)InvalidateMeasure();
 }
 
 // from src/gui/controls/Layout.cpp
@@ -438,9 +444,7 @@ bool UIElement::GetIsVisible() const noexcept {
             element->GetVisibility() != Visibility::Visible) {
             return false;
         }
-        current = current->GetLogicalParent() != nullptr
-            ? current->GetLogicalParent()
-            : current->GetVisualParent();
+        current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
     }
     return true;
 }

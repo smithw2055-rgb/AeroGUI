@@ -1491,8 +1491,36 @@ aero_forbid_text(
     "UIElement must not hard-include DrawingContext.hpp")
 aero_require_text(
     "include/Aero/Controls/TabControl.hpp"
-    "class AERO_GUI_API TabControl : public Control"
-    "Wave 1 keeps TabControl : Control; Selector promotion is a later wave")
+    "class AERO_GUI_API TabControl : public Primitives::Selector"
+    "TabControl derives Selector so tabs are driven by Items/ItemsSource/SelectedIndex")
+aero_forbid_text(
+    "include/Aero/Visual.hpp"
+    "visualChildren_"
+    "Visual must not store a Vector of visual children")
+aero_forbid_text(
+    "include/Aero/Visual.hpp"
+    "logicalChildren_"
+    "Visual must not store a Vector of logical children")
+aero_forbid_text(
+    "include/Aero/Visual.hpp"
+    "GetVisualChildren()"
+    "Public GetVisualChildren Span is retired; walk Count/GetChild")
+aero_require_text(
+    "include/Aero/Visual.hpp"
+    "AddVisualChild"
+    "Visual child attachment is AddVisualChild/RemoveVisualChild")
+aero_require_text(
+    "include/Aero/Visual.hpp"
+    "OnVisualChildrenChanged"
+    "Visual must expose OnVisualChildrenChanged")
+aero_require_text(
+    "include/Aero/Visual.hpp"
+    "DependencyObject* GetLogicalParent()"
+    "GetLogicalParent returns DependencyObject* so ContentElement can parent")
+aero_forbid_text(
+    "include/Aero/LogicalTreeHelper.hpp"
+    "static Media::Visual* GetParent"
+    "LogicalTreeHelper keeps DependencyObject overloads only")
 aero_forbid_text(
     "include/Aero/Controls/StackPanel.hpp"
     "class AERO_GUI_API DockPanel"

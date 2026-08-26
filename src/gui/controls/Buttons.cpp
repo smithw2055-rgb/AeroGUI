@@ -624,7 +624,7 @@ void ButtonBehavior::PublishToggleState(
 
 void ButtonBehavior::UncheckRadioPeers(
     RadioButton& button) noexcept {
-    ::Aero::Media::Visual* parent = button.GetLogicalParent();
+    ::Aero::Media::Visual* parent = ::Aero::Media::Visual::Of(button.GetLogicalParent());
     const Base::StringView group = button.GetGroupName();
     for (std::uint32_t index = 0U;
         index < buttons_.Size(); ++index) {

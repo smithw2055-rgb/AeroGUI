@@ -4,8 +4,6 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
-#include <Aero/Base/Vector.hpp>
-#include <Aero/Base/Span.hpp>
 #include <Aero/DependencyObject.hpp>
 
 #include <cstdint>
@@ -32,19 +30,15 @@ public:
     ~Visual() override;
 
     Visual* GetVisualParent() const noexcept { return visualParent_; }
-    Visual* GetLogicalParent() const noexcept { return logicalParent_; }
+    ::Aero::DependencyObject* GetLogicalParent() const noexcept { return logicalParent_; }
     bool GetIsLoaded() const noexcept { return loaded_; }
+
+    static Visual* Of(::Aero::DependencyObject* object) noexcept;
+    static const Visual* Of(const ::Aero::DependencyObject* object) noexcept;
 
 #if defined(AERO_GUI_IMPLEMENTATION)
     ::Aero::ElementTree* GetTree() const noexcept { return tree_; }
 #endif
-
-    virtual Base::Span<Visual* const> GetVisualChildren() const noexcept {
-        return { visualChildren_.Data(), visualChildren_.Size() };
-    }
-    Base::Span<Visual* const> GetLogicalChildren() const noexcept {
-        return { logicalChildren_.Data(), logicalChildren_.Size() };
-    }
 
     virtual ::Aero::UIElement* AsUIElement() noexcept { return nullptr; }
     virtual const ::Aero::UIElement* AsUIElement() const noexcept { return nullptr; }
@@ -52,11 +46,20 @@ public:
     virtual const ::Aero::FrameworkElement* AsFrameworkElement() const noexcept { return nullptr; }
 
 protected:
-    virtual std::uint32_t GetVisualChildrenCount() const noexcept { return visualChildren_.Size(); }
-    virtual Visual* GetVisualChild(std::uint32_t index) const noexcept { return index < visualChildren_.Size() ? visualChildren_[index] : nullptr; }
+    virtual std::uint32_t GetVisualChildrenCount() const noexcept { return 0U; }
+    virtual Visual* GetVisualChild(std::uint32_t) const noexcept { return nullptr; }
+
+    void AddVisualChild(Visual* child) noexcept;
+    void RemoveVisualChild(Visual* child) noexcept;
 
     virtual void OnVisualParentChanged(Visual* oldParent) noexcept {
         static_cast<void>(oldParent);
+    }
+    virtual void OnVisualChildrenChanged(
+        Visual* visualAdded,
+        Visual* visualRemoved) noexcept {
+        static_cast<void>(visualAdded);
+        static_cast<void>(visualRemoved);
     }
 
 private:
@@ -69,10 +72,8 @@ private:
     Result<Ref<Base::Object>> AcquireLifetime() noexcept;
 
     ::Aero::ElementTree* tree_ = nullptr;
-    Visual* logicalParent_ = nullptr;
+    ::Aero::DependencyObject* logicalParent_ = nullptr;
     Visual* visualParent_ = nullptr;
-    Base::Vector<Visual*> logicalChildren_;
-    Base::Vector<Visual*> visualChildren_;
     Ref<Base::Object> lifetime_;
     Base::RenderNodeId renderNodeId_ =
         Base::InvalidRenderNodeId;
