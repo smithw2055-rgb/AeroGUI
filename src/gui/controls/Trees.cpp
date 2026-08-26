@@ -7,6 +7,7 @@
 #include "gui/templates/TemplateState.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/TryCast.hpp>
 
 #include <utility>
 #include "ControlBehavior.hpp"
@@ -18,21 +19,9 @@ using namespace Primitives;
 
 namespace {
 
-// RTTI is disabled, so an ItemsSource arrives as a Base::Object and must be
-// down-cast by its runtime type. The collection contract is implemented by the
-// two observable collections known to the framework (mirrors
-// metadata/Support.inl OnItemsSourceChanged).
 Collections::IItemsSource* AsItemsSource(
     Base::Object* source) noexcept {
-    if (source == nullptr) return nullptr;
-    const Meta::TypeId type = source->RuntimeType();
-    if (type == Collections::ObservableCollection::StaticTypeId()) {
-        return static_cast<Collections::ObservableCollection*>(source);
-    }
-    if (type == Media::GradientStopCollection::StaticTypeId()) {
-        return static_cast<Media::GradientStopCollection*>(source);
-    }
-    return nullptr;
+    return TryCastToInterface<Collections::IItemsSource>(source);
 }
 
 } // namespace

@@ -154,6 +154,7 @@ Base::Result<void> PopulateCoreMetadata(
 #include <Aero/Media/LineSegment.hpp>
 #include <Aero/Media/PathFigure.hpp>
 #include <Aero/Media/PathGeometry.hpp>
+#include <Aero/Collections.hpp>
 
 #include <cctype>
 #include <cmath>

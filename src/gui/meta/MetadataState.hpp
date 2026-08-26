@@ -149,6 +149,9 @@ public:
     Base::StringView XamlNamespace() const noexcept { return xamlNamespace_.View(); }
     Base::StringView Name() const noexcept { return name_.View(); }
     Base::Span<const TypeId> Interfaces() const noexcept { return {interfaces_.Data(), interfaces_.Size()}; }
+    Base::Span<const InterfaceCastThunk> InterfaceCasts() const noexcept {
+        return {interfaceCasts_.Data(), interfaceCasts_.Size()};
+    }
     Base::Span<const PropertyInfo> Properties() const noexcept { return {properties_.Data(), properties_.Size()}; }
     Base::Span<const FieldInfo> Fields() const noexcept { return {fields_.Data(), fields_.Size()}; }
     Base::Span<const EnumValueInfo> EnumValues() const noexcept { return {enumValues_.Data(), enumValues_.Size()}; }
@@ -166,6 +169,7 @@ private:
     Base::String xamlNamespace_;
     Base::String name_;
     Base::Vector<TypeId> interfaces_;
+    Base::Vector<InterfaceCastThunk> interfaceCasts_;
     Base::Vector<PropertyInfo> properties_;
     Base::Vector<FieldInfo> fields_;
     Base::Vector<EnumValueInfo> enumValues_;
@@ -240,11 +244,17 @@ public:
     bool IsDerivedFrom(TypeId type, TypeId expectedBase) const noexcept;
     bool Implements(TypeId type, TypeId interfaceType) const noexcept;
     bool IsAssignableFrom(TypeId targetType, TypeId sourceType) const noexcept;
+    void* TryCastToInterface(
+        Base::Object& object,
+        TypeId interfaceType) const noexcept;
 private:
     friend class ::Aero::Meta::Registry;
     friend class RegistrationTypes;
     Base::Result<TypeId> RegisterType(BehaviorTable& behaviors, const TypeRegistration& registration) noexcept;
-    Base::Result<void> RegisterInterface(TypeId ownerType, TypeId interfaceType) noexcept;
+    Base::Result<void> RegisterInterface(
+        TypeId ownerType,
+        TypeId interfaceType,
+        InterfaceCastThunk cast = nullptr) noexcept;
     Base::Result<MemberId> RegisterProperty(BehaviorTable& behaviors, TypeId ownerType, const PropertyRegistration& registration) noexcept;
     Base::Result<MemberId> RegisterField(BehaviorTable& behaviors, TypeId ownerType, const FieldRegistration& registration) noexcept;
     Base::Result<MemberId> RegisterEnumValue(TypeId ownerType, const EnumValueRegistration& registration) noexcept;
@@ -416,6 +426,9 @@ public:
     Base::Result<bool> UnsubscribePropertyChanged(
         Base::Object& object,
         std::uint64_t subscription) const noexcept;
+    void* TryCastToInterface(
+        Base::Object& object,
+        TypeId interfaceType) const noexcept;
     Base::Result<Base::Ref<Base::Object>> CreateObject(
         TypeId type) const noexcept;
     Base::Result<Value> TryCreateValue(
@@ -821,7 +834,8 @@ public:
         const TypeRegistration& registration) const noexcept;
     Base::Result<void> RegisterInterface(
         TypeId ownerType,
-        TypeId interfaceType) const noexcept;
+        TypeId interfaceType,
+        InterfaceCastThunk cast = nullptr) const noexcept;
     Base::Result<MemberId> RegisterProperty(
         TypeId ownerType,
         const PropertyRegistration& registration) const noexcept;

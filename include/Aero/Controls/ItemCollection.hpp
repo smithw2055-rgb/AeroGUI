@@ -41,9 +41,9 @@ private:
 };
 
 AERO_GUI_API Result<void> AddBoxedItem(
-    Collections::ObservableCollection& source, Value value) noexcept;
+    Collections::ObservableCollection<Base::Object>& source, Value value) noexcept;
 AERO_GUI_API Result<void> AddBoxedStringItem(
-    Collections::ObservableCollection& source,
+    Collections::ObservableCollection<Base::Object>& source,
     StringView value) noexcept;
 
 } // namespace Aero::Controls

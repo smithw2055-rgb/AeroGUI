@@ -719,17 +719,8 @@ void OnItemsSourceChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<Base::Object>&,
     const Base::Ref<Base::Object>& value) noexcept {
-    Collections::IItemsSource* source = nullptr;
-    if (value) {
-        if (value->RuntimeType() ==
-            Collections::ObservableCollection::StaticTypeId()) {
-            source = static_cast<Collections::ObservableCollection*>(value.Get());
-        } else if (value->RuntimeType() ==
-                   Media::GradientStopCollection::StaticTypeId()) {
-            source = static_cast<Media::GradientStopCollection*>(
-                value.Get());
-        }
-    }
+    Collections::IItemsSource* source =
+        TryCastToInterface<Collections::IItemsSource>(value.Get());
     AeroGuiInternal::SetItemsSource(
         static_cast<ItemsControl&>(object), source);
 }

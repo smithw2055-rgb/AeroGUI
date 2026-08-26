@@ -58,4 +58,35 @@ bool IsRuntimeTypeDerivedFrom(
     return false;
 }
 
+void* TryCastToInterface(
+    Object* object,
+    Base::MetaTypeId interfaceType) noexcept {
+    if (object == nullptr || interfaceType == Base::InvalidMetaTypeId) {
+        return nullptr;
+    }
+    const Meta::TypeRegistry* types = nullptr;
+    const Meta::ObjectFactoryState factory = Meta::CurrentObjectFactory();
+    if (factory.dependencyProperties != nullptr) {
+        types = &factory.dependencyProperties->Types();
+    }
+    if (types != nullptr &&
+        types->IsDerivedFrom(
+            object->RuntimeType(), DependencyObject::StaticTypeId())) {
+        return static_cast<DependencyObject*>(object)
+            ->PropertyRegistry()
+            .Types()
+            .TryCastToInterface(*object, interfaceType);
+    }
+    if (types != nullptr) {
+        return types->TryCastToInterface(*object, interfaceType);
+    }
+    return nullptr;
+}
+
+const void* TryCastToInterface(
+    const Object* object,
+    Base::MetaTypeId interfaceType) noexcept {
+    return TryCastToInterface(const_cast<Object*>(object), interfaceType);
+}
+
 } // namespace Aero

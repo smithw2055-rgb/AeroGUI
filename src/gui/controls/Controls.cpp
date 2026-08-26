@@ -13,6 +13,7 @@
 #include "gui/media/MediaState.hpp"
 #include <Aero/Collections.hpp>
 #include <Aero/Documents.hpp>
+#include <Aero/TryCast.hpp>
 #include "RichText.hpp"
 
 
@@ -71,15 +72,8 @@ void AeroGuiInternal::SetItemsSource(
 void AeroGuiInternal::SetItemsSource(
     Controls::ItemsControl& control,
     Base::Ref<Base::Object> source) noexcept {
-    Collections::IItemsSource* directSource = nullptr;
-    if (source) {
-        if (source->RuntimeType() == Collections::ObservableCollection::StaticTypeId() ||
-            control.PropertyRegistry().Types().IsDerivedFrom(
-                source->RuntimeType(),
-                Collections::ObservableCollection::StaticTypeId())) {
-            directSource = static_cast<Collections::ObservableCollection*>(source.Get());
-        }
-    }
+    Collections::IItemsSource* directSource =
+        TryCastToInterface<Collections::IItemsSource>(source.Get());
     control.SetItemsSourceCore(directSource);
 }
 

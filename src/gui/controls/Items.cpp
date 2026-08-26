@@ -99,7 +99,7 @@ using namespace ::Aero::Controls;
 using namespace ::Aero;
 
 Base::Result<void> AddBoxedItem(
-    Collections::ObservableCollection& source,
+    Collections::ObservableCollection<Base::Object>& source,
     Meta::Value value) noexcept {
     Base::Result<Base::Ref<::Aero::Controls::BoxedItemValue>> boxed =
         Base::MakeRef<::Aero::Controls::BoxedItemValue>(std::move(value));
@@ -109,7 +109,7 @@ Base::Result<void> AddBoxedItem(
 }
 
 Base::Result<void> AddBoxedStringItem(
-    Collections::ObservableCollection& source,
+    Collections::ObservableCollection<Base::Object>& source,
     Base::StringView value) noexcept {
     Base::Result<Meta::Value> boxed =
         Meta::Value::TryFromString(

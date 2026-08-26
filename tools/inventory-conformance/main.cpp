@@ -652,7 +652,7 @@ void PrintDiagnostics(const Aero::Diagnostics::DiagnosticBag& diagnostics) {
 struct ViewModelFixture {
     Aero::Base::Ref<Inventory::ViewModel> viewModel;
     Aero::Base::Ref<Inventory::TestCommand> command;
-    Aero::Base::Ref<Aero::Collections::ObservableCollection> slots;
+    Aero::Base::Ref<Aero::Collections::ObservableObjectCollection> slots;
 };
 
 Aero::Base::Result<ViewModelFixture> CreateViewModel() noexcept {
@@ -660,9 +660,9 @@ Aero::Base::Result<ViewModelFixture> CreateViewModel() noexcept {
     Base::Result<Base::Ref<Inventory::ViewModel>> vm = Base::MakeRef<Inventory::ViewModel>();
     if (!vm) return vm.GetStatus();
     Base::Result<Base::Ref<Inventory::Player>> player = Base::MakeRef<Inventory::Player>();
-    Base::Result<Base::Ref<Collections::ObservableCollection>> inventory = Base::MakeRef<Collections::ObservableCollection>();
-    Base::Result<Base::Ref<Collections::ObservableCollection>> items = Base::MakeRef<Collections::ObservableCollection>();
-    Base::Result<Base::Ref<Collections::ObservableCollection>> slots = Base::MakeRef<Collections::ObservableCollection>();
+    Base::Result<Base::Ref<Collections::ObservableObjectCollection>> inventory = Base::MakeRef<Collections::ObservableObjectCollection>();
+    Base::Result<Base::Ref<Collections::ObservableObjectCollection>> items = Base::MakeRef<Collections::ObservableObjectCollection>();
+    Base::Result<Base::Ref<Collections::ObservableObjectCollection>> slots = Base::MakeRef<Collections::ObservableObjectCollection>();
     Base::Result<Base::Ref<Inventory::TestCommand>> command = Base::MakeRef<Inventory::TestCommand>();
     if (!player || !inventory || !items || !slots || !command) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Inventory view model allocation failed");
 

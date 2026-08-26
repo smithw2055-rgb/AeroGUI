@@ -72,7 +72,8 @@ set(_aero_gui_meta_sources
 set(_aero_gui_data_sources
     src/gui/data/BindingPath.cpp
     src/gui/data/Binding.cpp
-    src/gui/data/BindingObjects.cpp)
+    src/gui/data/BindingObjects.cpp
+    src/gui/data/NotifyPropertyChanged.cpp)
 
 set(_aero_gui_styles_sources
     src/gui/styles/Resources.cpp

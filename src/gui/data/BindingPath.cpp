@@ -4,6 +4,7 @@
 #include "gui/styles/StyleState.hpp"
 
 #include <Aero/Collections.hpp>
+#include <Aero/TryCast.hpp>
 
 #include <cstdio>
 #include <limits>
@@ -11,6 +12,9 @@
 
 namespace Aero::Meta {
 namespace {
+
+using Aero::TryCast;
+using Aero::TryCastToInterface;
 
 constexpr std::uint32_t InvalidSegmentIndex = UINT32_MAX;
 
@@ -527,17 +531,16 @@ Base::Result<Value> BindingPathPlan::GetObject(
     std::uint32_t segmentIndex) const noexcept {
     const BindingPathSegment& segment = segments_[segmentIndex];
     if (segment.kind == BindingPathSegmentKind::CollectionIndex) {
-        if (!runtime.Types().IsDerivedFrom(
-                object.RuntimeType(),
-                Collections::ObservableCollection::StaticTypeId())) {
+        const Collections::IItemsSource* items =
+            TryCastToInterface<Collections::IItemsSource>(
+                const_cast<Base::Object*>(&object));
+        if (items == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
-                "Binding collection index source is not an ObservableCollection");
+                "Binding collection index source does not implement IItemsSource");
         }
-        const auto& collection =
-            static_cast<const Collections::ObservableCollection&>(object);
         Base::Ref<Base::Object> item =
-            collection.GetItem(segment.collectionIndex);
+            items->GetItem(segment.collectionIndex);
         if (!item) {
             return Base::Status::Failure(
                 Base::ErrorCode::OutOfRange,
@@ -666,28 +669,35 @@ Base::Result<void> BindingPathPlan::SetObject(
     const Value& value) const noexcept {
     const BindingPathSegment& segment = segments_[segmentIndex];
     if (segment.kind == BindingPathSegmentKind::CollectionIndex) {
-        if (!runtime.Types().IsDerivedFrom(
-                object.RuntimeType(),
-                Collections::ObservableCollection::StaticTypeId())) {
+        Collections::IItemsSource* items =
+            TryCastToInterface<Collections::IItemsSource>(&object);
+        auto* writable =
+            TryCast<Collections::ObservableObjectCollection>(&object);
+        if (items == nullptr && writable == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
-                "Binding collection index source is not an ObservableCollection");
+                "Binding collection index assignment requires IItemsSource");
         }
-        auto& collection =
-            static_cast<Collections::ObservableCollection&>(object);
         if (segmentIndex + 1U == segments_.Size()) {
+            if (writable == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Binding collection index assignment requires ObservableCollection");
+            }
             if (value.Kind() != ValueKind::Object ||
                 value.IsNullObject() || !value.AsObject()) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "Binding collection index assignment requires an object");
             }
-            return collection.Replace(
+            return writable->Replace(
                 segment.collectionIndex,
                 value.AsObject());
         }
         Base::Ref<Base::Object> item =
-            collection.GetItem(segment.collectionIndex);
+            items != nullptr
+                ? items->GetItem(segment.collectionIndex)
+                : writable->GetItem(segment.collectionIndex);
         if (!item) {
             return Base::Status::Failure(
                 Base::ErrorCode::OutOfRange,

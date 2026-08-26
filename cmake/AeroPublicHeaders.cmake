@@ -105,6 +105,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/TextBoxBase.hpp
     include/Aero/Controls/TextBox.hpp
     include/Aero/Data/Binding.hpp
+    include/Aero/Data/NotifyPropertyChanged.hpp
     include/Aero/Resources.hpp
     include/Aero/Style.hpp
     include/Aero/FrameworkTemplate.hpp

@@ -19,6 +19,7 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
+#include <Aero/TryCast.hpp>
 #include "gui/text/EditableText.hpp"
 
 
@@ -36,6 +37,7 @@ using namespace Aero::Threading;
     using Aero::Shapes::Path;
     using Aero::Shapes::PenLineJoin;
     using Aero::Shapes::PenLineCap;
+    using Aero::TryCastToInterface;
 namespace {
 #include "metadata/Support.inl"
 #include "metadata/Values.inl"

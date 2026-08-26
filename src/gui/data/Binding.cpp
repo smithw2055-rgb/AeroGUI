@@ -1256,9 +1256,21 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
         }
         const bool metadataPath =
             record.sourceKind != BindingSourceKind::DependencyProperty;
+        const bool hasNotify = record.notificationSubscription != 0U;
+        const bool pollMetadata = metadataPath && !hasNotify;
         if (record.applied && !record.sourceDirty &&
-            !record.targetDirty && !metadataPath) {
+            !record.targetDirty && !pollMetadata) {
             continue;
+        }
+        if (pollMetadata && !record.pollHintEmitted) {
+            record.pollHintEmitted = true;
+            ReportDiagnostic(
+                record,
+                BindingDiagnosticStage::ResolveSource,
+                Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Binding source does not implement NotifyPropertyChanged; "
+                    "polling metadata path every frame"));
         }
 
         Base::Result<PropertyValue> source = ReadSource(record);
@@ -1291,7 +1303,7 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
         const bool sourceChanged = !record.applied ||
             record.sourceDirty ||
             usedFallback ||
-            (metadataPath &&
+            (pollMetadata &&
              source.Value() != record.lastSourceValue);
         const bool targetChanged = record.descriptor.updateSourceTrigger ==
                 UpdateSourceTrigger::Explicit

@@ -130,6 +130,7 @@ Base::Result<void> PopulateUiMedia(
     auto gradientStopCollection =
         Meta::Register<GradientStopCollection>(context);
     gradientStopCollection
+        .Implements<Collections::IItemsSource>()
         .Content<GradientStop>(
             "Items", ContentKind::Collection,
             &AddGradientStopCollectionItem,

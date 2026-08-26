@@ -317,6 +317,8 @@ Base::Result<TypeId> TypeRegistry::RegisterType(
         }
         result = info.interfaces_.PushBack(interfaceType);
         if (!result) return result.GetStatus();
+        result = info.interfaceCasts_.PushBack(nullptr);
+        if (!result) return result.GetStatus();
     }
 
     const std::uint32_t index = types_.Size();
@@ -345,7 +347,8 @@ Base::Result<TypeId> TypeRegistry::RegisterType(
 
 Base::Result<void> TypeRegistry::RegisterInterface(
     TypeId ownerType,
-    TypeId interfaceType) noexcept {
+    TypeId interfaceType,
+    InterfaceCastThunk cast) noexcept {
     if (frozen_) return RegistryFrozenStatus();
     if (interfaceType == InvalidTypeId || ownerType == interfaceType) {
         return Base::Status::Failure(
@@ -361,7 +364,13 @@ Base::Result<void> TypeRegistry::RegisterInterface(
                 "Implemented interface is already registered");
         }
     }
-    return owner->interfaces_.PushBack(interfaceType);
+    while (owner->interfaceCasts_.Size() < owner->interfaces_.Size()) {
+        Base::Result<void> padded = owner->interfaceCasts_.PushBack(nullptr);
+        if (!padded) return padded.GetStatus();
+    }
+    Base::Result<void> stored = owner->interfaces_.PushBack(interfaceType);
+    if (!stored) return stored.GetStatus();
+    return owner->interfaceCasts_.PushBack(cast);
 }
 
 Base::Result<MemberId> TypeRegistry::RegisterProperty(
@@ -1194,6 +1203,37 @@ bool TypeRegistry::IsAssignableFrom(
         : IsDerivedFrom(sourceType, targetType);
 }
 
+void* TypeRegistry::TryCastToInterface(
+    Base::Object& object,
+    TypeId interfaceType) const noexcept {
+    if (interfaceType == InvalidTypeId) {
+        return nullptr;
+    }
+    TypeId current = object.RuntimeType();
+    for (std::uint32_t depth = 0U;
+         current != InvalidTypeId && depth <= types_.Size();
+         ++depth) {
+        const TypeInfo* info = FindType(current);
+        if (info == nullptr) {
+            return nullptr;
+        }
+        const Base::Span<const TypeId> interfaces = info->Interfaces();
+        const Base::Span<const InterfaceCastThunk> casts =
+            info->InterfaceCasts();
+        for (std::uint32_t index = 0U; index < interfaces.Size(); ++index) {
+            if (interfaces[index] != interfaceType) {
+                continue;
+            }
+            if (index >= casts.Size() || casts[index] == nullptr) {
+                return nullptr;
+            }
+            return casts[index](&object);
+        }
+        current = info->BaseType();
+    }
+    return nullptr;
+}
+
 TypeInfo* TypeRegistry::MutableType(TypeId id) noexcept {
     std::uint32_t* index = typeIndex_.Find(id);
     return index != nullptr ? &types_[*index] : nullptr;
@@ -1274,10 +1314,11 @@ MetadataAuthoringSession::MetadataAuthoringSession(
 
 MetadataAuthoringSession&
 MetadataAuthoringSession::Implements(
-    TypeId interfaceType) noexcept {
+    TypeId interfaceType,
+    InterfaceCastThunk cast) noexcept {
     if (Ok()) {
         Record(context_->Types().RegisterInterface(
-            type_, interfaceType));
+            type_, interfaceType, cast));
     }
     return *this;
 }
@@ -2747,10 +2788,11 @@ Base::Result<TypeId> RegistrationTypes::RegisterType(
 
 Base::Result<void> RegistrationTypes::RegisterInterface(
     TypeId ownerType,
-    TypeId interfaceType) const noexcept {
+    TypeId interfaceType,
+    InterfaceCastThunk cast) const noexcept {
     Base::Result<void> valid = ValidateRegistrationPair();
     if (!valid) return valid.GetStatus();
-    return types_->RegisterInterface(ownerType, interfaceType);
+    return types_->RegisterInterface(ownerType, interfaceType, cast);
 }
 
 Base::Result<MemberId> RegistrationTypes::RegisterProperty(
@@ -3626,6 +3668,15 @@ Base::Result<bool> Registry::UnsubscribePropertyChanged(
         object,
         subscription,
         notification->context);
+}
+
+void* Registry::TryCastToInterface(
+    Base::Object& object,
+    TypeId interfaceType) const noexcept {
+    if (!IsReady()) {
+        return nullptr;
+    }
+    return Types().TryCastToInterface(object, interfaceType);
 }
 
 Base::Result<Base::Ref<Base::Object>>

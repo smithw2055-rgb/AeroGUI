@@ -81,6 +81,18 @@ using PropertyChangeUnsubscribeCallback = Base::Result<bool> (*)(
     Base::Object& object,
     std::uint64_t subscription,
     void* context) noexcept;
+using InterfaceCastThunk = void* (*)(Base::Object* object) noexcept;
+
+template<class T, class TInterface>
+void* CastObjectToInterface(Base::Object* object) noexcept {
+    static_assert(
+        std::is_base_of_v<TInterface, T>,
+        "Implements<TInterface>() requires T to derive the interface");
+    if (object == nullptr) {
+        return nullptr;
+    }
+    return static_cast<TInterface*>(static_cast<T*>(object));
+}
 enum class MetadataCollectionChangeAction : std::uint8_t {
     Add = 0U,
     Remove,
@@ -563,7 +575,8 @@ private:
         MetadataAuthoringSession&&) noexcept = default;
 
     MetadataAuthoringSession& Implements(
-        TypeId interfaceType) noexcept;
+        TypeId interfaceType,
+        InterfaceCastThunk cast = nullptr) noexcept;
     MetadataAuthoringSession& Factory(
         ObjectFactory factory) noexcept;
     MetadataAuthoringSession& PropertyChangeNotifications(
@@ -735,6 +748,10 @@ MetadataAuthoringSession CreateDescriptionSession(
         baseType = TypeTraits<T>::BaseType();
         registration = TypeRegistration::Object(
             metadataNamespace, metadataName, baseType, flags);
+    } else if constexpr (std::is_abstract_v<T>) {
+        kind = MetadataTypeKind::Interface;
+        registration = TypeRegistration::Interface(
+            metadataNamespace, metadataName, flags);
     } else {
         if constexpr (std::is_trivially_copyable_v<T>) {
             flags = flags | TypeFlags::TriviallyCopyable;
@@ -807,6 +824,10 @@ MetadataAuthoringSession CreateNamedDescriptionSession(
         baseType = TypeTraits<T>::BaseType();
         registration = TypeRegistration::Object(
             metadataNamespace, metadataName, baseType, flags);
+    } else if constexpr (std::is_abstract_v<T>) {
+        kind = MetadataTypeKind::Interface;
+        registration = TypeRegistration::Interface(
+            metadataNamespace, metadataName, flags);
     } else {
         if constexpr (std::is_trivially_copyable_v<T>) {
             flags = flags | TypeFlags::TriviallyCopyable;
@@ -1237,7 +1258,9 @@ public:
 #endif
     template<class TInterface>
     TypeBuilder& Implements() noexcept {
-        builder_.Implements(TypeOf<TInterface>());
+        builder_.Implements(
+            TypeOf<TInterface>(),
+            &CastObjectToInterface<T, TInterface>);
         return *this;
     }
 
@@ -1582,6 +1605,14 @@ public:
         return *this;
     }
 #endif
+
+    TypeBuilder& PropertyChangeNotifications() noexcept {
+        builder_.PropertyChangeNotifications(
+            &T::SubscribePropertyChanged,
+            &T::UnsubscribePropertyChanged,
+            nullptr);
+        return *this;
+    }
 
     TypeBuilder& PropertyChangeNotifications(
         PropertyChangeSubscribeCallback subscribe,

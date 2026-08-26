@@ -36,4 +36,22 @@ const T* TryCast(const Object* object) noexcept {
     return TryCast<T>(const_cast<Object*>(object));
 }
 
+AERO_GUI_API void* TryCastToInterface(
+    Object* object,
+    Base::MetaTypeId interfaceType) noexcept;
+AERO_GUI_API const void* TryCastToInterface(
+    const Object* object,
+    Base::MetaTypeId interfaceType) noexcept;
+
+template<class TInterface>
+TInterface* TryCastToInterface(Object* object) noexcept {
+    return static_cast<TInterface*>(
+        TryCastToInterface(object, TInterface::StaticTypeId()));
+}
+
+template<class TInterface>
+const TInterface* TryCastToInterface(const Object* object) noexcept {
+    return TryCastToInterface<TInterface>(const_cast<Object*>(object));
+}
+
 } // namespace Aero

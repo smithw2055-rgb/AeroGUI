@@ -413,6 +413,7 @@ private:
         bool sourceDirty = true;
         bool targetDirty = true;
         bool forceSourceUpdate = false;
+        bool pollHintEmitted = false;
     };
 
     struct DeferredBindingRecord {

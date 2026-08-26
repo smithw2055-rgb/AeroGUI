@@ -3,8 +3,14 @@
 Base::Result<void> PopulateControlsItems(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    status = Meta::Register<Collections::ObservableCollection>(context)
+    status = Meta::Register<Collections::IItemsSource>(
+        context, TypeFlags::Abstract)
+        .Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Collections::ObservableObjectCollection>(context)
         .Factory()
+        .Implements<Collections::IItemsSource>()
         .Result();
     if (!status) return status.GetStatus();
 

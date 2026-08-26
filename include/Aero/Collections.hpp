@@ -11,6 +11,8 @@
 #include <Aero/Value.hpp>
 
 #include <cstdint>
+#include <type_traits>
+#include <utility>
 
 namespace Aero::Collections {
 
@@ -18,6 +20,7 @@ namespace Aero::Collections {
 // resources and view-model objects can be an ItemsSource without depending on
 // a particular control or visual host.
 class AERO_GUI_API IItemsSource {
+    AERO_DECLARE_TYPE(IItemsSource, Aero::Meta::NoMetadataBase)
 public:
     virtual ~IItemsSource() = default;
     virtual std::uint32_t GetCount() const noexcept = 0;
@@ -29,33 +32,33 @@ public:
         const ItemsChangedHandler& handler) noexcept = 0;
 };
 
-// Reference-counted observable collection used by view models and bindings.
-// It deliberately lives in Collections rather than Controls so a data source
-// does not acquire a dependency on visual controls or item containers.
-class AERO_GUI_API ObservableCollection :
+// Typed observable collection used by view models and bindings. The untyped
+// XAML name `ObservableCollection` is the Object specialization below.
+template<class T>
+class ObservableCollection :
     public Base::Object,
     public IItemsSource {
-    AERO_DECLARE_TYPE(ObservableCollection, Base::Object)
+    static_assert(
+        std::is_base_of<Base::Object, T>::value,
+        "ObservableCollection<T> requires an Object-derived item type");
 public:
     ObservableCollection() noexcept = default;
 
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
     std::uint32_t GetCount() const noexcept override {
         return items_.Size();
     }
     Ref<Base::Object> GetItem(
         std::uint32_t index) const noexcept override {
-        return index < items_.Size() ? items_[index] : Ref<Base::Object>{};
+        return index < items_.Size()
+            ? Ref<Base::Object>(items_[index])
+            : Ref<Base::Object>{};
     }
-    Result<void> Add(
-        Ref<Base::Object> item) noexcept {
+    Result<void> Add(Ref<T> item) noexcept {
         return Insert(items_.Size(), std::move(item));
     }
     Result<void> Insert(
         std::uint32_t index,
-        Ref<Base::Object> item) noexcept {
+        Ref<T> item) noexcept {
         if (!item || index > items_.Size()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -64,7 +67,7 @@ public:
         Result<void> reserved =
             items_.Reserve(items_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
-        Ref<Base::Object> placeholder;
+        Ref<T> placeholder;
         Result<void> pushed = items_.PushBack(std::move(placeholder));
         if (!pushed) return pushed.GetStatus();
         for (std::uint32_t current = items_.Size() - 1U;
@@ -82,7 +85,7 @@ public:
     }
     Result<void> Replace(
         std::uint32_t index,
-        Ref<Base::Object> item) noexcept {
+        Ref<T> item) noexcept {
         if (!item || index >= items_.Size()) {
             return Base::Status::Failure(
                 index >= items_.Size()
@@ -100,14 +103,14 @@ public:
         return {};
     }
 
-    Result<Ref<Base::Object>> RemoveAt(
+    Result<Ref<T>> RemoveAt(
         std::uint32_t index) noexcept {
         if (index >= items_.Size()) {
             return Base::Status::Failure(
                 Base::ErrorCode::OutOfRange,
                 "ObservableCollection remove index is out of range");
         }
-        Ref<Base::Object> removed = std::move(items_[index]);
+        Ref<T> removed = std::move(items_[index]);
         for (std::uint32_t current = index + 1U;
              current < items_.Size(); ++current) {
             items_[current - 1U] = std::move(items_[current]);
@@ -141,8 +144,25 @@ public:
     }
 
 private:
-    Base::Vector<Ref<Base::Object>> items_;
+    Base::Vector<Ref<T>> items_;
     ItemsChangedHandler changed_;
+};
+
+// XAML name "ObservableCollection". Prefer ObservableCollection<T> in new
+// view-model code; this derived type owns the untyped Object collection
+// TypeId used by existing XAML.
+class AERO_GUI_API ObservableObjectCollection :
+    public ObservableCollection<Base::Object> {
+    AERO_DECLARE_TYPE_NAMED(
+        ObservableObjectCollection,
+        Base::Object,
+        Aero::Meta::AeroNamespaceUri(),
+        "ObservableCollection")
+public:
+    ObservableObjectCollection() noexcept = default;
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
 };
 
 } // namespace Aero::Collections

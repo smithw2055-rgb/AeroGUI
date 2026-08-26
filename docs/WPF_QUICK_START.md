@@ -125,6 +125,45 @@ Binding objects expose WPF concepts such as `Path`, `Mode`, `ElementName`,
 `RelativeSource`, converter, fallback value and target-null value. Runtime
 binding records and schedulers are private.
 
+WPF `INotifyPropertyChanged` maps to `Aero::Data::NotifyPropertyChanged<T>`:
+
+```cpp
+#include <Aero/Data/NotifyPropertyChanged.hpp>
+#include <Aero/Meta.hpp>
+
+class Person : public Aero::Base::Object,
+               public Aero::Data::NotifyPropertyChanged<Person> {
+    AERO_DECLARE_TYPE(Person, Aero::Base::Object)
+public:
+    const Aero::Base::String& GetName() const noexcept { return name_; }
+    void SetName(Aero::Base::String value) noexcept {
+        name_ = std::move(value);
+        RaisePropertyChanged("Name");
+    }
+private:
+    Aero::Base::String name_;
+};
+
+Aero::Result<void> RegisterPerson(
+    Aero::Meta::Registration& registration) noexcept {
+    return Aero::Meta::Register<Person>(registration)
+        .Property<Aero::Base::String, &Person::GetName, &Person::SetName>("Name")
+        .PropertyChangeNotifications()
+        .Factory()
+        .Result();
+}
+```
+
+When the source type registers property-change notifications, `{Binding}`
+evaluates only on `RaisePropertyChanged`. Types without the mixin keep the
+per-frame metadata-path poll and emit a diagnostic hint.
+
+`ItemsSource` accepts any `Object` that `Implements<IItemsSource>()` at
+registration. Subclasses of `ObservableCollection<T>` and user collections
+are no longer compared by a hard-coded TypeId. The untyped XAML name
+`ObservableCollection` is `ObservableObjectCollection` in C++
+(`ObservableCollection<Object>` underneath).
+
 ## Embedded View and XAML
 
 Engine hosts use the `Gui` façade and keep `View` focused on content, input and
