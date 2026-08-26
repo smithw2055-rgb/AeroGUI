@@ -4707,6 +4707,7 @@ Base::Result<XamlDocument> Loader::LoadCompiled(
 
 
 #include <Aero/Base/ResourceUri.hpp>
+#include <Aero/Controls/UserControl.hpp>
 
 namespace Aero::Markup {
 namespace {
@@ -4771,6 +4772,21 @@ ResourceDictionary* ResolveFrameworkScope(
         : nullptr;
 }
 
+Base::Result<void> RegisterFrameworkName(
+    Base::Object& scopeOwner,
+    Base::StringView name,
+    Base::Object& object,
+    void*) noexcept {
+    FrameworkElement* element =
+        ::Aero::TryCast<::Aero::FrameworkElement>(&scopeOwner);
+    if (element == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML name scope is not a FrameworkElement");
+    }
+    return element->RegisterName(name, object);
+}
+
 } // namespace
 
 Base::Result<void> ResourceExtension::Register(
@@ -4822,6 +4838,24 @@ Base::Result<void> ResourceExtension::Register(
         true,
         &AddFrameworkResource,
         &ResolveFrameworkScope,
+        this});
+    if (!status) {
+        schema_ = nullptr;
+        return status.GetStatus();
+    }
+    status = SchemaPrivate::AddNameScope(schema, {
+        FrameworkElement::StaticTypeId(),
+        false,
+        &RegisterFrameworkName,
+        this});
+    if (!status) {
+        schema_ = nullptr;
+        return status.GetStatus();
+    }
+    status = SchemaPrivate::AddNameScope(schema, {
+        ::Aero::Controls::UserControl::StaticTypeId(),
+        true,
+        &RegisterFrameworkName,
         this});
     if (!status) {
         schema_ = nullptr;

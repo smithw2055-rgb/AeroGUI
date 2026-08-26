@@ -385,6 +385,7 @@ struct FrameworkElement::FrameworkRare {
     Base::Vector<Ref<Base::Object>> authoredBehaviors;
     Base::Vector<Ref<Base::Object>> styleBehaviorPrototypes;
     Base::Vector<Ref<Base::Object>> styleTriggerPrototypes;
+    NameScope names;
     Base::Transform2D viewboxTransform{};
     bool hasViewboxTransform = false;
 };
@@ -403,6 +404,7 @@ void FrameworkElement::DropRareIfUnused() noexcept {
     if (!frameworkRare_->authoredBehaviors.Empty()) return;
     if (!frameworkRare_->styleBehaviorPrototypes.Empty()) return;
     if (!frameworkRare_->styleTriggerPrototypes.Empty()) return;
+    if (frameworkRare_->names.Size() != 0U) return;
     if (frameworkRare_->hasViewboxTransform) return;
     delete frameworkRare_;
     frameworkRare_ = nullptr;
@@ -429,6 +431,25 @@ void FrameworkElement::ClearViewboxTransform() noexcept {
     frameworkRare_->hasViewboxTransform = false;
     frameworkRare_->viewboxTransform = {};
     DropRareIfUnused();
+}
+
+Base::Object* FrameworkElement::FindRegisteredName(
+    Base::StringView name) const noexcept {
+    return frameworkRare_ != nullptr
+        ? frameworkRare_->names.Find(name)
+        : nullptr;
+}
+
+Base::Result<void> FrameworkElement::RegisterName(
+    Base::StringView name,
+    Base::Object& scopedElement) noexcept {
+    FrameworkRare* rare = EnsureFrameworkRare();
+    if (rare == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "FrameworkElement name scope allocation failed");
+    }
+    return rare->names.Register(name, scopedElement);
 }
 
 FrameworkElement::~FrameworkElement() {

@@ -251,6 +251,16 @@ void FrameworkElement::SetUseLayoutRounding(
 Base::Object* FrameworkElement::FindNameObject(
     Base::StringView name,
     Meta::TypeId expectedType) noexcept {
+    Base::Object* object = FindRegisteredName(name);
+    if (object != nullptr) {
+        if (expectedType == Meta::InvalidTypeId) {
+            return object;
+        }
+        return PropertyRegistry().Types().IsDerivedFrom(
+            object->RuntimeType(), expectedType)
+            ? object
+            : nullptr;
+    }
     return AeroGuiInternal::FindName(
         *this, name, expectedType);
 }

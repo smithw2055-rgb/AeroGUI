@@ -91,6 +91,9 @@ public:
         return GetValueOr(FlowDirectionProperty, FlowDirection::LeftToRight);
     }
     Base::Object* FindName(StringView name) noexcept;
+    Result<void> RegisterName(
+        StringView name,
+        Base::Object& scopedElement) noexcept;
     template<class T>
     T* FindName(StringView name) noexcept {
         return static_cast<T*>(FindNameObject(name, T::StaticTypeId()));
@@ -228,6 +231,8 @@ private:
     Base::Object* FindNameObject(
         StringView name,
         Meta::TypeId expectedType) noexcept;
+    Base::Object* FindRegisteredName(
+        StringView name) const noexcept;
 
     friend class LogicalTreeHelper;
     friend class Controls::Viewbox;
