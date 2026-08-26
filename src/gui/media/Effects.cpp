@@ -99,8 +99,29 @@ void DirectionalBlurEffect::SetAngle(double value) noexcept {
     SetValue(AngleProperty, value);
 }
 
+void ShaderEffect::SynchronizePixelShaderCache() const noexcept {
+    const String current = GetValueOr(PixelShaderProperty, String{});
+    if (current.View() != source_.View()) {
+        static_cast<void>(source_.Assign(current.View()));
+    }
+}
+
+StringView ShaderEffect::GetPixelShader() const noexcept {
+    SynchronizePixelShaderCache();
+    return source_.View();
+}
+
 void ShaderEffect::SetPixelShader(Base::StringView value) noexcept {
-    static_cast<void>(source_.Assign(value));
+    String stored;
+    static_cast<void>(stored.Assign(value));
+    SetValue(PixelShaderProperty, std::move(stored));
+    SynchronizePixelShaderCache();
+}
+
+void ShaderEffect::OnPixelShaderChanged(
+    DependencyObject& object,
+    const Meta::DependencyPropertyChangedEventArgs&) noexcept {
+    static_cast<ShaderEffect&>(object).SynchronizePixelShaderCache();
 }
 
 Base::Result<void> ShaderEffect::SetBytecode(

@@ -602,7 +602,13 @@ Base::Result<void> PopulateUiMedia(
     if (!status) return status.GetStatus();
 
     auto shaderEffect = Meta::Register<ShaderEffect>(context);
-    shaderEffect.Factory();
+    shaderEffect
+        .Property(
+            ShaderEffect::PixelShaderProperty,
+            FrameworkPropertyMetadata(Base::String{})
+                .AffectsRender()
+                .Changed(&ShaderEffect::OnPixelShaderChanged))
+        .Factory();
     status = shaderEffect.Result();
     if (!status) return status.GetStatus();
 

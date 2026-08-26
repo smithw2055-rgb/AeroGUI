@@ -2074,23 +2074,30 @@ constexpr Base::StringView BlendInteractivityNamespace(
 constexpr Base::StringView SystemNamespacePrefix(
     "clr-namespace:System");
 
+bool MatchesClrNamespacePrefix(
+    Base::StringView value,
+    Base::StringView prefix) noexcept {
+    return value.SizeBytes() >= prefix.SizeBytes() &&
+        value.Substr(0U, prefix.SizeBytes()) == prefix;
+}
+
+bool IsExtensionsClrNamespace(Base::StringView value) noexcept {
+    return MatchesClrNamespacePrefix(
+            value, Base::StringView("clr-namespace:AeroGUIExtensions")) ||
+        MatchesClrNamespacePrefix(
+            value, Base::StringView("clr-namespace:Aero.GUI.Extensions")) ||
+        MatchesClrNamespacePrefix(
+            value, Base::StringView("clr-namespace:NoesisGUIExtensions")) ||
+        MatchesClrNamespacePrefix(
+            value, Base::StringView("clr-namespace:Noesis.GUI.Extensions"));
+}
+
 Base::StringView CanonicalXamlNamespace(
     Base::StringView value) noexcept {
-    constexpr Base::StringView AeroExtensionsPrefix(
-        "clr-namespace:AeroGUIExtensions");
-    constexpr Base::StringView AeroGuiExtensionsPrefix(
-        "clr-namespace:Aero.GUI.Extensions");
-    const bool aeroExtensions =
-        (value.SizeBytes() >= AeroExtensionsPrefix.SizeBytes() &&
-            value.Substr(0U, AeroExtensionsPrefix.SizeBytes()) ==
-                AeroExtensionsPrefix) ||
-        (value.SizeBytes() >= AeroGuiExtensionsPrefix.SizeBytes() &&
-            value.Substr(0U, AeroGuiExtensionsPrefix.SizeBytes()) ==
-                AeroGuiExtensionsPrefix);
     return value == WpfPresentationNamespace ||
             value == BehaviorsNamespace ||
             value == BlendInteractivityNamespace ||
-            aeroExtensions
+            IsExtensionsClrNamespace(value)
         ? Meta::AeroNamespaceUri()
         : value;
 }
@@ -2117,16 +2124,7 @@ Base::StringView CanonicalXamlTypeName(
 bool IsAeroExtensionsFacade(
     Base::StringView xamlNamespace,
     Base::StringView ownerName) noexcept {
-    constexpr Base::StringView Prefix(
-        "clr-namespace:AeroGUIExtensions");
-    constexpr Base::StringView GuiPrefix(
-        "clr-namespace:Aero.GUI.Extensions");
-    const bool namespaceMatches =
-        (xamlNamespace.SizeBytes() >= Prefix.SizeBytes() &&
-            xamlNamespace.Substr(0U, Prefix.SizeBytes()) == Prefix) ||
-        (xamlNamespace.SizeBytes() >= GuiPrefix.SizeBytes() &&
-            xamlNamespace.Substr(0U, GuiPrefix.SizeBytes()) == GuiPrefix);
-    return namespaceMatches &&
+    return IsExtensionsClrNamespace(xamlNamespace) &&
         (ownerName == Base::StringView("Text") ||
          ownerName == Base::StringView("Path") ||
          ownerName == Base::StringView("Brush") ||
@@ -3189,23 +3187,30 @@ constexpr Base::StringView SchemaBlendInteractivityNamespace(
 constexpr Base::StringView SchemaSystemNamespacePrefix(
     "clr-namespace:System");
 
+bool SchemaMatchesClrNamespacePrefix(
+    Base::StringView value,
+    Base::StringView prefix) noexcept {
+    return value.SizeBytes() >= prefix.SizeBytes() &&
+        value.Substr(0U, prefix.SizeBytes()) == prefix;
+}
+
+bool SchemaIsExtensionsClrNamespace(Base::StringView value) noexcept {
+    return SchemaMatchesClrNamespacePrefix(
+            value, Base::StringView("clr-namespace:AeroGUIExtensions")) ||
+        SchemaMatchesClrNamespacePrefix(
+            value, Base::StringView("clr-namespace:Aero.GUI.Extensions")) ||
+        SchemaMatchesClrNamespacePrefix(
+            value, Base::StringView("clr-namespace:NoesisGUIExtensions")) ||
+        SchemaMatchesClrNamespacePrefix(
+            value, Base::StringView("clr-namespace:Noesis.GUI.Extensions"));
+}
+
 Base::StringView SchemaCanonicalXamlNamespace(
     Base::StringView value) noexcept {
-    constexpr Base::StringView AeroExtensionsPrefix(
-        "clr-namespace:AeroGUIExtensions");
-    constexpr Base::StringView AeroGuiExtensionsPrefix(
-        "clr-namespace:Aero.GUI.Extensions");
-    const bool aeroExtensions =
-        (value.SizeBytes() >= AeroExtensionsPrefix.SizeBytes() &&
-            value.Substr(0U, AeroExtensionsPrefix.SizeBytes()) ==
-                AeroExtensionsPrefix) ||
-        (value.SizeBytes() >= AeroGuiExtensionsPrefix.SizeBytes() &&
-            value.Substr(0U, AeroGuiExtensionsPrefix.SizeBytes()) ==
-                AeroGuiExtensionsPrefix);
     return value == SchemaWpfPresentationNamespace ||
             value == SchemaBehaviorsNamespace ||
             value == SchemaBlendInteractivityNamespace ||
-            aeroExtensions
+            SchemaIsExtensionsClrNamespace(value)
         ? Meta::AeroNamespaceUri()
         : value;
 }
@@ -3232,16 +3237,7 @@ Base::StringView SchemaCanonicalXamlTypeName(
 bool SchemaIsAeroExtensionsFacade(
     Base::StringView xamlNamespace,
     Base::StringView ownerName) noexcept {
-    constexpr Base::StringView Prefix(
-        "clr-namespace:AeroGUIExtensions");
-    constexpr Base::StringView GuiPrefix(
-        "clr-namespace:Aero.GUI.Extensions");
-    const bool namespaceMatches =
-        (xamlNamespace.SizeBytes() >= Prefix.SizeBytes() &&
-            xamlNamespace.Substr(0U, Prefix.SizeBytes()) == Prefix) ||
-        (xamlNamespace.SizeBytes() >= GuiPrefix.SizeBytes() &&
-            xamlNamespace.Substr(0U, GuiPrefix.SizeBytes()) == GuiPrefix);
-    return namespaceMatches &&
+    return SchemaIsExtensionsClrNamespace(xamlNamespace) &&
         (ownerName == Base::StringView("Text") ||
          ownerName == Base::StringView("Path") ||
          ownerName == Base::StringView("Brush") ||
