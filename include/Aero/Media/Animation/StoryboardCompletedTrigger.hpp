@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/Storyboard.hpp>
 #include <Aero/Interactivity/TriggerAction.hpp>
 
 namespace Aero::Media::Animation {

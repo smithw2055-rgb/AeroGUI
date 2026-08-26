@@ -143,12 +143,16 @@ struct AnimationEngine::Track {
         Thickness,
         DoubleKeyFrames,
         ColorKeyFrames,
+        PointKeyFrames,
+        ThicknessKeyFrames,
         Discrete
     };
 
     explicit Track(Base::IAllocator* allocator) noexcept
         : doubleFrames(allocator),
           colorFrames(allocator),
+          pointFrames(allocator),
+          thicknessFrames(allocator),
           discreteFrames(allocator) {}
 
     Track(Track&&) noexcept = default;
@@ -186,6 +190,8 @@ struct AnimationEngine::Track {
     Base::Thickness toThickness;
     Base::Vector<DoubleKeyFrame> doubleFrames;
     Base::Vector<ColorKeyFrame> colorFrames;
+    Base::Vector<PointKeyFrame> pointFrames;
+    Base::Vector<ThicknessKeyFrame> thicknessFrames;
     Base::Vector<DiscreteAnimationKeyFrame> discreteFrames;
     Meta::PropertyValue discreteBaseValue;
     bool valueApplied = false;
@@ -561,6 +567,102 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.timing = animation.timing;
     track.kind = Track::Kind::ColorKeyFrames;
     track.fromColor = animation.baseValue;
+    track.startTimeMicroseconds = currentTimeMicroseconds_;
+    track.pendingInitialSample = automaticTickingEnabled_;
+    return track.handle;
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject& target,
+    Meta::DependencyPropertyHandle property,
+    const PointKeyFrameAnimation& animation) noexcept {
+    Base::Result<void> access = dispatcher_->VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!property.IsValid() || !IsTimingValid(animation.timing) ||
+        !std::isfinite(animation.baseValue.x) ||
+        !std::isfinite(animation.baseValue.y) ||
+        animation.keyFrames.Empty()) {
+        return InvalidAnimation(
+            "Point key-frame animation is incomplete");
+    }
+    AnimationTime lastKeyTime = 0U;
+    for (std::uint32_t index = 0U;
+         index < animation.keyFrames.Size(); ++index) {
+        const PointKeyFrame& frame = animation.keyFrames[index];
+        if (!std::isfinite(frame.value.x) ||
+            !std::isfinite(frame.value.y) ||
+            (index != 0U && frame.keyTimeMicroseconds < lastKeyTime)) {
+            return InvalidAnimation(
+                "Point key frames must be finite and ordered");
+        }
+        lastKeyTime = frame.keyTimeMicroseconds;
+    }
+    Base::Result<Track*> added = AddTrack();
+    if (!added) return added.GetStatus();
+    Track& track = *added.Value();
+    Base::Result<void> copied =
+        track.pointFrames.Append(animation.keyFrames);
+    if (!copied) {
+        track.state = AnimationState::Stopped;
+        CompactStopped();
+        return copied.GetStatus();
+    }
+    track.handle = {nextHandle_++};
+    track.target = &target;
+    track.property = property;
+    track.timing = animation.timing;
+    track.kind = Track::Kind::PointKeyFrames;
+    track.fromPoint = animation.baseValue;
+    track.startTimeMicroseconds = currentTimeMicroseconds_;
+    track.pendingInitialSample = automaticTickingEnabled_;
+    return track.handle;
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject& target,
+    Meta::DependencyPropertyHandle property,
+    const ThicknessKeyFrameAnimation& animation) noexcept {
+    Base::Result<void> access = dispatcher_->VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!property.IsValid() || !IsTimingValid(animation.timing) ||
+        !std::isfinite(animation.baseValue.left) ||
+        !std::isfinite(animation.baseValue.top) ||
+        !std::isfinite(animation.baseValue.right) ||
+        !std::isfinite(animation.baseValue.bottom) ||
+        animation.keyFrames.Empty()) {
+        return InvalidAnimation(
+            "Thickness key-frame animation is incomplete");
+    }
+    AnimationTime lastKeyTime = 0U;
+    for (std::uint32_t index = 0U;
+         index < animation.keyFrames.Size(); ++index) {
+        const ThicknessKeyFrame& frame = animation.keyFrames[index];
+        if (!std::isfinite(frame.value.left) ||
+            !std::isfinite(frame.value.top) ||
+            !std::isfinite(frame.value.right) ||
+            !std::isfinite(frame.value.bottom) ||
+            (index != 0U && frame.keyTimeMicroseconds < lastKeyTime)) {
+            return InvalidAnimation(
+                "Thickness key frames must be finite and ordered");
+        }
+        lastKeyTime = frame.keyTimeMicroseconds;
+    }
+    Base::Result<Track*> added = AddTrack();
+    if (!added) return added.GetStatus();
+    Track& track = *added.Value();
+    Base::Result<void> copied =
+        track.thicknessFrames.Append(animation.keyFrames);
+    if (!copied) {
+        track.state = AnimationState::Stopped;
+        CompactStopped();
+        return copied.GetStatus();
+    }
+    track.handle = {nextHandle_++};
+    track.target = &target;
+    track.property = property;
+    track.timing = animation.timing;
+    track.kind = Track::Kind::ThicknessKeyFrames;
+    track.fromThickness = animation.baseValue;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
     track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
@@ -1121,6 +1223,115 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Color>::Encode(
                 sampledValue);
+        if (!encoded) return encoded.GetStatus();
+        value = std::move(encoded).Value();
+    } else if (track.kind == Track::Kind::PointKeyFrames) {
+        Base::Point previousValue = track.fromPoint;
+        AnimationTime previousTime = 0U;
+        Base::Point sampledValue = previousValue;
+        bool found = false;
+        for (std::uint32_t index = 0U;
+             index < track.pointFrames.Size(); ++index) {
+            const PointKeyFrame& frame = track.pointFrames[index];
+            if (sampleTime > frame.keyTimeMicroseconds) {
+                previousValue = frame.value;
+                previousTime = frame.keyTimeMicroseconds;
+                sampledValue = frame.value;
+                continue;
+            }
+            const AnimationTime segmentDuration =
+                frame.keyTimeMicroseconds >= previousTime
+                ? frame.keyTimeMicroseconds - previousTime
+                : 0U;
+            double segmentProgress = segmentDuration == 0U
+                ? 1.0
+                : static_cast<double>(sampleTime - previousTime) /
+                    static_cast<double>(segmentDuration);
+            switch (frame.interpolation) {
+            case DoubleKeyFrameInterpolation::Discrete:
+                segmentProgress = sampleTime >=
+                    frame.keyTimeMicroseconds ? 1.0 : 0.0;
+                break;
+            case DoubleKeyFrameInterpolation::Easing:
+                segmentProgress = Ease(segmentProgress, frame.easing);
+                break;
+            case DoubleKeyFrameInterpolation::Spline:
+                segmentProgress = EvaluateSpline(segmentProgress, frame);
+                break;
+            case DoubleKeyFrameInterpolation::Linear:
+                segmentProgress = Clamp01(segmentProgress);
+                break;
+            }
+            sampledValue = {
+                previousValue.x +
+                    (frame.value.x - previousValue.x) * segmentProgress,
+                previousValue.y +
+                    (frame.value.y - previousValue.y) * segmentProgress};
+            found = true;
+            break;
+        }
+        if (!found && !track.pointFrames.Empty()) {
+            sampledValue = track.pointFrames.Back().value;
+        }
+        Base::Result<Meta::PropertyValue> encoded =
+            Meta::ValueCodec<Base::Point>::Encode(sampledValue);
+        if (!encoded) return encoded.GetStatus();
+        value = std::move(encoded).Value();
+    } else if (track.kind == Track::Kind::ThicknessKeyFrames) {
+        Base::Thickness previousValue = track.fromThickness;
+        AnimationTime previousTime = 0U;
+        Base::Thickness sampledValue = previousValue;
+        bool found = false;
+        for (std::uint32_t index = 0U;
+             index < track.thicknessFrames.Size(); ++index) {
+            const ThicknessKeyFrame& frame = track.thicknessFrames[index];
+            if (sampleTime > frame.keyTimeMicroseconds) {
+                previousValue = frame.value;
+                previousTime = frame.keyTimeMicroseconds;
+                sampledValue = frame.value;
+                continue;
+            }
+            const AnimationTime segmentDuration =
+                frame.keyTimeMicroseconds >= previousTime
+                ? frame.keyTimeMicroseconds - previousTime
+                : 0U;
+            double segmentProgress = segmentDuration == 0U
+                ? 1.0
+                : static_cast<double>(sampleTime - previousTime) /
+                    static_cast<double>(segmentDuration);
+            switch (frame.interpolation) {
+            case DoubleKeyFrameInterpolation::Discrete:
+                segmentProgress = sampleTime >=
+                    frame.keyTimeMicroseconds ? 1.0 : 0.0;
+                break;
+            case DoubleKeyFrameInterpolation::Easing:
+                segmentProgress = Ease(segmentProgress, frame.easing);
+                break;
+            case DoubleKeyFrameInterpolation::Spline:
+                segmentProgress = EvaluateSpline(segmentProgress, frame);
+                break;
+            case DoubleKeyFrameInterpolation::Linear:
+                segmentProgress = Clamp01(segmentProgress);
+                break;
+            }
+            sampledValue = {
+                previousValue.left +
+                    (frame.value.left - previousValue.left) * segmentProgress,
+                previousValue.top +
+                    (frame.value.top - previousValue.top) * segmentProgress,
+                previousValue.right +
+                    (frame.value.right - previousValue.right) * segmentProgress,
+                previousValue.bottom +
+                    (frame.value.bottom - previousValue.bottom) *
+                        segmentProgress};
+            found = true;
+            break;
+        }
+        if (!found && !track.thicknessFrames.Empty()) {
+            sampledValue = track.thicknessFrames.Back().value;
+        }
+        Base::Result<Meta::PropertyValue> encoded =
+            Meta::ValueCodec<Base::Thickness>::Encode(sampledValue);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else {

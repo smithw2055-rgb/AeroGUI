@@ -3,6 +3,10 @@
 // Source-only storyboard session host next to AnimationEngine.
 // Not installed under include/Aero. Included from ViewState.hpp after ViewState.
 
+#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/Media/Animation/Storyboard.hpp>
+#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+
 namespace Aero {
 
 class StoryboardHost {

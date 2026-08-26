@@ -1,6 +1,8 @@
 #include "gui/ViewState.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include <Aero/Media/MediaElement.hpp>
+#include <Aero/Media/Animation/MediaActions.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
 
 #include <algorithm>
 #include <cmath>

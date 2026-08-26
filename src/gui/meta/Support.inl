@@ -680,14 +680,14 @@ void AddStoryboardTimeline(
         return;
     }
     static_cast<void>(
-        static_cast<Media::Animation::Storyboard&>(owner)
-            .AddTimeline(std::move(retained)));
+        static_cast<Media::Animation::TimelineGroup&>(owner)
+            .AddChild(std::move(retained)));
 }
 
 void ClearStoryboardTimelines(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Media::Animation::Storyboard&>(owner).ClearTimelines();
+    static_cast<Media::Animation::TimelineGroup&>(owner).Clear();
     return;
 }
 
@@ -978,9 +978,9 @@ void AddObjectKeyFrame(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Media::Animation::DiscreteObjectKeyFrame> retained =
-        Base::Ref<Media::Animation::DiscreteObjectKeyFrame>::TryFromBorrowed(
-            static_cast<Media::Animation::DiscreteObjectKeyFrame&>(*value));
+    Base::Ref<Media::Animation::ObjectKeyFrame> retained =
+        Base::Ref<Media::Animation::ObjectKeyFrame>::TryFromBorrowed(
+            static_cast<Media::Animation::ObjectKeyFrame&>(*value));
     if (!retained) {
         return;
     }
@@ -1002,9 +1002,9 @@ void AddBooleanKeyFrame(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Media::Animation::DiscreteBooleanKeyFrame> retained =
-        Base::Ref<Media::Animation::DiscreteBooleanKeyFrame>::TryFromBorrowed(
-            static_cast<Media::Animation::DiscreteBooleanKeyFrame&>(*value));
+    Base::Ref<Media::Animation::BooleanKeyFrame> retained =
+        Base::Ref<Media::Animation::BooleanKeyFrame>::TryFromBorrowed(
+            static_cast<Media::Animation::BooleanKeyFrame&>(*value));
     if (!retained) {
         return;
     }

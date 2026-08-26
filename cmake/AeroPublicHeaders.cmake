@@ -111,6 +111,66 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/VisualStateManager.hpp
     include/Aero/DataTemplate.hpp
     include/Aero/Media/Animation.hpp
+    include/Aero/Media/Animation/AnimationTimeline.hpp
+    include/Aero/Media/Animation/AnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/BackEase.hpp
+    include/Aero/Media/Animation/BooleanAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/BooleanKeyFrame.hpp
+    include/Aero/Media/Animation/BounceEase.hpp
+    include/Aero/Media/Animation/CircleEase.hpp
+    include/Aero/Media/Animation/ColorAnimation.hpp
+    include/Aero/Media/Animation/ColorAnimationBase.hpp
+    include/Aero/Media/Animation/ColorAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/ColorKeyFrame.hpp
+    include/Aero/Media/Animation/CubicEase.hpp
+    include/Aero/Media/Animation/DiscreteBooleanKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteColorKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteObjectKeyFrame.hpp
+    include/Aero/Media/Animation/DiscretePointKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/DoubleAnimation.hpp
+    include/Aero/Media/Animation/DoubleAnimationBase.hpp
+    include/Aero/Media/Animation/DoubleAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/DoubleKeyFrame.hpp
+    include/Aero/Media/Animation/EasingColorKeyFrame.hpp
+    include/Aero/Media/Animation/EasingDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/EasingFunctionBase.hpp
+    include/Aero/Media/Animation/EasingPointKeyFrame.hpp
+    include/Aero/Media/Animation/EasingThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/ElasticEase.hpp
+    include/Aero/Media/Animation/ExponentialEase.hpp
+    include/Aero/Media/Animation/KeyFrame.hpp
+    include/Aero/Media/Animation/KeyFrameBase.hpp
+    include/Aero/Media/Animation/LinearColorKeyFrame.hpp
+    include/Aero/Media/Animation/LinearDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/LinearPointKeyFrame.hpp
+    include/Aero/Media/Animation/LinearThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/ObjectAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/ObjectKeyFrame.hpp
+    include/Aero/Media/Animation/ParallelTimeline.hpp
+    include/Aero/Media/Animation/PointAnimation.hpp
+    include/Aero/Media/Animation/PointAnimationBase.hpp
+    include/Aero/Media/Animation/PointAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/PointKeyFrame.hpp
+    include/Aero/Media/Animation/PowerEase.hpp
+    include/Aero/Media/Animation/QuadraticEase.hpp
+    include/Aero/Media/Animation/QuarticEase.hpp
+    include/Aero/Media/Animation/QuinticEase.hpp
+    include/Aero/Media/Animation/RectAnimation.hpp
+    include/Aero/Media/Animation/RectAnimationBase.hpp
+    include/Aero/Media/Animation/SineEase.hpp
+    include/Aero/Media/Animation/SplineColorKeyFrame.hpp
+    include/Aero/Media/Animation/SplineDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/SplinePointKeyFrame.hpp
+    include/Aero/Media/Animation/SplineThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/Storyboard.hpp
+    include/Aero/Media/Animation/ThicknessAnimation.hpp
+    include/Aero/Media/Animation/ThicknessAnimationBase.hpp
+    include/Aero/Media/Animation/ThicknessAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/ThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/Timeline.hpp
+    include/Aero/Media/Animation/TimelineGroup.hpp
     include/Aero/Media/BlendMode.hpp
     include/Aero/Media/Brushes.hpp
     include/Aero/Media/Geometry.hpp

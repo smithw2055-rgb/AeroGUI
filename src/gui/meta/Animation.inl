@@ -37,6 +37,42 @@ Base::Result<void> PopulateUiAnimation(
     status = timeline.Result();
     if (!status) return status.GetStatus();
 
+    status = Meta::Register<Media::Animation::AnimationTimeline>(
+        context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::TimelineGroup>(
+        context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+
+    auto parallelTimeline =
+        Meta::Register<Media::Animation::ParallelTimeline>(context);
+    parallelTimeline
+        .Content<Media::Animation::Timeline>(
+            "Children",
+            ContentKind::Collection,
+            &AddStoryboardTimeline,
+            &ClearStoryboardTimelines)
+        .Factory();
+    status = parallelTimeline.Result();
+    if (!status) return status.GetStatus();
+
+    auto storyboard = Meta::Register<Media::Animation::Storyboard>(context);
+    storyboard
+        .Property(
+            Media::Animation::Storyboard::TargetNameProperty,
+            FrameworkPropertyMetadata(Base::String{}))
+        .Property(
+            Media::Animation::Storyboard::TargetPropertyProperty,
+            FrameworkPropertyMetadata(Base::String{}))
+        .Content<Media::Animation::Timeline>(
+            "Children",
+            ContentKind::Collection,
+            &AddStoryboardTimeline,
+            &ClearStoryboardTimelines)
+        .Factory();
+    status = storyboard.Result();
+    if (!status) return status.GetStatus();
+
     auto easingBase = Meta::Register<Media::Animation::EasingFunctionBase>(
         context, TypeFlags::Abstract);
     easingBase.Property(
@@ -146,16 +182,23 @@ Base::Result<void> PopulateUiAnimation(
     status = doubleAnimation.Result();
     if (!status) return status.GetStatus();
 
+    auto colorAnimationBase =
+        Meta::Register<Media::Animation::ColorAnimationBase>(
+            context, TypeFlags::Abstract);
+    colorAnimationBase
+        .Property<
+            Color,
+            &Media::Animation::ColorAnimationBase::GetFrom,
+            &Media::Animation::ColorAnimationBase::SetFrom>("From")
+        .Property<
+            Color,
+            &Media::Animation::ColorAnimationBase::GetTo,
+            &Media::Animation::ColorAnimationBase::SetTo>("To");
+    status = colorAnimationBase.Result();
+    if (!status) return status.GetStatus();
+
     auto colorAnimation = Meta::Register<Media::Animation::ColorAnimation>(context);
     colorAnimation
-        .Property<
-            Color,
-            &Media::Animation::ColorAnimation::GetFrom,
-            &Media::Animation::ColorAnimation::SetFrom>("From")
-        .Property<
-            Color,
-            &Media::Animation::ColorAnimation::GetTo,
-            &Media::Animation::ColorAnimation::SetTo>("To")
         .Property<
             Base::Ref<Media::Animation::EasingFunctionBase>,
             &Media::Animation::ColorAnimation::GetEasingFunction,
@@ -166,86 +209,107 @@ Base::Result<void> PopulateUiAnimation(
     status = colorAnimation.Result();
     if (!status) return status.GetStatus();
 
+    auto pointAnimationBase =
+        Meta::Register<Media::Animation::PointAnimationBase>(
+            context, TypeFlags::Abstract);
+    pointAnimationBase
+        .Property<
+            Point,
+            &Media::Animation::PointAnimationBase::GetFrom,
+            &Media::Animation::PointAnimationBase::SetFrom>("From")
+        .Property<
+            Point,
+            &Media::Animation::PointAnimationBase::GetTo,
+            &Media::Animation::PointAnimationBase::SetTo>("To");
+    status = pointAnimationBase.Result();
+    if (!status) return status.GetStatus();
+
     auto pointAnimation =
-        Meta::Register<Media::Animation::PointAnimation>(
-            context);
+        Meta::Register<Media::Animation::PointAnimation>(context);
     pointAnimation
         .Property<
-            Point,
-            &Media::Animation::PointAnimation::GetFrom,
-            &Media::Animation::PointAnimation::SetFrom>(
-            "From")
-        .Property<
-            Point,
-            &Media::Animation::PointAnimation::GetTo,
-            &Media::Animation::PointAnimation::SetTo>(
-            "To")
-        .Property<
-            Base::Ref<
-                Media::Animation::EasingFunctionBase>,
-            &Media::Animation::PointAnimation::
-                GetEasingFunction,
-            &Media::Animation::PointAnimation::
-                SetEasingFunction>(
+            Base::Ref<Media::Animation::EasingFunctionBase>,
+            &Media::Animation::PointAnimation::GetEasingFunction,
+            &Media::Animation::PointAnimation::SetEasingFunction>(
             "EasingFunction",
             PropertyFlags::Structural)
         .Factory();
     status = pointAnimation.Result();
     if (!status) return status.GetStatus();
 
+    auto rectAnimationBase =
+        Meta::Register<Media::Animation::RectAnimationBase>(
+            context, TypeFlags::Abstract);
+    rectAnimationBase
+        .Property<
+            Rect,
+            &Media::Animation::RectAnimationBase::GetFrom,
+            &Media::Animation::RectAnimationBase::SetFrom>("From")
+        .Property<
+            Rect,
+            &Media::Animation::RectAnimationBase::GetTo,
+            &Media::Animation::RectAnimationBase::SetTo>("To");
+    status = rectAnimationBase.Result();
+    if (!status) return status.GetStatus();
+
     auto rectAnimation =
-        Meta::Register<Media::Animation::RectAnimation>(
-            context);
+        Meta::Register<Media::Animation::RectAnimation>(context);
     rectAnimation
         .Property<
-            Rect,
-            &Media::Animation::RectAnimation::GetFrom,
-            &Media::Animation::RectAnimation::SetFrom>(
-            "From")
-        .Property<
-            Rect,
-            &Media::Animation::RectAnimation::GetTo,
-            &Media::Animation::RectAnimation::SetTo>(
-            "To")
-        .Property<
-            Base::Ref<
-                Media::Animation::EasingFunctionBase>,
-            &Media::Animation::RectAnimation::
-                GetEasingFunction,
-            &Media::Animation::RectAnimation::
-                SetEasingFunction>(
+            Base::Ref<Media::Animation::EasingFunctionBase>,
+            &Media::Animation::RectAnimation::GetEasingFunction,
+            &Media::Animation::RectAnimation::SetEasingFunction>(
             "EasingFunction",
             PropertyFlags::Structural)
         .Factory();
     status = rectAnimation.Result();
     if (!status) return status.GetStatus();
 
+    auto thicknessAnimationBase =
+        Meta::Register<Media::Animation::ThicknessAnimationBase>(
+            context, TypeFlags::Abstract);
+    thicknessAnimationBase
+        .Property<
+            Base::Thickness,
+            &Media::Animation::ThicknessAnimationBase::GetFrom,
+            &Media::Animation::ThicknessAnimationBase::SetFrom>("From")
+        .Property<
+            Base::Thickness,
+            &Media::Animation::ThicknessAnimationBase::GetTo,
+            &Media::Animation::ThicknessAnimationBase::SetTo>("To");
+    status = thicknessAnimationBase.Result();
+    if (!status) return status.GetStatus();
+
     auto thicknessAnimation =
-        Meta::Register<
-            Media::Animation::ThicknessAnimation>(
-            context);
+        Meta::Register<Media::Animation::ThicknessAnimation>(context);
     thicknessAnimation
         .Property<
-            Base::Thickness,
-            &Media::Animation::ThicknessAnimation::GetFrom,
-            &Media::Animation::ThicknessAnimation::SetFrom>(
-            "From")
-        .Property<
-            Base::Thickness,
-            &Media::Animation::ThicknessAnimation::GetTo,
-            &Media::Animation::ThicknessAnimation::SetTo>(
-            "To")
-        .Property<
-            Base::Ref<
-                Media::Animation::EasingFunctionBase>,
-            &Media::Animation::ThicknessAnimation::
-                GetEasingFunction,
-            &Media::Animation::ThicknessAnimation::
-                SetEasingFunction>(
+            Base::Ref<Media::Animation::EasingFunctionBase>,
+            &Media::Animation::ThicknessAnimation::GetEasingFunction,
+            &Media::Animation::ThicknessAnimation::SetEasingFunction>(
             "EasingFunction",
             PropertyFlags::Structural)
         .Factory();
     status = thicknessAnimation.Result();
+    if (!status) return status.GetStatus();
+
+    auto keyFrameBase = Meta::Register<Media::Animation::KeyFrameBase>(
+        context, TypeFlags::Abstract);
+    keyFrameBase
+        .Property(
+            Media::Animation::KeyFrameBase::KeyTimeProperty,
+            FrameworkPropertyMetadata(Base::String{})
+                .Changed(&Media::Animation::KeyFrameBase::OnKeyTimeChanged))
+        .Property(
+            Media::Animation::KeyFrameBase::EasingFunctionProperty,
+            FrameworkPropertyMetadata(
+                Base::Ref<Media::Animation::EasingFunctionBase>{})
+                .AffectsRender())
+        .Property(
+            Media::Animation::KeyFrameBase::KeySplineProperty,
+            FrameworkPropertyMetadata(Base::String{})
+                .Changed(&Media::Animation::KeyFrameBase::OnKeySplineChanged));
+    status = keyFrameBase.Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<Media::Animation::DoubleKeyFrame>(
@@ -254,10 +318,6 @@ Base::Result<void> PopulateUiAnimation(
             double,
             &Media::Animation::DoubleKeyFrame::GetValue,
             &Media::Animation::DoubleKeyFrame::SetValue>("Value")
-        .Property(
-            "KeyTime",
-            &Media::Animation::DoubleKeyFrame::GetKeyTime,
-            &Media::Animation::DoubleKeyFrame::SetKeyTime)
         .Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<Media::Animation::LinearDoubleKeyFrame>(
@@ -266,28 +326,11 @@ Base::Result<void> PopulateUiAnimation(
     status = Meta::Register<Media::Animation::DiscreteDoubleKeyFrame>(
         context).Factory().Result();
     if (!status) return status.GetStatus();
-
-    auto easingFrame =
-        Meta::Register<Media::Animation::EasingDoubleKeyFrame>(context);
-    easingFrame
-        .Property(
-            Media::Animation::EasingDoubleKeyFrame::EasingFunctionProperty,
-            FrameworkPropertyMetadata(
-                Base::Ref<Media::Animation::EasingFunctionBase>{})
-                .AffectsRender())
-        .Factory();
-    status = easingFrame.Result();
+    status = Meta::Register<Media::Animation::EasingDoubleKeyFrame>(
+        context).Factory().Result();
     if (!status) return status.GetStatus();
-
-    auto splineFrame =
-        Meta::Register<Media::Animation::SplineDoubleKeyFrame>(context);
-    splineFrame
-        .Property(
-            "KeySpline",
-            &Media::Animation::SplineDoubleKeyFrame::GetKeySpline,
-            &Media::Animation::SplineDoubleKeyFrame::SetKeySpline)
-        .Factory();
-    status = splineFrame.Result();
+    status = Meta::Register<Media::Animation::SplineDoubleKeyFrame>(
+        context).Factory().Result();
     if (!status) return status.GetStatus();
 
     auto doubleFrames =
@@ -302,25 +345,25 @@ Base::Result<void> PopulateUiAnimation(
     status = doubleFrames.Result();
     if (!status) return status.GetStatus();
 
-    auto pointFrame = Meta::Register<Media::Animation::PointKeyFrame>(
-        context, TypeFlags::Abstract);
-    pointFrame
+    status = Meta::Register<Media::Animation::PointKeyFrame>(
+        context, TypeFlags::Abstract)
         .Property(
             "Value",
             &Media::Animation::PointKeyFrame::GetValue,
             &Media::Animation::PointKeyFrame::SetValue)
-        .Property(
-            "KeyTime",
-            &Media::Animation::PointKeyFrame::GetKeyTime,
-            &Media::Animation::PointKeyFrame::SetKeyTime);
-    status = pointFrame.Result();
+        .Result();
     if (!status) return status.GetStatus();
-
-    status = Meta::Register<Media::Animation::DiscretePointKeyFrame>(context)
-        .Factory().Result();
+    status = Meta::Register<Media::Animation::LinearPointKeyFrame>(
+        context).Factory().Result();
     if (!status) return status.GetStatus();
-    status = Meta::Register<Media::Animation::EasingPointKeyFrame>(context)
-        .Factory().Result();
+    status = Meta::Register<Media::Animation::DiscretePointKeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::EasingPointKeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::SplinePointKeyFrame>(
+        context).Factory().Result();
     if (!status) return status.GetStatus();
 
     auto pointFrames =
@@ -338,56 +381,25 @@ Base::Result<void> PopulateUiAnimation(
         .Property<
             Thickness,
             &Media::Animation::ThicknessKeyFrame::GetValue,
-            &Media::Animation::ThicknessKeyFrame::SetValue>(
-                "Value")
-        .Property(
-            "KeyTime",
-            &Media::Animation::ThicknessKeyFrame::GetKeyTime,
-            &Media::Animation::ThicknessKeyFrame::SetKeyTime)
+            &Media::Animation::ThicknessKeyFrame::SetValue>("Value")
         .Result();
     if (!status) return status.GetStatus();
-    status = Meta::Register<
-        Media::Animation::LinearThicknessKeyFrame>(
-            context).Factory().Result();
+    status = Meta::Register<Media::Animation::LinearThicknessKeyFrame>(
+        context).Factory().Result();
     if (!status) return status.GetStatus();
-    status = Meta::Register<
-        Media::Animation::DiscreteThicknessKeyFrame>(
-            context).Factory().Result();
+    status = Meta::Register<Media::Animation::DiscreteThicknessKeyFrame>(
+        context).Factory().Result();
     if (!status) return status.GetStatus();
-    auto easingThicknessFrame =
-        Meta::Register<
-            Media::Animation::EasingThicknessKeyFrame>(
-                context);
-    easingThicknessFrame
-        .Property<
-            Base::Ref<Media::Animation::EasingFunctionBase>,
-            &Media::Animation::EasingThicknessKeyFrame::
-                GetEasingFunction,
-            &Media::Animation::EasingThicknessKeyFrame::
-                SetEasingFunction>(
-                    "EasingFunction",
-                    PropertyFlags::Structural)
-        .Factory();
-    status = easingThicknessFrame.Result();
+    status = Meta::Register<Media::Animation::EasingThicknessKeyFrame>(
+        context).Factory().Result();
     if (!status) return status.GetStatus();
-    auto splineThicknessFrame =
-        Meta::Register<
-            Media::Animation::SplineThicknessKeyFrame>(
-                context);
-    splineThicknessFrame
-        .Property(
-            "KeySpline",
-            &Media::Animation::SplineThicknessKeyFrame::
-                GetKeySpline,
-            &Media::Animation::SplineThicknessKeyFrame::
-                SetKeySpline)
-        .Factory();
-    status = splineThicknessFrame.Result();
+    status = Meta::Register<Media::Animation::SplineThicknessKeyFrame>(
+        context).Factory().Result();
     if (!status) return status.GetStatus();
+
     auto thicknessFrames =
-        Meta::Register<
-            Media::Animation::ThicknessAnimationUsingKeyFrames>(
-                context);
+        Meta::Register<Media::Animation::ThicknessAnimationUsingKeyFrames>(
+            context);
     thicknessFrames
         .Content<Media::Animation::ThicknessKeyFrame>(
             "KeyFrames",
@@ -403,12 +415,7 @@ Base::Result<void> PopulateUiAnimation(
         .Property<
             Base::Color,
             &Media::Animation::ColorKeyFrame::GetValue,
-            &Media::Animation::ColorKeyFrame::SetValue>(
-            "Value")
-        .Property(
-            "KeyTime",
-            &Media::Animation::ColorKeyFrame::GetKeyTime,
-            &Media::Animation::ColorKeyFrame::SetKeyTime)
+            &Media::Animation::ColorKeyFrame::SetValue>("Value")
         .Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<Media::Animation::LinearColorKeyFrame>(
@@ -417,37 +424,15 @@ Base::Result<void> PopulateUiAnimation(
     status = Meta::Register<Media::Animation::DiscreteColorKeyFrame>(
         context).Factory().Result();
     if (!status) return status.GetStatus();
-
-    auto easingColorFrame =
-        Meta::Register<Media::Animation::EasingColorKeyFrame>(
-            context);
-    easingColorFrame
-        .Property<
-            Base::Ref<Media::Animation::EasingFunctionBase>,
-            &Media::Animation::EasingColorKeyFrame::GetEasingFunction,
-            &Media::Animation::EasingColorKeyFrame::SetEasingFunction>(
-            "EasingFunction",
-            PropertyFlags::Structural)
-        .Factory();
-    status = easingColorFrame.Result();
+    status = Meta::Register<Media::Animation::EasingColorKeyFrame>(
+        context).Factory().Result();
     if (!status) return status.GetStatus();
-
-    auto splineColorFrame =
-        Meta::Register<Media::Animation::SplineColorKeyFrame>(
-            context);
-    splineColorFrame
-        .Property(
-            "KeySpline",
-            &Media::Animation::SplineColorKeyFrame::GetKeySpline,
-            &Media::Animation::SplineColorKeyFrame::SetKeySpline)
-        .Factory();
-    status = splineColorFrame.Result();
+    status = Meta::Register<Media::Animation::SplineColorKeyFrame>(
+        context).Factory().Result();
     if (!status) return status.GetStatus();
 
     auto colorFrames =
-        Meta::Register<
-            Media::Animation::ColorAnimationUsingKeyFrames>(
-            context);
+        Meta::Register<Media::Animation::ColorAnimationUsingKeyFrames>(context);
     colorFrames
         .Content<Media::Animation::ColorKeyFrame>(
             "KeyFrames",
@@ -458,27 +443,24 @@ Base::Result<void> PopulateUiAnimation(
     status = colorFrames.Result();
     if (!status) return status.GetStatus();
 
-    auto objectFrame =
-        Meta::Register<Media::Animation::DiscreteObjectKeyFrame>(context);
-    objectFrame
+    status = Meta::Register<Media::Animation::ObjectKeyFrame>(
+        context, TypeFlags::Abstract)
         .Property<
             Value,
-            &Media::Animation::DiscreteObjectKeyFrame::GetValue,
-            &Media::Animation::DiscreteObjectKeyFrame::SetValue>(
+            &Media::Animation::ObjectKeyFrame::GetValue,
+            &Media::Animation::ObjectKeyFrame::SetValue>(
             "Value",
             PropertyFlags::AnyValue)
-        .Property(
-            "KeyTime",
-            &Media::Animation::DiscreteObjectKeyFrame::GetKeyTime,
-            &Media::Animation::DiscreteObjectKeyFrame::SetKeyTime)
-        .Factory();
-    status = objectFrame.Result();
+        .Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::DiscreteObjectKeyFrame>(
+        context).Factory().Result();
     if (!status) return status.GetStatus();
 
     auto objectFrames =
         Meta::Register<Media::Animation::ObjectAnimationUsingKeyFrames>(context);
     objectFrames
-        .Content<Media::Animation::DiscreteObjectKeyFrame>(
+        .Content<Media::Animation::ObjectKeyFrame>(
             "KeyFrames",
             ContentKind::Collection,
             &AddObjectKeyFrame,
@@ -487,60 +469,28 @@ Base::Result<void> PopulateUiAnimation(
     status = objectFrames.Result();
     if (!status) return status.GetStatus();
 
-    auto booleanFrame =
-        Meta::Register<Media::Animation::DiscreteBooleanKeyFrame>(context);
-    booleanFrame
+    status = Meta::Register<Media::Animation::BooleanKeyFrame>(
+        context, TypeFlags::Abstract)
         .Property<
             bool,
-            &Media::Animation::DiscreteBooleanKeyFrame::GetValue,
-            &Media::Animation::DiscreteBooleanKeyFrame::SetValue>("Value")
-        .Property(
-            "KeyTime",
-            &Media::Animation::DiscreteBooleanKeyFrame::GetKeyTime,
-            &Media::Animation::DiscreteBooleanKeyFrame::SetKeyTime)
-        .Factory();
-    status = booleanFrame.Result();
+            &Media::Animation::BooleanKeyFrame::GetValue,
+            &Media::Animation::BooleanKeyFrame::SetValue>("Value")
+        .Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::DiscreteBooleanKeyFrame>(
+        context).Factory().Result();
     if (!status) return status.GetStatus();
 
     auto booleanFrames =
         Meta::Register<Media::Animation::BooleanAnimationUsingKeyFrames>(context);
     booleanFrames
-        .Content<Media::Animation::DiscreteBooleanKeyFrame>(
+        .Content<Media::Animation::BooleanKeyFrame>(
             "KeyFrames",
             ContentKind::Collection,
             &AddBooleanKeyFrame,
             &ClearBooleanKeyFrames)
         .Factory();
     status = booleanFrames.Result();
-    if (!status) return status.GetStatus();
-
-    auto storyboard = Meta::Register<Media::Animation::Storyboard>(context);
-    storyboard
-        .Property(
-            Media::Animation::Storyboard::TargetNameProperty,
-            FrameworkPropertyMetadata(Base::String{}))
-        .Property(
-            Media::Animation::Storyboard::TargetPropertyProperty,
-            FrameworkPropertyMetadata(Base::String{}))
-        .Content<Media::Animation::Timeline>(
-            "Children",
-            ContentKind::Collection,
-            &AddStoryboardTimeline,
-            &ClearStoryboardTimelines)
-        .Factory();
-    status = storyboard.Result();
-    if (!status) return status.GetStatus();
-
-    auto parallelTimeline =
-        Meta::Register<Media::Animation::ParallelTimeline>(context);
-    parallelTimeline
-        .Content<Media::Animation::Timeline>(
-            "Children",
-            ContentKind::Collection,
-            &AddStoryboardTimeline,
-            &ClearStoryboardTimelines)
-        .Factory();
-    status = parallelTimeline.Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<Aero::Interactivity::TriggerAction>(

@@ -1,6 +1,12 @@
 #include <Aero/Media/Animation.hpp>
-
+#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/Media/Animation/MediaActions.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+#include <Aero/TryCast.hpp>
 #include <Aero/Value.hpp>
+#include <Aero/Interactivity/ChangePropertyAction.hpp>
+#include <Aero/Interactivity/LaunchUriOrFileAction.hpp>
 #include "gui/meta/ValueConversion.hpp"
 
 #include <cmath>
@@ -108,12 +114,10 @@ bool ContainsTimeline(
     const Timeline& value,
     const Timeline* sought) noexcept {
     if (&value == sought) return true;
-    if (value.RuntimeType() != Storyboard::StaticTypeId() &&
-        value.RuntimeType() != ParallelTimeline::StaticTypeId()) {
-        return false;
-    }
-    const auto& storyboard = static_cast<const Storyboard&>(value);
-    for (const Base::Ref<Timeline>& child : storyboard.GetTimelines()) {
+    const TimelineGroup* group = ::Aero::TryCast<TimelineGroup>(
+        const_cast<Timeline*>(&value));
+    if (group == nullptr) return false;
+    for (const Base::Ref<Timeline>& child : group->GetTimelines()) {
         if (child && ContainsTimeline(*child, sought)) return true;
     }
     return false;
@@ -305,7 +309,7 @@ void DoubleAnimation::SetEasingFunction(
 }
 
 
-void ColorAnimation::SetFrom(
+void ColorAnimationBase::SetFrom(
     Base::Color value) noexcept {
     if (!WritePreamble()) return;
     if (!Base::IsFiniteColor(value)) {
@@ -315,7 +319,7 @@ void ColorAnimation::SetFrom(
     WritePostscript();
 }
 
-void ColorAnimation::SetTo(
+void ColorAnimationBase::SetTo(
     Base::Color value) noexcept {
     if (!WritePreamble()) return;
     if (!Base::IsFiniteColor(value)) {
@@ -333,7 +337,7 @@ void ColorAnimation::SetEasingFunction(
 }
 
 
-void PointAnimation::SetFrom(
+void PointAnimationBase::SetFrom(
     Base::Point value) noexcept {
     if (!WritePreamble()) return;
     if (!std::isfinite(value.x) ||
@@ -344,7 +348,7 @@ void PointAnimation::SetFrom(
     WritePostscript();
 }
 
-void PointAnimation::SetTo(
+void PointAnimationBase::SetTo(
     Base::Point value) noexcept {
     if (!WritePreamble()) return;
     if (!std::isfinite(value.x) ||
@@ -365,7 +369,7 @@ PointAnimation::SetEasingFunction(
 }
 
 
-void RectAnimation::SetFrom(
+void RectAnimationBase::SetFrom(
     Base::Rect value) noexcept {
     if (!WritePreamble()) return;
     if (!Base::IsFiniteRect(value)) {
@@ -375,7 +379,7 @@ void RectAnimation::SetFrom(
     WritePostscript();
 }
 
-void RectAnimation::SetTo(
+void RectAnimationBase::SetTo(
     Base::Rect value) noexcept {
     if (!WritePreamble()) return;
     if (!Base::IsFiniteRect(value)) {
@@ -405,7 +409,7 @@ bool IsFiniteThickness(
 
 } // namespace
 
-void ThicknessAnimation::SetFrom(
+void ThicknessAnimationBase::SetFrom(
     Base::Thickness value) noexcept {
     if (!WritePreamble()) return;
     if (!IsFiniteThickness(value)) {
@@ -415,7 +419,7 @@ void ThicknessAnimation::SetFrom(
     WritePostscript();
 }
 
-void ThicknessAnimation::SetTo(
+void ThicknessAnimationBase::SetTo(
     Base::Thickness value) noexcept {
     if (!WritePreamble()) return;
     if (!IsFiniteThickness(value)) {
@@ -434,66 +438,36 @@ ThicknessAnimation::SetEasingFunction(
 }
 
 
-void PointKeyFrame::SetValue(Base::Point value) noexcept {
-    if (!std::isfinite(value.x) || !std::isfinite(value.y)) return;
-    value_ = value;
+void KeyFrameBase::SetKeyTime(Base::StringView value) noexcept {
+    SetValue(KeyTimeProperty, value);
 }
 
-void PointKeyFrame::SetKeyTime(Base::StringView value) noexcept {
-    Base::Result<AnimationTime> parsed = ParseClockTime(value);
-    if (!parsed) return;
-    Base::Result<void> assigned = keyTimeText_.Assign(value);
-    if (!assigned) return;
-    keyTimeMicroseconds_ = parsed.Value();
-}
-
-Base::Result<void> PointAnimationUsingKeyFrames::AddKeyFrame(
-    Base::Ref<PointKeyFrame> value) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Point key frame cannot be null");
-    }
-    Base::Result<void> added = keyFrames_.PushBack(std::move(value));
-    if (!added) return added.GetStatus();
-    WritePostscript();
-    return {};
-}
-
-void PointAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
-    if (!WritePreamble()) return;
-    keyFrames_.Clear();
-    WritePostscript();
-}
-
-void DoubleKeyFrame::SetValue(double value) noexcept {
-    if (!std::isfinite(value)) {
-        return;
-    }
-    value_ = value;
-    return;
-}
-
-void DoubleKeyFrame::SetKeyTime(
-    Base::StringView value) noexcept {
-    Base::Result<AnimationTime> parsed =
-        ParseClockTime(value);
-    if (!parsed) return;
-    Base::Result<void> assigned = keyTimeText_.Assign(value);
-    if (!assigned) return;
-    keyTimeMicroseconds_ = parsed.Value();
-    return;
-}
-
-void EasingDoubleKeyFrame::SetEasingFunction(
+void KeyFrameBase::SetEasingFunction(
     Base::Ref<EasingFunctionBase> value) noexcept {
-    DependencyObject::SetValue(EasingFunctionProperty, std::move(value));
+    SetValue(EasingFunctionProperty, std::move(value));
 }
 
-void SplineDoubleKeyFrame::SetKeySpline(
-    Base::StringView value) noexcept {
+void KeyFrameBase::SetKeySpline(Base::StringView value) noexcept {
+    SetValue(KeySplineProperty, value);
+}
+
+void KeyFrameBase::OnKeyTimeChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    auto* frame = ::Aero::TryCast<KeyFrameBase>(&object);
+    if (frame == nullptr) return;
+    const Base::StringView text = args.GetNewValue().AsString();
+    Base::Result<AnimationTime> parsed = ParseClockTime(text);
+    if (!parsed) return;
+    frame->keyTimeMicroseconds_ = parsed.Value();
+}
+
+void KeyFrameBase::OnKeySplineChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    auto* frame = ::Aero::TryCast<KeyFrameBase>(&object);
+    if (frame == nullptr) return;
+    const Base::StringView value = args.GetNewValue().AsString();
     Base::String owned;
     Base::Result<void> assigned = owned.Assign(value);
     if (!assigned) return;
@@ -509,271 +483,30 @@ void SplineDoubleKeyFrame::SetKeySpline(
         cursor = end;
     }
     while (*cursor == ' ' || *cursor == ',') ++cursor;
-    if (*cursor != '\0') {
-        return;
-    }
-    assigned = keySpline_.Assign(value);
-    if (!assigned) return;
-    SetSplineControlPoints(
-        values[0], values[1], values[2], values[3]);
-    return;
+    if (*cursor != '\0') return;
+    frame->controlPoint1X_ = values[0];
+    frame->controlPoint1Y_ = values[1];
+    frame->controlPoint2X_ = values[2];
+    frame->controlPoint2Y_ = values[3];
 }
 
-Base::Result<void>
-DoubleAnimationUsingKeyFrames::AddKeyFrame(
-    Base::Ref<DoubleKeyFrame> value) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Double key frame cannot be null");
-    }
-    Base::Result<void> added = keyFrames_.PushBack(std::move(value));
-    if (!added) return added.GetStatus();
-    WritePostscript();
-    return {};
-}
-
-void
-DoubleAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
-    if (!WritePreamble() || keyFrames_.Empty()) return;
-    keyFrames_.Clear();
-    WritePostscript();
-}
-
-void ThicknessKeyFrame::SetValue(
-    Base::Thickness value) noexcept {
-    if (!IsFiniteThickness(value)) {
-        return;
-    }
-    value_ = value;
-    return;
-}
-
-void ThicknessKeyFrame::SetKeyTime(
-    Base::StringView value) noexcept {
-    Base::Result<AnimationTime> parsed =
-        ParseClockTime(value);
-    if (!parsed) return;
-    Base::Result<void> assigned =
-        keyTimeText_.Assign(value);
-    if (!assigned) return;
-    keyTimeMicroseconds_ = parsed.Value();
-    return;
-}
-
-void
-EasingThicknessKeyFrame::SetEasingFunction(
-    Base::Ref<EasingFunctionBase> value) noexcept {
-    easing_ = std::move(value);
-    return;
-}
-
-Base::Result<void>
-ThicknessAnimationUsingKeyFrames::AddKeyFrame(
-    Base::Ref<ThicknessKeyFrame> value) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Thickness key frame cannot be null");
-    }
-    Base::Result<void> added = keyFrames_.PushBack(std::move(value));
-    if (!added) return added.GetStatus();
-    WritePostscript();
-    return {};
-}
-
-void
-ThicknessAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
-    if (!WritePreamble() || keyFrames_.Empty()) return;
-    keyFrames_.Clear();
-    WritePostscript();
-}
-
-void ColorKeyFrame::SetValue(
-    Base::Color value) noexcept {
-    if (!Base::IsFiniteColor(value)) {
-        return;
-    }
-    value_ = value;
-    return;
-}
-
-void ColorKeyFrame::SetKeyTime(
-    Base::StringView value) noexcept {
-    Base::Result<AnimationTime> parsed =
-        ParseClockTime(value);
-    if (!parsed) return;
-    Base::Result<void> assigned =
-        keyTimeText_.Assign(value);
-    if (!assigned) return;
-    keyTimeMicroseconds_ = parsed.Value();
-    return;
-}
-
-void
-EasingColorKeyFrame::SetEasingFunction(
-    Base::Ref<EasingFunctionBase> value) noexcept {
-    easing_ = std::move(value);
-    return;
-}
-
-void
-SplineColorKeyFrame::SetKeySpline(
-    Base::StringView value) noexcept {
-    Base::String owned;
-    Base::Result<void> assigned =
-        owned.Assign(value);
-    if (!assigned) return;
-    const char* cursor = owned.CStr();
-    double values[4]{};
-    for (std::uint32_t index = 0U;
-         index < 4U;
-         ++index) {
-        while (*cursor == ' ' || *cursor == ',') {
-            ++cursor;
-        }
-        char* end = nullptr;
-        values[index] = std::strtod(cursor, &end);
-        if (end == cursor ||
-            !std::isfinite(values[index])) {
-            return;
-        }
-        cursor = end;
-    }
-    while (*cursor == ' ' || *cursor == ',') {
-        ++cursor;
-    }
-    if (*cursor != '\0') {
-        return;
-    }
-    assigned = keySpline_.Assign(value);
-    if (!assigned) return;
-    SetSplineControlPoints(
-        values[0], values[1], values[2], values[3]);
-    return;
-}
-
-Base::Result<void>
-ColorAnimationUsingKeyFrames::AddKeyFrame(
-    Base::Ref<ColorKeyFrame> value) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Color key frame cannot be null");
-    }
-    Base::Result<void> added = keyFrames_.PushBack(std::move(value));
-    if (!added) return added.GetStatus();
-    WritePostscript();
-    return {};
-}
-
-void
-ColorAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
-    if (!WritePreamble() || keyFrames_.Empty()) return;
-    keyFrames_.Clear();
-    WritePostscript();
-}
-
-void DiscreteObjectKeyFrame::SetValue(
-    const Meta::PropertyValue& value) noexcept {
-    if (value.IsUnset()) {
-        return;
-    }
-    value_ = value;
-    return;
-}
-
-void DiscreteObjectKeyFrame::SetKeyTime(
-    Base::StringView value) noexcept {
-    Base::Result<AnimationTime> parsed =
-        ParseClockTime(value);
-    if (!parsed) return;
-    Base::Result<void> assigned = keyTimeText_.Assign(value);
-    if (!assigned) return;
-    keyTimeMicroseconds_ = parsed.Value();
-    return;
-}
-
-Base::Result<void>
-ObjectAnimationUsingKeyFrames::AddKeyFrame(
-    Base::Ref<DiscreteObjectKeyFrame> value) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Object key frame cannot be null");
-    }
-    Base::Result<void> added = keyFrames_.PushBack(std::move(value));
-    if (!added) return added.GetStatus();
-    WritePostscript();
-    return {};
-}
-
-void
-ObjectAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
-    if (!WritePreamble() || keyFrames_.Empty()) return;
-    keyFrames_.Clear();
-    WritePostscript();
-}
-
-void DiscreteBooleanKeyFrame::SetKeyTime(
-    Base::StringView value) noexcept {
-    Base::Result<AnimationTime> parsed =
-        ParseClockTime(value);
-    if (!parsed) return;
-    Base::Result<void> assigned = keyTimeText_.Assign(value);
-    if (!assigned) return;
-    keyTimeMicroseconds_ = parsed.Value();
-    return;
-}
-
-Base::Result<void>
-BooleanAnimationUsingKeyFrames::AddKeyFrame(
-    Base::Ref<DiscreteBooleanKeyFrame> value) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Boolean key frame cannot be null");
-    }
-    Base::Result<void> added = keyFrames_.PushBack(std::move(value));
-    if (!added) return added.GetStatus();
-    WritePostscript();
-    return {};
-}
-
-void
-BooleanAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
-    if (!WritePreamble() || keyFrames_.Empty()) return;
-    keyFrames_.Clear();
-    WritePostscript();
-}
-
-Base::Result<void> Storyboard::AddTimeline(
+Base::Result<void> TimelineGroup::AddChild(
     Base::Ref<Timeline> value) noexcept {
     Base::Result<void> writable = WritePreamble();
     if (!writable) return writable.GetStatus();
     if (!value) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "Storyboard timeline cannot be null");
+            "TimelineGroup child cannot be null");
     }
     if (ContainsTimeline(*value, this)) {
         return Base::Status::Failure(
             Base::ErrorCode::CycleDetected,
-            "Storyboard cannot contain itself directly or indirectly");
+            "TimelineGroup cannot contain itself directly or indirectly");
     }
     if (timelineChangedHandler_.Empty()) {
         timelineChangedHandler_ = FreezableChangedHandler(
-            this, &Storyboard::OnTimelineChanged);
+            this, &TimelineGroup::OnTimelineChanged);
     }
     Timeline* retained = value.Get();
     if (!retained->IsFrozen()) {
@@ -793,7 +526,7 @@ Base::Result<void> Storyboard::AddTimeline(
     return {};
 }
 
-void Storyboard::ClearTimelines() noexcept {
+void TimelineGroup::Clear() noexcept {
     if (!WritePreamble() || timelines_.Empty()) return;
     for (const Base::Ref<Timeline>& timeline : timelines_) {
         if (timeline && !timeline->IsFrozen() &&
@@ -806,7 +539,7 @@ void Storyboard::ClearTimelines() noexcept {
     WritePostscript();
 }
 
-Storyboard::~Storyboard() {
+TimelineGroup::~TimelineGroup() {
     for (const Base::Ref<Timeline>& timeline : timelines_) {
         if (timeline && !timeline->IsFrozen() &&
             !timelineChangedHandler_.Empty()) {
@@ -816,11 +549,11 @@ Storyboard::~Storyboard() {
     }
 }
 
-void Storyboard::OnTimelineChanged(Freezable&) noexcept {
+void TimelineGroup::OnTimelineChanged(Freezable&) noexcept {
     WritePostscript();
 }
 
-bool Storyboard::FreezeCore(bool isChecking) noexcept {
+bool TimelineGroup::FreezeCore(bool isChecking) noexcept {
     for (const Base::Ref<Timeline>& timeline : timelines_) {
         if (!timeline) continue;
         if (isChecking) {

@@ -122,6 +122,11 @@ Base::Result<void> PopulateCoreMetadata(
 
 #include <Aero/Input.hpp>
 #include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/Media/Animation/MediaActions.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+#include <Aero/Media/Animation/TimerTrigger.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>

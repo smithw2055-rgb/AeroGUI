@@ -323,44 +323,68 @@ public:
     static Model::DoubleKeyFrame DoubleFrame(
         const DoubleKeyFrame& frame) noexcept {
         Model::DoubleKeyFrame result;
-        result.keyTimeMicroseconds = frame.keyTimeMicroseconds_;
-        result.value = frame.value_;
+        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.value = frame.GetValue();
         result.interpolation =
             static_cast<Model::DoubleKeyFrameInterpolation>(
-                static_cast<std::uint8_t>(frame.interpolation_));
-        result.controlPoint1X = frame.controlPoint1X_;
-        result.controlPoint1Y = frame.controlPoint1Y_;
-        result.controlPoint2X = frame.controlPoint2X_;
-        result.controlPoint2Y = frame.controlPoint2Y_;
-        if (frame.RuntimeType() == EasingDoubleKeyFrame::StaticTypeId()) {
-            const auto& typed = static_cast<
-                const EasingDoubleKeyFrame&>(frame);
-            Base::Ref<EasingFunctionBase> easing =
-                typed.GetEasingFunction();
-            if (easing) result.easing = Easing(*easing);
-        }
+                static_cast<std::uint8_t>(frame.GetInterpolation()));
+        result.controlPoint1X = frame.GetSplineControlPoint1X();
+        result.controlPoint1Y = frame.GetSplineControlPoint1Y();
+        result.controlPoint2X = frame.GetSplineControlPoint2X();
+        result.controlPoint2Y = frame.GetSplineControlPoint2Y();
+        Base::Ref<EasingFunctionBase> easing = frame.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
         return result;
     }
 
     static Model::ColorKeyFrame ColorFrame(
         const ColorKeyFrame& frame) noexcept {
         Model::ColorKeyFrame result;
-        result.keyTimeMicroseconds = frame.keyTimeMicroseconds_;
-        result.value = frame.value_;
+        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.value = frame.GetValue();
         result.interpolation =
             static_cast<Model::DoubleKeyFrameInterpolation>(
-                static_cast<std::uint8_t>(frame.interpolation_));
-        result.controlPoint1X = frame.controlPoint1X_;
-        result.controlPoint1Y = frame.controlPoint1Y_;
-        result.controlPoint2X = frame.controlPoint2X_;
-        result.controlPoint2Y = frame.controlPoint2Y_;
-        if (frame.RuntimeType() == EasingColorKeyFrame::StaticTypeId()) {
-            const auto& typed = static_cast<
-                const EasingColorKeyFrame&>(frame);
-            Base::Ref<EasingFunctionBase> easing =
-                typed.GetEasingFunction();
-            if (easing) result.easing = Easing(*easing);
-        }
+                static_cast<std::uint8_t>(frame.GetInterpolation()));
+        result.controlPoint1X = frame.GetSplineControlPoint1X();
+        result.controlPoint1Y = frame.GetSplineControlPoint1Y();
+        result.controlPoint2X = frame.GetSplineControlPoint2X();
+        result.controlPoint2Y = frame.GetSplineControlPoint2Y();
+        Base::Ref<EasingFunctionBase> easing = frame.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::PointKeyFrame PointFrame(
+        const PointKeyFrame& frame) noexcept {
+        Model::PointKeyFrame result;
+        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.value = frame.GetValue();
+        result.interpolation =
+            static_cast<Model::DoubleKeyFrameInterpolation>(
+                static_cast<std::uint8_t>(frame.GetInterpolation()));
+        result.controlPoint1X = frame.GetSplineControlPoint1X();
+        result.controlPoint1Y = frame.GetSplineControlPoint1Y();
+        result.controlPoint2X = frame.GetSplineControlPoint2X();
+        result.controlPoint2Y = frame.GetSplineControlPoint2Y();
+        Base::Ref<EasingFunctionBase> easing = frame.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::ThicknessKeyFrame ThicknessFrame(
+        const ThicknessKeyFrame& frame) noexcept {
+        Model::ThicknessKeyFrame result;
+        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.value = frame.GetValue();
+        result.interpolation =
+            static_cast<Model::DoubleKeyFrameInterpolation>(
+                static_cast<std::uint8_t>(frame.GetInterpolation()));
+        result.controlPoint1X = frame.GetSplineControlPoint1X();
+        result.controlPoint1Y = frame.GetSplineControlPoint1Y();
+        result.controlPoint2X = frame.GetSplineControlPoint2X();
+        result.controlPoint2Y = frame.GetSplineControlPoint2Y();
+        Base::Ref<EasingFunctionBase> easing = frame.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
         return result;
     }
 };

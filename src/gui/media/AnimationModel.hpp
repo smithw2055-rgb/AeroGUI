@@ -104,6 +104,30 @@ struct ColorKeyFrame {
     double controlPoint2Y = 1.0;
 };
 
+struct PointKeyFrame {
+    AnimationTime keyTimeMicroseconds = 0U;
+    Base::Point value;
+    DoubleKeyFrameInterpolation interpolation =
+        DoubleKeyFrameInterpolation::Linear;
+    EasingFunction easing;
+    double controlPoint1X = 0.0;
+    double controlPoint1Y = 0.0;
+    double controlPoint2X = 1.0;
+    double controlPoint2Y = 1.0;
+};
+
+struct ThicknessKeyFrame {
+    AnimationTime keyTimeMicroseconds = 0U;
+    Base::Thickness value;
+    DoubleKeyFrameInterpolation interpolation =
+        DoubleKeyFrameInterpolation::Linear;
+    EasingFunction easing;
+    double controlPoint1X = 0.0;
+    double controlPoint1Y = 0.0;
+    double controlPoint2X = 1.0;
+    double controlPoint2Y = 1.0;
+};
+
 struct DoubleAnimation {
     double from = 0.0;
     double to = 0.0;
@@ -160,6 +184,18 @@ struct ColorKeyFrameAnimation {
     Base::Color baseValue;
     TimelineTiming timing;
     Base::Span<const ColorKeyFrame> keyFrames;
+};
+
+struct PointKeyFrameAnimation {
+    Base::Point baseValue;
+    TimelineTiming timing;
+    Base::Span<const PointKeyFrame> keyFrames;
+};
+
+struct ThicknessKeyFrameAnimation {
+    Base::Thickness baseValue;
+    TimelineTiming timing;
+    Base::Span<const ThicknessKeyFrame> keyFrames;
 };
 
 struct DiscreteAnimationKeyFrame {

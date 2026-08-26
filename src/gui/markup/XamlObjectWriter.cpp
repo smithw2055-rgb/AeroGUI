@@ -28,6 +28,8 @@
 #include <Aero/FrameworkContentElement.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/Media/Animation/TimerTrigger.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Interactivity/Behavior.hpp>

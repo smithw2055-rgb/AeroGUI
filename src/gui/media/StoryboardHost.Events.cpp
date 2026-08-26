@@ -1,5 +1,6 @@
 #include "gui/ViewState.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include <Aero/Media/Animation/EventTrigger.hpp>
 
 #include <algorithm>
 #include <cmath>

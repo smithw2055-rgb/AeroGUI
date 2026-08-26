@@ -1384,6 +1384,7 @@ public:
 #include <Aero/Controls.hpp>
 
 #include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/EventTrigger.hpp>
 
 
 

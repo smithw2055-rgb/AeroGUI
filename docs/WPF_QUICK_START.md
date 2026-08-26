@@ -189,3 +189,13 @@ Aero::Result<void> RegisterDemoTypes(
 
 Effective-value providers, registry tables and render implementation details
 remain private.
+
+## Animation types
+
+`<Aero/Media/Animation.hpp>` is an umbrella. Prefer the type header when you
+only need one class, for example `<Aero/Media/Animation/Storyboard.hpp>` or
+`<Aero/Media/Animation/DoubleAnimation.hpp>`. Do not include interactivity
+headers from the animation umbrella; `EventTrigger` and `BeginStoryboard` live
+in their own `Media/Animation/` headers. `Storyboard` derives from
+`ParallelTimeline` / `TimelineGroup`. `EasingFunctionBase` is a `Freezable`.
+Key frames share `KeyTime`, `EasingFunction`, and `KeySpline` on `KeyFrameBase`.

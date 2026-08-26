@@ -891,7 +891,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                     Media::Animation::ObjectAnimationUsingKeyFrames&>(
                         timeline);
                 for (const Base::Ref<
-                         Media::Animation::DiscreteObjectKeyFrame>&
+                         Media::Animation::ObjectKeyFrame>&
                      frame : authored.GetKeyFrames()) {
                     if (!frame) continue;
                     Aero::Media::Animation::Model::DiscreteAnimationKeyFrame
@@ -911,8 +911,8 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                     Media::Animation::BooleanAnimationUsingKeyFrames&>(
                         timeline);
                 for (const Base::Ref<
-                         Media::Animation::DiscreteBooleanKeyFrame>&
-                         frame : authored.GetKeyFrames()) {
+                         Media::Animation::BooleanKeyFrame>&
+                     frame : authored.GetKeyFrames()) {
                     if (!frame) continue;
                     Base::Result<PropertyValue> encoded =
                         ValueCodec<bool>::Encode(

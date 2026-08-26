@@ -56,6 +56,14 @@ public:
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
         Meta::DependencyPropertyHandle property,
+        const PointKeyFrameAnimation& animation) noexcept;
+    Base::Result<AnimationHandle> Begin(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
+        const ThicknessKeyFrameAnimation& animation) noexcept;
+    Base::Result<AnimationHandle> Begin(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
         const DiscreteAnimation& animation) noexcept;
 
     Base::Result<void> Pause(AnimationHandle handle) noexcept;

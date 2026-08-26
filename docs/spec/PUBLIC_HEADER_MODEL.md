@@ -62,7 +62,7 @@ Aero/Input.hpp
 Aero/Documents.hpp
 Aero/Shapes.hpp
 Aero/TextFormatting.hpp
-Aero/Media/Animation.hpp
+Aero/Media/Animation.hpp          Umbrella only; types live in Media/Animation/<Type>.hpp
 Aero/Media/Brushes.hpp
 Aero/Media/Fonts.hpp
 Aero/Media/Geometry.hpp
@@ -88,6 +88,14 @@ are owned by `<Aero/TextFormatting.hpp>`; the text provider, shaping and
 editing implementation remains private under `src/gui/text`.
 Generic `Media.hpp` and `Text/Text.hpp` aggregation headers are not part of
 the installed SDK.
+
+`<Aero/Media/Animation.hpp>` is an umbrella only. Each animation type is
+declared in `Media/Animation/<Type>.hpp` (one `AERO_GUI_API` class per file).
+The umbrella must not include interactivity triggers or storyboard actions.
+WPF hierarchy is preserved in C++: `AnimationTimeline` / `TimelineGroup` /
+`ParallelTimeline` / `Storyboard`, `*AnimationBase` : `AnimationTimeline`,
+`EasingFunctionBase` : `Freezable`, and `KeyFrameBase` : `Freezable` with
+template `KeyFrame<T>` underneath the WPF-named key-frame types.
 
 ## Controls headers
 
