@@ -7,6 +7,9 @@ using ::Aero::Meta::TypeId;
 
 class AERO_GUI_API StackPanel : public Panel {
     AERO_DECLARE_TYPE(StackPanel, Panel)
+#if defined(AERO_GUI_IMPLEMENTATION)
+    friend class ::Aero::AeroGuiInternal;
+#endif
 public:
     StackPanel() noexcept;
     explicit StackPanel(Orientation orientation) noexcept;

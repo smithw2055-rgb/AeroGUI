@@ -100,12 +100,8 @@
     static const UIElement::LayoutHot& Layout(const UIElement& element) noexcept {
         return element.layout_;
     }
-    static Size MeasureOverride(UIElement& element, Size availableSize) noexcept {
-        return element.MeasureOverride(availableSize);
-    }
-    static Size ArrangeOverride(UIElement& element, Size finalSize) noexcept {
-        return element.ArrangeOverride(finalSize);
-    }
+    static Size MeasureOverride(UIElement& element, Size availableSize) noexcept;
+    static Size ArrangeOverride(UIElement& element, Size finalSize) noexcept;
     static void SetActualSize(
         FrameworkElement& element,
         double width,

@@ -7,6 +7,9 @@ using ::Aero::Meta::TypeId;
 
 class AERO_GUI_API Canvas : public Panel {
     AERO_DECLARE_TYPE(Canvas, Panel)
+#if defined(AERO_GUI_IMPLEMENTATION)
+    friend class ::Aero::AeroGuiInternal;
+#endif
 public:
     Canvas() noexcept;
     void SetChildPosition(UIElement& child, Point position) noexcept;

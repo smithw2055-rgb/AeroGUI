@@ -10,6 +10,9 @@
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/FrameworkElement.hpp>
+#include <Aero/Controls/Canvas.hpp>
+#include <Aero/Controls/Grid.hpp>
+#include <Aero/Controls/StackPanel.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -910,6 +913,42 @@ void LayoutEngine::LayoutHook(void* context) noexcept {
             ? Base::Status{}
             : result.GetStatus();
     }
+}
+
+Size AeroGuiInternal::MeasureOverride(
+    UIElement& element, Size availableSize) noexcept {
+    const TypeId type = element.RuntimeType();
+    if (type == Controls::StackPanel::StaticTypeId()) {
+        return static_cast<Controls::StackPanel&>(element)
+            .StackPanel::MeasureOverride(availableSize);
+    }
+    if (type == Controls::Grid::StaticTypeId()) {
+        return static_cast<Controls::Grid&>(element)
+            .Grid::MeasureOverride(availableSize);
+    }
+    if (type == Controls::Canvas::StaticTypeId()) {
+        return static_cast<Controls::Canvas&>(element)
+            .Canvas::MeasureOverride(availableSize);
+    }
+    return element.MeasureOverride(availableSize);
+}
+
+Size AeroGuiInternal::ArrangeOverride(
+    UIElement& element, Size finalSize) noexcept {
+    const TypeId type = element.RuntimeType();
+    if (type == Controls::StackPanel::StaticTypeId()) {
+        return static_cast<Controls::StackPanel&>(element)
+            .StackPanel::ArrangeOverride(finalSize);
+    }
+    if (type == Controls::Grid::StaticTypeId()) {
+        return static_cast<Controls::Grid&>(element)
+            .Grid::ArrangeOverride(finalSize);
+    }
+    if (type == Controls::Canvas::StaticTypeId()) {
+        return static_cast<Controls::Canvas&>(element)
+            .Canvas::ArrangeOverride(finalSize);
+    }
+    return element.ArrangeOverride(finalSize);
 }
 
 } // namespace Aero
