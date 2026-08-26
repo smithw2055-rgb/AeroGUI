@@ -608,8 +608,20 @@ Base::Result<void> ElementTree::AttachLogical(
             Base::ErrorCode::CycleDetected,
             "Logical tree attachment would create a cycle");
     }
-    if (child.logicalParent_ != nullptr || child.tree_ != nullptr ||
-        parent.tree_ != this) {
+    if (parent.tree_ != this) {
+        return InvalidState(
+            "Logical child must be detached and parent must belong to this tree");
+    }
+    if (child.tree_ == this) {
+        if (child.logicalParent_ != nullptr &&
+            child.logicalParent_ != &parent) {
+            return InvalidState(
+                "Logical child must be detached and parent must belong to this tree");
+        }
+        child.logicalParent_ = &parent;
+        return {};
+    }
+    if (child.logicalParent_ != nullptr || child.tree_ != nullptr) {
         return InvalidState(
             "Logical child must be detached and parent must belong to this tree");
     }
