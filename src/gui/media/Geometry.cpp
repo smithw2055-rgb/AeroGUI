@@ -63,7 +63,7 @@ Base::Result<void> PathFigure::AddSegment(
             Base::ErrorCode::InvalidArgument,
             "PathFigure segment cannot be null");
     }
-    Base::Result<void> added = segments_.PushBack(std::move(value));
+    Base::Result<void> added = segments_.Add(std::move(value));
     if (added) WritePostscript();
     return added;
 }
@@ -77,7 +77,7 @@ Base::Result<void> PathGeometry::AddFigure(
             Base::ErrorCode::InvalidArgument,
             "PathGeometry figure cannot be null");
     }
-    Base::Result<void> added = figures_.PushBack(std::move(value));
+    Base::Result<void> added = figures_.Add(std::move(value));
     if (added) WritePostscript();
     return added;
 }

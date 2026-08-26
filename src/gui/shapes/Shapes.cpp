@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <utility>
 
 namespace Aero::Shapes {
@@ -451,6 +452,241 @@ void Ellipse::OnRender(
     }
     static_cast<void>(paintEllipse(
         {0.0, 0.0, renderSize.width, renderSize.height}, fill));
+}
+
+namespace {
+
+void StrokeLineSegment(
+    DisplayListBuilder& builder,
+    Point start,
+    Point end,
+    Color color,
+    double thickness) noexcept {
+    if (color.alpha <= 0.0F || thickness <= 0.0) return;
+    const double dx = end.x - start.x;
+    const double dy = end.y - start.y;
+    const double length = std::hypot(dx, dy);
+    if (!(length > 0.0) || !std::isfinite(length)) return;
+    const double cosine = dx / length;
+    const double sine = dy / length;
+    Transform2D transform;
+    transform.m11 = cosine;
+    transform.m12 = sine;
+    transform.m21 = -sine;
+    transform.m22 = cosine;
+    transform.dx = start.x;
+    transform.dy = start.y;
+    Base::Result<void> pushed = builder.PushTransform(transform);
+    if (!pushed) return;
+    static_cast<void>(builder.FillRect(
+        Rect{0.0, -thickness * 0.5, length, thickness}, color));
+    static_cast<void>(builder.PopTransform());
+}
+
+Base::Result<void> ParsePoints(
+    StringView text,
+    Base::Vector<Point>& points) noexcept {
+    points.Clear();
+    const char* cursor = text.Data();
+    const char* const end = text.Data() + text.SizeBytes();
+    auto skipSeparators = [&cursor, end]() noexcept {
+        while (cursor < end &&
+               (*cursor == ' ' || *cursor == '\t' || *cursor == '\n' ||
+                *cursor == '\r' || *cursor == ',')) {
+            ++cursor;
+        }
+    };
+    for (;;) {
+        skipSeparators();
+        if (cursor >= end) break;
+        char* afterX = nullptr;
+        const double x = std::strtod(cursor, &afterX);
+        if (afterX == cursor || !std::isfinite(x)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Shape point list is invalid");
+        }
+        cursor = afterX;
+        skipSeparators();
+        if (cursor >= end) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Shape point list is invalid");
+        }
+        char* afterY = nullptr;
+        const double y = std::strtod(cursor, &afterY);
+        if (afterY == cursor || !std::isfinite(y)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Shape point list is invalid");
+        }
+        cursor = afterY;
+        Base::Result<void> stored = points.PushBack(Point{x, y});
+        if (!stored) return stored.GetStatus();
+    }
+    return {};
+}
+
+Size PointsExtent(
+    Span<const Point> points,
+    double stroke) noexcept {
+    if (points.Empty()) {
+        return Size{stroke * 2.0, stroke * 2.0};
+    }
+    double minX = points[0].x;
+    double minY = points[0].y;
+    double maxX = points[0].x;
+    double maxY = points[0].y;
+    for (std::uint32_t index = 1U; index < points.Size(); ++index) {
+        minX = std::min(minX, points[index].x);
+        minY = std::min(minY, points[index].y);
+        maxX = std::max(maxX, points[index].x);
+        maxY = std::max(maxY, points[index].y);
+    }
+    return Size{
+        std::max(0.0, maxX - minX) + stroke * 2.0,
+        std::max(0.0, maxY - minY) + stroke * 2.0};
+}
+
+void FillPointFan(
+    DisplayListBuilder& builder,
+    Span<const Point> points,
+    Color fill) noexcept {
+    if (fill.alpha <= 0.0F || points.Size() < 3U) return;
+    for (std::uint32_t index = 1U; index + 1U < points.Size(); ++index) {
+        const Point quad[4] = {
+            points[0], points[index], points[index + 1U], points[index + 1U]};
+        const Color colors[4] = {fill, fill, fill, fill};
+        static_cast<void>(builder.FillGradientQuad(quad, colors));
+    }
+}
+
+} // namespace
+
+double Line::GetX1() const noexcept { return GetValueOr(X1Property, 0.0); }
+double Line::GetY1() const noexcept { return GetValueOr(Y1Property, 0.0); }
+double Line::GetX2() const noexcept { return GetValueOr(X2Property, 0.0); }
+double Line::GetY2() const noexcept { return GetValueOr(Y2Property, 0.0); }
+void Line::SetX1(double value) noexcept { SetValue(X1Property, value); }
+void Line::SetY1(double value) noexcept { SetValue(Y1Property, value); }
+void Line::SetX2(double value) noexcept { SetValue(X2Property, value); }
+void Line::SetY2(double value) noexcept { SetValue(Y2Property, value); }
+
+Size Line::MeasureOverride(Size) noexcept {
+    const double stroke = std::max(0.0, GetStrokeThickness());
+    const double width = std::fabs(GetX2() - GetX1());
+    const double height = std::fabs(GetY2() - GetY1());
+    return Size{width + stroke * 2.0, height + stroke * 2.0};
+}
+
+void Line::OnRender(::Aero::Media::DrawingContext& context) noexcept {
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    StrokeLineSegment(
+        builder,
+        Point{GetX1(), GetY1()},
+        Point{GetX2(), GetY2()},
+        ::Aero::Media::SampleBrush(GetStroke()),
+        GetStrokeThickness());
+}
+
+FillRule Polygon::GetFillRule() const noexcept {
+    return GetValueOr(FillRuleProperty, FillRule::EvenOdd);
+}
+void Polygon::SetFillRule(FillRule value) noexcept {
+    SetValue(FillRuleProperty, value);
+}
+Span<const Point> Polygon::GetPoints() const noexcept {
+    return points_.AsSpan();
+}
+Result<void> Polygon::SetPoints(Span<const Point> points) noexcept {
+    points_.Clear();
+    Result<void> stored = points_.Append(points);
+    if (stored) {
+        static_cast<void>(InvalidateMeasure());
+        static_cast<void>(InvalidateVisual());
+    }
+    return stored;
+}
+Result<void> Polygon::AddPoint(Point point) noexcept {
+    Result<void> stored = points_.PushBack(point);
+    if (stored) {
+        static_cast<void>(InvalidateMeasure());
+        static_cast<void>(InvalidateVisual());
+    }
+    return stored;
+}
+void Polygon::ClearPoints() noexcept {
+    if (points_.Empty()) return;
+    points_.Clear();
+    static_cast<void>(InvalidateMeasure());
+    static_cast<void>(InvalidateVisual());
+}
+Result<void> Polygon::SetPoints(StringView text) noexcept {
+    Base::Vector<Point> parsed;
+    Result<void> status = ParsePoints(text, parsed);
+    if (!status) return status.GetStatus();
+    return SetPoints(parsed.AsSpan());
+}
+Size Polygon::MeasureOverride(Size) noexcept {
+    return PointsExtent(points_.AsSpan(), std::max(0.0, GetStrokeThickness()));
+}
+void Polygon::OnRender(::Aero::Media::DrawingContext& context) noexcept {
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    FillPointFan(builder, points_.AsSpan(), ::Aero::Media::SampleBrush(GetFill()));
+    const Color stroke = ::Aero::Media::SampleBrush(GetStroke());
+    const double thickness = GetStrokeThickness();
+    if (points_.Size() < 2U) return;
+    for (std::uint32_t index = 0U; index + 1U < points_.Size(); ++index) {
+        StrokeLineSegment(
+            builder, points_[index], points_[index + 1U], stroke, thickness);
+    }
+    StrokeLineSegment(
+        builder, points_[points_.Size() - 1U], points_[0], stroke, thickness);
+}
+
+Span<const Point> Polyline::GetPoints() const noexcept {
+    return points_.AsSpan();
+}
+Result<void> Polyline::SetPoints(Span<const Point> points) noexcept {
+    points_.Clear();
+    Result<void> stored = points_.Append(points);
+    if (stored) {
+        static_cast<void>(InvalidateMeasure());
+        static_cast<void>(InvalidateVisual());
+    }
+    return stored;
+}
+Result<void> Polyline::AddPoint(Point point) noexcept {
+    Result<void> stored = points_.PushBack(point);
+    if (stored) {
+        static_cast<void>(InvalidateMeasure());
+        static_cast<void>(InvalidateVisual());
+    }
+    return stored;
+}
+void Polyline::ClearPoints() noexcept {
+    if (points_.Empty()) return;
+    points_.Clear();
+    static_cast<void>(InvalidateMeasure());
+    static_cast<void>(InvalidateVisual());
+}
+Result<void> Polyline::SetPoints(StringView text) noexcept {
+    Base::Vector<Point> parsed;
+    Result<void> status = ParsePoints(text, parsed);
+    if (!status) return status.GetStatus();
+    return SetPoints(parsed.AsSpan());
+}
+Size Polyline::MeasureOverride(Size) noexcept {
+    return PointsExtent(points_.AsSpan(), std::max(0.0, GetStrokeThickness()));
+}
+void Polyline::OnRender(::Aero::Media::DrawingContext& context) noexcept {
+    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    const Color stroke = ::Aero::Media::SampleBrush(GetStroke());
+    const double thickness = GetStrokeThickness();
+    for (std::uint32_t index = 0U; index + 1U < points_.Size(); ++index) {
+        StrokeLineSegment(
+            builder, points_[index], points_[index + 1U], stroke, thickness);
+    }
 }
 
 } // namespace Aero::Shapes

@@ -1,6 +1,7 @@
 #pragma once
 
-#include <Aero/Base/Vector.hpp>
+#include <Aero/Base/Span.hpp>
+#include <Aero/Media/FreezableCollection.hpp>
 #include <Aero/Media/Transform.hpp>
 
 namespace Aero::Media {
@@ -15,14 +16,14 @@ public:
     void ClearChildren() noexcept;
     Span<const Ref<Transform>>
     GetChildren() const noexcept {
-        return {children_.Data(), children_.Size()};
+        return children_.AsSpan();
     }
     Base::Transform2D GetMatrix() const noexcept override;
 
 private:
     bool FreezeCore(bool isChecking) noexcept override;
     void OnChildChanged(Freezable&) noexcept;
-    Base::Vector<Ref<Transform>> children_;
+    FreezableCollection<Transform> children_;
     FreezableChangedHandler childChangedHandler_;
 };
 } // namespace Aero::Media

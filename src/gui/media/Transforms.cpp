@@ -320,7 +320,7 @@ Base::Result<void> TransformGroup::AddChild(
         if (!subscribed) return subscribed.GetStatus();
     }
     Base::Result<void> added =
-        children_.PushBack(std::move(value));
+        children_.Add(std::move(value));
     if (!added) {
         if (!retained->IsFrozen()) {
             static_cast<void>(

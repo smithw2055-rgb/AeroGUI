@@ -254,3 +254,11 @@ Kitchen-sink media/input/data headers are umbrellas or type owners:
 - `ComboBoxItem`, `MenuItem`, `ContextMenu`, `ListViewItem`, and GridView
   types have their own `Controls/` headers.
 
+Custom markup extensions inherit `<Aero/Markup/MarkupExtension.hpp>` and
+override `ProvideValue()`. Register the type with `Factory()` (and
+`TypeFlags::MarkupExtension` when you want the XAML flag). TreeView hierarchy
+uses `<Aero/HierarchicalDataTemplate.hpp>` rather than aliasing to
+`DataTemplate`. `Line` / `Polygon` / `Polyline` live next to `Path` under
+`Shapes/`. `FreezableCollection<T>` replaces handwritten `Vector<Ref<...>>`
+on path figures, transform groups, and timeline groups.
+

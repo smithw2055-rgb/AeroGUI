@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Base/Vector.hpp>
+#include <Aero/Media/FreezableCollection.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Media/PathSegment.hpp>
 
@@ -34,6 +34,6 @@ public:
     inline static constexpr DependencyProperty<Point> StartPointProperty{"StartPoint"};
     inline static constexpr DependencyProperty<bool> IsClosedProperty{"IsClosed"};
 private:
-    Base::Vector<Ref<PathSegment>> segments_;
+    FreezableCollection<PathSegment> segments_;
 };
 } // namespace Aero::Media

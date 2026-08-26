@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Base/Vector.hpp>
+#include <Aero/Media/FreezableCollection.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Media/PathFigure.hpp>
 
@@ -24,6 +24,6 @@ public:
     }
     Result<String> ToStreamData() const noexcept;
 private:
-    Base::Vector<Ref<PathFigure>> figures_;
+    FreezableCollection<PathFigure> figures_;
 };
 } // namespace Aero::Media

@@ -14,6 +14,8 @@
 // Canonical compiled-schema bridge used by Loader.
 
 #include <Aero/Markup/XamlReader.hpp>
+#include <Aero/Markup/MarkupExtension.hpp>
+#include <Aero/TryCast.hpp>
 #include <Aero/Media/Fonts.hpp>
 
 #include <cerrno>
@@ -1240,6 +1242,12 @@ void ClearVisualStateGroupCollection(
 Base::Result<void> PopulateMarkupMetadata(
     Meta::Registration& context) noexcept {
     Base::Result<void> status =
+        Meta::Register<MarkupExtension>(
+            context,
+            TypeFlags::MarkupExtension |
+                TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+    status =
         Meta::Register<DynamicResourceExtensionToken>(
             context,
             TypeFlags::MarkupExtension |
@@ -2088,12 +2096,7 @@ bool IsSystemNamespace(
 
 Base::StringView CanonicalXamlTypeName(
     Base::StringView value) noexcept {
-    return value == Base::StringView("HierarchicalDataTemplate")
-        ? Base::StringView("DataTemplate")
-        // WPF's Geometry type converter materializes a StreamGeometry for
-        // textual path data. Aero exposes that concrete representation, so
-        // preserve the portable <Geometry> XAML spelling as its alias.
-        : value == Base::StringView("Geometry")
+    return value == Base::StringView("Geometry")
         ? Base::StringView("StreamGeometry")
         : value;
 }
@@ -3193,11 +3196,7 @@ bool SchemaIsSystemNamespace(
 
 Base::StringView SchemaCanonicalXamlTypeName(
     Base::StringView value) noexcept {
-    // HierarchicalDataTemplate shares the ordinary data-template factory;
-    // hierarchy-specific item expansion is applied by TreeViewItem later.
-    return value == Base::StringView("HierarchicalDataTemplate")
-        ? Base::StringView("DataTemplate")
-        : value == Base::StringView("Geometry")
+    return value == Base::StringView("Geometry")
         ? Base::StringView("StreamGeometry")
         : value;
 }
@@ -3980,17 +3979,36 @@ Base::Result<ProvidedValue> Schema::ProvideMarkupExtensionValue(
         domain_->Types().FindType(type);
     const XamlMarkupExtensionFacet* registration =
         state_->facets.FindMarkupExtension(type);
-    if (info == nullptr ||
-        !SchemaHasTypeFlag(info->Flags(), Meta::TypeFlags::MarkupExtension) ||
-        registration == nullptr || registration->provideValue == nullptr) {
+    const bool isMarkupExtension =
+        info != nullptr &&
+        (SchemaHasTypeFlag(info->Flags(), Meta::TypeFlags::MarkupExtension) ||
+         domain_->Types().IsDerivedFrom(
+             type, MarkupExtension::StaticTypeId()));
+    if (!isMarkupExtension) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             MessageMissingMarkupExtension);
     }
-    return registration->provideValue(
-        arguments,
-        services,
-        registration->context);
+    if (registration != nullptr && registration->provideValue != nullptr) {
+        return registration->provideValue(
+            arguments,
+            services,
+            registration->context);
+    }
+    Base::Result<Base::Ref<Base::Object>> created = CreateObject(type);
+    if (!created) return created.GetStatus();
+    MarkupExtension* extension =
+        ::Aero::TryCast<MarkupExtension>(created.Value().Get());
+    if (extension == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            MessageMissingMarkupExtension);
+    }
+    (void)arguments;
+    (void)services;
+    Base::Result<Meta::Value> provided = extension->ProvideValue();
+    if (!provided) return provided.GetStatus();
+    return ProvidedValue::FromValue(std::move(provided).Value());
 }
 
 Base::Result<void> Schema::BeginInit(

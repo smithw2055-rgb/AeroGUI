@@ -16,6 +16,7 @@
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/HierarchicalDataTemplate.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
@@ -35,6 +36,10 @@ using namespace Aero::Threading;
     using Aero::Shapes::Rectangle;
     using Aero::Shapes::Ellipse;
     using Aero::Shapes::Path;
+    using Aero::Shapes::Line;
+    using Aero::Shapes::Polygon;
+    using Aero::Shapes::Polyline;
+    using Aero::Shapes::FillRule;
     using Aero::Shapes::PenLineJoin;
     using Aero::Shapes::PenLineCap;
     using Aero::TryCastToInterface;

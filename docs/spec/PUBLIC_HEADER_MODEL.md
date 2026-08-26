@@ -57,6 +57,9 @@ Aero/Layout.hpp
 Aero/Resources.hpp
 Aero/Style.hpp
 Aero/DataTemplate.hpp
+Aero/HierarchicalDataTemplate.hpp
+Aero/Markup/MarkupExtension.hpp
+Aero/Media/FreezableCollection.hpp
 Aero/Data/Binding.hpp            Binding class; siblings in Data/<Type>.hpp
                                  (NotifyPropertyChanged, MultiBinding, converters)
 Aero/Input.hpp                   Value types only; command types in Aero/<Type>.hpp

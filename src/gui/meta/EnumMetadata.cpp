@@ -228,6 +228,12 @@ Base::Result<void> PopulateEnumMetadata(
             .Value("Reflect", ::Aero::Media::GradientSpreadMethod::Reflect)
             .Value("Repeat", ::Aero::Media::GradientSpreadMethod::Repeat););
     AERO_REGISTER_ENUM(
+        ::Aero::Shapes::FillRule,
+        "FillRule",
+        description
+            .Value("EvenOdd", ::Aero::Shapes::FillRule::EvenOdd)
+            .Value("Nonzero", ::Aero::Shapes::FillRule::Nonzero););
+    AERO_REGISTER_ENUM(
         ::Aero::Shapes::PenLineJoin,
         "PenLineJoin",
         description

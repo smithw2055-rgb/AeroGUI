@@ -79,6 +79,12 @@ Base::Result<void> PopulateControlsTemplates(
     status = dataTemplate.Result();
     if (!status) return status.GetStatus();
 
+    auto hierarchicalDataTemplate =
+        Meta::Register<HierarchicalDataTemplate>(context);
+    hierarchicalDataTemplate.Factory();
+    status = hierarchicalDataTemplate.Result();
+    if (!status) return status.GetStatus();
+
     auto itemsPanelTemplate =
         Meta::Register<ItemsPanelTemplate>(context);
     itemsPanelTemplate

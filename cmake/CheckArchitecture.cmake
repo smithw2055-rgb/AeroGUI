@@ -135,6 +135,9 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Markup/ResourceScope.hpp"
         "include/Aero/Shapes.hpp"
         "include/Aero/Shapes/Path.hpp"
+        "include/Aero/Shapes/Line.hpp"
+        "include/Aero/Shapes/Polygon.hpp"
+        "include/Aero/Shapes/Polyline.hpp"
         "include/Aero/Documents.hpp"
         "include/Aero/Documents/Run.hpp"
         "include/Aero/Diagnostics/Rendering.hpp"
@@ -1284,6 +1287,9 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Shapes/Rectangle.hpp|class AERO_GUI_API Rectangle"
         "include/Aero/Shapes/Ellipse.hpp|class AERO_GUI_API Ellipse"
         "include/Aero/Shapes/Path.hpp|class AERO_GUI_API Path"
+        "include/Aero/Shapes/Line.hpp|class AERO_GUI_API Line"
+        "include/Aero/Shapes/Polygon.hpp|class AERO_GUI_API Polygon"
+        "include/Aero/Shapes/Polyline.hpp|class AERO_GUI_API Polyline"
         "include/Aero/Documents/TextElement.hpp|class AERO_GUI_API TextElement"
         "include/Aero/Documents/Inline.hpp|class AERO_GUI_API Inline"
         "include/Aero/Documents/Run.hpp|class AERO_GUI_API Run"
@@ -1572,6 +1578,18 @@ aero_require_text(
     "include/Aero/Shapes/Path.hpp"
     "class AERO_GUI_API Path : public Shape"
     "Path must derive Shape so Fill/Stroke live on the WPF Shape base")
+aero_require_text(
+    "include/Aero/Shapes/Line.hpp"
+    "class AERO_GUI_API Line : public Shape"
+    "Line must derive Shape")
+aero_require_text(
+    "include/Aero/Shapes/Polygon.hpp"
+    "class AERO_GUI_API Polygon : public Shape"
+    "Polygon must derive Shape")
+aero_require_text(
+    "include/Aero/Shapes/Polyline.hpp"
+    "class AERO_GUI_API Polyline : public Shape"
+    "Polyline must derive Shape")
 aero_forbid_text(
     "include/Aero/Shapes.hpp"
     "class AERO_GUI_API Path"

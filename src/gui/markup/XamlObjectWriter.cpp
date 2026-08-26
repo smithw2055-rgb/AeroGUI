@@ -23,6 +23,8 @@
 
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls.hpp>
+#include <Aero/Markup/MarkupExtension.hpp>
+#include <Aero/TryCast.hpp>
 #include <Aero/Controls/ButtonBase.hpp>
 #include <Aero/Controls/ToggleButton.hpp>
 #include <Aero/FrameworkContentElement.hpp>
@@ -5497,6 +5499,22 @@ Base::Result<void> ObjectBuilder::WriteValue(
             XamlObjectWriterDiagnosticCodes::InvalidWriterState,
             MessageInvalidWriterState,
             source);
+    }
+    if (value.Kind() == Meta::ValueKind::Object &&
+        !value.IsNullObject() &&
+        value.AsObject()) {
+        if (MarkupExtension* extension =
+                ::Aero::TryCast<MarkupExtension>(value.AsObject().Get())) {
+            Base::Result<Meta::Value> provided = extension->ProvideValue();
+            if (!provided) {
+                return Failure(
+                    provided.GetStatus(),
+                    XamlObjectWriterDiagnosticCodes::MarkupExtensionFailed,
+                    MessageMarkupExtensionFailed,
+                    source);
+            }
+            value = std::move(provided).Value();
+        }
     }
     if (value.Kind() == Meta::ValueKind::Object &&
         !value.IsNullObject() &&

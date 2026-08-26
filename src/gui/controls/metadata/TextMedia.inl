@@ -362,6 +362,49 @@ Base::Result<void> PopulateControlsTextMedia(
     status = path.Result();
     if (!status) return status.GetStatus();
 
+    auto line = Meta::Register<Line>(context);
+    line
+        .Property(
+            Line::X1Property,
+            FrameworkPropertyMetadata(0.0).AffectsMeasure().AffectsRender())
+        .Property(
+            Line::Y1Property,
+            FrameworkPropertyMetadata(0.0).AffectsMeasure().AffectsRender())
+        .Property(
+            Line::X2Property,
+            FrameworkPropertyMetadata(0.0).AffectsMeasure().AffectsRender())
+        .Property(
+            Line::Y2Property,
+            FrameworkPropertyMetadata(0.0).AffectsMeasure().AffectsRender())
+        .Factory();
+    status = line.Result();
+    if (!status) return status.GetStatus();
+
+    auto polygon = Meta::Register<Polygon>(context);
+    polygon
+        .Property(
+            Polygon::FillRuleProperty,
+            FrameworkPropertyMetadata(FillRule::EvenOdd).AffectsRender())
+        .Property<
+            Base::String,
+            &Polygon::SetPointsText>(
+            "Points",
+            PropertyFlags::None)
+        .Factory();
+    status = polygon.Result();
+    if (!status) return status.GetStatus();
+
+    auto polyline = Meta::Register<Polyline>(context);
+    polyline
+        .Property<
+            Base::String,
+            &Polyline::SetPointsText>(
+            "Points",
+            PropertyFlags::None)
+        .Factory();
+    status = polyline.Result();
+    if (!status) return status.GetStatus();
+
     const Base::Ref<Brush> selection = makeBrush({
         46.0F / 255.0F,
         174.0F / 255.0F,

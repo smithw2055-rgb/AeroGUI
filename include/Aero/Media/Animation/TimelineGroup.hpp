@@ -2,8 +2,8 @@
 
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Span.hpp>
-#include <Aero/Base/Vector.hpp>
 #include <Aero/Media/Animation/Timeline.hpp>
+#include <Aero/Media/FreezableCollection.hpp>
 #include <utility>
 
 namespace Aero::Media::Animation {
@@ -18,12 +18,12 @@ public:
     void Clear() noexcept;
     void ClearTimelines() noexcept { Clear(); }
     Span<const Ref<Timeline>> GetTimelines() const noexcept {
-        return {timelines_.Data(), timelines_.Size()};
+        return timelines_.AsSpan();
     }
     Span<const Ref<Timeline>> Children() const noexcept {
         return GetTimelines();
     }
-    std::uint32_t Count() const noexcept { return timelines_.Size(); }
+    std::uint32_t Count() const noexcept { return timelines_.GetCount(); }
 
 protected:
     explicit TimelineGroup(Meta::TypeId runtimeType) noexcept
@@ -33,7 +33,7 @@ protected:
 
 private:
     void OnTimelineChanged(Freezable&) noexcept;
-    Base::Vector<Ref<Timeline>> timelines_;
+    FreezableCollection<Timeline> timelines_;
     FreezableChangedHandler timelineChangedHandler_;
 };
 

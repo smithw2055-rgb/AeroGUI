@@ -112,6 +112,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/ControlTemplate.hpp
     include/Aero/VisualStateManager.hpp
     include/Aero/DataTemplate.hpp
+    include/Aero/HierarchicalDataTemplate.hpp
     include/Aero/Media/Animation.hpp
     include/Aero/Media/Animation/AnimationTimeline.hpp
     include/Aero/Media/Animation/AnimationUsingKeyFrames.hpp
@@ -195,6 +196,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Markup/ReloadCoordinator.hpp
     include/Aero/Markup/ResourceScope.hpp
     include/Aero/Markup/ServiceProvider.hpp
+    include/Aero/Markup/MarkupExtension.hpp
     include/Aero/Media/FontProvider.hpp
     include/Aero/Media/TextureProvider.hpp
     include/Aero/Markup/XamlProvider.hpp
@@ -206,7 +208,10 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Module.hpp
     include/Aero/Shapes.hpp
     include/Aero/Shapes/Ellipse.hpp
+    include/Aero/Shapes/Line.hpp
     include/Aero/Shapes/Path.hpp
+    include/Aero/Shapes/Polygon.hpp
+    include/Aero/Shapes/Polyline.hpp
     include/Aero/Shapes/Rectangle.hpp
     include/Aero/Shapes/Shape.hpp
     include/Aero/Triggers/Conditions.hpp
@@ -306,6 +311,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/LineSegment.hpp
     include/Aero/Media/PathFigure.hpp
     include/Aero/Media/PathGeometry.hpp
+    include/Aero/Media/FreezableCollection.hpp
     include/Aero/InputScope.hpp
     include/Aero/ICommand.hpp
     include/Aero/InputGesture.hpp
