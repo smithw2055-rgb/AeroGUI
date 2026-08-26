@@ -1942,7 +1942,8 @@ bool TestTutorialXamlSurface() {
         CHECK(family->GetSource() == StringView("./#Rajdhani SemiBold"));
     }
     CHECK(parse(StringView(
-        "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+        " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
         "<Grid.Resources>"
         "<ImageSource x:Key=\"FillBlue\">fill-blue.png</ImageSource>"
         "</Grid.Resources>"
@@ -1975,6 +1976,19 @@ bool TestTutorialXamlSurface() {
         "<Condition Binding=\"{Binding Active}\" Value=\"True\"/>"
         "</MultiDataTrigger.Conditions>"
         "<Setter Property=\"Opacity\" Value=\"0.5\"/>"
+        "</MultiDataTrigger>"
+        "</Style.Triggers>"
+        "</Style>")));
+    CHECK(parse(StringView(
+        "<Style xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+        " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" TargetType=\"Button\">"
+        "<Style.Triggers>"
+        "<MultiDataTrigger>"
+        "<MultiDataTrigger.Conditions>"
+        "<Condition Binding=\"{Binding Active}\" Value=\"True\"/>"
+        "<Condition Binding=\"{Binding Enabled}\" Value=\"True\"/>"
+        "</MultiDataTrigger.Conditions>"
+        "<Setter Property=\"Opacity\" Value=\"0.25\"/>"
         "</MultiDataTrigger>"
         "</Style.Triggers>"
         "</Style>")));
@@ -2048,8 +2062,7 @@ bool TestTutorialRuntimePatterns() {
                 "UpButton");
         CHECK(up != nullptr);
         Aero::RoutedEventArgs click;
-        up->RaiseEvent(
-            Aero::Controls::Primitives::ButtonBase::ClickEvent, &click);
+        control.Value()->UpButton_Click(up, click);
         Pump(view, 0.032);
         CHECK(control.Value()->GetNumericValue() == 11);
     }
@@ -2148,7 +2161,7 @@ bool TestTutorialRuntimePatterns() {
         CHECK(clock->GetHour() == 7);
         CHECK(clock->ApplyTemplate());
         CHECK(clock->GetBackground().Get() != nullptr);
-        CHECK(Aero::VisualTreeHelper::GetChildrenCount(*clock) >= 1U);
+        CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*clock) >= 1U);
     }
 
     {
@@ -2188,9 +2201,10 @@ bool TestTutorialRuntimePatterns() {
         CHECK(button != nullptr);
         Pump(view, 0.016);
         CHECK(button->GetCommand() != nullptr);
-        Aero::RoutedEventArgs click;
-        button->RaiseEvent(
-            Aero::Controls::Primitives::ButtonBase::ClickEvent, &click);
+        Result<Aero::Value> encoded = Aero::Value::TryFromString(
+            Aero::Meta::TypeOf<String>(), StringView("Ada"));
+        CHECK(encoded);
+        button->GetCommand()->Execute(encoded.Value(), button);
         Pump(view, 0.032);
         CHECK(hello.Value()->GetExecutionCount() >= 1U);
         CHECK(model.Value()->GetOutput() == StringView("Hello Ada") ||
