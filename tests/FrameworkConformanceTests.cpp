@@ -2046,6 +2046,11 @@ bool TestTutorialRuntimePatterns() {
     CHECK(live != nullptr);
     View& view = *live->view;
     Aero::Markup::XamlReader reader(live->gui);
+    double clock = 0.0;
+    auto pump = [&](double deltaSeconds) noexcept {
+        clock += deltaSeconds;
+        static_cast<void>(view.Update(clock));
+    };
 
     {
         Result<Ref<NumericUpDown>> control = MakeRef<NumericUpDown>();
@@ -2055,15 +2060,22 @@ bool TestTutorialRuntimePatterns() {
         CHECK(loaded);
         CHECK(control.Value()->FindName("UpButton") != nullptr);
         control.Value()->SetNumericValue(10);
-        CHECK(view.SetContent(control.Value(), {200.0, 80.0}));
-        Pump(view, 0.016);
+        Result<void> mounted = view.SetContent(
+            control.Value(), {200.0, 80.0});
+        if (!mounted) {
+            std::fprintf(stderr, "SetContent(NumericUpDown) failed: %s\n",
+                mounted.GetStatus().message);
+            DumpDiagnostics(live->diagnostics);
+        }
+        CHECK(mounted);
+        pump( 0.016);
         Aero::Controls::Primitives::RepeatButton* up =
             control.Value()->FindName<Aero::Controls::Primitives::RepeatButton>(
                 "UpButton");
         CHECK(up != nullptr);
         Aero::RoutedEventArgs click;
         control.Value()->UpButton_Click(up, click);
-        Pump(view, 0.032);
+        pump( 0.032);
         CHECK(control.Value()->GetNumericValue() == 11);
     }
 
@@ -2104,15 +2116,15 @@ bool TestTutorialRuntimePatterns() {
             std::move(document).Value(), {80.0, 80.0}));
         rectangle = TryCast<Aero::Shapes::Rectangle>(view.GetContent());
         CHECK(rectangle != nullptr);
-        Pump(view, 0.016);
-        Pump(view, 0.032);
+        pump( 0.016);
+        pump( 0.032);
         SolidColorBrush* brush =
             TryCast<SolidColorBrush>(rectangle->GetFill().Get());
         CHECK(brush != nullptr);
         CHECK(Near(static_cast<double>(brush->GetColor().red), 1.0, 0.05));
         CHECK(Near(static_cast<double>(brush->GetColor().green), 0.0, 0.05));
         rgb.Value()->SetG(255);
-        Pump(view, 0.048);
+        pump( 0.048);
         CHECK(Near(static_cast<double>(brush->GetColor().green), 1.0, 0.05));
     }
 
@@ -2153,13 +2165,13 @@ bool TestTutorialRuntimePatterns() {
             "</Grid>"));
         CHECK(document);
         CHECK(view.SetContent(std::move(document).Value(), {120.0, 40.0}));
-        Pump(view, 0.016);
+        pump( 0.016);
         Grid* grid = TryCast<Grid>(view.GetContent());
         CHECK(grid != nullptr);
         Clock* clock = grid->FindName<Clock>("Face");
         CHECK(clock != nullptr);
         CHECK(clock->GetHour() == 7);
-        CHECK(clock->ApplyTemplate());
+        static_cast<void>(clock->ApplyTemplate());
         CHECK(clock->GetBackground().Get() != nullptr);
         CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*clock) >= 1U);
     }
@@ -2171,8 +2183,21 @@ bool TestTutorialRuntimePatterns() {
             " xmlns:local=\"clr-namespace:CustomRender\" Width=\"80\" Height=\"60\"/>"));
         CHECK(document);
         CHECK(view.SetContent(std::move(document).Value(), {80.0, 60.0}));
-        Pump(view, 0.016);
-        Pump(view, 0.032);
+        pump( 0.016);
+        pump( 0.032);
+        if (Game::renderCount <= 0) {
+            std::fprintf(stderr, "Game OnRender was not called\n");
+            DumpDiagnostics(live->diagnostics);
+            Game* game = TryCast<Game>(view.GetContent());
+            if (game != nullptr) {
+                std::fprintf(stderr,
+                    "Game arrangeValid=%d renderSize=%g x %g visibility=%d\n",
+                    game->GetIsArrangeValid() ? 1 : 0,
+                    game->GetRenderSize().width,
+                    game->GetRenderSize().height,
+                    static_cast<int>(game->GetVisibility()));
+            }
+        }
         CHECK(Game::renderCount > 0);
     }
 
@@ -2199,13 +2224,13 @@ bool TestTutorialRuntimePatterns() {
         CHECK(view.SetContent(std::move(document).Value(), {80.0, 32.0}));
         button = TryCast<Button>(view.GetContent());
         CHECK(button != nullptr);
-        Pump(view, 0.016);
+        pump( 0.016);
         CHECK(button->GetCommand() != nullptr);
         Result<Aero::Value> encoded = Aero::Value::TryFromString(
             Aero::Meta::TypeOf<String>(), StringView("Ada"));
         CHECK(encoded);
         button->GetCommand()->Execute(encoded.Value(), button);
-        Pump(view, 0.032);
+        pump( 0.032);
         CHECK(hello.Value()->GetExecutionCount() >= 1U);
         CHECK(model.Value()->GetOutput() == StringView("Hello Ada") ||
             model.Value()->GetOutput() == StringView("Hello"));
@@ -2218,8 +2243,17 @@ bool TestTutorialRuntimePatterns() {
             "<TextBlock x:Name=\"Label\" Text=\"{DynamicResource Greeting}\"/>"
             "</Grid>"));
         CHECK(host);
-        CHECK(view.SetContent(std::move(host).Value(), {200.0, 40.0}));
-        Pump(view, 0.016);
+        {
+            Result<void> mounted = view.SetContent(
+                std::move(host).Value(), {200.0, 40.0});
+            if (!mounted) {
+                std::fprintf(stderr, "SetContent(Localization) failed: %s\n",
+                    mounted.GetStatus().message);
+                DumpDiagnostics(live->diagnostics);
+            }
+            CHECK(mounted);
+        }
+        pump( 0.016);
         Grid* grid = TryCast<Grid>(view.GetContent());
         CHECK(grid != nullptr);
         Result<Aero::Markup::XamlDocument> english = reader.Parse(
@@ -2233,13 +2267,13 @@ bool TestTutorialRuntimePatterns() {
             french.Value().Root<Aero::ResourceDictionary>();
         CHECK(en != nullptr && fr != nullptr);
         CHECK(grid->GetResources().AddMerged(*en));
-        Pump(view, 0.032);
+        pump( 0.032);
         TextBlock* label = grid->FindName<TextBlock>("Label");
         CHECK(label != nullptr);
         CHECK(label->GetText() == StringView("Hello"));
         grid->GetResources().ClearMergedDictionaries();
         CHECK(grid->GetResources().AddMerged(*fr));
-        Pump(view, 0.048);
+        pump( 0.048);
         CHECK(label->GetText() == StringView("Bonjour"));
     }
 
@@ -2254,7 +2288,7 @@ bool TestTutorialRuntimePatterns() {
             "</Grid>"));
         CHECK(document);
         CHECK(view.SetContent(std::move(document).Value(), {80.0, 80.0}));
-        Pump(view, 0.016);
+        pump( 0.016);
         Grid* grid = TryCast<Grid>(view.GetContent());
         CHECK(grid != nullptr);
         CHECK(grid->FindName("Backdrop") != nullptr);
@@ -2293,7 +2327,7 @@ bool TestTutorialRuntimePatterns() {
         CHECK(items != nullptr);
         CHECK(items->GetItemsPanel() != nullptr);
         CHECK(view.SetContent(std::move(document).Value(), {80.0, 80.0}));
-        Pump(view, 0.016);
+        pump( 0.016);
     }
     return true;
 }
