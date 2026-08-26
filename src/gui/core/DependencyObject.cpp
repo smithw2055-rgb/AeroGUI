@@ -952,9 +952,10 @@ PropertyValueSourceInfo DependencyObject::GetValueSourceInfo(
     if (!ready) return {};
     const Meta::DependencyProperty* property =
         registry_->Find(propertyHandle);
-    if (property == nullptr || property->MetadataFor(runtimeType_) == nullptr)
+    if (property == nullptr || property->MetadataFor(runtimeType_) == nullptr) {
         return {};
-        auto* storedEntry = FindStoredEntry(propertyHandle);
+    }
+    auto* storedEntry = FindStoredEntry(propertyHandle);
     return storedEntry != nullptr ? storedEntry->SourceInfo() : PropertyValueSourceInfo{};
 }
 

@@ -155,7 +155,7 @@ public:
         const ResourceEnvironment& environment) noexcept {
         resourceEnvironment_ = environment;
     }
-    const ResourceEnvironment& ResourceEnvironment() const noexcept {
+    const ResourceEnvironment& GetResourceEnvironment() const noexcept {
         return resourceEnvironment_;
     }
 

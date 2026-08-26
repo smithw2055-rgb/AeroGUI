@@ -1134,7 +1134,7 @@ void ClearGroupTransitions(
         object).ClearTransitions();
 }
 
-void AddElementVisualStateGroup(
+[[maybe_unused]] void AddElementVisualStateGroup(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
@@ -1159,7 +1159,7 @@ void AddElementVisualStateGroup(
             *static_cast<VisualStateGroup*>(value.Get())));
 }
 
-void ClearElementVisualStateGroups(
+[[maybe_unused]] void ClearElementVisualStateGroups(
     Base::Object& object,
     void*) noexcept {
     static_cast<::Aero::DependencyObject&>(object).SetValue(
@@ -1220,7 +1220,7 @@ void ClearTransitionStoryboard(
     static_cast<VisualTransition&>(object).SetStoryboard({});
 }
 
-void AddVisualStateGroupToCollection(
+[[maybe_unused]] void AddVisualStateGroupToCollection(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
@@ -1231,7 +1231,7 @@ void AddVisualStateGroupToCollection(
             *static_cast<VisualStateGroup*>(value.Get())));
 }
 
-void ClearVisualStateGroupCollection(
+[[maybe_unused]] void ClearVisualStateGroupCollection(
     Base::Object& owner,
     void*) noexcept {
     static_cast<VisualStateGroupCollection&>(owner).Clear();

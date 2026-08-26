@@ -122,7 +122,7 @@ ImageBrushGeometry FitImageBrush(
     return {destination, sourceUv};
 }
 
-Base::Result<void> PaintImageBrush(
+[[maybe_unused]] Base::Result<void> PaintImageBrush(
     ::Aero::Media::DrawingContext& context,
     const ImageBrush& brush,
     Rect bounds) noexcept {

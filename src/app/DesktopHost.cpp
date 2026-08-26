@@ -42,6 +42,8 @@ Base::Result<Render::RenderContext*> CreateRenderContext(
     std::uint32_t width,
     std::uint32_t height,
     Base::IAllocator* allocator) noexcept {
+    (void)window;
+    (void)allocator;
     if (width == 0U || height == 0U) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,

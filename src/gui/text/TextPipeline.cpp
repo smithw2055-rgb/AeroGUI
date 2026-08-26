@@ -591,7 +591,7 @@ public:
                 : (request.pixelSize > 0.0F ? request.pixelSize : 16.0F);
             for (std::uint32_t r = 0U; r < line.runCount; ++r) {
                 const Text::GlyphRun& run = layout.Runs()[line.firstRun + r];
-                for (std::size_t g = 0; g < run.glyphs.Size(); ++g) {
+                for (std::uint32_t g = 0U; g < run.glyphs.Size(); ++g) {
                     const Text::PositionedGlyph& glyph = run.glyphs[g];
                     TextHitRegion region;
                     region.textOffset = glyph.cluster;

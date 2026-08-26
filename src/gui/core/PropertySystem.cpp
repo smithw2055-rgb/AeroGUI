@@ -883,7 +883,7 @@ namespace {
 
 constexpr std::uint32_t EffectiveInvalidIndex = UINT32_MAX;
 
-Base::Status InvalidProviderStatus() noexcept {
+[[maybe_unused]] Base::Status InvalidProviderStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::InvalidArgument,
         "The property provider rank is not a mutable base-value source");

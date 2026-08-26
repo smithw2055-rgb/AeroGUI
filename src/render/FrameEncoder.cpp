@@ -17,6 +17,23 @@ struct Vertex2D {
     float coverage = 1.0f;
 };
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
+inline void AssignColorEnable(RenderState& state, unsigned value) noexcept {
+    state.f.colorEnable = static_cast<uint8_t>(value & 1U);
+}
+inline void AssignBlendMode(RenderState& state, unsigned value) noexcept {
+    state.f.blendMode = static_cast<uint8_t>(value & 7U);
+}
+inline void AssignStencilMode(RenderState& state, unsigned value) noexcept {
+    state.f.stencilMode = static_cast<uint8_t>(value & 7U);
+}
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+
 inline uint32_t ColorToRGBA32(Color color, double opacity) noexcept {
     const float alpha = static_cast<float>(std::clamp(static_cast<double>(color.alpha) * opacity, 0.0, 1.0));
     const auto r = static_cast<uint8_t>(std::clamp(color.red * alpha * 255.0f + 0.5f, 0.0f, 255.0f));
@@ -508,8 +525,8 @@ void UiFrameEncoder::EnsureBatchBlend(Shader::Enum shader) noexcept {
         FlushBatch();
     }
     currentBatch_.shader = shader;
-    currentBatch_.renderState.f.blendMode = currentBlendMode_;
-    currentBatch_.renderState.f.colorEnable = 1;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+    AssignColorEnable(currentBatch_.renderState, 1U);
 }
 
 void UiFrameEncoder::SetBatchImage(
@@ -533,8 +550,8 @@ void UiFrameEncoder::SetBatchImage(
     currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
     currentBatch_.shadowSampler.f.wrapMode = WrapMode::ClampToEdge;
     currentBatch_.shadowSampler.f.minmagFilter = MinMagFilter::Linear;
-    currentBatch_.renderState.f.blendMode = currentBlendMode_;
-    currentBatch_.renderState.f.colorEnable = 1;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+    AssignColorEnable(currentBatch_.renderState, 1U);
 }
 
 void UiFrameEncoder::EmitMaskBrush(
@@ -725,7 +742,7 @@ void UiFrameEncoder::SetContentStencil() noexcept {
          currentBatch_.stencilRef != ref)) {
         FlushBatch();
     }
-    currentBatch_.renderState.f.stencilMode = mode;
+    AssignStencilMode(currentBatch_.renderState, mode);
     currentBatch_.stencilRef = ref;
 }
 
@@ -742,9 +759,9 @@ void UiFrameEncoder::EmitClipQuad(
         FlushBatch();
     }
     currentBatch_.shader = Shader::Path_Solid;
-    currentBatch_.renderState.f.blendMode = BlendMode::SrcOver;
-    currentBatch_.renderState.f.colorEnable = 0;
-    currentBatch_.renderState.f.stencilMode = stencilMode;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(BlendMode::SrcOver));
+    AssignColorEnable(currentBatch_.renderState, 0U);
+    AssignStencilMode(currentBatch_.renderState, stencilMode);
     currentBatch_.stencilRef = stencilRef;
 
     const Point p0 = TransformPoint(transform, rect.x, rect.y);
@@ -902,8 +919,8 @@ void UiFrameEncoder::ProcessCommand(
             currentBatch_.image = tex;
             currentBatch_.imageSampler.f.wrapMode = WrapMode::ClampToEdge;
             currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
-            currentBatch_.renderState.f.blendMode = currentBlendMode_;
-            currentBatch_.renderState.f.colorEnable = 1;
+            AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+            AssignColorEnable(currentBatch_.renderState, 1U);
             SetContentStencil();
 
             const Point p0 = TransformPoint(currentTransform, cmd.rect.x, cmd.rect.y);
@@ -951,8 +968,8 @@ void UiFrameEncoder::ProcessCommand(
             currentBatch_.glyphs = atlas;
             currentBatch_.glyphsSampler.f.wrapMode = WrapMode::ClampToEdge;
             currentBatch_.glyphsSampler.f.minmagFilter = MinMagFilter::Linear;
-            currentBatch_.renderState.f.blendMode = currentBlendMode_;
-            currentBatch_.renderState.f.colorEnable = 1;
+            AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+            AssignColorEnable(currentBatch_.renderState, 1U);
             SetContentStencil();
 
             const Point p0 = TransformPoint(currentTransform, quad.x0, quad.y0);

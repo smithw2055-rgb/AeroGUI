@@ -25,7 +25,7 @@ Base::Status InvalidState(const char* message) noexcept {
         Base::ErrorCode::InvalidState, message);
 }
 
-Base::Status OutOfMemory(const char* message) noexcept {
+[[maybe_unused]] Base::Status OutOfMemory(const char* message) noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::OutOfMemory, message);
 }

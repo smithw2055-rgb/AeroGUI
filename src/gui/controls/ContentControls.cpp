@@ -160,6 +160,7 @@ void Popup::OnOpenPropertyChanged(
 
 Size Popup::MeasureOverride(
     Size availableSize) noexcept {
+    (void)availableSize;
     popupDesiredSize_ = {};
     UIElement* popupChild =
         GetTemplateRoot() != nullptr
