@@ -61,97 +61,36 @@ Base::Result<void> ViewState::AttachVisualGraph(
         FrameworkElement* rootRender,
         Base::Span<Aero::Markup::VisualEdge> edges,
         Size availableSize) noexcept {
-        if (tree == nullptr || layout == nullptr || HasAttachedRoot() ||
-            !IsValidLayoutSize(availableSize)) {
+        if (tree == nullptr) {
             return ViewInvalidState(
                 "Gui root cannot be attached in its current state");
         }
-        tree->AttachPresentation(layout, renderer);
-        Base::Result<Aero::RootAttachment> rootAttached =
-            tree->AttachRoot(rootVisual, availableSize);
-        if (!rootAttached) return rootAttached.GetStatus();
-        rootAttachment = std::move(rootAttached).Value();
+        Base::Result<void> attached = tree->AttachVisualGraph(
+            rootVisual, edges, availableSize, rootAttachment);
+        if (!attached) return attached.GetStatus();
         attachedRootVisual = &rootVisual;
         attachedRootLayout = &rootLayout;
         attachedRootRender = rootRender;
-
-        std::uint32_t attached = 0U;
-        while (attached < edges.Size()) {
-            bool progressed = false;
-            for (Aero::Markup::VisualEdge& edge : edges) {
-                if (edge.state.logicalAttached || edge.parent == nullptr ||
-                    edge.child == nullptr ||
-                    edge.parent->GetTree() != tree) {
-                    continue;
-                }
-                Base::Result<Aero::ElementAttachment> edgeAttached =
-                    tree->AttachElement(*edge.parent, *edge.child);
-                if (!edgeAttached) {
-                    static_cast<void>(DetachVisualGraph(edges));
-                    return edgeAttached.GetStatus();
-                }
-                edge.state = std::move(edgeAttached).Value();
-                ++attached;
-                progressed = true;
-            }
-            if (!progressed) break;
-        }
         return {};
     }
 
 Base::Result<void> ViewState::CompleteVisualEdges(
         Base::Span<Aero::Markup::VisualEdge> edges) noexcept {
-        if (!HasAttachedRoot() || tree == nullptr) {
+        if (tree == nullptr || !HasAttachedRoot()) {
             return ViewInvalidState(
                 "Deferred visual edges require an attached root");
         }
-        std::uint32_t attached = 0U;
-        for (const Aero::Markup::VisualEdge& edge : edges) {
-            if (edge.state.logicalAttached) ++attached;
-        }
-        while (attached < edges.Size()) {
-            bool progressed = false;
-            for (Aero::Markup::VisualEdge& edge : edges) {
-                if (edge.state.logicalAttached ||
-                    (edge.child != nullptr &&
-                     edge.child->GetTree() == tree) ||
-                    edge.parent == nullptr || edge.child == nullptr ||
-                    edge.parent->GetTree() != tree) {
-                    continue;
-                }
-                Base::Result<Aero::ElementAttachment> edgeAttached =
-                    tree->AttachElement(*edge.parent, *edge.child);
-                if (!edgeAttached) return edgeAttached.GetStatus();
-                edge.state = std::move(edgeAttached).Value();
-                ++attached;
-                progressed = true;
-            }
-            if (!progressed) break;
-        }
-        return {};
+        return tree->CompleteVisualEdges(edges);
     }
 
 Base::Result<void> ViewState::ResizeVisualRoot(Size availableSize) noexcept {
         if (!HasAttachedRoot() || attachedRootLayout == nullptr ||
-            layout == nullptr) {
+            tree == nullptr) {
             return AeroNotInitialized(
                 "View resize requires an attached layout root");
         }
-        if (!IsValidLayoutSize(availableSize)) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "View dimensions are invalid");
-        }
-        Base::Result<void> resized =
-            layout->SetRoot(attachedRootLayout, availableSize);
-        if (!resized) return resized.GetStatus();
-        if (renderer != nullptr &&
-            attachedRootVisual != nullptr) {
-            return renderer->Invalidate(
-                *attachedRootVisual,
-                Aero::Render::RenderInvalidation::State);
-        }
-        return {};
+        return tree->ResizeRoot(
+            *attachedRootLayout, availableSize, attachedRootVisual);
     }
 
 Base::Result<void> ViewState::DetachVisualGraph(
@@ -161,105 +100,9 @@ Base::Result<void> ViewState::DetachVisualGraph(
             return ViewInvalidState(
                 "Gui context is unavailable during root detach");
         }
-
-        const auto reconcileAttachment =
-            [this](Aero::Markup::VisualEdge& edge) noexcept {
-                auto& state = edge.state;
-                if (state.child == nullptr) {
-                    state.logicalAttached = false;
-                    state.visualAttached = false;
-                    state.layoutAttached = false;
-                    state.renderAttached = false;
-                    return;
-                }
-                state.logicalAttached =
-                    state.logicalParent != nullptr &&
-                    state.child->GetLogicalParent() == state.logicalParent;
-                state.visualAttached =
-                    state.visualParent != nullptr &&
-                    state.child->GetVisualParent() == state.visualParent;
-
-                Aero::UIElement* childElement =
-                    state.child->AsUIElement();
-                Aero::UIElement* parentElement =
-                    state.visualParent != nullptr
-                    ? state.visualParent->AsUIElement()
-                    : nullptr;
-                if (childElement != nullptr &&
-                    childElement->GetIsLayoutAttached() &&
-                    AeroGuiInternal::LayoutEngineOf(*childElement) == nullptr) {
-                    // The logical subtree has already left its ElementTree, so
-                    // no LayoutEngine remains to consume this stale edge bit.
-                    AeroGuiInternal::Layout(*childElement).layoutAttached = false;
-                    AeroGuiInternal::Layout(*childElement).measureQueued = false;
-                    AeroGuiInternal::Layout(*childElement).arrangeQueued = false;
-                }
-                state.layoutAttached =
-                    layout != nullptr && childElement != nullptr &&
-                    parentElement != nullptr &&
-                    childElement->GetIsLayoutAttached() &&
-                    AeroGuiInternal::LayoutEngineOf(*childElement) == layout &&
-                    childElement->LayoutParent() == parentElement;
-
-                if (AeroGuiInternal::RenderAttached(
-                        *state.child) &&
-                    AeroGuiInternal::RenderRuntime(
-                        *state.child) == nullptr) {
-                    AeroGuiInternal::RenderAttached(
-                        *state.child) = false;
-                    AeroGuiInternal::RenderQueued(
-                        *state.child) = false;
-                    AeroGuiInternal::Rendering(
-                        *state.child) = false;
-                    AeroGuiInternal::NodeId(
-                        *state.child) = Base::InvalidRenderNodeId;
-                    AeroGuiInternal::RenderValid(
-                        *state.child) = false;
-                }
-                state.renderAttached =
-                    renderer != nullptr &&
-                    AeroGuiInternal::RenderAttached(
-                        *state.child) &&
-                    AeroGuiInternal::RenderRuntime(
-                        *state.child) == renderer &&
-                    AeroGuiInternal::RenderParent(
-                        *state.child) == state.visualParent;
-            };
-
-        std::uint32_t remaining = 0U;
-        for (Aero::Markup::VisualEdge& edge : edges) {
-            reconcileAttachment(edge);
-            if (edge.state.IsAttached()) ++remaining;
-        }
-        while (remaining > 0U) {
-            bool progressed = false;
-            for (Aero::Markup::VisualEdge& edge : edges) {
-                reconcileAttachment(edge);
-                if (!edge.state.IsAttached()) continue;
-                bool hasAttachedChild = false;
-                for (const Aero::Markup::VisualEdge& candidate : edges) {
-                    if (candidate.state.IsAttached() &&
-                        candidate.parent == edge.child) {
-                        hasAttachedChild = true;
-                        break;
-                    }
-                }
-                if (hasAttachedChild) continue;
-                Base::Result<void> detached =
-                    tree->DetachElement(edge.state);
-                if (!detached) return detached.GetStatus();
-                --remaining;
-                progressed = true;
-            }
-            if (!progressed) {
-                return ViewInvalidState(
-                    "Visual edges cannot be detached leaf-first");
-            }
-        }
-
-        Base::Result<void> rootDetached = tree->DetachRoot(rootAttachment);
-        if (!rootDetached) return rootDetached.GetStatus();
-        rootAttachment = {};
+        Base::Result<void> detached =
+            tree->DetachVisualGraph(rootAttachment, edges);
+        if (!detached) return detached.GetStatus();
         attachedRootVisual = nullptr;
         attachedRootLayout = nullptr;
         attachedRootRender = nullptr;
@@ -986,12 +829,16 @@ Base::Result<void> ViewState::ApplyUi(Aero::Media::Visual& root) noexcept {
                             "Implicit Style is not sealed");
                     }
                     if (styles->AppliedStyle(*element) != style) {
-                        ClearStyleDataTriggersFor(*element);
+                        if (interactivity != nullptr) {
+                            interactivity->ClearStyleDataTriggersFor(*element);
+                        }
                         Base::Result<void> applied = styles->Apply(*element, *style);
                         if (!applied) return applied.GetStatus();
                     }
                     Base::Result<std::uint32_t> dataTriggers =
-                        StartStyleDataTriggers(*element, *style);
+                        interactivity != nullptr
+                        ? interactivity->StartStyleDataTriggers(*element, *style)
+                        : Base::Result<std::uint32_t>(std::uint32_t{0U});
                     if (!dataTriggers) return dataTriggers.GetStatus();
                 }
             }
@@ -1064,7 +911,9 @@ void ViewState::DetachUi(
             if (bindings != nullptr) (void)bindings->DetachObject(*node);
             Aero::FrameworkElement* element = node->AsFrameworkElement();
             if (element != nullptr && styles != nullptr) {
-                ClearStyleDataTriggersFor(*element);
+                if (interactivity != nullptr) {
+                    interactivity->ClearStyleDataTriggersFor(*element);
+                }
                 (void)styles->DetachObject(*element);
             }
         }
@@ -1110,7 +959,7 @@ Base::Result<void> ViewState::CreateUiEngines() noexcept {
                 DependencyProperties(*metadata));
         if (!status) return status.GetStatus();
         styles->SetTriggerActionHandler(
-            &ViewState::ExecuteStyleTriggerActions, this);
+            &InteractivityEngine::ExecuteStyleTriggerActions, interactivity);
         if (tree != nullptr) {
             tree->SetLayout(layout);
             tree->SetBindings(bindings);
@@ -1218,7 +1067,7 @@ Base::Result<void> ViewState::GeneratedItemSubtreeChanged(
             return rebound.GetStatus();
         }
         Base::Result<std::uint32_t> started =
-            runtime->StartLoadedAnimations(&root);
+            runtime->storyboards->StartLoadedAnimations(&root);
         if (!started) {
             runtime->DetachUi(
                 &root, {});
@@ -1260,7 +1109,7 @@ Base::Result<void>
                     return reboundBeforeTriggers.GetStatus();
                 }
                 Base::Result<std::uint32_t> started =
-                    StartLoadedAnimations(subtreeRoot);
+                    storyboards->StartLoadedAnimations(subtreeRoot);
                 if (!started) return started.GetStatus();
             }
             Base::Result<std::uint32_t> rebound =
@@ -1441,323 +1290,251 @@ void ViewState::ClearTextInputHosts(
         }
     }
 
-bool ViewState::IsInVisualSubtree(
-        Aero::Media::Visual* node,
-        const Aero::Media::Visual& fragmentRoot) const noexcept {
-        while (node != nullptr) {
-            if (node == &fragmentRoot) return true;
-            node = node->GetLogicalParent() != nullptr
-                ? node->GetLogicalParent()
-                : node->GetVisualParent();
-        }
-        return false;
-    }
 
-Base::Result<std::uint32_t> ViewState::ExecuteFrame(
-    View& view) noexcept
-{
-    ViewState* state_ = this;
-    if (!state_->initialized) {
-        return ViewNotInitialized(
-            "View must be initialized before running frames");
+namespace {
+
+Base::Result<void> AddFrameCallbacks(
+    ViewFrameResult& result,
+    std::uint32_t count,
+    const char* overflowMessage) noexcept {
+    if (result.callbackCount > UINT32_MAX - count) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange, overflowMessage);
     }
-    if (!state_->animationEventStatus.IsOk()) {
-        return state_->animationEventStatus;
-    }
-    if (state_->styles != nullptr &&
-        !state_->styles->LastActionStatus().IsOk()) {
-        return state_->styles->LastActionStatus();
-    }
+    result.callbackCount += count;
+    return {};
+}
+
+Base::Result<void> SynchronizeFrameResources(ViewState& state) noexcept {
     bool deviceGenerationChanged = false;
-    GuiState& guiState = static_cast<GuiState&>(*state_->gui);
+    GuiState& guiState = static_cast<GuiState&>(*state.gui);
     const bool fontProviderChanged =
-        guiState.fontChangeGeneration != state_->seenFontProviderChange;
+        guiState.fontChangeGeneration != state.seenFontProviderChange;
     if (fontProviderChanged) {
-        state_->seenFontProviderChange = guiState.fontChangeGeneration;
+        state.seenFontProviderChange = guiState.fontChangeGeneration;
     }
-    if (state_->images != nullptr &&
-        guiState.textureChangeGeneration !=
-            state_->seenTextureProviderChange) {
+    if (state.images != nullptr &&
+        guiState.textureChangeGeneration != state.seenTextureProviderChange) {
         if (guiState.textureChangesLost) {
-            state_->images->Invalidate({}, state_->GetImageResources());
+            state.images->Invalidate({}, state.GetImageResources());
         } else {
             for (const XamlProviderChangeRecord& change :
                  guiState.textureChanges) {
-                if (change.generation <=
-                        state_->seenTextureProviderChange) {
+                if (change.generation <= state.seenTextureProviderChange) {
                     continue;
                 }
-                state_->images->Invalidate(
-                    change.uri,
-                    state_->GetImageResources());
+                state.images->Invalidate(change.uri, state.GetImageResources());
             }
         }
-        state_->seenTextureProviderChange =
-            guiState.textureChangeGeneration;
+        state.seenTextureProviderChange = guiState.textureChangeGeneration;
     }
-    if (state_->device) {
-        if (state_->device->State() != RenderDeviceState::Ready) {
+    if (state.device) {
+        if (state.device->State() != RenderDeviceState::Ready) {
             return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Device is not ready");
+                Base::ErrorCode::InvalidState, "Device is not ready");
         }
-        const std::uint64_t generation =
-            state_->device->Generation();
-        if (generation !=
-            state_->deviceGeneration) {
+        const std::uint64_t generation = state.device->Generation();
+        if (generation != state.deviceGeneration) {
             deviceGenerationChanged = true;
-            Aero::Media::Visual* rootVisual =
-                state_->RootVisual();
+            Aero::Media::Visual* rootVisual = state.RootVisual();
             if (rootVisual != nullptr) {
-                Base::Result<void> invalidated =
-                    state_->renderer->Invalidate(
-                        *rootVisual,
-                        Aero::Render::RenderInvalidation::All);
-                if (!invalidated) {
-                    return invalidated.GetStatus();
-                }
+                Base::Result<void> invalidated = state.renderer->Invalidate(
+                    *rootVisual, Aero::Render::RenderInvalidation::All);
+                if (!invalidated) return invalidated.GetStatus();
             }
-            state_->VisitPaths(
-                rootVisual,
-                state_->GetMeshResources(),
-                true);
-            if (state_->tree != nullptr) {
-                state_->tree->SetMeshResources(state_->GetMeshResources());
+            state.VisitPaths(rootVisual, state.GetMeshResources(), true);
+            if (state.tree != nullptr) {
+                state.tree->SetMeshResources(state.GetMeshResources());
             }
-            state_->deviceGeneration = generation;
+            state.deviceGeneration = generation;
         }
     }
-    if (state_->text != nullptr) {
-        Base::Result<bool> synchronized =
-            state_->text->SynchronizeBackend(
-                *state_->device,
-                state_->publicRenderer.Resources().text,
-                deviceGenerationChanged || fontProviderChanged);
-        if (!synchronized) {
-            return synchronized.GetStatus();
-        }
+    if (state.text != nullptr) {
+        Base::Result<bool> synchronized = state.text->SynchronizeBackend(
+            *state.device,
+            state.publicRenderer.Resources().text,
+            deviceGenerationChanged || fontProviderChanged);
+        if (!synchronized) return synchronized.GetStatus();
         if (synchronized.Value()) {
-            state_->VisitTextElements(
-                state_->RootVisual(),
-                state_->text->Layout(),
-                true);
+            state.VisitTextElements(
+                state.RootVisual(), state.text->Layout(), true);
         }
     }
-    if (state_->images != nullptr) {
-        Base::Result<bool> synchronized =
-            state_->images->Synchronize(
-                state_->RootVisual(),
-                state_->loadedDocument.canonicalUri,
-                state_->xamlRuntime->Providers(),
-                guiState.textureProvider.Get(),
-                state_->GetImageResources(),
-                deviceGenerationChanged);
-        if (!synchronized) {
-            return synchronized.GetStatus();
-        }
+    if (state.images != nullptr) {
+        Base::Result<bool> synchronized = state.images->Synchronize(
+            state.RootVisual(),
+            state.loadedDocument.canonicalUri,
+            state.xamlRuntime->Providers(),
+            guiState.textureProvider.Get(),
+            state.GetImageResources(),
+            deviceGenerationChanged);
+        if (!synchronized) return synchronized.GetStatus();
         if (synchronized.Value()) {
-            Aero::Media::Visual* rootVisual =
-                state_->RootVisual();
+            Aero::Media::Visual* rootVisual = state.RootVisual();
             if (rootVisual != nullptr) {
-                Base::Result<void> invalidated =
-                    state_->renderer->Invalidate(
-                        *rootVisual,
-                        Aero::Render::RenderInvalidation::All);
-                if (!invalidated) {
-                    return invalidated.GetStatus();
-                }
+                Base::Result<void> invalidated = state.renderer->Invalidate(
+                    *rootVisual, Aero::Render::RenderInvalidation::All);
+                if (!invalidated) return invalidated.GetStatus();
             }
         }
     }
-    const ::Aero::Threading::DispatcherFramePhase phases[] = {
-        ::Aero::Threading::DispatcherFramePhase::BeginFrame,
-        ::Aero::Threading::DispatcherFramePhase::Input,
-        ::Aero::Threading::DispatcherFramePhase::PropertyChanges,
-        ::Aero::Threading::DispatcherFramePhase::DataBind,
-        ::Aero::Threading::DispatcherFramePhase::Animation,
-        ::Aero::Threading::DispatcherFramePhase::Lifecycle,
-        ::Aero::Threading::DispatcherFramePhase::Layout,
-        ::Aero::Threading::DispatcherFramePhase::RenderCommit,
-        ::Aero::Threading::DispatcherFramePhase::EndFrame};
+    return {};
+}
+
+} // namespace
+
+Base::Result<std::uint32_t> ViewState::ExecuteFrame(View& view) noexcept {
+    if (!initialized) {
+        return ViewNotInitialized(
+            "View must be initialized before running frames");
+    }
+    if (interactivity != nullptr &&
+        !interactivity->animationEventStatus.IsOk()) {
+        return interactivity->animationEventStatus;
+    }
+    if (styles != nullptr && !styles->LastActionStatus().IsOk()) {
+        return styles->LastActionStatus();
+    }
+
+    Base::Result<void> resources = SynchronizeFrameResources(*this);
+    if (!resources) return resources.GetStatus();
+
+    using Phase = ::Aero::Threading::DispatcherFramePhase;
+    const Phase phases[] = {
+        Phase::BeginFrame,
+        Phase::Input,
+        Phase::PropertyChanges,
+        Phase::DataBind,
+        Phase::Animation,
+        Phase::Lifecycle,
+        Phase::Layout,
+        Phase::RenderCommit,
+        Phase::EndFrame};
+
     ViewFrameResult result;
-    for (::Aero::Threading::DispatcherFramePhase phase : phases) {
-        if (phase ==
-                ::Aero::Threading::DispatcherFramePhase::Layout &&
-            state_->HasAttachedRoot()) {
-            Base::Result<void> completed =
-                state_->CompleteVisualEdges({
-                    state_->loadedDocument.visualContent.mountEdges.Data(),
-                    state_->loadedDocument.visualContent.mountEdges.Size()});
+    for (Phase phase : phases) {
+        if (phase == Phase::Layout && HasAttachedRoot() && tree != nullptr) {
+            Base::Result<void> completed = tree->CompleteVisualEdges({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()});
             if (!completed) return completed.GetStatus();
         }
-        if (phase ==
-            ::Aero::Threading::DispatcherFramePhase::
-                RenderCommit) {
+        if (phase == Phase::RenderCommit) {
             ::Aero::Media::CompositionTarget::RaiseRendering(view);
-            Base::Result<void> overlays =
-                state_->SynchronizeOverlays();
-            if (!overlays) {
-                return overlays.GetStatus();
-            }
+            Base::Result<void> overlays = SynchronizeOverlays();
+            if (!overlays) return overlays.GetStatus();
         }
-        Base::Result<std::uint32_t> ran =
-            state_->dispatcher->RunFramePhase(phase);
+
+        Base::Result<std::uint32_t> ran = dispatcher->RunFramePhase(phase);
         if (!ran) return ran.GetStatus();
-        if (phase ==
-                ::Aero::Threading::DispatcherFramePhase::Lifecycle) {
-            Base::Result<std::uint32_t> focused =
-                state_->ProcessPendingFocus();
+
+        if (phase == Phase::Lifecycle) {
+            Base::Result<std::uint32_t> focused = ProcessPendingFocus();
             if (!focused) return focused.GetStatus();
-            if (result.callbackCount >
-                UINT32_MAX - focused.Value()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::OutOfRange,
-                    "View callback count overflow");
-            }
-            result.callbackCount += focused.Value();
+            Base::Result<void> counted = AddFrameCallbacks(
+                result, focused.Value(), "View callback count overflow");
+            if (!counted) return counted.GetStatus();
         }
-        if (phase ==
-                ::Aero::Threading::DispatcherFramePhase::DataBind) {
-            Base::Result<void> generatedVisualsFlushed =
-                state_->FlushGeneratedVisuals();
+        if (phase == Phase::DataBind) {
+            Base::Result<void> generatedVisualsFlushed = FlushGeneratedVisuals();
             if (!generatedVisualsFlushed) {
                 return generatedVisualsFlushed.GetStatus();
             }
         }
-        if (phase == ::Aero::Threading::DispatcherFramePhase::Layout &&
-            !state_->layout->LastFlushStatus().IsOk()) {
-            return state_->layout->LastFlushStatus();
+        if (phase == Phase::Layout && !layout->LastFlushStatus().IsOk()) {
+            return layout->LastFlushStatus();
         }
-        if (phase ==
-                ::Aero::Threading::DispatcherFramePhase::Layout &&
-            state_->layout->Diagnostics().arrangedCount != 0U) {
-            for (auto& behavior : state_->attachedBehaviorInstances) {
-                if (behavior.instance) {
-                    behavior.instance->NotifyLayoutUpdated();
-                }
+        if (phase == Phase::Layout &&
+            layout->Diagnostics().arrangedCount != 0U) {
+            if (interactivity != nullptr) {
+                interactivity->NotifyLayoutUpdated();
             }
-            Aero::Media::Visual* rootVisual =
-                state_->RootVisual();
-            if (rootVisual != nullptr &&
-                state_->renderer != nullptr) {
-                Base::Result<void> invalidated =
-                    state_->renderer->Invalidate(
-                        *rootVisual,
-                        Aero::Render::RenderInvalidation::All);
-                if (!invalidated) {
-                    return invalidated.GetStatus();
-                }
+            Aero::Media::Visual* rootVisual = RootVisual();
+            if (rootVisual != nullptr && renderer != nullptr) {
+                Base::Result<void> invalidated = renderer->Invalidate(
+                    *rootVisual, Aero::Render::RenderInvalidation::All);
+                if (!invalidated) return invalidated.GetStatus();
             }
         }
-        if (phase == ::Aero::Threading::DispatcherFramePhase::Animation &&
-            state_->animations != nullptr) {
-            const Base::Status animationStatus =
-                state_->animations->LastTickStatus();
-            if (!animationStatus.IsOk()) {
-                return animationStatus;
-            }
-            const auto animationDiagnostics =
-                state_->animations->Diagnostics();
-            if (animationDiagnostics.appliedValueCount != 0U) {
-                Aero::Media::Visual* rootVisual = state_->RootVisual();
-                if (rootVisual != nullptr &&
-                    state_->renderer != nullptr) {
-                    Base::Result<void> invalidated =
-                        state_->renderer->Invalidate(
-                            *rootVisual,
-                            Aero::Render::RenderInvalidation::All);
+        if (phase == Phase::Animation && animations != nullptr) {
+            const Base::Status animationStatus = animations->LastTickStatus();
+            if (!animationStatus.IsOk()) return animationStatus;
+            if (animations->Diagnostics().appliedValueCount != 0U) {
+                Aero::Media::Visual* rootVisual = RootVisual();
+                if (rootVisual != nullptr && renderer != nullptr) {
+                    Base::Result<void> invalidated = renderer->Invalidate(
+                        *rootVisual, Aero::Render::RenderInvalidation::All);
                     if (!invalidated) return invalidated.GetStatus();
                 }
             }
-            Base::Result<std::uint32_t> completed =
-                state_->ProcessStoryboardCompletions();
-            if (!completed) {
-                return completed.GetStatus();
-            }
-            if (result.callbackCount >
-                UINT32_MAX - completed.Value()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::OutOfRange,
+            if (storyboards != nullptr) {
+                Base::Result<std::uint32_t> completed =
+                    storyboards->ProcessStoryboardCompletions();
+                if (!completed) return completed.GetStatus();
+                Base::Result<void> counted = AddFrameCallbacks(
+                    result,
+                    completed.Value(),
                     "Frame callback count overflow");
+                if (!counted) return counted.GetStatus();
             }
-            result.callbackCount += completed.Value();
         }
-        if (phase == ::Aero::Threading::DispatcherFramePhase::Lifecycle &&
-            state_->animations != nullptr) {
+        if (phase == Phase::Lifecycle && animations != nullptr) {
             Base::Result<std::uint32_t> initialValues =
-                state_->animations->ApplyPendingInitialValues();
+                animations->ApplyPendingInitialValues();
             if (!initialValues) return initialValues.GetStatus();
-            if (result.callbackCount >
-                UINT32_MAX - initialValues.Value()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::OutOfRange,
-                    "Initial animation callback count overflow");
-            }
-            result.callbackCount += initialValues.Value();
+            Base::Result<void> counted = AddFrameCallbacks(
+                result,
+                initialValues.Value(),
+                "Initial animation callback count overflow");
+            if (!counted) return counted.GetStatus();
         }
-        if (result.callbackCount >
-            UINT32_MAX - ran.Value()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "Frame callback count overflow");
-        }
-        result.callbackCount += ran.Value();
-        if (phase ==
-            ::Aero::Threading::DispatcherFramePhase::RenderCommit) {
-            const Base::Status committed =
-                state_->renderer->LastCommitStatus();
+
+        Base::Result<void> counted = AddFrameCallbacks(
+            result, ran.Value(), "Frame callback count overflow");
+        if (!counted) return counted.GetStatus();
+
+        if (phase == Phase::RenderCommit) {
+            const Base::Status committed = renderer->LastCommitStatus();
             if (!committed.IsOk()) return committed;
-            if (state_->animations != nullptr) {
-                state_->animations->CommitPendingInitialValues();
+            if (animations != nullptr) {
+                animations->CommitPendingInitialValues();
             }
         }
     }
-    if (state_->text != nullptr) {
-        Base::Result<std::uint32_t> collected =
-            state_->text->CollectGarbage();
+
+    if (text != nullptr) {
+        Base::Result<std::uint32_t> collected = text->CollectGarbage();
         if (!collected) return collected.GetStatus();
     }
-    result.frameNumber = ++state_->frameNumber;
-    const Aero::LayoutDiagnostics layout =
-        state_->layout->Diagnostics();
-    result.layout.passVersion = layout.passVersion;
-    result.layout.measuredCount = layout.measuredCount;
-    result.layout.arrangedCount = layout.arrangedCount;
-    result.layout.pendingMeasureCount =
-        layout.pendingMeasureCount;
-    result.layout.pendingArrangeCount =
-        layout.pendingArrangeCount;
-    const ::Aero::Render::RenderDiagnostics render =
-        state_->renderer->Diagnostics();
+    result.frameNumber = ++frameNumber;
+    const Aero::LayoutDiagnostics layoutDiagnostics = layout->Diagnostics();
+    result.layout.passVersion = layoutDiagnostics.passVersion;
+    result.layout.measuredCount = layoutDiagnostics.measuredCount;
+    result.layout.arrangedCount = layoutDiagnostics.arrangedCount;
+    result.layout.pendingMeasureCount = layoutDiagnostics.pendingMeasureCount;
+    result.layout.pendingArrangeCount = layoutDiagnostics.pendingArrangeCount;
+    const ::Aero::Render::RenderDiagnostics render = renderer->Diagnostics();
     result.render.snapshotVersion = render.commitVersion;
     result.render.nodeCount = render.nodeCount;
     result.render.commandCount = render.commandCount;
-    result.render.glyphCommandCount =
-        render.glyphCommandCount;
+    result.render.glyphCommandCount = render.glyphCommandCount;
     result.render.dirtyCount = render.dirtyCount;
     result.render.snapshotHash = render.frameHash;
-    if (state_->device) {
+    if (device) {
         const Diagnostics::RenderFrameStatistics deviceStatistics =
-            Diagnostics::GetLastRenderFrameStatistics(*state_->device);
-        result.render.drawPacketCount =
-            deviceStatistics.drawPacketCount;
-        result.render.batchCount =
-            deviceStatistics.batchCount;
-        result.render.drawCallCount =
-            deviceStatistics.drawCallCount;
-        result.render.mergedPacketCount =
-            deviceStatistics.mergedPacketCount;
-        result.render.barrierCount =
-            deviceStatistics.barrierCount;
-        result.render.instanceCount =
-            deviceStatistics.instanceCount;
-        result.render.stateBindingCount =
-            deviceStatistics.stateBindingCount;
-        result.render.batchingEnabled =
-            deviceStatistics.batchingEnabled;
+            Diagnostics::GetLastRenderFrameStatistics(*device);
+        result.render.drawPacketCount = deviceStatistics.drawPacketCount;
+        result.render.batchCount = deviceStatistics.batchCount;
+        result.render.drawCallCount = deviceStatistics.drawCallCount;
+        result.render.mergedPacketCount = deviceStatistics.mergedPacketCount;
+        result.render.barrierCount = deviceStatistics.barrierCount;
+        result.render.instanceCount = deviceStatistics.instanceCount;
+        result.render.stateBindingCount = deviceStatistics.stateBindingCount;
+        result.render.batchingEnabled = deviceStatistics.batchingEnabled;
     }
     return result.callbackCount;
 }
+
 
 namespace {
 
@@ -1775,7 +1552,7 @@ namespace {
             elapsedMilliseconds) * 1000U);
     if (!advanced) return advanced.GetStatus();
     Base::Result<std::uint32_t> completed =
-        state_->ProcessStoryboardCompletions();
+        state_->storyboards->ProcessStoryboardCompletions();
     if (!completed) return completed.GetStatus();
     if (advanced.Value() >
         UINT32_MAX - completed.Value()) {
@@ -1823,7 +1600,7 @@ Base::Result<std::uint32_t> AdvanceViewClocks(
                 elapsedMilliseconds) * 1000U);
     if (!animations) return animations.GetStatus();
     Base::Result<std::uint32_t> completed =
-        state_->ProcessStoryboardCompletions();
+        state_->storyboards->ProcessStoryboardCompletions();
     if (!completed) return completed.GetStatus();
     if (actionCount > UINT32_MAX - animations.Value()) {
         return Base::Status::Failure(
@@ -1838,6 +1615,100 @@ Base::Result<std::uint32_t> AdvanceViewClocks(
     }
     return actionCount + completed.Value();
 }
+
+
+void ViewState::ClearElementEvents(
+        Aero::Media::Visual* node) noexcept {
+        if (node == nullptr) return;
+        if (metadata->Types().IsDerivedFrom(
+                node->RuntimeType(),
+                Controls::Control::StaticTypeId())) {
+            ::Aero::Controls::ControlBehavior::SetVisualStateManager(*static_cast<Controls::Control*>(node), nullptr);
+        }
+        for (Aero::Media::Visual* child :
+             node->GetVisualChildren()) {
+            ClearElementEvents(child);
+        }
+    }
+
+void ViewState::BeginDestroyInteractions() noexcept {
+        if (Aero::Media::Visual* rootVisual = RootVisual()) {
+            if (interactivity != nullptr) {
+                interactivity->DetachBehaviorsInSubtree(*rootVisual);
+            }
+        }
+        CloseAllOverlays();
+        ClearOverlays();
+        if (interactivity != nullptr) {
+            interactivity->ClearAnimationEventSubscriptions();
+        }
+        if (activeToolTip) {
+            static_cast<void>(
+                activeToolTip->SetIsOpen(false));
+        }
+        pendingToolTip.Reset();
+        activeToolTip.Reset();
+        toolTipTarget.Reset();
+        ClearTextInputHosts(RootVisual());
+        ClearElementEvents(RootVisual());
+        FreeObject(*allocator, Base::MemoryTag::Ui, controlBehaviors);
+        if (tree != nullptr) tree->SetControlBehaviors(nullptr);
+    }
+
+void ViewState::FinishDestroyInteractions() noexcept {
+        while (!itemGenerators.Empty()) {
+            Controls::ItemContainerGenerator*
+                generator = itemGenerators.Back();
+            itemGenerators.PopBack();
+            if (generator != nullptr) {
+                static_cast<void>(
+                    generator->Detach());
+                delete generator;
+                generator = nullptr;
+            }
+        }
+        if (input != nullptr) {
+            input->SetRoot(nullptr);
+        }
+    }
+
+void ViewState::DestroyInteractions() noexcept {
+        BeginDestroyInteractions();
+        FinishDestroyInteractions();
+    }
+
+Base::Result<void> ViewState::CreateInteractions() noexcept {
+        Aero::Media::Visual* rootVisual = RootVisual();
+        if (rootVisual == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "View root is not a registered Visual");
+        }
+        if (input == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "InputRouter is unavailable");
+        }
+        input->SetRoot(rootVisual);
+        Base::Result<void> status;
+
+        if (options.attachControlInteractions || options.attachTextEditing) {
+            status = AllocateObject(*allocator, Base::MemoryTag::Ui, controlBehaviors,
+                *allocator, *metadata, *tree, *events, *input,
+                visualStates, options.clipboard,
+                options.attachControlInteractions,
+                options.attachTextEditing);
+            if (!status) return status.GetStatus();
+            status = controlBehaviors->Initialize();
+            if (!status) return status.GetStatus();
+            if (tree != nullptr) tree->SetControlBehaviors(controlBehaviors);
+        }
+        status = VisitAndAttach(*rootVisual);
+        if (!status) {
+            return status.GetStatus();
+        }
+        return {};
+    }
 
 
 } // namespace Aero

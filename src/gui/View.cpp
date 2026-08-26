@@ -27,9 +27,6 @@ ViewState::ViewState(
           xamlRuntime(&static_cast<GuiState&>(*gui).xaml),
           schemaBundle(&xamlRuntime->SchemaBundle()),
           documentCache(&xamlRuntime->Documents()),
-          storyboardSessions(&value),
-          storyboardCompletionSessions(&value),
-          storyboardCompletedSubscriptions(&value),
           pendingFocusTargets(&value),
           itemGenerators(&value),
           fragmentMounts(&value) {}
@@ -84,7 +81,9 @@ void ViewState::Shutdown() noexcept {
         if (animations != nullptr) {
             static_cast<void>(animations->RemoveAll());
         }
-        storyboardSessions.Clear();
+        if (storyboards != nullptr) {
+            storyboards->storyboardSessions.Clear();
+        }
         if (HasAttachedRoot()) {
             static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -96,6 +95,8 @@ void ViewState::Shutdown() noexcept {
         if (effectLifetime) effectLifetime->Invalidate();
 
 
+        FreeObject(*allocator, Base::MemoryTag::Ui, interactivity);
+        FreeObject(*allocator, Base::MemoryTag::Ui, storyboards);
         FreeObject(*allocator, Base::MemoryTag::Ui, input);
         FreeObject(*allocator, Base::MemoryTag::Ui, events);
         if (bindings != nullptr) bindings->Shutdown();
@@ -229,7 +230,19 @@ Base::Result<void> ViewState::Initialize(
         if (status) {
             status = AllocateObject(*allocator, Base::MemoryTag::Ui, input, *tree, *events);
         }
+        if (status) {
+            status = AllocateObject(*allocator, Base::MemoryTag::Ui, interactivity, *this);
+        }
+        if (status) {
+            status = AllocateObject(*allocator, Base::MemoryTag::Ui, storyboards, *this);
+        }
         if (status) status = CreateUiEngines();
+        if (status && interactivity != nullptr) {
+            interactivity->Bind();
+        }
+        if (status && storyboards != nullptr) {
+            storyboards->Bind();
+        }
         if (status) {
             status = RebuildDynamicResourceEnvironment();
         }

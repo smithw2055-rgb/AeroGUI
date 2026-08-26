@@ -418,12 +418,12 @@ Base::Result<void> ViewState::MountRoot(
             return generated.GetStatus();
         }
         Base::Result<std::uint32_t> startedAnimations =
-            StartLoadedAnimations(rootVisual.Value());
+            storyboards->StartLoadedAnimations(rootVisual.Value());
         if (!startedAnimations) {
             if (animations != nullptr) {
                 static_cast<void>(animations->RemoveAll());
             }
-            storyboardSessions.Clear();
+            storyboards->storyboardSessions.Clear();
             BeginDestroyInteractions();
             DetachUi();
             FinishDestroyInteractions();
@@ -446,7 +446,9 @@ Base::Result<void> ViewState::DetachFragment(
                 *fragment.document.root,
                 fragment.document.root->RuntimeType());
         if (!rootVisual) return rootVisual.GetStatus();
-        ClearAnimationSubscriptionsFor(*rootVisual.Value());
+        if (interactivity != nullptr) {
+            interactivity->ClearAnimationSubscriptionsFor(*rootVisual.Value());
+        }
 
         DetachUi(
             rootVisual.Value(),
@@ -537,7 +539,7 @@ Base::Result<void> ViewState::DetachMountedRoot(
                 animations->RemoveAll();
             if (!removed) return removed.GetStatus();
         }
-        storyboardSessions.Clear();
+        storyboards->storyboardSessions.Clear();
         BeginDestroyInteractions();
         DetachUi();
         FinishDestroyInteractions();
@@ -799,7 +801,7 @@ Base::Result<void> MountViewFragment(
         return effects.GetStatus();
     }
     Base::Result<std::uint32_t> animations =
-        state_->StartLoadedAnimations(
+        state_->storyboards->StartLoadedAnimations(
             rootVisual.Value(), &fragment.document.names);
     if (!animations) {
         detachFailedFragment();

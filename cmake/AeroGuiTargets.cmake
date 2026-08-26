@@ -83,7 +83,7 @@ set(_aero_gui_input_sources
 
 set(_aero_gui_triggers_sources
     src/gui/interactivity/Interactivity.cpp
-    src/gui/interactivity/ViewTriggers.cpp)
+    src/gui/interactivity/InteractivityEngine.cpp)
 
 set(_aero_gui_media_sources
     src/gui/media/AnimationEngine.cpp
@@ -96,7 +96,7 @@ set(_aero_gui_media_sources
     src/gui/media/MediaElement.cpp
     src/gui/media/StbImageImplementation.cpp
     src/gui/media/Transforms.cpp
-    src/gui/media/ViewStoryboardSessions.cpp)
+    src/gui/media/StoryboardHost.cpp)
 
 set(_aero_gui_controls_sources
     src/gui/controls/RichText.cpp

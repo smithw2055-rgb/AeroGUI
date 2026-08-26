@@ -5,10 +5,13 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 
 namespace Aero {
+
+namespace Markup { struct VisualEdge; }
 
 
 class VisualLifetime : public Base::Object {
@@ -43,6 +46,7 @@ struct VisualLease {
 #include <Aero/Threading.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Visual.hpp>
+#include <Aero/UIElement.hpp>
 
 namespace Aero::Render { class RenderTree; struct MeshResources; }
 namespace Aero::Meta { class EffectiveValueEngine; }
@@ -169,6 +173,20 @@ public:
         ::Aero::Media::Visual& root, Size availableSize) noexcept;
     Base::Result<void> DetachRoot(
         Aero::RootAttachment& state) noexcept;
+    Base::Result<void> AttachVisualGraph(
+        ::Aero::Media::Visual& visualRoot,
+        Base::Span<Markup::VisualEdge> edges,
+        Size availableSize,
+        RootAttachment& outAttachment) noexcept;
+    Base::Result<void> CompleteVisualEdges(
+        Base::Span<Markup::VisualEdge> edges) noexcept;
+    Base::Result<void> DetachVisualGraph(
+        RootAttachment& attachment,
+        Base::Span<Markup::VisualEdge> edges) noexcept;
+    Base::Result<void> ResizeRoot(
+        UIElement& layoutRoot,
+        Size availableSize,
+        ::Aero::Media::Visual* renderRoot) noexcept;
 
     Aero::LayoutEngine* Layout() const noexcept { return layout_; }
     ::Aero::Render::RenderTree* Renderer() const noexcept { return renderer_; }

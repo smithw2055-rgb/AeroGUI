@@ -14,12 +14,59 @@ namespace Aero {
 using namespace ::Aero;
 namespace MediaAnimation = ::Aero::Media::Animation;
 
-Base::Result<void> ViewState::ExecuteStyleTriggerActions(
+InteractivityEngine::InteractivityEngine(ViewState& owner) noexcept
+    : view(&owner),
+      allocator(owner.allocator),
+      animationEventSubscriptions(owner.allocator),
+      styleDataTriggerSubscriptions(owner.allocator),
+      attachedBehaviorInstances(owner.allocator),
+      propertyChangedTriggerSubscriptions(owner.allocator),
+      interactionDataTriggerSubscriptions(owner.allocator),
+      keyTriggerSubscriptions(owner.allocator),
+      dataTemplateTriggerSubscriptions(owner.allocator) {}
+
+void InteractivityEngine::Bind() noexcept {
+    allocator = view->allocator;
+    metadata = view->metadata;
+    animations = view->animations;
+    events = view->events;
+    input = view->input;
+    tree = view->tree;
+    styles = view->styles;
+    values = view->values;
+    dispatcher = view->dispatcher;
+    templates = view->templates;
+    bindings = view->bindings;
+    storyboards = view->storyboards;
+}
+
+void InteractivityEngine::NotifyLayoutUpdated() noexcept {
+    for (auto& behavior : attachedBehaviorInstances) {
+        if (behavior.instance) {
+            behavior.instance->NotifyLayoutUpdated();
+        }
+    }
+}
+
+bool InteractivityEngine::IsInVisualSubtree(
+        Aero::Media::Visual* node,
+        const Aero::Media::Visual& fragmentRoot) const noexcept {
+    while (node != nullptr) {
+        if (node == &fragmentRoot) return true;
+        node = node->GetLogicalParent() != nullptr
+            ? node->GetLogicalParent()
+            : node->GetVisualParent();
+    }
+    return false;
+}
+
+
+Base::Result<void> InteractivityEngine::ExecuteStyleTriggerActions(
         ::Aero::DependencyObject& owner,
         Base::Span<const Base::Ref<Base::Object>>
             actions,
         void* context) noexcept {
-        auto* runtime = static_cast<ViewState*>(context);
+        auto* runtime = static_cast<InteractivityEngine*>(context);
         if (runtime == nullptr ||
             !runtime->metadata->Types().IsDerivedFrom(
                 owner.RuntimeType(),
@@ -44,7 +91,7 @@ Base::Result<void> ViewState::ExecuteStyleTriggerActions(
                     "Style Trigger contains an invalid action");
             }
             Base::Result<void> executed =
-                runtime->ExecuteAnimationAction(
+                runtime->storyboards->ExecuteAnimationAction(
                     static_cast<Aero::Interactivity::TriggerAction&>(
                         *authored),
                     element);
@@ -53,7 +100,7 @@ Base::Result<void> ViewState::ExecuteStyleTriggerActions(
         return {};
     }
 
-Base::Result<bool> ViewState::ConditionBehaviorsAllowExecution(
+Base::Result<bool> InteractivityEngine::ConditionBehaviorsAllowExecution(
         Base::Span<const Base::Ref<Base::Object>> behaviors,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
@@ -177,7 +224,7 @@ Base::Result<bool> ViewState::ConditionBehaviorsAllowExecution(
         return true;
     }
 
-Base::Result<bool> ViewState::AnimationEventState::EvaluateComparison(
+Base::Result<bool> InteractivityEngine::AnimationEventState::EvaluateComparison(
             const Aero::Interactivity::ComparisonCondition& condition) noexcept {
             const Base::Ref<Data::Binding> binding =
                 condition.GetLeftOperand();
@@ -194,7 +241,7 @@ Base::Result<bool> ViewState::AnimationEventState::EvaluateComparison(
             }
             Base::Object* source = names != nullptr
                 ? names->Find(binding->GetElementName())
-                : runtime->loadedDocument.names.Find(
+                : runtime->view->loadedDocument.names.Find(
                       binding->GetElementName());
             if (source == nullptr) {
                 return Base::Status::Failure(
@@ -286,7 +333,7 @@ Base::Result<bool> ViewState::AnimationEventState::EvaluateComparison(
             return false;
         }
 
-Base::Result<bool> ViewState::AnimationEventState::BehaviorsAllowExecution() noexcept {
+Base::Result<bool> InteractivityEngine::AnimationEventState::BehaviorsAllowExecution() noexcept {
             for (const Base::Ref<Base::Object>& behavior :
                  trigger->GetBehaviors()) {
                 if (!behavior) continue;
@@ -324,7 +371,7 @@ Base::Result<bool> ViewState::AnimationEventState::BehaviorsAllowExecution() noe
             return true;
         }
 
-void ViewState::AnimationEventState::Invoke(
+void InteractivityEngine::AnimationEventState::Invoke(
             Base::Object*,
             Aero::RoutedEventArgs&) noexcept {
             if (runtime == nullptr || trigger == nullptr ||
@@ -342,7 +389,7 @@ void ViewState::AnimationEventState::Invoke(
                  trigger->GetActions()) {
                 if (!action) continue;
                 Base::Result<void> executed =
-                    runtime->ExecuteAnimationAction(
+                    runtime->storyboards->ExecuteAnimationAction(
                         *action, *owner, nullptr, names);
                 if (!executed) {
                     runtime->animationEventStatus =
@@ -352,7 +399,7 @@ void ViewState::AnimationEventState::Invoke(
             }
         }
 
-Base::Result<bool> ViewState::DataTemplateTriggerValuesMatch(
+Base::Result<bool> InteractivityEngine::DataTemplateTriggerValuesMatch(
         const Meta::PropertyValue& actual,
         Meta::PropertyValue expected) noexcept {
         if (actual.Kind() == Meta::ValueKind::Object &&
@@ -385,7 +432,7 @@ Base::Result<bool> ViewState::DataTemplateTriggerValuesMatch(
         return actual == expected;
     }
 
-Base::Object* ViewState::ResolveDataTemplateConditionSource(
+Base::Object* InteractivityEngine::ResolveDataTemplateConditionSource(
         Aero::Controls::DataTemplateTriggerState& context,
         Aero::Controls::DataTemplateTriggerCondition& condition,
         Base::StringView& path) noexcept {
@@ -398,7 +445,7 @@ Base::Object* ViewState::ResolveDataTemplateConditionSource(
             source = context.FindName(
                 condition.binding->GetElementName());
             if (source == nullptr) {
-                source = loadedDocument.names.Find(
+                source = view->loadedDocument.names.Find(
                     condition.binding->GetElementName());
             }
         } else {
@@ -436,7 +483,7 @@ Base::Object* ViewState::ResolveDataTemplateConditionSource(
         return source;
     }
 
-Base::Result<bool> ViewState::EvaluateDataTemplateCondition(
+Base::Result<bool> InteractivityEngine::EvaluateDataTemplateCondition(
         Aero::Controls::DataTemplateTriggerState& context,
         Aero::Controls::DataTemplateTriggerCondition& condition) noexcept {
         Meta::PropertyValue current;
@@ -476,7 +523,7 @@ Base::Result<bool> ViewState::EvaluateDataTemplateCondition(
             current, condition.value);
     }
 
-Base::Result<void> ViewState::EnsureDataTemplateProviderTokens(
+Base::Result<void> InteractivityEngine::EnsureDataTemplateProviderTokens(
         Aero::Controls::DataTemplateTriggerState& context) noexcept {
         if (values == nullptr) {
             return Base::Status::Failure(
@@ -516,7 +563,7 @@ Base::Result<void> ViewState::EnsureDataTemplateProviderTokens(
         return {};
     }
 
-Base::Result<void> ViewState::EvaluateDataTemplateTrigger(
+Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
         Aero::Controls::DataTemplateTriggerState& context,
         std::uint32_t triggerIndex) noexcept {
         if (triggerIndex >= context.triggers.Size() ||
@@ -594,7 +641,7 @@ Base::Result<void> ViewState::EvaluateDataTemplateTrigger(
                     "DataTemplate Trigger contains an invalid action");
             }
             Base::Result<void> executed =
-                ExecuteAnimationAction(
+                storyboards->ExecuteAnimationAction(
                     static_cast<
                         Aero::Interactivity::TriggerAction&>(
                             *authored),
@@ -608,7 +655,7 @@ Base::Result<void> ViewState::EvaluateDataTemplateTrigger(
         return {};
     }
 
-Base::Result<bool> ViewState::StyleDataTriggerValuesMatch(
+Base::Result<bool> InteractivityEngine::StyleDataTriggerValuesMatch(
         const Meta::PropertyValue& actual,
         Meta::PropertyValue expected) noexcept {
         if (actual.Kind() == Meta::ValueKind::Object &&
@@ -634,7 +681,7 @@ Base::Result<bool> ViewState::StyleDataTriggerValuesMatch(
         return actual == expected;
     }
 
-Base::Result<void> ViewState::EvaluateStyleDataTrigger(
+Base::Result<void> InteractivityEngine::EvaluateStyleDataTrigger(
         StyleDataTriggerHandlerState& state) noexcept {
         if (styles == nullptr || state.target == nullptr ||
             state.style == nullptr || state.source == nullptr ||
@@ -656,7 +703,7 @@ Base::Result<void> ViewState::EvaluateStyleDataTrigger(
             matches.Value());
     }
 
-void ViewState::ClearStyleDataTriggersFor(
+void InteractivityEngine::ClearStyleDataTriggersFor(
         Aero::FrameworkElement& target) noexcept {
         for (std::uint32_t index = 0U;
              index < styleDataTriggerSubscriptions.Size();) {
@@ -685,7 +732,7 @@ void ViewState::ClearStyleDataTriggersFor(
         }
     }
 
-Base::Result<std::uint32_t> ViewState::StartStyleDataTriggers(
+Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
         Aero::FrameworkElement& target,
         const Aero::Style& style) noexcept {
         std::uint32_t started = 0U;
@@ -835,7 +882,7 @@ Base::Result<std::uint32_t> ViewState::StartStyleDataTriggers(
     }
 
 Base::Result<std::uint32_t>
- ViewState::StartDataTemplateTriggers(
+ InteractivityEngine::StartDataTemplateTriggers(
         Aero::Controls::DataTemplateTriggerState&
             context) noexcept {
         std::uint32_t count = 0U;
@@ -979,7 +1026,7 @@ Base::Result<std::uint32_t>
         return count;
     }
 
-Base::Result<bool> ViewState::StartEventTrigger(
+Base::Result<bool> InteractivityEngine::StartEventTrigger(
         MediaAnimation::EventTrigger& trigger,
         Base::Object& defaultSource,
         Aero::FrameworkElement& actionOwner,
@@ -991,7 +1038,7 @@ Base::Result<bool> ViewState::StartEventTrigger(
             ? &defaultSource
             : names != nullptr
                 ? names->Find(trigger.GetSourceName())
-                : loadedDocument.names.Find(
+                : view->loadedDocument.names.Find(
                       trigger.GetSourceName());
         if (eventSource == nullptr) {
             return Base::Status::Failure(
@@ -1021,7 +1068,7 @@ Base::Result<bool> ViewState::StartEventTrigger(
                  trigger.GetActions()) {
                 if (!action) continue;
                 Base::Result<void> executed =
-                    ExecuteAnimationAction(
+                    storyboards->ExecuteAnimationAction(
                         *action, actionOwner, nullptr, names);
                 if (!executed) return executed.GetStatus();
             }
@@ -1123,7 +1170,7 @@ Base::Result<bool> ViewState::StartEventTrigger(
     }
 
 Base::Result<Base::Ref<Interactivity::Behavior>>
- ViewState::CloneBehaviorPrototype(
+ InteractivityEngine::CloneBehaviorPrototype(
         const Interactivity::Behavior& prototype) noexcept {
         if (metadata == nullptr) {
             return Base::Status::Failure(
@@ -1164,7 +1211,7 @@ Base::Result<Base::Ref<Interactivity::Behavior>>
         return clone;
     }
 
-Base::Object* ViewState::ResolveBehaviorBindingSource(
+Base::Object* InteractivityEngine::ResolveBehaviorBindingSource(
         const Data::Binding& binding,
         Interactivity::Behavior& behavior,
         Aero::FrameworkElement& owner,
@@ -1177,7 +1224,7 @@ Base::Object* ViewState::ResolveBehaviorBindingSource(
                 source = names->Find(binding.GetElementName());
             }
             if (source == nullptr) {
-                source = loadedDocument.names.Find(
+                source = view->loadedDocument.names.Find(
                     binding.GetElementName());
             }
             return source;
@@ -1224,7 +1271,7 @@ Base::Object* ViewState::ResolveBehaviorBindingSource(
         return nullptr;
     }
 
-Base::Object* ViewState::ResolveAuthoredBindingSource(
+Base::Object* InteractivityEngine::ResolveAuthoredBindingSource(
         const Data::Binding& binding,
         Aero::FrameworkElement& owner,
         Aero::Controls::DataTemplateTriggerState*
@@ -1245,7 +1292,7 @@ Base::Object* ViewState::ResolveAuthoredBindingSource(
                 source = names->Find(binding.GetElementName());
             }
             if (source == nullptr) {
-                source = loadedDocument.names.Find(
+                source = view->loadedDocument.names.Find(
                     binding.GetElementName());
             }
             return source;
@@ -1314,7 +1361,7 @@ Base::Object* ViewState::ResolveAuthoredBindingSource(
         return dataContext.AsObject().Get();
     }
 
-Base::Result<Meta::PropertyValue> ViewState::EvaluateAuthoredBinding(
+Base::Result<Meta::PropertyValue> InteractivityEngine::EvaluateAuthoredBinding(
         const Data::Binding& binding,
         Aero::FrameworkElement& owner,
         Aero::Controls::DataTemplateTriggerState*
@@ -1395,7 +1442,7 @@ Base::Result<Meta::PropertyValue> ViewState::EvaluateAuthoredBinding(
         return resolved;
     }
 
-Base::Result<void> ViewState::ExecuteTriggerActions(
+Base::Result<void> InteractivityEngine::ExecuteTriggerActions(
         Base::Span<const Base::Ref<Base::Object>> actions,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
@@ -1408,7 +1455,7 @@ Base::Result<void> ViewState::ExecuteTriggerActions(
                     Base::ErrorCode::InvalidArgument,
                     "Interaction Trigger contains an invalid action");
             }
-            Base::Result<void> executed = ExecuteAnimationAction(
+            Base::Result<void> executed = storyboards->ExecuteAnimationAction(
                 static_cast<Aero::Interactivity::TriggerAction&>(*authored),
                 owner,
                 nullptr,
@@ -1418,22 +1465,22 @@ Base::Result<void> ViewState::ExecuteTriggerActions(
         return {};
     }
 
-Base::Result<void> ViewState::ExecuteTriggerActions(
+Base::Result<void> InteractivityEngine::ExecuteTriggerActions(
         Base::Span<const Base::Ref<Aero::Interactivity::TriggerAction>> actions,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
         for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
              actions) {
             if (!action) continue;
-            Base::Result<void> executed = ExecuteAnimationAction(
+            Base::Result<void> executed = storyboards->ExecuteAnimationAction(
                 *action, owner, nullptr, names);
             if (!executed) return executed.GetStatus();
         }
         return {};
     }
 
-Base::Result<ViewState::InteractionTriggerProperty>
-ViewState::ResolveInteractionTriggerProperty(
+Base::Result<InteractivityEngine::InteractionTriggerProperty>
+InteractivityEngine::ResolveInteractionTriggerProperty(
         const Data::Binding& binding,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
@@ -1489,7 +1536,7 @@ ViewState::ResolveInteractionTriggerProperty(
         return resolved;
     }
 
-Base::Result<bool> ViewState::EvaluateInteractionDataTrigger(
+Base::Result<bool> InteractivityEngine::EvaluateInteractionDataTrigger(
         InteractionDataTriggerState& state) noexcept {
         if (state.trigger == nullptr || state.owner == nullptr ||
             !state.trigger->GetBinding()) {
@@ -1526,7 +1573,7 @@ Base::Result<bool> ViewState::EvaluateInteractionDataTrigger(
         return true;
     }
 
-Base::Result<bool> ViewState::StartPropertyChangedTrigger(
+Base::Result<bool> InteractivityEngine::StartPropertyChangedTrigger(
         Aero::Interactivity::PropertyChangedTrigger& trigger,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
@@ -1611,7 +1658,7 @@ Base::Result<InteractionTriggerProperty> property =
         return true;
     }
 
-Base::Result<bool> ViewState::StartInteractionDataTrigger(
+Base::Result<bool> InteractivityEngine::StartInteractionDataTrigger(
         Aero::DataTrigger& trigger,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
@@ -1699,7 +1746,7 @@ Base::Result<bool> ViewState::StartInteractionDataTrigger(
         return true;
     }
 
-std::uint32_t ViewState::KeyCodeFromName(
+std::uint32_t InteractivityEngine::KeyCodeFromName(
         Base::StringView key) noexcept {
         if (Base::ValueConversion::EqualsAsciiInsensitive(
                 key, "Enter") ||
@@ -1738,7 +1785,7 @@ std::uint32_t ViewState::KeyCodeFromName(
         return 0U;
     }
 
-Base::Result<bool> ViewState::StartKeyTrigger(
+Base::Result<bool> InteractivityEngine::StartKeyTrigger(
         Aero::Interactivity::KeyTrigger& trigger,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
@@ -1787,7 +1834,7 @@ Base::Result<bool> ViewState::StartKeyTrigger(
         return true;
     }
 
-Base::Result<void> ViewState::AttachBehavior(
+Base::Result<void> InteractivityEngine::AttachBehavior(
         const Interactivity::Behavior& prototype,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names,
@@ -1894,7 +1941,7 @@ Base::Result<void> ViewState::AttachBehavior(
         return {};
     }
 
-void ViewState::ClearDataTemplateTriggerProviders(
+void InteractivityEngine::ClearDataTemplateTriggerProviders(
         Aero::Controls::DataTemplateTriggerState& context) noexcept {
         if (values != nullptr) {
             for (Aero::Controls::DataTemplatePropertyTrigger& trigger :
@@ -1917,7 +1964,7 @@ void ViewState::ClearDataTemplateTriggerProviders(
         context.providerOrigin = 0U;
     }
 
-void ViewState::ClearDataTemplateTriggerProvidersInSubtree(
+void InteractivityEngine::ClearDataTemplateTriggerProvidersInSubtree(
         Aero::Media::Visual& visual) noexcept {
         Aero::FrameworkElement* element =
             visual.AsFrameworkElement();
@@ -1939,7 +1986,7 @@ void ViewState::ClearDataTemplateTriggerProvidersInSubtree(
         }
     }
 
-void ViewState::DetachBehaviorsInSubtree(Aero::Media::Visual& visual) noexcept {
+void InteractivityEngine::DetachBehaviorsInSubtree(Aero::Media::Visual& visual) noexcept {
         for (std::uint32_t index = 0U;
              index < attachedBehaviorInstances.Size();) {
             AttachedBehaviorInstance& record =
@@ -1963,7 +2010,7 @@ void ViewState::DetachBehaviorsInSubtree(Aero::Media::Visual& visual) noexcept {
         }
     }
 
-void ViewState::ClearAnimationSubscriptionsFor(
+void InteractivityEngine::ClearAnimationSubscriptionsFor(
         Aero::Media::Visual& fragmentRoot) noexcept {
         DetachBehaviorsInSubtree(fragmentRoot);
         ClearDataTemplateTriggerProvidersInSubtree(fragmentRoot);
@@ -2128,31 +2175,32 @@ void ViewState::ClearAnimationSubscriptionsFor(
             }
             animationEventSubscriptions.PopBack();
         }
+        if (storyboards == nullptr) return;
         for (std::uint32_t index = 0U;
-             index < storyboardSessions.Size();) {
-            StoryboardSession& session = storyboardSessions[index];
+             index < storyboards->storyboardSessions.Size();) {
+            StoryboardHost::StoryboardSession& session = storyboards->storyboardSessions[index];
             if (session.owner == nullptr ||
                 !IsInVisualSubtree(session.owner, fragmentRoot)) {
                 ++index;
                 continue;
             }
-            CancelStoryboardCompletionSessions(session.handles.AsSpan());
+            storyboards->CancelStoryboardCompletionSessions(session.handles.AsSpan());
             if (animations != nullptr) {
                 for (Aero::Media::Animation::Model::AnimationHandle handle : session.handles) {
                     static_cast<void>(animations->Remove(handle));
                 }
             }
             for (std::uint32_t next = index + 1U;
-                 next < storyboardSessions.Size(); ++next) {
-                storyboardSessions[next - 1U] =
-                    std::move(storyboardSessions[next]);
+                 next < storyboards->storyboardSessions.Size(); ++next) {
+                storyboards->storyboardSessions[next - 1U] =
+                    std::move(storyboards->storyboardSessions[next]);
             }
-            storyboardSessions.PopBack();
+            storyboards->storyboardSessions.PopBack();
         }
         for (std::uint32_t index = 0U;
-             index < storyboardCompletionSessions.Size();) {
-            StoryboardCompletionSession& session =
-                storyboardCompletionSessions[index];
+             index < storyboards->storyboardCompletionSessions.Size();) {
+            StoryboardHost::StoryboardCompletionSession& session =
+                storyboards->storyboardCompletionSessions[index];
             if (session.owner == nullptr ||
                 !IsInVisualSubtree(session.owner, fragmentRoot)) {
                 ++index;
@@ -2165,16 +2213,16 @@ void ViewState::ClearAnimationSubscriptionsFor(
                 }
             }
             for (std::uint32_t next = index + 1U;
-                 next < storyboardCompletionSessions.Size(); ++next) {
-                storyboardCompletionSessions[next - 1U] =
-                    std::move(storyboardCompletionSessions[next]);
+                 next < storyboards->storyboardCompletionSessions.Size(); ++next) {
+                storyboards->storyboardCompletionSessions[next - 1U] =
+                    std::move(storyboards->storyboardCompletionSessions[next]);
             }
-            storyboardCompletionSessions.PopBack();
+            storyboards->storyboardCompletionSessions.PopBack();
         }
         for (std::uint32_t index = 0U;
-             index < storyboardCompletedSubscriptions.Size();) {
-            const StoryboardCompletedSubscription& subscription =
-                storyboardCompletedSubscriptions[index];
+             index < storyboards->storyboardCompletedSubscriptions.Size();) {
+            const StoryboardHost::StoryboardCompletedSubscription& subscription =
+                storyboards->storyboardCompletedSubscriptions[index];
             if (subscription.owner == nullptr ||
                 !IsInVisualSubtree(
                     subscription.owner, fragmentRoot)) {
@@ -2182,15 +2230,15 @@ void ViewState::ClearAnimationSubscriptionsFor(
                 continue;
             }
             for (std::uint32_t next = index + 1U;
-                 next < storyboardCompletedSubscriptions.Size(); ++next) {
-                storyboardCompletedSubscriptions[next - 1U] =
-                    std::move(storyboardCompletedSubscriptions[next]);
+                 next < storyboards->storyboardCompletedSubscriptions.Size(); ++next) {
+                storyboards->storyboardCompletedSubscriptions[next - 1U] =
+                    std::move(storyboards->storyboardCompletedSubscriptions[next]);
             }
-            storyboardCompletedSubscriptions.PopBack();
+            storyboards->storyboardCompletedSubscriptions.PopBack();
         }
     }
 
-void ViewState::ClearAnimationEventSubscriptions() noexcept {
+void InteractivityEngine::ClearAnimationEventSubscriptions() noexcept {
         for (DataTemplateTriggerSubscription&
                  subscription :
              dataTemplateTriggerSubscriptions) {
@@ -2280,101 +2328,15 @@ void ViewState::ClearAnimationEventSubscriptions() noexcept {
                 subscription.context);
         }
         animationEventSubscriptions.Clear();
-        storyboardCompletionSessions.Clear();
-        storyboardCompletedSubscriptions.Clear();
+        if (storyboards != nullptr) {
+            storyboards->storyboardCompletionSessions.Clear();
+            storyboards->storyboardCompletedSubscriptions.Clear();
+        }
         animationEventStatus = Base::Status::Ok();
     }
 
-void ViewState::ClearElementEvents(
-        Aero::Media::Visual* node) noexcept {
-        if (node == nullptr) return;
-        if (metadata->Types().IsDerivedFrom(
-                node->RuntimeType(),
-                Controls::Control::StaticTypeId())) {
-            ::Aero::Controls::ControlBehavior::SetVisualStateManager(*static_cast<Controls::Control*>(node), nullptr);
-        }
-        for (Aero::Media::Visual* child :
-             node->GetVisualChildren()) {
-            ClearElementEvents(child);
-        }
-    }
 
-void ViewState::BeginDestroyInteractions() noexcept {
-        if (Aero::Media::Visual* rootVisual = RootVisual()) {
-            DetachBehaviorsInSubtree(*rootVisual);
-        }
-        CloseAllOverlays();
-        ClearOverlays();
-        ClearAnimationEventSubscriptions();
-        if (activeToolTip) {
-            static_cast<void>(
-                activeToolTip->SetIsOpen(false));
-        }
-        pendingToolTip.Reset();
-        activeToolTip.Reset();
-        toolTipTarget.Reset();
-        ClearTextInputHosts(RootVisual());
-        ClearElementEvents(RootVisual());
-        FreeObject(*allocator, Base::MemoryTag::Ui, controlBehaviors);
-        if (tree != nullptr) tree->SetControlBehaviors(nullptr);
-    }
-
-void ViewState::FinishDestroyInteractions() noexcept {
-        while (!itemGenerators.Empty()) {
-            Controls::ItemContainerGenerator*
-                generator = itemGenerators.Back();
-            itemGenerators.PopBack();
-            if (generator != nullptr) {
-                static_cast<void>(
-                    generator->Detach());
-                delete generator;
-                generator = nullptr;
-            }
-        }
-        if (input != nullptr) {
-            input->SetRoot(nullptr);
-        }
-    }
-
-void ViewState::DestroyInteractions() noexcept {
-        BeginDestroyInteractions();
-        FinishDestroyInteractions();
-    }
-
-Base::Result<void> ViewState::CreateInteractions() noexcept {
-        Aero::Media::Visual* rootVisual = RootVisual();
-        if (rootVisual == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "View root is not a registered Visual");
-        }
-        if (input == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotInitialized,
-                "InputRouter is unavailable");
-        }
-        input->SetRoot(rootVisual);
-        Base::Result<void> status;
-
-        if (options.attachControlInteractions || options.attachTextEditing) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, controlBehaviors,
-                *allocator, *metadata, *tree, *events, *input,
-                visualStates, options.clipboard,
-                options.attachControlInteractions,
-                options.attachTextEditing);
-            if (!status) return status.GetStatus();
-            status = controlBehaviors->Initialize();
-            if (!status) return status.GetStatus();
-            if (tree != nullptr) tree->SetControlBehaviors(controlBehaviors);
-        }
-        status = VisitAndAttach(*rootVisual);
-        if (!status) {
-            return status.GetStatus();
-        }
-        return {};
-    }
-
-void ViewState::StyleDataTriggerHandlerState::Invoke(
+void InteractivityEngine::StyleDataTriggerHandlerState::Invoke(
     ::Aero::DependencyObject&,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept
 {
@@ -2390,7 +2352,7 @@ void ViewState::StyleDataTriggerHandlerState::Invoke(
     }
 }
 
-void ViewState::
+void InteractivityEngine::
 DataTemplateTriggerHandlerState::Invoke(
     ::Aero::DependencyObject&,
     const Meta::DependencyPropertyChangedEventArgs&)
@@ -2411,7 +2373,7 @@ DataTemplateTriggerHandlerState::Invoke(
     }
 }
 
-void ViewState::PropertyChangedTriggerState::Invoke(
+void InteractivityEngine::PropertyChangedTriggerState::Invoke(
     ::Aero::DependencyObject&,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept
 {
@@ -2426,7 +2388,7 @@ void ViewState::PropertyChangedTriggerState::Invoke(
     }
 }
 
-void ViewState::PropertyChangedTriggerState::MetadataInvoke(
+void InteractivityEngine::PropertyChangedTriggerState::MetadataInvoke(
     Base::Object&,
     Meta::MemberId property,
     void* context) noexcept
@@ -2448,7 +2410,7 @@ void ViewState::PropertyChangedTriggerState::MetadataInvoke(
     }
 }
 
-void ViewState::InteractionDataTriggerState::Invoke(
+void InteractivityEngine::InteractionDataTriggerState::Invoke(
     ::Aero::DependencyObject&,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept
 {
@@ -2463,7 +2425,7 @@ void ViewState::InteractionDataTriggerState::Invoke(
     }
 }
 
-void ViewState::InteractionDataTriggerState::MetadataInvoke(
+void InteractivityEngine::InteractionDataTriggerState::MetadataInvoke(
     Base::Object&,
     Meta::MemberId property,
     void* context) noexcept
@@ -2485,14 +2447,14 @@ void ViewState::InteractionDataTriggerState::MetadataInvoke(
     }
 }
 
-void ViewState::KeyTriggerState::Invoke(
+void InteractivityEngine::KeyTriggerState::Invoke(
     Base::Object*,
     Aero::KeyEventArgs& args) noexcept
 {
     if (runtime == nullptr || trigger == nullptr || owner == nullptr ||
         !runtime->animationEventStatus.IsOk() ||
         args.GetAction() != Input::KeyboardAction::Down ||
-        args.GetKey() != ViewState::KeyCodeFromName(trigger->GetKey())) {
+        args.GetKey() != InteractivityEngine::KeyCodeFromName(trigger->GetKey())) {
         return;
     }
     if (trigger->GetActiveOnFocus()) {

@@ -8,6 +8,8 @@
 
 
 #include "render/RenderTree.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/markup/MarkupState.hpp"
 
 namespace Aero {
 
@@ -1094,6 +1096,192 @@ Base::Result<void> ElementTree::DetachRoot(
     }
     return {};
 }
+
+Base::Result<void> ElementTree::AttachVisualGraph(
+    ::Aero::Media::Visual& visualRoot,
+    Base::Span<Markup::VisualEdge> edges,
+    Size availableSize,
+    RootAttachment& outAttachment) noexcept {
+    if (layout_ == nullptr || outAttachment.IsAttached() ||
+        !IsValidLayoutSize(availableSize)) {
+        return InvalidState(
+            "Gui root cannot be attached in its current state");
+    }
+    AttachPresentation(layout_, renderer_);
+    Base::Result<Aero::RootAttachment> rootAttached =
+        AttachRoot(visualRoot, availableSize);
+    if (!rootAttached) return rootAttached.GetStatus();
+    outAttachment = std::move(rootAttached).Value();
+
+    std::uint32_t attached = 0U;
+    while (attached < edges.Size()) {
+        bool progressed = false;
+        for (Markup::VisualEdge& edge : edges) {
+            if (edge.state.logicalAttached || edge.parent == nullptr ||
+                edge.child == nullptr ||
+                edge.parent->GetTree() != this) {
+                continue;
+            }
+            Base::Result<Aero::ElementAttachment> edgeAttached =
+                AttachElement(*edge.parent, *edge.child);
+            if (!edgeAttached) {
+                static_cast<void>(DetachVisualGraph(outAttachment, edges));
+                return edgeAttached.GetStatus();
+            }
+            edge.state = std::move(edgeAttached).Value();
+            ++attached;
+            progressed = true;
+        }
+        if (!progressed) break;
+    }
+    return {};
+}
+
+Base::Result<void> ElementTree::CompleteVisualEdges(
+    Base::Span<Markup::VisualEdge> edges) noexcept {
+    if (root_ == nullptr) {
+        return InvalidState(
+            "Deferred visual edges require an attached root");
+    }
+    std::uint32_t attached = 0U;
+    for (const Markup::VisualEdge& edge : edges) {
+        if (edge.state.logicalAttached) ++attached;
+    }
+    while (attached < edges.Size()) {
+        bool progressed = false;
+        for (Markup::VisualEdge& edge : edges) {
+            if (edge.state.logicalAttached ||
+                (edge.child != nullptr &&
+                 edge.child->GetTree() == this) ||
+                edge.parent == nullptr || edge.child == nullptr ||
+                edge.parent->GetTree() != this) {
+                continue;
+            }
+            Base::Result<Aero::ElementAttachment> edgeAttached =
+                AttachElement(*edge.parent, *edge.child);
+            if (!edgeAttached) return edgeAttached.GetStatus();
+            edge.state = std::move(edgeAttached).Value();
+            ++attached;
+            progressed = true;
+        }
+        if (!progressed) break;
+    }
+    return {};
+}
+
+Base::Result<void> ElementTree::ResizeRoot(
+    UIElement& layoutRoot,
+    Size availableSize,
+    ::Aero::Media::Visual* renderRoot) noexcept {
+    if (layout_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "View resize requires an attached layout root");
+    }
+    if (!IsValidLayoutSize(availableSize)) {
+        return InvalidArgument("View dimensions are invalid");
+    }
+    Base::Result<void> resized = layout_->SetRoot(&layoutRoot, availableSize);
+    if (!resized) return resized.GetStatus();
+    if (renderer_ != nullptr && renderRoot != nullptr) {
+        return renderer_->Invalidate(
+            *renderRoot, Aero::Render::RenderInvalidation::State);
+    }
+    return {};
+}
+
+Base::Result<void> ElementTree::DetachVisualGraph(
+    RootAttachment& attachment,
+    Base::Span<Markup::VisualEdge> edges) noexcept {
+    if (!attachment.IsAttached() && root_ == nullptr) return {};
+
+    const auto reconcileAttachment =
+        [this](Markup::VisualEdge& edge) noexcept {
+            auto& state = edge.state;
+            if (state.child == nullptr) {
+                state.logicalAttached = false;
+                state.visualAttached = false;
+                state.layoutAttached = false;
+                state.renderAttached = false;
+                return;
+            }
+            state.logicalAttached =
+                state.logicalParent != nullptr &&
+                state.child->GetLogicalParent() == state.logicalParent;
+            state.visualAttached =
+                state.visualParent != nullptr &&
+                state.child->GetVisualParent() == state.visualParent;
+
+            Aero::UIElement* childElement = state.child->AsUIElement();
+            Aero::UIElement* parentElement =
+                state.visualParent != nullptr
+                ? state.visualParent->AsUIElement()
+                : nullptr;
+            if (childElement != nullptr &&
+                childElement->GetIsLayoutAttached() &&
+                AeroGuiInternal::LayoutEngineOf(*childElement) == nullptr) {
+                AeroGuiInternal::Layout(*childElement).layoutAttached = false;
+                AeroGuiInternal::Layout(*childElement).measureQueued = false;
+                AeroGuiInternal::Layout(*childElement).arrangeQueued = false;
+            }
+            state.layoutAttached =
+                layout_ != nullptr && childElement != nullptr &&
+                parentElement != nullptr &&
+                childElement->GetIsLayoutAttached() &&
+                AeroGuiInternal::LayoutEngineOf(*childElement) == layout_ &&
+                childElement->LayoutParent() == parentElement;
+
+            if (AeroGuiInternal::RenderAttached(*state.child) &&
+                AeroGuiInternal::RenderRuntime(*state.child) == nullptr) {
+                AeroGuiInternal::RenderAttached(*state.child) = false;
+                AeroGuiInternal::RenderQueued(*state.child) = false;
+                AeroGuiInternal::Rendering(*state.child) = false;
+                AeroGuiInternal::NodeId(*state.child) = Base::InvalidRenderNodeId;
+                AeroGuiInternal::RenderValid(*state.child) = false;
+            }
+            state.renderAttached =
+                renderer_ != nullptr &&
+                AeroGuiInternal::RenderAttached(*state.child) &&
+                AeroGuiInternal::RenderRuntime(*state.child) == renderer_ &&
+                AeroGuiInternal::RenderParent(*state.child) == state.visualParent;
+        };
+
+    std::uint32_t remaining = 0U;
+    for (Markup::VisualEdge& edge : edges) {
+        reconcileAttachment(edge);
+        if (edge.state.IsAttached()) ++remaining;
+    }
+    while (remaining > 0U) {
+        bool progressed = false;
+        for (Markup::VisualEdge& edge : edges) {
+            reconcileAttachment(edge);
+            if (!edge.state.IsAttached()) continue;
+            bool hasAttachedChild = false;
+            for (const Markup::VisualEdge& candidate : edges) {
+                if (candidate.state.IsAttached() &&
+                    candidate.parent == edge.child) {
+                    hasAttachedChild = true;
+                    break;
+                }
+            }
+            if (hasAttachedChild) continue;
+            Base::Result<void> detached = DetachElement(edge.state);
+            if (!detached) return detached.GetStatus();
+            --remaining;
+            progressed = true;
+        }
+        if (!progressed) {
+            return InvalidState(
+                "Visual edges cannot be detached leaf-first");
+        }
+    }
+
+    Base::Result<void> rootDetached = DetachRoot(attachment);
+    if (!rootDetached) return rootDetached.GetStatus();
+    attachment = {};
+    return {};
+}
+
 
 } // namespace Aero
 

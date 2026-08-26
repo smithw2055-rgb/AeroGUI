@@ -424,8 +424,8 @@ foreach(required_source_entry IN ITEMS
         "src/render/TextRenderer.cpp"
         "src/render/RenderTree.cpp"
         "src/gui/ViewRendererResources.cpp"
-        "src/gui/media/ViewStoryboardSessions.cpp"
-        "src/gui/interactivity/ViewTriggers.cpp"
+        "src/gui/media/StoryboardHost.cpp"
+        "src/gui/interactivity/InteractivityEngine.cpp"
         "src/gui/markup/ViewDocuments.cpp"
         "src/render/RenderContext.hpp")
     aero_require_file("${required_source_entry}")
@@ -1026,6 +1026,8 @@ aero_forbid_file("src/gui/GuiPrivate.hpp")
 aero_forbid_file("src/gui/controls/ControlsPrivate.hpp")
 aero_forbid_file("src/gui/markup/MarkupPrivate.hpp")
 aero_forbid_file("src/gui/media/MediaPrivate.hpp")
+aero_forbid_file("src/gui/interactivity/ViewTriggers.cpp")
+aero_forbid_file("src/gui/media/ViewStoryboardSessions.cpp")
 aero_forbid_file("src/gui/core/Facet.hpp")
 aero_forbid_file("src/gui/core/facets/VisualFacet.hpp")
 aero_forbid_file("src/gui/core/facets/RenderFacet.hpp")

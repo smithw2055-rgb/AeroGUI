@@ -14,15 +14,32 @@ namespace Aero {
 using namespace ::Aero;
 namespace MediaAnimation = ::Aero::Media::Animation;
 
-ViewState::StoryboardSession::StoryboardSession(
+StoryboardHost::StoryboardHost(ViewState& owner) noexcept
+    : view(&owner),
+      allocator(owner.allocator),
+      storyboardSessions(owner.allocator),
+      storyboardCompletionSessions(owner.allocator),
+      storyboardCompletedSubscriptions(owner.allocator) {}
+
+void StoryboardHost::Bind() noexcept {
+    allocator = view->allocator;
+    metadata = view->metadata;
+    animations = view->animations;
+    input = view->input;
+    styles = view->styles;
+    interactivity = view->interactivity;
+}
+
+
+StoryboardHost::StoryboardSession::StoryboardSession(
             Base::IAllocator* allocator) noexcept
     : handles(allocator) {}
 
-ViewState::StoryboardCompletionSession::StoryboardCompletionSession(
+StoryboardHost::StoryboardCompletionSession::StoryboardCompletionSession(
             Base::IAllocator* allocator) noexcept
     : handles(allocator) {}
 
-Base::Result<Base::StringView> ViewState::AnimationAttachedString(
+Base::Result<Base::StringView> StoryboardHost::AnimationAttachedString(
         MediaAnimation::Timeline& timeline,
         Meta::DependencyPropertyHandle property) noexcept {
         Base::Result<Meta::PropertyValue> value =
@@ -36,8 +53,8 @@ Base::Result<Base::StringView> ViewState::AnimationAttachedString(
         return value.Value().AsString();
     }
 
-Base::Result<ViewState::ResolvedAnimationProperty>
-ViewState::ResolveAnimationProperty(
+Base::Result<StoryboardHost::ResolvedAnimationProperty>
+StoryboardHost::ResolveAnimationProperty(
         ::Aero::DependencyObject& target,
         Base::StringView authoredPath) noexcept {
         // Object-model geometry uses two indexed collection hops. Resolve the
@@ -854,7 +871,7 @@ ViewState::ResolveAnimationProperty(
             propertyTarget, property->Handle()};
     }
 
-ViewState::StoryboardTimingState ViewState::ComposeStoryboardTiming(
+StoryboardHost::StoryboardTimingState StoryboardHost::ComposeStoryboardTiming(
         const StoryboardTimingState* inherited,
         const MediaAnimation::Timeline& storyboard,
         bool preservesChildDuration) noexcept {
@@ -888,7 +905,7 @@ ViewState::StoryboardTimingState ViewState::ComposeStoryboardTiming(
         return result;
     }
 
-Aero::Media::Animation::Model::TimelineTiming ViewState::EffectiveTimelineTiming(
+Aero::Media::Animation::Model::TimelineTiming StoryboardHost::EffectiveTimelineTiming(
         const MediaAnimation::Timeline& timeline,
         const StoryboardTimingState* inherited) noexcept {
         Aero::Media::Animation::Model::TimelineTiming result =
@@ -957,7 +974,7 @@ Aero::Media::Animation::Model::TimelineTiming ViewState::EffectiveTimelineTiming
     }
 
 Base::Result<std::uint32_t>
- ViewState::RetainStartedAnimation(
+ StoryboardHost::RetainStartedAnimation(
         Base::Result<
             Aero::Media::Animation::Model::AnimationHandle>
             started,
@@ -981,7 +998,7 @@ Base::Result<std::uint32_t>
         return std::uint32_t{1U};
     }
 
-Base::Result<std::uint32_t> ViewState::BeginTimeline(
+Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         MediaAnimation::Timeline& timeline,
         Aero::FrameworkElement& triggerOwner,
         const Aero::NameScope* names,
@@ -1048,10 +1065,10 @@ Base::Result<std::uint32_t> ViewState::BeginTimeline(
                       targetName.Value())
                 : names != nullptr
                     ? names->Find(targetName.Value())
-                    : loadedDocument.names.Find(
+                    : view->loadedDocument.names.Find(
                           targetName.Value());
         if (targetObject == nullptr && names != nullptr) {
-            targetObject = loadedDocument.names.Find(
+            targetObject = view->loadedDocument.names.Find(
                 targetName.Value());
         }
         if (targetObject == nullptr ||
@@ -1476,7 +1493,7 @@ Base::Result<std::uint32_t> ViewState::BeginTimeline(
             retainedHandles);
     }
 
-Base::Result<std::uint32_t> ViewState::StartContentElementAnimations(
+Base::Result<std::uint32_t> StoryboardHost::StartContentElementAnimations(
         Aero::FrameworkContentElement& content,
         Aero::FrameworkElement& actionOwner,
         const Aero::NameScope* names) noexcept {
@@ -1488,7 +1505,7 @@ Base::Result<std::uint32_t> ViewState::StartContentElementAnimations(
                     MediaAnimation::EventTrigger::StaticTypeId()) {
                 continue;
             }
-            Base::Result<bool> started = StartEventTrigger(
+            Base::Result<bool> started = interactivity->StartEventTrigger(
                 static_cast<MediaAnimation::EventTrigger&>(*authored),
                 content,
                 actionOwner,
@@ -1522,7 +1539,7 @@ Base::Result<std::uint32_t> ViewState::StartContentElementAnimations(
         return count;
     }
 
-Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
+Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
         Aero::Media::Visual* visual,
         const Aero::NameScope* names) noexcept {
         if (visual == nullptr) return std::uint32_t{0U};
@@ -1539,7 +1556,7 @@ Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
                         Interactivity::Behavior::StaticTypeId())) {
                     continue;
                 }
-                Base::Result<void> attached = AttachBehavior(
+                Base::Result<void> attached = interactivity->AttachBehavior(
                     static_cast<const Interactivity::Behavior&>(
                         *authoredBehavior),
                     *element,
@@ -1556,7 +1573,7 @@ Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
                         Interactivity::Behavior::StaticTypeId())) {
                     continue;
                 }
-                Base::Result<void> attached = AttachBehavior(
+                Base::Result<void> attached = interactivity->AttachBehavior(
                     static_cast<const Interactivity::Behavior&>(
                         *behaviorPrototype),
                     *element,
@@ -1586,7 +1603,7 @@ Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
                     Aero::Controls::DataTemplateTriggerState::
                             StaticTypeId()) {
                     Base::Result<std::uint32_t> started =
-                        StartDataTemplateTriggers(
+                        interactivity->StartDataTemplateTriggers(
                             static_cast<
                                 Aero::Controls::DataTemplateTriggerState&>(
                                         *authored));
@@ -1623,7 +1640,7 @@ Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
                     Aero::Interactivity::PropertyChangedTrigger::
                         StaticTypeId()) {
                     Base::Result<bool> started =
-                        StartPropertyChangedTrigger(
+                        interactivity->StartPropertyChangedTrigger(
                             static_cast<
                                 Aero::Interactivity::PropertyChangedTrigger&>(
                                     *authored),
@@ -1635,7 +1652,7 @@ Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
                 }
                 if (authored->RuntimeType() ==
                     Aero::Interactivity::KeyTrigger::StaticTypeId()) {
-                    Base::Result<bool> started = StartKeyTrigger(
+                    Base::Result<bool> started = interactivity->StartKeyTrigger(
                         static_cast<Aero::Interactivity::KeyTrigger&>(
                             *authored),
                         *element,
@@ -1647,7 +1664,7 @@ Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
                 if (authored->RuntimeType() ==
                     Aero::DataTrigger::StaticTypeId()) {
                     Base::Result<bool> started =
-                        StartInteractionDataTrigger(
+                        interactivity->StartInteractionDataTrigger(
                             static_cast<Aero::DataTrigger&>(*authored),
                             *element,
                             names);
@@ -1659,7 +1676,7 @@ Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
                     MediaAnimation::EventTrigger::StaticTypeId()) {
                     continue;
                 }
-                Base::Result<bool> started = StartEventTrigger(
+                Base::Result<bool> started = interactivity->StartEventTrigger(
                     static_cast<MediaAnimation::EventTrigger&>(*authored),
                     *element,
                     *element,
@@ -1684,7 +1701,7 @@ Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
                 }
                 if (authored->RuntimeType() ==
                     Aero::Interactivity::PropertyChangedTrigger::StaticTypeId()) {
-                    Base::Result<bool> started = StartPropertyChangedTrigger(
+                    Base::Result<bool> started = interactivity->StartPropertyChangedTrigger(
                         static_cast<Aero::Interactivity::PropertyChangedTrigger&>(
                             *authored),
                         *element,
@@ -1695,7 +1712,7 @@ Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
                 }
                 if (authored->RuntimeType() ==
                     Aero::Interactivity::KeyTrigger::StaticTypeId()) {
-                    Base::Result<bool> started = StartKeyTrigger(
+                    Base::Result<bool> started = interactivity->StartKeyTrigger(
                         static_cast<Aero::Interactivity::KeyTrigger&>(*authored),
                         *element,
                         names);
@@ -1706,7 +1723,7 @@ Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
                 if (authored->RuntimeType() ==
                     Aero::DataTrigger::StaticTypeId()) {
                     Base::Result<bool> started =
-                        StartInteractionDataTrigger(
+                        interactivity->StartInteractionDataTrigger(
                             static_cast<Aero::DataTrigger&>(*authored),
                             *element,
                             names);
@@ -1716,7 +1733,7 @@ Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
                 }
                 if (authored->RuntimeType() ==
                     MediaAnimation::EventTrigger::StaticTypeId()) {
-                    Base::Result<bool> started = StartEventTrigger(
+                    Base::Result<bool> started = interactivity->StartEventTrigger(
                         static_cast<MediaAnimation::EventTrigger&>(*authored),
                         *element,
                         *element,
@@ -1736,7 +1753,7 @@ Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
                                 MediaAnimation::EventTrigger::StaticTypeId())) {
                             continue;
                         }
-                        Base::Result<bool> started = StartEventTrigger(
+                        Base::Result<bool> started = interactivity->StartEventTrigger(
                             static_cast<MediaAnimation::EventTrigger&>(
                                 *authored),
                             *element,
@@ -1789,7 +1806,7 @@ Base::Result<std::uint32_t> ViewState::StartLoadedAnimations(
     }
 
 Base::Result<void>
-ViewState::ExecuteAnimationAction(
+StoryboardHost::ExecuteAnimationAction(
     Aero::Interactivity::TriggerAction& action,
     Aero::FrameworkElement& owner,
     Aero::Controls::DataTemplateTriggerState*
@@ -1811,7 +1828,7 @@ ViewState::ExecuteAnimationAction(
                       change.GetTargetName())
                 : names != nullptr
                     ? names->Find(change.GetTargetName())
-                    : loadedDocument.names.Find(
+                    : view->loadedDocument.names.Find(
                           change.GetTargetName());
         if (targetObject == nullptr ||
             !metadata->Types().IsDerivedFrom(
@@ -1848,7 +1865,7 @@ ViewState::ExecuteAnimationAction(
             change.GetValueBinding();
         if (valueBinding) {
             Base::Result<Meta::PropertyValue> evaluated =
-                EvaluateAuthoredBinding(
+                interactivity->EvaluateAuthoredBinding(
                     *valueBinding,
                     owner,
                     dataTemplateContext,
@@ -1888,7 +1905,7 @@ ViewState::ExecuteAnimationAction(
         Base::Ref<Input::ICommand> command = invoke.GetCommand();
         if (!command && invoke.GetCommandBinding()) {
             Base::Result<Meta::PropertyValue> evaluated =
-                EvaluateAuthoredBinding(
+                interactivity->EvaluateAuthoredBinding(
                     *invoke.GetCommandBinding(),
                     owner,
                     dataTemplateContext,
@@ -1918,7 +1935,7 @@ ViewState::ExecuteAnimationAction(
         Meta::PropertyValue parameter = invoke.GetCommandParameter();
         if (invoke.GetCommandParameterBinding()) {
             Base::Result<Meta::PropertyValue> evaluated =
-                EvaluateAuthoredBinding(
+                interactivity->EvaluateAuthoredBinding(
                     *invoke.GetCommandParameterBinding(),
                     owner,
                     dataTemplateContext,
@@ -1962,7 +1979,7 @@ ViewState::ExecuteAnimationAction(
                 ? dataTemplateContext->FindName(setFocus.GetTargetName())
                 : names != nullptr
                     ? names->Find(setFocus.GetTargetName())
-                    : loadedDocument.names.Find(setFocus.GetTargetName());
+                    : view->loadedDocument.names.Find(setFocus.GetTargetName());
         Aero::UIElement* target =
             targetObject != nullptr && metadata->Types().IsDerivedFrom(
                 targetObject->RuntimeType(), Aero::UIElement::StaticTypeId())
@@ -1974,7 +1991,7 @@ ViewState::ExecuteAnimationAction(
                 "SetFocusAction target is unavailable");
         }
         if (!target->GetIsLoaded()) {
-            return QueueFocus(*target);
+            return view->QueueFocus(*target);
         }
         if (!target->GetIsEnabled()) return {};
         Base::Result<bool> focused = input->SetFocus(target);
@@ -2035,7 +2052,7 @@ ViewState::ExecuteAnimationAction(
                 Base::ErrorCode::InvalidArgument,
                 "PlaySoundAction Volume must be between zero and one");
         }
-        Base::Result<void> initialized = audio.Initialize();
+        Base::Result<void> initialized = view->audio.Initialize();
         if (!initialized &&
             (initialized.GetStatus().code ==
                  Base::ErrorCode::Unsupported ||
@@ -2045,10 +2062,10 @@ ViewState::ExecuteAnimationAction(
             return {};
         }
         if (!initialized) return initialized.GetStatus();
-        audio.SetEffectsVolume(
+        view->audio.SetEffectsVolume(
             static_cast<float>(volume));
         Base::Result<void> played =
-            audio.PlayEffect(playSound.GetSource());
+            view->audio.PlayEffect(playSound.GetSource());
         if (!played &&
             (played.GetStatus().code ==
                  Base::ErrorCode::InvalidState ||
@@ -2281,7 +2298,7 @@ ViewState::ExecuteAnimationAction(
             ? static_cast<Base::Object*>(&owner)
             : names != nullptr
                 ? names->Find(targetName)
-                : loadedDocument.names.Find(targetName);
+                : view->loadedDocument.names.Find(targetName);
         if (targetObject == nullptr ||
             !metadata->Types().IsDerivedFrom(
                 targetObject->RuntimeType(),
@@ -2390,7 +2407,7 @@ ViewState::ExecuteAnimationAction(
     return {};
 }
 
-void ViewState::
+void StoryboardHost::
 CancelStoryboardCompletionSessions(
     Base::Span<const Aero::Media::Animation::Model::AnimationHandle>
         handles) noexcept
@@ -2425,7 +2442,7 @@ CancelStoryboardCompletionSessions(
 }
 
 Base::Result<std::uint32_t>
-ViewState::ProcessStoryboardCompletions() noexcept
+StoryboardHost::ProcessStoryboardCompletions() noexcept
 {
     std::uint32_t actionCount = 0U;
     std::uint32_t index = 0U;
@@ -2470,7 +2487,7 @@ ViewState::ProcessStoryboardCompletions() noexcept
                     storyboard.Get()) {
                 continue;
             }
-            Base::Result<bool> allowed = ConditionBehaviorsAllowExecution(
+            Base::Result<bool> allowed = interactivity->ConditionBehaviorsAllowExecution(
                 subscription.trigger->GetBehaviors(),
                 *subscription.owner,
                 subscription.names);
