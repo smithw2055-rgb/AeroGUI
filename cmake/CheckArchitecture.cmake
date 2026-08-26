@@ -39,6 +39,47 @@ function(aero_forbid_text relative_path needle description)
     endif()
 endfunction()
 
+# Public include-closure budget. Counts unique installed Aero* headers reachable
+# from a start header, skipping AERO_GUI_IMPLEMENTATION-only includes. Caps are
+# filled from a post-cut measurement (measured + 10%), never invented first.
+set(AERO_INCLUDE_CLOSURE_SCRIPT
+    "${AERO_SOURCE_DIR}/cmake/CountPublicIncludeClosure.py")
+function(aero_include_closure_count relative_header out_lines out_files)
+    execute_process(
+        COMMAND python3
+            "${AERO_INCLUDE_CLOSURE_SCRIPT}"
+            "${AERO_SOURCE_DIR}"
+            "${relative_header}"
+        OUTPUT_VARIABLE aero_closure_output
+        RESULT_VARIABLE aero_closure_status
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(NOT aero_closure_status EQUAL 0)
+        message(FATAL_ERROR
+            "Failed to measure include-closure for ${relative_header}")
+    endif()
+    separate_arguments(aero_closure_parts UNIX_COMMAND "${aero_closure_output}")
+    list(LENGTH aero_closure_parts aero_closure_n)
+    if(aero_closure_n LESS 3)
+        message(FATAL_ERROR
+            "Include-closure script returned a malformed line: ${aero_closure_output}")
+    endif()
+    list(GET aero_closure_parts 1 aero_closure_lines)
+    list(GET aero_closure_parts 2 aero_closure_files)
+    set(${out_lines} "${aero_closure_lines}" PARENT_SCOPE)
+    set(${out_files} "${aero_closure_files}" PARENT_SCOPE)
+endfunction()
+
+function(aero_require_include_closure_budget relative_header max_lines)
+    aero_include_closure_count(
+        "${relative_header}" aero_budget_lines aero_budget_files)
+    if(aero_budget_lines GREATER max_lines)
+        message(FATAL_ERROR
+            "${relative_header} public include-closure is ${aero_budget_lines} lines (${aero_budget_files} headers); cap is ${max_lines}")
+    endif()
+    message(STATUS
+        "${relative_header} include-closure ${aero_budget_lines} lines / ${aero_budget_files} headers (cap ${max_lines})")
+endfunction()
+
 # ---------------------------------------------------------------------------
 # Installed SDK surface
 # ---------------------------------------------------------------------------
@@ -1495,6 +1536,92 @@ aero_require_text(
     "mutable ResourceDictionary* resources_ = nullptr;"
     "FrameworkContentElement local resources must be a lazy pointer")
 aero_forbid_text(
+    "include/Aero/FrameworkElement.hpp"
+    "Base::Vector"
+    "FrameworkElement private storage must not contain Base::Vector; authored data lives on Rare")
+aero_require_text(
+    "include/Aero/FrameworkElement.hpp"
+    "FrameworkRare* frameworkRare_ = nullptr;"
+    "FrameworkElement must keep a lazy FrameworkRare* instead of hot Vectors")
+aero_forbid_text(
+    "include/Aero/FrameworkContentElement.hpp"
+    "Base::Vector"
+    "FrameworkContentElement private storage must not contain Base::Vector; authored data lives on Rare")
+aero_require_text(
+    "include/Aero/FrameworkContentElement.hpp"
+    "FrameworkContentRare* frameworkRare_ = nullptr;"
+    "FrameworkContentElement must keep a lazy FrameworkContentRare* instead of hot Vectors")
+
+file(GLOB aero_animation_public_headers
+    "${AERO_SOURCE_DIR}/include/Aero/Media/Animation/*.hpp")
+foreach(aero_animation_header IN LISTS aero_animation_public_headers)
+    file(RELATIVE_PATH aero_animation_relative
+        "${AERO_SOURCE_DIR}" "${aero_animation_header}")
+    get_filename_component(aero_animation_stem
+        "${aero_animation_header}" NAME_WE)
+    file(READ "${aero_animation_header}" aero_animation_content)
+    # StoryboardCompletedTrigger is retargeted to TriggerBase in the wrap-up
+    # TriggerBase wave. Until then it is the only Animation header allowed to
+    # inherit Object; every other type stays on Freezable/Timeline/TriggerBase.
+    if(NOT aero_animation_stem STREQUAL "StoryboardCompletedTrigger")
+        if(aero_animation_content MATCHES ": public[ \t]+Base::Object")
+            message(FATAL_ERROR
+                "Animation header must not inherit Base::Object: ${aero_animation_relative}")
+        endif()
+    endif()
+    if(aero_animation_stem STREQUAL "KeyFrameBase")
+        if(NOT aero_animation_content MATCHES ": public[ \t]+::Aero::Freezable")
+            message(FATAL_ERROR
+                "KeyFrameBase must inherit Freezable: ${aero_animation_relative}")
+        endif()
+    elseif(aero_animation_stem STREQUAL "KeyFrame")
+        if(NOT aero_animation_content MATCHES ": public[ \t]+KeyFrameBase")
+            message(FATAL_ERROR
+                "template KeyFrame<T> must inherit KeyFrameBase: ${aero_animation_relative}")
+        endif()
+    elseif(aero_animation_stem MATCHES "KeyFrame$")
+        if(NOT aero_animation_content MATCHES
+                ": public[ \t]+(KeyFrameBase|KeyFrame<|[A-Za-z0-9_]*KeyFrame)")
+            message(FATAL_ERROR
+                "*KeyFrame must be traceable to KeyFrameBase: ${aero_animation_relative}")
+        endif()
+    endif()
+    if(aero_animation_stem MATCHES "AnimationBase$")
+        if(NOT aero_animation_content MATCHES ": public[ \t]+AnimationTimeline")
+            message(FATAL_ERROR
+                "*AnimationBase must inherit AnimationTimeline: ${aero_animation_relative}")
+        endif()
+    endif()
+endforeach()
+aero_require_text(
+    "include/Aero/Media/Animation/Storyboard.hpp"
+    "class AERO_GUI_API Storyboard : public ParallelTimeline"
+    "Storyboard must inherit ParallelTimeline")
+aero_require_text(
+    "include/Aero/Media/Animation/ParallelTimeline.hpp"
+    "class AERO_GUI_API ParallelTimeline : public TimelineGroup"
+    "ParallelTimeline must inherit TimelineGroup")
+aero_require_text(
+    "include/Aero/Media/Animation/TimelineGroup.hpp"
+    "class AERO_GUI_API TimelineGroup : public Timeline"
+    "TimelineGroup must inherit Timeline")
+aero_require_text(
+    "include/Aero/Media/Animation/Timeline.hpp"
+    "class AERO_GUI_API Timeline : public ::Aero::Freezable"
+    "Timeline must inherit Freezable")
+aero_require_text(
+    "include/Aero/Media/Animation/EasingFunctionBase.hpp"
+    "class AERO_GUI_API EasingFunctionBase : public ::Aero::Freezable"
+    "EasingFunctionBase must inherit Freezable, not DependencyObject")
+aero_forbid_text(
+    "include/Aero/Media/Animation.hpp"
+    "#include <Aero/Interactivity"
+    "Animation.hpp umbrella must not reverse-include the interactivity layer")
+aero_forbid_text(
+    "include/Aero/Media/Animation.hpp"
+    "StoryboardCompletedTrigger"
+    "Animation.hpp umbrella must not pull StoryboardCompletedTrigger")
+aero_forbid_text(
     "include/Aero/Visual.hpp"
     "bool renderAttached_"
     "Visual render bools must be packed into visualFlags_, not one-byte members")
@@ -2063,6 +2190,20 @@ foreach(gui_kernel_file IN LISTS aero_gui_kernel_files)
                 "Retired Facet/Access kernel token '${retired_facet_token}' remains in ${gui_kernel_relative}")
         endif()
     endforeach()
+endforeach()
+
+# Include-closure budgets are filled after the four installed-header cuts.
+# Until those caps exist this block only records the measured public closures.
+foreach(aero_closure_header IN ITEMS
+        "include/Aero/Controls/Button.hpp"
+        "include/Aero/Controls/TextBlock.hpp"
+        "include/Aero/Controls/Panel.hpp")
+    aero_include_closure_count(
+        "${aero_closure_header}"
+        aero_closure_lines
+        aero_closure_files)
+    message(STATUS
+        "${aero_closure_header} include-closure ${aero_closure_lines} lines / ${aero_closure_files} headers")
 endforeach()
 
 message(STATUS "Aero final architecture dependency checks passed")
