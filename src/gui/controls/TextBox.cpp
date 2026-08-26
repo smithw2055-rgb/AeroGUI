@@ -427,6 +427,7 @@ Size PasswordBox::MeasureOverride(
     editor_.SetSelectionBrush(GetSelectionBrush());
     editor_.SetSelectionOpacity(GetSelectionOpacity());
     editor_.SetCaretBrush(GetCaretBrush());
+    editor_.SetPlaceholder(GetPlaceholder());
     Base::Result<Size> measuredEditor =
         editor_.MeasureOverride(availableSize);
     if (!measuredEditor) {
@@ -460,7 +461,11 @@ Size PasswordBox::ArrangeOverride(
 
 void PasswordBox::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    if (GetTemplateRoot() != nullptr) return;
+    DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
+    if (part != nullptr && PropertyRegistry().Types().IsDerivedFrom(
+            part->RuntimeType(), ScrollViewer::StaticTypeId())) {
+        return;
+    }
     static_cast<void>(editor_.RenderEditor(
         context,
         GetRenderSize(),
@@ -3054,6 +3059,11 @@ void TextEditBehavior::OnPropertyChanged(
                     SetCaretBrush(
                         passwordBox.
                             GetCaretBrush()));
+        } else if (args.GetProperty() ==
+                PasswordBox::
+                    PlaceholderProperty) {
+            passwordBox.editor_.SetPlaceholder(
+                passwordBox.GetPlaceholder());
         } else if (args.GetProperty() ==
                        UIElement::
                            IsEnabledProperty &&

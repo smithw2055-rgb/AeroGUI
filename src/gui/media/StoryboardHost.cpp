@@ -1,5 +1,6 @@
 #include "gui/ViewState.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include <Aero/CommandBinding.hpp>
 #include <Aero/Media/Animation/EventTrigger.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
 #include <Aero/Media/PathGeometry.hpp>
@@ -2093,6 +2094,13 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     if (!binding) continue;
                     Base::Result<Input::InputBindingHandle> added =
                         input->AddInputBinding(*element, binding);
+                    if (!added) return added.GetStatus();
+                }
+                for (const Base::Ref<Input::CommandBinding>& binding :
+                     element->GetCommandBindings()) {
+                    if (!binding) continue;
+                    Base::Result<Input::CommandBindingHandle> added =
+                        input->AddCommandBinding(*element, *binding);
                     if (!added) return added.GetStatus();
                 }
             }

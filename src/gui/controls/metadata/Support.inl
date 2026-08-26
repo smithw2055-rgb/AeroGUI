@@ -351,26 +351,6 @@ void ClearGridRowDefinitions(
     static_cast<Grid&>(owner).ClearRowDefinitionObjects();
 }
 
-void AddGridInputBinding(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    Input::InputBinding* binding =
-        ::Aero::TryCast<Input::InputBinding>(value.Get());
-    if (binding == nullptr) return;
-    Base::Ref<Input::InputBinding> retained =
-        Base::Ref<Input::InputBinding>::TryFromBorrowed(*binding);
-    if (retained) {
-        (void)static_cast<Grid&>(owner).AddInputBinding(std::move(retained));
-    }
-}
-
-void ClearGridInputBindings(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<Grid&>(owner).ClearInputBindings();
-}
-
 bool ValidateGridDefinitionsText(
     const Base::String& value) noexcept {
     Base::Vector<GridLength> parsed;

@@ -238,10 +238,6 @@ Base::Result<void> PopulateControlsPanels(
             "RowDefinitions",
             &AddGridRowDefinition,
             &ClearGridRowDefinitions)
-        .Collection<Input::InputBinding>(
-            "InputBindings",
-            &AddGridInputBinding,
-            &ClearGridInputBindings)
         .Property(
             Grid::RowProperty,
             FrameworkPropertyMetadata(std::uint32_t{0})

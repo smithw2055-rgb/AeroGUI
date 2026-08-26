@@ -162,7 +162,15 @@ Base::Result<void> PopulateUiElements(
         .Property(
             UIElement::RenderTransformOriginProperty,
             FrameworkPropertyMetadata(Point{})
-                .Changed(&OnRenderStateChanged));
+                .Changed(&OnRenderStateChanged))
+        .Collection<InputBinding>(
+            "InputBindings",
+            &AddUiElementInputBinding,
+            &ClearUiElementInputBindings)
+        .Collection<CommandBinding>(
+            "CommandBindings",
+            &AddUiElementCommandBinding,
+            &ClearUiElementCommandBindings);
     status = uiElement.Result();
     if (!status) return status.GetStatus();
 

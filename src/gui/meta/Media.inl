@@ -668,12 +668,30 @@ Base::Result<void> PopulateUiMedia(
     if (!status) return status.GetStatus();
     status = Meta::Register<KeyGesture>(context).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Register<RoutedCommand>(context).Result();
+    status = Meta::Register<RoutedCommand>(context)
+        .TextConverter(&ConvertRoutedCommandReference)
+        .Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<RoutedUICommand>(context).Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<InputBinding>(
         context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+    auto commandBinding = Meta::Register<CommandBinding>(context);
+    commandBinding
+        .Property("Command", &CommandBinding::GetCommandName,
+            &CommandBinding::SetCommandName)
+        .Property("Executed", &CommandBinding::GetExecutedName,
+            &CommandBinding::SetExecutedName)
+        .Property("CanExecute", &CommandBinding::GetCanExecuteName,
+            &CommandBinding::SetCanExecuteName)
+        .Factory();
+    status = commandBinding.Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<ApplicationCommands>(
+        context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+    status = ApplicationCommands::RegisterDefaults();
     if (!status) return status.GetStatus();
     return {};
 }

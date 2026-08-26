@@ -2069,6 +2069,8 @@ constexpr Base::StringView WpfPresentationNamespace(
     "http://schemas.microsoft.com/winfx/2006/xaml/presentation");
 constexpr Base::StringView BehaviorsNamespace(
     "http://schemas.microsoft.com/xaml/behaviors");
+constexpr Base::StringView BlendInteractivityNamespace(
+    "http://schemas.microsoft.com/expression/2010/interactivity");
 constexpr Base::StringView SystemNamespacePrefix(
     "clr-namespace:System");
 
@@ -2076,12 +2078,19 @@ Base::StringView CanonicalXamlNamespace(
     Base::StringView value) noexcept {
     constexpr Base::StringView AeroExtensionsPrefix(
         "clr-namespace:AeroGUIExtensions");
-    const bool aeroExtensions = value.SizeBytes() >=
-            AeroExtensionsPrefix.SizeBytes() &&
-        value.Substr(0U, AeroExtensionsPrefix.SizeBytes()) ==
-            AeroExtensionsPrefix;
+    constexpr Base::StringView AeroGuiExtensionsPrefix(
+        "clr-namespace:Aero.GUI.Extensions");
+    const bool aeroExtensions =
+        (value.SizeBytes() >= AeroExtensionsPrefix.SizeBytes() &&
+            value.Substr(0U, AeroExtensionsPrefix.SizeBytes()) ==
+                AeroExtensionsPrefix) ||
+        (value.SizeBytes() >= AeroGuiExtensionsPrefix.SizeBytes() &&
+            value.Substr(0U, AeroGuiExtensionsPrefix.SizeBytes()) ==
+                AeroGuiExtensionsPrefix);
     return value == WpfPresentationNamespace ||
-            value == BehaviorsNamespace || aeroExtensions
+            value == BehaviorsNamespace ||
+            value == BlendInteractivityNamespace ||
+            aeroExtensions
         ? Meta::AeroNamespaceUri()
         : value;
 }
@@ -2096,9 +2105,13 @@ bool IsSystemNamespace(
 
 Base::StringView CanonicalXamlTypeName(
     Base::StringView value) noexcept {
-    return value == Base::StringView("Geometry")
-        ? Base::StringView("StreamGeometry")
-        : value;
+    if (value == Base::StringView("Geometry")) {
+        return Base::StringView("StreamGeometry");
+    }
+    if (value == Base::StringView("VisualStateTransition")) {
+        return Base::StringView("VisualTransition");
+    }
+    return value;
 }
 
 bool IsAeroExtensionsFacade(
@@ -2106,11 +2119,13 @@ bool IsAeroExtensionsFacade(
     Base::StringView ownerName) noexcept {
     constexpr Base::StringView Prefix(
         "clr-namespace:AeroGUIExtensions");
+    constexpr Base::StringView GuiPrefix(
+        "clr-namespace:Aero.GUI.Extensions");
     const bool namespaceMatches =
-        xamlNamespace.SizeBytes() >=
-            Prefix.SizeBytes() &&
-        xamlNamespace.Substr(
-            0U, Prefix.SizeBytes()) == Prefix;
+        (xamlNamespace.SizeBytes() >= Prefix.SizeBytes() &&
+            xamlNamespace.Substr(0U, Prefix.SizeBytes()) == Prefix) ||
+        (xamlNamespace.SizeBytes() >= GuiPrefix.SizeBytes() &&
+            xamlNamespace.Substr(0U, GuiPrefix.SizeBytes()) == GuiPrefix);
     return namespaceMatches &&
         (ownerName == Base::StringView("Text") ||
          ownerName == Base::StringView("Path") ||
@@ -3169,6 +3184,8 @@ constexpr Base::StringView SchemaWpfPresentationNamespace(
     "http://schemas.microsoft.com/winfx/2006/xaml/presentation");
 constexpr Base::StringView SchemaBehaviorsNamespace(
     "http://schemas.microsoft.com/xaml/behaviors");
+constexpr Base::StringView SchemaBlendInteractivityNamespace(
+    "http://schemas.microsoft.com/expression/2010/interactivity");
 constexpr Base::StringView SchemaSystemNamespacePrefix(
     "clr-namespace:System");
 
@@ -3176,12 +3193,19 @@ Base::StringView SchemaCanonicalXamlNamespace(
     Base::StringView value) noexcept {
     constexpr Base::StringView AeroExtensionsPrefix(
         "clr-namespace:AeroGUIExtensions");
-    const bool aeroExtensions = value.SizeBytes() >=
-            AeroExtensionsPrefix.SizeBytes() &&
-        value.Substr(0U, AeroExtensionsPrefix.SizeBytes()) ==
-            AeroExtensionsPrefix;
+    constexpr Base::StringView AeroGuiExtensionsPrefix(
+        "clr-namespace:Aero.GUI.Extensions");
+    const bool aeroExtensions =
+        (value.SizeBytes() >= AeroExtensionsPrefix.SizeBytes() &&
+            value.Substr(0U, AeroExtensionsPrefix.SizeBytes()) ==
+                AeroExtensionsPrefix) ||
+        (value.SizeBytes() >= AeroGuiExtensionsPrefix.SizeBytes() &&
+            value.Substr(0U, AeroGuiExtensionsPrefix.SizeBytes()) ==
+                AeroGuiExtensionsPrefix);
     return value == SchemaWpfPresentationNamespace ||
-            value == SchemaBehaviorsNamespace || aeroExtensions
+            value == SchemaBehaviorsNamespace ||
+            value == SchemaBlendInteractivityNamespace ||
+            aeroExtensions
         ? Meta::AeroNamespaceUri()
         : value;
 }
@@ -3196,9 +3220,13 @@ bool SchemaIsSystemNamespace(
 
 Base::StringView SchemaCanonicalXamlTypeName(
     Base::StringView value) noexcept {
-    return value == Base::StringView("Geometry")
-        ? Base::StringView("StreamGeometry")
-        : value;
+    if (value == Base::StringView("Geometry")) {
+        return Base::StringView("StreamGeometry");
+    }
+    if (value == Base::StringView("VisualStateTransition")) {
+        return Base::StringView("VisualTransition");
+    }
+    return value;
 }
 
 bool SchemaIsAeroExtensionsFacade(
@@ -3206,11 +3234,13 @@ bool SchemaIsAeroExtensionsFacade(
     Base::StringView ownerName) noexcept {
     constexpr Base::StringView Prefix(
         "clr-namespace:AeroGUIExtensions");
+    constexpr Base::StringView GuiPrefix(
+        "clr-namespace:Aero.GUI.Extensions");
     const bool namespaceMatches =
-        xamlNamespace.SizeBytes() >=
-            Prefix.SizeBytes() &&
-        xamlNamespace.Substr(
-            0U, Prefix.SizeBytes()) == Prefix;
+        (xamlNamespace.SizeBytes() >= Prefix.SizeBytes() &&
+            xamlNamespace.Substr(0U, Prefix.SizeBytes()) == Prefix) ||
+        (xamlNamespace.SizeBytes() >= GuiPrefix.SizeBytes() &&
+            xamlNamespace.Substr(0U, GuiPrefix.SizeBytes()) == GuiPrefix);
     return namespaceMatches &&
         (ownerName == Base::StringView("Text") ||
          ownerName == Base::StringView("Path") ||

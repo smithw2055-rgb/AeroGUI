@@ -60,6 +60,20 @@
 #include <Aero/Module.hpp>
 #include <Aero/Shapes/Path.hpp>
 #include <Aero/Style.hpp>
+#include <Aero/CommandBinding.hpp>
+#include <Aero/ApplicationCommands.hpp>
+#include <Aero/Controls/BulletDecorator.hpp>
+#include <Aero/Controls/ColumnDefinition.hpp>
+#include <Aero/Controls/ListView.hpp>
+#include <Aero/Controls/Page.hpp>
+#include <Aero/Controls/PasswordBox.hpp>
+#include <Aero/Controls/TreeViewItem.hpp>
+#include <Aero/Interactivity/Interaction.hpp>
+#include <Aero/KeyBinding.hpp>
+#include <Aero/Media/BitmapImage.hpp>
+#include <Aero/Media/BlurEffect.hpp>
+#include <Aero/Media/RotateTransform.hpp>
+#include <Aero/TextProperties.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/View.hpp>
@@ -97,6 +111,7 @@ using Aero::Controls::ItemsControl;
 using Aero::Controls::ListBox;
 using Aero::Controls::ListBoxItem;
 using Aero::Controls::Panel;
+using Aero::Controls::PasswordBox;
 using Aero::Controls::StackPanel;
 using Aero::Controls::TabControl;
 using Aero::Controls::TextBlock;
@@ -109,6 +124,8 @@ using Aero::DataTemplate;
 using Aero::DataTemplateSelector;
 using Aero::FrameworkElement;
 using Aero::Gui;
+using Aero::BlendMode;
+using Aero::Input::ApplicationCommands;
 using Aero::Media::ArcSegment;
 using Aero::Media::BezierSegment;
 using Aero::Media::CombinedGeometry;
@@ -468,6 +485,20 @@ void DumpDiagnostics(const Aero::Diagnostics::DiagnosticBag& bag) noexcept {
             static_cast<int>(message.SizeBytes()),
             message.Data());
     }
+}
+
+bool ParseMarkup(
+    LiveGui& live,
+    StringView markup) noexcept {
+    Aero::Markup::XamlReader reader(live.gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(markup);
+    if (!document) {
+        std::fprintf(stderr, "XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live.diagnostics);
+        return false;
+    }
+    return document.Value().IsValid();
 }
 
 bool MountMarkup(
@@ -1208,6 +1239,142 @@ bool TestCustomItemsSourceThunk() {
     return true;
 }
 
+bool TestGalleryXamlSurface() {
+    static_assert(std::is_base_of<Aero::Base::Object, Aero::Input::CommandBinding>::value,
+        "CommandBinding must be an Object so XAML can construct it");
+    static_assert(std::is_base_of<Aero::Controls::HeaderedItemsControl, Aero::Controls::TreeViewItem>::value,
+        "TreeViewItem must derive HeaderedItemsControl");
+    static_assert(std::is_base_of<Aero::Controls::UserControl, Aero::Controls::Page>::value,
+        "Page must derive UserControl");
+    static_assert(std::is_base_of<Aero::Media::ImageSource, Aero::Media::BitmapImage>::value,
+        "BitmapImage must derive ImageSource");
+
+    Gui gui;
+    Result<void> initialized = gui.Initialize();
+    CHECK(initialized);
+    Aero::Markup::XamlReader reader(gui);
+
+    auto parse = [&](StringView markup) -> bool {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(markup);
+        if (!document) {
+            std::fprintf(stderr, "XAML parse failed: %s\n",
+                document.GetStatus().message);
+            return false;
+        }
+        return document.Value().IsValid();
+    };
+
+    {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+            "<Grid.ColumnDefinitions>"
+            "<ColumnDefinition Width=\"Auto\"/>"
+            "<ColumnDefinition Width=\"*\"/>"
+            "</Grid.ColumnDefinitions>"
+            "<Grid.CommandBindings>"
+            "<CommandBinding Command=\"Copy\"/>"
+            "</Grid.CommandBindings>"
+            "<Grid.InputBindings>"
+            "<KeyBinding Command=\"Copy\" Key=\"C\" Modifiers=\"Control\"/>"
+            "</Grid.InputBindings>"
+            "<Button Content=\"Hi\"/>"
+            "</Grid>"));
+        CHECK(document);
+        Grid* grid = document.Value().Root<Grid>();
+        CHECK(grid != nullptr);
+        CHECK(grid->GetCommandBindings().Size() == 1U);
+        CHECK(grid->GetInputBindings().Size() == 1U);
+        CHECK(grid->GetCommandBindings()[0]->GetCommand() != nullptr);
+        CHECK(grid->GetInputBindings()[0]->GetCommand().Get() ==
+            grid->GetCommandBindings()[0]->GetCommand());
+        Result<Ref<Aero::Input::RoutedCommand>> copy =
+            ApplicationCommands::Copy();
+        CHECK(copy);
+        CHECK(grid->GetCommandBindings()[0]->GetCommand() ==
+            copy.Value().Get());
+    }
+
+    {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<PasswordBox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:aero=\"clr-namespace:Aero.GUI.Extensions\""
+            " aero:Text.Placeholder=\"secret\"/>"));
+        CHECK(document);
+        PasswordBox* password = document.Value().Root<PasswordBox>();
+        CHECK(password != nullptr);
+        CHECK(password->GetPlaceholder() == StringView("secret"));
+    }
+
+    CHECK(parse(StringView(
+        "<Button xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+        " xmlns:i=\"http://schemas.microsoft.com/expression/2010/interactivity\">"
+        "<i:Interaction.Behaviors>"
+        "</i:Interaction.Behaviors>"
+        "</Button>")));
+
+    CHECK(parse(StringView(
+        "<ListView xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<ListView.View>"
+        "<GridView>"
+        "<GridViewColumn Header=\"Name\"/>"
+        "</GridView>"
+        "</ListView.View>"
+        "</ListView>")));
+
+    CHECK(parse(StringView(
+        "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<VisualStateManager.VisualStateGroups>"
+        "<VisualStateGroup>"
+        "<VisualState Name=\"Normal\"/>"
+        "<VisualStateGroup.Transitions>"
+        "<VisualStateTransition From=\"Normal\" To=\"Normal\""
+        " GeneratedDuration=\"0:0:0.1\"/>"
+        "</VisualStateGroup.Transitions>"
+        "</VisualStateGroup>"
+        "</VisualStateManager.VisualStateGroups>"
+        "</Grid>")));
+
+    {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Button xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " BlendMode=\"Multiply\">"
+            "<Button.LayoutTransform>"
+            "<RotateTransform Angle=\"15\"/>"
+            "</Button.LayoutTransform>"
+            "<Button.Effect>"
+            "<BlurEffect Radius=\"4\"/>"
+            "</Button.Effect>"
+            "</Button>"));
+        CHECK(document);
+        Button* button = document.Value().Root<Button>();
+        CHECK(button != nullptr);
+        CHECK(button->GetBlendMode() == BlendMode::Multiply);
+        CHECK(button->GetLayoutTransform().Get() != nullptr);
+        CHECK(button->GetEffect().Get() != nullptr);
+    }
+    {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Button xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:aero=\"clr-namespace:Aero.GUI.Extensions\""
+            " aero:Element.BlendingMode=\"Screen\"/>"));
+        CHECK(document);
+        Button* button = document.Value().Root<Button>();
+        CHECK(button != nullptr);
+        CHECK(button->GetBlendMode() == BlendMode::Screen);
+    }
+
+    CHECK(parse(StringView(
+        "<TabControl xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<TabItem Header=\"One\"><TextBlock Text=\"A\"/></TabItem>"
+        "<TabItem Header=\"Two\"><TextBlock Text=\"B\"/></TabItem>"
+        "</TabControl>")));
+    CHECK(parse(StringView(
+        "<ScrollViewer xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<StackPanel><TextBlock Text=\"Hi\"/></StackPanel>"
+        "</ScrollViewer>")));
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -1226,6 +1393,7 @@ int main() {
     RUN(TestStrokeJoinCapFillRule);
     RUN(TestNotifyPropertyChangedBindLoop);
     RUN(TestCustomItemsSourceThunk);
+    RUN(TestGalleryXamlSurface);
     std::puts("Aero framework conformance tests passed");
     return 0;
 }

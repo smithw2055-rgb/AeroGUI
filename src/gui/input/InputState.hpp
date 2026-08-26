@@ -91,7 +91,9 @@ private:
     struct BindingRecord {
         CommandBindingHandle handle;
         VisualHandle owner;
-        CommandBinding binding;
+        Base::Ref<RoutedCommand> command;
+        CanExecuteRoutedEventHandler canExecute;
+        ExecutedRoutedEventHandler executed;
     };
     struct InputBindingRecord {
         InputBindingHandle handle;

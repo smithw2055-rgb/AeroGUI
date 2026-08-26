@@ -1,6 +1,7 @@
 // Auto-relocated base-class method definitions (WPF semantic kernel).
 #include <Aero/UIElement.hpp>
 #include <Aero/InputBinding.hpp>
+#include <Aero/CommandBinding.hpp>
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Allocator.hpp>
@@ -396,6 +397,43 @@ UIElement::GetInputBindings() const noexcept {
     }
     const auto* storage = static_cast<
         const Base::Vector<Base::Ref<Input::InputBinding>>*>(rare_->inputBindings);
+    return {storage->Data(), storage->Size()};
+}
+
+Base::Result<void> UIElement::AddCommandBinding(
+    Base::Ref<Input::CommandBinding> binding) noexcept {
+    if (!binding) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "CommandBinding cannot be null");
+    }
+    Base::Result<void> finalized = binding->Finalize();
+    if (!finalized) return finalized.GetStatus();
+    Rare& rare = EnsureRare();
+    auto*& storage = reinterpret_cast<Base::Vector<Base::Ref<Input::CommandBinding>>*&>(
+        rare.commandBindings);
+    if (storage == nullptr) {
+        storage = new (std::nothrow) Base::Vector<Base::Ref<Input::CommandBinding>>();
+        if (storage == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory, "CommandBindings allocation failed");
+        }
+    }
+    return storage->PushBack(std::move(binding));
+}
+
+void UIElement::ClearCommandBindings() noexcept {
+    if (rare_ == nullptr || rare_->commandBindings == nullptr) return;
+    static_cast<Base::Vector<Base::Ref<Input::CommandBinding>>*>(
+        rare_->commandBindings)->Clear();
+}
+
+Base::Span<const Base::Ref<Input::CommandBinding>>
+UIElement::GetCommandBindings() const noexcept {
+    if (rare_ == nullptr || rare_->commandBindings == nullptr) {
+        return {};
+    }
+    const auto* storage = static_cast<
+        const Base::Vector<Base::Ref<Input::CommandBinding>>*>(rare_->commandBindings);
     return {storage->Data(), storage->Size()};
 }
 
@@ -805,6 +843,11 @@ UIElement::~UIElement() {
         delete static_cast<Base::Vector<Base::Ref<Input::InputBinding>>*>(
             rare_->inputBindings);
         rare_->inputBindings = nullptr;
+    }
+    if (rare_ != nullptr && rare_->commandBindings != nullptr) {
+        delete static_cast<Base::Vector<Base::Ref<Input::CommandBinding>>*>(
+            rare_->commandBindings);
+        rare_->commandBindings = nullptr;
     }
     delete rare_;
     rare_ = nullptr;

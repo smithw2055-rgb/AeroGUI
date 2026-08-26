@@ -21,14 +21,15 @@ Base::Result<Value> ConvertRoutedCommandReference(
     void*) noexcept {
     const Base::StringView name =
         ::Aero::Base::ValueConversion::Trim(text);
-    if (targetType != ICommand::StaticTypeId() ||
+    if ((targetType != ICommand::StaticTypeId() &&
+         targetType != RoutedCommand::StaticTypeId()) ||
         name.Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Command reference requires a non-empty routed command name");
     }
     Base::Result<Base::Ref<RoutedCommand>> command =
-        Base::MakeRef<RoutedCommand>(name);
+        RoutedCommand::ResolveAuthored(name);
     if (!command) return command.GetStatus();
     return Value::FromObject(
         targetType,
@@ -708,6 +709,46 @@ void ClearFrameworkEventTriggers(
     static_cast<void>(
         AeroGuiInternal::ClearAuthoredTriggers(
             static_cast<FrameworkElement&>(owner)));
+}
+
+void AddUiElementInputBinding(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    InputBinding* binding = ::Aero::TryCast<InputBinding>(value.Get());
+    if (binding == nullptr) return;
+    Base::Ref<InputBinding> retained =
+        Base::Ref<InputBinding>::TryFromBorrowed(*binding);
+    if (retained) {
+        (void)static_cast<UIElement&>(owner).AddInputBinding(
+            std::move(retained));
+    }
+}
+
+void ClearUiElementInputBindings(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<UIElement&>(owner).ClearInputBindings();
+}
+
+void AddUiElementCommandBinding(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    CommandBinding* binding = ::Aero::TryCast<CommandBinding>(value.Get());
+    if (binding == nullptr) return;
+    Base::Ref<CommandBinding> retained =
+        Base::Ref<CommandBinding>::TryFromBorrowed(*binding);
+    if (retained) {
+        (void)static_cast<UIElement&>(owner).AddCommandBinding(
+            std::move(retained));
+    }
+}
+
+void ClearUiElementCommandBindings(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<UIElement&>(owner).ClearCommandBindings();
 }
 
 void AddStoryboardTimeline(

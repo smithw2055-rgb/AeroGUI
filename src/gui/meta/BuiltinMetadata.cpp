@@ -130,6 +130,8 @@ Base::Result<void> PopulateCoreMetadata(
 #include <Aero/KeyboardNavigation.hpp>
 #include <Aero/FocusManager.hpp>
 #include <Aero/KeyBinding.hpp>
+#include <Aero/CommandBinding.hpp>
+#include <Aero/ApplicationCommands.hpp>
 #include <Aero/KeyGesture.hpp>
 #include <Aero/InputGesture.hpp>
 #include <Aero/Media/Animation.hpp>
