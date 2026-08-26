@@ -64,7 +64,7 @@ struct ValueTypeRegistration {
     bool inlineSafe = false;
 };
 
-class AERO_GUI_API ValueTypeSemantics : public Base::Object {
+class AERO_BASE_API ValueTypeSemantics : public Base::Object {
 public:
     explicit ValueTypeSemantics(const ValueTypeRegistration& registration) noexcept : registration_(registration) {}
     const ValueTypeRegistration& Registration() const noexcept { return registration_; }
@@ -72,7 +72,7 @@ private:
     ValueTypeRegistration registration_;
 };
 
-class AERO_GUI_API Value {
+class AERO_BASE_API Value {
 public:
     static constexpr std::uint32_t InlineCapacity = 32U;
     Value() noexcept = default;
