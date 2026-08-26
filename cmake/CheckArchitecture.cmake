@@ -1314,6 +1314,46 @@ aero_require_text(
     "src/gui/internal/AeroGuiInternal.hpp"
     "#include \"gui/internal/AeroGuiInternal.Property.hpp\""
     "AeroGuiInternal property-store members must stay in the single friend class via section include")
+aero_require_text(
+    "src/gui/internal/PropertyStore.hpp"
+    "struct StoredValueRare"
+    "Packed StoredValueEntry must keep expression/animation/current in StoredValueRare")
+aero_require_text(
+    "src/gui/internal/PropertyStore.hpp"
+    "StoredValueRare* rare"
+    "Packed StoredValueEntry must hold an uncommon-data pointer, not six PropertyValues")
+aero_forbid_text(
+    "src/gui/internal/PropertyStore.hpp"
+    "PropertyValue baseValue"
+    "Packed StoredValueEntry must not store the unused baseValue snapshot")
+aero_forbid_text(
+    "src/gui/internal/PropertyStore.hpp"
+    "PropertyValue localValue;\n    PropertyValue currentValue;\n    PropertyValue inheritedValue;"
+    "Packed StoredValueEntry must not keep the six-copy PropertyValue layout")
+aero_require_text(
+    "include/Aero/DependencyProperty.hpp"
+    "void* valueStore_ = nullptr;"
+    "Public DependencyObject ABI must keep valueStore_ as opaque void*")
+aero_require_text(
+    "src/gui/core/DependencyObject.cpp"
+    "store->entries.Find(propertyHandle.value)"
+    "GetValue must probe the property store by the incoming handle before registry Find")
+aero_require_text(
+    "src/gui/core/DependencyObject.cpp"
+    "Canonical-handle hot path"
+    "GetValue must skip registry Find for a canonical handle that already has a store entry")
+aero_require_text(
+    "src/gui/styles/StyleState.hpp"
+    "struct StyleSetter {\n    DependencyPropertyHandle property;"
+    "Style setters must key by DependencyPropertyHandle, not property name")
+aero_require_text(
+    "src/gui/templates/TemplateProgram.hpp"
+    "struct VisualStateSetterPlan {\n    Base::String targetName;\n    DependencyPropertyHandle property;"
+    "VSM setters must key by DependencyPropertyHandle, not property name")
+aero_require_text(
+    "src/gui/templates/TemplateProgram.hpp"
+    "struct TemplateTriggerSetter {\n    Base::String targetName;\n    DependencyPropertyHandle property;"
+    "Template trigger setters must key by DependencyPropertyHandle, not property name")
 aero_forbid_text(
     "src/gui/internal/AeroGuiInternal.hpp"
     "class AeroGuiInternalLayout"

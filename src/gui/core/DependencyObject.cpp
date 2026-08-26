@@ -162,8 +162,8 @@ Base::Result<void> DependencyObject::ApplyChange(
         ? entry.sourceInfo : PropertyValueSourceInfo{};
     const std::uint64_t oldRevision = oldSourceInfo.revision;
     const PropertyValue oldLocal = entry.localValue;
-    const PropertyValue oldCurrent = entry.currentValue;
-    const PropertyExpression oldExpression = entry.localExpression;
+    const PropertyValue oldCurrent = entry.CurrentValueOrUnset();
+    const PropertyExpression oldExpression = entry.ExpressionOrEmpty();
     const bool oldHasLocal = entry.hasLocal;
     const bool oldHasCurrent = entry.hasCurrent;
     const bool oldHasExpression = entry.hasExpression;
@@ -171,16 +171,37 @@ Base::Result<void> DependencyObject::ApplyChange(
         (kind == ChangeKind::SetLocal || kind == ChangeKind::Clear);
     switch (kind) {
     case ChangeKind::SetLocal:
-        entry.localExpression = {}; entry.hasExpression = false;
-        entry.localValue = *requestedValue; entry.hasLocal = true;
-        entry.currentValue = PropertyValue::Unset(); entry.hasCurrent = false; break;
-    case ChangeKind::SetCurrent:
-        entry.currentValue = *requestedValue; entry.hasCurrent = true; break;
+        if (entry.rare != nullptr) {
+            entry.rare->localExpression = {};
+        }
+        entry.hasExpression = false;
+        entry.localValue = *requestedValue;
+        entry.hasLocal = true;
+        entry.ClearCurrent();
+        break;
+    case ChangeKind::SetCurrent: {
+        Base::Result<StoredValueRare*> block = entry.EnsureRare();
+        if (!block) {
+            if (!hadEntry) {
+                RemoveStoredEntry(CanonicalPropertyKey(propertyHandle));
+            }
+            return block.GetStatus();
+        }
+        block.Value()->currentValue = *requestedValue;
+        entry.hasCurrent = true;
+        break;
+    }
     case ChangeKind::Clear:
-        entry.localExpression = {}; entry.hasExpression = false;
-        entry.localValue = PropertyValue::Unset(); entry.currentValue = PropertyValue::Unset();
-        entry.hasLocal = false; entry.hasCurrent = false; break;
-    case ChangeKind::ReCoerce: break;
+        if (entry.rare != nullptr) {
+            entry.rare->localExpression = {};
+        }
+        entry.hasExpression = false;
+        entry.localValue = PropertyValue::Unset();
+        entry.hasLocal = false;
+        entry.ClearCurrent();
+        break;
+    case ChangeKind::ReCoerce:
+        break;
     }
     Base::Result<void> recomputed = RecomputeEffectiveValueCore(
         propertyHandle, *property, *metadata, oldEffective, oldSourceInfo);
@@ -201,11 +222,28 @@ Base::Result<void> DependencyObject::ApplyChange(
     }
     if (storedEntry != nullptr) {
         storedEntry->localValue = oldLocal;
-        storedEntry->currentValue = oldCurrent;
-        storedEntry->localExpression = oldExpression;
         storedEntry->hasLocal = oldHasLocal;
         storedEntry->hasCurrent = oldHasCurrent;
         storedEntry->hasExpression = oldHasExpression;
+        if (oldHasCurrent || oldHasExpression) {
+            Base::Result<StoredValueRare*> block = storedEntry->EnsureRare();
+            if (!block) {
+                Base::ReportOutOfMemory(
+                    sizeof(StoredValueRare),
+                    alignof(StoredValueRare),
+                    Base::MemoryTag::Object);
+            }
+            storedEntry->rare->currentValue =
+                oldHasCurrent ? oldCurrent : PropertyValue::Unset();
+            storedEntry->rare->localExpression =
+                oldHasExpression ? oldExpression : PropertyExpression{};
+        } else {
+            storedEntry->ClearCurrent();
+            if (storedEntry->rare != nullptr) {
+                storedEntry->rare->localExpression = {};
+            }
+            storedEntry->DropRareIfUnused();
+        }
         if (!hadEntry) RemoveStoredEntry(CanonicalPropertyKey(propertyHandle));
     }
     return recomputed.GetStatus();
@@ -225,11 +263,9 @@ Base::Result<void> DependencyObject::DropEngineValueStateInternal(
     entry.baseProviders.Clear();
     ReleaseExpression(entry);
     entry.inheritedValue = PropertyValue::Unset();
-    entry.animationValue = PropertyValue::Unset();
-    entry.currentValue = PropertyValue::Unset();
     entry.hasInherited = false;
-    entry.hasAnimation = false;
-    entry.hasCurrent = false;
+    entry.ClearAnimation();
+    entry.ClearCurrent();
     return RecomputeEffectiveValueInternal(propertyHandle);
 }
 
@@ -273,15 +309,15 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     }
     const StoredValueEntry& stored = *storedEntry;
     const bool hasExpression = stored.hasExpression;
-    const PropertyExpression expression = stored.localExpression;
+    const PropertyExpression expression = stored.ExpressionOrEmpty();
     const bool hasLocal = stored.hasLocal;
     const PropertyValue localValue = stored.localValue;
     const bool hasCurrent = stored.hasCurrent;
-    const PropertyValue currentValue = stored.currentValue;
+    const PropertyValue currentValue = stored.CurrentValueOrUnset();
     const bool hasInherited = stored.hasInherited;
     const PropertyValue inheritedValue = stored.inheritedValue;
     const bool hasAnimation = stored.hasAnimation;
-    const PropertyValue animationValue = stored.animationValue;
+    const PropertyValue animationValue = stored.AnimationValueOrUnset();
     bool hasProvider = false;
     PropertyProviderToken providerToken;
     PropertyValue providerValue;
@@ -349,7 +385,6 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     if (storedEntry == nullptr) return Base::Status::Failure(Base::ErrorCode::InternalError,
         "Dependency property entry disappeared during evaluation");
     StoredValueEntry& entry = *storedEntry;
-    entry.baseValue = baseValue;
     entry.effectiveValue = newEffective;
     entry.sourceInfo = source;
     if (newEffective != oldEffective) {
@@ -406,7 +441,9 @@ Base::Result<void> DependencyObject::ApplyInheritedValueInternal(
         : (!entry.hasInherited || entry.inheritedValue != *value);
     if (value == nullptr) { entry.inheritedValue = PropertyValue::Unset(); entry.hasInherited = false; }
     else { entry.inheritedValue = *value; entry.hasInherited = true; }
-    if (changed) { entry.currentValue = PropertyValue::Unset(); entry.hasCurrent = false; }
+    if (changed) {
+        entry.ClearCurrent();
+    }
     return {};
 }
 
@@ -420,8 +457,7 @@ Base::Result<bool> DependencyObject::ClearAnimationValueInternal(
     if (!writable) return writable.GetStatus();
         auto* storedEntry = FindStoredEntry(property);
     if (storedEntry == nullptr || !storedEntry->hasAnimation) return false;
-    storedEntry->animationValue = PropertyValue::Unset();
-    storedEntry->hasAnimation = false;
+    storedEntry->ClearAnimation();
     return true;
 }
 
@@ -437,7 +473,9 @@ Base::Result<void> DependencyObject::ApplyAnimationValueInternal(
         "Animation values cannot be Unset");
     Base::Result<StoredValueEntry*> ensured = EnsureStoredEntry(property);
     if (!ensured) return ensured.GetStatus();
-    ensured.Value()->animationValue = value;
+    Base::Result<StoredValueRare*> block = ensured.Value()->EnsureRare();
+    if (!block) return block.GetStatus();
+    block.Value()->animationValue = value;
     ensured.Value()->hasAnimation = true;
     return {};
 }
@@ -452,8 +490,7 @@ Base::Result<bool> DependencyObject::InvalidateBaseValueInternal(
     if (!writable) return writable.GetStatus();
         auto* storedEntry = FindStoredEntry(property);
     if (storedEntry == nullptr || !storedEntry->hasCurrent) return false;
-    storedEntry->currentValue = PropertyValue::Unset();
-    storedEntry->hasCurrent = false;
+    storedEntry->ClearCurrent();
     return true;
 }
 
@@ -468,8 +505,7 @@ Base::Result<bool> DependencyObject::ClearLocalExpressionInternal(
         auto* storedEntry = FindStoredEntry(property);
     if (storedEntry == nullptr || !storedEntry->hasExpression) return false;
     ReleaseExpression(*const_cast<StoredValueEntry*>(storedEntry));
-    storedEntry->currentValue = PropertyValue::Unset();
-    storedEntry->hasCurrent = false;
+    storedEntry->ClearCurrent();
     return true;
 }
 
@@ -488,13 +524,14 @@ Base::Result<void> DependencyObject::ApplyLocalExpressionInternal(
     StoredValueEntry& entry = *ensured.Value();
     PropertyExpression old;
     const bool hadOld = entry.hasExpression;
-    if (hadOld) old = entry.localExpression;
-    entry.localExpression = expression;
+    if (hadOld) old = entry.ExpressionOrEmpty();
+    Base::Result<StoredValueRare*> block = entry.EnsureRare();
+    if (!block) return block.GetStatus();
+    block.Value()->localExpression = expression;
     entry.hasExpression = true;
     entry.localValue = PropertyValue::Unset();
     entry.hasLocal = false;
-    entry.currentValue = PropertyValue::Unset();
-    entry.hasCurrent = false;
+    entry.ClearCurrent();
     if (hadOld && old.cleanup != nullptr) old.cleanup(old.context);
     return {};
 }
@@ -510,7 +547,9 @@ Base::Result<bool> DependencyObject::ClearProviderOriginInternal(
         auto* storedEntry = FindStoredEntry(property);
     if (storedEntry == nullptr) return false;
     const bool removed = storedEntry->baseProviders.RemoveOrigin(origin) != 0U;
-    if (removed) { storedEntry->currentValue = PropertyValue::Unset(); storedEntry->hasCurrent = false; }
+    if (removed) {
+        storedEntry->ClearCurrent();
+    }
     return removed;
 }
 
@@ -525,7 +564,9 @@ Base::Result<bool> DependencyObject::ClearProviderContributionInternal(
         auto* storedEntry = FindStoredEntry(property);
     if (storedEntry == nullptr) return false;
     const bool removed = storedEntry->baseProviders.Remove(token);
-    if (removed) { storedEntry->currentValue = PropertyValue::Unset(); storedEntry->hasCurrent = false; }
+    if (removed) {
+        storedEntry->ClearCurrent();
+    }
     return removed;
 }
 
@@ -543,8 +584,7 @@ Base::Result<void> DependencyObject::ApplyProviderContributionInternal(
     Base::Result<StoredValueEntry*> ensured = EnsureStoredEntry(property);
     if (!ensured) return ensured.GetStatus();
     StoredValueEntry& entry = *ensured.Value();
-    entry.currentValue = PropertyValue::Unset();
-    entry.hasCurrent = false;
+    entry.ClearCurrent();
     if (!entry.baseProviders.Set(token, value)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -557,9 +597,12 @@ Base::Result<void> DependencyObject::ApplyProviderContributionInternal(
 
 void DependencyObject::ReleaseExpression(StoredValueEntry& entry) noexcept {
     if (!entry.hasExpression) return;
-    const PropertyExpression expression = entry.localExpression;
-    entry.localExpression = {};
+    const PropertyExpression expression = entry.ExpressionOrEmpty();
+    if (entry.rare != nullptr) {
+        entry.rare->localExpression = {};
+    }
     entry.hasExpression = false;
+    entry.DropRareIfUnused();
     if (expression.cleanup != nullptr) expression.cleanup(expression.context);
 }
 
@@ -925,6 +968,16 @@ PropertyValue DependencyObject::GetValue(
         return PropertyValue::Unset();
     }
 
+    // Canonical-handle hot path: probe the store by the incoming MemberId
+    // before registry Find. Alias/legacy handles fall through.
+    const PropertyStore* store = static_cast<const PropertyStore*>(valueStore_);
+    if (store != nullptr) {
+        if (const StoredValueEntry* hit =
+                store->entries.Find(propertyHandle.value)) {
+            return hit->effectiveValue;
+        }
+    }
+
     const Meta::DependencyProperty* property =
         registry_->Find(propertyHandle);
     if (property == nullptr) {
@@ -935,10 +988,13 @@ PropertyValue DependencyObject::GetValue(
         return PropertyValue::Unset();
     }
 
-        auto* storedEntry = FindStoredEntry(propertyHandle);
-    return storedEntry != nullptr
-        ? storedEntry->effectiveValue
-        : metadata->defaultValue;
+    const MemberId canonical = property->Handle().value;
+    if (store != nullptr && canonical != propertyHandle.value) {
+        if (const StoredValueEntry* aliasHit = store->entries.Find(canonical)) {
+            return aliasHit->effectiveValue;
+        }
+    }
+    return metadata->defaultValue;
 }
 
 // from src/gui/core/PropertySystem.cpp
@@ -964,7 +1020,14 @@ const StoredValueEntry* DependencyObject::FindStoredEntry(
     if (store == nullptr) {
         return nullptr;
     }
-    return store->entries.Find(CanonicalPropertyKey(property));
+    if (const StoredValueEntry* hit = store->entries.Find(property.value)) {
+        return hit;
+    }
+    const MemberId canonical = CanonicalPropertyKey(property);
+    if (canonical == property.value) {
+        return nullptr;
+    }
+    return store->entries.Find(canonical);
 }
 
 StoredValueEntry* DependencyObject::FindStoredEntry(
@@ -996,7 +1059,6 @@ Base::Result<StoredValueEntry*> DependencyObject::EnsureStoredEntry(
     }
     PropertyStore* store = static_cast<PropertyStore*>(valueStore_);
     StoredValueEntry entry;
-    entry.baseValue = metadata->defaultValue;
     entry.effectiveValue = metadata->defaultValue;
     Base::Result<Base::HashMap<MemberId, StoredValueEntry>::InsertResult> inserted =
         store->entries.Insert(propertyHandle.value, std::move(entry));
