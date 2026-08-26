@@ -2,6 +2,7 @@
 #include <Aero/Shapes.hpp>
 #include <Aero/Media/StreamGeometry.hpp>
 #include <Aero/Media/PathGeometry.hpp>
+#include "gui/media/GeometryFlatten.hpp"
 
 #include "render/RenderResources.hpp"
 #include "gui/core/State.hpp"
@@ -643,6 +644,113 @@ Base::Result<void> TessellateStroke(
     return {};
 }
 
+class ContourPointSink final : public FlattenSink {
+public:
+    ContourPointSink(
+        Base::Vector<Point>& contour,
+        Rect& bounds,
+        bool& hasBounds) noexcept
+        : contour_(&contour),
+          bounds_(&bounds),
+          hasBounds_(&hasBounds) {}
+    Result<void> AddPoint(Point point) noexcept override {
+        Include(point);
+        return contour_->PushBack(point);
+    }
+private:
+    void Include(Point point) noexcept {
+        if (!*hasBounds_) {
+            *bounds_ = {point.x, point.y, 0.0, 0.0};
+            *hasBounds_ = true;
+            return;
+        }
+        const double right = std::max(bounds_->x + bounds_->width, point.x);
+        const double bottom = std::max(bounds_->y + bounds_->height, point.y);
+        bounds_->x = std::min(bounds_->x, point.x);
+        bounds_->y = std::min(bounds_->y, point.y);
+        bounds_->width = right - bounds_->x;
+        bounds_->height = bottom - bounds_->y;
+    }
+    Base::Vector<Point>* contour_ = nullptr;
+    Rect* bounds_ = nullptr;
+    bool* hasBounds_ = nullptr;
+};
+
+class GeometryContourSink final : public FlattenSink {
+public:
+    GeometryContourSink(
+        Base::Vector<Point>& points,
+        Base::Vector<ContourRecord>& contours,
+        Base::Vector<std::uint32_t>& contourStarts,
+        Base::Vector<std::uint32_t>& contourCounts,
+        Base::Vector<std::uint8_t>& contourClosed,
+        Rect& bounds,
+        bool& hasBounds) noexcept
+        : points_(&points),
+          contours_(&contours),
+          contourStarts_(&contourStarts),
+          contourCounts_(&contourCounts),
+          contourClosed_(&contourClosed),
+          bounds_(&bounds),
+          hasBounds_(&hasBounds) {}
+    Result<void> BeginFigure(Point start, bool isClosed) noexcept override {
+        Result<void> finished = Flush(closed_);
+        if (!finished) return finished.GetStatus();
+        closed_ = isClosed;
+        contour_.Clear();
+        Include(start);
+        return contour_.PushBack(start);
+    }
+    Result<void> AddPoint(Point point) noexcept override {
+        if (contour_.Empty()) {
+            Result<void> started = BeginFigure(point, closed_);
+            return started;
+        }
+        Include(point);
+        return contour_.PushBack(point);
+    }
+    Result<void> EndFigure(bool isClosed) noexcept override {
+        closed_ = isClosed;
+        return Flush(isClosed);
+    }
+    Result<void> Finish() noexcept { return Flush(closed_); }
+private:
+    void Include(Point point) noexcept {
+        if (!*hasBounds_) {
+            *bounds_ = {point.x, point.y, 0.0, 0.0};
+            *hasBounds_ = true;
+            return;
+        }
+        const double right = std::max(bounds_->x + bounds_->width, point.x);
+        const double bottom = std::max(bounds_->y + bounds_->height, point.y);
+        bounds_->x = std::min(bounds_->x, point.x);
+        bounds_->y = std::min(bounds_->y, point.y);
+        bounds_->width = right - bounds_->x;
+        bounds_->height = bottom - bounds_->y;
+    }
+    Result<void> Flush(bool closed) noexcept {
+        Result<void> stored = StoreContour(
+            contour_,
+            *points_,
+            *contours_,
+            *contourStarts_,
+            *contourCounts_,
+            *contourClosed_,
+            closed);
+        contour_.Clear();
+        return stored;
+    }
+    Base::Vector<Point> contour_;
+    Base::Vector<Point>* points_ = nullptr;
+    Base::Vector<ContourRecord>* contours_ = nullptr;
+    Base::Vector<std::uint32_t>* contourStarts_ = nullptr;
+    Base::Vector<std::uint32_t>* contourCounts_ = nullptr;
+    Base::Vector<std::uint8_t>* contourClosed_ = nullptr;
+    Rect* bounds_ = nullptr;
+    bool* hasBounds_ = nullptr;
+    bool closed_ = false;
+};
+
 class PolygonPathParser {
 public:
     PolygonPathParser(
@@ -853,52 +961,10 @@ public:
                 lastControl = control2;
                 lastCommand = absolute;
 
-                const double controlLength =
-                    std::hypot(
-                        control1.x - current.x,
-                        control1.y - current.y) +
-                    std::hypot(
-                        control2.x - control1.x,
-                        control2.y - control1.y) +
-                    std::hypot(
-                        endPoint.x - control2.x,
-                        endPoint.y - control2.y);
-                const std::uint32_t segments =
-                    static_cast<std::uint32_t>(
-                        std::clamp(
-                            std::ceil(
-                                controlLength / 8.0),
-                            4.0, 48.0));
-                const Point start = current;
-                for (std::uint32_t segment = 1U;
-                     segment <= segments;
-                     ++segment) {
-                    const double t =
-                        static_cast<double>(segment) /
-                        static_cast<double>(segments);
-                    const double inverse = 1.0 - t;
-                    const Point point{
-                        inverse * inverse * inverse *
-                                start.x +
-                            3.0 * inverse * inverse * t *
-                                control1.x +
-                            3.0 * inverse * t * t *
-                                control2.x +
-                            t * t * t * endPoint.x,
-                        inverse * inverse * inverse *
-                                start.y +
-                            3.0 * inverse * inverse * t *
-                                control1.y +
-                            3.0 * inverse * t * t *
-                                control2.y +
-                            t * t * t * endPoint.y};
-                    Base::Result<void> added =
-                        contour.PushBack(point);
-                    if (!added) {
-                        return added.GetStatus();
-                    }
-                    include(point);
-                }
+                ContourPointSink sink(contour, bounds, hasBounds);
+                Base::Result<void> flattened = FlattenCubicBezier(
+                    sink, current, control1, control2, endPoint);
+                if (!flattened) return flattened.GetStatus();
                 current = endPoint;
                 continue;
             }
@@ -945,47 +1011,50 @@ public:
                 lastControl = control;
                 lastCommand = absolute;
 
-                const double controlLength =
-                    std::hypot(
-                        control.x - current.x,
-                        control.y - current.y) +
-                    std::hypot(
-                        endPoint.x - control.x,
-                        endPoint.y - control.y);
-                const std::uint32_t segments =
-                    static_cast<std::uint32_t>(
-                        std::clamp(
-                            std::ceil(
-                                controlLength / 8.0),
-                            4.0, 48.0));
-                const Point start = current;
-                for (std::uint32_t segment = 1U;
-                     segment <= segments;
-                     ++segment) {
-                    const double t =
-                        static_cast<double>(segment) /
-                        static_cast<double>(segments);
-                    const double inverse = 1.0 - t;
-                    const Point point{
-                        inverse * inverse * start.x +
-                            2.0 * inverse * t * control.x +
-                            t * t * endPoint.x,
-                        inverse * inverse * start.y +
-                            2.0 * inverse * t * control.y +
-                            t * t * endPoint.y};
-                    Base::Result<void> added =
-                        contour.PushBack(point);
-                    if (!added) {
-                        return added.GetStatus();
-                    }
-                    include(point);
+                ContourPointSink sink(contour, bounds, hasBounds);
+                Base::Result<void> flattened = FlattenQuadraticBezier(
+                    sink, current, control, endPoint);
+                if (!flattened) return flattened.GetStatus();
+                current = endPoint;
+                continue;
+            }
+
+            if (absolute == 'A') {
+                if (!hasCurrent) {
+                    return InvalidPath(
+                        "Path arc command requires an active contour");
                 }
+                double rx = 0.0, ry = 0.0, rotation = 0.0;
+                double large = 0.0, sweep = 0.0, x = 0.0, y = 0.0;
+                Base::Result<void> parsed = ParsePair(rx, ry);
+                if (parsed) parsed = ParseNumber(rotation);
+                if (parsed) parsed = ParseNumber(large);
+                if (parsed) parsed = ParseNumber(sweep);
+                if (parsed) parsed = ParsePair(x, y);
+                if (!parsed) return parsed.GetStatus();
+                Point endPoint{x, y};
+                if (relative) {
+                    endPoint.x += current.x;
+                    endPoint.y += current.y;
+                }
+                lastControl = endPoint;
+                lastCommand = absolute;
+                ContourPointSink sink(contour, bounds, hasBounds);
+                Base::Result<void> flattened = FlattenArc(
+                    sink,
+                    current,
+                    Size{std::fabs(rx), std::fabs(ry)},
+                    rotation,
+                    large != 0.0,
+                    sweep != 0.0,
+                    endPoint);
+                if (!flattened) return flattened.GetStatus();
                 current = endPoint;
                 continue;
             }
 
             return InvalidPath(
-                "Path supports commands M, L, H, V, C, S, Q, T, and Z");
+                "Path supports commands M, L, H, V, C, S, Q, T, A, and Z");
         }
 
         Base::Result<void> finished =
@@ -1192,18 +1261,65 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
     strokeIndices_.Clear();
     geometryBounds_ = {};
     Base::Ref<Geometry> geometry = GetData();
-    Base::String generatedData;
+    if (geometry &&
+        geometry->RuntimeType() != StreamGeometry::StaticTypeId()) {
+        bool hasBounds = false;
+        Rect bounds{};
+        Base::Vector<ContourRecord> contours;
+        GeometryContourSink sink(
+            pathPoints_,
+            contours,
+            pathContourStarts_,
+            pathContourCounts_,
+            pathContourClosed_,
+            bounds,
+            hasBounds);
+        Base::Result<void> flattened = geometry->Flatten(sink);
+        if (flattened) flattened = sink.Finish();
+        if (!flattened) {
+            geometryVertices_.Clear();
+            geometryIndices_.Clear();
+            pathPoints_.Clear();
+            pathContourStarts_.Clear();
+            pathContourCounts_.Clear();
+            pathContourClosed_.Clear();
+            return flattened.GetStatus();
+        }
+        if (hasBounds && !pathPoints_.Empty() && !contours.Empty()) {
+            geometryBounds_ = bounds;
+            if (GetFill()) {
+                Base::Result<void> tessellated = TessellateFill(
+                    pathPoints_,
+                    contours,
+                    GetFillRule(),
+                    geometryVertices_,
+                    geometryIndices_);
+                if (!tessellated) return tessellated.GetStatus();
+            }
+            if (GetStroke()) {
+                Base::Result<void> stroked = TessellateStroke(
+                    pathPoints_,
+                    pathContourStarts_,
+                    pathContourCounts_,
+                    pathContourClosed_,
+                    GetStrokeThickness(),
+                    GetTrimStart(),
+                    GetTrimEnd(),
+                    GetStrokeLineJoin(),
+                    GetStrokeStartLineCap(),
+                    GetStrokeEndLineCap(),
+                    strokeVertices_,
+                    strokeIndices_);
+                if (!stroked) return stroked.GetStatus();
+            }
+        }
+        geometryDirty_ = false;
+        return {};
+    }
     Base::StringView data;
     if (geometry && geometry->RuntimeType() ==
             StreamGeometry::StaticTypeId()) {
         data = static_cast<StreamGeometry*>(geometry.Get())->GetData();
-    } else if (geometry && geometry->RuntimeType() ==
-                   PathGeometry::StaticTypeId()) {
-        Base::Result<Base::String> generated =
-            static_cast<PathGeometry*>(geometry.Get())->ToStreamData();
-        if (!generated) return generated.GetStatus();
-        generatedData = std::move(generated).Value();
-        data = generatedData.View();
     }
     if (data.Empty()) {
         geometryDirty_ = false;
@@ -1235,6 +1351,35 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
         return parsed.GetStatus();
     }
     geometryBounds_ = parsed.Value();
+    if (geometry) {
+        if (Ref<Transform> transform = geometry->GetTransform()) {
+            const Base::Transform2D matrix = transform->GetMatrix();
+            auto mapPoints = [&](Base::Vector<Point>& points) noexcept {
+                for (std::uint32_t index = 0U; index < points.Size(); ++index) {
+                    points[index] = TransformPoint(matrix, points[index]);
+                }
+            };
+            mapPoints(pathPoints_);
+            mapPoints(geometryVertices_);
+            if (!pathPoints_.Empty()) {
+                geometryBounds_ = {
+                    pathPoints_[0].x, pathPoints_[0].y, 0.0, 0.0};
+                for (std::uint32_t index = 1U;
+                     index < pathPoints_.Size();
+                     ++index) {
+                    const Point point = pathPoints_[index];
+                    const double right = std::max(
+                        geometryBounds_.x + geometryBounds_.width, point.x);
+                    const double bottom = std::max(
+                        geometryBounds_.y + geometryBounds_.height, point.y);
+                    geometryBounds_.x = std::min(geometryBounds_.x, point.x);
+                    geometryBounds_.y = std::min(geometryBounds_.y, point.y);
+                    geometryBounds_.width = right - geometryBounds_.x;
+                    geometryBounds_.height = bottom - geometryBounds_.y;
+                }
+            }
+        }
+    }
     if (GetStroke()) {
         Base::Result<void> stroked =
             TessellateStroke(

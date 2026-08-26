@@ -1859,6 +1859,26 @@ aero_require_text(
     "FillRuleProperty"
     "Path must expose FillRule so tessellation is not hardcoded EvenOdd")
 aero_require_text(
+    "include/Aero/Media/PathSegment.hpp"
+    "Flatten("
+    "PathSegment must Flatten into a sink instead of stringifying")
+aero_require_text(
+    "include/Aero/Media/BezierSegment.hpp"
+    "class AERO_GUI_API BezierSegment : public PathSegment"
+    "BezierSegment must live in BezierSegment.hpp")
+aero_require_text(
+    "include/Aero/Media/Geometry.hpp"
+    "FlattenCore"
+    "Geometry rendering Flatten must apply Transform then FlattenCore")
+aero_require_text(
+    "src/gui/shapes/Path.cpp"
+    "geometry->Flatten(sink)"
+    "Path rendering must Flatten object-model Geometry, not ToStreamData")
+aero_forbid_text(
+    "src/gui/shapes/Path.cpp"
+    "ToStreamData()"
+    "Path rendering must not round-trip PathGeometry through ToStreamData")
+aero_require_text(
     "include/Aero/Shapes/Line.hpp"
     "class AERO_GUI_API Line : public Shape"
     "Line must derive Shape")

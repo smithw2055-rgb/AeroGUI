@@ -109,6 +109,7 @@ set(_aero_gui_media_sources
     src/gui/media/Brushes.cpp
     src/gui/media/Effects.cpp
     src/gui/media/Geometry.cpp
+    src/gui/media/GeometryFlatten.cpp
     src/gui/media/ImageCache.cpp
     src/gui/media/Images.cpp
     src/gui/media/MediaElement.cpp

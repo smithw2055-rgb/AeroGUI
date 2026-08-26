@@ -70,6 +70,9 @@ Aero/Media/Animation.hpp          Umbrella only; types live in Media/Animation/<
 Aero/Media/Brushes.hpp            Umbrella only; types live in Media/<Type>.hpp
 Aero/Media/Fonts.hpp
 Aero/Media/Geometry.hpp           Geometry class; siblings in Media/PathGeometry.hpp etc.
+                                 FlattenSink + Flatten/FlattenCore; BezierSegment,
+                                 ArcSegment, LineGeometry, GeometryGroup, CombinedGeometry
+                                 each own a header. ToStreamData is serialize/debug only.
 Aero/Media/Transforms.hpp         Umbrella only; types live in Media/<Type>.hpp
 Aero/Media/Effects.hpp            Umbrella only; types live in Media/<Type>.hpp
 ```

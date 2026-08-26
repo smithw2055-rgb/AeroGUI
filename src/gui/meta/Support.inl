@@ -823,6 +823,27 @@ void ClearPathGeometryFigures(
     static_cast<Media::PathGeometry&>(owner).ClearFigures();
 }
 
+void AddGeometryGroupChild(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::Geometry> retained =
+        Base::Ref<Media::Geometry>::TryFromBorrowed(
+            static_cast<Media::Geometry&>(*value));
+    if (retained) {
+        static_cast<void>(
+            static_cast<Media::GeometryGroup&>(owner)
+                .Add(std::move(retained)));
+    }
+}
+
+void ClearGeometryGroupChildren(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<Media::GeometryGroup&>(owner).Clear();
+}
+
 Base::Result<Value> ConvertBrushText(
     TypeId targetType,
     Base::StringView text,

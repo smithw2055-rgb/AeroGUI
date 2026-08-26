@@ -16,5 +16,8 @@ public:
         SetValue(PointProperty, value);
     }
     inline static constexpr DependencyProperty<Point> PointProperty{"Point"};
+    Result<void> Flatten(
+        FlattenSink& sink,
+        Point& currentPoint) const noexcept override;
 };
 } // namespace Aero::Media
