@@ -68,6 +68,19 @@ Base::Result<void> EnsureVisualChildStorage(
         return {};
     }
     if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
+        auto& control = static_cast<Controls::ContentControl&>(parent);
+        UIElement* existing =
+            AeroGuiInternal::ContentControlContent(control);
+        if (existing == childElement) {
+            return {};
+        }
+        if (existing == nullptr) {
+            control.SetContent(childElement);
+        }
+        return {};
+    }
+    if (types.IsDerivedFrom(
             parent.RuntimeType(), Controls::Decorator::StaticTypeId())) {
         auto& decorator = static_cast<Controls::Decorator&>(parent);
         if (decorator.GetChild() == nullptr) {
@@ -1204,13 +1217,22 @@ Base::Result<void> ElementTree::AttachVisualGraph(
     if (!rootAttached) return rootAttached.GetStatus();
     outAttachment = std::move(rootAttached).Value();
 
+    auto parentRenderReady =
+        [this, &visualRoot](::Aero::Media::Visual& parent) noexcept {
+            if (&parent == &visualRoot) return true;
+            if (renderer_ == nullptr) return true;
+            return AeroGuiInternal::RenderRuntime(parent) ==
+                static_cast<void*>(renderer_);
+        };
+
     std::uint32_t attached = 0U;
     while (attached < edges.Size()) {
         bool progressed = false;
         for (Markup::VisualEdge& edge : edges) {
             if (edge.state.logicalAttached || edge.parent == nullptr ||
                 edge.child == nullptr ||
-                edge.parent->GetTree() != this) {
+                edge.parent->GetTree() != this ||
+                !parentRenderReady(*edge.parent)) {
                 continue;
             }
             Base::Result<Aero::ElementAttachment> edgeAttached =
@@ -1242,10 +1264,18 @@ Base::Result<void> ElementTree::CompleteVisualEdges(
         bool progressed = false;
         for (Markup::VisualEdge& edge : edges) {
             if (edge.state.logicalAttached ||
-                (edge.child != nullptr &&
-                 edge.child->GetTree() == this) ||
                 edge.parent == nullptr || edge.child == nullptr ||
                 edge.parent->GetTree() != this) {
+                continue;
+            }
+            if (renderer_ != nullptr &&
+                AeroGuiInternal::RenderRuntime(*edge.parent) !=
+                    static_cast<void*>(renderer_) &&
+                edge.parent != root_) {
+                continue;
+            }
+            if (edge.child->GetTree() == this &&
+                AeroGuiInternal::RenderAttached(*edge.child)) {
                 continue;
             }
             Base::Result<Aero::ElementAttachment> edgeAttached =
