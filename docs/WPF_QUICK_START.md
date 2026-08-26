@@ -246,7 +246,10 @@ Kitchen-sink media/input/data headers are umbrellas or type owners:
 - `<Aero/Media/Brushes.hpp>`, `<Aero/Media/Transforms.hpp>`,
   `<Aero/Media/Effects.hpp>` include `Media/<Type>.hpp`.
 - `<Aero/Media/Geometry.hpp>` owns `Geometry`; path types live in
-  `PathGeometry.hpp` / `StreamGeometry.hpp` / `PathFigure.hpp`.
+  `PathGeometry.hpp` / `StreamGeometry.hpp` / `PathFigure.hpp`. Segment and
+  primitive geometry types (`BezierSegment`, `ArcSegment`, `LineGeometry`,
+  `GeometryGroup`, …) each have their own `Media/<Type>.hpp`. Rendering
+  `Flatten`s; `ToStreamData` is serialize/debug only.
 - `<Aero/Input.hpp>` is input values (`Key`, `PointerInput`, `InputScope`).
   Commands are `<Aero/ICommand.hpp>` and `<Aero/RoutedCommand.hpp>`.
 - `<Aero/Data/Binding.hpp>` owns `Binding`; `MultiBinding` and converters
@@ -261,4 +264,77 @@ uses `<Aero/HierarchicalDataTemplate.hpp>` rather than aliasing to
 `DataTemplate`. `Line` / `Polygon` / `Polyline` live next to `Path` under
 `Shapes/`. `FreezableCollection<T>` replaces handwritten `Vector<Ref<...>>`
 on path figures, transform groups, and timeline groups.
+
+## Transform3D (2.5D projective perspective)
+
+`<Aero/Media/Transform3D.hpp>` is the Freezable base (no Animatable). Concrete
+types: `CompositeTransform3D`, `PerspectiveTransform3D`, `MatrixTransform3D`.
+Set `UIElement.Transform3D`. Storyboard paths such as
+`(UIElement.Transform3D).(CompositeTransform3D.RotationY)` walk the existing
+Freezable + DP path.
+
+This is CPU-side 3×3 collapse onto the local Z=0 plane, not true 3D:
+
+- No depth sort — overlapping siblings use `Panel.ZIndex`.
+- No perspective-correct UV; texture mapping stays affine in 2D after collapse.
+- Hit testing unprojects onto the local Z=0 plane (not a 3D ray).
+- Shared vanishing point only under a `PerspectiveTransform3D` ancestor **or**
+  the implicit view-root default `Depth=1000` (intentional UWP deviation: a
+  lone `CompositeTransform3D RotationY=45` already shows perspective). Strict
+  UWP without a perspective ancestor would be orthographic squash; AeroGUI
+  does not do that.
+- No `PlaneProjection` / `UIElement.Projection`.
+- `GetLocalVisualTransform()` is local-only `ProjectiveTransform2D` (O(1);
+  no ancestor walk). 3D accumulation lives on the render/hit tree walk.
+- 2D-only trees keep the affine fast path (`LeavesZ0PlaneUnchanged`).
+
+## Implicit DataTemplate
+
+`ItemsControl::ResolveItemTemplate(item, index)` follows WPF order:
+
+1. `ItemTemplateSelector.SelectTemplate`
+2. `ItemTemplate`
+3. implicit `DataTemplate` keyed by `ResourceKey::FromType(item.RuntimeType())`
+   walking `BaseType` (`<DataTemplate DataType="local:Foo">`)
+4. fallback: `DisplayMemberPath`, boxed value, or `item` as `UIElement`
+
+Hierarchical `ItemsSource` / `ItemTemplate` live on
+`HierarchicalDataTemplate`, not on `DataTemplate`.
+
+## Duration, KeyTime, RepeatBehavior
+
+`Timeline` timing properties are dependency properties with strong value
+types in `<Aero/Media/Animation/Duration.hpp>`, `KeyTime.hpp`, and
+`RepeatBehavior.hpp`. Theme XAML still parses `Duration="0:0:2"`,
+`RepeatBehavior="2x"`, `KeyTime="50%"` / `Uniform` / `Paced`. Clock text
+accepts `1.5`, `2s`, `500ms`, `M:S`, and `H:M:S`. `"2"` is a repeat count,
+not two seconds.
+
+## CollectionView vs SelectedItem
+
+`ItemsControl` wraps a non-view `ItemsSource` in a cached
+`CollectionViewSource::GetDefaultView`. Sort/filter project index space
+through `GetCount` / `GetItem`; filtered-out items return `UINT32_MAX` from
+`Selector::GetIndexOfItem`. `Selector.SelectedItem` remains selection
+authority. `CollectionView.CurrentItem` is view currency (`MoveCurrentTo*`).
+`Selector.IsSynchronizedWithCurrentItem` (default `false`) is the WPF opt-in
+to keep those two in sync. Grouping is not implemented.
+
+## Path stroke, FillRule, and geometry Flatten
+
+`Path` honors `StrokeLineJoin` / `StrokeStartLineCap` / `StrokeEndLineCap`
+and `FillRule` during tessellation. Object-model geometry
+(`PathGeometry`, `LineGeometry`, `BezierSegment`, `ArcSegment`, …) renders
+by `Geometry::Flatten` / `PathSegment::Flatten`, not by stringifying through
+`PathGeometry::ToStreamData` (that API remains for serialize/debug and still
+rejects non-`LineSegment` content). Mini-language `A` and `ArcSegment` share
+one arc-to-bezier implementation. `Geometry.Transform` is applied while
+flattening.
+
+## Follow-ups
+
+Not in this pass: `CollectionView` grouping, `UIElement.Clip` geometry
+stencil, libtess2 (boolean `CombinedGeometry` / robust fill), and
+Matrix/Point3D animation families.
+
 

@@ -4,36 +4,58 @@
 Base::Result<void> PopulateUiAnimation(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
+    auto durationValue = Meta::Register<Media::Animation::Duration>(context);
+    durationValue
+        .ValueSemantics()
+        .TextConverter<&Media::Animation::Duration::TryParse>();
+    status = durationValue.Result();
+    if (!status) return status.GetStatus();
+
+    auto timeSpanValue = Meta::Register<Media::Animation::TimeSpan>(context);
+    timeSpanValue
+        .ValueSemantics()
+        .TextConverter<&Media::Animation::TimeSpan::TryParse>();
+    status = timeSpanValue.Result();
+    if (!status) return status.GetStatus();
+
+    auto repeatBehaviorValue =
+        Meta::Register<Media::Animation::RepeatBehavior>(context);
+    repeatBehaviorValue
+        .ValueSemantics()
+        .TextConverter<&Media::Animation::RepeatBehavior::TryParse>();
+    status = repeatBehaviorValue.Result();
+    if (!status) return status.GetStatus();
+
+    auto keyTimeValue = Meta::Register<Media::Animation::KeyTime>(context);
+    keyTimeValue
+        .ValueSemantics()
+        .TextConverter<&Media::Animation::KeyTime::TryParse>();
+    status = keyTimeValue.Result();
+    if (!status) return status.GetStatus();
+
     auto timeline = Meta::Register<Media::Animation::Timeline>(
         context, TypeFlags::Abstract);
     timeline
         .Property(
-            "BeginTime",
-            &Media::Animation::Timeline::GetBeginTime,
-            &Media::Animation::Timeline::SetBeginTime)
+            Media::Animation::Timeline::BeginTimeProperty,
+            FrameworkPropertyMetadata(Media::Animation::TimeSpan::Zero()))
         .Property(
-            "Duration",
-            &Media::Animation::Timeline::GetDuration,
-            &Media::Animation::Timeline::SetDuration)
+            Media::Animation::Timeline::DurationProperty,
+            FrameworkPropertyMetadata(
+                Media::Animation::Duration::Automatic()))
         .Property(
-            "RepeatBehavior",
-            &Media::Animation::Timeline::GetRepeatBehavior,
-            &Media::Animation::Timeline::SetRepeatBehavior)
-        .Property<
-            double,
-            &Media::Animation::Timeline::GetSpeedRatio,
-            &Media::Animation::Timeline::SetSpeedRatio>(
-            "SpeedRatio")
-        .Property<
-            bool,
-            &Media::Animation::Timeline::GetAutoReverse,
-            &Media::Animation::Timeline::SetAutoReverse>(
-            "AutoReverse")
-        .Property<
-            FillBehavior,
-            &Media::Animation::Timeline::GetFillBehavior,
-            &Media::Animation::Timeline::SetFillBehavior>(
-            "FillBehavior");
+            Media::Animation::Timeline::RepeatBehaviorProperty,
+            FrameworkPropertyMetadata(
+                Media::Animation::RepeatBehavior::Once()))
+        .Property(
+            Media::Animation::Timeline::SpeedRatioProperty,
+            FrameworkPropertyMetadata(1.0))
+        .Property(
+            Media::Animation::Timeline::AutoReverseProperty,
+            FrameworkPropertyMetadata(false))
+        .Property(
+            Media::Animation::Timeline::FillBehaviorProperty,
+            FrameworkPropertyMetadata(FillBehavior::HoldEnd));
     status = timeline.Result();
     if (!status) return status.GetStatus();
 
@@ -293,13 +315,120 @@ Base::Result<void> PopulateUiAnimation(
     status = thicknessAnimation.Result();
     if (!status) return status.GetStatus();
 
+    auto int16AnimationBase =
+        Meta::Register<Media::Animation::Int16AnimationBase>(
+            context, TypeFlags::Abstract);
+    int16AnimationBase
+        .Property<
+            std::int16_t,
+            &Media::Animation::Int16AnimationBase::GetFrom,
+            &Media::Animation::Int16AnimationBase::SetFrom>("From")
+        .Property<
+            std::int16_t,
+            &Media::Animation::Int16AnimationBase::GetTo,
+            &Media::Animation::Int16AnimationBase::SetTo>("To");
+    status = int16AnimationBase.Result();
+    if (!status) return status.GetStatus();
+    auto int16Animation =
+        Meta::Register<Media::Animation::Int16Animation>(context);
+    int16Animation
+        .Property<
+            Base::Ref<Media::Animation::EasingFunctionBase>,
+            &Media::Animation::Int16Animation::GetEasingFunction,
+            &Media::Animation::Int16Animation::SetEasingFunction>(
+            "EasingFunction",
+            PropertyFlags::Structural)
+        .Factory();
+    status = int16Animation.Result();
+    if (!status) return status.GetStatus();
+
+    auto int32AnimationBase =
+        Meta::Register<Media::Animation::Int32AnimationBase>(
+            context, TypeFlags::Abstract);
+    int32AnimationBase
+        .Property<
+            std::int32_t,
+            &Media::Animation::Int32AnimationBase::GetFrom,
+            &Media::Animation::Int32AnimationBase::SetFrom>("From")
+        .Property<
+            std::int32_t,
+            &Media::Animation::Int32AnimationBase::GetTo,
+            &Media::Animation::Int32AnimationBase::SetTo>("To");
+    status = int32AnimationBase.Result();
+    if (!status) return status.GetStatus();
+    auto int32Animation =
+        Meta::Register<Media::Animation::Int32Animation>(context);
+    int32Animation
+        .Property<
+            Base::Ref<Media::Animation::EasingFunctionBase>,
+            &Media::Animation::Int32Animation::GetEasingFunction,
+            &Media::Animation::Int32Animation::SetEasingFunction>(
+            "EasingFunction",
+            PropertyFlags::Structural)
+        .Factory();
+    status = int32Animation.Result();
+    if (!status) return status.GetStatus();
+
+    auto int64AnimationBase =
+        Meta::Register<Media::Animation::Int64AnimationBase>(
+            context, TypeFlags::Abstract);
+    int64AnimationBase
+        .Property<
+            std::int64_t,
+            &Media::Animation::Int64AnimationBase::GetFrom,
+            &Media::Animation::Int64AnimationBase::SetFrom>("From")
+        .Property<
+            std::int64_t,
+            &Media::Animation::Int64AnimationBase::GetTo,
+            &Media::Animation::Int64AnimationBase::SetTo>("To");
+    status = int64AnimationBase.Result();
+    if (!status) return status.GetStatus();
+    auto int64Animation =
+        Meta::Register<Media::Animation::Int64Animation>(context);
+    int64Animation
+        .Property<
+            Base::Ref<Media::Animation::EasingFunctionBase>,
+            &Media::Animation::Int64Animation::GetEasingFunction,
+            &Media::Animation::Int64Animation::SetEasingFunction>(
+            "EasingFunction",
+            PropertyFlags::Structural)
+        .Factory();
+    status = int64Animation.Result();
+    if (!status) return status.GetStatus();
+
+    auto sizeAnimationBase =
+        Meta::Register<Media::Animation::SizeAnimationBase>(
+            context, TypeFlags::Abstract);
+    sizeAnimationBase
+        .Property<
+            Base::Size,
+            &Media::Animation::SizeAnimationBase::GetFrom,
+            &Media::Animation::SizeAnimationBase::SetFrom>("From")
+        .Property<
+            Base::Size,
+            &Media::Animation::SizeAnimationBase::GetTo,
+            &Media::Animation::SizeAnimationBase::SetTo>("To");
+    status = sizeAnimationBase.Result();
+    if (!status) return status.GetStatus();
+    auto sizeAnimation =
+        Meta::Register<Media::Animation::SizeAnimation>(context);
+    sizeAnimation
+        .Property<
+            Base::Ref<Media::Animation::EasingFunctionBase>,
+            &Media::Animation::SizeAnimation::GetEasingFunction,
+            &Media::Animation::SizeAnimation::SetEasingFunction>(
+            "EasingFunction",
+            PropertyFlags::Structural)
+        .Factory();
+    status = sizeAnimation.Result();
+    if (!status) return status.GetStatus();
+
     auto keyFrameBase = Meta::Register<Media::Animation::KeyFrameBase>(
         context, TypeFlags::Abstract);
     keyFrameBase
         .Property(
             Media::Animation::KeyFrameBase::KeyTimeProperty,
-            FrameworkPropertyMetadata(Base::String{})
-                .Changed(&Media::Animation::KeyFrameBase::OnKeyTimeChanged))
+            FrameworkPropertyMetadata(Media::Animation::KeyTime{}))
         .Property(
             Media::Animation::KeyFrameBase::EasingFunctionProperty,
             FrameworkPropertyMetadata(
@@ -491,6 +620,147 @@ Base::Result<void> PopulateUiAnimation(
             &ClearBooleanKeyFrames)
         .Factory();
     status = booleanFrames.Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Media::Animation::Int16KeyFrame>(
+        context, TypeFlags::Abstract)
+        .Property<
+            std::int16_t,
+            &Media::Animation::Int16KeyFrame::GetValue,
+            &Media::Animation::Int16KeyFrame::SetValue>("Value")
+        .Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::LinearInt16KeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::DiscreteInt16KeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::EasingInt16KeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::SplineInt16KeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    auto int16Frames =
+        Meta::Register<Media::Animation::Int16AnimationUsingKeyFrames>(context);
+    int16Frames
+        .Content<Media::Animation::Int16KeyFrame>(
+            "KeyFrames", ContentKind::Collection,
+            &AddInt16KeyFrame, &ClearInt16KeyFrames)
+        .Factory();
+    status = int16Frames.Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Media::Animation::Int32KeyFrame>(
+        context, TypeFlags::Abstract)
+        .Property<
+            std::int32_t,
+            &Media::Animation::Int32KeyFrame::GetValue,
+            &Media::Animation::Int32KeyFrame::SetValue>("Value")
+        .Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::LinearInt32KeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::DiscreteInt32KeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::EasingInt32KeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::SplineInt32KeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    auto int32Frames =
+        Meta::Register<Media::Animation::Int32AnimationUsingKeyFrames>(context);
+    int32Frames
+        .Content<Media::Animation::Int32KeyFrame>(
+            "KeyFrames", ContentKind::Collection,
+            &AddInt32KeyFrame, &ClearInt32KeyFrames)
+        .Factory();
+    status = int32Frames.Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Media::Animation::Int64KeyFrame>(
+        context, TypeFlags::Abstract)
+        .Property<
+            std::int64_t,
+            &Media::Animation::Int64KeyFrame::GetValue,
+            &Media::Animation::Int64KeyFrame::SetValue>("Value")
+        .Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::LinearInt64KeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::DiscreteInt64KeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::EasingInt64KeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::SplineInt64KeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    auto int64Frames =
+        Meta::Register<Media::Animation::Int64AnimationUsingKeyFrames>(context);
+    int64Frames
+        .Content<Media::Animation::Int64KeyFrame>(
+            "KeyFrames", ContentKind::Collection,
+            &AddInt64KeyFrame, &ClearInt64KeyFrames)
+        .Factory();
+    status = int64Frames.Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Media::Animation::SizeKeyFrame>(
+        context, TypeFlags::Abstract)
+        .Property<
+            Base::Size,
+            &Media::Animation::SizeKeyFrame::GetValue,
+            &Media::Animation::SizeKeyFrame::SetValue>("Value")
+        .Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::LinearSizeKeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::DiscreteSizeKeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::EasingSizeKeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::SplineSizeKeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    auto sizeFrames =
+        Meta::Register<Media::Animation::SizeAnimationUsingKeyFrames>(context);
+    sizeFrames
+        .Content<Media::Animation::SizeKeyFrame>(
+            "KeyFrames", ContentKind::Collection,
+            &AddSizeKeyFrame, &ClearSizeKeyFrames)
+        .Factory();
+    status = sizeFrames.Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Media::Animation::StringKeyFrame>(
+        context, TypeFlags::Abstract)
+        .Property<
+            Base::String,
+            &Media::Animation::StringKeyFrame::GetValue,
+            &Media::Animation::StringKeyFrame::SetValue>("Value")
+        .Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::DiscreteStringKeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    auto stringFrames =
+        Meta::Register<Media::Animation::StringAnimationUsingKeyFrames>(context);
+    stringFrames
+        .Content<Media::Animation::StringKeyFrame>(
+            "KeyFrames", ContentKind::Collection,
+            &AddStringKeyFrame, &ClearStringKeyFrames)
+        .Factory();
+    status = stringFrames.Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<Aero::Interactivity::TriggerAction>(

@@ -122,3 +122,43 @@ Runtime；应用代码不再自行读取或编译这些主题。
 - `tests/markup/XamlThemeTests.cpp`
 
 普通 XAML、主题和资源加载路径不再依赖这些专用实现。
+
+## C++ 伞头不再传递的类型
+
+安装头拆薄之后，包含一个 WPF 控件头**不再**传递下列类型。消费方必须
+直接 include 声明所有者：
+
+| 以前可能间接得到 | 现在需要显式 include |
+| --- | --- |
+| `Media::DrawingContext` | `<Aero/Media/DrawingContext.hpp>` |
+| `Threading::Dispatcher` / 调度器类型 | `<Aero/Threading.hpp>` |
+| `DispatcherReentrancyGuard` | `<Aero/DispatcherReentrancyGuard.hpp>`（`Threading.hpp` 仍再导出） |
+| `Diagnostics::SourceSpan` | `<Aero/Diagnostics/SourceSpan.hpp>`（或 `<Aero/Diagnostics.hpp>`） |
+| `PropertyProviderSet` | `<Aero/Diagnostics/PropertyValueSource.hpp>` |
+| `EffectiveValueSource` / `PropertyValueSourceInfo` | `<Aero/Diagnostics/EffectiveValueSource.hpp>`（`DependencyProperty.hpp` 仍再导出） |
+| `Base::HashMap` | `<Aero/Base/HashMap.hpp>` |
+| Animation 类型 | `<Aero/Media/Animation.hpp>` 或 `Media/Animation/<Type>.hpp` |
+| Meta 注册 API | `<Aero/Meta.hpp>` |
+
+`FrameworkElement.hpp` 仍前向声明 `DrawingContext`；覆盖 `OnRender` 并调用
+其方法时必须包含 `DrawingContext.hpp`。`Animation.hpp` 伞头不包含
+Interactivity / Trigger / StoryboardCompletedTrigger；那些类型从自己的头
+文件引入。
+
+`tools/sdk-consumers/MetaConsumer.cpp` 是这个断裂的标准修法：在
+`OnRender` 里使用 `DrawingContext` 的 TU 增加
+`#include <Aero/Media/DrawingContext.hpp>`。
+
+## Transform3D
+
+`aero:Element.Transform3D` 仍可编译：它是 XAML 转发器，写入
+`UIElement.Transform3D`。渲染与命中测试读 UIElement DP。
+
+`CompositeTransform3D.GetProjectedMatrix()` 已删除。请用
+`GetTransform3D()`（4×3 仿射）+ 渲染折叠。`MatrixTransform3D.Matrix` 在 Meta
+中完整注册（12 个 Field + ConvertTransform3）。
+
+有意偏离 UWP：View 根隐式 `Depth=1000`。没有 `PlaneProjection`。无 depth
+sort / 透视校正 UV / 3D ray hit。运行时数值断言因本分支无 `tests/` 树而跳过；
+层次锁在 `CheckArchitecture`。
+

@@ -73,6 +73,15 @@ Base::Result<void> PopulateUiMedia(
     status = rect.Result();
     if (!status) return status.GetStatus();
 
+    auto size = Meta::Register<Base::Size>(context);
+    size
+        .Field<&Base::Size::width>("Width")
+        .Field<&Base::Size::height>("Height")
+        .ValueSemantics()
+        .TextConverter<&ConvertSize>();
+    status = size.Result();
+    if (!status) return status.GetStatus();
+
     // Brush.RelativeTransform is a Transform-valued dependency property, so
     // the abstract value type must exist before Brush metadata is authored.
     status = Meta::Register<Transform>(
@@ -316,6 +325,25 @@ Base::Result<void> PopulateUiMedia(
     status = matrix.Result();
     if (!status) return status.GetStatus();
 
+    auto transform3 = Meta::Register<Base::Transform3>(context);
+    transform3
+        .Field<&Base::Transform3::m11>("M11")
+        .Field<&Base::Transform3::m12>("M12")
+        .Field<&Base::Transform3::m13>("M13")
+        .Field<&Base::Transform3::m21>("M21")
+        .Field<&Base::Transform3::m22>("M22")
+        .Field<&Base::Transform3::m23>("M23")
+        .Field<&Base::Transform3::m31>("M31")
+        .Field<&Base::Transform3::m32>("M32")
+        .Field<&Base::Transform3::m33>("M33")
+        .Field<&Base::Transform3::dx>("OffsetX")
+        .Field<&Base::Transform3::dy>("OffsetY")
+        .Field<&Base::Transform3::dz>("OffsetZ")
+        .ValueSemantics()
+        .TextConverter<&ConvertTransform3>();
+    status = transform3.Result();
+    if (!status) return status.GetStatus();
+
     auto translate = Meta::Register<TranslateTransform>(context);
     translate
         .Property(
@@ -397,6 +425,68 @@ Base::Result<void> PopulateUiMedia(
             &ClearTransformGroupChildren)
         .Factory();
     status = transformGroup.Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Transform3D>(
+        context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+
+    auto compositeTransform3D =
+        Meta::Register<CompositeTransform3D>(context);
+    compositeTransform3D
+        .Property(CompositeTransform3D::CenterXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::CenterYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::CenterZProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::RotationXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::RotationYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::RotationZProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::ScaleXProperty,
+            FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform3D::ScaleYProperty,
+            FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform3D::ScaleZProperty,
+            FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform3D::TranslateXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::TranslateYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::TranslateZProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Factory();
+    status = compositeTransform3D.Result();
+    if (!status) return status.GetStatus();
+
+    auto perspectiveTransform3D =
+        Meta::Register<PerspectiveTransform3D>(context);
+    perspectiveTransform3D
+        .Property(
+            PerspectiveTransform3D::DepthProperty,
+            FrameworkPropertyMetadata(Base::DefaultPerspectiveDepth)
+                .AffectsRender())
+        .Property(
+            PerspectiveTransform3D::OffsetXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(
+            PerspectiveTransform3D::OffsetYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Factory();
+    status = perspectiveTransform3D.Result();
+    if (!status) return status.GetStatus();
+
+    auto matrixTransform3D = Meta::Register<MatrixTransform3D>(context);
+    matrixTransform3D
+        .Property(
+            MatrixTransform3D::MatrixProperty,
+            FrameworkPropertyMetadata(Base::IdentityTransform3())
+                .AffectsRender())
+        .Factory();
+    status = matrixTransform3D.Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<Effect>(

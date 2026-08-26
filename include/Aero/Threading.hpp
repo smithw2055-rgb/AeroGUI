@@ -5,6 +5,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/DispatcherReentrancyGuard.hpp>
 
 #include <cstdint>
 #include <mutex>
@@ -106,36 +107,6 @@ struct DispatcherOptions  {
 };
 
 class Dispatcher;
-
-class AERO_GUI_API DispatcherReentrancyGuard  {
-public:
-    DispatcherReentrancyGuard() noexcept = default;
-    DispatcherReentrancyGuard(
-        DispatcherReentrancyGuard&& other) noexcept;
-    DispatcherReentrancyGuard& operator=(
-        DispatcherReentrancyGuard&& other) noexcept;
-    ~DispatcherReentrancyGuard();
-
-    DispatcherReentrancyGuard(
-        const DispatcherReentrancyGuard&) = delete;
-    DispatcherReentrancyGuard& operator=(
-        const DispatcherReentrancyGuard&) = delete;
-
-    bool Active() const noexcept {
-        return dispatcher_ != nullptr;
-    }
-
-    void Release() noexcept;
-
-private:
-    friend class Dispatcher;
-
-    explicit DispatcherReentrancyGuard(
-        Dispatcher* dispatcher) noexcept
-        : dispatcher_(dispatcher) {}
-
-    Dispatcher* dispatcher_ = nullptr;
-};
 
 AERO_GUI_API DispatcherThreadToken
 CurrentDispatcherThreadToken() noexcept;

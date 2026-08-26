@@ -452,6 +452,14 @@ void OnPathLineCapChanged(
         static_cast<Path&>(object));
 }
 
+void OnPathFillRuleChanged(
+    ::Aero::DependencyObject& object,
+    const FillRule&,
+    const FillRule&) noexcept {
+    AeroGuiInternal::PathInvalidateGeometry(
+        static_cast<Path&>(object));
+}
+
 void OnShapeFillChanged(
     ::Aero::DependencyObject&,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept {
@@ -730,6 +738,14 @@ void OnItemTemplateChanged(
     const Base::Ref<DataTemplate>&,
     const Base::Ref<DataTemplate>& value) noexcept {
     AeroGuiInternal::SetItemTemplate(
+        static_cast<ItemsControl&>(object), value.Get());
+}
+
+void OnItemTemplateSelectorChanged(
+    ::Aero::DependencyObject& object,
+    const Base::Ref<DataTemplateSelector>&,
+    const Base::Ref<DataTemplateSelector>& value) noexcept {
+    AeroGuiInternal::SetItemTemplateSelector(
         static_cast<ItemsControl&>(object), value.Get());
 }
 

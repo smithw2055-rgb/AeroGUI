@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <new>
 #include <utility>
 #include "gui/meta/MetadataState.hpp"
@@ -145,6 +146,10 @@ struct AnimationEngine::Track {
         ColorKeyFrames,
         PointKeyFrames,
         ThicknessKeyFrames,
+        Integer,
+        IntegerKeyFrames,
+        Size,
+        SizeKeyFrames,
         Discrete
     };
 
@@ -153,6 +158,8 @@ struct AnimationEngine::Track {
           colorFrames(allocator),
           pointFrames(allocator),
           thicknessFrames(allocator),
+          integerFrames(allocator),
+          sizeFrames(allocator),
           discreteFrames(allocator) {}
 
     Track(Track&&) noexcept = default;
@@ -188,16 +195,65 @@ struct AnimationEngine::Track {
     Base::Rect toRect;
     Base::Thickness fromThickness;
     Base::Thickness toThickness;
+    std::int64_t fromInteger = 0;
+    std::int64_t toInteger = 0;
+    IntegerAnimationWidth integerWidth = IntegerAnimationWidth::Int32;
+    Base::Size fromSize{};
+    Base::Size toSize{};
     Base::Vector<DoubleKeyFrame> doubleFrames;
     Base::Vector<ColorKeyFrame> colorFrames;
     Base::Vector<PointKeyFrame> pointFrames;
     Base::Vector<ThicknessKeyFrame> thicknessFrames;
+    Base::Vector<IntegerKeyFrame> integerFrames;
+    Base::Vector<SizeKeyFrame> sizeFrames;
     Base::Vector<DiscreteAnimationKeyFrame> discreteFrames;
     Meta::PropertyValue discreteBaseValue;
     bool valueApplied = false;
     bool completedCounted = false;
     bool pendingInitialSample = false;
 };
+
+namespace {
+
+std::int64_t LerpInteger(
+    std::int64_t from,
+    std::int64_t to,
+    double progress) noexcept {
+    const double sampled = static_cast<double>(from) +
+        (static_cast<double>(to) - static_cast<double>(from)) * progress;
+    if (!std::isfinite(sampled)) {
+        return to;
+    }
+    return static_cast<std::int64_t>(std::llround(sampled));
+}
+
+template<class T>
+Base::Result<Meta::PropertyValue> EncodeSignedInteger(
+    std::int64_t value) noexcept {
+    const std::int64_t minimum =
+        static_cast<std::int64_t>(std::numeric_limits<T>::min());
+    const std::int64_t maximum =
+        static_cast<std::int64_t>(std::numeric_limits<T>::max());
+    if (value < minimum) value = minimum;
+    if (value > maximum) value = maximum;
+    return Meta::ValueCodec<T>::Encode(static_cast<T>(value));
+}
+
+Base::Result<Meta::PropertyValue> EncodeIntegerWidth(
+    std::int64_t value,
+    IntegerAnimationWidth width) noexcept {
+    switch (width) {
+    case IntegerAnimationWidth::Int16:
+        return EncodeSignedInteger<std::int16_t>(value);
+    case IntegerAnimationWidth::Int32:
+        return EncodeSignedInteger<std::int32_t>(value);
+    case IntegerAnimationWidth::Int64:
+        return EncodeSignedInteger<std::int64_t>(value);
+    }
+    return EncodeSignedInteger<std::int32_t>(value);
+}
+
+} // namespace
 
 AnimationEngine::AnimationEngine(
     ::Aero::Threading::Dispatcher& dispatcher,
@@ -413,6 +469,65 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.kind = Track::Kind::Thickness;
     track.fromThickness = animation.from;
     track.toThickness = animation.to;
+    track.startTimeMicroseconds = currentTimeMicroseconds_;
+    track.pendingInitialSample = automaticTickingEnabled_;
+    return track.handle;
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject& target,
+    Meta::DependencyPropertyHandle property,
+    const IntegerAnimation& animation) noexcept {
+    Base::Result<void> access = dispatcher_->VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!property.IsValid() || !IsTimingValid(animation.timing)) {
+        return InvalidAnimation(
+            "Integer animation has invalid target or timing");
+    }
+    Base::Result<Track*> added = AddTrack();
+    if (!added) return added.GetStatus();
+    Track& track = *added.Value();
+    track.handle = {nextHandle_++};
+    track.target = &target;
+    track.property = property;
+    track.timing = animation.timing;
+    track.easing = animation.easing;
+    track.kind = Track::Kind::Integer;
+    track.fromInteger = animation.from;
+    track.toInteger = animation.to;
+    track.integerWidth = animation.width;
+    track.startTimeMicroseconds = currentTimeMicroseconds_;
+    track.pendingInitialSample = automaticTickingEnabled_;
+    return track.handle;
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject& target,
+    Meta::DependencyPropertyHandle property,
+    const SizeAnimation& animation) noexcept {
+    Base::Result<void> access = dispatcher_->VerifyAccess();
+    if (!access) return access.GetStatus();
+    const auto finite = [](Base::Size value) noexcept {
+        return std::isfinite(value.width) && std::isfinite(value.height);
+    };
+    if (!property.IsValid() ||
+        !IsTimingValid(animation.timing) ||
+        !finite(animation.from) ||
+        !finite(animation.to)) {
+        return InvalidAnimation(
+            "SizeAnimation has invalid target, timing, or values");
+    }
+    Base::Result<Track*> added = AddTrack();
+    if (!added) return added.GetStatus();
+    Track& track = *added.Value();
+    track.handle = {nextHandle_++};
+    track.target = &target;
+    track.property = property;
+    track.timing = animation.timing;
+    track.easing = animation.easing;
+    track.kind = Track::Kind::Size;
+    track.fromSize = animation.from;
+    track.toSize = animation.to;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
     track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
@@ -663,6 +778,96 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.timing = animation.timing;
     track.kind = Track::Kind::ThicknessKeyFrames;
     track.fromThickness = animation.baseValue;
+    track.startTimeMicroseconds = currentTimeMicroseconds_;
+    track.pendingInitialSample = automaticTickingEnabled_;
+    return track.handle;
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject& target,
+    Meta::DependencyPropertyHandle property,
+    const IntegerKeyFrameAnimation& animation) noexcept {
+    Base::Result<void> access = dispatcher_->VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!property.IsValid() ||
+        !IsTimingValid(animation.timing) ||
+        animation.keyFrames.Empty()) {
+        return InvalidAnimation(
+            "Integer key-frame animation is incomplete");
+    }
+    AnimationTime lastKeyTime = 0U;
+    for (std::uint32_t index = 0U;
+         index < animation.keyFrames.Size(); ++index) {
+        const IntegerKeyFrame& frame = animation.keyFrames[index];
+        if (index != 0U && frame.keyTimeMicroseconds < lastKeyTime) {
+            return InvalidAnimation(
+                "Integer key frames must be ordered");
+        }
+        lastKeyTime = frame.keyTimeMicroseconds;
+    }
+    Base::Result<Track*> added = AddTrack();
+    if (!added) return added.GetStatus();
+    Track& track = *added.Value();
+    Base::Result<void> copied =
+        track.integerFrames.Append(animation.keyFrames);
+    if (!copied) {
+        track.state = AnimationState::Stopped;
+        CompactStopped();
+        return copied.GetStatus();
+    }
+    track.handle = {nextHandle_++};
+    track.target = &target;
+    track.property = property;
+    track.timing = animation.timing;
+    track.kind = Track::Kind::IntegerKeyFrames;
+    track.fromInteger = animation.baseValue;
+    track.integerWidth = animation.width;
+    track.startTimeMicroseconds = currentTimeMicroseconds_;
+    track.pendingInitialSample = automaticTickingEnabled_;
+    return track.handle;
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject& target,
+    Meta::DependencyPropertyHandle property,
+    const SizeKeyFrameAnimation& animation) noexcept {
+    Base::Result<void> access = dispatcher_->VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!property.IsValid() || !IsTimingValid(animation.timing) ||
+        !std::isfinite(animation.baseValue.width) ||
+        !std::isfinite(animation.baseValue.height) ||
+        animation.keyFrames.Empty()) {
+        return InvalidAnimation(
+            "Size key-frame animation is incomplete");
+    }
+    AnimationTime lastKeyTime = 0U;
+    for (std::uint32_t index = 0U;
+         index < animation.keyFrames.Size(); ++index) {
+        const SizeKeyFrame& frame = animation.keyFrames[index];
+        if (!std::isfinite(frame.value.width) ||
+            !std::isfinite(frame.value.height) ||
+            (index != 0U && frame.keyTimeMicroseconds < lastKeyTime)) {
+            return InvalidAnimation(
+                "Size key frames must be finite and ordered");
+        }
+        lastKeyTime = frame.keyTimeMicroseconds;
+    }
+    Base::Result<Track*> added = AddTrack();
+    if (!added) return added.GetStatus();
+    Track& track = *added.Value();
+    Base::Result<void> copied =
+        track.sizeFrames.Append(animation.keyFrames);
+    if (!copied) {
+        track.state = AnimationState::Stopped;
+        CompactStopped();
+        return copied.GetStatus();
+    }
+    track.handle = {nextHandle_++};
+    track.target = &target;
+    track.property = property;
+    track.timing = animation.timing;
+    track.kind = Track::Kind::SizeKeyFrames;
+    track.fromSize = animation.baseValue;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
     track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
@@ -1109,6 +1314,24 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
                 Encode(thickness);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
+    } else if (track.kind == Track::Kind::Integer) {
+        const double eased = Ease(progress, track.easing);
+        Base::Result<Meta::PropertyValue> encoded = EncodeIntegerWidth(
+            LerpInteger(track.fromInteger, track.toInteger, eased),
+            track.integerWidth);
+        if (!encoded) return encoded.GetStatus();
+        value = std::move(encoded).Value();
+    } else if (track.kind == Track::Kind::Size) {
+        const double eased = Ease(progress, track.easing);
+        const Base::Size size{
+            track.fromSize.width +
+                (track.toSize.width - track.fromSize.width) * eased,
+            track.fromSize.height +
+                (track.toSize.height - track.fromSize.height) * eased};
+        Base::Result<Meta::PropertyValue> encoded =
+            Meta::ValueCodec<Base::Size>::Encode(size);
+        if (!encoded) return encoded.GetStatus();
+        value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::DoubleKeyFrames) {
         double previousValue = track.baseValue;
         AnimationTime previousTime = 0U;
@@ -1332,6 +1555,108 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         }
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Thickness>::Encode(sampledValue);
+        if (!encoded) return encoded.GetStatus();
+        value = std::move(encoded).Value();
+    } else if (track.kind == Track::Kind::IntegerKeyFrames) {
+        std::int64_t previousValue = track.fromInteger;
+        AnimationTime previousTime = 0U;
+        std::int64_t sampledValue = previousValue;
+        bool found = false;
+        for (std::uint32_t index = 0U;
+             index < track.integerFrames.Size(); ++index) {
+            const IntegerKeyFrame& frame = track.integerFrames[index];
+            if (sampleTime > frame.keyTimeMicroseconds) {
+                previousValue = frame.value;
+                previousTime = frame.keyTimeMicroseconds;
+                sampledValue = frame.value;
+                continue;
+            }
+            const AnimationTime segmentDuration =
+                frame.keyTimeMicroseconds >= previousTime
+                ? frame.keyTimeMicroseconds - previousTime
+                : 0U;
+            double segmentProgress = segmentDuration == 0U
+                ? 1.0
+                : static_cast<double>(sampleTime - previousTime) /
+                    static_cast<double>(segmentDuration);
+            switch (frame.interpolation) {
+            case DoubleKeyFrameInterpolation::Discrete:
+                segmentProgress = sampleTime >=
+                    frame.keyTimeMicroseconds ? 1.0 : 0.0;
+                break;
+            case DoubleKeyFrameInterpolation::Easing:
+                segmentProgress = Ease(segmentProgress, frame.easing);
+                break;
+            case DoubleKeyFrameInterpolation::Spline:
+                segmentProgress = EvaluateSpline(segmentProgress, frame);
+                break;
+            case DoubleKeyFrameInterpolation::Linear:
+                segmentProgress = Clamp01(segmentProgress);
+                break;
+            }
+            sampledValue = LerpInteger(
+                previousValue, frame.value, segmentProgress);
+            found = true;
+            break;
+        }
+        if (!found && !track.integerFrames.Empty()) {
+            sampledValue = track.integerFrames.Back().value;
+        }
+        Base::Result<Meta::PropertyValue> encoded =
+            EncodeIntegerWidth(sampledValue, track.integerWidth);
+        if (!encoded) return encoded.GetStatus();
+        value = std::move(encoded).Value();
+    } else if (track.kind == Track::Kind::SizeKeyFrames) {
+        Base::Size previousValue = track.fromSize;
+        AnimationTime previousTime = 0U;
+        Base::Size sampledValue = previousValue;
+        bool found = false;
+        for (std::uint32_t index = 0U;
+             index < track.sizeFrames.Size(); ++index) {
+            const SizeKeyFrame& frame = track.sizeFrames[index];
+            if (sampleTime > frame.keyTimeMicroseconds) {
+                previousValue = frame.value;
+                previousTime = frame.keyTimeMicroseconds;
+                sampledValue = frame.value;
+                continue;
+            }
+            const AnimationTime segmentDuration =
+                frame.keyTimeMicroseconds >= previousTime
+                ? frame.keyTimeMicroseconds - previousTime
+                : 0U;
+            double segmentProgress = segmentDuration == 0U
+                ? 1.0
+                : static_cast<double>(sampleTime - previousTime) /
+                    static_cast<double>(segmentDuration);
+            switch (frame.interpolation) {
+            case DoubleKeyFrameInterpolation::Discrete:
+                segmentProgress = sampleTime >=
+                    frame.keyTimeMicroseconds ? 1.0 : 0.0;
+                break;
+            case DoubleKeyFrameInterpolation::Easing:
+                segmentProgress = Ease(segmentProgress, frame.easing);
+                break;
+            case DoubleKeyFrameInterpolation::Spline:
+                segmentProgress = EvaluateSpline(segmentProgress, frame);
+                break;
+            case DoubleKeyFrameInterpolation::Linear:
+                segmentProgress = Clamp01(segmentProgress);
+                break;
+            }
+            sampledValue = {
+                previousValue.width +
+                    (frame.value.width - previousValue.width) * segmentProgress,
+                previousValue.height +
+                    (frame.value.height - previousValue.height) *
+                        segmentProgress};
+            found = true;
+            break;
+        }
+        if (!found && !track.sizeFrames.Empty()) {
+            sampledValue = track.sizeFrames.Back().value;
+        }
+        Base::Result<Meta::PropertyValue> encoded =
+            Meta::ValueCodec<Base::Size>::Encode(sampledValue);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else {

@@ -81,7 +81,7 @@ public:
     Size GetMaxSize() const noexcept;
     Thickness GetMargin() const noexcept;
     Ref<Media::Transform> GetLayoutTransform() const noexcept;
-    Base::Transform2D GetLocalVisualTransform() const noexcept;
+    Base::ProjectiveTransform2D GetLocalVisualTransform() const noexcept;
     Result<Value> GetDataContextResult() const noexcept;
     Ref<Media::FontFamily> GetFontFamily() const noexcept {
         return GetValueOr(

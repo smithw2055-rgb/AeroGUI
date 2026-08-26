@@ -39,6 +39,47 @@ function(aero_forbid_text relative_path needle description)
     endif()
 endfunction()
 
+# Public include-closure budget. Counts unique installed Aero* headers reachable
+# from a start header, skipping AERO_GUI_IMPLEMENTATION-only includes. Caps are
+# filled from a post-cut measurement (measured + 10%), never invented first.
+set(AERO_INCLUDE_CLOSURE_SCRIPT
+    "${AERO_SOURCE_DIR}/cmake/CountPublicIncludeClosure.py")
+function(aero_include_closure_count relative_header out_lines out_files)
+    execute_process(
+        COMMAND python3
+            "${AERO_INCLUDE_CLOSURE_SCRIPT}"
+            "${AERO_SOURCE_DIR}"
+            "${relative_header}"
+        OUTPUT_VARIABLE aero_closure_output
+        RESULT_VARIABLE aero_closure_status
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(NOT aero_closure_status EQUAL 0)
+        message(FATAL_ERROR
+            "Failed to measure include-closure for ${relative_header}")
+    endif()
+    separate_arguments(aero_closure_parts UNIX_COMMAND "${aero_closure_output}")
+    list(LENGTH aero_closure_parts aero_closure_n)
+    if(aero_closure_n LESS 3)
+        message(FATAL_ERROR
+            "Include-closure script returned a malformed line: ${aero_closure_output}")
+    endif()
+    list(GET aero_closure_parts 1 aero_closure_lines)
+    list(GET aero_closure_parts 2 aero_closure_files)
+    set(${out_lines} "${aero_closure_lines}" PARENT_SCOPE)
+    set(${out_files} "${aero_closure_files}" PARENT_SCOPE)
+endfunction()
+
+function(aero_require_include_closure_budget relative_header max_lines)
+    aero_include_closure_count(
+        "${relative_header}" aero_budget_lines aero_budget_files)
+    if(aero_budget_lines GREATER max_lines)
+        message(FATAL_ERROR
+            "${relative_header} public include-closure is ${aero_budget_lines} lines (${aero_budget_files} headers); cap is ${max_lines}")
+    endif()
+    message(STATUS
+        "${relative_header} include-closure ${aero_budget_lines} lines / ${aero_budget_files} headers (cap ${max_lines})")
+endfunction()
+
 # ---------------------------------------------------------------------------
 # Installed SDK surface
 # ---------------------------------------------------------------------------
@@ -111,6 +152,8 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Controls/ControlTemplate.hpp"
         "include/Aero/VisualStateManager.hpp"
         "include/Aero/DataTemplate.hpp"
+        "include/Aero/DataTemplateSelector.hpp"
+        "include/Aero/HierarchicalDataTemplate.hpp"
         "include/Aero/Media/Animation.hpp"
         "include/Aero/Media/Brushes.hpp"
         "include/Aero/Media/FontProvider.hpp"
@@ -126,6 +169,9 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Controls/GridLength.hpp"
         "include/Aero/Media/BlendMode.hpp"
         "include/Aero/Diagnostics/Layout.hpp"
+        "include/Aero/Diagnostics/EffectiveValueSource.hpp"
+        "include/Aero/Diagnostics/SourceSpan.hpp"
+        "include/Aero/DispatcherReentrancyGuard.hpp"
         "include/AeroRender/Render.hpp"
         "include/AeroRender/RenderDevice.hpp"
         "include/AeroRender/Texture.hpp"
@@ -1280,6 +1326,9 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Controls/GridSplitter.hpp|class AERO_GUI_API GridSplitter"
         "include/Aero/VisualStateManager.hpp|class AERO_GUI_API VisualStateManager"
         "include/Aero/FrameworkTemplate.hpp|class AERO_GUI_API FrameworkTemplate"
+        "include/Aero/DataTemplate.hpp|class AERO_GUI_API DataTemplate"
+        "include/Aero/DataTemplateSelector.hpp|class AERO_GUI_API DataTemplateSelector"
+        "include/Aero/HierarchicalDataTemplate.hpp|class AERO_GUI_API HierarchicalDataTemplate"
         "include/Aero/Media/CompositionTarget.hpp|class AERO_GUI_API CompositionTarget"
         "include/Aero/DispatcherObject.hpp|class AERO_GUI_API DispatcherObject"
         "include/Aero/Controls/VirtualizingPanel.hpp|class AERO_GUI_API VirtualizingPanel"
@@ -1495,6 +1544,233 @@ aero_require_text(
     "mutable ResourceDictionary* resources_ = nullptr;"
     "FrameworkContentElement local resources must be a lazy pointer")
 aero_forbid_text(
+    "include/Aero/FrameworkElement.hpp"
+    "Base::Vector"
+    "FrameworkElement private storage must not contain Base::Vector; authored data lives on Rare")
+aero_require_text(
+    "include/Aero/FrameworkElement.hpp"
+    "FrameworkRare* frameworkRare_ = nullptr;"
+    "FrameworkElement must keep a lazy FrameworkRare* instead of hot Vectors")
+aero_forbid_text(
+    "include/Aero/FrameworkContentElement.hpp"
+    "Base::Vector"
+    "FrameworkContentElement private storage must not contain Base::Vector; authored data lives on Rare")
+aero_require_text(
+    "include/Aero/FrameworkContentElement.hpp"
+    "FrameworkContentRare* frameworkRare_ = nullptr;"
+    "FrameworkContentElement must keep a lazy FrameworkContentRare* instead of hot Vectors")
+
+aero_require_text(
+    "include/Aero/DataTemplateSelector.hpp"
+    "class AERO_GUI_API DataTemplateSelector : public Base::Object"
+    "DataTemplateSelector must inherit Object")
+aero_forbid_text(
+    "include/Aero/DataTemplate.hpp"
+    "GetHierarchicalItemsSource"
+    "Hierarchical ItemsSource/ItemTemplate belong on HierarchicalDataTemplate, not DataTemplate")
+aero_require_text(
+    "include/Aero/HierarchicalDataTemplate.hpp"
+    "GetItemsSource"
+    "HierarchicalDataTemplate must own ItemsSource (WPF shape)")
+aero_require_text(
+    "include/Aero/HierarchicalDataTemplate.hpp"
+    "GetItemTemplate"
+    "HierarchicalDataTemplate must own ItemTemplate (WPF shape)")
+aero_require_text(
+    "include/Aero/Controls/ItemsControl.hpp"
+    "ItemTemplateSelectorProperty"
+    "ItemsControl must expose ItemTemplateSelector")
+aero_require_text(
+    "include/Aero/Controls/ItemsControl.hpp"
+    "ResolveItemTemplate"
+    "ItemsControl must resolve ItemTemplateSelector, ItemTemplate, then implicit DataTemplate")
+aero_require_text(
+    "include/Aero/Data/CollectionView.hpp"
+    "public Collections::IItemsSource"
+    "CollectionView must implement IItemsSource")
+aero_require_text(
+    "include/Aero/Data/CollectionViewSource.hpp"
+    "GetDefaultView"
+    "CollectionViewSource must cache GetDefaultView")
+aero_require_text(
+    "include/Aero/Controls/Primitives/Selector.hpp"
+    "IsSynchronizedWithCurrentItemProperty"
+    "Selector must expose IsSynchronizedWithCurrentItem")
+aero_require_text(
+    "src/gui/controls/Selection.cpp"
+    "const std::uint32_t firstGeneratedIndex =\n        generator->GetFirstGeneratedIndex();"
+    "SyncContainers must map generated slots through firstGeneratedIndex_")
+aero_forbid_text(
+    "include/Aero/Media/Transform3D.hpp"
+    ": public Animatable"
+    "Transform3D must not introduce an Animatable layer")
+aero_require_text(
+    "include/Aero/Media/CompositeTransform3D.hpp"
+    "class AERO_GUI_API CompositeTransform3D : public Transform3D"
+    "CompositeTransform3D must reparent to Transform3D")
+aero_forbid_text(
+    "include/Aero/Media/CompositeTransform3D.hpp"
+    "GetProjectedMatrix"
+    "GetProjectedMatrix is retired; use GetTransform3D + collapse")
+aero_require_text(
+    "include/Aero/Media/PerspectiveTransform3D.hpp"
+    "class AERO_GUI_API PerspectiveTransform3D : public Transform3D"
+    "PerspectiveTransform3D must inherit Transform3D")
+aero_require_text(
+    "include/Aero/Media/MatrixTransform3D.hpp"
+    "class AERO_GUI_API MatrixTransform3D : public Transform3D"
+    "MatrixTransform3D must inherit Transform3D")
+aero_require_text(
+    "include/Aero/Media/MatrixTransform3D.hpp"
+    "DependencyProperty<Base::Transform3> MatrixProperty"
+    "MatrixTransform3D.Matrix must be a fully declared DP")
+aero_require_text(
+    "include/Aero/UIElement.hpp"
+    "Transform3DProperty{\"Transform3D\"}"
+    "UIElement must own public Transform3DProperty")
+aero_require_text(
+    "include/Aero/FrameworkElement.hpp"
+    "Base::ProjectiveTransform2D GetLocalVisualTransform()"
+    "GetLocalVisualTransform must return ProjectiveTransform2D with local semantics")
+aero_require_text(
+    "include/Aero/Base/Geometry.hpp"
+    "inline ProjectiveTransform2D CollapsePerspective("
+    "Geometry.hpp must own CollapsePerspective")
+aero_forbid_text(
+    "include/Aero/UIElement.hpp"
+    "ProjectionProperty"
+    "UIElement.Projection / PlaneProjection are out of scope")
+file(GLOB_RECURSE aero_public_hpp
+    "${AERO_SOURCE_DIR}/include/*.hpp")
+foreach(aero_public_hpp_file IN LISTS aero_public_hpp)
+    file(READ "${aero_public_hpp_file}" aero_public_hpp_content)
+    if(aero_public_hpp_content MATCHES "GetProjectedMatrix")
+        file(RELATIVE_PATH aero_public_hpp_relative
+            "${AERO_SOURCE_DIR}" "${aero_public_hpp_file}")
+        message(FATAL_ERROR
+            "Retired GetProjectedMatrix remains in ${aero_public_hpp_relative}")
+    endif()
+    if(aero_public_hpp_content MATCHES "PlaneProjection")
+        file(RELATIVE_PATH aero_public_hpp_relative
+            "${AERO_SOURCE_DIR}" "${aero_public_hpp_file}")
+        message(FATAL_ERROR
+            "PlaneProjection is out of scope: ${aero_public_hpp_relative}")
+    endif()
+endforeach()
+
+file(GLOB aero_animation_public_headers
+    "${AERO_SOURCE_DIR}/include/Aero/Media/Animation/*.hpp")
+foreach(aero_animation_header IN LISTS aero_animation_public_headers)
+    file(RELATIVE_PATH aero_animation_relative
+        "${AERO_SOURCE_DIR}" "${aero_animation_header}")
+    get_filename_component(aero_animation_stem
+        "${aero_animation_header}" NAME_WE)
+    file(READ "${aero_animation_header}" aero_animation_content)
+    if(aero_animation_content MATCHES ": public[ \t]+Base::Object")
+        message(FATAL_ERROR
+            "Animation header must not inherit Base::Object: ${aero_animation_relative}")
+    endif()
+    if(aero_animation_stem STREQUAL "KeyFrameBase")
+        if(NOT aero_animation_content MATCHES ": public[ \t]+::Aero::Freezable")
+            message(FATAL_ERROR
+                "KeyFrameBase must inherit Freezable: ${aero_animation_relative}")
+        endif()
+    elseif(aero_animation_stem STREQUAL "KeyFrame")
+        if(NOT aero_animation_content MATCHES ": public[ \t]+KeyFrameBase")
+            message(FATAL_ERROR
+                "template KeyFrame<T> must inherit KeyFrameBase: ${aero_animation_relative}")
+        endif()
+    elseif(aero_animation_stem MATCHES "KeyFrame$")
+        if(NOT aero_animation_content MATCHES
+                ": public[ \t]+(KeyFrameBase|KeyFrame<|[A-Za-z0-9_]*KeyFrame)")
+            message(FATAL_ERROR
+                "*KeyFrame must be traceable to KeyFrameBase: ${aero_animation_relative}")
+        endif()
+    endif()
+    if(aero_animation_stem MATCHES "AnimationBase$")
+        if(NOT aero_animation_content MATCHES ": public[ \t]+AnimationTimeline")
+            message(FATAL_ERROR
+                "*AnimationBase must inherit AnimationTimeline: ${aero_animation_relative}")
+        endif()
+    endif()
+endforeach()
+aero_require_text(
+    "include/Aero/Media/Animation/Storyboard.hpp"
+    "class AERO_GUI_API Storyboard : public ParallelTimeline"
+    "Storyboard must inherit ParallelTimeline")
+aero_require_text(
+    "include/Aero/Media/Animation/ParallelTimeline.hpp"
+    "class AERO_GUI_API ParallelTimeline : public TimelineGroup"
+    "ParallelTimeline must inherit TimelineGroup")
+aero_require_text(
+    "include/Aero/Media/Animation/TimelineGroup.hpp"
+    "class AERO_GUI_API TimelineGroup : public Timeline"
+    "TimelineGroup must inherit Timeline")
+aero_require_text(
+    "include/Aero/Media/Animation/Timeline.hpp"
+    "class AERO_GUI_API Timeline : public ::Aero::Freezable"
+    "Timeline must inherit Freezable")
+aero_require_text(
+    "include/Aero/Media/Animation/Timeline.hpp"
+    "DependencyProperty<Duration> DurationProperty"
+    "Timeline Duration must be a dependency property")
+aero_require_text(
+    "include/Aero/Media/Animation/Timeline.hpp"
+    "DependencyProperty<RepeatBehavior>"
+    "Timeline RepeatBehavior must be a dependency property")
+aero_forbid_text(
+    "include/Aero/Media/Animation/Timeline.hpp"
+    "beginTimeText_"
+    "Timeline timing must not store StringView clock text")
+aero_require_text(
+    "include/Aero/Media/Animation/Duration.hpp"
+    "IsAutomatic"
+    "Duration must expose Automatic/Forever/TimeSpan")
+aero_require_text(
+    "include/Aero/Media/Animation/KeyTime.hpp"
+    "Paced"
+    "KeyTime must expose TimeSpan/Percent/Uniform/Paced")
+aero_require_text(
+    "include/Aero/Media/Animation/RepeatBehavior.hpp"
+    "FromDuration"
+    "RepeatBehavior must support count, Forever, and duration")
+aero_require_text(
+    "include/Aero/Media/Animation/StoryboardCompletedTrigger.hpp"
+    "class AERO_GUI_API StoryboardCompletedTrigger : public ::Aero::TriggerBase"
+    "StoryboardCompletedTrigger must inherit TriggerBase like EventTrigger")
+aero_forbid_text(
+    "include/Aero/Media/Animation.hpp"
+    "#include <Aero/Interactivity"
+    "Animation.hpp umbrella must not reverse-include the interactivity layer")
+aero_forbid_text(
+    "include/Aero/Media/Animation.hpp"
+    "StoryboardCompletedTrigger"
+    "Animation.hpp umbrella must not pull StoryboardCompletedTrigger")
+aero_forbid_text(
+    "include/Aero/DependencyProperty.hpp"
+    "#include <Aero/Diagnostics/PropertyValueSource.hpp>"
+    "DependencyProperty.hpp must not pull PropertyProviderSet; use EffectiveValueSource.hpp")
+aero_require_text(
+    "include/Aero/DependencyProperty.hpp"
+    "#if defined(AERO_GUI_IMPLEMENTATION)\n#include <Aero/Base/HashMap.hpp>"
+    "HashMap for DependencyPropertyRegistry::memberIndex_ must stay behind AERO_GUI_IMPLEMENTATION")
+aero_forbid_text(
+    "include/Aero/DependencyObject.hpp"
+    "#include <Aero/Threading.hpp>"
+    "DependencyObject.hpp must include DispatcherReentrancyGuard.hpp, not Threading.hpp")
+aero_require_text(
+    "include/Aero/DependencyObject.hpp"
+    "#include <Aero/DispatcherReentrancyGuard.hpp>"
+    "DependencyObject.hpp must include the one-type DispatcherReentrancyGuard header")
+aero_forbid_text(
+    "include/Aero/Resources.hpp"
+    "#include <Aero/Diagnostics.hpp>"
+    "Resources.hpp must include SourceSpan.hpp, not the Diagnostics umbrella")
+aero_require_text(
+    "include/Aero/Resources.hpp"
+    "#include <Aero/Diagnostics/SourceSpan.hpp>"
+    "Resources.hpp default-argument SourceSpan must come from the tiny header")
+aero_forbid_text(
     "include/Aero/Visual.hpp"
     "bool renderAttached_"
     "Visual render bools must be packed into visualFlags_, not one-byte members")
@@ -1578,6 +1854,30 @@ aero_require_text(
     "include/Aero/Shapes/Path.hpp"
     "class AERO_GUI_API Path : public Shape"
     "Path must derive Shape so Fill/Stroke live on the WPF Shape base")
+aero_require_text(
+    "include/Aero/Shapes/Path.hpp"
+    "FillRuleProperty"
+    "Path must expose FillRule so tessellation is not hardcoded EvenOdd")
+aero_require_text(
+    "include/Aero/Media/PathSegment.hpp"
+    "Flatten("
+    "PathSegment must Flatten into a sink instead of stringifying")
+aero_require_text(
+    "include/Aero/Media/BezierSegment.hpp"
+    "class AERO_GUI_API BezierSegment : public PathSegment"
+    "BezierSegment must live in BezierSegment.hpp")
+aero_require_text(
+    "include/Aero/Media/Geometry.hpp"
+    "FlattenCore"
+    "Geometry rendering Flatten must apply Transform then FlattenCore")
+aero_require_text(
+    "src/gui/shapes/Path.cpp"
+    "geometry->Flatten(sink)"
+    "Path rendering must Flatten object-model Geometry, not ToStreamData")
+aero_forbid_text(
+    "src/gui/shapes/Path.cpp"
+    "ToStreamData()"
+    "Path rendering must not round-trip PathGeometry through ToStreamData")
 aero_require_text(
     "include/Aero/Shapes/Line.hpp"
     "class AERO_GUI_API Line : public Shape"
@@ -2064,5 +2364,15 @@ foreach(gui_kernel_file IN LISTS aero_gui_kernel_files)
         endif()
     endforeach()
 endforeach()
+
+# Public include-closure caps = measured unique Aero* header lines after the
+# four installed-header cuts, plus 10%. Do not raise these without a new
+# measurement and an explicit include-graph reason.
+aero_require_include_closure_budget(
+    "include/Aero/Controls/Button.hpp" 8985)
+aero_require_include_closure_budget(
+    "include/Aero/Controls/TextBlock.hpp" 9488)
+aero_require_include_closure_budget(
+    "include/Aero/Controls/Panel.hpp" 8367)
 
 message(STATUS "Aero final architecture dependency checks passed")

@@ -34,10 +34,13 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Collections.hpp
     include/Aero/Diagnostics.hpp
     include/Aero/Diagnostics/DependencyProperty.hpp
+    include/Aero/Diagnostics/EffectiveValueSource.hpp
     include/Aero/Diagnostics/Layout.hpp
     include/Aero/Diagnostics/PropertyValueSource.hpp
     include/Aero/Diagnostics/Rendering.hpp
+    include/Aero/Diagnostics/SourceSpan.hpp
     include/Aero/Threading.hpp
+    include/Aero/DispatcherReentrancyGuard.hpp
     include/Aero/Meta.hpp
     include/Aero/Value.hpp
     include/Aero/Documents.hpp
@@ -106,12 +109,16 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/TextBox.hpp
     include/Aero/Data/Binding.hpp
     include/Aero/Data/NotifyPropertyChanged.hpp
+    include/Aero/Data/SortDescription.hpp
+    include/Aero/Data/CollectionView.hpp
+    include/Aero/Data/CollectionViewSource.hpp
     include/Aero/Resources.hpp
     include/Aero/Style.hpp
     include/Aero/FrameworkTemplate.hpp
     include/Aero/Controls/ControlTemplate.hpp
     include/Aero/VisualStateManager.hpp
     include/Aero/DataTemplate.hpp
+    include/Aero/DataTemplateSelector.hpp
     include/Aero/HierarchicalDataTemplate.hpp
     include/Aero/Media/Animation.hpp
     include/Aero/Media/Animation/AnimationTimeline.hpp
@@ -129,9 +136,15 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/DiscreteBooleanKeyFrame.hpp
     include/Aero/Media/Animation/DiscreteColorKeyFrame.hpp
     include/Aero/Media/Animation/DiscreteDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteInt16KeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteInt32KeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteInt64KeyFrame.hpp
     include/Aero/Media/Animation/DiscreteObjectKeyFrame.hpp
     include/Aero/Media/Animation/DiscretePointKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteSizeKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteStringKeyFrame.hpp
     include/Aero/Media/Animation/DiscreteThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/Duration.hpp
     include/Aero/Media/Animation/DoubleAnimation.hpp
     include/Aero/Media/Animation/DoubleAnimationBase.hpp
     include/Aero/Media/Animation/DoubleAnimationUsingKeyFrames.hpp
@@ -139,15 +152,36 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/EasingColorKeyFrame.hpp
     include/Aero/Media/Animation/EasingDoubleKeyFrame.hpp
     include/Aero/Media/Animation/EasingFunctionBase.hpp
+    include/Aero/Media/Animation/EasingInt16KeyFrame.hpp
+    include/Aero/Media/Animation/EasingInt32KeyFrame.hpp
+    include/Aero/Media/Animation/EasingInt64KeyFrame.hpp
     include/Aero/Media/Animation/EasingPointKeyFrame.hpp
+    include/Aero/Media/Animation/EasingSizeKeyFrame.hpp
     include/Aero/Media/Animation/EasingThicknessKeyFrame.hpp
     include/Aero/Media/Animation/ElasticEase.hpp
     include/Aero/Media/Animation/ExponentialEase.hpp
+    include/Aero/Media/Animation/Int16Animation.hpp
+    include/Aero/Media/Animation/Int16AnimationBase.hpp
+    include/Aero/Media/Animation/Int16AnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/Int16KeyFrame.hpp
+    include/Aero/Media/Animation/Int32Animation.hpp
+    include/Aero/Media/Animation/Int32AnimationBase.hpp
+    include/Aero/Media/Animation/Int32AnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/Int32KeyFrame.hpp
+    include/Aero/Media/Animation/Int64Animation.hpp
+    include/Aero/Media/Animation/Int64AnimationBase.hpp
+    include/Aero/Media/Animation/Int64AnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/Int64KeyFrame.hpp
     include/Aero/Media/Animation/KeyFrame.hpp
     include/Aero/Media/Animation/KeyFrameBase.hpp
+    include/Aero/Media/Animation/KeyTime.hpp
     include/Aero/Media/Animation/LinearColorKeyFrame.hpp
     include/Aero/Media/Animation/LinearDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/LinearInt16KeyFrame.hpp
+    include/Aero/Media/Animation/LinearInt32KeyFrame.hpp
+    include/Aero/Media/Animation/LinearInt64KeyFrame.hpp
     include/Aero/Media/Animation/LinearPointKeyFrame.hpp
+    include/Aero/Media/Animation/LinearSizeKeyFrame.hpp
     include/Aero/Media/Animation/LinearThicknessKeyFrame.hpp
     include/Aero/Media/Animation/ObjectAnimationUsingKeyFrames.hpp
     include/Aero/Media/Animation/ObjectKeyFrame.hpp
@@ -162,16 +196,28 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/QuinticEase.hpp
     include/Aero/Media/Animation/RectAnimation.hpp
     include/Aero/Media/Animation/RectAnimationBase.hpp
+    include/Aero/Media/Animation/RepeatBehavior.hpp
     include/Aero/Media/Animation/SineEase.hpp
+    include/Aero/Media/Animation/SizeAnimation.hpp
+    include/Aero/Media/Animation/SizeAnimationBase.hpp
+    include/Aero/Media/Animation/SizeAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/SizeKeyFrame.hpp
     include/Aero/Media/Animation/SplineColorKeyFrame.hpp
     include/Aero/Media/Animation/SplineDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/SplineInt16KeyFrame.hpp
+    include/Aero/Media/Animation/SplineInt32KeyFrame.hpp
+    include/Aero/Media/Animation/SplineInt64KeyFrame.hpp
     include/Aero/Media/Animation/SplinePointKeyFrame.hpp
+    include/Aero/Media/Animation/SplineSizeKeyFrame.hpp
     include/Aero/Media/Animation/SplineThicknessKeyFrame.hpp
     include/Aero/Media/Animation/Storyboard.hpp
+    include/Aero/Media/Animation/StringAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/StringKeyFrame.hpp
     include/Aero/Media/Animation/ThicknessAnimation.hpp
     include/Aero/Media/Animation/ThicknessAnimationBase.hpp
     include/Aero/Media/Animation/ThicknessAnimationUsingKeyFrames.hpp
     include/Aero/Media/Animation/ThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/TimeSpan.hpp
     include/Aero/Media/Animation/Timeline.hpp
     include/Aero/Media/Animation/TimelineGroup.hpp
     include/Aero/Media/BlendMode.hpp
@@ -298,6 +344,9 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/RotateTransform.hpp
     include/Aero/Media/SkewTransform.hpp
     include/Aero/Media/MatrixTransform.hpp
+    include/Aero/Media/Transform3D.hpp
+    include/Aero/Media/PerspectiveTransform3D.hpp
+    include/Aero/Media/MatrixTransform3D.hpp
     include/Aero/Media/CompositeTransform3D.hpp
     include/Aero/Media/TransformGroup.hpp
     include/Aero/Media/Effect.hpp
@@ -309,8 +358,19 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/StreamGeometry.hpp
     include/Aero/Media/PathSegment.hpp
     include/Aero/Media/LineSegment.hpp
+    include/Aero/Media/BezierSegment.hpp
+    include/Aero/Media/QuadraticBezierSegment.hpp
+    include/Aero/Media/ArcSegment.hpp
+    include/Aero/Media/PolyLineSegment.hpp
+    include/Aero/Media/PolyBezierSegment.hpp
+    include/Aero/Media/PolyQuadraticBezierSegment.hpp
     include/Aero/Media/PathFigure.hpp
     include/Aero/Media/PathGeometry.hpp
+    include/Aero/Media/LineGeometry.hpp
+    include/Aero/Media/RectangleGeometry.hpp
+    include/Aero/Media/EllipseGeometry.hpp
+    include/Aero/Media/GeometryGroup.hpp
+    include/Aero/Media/CombinedGeometry.hpp
     include/Aero/Media/FreezableCollection.hpp
     include/Aero/InputScope.hpp
     include/Aero/ICommand.hpp

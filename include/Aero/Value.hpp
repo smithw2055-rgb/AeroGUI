@@ -27,6 +27,7 @@ namespace Aero::Base {
 
 struct Color;
 struct Rect;
+struct Size;
 
 using TypeId = Base::MetaTypeId;
 using MemberId = Base::MetaMemberId;
@@ -574,6 +575,16 @@ struct TypeTraits<Base::Rect> {
         return AeroNamespaceUri();
     }
     static constexpr StringView Name() noexcept { return "Rect"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct TypeTraits<Base::Size> {
+    static constexpr TypeId Id() noexcept { return MakeTypeId("Size"); }
+    static constexpr StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr StringView Name() noexcept { return "Size"; }
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 

@@ -22,24 +22,28 @@ Base::Transform2D Translation(double x, double y) noexcept {
 }
 
 Base::Transform2D ToRootTransform(const ::Aero::Media::Visual& visual) noexcept {
-    Base::Transform2D result;
+    Base::ProjectiveTransform2D result = Base::IdentityProjective();
     const ::Aero::Media::Visual* current = &visual;
     while (current != nullptr) {
         const UIElement* element = ::Aero::TryCast<::Aero::UIElement>(current);
         const FrameworkElement* framework =
             ::Aero::TryCast<::Aero::FrameworkElement>(current);
         if (element != nullptr) {
-            Base::Transform2D local = framework != nullptr
+            Base::ProjectiveTransform2D local = framework != nullptr
                 ? framework->GetLocalVisualTransform()
-                : Base::Transform2D{};
+                : Base::IdentityProjective();
             const Rect slot = element->GetLayoutSlot();
-            local = Media::ComposeTransforms(
-                local, Translation(slot.x, slot.y));
-            result = Media::ComposeTransforms(result, local);
+            local = Base::Compose(
+                local, Base::ToProjective(Translation(slot.x, slot.y)));
+            result = Base::Compose(result, local);
         }
         current = current->GetVisualParent();
     }
-    return result;
+    Base::Transform2D affine;
+    if (!Base::TryToTransform2D(result, affine)) {
+        return {};
+    }
+    return affine;
 }
 
 Base::Result<Base::Ref<Media::Brush>> ReadBackground(

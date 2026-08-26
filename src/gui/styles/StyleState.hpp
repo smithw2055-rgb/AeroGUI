@@ -5,7 +5,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/Media/CompositeTransform3D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp"
@@ -38,9 +38,14 @@ public:
     static void OnBlendingModeChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
+    // XAML compatibility forwarder: aero:Element.Transform3D writes
+    // UIElement::Transform3DProperty. Render/hit read the UIElement DP.
     inline static constexpr Meta::AttachedPropertyRef<
-        Element, Base::Ref<Media::CompositeTransform3D>>
+        Element, Base::Ref<Media::Transform3D>>
         Transform3DProperty{"Transform3D"};
+    static void OnTransform3DChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
 };
 
 class TextProperties : public Base::Object {

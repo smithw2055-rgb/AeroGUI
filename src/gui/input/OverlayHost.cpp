@@ -97,8 +97,8 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                     auto rootTransform = [&makeTranslate](
                         Aero::UIElement&
                             element) noexcept -> Base::Transform2D {
-                        Base::Transform2D
-                            result{};
+                        Base::ProjectiveTransform2D
+                            result = Base::IdentityProjective();
                         Aero::Media::Visual*
                             current = &element;
                         while (current != nullptr) {
@@ -114,12 +114,12 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                                             currentElement);
                                 if (currentFramework !=
                                     nullptr) {
-                                    const Base::Transform2D localT =
+                                    const Base::ProjectiveTransform2D localT =
                                         currentFramework->
                                             GetLocalVisualTransform();
                                     if (Base::IsFiniteTransform(localT)) {
                                         result =
-                                            Aero::Media::ComposeTransforms(
+                                            Base::Compose(
                                                 result, localT);
                                     }
                                 }
@@ -127,16 +127,21 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                                         currentElement->
                                             GetLayoutSlot();
                                 result =
-                                    Aero::Media::ComposeTransforms(
+                                    Base::Compose(
                                         result,
-                                        makeTranslate(
-                                            slot.x, slot.y));
+                                        Base::ToProjective(
+                                            makeTranslate(
+                                                slot.x, slot.y)));
                             }
                             current =
                                 current->
                                     GetVisualParent();
                         }
-                        return result;
+                        Base::Transform2D affine{};
+                        if (!Base::TryToTransform2D(result, affine)) {
+                            return {};
+                        }
+                        return affine;
                     };
                     Base::Transform2D transform =
                         rootTransform(*inputElement);

@@ -156,6 +156,17 @@ Base::Result<Point> ConvertPoint(
     return Point{x, y};
 }
 
+Base::Result<Base::Size> ConvertSize(
+    Base::StringView input) noexcept {
+    Base::Result<Point> parsed = ConvertPoint(input);
+    if (!parsed) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Size requires two finite values");
+    }
+    return Base::Size{parsed.Value().x, parsed.Value().y};
+}
+
 Base::Result<Rect> ConvertRect(
     Base::StringView input) noexcept {
     Base::String text;
@@ -224,6 +235,37 @@ Base::Result<Base::Transform2D> ConvertMatrix(
     return Base::Transform2D{
         values[0], values[1], values[2],
         values[3], values[4], values[5]};
+}
+
+Base::Result<Base::Transform3> ConvertTransform3(
+    Base::StringView input) noexcept {
+    Base::String text;
+    Base::Result<void> assigned = text.Assign(input);
+    if (!assigned) return assigned.GetStatus();
+    const char* cursor = text.CStr();
+    double values[12]{};
+    for (std::uint32_t index = 0U; index < 12U; ++index) {
+        while (*cursor == ' ' || *cursor == ',') ++cursor;
+        char* end = nullptr;
+        values[index] = std::strtod(cursor, &end);
+        if (end == cursor || !std::isfinite(values[index])) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Transform3 requires twelve finite values");
+        }
+        cursor = end;
+    }
+    while (*cursor == ' ' || *cursor == ',') ++cursor;
+    if (*cursor != '\0') {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Transform3 contains trailing text");
+    }
+    return Base::Transform3{
+        values[0], values[1], values[2],
+        values[3], values[4], values[5],
+        values[6], values[7], values[8],
+        values[9], values[10], values[11]};
 }
 
 int Hex(char value) noexcept {
@@ -781,6 +823,27 @@ void ClearPathGeometryFigures(
     static_cast<Media::PathGeometry&>(owner).ClearFigures();
 }
 
+void AddGeometryGroupChild(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::Geometry> retained =
+        Base::Ref<Media::Geometry>::TryFromBorrowed(
+            static_cast<Media::Geometry&>(*value));
+    if (retained) {
+        static_cast<void>(
+            static_cast<Media::GeometryGroup&>(owner)
+                .Add(std::move(retained)));
+    }
+}
+
+void ClearGeometryGroupChildren(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<Media::GeometryGroup&>(owner).Clear();
+}
+
 Base::Result<Value> ConvertBrushText(
     TypeId targetType,
     Base::StringView text,
@@ -1019,6 +1082,101 @@ void ClearBooleanKeyFrames(
     static_cast<Media::Animation::BooleanAnimationUsingKeyFrames&>(owner)
         .ClearKeyFrames();
     return;
+}
+
+void AddInt16KeyFrame(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::Animation::Int16KeyFrame> retained =
+        Base::Ref<Media::Animation::Int16KeyFrame>::TryFromBorrowed(
+            static_cast<Media::Animation::Int16KeyFrame&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<Media::Animation::Int16AnimationUsingKeyFrames&>(owner)
+            .AddKeyFrame(std::move(retained)));
+}
+
+void ClearInt16KeyFrames(Base::Object& owner, void*) noexcept {
+    static_cast<Media::Animation::Int16AnimationUsingKeyFrames&>(owner)
+        .ClearKeyFrames();
+}
+
+void AddInt32KeyFrame(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::Animation::Int32KeyFrame> retained =
+        Base::Ref<Media::Animation::Int32KeyFrame>::TryFromBorrowed(
+            static_cast<Media::Animation::Int32KeyFrame&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<Media::Animation::Int32AnimationUsingKeyFrames&>(owner)
+            .AddKeyFrame(std::move(retained)));
+}
+
+void ClearInt32KeyFrames(Base::Object& owner, void*) noexcept {
+    static_cast<Media::Animation::Int32AnimationUsingKeyFrames&>(owner)
+        .ClearKeyFrames();
+}
+
+void AddInt64KeyFrame(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::Animation::Int64KeyFrame> retained =
+        Base::Ref<Media::Animation::Int64KeyFrame>::TryFromBorrowed(
+            static_cast<Media::Animation::Int64KeyFrame&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<Media::Animation::Int64AnimationUsingKeyFrames&>(owner)
+            .AddKeyFrame(std::move(retained)));
+}
+
+void ClearInt64KeyFrames(Base::Object& owner, void*) noexcept {
+    static_cast<Media::Animation::Int64AnimationUsingKeyFrames&>(owner)
+        .ClearKeyFrames();
+}
+
+void AddSizeKeyFrame(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::Animation::SizeKeyFrame> retained =
+        Base::Ref<Media::Animation::SizeKeyFrame>::TryFromBorrowed(
+            static_cast<Media::Animation::SizeKeyFrame&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<Media::Animation::SizeAnimationUsingKeyFrames&>(owner)
+            .AddKeyFrame(std::move(retained)));
+}
+
+void ClearSizeKeyFrames(Base::Object& owner, void*) noexcept {
+    static_cast<Media::Animation::SizeAnimationUsingKeyFrames&>(owner)
+        .ClearKeyFrames();
+}
+
+void AddStringKeyFrame(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::Animation::StringKeyFrame> retained =
+        Base::Ref<Media::Animation::StringKeyFrame>::TryFromBorrowed(
+            static_cast<Media::Animation::StringKeyFrame&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<Media::Animation::StringAnimationUsingKeyFrames&>(owner)
+            .AddKeyFrame(std::move(retained)));
+}
+
+void ClearStringKeyFrames(Base::Object& owner, void*) noexcept {
+    static_cast<Media::Animation::StringAnimationUsingKeyFrames&>(owner)
+        .ClearKeyFrames();
 }
 
 void AddEventTriggerAction(

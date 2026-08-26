@@ -150,6 +150,11 @@ Base::Result<void> PopulateUiElements(
                 .AffectsRender()
                 .Changed(&OnRenderTransformChanged))
         .Property(
+            UIElement::Transform3DProperty,
+            FrameworkPropertyMetadata(Base::Ref<Media::Transform3D>{})
+                .AffectsRender()
+                .Changed(&OnRenderTransformChanged))
+        .Property(
             UIElement::RenderTransformOriginProperty,
             FrameworkPropertyMetadata(Point{})
                 .Changed(&OnRenderStateChanged));

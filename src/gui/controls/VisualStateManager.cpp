@@ -763,12 +763,22 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                     timeline);
             Base::Vector<Aero::Media::Animation::Model::DoubleKeyFrame>
                 frames;
+            const auto schedule =
+                Aero::Media::AnimationPrivate::MakeSchedule(
+                    authored.GetKeyFrames(),
+                    ComposeTiming(authored, parent).durationMicroseconds);
+            std::uint32_t keyIndex = 0U;
             for (const Base::Ref<Media::Animation::DoubleKeyFrame>&
                      frame : authored.GetKeyFrames()) {
                 if (!frame) continue;
                 Base::Result<void> appended =
                     frames.PushBack(
-                        Aero::Media::AnimationPrivate::DoubleFrame(*frame));
+                        Aero::Media::AnimationPrivate::DoubleFrame(
+                            *frame,
+                            schedule.duration,
+                            keyIndex,
+                            schedule.count));
+                ++keyIndex;
                 if (!appended) {
                     return appended.GetStatus();
                 }
@@ -821,13 +831,22 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                 timeline);
             Base::Vector<Aero::Media::Animation::Model::ColorKeyFrame>
                 frames;
+            const auto schedule =
+                Aero::Media::AnimationPrivate::MakeSchedule(
+                    authored.GetKeyFrames(),
+                    ComposeTiming(authored, parent).durationMicroseconds);
+            std::uint32_t keyIndex = 0U;
             for (const Base::Ref<Media::Animation::ColorKeyFrame>&
                      frame : authored.GetKeyFrames()) {
                 if (!frame) continue;
                 Base::Result<void> appended =
                     frames.PushBack(
                         Aero::Media::AnimationPrivate::ColorFrame(
-                            *frame));
+                            *frame,
+                            schedule.duration,
+                            keyIndex,
+                            schedule.count));
+                ++keyIndex;
                 if (!appended) {
                     return appended.GetStatus();
                 }
@@ -890,6 +909,11 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                 auto& authored = static_cast<
                     Media::Animation::ObjectAnimationUsingKeyFrames&>(
                         timeline);
+                const auto schedule =
+                    Aero::Media::AnimationPrivate::MakeSchedule(
+                        authored.GetKeyFrames(),
+                        ComposeTiming(authored, parent).durationMicroseconds);
+                std::uint32_t keyIndex = 0U;
                 for (const Base::Ref<
                          Media::Animation::ObjectKeyFrame>&
                      frame : authored.GetKeyFrames()) {
@@ -897,7 +921,12 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                     Aero::Media::Animation::Model::DiscreteAnimationKeyFrame
                         runtime;
                     runtime.keyTimeMicroseconds =
-                        frame->GetKeyTimeMicroseconds();
+                        Aero::Media::AnimationPrivate::ResolveKeyTime(
+                            frame->GetKeyTime(),
+                            schedule.duration,
+                            keyIndex,
+                            schedule.count);
+                    ++keyIndex;
                     runtime.value = frame->GetValue();
                     Base::Result<void> appended =
                         frames.PushBack(
@@ -910,6 +939,11 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                 auto& authored = static_cast<
                     Media::Animation::BooleanAnimationUsingKeyFrames&>(
                         timeline);
+                const auto schedule =
+                    Aero::Media::AnimationPrivate::MakeSchedule(
+                        authored.GetKeyFrames(),
+                        ComposeTiming(authored, parent).durationMicroseconds);
+                std::uint32_t keyIndex = 0U;
                 for (const Base::Ref<
                          Media::Animation::BooleanKeyFrame>&
                      frame : authored.GetKeyFrames()) {
@@ -923,7 +957,12 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                     Aero::Media::Animation::Model::DiscreteAnimationKeyFrame
                         runtime;
                     runtime.keyTimeMicroseconds =
-                        frame->GetKeyTimeMicroseconds();
+                        Aero::Media::AnimationPrivate::ResolveKeyTime(
+                            frame->GetKeyTime(),
+                            schedule.duration,
+                            keyIndex,
+                            schedule.count);
+                    ++keyIndex;
                     runtime.value =
                         std::move(encoded).Value();
                     Base::Result<void> appended =
@@ -1080,7 +1119,10 @@ Base::Result<void> VisualStateManagerImpl::CaptureStoryboardTimeline(
         Base::Result<PropertyValue> to =
             ValueCodec<double>::Encode(
                 Aero::Media::AnimationPrivate::DoubleFrame(
-                    *frames[frames.Size() - 1U]).value);
+                    *frames[frames.Size() - 1U],
+                    0U,
+                    frames.Size() - 1U,
+                    frames.Size()).value);
         if (!to) return to.GetStatus();
         Base::Result<void> appended = values.PushBack(
             TransitionValue{
@@ -1105,7 +1147,10 @@ Base::Result<void> VisualStateManagerImpl::CaptureStoryboardTimeline(
         Base::Result<PropertyValue> to =
             ValueCodec<Base::Color>::Encode(
                 Aero::Media::AnimationPrivate::ColorFrame(
-                    *frames[frames.Size() - 1U]).value);
+                    *frames[frames.Size() - 1U],
+                    0U,
+                    frames.Size() - 1U,
+                    frames.Size()).value);
         if (!to) return to.GetStatus();
         Base::Result<void> appended = values.PushBack(
             TransitionValue{

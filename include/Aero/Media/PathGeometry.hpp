@@ -23,6 +23,8 @@ public:
         return figures_.AsSpan();
     }
     Result<String> ToStreamData() const noexcept;
+protected:
+    Result<void> FlattenCore(FlattenSink& sink) const noexcept override;
 private:
     FreezableCollection<PathFigure> figures_;
 };

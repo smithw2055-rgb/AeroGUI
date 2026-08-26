@@ -248,15 +248,16 @@ Size Popup::ArrangeOverride(
                     FrameworkElement* currentFramework =
                         ::Aero::TryCast<::Aero::FrameworkElement>(currentElement);
                     if (currentFramework != nullptr) {
-                        const Base::Transform2D transform =
+                        const Base::ProjectiveTransform2D transform =
                             currentFramework->GetLocalVisualTransform();
-                        result = ::Aero::Media::TransformPoint(
+                        result = ::Aero::Base::TransformPoint(
                             transform, result);
-                        if (::Aero::Base::IsFiniteTransform(transform) &&
-                            transform.m11 > 0.0 &&
-                            transform.m22 > 0.0) {
-                            scaleX *= transform.m11;
-                            scaleY *= transform.m22;
+                        Base::Transform2D affine;
+                        if (::Aero::Base::TryToTransform2D(transform, affine) &&
+                            affine.m11 > 0.0 &&
+                            affine.m22 > 0.0) {
+                            scaleX *= affine.m11;
+                            scaleY *= affine.m22;
                         }
                     }
                     const Rect slot =

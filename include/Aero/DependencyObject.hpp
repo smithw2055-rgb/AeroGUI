@@ -2,7 +2,7 @@
 
 #include <Aero/DispatcherObject.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include <Aero/Threading.hpp>
+#include <Aero/DispatcherReentrancyGuard.hpp>
 #include <Aero/TryCast.hpp>
 
 namespace Aero {

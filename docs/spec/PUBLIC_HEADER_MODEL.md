@@ -70,6 +70,9 @@ Aero/Media/Animation.hpp          Umbrella only; types live in Media/Animation/<
 Aero/Media/Brushes.hpp            Umbrella only; types live in Media/<Type>.hpp
 Aero/Media/Fonts.hpp
 Aero/Media/Geometry.hpp           Geometry class; siblings in Media/PathGeometry.hpp etc.
+                                 FlattenSink + Flatten/FlattenCore; BezierSegment,
+                                 ArcSegment, LineGeometry, GeometryGroup, CombinedGeometry
+                                 each own a header. ToStreamData is serialize/debug only.
 Aero/Media/Transforms.hpp         Umbrella only; types live in Media/<Type>.hpp
 Aero/Media/Effects.hpp            Umbrella only; types live in Media/<Type>.hpp
 ```
@@ -84,6 +87,15 @@ Command and navigation objects (`ICommand`, `RoutedCommand`, `KeyBinding`,
 `KeyboardNavigation`, `FocusManager`) each have a type-named header under
 `Aero/`. `Input.hpp` does not include those command headers, so the UIElement
 spine does not compile the command object model.
+
+Installed spine headers keep include-closure thin: `DependencyProperty.hpp`
+uses `Diagnostics/EffectiveValueSource.hpp` (not `PropertyValueSource.hpp`)
+and keeps `HashMap` behind `AERO_GUI_IMPLEMENTATION`; `DependencyObject.hpp`
+includes `DispatcherReentrancyGuard.hpp` instead of `Threading.hpp`;
+`Resources.hpp` includes `Diagnostics/SourceSpan.hpp` instead of
+`Diagnostics.hpp`. `CheckArchitecture.cmake` budgets public include-closure
+line counts for `Controls/Button.hpp`, `Controls/TextBlock.hpp`, and
+`Controls/Panel.hpp`.
 
 Media is a specialist surface made up of concrete headers such as
 `Media/Brush.hpp`, `Media/Fonts.hpp`, `Media/Geometry.hpp`,
@@ -167,5 +179,5 @@ this contract to return `ReadOnly` after a successful freeze.
 Adding a public header is therefore an API decision: it must update the
 whitelist and namespace manifest when needed, fit an existing product/domain
 model, and pass the public-header consumer build. Header and source file size
-are organized by responsibility and dependency; the architecture check does
-not impose a line-count budget.
+are organized by responsibility and dependency. The architecture check
+budgets public include-closure line counts for Button, TextBlock, and Panel.

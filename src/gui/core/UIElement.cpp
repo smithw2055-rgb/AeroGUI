@@ -272,6 +272,19 @@ Base::Ref<Transform> UIElement::GetRenderTransform() const noexcept {
     return value ? std::move(value).Value() : Base::Ref<Transform>{};
 }
 
+Base::Ref<Media::Transform3D> UIElement::GetTransform3D() const noexcept {
+    Base::Result<Base::Ref<Media::Transform3D>> value =
+        GetValue(Transform3DProperty);
+    return value
+        ? std::move(value).Value()
+        : Base::Ref<Media::Transform3D>{};
+}
+
+void UIElement::SetTransform3D(
+    Base::Ref<Media::Transform3D> value) noexcept {
+    SetValue(Transform3DProperty, std::move(value));
+}
+
 // from src/gui/controls/Layout.cpp
 void UIElement::SetIsFocusScope(bool value) noexcept {
     SetValue(IsFocusScopeProperty, value);

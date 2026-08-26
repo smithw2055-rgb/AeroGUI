@@ -17,6 +17,8 @@
 #include <Aero/Base/String.hpp>
 
 #include <Aero/Controls.hpp>
+#include <Aero/HierarchicalDataTemplate.hpp>
+#include <Aero/TryCast.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Geometry.hpp>
@@ -751,8 +753,10 @@ ResolveTemplateImplicitKey(
     Meta::TypeId key = Meta::InvalidTypeId;
     if (object.RuntimeType() == ControlTemplate::StaticTypeId()) {
         key = static_cast<const ControlTemplate&>(object).GetTargetType();
-    } else if (object.RuntimeType() == DataTemplate::StaticTypeId()) {
-        key = static_cast<const DataTemplate&>(object).GetDataType();
+    } else if (const DataTemplate* dataTemplate =
+                   TryCast<DataTemplate>(
+                       const_cast<Base::Object*>(&object))) {
+        key = dataTemplate->GetDataType();
     }
     if (key == Meta::InvalidTypeId) {
         return Base::Status::Failure(
@@ -1189,6 +1193,22 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
     if (status) {
         status = SchemaPrivate::AddType(schema, {
             DataTemplate::StaticTypeId(),
+            nullptr,
+            nullptr,
+            nullptr,
+            state_,
+            true,
+            true,
+            &XamlTemplateSchemaFacetState::RegisterTemplateName,
+            nullptr,
+            &ResolveTemplateResources,
+            &XamlTemplateSchemaFacetState::EndTemplate,
+            true,
+            &ResolveTemplateImplicitKey});
+    }
+    if (status) {
+        status = SchemaPrivate::AddType(schema, {
+            HierarchicalDataTemplate::StaticTypeId(),
             nullptr,
             nullptr,
             nullptr,

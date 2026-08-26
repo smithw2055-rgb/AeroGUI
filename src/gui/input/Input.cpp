@@ -3,6 +3,7 @@
 #include <Aero/Base/Utf8.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Transforms.hpp>
+#include "gui/media/Transform3DMath.hpp"
 
 #include <cmath>
 #include "gui/meta/MetadataState.hpp"
@@ -53,25 +54,29 @@ bool IsVisualDescendantOrSelf(
 bool ParentToLocal(
     UIElement& element,
     Point parentPosition,
-    Point& localPosition) noexcept {
-    const Rect slot = element.GetLayoutSlot();
-    Point translated{
-        parentPosition.x - slot.x,
-        parentPosition.y - slot.y};
+    Point& localPosition,
+    const Media::Transform3DContext& parentContext,
+    Media::Transform3DContext& childContext) noexcept {
     FrameworkElement* framework =
         ::Aero::TryCast<FrameworkElement>(&element);
-    if (framework == nullptr) {
-        localPosition = translated;
-        return true;
-    }
-    Base::Transform2D inverse;
-    if (!Media::InvertTransform(
-            framework->GetLocalVisualTransform(),
-            inverse)) {
+    const Base::ProjectiveTransform2D localVisual =
+        framework != nullptr
+        ? framework->GetLocalVisualTransform()
+        : Base::IdentityProjective();
+    childContext = Media::AdvanceTransform3DContext(
+        parentContext,
+        element.GetTransform3D().Get(),
+        Media::LiftLocalVisual(localVisual),
+        element.GetLayoutSlot(),
+        element.GetRenderSize(),
+        false);
+    if (!Media::UnprojectParentToLocal(
+            parentContext,
+            childContext,
+            parentPosition,
+            localPosition)) {
         return false;
     }
-    localPosition =
-        Media::TransformPoint(inverse, translated);
     return IsFinite(localPosition);
 }
 
@@ -195,21 +200,39 @@ Base::Result<HitTestResult> HitTestState::HitTest(
             continue;
         }
         Point local = Media::TransformPoint(inverse, position);
+        const Media::Transform3DContext overlayIncoming =
+            Media::MakeImplicitViewRootContext(overlay->GetRenderSize());
+        Media::Transform3DContext overlayContext;
+        Point overlayLocal;
+        if (!ParentToLocal(
+                *overlay,
+                local,
+                overlayLocal,
+                overlayIncoming,
+                overlayContext)) {
+            continue;
+        }
         Base::Result<HitTestResult> hit =
-            HitTestElement(*overlay, local);
+            HitTestElement(*overlay, overlayLocal, overlayContext);
         if (!hit) return hit.GetStatus();
         if (hit.Value().HasTarget()) return hit;
     }
     Point rootLocal;
+    Media::Transform3DContext rootIncoming =
+        Media::MakeImplicitViewRootContext(rootElement->GetRenderSize());
+    Media::Transform3DContext rootContext;
     if (!ParentToLocal(
             *rootElement,
             position,
-            rootLocal)) {
+            rootLocal,
+            rootIncoming,
+            rootContext)) {
         return HitTestResult{};
     }
     return HitTestElement(
         *rootElement,
-        rootLocal);
+        rootLocal,
+        rootContext);
 }
 
 Base::Result<HitTestResult> HitTestState::RootToLocal(
@@ -250,10 +273,15 @@ Base::Result<HitTestResult> HitTestState::RootToLocal(
         current = parent;
     }
     Point local;
+    Media::Transform3DContext incoming =
+        Media::MakeImplicitViewRootContext(rootElement->GetRenderSize());
+    Media::Transform3DContext context;
     if (!ParentToLocal(
             *rootElement,
             position,
-            local)) {
+            local,
+            incoming,
+            context)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Pointer input root contains a non-invertible transform");
@@ -262,15 +290,19 @@ Base::Result<HitTestResult> HitTestState::RootToLocal(
          index > 0U;
          --index) {
         Point next;
+        Media::Transform3DContext childContext;
         if (!ParentToLocal(
                 *path[index - 1U],
                 local,
-                next)) {
+                next,
+                context,
+                childContext)) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Pointer capture route contains a non-invertible transform");
         }
         local = next;
+        context = childContext;
     }
     return HitTestResult{targetElement, local};
 }
@@ -287,7 +319,9 @@ bool HitTestState::IsOverlay(
 }
 
 Base::Result<HitTestResult> HitTestState::HitTestElement(
-    UIElement& element, Point position) const noexcept {
+    UIElement& element,
+    Point position,
+    const Media::Transform3DContext& transform3D) const noexcept {
     if (!element.GetIsVisible() ||
         !element.GetIsHitTestVisible()) {
         return HitTestResult{};
@@ -310,16 +344,20 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
         // poison hit testing for an otherwise arranged root.
         if (!child->GetIsArrangeValid()) continue;
         Point childPosition;
+        Media::Transform3DContext childContext;
         if (!ParentToLocal(
                 *child,
                 position,
-                childPosition)) {
+                childPosition,
+                transform3D,
+                childContext)) {
             continue;
         }
         Base::Result<HitTestResult> nested =
             HitTestElement(
                 *child,
-                childPosition);
+                childPosition,
+                childContext);
         if (!nested) return nested.GetStatus();
         if (nested.Value().HasTarget()) return nested;
     }

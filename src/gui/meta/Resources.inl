@@ -84,6 +84,154 @@ Base::Result<void> PopulateUiResources(
     status = pathGeometry.Result();
     if (!status) return status.GetStatus();
 
+    auto bezierSegment = Meta::Register<Media::BezierSegment>(context);
+    bezierSegment
+        .Property(
+            Media::BezierSegment::Point1Property,
+            FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(
+            Media::BezierSegment::Point2Property,
+            FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(
+            Media::BezierSegment::Point3Property,
+            FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Factory();
+    status = bezierSegment.Result();
+    if (!status) return status.GetStatus();
+
+    auto quadraticBezierSegment =
+        Meta::Register<Media::QuadraticBezierSegment>(context);
+    quadraticBezierSegment
+        .Property(
+            Media::QuadraticBezierSegment::Point1Property,
+            FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(
+            Media::QuadraticBezierSegment::Point2Property,
+            FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Factory();
+    status = quadraticBezierSegment.Result();
+    if (!status) return status.GetStatus();
+
+    auto arcSegment = Meta::Register<Media::ArcSegment>(context);
+    arcSegment
+        .Property(
+            Media::ArcSegment::PointProperty,
+            FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(
+            Media::ArcSegment::SizeProperty,
+            FrameworkPropertyMetadata(Size{}).AffectsRender())
+        .Property(
+            Media::ArcSegment::RotationAngleProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(
+            Media::ArcSegment::IsLargeArcProperty,
+            FrameworkPropertyMetadata(false).AffectsRender())
+        .Property(
+            Media::ArcSegment::SweepDirectionProperty,
+            FrameworkPropertyMetadata(Media::SweepDirection::Counterclockwise)
+                .AffectsRender())
+        .Factory();
+    status = arcSegment.Result();
+    if (!status) return status.GetStatus();
+
+    auto polyLineSegment = Meta::Register<Media::PolyLineSegment>(context);
+    polyLineSegment
+        .Property<Base::String, &Media::PolyLineSegment::SetPointsText>(
+            "Points", PropertyFlags::None)
+        .Factory();
+    status = polyLineSegment.Result();
+    if (!status) return status.GetStatus();
+
+    auto polyBezierSegment = Meta::Register<Media::PolyBezierSegment>(context);
+    polyBezierSegment
+        .Property<Base::String, &Media::PolyBezierSegment::SetPointsText>(
+            "Points", PropertyFlags::None)
+        .Factory();
+    status = polyBezierSegment.Result();
+    if (!status) return status.GetStatus();
+
+    auto polyQuadraticBezierSegment =
+        Meta::Register<Media::PolyQuadraticBezierSegment>(context);
+    polyQuadraticBezierSegment
+        .Property<
+            Base::String,
+            &Media::PolyQuadraticBezierSegment::SetPointsText>(
+            "Points", PropertyFlags::None)
+        .Factory();
+    status = polyQuadraticBezierSegment.Result();
+    if (!status) return status.GetStatus();
+
+    auto lineGeometry = Meta::Register<Media::LineGeometry>(context);
+    lineGeometry
+        .Property(
+            Media::LineGeometry::StartPointProperty,
+            FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(
+            Media::LineGeometry::EndPointProperty,
+            FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Factory();
+    status = lineGeometry.Result();
+    if (!status) return status.GetStatus();
+
+    auto rectangleGeometry = Meta::Register<Media::RectangleGeometry>(context);
+    rectangleGeometry
+        .Property(
+            Media::RectangleGeometry::RectProperty,
+            FrameworkPropertyMetadata(Rect{}).AffectsRender())
+        .Property(
+            Media::RectangleGeometry::RadiusXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(
+            Media::RectangleGeometry::RadiusYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Factory();
+    status = rectangleGeometry.Result();
+    if (!status) return status.GetStatus();
+
+    auto ellipseGeometry = Meta::Register<Media::EllipseGeometry>(context);
+    ellipseGeometry
+        .Property(
+            Media::EllipseGeometry::CenterProperty,
+            FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(
+            Media::EllipseGeometry::RadiusXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(
+            Media::EllipseGeometry::RadiusYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Factory();
+    status = ellipseGeometry.Result();
+    if (!status) return status.GetStatus();
+
+    auto geometryGroup = Meta::Register<Media::GeometryGroup>(context);
+    geometryGroup
+        .Content<Media::Geometry>(
+            "Children", ContentKind::Collection,
+            &AddGeometryGroupChild, &ClearGeometryGroupChildren)
+        .Factory();
+    status = geometryGroup.Result();
+    if (!status) return status.GetStatus();
+
+    auto combinedGeometry = Meta::Register<Media::CombinedGeometry>(context);
+    combinedGeometry
+        .Property(
+            "Geometry1",
+            &Media::CombinedGeometry::GetGeometry1,
+            &Media::CombinedGeometry::SetGeometry1,
+            PropertyFlags::Structural)
+        .Property(
+            "Geometry2",
+            &Media::CombinedGeometry::GetGeometry2,
+            &Media::CombinedGeometry::SetGeometry2,
+            PropertyFlags::Structural)
+        .Property(
+            Media::CombinedGeometry::GeometryCombineModeProperty,
+            FrameworkPropertyMetadata(Media::GeometryCombineMode::Union)
+                .AffectsRender())
+        .Factory();
+    status = combinedGeometry.Result();
+    if (!status) return status.GetStatus();
+
     auto fontFamily = Meta::Register<Media::FontFamily>(context);
     fontFamily
         .Property(

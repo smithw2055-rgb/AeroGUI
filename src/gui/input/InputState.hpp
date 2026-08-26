@@ -3,6 +3,7 @@
 // View-owned input, focus, capture and routed-command state.
 
 #include <Aero/Base/Delegate.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp" 
 #include <cstdint>
@@ -133,7 +134,9 @@ private:
     };
     Base::Vector<OverlayRecord> overlays_;
     Base::Result<HitTestResult> HitTestElement(
-        UIElement& element, Point position) const noexcept;
+        UIElement& element,
+        Point position,
+        const Media::Transform3DContext& transform3D) const noexcept;
     bool IsOverlay(
         const UIElement& element) const noexcept;
 };

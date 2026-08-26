@@ -118,7 +118,7 @@ private:
 
     struct ClipEntry {
         Rect rect;
-        Transform2D transform;
+        ProjectiveTransform2D transform;
     };
 
     void ResetFrame() noexcept;
@@ -152,7 +152,7 @@ private:
 
     void EmitClipQuad(
         const Rect& rect,
-        const Transform2D& transform,
+        const ProjectiveTransform2D& transform,
         std::uint8_t stencilMode,
         std::uint8_t stencilRef) noexcept;
 
@@ -173,7 +173,7 @@ private:
         const RenderNodeSnapshot& node,
         RenderTarget* offscreen,
         RenderTarget* maskTarget,
-        const Transform2D& nodeTransform,
+        const ProjectiveTransform2D& nodeTransform,
         double nodeOpacity,
         double dpi,
         const RenderFrame& frame) noexcept;
@@ -186,7 +186,7 @@ private:
 
     void ProcessCommand(
         const RenderCommand& cmd,
-        const Transform2D& currentTransform,
+        const ProjectiveTransform2D& currentTransform,
         double currentOpacity) noexcept;
 
     RenderBlendMode::Enum currentBlendMode_ = BlendMode::SrcOver;

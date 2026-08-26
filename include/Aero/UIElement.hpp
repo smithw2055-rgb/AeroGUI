@@ -26,7 +26,7 @@ using Meta::TypeId;
 
 class UIElement;
 class AeroGuiInternal;
-namespace Media { class Transform; class Effect; class Brush; }
+namespace Media { class Transform; class Transform3D; class Effect; class Brush; }
 namespace Input { class RoutedCommand; }
 
 class UIElementChildRange {
@@ -269,6 +269,7 @@ public:
     std::uint32_t GetTabIndex() const noexcept;
     bool GetIsFocusScope() const noexcept;
     Ref<Media::Transform> GetRenderTransform() const noexcept;
+    Ref<Media::Transform3D> GetTransform3D() const noexcept;
     Point GetRenderTransformOrigin() const noexcept;
     std::uint64_t GetLayoutRevision() const noexcept;
 
@@ -291,6 +292,7 @@ public:
     inline static constexpr DependencyProperty<bool> IsFocusScopeProperty{"IsFocusScope"};
     inline static constexpr DependencyProperty<double> OpacityProperty{"Opacity"};
     inline static constexpr DependencyProperty<Ref<Media::Transform>> RenderTransformProperty{"RenderTransform"};
+    inline static constexpr DependencyProperty<Ref<Media::Transform3D>> Transform3DProperty{"Transform3D"};
     inline static constexpr DependencyProperty<Point> RenderTransformOriginProperty{"RenderTransformOrigin"};
 
     // Property operations
@@ -310,6 +312,8 @@ public:
     void SetIsFocusScope(bool value) noexcept;
     void SetRenderTransform(
         Ref<Media::Transform> value) noexcept;
+    void SetTransform3D(
+        Ref<Media::Transform3D> value) noexcept;
     void SetRenderTransformOrigin(
         Point value) noexcept;
 

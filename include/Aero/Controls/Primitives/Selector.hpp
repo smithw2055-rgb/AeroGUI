@@ -3,6 +3,10 @@
 #include <Aero/Controls/ItemsControl.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 
+namespace Aero::Data {
+class CollectionView;
+}
+
 namespace Aero::Controls {
 
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -51,6 +55,8 @@ public:
         Ref<Base::Object> item) noexcept;
     void SetSelectedValue(
         Ref<Base::Object> value) noexcept;
+    bool GetIsSynchronizedWithCurrentItem() const noexcept;
+    void SetIsSynchronizedWithCurrentItem(bool value) noexcept;
     bool Select(
         std::uint32_t index) noexcept;
     bool Unselect(
@@ -81,6 +87,7 @@ public:
     inline static constexpr DependencyProperty<Ref<Base::Object>> SelectedValueProperty{"SelectedValue"};
     inline static constexpr DependencyProperty<String> SelectedValuePathProperty{"SelectedValuePath"};
     inline static constexpr AttachedProperty<bool> IsSelectedProperty{"IsSelected"};
+    inline static constexpr DependencyProperty<bool> IsSynchronizedWithCurrentItemProperty{"IsSynchronizedWithCurrentItem"};
     // WPF Selector.SelectionChanged is a bubbling routed event. Keep the
     // strongly typed selection notification above for model-facing code while
     // also publishing the routed surface used by EventTrigger.
@@ -100,6 +107,7 @@ protected:
     void ClearContainer(
         FrameworkElement& container) noexcept override;
     void OnContainersChanged() noexcept override;
+    void OnItemsSourceCoreChanged() noexcept override;
 
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
@@ -118,6 +126,9 @@ private:
     Base::Status lastSelectionError_;
     DependencyPropertyHandle activeProperty_;
     bool synchronizingProperties_ = false;
+    bool synchronizingCurrent_ = false;
+    Data::CollectionView* subscribedView_ = nullptr;
+    Base::Delegate<void()> currentChangedHandler_;
 
     void OnItemsChanged(
         const ItemsChangedEvent& event) noexcept;
@@ -129,6 +140,10 @@ private:
         std::uint32_t primaryIndex) noexcept;
     Result<void> PublishProperties() noexcept;
     void SyncContainers() noexcept;
+    void HookCurrentView() noexcept;
+    void UnhookCurrentView() noexcept;
+    void PushSelectionToCurrent() noexcept;
+    void OnViewCurrentChanged() noexcept;
 };
 
 } // namespace Primitives

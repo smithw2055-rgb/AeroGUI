@@ -722,7 +722,7 @@ Aero::Base::Point RootCenter(
         const Aero::FrameworkElement* framework =
             ::Aero::TryCast<::Aero::FrameworkElement>(current);
         if (framework != nullptr) {
-            point = Aero::Media::TransformPoint(
+            point = Aero::Base::TransformPoint(
                 framework->GetLocalVisualTransform(), point);
         }
         const Aero::UIElement* currentElement =

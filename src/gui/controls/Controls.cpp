@@ -92,6 +92,12 @@ void AeroGuiInternal::SetItemTemplate(
     control.SetItemTemplateCore(value);
 }
 
+void AeroGuiInternal::SetItemTemplateSelector(
+    Controls::ItemsControl& control,
+    const DataTemplateSelector* value) noexcept {
+    control.SetItemTemplateSelectorCore(value);
+}
+
 void AeroGuiInternal::SetItemsPanel(
     Controls::ItemsControl& control,
     const Controls::ItemsPanelTemplate* value) noexcept {

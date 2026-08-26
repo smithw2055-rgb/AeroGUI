@@ -14,6 +14,9 @@
 #include <Aero/Shapes.hpp>
 #include <Aero/Interactivity/Conditions.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Data/SortDescription.hpp>
+#include <Aero/Media/ArcSegment.hpp>
+#include <Aero/Media/CombinedGeometry.hpp>
 #include <AeroApp/Window.hpp>
 
 namespace Aero {
@@ -248,6 +251,26 @@ Base::Result<void> PopulateEnumMetadata(
             .Value("Square", ::Aero::Shapes::PenLineCap::Square)
             .Value("Round", ::Aero::Shapes::PenLineCap::Round)
             .Value("Triangle", ::Aero::Shapes::PenLineCap::Triangle););
+    AERO_REGISTER_ENUM(
+        ::Aero::Media::SweepDirection,
+        "SweepDirection",
+        description
+            .Value("Counterclockwise", ::Aero::Media::SweepDirection::Counterclockwise)
+            .Value("Clockwise", ::Aero::Media::SweepDirection::Clockwise););
+    AERO_REGISTER_ENUM(
+        ::Aero::Media::GeometryCombineMode,
+        "GeometryCombineMode",
+        description
+            .Value("Union", ::Aero::Media::GeometryCombineMode::Union)
+            .Value("Intersect", ::Aero::Media::GeometryCombineMode::Intersect)
+            .Value("Xor", ::Aero::Media::GeometryCombineMode::Xor)
+            .Value("Exclude", ::Aero::Media::GeometryCombineMode::Exclude););
+    AERO_REGISTER_ENUM(
+        ::Aero::Data::ListSortDirection,
+        "ListSortDirection",
+        description
+            .Value("Ascending", ::Aero::Data::ListSortDirection::Ascending)
+            .Value("Descending", ::Aero::Data::ListSortDirection::Descending););
 
     AERO_REGISTER_ENUM(
         ::Aero::TextWrapping,

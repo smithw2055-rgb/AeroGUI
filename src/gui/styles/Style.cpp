@@ -28,6 +28,17 @@ void Element::OnBlendingModeChanged(
     static_cast<UIElement&>(object).SetBlendMode(value.Value());
 }
 
+void Element::OnTransform3DChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+    UIElement* element = ::Aero::TryCast<UIElement>(&object);
+    if (element == nullptr) return;
+    Base::Result<Base::Ref<Media::Transform3D>> value =
+        element->GetValue(Element::Transform3DProperty);
+    element->SetTransform3D(
+        value ? std::move(value).Value() : Base::Ref<Media::Transform3D>{});
+}
+
 void TextProperties::OnCompatibilityPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {

@@ -13,6 +13,7 @@
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
+#include "gui/media/Transform3DMath.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -67,13 +68,16 @@ std::uint64_t HashSize(std::uint64_t hash, const Size& value) noexcept {
 
 std::uint64_t HashTransform(
     std::uint64_t hash,
-    const Transform2D& value) noexcept {
+    const ProjectiveTransform2D& value) noexcept {
     hash = HashScalar(hash, value.m11);
     hash = HashScalar(hash, value.m12);
+    hash = HashScalar(hash, value.m13);
     hash = HashScalar(hash, value.m21);
     hash = HashScalar(hash, value.m22);
-    hash = HashScalar(hash, value.dx);
-    return HashScalar(hash, value.dy);
+    hash = HashScalar(hash, value.m23);
+    hash = HashScalar(hash, value.m31);
+    hash = HashScalar(hash, value.m32);
+    return HashScalar(hash, value.m33);
 }
 
 std::uint64_t HashColor(std::uint64_t hash, const Color& value) noexcept {
@@ -125,6 +129,10 @@ bool IsFinite(Transform2D value) noexcept {
     return std::isfinite(value.m11) && std::isfinite(value.m12) &&
         std::isfinite(value.m21) && std::isfinite(value.m22) &&
         std::isfinite(value.dx) && std::isfinite(value.dy);
+}
+
+bool IsFinite(ProjectiveTransform2D value) noexcept {
+    return Base::IsFiniteTransform(value);
 }
 
 bool IsValidOpacity(double value) noexcept {
@@ -204,6 +212,11 @@ Base::Result<void> DisplayListBuilder::PopOpacity() noexcept {
 
 Base::Result<void> DisplayListBuilder::PushTransform(
     Transform2D value) noexcept {
+    return PushTransform(Base::ToProjective(value));
+}
+
+Base::Result<void> DisplayListBuilder::PushTransform(
+    ProjectiveTransform2D value) noexcept {
     if (!IsFinite(value)) {
         return InvalidArgument("Render transform must contain finite values");
     }
@@ -438,7 +451,7 @@ void FrameworkElement::SetLayoutTransform(
         std::move(value));
 }
 
-Base::Transform2D
+Base::ProjectiveTransform2D
 FrameworkElement::GetLocalVisualTransform() const noexcept {
     Base::Transform2D result;
     Size visualSize = GetRenderSize();
@@ -460,14 +473,6 @@ FrameworkElement::GetLocalVisualTransform() const noexcept {
         visualSize = {
             bounds.width,
             bounds.height};
-    }
-
-    Base::Result<Base::Ref<Media::CompositeTransform3D>> transform3D =
-        GetValue(Element::Transform3DProperty);
-    if (transform3D && transform3D.Value()) {
-        result = ComposeTransforms(
-            result,
-            transform3D.Value()->GetProjectedMatrix());
     }
 
     Base::Ref<Transform> renderTransform =
@@ -497,7 +502,7 @@ FrameworkElement::GetLocalVisualTransform() const noexcept {
     if (frameworkRare_ != nullptr && frameworkRare_->hasViewboxTransform) {
         result = ComposeTransforms(result, frameworkRare_->viewboxTransform);
     }
-    return result;
+    return Base::ToProjective(result);
 }
 
 Base::Result<Value>
@@ -1650,7 +1655,8 @@ Base::Result<void> RenderTree::BuildSubtree(
     ::Aero::Media::Visual& visual,
     RenderNodeId parentId,
     RenderFrame& plan,
-    bool overlayRoot) noexcept {
+    bool overlayRoot,
+    const ::Aero::Media::Transform3DContext& transform3D) noexcept {
     UIElement* element = ::Aero::TryCast<::Aero::UIElement>(&visual);
     FrameworkElement* framework =
         ::Aero::TryCast<::Aero::FrameworkElement>(&visual);
@@ -1740,22 +1746,6 @@ Base::Result<void> RenderTree::BuildSubtree(
     snapshot.layoutSlot = element != nullptr
         ? element->GetLayoutSlot()
         : Rect{};
-    if (overlayRoot) {
-        for (const OverlayRecord& overlay :
-             overlays_) {
-            if (overlay.element == framework) {
-                snapshot.renderTransform =
-                    overlay.transform;
-                snapshot.layoutSlot.x = 0.0;
-                snapshot.layoutSlot.y = 0.0;
-                break;
-            }
-        }
-    } else {
-        snapshot.renderTransform = framework != nullptr
-            ? framework->GetLocalVisualTransform()
-            : Transform2D{};
-    }
     snapshot.clip = element != nullptr
         ? element->GetLayoutClip()
         : Rect{};
@@ -1783,6 +1773,46 @@ Base::Result<void> RenderTree::BuildSubtree(
         AeroGuiInternal::RenderRevision(visual) +
         (AeroGuiInternal::RenderDirtyFlags(visual) != 0U
          ? 1U : 0U);
+
+    Base::ProjectiveTransform2D overlayPlacement = Base::IdentityProjective();
+    if (overlayRoot) {
+        for (const OverlayRecord& overlay : overlays_) {
+            if (overlay.element == framework) {
+                overlayPlacement = Base::ToProjective(overlay.transform);
+                snapshot.layoutSlot.x = 0.0;
+                snapshot.layoutSlot.y = 0.0;
+                break;
+            }
+        }
+    }
+    const Base::ProjectiveTransform2D localVisual =
+        framework != nullptr
+        ? framework->GetLocalVisualTransform()
+        : Base::IdentityProjective();
+    const Media::Transform3DContext childContext =
+        Media::AdvanceTransform3DContext(
+            transform3D,
+            element != nullptr ? element->GetTransform3D().Get() : nullptr,
+            Media::LiftLocalVisual(localVisual),
+            snapshot.layoutSlot,
+            snapshot.renderSize,
+            overlayRoot);
+    snapshot.renderTransform =
+        Media::CollapseRelativeToParent(
+            transform3D,
+            childContext,
+            snapshot.layoutSlot,
+            localVisual,
+            false);
+    if (element != nullptr &&
+        ::Aero::TryCast<Media::PerspectiveTransform3D>(
+            element->GetTransform3D().Get()) != nullptr) {
+        snapshot.renderTransform = localVisual;
+    }
+    if (overlayRoot) {
+        snapshot.renderTransform =
+            Base::Compose(snapshot.renderTransform, overlayPlacement);
+    }
 
     Base::Result<void> nodeAppend = plan.nodes_.PushBack(snapshot);
     if (!nodeAppend) {
@@ -1821,7 +1851,9 @@ Base::Result<void> RenderTree::BuildSubtree(
             BuildSubtree(
                 *child,
                 AeroGuiInternal::NodeId(visual),
-                plan);
+                plan,
+                false,
+                childContext);
         if (!childResult) {
             return childResult;
         }
@@ -1857,8 +1889,17 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
     next.pixelWidth_ = pixelWidth_;
     next.pixelHeight_ = pixelHeight_;
     next.dpiScale_ = dpiScale_;
+    const Size rootSize = [&]() noexcept {
+        if (FrameworkElement* rootFramework =
+                ::Aero::TryCast<::Aero::FrameworkElement>(root_)) {
+            return rootFramework->GetRenderSize();
+        }
+        return logicalSize_;
+    }();
+    const Media::Transform3DContext rootContext =
+        Media::MakeImplicitViewRootContext(rootSize);
     Base::Result<void> built = BuildSubtree(
-        *root_, InvalidRenderNodeId, next);
+        *root_, InvalidRenderNodeId, next, false, rootContext);
     if (!built) {
         committing_ = false;
         return built.GetStatus();
@@ -1874,8 +1915,13 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
             !overlay->GetIsArrangeValid()) {
             continue;
         }
+        const Size overlaySize = overlay->GetRenderSize();
         built = BuildSubtree(
-            *overlay, AeroGuiInternal::NodeId(*root_), next, true);
+            *overlay,
+            AeroGuiInternal::NodeId(*root_),
+            next,
+            true,
+            Media::MakeImplicitViewRootContext(overlaySize));
         if (!built) {
             committing_ = false;
             return built.GetStatus();

@@ -6,6 +6,7 @@
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Freezable.hpp>
 #include <Aero/Media/Animation/EasingFunctionBase.hpp>
+#include <Aero/Media/Animation/KeyTime.hpp>
 #include <Aero/Media/Animation/Timeline.hpp>
 #include <cstdint>
 
@@ -21,12 +22,13 @@ public:
         Spline
     };
 
-    StringView GetKeyTime() const noexcept {
-        return GetValueOr(KeyTimeProperty, StringView{});
+    KeyTime GetKeyTime() const noexcept {
+        return GetValueOr(KeyTimeProperty, KeyTime{});
     }
+    void SetKeyTime(KeyTime value) noexcept;
     void SetKeyTime(StringView value) noexcept;
     AnimationTime GetKeyTimeMicroseconds() const noexcept {
-        return keyTimeMicroseconds_;
+        return GetKeyTime().GetTimeSpan().Microseconds();
     }
 
     Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
@@ -45,14 +47,11 @@ public:
     double GetSplineControlPoint2X() const noexcept { return controlPoint2X_; }
     double GetSplineControlPoint2Y() const noexcept { return controlPoint2Y_; }
 
-    inline static constexpr DependencyProperty<String> KeyTimeProperty{"KeyTime"};
+    inline static constexpr DependencyProperty<KeyTime> KeyTimeProperty{"KeyTime"};
     inline static constexpr DependencyProperty<Ref<EasingFunctionBase>>
         EasingFunctionProperty{"EasingFunction"};
     inline static constexpr DependencyProperty<String> KeySplineProperty{"KeySpline"};
 
-    static void OnKeyTimeChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
     static void OnKeySplineChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
@@ -62,8 +61,6 @@ protected:
         : Freezable(runtimeType), interpolation_(interpolation) {}
 
 private:
-    friend struct TimelineRuntime;
-    AnimationTime keyTimeMicroseconds_ = 0U;
     Interpolation interpolation_ = Interpolation::Linear;
     double controlPoint1X_ = 0.0;
     double controlPoint1Y_ = 0.0;

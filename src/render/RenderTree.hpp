@@ -11,6 +11,7 @@
 
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Layout.hpp>
+#include <Aero/Media/Transform3D.hpp>
 
 #include <array>
 
@@ -105,7 +106,7 @@ struct RenderNodeSnapshot {
     // scale installed by Viewbox) is allowed to paint outside its layout slot.
     bool clipsToBounds = false;
     Size renderSize;
-    Transform2D renderTransform;
+    ProjectiveTransform2D renderTransform;
     ::Aero::BlendMode blendMode = ::Aero::BlendMode::Normal;
     double opacity = 1.0;
     RenderMaskSnapshot mask;
@@ -256,7 +257,8 @@ private:
         ::Aero::Media::Visual& visual,
         RenderNodeId parentId,
         ::Aero::Render::RenderFrame& plan,
-        bool overlayRoot = false) noexcept;
+        bool overlayRoot,
+        const ::Aero::Media::Transform3DContext& transform3D) noexcept;
     bool IsOverlay(
         const ::Aero::Media::Visual& visual) const noexcept;
     static ::Aero::Render::RenderEffectSnapshot BuildEffectSnapshot(
