@@ -122,8 +122,9 @@ struct GLCallbacks {
     void (*glGetProgramInfoLog)(GLuint program, GLsizei maxLength, GLsizei* length, GLchar* infoLog);
     void (*glDeleteProgram)(GLuint program);
     void (*glUseProgram)(GLuint program);
-    GLint (*glGetUniformLocation)(GLuint program, const GLchar* name);
+        GLint (*glGetUniformLocation)(GLuint program, const GLchar* name);
     void (*glUniform2f)(GLint location, GLfloat v0, GLfloat v1);
+    void (*glUniform4f)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
     void (*glGenTextures)(GLsizei n, GLuint* textures);
     void (*glDeleteTextures)(GLsizei n, const GLuint* textures);
     void (*glBindTexture)(GLenum target, GLuint texture);
@@ -212,6 +213,7 @@ bool ResolveCallbacks(
         load(gl.glUseProgram, "glUseProgram") &&
         load(gl.glGetUniformLocation, "glGetUniformLocation") &&
         load(gl.glUniform2f, "glUniform2f") &&
+        load(gl.glUniform4f, "glUniform4f") &&
         load(gl.glGenTextures, "glGenTextures") &&
         load(gl.glDeleteTextures, "glDeleteTextures") &&
         load(gl.glBindTexture, "glBindTexture") &&
