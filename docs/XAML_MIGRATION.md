@@ -148,3 +148,17 @@ Interactivity / Trigger / StoryboardCompletedTrigger；那些类型从自己的�
 `tools/sdk-consumers/MetaConsumer.cpp` 是这个断裂的标准修法：在
 `OnRender` 里使用 `DrawingContext` 的 TU 增加
 `#include <Aero/Media/DrawingContext.hpp>`。
+
+## Transform3D
+
+`aero:Element.Transform3D` 仍可编译：它是 XAML 转发器，写入
+`UIElement.Transform3D`。渲染与命中测试读 UIElement DP。
+
+`CompositeTransform3D.GetProjectedMatrix()` 已删除。请用
+`GetTransform3D()`（4×3 仿射）+ 渲染折叠。`MatrixTransform3D.Matrix` 在 Meta
+中完整注册（12 个 Field + ConvertTransform3）。
+
+有意偏离 UWP：View 根隐式 `Depth=1000`。没有 `PlaneProjection`。无 depth
+sort / 透视校正 UV / 3D ray hit。运行时数值断言因本分支无 `tests/` 树而跳过；
+层次锁在 `CheckArchitecture`。
+

@@ -1555,6 +1555,68 @@ aero_require_text(
     "FrameworkContentRare* frameworkRare_ = nullptr;"
     "FrameworkContentElement must keep a lazy FrameworkContentRare* instead of hot Vectors")
 
+aero_require_text(
+    "include/Aero/Media/Transform3D.hpp"
+    "class AERO_GUI_API Transform3D : public ::Aero::Freezable"
+    "Transform3D must inherit Freezable with no Animatable layer")
+aero_forbid_text(
+    "include/Aero/Media/Transform3D.hpp"
+    ": public Animatable"
+    "Transform3D must not introduce an Animatable layer")
+aero_require_text(
+    "include/Aero/Media/CompositeTransform3D.hpp"
+    "class AERO_GUI_API CompositeTransform3D : public Transform3D"
+    "CompositeTransform3D must reparent to Transform3D")
+aero_forbid_text(
+    "include/Aero/Media/CompositeTransform3D.hpp"
+    "GetProjectedMatrix"
+    "GetProjectedMatrix is retired; use GetTransform3D + collapse")
+aero_require_text(
+    "include/Aero/Media/PerspectiveTransform3D.hpp"
+    "class AERO_GUI_API PerspectiveTransform3D : public Transform3D"
+    "PerspectiveTransform3D must inherit Transform3D")
+aero_require_text(
+    "include/Aero/Media/MatrixTransform3D.hpp"
+    "class AERO_GUI_API MatrixTransform3D : public Transform3D"
+    "MatrixTransform3D must inherit Transform3D")
+aero_require_text(
+    "include/Aero/Media/MatrixTransform3D.hpp"
+    "DependencyProperty<Base::Transform3> MatrixProperty"
+    "MatrixTransform3D.Matrix must be a fully declared DP")
+aero_require_text(
+    "include/Aero/UIElement.hpp"
+    "Transform3DProperty{\"Transform3D\"}"
+    "UIElement must own public Transform3DProperty")
+aero_require_text(
+    "include/Aero/FrameworkElement.hpp"
+    "Base::ProjectiveTransform2D GetLocalVisualTransform()"
+    "GetLocalVisualTransform must return ProjectiveTransform2D with local semantics")
+aero_require_text(
+    "include/Aero/Base/Geometry.hpp"
+    "inline ProjectiveTransform2D CollapsePerspective("
+    "Geometry.hpp must own CollapsePerspective")
+aero_forbid_text(
+    "include/Aero/UIElement.hpp"
+    "ProjectionProperty"
+    "UIElement.Projection / PlaneProjection are out of scope")
+file(GLOB_RECURSE aero_public_hpp
+    "${AERO_SOURCE_DIR}/include/*.hpp")
+foreach(aero_public_hpp_file IN LISTS aero_public_hpp)
+    file(READ "${aero_public_hpp_file}" aero_public_hpp_content)
+    if(aero_public_hpp_content MATCHES "GetProjectedMatrix")
+        file(RELATIVE_PATH aero_public_hpp_relative
+            "${AERO_SOURCE_DIR}" "${aero_public_hpp_file}")
+        message(FATAL_ERROR
+            "Retired GetProjectedMatrix remains in ${aero_public_hpp_relative}")
+    endif()
+    if(aero_public_hpp_content MATCHES "PlaneProjection")
+        file(RELATIVE_PATH aero_public_hpp_relative
+            "${AERO_SOURCE_DIR}" "${aero_public_hpp_file}")
+        message(FATAL_ERROR
+            "PlaneProjection is out of scope: ${aero_public_hpp_relative}")
+    endif()
+endforeach()
+
 file(GLOB aero_animation_public_headers
     "${AERO_SOURCE_DIR}/include/Aero/Media/Animation/*.hpp")
 foreach(aero_animation_header IN LISTS aero_animation_public_headers)
