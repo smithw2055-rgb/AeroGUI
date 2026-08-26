@@ -421,6 +421,8 @@ foreach(required_source_entry IN ITEMS
         "src/gui/markup/XamlProvider.cpp"
         "src/gui/markup/XamlReader.cpp"
         "src/gui/input/Clipboard.cpp"
+        "src/gui/input/OverlayHost.cpp"
+        "src/gui/input/OverlayHost.hpp"
         "src/render/RenderDevice.cpp"
         "src/render/RenderTarget.cpp"
         "src/render/FrameEncoder.cpp"

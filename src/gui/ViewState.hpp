@@ -1,7 +1,8 @@
 #pragma once
 
 // Source-only View hub state. Not installed under include/Aero.
-// ViewState is data plus short helpers; domain methods are defined out of line.
+// ViewState is data plus named engine pointers; domain work lives on the
+// engines, OverlayHost, and free functions in ViewFrame.cpp.
 
 #include <Aero/View.hpp>
 #include <Aero/Gui.hpp>
@@ -32,33 +33,21 @@
 #include "gui/media/MediaState.hpp"
 
 #include <Aero/Controls.hpp>
-#include <Aero/Documents.hpp>
 #include "gui/controls/Metadata.hpp"
-#include <Aero/Controls/ControlTemplate.hpp>
-#include <Aero/Controls/TextBoxBase.hpp>
-#include <Aero/Controls/TextBox.hpp>
-#include <Aero/Controls/PasswordBox.hpp>
 
 #include <Aero/InputInterop.hpp>
-#include <Aero/Data/Binding.hpp>
-#include "gui/media/AnimationModel.hpp"
 #include <Aero/Media/Animation.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/MediaElement.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Media/Transforms.hpp>
-#include <Aero/BuiltinThemes.generated.hpp>
 
 #include "gui/templates/DataTemplateTriggerState.hpp"
 #include <AeroRender/RenderDevice.hpp>
 #include "render/RenderTree.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 
-#include <algorithm>
 #include <cmath>
-#include <cstdio>
-#include <cstring>
 #include <limits>
 #include <new>
 #include <utility>
@@ -145,40 +134,6 @@ inline Base::Result<Base::ResourceUri> BuiltInThemeUri(
     return Base::ResourceUri::Parse(text.View());
 }
 
-template<class T>
-inline Base::Result<const T*> ResolveUiValue(
-    Aero::FrameworkElement& element,
-    Meta::DependencyPropertyHandle property,
-    const Aero::ResourceEnvironment& resources,
-    const char* incompatibleMessage) noexcept {
-    Base::Result<Meta::Value> explicitValue = element.GetValue(property);
-    if (!explicitValue) return explicitValue.GetStatus();
-    if (explicitValue.Value().Kind() == Meta::ValueKind::Object &&
-        !explicitValue.Value().IsNullObject() &&
-        explicitValue.Value().AsObject()) {
-        Base::Object* object = explicitValue.Value().AsObject().Get();
-        if (object->RuntimeType() != T::StaticTypeId()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument, incompatibleMessage);
-        }
-        return static_cast<const T*>(object);
-    }
-
-    Base::Result<Meta::Value> implicit = Aero::ResourceResolver::Lookup(
-        &element, element.RuntimeType(), nullptr, resources);
-    if (!implicit) {
-        return implicit.GetStatus().code == Base::ErrorCode::NotFound
-            ? Base::Result<const T*>(static_cast<const T*>(nullptr))
-            : Base::Result<const T*>(implicit.GetStatus());
-    }
-    if (implicit.Value().Kind() != Meta::ValueKind::Object ||
-        implicit.Value().IsNullObject() || !implicit.Value().AsObject() ||
-        implicit.Value().AsObject()->RuntimeType() != T::StaticTypeId()) {
-        return static_cast<const T*>(nullptr);
-    }
-    return static_cast<const T*>(implicit.Value().AsObject().Get());
-}
-
 template<class T, class... TArgs>
 inline Base::Result<void> AllocateObject(
     Base::IAllocator& allocator,
@@ -216,6 +171,7 @@ inline void FreeObject(
 
 class InteractivityEngine;
 class StoryboardHost;
+class OverlayHost;
 
 struct ViewFrameResult {
     struct Layout {
@@ -251,7 +207,6 @@ struct ViewFrameResult {
 struct ViewState {
     static const ::Aero::Render::RenderFrame* CurrentFrame(
         const View& view) noexcept;
-    Base::Result<std::uint32_t> ExecuteFrame(View& view) noexcept;
 
     struct FragmentMount {
 
@@ -305,6 +260,7 @@ struct ViewState {
     Aero::StyleEngine* styles = nullptr;
     InteractivityEngine* interactivity = nullptr;
     StoryboardHost* storyboards = nullptr;
+    OverlayHost* overlays = nullptr;
 
     // Mount, provider-generation, and resource-layer state.
     Markup::Schema* schema = nullptr;
@@ -333,6 +289,7 @@ struct ViewState {
 
     void ClearUpdateFailure() noexcept;
     void ClearRendererFailure() noexcept;
+    void RaiseFrameRendering(View& view) noexcept;
 
     Base::Vector<Base::WeakRef<Aero::UIElement>>
         pendingFocusTargets;
@@ -343,22 +300,6 @@ struct ViewState {
     Base::Vector<Aero::VisualHandle>
         pendingGeneratedVisuals;
     bool deferGeneratedActivation = false;
-    Base::Vector<Aero::FrameworkElement*>
-        renderOverlays;
-    Base::Vector<Aero::UIElement*>
-        inputOverlays;
-    Base::Vector<Aero::Base::Transform2D>
-        overlayTransforms;
-    Base::Ref<Controls::ToolTip>
-        pendingToolTip;
-    Base::Ref<Controls::ToolTip>
-        activeToolTip;
-    Base::Ref<Aero::UIElement>
-        toolTipTarget;
-    Base::Ref<Aero::UIElement>
-        overlayFocusReturn;
-    std::uint32_t toolTipElapsed = 0U;
-    std::uint32_t toolTipVisibleElapsed = 0U;
 
     Markup::LoaderResult loadedDocument;
     Base::Vector<FragmentMount> fragmentMounts;
@@ -439,46 +380,7 @@ struct ViewState {
 
     Base::Result<void> RebuildDynamicResourceEnvironment() noexcept;
 
-    void DetachUi() noexcept;
-
     Aero::Media::Visual* RootVisual() noexcept;
-
-    Base::Result<void> SynchronizeOverlays() noexcept;
-
-    void ClearOverlays() noexcept;
-
-    void CloseAllOverlays() noexcept;
-
-    static bool IsVisualDescendantOrSelf(
-        const Aero::Media::Visual& root,
-        const Aero::Media::Visual& target)
-        noexcept;
-
-    Base::Result<void> RestoreOverlayFocus()
-        noexcept;
-
-    Base::Result<void> DismissOverlaysForPointer(
-        const Input::PointerInput& input,
-        Aero::UIElement* target)
-        noexcept;
-
-    Base::Result<bool> DismissTopOverlayForEscape()
-        noexcept;
-
-    Base::Result<void> OpenContextMenuForPointer(
-        const Input::PointerInput& input,
-        Aero::UIElement* hitTarget)
-        noexcept;
-
-    Base::Result<void> UpdateToolTipForPointer(
-        const Input::PointerInput& input,
-        Aero::UIElement* hitTarget)
-        noexcept;
-
-    Base::Result<std::uint32_t>
-    AdvanceToolTipTime(
-        std::uint32_t elapsedMilliseconds)
-        noexcept;
 
     Base::Result<Aero::Media::Visual*> ResolveVisual(
         Base::Object& object, Meta::TypeId type) noexcept;
@@ -493,12 +395,6 @@ struct ViewState {
         void* context,
         Base::StringView name,
         Meta::TypeId expectedType) noexcept;
-
-    Base::Result<void> ApplyUi(Aero::Media::Visual& root) noexcept;
-
-    void DetachUi(
-        Aero::Media::Visual* root,
-        Base::Span<Aero::Media::Visual* const> declarationNodes) noexcept;
 
     Base::Result<void> CreateUiEngines() noexcept;
 
@@ -582,8 +478,27 @@ struct ViewState {
 
 #include "gui/interactivity/InteractivityEngine.hpp"
 #include "gui/media/StoryboardHost.hpp"
+#include "gui/input/OverlayHost.hpp"
 
 namespace Aero {
+
+Base::Result<void> ApplyViewUi(
+    ViewState& state,
+    Aero::Media::Visual& root) noexcept;
+void DetachViewUi(
+    ViewState& state,
+    Aero::Media::Visual* root,
+    Base::Span<Aero::Media::Visual* const> declarationNodes) noexcept;
+inline void DetachViewUi(ViewState& state) noexcept {
+    DetachViewUi(
+        state,
+        state.RootVisual(),
+        {state.loadedDocument.visualContent.nodes.Data(),
+         state.loadedDocument.visualContent.nodes.Size()});
+}
+Base::Result<std::uint32_t> ExecuteViewFrame(
+    ViewState& state,
+    View& view) noexcept;
 
 Base::Result<void> LoadViewResources(
     ViewState& state,

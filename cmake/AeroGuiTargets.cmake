@@ -80,7 +80,8 @@ set(_aero_gui_styles_sources
 set(_aero_gui_input_sources
     src/gui/input/Commands.cpp
     src/gui/input/Input.cpp
-    src/gui/input/Clipboard.cpp)
+    src/gui/input/Clipboard.cpp
+    src/gui/input/OverlayHost.cpp)
 
 set(_aero_gui_triggers_sources
     src/gui/triggers/BaseTrigger.cpp

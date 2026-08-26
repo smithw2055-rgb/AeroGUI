@@ -1,5 +1,6 @@
 #include "gui/ViewState.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include <Aero/BuiltinThemes.generated.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -62,7 +63,7 @@ Base::Result<void> ViewState::ApplyViewport(
 void ViewState::Shutdown() noexcept {
         audio.Shutdown();
         BeginDestroyInteractions();
-        DetachUi();
+        DetachViewUi(*this);
         FinishDestroyInteractions();
         static_cast<void>(UnmountAllFragments());
         VisitTextElements(RootVisual(), nullptr);
@@ -242,6 +243,9 @@ Base::Result<void> ViewState::Initialize(
         }
         if (status && storyboards != nullptr) {
             storyboards->Bind();
+        }
+        if (status && overlays != nullptr) {
+            overlays->Bind();
         }
         if (status) {
             status = RebuildDynamicResourceEnvironment();
@@ -649,7 +653,7 @@ bool View::Update(double timeInSeconds) noexcept {
             return false;
         }
     }
-    Base::Result<std::uint32_t> frame = state_->ExecuteFrame(*this);
+    Base::Result<std::uint32_t> frame = ExecuteViewFrame(*state_, *this);
     if (!frame) {
         state_->ReportUpdateFailure(frame.GetStatus());
         return false;

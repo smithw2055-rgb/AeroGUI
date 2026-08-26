@@ -314,10 +314,10 @@ Base::Result<void> ViewState::MountRoot(
         }
         deferGeneratedActivation = true;
         Base::Result<void> uiApplied =
-            ApplyUi(*rootVisual.Value());
+            ApplyViewUi(*this, *rootVisual.Value());
         if (!uiApplied) {
             deferGeneratedActivation = false;
-            DetachUi();
+            DetachViewUi(*this);
             static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()}));
@@ -331,7 +331,7 @@ Base::Result<void> ViewState::MountRoot(
         if (!interactions) {
             deferGeneratedActivation = false;
             BeginDestroyInteractions();
-            DetachUi();
+            DetachViewUi(*this);
             FinishDestroyInteractions();
             static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -348,7 +348,7 @@ Base::Result<void> ViewState::MountRoot(
         if (!completed) {
             deferGeneratedActivation = false;
             BeginDestroyInteractions();
-            DetachUi();
+            DetachViewUi(*this);
             FinishDestroyInteractions();
             static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -359,12 +359,13 @@ Base::Result<void> ViewState::MountRoot(
             return completed.GetStatus();
         }
         uiApplied =
-            ApplyUi(
+            ApplyViewUi(
+                *this,
                 *rootVisual.Value());
         if (!uiApplied) {
             deferGeneratedActivation = false;
             BeginDestroyInteractions();
-            DetachUi();
+            DetachViewUi(*this);
             FinishDestroyInteractions();
             static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -379,7 +380,7 @@ Base::Result<void> ViewState::MountRoot(
         if (!itemGeneratorsAttached) {
             deferGeneratedActivation = false;
             BeginDestroyInteractions();
-            DetachUi();
+            DetachViewUi(*this);
             FinishDestroyInteractions();
             static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -394,7 +395,7 @@ Base::Result<void> ViewState::MountRoot(
         deferGeneratedActivation = false;
         if (!settledBindings) {
             BeginDestroyInteractions();
-            DetachUi();
+            DetachViewUi(*this);
             FinishDestroyInteractions();
             static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -407,7 +408,7 @@ Base::Result<void> ViewState::MountRoot(
         Base::Result<void> generated = FlushGeneratedVisuals();
         if (!generated) {
             BeginDestroyInteractions();
-            DetachUi();
+            DetachViewUi(*this);
             FinishDestroyInteractions();
             static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -425,7 +426,7 @@ Base::Result<void> ViewState::MountRoot(
             }
             storyboards->storyboardSessions.Clear();
             BeginDestroyInteractions();
-            DetachUi();
+            DetachViewUi(*this);
             FinishDestroyInteractions();
             static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -450,7 +451,8 @@ Base::Result<void> ViewState::DetachFragment(
             interactivity->ClearAnimationSubscriptionsFor(*rootVisual.Value());
         }
 
-        DetachUi(
+        DetachViewUi(
+            *this,
             rootVisual.Value(),
             {fragment.document.visualContent.nodes.Data(),
              fragment.document.visualContent.nodes.Size()});
@@ -541,7 +543,7 @@ Base::Result<void> ViewState::DetachMountedRoot(
         }
         storyboards->storyboardSessions.Clear();
         BeginDestroyInteractions();
-        DetachUi();
+        DetachViewUi(*this);
         FinishDestroyInteractions();
         Base::Result<void> fragments = UnmountAllFragments();
         if (!fragments) return fragments.GetStatus();
@@ -770,7 +772,7 @@ Base::Result<void> MountViewFragment(
         return attached.GetStatus();
     }
     Base::Result<void> applied =
-        state_->ApplyUi(*rootVisual.Value());
+        ApplyViewUi(*state_, *rootVisual.Value());
     if (!applied) {
         detachFailedFragment();
         return applied.GetStatus();
@@ -780,7 +782,7 @@ Base::Result<void> MountViewFragment(
         detachFailedFragment();
         return attached.GetStatus();
     }
-    applied = state_->ApplyUi(*rootVisual.Value());
+    applied = ApplyViewUi(*state_, *rootVisual.Value());
     if (!applied) {
         detachFailedFragment();
         return applied.GetStatus();

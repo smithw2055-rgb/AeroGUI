@@ -32,20 +32,23 @@ Base::Result<Input::PointerDispatchResult> DispatchPointer(
     }
     Aero::UIElement* target =
         dispatched.Value().hit.target;
+    if (state.overlays == nullptr) {
+        return dispatched;
+    }
     Base::Result<void> dismissed =
-        state.DismissOverlaysForPointer(
+        state.overlays->DismissOverlaysForPointer(
             input, target);
     if (!dismissed) {
         return dismissed.GetStatus();
     }
     Base::Result<void> toolTip =
-        state.UpdateToolTipForPointer(
+        state.overlays->UpdateToolTipForPointer(
             input, target);
     if (!toolTip) {
         return toolTip.GetStatus();
     }
     Base::Result<void> contextMenu =
-        state.OpenContextMenuForPointer(
+        state.overlays->OpenContextMenuForPointer(
             input, target);
     if (!contextMenu) {
         return contextMenu.GetStatus();
@@ -73,7 +76,9 @@ DispatchKeyboard(
         input.key ==
             Input::KeyboardKeyEscape) {
         Base::Result<bool> dismissed =
-            state.DismissTopOverlayForEscape();
+            state.overlays != nullptr
+                ? state.overlays->DismissTopOverlayForEscape()
+                : Base::Result<bool>(false);
         if (!dismissed) {
             return dismissed.GetStatus();
         }
