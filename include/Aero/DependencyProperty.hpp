@@ -3,7 +3,6 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Delegate.hpp>
-#include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
@@ -11,7 +10,10 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Value.hpp>
-#include <Aero/Diagnostics/PropertyValueSource.hpp>
+#include <Aero/Diagnostics/EffectiveValueSource.hpp>
+#if defined(AERO_GUI_IMPLEMENTATION)
+#include <Aero/Base/HashMap.hpp>
+#endif
 
 #include <cstdint>
 #include <utility>
@@ -250,12 +252,6 @@ constexpr bool HasFlag(
     return (static_cast<std::uint32_t>(value) &
         static_cast<std::uint32_t>(flag)) != 0U;
 }
-
-enum class EffectiveValueSource : std::uint8_t {
-    Default = 0U,
-    Local,
-    Current
-};
 
 enum class PropertyInvalidationFlags : std::uint32_t {
     None = 0U,
@@ -562,7 +558,6 @@ using Meta::PropertyInvalidationFlags;
 using Meta::PropertyMetadata;
 using Meta::PropertyMetadataFlags;
 using Meta::PropertyProviderToken;
-using Meta::PropertyProviderSet;
 using Meta::PropertyValue;
 using Meta::PropertyValueSourceInfo;
 using Meta::ReadOnlyPropertyRef;

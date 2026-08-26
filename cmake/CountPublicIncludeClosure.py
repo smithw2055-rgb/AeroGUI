@@ -16,7 +16,7 @@ INCLUDE_RE = re.compile(
 )
 IFDEF_IMPL_RE = re.compile(
     r'^[ \t]*#[ \t]*(?:if[ \t]+defined\s*\(\s*AERO_GUI_IMPLEMENTATION\s*\)'
-    r'|ifdef[ \t]+AERO_GUI_IMPLEMENTATION)\b'
+    r'|ifdef[ \t]+AERO_GUI_IMPLEMENTATION)\s*(?://.*)?$'
 )
 IF_RE = re.compile(r'^[ \t]*#[ \t]*if(?:n?def)?\b')
 ENDIF_RE = re.compile(r'^[ \t]*#[ \t]*endif\b')

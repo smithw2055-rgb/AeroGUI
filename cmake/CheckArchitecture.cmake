@@ -167,6 +167,9 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Controls/GridLength.hpp"
         "include/Aero/Media/BlendMode.hpp"
         "include/Aero/Diagnostics/Layout.hpp"
+        "include/Aero/Diagnostics/EffectiveValueSource.hpp"
+        "include/Aero/Diagnostics/SourceSpan.hpp"
+        "include/Aero/DispatcherReentrancyGuard.hpp"
         "include/AeroRender/Render.hpp"
         "include/AeroRender/RenderDevice.hpp"
         "include/AeroRender/Texture.hpp"
@@ -1622,6 +1625,30 @@ aero_forbid_text(
     "StoryboardCompletedTrigger"
     "Animation.hpp umbrella must not pull StoryboardCompletedTrigger")
 aero_forbid_text(
+    "include/Aero/DependencyProperty.hpp"
+    "#include <Aero/Diagnostics/PropertyValueSource.hpp>"
+    "DependencyProperty.hpp must not pull PropertyProviderSet; use EffectiveValueSource.hpp")
+aero_require_text(
+    "include/Aero/DependencyProperty.hpp"
+    "#if defined(AERO_GUI_IMPLEMENTATION)\n#include <Aero/Base/HashMap.hpp>"
+    "HashMap for DependencyPropertyRegistry::memberIndex_ must stay behind AERO_GUI_IMPLEMENTATION")
+aero_forbid_text(
+    "include/Aero/DependencyObject.hpp"
+    "#include <Aero/Threading.hpp>"
+    "DependencyObject.hpp must include DispatcherReentrancyGuard.hpp, not Threading.hpp")
+aero_require_text(
+    "include/Aero/DependencyObject.hpp"
+    "#include <Aero/DispatcherReentrancyGuard.hpp>"
+    "DependencyObject.hpp must include the one-type DispatcherReentrancyGuard header")
+aero_forbid_text(
+    "include/Aero/Resources.hpp"
+    "#include <Aero/Diagnostics.hpp>"
+    "Resources.hpp must include SourceSpan.hpp, not the Diagnostics umbrella")
+aero_require_text(
+    "include/Aero/Resources.hpp"
+    "#include <Aero/Diagnostics/SourceSpan.hpp>"
+    "Resources.hpp default-argument SourceSpan must come from the tiny header")
+aero_forbid_text(
     "include/Aero/Visual.hpp"
     "bool renderAttached_"
     "Visual render bools must be packed into visualFlags_, not one-byte members")
@@ -2192,18 +2219,14 @@ foreach(gui_kernel_file IN LISTS aero_gui_kernel_files)
     endforeach()
 endforeach()
 
-# Include-closure budgets are filled after the four installed-header cuts.
-# Until those caps exist this block only records the measured public closures.
-foreach(aero_closure_header IN ITEMS
-        "include/Aero/Controls/Button.hpp"
-        "include/Aero/Controls/TextBlock.hpp"
-        "include/Aero/Controls/Panel.hpp")
-    aero_include_closure_count(
-        "${aero_closure_header}"
-        aero_closure_lines
-        aero_closure_files)
-    message(STATUS
-        "${aero_closure_header} include-closure ${aero_closure_lines} lines / ${aero_closure_files} headers")
-endforeach()
+# Public include-closure caps = measured unique Aero* header lines after the
+# four installed-header cuts, plus 10%. Do not raise these without a new
+# measurement and an explicit include-graph reason.
+aero_require_include_closure_budget(
+    "include/Aero/Controls/Button.hpp" 8985)
+aero_require_include_closure_budget(
+    "include/Aero/Controls/TextBlock.hpp" 9488)
+aero_require_include_closure_budget(
+    "include/Aero/Controls/Panel.hpp" 8367)
 
 message(STATUS "Aero final architecture dependency checks passed")

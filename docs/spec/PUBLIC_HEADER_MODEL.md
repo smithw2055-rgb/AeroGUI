@@ -85,6 +85,15 @@ Command and navigation objects (`ICommand`, `RoutedCommand`, `KeyBinding`,
 `Aero/`. `Input.hpp` does not include those command headers, so the UIElement
 spine does not compile the command object model.
 
+Installed spine headers keep include-closure thin: `DependencyProperty.hpp`
+uses `Diagnostics/EffectiveValueSource.hpp` (not `PropertyValueSource.hpp`)
+and keeps `HashMap` behind `AERO_GUI_IMPLEMENTATION`; `DependencyObject.hpp`
+includes `DispatcherReentrancyGuard.hpp` instead of `Threading.hpp`;
+`Resources.hpp` includes `Diagnostics/SourceSpan.hpp` instead of
+`Diagnostics.hpp`. `CheckArchitecture.cmake` budgets public include-closure
+line counts for `Controls/Button.hpp`, `Controls/TextBlock.hpp`, and
+`Controls/Panel.hpp`.
+
 Media is a specialist surface made up of concrete headers such as
 `Media/Brush.hpp`, `Media/Fonts.hpp`, `Media/Geometry.hpp`,
 `Media/Images.hpp`, and `Media/Transform.hpp`. Family umbrellas
@@ -167,5 +176,5 @@ this contract to return `ReadOnly` after a successful freeze.
 Adding a public header is therefore an API decision: it must update the
 whitelist and namespace manifest when needed, fit an existing product/domain
 model, and pass the public-header consumer build. Header and source file size
-are organized by responsibility and dependency; the architecture check does
-not impose a line-count budget.
+are organized by responsibility and dependency. The architecture check
+budgets public include-closure line counts for Button, TextBlock, and Panel.

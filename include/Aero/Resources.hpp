@@ -8,7 +8,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Diagnostics.hpp>
+#include <Aero/Diagnostics/SourceSpan.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Value.hpp>
 

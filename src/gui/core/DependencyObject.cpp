@@ -5,6 +5,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Events.hpp>
+#include <Aero/Threading.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Media/Effects.hpp>
