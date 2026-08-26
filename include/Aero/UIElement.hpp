@@ -4,6 +4,7 @@
 #include <Aero/Media/BlendMode.hpp>
 #include <Aero/Visibility.hpp>
 #include <Aero/Visual.hpp>
+#include <Aero/VisualTreeHelper.hpp>
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Vector.hpp>

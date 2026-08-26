@@ -2,6 +2,7 @@
 
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/DrawingContext.hpp>
 
 #include <algorithm>
 

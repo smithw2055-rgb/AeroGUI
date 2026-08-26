@@ -2,7 +2,7 @@
 
 #include <Aero/Controls/Panel.hpp>
 #include <Aero/Controls/Primitives/Thumb.hpp>
-#include <Aero/Controls/RepeatButton.hpp>
+#include <Aero/Controls/Primitives/RepeatButton.hpp>
 
 namespace Aero::Controls::Primitives {
 

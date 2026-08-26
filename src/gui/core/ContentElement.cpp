@@ -1,4 +1,4 @@
-#include <Aero/FrameworkContentElement.hpp>
+#include <Aero/ContentElement.hpp>
 
 #include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Controls/ToggleButton.hpp>
+#include <Aero/Controls/Primitives/ToggleButton.hpp>
 
 namespace Aero::Controls {
 

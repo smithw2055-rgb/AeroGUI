@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/DependencyProperty.hpp>
+#include <Aero/DependencyObject.hpp>
 
 namespace Aero {
 

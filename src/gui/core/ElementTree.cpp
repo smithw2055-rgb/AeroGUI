@@ -5,6 +5,8 @@
 #include <Aero/Layout.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/FrameworkContentElement.hpp>
+#include <Aero/LogicalTreeHelper.hpp>
+#include <Aero/VisualTreeHelper.hpp>
 
 
 #include "render/RenderTree.hpp"

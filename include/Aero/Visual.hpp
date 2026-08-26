@@ -15,41 +15,14 @@ namespace Aero {
 class FrameworkElement;
 class ElementTree;
 class UIElement;
-
-} // namespace Aero
-
-namespace Aero::Media {
-
-class Visual;
-
-class AERO_GUI_API VisualTreeHelper {
-public:
-    static Visual* GetParent(const Visual& visual) noexcept;
-    static std::uint32_t GetChildrenCount(const Visual& visual) noexcept;
-    static Visual* GetChild(const Visual& visual, std::uint32_t index) noexcept;
-};
-
-} // namespace Aero::Media
-
-namespace Aero {
-
-class AERO_GUI_API LogicalTreeHelper {
-public:
-    static DependencyObject* GetParent(const DependencyObject& object) noexcept;
-    static std::uint32_t GetChildrenCount(const DependencyObject& object) noexcept;
-    static DependencyObject* GetChild(const DependencyObject& object, std::uint32_t index) noexcept;
-    static Media::Visual* GetParent(const Media::Visual& visual) noexcept;
-    static std::uint32_t GetChildrenCount(const Media::Visual& visual) noexcept;
-    static Media::Visual* GetChild(const Media::Visual& visual, std::uint32_t index) noexcept;
-};
-
-} // namespace Aero
-
-namespace Aero {
+class LogicalTreeHelper;
 class AeroGuiInternal;
-}
+
+} // namespace Aero
 
 namespace Aero::Media {
+
+class VisualTreeHelper;
 
 class AERO_GUI_API Visual : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Visual, ::Aero::DependencyObject)

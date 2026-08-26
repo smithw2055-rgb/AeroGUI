@@ -12,6 +12,7 @@
 #include <Aero/FrameworkContentElement.hpp>
 #include <Aero/RoutedEvent.hpp>
 #include <Aero/UIElement.hpp>
+#include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/Visual.hpp>
 
 #include "gui/meta/MetadataState.hpp"

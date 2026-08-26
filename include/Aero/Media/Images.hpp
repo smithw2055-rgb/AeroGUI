@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/ResourceUri.hpp>
-#include <Aero/DependencyProperty.hpp>
+#include <Aero/DependencyObject.hpp>
 
 namespace Aero::Media {
 

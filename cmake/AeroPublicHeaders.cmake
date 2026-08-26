@@ -170,4 +170,21 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/ToolTip.hpp
     include/Aero/Controls/Image.hpp
     include/Aero/Controls/PasswordBox.hpp
+    include/Aero/ContentElement.hpp
+    include/Aero/VisualTreeHelper.hpp
+    include/Aero/LogicalTreeHelper.hpp
+    include/Aero/Controls/DockPanel.hpp
+    include/Aero/Controls/WrapPanel.hpp
+    include/Aero/Controls/UniformGrid.hpp
+    include/Aero/Controls/Canvas.hpp
+    include/Aero/Controls/Viewbox.hpp
+    include/Aero/Controls/GroupBox.hpp
+    include/Aero/Controls/Label.hpp
+    include/Aero/Controls/Expander.hpp
+    include/Aero/Controls/TabItem.hpp
+    include/Aero/Controls/TabControl.hpp
+    include/Aero/Controls/TabPanel.hpp
+    include/Aero/Controls/Primitives/ButtonBase.hpp
+    include/Aero/Controls/Primitives/ToggleButton.hpp
+    include/Aero/Controls/Primitives/RepeatButton.hpp
 )

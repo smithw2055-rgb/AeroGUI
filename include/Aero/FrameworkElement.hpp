@@ -6,13 +6,13 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Threading.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/Media/DrawingContext.hpp>
 #include <Aero/Media/Fonts.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/TextFormatting.hpp>
 #include <Aero/HorizontalAlignment.hpp>
 #include <Aero/Layout.hpp>
+#include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/UIElement.hpp>
 
 #include <cstdint>
@@ -26,6 +26,7 @@ using Meta::TypeId;
 class Style;
 namespace Controls { class Viewbox; }
 class FrameworkElement;
+namespace Media { class DrawingContext; }
 
 class FrameworkElementChildRange {
 public:
