@@ -2,6 +2,7 @@
 
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Media/Geometry.hpp>
+#include <Aero/Shapes/Polygon.hpp>
 #include <Aero/Shapes/Shape.hpp>
 
 #include <cstdint>
@@ -23,6 +24,7 @@ public:
     ~Path() override;
 
     Ref<Geometry> GetData() const noexcept;
+    FillRule GetFillRule() const noexcept;
     PenLineJoin GetStrokeLineJoin() const noexcept;
     PenLineCap GetStrokeStartLineCap() const noexcept;
     PenLineCap GetStrokeEndLineCap() const noexcept;
@@ -31,6 +33,7 @@ public:
     Rect GetGeometryBounds() const noexcept { return geometryBounds_; }
 
     void SetData(Ref<Geometry> value) noexcept;
+    void SetFillRule(FillRule value) noexcept;
     void SetStrokeLineJoin(PenLineJoin value) noexcept;
     void SetStrokeStartLineCap(PenLineCap value) noexcept;
     void SetStrokeEndLineCap(PenLineCap value) noexcept;
@@ -38,6 +41,7 @@ public:
     void SetTrimEnd(double value) noexcept;
 
     inline static constexpr DependencyProperty<Ref<Geometry>> DataProperty{"Data"};
+    inline static constexpr DependencyProperty<FillRule> FillRuleProperty{"FillRule"};
     inline static constexpr DependencyProperty<PenLineJoin> StrokeLineJoinProperty{"StrokeLineJoin"};
     inline static constexpr DependencyProperty<PenLineCap> StrokeStartLineCapProperty{"StrokeStartLineCap"};
     inline static constexpr DependencyProperty<PenLineCap> StrokeEndLineCapProperty{"StrokeEndLineCap"};

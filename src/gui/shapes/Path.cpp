@@ -44,6 +44,7 @@ struct ScanIntersection {
     double top = 0.0;
     double bottom = 0.0;
     double middle = 0.0;
+    int winding = 1;
 };
 
 Base::Result<void> StoreContour(
@@ -111,9 +112,10 @@ double EdgeXAt(
         (end.x - start.x) * amount;
 }
 
-Base::Result<void> TessellateEvenOdd(
+Base::Result<void> TessellateFill(
     const Base::Vector<Point>& points,
     const Base::Vector<ContourRecord>& contours,
+    FillRule fillRule,
     Base::Vector<Point>& vertices,
     Base::Vector<std::uint32_t>& indices) noexcept {
     Base::Vector<double> levels;
@@ -179,7 +181,8 @@ Base::Result<void> TessellateEvenOdd(
                     intersections.PushBack({
                         EdgeXAt(start, end, topY),
                         EdgeXAt(start, end, bottomY),
-                        EdgeXAt(start, end, middleY)});
+                        EdgeXAt(start, end, middleY),
+                        end.y > start.y ? 1 : -1});
                 if (!added) {
                     return added.GetStatus();
                 }
@@ -194,26 +197,18 @@ Base::Result<void> TessellateEvenOdd(
                const ScanIntersection& right) noexcept {
                 return left.middle < right.middle;
             });
-        const std::uint32_t pairCount = (intersections.Size() / 2U) * 2U;
-        for (std::uint32_t pair = 0U;
-             pair < pairCount;
-             pair += 2U) {
-            const ScanIntersection left =
-                intersections[pair];
-            const ScanIntersection right =
-                intersections[pair + 1U];
-            if (right.middle - left.middle <=
-                1.0e-9) {
-                continue;
+        auto emitBand = [&](
+            const ScanIntersection& left,
+            const ScanIntersection& right) noexcept -> Base::Result<void> {
+            if (right.middle - left.middle <= 1.0e-9) {
+                return {};
             }
-            if (vertices.Size() >
-                UINT32_MAX - 4U) {
+            if (vertices.Size() > UINT32_MAX - 4U) {
                 return Base::Status::Failure(
                     Base::ErrorCode::OutOfRange,
                     "Path tessellation exceeds the 32-bit mesh limit");
             }
-            const std::uint32_t base =
-                vertices.Size();
+            const std::uint32_t base = vertices.Size();
             const Point quad[] = {
                 {left.top, topY},
                 {right.top, topY},
@@ -225,12 +220,298 @@ Base::Result<void> TessellateEvenOdd(
             const std::uint32_t triangles[] = {
                 base, base + 1U, base + 2U,
                 base, base + 2U, base + 3U};
-            added = indices.Append({
-                triangles, 6U});
-            if (!added) return added.GetStatus();
+            return indices.Append({triangles, 6U});
+        };
+        if (fillRule == FillRule::EvenOdd) {
+            const std::uint32_t pairCount =
+                (intersections.Size() / 2U) * 2U;
+            for (std::uint32_t pair = 0U;
+                 pair < pairCount;
+                 pair += 2U) {
+                Base::Result<void> emitted = emitBand(
+                    intersections[pair],
+                    intersections[pair + 1U]);
+                if (!emitted) return emitted.GetStatus();
+            }
+        } else {
+            int winding = 0;
+            for (std::uint32_t index = 0U;
+                 index + 1U < intersections.Size();
+                 ++index) {
+                winding += intersections[index].winding;
+                if (winding == 0) continue;
+                Base::Result<void> emitted = emitBand(
+                    intersections[index],
+                    intersections[index + 1U]);
+                if (!emitted) return emitted.GetStatus();
+            }
         }
     }
     return {};
+}
+
+constexpr double kPi = 3.14159265358979323846;
+constexpr double kMiterLimit = 10.0;
+
+Base::Result<void> AppendStrokeTriangle(
+    Base::Vector<Point>& vertices,
+    Base::Vector<std::uint32_t>& indices,
+    Point a,
+    Point b,
+    Point c) noexcept {
+    if (vertices.Size() > UINT32_MAX - 3U) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "Path stroke tessellation exceeds the 32-bit vertex limit");
+    }
+    const std::uint32_t base = vertices.Size();
+    const Point triangle[] = {a, b, c};
+    Base::Result<void> added = vertices.Append({triangle, 3U});
+    if (!added) return added.GetStatus();
+    const std::uint32_t indices3[] = {base, base + 1U, base + 2U};
+    return indices.Append({indices3, 3U});
+}
+
+Base::Result<void> AppendStrokeQuad(
+    Base::Vector<Point>& vertices,
+    Base::Vector<std::uint32_t>& indices,
+    Point a,
+    Point b,
+    Point c,
+    Point d) noexcept {
+    if (vertices.Size() > UINT32_MAX - 4U) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "Path stroke tessellation exceeds the 32-bit vertex limit");
+    }
+    const std::uint32_t base = vertices.Size();
+    const Point quad[] = {a, b, c, d};
+    Base::Result<void> added = vertices.Append({quad, 4U});
+    if (!added) return added.GetStatus();
+    const std::uint32_t triangles[] = {
+        base, base + 1U, base + 2U,
+        base, base + 2U, base + 3U};
+    return indices.Append({triangles, 6U});
+}
+
+Base::Result<void> AppendStrokeFan(
+    Base::Vector<Point>& vertices,
+    Base::Vector<std::uint32_t>& indices,
+    Point center,
+    Point start,
+    Point end,
+    double radius,
+    bool ccw) noexcept {
+    if (radius <= 1.0e-9) return {};
+    const double a0 = std::atan2(start.y - center.y, start.x - center.x);
+    const double a1 = std::atan2(end.y - center.y, end.x - center.x);
+    double delta = a1 - a0;
+    if (ccw) {
+        while (delta <= 0.0) delta += kPi * 2.0;
+    } else {
+        while (delta >= 0.0) delta -= kPi * 2.0;
+    }
+    const double absDelta = std::abs(delta);
+    if (absDelta <= 1.0e-9) return {};
+    const std::uint32_t steps = std::max(
+        1U,
+        static_cast<std::uint32_t>(std::ceil(absDelta / (kPi / 8.0))));
+    Point previous = start;
+    for (std::uint32_t step = 1U; step <= steps; ++step) {
+        const double angle = a0 + delta * static_cast<double>(step) /
+            static_cast<double>(steps);
+        Point next = step == steps
+            ? end
+            : Point{
+                center.x + radius * std::cos(angle),
+                center.y + radius * std::sin(angle)};
+        Base::Result<void> added =
+            AppendStrokeTriangle(vertices, indices, center, previous, next);
+        if (!added) return added.GetStatus();
+        previous = next;
+    }
+    return {};
+}
+
+struct StrokeSegment {
+    Point a;
+    Point b;
+    double nx = 0.0;
+    double ny = 0.0;
+    double ux = 0.0;
+    double uy = 0.0;
+    std::uint32_t index = 0U;
+    bool startVertex = false;
+    bool endVertex = false;
+};
+
+Base::Result<void> EmitStrokeJoin(
+    const StrokeSegment& incoming,
+    const StrokeSegment& outgoing,
+    PenLineJoin join,
+    Base::Vector<Point>& vertices,
+    Base::Vector<std::uint32_t>& indices) noexcept {
+    const Point joint = incoming.b;
+    const double cross =
+        incoming.ux * outgoing.uy - incoming.uy * outgoing.ux;
+    const double dot =
+        incoming.ux * outgoing.ux + incoming.uy * outgoing.uy;
+    if (std::abs(cross) <= 1.0e-12 && dot > 0.0) {
+        return {};
+    }
+    const double side = cross > 0.0 ? -1.0 : 1.0;
+    const Point outer0{
+        joint.x + side * incoming.nx,
+        joint.y + side * incoming.ny};
+    const Point outer1{
+        joint.x + side * outgoing.nx,
+        joint.y + side * outgoing.ny};
+    const double half = std::hypot(incoming.nx, incoming.ny);
+    if (join == PenLineJoin::Round) {
+        return AppendStrokeFan(
+            vertices,
+            indices,
+            joint,
+            outer0,
+            outer1,
+            half,
+            cross < 0.0);
+    }
+    if (join == PenLineJoin::Bevel) {
+        return AppendStrokeTriangle(
+            vertices, indices, joint, outer0, outer1);
+    }
+    const double det =
+        incoming.ux * outgoing.uy - incoming.uy * outgoing.ux;
+    if (std::abs(det) <= 1.0e-12) {
+        return AppendStrokeTriangle(
+            vertices, indices, joint, outer0, outer1);
+    }
+    const double t =
+        ((outer1.x - outer0.x) * outgoing.uy -
+         (outer1.y - outer0.y) * outgoing.ux) / det;
+    const Point miter{
+        outer0.x + t * incoming.ux,
+        outer0.y + t * incoming.uy};
+    const double miterLength =
+        std::hypot(miter.x - joint.x, miter.y - joint.y);
+    if (half > 1.0e-12 && miterLength / half > kMiterLimit) {
+        return AppendStrokeTriangle(
+            vertices, indices, joint, outer0, outer1);
+    }
+    Base::Result<void> added = AppendStrokeTriangle(
+        vertices, indices, joint, outer0, miter);
+    if (!added) return added.GetStatus();
+    return AppendStrokeTriangle(
+        vertices, indices, joint, miter, outer1);
+}
+
+Base::Result<void> EmitStrokeCap(
+    Point center,
+    double nx,
+    double ny,
+    double ux,
+    double uy,
+    PenLineCap cap,
+    bool start,
+    Base::Vector<Point>& vertices,
+    Base::Vector<std::uint32_t>& indices) noexcept {
+    if (cap == PenLineCap::Flat) return {};
+    const double sign = start ? -1.0 : 1.0;
+    const Point left{center.x + nx, center.y + ny};
+    const Point right{center.x - nx, center.y - ny};
+    const Point outward{
+        center.x + sign * ux * std::hypot(nx, ny),
+        center.y + sign * uy * std::hypot(nx, ny)};
+    if (cap == PenLineCap::Square) {
+        const Point leftOut{
+            left.x + sign * ux * std::hypot(nx, ny),
+            left.y + sign * uy * std::hypot(nx, ny)};
+        const Point rightOut{
+            right.x + sign * ux * std::hypot(nx, ny),
+            right.y + sign * uy * std::hypot(nx, ny)};
+        return start
+            ? AppendStrokeQuad(
+                  vertices, indices, leftOut, left, right, rightOut)
+            : AppendStrokeQuad(
+                  vertices, indices, left, leftOut, rightOut, right);
+    }
+    if (cap == PenLineCap::Round) {
+        return AppendStrokeFan(
+            vertices,
+            indices,
+            center,
+            start ? right : left,
+            start ? left : right,
+            std::hypot(nx, ny),
+            true);
+    }
+    return AppendStrokeTriangle(
+        vertices, indices, left, right, outward);
+}
+
+Base::Result<void> EmitStrokeRun(
+    const Base::Vector<StrokeSegment>& segments,
+    std::uint32_t begin,
+    std::uint32_t end,
+    bool closedLoop,
+    PenLineJoin join,
+    PenLineCap startCap,
+    PenLineCap endCap,
+    Base::Vector<Point>& vertices,
+    Base::Vector<std::uint32_t>& indices) noexcept {
+    if (end <= begin) return {};
+    for (std::uint32_t index = begin; index < end; ++index) {
+        const StrokeSegment& segment = segments[index];
+        Base::Result<void> added = AppendStrokeQuad(
+            vertices,
+            indices,
+            {segment.a.x + segment.nx, segment.a.y + segment.ny},
+            {segment.b.x + segment.nx, segment.b.y + segment.ny},
+            {segment.b.x - segment.nx, segment.b.y - segment.ny},
+            {segment.a.x - segment.nx, segment.a.y - segment.ny});
+        if (!added) return added.GetStatus();
+        if (index + 1U < end &&
+            segment.endVertex &&
+            segments[index + 1U].startVertex) {
+            added = EmitStrokeJoin(
+                segment, segments[index + 1U], join, vertices, indices);
+            if (!added) return added.GetStatus();
+        }
+    }
+    if (closedLoop &&
+        end - begin >= 2U &&
+        segments[begin].startVertex &&
+        segments[end - 1U].endVertex) {
+        return EmitStrokeJoin(
+            segments[end - 1U],
+            segments[begin],
+            join,
+            vertices,
+            indices);
+    }
+    if (closedLoop) return {};
+    Base::Result<void> capped = EmitStrokeCap(
+        segments[begin].a,
+        segments[begin].nx,
+        segments[begin].ny,
+        segments[begin].ux,
+        segments[begin].uy,
+        startCap,
+        true,
+        vertices,
+        indices);
+    if (!capped) return capped.GetStatus();
+    return EmitStrokeCap(
+        segments[end - 1U].b,
+        segments[end - 1U].nx,
+        segments[end - 1U].ny,
+        segments[end - 1U].ux,
+        segments[end - 1U].uy,
+        endCap,
+        false,
+        vertices,
+        indices);
 }
 
 Base::Result<void> TessellateStroke(
@@ -241,6 +522,9 @@ Base::Result<void> TessellateStroke(
     double thickness,
     double trimStart,
     double trimEnd,
+    PenLineJoin join,
+    PenLineCap startCap,
+    PenLineCap endCap,
     Base::Vector<Point>& vertices,
     Base::Vector<std::uint32_t>& indices) noexcept {
     if (thickness <= 0.0 || trimEnd <= trimStart) {
@@ -282,9 +566,10 @@ Base::Result<void> TessellateStroke(
         const std::uint32_t start = contourStarts[contour];
         const std::uint32_t count = contourCounts[contour];
         if (count < 2U) continue;
+        const bool closed = contourClosed[contour] != 0U;
         const std::uint32_t segmentCount =
-            count - 1U +
-            (contourClosed[contour] != 0U ? 1U : 0U);
+            count - 1U + (closed ? 1U : 0U);
+        Base::Vector<StrokeSegment> visible;
         for (std::uint32_t segment = 0U;
              segment < segmentCount; ++segment) {
             const Point first =
@@ -308,34 +593,51 @@ Base::Result<void> TessellateStroke(
                 (clippedStart - segmentStart) / length;
             const double to =
                 (clippedEnd - segmentStart) / length;
-            const Point a{
+            StrokeSegment record;
+            record.a = {
                 first.x + dx * from,
                 first.y + dy * from};
-            const Point b{
+            record.b = {
                 first.x + dx * to,
                 first.y + dy * to};
-            const double nx = -dy / length * half;
-            const double ny = dx / length * half;
-            if (vertices.Size() > UINT32_MAX - 4U) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::OutOfRange,
-                    "Path stroke tessellation exceeds the 32-bit vertex limit");
-            }
-            const std::uint32_t base = vertices.Size();
-            const Point quad[] = {
-                {a.x + nx, a.y + ny},
-                {b.x + nx, b.y + ny},
-                {b.x - nx, b.y - ny},
-                {a.x - nx, a.y - ny}};
-            Base::Result<void> added =
-                vertices.Append({quad, 4U});
+            record.nx = -dy / length * half;
+            record.ny = dx / length * half;
+            record.ux = dx / length;
+            record.uy = dy / length;
+            record.index = segment;
+            record.startVertex = from <= 1.0e-9;
+            record.endVertex = to >= 1.0 - 1.0e-9;
+            Base::Result<void> added = visible.PushBack(record);
             if (!added) return added.GetStatus();
-            const std::uint32_t triangles[] = {
-                base, base + 1U, base + 2U,
-                base, base + 2U, base + 3U};
-            added = indices.Append({
-                triangles, 6U});
-            if (!added) return added.GetStatus();
+        }
+        if (visible.Empty()) continue;
+        std::uint32_t runBegin = 0U;
+        for (std::uint32_t index = 1U; index <= visible.Size(); ++index) {
+            const bool split =
+                index == visible.Size() ||
+                visible[index].index !=
+                    visible[index - 1U].index + 1U;
+            if (!split) continue;
+            const bool closedLoop =
+                closed &&
+                runBegin == 0U &&
+                index == visible.Size() &&
+                visible.Front().startVertex &&
+                visible.Back().endVertex &&
+                visible.Front().index == 0U &&
+                visible.Back().index + 1U == segmentCount;
+            Base::Result<void> emitted = EmitStrokeRun(
+                visible,
+                runBegin,
+                index,
+                closedLoop,
+                join,
+                startCap,
+                endCap,
+                vertices,
+                indices);
+            if (!emitted) return emitted.GetStatus();
+            runBegin = index;
         }
     }
     return {};
@@ -351,7 +653,8 @@ public:
         Base::Vector<std::uint32_t>& contourStarts,
         Base::Vector<std::uint32_t>& contourCounts,
         Base::Vector<std::uint8_t>& contourClosed,
-        bool tessellateFill) noexcept
+        bool tessellateFill,
+        FillRule fillRule) noexcept
         : cursor_(source.Data()),
           end_(source.Data() + source.SizeBytes()),
           vertices_(&vertices),
@@ -360,7 +663,8 @@ public:
           contourStarts_(&contourStarts),
           contourCounts_(&contourCounts),
           contourClosed_(&contourClosed),
-          tessellateFill_(tessellateFill) {}
+          tessellateFill_(tessellateFill),
+          fillRule_(fillRule) {}
 
     Base::Result<Rect> Parse() noexcept {
         Base::Vector<Point> contour;
@@ -694,9 +998,10 @@ public:
         }
         if (tessellateFill_) {
             Base::Result<void> tessellated =
-                TessellateEvenOdd(
+                TessellateFill(
                     *pathPoints_,
                     contours,
+                    fillRule_,
                     *vertices_,
                     *indices_);
             if (!tessellated) {
@@ -777,6 +1082,7 @@ private:
     Base::Vector<std::uint32_t>* contourCounts_ = nullptr;
     Base::Vector<std::uint8_t>* contourClosed_ = nullptr;
     bool tessellateFill_ = true;
+    FillRule fillRule_ = FillRule::EvenOdd;
 };
 
 } // namespace
@@ -792,6 +1098,10 @@ Base::Ref<Geometry> Path::GetData() const noexcept {
     return GetValueOr(
         DataProperty,
         Base::Ref<Geometry>{});
+}
+
+FillRule Path::GetFillRule() const noexcept {
+    return GetValueOr(FillRuleProperty, FillRule::EvenOdd);
 }
 
 PenLineJoin Path::GetStrokeLineJoin() const noexcept {
@@ -825,6 +1135,10 @@ void Path::SetData(
     SetValue(
         DataProperty,
         std::move(value));
+}
+
+void Path::SetFillRule(FillRule value) noexcept {
+    SetValue(FillRuleProperty, value);
 }
 
 void Path::SetStrokeLineJoin(
@@ -907,7 +1221,8 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
         // reveal it later. Geometry is independent from the sampled alpha;
         // omitting it here leaves no mesh to draw when that animation reaches
         // an opaque key frame.
-        static_cast<bool>(GetFill()));
+        static_cast<bool>(GetFill()),
+        GetFillRule());
     Base::Result<Rect> parsed =
         parser.Parse();
     if (!parsed) {
@@ -930,6 +1245,9 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
                 GetStrokeThickness(),
                 GetTrimStart(),
                 GetTrimEnd(),
+                GetStrokeLineJoin(),
+                GetStrokeStartLineCap(),
+                GetStrokeEndLineCap(),
                 strokeVertices_,
                 strokeIndices_);
         if (!stroked) return stroked.GetStatus();

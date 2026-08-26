@@ -452,6 +452,14 @@ void OnPathLineCapChanged(
         static_cast<Path&>(object));
 }
 
+void OnPathFillRuleChanged(
+    ::Aero::DependencyObject& object,
+    const FillRule&,
+    const FillRule&) noexcept {
+    AeroGuiInternal::PathInvalidateGeometry(
+        static_cast<Path&>(object));
+}
+
 void OnShapeFillChanged(
     ::Aero::DependencyObject&,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept {

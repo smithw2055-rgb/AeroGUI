@@ -1839,6 +1839,10 @@ aero_require_text(
     "class AERO_GUI_API Path : public Shape"
     "Path must derive Shape so Fill/Stroke live on the WPF Shape base")
 aero_require_text(
+    "include/Aero/Shapes/Path.hpp"
+    "FillRuleProperty"
+    "Path must expose FillRule so tessellation is not hardcoded EvenOdd")
+aero_require_text(
     "include/Aero/Shapes/Line.hpp"
     "class AERO_GUI_API Line : public Shape"
     "Line must derive Shape")

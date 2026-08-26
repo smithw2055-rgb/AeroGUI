@@ -307,6 +307,11 @@ Base::Result<void> PopulateControlsTextMedia(
                 .AffectsMeasure()
                 .AffectsRender()
                 .Changed(&OnPathDataChanged))
+        .Property(
+            Path::FillRuleProperty,
+            FrameworkPropertyMetadata(FillRule::EvenOdd)
+                .AffectsRender()
+                .Changed(&OnPathFillRuleChanged))
         .Override(
             Shape::FillProperty,
             FrameworkPropertyMetadata(
