@@ -203,6 +203,9 @@
     static void SetItemTemplate(
         Controls::ItemsControl& control,
         const DataTemplate* value) noexcept;
+    static void SetItemTemplateSelector(
+        Controls::ItemsControl& control,
+        const DataTemplateSelector* value) noexcept;
     static void SetItemsPanel(
         Controls::ItemsControl& control,
         const Controls::ItemsPanelTemplate* value) noexcept;

@@ -733,6 +733,14 @@ void OnItemTemplateChanged(
         static_cast<ItemsControl&>(object), value.Get());
 }
 
+void OnItemTemplateSelectorChanged(
+    ::Aero::DependencyObject& object,
+    const Base::Ref<DataTemplateSelector>&,
+    const Base::Ref<DataTemplateSelector>& value) noexcept {
+    AeroGuiInternal::SetItemTemplateSelector(
+        static_cast<ItemsControl&>(object), value.Get());
+}
+
 void OnDisplayMemberPathChanged(
     ::Aero::DependencyObject& object,
     const Base::String&,

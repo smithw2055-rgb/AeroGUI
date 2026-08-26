@@ -115,6 +115,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/ControlTemplate.hpp
     include/Aero/VisualStateManager.hpp
     include/Aero/DataTemplate.hpp
+    include/Aero/DataTemplateSelector.hpp
     include/Aero/HierarchicalDataTemplate.hpp
     include/Aero/Media/Animation.hpp
     include/Aero/Media/Animation/AnimationTimeline.hpp

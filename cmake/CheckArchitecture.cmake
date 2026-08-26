@@ -152,6 +152,8 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Controls/ControlTemplate.hpp"
         "include/Aero/VisualStateManager.hpp"
         "include/Aero/DataTemplate.hpp"
+        "include/Aero/DataTemplateSelector.hpp"
+        "include/Aero/HierarchicalDataTemplate.hpp"
         "include/Aero/Media/Animation.hpp"
         "include/Aero/Media/Brushes.hpp"
         "include/Aero/Media/FontProvider.hpp"
@@ -1324,6 +1326,9 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Controls/GridSplitter.hpp|class AERO_GUI_API GridSplitter"
         "include/Aero/VisualStateManager.hpp|class AERO_GUI_API VisualStateManager"
         "include/Aero/FrameworkTemplate.hpp|class AERO_GUI_API FrameworkTemplate"
+        "include/Aero/DataTemplate.hpp|class AERO_GUI_API DataTemplate"
+        "include/Aero/DataTemplateSelector.hpp|class AERO_GUI_API DataTemplateSelector"
+        "include/Aero/HierarchicalDataTemplate.hpp|class AERO_GUI_API HierarchicalDataTemplate"
         "include/Aero/Media/CompositionTarget.hpp|class AERO_GUI_API CompositionTarget"
         "include/Aero/DispatcherObject.hpp|class AERO_GUI_API DispatcherObject"
         "include/Aero/Controls/VirtualizingPanel.hpp|class AERO_GUI_API VirtualizingPanel"
@@ -1556,9 +1561,29 @@ aero_require_text(
     "FrameworkContentElement must keep a lazy FrameworkContentRare* instead of hot Vectors")
 
 aero_require_text(
-    "include/Aero/Media/Transform3D.hpp"
-    "class AERO_GUI_API Transform3D : public ::Aero::Freezable"
-    "Transform3D must inherit Freezable with no Animatable layer")
+    "include/Aero/DataTemplateSelector.hpp"
+    "class AERO_GUI_API DataTemplateSelector : public Base::Object"
+    "DataTemplateSelector must inherit Object")
+aero_forbid_text(
+    "include/Aero/DataTemplate.hpp"
+    "GetHierarchicalItemsSource"
+    "Hierarchical ItemsSource/ItemTemplate belong on HierarchicalDataTemplate, not DataTemplate")
+aero_require_text(
+    "include/Aero/HierarchicalDataTemplate.hpp"
+    "GetItemsSource"
+    "HierarchicalDataTemplate must own ItemsSource (WPF shape)")
+aero_require_text(
+    "include/Aero/HierarchicalDataTemplate.hpp"
+    "GetItemTemplate"
+    "HierarchicalDataTemplate must own ItemTemplate (WPF shape)")
+aero_require_text(
+    "include/Aero/Controls/ItemsControl.hpp"
+    "ItemTemplateSelectorProperty"
+    "ItemsControl must expose ItemTemplateSelector")
+aero_require_text(
+    "include/Aero/Controls/ItemsControl.hpp"
+    "ResolveItemTemplate"
+    "ItemsControl must resolve ItemTemplateSelector, ItemTemplate, then implicit DataTemplate")
 aero_forbid_text(
     "include/Aero/Media/Transform3D.hpp"
     ": public Animatable"

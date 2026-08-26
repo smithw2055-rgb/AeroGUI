@@ -67,6 +67,12 @@ Base::Result<void> PopulateControlsItems(
                 .AffectsMeasure()
                 .Changed(&OnItemTemplateChanged))
         .Property(
+            ItemsControl::ItemTemplateSelectorProperty,
+            FrameworkPropertyMetadata(
+                Base::Ref<DataTemplateSelector>{})
+                .AffectsMeasure()
+                .Changed(&OnItemTemplateSelectorChanged))
+        .Property(
             ItemsControl::ItemsPanelProperty,
             FrameworkPropertyMetadata(
                 Base::Ref<ItemsPanelTemplate>{})

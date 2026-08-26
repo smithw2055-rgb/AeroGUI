@@ -1,4 +1,7 @@
 #include <Aero/Controls.hpp>
+#include <Aero/DataTemplateSelector.hpp>
+#include <Aero/HierarchicalDataTemplate.hpp>
+#include <Aero/TryCast.hpp>
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp" 
 #include "gui/data/BindingEngine.hpp"
@@ -409,28 +412,36 @@ void DataTemplate::SetDataType(TypeId value) noexcept {
     state->dataType = value;
 }
 
-Base::Ref<Base::Object> DataTemplate::GetHierarchicalItemsSource() const noexcept {
-    const Controls::DataTemplateState* state = static_cast<const Controls::DataTemplateState*>(state_);
-    return state != nullptr ? state->hierarchicalItemsSource : Base::Ref<Base::Object>{};
+ResourceKey DataTemplate::GetImplicitKey() const noexcept {
+    return ResourceKey::FromType(GetDataType());
 }
 
-void DataTemplate::SetHierarchicalItemsSource(Base::Ref<Base::Object> value) noexcept {
-    Controls::DataTemplateState* state = static_cast<Controls::DataTemplateState*>(state_);
+Ref<Base::Object> HierarchicalDataTemplate::GetItemsSource() const noexcept {
+    const Controls::DataTemplateState* state =
+        static_cast<const Controls::DataTemplateState*>(state_);
+    return state != nullptr ? state->hierarchicalItemsSource
+                            : Base::Ref<Base::Object>{};
+}
+
+void HierarchicalDataTemplate::SetItemsSource(
+    Base::Ref<Base::Object> value) noexcept {
+    Controls::DataTemplateState* state =
+        static_cast<Controls::DataTemplateState*>(state_);
     if (state != nullptr) state->hierarchicalItemsSource = std::move(value);
 }
 
-Base::Ref<Base::Object> DataTemplate::GetHierarchicalItemTemplate() const noexcept {
-    const Controls::DataTemplateState* state = static_cast<const Controls::DataTemplateState*>(state_);
-    return state != nullptr ? state->hierarchicalItemTemplate : Base::Ref<Base::Object>{};
+Ref<Base::Object> HierarchicalDataTemplate::GetItemTemplate() const noexcept {
+    const Controls::DataTemplateState* state =
+        static_cast<const Controls::DataTemplateState*>(state_);
+    return state != nullptr ? state->hierarchicalItemTemplate
+                            : Base::Ref<Base::Object>{};
 }
 
-void DataTemplate::SetHierarchicalItemTemplate(Base::Ref<Base::Object> value) noexcept {
-    Controls::DataTemplateState* state = static_cast<Controls::DataTemplateState*>(state_);
+void HierarchicalDataTemplate::SetItemTemplate(
+    Base::Ref<Base::Object> value) noexcept {
+    Controls::DataTemplateState* state =
+        static_cast<Controls::DataTemplateState*>(state_);
     if (state != nullptr) state->hierarchicalItemTemplate = std::move(value);
-}
-
-ResourceKey DataTemplate::GetImplicitKey() const noexcept {
-    return ResourceKey::FromType(GetDataType());
 }
 
 ResourceDictionary& DataTemplate::GetResources() noexcept {
@@ -1093,6 +1104,60 @@ void ItemsControl::SetItemTemplateCore(
     PublishReset();
 }
 
+void ItemsControl::SetItemTemplateSelectorCore(
+    const DataTemplateSelector* value) noexcept {
+    if (itemTemplateSelector_ == value) return;
+    itemTemplateSelector_ = value;
+    PublishReset();
+}
+
+Base::Ref<DataTemplate> ItemsControl::ResolveItemTemplate(
+    const Base::Ref<Base::Object>& item,
+    std::uint32_t) const noexcept {
+    if (itemTemplateSelector_ != nullptr) {
+        DataTemplateSelector* selector =
+            const_cast<DataTemplateSelector*>(itemTemplateSelector_);
+        Base::Ref<DataTemplate> selected = selector->SelectTemplate(
+            item.Get(),
+            const_cast<ItemsControl*>(this));
+        if (selected) {
+            return selected;
+        }
+    }
+    if (itemTemplate_ != nullptr) {
+        return Base::Ref<DataTemplate>::FromBorrowed(
+            *const_cast<DataTemplate*>(itemTemplate_));
+    }
+    if (!item) {
+        return {};
+    }
+    const Meta::TypeRegistry& types = PropertyRegistry().Types();
+    Meta::TypeId type = item->RuntimeType();
+    while (type != Meta::InvalidTypeId) {
+        Base::Result<ResourceValue> found =
+            TryFindResource(ResourceKey::FromType(type));
+        if (found &&
+            found.Value().Kind() == Meta::ValueKind::Object &&
+            !found.Value().IsNullObject() &&
+            found.Value().AsObject()) {
+            if (DataTemplate* dataTemplate = TryCast<DataTemplate>(
+                    found.Value().AsObject().Get())) {
+                return Base::Ref<DataTemplate>::FromBorrowed(*dataTemplate);
+            }
+        }
+        const Meta::TypeInfo* info = types.FindType(type);
+        if (info == nullptr) {
+            break;
+        }
+        const Meta::TypeId parent = info->BaseType();
+        if (parent == type || parent == Meta::InvalidTypeId) {
+            break;
+        }
+        type = parent;
+    }
+    return {};
+}
+
 void ItemsControl::SetItemsPanelCore(
     const ItemsPanelTemplate* value) noexcept {
     if (itemsPanel_ == value) return;
@@ -1158,22 +1223,30 @@ ItemsControl::CreateContainer(
 Base::Result<void> ItemsControl::PrepareContainer(
     FrameworkElement& container,
     const Base::Ref<Base::Object>& item,
-    std::uint32_t) noexcept {
+    std::uint32_t index) noexcept {
     if (item && item.Get() != &container) {
         container.SetDataContext(
             Value::FromObject(
                 item->RuntimeType(), item));
     }
-    if (!item || itemTemplate_ == nullptr ||
+    if (!item ||
         !PropertyRegistry().Types().IsDerivedFrom(
             container.RuntimeType(), ItemsControl::StaticTypeId())) {
         return {};
     }
 
+    const Base::Ref<DataTemplate> resolved =
+        ResolveItemTemplate(item, index);
+    const HierarchicalDataTemplate* hierarchical =
+        TryCast<HierarchicalDataTemplate>(resolved.Get());
+    if (hierarchical == nullptr) {
+        return {};
+    }
+
     const Base::Ref<Base::Object> hierarchicalSource =
-        itemTemplate_->GetHierarchicalItemsSource();
+        hierarchical->GetItemsSource();
     const Base::Ref<Base::Object> hierarchicalTemplate =
-        itemTemplate_->GetHierarchicalItemTemplate();
+        hierarchical->GetItemTemplate();
     if (!hierarchicalSource && !hierarchicalTemplate) return {};
 
     auto& childItems = static_cast<ItemsControl&>(container);
@@ -1249,9 +1322,15 @@ Base::Result<void> ItemsControl::PrepareContainer(
 
 void ItemsControl::ClearContainer(
     FrameworkElement& container) noexcept {
-    if (itemTemplate_ != nullptr &&
-        (itemTemplate_->GetHierarchicalItemsSource() ||
-         itemTemplate_->GetHierarchicalItemTemplate()) &&
+    Base::Ref<Base::Object> item;
+    const Value dataContext = container.GetDataContext();
+    if (dataContext.Kind() == Meta::ValueKind::Object &&
+        !dataContext.IsNullObject()) {
+        item = dataContext.AsObject();
+    }
+    const Base::Ref<DataTemplate> resolved =
+        ResolveItemTemplate(item, 0U);
+    if (TryCast<HierarchicalDataTemplate>(resolved.Get()) != nullptr &&
         PropertyRegistry().Types().IsDerivedFrom(
             container.RuntimeType(), ItemsControl::StaticTypeId())) {
         auto& childItems = static_cast<ItemsControl&>(container);
@@ -1566,9 +1645,9 @@ ItemContainerGeneratorRuntime::CreateRecord(
         record.itemIsOwnContainer = true;
         return record;
     }
-    const DataTemplate* itemTemplate =
-        owner_->GetItemTemplate();
-    if (itemTemplate != nullptr) {
+    Base::Ref<DataTemplate> itemTemplate =
+        owner_->ResolveItemTemplate(record.item, index);
+    if (itemTemplate) {
         Base::Result<Base::Ref<Base::Object>>
             content =
                 DataTemplateRuntime::Instantiate(

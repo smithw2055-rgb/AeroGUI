@@ -21,10 +21,6 @@ public:
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     TypeId GetDataType() const noexcept;
     void SetDataType(TypeId value) noexcept;
-    Ref<Base::Object> GetHierarchicalItemsSource() const noexcept;
-    void SetHierarchicalItemsSource(Ref<Base::Object> value) noexcept;
-    Ref<Base::Object> GetHierarchicalItemTemplate() const noexcept;
-    void SetHierarchicalItemTemplate(Ref<Base::Object> value) noexcept;
     ResourceKey GetImplicitKey() const noexcept;
     ResourceDictionary& GetResources() noexcept;
     const ResourceDictionary& GetResources() const noexcept;
@@ -33,6 +29,7 @@ public:
 
 private:
     friend struct DataTemplateRuntime;
+    friend class HierarchicalDataTemplate;
     void* state_ = nullptr;
 };
 } // namespace Aero

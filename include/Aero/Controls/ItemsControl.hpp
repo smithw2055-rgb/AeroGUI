@@ -3,6 +3,7 @@
 #include <Aero/Controls/ItemCollection.hpp>
 #include <Aero/Controls/ItemsPanelTemplate.hpp>
 #include <Aero/DataTemplate.hpp>
+#include <Aero/DataTemplateSelector.hpp>
 #include <Aero/Style.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Controls/Control.hpp>
@@ -81,6 +82,16 @@ public:
         }
         SetItemTemplate(std::move(retained));
     }
+    const DataTemplateSelector* GetItemTemplateSelector() const noexcept {
+        return itemTemplateSelector_;
+    }
+    void SetItemTemplateSelector(
+        Ref<DataTemplateSelector> value) noexcept {
+        SetValue(ItemTemplateSelectorProperty, std::move(value));
+    }
+    virtual Ref<DataTemplate> ResolveItemTemplate(
+        const Ref<Base::Object>& item,
+        std::uint32_t index) const noexcept;
     const ItemsPanelTemplate* GetItemsPanel() const noexcept {
         return itemsPanel_;
     }
@@ -140,6 +151,7 @@ public:
     inline static constexpr DependencyProperty<std::uint32_t> AlternationCountProperty{"AlternationCount"};
     inline static constexpr DependencyProperty<String> DisplayMemberPathProperty{"DisplayMemberPath"};
     inline static constexpr DependencyProperty<Ref<DataTemplate>> ItemTemplateProperty{"ItemTemplate"};
+    inline static constexpr DependencyProperty<Ref<DataTemplateSelector>> ItemTemplateSelectorProperty{"ItemTemplateSelector"};
     inline static constexpr DependencyProperty<Ref<ItemsPanelTemplate>> ItemsPanelProperty{"ItemsPanel"};
     inline static constexpr DependencyProperty<Ref<Style>> ItemContainerStyleProperty{"ItemContainerStyle"};
 
@@ -172,6 +184,7 @@ private:
     ItemCollection items_;
     Collections::IItemsSource* source_ = nullptr;
     const DataTemplate* itemTemplate_ = nullptr;
+    const DataTemplateSelector* itemTemplateSelector_ = nullptr;
     const ItemsPanelTemplate* itemsPanel_ = nullptr;
     const Style* itemContainerStyle_ = nullptr;
     ItemContainerGenerator* generator_ = nullptr;
@@ -184,6 +197,8 @@ private:
         Collections::IItemsSource* source) noexcept;
     void SetItemTemplateCore(
         const DataTemplate* value) noexcept;
+    void SetItemTemplateSelectorCore(
+        const DataTemplateSelector* value) noexcept;
     void SetItemsPanelCore(
         const ItemsPanelTemplate* value) noexcept;
     void SetItemContainerStyleCore(
