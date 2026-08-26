@@ -1563,14 +1563,9 @@ foreach(aero_animation_header IN LISTS aero_animation_public_headers)
     get_filename_component(aero_animation_stem
         "${aero_animation_header}" NAME_WE)
     file(READ "${aero_animation_header}" aero_animation_content)
-    # StoryboardCompletedTrigger is retargeted to TriggerBase in the wrap-up
-    # TriggerBase wave. Until then it is the only Animation header allowed to
-    # inherit Object; every other type stays on Freezable/Timeline/TriggerBase.
-    if(NOT aero_animation_stem STREQUAL "StoryboardCompletedTrigger")
-        if(aero_animation_content MATCHES ": public[ \t]+Base::Object")
-            message(FATAL_ERROR
-                "Animation header must not inherit Base::Object: ${aero_animation_relative}")
-        endif()
+    if(aero_animation_content MATCHES ": public[ \t]+Base::Object")
+        message(FATAL_ERROR
+            "Animation header must not inherit Base::Object: ${aero_animation_relative}")
     endif()
     if(aero_animation_stem STREQUAL "KeyFrameBase")
         if(NOT aero_animation_content MATCHES ": public[ \t]+::Aero::Freezable")
@@ -1613,9 +1608,9 @@ aero_require_text(
     "class AERO_GUI_API Timeline : public ::Aero::Freezable"
     "Timeline must inherit Freezable")
 aero_require_text(
-    "include/Aero/Media/Animation/EasingFunctionBase.hpp"
-    "class AERO_GUI_API EasingFunctionBase : public ::Aero::Freezable"
-    "EasingFunctionBase must inherit Freezable, not DependencyObject")
+    "include/Aero/Media/Animation/StoryboardCompletedTrigger.hpp"
+    "class AERO_GUI_API StoryboardCompletedTrigger : public ::Aero::TriggerBase"
+    "StoryboardCompletedTrigger must inherit TriggerBase like EventTrigger")
 aero_forbid_text(
     "include/Aero/Media/Animation.hpp"
     "#include <Aero/Interactivity"
