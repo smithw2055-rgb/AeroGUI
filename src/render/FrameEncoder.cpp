@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 
 namespace Aero::Render {
 
@@ -26,29 +27,24 @@ inline uint32_t ColorToRGBA32(Color color, double opacity) noexcept {
            (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(a) << 24);
 }
 
-inline Point TransformPoint(const Transform2D& t, double x, double y) noexcept {
-    return Point{
-        x * t.m11 + y * t.m21 + t.dx,
-        x * t.m12 + y * t.m22 + t.dy
-    };
+inline Point TransformPoint(const ProjectiveTransform2D& t, double x, double y) noexcept {
+    Point output{};
+    if (!Base::TryTransformPoint(t, Point{x, y}, output)) {
+        output.x = std::numeric_limits<double>::quiet_NaN();
+        output.y = output.x;
+    }
+    return output;
 }
 
-Transform2D CombineTransform(const Transform2D& a, const Transform2D& b) noexcept {
-    Transform2D result;
-    result.m11 = a.m11 * b.m11 + a.m12 * b.m21;
-    result.m12 = a.m11 * b.m12 + a.m12 * b.m22;
-    result.m21 = a.m21 * b.m11 + a.m22 * b.m21;
-    result.m22 = a.m21 * b.m12 + a.m22 * b.m22;
-    result.dx = a.dx * b.m11 + a.dy * b.m21 + b.dx;
-    result.dy = a.dx * b.m12 + a.dy * b.m22 + b.dy;
-    return result;
+ProjectiveTransform2D CombineTransform(
+    const ProjectiveTransform2D& a,
+    const ProjectiveTransform2D& b) noexcept {
+    return Base::Compose(a, b);
 }
 
-Transform2D MakeTranslate(double x, double y) noexcept {
-    Transform2D result;
-    result.dx = x;
-    result.dy = y;
-    return result;
+ProjectiveTransform2D MakeTranslate(double x, double y) noexcept {
+    return Base::ToProjective(
+        Base::Transform2D{1.0, 0.0, 0.0, 1.0, x, y});
 }
 
 constexpr double kRoundedCornerSegments = 10.0;
@@ -328,6 +324,11 @@ void UiFrameEncoder::EmitQuad(
     const Point uvs[4],
     Color color) noexcept {
     if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) return;
+    for (int i = 0; i < 4; ++i) {
+        if (!std::isfinite(points[i].x) || !std::isfinite(points[i].y)) {
+            return;
+        }
+    }
 
     if (currentVertexCount_ + 4U > (DYNAMIC_VB_SIZE / sizeof(Vertex2D)) ||
         currentIndexCount_ + 6U > (DYNAMIC_IB_SIZE / sizeof(uint16_t))) {
@@ -382,6 +383,11 @@ void UiFrameEncoder::EmitQuadWithColors(
     const Color colors[4],
     double opacity) noexcept {
     if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) return;
+    for (int i = 0; i < 4; ++i) {
+        if (!std::isfinite(points[i].x) || !std::isfinite(points[i].y)) {
+            return;
+        }
+    }
 
     if (currentVertexCount_ + 4U > (DYNAMIC_VB_SIZE / sizeof(Vertex2D)) ||
         currentIndexCount_ + 6U > (DYNAMIC_IB_SIZE / sizeof(uint16_t))) {
@@ -542,7 +548,7 @@ void UiFrameEncoder::EmitMaskBrush(
         cmd.kind = RenderCommandKind::FillRect;
         cmd.rect = Rect{0.0, 0.0, width, height};
         cmd.color = mask.color;
-        ProcessCommand(cmd, Transform2D{}, 1.0);
+        ProcessCommand(cmd, ProjectiveTransform2D{}, 1.0);
         break;
     case RenderMaskKind::Image:
         if (mask.image != InvalidRenderImageId) {
@@ -551,7 +557,7 @@ void UiFrameEncoder::EmitMaskBrush(
             cmd.image = mask.image;
             cmd.sourceUv = mask.sourceUv;
             cmd.color = Color{1.0F, 1.0F, 1.0F, 1.0F};
-            ProcessCommand(cmd, Transform2D{}, 1.0);
+            ProcessCommand(cmd, ProjectiveTransform2D{}, 1.0);
         }
         break;
     case RenderMaskKind::LinearGradient:
@@ -609,7 +615,7 @@ void UiFrameEncoder::EmitMaskBrush(
             cmd.points[i] = corners[i];
             cmd.colors[i] = colors[i];
         }
-        ProcessCommand(cmd, Transform2D{}, 1.0);
+        ProcessCommand(cmd, ProjectiveTransform2D{}, 1.0);
         break;
     }
     case RenderMaskKind::None:
@@ -622,7 +628,7 @@ void UiFrameEncoder::CompositeOffscreen(
     const RenderNodeSnapshot& node,
     RenderTarget* offscreen,
     RenderTarget* maskTarget,
-    const Transform2D& nodeTransform,
+    const ProjectiveTransform2D& nodeTransform,
     double nodeOpacity,
     double dpi,
     const RenderFrame& frame) noexcept {
@@ -725,7 +731,7 @@ void UiFrameEncoder::SetContentStencil() noexcept {
 
 void UiFrameEncoder::EmitClipQuad(
     const Rect& rect,
-    const Transform2D& transform,
+    const ProjectiveTransform2D& transform,
     std::uint8_t stencilMode,
     std::uint8_t stencilRef) noexcept {
     if (currentBatch_.numIndices > 0U &&
@@ -754,7 +760,7 @@ void UiFrameEncoder::EmitClipQuad(
 
 void UiFrameEncoder::ProcessCommand(
     const RenderCommand& cmd,
-    const Transform2D& currentTransform,
+    const ProjectiveTransform2D& currentTransform,
     double currentOpacity) noexcept {
     switch (cmd.kind) {
     case RenderCommandKind::PushClip: {
@@ -1105,19 +1111,19 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
     mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
     mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
 
-    Transform2D rootTransform;
+    ProjectiveTransform2D rootTransform;
     const double dpi = (frame.DpiScale() > 0.0) ? frame.DpiScale() : 1.0;
     rootTransform.m11 = dpi;
     rootTransform.m22 = dpi;
 
     struct NodeState {
         RenderNodeId nodeId = InvalidRenderNodeId;
-        Transform2D transform;
+        ProjectiveTransform2D transform;
         double opacity = 1.0;
         bool pushedClip = false;
     };
     struct PushState {
-        Transform2D transform;
+        ProjectiveTransform2D transform;
         double opacity = 1.0;
     };
 
@@ -1140,7 +1146,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
     };
 
     auto emitNodeCommands = [&](const RenderNodeSnapshot& node,
-                                const Transform2D& nodeTransform,
+                                const ProjectiveTransform2D& nodeTransform,
                                 double nodeOpacity) noexcept {
         switch (node.blendMode) {
         case ::Aero::BlendMode::Multiply:
@@ -1170,7 +1176,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             nodePushedClip = true;
         }
 
-        Transform2D currentTransform = nodeTransform;
+        ProjectiveTransform2D currentTransform = nodeTransform;
         double currentOpacity = nodeOpacity;
         Base::Vector<PushState> pushStack(allocator_);
 
@@ -1262,13 +1268,13 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             popNodeClip(nodeStack);
             static_cast<void>(nodeStack.PopBack());
         }
-        const Transform2D baseTransform =
+        const ProjectiveTransform2D baseTransform =
             nodeStack.Empty() ? rootTransform : nodeStack.Back().transform;
         const double baseOpacity =
             nodeStack.Empty() ? 1.0 : nodeStack.Back().opacity;
 
-        Transform2D local = CombineTransform(node.renderTransform, MakeTranslate(node.layoutSlot.x, node.layoutSlot.y));
-        const Transform2D nodeTransform = CombineTransform(local, baseTransform);
+        ProjectiveTransform2D local = CombineTransform(node.renderTransform, MakeTranslate(node.layoutSlot.x, node.layoutSlot.y));
+        const ProjectiveTransform2D nodeTransform = CombineTransform(local, baseTransform);
         const double nodeOpacity = baseOpacity * node.opacity;
 
         const bool hasEffect = node.effect.kind != RenderEffectKind::None;
@@ -1320,7 +1326,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         // Record the subtree in node-local space scaled by dpi. The root
         // node's slot offset, render transform and opacity are applied at
         // composite time rather than baked into the offscreen content.
-        Transform2D offRoot;
+        ProjectiveTransform2D offRoot;
         offRoot.m11 = dpi;
         offRoot.m22 = dpi;
         Base::Vector<NodeState> offStack(allocator_);
@@ -1330,17 +1336,17 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
                 popNodeClip(offStack);
                 static_cast<void>(offStack.PopBack());
             }
-            const Transform2D subBase =
+            const ProjectiveTransform2D subBase =
                 offStack.Empty() ? offRoot : offStack.Back().transform;
             const double subBaseOpacity =
                 offStack.Empty() ? 1.0 : offStack.Back().opacity;
-            Transform2D subLocal;
+            ProjectiveTransform2D subLocal;
             if (i == nodeIndex) {
-                subLocal = Transform2D{};
+                subLocal = ProjectiveTransform2D{};
             } else {
                 subLocal = CombineTransform(sub.renderTransform, MakeTranslate(sub.layoutSlot.x, sub.layoutSlot.y));
             }
-            const Transform2D subTransform = CombineTransform(subLocal, subBase);
+            const ProjectiveTransform2D subTransform = CombineTransform(subLocal, subBase);
             const double subOpacity =
                 (i == nodeIndex) ? 1.0 : subBaseOpacity * sub.opacity;
             const bool pushedClip =

@@ -1159,7 +1159,7 @@ void Path::OnRender(
         (target.height - height) * 0.5 -
         geometryBounds_.y * scaleY;
     Base::Result<void> transform =
-        builder.PushTransform({
+        builder.PushTransform(Transform2D{
             scaleX, 0.0, 0.0, scaleY,
             offsetX, offsetY});
     if (!transform) return;

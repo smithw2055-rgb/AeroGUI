@@ -64,14 +64,15 @@ bool ParentToLocal(
         localPosition = translated;
         return true;
     }
-    Base::Transform2D inverse;
-    if (!Media::InvertTransform(
+    Base::ProjectiveTransform2D inverse;
+    if (!Base::Invert(
             framework->GetLocalVisualTransform(),
             inverse)) {
         return false;
     }
-    localPosition =
-        Media::TransformPoint(inverse, translated);
+    if (!Base::TryTransformPoint(inverse, translated, localPosition)) {
+        return false;
+    }
     return IsFinite(localPosition);
 }
 

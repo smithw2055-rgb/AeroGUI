@@ -28,6 +28,9 @@ struct Transform3DContext {
     Base::Transform3 accumulated = Base::IdentityTransform3();
     double depth = 0.0;
     Base::Point offset{};
+    /// Collapse center in the perspective-root's local pixels
+    /// (`renderSize/2 + offset`). Shared vanishing point for the subtree.
+    Base::Point center{};
 };
 
 } // namespace Aero::Media

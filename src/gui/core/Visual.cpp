@@ -63,8 +63,9 @@ Base::Transform2D Translation(double x, double y) noexcept {
     return result;
 }
 
-Base::Transform2D ToRootTransform(const Visual& visual) noexcept {
-    Base::Transform2D result;
+Base::ProjectiveTransform2D ToRootTransformProjective(
+    const Visual& visual) noexcept {
+    Base::ProjectiveTransform2D result = Base::IdentityProjective();
     const Visual* current = &visual;
     while (current != nullptr) {
         const ::Aero::UIElement* element =
@@ -72,16 +73,25 @@ Base::Transform2D ToRootTransform(const Visual& visual) noexcept {
         const ::Aero::FrameworkElement* framework =
             ::Aero::TryCast<::Aero::FrameworkElement>(current);
         if (element != nullptr) {
-            Base::Transform2D local = framework != nullptr
+            Base::ProjectiveTransform2D local = framework != nullptr
                 ? framework->GetLocalVisualTransform()
-                : Base::Transform2D{};
+                : Base::IdentityProjective();
             const Base::Rect slot = element->GetLayoutSlot();
-            local = ComposeTransforms(local, Translation(slot.x, slot.y));
-            result = ComposeTransforms(result, local);
+            local = Base::Compose(
+                local, Base::ToProjective(Translation(slot.x, slot.y)));
+            result = Base::Compose(result, local);
         }
         current = current->GetVisualParent();
     }
     return result;
+}
+
+Base::Transform2D ToRootTransform(const Visual& visual) noexcept {
+    Base::Transform2D affine;
+    if (!Base::TryToTransform2D(ToRootTransformProjective(visual), affine)) {
+        return {};
+    }
+    return affine;
 }
 
 } // namespace

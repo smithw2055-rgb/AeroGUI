@@ -1970,7 +1970,7 @@ TextBox::RenderEditor(
         return clip;
     }
     Base::Result<void> transform =
-        builder.PushTransform({
+        builder.PushTransform(Transform2D{
             1.0, 0.0, 0.0, 1.0,
             padding.left -
                 scroll_.horizontalOffset,

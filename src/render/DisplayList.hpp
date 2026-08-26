@@ -24,11 +24,13 @@ using RenderGlyphRunId = std::uint64_t;
 inline constexpr RenderGlyphRunId InvalidRenderGlyphRunId = 0U;
 using Color = Base::Color;
 using Transform2D = Base::Transform2D;
+using ProjectiveTransform2D = Base::ProjectiveTransform2D;
 using Rect = Base::Rect;
 using Point = Base::Point;
 
 bool IsFinite(Color value) noexcept;
 bool IsFinite(Transform2D value) noexcept;
+bool IsFinite(ProjectiveTransform2D value) noexcept;
 bool IsValidOpacity(double value) noexcept;
 
 enum class RenderCommandKind : std::uint8_t {
@@ -50,7 +52,7 @@ enum class RenderCommandKind : std::uint8_t {
 struct RenderCommand {
     RenderCommandKind kind = RenderCommandKind::FillRect;
     Rect rect;
-    Transform2D transform;
+    ProjectiveTransform2D transform;
     Color color;
     Point points[4]{};
     Color colors[4]{};
@@ -89,6 +91,7 @@ public:
     Base::Result<void> PushOpacity(double opacity) noexcept;
     Base::Result<void> PopOpacity() noexcept;
     Base::Result<void> PushTransform(Transform2D value) noexcept;
+    Base::Result<void> PushTransform(ProjectiveTransform2D value) noexcept;
     Base::Result<void> PopTransform() noexcept;
     Base::Result<void> FillRect(Rect rect, Color color) noexcept;
     Base::Result<void> FillRoundedRect(
