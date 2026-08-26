@@ -3,16 +3,16 @@ name: SDK hierarchy review
 overview: 对比参考项目 AeroGUI（Noesis 风格）与本仓库已落地的 WPF 语义 SDK，给出不追求 1:1 对齐、但面向 WPF 开发者上手度与 C++ 性能的类层次/头文件/对象布局重整方案。核心原则：公开 API 保持 WPF 形状，内部用 C++ 惯用法把 Visual 变瘦、把树与属性存储做紧凑，并严格执行“一类型一头文件”。
 todos:
   - id: headers-split
-    content: 一类型一头文件：拆分 Panel 族 / Headered 族 / ContentElement；DependencyObject 归位；Primitives 路径对齐；加强 CheckArchitecture
+    content: 剩余一类型一头文件：Selector 从 ListBox.hpp 迁出；Shapes 拆分；Documents 拆分；VirtualizingPanel 独立头；门禁强制文件名=类型名
     status: pending
   - id: visual-children
     content: Visual 改为虚 GetVisualChild + AddVisualChild；删除基类双 Vector；逻辑树改为 DependencyObject*
-    status: pending
+    status: completed
   - id: hierarchy-fix
-    content: "TabControl : Selector；补 Visual 坐标/祖先 API；TryCast 替换 AsUIElement 虚函数"
+    content: Path:Shape；VirtualizingPanel:Panel；AERO_DECLARE_TYPE(DependencyObject) 元数据基类改为 DispatcherObject；Selector 头归属 Primitives
     status: pending
   - id: store-compact
-    content: StoredValueEntry 病身、ResourceDictionary lazy、Visual/UIElement flags packed
+    content: StoredValueEntry 瘦身、ResourceDictionary lazy、Visual/UIElement flags packed
     status: pending
 isProject: false
 ---
@@ -25,11 +25,11 @@ isProject: false
 
 **不要**把公开模型改成已否决的 Facet/ECS（见 [`docs/WPF_Facet_Pattern_Architecture_Whitepaper.md`](docs/WPF_Facet_Pattern_Architecture_Whitepaper.md)）。WPF 开发者需要的是熟悉的继承与虚函数；C++ 优化应发生在**对象布局、子节点存储、DP store、头文件切分**，而不是换一套公开类型系统。
 
-当前最大的结构性问题是三件事：
+对照当前树，原方案里 Visual 变瘦、坐标 API、`TryCast`、TabControl→Selector、Primitives 路径、一类型一头文件（Panel/Headered 族）**已经落地**。剩余结构性问题收成三件：
 
-1. **Visual 同时当逻辑树和视觉树容器**，每个节点挂两份 `Vector<Visual*>`，且逻辑子被收窄成 `Visual*`（无法正确承载 `ContentElement`/`Inline`）。
-2. **公开头文件所有权与 WPF 发现习惯不一致**：多类型挤在一个头里、`DependencyObject` 声明藏在 [`DependencyProperty.hpp`](include/Aero/DependencyProperty.hpp)、Primitives 文件路径与命名空间错位。
-3. **个别继承/API 偏离会直接误导 WPF 开发者**（`TabControl : Control` 而不是 `Selector`；没有 `AddVisualChild`/`TransformToVisual`）。
+1. **仍有几处继承偏离会误导 WPF 开发者**：`Path : FrameworkElement` 而非 `Shape`；`VirtualizingPanel : Object` 而非 `Panel`；`AERO_DECLARE_TYPE(DependencyObject, Base::Object)` 跳过了 C++ 基类 `DispatcherObject`。
+2. **头文件所有权没收完**：`Primitives::Selector` 仍声明在 [`ListBox.hpp`](include/Aero/Controls/ListBox.hpp)；`Shape`/`Rectangle`/`Ellipse`/`Path` 挤在 [`Shapes.hpp`](include/Aero/Shapes.hpp)；`Documents.hpp` 仍是聚合头。
+3. **对象存储仍肥**：DP 条目三份 `Value`、`FrameworkElement` 内嵌 `ResourceDictionary`、Visual 上一串散落 bool——这是后续动画/虚拟化的真正瓶颈。
 
 ```mermaid
 flowchart TB
@@ -55,44 +55,35 @@ flowchart TB
 | 维度 | 参考 AeroGUI | 本项目现状 | 建议 |
 | --- | --- | --- | --- |
 | Visual 命名空间 | `Aero::Visual`（扁平） | `Aero::Media::Visual` + 头在 [`Visual.hpp`](include/Aero/Visual.hpp) | **保持 Media 命名空间**（更贴近 WPF `System.Windows.Media.Visual`） |
-| 子节点 | `AddVisualChild` + 虚 `GetVisualChild`，不在基类存两份列表 | 每个 Visual 存 `logicalChildren_` + `visualChildren_` | 改回 **虚函数 + 派生类自有集合**（C++ 更省、也更 WPF） |
-| 坐标 API | `PointFromScreen` / `TransformToVisual` 齐全 | Visual 几乎没有 | **补齐**（上手度高、实现可走 RenderTree 矩阵） |
+| 子节点 | `AddVisualChild` + 虚 `GetVisualChild`，不在基类存两份列表 | **已落地**：虚 `GetVisualChild` + `AddVisualChild`，基类无双 Vector | 保持；确认 Panel/Decorator 自有存储是唯一数据源 |
+| 坐标 API | `PointFromScreen` / `TransformToVisual` 齐全 | **已落地**（`IsAncestorOf` / `TransformToVisual` / `PointToScreen`） | 保持；不必先做 3D |
 | 宿主 View | `IView` 接口 | 具体类 [`View`](include/Aero/View.hpp) | **保持具体类**（C++ 嵌入式更简单）；需要时再抽 `IView` 给多实现 |
-| 头文件 | ~900 个 `NsGui/*.h` 一类型一文件 | 聚合头：[`StackPanel.hpp`](include/Aero/Controls/StackPanel.hpp) 含 Canvas/Dock/Wrap/UniformGrid；[`HeaderedContentControl.hpp`](include/Aero/Controls/HeaderedContentControl.hpp) 含 Label/Expander/Tab* | **作者可见类型一类型一头文件**；实现 `.cpp` 仍可按族合并 |
-| 向下转型 | 反射 `DynamicCast` | `AsUIElement`/`AsFrameworkElement` 虚函数 | 改为 **TypeId `TryCast<T>`**，去掉 4 个虚槽 |
+| 头文件 | ~900 个 `NsGui/*.h` 一类型一文件 | Panel/Headered/Primitives 多数已拆；**剩余** `ListBox.hpp` 含 Selector、`Shapes.hpp` 含四形状、`Documents.hpp` 聚合 | 补完剩余拆分 + 门禁 |
+| 向下转型 | 反射 `DynamicCast` | **已落地** [`TryCast.hpp`](include/Aero/TryCast.hpp)；AsXxx 虚函数已删 | 日常控件头应 `#include` TryCast，文档对照 WPF `as` |
 | DP 标识 | 运行时 Register | `constexpr DependencyProperty<T>{"Name"}` | **保留**（C++ 相对 WPF 的明确优势） |
 | 属性访问 | `Get/Set` | 同左 | **保留**；不引入属性代理对象 |
 
 公开继承深度建议维持 WPF 形状（约 6–8 层）。这是 XAML/Style/Template 语义的一部分；用组合替代继承只会让 WPF 开发者无法把知识迁移过来。内部引擎已经走 `ElementTree` 服务中枢 + 热字段 + `Rare*`，这条路是对的。
 
+参考工程是 **行为与公开类层次的黄金标准**，不是实现或模块边界的模板。应对齐的只剩：`Path : Shape`、`VirtualizingPanel : Panel`、一类型一头文件。**不要照搬：**
+
+- `IView` / `GUI::CreateView` 单例集成层（本仓库 `Gui` + 具体 `View` 更清晰）
+- `IUITreeNode` / `IComponentInitializer` 接口堆（逻辑树用 Helper + 虚枚举即可）
+- `BaseButton` 拼写（WPF 是 `ButtonBase`，本仓库已用对）
+- `Ns*` 头路径与全量运行时反射（`TypeClass` 装箱）
+- `Freezable → Animatable → Timeline` 多一层；本仓库 `Timeline : Freezable` 可保留，动画能力走 DP/Storyboard，不必为对齐再插 `Animatable`
+- 参考项目不完整的 Dispatcher：本仓库已有帧相位 `Dispatcher`，应继续强化，而不是退回“仅线程亲和”
+
 ---
 
 ## A. 类层次与对象布局（性能关键）
 
-### A1. 把 Visual 从“双列表容器”改成“薄视觉节点”
+### A1. Visual 子节点模型（已完成，作基线）
 
-现状 [`Visual.hpp`](include/Aero/Visual.hpp)：
+当前 [`Visual.hpp`](include/Aero/Visual.hpp) 已是薄节点：虚 `GetVisualChildrenCount`/`GetVisualChild`、protected `AddVisualChild`/`RemoveVisualChild`、`GetLogicalParent()` 返回 `DependencyObject*`，基类不再存双 Vector。后续只做校验：
 
-```69:114:include/Aero/Visual.hpp
-    virtual Base::Span<Visual* const> GetVisualChildren() const noexcept {
-        return { visualChildren_.Data(), visualChildren_.Size() };
-    }
-    // ...
-    Base::Vector<Visual*> logicalChildren_;
-    Base::Vector<Visual*> visualChildren_;
-    // renderNodeId_, renderRevision_, handle*, dirty flags, lifetime_ ...
-```
-
-目标（贴近 WPF/参考项目，但按 C++ 收紧）：
-
-- **视觉子**：仅 `GetVisualChildrenCount()` / `GetVisualChild(i)` 虚函数；基类**不**存 `Vector`。
-- **增删**：protected `AddVisualChild` / `RemoveVisualChild`（只改 parent 指针 + invalidate），由 Panel/Decorator/模板根实现存储。
-- **逻辑子**：下放到 `FrameworkElement` / `FrameworkContentElement` 的虚枚举；返回 `DependencyObject*`，允许 `Inline`/`Run`。
-- **单孩子类型**（`Decorator`、`ContentPresenter`、多数 `ContentControl`）：一个 `UIElement*` 热字段，不要走通用 vector。
-- **Panel**：`UIElementCollection` 仍是唯一数据源（已有 [`Panel.hpp`](include/Aero/Controls/Panel.hpp)）。
-- 公开 `GetVisualChildren()` 返回 `Span` 应删除或改为按需填充，避免把内部存储形状锁进 ABI。
-
-预计：叶子节点（Shape、TextBlock、大部分 Control 实例）少 2 个 `Vector` 控制块（约 48–64B）+ 更好的缓存局部性。
+- Panel 的 `UIElementCollection`、Decorator 的单孩子指针是唯一存储，不要再偷偷加回基类列表。
+- 逻辑子枚举继续允许 `Inline`/`Run` 等非 Visual DO。
 
 ### A2. 热/稀有字段再压一轮（不改公开 API）
 
@@ -101,14 +92,7 @@ flowchart TB
 - Visual 的 render 句柄/dirty 打成 **bitfield + packed ids**，bool 不要各占 1 字节散落。
 - `FrameworkElement` 上内嵌的 `ResourceDictionary resources_` 改为 **lazy**（无局部资源则为空指针）；`FrameworkContentElement` 同样。
 - `authoredTriggers_` / `authoredBehaviors_` / style prototype 向量移入 Rare 或模板会话。
-- `AsUIElement`/`AsFrameworkElement` 四虚函数删除；提供：
-
-```cpp
-template<class T>
-T* TryCast(Object*) noexcept; // TypeId 链，无 RTTI
-```
-
-这比虚函数 downcast 更通用（Documents/Media 也能用），且不污染 Visual vtable。
+- `TryCast<T>` 已在 [`TryCast.hpp`](include/Aero/TryCast.hpp)；不要把 AsXxx 虚函数加回来。
 
 ### A3. DP store 紧凑化（功能扩展的前置）
 
@@ -134,15 +118,15 @@ T* TryCast(Object*) noexcept; // TypeId 链，无 RTTI
 
 ## B. 继承与语义修正（WPF 上手度）
 
-这些是“看起来像 WPF、用起来却踩坑”的点，应优先修：
+已完成、不再列入本轮：`TabControl : Selector`、Primitives 路径（声明在 `Controls/Primitives/`，根目录只留转发）、逻辑树 DO、Visual 坐标 API、`OnVisualChildrenChanged`、`TryCast`。
 
-- **`TabControl`**：现为 `Control` + `AddOwnedTab`（[`HeaderedContentControl.hpp`](include/Aero/Controls/HeaderedContentControl.hpp)）。改为 `Selector`，走 `Items`/`ItemsSource`/`SelectedIndex`；`TabItem : HeaderedContentControl` 可保留。
-- **Primitives 文件位置**：`ButtonBase`/`ToggleButton` 已在 `Controls::Primitives` 命名空间，但头仍在 [`Controls/ButtonBase.hpp`](include/Aero/Controls/ButtonBase.hpp)、[`Controls/ToggleButton.hpp`](include/Aero/Controls/ToggleButton.hpp)。迁到 `Controls/Primitives/`，根目录只留兼容转发（或 0.3 直接打破，本项目尚未稳定）。
-- **`RangeBase.hpp` 兼容伞** 可保留；真正声明已在 Primitives。
-- **逻辑树 API**：`Visual::GetLogicalParent()` 返回 `Visual*` 应改为 `DependencyObject*`；`LogicalTreeHelper` 只保留 DO 重载。
-- **补 Visual 坐标/祖先 API**（参考项目已有）：`IsAncestorOf`、`TransformToVisual`、`PointFromScreen`/`PointToScreen`。实现可基于已有 render 矩阵，不必先做完整 3D。
-- **补 protected 视觉树钩子**：`OnVisualChildrenChanged`；已有 `OnVisualParentChanged` 保留。
-- **`View`**：保持 `Object` 具体类；不要为了像 Noesis 再加一层 `IView`，除非出现第二套 View 实现。输入/`Update`/`SetSize` 形状已经够用。可考虑补 `SetFlags`（PPAA/wireframe）作为诊断，而不是核心 API。
+**仍会误导 WPF 开发者、应优先修：**
+
+- **`Path`**：现为 `Path : FrameworkElement` 并自己重复 Fill/Stroke/Stretch（[`Shapes.hpp`](include/Aero/Shapes.hpp)）。改为 `Path : Shape`，只保留 `Data`；否则样式/模板里对 `Shape` 的 Setter 打不到 Path。
+- **`VirtualizingPanel`**：现为 `Object` 上的附加属性所有者，`VirtualizingStackPanel : Panel, IScrollInfo`（[`VirtualizingStackPanel.hpp`](include/Aero/Controls/VirtualizingStackPanel.hpp)）。改为 WPF 形 `VirtualizingPanel : Panel`，VSP 再继承它。附加属性可继续挂在基类上；C++ 不必为了“省虚函数”把面板踢出视觉树。
+- **`Selector` 头归属**：类已在 `Controls::Primitives`，声明却在 [`ListBox.hpp`](include/Aero/Controls/ListBox.hpp)。迁到 `Controls/Primitives/Selector.hpp`；`ListBoxItem` 独立头。`TabControl.hpp` 不应为了 Selector 去包含整个 ListBox。
+- **元数据基类 vs C++ 基类**：`AERO_DECLARE_TYPE(DependencyObject, Base::Object)`，但 C++ 继承 `DispatcherObject`。`TryCast<DispatcherObject>`、XAML 类型链、自定义控件 `AERO_DECLARE_TYPE` 都会和真实继承不一致。改为 `AERO_DECLARE_TYPE(DependencyObject, DispatcherObject)`，并核对 DispatcherObject 是否已注册进 TypeId 链。
+- **`View`**：保持具体 `Object`；不要加 `IView`。
 
 不追求对齐的部分（明确不做）：
 
@@ -156,19 +140,18 @@ T* TryCast(Object*) noexcept; // TypeId 链，无 RTTI
 
 现有规范 [`docs/spec/PUBLIC_HEADER_MODEL.md`](docs/spec/PUBLIC_HEADER_MODEL.md) 写了“每个公开类型一个声明所有者”，但物理文件没做到。这是 WPF/参考项目开发者找类型的第一痛点。
 
-**拆分（公开头，实现 cpp 仍可按族合并）：**
+**已拆完（保持）：** Canvas/Dock/Wrap/UniformGrid、Viewbox、GroupBox/Label/Expander/TabItem/TabControl、ContentElement、VisualTreeHelper/LogicalTreeHelper、DependencyObject 类归位、Primitives 声明路径。
 
-- [`StackPanel.hpp`](include/Aero/Controls/StackPanel.hpp) → `StackPanel` / `DockPanel` / `WrapPanel` / `UniformGrid` / `Canvas` 各一文件。
-- [`Border.hpp`](include/Aero/Controls/Border.hpp) → `Viewbox` 独立。
-- [`HeaderedContentControl.hpp`](include/Aero/Controls/HeaderedContentControl.hpp) → `GroupBox` / `Label` / `Expander` / `TabItem` / `TabControl` 各一文件。
-- [`FrameworkContentElement.hpp`](include/Aero/FrameworkContentElement.hpp) → `ContentElement.hpp` + `FrameworkContentElement.hpp`。
-- [`Visual.hpp`](include/Aero/Visual.hpp) → `Visual` 与 `VisualTreeHelper.hpp` / `LogicalTreeHelper.hpp` 分开（WPF 就是三个类型三个入口）。
-- [`DependencyProperty.hpp`](include/Aero/DependencyProperty.hpp)（~1000 行）→ 真正的 [`DependencyObject.hpp`](include/Aero/DependencyObject.hpp) 承载类声明；`DependencyProperty.hpp` 只留 DP 标识/元数据模板。`DependencyObject.hpp` 当前只是 `using` 别名，必须改掉。
-- [`UIElement.hpp`](include/Aero/UIElement.hpp)：事件标识可留在类上（WPF 习惯），但 handler 模板/Descriptor 挪到 `.cpp` 或内部头，减小每个控件编译依赖。
-- [`Value.hpp`](include/Aero/Value.hpp)（1076 行，且标 `AERO_GUI_API`）→ 值类型进 `Aero::Base`/`AERO_BASE_API`；编解码/TypeId 帮手进 Meta。避免 Base 对象依赖 Gui 导出宏。
-- [`Documents.hpp`](include/Aero/Documents.hpp) 聚合伞可保留，但具体 `Run`/`Span`/`Hyperlink` 应有独立声明头（或至少 `Documents/Inline.hpp` 一族）。
-- [`Controls.hpp`](include/Aero/Controls.hpp) 继续当伞；**不要**让它成为唯一能找到 Canvas 的路径。
-- [`Meta.hpp`](include/Aero/Meta.hpp)（1700+ 行）保持专家面；日常 `#include <Aero/Controls/Button.hpp>` 不得间接吞下整份 Meta。用前向声明切断。
+**还要拆（公开头，实现 cpp 仍可按族合并）：**
+
+- [`ListBox.hpp`](include/Aero/Controls/ListBox.hpp) → `Primitives/Selector.hpp` + `ListBoxItem.hpp` + `ListBox.hpp`。
+- [`Shapes.hpp`](include/Aero/Shapes.hpp) → `Shape` / `Rectangle` / `Ellipse` / `Path` 各一文件；伞头 `Shapes.hpp` 只做 include。
+- [`Documents.hpp`](include/Aero/Documents.hpp) → 至少 `Documents/Inline.hpp` 一族；伞头可留。
+- [`VirtualizingStackPanel.hpp`](include/Aero/Controls/VirtualizingStackPanel.hpp) → `VirtualizingPanel.hpp` 独立（与层次修正一起做）。
+- [`UIElement.hpp`](include/Aero/UIElement.hpp)：事件标识留在类上，handler Descriptor 挪出头文件，减小编译扇出。
+- [`Value.hpp`](include/Aero/Value.hpp)（仍标 `AERO_GUI_API`）→ 值类型进 `Aero::Base`/`AERO_BASE_API`；编解码进 Meta。
+- [`Meta.hpp`](include/Aero/Meta.hpp) 保持专家面；日常 `Button.hpp` 不得间接吞下整份 Meta。`FrameworkElement.hpp` 已不再硬包含 `DrawingContext.hpp`，继续切断 Fonts/Transforms 若仅前向声明即可。
+- 根目录 `Controls/ButtonBase.hpp` 等兼容转发可留一版；门禁应把它们标成 umbrella，不能当成声明所有者。
 
 架构门禁 [`cmake/CheckArchitecture.cmake`](cmake/CheckArchitecture.cmake) 增加一条：**除伞头/`Primitives.hpp`/`Controls.hpp` 外，每个 `class AERO_*_API` 的拥有文件名 = 类型名。**
 
@@ -201,10 +184,11 @@ Button.hpp → ButtonBase.hpp → ContentControl.hpp → Control.hpp
 
 波次之间保持可编译；都是预 1.0 允许的破坏性变更。
 
-1. **头文件重整 + 门禁**（无行为变化）：一类型一头文件、DependencyObject 归位、Primitives 路径、切断 FrameworkElement→DrawingContext 的硬包含。
-2. **层次语义**：TabControl→Selector；逻辑树改为 DO；AddVisualChild；拆掉 Visual 双 Vector（最大性能收益）。
-3. **转型与 Visual API**：TryCast、删 AsXxx、补 Transform/Hit-test 祖先 API。
-4. **存储压缩**：DP 条目瘦身、ResourceDictionary lazy、flags packed。不改公开签名。
+1. **剩余头文件 + 门禁**：Selector/ListBoxItem/Shapes/Documents/VirtualizingPanel 一类型一头文件。
+2. **剩余层次语义**：Path→Shape；VirtualizingPanel→Panel；DependencyObject 元数据基类对齐 DispatcherObject。
+3. **存储压缩**（最大剩余性能收益）：DP 条目瘦身、ResourceDictionary lazy、flags packed。不改公开签名。
+
+波次 1–2 可同一 PR；波次 3 独立，避免和类型搬迁缠在一起。
 
 明确不在本轮做：复活 Facet；引入 `IView`；把 `View` 做成 `DispatcherObject` 子类（它是宿主对象，不是 DO 树节点）；D3D12/Vulkan。
 
@@ -212,6 +196,6 @@ Button.hpp → ButtonBase.hpp → ContentControl.hpp → Control.hpp
 
 ## 关键文件
 
-- 公开脊柱：[`include/Aero/Visual.hpp`](include/Aero/Visual.hpp)、[`UIElement.hpp`](include/Aero/UIElement.hpp)、[`FrameworkElement.hpp`](include/Aero/FrameworkElement.hpp)、[`DependencyProperty.hpp`](include/Aero/DependencyProperty.hpp)
-- 控件：[`Controls/StackPanel.hpp`](include/Aero/Controls/StackPanel.hpp)、[`Controls/HeaderedContentControl.hpp`](include/Aero/Controls/HeaderedContentControl.hpp)、[`Controls/Panel.hpp`](include/Aero/Controls/Panel.hpp)、[`Controls/Decorator.hpp`](include/Aero/Controls/Decorator.hpp)
+- 公开脊柱：[`include/Aero/Visual.hpp`](include/Aero/Visual.hpp)、[`DependencyObject.hpp`](include/Aero/DependencyObject.hpp)、[`TryCast.hpp`](include/Aero/TryCast.hpp)
+- 待修层次：[`Shapes.hpp`](include/Aero/Shapes.hpp)、[`Controls/ListBox.hpp`](include/Aero/Controls/ListBox.hpp)、[`Controls/VirtualizingStackPanel.hpp`](include/Aero/Controls/VirtualizingStackPanel.hpp)
 - 内核：[`src/gui/internal/PropertyStore.hpp`](src/gui/internal/PropertyStore.hpp)、[`docs/SOURCE_ARCHITECTURE.md`](docs/SOURCE_ARCHITECTURE.md)、[`docs/spec/PUBLIC_HEADER_MODEL.md`](docs/spec/PUBLIC_HEADER_MODEL.md)
