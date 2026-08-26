@@ -15,6 +15,7 @@
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Freezable.hpp>
+#include <Aero/DispatcherObject.hpp>
 
 namespace Aero::Meta {
 Base::Result<void> PopulateCoreMetadata(
@@ -99,6 +100,10 @@ Base::Result<void> PopulateCoreMetadata(
         .ValueSemantics()
         .TextConverter<&::Aero::Base::ValueConversion::ConvertResourceUri>()
         .Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Threading::DispatcherObject>(
+        context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<DependencyObject>(

@@ -303,18 +303,6 @@ private:
         const TaskRecord& right) noexcept;
 };
 
-class AERO_GUI_API DispatcherObject : public Base::Object {
-public:
-    bool CheckAccess() const noexcept;
-    Result<void> VerifyAccess() const noexcept;
-    Dispatcher& GetDispatcher() const noexcept;
-
-protected:
-    explicit DispatcherObject(Dispatcher& dispatcher) noexcept;
-    ~DispatcherObject() override = default;
-
-private:
-    Dispatcher* dispatcher_ = nullptr;
-};
-
 } // namespace Aero::Threading
+
+#include <Aero/DispatcherObject.hpp>

@@ -780,7 +780,7 @@ private:
 } // namespace
 
 Path::Path() noexcept
-    : FrameworkElement(StaticTypeId()) {}
+    : Shape(StaticTypeId()) {}
 
 Path::~Path() {
     ReleaseMesh();
@@ -790,21 +790,6 @@ Base::Ref<Geometry> Path::GetData() const noexcept {
     return GetValueOr(
         DataProperty,
         Base::Ref<Geometry>{});
-}
-
-Base::Ref<Brush> Path::GetFill() const noexcept {
-    return GetValueOr(
-        FillProperty, Base::Ref<Brush>{});
-}
-
-Base::Ref<Brush> Path::GetStroke() const noexcept {
-    return GetValueOr(
-        StrokeProperty, Base::Ref<Brush>{});
-}
-
-double Path::GetStrokeThickness() const noexcept {
-    return GetValueOr(
-        StrokeThicknessProperty, 1.0);
 }
 
 PenLineJoin Path::GetStrokeLineJoin() const noexcept {
@@ -833,33 +818,11 @@ double Path::GetTrimEnd() const noexcept {
     return GetValueOr(TrimEndProperty, 1.0);
 }
 
-Stretch Path::GetStretch() const noexcept {
-    return GetValueOr(
-        StretchProperty, Stretch::Uniform);
-}
-
 void Path::SetData(
     Base::Ref<Geometry> value) noexcept {
     SetValue(
         DataProperty,
         std::move(value));
-}
-
-void Path::SetFill(
-    Base::Ref<Brush> value) noexcept {
-    SetValue(
-        FillProperty, std::move(value));
-}
-
-void Path::SetStroke(
-    Base::Ref<Brush> value) noexcept {
-    SetValue(
-        StrokeProperty, std::move(value));
-}
-
-void Path::SetStrokeThickness(
-    double value) noexcept {
-    SetValue(StrokeThicknessProperty, value);
 }
 
 void Path::SetStrokeLineJoin(
@@ -885,11 +848,6 @@ void Path::SetTrimStart(
 void Path::SetTrimEnd(
     double value) noexcept {
     SetValue(TrimEndProperty, value);
-}
-
-void Path::SetStretch(
-    Stretch value) noexcept {
-    SetValue(StretchProperty, value);
 }
 
 void Path::ResetGeometry() noexcept {

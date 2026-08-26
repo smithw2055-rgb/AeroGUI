@@ -28,7 +28,7 @@ bool ValidViewport(Size value) noexcept {
 } // namespace
 
 VirtualizingStackPanel::VirtualizingStackPanel() noexcept
-    : Panel(StaticTypeId()) {
+    : VirtualizingPanel(StaticTypeId()) {
     static_cast<void>(SetClipToBounds(true));
 }
 

@@ -1,9 +1,13 @@
 #pragma once
 
+#include <Aero/DispatcherObject.hpp>
 #include <Aero/DependencyProperty.hpp>
+#include <Aero/Threading.hpp>
 #include <Aero/TryCast.hpp>
 
 namespace Aero {
+
+using ::Aero::Threading::DispatcherReentrancyGuard;
 
 class AeroGuiInternal;
 #if defined(AERO_GUI_IMPLEMENTATION)
@@ -11,7 +15,7 @@ struct StoredValueEntry;
 #endif
 
 class AERO_GUI_API DependencyObject : public DispatcherObject {
-    AERO_DECLARE_TYPE(DependencyObject, Base::Object)
+    AERO_DECLARE_TYPE(DependencyObject, DispatcherObject)
 #if defined(AERO_GUI_IMPLEMENTATION)
     friend class ::Aero::AeroGuiInternal;
 #endif

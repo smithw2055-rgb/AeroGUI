@@ -10,7 +10,6 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Threading.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Diagnostics/PropertyValueSource.hpp>
 
@@ -571,7 +570,5 @@ using Meta::TypeId;
 using Meta::TypeOf;
 using Meta::UpdateSourceTrigger;
 using Meta::ValueCodec;
-using ::Aero::Threading::DispatcherObject;
-using ::Aero::Threading::DispatcherReentrancyGuard;
 
 } // namespace Aero

@@ -2,6 +2,8 @@
 #include <Aero/View.hpp>
 #include <Aero/Controls/Button.hpp>
 #include <Aero/Documents.hpp>
+#include <Aero/Shapes.hpp>
+#include <Aero/Controls/VirtualizingStackPanel.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Events.hpp>
 #include <Aero/Triggers/Triggers.hpp>
@@ -43,9 +45,19 @@ namespace {
 
 static_assert(
     std::is_base_of<
-        Aero::FrameworkElement,
-        Aero::Controls::Button>::value,
-    "Gui target must expose the retained WPF control surface");
+        Aero::Shapes::Shape,
+        Aero::Shapes::Path>::value,
+    "Path must derive Shape");
+static_assert(
+    std::is_base_of<
+        Aero::Controls::VirtualizingPanel,
+        Aero::Controls::VirtualizingStackPanel>::value,
+    "VirtualizingStackPanel must derive VirtualizingPanel");
+static_assert(
+    std::is_base_of<
+        Aero::Threading::DispatcherObject,
+        Aero::DependencyObject>::value,
+    "DependencyObject must derive DispatcherObject");
 
 static_assert(
     std::is_base_of<

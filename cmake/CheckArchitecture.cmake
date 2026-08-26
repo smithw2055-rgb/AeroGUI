@@ -50,6 +50,7 @@ foreach(required_public_entry IN ITEMS
         "include/AeroApp/WindowInterop.hpp"
         "include/Aero/InputInterop.hpp"
         "include/Aero/DependencyObject.hpp"
+        "include/Aero/DispatcherObject.hpp"
         "include/Aero/TryCast.hpp"
         "include/Aero/DependencyProperty.hpp"
         "include/Aero/RoutedEvent.hpp"
@@ -60,6 +61,7 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Controls/Control.hpp"
         "include/Aero/Controls/ContentControl.hpp"
         "include/Aero/Controls/Panel.hpp"
+        "include/Aero/Controls/VirtualizingPanel.hpp"
         "include/Aero/Controls/ButtonBase.hpp"
         "include/Aero/Controls/Primitives/ButtonBase.hpp"
         "include/Aero/Controls/Primitives/ToggleButton.hpp"
@@ -86,6 +88,8 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Controls/TabPanel.hpp"
         "include/Aero/Controls/ItemsControl.hpp"
         "include/Aero/Controls/ListBox.hpp"
+        "include/Aero/Controls/ListBoxItem.hpp"
+        "include/Aero/Controls/Primitives/Selector.hpp"
         "include/Aero/Controls/TreeView.hpp"
         "include/Aero/Controls/TextBlock.hpp"
         "include/Aero/Controls/TextBoxBase.hpp"
@@ -129,6 +133,10 @@ foreach(required_public_entry IN ITEMS
         "include/AeroRender/D3D11.hpp"
         "include/AeroRender/OpenGL33.hpp"
         "include/Aero/Markup/ResourceScope.hpp"
+        "include/Aero/Shapes.hpp"
+        "include/Aero/Shapes/Path.hpp"
+        "include/Aero/Documents.hpp"
+        "include/Aero/Documents/Run.hpp"
         "include/Aero/Diagnostics/Rendering.hpp"
         "include/Aero/Meta.hpp"
         "include/AeroApp/App.hpp")
@@ -1230,6 +1238,8 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Controls/Panel.hpp|class AERO_GUI_API Panel"
         "include/Aero/Controls/Grid.hpp|class AERO_GUI_API Grid"
         "include/Aero/Controls/ListBox.hpp|class AERO_GUI_API ListBox"
+        "include/Aero/Controls/ListBoxItem.hpp|class AERO_GUI_API ListBoxItem"
+        "include/Aero/Controls/Primitives/Selector.hpp|class AERO_GUI_API Selector"
         "include/Aero/Controls/ComboBox.hpp|class AERO_GUI_API ComboBox"
         "include/Aero/Controls/ListView.hpp|class AERO_GUI_API ListView"
         "include/Aero/Controls/TreeView.hpp|class AERO_GUI_API TreeView"
@@ -1267,7 +1277,27 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Controls/GridSplitter.hpp|class AERO_GUI_API GridSplitter"
         "include/Aero/VisualStateManager.hpp|class AERO_GUI_API VisualStateManager"
         "include/Aero/FrameworkTemplate.hpp|class AERO_GUI_API FrameworkTemplate"
-        "include/Aero/Media/CompositionTarget.hpp|class AERO_GUI_API CompositionTarget")
+        "include/Aero/Media/CompositionTarget.hpp|class AERO_GUI_API CompositionTarget"
+        "include/Aero/DispatcherObject.hpp|class AERO_GUI_API DispatcherObject"
+        "include/Aero/Controls/VirtualizingPanel.hpp|class AERO_GUI_API VirtualizingPanel"
+        "include/Aero/Shapes/Shape.hpp|class AERO_GUI_API Shape"
+        "include/Aero/Shapes/Rectangle.hpp|class AERO_GUI_API Rectangle"
+        "include/Aero/Shapes/Ellipse.hpp|class AERO_GUI_API Ellipse"
+        "include/Aero/Shapes/Path.hpp|class AERO_GUI_API Path"
+        "include/Aero/Documents/TextElement.hpp|class AERO_GUI_API TextElement"
+        "include/Aero/Documents/Inline.hpp|class AERO_GUI_API Inline"
+        "include/Aero/Documents/Run.hpp|class AERO_GUI_API Run"
+        "include/Aero/Documents/Span.hpp|class AERO_GUI_API Span"
+        "include/Aero/Documents/Bold.hpp|class AERO_GUI_API Bold"
+        "include/Aero/Documents/Italic.hpp|class AERO_GUI_API Italic"
+        "include/Aero/Documents/Underline.hpp|class AERO_GUI_API Underline"
+        "include/Aero/Documents/LineBreak.hpp|class AERO_GUI_API LineBreak"
+        "include/Aero/Documents/Hyperlink.hpp|class AERO_GUI_API Hyperlink"
+        "include/Aero/Documents/TextPointer.hpp|class AERO_GUI_API TextPointer"
+        "include/Aero/Documents/TextRange.hpp|class AERO_GUI_API TextRange"
+        "include/Aero/Documents/InlineCollection.hpp|class AERO_GUI_API InlineCollection"
+        "include/Aero/Documents/InlineCollectionView.hpp|class AERO_GUI_API InlineCollectionView"
+        "include/Aero/Documents/NavigationService.hpp|class AERO_GUI_API NavigationService")
     string(REPLACE "|" ";" s14_owner_parts "${s14_owner}")
     list(GET s14_owner_parts 0 s14_owner_header)
     list(GET s14_owner_parts 1 s14_owner_declaration)
@@ -1538,6 +1568,54 @@ aero_require_text(
     "include/Aero/Controls/TabControl.hpp"
     "class AERO_GUI_API TabControl : public Primitives::Selector"
     "TabControl derives Selector so tabs are driven by Items/ItemsSource/SelectedIndex")
+aero_require_text(
+    "include/Aero/Shapes/Path.hpp"
+    "class AERO_GUI_API Path : public Shape"
+    "Path must derive Shape so Fill/Stroke live on the WPF Shape base")
+aero_forbid_text(
+    "include/Aero/Shapes.hpp"
+    "class AERO_GUI_API Path"
+    "Path must live in Shapes/Path.hpp")
+aero_forbid_text(
+    "include/Aero/Shapes.hpp"
+    "class AERO_GUI_API Shape"
+    "Shape must live in Shapes/Shape.hpp")
+aero_require_text(
+    "include/Aero/Controls/VirtualizingPanel.hpp"
+    "class AERO_GUI_API VirtualizingPanel : public Panel"
+    "VirtualizingPanel must derive Panel")
+aero_require_text(
+    "include/Aero/Controls/VirtualizingStackPanel.hpp"
+    "class AERO_GUI_API VirtualizingStackPanel\n    : public VirtualizingPanel,"
+    "VirtualizingStackPanel must derive VirtualizingPanel")
+aero_forbid_text(
+    "include/Aero/Controls/VirtualizingStackPanel.hpp"
+    "class AERO_GUI_API VirtualizingPanel"
+    "VirtualizingPanel must live in VirtualizingPanel.hpp")
+aero_require_text(
+    "include/Aero/DependencyObject.hpp"
+    "AERO_DECLARE_TYPE(DependencyObject, DispatcherObject)"
+    "DependencyObject TypeId parent must match C++ inheritance from DispatcherObject")
+aero_require_text(
+    "include/Aero/DispatcherObject.hpp"
+    "AERO_DECLARE_TYPE(DispatcherObject, Base::Object)"
+    "DispatcherObject must have a TypeId parented at Object")
+aero_forbid_text(
+    "include/Aero/Threading.hpp"
+    "class AERO_GUI_API DispatcherObject"
+    "DispatcherObject must live in DispatcherObject.hpp")
+aero_forbid_text(
+    "include/Aero/Controls/ListBox.hpp"
+    "class AERO_GUI_API Selector"
+    "Selector must live in Primitives/Selector.hpp")
+aero_forbid_text(
+    "include/Aero/Documents.hpp"
+    "class AERO_GUI_API TextElement"
+    "TextElement must live in Documents/TextElement.hpp")
+aero_forbid_text(
+    "include/Aero/Documents.hpp"
+    "class AERO_GUI_API Run"
+    "Run must live in Documents/Run.hpp")
 aero_forbid_text(
     "include/Aero/Visual.hpp"
     "visualChildren_"
@@ -1796,7 +1874,6 @@ set(aero_one_type_exemptions
     include/Aero/Media/Animation/StoryboardActions.hpp
     include/Aero/Controls/Panel.hpp
     include/Aero/Controls/Grid.hpp
-    include/Aero/Controls/ListBox.hpp
     include/Aero/Controls/ListView.hpp
     include/Aero/Controls/ComboBox.hpp
     include/Aero/Controls/TreeView.hpp
@@ -1807,7 +1884,6 @@ set(aero_one_type_exemptions
     include/Aero/Controls/Decorator.hpp
     include/Aero/Controls/UserControl.hpp
     include/Aero/Controls/ToolTip.hpp
-    include/Aero/Controls/VirtualizingStackPanel.hpp
     include/AeroApp/Application.hpp
     include/AeroApp/App.hpp
     include/AeroAudio/Audio.hpp

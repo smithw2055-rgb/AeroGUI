@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/ListBox.hpp>
+#include <Aero/Controls/ListBoxItem.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Style.hpp>

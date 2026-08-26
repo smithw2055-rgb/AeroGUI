@@ -40,6 +40,20 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Meta.hpp
     include/Aero/Value.hpp
     include/Aero/Documents.hpp
+    include/Aero/Documents/Bold.hpp
+    include/Aero/Documents/Hyperlink.hpp
+    include/Aero/Documents/Inline.hpp
+    include/Aero/Documents/InlineCollection.hpp
+    include/Aero/Documents/InlineCollectionView.hpp
+    include/Aero/Documents/Italic.hpp
+    include/Aero/Documents/LineBreak.hpp
+    include/Aero/Documents/NavigationService.hpp
+    include/Aero/Documents/Run.hpp
+    include/Aero/Documents/Span.hpp
+    include/Aero/Documents/TextElement.hpp
+    include/Aero/Documents/TextPointer.hpp
+    include/Aero/Documents/TextRange.hpp
+    include/Aero/Documents/Underline.hpp
     include/Aero/Media/DrawingContext.hpp
     include/Aero/Events/ApplicationEventArgs.hpp
     include/Aero/Events/CommandEventArgs.hpp
@@ -55,6 +69,7 @@ set(AERO_PUBLIC_HEADERS
     include/AeroApp/Application.hpp
     include/AeroApp/Window.hpp
     include/Aero/DependencyObject.hpp
+    include/Aero/DispatcherObject.hpp
     include/Aero/TryCast.hpp
     include/Aero/DependencyProperty.hpp
     include/Aero/RoutedEvent.hpp
@@ -83,6 +98,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/HeaderedItemsControl.hpp
     include/Aero/Controls/ItemContainerGenerator.hpp
     include/Aero/Controls/ListBox.hpp
+    include/Aero/Controls/ListBoxItem.hpp
     include/Aero/Controls/TreeView.hpp
     include/Aero/Controls/TextBlock.hpp
     include/Aero/Controls/TextBoxBase.hpp
@@ -127,6 +143,10 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Images.hpp
     include/Aero/Module.hpp
     include/Aero/Shapes.hpp
+    include/Aero/Shapes/Ellipse.hpp
+    include/Aero/Shapes/Path.hpp
+    include/Aero/Shapes/Rectangle.hpp
+    include/Aero/Shapes/Shape.hpp
     include/Aero/Triggers/Conditions.hpp
     include/Aero/Triggers/DataTrigger.hpp
     include/Aero/Media/Animation/EventTrigger.hpp
@@ -153,6 +173,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/Decorator.hpp
     include/Aero/Controls/ContentPresenter.hpp
     include/Aero/Controls/Primitives.hpp
+    include/Aero/Controls/Primitives/Selector.hpp
     include/Aero/Controls/Primitives/Thumb.hpp
     include/Aero/Controls/Primitives/Track.hpp
     include/Aero/Controls/Primitives/RangeBase.hpp
@@ -164,6 +185,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/GridSplitter.hpp
     include/Aero/Controls/Popup.hpp
     include/Aero/Controls/HeaderedContentControl.hpp
+    include/Aero/Controls/VirtualizingPanel.hpp
     include/Aero/Controls/VirtualizingStackPanel.hpp
     include/Aero/Controls/Menu.hpp
     include/Aero/Controls/ToolBar.hpp

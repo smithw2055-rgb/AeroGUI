@@ -307,20 +307,20 @@ Base::Result<void> PopulateControlsTextMedia(
                 .AffectsMeasure()
                 .AffectsRender()
                 .Changed(&OnPathDataChanged))
-        .Property(
-            Path::FillProperty,
+        .Override(
+            Shape::FillProperty,
             FrameworkPropertyMetadata(
                 Base::Ref<Media::Brush>{})
                 .AffectsRender()
                 .Changed(&OnPathColorChanged))
-        .Property(
-            Path::StrokeProperty,
+        .Override(
+            Shape::StrokeProperty,
             FrameworkPropertyMetadata(
                 Base::Ref<Media::Brush>{})
                 .AffectsRender()
                 .Changed(&OnPathColorChanged))
-        .Property(
-            Path::StrokeThicknessProperty,
+        .Override(
+            Shape::StrokeThicknessProperty,
             FrameworkPropertyMetadata(1.0)
                 .AffectsMeasure()
                 .AffectsRender()
@@ -353,8 +353,8 @@ Base::Result<void> PopulateControlsTextMedia(
                 .AffectsRender()
                 .Validate(&ValidateNormalizedDouble)
                 .Changed(&OnPathDoubleChanged))
-        .Property(
-            Path::StretchProperty,
+        .Override(
+            Shape::StretchProperty,
             FrameworkPropertyMetadata(Stretch::Uniform)
                 .AffectsMeasure()
                 .AffectsRender())

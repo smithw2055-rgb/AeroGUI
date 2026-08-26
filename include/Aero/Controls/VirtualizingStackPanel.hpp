@@ -1,33 +1,15 @@
 #pragma once
 
-#include <Aero/Controls/ItemsControl.hpp>
 #include <Aero/Controls/ItemContainerGenerator.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
-#include <Aero/Controls/Panel.hpp>
+#include <Aero/Controls/VirtualizingPanel.hpp>
 
 namespace Aero::Controls {
-using ::Aero::Meta::TypeId;
-enum class ScrollUnit : std::uint8_t { Item = 0U, Pixel };
-
-enum class VirtualizationMode : std::uint8_t { Standard = 0U, Recycling };
-
-// WPF attached-property owner shared by all virtualizing panels. The current
-// panel implementation is pixel-based; exposing this owner preserves the
-// authored contract while item-unit realization is added.
-class AERO_GUI_API VirtualizingPanel : public Base::Object {
-    AERO_DECLARE_TYPE(VirtualizingPanel, Base::Object)
-public:
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    inline static constexpr AttachedProperty<ScrollUnit> ScrollUnitProperty{"ScrollUnit"};
-    inline static constexpr AttachedProperty<VirtualizationMode> VirtualizationModeProperty{"VirtualizationMode"};
-};
 
 class AERO_GUI_API VirtualizingStackPanel
-    : public Panel,
+    : public VirtualizingPanel,
       public IScrollInfo {
-    AERO_DECLARE_TYPE(VirtualizingStackPanel, Panel)
+    AERO_DECLARE_TYPE(VirtualizingStackPanel, VirtualizingPanel)
 public:
     VirtualizingStackPanel() noexcept;
     ~VirtualizingStackPanel() override;
@@ -148,6 +130,5 @@ private:
     void SetCrossScrollOffset(
         double value) noexcept;
 };
+
 } // namespace Aero::Controls
-AERO_DECLARE_TYPE_ENUM(Aero::Controls::ScrollUnit)
-AERO_DECLARE_TYPE_ENUM(Aero::Controls::VirtualizationMode)
