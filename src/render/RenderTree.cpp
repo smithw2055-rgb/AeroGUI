@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <new>
 #include <utility>
 
 namespace Aero::Render {
@@ -362,9 +363,26 @@ using Render::DisplayListBuilder;
 FrameworkElement::FrameworkElement(TypeId runtimeType) noexcept
     : UIElement(runtimeType) {}
 
+struct FrameworkElement::FrameworkRare {
+    Base::Vector<Ref<Base::Object>> authoredTriggers;
+    Base::Vector<Ref<Base::Object>> authoredBehaviors;
+    Base::Vector<Ref<Base::Object>> styleBehaviorPrototypes;
+    Base::Vector<Ref<Base::Object>> styleTriggerPrototypes;
+};
+
+FrameworkElement::FrameworkRare*
+FrameworkElement::EnsureFrameworkRare() noexcept {
+    if (frameworkRare_ == nullptr) {
+        frameworkRare_ = new (std::nothrow) FrameworkRare();
+    }
+    return frameworkRare_;
+}
+
 FrameworkElement::~FrameworkElement() {
     delete resources_;
     resources_ = nullptr;
+    delete frameworkRare_;
+    frameworkRare_ = nullptr;
 }
 
 Base::Ref<Transform>
@@ -1193,6 +1211,13 @@ Base::Result<void> AeroGuiInternal::SetImageRuntimeData(
     return renderChanged ? image.InvalidateVisual() : Base::Result<void>();
 }
 
+Base::Span<const Base::Ref<Base::Object>>
+FrameworkElement::AuthoredTriggers() const noexcept {
+    return frameworkRare_ != nullptr
+        ? frameworkRare_->authoredTriggers.AsSpan()
+        : Base::Span<const Base::Ref<Base::Object>>{};
+}
+
 Base::Result<void> FrameworkElement::AddAuthoredTrigger(
     Base::Ref<Base::Object> trigger) noexcept {
     if (!trigger) {
@@ -1200,12 +1225,20 @@ Base::Result<void> FrameworkElement::AddAuthoredTrigger(
             Base::ErrorCode::InvalidArgument,
             "FrameworkElement trigger cannot be null");
     }
-    return authoredTriggers_.PushBack(std::move(trigger));
+    FrameworkRare* rare = EnsureFrameworkRare();
+    if (rare == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "FrameworkElement rare interaction list allocation failed");
+    }
+    return rare->authoredTriggers.PushBack(std::move(trigger));
 }
 
 void
 FrameworkElement::ClearAuthoredTriggers() noexcept {
-    authoredTriggers_.Clear();
+    if (frameworkRare_ != nullptr) {
+        frameworkRare_->authoredTriggers.Clear();
+    }
 }
 Base::Result<void> FrameworkElement::AddAuthoredBehavior(
     Base::Ref<Base::Object> behavior) noexcept {
@@ -1214,11 +1247,19 @@ Base::Result<void> FrameworkElement::AddAuthoredBehavior(
             Base::ErrorCode::InvalidArgument,
             "FrameworkElement behavior cannot be null");
     }
-    return authoredBehaviors_.PushBack(std::move(behavior));
+    FrameworkRare* rare = EnsureFrameworkRare();
+    if (rare == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "FrameworkElement rare interaction list allocation failed");
+    }
+    return rare->authoredBehaviors.PushBack(std::move(behavior));
 }
 
 void FrameworkElement::ClearAuthoredBehaviors() noexcept {
-    authoredBehaviors_.Clear();
+    if (frameworkRare_ != nullptr) {
+        frameworkRare_->authoredBehaviors.Clear();
+    }
 }
 Base::Result<void> FrameworkElement::AddStyleBehaviorPrototype(
     Base::Ref<Base::Object> behavior) noexcept {
@@ -1227,11 +1268,19 @@ Base::Result<void> FrameworkElement::AddStyleBehaviorPrototype(
             Base::ErrorCode::InvalidArgument,
             "FrameworkElement style behavior cannot be null");
     }
-    return styleBehaviorPrototypes_.PushBack(std::move(behavior));
+    FrameworkRare* rare = EnsureFrameworkRare();
+    if (rare == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "FrameworkElement rare interaction list allocation failed");
+    }
+    return rare->styleBehaviorPrototypes.PushBack(std::move(behavior));
 }
 
 void FrameworkElement::ClearStyleBehaviorPrototypes() noexcept {
-    styleBehaviorPrototypes_.Clear();
+    if (frameworkRare_ != nullptr) {
+        frameworkRare_->styleBehaviorPrototypes.Clear();
+    }
 }
 Base::Result<void> FrameworkElement::AddStyleTriggerPrototype(
     Base::Ref<Base::Object> trigger) noexcept {
@@ -1240,11 +1289,40 @@ Base::Result<void> FrameworkElement::AddStyleTriggerPrototype(
             Base::ErrorCode::InvalidArgument,
             "FrameworkElement style trigger cannot be null");
     }
-    return styleTriggerPrototypes_.PushBack(std::move(trigger));
+    FrameworkRare* rare = EnsureFrameworkRare();
+    if (rare == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "FrameworkElement rare interaction list allocation failed");
+    }
+    return rare->styleTriggerPrototypes.PushBack(std::move(trigger));
 }
 
 void FrameworkElement::ClearStyleTriggerPrototypes() noexcept {
-    styleTriggerPrototypes_.Clear();
+    if (frameworkRare_ != nullptr) {
+        frameworkRare_->styleTriggerPrototypes.Clear();
+    }
+}
+
+Span<const Ref<Base::Object>>
+FrameworkElement::AuthoredBehaviors() const noexcept {
+    return frameworkRare_ != nullptr
+        ? frameworkRare_->authoredBehaviors.AsSpan()
+        : Span<const Ref<Base::Object>>{};
+}
+
+Span<const Ref<Base::Object>>
+FrameworkElement::StyleBehaviorPrototypes() const noexcept {
+    return frameworkRare_ != nullptr
+        ? frameworkRare_->styleBehaviorPrototypes.AsSpan()
+        : Span<const Ref<Base::Object>>{};
+}
+
+Span<const Ref<Base::Object>>
+FrameworkElement::StyleTriggerPrototypes() const noexcept {
+    return frameworkRare_ != nullptr
+        ? frameworkRare_->styleTriggerPrototypes.AsSpan()
+        : Span<const Ref<Base::Object>>{};
 }
 
 } // namespace Aero

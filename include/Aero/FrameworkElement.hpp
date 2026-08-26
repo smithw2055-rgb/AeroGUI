@@ -3,7 +3,6 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Base/Vector.hpp>
 #include <Aero/Threading.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Media/Fonts.hpp>
@@ -211,32 +210,22 @@ private:
         Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;
     Span<const Ref<Base::Object>>
-    AuthoredTriggers() const noexcept {
-        return {
-            authoredTriggers_.Data(),
-            authoredTriggers_.Size()};
-    }
+    AuthoredTriggers() const noexcept;
     Result<void> AddAuthoredBehavior(
         Ref<Base::Object> behavior) noexcept;
     void ClearAuthoredBehaviors() noexcept;
     Span<const Ref<Base::Object>>
-    AuthoredBehaviors() const noexcept {
-        return authoredBehaviors_.AsSpan();
-    }
+    AuthoredBehaviors() const noexcept;
     Result<void> AddStyleBehaviorPrototype(
         Ref<Base::Object> behavior) noexcept;
     void ClearStyleBehaviorPrototypes() noexcept;
     Span<const Ref<Base::Object>>
-    StyleBehaviorPrototypes() const noexcept {
-        return styleBehaviorPrototypes_.AsSpan();
-    }
+    StyleBehaviorPrototypes() const noexcept;
     Result<void> AddStyleTriggerPrototype(
         Ref<Base::Object> trigger) noexcept;
     void ClearStyleTriggerPrototypes() noexcept;
     Span<const Ref<Base::Object>>
-    StyleTriggerPrototypes() const noexcept {
-        return styleTriggerPrototypes_.AsSpan();
-    }
+    StyleTriggerPrototypes() const noexcept;
 
     const ResourceDictionary* LocalResources() const noexcept {
         return resources_;
@@ -257,10 +246,11 @@ private:
     bool hasViewboxTransform_ = false;
     DependencyObject* templatedParent_ = nullptr;
     mutable ResourceDictionary* resources_ = nullptr;
-    Base::Vector<Ref<Base::Object>> authoredTriggers_;
-    Base::Vector<Ref<Base::Object>> authoredBehaviors_;
-    Base::Vector<Ref<Base::Object>> styleBehaviorPrototypes_;
-    Base::Vector<Ref<Base::Object>> styleTriggerPrototypes_;
+    // Authored triggers/behaviors and style prototypes live off the hot
+    // instance. Empty elements pay one pointer, not four Vectors.
+    struct FrameworkRare;
+    FrameworkRare* EnsureFrameworkRare() noexcept;
+    FrameworkRare* frameworkRare_ = nullptr;
 };
 
 } // namespace Aero

@@ -84,14 +84,14 @@ private:
         Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;
     Span<const Ref<Base::Object>>
-    AuthoredTriggers() const noexcept {
-        return authoredTriggers_.AsSpan();
-    }
+    AuthoredTriggers() const noexcept;
     const ResourceDictionary* LocalResources() const noexcept {
         return resources_;
     }
     mutable ResourceDictionary* resources_ = nullptr;
-    Base::Vector<Ref<Base::Object>> authoredTriggers_;
+    struct FrameworkContentRare;
+    FrameworkContentRare* EnsureFrameworkContentRare() noexcept;
+    FrameworkContentRare* frameworkRare_ = nullptr;
 };
 
 } // namespace Aero

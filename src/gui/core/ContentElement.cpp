@@ -6,6 +6,7 @@
 
 #include <Aero/Base/Assert.hpp>
 
+#include <new>
 #include <utility>
 
 namespace Aero {
@@ -172,11 +173,6 @@ void ContentElement::RaiseEvent(
 FrameworkContentElement::FrameworkContentElement(
     Meta::TypeId runtimeType) noexcept
     : ContentElement(runtimeType) {}
-
-FrameworkContentElement::~FrameworkContentElement() {
-    delete resources_;
-    resources_ = nullptr;
-}
 
 } // namespace Aero
 
