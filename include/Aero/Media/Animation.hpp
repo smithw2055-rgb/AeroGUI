@@ -98,6 +98,14 @@
 #include <Aero/Media/Animation/EasingSizeKeyFrame.hpp>
 #include <Aero/Media/Animation/SplineSizeKeyFrame.hpp>
 #include <Aero/Media/Animation/SizeAnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/MatrixAnimationBase.hpp>
+#include <Aero/Media/Animation/MatrixAnimation.hpp>
+#include <Aero/Media/Animation/MatrixKeyFrame.hpp>
+#include <Aero/Media/Animation/LinearMatrixKeyFrame.hpp>
+#include <Aero/Media/Animation/DiscreteMatrixKeyFrame.hpp>
+#include <Aero/Media/Animation/EasingMatrixKeyFrame.hpp>
+#include <Aero/Media/Animation/SplineMatrixKeyFrame.hpp>
+#include <Aero/Media/Animation/MatrixAnimationUsingKeyFrames.hpp>
 #include <Aero/Media/Animation/StringKeyFrame.hpp>
 #include <Aero/Media/Animation/DiscreteStringKeyFrame.hpp>
 #include <Aero/Media/Animation/StringAnimationUsingKeyFrames.hpp>

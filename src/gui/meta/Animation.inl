@@ -423,6 +423,33 @@ Base::Result<void> PopulateUiAnimation(
     status = sizeAnimation.Result();
     if (!status) return status.GetStatus();
 
+    auto matrixAnimationBase =
+        Meta::Register<Media::Animation::MatrixAnimationBase>(
+            context, TypeFlags::Abstract);
+    matrixAnimationBase
+        .Property<
+            Base::Transform2D,
+            &Media::Animation::MatrixAnimationBase::GetFrom,
+            &Media::Animation::MatrixAnimationBase::SetFrom>("From")
+        .Property<
+            Base::Transform2D,
+            &Media::Animation::MatrixAnimationBase::GetTo,
+            &Media::Animation::MatrixAnimationBase::SetTo>("To");
+    status = matrixAnimationBase.Result();
+    if (!status) return status.GetStatus();
+    auto matrixAnimation =
+        Meta::Register<Media::Animation::MatrixAnimation>(context);
+    matrixAnimation
+        .Property<
+            Base::Ref<Media::Animation::EasingFunctionBase>,
+            &Media::Animation::MatrixAnimation::GetEasingFunction,
+            &Media::Animation::MatrixAnimation::SetEasingFunction>(
+            "EasingFunction",
+            PropertyFlags::Structural)
+        .Factory();
+    status = matrixAnimation.Result();
+    if (!status) return status.GetStatus();
+
     auto keyFrameBase = Meta::Register<Media::Animation::KeyFrameBase>(
         context, TypeFlags::Abstract);
     keyFrameBase
@@ -742,6 +769,36 @@ Base::Result<void> PopulateUiAnimation(
     status = sizeFrames.Result();
     if (!status) return status.GetStatus();
 
+    status = Meta::Register<Media::Animation::MatrixKeyFrame>(
+        context, TypeFlags::Abstract)
+        .Property<
+            Base::Transform2D,
+            &Media::Animation::MatrixKeyFrame::GetValue,
+            &Media::Animation::MatrixKeyFrame::SetValue>("Value")
+        .Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::LinearMatrixKeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::DiscreteMatrixKeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::EasingMatrixKeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<Media::Animation::SplineMatrixKeyFrame>(
+        context).Factory().Result();
+    if (!status) return status.GetStatus();
+    auto matrixFrames =
+        Meta::Register<Media::Animation::MatrixAnimationUsingKeyFrames>(context);
+    matrixFrames
+        .Content<Media::Animation::MatrixKeyFrame>(
+            "KeyFrames", ContentKind::Collection,
+            &AddMatrixKeyFrame, &ClearMatrixKeyFrames)
+        .Factory();
+    status = matrixFrames.Result();
+    if (!status) return status.GetStatus();
+
     status = Meta::Register<Media::Animation::StringKeyFrame>(
         context, TypeFlags::Abstract)
         .Property<
@@ -777,6 +834,14 @@ Base::Result<void> PopulateUiAnimation(
             &KeyBinding::SetModifiersName)
         .Factory();
     status = keyBinding.Result();
+    if (!status) return status.GetStatus();
+
+    auto mouseBinding = Meta::Register<MouseBinding>(context);
+    mouseBinding
+        .Property("Command", &MouseBinding::GetCommandName,
+            &MouseBinding::SetCommandName)
+        .Factory();
+    status = mouseBinding.Result();
     if (!status) return status.GetStatus();
 
     auto changeProperty =

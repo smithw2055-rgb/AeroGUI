@@ -28,4 +28,15 @@ Result<void> ParsePointList(
     StringView text,
     Base::Vector<Point>& points) noexcept;
 
+// Scanline fill of Geometry.Flatten contours. EvenOdd. Used by Path
+// tessellation reuse for UIElement.Clip stencil meshes.
+Result<void> TessellateGeometryFill(
+    const Geometry& geometry,
+    Base::Vector<Point>& vertices,
+    Base::Vector<std::uint32_t>& indices) noexcept;
+
+bool GeometryContainsLocalPoint(
+    const Geometry& geometry,
+    Point point) noexcept;
+
 } // namespace Aero::Media

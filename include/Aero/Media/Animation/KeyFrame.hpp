@@ -28,6 +28,8 @@ public:
             if (!std::isfinite(value.width) || !std::isfinite(value.height)) {
                 return;
             }
+        } else if constexpr (std::is_same<T, Base::Transform2D>::value) {
+            if (!Base::IsFiniteTransform(value)) return;
         } else if constexpr (std::is_same<T, Meta::PropertyValue>::value) {
             if (value.IsUnset()) return;
         }

@@ -429,6 +429,18 @@ public:
         return result;
     }
 
+    static Model::MatrixAnimation Matrix(
+        const MatrixAnimation& animation) noexcept {
+        Model::MatrixAnimation result;
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
+        result.timing = Timing(animation);
+        Base::Ref<EasingFunctionBase> easing =
+            animation.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
     static Model::DoubleKeyFrame DoubleFrame(
         const DoubleKeyFrame& frame,
         AnimationTime durationMicroseconds,
@@ -582,6 +594,27 @@ public:
         std::uint32_t index,
         std::uint32_t count) noexcept {
         Model::SizeKeyFrame result;
+        result.keyTimeMicroseconds = ResolveKeyTime(
+            frame.GetKeyTime(), durationMicroseconds, index, count);
+        result.value = frame.GetValue();
+        result.interpolation =
+            static_cast<Model::DoubleKeyFrameInterpolation>(
+                static_cast<std::uint8_t>(frame.GetInterpolation()));
+        result.controlPoint1X = frame.GetSplineControlPoint1X();
+        result.controlPoint1Y = frame.GetSplineControlPoint1Y();
+        result.controlPoint2X = frame.GetSplineControlPoint2X();
+        result.controlPoint2Y = frame.GetSplineControlPoint2Y();
+        Base::Ref<EasingFunctionBase> easing = frame.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::MatrixKeyFrame MatrixFrame(
+        const MatrixKeyFrame& frame,
+        AnimationTime durationMicroseconds,
+        std::uint32_t index,
+        std::uint32_t count) noexcept {
+        Model::MatrixKeyFrame result;
         result.keyTimeMicroseconds = ResolveKeyTime(
             frame.GetKeyTime(), durationMicroseconds, index, count);
         result.value = frame.GetValue();

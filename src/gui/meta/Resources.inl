@@ -35,6 +35,11 @@ Base::Result<void> PopulateUiResources(
     status = geometry.Result();
     if (!status) return status.GetStatus();
 
+    auto dashStyle = Meta::Register<Media::DashStyle>(context);
+    dashStyle.Factory();
+    status = dashStyle.Result();
+    if (!status) return status.GetStatus();
+
     auto streamGeometry = Meta::Register<Media::StreamGeometry>(context);
     streamGeometry
         .Property(

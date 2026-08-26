@@ -56,6 +56,10 @@ public:
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
         Meta::DependencyPropertyHandle property,
+        const MatrixAnimation& animation) noexcept;
+    Base::Result<AnimationHandle> Begin(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
         const DoubleKeyFrameAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
@@ -77,6 +81,10 @@ public:
         ::Aero::DependencyObject& target,
         Meta::DependencyPropertyHandle property,
         const SizeKeyFrameAnimation& animation) noexcept;
+    Base::Result<AnimationHandle> Begin(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
+        const MatrixKeyFrameAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
         Meta::DependencyPropertyHandle property,

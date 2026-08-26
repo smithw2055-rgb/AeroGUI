@@ -631,6 +631,28 @@ void SizeAnimation::SetEasingFunction(
     WritePostscript();
 }
 
+void MatrixAnimationBase::SetFrom(Base::Transform2D value) noexcept {
+    if (!WritePreamble()) return;
+    if (!Base::IsFiniteTransform(value)) return;
+    from_ = value;
+    hasFrom_ = true;
+    WritePostscript();
+}
+
+void MatrixAnimationBase::SetTo(Base::Transform2D value) noexcept {
+    if (!WritePreamble()) return;
+    if (!Base::IsFiniteTransform(value)) return;
+    to_ = value;
+    hasTo_ = true;
+    WritePostscript();
+}
+
+void MatrixAnimation::SetEasingFunction(
+    Base::Ref<EasingFunctionBase> value) noexcept {
+    if (!WritePreamble() || easing_.Get() == value.Get()) return;
+    easing_ = std::move(value);
+    WritePostscript();
+}
 
 void KeyFrameBase::SetKeyTime(KeyTime value) noexcept {
     SetValue(KeyTimeProperty, value);

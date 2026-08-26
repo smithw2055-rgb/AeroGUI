@@ -515,6 +515,119 @@ Base::Result<void> EmitStrokeRun(
         indices);
 }
 
+Base::Result<void> ExpandDashPattern(
+    Base::Span<const double> dashes,
+    Base::Vector<double>& pattern) noexcept {
+    pattern.Clear();
+    for (std::uint32_t index = 0U; index < dashes.Size(); ++index) {
+        const double value = dashes[index];
+        if (!std::isfinite(value) || value <= 0.0) continue;
+        Base::Result<void> added = pattern.PushBack(value);
+        if (!added) return added.GetStatus();
+    }
+    if (pattern.Size() % 2U == 1U) {
+        const std::uint32_t count = pattern.Size();
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            Base::Result<void> added = pattern.PushBack(pattern[index]);
+            if (!added) return added.GetStatus();
+        }
+    }
+    return {};
+}
+
+Base::Result<void> SplitDashedSegments(
+    const Base::Vector<StrokeSegment>& visible,
+    Base::Span<const double> dashes,
+    double dashOffset,
+    Base::Vector<StrokeSegment>& dashed) noexcept {
+    dashed.Clear();
+    Base::Vector<double> pattern;
+    Base::Result<void> expanded = ExpandDashPattern(dashes, pattern);
+    if (!expanded) return expanded.GetStatus();
+    if (pattern.Size() < 2U) {
+        return dashed.Append(visible.AsSpan());
+    }
+    double period = 0.0;
+    for (std::uint32_t index = 0U; index < pattern.Size(); ++index) {
+        period += pattern[index];
+    }
+    if (!(period > 1.0e-9) || !std::isfinite(period)) {
+        return dashed.Append(visible.AsSpan());
+    }
+    double patternPos = std::fmod(dashOffset, period);
+    if (patternPos < 0.0) patternPos += period;
+    std::uint32_t runIndex = 0U;
+    bool havePrevious = false;
+    Point previousEnd{};
+    for (std::uint32_t visibleIndex = 0U;
+         visibleIndex < visible.Size(); ++visibleIndex) {
+        const StrokeSegment& segment = visible[visibleIndex];
+        const double dx = segment.b.x - segment.a.x;
+        const double dy = segment.b.y - segment.a.y;
+        const double length = std::hypot(dx, dy);
+        if (length <= 1.0e-9) continue;
+        double remaining = length;
+        double consumed = 0.0;
+        while (remaining > 1.0e-9) {
+            double accumulated = 0.0;
+            std::uint32_t window = 0U;
+            for (; window < pattern.Size(); ++window) {
+                if (patternPos < accumulated + pattern[window] - 1.0e-12) {
+                    break;
+                }
+                accumulated += pattern[window];
+            }
+            if (window >= pattern.Size()) {
+                patternPos = 0.0;
+                continue;
+            }
+            const bool on = (window % 2U) == 0U;
+            const double windowLeft =
+                pattern[window] - (patternPos - accumulated);
+            const double take = std::min(remaining, windowLeft);
+            if (on && take > 1.0e-9) {
+                const double from = consumed / length;
+                const double to = (consumed + take) / length;
+                StrokeSegment piece = segment;
+                piece.a = {
+                    segment.a.x + dx * from,
+                    segment.a.y + dy * from};
+                piece.b = {
+                    segment.a.x + dx * to,
+                    segment.a.y + dy * to};
+                const bool connected =
+                    havePrevious &&
+                    SamePoint(previousEnd, piece.a);
+                if (!connected) {
+                    runIndex += 1U;
+                }
+                piece.index = runIndex;
+                piece.startVertex = connected;
+                piece.endVertex = false;
+                if (!dashed.Empty() &&
+                    dashed.Back().index == runIndex) {
+                    dashed.Back().endVertex = true;
+                    piece.startVertex = true;
+                }
+                Base::Result<void> added = dashed.PushBack(piece);
+                if (!added) return added.GetStatus();
+                previousEnd = piece.b;
+                havePrevious = true;
+                runIndex += 1U;
+            } else {
+                havePrevious = false;
+            }
+            consumed += take;
+            remaining -= take;
+            patternPos += take;
+            if (patternPos >= period - 1.0e-12) {
+                patternPos = 0.0;
+            }
+        }
+    }
+    return {};
+}
+
 Base::Result<void> TessellateStroke(
     const Base::Vector<Point>& points,
     const Base::Vector<std::uint32_t>& contourStarts,
@@ -526,6 +639,8 @@ Base::Result<void> TessellateStroke(
     PenLineJoin join,
     PenLineCap startCap,
     PenLineCap endCap,
+    Base::Span<const double> dashes,
+    double dashOffset,
     Base::Vector<Point>& vertices,
     Base::Vector<std::uint32_t>& indices) noexcept {
     if (thickness <= 0.0 || trimEnd <= trimStart) {
@@ -612,29 +727,40 @@ Base::Result<void> TessellateStroke(
             if (!added) return added.GetStatus();
         }
         if (visible.Empty()) continue;
+        const Base::Vector<StrokeSegment>* runs = &visible;
+        Base::Vector<StrokeSegment> dashed;
+        const bool dashing = dashes.Size() >= 1U;
+        if (dashing) {
+            Base::Result<void> split = SplitDashedSegments(
+                visible, dashes, dashOffset, dashed);
+            if (!split) return split.GetStatus();
+            runs = &dashed;
+        }
+        if (runs->Empty()) continue;
         std::uint32_t runBegin = 0U;
-        for (std::uint32_t index = 1U; index <= visible.Size(); ++index) {
+        for (std::uint32_t index = 1U; index <= runs->Size(); ++index) {
             const bool split =
-                index == visible.Size() ||
-                visible[index].index !=
-                    visible[index - 1U].index + 1U;
+                index == runs->Size() ||
+                (*runs)[index].index !=
+                    (*runs)[index - 1U].index + 1U;
             if (!split) continue;
             const bool closedLoop =
+                !dashing &&
                 closed &&
                 runBegin == 0U &&
-                index == visible.Size() &&
-                visible.Front().startVertex &&
-                visible.Back().endVertex &&
-                visible.Front().index == 0U &&
-                visible.Back().index + 1U == segmentCount;
+                index == runs->Size() &&
+                runs->Front().startVertex &&
+                runs->Back().endVertex &&
+                runs->Front().index == 0U &&
+                runs->Back().index + 1U == segmentCount;
             Base::Result<void> emitted = EmitStrokeRun(
-                visible,
+                *runs,
                 runBegin,
                 index,
                 closedLoop,
                 join,
-                startCap,
-                endCap,
+                dashing ? startCap : startCap,
+                dashing ? endCap : endCap,
                 vertices,
                 indices);
             if (!emitted) return emitted.GetStatus();
@@ -1235,6 +1361,86 @@ void Path::SetTrimEnd(
     SetValue(TrimEndProperty, value);
 }
 
+Base::StringView Path::GetStrokeDashArray() const noexcept {
+    return GetValueOr(StrokeDashArrayProperty, Base::StringView{});
+}
+
+double Path::GetStrokeDashOffset() const noexcept {
+    return GetValueOr(StrokeDashOffsetProperty, 0.0);
+}
+
+Base::Ref<Media::DashStyle> Path::GetDashStyle() const noexcept {
+    return GetValueOr(
+        DashStyleProperty,
+        Base::Ref<Media::DashStyle>{});
+}
+
+void Path::SetStrokeDashArray(Base::StringView value) noexcept {
+    SetValue(StrokeDashArrayProperty, value);
+}
+
+void Path::SetStrokeDashOffset(double value) noexcept {
+    SetValue(StrokeDashOffsetProperty, value);
+}
+
+void Path::SetDashStyle(Base::Ref<Media::DashStyle> value) noexcept {
+    SetValue(DashStyleProperty, std::move(value));
+}
+
+namespace {
+
+Base::Result<void> ParseStrokeDashArray(
+    Base::StringView text,
+    Base::Vector<double>& dashes) noexcept {
+    dashes.Clear();
+    const char* cursor = text.Data();
+    const char* end = cursor + text.SizeBytes();
+    while (cursor != end) {
+        while (cursor != end) {
+            const char value = *cursor;
+            if (value != ' ' && value != '\t' && value != '\r' &&
+                value != '\n' && value != ',' && value != ';') {
+                break;
+            }
+            ++cursor;
+        }
+        if (cursor == end) break;
+        char* parsedEnd = nullptr;
+        errno = 0;
+        const double dash = std::strtod(cursor, &parsedEnd);
+        if (parsedEnd == cursor || parsedEnd > end || errno != 0 ||
+            !std::isfinite(dash) || dash < 0.0) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "StrokeDashArray value is invalid");
+        }
+        Base::Result<void> added = dashes.PushBack(dash);
+        if (!added) return added.GetStatus();
+        cursor = parsedEnd;
+    }
+    return {};
+}
+
+Base::Result<void> ResolvePathDashes(
+    const Path& path,
+    Base::Vector<double>& dashes,
+    double& offset) noexcept {
+    offset = path.GetStrokeDashOffset();
+    if (Base::Ref<Media::DashStyle> style = path.GetDashStyle()) {
+        const Base::Span<const double> values = style->GetDashes();
+        dashes.Clear();
+        for (std::uint32_t index = 0U; index < values.Size(); ++index) {
+            Base::Result<void> added = dashes.PushBack(values[index]);
+            if (!added) return added.GetStatus();
+        }
+        offset = style->GetOffset();
+        return {};
+    }
+    return ParseStrokeDashArray(path.GetStrokeDashArray(), dashes);
+}
+
+} // namespace
+
 void Path::ResetGeometry() noexcept {
     ReleaseMesh();
     geometryVertices_.Clear();
@@ -1297,6 +1503,11 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
                 if (!tessellated) return tessellated.GetStatus();
             }
             if (GetStroke()) {
+                Base::Vector<double> dashes;
+                double dashOffset = 0.0;
+                Base::Result<void> resolved =
+                    ResolvePathDashes(*this, dashes, dashOffset);
+                if (!resolved) return resolved.GetStatus();
                 Base::Result<void> stroked = TessellateStroke(
                     pathPoints_,
                     pathContourStarts_,
@@ -1308,6 +1519,8 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
                     GetStrokeLineJoin(),
                     GetStrokeStartLineCap(),
                     GetStrokeEndLineCap(),
+                    {dashes.Data(), dashes.Size()},
+                    dashOffset,
                     strokeVertices_,
                     strokeIndices_);
                 if (!stroked) return stroked.GetStatus();
@@ -1381,6 +1594,11 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
         }
     }
     if (GetStroke()) {
+        Base::Vector<double> dashes;
+        double dashOffset = 0.0;
+        Base::Result<void> resolved =
+            ResolvePathDashes(*this, dashes, dashOffset);
+        if (!resolved) return resolved.GetStatus();
         Base::Result<void> stroked =
             TessellateStroke(
                 pathPoints_,
@@ -1393,6 +1611,8 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
                 GetStrokeLineJoin(),
                 GetStrokeStartLineCap(),
                 GetStrokeEndLineCap(),
+                {dashes.Data(), dashes.Size()},
+                dashOffset,
                 strokeVertices_,
                 strokeIndices_);
         if (!stroked) return stroked.GetStatus();

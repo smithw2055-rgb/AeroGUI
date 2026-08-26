@@ -238,4 +238,195 @@ Result<void> ParsePointList(
     return {};
 }
 
+namespace {
+
+struct FillContour {
+    std::uint32_t offset = 0U;
+    std::uint32_t count = 0U;
+};
+
+class GeometryFillSink final : public FlattenSink {
+public:
+    GeometryFillSink(
+        Base::Vector<Point>& points,
+        Base::Vector<FillContour>& contours) noexcept
+        : points_(&points), contours_(&contours) {}
+
+    Result<void> BeginFigure(Point start, bool isClosed) noexcept override {
+        Result<void> finished = Flush();
+        if (!finished) return finished.GetStatus();
+        closed_ = isClosed;
+        contour_.Clear();
+        return contour_.PushBack(start);
+    }
+    Result<void> AddPoint(Point point) noexcept override {
+        if (contour_.Empty()) {
+            return BeginFigure(point, closed_);
+        }
+        return contour_.PushBack(point);
+    }
+    Result<void> EndFigure(bool isClosed) noexcept override {
+        closed_ = isClosed;
+        return Flush();
+    }
+    Result<void> Finish() noexcept { return Flush(); }
+
+private:
+    Result<void> Flush() noexcept {
+        if (contour_.Size() > 1U &&
+            SamePoint(contour_.Front(), contour_.Back())) {
+            contour_.PopBack();
+        }
+        if (contour_.Size() < 3U) {
+            contour_.Clear();
+            return {};
+        }
+        FillContour record{points_->Size(), contour_.Size()};
+        Result<void> appended = points_->Append(contour_.AsSpan());
+        if (!appended) return appended.GetStatus();
+        appended = contours_->PushBack(record);
+        contour_.Clear();
+        return appended;
+    }
+
+    Base::Vector<Point> contour_;
+    Base::Vector<Point>* points_ = nullptr;
+    Base::Vector<FillContour>* contours_ = nullptr;
+    bool closed_ = true;
+};
+
+double FillEdgeX(Point start, Point end, double y) noexcept {
+    const double height = end.y - start.y;
+    if (std::abs(height) <= 1.0e-12) {
+        return start.x;
+    }
+    return start.x + (end.x - start.x) * ((y - start.y) / height);
+}
+
+} // namespace
+
+Result<void> TessellateGeometryFill(
+    const Geometry& geometry,
+    Base::Vector<Point>& vertices,
+    Base::Vector<std::uint32_t>& indices) noexcept {
+    vertices.Clear();
+    indices.Clear();
+    Base::Vector<Point> points;
+    Base::Vector<FillContour> contours;
+    GeometryFillSink sink(points, contours);
+    Result<void> flattened = geometry.Flatten(sink);
+    if (!flattened) return flattened.GetStatus();
+    flattened = sink.Finish();
+    if (!flattened) return flattened.GetStatus();
+    if (points.Empty() || contours.Empty()) return {};
+
+    Base::Vector<double> levels;
+    Result<void> reserved = levels.Reserve(points.Size());
+    if (!reserved) return reserved.GetStatus();
+    for (const Point point : points) {
+        Result<void> added = levels.PushBack(point.y);
+        if (!added) return added.GetStatus();
+    }
+    std::sort(levels.Data(), levels.Data() + levels.Size());
+    std::uint32_t uniqueCount = 0U;
+    for (std::uint32_t index = 0U; index < levels.Size(); ++index) {
+        if (uniqueCount != 0U &&
+            std::abs(levels[index] - levels[uniqueCount - 1U]) <= 1.0e-9) {
+            continue;
+        }
+        levels[uniqueCount++] = levels[index];
+    }
+    while (levels.Size() > uniqueCount) {
+        levels.PopBack();
+    }
+
+    struct ScanHit {
+        double top = 0.0;
+        double bottom = 0.0;
+        double middle = 0.0;
+    };
+    Base::Vector<ScanHit> hits;
+    for (std::uint32_t band = 1U; band < levels.Size(); ++band) {
+        const double topY = levels[band - 1U];
+        const double bottomY = levels[band];
+        if (bottomY - topY <= 1.0e-9) continue;
+        const double middleY = (topY + bottomY) * 0.5;
+        hits.Clear();
+        for (const FillContour contour : contours) {
+            if (contour.count < 3U) continue;
+            for (std::uint32_t edge = 0U; edge < contour.count; ++edge) {
+                const Point start = points[contour.offset + edge];
+                const Point end = points[
+                    contour.offset + (edge + 1U) % contour.count];
+                const double minimum = std::min(start.y, end.y);
+                const double maximum = std::max(start.y, end.y);
+                if (middleY <= minimum || middleY >= maximum) continue;
+                Result<void> added = hits.PushBack({
+                    FillEdgeX(start, end, topY),
+                    FillEdgeX(start, end, bottomY),
+                    FillEdgeX(start, end, middleY)});
+                if (!added) return added.GetStatus();
+            }
+        }
+        if (hits.Empty()) continue;
+        std::sort(
+            hits.Data(),
+            hits.Data() + hits.Size(),
+            [](const ScanHit& left, const ScanHit& right) noexcept {
+                return left.middle < right.middle;
+            });
+        const std::uint32_t pairCount = (hits.Size() / 2U) * 2U;
+        for (std::uint32_t pair = 0U; pair < pairCount; pair += 2U) {
+            const ScanHit& left = hits[pair];
+            const ScanHit& right = hits[pair + 1U];
+            if (right.middle - left.middle <= 1.0e-9) continue;
+            if (vertices.Size() > UINT32_MAX - 4U) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::OutOfRange,
+                    "Geometry tessellation exceeds the 32-bit mesh limit");
+            }
+            const std::uint32_t base = vertices.Size();
+            const Point quad[] = {
+                {left.top, topY},
+                {right.top, topY},
+                {right.bottom, bottomY},
+                {left.bottom, bottomY}};
+            Result<void> added = vertices.Append({quad, 4U});
+            if (!added) return added.GetStatus();
+            const std::uint32_t triangles[] = {
+                base, base + 1U, base + 2U,
+                base, base + 2U, base + 3U};
+            added = indices.Append({triangles, 6U});
+            if (!added) return added.GetStatus();
+        }
+    }
+    return {};
+}
+
+bool GeometryContainsLocalPoint(
+    const Geometry& geometry,
+    Point point) noexcept {
+    Base::Vector<Point> points;
+    Base::Vector<FillContour> contours;
+    GeometryFillSink sink(points, contours);
+    if (!geometry.Flatten(sink) || !sink.Finish()) return false;
+    int crossings = 0;
+    for (const FillContour contour : contours) {
+        if (contour.count < 3U) continue;
+        for (std::uint32_t edge = 0U; edge < contour.count; ++edge) {
+            const Point start = points[contour.offset + edge];
+            const Point end = points[
+                contour.offset + (edge + 1U) % contour.count];
+            if (((start.y > point.y) == (end.y > point.y)) ||
+                std::abs(end.y - start.y) <= 1.0e-12) {
+                continue;
+            }
+            const double x = FillEdgeX(start, end, point.y);
+            if (x >= point.x) continue;
+            ++crossings;
+        }
+    }
+    return (crossings % 2) != 0;
+}
+
 } // namespace Aero::Media

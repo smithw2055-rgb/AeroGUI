@@ -150,6 +150,8 @@ struct AnimationEngine::Track {
         IntegerKeyFrames,
         Size,
         SizeKeyFrames,
+        Matrix,
+        MatrixKeyFrames,
         Discrete
     };
 
@@ -160,6 +162,7 @@ struct AnimationEngine::Track {
           thicknessFrames(allocator),
           integerFrames(allocator),
           sizeFrames(allocator),
+          matrixFrames(allocator),
           discreteFrames(allocator) {}
 
     Track(Track&&) noexcept = default;
@@ -200,12 +203,15 @@ struct AnimationEngine::Track {
     IntegerAnimationWidth integerWidth = IntegerAnimationWidth::Int32;
     Base::Size fromSize{};
     Base::Size toSize{};
+    Base::Transform2D fromMatrix{};
+    Base::Transform2D toMatrix{};
     Base::Vector<DoubleKeyFrame> doubleFrames;
     Base::Vector<ColorKeyFrame> colorFrames;
     Base::Vector<PointKeyFrame> pointFrames;
     Base::Vector<ThicknessKeyFrame> thicknessFrames;
     Base::Vector<IntegerKeyFrame> integerFrames;
     Base::Vector<SizeKeyFrame> sizeFrames;
+    Base::Vector<MatrixKeyFrame> matrixFrames;
     Base::Vector<DiscreteAnimationKeyFrame> discreteFrames;
     Meta::PropertyValue discreteBaseValue;
     bool valueApplied = false;
@@ -225,6 +231,20 @@ std::int64_t LerpInteger(
         return to;
     }
     return static_cast<std::int64_t>(std::llround(sampled));
+}
+
+Base::Transform2D LerpMatrix(
+    Base::Transform2D from,
+    Base::Transform2D to,
+    double progress) noexcept {
+    Base::Transform2D sampled;
+    sampled.m11 = from.m11 + (to.m11 - from.m11) * progress;
+    sampled.m12 = from.m12 + (to.m12 - from.m12) * progress;
+    sampled.m21 = from.m21 + (to.m21 - from.m21) * progress;
+    sampled.m22 = from.m22 + (to.m22 - from.m22) * progress;
+    sampled.dx = from.dx + (to.dx - from.dx) * progress;
+    sampled.dy = from.dy + (to.dy - from.dy) * progress;
+    return sampled;
 }
 
 template<class T>
@@ -528,6 +548,35 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.kind = Track::Kind::Size;
     track.fromSize = animation.from;
     track.toSize = animation.to;
+    track.startTimeMicroseconds = currentTimeMicroseconds_;
+    track.pendingInitialSample = automaticTickingEnabled_;
+    return track.handle;
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject& target,
+    Meta::DependencyPropertyHandle property,
+    const MatrixAnimation& animation) noexcept {
+    Base::Result<void> access = dispatcher_->VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!property.IsValid() ||
+        !IsTimingValid(animation.timing) ||
+        !Base::IsFiniteTransform(animation.from) ||
+        !Base::IsFiniteTransform(animation.to)) {
+        return InvalidAnimation(
+            "MatrixAnimation has invalid target, timing, or values");
+    }
+    Base::Result<Track*> added = AddTrack();
+    if (!added) return added.GetStatus();
+    Track& track = *added.Value();
+    track.handle = {nextHandle_++};
+    track.target = &target;
+    track.property = property;
+    track.timing = animation.timing;
+    track.easing = animation.easing;
+    track.kind = Track::Kind::Matrix;
+    track.fromMatrix = animation.from;
+    track.toMatrix = animation.to;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
     track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
@@ -868,6 +917,50 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.timing = animation.timing;
     track.kind = Track::Kind::SizeKeyFrames;
     track.fromSize = animation.baseValue;
+    track.startTimeMicroseconds = currentTimeMicroseconds_;
+    track.pendingInitialSample = automaticTickingEnabled_;
+    return track.handle;
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject& target,
+    Meta::DependencyPropertyHandle property,
+    const MatrixKeyFrameAnimation& animation) noexcept {
+    Base::Result<void> access = dispatcher_->VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!property.IsValid() || !IsTimingValid(animation.timing) ||
+        !Base::IsFiniteTransform(animation.baseValue) ||
+        animation.keyFrames.Empty()) {
+        return InvalidAnimation(
+            "Matrix key-frame animation is incomplete");
+    }
+    AnimationTime lastKeyTime = 0U;
+    for (std::uint32_t index = 0U;
+         index < animation.keyFrames.Size(); ++index) {
+        const MatrixKeyFrame& frame = animation.keyFrames[index];
+        if (!Base::IsFiniteTransform(frame.value) ||
+            (index != 0U && frame.keyTimeMicroseconds < lastKeyTime)) {
+            return InvalidAnimation(
+                "Matrix key frames must be finite and ordered");
+        }
+        lastKeyTime = frame.keyTimeMicroseconds;
+    }
+    Base::Result<Track*> added = AddTrack();
+    if (!added) return added.GetStatus();
+    Track& track = *added.Value();
+    Base::Result<void> copied =
+        track.matrixFrames.Append(animation.keyFrames);
+    if (!copied) {
+        track.state = AnimationState::Stopped;
+        CompactStopped();
+        return copied.GetStatus();
+    }
+    track.handle = {nextHandle_++};
+    track.target = &target;
+    track.property = property;
+    track.timing = animation.timing;
+    track.kind = Track::Kind::MatrixKeyFrames;
+    track.fromMatrix = animation.baseValue;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
     track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
@@ -1332,6 +1425,14 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
             Meta::ValueCodec<Base::Size>::Encode(size);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
+    } else if (track.kind == Track::Kind::Matrix) {
+        const double eased = Ease(progress, track.easing);
+        const Base::Transform2D matrix = LerpMatrix(
+            track.fromMatrix, track.toMatrix, eased);
+        Base::Result<Meta::PropertyValue> encoded =
+            Meta::ValueCodec<Base::Transform2D>::Encode(matrix);
+        if (!encoded) return encoded.GetStatus();
+        value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::DoubleKeyFrames) {
         double previousValue = track.baseValue;
         AnimationTime previousTime = 0U;
@@ -1657,6 +1758,55 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         }
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Size>::Encode(sampledValue);
+        if (!encoded) return encoded.GetStatus();
+        value = std::move(encoded).Value();
+    } else if (track.kind == Track::Kind::MatrixKeyFrames) {
+        Base::Transform2D previousValue = track.fromMatrix;
+        AnimationTime previousTime = 0U;
+        Base::Transform2D sampledValue = previousValue;
+        bool found = false;
+        for (std::uint32_t index = 0U;
+             index < track.matrixFrames.Size(); ++index) {
+            const MatrixKeyFrame& frame = track.matrixFrames[index];
+            if (sampleTime > frame.keyTimeMicroseconds) {
+                previousValue = frame.value;
+                previousTime = frame.keyTimeMicroseconds;
+                sampledValue = frame.value;
+                continue;
+            }
+            const AnimationTime segmentDuration =
+                frame.keyTimeMicroseconds >= previousTime
+                ? frame.keyTimeMicroseconds - previousTime
+                : 0U;
+            double segmentProgress = segmentDuration == 0U
+                ? 1.0
+                : static_cast<double>(sampleTime - previousTime) /
+                    static_cast<double>(segmentDuration);
+            switch (frame.interpolation) {
+            case DoubleKeyFrameInterpolation::Discrete:
+                segmentProgress = sampleTime >=
+                    frame.keyTimeMicroseconds ? 1.0 : 0.0;
+                break;
+            case DoubleKeyFrameInterpolation::Easing:
+                segmentProgress = Ease(segmentProgress, frame.easing);
+                break;
+            case DoubleKeyFrameInterpolation::Spline:
+                segmentProgress = EvaluateSpline(segmentProgress, frame);
+                break;
+            case DoubleKeyFrameInterpolation::Linear:
+                segmentProgress = Clamp01(segmentProgress);
+                break;
+            }
+            sampledValue = LerpMatrix(
+                previousValue, frame.value, segmentProgress);
+            found = true;
+            break;
+        }
+        if (!found && !track.matrixFrames.Empty()) {
+            sampledValue = track.matrixFrames.Back().value;
+        }
+        Base::Result<Meta::PropertyValue> encoded =
+            Meta::ValueCodec<Base::Transform2D>::Encode(sampledValue);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else {

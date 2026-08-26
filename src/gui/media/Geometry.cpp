@@ -583,3 +583,35 @@ bool CombinedGeometry::FreezeCore(bool isChecking) noexcept {
 }
 
 } // namespace Aero::Media
+
+#include <Aero/Media/DashStyle.hpp>
+
+namespace Aero::Media {
+
+Result<void> DashStyle::SetDashes(Span<const double> value) noexcept {
+    Result<void> writable = WritePreamble();
+    if (!writable) return writable.GetStatus();
+    dashes_.Clear();
+    for (std::uint32_t index = 0U; index < value.Size(); ++index) {
+        const double dash = value[index];
+        if (!std::isfinite(dash) || dash < 0.0) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "DashStyle dashes must be finite and non-negative");
+        }
+        Result<void> added = dashes_.PushBack(dash);
+        if (!added) return added.GetStatus();
+    }
+    WritePostscript();
+    return {};
+}
+
+void DashStyle::SetOffset(double value) noexcept {
+    if (!std::isfinite(value)) return;
+    Result<void> writable = WritePreamble();
+    if (!writable) return;
+    offset_ = value;
+    WritePostscript();
+}
+
+} // namespace Aero::Media

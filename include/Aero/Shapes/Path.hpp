@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Media/DashStyle.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Shapes/Polygon.hpp>
 #include <Aero/Shapes/Shape.hpp>
@@ -30,6 +31,9 @@ public:
     PenLineCap GetStrokeEndLineCap() const noexcept;
     double GetTrimStart() const noexcept;
     double GetTrimEnd() const noexcept;
+    StringView GetStrokeDashArray() const noexcept;
+    double GetStrokeDashOffset() const noexcept;
+    Ref<Media::DashStyle> GetDashStyle() const noexcept;
     Rect GetGeometryBounds() const noexcept { return geometryBounds_; }
 
     void SetData(Ref<Geometry> value) noexcept;
@@ -39,6 +43,9 @@ public:
     void SetStrokeEndLineCap(PenLineCap value) noexcept;
     void SetTrimStart(double value) noexcept;
     void SetTrimEnd(double value) noexcept;
+    void SetStrokeDashArray(StringView value) noexcept;
+    void SetStrokeDashOffset(double value) noexcept;
+    void SetDashStyle(Ref<Media::DashStyle> value) noexcept;
 
     inline static constexpr DependencyProperty<Ref<Geometry>> DataProperty{"Data"};
     inline static constexpr DependencyProperty<FillRule> FillRuleProperty{"FillRule"};
@@ -47,6 +54,9 @@ public:
     inline static constexpr DependencyProperty<PenLineCap> StrokeEndLineCapProperty{"StrokeEndLineCap"};
     inline static constexpr AttachedProperty<double> TrimStartProperty{"TrimStart"};
     inline static constexpr AttachedProperty<double> TrimEndProperty{"TrimEnd"};
+    inline static constexpr DependencyProperty<String> StrokeDashArrayProperty{"StrokeDashArray"};
+    inline static constexpr DependencyProperty<double> StrokeDashOffsetProperty{"StrokeDashOffset"};
+    inline static constexpr DependencyProperty<Ref<Media::DashStyle>> DashStyleProperty{"DashStyle"};
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;

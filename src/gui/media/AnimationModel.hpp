@@ -232,6 +232,31 @@ struct SizeKeyFrameAnimation {
     Base::Span<const SizeKeyFrame> keyFrames;
 };
 
+struct MatrixAnimation {
+    Base::Transform2D from;
+    Base::Transform2D to;
+    TimelineTiming timing;
+    EasingFunction easing;
+};
+
+struct MatrixKeyFrame {
+    AnimationTime keyTimeMicroseconds = 0U;
+    Base::Transform2D value;
+    DoubleKeyFrameInterpolation interpolation =
+        DoubleKeyFrameInterpolation::Linear;
+    EasingFunction easing;
+    double controlPoint1X = 0.0;
+    double controlPoint1Y = 0.0;
+    double controlPoint2X = 1.0;
+    double controlPoint2Y = 1.0;
+};
+
+struct MatrixKeyFrameAnimation {
+    Base::Transform2D baseValue;
+    TimelineTiming timing;
+    Base::Span<const MatrixKeyFrame> keyFrames;
+};
+
 struct DoubleKeyFrameAnimation {
     double baseValue = 0.0;
     TimelineTiming timing;
