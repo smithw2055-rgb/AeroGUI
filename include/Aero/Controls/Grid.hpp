@@ -4,6 +4,7 @@
 #include <Aero/Controls/Panel.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Input.hpp>
+#include <Aero/KeyBinding.hpp>
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;

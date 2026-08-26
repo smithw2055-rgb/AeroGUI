@@ -5,6 +5,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Layout.hpp>
+#include <Aero/Media/CompositeTransform3D.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp"

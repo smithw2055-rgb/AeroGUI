@@ -1,7 +1,6 @@
 #pragma once
 
-
-#include <Aero/Controls/ListBoxItem.hpp>
+#include <Aero/Controls/ComboBoxItem.hpp>
 #include <Aero/Controls/Primitives/Selector.hpp>
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Controls/TextBlock.hpp>
@@ -14,21 +13,6 @@ using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
 
 class ComboBehavior;
-
-class AERO_GUI_API ComboBoxItem
-    : public ListBoxItem {
-    AERO_DECLARE_TYPE(ComboBoxItem, ListBoxItem)
-public:
-    ComboBoxItem() noexcept
-        : ListBoxItem(StaticTypeId()) {}
-    ~ComboBoxItem() override = default;
-
-    bool GetIsSelected() const noexcept;
-    void SetIsSelected(
-        bool value) noexcept;
-
-    inline static constexpr DependencyProperty<bool> IsSelectedProperty{"IsSelected"};
-};
 
 class AERO_GUI_API ComboBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ComboBox, Primitives::Selector)

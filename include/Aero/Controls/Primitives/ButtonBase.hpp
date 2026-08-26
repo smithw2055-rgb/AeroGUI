@@ -2,6 +2,7 @@
 
 #include <Aero/Controls/ContentControl.hpp>
 #include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 
 namespace Aero::Controls {

@@ -57,16 +57,17 @@ Aero/Layout.hpp
 Aero/Resources.hpp
 Aero/Style.hpp
 Aero/DataTemplate.hpp
-Aero/Data/Binding.hpp
-Aero/Input.hpp
+Aero/Data/Binding.hpp            Binding class; siblings in Data/<Type>.hpp
+Aero/Input.hpp                   Value types only; command types in Aero/<Type>.hpp
 Aero/Documents.hpp
 Aero/Shapes.hpp
 Aero/TextFormatting.hpp
 Aero/Media/Animation.hpp          Umbrella only; types live in Media/Animation/<Type>.hpp
-Aero/Media/Brushes.hpp
+Aero/Media/Brushes.hpp            Umbrella only; types live in Media/<Type>.hpp
 Aero/Media/Fonts.hpp
-Aero/Media/Geometry.hpp
-Aero/Media/Transforms.hpp
+Aero/Media/Geometry.hpp           Geometry class; siblings in Media/PathGeometry.hpp etc.
+Aero/Media/Transforms.hpp         Umbrella only; types live in Media/<Type>.hpp
+Aero/Media/Effects.hpp            Umbrella only; types live in Media/<Type>.hpp
 ```
 
 Controls and templates use their WPF namespaces as their physical domains;
@@ -74,16 +75,18 @@ Controls and templates use their WPF namespaces as their physical domains;
 `DataTemplate` and `Style` types have root declaration owners. This keeps the
 existing include graph explicit without recreating compatibility umbrellas.
 
-`Input.hpp` owns both the input value types and the command/navigation object
-model. It forward-declares `UIElement` and owns the input value declarations
-before including `Aero/RoutedEvent.hpp`, so the routed-event header does not
-need a second input-values header or a cyclic include. The event umbrella is
-`<Aero/Events.hpp>`; `<Aero/RoutedEvent.hpp>` is the sole declaration owner for
-`RoutedEvent`, `RoutedEventHandle`, and routed-event metadata helpers.
+`Input.hpp` owns input value types (`Key`, `PointerInput`, `InputScope`, …).
+Command and navigation objects (`ICommand`, `RoutedCommand`, `KeyBinding`,
+`KeyboardNavigation`, `FocusManager`) each have a type-named header under
+`Aero/`. `Input.hpp` does not include those command headers, so the UIElement
+spine does not compile the command object model.
 
 Media is a specialist surface made up of concrete headers such as
-`Media/Brushes.hpp`, `Media/Fonts.hpp`, `Media/Geometry.hpp`,
-`Media/Images.hpp`, and `Media/Transforms.hpp`. WPF-visible formatting values
+`Media/Brush.hpp`, `Media/Fonts.hpp`, `Media/Geometry.hpp`,
+`Media/Images.hpp`, and `Media/Transform.hpp`. Family umbrellas
+`<Aero/Media/Brushes.hpp>`, `<Aero/Media/Transforms.hpp>`, and
+`<Aero/Media/Effects.hpp>` include the corresponding type headers.
+WPF-visible formatting values
 are owned by `<Aero/TextFormatting.hpp>`; the text provider, shaping and
 editing implementation remains private under `src/gui/text`.
 Generic `Media.hpp` and `Text/Text.hpp` aggregation headers are not part of

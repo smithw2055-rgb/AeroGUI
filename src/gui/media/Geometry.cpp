@@ -1,4 +1,9 @@
 #include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/StreamGeometry.hpp>
+#include <Aero/Media/PathFigure.hpp>
+#include <Aero/Media/PathGeometry.hpp>
+#include <Aero/Media/LineSegment.hpp>
+#include <Aero/Media/PathSegment.hpp>
 
 #include <cstdio>
 #include <utility>

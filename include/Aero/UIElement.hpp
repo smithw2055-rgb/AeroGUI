@@ -27,6 +27,7 @@ using Meta::TypeId;
 class UIElement;
 class AeroGuiInternal;
 namespace Media { class Transform; class Effect; class Brush; }
+namespace Input { class RoutedCommand; }
 
 class UIElementChildRange {
 public:

@@ -6,6 +6,7 @@
 #include <AeroApp/Application.hpp>
 #include <Aero/Controls.hpp> 
 #include <Aero/Input.hpp>
+#include <Aero/KeyboardNavigation.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>

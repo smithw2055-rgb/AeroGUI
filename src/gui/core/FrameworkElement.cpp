@@ -6,6 +6,7 @@
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Events.hpp>
 #include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Fonts.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Markup/XamlReader.hpp>
@@ -117,6 +118,15 @@ void FrameworkElement::ClearWidth() noexcept {
 
 void FrameworkElement::SetWidth(double value) noexcept {
     SetValue(WidthProperty, Length::Pixels(value));
+}
+
+Result<void> FrameworkElement::SetFontFamily(StringView value) noexcept {
+    Result<Ref<Media::FontFamily>> family =
+        Base::MakeRef<Media::FontFamily>();
+    if (!family) return family.GetStatus();
+    family.Value()->SetSource(value);
+    SetFontFamily(std::move(family).Value());
+    return {};
 }
 
 // from src/gui/controls/Layout.cpp

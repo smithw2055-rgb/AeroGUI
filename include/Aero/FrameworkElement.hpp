@@ -3,15 +3,11 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Threading.hpp>
-#include <Aero/Input.hpp>
+#include <Aero/InputScope.hpp>
 #include <Aero/Media/Fonts.hpp>
-#include <Aero/Media/Transforms.hpp>
 #include <Aero/Resources.hpp>
-#include <Aero/TextFormatting.hpp>
 #include <Aero/HorizontalAlignment.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/UIElement.hpp>
 
 #include <cstdint>
@@ -25,7 +21,12 @@ using Meta::TypeId;
 class Style;
 namespace Controls { class Viewbox; }
 class FrameworkElement;
-namespace Media { class DrawingContext; }
+namespace Media {
+class DrawingContext;
+class Brush;
+class Transform;
+class FontFamily;
+}
 
 class FrameworkElementChildRange {
 public:
@@ -145,6 +146,7 @@ public:
     inline static constexpr DependencyProperty<bool> UseLayoutRoundingProperty{"UseLayoutRounding"};
     inline static constexpr DependencyProperty<bool> SnapsToDevicePixelsProperty{"SnapsToDevicePixels"};
     inline static constexpr DependencyProperty<Ref<Media::Transform>> LayoutTransformProperty{"LayoutTransform"};
+    inline static constexpr DependencyProperty<Ref<Media::Brush>> ForegroundProperty{"Foreground"};
 
     void SetUseLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;
@@ -165,15 +167,7 @@ public:
         Ref<Media::FontFamily> value) noexcept {
         SetValue(FontFamilyProperty, std::move(value));
     }
-    Result<void> SetFontFamily(
-        StringView value) noexcept {
-        Result<Ref<Media::FontFamily>> family =
-            Base::MakeRef<Media::FontFamily>();
-        if (!family) return family.GetStatus();
-        family.Value()->SetSource(value);
-        SetFontFamily(std::move(family).Value());
-        return {};
-    }
+    Result<void> SetFontFamily(StringView value) noexcept;
     void SetFlowDirection(FlowDirection value) noexcept {
         SetValue(FlowDirectionProperty, value);
     }
@@ -242,15 +236,21 @@ private:
     friend class ::Aero::AeroGuiInternal;
 #endif
     double dpiScale_ = 1.0;
-    Base::Transform2D viewboxTransform_{};
-    bool hasViewboxTransform_ = false;
     DependencyObject* templatedParent_ = nullptr;
     mutable ResourceDictionary* resources_ = nullptr;
-    // Authored triggers/behaviors and style prototypes live off the hot
-    // instance. Empty elements pay one pointer, not four Vectors.
+    // Authored triggers/behaviors, style prototypes, and viewbox projection
+    // live off the hot instance. Empty elements pay one pointer.
     struct FrameworkRare;
     FrameworkRare* EnsureFrameworkRare() noexcept;
+    void DropRareIfUnused() noexcept;
+    bool SetViewboxTransform(const Base::Transform2D& matrix) noexcept;
+    void ClearViewboxTransform() noexcept;
     FrameworkRare* frameworkRare_ = nullptr;
 };
 
 } // namespace Aero
+
+namespace Aero::Media {
+inline constexpr auto FrameworkElementForegroundProperty =
+    ::Aero::FrameworkElement::ForegroundProperty;
+}

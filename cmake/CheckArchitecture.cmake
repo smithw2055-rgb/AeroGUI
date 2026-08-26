@@ -932,7 +932,7 @@ foreach(aero_low_level_spelling IN ITEMS
 endforeach()
 foreach(aero_private_access_header IN ITEMS
         "include/Aero/Controls/Control.hpp"
-        "include/Aero/Media/Brushes.hpp")
+        "include/Aero/Media/Brush.hpp")
     aero_require_text(
         "${aero_private_access_header}"
         "#if defined(AERO_GUI_IMPLEMENTATION)"
@@ -1868,7 +1868,6 @@ set(aero_one_type_exemptions
     include/Aero/DependencyProperty.hpp
     include/Aero/VisualStateManager.hpp
     include/Aero/Media/Brushes.hpp
-    include/Aero/Media/Geometry.hpp
     include/Aero/Media/Transforms.hpp
     include/Aero/Media/Effects.hpp
     include/Aero/Media/Images.hpp
@@ -1877,10 +1876,7 @@ set(aero_one_type_exemptions
     include/Aero/Media/Animation/StoryboardActions.hpp
     include/Aero/Controls/Panel.hpp
     include/Aero/Controls/Grid.hpp
-    include/Aero/Controls/ListView.hpp
-    include/Aero/Controls/ComboBox.hpp
     include/Aero/Controls/TreeView.hpp
-    include/Aero/Controls/Menu.hpp
     include/Aero/Controls/ToolBar.hpp
     include/Aero/Controls/StatusBar.hpp
     include/Aero/Controls/ScrollViewer.hpp
@@ -1897,7 +1893,6 @@ set(aero_one_type_exemptions
     include/Aero/Triggers/TriggerBase.hpp
     include/Aero/Triggers/Conditions.hpp
     include/Aero/Media/Fonts.hpp
-    include/Aero/Data/Binding.hpp
     include/Aero/Markup/XamlProvider.hpp
     include/Aero/Markup/ServiceProvider.hpp
     include/Aero/Interactivity/Behavior.hpp

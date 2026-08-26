@@ -2,6 +2,7 @@
 
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
 #include <Aero/Triggers/TriggerBase.hpp>
 #include <Aero/Interactivity/TriggerAction.hpp>
 

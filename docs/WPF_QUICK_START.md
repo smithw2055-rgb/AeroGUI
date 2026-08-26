@@ -199,3 +199,19 @@ headers from the animation umbrella; `EventTrigger` and `BeginStoryboard` live
 in their own `Media/Animation/` headers. `Storyboard` derives from
 `ParallelTimeline` / `TimelineGroup`. `EasingFunctionBase` is a `Freezable`.
 Key frames share `KeyTime`, `EasingFunction`, and `KeySpline` on `KeyFrameBase`.
+
+## One type per header
+
+Kitchen-sink media/input/data headers are umbrellas or type owners:
+
+- `<Aero/Media/Brushes.hpp>`, `<Aero/Media/Transforms.hpp>`,
+  `<Aero/Media/Effects.hpp>` include `Media/<Type>.hpp`.
+- `<Aero/Media/Geometry.hpp>` owns `Geometry`; path types live in
+  `PathGeometry.hpp` / `StreamGeometry.hpp` / `PathFigure.hpp`.
+- `<Aero/Input.hpp>` is input values (`Key`, `PointerInput`, `InputScope`).
+  Commands are `<Aero/ICommand.hpp>` and `<Aero/RoutedCommand.hpp>`.
+- `<Aero/Data/Binding.hpp>` owns `Binding`; `MultiBinding` and converters
+  have sibling headers under `Data/`.
+- `ComboBoxItem`, `MenuItem`, `ContextMenu`, `ListViewItem`, and GridView
+  types have their own `Controls/` headers.
+

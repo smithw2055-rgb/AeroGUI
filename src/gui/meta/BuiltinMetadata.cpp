@@ -121,6 +121,13 @@ Base::Result<void> PopulateCoreMetadata(
 
 
 #include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/RoutedCommand.hpp>
+#include <Aero/KeyboardNavigation.hpp>
+#include <Aero/FocusManager.hpp>
+#include <Aero/KeyBinding.hpp>
+#include <Aero/KeyGesture.hpp>
+#include <Aero/InputGesture.hpp>
 #include <Aero/Media/Animation.hpp>
 #include <Aero/Media/Animation/EventTrigger.hpp>
 #include <Aero/Media/Animation/MediaActions.hpp>
@@ -128,6 +135,9 @@ Base::Result<void> PopulateCoreMetadata(
 #include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
 #include <Aero/Media/Animation/TimerTrigger.hpp>
 #include <Aero/Data/Binding.hpp>
+#include <Aero/Data/MultiBinding.hpp>
+#include <Aero/Data/BooleanToVisibilityConverter.hpp>
+#include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Images.hpp>
@@ -138,6 +148,12 @@ Base::Result<void> PopulateCoreMetadata(
 #include <Aero/Resources.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/StreamGeometry.hpp>
+#include <Aero/Media/PathSegment.hpp>
+#include <Aero/Media/LineSegment.hpp>
+#include <Aero/Media/PathFigure.hpp>
+#include <Aero/Media/PathGeometry.hpp>
 
 #include <cctype>
 #include <cmath>

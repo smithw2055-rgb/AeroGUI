@@ -27,7 +27,8 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/UserControl.hpp
     include/Aero/Controls/CheckBox.hpp
     include/Aero/Controls/RadioButton.hpp
-    include/Aero/Controls/ComboBox.hpp
+        include/Aero/Controls/ComboBoxItem.hpp
+        include/Aero/Controls/ComboBox.hpp
     include/Aero/Controls/ListView.hpp
     include/Aero/Controls/ScrollViewer.hpp
     include/Aero/Collections.hpp
@@ -252,6 +253,74 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/StatusBar.hpp
     include/Aero/Controls/ToolTip.hpp
     include/Aero/Controls/Image.hpp
+    include/Aero/Controls/MenuItem.hpp
+    include/Aero/Controls/ContextMenu.hpp
+    include/Aero/Controls/ContextMenuService.hpp
+    include/Aero/Controls/GridViewColumnHeader.hpp
+    include/Aero/Controls/GridViewColumn.hpp
+    include/Aero/Controls/GridView.hpp
+    include/Aero/Controls/GridViewHeaderRowPresenter.hpp
+    include/Aero/Controls/GridViewRowPresenter.hpp
+    include/Aero/Controls/ListViewItem.hpp
+    include/Aero/Media/Animation/BeginStoryboard.hpp
+    include/Aero/Media/Animation/ControlStoryboardAction.hpp
+    include/Aero/Media/Animation/ControllableStoryboardAction.hpp
+    include/Aero/Media/Animation/PauseStoryboard.hpp
+    include/Aero/Media/Animation/ResumeStoryboard.hpp
+    include/Aero/Media/Animation/StopStoryboard.hpp
+    include/Aero/Media/Animation/RemoveStoryboard.hpp
+    include/Aero/Media/Animation/SeekStoryboard.hpp
+    include/Aero/Media/Animation/PlayMediaAction.hpp
+    include/Aero/Media/Animation/PauseMediaAction.hpp
+    include/Aero/Media/Animation/StopMediaAction.hpp
+    include/Aero/Media/Brush.hpp
+    include/Aero/Media/SolidColorBrush.hpp
+    include/Aero/Media/GradientStop.hpp
+    include/Aero/Media/GradientStopCollection.hpp
+    include/Aero/Media/BrushShader.hpp
+    include/Aero/Media/MonochromeShader.hpp
+    include/Aero/Media/ConicGradientShader.hpp
+    include/Aero/Media/WavesShader.hpp
+    include/Aero/Media/GradientBrush.hpp
+    include/Aero/Media/LinearGradientBrush.hpp
+    include/Aero/Media/RadialGradientBrush.hpp
+    include/Aero/Media/ImageBrush.hpp
+    include/Aero/Media/VisualBrush.hpp
+    include/Aero/Media/Transform.hpp
+    include/Aero/Media/TranslateTransform.hpp
+    include/Aero/Media/ScaleTransform.hpp
+    include/Aero/Media/RotateTransform.hpp
+    include/Aero/Media/SkewTransform.hpp
+    include/Aero/Media/MatrixTransform.hpp
+    include/Aero/Media/CompositeTransform3D.hpp
+    include/Aero/Media/TransformGroup.hpp
+    include/Aero/Media/Effect.hpp
+    include/Aero/Media/BlurEffect.hpp
+    include/Aero/Media/DropShadowEffect.hpp
+    include/Aero/Media/PixelateEffect.hpp
+    include/Aero/Media/TintEffect.hpp
+    include/Aero/Media/DirectionalBlurEffect.hpp
+    include/Aero/Media/StreamGeometry.hpp
+    include/Aero/Media/PathSegment.hpp
+    include/Aero/Media/LineSegment.hpp
+    include/Aero/Media/PathFigure.hpp
+    include/Aero/Media/PathGeometry.hpp
+    include/Aero/InputScope.hpp
+    include/Aero/ICommand.hpp
+    include/Aero/InputGesture.hpp
+    include/Aero/KeyGesture.hpp
+    include/Aero/RoutedCommand.hpp
+    include/Aero/KeyBinding.hpp
+    include/Aero/CommandBinding.hpp
+    include/Aero/KeyboardNavigation.hpp
+    include/Aero/FocusManager.hpp
+    include/Aero/Data/PropertyPath.hpp
+    include/Aero/Data/RelativeSource.hpp
+    include/Aero/Data/IValueConverter.hpp
+    include/Aero/Data/IMultiValueConverter.hpp
+    include/Aero/Data/BooleanToVisibilityConverter.hpp
+    include/Aero/Data/BindingBase.hpp
+    include/Aero/Data/MultiBinding.hpp
     include/Aero/Controls/PasswordBox.hpp
     include/Aero/ContentElement.hpp
     include/Aero/VisualTreeHelper.hpp

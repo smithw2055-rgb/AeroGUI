@@ -3,6 +3,7 @@
 #include <Aero/Documents/Span.hpp>
 #include <Aero/Events/NavigationEventArgs.hpp>
 #include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
 
 namespace Aero::Documents {
 

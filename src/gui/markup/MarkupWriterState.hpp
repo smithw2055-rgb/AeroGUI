@@ -17,6 +17,7 @@
 #include <Aero/Diagnostics.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Data/Binding.hpp>
+#include <Aero/Data/MultiBinding.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Markup/XamlReader.hpp>

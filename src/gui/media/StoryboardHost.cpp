@@ -2,6 +2,8 @@
 #include "gui/internal/AeroGuiInternal.hpp"
 #include <Aero/Media/Animation/EventTrigger.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/PathGeometry.hpp>
+#include <Aero/Media/LineSegment.hpp>
 
 #include <algorithm>
 #include <cmath>

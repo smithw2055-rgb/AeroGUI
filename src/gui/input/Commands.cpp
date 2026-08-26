@@ -3,6 +3,14 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/InputGesture.hpp>
+#include <Aero/KeyGesture.hpp>
+#include <Aero/RoutedCommand.hpp>
+#include <Aero/KeyBinding.hpp>
+#include <Aero/CommandBinding.hpp>
+#include <Aero/KeyboardNavigation.hpp>
+#include <Aero/FocusManager.hpp>
 
 
 #include <cctype>

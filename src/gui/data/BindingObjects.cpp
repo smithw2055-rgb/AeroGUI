@@ -1,4 +1,5 @@
 #include <Aero/Data/Binding.hpp>
+#include <Aero/Data/BooleanToVisibilityConverter.hpp>
 #include <Aero/Layout.hpp>
 
 namespace Aero::Data {

@@ -1,5 +1,7 @@
 #include "render/DisplayList.hpp"
 #include <Aero/Shapes.hpp>
+#include <Aero/Media/StreamGeometry.hpp>
+#include <Aero/Media/PathGeometry.hpp>
 
 #include "render/RenderResources.hpp"
 #include "gui/core/State.hpp"

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/FrameworkElement.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Brush.hpp>
 #include <Aero/Media/Images.hpp>
 
 namespace Aero::Shapes {

@@ -885,8 +885,7 @@ Base::Result<void> Viewbox::ApplyViewTransform(
         ? ::Aero::TryCast<::Aero::FrameworkElement>(child)
         : nullptr;
     if (projectedChild_ && projectedChild_.Get() != framework) {
-        projectedChild_->hasViewboxTransform_ = false;
-        projectedChild_->viewboxTransform_ = {};
+        projectedChild_->ClearViewboxTransform();
         static_cast<void>(
             AeroGuiInternal::InvalidateRenderState(*projectedChild_));
         projectedChild_.Reset();
@@ -901,13 +900,7 @@ Base::Result<void> Viewbox::ApplyViewTransform(
         matrix.m22 = scaleY;
         matrix.dx = offsetX;
         matrix.dy = offsetY;
-        const Base::Transform2D& previous = framework->viewboxTransform_;
-        const bool changed = !framework->hasViewboxTransform_ ||
-            previous.m11 != matrix.m11 || previous.m12 != matrix.m12 ||
-            previous.m21 != matrix.m21 || previous.m22 != matrix.m22 ||
-            previous.dx != matrix.dx || previous.dy != matrix.dy;
-        framework->viewboxTransform_ = matrix;
-        framework->hasViewboxTransform_ = true;
+        const bool changed = framework->SetViewboxTransform(matrix);
         if (!projectedChild_) {
             projectedChild_ =
                 Base::Ref<FrameworkElement>::FromBorrowed(*framework);

@@ -46,7 +46,7 @@ private:
     friend class ::Aero::AeroGuiInternal;
     #endif
 
-    Base::IAllocator* implAllocator_ = nullptr;
+    bool EnsureState() noexcept;
     FreezableState* impl_ = nullptr;
 };
 

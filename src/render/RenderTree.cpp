@@ -9,6 +9,7 @@
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Controls/Image.hpp>
 #include <Aero/Controls/Menu.hpp>
+#include <Aero/Controls/ContextMenu.hpp>
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
@@ -368,6 +369,8 @@ struct FrameworkElement::FrameworkRare {
     Base::Vector<Ref<Base::Object>> authoredBehaviors;
     Base::Vector<Ref<Base::Object>> styleBehaviorPrototypes;
     Base::Vector<Ref<Base::Object>> styleTriggerPrototypes;
+    Base::Transform2D viewboxTransform{};
+    bool hasViewboxTransform = false;
 };
 
 FrameworkElement::FrameworkRare*
@@ -376,6 +379,40 @@ FrameworkElement::EnsureFrameworkRare() noexcept {
         frameworkRare_ = new (std::nothrow) FrameworkRare();
     }
     return frameworkRare_;
+}
+
+void FrameworkElement::DropRareIfUnused() noexcept {
+    if (frameworkRare_ == nullptr) return;
+    if (!frameworkRare_->authoredTriggers.Empty()) return;
+    if (!frameworkRare_->authoredBehaviors.Empty()) return;
+    if (!frameworkRare_->styleBehaviorPrototypes.Empty()) return;
+    if (!frameworkRare_->styleTriggerPrototypes.Empty()) return;
+    if (frameworkRare_->hasViewboxTransform) return;
+    delete frameworkRare_;
+    frameworkRare_ = nullptr;
+}
+
+bool FrameworkElement::SetViewboxTransform(
+    const Base::Transform2D& matrix) noexcept {
+    FrameworkRare* rare = EnsureFrameworkRare();
+    if (rare == nullptr) return false;
+    const bool changed = !rare->hasViewboxTransform ||
+        rare->viewboxTransform.m11 != matrix.m11 ||
+        rare->viewboxTransform.m12 != matrix.m12 ||
+        rare->viewboxTransform.m21 != matrix.m21 ||
+        rare->viewboxTransform.m22 != matrix.m22 ||
+        rare->viewboxTransform.dx != matrix.dx ||
+        rare->viewboxTransform.dy != matrix.dy;
+    rare->viewboxTransform = matrix;
+    rare->hasViewboxTransform = true;
+    return changed;
+}
+
+void FrameworkElement::ClearViewboxTransform() noexcept {
+    if (frameworkRare_ == nullptr) return;
+    frameworkRare_->hasViewboxTransform = false;
+    frameworkRare_->viewboxTransform = {};
+    DropRareIfUnused();
 }
 
 FrameworkElement::~FrameworkElement() {
@@ -457,8 +494,8 @@ FrameworkElement::GetLocalVisualTransform() const noexcept {
             result,
             render);
     }
-    if (hasViewboxTransform_) {
-        result = ComposeTransforms(result, viewboxTransform_);
+    if (frameworkRare_ != nullptr && frameworkRare_->hasViewboxTransform) {
+        result = ComposeTransforms(result, frameworkRare_->viewboxTransform);
     }
     return result;
 }
@@ -1238,6 +1275,7 @@ void
 FrameworkElement::ClearAuthoredTriggers() noexcept {
     if (frameworkRare_ != nullptr) {
         frameworkRare_->authoredTriggers.Clear();
+        DropRareIfUnused();
     }
 }
 Base::Result<void> FrameworkElement::AddAuthoredBehavior(
@@ -1259,6 +1297,7 @@ Base::Result<void> FrameworkElement::AddAuthoredBehavior(
 void FrameworkElement::ClearAuthoredBehaviors() noexcept {
     if (frameworkRare_ != nullptr) {
         frameworkRare_->authoredBehaviors.Clear();
+        DropRareIfUnused();
     }
 }
 Base::Result<void> FrameworkElement::AddStyleBehaviorPrototype(
@@ -1280,6 +1319,7 @@ Base::Result<void> FrameworkElement::AddStyleBehaviorPrototype(
 void FrameworkElement::ClearStyleBehaviorPrototypes() noexcept {
     if (frameworkRare_ != nullptr) {
         frameworkRare_->styleBehaviorPrototypes.Clear();
+        DropRareIfUnused();
     }
 }
 Base::Result<void> FrameworkElement::AddStyleTriggerPrototype(
@@ -1301,6 +1341,7 @@ Base::Result<void> FrameworkElement::AddStyleTriggerPrototype(
 void FrameworkElement::ClearStyleTriggerPrototypes() noexcept {
     if (frameworkRare_ != nullptr) {
         frameworkRare_->styleTriggerPrototypes.Clear();
+        DropRareIfUnused();
     }
 }
 

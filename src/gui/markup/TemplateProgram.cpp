@@ -20,6 +20,7 @@
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/StreamGeometry.hpp>
 #include <Aero/FrameworkElement.hpp>
 
 #include <cstdio>

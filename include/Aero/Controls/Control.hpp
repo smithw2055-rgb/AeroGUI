@@ -2,7 +2,7 @@
 
 #include <Aero/TextFormatting.hpp>
 #include <Aero/FrameworkElement.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Brush.hpp>
 #include <Aero/Style.hpp>
 #include <utility>
 

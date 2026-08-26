@@ -123,15 +123,20 @@ void RemoveConsumerAt(
 } // namespace
 
 Freezable::Freezable(Meta::TypeId runtimeType) noexcept
-    : DependencyObject(runtimeType),
-      implAllocator_(&Base::GetDefaultAllocator()) {
-    void* memory = implAllocator_->Allocate({
+    : DependencyObject(runtimeType) {}
+
+bool Freezable::EnsureState() noexcept {
+    if (impl_ != nullptr) return true;
+    Base::IAllocator& allocator = Base::GetDefaultAllocator();
+    void* memory = allocator.Allocate({
         sizeof(FreezableState), alignof(FreezableState), Base::MemoryTag::Ui});
     if (memory == nullptr) {
         Base::ReportOutOfMemory(
             sizeof(FreezableState), alignof(FreezableState), Base::MemoryTag::Ui);
+        return false;
     }
-    impl_ = new (memory) FreezableState(*implAllocator_);
+    impl_ = new (memory) FreezableState(allocator);
+    return true;
 }
 
 Freezable::~Freezable() {
@@ -139,7 +144,7 @@ Freezable::~Freezable() {
     impl_->consumers.Clear();
     impl_->handlers.Clear();
     impl_->~FreezableState();
-    implAllocator_->Deallocate(
+    Base::GetDefaultAllocator().Deallocate(
         impl_, sizeof(FreezableState), alignof(FreezableState), Base::MemoryTag::Ui);
     impl_ = nullptr;
 }
@@ -151,7 +156,7 @@ bool Freezable::IsFrozen() const noexcept {
 bool Freezable::CanFreeze() const noexcept {
     if (IsFrozen()) return true;
     if (!VerifyAccess()) return false;
-    if (impl_ == nullptr || impl_->freezing) return false;
+    if (impl_ != nullptr && impl_->freezing) return false;
     if (activeFreezeCheck != nullptr) {
         return CheckFreezeNode(
             *activeFreezeCheck,
@@ -169,7 +174,7 @@ Base::Result<void> Freezable::Freeze() noexcept {
     if (IsFrozen()) return {};
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
-    if (impl_ == nullptr || impl_->freezing) {
+    if (impl_ != nullptr && impl_->freezing) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Freezable freeze operation is already active");
@@ -190,6 +195,11 @@ Base::Result<void> Freezable::Freeze() noexcept {
     // every overridable check has already succeeded.
     for (Freezable* current : context.complete) {
         if (current != nullptr && !current->IsFrozen()) {
+            if (!current->EnsureState()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::OutOfMemory,
+                    "Freezable freeze state allocation failed");
+            }
             current->impl_->freezing = true;
         }
     }
@@ -223,6 +233,11 @@ Base::Result<void> Freezable::AddChangedHandlerChecked(
     FreezableState::HandlerRecord record;
     record.handler = handler;
     record.active = true;
+    if (!EnsureState()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Freezable changed-handler state allocation failed");
+    }
     return impl_->handlers.PushBack(std::move(record));
 }
 
@@ -341,6 +356,11 @@ Base::Result<void> AeroGuiInternal::AttachFreezableConsumer(
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
     if (value.IsFrozen() || !property.IsValid()) return {};
+    if (!value.EnsureState()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Freezable consumer state allocation failed");
+    }
     for (const FreezableState::ConsumerRecord& record : value.impl_->consumers) {
         Base::Ref<DependencyObject> retained = record.object.Lock();
         DependencyObject* candidate = retained

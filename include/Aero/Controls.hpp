@@ -43,11 +43,16 @@
 #include <Aero/Controls/ListBox.hpp>
 #include <Aero/Controls/ListBoxItem.hpp>
 #include <Aero/Controls/Primitives/Selector.hpp>
+#include <Aero/Controls/ComboBoxItem.hpp>
 #include <Aero/Controls/ComboBox.hpp>
 #include <Aero/Controls/ListView.hpp>
 #include <Aero/Controls/TreeView.hpp>
 #include <Aero/Controls/VirtualizingPanel.hpp>
 #include <Aero/Controls/VirtualizingStackPanel.hpp>
+#include <Aero/Controls/MenuItem.hpp>
+#include <Aero/Controls/ContextMenu.hpp>
+#include <Aero/Controls/ContextMenuService.hpp>
+#include <Aero/Controls/ListViewItem.hpp>
 #include <Aero/Controls/Menu.hpp>
 #include <Aero/Controls/ToolBar.hpp>
 #include <Aero/Controls/StatusBar.hpp>

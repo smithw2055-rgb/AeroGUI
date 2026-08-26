@@ -3,6 +3,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/String.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include <Aero/Value.hpp>
 
 namespace Aero::Media {

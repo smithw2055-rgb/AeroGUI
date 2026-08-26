@@ -7,6 +7,7 @@
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/StreamGeometry.hpp>
 
 #include <cmath>
 #include <cstdio>
