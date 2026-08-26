@@ -134,7 +134,7 @@ Base::Result<void> TemplateBuilder::SetRoot(
     if (::Aero::TryCast<::Aero::FrameworkElement>(&(root)) != nullptr) {
         Base::Result<void> templated =
             AeroGuiInternal::SetTemplatedParent(
-                ::Aero::TryCast<::Aero::FrameworkElement>(&(*root)), state.parent);
+                *::Aero::TryCast<::Aero::FrameworkElement>(&root), state.parent);
         if (!templated) {
             (void)AeroGuiInternal::SetTemplateRoot(*state.parent, nullptr);
             (void)state.tree->DetachElement(mount);
@@ -146,7 +146,7 @@ Base::Result<void> TemplateBuilder::SetRoot(
     if (!added) {
         if (::Aero::TryCast<::Aero::FrameworkElement>(&(root)) != nullptr) {
             (void)AeroGuiInternal::SetTemplatedParent(
-                ::Aero::TryCast<::Aero::FrameworkElement>(&(*root)), nullptr);
+                *::Aero::TryCast<::Aero::FrameworkElement>(&root), nullptr);
         }
         (void)AeroGuiInternal::SetTemplateRoot(*state.parent, nullptr);
         (void)state.tree->DetachElement(mount);
@@ -180,7 +180,7 @@ Base::Result<void> TemplateBuilder::AddPart(
     if (::Aero::TryCast<::Aero::FrameworkElement>(&(part)) != nullptr) {
         Base::Result<void> templated =
             AeroGuiInternal::SetTemplatedParent(
-                ::Aero::TryCast<::Aero::FrameworkElement>(&(*part)), state.parent);
+                *::Aero::TryCast<::Aero::FrameworkElement>(&part), state.parent);
         if (!templated) {
             (void)state.tree->DetachElement(mount);
             return templated.GetStatus();
@@ -191,7 +191,7 @@ Base::Result<void> TemplateBuilder::AddPart(
     if (!added) {
         if (::Aero::TryCast<::Aero::FrameworkElement>(&(part)) != nullptr) {
             (void)AeroGuiInternal::SetTemplatedParent(
-                ::Aero::TryCast<::Aero::FrameworkElement>(&(*part)), nullptr);
+                *::Aero::TryCast<::Aero::FrameworkElement>(&part), nullptr);
         }
         (void)state.tree->DetachElement(mount);
         return added.GetStatus();
