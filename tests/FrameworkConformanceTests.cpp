@@ -1390,10 +1390,9 @@ bool TestTutorialXamlSurface() {
     static_assert(std::is_base_of<Aero::Media::Animation::TimelineGroup, Aero::Media::Animation::ParallelTimeline>::value,
         "ParallelTimeline must derive TimelineGroup");
 
-    Gui gui;
-    Result<void> initialized = gui.Initialize();
-    CHECK(initialized);
-    Aero::Markup::XamlReader reader(gui);
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    Aero::Markup::XamlReader reader(live->gui);
 
     auto parse = [&](StringView markup) -> bool {
         Result<Aero::Markup::XamlDocument> document = reader.Parse(markup);
@@ -1406,7 +1405,8 @@ bool TestTutorialXamlSurface() {
     };
 
     CHECK(parse(StringView(
-        "<UserControl xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<UserControl xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+        " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
         "<UserControl.Resources>"
         "<BooleanToVisibilityConverter x:Key=\"VisibleWhenTrue\"/>"
         "</UserControl.Resources>"
@@ -1425,8 +1425,9 @@ bool TestTutorialXamlSurface() {
         CHECK(document);
         TextBlock* text = document.Value().Root<TextBlock>();
         CHECK(text != nullptr);
-        CHECK(text->GetFontFamily().Get() != nullptr);
-        CHECK(text->GetFontFamily()->GetSource() == StringView("./#Demo"));
+        const Ref<Aero::Media::FontFamily> family = text->GetFontFamily();
+        CHECK(family.Get() != nullptr);
+        CHECK(family->GetSource() == StringView("./#Demo"));
     }
     CHECK(parse(StringView(
         "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
