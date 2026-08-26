@@ -423,7 +423,7 @@ foreach(required_source_entry IN ITEMS
         "src/render/FrameEncoder.cpp"
         "src/render/TextRenderer.cpp"
         "src/render/RenderTree.cpp"
-        "src/gui/ViewRendererResources.cpp"
+        "src/gui/ViewRenderer.cpp"
         "src/gui/media/StoryboardHost.cpp"
         "src/gui/interactivity/InteractivityEngine.cpp"
         "src/gui/markup/ViewDocuments.cpp"
@@ -529,8 +529,7 @@ set(aero_allowed_gui_root_files
     "src/gui/ViewRender.cpp"
     "src/gui/ViewState.hpp"
     "src/gui/ViewRenderer.hpp"
-    "src/gui/ViewRendererResources.cpp"
-    "src/gui/ViewRendererResources.hpp")
+    "src/gui/ViewRenderer.cpp")
 foreach(aero_gui_root_file IN LISTS aero_gui_root_files)
     if(NOT aero_gui_root_file IN_LIST aero_allowed_gui_root_files)
         message(FATAL_ERROR
