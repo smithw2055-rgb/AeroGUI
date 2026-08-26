@@ -263,14 +263,30 @@ Base::Result<void> LayoutEngine::SetRoot(
     return {};
 }
 
+UIElement* LayoutEngine::ResolveQueued(VisualHandle handle) const noexcept {
+    if (!handle.IsValid() || root_ == nullptr) return nullptr;
+    ElementTree* tree = AeroGuiInternal::Tree(*root_);
+    if (tree == nullptr) return nullptr;
+    ::Aero::Media::Visual* visual = tree->ResolveHandle(handle);
+    return visual != nullptr ? ::Aero::TryCast<UIElement>(visual) : nullptr;
+}
+
+Base::Result<VisualHandle> LayoutEngine::EnqueueHandle(
+    UIElement& element) noexcept {
+    const VisualHandle handle = AeroGuiInternal::Handle(element);
+    if (!handle.IsValid()) {
+        return InvalidState("Layout element has no ElementTree handle");
+    }
+    return handle;
+}
+
 Base::Result<void> LayoutEngine::QueueMeasure(
     UIElement& element) noexcept {
     if (element.GetIsMeasureQueued()) return {};
-    Base::Result<Aero::VisualLease> lease =
-        Aero::VisualLease::Acquire(element);
-    if (!lease) return lease.GetStatus();
+    Base::Result<VisualHandle> handle = EnqueueHandle(element);
+    if (!handle) return handle.GetStatus();
     Base::Result<void> appended =
-        measureQueue_.PushBack(std::move(lease).Value());
+        measureQueue_.PushBack(handle.Value());
     if (!appended) return appended.GetStatus();
     AeroGuiInternal::Layout(element).measureQueued = true;
     return {};
@@ -279,26 +295,26 @@ Base::Result<void> LayoutEngine::QueueMeasure(
 Base::Result<void> LayoutEngine::QueueArrange(
     UIElement& element) noexcept {
     if (element.GetIsArrangeQueued()) return {};
-    Base::Result<Aero::VisualLease> lease =
-        Aero::VisualLease::Acquire(element);
-    if (!lease) return lease.GetStatus();
+    Base::Result<VisualHandle> handle = EnqueueHandle(element);
+    if (!handle) return handle.GetStatus();
     Base::Result<void> appended =
-        arrangeQueue_.PushBack(std::move(lease).Value());
+        arrangeQueue_.PushBack(handle.Value());
     if (!appended) return appended.GetStatus();
     AeroGuiInternal::Layout(element).arrangeQueued = true;
     return {};
 }
 
 void LayoutEngine::RemoveQueued(UIElement& element) noexcept {
-    auto remove = [&](Base::Vector<Aero::VisualLease>& queue) noexcept {
+    const VisualHandle handle = AeroGuiInternal::Handle(element);
+    auto remove = [&](Base::Vector<VisualHandle>& queue) noexcept {
         for (std::uint32_t index = 0U; index < queue.Size();) {
-            if (queue[index].Resolve() != &element) {
+            if (queue[index] != handle) {
                 ++index;
                 continue;
             }
             for (std::uint32_t next = index + 1U;
                  next < queue.Size(); ++next) {
-                queue[next - 1U] = std::move(queue[next]);
+                queue[next - 1U] = queue[next];
             }
             queue.PopBack();
         }
@@ -322,29 +338,28 @@ Base::Result<void> LayoutEngine::InvalidateMeasure(
             ? current->LayoutParent() : nullptr;
     }
 
-    Base::Vector<Aero::VisualLease> leases;
-    Base::Result<void> reserved = leases.Reserve(path.Size());
+    Base::Vector<VisualHandle> handles;
+    Base::Result<void> reserved = handles.Reserve(path.Size());
     if (!reserved) return reserved.GetStatus();
     for (UIElement* item : path) {
         if (item->GetIsMeasureQueued()) continue;
-        Base::Result<Aero::VisualLease> lease =
-            Aero::VisualLease::Acquire(*item);
-        if (!lease) return lease.GetStatus();
+        Base::Result<VisualHandle> handle = EnqueueHandle(*item);
+        if (!handle) return handle.GetStatus();
         Base::Result<void> staged =
-            leases.PushBack(std::move(lease).Value());
+            handles.PushBack(handle.Value());
         if (!staged) return staged.GetStatus();
     }
     reserved = measureQueue_.Reserve(
-        measureQueue_.Size() + leases.Size());
+        measureQueue_.Size() + handles.Size());
     if (!reserved) return reserved.GetStatus();
 
-    std::uint32_t leaseIndex = 0U;
+    std::uint32_t handleIndex = 0U;
     for (UIElement* item : path) {
         AeroGuiInternal::Layout(*item).measureValid = false;
         AeroGuiInternal::Layout(*item).arrangeValid = false;
         if (item->GetIsMeasureQueued()) continue;
         Base::Result<void> queued = measureQueue_.PushBack(
-            std::move(leases[leaseIndex++]));
+            handles[handleIndex++]);
         AERO_ASSERT(queued);
         (void)queued;
         AeroGuiInternal::Layout(*item).measureQueued = true;
@@ -365,28 +380,27 @@ Base::Result<void> LayoutEngine::InvalidateArrange(
             ? current->LayoutParent() : nullptr;
     }
 
-    Base::Vector<Aero::VisualLease> leases;
-    Base::Result<void> reserved = leases.Reserve(path.Size());
+    Base::Vector<VisualHandle> handles;
+    Base::Result<void> reserved = handles.Reserve(path.Size());
     if (!reserved) return reserved.GetStatus();
     for (UIElement* item : path) {
         if (item->GetIsArrangeQueued()) continue;
-        Base::Result<Aero::VisualLease> lease =
-            Aero::VisualLease::Acquire(*item);
-        if (!lease) return lease.GetStatus();
+        Base::Result<VisualHandle> handle = EnqueueHandle(*item);
+        if (!handle) return handle.GetStatus();
         Base::Result<void> staged =
-            leases.PushBack(std::move(lease).Value());
+            handles.PushBack(handle.Value());
         if (!staged) return staged.GetStatus();
     }
     reserved = arrangeQueue_.Reserve(
-        arrangeQueue_.Size() + leases.Size());
+        arrangeQueue_.Size() + handles.Size());
     if (!reserved) return reserved.GetStatus();
 
-    std::uint32_t leaseIndex = 0U;
+    std::uint32_t handleIndex = 0U;
     for (UIElement* item : path) {
         AeroGuiInternal::Layout(*item).arrangeValid = false;
         if (item->GetIsArrangeQueued()) continue;
         Base::Result<void> queued = arrangeQueue_.PushBack(
-            std::move(leases[leaseIndex++]));
+            handles[handleIndex++]);
         AERO_ASSERT(queued);
         (void)queued;
         AeroGuiInternal::Layout(*item).arrangeQueued = true;
@@ -407,13 +421,12 @@ Base::Result<void> LayoutEngine::MeasureElement(
         return {};
     }
 
-    Aero::VisualLease pendingArrange;
+    VisualHandle pendingArrange{};
     const bool queueArrange = !element.GetIsArrangeQueued();
     if (queueArrange) {
-        Base::Result<Aero::VisualLease> lease =
-            Aero::VisualLease::Acquire(element);
-        if (!lease) return lease.GetStatus();
-        pendingArrange = std::move(lease).Value();
+        Base::Result<VisualHandle> handle = EnqueueHandle(element);
+        if (!handle) return handle.GetStatus();
+        pendingArrange = handle.Value();
         Base::Result<void> reserved = arrangeQueue_.Reserve(
             arrangeQueue_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
@@ -430,7 +443,7 @@ Base::Result<void> LayoutEngine::MeasureElement(
         ++measuredCount_;
         if (queueArrange) {
             Base::Result<void> queued = arrangeQueue_.PushBack(
-                std::move(pendingArrange));
+                pendingArrange);
             AERO_ASSERT(queued);
             (void)queued;
             AeroGuiInternal::Layout(element).arrangeQueued = true;
@@ -535,7 +548,7 @@ Base::Result<void> LayoutEngine::MeasureElement(
     ++measuredCount_;
     if (queueArrange) {
         Base::Result<void> queued = arrangeQueue_.PushBack(
-            std::move(pendingArrange));
+            pendingArrange);
         AERO_ASSERT(queued);
         (void)queued;
         AeroGuiInternal::Layout(element).arrangeQueued = true;
@@ -746,19 +759,15 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         }
     }
 
-    Base::Vector<Aero::VisualLease> measure =
+    Base::Vector<VisualHandle> measure =
         std::move(measureQueue_);
-    measureQueue_ = Base::Vector<Aero::VisualLease>();
-    for (const Aero::VisualLease& lease : measure) {
-        ::Aero::Media::Visual* visual = lease.Resolve();
-        UIElement* element = visual != nullptr
-            ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
+    measureQueue_ = Base::Vector<VisualHandle>();
+    for (const VisualHandle handle : measure) {
+        UIElement* element = ResolveQueued(handle);
         if (element != nullptr) AeroGuiInternal::Layout(*element).measureQueued = false;
     }
-    for (const Aero::VisualLease& lease : measure) {
-        ::Aero::Media::Visual* visual = lease.Resolve();
-        UIElement* element = visual != nullptr
-            ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
+    for (const VisualHandle handle : measure) {
+        UIElement* element = ResolveQueued(handle);
         if (element == nullptr || element == root_ ||
             AeroGuiInternal::LayoutEngineOf(*element) != this || element->GetIsMeasureValid()) {
             continue;
@@ -776,19 +785,15 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         }
     }
 
-    Base::Vector<Aero::VisualLease> arrange =
+    Base::Vector<VisualHandle> arrange =
         std::move(arrangeQueue_);
-    arrangeQueue_ = Base::Vector<Aero::VisualLease>();
-    for (const Aero::VisualLease& lease : arrange) {
-        ::Aero::Media::Visual* visual = lease.Resolve();
-        UIElement* element = visual != nullptr
-            ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
+    arrangeQueue_ = Base::Vector<VisualHandle>();
+    for (const VisualHandle handle : arrange) {
+        UIElement* element = ResolveQueued(handle);
         if (element != nullptr) AeroGuiInternal::Layout(*element).arrangeQueued = false;
     }
-    for (const Aero::VisualLease& lease : arrange) {
-        ::Aero::Media::Visual* visual = lease.Resolve();
-        UIElement* element = visual != nullptr
-            ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
+    for (const VisualHandle handle : arrange) {
+        UIElement* element = ResolveQueued(handle);
         if (element == nullptr || element == root_ ||
             AeroGuiInternal::LayoutEngineOf(*element) != this || element->GetIsArrangeValid()) {
             continue;
@@ -868,18 +873,14 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     }
 
     // A converged root has recursively measured and arranged every attached
-    // descendant. Remove stale queue leases created during template
+    // descendant. Remove stale queue handles created during template
     // application so the next frame starts from a clean layout state.
-    for (const Aero::VisualLease& lease : measureQueue_) {
-        ::Aero::Media::Visual* visual = lease.Resolve();
-        UIElement* element = visual != nullptr
-            ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
+    for (const VisualHandle handle : measureQueue_) {
+        UIElement* element = ResolveQueued(handle);
         if (element != nullptr) AeroGuiInternal::Layout(*element).measureQueued = false;
     }
-    for (const Aero::VisualLease& lease : arrangeQueue_) {
-        ::Aero::Media::Visual* visual = lease.Resolve();
-        UIElement* element = visual != nullptr
-            ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
+    for (const VisualHandle handle : arrangeQueue_) {
+        UIElement* element = ResolveQueued(handle);
         if (element != nullptr) AeroGuiInternal::Layout(*element).arrangeQueued = false;
     }
     measureQueue_.Clear();

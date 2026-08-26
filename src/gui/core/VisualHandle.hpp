@@ -13,4 +13,12 @@ struct VisualHandle {
     }
 };
 
+constexpr bool operator==(VisualHandle left, VisualHandle right) noexcept {
+    return left.index == right.index && left.generation == right.generation;
+}
+
+constexpr bool operator!=(VisualHandle left, VisualHandle right) noexcept {
+    return !(left == right);
+}
+
 } // namespace Aero
