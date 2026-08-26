@@ -63,18 +63,40 @@
 #include <Aero/CommandBinding.hpp>
 #include <Aero/ApplicationCommands.hpp>
 #include <Aero/Controls/BulletDecorator.hpp>
+#include <Aero/Controls/Border.hpp>
 #include <Aero/Controls/ColumnDefinition.hpp>
+#include <Aero/Controls/Control.hpp>
+#include <Aero/Controls/Image.hpp>
 #include <Aero/Controls/ListView.hpp>
 #include <Aero/Controls/Page.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
 #include <Aero/Controls/TreeViewItem.hpp>
+#include <Aero/Controls/UniformGrid.hpp>
 #include <Aero/Controls/UserControl.hpp>
+#include <Aero/Controls/Primitives/RepeatButton.hpp>
 #include <Aero/Controls/Primitives/Thumb.hpp>
 #include <Aero/Controls/Primitives/Track.hpp>
 #include <Aero/Data/BooleanToVisibilityConverter.hpp>
+#include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Data/MultiBinding.hpp>
+#include <Aero/Events/EventArgs.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/Markup/XamlProvider.hpp>
+#include <Aero/Media/Animation/DoubleAnimationBase.hpp>
+#include <Aero/Media/Animation/DiscretePointKeyFrame.hpp>
+#include <Aero/Media/Animation/EasingPointKeyFrame.hpp>
+#include <Aero/Media/Animation/EasingThicknessKeyFrame.hpp>
 #include <Aero/Media/Animation/ParallelTimeline.hpp>
+#include <Aero/Media/Animation/PointAnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/ThicknessAnimationUsingKeyFrames.hpp>
+#include <Aero/Media/DrawingContext.hpp>
+#include <Aero/Media/ImageSource.hpp>
 #include <Aero/Media/MatrixTransform.hpp>
+#include <Aero/Media/ShaderEffect.hpp>
+#include <Aero/Media/SolidColorBrush.hpp>
+#include <Aero/Media/TransformGroup.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/Shapes/Rectangle.hpp>
 #include <Aero/Interactivity/Interaction.hpp>
 #include <Aero/KeyBinding.hpp>
 #include <Aero/Media/BitmapImage.hpp>
@@ -123,9 +145,12 @@ using Aero::Controls::PasswordBox;
 using Aero::Controls::StackPanel;
 using Aero::Controls::TabControl;
 using Aero::Controls::TextBlock;
+using Aero::Controls::UniformGrid;
+using Aero::Controls::UserControl;
 using Aero::Controls::VirtualizingStackPanel;
 using Aero::Data::CollectionView;
 using Aero::Data::CollectionViewSource;
+using Aero::Data::IMultiValueConverter;
 using Aero::Data::ListSortDirection;
 using Aero::Data::NotifyPropertyChanged;
 using Aero::DataTemplate;
@@ -134,6 +159,7 @@ using Aero::FrameworkElement;
 using Aero::Gui;
 using Aero::BlendMode;
 using Aero::Input::ApplicationCommands;
+using Aero::Input::ICommand;
 using Aero::Media::ArcSegment;
 using Aero::Media::BezierSegment;
 using Aero::Media::CombinedGeometry;
@@ -151,8 +177,11 @@ using Aero::Media::PolyBezierSegment;
 using Aero::Media::PolyLineSegment;
 using Aero::Media::PolyQuadraticBezierSegment;
 using Aero::Media::QuadraticBezierSegment;
+using Aero::Media::ShaderEffect;
+using Aero::Media::SolidColorBrush;
 using Aero::Media::TranslateTransform;
 using Aero::Media::Animation::DoubleAnimation;
+using Aero::Media::Animation::DoubleAnimationBase;
 using Aero::Media::Animation::Duration;
 using Aero::Media::Animation::KeyTime;
 using Aero::Media::Animation::RepeatBehavior;
@@ -404,6 +433,260 @@ public:
     }
 };
 
+class NumericUpDown final : public UserControl {
+    AERO_DECLARE_TYPE_NAMED(
+        NumericUpDown,
+        UserControl,
+        "clr-namespace:UserControls",
+        "NumericUpDown")
+public:
+    NumericUpDown() noexcept : UserControl(StaticTypeId()) {}
+
+    std::int32_t GetNumericValue() const noexcept {
+        return GetValueOr(ValueProperty, 0);
+    }
+    std::int32_t GetMinValue() const noexcept {
+        return GetValueOr(MinValueProperty, 0);
+    }
+    std::int32_t GetMaxValue() const noexcept {
+        return GetValueOr(MaxValueProperty, 255);
+    }
+    std::int32_t GetStepValue() const noexcept {
+        return GetValueOr(StepValueProperty, 1);
+    }
+    void SetNumericValue(std::int32_t value) noexcept {
+        const std::int32_t min = GetMinValue();
+        const std::int32_t max = GetMaxValue();
+        if (value < min) value = min;
+        if (value > max) value = max;
+        SetValue(ValueProperty, value);
+    }
+
+    void UpButton_Click(Aero::Base::Object*, Aero::RoutedEventArgs&) noexcept {
+        SetNumericValue(GetNumericValue() + GetStepValue());
+    }
+    void DownButton_Click(Aero::Base::Object*, Aero::RoutedEventArgs&) noexcept {
+        SetNumericValue(GetNumericValue() - GetStepValue());
+    }
+
+    inline static constexpr DependencyProperty<std::int32_t> ValueProperty{"Value"};
+    inline static constexpr DependencyProperty<std::int32_t> MinValueProperty{"MinValue"};
+    inline static constexpr DependencyProperty<std::int32_t> MaxValueProperty{"MaxValue"};
+    inline static constexpr DependencyProperty<std::int32_t> StepValueProperty{"StepValue"};
+};
+
+class ColorConverter final : public IMultiValueConverter {
+    AERO_DECLARE_TYPE_NAMED(
+        ColorConverter,
+        IMultiValueConverter,
+        "clr-namespace:UserControls",
+        "ColorConverter")
+public:
+    Aero::Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Result<Aero::Value> Convert(
+        Span<const Aero::Value> values,
+        Aero::Meta::TypeId,
+        const Aero::Value&) noexcept override {
+        if (values.Size() < 3U) {
+            return Aero::Base::Status::Failure(
+                ErrorCode::InvalidArgument,
+                "ColorConverter requires three channels");
+        }
+        auto channel = [](const Aero::Value& value) noexcept -> float {
+            if (value.Kind() == Aero::Base::ValueKind::SignedInteger) {
+                return static_cast<float>(value.AsSignedInteger()) / 255.0F;
+            }
+            if (value.Kind() == Aero::Base::ValueKind::Double) {
+                return static_cast<float>(value.AsDouble()) / 255.0F;
+            }
+            if (value.Kind() == Aero::Base::ValueKind::UnsignedInteger) {
+                return static_cast<float>(value.AsUnsignedInteger()) / 255.0F;
+            }
+            return 0.0F;
+        };
+        return Aero::Meta::ValueCodec<Aero::Base::Color>::Encode({
+            channel(values[0]),
+            channel(values[1]),
+            channel(values[2]),
+            1.0F});
+    }
+};
+
+class Clock final : public Aero::Controls::Control {
+    AERO_DECLARE_TYPE_NAMED(
+        Clock,
+        Aero::Controls::Control,
+        "clr-namespace:CustomControl",
+        "Clock")
+public:
+    Clock() noexcept : Control(StaticTypeId()) {}
+    std::int32_t GetHour() const noexcept {
+        return GetValueOr(HourProperty, 0);
+    }
+    void SetHour(std::int32_t value) noexcept {
+        SetValue(HourProperty, value);
+    }
+    inline static constexpr DependencyProperty<std::int32_t> HourProperty{"Hour"};
+};
+
+class CircleAnimation final : public DoubleAnimationBase {
+    AERO_DECLARE_TYPE_NAMED(
+        CircleAnimation,
+        DoubleAnimationBase,
+        "clr-namespace:CustomAnimation",
+        "CircleAnimation")
+public:
+    CircleAnimation() noexcept : DoubleAnimationBase(StaticTypeId()) {}
+    double GetRadius() const noexcept {
+        return GetValueOr(RadiusProperty, 1.0);
+    }
+    void SetRadius(double value) noexcept {
+        SetValue(RadiusProperty, value);
+    }
+    inline static constexpr DependencyProperty<double> RadiusProperty{"Radius"};
+protected:
+    double GetCurrentValueCore(
+        double defaultOriginValue,
+        double defaultDestinationValue,
+        double progress) const noexcept override {
+        const double from = ResolveFrom(defaultOriginValue);
+        const double to = ResolveTo(defaultDestinationValue);
+        const double clamped = progress < 0.0 ? 0.0 : (progress > 1.0 ? 1.0 : progress);
+        const double circular = 1.0 - std::sqrt(std::max(0.0, 1.0 - clamped * clamped));
+        return from + (to - from) * circular * GetRadius();
+    }
+};
+
+class Game final : public FrameworkElement {
+    AERO_DECLARE_TYPE_NAMED(
+        Game,
+        FrameworkElement,
+        "clr-namespace:CustomRender",
+        "Game")
+public:
+    static int renderCount;
+
+    Game() noexcept : FrameworkElement(StaticTypeId()) {}
+protected:
+    void OnRender(Aero::Media::DrawingContext& context) noexcept override {
+        ++renderCount;
+        static_cast<void>(context.DrawRectangle(
+            {0.0, 0.0, GetRenderSize().width, GetRenderSize().height},
+            Aero::Base::Color{0.2F, 0.3F, 0.8F, 1.0F}));
+    }
+};
+
+int Game::renderCount = 0;
+
+class RgbModel final :
+    public Aero::Base::Object,
+    public NotifyPropertyChanged<RgbModel> {
+    AERO_DECLARE_TYPE_NAMED(
+        RgbModel,
+        Aero::Base::Object,
+        "clr-namespace:UserControls",
+        "RgbModel")
+public:
+    Aero::Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    std::int32_t GetR() const noexcept { return r_; }
+    std::int32_t GetG() const noexcept { return g_; }
+    std::int32_t GetB() const noexcept { return b_; }
+    void SetR(std::int32_t value) noexcept {
+        r_ = value;
+        RaisePropertyChanged("R");
+    }
+    void SetG(std::int32_t value) noexcept {
+        g_ = value;
+        RaisePropertyChanged("G");
+    }
+    void SetB(std::int32_t value) noexcept {
+        b_ = value;
+        RaisePropertyChanged("B");
+    }
+private:
+    std::int32_t r_ = 0;
+    std::int32_t g_ = 0;
+    std::int32_t b_ = 0;
+};
+
+class HelloCommand;
+
+class CommandsViewModel final :
+    public Aero::Base::Object,
+    public NotifyPropertyChanged<CommandsViewModel> {
+    AERO_DECLARE_TYPE_NAMED(
+        CommandsViewModel,
+        Aero::Base::Object,
+        "clr-namespace:Commands",
+        "ViewModel")
+public:
+    Aero::Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    const String& GetInput() const noexcept { return input_; }
+    const String& GetOutput() const noexcept { return output_; }
+    Ref<ICommand> GetSayHelloCommand() const noexcept { return command_; }
+    void SetInput(String value) noexcept {
+        input_ = std::move(value);
+        RaisePropertyChanged("Input");
+    }
+    void SetOutput(String value) noexcept {
+        output_ = std::move(value);
+        RaisePropertyChanged("Output");
+    }
+    void SetSayHelloCommand(Ref<ICommand> value) noexcept {
+        command_ = std::move(value);
+        RaisePropertyChanged("SayHelloCommand");
+    }
+private:
+    String input_;
+    String output_;
+    Ref<ICommand> command_;
+};
+
+class HelloCommand final : public ICommand {
+    AERO_DECLARE_TYPE_NAMED(
+        HelloCommand,
+        ICommand,
+        "clr-namespace:Commands",
+        "HelloCommand")
+public:
+    explicit HelloCommand(CommandsViewModel* owner) noexcept
+        : owner_(owner) {}
+    Aero::Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Result<bool> CanExecute(
+        const Aero::Value&,
+        Aero::UIElement* = nullptr) noexcept override {
+        return true;
+    }
+    void Execute(
+        const Aero::Value& parameter,
+        Aero::UIElement* = nullptr) noexcept override {
+        ++executionCount_;
+        if (owner_ == nullptr) return;
+        String greeting;
+        static_cast<void>(greeting.Assign("Hello"));
+        if (parameter.Kind() == Aero::Base::ValueKind::String &&
+            !parameter.AsString().Empty()) {
+            static_cast<void>(greeting.Assign("Hello "));
+            static_cast<void>(greeting.Append(parameter.AsString()));
+        }
+        owner_->SetOutput(std::move(greeting));
+    }
+    std::uint32_t GetExecutionCount() const noexcept {
+        return executionCount_;
+    }
+private:
+    CommandsViewModel* owner_ = nullptr;
+    std::uint32_t executionCount_ = 0U;
+};
+
 class PickingSelector final : public DataTemplateSelector {
 public:
     Ref<DataTemplate> pick;
@@ -440,6 +723,152 @@ Result<void> RegisterTestTypes(Registration& registration) noexcept {
 const Aero::ModuleRegistration kTestModule =
     Aero::DefineModule("Aero.FrameworkTests", RegisterTestTypes);
 
+Result<void> RegisterTutorialTypes(Registration& registration) noexcept {
+    using Aero::Meta::FrameworkPropertyMetadata;
+    Result<void> status = Aero::Meta::Register<NumericUpDown>(registration)
+        .Property(
+            NumericUpDown::ValueProperty,
+            FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(
+            NumericUpDown::MinValueProperty,
+            FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(
+            NumericUpDown::MaxValueProperty,
+            FrameworkPropertyMetadata(std::int32_t{255}))
+        .Property(
+            NumericUpDown::StepValueProperty,
+            FrameworkPropertyMetadata(std::int32_t{1}))
+        .EventHandler<Aero::RoutedEventArgs, &NumericUpDown::UpButton_Click>(
+            "UpButton_Click")
+        .EventHandler<Aero::RoutedEventArgs, &NumericUpDown::DownButton_Click>(
+            "DownButton_Click")
+        .Factory()
+        .Result();
+    if (!status) return status;
+
+    status = Aero::Meta::Register<ColorConverter>(registration)
+        .Factory()
+        .Result();
+    if (!status) return status;
+
+    status = Aero::Meta::Register<RgbModel>(registration)
+        .Property<&RgbModel::GetR, &RgbModel::SetR>("R")
+        .Property<&RgbModel::GetG, &RgbModel::SetG>("G")
+        .Property<&RgbModel::GetB, &RgbModel::SetB>("B")
+        .PropertyChangeNotifications()
+        .Factory()
+        .Result();
+    if (!status) return status;
+
+    status = Aero::Meta::Register<Clock>(registration)
+        .Property(
+            Clock::HourProperty,
+            FrameworkPropertyMetadata(std::int32_t{0}))
+        .Factory()
+        .Result();
+    if (!status) return status;
+
+    status = Aero::Meta::Register<CircleAnimation>(registration)
+        .Property(
+            CircleAnimation::RadiusProperty,
+            FrameworkPropertyMetadata(1.0))
+        .Factory()
+        .Result();
+    if (!status) return status;
+
+    status = Aero::Meta::Register<Game>(registration)
+        .Factory()
+        .Result();
+    if (!status) return status;
+
+    status = Aero::Meta::Register<HelloCommand>(registration)
+        .Result();
+    if (!status) return status;
+
+    return Aero::Meta::Register<CommandsViewModel>(registration)
+        .Property<&CommandsViewModel::GetInput, &CommandsViewModel::SetInput>(
+            "Input")
+        .Property<&CommandsViewModel::GetOutput, &CommandsViewModel::SetOutput>(
+            "Output")
+        .Property<
+            &CommandsViewModel::GetSayHelloCommand,
+            &CommandsViewModel::SetSayHelloCommand>("SayHelloCommand")
+        .PropertyChangeNotifications()
+        .Factory()
+        .Result();
+}
+
+const Aero::ModuleRegistration kTutorialModule =
+    Aero::DefineModule("Aero.TutorialTests", RegisterTutorialTypes);
+
+constexpr char kNumericUpDownXaml[] =
+    "<UserControl xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+    " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+    " x:Class=\"UserControls.NumericUpDown\" x:Name=\"Root\">"
+    "<StackPanel>"
+    "<RepeatButton x:Name=\"UpButton\" Content=\"+\" Click=\"UpButton_Click\"/>"
+    "<TextBlock x:Name=\"ValueText\" Text=\"{Binding Value, ElementName=Root}\"/>"
+    "<RepeatButton x:Name=\"DownButton\" Content=\"-\" Click=\"DownButton_Click\"/>"
+    "</StackPanel>"
+    "</UserControl>";
+
+constexpr char kLanguageEnXaml[] =
+    "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+    " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+    " xmlns:sys=\"clr-namespace:System;assembly=mscorlib\">"
+    "<sys:String x:Key=\"Greeting\">Hello</sys:String>"
+    "</ResourceDictionary>";
+
+constexpr char kLanguageFrXaml[] =
+    "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+    " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+    " xmlns:sys=\"clr-namespace:System;assembly=mscorlib\">"
+    "<sys:String x:Key=\"Greeting\">Bonjour</sys:String>"
+    "</ResourceDictionary>";
+
+bool UriEndsWith(
+    const Aero::Base::ResourceUri& uri,
+    StringView suffix) noexcept {
+    const StringView canonical = uri.Canonical();
+    const StringView path = uri.Path();
+    auto has = [&](StringView value) noexcept {
+        if (suffix.SizeBytes() > value.SizeBytes()) return false;
+        const std::uint32_t offset =
+            value.SizeBytes() - suffix.SizeBytes();
+        return std::memcmp(
+            value.Data() + offset,
+            suffix.Data(),
+            suffix.SizeBytes()) == 0;
+    };
+    return has(canonical) || has(path);
+}
+
+Result<Aero::Markup::StreamResourceInfo> OpenTutorialXaml(
+    const Aero::Base::ResourceUri& uri,
+    void*) noexcept {
+    const char* text = nullptr;
+    if (UriEndsWith(uri, StringView("NumericUpDown.xaml"))) {
+        text = kNumericUpDownXaml;
+    } else if (UriEndsWith(uri, StringView("Language-en.xaml"))) {
+        text = kLanguageEnXaml;
+    } else if (UriEndsWith(uri, StringView("Language-fr.xaml"))) {
+        text = kLanguageFrXaml;
+    }
+    if (text == nullptr) {
+        return Aero::Base::Status::Failure(
+            ErrorCode::NotFound, "tutorial XAML provider has no such uri");
+    }
+    Result<Ref<MemoryStream>> stream = MakeRef<MemoryStream>(
+        reinterpret_cast<const std::uint8_t*>(text),
+        static_cast<std::uint32_t>(std::strlen(text)));
+    if (!stream) return stream.GetStatus();
+    Aero::Markup::StreamResourceInfo info;
+    info.uri = uri;
+    info.stream = Ref<Stream>(std::move(stream).Value());
+    info.revision = 1U;
+    return info;
+}
+
 // View::~View currently SIGSEGVs when content is mounted (object-factory
 // shutdown vs. UnmountRoot). Tests that SetContent keep the Gui+View on the
 // heap for the process lifetime so CHECK-failure returns cannot unwind it.
@@ -460,6 +889,58 @@ LiveGui* NewLiveGui(ViewOptions options = {}) {
     if (!module) {
         std::fprintf(stderr, "AddModule failed: %s\n",
             module.GetStatus().message);
+        return nullptr;
+    }
+    Result<void> initialized = live->gui.Initialize();
+    if (!initialized) {
+        std::fprintf(stderr, "Initialize failed: %s\n",
+            initialized.GetStatus().message);
+        return nullptr;
+    }
+    Result<Ref<View>> created = live->gui.CreateView(options);
+    if (!created) {
+        std::fprintf(stderr, "CreateView failed: %s\n",
+            created.GetStatus().message);
+        return nullptr;
+    }
+    live->view = std::move(created).Value();
+    live->view->Activate();
+    live->view->SetSize({640.0, 480.0});
+    ViewViewport viewport;
+    viewport.logicalSize = {640.0, 480.0};
+    viewport.pixelWidth = 640U;
+    viewport.pixelHeight = 480U;
+    viewport.dpiScale = 1.0;
+    static_cast<void>(live->view->SetViewport(viewport));
+    return live;
+}
+
+LiveGui* NewTutorialLiveGui(ViewOptions options = {}) {
+    auto* live = new LiveGui();
+    options.diagnostics = &live->diagnostics;
+    Result<void> module = live->gui.AddModule(kTestModule);
+    if (!module) {
+        std::fprintf(stderr, "AddModule test failed: %s\n",
+            module.GetStatus().message);
+        return nullptr;
+    }
+    Result<void> tutorial = live->gui.AddModule(kTutorialModule);
+    if (!tutorial) {
+        std::fprintf(stderr, "AddModule tutorial failed: %s\n",
+            tutorial.GetStatus().message);
+        return nullptr;
+    }
+    Result<Ref<Aero::Markup::XamlProviderAdapter>> provider =
+        MakeRef<Aero::Markup::XamlProviderAdapter>(
+            &OpenTutorialXaml, nullptr, nullptr);
+    if (!provider) {
+        std::fprintf(stderr, "tutorial XAML provider allocation failed\n");
+        return nullptr;
+    }
+    Result<void> xaml = live->gui.SetXamlProvider(provider.Value(), "memory");
+    if (!xaml) {
+        std::fprintf(stderr, "SetXamlProvider failed: %s\n",
+            xaml.GetStatus().message);
         return nullptr;
     }
     Result<void> initialized = live->gui.Initialize();
@@ -1449,6 +1930,357 @@ bool TestTutorialXamlSurface() {
         "<Page xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
         "<PasswordBox/>"
         "</Page>")));
+    {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<TextBlock xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " FontFamily=\"./#Rajdhani SemiBold\"/>"));
+        CHECK(document);
+        TextBlock* text = document.Value().Root<TextBlock>();
+        CHECK(text != nullptr);
+        const Ref<Aero::Media::FontFamily> family = text->GetFontFamily();
+        CHECK(family.Get() != nullptr);
+        CHECK(family->GetSource() == StringView("./#Rajdhani SemiBold"));
+    }
+    CHECK(parse(StringView(
+        "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<Grid.Resources>"
+        "<ImageSource x:Key=\"FillBlue\">fill-blue.png</ImageSource>"
+        "</Grid.Resources>"
+        "<BulletDecorator><BulletDecorator.Bullet><Ellipse Width=\"8\" Height=\"8\"/></BulletDecorator.Bullet>"
+        "<TextBlock Text=\"item\"/></BulletDecorator>"
+        "</Grid>")));
+    CHECK(parse(StringView(
+        "<Path xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<Path.Data>"
+        "<PathGeometry>"
+        "<PathFigure StartPoint=\"0,0\"><LineSegment Point=\"10,0\"/></PathFigure>"
+        "</PathGeometry>"
+        "</Path.Data>"
+        "</Path>")));
+    CHECK(parse(StringView(
+        "<PointAnimationUsingKeyFrames xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<DiscretePointKeyFrame KeyTime=\"0\" Value=\"0,0\"/>"
+        "<EasingPointKeyFrame KeyTime=\"0:0:0.2\" Value=\"8,4\"/>"
+        "</PointAnimationUsingKeyFrames>")));
+    CHECK(parse(StringView(
+        "<ThicknessAnimationUsingKeyFrames xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<EasingThicknessKeyFrame KeyTime=\"0:0:0.1\" Value=\"1,2,3,4\"/>"
+        "</ThicknessAnimationUsingKeyFrames>")));
+    CHECK(parse(StringView(
+        "<Style xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+        " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" TargetType=\"Button\">"
+        "<Style.Triggers>"
+        "<MultiDataTrigger>"
+        "<MultiDataTrigger.Conditions>"
+        "<Condition Binding=\"{Binding Active}\" Value=\"True\"/>"
+        "</MultiDataTrigger.Conditions>"
+        "<Setter Property=\"Opacity\" Value=\"0.5\"/>"
+        "</MultiDataTrigger>"
+        "</Style.Triggers>"
+        "</Style>")));
+    {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:noesis=\"clr-namespace:NoesisGUIExtensions;assembly=Noesis.GUI.Extensions\">"
+            "<noesis:Element.Transform3D>"
+            "<noesis:CompositeTransform3D RotationY=\"-8\" TranslateZ=\"40\" ScaleX=\"1.2\"/>"
+            "</noesis:Element.Transform3D>"
+            "<Grid.LayoutTransform>"
+            "<RotateTransform Angle=\"10\"/>"
+            "</Grid.LayoutTransform>"
+            "</Grid>"));
+        CHECK(document);
+        Grid* grid = document.Value().Root<Grid>();
+        CHECK(grid != nullptr);
+        CHECK(grid->GetLayoutTransform().Get() != nullptr);
+        CompositeTransform3D* transform =
+            TryCast<CompositeTransform3D>(grid->GetTransform3D().Get());
+        CHECK(transform != nullptr);
+        CHECK(Near(transform->GetRotationY(), -8.0));
+        CHECK(Near(transform->GetTranslateZ(), 40.0));
+        CHECK(Near(transform->GetScaleX(), 1.2));
+    }
+    {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Border xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+            "<Border.Effect><ShaderEffect PixelShader=\"noise.frag\"/></Border.Effect>"
+            "</Border>"));
+        CHECK(document);
+        Aero::Controls::Border* border =
+            document.Value().Root<Aero::Controls::Border>();
+        CHECK(border != nullptr);
+        ShaderEffect* shader = TryCast<ShaderEffect>(border->GetEffect().Get());
+        CHECK(shader != nullptr);
+        CHECK(shader->GetPixelShader() == StringView("noise.frag"));
+    }
+    CHECK(parse(StringView(
+        "<Path xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+        " xmlns:b=\"http://schemas.microsoft.com/xaml/behaviors\""
+        " xmlns:noesis=\"clr-namespace:NoesisGUIExtensions;assembly=Noesis.GUI.Extensions\""
+        " Data=\"M0,0 L10,0 L10,10 Z\">"
+        "<b:Interaction.Behaviors>"
+        "<noesis:BackgroundEffectBehavior>"
+        "<BlurEffect Radius=\"6\"/>"
+        "</noesis:BackgroundEffectBehavior>"
+        "</b:Interaction.Behaviors>"
+        "</Path>")));
+    return true;
+}
+
+bool TestTutorialRuntimePatterns() {
+    LiveGui* live = NewTutorialLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    Aero::Markup::XamlReader reader(live->gui);
+
+    {
+        Result<Ref<NumericUpDown>> control = MakeRef<NumericUpDown>();
+        CHECK(control);
+        Result<void> loaded = live->gui.LoadComponent(
+            *control.Value(), "memory:///NumericUpDown.xaml");
+        CHECK(loaded);
+        CHECK(control.Value()->FindName("UpButton") != nullptr);
+        control.Value()->SetNumericValue(10);
+        CHECK(view.SetContent(control.Value(), {200.0, 80.0}));
+        Pump(view, 0.016);
+        Aero::Controls::Primitives::RepeatButton* up =
+            control.Value()->FindName<Aero::Controls::Primitives::RepeatButton>(
+                "UpButton");
+        CHECK(up != nullptr);
+        Aero::RoutedEventArgs click;
+        up->RaiseEvent(
+            Aero::Controls::Primitives::ButtonBase::ClickEvent, &click);
+        Pump(view, 0.032);
+        CHECK(control.Value()->GetNumericValue() == 11);
+    }
+
+    {
+        Result<Ref<RgbModel>> rgb = MakeRef<RgbModel>();
+        CHECK(rgb);
+        rgb.Value()->SetR(255);
+        rgb.Value()->SetG(0);
+        rgb.Value()->SetB(0);
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Rectangle xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+            " xmlns:local=\"clr-namespace:UserControls\""
+            " Width=\"40\" Height=\"40\">"
+            "<Rectangle.Resources>"
+            "<local:ColorConverter x:Key=\"ColorConverter\"/>"
+            "</Rectangle.Resources>"
+            "<Rectangle.Fill>"
+            "<SolidColorBrush>"
+            "<SolidColorBrush.Color>"
+            "<MultiBinding Converter=\"{StaticResource ColorConverter}\">"
+            "<Binding Path=\"R\"/>"
+            "<Binding Path=\"G\"/>"
+            "<Binding Path=\"B\"/>"
+            "</MultiBinding>"
+            "</SolidColorBrush.Color>"
+            "</SolidColorBrush>"
+            "</Rectangle.Fill>"
+            "</Rectangle>"));
+        CHECK(document);
+        Aero::Shapes::Rectangle* rectangle =
+            document.Value().Root<Aero::Shapes::Rectangle>();
+        CHECK(rectangle != nullptr);
+        rectangle->SetValue(
+            FrameworkElement::DataContextProperty,
+            Aero::Value::FromObject(RgbModel::StaticTypeId(), rgb.Value()));
+        CHECK(view.SetContent(
+            std::move(document).Value(), {80.0, 80.0}));
+        rectangle = TryCast<Aero::Shapes::Rectangle>(view.GetContent());
+        CHECK(rectangle != nullptr);
+        Pump(view, 0.016);
+        Pump(view, 0.032);
+        SolidColorBrush* brush =
+            TryCast<SolidColorBrush>(rectangle->GetFill().Get());
+        CHECK(brush != nullptr);
+        CHECK(Near(static_cast<double>(brush->GetColor().red), 1.0, 0.05));
+        CHECK(Near(static_cast<double>(brush->GetColor().green), 0.0, 0.05));
+        rgb.Value()->SetG(255);
+        Pump(view, 0.048);
+        CHECK(Near(static_cast<double>(brush->GetColor().green), 1.0, 0.05));
+    }
+
+    {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<local:CircleAnimation xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:local=\"clr-namespace:CustomAnimation\""
+            " From=\"0\" To=\"10\" Radius=\"1\"/>"));
+        CHECK(document);
+        CircleAnimation* animation = document.Value().Root<CircleAnimation>();
+        CHECK(animation != nullptr);
+        CHECK(Near(animation->GetRadius(), 1.0));
+        const double mid = animation->GetCurrentValue(0.0, 10.0, 0.5);
+        CHECK(mid > 0.0 && mid < 10.0);
+        CHECK(!Near(mid, 5.0, 0.01));
+    }
+
+    {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+            " xmlns:local=\"clr-namespace:CustomControl\" Width=\"120\" Height=\"40\">"
+            "<Grid.Resources>"
+            "<Style TargetType=\"{x:Type local:Clock}\">"
+            "<Setter Property=\"Background\" Value=\"Red\"/>"
+            "<Setter Property=\"Template\">"
+            "<Setter.Value>"
+            "<ControlTemplate TargetType=\"{x:Type local:Clock}\">"
+            "<Border Background=\"{TemplateBinding Background}\">"
+            "<TextBlock Text=\"{Binding Hour, RelativeSource={RelativeSource TemplatedParent}}\"/>"
+            "</Border>"
+            "</ControlTemplate>"
+            "</Setter.Value>"
+            "</Setter>"
+            "</Style>"
+            "</Grid.Resources>"
+            "<local:Clock x:Name=\"Face\" Hour=\"7\"/>"
+            "</Grid>"));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {120.0, 40.0}));
+        Pump(view, 0.016);
+        Grid* grid = TryCast<Grid>(view.GetContent());
+        CHECK(grid != nullptr);
+        Clock* clock = grid->FindName<Clock>("Face");
+        CHECK(clock != nullptr);
+        CHECK(clock->GetHour() == 7);
+        CHECK(clock->ApplyTemplate());
+        CHECK(clock->GetBackground().Get() != nullptr);
+        CHECK(Aero::VisualTreeHelper::GetChildrenCount(*clock) >= 1U);
+    }
+
+    {
+        Game::renderCount = 0;
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<local:Game xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:local=\"clr-namespace:CustomRender\" Width=\"80\" Height=\"60\"/>"));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {80.0, 60.0}));
+        Pump(view, 0.016);
+        Pump(view, 0.032);
+        CHECK(Game::renderCount > 0);
+    }
+
+    {
+        Result<Ref<CommandsViewModel>> model = MakeRef<CommandsViewModel>();
+        CHECK(model);
+        Result<Ref<HelloCommand>> hello = MakeRef<HelloCommand>(model.Value().Get());
+        CHECK(hello);
+        model.Value()->SetSayHelloCommand(hello.Value());
+        String input;
+        CHECK(input.Assign("Ada"));
+        model.Value()->SetInput(std::move(input));
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Button xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " Width=\"80\" Height=\"32\" Command=\"{Binding SayHelloCommand}\""
+            " CommandParameter=\"Ada\" Content=\"Say\"/>"));
+        CHECK(document);
+        Button* button = document.Value().Root<Button>();
+        CHECK(button != nullptr);
+        button->SetValue(
+            FrameworkElement::DataContextProperty,
+            Aero::Value::FromObject(
+                CommandsViewModel::StaticTypeId(), model.Value()));
+        CHECK(view.SetContent(std::move(document).Value(), {80.0, 32.0}));
+        button = TryCast<Button>(view.GetContent());
+        CHECK(button != nullptr);
+        Pump(view, 0.016);
+        CHECK(button->GetCommand() != nullptr);
+        Aero::RoutedEventArgs click;
+        button->RaiseEvent(
+            Aero::Controls::Primitives::ButtonBase::ClickEvent, &click);
+        Pump(view, 0.032);
+        CHECK(hello.Value()->GetExecutionCount() >= 1U);
+        CHECK(model.Value()->GetOutput() == StringView("Hello Ada") ||
+            model.Value()->GetOutput() == StringView("Hello"));
+    }
+
+    {
+        Result<Aero::Markup::XamlDocument> host = reader.Parse(StringView(
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" Width=\"200\" Height=\"40\">"
+            "<TextBlock x:Name=\"Label\" Text=\"{DynamicResource Greeting}\"/>"
+            "</Grid>"));
+        CHECK(host);
+        CHECK(view.SetContent(std::move(host).Value(), {200.0, 40.0}));
+        Pump(view, 0.016);
+        Grid* grid = TryCast<Grid>(view.GetContent());
+        CHECK(grid != nullptr);
+        Result<Aero::Markup::XamlDocument> english = reader.Parse(
+            StringView(kLanguageEnXaml));
+        Result<Aero::Markup::XamlDocument> french = reader.Parse(
+            StringView(kLanguageFrXaml));
+        CHECK(english && french);
+        Aero::ResourceDictionary* en =
+            english.Value().Root<Aero::ResourceDictionary>();
+        Aero::ResourceDictionary* fr =
+            french.Value().Root<Aero::ResourceDictionary>();
+        CHECK(en != nullptr && fr != nullptr);
+        CHECK(grid->GetResources().AddMerged(*en));
+        Pump(view, 0.032);
+        TextBlock* label = grid->FindName<TextBlock>("Label");
+        CHECK(label != nullptr);
+        CHECK(label->GetText() == StringView("Hello"));
+        grid->GetResources().ClearMergedDictionaries();
+        CHECK(grid->GetResources().AddMerged(*fr));
+        Pump(view, 0.048);
+        CHECK(label->GetText() == StringView("Bonjour"));
+    }
+
+    {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" Width=\"80\" Height=\"80\">"
+            "<Image x:Name=\"Backdrop\" Width=\"80\" Height=\"80\"/>"
+            "<Border x:Name=\"Overlay\" Width=\"40\" Height=\"40\">"
+            "<Border.Effect><BlurEffect Radius=\"12\"/></Border.Effect>"
+            "</Border>"
+            "</Grid>"));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {80.0, 80.0}));
+        Pump(view, 0.016);
+        Grid* grid = TryCast<Grid>(view.GetContent());
+        CHECK(grid != nullptr);
+        CHECK(grid->FindName("Backdrop") != nullptr);
+        Aero::Controls::Border* overlay =
+            grid->FindName<Aero::Controls::Border>("Overlay");
+        CHECK(overlay != nullptr);
+        Aero::Media::BlurEffect* blur =
+            TryCast<Aero::Media::BlurEffect>(overlay->GetEffect().Get());
+        CHECK(blur != nullptr);
+        CHECK(Near(blur->GetRadius(), 12.0));
+    }
+
+    {
+        Result<Ref<ShaderEffect>> effect = MakeRef<ShaderEffect>();
+        CHECK(effect);
+        effect.Value()->SetPixelShader("custom.frag");
+        CHECK(effect.Value()->GetPixelShader() == StringView("custom.frag"));
+        const std::uint8_t bytes[] = {0x43, 0x47, 0x58, 0x00};
+        CHECK(effect.Value()->SetBytecode({bytes, 4U}));
+        CHECK(effect.Value()->GetBytecode().Size() == 4U);
+        // .noesisbrush is a Noesis offline compiler artifact. Aero loads
+        // PixelShader source or raw bytecode; it does not compile brushes.
+    }
+
+    {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<ItemsControl xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" Width=\"80\" Height=\"80\">"
+            "<ItemsControl.ItemsPanel>"
+            "<ItemsPanelTemplate><UniformGrid Columns=\"2\"/></ItemsPanelTemplate>"
+            "</ItemsControl.ItemsPanel>"
+            "<TextBlock Text=\"A\"/><TextBlock Text=\"B\"/>"
+            "</ItemsControl>"));
+        CHECK(document);
+        ItemsControl* items = document.Value().Root<ItemsControl>();
+        CHECK(items != nullptr);
+        CHECK(items->GetItemsPanel() != nullptr);
+        CHECK(view.SetContent(std::move(document).Value(), {80.0, 80.0}));
+        Pump(view, 0.016);
+    }
     return true;
 }
 
@@ -1472,6 +2304,7 @@ int main() {
     RUN(TestCustomItemsSourceThunk);
     RUN(TestGalleryXamlSurface);
     RUN(TestTutorialXamlSurface);
+    RUN(TestTutorialRuntimePatterns);
     std::puts("Aero framework conformance tests passed");
     std::fflush(stdout);
     // LiveGui instances are leaked on purpose (View/~Gui SIGSEGV with mounted
