@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/DependencyProperty.hpp>
+#include <Aero/TryCast.hpp>
 
 namespace Aero {
 

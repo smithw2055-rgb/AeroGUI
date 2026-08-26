@@ -126,9 +126,6 @@ private:
         Base::Transform2D transform;
     };
     Base::Vector<OverlayRecord> overlays_;
-    static UIElement* AsUIElement(::Aero::Media::Visual& node) noexcept {
-        return node.AsUIElement();
-    }
     Base::Result<HitTestResult> HitTestElement(
         UIElement& element, Point position) const noexcept;
     bool IsOverlay(

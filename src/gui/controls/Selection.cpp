@@ -865,7 +865,7 @@ Base::Result<bool> ListBox::BringIntoView(
         ::Aero::Media::Visual* parent = node->GetVisualParent();
         if (parent == nullptr) break;
         UIElement* parentElement =
-            parent->AsUIElement();
+            ::Aero::TryCast<::Aero::UIElement>(parent);
         if (parentElement != nullptr &&
             PropertyRegistry().Types().IsDerivedFrom(
                 parentElement->RuntimeType(),
@@ -1554,7 +1554,7 @@ std::uint32_t ComboBox::FindContainerIndex(
     while (visual != nullptr &&
         visual != this) {
         UIElement* element =
-            visual->AsUIElement();
+            ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
             PropertyRegistry().Types().
                 IsDerivedFrom(
@@ -1647,7 +1647,7 @@ ComboBehavior::ResolveComboBox(
         tree_->ResolveHandle(records_[index]);
     return visual != nullptr
         ? static_cast<ComboBox*>(
-            visual->AsUIElement())
+            ::Aero::TryCast<::Aero::UIElement>(visual))
         : nullptr;
 }
 
@@ -1919,7 +1919,7 @@ ListBox* ListBehavior::ResolveListBox(
         tree_->ResolveHandle(records_[index].handle);
     return visual != nullptr
         ? static_cast<ListBox*>(
-            visual->AsUIElement())
+            ::Aero::TryCast<::Aero::UIElement>(visual))
         : nullptr;
 }
 
@@ -2006,7 +2006,7 @@ ListBehavior::FindContainerIndex(
     while (visual != nullptr &&
         visual != &listBox) {
         UIElement* element =
-            visual->AsUIElement();
+            ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
             listBox.PropertyRegistry().Types()
                 .IsDerivedFrom(

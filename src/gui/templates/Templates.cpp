@@ -114,7 +114,7 @@ Base::Result<void> TemplateBuilder::SetRoot(
     auto& state = *static_cast<Aero::Controls::TemplateBuildState*>(state_);
     if (state.tree == nullptr || state.parent == nullptr ||
         state.rootVisual != nullptr || !owner ||
-        owner.Get() != &root || root.AsUIElement() == nullptr) {
+        owner.Get() != &root || ::Aero::TryCast<::Aero::UIElement>(&(root)) == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Template root registration is invalid");
@@ -126,15 +126,15 @@ Base::Result<void> TemplateBuilder::SetRoot(
     Aero::ElementAttachment mount = std::move(mounted).Value();
 
     Base::Result<void> selected =
-        AeroGuiInternal::SetTemplateRoot(*state.parent, root.AsUIElement());
+        AeroGuiInternal::SetTemplateRoot(*state.parent, ::Aero::TryCast<::Aero::UIElement>(&(root)));
     if (!selected) {
         (void)state.tree->DetachElement(mount);
         return selected.GetStatus();
     }
-    if (root.AsFrameworkElement() != nullptr) {
+    if (::Aero::TryCast<::Aero::FrameworkElement>(&(root)) != nullptr) {
         Base::Result<void> templated =
             AeroGuiInternal::SetTemplatedParent(
-                *root.AsFrameworkElement(), state.parent);
+                ::Aero::TryCast<::Aero::FrameworkElement>(&(*root)), state.parent);
         if (!templated) {
             (void)AeroGuiInternal::SetTemplateRoot(*state.parent, nullptr);
             (void)state.tree->DetachElement(mount);
@@ -144,16 +144,16 @@ Base::Result<void> TemplateBuilder::SetRoot(
     Base::Result<void> added = AddOwnedPart(
         name, std::move(owner), root, &mount);
     if (!added) {
-        if (root.AsFrameworkElement() != nullptr) {
+        if (::Aero::TryCast<::Aero::FrameworkElement>(&(root)) != nullptr) {
             (void)AeroGuiInternal::SetTemplatedParent(
-                *root.AsFrameworkElement(), nullptr);
+                ::Aero::TryCast<::Aero::FrameworkElement>(&(*root)), nullptr);
         }
         (void)AeroGuiInternal::SetTemplateRoot(*state.parent, nullptr);
         (void)state.tree->DetachElement(mount);
         return added.GetStatus();
     }
     state.rootVisual = &root;
-    state.rootElement = root.AsUIElement();
+    state.rootElement = ::Aero::TryCast<::Aero::UIElement>(&(root));
     return {};
 }
 
@@ -177,10 +177,10 @@ Base::Result<void> TemplateBuilder::AddPart(
     if (!mounted) return mounted.GetStatus();
     Aero::ElementAttachment mount = std::move(mounted).Value();
 
-    if (part.AsFrameworkElement() != nullptr) {
+    if (::Aero::TryCast<::Aero::FrameworkElement>(&(part)) != nullptr) {
         Base::Result<void> templated =
             AeroGuiInternal::SetTemplatedParent(
-                *part.AsFrameworkElement(), state.parent);
+                ::Aero::TryCast<::Aero::FrameworkElement>(&(*part)), state.parent);
         if (!templated) {
             (void)state.tree->DetachElement(mount);
             return templated.GetStatus();
@@ -189,9 +189,9 @@ Base::Result<void> TemplateBuilder::AddPart(
     Base::Result<void> added = AddOwnedPart(
         name, std::move(owner), part, &mount);
     if (!added) {
-        if (part.AsFrameworkElement() != nullptr) {
+        if (::Aero::TryCast<::Aero::FrameworkElement>(&(part)) != nullptr) {
             (void)AeroGuiInternal::SetTemplatedParent(
-                *part.AsFrameworkElement(), nullptr);
+                ::Aero::TryCast<::Aero::FrameworkElement>(&(*part)), nullptr);
         }
         (void)state.tree->DetachElement(mount);
         return added.GetStatus();
@@ -305,10 +305,10 @@ TemplateBuilder::ProjectContentCore(
         original.child = content;
         original.visualAttached = true;
         original.layoutAttached = state.layout != nullptr &&
-            projection.originalVisualParent->AsUIElement() != nullptr;
+            ::Aero::TryCast<::Aero::UIElement>(projection.originalVisualParent) != nullptr;
         original.renderAttached = state.renderer != nullptr &&
-            projection.originalVisualParent->AsFrameworkElement() != nullptr &&
-            content->AsFrameworkElement() != nullptr;
+            ::Aero::TryCast<::Aero::FrameworkElement>(projection.originalVisualParent) != nullptr &&
+            ::Aero::TryCast<::Aero::FrameworkElement>(content) != nullptr;
         Base::Result<void> detached = state.tree->DetachVisual(original);
         if (!detached) {
             if (projection.attachedLogical) {
@@ -446,7 +446,7 @@ Base::Result<void> TemplateBuilder::AddOwnedPart(
     part.owner = std::move(owner);
     part.visual = &visual;
     part.object = &visual;
-    part.frameworkElement = visual.AsFrameworkElement();
+    part.frameworkElement = ::Aero::TryCast<::Aero::FrameworkElement>(&(visual));
     part.mount = mount;
     return state.parts.PushBack(std::move(part));
 }

@@ -47,6 +47,7 @@ set(_aero_gui_core_sources
     src/gui/core/Invariants.cpp
     src/gui/core/LayoutEngine.cpp
     src/gui/core/PropertySystem.cpp
+    src/gui/core/TryCast.cpp
     src/gui/core/Visual.cpp
     src/gui/core/UIElement.cpp
     src/gui/core/FrameworkElement.cpp

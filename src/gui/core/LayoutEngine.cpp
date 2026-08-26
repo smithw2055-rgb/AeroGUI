@@ -90,7 +90,7 @@ bool IsValidLayoutSize(Size value) noexcept {
 }
 
 UIElement* FindInvalidVisibleLayout(::Aero::Media::Visual& visual) noexcept {
-    UIElement* element = visual.AsUIElement();
+    UIElement* element = ::Aero::TryCast<::Aero::UIElement>(&(visual));
     if (element != nullptr &&
         element->GetIsVisible() &&
         (!element->GetIsMeasureValid() ||
@@ -438,7 +438,7 @@ Base::Result<void> LayoutEngine::MeasureElement(
         return {};
     }
 
-    const FrameworkElement* framework = element.AsFrameworkElement();
+    const FrameworkElement* framework = ::Aero::TryCast<::Aero::FrameworkElement>(&(element));
     const Thickness margin = framework != nullptr
         ? framework->GetMargin() : Thickness{};
     const Size minimum = framework != nullptr
@@ -563,7 +563,7 @@ Base::Result<void> LayoutEngine::ArrangeElement(
         AeroGuiInternal::Layout(element).layoutSlot = {slot.x, slot.y, 0.0, 0.0};
         AeroGuiInternal::Layout(element).renderSize = {};
         if (FrameworkElement* framework =
-                element.AsFrameworkElement()) {
+                ::Aero::TryCast<::Aero::FrameworkElement>(&(element))) {
             AeroGuiInternal::SetActualSize(
                 *framework, 0.0, 0.0);
         }
@@ -575,7 +575,7 @@ Base::Result<void> LayoutEngine::ArrangeElement(
         return {};
     }
     FrameworkElement* framework =
-        element.AsFrameworkElement();
+        ::Aero::TryCast<::Aero::FrameworkElement>(&(element));
     if (framework != nullptr && (framework->GetUseLayoutRounding() ||
             framework->GetSnapsToDevicePixels())) {
         slot.x = RoundLayoutValue(slot.x, framework->GetDpiScale());
@@ -752,13 +752,13 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     for (const Aero::VisualLease& lease : measure) {
         ::Aero::Media::Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
-            ? visual->AsUIElement() : nullptr;
+            ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
         if (element != nullptr) AeroGuiInternal::Layout(*element).measureQueued = false;
     }
     for (const Aero::VisualLease& lease : measure) {
         ::Aero::Media::Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
-            ? visual->AsUIElement() : nullptr;
+            ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
         if (element == nullptr || element == root_ ||
             AeroGuiInternal::LayoutEngineOf(*element) != this || element->GetIsMeasureValid()) {
             continue;
@@ -782,13 +782,13 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     for (const Aero::VisualLease& lease : arrange) {
         ::Aero::Media::Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
-            ? visual->AsUIElement() : nullptr;
+            ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
         if (element != nullptr) AeroGuiInternal::Layout(*element).arrangeQueued = false;
     }
     for (const Aero::VisualLease& lease : arrange) {
         ::Aero::Media::Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
-            ? visual->AsUIElement() : nullptr;
+            ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
         if (element == nullptr || element == root_ ||
             AeroGuiInternal::LayoutEngineOf(*element) != this || element->GetIsArrangeValid()) {
             continue;
@@ -873,13 +873,13 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     for (const Aero::VisualLease& lease : measureQueue_) {
         ::Aero::Media::Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
-            ? visual->AsUIElement() : nullptr;
+            ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
         if (element != nullptr) AeroGuiInternal::Layout(*element).measureQueued = false;
     }
     for (const Aero::VisualLease& lease : arrangeQueue_) {
         ::Aero::Media::Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
-            ? visual->AsUIElement() : nullptr;
+            ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
         if (element != nullptr) AeroGuiInternal::Layout(*element).arrangeQueued = false;
     }
     measureQueue_.Clear();

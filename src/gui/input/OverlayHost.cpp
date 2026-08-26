@@ -69,7 +69,7 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                 while (ancestor != nullptr) {
                     Aero::UIElement*
                         element =
-                            ancestor->AsUIElement();
+                            ::Aero::TryCast<::Aero::UIElement>(ancestor);
                     if (element != nullptr &&
                         element->GetVisibility() !=
                             Aero::Visibility::Visible) {
@@ -83,9 +83,9 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
             if (open) {
                 Aero::FrameworkElement*
                     framework =
-                        node->AsFrameworkElement();
+                        ::Aero::TryCast<::Aero::FrameworkElement>(node);
                 Aero::UIElement* inputElement =
-                    node->AsUIElement();
+                    ::Aero::TryCast<::Aero::UIElement>(node);
                 if (framework != nullptr &&
                     inputElement != nullptr) {
                     auto makeTranslate = [](double dx, double dy) noexcept -> Base::Transform2D {
@@ -104,14 +104,14 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                         while (current != nullptr) {
                             Aero::UIElement*
                                 currentElement =
-                                    current->
-                                        AsUIElement();
+                                    ::Aero::TryCast<::Aero::UIElement>(
+                                        current);
                             if (currentElement !=
                                 nullptr) {
                                 Aero::FrameworkElement*
                                     currentFramework =
-                                        currentElement->
-                                            AsFrameworkElement();
+                                        ::Aero::TryCast<::Aero::FrameworkElement>(
+                                            currentElement);
                                 if (currentFramework !=
                                     nullptr) {
                                     const Base::Transform2D localT =
@@ -341,7 +341,8 @@ Base::Result<void> OverlayHost::DismissOverlaysForPointer(
                                 UIElement::StaticTypeId())) {
                             placement = static_cast<UIElement*>(templated);
                         } else if (popup->GetVisualParent() != nullptr) {
-                            placement = popup->GetVisualParent()->AsUIElement();
+                            placement = ::Aero::TryCast<::Aero::UIElement>(
+                                popup->GetVisualParent());
                         }
                     }
                     if (placement != nullptr &&
@@ -436,7 +437,7 @@ Base::Result<void> OverlayHost::OpenContextMenuForPointer(
             hitTarget;
         while (current != nullptr) {
             Aero::UIElement* element =
-                current->AsUIElement();
+                ::Aero::TryCast<::Aero::UIElement>(current);
             if (element != nullptr) {
                 Base::Ref<Controls::ContextMenu>
                     menu =
@@ -519,7 +520,7 @@ Base::Result<void> OverlayHost::UpdateToolTipForPointer(
             hitTarget;
         while (current != nullptr) {
             Aero::UIElement* element =
-                current->AsUIElement();
+                ::Aero::TryCast<::Aero::UIElement>(current);
             if (element != nullptr) {
                 next =
                     Controls::ToolTipService::

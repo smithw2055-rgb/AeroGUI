@@ -1546,7 +1546,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
         if (visual == nullptr) return std::uint32_t{0U};
         std::uint32_t count = 0U;
         Aero::FrameworkElement* element =
-            visual->AsFrameworkElement();
+            ::Aero::TryCast<::Aero::FrameworkElement>(visual);
         if (element != nullptr) {
             for (const Base::Ref<Base::Object>& authoredBehavior :
                  AeroGuiInternal::AuthoredBehaviors(

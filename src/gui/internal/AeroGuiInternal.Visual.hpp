@@ -77,11 +77,11 @@
         return RenderChildRange(visual);
     }
     static ::Aero::Media::Visual* AsVisual(::Aero::DependencyObject* object) noexcept {
-        return ::Aero::Media::Visual::Of(object);
+        return ::Aero::TryCast<::Aero::Media::Visual>(object);
     }
     static const ::Aero::Media::Visual* AsVisual(
         const ::Aero::DependencyObject* object) noexcept {
-        return ::Aero::Media::Visual::Of(object);
+        return ::Aero::TryCast<::Aero::Media::Visual>(object);
     }
     static void* RenderRuntime(const ::Aero::Media::Visual& visual) noexcept {
         return visual.tree_ != nullptr &&
@@ -92,7 +92,8 @@
     static void Render(
         ::Aero::Media::Visual& visual,
         ::Aero::Media::DrawingContext& context) noexcept {
-        FrameworkElement* element = visual.AsFrameworkElement();
+        FrameworkElement* element =
+            ::Aero::TryCast<FrameworkElement>(&visual);
         if (element != nullptr) {
             element->OnRender(context);
         }

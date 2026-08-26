@@ -47,12 +47,7 @@ bool HasSelfHitSurface(UIElement& element) noexcept {
 
 bool IsVisualDescendantOrSelf(
     const ::Aero::Media::Visual& root, const ::Aero::Media::Visual& target) noexcept {
-    const ::Aero::Media::Visual* current = &target;
-    while (current != &root) {
-        current = current->GetVisualParent();
-        if (current == nullptr) return false;
-    }
-    return true;
+    return &root == &target || root.IsAncestorOf(target);
 }
 
 bool ParentToLocal(
@@ -64,7 +59,7 @@ bool ParentToLocal(
         parentPosition.x - slot.x,
         parentPosition.y - slot.y};
     FrameworkElement* framework =
-        element.AsFrameworkElement();
+        ::Aero::TryCast<FrameworkElement>(&element);
     if (framework == nullptr) {
         localPosition = translated;
         return true;
@@ -178,7 +173,7 @@ Base::Result<HitTestResult> HitTestState::HitTest(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Hit-test position must be finite");
     }
-    UIElement* rootElement = AsUIElement(root);
+    UIElement* rootElement = ::Aero::TryCast<::Aero::UIElement>(&(root));
     if (rootElement == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Hit-test root is not a registered UIElement");
@@ -223,12 +218,12 @@ Base::Result<HitTestResult> HitTestState::RootToLocal(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Pointer position must be finite");
     }
-    UIElement* rootElement = AsUIElement(root);
+    UIElement* rootElement = ::Aero::TryCast<::Aero::UIElement>(&(root));
     if (rootElement == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Hit-test root is not a registered UIElement");
     }
-    UIElement* targetElement = AsUIElement(target);
+    UIElement* targetElement = ::Aero::TryCast<::Aero::UIElement>(&(target));
     if (targetElement == nullptr || !targetElement->GetIsArrangeValid()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Pointer capture target must be an arranged UIElement");
@@ -237,7 +232,7 @@ Base::Result<HitTestResult> HitTestState::RootToLocal(
     Base::Vector<UIElement*> path;
     ::Aero::Media::Visual* current = &target;
     while (current != &root) {
-        UIElement* currentElement = AsUIElement(*current);
+        UIElement* currentElement = ::Aero::TryCast<::Aero::UIElement>(current);
         if (currentElement == nullptr || !currentElement->GetIsArrangeValid()) {
             return Base::Status::Failure(Base::ErrorCode::InvalidState,
                 "Pointer capture route contains an unarranged element");
@@ -307,7 +302,7 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
     for (std::uint32_t index = children.Size(); index > 0U; --index) {
         ::Aero::Media::Visual* childNode = children[index - 1U];
         if (childNode == nullptr) continue;
-        UIElement* child = AsUIElement(*childNode);
+        UIElement* child = ::Aero::TryCast<::Aero::UIElement>(childNode);
         if (child == nullptr) continue;
         if (IsOverlay(*child)) continue;
         // Hidden/template branches may be present in the visual tree before
@@ -380,7 +375,7 @@ bool PointerStateMachine::HasHover(
             tree->ResolveHandle(states_[index].hover);
         while (current != nullptr) {
             if (current == targetVisual) return true;
-            current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::Media::Visual::Of(current->GetLogicalParent());
+            current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
         }
     }
     return false;
@@ -430,13 +425,13 @@ Base::Result<void> PointerStateMachine::UpdateHover(
             : nullptr;
         bool stateIsCurrent = true;
         while (current != nullptr) {
-            UIElement* element = current->AsUIElement();
+            UIElement* element = ::Aero::TryCast<::Aero::UIElement>(current);
             if (element != nullptr &&
                 !element->GetIsMouseOver()) {
                 stateIsCurrent = false;
                 break;
             }
-            current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::Media::Visual::Of(current->GetLogicalParent());
+            current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
         }
         if (stateIsCurrent) return {};
     }
@@ -455,14 +450,14 @@ Base::Result<void> PointerStateMachine::UpdateHover(
         ::Aero::Media::Visual* current = descendant;
         while (current != nullptr) {
             if (current == ancestor) return true;
-            current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::Media::Visual::Of(current->GetLogicalParent());
+            current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
         }
         return false;
     };
 
     ::Aero::Media::Visual* current = nextVisual;
     while (current != nullptr) {
-        UIElement* element = current->AsUIElement();
+        UIElement* element = ::Aero::TryCast<::Aero::UIElement>(current);
         if (element != nullptr &&
             (!element->GetIsMouseOver() ||
              sameTarget ||
@@ -490,12 +485,12 @@ Base::Result<void> PointerStateMachine::UpdateHover(
                 }
             }
         }
-        current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::Media::Visual::Of(current->GetLogicalParent());
+        current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
     }
 
     current = previousVisual;
     while (current != nullptr) {
-        UIElement* element = current->AsUIElement();
+        UIElement* element = ::Aero::TryCast<::Aero::UIElement>(current);
         if (element != nullptr &&
             !sameTarget &&
             !isAncestorOrSelf(current, nextVisual)) {
@@ -523,7 +518,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
                 }
             }
         }
-        current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::Media::Visual::Of(current->GetLogicalParent());
+        current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
     }
     states_[index].hover = next;
     return {};
@@ -556,7 +551,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
     UIElement* nextElement = nullptr;
     if (next.IsValid() && !HasPressed(next, index)) {
         ::Aero::Media::Visual* visual = tree->ResolveHandle(next);
-        nextElement = visual != nullptr ? visual->AsUIElement() : nullptr;
+        nextElement = visual != nullptr ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
         if (nextElement != nullptr) {
             Base::Result<void> set = AeroGuiInternal::SetPressed(*nextElement, true);
             if (!set) return set.GetStatus();
@@ -568,7 +563,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
     if (previous.IsValid() && !HasPressed(previous, index)) {
         ::Aero::Media::Visual* visual = tree->ResolveHandle(previous);
         UIElement* previousElement =
-            visual != nullptr ? visual->AsUIElement() : nullptr;
+            visual != nullptr ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
         if (previousElement != nullptr) {
             Base::Result<void> cleared =
                 AeroGuiInternal::SetPressed(*previousElement, false);
@@ -594,7 +589,7 @@ UIElement* PointerStateMachine::CapturedNode(std::uint32_t pointerId) noexcept {
     ElementTree* tree = root_->GetTree();
     ::Aero::Media::Visual* target = tree != nullptr
         ? tree->ResolveHandle(captures_[index].target) : nullptr;
-    UIElement* element = target != nullptr ? target->AsUIElement() : nullptr;
+    UIElement* element = target != nullptr ? ::Aero::TryCast<::Aero::UIElement>(target) : nullptr;
     if (element == nullptr || !element->GetIsLoaded() ||
         !IsVisualDescendantOrSelf(*root_, *element)) {
         UIElement* lost = element;
@@ -627,7 +622,7 @@ Base::Result<void> PointerStateMachine::CapturePointer(
         ::Aero::Media::Visual* previousVisual =
             tree->ResolveHandle(captures_[index].target);
         UIElement* previous = previousVisual != nullptr
-            ? previousVisual->AsUIElement() : nullptr;
+            ? ::Aero::TryCast<::Aero::UIElement>(previousVisual) : nullptr;
         captures_[index].target = handle.Value();
         if (!captureChanged_.Empty() && previous != &target) {
             captureChanged_.Invoke(pointerId, previous, false);
@@ -655,7 +650,7 @@ Base::Result<bool> PointerStateMachine::ReleasePointer(
     ::Aero::Media::Visual* visual = root_->GetTree()->ResolveHandle(
         captures_[index].target);
     UIElement* target =
-        visual != nullptr ? visual->AsUIElement() : nullptr;
+        visual != nullptr ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
     RemoveCaptureAt(index);
     if (!captureChanged_.Empty()) {
         captureChanged_.Invoke(pointerId, target, false);
@@ -800,7 +795,7 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
             ::Aero::Media::Visual* visual = root_->GetTree()->ResolveHandle(
                 captures_[index].target);
             UIElement* target =
-                visual != nullptr ? visual->AsUIElement() : nullptr;
+                visual != nullptr ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
             RemoveCaptureAt(index);
             if (!captureChanged_.Empty()) {
                 captureChanged_.Invoke(
@@ -831,7 +826,7 @@ UIElement* DragDropState::Resolve(
         ? tree_->ResolveHandle(handle)
         : nullptr;
     UIElement* element = visual != nullptr
-        ? visual->AsUIElement()
+        ? ::Aero::TryCast<::Aero::UIElement>(visual)
         : nullptr;
     return element != nullptr && element->GetIsLoaded()
         ? element
@@ -849,7 +844,7 @@ UIElement* DragDropState::FindDropTarget(
     UIElement* hit) const noexcept {
     ::Aero::Media::Visual* current = hit;
     while (current != nullptr) {
-        UIElement* element = current->AsUIElement();
+        UIElement* element = ::Aero::TryCast<::Aero::UIElement>(current);
         if (element != nullptr &&
             element->GetAllowDrop() &&
             element->GetIsEnabled() &&
@@ -858,7 +853,7 @@ UIElement* DragDropState::FindDropTarget(
             return element;
         }
         if (current == root_) break;
-        current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
+        current = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
     }
     return nullptr;
 }
@@ -913,7 +908,7 @@ Base::Result<void> DragDropState::RaiseDragPair(
     args.SetPointerId(pointerId_);
     args.SetPosition(local.Value().position);
     args.SetRootPosition(
-        root_->AsUIElement(), rootPosition);
+        ::Aero::TryCast<::Aero::UIElement>(root_), rootPosition);
     args.SetData(data_);
     args.SetAllowedEffects(allowedEffects_);
     args.SetEffects(effects);
@@ -1093,22 +1088,22 @@ FocusState::FocusState(
 
 UIElement* FocusState::FocusedNode() noexcept {
     ::Aero::Media::Visual* visual = tree_->ResolveHandle(focused_);
-    UIElement* node = visual != nullptr ? visual->AsUIElement() : nullptr;
+    UIElement* node = visual != nullptr ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
     if (node == nullptr) focused_ = {};
     return node;
 }
 
 UIElement* FocusState::FindNavigationScope(UIElement* node) noexcept {
     ::Aero::Media::Visual* current = node != nullptr
-        ? (::Aero::Media::Visual::Of(node->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(node->GetLogicalParent()) : node->GetVisualParent())
+        ? (::Aero::TryCast<::Aero::Media::Visual>(node->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(node->GetLogicalParent()) : node->GetVisualParent())
         : nullptr;
     while (current != nullptr) {
-        UIElement* element = current->AsUIElement();
+        UIElement* element = ::Aero::TryCast<::Aero::UIElement>(current);
         if (element != nullptr && element->GetIsFocusScope()) return element;
-        current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
+        current = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
     }
     ::Aero::Media::Visual* root = tree_->Root();
-    return root != nullptr ? root->AsUIElement() : nullptr;
+    return root != nullptr ? ::Aero::TryCast<::Aero::UIElement>(root) : nullptr;
 }
 
 Base::Result<void> FocusState::RememberFocus(
@@ -1116,7 +1111,7 @@ Base::Result<void> FocusState::RememberFocus(
     ::Aero::Media::Visual* current = &node;
     ::Aero::Media::Visual* root = tree_->Root();
     while (current != nullptr) {
-        UIElement* element = current->AsUIElement();
+        UIElement* element = ::Aero::TryCast<::Aero::UIElement>(current);
         const bool isScope = current == root ||
             (element != nullptr && element->GetIsFocusScope());
         if (isScope) {
@@ -1143,7 +1138,7 @@ Base::Result<void> FocusState::RememberFocus(
             }
         }
         if (current == root) break;
-        current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
+        current = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
     }
     return {};
 }
@@ -1160,7 +1155,7 @@ UIElement* FocusState::FocusedElement(UIElement& scope) noexcept {
         }
         ::Aero::Media::Visual* visual = tree_->ResolveHandle(record.focused);
         UIElement* element =
-            visual != nullptr ? visual->AsUIElement() : nullptr;
+            visual != nullptr ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
         if (element == nullptr || !element->GetIsLoaded()) {
             record.focused = {};
             return nullptr;
@@ -1176,7 +1171,7 @@ Base::Result<void> FocusState::CollectCandidates(
     std::uint32_t& order) noexcept {
     for (::Aero::Media::Visual* child : AeroGuiInternal::RenderChildren(parent)) {
         if (child == nullptr) continue;
-        UIElement* element = child->AsUIElement();
+        UIElement* element = ::Aero::TryCast<::Aero::UIElement>(child);
         const std::uint32_t candidateOrder = order++;
         if (element != nullptr && element->GetIsLoaded() &&
             element->GetIsEnabled() &&
@@ -1222,7 +1217,7 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
     std::uint32_t ancestorCount = 1U;
     ::Aero::Media::Visual* ancestor = node;
     while (ancestor != tree_->Root()) {
-        ancestor = ::Aero::Media::Visual::Of(ancestor->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(ancestor->GetLogicalParent()) : ancestor->GetVisualParent();
+        ancestor = ::Aero::TryCast<::Aero::Media::Visual>(ancestor->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(ancestor->GetLogicalParent()) : ancestor->GetVisualParent();
         if (ancestor == nullptr) break;
         ++ancestorCount;
     }
@@ -1233,12 +1228,12 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
         -> Base::Result<void> {
         ::Aero::Media::Visual* current = &element;
         while (current != nullptr) {
-            if (UIElement* ancestor = current->AsUIElement()) {
+            if (UIElement* ancestor = ::Aero::TryCast<::Aero::UIElement>(current)) {
                 Base::Result<void> updated =
                     AeroGuiInternal::SetKeyboardFocusWithin(*ancestor, value);
                 if (!updated) return updated.GetStatus();
             }
-            current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
+            current = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
         }
         return {};
     };
@@ -1316,12 +1311,12 @@ Base::Result<bool> FocusState::ClearFocus() noexcept {
         -> Base::Result<void> {
         ::Aero::Media::Visual* current = &element;
         while (current != nullptr) {
-            if (UIElement* ancestor = current->AsUIElement()) {
+            if (UIElement* ancestor = ::Aero::TryCast<::Aero::UIElement>(current)) {
                 Base::Result<void> updated =
                     AeroGuiInternal::SetKeyboardFocusWithin(*ancestor, value);
                 if (!updated) return updated.GetStatus();
             }
-            current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
+            current = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
         }
         return {};
     };

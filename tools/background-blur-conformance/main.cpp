@@ -180,12 +180,12 @@ Aero::Base::Point RootCenter(
     const Aero::Media::Visual* current = &element;
     while (current != nullptr) {
         const Aero::FrameworkElement* framework =
-            current->AsFrameworkElement();
+            ::Aero::TryCast<::Aero::FrameworkElement>(current);
         if (framework != nullptr) {
             point = Aero::Media::TransformPoint(
                 framework->GetLocalVisualTransform(), point);
         }
-        const Aero::UIElement* currentElement = current->AsUIElement();
+        const Aero::UIElement* currentElement = ::Aero::TryCast<::Aero::UIElement>(current);
         if (currentElement != nullptr) {
             const Aero::Rect slot = currentElement->GetLayoutSlot();
             point.x += slot.x;
@@ -419,7 +419,7 @@ bool VerifyDrag(
         return false;
     }
     const UIElement* parent = panel->GetVisualParent() != nullptr
-        ? panel->GetVisualParent()->AsUIElement()
+        ? ::Aero::TryCast<::Aero::UIElement>(panel->GetVisualParent())
         : nullptr;
     if (parent != nullptr) {
         const Rect panelBounds = Media::TransformBounds(

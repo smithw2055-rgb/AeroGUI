@@ -143,10 +143,10 @@ private:
         AccessibilityNode node;
         node.id = NodeId(AeroGuiInternal::Handle(visual));
         const Aero::Media::Visual* parent =
-            Aero::Media::Visual::Of(visual.GetLogicalParent());
+            ::Aero::TryCast<::Aero::Media::Visual>(visual.GetLogicalParent());
         if (parent == nullptr) parent = visual.GetVisualParent();
         node.parent = parent != nullptr ? NodeId(AeroGuiInternal::Handle(*parent)) : 0U;
-        const Aero::UIElement* element = visual.AsUIElement();
+        const Aero::UIElement* element = ::Aero::TryCast<::Aero::UIElement>(&(visual));
         if (element != nullptr) {
             node.bounds = element->GetLayoutSlot();
             node.enabled = element->GetIsEnabled();
@@ -203,7 +203,7 @@ private:
         const std::uint32_t logicalCount =
             LogicalTreeHelper::GetChildrenCount(visual);
         for (std::uint32_t index = 0U; index < logicalCount; ++index) {
-            Aero::Media::Visual* child = Aero::Media::Visual::Of(
+            Aero::Media::Visual* child = ::Aero::TryCast<::Aero::Media::Visual>(
                 LogicalTreeHelper::GetChild(visual, index));
             if (child == nullptr) continue;
             Base::Result<void> captured = CaptureNode(*child);
@@ -218,7 +218,7 @@ private:
             bool alreadyCaptured = false;
             for (std::uint32_t logicalIndex = 0U;
                  logicalIndex < logicalCount; ++logicalIndex) {
-                if (Aero::Media::Visual::Of(
+                if (::Aero::TryCast<::Aero::Media::Visual>(
                         LogicalTreeHelper::GetChild(visual, logicalIndex)) ==
                     child) {
                     alreadyCaptured = true;
@@ -319,14 +319,14 @@ private:
         node.handle = AeroGuiInternal::Handle(visual);
         node.runtimeType = visual.RuntimeType();
         node.loaded = visual.GetIsLoaded();
-        if (Aero::Media::Visual::Of(visual.GetLogicalParent()) != nullptr) {
+        if (::Aero::TryCast<::Aero::Media::Visual>(visual.GetLogicalParent()) != nullptr) {
             node.logicalParent = AeroGuiInternal::Handle(
-                *Aero::Media::Visual::Of(visual.GetLogicalParent()));
+                *::Aero::TryCast<::Aero::Media::Visual>(visual.GetLogicalParent()));
         }
         if (visual.GetVisualParent() != nullptr) {
             node.visualParent = AeroGuiInternal::Handle(*visual.GetVisualParent());
         }
-        const Aero::UIElement* element = visual.AsUIElement();
+        const Aero::UIElement* element = ::Aero::TryCast<::Aero::UIElement>(&(visual));
         if (element != nullptr) {
             node.layoutSlot = element->GetLayoutSlot();
             node.renderSize = element->GetRenderSize();
@@ -335,7 +335,7 @@ private:
             node.arrangeValid = element->GetIsArrangeValid();
         }
         const Aero::FrameworkElement* framework =
-            visual.AsFrameworkElement();
+            ::Aero::TryCast<::Aero::FrameworkElement>(&(visual));
         if (framework != nullptr) {
             node.renderRevision = AeroGuiInternal::RenderRevision(const_cast<Aero::FrameworkElement&>(*framework));
             node.renderValid = AeroGuiInternal::RenderValid(const_cast<Aero::FrameworkElement&>(*framework));
@@ -345,7 +345,7 @@ private:
         const std::uint32_t childCount =
             LogicalTreeHelper::GetChildrenCount(visual);
         for (std::uint32_t index = 0U; index < childCount; ++index) {
-            Aero::Media::Visual* child = Aero::Media::Visual::Of(
+            Aero::Media::Visual* child = ::Aero::TryCast<::Aero::Media::Visual>(
                 LogicalTreeHelper::GetChild(visual, index));
             if (child == nullptr) continue;
             Base::Result<void> captured = CaptureNode(*child);

@@ -422,10 +422,10 @@ bool UIElement::GetAllowDrop() const noexcept {
 // from src/gui/controls/Layout.cpp
 bool UIElement::GetIsEnabled() const noexcept {
     if (!GetValueOr(IsEnabledProperty, true)) return false;
-    ::Aero::Media::Visual* parent = ::Aero::Media::Visual::Of(GetLogicalParent());
+    ::Aero::Media::Visual* parent = ::Aero::TryCast<::Aero::Media::Visual>(GetLogicalParent());
     if (parent == nullptr) parent = GetVisualParent();
     const UIElement* parentElement =
-        parent != nullptr ? parent->AsUIElement() : nullptr;
+        parent != nullptr ? ::Aero::TryCast<::Aero::UIElement>(parent) : nullptr;
     return parentElement == nullptr || parentElement->GetIsEnabled();
 }
 
@@ -439,12 +439,12 @@ void UIElement::OnVisualChildrenChanged(
 bool UIElement::GetIsVisible() const noexcept {
     const ::Aero::Media::Visual* current = this;
     while (current != nullptr) {
-        const UIElement* element = current->AsUIElement();
+        const UIElement* element = ::Aero::TryCast<::Aero::UIElement>(current);
         if (element != nullptr &&
             element->GetVisibility() != Visibility::Visible) {
             return false;
         }
-        current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
+        current = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
     }
     return true;
 }
@@ -694,7 +694,7 @@ UIElement::Rare& UIElement::EnsureRare() noexcept {
 
 UIElement* UIElementChildRange::Iterator::operator*() const noexcept {
     ::Aero::Media::Visual* child = owner_ != nullptr ? ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
-    return child != nullptr ? child->AsUIElement() : nullptr;
+    return child != nullptr ? ::Aero::TryCast<::Aero::UIElement>(child) : nullptr;
 }
 
 void UIElementChildRange::Iterator::Advance() noexcept {
@@ -702,7 +702,7 @@ void UIElementChildRange::Iterator::Advance() noexcept {
     const std::uint32_t count = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*owner_);
     while (index_ < count) {
         ::Aero::Media::Visual* child = ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_);
-        if (child != nullptr && child->AsUIElement() != nullptr) return;
+        if (child != nullptr && ::Aero::TryCast<::Aero::UIElement>(child) != nullptr) return;
         ++index_;
     }
 }
@@ -726,6 +726,11 @@ UIElement* UIElementChildRange::operator[](std::uint32_t index) const noexcept {
 
 UIElement::UIElement(TypeId runtimeType) noexcept
     : ::Aero::Media::Visual(runtimeType) {}
+
+UIElement* UIElement::LayoutParent() const noexcept {
+    ::Aero::Media::Visual* parent = GetVisualParent();
+    return parent != nullptr ? ::Aero::TryCast<UIElement>(parent) : nullptr;
+}
 
 UIElement::~UIElement() {
     AERO_ASSERT(AeroGuiInternal::LayoutEngineOf(*this) == nullptr);

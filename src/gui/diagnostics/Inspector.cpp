@@ -56,7 +56,7 @@ Base::Result<void> AppendTree(
         : Media::VisualTreeHelper::GetChildrenCount(node);
     for (std::uint32_t index = 0U; index < childCount; ++index) {
         ::Aero::Media::Visual* child = kind == TreeKind::Logical
-            ? Media::Visual::Of(LogicalTreeHelper::GetChild(node, index))
+            ? ::Aero::TryCast<::Aero::Media::Visual>(LogicalTreeHelper::GetChild(node, index))
             : Media::VisualTreeHelper::GetChild(node, index);
         if (child == nullptr) {
             if (kind == TreeKind::Logical) continue;
@@ -197,7 +197,7 @@ using namespace Aero::Threading;
     }
 
     FrameworkElement* element =
-        target.AsFrameworkElement();
+        ::Aero::TryCast<::Aero::FrameworkElement>(&(target));
     if (element != nullptr) {
         Base::Result<Value> context =
             element->GetDataContextResult();

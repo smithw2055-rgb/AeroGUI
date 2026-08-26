@@ -25,9 +25,9 @@ Base::Transform2D ToRootTransform(const ::Aero::Media::Visual& visual) noexcept 
     Base::Transform2D result;
     const ::Aero::Media::Visual* current = &visual;
     while (current != nullptr) {
-        const UIElement* element = current->AsUIElement();
+        const UIElement* element = ::Aero::TryCast<::Aero::UIElement>(current);
         const FrameworkElement* framework =
-            current->AsFrameworkElement();
+            ::Aero::TryCast<::Aero::FrameworkElement>(current);
         if (element != nullptr) {
             Base::Transform2D local = framework != nullptr
                 ? framework->GetLocalVisualTransform()
@@ -348,7 +348,7 @@ void MouseDragElementBehavior::OnMouseMove(
     double y = dragStartY_ + deltaY;
     if (GetConstrainToParentBounds()) {
         UIElement* parent = associated->GetVisualParent() != nullptr
-            ? associated->GetVisualParent()->AsUIElement()
+            ? ::Aero::TryCast<::Aero::UIElement>(associated->GetVisualParent())
             : nullptr;
         if (parent != nullptr) {
             const Rect slot = associated->GetLayoutSlot();

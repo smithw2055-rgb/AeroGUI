@@ -44,7 +44,7 @@ bool InteractivityEngine::IsInVisualSubtree(
         const Aero::Media::Visual& fragmentRoot) const noexcept {
     while (node != nullptr) {
         if (node == &fragmentRoot) return true;
-        node = ::Aero::Media::Visual::Of(node->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(node->GetLogicalParent()) : node->GetVisualParent();
+        node = ::Aero::TryCast<::Aero::Media::Visual>(node->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(node->GetLogicalParent()) : node->GetVisualParent();
     }
     return false;
 }
@@ -630,7 +630,7 @@ Base::Object* InteractivityEngine::ResolveAuthoredBindingSource(
                 break;
             }
             std::uint32_t matched = 0U;
-            Aero::Media::Visual* current = Aero::Media::Visual::Of(owner.GetLogicalParent());
+            Aero::Media::Visual* current = ::Aero::TryCast<::Aero::Media::Visual>(owner.GetLogicalParent());
             if (current == nullptr) {
                 current = owner.GetVisualParent();
             }
@@ -647,7 +647,7 @@ Base::Object* InteractivityEngine::ResolveAuthoredBindingSource(
                     ++matched == relative->GetAncestorLevel()) {
                     return current;
                 }
-                Aero::Media::Visual* next = Aero::Media::Visual::Of(current->GetLogicalParent());
+                Aero::Media::Visual* next = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
                 if (next == nullptr) {
                     next = current->GetVisualParent();
                 }
@@ -809,7 +809,7 @@ void InteractivityEngine::ClearDataTemplateTriggerProviders(
 void InteractivityEngine::ClearDataTemplateTriggerProvidersInSubtree(
         Aero::Media::Visual& visual) noexcept {
         Aero::FrameworkElement* element =
-            visual.AsFrameworkElement();
+            ::Aero::TryCast<::Aero::FrameworkElement>(&(visual));
         if (element != nullptr) {
             for (const Base::Ref<Base::Object>& authored :
                  AeroGuiInternal::AuthoredTriggers(*element)) {

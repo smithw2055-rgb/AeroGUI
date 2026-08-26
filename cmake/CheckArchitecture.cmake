@@ -50,6 +50,7 @@ foreach(required_public_entry IN ITEMS
         "include/AeroApp/WindowInterop.hpp"
         "include/Aero/InputInterop.hpp"
         "include/Aero/DependencyObject.hpp"
+        "include/Aero/TryCast.hpp"
         "include/Aero/DependencyProperty.hpp"
         "include/Aero/RoutedEvent.hpp"
         "include/Aero/Visual.hpp"
@@ -1505,6 +1506,54 @@ aero_forbid_text(
     "include/Aero/Visual.hpp"
     "GetVisualChildren()"
     "Public GetVisualChildren Span is retired; walk Count/GetChild")
+aero_require_text(
+    "include/Aero/TryCast.hpp"
+    "template<class T>"
+    "TryCast is the TypeId-chain downcast template")
+aero_require_text(
+    "include/Aero/TryCast.hpp"
+    "T* TryCast(Object* object) noexcept"
+    "Public habit is Aero::TryCast<T>(object)")
+aero_forbid_text(
+    "include/Aero/TryCast.hpp"
+    "#include <Aero/Meta.hpp>"
+    "TryCast.hpp must not include Meta.hpp")
+aero_forbid_text(
+    "include/Aero/Visual.hpp"
+    "AsUIElement"
+    "Visual vtable must not carry AsUIElement")
+aero_forbid_text(
+    "include/Aero/Visual.hpp"
+    "AsFrameworkElement"
+    "Visual vtable must not carry AsFrameworkElement")
+aero_forbid_text(
+    "include/Aero/UIElement.hpp"
+    "AsUIElement"
+    "UIElement must not restore AsUIElement")
+aero_forbid_text(
+    "include/Aero/FrameworkElement.hpp"
+    "AsFrameworkElement"
+    "FrameworkElement must not restore AsFrameworkElement")
+aero_forbid_text(
+    "include/Aero/Visual.hpp"
+    "static Visual* Of"
+    "Visual::Of is retired; use Aero::TryCast<Media::Visual>")
+aero_require_text(
+    "include/Aero/Visual.hpp"
+    "IsAncestorOf"
+    "Visual must expose IsAncestorOf")
+aero_require_text(
+    "include/Aero/Visual.hpp"
+    "TransformToVisual"
+    "Visual must expose TransformToVisual")
+aero_require_text(
+    "include/Aero/Visual.hpp"
+    "PointToScreen"
+    "Visual must expose PointToScreen")
+aero_require_text(
+    "include/Aero/Visual.hpp"
+    "PointFromScreen"
+    "Visual must expose PointFromScreen")
 aero_require_text(
     "include/Aero/Visual.hpp"
     "AddVisualChild"

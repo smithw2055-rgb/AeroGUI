@@ -24,6 +24,13 @@ using namespace Aero::Threading;
 
 namespace Aero {
 
+FrameworkElement* FrameworkElement::GetRenderParent() const noexcept {
+    ::Aero::Media::Visual* parent = GetVisualParent();
+    return parent != nullptr
+        ? ::Aero::TryCast<FrameworkElement>(parent)
+        : nullptr;
+}
+
 // from src/gui/controls/Layout.cpp
 
 void FrameworkElement::SetVerticalAlignment(
@@ -315,7 +322,7 @@ Result<ResourceValue> FrameworkElement::TryFindResource(
 }
 FrameworkElement* FrameworkElementChildRange::Iterator::operator*() const noexcept {
     ::Aero::Media::Visual* child = owner_ != nullptr ? ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
-    return child != nullptr ? child->AsFrameworkElement() : nullptr;
+    return child != nullptr ? ::Aero::TryCast<::Aero::FrameworkElement>(child) : nullptr;
 }
 
 void FrameworkElementChildRange::Iterator::Advance() noexcept {
@@ -323,7 +330,7 @@ void FrameworkElementChildRange::Iterator::Advance() noexcept {
     const std::uint32_t count = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*owner_);
     while (index_ < count) {
         ::Aero::Media::Visual* child = ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_);
-        if (child != nullptr && child->AsFrameworkElement() != nullptr) return;
+        if (child != nullptr && ::Aero::TryCast<::Aero::FrameworkElement>(child) != nullptr) return;
         ++index_;
     }
 }

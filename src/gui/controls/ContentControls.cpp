@@ -210,7 +210,7 @@ Size Popup::ArrangeOverride(
                     templatedParent);
         } else if (GetVisualParent() != nullptr) {
             placementTarget =
-                GetVisualParent()->AsUIElement();
+                ::Aero::TryCast<::Aero::UIElement>(GetVisualParent());
         }
     }
     Size targetSize = finalSize;
@@ -242,11 +242,11 @@ Size Popup::ArrangeOverride(
             UIElement* lastElement = nullptr;
             while (current != nullptr) {
                 UIElement* currentElement =
-                    current->AsUIElement();
+                    ::Aero::TryCast<::Aero::UIElement>(current);
                 if (currentElement != nullptr) {
                     lastElement = currentElement;
                     FrameworkElement* currentFramework =
-                        currentElement->AsFrameworkElement();
+                        ::Aero::TryCast<::Aero::FrameworkElement>(currentElement);
                     if (currentFramework != nullptr) {
                         const Base::Transform2D transform =
                             currentFramework->GetLocalVisualTransform();
@@ -882,7 +882,7 @@ Base::Result<void> Viewbox::ApplyViewTransform(
     double offsetY) noexcept {
     UIElement* child = GetChild();
     FrameworkElement* framework = child != nullptr
-        ? child->AsFrameworkElement()
+        ? ::Aero::TryCast<::Aero::FrameworkElement>(child)
         : nullptr;
     if (projectedChild_ && projectedChild_.Get() != framework) {
         projectedChild_->hasViewboxTransform_ = false;
@@ -1043,7 +1043,7 @@ Size Viewbox::ArrangeOverride(
     // pixels. That visibly shifts centered reference content (for example the
     // Gallery welcome mark) and diverges from WPF/Noesis layout semantics.
     const FrameworkElement* childFramework =
-        child->AsFrameworkElement();
+        ::Aero::TryCast<::Aero::FrameworkElement>(child);
     const Thickness childMargin = childFramework != nullptr
         ? childFramework->GetMargin()
         : Thickness{};

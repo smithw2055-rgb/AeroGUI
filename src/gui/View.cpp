@@ -697,13 +697,13 @@ const IRenderer& View::GetRenderer() const noexcept {
 
 FrameworkElement* View::GetContent() noexcept {
     return state_ != nullptr && state_->RootVisual() != nullptr
-        ? state_->RootVisual()->AsFrameworkElement()
+        ? ::Aero::TryCast<::Aero::FrameworkElement>(state_->RootVisual())
         : nullptr;
 }
 
 const FrameworkElement* View::GetContent() const noexcept {
     return state_ != nullptr && state_->RootVisual() != nullptr
-        ? state_->RootVisual()->AsFrameworkElement()
+        ? ::Aero::TryCast<::Aero::FrameworkElement>(state_->RootVisual())
         : nullptr;
 }
 

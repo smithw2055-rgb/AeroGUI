@@ -158,7 +158,7 @@ StoryboardHost::ExecuteAnimationAction(
             parameter = Meta::PropertyValue::NullObject(
                 Meta::TypeOf<Base::Object>());
         }
-        Aero::UIElement* target = owner.AsUIElement();
+        Aero::UIElement* target = ::Aero::TryCast<::Aero::UIElement>(&(owner));
         if (target == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -317,7 +317,7 @@ StoryboardHost::ExecuteAnimationAction(
                         current);
                     break;
                 }
-                current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
+                current = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
             }
             if (contextMenu == nullptr ||
                 !contextMenu->GetPlacementTarget()) {
@@ -337,7 +337,7 @@ StoryboardHost::ExecuteAnimationAction(
         }
         auto& target = static_cast<Aero::UIElement&>(*targetObject);
         Aero::Media::Visual* current =
-            Aero::Media::Visual::Of(target.GetLogicalParent());
+            ::Aero::TryCast<::Aero::Media::Visual>(target.GetLogicalParent());
         if (current == nullptr) current = target.GetVisualParent();
         while (current != nullptr) {
             if (metadata->Types().IsDerivedFrom(
@@ -361,7 +361,7 @@ StoryboardHost::ExecuteAnimationAction(
                         : Base::Result<void>(removed.GetStatus());
                 }
             }
-            current = ::Aero::Media::Visual::Of(current->GetLogicalParent()) != nullptr ? ::Aero::Media::Visual::Of(current->GetLogicalParent()) : current->GetVisualParent();
+            current = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
         }
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,

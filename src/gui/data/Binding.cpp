@@ -777,10 +777,10 @@ Base::Result<BindingHandle> BindingEngine::Attach(
             FrameworkElement::StaticTypeId())) {
         auto& targetElement =
             *static_cast<FrameworkElement*>(descriptor.target);
-        ::Aero::Media::Visual* parent = ::Aero::Media::Visual::Of(targetElement.GetLogicalParent());
+        ::Aero::Media::Visual* parent = ::Aero::TryCast<::Aero::Media::Visual>(targetElement.GetLogicalParent());
         if (parent == nullptr) parent = targetElement.GetVisualParent();
-        if (parent != nullptr && parent->AsFrameworkElement() != nullptr) {
-            record.dataContextOwner = parent->AsFrameworkElement();
+        if (parent != nullptr && ::Aero::TryCast<::Aero::FrameworkElement>(parent) != nullptr) {
+            record.dataContextOwner = ::Aero::TryCast<::Aero::FrameworkElement>(parent);
         }
     }
     record.descriptor.target = descriptor.target;

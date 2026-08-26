@@ -324,7 +324,7 @@ Base::Result<bool> InteractivityEngine::StartKeyTrigger(
         Aero::Interactivity::KeyTrigger& trigger,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
-        Aero::UIElement* source = owner.AsUIElement();
+        Aero::UIElement* source = ::Aero::TryCast<::Aero::UIElement>(&(owner));
         if (source == nullptr) return false;
         if (KeyCodeFromName(trigger.GetKey()) == 0U) {
             return Base::Status::Failure(
@@ -454,7 +454,7 @@ void InteractivityEngine::KeyTriggerState::Invoke(
         return;
     }
     if (trigger->GetActiveOnFocus()) {
-        Aero::UIElement* expected = owner->AsUIElement();
+        Aero::UIElement* expected = ::Aero::TryCast<::Aero::UIElement>(owner);
         if (expected == nullptr || runtime->input == nullptr ||
             runtime->input->GetFocusedElement() != expected) {
             return;

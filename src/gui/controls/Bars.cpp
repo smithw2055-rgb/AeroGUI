@@ -262,7 +262,7 @@ ToolBar::SynchronizeToolBar() noexcept {
              ++index) {
             UIElement* child =
                 children[index] != nullptr
-                ? children[index]->AsUIElement()
+                ? ::Aero::TryCast<::Aero::UIElement>(children[index])
                 : nullptr;
             if (child == nullptr) continue;
             child->SetVisibility(

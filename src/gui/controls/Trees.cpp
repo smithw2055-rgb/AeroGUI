@@ -511,7 +511,7 @@ TreeBehavior::ResolveTreeView(
         : nullptr;
     return visual != nullptr
         ? static_cast<TreeView*>(
-            visual->AsUIElement())
+            ::Aero::TryCast<::Aero::UIElement>(visual))
         : nullptr;
 }
 
@@ -597,7 +597,7 @@ TreeBehavior::FindItem(
     while (visual != nullptr &&
         visual != &treeView) {
         UIElement* element =
-            visual->AsUIElement();
+            ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
             treeView.PropertyRegistry().Types().
                 IsDerivedFrom(
@@ -620,7 +620,7 @@ TreeBehavior::CollectVisibleItems(
         AeroGuiInternal::RenderChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element =
-            child->AsUIElement();
+            ::Aero::TryCast<::Aero::UIElement>(child);
         if (element != nullptr &&
             element->GetVisibility() !=
                 Visibility::Visible) {

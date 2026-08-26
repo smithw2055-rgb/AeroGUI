@@ -393,7 +393,7 @@ Menu* MenuBehavior::ResolveMenu(
         : nullptr;
     return visual != nullptr
         ? static_cast<Menu*>(
-            visual->AsUIElement())
+            ::Aero::TryCast<::Aero::UIElement>(visual))
         : nullptr;
 }
 
@@ -462,7 +462,7 @@ MenuItem* MenuBehavior::FindItem(
     while (visual != nullptr &&
         visual != &menu) {
         UIElement* element =
-            visual->AsUIElement();
+            ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
             menu.PropertyRegistry().Types().
                 IsDerivedFrom(

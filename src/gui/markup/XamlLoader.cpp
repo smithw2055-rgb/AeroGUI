@@ -4741,9 +4741,7 @@ Base::Result<void> AddFrameworkResource(
     const Meta::Value& value,
     void*) noexcept {
     auto* element =
-        static_cast<FrameworkElement*>(
-            static_cast<::Aero::Media::Visual&>(scopeOwner)
-                .AsFrameworkElement());
+        ::Aero::TryCast<::Aero::FrameworkElement>(&scopeOwner);
     if (element == nullptr) {
         return InvalidResource(
             "XAML resource scope is not a FrameworkElement");
@@ -4767,7 +4765,7 @@ ResourceDictionary* ResolveFrameworkScope(
     ::Aero::Media::Visual& visual =
         static_cast<::Aero::Media::Visual&>(scopeOwner);
     FrameworkElement* element =
-        visual.AsFrameworkElement();
+        ::Aero::TryCast<::Aero::FrameworkElement>(&(visual));
     return element != nullptr
         ? &element->GetResources()
         : nullptr;

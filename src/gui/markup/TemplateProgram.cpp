@@ -1276,7 +1276,7 @@ Base::Object* ResolveTemplateBindingAncestor(
     std::uint32_t matched = 0U;
     auto* targetVisual = static_cast<::Aero::Media::Visual*>(&target);
     ::Aero::Media::Visual* current = targetVisual->GetVisualParent();
-    if (current == nullptr) current = ::Aero::Media::Visual::Of(targetVisual->GetLogicalParent());
+    if (current == nullptr) current = ::Aero::TryCast<::Aero::Media::Visual>(targetVisual->GetLogicalParent());
     while (current != nullptr) {
         const TypeInfo* type =
             runtime.Types().FindType(current->RuntimeType());
@@ -1286,7 +1286,7 @@ Base::Object* ResolveTemplateBindingAncestor(
             return current;
         }
         ::Aero::Media::Visual* next = current->GetVisualParent();
-        if (next == nullptr) next = ::Aero::Media::Visual::Of(current->GetLogicalParent());
+        if (next == nullptr) next = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
         current = next;
     }
     return nullptr;
@@ -3116,7 +3116,7 @@ Base::Result<void> BuildCompiledTemplate(
                 }
                 std::uint32_t matchedLevel = 0U;
                 ::Aero::Media::Visual* current =
-                    ::Aero::Media::Visual::Of(context.TemplatedParent().GetLogicalParent());
+                    ::Aero::TryCast<::Aero::Media::Visual>(context.TemplatedParent().GetLogicalParent());
                 if (current == nullptr) {
                     current = context.TemplatedParent().GetVisualParent();
                 }
@@ -3129,7 +3129,7 @@ Base::Result<void> BuildCompiledTemplate(
                             relative->GetAncestorLevel()) {
                         return static_cast<Base::Object*>(current);
                     }
-                    ::Aero::Media::Visual* next = Aero::Media::Visual::Of(current->GetLogicalParent());
+                    ::Aero::Media::Visual* next = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
                     if (next == nullptr) next = current->GetVisualParent();
                     current = next;
                 }

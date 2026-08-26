@@ -1316,7 +1316,7 @@ void OnOpacityMaskChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs&) noexcept {
     FrameworkElement* owner =
-        static_cast<UIElement&>(object).AsFrameworkElement();
+        ::Aero::TryCast<::Aero::FrameworkElement>(&object);
     if (owner == nullptr) return;
     static_cast<void>(
         AeroGuiInternal::
@@ -1327,7 +1327,7 @@ void OnRenderTransformChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs&) noexcept {
     FrameworkElement* owner =
-        static_cast<UIElement&>(object).AsFrameworkElement();
+        ::Aero::TryCast<::Aero::FrameworkElement>(&object);
     if (owner == nullptr) return;
     static_cast<void>(
         AeroGuiInternal::
@@ -1343,7 +1343,7 @@ void OnEffectChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs&) noexcept {
     FrameworkElement* owner =
-        static_cast<UIElement&>(object).AsFrameworkElement();
+        ::Aero::TryCast<::Aero::FrameworkElement>(&object);
     if (owner == nullptr) return;
     static_cast<void>(
         AeroGuiInternal::

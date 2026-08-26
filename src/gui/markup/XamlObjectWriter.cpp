@@ -7062,7 +7062,7 @@ Base::Result<Aero::UIElement*> ObjectWriter::ResolveUIElement(
         ResolveVisual(schema, object, type);
     if (!visual) return visual.GetStatus();
     Aero::UIElement* element =
-        visual.Value()->AsUIElement();
+        ::Aero::TryCast<::Aero::UIElement>(visual.Value());
     if (element == nullptr) {
         return InvalidContent("XAML object is not a UIElement");
     }

@@ -1096,9 +1096,9 @@ Base::Result<ResourceValue> ResourceResolver::Lookup(
             Base::ErrorCode::NotFound) {
             return local.GetStatus();
         }
-        const ::Aero::Media::Visual* logical = ::Aero::Media::Visual::Of(current->GetLogicalParent());
+        const ::Aero::Media::Visual* logical = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
         current = logical != nullptr
-            ? logical->AsFrameworkElement()
+            ? ::Aero::TryCast<::Aero::FrameworkElement>(logical)
             : nullptr;
     }
     const ResourceDictionary* layers[] = {

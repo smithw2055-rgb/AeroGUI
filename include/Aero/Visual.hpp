@@ -10,9 +10,7 @@
 
 namespace Aero {
 
-class FrameworkElement;
 class ElementTree;
-class UIElement;
 class LogicalTreeHelper;
 class AeroGuiInternal;
 
@@ -33,17 +31,14 @@ public:
     ::Aero::DependencyObject* GetLogicalParent() const noexcept { return logicalParent_; }
     bool GetIsLoaded() const noexcept { return loaded_; }
 
-    static Visual* Of(::Aero::DependencyObject* object) noexcept;
-    static const Visual* Of(const ::Aero::DependencyObject* object) noexcept;
+    bool IsAncestorOf(const Visual& descendant) const noexcept;
+    Base::Transform2D TransformToVisual(const Visual& visual) const noexcept;
+    Base::Point PointToScreen(Base::Point point) const noexcept;
+    Base::Point PointFromScreen(Base::Point point) const noexcept;
 
 #if defined(AERO_GUI_IMPLEMENTATION)
     ::Aero::ElementTree* GetTree() const noexcept { return tree_; }
 #endif
-
-    virtual ::Aero::UIElement* AsUIElement() noexcept { return nullptr; }
-    virtual const ::Aero::UIElement* AsUIElement() const noexcept { return nullptr; }
-    virtual ::Aero::FrameworkElement* AsFrameworkElement() noexcept { return nullptr; }
-    virtual const ::Aero::FrameworkElement* AsFrameworkElement() const noexcept { return nullptr; }
 
 protected:
     virtual std::uint32_t GetVisualChildrenCount() const noexcept { return 0U; }

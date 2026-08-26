@@ -279,7 +279,7 @@ ButtonBase* ButtonBehavior::ResolveButton(
     std::uint32_t index) noexcept {
     ::Aero::Media::Visual* visual = tree_->ResolveHandle(buttons_[index].handle);
     return visual != nullptr
-        ? static_cast<ButtonBase*>(visual->AsUIElement())
+        ? ::Aero::TryCast<ButtonBase>(visual)
         : nullptr;
 }
 
@@ -624,7 +624,7 @@ void ButtonBehavior::PublishToggleState(
 
 void ButtonBehavior::UncheckRadioPeers(
     RadioButton& button) noexcept {
-    ::Aero::Media::Visual* parent = ::Aero::Media::Visual::Of(button.GetLogicalParent());
+    ::Aero::Media::Visual* parent = ::Aero::TryCast<::Aero::Media::Visual>(button.GetLogicalParent());
     const Base::StringView group = button.GetGroupName();
     for (std::uint32_t index = 0U;
         index < buttons_.Size(); ++index) {

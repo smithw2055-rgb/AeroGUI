@@ -60,10 +60,6 @@ public:
     explicit FrameworkElement(TypeId runtimeType) noexcept;
     ~FrameworkElement() override;
 
-    FrameworkElement* AsFrameworkElement() noexcept override { return this; }
-    const FrameworkElement* AsFrameworkElement() const noexcept override {
-        return this;
-    }
     DependencyObject* GetParent() const noexcept { return GetLogicalParent(); }
 
     bool GetUseLayoutRounding() const noexcept;
@@ -204,10 +200,7 @@ protected:
         ::Aero::Media::DrawingContext& context) noexcept;
 
 private:
-    FrameworkElement* GetRenderParent() const noexcept {
-        ::Aero::Media::Visual* parent = GetVisualParent();
-        return parent != nullptr ? parent->AsFrameworkElement() : nullptr;
-    }
+    FrameworkElement* GetRenderParent() const noexcept;
     FrameworkElementChildRange GetRenderChildren() const noexcept {
         return FrameworkElementChildRange(*this);
     }

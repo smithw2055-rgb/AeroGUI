@@ -188,7 +188,7 @@ Base::Result<Aero::UIElement*> ViewState::ResolveUIElement(
             ResolveVisual(object, type);
         if (!visual) return visual.GetStatus();
         Aero::UIElement* element =
-            visual.Value()->AsUIElement();
+            ::Aero::TryCast<::Aero::UIElement>(visual.Value());
         if (element == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -201,7 +201,7 @@ Aero::FrameworkElement* ViewState::ResolveFrameworkElement(
         Base::Object& object, Meta::TypeId type) noexcept {
         Base::Result<Aero::Media::Visual*> visual =
             ResolveVisual(object, type);
-        return visual ? visual.Value()->AsFrameworkElement() : nullptr;
+        return visual ? ::Aero::TryCast<::Aero::FrameworkElement>(visual.Value()) : nullptr;
     }
 
 template<class T>
@@ -267,7 +267,7 @@ Base::Result<void> ApplyViewUi(ViewState& state, Aero::Media::Visual& root) noex
                     *static_cast<::Aero::DependencyObject*>(node));
             if (!activated) return activated.GetStatus();
 
-            Aero::FrameworkElement* element = node->AsFrameworkElement();
+            Aero::FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(node);
             if (element != nullptr) {
                 Base::Result<const Aero::Style*> resolved =
                     ResolveUiValue<Aero::Style>(
@@ -362,7 +362,7 @@ void DetachViewUi(
         for (Aero::Media::Visual* node : reachable) {
             if (node == nullptr) continue;
             if (state.bindings != nullptr) (void)state.bindings->DetachObject(*node);
-            Aero::FrameworkElement* element = node->AsFrameworkElement();
+            Aero::FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(node);
             if (element != nullptr && state.styles != nullptr) {
                 if (state.interactivity != nullptr) {
                     state.interactivity->ClearStyleDataTriggersFor(*element);

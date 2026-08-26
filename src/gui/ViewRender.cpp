@@ -105,7 +105,7 @@ void ViewState::VisitTextElements(
         if (rootVisual == nullptr) return;
         bool effectivelyVisible = ancestorsVisible;
         if (Aero::UIElement* element =
-                rootVisual->AsUIElement();
+                ::Aero::TryCast<::Aero::UIElement>(rootVisual);
             element != nullptr) {
             effectivelyVisible =
                 ancestorsVisible &&
@@ -134,7 +134,7 @@ void ViewState::VisitPaths(
         if (rootVisual == nullptr) return;
         bool effectivelyVisible = ancestorsVisible;
         if (Aero::UIElement* element =
-                rootVisual->AsUIElement();
+                ::Aero::TryCast<::Aero::UIElement>(rootVisual);
             element != nullptr) {
             effectivelyVisible =
                 ancestorsVisible &&

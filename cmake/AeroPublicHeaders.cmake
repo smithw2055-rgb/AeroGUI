@@ -55,6 +55,7 @@ set(AERO_PUBLIC_HEADERS
     include/AeroApp/Application.hpp
     include/AeroApp/Window.hpp
     include/Aero/DependencyObject.hpp
+    include/Aero/TryCast.hpp
     include/Aero/DependencyProperty.hpp
     include/Aero/RoutedEvent.hpp
     include/Aero/Visual.hpp

@@ -248,7 +248,7 @@ Base::Result<bool> ImageCache::Synchronize(
                         fill.Get());
             source = imageBrush->GetSource();
         } else {
-            UIElement* element = visual->AsUIElement();
+            UIElement* element = ::Aero::TryCast<::Aero::UIElement>(visual);
             Base::Ref<Media::Brush> mask =
                 element != nullptr
                 ? element->GetOpacityMask()

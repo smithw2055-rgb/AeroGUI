@@ -184,12 +184,7 @@ public:
     explicit UIElement(TypeId runtimeType) noexcept;
     ~UIElement() override;
 
-    UIElement* AsUIElement() noexcept override { return this; }
-    const UIElement* AsUIElement() const noexcept override { return this; }
-    UIElement* LayoutParent() const noexcept {
-        ::Aero::Media::Visual* parent = GetVisualParent();
-        return parent != nullptr ? parent->AsUIElement() : nullptr;
-    }
+    UIElement* LayoutParent() const noexcept;
 
     template<class TArgs>
     Result<void> AddHandlerChecked(

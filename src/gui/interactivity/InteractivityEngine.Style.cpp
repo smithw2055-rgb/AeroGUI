@@ -180,7 +180,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                     const std::uint32_t requestedLevel =
                         binding->GetRelativeSource()->GetAncestorLevel();
                     std::uint32_t matchedLevel = 0U;
-                    Aero::Media::Visual* current = Aero::Media::Visual::Of(target.GetLogicalParent());
+                    Aero::Media::Visual* current = ::Aero::TryCast<::Aero::Media::Visual>(target.GetLogicalParent());
                     if (current == nullptr) {
                         current = target.GetVisualParent();
                     }
@@ -194,7 +194,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                             sourceObject = current;
                             break;
                         }
-                        Aero::Media::Visual* next = Aero::Media::Visual::Of(current->GetLogicalParent());
+                        Aero::Media::Visual* next = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
                         if (next == nullptr) {
                             next = current->GetVisualParent();
                         }
