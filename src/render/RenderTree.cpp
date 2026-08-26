@@ -1031,9 +1031,9 @@ void RenderTree::RemoveDrawing(::Aero::Media::Visual& visual) noexcept {
 void RenderTree::MarkCommittedSubtree(
     ::Aero::Media::Visual& visual,
     bool ancestorVisible) noexcept {
-    UIElement* element = visual.AsUIElement();
+    UIElement* element = ::Aero::TryCast<::Aero::UIElement>(&visual);
     FrameworkElement* framework =
-        visual.AsFrameworkElement();
+        ::Aero::TryCast<::Aero::FrameworkElement>(&visual);
     const bool visible =
         ancestorVisible &&
         (element == nullptr ||
@@ -1529,9 +1529,9 @@ Base::Result<void> RenderTree::BuildSubtree(
     RenderNodeId parentId,
     RenderFrame& plan,
     bool overlayRoot) noexcept {
-    UIElement* element = visual.AsUIElement();
+    UIElement* element = ::Aero::TryCast<::Aero::UIElement>(&visual);
     FrameworkElement* framework =
-        visual.AsFrameworkElement();
+        ::Aero::TryCast<::Aero::FrameworkElement>(&visual);
     const bool visible =
         element == nullptr ||
         element->GetVisibility() ==
