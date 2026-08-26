@@ -336,8 +336,9 @@ StoryboardHost::ExecuteAnimationAction(
                 "RemoveElementAction target is not a UIElement");
         }
         auto& target = static_cast<Aero::UIElement&>(*targetObject);
-        Aero::Media::Visual* current = target.GetLogicalParent() != nullptr
-            ? target.GetLogicalParent() : target.GetVisualParent();
+        Aero::Media::Visual* current =
+            Aero::Media::Visual::Of(target.GetLogicalParent());
+        if (current == nullptr) current = target.GetVisualParent();
         while (current != nullptr) {
             if (metadata->Types().IsDerivedFrom(
                     current->RuntimeType(),
