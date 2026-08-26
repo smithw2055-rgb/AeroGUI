@@ -226,6 +226,37 @@ Base::Result<Base::Transform2D> ConvertMatrix(
         values[3], values[4], values[5]};
 }
 
+Base::Result<Base::Transform3> ConvertTransform3(
+    Base::StringView input) noexcept {
+    Base::String text;
+    Base::Result<void> assigned = text.Assign(input);
+    if (!assigned) return assigned.GetStatus();
+    const char* cursor = text.CStr();
+    double values[12]{};
+    for (std::uint32_t index = 0U; index < 12U; ++index) {
+        while (*cursor == ' ' || *cursor == ',') ++cursor;
+        char* end = nullptr;
+        values[index] = std::strtod(cursor, &end);
+        if (end == cursor || !std::isfinite(values[index])) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Transform3 requires twelve finite values");
+        }
+        cursor = end;
+    }
+    while (*cursor == ' ' || *cursor == ',') ++cursor;
+    if (*cursor != '\0') {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Transform3 contains trailing text");
+    }
+    return Base::Transform3{
+        values[0], values[1], values[2],
+        values[3], values[4], values[5],
+        values[6], values[7], values[8],
+        values[9], values[10], values[11]};
+}
+
 int Hex(char value) noexcept {
     if (value >= '0' && value <= '9') return value - '0';
     if (value >= 'a' && value <= 'f') return value - 'a' + 10;

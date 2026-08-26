@@ -1,14 +1,16 @@
 #pragma once
 
-#include <Aero/DependencyProperty.hpp>
-#include <Aero/Media/Transform.hpp>
+#include <Aero/Media/Transform3D.hpp>
 
 namespace Aero::Media {
 
-class AERO_GUI_API CompositeTransform3D : public ::Aero::DependencyObject {
-    AERO_DECLARE_TYPE(CompositeTransform3D, ::Aero::DependencyObject)
+/// Convenience 3D transform: Center / Scale / Rotate / Translate.
+/// GetTransform3D() returns the 4×3 affine; perspective collapse happens at
+/// render/hit via Transform3DContext (not here).
+class AERO_GUI_API CompositeTransform3D : public Transform3D {
+    AERO_DECLARE_TYPE(CompositeTransform3D, Transform3D)
 public:
-    CompositeTransform3D() noexcept : DependencyObject(StaticTypeId()) {}
+    CompositeTransform3D() noexcept : Transform3D(StaticTypeId()) {}
 
     double GetCenterX() const noexcept { return GetValueOr(CenterXProperty, 0.0); }
     double GetCenterY() const noexcept { return GetValueOr(CenterYProperty, 0.0); }
@@ -36,7 +38,7 @@ public:
     void SetTranslateY(double value) noexcept { SetValue(TranslateYProperty, value); }
     void SetTranslateZ(double value) noexcept { SetValue(TranslateZProperty, value); }
 
-    Base::Transform2D GetProjectedMatrix() const noexcept;
+    [[nodiscard]] Base::Transform3 GetTransform3D() const noexcept override;
 
     inline static constexpr DependencyProperty<double> CenterXProperty{"CenterX"};
     inline static constexpr DependencyProperty<double> CenterYProperty{"CenterY"};
@@ -51,4 +53,5 @@ public:
     inline static constexpr DependencyProperty<double> TranslateYProperty{"TranslateY"};
     inline static constexpr DependencyProperty<double> TranslateZProperty{"TranslateZ"};
 };
+
 } // namespace Aero::Media

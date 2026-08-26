@@ -176,6 +176,14 @@ inline bool TryToTransform2D(
     return IsFiniteTransform(affine);
 }
 
+inline Transform3 IdentityTransform3() noexcept {
+    return {};
+}
+
+inline ProjectiveTransform2D IdentityProjective() noexcept {
+    return {};
+}
+
 inline bool IsIdentityTransform3(const Transform3& value) noexcept {
     return std::abs(value.m11 - 1.0) <= 1.0e-12 &&
         std::abs(value.m22 - 1.0) <= 1.0e-12 &&

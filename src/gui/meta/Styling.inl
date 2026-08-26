@@ -3,36 +3,6 @@
 Base::Result<void> PopulateUiStyling(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    auto transform3D = Meta::Register<Media::CompositeTransform3D>(context);
-    transform3D
-        .Property(Media::CompositeTransform3D::CenterXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::CenterYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::CenterZProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::RotationXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::RotationYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::RotationZProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::ScaleXProperty,
-            FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::ScaleYProperty,
-            FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::ScaleZProperty,
-            FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::TranslateXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::TranslateYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::TranslateZProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Factory();
-    status = transform3D.Result();
-    if (!status) return status.GetStatus();
-
     auto element = Meta::Register<Element>(context, TypeFlags::Abstract);
     element
         .Property(
@@ -54,8 +24,9 @@ Base::Result<void> PopulateUiStyling(
                 .Changed(&Element::OnBlendingModeChanged))
         .Property(
             Element::Transform3DProperty,
-            FrameworkPropertyMetadata(Base::Ref<Media::CompositeTransform3D>{})
-                .AffectsRender());
+            FrameworkPropertyMetadata(Base::Ref<Media::Transform3D>{})
+                .AffectsRender()
+                .Changed(&Element::OnTransform3DChanged));
     status = element.Result();
     if (!status) return status.GetStatus();
 

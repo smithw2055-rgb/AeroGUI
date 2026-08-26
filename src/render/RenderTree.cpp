@@ -13,6 +13,7 @@
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
+#include "gui/media/Transform3DMath.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -462,12 +463,16 @@ FrameworkElement::GetLocalVisualTransform() const noexcept {
             bounds.height};
     }
 
-    Base::Result<Base::Ref<Media::CompositeTransform3D>> transform3D =
-        GetValue(Element::Transform3DProperty);
+    Base::Result<Base::Ref<Media::Transform3D>> transform3D =
+        GetValue(UIElement::Transform3DProperty);
     if (transform3D && transform3D.Value()) {
-        result = ComposeTransforms(
-            result,
-            transform3D.Value()->GetProjectedMatrix());
+        if (const auto* composite =
+                ::Aero::TryCast<Media::CompositeTransform3D>(
+                    transform3D.Value().Get())) {
+            result = ComposeTransforms(
+                result,
+                ApproximateCompositeProjection(*composite));
+        }
     }
 
     Base::Ref<Transform> renderTransform =
