@@ -27,7 +27,9 @@ its types below.
 
 - `controls/Buttons.cpp` — `ButtonBase`, `Button`, `RepeatButton`, `ToggleButton`, `CheckBox`, `RadioButton`
 - `controls/ContentControls.cpp` — `ContentControl`, `UserControl`, `ContentPresenter`, `Popup`, `HeaderedContentControl`, `HeaderedItemsControl`
-- `controls/Shapes.cpp` — `Rectangle`, `Ellipse`, `Path`, `Line`, `Polygon`, `Polyline`
+- `shapes/Shapes.cpp` — `Rectangle`, `Ellipse`, `Path`, `Line`, `Polygon`, `Polyline`
+- `shapes/Path.cpp` — `Path` geometry tessellation
+- `documents/Documents.cpp` — `System.Windows.Documents` (`Run`, `Span`, `Paragraph`, …)
 - `controls/Items.cpp` — `ItemsControl`, `ItemCollection`, `ItemContainerGenerator`
 - `controls/Selection.cpp` — `Selector`, `ListBox`
 - `controls/Scroll.cpp` — `ScrollViewer`, `ScrollBar`

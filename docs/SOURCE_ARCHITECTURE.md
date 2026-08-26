@@ -120,7 +120,7 @@ mounts. Domain methods are defined out of line next to their engine:
 `ViewFrame.cpp` ticks the frame, `media/StoryboardHost.cpp` runs
 storyboard sessions, `interactivity/InteractivityEngine.cpp` evaluates
 ConditionBehavior / EventTrigger / KeyTrigger / DataTrigger, and
-`markup/ViewDocuments.cpp` mounts XamlReader fragments.
+`ViewDocuments.cpp` mounts XamlReader fragments.
 
 The public `View` surface stays small and WPF/Noesis shaped. `Gui` and
 `XamlReader` are the only trusted construction/loading peers. `DesktopHost`

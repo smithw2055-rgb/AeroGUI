@@ -770,9 +770,9 @@ void NavigationService::OnRequestNavigate(
 #include "gui/media/BrushRendering.hpp"
 #include "gui/media/MediaState.hpp"
 #include <Aero/Documents.hpp>
-#include "RichText.hpp"
+#include "gui/controls/RichText.hpp"
 
-#include "TextBlockLayout.hpp"
+#include "gui/controls/TextBlockLayout.hpp"
 
 #include <algorithm>
 #include <cctype>

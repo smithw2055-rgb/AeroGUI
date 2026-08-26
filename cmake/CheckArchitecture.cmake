@@ -427,6 +427,8 @@ foreach(required_source_entry IN ITEMS
         "src/gui/styles"
         "src/gui/controls"
         "src/gui/diagnostics"
+        "src/gui/documents"
+        "src/gui/shapes"
         "src/gui/input"
         "src/gui/triggers"
         "src/gui/markup"
@@ -463,7 +465,10 @@ foreach(required_source_entry IN ITEMS
         "src/gui/internal/AeroGuiInternal.Visual.hpp"
         "src/gui/internal/AeroGuiInternal.Control.hpp"
         "src/gui/internal/AeroGuiInternal.Property.hpp"
-        "src/gui/markup/ViewDocuments.cpp"
+        "src/gui/ViewDocuments.cpp"
+        "src/gui/documents/Documents.cpp"
+        "src/gui/shapes/Path.cpp"
+        "src/gui/shapes/Shapes.cpp"
         "src/render/RenderContext.hpp")
     aero_require_file("${required_source_entry}")
 endforeach()
@@ -566,7 +571,8 @@ set(aero_allowed_gui_root_files
     "src/gui/ViewRender.cpp"
     "src/gui/ViewState.hpp"
     "src/gui/ViewRenderer.hpp"
-    "src/gui/ViewRenderer.cpp")
+    "src/gui/ViewRenderer.cpp"
+    "src/gui/ViewDocuments.cpp")
 foreach(aero_gui_root_file IN LISTS aero_gui_root_files)
     if(NOT aero_gui_root_file IN_LIST aero_allowed_gui_root_files)
         message(FATAL_ERROR
@@ -1065,11 +1071,43 @@ aero_forbid_file("src/gui/media/MediaPrivate.hpp")
 aero_forbid_file("src/gui/interactivity/ViewTriggers.cpp")
 aero_forbid_file("src/gui/media/ViewStoryboardSessions.cpp")
 aero_forbid_file("src/gui/controls/Layout.cpp")
+aero_forbid_file("src/gui/markup/ViewDocuments.cpp")
+aero_forbid_file("src/gui/controls/Documents.cpp")
+aero_forbid_file("src/gui/controls/Path.cpp")
+aero_forbid_file("src/gui/controls/Shapes.cpp")
 aero_forbid_file("src/gui/data/BindingState.hpp")
 aero_require_text(
     "cmake/AeroGuiTargets.cmake"
     "_aero_gui_interactivity_sources"
     "Blend/interactivity TUs must be a dedicated AeroGui source group")
+aero_require_text(
+    "cmake/AeroGuiTargets.cmake"
+    "_aero_gui_documents_sources"
+    "Documents.cpp must compile in a documents source group")
+aero_require_text(
+    "cmake/AeroGuiTargets.cmake"
+    "_aero_gui_shapes_sources"
+    "Path.cpp and Shapes.cpp must compile in a shapes source group")
+aero_require_text(
+    "cmake/AeroGuiTargets.cmake"
+    "src/gui/ViewDocuments.cpp"
+    "ViewDocuments must compile with View composition sources")
+aero_forbid_text(
+    "cmake/AeroGuiTargets.cmake"
+    "src/gui/markup/ViewDocuments.cpp"
+    "ViewDocuments must not remain in the markup source group")
+aero_forbid_text(
+    "cmake/AeroGuiTargets.cmake"
+    "src/gui/controls/Documents.cpp"
+    "Documents.cpp must not remain in the controls source group")
+aero_forbid_text(
+    "cmake/AeroGuiTargets.cmake"
+    "src/gui/controls/Path.cpp"
+    "Path.cpp must not remain in the controls source group")
+aero_forbid_text(
+    "cmake/AeroGuiTargets.cmake"
+    "src/gui/controls/Shapes.cpp"
+    "Shapes.cpp must not remain in the controls source group")
 aero_require_text(
     "src/gui/data/BindingEngine.hpp"
     "class BindingEngine"

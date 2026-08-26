@@ -123,17 +123,14 @@ set(_aero_gui_controls_sources
     src/gui/controls/ContentControls.cpp
     src/gui/controls/ControlBehavior.cpp
     src/gui/controls/Controls.cpp
-    src/gui/controls/Documents.cpp
     src/gui/controls/Panels.cpp
     src/gui/controls/Images.cpp
     src/gui/controls/Items.cpp
     src/gui/controls/ListView.cpp
     src/gui/controls/Menus.cpp
     src/gui/controls/ControlsMetadata.cpp
-    src/gui/controls/Path.cpp
     src/gui/controls/Scroll.cpp
     src/gui/controls/Selection.cpp
-    src/gui/controls/Shapes.cpp
     src/gui/controls/TextBox.cpp
     src/gui/controls/Trees.cpp
     src/gui/controls/Virtualization.cpp
@@ -148,8 +145,7 @@ set(_aero_gui_markup_sources
     src/gui/markup/GuiSchema.cpp
     src/gui/markup/ReloadCoordinator.cpp
     src/gui/markup/XamlProvider.cpp
-    src/gui/markup/XamlReader.cpp
-    src/gui/markup/ViewDocuments.cpp)
+    src/gui/markup/XamlReader.cpp)
 
 set(_aero_gui_text_sources
     src/gui/text/EditableText.cpp
@@ -170,6 +166,13 @@ set(_aero_gui_diagnostics_sources
 set(_aero_gui_templates_sources
     src/gui/templates/Templates.cpp)
 
+set(_aero_gui_documents_sources
+    src/gui/documents/Documents.cpp)
+
+set(_aero_gui_shapes_sources
+    src/gui/shapes/Path.cpp
+    src/gui/shapes/Shapes.cpp)
+
 set(_aero_gui_render_contract_sources
     src/render/DrawingContext.cpp
     src/render/RenderTree.cpp
@@ -187,7 +190,8 @@ set(_aero_gui_composition_sources
     src/gui/ViewRender.cpp
     src/gui/ViewRenderer.hpp
     src/gui/ViewRenderer.cpp
-    src/gui/ViewState.hpp)
+    src/gui/ViewState.hpp
+    src/gui/ViewDocuments.cpp)
 
 set(_aero_gui_sources
     ${_aero_gui_core_sources}
@@ -198,6 +202,8 @@ set(_aero_gui_sources
     ${_aero_gui_triggers_sources}
     ${_aero_gui_interactivity_sources}
     ${_aero_gui_controls_sources}
+    ${_aero_gui_documents_sources}
+    ${_aero_gui_shapes_sources}
     ${_aero_gui_templates_sources}
     ${_aero_gui_markup_sources}
     ${_aero_gui_media_sources}
@@ -277,6 +283,8 @@ unset(_aero_gui_input_sources)
 unset(_aero_gui_triggers_sources)
 unset(_aero_gui_interactivity_sources)
 unset(_aero_gui_controls_sources)
+unset(_aero_gui_documents_sources)
+unset(_aero_gui_shapes_sources)
 unset(_aero_gui_templates_sources)
 unset(_aero_gui_markup_sources)
 unset(_aero_gui_media_sources)
