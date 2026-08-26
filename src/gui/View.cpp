@@ -28,7 +28,6 @@ ViewState::ViewState(
           xamlRuntime(&static_cast<GuiState&>(*gui).xaml),
           schemaBundle(&xamlRuntime->SchemaBundle()),
           documentCache(&xamlRuntime->Documents()),
-          pendingFocusTargets(&value),
           itemGenerators(&value),
           fragmentMounts(&value) {}
 
@@ -65,7 +64,7 @@ void ViewState::Shutdown() noexcept {
         BeginDestroyInteractions();
         DetachViewUi(*this);
         FinishDestroyInteractions();
-        static_cast<void>(UnmountAllFragments());
+        static_cast<void>(UnmountAllFragments(*this));
         VisitTextElements(RootVisual(), nullptr);
         VisitPaths(RootVisual(), nullptr);
         if (tree != nullptr) {
@@ -92,7 +91,7 @@ void ViewState::Shutdown() noexcept {
         }
         mounted = false;
         root.Reset();
-        ClearLoadedDocument();
+        ClearLoadedDocument(*this);
         if (effectLifetime) effectLifetime->Invalidate();
 
 
@@ -247,8 +246,12 @@ Base::Result<void> ViewState::Initialize(
         if (status && overlays != nullptr) {
             overlays->Bind();
         }
-        if (status) {
-            status = RebuildDynamicResourceEnvironment();
+        if (status && focus != nullptr) {
+            focus->Bind();
+        }
+        if (status && resources != nullptr) {
+            resources->Bind();
+            status = resources->RebuildDynamicEnvironment();
         }
         if (status) {
             tree->AttachPresentation(layout, renderer);
@@ -324,11 +327,14 @@ Base::Result<void> LoadViewResources(
     Base::StringView uri,
     ResourceLoadMode mode,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    ViewState* state_ = &state;
+    if (state.resources == nullptr) {
+        return AeroNotInitialized(
+            "View resource host is unavailable");
+    }
     Base::Result<Aero::ResourceDictionary*> target =
-        state_->ResolveResourceLayer(layer);
+        state.resources->ResolveLayer(layer);
     if (!target) return target.GetStatus();
-    return state_->LoadResourceLayer(
+    return state.resources->LoadLayer(
         uri,
         *target.Value(),
         diagnostics,
@@ -342,11 +348,14 @@ LoadViewCompiledResources(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
     ResourceLoadMode mode) noexcept {
-    ViewState* state_ = &state;
+    if (state.resources == nullptr) {
+        return AeroNotInitialized(
+            "View resource host is unavailable");
+    }
     Base::Result<Aero::ResourceDictionary*> target =
-        state_->ResolveResourceLayer(layer);
+        state.resources->ResolveLayer(layer);
     if (!target) return target.GetStatus();
-    return state_->LoadCompiledResourceLayer(
+    return state.resources->LoadCompiledLayer(
         bytes,
         originUri,
         *target.Value(),
@@ -358,16 +367,15 @@ void SetViewResourceDictionary(
     ResourceLayer layer,
     Aero::ResourceDictionary& dictionary,
     ResourceLoadMode mode) noexcept {
-    ViewState* state_ = &state;
-    if (state_ == nullptr || !state_->initialized) {
+    if (state.resources == nullptr || !state.initialized) {
         return;
     }
-    if (state_->mounted || state_->root ||
-        state_->loadedDocument.root) {
+    if (state.mounted || state.root ||
+        state.loadedDocument.root) {
         return;
     }
     Base::Result<Aero::ResourceDictionary*> target =
-        state_->ResolveResourceLayer(layer);
+        state.resources->ResolveLayer(layer);
     if (!target) return;
     Base::Result<Aero::ResourceDictionary> shared =
         dictionary.Share();
@@ -376,7 +384,7 @@ void SetViewResourceDictionary(
         Base::Result<void> merged =
             target.Value()->AddMerged(shared.Value());
         if (!merged) return;
-        (void)state_->RebuildDynamicResourceEnvironment();
+        (void)state.resources->RebuildDynamicEnvironment();
         return;
     }
 
@@ -384,18 +392,21 @@ void SetViewResourceDictionary(
         std::move(*target.Value());
     *target.Value() = std::move(shared).Value();
     Base::Result<void> rebuilt =
-        state_->RebuildDynamicResourceEnvironment();
+        state.resources->RebuildDynamicEnvironment();
     if (rebuilt) return;
     *target.Value() = std::move(previous);
     Base::Result<void> restored =
-        state_->RebuildDynamicResourceEnvironment();
+        state.resources->RebuildDynamicEnvironment();
     (void)restored;
 }
 
 Base::Result<void> LoadViewBuiltInTheme(
     ViewState& state,
     BuiltInTheme theme) noexcept {
-    ViewState* state_ = &state;
+    if (state.resources == nullptr) {
+        return AeroNotInitialized(
+            "View resource host is unavailable");
+    }
     if (theme != BuiltInTheme::Light &&
         theme != BuiltInTheme::Dark) {
         return Base::Status::Failure(
@@ -422,7 +433,7 @@ Base::Result<void> LoadViewBuiltInTheme(
     if (!genericUri) return genericUri.GetStatus();
 
     Aero::ResourceDictionary previous =
-        std::move(state_->themeResources);
+        std::move(state.resources->themeResources);
     Base::Result<void> loaded = paletteSize != 0U
         ? LoadViewCompiledResources(state,
               ResourceLayer::Theme,
@@ -445,10 +456,10 @@ Base::Result<void> LoadViewBuiltInTheme(
                   ResourceLoadMode::Merge);
     }
     if (!loaded) {
-        state_->themeResources =
+        state.resources->themeResources =
             std::move(previous);
         Base::Result<void> restored =
-            state_->RebuildDynamicResourceEnvironment();
+            state.resources->RebuildDynamicEnvironment();
         return restored
             ? Base::Result<void>(loaded.GetStatus())
             : Base::Result<void>(restored.GetStatus());
@@ -488,7 +499,7 @@ Base::Result<void> View::SetContent(
         }
     }
     if (state_->mounted) {
-        Base::Result<void> unmounted = state_->UnmountRoot();
+        Base::Result<void> unmounted = UnmountRoot(*state_);
         if (!unmounted) return unmounted.GetStatus();
     }
     return MountViewContent(
@@ -525,7 +536,7 @@ Base::Result<void> View::SetContent(
             "View cannot mount an empty UI document");
     }
     if (state_->mounted) {
-        Base::Result<void> unmounted = state_->UnmountRoot();
+        Base::Result<void> unmounted = UnmountRoot(*state_);
         if (!unmounted) return unmounted.GetStatus();
     }
 
@@ -575,7 +586,8 @@ Base::Result<void> View::SetContent(
 
     next.root = std::move(root);
     state_->loadedDocument = std::move(next);
-    return state_->MountRoot(
+    return MountRoot(
+        *state_,
         state_->loadedDocument.root, availableSize);
 }
 

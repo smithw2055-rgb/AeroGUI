@@ -114,7 +114,12 @@ Base::Result<void> ViewState::DetachVisualGraph(
         return {};
     }
 
-Aero::ResourceEnvironment ViewState::ResourceEnvironment() const noexcept {
+ResourceHost::ResourceHost(ViewState& owner) noexcept
+    : view(&owner) {}
+
+void ResourceHost::Bind() noexcept {}
+
+Aero::ResourceEnvironment ResourceHost::Environment() const noexcept {
         return {
             &applicationResources,
             &themeResources,
@@ -122,7 +127,7 @@ Aero::ResourceEnvironment ViewState::ResourceEnvironment() const noexcept {
     }
 
 Base::Result<Aero::ResourceDictionary*>
- ViewState::ResolveResourceLayer(
+ResourceHost::ResolveLayer(
         ResourceLayer layer) noexcept {
         switch (layer) {
         case ResourceLayer::Application:
@@ -137,7 +142,7 @@ Base::Result<Aero::ResourceDictionary*>
             "View resource layer is invalid");
     }
 
-Base::Result<void> ViewState::RebuildDynamicResourceEnvironment() noexcept {
+Base::Result<void> ResourceHost::RebuildDynamicEnvironment() noexcept {
         dynamicResourceEnvironment.Clear();
         Base::Result<void> rebuilt =
             dynamicResourceEnvironment.AddMerged(
@@ -242,7 +247,13 @@ Base::Result<void> ApplyViewUi(ViewState& state, Aero::Media::Visual& root) noex
                 "View UI state is unavailable");
         }
 
-        const Aero::ResourceEnvironment resources = state.ResourceEnvironment();
+        if (state.resources == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "View UI state is unavailable");
+        }
+        const Aero::ResourceEnvironment resources =
+            state.resources->Environment();
         Base::Vector<Aero::Media::Visual*> stack(state.allocator);
         Base::Result<void> pushed = stack.PushBack(&root);
         if (!pushed) return pushed.GetStatus();
@@ -381,11 +392,14 @@ void DetachViewUi(
     }
 
 Base::Result<void> ViewState::CreateUiEngines() noexcept {
-        Base::Result<void> status = AllocateObject(*allocator, Base::MemoryTag::Ui, templates, *tree, *values,
+        Base::Result<void> status = AllocateObject(
+            *allocator, Base::MemoryTag::Ui, resources, *this);
+        if (!status) return status.GetStatus();
+        status = AllocateObject(*allocator, Base::MemoryTag::Ui, templates, *tree, *values,
             ::Aero::MetadataPrivate::
                 DependencyProperties(*metadata),
             layout, renderer, metadata, bindings,
-            &dynamicResourceEnvironment);
+            &resources->dynamicResourceEnvironment);
         if (!status) return status.GetStatus();
         Base::Result<VisualStateManager*> createdStates =
             ::Aero::VisualStateManagerRuntime::Create(
@@ -416,10 +430,12 @@ Base::Result<void> ViewState::CreateUiEngines() noexcept {
             if (controlBehaviors != nullptr) {
                 tree->SetControlBehaviors(controlBehaviors);
             }
-            tree->AttachResourceEnvironment(ResourceEnvironment());
+            tree->AttachResourceEnvironment(resources->Environment());
             tree->SetNameScope(this, &ViewState::FindNameForElement);
         }
         status = AllocateObject(*allocator, Base::MemoryTag::Ui, overlays, *this);
+        if (!status) return status.GetStatus();
+        status = AllocateObject(*allocator, Base::MemoryTag::Ui, focus, *this);
         if (!status) return status.GetStatus();
         return {};
     }
@@ -671,10 +687,12 @@ void ViewState::DestroyUiEngines() noexcept {
             tree->SetNameScope(nullptr, nullptr);
         }
         FreeObject(*allocator, Base::MemoryTag::Ui, overlays);
+        FreeObject(*allocator, Base::MemoryTag::Ui, focus);
         FreeObject(*allocator, Base::MemoryTag::Ui, styles);
         delete visualStates;
         visualStates = nullptr;
         FreeObject(*allocator, Base::MemoryTag::Ui, templates);
+        FreeObject(*allocator, Base::MemoryTag::Ui, resources);
     }
 
 Base::Result<void> ViewState::VisitAndAttach(
@@ -885,7 +903,9 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexc
         if (!ran) return ran.GetStatus();
 
         if (phase == Phase::Lifecycle) {
-            Base::Result<std::uint32_t> focused = state.ProcessPendingFocus();
+            Base::Result<std::uint32_t> focused = state.focus != nullptr
+                ? state.focus->ProcessPendingFocus()
+                : Base::Result<std::uint32_t>(0U);
             if (!focused) return focused.GetStatus();
             Base::Result<void> counted = AddFrameCallbacks(
                 result, focused.Value(), "View callback count overflow");

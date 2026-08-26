@@ -200,7 +200,12 @@ StoryboardHost::ExecuteAnimationAction(
                 "SetFocusAction target is unavailable");
         }
         if (!target->GetIsLoaded()) {
-            return view->QueueFocus(*target);
+            if (view->focus == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotInitialized,
+                    "View focus host is unavailable");
+            }
+            return view->focus->QueueFocus(*target);
         }
         if (!target->GetIsEnabled()) return {};
         Base::Result<bool> focused = input->SetFocus(target);

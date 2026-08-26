@@ -1,20 +1,19 @@
 #include "gui/ViewState.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 
-#include <algorithm>
-#include <cmath>
-#include <cstdio>
-#include <cstring>
-#include <limits>
-#include <new>
 #include <utility>
 
 namespace Aero {
 
-using namespace ::Aero;
-namespace MediaAnimation = ::Aero::Media::Animation;
+FocusHost::FocusHost(ViewState& owner) noexcept
+    : view(&owner),
+      pendingFocusTargets(owner.allocator) {}
 
-Base::Result<void> ViewState::QueueFocus(Aero::UIElement& target) noexcept {
+void FocusHost::Bind() noexcept {
+    input = view != nullptr ? view->input : nullptr;
+}
+
+Base::Result<void> FocusHost::QueueFocus(Aero::UIElement& target) noexcept {
         Base::Ref<Aero::UIElement> retained =
             Base::Ref<Aero::UIElement>::FromBorrowed(target);
         for (const Base::WeakRef<Aero::UIElement>& pending :
@@ -26,7 +25,10 @@ Base::Result<void> ViewState::QueueFocus(Aero::UIElement& target) noexcept {
             Base::WeakRef<Aero::UIElement>(retained));
     }
 
-Base::Result<std::uint32_t> ViewState::ProcessPendingFocus() noexcept {
+Base::Result<std::uint32_t> FocusHost::ProcessPendingFocus() noexcept {
+        if (input == nullptr && view != nullptr) {
+            input = view->input;
+        }
         if (input == nullptr || pendingFocusTargets.Empty()) return 0U;
         std::uint32_t focusedCount = 0U;
         std::uint32_t output = 0U;

@@ -14,44 +14,44 @@ namespace Aero {
 using namespace ::Aero;
 namespace MediaAnimation = ::Aero::Media::Animation;
 
-Base::Result<void> ViewState::BeginDocumentLoad() noexcept {
-        if (!initialized) {
+Base::Result<void> BeginDocumentLoad(ViewState& state) noexcept {
+        if (!state.initialized) {
             return AeroNotInitialized(
                 "View must be initialized before XAML loading");
         }
-        if (mounted || root || loadedDocument.root) {
+        if (state.mounted || state.root || state.loadedDocument.root) {
             return ViewInvalidState(
                 "View already owns a loaded document");
         }
         return {};
     }
 
-Base::Result<Markup::XamlReaderSettings> ViewState::XamlSettings(
+Base::Result<Markup::XamlReaderSettings> XamlSettings(ViewState& state, 
         bool deferredEffects,
         const Markup::XamlReaderSettings* override) noexcept {
         Markup::XamlReaderSettings result;
         if (override != nullptr) {
             result = *override;
         }
-        loadContext.resources = &dynamicResourceEnvironment;
-        loadContext.effectiveValues = values;
-        loadContext.bindings = bindings;
-        loadContext.fallbackResources =
-            &dynamicResourceEnvironment;
-        loadContext.documentCache = documentCache;
-        loadContext.dispatcher = dispatcher;
-        loadContext.dependencyProperties =
+        state.loadContext.resources = &state.resources->dynamicResourceEnvironment;
+        state.loadContext.effectiveValues = state.values;
+        state.loadContext.bindings = state.bindings;
+        state.loadContext.fallbackResources =
+            &state.resources->dynamicResourceEnvironment;
+        state.loadContext.documentCache = state.documentCache;
+        state.loadContext.dispatcher = state.dispatcher;
+        state.loadContext.dependencyProperties =
             &::Aero::MetadataPrivate::
-                DependencyProperties(*metadata);
-        loadContext.effectLifetime = effectLifetime;
-        loadContext.effectCommitMode = deferredEffects
+                DependencyProperties(*state.metadata);
+        state.loadContext.effectLifetime = state.effectLifetime;
+        state.loadContext.effectCommitMode = deferredEffects
             ? Markup::EffectCommitMode::Deferred
             : Markup::EffectCommitMode::Immediate;
         return result;
     }
 
-void ViewState::ClearLoadedDocument() noexcept {
-        loadedDocument.Clear();
+void ClearLoadedDocument(ViewState& state) noexcept {
+        state.loadedDocument.Clear();
     }
 
 Base::Object* ViewState::FindNameForElement(
@@ -83,7 +83,7 @@ Base::Object* ViewState::FindNameForElement(
             : nullptr;
     }
 
-Base::Result<void> ViewState::CommitResourceLayer(
+Base::Result<void> ResourceHost::CommitLayer(
         Markup::XamlDocument document,
         Aero::ResourceDictionary& target,
         bool merge) noexcept {
@@ -104,13 +104,13 @@ Base::Result<void> ViewState::CommitResourceLayer(
                 target.AddMerged(dictionary);
             if (!merged) return merged.GetStatus();
             Base::Result<void> rebuilt =
-                RebuildDynamicResourceEnvironment();
+                RebuildDynamicEnvironment();
             if (rebuilt) return {};
             Base::Result<bool> removed =
                 target.RemoveMerged(dictionary);
             Base::Result<void> restored =
                 removed && removed.Value()
-                ? RebuildDynamicResourceEnvironment()
+                ? RebuildDynamicEnvironment()
                 : Base::Result<void>(
                       removed
                       ? Base::Status::Failure(
@@ -126,93 +126,93 @@ Base::Result<void> ViewState::CommitResourceLayer(
             std::move(target);
         target = std::move(dictionary);
         Base::Result<void> rebuilt =
-            RebuildDynamicResourceEnvironment();
+            RebuildDynamicEnvironment();
         if (rebuilt) return {};
         target = std::move(previous);
         Base::Result<void> restored =
-            RebuildDynamicResourceEnvironment();
+            RebuildDynamicEnvironment();
         return restored
             ? Base::Result<void>(rebuilt.GetStatus())
             : restored;
     }
 
-Base::Result<void> ViewState::LoadResourceLayer(
+Base::Result<void> ResourceHost::LoadLayer(
         Base::StringView uri,
         Aero::ResourceDictionary& target,
         Diagnostics::IDiagnosticSink* diagnostics,
         bool merge) noexcept {
-        if (!initialized) {
+        if (!view->initialized) {
             return AeroNotInitialized(
                 "View must be initialized before loading resources");
         }
-        if (mounted || root || loadedDocument.root) {
+        if (view->mounted || view->root || view->loadedDocument.root) {
             return ViewInvalidState(
                 "View resource layers must be loaded before a document");
         }
         Base::Result<Markup::XamlReaderSettings> loadOptions =
-            XamlSettings();
+            XamlSettings(*view);
         if (!loadOptions) {
             return loadOptions.GetStatus();
         }
-        if (xamlRuntime == nullptr) {
+        if (view->xamlRuntime == nullptr) {
             return AeroNotInitialized(
                 "Gui XAML runtime is unavailable");
         }
         Base::Result<Markup::XamlDocument> loaded =
-            xamlRuntime->Load(
-            xamlRuntime->Providers(),
-            &loadContext,
-            allocator,
+            view->xamlRuntime->Load(
+            view->xamlRuntime->Providers(),
+            &view->loadContext,
+            view->allocator,
             uri, loadOptions.Value(), diagnostics);
         if (!loaded) {
             return loaded.GetStatus();
         }
-        return CommitResourceLayer(
+        return CommitLayer(
             std::move(loaded).Value(),
             target,
             merge);
     }
 
-Base::Result<void> ViewState::LoadCompiledResourceLayer(
+Base::Result<void> ResourceHost::LoadCompiledLayer(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri,
         Aero::ResourceDictionary& target,
         bool merge) noexcept {
-        if (!initialized) {
+        if (!view->initialized) {
             return AeroNotInitialized(
                 "View must be initialized before loading resources");
         }
-        if (mounted || root || loadedDocument.root) {
+        if (view->mounted || view->root || view->loadedDocument.root) {
             return ViewInvalidState(
                 "View resource layers must be loaded before a document");
         }
         Base::Result<Markup::XamlReaderSettings> loadOptions =
-            XamlSettings();
+            XamlSettings(*view);
         if (!loadOptions) return loadOptions.GetStatus();
-        if (xamlRuntime == nullptr) {
+        if (view->xamlRuntime == nullptr) {
             return AeroNotInitialized(
                 "Gui XAML runtime is unavailable");
         }
         Base::Result<Markup::XamlDocument> loaded =
-            xamlRuntime->LoadCompiled(
-                xamlRuntime->Providers(), &loadContext, allocator,
+            view->xamlRuntime->LoadCompiled(
+                view->xamlRuntime->Providers(), &view->loadContext, view->allocator,
                 bytes, originUri, loadOptions.Value());
         if (!loaded) return loaded.GetStatus();
 
-        return CommitResourceLayer(
+        return CommitLayer(
             std::move(loaded).Value(),
             target,
             merge);
     }
 
-Base::Result<void> ViewState::ValidateDocumentRoot(
+Base::Result<void> ValidateDocumentRoot(ViewState& state, 
         const Base::Ref<Base::Object>& requestedRoot) noexcept {
         if (!requestedRoot) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "View root must not be null");
         }
-        if (!metadata->Types().IsDerivedFrom(
+        if (!state.metadata->Types().IsDerivedFrom(
                 requestedRoot->RuntimeType(),
                 Aero::Media::Visual::StaticTypeId())) {
             return Base::Status::Failure(
@@ -220,244 +220,244 @@ Base::Result<void> ViewState::ValidateDocumentRoot(
                 "View root must derive from Visual");
         }
         Base::Result<Aero::UIElement*> rootLayout =
-            ResolveUIElement(*requestedRoot, requestedRoot->RuntimeType());
+            state.ResolveUIElement(*requestedRoot, requestedRoot->RuntimeType());
         return rootLayout
             ? Base::Result<void>()
             : Base::Result<void>(rootLayout.GetStatus());
     }
 
-Base::Result<void> ViewState::MountRoot(
+Base::Result<void> MountRoot(ViewState& state, 
         Base::Ref<Base::Object> requestedRoot,
         Aero::Size availableSize) noexcept {
-        if (!initialized) {
+        if (!state.initialized) {
             return AeroNotInitialized(
                 "View must be initialized before mounting");
         }
-        if (mounted || root) {
+        if (state.mounted || state.root) {
             return ViewInvalidState(
                 "View already has a mounted root");
         }
         const bool needsViewport =
-            viewport.logicalSize.width != availableSize.width ||
-            viewport.logicalSize.height != availableSize.height ||
-            (availableSize.width > 0.0 && viewport.pixelWidth == 0U) ||
-            (availableSize.height > 0.0 && viewport.pixelHeight == 0U);
+            state.viewport.logicalSize.width != availableSize.width ||
+            state.viewport.logicalSize.height != availableSize.height ||
+            (availableSize.width > 0.0 && state.viewport.pixelWidth == 0U) ||
+            (availableSize.height > 0.0 && state.viewport.pixelHeight == 0U);
         if (needsViewport) {
             Base::Result<ViewViewport> nextViewport =
-                MakeLogicalViewport(availableSize, viewport.dpiScale);
+                MakeLogicalViewport(availableSize, state.viewport.dpiScale);
             if (!nextViewport) return nextViewport.GetStatus();
             Base::Result<void> viewportApplied =
-                ApplyViewport(nextViewport.Value());
+                state.ApplyViewport(nextViewport.Value());
             if (!viewportApplied) return viewportApplied.GetStatus();
         }
-        Base::Result<void> validRoot = ValidateDocumentRoot(requestedRoot);
+        Base::Result<void> validRoot = ValidateDocumentRoot(state, requestedRoot);
         if (!validRoot) return validRoot.GetStatus();
-        if (loadedDocument.root &&
-            loadedDocument.root.Get() != requestedRoot.Get()) {
+        if (state.loadedDocument.root &&
+            state.loadedDocument.root.Get() != requestedRoot.Get()) {
             return ViewInvalidState(
                 "Mounted root does not match the staged XAML document");
         }
         Base::Result<Aero::Media::Visual*> rootVisual =
-            ResolveVisual(*requestedRoot, requestedRoot->RuntimeType());
+            state.ResolveVisual(*requestedRoot, requestedRoot->RuntimeType());
         if (!rootVisual) return rootVisual.GetStatus();
         Base::Result<Aero::UIElement*> rootLayout =
-            ResolveUIElement(*requestedRoot, requestedRoot->RuntimeType());
+            state.ResolveUIElement(*requestedRoot, requestedRoot->RuntimeType());
         if (!rootLayout) return rootLayout.GetStatus();
         Base::Result<void> rootTracked =
-            loadedDocument.visualContent.AddNode(*rootVisual.Value());
+            state.loadedDocument.visualContent.AddNode(*rootVisual.Value());
         if (!rootTracked) return rootTracked.GetStatus();
-        Base::Result<void> mountedResult = AttachVisualGraph(
+        Base::Result<void> mountedResult = state.AttachVisualGraph(
             *rootVisual.Value(),
             *rootLayout.Value(),
-            ResolveFrameworkElement(*requestedRoot, requestedRoot->RuntimeType()),
-            {loadedDocument.visualContent.mountEdges.Data(),
-             loadedDocument.visualContent.mountEdges.Size()},
+            state.ResolveFrameworkElement(*requestedRoot, requestedRoot->RuntimeType()),
+            {state.loadedDocument.visualContent.mountEdges.Data(),
+             state.loadedDocument.visualContent.mountEdges.Size()},
             availableSize);
         if (!mountedResult) return mountedResult.GetStatus();
-        root = std::move(requestedRoot);
-        mounted = true;
+        state.root = std::move(requestedRoot);
+        state.mounted = true;
         Markup::EffectRuntimeServices runtimeServices;
-        runtimeServices.effectiveValues = values;
-        runtimeServices.bindings = bindings;
-        runtimeServices.fallbackResources = &dynamicResourceEnvironment;
-        runtimeServices.lifetime = effectLifetime;
-        Base::Result<void> bound = loadedDocument.effects.Bind(runtimeServices);
+        runtimeServices.effectiveValues = state.values;
+        runtimeServices.bindings = state.bindings;
+        runtimeServices.fallbackResources = &state.resources->dynamicResourceEnvironment;
+        runtimeServices.lifetime = state.effectLifetime;
+        Base::Result<void> bound = state.loadedDocument.effects.Bind(runtimeServices);
         if (!bound) {
-            static_cast<void>(DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()}));
-            mounted = false;
-            root.Reset();
-            ClearLoadedDocument();
+            static_cast<void>(state.DetachVisualGraph({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()}));
+            state.mounted = false;
+            state.root.Reset();
+            ClearLoadedDocument(state);
             return bound.GetStatus();
         }
-        Base::Result<void> effects = loadedDocument.effects.Commit();
+        Base::Result<void> effects = state.loadedDocument.effects.Commit();
         if (!effects) {
-            static_cast<void>(DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()}));
-            mounted = false;
-            root.Reset();
-            ClearLoadedDocument();
+            static_cast<void>(state.DetachVisualGraph({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()}));
+            state.mounted = false;
+            state.root.Reset();
+            ClearLoadedDocument(state);
             return effects.GetStatus();
         }
         Base::Result<std::uint32_t> initialBindings =
-            bindings->Flush();
+            state.bindings->Flush();
         if (!initialBindings) {
-            static_cast<void>(DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()}));
-            mounted = false;
-            root.Reset();
-            ClearLoadedDocument();
+            static_cast<void>(state.DetachVisualGraph({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()}));
+            state.mounted = false;
+            state.root.Reset();
+            ClearLoadedDocument(state);
             return initialBindings.GetStatus();
         }
-        deferGeneratedActivation = true;
+        state.deferGeneratedActivation = true;
         Base::Result<void> uiApplied =
-            ApplyViewUi(*this, *rootVisual.Value());
+            ApplyViewUi(state, *rootVisual.Value());
         if (!uiApplied) {
-            deferGeneratedActivation = false;
-            DetachViewUi(*this);
-            static_cast<void>(DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()}));
-            mounted = false;
-            root.Reset();
-            ClearLoadedDocument();
+            state.deferGeneratedActivation = false;
+            DetachViewUi(state);
+            static_cast<void>(state.DetachVisualGraph({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()}));
+            state.mounted = false;
+            state.root.Reset();
+            ClearLoadedDocument(state);
             return uiApplied.GetStatus();
         }
         Base::Result<void> interactions =
-            CreateInteractions();
+            state.CreateInteractions();
         if (!interactions) {
-            deferGeneratedActivation = false;
-            BeginDestroyInteractions();
-            DetachViewUi(*this);
-            FinishDestroyInteractions();
-            static_cast<void>(DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()}));
-            mounted = false;
-            root.Reset();
-            ClearLoadedDocument();
+            state.deferGeneratedActivation = false;
+            state.BeginDestroyInteractions();
+            DetachViewUi(state);
+            state.FinishDestroyInteractions();
+            static_cast<void>(state.DetachVisualGraph({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()}));
+            state.mounted = false;
+            state.root.Reset();
+            ClearLoadedDocument(state);
             return interactions.GetStatus();
         }
         Base::Result<void> completed =
-            CompleteVisualEdges({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()});
+            state.CompleteVisualEdges({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()});
         if (!completed) {
-            deferGeneratedActivation = false;
-            BeginDestroyInteractions();
-            DetachViewUi(*this);
-            FinishDestroyInteractions();
-            static_cast<void>(DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()}));
-            mounted = false;
-            root.Reset();
-            ClearLoadedDocument();
+            state.deferGeneratedActivation = false;
+            state.BeginDestroyInteractions();
+            DetachViewUi(state);
+            state.FinishDestroyInteractions();
+            static_cast<void>(state.DetachVisualGraph({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()}));
+            state.mounted = false;
+            state.root.Reset();
+            ClearLoadedDocument(state);
             return completed.GetStatus();
         }
         uiApplied =
             ApplyViewUi(
-                *this,
+                state,
                 *rootVisual.Value());
         if (!uiApplied) {
-            deferGeneratedActivation = false;
-            BeginDestroyInteractions();
-            DetachViewUi(*this);
-            FinishDestroyInteractions();
-            static_cast<void>(DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()}));
-            mounted = false;
-            root.Reset();
-            ClearLoadedDocument();
+            state.deferGeneratedActivation = false;
+            state.BeginDestroyInteractions();
+            DetachViewUi(state);
+            state.FinishDestroyInteractions();
+            static_cast<void>(state.DetachVisualGraph({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()}));
+            state.mounted = false;
+            state.root.Reset();
+            ClearLoadedDocument(state);
             return uiApplied.GetStatus();
         }
         Base::Result<void> itemGeneratorsAttached =
-            AttachPendingItemGenerators(*rootVisual.Value());
+            state.AttachPendingItemGenerators(*rootVisual.Value());
         if (!itemGeneratorsAttached) {
-            deferGeneratedActivation = false;
-            BeginDestroyInteractions();
-            DetachViewUi(*this);
-            FinishDestroyInteractions();
-            static_cast<void>(DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()}));
-            mounted = false;
-            root.Reset();
-            ClearLoadedDocument();
+            state.deferGeneratedActivation = false;
+            state.BeginDestroyInteractions();
+            DetachViewUi(state);
+            state.FinishDestroyInteractions();
+            static_cast<void>(state.DetachVisualGraph({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()}));
+            state.mounted = false;
+            state.root.Reset();
+            ClearLoadedDocument(state);
             return itemGeneratorsAttached.GetStatus();
         }
         Base::Result<std::uint32_t> settledBindings =
-            bindings->Flush();
-        deferGeneratedActivation = false;
+            state.bindings->Flush();
+        state.deferGeneratedActivation = false;
         if (!settledBindings) {
-            BeginDestroyInteractions();
-            DetachViewUi(*this);
-            FinishDestroyInteractions();
-            static_cast<void>(DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()}));
-            mounted = false;
-            root.Reset();
-            ClearLoadedDocument();
+            state.BeginDestroyInteractions();
+            DetachViewUi(state);
+            state.FinishDestroyInteractions();
+            static_cast<void>(state.DetachVisualGraph({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()}));
+            state.mounted = false;
+            state.root.Reset();
+            ClearLoadedDocument(state);
             return settledBindings.GetStatus();
         }
-        Base::Result<void> generated = FlushGeneratedVisuals();
+        Base::Result<void> generated = state.FlushGeneratedVisuals();
         if (!generated) {
-            BeginDestroyInteractions();
-            DetachViewUi(*this);
-            FinishDestroyInteractions();
-            static_cast<void>(DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()}));
-            mounted = false;
-            root.Reset();
-            ClearLoadedDocument();
+            state.BeginDestroyInteractions();
+            DetachViewUi(state);
+            state.FinishDestroyInteractions();
+            static_cast<void>(state.DetachVisualGraph({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()}));
+            state.mounted = false;
+            state.root.Reset();
+            ClearLoadedDocument(state);
             return generated.GetStatus();
         }
         Base::Result<std::uint32_t> startedAnimations =
-            storyboards->StartLoadedAnimations(rootVisual.Value());
+            state.storyboards->StartLoadedAnimations(rootVisual.Value());
         if (!startedAnimations) {
-            if (animations != nullptr) {
-                static_cast<void>(animations->RemoveAll());
+            if (state.animations != nullptr) {
+                static_cast<void>(state.animations->RemoveAll());
             }
-            storyboards->storyboardSessions.Clear();
-            BeginDestroyInteractions();
-            DetachViewUi(*this);
-            FinishDestroyInteractions();
-            static_cast<void>(DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()}));
-            mounted = false;
-            root.Reset();
-            ClearLoadedDocument();
+            state.storyboards->storyboardSessions.Clear();
+            state.BeginDestroyInteractions();
+            DetachViewUi(state);
+            state.FinishDestroyInteractions();
+            static_cast<void>(state.DetachVisualGraph({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()}));
+            state.mounted = false;
+            state.root.Reset();
+            ClearLoadedDocument(state);
             return startedAnimations.GetStatus();
         }
         return {};
     }
 
-Base::Result<void> ViewState::DetachFragment(
-        FragmentMount& fragment) noexcept {
+Base::Result<void> DetachFragment(ViewState& state, 
+        ViewState::FragmentMount& fragment) noexcept {
         if (!fragment.document.root) return {};
         Base::Result<Aero::Media::Visual*> rootVisual =
-            ResolveVisual(
+            state.ResolveVisual(
                 *fragment.document.root,
                 fragment.document.root->RuntimeType());
         if (!rootVisual) return rootVisual.GetStatus();
-        if (interactivity != nullptr) {
-            interactivity->ClearAnimationSubscriptionsFor(*rootVisual.Value());
+        if (state.interactivity != nullptr) {
+            state.interactivity->ClearAnimationSubscriptionsFor(*rootVisual.Value());
         }
 
         DetachViewUi(
-            *this,
+            state,
             rootVisual.Value(),
             {fragment.document.visualContent.nodes.Data(),
              fragment.document.visualContent.nodes.Size()});
 
-        ElementTree& context = *tree;
+        ElementTree& context = *state.tree;
         std::uint32_t remaining = 0U;
         for (const Aero::Markup::VisualEdge& edge :
              fragment.document.visualContent.mountEdges) {
@@ -500,72 +500,72 @@ Base::Result<void> ViewState::DetachFragment(
         return {};
     }
 
-Base::Result<void> ViewState::UnmountFragmentAt(
+Base::Result<void> UnmountFragmentAt(ViewState& state, 
         std::uint32_t index) noexcept {
-        if (index >= fragmentMounts.Size()) {
+        if (index >= state.fragmentMounts.Size()) {
             return Base::Status::Failure(
                 Base::ErrorCode::OutOfRange,
                 "content fragment index is out of range");
         }
-        Base::Result<void> detached = DetachFragment(fragmentMounts[index]);
+        Base::Result<void> detached = DetachFragment(state, state.fragmentMounts[index]);
         if (!detached) return detached.GetStatus();
         for (std::uint32_t next = index + 1U;
-             next < fragmentMounts.Size(); ++next) {
-            fragmentMounts[next - 1U] =
-                std::move(fragmentMounts[next]);
+             next < state.fragmentMounts.Size(); ++next) {
+            state.fragmentMounts[next - 1U] =
+                std::move(state.fragmentMounts[next]);
         }
-        fragmentMounts.PopBack();
+        state.fragmentMounts.PopBack();
         return {};
     }
 
-Base::Result<void> ViewState::UnmountAllFragments() noexcept {
-        while (!fragmentMounts.Empty()) {
+Base::Result<void> UnmountAllFragments(ViewState& state) noexcept {
+        while (!state.fragmentMounts.Empty()) {
             Base::Result<void> detached =
-                UnmountFragmentAt(fragmentMounts.Size() - 1U);
+                UnmountFragmentAt(state, state.fragmentMounts.Size() - 1U);
             if (!detached) return detached.GetStatus();
         }
         return {};
     }
 
-Base::Result<void> ViewState::DetachMountedRoot(
+Base::Result<void> DetachMountedRoot(ViewState& state, 
         bool clearDocument) noexcept {
-        if (!initialized) return {};
-        if (!mounted) {
-            if (clearDocument && loadedDocument.root) {
-                ClearLoadedDocument();
+        if (!state.initialized) return {};
+        if (!state.mounted) {
+            if (clearDocument && state.loadedDocument.root) {
+                ClearLoadedDocument(state);
             }
             return {};
         }
-        if (animations != nullptr) {
+        if (state.animations != nullptr) {
             Base::Result<void> removed =
-                animations->RemoveAll();
+                state.animations->RemoveAll();
             if (!removed) return removed.GetStatus();
         }
-        storyboards->storyboardSessions.Clear();
-        BeginDestroyInteractions();
-        DetachViewUi(*this);
-        FinishDestroyInteractions();
-        Base::Result<void> fragments = UnmountAllFragments();
+        state.storyboards->storyboardSessions.Clear();
+        state.BeginDestroyInteractions();
+        DetachViewUi(state);
+        state.FinishDestroyInteractions();
+        Base::Result<void> fragments = UnmountAllFragments(state);
         if (!fragments) return fragments.GetStatus();
         Base::Result<void> unmounted =
-            DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()});
-        mounted = false;
-        root.Reset();
-        if (clearDocument) ClearLoadedDocument();
+            state.DetachVisualGraph({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()});
+        state.mounted = false;
+        state.root.Reset();
+        if (clearDocument) ClearLoadedDocument(state);
         return unmounted;
     }
 
-Base::Result<void> ViewState::UnmountRoot() noexcept {
-        return DetachMountedRoot(true);
+Base::Result<void> UnmountRoot(ViewState& state) noexcept {
+        return DetachMountedRoot(state, true);
     }
 
 Base::Result<void> MountViewContent(
     ViewState& state,
     Base::Ref<Base::Object> root,
     Aero::Size availableSize) noexcept {
-    return state.MountRoot(
+    return MountRoot(state, 
         std::move(root), availableSize);
 }
 
@@ -573,18 +573,18 @@ Base::Result<void> MountViewDocument(
     ViewState& state,
     Markup::XamlDocument&& document,
     Aero::Size availableSize) noexcept {
-    Base::Result<void> ready = state.BeginDocumentLoad();
+    Base::Result<void> ready = BeginDocumentLoad(state);
     if (!ready) return ready.GetStatus();
     if (!document.IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "View cannot mount an empty UI document");
     }
-    Base::Result<void> valid = state.ValidateDocumentRoot(document.Root());
+    Base::Result<void> valid = ValidateDocumentRoot(state, document.Root());
     if (!valid) return valid.GetStatus();
     state.loadedDocument =
         Aero::Markup::TakeXamlDocument(document);
-    return state.MountRoot(
+    return MountRoot(state, 
         state.loadedDocument.root, availableSize);
 }
 
@@ -602,7 +602,7 @@ Base::Result<void> ReplaceViewDocument(
             Base::ErrorCode::InvalidArgument,
             "View cannot replace a document with an empty document");
     }
-    Base::Result<void> valid = state_->ValidateDocumentRoot(document.Root());
+    Base::Result<void> valid = ValidateDocumentRoot(*state_, document.Root());
     if (!valid) return valid.GetStatus();
 
     Markup::LoaderResult next =
@@ -618,9 +618,9 @@ Base::Result<void> ReplaceViewDocument(
     }
 
     Base::Result<void> detached =
-        state_->DetachMountedRoot(false);
+        DetachMountedRoot(*state_, false);
     if (!detached) {
-        Base::Result<void> restored = state_->MountRoot(
+        Base::Result<void> restored = MountRoot(*state_, 
             state_->loadedDocument.root, availableSize);
         next.Clear();
         return restored ? detached : restored;
@@ -629,7 +629,7 @@ Base::Result<void> ReplaceViewDocument(
     Markup::LoaderResult previous =
         std::move(state_->loadedDocument);
     state_->loadedDocument = std::move(next);
-    Base::Result<void> mounted = state_->MountRoot(
+    Base::Result<void> mounted = MountRoot(*state_, 
         state_->loadedDocument.root, availableSize);
     if (mounted) {
         previous.Clear();
@@ -637,7 +637,7 @@ Base::Result<void> ReplaceViewDocument(
     }
 
     state_->loadedDocument = std::move(previous);
-    Base::Result<void> restored = state_->MountRoot(
+    Base::Result<void> restored = MountRoot(*state_, 
         state_->loadedDocument.root, availableSize);
     return restored ? mounted : restored;
 }
@@ -672,7 +672,7 @@ Base::Result<void> MountViewFragment(
         }
     }
     if (existing != UINT32_MAX) {
-        Base::Result<void> unmounted = state_->UnmountFragmentAt(existing);
+        Base::Result<void> unmounted = UnmountFragmentAt(*state_, existing);
         if (!unmounted) return unmounted.GetStatus();
     } else if (AeroGuiInternal::ContentControlContent(host) != nullptr) {
         return Base::Status::Failure(
@@ -735,7 +735,7 @@ Base::Result<void> MountViewFragment(
 
     const auto detachFailedFragment = [&]() noexcept {
         restoreActiveNames();
-        static_cast<void>(state_->DetachFragment(fragment));
+        static_cast<void>(DetachFragment(*state_, fragment));
     };
     const auto attachEdges = [&](bool deferred) noexcept
         -> Base::Result<void> {
@@ -790,7 +790,7 @@ Base::Result<void> MountViewFragment(
     Markup::EffectRuntimeServices runtimeServices;
     runtimeServices.effectiveValues = state_->values;
     runtimeServices.bindings = state_->bindings;
-    runtimeServices.fallbackResources = &state_->dynamicResourceEnvironment;
+    runtimeServices.fallbackResources = &state_->resources->dynamicResourceEnvironment;
     runtimeServices.lifetime = state_->effectLifetime;
     Base::Result<void> boundEffects = fragment.document.effects.Bind(runtimeServices);
     if (!boundEffects) {
@@ -813,7 +813,7 @@ Base::Result<void> MountViewFragment(
     Base::Result<void> retained =
         state_->fragmentMounts.PushBack(std::move(fragment));
     if (!retained) {
-        static_cast<void>(state_->DetachFragment(fragment));
+        static_cast<void>(DetachFragment(*state_, fragment));
         return retained.GetStatus();
     }
     return {};
@@ -830,7 +830,7 @@ Base::Result<void> UnmountViewFragment(
     for (std::uint32_t index = 0U;
          index < state_->fragmentMounts.Size(); ++index) {
         if (state_->fragmentMounts[index].host == &host) {
-            return state_->UnmountFragmentAt(index);
+            return UnmountFragmentAt(*state_, index);
         }
     }
     return AeroGuiInternal::ContentControlContent(host) == nullptr

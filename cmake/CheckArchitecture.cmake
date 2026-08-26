@@ -440,6 +440,8 @@ foreach(required_source_entry IN ITEMS
         "src/gui/input/Clipboard.cpp"
         "src/gui/input/OverlayHost.cpp"
         "src/gui/input/OverlayHost.hpp"
+        "src/gui/input/FocusHost.hpp"
+        "src/gui/styles/ResourceHost.hpp"
         "src/render/RenderDevice.cpp"
         "src/render/RenderTarget.cpp"
         "src/render/FrameEncoder.cpp"

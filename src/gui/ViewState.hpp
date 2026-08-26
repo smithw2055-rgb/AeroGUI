@@ -2,7 +2,8 @@
 
 // Source-only View hub state. Not installed under include/Aero.
 // ViewState is data plus named engine pointers; domain work lives on the
-// engines, OverlayHost, and free functions in ViewFrame.cpp.
+// engines, OverlayHost, FocusHost, ResourceHost, and free functions in
+// ViewDocuments.cpp / ViewFrame.cpp.
 
 #include <Aero/View.hpp>
 #include <Aero/Gui.hpp>
@@ -10,9 +11,6 @@
 #include <Aero/Diagnostics.hpp>
 #include <Aero/Diagnostics/Rendering.hpp>
 #include <Aero/Media/Geometry.hpp>
-#include <Aero/Interactivity/Behavior.hpp>
-#include <Aero/Interactivity/Conditions.hpp>
-#include <Aero/Base/Hash.hpp>
 #include "gui/GuiData.hpp"
 #include "gui/ViewRenderer.hpp"
 #include <Aero/FrameworkElement.hpp>
@@ -34,14 +32,6 @@
 
 #include <Aero/Controls.hpp>
 #include "gui/controls/Metadata.hpp"
-
-#include <Aero/InputInterop.hpp>
-#include <Aero/Media/Animation.hpp>
-#include <Aero/Input.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/MediaElement.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Media/Transforms.hpp>
 
 #include "gui/templates/DataTemplateTriggerState.hpp"
 #include <AeroRender/RenderDevice.hpp>
@@ -172,6 +162,8 @@ inline void FreeObject(
 class InteractivityEngine;
 class StoryboardHost;
 class OverlayHost;
+class FocusHost;
+class ResourceHost;
 
 struct ViewFrameResult {
     struct Layout {
@@ -261,6 +253,8 @@ struct ViewState {
     InteractivityEngine* interactivity = nullptr;
     StoryboardHost* storyboards = nullptr;
     OverlayHost* overlays = nullptr;
+    FocusHost* focus = nullptr;
+    ResourceHost* resources = nullptr;
 
     // Mount, provider-generation, and resource-layer state.
     Markup::Schema* schema = nullptr;
@@ -270,10 +264,6 @@ struct ViewState {
     Aero::FrameworkElement* attachedRootRender = nullptr;
     std::uint64_t seenTextureProviderChange = 0U;
     std::uint64_t seenFontProviderChange = 0U;
-    Aero::ResourceDictionary applicationResources;
-    Aero::ResourceDictionary themeResources;
-    Aero::ResourceDictionary systemResources;
-    Aero::ResourceDictionary dynamicResourceEnvironment;
 
     // Interaction attachment state.
     ::Aero::Controls::ControlBehavior* controlBehaviors = nullptr;
@@ -291,10 +281,6 @@ struct ViewState {
     void ClearRendererFailure() noexcept;
     void RaiseFrameRendering(View& view) noexcept;
 
-    Base::Vector<Base::WeakRef<Aero::UIElement>>
-        pendingFocusTargets;
-    Base::Result<void> QueueFocus(Aero::UIElement& target) noexcept;
-    Base::Result<std::uint32_t> ProcessPendingFocus() noexcept;
     Base::Vector<Controls::ItemContainerGenerator*>
         itemGenerators;
     Base::Vector<Aero::VisualHandle>
@@ -332,12 +318,6 @@ struct ViewState {
     bool mounted = false;
     bool terminal = false;
 
-    Base::Result<void> BeginDocumentLoad() noexcept;
-
-    Base::Result<Markup::XamlReaderSettings> XamlSettings(
-        bool deferredEffects = false,
-        const Markup::XamlReaderSettings* override = nullptr) noexcept;
-
     void AttachTextLayout(
         Aero::Media::Visual& node,
         ::Aero::Controls::TextBlockLayout* service,
@@ -369,16 +349,6 @@ struct ViewState {
     static void TextLifecycleHook(
         const Aero::ElementTreeLifecycleEvent& event,
         void* context) noexcept;
-
-    void ClearLoadedDocument() noexcept;
-
-    Aero::ResourceEnvironment ResourceEnvironment() const noexcept;
-
-    Base::Result<Aero::ResourceDictionary*>
-    ResolveResourceLayer(
-        ResourceLayer layer) noexcept;
-
-    Base::Result<void> RebuildDynamicResourceEnvironment() noexcept;
 
     Aero::Media::Visual* RootVisual() noexcept;
 
@@ -435,43 +405,6 @@ struct ViewState {
 
     Base::Result<void> Initialize(
         const ViewOptions& requested) noexcept;
-
-    Base::Result<void> CommitResourceLayer(
-        Markup::XamlDocument document,
-        Aero::ResourceDictionary& target,
-        bool merge) noexcept;
-
-    Base::Result<void> LoadResourceLayer(
-        Base::StringView uri,
-        Aero::ResourceDictionary& target,
-        Diagnostics::IDiagnosticSink* diagnostics,
-        bool merge = false) noexcept;
-
-    Base::Result<void> LoadCompiledResourceLayer(
-        Base::Span<const std::uint8_t> bytes,
-        const Base::ResourceUri& originUri,
-        Aero::ResourceDictionary& target,
-        bool merge = false) noexcept;
-
-    Base::Result<void> ValidateDocumentRoot(
-        const Base::Ref<Base::Object>& requestedRoot) noexcept;
-
-    Base::Result<void> MountRoot(
-        Base::Ref<Base::Object> requestedRoot,
-        Aero::Size availableSize) noexcept;
-
-    Base::Result<void> DetachFragment(
-        FragmentMount& fragment) noexcept;
-
-    Base::Result<void> UnmountFragmentAt(
-        std::uint32_t index) noexcept;
-
-    Base::Result<void> UnmountAllFragments() noexcept;
-
-    Base::Result<void> DetachMountedRoot(
-        bool clearDocument) noexcept;
-
-    Base::Result<void> UnmountRoot() noexcept;
 };
 
 } // namespace Aero
@@ -479,6 +412,8 @@ struct ViewState {
 #include "gui/interactivity/InteractivityEngine.hpp"
 #include "gui/media/StoryboardHost.hpp"
 #include "gui/input/OverlayHost.hpp"
+#include "gui/input/FocusHost.hpp"
+#include "gui/styles/ResourceHost.hpp"
 
 namespace Aero {
 
@@ -520,6 +455,32 @@ void SetViewResourceDictionary(
 Base::Result<void> LoadViewBuiltInTheme(
     ViewState& state,
     BuiltInTheme theme) noexcept;
+
+void ClearLoadedDocument(ViewState& state) noexcept;
+Base::Result<void> BeginDocumentLoad(ViewState& state) noexcept;
+Base::Result<Markup::XamlReaderSettings> XamlSettings(
+    ViewState& state,
+    bool deferredEffects = false,
+    const Markup::XamlReaderSettings* override = nullptr) noexcept;
+Base::Result<void> ValidateDocumentRoot(
+    ViewState& state,
+    const Base::Ref<Base::Object>& requestedRoot) noexcept;
+Base::Result<void> MountRoot(
+    ViewState& state,
+    Base::Ref<Base::Object> requestedRoot,
+    Aero::Size availableSize) noexcept;
+Base::Result<void> DetachFragment(
+    ViewState& state,
+    ViewState::FragmentMount& fragment) noexcept;
+Base::Result<void> UnmountFragmentAt(
+    ViewState& state,
+    std::uint32_t index) noexcept;
+Base::Result<void> UnmountAllFragments(ViewState& state) noexcept;
+Base::Result<void> DetachMountedRoot(
+    ViewState& state,
+    bool clearDocument) noexcept;
+Base::Result<void> UnmountRoot(ViewState& state) noexcept;
+
 Base::Result<void> MountViewContent(
     ViewState& state,
     Base::Ref<Base::Object> root,
