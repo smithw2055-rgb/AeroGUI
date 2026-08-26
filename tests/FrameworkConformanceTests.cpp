@@ -68,6 +68,13 @@
 #include <Aero/Controls/Page.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
 #include <Aero/Controls/TreeViewItem.hpp>
+#include <Aero/Controls/UserControl.hpp>
+#include <Aero/Controls/Primitives/Thumb.hpp>
+#include <Aero/Controls/Primitives/Track.hpp>
+#include <Aero/Data/BooleanToVisibilityConverter.hpp>
+#include <Aero/Data/MultiBinding.hpp>
+#include <Aero/Media/Animation/ParallelTimeline.hpp>
+#include <Aero/Media/MatrixTransform.hpp>
 #include <Aero/Interactivity/Interaction.hpp>
 #include <Aero/KeyBinding.hpp>
 #include <Aero/Media/BitmapImage.hpp>
@@ -1375,6 +1382,73 @@ bool TestGalleryXamlSurface() {
     return true;
 }
 
+bool TestTutorialXamlSurface() {
+    static_assert(std::is_base_of<Aero::Controls::ContentControl, Aero::Controls::UserControl>::value,
+        "UserControl must derive ContentControl");
+    static_assert(std::is_base_of<Aero::Data::BindingBase, Aero::Data::MultiBinding>::value,
+        "MultiBinding must derive BindingBase");
+    static_assert(std::is_base_of<Aero::Media::Animation::TimelineGroup, Aero::Media::Animation::ParallelTimeline>::value,
+        "ParallelTimeline must derive TimelineGroup");
+
+    Gui gui;
+    Result<void> initialized = gui.Initialize();
+    CHECK(initialized);
+    Aero::Markup::XamlReader reader(gui);
+
+    auto parse = [&](StringView markup) -> bool {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(markup);
+        if (!document) {
+            std::fprintf(stderr, "XAML parse failed: %s\n",
+                document.GetStatus().message);
+            return false;
+        }
+        return document.Value().IsValid();
+    };
+
+    CHECK(parse(StringView(
+        "<UserControl xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<UserControl.Resources>"
+        "<BooleanToVisibilityConverter x:Key=\"VisibleWhenTrue\"/>"
+        "</UserControl.Resources>"
+        "<Grid><TextBlock Text=\"ok\"/></Grid>"
+        "</UserControl>")));
+    CHECK(parse(StringView(
+        "<ItemsControl xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<ItemsControl.ItemsPanel>"
+        "<ItemsPanelTemplate><UniformGrid Columns=\"2\"/></ItemsPanelTemplate>"
+        "</ItemsControl.ItemsPanel>"
+        "</ItemsControl>")));
+    {
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<TextBlock xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " FontFamily=\"./#Demo\"/>"));
+        CHECK(document);
+        TextBlock* text = document.Value().Root<TextBlock>();
+        CHECK(text != nullptr);
+        CHECK(text->GetFontFamily().Get() != nullptr);
+        CHECK(text->GetFontFamily()->GetSource() == StringView("./#Demo"));
+    }
+    CHECK(parse(StringView(
+        "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<Grid.RenderTransform>"
+        "<TransformGroup>"
+        "<MatrixTransform Matrix=\"1,0,0,1,8,4\"/>"
+        "</TransformGroup>"
+        "</Grid.RenderTransform>"
+        "<Thumb Width=\"12\" Height=\"12\"/>"
+        "<Popup IsOpen=\"False\"><Border/></Popup>"
+        "</Grid>")));
+    CHECK(parse(StringView(
+        "<ParallelTimeline xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<DoubleAnimation From=\"0\" To=\"1\" Duration=\"0:0:0.2\"/>"
+        "</ParallelTimeline>")));
+    CHECK(parse(StringView(
+        "<Page xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+        "<PasswordBox/>"
+        "</Page>")));
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -1394,6 +1468,7 @@ int main() {
     RUN(TestNotifyPropertyChangedBindLoop);
     RUN(TestCustomItemsSourceThunk);
     RUN(TestGalleryXamlSurface);
+    RUN(TestTutorialXamlSurface);
     std::puts("Aero framework conformance tests passed");
     return 0;
 }
