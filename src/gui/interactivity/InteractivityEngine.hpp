@@ -34,11 +34,18 @@ public:
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept;
 
+    struct StyleDataTriggerAggregate {
+        Base::Vector<std::uint8_t> known;
+        Base::Vector<std::uint8_t> active;
+    };
     struct StyleDataTriggerHandlerState {
         InteractivityEngine* runtime = nullptr;
         Aero::FrameworkElement* target = nullptr;
         const Aero::Style* style = nullptr;
         std::uint32_t triggerIndex = 0U;
+        std::uint32_t conditionIndex = 0U;
+        StyleDataTriggerAggregate* aggregate = nullptr;
+        bool ownsAggregate = false;
         ::Aero::DependencyObject* source = nullptr;
         Meta::DependencyPropertyHandle property;
         Meta::PropertyValue expected;

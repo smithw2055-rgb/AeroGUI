@@ -489,6 +489,60 @@ Base::Result<void> Style::AddTrigger(
     return program_->AddAuthoredTrigger(std::move(plan));
 }
 
+Base::Result<void> Style::AddTrigger(
+    const MultiDataTrigger& trigger) noexcept {
+    if (sealed_) {
+        return InvalidStyle("Cannot modify a sealed Style");
+    }
+    if (trigger.GetConditions().Empty() ||
+        trigger.GetAuthoredSetters().Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "MultiDataTrigger is incomplete");
+    }
+    TriggerPlan plan;
+    bool first = true;
+    for (const Base::Ref<Condition>& condition :
+         trigger.GetConditions()) {
+        if (!condition || !condition->GetBinding() ||
+            condition->GetAuthoredValue().IsUnset()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "MultiDataTrigger Condition is incomplete");
+        }
+        if (first) {
+            plan.binding = condition->GetBinding();
+            plan.value = condition->GetAuthoredValue();
+            first = false;
+            continue;
+        }
+        TriggerBindingCondition extra;
+        extra.binding = condition->GetBinding();
+        extra.value = condition->GetAuthoredValue();
+        Base::Result<void> copied =
+            plan.extraBindings.PushBack(std::move(extra));
+        if (!copied) return copied.GetStatus();
+    }
+    for (const Base::Ref<Setter>& authored :
+         trigger.GetAuthoredSetters()) {
+        if (!authored || !authored->GetProperty().IsValid() ||
+            authored->GetValue().IsUnset()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "MultiDataTrigger Setter is incomplete");
+        }
+        Base::Result<void> copied = plan.setters.PushBack({
+            authored->GetProperty(), authored->GetValue()});
+        if (!copied) return copied.GetStatus();
+    }
+    Base::Result<void> copied = plan.enterActions.Append(
+        trigger.GetEnterActions());
+    if (!copied) return copied.GetStatus();
+    copied = plan.exitActions.Append(trigger.GetExitActions());
+    if (!copied) return copied.GetStatus();
+    return program_->AddAuthoredTrigger(std::move(plan));
+}
+
 Base::Result<void> Style::SealRuntime(
     const void* propertiesState) noexcept {
     if (propertiesState == nullptr) {
@@ -615,6 +669,14 @@ Base::Result<void> Style::SealRuntime(
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidState,
                     "Style DataTrigger Binding or Value is incomplete");
+            }
+            for (const TriggerBindingCondition& extra :
+                 trigger.extraBindings) {
+                if (!extra.binding || extra.value.IsUnset()) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::InvalidState,
+                        "Style MultiDataTrigger Condition is incomplete");
+                }
             }
         } else {
             const Meta::DependencyProperty* condition =

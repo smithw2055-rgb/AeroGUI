@@ -87,6 +87,8 @@ public:
         const Trigger& trigger) noexcept;
     Result<void> AddTrigger(
         const DataTrigger& trigger) noexcept;
+    Result<void> AddTrigger(
+        const MultiDataTrigger& trigger) noexcept;
 
     class TriggerBuilder {
     public:

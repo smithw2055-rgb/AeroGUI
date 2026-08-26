@@ -562,6 +562,59 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             if (!added) return added.GetStatus();
             continue;
         }
+        if (authored->RuntimeType() ==
+                Aero::MultiDataTrigger::StaticTypeId()) {
+            auto* trigger =
+                static_cast<Aero::MultiDataTrigger*>(authored);
+            if (trigger->GetConditions().Empty() ||
+                trigger->GetAuthoredSetters().Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "Style MultiDataTrigger requires Conditions and Setters");
+            }
+            for (const Base::Ref<Aero::Condition>& condition :
+                 trigger->GetConditions()) {
+                if (!condition || !condition->GetBinding() ||
+                    condition->GetAuthoredValue().IsUnset()) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::InvalidState,
+                        "Style MultiDataTrigger Condition requires Binding and Value");
+                }
+            }
+            for (const Base::Ref<Aero::Setter>& setterEntry :
+                 trigger->GetAuthoredSetters()) {
+                Aero::Setter* setter = setterEntry.Get();
+                if (setter == nullptr || !setter->GetIsAuthored()) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::InvalidState,
+                        "Style MultiDataTrigger Setter requires Property and Value");
+                }
+                const Meta::DependencyProperty* property =
+                    ResolveStyleProperty(
+                        *options_.properties,
+                        targetType,
+                        setter->GetPropertyName());
+                if (property == nullptr) {
+                    return MissingStyleProperty(
+                        "MultiDataTrigger Setter property",
+                        setter->GetPropertyName(),
+                        targetType,
+                        options_.properties->Types());
+                }
+                Base::Result<Meta::PropertyValue> value =
+                    ConvertValueForProperty(
+                        setter->GetAuthoredValue(),
+                        targetType,
+                        setter->GetPropertyName());
+                if (!value) return value.GetStatus();
+                Base::Result<void> resolved = setter->Resolve(
+                    property->Handle(), value.Value());
+                if (!resolved) return resolved.GetStatus();
+            }
+            Base::Result<void> added = style.AddTrigger(*trigger);
+            if (!added) return added.GetStatus();
+            continue;
+        }
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "Style trigger type is not supported");
