@@ -43,19 +43,6 @@ Size ClampSize(Size value, Size minimum, Size maximum) noexcept {
         ClampDimension(value.height, minimum.height, maximum.height)};
 }
 
-struct RoutedHandlerRecord {
-    RoutedEventHandle event;
-    Aero::RoutedHandlerStorage handler;
-    std::uint64_t sequence = 0U;
-    bool handledEventsToo = false;
-};
-
-struct UIElementHandlerState {
-    Base::Vector<RoutedHandlerRecord> handlers;
-    std::uint64_t nextSequence = 1U;
-};
-
-
 double AlignmentOffset(double available, double actual, bool center, bool end) noexcept {
     const double remaining = std::max(0.0, available - actual);
     return center ? remaining * 0.5 : (end ? remaining : 0.0);
@@ -79,62 +66,6 @@ Size NaturalConstraintForTransform(
 }
 
 } // namespace
-
-UIElement* UIElementChildRange::Iterator::operator*() const noexcept {
-    ::Aero::Media::Visual* child = owner_ != nullptr ? ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
-    return child != nullptr ? child->AsUIElement() : nullptr;
-}
-
-void UIElementChildRange::Iterator::Advance() noexcept {
-    if (owner_ == nullptr) return;
-    const std::uint32_t count = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*owner_);
-    while (index_ < count) {
-        ::Aero::Media::Visual* child = ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_);
-        if (child != nullptr && child->AsUIElement() != nullptr) return;
-        ++index_;
-    }
-}
-
-std::uint32_t UIElementChildRange::Size() const noexcept {
-    std::uint32_t count = 0U;
-    for (UIElement* child : *this) {
-        (void)child;
-        ++count;
-    }
-    return count;
-}
-
-UIElement* UIElementChildRange::operator[](std::uint32_t index) const noexcept {
-    std::uint32_t current = 0U;
-    for (UIElement* child : *this) {
-        if (current++ == index) return child;
-    }
-    return nullptr;
-}
-
-FrameworkElement* FrameworkElementChildRange::Iterator::operator*() const noexcept {
-    ::Aero::Media::Visual* child = owner_ != nullptr ? ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
-    return child != nullptr ? child->AsFrameworkElement() : nullptr;
-}
-
-void FrameworkElementChildRange::Iterator::Advance() noexcept {
-    if (owner_ == nullptr) return;
-    const std::uint32_t count = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*owner_);
-    while (index_ < count) {
-        ::Aero::Media::Visual* child = ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_);
-        if (child != nullptr && child->AsFrameworkElement() != nullptr) return;
-        ++index_;
-    }
-}
-
-std::uint32_t FrameworkElementChildRange::Size() const noexcept {
-    std::uint32_t count = 0U;
-    for (FrameworkElement* child : *this) {
-        (void)child;
-        ++count;
-    }
-    return count;
-}
 
 bool IsFinite(Point value) noexcept {
     return std::isfinite(value.x) && std::isfinite(value.y);
@@ -213,59 +144,6 @@ double RoundLayoutValue(double value, double dpiScale) noexcept {
     }
     return std::round(value * dpiScale) / dpiScale;
 }
-
-UIElement::UIElement(TypeId runtimeType) noexcept
-    : ::Aero::Media::Visual(runtimeType) {}
-
-UIElement::~UIElement() {
-    AERO_ASSERT(AeroGuiInternal::LayoutEngineOf(*this) == nullptr);
-    AERO_ASSERT(!layout_.layoutAttached);
-    CleanupHandlers();
-    delete rare_;
-    rare_ = nullptr;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-} // namespace Aero
-
-namespace Aero {
-
-using namespace Aero::Meta;
-using namespace Aero::Threading;
-using namespace Aero;
-
-namespace {
-
-Base::Result<void> VerifyElement(
-    const UIElement& element) noexcept {
-    return Base::Result<void>();
-}
-
-} // namespace
 
 LayoutEngine::LayoutEngine(Dispatcher& dispatcher) noexcept
     : dispatcher_(&dispatcher) {}

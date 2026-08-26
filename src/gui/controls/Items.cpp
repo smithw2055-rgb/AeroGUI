@@ -1,7 +1,7 @@
 #include <Aero/Controls.hpp>
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp" 
-#include "gui/data/BindingState.hpp"
+#include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/controls/State.hpp" 

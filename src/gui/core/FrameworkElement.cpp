@@ -243,4 +243,28 @@ Base::Object* FrameworkElement::FindName(
     Base::StringView name) noexcept {
     return FindNameObject(name, Meta::InvalidTypeId);
 }
+FrameworkElement* FrameworkElementChildRange::Iterator::operator*() const noexcept {
+    ::Aero::Media::Visual* child = owner_ != nullptr ? ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
+    return child != nullptr ? child->AsFrameworkElement() : nullptr;
+}
+
+void FrameworkElementChildRange::Iterator::Advance() noexcept {
+    if (owner_ == nullptr) return;
+    const std::uint32_t count = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*owner_);
+    while (index_ < count) {
+        ::Aero::Media::Visual* child = ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_);
+        if (child != nullptr && child->AsFrameworkElement() != nullptr) return;
+        ++index_;
+    }
+}
+
+std::uint32_t FrameworkElementChildRange::Size() const noexcept {
+    std::uint32_t count = 0U;
+    for (FrameworkElement* child : *this) {
+        (void)child;
+        ++count;
+    }
+    return count;
+}
+
 } // namespace Aero {

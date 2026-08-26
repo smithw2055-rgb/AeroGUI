@@ -5,7 +5,7 @@
 #include "gui/meta/MetadataState.hpp"
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/State.hpp" 
-#include "gui/data/BindingState.hpp"
+#include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include <Aero/Interactivity/Behavior.hpp>

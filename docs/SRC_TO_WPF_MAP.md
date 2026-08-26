@@ -8,7 +8,7 @@ its WPF namespace rather than by an implementation-mechanism folder.
 
 | Public namespace | Installed headers | Implementation (src/gui) |
 | --- | --- | --- |
-| `Aero` (root) | `Gui.hpp`, `View.hpp`, `DependencyObject.hpp`, `UIElement.hpp`, `FrameworkElement.hpp`, `Visual.hpp`, `Freezable.hpp`, `ContentElement.hpp`, `RoutedEvent.hpp`, `Value.hpp`, `Resources.hpp`, `Style.hpp`, `Events.hpp`, `Layout.hpp`, `Shapes.hpp`, `Documents.hpp`, `Threading.hpp`, `Collections.hpp`, `Meta.hpp`, `Module.hpp` | `core/` (elements, property system, Freezable, events, Dispatcher, layout engine; Resources/Style lives in `styles/`), `data/` (Aero::Data Binding), `styles/`, `meta/` (Meta/Module), `triggers/` (behavior), `controls/` (controls + layout engine implementation), root `Gui.cpp`/`View.cpp` |
+| `Aero` (root) | `Gui.hpp`, `View.hpp`, `DependencyObject.hpp`, `UIElement.hpp`, `FrameworkElement.hpp`, `Visual.hpp`, `Freezable.hpp`, `ContentElement.hpp`, `RoutedEvent.hpp`, `Value.hpp`, `Resources.hpp`, `Style.hpp`, `Events.hpp`, `Layout.hpp`, `Shapes.hpp`, `Documents.hpp`, `Threading.hpp`, `Collections.hpp`, `Meta.hpp`, `Module.hpp` | `core/` (elements, property system, Freezable, events, Dispatcher, layout engine; Resources/Style lives in `styles/`), `data/` (Aero::Data Binding), `styles/`, `meta/` (Meta/Module), `triggers/` (behavior), `controls/` (controls), root `Gui.cpp`/`View.cpp` |
 | `Aero::Controls` | `Controls/*.hpp` | `controls/` + `templates/` (ControlTemplate/DataTemplate) |
 | `Aero::Data` | `Data/Binding.hpp`, `DataTemplate.hpp` | `data/` (Binding) + `templates/` (DataTemplate) |
 | `Aero::Markup` | `Markup/*.hpp` | `markup/` |
@@ -36,7 +36,7 @@ its types below.
 - `controls/Menus.cpp` — `Menu`, `TreeView` (menu parts)
 - `controls/Trees.cpp` — `TreeView`, `ListView` (tree parts)
 - `controls/Virtualization.cpp` — `VirtualizingStackPanel`
-- `controls/Layout.cpp` — `LayoutEngine` (Measure/Arrange engine) + `UIElement`/`FrameworkElement` layout method bodies
+- `core/LayoutEngine.cpp` — `LayoutEngine` (Measure/Arrange engine) + public layout helpers (`IsFinite`, `Deflate`, …)
 - `controls/VisualStates.cpp` — `VisualStateManager` groups
 - `controls/RichText.cpp` — rich-text token helpers (`TrimRichTextToken`, `FindRichTextToken`, `AppendRichTextValue/Binding`), `ApplyRichText`, `RichText::OnTextChanged` (the `Run`/`Span`/`Bold`/`Italic`/`Underline`/`LineBreak` bodies are inline in their public headers)
 - `templates/Templates.cpp` — `ControlTemplate`, `DataTemplate` runtime programs

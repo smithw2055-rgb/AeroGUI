@@ -2,7 +2,7 @@
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/styles/StyleEngine.hpp"
 #include "gui/triggers/TriggerDiagnostics.hpp"
 #include "gui/triggers/TriggerEngine.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>

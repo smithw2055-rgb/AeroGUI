@@ -688,4 +688,47 @@ UIElement::Rare& UIElement::EnsureRare() noexcept {
     return *rare_;
 }
 
+UIElement* UIElementChildRange::Iterator::operator*() const noexcept {
+    ::Aero::Media::Visual* child = owner_ != nullptr ? ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
+    return child != nullptr ? child->AsUIElement() : nullptr;
+}
+
+void UIElementChildRange::Iterator::Advance() noexcept {
+    if (owner_ == nullptr) return;
+    const std::uint32_t count = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*owner_);
+    while (index_ < count) {
+        ::Aero::Media::Visual* child = ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_);
+        if (child != nullptr && child->AsUIElement() != nullptr) return;
+        ++index_;
+    }
+}
+
+std::uint32_t UIElementChildRange::Size() const noexcept {
+    std::uint32_t count = 0U;
+    for (UIElement* child : *this) {
+        (void)child;
+        ++count;
+    }
+    return count;
+}
+
+UIElement* UIElementChildRange::operator[](std::uint32_t index) const noexcept {
+    std::uint32_t current = 0U;
+    for (UIElement* child : *this) {
+        if (current++ == index) return child;
+    }
+    return nullptr;
+}
+
+UIElement::UIElement(TypeId runtimeType) noexcept
+    : ::Aero::Media::Visual(runtimeType) {}
+
+UIElement::~UIElement() {
+    AERO_ASSERT(AeroGuiInternal::LayoutEngineOf(*this) == nullptr);
+    AERO_ASSERT(!layout_.layoutAttached);
+    CleanupHandlers();
+    delete rare_;
+    rare_ = nullptr;
+}
+
 } // namespace Aero

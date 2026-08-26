@@ -9,8 +9,8 @@ define another SDK layer; installed product contracts are under `include/Aero`,
 ```text
 src/base/       allocation, strings, object lifetime, streams and C ABI
 src/gui/        WPF semantic kernel, Gui/View composition and ViewRenderer
-src/gui/core/        root Aero: elements, DependencyProperty, Freezable, events, Dispatcher
-src/gui/controls/    controls implementations + the Measure/Arrange layout engine (no templates/styles)
+src/gui/core/        root Aero: elements, DependencyProperty, Freezable, events, Dispatcher, layout engine
+src/gui/controls/    controls implementations (no templates/styles)
 src/gui/templates/   ControlTemplate, DataTemplate and the template engine
 src/gui/styles/      Style and ResourceDictionary
 src/gui/data/        Aero::Data Binding engine
@@ -141,7 +141,7 @@ advertise kernel bags.
 The ECS-style `Core::Facet` / `GetFacet` / `ElementFacet` / `ElementHost`
 matrix and the older per-type `Access` facades are deleted. They are not the
 product architecture. Panel layout remains virtual `MeasureOverride` /
-`ArrangeOverride` on the control type (see `src/gui/controls/Layout.cpp` and
+`ArrangeOverride` on the control type (see `src/gui/core/LayoutEngine.cpp` and
 `Panels.cpp`); there is no shipped panel layout-facet layer.
 
 Kernel-private reads and writes go through one friend:

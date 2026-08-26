@@ -428,6 +428,9 @@ foreach(required_source_entry IN ITEMS
         "src/render/RenderTree.cpp"
         "src/gui/ViewRenderer.cpp"
         "src/gui/media/StoryboardHost.cpp"
+        "src/gui/core/LayoutEngine.cpp"
+        "src/gui/data/BindingEngine.hpp"
+        "src/gui/styles/StyleEngine.hpp"
         "src/gui/interactivity/InteractivityEngine.cpp"
         "src/gui/markup/ViewDocuments.cpp"
         "src/render/RenderContext.hpp")
@@ -1030,6 +1033,24 @@ aero_forbid_file("src/gui/markup/MarkupPrivate.hpp")
 aero_forbid_file("src/gui/media/MediaPrivate.hpp")
 aero_forbid_file("src/gui/interactivity/ViewTriggers.cpp")
 aero_forbid_file("src/gui/media/ViewStoryboardSessions.cpp")
+aero_forbid_file("src/gui/controls/Layout.cpp")
+aero_forbid_file("src/gui/data/BindingState.hpp")
+aero_require_text(
+    "cmake/AeroGuiTargets.cmake"
+    "_aero_gui_interactivity_sources"
+    "Blend/interactivity TUs must be a dedicated AeroGui source group")
+aero_require_text(
+    "src/gui/data/BindingEngine.hpp"
+    "class BindingEngine"
+    "BindingEngine.hpp must own the BindingEngine declaration")
+aero_require_text(
+    "src/gui/styles/StyleEngine.hpp"
+    "class StyleEngine"
+    "StyleEngine.hpp must own the StyleEngine declaration")
+aero_forbid_text(
+    "src/gui/styles/StyleState.hpp"
+    "class StyleEngine"
+    "StyleEngine must not remain declared in StyleState.hpp")
 aero_forbid_file("src/gui/core/Facet.hpp")
 aero_forbid_file("src/gui/core/facets/VisualFacet.hpp")
 aero_forbid_file("src/gui/core/facets/RenderFacet.hpp")

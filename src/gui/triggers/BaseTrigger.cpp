@@ -2,7 +2,7 @@
 #include <Aero/Triggers/TriggerBase.hpp>
 #include <Aero/Value.hpp>
 
-#include "gui/data/BindingState.hpp"
+#include "gui/data/BindingEngine.hpp"
 #include "gui/triggers/TriggerDiagnostics.hpp"
 
 namespace Aero {

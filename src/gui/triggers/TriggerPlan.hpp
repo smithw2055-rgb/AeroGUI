@@ -8,7 +8,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include "gui/data/BindingState.hpp"
+#include "gui/data/BindingEngine.hpp"
 
 namespace Aero {
 

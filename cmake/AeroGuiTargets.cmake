@@ -45,6 +45,7 @@ set(_aero_gui_core_sources
     src/gui/core/ContentElement.cpp
     src/gui/core/ElementTree.cpp
     src/gui/core/Invariants.cpp
+    src/gui/core/LayoutEngine.cpp
     src/gui/core/PropertySystem.cpp
     src/gui/core/Visual.cpp
     src/gui/core/UIElement.cpp
@@ -82,8 +83,18 @@ set(_aero_gui_input_sources
     src/gui/input/Clipboard.cpp)
 
 set(_aero_gui_triggers_sources
+    src/gui/triggers/BaseTrigger.cpp
+    src/gui/triggers/Trigger.cpp
+    src/gui/triggers/DataTrigger.cpp
+    src/gui/triggers/Condition.cpp
+    src/gui/triggers/MultiTrigger.cpp
+    src/gui/triggers/MultiDataTrigger.cpp
+    src/gui/triggers/TriggerEngine.cpp)
+
+set(_aero_gui_interactivity_sources
     src/gui/interactivity/Interactivity.cpp
-    src/gui/interactivity/InteractivityEngine.cpp)
+    src/gui/interactivity/InteractivityEngine.cpp
+    src/gui/interactivity/BlendBehaviors.cpp)
 
 set(_aero_gui_media_sources
     src/gui/media/AnimationEngine.cpp
@@ -101,19 +112,10 @@ set(_aero_gui_media_sources
 set(_aero_gui_controls_sources
     src/gui/controls/RichText.cpp
     src/gui/controls/Bars.cpp
-    src/gui/interactivity/BlendBehaviors.cpp
-    src/gui/triggers/BaseTrigger.cpp
-    src/gui/triggers/Trigger.cpp
-    src/gui/triggers/DataTrigger.cpp
-    src/gui/triggers/Condition.cpp
-    src/gui/triggers/MultiTrigger.cpp
-    src/gui/triggers/MultiDataTrigger.cpp
-    src/gui/triggers/TriggerEngine.cpp
     src/gui/controls/Buttons.cpp
     src/gui/controls/ContentControls.cpp
     src/gui/controls/ControlBehavior.cpp
     src/gui/controls/Controls.cpp
-    src/gui/controls/Layout.cpp
     src/gui/controls/Documents.cpp
     src/gui/controls/Panels.cpp
     src/gui/controls/Images.cpp
@@ -187,6 +189,7 @@ set(_aero_gui_sources
     ${_aero_gui_styles_sources}
     ${_aero_gui_input_sources}
     ${_aero_gui_triggers_sources}
+    ${_aero_gui_interactivity_sources}
     ${_aero_gui_controls_sources}
     ${_aero_gui_templates_sources}
     ${_aero_gui_markup_sources}
@@ -265,6 +268,7 @@ unset(_aero_gui_data_sources)
 unset(_aero_gui_styles_sources)
 unset(_aero_gui_input_sources)
 unset(_aero_gui_triggers_sources)
+unset(_aero_gui_interactivity_sources)
 unset(_aero_gui_controls_sources)
 unset(_aero_gui_templates_sources)
 unset(_aero_gui_markup_sources)
