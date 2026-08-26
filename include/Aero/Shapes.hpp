@@ -2,6 +2,7 @@
 
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Geometry.hpp>
 #include <Aero/FrameworkElement.hpp>
 
 

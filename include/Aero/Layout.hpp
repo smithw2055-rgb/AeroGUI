@@ -3,10 +3,10 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Controls/GridLength.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include <Aero/Diagnostics/Layout.hpp>
 #include <Aero/HorizontalAlignment.hpp>
 #include <Aero/Media/BlendMode.hpp>
-#include <Aero/Value.hpp>
 #include <Aero/Visibility.hpp>
 
 namespace Aero {
