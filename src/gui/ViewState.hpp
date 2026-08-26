@@ -11,6 +11,8 @@
 #include <Aero/Diagnostics.hpp>
 #include <Aero/Diagnostics/Rendering.hpp>
 #include <Aero/Media/Geometry.hpp>
+#include <Aero/Interactivity/Behavior.hpp>
+#include <Aero/Interactivity/Conditions.hpp>
 #include "gui/GuiData.hpp"
 #include "gui/ViewRenderer.hpp"
 #include <Aero/FrameworkElement.hpp>
