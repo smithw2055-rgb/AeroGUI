@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Controls/ColumnDefinition.hpp>
+#include <Aero/Controls/RowDefinition.hpp>
 #include <Aero/Controls/GridLength.hpp>
 #include <Aero/Controls/Panel.hpp>
 #include <Aero/Base/String.hpp>
@@ -8,50 +10,6 @@
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
-
-class AERO_GUI_API ColumnDefinition : public Base::Object {
-    AERO_DECLARE_TYPE(ColumnDefinition, Base::Object)
-public:
-    ColumnDefinition() noexcept = default;
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    GridLength GetWidth() const noexcept { return width_; }
-    double GetMaxWidth() const noexcept { return maxWidth_; }
-    StringView GetSharedSizeGroup() const noexcept {
-        return sharedSizeGroup_.View();
-    }
-    void SetWidth(GridLength value) noexcept;
-    void SetMaxWidth(double value) noexcept;
-    void SetSharedSizeGroup(
-        StringView value) noexcept;
-private:
-    GridLength width_ = GridLength::Star();
-    double maxWidth_ = 1.0e12;
-    String sharedSizeGroup_;
-};
-
-class AERO_GUI_API RowDefinition : public Base::Object {
-    AERO_DECLARE_TYPE(RowDefinition, Base::Object)
-public:
-    RowDefinition() noexcept = default;
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    GridLength GetHeight() const noexcept { return height_; }
-    double GetMaxHeight() const noexcept { return maxHeight_; }
-    StringView GetSharedSizeGroup() const noexcept {
-        return sharedSizeGroup_.View();
-    }
-    void SetHeight(GridLength value) noexcept;
-    void SetMaxHeight(double value) noexcept;
-    void SetSharedSizeGroup(
-        StringView value) noexcept;
-private:
-    GridLength height_ = GridLength::Star();
-    double maxHeight_ = 1.0e12;
-    String sharedSizeGroup_;
-};
 
 class AERO_GUI_API Grid : public Panel {
     AERO_DECLARE_TYPE(Grid, Panel)

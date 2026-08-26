@@ -7,6 +7,7 @@
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Transform3D.hpp>
 #include <Aero/DependencyProperty.hpp>
+#include <Aero/TextProperties.hpp>
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
@@ -44,31 +45,6 @@ public:
         Element, Base::Ref<Media::Transform3D>>
         Transform3DProperty{"Transform3D"};
     static void OnTransform3DChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
-};
-
-class TextProperties : public Base::Object {
-    AERO_DECLARE_TYPE_NAMED(
-        TextProperties, Base::Object, "urn:aero", "Text")
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    inline static constexpr Meta::AttachedPropertyRef<
-        TextProperties, std::uint32_t>
-        PasswordLengthProperty{"PasswordLength"};
-    inline static constexpr Meta::AttachedPropertyRef<
-        TextProperties, Base::String>
-        PlaceholderProperty{"Placeholder"};
-    inline static constexpr Meta::AttachedPropertyRef<
-        TextProperties, Value>
-        StrokeProperty{"Stroke"};
-    inline static constexpr Meta::AttachedPropertyRef<
-        TextProperties, double>
-        StrokeThicknessProperty{"StrokeThickness"};
-
-    static void OnCompatibilityPropertyChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
 };

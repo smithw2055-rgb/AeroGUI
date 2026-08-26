@@ -24,6 +24,7 @@ private:
     MouseButton button_ = MouseButton::Left;
     PointerAction action_ = PointerAction::Down;
     String commandName_;
+    bool finalized_ = false;
 };
 
 } // namespace Aero::Input

@@ -2192,22 +2192,14 @@ set(aero_one_type_exemptions
     include/Aero/Resources.hpp
     include/Aero/Shapes.hpp
     include/Aero/DependencyProperty.hpp
-    include/Aero/VisualStateManager.hpp
     include/Aero/Media/Brushes.hpp
     include/Aero/Media/Transforms.hpp
     include/Aero/Media/Effects.hpp
-    include/Aero/Media/Images.hpp
     include/Aero/Media/Animation.hpp
     include/Aero/Media/Animation/MediaActions.hpp
     include/Aero/Media/Animation/StoryboardActions.hpp
     include/Aero/Controls/Panel.hpp
-    include/Aero/Controls/Grid.hpp
-    include/Aero/Controls/TreeView.hpp
     include/Aero/Controls/ToolBar.hpp
-    include/Aero/Controls/StatusBar.hpp
-    include/Aero/Controls/ScrollViewer.hpp
-    include/Aero/Controls/Decorator.hpp
-    include/Aero/Controls/UserControl.hpp
     include/Aero/Controls/ToolTip.hpp
     include/AeroApp/Application.hpp
     include/AeroApp/App.hpp
@@ -2216,13 +2208,10 @@ set(aero_one_type_exemptions
     include/Aero/InputInterop.hpp
     include/Aero/Base/Allocator.hpp
     include/Aero/Base/Object.hpp
-    include/Aero/Triggers/TriggerBase.hpp
     include/Aero/Triggers/Conditions.hpp
-    include/Aero/Media/Fonts.hpp
     include/Aero/Markup/XamlProvider.hpp
     include/Aero/Markup/ServiceProvider.hpp
     include/Aero/Interactivity/Behavior.hpp
-    include/Aero/Interactivity/TriggerAction.hpp
     include/Aero/Interactivity/BlendBehaviors.hpp
     include/Aero/Interactivity/Conditions.hpp
     include/Aero/Interactivity/InteractionTriggers.hpp

@@ -47,6 +47,10 @@ public:
     static Result<Ref<RoutedCommand>> ResolveStatic(
         Meta::TypeId ownerType,
         StringView memberName) noexcept;
+    // Interns `Copy`, `ApplicationCommands.Copy`, and other authored names
+    // onto one RoutedCommand instance so CommandBinding and KeyBinding match.
+    static Result<Ref<RoutedCommand>> ResolveAuthored(
+        StringView name) noexcept;
 
 private:
     friend class KeyBinding;

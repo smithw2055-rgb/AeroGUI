@@ -52,6 +52,12 @@ public:
     inline static constexpr DependencyProperty<String> PasswordCharProperty{"PasswordChar"};
     inline static constexpr DependencyProperty<std::uint32_t> MaxLengthProperty{"MaxLength"};
     inline static constexpr DependencyProperty<String> PlaceholderProperty{"Placeholder"};
+    StringView GetPlaceholder() const noexcept {
+        return GetValueOr(PlaceholderProperty, StringView{});
+    }
+    void SetPlaceholder(StringView value) noexcept {
+        SetValue(PlaceholderProperty, value);
+    }
     inline static constexpr auto ForegroundProperty = Control::ForegroundProperty;
 
 protected:

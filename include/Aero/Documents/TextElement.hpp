@@ -2,7 +2,7 @@
 
 #include <Aero/FrameworkContentElement.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Fonts.hpp>
+#include <Aero/Media/FontFamily.hpp>
 #include <Aero/TextFormatting.hpp>
 
 namespace Aero::Documents {

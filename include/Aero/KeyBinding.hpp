@@ -20,5 +20,6 @@ private:
     String commandName_;
     String keyName_;
     String modifiersName_;
+    bool finalized_ = false;
 };
 } // namespace Aero::Input

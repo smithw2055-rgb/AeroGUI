@@ -25,12 +25,15 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/CAPI.h
     include/Aero/Controls.hpp
     include/Aero/Controls/UserControl.hpp
+    include/Aero/Controls/Page.hpp
     include/Aero/Controls/CheckBox.hpp
     include/Aero/Controls/RadioButton.hpp
         include/Aero/Controls/ComboBoxItem.hpp
         include/Aero/Controls/ComboBox.hpp
     include/Aero/Controls/ListView.hpp
     include/Aero/Controls/ScrollViewer.hpp
+    include/Aero/Controls/IScrollInfo.hpp
+    include/Aero/Controls/ScrollContentPresenter.hpp
     include/Aero/Collections.hpp
     include/Aero/Diagnostics.hpp
     include/Aero/Diagnostics/DependencyProperty.hpp
@@ -95,6 +98,8 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/Button.hpp
     include/Aero/Controls/ToggleButton.hpp
     include/Aero/Controls/Grid.hpp
+    include/Aero/Controls/ColumnDefinition.hpp
+    include/Aero/Controls/RowDefinition.hpp
     include/Aero/Controls/GridLength.hpp
     include/Aero/Controls/StackPanel.hpp
     include/Aero/Controls/Border.hpp
@@ -108,6 +113,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/ListBox.hpp
     include/Aero/Controls/ListBoxItem.hpp
     include/Aero/Controls/TreeView.hpp
+    include/Aero/Controls/TreeViewItem.hpp
     include/Aero/Controls/TextBlock.hpp
     include/Aero/Controls/TextBoxBase.hpp
     include/Aero/Controls/TextBox.hpp
@@ -121,6 +127,10 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/EventSetter.hpp
     include/Aero/FrameworkTemplate.hpp
     include/Aero/Controls/ControlTemplate.hpp
+    include/Aero/VisualState.hpp
+    include/Aero/VisualTransition.hpp
+    include/Aero/VisualStateGroup.hpp
+    include/Aero/VisualStateGroupCollection.hpp
     include/Aero/VisualStateManager.hpp
     include/Aero/DataTemplate.hpp
     include/Aero/DataTemplateSelector.hpp
@@ -263,7 +273,11 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Layout.hpp
     include/Aero/Media/Effects.hpp
     include/Aero/Media/Fonts.hpp
+    include/Aero/Media/FontFamily.hpp
     include/Aero/Media/Images.hpp
+    include/Aero/Media/ImageSource.hpp
+    include/Aero/Media/BitmapImage.hpp
+    include/Aero/Media/CroppedBitmap.hpp
     include/Aero/Module.hpp
     include/Aero/Shapes.hpp
     include/Aero/Shapes/Ellipse.hpp
@@ -274,9 +288,12 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Shapes/Rectangle.hpp
     include/Aero/Shapes/Shape.hpp
     include/Aero/Triggers/Conditions.hpp
+    include/Aero/Triggers/SetterBase.hpp
+    include/Aero/Triggers/Setter.hpp
     include/Aero/Triggers/DataTrigger.hpp
     include/Aero/Media/Animation/EventTrigger.hpp
     include/Aero/Interactivity/InteractionTriggers.hpp
+    include/Aero/Interactivity/Interaction.hpp
     include/Aero/Interactivity/Conditions.hpp
     include/Aero/Triggers/MultiDataTrigger.hpp
     include/Aero/Triggers/MultiTrigger.hpp
@@ -296,7 +313,10 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/MediaElement.hpp
     include/Aero/Media/Animation/MediaActions.hpp
     include/Aero/TextFormatting.hpp
+    include/Aero/Text.hpp
+    include/Aero/TextProperties.hpp
     include/Aero/Controls/Decorator.hpp
+    include/Aero/Controls/BulletDecorator.hpp
     include/Aero/Controls/ContentPresenter.hpp
     include/Aero/Controls/Primitives.hpp
     include/Aero/Controls/Primitives/Selector.hpp
@@ -317,7 +337,9 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/VirtualizingWrapPanel.hpp
     include/Aero/Controls/Menu.hpp
     include/Aero/Controls/ToolBar.hpp
+    include/Aero/Controls/Separator.hpp
     include/Aero/Controls/StatusBar.hpp
+    include/Aero/Controls/StatusBarItem.hpp
     include/Aero/Controls/ToolTip.hpp
     include/Aero/Controls/Image.hpp
     include/Aero/Controls/MenuItem.hpp
@@ -401,6 +423,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/KeyBinding.hpp
     include/Aero/MouseBinding.hpp
     include/Aero/CommandBinding.hpp
+    include/Aero/ApplicationCommands.hpp
     include/Aero/KeyboardNavigation.hpp
     include/Aero/FocusManager.hpp
     include/Aero/Data/PropertyPath.hpp

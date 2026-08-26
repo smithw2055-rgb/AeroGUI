@@ -27,7 +27,7 @@ using Meta::TypeId;
 class UIElement;
 class AeroGuiInternal;
 namespace Media { class Transform; class Transform3D; class Effect; class Brush; class Geometry; }
-namespace Input { class RoutedCommand; class InputBinding; }
+namespace Input { class RoutedCommand; class InputBinding; class CommandBinding; }
 
 class UIElementChildRange {
 public:
@@ -316,6 +316,9 @@ public:
     Result<void> AddInputBinding(Ref<Input::InputBinding> binding) noexcept;
     void ClearInputBindings() noexcept;
     Base::Span<const Ref<Input::InputBinding>> GetInputBindings() const noexcept;
+    Result<void> AddCommandBinding(Ref<Input::CommandBinding> binding) noexcept;
+    void ClearCommandBindings() noexcept;
+    Base::Span<const Ref<Input::CommandBinding>> GetCommandBindings() const noexcept;
     void SetRenderTransform(
         Ref<Media::Transform> value) noexcept;
     void SetTransform3D(
@@ -389,6 +392,7 @@ private:
     struct Rare {
         void* routedHandlers = nullptr;
         void* inputBindings = nullptr;
+        void* commandBindings = nullptr;
     };
 
     Rare& EnsureRare() noexcept;

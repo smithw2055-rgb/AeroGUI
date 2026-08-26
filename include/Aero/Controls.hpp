@@ -2,6 +2,7 @@
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Controls/ContentControl.hpp>
 #include <Aero/Controls/UserControl.hpp>
+#include <Aero/Controls/Page.hpp>
 #include <Aero/Controls/Panel.hpp>
 #include <Aero/Controls/Decorator.hpp>
 #include <Aero/Controls/StackPanel.hpp>
