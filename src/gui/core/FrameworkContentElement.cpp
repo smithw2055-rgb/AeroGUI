@@ -26,10 +26,19 @@ namespace Aero {
 
 // from src/gui/core/ContentElement.cpp
 
+ResourceDictionary& FrameworkContentElement::GetResources() noexcept {
+    return EnsureOwnedResources(resources_);
+}
+
+const ResourceDictionary&
+FrameworkContentElement::GetResources() const noexcept {
+    return EnsureOwnedResources(resources_);
+}
+
 void FrameworkContentElement::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
     (void)Aero::AssignResourceDictionary(
-        resources_,
+        EnsureOwnedResources(resources_),
         std::move(value),
         "FrameworkContentElement Resources is already assigned");
 }

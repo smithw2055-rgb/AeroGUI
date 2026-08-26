@@ -14,8 +14,8 @@ public:
     explicit FrameworkContentElement(Meta::TypeId runtimeType) noexcept;
     ~FrameworkContentElement() override;
 
-    ResourceDictionary& GetResources() noexcept { return resources_; }
-    const ResourceDictionary& GetResources() const noexcept { return resources_; }
+    ResourceDictionary& GetResources() noexcept;
+    const ResourceDictionary& GetResources() const noexcept;
     void SetResources(Ref<ResourceDictionary> value) noexcept;
 
     Value GetDataContext() const noexcept {
@@ -76,6 +76,7 @@ protected:
     virtual DependencyObject* GetLogicalChild(std::uint32_t) const noexcept { return nullptr; }
 
 private:
+    friend class ResourceResolver;
 #if defined(AERO_GUI_IMPLEMENTATION)
     friend class ::Aero::AeroGuiInternal;
 #endif
@@ -86,7 +87,10 @@ private:
     AuthoredTriggers() const noexcept {
         return authoredTriggers_.AsSpan();
     }
-    ResourceDictionary resources_;
+    const ResourceDictionary* LocalResources() const noexcept {
+        return resources_;
+    }
+    mutable ResourceDictionary* resources_ = nullptr;
     Base::Vector<Ref<Base::Object>> authoredTriggers_;
 };
 

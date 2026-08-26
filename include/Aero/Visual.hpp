@@ -29,7 +29,7 @@ public:
 
     Visual* GetVisualParent() const noexcept { return visualParent_; }
     ::Aero::DependencyObject* GetLogicalParent() const noexcept { return logicalParent_; }
-    bool GetIsLoaded() const noexcept { return loaded_; }
+    bool GetIsLoaded() const noexcept { return LoadedFlag(); }
 
     bool IsAncestorOf(const Visual& descendant) const noexcept;
     Base::Transform2D TransformToVisual(const Visual& visual) const noexcept;
@@ -66,6 +66,25 @@ private:
 #endif
     Result<Ref<Base::Object>> AcquireLifetime() noexcept;
 
+    static constexpr std::uint8_t kFlagRenderAttached = 1U << 0U;
+    static constexpr std::uint8_t kFlagRenderValid = 1U << 1U;
+    static constexpr std::uint8_t kFlagRenderQueued = 1U << 2U;
+    static constexpr std::uint8_t kFlagRendering = 1U << 3U;
+    static constexpr std::uint8_t kFlagLoaded = 1U << 4U;
+
+    bool LoadedFlag() const noexcept {
+        return (visualFlags_ & kFlagLoaded) != 0U;
+    }
+    void SetLoadedFlag(bool loaded) noexcept {
+        if (loaded) {
+            visualFlags_ = static_cast<std::uint8_t>(
+                visualFlags_ | kFlagLoaded);
+        } else {
+            visualFlags_ = static_cast<std::uint8_t>(
+                visualFlags_ & static_cast<std::uint8_t>(~kFlagLoaded));
+        }
+    }
+
     ::Aero::ElementTree* tree_ = nullptr;
     ::Aero::DependencyObject* logicalParent_ = nullptr;
     Visual* visualParent_ = nullptr;
@@ -76,11 +95,7 @@ private:
     std::uint32_t handleIndex_ = UINT32_MAX;
     std::uint32_t handleGeneration_ = 0U;
     std::uint8_t renderDirtyFlags_ = 0x07U;
-    bool renderAttached_ = false;
-    bool renderValid_ = false;
-    bool renderQueued_ = false;
-    bool rendering_ = false;
-    bool loaded_ = false;
+    std::uint8_t visualFlags_ = 0U;
 };
 
 } // namespace Aero::Media

@@ -397,8 +397,8 @@ bool AeroGuiInternal::HasUnfreezableValueState(
     }
     for (const auto& record : store->entries) {
         const StoredValueEntry& entry = record.Value();
-        if (entry.hasExpression || entry.hasAnimation ||
-            entry.sourceInfo.hasExpression || entry.sourceInfo.isAnimated) {
+        if (entry.HasExpression() || entry.HasAnimation() ||
+            entry.SourceInfo().hasExpression || entry.SourceInfo().isAnimated) {
             return true;
         }
     }

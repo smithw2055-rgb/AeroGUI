@@ -362,7 +362,10 @@ using Render::DisplayListBuilder;
 FrameworkElement::FrameworkElement(TypeId runtimeType) noexcept
     : UIElement(runtimeType) {}
 
-FrameworkElement::~FrameworkElement() = default;
+FrameworkElement::~FrameworkElement() {
+    delete resources_;
+    resources_ = nullptr;
+}
 
 Base::Ref<Transform>
 FrameworkElement::GetLayoutTransform() const noexcept {
@@ -1800,7 +1803,7 @@ namespace Aero {
 void FrameworkElement::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
     (void)Aero::AssignResourceDictionary(
-        resources_,
+        EnsureOwnedResources(resources_),
         std::move(value),
         "FrameworkElement Resources is already assigned");
 }

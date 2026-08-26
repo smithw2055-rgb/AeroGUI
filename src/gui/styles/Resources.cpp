@@ -1087,14 +1087,16 @@ Base::Result<ResourceValue> ResourceResolver::Lookup(
     const ResourceEnvironment& environment) noexcept {
     const FrameworkElement* current = element;
     while (current != nullptr) {
-        Base::Result<ResourceValue> local =
-            current->GetResources().Lookup(key);
-        if (local) {
-            return local.Value();
-        }
-        if (local.GetStatus().code !=
-            Base::ErrorCode::NotFound) {
-            return local.GetStatus();
+        const ResourceDictionary* owned = current->LocalResources();
+        if (owned != nullptr) {
+            Base::Result<ResourceValue> local = owned->Lookup(key);
+            if (local) {
+                return local.Value();
+            }
+            if (local.GetStatus().code !=
+                Base::ErrorCode::NotFound) {
+                return local.GetStatus();
+            }
         }
         const ::Aero::Media::Visual* logical = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
         current = logical != nullptr

@@ -173,7 +173,10 @@ FrameworkContentElement::FrameworkContentElement(
     Meta::TypeId runtimeType) noexcept
     : ContentElement(runtimeType) {}
 
-FrameworkContentElement::~FrameworkContentElement() = default;
+FrameworkContentElement::~FrameworkContentElement() {
+    delete resources_;
+    resources_ = nullptr;
+}
 
 } // namespace Aero
 

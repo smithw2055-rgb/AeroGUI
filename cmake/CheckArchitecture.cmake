@@ -1418,6 +1418,18 @@ aero_require_text(
     "src/gui/internal/PropertyStore.hpp"
     "StoredValueRare* rare"
     "Packed StoredValueEntry must hold an uncommon-data pointer, not six PropertyValues")
+aero_require_text(
+    "src/gui/internal/PropertyStore.hpp"
+    "std::uint32_t packedFlags = 0U;"
+    "Hot DP entries must pack origin/has* bits instead of scattered bools")
+aero_require_text(
+    "src/gui/internal/PropertyStore.hpp"
+    "PropertyValue effectiveValue;\n    StoredValueRare* rare = nullptr;\n    std::uint32_t packedFlags = 0U;"
+    "Hot DP entries must hold one effective Value plus packed flags and a rare pointer")
+aero_require_text(
+    "src/gui/internal/PropertyStore.hpp"
+    "OriginShift = 16U"
+    "Packed origin bits must live on the hot StoredValueEntry flags word")
 aero_forbid_text(
     "src/gui/internal/PropertyStore.hpp"
     "PropertyValue baseValue"
@@ -1426,6 +1438,38 @@ aero_forbid_text(
     "src/gui/internal/PropertyStore.hpp"
     "PropertyValue localValue;\n    PropertyValue currentValue;\n    PropertyValue inheritedValue;"
     "Packed StoredValueEntry must not keep the six-copy PropertyValue layout")
+aero_forbid_text(
+    "include/Aero/FrameworkElement.hpp"
+    "ResourceDictionary resources_;"
+    "FrameworkElement must not embed a ResourceDictionary by value")
+aero_require_text(
+    "include/Aero/FrameworkElement.hpp"
+    "mutable ResourceDictionary* resources_ = nullptr;"
+    "FrameworkElement local resources must be a lazy pointer")
+aero_require_text(
+    "src/gui/styles/Resources.cpp"
+    "current->LocalResources()"
+    "Resource tree lookup must peek LocalResources and not allocate via GetResources")
+aero_forbid_text(
+    "include/Aero/FrameworkContentElement.hpp"
+    "ResourceDictionary resources_;"
+    "FrameworkContentElement must not embed a ResourceDictionary by value")
+aero_require_text(
+    "include/Aero/FrameworkContentElement.hpp"
+    "mutable ResourceDictionary* resources_ = nullptr;"
+    "FrameworkContentElement local resources must be a lazy pointer")
+aero_forbid_text(
+    "include/Aero/Visual.hpp"
+    "bool renderAttached_"
+    "Visual render bools must be packed into visualFlags_, not one-byte members")
+aero_require_text(
+    "include/Aero/Visual.hpp"
+    "std::uint8_t visualFlags_ = 0U;"
+    "Visual render/loaded flags must share one packed byte")
+aero_require_text(
+    "include/Aero/UIElement.hpp"
+    "bool measureValid : 1;"
+    "UIElement layout dirty flags must be packed bitfields on LayoutHot")
 aero_require_text(
     "include/Aero/DependencyObject.hpp"
     "void* valueStore_ = nullptr;"

@@ -148,11 +148,30 @@ using StylePrivate = ::Aero::StyleState;
 
 // Resource-assignment helpers used by style and markup application.
 
+#include <Aero/Base/Allocator.hpp>
 #include <Aero/Resources.hpp>
 
+#include <new>
 #include <utility>
 
 namespace Aero {
+
+inline ResourceDictionary& EnsureOwnedResources(
+    ResourceDictionary*& slot) noexcept {
+    if (slot != nullptr) {
+        return *slot;
+    }
+    slot = new (std::nothrow) ResourceDictionary();
+    if (slot == nullptr) {
+        Base::ReportOutOfMemory(
+            sizeof(ResourceDictionary),
+            alignof(ResourceDictionary),
+            Base::MemoryTag::Object);
+        static ResourceDictionary fallback;
+        return fallback;
+    }
+    return *slot;
+}
 
 inline Base::Result<void> AssignResourceDictionary(
     ResourceDictionary& target,

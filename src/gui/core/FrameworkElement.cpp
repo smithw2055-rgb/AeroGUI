@@ -279,6 +279,14 @@ const ResourceDictionary* TemplateResourcesFor(
 
 } // namespace
 
+ResourceDictionary& FrameworkElement::GetResources() noexcept {
+    return EnsureOwnedResources(resources_);
+}
+
+const ResourceDictionary& FrameworkElement::GetResources() const noexcept {
+    return EnsureOwnedResources(resources_);
+}
+
 Result<ResourceValue> FrameworkElement::FindResource(
     const ResourceKey& key) const noexcept {
     return ResourceResolver::Lookup(

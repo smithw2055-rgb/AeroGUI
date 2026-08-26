@@ -386,13 +386,13 @@ private:
         Rect layoutClip{};
         Rect visualRect{};
         std::uint64_t layoutRevision = 0U;
-        bool layoutAttached = false;
-        bool measureValid = false;
-        bool arrangeValid = false;
-        bool measureQueued = false;
-        bool arrangeQueued = false;
-        bool measuring = false;
-        bool arranging = false;
+        bool layoutAttached : 1;
+        bool measureValid : 1;
+        bool arrangeValid : 1;
+        bool measureQueued : 1;
+        bool arrangeQueued : 1;
+        bool measuring : 1;
+        bool arranging : 1;
     };
 
     struct Rare {
@@ -403,21 +403,6 @@ private:
 
     LayoutHot layout_{};
     Rare* rare_ = nullptr;
-    bool mouseCaptured_ = false;
-    bool mouseCaptureQueued_ = false;
-    bool mouseCaptureReleased_ = false;
-    bool isHitTestVisible_ = true;
-    bool isEnabled_ = true;
-    bool isTabStop_ = true;
-    bool isFocusScope_ = false;
-    bool isMouseOver_ = false;
-    bool isPressed_ = false;
-    bool isKeyboardFocused_ = false;
-    bool isKeyboardFocusWithin_ = false;
-    bool focusable_ = false;
-    bool clipToBounds_ = false;
-    std::uint32_t tabIndex_ = 0U;
-    Visibility visibility_ = Visibility::Visible;
 };
 
 } // namespace Aero

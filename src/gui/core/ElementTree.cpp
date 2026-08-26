@@ -187,9 +187,10 @@ Media::Visual::~Visual() {
     AERO_ASSERT(tree_ == nullptr);
     AERO_ASSERT(logicalParent_ == nullptr);
     AERO_ASSERT(visualParent_ == nullptr);
-    AERO_ASSERT(!renderAttached_);
-    AERO_ASSERT(!renderQueued_);
-    AERO_ASSERT(!rendering_);
+    AERO_ASSERT(!LoadedFlag());
+    AERO_ASSERT((visualFlags_ & kFlagRenderAttached) == 0U);
+    AERO_ASSERT((visualFlags_ & kFlagRenderQueued) == 0U);
+    AERO_ASSERT((visualFlags_ & kFlagRendering) == 0U);
     AERO_ASSERT(renderNodeId_ == Base::InvalidRenderNodeId);
     if (lifetime_) static_cast<Aero::VisualLifetime*>(lifetime_.Get())->Invalidate();
 }
@@ -466,7 +467,7 @@ Base::Result<void> ElementTree::StageLifecycleSubtree(
     ::Aero::Media::Visual& node,
     bool loaded,
     Base::Vector<LifecycleRecord>& staged) noexcept {
-    if (node.loaded_ != loaded) {
+    if (node.LoadedFlag() != loaded) {
         Base::Result<Aero::VisualLease> lease =
             Aero::VisualLease::Acquire(node);
         if (!lease) return lease.GetStatus();
@@ -504,7 +505,7 @@ void ElementTree::PublishLifecycle(
 }
 
 void ElementTree::ApplyLoadedSubtree(::Aero::Media::Visual& node, bool loaded) noexcept {
-    node.loaded_ = loaded;
+    node.SetLoadedFlag(loaded);
     const std::uint32_t childCount = LogicalTreeHelper::GetChildrenCount(node);
     for (std::uint32_t index = 0U; index < childCount; ++index) {
         ::Aero::Media::Visual* child = ::Aero::TryCast<::Aero::Media::Visual>(
@@ -601,7 +602,7 @@ Base::Result<void> ElementTree::AttachLogical(
     }
 
     Base::Vector<LifecycleRecord> staged;
-    if (parent.loaded_) {
+    if (parent.LoadedFlag()) {
         Base::Result<void> prepared =
             StageLifecycleSubtree(child, true, staged);
         if (!prepared) return prepared.GetStatus();
@@ -623,7 +624,7 @@ Base::Result<void> ElementTree::AttachLogical(
     child.logicalParent_ = &parent;
     SetTreeSubtree(child, this);
     ++version_;
-    if (parent.loaded_) ApplyLoadedSubtree(child, true);
+    if (parent.LoadedFlag()) ApplyLoadedSubtree(child, true);
     PublishLifecycle(staged);
     mutating_ = false;
     return {};
@@ -648,7 +649,7 @@ Base::Result<void> ElementTree::DetachLogical(
     }
 
     Base::Vector<LifecycleRecord> staged;
-    if (child.loaded_) {
+    if (child.LoadedFlag()) {
         Base::Result<void> prepared =
             StageLifecycleSubtree(child, false, staged);
         if (!prepared) return prepared.GetStatus();
@@ -662,7 +663,7 @@ Base::Result<void> ElementTree::DetachLogical(
     if (!inherited) return inherited.GetStatus();
 
     mutating_ = true;
-    if (child.loaded_) ApplyLoadedSubtree(child, false);
+    if (child.LoadedFlag()) ApplyLoadedSubtree(child, false);
     child.logicalParent_ = nullptr;
     SetTreeSubtree(child, nullptr);
     InvalidateHandleSubtree(child);

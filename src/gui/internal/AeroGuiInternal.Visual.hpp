@@ -16,17 +16,33 @@
     static Base::RenderNodeId& NodeId(::Aero::Media::Visual& visual) noexcept {
         return visual.renderNodeId_;
     }
-    static bool& RenderAttached(::Aero::Media::Visual& visual) noexcept {
-        return visual.renderAttached_;
+    struct PackedFlagRef {
+        std::uint8_t* bits = nullptr;
+        std::uint8_t mask = 0U;
+        PackedFlagRef& operator=(bool value) noexcept {
+            if (value) {
+                *bits = static_cast<std::uint8_t>(*bits | mask);
+            } else {
+                *bits = static_cast<std::uint8_t>(
+                    *bits & static_cast<std::uint8_t>(~mask));
+            }
+            return *this;
+        }
+        operator bool() const noexcept {
+            return (*bits & mask) != 0U;
+        }
+    };
+    static PackedFlagRef RenderAttached(::Aero::Media::Visual& visual) noexcept {
+        return {&visual.visualFlags_, ::Aero::Media::Visual::kFlagRenderAttached};
     }
-    static bool& RenderValid(::Aero::Media::Visual& visual) noexcept {
-        return visual.renderValid_;
+    static PackedFlagRef RenderValid(::Aero::Media::Visual& visual) noexcept {
+        return {&visual.visualFlags_, ::Aero::Media::Visual::kFlagRenderValid};
     }
-    static bool& RenderQueued(::Aero::Media::Visual& visual) noexcept {
-        return visual.renderQueued_;
+    static PackedFlagRef RenderQueued(::Aero::Media::Visual& visual) noexcept {
+        return {&visual.visualFlags_, ::Aero::Media::Visual::kFlagRenderQueued};
     }
-    static bool& Rendering(::Aero::Media::Visual& visual) noexcept {
-        return visual.rendering_;
+    static PackedFlagRef Rendering(::Aero::Media::Visual& visual) noexcept {
+        return {&visual.visualFlags_, ::Aero::Media::Visual::kFlagRendering};
     }
     static std::uint8_t& RenderDirtyFlags(::Aero::Media::Visual& visual) noexcept {
         return visual.renderDirtyFlags_;

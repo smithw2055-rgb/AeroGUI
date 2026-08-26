@@ -99,12 +99,8 @@ public:
     Result<ResourceValue> FindResource(StringView key) const noexcept;
     Result<ResourceValue> TryFindResource(const ResourceKey& key) const noexcept;
     Result<ResourceValue> TryFindResource(StringView key) const noexcept;
-    ResourceDictionary& GetResources() noexcept {
-        return resources_;
-    }
-    const ResourceDictionary& GetResources() const noexcept {
-        return resources_;
-    }
+    ResourceDictionary& GetResources() noexcept;
+    const ResourceDictionary& GetResources() const noexcept;
     void SetResources(
         Ref<ResourceDictionary> value) noexcept;
     DependencyObject* GetTemplatedParent() const noexcept {
@@ -242,12 +238,17 @@ private:
         return styleTriggerPrototypes_.AsSpan();
     }
 
+    const ResourceDictionary* LocalResources() const noexcept {
+        return resources_;
+    }
+
     Base::Object* FindNameObject(
         StringView name,
         Meta::TypeId expectedType) noexcept;
 
     friend class LogicalTreeHelper;
     friend class Controls::Viewbox;
+    friend class ResourceResolver;
 #if defined(AERO_GUI_IMPLEMENTATION)
     friend class ::Aero::AeroGuiInternal;
 #endif
@@ -255,7 +256,7 @@ private:
     Base::Transform2D viewboxTransform_{};
     bool hasViewboxTransform_ = false;
     DependencyObject* templatedParent_ = nullptr;
-    ResourceDictionary resources_;
+    mutable ResourceDictionary* resources_ = nullptr;
     Base::Vector<Ref<Base::Object>> authoredTriggers_;
     Base::Vector<Ref<Base::Object>> authoredBehaviors_;
     Base::Vector<Ref<Base::Object>> styleBehaviorPrototypes_;

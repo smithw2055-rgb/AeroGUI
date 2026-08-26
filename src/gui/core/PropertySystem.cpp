@@ -1002,18 +1002,22 @@ Base::Result<void> EffectiveValueEngine::QueueObjectProperty(
         AeroGuiInternal::EnsureEntry(object, property);
     if (!ensured) return ensured.GetStatus();
     StoredValueEntry* stored = ensured.Value();
-    if (stored->queued) return {};
+    if (stored->Queued()) return {};
     if (nextQueueSequence_ == UINT64_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "Effective value queue sequence limit reached");
     }
-    stored->queued = true;
-    stored->queueSequence = nextQueueSequence_++;
+    stored->SetQueued(true);
+    Base::Result<void> sequenced = stored->SetQueueSequence(nextQueueSequence_++);
+    if (!sequenced) {
+        stored->SetQueued(false);
+        return sequenced.GetStatus();
+    }
     Pending pending;
     pending.object = &object;
     pending.property = property;
-    pending.queueSequence = stored->queueSequence;
+    pending.queueSequence = stored->QueueSequence();
     return pending_.PushBack(pending);
 }
 
@@ -1287,7 +1291,7 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
             StoredValueEntry* stored = entry.object != nullptr
                 ? AeroGuiInternal::FindEntry(*entry.object, entry.property)
                 : nullptr;
-            if (stored != nullptr && stored->queued &&
+            if (stored != nullptr && stored->Queued() &&
                 entry.queueSequence <= boundary &&
                 entry.queueSequence < selectedSequence) {
                 selected = index;
@@ -1300,11 +1304,11 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
         StoredValueEntry* stored =
             AeroGuiInternal::FindEntry(*entry.object, entry.property);
         if (stored != nullptr) {
-            stored->queued = false;
+            stored->SetQueued(false);
         }
         Base::Result<void> applied = Apply(entry);
         if (!applied) {
-            if (stored != nullptr) stored->queued = true;
+            if (stored != nullptr) stored->SetQueued(true);
             return applied.GetStatus();
         }
         for (std::uint32_t current = selected + 1U; current < pending_.Size(); ++current) {
@@ -1494,7 +1498,7 @@ std::uint32_t EffectiveValueEngine::PendingPropertyCount() const noexcept {
         const StoredValueEntry* stored = entry.object != nullptr
             ? AeroGuiInternal::FindEntry(*entry.object, entry.property)
             : nullptr;
-        if (stored != nullptr && stored->queued) ++count;
+        if (stored != nullptr && stored->Queued()) ++count;
     }
     return count;
 }
