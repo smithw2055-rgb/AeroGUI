@@ -7,6 +7,7 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
+#include <Aero/Base/Span.hpp>
 
 #include "gui/media/AnimationModel.hpp"
 
@@ -223,15 +224,72 @@ public:
     static Model::TimelineTiming Timing(
         const Timeline& timeline) noexcept {
         Model::TimelineTiming result;
-        result.beginTimeMicroseconds = timeline.beginTimeMicroseconds_;
-        result.durationMicroseconds = timeline.durationMicroseconds_;
-        result.repeat = timeline.repeatForever_
-            ? Model::RepeatBehavior::Forever()
-            : Model::RepeatBehavior::Count(timeline.repeatCount_);
-        result.speedRatio = timeline.speedRatio_;
-        result.autoReverse = timeline.autoReverse_;
-        result.fillBehavior = timeline.fillBehavior_;
+        result.beginTimeMicroseconds =
+            timeline.GetBeginTime().Microseconds();
+        const Duration duration = timeline.GetDuration();
+        if (duration.IsForever()) {
+            result.durationMicroseconds = UINT64_MAX;
+        } else if (duration.HasTimeSpan()) {
+            result.durationMicroseconds =
+                duration.GetTimeSpan().Microseconds();
+        } else {
+            result.durationMicroseconds = 0U;
+        }
+        const RepeatBehavior repeat = timeline.GetRepeatBehavior();
+        if (repeat.IsForever()) {
+            result.repeat = Model::RepeatBehavior::Forever();
+        } else if (repeat.HasDuration()) {
+            const std::uint64_t span = repeat.GetDuration().Microseconds();
+            if (result.durationMicroseconds > 0U &&
+                result.durationMicroseconds != UINT64_MAX) {
+                result.repeat = Model::RepeatBehavior::Count(
+                    static_cast<double>(span) /
+                    static_cast<double>(result.durationMicroseconds));
+            } else {
+                result.repeat = Model::RepeatBehavior::Once();
+            }
+        } else {
+            result.repeat = Model::RepeatBehavior::Count(repeat.GetCount());
+        }
+        result.speedRatio = timeline.GetSpeedRatio();
+        result.autoReverse = timeline.GetAutoReverse();
+        result.fillBehavior = timeline.GetFillBehavior();
         return result;
+    }
+
+    struct KeyframeSchedule {
+        AnimationTime duration = 0U;
+        std::uint32_t count = 0U;
+    };
+
+    template<class TKeyFrame>
+    static KeyframeSchedule MakeSchedule(
+        Base::Span<const Base::Ref<TKeyFrame>> frames,
+        AnimationTime authoredDuration) noexcept {
+        KeyframeSchedule schedule;
+        AnimationTime maxTimeSpan = 0U;
+        for (const Base::Ref<TKeyFrame>& frame : frames) {
+            if (!frame) continue;
+            ++schedule.count;
+            const KeyTime keyTime = frame->GetKeyTime();
+            if (keyTime.IsTimeSpan() &&
+                keyTime.GetTimeSpan().Microseconds() > maxTimeSpan) {
+                maxTimeSpan = keyTime.GetTimeSpan().Microseconds();
+            }
+        }
+        schedule.duration =
+            (authoredDuration == 0U || authoredDuration == UINT64_MAX)
+            ? maxTimeSpan
+            : authoredDuration;
+        return schedule;
+    }
+
+    static AnimationTime ResolveKeyTime(
+        const KeyTime& keyTime,
+        AnimationTime duration,
+        std::uint32_t index,
+        std::uint32_t count) noexcept {
+        return keyTime.ResolveMicroseconds(duration, index, count);
     }
 
     static Model::EasingFunction Easing(
@@ -372,9 +430,13 @@ public:
     }
 
     static Model::DoubleKeyFrame DoubleFrame(
-        const DoubleKeyFrame& frame) noexcept {
+        const DoubleKeyFrame& frame,
+        AnimationTime durationMicroseconds,
+        std::uint32_t index,
+        std::uint32_t count) noexcept {
         Model::DoubleKeyFrame result;
-        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.keyTimeMicroseconds = ResolveKeyTime(
+            frame.GetKeyTime(), durationMicroseconds, index, count);
         result.value = frame.GetValue();
         result.interpolation =
             static_cast<Model::DoubleKeyFrameInterpolation>(
@@ -389,9 +451,13 @@ public:
     }
 
     static Model::ColorKeyFrame ColorFrame(
-        const ColorKeyFrame& frame) noexcept {
+        const ColorKeyFrame& frame,
+        AnimationTime durationMicroseconds,
+        std::uint32_t index,
+        std::uint32_t count) noexcept {
         Model::ColorKeyFrame result;
-        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.keyTimeMicroseconds = ResolveKeyTime(
+            frame.GetKeyTime(), durationMicroseconds, index, count);
         result.value = frame.GetValue();
         result.interpolation =
             static_cast<Model::DoubleKeyFrameInterpolation>(
@@ -406,9 +472,13 @@ public:
     }
 
     static Model::PointKeyFrame PointFrame(
-        const PointKeyFrame& frame) noexcept {
+        const PointKeyFrame& frame,
+        AnimationTime durationMicroseconds,
+        std::uint32_t index,
+        std::uint32_t count) noexcept {
         Model::PointKeyFrame result;
-        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.keyTimeMicroseconds = ResolveKeyTime(
+            frame.GetKeyTime(), durationMicroseconds, index, count);
         result.value = frame.GetValue();
         result.interpolation =
             static_cast<Model::DoubleKeyFrameInterpolation>(
@@ -423,9 +493,13 @@ public:
     }
 
     static Model::ThicknessKeyFrame ThicknessFrame(
-        const ThicknessKeyFrame& frame) noexcept {
+        const ThicknessKeyFrame& frame,
+        AnimationTime durationMicroseconds,
+        std::uint32_t index,
+        std::uint32_t count) noexcept {
         Model::ThicknessKeyFrame result;
-        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.keyTimeMicroseconds = ResolveKeyTime(
+            frame.GetKeyTime(), durationMicroseconds, index, count);
         result.value = frame.GetValue();
         result.interpolation =
             static_cast<Model::DoubleKeyFrameInterpolation>(
@@ -440,9 +514,13 @@ public:
     }
 
     static Model::IntegerKeyFrame IntegerFrame(
-        const Int16KeyFrame& frame) noexcept {
+        const Int16KeyFrame& frame,
+        AnimationTime durationMicroseconds,
+        std::uint32_t index,
+        std::uint32_t count) noexcept {
         Model::IntegerKeyFrame result;
-        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.keyTimeMicroseconds = ResolveKeyTime(
+            frame.GetKeyTime(), durationMicroseconds, index, count);
         result.value = frame.GetValue();
         result.interpolation =
             static_cast<Model::DoubleKeyFrameInterpolation>(
@@ -457,9 +535,13 @@ public:
     }
 
     static Model::IntegerKeyFrame IntegerFrame(
-        const Int32KeyFrame& frame) noexcept {
+        const Int32KeyFrame& frame,
+        AnimationTime durationMicroseconds,
+        std::uint32_t index,
+        std::uint32_t count) noexcept {
         Model::IntegerKeyFrame result;
-        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.keyTimeMicroseconds = ResolveKeyTime(
+            frame.GetKeyTime(), durationMicroseconds, index, count);
         result.value = frame.GetValue();
         result.interpolation =
             static_cast<Model::DoubleKeyFrameInterpolation>(
@@ -474,9 +556,13 @@ public:
     }
 
     static Model::IntegerKeyFrame IntegerFrame(
-        const Int64KeyFrame& frame) noexcept {
+        const Int64KeyFrame& frame,
+        AnimationTime durationMicroseconds,
+        std::uint32_t index,
+        std::uint32_t count) noexcept {
         Model::IntegerKeyFrame result;
-        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.keyTimeMicroseconds = ResolveKeyTime(
+            frame.GetKeyTime(), durationMicroseconds, index, count);
         result.value = frame.GetValue();
         result.interpolation =
             static_cast<Model::DoubleKeyFrameInterpolation>(
@@ -491,9 +577,13 @@ public:
     }
 
     static Model::SizeKeyFrame SizeFrame(
-        const SizeKeyFrame& frame) noexcept {
+        const SizeKeyFrame& frame,
+        AnimationTime durationMicroseconds,
+        std::uint32_t index,
+        std::uint32_t count) noexcept {
         Model::SizeKeyFrame result;
-        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.keyTimeMicroseconds = ResolveKeyTime(
+            frame.GetKeyTime(), durationMicroseconds, index, count);
         result.value = frame.GetValue();
         result.interpolation =
             static_cast<Model::DoubleKeyFrameInterpolation>(

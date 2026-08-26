@@ -14,9 +14,8 @@
 #include <cstdlib>
 
 namespace Aero::Media::Animation {
-namespace {
 
-Base::Result<AnimationTime> ParseClockTime(
+Base::Result<std::uint64_t> ParseClockTimeMicroseconds(
     Base::StringView input) noexcept {
     const Base::StringView text =
         ::Aero::Base::ValueConversion::Trim(input);
@@ -96,9 +95,11 @@ Base::Result<AnimationTime> ParseClockTime(
             Base::ErrorCode::OutOfRange,
             "Animation clock time is outside the supported range");
     }
-    return static_cast<AnimationTime>(
+    return static_cast<std::uint64_t>(
         std::llround(seconds * 1000000.0));
 }
+
+namespace {
 
 Base::Result<void> ValidateNonNegative(
     double value,
@@ -125,83 +126,186 @@ bool ContainsTimeline(
 
 } // namespace
 
-void Timeline::SetBeginTime(
-    Base::StringView value) noexcept {
-    if (!WritePreamble()) return;
-    Base::Result<AnimationTime> parsed =
-        ParseClockTime(value);
-    if (!parsed) return;
-    Base::Result<void> assigned = beginTimeText_.Assign(value);
-    if (!assigned) return;
-    beginTimeMicroseconds_ = parsed.Value();
-    WritePostscript();
+Base::Result<TimeSpan> TimeSpan::TryParse(Base::StringView text) noexcept {
+    Base::Result<std::uint64_t> parsed = ParseClockTimeMicroseconds(text);
+    if (!parsed) return parsed.GetStatus();
+    return TimeSpan::FromMicroseconds(parsed.Value());
 }
 
-void Timeline::SetDuration(
-    Base::StringView value) noexcept {
+Base::Result<Duration> Duration::TryParse(Base::StringView text) noexcept {
+    const Base::StringView trimmed =
+        ::Aero::Base::ValueConversion::Trim(text);
+    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
+            trimmed, "Automatic") ||
+        ::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
+            trimmed, "Auto")) {
+        return Duration::Automatic();
+    }
+    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
+            trimmed, "Forever")) {
+        return Duration::Forever();
+    }
+    Base::Result<TimeSpan> parsed = TimeSpan::TryParse(trimmed);
+    if (!parsed) return parsed.GetStatus();
+    return Duration::FromTimeSpan(parsed.Value());
+}
+
+Base::Result<RepeatBehavior> RepeatBehavior::TryParse(
+    Base::StringView text) noexcept {
+    const Base::StringView trimmed =
+        ::Aero::Base::ValueConversion::Trim(text);
+    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
+            trimmed, "Forever")) {
+        return RepeatBehavior::Forever();
+    }
+    if (!trimmed.Empty()) {
+        const char last = trimmed[trimmed.SizeBytes() - 1U];
+        if (last == 'x' || last == 'X') {
+            const Base::StringView prefix = trimmed.Substr(
+                0U, trimmed.SizeBytes() - 1U);
+            Base::Result<double> count =
+                ::Aero::Base::ValueConversion::ParseDouble(prefix);
+            if (!count ||
+                !std::isfinite(count.Value()) ||
+                count.Value() <= 0.0) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "RepeatBehavior count must be a positive number");
+            }
+            return RepeatBehavior::Count(count.Value());
+        }
+    }
+    Base::Result<double> count =
+        ::Aero::Base::ValueConversion::ParseDouble(trimmed);
+    if (count && std::isfinite(count.Value()) && count.Value() > 0.0) {
+        return RepeatBehavior::Count(count.Value());
+    }
+    Base::Result<TimeSpan> duration = TimeSpan::TryParse(trimmed);
+    if (!duration) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "RepeatBehavior must be Forever, Nx, a count, or a clock time");
+    }
+    return RepeatBehavior::FromDuration(duration.Value());
+}
+
+Base::Result<KeyTime> KeyTime::TryParse(Base::StringView text) noexcept {
+    const Base::StringView trimmed =
+        ::Aero::Base::ValueConversion::Trim(text);
+    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
+            trimmed, "Uniform")) {
+        return KeyTime::Uniform();
+    }
+    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
+            trimmed, "Paced")) {
+        return KeyTime::Paced();
+    }
+    if (!trimmed.Empty() &&
+        trimmed[trimmed.SizeBytes() - 1U] == '%') {
+        const Base::StringView prefix = trimmed.Substr(
+            0U, trimmed.SizeBytes() - 1U);
+        Base::Result<double> percent =
+            ::Aero::Base::ValueConversion::ParseDouble(prefix);
+        if (!percent ||
+            !std::isfinite(percent.Value()) ||
+            percent.Value() < 0.0 ||
+            percent.Value() > 100.0) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "KeyTime percent must be between 0 and 100");
+        }
+        return KeyTime::FromPercent(percent.Value() / 100.0);
+    }
+    Base::Result<TimeSpan> parsed = TimeSpan::TryParse(trimmed);
+    if (!parsed) return parsed.GetStatus();
+    return KeyTime::FromTimeSpan(parsed.Value());
+}
+
+std::uint64_t KeyTime::ResolveMicroseconds(
+    std::uint64_t durationMicroseconds,
+    std::uint32_t index,
+    std::uint32_t count) const noexcept {
+    switch (kind_) {
+    case Kind::TimeSpan:
+        return timeSpan_.Microseconds();
+    case Kind::Percent: {
+        if (durationMicroseconds == 0U ||
+            durationMicroseconds == UINT64_MAX) {
+            return 0U;
+        }
+        const double scaled =
+            percent_ * static_cast<double>(durationMicroseconds);
+        if (!std::isfinite(scaled) || scaled <= 0.0) return 0U;
+        if (scaled >= static_cast<double>(UINT64_MAX)) return UINT64_MAX;
+        return static_cast<std::uint64_t>(std::llround(scaled));
+    }
+    case Kind::Uniform:
+    case Kind::Paced: {
+        if (count == 0U ||
+            durationMicroseconds == 0U ||
+            durationMicroseconds == UINT64_MAX) {
+            return 0U;
+        }
+        const double scaled =
+            static_cast<double>(durationMicroseconds) *
+            static_cast<double>(index + 1U) /
+            static_cast<double>(count);
+        if (!std::isfinite(scaled) || scaled <= 0.0) return 0U;
+        if (scaled >= static_cast<double>(UINT64_MAX)) return UINT64_MAX;
+        return static_cast<std::uint64_t>(std::llround(scaled));
+    }
+    }
+    return 0U;
+}
+
+void Timeline::SetBeginTime(TimeSpan value) noexcept {
+    SetValue(BeginTimeProperty, value);
+}
+
+void Timeline::SetBeginTime(Base::StringView value) noexcept {
+    Base::Result<TimeSpan> parsed = TimeSpan::TryParse(value);
+    if (!parsed) return;
+    SetValue(BeginTimeProperty, parsed.Value());
+}
+
+void Timeline::SetDuration(Duration value) noexcept {
+    SetValue(DurationProperty, value);
+}
+
+void Timeline::SetDuration(Base::StringView value) noexcept {
     static_cast<void>(SetDurationChecked(value));
 }
 
 Base::Result<void> Timeline::SetDurationChecked(
     Base::StringView value) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    Base::Result<AnimationTime> parsed =
-        ParseClockTime(value);
+    Base::Result<Duration> parsed = Duration::TryParse(value);
     if (!parsed) return parsed.GetStatus();
-    Base::Result<void> assigned = durationText_.Assign(value);
-    if (!assigned) return assigned.GetStatus();
-    durationMicroseconds_ = parsed.Value();
-    WritePostscript();
-    return {};
+    return SetValueChecked(DurationProperty, parsed.Value());
 }
 
-void Timeline::SetRepeatBehavior(
-    Base::StringView value) noexcept {
-    if (!WritePreamble()) return;
-    const Base::StringView trimmed =
-        ::Aero::Base::ValueConversion::Trim(value);
-    double repeatCount = 1.0;
-    bool repeatForever = false;
-    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
-            trimmed, "Forever")) {
-        repeatForever = true;
-    } else {
-        Base::Result<double> count =
-            ::Aero::Base::ValueConversion::ParseDouble(trimmed);
-        if (!count || count.Value() <= 0.0) {
-            return;
-        }
-        repeatCount = count.Value();
-    }
-    Base::Result<void> assigned =
-        repeatBehaviorText_.Assign(value);
-    if (!assigned) return;
-    repeatCount_ = repeatCount;
-    repeatForever_ = repeatForever;
-    WritePostscript();
+void Timeline::SetRepeatBehavior(RepeatBehavior value) noexcept {
+    SetValue(RepeatBehaviorProperty, value);
+}
+
+void Timeline::SetRepeatBehavior(Base::StringView value) noexcept {
+    Base::Result<RepeatBehavior> parsed = RepeatBehavior::TryParse(value);
+    if (!parsed) return;
+    SetValue(RepeatBehaviorProperty, parsed.Value());
 }
 
 void Timeline::SetSpeedRatio(double value) noexcept {
-    if (!WritePreamble()) return;
     if (!std::isfinite(value) || value <= 0.0) {
         return;
     }
-    speedRatio_ = value;
-    WritePostscript();
+    SetValue(SpeedRatioProperty, value);
 }
 
 void Timeline::SetAutoReverse(bool value) noexcept {
-    if (!WritePreamble() || autoReverse_ == value) return;
-    autoReverse_ = value;
-    WritePostscript();
+    SetValue(AutoReverseProperty, value);
 }
 
-void Timeline::SetFillBehavior(
-    FillBehavior value) noexcept {
-    if (!WritePreamble() || fillBehavior_ == value) return;
-    fillBehavior_ = value;
-    WritePostscript();
+void Timeline::SetFillBehavior(FillBehavior value) noexcept {
+    SetValue(FillBehaviorProperty, value);
 }
 
 void PowerEase::SetPower(double value) noexcept {
@@ -528,8 +632,14 @@ void SizeAnimation::SetEasingFunction(
 }
 
 
-void KeyFrameBase::SetKeyTime(Base::StringView value) noexcept {
+void KeyFrameBase::SetKeyTime(KeyTime value) noexcept {
     SetValue(KeyTimeProperty, value);
+}
+
+void KeyFrameBase::SetKeyTime(Base::StringView value) noexcept {
+    Base::Result<KeyTime> parsed = KeyTime::TryParse(value);
+    if (!parsed) return;
+    SetValue(KeyTimeProperty, parsed.Value());
 }
 
 void KeyFrameBase::SetEasingFunction(
@@ -539,17 +649,6 @@ void KeyFrameBase::SetEasingFunction(
 
 void KeyFrameBase::SetKeySpline(Base::StringView value) noexcept {
     SetValue(KeySplineProperty, value);
-}
-
-void KeyFrameBase::OnKeyTimeChanged(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs& args) noexcept {
-    auto* frame = ::Aero::TryCast<KeyFrameBase>(&object);
-    if (frame == nullptr) return;
-    const Base::StringView text = args.GetNewValue().AsString();
-    Base::Result<AnimationTime> parsed = ParseClockTime(text);
-    if (!parsed) return;
-    frame->keyTimeMicroseconds_ = parsed.Value();
 }
 
 void KeyFrameBase::OnKeySplineChanged(
@@ -720,7 +819,7 @@ void SeekStoryboard::SetOffset(
     const Base::StringView trimmed =
         ::Aero::Base::ValueConversion::Trim(value);
     Base::Result<AnimationTime> parsed =
-        ParseClockTime(trimmed);
+        ParseClockTimeMicroseconds(trimmed);
     if (!parsed) return;
     Base::Result<void> assigned =
         offsetText_.Assign(trimmed);

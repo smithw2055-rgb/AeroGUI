@@ -4,36 +4,58 @@
 Base::Result<void> PopulateUiAnimation(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
+    auto durationValue = Meta::Register<Media::Animation::Duration>(context);
+    durationValue
+        .ValueSemantics()
+        .TextConverter<&Media::Animation::Duration::TryParse>();
+    status = durationValue.Result();
+    if (!status) return status.GetStatus();
+
+    auto timeSpanValue = Meta::Register<Media::Animation::TimeSpan>(context);
+    timeSpanValue
+        .ValueSemantics()
+        .TextConverter<&Media::Animation::TimeSpan::TryParse>();
+    status = timeSpanValue.Result();
+    if (!status) return status.GetStatus();
+
+    auto repeatBehaviorValue =
+        Meta::Register<Media::Animation::RepeatBehavior>(context);
+    repeatBehaviorValue
+        .ValueSemantics()
+        .TextConverter<&Media::Animation::RepeatBehavior::TryParse>();
+    status = repeatBehaviorValue.Result();
+    if (!status) return status.GetStatus();
+
+    auto keyTimeValue = Meta::Register<Media::Animation::KeyTime>(context);
+    keyTimeValue
+        .ValueSemantics()
+        .TextConverter<&Media::Animation::KeyTime::TryParse>();
+    status = keyTimeValue.Result();
+    if (!status) return status.GetStatus();
+
     auto timeline = Meta::Register<Media::Animation::Timeline>(
         context, TypeFlags::Abstract);
     timeline
         .Property(
-            "BeginTime",
-            &Media::Animation::Timeline::GetBeginTime,
-            &Media::Animation::Timeline::SetBeginTime)
+            Media::Animation::Timeline::BeginTimeProperty,
+            FrameworkPropertyMetadata(Media::Animation::TimeSpan::Zero()))
         .Property(
-            "Duration",
-            &Media::Animation::Timeline::GetDuration,
-            &Media::Animation::Timeline::SetDuration)
+            Media::Animation::Timeline::DurationProperty,
+            FrameworkPropertyMetadata(
+                Media::Animation::Duration::Automatic()))
         .Property(
-            "RepeatBehavior",
-            &Media::Animation::Timeline::GetRepeatBehavior,
-            &Media::Animation::Timeline::SetRepeatBehavior)
-        .Property<
-            double,
-            &Media::Animation::Timeline::GetSpeedRatio,
-            &Media::Animation::Timeline::SetSpeedRatio>(
-            "SpeedRatio")
-        .Property<
-            bool,
-            &Media::Animation::Timeline::GetAutoReverse,
-            &Media::Animation::Timeline::SetAutoReverse>(
-            "AutoReverse")
-        .Property<
-            FillBehavior,
-            &Media::Animation::Timeline::GetFillBehavior,
-            &Media::Animation::Timeline::SetFillBehavior>(
-            "FillBehavior");
+            Media::Animation::Timeline::RepeatBehaviorProperty,
+            FrameworkPropertyMetadata(
+                Media::Animation::RepeatBehavior::Once()))
+        .Property(
+            Media::Animation::Timeline::SpeedRatioProperty,
+            FrameworkPropertyMetadata(1.0))
+        .Property(
+            Media::Animation::Timeline::AutoReverseProperty,
+            FrameworkPropertyMetadata(false))
+        .Property(
+            Media::Animation::Timeline::FillBehaviorProperty,
+            FrameworkPropertyMetadata(FillBehavior::HoldEnd));
     status = timeline.Result();
     if (!status) return status.GetStatus();
 
@@ -406,8 +428,7 @@ Base::Result<void> PopulateUiAnimation(
     keyFrameBase
         .Property(
             Media::Animation::KeyFrameBase::KeyTimeProperty,
-            FrameworkPropertyMetadata(Base::String{})
-                .Changed(&Media::Animation::KeyFrameBase::OnKeyTimeChanged))
+            FrameworkPropertyMetadata(Media::Animation::KeyTime{}))
         .Property(
             Media::Animation::KeyFrameBase::EasingFunctionProperty,
             FrameworkPropertyMetadata(

@@ -2,6 +2,10 @@
 
 // Animation type umbrella. Interactivity triggers and storyboard
 // actions live in their own headers and must not be pulled from here.
+#include <Aero/Media/Animation/TimeSpan.hpp>
+#include <Aero/Media/Animation/Duration.hpp>
+#include <Aero/Media/Animation/RepeatBehavior.hpp>
+#include <Aero/Media/Animation/KeyTime.hpp>
 #include <Aero/Media/Animation/Timeline.hpp>
 #include <Aero/Media/Animation/AnimationTimeline.hpp>
 #include <Aero/Media/Animation/TimelineGroup.hpp>

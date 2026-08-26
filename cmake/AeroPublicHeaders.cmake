@@ -141,6 +141,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/DiscreteSizeKeyFrame.hpp
     include/Aero/Media/Animation/DiscreteStringKeyFrame.hpp
     include/Aero/Media/Animation/DiscreteThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/Duration.hpp
     include/Aero/Media/Animation/DoubleAnimation.hpp
     include/Aero/Media/Animation/DoubleAnimationBase.hpp
     include/Aero/Media/Animation/DoubleAnimationUsingKeyFrames.hpp
@@ -170,6 +171,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/Int64KeyFrame.hpp
     include/Aero/Media/Animation/KeyFrame.hpp
     include/Aero/Media/Animation/KeyFrameBase.hpp
+    include/Aero/Media/Animation/KeyTime.hpp
     include/Aero/Media/Animation/LinearColorKeyFrame.hpp
     include/Aero/Media/Animation/LinearDoubleKeyFrame.hpp
     include/Aero/Media/Animation/LinearInt16KeyFrame.hpp
@@ -191,6 +193,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/QuinticEase.hpp
     include/Aero/Media/Animation/RectAnimation.hpp
     include/Aero/Media/Animation/RectAnimationBase.hpp
+    include/Aero/Media/Animation/RepeatBehavior.hpp
     include/Aero/Media/Animation/SineEase.hpp
     include/Aero/Media/Animation/SizeAnimation.hpp
     include/Aero/Media/Animation/SizeAnimationBase.hpp
@@ -211,6 +214,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/ThicknessAnimationBase.hpp
     include/Aero/Media/Animation/ThicknessAnimationUsingKeyFrames.hpp
     include/Aero/Media/Animation/ThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/TimeSpan.hpp
     include/Aero/Media/Animation/Timeline.hpp
     include/Aero/Media/Animation/TimelineGroup.hpp
     include/Aero/Media/BlendMode.hpp

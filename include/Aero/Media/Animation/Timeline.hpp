@@ -1,14 +1,14 @@
 #pragma once
 
 #include <Aero/Base/Result.hpp>
-#include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Freezable.hpp>
+#include <Aero/Media/Animation/Duration.hpp>
+#include <Aero/Media/Animation/RepeatBehavior.hpp>
+#include <Aero/Media/Animation/TimeSpan.hpp>
 #include <cstdint>
 
 namespace Aero::Media::Animation {
-
-struct TimelineRuntime;
 
 using AnimationTime = std::uint64_t;
 
@@ -20,46 +20,52 @@ enum class FillBehavior : std::uint8_t {
 class AERO_GUI_API Timeline : public ::Aero::Freezable {
     AERO_DECLARE_TYPE(Timeline, ::Aero::Freezable)
 public:
-    StringView GetBeginTime() const noexcept {
-        return beginTimeText_.View();
+    TimeSpan GetBeginTime() const noexcept {
+        return GetValueOr(BeginTimeProperty, TimeSpan::Zero());
     }
-    StringView GetDuration() const noexcept {
-        return durationText_.View();
+    Duration GetDuration() const noexcept {
+        return GetValueOr(DurationProperty, Duration::Automatic());
     }
-    StringView GetRepeatBehavior() const noexcept {
-        return repeatBehaviorText_.View();
+    RepeatBehavior GetRepeatBehavior() const noexcept {
+        return GetValueOr(RepeatBehaviorProperty, RepeatBehavior::Once());
     }
-    double GetSpeedRatio() const noexcept { return speedRatio_; }
-    bool GetAutoReverse() const noexcept { return autoReverse_; }
+    double GetSpeedRatio() const noexcept {
+        return GetValueOr(SpeedRatioProperty, 1.0);
+    }
+    bool GetAutoReverse() const noexcept {
+        return GetValueOr(AutoReverseProperty, false);
+    }
     FillBehavior GetFillBehavior() const noexcept {
-        return fillBehavior_;
+        return GetValueOr(FillBehaviorProperty, FillBehavior::HoldEnd);
     }
 
+    void SetBeginTime(TimeSpan value) noexcept;
     void SetBeginTime(StringView value) noexcept;
+    void SetDuration(Duration value) noexcept;
     void SetDuration(StringView value) noexcept;
     Result<void> SetDurationChecked(StringView value) noexcept;
+    void SetRepeatBehavior(RepeatBehavior value) noexcept;
     void SetRepeatBehavior(StringView value) noexcept;
     void SetSpeedRatio(double value) noexcept;
     void SetAutoReverse(bool value) noexcept;
     void SetFillBehavior(FillBehavior value) noexcept;
 
+    inline static constexpr DependencyProperty<TimeSpan> BeginTimeProperty{
+        "BeginTime"};
+    inline static constexpr DependencyProperty<Duration> DurationProperty{
+        "Duration"};
+    inline static constexpr DependencyProperty<RepeatBehavior>
+        RepeatBehaviorProperty{"RepeatBehavior"};
+    inline static constexpr DependencyProperty<double> SpeedRatioProperty{
+        "SpeedRatio"};
+    inline static constexpr DependencyProperty<bool> AutoReverseProperty{
+        "AutoReverse"};
+    inline static constexpr DependencyProperty<FillBehavior>
+        FillBehaviorProperty{"FillBehavior"};
+
 protected:
     explicit Timeline(Meta::TypeId runtimeType) noexcept
         : Freezable(runtimeType) {}
-
-private:
-    friend struct TimelineRuntime;
-
-    String beginTimeText_;
-    String durationText_;
-    String repeatBehaviorText_;
-    AnimationTime beginTimeMicroseconds_ = 0U;
-    AnimationTime durationMicroseconds_ = 0U;
-    double repeatCount_ = 1.0;
-    double speedRatio_ = 1.0;
-    bool repeatForever_ = false;
-    bool autoReverse_ = false;
-    FillBehavior fillBehavior_ = FillBehavior::HoldEnd;
 };
 
 } // namespace Aero::Media::Animation

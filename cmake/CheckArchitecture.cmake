@@ -1695,6 +1695,30 @@ aero_require_text(
     "class AERO_GUI_API Timeline : public ::Aero::Freezable"
     "Timeline must inherit Freezable")
 aero_require_text(
+    "include/Aero/Media/Animation/Timeline.hpp"
+    "DependencyProperty<Duration> DurationProperty"
+    "Timeline Duration must be a dependency property")
+aero_require_text(
+    "include/Aero/Media/Animation/Timeline.hpp"
+    "DependencyProperty<RepeatBehavior>"
+    "Timeline RepeatBehavior must be a dependency property")
+aero_forbid_text(
+    "include/Aero/Media/Animation/Timeline.hpp"
+    "beginTimeText_"
+    "Timeline timing must not store StringView clock text")
+aero_require_text(
+    "include/Aero/Media/Animation/Duration.hpp"
+    "IsAutomatic"
+    "Duration must expose Automatic/Forever/TimeSpan")
+aero_require_text(
+    "include/Aero/Media/Animation/KeyTime.hpp"
+    "Paced"
+    "KeyTime must expose TimeSpan/Percent/Uniform/Paced")
+aero_require_text(
+    "include/Aero/Media/Animation/RepeatBehavior.hpp"
+    "FromDuration"
+    "RepeatBehavior must support count, Forever, and duration")
+aero_require_text(
     "include/Aero/Media/Animation/StoryboardCompletedTrigger.hpp"
     "class AERO_GUI_API StoryboardCompletedTrigger : public ::Aero::TriggerBase"
     "StoryboardCompletedTrigger must inherit TriggerBase like EventTrigger")
