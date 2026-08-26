@@ -174,6 +174,64 @@ struct ThicknessAnimation {
     EasingFunction easing;
 };
 
+enum class IntegerAnimationWidth : std::uint8_t {
+    Int16 = 0U,
+    Int32,
+    Int64
+};
+
+struct IntegerAnimation {
+    std::int64_t from = 0;
+    std::int64_t to = 0;
+    IntegerAnimationWidth width = IntegerAnimationWidth::Int32;
+    TimelineTiming timing;
+    EasingFunction easing;
+};
+
+struct SizeAnimation {
+    Base::Size from;
+    Base::Size to;
+    TimelineTiming timing;
+    EasingFunction easing;
+};
+
+struct IntegerKeyFrame {
+    AnimationTime keyTimeMicroseconds = 0U;
+    std::int64_t value = 0;
+    DoubleKeyFrameInterpolation interpolation =
+        DoubleKeyFrameInterpolation::Linear;
+    EasingFunction easing;
+    double controlPoint1X = 0.0;
+    double controlPoint1Y = 0.0;
+    double controlPoint2X = 1.0;
+    double controlPoint2Y = 1.0;
+};
+
+struct IntegerKeyFrameAnimation {
+    std::int64_t baseValue = 0;
+    IntegerAnimationWidth width = IntegerAnimationWidth::Int32;
+    TimelineTiming timing;
+    Base::Span<const IntegerKeyFrame> keyFrames;
+};
+
+struct SizeKeyFrame {
+    AnimationTime keyTimeMicroseconds = 0U;
+    Base::Size value;
+    DoubleKeyFrameInterpolation interpolation =
+        DoubleKeyFrameInterpolation::Linear;
+    EasingFunction easing;
+    double controlPoint1X = 0.0;
+    double controlPoint1Y = 0.0;
+    double controlPoint2X = 1.0;
+    double controlPoint2Y = 1.0;
+};
+
+struct SizeKeyFrameAnimation {
+    Base::Size baseValue;
+    TimelineTiming timing;
+    Base::Span<const SizeKeyFrame> keyFrames;
+};
+
 struct DoubleKeyFrameAnimation {
     double baseValue = 0.0;
     TimelineTiming timing;

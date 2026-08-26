@@ -437,6 +437,96 @@ ThicknessAnimation::SetEasingFunction(
     WritePostscript();
 }
 
+void Int16AnimationBase::SetFrom(std::int16_t value) noexcept {
+    if (!WritePreamble()) return;
+    from_ = value;
+    hasFrom_ = true;
+    WritePostscript();
+}
+
+void Int16AnimationBase::SetTo(std::int16_t value) noexcept {
+    if (!WritePreamble()) return;
+    to_ = value;
+    hasTo_ = true;
+    WritePostscript();
+}
+
+void Int16Animation::SetEasingFunction(
+    Base::Ref<EasingFunctionBase> value) noexcept {
+    if (!WritePreamble() || easing_.Get() == value.Get()) return;
+    easing_ = std::move(value);
+    WritePostscript();
+}
+
+void Int32AnimationBase::SetFrom(std::int32_t value) noexcept {
+    if (!WritePreamble()) return;
+    from_ = value;
+    hasFrom_ = true;
+    WritePostscript();
+}
+
+void Int32AnimationBase::SetTo(std::int32_t value) noexcept {
+    if (!WritePreamble()) return;
+    to_ = value;
+    hasTo_ = true;
+    WritePostscript();
+}
+
+void Int32Animation::SetEasingFunction(
+    Base::Ref<EasingFunctionBase> value) noexcept {
+    if (!WritePreamble() || easing_.Get() == value.Get()) return;
+    easing_ = std::move(value);
+    WritePostscript();
+}
+
+void Int64AnimationBase::SetFrom(std::int64_t value) noexcept {
+    if (!WritePreamble()) return;
+    from_ = value;
+    hasFrom_ = true;
+    WritePostscript();
+}
+
+void Int64AnimationBase::SetTo(std::int64_t value) noexcept {
+    if (!WritePreamble()) return;
+    to_ = value;
+    hasTo_ = true;
+    WritePostscript();
+}
+
+void Int64Animation::SetEasingFunction(
+    Base::Ref<EasingFunctionBase> value) noexcept {
+    if (!WritePreamble() || easing_.Get() == value.Get()) return;
+    easing_ = std::move(value);
+    WritePostscript();
+}
+
+void SizeAnimationBase::SetFrom(Base::Size value) noexcept {
+    if (!WritePreamble()) return;
+    if (!std::isfinite(value.width) || !std::isfinite(value.height)) {
+        return;
+    }
+    from_ = value;
+    hasFrom_ = true;
+    WritePostscript();
+}
+
+void SizeAnimationBase::SetTo(Base::Size value) noexcept {
+    if (!WritePreamble()) return;
+    if (!std::isfinite(value.width) || !std::isfinite(value.height)) {
+        return;
+    }
+    to_ = value;
+    hasTo_ = true;
+    WritePostscript();
+}
+
+void SizeAnimation::SetEasingFunction(
+    Base::Ref<EasingFunctionBase> value) noexcept {
+    if (!WritePreamble() || easing_.Get() == value.Get()) return;
+    easing_ = std::move(value);
+    WritePostscript();
+}
+
 
 void KeyFrameBase::SetKeyTime(Base::StringView value) noexcept {
     SetValue(KeyTimeProperty, value);

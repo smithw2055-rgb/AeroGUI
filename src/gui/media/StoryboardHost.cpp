@@ -1233,6 +1233,62 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 retainedHandles);
         }
         if (type ==
+            MediaAnimation::Int16Animation::StaticTypeId()) {
+            auto& animation =
+                static_cast<MediaAnimation::Int16Animation&>(timeline);
+            Aero::Media::Animation::Model::IntegerAnimation runtime =
+                Aero::Media::AnimationPrivate::Integer16(animation);
+            runtime.timing =
+                EffectiveTimelineTiming(animation, inherited);
+            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+                started = animations->Begin(
+                    propertyTarget, propertyHandle, runtime);
+            return RetainStartedAnimation(
+                std::move(started), retainedHandles);
+        }
+        if (type ==
+            MediaAnimation::Int32Animation::StaticTypeId()) {
+            auto& animation =
+                static_cast<MediaAnimation::Int32Animation&>(timeline);
+            Aero::Media::Animation::Model::IntegerAnimation runtime =
+                Aero::Media::AnimationPrivate::Integer32(animation);
+            runtime.timing =
+                EffectiveTimelineTiming(animation, inherited);
+            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+                started = animations->Begin(
+                    propertyTarget, propertyHandle, runtime);
+            return RetainStartedAnimation(
+                std::move(started), retainedHandles);
+        }
+        if (type ==
+            MediaAnimation::Int64Animation::StaticTypeId()) {
+            auto& animation =
+                static_cast<MediaAnimation::Int64Animation&>(timeline);
+            Aero::Media::Animation::Model::IntegerAnimation runtime =
+                Aero::Media::AnimationPrivate::Integer64(animation);
+            runtime.timing =
+                EffectiveTimelineTiming(animation, inherited);
+            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+                started = animations->Begin(
+                    propertyTarget, propertyHandle, runtime);
+            return RetainStartedAnimation(
+                std::move(started), retainedHandles);
+        }
+        if (type ==
+            MediaAnimation::SizeAnimation::StaticTypeId()) {
+            auto& animation =
+                static_cast<MediaAnimation::SizeAnimation&>(timeline);
+            Aero::Media::Animation::Model::SizeAnimation runtime =
+                Aero::Media::AnimationPrivate::Size(animation);
+            runtime.timing =
+                EffectiveTimelineTiming(animation, inherited);
+            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+                started = animations->Begin(
+                    propertyTarget, propertyHandle, runtime);
+            return RetainStartedAnimation(
+                std::move(started), retainedHandles);
+        }
+        if (type ==
             MediaAnimation::DoubleAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
                 MediaAnimation::DoubleAnimationUsingKeyFrames&>(timeline);
@@ -1466,6 +1522,184 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 std::move(started), retainedHandles);
         }
 
+            auto startIntegerKeyFrames =
+            [&](Aero::Media::Animation::Model::IntegerAnimationWidth width,
+                auto&& collect)
+                -> Base::Result<std::uint32_t> {
+            Base::Vector<Aero::Media::Animation::Model::IntegerKeyFrame>
+                frames(allocator);
+            Base::Result<void> collected = collect(frames);
+            if (!collected) return collected.GetStatus();
+            for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
+                Aero::Media::Animation::Model::IntegerKeyFrame current =
+                    frames[index];
+                std::uint32_t position = index;
+                while (position > 0U &&
+                       frames[position - 1U].keyTimeMicroseconds >
+                           current.keyTimeMicroseconds) {
+                    frames[position] = frames[position - 1U];
+                    --position;
+                }
+                frames[position] = current;
+            }
+            Base::Result<Meta::PropertyValue> base =
+                propertyTarget.GetValue(propertyHandle);
+            if (!base) return base.GetStatus();
+            Aero::Media::Animation::Model::IntegerKeyFrameAnimation runtime;
+            runtime.width = width;
+            if (width ==
+                Aero::Media::Animation::Model::IntegerAnimationWidth::Int16) {
+                Base::Result<std::int16_t> decoded =
+                    Meta::ValueCodec<std::int16_t>::Decode(base.Value());
+                if (decoded) {
+                    runtime.baseValue = decoded.Value();
+                } else if (!frames.Empty() &&
+                           frames.Front().keyTimeMicroseconds == 0U) {
+                    runtime.baseValue = frames.Front().value;
+                } else {
+                    return decoded.GetStatus();
+                }
+            } else if (
+                width ==
+                Aero::Media::Animation::Model::IntegerAnimationWidth::Int64) {
+                Base::Result<std::int64_t> decoded =
+                    Meta::ValueCodec<std::int64_t>::Decode(base.Value());
+                if (decoded) {
+                    runtime.baseValue = decoded.Value();
+                } else if (!frames.Empty() &&
+                           frames.Front().keyTimeMicroseconds == 0U) {
+                    runtime.baseValue = frames.Front().value;
+                } else {
+                    return decoded.GetStatus();
+                }
+            } else {
+                Base::Result<std::int32_t> decoded =
+                    Meta::ValueCodec<std::int32_t>::Decode(base.Value());
+                if (decoded) {
+                    runtime.baseValue = decoded.Value();
+                } else if (!frames.Empty() &&
+                           frames.Front().keyTimeMicroseconds == 0U) {
+                    runtime.baseValue = frames.Front().value;
+                } else {
+                    return decoded.GetStatus();
+                }
+            }
+            runtime.timing = EffectiveTimelineTiming(timeline, inherited);
+            if (runtime.timing.durationMicroseconds == 0U && !frames.Empty()) {
+                runtime.timing.durationMicroseconds =
+                    frames.Back().keyTimeMicroseconds;
+            }
+            runtime.keyFrames = frames.AsSpan();
+            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+                started = animations->Begin(
+                    propertyTarget, propertyHandle, runtime);
+            return RetainStartedAnimation(
+                std::move(started), retainedHandles);
+        };
+
+        if (type ==
+            MediaAnimation::Int16AnimationUsingKeyFrames::StaticTypeId()) {
+            auto& animation = static_cast<
+                MediaAnimation::Int16AnimationUsingKeyFrames&>(timeline);
+            return startIntegerKeyFrames(
+                Aero::Media::Animation::Model::IntegerAnimationWidth::Int16,
+                [&](auto& frames) -> Base::Result<void> {
+                    for (const Base::Ref<MediaAnimation::Int16KeyFrame>& frame :
+                         animation.GetKeyFrames()) {
+                        if (!frame) continue;
+                        Base::Result<void> appended = frames.PushBack(
+                            Aero::Media::AnimationPrivate::IntegerFrame(*frame));
+                        if (!appended) return appended.GetStatus();
+                    }
+                    return {};
+                });
+        }
+        if (type ==
+            MediaAnimation::Int32AnimationUsingKeyFrames::StaticTypeId()) {
+            auto& animation = static_cast<
+                MediaAnimation::Int32AnimationUsingKeyFrames&>(timeline);
+            return startIntegerKeyFrames(
+                Aero::Media::Animation::Model::IntegerAnimationWidth::Int32,
+                [&](auto& frames) -> Base::Result<void> {
+                    for (const Base::Ref<MediaAnimation::Int32KeyFrame>& frame :
+                         animation.GetKeyFrames()) {
+                        if (!frame) continue;
+                        Base::Result<void> appended = frames.PushBack(
+                            Aero::Media::AnimationPrivate::IntegerFrame(*frame));
+                        if (!appended) return appended.GetStatus();
+                    }
+                    return {};
+                });
+        }
+        if (type ==
+            MediaAnimation::Int64AnimationUsingKeyFrames::StaticTypeId()) {
+            auto& animation = static_cast<
+                MediaAnimation::Int64AnimationUsingKeyFrames&>(timeline);
+            return startIntegerKeyFrames(
+                Aero::Media::Animation::Model::IntegerAnimationWidth::Int64,
+                [&](auto& frames) -> Base::Result<void> {
+                    for (const Base::Ref<MediaAnimation::Int64KeyFrame>& frame :
+                         animation.GetKeyFrames()) {
+                        if (!frame) continue;
+                        Base::Result<void> appended = frames.PushBack(
+                            Aero::Media::AnimationPrivate::IntegerFrame(*frame));
+                        if (!appended) return appended.GetStatus();
+                    }
+                    return {};
+                });
+        }
+        if (type ==
+            MediaAnimation::SizeAnimationUsingKeyFrames::StaticTypeId()) {
+            auto& animation = static_cast<
+                MediaAnimation::SizeAnimationUsingKeyFrames&>(timeline);
+            Base::Vector<Aero::Media::Animation::Model::SizeKeyFrame>
+                frames(allocator);
+            for (const Base::Ref<MediaAnimation::SizeKeyFrame>& frame :
+                 animation.GetKeyFrames()) {
+                if (!frame) continue;
+                Base::Result<void> appended = frames.PushBack(
+                    Aero::Media::AnimationPrivate::SizeFrame(*frame));
+                if (!appended) return appended.GetStatus();
+            }
+            for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
+                Aero::Media::Animation::Model::SizeKeyFrame current =
+                    frames[index];
+                std::uint32_t position = index;
+                while (position > 0U &&
+                       frames[position - 1U].keyTimeMicroseconds >
+                           current.keyTimeMicroseconds) {
+                    frames[position] = frames[position - 1U];
+                    --position;
+                }
+                frames[position] = current;
+            }
+            Base::Result<Meta::PropertyValue> base =
+                propertyTarget.GetValue(propertyHandle);
+            if (!base) return base.GetStatus();
+            Base::Result<Base::Size> baseSize =
+                Meta::ValueCodec<Base::Size>::Decode(base.Value());
+            Aero::Media::Animation::Model::SizeKeyFrameAnimation runtime;
+            if (baseSize) {
+                runtime.baseValue = baseSize.Value();
+            } else if (!frames.Empty() &&
+                       frames.Front().keyTimeMicroseconds == 0U) {
+                runtime.baseValue = frames.Front().value;
+            } else {
+                return baseSize.GetStatus();
+            }
+            runtime.timing = EffectiveTimelineTiming(animation, inherited);
+            if (runtime.timing.durationMicroseconds == 0U && !frames.Empty()) {
+                runtime.timing.durationMicroseconds =
+                    frames.Back().keyTimeMicroseconds;
+            }
+            runtime.keyFrames = frames.AsSpan();
+            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+                started = animations->Begin(
+                    propertyTarget, propertyHandle, runtime);
+            return RetainStartedAnimation(
+                std::move(started), retainedHandles);
+        }
+
         Base::Vector<Aero::Media::Animation::Model::DiscreteAnimationKeyFrame>
             frames(allocator);
         if (type ==
@@ -1510,6 +1744,25 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                         Meta::PropertyValue::NullObject(
                             targetProperty->ValueType());
                 }
+                Base::Result<void> appended =
+                    frames.PushBack(std::move(runtime));
+                if (!appended) return appended.GetStatus();
+            }
+        } else if (type ==
+            MediaAnimation::StringAnimationUsingKeyFrames::StaticTypeId()) {
+            auto& animation = static_cast<
+                MediaAnimation::StringAnimationUsingKeyFrames&>(timeline);
+            for (const Base::Ref<
+                     MediaAnimation::StringKeyFrame>& frame :
+                 animation.GetKeyFrames()) {
+                if (!frame) continue;
+                Aero::Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
+                runtime.keyTimeMicroseconds =
+                    frame->GetKeyTimeMicroseconds();
+                Base::Result<Meta::PropertyValue> encoded =
+                    Meta::ValueCodec<Base::String>::Encode(frame->GetValue());
+                if (!encoded) return encoded.GetStatus();
+                runtime.value = std::move(encoded).Value();
                 Base::Result<void> appended =
                     frames.PushBack(std::move(runtime));
                 if (!appended) return appended.GetStatus();

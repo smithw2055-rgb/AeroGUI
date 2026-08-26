@@ -320,6 +320,57 @@ public:
         return result;
     }
 
+    static Model::IntegerAnimation Integer16(
+        const Int16Animation& animation) noexcept {
+        Model::IntegerAnimation result;
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
+        result.width = Model::IntegerAnimationWidth::Int16;
+        result.timing = Timing(animation);
+        Base::Ref<EasingFunctionBase> easing =
+            animation.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::IntegerAnimation Integer32(
+        const Int32Animation& animation) noexcept {
+        Model::IntegerAnimation result;
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
+        result.width = Model::IntegerAnimationWidth::Int32;
+        result.timing = Timing(animation);
+        Base::Ref<EasingFunctionBase> easing =
+            animation.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::IntegerAnimation Integer64(
+        const Int64Animation& animation) noexcept {
+        Model::IntegerAnimation result;
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
+        result.width = Model::IntegerAnimationWidth::Int64;
+        result.timing = Timing(animation);
+        Base::Ref<EasingFunctionBase> easing =
+            animation.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::SizeAnimation Size(
+        const SizeAnimation& animation) noexcept {
+        Model::SizeAnimation result;
+        result.from = animation.GetFrom();
+        result.to = animation.GetTo();
+        result.timing = Timing(animation);
+        Base::Ref<EasingFunctionBase> easing =
+            animation.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
     static Model::DoubleKeyFrame DoubleFrame(
         const DoubleKeyFrame& frame) noexcept {
         Model::DoubleKeyFrame result;
@@ -374,6 +425,74 @@ public:
     static Model::ThicknessKeyFrame ThicknessFrame(
         const ThicknessKeyFrame& frame) noexcept {
         Model::ThicknessKeyFrame result;
+        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.value = frame.GetValue();
+        result.interpolation =
+            static_cast<Model::DoubleKeyFrameInterpolation>(
+                static_cast<std::uint8_t>(frame.GetInterpolation()));
+        result.controlPoint1X = frame.GetSplineControlPoint1X();
+        result.controlPoint1Y = frame.GetSplineControlPoint1Y();
+        result.controlPoint2X = frame.GetSplineControlPoint2X();
+        result.controlPoint2Y = frame.GetSplineControlPoint2Y();
+        Base::Ref<EasingFunctionBase> easing = frame.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::IntegerKeyFrame IntegerFrame(
+        const Int16KeyFrame& frame) noexcept {
+        Model::IntegerKeyFrame result;
+        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.value = frame.GetValue();
+        result.interpolation =
+            static_cast<Model::DoubleKeyFrameInterpolation>(
+                static_cast<std::uint8_t>(frame.GetInterpolation()));
+        result.controlPoint1X = frame.GetSplineControlPoint1X();
+        result.controlPoint1Y = frame.GetSplineControlPoint1Y();
+        result.controlPoint2X = frame.GetSplineControlPoint2X();
+        result.controlPoint2Y = frame.GetSplineControlPoint2Y();
+        Base::Ref<EasingFunctionBase> easing = frame.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::IntegerKeyFrame IntegerFrame(
+        const Int32KeyFrame& frame) noexcept {
+        Model::IntegerKeyFrame result;
+        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.value = frame.GetValue();
+        result.interpolation =
+            static_cast<Model::DoubleKeyFrameInterpolation>(
+                static_cast<std::uint8_t>(frame.GetInterpolation()));
+        result.controlPoint1X = frame.GetSplineControlPoint1X();
+        result.controlPoint1Y = frame.GetSplineControlPoint1Y();
+        result.controlPoint2X = frame.GetSplineControlPoint2X();
+        result.controlPoint2Y = frame.GetSplineControlPoint2Y();
+        Base::Ref<EasingFunctionBase> easing = frame.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::IntegerKeyFrame IntegerFrame(
+        const Int64KeyFrame& frame) noexcept {
+        Model::IntegerKeyFrame result;
+        result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
+        result.value = frame.GetValue();
+        result.interpolation =
+            static_cast<Model::DoubleKeyFrameInterpolation>(
+                static_cast<std::uint8_t>(frame.GetInterpolation()));
+        result.controlPoint1X = frame.GetSplineControlPoint1X();
+        result.controlPoint1Y = frame.GetSplineControlPoint1Y();
+        result.controlPoint2X = frame.GetSplineControlPoint2X();
+        result.controlPoint2Y = frame.GetSplineControlPoint2Y();
+        Base::Ref<EasingFunctionBase> easing = frame.GetEasingFunction();
+        if (easing) result.easing = Easing(*easing);
+        return result;
+    }
+
+    static Model::SizeKeyFrame SizeFrame(
+        const SizeKeyFrame& frame) noexcept {
+        Model::SizeKeyFrame result;
         result.keyTimeMicroseconds = frame.GetKeyTimeMicroseconds();
         result.value = frame.GetValue();
         result.interpolation =

@@ -24,6 +24,10 @@ public:
                 !std::isfinite(value.right) || !std::isfinite(value.bottom)) {
                 return;
             }
+        } else if constexpr (std::is_same<T, Base::Size>::value) {
+            if (!std::isfinite(value.width) || !std::isfinite(value.height)) {
+                return;
+            }
         } else if constexpr (std::is_same<T, Meta::PropertyValue>::value) {
             if (value.IsUnset()) return;
         }

@@ -73,6 +73,15 @@ Base::Result<void> PopulateUiMedia(
     status = rect.Result();
     if (!status) return status.GetStatus();
 
+    auto size = Meta::Register<Base::Size>(context);
+    size
+        .Field<&Base::Size::width>("Width")
+        .Field<&Base::Size::height>("Height")
+        .ValueSemantics()
+        .TextConverter<&ConvertSize>();
+    status = size.Result();
+    if (!status) return status.GetStatus();
+
     // Brush.RelativeTransform is a Transform-valued dependency property, so
     // the abstract value type must exist before Brush metadata is authored.
     status = Meta::Register<Transform>(

@@ -133,8 +133,13 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/DiscreteBooleanKeyFrame.hpp
     include/Aero/Media/Animation/DiscreteColorKeyFrame.hpp
     include/Aero/Media/Animation/DiscreteDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteInt16KeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteInt32KeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteInt64KeyFrame.hpp
     include/Aero/Media/Animation/DiscreteObjectKeyFrame.hpp
     include/Aero/Media/Animation/DiscretePointKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteSizeKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteStringKeyFrame.hpp
     include/Aero/Media/Animation/DiscreteThicknessKeyFrame.hpp
     include/Aero/Media/Animation/DoubleAnimation.hpp
     include/Aero/Media/Animation/DoubleAnimationBase.hpp
@@ -143,15 +148,35 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/EasingColorKeyFrame.hpp
     include/Aero/Media/Animation/EasingDoubleKeyFrame.hpp
     include/Aero/Media/Animation/EasingFunctionBase.hpp
+    include/Aero/Media/Animation/EasingInt16KeyFrame.hpp
+    include/Aero/Media/Animation/EasingInt32KeyFrame.hpp
+    include/Aero/Media/Animation/EasingInt64KeyFrame.hpp
     include/Aero/Media/Animation/EasingPointKeyFrame.hpp
+    include/Aero/Media/Animation/EasingSizeKeyFrame.hpp
     include/Aero/Media/Animation/EasingThicknessKeyFrame.hpp
     include/Aero/Media/Animation/ElasticEase.hpp
     include/Aero/Media/Animation/ExponentialEase.hpp
+    include/Aero/Media/Animation/Int16Animation.hpp
+    include/Aero/Media/Animation/Int16AnimationBase.hpp
+    include/Aero/Media/Animation/Int16AnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/Int16KeyFrame.hpp
+    include/Aero/Media/Animation/Int32Animation.hpp
+    include/Aero/Media/Animation/Int32AnimationBase.hpp
+    include/Aero/Media/Animation/Int32AnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/Int32KeyFrame.hpp
+    include/Aero/Media/Animation/Int64Animation.hpp
+    include/Aero/Media/Animation/Int64AnimationBase.hpp
+    include/Aero/Media/Animation/Int64AnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/Int64KeyFrame.hpp
     include/Aero/Media/Animation/KeyFrame.hpp
     include/Aero/Media/Animation/KeyFrameBase.hpp
     include/Aero/Media/Animation/LinearColorKeyFrame.hpp
     include/Aero/Media/Animation/LinearDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/LinearInt16KeyFrame.hpp
+    include/Aero/Media/Animation/LinearInt32KeyFrame.hpp
+    include/Aero/Media/Animation/LinearInt64KeyFrame.hpp
     include/Aero/Media/Animation/LinearPointKeyFrame.hpp
+    include/Aero/Media/Animation/LinearSizeKeyFrame.hpp
     include/Aero/Media/Animation/LinearThicknessKeyFrame.hpp
     include/Aero/Media/Animation/ObjectAnimationUsingKeyFrames.hpp
     include/Aero/Media/Animation/ObjectKeyFrame.hpp
@@ -167,11 +192,21 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Animation/RectAnimation.hpp
     include/Aero/Media/Animation/RectAnimationBase.hpp
     include/Aero/Media/Animation/SineEase.hpp
+    include/Aero/Media/Animation/SizeAnimation.hpp
+    include/Aero/Media/Animation/SizeAnimationBase.hpp
+    include/Aero/Media/Animation/SizeAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/SizeKeyFrame.hpp
     include/Aero/Media/Animation/SplineColorKeyFrame.hpp
     include/Aero/Media/Animation/SplineDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/SplineInt16KeyFrame.hpp
+    include/Aero/Media/Animation/SplineInt32KeyFrame.hpp
+    include/Aero/Media/Animation/SplineInt64KeyFrame.hpp
     include/Aero/Media/Animation/SplinePointKeyFrame.hpp
+    include/Aero/Media/Animation/SplineSizeKeyFrame.hpp
     include/Aero/Media/Animation/SplineThicknessKeyFrame.hpp
     include/Aero/Media/Animation/Storyboard.hpp
+    include/Aero/Media/Animation/StringAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/StringKeyFrame.hpp
     include/Aero/Media/Animation/ThicknessAnimation.hpp
     include/Aero/Media/Animation/ThicknessAnimationBase.hpp
     include/Aero/Media/Animation/ThicknessAnimationUsingKeyFrames.hpp
