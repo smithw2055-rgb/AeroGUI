@@ -39,16 +39,19 @@ Backend, allocator, diagnostics and initial-window options are supplied through
 
 ## Properties
 
-WPF CLR-property syntax maps directly to `GetXxx()` and `SetXxx()`:
+WPF CLR-property syntax maps directly to `GetXxx()`, `SetXxx()`, and `ClearXxx()`:
 
 ```cpp
 button->SetWidth(120.0);
 button->SetHeight(36.0);
 button->SetIsEnabled(true);
+button->ClearWidth();
 
 double width = button->GetWidth();
 bool enabled = button->GetIsEnabled();
 ```
+
+Typed setters such as `SetWidth` are `void`, matching WPF. They do **not** return `Result`. Diagnostics use the `*Checked` dual rail on the DP engine (`SetValueChecked`, `ClearValueChecked`, `AddHandlerChecked`), not a `Result`-returning `SetWidth`.
 
 Attached properties keep their WPF shape:
 
@@ -75,6 +78,21 @@ Aero::RoutedEventHandler onClick(
 
 button->Click() += onClick;
 button->Click() -= onClick;
+```
+
+There is no `CLICK` macro. Subscribe with `Click() += handler`, the same `Event<T>` operator used for Preview/bubble routes.
+
+Create instances with `Base::MakeRef`, not `new` or a CLR-style factory:
+
+```cpp
+auto button = Aero::Base::MakeRef<Aero::Controls::Button>().Value();
+```
+
+Downcasts use TypeId `TryCast`, not C++ `dynamic_cast`, WPF `as`, or Noesis `DynamicCast`:
+
+```cpp
+Aero::Controls::Button* asButton =
+    Aero::TryCast<Aero::Controls::Button>(obj);
 ```
 
 Preview and bubbling events use the same event arguments and one route:
@@ -122,6 +140,9 @@ auto root = environment
 auto view = environment.CreateView(root, options).Value();
 view->SetSize({1280.0, 720.0});
 view->Update(totalTimeSeconds);
+
+// Populate an existing code-behind / custom-control instance:
+environment.LoadComponent(*userControl, "app:///UserControl.xaml");
 ```
 
 `FrameworkElement::FindName()` performs WPF-style namescope lookup. Gui keeps
@@ -132,9 +153,12 @@ advanced `Markup::XamlReader` surface.
 
 ## Custom controls
 
-Custom controls include their WPF base type plus `Aero/Meta.hpp` (for example `Aero/Controls/Control.hpp`):
+Custom-control **authors** include their WPF base type plus `Aero/Meta.hpp` (for `AERO_DECLARE_TYPE` metadata and `Meta::Register`). Application code that only uses `Button`, `Grid`, and `LoadXaml` should **not** include `Meta.hpp`.
 
 ```cpp
+#include <Aero/Controls/Control.hpp>
+#include <Aero/Meta.hpp>
+
 class Rating : public Aero::Controls::Control {
     AERO_DECLARE_TYPE_NAMED(Rating, Aero::Controls::Control, "urn:demo", "Rating")
 

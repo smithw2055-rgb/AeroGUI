@@ -1848,6 +1848,9 @@ set(aero_one_type_exemptions
     include/Aero/Controls.hpp
     include/Aero/Controls/Primitives.hpp
     include/Aero/Controls/RangeBase.hpp
+    include/Aero/Controls/ButtonBase.hpp
+    include/Aero/Controls/ToggleButton.hpp
+    include/Aero/Controls/RepeatButton.hpp
     include/Aero/Triggers/Triggers.hpp
     include/Aero/Gui.hpp
     include/Aero/Layout.hpp
@@ -1942,6 +1945,46 @@ foreach(public_header IN LISTS AERO_PUBLIC_HEADERS)
             endif()
         endif()
     endif()
+endforeach()
+
+# Compatibility forwards are umbrellas, not declaration owners.
+foreach(aero_compat_umbrella IN ITEMS
+        "include/Aero/Controls/ButtonBase.hpp|Primitives/ButtonBase.hpp"
+        "include/Aero/Controls/ToggleButton.hpp|Primitives/ToggleButton.hpp"
+        "include/Aero/Controls/RepeatButton.hpp|Primitives/RepeatButton.hpp"
+        "include/Aero/Controls/RangeBase.hpp|Primitives/RangeBase.hpp")
+    string(REPLACE "|" ";" aero_compat_pair "${aero_compat_umbrella}")
+    list(GET aero_compat_pair 0 aero_compat_header)
+    list(GET aero_compat_pair 1 aero_compat_owner)
+    file(READ "${AERO_SOURCE_DIR}/${aero_compat_header}" aero_compat_content)
+    if(NOT aero_compat_content MATCHES "Compatibility umbrella")
+        message(FATAL_ERROR
+            "${aero_compat_header} must be labeled a compatibility umbrella, not a declaration owner")
+    endif()
+    if(aero_compat_content MATCHES "class[ \t]+AERO_[A-Z0-9_]*_API")
+        message(FATAL_ERROR
+            "${aero_compat_header} is a compatibility umbrella and must not declare an AERO_*_API class")
+    endif()
+    if(NOT aero_compat_content MATCHES "${aero_compat_owner}")
+        message(FATAL_ERROR
+            "${aero_compat_header} must forward to ${aero_compat_owner}")
+    endif()
+endforeach()
+
+# Installed UIElement/ContentElement headers must not compile handler ops bodies.
+foreach(aero_handler_header IN ITEMS
+        "include/Aero/UIElement.hpp"
+        "include/Aero/ContentElement.hpp")
+    file(READ "${AERO_SOURCE_DIR}/${aero_handler_header}" aero_handler_content)
+    foreach(aero_handler_forbidden IN ITEMS
+            "HandlerDescriptor"
+            "HandlerOperations"
+            "DescribeHandler")
+        if(aero_handler_content MATCHES "${aero_handler_forbidden}")
+            message(FATAL_ERROR
+                "${aero_handler_header} must not contain ${aero_handler_forbidden}; move handler template bodies out of the installed header")
+        endif()
+    endforeach()
 endforeach()
 
 # Button.hpp must not transitively include full Meta, Animation, or DrawingContext.
