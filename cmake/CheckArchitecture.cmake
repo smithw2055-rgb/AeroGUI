@@ -451,6 +451,7 @@ foreach(required_source_entry IN ITEMS
         "src/gui/media/StoryboardHost.cpp"
         "src/gui/media/StoryboardHost.Actions.cpp"
         "src/gui/media/StoryboardHost.Completions.cpp"
+        "src/gui/media/StoryboardHost.Events.cpp"
         "src/gui/core/LayoutEngine.cpp"
         "src/gui/data/BindingEngine.hpp"
         "src/gui/styles/StyleEngine.hpp"
@@ -458,7 +459,6 @@ foreach(required_source_entry IN ITEMS
         "src/gui/interactivity/InteractivityEngine.Behaviors.cpp"
         "src/gui/interactivity/InteractivityEngine.Triggers.cpp"
         "src/gui/interactivity/InteractivityEngine.Style.cpp"
-        "src/gui/interactivity/InteractivityEngine.Events.cpp"
         "src/gui/controls/VisualStateManager.cpp"
         "src/gui/controls/VisualStateManagerImpl.hpp"
         "src/gui/internal"
@@ -1070,7 +1070,16 @@ aero_forbid_file("src/gui/GuiPrivate.hpp")
 aero_forbid_file("src/gui/controls/ControlsPrivate.hpp")
 aero_forbid_file("src/gui/markup/MarkupPrivate.hpp")
 aero_forbid_file("src/gui/media/MediaPrivate.hpp")
+aero_require_text(
+    "cmake/AeroGuiTargets.cmake"
+    "src/gui/media/StoryboardHost.Events.cpp"
+    "EventTrigger runtime must compile with StoryboardHost")
+aero_forbid_text(
+    "cmake/AeroGuiTargets.cmake"
+    "src/gui/interactivity/InteractivityEngine.Events.cpp"
+    "EventTrigger runtime must not remain on InteractivityEngine")
 aero_forbid_file("src/gui/interactivity/ViewTriggers.cpp")
+aero_forbid_file("src/gui/interactivity/InteractivityEngine.Events.cpp")
 aero_forbid_file("src/gui/media/ViewStoryboardSessions.cpp")
 aero_forbid_file("src/gui/controls/Layout.cpp")
 aero_forbid_file("src/gui/markup/ViewDocuments.cpp")

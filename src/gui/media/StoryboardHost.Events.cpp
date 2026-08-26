@@ -14,7 +14,7 @@ namespace Aero {
 using namespace ::Aero;
 namespace MediaAnimation = ::Aero::Media::Animation;
 
-Base::Result<bool> InteractivityEngine::AnimationEventState::EvaluateComparison(
+Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
             const Aero::Interactivity::ComparisonCondition& condition) noexcept {
             const Base::Ref<Data::Binding> binding =
                 condition.GetLeftOperand();
@@ -123,7 +123,7 @@ Base::Result<bool> InteractivityEngine::AnimationEventState::EvaluateComparison(
             return false;
         }
 
-Base::Result<bool> InteractivityEngine::AnimationEventState::BehaviorsAllowExecution() noexcept {
+Base::Result<bool> StoryboardHost::AnimationEventState::BehaviorsAllowExecution() noexcept {
             for (const Base::Ref<Base::Object>& behavior :
                  trigger->GetBehaviors()) {
                 if (!behavior) continue;
@@ -161,17 +161,17 @@ Base::Result<bool> InteractivityEngine::AnimationEventState::BehaviorsAllowExecu
             return true;
         }
 
-void InteractivityEngine::AnimationEventState::Invoke(
+void StoryboardHost::AnimationEventState::Invoke(
             Base::Object*,
             Aero::RoutedEventArgs&) noexcept {
             if (runtime == nullptr || trigger == nullptr ||
                 owner == nullptr ||
-                !runtime->animationEventStatus.IsOk()) {
+                !runtime->eventTriggerStatus.IsOk()) {
                 return;
             }
             Base::Result<bool> allowed = BehaviorsAllowExecution();
             if (!allowed) {
-                runtime->animationEventStatus = allowed.GetStatus();
+                runtime->eventTriggerStatus = allowed.GetStatus();
                 return;
             }
             if (!allowed.Value()) return;
@@ -179,17 +179,17 @@ void InteractivityEngine::AnimationEventState::Invoke(
                  trigger->GetActions()) {
                 if (!action) continue;
                 Base::Result<void> executed =
-                    runtime->storyboards->ExecuteAnimationAction(
+                    runtime->ExecuteAnimationAction(
                         *action, *owner, nullptr, names);
                 if (!executed) {
-                    runtime->animationEventStatus =
+                    runtime->eventTriggerStatus =
                         executed.GetStatus();
                     return;
                 }
             }
         }
 
-Base::Result<bool> InteractivityEngine::StartEventTrigger(
+Base::Result<bool> StoryboardHost::StartEventTrigger(
         MediaAnimation::EventTrigger& trigger,
         Base::Object& defaultSource,
         Aero::FrameworkElement& actionOwner,
@@ -231,7 +231,7 @@ Base::Result<bool> InteractivityEngine::StartEventTrigger(
                  trigger.GetActions()) {
                 if (!action) continue;
                 Base::Result<void> executed =
-                    storyboards->ExecuteAnimationAction(
+                    ExecuteAnimationAction(
                         *action, actionOwner, nullptr, names);
                 if (!executed) return executed.GetStatus();
             }
@@ -330,6 +330,89 @@ Base::Result<bool> InteractivityEngine::StartEventTrigger(
             return retained.GetStatus();
         }
         return true;
+    }
+
+
+namespace {
+
+bool EventTriggerOwnerInSubtree(
+        Aero::Media::Visual* node,
+        const Aero::Media::Visual& fragmentRoot) noexcept {
+    while (node != nullptr) {
+        if (node == &fragmentRoot) return true;
+        node = node->GetLogicalParent() != nullptr
+            ? node->GetLogicalParent()
+            : node->GetVisualParent();
+    }
+    return false;
+}
+
+} // namespace
+
+void StoryboardHost::ClearEventTriggersFor(
+        Aero::Media::Visual& fragmentRoot) noexcept {
+        for (std::uint32_t index = 0U;
+             index < animationEventSubscriptions.Size();) {
+            AnimationEventSubscription& subscription =
+                animationEventSubscriptions[index];
+            if (subscription.visualOwner == nullptr ||
+                !EventTriggerOwnerInSubtree(
+                    subscription.visualOwner, fragmentRoot)) {
+                ++index;
+                continue;
+            }
+            if (subscription.source != nullptr) {
+                if (subscription.contentSource) {
+                    static_cast<void>(
+                        static_cast<Aero::ContentElement*>(subscription.source)
+                            ->RemoveHandler(
+                                subscription.event,
+                                subscription.handler));
+                } else {
+                    static_cast<void>(
+                        static_cast<Aero::UIElement*>(subscription.source)
+                            ->RemoveHandler(
+                                subscription.event,
+                                subscription.handler));
+                }
+            }
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui,
+                subscription.context);
+            for (std::uint32_t next = index + 1U;
+                 next < animationEventSubscriptions.Size(); ++next) {
+                animationEventSubscriptions[next - 1U] =
+                    std::move(animationEventSubscriptions[next]);
+            }
+            animationEventSubscriptions.PopBack();
+        }
+    }
+
+void StoryboardHost::ClearEventTriggers() noexcept {
+        for (AnimationEventSubscription& subscription :
+             animationEventSubscriptions) {
+            if (subscription.source != nullptr) {
+                if (subscription.contentSource) {
+                    static_cast<void>(
+                        static_cast<Aero::ContentElement*>(subscription.source)
+                            ->RemoveHandler(
+                                subscription.event,
+                                subscription.handler));
+                } else {
+                    static_cast<void>(
+                        static_cast<Aero::UIElement*>(subscription.source)
+                            ->RemoveHandler(
+                                subscription.event,
+                                subscription.handler));
+                }
+            }
+            FreeObject(
+                *allocator,
+                Base::MemoryTag::Ui,
+                subscription.context);
+        }
+        animationEventSubscriptions.Clear();
+        eventTriggerStatus = Base::Status::Ok();
     }
 
 } // namespace Aero

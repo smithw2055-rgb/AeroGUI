@@ -19,7 +19,8 @@ StoryboardHost::StoryboardHost(ViewState& owner) noexcept
       allocator(owner.allocator),
       storyboardSessions(owner.allocator),
       storyboardCompletionSessions(owner.allocator),
-      storyboardCompletedSubscriptions(owner.allocator) {}
+      storyboardCompletedSubscriptions(owner.allocator),
+      animationEventSubscriptions(owner.allocator) {}
 
 void StoryboardHost::Bind() noexcept {
     allocator = view->allocator;
@@ -1505,7 +1506,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartContentElementAnimations(
                     MediaAnimation::EventTrigger::StaticTypeId()) {
                 continue;
             }
-            Base::Result<bool> started = interactivity->StartEventTrigger(
+            Base::Result<bool> started = StartEventTrigger(
                 static_cast<MediaAnimation::EventTrigger&>(*authored),
                 content,
                 actionOwner,
@@ -1676,7 +1677,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     MediaAnimation::EventTrigger::StaticTypeId()) {
                     continue;
                 }
-                Base::Result<bool> started = interactivity->StartEventTrigger(
+                Base::Result<bool> started = StartEventTrigger(
                     static_cast<MediaAnimation::EventTrigger&>(*authored),
                     *element,
                     *element,
@@ -1733,7 +1734,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                 }
                 if (authored->RuntimeType() ==
                     MediaAnimation::EventTrigger::StaticTypeId()) {
-                    Base::Result<bool> started = interactivity->StartEventTrigger(
+                    Base::Result<bool> started = StartEventTrigger(
                         static_cast<MediaAnimation::EventTrigger&>(*authored),
                         *element,
                         *element,
@@ -1753,7 +1754,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                                 MediaAnimation::EventTrigger::StaticTypeId())) {
                             continue;
                         }
-                        Base::Result<bool> started = interactivity->StartEventTrigger(
+                        Base::Result<bool> started = StartEventTrigger(
                             static_cast<MediaAnimation::EventTrigger&>(
                                 *authored),
                             *element,

@@ -42,6 +42,36 @@ public:
     Base::Vector<StoryboardCompletionSession> storyboardCompletionSessions;
     Base::Vector<StoryboardCompletedSubscription> storyboardCompletedSubscriptions;
 
+    struct AnimationEventState {
+        StoryboardHost* runtime = nullptr;
+        MediaAnimation::EventTrigger* trigger = nullptr;
+        Aero::FrameworkElement* owner = nullptr;
+        const Aero::NameScope* names = nullptr;
+
+        Base::Result<bool> EvaluateComparison(
+            const Aero::Interactivity::ComparisonCondition& condition) noexcept;
+        Base::Result<bool> BehaviorsAllowExecution() noexcept;
+        void Invoke(Base::Object*, Aero::RoutedEventArgs&) noexcept;
+    };
+    struct AnimationEventSubscription {
+        Base::Object* source = nullptr;
+        Aero::Media::Visual* visualOwner = nullptr;
+        Aero::RoutedEventHandle event;
+        Aero::RoutedEventHandler handler;
+        AnimationEventState* context = nullptr;
+        bool contentSource = false;
+    };
+    Base::Vector<AnimationEventSubscription> animationEventSubscriptions;
+    Base::Status eventTriggerStatus;
+
+    Base::Result<bool> StartEventTrigger(
+        MediaAnimation::EventTrigger& trigger,
+        Base::Object& defaultSource,
+        Aero::FrameworkElement& actionOwner,
+        const Aero::NameScope* names) noexcept;
+    void ClearEventTriggersFor(Aero::Media::Visual& fragmentRoot) noexcept;
+    void ClearEventTriggers() noexcept;
+
     Base::Result<void> ExecuteAnimationAction(
         Aero::Interactivity::TriggerAction& action,
         Aero::FrameworkElement& owner,

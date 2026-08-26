@@ -17,7 +17,6 @@ namespace MediaAnimation = ::Aero::Media::Animation;
 InteractivityEngine::InteractivityEngine(ViewState& owner) noexcept
     : view(&owner),
       allocator(owner.allocator),
-      animationEventSubscriptions(owner.allocator),
       styleDataTriggerSubscriptions(owner.allocator),
       attachedBehaviorInstances(owner.allocator),
       propertyChangedTriggerSubscriptions(owner.allocator),
@@ -961,42 +960,8 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
             }
             keyTriggerSubscriptions.PopBack();
         }
-        for (std::uint32_t index = 0U;
-             index < animationEventSubscriptions.Size();) {
-            AnimationEventSubscription& subscription =
-                animationEventSubscriptions[index];
-            if (subscription.visualOwner == nullptr ||
-                !IsInVisualSubtree(
-                    subscription.visualOwner, fragmentRoot)) {
-                ++index;
-                continue;
-            }
-            if (subscription.source != nullptr) {
-                if (subscription.contentSource) {
-                    static_cast<void>(
-                        static_cast<Aero::ContentElement*>(subscription.source)
-                            ->RemoveHandler(
-                                subscription.event,
-                                subscription.handler));
-                } else {
-                    static_cast<void>(
-                        static_cast<Aero::UIElement*>(subscription.source)
-                            ->RemoveHandler(
-                                subscription.event,
-                                subscription.handler));
-                }
-            }
-            FreeObject(
-                *allocator, Base::MemoryTag::Ui,
-                subscription.context);
-            for (std::uint32_t next = index + 1U;
-                 next < animationEventSubscriptions.Size(); ++next) {
-                animationEventSubscriptions[next - 1U] =
-                    std::move(animationEventSubscriptions[next]);
-            }
-            animationEventSubscriptions.PopBack();
-        }
         if (storyboards == nullptr) return;
+        storyboards->ClearEventTriggersFor(fragmentRoot);
         for (std::uint32_t index = 0U;
              index < storyboards->storyboardSessions.Size();) {
             StoryboardHost::StoryboardSession& session = storyboards->storyboardSessions[index];
@@ -1126,30 +1091,8 @@ void InteractivityEngine::ClearAnimationEventSubscriptions() noexcept {
                 subscription.context);
         }
         keyTriggerSubscriptions.Clear();
-        for (AnimationEventSubscription& subscription :
-             animationEventSubscriptions) {
-            if (subscription.source != nullptr) {
-                if (subscription.contentSource) {
-                    static_cast<void>(
-                        static_cast<Aero::ContentElement*>(subscription.source)
-                            ->RemoveHandler(
-                                subscription.event,
-                                subscription.handler));
-                } else {
-                    static_cast<void>(
-                        static_cast<Aero::UIElement*>(subscription.source)
-                            ->RemoveHandler(
-                                subscription.event,
-                                subscription.handler));
-                }
-            }
-            FreeObject(
-                *allocator,
-                Base::MemoryTag::Ui,
-                subscription.context);
-        }
-        animationEventSubscriptions.Clear();
         if (storyboards != nullptr) {
+            storyboards->ClearEventTriggers();
             storyboards->storyboardCompletionSessions.Clear();
             storyboards->storyboardCompletedSubscriptions.Clear();
         }

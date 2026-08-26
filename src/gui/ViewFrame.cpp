@@ -862,6 +862,10 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexc
         !state.interactivity->animationEventStatus.IsOk()) {
         return state.interactivity->animationEventStatus;
     }
+    if (state.storyboards != nullptr &&
+        !state.storyboards->eventTriggerStatus.IsOk()) {
+        return state.storyboards->eventTriggerStatus;
+    }
     if (state.styles != nullptr && !state.styles->LastActionStatus().IsOk()) {
         return state.styles->LastActionStatus();
     }

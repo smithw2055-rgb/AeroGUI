@@ -34,27 +34,6 @@ public:
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept;
 
-    struct AnimationEventState {
-        InteractivityEngine* runtime = nullptr;
-        MediaAnimation::EventTrigger* trigger = nullptr;
-        Aero::FrameworkElement* owner = nullptr;
-        const Aero::NameScope* names = nullptr;
-
-        Base::Result<bool> EvaluateComparison(
-            const Aero::Interactivity::ComparisonCondition& condition) noexcept;
-        Base::Result<bool> BehaviorsAllowExecution() noexcept;
-        void Invoke(Base::Object*, Aero::RoutedEventArgs&) noexcept;
-    };
-    struct AnimationEventSubscription {
-        Base::Object* source = nullptr;
-        Aero::Media::Visual* visualOwner = nullptr;
-        Aero::RoutedEventHandle event;
-        Aero::RoutedEventHandler handler;
-        AnimationEventState* context = nullptr;
-        bool contentSource = false;
-    };
-    Base::Vector<AnimationEventSubscription> animationEventSubscriptions;
-
     struct StyleDataTriggerHandlerState {
         InteractivityEngine* runtime = nullptr;
         Aero::FrameworkElement* target = nullptr;
@@ -202,11 +181,6 @@ public:
         const Aero::Style& style) noexcept;
     Base::Result<std::uint32_t> StartDataTemplateTriggers(
         Aero::Controls::DataTemplateTriggerState& context) noexcept;
-    Base::Result<bool> StartEventTrigger(
-        MediaAnimation::EventTrigger& trigger,
-        Base::Object& defaultSource,
-        Aero::FrameworkElement& actionOwner,
-        const Aero::NameScope* names) noexcept;
     Base::Result<Base::Ref<Interactivity::Behavior>> CloneBehaviorPrototype(
         const Interactivity::Behavior& prototype) noexcept;
     Base::Object* ResolveBehaviorBindingSource(
