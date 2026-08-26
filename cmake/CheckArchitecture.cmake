@@ -442,6 +442,12 @@ foreach(required_source_entry IN ITEMS
         "src/gui/interactivity/InteractivityEngine.Events.cpp"
         "src/gui/controls/VisualStateManager.cpp"
         "src/gui/controls/VisualStateManagerImpl.hpp"
+        "src/gui/internal"
+        "src/gui/internal/AeroGuiInternal.hpp"
+        "src/gui/internal/AeroGuiInternal.Layout.hpp"
+        "src/gui/internal/AeroGuiInternal.Visual.hpp"
+        "src/gui/internal/AeroGuiInternal.Control.hpp"
+        "src/gui/internal/AeroGuiInternal.Property.hpp"
         "src/gui/markup/ViewDocuments.cpp"
         "src/render/RenderContext.hpp")
     aero_require_file("${required_source_entry}")
@@ -1242,6 +1248,34 @@ aero_require_text(
     "src/gui/internal/AeroGuiInternal.hpp"
     "class AeroGuiInternal"
     "Kernel-private operations must live in src/gui/internal/AeroGuiInternal.hpp")
+aero_require_text(
+    "src/gui/internal/AeroGuiInternal.hpp"
+    "#include \"gui/internal/AeroGuiInternal.Layout.hpp\""
+    "AeroGuiInternal tree/layout members must stay in the single friend class via section include")
+aero_require_text(
+    "src/gui/internal/AeroGuiInternal.hpp"
+    "#include \"gui/internal/AeroGuiInternal.Visual.hpp\""
+    "AeroGuiInternal visual/render members must stay in the single friend class via section include")
+aero_require_text(
+    "src/gui/internal/AeroGuiInternal.hpp"
+    "#include \"gui/internal/AeroGuiInternal.Control.hpp\""
+    "AeroGuiInternal control/template members must stay in the single friend class via section include")
+aero_require_text(
+    "src/gui/internal/AeroGuiInternal.hpp"
+    "#include \"gui/internal/AeroGuiInternal.Property.hpp\""
+    "AeroGuiInternal property-store members must stay in the single friend class via section include")
+aero_forbid_text(
+    "src/gui/internal/AeroGuiInternal.hpp"
+    "class AeroGuiInternalLayout"
+    "AeroGuiInternal must remain one friend type; do not add sectional friend classes")
+aero_forbid_text(
+    "src/gui/internal/AeroGuiInternal.hpp"
+    "AttachTemplateEngine"
+    "No-op AttachTemplateEngine must not return on AeroGuiInternal")
+aero_forbid_text(
+    "src/gui/internal/AeroGuiInternal.hpp"
+    "SetVisualStateManager"
+    "No-op SetVisualStateManager must not return on AeroGuiInternal")
 aero_require_text(
     "include/Aero/UIElement.hpp"
     "struct LayoutHot"

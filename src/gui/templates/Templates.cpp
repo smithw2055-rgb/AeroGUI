@@ -1318,8 +1318,6 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
             Base::ErrorCode::InvalidArgument,
             "ControlTemplate cannot be applied to this control");
     }
-    AeroGuiInternal::AttachTemplateEngine(
-        control, this);
     const std::uint32_t existing = FindInstance(control);
     if (existing != UINT32_MAX) {
         if (instances_[existing].plan == &plan) {

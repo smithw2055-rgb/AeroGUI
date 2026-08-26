@@ -292,8 +292,6 @@ Base::Result<void> ApplyViewUi(ViewState& state, Aero::Media::Visual& root) noex
             if (state.metadata->Types().IsDerivedFrom(
                     node->RuntimeType(), Controls::Control::StaticTypeId())) {
                 auto& control = *static_cast<Controls::Control*>(node);
-                AeroGuiInternal::AttachTemplateEngine(
-                    control, state.templates);
                 Base::Result<const Controls::ControlTemplate*> resolved =
                     ResolveUiValue<Controls::ControlTemplate>(
                         control, Controls::Control::TemplateProperty, resources,
@@ -1082,11 +1080,6 @@ Base::Result<std::uint32_t> AdvanceViewClocks(
 void ViewState::ClearElementEvents(
         Aero::Media::Visual* node) noexcept {
         if (node == nullptr) return;
-        if (metadata->Types().IsDerivedFrom(
-                node->RuntimeType(),
-                Controls::Control::StaticTypeId())) {
-            ::Aero::Controls::ControlBehavior::SetVisualStateManager(*static_cast<Controls::Control*>(node), nullptr);
-        }
         for (Aero::Media::Visual* child :
              node->GetVisualChildren()) {
             ClearElementEvents(child);

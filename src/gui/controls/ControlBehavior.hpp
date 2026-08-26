@@ -745,10 +745,6 @@ public:
         std::uint32_t elapsedMilliseconds) noexcept;
     void Shutdown() noexcept;
 
-    static void SetVisualStateManager(
-        Control& control,
-        VisualStateManager* visualStates) noexcept;
-
 private:
     template<class T, class... TArgs>
     Base::Result<T*> Construct(TArgs&&... arguments) noexcept;

@@ -17,18 +17,6 @@
 #include <cstdio>
 #include <new>
 #include <utility>
-#include "ControlBehavior.hpp"
-
-namespace Aero::Controls {
-
-void ControlBehavior::SetVisualStateManager(
-    Control& control,
-    VisualStateManager* visualStates) noexcept {
-    AeroGuiInternal::SetVisualStateManager(
-        control, visualStates);
-}
-
-} // namespace Aero::Controls
 
 namespace Aero {
 using Aero::Controls::TemplateEngine;

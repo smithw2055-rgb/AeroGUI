@@ -142,10 +142,6 @@ Base::Result<void> ControlBehavior::Attach(
     }
     const Meta::TypeId type = visual.RuntimeType();
     auto& types = metadata_->Types();
-    if (types.IsDerivedFrom(type, Control::StaticTypeId())) {
-        SetVisualStateManager(
-            *static_cast<Control*>(&visual), visualStates_);
-    }
     if (buttons_ != nullptr &&
         types.IsDerivedFrom(type, Primitives::ButtonBase::StaticTypeId())) {
         Base::Result<void> result = buttons_->Attach(
@@ -266,10 +262,6 @@ Base::Result<bool> ControlBehavior::Detach(
             *static_cast<Menu*>(&visual));
     }
     if (!detached) return detached.GetStatus();
-    if (types.IsDerivedFrom(type, Control::StaticTypeId())) {
-        SetVisualStateManager(
-            *static_cast<Control*>(&visual), nullptr);
-    }
     return detached.Value();
 }
 
