@@ -121,4 +121,25 @@ inline Base::ProjectiveTransform2D CollapseRelativeToParent(
     return Base::Compose(Base::Compose(childWorld, parentInv), slotInv);
 }
 
+inline Base::ProjectiveTransform2D CollapseContext(
+    const Transform3DContext& ctx) noexcept {
+    return Base::CollapsePerspective(ctx.accumulated, ctx.depth, ctx.center);
+}
+
+/// Unproject a parent-local 2D point into child-local via the same collapsed
+/// mappings render uses. Degenerate w skips the hit (no NaN).
+inline bool UnprojectParentToLocal(
+    const Transform3DContext& parent,
+    const Transform3DContext& child,
+    Base::Point parentPosition,
+    Base::Point& localPosition) noexcept {
+    Base::Point world{};
+    if (!Base::TryTransformPoint(
+            CollapseContext(parent), parentPosition, world)) {
+        return false;
+    }
+    return Base::TryUnprojectPointToLocalPlane(
+        CollapseContext(child), world, localPosition);
+}
+
 } // namespace Aero::Media

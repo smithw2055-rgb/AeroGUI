@@ -33,8 +33,17 @@ public:
 
     bool IsAncestorOf(const Visual& descendant) const noexcept;
     Base::Transform2D TransformToVisual(const Visual& visual) const noexcept;
+    bool TryTransformToVisual(
+        const Visual& visual,
+        Base::ProjectiveTransform2D& output) const noexcept;
     Base::Point PointToScreen(Base::Point point) const noexcept;
+    bool TryPointToScreen(
+        Base::Point point,
+        Base::Point& screen) const noexcept;
     Base::Point PointFromScreen(Base::Point point) const noexcept;
+    bool TryPointFromScreen(
+        Base::Point point,
+        Base::Point& local) const noexcept;
 
 #if defined(AERO_GUI_IMPLEMENTATION)
     ::Aero::ElementTree* GetTree() const noexcept { return tree_; }

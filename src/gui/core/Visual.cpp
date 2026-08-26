@@ -86,42 +86,68 @@ Base::ProjectiveTransform2D ToRootTransformProjective(
     return result;
 }
 
-Base::Transform2D ToRootTransform(const Visual& visual) noexcept {
+} // namespace
+
+Base::Transform2D Visual::TransformToVisual(
+    const Visual& visual) const noexcept {
+    Base::ProjectiveTransform2D projective;
+    if (!TryTransformToVisual(visual, projective)) {
+        return {};
+    }
     Base::Transform2D affine;
-    if (!Base::TryToTransform2D(ToRootTransformProjective(visual), affine)) {
+    if (!Base::TryToTransform2D(projective, affine)) {
         return {};
     }
     return affine;
 }
 
-} // namespace
-
-Base::Transform2D Visual::TransformToVisual(
-    const Visual& visual) const noexcept {
+bool Visual::TryTransformToVisual(
+    const Visual& visual,
+    Base::ProjectiveTransform2D& output) const noexcept {
     if (this == &visual) {
-        return {};
+        output = Base::IdentityProjective();
+        return true;
     }
-    const Base::Transform2D fromRoot = ToRootTransform(*this);
-    const Base::Transform2D toRoot = ToRootTransform(visual);
-    Base::Transform2D inverse;
-    if (!InvertTransform(toRoot, inverse)) {
-        return {};
+    const Base::ProjectiveTransform2D fromRoot =
+        ToRootTransformProjective(*this);
+    const Base::ProjectiveTransform2D toRoot =
+        ToRootTransformProjective(visual);
+    Base::ProjectiveTransform2D inverse;
+    if (!Base::Invert(toRoot, inverse)) {
+        return false;
     }
-    return ComposeTransforms(fromRoot, inverse);
+    output = Base::Compose(fromRoot, inverse);
+    return Base::IsFiniteTransform(output);
 }
 
 Base::Point Visual::PointToScreen(Base::Point point) const noexcept {
-    // Root-visual space is the screen space for this tree. Host window origin
-    // and pixel conversion are not part of the Visual contract.
-    return TransformPoint(ToRootTransform(*this), point);
+    Base::Point screen{};
+    if (!TryPointToScreen(point, screen)) {
+        return point;
+    }
+    return screen;
+}
+
+bool Visual::TryPointToScreen(
+    Base::Point point,
+    Base::Point& screen) const noexcept {
+    return Base::TryTransformPoint(
+        ToRootTransformProjective(*this), point, screen);
 }
 
 Base::Point Visual::PointFromScreen(Base::Point point) const noexcept {
-    Base::Transform2D inverse;
-    if (!InvertTransform(ToRootTransform(*this), inverse)) {
+    Base::Point local{};
+    if (!TryPointFromScreen(point, local)) {
         return point;
     }
-    return TransformPoint(inverse, point);
+    return local;
+}
+
+bool Visual::TryPointFromScreen(
+    Base::Point point,
+    Base::Point& local) const noexcept {
+    return Base::TryUnprojectPointToLocalPlane(
+        ToRootTransformProjective(*this), point, local);
 }
 } // namespace Media {
 } // namespace Aero {

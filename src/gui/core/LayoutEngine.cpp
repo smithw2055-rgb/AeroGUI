@@ -54,11 +54,11 @@ double AlignmentOffset(double available, double actual, bool center, bool end) n
 Size NaturalConstraintForTransform(
     Size transformed,
     const Base::Transform2D& matrix) noexcept {
-    Base::Transform2D inverse;
-    if (!InvertTransform(matrix, inverse)) {
+    Base::ProjectiveTransform2D inverse;
+    if (!Base::Invert(Base::ToProjective(matrix), inverse)) {
         return transformed;
     }
-    const Rect bounds = TransformBounds(
+    const Rect bounds = Base::TransformBounds(
         inverse,
         {0.0, 0.0,
          transformed.width,
@@ -503,8 +503,8 @@ Base::Result<void> LayoutEngine::MeasureElement(
     AeroGuiInternal::Layout(element).untransformedDesiredSize = desired;
     if (layoutTransform) {
         const Rect transformed =
-            TransformBounds(
-                layoutMatrix,
+            Base::TransformBounds(
+                Base::ToProjective(layoutMatrix),
                 {0.0, 0.0,
                  desired.width,
                  desired.height});
@@ -661,8 +661,8 @@ Base::Result<void> LayoutEngine::ArrangeElement(
     Size layoutFootprint = finalSize;
     if (layoutTransform) {
         const Rect transformed =
-            TransformBounds(
-                layoutMatrix,
+            Base::TransformBounds(
+                Base::ToProjective(layoutMatrix),
                 {0.0, 0.0,
                  finalSize.width,
                  finalSize.height});
@@ -712,8 +712,8 @@ Base::Result<void> LayoutEngine::ArrangeElement(
     Size renderedFootprint = render;
     if (layoutTransform) {
         const Rect transformed =
-            TransformBounds(
-                layoutMatrix,
+            Base::TransformBounds(
+                Base::ToProjective(layoutMatrix),
                 {0.0, 0.0,
                  render.width,
                  render.height});
