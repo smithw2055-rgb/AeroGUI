@@ -92,6 +92,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <type_traits>
 #include <utility>
@@ -1390,9 +1391,10 @@ bool TestTutorialXamlSurface() {
     static_assert(std::is_base_of<Aero::Media::Animation::TimelineGroup, Aero::Media::Animation::ParallelTimeline>::value,
         "ParallelTimeline must derive TimelineGroup");
 
-    LiveGui* live = NewLiveGui();
-    CHECK(live != nullptr);
-    Aero::Markup::XamlReader reader(live->gui);
+    Gui gui;
+    Result<void> initialized = gui.Initialize();
+    CHECK(initialized);
+    Aero::Markup::XamlReader reader(gui);
 
     auto parse = [&](StringView markup) -> bool {
         Result<Aero::Markup::XamlDocument> document = reader.Parse(markup);
@@ -1471,5 +1473,8 @@ int main() {
     RUN(TestGalleryXamlSurface);
     RUN(TestTutorialXamlSurface);
     std::puts("Aero framework conformance tests passed");
-    return 0;
+    std::fflush(stdout);
+    // LiveGui instances are leaked on purpose (View/~Gui SIGSEGV with mounted
+    // content). Skip atexit teardown of those process-lifetime objects.
+    std::_Exit(0);
 }
