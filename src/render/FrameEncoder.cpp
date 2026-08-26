@@ -695,6 +695,24 @@ void UiFrameEncoder::CompositeOffscreen(
             {offscreenSizeUniform_, 2U, 0U};
         SetContentStencil();
         EmitQuad(shadowPoints, uvs, shadowColor);
+    } else if (node.effect.kind == RenderEffectKind::DirectionalBlur &&
+               node.effect.radius > 0.0) {
+        const double radians =
+            node.effect.direction * 0.017453292519943295;
+        const double offsetX = std::cos(radians) * node.effect.radius;
+        const double offsetY = std::sin(radians) * node.effect.radius;
+        const Point blurPoints[4] = {
+            TransformPoint(nodeTransform, -offsetX, -offsetY),
+            TransformPoint(nodeTransform, w - offsetX, -offsetY),
+            TransformPoint(nodeTransform, w - offsetX, h - offsetY),
+            TransformPoint(nodeTransform, -offsetX, h - offsetY)};
+        SetBatchImage(Shader::Blur, texture);
+        currentBatch_.pixelUniforms[0] =
+            {offscreenSizeUniform_, 2U, 0U};
+        SetContentStencil();
+        Color blurTint{1.0F, 1.0F, 1.0F, static_cast<float>(
+            std::clamp(nodeOpacity * 0.5, 0.0, 1.0))};
+        EmitQuad(blurPoints, uvs, blurTint);
     }
 
     // Source pass: the offscreen content composited into the parent context,
@@ -702,16 +720,33 @@ void UiFrameEncoder::CompositeOffscreen(
     Shader::Enum shader = Shader::Path_Pattern;
     if (hasMask) {
         shader = Shader::Mask;
-    } else if (node.effect.kind == RenderEffectKind::Blur &&
+    } else if ((node.effect.kind == RenderEffectKind::Blur ||
+                node.effect.kind == RenderEffectKind::DirectionalBlur) &&
                node.effect.radius > 0.0) {
         shader = Shader::Blur;
+    } else if (node.effect.kind == RenderEffectKind::Custom) {
+        shader = Shader::Custom_Effect;
     }
     SetBatchImage(
         shader, texture,
         hasMask ? maskTarget->GetTexture() : nullptr);
-    if (shader == Shader::Blur) {
+    if (shader == Shader::Blur || shader == Shader::Custom_Effect) {
         currentBatch_.pixelUniforms[0] =
             {offscreenSizeUniform_, 2U, 0U};
+        if (shader == Shader::Custom_Effect && node.effect.uniformCount > 0U) {
+            customEffectUniforms_[0] = node.effect.uniforms[0];
+            customEffectUniforms_[1] = node.effect.uniforms[1];
+            customEffectUniforms_[2] = node.effect.uniforms[2];
+            customEffectUniforms_[3] = node.effect.uniforms[3];
+            currentBatch_.pixelUniforms[1] =
+                {customEffectUniforms_, std::min(node.effect.uniformCount, 4U), 0U};
+        }
+        if (!node.effect.bytecode.Empty()) {
+            currentBatch_.pixelShader = const_cast<void*>(
+                static_cast<const void*>(node.effect.bytecode.Data()));
+            currentBatch_.vertexUniforms[1].numDwords =
+                node.effect.bytecode.Size();
+        }
     }
 
     const Point points[4] = {
@@ -723,12 +758,53 @@ void UiFrameEncoder::CompositeOffscreen(
     Color tint = Color{1.0F, 1.0F, 1.0F, 1.0F};
     tint.alpha = static_cast<float>(
         std::clamp(nodeOpacity, 0.0, 1.0));
+    if (node.effect.kind == RenderEffectKind::Tint) {
+        tint.red *= node.effect.color.red;
+        tint.green *= node.effect.color.green;
+        tint.blue *= node.effect.color.blue;
+        tint.alpha *= node.effect.color.alpha;
+    }
     if (node.mask.kind == RenderMaskKind::Solid && !hasMask) {
         tint.alpha *= node.mask.color.alpha;
     }
 
     SetContentStencil();
-    EmitQuad(points, uvs, tint);
+    if (node.effect.kind == RenderEffectKind::Pixelate &&
+        node.effect.size > 1.0) {
+        const double cell = std::max(1.0, node.effect.size);
+        const std::uint32_t columns = std::max(
+            1U, static_cast<std::uint32_t>(std::ceil(w / cell)));
+        const std::uint32_t rows = std::max(
+            1U, static_cast<std::uint32_t>(std::ceil(h / cell)));
+        const std::uint32_t columnCap = std::min(columns, 64U);
+        const std::uint32_t rowCap = std::min(rows, 64U);
+        for (std::uint32_t row = 0U; row < rowCap; ++row) {
+            for (std::uint32_t column = 0U; column < columnCap; ++column) {
+                const double x0 = static_cast<double>(column) * w /
+                    static_cast<double>(columnCap);
+                const double y0 = static_cast<double>(row) * h /
+                    static_cast<double>(rowCap);
+                const double x1 = static_cast<double>(column + 1U) * w /
+                    static_cast<double>(columnCap);
+                const double y1 = static_cast<double>(row + 1U) * h /
+                    static_cast<double>(rowCap);
+                const double u = (static_cast<double>(column) + 0.5) /
+                    static_cast<double>(columnCap);
+                const double v = (static_cast<double>(row) + 0.5) /
+                    static_cast<double>(rowCap);
+                const Point cellPoints[4] = {
+                    TransformPoint(nodeTransform, x0, y0),
+                    TransformPoint(nodeTransform, x1, y0),
+                    TransformPoint(nodeTransform, x1, y1),
+                    TransformPoint(nodeTransform, x0, y1)};
+                const Point cellUvs[4] = {
+                    {u, v}, {u, v}, {u, v}, {u, v}};
+                EmitQuad(cellPoints, cellUvs, tint);
+            }
+        }
+    } else {
+        EmitQuad(points, uvs, tint);
+    }
 
     static_cast<void>(frame);
 }
@@ -773,6 +849,62 @@ void UiFrameEncoder::EmitClipQuad(
     const Point uvs[4] = {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
 
     EmitQuad(points, uvs, {0.0F, 0.0F, 0.0F, 0.0F});
+}
+
+void UiFrameEncoder::EmitClipTriangles(
+    Base::Span<const Point> vertices,
+    Base::Span<const std::uint32_t> indices,
+    std::uint32_t vertexOffset,
+    std::uint32_t vertexCount,
+    std::uint32_t indexOffset,
+    std::uint32_t indexCount,
+    const ProjectiveTransform2D& transform,
+    std::uint8_t stencilMode,
+    std::uint8_t stencilRef) noexcept {
+    if (vertexCount == 0U || indexCount < 3U ||
+        vertexOffset >= vertices.Size() ||
+        indexOffset >= indices.Size() ||
+        vertexCount > vertices.Size() - vertexOffset ||
+        indexCount > indices.Size() - indexOffset) {
+        return;
+    }
+    if (currentBatch_.numIndices > 0U &&
+        (currentBatch_.shader != Shader::Path_Solid ||
+         currentBatch_.renderState.f.colorEnable != 0U ||
+         currentBatch_.renderState.f.stencilMode != stencilMode ||
+         currentBatch_.stencilRef != stencilRef)) {
+        FlushBatch();
+    }
+    currentBatch_.shader = Shader::Path_Solid;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(BlendMode::SrcOver));
+    AssignColorEnable(currentBatch_.renderState, 0U);
+    AssignStencilMode(currentBatch_.renderState, stencilMode);
+    currentBatch_.stencilRef = stencilRef;
+
+    const Color transparent{0.0F, 0.0F, 0.0F, 0.0F};
+    for (std::uint32_t triangle = 0U; triangle + 2U < indexCount; triangle += 3U) {
+        const std::uint32_t i0 = indices[indexOffset + triangle];
+        const std::uint32_t i1 = indices[indexOffset + triangle + 1U];
+        const std::uint32_t i2 = indices[indexOffset + triangle + 2U];
+        if (i0 >= vertexCount || i1 >= vertexCount || i2 >= vertexCount) {
+            continue;
+        }
+        const Point a = TransformPoint(
+            transform,
+            vertices[vertexOffset + i0].x,
+            vertices[vertexOffset + i0].y);
+        const Point b = TransformPoint(
+            transform,
+            vertices[vertexOffset + i1].x,
+            vertices[vertexOffset + i1].y);
+        const Point c = TransformPoint(
+            transform,
+            vertices[vertexOffset + i2].x,
+            vertices[vertexOffset + i2].y);
+        const Point points[4] = {a, b, c, c};
+        const Point uvs[4] = {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
+        EmitQuad(points, uvs, transparent);
+    }
 }
 
 void UiFrameEncoder::ProcessCommand(
@@ -1146,17 +1278,36 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
 
     const auto commands = frame.Commands();
     const auto nodes = frame.Nodes();
+    const auto clipVertices = frame.GeometryClipVertices();
+    const auto clipIndices = frame.GeometryClipIndices();
     const std::uint32_t nodeCount = nodes.Size();
 
     Base::Vector<NodeState> nodeStack(allocator_);
+    auto emitClipEntry = [&](const ClipEntry& entry, std::uint8_t mode, std::uint8_t ref) noexcept {
+        if (entry.geometry) {
+            EmitClipTriangles(
+                clipVertices,
+                clipIndices,
+                entry.vertexOffset,
+                entry.vertexCount,
+                entry.indexOffset,
+                entry.indexCount,
+                entry.transform,
+                mode,
+                ref);
+            return;
+        }
+        EmitClipQuad(entry.rect, entry.transform, mode, ref);
+    };
     auto popNodeClip = [&](Base::Vector<NodeState>& stack) noexcept {
         if (!stack.Empty() && stack.Back().pushedClip) {
             if (clipDepth_ > 0U && !clipStack_.Empty()) {
                 const ClipEntry entry = clipStack_.Back();
                 static_cast<void>(clipStack_.PopBack());
                 --clipDepth_;
-                EmitClipQuad(
-                    entry.rect, entry.transform, StencilMode::Equal_Decr,
+                emitClipEntry(
+                    entry,
+                    StencilMode::Equal_Decr,
                     static_cast<std::uint8_t>(clipDepth_ + 1U));
             }
         }
@@ -1186,7 +1337,20 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         }
 
         bool nodePushedClip = false;
-        if (node.clipsToBounds && node.clip.width > 0.0 && node.clip.height > 0.0) {
+        if (node.geometryClipIndexCount >= 3U &&
+            node.geometryClipVertexCount >= 3U) {
+            ClipEntry entry;
+            entry.geometry = true;
+            entry.transform = nodeTransform;
+            entry.vertexOffset = node.geometryClipVertexOffset;
+            entry.vertexCount = node.geometryClipVertexCount;
+            entry.indexOffset = node.geometryClipIndexOffset;
+            entry.indexCount = node.geometryClipIndexCount;
+            emitClipEntry(entry, StencilMode::Equal_Incr, clipDepth_);
+            static_cast<void>(clipStack_.PushBack(entry));
+            ++clipDepth_;
+            nodePushedClip = true;
+        } else if (node.clipsToBounds && node.clip.width > 0.0 && node.clip.height > 0.0) {
             EmitClipQuad(node.clip, nodeTransform, StencilMode::Equal_Incr, clipDepth_);
             static_cast<void>(clipStack_.PushBack(ClipEntry{node.clip, nodeTransform}));
             ++clipDepth_;

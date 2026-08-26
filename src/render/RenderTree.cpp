@@ -11,8 +11,11 @@
 #include <Aero/Controls/Menu.hpp>
 #include <Aero/Controls/ContextMenu.hpp>
 #include <Aero/Controls/Popup.hpp>
+#include <Aero/Documents.hpp>
 #include <Aero/Media/Effects.hpp>
+#include <Aero/Media/Geometry.hpp>
 #include <Aero/Media/Transforms.hpp>
+#include "gui/media/GeometryFlatten.hpp"
 #include "gui/media/Transform3DMath.hpp"
 
 #include <algorithm>
@@ -1537,6 +1540,36 @@ RenderEffectSnapshot RenderTree::BuildEffectSnapshot(
         snapshot.depth = drop->GetShadowDepth();
         snapshot.opacity = drop->GetOpacity();
         snapshot.color = drop->GetColor();
+    } else if (effect->RuntimeType() ==
+        ::Aero::Media::PixelateEffect::StaticTypeId()) {
+        snapshot.kind = RenderEffectKind::Pixelate;
+        snapshot.size = static_cast<
+            const ::Aero::Media::PixelateEffect*>(effect)->GetSize();
+    } else if (effect->RuntimeType() ==
+        ::Aero::Media::TintEffect::StaticTypeId()) {
+        snapshot.kind = RenderEffectKind::Tint;
+        snapshot.color = static_cast<
+            const ::Aero::Media::TintEffect*>(effect)->GetColor();
+    } else if (effect->RuntimeType() ==
+        ::Aero::Media::DirectionalBlurEffect::StaticTypeId()) {
+        const auto* blur =
+            static_cast<const ::Aero::Media::DirectionalBlurEffect*>(effect);
+        snapshot.kind = RenderEffectKind::DirectionalBlur;
+        snapshot.radius = blur->GetRadius();
+        snapshot.direction = blur->GetAngle();
+    } else if (effect->RuntimeType() ==
+        ::Aero::Media::ShaderEffect::StaticTypeId()) {
+        const auto* shader =
+            static_cast<const ::Aero::Media::ShaderEffect*>(effect);
+        snapshot.kind = RenderEffectKind::Custom;
+        snapshot.shaderId = shader->GetShaderId();
+        snapshot.shaderSource = shader->GetPixelShader();
+        snapshot.bytecode = shader->GetBytecode();
+        const Base::Span<const float> uniforms = shader->GetUniforms();
+        snapshot.uniformCount = std::min(uniforms.Size(), 16U);
+        for (std::uint32_t index = 0U; index < snapshot.uniformCount; ++index) {
+            snapshot.uniforms[index] = uniforms[index];
+        }
     }
     return snapshot;
 }
@@ -1764,6 +1797,24 @@ Base::Result<void> RenderTree::BuildSubtree(
     snapshot.effect = element != nullptr
         ? BuildEffectSnapshot(element->GetEffect().Get())
         : RenderEffectSnapshot{};
+    if (element != nullptr) {
+        if (Base::Ref<Media::Geometry> clip = element->GetClip()) {
+            Base::Vector<Point> vertices;
+            Base::Vector<std::uint32_t> indices;
+            if (Media::TessellateGeometryFill(*clip, vertices, indices) &&
+                !vertices.Empty() && !indices.Empty()) {
+                snapshot.geometryClipVertexOffset = plan.geometryClipVertices_.Size();
+                snapshot.geometryClipIndexOffset = plan.geometryClipIndices_.Size();
+                snapshot.geometryClipVertexCount = vertices.Size();
+                snapshot.geometryClipIndexCount = indices.Size();
+                Base::Result<void> appended =
+                    plan.geometryClipVertices_.Append(vertices.AsSpan());
+                if (!appended) return appended;
+                appended = plan.geometryClipIndices_.Append(indices.AsSpan());
+                if (!appended) return appended;
+            }
+        }
+    }
     snapshot.mask = element != nullptr
         ? BuildMaskSnapshot(*element, plan)
         : RenderMaskSnapshot{};
@@ -1845,7 +1896,10 @@ Base::Result<void> RenderTree::BuildSubtree(
                 Controls::Primitives::Popup::StaticTypeId()) ||
             childTypes.IsDerivedFrom(
                 childType,
-                Controls::ContextMenu::StaticTypeId());
+                Controls::ContextMenu::StaticTypeId()) ||
+            childTypes.IsDerivedFrom(
+                childType,
+                Documents::AdornerLayer::StaticTypeId());
         if (IsOverlay(*child) || overlayHost) continue;
         Base::Result<void> childResult =
             BuildSubtree(

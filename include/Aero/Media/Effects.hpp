@@ -6,3 +6,4 @@
 #include <Aero/Media/PixelateEffect.hpp>
 #include <Aero/Media/TintEffect.hpp>
 #include <Aero/Media/DirectionalBlurEffect.hpp>
+#include <Aero/Media/ShaderEffect.hpp>

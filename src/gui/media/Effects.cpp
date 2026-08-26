@@ -75,4 +75,50 @@ void PixelateEffect::SetSize(double value) noexcept {
     SetValue(SizeProperty, value);
 }
 
+Base::Color TintEffect::GetColor() const noexcept {
+    return GetValueOr(ColorProperty, Base::Color{0.0F, 0.0F, 1.0F, 1.0F});
+}
+
+void TintEffect::SetColor(Base::Color value) noexcept {
+    SetValue(ColorProperty, value);
+}
+
+double DirectionalBlurEffect::GetRadius() const noexcept {
+    return GetValueOr(RadiusProperty, 0.0);
+}
+
+void DirectionalBlurEffect::SetRadius(double value) noexcept {
+    SetValue(RadiusProperty, value);
+}
+
+double DirectionalBlurEffect::GetAngle() const noexcept {
+    return GetValueOr(AngleProperty, 0.0);
+}
+
+void DirectionalBlurEffect::SetAngle(double value) noexcept {
+    SetValue(AngleProperty, value);
+}
+
+void ShaderEffect::SetPixelShader(Base::StringView value) noexcept {
+    static_cast<void>(source_.Assign(value));
+}
+
+Base::Result<void> ShaderEffect::SetBytecode(
+    Base::Span<const std::uint8_t> value) noexcept {
+    bytecode_.Clear();
+    for (std::uint32_t index = 0U; index < value.Size(); ++index) {
+        Base::Result<void> added = bytecode_.PushBack(value[index]);
+        if (!added) return added.GetStatus();
+    }
+    return {};
+}
+
+void ShaderEffect::SetUniform(std::uint32_t index, float value) noexcept {
+    if (index >= uniforms_.size()) return;
+    uniforms_[index] = value;
+    if (index + 1U > uniformCount_) {
+        uniformCount_ = index + 1U;
+    }
+}
+
 } // namespace Aero::Media

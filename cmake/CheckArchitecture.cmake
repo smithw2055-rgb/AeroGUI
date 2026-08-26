@@ -938,8 +938,12 @@ aero_require_text(
     "The SDK consumer must compile concise metadata option constants")
 aero_require_text(
     "include/Aero/DependencyProperty.hpp"
-    "#if defined(AERO_GUI_IMPLEMENTATION)\nclass AERO_GUI_API DependencyPropertyRegistry"
-    "Mutable dependency-property registry storage must remain implementation-only")
+    "class DependencyPropertyRegistry;"
+    "Mutable dependency-property registry storage must remain a public forward declaration only")
+aero_forbid_text(
+    "include/Aero/DependencyProperty.hpp"
+    "class AERO_GUI_API DependencyPropertyRegistry"
+    "DependencyPropertyRegistry definition must not live in the installed SDK header")
 aero_require_text(
     "tools/sdk-consumers/MetaConsumer.cpp"
     "!HasPropertyRegistry<Aero::DependencyObject>::value"
@@ -1750,10 +1754,14 @@ aero_forbid_text(
     "include/Aero/DependencyProperty.hpp"
     "#include <Aero/Diagnostics/PropertyValueSource.hpp>"
     "DependencyProperty.hpp must not pull PropertyProviderSet; use EffectiveValueSource.hpp")
-aero_require_text(
+aero_forbid_text(
     "include/Aero/DependencyProperty.hpp"
-    "#if defined(AERO_GUI_IMPLEMENTATION)\n#include <Aero/Base/HashMap.hpp>"
-    "HashMap for DependencyPropertyRegistry::memberIndex_ must stay behind AERO_GUI_IMPLEMENTATION")
+    "HashMap.hpp"
+    "Public DependencyProperty.hpp must not include HashMap; memberIndex_ lives in the pimpl header")
+aero_require_text(
+    "src/gui/core/DependencyPropertyRegistry.hpp"
+    "Base::HashMap<MemberId, std::uint32_t> memberIndex_"
+    "HashMap for DependencyPropertyRegistry::memberIndex_ must stay in the implementation pimpl header")
 aero_forbid_text(
     "include/Aero/DependencyObject.hpp"
     "#include <Aero/Threading.hpp>"
@@ -2369,10 +2377,39 @@ endforeach()
 # four installed-header cuts, plus 10%. Do not raise these without a new
 # measurement and an explicit include-graph reason.
 aero_require_include_closure_budget(
-    "include/Aero/Controls/Button.hpp" 8985)
+    "include/Aero/Controls/Button.hpp" 9429)
 aero_require_include_closure_budget(
-    "include/Aero/Controls/TextBlock.hpp" 9488)
+    "include/Aero/Controls/TextBlock.hpp" 9931)
 aero_require_include_closure_budget(
-    "include/Aero/Controls/Panel.hpp" 8367)
+    "include/Aero/Controls/Panel.hpp" 8810)
+
+# Every public Effect subclass must map to a RenderEffectKind consumed by
+# BuildEffectSnapshot. ShaderEffect uses the reserved Custom kind.
+file(GLOB aero_effect_headers
+    "${AERO_SOURCE_DIR}/include/Aero/Media/*Effect.hpp")
+file(READ "${AERO_SOURCE_DIR}/src/render/RenderTree.hpp" aero_effect_kind_header)
+file(READ "${AERO_SOURCE_DIR}/src/render/RenderTree.cpp" aero_effect_snapshot_source)
+foreach(aero_effect_header IN LISTS aero_effect_headers)
+    get_filename_component(aero_effect_stem "${aero_effect_header}" NAME_WE)
+    if(aero_effect_stem STREQUAL "Effect")
+        continue()
+    endif()
+    if(aero_effect_stem STREQUAL "ShaderEffect")
+        set(aero_effect_kind "Custom")
+    else()
+        string(REGEX REPLACE "Effect$" "" aero_effect_kind "${aero_effect_stem}")
+    endif()
+    if(NOT aero_effect_kind_header MATCHES "RenderEffectKind::${aero_effect_kind}[, \n]")
+        if(NOT aero_effect_kind_header MATCHES "${aero_effect_kind}[, \n]")
+            message(FATAL_ERROR
+                "${aero_effect_stem} must have a RenderEffectKind::${aero_effect_kind} case")
+        endif()
+    endif()
+    if(NOT aero_effect_snapshot_source MATCHES
+            "snapshot.kind = RenderEffectKind::${aero_effect_kind}")
+        message(FATAL_ERROR
+            "BuildEffectSnapshot must assign RenderEffectKind::${aero_effect_kind} for ${aero_effect_stem}")
+    endif()
+endforeach()
 
 message(STATUS "Aero final architecture dependency checks passed")

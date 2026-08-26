@@ -119,6 +119,11 @@ private:
     struct ClipEntry {
         Rect rect;
         ProjectiveTransform2D transform;
+        bool geometry = false;
+        std::uint32_t vertexOffset = 0U;
+        std::uint32_t vertexCount = 0U;
+        std::uint32_t indexOffset = 0U;
+        std::uint32_t indexCount = 0U;
     };
 
     void ResetFrame() noexcept;
@@ -152,6 +157,17 @@ private:
 
     void EmitClipQuad(
         const Rect& rect,
+        const ProjectiveTransform2D& transform,
+        std::uint8_t stencilMode,
+        std::uint8_t stencilRef) noexcept;
+
+    void EmitClipTriangles(
+        Base::Span<const Point> vertices,
+        Base::Span<const std::uint32_t> indices,
+        std::uint32_t vertexOffset,
+        std::uint32_t vertexCount,
+        std::uint32_t indexOffset,
+        std::uint32_t indexCount,
         const ProjectiveTransform2D& transform,
         std::uint8_t stencilMode,
         std::uint8_t stencilRef) noexcept;
@@ -202,6 +218,7 @@ private:
     Base::Vector<OffscreenTargetEntry> offscreenTargets_{allocator_};
     Base::Vector<ClipEntry> clipStack_{allocator_};
     float offscreenSizeUniform_[2] = {0.0F, 0.0F};
+    float customEffectUniforms_[4] = {0.0F, 0.0F, 0.0F, 0.0F};
 
     std::uint8_t clipDepth_ = 0U;
 

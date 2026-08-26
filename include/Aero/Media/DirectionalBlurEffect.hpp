@@ -10,18 +10,10 @@ class AERO_GUI_API DirectionalBlurEffect : public Effect {
 public:
     DirectionalBlurEffect() noexcept : Effect(StaticTypeId()) {}
 
-    double GetRadius() const noexcept {
-        return GetValueOr(RadiusProperty, 0.0);
-    }
-    void SetRadius(double value) noexcept {
-        SetValue(RadiusProperty, value);
-    }
-    double GetAngle() const noexcept {
-        return GetValueOr(AngleProperty, 0.0);
-    }
-    void SetAngle(double value) noexcept {
-        SetValue(AngleProperty, value);
-    }
+    double GetRadius() const noexcept;
+    void SetRadius(double value) noexcept;
+    double GetAngle() const noexcept;
+    void SetAngle(double value) noexcept;
 
     inline static constexpr DependencyProperty<double> RadiusProperty{"Radius"};
     inline static constexpr DependencyProperty<double> AngleProperty{"Angle"};

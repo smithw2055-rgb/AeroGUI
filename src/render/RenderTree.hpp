@@ -12,6 +12,8 @@
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Transform3D.hpp>
+#include <Aero/Base/Span.hpp>
+#include <Aero/Base/StringView.hpp>
 
 #include <array>
 
@@ -20,7 +22,11 @@ namespace Aero::Render {
 enum class RenderEffectKind : std::uint8_t {
     None = 0U,
     Blur,
-    DropShadow
+    DropShadow,
+    Pixelate,
+    Tint,
+    DirectionalBlur,
+    Custom
 };
 
 enum class RenderInvalidation : std::uint8_t {
@@ -53,6 +59,12 @@ struct RenderEffectSnapshot {
     double depth = 0.0;
     double opacity = 1.0;
     Color color{0.0F, 0.0F, 0.0F, 1.0F};
+    double size = 1.0;
+    std::uint32_t shaderId = 0U;
+    std::array<float, 16> uniforms{};
+    std::uint32_t uniformCount = 0U;
+    Base::StringView shaderSource{};
+    Base::Span<const std::uint8_t> bytecode{};
 };
 
 enum class RenderMaskKind : std::uint8_t {
@@ -111,6 +123,10 @@ struct RenderNodeSnapshot {
     double opacity = 1.0;
     RenderMaskSnapshot mask;
     RenderEffectSnapshot effect;
+    std::uint32_t geometryClipVertexOffset = UINT32_MAX;
+    std::uint32_t geometryClipIndexOffset = UINT32_MAX;
+    std::uint32_t geometryClipVertexCount = 0U;
+    std::uint32_t geometryClipIndexCount = 0U;
     std::uint32_t commandOffset = 0U;
     std::uint32_t commandCount = 0U;
     std::uint64_t elementRevision = 0U;
@@ -138,6 +154,12 @@ public:
     GradientRamps() const noexcept {
         return {gradientRamps_.Data(), gradientRamps_.Size()};
     }
+    Base::Span<const Point> GeometryClipVertices() const noexcept {
+        return {geometryClipVertices_.Data(), geometryClipVertices_.Size()};
+    }
+    Base::Span<const std::uint32_t> GeometryClipIndices() const noexcept {
+        return {geometryClipIndices_.Data(), geometryClipIndices_.Size()};
+    }
     std::uint64_t Version() const noexcept { return version_; }
     Aero::Size LogicalSize() const noexcept { return logicalSize_; }
     std::uint32_t PixelWidth() const noexcept { return pixelWidth_; }
@@ -150,6 +172,8 @@ private:
     Base::Vector<RenderNodeSnapshot> nodes_;
     Base::Vector<RenderCommand> commands_;
     Base::Vector<RenderGradientRampSnapshot> gradientRamps_;
+    Base::Vector<Point> geometryClipVertices_;
+    Base::Vector<std::uint32_t> geometryClipIndices_;
     std::uint64_t version_ = 0U;
     Aero::Size logicalSize_{};
     std::uint32_t pixelWidth_ = 0U;

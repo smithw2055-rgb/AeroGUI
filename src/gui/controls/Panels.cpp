@@ -698,16 +698,6 @@ Grid::ClearRowDefinitionObjects() noexcept {
     rows_.Clear();
     (void)InvalidateMeasure();
 }
-Base::Result<void> Grid::AddInputBinding(
-    Base::Ref<Input::KeyBinding> binding) noexcept {
-    if (!binding) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Grid InputBinding cannot be null");
-    }
-    Base::Result<void> finalized = binding->Finalize();
-    if (!finalized) return finalized.GetStatus();
-    return inputBindings_.PushBack(std::move(binding));
-}
 Base::StringView Grid::GetColumnDefinitionsText() const noexcept {
     return GetValueOr(
         ColumnDefinitionsTextProperty,
@@ -1120,17 +1110,37 @@ std::uint32_t Panel::GetVisualChildrenCount() const noexcept {
     }
     return count;
 }
+
+namespace {
+struct PanelZOrder {
+    std::int32_t z = 0;
+    std::uint32_t document = 0U;
+    UIElement* child = nullptr;
+};
+} // namespace
+
 ::Aero::Media::Visual* Panel::GetVisualChild(std::uint32_t index) const noexcept {
-    std::uint32_t current = 0U;
+    Base::Vector<PanelZOrder> ordered;
+    std::uint32_t document = 0U;
     for (std::uint32_t childIndex = 0U; childIndex < ownedChildren_.Size(); ++childIndex) {
         UIElement* child = ownedChildren_[childIndex]
             ? static_cast<UIElement*>(ownedChildren_[childIndex].Get())
             : nullptr;
         if (child == nullptr || child->GetVisualParent() != this) continue;
-        if (current == index) return child;
-        ++current;
+        PanelZOrder record;
+        record.z = child->GetValueOr(ZIndexProperty, 0);
+        record.document = document++;
+        record.child = child;
+        if (!ordered.PushBack(record)) return nullptr;
     }
-    return nullptr;
+    std::sort(
+        ordered.Data(),
+        ordered.Data() + ordered.Size(),
+        [](const PanelZOrder& left, const PanelZOrder& right) noexcept {
+            if (left.z != right.z) return left.z < right.z;
+            return left.document < right.document;
+        });
+    return index < ordered.Size() ? ordered[index].child : nullptr;
 }
 Base::Result<void> Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
     if (!childObject || childObject.Get() != &child) {
