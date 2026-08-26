@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui/templates/TemplateInstance.hpp"
+#include <Aero/VisualStateManager.hpp>
 
 namespace Aero::Controls {
 class TemplateEngine;
