@@ -1,4 +1,5 @@
 #include <Aero/Controls.hpp>
+#include <Aero/Data/CollectionViewSource.hpp>
 #include <Aero/DataTemplateSelector.hpp>
 #include <Aero/HierarchicalDataTemplate.hpp>
 #include <Aero/TryCast.hpp>
@@ -1081,6 +1082,12 @@ Base::Ref<Base::Object> ItemsControl::GetItem(
 
 void ItemsControl::SetItemsSourceCore(
     Collections::IItemsSource* source) noexcept {
+    if (source != nullptr) {
+        if (Data::CollectionView* view =
+                Data::CollectionViewSource::GetDefaultView(source)) {
+            source = view;
+        }
+    }
     if (source_ == source) return;
     if (source != nullptr) {
         source->AddItemsChanged(sourceHandler_);
@@ -1095,6 +1102,7 @@ void ItemsControl::SetItemsSourceCore(
         (void*)source, source ? source->GetCount() : 0U);
     PublishItemCount();
     PublishReset();
+    OnItemsSourceCoreChanged();
 }
 
 void ItemsControl::SetItemTemplateCore(

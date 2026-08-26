@@ -14,6 +14,16 @@ Base::Result<void> PopulateControlsItems(
         .Result();
     if (!status) return status.GetStatus();
 
+    status = Meta::Register<Data::CollectionView>(context)
+        .Implements<Collections::IItemsSource>()
+        .Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Data::CollectionViewSource>(context)
+        .Factory()
+        .Result();
+    if (!status) return status.GetStatus();
+
     auto alternationConverter =
         Meta::Register<AlternationConverter>(context);
     alternationConverter
@@ -139,7 +149,10 @@ Base::Result<void> PopulateControlsItems(
             Selector::IsSelectedProperty,
             FrameworkPropertyMetadata(false)
                 .AffectsRender()
-                .BindsTwoWayByDefault());
+                .BindsTwoWayByDefault())
+        .Property(
+            Selector::IsSynchronizedWithCurrentItemProperty,
+            FrameworkPropertyMetadata(false));
     status = selector.Result();
     if (!status) return status.GetStatus();
 

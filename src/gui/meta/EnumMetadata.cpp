@@ -14,6 +14,7 @@
 #include <Aero/Shapes.hpp>
 #include <Aero/Interactivity/Conditions.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Data/SortDescription.hpp>
 #include <AeroApp/Window.hpp>
 
 namespace Aero {
@@ -248,6 +249,12 @@ Base::Result<void> PopulateEnumMetadata(
             .Value("Square", ::Aero::Shapes::PenLineCap::Square)
             .Value("Round", ::Aero::Shapes::PenLineCap::Round)
             .Value("Triangle", ::Aero::Shapes::PenLineCap::Triangle););
+    AERO_REGISTER_ENUM(
+        ::Aero::Data::ListSortDirection,
+        "ListSortDirection",
+        description
+            .Value("Ascending", ::Aero::Data::ListSortDirection::Ascending)
+            .Value("Descending", ::Aero::Data::ListSortDirection::Descending););
 
     AERO_REGISTER_ENUM(
         ::Aero::TextWrapping,

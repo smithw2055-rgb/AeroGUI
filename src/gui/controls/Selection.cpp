@@ -10,6 +10,8 @@
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
+#include <Aero/Data/CollectionView.hpp>
+#include <Aero/Data/CollectionViewSource.hpp>
 
 
 #include <algorithm>
@@ -89,7 +91,9 @@ Selector::Selector(TypeId runtimeType) noexcept
       itemsChangedHandler_(
           this, &Selector::OnItemsChanged),
       propertyChangedHandler_(
-          this, &Selector::OnPropertyChanged) {
+          this, &Selector::OnPropertyChanged),
+      currentChangedHandler_(
+          this, &Selector::OnViewCurrentChanged) {
     AddItemsChanged(itemsChangedHandler_);
     static_cast<void>(AddValueChangedHandlerChecked(
         SelectionModeProperty,
@@ -103,9 +107,13 @@ Selector::Selector(TypeId runtimeType) noexcept
     static_cast<void>(AddValueChangedHandlerChecked(
         SelectedValueProperty,
         propertyChangedHandler_));
+    static_cast<void>(AddValueChangedHandlerChecked(
+        IsSynchronizedWithCurrentItemProperty,
+        propertyChangedHandler_));
 }
 
 Selector::~Selector() {
+    UnhookCurrentView();
     static_cast<void>(
         RemoveItemsChanged(itemsChangedHandler_));
     static_cast<void>(RemoveValueChangedHandler(
@@ -119,6 +127,9 @@ Selector::~Selector() {
         propertyChangedHandler_));
     static_cast<void>(RemoveValueChangedHandler(
         SelectedValueProperty,
+        propertyChangedHandler_));
+    static_cast<void>(RemoveValueChangedHandler(
+        IsSynchronizedWithCurrentItemProperty,
         propertyChangedHandler_));
 }
 
@@ -228,6 +239,14 @@ void Selector::SetSelectedItem(
 void Selector::SetSelectedValue(
     Base::Ref<Base::Object> value) noexcept {
     SetSelectedItem(std::move(value));
+}
+
+bool Selector::GetIsSynchronizedWithCurrentItem() const noexcept {
+    return GetValueOr(IsSynchronizedWithCurrentItemProperty, false);
+}
+
+void Selector::SetIsSynchronizedWithCurrentItem(bool value) noexcept {
+    SetValue(IsSynchronizedWithCurrentItemProperty, value);
 }
 
 bool Selector::Select(
@@ -544,6 +563,7 @@ Base::Result<void> Selector::PublishProperties() noexcept {
         SetCurrentValue(SelectedValueProperty, selected);
     }
     synchronizingProperties_ = false;
+    PushSelectionToCurrent();
     return {};
 }
 
@@ -553,8 +573,15 @@ void Selector::SyncContainers() noexcept {
     ItemContainerGenerator* generator =
         AttachedGenerator();
     if (generator == nullptr) return;
-    for (std::uint32_t index = 0U;
-        index < generator->GetGeneratedCount(); ++index) {
+    // ContainerFromIndex takes an item index. Virtualization may start at
+    // firstGeneratedIndex_ > 0; looping generated slots as item indices
+    // misses realized containers.
+    const std::uint32_t firstGeneratedIndex =
+        generator->GetFirstGeneratedIndex();
+    const std::uint32_t generatedCount =
+        generator->GetGeneratedCount();
+    for (std::uint32_t slot = 0U; slot < generatedCount; ++slot) {
+        const std::uint32_t index = firstGeneratedIndex + slot;
         FrameworkElement* container =
             generator->ContainerFromIndex(index);
         if (container == nullptr ||
@@ -576,6 +603,65 @@ void Selector::SyncContainers() noexcept {
                         ? Base::StringView("Selected")
                         : Base::StringView("Unselected")));
         }
+    }
+}
+
+void Selector::HookCurrentView() noexcept {
+    UnhookCurrentView();
+    Data::CollectionView* view =
+        Data::CollectionViewSource::GetDefaultView(GetItemsSourceCore());
+    if (view == nullptr) return;
+    view->AddCurrentChanged(currentChangedHandler_);
+    subscribedView_ = view;
+    if (GetSelectedItem()) {
+        PushSelectionToCurrent();
+        return;
+    }
+    Base::Ref<Base::Object> current = view->GetCurrentItem();
+    if (!current) return;
+    synchronizingCurrent_ = true;
+    SetSelectedItem(current);
+    synchronizingCurrent_ = false;
+}
+
+void Selector::UnhookCurrentView() noexcept {
+    if (subscribedView_ == nullptr) return;
+    static_cast<void>(
+        subscribedView_->RemoveCurrentChanged(currentChangedHandler_));
+    subscribedView_ = nullptr;
+}
+
+void Selector::PushSelectionToCurrent() noexcept {
+    if (synchronizingCurrent_ ||
+        !GetIsSynchronizedWithCurrentItem()) {
+        return;
+    }
+    Data::CollectionView* view = subscribedView_;
+    if (view == nullptr) {
+        view = Data::CollectionViewSource::GetDefaultView(
+            GetItemsSourceCore());
+    }
+    if (view == nullptr) return;
+    synchronizingCurrent_ = true;
+    static_cast<void>(view->MoveCurrentTo(GetSelectedItem().Get()));
+    synchronizingCurrent_ = false;
+}
+
+void Selector::OnViewCurrentChanged() noexcept {
+    if (synchronizingCurrent_ ||
+        !GetIsSynchronizedWithCurrentItem() ||
+        subscribedView_ == nullptr) {
+        return;
+    }
+    synchronizingCurrent_ = true;
+    SetSelectedItem(subscribedView_->GetCurrentItem());
+    synchronizingCurrent_ = false;
+}
+
+void Selector::OnItemsSourceCoreChanged() noexcept {
+    UnhookCurrentView();
+    if (GetIsSynchronizedWithCurrentItem()) {
+        HookCurrentView();
     }
 }
 
@@ -783,6 +869,13 @@ void Selector::OnPropertyChanged(
                     values, index);
             }
         }
+    } else if (args.GetProperty() ==
+        IsSynchronizedWithCurrentItemProperty) {
+        UnhookCurrentView();
+        if (GetIsSynchronizedWithCurrentItem()) {
+            HookCurrentView();
+        }
+        applied = true;
     }
     if (!applied) {
         lastSelectionError_ =
@@ -847,8 +940,7 @@ Base::Result<bool> ListBox::BringIntoView(
     std::uint32_t index) noexcept {
     ItemContainerGenerator* generator =
         AttachedGenerator();
-    if (generator == nullptr ||
-        index >= generator->GetGeneratedCount()) {
+    if (generator == nullptr) {
         return false;
     }
     FrameworkElement* container =

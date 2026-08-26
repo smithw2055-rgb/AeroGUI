@@ -1584,6 +1584,22 @@ aero_require_text(
     "include/Aero/Controls/ItemsControl.hpp"
     "ResolveItemTemplate"
     "ItemsControl must resolve ItemTemplateSelector, ItemTemplate, then implicit DataTemplate")
+aero_require_text(
+    "include/Aero/Data/CollectionView.hpp"
+    "public Collections::IItemsSource"
+    "CollectionView must implement IItemsSource")
+aero_require_text(
+    "include/Aero/Data/CollectionViewSource.hpp"
+    "GetDefaultView"
+    "CollectionViewSource must cache GetDefaultView")
+aero_require_text(
+    "include/Aero/Controls/Primitives/Selector.hpp"
+    "IsSynchronizedWithCurrentItemProperty"
+    "Selector must expose IsSynchronizedWithCurrentItem")
+aero_require_text(
+    "src/gui/controls/Selection.cpp"
+    "const std::uint32_t firstGeneratedIndex =\n        generator->GetFirstGeneratedIndex();"
+    "SyncContainers must map generated slots through firstGeneratedIndex_")
 aero_forbid_text(
     "include/Aero/Media/Transform3D.hpp"
     ": public Animatable"

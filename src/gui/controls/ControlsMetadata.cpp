@@ -18,6 +18,8 @@
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/HierarchicalDataTemplate.hpp>
 #include <Aero/DataTemplateSelector.hpp>
+#include <Aero/Data/CollectionView.hpp>
+#include <Aero/Data/CollectionViewSource.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>

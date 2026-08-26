@@ -171,6 +171,10 @@ protected:
     virtual void ClearContainer(
         FrameworkElement& container) noexcept;
     virtual void OnContainersChanged() noexcept {}
+    virtual void OnItemsSourceCoreChanged() noexcept {}
+    Collections::IItemsSource* GetItemsSourceCore() const noexcept {
+        return source_;
+    }
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
 
