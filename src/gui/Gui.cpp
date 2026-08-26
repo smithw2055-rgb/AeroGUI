@@ -7,6 +7,7 @@
 #include <Aero/Media/FontProvider.hpp>
 #include <Aero/ViewOptions.hpp>
 #include "gui/GuiData.hpp"
+#include "gui/ViewState.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>
 
 #include <new>
@@ -14,17 +15,6 @@
 
 
 namespace Aero {
-
-Base::Result<Base::ResourceUri> BuiltInThemeUri(
-    Base::StringView name) noexcept {
-    Base::String text;
-    Base::Result<void> assigned = text.Assign(
-        Base::StringView("pack://application:,,,/Aero.Themes;component/"));
-    if (!assigned) return assigned.GetStatus();
-    Base::Result<void> appended = text.Append(name);
-    if (!appended) return appended.GetStatus();
-    return Base::ResourceUri::Parse(text.View());
-}
 
 Base::Result<void> RegisterDefaultXamlProviders(
     Markup::XamlProviderRegistry& providers,
