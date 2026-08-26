@@ -28,6 +28,7 @@
 #include <Aero/Controls/ButtonBase.hpp>
 #include <Aero/Controls/ToggleButton.hpp>
 #include <Aero/FrameworkContentElement.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/Media/Animation.hpp>
 #include <Aero/Media/Animation/EventTrigger.hpp>
@@ -1638,6 +1639,41 @@ Base::Result<Meta::PropertyValue> ConvertDynamicResourceValue(
     return value;
 }
 
+Base::Result<Meta::PropertyValue> MissingDynamicResourceValue(
+    ::Aero::DependencyObject& object,
+    const Meta::DependencyProperty* descriptor) noexcept {
+    if (descriptor != nullptr) {
+        const Meta::PropertyMetadata* metadata =
+            descriptor->MetadataFor(object.RuntimeType());
+        if (metadata == nullptr) {
+            metadata = descriptor->MetadataFor(
+                descriptor->RegisteredOwnerType());
+        }
+        if (metadata != nullptr && !metadata->defaultValue.IsUnset()) {
+            return metadata->defaultValue;
+        }
+        if (descriptor->ValueType() == Meta::TypeOf<Base::String>()) {
+            Base::Result<Meta::PropertyValue> empty =
+                Meta::PropertyValue::TryFromString(
+                    descriptor->ValueType(), Base::StringView{});
+            if (empty) {
+                return empty;
+            }
+        }
+        return Meta::PropertyValue::NullObject(descriptor->ValueType());
+    }
+    return Meta::PropertyValue::NullObject(
+        Meta::TypeOf<Base::Object>());
+}
+
+Base::Result<Meta::PropertyValue> ConvertLookedUpDynamicResource(
+    const Aero::ResourceValue& resource,
+    const Meta::DependencyProperty* descriptor) noexcept {
+    return descriptor != nullptr
+        ? ConvertDynamicResourceValue(resource, *descriptor)
+        : Base::Result<Meta::PropertyValue>(resource);
+}
+
 Base::Result<Meta::PropertyValue> EvaluateDynamicResource(
     void* context,
     ::Aero::DependencyObject& object,
@@ -1646,7 +1682,7 @@ Base::Result<Meta::PropertyValue> EvaluateDynamicResource(
     const Meta::DependencyProperty* descriptor =
         object.PropertyRegistry().Find(property);
     if (descriptor != nullptr) property = descriptor->Handle();
-    if (state == nullptr || state->sources.Empty() ||
+    if (state == nullptr ||
         state->target != &object || state->property != property) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1660,19 +1696,31 @@ Base::Result<Meta::PropertyValue> EvaluateDynamicResource(
         Base::Result<Aero::ResourceValue> resource =
             source.resources.Lookup(state->key.View());
         if (resource) {
-            return descriptor != nullptr
-                ? ConvertDynamicResourceValue(
-                      resource.Value(), *descriptor)
-                : Base::Result<Meta::PropertyValue>(resource.Value());
+            return ConvertLookedUpDynamicResource(
+                resource.Value(), descriptor);
         }
         if (resource.GetStatus().code !=
             Base::ErrorCode::NotFound) {
             return resource.GetStatus();
         }
     }
-    return Base::Status::Failure(
-        Base::ErrorCode::NotFound,
-        "DynamicResource key is not available in the active resource chain");
+    FrameworkElement* element =
+        ::Aero::TryCast<FrameworkElement>(&object);
+    if (element != nullptr) {
+        Base::Result<Aero::ResourceValue> resource =
+            element->FindResource(state->key.View());
+        if (resource) {
+            return ConvertLookedUpDynamicResource(
+                resource.Value(), descriptor);
+        }
+        if (resource.GetStatus().code !=
+            Base::ErrorCode::NotFound) {
+            return resource.GetStatus();
+        }
+    }
+    // WPF DynamicResource does not fail the tree when the key is still
+    // absent; the target keeps its default until a later resource change.
+    return MissingDynamicResourceValue(object, descriptor);
 }
 
 void ResourceChanged(
@@ -1824,31 +1872,31 @@ Base::Result<Meta::PropertyExpression> DynamicResource::CreateExpression(
     Meta::DependencyPropertyHandle property,
     Base::StringView key) noexcept {
     const Base::StringView normalizedKey = TrimDynamicResourceText(key);
-    if (!property.IsValid() || normalizedKey.Empty() ||
-        (resourceChain.Empty() &&
-         fallbackResources == nullptr)) {
+    if (!property.IsValid() || normalizedKey.Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "DynamicResource requires resources, a target property, and a non-empty key");
+            "DynamicResource requires a target property and a non-empty key");
     }
-    Base::Result<Aero::ResourceValue> existing =
-        Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "DynamicResource key is not available");
     for (const ResourceDictionary* resources :
          resourceChain) {
         if (resources == nullptr) continue;
-        existing = resources->Lookup(normalizedKey);
-        if (existing ||
+        Base::Result<Aero::ResourceValue> existing =
+            resources->Lookup(normalizedKey);
+        if (!existing &&
             existing.GetStatus().code !=
                 Base::ErrorCode::NotFound) {
-            break;
+            return existing.GetStatus();
         }
     }
-    if (!existing && fallbackResources != nullptr) {
-        existing = fallbackResources->Lookup(normalizedKey);
+    if (fallbackResources != nullptr) {
+        Base::Result<Aero::ResourceValue> existing =
+            fallbackResources->Lookup(normalizedKey);
+        if (!existing &&
+            existing.GetStatus().code !=
+                Base::ErrorCode::NotFound) {
+            return existing.GetStatus();
+        }
     }
-    if (!existing) return existing.GetStatus();
 
     Base::IAllocator* stateAllocator = &Base::GetDefaultAllocator();
     void* memory = stateAllocator->Allocate({
@@ -1918,6 +1966,17 @@ Base::Result<Meta::PropertyExpression> DynamicResource::CreateExpression(
     if (!assigned) {
         CleanupDynamicResource(state);
         return assigned.GetStatus();
+    }
+    FrameworkElement* current =
+        ::Aero::TryCast<FrameworkElement>(&target);
+    while (current != nullptr) {
+        assigned = subscribe(&current->GetResources());
+        if (!assigned) {
+            CleanupDynamicResource(state);
+            return assigned.GetStatus();
+        }
+        current = ::Aero::TryCast<FrameworkElement>(
+            current->GetLogicalParent());
     }
 
     return Meta::PropertyExpression{
