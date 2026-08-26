@@ -71,6 +71,16 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Controls/TextBlock.hpp"
         "include/Aero/Controls/TextBoxBase.hpp"
         "include/Aero/Controls/TextBox.hpp"
+        "include/Aero/Controls/Primitives.hpp"
+        "include/Aero/Controls/Primitives/Thumb.hpp"
+        "include/Aero/Controls/Primitives/Track.hpp"
+        "include/Aero/Controls/Primitives/RangeBase.hpp"
+        "include/Aero/Controls/Primitives/ScrollBar.hpp"
+        "include/Aero/Controls/Primitives/TickBar.hpp"
+        "include/Aero/Controls/RangeBase.hpp"
+        "include/Aero/Controls/Slider.hpp"
+        "include/Aero/Controls/ProgressBar.hpp"
+        "include/Aero/Controls/GridSplitter.hpp"
         "include/Aero/Data/Binding.hpp"
         "include/Aero/Resources.hpp"
         "include/Aero/Style.hpp"
@@ -1081,6 +1091,38 @@ aero_require_text(
     "include/Aero/Controls/Button.hpp"
     "class AERO_GUI_API Button"
     "Button.hpp must own the Button declaration")
+aero_require_text(
+    "include/Aero/FrameworkElement.hpp"
+    "Result<ResourceValue> FindResource(const ResourceKey& key) const noexcept"
+    "FrameworkElement must expose WPF-shaped FindResource")
+aero_require_text(
+    "include/Aero/FrameworkElement.hpp"
+    "Result<ResourceValue> TryFindResource(const ResourceKey& key) const noexcept"
+    "FrameworkElement must expose WPF-shaped TryFindResource")
+aero_forbid_text(
+    "include/Aero/Controls/RangeBase.hpp"
+    "class AERO_GUI_API Slider"
+    "RangeBase.hpp must not declare Slider; use Controls/Slider.hpp")
+aero_forbid_text(
+    "include/Aero/Controls/RangeBase.hpp"
+    "class AERO_GUI_API Thumb"
+    "RangeBase.hpp must not declare Thumb; use Primitives/Thumb.hpp")
+aero_forbid_text(
+    "include/Aero/Controls/RangeBase.hpp"
+    "class AERO_GUI_API ProgressBar"
+    "RangeBase.hpp must not declare ProgressBar; use Controls/ProgressBar.hpp")
+aero_forbid_text(
+    "include/Aero/Controls/RangeBase.hpp"
+    "class AERO_GUI_API GridSplitter"
+    "RangeBase.hpp must not declare GridSplitter; use Controls/GridSplitter.hpp")
+aero_forbid_text(
+    "include/Aero/Controls/RangeBase.hpp"
+    "class AERO_GUI_API ScrollBar"
+    "RangeBase.hpp must not declare ScrollBar; use Primitives/ScrollBar.hpp")
+aero_require_text(
+    "include/Aero/Controls.hpp"
+    "#include <Aero/Controls/Slider.hpp>"
+    "Controls.hpp must include the split Slider header")
 aero_forbid_file("include/Aero/Gui/Primitives.hpp")
 aero_forbid_text(
     "include/Aero/Controls/ControlTemplate.hpp"
@@ -1119,6 +1161,14 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Controls/ListView.hpp|class AERO_GUI_API ListView"
         "include/Aero/Controls/TreeView.hpp|class AERO_GUI_API TreeView"
         "include/Aero/Controls/TextBox.hpp|class AERO_GUI_API TextBox"
+        "include/Aero/Controls/Primitives/Thumb.hpp|class AERO_GUI_API Thumb"
+        "include/Aero/Controls/Primitives/Track.hpp|class AERO_GUI_API Track"
+        "include/Aero/Controls/Primitives/RangeBase.hpp|class AERO_GUI_API RangeBase"
+        "include/Aero/Controls/Primitives/ScrollBar.hpp|class AERO_GUI_API ScrollBar"
+        "include/Aero/Controls/Primitives/TickBar.hpp|class AERO_GUI_API TickBar"
+        "include/Aero/Controls/Slider.hpp|class AERO_GUI_API Slider"
+        "include/Aero/Controls/ProgressBar.hpp|class AERO_GUI_API ProgressBar"
+        "include/Aero/Controls/GridSplitter.hpp|class AERO_GUI_API GridSplitter"
         "include/Aero/VisualStateManager.hpp|class AERO_GUI_API VisualStateManager"
         "include/Aero/FrameworkTemplate.hpp|class AERO_GUI_API FrameworkTemplate"
         "include/Aero/Media/CompositionTarget.hpp|class AERO_GUI_API CompositionTarget")

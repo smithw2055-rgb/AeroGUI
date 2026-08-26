@@ -96,6 +96,10 @@ public:
     T* FindName(StringView name) noexcept {
         return static_cast<T*>(FindNameObject(name, T::StaticTypeId()));
     }
+    Result<ResourceValue> FindResource(const ResourceKey& key) const noexcept;
+    Result<ResourceValue> FindResource(StringView key) const noexcept;
+    Result<ResourceValue> TryFindResource(const ResourceKey& key) const noexcept;
+    Result<ResourceValue> TryFindResource(StringView key) const noexcept;
     ResourceDictionary& GetResources() noexcept {
         return resources_;
     }

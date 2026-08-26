@@ -16,7 +16,10 @@
 #include <Aero/Controls/CheckBox.hpp>
 #include <Aero/Controls/RadioButton.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
-#include <Aero/Controls/RangeBase.hpp>
+#include <Aero/Controls/Primitives.hpp>
+#include <Aero/Controls/Slider.hpp>
+#include <Aero/Controls/ProgressBar.hpp>
+#include <Aero/Controls/GridSplitter.hpp>
 #include <Aero/Controls/ItemsControl.hpp>
 #include <Aero/Controls/ItemCollection.hpp>
 #include <Aero/Controls/AlternationConverter.hpp>

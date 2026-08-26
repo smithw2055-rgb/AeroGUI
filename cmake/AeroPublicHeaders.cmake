@@ -146,7 +146,16 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/TextFormatting.hpp
     include/Aero/Controls/Decorator.hpp
     include/Aero/Controls/ContentPresenter.hpp
+    include/Aero/Controls/Primitives.hpp
+    include/Aero/Controls/Primitives/Thumb.hpp
+    include/Aero/Controls/Primitives/Track.hpp
+    include/Aero/Controls/Primitives/RangeBase.hpp
+    include/Aero/Controls/Primitives/ScrollBar.hpp
+    include/Aero/Controls/Primitives/TickBar.hpp
     include/Aero/Controls/RangeBase.hpp
+    include/Aero/Controls/Slider.hpp
+    include/Aero/Controls/ProgressBar.hpp
+    include/Aero/Controls/GridSplitter.hpp
     include/Aero/Controls/Popup.hpp
     include/Aero/Controls/HeaderedContentControl.hpp
     include/Aero/Controls/VirtualizingStackPanel.hpp

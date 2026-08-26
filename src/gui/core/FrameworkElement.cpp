@@ -15,6 +15,7 @@
 #include "gui/input/InputState.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/meta/MetadataState.hpp"
+#include "gui/controls/ControlBehavior.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -242,6 +243,75 @@ Base::Object* FrameworkElement::FindNameObject(
 Base::Object* FrameworkElement::FindName(
     Base::StringView name) noexcept {
     return FindNameObject(name, Meta::InvalidTypeId);
+}
+
+namespace {
+
+const ResourceDictionary* TemplateResourcesFor(
+    const FrameworkElement& element) noexcept {
+    const DependencyObject* templated = element.GetTemplatedParent();
+    if (templated == nullptr) {
+        return nullptr;
+    }
+    const auto& control =
+        *static_cast<const Controls::Control*>(templated);
+    Controls::TemplateEngine* templates =
+        AeroGuiInternal::TemplatesOf(control);
+    if (templates == nullptr) {
+        return nullptr;
+    }
+    const Controls::TemplateHandle handle =
+        templates->AppliedHandle(control);
+    if (!handle.IsValid()) {
+        return nullptr;
+    }
+    const Controls::ControlTemplate* plan =
+        templates->AppliedTemplate(handle);
+    return plan != nullptr ? &plan->GetResources() : nullptr;
+}
+
+} // namespace
+
+Result<ResourceValue> FrameworkElement::FindResource(
+    const ResourceKey& key) const noexcept {
+    return ResourceResolver::Lookup(
+        this,
+        key,
+        TemplateResourcesFor(*this),
+        AeroGuiInternal::ResourceEnvironmentOf(*this));
+}
+
+Result<ResourceValue> FrameworkElement::FindResource(
+    StringView key) const noexcept {
+    return ResourceResolver::Lookup(
+        this,
+        key,
+        TemplateResourcesFor(*this),
+        AeroGuiInternal::ResourceEnvironmentOf(*this));
+}
+
+Result<ResourceValue> FrameworkElement::TryFindResource(
+    const ResourceKey& key) const noexcept {
+    Result<ResourceValue> found = FindResource(key);
+    if (found) {
+        return found;
+    }
+    if (found.GetStatus().code == Base::ErrorCode::NotFound) {
+        return ResourceValue{};
+    }
+    return found.GetStatus();
+}
+
+Result<ResourceValue> FrameworkElement::TryFindResource(
+    StringView key) const noexcept {
+    Result<ResourceValue> found = FindResource(key);
+    if (found) {
+        return found;
+    }
+    if (found.GetStatus().code == Base::ErrorCode::NotFound) {
+        return ResourceValue{};
+    }
+    return found.GetStatus();
 }
 FrameworkElement* FrameworkElementChildRange::Iterator::operator*() const noexcept {
     ::Aero::Media::Visual* child = owner_ != nullptr ? ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_) : nullptr;

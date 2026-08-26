@@ -416,6 +416,7 @@ Base::Result<void> ViewState::CreateUiEngines() noexcept {
             if (controlBehaviors != nullptr) {
                 tree->SetControlBehaviors(controlBehaviors);
             }
+            tree->AttachResourceEnvironment(ResourceEnvironment());
             tree->SetNameScope(this, &ViewState::FindNameForElement);
         }
         status = AllocateObject(*allocator, Base::MemoryTag::Ui, overlays, *this);
@@ -666,6 +667,7 @@ void ViewState::DestroyUiEngines() noexcept {
             tree->SetTextLayout(nullptr);
             tree->SetMeshResources(nullptr);
             tree->SetControlBehaviors(nullptr);
+            tree->AttachResourceEnvironment({});
             tree->SetNameScope(nullptr, nullptr);
         }
         FreeObject(*allocator, Base::MemoryTag::Ui, overlays);

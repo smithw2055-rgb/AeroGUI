@@ -67,6 +67,11 @@
         ElementTree* tree = element.GetTree();
         return tree != nullptr ? tree->FindName(name, expectedType) : nullptr;
     }
+    static ResourceEnvironment ResourceEnvironmentOf(
+        const FrameworkElement& element) noexcept {
+        ElementTree* tree = Tree(element);
+        return tree != nullptr ? tree->ResourceEnvironment() : ResourceEnvironment{};
+    }
     static void* TemplateRuntime(const ::Aero::Media::Visual& visual) noexcept {
         return static_cast<void*>(TemplatesOf(visual));
     }

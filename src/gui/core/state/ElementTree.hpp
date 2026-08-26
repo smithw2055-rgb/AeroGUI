@@ -45,6 +45,7 @@ struct VisualLease {
 
 #include <Aero/Threading.hpp>
 #include <Aero/Layout.hpp>
+#include <Aero/Resources.hpp>
 #include <Aero/Visual.hpp>
 #include <Aero/UIElement.hpp>
 
@@ -149,6 +150,13 @@ public:
         ::Aero::Render::RenderTree* renderer) noexcept {
         layout_ = layout;
         renderer_ = renderer;
+    }
+    void AttachResourceEnvironment(
+        const ResourceEnvironment& environment) noexcept {
+        resourceEnvironment_ = environment;
+    }
+    const ResourceEnvironment& ResourceEnvironment() const noexcept {
+        return resourceEnvironment_;
     }
 
     Base::Result<Aero::ElementAttachment> AttachElement(
@@ -289,6 +297,7 @@ private:
     Controls::TextBlockLayout* textLayout_ = nullptr;
     Controls::ControlBehavior* controlBehaviors_ = nullptr;
     Render::MeshResources* meshResources_ = nullptr;
+    Aero::ResourceEnvironment resourceEnvironment_{};
     void* nameScopeContext_ = nullptr;
     FindNameFn findName_ = nullptr;
     ::Aero::Media::Visual* root_ = nullptr;
