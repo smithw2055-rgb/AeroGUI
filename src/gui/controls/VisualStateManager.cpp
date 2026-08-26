@@ -6,6 +6,8 @@
 #include "gui/styles/StyleState.hpp"
 #include "gui/controls/State.hpp"
 #include "gui/templates/TemplateState.hpp"
+#include "gui/controls/VisualStateManagerImpl.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 
 #include <Aero/Value.hpp>
 #include <Aero/Media/Transforms.hpp>
@@ -489,118 +491,6 @@ Aero::Media::Animation::Model::TimelineTiming ComposeTiming(
 } // namespace
 
 } // namespace Aero
-
-namespace Aero::Controls {
-
-class VisualStateManagerImpl {
-public:
-    VisualStateManagerImpl(
-        EffectiveValueEngine& values,
-        TemplateEngine& templates,
-        Aero::AnimationEngine& animations,
-        DependencyPropertyRegistry& properties) noexcept
-        : values_(&values),
-          templates_(&templates),
-          animations_(&animations),
-          properties_(&properties) {}
-
-    Base::Result<bool> GoToState(
-        Control& control,
-        Base::StringView groupName,
-        Base::StringView stateName,
-        bool useTransitions) noexcept;
-    Base::Result<bool> ClearState(
-        Control& control,
-        Base::StringView groupName) noexcept;
-    Base::Result<std::uint32_t> Clear(Control& control) noexcept;
-    Base::StringView CurrentState(
-        const Control& control,
-        Base::StringView groupName) const noexcept;
-
-private:
-    struct ActiveGroup {
-        std::uint64_t templateValue = 0U;
-        Base::String groupName;
-        Base::String stateName;
-        Base::Vector<Aero::Media::Animation::Model::AnimationHandle> animations;
-        std::uint32_t providerOrigin = 0U;
-        std::uint32_t nextOrdinal = 0U;
-    };
-
-    struct TransitionValue {
-        DependencyObject* target = nullptr;
-        DependencyPropertyHandle property;
-        PropertyValue from;
-        PropertyValue to;
-    };
-
-    EffectiveValueEngine* values_ = nullptr;
-    TemplateEngine* templates_ = nullptr;
-    Aero::AnimationEngine* animations_ = nullptr;
-    DependencyPropertyRegistry* properties_ = nullptr;
-    Base::Vector<ActiveGroup> active_;
-
-    std::uint32_t FindActive(
-        TemplateHandle handle,
-        Base::StringView groupName) const noexcept;
-    static const VisualStateGroupPlan* FindGroup(
-        const ControlTemplate& plan,
-        Base::StringView groupName) noexcept;
-    static const VisualStatePlan* FindState(
-        const VisualStateGroupPlan& group,
-        Base::StringView stateName) noexcept;
-    static const VisualTransitionPlan* FindTransition(
-        const VisualStateGroupPlan& group,
-        Base::StringView fromState,
-        Base::StringView toState) noexcept;
-    Base::Result<void> ApplyState(
-        TemplateHandle handle,
-        const VisualStatePlan& state,
-        ActiveGroup& active) noexcept;
-    Base::Result<void> ClearStateValues(
-        TemplateHandle handle,
-        const VisualStatePlan& state,
-        ActiveGroup& active) noexcept;
-    Base::Result<void> StartStateAnimations(
-        Control& control,
-        TemplateHandle handle,
-        const VisualStatePlan& state,
-        ActiveGroup& active,
-        const Aero::Media::Animation::Model::TimelineTiming& parent = {}) noexcept;
-    Base::Result<void> StartStoryboardAnimations(
-        Control& control,
-        TemplateHandle handle,
-        Media::Animation::Storyboard& storyboard,
-        ActiveGroup& active,
-        const Aero::Media::Animation::Model::TimelineTiming& parent = {}) noexcept;
-    Base::Result<void> CaptureTransitionValues(
-        TemplateHandle handle,
-        const VisualStatePlan& next,
-        Base::Vector<TransitionValue>& values) noexcept;
-    Base::Result<void> CaptureStoryboardTransitionValues(
-        Control& control,
-        TemplateHandle handle,
-        const VisualStatePlan& next,
-        Base::Vector<TransitionValue>& values) noexcept;
-    static Base::Result<void> CaptureStoryboardTimeline(
-        Control& control,
-        TemplateHandle handle,
-        TemplateEngine& templates,
-        DependencyPropertyRegistry& properties,
-        Media::Animation::Timeline& timeline,
-        Base::Vector<TransitionValue>& values) noexcept;
-    Base::Result<void> StartTransitionAnimations(
-        Control& control,
-        TemplateHandle handle,
-        const VisualTransitionPlan& transition,
-        Base::Span<const TransitionValue> values,
-        ActiveGroup& active) noexcept;
-    Base::Result<void> ClearStateAnimations(ActiveGroup& active) noexcept;
-    void PruneStale() noexcept;
-    void RemoveActiveAt(std::uint32_t index) noexcept;
-};
-
-} // namespace Aero::Controls
 
 namespace Aero {
 using Aero::Controls::TemplateEngine;
@@ -1671,8 +1561,11 @@ bool VisualStateManager::GoToState(
     auto* manager = static_cast<VisualStateManager*>(
         AeroGuiInternal::VisualStateRuntime(control));
     if (manager == nullptr) return false;
-    Base::Result<bool> changed = Controls::TemplatePrivate::GoToState(
-        *manager, control, {}, stateName, useTransitions);
+    auto* runtime = static_cast<Controls::VisualStateManagerImpl*>(
+        VisualStateManagerRuntime::Runtime(*manager));
+    if (runtime == nullptr) return false;
+    Base::Result<bool> changed = runtime->GoToState(
+        control, {}, stateName, useTransitions);
     return changed && changed.Value();
 }
 
@@ -1681,53 +1574,52 @@ VisualStateManager::~VisualStateManager() noexcept {
     impl_ = nullptr;
 }
 
-} // namespace Aero
-
-namespace Aero::Controls {
-
-using namespace ::Aero;
-using namespace ::Aero::Meta;
-using namespace ::Aero::Controls;
-using namespace ::Aero::Controls;
-
-Base::Result<bool> TemplatePrivate::GoToState(
-    VisualStateManager& manager, Control& control, Base::StringView groupName, Base::StringView stateName, bool useTransitions) noexcept {
-    auto* runtime = static_cast<VisualStateManagerImpl*>(
-        VisualStateManagerRuntime::Runtime(manager));
+Base::Result<bool> VisualStateManagerRuntime::GoToState(
+    VisualStateManager& manager,
+    Controls::Control& control,
+    Base::StringView groupName,
+    Base::StringView stateName,
+    bool useTransitions) noexcept {
+    auto* runtime = static_cast<Controls::VisualStateManagerImpl*>(
+        Runtime(manager));
     return runtime != nullptr
         ? runtime->GoToState(control, groupName, stateName, useTransitions)
-        : Base::Result<bool>(Base::Status::Failure(Base::ErrorCode::NotInitialized, "VisualStateManager is not initialized"));
+        : Base::Result<bool>(Base::Status::Failure(
+              Base::ErrorCode::NotInitialized,
+              "VisualStateManager is not initialized"));
 }
 
-Base::Result<bool> TemplatePrivate::ClearState(
-    VisualStateManager& manager, Control& control, Base::StringView groupName) noexcept {
-    auto* runtime = static_cast<VisualStateManagerImpl*>(
-        VisualStateManagerRuntime::Runtime(manager));
-    return runtime != nullptr ? runtime->ClearState(control, groupName) : Base::Result<bool>(false);
+Base::Result<bool> VisualStateManagerRuntime::ClearState(
+    VisualStateManager& manager,
+    Controls::Control& control,
+    Base::StringView groupName) noexcept {
+    auto* runtime = static_cast<Controls::VisualStateManagerImpl*>(
+        Runtime(manager));
+    return runtime != nullptr
+        ? runtime->ClearState(control, groupName)
+        : Base::Result<bool>(false);
 }
 
-Base::Result<std::uint32_t> TemplatePrivate::Clear(
-    VisualStateManager& manager, Control& control) noexcept {
-    auto* runtime = static_cast<VisualStateManagerImpl*>(
-        VisualStateManagerRuntime::Runtime(manager));
-    return runtime != nullptr ? runtime->Clear(control) : Base::Result<std::uint32_t>(0U);
+Base::Result<std::uint32_t> VisualStateManagerRuntime::Clear(
+    VisualStateManager& manager,
+    Controls::Control& control) noexcept {
+    auto* runtime = static_cast<Controls::VisualStateManagerImpl*>(
+        Runtime(manager));
+    return runtime != nullptr
+        ? runtime->Clear(control)
+        : Base::Result<std::uint32_t>(0U);
 }
 
-Base::StringView TemplatePrivate::GetCurrentState(
-    const VisualStateManager& manager, const Control& control, Base::StringView groupName) noexcept {
-    auto* runtime = static_cast<const VisualStateManagerImpl*>(
-        VisualStateManagerRuntime::Runtime(manager));
-    return runtime != nullptr ? runtime->CurrentState(control, groupName) : Base::StringView{};
+Base::StringView VisualStateManagerRuntime::CurrentState(
+    const VisualStateManager& manager,
+    const Controls::Control& control,
+    Base::StringView groupName) noexcept {
+    auto* runtime = static_cast<const Controls::VisualStateManagerImpl*>(
+        Runtime(manager));
+    return runtime != nullptr
+        ? runtime->CurrentState(control, groupName)
+        : Base::StringView{};
 }
 
-Base::Result<VisualStateManager*>
-TemplatePrivate::Create(
-    Meta::EffectiveValueEngine& values,
-    TemplateEngine& templates,
-    Aero::AnimationEngine& animations,
-    Meta::DependencyPropertyRegistry& properties) noexcept {
-    return VisualStateManagerRuntime::Create(
-        values, templates, animations, properties);
-}
+} // namespace Aero
 
-} // namespace Aero::Controls

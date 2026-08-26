@@ -430,10 +430,18 @@ foreach(required_source_entry IN ITEMS
         "src/render/RenderTree.cpp"
         "src/gui/ViewRenderer.cpp"
         "src/gui/media/StoryboardHost.cpp"
+        "src/gui/media/StoryboardHost.Actions.cpp"
+        "src/gui/media/StoryboardHost.Completions.cpp"
         "src/gui/core/LayoutEngine.cpp"
         "src/gui/data/BindingEngine.hpp"
         "src/gui/styles/StyleEngine.hpp"
         "src/gui/interactivity/InteractivityEngine.cpp"
+        "src/gui/interactivity/InteractivityEngine.Behaviors.cpp"
+        "src/gui/interactivity/InteractivityEngine.Triggers.cpp"
+        "src/gui/interactivity/InteractivityEngine.Style.cpp"
+        "src/gui/interactivity/InteractivityEngine.Events.cpp"
+        "src/gui/controls/VisualStateManager.cpp"
+        "src/gui/controls/VisualStateManagerImpl.hpp"
         "src/gui/markup/ViewDocuments.cpp"
         "src/render/RenderContext.hpp")
     aero_require_file("${required_source_entry}")

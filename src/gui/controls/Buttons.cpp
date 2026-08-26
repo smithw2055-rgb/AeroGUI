@@ -459,7 +459,7 @@ Base::Result<bool> ButtonBehavior::Detach(
     }
     UnsubscribeCommand(record);
     if (states_ != nullptr) {
-        static_cast<void>(Aero::Controls::TemplatePrivate::Clear(*states_, button));
+        static_cast<void>(Aero::VisualStateManagerRuntime::Clear(*states_, button));
     }
     RemoveAt(index);
     return true;
@@ -656,7 +656,7 @@ ButtonBehavior::SyncVisualState(
             Base::StringView state) noexcept
             -> Base::Result<void> {
         Base::Result<bool> changed =
-            Aero::Controls::TemplatePrivate::GoToState(*states_,
+            Aero::VisualStateManagerRuntime::GoToState(*states_,
                 button, group, state,
                 useTransitions);
         if (!changed &&

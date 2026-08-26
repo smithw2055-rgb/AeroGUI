@@ -95,6 +95,10 @@ set(_aero_gui_triggers_sources
 set(_aero_gui_interactivity_sources
     src/gui/interactivity/Interactivity.cpp
     src/gui/interactivity/InteractivityEngine.cpp
+    src/gui/interactivity/InteractivityEngine.Behaviors.cpp
+    src/gui/interactivity/InteractivityEngine.Triggers.cpp
+    src/gui/interactivity/InteractivityEngine.Style.cpp
+    src/gui/interactivity/InteractivityEngine.Events.cpp
     src/gui/interactivity/BlendBehaviors.cpp)
 
 set(_aero_gui_media_sources
@@ -108,7 +112,9 @@ set(_aero_gui_media_sources
     src/gui/media/MediaElement.cpp
     src/gui/media/StbImageImplementation.cpp
     src/gui/media/Transforms.cpp
-    src/gui/media/StoryboardHost.cpp)
+    src/gui/media/StoryboardHost.cpp
+    src/gui/media/StoryboardHost.Actions.cpp
+    src/gui/media/StoryboardHost.Completions.cpp)
 
 set(_aero_gui_controls_sources
     src/gui/controls/RichText.cpp
@@ -131,7 +137,7 @@ set(_aero_gui_controls_sources
     src/gui/controls/TextBox.cpp
     src/gui/controls/Trees.cpp
     src/gui/controls/Virtualization.cpp
-    src/gui/controls/VisualStates.cpp)
+    src/gui/controls/VisualStateManager.cpp)
 
 set(_aero_gui_markup_sources
     src/gui/markup/XamlParser.cpp

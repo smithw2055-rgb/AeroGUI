@@ -414,7 +414,7 @@ bool TreeView::SelectItem(
         static_cast<TreeViewItem*>(previous.Get())->SetIsSelected(false);
         if (states != nullptr) {
             static_cast<void>(
-                Aero::Controls::TemplatePrivate::GoToState(*states,
+                Aero::VisualStateManagerRuntime::GoToState(*states,
                     *static_cast<TreeViewItem*>(
                         previous.Get()),
                     "SelectionStates",
@@ -426,7 +426,7 @@ bool TreeView::SelectItem(
         item->SetIsSelected(true);
         if (states != nullptr) {
             Base::Result<bool> state =
-                Aero::Controls::TemplatePrivate::GoToState(*states,
+                Aero::VisualStateManagerRuntime::GoToState(*states,
                     *item,
                     "SelectionStates",
                     "Selected");
