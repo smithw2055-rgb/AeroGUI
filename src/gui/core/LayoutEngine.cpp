@@ -254,15 +254,23 @@ Base::Result<void> LayoutEngine::SetRoot(
             return InvalidState(
                 "Layout root cannot have a visual or layout parent");
         }
-        Base::Result<void> invalidated = InvalidateMeasure(*root);
-        if (!invalidated) return invalidated.GetStatus();
     }
 
+    // Drop every queued handle without resolving it. The previous tree may
+    // already be unmounted, so walking those VisualHandles would TryCast
+    // dangling nodes (Scoreboard-after-QuestLog sample host SIGSEGV).
+    measureQueue_.Clear();
+    arrangeQueue_.Clear();
     if (root_ != nullptr && root_ != root) {
-        RemoveQueued(*root_);
+        AeroGuiInternal::Layout(*root_).measureQueued = false;
+        AeroGuiInternal::Layout(*root_).arrangeQueued = false;
     }
     root_ = root;
     rootAvailableSize_ = availableSize;
+    if (root != nullptr) {
+        Base::Result<void> invalidated = InvalidateMeasure(*root);
+        if (!invalidated) return invalidated.GetStatus();
+    }
     return {};
 }
 

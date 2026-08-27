@@ -1287,6 +1287,144 @@ private:
     FillRule fillRule_ = FillRule::EvenOdd;
 };
 
+Base::Result<Rect> ScanPathDataBounds(Base::StringView source) noexcept {
+    const char* cursor = source.Data();
+    const char* const end = source.Data() + source.SizeBytes();
+    auto skipSeparators = [&]() noexcept {
+        while (cursor != end) {
+            const char value = *cursor;
+            if (value != ' ' && value != '\t' &&
+                value != '\r' && value != '\n' &&
+                value != ',') {
+                break;
+            }
+            ++cursor;
+        }
+    };
+    auto parseNumber = [&](double& output) noexcept -> Base::Result<void> {
+        skipSeparators();
+        if (cursor == end) {
+            return InvalidPath("Path command is missing a coordinate");
+        }
+        errno = 0;
+        char* parsedEnd = nullptr;
+        output = std::strtod(cursor, &parsedEnd);
+        if (parsedEnd == cursor ||
+            parsedEnd > end ||
+            errno == ERANGE ||
+            !std::isfinite(output)) {
+            return InvalidPath("Path coordinate must be a finite number");
+        }
+        cursor = parsedEnd;
+        return {};
+    };
+
+    bool hasBounds = false;
+    Rect bounds{};
+    Point current{};
+    bool hasCurrent = false;
+    char command = '\0';
+    auto include = [&](Point point) noexcept {
+        if (!hasBounds) {
+            bounds = {point.x, point.y, 0.0, 0.0};
+            hasBounds = true;
+            return;
+        }
+        const double right = std::max(bounds.x + bounds.width, point.x);
+        const double bottom = std::max(bounds.y + bounds.height, point.y);
+        bounds.x = std::min(bounds.x, point.x);
+        bounds.y = std::min(bounds.y, point.y);
+        bounds.width = right - bounds.x;
+        bounds.height = bottom - bounds.y;
+    };
+
+    while (cursor != end) {
+        skipSeparators();
+        if (cursor == end) break;
+        const char next = *cursor;
+        if ((next >= 'A' && next <= 'Z') ||
+            (next >= 'a' && next <= 'z')) {
+            command = next;
+            ++cursor;
+        } else if (command == '\0') {
+            return InvalidPath("Path data must start with a command");
+        }
+        const char absolute =
+            (command >= 'a' && command <= 'z')
+                ? static_cast<char>(command - ('a' - 'A'))
+                : command;
+        const bool relative = command != absolute;
+        if (absolute == 'Z') {
+            continue;
+        }
+        if (absolute == 'H' || absolute == 'V') {
+            if (!hasCurrent) {
+                return InvalidPath(
+                    "Path axis line command requires an active contour");
+            }
+            double value = 0.0;
+            Base::Result<void> parsed = parseNumber(value);
+            if (!parsed) return parsed.GetStatus();
+            Point point = current;
+            if (absolute == 'H') {
+                point.x = relative ? current.x + value : value;
+            } else {
+                point.y = relative ? current.y + value : value;
+            }
+            include(point);
+            current = point;
+            hasCurrent = true;
+            continue;
+        }
+        if (absolute == 'A') {
+            if (!hasCurrent) {
+                return InvalidPath(
+                    "Path arc command requires an active contour");
+            }
+            double rx = 0.0, ry = 0.0, rotation = 0.0, large = 0.0,
+                   sweep = 0.0, x = 0.0, y = 0.0;
+            Base::Result<void> parsed = parseNumber(rx);
+            if (parsed) parsed = parseNumber(ry);
+            if (parsed) parsed = parseNumber(rotation);
+            if (parsed) parsed = parseNumber(large);
+            if (parsed) parsed = parseNumber(sweep);
+            if (parsed) parsed = parseNumber(x);
+            if (parsed) parsed = parseNumber(y);
+            if (!parsed) return parsed.GetStatus();
+            Point endPoint = relative
+                ? Point{current.x + x, current.y + y}
+                : Point{x, y};
+            include(endPoint);
+            include({
+                current.x + (relative ? 0.0 : 0.0) + rx,
+                current.y + ry});
+            current = endPoint;
+            hasCurrent = true;
+            continue;
+        }
+
+        std::uint32_t pairs = 1U;
+        if (absolute == 'C') pairs = 3U;
+        else if (absolute == 'S' || absolute == 'Q') pairs = 2U;
+        for (std::uint32_t pair = 0U; pair < pairs; ++pair) {
+            double x = 0.0, y = 0.0;
+            Base::Result<void> parsed = parseNumber(x);
+            if (parsed) parsed = parseNumber(y);
+            if (!parsed) return parsed.GetStatus();
+            Point point = relative
+                ? Point{current.x + x, current.y + y}
+                : Point{x, y};
+            include(point);
+            current = point;
+            hasCurrent = true;
+        }
+    }
+    if (!hasBounds) {
+        return InvalidPath("Path data does not contain renderable geometry");
+    }
+    return bounds;
+}
+
 } // namespace
 
 Path::Path() noexcept
@@ -1476,6 +1614,10 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
     Base::Ref<Geometry> geometry = GetData();
     if (geometry &&
         geometry->RuntimeType() != StreamGeometry::StaticTypeId()) {
+        if (GetIsMeasuring()) {
+            geometryBounds_ = geometry->GetBounds();
+            return {};
+        }
         bool hasBounds = false;
         Rect bounds{};
         Base::Vector<ContourRecord> contours;
@@ -1500,7 +1642,10 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
         }
         if (hasBounds && !pathPoints_.Empty() && !contours.Empty()) {
             geometryBounds_ = bounds;
-            if (GetFill() && !GetIsMeasuring()) {
+            if (GetIsMeasuring()) {
+                return {};
+            }
+            if (GetFill()) {
                 Base::Result<void> tessellated = TessellateFill(
                     pathPoints_,
                     contours,
@@ -1545,6 +1690,19 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
     }
     if (data.Empty()) {
         geometryDirty_ = false;
+        return {};
+    }
+    // Measure only needs an AABB. Large emblem paths (Scoreboard) have
+    // crashed the scanline tessellator; skip fill meshes for those and
+    // keep geometryDirty_ so modest paths still tessellate on render.
+    constexpr std::uint32_t kMaxTessellatedStreamBytes = 2048U;
+    if (GetIsMeasuring() || data.SizeBytes() > kMaxTessellatedStreamBytes) {
+        Base::Result<Rect> bounds = ScanPathDataBounds(data);
+        if (!bounds) return bounds.GetStatus();
+        geometryBounds_ = bounds.Value();
+        if (!GetIsMeasuring()) {
+            geometryDirty_ = false;
+        }
         return {};
     }
     PolygonPathParser parser(
