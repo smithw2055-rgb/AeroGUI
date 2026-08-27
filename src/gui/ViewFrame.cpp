@@ -594,9 +594,6 @@ Base::Result<void> ViewState::AttachItemGenerator(
             return {};
         }
         Controls::Panel* host = itemsControl.GetItemsHost();
-        fprintf(stderr, "[ATTACHGEN] type=%u hasItemsHost=%d\n",
-            static_cast<unsigned>(itemsControl.RuntimeType()),
-            host != nullptr);
         if (host == nullptr) return {};
 
         Base::Result<Controls::ItemContainerGenerator*> created =
@@ -639,9 +636,6 @@ Base::Result<void> ViewState::AttachItemGenerator(
             delete generator;
             return tracked.GetStatus();
         }
-        fprintf(stderr, "[ATTACHGEN] attached ok type=%u itemCount=%u\n",
-            static_cast<unsigned>(itemsControl.RuntimeType()),
-            itemsControl.GetCount());
         return {};
     }
 

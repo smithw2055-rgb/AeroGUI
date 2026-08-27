@@ -730,6 +730,9 @@ void OnItemsSourceChanged(
     const Base::Ref<Base::Object>& value) noexcept {
     Collections::IItemsSource* source =
         TryCastToInterface<Collections::IItemsSource>(value.Get());
+    if (source == nullptr) {
+        source = Collections::CollectionAsItemsSource(value.Get());
+    }
     AeroGuiInternal::SetItemsSource(
         static_cast<ItemsControl&>(object), source);
 }

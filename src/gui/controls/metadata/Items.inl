@@ -8,6 +8,12 @@ Base::Result<void> PopulateControlsItems(
         .Result();
     if (!status) return status.GetStatus();
 
+    status = Meta::Register<Collections::ObservableCollectionBase>(
+        context, TypeFlags::Abstract)
+        .Implements<Collections::IItemsSource>()
+        .Result();
+    if (!status) return status.GetStatus();
+
     status = Meta::Register<Collections::ObservableObjectCollection>(context)
         .Factory()
         .Implements<Collections::IItemsSource>()

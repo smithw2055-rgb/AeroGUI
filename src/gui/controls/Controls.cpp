@@ -74,6 +74,9 @@ void AeroGuiInternal::SetItemsSource(
     Base::Ref<Base::Object> source) noexcept {
     Collections::IItemsSource* directSource =
         TryCastToInterface<Collections::IItemsSource>(source.Get());
+    if (directSource == nullptr) {
+        directSource = Collections::CollectionAsItemsSource(source.Get());
+    }
     control.SetItemsSourceCore(directSource);
 }
 

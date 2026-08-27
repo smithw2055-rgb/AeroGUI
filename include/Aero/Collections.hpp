@@ -32,12 +32,26 @@ public:
         const ItemsChangedHandler& handler) noexcept = 0;
 };
 
+// Non-template IItemsSource hub. Typed ObservableCollection<T> instances
+// report this TypeId so TryCastToInterface can recover IItemsSource without
+// RTTI. The XAML name "ObservableCollection" stays on the Object
+// specialization below.
+class ObservableCollectionBase :
+    public Base::Object,
+    public IItemsSource {
+    AERO_DECLARE_TYPE(ObservableCollectionBase, Base::Object)
+public:
+    ObservableCollectionBase() noexcept = default;
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+};
+
 // Typed observable collection used by view models and bindings. The untyped
 // XAML name `ObservableCollection` is the Object specialization below.
 template<class T>
 class ObservableCollection :
-    public Base::Object,
-    public IItemsSource {
+    public ObservableCollectionBase {
     static_assert(
         std::is_base_of<Base::Object, T>::value,
         "ObservableCollection<T> requires an Object-derived item type");
@@ -155,7 +169,7 @@ class AERO_GUI_API ObservableObjectCollection :
     public ObservableCollection<Base::Object> {
     AERO_DECLARE_TYPE_NAMED(
         ObservableObjectCollection,
-        Base::Object,
+        ObservableCollectionBase,
         Aero::Meta::AeroNamespaceUri(),
         "ObservableCollection")
 public:
@@ -165,4 +179,45 @@ public:
     }
 };
 
+inline IItemsSource* CollectionAsItemsSource(
+    Base::Object* object) noexcept {
+    if (object == nullptr) {
+        return nullptr;
+    }
+    const Meta::TypeId type = object->RuntimeType();
+    if (type == ObservableCollectionBase::StaticTypeId() ||
+        type == ObservableObjectCollection::StaticTypeId()) {
+        return static_cast<IItemsSource*>(
+            static_cast<ObservableCollectionBase*>(object));
+    }
+    return nullptr;
+}
+
+inline const IItemsSource* CollectionAsItemsSource(
+    const Base::Object* object) noexcept {
+    return CollectionAsItemsSource(const_cast<Base::Object*>(object));
+}
+
 } // namespace Aero::Collections
+
+namespace Aero::Meta {
+
+template<class T>
+struct TypeTraits<::Aero::Collections::ObservableCollection<T>> {
+    static constexpr TypeId Id() noexcept {
+        return ::Aero::Collections::ObservableCollectionBase::StaticTypeId();
+    }
+    static constexpr StringView Namespace() noexcept {
+        return ::Aero::Collections::ObservableCollectionBase::
+            StaticMetadataNamespace();
+    }
+    static constexpr StringView Name() noexcept {
+        return ::Aero::Collections::ObservableCollectionBase::
+            StaticMetadataName();
+    }
+    static constexpr TypeId BaseType() noexcept {
+        return TypeTraits<Base::Object>::Id();
+    }
+};
+
+} // namespace Aero::Meta

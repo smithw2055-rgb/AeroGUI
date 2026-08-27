@@ -535,6 +535,9 @@ Base::Result<Value> BindingPathPlan::GetObject(
             TryCastToInterface<Collections::IItemsSource>(
                 const_cast<Base::Object*>(&object));
         if (items == nullptr) {
+            items = Collections::CollectionAsItemsSource(&object);
+        }
+        if (items == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Binding collection index source does not implement IItemsSource");
@@ -671,6 +674,9 @@ Base::Result<void> BindingPathPlan::SetObject(
     if (segment.kind == BindingPathSegmentKind::CollectionIndex) {
         Collections::IItemsSource* items =
             TryCastToInterface<Collections::IItemsSource>(&object);
+        if (items == nullptr) {
+            items = Collections::CollectionAsItemsSource(&object);
+        }
         auto* writable =
             TryCast<Collections::ObservableObjectCollection>(&object);
         if (items == nullptr && writable == nullptr) {

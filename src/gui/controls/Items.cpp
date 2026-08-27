@@ -1098,8 +1098,6 @@ void ItemsControl::SetItemsSourceCore(
                 sourceHandler_));
     }
     source_ = source;
-    fprintf(stderr, "[SRC] SetItemsSourceCore source=%p count=%u\n",
-        (void*)source, source ? source->GetCount() : 0U);
     PublishItemCount();
     PublishReset();
     OnItemsSourceCoreChanged();
@@ -2407,9 +2405,6 @@ ItemContainerGeneratorRuntime::SetRealizationRangeInternal(
         owner_->GetCount();
     firstIndex = std::min(firstIndex, itemCount);
     count = std::min(count, itemCount - firstIndex);
-    fprintf(stderr,
-        "[REALIZE] first=%u count=%u itemCount=%u force=%d\n",
-        firstIndex, count, itemCount, (int)force);
     if (!force &&
         firstGeneratedIndex_ == firstIndex &&
         records_.Size() == count) {
@@ -2560,11 +2555,6 @@ Base::Result<void> ItemContainerGeneratorRuntime::Refresh() noexcept {
             return error;
         }
     }
-    fprintf(stderr,
-        "[REFRESH] non-virt records=%u hostChildren=%u host=%p\n",
-        records_.Size(),
-        host_ ? AeroGuiInternal::PanelChildCount(*host_) : 0U,
-        (void*)host_);
     return {};
 }
 
@@ -2678,10 +2668,6 @@ Base::Result<void> ItemContainerGeneratorRuntime::ApplyChange(
 void ItemContainerGeneratorRuntime::OnItemsChanged(
     const ItemsChangedEvent& event) noexcept {
     Base::Result<void> applied;
-    fprintf(stderr,
-        "[GEN] OnItemsChanged action=%d vhost=%p ownerCount=%u\n",
-        (int)event.action, (void*)virtualizingHost_,
-        owner_ ? owner_->GetCount() : 0U);
     if (virtualizingHost_ != nullptr &&
         owner_ != nullptr) {
         applied =

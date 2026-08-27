@@ -21,7 +21,12 @@ namespace {
 
 Collections::IItemsSource* AsItemsSource(
     Base::Object* source) noexcept {
-    return TryCastToInterface<Collections::IItemsSource>(source);
+    Collections::IItemsSource* items =
+        TryCastToInterface<Collections::IItemsSource>(source);
+    if (items == nullptr) {
+        items = Collections::CollectionAsItemsSource(source);
+    }
+    return items;
 }
 
 } // namespace

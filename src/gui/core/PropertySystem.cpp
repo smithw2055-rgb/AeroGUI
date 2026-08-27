@@ -70,12 +70,19 @@ Base::Result<Meta::PropertyValue> NormalizeValueForProperty(
         value.Type() != targetType) {
         if (value.IsNullObject()) {
             value = Meta::PropertyValue::NullObject(targetType);
-        } else if (metadata != nullptr && value.AsObject() &&
-                   metadata->Types().IsAssignableFrom(
-                       targetType, value.AsObject()->RuntimeType())) {
-            value = Meta::PropertyValue::FromObject(
-                targetType,
-                Base::Ref<Base::Object>::FromBorrowed(*value.AsObject()));
+        } else if (value.AsObject()) {
+            const Meta::TypeId objectType =
+                value.AsObject()->RuntimeType() != Meta::InvalidTypeId
+                    ? value.AsObject()->RuntimeType()
+                    : value.Type();
+            if (targetType == Meta::TypeOf<Base::Object>() ||
+                (metadata != nullptr &&
+                 metadata->Types().IsAssignableFrom(
+                     targetType, objectType))) {
+                value = Meta::PropertyValue::FromObject(
+                    targetType,
+                    Base::Ref<Base::Object>::FromBorrowed(*value.AsObject()));
+            }
         }
     }
 
@@ -1112,7 +1119,16 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
         for (auto& link : parents_) {
             if (link.Value() != current || link.Key() == nullptr) continue;
             DependencyObject* child = link.Key();
-            if (AeroGuiInternal::FindEntry(*child, property) != nullptr) {
+            const DependencyProperty* registered = registry_->Find(property);
+            const PropertyMetadata* metadata = registered != nullptr
+                ? registered->MetadataFor(child->RuntimeType())
+                : nullptr;
+            const bool inherits = metadata != nullptr &&
+                HasFlag(
+                    metadata->flags,
+                    PropertyMetadataFlags::Inherits);
+            if (inherits ||
+                AeroGuiInternal::FindEntry(*child, property) != nullptr) {
                 Base::Result<void> queued = QueueObjectProperty(*child, property);
                 if (!queued) return queued.GetStatus();
             }
